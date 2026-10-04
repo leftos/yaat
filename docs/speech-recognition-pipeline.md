@@ -409,7 +409,7 @@ depend on LM-Kit and PortAudio native libraries.
 
 Sample capture (`SpeechSampleStore`, `%LOCALAPPDATA%/yaat/speech-samples/<id>/audio.wav + session.json`) is local by default. Speech telemetry adds an automatic upload on top of it.
 
-- **Opt-in.** `MainViewModel.OfferSpeechTelemetryIfDueAsync` shows `SpeechTelemetryOptInDialog` once. It runs the first time STT turns on, from any entry point (`OnIsSpeechEnabledChanged`), and at window open for users who had STT on before the prompt existed. It is gated by `UserPreferences.SpeechTelemetryPromptShown`. The Settings → Speech checkbox changes the choice later, and saving it also marks the prompt shown.
+- **Opt-in.** `MainViewModel.OfferSpeechTelemetryIfDueAsync` shows `SpeechTelemetryOptInDialog` once. It runs the first time STT turns on, from any entry point (`OnIsSpeechEnabledChanged`), and at window open for users who had STT on before the prompt existed. It is gated by `UserPreferences.SpeechTelemetryPromptShown`. The Settings › Speech checkbox changes the choice later, and applying it also marks the prompt shown.
 - **Telemetry implies capture.** `UserPreferences.SetSpeechTelemetryEnabled(true)` forces `SpeechSampleCaptureEnabled` on, and `SetSpeechSampleSettings` cannot turn capture off while telemetry is on.
 - **Queue.** `RecordSession` calls `SpeechSampleStore.Add(..., queueForUpload: SpeechTelemetryEnabled)`, which drops an `upload-pending` marker in the sample folder.
   - Only samples captured while telemetry is on are ever sent.

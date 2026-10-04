@@ -1,0 +1,22 @@
+<UserControl
+  xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:vm="using:Yaat.Client.ViewModels"
+  x:Class="Yaat.Client.Views.Settings.AircraftListSection"
+  x:DataType="vm:SettingsViewModel"
+>
+  <ScrollViewer>
+    <StackPanel Margin="16,8,16,16" Spacing="12">
+      <WrapPanel Orientation="Horizontal">
+        <Button Classes="section-link" Content="Font size → Appearance" Tag="{x:Static vm:SettingsSectionId.Appearance}" />
+        <Button Classes="section-link" Content="Always on top → General" Tag="{x:Static vm:SettingsSectionId.General}" />
+      </WrapPanel>
+      <TextBlock
+        Text="Choose the aircraft list's columns by right-clicking a column header."
+        TextWrapping="Wrap"
+        Foreground="{DynamicResource SubtleTextBrush}"
+        FontSize="11"
+      />
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

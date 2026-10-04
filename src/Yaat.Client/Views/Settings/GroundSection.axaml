@@ -1,0 +1,213 @@
+<UserControl
+  xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:vm="using:Yaat.Client.ViewModels"
+  x:Class="Yaat.Client.Views.Settings.GroundSection"
+  x:DataType="vm:SettingsViewModel"
+>
+  <UserControl.Resources>
+    <vm:HexColorConverter x:Key="HexColorConverter" />
+  </UserControl.Resources>
+  <ScrollViewer>
+    <StackPanel Margin="16,8,16,16" Spacing="12">
+      <WrapPanel Orientation="Horizontal">
+        <Button Classes="section-link" Content="Font sizes → Appearance" Tag="{x:Static vm:SettingsSectionId.Appearance}" />
+        <Button Classes="section-link" Content="Speech bubbles → Radar" Tag="{x:Static vm:SettingsSectionId.Radar}" />
+        <Button Classes="section-link" Content="Scroll sensitivity → Radar" Tag="{x:Static vm:SettingsSectionId.Radar}" />
+        <Button Classes="section-link" Content="Always on top → General" Tag="{x:Static vm:SettingsSectionId.General}" />
+      </WrapPanel>
+      <Border Classes="card">
+        <StackPanel Spacing="12">
+          <TextBlock Text="Ground Display" FontWeight="SemiBold" />
+          <StackPanel Spacing="4">
+            <CheckBox Content="Start with all datablocks hidden" IsChecked="{Binding GroundHideDataBlocksByDefault}" />
+            <TextBlock
+              Text="When enabled, aircraft datablocks on the ground view are hidden by default. Use right-click > Show datablock or middle-click to reveal individual datablocks."
+              TextWrapping="Wrap"
+              Foreground="{DynamicResource SubtleTextBrush}"
+              FontSize="11"
+            />
+            <CheckBox Content="Show taxi route when hovering an aircraft" IsChecked="{Binding GroundShowTaxiRouteOnHover}" />
+            <TextBlock
+              Text="When enabled, moving the mouse over an aircraft on the ground view temporarily draws its taxi route. On by default."
+              TextWrapping="Wrap"
+              Foreground="{DynamicResource SubtleTextBrush}"
+              FontSize="11"
+            />
+            <CheckBox Content="Show all taxiing aircraft's routes" IsChecked="{Binding GroundShowAllTaxiRoutes}" />
+            <TextBlock
+              Text="When enabled, every taxiing aircraft's route is drawn on the ground view by default. Use right-click > Taxi route > Always hide to opt an individual aircraft out."
+              TextWrapping="Wrap"
+              Foreground="{DynamicResource SubtleTextBrush}"
+              FontSize="11"
+            />
+          </StackPanel>
+        </StackPanel>
+      </Border>
+      <Border Classes="card">
+        <StackPanel Spacing="12">
+          <TextBlock Text="Ground View" FontWeight="SemiBold" />
+          <StackPanel Spacing="4">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <TextBlock Text="Background Color:" Foreground="{DynamicResource SubtleTextBrush}" VerticalAlignment="Center" Width="160" />
+              <ColorPicker
+                Color="{Binding GroundBackgroundColor, Converter={StaticResource HexColorConverter}}"
+                IsAlphaEnabled="False"
+                Width="200"
+                HorizontalAlignment="Left"
+              />
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <TextBlock Text="Taxiway Color:" Foreground="{DynamicResource SubtleTextBrush}" VerticalAlignment="Center" Width="160" />
+              <ColorPicker
+                Color="{Binding GroundTaxiwayColor, Converter={StaticResource HexColorConverter}}"
+                IsAlphaEnabled="False"
+                Width="200"
+                HorizontalAlignment="Left"
+              />
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <TextBlock Text="Taxiway Label Color:" Foreground="{DynamicResource SubtleTextBrush}" VerticalAlignment="Center" Width="160" />
+              <ColorPicker
+                Color="{Binding GroundTaxiLabelColor, Converter={StaticResource HexColorConverter}}"
+                IsAlphaEnabled="False"
+                Width="200"
+                HorizontalAlignment="Left"
+              />
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <TextBlock Text="RAMP Edge Color:" Foreground="{DynamicResource SubtleTextBrush}" VerticalAlignment="Center" Width="160" />
+              <ColorPicker
+                Color="{Binding GroundRampEdgeColor, Converter={StaticResource HexColorConverter}}"
+                IsAlphaEnabled="False"
+                Width="200"
+                HorizontalAlignment="Left"
+              />
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <TextBlock Text="Hold Short Color:" Foreground="{DynamicResource SubtleTextBrush}" VerticalAlignment="Center" Width="160" />
+              <ColorPicker
+                Color="{Binding GroundHoldShortColor, Converter={StaticResource HexColorConverter}}"
+                IsAlphaEnabled="False"
+                Width="200"
+                HorizontalAlignment="Left"
+              />
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <TextBlock Text="Runway Fill Color:" Foreground="{DynamicResource SubtleTextBrush}" VerticalAlignment="Center" Width="160" />
+              <ColorPicker
+                Color="{Binding GroundRunwayFillColor, Converter={StaticResource HexColorConverter}}"
+                IsAlphaEnabled="False"
+                Width="200"
+                HorizontalAlignment="Left"
+              />
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <TextBlock Text="Runway Outline Color:" Foreground="{DynamicResource SubtleTextBrush}" VerticalAlignment="Center" Width="160" />
+              <ColorPicker
+                Color="{Binding GroundRunwayOutlineColor, Converter={StaticResource HexColorConverter}}"
+                IsAlphaEnabled="False"
+                Width="200"
+                HorizontalAlignment="Left"
+              />
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <TextBlock Text="Aircraft Color:" Foreground="{DynamicResource SubtleTextBrush}" VerticalAlignment="Center" Width="160" />
+              <ColorPicker
+                Color="{Binding GroundAircraftColor, Converter={StaticResource HexColorConverter}}"
+                IsAlphaEnabled="False"
+                Width="200"
+                HorizontalAlignment="Left"
+              />
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <TextBlock Text="Datablock Text Color:" Foreground="{DynamicResource SubtleTextBrush}" VerticalAlignment="Center" Width="160" />
+              <ColorPicker
+                Color="{Binding GroundDatablockTextColor, Converter={StaticResource HexColorConverter}}"
+                IsAlphaEnabled="False"
+                Width="200"
+                HorizontalAlignment="Left"
+              />
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,0">
+              <TextBlock Text="Brightness:" Foreground="{DynamicResource SubtleTextBrush}" VerticalAlignment="Center" Width="160" />
+              <Slider Value="{Binding GroundBrightness}" Minimum="10" Maximum="100" Width="200" TickFrequency="10" IsSnapToTickEnabled="True" />
+              <TextBlock
+                Text="{Binding GroundBrightness, StringFormat='{}{0}%'}"
+                Foreground="{DynamicResource SubtleTextBrush}"
+                VerticalAlignment="Center"
+                Margin="4,0,0,0"
+              />
+            </StackPanel>
+            <TextBlock
+              Text="Brightness scales the opacity of infrastructure elements (taxiways, runways, nodes) while keeping aircraft at full visibility."
+              TextWrapping="Wrap"
+              Foreground="{DynamicResource SubtleTextBrush}"
+              FontSize="11"
+            />
+            <Separator Margin="0,8" />
+            <TextBlock Text="Layer Brightness" FontWeight="SemiBold" Margin="0,0,0,4" />
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <TextBlock Text="Satellite Image:" Foreground="{DynamicResource SubtleTextBrush}" VerticalAlignment="Center" Width="160" />
+              <Slider
+                Value="{Binding GroundSatelliteImageBrightness}"
+                Minimum="10"
+                Maximum="100"
+                Width="200"
+                TickFrequency="10"
+                IsSnapToTickEnabled="True"
+              />
+              <TextBlock
+                Text="{Binding GroundSatelliteImageBrightness, StringFormat='{}{0}%'}"
+                Foreground="{DynamicResource SubtleTextBrush}"
+                VerticalAlignment="Center"
+                Margin="4,0,0,0"
+              />
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,0">
+              <TextBlock Text="Video Map Overlay:" Foreground="{DynamicResource SubtleTextBrush}" VerticalAlignment="Center" Width="160" />
+              <Slider
+                Value="{Binding GroundVideoMapOverlayBrightness}"
+                Minimum="10"
+                Maximum="100"
+                Width="200"
+                TickFrequency="10"
+                IsSnapToTickEnabled="True"
+              />
+              <TextBlock
+                Text="{Binding GroundVideoMapOverlayBrightness, StringFormat='{}{0}%'}"
+                Foreground="{DynamicResource SubtleTextBrush}"
+                VerticalAlignment="Center"
+                Margin="4,0,0,0"
+              />
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,0">
+              <TextBlock Text="YAAT Layout:" Foreground="{DynamicResource SubtleTextBrush}" VerticalAlignment="Center" Width="160" />
+              <Slider
+                Value="{Binding GroundYaatLayoutBrightness}"
+                Minimum="10"
+                Maximum="100"
+                Width="200"
+                TickFrequency="10"
+                IsSnapToTickEnabled="True"
+              />
+              <TextBlock
+                Text="{Binding GroundYaatLayoutBrightness, StringFormat='{}{0}%'}"
+                Foreground="{DynamicResource SubtleTextBrush}"
+                VerticalAlignment="Center"
+                Margin="4,0,0,0"
+              />
+            </StackPanel>
+            <TextBlock
+              Text="Adjust opacity for each ground view layer independently. Satellite and video map layers come from vNAS tower cab data."
+              TextWrapping="Wrap"
+              Foreground="{DynamicResource SubtleTextBrush}"
+              FontSize="11"
+              Margin="0,4,0,0"
+            />
+          </StackPanel>
+        </StackPanel>
+      </Border>
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

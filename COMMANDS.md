@@ -109,7 +109,7 @@ YAAT uses a unified command scheme that accepts aliases from both ATCTrainer and
 
 The `H` alias is shared: bare `H` (no argument) maps to Fly Present Heading; `H 270` or `H270` maps to Fly Heading. Similarly, `T` is shared: `T30L` is relative left 30°, `T30R` is relative right 30°.
 
-Aliases are fully editable in **Settings > Commands**.
+Aliases are fully editable in **Settings › Command verbs**.
 
 Commands beginning with `.` are client-local — they act on your own displays and are never sent to aircraft. These are YAAT's [scope markers](USER_GUIDE.md#scope-markers) (`.ff`, `.marker`, `.markers`, `.nomarkers`), the [distance measuring tool](USER_GUIDE.md#measuring-distance-and-bearing) (`.rbl`, `.norbl`, with `*T` accepted as the CRC STARS spelling of `.rbl` — `.rbl A B` / `*T A B` draws a radar-view line between two named points, each a fix, an FRD, or a callsign), and any [CRC aliases](USER_GUIDE.md#crc-aliases) read from your CRC installation.
 
@@ -1298,7 +1298,7 @@ This means "the point on the 090 radial from JFK at 20 NM." The fix name must be
 
 If the last fix in the list appears in the aircraft's filed route, the aircraft continues on its filed route from that point.
 
-**Route validation** — When **Validate DCT fixes against route** is enabled in Settings > Scenarios, DCT commands to fixes not in the aircraft's filed route or expected approach are rejected. Use `DCTF` (force direct to) to override. Issue `EAPP` (Expect Approach) first to program approach fixes into the aircraft's route for validation purposes.
+**Route validation** — When **Validate DCT fixes against route** is enabled in Settings › Scenario defaults, DCT commands to fixes not in the aircraft's filed route or expected approach are rejected. Use `DCTF` (force direct to) to override. Issue `EAPP` (Expect Approach) first to program approach fixes into the aircraft's route for validation purposes.
 
 ### Navigation Commands
 
@@ -1576,7 +1576,7 @@ Because of this rule, a single-token global delete like `HSD Ground` is interpre
 | `JRING 3` / `JRING` | Draw a TPA J-Ring of radius 3 NM on **your** radar (1-30 NM); bare `JRING` clears it |
 | `CONE 5` / `CONE` | Draw a TPA Cone of length 5 NM along the target's track on **your** radar (1-30 NM); bare `CONE` clears it |
 
-`JRING` and `CONE` are instructor-only proximity tools that emulate the STARS TPA J-Ring / Cone (`*J` / `*P`) on YAAT's own radar view. They are **never** drawn on the student's CRC scope — the student's automatic ATPA "P-cones" and their own manual TPA graphics are unaffected. The Cone's wedge angle defaults to the CRC-exact 2° and is adjustable under Settings → Display → Overlays.
+`JRING` and `CONE` are instructor-only proximity tools that emulate the STARS TPA J-Ring / Cone (`*J` / `*P`) on YAAT's own radar view. They are **never** drawn on the student's CRC scope — the student's automatic ATPA "P-cones" and their own manual TPA graphics are unaffected. The Cone's wedge angle defaults to the CRC-exact 2° and is adjustable under Settings › Radar › Overlays.
 
 #### vTDLS (Pre-Departure Clearance)
 
@@ -1914,7 +1914,7 @@ The radar / Tower Cab datablock shows a trailing `*` on the callsign while a del
 
 `NODEL` as a bare verb is distinct from the `NODEL` *modifier* on `CLAND` / `LAND` / `TAXI` / `EL` / `ER` / `EXIT`. The modifier sets `AutoDeleteExempt` at the time those commands are issued; the bare verb does the same plus strips every queued delete block.
 
-Both forms also mark the aircraft as kept by the controller, which is the only thing that exempts it from the session's departure auto-delete distance (Settings > *Auto-delete departures beyond (nm)*, or *Delete departures beyond (nm)* in the session flyout). That setting removes an airborne departure from the primary airport once it is farther than the set distance, tracked or not and whatever the arrival auto-delete mode. A plain `AutoDeleteExempt` does not protect it, because spawn sets that flag on every aircraft that starts on the ground.
+Both forms also mark the aircraft as kept by the controller, which is the only thing that exempts it from the session's departure auto-delete distance (Settings › Scenario defaults › *Auto-delete departures beyond (nm)*, or *Delete departures beyond (nm)* in the session flyout). That setting removes an airborne departure from the primary airport once it is farther than the set distance, tracked or not and whatever the arrival auto-delete mode. A plain `AutoDeleteExempt` does not protect it, because spawn sets that flag on every aircraft that starts on the ground.
 
 ### Force Override Commands
 

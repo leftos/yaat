@@ -61,7 +61,7 @@ All client-side, reading `MvaDatabase.Default` + the aircraft snapshot — no se
   toggle is `RadarViewModel.ShowMvaHints` (bound to `RadarCanvas.ShowMvaAltitudeTint`), flipped by the
   **MVA** button on the radar DCB. It is **session state, not persisted**: each scenario load re-seeds it
   from `UserPreferences.GetMvaHintDefault(studentPositionType)` — the four per-type defaults (Approach/
-  Center on, Ground/Tower off) configured in Settings → Display → Overlays. The reset is wired alongside
+  Center on, Ground/Tower off) configured in Settings › Radar › Overlays. The reset is wired alongside
   the auto-cleared-to-land seed in `ApplyScenarioResult` / `OnScenarioLoaded` / the timeline path, **and**
   in `ApplyRoomState` (join). The MVA hint is **user-local**, so a joining RPO seeds it from *their own*
   per-type default — unlike room-shared auto-cleared-to-land, which the joiner inherits from the room. The

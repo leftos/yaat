@@ -1,0 +1,146 @@
+<UserControl
+  xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:vm="using:Yaat.Client.ViewModels"
+  x:Class="Yaat.Client.Views.Settings.KeysSection"
+  x:DataType="vm:SettingsViewModel"
+>
+  <ScrollViewer>
+    <StackPanel Margin="16,8,16,16" Spacing="12">
+      <WrapPanel Orientation="Horizontal">
+        <Button Classes="section-link" Content="Push-to-talk key → Speech" Tag="{x:Static vm:SettingsSectionId.Speech}" />
+        <Button Classes="section-link" Content="Always on top → General" Tag="{x:Static vm:SettingsSectionId.General}" />
+      </WrapPanel>
+      <Border Classes="card">
+        <StackPanel Spacing="12">
+          <TextBlock Text="Keybinds" FontWeight="SemiBold" />
+          <StackPanel Spacing="4">
+            <TextBlock Text="Aircraft Select Key:" Foreground="{DynamicResource SubtleTextBrush}" />
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <Button
+                x:Name="AircraftSelectKeyButton"
+                Classes="key-capture"
+                Content="{Binding AircraftSelectKeyDisplay}"
+                Width="160"
+                HorizontalContentAlignment="Center"
+                Command="{Binding StartKeyCaptureCommand}"
+              />
+              <TextBlock
+                Text="(click, then press a key combo)"
+                Foreground="{DynamicResource SubtleTextBrush}"
+                FontSize="11"
+                VerticalAlignment="Center"
+              />
+            </StackPanel>
+            <TextBlock
+              Text="Pressing this key in the command input selects the aircraft matching the typed callsign without sending a command. Default: Numpad +"
+              TextWrapping="Wrap"
+              Foreground="{DynamicResource SubtleTextBrush}"
+              FontSize="11"
+            />
+          </StackPanel>
+          <StackPanel Spacing="4" Margin="0,8,0,0">
+            <TextBlock Text="Focus Command Input Key:" Foreground="{DynamicResource SubtleTextBrush}" />
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <Button
+                x:Name="FocusInputKeyButton"
+                Classes="key-capture"
+                Content="{Binding FocusInputKeyDisplay}"
+                Width="160"
+                HorizontalContentAlignment="Center"
+                Command="{Binding StartFocusInputKeyCaptureCommand}"
+              />
+              <TextBlock
+                Text="(click, then press a key combo)"
+                Foreground="{DynamicResource SubtleTextBrush}"
+                FontSize="11"
+                VerticalAlignment="Center"
+              />
+            </StackPanel>
+            <TextBlock
+              Text="Pressing this key from anywhere in the app puts focus on the command input. Default: ~ (tilde)"
+              TextWrapping="Wrap"
+              Foreground="{DynamicResource SubtleTextBrush}"
+              FontSize="11"
+            />
+          </StackPanel>
+          <StackPanel Spacing="4" Margin="0,8,0,0">
+            <TextBlock Text="Take Control Key:" Foreground="{DynamicResource SubtleTextBrush}" />
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <Button
+                x:Name="TakeControlKeyButton"
+                Classes="key-capture"
+                Content="{Binding TakeControlKeyDisplay}"
+                Width="160"
+                HorizontalContentAlignment="Center"
+                Command="{Binding StartTakeControlKeyCaptureCommand}"
+              />
+              <TextBlock
+                Text="(click, then press a key combo)"
+                Foreground="{DynamicResource SubtleTextBrush}"
+                FontSize="11"
+                VerticalAlignment="Center"
+              />
+            </StackPanel>
+            <TextBlock
+              Text="Pressing this key combo assigns the selected aircraft to yourself (RPO take control). Default: Ctrl+T"
+              TextWrapping="Wrap"
+              Foreground="{DynamicResource SubtleTextBrush}"
+              FontSize="11"
+            />
+          </StackPanel>
+          <StackPanel Spacing="4" Margin="0,8,0,0">
+            <TextBlock Text="Always on Top Key:" Foreground="{DynamicResource SubtleTextBrush}" />
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <Button
+                x:Name="AlwaysOnTopKeyButton"
+                Classes="key-capture"
+                Content="{Binding AlwaysOnTopKeyDisplay}"
+                Width="160"
+                HorizontalContentAlignment="Center"
+                Command="{Binding StartAlwaysOnTopKeyCaptureCommand}"
+              />
+              <TextBlock
+                Text="(click, then press a key combo)"
+                Foreground="{DynamicResource SubtleTextBrush}"
+                FontSize="11"
+                VerticalAlignment="Center"
+              />
+            </StackPanel>
+            <TextBlock
+              Text="Pressing this key combo toggles always-on-top for the focused pop-out window. Default: Ctrl+Shift+T"
+              TextWrapping="Wrap"
+              Foreground="{DynamicResource SubtleTextBrush}"
+              FontSize="11"
+            />
+          </StackPanel>
+          <StackPanel Spacing="4" Margin="0,8,0,0">
+            <TextBlock Text="Quick Bookmark Key:" Foreground="{DynamicResource SubtleTextBrush}" />
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <Button
+                x:Name="QuickBookmarkKeyButton"
+                Classes="key-capture"
+                Content="{Binding QuickBookmarkKeyDisplay}"
+                Width="160"
+                HorizontalContentAlignment="Center"
+                Command="{Binding StartQuickBookmarkKeyCaptureCommand}"
+              />
+              <TextBlock
+                Text="(click, then press a key combo)"
+                Foreground="{DynamicResource SubtleTextBrush}"
+                FontSize="11"
+                VerticalAlignment="Center"
+              />
+            </StackPanel>
+            <TextBlock
+              Text="Pressing this key combo drops an unnamed bookmark on the timeline at the current position. Default: Ctrl+B"
+              TextWrapping="Wrap"
+              Foreground="{DynamicResource SubtleTextBrush}"
+              FontSize="11"
+            />
+          </StackPanel>
+        </StackPanel>
+      </Border>
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

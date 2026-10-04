@@ -1,0 +1,89 @@
+<UserControl
+  xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:vm="using:Yaat.Client.ViewModels"
+  x:Class="Yaat.Client.Views.Settings.MacrosSection"
+  x:DataType="vm:SettingsViewModel"
+>
+  <DockPanel Margin="12">
+    <TextBlock
+      DockPanel.Dock="Top"
+      TextWrapping="Wrap"
+      Foreground="{DynamicResource SubtleTextBrush}"
+      FontSize="11"
+      Margin="0,0,0,8"
+      Text="Define reusable command shortcuts. Use !NAME to invoke a macro. Inferred params: Name=HC, Expansion=FH &amp;1, CM &amp;2. Explicit params: Name=HC &amp;hdg &amp;alt, Expansion=FH &amp;hdg, CM &amp;alt. Explicit params control argument order."
+    />
+
+    <!-- CRC aliases: read from the installed CRC, invoked with .NAME in the terminal -->
+    <StackPanel DockPanel.Dock="Top" Spacing="4" Margin="0,0,0,12">
+      <TextBlock Text="CRC Aliases" FontWeight="SemiBold" />
+      <TextBlock
+        TextWrapping="Wrap"
+        Foreground="{DynamicResource SubtleTextBrush}"
+        FontSize="11"
+        Text="YAAT reads your CRC alias files and runs .NAME the way CRC does. Same two files CRC uses: your ARTCC's file plus MyAliases.txt. Supported verbs: .echo, .openurl, and the .ff/.marker/.markers/.nomarkers scope markers. Prefix with CRC to reach an alias a YAAT command shadows, e.g. CRC .FF. Type .reloadaliases to re-read the files."
+      />
+      <StackPanel Orientation="Horizontal" Spacing="8">
+        <TextBox Text="{Binding CrcAliasDirectory}" PlaceholderText="Auto-detect the installed CRC" Width="380" />
+        <Button Content="Browse..." x:Name="BrowseCrcAliasDirectoryButton" />
+      </StackPanel>
+      <TextBlock Text="{Binding CrcAliasDirectoryHint}" TextWrapping="Wrap" Foreground="{DynamicResource SubtleTextBrush}" FontSize="11" />
+    </StackPanel>
+
+    <!-- Bottom buttons for macros -->
+    <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Spacing="8" Margin="0,8,0,0">
+      <Button Content="Add Macro" Command="{Binding AddMacroCommand}" />
+      <Button Content="Import..." x:Name="ImportMacrosButton" />
+      <TextBlock
+        Text="{Binding MacroImportNote}"
+        VerticalAlignment="Center"
+        IsVisible="{Binding MacroImportNote, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+        Classes.error="{Binding MacroImportIsError}"
+      >
+        <TextBlock.Styles>
+          <Style Selector="TextBlock">
+            <Setter Property="Foreground" Value="#4EC9B0" />
+          </Style>
+          <Style Selector="TextBlock.error">
+            <Setter Property="Foreground" Value="#F44747" />
+          </Style>
+        </TextBlock.Styles>
+      </TextBlock>
+      <Button Content="Export Selected" x:Name="ExportSelectedMacrosButton" />
+      <Button Content="Export All" x:Name="ExportAllMacrosButton" />
+    </StackPanel>
+
+    <!-- Macro table -->
+    <DataGrid
+      x:Name="MacroDataGrid"
+      ItemsSource="{Binding MacroRows}"
+      AutoGenerateColumns="False"
+      GridLinesVisibility="Horizontal"
+      CanUserResizeColumns="True"
+      CanUserSortColumns="False"
+      SelectionMode="Extended"
+      HeadersVisibility="Column"
+    >
+      <DataGrid.Columns>
+        <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="120" />
+        <DataGridTextColumn Header="Expansion" Binding="{Binding Expansion}" Width="*" />
+        <DataGridTextColumn Header="Preview" Binding="{Binding Preview}" IsReadOnly="True" Width="250" />
+        <DataGridTemplateColumn Header="" Width="40">
+          <DataGridTemplateColumn.CellTemplate>
+            <DataTemplate>
+              <Button
+                Content="X"
+                Command="{Binding RemoveCommand}"
+                Padding="4,0"
+                FontSize="11"
+                VerticalAlignment="Center"
+                HorizontalAlignment="Center"
+              />
+            </DataTemplate>
+          </DataGridTemplateColumn.CellTemplate>
+        </DataGridTemplateColumn>
+      </DataGrid.Columns>
+    </DataGrid>
+  </DockPanel>
+</UserControl>

@@ -36,7 +36,7 @@ Flight strips are also available in any browser at `/vstrips/` on the YAAT serve
 
 Installers keep themselves up to date automatically. Portable archives unzip to a folder containing the executable and its native dependencies — drop the folder on a USB stick or locked-down machine and run it from there. They don't auto-update; grab the next release when you want it. On Linux the AppImage runs without install, so it doubles as the portable form. Either launcher can connect to a hosted YAAT server (ask your instructor for the URL) or a local server you run yourself.
 
-**NVIDIA GPU acceleration** (Windows): the installer ships with Vulkan/CPU support out of the box. Users with an NVIDIA card can opt in to CUDA 13 from Settings → Speech → Acceleration — YAAT downloads the runtime on demand (~534 MB) so the base installer stays small.
+**NVIDIA GPU acceleration** (Windows): the installer ships with Vulkan/CPU support out of the box. Users with an NVIDIA card can opt in to CUDA 13 from Settings › Speech › Acceleration — YAAT downloads the runtime on demand (~534 MB) so the base installer stays small.
 
 See the [Installation Guide](INSTALL.md) for step-by-step instructions. If you want to run a server yourself, build from source, or contribute changes, the same guide covers [Building from source](INSTALL.md#building-from-source).
 

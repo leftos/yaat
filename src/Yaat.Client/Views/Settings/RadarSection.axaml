@@ -1,0 +1,294 @@
+<UserControl
+  xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:vm="using:Yaat.Client.ViewModels"
+  x:Class="Yaat.Client.Views.Settings.RadarSection"
+  x:DataType="vm:SettingsViewModel"
+>
+  <UserControl.Resources>
+    <vm:HexColorConverter x:Key="HexColorConverter" />
+  </UserControl.Resources>
+  <ScrollViewer>
+    <StackPanel Margin="16,8,16,16" Spacing="12">
+      <WrapPanel Orientation="Horizontal">
+        <Button Classes="section-link" Content="Font sizes → Appearance" Tag="{x:Static vm:SettingsSectionId.Appearance}" />
+        <Button Classes="section-link" Content="Always on top → General" Tag="{x:Static vm:SettingsSectionId.General}" />
+      </WrapPanel>
+      <Border Classes="card">
+        <StackPanel Spacing="12">
+          <TextBlock Text="Radar Display" FontWeight="SemiBold" />
+          <StackPanel Spacing="4">
+            <CheckBox Content="EuroScope-style interactive tags" IsChecked="{Binding EuroScopeMode}" />
+            <TextBlock
+              Text="Replaces the STARS/ERAM data block with a EuroScope pseudopilot-style tag layout, and makes individual fields clickable: alt/spd flyouts, scratchpad/handoff/squawk/runway pickers, and a heading-mode cursor preview that draws a turn arc to the hovered point. See docs/euroscope/pseudopilot.md."
+              TextWrapping="Wrap"
+              Foreground="{DynamicResource SubtleTextBrush}"
+              FontSize="11"
+              Margin="28,0,0,0"
+            />
+          </StackPanel>
+          <StackPanel Spacing="4">
+            <CheckBox
+              Content="Flash 'NoLndgClnc' on datablock when approaching final without landing clearance"
+              IsChecked="{Binding FlashNoLandingClearance}"
+            />
+            <TextBlock
+              Text="When the aircraft hits the no-landing-clearance warning point (1 nm from threshold, or 1000 ft above minimums on a published approach), a red 'NoLndgClnc' line flashes on the radar datablock until clearance is granted. Default on."
+              TextWrapping="Wrap"
+              Foreground="{DynamicResource SubtleTextBrush}"
+              FontSize="11"
+              Margin="28,0,0,0"
+            />
+          </StackPanel>
+          <StackPanel Spacing="4">
+            <CheckBox Content="Show conflict alerts (CA) on the radar" IsChecked="{Binding ShowConflictAlerts}" />
+            <TextBlock
+              Text="When two Mode C aircraft come within 3 nm and 1000 ft (or are predicted to within 5 seconds), a red 'CA' field flashes on both datablocks showing current horizontal separation in nautical miles and vertical separation in feet, and a 3 nm ring is drawn around each target. Applies to VFR and untracked traffic too. Default off."
+              TextWrapping="Wrap"
+              Foreground="{DynamicResource SubtleTextBrush}"
+              FontSize="11"
+              Margin="28,0,0,0"
+            />
+          </StackPanel>
+          <StackPanel Spacing="4">
+            <CheckBox Content="Highlight filed-vs-actual aircraft type mismatches" IsChecked="{Binding ShowTypeMismatchHints}" />
+            <TextBlock
+              Text="When an aircraft is physically a different type than its flight plan files (e.g. an A388 filed as a B744), the radar datablock draws the type token amber. Instructor-only — the student's scope shows the filed type either way. The Aircraft List's 'Filed' column shows the same mismatches regardless; hide it via the column chooser."
+              TextWrapping="Wrap"
+              Foreground="{DynamicResource SubtleTextBrush}"
+              FontSize="11"
+              Margin="28,0,0,0"
+            />
+          </StackPanel>
+          <StackPanel Spacing="4">
+            <CheckBox Content="Show ATPA cones and in-trail distance on the radar" IsChecked="{Binding ShowAtpa}" />
+            <TextBlock
+              Text="For an arrival established behind another on the same final, draws the STARS ATPA cone from the trailing aircraft toward its leader, as long as the required in-trail separation, and adds the current in-trail distance to its datablock. Blue while separation is healthy (Monitor), yellow when a loss is predicted (Warning), orange when separation is lost (Alert). An ATPA cone replaces a manual Cone on that track; J-Rings still draw. Default off."
+              TextWrapping="Wrap"
+              Foreground="{DynamicResource SubtleTextBrush}"
+              FontSize="11"
+              Margin="28,0,0,0"
+            />
+          </StackPanel>
+        </StackPanel>
+      </Border>
+      <Border Classes="card">
+        <StackPanel Spacing="12">
+          <TextBlock Text="Student Scope Sync" FontWeight="SemiBold" />
+          <StackPanel Spacing="4">
+            <CheckBox Content="Sync datablock colors to the student's STARS scope" IsChecked="{Binding SyncStudentDatablockColors}" />
+            <TextBlock
+              Text="Colors each datablock the way the student sees it in STARS: white = owned by the student, green = owned by another controller, yellow = pointed out to the student, cyan = highlighted by the student. Default on."
+              TextWrapping="Wrap"
+              Foreground="{DynamicResource SubtleTextBrush}"
+              FontSize="11"
+              Margin="28,0,0,0"
+            />
+            <CheckBox Content="Mark limited datablocks with (LDB) / (PDB)" IsChecked="{Binding MarkStudentLimitedDatablocks}" Margin="0,4,0,0" />
+            <TextBlock
+              Text="Appends (LDB) when the student sees only a limited (unassociated) datablock, and (PDB) when they see a partial datablock owned by another controller, while you keep the full datablock. Default on."
+              TextWrapping="Wrap"
+              Foreground="{DynamicResource SubtleTextBrush}"
+              FontSize="11"
+              Margin="28,0,0,0"
+            />
+            <CheckBox
+              Content="Collapse datablocks to match the student's LDB/PDB/FDB"
+              IsChecked="{Binding CollapseStudentDatablocks}"
+              Margin="0,4,0,0"
+            />
+            <TextBlock
+              Text="Instead of the (LDB)/(PDB) marker, render the reduced datablock the student actually sees — a limited block for unassociated tracks and a partial block for tracks owned by another controller. Default off."
+              TextWrapping="Wrap"
+              Foreground="{DynamicResource SubtleTextBrush}"
+              FontSize="11"
+              Margin="28,0,0,0"
+            />
+            <CheckBox Content="Sync leader-line direction to the student's scope" IsChecked="{Binding SyncStudentLeaderDirection}" Margin="0,4,0,0" />
+            <TextBlock
+              Text="Orients each datablock's leader line in the direction the student set in STARS. Datablocks you have dragged keep their position; use the radar right-click menu's 'Reset to student position' to snap one back. Default off."
+              TextWrapping="Wrap"
+              Foreground="{DynamicResource SubtleTextBrush}"
+              FontSize="11"
+              Margin="28,0,0,0"
+            />
+          </StackPanel>
+        </StackPanel>
+      </Border>
+      <Border Classes="card">
+        <StackPanel Spacing="12">
+          <TextBlock Text="Overlays" FontWeight="SemiBold" />
+          <StackPanel Spacing="4">
+            <TextBlock Text="Tint datablock altitude by MVA (red below, amber at)" FontWeight="SemiBold" Margin="0,0,0,2" />
+            <TextBlock
+              Text="An airborne IFR aircraft's datablock altitude is drawn red when below the FAA-charted Minimum Vectoring Altitude for its position and amber when within 100 ft of it. No indicator outside charted coverage or for VFR (MSAW-inhibited by default). These defaults seed each scenario by the student's position type; toggle live with the MVA button on the Radar DCB."
+              TextWrapping="Wrap"
+              Foreground="{DynamicResource SubtleTextBrush}"
+              FontSize="11"
+              Margin="0,0,0,4"
+            />
+            <StackPanel Orientation="Horizontal" Spacing="16" Margin="12,0,0,0">
+              <CheckBox Content="GND" IsChecked="{Binding MvaHintDefaultGnd}" />
+              <CheckBox Content="TWR" IsChecked="{Binding MvaHintDefaultTwr}" />
+              <CheckBox Content="APP" IsChecked="{Binding MvaHintDefaultApp}" />
+              <CheckBox Content="CTR" IsChecked="{Binding MvaHintDefaultCtr}" />
+            </StackPanel>
+            <CheckBox Content="Show speech bubbles for SAY and pilot transmissions" IsChecked="{Binding ShowSpeechBubbles}" />
+            <TextBlock
+              Text="When enabled, SAY-family verbs (SAY, SALT, SHDG, SPOS, SSPD, SMACH, SEAPP) and RPO pilot transmissions briefly overlay the aircraft on the Radar and Ground views with a transient bubble. Off in solo-training mode (TTS plays the pilot voice instead). A ground aircraft's bubble also appears on the Radar view when no Ground view is currently showing its airport, so prompts aren't missed."
+              TextWrapping="Wrap"
+              Foreground="{DynamicResource SubtleTextBrush}"
+              FontSize="11"
+              Margin="28,0,0,0"
+            />
+            <StackPanel Spacing="4" IsVisible="{Binding ShowSpeechBubbles}" Margin="28,4,0,0">
+              <CheckBox Content="Keep bubbles on screen until clicked to dismiss" IsChecked="{Binding SpeechBubblesStayUntilClicked}" />
+              <TextBlock
+                Text="When enabled, bubbles ignore the duration timer and stay on screen until you click them on the Radar or Ground view to acknowledge and dismiss them. Applies to both green SAY/pilot bubbles and amber WARN bubbles."
+                TextWrapping="Wrap"
+                Foreground="{DynamicResource SubtleTextBrush}"
+                FontSize="11"
+                Margin="28,0,0,0"
+              />
+              <StackPanel Spacing="4" IsVisible="{Binding !SpeechBubblesStayUntilClicked}">
+                <TextBlock Text="Duration multiplier:" Foreground="{DynamicResource SubtleTextBrush}" />
+                <NumericUpDown
+                  Value="{Binding SpeechBubbleDurationMultiplier}"
+                  Minimum="0.25"
+                  Maximum="4.0"
+                  Increment="0.25"
+                  FormatString="0.00"
+                  HorizontalAlignment="Left"
+                  Width="120"
+                />
+                <TextBlock
+                  Text="Scales how long a bubble stays on screen. Bubble length is derived from the message length (about 4–12 s); 1.00 leaves it unchanged, higher values keep bubbles up proportionally longer."
+                  TextWrapping="Wrap"
+                  Foreground="{DynamicResource SubtleTextBrush}"
+                  FontSize="11"
+                />
+              </StackPanel>
+              <CheckBox Content="Also show WARN messages as speech bubbles (amber)" IsChecked="{Binding ShowWarningSpeechBubbles}" Margin="0,4,0,0" />
+              <TextBlock
+                Text="When enabled, warning-channel messages (e.g. a cleared command queue or a vector off procedure without an altitude) also overlay the aircraft as an amber bubble, distinct from green pilot/SAY bubbles. Shown in solo-training mode too."
+                TextWrapping="Wrap"
+                Foreground="{DynamicResource SubtleTextBrush}"
+                FontSize="11"
+                Margin="28,0,0,0"
+              />
+              <CheckBox
+                Content="Always show ground aircraft bubbles on the Radar view"
+                IsChecked="{Binding AlwaysShowGroundBubblesOnRadar}"
+                Margin="0,4,0,0"
+              />
+              <TextBlock
+                Text="By default a ground aircraft's bubble appears on the Radar view only when no Ground view is showing its airport. Enable this to always show ground aircraft bubbles on the Radar view, even when a Ground view for that airport is open and in focus."
+                TextWrapping="Wrap"
+                Foreground="{DynamicResource SubtleTextBrush}"
+                FontSize="11"
+                Margin="28,0,0,0"
+              />
+            </StackPanel>
+            <TextBlock Text="Instructor TPA cone half-angle (°):" Foreground="{DynamicResource SubtleTextBrush}" Margin="0,8,0,0" />
+            <NumericUpDown
+              Value="{Binding TpaConeHalfAngleDegrees}"
+              Minimum="1"
+              Maximum="30"
+              Increment="1"
+              FormatString="0.#"
+              HorizontalAlignment="Left"
+              Width="120"
+            />
+            <TextBlock
+              Text="Width of the instructor J-Ring/Cone overlay's cone, drawn on your radar to emulate the STARS TPA cone (CONE / *P). CRC draws a razor-thin 2° cone along the aircraft's track; raise this to make the wedge easier to read on your scope. The J-Ring is unaffected, and the overlay is never shown on the student's CRC. Default 2°."
+              TextWrapping="Wrap"
+              Foreground="{DynamicResource SubtleTextBrush}"
+              FontSize="11"
+            />
+            <TextBlock Text="Scroll / zoom sensitivity:" Foreground="{DynamicResource SubtleTextBrush}" Margin="0,8,0,0" />
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <Slider
+                Value="{Binding ScrollSensitivityPercent}"
+                Minimum="10"
+                Maximum="100"
+                TickFrequency="5"
+                IsSnapToTickEnabled="True"
+                Width="220"
+                VerticalAlignment="Center"
+              />
+              <TextBlock Text="{Binding ScrollSensitivityPercent, StringFormat='{}{0:0}%'}" VerticalAlignment="Center" Width="44" />
+            </StackPanel>
+            <TextBlock
+              Text="Scales how fast the mouse wheel or trackpad scrolls when zooming the Radar and Ground views (and stepping the STARS DCB spinners). 100% keeps the current speed; lower values slow scrolling, which tames a too-fast Mac trackpad. Default 100%."
+              TextWrapping="Wrap"
+              Foreground="{DynamicResource SubtleTextBrush}"
+              FontSize="11"
+            />
+          </StackPanel>
+        </StackPanel>
+      </Border>
+      <Border Classes="card">
+        <StackPanel Spacing="12">
+          <TextBlock Text="Radar View" FontWeight="SemiBold" />
+          <StackPanel Spacing="4">
+            <CheckBox Content="Tint my assigned aircraft" IsChecked="{Binding AssignmentTintEnabled}" />
+            <StackPanel Spacing="4" IsVisible="{Binding AssignmentTintEnabled}" Margin="28,0,0,0">
+              <StackPanel Orientation="Horizontal" Spacing="8">
+                <TextBlock Text="Tint Color:" Foreground="{DynamicResource SubtleTextBrush}" VerticalAlignment="Center" />
+                <ColorPicker
+                  Color="{Binding AssignmentTintColor, Converter={StaticResource HexColorConverter}}"
+                  IsAlphaEnabled="False"
+                  Width="200"
+                  HorizontalAlignment="Left"
+                />
+              </StackPanel>
+              <TextBlock
+                Text="Color for targets and datablocks of aircraft assigned to you. Default: green."
+                TextWrapping="Wrap"
+                Foreground="{DynamicResource SubtleTextBrush}"
+                FontSize="11"
+              />
+            </StackPanel>
+          </StackPanel>
+          <StackPanel Spacing="4">
+            <CheckBox Content="Tint unassigned aircraft" IsChecked="{Binding UnassignedTintEnabled}" />
+            <StackPanel Spacing="4" IsVisible="{Binding UnassignedTintEnabled}" Margin="28,0,0,0">
+              <StackPanel Orientation="Horizontal" Spacing="8">
+                <TextBlock Text="Tint Color:" Foreground="{DynamicResource SubtleTextBrush}" VerticalAlignment="Center" />
+                <ColorPicker
+                  Color="{Binding UnassignedTintColor, Converter={StaticResource HexColorConverter}}"
+                  IsAlphaEnabled="False"
+                  Width="200"
+                  HorizontalAlignment="Left"
+                />
+              </StackPanel>
+              <TextBlock
+                Text="Color for aircraft not assigned to you (or unassigned). Default: gray."
+                TextWrapping="Wrap"
+                Foreground="{DynamicResource SubtleTextBrush}"
+                FontSize="11"
+              />
+            </StackPanel>
+          </StackPanel>
+          <StackPanel Spacing="4">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <TextBlock Text="Selected Aircraft Color:" Foreground="{DynamicResource SubtleTextBrush}" VerticalAlignment="Center" />
+              <ColorPicker
+                Color="{Binding SelectedColor, Converter={StaticResource HexColorConverter}}"
+                IsAlphaEnabled="False"
+                Width="200"
+                HorizontalAlignment="Left"
+              />
+            </StackPanel>
+            <TextBlock
+              Text="Color for the currently selected aircraft's symbol and datablock. Default: white."
+              TextWrapping="Wrap"
+              Foreground="{DynamicResource SubtleTextBrush}"
+              FontSize="11"
+            />
+          </StackPanel>
+        </StackPanel>
+      </Border>
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

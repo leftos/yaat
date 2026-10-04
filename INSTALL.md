@@ -51,7 +51,7 @@ YAAT opens to an empty main window. Head to **[Getting Started](GETTING_STARTED.
 
 ### NVIDIA GPU acceleration (Windows, optional)
 
-The installer ships with CPU and Vulkan backends out of the box — that's enough for YAAT's speech recognition and LLM features. If you have an NVIDIA card and want CUDA 13 acceleration, open **Settings → Speech → Acceleration** and click **Download CUDA 13 runtime**. YAAT fetches ~534 MB of CUDA libraries into `%LOCALAPPDATA%\yaat\backends\cuda13\` and activates them on the next launch. You can uninstall them from the same screen to reclaim the disk space.
+The installer ships with CPU and Vulkan backends out of the box — that's enough for YAAT's speech recognition and LLM features. If you have an NVIDIA card and want CUDA 13 acceleration, open **Settings › Speech › Acceleration** and click **Download CUDA 13 runtime**. YAAT fetches ~534 MB of CUDA libraries into `%LOCALAPPDATA%\yaat\backends\cuda13\` and activates them on the next launch. You can uninstall them from the same screen to reclaim the disk space.
 
 This is opt-in because the CUDA runtime would have added ~1.5 GB to the base installer; most users don't need it.
 

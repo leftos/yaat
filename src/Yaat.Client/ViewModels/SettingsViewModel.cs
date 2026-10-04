@@ -98,10 +98,16 @@ public partial class SettingsViewModel : ObservableObject
     private readonly SpeechSampleStore? _speechSampleStore;
 
     /// <summary>
-    /// The telemetry opt-in as it was when the window opened, so Save only touches the store (clearing
-    /// anything queued) when the user actually changed it.
+    /// The telemetry opt-in as of the last commit (or the window opening), so Apply only touches the store
+    /// (clearing anything queued) when the user actually changed it since.
     /// </summary>
-    private readonly bool _loadedSpeechTelemetryEnabled;
+    private bool _appliedSpeechTelemetryEnabled;
+
+    /// <summary>Each window's always-on-top setting as of the last commit (or the window opening), keyed by window name.</summary>
+    private readonly Dictionary<string, bool> _appliedTopmost;
+
+    /// <summary>Fired after each commit (Apply or OK), once every edit is in the preferences.</summary>
+    public event Action? Applied;
 
     /// <summary>
     /// Fired when any visual/display property changes (colors, brightness, tints, font size).
@@ -753,7 +759,7 @@ public partial class SettingsViewModel : ObservableObject
         _speechSampleCaptureEnabled = _preferences.SpeechSampleCaptureEnabled;
         _speechSampleCacheMaxMb = _preferences.SpeechSampleCacheMaxMb;
         _speechTelemetryEnabled = _preferences.SpeechTelemetryEnabled;
-        _loadedSpeechTelemetryEnabled = _preferences.SpeechTelemetryEnabled;
+        _appliedSpeechTelemetryEnabled = _preferences.SpeechTelemetryEnabled;
 
         _pttKeyName = _preferences.PttKey;
         _pttKeyDisplay = KeyComboToDisplay(_pttKeyName);
@@ -768,6 +774,16 @@ public partial class SettingsViewModel : ObservableObject
         _terminalTopmost = _preferences.TerminalWindowGeometry?.IsTopmost ?? false;
         _vStripsTopmost = _preferences.GetWindowGeometry("VStripsView")?.IsTopmost ?? false;
         _favoritesPanelTopmost = _preferences.GetWindowGeometry("FavoritesPanel")?.IsTopmost ?? false;
+        _appliedTopmost = new Dictionary<string, bool>(StringComparer.Ordinal)
+        {
+            ["Main"] = _mainWindowTopmost,
+            ["GroundView"] = _groundViewTopmost,
+            ["RadarView"] = _radarViewTopmost,
+            ["DataGrid"] = _dataGridTopmost,
+            ["Terminal"] = _terminalTopmost,
+            ["VStripsView"] = _vStripsTopmost,
+            ["FavoritesPanel"] = _favoritesPanelTopmost,
+        };
         _assignmentTintEnabled = _preferences.AssignmentTintEnabled;
         _assignmentTintColor = _preferences.AssignmentTintColor;
         _unassignedTintEnabled = _preferences.UnassignedTintEnabled;
@@ -884,8 +900,21 @@ public partial class SettingsViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// Commits every edit to the preferences without closing the window; callable as often as the user presses
+    /// Apply. Raises <see cref="Applied"/> afterwards so the host refreshes the live views.
+    /// </summary>
     [RelayCommand]
-    private void Save()
+    private void Apply()
+    {
+        ApplyCommandsAndScenarioDefaults();
+        ApplySpeechAndWindows();
+        ApplyColorsAndDisplay();
+        SaveMacros();
+        Applied?.Invoke();
+    }
+
+    private void ApplyCommandsAndScenarioDefaults()
     {
         CommandScheme scheme = BuildSchemeFromRows();
         _preferences.SetCommandScheme(scheme);
@@ -936,10 +965,14 @@ public partial class SettingsViewModel : ObservableObject
         _preferences.SetTakeControlKey(_takeControlKeyName);
         _preferences.SetAlwaysOnTopKey(_alwaysOnTopKeyName);
         _preferences.SetQuickBookmarkKey(_quickBookmarkKeyName);
+    }
+
+    private void ApplySpeechAndWindows()
+    {
         _preferences.SetSpeechSettings(SpeechEnabled, WhisperModelSize, LlmModelPath, LlmGpuLayers, _pttKeyName, AutoFocusInputAfterSpeech);
         // Before the sample settings: enabling telemetry there forces capture on, and writing capture
         // first would briefly store it off.
-        if (SpeechTelemetryEnabled != _loadedSpeechTelemetryEnabled)
+        if (SpeechTelemetryEnabled != _appliedSpeechTelemetryEnabled)
         {
             _preferences.SetSpeechTelemetryEnabled(SpeechTelemetryEnabled);
             _preferences.SetSpeechTelemetryPromptShown(true);
@@ -948,52 +981,52 @@ public partial class SettingsViewModel : ObservableObject
                 // Anything still queued would go out on the next connect, which the user just declined.
                 _speechSampleStore?.ClearPendingUploads();
             }
+
+            _appliedSpeechTelemetryEnabled = SpeechTelemetryEnabled;
         }
         _preferences.SetSpeechSampleSettings(SpeechSampleCaptureEnabled, SpeechSampleCacheMaxMb);
         _preferences.SetAudioSettings(AudioInputDevice, AudioOutputDevice);
         _preferences.SetRaiseWindowsTogether(RaiseWindowsTogether);
         _preferences.SetDiscordRichPresenceEnabled(DiscordRichPresenceEnabled);
-        _preferences.SetWindowTopmost("Main", MainWindowTopmost);
-        _preferences.SetWindowTopmost("GroundView", GroundViewTopmost);
-        _preferences.SetWindowTopmost("RadarView", RadarViewTopmost);
         // Extra Radar/Ground windows (RadarView#2, GroundView#3, …) follow their view's single
-        // always-on-top setting, the same way the per-facility Strips windows do below.
-        var extraRadarKeys = new List<string>(_preferences.GetWindowGeometryKeysStartingWith(ViewInstanceOrdinals.RadarPrefix));
-        foreach (string key in extraRadarKeys)
+        // always-on-top setting, the same way the per-facility Strips windows do.
+        ApplyTopmostIfChanged("Main", MainWindowTopmost, followerPrefix: null);
+        ApplyTopmostIfChanged("GroundView", GroundViewTopmost, ViewInstanceOrdinals.GroundPrefix);
+        ApplyTopmostIfChanged("RadarView", RadarViewTopmost, ViewInstanceOrdinals.RadarPrefix);
+        ApplyTopmostIfChanged("DataGrid", DataGridTopmost, followerPrefix: null);
+        ApplyTopmostIfChanged("Terminal", TerminalTopmost, followerPrefix: null);
+        ApplyTopmostIfChanged("VStripsView", VStripsTopmost, "VStripsView:");
+        ApplyTopmostIfChanged("FavoritesPanel", FavoritesPanelTopmost, followerPrefix: null);
+    }
+
+    // Writes a window's always-on-top setting only when it differs from the last commit: every write re-raises
+    // WindowTopmostChanged, which re-pins each open window of that name.
+    private void ApplyTopmostIfChanged(string windowName, bool isTopmost, string? followerPrefix)
+    {
+        if (_appliedTopmost.TryGetValue(windowName, out bool applied) && (applied == isTopmost))
         {
-            _preferences.SetWindowTopmost(key, RadarViewTopmost);
+            return;
         }
-        var extraGroundKeys = new List<string>(_preferences.GetWindowGeometryKeysStartingWith(ViewInstanceOrdinals.GroundPrefix));
-        foreach (string key in extraGroundKeys)
+
+        _preferences.SetWindowTopmost(windowName, isTopmost);
+        if (followerPrefix is not null)
         {
-            _preferences.SetWindowTopmost(key, GroundViewTopmost);
+            var followerKeys = new List<string>(_preferences.GetWindowGeometryKeysStartingWith(followerPrefix));
+            foreach (string key in followerKeys)
+            {
+                _preferences.SetWindowTopmost(key, isTopmost);
+            }
         }
-        _preferences.SetWindowTopmost("DataGrid", DataGridTopmost);
-        _preferences.SetWindowTopmost("Terminal", TerminalTopmost);
-        _preferences.SetWindowTopmost("VStripsView", VStripsTopmost);
-        var perFacilityStripsKeys = new List<string>(_preferences.GetWindowGeometryKeysStartingWith("VStripsView:"));
-        foreach (string key in perFacilityStripsKeys)
-        {
-            _preferences.SetWindowTopmost(key, VStripsTopmost);
-        }
-        _preferences.SetWindowTopmost("FavoritesPanel", FavoritesPanelTopmost);
+
+        _appliedTopmost[windowName] = isTopmost;
+    }
+
+    private void ApplyColorsAndDisplay()
+    {
         _preferences.SetAssignmentTint(AssignmentTintEnabled, AssignmentTintColor);
         _preferences.SetUnassignedTint(UnassignedTintEnabled, UnassignedTintColor);
         _preferences.SetSelectedColor(SelectedColor);
-        _preferences.SetGroundColors(
-            new GroundColorScheme(
-                GroundBackgroundColor,
-                GroundTaxiwayColor,
-                GroundTaxiLabelColor,
-                GroundRampEdgeColor,
-                GroundHoldShortColor,
-                GroundRunwayFillColor,
-                GroundRunwayOutlineColor,
-                GroundAircraftColor,
-                GroundDatablockTextColor,
-                GroundBrightness
-            )
-        );
+        _preferences.SetGroundColors(GetCurrentGroundColors());
         _preferences.SetTerminalColors(
             new TerminalColorScheme(
                 TerminalCommandColor,
@@ -1035,19 +1068,6 @@ public partial class SettingsViewModel : ObservableObject
         _preferences.SetGroundHideDataBlocksByDefault(GroundHideDataBlocksByDefault);
         _preferences.SetGroundTaxiRouteDisplay(GroundShowTaxiRouteOnHover, GroundShowAllTaxiRoutes);
         _preferences.SetCrcAliasDirectory(CrcAliasDirectory);
-        SaveMacros();
-        Saved = true;
-    }
-
-    public bool Saved { get; private set; }
-
-    [RelayCommand]
-    private void ResetCommandsToDefaults()
-    {
-        LoadFromScheme(CommandScheme.Default());
-
-        // Re-run the test input against the reset scheme
-        OnTestCommandInputChanged(TestCommandInput);
     }
 
     /// <summary>
@@ -1153,9 +1173,6 @@ public partial class SettingsViewModel : ObservableObject
 
     [RelayCommand]
     private void AddMacro() => MacroRows.Add(new MacroRow { RemoveAction = r => MacroRows.Remove(r) });
-
-    [RelayCommand]
-    private void ClearAllMacros() => MacroRows.Clear();
 
     public void ImportMacros(MacroImportResult result)
     {
@@ -1359,7 +1376,7 @@ public partial class SettingsViewModel : ObservableObject
             _ => 0,
         };
 
-    private static string IndexToAutoDeleteOverride(int index) =>
+    public static string IndexToAutoDeleteOverride(int index) =>
         index switch
         {
             1 => "Never",
@@ -1559,7 +1576,7 @@ public partial class SettingsViewModel : ObservableObject
         return string.Join("+", parts);
     }
 
-    internal static string KeyComboToDisplay(string combo)
+    public static string KeyComboToDisplay(string combo)
     {
         string[] parts = combo.Split('+');
         var display = new List<string>();
@@ -1646,36 +1663,249 @@ public partial class SettingsViewModel : ObservableObject
     [RelayCommand]
     private void DeleteSelectedLlmModel() => SelectedLlmLmKitModel?.Delete();
 
-    [RelayCommand]
-    private void ResetAllColors()
+    // ---------- Reset section ----------
+
+    private const string ResetPendingNote = " Apply or OK keeps the change; Cancel discards it.";
+
+    /// <summary>What Reset section does for each section that has settings of its own; link-only sections are absent.</summary>
+    private static readonly IReadOnlyDictionary<SettingsSectionId, Action<SettingsViewModel, UserPreferences>> SectionResets = new Dictionary<
+        SettingsSectionId,
+        Action<SettingsViewModel, UserPreferences>
+    >
     {
-        GroundColorScheme d = GroundColorScheme.Default;
-        GroundBackgroundColor = d.Background;
-        GroundTaxiwayColor = d.Taxiway;
-        GroundTaxiLabelColor = d.TaxiLabel;
-        GroundRampEdgeColor = d.RampEdge;
-        GroundHoldShortColor = d.HoldShort;
-        GroundRunwayFillColor = d.RunwayFill;
-        GroundRunwayOutlineColor = d.RunwayOutline;
-        GroundAircraftColor = d.Aircraft;
-        GroundDatablockTextColor = d.DatablockText;
-        GroundBrightness = d.Brightness;
-        AssignmentTintEnabled = false;
-        AssignmentTintColor = "#00FF00";
-        UnassignedTintEnabled = false;
-        UnassignedTintColor = "#888888";
-        SelectedColor = "#FFFFFF";
-        TerminalColorScheme t = TerminalColorScheme.Default;
-        TerminalCommandColor = t.Command;
-        TerminalResponseColor = t.Response;
-        TerminalSystemColor = t.System;
-        TerminalSayColor = t.Say;
-        TerminalPilotSpeechColor = t.PilotSpeech;
-        TerminalWarningColor = t.Warning;
-        TerminalErrorColor = t.Error;
-        TerminalChatColor = t.Chat;
-        TerminalTdlsColor = t.Tdls;
-        TerminalStripColor = t.Strip;
+        [SettingsSectionId.General] = static (vm, defaults) => vm.ResetGeneral(defaults),
+        [SettingsSectionId.Appearance] = static (vm, defaults) => vm.ResetAppearance(defaults),
+        [SettingsSectionId.ScenarioDefaults] = static (vm, defaults) => vm.ResetScenarioDefaults(defaults),
+        [SettingsSectionId.Radar] = static (vm, defaults) => vm.ResetRadar(defaults),
+        [SettingsSectionId.Ground] = static (vm, defaults) => vm.ResetGround(defaults),
+        [SettingsSectionId.Terminal] = static (vm, defaults) => vm.ResetTerminal(defaults),
+        [SettingsSectionId.CommandInput] = static (vm, defaults) => vm.ResetCommandInput(defaults),
+        [SettingsSectionId.CommandVerbs] = static (vm, defaults) => vm.ResetCommandVerbs(defaults),
+        [SettingsSectionId.Macros] = static (vm, defaults) => vm.ResetMacros(defaults),
+        [SettingsSectionId.Keys] = static (vm, defaults) => vm.ResetKeys(defaults),
+        [SettingsSectionId.Speech] = static (vm, defaults) => vm.ResetSpeech(defaults),
+        [SettingsSectionId.AudioDevices] = static (vm, defaults) => vm.ResetAudioDevices(defaults),
+        [SettingsSectionId.ServerAdmin] = static (vm, defaults) => vm.ResetServerAdmin(defaults),
+    };
+
+    /// <summary>Reset section's tooltip where the section resets less, or other than, every setting it shows.</summary>
+    private static readonly IReadOnlyDictionary<SettingsSectionId, string> ResetToolTips = new Dictionary<SettingsSectionId, string>
+    {
+        [SettingsSectionId.General] = "Puts Discord and the window settings back to their defaults. Initials are kept." + ResetPendingNote,
+        [SettingsSectionId.CommandVerbs] = "Puts every command verb back to its default." + ResetPendingNote,
+        [SettingsSectionId.Macros] = "Clears all macros and sets the CRC aliases folder back to auto-detect." + ResetPendingNote,
+        [SettingsSectionId.Speech] =
+            "Puts the speech settings back to their defaults. Downloaded models, the CUDA backend, the Piper voice pack and saved samples are kept."
+            + ResetPendingNote,
+    };
+
+    /// <summary>The section the window shows; Reset section acts on it.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ResetSectionToolTip))]
+    [NotifyCanExecuteChangedFor(nameof(ResetSectionCommand))]
+    private SettingsSectionId _selectedSection;
+
+    /// <summary>What Reset section will do to <see cref="SelectedSection"/>, shown as the button's tooltip.</summary>
+    public string ResetSectionToolTip =>
+        ResetToolTips.TryGetValue(SelectedSection, out string? toolTip) ? toolTip
+        : CanResetSection() ? "Puts every setting in this section back to its default." + ResetPendingNote
+        : "This section has no settings of its own to reset.";
+
+    private bool CanResetSection() => SectionResets.ContainsKey(SelectedSection);
+
+    /// <summary>
+    /// Puts every setting <see cref="SelectedSection"/> shows back to the default a fresh preferences file holds. The
+    /// reset is a pending edit like any other: Apply or OK commits it, Cancel discards it.
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanResetSection))]
+    private void ResetSection() => SectionResets[SelectedSection](this, UserPreferences.CreateDefaults());
+
+    // The user's initials are their identity, not a preference, so General keeps them.
+    private void ResetGeneral(UserPreferences defaults)
+    {
+        DiscordRichPresenceEnabled = defaults.DiscordRichPresenceEnabled;
+        RaiseWindowsTogether = defaults.RaiseWindowsTogether;
+        MainWindowTopmost = defaults.MainWindowGeometry?.IsTopmost ?? false;
+        GroundViewTopmost = defaults.GroundViewWindowGeometry?.IsTopmost ?? false;
+        RadarViewTopmost = defaults.RadarViewWindowGeometry?.IsTopmost ?? false;
+        DataGridTopmost = defaults.DataGridWindowGeometry?.IsTopmost ?? false;
+        TerminalTopmost = defaults.TerminalWindowGeometry?.IsTopmost ?? false;
+        VStripsTopmost = defaults.GetWindowGeometry("VStripsView")?.IsTopmost ?? false;
+        FavoritesPanelTopmost = defaults.GetWindowGeometry("FavoritesPanel")?.IsTopmost ?? false;
+    }
+
+    private void ResetAppearance(UserPreferences defaults)
+    {
+        DataGridFontSize = defaults.DataGridFontSize;
+        RadarDatablockFontSize = defaults.RadarDatablockFontSize;
+        RadarFlyoutFontSize = defaults.RadarFlyoutFontSize;
+        GroundDatablockFontSize = defaults.GroundDatablockFontSize;
+        GroundLabelFontSize = defaults.GroundLabelFontSize;
+        TerminalFontSize = defaults.TerminalFontSize;
+        InterfaceFontSize = defaults.InterfaceFontSize;
+        StripsZoomPercent = defaults.StripsZoomPercent;
+        TdlsZoomPercent = defaults.TdlsZoomPercent;
+        SelectedRendererModeIndex = (int)defaults.RendererMode;
+    }
+
+    private void ResetScenarioDefaults(UserPreferences defaults)
+    {
+        AutoAcceptEnabled = defaults.AutoAcceptEnabled;
+        AutoAcceptDelaySeconds = defaults.AutoAcceptDelaySeconds;
+        CommandRunDelayMinSeconds = defaults.CommandRunDelayMinSeconds;
+        CommandRunDelayMaxSeconds = defaults.CommandRunDelayMaxSeconds;
+        SelectedAutoDeleteIndex = AutoDeleteOverrideToIndex(defaults.AutoDeleteOverride);
+        DepartureAutoDeleteDistanceNm = defaults.DepartureAutoDeleteDistanceNm is { } distanceNm ? (decimal)distanceNm : null;
+        ValidateDctFixes = defaults.ValidateDctFixes;
+        AutoClearedToLandGnd = defaults.AutoClearedToLandGnd;
+        AutoClearedToLandTwr = defaults.AutoClearedToLandTwr;
+        AutoClearedToLandApp = defaults.AutoClearedToLandApp;
+        AutoClearedToLandCtr = defaults.AutoClearedToLandCtr;
+        AutoCrossRunway = defaults.AutoCrossRunway;
+        AutoPullUpToParallel = defaults.AutoPullUpToParallel;
+        AutoGoAroundOnOccupiedRunway = defaults.AutoGoAroundOnOccupiedRunway;
+        AutoRejectTakeoffOnOccupiedRunway = defaults.AutoRejectTakeoffOnOccupiedRunway;
+        AutoArrivalSpacingOnOccupiedRunwayGnd = defaults.AutoArrivalSpacingOnOccupiedRunwayGnd;
+        AutoArrivalSpacingOnOccupiedRunwayTwr = defaults.AutoArrivalSpacingOnOccupiedRunwayTwr;
+        SelectedVfrCommandsForIfrIndex = (int)defaults.VfrCommandsForIfr;
+        SoloTrainingMode = defaults.SoloTrainingMode;
+        SoloGoAroundProbabilityPercent = defaults.SoloGoAroundProbabilityPercent;
+        RpoShowPilotSpeech = defaults.RpoShowPilotSpeech;
+        RpoPilotSpeechAudibleAlert = defaults.RpoPilotSpeechAudibleAlert;
+    }
+
+    private void ResetRadar(UserPreferences defaults)
+    {
+        EuroScopeMode = defaults.EuroScopeMode;
+        FlashNoLandingClearance = defaults.FlashNoLandingClearance;
+        ShowConflictAlerts = defaults.ShowConflictAlerts;
+        ShowTypeMismatchHints = defaults.ShowTypeMismatchHints;
+        ShowAtpa = defaults.ShowAtpa;
+        ShowSpeechBubbles = defaults.ShowSpeechBubbles;
+        MvaHintDefaultApp = defaults.MvaHintDefaultApp;
+        MvaHintDefaultCtr = defaults.MvaHintDefaultCtr;
+        MvaHintDefaultGnd = defaults.MvaHintDefaultGnd;
+        MvaHintDefaultTwr = defaults.MvaHintDefaultTwr;
+        SpeechBubbleDurationMultiplier = defaults.SpeechBubbleDurationMultiplier;
+        ShowWarningSpeechBubbles = defaults.ShowWarningSpeechBubbles;
+        SpeechBubblesStayUntilClicked = defaults.SpeechBubblesStayUntilClicked;
+        AlwaysShowGroundBubblesOnRadar = defaults.AlwaysShowGroundBubblesOnRadar;
+        SyncStudentDatablockColors = defaults.SyncStudentDatablockColors;
+        MarkStudentLimitedDatablocks = defaults.MarkStudentLimitedDatablocks;
+        CollapseStudentDatablocks = defaults.CollapseStudentDatablocks;
+        SyncStudentLeaderDirection = defaults.SyncStudentLeaderDirection;
+        TpaConeHalfAngleDegrees = defaults.TpaConeHalfAngleDegrees;
+        ScrollSensitivityPercent = defaults.ScrollSensitivity * 100.0;
+        AssignmentTintEnabled = defaults.AssignmentTintEnabled;
+        AssignmentTintColor = defaults.AssignmentTintColor;
+        UnassignedTintEnabled = defaults.UnassignedTintEnabled;
+        UnassignedTintColor = defaults.UnassignedTintColor;
+        SelectedColor = defaults.SelectedColor;
+    }
+
+    private void ResetGround(UserPreferences defaults)
+    {
+        GroundColorScheme colors = defaults.GroundColors;
+        GroundBackgroundColor = colors.Background;
+        GroundTaxiwayColor = colors.Taxiway;
+        GroundTaxiLabelColor = colors.TaxiLabel;
+        GroundRampEdgeColor = colors.RampEdge;
+        GroundHoldShortColor = colors.HoldShort;
+        GroundRunwayFillColor = colors.RunwayFill;
+        GroundRunwayOutlineColor = colors.RunwayOutline;
+        GroundAircraftColor = colors.Aircraft;
+        GroundDatablockTextColor = colors.DatablockText;
+        GroundBrightness = colors.Brightness;
+        GroundSatelliteImageBrightness = defaults.GroundSatelliteImageBrightness;
+        GroundVideoMapOverlayBrightness = defaults.GroundVideoMapOverlayBrightness;
+        GroundYaatLayoutBrightness = defaults.GroundYaatLayoutBrightness;
+        GroundHideDataBlocksByDefault = defaults.GroundHideDataBlocksByDefault;
+        GroundShowTaxiRouteOnHover = defaults.GroundShowTaxiRouteOnHover;
+        GroundShowAllTaxiRoutes = defaults.GroundShowAllTaxiRoutes;
+    }
+
+    private void ResetTerminal(UserPreferences defaults)
+    {
+        TerminalColorScheme colors = defaults.TerminalColors;
+        TerminalCommandColor = colors.Command;
+        TerminalResponseColor = colors.Response;
+        TerminalSystemColor = colors.System;
+        TerminalSayColor = colors.Say;
+        TerminalPilotSpeechColor = colors.PilotSpeech;
+        TerminalWarningColor = colors.Warning;
+        TerminalErrorColor = colors.Error;
+        TerminalChatColor = colors.Chat;
+        TerminalTdlsColor = colors.Tdls;
+        TerminalStripColor = colors.Strip;
+    }
+
+    private void ResetCommandInput(UserPreferences defaults)
+    {
+        AutoExpandSuggestionOnEnter = defaults.AutoExpandSuggestionOnEnter;
+        SelectedSignatureHelpPlacementIndex = defaults.SignatureHelpPlacement == "Below" ? 1 : 0;
+    }
+
+    private void ResetCommandVerbs(UserPreferences defaults)
+    {
+        LoadFromScheme(defaults.CommandScheme);
+
+        // Re-run the test input against the reset scheme
+        OnTestCommandInputChanged(TestCommandInput);
+    }
+
+    private void ResetMacros(UserPreferences defaults)
+    {
+        MacroRows.Clear();
+        CrcAliasDirectory = defaults.CrcAliasDirectory ?? "";
+    }
+
+    private void ResetKeys(UserPreferences defaults)
+    {
+        CancelKeyCapture();
+        _aircraftSelectKeyName = defaults.AircraftSelectKey;
+        AircraftSelectKeyDisplay = KeyComboToDisplay(_aircraftSelectKeyName);
+        _focusInputKeyName = defaults.FocusInputKey;
+        FocusInputKeyDisplay = KeyComboToDisplay(_focusInputKeyName);
+        _takeControlKeyName = defaults.TakeControlKey;
+        TakeControlKeyDisplay = KeyComboToDisplay(_takeControlKeyName);
+        _alwaysOnTopKeyName = defaults.AlwaysOnTopKey;
+        AlwaysOnTopKeyDisplay = KeyComboToDisplay(_alwaysOnTopKeyName);
+        _quickBookmarkKeyName = defaults.QuickBookmarkKey;
+        QuickBookmarkKeyDisplay = KeyComboToDisplay(_quickBookmarkKeyName);
+    }
+
+    // Settings only: downloaded models, the CUDA backend, the Piper voice pack and saved samples stay as they are.
+    private void ResetSpeech(UserPreferences defaults)
+    {
+        CancelKeyCapture();
+        SpeechEnabled = defaults.SpeechEnabled;
+        AutoFocusInputAfterSpeech = defaults.AutoFocusInputAfterSpeech;
+        WhisperModelSize = defaults.WhisperModelSize;
+        SelectedWhisperLmKitModel = LmKitModelCatalog.FindById(WhisperLmKitModels, WhisperModelSize);
+        LlmModelPath = defaults.LlmModelPath;
+        SelectedLlmLmKitModel = LmKitModelCatalog.FindById(LlmLmKitModels, LlmModelPath);
+        LlmGpuLayers = defaults.LlmGpuLayers;
+        _pttKeyName = defaults.PttKey;
+        PttKeyDisplay = KeyComboToDisplay(_pttKeyName);
+        // Before capture: turning telemetry on would tick capture with it.
+        SpeechTelemetryEnabled = defaults.SpeechTelemetryEnabled;
+        SpeechSampleCaptureEnabled = defaults.SpeechSampleCaptureEnabled;
+        SpeechSampleCacheMaxMb = defaults.SpeechSampleCacheMaxMb;
+        PilotVoiceEnabled = defaults.PilotVoiceEnabled;
+        PilotVoiceVolume = defaults.PilotVoiceVolume;
+        PilotVoiceRadioFxEnabled = defaults.PilotVoiceRadioFxEnabled;
+    }
+
+    private void ResetAudioDevices(UserPreferences defaults)
+    {
+        AudioInputDevice = defaults.AudioInputDevice;
+        AudioOutputDevice = defaults.AudioOutputDevice;
+    }
+
+    private void ResetServerAdmin(UserPreferences defaults)
+    {
+        IsAdminMode = defaults.IsAdminMode;
+        AdminPassword = defaults.AdminPassword;
     }
 
     /// <summary>

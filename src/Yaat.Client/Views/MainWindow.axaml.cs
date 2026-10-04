@@ -359,6 +359,12 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
     }
 
     private SpeechDebugWindow? _speechDebugWindow;
+
+    /// <summary>The Speech Debug window while it is open, or null.</summary>
+    public SpeechDebugWindow? OpenSpeechDebugWindow => _speechDebugWindow;
+
+    // The Settings window while it is open; a second request goes to it instead of opening another.
+    private SettingsWindow? _settingsDialog;
     private SessionReportWindow? _sessionReportWindow;
 
     private void OnFavoritesPanelClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
@@ -384,7 +390,8 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             return;
         }
 
-        _speechDebugWindow = new SpeechDebugWindow(vm.SpeechService, vm.SpeechSampleStore, vm.Preferences, vm.AudioCapture);
+        _speechDebugWindow = new SpeechDebugWindow(vm.SpeechService, vm.SpeechSampleStore, vm.Preferences);
+        _speechDebugWindow.SettingsRequested += OnSpeechDebugSettingsRequested;
         _speechDebugWindow.Closed += (_, _) => _speechDebugWindow = null;
         _speechDebugWindow.Show();
     }
@@ -3055,104 +3062,59 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
     private async Task ShowMessageAsync(string message) => await MessageBoxPresenter.ShowStandardAsync(this, "YAAT", message, ButtonEnum.Ok);
 
     private async void OnSettingsClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e) =>
-        await ShowSettingsDialogAsync(openOnSpeechTab: false);
+        await ShowSettingsDialogAsync(SettingsSectionId.General);
 
-    private async void OnPilotVoiceSettingsRequested() => await ShowSettingsDialogAsync(openOnSpeechTab: true);
+    private async void OnPilotVoiceSettingsRequested() => await ShowSettingsDialogAsync(SettingsSectionId.Speech);
 
-    private async Task ShowSettingsDialogAsync(bool openOnSpeechTab)
+    private async void OnSpeechDebugSettingsRequested() => await ShowSettingsDialogAsync(SettingsSectionId.Speech);
+
+    private async Task ShowSettingsDialogAsync(SettingsSectionId section)
     {
         if (DataContext is not MainViewModel vm)
         {
             return;
         }
 
-        // Snapshot current visual state for rollback on cancel
-        GroundColorScheme snapshotGroundColors = vm.Ground.ColorScheme;
-        int snapshotSatBrightness = vm.Ground.SatelliteImageBrightness;
-        int snapshotMapBrightness = vm.Ground.VideoMapOverlayBrightness;
-        int snapshotGndBrightness = vm.Ground.YaatLayoutBrightness;
-        double snapshotDataGridScale = vm.DataGridScale;
-        bool snapshotAssignmentTintEnabled = vm.Preferences.AssignmentTintEnabled;
-        string snapshotAssignmentTintColor = vm.Preferences.AssignmentTintColor;
-        bool snapshotUnassignedTintEnabled = vm.Preferences.UnassignedTintEnabled;
-        string snapshotUnassignedTintColor = vm.Preferences.UnassignedTintColor;
-        string snapshotSelectedColor = vm.Preferences.SelectedColor;
-        double snapshotTerminalFontSize = vm.TerminalFontSize;
-        int snapshotInterfaceFontSize = vm.Preferences.InterfaceFontSize;
-        int snapshotStripsZoomPercent = vm.Preferences.StripsZoomPercent;
-        int snapshotTdlsZoomPercent = vm.Preferences.TdlsZoomPercent;
+        // The modal disables only this window, so Speech Debug can still ask for Settings while it is open. A
+        // second window would take its own preview snapshot and undo the first one's on close: move the open
+        // window to the requested section instead.
+        if (_settingsDialog is { } open)
+        {
+            open.SelectSection(section);
+            open.RestoreAndActivate();
+            return;
+        }
+
+        // The state the live preview rolls back to when the window closes: as of opening, then as of each Apply.
+        var snapshot = SettingsPreviewSnapshot.Take(vm);
 
         // Suppress the strips on-panel zoom-persist path while the dialog is open so
-        // transient preview values aren't written to preferences (final value is
-        // persisted by the dialog's Save).
+        // transient preview values aren't written to preferences (the committed value is
+        // persisted by the dialog's Apply or OK).
         vm.IsSettingsPreviewActive = true;
 
         var dialog = new SettingsWindow(vm.Preferences, vm.AudioCapture, vm.SpeechSampleStore);
-        if (openOnSpeechTab)
+        dialog.SelectSection(section);
+
+        SettingsViewModel settingsVm = dialog.ViewModel;
+        settingsVm.VisualSettingsChanged += OnPreview;
+        settingsVm.Applied += OnApplied;
+
+        _settingsDialog = dialog;
+        try
         {
-            dialog.SelectSpeechTab();
+            await DialogPresenter.ShowModalAsync(dialog, this);
+        }
+        finally
+        {
+            _settingsDialog = null;
         }
 
-        var settingsVm = dialog.DataContext as SettingsViewModel;
+        settingsVm.VisualSettingsChanged -= OnPreview;
+        settingsVm.Applied -= OnApplied;
 
-        // Subscribe to live preview
-        settingsVm?.VisualSettingsChanged += OnPreview;
-
-        await DialogPresenter.ShowModalAsync(dialog, this);
-
-        // Unsubscribe
-        settingsVm?.VisualSettingsChanged -= OnPreview;
-
-        if (settingsVm?.Saved == true)
-        {
-            // Apply final saved state (non-visual settings like keybinds, command scheme)
-            vm.RefreshCommandScheme();
-            vm.DataGridScale = vm.Preferences.DataGridFontSize / 12.0;
-            vm.TerminalFontSize = vm.Preferences.TerminalFontSize;
-            App.ApplyInterfaceFontSize(vm.Preferences.InterfaceFontSize);
-            vm.ApplyStripsZoomPercent(vm.Preferences.StripsZoomPercent);
-            vm.ApplyTdlsZoomPercent(vm.Preferences.TdlsZoomPercent);
-            vm.RefreshIsSpeechEnabledFromPrefs();
-            vm.RefreshRichPresence();
-            vm.RefreshWindowTitleFromPrefs();
-            vm.ReloadCrcAliases();
-            ApplyKeybinds(vm.Preferences);
-            // Visual settings already applied via preview — just ensure final state is consistent
-            SyncAllRadarViewTint();
-            SyncAllGroundViewSpeechBubbles();
-            foreach (GroundViewModel ground in vm.AllGroundViews)
-            {
-                ground.ColorScheme = vm.Preferences.GroundColors;
-                ground.SatelliteImageBrightness = vm.Preferences.GroundSatelliteImageBrightness;
-                ground.VideoMapOverlayBrightness = vm.Preferences.GroundVideoMapOverlayBrightness;
-                ground.YaatLayoutBrightness = vm.Preferences.GroundYaatLayoutBrightness;
-                ground.ShowTaxiRouteOnHover = vm.Preferences.GroundShowTaxiRouteOnHover;
-                ground.ShowAllTaxiRoutes = vm.Preferences.GroundShowAllTaxiRoutes;
-            }
-        }
-        else
-        {
-            // Cancel — rollback to snapshot
-            foreach (GroundViewModel ground in vm.AllGroundViews)
-            {
-                ground.ColorScheme = snapshotGroundColors;
-                ground.SatelliteImageBrightness = snapshotSatBrightness;
-                ground.VideoMapOverlayBrightness = snapshotMapBrightness;
-                ground.YaatLayoutBrightness = snapshotGndBrightness;
-            }
-
-            vm.DataGridScale = snapshotDataGridScale;
-            vm.TerminalFontSize = snapshotTerminalFontSize;
-            App.ApplyInterfaceFontSize(snapshotInterfaceFontSize);
-            vm.ApplyStripsZoomPercent(snapshotStripsZoomPercent);
-            vm.ApplyTdlsZoomPercent(snapshotTdlsZoomPercent);
-            vm.Preferences.SetAssignmentTint(snapshotAssignmentTintEnabled, snapshotAssignmentTintColor);
-            vm.Preferences.SetUnassignedTint(snapshotUnassignedTintEnabled, snapshotUnassignedTintColor);
-            vm.Preferences.SetSelectedColor(snapshotSelectedColor);
-            SyncAllRadarViewTint();
-            SyncAllGroundViewSpeechBubbles();
-        }
-
+        // Closing (OK, Cancel or the title bar) drops any preview not yet applied.
+        RestoreSettingsPreview(vm, snapshot);
         vm.IsSettingsPreviewActive = false;
 
         // Pilot voice may have been switched on or its voice pack installed.
@@ -3160,13 +3122,14 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
 
         return;
 
+        void OnApplied()
+        {
+            ApplyCommittedSettings(vm);
+            snapshot = SettingsPreviewSnapshot.Take(vm);
+        }
+
         void OnPreview()
         {
-            if (settingsVm is null)
-            {
-                return;
-            }
-
             Avalonia.Threading.Dispatcher.UIThread.Post(() =>
             {
                 foreach (GroundViewModel ground in vm.AllGroundViews)
@@ -3189,6 +3152,96 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
                 SyncAllGroundViewSpeechBubbles();
             });
         }
+    }
+
+    // Brings every live view to the preferences the Settings window just committed (non-visual settings like
+    // keybinds and the command scheme, and the visual ones the preview already showed).
+    private void ApplyCommittedSettings(MainViewModel vm)
+    {
+        vm.RefreshCommandScheme();
+        vm.DataGridScale = vm.Preferences.DataGridFontSize / 12.0;
+        vm.TerminalFontSize = vm.Preferences.TerminalFontSize;
+        App.ApplyInterfaceFontSize(vm.Preferences.InterfaceFontSize);
+        vm.ApplyStripsZoomPercent(vm.Preferences.StripsZoomPercent);
+        vm.ApplyTdlsZoomPercent(vm.Preferences.TdlsZoomPercent);
+        vm.RefreshIsSpeechEnabledFromPrefs();
+        vm.RefreshRichPresence();
+        vm.RefreshWindowTitleFromPrefs();
+        vm.ReloadCrcAliases();
+        ApplyKeybinds(vm.Preferences);
+        SyncAllRadarViewTint();
+        SyncAllGroundViewSpeechBubbles();
+        foreach (GroundViewModel ground in vm.AllGroundViews)
+        {
+            ground.ColorScheme = vm.Preferences.GroundColors;
+            ground.SatelliteImageBrightness = vm.Preferences.GroundSatelliteImageBrightness;
+            ground.VideoMapOverlayBrightness = vm.Preferences.GroundVideoMapOverlayBrightness;
+            ground.YaatLayoutBrightness = vm.Preferences.GroundYaatLayoutBrightness;
+            ground.ShowTaxiRouteOnHover = vm.Preferences.GroundShowTaxiRouteOnHover;
+            ground.ShowAllTaxiRoutes = vm.Preferences.GroundShowAllTaxiRoutes;
+        }
+
+        // Pilot voice may have been switched on or its voice pack installed.
+        vm.RefreshPilotVoiceWarning();
+    }
+
+    private void RestoreSettingsPreview(MainViewModel vm, SettingsPreviewSnapshot snapshot)
+    {
+        foreach (GroundViewModel ground in vm.AllGroundViews)
+        {
+            ground.ColorScheme = snapshot.GroundColors;
+            ground.SatelliteImageBrightness = snapshot.SatelliteBrightness;
+            ground.VideoMapOverlayBrightness = snapshot.VideoMapBrightness;
+            ground.YaatLayoutBrightness = snapshot.YaatLayoutBrightness;
+        }
+
+        vm.DataGridScale = snapshot.DataGridScale;
+        vm.TerminalFontSize = snapshot.TerminalFontSize;
+        App.ApplyInterfaceFontSize(snapshot.InterfaceFontSize);
+        vm.ApplyStripsZoomPercent(snapshot.StripsZoomPercent);
+        vm.ApplyTdlsZoomPercent(snapshot.TdlsZoomPercent);
+        vm.Preferences.SetAssignmentTint(snapshot.AssignmentTintEnabled, snapshot.AssignmentTintColor);
+        vm.Preferences.SetUnassignedTint(snapshot.UnassignedTintEnabled, snapshot.UnassignedTintColor);
+        vm.Preferences.SetSelectedColor(snapshot.SelectedColor);
+        SyncAllRadarViewTint();
+        SyncAllGroundViewSpeechBubbles();
+    }
+
+    /// <summary>The live-previewed display state, taken when Settings opens and again after each Apply.</summary>
+    private sealed record SettingsPreviewSnapshot(
+        GroundColorScheme GroundColors,
+        int SatelliteBrightness,
+        int VideoMapBrightness,
+        int YaatLayoutBrightness,
+        double DataGridScale,
+        bool AssignmentTintEnabled,
+        string AssignmentTintColor,
+        bool UnassignedTintEnabled,
+        string UnassignedTintColor,
+        string SelectedColor,
+        double TerminalFontSize,
+        int InterfaceFontSize,
+        int StripsZoomPercent,
+        int TdlsZoomPercent
+    )
+    {
+        public static SettingsPreviewSnapshot Take(MainViewModel vm) =>
+            new(
+                vm.Ground.ColorScheme,
+                vm.Ground.SatelliteImageBrightness,
+                vm.Ground.VideoMapOverlayBrightness,
+                vm.Ground.YaatLayoutBrightness,
+                vm.DataGridScale,
+                vm.Preferences.AssignmentTintEnabled,
+                vm.Preferences.AssignmentTintColor,
+                vm.Preferences.UnassignedTintEnabled,
+                vm.Preferences.UnassignedTintColor,
+                vm.Preferences.SelectedColor,
+                vm.TerminalFontSize,
+                vm.Preferences.InterfaceFontSize,
+                vm.Preferences.StripsZoomPercent,
+                vm.Preferences.TdlsZoomPercent
+            );
     }
 
     private void OnNewWeatherClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)

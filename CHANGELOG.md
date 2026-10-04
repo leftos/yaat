@@ -5,6 +5,7 @@
 ### Added
 
 - A range/bearing measurement's label moves clear of data blocks and aircraft, pushing auto-placed data blocks aside while every side is covered.
+- Settings is a sidebar of sections with links between related settings, a Reset section button on each, and OK, Apply and Cancel.
 
 ### Fixed
 
@@ -13,6 +14,7 @@
 - An aircraft told to `FOLLOW` traffic keeps pattern spacing instead of the radar wake minimum, so a Cessna following a jet turns base about 3 NM behind it, not 4–6.
 - A track never flashes a handoff to the position that already owns it: an auto-tracked arrival owned by the student stays owned, and `HO`/`HOALL` to your own position is refused.
 - A pilot following traffic no longer says "the traffic's on the ground, breaking off the follow" when its lead lands; the follow simply ends.
+- The Quick bookmark key can be rebound again.
 
 ## v0.15.0-beta [2026/10/02]
 

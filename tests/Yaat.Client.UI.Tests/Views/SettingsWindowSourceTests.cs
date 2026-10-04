@@ -1,0 +1,347 @@
+using System.Text.RegularExpressions;
+using Xunit;
+
+namespace Yaat.Client.UI.Tests.Views;
+
+/// <summary>
+/// Source checks on the Settings window. Every binding and every named control the tabbed window had
+/// still exists somewhere in <c>SettingsWindow.axaml</c> or the section views under <c>Views/Settings/</c>,
+/// so moving the window to a sidebar of sections drops no setting.
+/// </summary>
+public partial class SettingsWindowSourceTests
+{
+    // Each "Attribute={Binding ...}" of the tabbed window, once per occurrence, whitespace collapsed.
+    // Bindings to another element (ElementName) were tab plumbing and are not settings. The per-page reset
+    // buttons (command verbs, macros, colours) are left out: the footer's Reset section replaced them.
+    private static readonly string[] ExpectedBindings =
+    [
+        "Text={Binding UserInitials}",
+        "IsChecked={Binding DiscordRichPresenceEnabled}",
+        "IsChecked={Binding SoloTrainingMode}",
+        "Value={Binding SoloGoAroundProbabilityPercent}",
+        "Text={Binding SoloGoAroundProbabilityPercent, StringFormat='{}{0}%'}",
+        "IsChecked={Binding AutoAcceptEnabled}",
+        "IsVisible={Binding AutoAcceptEnabled}",
+        "Value={Binding AutoAcceptDelaySeconds}",
+        "Value={Binding CommandRunDelayMinSeconds}",
+        "Value={Binding CommandRunDelayMaxSeconds}",
+        "ItemsSource={Binding AutoDeleteOptions}",
+        "SelectedIndex={Binding SelectedAutoDeleteIndex}",
+        "Value={Binding DepartureAutoDeleteDistanceNm}",
+        "IsChecked={Binding ValidateDctFixes}",
+        "IsChecked={Binding AutoClearedToLandGnd}",
+        "IsChecked={Binding AutoClearedToLandTwr}",
+        "IsChecked={Binding AutoClearedToLandApp}",
+        "IsChecked={Binding AutoClearedToLandCtr}",
+        "IsChecked={Binding AutoCrossRunway}",
+        "IsChecked={Binding AutoPullUpToParallel}",
+        "IsChecked={Binding AutoGoAroundOnOccupiedRunway}",
+        "IsChecked={Binding AutoRejectTakeoffOnOccupiedRunway}",
+        "IsChecked={Binding AutoArrivalSpacingOnOccupiedRunwayGnd}",
+        "IsChecked={Binding AutoArrivalSpacingOnOccupiedRunwayTwr}",
+        "ItemsSource={Binding VfrCommandsForIfrOptions}",
+        "SelectedIndex={Binding SelectedVfrCommandsForIfrIndex}",
+        "IsChecked={Binding RpoShowPilotSpeech}",
+        "IsChecked={Binding RpoPilotSpeechAudibleAlert}",
+        "Value={Binding DataGridFontSize}",
+        "Value={Binding RadarDatablockFontSize}",
+        "Value={Binding RadarFlyoutFontSize}",
+        "Value={Binding GroundDatablockFontSize}",
+        "Value={Binding GroundLabelFontSize}",
+        "Value={Binding TerminalFontSize}",
+        "Value={Binding InterfaceFontSize}",
+        "Value={Binding StripsZoomPercent}",
+        "Value={Binding TdlsZoomPercent}",
+        "IsVisible={Binding IsMacOs}",
+        "ItemsSource={Binding RendererModeOptions}",
+        "SelectedIndex={Binding SelectedRendererModeIndex}",
+        "ItemsSource={Binding SignatureHelpPlacementOptions}",
+        "SelectedIndex={Binding SelectedSignatureHelpPlacementIndex}",
+        "IsChecked={Binding AutoExpandSuggestionOnEnter}",
+        "IsChecked={Binding EuroScopeMode}",
+        "IsChecked={Binding FlashNoLandingClearance}",
+        "IsChecked={Binding ShowConflictAlerts}",
+        "IsChecked={Binding ShowTypeMismatchHints}",
+        "IsChecked={Binding ShowAtpa}",
+        "IsChecked={Binding SyncStudentDatablockColors}",
+        "IsChecked={Binding MarkStudentLimitedDatablocks}",
+        "IsChecked={Binding CollapseStudentDatablocks}",
+        "IsChecked={Binding SyncStudentLeaderDirection}",
+        "IsChecked={Binding GroundHideDataBlocksByDefault}",
+        "IsChecked={Binding GroundShowTaxiRouteOnHover}",
+        "IsChecked={Binding GroundShowAllTaxiRoutes}",
+        "IsChecked={Binding MvaHintDefaultGnd}",
+        "IsChecked={Binding MvaHintDefaultTwr}",
+        "IsChecked={Binding MvaHintDefaultApp}",
+        "IsChecked={Binding MvaHintDefaultCtr}",
+        "IsChecked={Binding ShowSpeechBubbles}",
+        "IsVisible={Binding ShowSpeechBubbles}",
+        "IsChecked={Binding SpeechBubblesStayUntilClicked}",
+        "IsVisible={Binding !SpeechBubblesStayUntilClicked}",
+        "Value={Binding SpeechBubbleDurationMultiplier}",
+        "IsChecked={Binding ShowWarningSpeechBubbles}",
+        "IsChecked={Binding AlwaysShowGroundBubblesOnRadar}",
+        "Value={Binding TpaConeHalfAngleDegrees}",
+        "Value={Binding ScrollSensitivityPercent}",
+        "Text={Binding ScrollSensitivityPercent, StringFormat='{}{0:0}%'}",
+        "IsChecked={Binding RaiseWindowsTogether}",
+        "IsChecked={Binding MainWindowTopmost}",
+        "IsChecked={Binding GroundViewTopmost}",
+        "IsChecked={Binding RadarViewTopmost}",
+        "IsChecked={Binding DataGridTopmost}",
+        "IsChecked={Binding TerminalTopmost}",
+        "IsChecked={Binding VStripsTopmost}",
+        "IsChecked={Binding FavoritesPanelTopmost}",
+        "Color={Binding GroundBackgroundColor, Converter={StaticResource HexColorConverter}}",
+        "Color={Binding GroundTaxiwayColor, Converter={StaticResource HexColorConverter}}",
+        "Color={Binding GroundTaxiLabelColor, Converter={StaticResource HexColorConverter}}",
+        "Color={Binding GroundRampEdgeColor, Converter={StaticResource HexColorConverter}}",
+        "Color={Binding GroundHoldShortColor, Converter={StaticResource HexColorConverter}}",
+        "Color={Binding GroundRunwayFillColor, Converter={StaticResource HexColorConverter}}",
+        "Color={Binding GroundRunwayOutlineColor, Converter={StaticResource HexColorConverter}}",
+        "Color={Binding GroundAircraftColor, Converter={StaticResource HexColorConverter}}",
+        "Color={Binding GroundDatablockTextColor, Converter={StaticResource HexColorConverter}}",
+        "Value={Binding GroundBrightness}",
+        "Text={Binding GroundBrightness, StringFormat='{}{0}%'}",
+        "Value={Binding GroundSatelliteImageBrightness}",
+        "Text={Binding GroundSatelliteImageBrightness, StringFormat='{}{0}%'}",
+        "Value={Binding GroundVideoMapOverlayBrightness}",
+        "Text={Binding GroundVideoMapOverlayBrightness, StringFormat='{}{0}%'}",
+        "Value={Binding GroundYaatLayoutBrightness}",
+        "Text={Binding GroundYaatLayoutBrightness, StringFormat='{}{0}%'}",
+        "IsChecked={Binding AssignmentTintEnabled}",
+        "IsVisible={Binding AssignmentTintEnabled}",
+        "Color={Binding AssignmentTintColor, Converter={StaticResource HexColorConverter}}",
+        "IsChecked={Binding UnassignedTintEnabled}",
+        "IsVisible={Binding UnassignedTintEnabled}",
+        "Color={Binding UnassignedTintColor, Converter={StaticResource HexColorConverter}}",
+        "Color={Binding SelectedColor, Converter={StaticResource HexColorConverter}}",
+        "Color={Binding TerminalCommandColor, Converter={StaticResource HexColorConverter}}",
+        "Color={Binding TerminalResponseColor, Converter={StaticResource HexColorConverter}}",
+        "Color={Binding TerminalSystemColor, Converter={StaticResource HexColorConverter}}",
+        "Color={Binding TerminalSayColor, Converter={StaticResource HexColorConverter}}",
+        "Color={Binding TerminalPilotSpeechColor, Converter={StaticResource HexColorConverter}}",
+        "Color={Binding TerminalWarningColor, Converter={StaticResource HexColorConverter}}",
+        "Color={Binding TerminalErrorColor, Converter={StaticResource HexColorConverter}}",
+        "Color={Binding TerminalChatColor, Converter={StaticResource HexColorConverter}}",
+        "Color={Binding TerminalTdlsColor, Converter={StaticResource HexColorConverter}}",
+        "Color={Binding TerminalStripColor, Converter={StaticResource HexColorConverter}}",
+        "Text={Binding TestCommandInput}",
+        "Text={Binding TestCommandResult}",
+        "IsVisible={Binding TestCommandResult, Converter={x:Static StringConverters.IsNotNullOrEmpty}}",
+        "Classes.error={Binding TestCommandIsError}",
+        "Text={Binding VerbImportNote}",
+        "IsVisible={Binding VerbImportNote, Converter={x:Static StringConverters.IsNotNullOrEmpty}}",
+        "Classes.error={Binding VerbImportIsError}",
+        "ItemsSource={Binding GroupedVerbMappings}",
+        "Binding={Binding CommandName}",
+        "Binding={Binding Aliases}",
+        "Binding={Binding Example}",
+        "Text={Binding CrcAliasDirectory}",
+        "Text={Binding CrcAliasDirectoryHint}",
+        "Command={Binding AddMacroCommand}",
+        "Text={Binding MacroImportNote}",
+        "IsVisible={Binding MacroImportNote, Converter={x:Static StringConverters.IsNotNullOrEmpty}}",
+        "Classes.error={Binding MacroImportIsError}",
+        "ItemsSource={Binding MacroRows}",
+        "Binding={Binding Name}",
+        "Binding={Binding Expansion}",
+        "Binding={Binding Preview}",
+        "Command={Binding RemoveCommand}",
+        "ItemsSource={Binding AudioInputDevices}",
+        "SelectedItem={Binding SelectedAudioInputDeviceDisplay}",
+        "ItemsSource={Binding AudioOutputDevices}",
+        "SelectedItem={Binding SelectedAudioOutputDeviceDisplay}",
+        "IsExpanded={Binding SpeechEnabled, Mode=OneWay}",
+        "IsChecked={Binding SpeechEnabled}",
+        "IsChecked={Binding AutoFocusInputAfterSpeech}",
+        "ItemsSource={Binding WhisperLmKitModels}",
+        "SelectedItem={Binding SelectedWhisperLmKitModel}",
+        "Text={Binding DisplayName}",
+        "Text={Binding ApproxSizeMb, StringFormat='({0} MB)'}",
+        "IsVisible={Binding IsLocallyAvailable}",
+        "Text={Binding SelectedWhisperLmKitModel.Description}",
+        "Command={Binding DownloadSelectedWhisperModelCommand}",
+        "IsEnabled={Binding SelectedWhisperLmKitModel.CanDownload, FallbackValue=False}",
+        "Command={Binding DeleteSelectedWhisperModelCommand}",
+        "IsEnabled={Binding SelectedWhisperLmKitModel.CanDelete, FallbackValue=False}",
+        "Text={Binding SelectedWhisperLmKitModel.StatusMessage}",
+        "Value={Binding SelectedWhisperLmKitModel.DownloadProgress}",
+        "IsVisible={Binding SelectedWhisperLmKitModel.IsDownloading}",
+        "ItemsSource={Binding LlmLmKitModels}",
+        "SelectedItem={Binding SelectedLlmLmKitModel}",
+        "Text={Binding DisplayName}",
+        "Text={Binding ApproxSizeMb, StringFormat='({0} MB)'}",
+        "IsVisible={Binding GpuRecommended}",
+        "IsVisible={Binding IsLocallyAvailable}",
+        "Text={Binding SelectedLlmLmKitModel.Description}",
+        "Command={Binding DownloadSelectedLlmModelCommand}",
+        "IsEnabled={Binding SelectedLlmLmKitModel.CanDownload, FallbackValue=False}",
+        "Command={Binding DeleteSelectedLlmModelCommand}",
+        "IsEnabled={Binding SelectedLlmLmKitModel.CanDelete, FallbackValue=False}",
+        "Text={Binding SelectedLlmLmKitModel.StatusMessage}",
+        "Value={Binding SelectedLlmLmKitModel.DownloadProgress}",
+        "IsVisible={Binding SelectedLlmLmKitModel.IsDownloading}",
+        "Text={Binding LlmModelPath, StringFormat='Source: {0}'}",
+        "IsVisible={Binding LlmModelPath, Converter={x:Static StringConverters.IsNotNullOrEmpty}}",
+        "Text={Binding LmKitGpuSnapshot.Summary}",
+        "IsVisible={Binding IsCudaBackendSupported}",
+        "IsVisible={Binding IsCudaBackendSupported}",
+        "Text={Binding CudaBackend.StatusMessage}",
+        "IsVisible={Binding CudaBackend.StatusMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}",
+        "Value={Binding CudaBackend.Progress}",
+        "IsVisible={Binding CudaBackend.IsBusy}",
+        "Command={Binding InstallCudaBackendCommand}",
+        "IsVisible={Binding !CudaBackend.IsInstalled}",
+        "IsEnabled={Binding !CudaBackend.IsBusy}",
+        "Command={Binding CancelCudaBackendInstallCommand}",
+        "IsVisible={Binding CudaBackend.IsBusy}",
+        "Command={Binding UninstallCudaBackendCommand}",
+        "IsVisible={Binding CudaBackend.IsInstalled}",
+        "IsEnabled={Binding !CudaBackend.IsBusy}",
+        "Value={Binding LlmGpuLayers}",
+        "Content={Binding PttKeyDisplay}",
+        "Command={Binding StartPttKeyCaptureCommand}",
+        "IsChecked={Binding SpeechTelemetryEnabled}",
+        "IsChecked={Binding SpeechSampleCaptureEnabled}",
+        "IsEnabled={Binding !SpeechTelemetryEnabled}",
+        "Value={Binding SpeechSampleCacheMaxMb}",
+        "Command={Binding OpenSpeechSamplesFolderCommand}",
+        "Command={Binding DeleteAllSpeechSamplesCommand}",
+        "IsExpanded={Binding PilotVoiceEnabled, Mode=OneWay}",
+        "IsChecked={Binding PilotVoiceEnabled}",
+        "Value={Binding PilotVoiceVolume}",
+        "Text={Binding PilotVoiceVolume, StringFormat='{}{0}%'}",
+        "IsChecked={Binding PilotVoiceRadioFxEnabled}",
+        "Text={Binding PiperVoice.StatusMessage}",
+        "IsVisible={Binding PiperVoice.StatusMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}",
+        "Value={Binding PiperVoice.Progress}",
+        "IsVisible={Binding PiperVoice.IsBusy}",
+        "Command={Binding InstallPiperVoicePackCommand}",
+        "IsVisible={Binding !PiperVoice.IsInstalled}",
+        "IsEnabled={Binding !PiperVoice.IsBusy}",
+        "Command={Binding CancelPiperVoicePackInstallCommand}",
+        "IsVisible={Binding PiperVoice.IsBusy}",
+        "Command={Binding UninstallPiperVoicePackCommand}",
+        "IsVisible={Binding PiperVoice.IsInstalled}",
+        "IsEnabled={Binding !PiperVoice.IsBusy}",
+        "Content={Binding AircraftSelectKeyDisplay}",
+        "Command={Binding StartKeyCaptureCommand}",
+        "Content={Binding FocusInputKeyDisplay}",
+        "Command={Binding StartFocusInputKeyCaptureCommand}",
+        "Content={Binding TakeControlKeyDisplay}",
+        "Command={Binding StartTakeControlKeyCaptureCommand}",
+        "Content={Binding AlwaysOnTopKeyDisplay}",
+        "Command={Binding StartAlwaysOnTopKeyCaptureCommand}",
+        "Content={Binding QuickBookmarkKeyDisplay}",
+        "Command={Binding StartQuickBookmarkKeyCaptureCommand}",
+        "IsChecked={Binding IsAdminMode}",
+        "IsVisible={Binding IsAdminMode}",
+        "Text={Binding AdminPassword}",
+    ];
+
+    // Each x:Name of the tabbed window that code wires up (the tab items themselves are left out), with the
+    // footer's Save button now OK beside Apply and Reset section.
+    private static readonly string[] ExpectedNames =
+    [
+        "OkButton",
+        "ApplyButton",
+        "ResetSectionButton",
+        "CancelButton",
+        "ImportVerbsButton",
+        "ExportVerbsButton",
+        "BrowseCrcAliasDirectoryButton",
+        "ImportMacrosButton",
+        "ExportSelectedMacrosButton",
+        "ExportAllMacrosButton",
+        "MacroDataGrid",
+        "BrowseLlmModelButton",
+        "PttKeyButton",
+        "AircraftSelectKeyButton",
+        "FocusInputKeyButton",
+        "TakeControlKeyButton",
+        "AlwaysOnTopKeyButton",
+        "QuickBookmarkKeyButton",
+    ];
+
+    [Fact]
+    public void EveryBindingOfTheTabbedWindowSurvives()
+    {
+        var actual = new Dictionary<string, int>(StringComparer.Ordinal);
+        foreach (string text in ReadSettingsAxaml())
+        {
+            foreach (Match match in BindingAttributeRegex().Matches(text))
+            {
+                string binding = Normalize(match);
+                actual[binding] = actual.GetValueOrDefault(binding) + 1;
+            }
+        }
+
+        var missing = ExpectedBindings
+            .GroupBy(b => b, StringComparer.Ordinal)
+            .Where(g => actual.GetValueOrDefault(g.Key) < g.Count())
+            .Select(g => $"{g.Key} (expected {g.Count()}, found {actual.GetValueOrDefault(g.Key)})")
+            .ToList();
+        Assert.Empty(missing);
+    }
+
+    [Fact]
+    public void EveryNamedControlOfTheTabbedWindowSurvives()
+    {
+        var actual = new HashSet<string>(StringComparer.Ordinal);
+        foreach (string text in ReadSettingsAxaml())
+        {
+            foreach (Match match in NameRegex().Matches(text))
+            {
+                actual.Add(match.Groups[1].Value);
+            }
+        }
+
+        List<string> missing = [.. ExpectedNames.Where(n => !actual.Contains(n))];
+        Assert.Empty(missing);
+    }
+
+    [Fact]
+    public void EverySpeechActionThatRunsAtOnce_SaysCancelDoesNotUndoIt()
+    {
+        string speech = File.ReadAllText(Path.Combine(FindRepoRoot(), "src", "Yaat.Client", "Views", "Settings", "SpeechSection.axaml"));
+
+        // Whisper model, LLM model, CUDA runtime, saved samples, Piper voice pack.
+        Assert.Equal(5, Regex.Matches(speech, Regex.Escape("Text=\"Takes effect at once; Cancel doesn't undo it.\"")).Count);
+    }
+
+    private static string Normalize(Match match) => $"{match.Groups[1].Value}={WhitespaceRegex().Replace(match.Groups[2].Value, " ")}";
+
+    private static List<string> ReadSettingsAxaml()
+    {
+        string views = Path.Combine(FindRepoRoot(), "src", "Yaat.Client", "Views");
+        var texts = new List<string> { File.ReadAllText(Path.Combine(views, "SettingsWindow.axaml")) };
+        string sections = Path.Combine(views, "Settings");
+        if (Directory.Exists(sections))
+        {
+            texts.AddRange(Directory.GetFiles(sections, "*.axaml").Select(File.ReadAllText));
+        }
+
+        return texts;
+    }
+
+    private static string FindRepoRoot()
+    {
+        DirectoryInfo? directory = new(AppContext.BaseDirectory);
+        while ((directory is not null) && !File.Exists(Path.Combine(directory.FullName, "yaat.slnx")))
+        {
+            directory = directory.Parent;
+        }
+
+        return directory?.FullName ?? throw new InvalidOperationException($"yaat.slnx not found above {AppContext.BaseDirectory}");
+    }
+
+    [GeneratedRegex(@"([\w.:]+)=""(\{Binding[^""]*\})""")]
+    private static partial Regex BindingAttributeRegex();
+
+    [GeneratedRegex(@"x:Name=""(\w+)""")]
+    private static partial Regex NameRegex();
+
+    [GeneratedRegex(@"\s+")]
+    private static partial Regex WhitespaceRegex();
+}

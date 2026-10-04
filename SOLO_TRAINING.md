@@ -101,7 +101,7 @@ The setup steps belong to whoever holds the mentor role or instructor rating. If
 
 **Mentor / instructor:**
 
-1. Open **Settings > Scenarios** and enable **Solo training mode**. This is a saved default for future scenario loads.
+1. Open **Settings › Scenario defaults** and enable **Solo training mode**. This is a saved default for future scenario loads.
 2. Create a room, then load traffic from **Scenario > Load Scenario...**. Solo Training works with ARTCC scenarios from vNAS and local ATCTrainer-format scenario files.
 3. If **Scenario Setup** appears, choose the difficulty and any solo workload pacing controls.
 4. If the student is not a mentor or instructor themselves, open **Room > Members...** and click **Pull** next to them in the **YAAT Lobby** to bring them into the room.
@@ -109,7 +109,7 @@ The setup steps belong to whoever holds the mentor role or instructor rating. If
 
 **Student:**
 
-1. Open **Settings > Speech**, enable Solo pilot voice and download the Piper voice pack. Pilots in solo training talk through text-to-speech, so without it you will not hear readbacks or requests. While pilot voice is not set up, a red banner says so, and the first time you unpause a session YAAT asks you to set it up (**Voice settings**) or **Start anyway**.
+1. Open **Settings › Speech**, enable Solo pilot voice and download the Piper voice pack. Pilots in solo training talk through text-to-speech, so without it you will not hear readbacks or requests. While pilot voice is not set up, a red banner says so, and the first time you unpause a session YAAT asks you to set it up (**Voice settings**) or **Start anyway**.
 2. Work the traffic from the command bar and watch both command feedback and pilot transmissions in the terminal.
 3. Open **Scenario > Session Report** during or after the run to review score, active issues, coaching notes, and runway/approach outcomes.
 
@@ -157,7 +157,7 @@ Inside this layout, the workflow is:
 - The student manipulates CRC normally - track, accept handoffs, scratchpad, etc. CRC interactions that YAAT supports are reflected back into the simulation.
 - Handoffs the student starts to the automated positions sit pending at least 5 seconds before they are accepted, and a handoff of an aircraft on the ground or below 1,500 ft above its field waits until it climbs into coverage (see [Auto-Accept](USER_GUIDE.md#auto-accept)).
 - Anything the student would say to a pilot becomes a YAAT command in the popped-out terminal: callsign plus a canonical command or an ATC-style instruction (Solo Training accepts both).
-- Pilot readbacks and pilot-initiated calls land in the terminal as `SAY` lines. Optional Solo pilot voice (Settings > Speech) lets these play out loud.
+- Pilot readbacks and pilot-initiated calls land in the terminal as `SAY` lines. Optional Solo pilot voice (Settings › Speech) lets these play out loud.
 - Avoid the YAAT radar view, ground view, and aircraft list for control decisions. If you need them at all - usually for setup or debriefing - bring the YAAT main window back, then minimize it again.
 
 If a student insists on using the YAAT radar instead of CRC, the session is no longer a faithful CRC practice run. Use that as a training cue, not as a workflow.
@@ -168,7 +168,7 @@ Scenario Setup appears only when there is something to choose. A scenario with m
 
 - **Parking initial call-up interval** - how often parked aircraft make their first ready-to-taxi call.
 - **Arrival generator rate** - what percentage of generated arrivals should spawn.
-- **Pilot go-around probability** - 0–100% chance that each AI aircraft entering final approach spontaneously goes around. Rolls once per approach; default 0 (existing behavior unchanged). Set a global default under **Settings > Scenarios**; override per-scenario from the scenario setup dialog or the live session settings flyout (per-scenario value persists either way).
+- **Pilot go-around probability** - 0–100% chance that each AI aircraft entering final approach spontaneously goes around. Rolls once per approach; default 0 (existing behavior unchanged). Set a global default under **Settings › Scenario defaults**; override per-scenario from the scenario setup dialog or the live session settings flyout (per-scenario value persists either way).
 
 Use these as workload controls. A lower parking interval releases parked aircraft faster; a higher interval spaces them out; **Paused** stops new parking call-ups until you raise the interval again. A lower arrival generator rate reduces arrival workload without editing the scenario file. Raise pilot go-around probability to practice handling unexpected aborts.
 

@@ -69,6 +69,9 @@ public sealed class UserPreferences
     private CommandScheme _commandScheme;
     private List<MacroDefinition> _macros;
 
+    /// <summary>True for an instance from <see cref="CreateDefaults"/>, which never reads or writes the preferences file.</summary>
+    private readonly bool _isDefaults;
+
     public UserPreferences()
     {
         _data = Load();
@@ -80,6 +83,21 @@ public sealed class UserPreferences
         ];
         MigratePreferences();
     }
+
+    private UserPreferences(SavedPrefs defaults)
+    {
+        _data = defaults;
+        _commandScheme = CommandScheme.Default();
+        _macros = [];
+        _isDefaults = true;
+    }
+
+    /// <summary>
+    /// The built-in defaults a preferences file starts from, read through the same getters as the user's own preferences.
+    /// The instance never reads or writes the preferences file: every setter throws instead of saving.
+    /// </summary>
+    /// <returns>A read-only instance holding the defaults of a fresh preferences file.</returns>
+    public static UserPreferences CreateDefaults() => new(new SavedPrefs());
 
     /// <summary>
     /// Version of the preferences file this build writes. It gates one-time preference migrations: a file below it is
@@ -2039,6 +2057,11 @@ public sealed class UserPreferences
 
     private void Save()
     {
+        if (_isDefaults)
+        {
+            throw new InvalidOperationException("UserPreferences: a defaults instance is read-only; change the user's own preferences instead.");
+        }
+
         Directory.CreateDirectory(ConfigDir);
 
         // Sync cached conversions back to _data before serializing
