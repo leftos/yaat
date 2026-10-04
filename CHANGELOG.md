@@ -10,6 +10,7 @@
 ### Fixed
 
 - A pilot told to follow or give way to taxiing traffic reads it back: "follow the traffic", "behind the traffic".
+- A taxiing aircraft slowing for converging traffic brakes smoothly instead of losing 10 kt in an instant.
 - A loaded solo recording comes up in solo mode, so its replay speaks every pilot line and keeps its recorded conflict-alert inhibits.
 - `EF` reads back and shows as "make straight-in", per 7110.65; "straight-in approach" and "enter final" are still understood when spoken.
 - An aircraft told to `FOLLOW` traffic keeps pattern spacing instead of the radar wake minimum, so a Cessna following a jet turns base about 3 NM behind it, not 4–6.

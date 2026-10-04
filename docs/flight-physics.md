@@ -281,7 +281,7 @@ speed — unless an explicit ATC speed is active.
 `UpdatePosition(aircraft, deltaSeconds, weather)` (`FlightPhysics.cs`, `FlightPhysics.UpdatePosition`) advances lat/lon with a flat-earth approximation
 (`NmPerDegLat = 60`, longitude scaled by `cos(lat)`):
 
-- **Ground branch**: re-enforce `Ground.SpeedLimit` on IAS, move along `Ground.PushbackTrueHeading ?? TrueHeading` at
+- **Ground branch**: re-enforce `Ground.SpeedLimit` on IAS (instantly: a ground-conflict rule that slows rather than stops floors its own limit to a brake-feasible value, see [ground/navigator.md](ground/navigator.md)), move along `Ground.PushbackTrueHeading ?? TrueHeading` at
   `IAS / 3600` nm/s, and set `TrueTrack = TrueHeading` (track follows heading directly; GS = IAS on the ground).
 - **Airborne branch**: `TAS = IasToTas(IAS, alt)`; ground-speed vector = `TAS·(cos/sin heading) + wind`; **cache `WindComponents`**;
   `TrueTrack = atan2(gsE, gsN)`; displace by the full GS vector. This is where wind makes track diverge from heading.

@@ -673,6 +673,27 @@ public static class GroundConflictDetector
             limitSpeed = SlowTaxiSpeedKts + t * (15.0 - SlowTaxiSpeedKts);
         }
 
+        // Physics clamps the speed to Ground.SpeedLimit at once, so a limit below what the yielder can shed in one
+        // detector pass would brake it harder than its brakes allow. Floor the limit at the speed the yielder can still
+        // brake from over the next pass, the same shape as the tug move's towbar floor (TowbarBrakingFloorKts). The
+        // stop branch (conflict inside DefaultStopDistanceFt) is a genuine stop and stays at zero.
+        if (conflictDistFt > DefaultStopDistanceFt)
+        {
+            AircraftCategory yielderCategory = AircraftCategorization.Categorize(yielder.AircraftType);
+            double yielderDecelRate = yielder.Targets.DesiredDecelRate ?? CategoryPerformance.TaxiDecelRate(yielderCategory);
+            // When even the routine rate's own stopping distance no longer fits in the room left before the stop ring,
+            // a routine-rate floor lets the aircraft arrive at the ring still carrying speed it cannot shed there (the
+            // ring is an instant stop), so floor at the category's firm rate instead.
+            double roomFt = conflictDistFt - DefaultStopDistanceFt;
+            double routineStopFt = yielder.GroundSpeed * yielder.GroundSpeed / (2.0 * yielderDecelRate) * FtPerNm / 3600.0;
+            if (routineStopFt > roomFt)
+            {
+                yielderDecelRate = CategoryPerformance.ExpediteExitDecelRate(yielderCategory);
+            }
+
+            limitSpeed = Math.Max(limitSpeed, yielder.GroundSpeed - (yielderDecelRate * DetectorIntervalSeconds));
+        }
+
         diagnosticLog?.Invoke(
             $"  [Convergence] shared node={sharedNodeId.Value}: {a.Callsign} {distAFt:F0}ft away, {b.Callsign} {distBFt:F0}ft away → {yielder.Callsign} yields to {winner.Callsign}, pairDist={conflictDistFt:F0}ft, limit={limitSpeed:F1}"
         );
