@@ -104,6 +104,7 @@
 - [ ] YAAT-23 Track the local user's accepted commands per scenario and airport
 - [ ] YAAT-24 YAAT Scope: a new instructor radar view (STARS+ERAM)
 - [ ] YAAT-25 Controller AI v1 (radio model first)
+  - [ ] YAAT-327 Soak-test solo training: detect idle pilots, missing check-ins and broken call/response sequences
 - [ ] YAAT-26 Pilot AI solo training Wave 2: M11.2 pilot-initiated requests
 - [ ] YAAT-27 Typed command arguments: audit the remaining argument slots (step 2)
 
@@ -118,9 +119,9 @@
 
 ## Wave 1 — Ground realism and braking
 
+- [x] YAAT-309 Hold-short warning under FOLLOWG omits the taxiway name · release vNext
+- [x] YAAT-306 Ground stops snap to 0 kt instead of braking: FOLLOWG hold short, GIVEWAY · release vNext
 - [x] YAAT-311 Taxi speed drops ~10 kt in one second mid-route (H2 clip, KOAK F) · release vNext
-- [/] YAAT-309 Hold-short warning under FOLLOWG omits the taxiway name · release vNext
-- [/] YAAT-306 Ground stops snap to 0 kt instead of braking: FOLLOWG hold short, GIVEWAY · release vNext
 - [ ] YAAT-30 Rollout retune follow-ups: separation intervals, exit completion, firm rates
 - [ ] YAAT-31 LAHSO residuals: carry the limit past handoff, arc fit, ALD gate, CROSS release
 - [ ] YAAT-32 Fold aircraft-length fallbacks into AircraftLength.ResolveFt; fix CWT labels
@@ -147,6 +148,9 @@
 - [ ] YAAT-316 FOLLOWG follower cuts across the field off the taxiways and can bypass a runway hold line · release vNext
 - [ ] YAAT-318 HOLD or GIVEWAY near an uncleared runway bar rolls the nose past the hold line · release vNext
 - [ ] YAAT-319 Clear-runway and line-up restarts a restored turn; HOLD mid-crossing snaps to 0 kt
+- [ ] YAAT-324 Ground conflict limit drops a runway-crossing aircraft's speed in one second instead of braking
+- [ ] YAAT-325 GIVEWAY to traffic that is just starting to taxi releases at once
+- [ ] YAAT-328 HOLD issued mid runway crossing stops the aircraft dead on the runway
 
 ## Wave 2 — Ground command grammar and dispatch
 
@@ -374,3 +378,4 @@
 - [ ] YAAT-303 Client driver: launch_yaat refuses an audio output device name that matches nothing
 - [ ] YAAT-304 Client driver: wait_until landed reports coarse, late sim times
 - [ ] YAAT-315 Solo call-up: ask for push-back at stands that need one, taxi elsewhere
+- [ ] YAAT-326 Split the over-150-character lines in GroundConflictDetector and NodeAimedEntryOntoFilletTests
