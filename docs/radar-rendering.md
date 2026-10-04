@@ -27,8 +27,8 @@ All paths are under `src/Yaat.Client/`.
 | `Views/Radar/RadarDatablockLayout.cs` | Pure layout struct for the STARS full datablock (up to 5 lines) |
 | `Views/Radar/EuroScopeTagLayout.cs` | Pure layout for the EuroScope tag (4 lines + ModeC + NoLndgClnc) with per-field rects |
 | `Views/Radar/RadarView.axaml.cs` | Wires canvas events; dispatches EuroScope field clicks to flyouts; DCB/brightness buttons |
-| `Views/Radar/RadarView.ContextMenus.cs` | Right-click menu builders (aircraft + map FRD) |
-| `Services/ContextMenuProfileService.cs` / `Services/ContextMenuProfile.cs` | Phase → primary/secondary/hidden `MenuGroup` profile |
+| `Views/Radar/RadarView.ContextMenus.cs` | The radar's right-click menus: the aircraft menu's view section and the map point menu, both through `AircraftMenuBuilder` |
+| `Yaat.Client.Core/ContextMenus/ContextMenuProfileService.cs` / `ContextMenuProfile.cs` | Phase → primary/secondary/hidden `MenuGroup` profile |
 | `Views/Radar/Flyouts/*.cs` | EuroScope interactive-tag pickers (altitude, speed, runway, squawk, scratchpad, handoff) + heading mode |
 
 `Services/ShownRouteBuilder.cs` is **not** part of this stack and is **not** command-input UX — it builds the
@@ -499,17 +499,7 @@ snaps to the nearest 5°, and raises
 
 ## Context menus
 
-The right-click aircraft menu (`RadarView.ContextMenus.cs`, `OnAircraftRightClicked`) is **phase-driven** at two levels.
-`ContextMenuProfileService.GetProfile(currentPhase, isOnGround)` (`ContextMenuProfileService.cs:51`) returns a
-`ContextMenuProfile` of **primary**, **secondary**, and **hidden** `MenuGroup`s — which submenu *groups* appear. The builder
-adds primary groups, a separator, then the remaining (secondary) groups inline (`RadarView.ContextMenus.cs:121-136`); hidden
-groups (e.g. all flight + pattern commands while on the ground or landing) are omitted entirely. Within the **Tower** and
-**Pattern** groups, individual *items* are then filtered by `AircraftCommandApplicability` (departure clearances only for
-ground departures, landing/option clearances only while a landing is pending with VFR options hidden for IFR, runway-exit
-items only after touchdown, pattern maneuvers gated per leg). `SharedMenuGroups.Tower` and `SharedMenuGroups.Pattern` (Core) return `null` when
-nothing applies, so the group is dropped even if the profile listed it. A trailing always-visible block adds Track,
-Data-block, Squawk, Ask-pilot, Coordination, Display, Sim-control, and RPO-control submenus (`:138-150`). The aircraft-list
-(`DataGridView.BuildAircraftMenu`) and ground (`GroundView.axaml.cs`) menus build from the same Core catalog (`Yaat.Client.Core/ContextMenus/`, `SharedMenuGroups`) and consult the same `AircraftCommandApplicability` predicates, with per-view branches where a view's behaviour differs.
+The right-click aircraft menu is the one the ground view and the aircraft list show too. `OnAircraftRightClicked` → `BuildAircraftContextMenu` (`RadarView.ContextMenus.cs`) runs `AircraftMenuBuilder.Build` (`Yaat.Client.Core/ContextMenus/`) over a `ClientMenuHost`, with the right-clicked callsign, the earlier selection as the sender of the relative items, and the radar's **view section** (`BuildViewSection`): Display ▸ (`BuildCanvasDisplay`: Mini/Full datablock, Reset datablock position, Show/Hide nav route, Measure from/to {callsign}; Leader direction, J-ring, Cone; Blank, Unblank), then Draw route, which a surface live-traffic shadow and an aircraft whose phase hides the Navigation group go without. The builder places the section after Edit flight plan and above the foot (Warp…, Release to live feed, Delete); everything else in the menu comes from the Core catalog and is the same on every view. With no main view model the radar logs a warning and opens no menu. The tree is **phase-driven** at two levels. `ContextMenuProfileService.GetProfile(currentPhase, isOnGround)` returns a `ContextMenuProfile` of **primary**, **secondary**, and **hidden** `MenuGroup`s — which submenu *groups* appear; `AircraftMenuBuilder.AddProfileGroups` adds the primary groups, a separator, then the secondary ones, and leaves the hidden ones out (e.g. every flight and pattern group while on the ground or landing). Within the **Tower** and **Pattern** groups, individual *items* are then filtered by `AircraftCommandApplicability` (departure clearances only for ground departures, landing/option clearances only while a landing is pending with VFR options hidden for IFR, runway-exit items only after touchdown, pattern maneuvers gated per leg). `SharedMenuGroups.Tower` and `SharedMenuGroups.Pattern` return `null` when nothing applies, so the group is dropped even if the profile listed it. Around the profile groups sit the relative items and the ground-movement block before them, and Preset taxi route, Draw taxi route…, Track, Data Block, Squawk, Ask pilot, Coordination and Edit flight plan after them; every item shows by its own predicate, never by the view.
 
 ### Smart-default convention
 
@@ -543,11 +533,7 @@ New pickers must follow this rule (echoes the `feedback_no_global_navdata_picker
 
 ### Map right-click
 
-Right-clicking empty map space (`OnMapRightClicked`, `:1187`) shows a fix-radial-distance header from
-`FrdResolver.ToFrd(lat, lon, fixes)` with a "Copy FRD" item, and — when an aircraft is selected — a "Fly heading `<deg>`"
-item computed from the bearing to the clicked point (snapped to 5°). That one FRD string also feeds Pin marker, Direct to,
-Append direct, Hold at, and Warp here, so anything wrong with it propagates to all of them — see
-[navigation-database.md](navigation-database.md) for why `ToFrd` refuses to anchor on an FRD-named fix.
+Right-clicking empty map space (`OnMapRightClicked` → `BuildMapPointMenu`) opens the **point menu**. The radar's point section (`BuildMapPointSection`) is a fix-radial-distance row from `FrdResolver.ToFrd(lat, lon, fixes)` with "Copy FRD" and the scope-marker pins (Pin marker here, Remove marker near a pin, Clear pinned markers), the measuring items, then the MVA row. With an aircraft selected, `AircraftMenuBuilder.Build` with a `MenuPoint` at the click puts the shared `point.*` items first, each by its predicate: for an airborne aircraft, Fly heading `<deg>` (the true bearing to the point converted to magnetic, snapped to 5°), Direct to, Append direct to (while it navigates to a fix) and Hold at {FRD} (left/right); for any aircraft it may command, Warp here ({FRD}), which opens the warp popup; then the section. A ground aircraft selected gets only Warp here: the taxi items need a taxi node, which only the ground view's clicks carry. With nothing selected, or with no main view model (logged), the section is the whole menu. The shared items name the point through `ClientMenuHost.DescribePoint`, the same `ToFrd`, so that one FRD string feeds Pin marker, Direct to, Append direct, Hold at and Warp here alike, and anything wrong with it propagates to all of them — see [navigation-database.md](navigation-database.md) for why `ToFrd` refuses to anchor on an FRD-named fix.
 
 ## DCB and brightness
 
