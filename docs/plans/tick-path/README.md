@@ -13,7 +13,7 @@ The design was re-derived clean-room this session; the decisions are ADRs [0001]
 | 3. Spine over the whole sim-second, run profile, `host` rename (3a, 3b, 3c-0, 3c) | ADRs [0001](../../adr/0001-state-equivalence-is-the-tick-contract.md), [0005](../../adr/0005-host-and-run-profile.md) | shipped 2026-09-04 |
 | 3d. The action router (3d-0 … 3d-6) | ADR [0007](../../adr/0007-one-action-router.md) | shipped 2026-09-06 |
 | 4. Relocate tick-reachable ATC logic into `Yaat.Sim` | [04-relocation.md](./04-relocation.md) | **done** 2026-10-03 — first slice (attendance + track automation) shipped 2026-09-06; `IActionHost` emptied of `Apply*` slots 2026-09-19; the ASDE-X alert step crossed 2026-09-20, `LiveTrafficSync` crossed 2026-09-24 (plan 04e, deleted), leaving no step-4 host step; the disconnect coast (A–D) closed it |
-| 5. Retire the accepted divergences; hash + step trace | [05-retirements.md](./05-retirements.md) | three retirements done 2026-09-04; the rest open |
+| 5. Retire the accepted divergences; hash + step trace | [05-retirements.md](./05-retirements.md) | three retirements done 2026-09-04; the step trace and the per-second state hash ship; the cleanups are open |
 
 ## Rules every step follows
 

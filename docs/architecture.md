@@ -1760,6 +1760,8 @@ TransportCommandHandler.cs     # Static dispatch of PAUSE / UNPAUSE / SIMRATE on
 SnapshotTreeDiff.cs            # Parallel JsonNode walk over two StateSnapshotDto captures -> one SnapshotDivergence per differing leaf, at the JSON-pointer path.
                                # Aircraft keyed by callsign (only list that reorders), everything else index-keyed; embedded-JSON strings (WeatherJson,
                                # ConfigJson, ...) re-parsed so paths reach inside them; negative VirtualNode ids normalized to -V.
+SnapshotStateHash.cs           # FNV-1a 64 over an ordinal-key-sorted canonical serialization (CanonicalUtf8) of ToComparableNode's tree; the
+                               # oracle's per-second gate: equal hashes skip the tree diff, different hashes run it.
 DivergencePath.cs              # Normalize(): collapses every [key] to [*], so the baseline is about fields, not about which aircraft spawned.
 DivergenceAccumulator.cs       # Folds a per-second divergence stream by normalized path: first second + a few concrete examples, plus FirstDivergentSecond.
 TickOracleBaseline.cs          # The checked-in accepted-divergence set (Load/Render/CompareTo) + TickOracleComparison (Added/Removed/regression, Describe).
