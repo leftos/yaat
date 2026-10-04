@@ -44,10 +44,11 @@ public sealed partial class SimulationEngine
     /// <summary>
     /// Opt-in per-step timing. Null in production so the spine pays one null check per step; attach a dictionary
     /// and every spine step records into it under its <see cref="Spine.StepId"/> name, plus the three segment
-    /// rollups <c>PrePhysics</c> / <c>Physics</c> / <c>PostPhysics</c> and the physics internals
-    /// (<c>Physics.WorldTick</c>, …). Keyed bucket → (count, total ms). Cleared at the start of each
-    /// <see cref="Replay"/>. The soak runner's <c>--timings</c> and the reconstruction benchmark attach one; call
-    /// <see cref="DumpTickTimings"/> to format. Not thread-safe — one engine, one dictionary.
+    /// rollups <c>PrePhysics</c> / <c>PostPhysics</c> / <c>EndOfSecond</c>, one <c>Physics</c> bucket per physics
+    /// sub-tick, and the physics internals (<c>Physics.WorldTick</c>, …). Keyed bucket → (count, total ms). Cleared
+    /// at the start of each <see cref="Replay"/>. The soak runner's <c>--timings</c> and the reconstruction
+    /// benchmark attach one; call <see cref="DumpTickTimings"/> to format. Not thread-safe — one engine, one
+    /// dictionary.
     /// </summary>
     public Dictionary<string, (int Count, double Ms)>? TickTimings { get; set; }
 
