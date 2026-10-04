@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.IO.Pipes;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using mcp::Yaat.ClientDriver.Mcp;
@@ -14,7 +15,9 @@ using ModelContextProtocol;
 using Xunit;
 using Yaat.Client.Automation;
 using Yaat.Client.Automation.Protocol;
+using Yaat.Client.Services;
 using Yaat.Client.UI.Tests.Helpers;
+using Yaat.Sim;
 
 namespace Yaat.ClientDriver.Mcp.Tests;
 
@@ -175,6 +178,234 @@ public sealed class LaunchYaatTests : AutomationHostFixture
             );
             Assert.Equal("INVALID_PARAM: env entry 'Yaat_AppData_Dir=x' sets Yaat_AppData_Dir, which launch_yaat owns", appDataVariant.Message);
 
+            Assert.Null(starter.LastStartInfo);
+        }
+        finally
+        {
+            Delete(appDataDir);
+            Delete(Path.GetDirectoryName(exePath)!);
+        }
+    }
+
+    [Fact]
+    public async Task LaunchYaat_Cloaked_SetsCloakVariable()
+    {
+        string appDataDir = NewDirectory("appdata");
+        string exePath = NewDummyClientExe();
+        var starter = new ScriptedStarter(() => throw new InvalidOperationException("this test never lets the launch start"));
+        ProcessTools tools = NewTools(NewPipeDirectory(), starter);
+        try
+        {
+            await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                tools.LaunchYaatAsync(CancellationToken.None, appDataDir, exePath, 1, null, cloaked: true)
+            );
+
+            Assert.Equal("1", starter.LastStartInfo!.Environment["YAAT_CLOAK"]);
+            Assert.Equal("1", starter.LastStartInfo.Environment["YAAT_AUTOMATION"]);
+        }
+        finally
+        {
+            Delete(appDataDir);
+            Delete(Path.GetDirectoryName(exePath)!);
+        }
+    }
+
+    [Fact]
+    public async Task LaunchYaat_NotCloaked_LeavesCloakVariableUnset()
+    {
+        string appDataDir = NewDirectory("appdata");
+        string exePath = NewDummyClientExe();
+        var starter = new ScriptedStarter(() => throw new InvalidOperationException("this test never lets the launch start"));
+        ProcessTools tools = NewTools(NewPipeDirectory(), starter);
+        try
+        {
+            await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                tools.LaunchYaatAsync(CancellationToken.None, appDataDir, exePath, 1, null, cloaked: false)
+            );
+
+            Assert.False(starter.LastStartInfo!.Environment.ContainsKey("YAAT_CLOAK"));
+        }
+        finally
+        {
+            Delete(appDataDir);
+            Delete(Path.GetDirectoryName(exePath)!);
+        }
+    }
+
+    [Fact]
+    public async Task LaunchYaat_Env_RejectsCloakKey()
+    {
+        string appDataDir = NewDirectory("appdata");
+        string exePath = NewDummyClientExe();
+        var starter = new ScriptedStarter(() => throw new InvalidOperationException("a rejected env must not start anything"));
+        ProcessTools tools = NewTools(NewPipeDirectory(), starter);
+        try
+        {
+            McpException cloak = await Assert.ThrowsAsync<McpException>(() =>
+                tools.LaunchYaatAsync(CancellationToken.None, appDataDir, exePath, 1, ["YAAT_CLOAK=1"])
+            );
+            Assert.Equal("INVALID_PARAM: env entry 'YAAT_CLOAK=1' sets YAAT_CLOAK, which launch_yaat owns", cloak.Message);
+
+            McpException cloakVariant = await Assert.ThrowsAsync<McpException>(() =>
+                tools.LaunchYaatAsync(CancellationToken.None, appDataDir, exePath, 1, ["yaat_cloak=0"])
+            );
+            Assert.Equal("INVALID_PARAM: env entry 'yaat_cloak=0' sets yaat_cloak, which launch_yaat owns", cloakVariant.Message);
+
+            Assert.Null(starter.LastStartInfo);
+        }
+        finally
+        {
+            Delete(appDataDir);
+            Delete(Path.GetDirectoryName(exePath)!);
+        }
+    }
+
+    [Fact]
+    public async Task LaunchYaat_AudioOutputDevice_WritesNewPreferencesFile()
+    {
+        string appDataDir = NewDirectory("appdata");
+        string exePath = NewDummyClientExe();
+        var starter = new ScriptedStarter(() => throw new InvalidOperationException("this test never lets the launch start"));
+        ProcessTools tools = NewTools(NewPipeDirectory(), starter);
+        try
+        {
+            await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                tools.LaunchYaatAsync(CancellationToken.None, appDataDir, exePath, 1, null, audioOutputDevice: "CABLE Input (VB-Audio Virtual Cable)")
+            );
+
+            JsonObject written = ReadPreferences(appDataDir);
+            Assert.Equal(["audioOutputDevice"], written.Select(pair => pair.Key));
+            Assert.Equal("CABLE Input (VB-Audio Virtual Cable)", written["audioOutputDevice"]!.GetValue<string>());
+            Assert.NotNull(starter.LastStartInfo);
+        }
+        finally
+        {
+            Delete(appDataDir);
+            Delete(Path.GetDirectoryName(exePath)!);
+        }
+    }
+
+    [Fact]
+    public async Task LaunchYaat_AudioOutputDevice_ClientReadsTheWrittenPreference()
+    {
+        // The real UserPreferences loader reads YaatPaths' preferences.json, which ModuleInit points at this run's scratch folder.
+        string appDataDir = YaatPaths.AppDataRoot;
+        string preferencesPath = Path.Combine(appDataDir, "preferences.json");
+        string? previous = File.Exists(preferencesPath) ? File.ReadAllText(preferencesPath) : null;
+        string exePath = NewDummyClientExe();
+        var starter = new ScriptedStarter(() => throw new InvalidOperationException("this test never lets the launch start"));
+        ProcessTools tools = NewTools(NewPipeDirectory(), starter);
+        try
+        {
+            Directory.CreateDirectory(appDataDir);
+            File.WriteAllText(preferencesPath, """{ "audioOutputDevice": "Speakers", "audioInputDevice": "Headset Microphone" }""");
+
+            await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                tools.LaunchYaatAsync(CancellationToken.None, appDataDir, exePath, 1, null, audioOutputDevice: "CABLE Input (VB-Audio Virtual Cable)")
+            );
+
+            UserPreferences preferences = new();
+            Assert.Equal("CABLE Input (VB-Audio Virtual Cable)", preferences.AudioOutputDevice);
+            Assert.Equal("Headset Microphone", preferences.AudioInputDevice);
+        }
+        finally
+        {
+            if (previous is null)
+            {
+                File.Delete(preferencesPath);
+            }
+            else
+            {
+                File.WriteAllText(preferencesPath, previous);
+            }
+
+            Delete(Path.GetDirectoryName(exePath)!);
+        }
+    }
+
+    [Fact]
+    public async Task LaunchYaat_AudioOutputDevice_KeepsEveryOtherKey()
+    {
+        string appDataDir = NewDirectory("appdata");
+        string exePath = NewDummyClientExe();
+        var starter = new ScriptedStarter(() => throw new InvalidOperationException("this test never lets the launch start"));
+        ProcessTools tools = NewTools(NewPipeDirectory(), starter);
+        try
+        {
+            Directory.CreateDirectory(appDataDir);
+            File.WriteAllText(
+                Path.Combine(appDataDir, "preferences.json"),
+                """{ "pttKey": "F1", "audioOutputDevice": "Speakers", "commandScheme": { "patterns": { "a": [1, 2] } }, "speechEnabled": true }"""
+            );
+
+            await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                tools.LaunchYaatAsync(CancellationToken.None, appDataDir, exePath, 1, null, audioOutputDevice: "CABLE Input (VB-Audio Virtual Cable)")
+            );
+
+            JsonObject written = ReadPreferences(appDataDir);
+            Assert.Equal(["pttKey", "audioOutputDevice", "commandScheme", "speechEnabled"], written.Select(pair => pair.Key));
+            Assert.Equal("F1", written["pttKey"]!.GetValue<string>());
+            Assert.Equal("CABLE Input (VB-Audio Virtual Cable)", written["audioOutputDevice"]!.GetValue<string>());
+            Assert.Equal("""{"patterns":{"a":[1,2]}}""", written["commandScheme"]!.ToJsonString());
+            Assert.True(written["speechEnabled"]!.GetValue<bool>());
+        }
+        finally
+        {
+            Delete(appDataDir);
+            Delete(Path.GetDirectoryName(exePath)!);
+        }
+    }
+
+    [Fact]
+    public async Task LaunchYaat_AudioOutputDeviceEmpty_LeavesPreferencesAlone()
+    {
+        string appDataDir = NewDirectory("appdata");
+        string exePath = NewDummyClientExe();
+        var starter = new ScriptedStarter(() => throw new InvalidOperationException("this test never lets the launch start"));
+        ProcessTools tools = NewTools(NewPipeDirectory(), starter);
+        string preferencesPath = Path.Combine(appDataDir, "preferences.json");
+        try
+        {
+            await Assert.ThrowsAsync<InvalidOperationException>(() => tools.LaunchYaatAsync(CancellationToken.None, appDataDir, exePath, 1));
+            Assert.False(File.Exists(preferencesPath));
+
+            const string existing = "{ \"audioOutputDevice\": \"Speakers\" }";
+            File.WriteAllText(preferencesPath, existing);
+            await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                tools.LaunchYaatAsync(CancellationToken.None, appDataDir, exePath, 1, null, audioOutputDevice: "")
+            );
+            Assert.Equal(existing, File.ReadAllText(preferencesPath));
+        }
+        finally
+        {
+            Delete(appDataDir);
+            Delete(Path.GetDirectoryName(exePath)!);
+        }
+    }
+
+    [Theory]
+    [InlineData("{ \"audioOutputDevice\": ")]
+    [InlineData("")]
+    [InlineData("[\"audioOutputDevice\"]")]
+    public async Task LaunchYaat_AudioOutputDevice_RefusesMalformedPreferences(string existing)
+    {
+        string appDataDir = NewDirectory("appdata");
+        string exePath = NewDummyClientExe();
+        var starter = new ScriptedStarter(() => throw new InvalidOperationException("a refused launch must not start anything"));
+        ProcessTools tools = NewTools(NewPipeDirectory(), starter);
+        string preferencesPath = Path.Combine(appDataDir, "preferences.json");
+        try
+        {
+            Directory.CreateDirectory(appDataDir);
+            File.WriteAllText(preferencesPath, existing);
+
+            McpException failure = await Assert.ThrowsAsync<McpException>(() =>
+                tools.LaunchYaatAsync(CancellationToken.None, appDataDir, exePath, 1, null, audioOutputDevice: "CABLE Input (VB-Audio Virtual Cable)")
+            );
+
+            Assert.StartsWith("INVALID_PARAM: ", failure.Message, StringComparison.Ordinal);
+            Assert.Contains(Path.GetFullPath(preferencesPath), failure.Message, StringComparison.Ordinal);
+            Assert.Equal(existing, File.ReadAllText(preferencesPath));
             Assert.Null(starter.LastStartInfo);
         }
         finally
@@ -531,6 +762,10 @@ public sealed class LaunchYaatTests : AutomationHostFixture
     /// <summary>A process a test makes itself, hidden and started without the shell, standing in for the client.</summary>
     private static ProcessStartInfo Shell(string executable, string arguments) =>
         new(executable, arguments) { UseShellExecute = false, CreateNoWindow = true };
+
+    /// <summary>The preferences.json a launch wrote under <paramref name="appDataDir"/>, as a JSON object.</summary>
+    private static JsonObject ReadPreferences(string appDataDir) =>
+        JsonNode.Parse(File.ReadAllText(Path.Combine(appDataDir, "preferences.json")))!.AsObject();
 
     private static string NewDirectory(string prefix) => Path.Combine(Path.GetTempPath(), $"yaat-launch-{prefix}-{Guid.NewGuid():N}");
 

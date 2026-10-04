@@ -196,7 +196,7 @@ public partial class MainViewModel
             return;
         }
 
-        _pilotVoice.Enqueue(dto, _preferences.PilotVoiceVolume, _preferences.PilotVoiceRadioFxEnabled);
+        _pilotVoice.Enqueue(dto, _preferences.PilotVoiceVolume, _preferences.PilotVoiceRadioFxEnabled, _preferences.PilotVoiceSpeechRate);
     }
 
     internal void OnAircraftUpdated(AircraftDto dto)

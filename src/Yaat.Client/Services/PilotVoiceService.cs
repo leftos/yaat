@@ -10,7 +10,7 @@ using Yaat.Sim;
 
 namespace Yaat.Client.Services;
 
-public sealed record PilotVoiceRequest(string Callsign, string Text, int SpeakerId, int Volume, bool RadioFxEnabled);
+public sealed record PilotVoiceRequest(string Callsign, string Text, int SpeakerId, int Volume, bool RadioFxEnabled, double SpeechRate);
 
 public interface IPilotVoiceSynthesizer
 {
@@ -40,7 +40,7 @@ public sealed class PilotVoiceService : IAsyncDisposable
 
     public bool IsAvailable => _synthesizer.IsAvailable;
 
-    public void Enqueue(PilotTransmissionBroadcastDto dto, int volume, bool radioFxEnabled)
+    public void Enqueue(PilotTransmissionBroadcastDto dto, int volume, bool radioFxEnabled, double speechRate)
     {
         if (!_synthesizer.IsAvailable || string.IsNullOrWhiteSpace(dto.Text))
         {
@@ -54,7 +54,7 @@ public sealed class PilotVoiceService : IAsyncDisposable
             dto.SpeakerId,
             dto.Text
         );
-        _queue.Writer.TryWrite(new PilotVoiceRequest(dto.Callsign, dto.Text, dto.SpeakerId, volume, radioFxEnabled));
+        _queue.Writer.TryWrite(new PilotVoiceRequest(dto.Callsign, dto.Text, dto.SpeakerId, volume, radioFxEnabled, speechRate));
     }
 
     private async Task RunAsync()
@@ -113,14 +113,15 @@ internal sealed class SherpaOnnxPilotVoiceSynthesizer(UserPreferences preference
                 () =>
                 {
                     int sid = Math.Abs(request.SpeakerId) % 904;
-                    var gen = new OfflineTtsGenerationConfig { Sid = sid, Speed = 1.0f };
+                    var gen = new OfflineTtsGenerationConfig { Sid = sid, Speed = (float)request.SpeechRate };
                     var sw = Stopwatch.StartNew();
                     OfflineTtsGeneratedAudio audio = tts.GenerateWithConfig(request.Text, gen, null);
                     sw.Stop();
                     Log.LogDebug(
-                        "Synthesized pilot voice for {Callsign}: sid={Sid}, samples={Samples}, sampleRate={SampleRate}, latencyMs={LatencyMs}",
+                        "Synthesized pilot voice for {Callsign}: sid={Sid}, speed={Speed}, samples={Samples}, sampleRate={SampleRate}, latencyMs={LatencyMs}",
                         request.Callsign,
                         sid,
+                        gen.Speed,
                         audio.Samples.Length,
                         tts.SampleRate,
                         sw.ElapsedMilliseconds

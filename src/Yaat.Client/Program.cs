@@ -7,6 +7,7 @@ using Yaat.Client.Automation;
 using Yaat.Client.Logging;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
+using Yaat.Client.Views;
 using Yaat.Sim;
 
 namespace Yaat.Client;
@@ -20,6 +21,9 @@ public static class Program
 
     /// <summary>How long process teardown may run after the main loop exits before <see cref="StartExitWatchdog"/> terminates the process.</summary>
     private static readonly TimeSpan ExitTimeout = TimeSpan.FromSeconds(10);
+
+    /// <summary>The exit code of a client started with <c>YAAT_CLOAK=1</c> but without <c>YAAT_AUTOMATION=1</c>.</summary>
+    private const int CloakWithoutAutomationExitCode = 2;
 
     [STAThread]
     public static void Main(string[] args)
@@ -37,6 +41,10 @@ public static class Program
         ILogger log = AppLog.CreateLogger("Program");
         log.LogInformation("{BuildSummary}", BuildInfo.LogSummary);
         log.LogInformation("Log file: {LogPath}", AppLog.LogPath);
+
+        // Read before CUDA or LM-Kit start: a refused YAAT_CLOAK exits here, ahead of the native teardown that hung an exit in GitHub #347.
+        AutomationMode.IsEnabled = AutomationMode.ReadFromEnvironment();
+        ApplyCloakSwitch(log);
 
         // Read the rendering-backend preference before Avalonia is built — RenderingMode must be set
         // at AppBuilder time. On macOS this lets us default to Metal (avoiding the CPU-heavy
@@ -115,7 +123,6 @@ public static class Program
 
         // Automation mode keeps the client off the user's input and presence: no OS-wide key hook,
         // no Discord status, and windows that never take activation.
-        AutomationMode.IsEnabled = AutomationMode.ReadFromEnvironment();
         App.GlobalKeyHookEnabled = !AutomationMode.IsEnabled;
         App.DiscordRichPresenceAvailable = !AutomationMode.IsEnabled;
 
@@ -142,6 +149,32 @@ public static class Program
         SynchronizationContext.SetSynchronizationContext(null);
         AppLog.Flush();
         StartExitWatchdog(log);
+    }
+
+    /// <summary>
+    /// Turns window cloaking on when <c>YAAT_CLOAK=1</c>. Cloaking is an automation-mode switch: asked for without
+    /// <c>YAAT_AUTOMATION=1</c>, the client logs the error and exits with <see cref="CloakWithoutAutomationExitCode"/> before
+    /// Avalonia starts, so no window is ever shown.
+    /// </summary>
+    private static void ApplyCloakSwitch(ILogger log)
+    {
+        if (!AutomationMode.ReadCloakFromEnvironment())
+        {
+            return;
+        }
+
+        if (!AutomationMode.IsEnabled)
+        {
+            log.LogError("YAAT_CLOAK needs YAAT_AUTOMATION=1; cloaking is an automation-mode switch");
+            AppLog.Flush();
+            Environment.Exit(CloakWithoutAutomationExitCode);
+        }
+
+        log.LogInformation(
+            "Window cloaking on ({Variable}=1): every window is DWM-cloaked before its first show",
+            AutomationMode.CloakEnvironmentVariable
+        );
+        AutomationGate.CloakWindows = true;
     }
 
     /// <summary>

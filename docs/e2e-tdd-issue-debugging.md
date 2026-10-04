@@ -259,22 +259,7 @@ Aircraft with `WAIT` preset commands are sensitive to dispatch timing (see Rules
 
 #### Diagnosing why full replay diverges from the recorded snapshot
 
-When `engine.Replay(recording, T)` lands on different state than the snapshot at `T`, use the snapshot-diff verification API to pinpoint the *first* tick where divergence began (rather than guessing at the symptom):
-
-```csharp
-using var archive = RecordingLoader.OpenArchive(RecordingPath);
-var recording = archive!.ToBaseSessionRecording();
-var engine = BuildEngine();
-engine.Replay(recording, 0);
-
-var result = engine.ReplayRangeWithVerification(0, 1300, recording.Actions, archive);
-foreach (var (ts, drift) in result.Drifts.Select(d => (d.ElapsedSeconds, d)).Take(5))
-{
-    output.WriteLine($"t={ts:F0}s drifts: {drift.AircraftDrifts.Count}");
-}
-```
-
-`SnapshotDiff` checks position (0.5 nm), heading (5°), altitude (100 ft), IAS (10 kt), `NavigationRoute` (exact), `AssignedAltitude/Heading/Speed`, current phase type, and `Track.Owner/HandoffPeer` at every snapshot timestamp. Empty `Drifts` ⇒ replay matches; any earlier divergence usually pinpoints the actual cause (engine-version drift, missed action, RNG change). Track commands and AS-prefixed commands are applied during replay by the `ActionRouter`'s track arm; coordination, strip and TDLS commands are refused by the replay host (their state is the server's) and logged at Debug.
+When `engine.Replay(recording, T)` lands on different state than the snapshot at `T`, pinpoint the *first* second where divergence began rather than guessing at the symptom: replay to the archive's first snapshot, then step with `engine.ReplayOneSecond()` and, at each second the archive has a snapshot for, compare `engine.CaptureSnapshot()` against `archive.ReadSnapshot(index)` with `SnapshotTreeDiff.Compare` (`Simulation/Oracle/`). It compares the whole tree with no tolerances and returns one `SnapshotDivergence` per differing field path, so the first non-empty second names the field that left the recording; see [snapshots-and-replay.md](snapshots-and-replay.md) § Finding the first divergence. That reading holds for a recording made by the current build; for an older one, run `SnapshotSchemaMigrator.Migrate` on each read snapshot and ignore `(absent)` leaves (fields added since), or filter by path prefix such as `Aircraft[`. An early divergence usually pinpoints the actual cause (engine-version drift, missed action, RNG change). Every recorded command kind — track, `AS`-prefixed, coordination, strip and TDLS commands included — is applied during replay by the `ActionRouter`, but a single record can still be refused on replay (the aircraft is gone, no active position): the router then logs a `replay-fidelity:` warning that it applied live but was refused on replay, so check the log for it first.
 
 #### How to do hybrid replay
 

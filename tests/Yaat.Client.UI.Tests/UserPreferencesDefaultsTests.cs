@@ -19,7 +19,7 @@ public class UserPreferencesDefaultsTests
         var user = new UserPreferences();
         user.SetAutoAcceptSettings(enabled: false, delaySeconds: 9);
         user.SetTakeControlKey("Ctrl+Y");
-        user.SetPilotVoiceSettings(enabled: true, volume: 30, radioFxEnabled: false);
+        user.SetPilotVoiceSettings(enabled: true, volume: 30, radioFxEnabled: false, speechRate: 1.3);
 
         var defaults = UserPreferences.CreateDefaults();
 

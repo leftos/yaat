@@ -83,6 +83,12 @@ public static class GroundConflictDetector
 
     /// <summary>Chords per fillet arc when measuring route clearance; 8 keeps the sampling error well under a foot.</summary>
     private const int ArcClearanceSamples = 8;
+
+    /// <summary>Step (ft) along the held aircraft's route when searching for its give-way stop (<see cref="GiveWayStop"/>).</summary>
+    private const double GiveWayStopStepFt = 5.0;
+
+    /// <summary>How finely (ft) the give-way stop is resolved inside the step that reaches the clearance.</summary>
+    private const double GiveWayStopResolutionFt = 0.1;
     private const double HeldStationarySpeedKts = 3.0;
     private const double FtPerNm = 6076.12;
     private const double ConvergenceLookaheadFt = 1500.0;
@@ -671,6 +677,27 @@ public static class GroundConflictDetector
         {
             double t = Math.Clamp((yielderDistFt - ConvergenceSlowdownFt) / (ConvergenceLookaheadFt - ConvergenceSlowdownFt), 0, 1);
             limitSpeed = SlowTaxiSpeedKts + t * (15.0 - SlowTaxiSpeedKts);
+        }
+
+        // Physics clamps the speed to Ground.SpeedLimit at once, so a limit below what the yielder can shed in one
+        // detector pass would brake it harder than its brakes allow. Floor the limit at the speed the yielder can still
+        // brake from over the next pass, the same shape as the tug move's towbar floor (TowbarBrakingFloorKts). The
+        // stop branch (conflict inside DefaultStopDistanceFt) is a genuine stop and stays at zero.
+        if (conflictDistFt > DefaultStopDistanceFt)
+        {
+            AircraftCategory yielderCategory = AircraftCategorization.Categorize(yielder.AircraftType);
+            double yielderDecelRate = yielder.Targets.DesiredDecelRate ?? CategoryPerformance.TaxiDecelRate(yielderCategory);
+            // When even the routine rate's own stopping distance no longer fits in the room left before the stop ring,
+            // a routine-rate floor lets the aircraft arrive at the ring still carrying speed it cannot shed there (the
+            // ring is an instant stop), so floor at the category's firm rate instead.
+            double roomFt = conflictDistFt - DefaultStopDistanceFt;
+            double routineStopFt = yielder.GroundSpeed * yielder.GroundSpeed / (2.0 * yielderDecelRate) * FtPerNm / 3600.0;
+            if (routineStopFt > roomFt)
+            {
+                yielderDecelRate = CategoryPerformance.ExpediteExitDecelRate(yielderCategory);
+            }
+
+            limitSpeed = Math.Max(limitSpeed, yielder.GroundSpeed - (yielderDecelRate * DetectorIntervalSeconds));
         }
 
         diagnosticLog?.Invoke(
@@ -2007,6 +2034,213 @@ public static class GroundConflictDetector
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// Where <paramref name="held"/> stops giving way to <paramref name="target"/>: how far (ft) it still has to taxi along its
+    /// route before its centre comes within the pair's lateral clearance of the target's track through the junction, or its
+    /// nose comes within the target's half of it, whichever comes first, with the junction node. The junction is the first
+    /// node the two routes share ahead (<see cref="FindSharedUpcomingNode"/>, as the GIVEWAY release checks); the track is
+    /// the target's route edges into and out of that node; the centre's clearance is both half-spans plus
+    /// <see cref="GroundOutlineSweep.WingtipBufferFt"/> (<see cref="RequiredLateralClearanceFt"/>, the room
+    /// <see cref="ComputeClosingLimit"/> lets the target pass a held aircraft with); the nose — the centre projected half the
+    /// held aircraft's length ahead (<see cref="AircraftLength.ResolveFt"/>) — keeps the target's half-span plus the buffer,
+    /// so a long type stops farther back than its centre alone needs. Spans are the category spans of
+    /// <see cref="TugMovePlanner.WingspanFt"/> when the FAA database lacks either aircraft's. Zero when the centre or the
+    /// nose is already that close.
+    ///
+    /// <para>
+    /// Null with no stop point, <paramref name="noStopReason"/> saying which: the held aircraft has no route; the target has
+    /// no route; the routes share no node within <see cref="ConvergenceLookaheadFt"/> ahead (the look-ahead
+    /// <see cref="FindSharedUpcomingNode"/> searches); the shared node is not on the target's route ahead
+    /// (<see cref="TrackThroughNode"/>); or the junction lies beyond <see cref="ConvergenceLookaheadFt"/> along the held
+    /// route from where the aircraft stands. Null reason with a stop point.
+    /// </para>
+    /// </summary>
+    internal static (int NodeId, double ToStopFt)? GiveWayStop(AircraftState held, AircraftState target, out string? noStopReason)
+    {
+        if (held.Ground.AssignedTaxiRoute is not { } heldRoute)
+        {
+            noStopReason = "no route of its own";
+            return null;
+        }
+
+        if (target.Ground.AssignedTaxiRoute is not { } targetRoute)
+        {
+            noStopReason = "the traffic has no route";
+            return null;
+        }
+
+        if (FindSharedUpcomingNode(heldRoute, targetRoute) is not { } nodeId)
+        {
+            noStopReason = "no node shared with the traffic's route within the 1,500 ft look-ahead";
+            return null;
+        }
+
+        if (TrackThroughNode(targetRoute, nodeId) is not { } track)
+        {
+            noStopReason = "the shared node is not on the traffic's route ahead";
+            return null;
+        }
+
+        bool faaSpans = RequiredLateralClearanceFt(held, target) is not null;
+        double heldHalfSpanFt = HalfSpanFt(held.AircraftType, faaSpans);
+        double targetHalfSpanFt = HalfSpanFt(target.AircraftType, faaSpans);
+        var clearance = new GiveWayClearance(
+            track,
+            heldHalfSpanFt + targetHalfSpanFt + GroundOutlineSweep.WingtipBufferFt,
+            targetHalfSpanFt + GroundOutlineSweep.WingtipBufferFt,
+            AircraftLength.ResolveFt(held.AircraftType) / 2.0
+        );
+        if (DistanceToTrackClearanceFt(held, heldRoute, nodeId, clearance) is not { } toStopFt)
+        {
+            noStopReason = "the junction is beyond the 1,500 ft look-ahead along its route";
+            return null;
+        }
+
+        noStopReason = null;
+        return (nodeId, toStopFt);
+    }
+
+    /// <summary>The route's edges into and out of <paramref name="nodeId"/>, from its current segment on; null when the node is not ahead.</summary>
+    private static List<DirectionalEdge>? TrackThroughNode(TaxiRoute route, int nodeId)
+    {
+        for (int i = Math.Max(route.CurrentSegmentIndex, 0); i < route.Segments.Count; i++)
+        {
+            if (route.Segments[i].ToNodeId == nodeId)
+            {
+                return i + 1 < route.Segments.Count ? [route.Segments[i].Edge, route.Segments[i + 1].Edge] : [route.Segments[i].Edge];
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// The closest <paramref name="point"/> comes to any of <paramref name="track"/>'s edges, feet, following the pavement
+    /// (<see cref="EdgeClearanceFt"/>).
+    /// </summary>
+    internal static double TrackClearanceFt(IReadOnlyList<DirectionalEdge> track, LatLon point) => track.Min(edge => EdgeClearanceFt(edge, point));
+
+    /// <summary>
+    /// The room a held aircraft leaves the target's <see cref="Track"/> through the junction: its centre at least
+    /// <see cref="CentreRequiredFt"/> off it (both half-spans plus the wingtip buffer), and its nose — the centre projected
+    /// <see cref="HalfLengthFt"/> ahead, as <see cref="FollowingPhase"/> projects a nose — at least
+    /// <see cref="NoseRequiredFt"/> off it (the target's half-span plus the buffer).
+    /// </summary>
+    private readonly record struct GiveWayClearance(List<DirectionalEdge> Track, double CentreRequiredFt, double NoseRequiredFt, double HalfLengthFt)
+    {
+        /// <summary>Whether an aircraft centred at <paramref name="centre"/>, heading <paramref name="headingDeg"/>, is inside the room.</summary>
+        internal bool IsInside(LatLon centre, double headingDeg) =>
+            (TrackClearanceFt(Track, centre) <= CentreRequiredFt)
+            || (TrackClearanceFt(Track, GeoMath.ProjectPoint(centre, new TrueHeading(headingDeg), HalfLengthFt / FtPerNm)) <= NoseRequiredFt);
+    }
+
+    /// <summary>
+    /// Half the wingspan (ft) of <paramref name="aircraftType"/>: the FAA database's when it carries both aircraft's spans
+    /// (<paramref name="faaSpans"/>, as <see cref="RequiredLateralClearanceFt"/> requires), the category span of
+    /// <see cref="TugMovePlanner.WingspanFt"/> otherwise.
+    /// </summary>
+    private static double HalfSpanFt(string aircraftType, bool faaSpans) =>
+        (faaSpans ? FaaAircraftDatabase.Get(aircraftType)!.WingspanFt!.Value : TugMovePlanner.WingspanFt(aircraftType)) / 2;
+
+    /// <summary>
+    /// How far (ft) <paramref name="aircraft"/>'s centre taxis along <paramref name="route"/> before its centre or its nose
+    /// first comes inside <paramref name="clearance"/>: the current segment from the aircraft straight to its end node (the
+    /// distance <see cref="RouteToNode"/> measures), then each later edge along its pavement, searched no further than
+    /// <paramref name="nodeId"/>, where the track itself starts, nor beyond <see cref="ConvergenceLookaheadFt"/>. The nose
+    /// points along the aircraft's heading where it stands and along each piece of the route ahead. Zero when the aircraft
+    /// is already inside; null when the walk ends on the look-ahead short of the node.
+    /// </summary>
+    private static double? DistanceToTrackClearanceFt(AircraftState aircraft, TaxiRoute route, int nodeId, GiveWayClearance clearance)
+    {
+        LatLon previous = aircraft.Position;
+        if (clearance.IsInside(previous, aircraft.TrueHeading.Degrees))
+        {
+            return 0.0;
+        }
+
+        int start = Math.Max(route.CurrentSegmentIndex, 0);
+        double walkedFt = 0;
+        for (int i = start; (i < route.Segments.Count) && (walkedFt <= ConvergenceLookaheadFt); i++)
+        {
+            DirectionalEdge edge = route.Segments[i].Edge;
+            foreach (LatLon next in i == start ? [edge.ToNode.Position] : PavementPoints(edge))
+            {
+                double pieceFt = GeoMath.DistanceNm(previous, next) * FtPerNm;
+                if (FirstInsideClearanceFt(previous, next, pieceFt, clearance) is { } alongFt)
+                {
+                    return walkedFt + alongFt;
+                }
+
+                walkedFt += pieceFt;
+                previous = next;
+            }
+
+            if (route.Segments[i].ToNodeId == nodeId)
+            {
+                return walkedFt;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// How far (ft) along the straight piece <paramref name="from"/> → <paramref name="to"/> an aircraft centred on it, nose
+    /// along it, first comes inside <paramref name="clearance"/>: stepped every <see cref="GiveWayStopStepFt"/>, then the
+    /// crossing step halved down to a tenth of a foot. Null when the whole piece stays clear.
+    /// </summary>
+    private static double? FirstInsideClearanceFt(LatLon from, LatLon to, double pieceFt, GiveWayClearance clearance)
+    {
+        double headingDeg = GeoMath.BearingTo(from, to);
+        int steps = Math.Max(1, (int)Math.Ceiling(pieceFt / GiveWayStopStepFt));
+        for (int k = 1; k <= steps; k++)
+        {
+            double hi = (double)k / steps;
+            if (!clearance.IsInside(LatLon.Lerp(from, to, hi), headingDeg))
+            {
+                continue;
+            }
+
+            double lo = (double)(k - 1) / steps;
+            while ((hi - lo) * pieceFt > GiveWayStopResolutionFt)
+            {
+                double mid = (lo + hi) / 2;
+                if (!clearance.IsInside(LatLon.Lerp(from, to, mid), headingDeg))
+                {
+                    lo = mid;
+                }
+                else
+                {
+                    hi = mid;
+                }
+            }
+
+            return lo * pieceFt;
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// An edge's pavement as points in the direction it is driven, its start node left out: a fillet arc sampled off its
+    /// Bézier, a straight edge through its <see cref="GroundEdge.IntermediatePoints"/>.
+    /// </summary>
+    private static IEnumerable<LatLon> PavementPoints(DirectionalEdge edge)
+    {
+        if (edge.Edge is GroundArc arc)
+        {
+            CubicBezier curve = arc.ToBezier();
+            bool forward = arc.Nodes[0].Id == edge.FromNodeId;
+            return Enumerable
+                .Range(1, ArcClearanceSamples)
+                .Select(i => (double)i / ArcClearanceSamples)
+                .Select(t => curve.Evaluate(forward ? t : 1.0 - t))
+                .Select(p => new LatLon(p.Lat, p.Lon));
+        }
+
+        return edge.Edge is GroundEdge straight ? TugMovePlanner.EdgePointsFrom(straight, edge.FromNode).Skip(1) : [edge.ToNode.Position];
     }
 
     internal static bool ShareUpcomingNode(AircraftState subject, AircraftState reference)

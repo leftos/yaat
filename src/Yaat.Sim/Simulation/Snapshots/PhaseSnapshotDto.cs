@@ -344,19 +344,32 @@ public sealed class CrossingRunwayPhaseDto : PhaseDto
     public string? CrossingRunwayId { get; init; }
 
     /// <summary>
-    /// Navigator state for the slice between approach and target. Non-required so
-    /// older snapshots default to null; <see cref="CrossingRunwayPhase.FromSnapshot"/>
-    /// rebuilds the navigator from <see cref="AircraftGroundState.AssignedTaxiRoute"/>
-    /// on the first OnTick after restore. Carrying the navigator state forward is a
-    /// future optimization — the rebuilt slice is canonical today.
+    /// Navigator state for the slice between approach and target, including the primitive it was playing and its progress
+    /// (<see cref="GroundNavigatorDto.Playback"/>). The first OnTick after restore rebuilds the slice from the restored
+    /// source route and sets the slice segment up again on this navigator, which resumes the saved primitive where it
+    /// stood. Null for a crossing that had not ticked, and in older snapshots: the restore then builds a fresh navigator.
     /// </summary>
     public GroundNavigatorDto? Navigator { get; init; }
 
     /// <summary>
-    /// Index into the rebuilt crossing slice; forward-compat placeholder for the same
-    /// reason as <see cref="Navigator"/>. Defaults to 0 for legacy snapshots.
+    /// The slice segment the crossing was on; the restore's slice rebuild starts on it. Defaults to 0 for legacy
+    /// snapshots.
     /// </summary>
     public int CrossingRouteSegmentIndex { get; init; }
+
+    /// <summary>
+    /// The aircraft's latitude when the navigator set up the slice segment it is on. The navigator builds that segment's
+    /// primitive (an entry-alignment turn, a re-anchored line) from the pose it is set up at, so a restore sets the segment
+    /// up again from this pose, not from wherever the aircraft has rolled to since. Null in snapshots written before the
+    /// field existed, which rebuild from the live pose.
+    /// </summary>
+    public double? SegmentSetupLat { get; init; }
+
+    /// <summary>Longitude of the pose the current slice segment was set up at. See <see cref="SegmentSetupLat"/>.</summary>
+    public double? SegmentSetupLon { get; init; }
+
+    /// <summary>True heading (degrees) of the pose the current slice segment was set up at. See <see cref="SegmentSetupLat"/>.</summary>
+    public double? SegmentSetupHeadingDeg { get; init; }
 
     /// <summary>
     /// The crossing path the phase was handed (<c>CrossingRunwayPhase.OverOwnPath</c>) instead of slicing the
@@ -368,8 +381,8 @@ public sealed class CrossingRunwayPhaseDto : PhaseDto
 
 /// <summary>
 /// Snapshot for <see cref="Yaat.Sim.Phases.Ground.ClearRunwayPhase"/> (issue #172 W5). Carries the runway
-/// hold-short node and the approach (runway-side) node; the navigator is rebuilt on the first OnTick after
-/// restore, like <see cref="CrossingRunwayPhaseDto"/>.
+/// hold-short node and the approach (runway-side) node; the navigator is not carried, and the first OnTick after
+/// restore builds a fresh one from those nodes and the aircraft's pose.
 /// </summary>
 public sealed class ClearRunwayPhaseDto : PhaseDto
 {
@@ -444,6 +457,100 @@ public sealed class GroundNavigatorDto
     /// as no aimed line, so the restore plays the fillet as its curve.
     /// </summary>
     public int? AimedLineFilletFromNodeId { get; init; }
+
+    /// <summary>
+    /// The primitive the navigator was playing and how far along it it had got, so a restore resumes that primitive where
+    /// it stood rather than building a new one from the aircraft's pose. Null when no primitive was active, and in
+    /// snapshots written before the field existed: the restore then sets the segment up again from where the aircraft
+    /// stands.
+    /// </summary>
+    public GroundNavigatorPlaybackDto? Playback { get; init; }
+}
+
+/// <summary>
+/// The navigator's active primitive with its playback progress, its arc-entry blend and the entry-alignment bookkeeping
+/// that decides what follows the primitive (<see cref="GroundNavigatorDto.Playback"/>).
+/// </summary>
+public sealed class GroundNavigatorPlaybackDto
+{
+    public required PathPrimitiveDto Primitive { get; init; }
+
+    /// <summary>
+    /// The from-node of the route segment the playback was captured on; a resume needs both ends of the segment to match,
+    /// this one and the to-node (<see cref="GroundNavigatorDto.TargetNodeId"/>).
+    /// </summary>
+    public required int FromNodeId { get; init; }
+
+    /// <summary>The primitive is an entry-alignment turn holding the segment's own primitive back until it completes.</summary>
+    public required bool HasPendingSegmentPrimitive { get; init; }
+
+    public required double ArcBearingFromCenterDeg { get; init; }
+    public required double ArcRemainingSweepDeg { get; init; }
+    public required double BezierT { get; init; }
+    public required double BezierTraveledFt { get; init; }
+    public required double BezierLeadInRemainingFt { get; init; }
+    public required double ArcEntryOffsetLatDeg { get; init; }
+    public required double ArcEntryOffsetLonDeg { get; init; }
+    public required double ArcEntryTravelledFt { get; init; }
+    public required double ArcEntryBlendFt { get; init; }
+
+    /// <summary>The primitive has not yet had its first tick, which captures its entry offset.</summary>
+    public required bool ArcEntryPending { get; init; }
+
+    public required double CumulativeTurnSinceAdvanceDeg { get; init; }
+
+    /// <summary>The active entry-alignment turn is aimed at a route node rather than at a bearing.</summary>
+    public required bool AimedAtRouteNode { get; init; }
+
+    public required int NodeAimSegmentIndex { get; init; }
+    public required int AimedPastThroughSegmentIndex { get; init; }
+    public required bool EntryArcAimedAtNodeOffRealLeg { get; init; }
+}
+
+/// <summary>A navigator path primitive (<c>PathPrimitive</c>), by shape.</summary>
+[JsonDerivedType(typeof(StraightPrimitiveDto), "Straight")]
+[JsonDerivedType(typeof(BezierPrimitiveDto), "Bezier")]
+[JsonDerivedType(typeof(SlowTurnPrimitiveDto), "SlowTurn")]
+public abstract class PathPrimitiveDto
+{
+    public required double LengthFt { get; init; }
+    public required int ToNodeId { get; init; }
+}
+
+public sealed class StraightPrimitiveDto : PathPrimitiveDto
+{
+    public required double FromLat { get; init; }
+    public required double FromLon { get; init; }
+    public required double ToLat { get; init; }
+    public required double ToLon { get; init; }
+    public required double BearingDeg { get; init; }
+}
+
+public sealed class BezierPrimitiveDto : PathPrimitiveDto
+{
+    public required double P0Lat { get; init; }
+    public required double P0Lon { get; init; }
+    public required double P1Lat { get; init; }
+    public required double P1Lon { get; init; }
+    public required double P2Lat { get; init; }
+    public required double P2Lon { get; init; }
+    public required double P3Lat { get; init; }
+    public required double P3Lon { get; init; }
+    public required double EntryTangentBearingDeg { get; init; }
+    public required double ExitTangentBearingDeg { get; init; }
+}
+
+public sealed class SlowTurnPrimitiveDto : PathPrimitiveDto
+{
+    public required double CenterLat { get; init; }
+    public required double CenterLon { get; init; }
+    public required double RadiusFt { get; init; }
+    public required double StartBearingFromCenterDeg { get; init; }
+    public required double SweepDeg { get; init; }
+    public required bool RightTurn { get; init; }
+    public required double EntryTangentBearingDeg { get; init; }
+    public required double ExitTangentBearingDeg { get; init; }
+    public required double MaxSpeedKts { get; init; }
 }
 
 public sealed class FollowingPhaseDto : PhaseDto
@@ -462,6 +569,28 @@ public sealed class FollowingPhaseDto : PhaseDto
     /// spent once it is clear of them again. False in snapshots written before the field existed.
     /// </summary>
     public bool HasBeenOnClearedRunway { get; init; }
+
+    /// <summary>
+    /// The runway hold-short node the follow is stopping at (<c>FollowingPhase</c>'s latched bar). Null with no bar ahead,
+    /// and in snapshots written before the field existed.
+    /// </summary>
+    public int? LatchedBarNodeId { get; init; }
+
+    /// <summary>
+    /// The bearing (deg true) from the latched bar back up the taxiway edge leading into it — the axis its hold line is
+    /// square to. Null with no latched bar.
+    /// </summary>
+    public double? LatchedBarApproachDeg { get; init; }
+
+    /// <summary>
+    /// The first end node id (<c>Nodes[0]</c>) of the straight taxi edge the follower was last found on, where
+    /// <c>FollowingPhase</c> looks first for the taxiway it is on. Null before the first find, while off every taxiway, and in
+    /// snapshots written before the field existed (the restored follow then scans the whole layout once).
+    /// </summary>
+    public int? TaxiEdgeNodeA { get; init; }
+
+    /// <summary>The other end node id (<c>Nodes[1]</c>) of that taxi edge. See <see cref="TaxiEdgeNodeA"/>.</summary>
+    public int? TaxiEdgeNodeB { get; init; }
 }
 
 /// <summary>

@@ -117,6 +117,10 @@ public sealed class RunwayExitPhase : Phase
     // aircraft is past the branch. Zero for a phase that was never restored.
     private int _restoreSegmentIndex;
 
+    // The navigator's snapshot, held by FromSnapshot until the first tick's route rebuild restores the navigator from it,
+    // so the rebuilt exit route resumes the primitive the navigator was playing. Null for a phase that was never restored.
+    private GroundNavigatorDto? _restoredNavigator;
+
     // The aircraft's RequestedExit as it stood when the route was handed to the navigator. A late exit
     // change is "the controller issued something new since we committed", which is identity against this —
     // not against _lastResolvedPreference, which OnStart may have replaced with an inferred-side variant
@@ -275,7 +279,21 @@ public sealed class RunwayExitPhase : Phase
                 {
                     // Rebuild failed (layout gone, or an edge on the stored path no longer exists). Fall back to the
                     // centerline search rather than silently declaring the exit complete — same recovery the
-                    // build-time failure path takes.
+                    // build-time failure path takes. The navigator the phase was restored with belongs to the route that
+                    // could not be rebuilt: drop it, so a later exit build starts a fresh navigator and a later snapshot
+                    // does not carry it on.
+                    if (_restoredNavigator is { } staleNavigator)
+                    {
+                        Log.LogWarning(
+                            "[Exit] {Callsign}: exit route could not be rebuilt after a restore (stored path {Path}); dropping the "
+                                + "restored navigator toward node {NodeId} and falling back to the centerline",
+                            ctx.Aircraft.Callsign,
+                            string.Join("→", _exitPath?.Select(node => node.Id) ?? []),
+                            staleNavigator.TargetNodeId
+                        );
+                        _restoredNavigator = null;
+                    }
+
                     _state = ExitState.RollingOnCenterline;
                     ClearCommittedExit();
                     return TickRolling(ctx);
@@ -1098,7 +1116,11 @@ public sealed class RunwayExitPhase : Phase
             CategoryPerformance.TaxiSpeed(ctx.Category) * (ctx.Aircraft.Ground.IsExpeditingExit ? CategoryPerformance.TaxiExpediteMultiplier : 1.0);
         double maxSpeed = Math.Min(_coastSpeed, taxiCeiling);
 
-        _navigator = new GroundNavigator { MaxSpeedKts = maxSpeed };
+        // The route rebuild after a restore takes the navigator from the snapshot, so the set-up below resumes the primitive
+        // it was playing at the progress it had reached (GroundNavigator.TryResumeRestoredPlayback).
+        _navigator = _restoredNavigator is { } savedNavigator ? GroundNavigator.FromSnapshot(savedNavigator) : new GroundNavigator();
+        _navigator.MaxSpeedKts = maxSpeed;
+        _restoredNavigator = null;
         if (ctx.Aircraft.Ground.IsExpeditingExit)
         {
             // Brake firmly to the hold-short stop after the turn-off. Corner-speed
@@ -1407,7 +1429,7 @@ public sealed class RunwayExitPhase : Phase
             TurnStarted = _turnStarted,
             BacktrackPending = _backtrackPending,
             ReportedNoExitAhead = _reportedNoExitAhead,
-            Navigator = _navigator?.ToSnapshot(),
+            Navigator = _navigator?.ToSnapshot() ?? _restoredNavigator,
         };
 
     public static RunwayExitPhase FromSnapshot(RunwayExitPhaseDto dto, AirportGroundLayout? groundLayout)
@@ -1453,10 +1475,8 @@ public sealed class RunwayExitPhase : Phase
                     phase._exitPath = path;
                 }
             }
-            if (dto.Navigator is not null)
-            {
-                phase._navigator = GroundNavigator.FromSnapshot(dto.Navigator);
-            }
+            // Held for the first tick's route rebuild (StartExitNavigation), which needs the live layout and pose.
+            phase._restoredNavigator = dto.Navigator;
         }
 
         return phase;

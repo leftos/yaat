@@ -1,6 +1,8 @@
 using System.Collections.Concurrent;
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using Microsoft.Extensions.Logging;
 using ModelContextProtocol;
 using ModelContextProtocol.Server;
@@ -21,6 +23,16 @@ public sealed class ProcessTools(ElementRegistry registry, PipeDirectory pipes, 
     private const string ClientExecutableName = "Yaat.Client.exe";
     private const string AppDataVariable = "YAAT_APPDATA_DIR";
     private const string AutomationVariable = "YAAT_AUTOMATION";
+    private const string CloakVariable = "YAAT_CLOAK";
+    private const string PreferencesFileName = "preferences.json";
+
+    /// <summary>
+    /// The name the client's preferences serializer (camelCase, <c>UserPreferences.JsonOptions</c>) reads and writes
+    /// <c>AudioOutputDevice</c> under.
+    /// </summary>
+    private const string AudioOutputDeviceKey = "audioOutputDevice";
+
+    private static readonly JsonSerializerOptions IndentedJson = new() { WriteIndented = true };
 
     /// <summary>The processes this server started, kept as live handles: a pid alone is reused by Windows and cannot identify one.</summary>
     private static readonly ConcurrentDictionary<int, Process> LaunchedProcesses = new();
@@ -40,9 +52,20 @@ public sealed class ProcessTools(ElementRegistry registry, PipeDirectory pipes, 
         [Description("How long to wait for the client's automation pipe to answer, in seconds.")] int waitSeconds = 30,
         [Description(
             "Extra environment variables for the client, each KEY=VALUE (e.g. YAAT_DEV_SOLO_SPEECH_BUBBLES=1). "
-                + "YAAT_APPDATA_DIR and YAAT_AUTOMATION are set by the tool and rejected here."
+                + "YAAT_APPDATA_DIR, YAAT_AUTOMATION and YAAT_CLOAK are set by the tool and rejected here."
         )]
-            string[]? env = null
+            string[]? env = null,
+        [Description(
+            "True sets YAAT_CLOAK=1: the client DWM-cloaks every window before its first show, so none appears on the desktop "
+                + "while record_start still captures it. set_cloaked changes it on a running client."
+        )]
+            bool cloaked = false,
+        [Description(
+            "Output device for the pilot voice, written as AudioOutputDevice into appDataDir's preferences.json before the client "
+                + "starts (every other preference kept): the exact device name Settings lists, e.g. a VB-Audio Virtual Cable input. "
+                + "Empty leaves the preference alone."
+        )]
+            string audioOutputDevice = ""
     )
     {
         if (waitSeconds < 1)
@@ -64,17 +87,21 @@ public sealed class ProcessTools(ElementRegistry registry, PipeDirectory pipes, 
 
         string fullAppDataDir = Path.GetFullPath(appDataDir);
         List<KeyValuePair<string, string>> extraEnv = ParseEnvironment(env);
-        ProcessStartInfo startInfo = BuildStartInfo(fullExePath, fullAppDataDir, extraEnv);
+        ProcessStartInfo startInfo = BuildStartInfo(fullExePath, fullAppDataDir, extraEnv, cloaked);
         Directory.CreateDirectory(fullAppDataDir);
+        bool audioOutputDeviceWritten = SeedAudioOutputDevice(fullAppDataDir, audioOutputDevice);
         Process process = processes.Start(startInfo);
         LaunchedProcesses[process.Id] = process;
         string extraEnvKeys = string.Join(",", extraEnv.Select(pair => pair.Key));
         logger.LogInformation(
-            "Launched {Exe} as pid {Pid} with YAAT_APPDATA_DIR={AppData} extraEnv={ExtraEnv}",
+            "Launched {Exe} as pid {Pid} with YAAT_APPDATA_DIR={AppData} extraEnv={ExtraEnv} cloaked={Cloaked} "
+                + "audioOutputDeviceWritten={AudioWritten}",
             fullExePath,
             process.Id,
             fullAppDataDir,
-            extraEnvKeys
+            extraEnvKeys,
+            cloaked,
+            audioOutputDeviceWritten
         );
 
         List<WindowInfo> windows = await WaitForPipeWindowsOrKillAsync(process, waitSeconds, cancellationToken).ConfigureAwait(false);
@@ -88,20 +115,72 @@ public sealed class ProcessTools(ElementRegistry registry, PipeDirectory pipes, 
     }
 
     /// <summary>
-    /// The start info a launch uses: the client executable, with YAAT_APPDATA_DIR and YAAT_AUTOMATION set and the
-    /// already-validated <paramref name="extraEnv"/> pairs added.
+    /// The start info a launch uses: the client executable, with YAAT_APPDATA_DIR and YAAT_AUTOMATION set, YAAT_CLOAK set when
+    /// <paramref name="cloaked"/>, and the already-validated <paramref name="extraEnv"/> pairs added.
     /// </summary>
-    private static ProcessStartInfo BuildStartInfo(string exePath, string appDataDir, List<KeyValuePair<string, string>> extraEnv)
+    private static ProcessStartInfo BuildStartInfo(string exePath, string appDataDir, List<KeyValuePair<string, string>> extraEnv, bool cloaked)
     {
         ProcessStartInfo startInfo = new(exePath) { UseShellExecute = false, WorkingDirectory = Path.GetDirectoryName(exePath)! };
         startInfo.Environment[AppDataVariable] = appDataDir;
         startInfo.Environment[AutomationVariable] = "1";
+        if (cloaked)
+        {
+            startInfo.Environment[CloakVariable] = "1";
+        }
+
         foreach (KeyValuePair<string, string> pair in extraEnv)
         {
             startInfo.Environment[pair.Key] = pair.Value;
         }
 
         return startInfo;
+    }
+
+    /// <summary>
+    /// Writes <paramref name="audioOutputDevice"/> into the preferences.json under <paramref name="appDataDir"/>, which the client
+    /// reads at startup because YAAT_APPDATA_DIR points it there; every other key is kept, and a missing file is created. An empty
+    /// device leaves the file untouched. A file that is not a JSON object is refused rather than overwritten.
+    /// </summary>
+    private bool SeedAudioOutputDevice(string appDataDir, string audioOutputDevice)
+    {
+        if (string.IsNullOrEmpty(audioOutputDevice))
+        {
+            return false;
+        }
+
+        string path = Path.Combine(appDataDir, PreferencesFileName);
+        JsonObject preferences = File.Exists(path) ? ReadPreferences(path) : [];
+        preferences[AudioOutputDeviceKey] = audioOutputDevice;
+        File.WriteAllText(path, preferences.ToJsonString(IndentedJson));
+        logger.LogInformation("Wrote {Key}={Device} into {Path}", AudioOutputDeviceKey, audioOutputDevice, path);
+        return true;
+    }
+
+    /// <summary>The preferences.json at <paramref name="path"/> as a JSON object, refusing one that does not parse or holds anything else.</summary>
+    private static JsonObject ReadPreferences(string path)
+    {
+        JsonNode? root;
+        try
+        {
+            root = JsonNode.Parse(File.ReadAllText(path));
+        }
+        catch (JsonException ex)
+        {
+            throw new McpException(
+                $"INVALID_PARAM: audioOutputDevice cannot be written: '{path}' is not valid JSON ({ex.Message}); fix or delete the file",
+                ex
+            );
+        }
+
+        if (root is JsonObject preferences)
+        {
+            return preferences;
+        }
+
+        string kind = (root is null) ? "null" : root.GetValueKind().ToString();
+        throw new McpException(
+            $"INVALID_PARAM: audioOutputDevice cannot be written: '{path}' holds a JSON {kind}, not an object; fix or delete the file"
+        );
     }
 
     /// <summary>
@@ -158,7 +237,8 @@ public sealed class ProcessTools(ElementRegistry registry, PipeDirectory pipes, 
     /// <summary>True for a variable launch_yaat sets itself, which an env entry may not overwrite.</summary>
     private static bool IsToolOwnedVariable(string key) =>
         string.Equals(key, AppDataVariable, StringComparison.OrdinalIgnoreCase)
-        || string.Equals(key, AutomationVariable, StringComparison.OrdinalIgnoreCase);
+        || string.Equals(key, AutomationVariable, StringComparison.OrdinalIgnoreCase)
+        || string.Equals(key, CloakVariable, StringComparison.OrdinalIgnoreCase);
 
     [McpServerTool]
     [Description("Lists running processes whose name contains the given text, with pid and main window title. Use \"Yaat.Client\" or \"CRC\".")]

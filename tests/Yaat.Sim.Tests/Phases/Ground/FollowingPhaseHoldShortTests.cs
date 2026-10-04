@@ -30,6 +30,16 @@ public class FollowingPhaseHoldShortTests(ITestOutputHelper output)
     private const double ApproachFt = 60.0;
 
     /// <summary>
+    /// The follower's speed: a crawl inside one physics sub-tick of braking (a jet brakes 1.25 kt a sub-tick), so a bar it
+    /// must stop at is held on this one tick. A faster follower brakes toward the bar's stop first and holds only once
+    /// stopped, which a single phase tick with no physics never reaches.
+    /// </summary>
+    private const double CrawlKts = 1.0;
+
+    /// <summary>How far (ft) short of the 1R bar on F1 the stale-taxiway follower rolls: on F1, outside the detection window.</summary>
+    private const double StaleTaxiwayProbeFt = 200.0;
+
+    /// <summary>
     /// A follower being led off the runway it is standing on does not stop at that runway's far-side bar.
     /// Leaving a runway is not crossing it, and holding short of the pavement under your own wheels strands
     /// the aircraft on an active runway waiting for a clearance the controller has no reason to issue.
@@ -157,6 +167,41 @@ public class FollowingPhaseHoldShortTests(ITestOutputHelper output)
             expected: HoldShortReason.RunwayCrossing
         );
 
+    /// <summary>
+    /// A follow has no route to name the taxiway it is on, so a name left over from before — the taxiway a previous hold
+    /// was on — would be read out in the next hold-short report. A moving follower takes its taxiway from the edge it is
+    /// rolling on instead.
+    /// </summary>
+    [Fact]
+    public void MovingFollower_TakesItsTaxiwayFromTheEdgeItIsOn()
+    {
+        if (Build() is not { } ground)
+        {
+            return;
+        }
+
+        AirportGroundLayout layout = ground.Layout;
+        List<GroundNode> bars = TestLayoutNodes.RunwayHoldShortsOnTaxiway(layout, "1R", "F1");
+        if (bars.Count == 0)
+        {
+            output.WriteLine("SKIP: SFO layout has no runway 1R hold-short on taxiway F1");
+            return;
+        }
+
+        // On F1, beyond the bar-detection window, rolling toward the bar, still carrying the name of a taxiway it left.
+        GroundNode bar = bars[0];
+        TrueHeading awayFromRunway = TaxiCoverageRunner.TaxiwayDepartureHeading(bar);
+        LatLon position = GeoMath.ProjectPoint(bar.Position, awayFromRunway, StaleTaxiwayProbeFt / FeetPerNm);
+        AircraftState aircraft = PlaceFollower(ground, position, GeoMath.BearingTo(position, bar.Position), "28L", new FollowingPhase(Leader));
+        aircraft.Ground.CurrentTaxiway = "A";
+
+        Tick(aircraft, layout);
+
+        output.WriteLine($"{StaleTaxiwayProbeFt:F0} ft short of 1R bar node {bar.Id}: CurrentTaxiway={aircraft.Ground.CurrentTaxiway ?? "null"}");
+        Assert.DoesNotContain(aircraft.Phases!.Phases, p => p is HoldingShortPhase);
+        Assert.Equal("F1", aircraft.Ground.CurrentTaxiway);
+    }
+
     private static FollowingPhase ClearedForOneRight(bool hasBeenOnIt) =>
         FollowingPhase.FromSnapshot(
             new FollowingPhaseDto
@@ -201,7 +246,7 @@ public class FollowingPhaseHoldShortTests(ITestOutputHelper output)
             Position = position,
             TrueHeading = new TrueHeading(headingDegrees),
             Altitude = 0,
-            IndicatedAirspeed = 10,
+            IndicatedAirspeed = CrawlKts,
             IsOnGround = true,
             FlightPlan = new AircraftFlightPlan { Departure = "SFO", Destination = "KLAX" },
         };

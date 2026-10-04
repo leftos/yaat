@@ -43,8 +43,8 @@ public class IssueSaltAfterCtoAltitudeTests(ITestOutputHelper output)
     /// After replaying to t=SaltTime the aircraft has already been cleared for
     /// takeoff with a bundled altitude of 1,400 ft and is climbing. The
     /// controller-assigned altitude must be visible on
-    /// <see cref="Yaat.Sim.ControlTargets.AssignedAltitude"/> so SALT, the
-    /// datablock, and SnapshotDiff all read a consistent value.
+    /// <see cref="Yaat.Sim.ControlTargets.AssignedAltitude"/> so SALT and the
+    /// datablock read a consistent value.
     /// </summary>
     [Fact]
     public void N172SP_AssignedAltitude_PopulatedFromCtoBundledAltitude()

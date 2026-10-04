@@ -268,7 +268,7 @@ Three pieces hold the resume together:
 - **`ResumeSegmentIndexAfterRestore` floors the index at 1 when the aircraft is past the branch** (along-track, on the runway heading). A snapshot can land on the tick before the navigator signals arrival, so the stored index alone still reads 0 while the aircraft is physically on the exit taxiway.
 - **Segment 0 is re-anchored when resuming past it** — on the centerline `RestoredApproachSegmentNm` *behind* the branch instead of at the aircraft. The navigator reads that leg's arrival bearing as the corner's incoming tangent (and its length feeds the adaptive rounding radius and the short-connector check), so it has to still be the runway heading.
 
-The live first-commit and re-target paths are untouched: both pass a resume index of 0 and get exactly the route they always did. `GroundNavigator` is separately non-round-tripping — it stores no arc progress, so a restore mid-fillet replays that arc from its start and the reconstruction trails the live track by a second or two on the same path.
+The live first-commit and re-target paths are untouched: both pass a resume index of 0 and get exactly the route they always did. `RunwayExitPhase.FromSnapshot` keeps the saved navigator (`_restoredNavigator`) and the first tick's rebuild makes the navigator from it, so a restore mid-fillet continues the same arc at the same progress as the live run ([ground/navigator.md](ground/navigator.md) § Snapshot round-trip of the active primitive).
 
 ### Why the virtual segment matters
 

@@ -347,10 +347,12 @@ public class FollowGroundAtRunwayBarTests(ITestOutputHelper output)
         PilotSpeechText readback = Assert.IsType<PilotSpeechText>(
             PilotResponder.BuildReadback(CommandParser.ParseCompound($"FOLLOWG {Leader}").Value!, follower)
         );
-        output.WriteLine($"terminal='{readback.Terminal}' tts='{readback.Tts}'");
+        output.WriteLine($"terminal='{readback.Terminal}' tts='{readback.Tts}' rpo='{readback.RpoTerminal}'");
         // The leader is "the traffic" to the pilot (docs/pilot-phraseology.md); the hold-short is read back with the runway.
         Assert.Equal("follow the traffic, hold short of runway 1R", readback.Terminal);
         Assert.StartsWith("follow the traffic, hold short of runway one right, ", readback.Tts, StringComparison.Ordinal);
+        // The solo/student forms never carry the leader's callsign; it survives only in the RPO form.
+        Assert.Equal($"follow {Leader}, hold short of runway 1R", readback.RpoTerminal);
     }
 
     /// <summary>

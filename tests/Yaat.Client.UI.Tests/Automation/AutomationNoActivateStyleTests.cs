@@ -2,6 +2,7 @@ using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Xunit;
 using Yaat.Client.Automation;
+using Yaat.Client.Logging;
 using Yaat.Client.Views;
 
 namespace Yaat.Client.UI.Tests.Automation;
@@ -52,6 +53,120 @@ public class AutomationNoActivateStyleTests
         {
             AutomationMode.IsEnabled = false;
             window.Close();
+        }
+    }
+
+    // The headless backend gives a window no HWND, so the test replaces the cloaker seam (the real one finds the HWND and calls
+    // DwmSetWindowAttribute(DWMWA_CLOAK)) and observes which windows the gate asks it to cloak; live-check covers the DWM call.
+    [AvaloniaFact]
+    public void ApplyShowActivated_CloaksTheWindow_OnlyWhileAutomationAndCloakAreOn()
+    {
+        var window = new Window();
+        Func<WindowBase, bool, string?> previousCloaker = AutomationGate.Cloaker;
+        List<(WindowBase Window, bool Cloaked)> calls = [];
+        AutomationGate.Cloaker = (target, cloaked) =>
+        {
+            calls.Add((target, cloaked));
+            return null;
+        };
+        try
+        {
+            AutomationMode.IsEnabled = true;
+            AutomationGate.CloakWindows = false;
+            AutomationGate.ApplyShowActivated(window);
+            Assert.Empty(calls);
+
+            AutomationMode.IsEnabled = false;
+            AutomationGate.CloakWindows = true;
+            AutomationGate.ApplyShowActivated(window);
+            Assert.Empty(calls);
+
+            AutomationMode.IsEnabled = true;
+            AutomationGate.ApplyShowActivated(window);
+            Assert.Equal([(window, true)], calls);
+        }
+        finally
+        {
+            AutomationGate.Cloaker = previousCloaker;
+            AutomationGate.CloakWindows = false;
+            AutomationMode.IsEnabled = false;
+            window.Close();
+        }
+    }
+
+    // An uncloaked window on the desktop is what cloaking prevents, so a cloak that fails before the first show ends the client.
+    // The exit seam is replaced: the real one kills the test host.
+    [AvaloniaFact]
+    public void ApplyShowActivated_CloakFails_LogsTheErrorAndExitsWithCode3()
+    {
+        var window = new Window();
+        Func<WindowBase, bool, string?> previousCloaker = AutomationGate.Cloaker;
+        Action<int> previousExit = AutomationGate.Exit;
+        List<int> exitCodes = [];
+        AutomationGate.Cloaker = (_, _) => "DwmSetWindowAttribute(DWMWA_CLOAK, 1) failed with HRESULT 0x80070005";
+        AutomationGate.Exit = exitCodes.Add;
+        long before = AppLog.RecentErrors.LastSequence;
+        try
+        {
+            AutomationMode.IsEnabled = true;
+            AutomationGate.CloakWindows = true;
+            AutomationGate.ApplyShowActivated(window);
+
+            Assert.Equal([3], exitCodes);
+            Assert.Contains(
+                AppLog.RecentErrors.Since(before, 50),
+                entry =>
+                    (entry.Category == "AutomationGate")
+                    && entry.Message.Contains(
+                        "could not cloak Window before its first show (DwmSetWindowAttribute(DWMWA_CLOAK, 1) failed with HRESULT 0x80070005)",
+                        StringComparison.Ordinal
+                    )
+            );
+        }
+        finally
+        {
+            AutomationGate.Cloaker = previousCloaker;
+            AutomationGate.Exit = previousExit;
+            AutomationGate.CloakWindows = false;
+            AutomationMode.IsEnabled = false;
+            window.Close();
+        }
+    }
+
+    // A window built before a set_cloaked call and opened after it takes the new state when it opens; one whose state did not
+    // change between build and open is left alone.
+    [AvaloniaFact]
+    public void OpenedWindow_TakesTheCloakStateSetAfterItWasBuilt()
+    {
+        var changed = new Window();
+        var unchanged = new Window();
+        Func<WindowBase, bool, string?> previousCloaker = AutomationGate.Cloaker;
+        List<(WindowBase Window, bool Cloaked)> calls = [];
+        AutomationGate.Cloaker = (target, cloaked) =>
+        {
+            calls.Add((target, cloaked));
+            return null;
+        };
+        try
+        {
+            AutomationMode.IsEnabled = true;
+            AutomationGate.CloakWindows = true;
+            AutomationGate.ApplyShowActivated(changed);
+            AutomationGate.CloakWindows = false;
+            AutomationGate.ApplyShowActivated(unchanged);
+
+            changed.Show();
+            unchanged.Show();
+
+            Assert.Equal([(changed, true), (changed, false)], calls);
+        }
+        finally
+        {
+            AutomationGate.Cloaker = previousCloaker;
+            AutomationGate.CloakWindows = false;
+            AutomationMode.IsEnabled = false;
+            changed.Close();
+            unchanged.Close();
         }
     }
 }

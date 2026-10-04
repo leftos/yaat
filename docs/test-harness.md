@@ -344,6 +344,8 @@ tailwind-vs-calm roll-distance ratio reads 1.07 instead of 1.14, which looks exa
 
 ## Debugging aircraft movement — `TickRecorder`
 
+To see what happens inside a second, step it by hand: `BeginSecond()`, `TickPrePhysics()`, four `RunPhysicsSubTick(0.25, i)`, then `TickPostPhysics()`, reading the aircraft after each sub-tick. `GroundConflictDetector.DebugSink` receives the detector's `[Pair]` / `[Convergence]` / `[ApplyMinLimit]` trace, which does not go through `ILogger`.
+
 `TickRecorder` (`Helpers/TickRecorder.cs`) captures per-tick aircraft state to a JSON document (with embedded type/wingspan/length/color
 metadata) for visualization. Attach it to one or more aircraft, `Record(t)` each simulated second, then `WriteJson(".tmp/run.json")`:
 

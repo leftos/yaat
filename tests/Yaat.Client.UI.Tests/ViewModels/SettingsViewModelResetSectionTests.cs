@@ -236,7 +236,7 @@ public class SettingsViewModelResetSectionTests
     public void CancelAfterReset_LeavesThePreferencesUnchanged()
     {
         using var scope = new PreferencesFileScope();
-        new UserPreferences().SetPilotVoiceSettings(enabled: true, volume: 30, radioFxEnabled: false);
+        new UserPreferences().SetPilotVoiceSettings(enabled: true, volume: 30, radioFxEnabled: false, speechRate: 1.3);
         var window = new SettingsWindow(new UserPreferences());
         window.ShowAndRunLayout();
         var vm = (SettingsViewModel)window.DataContext!;

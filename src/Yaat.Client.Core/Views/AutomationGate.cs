@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Avalonia.Platform;
 using Microsoft.Extensions.Logging;
@@ -41,8 +43,40 @@ public static class AutomationGate
     /// <summary><c>HWND_BOTTOM</c>: the Z-order position one past the last window on the desktop.</summary>
     private static readonly IntPtr HwndBottom = new(1);
 
+    /// <summary><c>DWMWA_CLOAK</c>: the window attribute an owning process sets to cloak its own window.</summary>
+    private const int DwmwaCloak = 13;
+
+    /// <summary>The exit code of a client that could not cloak a window before its first show.</summary>
+    public const int CloakFailedExitCode = 3;
+
     /// <summary>True while self-activation (activate, topmost, activated show) is suppressed.</summary>
     public static bool SuppressActivation { get; set; }
+
+    /// <summary>
+    /// True while every window shown under <see cref="SuppressActivation"/> is DWM-cloaked before its first show: it is composed
+    /// (so Windows Graphics Capture still records it) but never drawn on the desktop. <c>Program.Main</c> sets it from
+    /// <c>YAAT_CLOAK=1</c>, and the <c>set_cloaked</c> app tool changes it on a running client.
+    /// </summary>
+    public static bool CloakWindows { get; set; }
+
+    /// <summary>
+    /// Cloaks (true) or uncloaks (false) one window and returns null, or returns what failed. <see cref="CloakWithDwm"/> outside
+    /// tests; a headless test, whose windows have no HWND, replaces it to observe the calls.
+    /// </summary>
+    public static Func<Avalonia.Controls.WindowBase, bool, string?> Cloaker { get; set; } = CloakWithDwm;
+
+    /// <summary>
+    /// Ends the client with an exit code when a window cannot be cloaked before its first show. Outside tests it flushes the log,
+    /// starts a watchdog that kills the process if the exit has not finished within a few seconds, and calls
+    /// <see cref="Environment.Exit(int)"/>; a test replaces it to observe the call.
+    /// </summary>
+    public static Action<int> Exit { get; set; } = ExitWithWatchdog;
+
+    /// <summary>How long <see cref="ExitWithWatchdog"/> lets the CLR's exit run before it kills the process.</summary>
+    private static readonly TimeSpan ExitKillTimeout = TimeSpan.FromSeconds(5);
+
+    /// <summary>The cloak state last applied to each window, so its first open can tell whether a <c>set_cloaked</c> call came between.</summary>
+    private static readonly ConditionalWeakTable<Avalonia.Controls.WindowBase, StrongBox<bool>> AppliedCloak = [];
 
     /// <summary>
     /// Returns the Win32 window styles a window carries while self-activation is suppressed: every bit of
@@ -67,11 +101,128 @@ public static class AutomationGate
             // Removed before adding, so a window that passes through here twice registers the callback once.
             Avalonia.Controls.Win32Properties.RemoveWindowStylesCallback(window, NoActivateStyles);
             Avalonia.Controls.Win32Properties.AddWindowStylesCallback(window, NoActivateStyles);
+            if (CloakWindows)
+            {
+                CloakBeforeFirstShow(window);
+            }
+            else
+            {
+                AppliedCloak.AddOrUpdate(window, new StrongBox<bool>(false));
+            }
+
             SendToBottomOfZOrder(window);
             // Removed before adding, so a window that passes through here twice registers the handler once.
             window.Opened -= OnWindowOpened;
             window.Opened += OnWindowOpened;
         }
+    }
+
+    /// <summary>
+    /// Cloaks <paramref name="window"/> before it is first shown, or ends the client: an uncloaked window on the desktop is exactly
+    /// what cloaking is asked to prevent, so a failed cloak is logged and the process exits with <see cref="CloakFailedExitCode"/>
+    /// rather than showing it. <see cref="Environment.Exit(int)"/> because the window is about to show and the app lifetime's
+    /// shutdown would only take effect after the dispatcher runs again.
+    /// </summary>
+    private static void CloakBeforeFirstShow(Avalonia.Controls.Window window)
+    {
+        string? failure = ApplyCloak(window, true);
+        if (failure is null)
+        {
+            return;
+        }
+
+        Log.LogError(
+            "Automation mode: could not cloak {Window} before its first show ({Failure}); "
+                + "ending the client so no uncloaked window reaches the desktop",
+            window.GetType().Name,
+            failure
+        );
+        Exit(CloakFailedExitCode);
+    }
+
+    /// <summary>
+    /// Cloaks or uncloaks <paramref name="window"/> through <see cref="Cloaker"/> and, when that succeeds, records the state so the
+    /// window's first open does not apply it again. Returns null on success, else what failed.
+    /// </summary>
+    public static string? ApplyCloak(Avalonia.Controls.WindowBase window, bool cloaked)
+    {
+        string? failure = Cloaker(window, cloaked);
+        if (failure is null)
+        {
+            AppliedCloak.AddOrUpdate(window, new StrongBox<bool>(cloaked));
+        }
+
+        return failure;
+    }
+
+    /// <summary>
+    /// Brings a window that was built under one <see cref="CloakWindows"/> state and opened under the other (a <c>set_cloaked</c> call
+    /// in between) to the current state. A failure is logged and the window keeps its state: it is already on screen, so ending the
+    /// client would not undo anything.
+    /// </summary>
+    private static void ReapplyCloakIfChanged(Avalonia.Controls.Window window)
+    {
+        if (!AppliedCloak.TryGetValue(window, out StrongBox<bool>? applied) || (applied.Value == CloakWindows))
+        {
+            return;
+        }
+
+        bool cloaked = CloakWindows;
+        string? failure = ApplyCloak(window, cloaked);
+        if (failure is not null)
+        {
+            Log.LogError(
+                "Automation mode: could not {Action} {Window} when it opened ({Failure}); it keeps its earlier state",
+                cloaked ? "cloak" : "uncloak",
+                window.GetType().Name,
+                failure
+            );
+        }
+    }
+
+    /// <summary>
+    /// Ends the process with the exit code after flushing the log, and kills it outright if the CLR's exit has not finished within
+    /// <see cref="ExitKillTimeout"/>: <see cref="Environment.Exit(int)"/> runs the native teardown (LM-Kit among it) that once held
+    /// the client alive forever (GitHub #347).
+    /// </summary>
+    private static void ExitWithWatchdog(int exitCode)
+    {
+        var watchdog = new Thread(() =>
+        {
+            Thread.Sleep(ExitKillTimeout);
+            Log.LogError("Exit with code {ExitCode} did not finish within {TimeoutSec}s; terminating", exitCode, ExitKillTimeout.TotalSeconds);
+            AppLog.Flush();
+            using var self = Process.GetCurrentProcess();
+            self.Kill();
+        })
+        {
+            IsBackground = true,
+            Name = "AutomationGateExitWatchdog",
+        };
+        watchdog.Start();
+        AppLog.Flush();
+        Environment.Exit(exitCode);
+    }
+
+    /// <summary>
+    /// Cloaks or uncloaks <paramref name="window"/> through <c>DwmSetWindowAttribute(DWMWA_CLOAK)</c>, which only the process that owns
+    /// the window may call. Returns null on success, else what failed: no Windows, no HWND, or the call's failing HRESULT.
+    /// </summary>
+    public static string? CloakWithDwm(Avalonia.Controls.WindowBase window, bool cloaked)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return "DWM cloaking needs Windows";
+        }
+
+        if (!TryGetHwnd(window, cloaked ? "to cloak it" : "to uncloak it", out IntPtr hwnd))
+        {
+            return "the window has no HWND";
+        }
+
+        int value = cloaked ? 1 : 0;
+        int hresult = DwmSetWindowAttribute(hwnd, DwmwaCloak, ref value, sizeof(int));
+        return (hresult >= 0) ? null : $"DwmSetWindowAttribute(DWMWA_CLOAK, {value}) failed with HRESULT 0x{hresult:X8}";
     }
 
     /// <summary>
@@ -82,7 +233,13 @@ public static class AutomationGate
     /// </summary>
     private static void OnWindowOpened(object? sender, EventArgs e)
     {
-        if (sender is Avalonia.Controls.Window { Owner: { } owner } window)
+        if (sender is not Avalonia.Controls.Window window)
+        {
+            return;
+        }
+
+        ReapplyCloakIfChanged(window);
+        if (window.Owner is { } owner)
         {
             PlaceAboveOwner(window, owner);
         }
@@ -189,4 +346,7 @@ public static class AutomationGate
 
     [DllImport("user32.dll", SetLastError = true)]
     private static extern IntPtr GetWindow(IntPtr hWnd, uint uCmd);
+
+    [DllImport("dwmapi.dll")]
+    private static extern int DwmSetWindowAttribute(IntPtr hwnd, int dwAttribute, ref int pvAttribute, int cbAttribute);
 }

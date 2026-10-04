@@ -6,9 +6,16 @@
 
 - A range/bearing measurement's label moves clear of data blocks and aircraft, pushing auto-placed data blocks aside while every side is covered.
 - Settings is a sidebar of sections with links between related settings, a Reset section button on each, and OK, Apply and Cancel.
+- Settings › Speech has a Speed slider for the solo pilot voice, 0.75× to 1.5×; pilots now speak at 1.1× by default.
 
 ### Fixed
 
+- A pilot told to follow or give way to taxiing traffic reads it back: "follow the traffic", "behind the traffic".
+- A taxiing aircraft slowing for converging traffic brakes smoothly instead of losing 10 kt in an instant.
+- An aircraft following traffic on the ground brakes to a stop at a runway hold-short line instead of stopping dead.
+- An aircraft told to `GIVEWAY` taxis on and brakes to a stop just clear of the other aircraft's path, instead of stopping dead where it was.
+- The hold-short warning for an aircraft following traffic on the ground names the taxiway it is holding on.
+- A rewind or replay that resumes mid-turn on the ground carries on through the same turn instead of starting it again.
 - A loaded solo recording comes up in solo mode, so its replay speaks every pilot line and keeps its recorded conflict-alert inhibits.
 - `EF` reads back and shows as "make straight-in", per 7110.65; "straight-in approach" and "enter final" are still understood when spoken.
 - An aircraft told to `FOLLOW` traffic keeps pattern spacing instead of the radar wake minimum, so a Cessna following a jet turns base about 3 NM behind it, not 4–6.

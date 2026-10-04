@@ -324,6 +324,16 @@ public sealed class UserPreferences
     public bool PilotVoiceEnabled => _data.PilotVoiceEnabled;
     public int PilotVoiceVolume => Math.Clamp(_data.PilotVoiceVolume, 0, 100);
     public bool PilotVoiceRadioFxEnabled => _data.PilotVoiceRadioFxEnabled;
+    public double PilotVoiceSpeechRate => Math.Clamp(_data.PilotVoiceSpeechRate, PilotVoiceSpeechRateMin, PilotVoiceSpeechRateMax);
+
+    /// <summary>Lowest selectable solo pilot voice speaking rate.</summary>
+    public const double PilotVoiceSpeechRateMin = 0.75;
+
+    /// <summary>Highest selectable solo pilot voice speaking rate.</summary>
+    public const double PilotVoiceSpeechRateMax = 1.5;
+
+    /// <summary>Shipped default solo pilot voice speaking rate; 1.0 is the voice's natural pace.</summary>
+    public const double PilotVoiceSpeechRateDefault = 1.1;
 
     public bool GetAutoClearedToLand(string? positionType)
     {
@@ -839,12 +849,19 @@ public sealed class UserPreferences
         Save();
     }
 
-    public void SetPilotVoiceSettings(bool enabled, int volume, bool radioFxEnabled)
+    public void SetPilotVoiceSettings(bool enabled, int volume, bool radioFxEnabled, double speechRate)
     {
         _data.PilotVoiceEnabled = enabled;
         _data.PilotVoiceVolume = Math.Clamp(volume, 0, 100);
         _data.PilotVoiceRadioFxEnabled = radioFxEnabled;
+        _data.PilotVoiceSpeechRate = RoundSpeechRateToTick(speechRate);
         Save();
+    }
+
+    private static double RoundSpeechRateToTick(double speechRate)
+    {
+        double clamped = Math.Clamp(speechRate, PilotVoiceSpeechRateMin, PilotVoiceSpeechRateMax);
+        return Math.Round(clamped * 20.0, MidpointRounding.AwayFromZero) / 20.0;
     }
 
     public void SetEuroScopeMode(bool enabled)
@@ -1920,6 +1937,7 @@ public sealed class UserPreferences
             PilotVoiceEnabled = GetFieldOr(obj, "pilotVoiceEnabled", false),
             PilotVoiceVolume = GetFieldOr(obj, "pilotVoiceVolume", 80),
             PilotVoiceRadioFxEnabled = GetFieldOr(obj, "pilotVoiceRadioFxEnabled", true),
+            PilotVoiceSpeechRate = GetFieldOr(obj, "pilotVoiceSpeechRate", PilotVoiceSpeechRateDefault),
             LoadedFavoriteSetIds = GetFieldOr<List<string>>(obj, "loadedFavoriteSetIds", []),
             LegacyFavoriteCommands = GetFieldOr<List<LegacyFavoriteCommand>?>(obj, "favoriteCommands", null),
             LegacyFavoriteCommandSets = GetFieldOr<List<LegacyFavoriteCommandSet>?>(obj, "favoriteCommandSets", null),
@@ -2237,6 +2255,7 @@ public sealed class UserPreferences
         public bool PilotVoiceEnabled { get; set; }
         public int PilotVoiceVolume { get; set; } = 80;
         public bool PilotVoiceRadioFxEnabled { get; set; } = true;
+        public double PilotVoiceSpeechRate { get; set; } = PilotVoiceSpeechRateDefault;
         public List<string> LoadedFavoriteSetIds { get; set; } = [];
 
         // Pre-identity-model favorites storage, kept deserializable only so the one-time

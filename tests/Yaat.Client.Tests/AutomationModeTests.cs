@@ -23,4 +23,24 @@ public class AutomationModeTests
             Environment.SetEnvironmentVariable(AutomationMode.EnvironmentVariable, previous);
         }
     }
+
+    [Theory]
+    [InlineData("1", true)]
+    [InlineData(null, false)]
+    [InlineData("", false)]
+    [InlineData("0", false)]
+    [InlineData("true", false)]
+    public void ReadCloakFromEnvironment_OnlyOneMeansOn(string? value, bool expected)
+    {
+        string? previous = Environment.GetEnvironmentVariable(AutomationMode.CloakEnvironmentVariable);
+        Environment.SetEnvironmentVariable(AutomationMode.CloakEnvironmentVariable, value);
+        try
+        {
+            Assert.Equal(expected, AutomationMode.ReadCloakFromEnvironment());
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(AutomationMode.CloakEnvironmentVariable, previous);
+        }
+    }
 }

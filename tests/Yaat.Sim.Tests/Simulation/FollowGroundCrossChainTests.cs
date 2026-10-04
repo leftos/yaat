@@ -18,7 +18,9 @@ namespace Yaat.Sim.Tests.Simulation;
 /// the queue and the follower must not enter the runway.
 ///
 /// Recording: S2-OAK-P (the FOLLOWG-from-parking fixture). At t=205 FTH399 is parked at KAI7 and KPO83 is taxiing
-/// its <c>TAXI C B W HS 28R RWY 30</c> clearance, which holds it short of 28R with the crossing un-cleared.
+/// its <c>TAXI C B W HS 28R RWY 30</c> clearance, which holds it short of 28R with the crossing un-cleared. FTH399
+/// stops behind it as No. 2 — still following, not holding short — until KPO83 is cleared across and it moves up to
+/// the bar itself.
 /// </summary>
 public class FollowGroundCrossChainTests(ITestOutputHelper output)
 {
@@ -27,6 +29,9 @@ public class FollowGroundCrossChainTests(ITestOutputHelper output)
     private const string Lead = "KPO83";
     private const int ReplayTime = 205;
     private const int TickBudgetSeconds = 300;
+
+    /// <summary>How long (s) the follower stands behind the lead at the bar as No. 2 before the lead is cleared across.</summary>
+    private const int NumberTwoSeconds = 20;
 
     private SimulationEngine? BuildEngine()
     {
@@ -105,7 +110,9 @@ public class FollowGroundCrossChainTests(ITestOutputHelper output)
         int holdShortSeenAt = -1;
         int crossingPhaseAt = -1;
         bool onPavementWhileFollowing = false;
-        bool leadCrossed = false;
+        bool leadCrossedUncleared = false;
+        int numberTwoSince = -1;
+        int leadClearedAt = -1;
         double followerSpeedAtCross = double.NaN;
         double followerDistanceToBarAtCross = double.NaN;
 
@@ -139,9 +146,25 @@ public class FollowGroundCrossChainTests(ITestOutputHelper output)
                 holdShortSeenAt = t;
             }
 
-            if (lead.Phases?.CurrentPhase is CrossingRunwayPhase)
+            if ((leadClearedAt < 0) && (lead.Phases?.CurrentPhase is CrossingRunwayPhase))
             {
-                leadCrossed = true;
+                leadCrossedUncleared = true;
+            }
+
+            // (5) Stopped behind the lead holding at the bar, the follower is No. 2: it stays in its follow. Once it has stood
+            // there NumberTwoSeconds, the lead is cleared across, and the follower moves up to the bar itself.
+            if (leadClearedAt < 0)
+            {
+                bool numberTwo = (lead.Phases?.CurrentPhase is HoldingShortPhase) && (follower.GroundSpeed < 0.05);
+                numberTwoSince = numberTwo ? (numberTwoSince < 0 ? t : numberTwoSince) : -1;
+                if (numberTwo && ((t - numberTwoSince) >= NumberTwoSeconds))
+                {
+                    Assert.IsType<FollowingPhase>(phase);
+                    CommandResult leadCross = engine.SendCommand(Lead, "CROSS 28R");
+                    output.WriteLine($"t={t}: {Lead} CROSS 28R -> success={leadCross.Success} msg={leadCross.Message}");
+                    Assert.True(leadCross.Success, leadCross.Message);
+                    leadClearedAt = t;
+                }
             }
 
             if ((crossAppliedAt < 0) && crossBlock.IsApplied)
@@ -181,9 +204,13 @@ public class FollowGroundCrossChainTests(ITestOutputHelper output)
 
         // (4) Neither aircraft entered 28R before a crossing clearance fired.
         Assert.False(onPavementWhileFollowing, "the follower entered runway 28R while still following, before any crossing clearance fired");
-        Assert.False(leadCrossed, "the lead crossed 28R although its crossing was never cleared");
+        Assert.False(leadCrossedUncleared, "the lead crossed 28R before its crossing was cleared");
 
-        // (3) The CROSS fired at the 28R hold-short, with the follower stopped behind the lead, and put it into the crossing.
+        // (5) The follower stood behind the lead at the bar as No. 2 without its CROSS firing.
+        Assert.True(leadClearedAt > 0, $"the follower never stood {NumberTwoSeconds}s behind the lead holding at the bar");
+        Assert.True(crossAppliedAt > leadClearedAt, $"the CROSS fired at t={crossAppliedAt}, while the follower was No. 2 behind the lead");
+
+        // (3) The CROSS fired at the 28R hold-short, once the follower had moved up to it, and put it into the crossing.
         Assert.True(crossAppliedAt > 0, $"the queued CROSS never fired within {TickBudgetSeconds}s");
         Assert.True(crossingPhaseAt > 0, $"the follower never started crossing within {TickBudgetSeconds}s");
         // ~180 ft: the follower stops at the bar it triggered on, so anything larger means it fired somewhere
