@@ -115,6 +115,7 @@
 
 ## Wave 1 — Ground realism and braking
 
+- [x] YAAT-311 Taxi speed drops ~10 kt in one second mid-route (H2 clip, KOAK F) · release vNext
 - [/] YAAT-309 Hold-short warning under FOLLOWG omits the taxiway name · release vNext
 - [/] YAAT-306 Ground stops snap to 0 kt instead of braking: FOLLOWG hold short, GIVEWAY · release vNext
 - [ ] YAAT-30 Rollout retune follow-ups: separation intervals, exit completion, firm rates
@@ -139,11 +140,16 @@
 - [ ] YAAT-49 Re-validate the reroute rate after the fillet floor; corner speed, sample gaps
 - [ ] YAAT-254 Visual follower behind a heavier lead lands beyond its touchdown point
 - [ ] YAAT-257 A follower whose lead has landed joins final instead of re-entering the pattern
-- [ ] YAAT-311 Taxi speed drops ~10 kt in one second mid-route (H2 clip, KOAK F) · release vNext
+- [ ] YAAT-314 Ground paths that set taxi speed instead of braking to it (unmeasured sites)
+- [ ] YAAT-316 FOLLOWG follower cuts across the field off the taxiways and can bypass a runway hold line
+- [ ] YAAT-318 HOLD or GIVEWAY near an uncleared runway bar rolls the nose past the hold line
+- [ ] YAAT-319 Clear-runway and line-up restarts a restored turn; HOLD mid-crossing snaps to 0 kt
 
 ## Wave 2 — Ground command grammar and dispatch
 
-- [/] YAAT-307 FOLLOWG and GIVEWAY get no pilot readback · release vNext
+- [/] YAAT-308 Solo ready-to-taxi call-up fires for aircraft taxiing, following or arrived · release vNext
+  - [ ] YAAT-317 Inventory every ZOA scenario spawn and settle each kind's initial pilot call · release vNext
+- [x] YAAT-307 FOLLOWG and GIVEWAY get no pilot readback · release vNext
 - [ ] YAAT-50 Armed FOLLOWG leftovers: RES at bars, follow readbacks, repeat crossings
 - [ ] YAAT-51 Offer standalone TAXI modifiers at slot 1; test cross-command alias collisions
 - [ ] YAAT-52 Keep the line-up yaw rate when a command fires mid resumed rollout
@@ -155,7 +161,7 @@
 - [ ] YAAT-58 Split SegmentExpander.ResolveExplicitFrom (over 100 lines)
 - [ ] YAAT-59 GroundCommandHandler leftovers: split TryTaxiCore, cut Resolve*Route params
 - [ ] YAAT-212 A no-destination taxi stops with its nose in the junction it ends at
-- [ ] YAAT-308 Solo ready-to-taxi call-up fires for aircraft taxiing, following or arrived · release vNext
+- [ ] YAAT-313 Readback RPO form (callsign of the traffic) never reaches the instructor
 
 ## Wave 3 — Ground routing, pathfinder and their docs
 
@@ -363,3 +369,4 @@
 - [ ] YAAT-302 Client driver: prepare_take selects the Radar View tab
 - [ ] YAAT-303 Client driver: launch_yaat refuses an audio output device name that matches nothing
 - [ ] YAAT-304 Client driver: wait_until landed reports coarse, late sim times
+- [ ] YAAT-315 Solo call-up: ask for push-back at stands that need one, taxi elsewhere
