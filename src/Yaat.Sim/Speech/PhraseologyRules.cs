@@ -893,7 +893,7 @@ public static class PhraseologyRules
             new(["follow", "the?", "{callsign}", "on", "ground"], "FOLLOWG {callsign}", FollowGround),
             // §3-7-2.a "BEHIND (traffic)" — a taxi element separate from FOLLOW: yield to the traffic
             // and trail it on your own route, which is GIVEWAY (COMMANDS.md lists BEHIND as its alias).
-            // SttOnly so the pilot AI keeps the "give way to …" canonical readback form.
+            // SttOnly: the readback is built in PilotResponder ("behind the traffic"); this rule only maps the spoken form to GIVEWAY.
             new(["behind", "{callsign}"], "GIVEWAY {callsign}", GiveWay, SttOnly: true),
             new(["give", "way", "to", "{callsign}"], "GIVEWAY {callsign}", GiveWay),
             new(["exit", "left"], "EL", ExitLeft),

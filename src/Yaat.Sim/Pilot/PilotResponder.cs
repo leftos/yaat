@@ -174,16 +174,20 @@ public static class PilotResponder
         // Per-block clause lists are joined internally with ", " (parallel commands within
         // a `,`-separated block); blocks themselves are joined with ", then " to mark the
         // `;` (sequential) boundary the controller dictated. Without "then", TTS reads
-        // sequential and parallel clauses identically. The terminal (compact) and spoken (TTS)
-        // bodies are assembled in lock-step from each clause's two independently-built forms.
+        // sequential and parallel clauses identically. The terminal (compact), spoken (TTS) and
+        // RPO (terminal + diagnostic) bodies are assembled in lock-step from each clause's
+        // independently-built forms.
         var blockTermTexts = new List<string>();
         var blockTtsTexts = new List<string>();
+        var blockRpoTexts = new List<string>();
         foreach (ParsedBlock block in compound.Blocks)
         {
             var termClauses = new List<string>();
             var ttsClauses = new List<string>();
+            var rpoClauses = new List<string>();
             string? termLead = FormatConditionTerminal(block.Condition);
             string? ttsLead = FormatCondition(block.Condition);
+            string? rpoLead = FormatConditionForRpo(block.Condition);
             foreach (ParsedCommand cmd in block.Commands)
             {
                 PilotSpeechText? clause;
@@ -204,14 +208,20 @@ public static class PilotResponder
 
                 termClauses.Add(termLead is null ? clause.Terminal : termLead + " " + clause.Terminal);
                 ttsClauses.Add(ttsLead is null ? clause.Tts : ttsLead + " " + clause.Tts);
+                // The RPO body mirrors the terminal body, clause for clause, but takes each clause's
+                // diagnostic form (TerminalForRpo) where it has one — the lead/target callsign in
+                // traffic & follow calls, which the solo student must not see.
+                rpoClauses.Add(rpoLead is null ? clause.TerminalForRpo : rpoLead + " " + clause.TerminalForRpo);
                 termLead = null; // condition is stated once per block
                 ttsLead = null;
+                rpoLead = null;
             }
 
             if (ttsClauses.Count > 0)
             {
                 blockTermTexts.Add(string.Join(", ", termClauses));
                 blockTtsTexts.Add(string.Join(", ", ttsClauses));
+                blockRpoTexts.Add(string.Join(", ", rpoClauses));
             }
         }
 
@@ -222,17 +232,22 @@ public static class PilotResponder
 
         string ttsBody = ApplyQuietFlavor(aircraft.Callsign, string.Join(", then ", blockTtsTexts), personality, activityLevel);
         string termBody = string.Join(", then ", blockTermTexts);
-        return FrameReadback(aircraft, termBody, ttsBody);
+        string rpoBody = string.Join(", then ", blockRpoTexts);
+        return FrameReadback(aircraft, termBody, ttsBody, rpoBody);
     }
 
     /// <summary>
-    /// Frames a readback into its two delivered forms: the terminal SAY message (compact body, no
-    /// callsign — the SAY column carries it) and the spoken TTS line (body + spelled callsign).
+    /// Frames a readback into its delivered forms: the terminal SAY message (compact body, no
+    /// callsign — the SAY column carries it), the spoken TTS line (body + spelled callsign), and the
+    /// RPO terminal body when a clause carries a diagnostic the solo student must not see.
     /// </summary>
-    private static PilotSpeechText FrameReadback(AircraftState aircraft, string terminalBody, string ttsBody)
+    private static PilotSpeechText FrameReadback(AircraftState aircraft, string terminalBody, string ttsBody, string rpoBody)
     {
         string spoken = SpokenOwnCallsign(aircraft);
-        return new PilotSpeechText(terminalBody, NormalizeForTts($"{ttsBody}, {spoken}."));
+        return new PilotSpeechText(terminalBody, NormalizeForTts($"{ttsBody}, {spoken}."))
+        {
+            RpoTerminal = string.Equals(rpoBody, terminalBody, StringComparison.Ordinal) ? null : rpoBody,
+        };
     }
 
     /// <summary>
@@ -383,8 +398,28 @@ public static class PilotResponder
                 follow,
                 armedHold.RunwayEndFacing(aircraft)
             ),
+            FollowGroundCommand follow => BuildFollowGroundClause(follow),
+            GiveWayCommand giveWay => BuildGiveWayClause(giveWay),
             _ => VerbalizeDual(cmd, personality, activityLevel),
         };
+
+    /// <summary>
+    /// A FOLLOWG away from a runway bar — from parking, mid-taxi or any hold that is not a runway bar —
+    /// drops or resumes the route to trail the named aircraft, so the readback is the bare taxi element
+    /// "follow the traffic" (§3-7-2.a "FOLLOW (traffic) (restrictions as necessary)"). Like every follow call the pilot
+    /// identifies the leader by position, never by callsign (docs/pilot-phraseology.md), so the target
+    /// survives only in the RPO form.
+    /// </summary>
+    private static PilotSpeechText BuildFollowGroundClause(FollowGroundCommand follow) =>
+        new("follow the traffic", "follow the traffic") { RpoTerminal = $"follow {follow.TargetCallsign}" };
+
+    /// <summary>
+    /// GIVEWAY is §3-7-2.a's "BEHIND (traffic)": yield to the traffic and trail it on the pilot's own
+    /// route. As with the follow calls, the spoken and solo-terminal forms say "the traffic"; the
+    /// target callsign is the RPO diagnostic only.
+    /// </summary>
+    private static PilotSpeechText BuildGiveWayClause(GiveWayCommand giveWay) =>
+        new("behind the traffic", "behind the traffic") { RpoTerminal = $"behind {giveWay.TargetCallsign}" };
 
     /// <summary>
     /// A FOLLOWG taken at a runway bar arms the follow and leaves the aircraft holding short, so the readback states
@@ -811,7 +846,10 @@ public static class PilotResponder
             return clause;
         }
 
-        return new PilotSpeechText($"{clause.Terminal}, without delay", $"{clause.Tts}, without delay");
+        return new PilotSpeechText($"{clause.Terminal}, without delay", $"{clause.Tts}, without delay")
+        {
+            RpoTerminal = clause.RpoTerminal is { } rpoTerminal ? rpoTerminal + ", without delay" : null,
+        };
     }
 
     private static PilotSpeechText BuildLandAndHoldShortClause(AircraftState aircraft, LandAndHoldShortCommand command)
@@ -827,7 +865,10 @@ public static class PilotResponder
         return new PilotSpeechText(
             $"{landingClause.Terminal}, hold short runway {holdShortTerm}",
             $"{landingClause.Tts}, hold short runway {holdShortTts}"
-        );
+        )
+        {
+            RpoTerminal = landingClause.RpoTerminal is { } rpoTerminal ? $"{rpoTerminal}, hold short runway {holdShortTerm}" : null,
+        };
     }
 
     /// <summary>
@@ -2376,7 +2417,8 @@ public static class PilotResponder
             null => null,
             AtFixCondition fix => $"at {PhraseologyVerbalizer.SpellFix(fix.FixName)},",
             LevelCondition level => $"at {PhraseologyVerbalizer.AltitudeWords(level.Altitude)},",
-            _ => null, // GiveWayCondition and other condition kinds have their own dispatch path.
+            GiveWayCondition => "behind the traffic,",
+            _ => null, // other condition kinds have their own dispatch path.
         };
 
     /// <summary>Compact terminal form of the block-condition lead-in ("at SUNOL," / "at 5000,").</summary>
@@ -2386,6 +2428,14 @@ public static class PilotResponder
             null => null,
             AtFixCondition fix => $"at {PhraseologyVerbalizer.FixDisplayText(fix.FixName)},",
             LevelCondition level => $"at {PhraseologyVerbalizer.CompactAltitude(level.Altitude)},",
+            GiveWayCondition => "behind the traffic,",
             _ => null,
         };
+
+    /// <summary>
+    /// Lead-in for the RPO terminal body: the terminal lead for every condition except GIVEWAY, whose
+    /// diagnostic form names the traffic the pilot must yield to ("behind UAL456,").
+    /// </summary>
+    internal static string? FormatConditionForRpo(BlockCondition? condition) =>
+        condition is GiveWayCondition giveWay ? $"behind {giveWay.TargetCallsign}," : FormatConditionTerminal(condition);
 }
