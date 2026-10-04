@@ -3,7 +3,6 @@ using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Scenarios;
 using Yaat.Sim.Simulation;
-using Yaat.Sim.Simulation.Replay;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation;
@@ -18,15 +17,12 @@ namespace Yaat.Sim.Tests.Simulation;
 /// The KFB7 bundle (referenced as the original case) actually predates the
 /// airborne-spawn-IAS fix (commit 1873dff) — its initial speeds are stored as TAS,
 /// so any current-code replay diverges in physics from t=5s forward regardless of
-/// the track-command fix. The diagnostic test below uses
-/// <see cref="SimulationEngine.ReplayRangeWithVerification"/> to surface that drift
-/// explicitly, which is the right shape for triaging future "why doesn't replay
-/// match" questions.
+/// the track-command fix. The tests here pin the router's track arm directly: an
+/// "AS 3Y ACCEPT" against a pending handoff transfers ownership, and a standalone
+/// "AS 3Y" followed by a bare "TRACK" acquires under the active position.
 /// </summary>
 public class IssueReplayDivergenceFromT0Tests
 {
-    private const string RecordingPath = "TestData/b143fc615682.zip";
-
     /// <summary>
     /// Direct check on the router's track arm: a recorded "AS 3Y ACCEPT" for an aircraft with a pending handoff
     /// to 3Y must transfer ownership. Pre-fix, the arm didn't exist and the command was silently dropped.

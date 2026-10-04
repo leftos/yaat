@@ -83,21 +83,6 @@ public sealed partial class SimulationEngine
         _replay.Range(startSeconds, targetSeconds, actions, actionApplier);
 
     /// <summary>
-    /// Replay variant that compares engine state against snapshots in the supplied
-    /// <paramref name="archive"/> at every snapshot timestamp the range covers.
-    /// Returns a <see cref="ReplayResult"/> listing the per-snapshot drifts. Empty
-    /// drifts list ⇒ every checked snapshot matched within tolerance. Useful for
-    /// pinpointing the first tick where replay diverges from a recorded session.
-    /// </summary>
-    public ReplayResult ReplayRangeWithVerification(
-        int startSeconds,
-        int targetSeconds,
-        List<RecordedAction> actions,
-        RecordingArchive archive,
-        Action<RecordedAction>? actionApplier = null
-    ) => _replay.RangeWithVerification(startSeconds, targetSeconds, actions, archive, actionApplier);
-
-    /// <summary>
     /// Formats <see cref="TickTimings"/> for diagnostic output. Sorted by total time desc.
     /// </summary>
     public string DumpTickTimings()

@@ -115,8 +115,8 @@ lists findings; per finding prints/executes the canned `info` / `history --calls
 `snapshot --at` sequence — the same flow the bug-bundle skill uses today.
 
 `Yaat.SoakRunner verify --finding <id>` (H5): restore the nearest snapshot →
-`ReplayRangeWithVerification` to the finding time with detectors attached in replay mode → assert
-the finding recurs with zero drift. This is the determinism tripwire for the whole feature.
+replay to the finding time with detectors attached in replay mode, comparing each recorded snapshot
+on the way with `SnapshotTreeDiff` → assert the finding recurs with zero divergence. This is the determinism tripwire for the whole feature.
 
 ## False-positive management
 

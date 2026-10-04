@@ -1374,7 +1374,7 @@ Attendance.cs                  # CRC attendance as engine state (the first recor
                                # snapshot and the record. Written on the tick thread only (the live sync, the router, restore) — no lock. + AttendedPosition(PositionId, Owner?, Tcp?)
 SimulationEngine.cs            # Scenario load, tick orchestration, replay (ReplayFromStartTo — full from-scratch replay;; ControllerAi + TickControllerAi() (post-second AI tick; never in replay/playback) + Actions (the ActionRouter every controller action goes through) + LocalConnectionId (what a bare SendCommand issues under) + RecordAction
                                # FastForwardTo — advance from current time; ReplayRange — between two timestamps;
-                               # ReplayRangeWithVerification — diff-against-bundled-snapshots; ReplayOneSecond/SubTick — stepping);
+                               # ReplayOneSecond/SubTick — stepping);
                                # CaptureSnapshot/RestoreFromSnapshot; reattaches GroundLayouts to delayed spawns on restore.
                                # RehydrateRestoredQueueBlocks rebuilds restored blocks' ParsedCommands/ApplyAction from SourceCommandText
                                # each TickPhysics (shared by both hosts) so queued commands survive rewind/replay/restore.
@@ -1649,9 +1649,6 @@ ReplayDriver.cs                # Drives a recording forward (range / one second 
                                # find what they assume exists. Internal — SimulationEngine.Replay.cs is the public surface over it.
 ReplayHost.cs                  # The bare host plus pre-tick recorded actions and post-second action application through the pump and
                                # Actions.ApplyRecorded (unless the caller supplies its own applier); as an IActionHost it delegates every member to the bare host
-SnapshotDiff.cs                # Pure-function diff between an engine's live aircraft state and a captured snapshot's DTOs.
-                               # Used by ReplayRangeWithVerification to surface drift between replay and recorded snapshots.
-ReplayResult.cs                # ReplayResult / SnapshotDriftReport / AircraftDrift / FieldDrift records.
 ScenarioQueues.cs              # DelayedSpawn (+ HeldForRelease), ScheduledTrigger, ScheduledPreset, ScheduledRelease, ActiveTimer (TIMER countdowns),
                                # IGeneratorRuntimeState + GeneratorState / VfrArrivalGeneratorState / OverflightGeneratorState, DelayedHandoff
 HeldReleaseService.cs          # Hold-for-release: Arm/Disarm/Release an airport's IFR departures + BuildRundown. See docs/hold-for-release.md
