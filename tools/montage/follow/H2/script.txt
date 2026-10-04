@@ -1,0 +1,23 @@
+# H2 — give way to traffic crossing ahead on the taxiway.
+# KOAK north field, departures from runway 28R. Two VFR C172s, neither placed in the conflict by the scenario:
+#
+#   N52417  crossing traffic — taxiing in on K at spot K0LS, northbound to the east GA ramp via K, D, across runway 33;
+#           K crosses F at the F/K/L junction
+#   N738SP  told to give way — parked at GA16, taxis F, C, B to runway 28R, southbound on F towards the same junction
+#
+# Left alone, the two reach the junction within seconds of each other. Times are sim seconds. See card.md for what
+# the clip shows.
+
+# t=1  Inhibit conflict alerts on both aircraft (CAINH toggles), as every montage clip does.
+t=1 N52417 CAINH
+t=1 N738SP CAINH
+
+# t=2  N738SP: taxi to runway 28R via F, C, B, cleared across runway 33 at C.
+t=2 N738SP TAXI F C B CROSS 33 RWY 28R
+
+# t=10 N52417: taxi to parking GA7 on the east ramp via K, D, cleared across runway 33 at K.
+t=10 N52417 TAXI K D @GA7 CROSS 33
+
+# t=56 N738SP: give way to the Cessna crossing ahead of it on K. It stops on F short of the junction, lets the
+#      traffic cross, and continues on its own once the traffic has passed.
+t=56 N738SP GIVEWAY N52417
