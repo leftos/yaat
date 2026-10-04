@@ -77,10 +77,13 @@
 
 ## Tick-path unification
 
-- [/] YAAT-17 Tick-path unification: finish step 4 relocation, then step 5
+- [x] YAAT-17 Tick-path unification: finish step 4 relocation, then step 5 · release vNext
 - [ ] YAAT-209 Move the ERAM coverage-loss coast state machine into the Sim
 - [ ] YAAT-216 HandoffUnacceptedRule: keep the anomaly for low handoffs to human-attended positions
 - [ ] YAAT-272 Shadow spawns run AfterAircraftSpawned on replay only (PDC queue, strip print)
+- [ ] YAAT-320 Retire the tick-path plan folder now every step has shipped
+- [ ] YAAT-321 Anchor routine METAR issuance to the session clock, not the load-time clock
+- [ ] YAAT-322 Pin a spawn due at second t on the sub-tick replay path
 
 ## Coast D (feat/coast-d)
 
@@ -141,8 +144,8 @@
 - [ ] YAAT-254 Visual follower behind a heavier lead lands beyond its touchdown point
 - [ ] YAAT-257 A follower whose lead has landed joins final instead of re-entering the pattern
 - [ ] YAAT-314 Ground paths that set taxi speed instead of braking to it (unmeasured sites)
-- [ ] YAAT-316 FOLLOWG follower cuts across the field off the taxiways and can bypass a runway hold line
-- [ ] YAAT-318 HOLD or GIVEWAY near an uncleared runway bar rolls the nose past the hold line
+- [ ] YAAT-316 FOLLOWG follower cuts across the field off the taxiways and can bypass a runway hold line · release vNext
+- [ ] YAAT-318 HOLD or GIVEWAY near an uncleared runway bar rolls the nose past the hold line · release vNext
 - [ ] YAAT-319 Clear-runway and line-up restarts a restored turn; HOLD mid-crossing snaps to 0 kt
 
 ## Wave 2 — Ground command grammar and dispatch
@@ -274,6 +277,7 @@
 - [ ] YAAT-276 Correct the gear flyout's field count in client-mainviewmodel.md
 - [ ] YAAT-287 Remove the phantom GuideCapture Fakes/FakeFilePickerService.cs line from architecture.md
 - [ ] YAAT-290 Run the tools/tests Python suite in CI
+- [ ] YAAT-323 Fix two stale yaat-server test comments (weather fixture, TickTimings cref)
 
 ## Singles
 
