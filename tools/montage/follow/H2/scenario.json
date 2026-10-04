@@ -21,8 +21,8 @@
       "onAltitudeProfile": false,
       "flightplan": {
         "rules": "VFR",
-        "departure": "KLVK",
-        "destination": "KOAK",
+        "departure": "KOAK",
+        "destination": "KSQL",
         "cruiseAltitude": 3500,
         "cruiseSpeed": 0,
         "route": "",

@@ -612,10 +612,29 @@ public sealed class GroundNavigator
     /// </summary>
     private bool _entryArcAimedAtNodeOffRealLeg;
 
+    /// <summary>
+    /// The primitive and playback state a snapshot carried (<see cref="FromSnapshot"/>), waiting for the owning phase's first
+    /// <see cref="SetupSegment"/> to resume it (<see cref="TryResumeRestoredPlayback"/>). Dropped by that set-up whether it
+    /// resumes or not, and by the first <see cref="Tick"/>, so it never reaches a later segment.
+    /// </summary>
+    private GroundNavigatorPlaybackDto? _restoredPlayback;
+
+    /// <summary>
+    /// The from-node of the segment the current primitive plays (the segment last set up, or the fillet an aimed line is laid
+    /// over), snapshotted with the playback so a resume can check both ends.
+    /// </summary>
+    private int _segmentFromNodeId;
+
     public void SetupSegment(TaxiRoute route, PhaseContext ctx, Func<int, bool> isHoldShortCleared)
     {
         TaxiRouteSegment? seg = route.CurrentSegment;
         if (seg is null)
+        {
+            return;
+        }
+
+        _segmentFromNodeId = seg.FromNodeId;
+        if (TryResumeRestoredPlayback(route, seg, ctx, isHoldShortCleared))
         {
             return;
         }
@@ -693,6 +712,56 @@ public sealed class GroundNavigator
 
         BuildSpeedConstraints(route, ctx, isHoldShortCleared);
         LogSegmentSetup(route, seg, ctx);
+    }
+
+    /// <summary>
+    /// Resume the primitive a snapshot was taken in the middle of, when <paramref name="seg"/> is the segment it was playing:
+    /// the primitive itself, its playback progress and arc-entry blend, the line anchor and the entry-alignment bookkeeping,
+    /// all as the snapshot held them, so the restored aircraft goes on along the same curve as the run that was never
+    /// interrupted. Rebuilding instead would start a different curve: an entry-alignment turn is solved from the pose the
+    /// aircraft had when it began, which it no longer has. The speed plan is rebuilt from the route, as for any set-up.
+    /// Returns false, leaving the ordinary set-up to run, when no playback was restored or the segment is not the one it
+    /// was saved on (its to-node is not the saved target, or its from-node is not the saved one).
+    /// </summary>
+    private bool TryResumeRestoredPlayback(TaxiRoute route, TaxiRouteSegment seg, PhaseContext ctx, Func<int, bool> isHoldShortCleared)
+    {
+        if (_restoredPlayback is not { } saved)
+        {
+            return false;
+        }
+
+        _restoredPlayback = null;
+        if (!WasPlaybackSavedOnSegment(seg, saved))
+        {
+            Log.LogWarning(
+                "[Nav] {Callsign}: restored playback dropped — saved on segment {SavedFrom}→{SavedTo}, set-up is for {From}→{To}",
+                ctx.Aircraft.Callsign,
+                saved.FromNodeId,
+                TargetNodeId,
+                seg.FromNodeId,
+                seg.ToNodeId
+            );
+            return false;
+        }
+
+        _currentPrimitive = FromPrimitiveDto(saved.Primitive);
+        _pendingSegmentPrimitive = saved.HasPendingSegmentPrimitive ? PathPrimitiveBuilder.FromSegment(seg) : null;
+        _segmentFromIsVirtual = (seg.FromNodeId < 0) && VirtualNode.IsVirtualEdge(seg.Edge.Edge);
+        _alignmentRoute = saved.AimedAtRouteNode ? route : null;
+        _nodeAimSegmentIndex = saved.NodeAimSegmentIndex;
+        _aimedPastThroughSegmentIndex = saved.AimedPastThroughSegmentIndex;
+        _entryArcAimedAtNodeOffRealLeg = saved.EntryArcAimedAtNodeOffRealLeg;
+        RestorePlaybackProgress(saved);
+        BuildSpeedConstraints(route, ctx, isHoldShortCleared);
+        Log.LogDebug(
+            "[Nav] seg={SegIdx}/{Total}: resumed the restored {Kind} toward node {NodeId} (pendingSeg={Pending})",
+            route.CurrentSegmentIndex,
+            route.Segments.Count,
+            _currentPrimitive.Kind,
+            TargetNodeId,
+            _pendingSegmentPrimitive is not null
+        );
+        return true;
     }
 
     /// <summary>
@@ -1094,7 +1163,7 @@ public sealed class GroundNavigator
     /// Set a Bézier primitive's playback progress from where the aircraft actually stands, on the primitive's
     /// first tick. A curve whose playback restarted at <c>t = 0</c> wrote the aircraft back onto its start
     /// point on that tick — a rewind of the whole distance already covered whenever the primitive is rebuilt
-    /// mid-curve (a snapshot restore: <c>ToSnapshot</c> does not persist curve progress, so
+    /// mid-curve (a snapshot written before the navigator carried its playback state, so
     /// <c>TaxiingPhase</c> rebuilds the primitive from the route's segment index). Standing within
     /// <see cref="AirportGroundLayout.AtNodeToleranceFt"/> of the curve's start point is the normal entry,
     /// which starts at <c>t = 0</c> with the residual cross-track as the entry offset.
@@ -1238,6 +1307,7 @@ public sealed class GroundNavigator
 
     public NavigatorResult Tick(PhaseContext ctx, bool isLastSegment, Func<int, bool> isHoldShortCleared)
     {
+        _restoredPlayback = null;
         double headingBeforeDeg = ctx.Aircraft.TrueHeading.Degrees;
 
         NavigatorResult result = _currentPrimitive switch
@@ -1439,6 +1509,7 @@ public sealed class GroundNavigator
         _entryArcAimedAtNodeOffRealLeg = false;
         _onAimedLineOverFillet = true;
         _aimedLineFilletFromNodeId = fillet.FromNodeId;
+        _segmentFromNodeId = fillet.FromNodeId;
         PrevDistToTarget = double.MaxValue;
         _cumulativeTurnSinceAdvanceDeg = 0.0;
         ReleaseHeadingHold(ctx, straight);
@@ -2577,12 +2648,10 @@ public sealed class GroundNavigator
     }
 
     // ---- Snapshot ----
-    // Non-round-tripping: ToSnapshot writes the minimum state needed for
-    // diagnostic continuity; FromSnapshot returns an instance that re-runs
-    // SetupSegment on its next call. A mid-arc snapshot/restore resumes from
-    // where the plan puts the aircraft geometrically, not from an exact arc
-    // progress point. Acceptable because arc segments are 2-3 seconds and
-    // mid-arc saves are rare.
+    // The snapshot carries the active primitive and its playback state (GroundNavigatorDto.Playback). FromSnapshot holds it
+    // back, and the owning phase's first SetupSegment after the restore resumes it (TryResumeRestoredPlayback) instead of
+    // building a new primitive from the aircraft's pose, so a restore mid-curve goes on along the same curve. The speed plan
+    // is rebuilt from the route by that set-up, as for any other.
 
     public GroundNavigatorDto ToSnapshot() =>
         new()
@@ -2599,6 +2668,8 @@ public sealed class GroundNavigator
             NextSegmentBearing = _nextSegmentBearing,
             OnAimedLineOverFillet = _onAimedLineOverFillet,
             AimedLineFilletFromNodeId = _aimedLineFilletFromNodeId,
+            // A restored navigator not yet set up still holds the playback it was restored with.
+            Playback = _currentPrimitive is { } primitive ? CapturePlayback(primitive) : _restoredPlayback,
         };
 
     public static GroundNavigator FromSnapshot(GroundNavigatorDto dto) =>
@@ -2616,5 +2687,139 @@ public sealed class GroundNavigator
             _nextSegmentBearing = dto.NextSegmentBearing,
             _onAimedLineOverFillet = dto.OnAimedLineOverFillet,
             _aimedLineFilletFromNodeId = dto.AimedLineFilletFromNodeId,
+            _restoredPlayback = dto.Playback,
+        };
+
+    /// <summary>
+    /// Whether <paramref name="seg"/> is the segment <paramref name="saved"/> was captured on: its to-node is the saved
+    /// target, and its from-node is the saved one. A virtual from-node (negative id) is not compared: its id is a hash of its
+    /// position (<c>VirtualNode.IdFor</c>), but it sits at the aircraft's pose when the route is built (the approach
+    /// leg <see cref="RunwayExitPhase"/> builds from where the aircraft stands), so a rebuild puts it elsewhere.
+    /// </summary>
+    private bool WasPlaybackSavedOnSegment(TaxiRouteSegment seg, GroundNavigatorPlaybackDto saved) =>
+        (seg.ToNodeId == TargetNodeId) && ((saved.FromNodeId < 0) || (seg.FromNodeId < 0) || (seg.FromNodeId == saved.FromNodeId));
+
+    private GroundNavigatorPlaybackDto CapturePlayback(PathPrimitive primitive) =>
+        new()
+        {
+            Primitive = ToPrimitiveDto(primitive),
+            FromNodeId = _segmentFromNodeId,
+            HasPendingSegmentPrimitive = _pendingSegmentPrimitive is not null,
+            ArcBearingFromCenterDeg = _arcBearingFromCenterDeg,
+            ArcRemainingSweepDeg = _arcRemainingSweepDeg,
+            BezierT = _bezierT,
+            BezierTraveledFt = _bezierTraveledFt,
+            BezierLeadInRemainingFt = _bezierLeadInRemainingFt,
+            ArcEntryOffsetLatDeg = _arcEntryOffsetLatDeg,
+            ArcEntryOffsetLonDeg = _arcEntryOffsetLonDeg,
+            ArcEntryTravelledFt = _arcEntryTravelledFt,
+            ArcEntryBlendFt = _arcEntryBlendFt,
+            ArcEntryPending = _arcEntryPending,
+            CumulativeTurnSinceAdvanceDeg = _cumulativeTurnSinceAdvanceDeg,
+            AimedAtRouteNode = _alignmentRoute is not null,
+            NodeAimSegmentIndex = _nodeAimSegmentIndex,
+            AimedPastThroughSegmentIndex = _aimedPastThroughSegmentIndex,
+            EntryArcAimedAtNodeOffRealLeg = _entryArcAimedAtNodeOffRealLeg,
+        };
+
+    private void RestorePlaybackProgress(GroundNavigatorPlaybackDto saved)
+    {
+        _arcBearingFromCenterDeg = saved.ArcBearingFromCenterDeg;
+        _arcRemainingSweepDeg = saved.ArcRemainingSweepDeg;
+        _bezierT = saved.BezierT;
+        _bezierTraveledFt = saved.BezierTraveledFt;
+        _bezierLeadInRemainingFt = saved.BezierLeadInRemainingFt;
+        _arcEntryOffsetLatDeg = saved.ArcEntryOffsetLatDeg;
+        _arcEntryOffsetLonDeg = saved.ArcEntryOffsetLonDeg;
+        _arcEntryTravelledFt = saved.ArcEntryTravelledFt;
+        _arcEntryBlendFt = saved.ArcEntryBlendFt;
+        _arcEntryPending = saved.ArcEntryPending;
+        _cumulativeTurnSinceAdvanceDeg = saved.CumulativeTurnSinceAdvanceDeg;
+    }
+
+    private static PathPrimitiveDto ToPrimitiveDto(PathPrimitive primitive) =>
+        primitive switch
+        {
+            PathPrimitiveStraight s => new StraightPrimitiveDto
+            {
+                LengthFt = s.LengthFt,
+                ToNodeId = s.ToNodeId,
+                FromLat = s.FromLat,
+                FromLon = s.FromLon,
+                ToLat = s.ToLat,
+                ToLon = s.ToLon,
+                BearingDeg = s.BearingDeg,
+            },
+            PathPrimitiveBezier b => new BezierPrimitiveDto
+            {
+                LengthFt = b.LengthFt,
+                ToNodeId = b.ToNodeId,
+                P0Lat = b.Curve.P0Lat,
+                P0Lon = b.Curve.P0Lon,
+                P1Lat = b.Curve.P1Lat,
+                P1Lon = b.Curve.P1Lon,
+                P2Lat = b.Curve.P2Lat,
+                P2Lon = b.Curve.P2Lon,
+                P3Lat = b.Curve.P3Lat,
+                P3Lon = b.Curve.P3Lon,
+                EntryTangentBearingDeg = b.EntryTangentBearingDeg,
+                ExitTangentBearingDeg = b.ExitTangentBearingDeg,
+            },
+            PathPrimitiveSlowTurn t => new SlowTurnPrimitiveDto
+            {
+                LengthFt = t.LengthFt,
+                ToNodeId = t.ToNodeId,
+                CenterLat = t.CenterLat,
+                CenterLon = t.CenterLon,
+                RadiusFt = t.RadiusFt,
+                StartBearingFromCenterDeg = t.StartBearingFromCenterDeg,
+                SweepDeg = t.SweepDeg,
+                RightTurn = t.RightTurn,
+                EntryTangentBearingDeg = t.EntryTangentBearingDeg,
+                ExitTangentBearingDeg = t.ExitTangentBearingDeg,
+                MaxSpeedKts = t.MaxSpeedKts,
+            },
+            _ => throw new InvalidOperationException($"[Nav] snapshot: no DTO for path primitive {primitive.GetType().Name}"),
+        };
+
+    private static PathPrimitive FromPrimitiveDto(PathPrimitiveDto dto) =>
+        dto switch
+        {
+            StraightPrimitiveDto s => new PathPrimitiveStraight
+            {
+                Kind = PathPrimitiveKind.Straight,
+                LengthFt = s.LengthFt,
+                ToNodeId = s.ToNodeId,
+                FromLat = s.FromLat,
+                FromLon = s.FromLon,
+                ToLat = s.ToLat,
+                ToLon = s.ToLon,
+                BearingDeg = s.BearingDeg,
+            },
+            BezierPrimitiveDto b => new PathPrimitiveBezier
+            {
+                Kind = PathPrimitiveKind.Bezier,
+                LengthFt = b.LengthFt,
+                ToNodeId = b.ToNodeId,
+                Curve = new CubicBezier(b.P0Lat, b.P0Lon, b.P1Lat, b.P1Lon, b.P2Lat, b.P2Lon, b.P3Lat, b.P3Lon),
+                EntryTangentBearingDeg = b.EntryTangentBearingDeg,
+                ExitTangentBearingDeg = b.ExitTangentBearingDeg,
+            },
+            SlowTurnPrimitiveDto t => new PathPrimitiveSlowTurn
+            {
+                Kind = PathPrimitiveKind.SlowTurn,
+                LengthFt = t.LengthFt,
+                ToNodeId = t.ToNodeId,
+                CenterLat = t.CenterLat,
+                CenterLon = t.CenterLon,
+                RadiusFt = t.RadiusFt,
+                StartBearingFromCenterDeg = t.StartBearingFromCenterDeg,
+                SweepDeg = t.SweepDeg,
+                RightTurn = t.RightTurn,
+                EntryTangentBearingDeg = t.EntryTangentBearingDeg,
+                ExitTangentBearingDeg = t.ExitTangentBearingDeg,
+                MaxSpeedKts = t.MaxSpeedKts,
+            },
+            _ => throw new InvalidOperationException($"[Nav] snapshot restore: unknown path primitive DTO {dto.GetType().Name}"),
         };
 }

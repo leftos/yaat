@@ -125,6 +125,82 @@ public sealed class RunwayExitRestoreTests
     }
 
     /// <summary>
+    /// A restored mid-exit phase whose exit route cannot be rebuilt (its stored path has two nodes with no edge between
+    /// them) falls back to rolling on the centreline, and drops the navigator it was restored with: the snapshot taken after
+    /// its first tick is out of the exit-path state and no longer carries that navigator. The stale navigator is marked by a
+    /// brake rate no live exit sets (<see cref="StaleNavigatorDecelRateKts"/>), which a navigator kept from it would carry.
+    /// </summary>
+    [Fact]
+    public void FailedRebuild_FallsBackToTheCenterline_AndDropsTheRestoredNavigator()
+    {
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("OAK");
+        if (layout is null)
+        {
+            return;
+        }
+
+        (GroundNode Branch, GroundNode HoldShort, string Taxiway)? pair = FindExitPair(layout, "28R");
+        if (pair is null)
+        {
+            return;
+        }
+
+        (GroundNode? branch, GroundNode? holdShort, string? taxiway) = pair.Value;
+        GroundNode unconnected = layout
+            .Nodes.Values.Where(node => (node.Id != branch.Id) && branch.Edges.All(edge => edge.OtherNode(branch).Id != node.Id))
+            .OrderBy(node => node.Id)
+            .First();
+
+        var dto = new RunwayExitPhaseDto
+        {
+            Status = (int)PhaseStatus.Active,
+            ElapsedSeconds = 4.0,
+            ReachedExitNode = true,
+            ExitNodeId = holdShort.Id,
+            ExitTaxiway = taxiway,
+            RunwayId = "28R",
+            ExitSpeed = 25.0,
+            TimeSinceLastLog = 0.0,
+            RunwayHeadingDeg = 281.0,
+            ExitStateValue = (int)RunwayExitPhase.ExitState.FollowingExitPath,
+            ExitWaypointNodeIds = [branch.Id, unconnected.Id],
+            Navigator = new GroundNavigatorDto { TargetNodeId = holdShort.Id, DecelRateKts = StaleNavigatorDecelRateKts },
+        };
+
+        var phase = RunwayExitPhase.FromSnapshot(dto, layout);
+        var aircraft = new AircraftState
+        {
+            Callsign = "TEST1",
+            AircraftType = "B738",
+            Position = branch.Position,
+            TrueHeading = new TrueHeading(281.0),
+            Altitude = 9.0,
+            IndicatedAirspeed = 25.0,
+            IsOnGround = true,
+            FlightPlan = new AircraftFlightPlan { Destination = "OAK" },
+            Phases = new PhaseList(),
+        };
+        var ctx = new PhaseContext
+        {
+            Aircraft = aircraft,
+            Targets = aircraft.Targets,
+            Category = AircraftCategory.Jet,
+            DeltaSeconds = 1.0,
+            GroundLayout = layout,
+            FieldElevation = 9.0,
+            Logger = NullLogger.Instance,
+        };
+
+        phase.OnTick(ctx);
+
+        RunwayExitPhaseDto after = Assert.IsType<RunwayExitPhaseDto>(phase.ToSnapshot());
+        Assert.NotEqual((int)RunwayExitPhase.ExitState.FollowingExitPath, after.ExitStateValue);
+        Assert.NotEqual(StaleNavigatorDecelRateKts, after.Navigator?.DecelRateKts);
+    }
+
+    private const double StaleNavigatorDecelRateKts = 0.123;
+
+    /// <summary>
     /// The restore path rebuilds the exit route from segment 0, so the navigator's own segment index says
     /// nothing about whether the aircraft was already turning. <c>TurnStarted</c> has to round-trip, or an
     /// aircraft restored mid-turn would reopen the window for a late exit change it can no longer honor.
@@ -399,10 +475,10 @@ public sealed class RunwayExitRestoreTests
         Assert.True(finalHeadingDrift < 5.0, $"restored aircraft never rejoined the live exit heading (off by {finalHeadingDrift:F0} deg)");
 
         // Position is checked for *growth*, not for an absolute bound. The backtrack signature is a gap that opens
-        // and keeps opening (64 ft → 374 ft over six seconds in the report); what remains after the fix is a fixed
-        // lag, because GroundNavigator is deliberately non-round-tripping — it does not persist Bézier progress, so
-        // a restore mid-fillet replays that arc from its start and stays a couple of seconds behind on the same
-        // path. Asserting a small absolute drift here would be asserting on that separate limitation.
+        // and keeps opening (64 ft → 374 ft over six seconds in the report). This test restores a hand-built DTO with
+        // no navigator, so the rebuilt route sets its segment up from the restored pose rather than resuming a saved
+        // primitive, and the reconstruction can trail the live aircraft by a fixed amount on the same path; the
+        // exact resume of a saved primitive is GroundNavigatorArcRestoreTests' subject.
         Assert.True(
             finalPosDriftFt <= firstPosDriftFt + 25.0,
             $"restored aircraft kept diverging from the live exit path ({firstPosDriftFt:F0} ft → {finalPosDriftFt:F0} ft)"

@@ -70,6 +70,10 @@ public sealed class TaxiingPhase : Phase
     /// <summary>Node of the bar whose stop was already moved forward for being unmakeable; moved once, never again.</summary>
     private int? _unableStopNodeId;
 
+    // The GIVEWAY target the give-way stop was last logged for, so the log line appears once per give-way rather than
+    // every held tick. Logging only: not snapshotted.
+    private string? _loggedGiveWayTarget;
+
     // Set when this phase completes to hand off to a still-moving CrossingRunwayPhase
     // (pre-cleared crossing), so OnEnd does not brake the aircraft to a stop. Transient —
     // set and consumed within the same completing tick, never snapshotted.
@@ -220,16 +224,35 @@ public sealed class TaxiingPhase : Phase
             // backwards onto the stale pose. Pinning the target after the navigator has ticked is equally what
             // keeps the speed it just published from staying live and physics accelerating toward it every
             // sub-tick (issue #407 — two "held" aircraft kept taxiing into a head-on); physics brakes toward
-            // the pinned target at the ground decel rate.
-            ctx.Targets.TargetSpeed = 0;
+            // the pinned target at the ground decel rate. A GIVEWAY with a give-way point ahead pins it to the
+            // braking curve onto that point instead (ApplyHeldSpeed).
+            double heldSpeedKts = ApplyHeldSpeed(ctx, route);
+            ctx.Targets.TargetSpeed = heldSpeedKts;
 
             if (result == NavigatorResult.ArrivedAtNode)
             {
-                // At the node and already braking: clean up the residual and leave the arrival itself to the
-                // first un-held tick. A hold must not be able to insert a HoldingShortPhase or complete the
-                // route — and so start a stored takeoff clearance's line-up — while the controller has said
-                // hold.
-                ctx.Aircraft.IndicatedAirspeed = 0;
+                if (IsPassThroughNode(route))
+                {
+                    // Still braking at a node that only joins two segments, or at a cleared bar: roll on along the route at the brake
+                    // rate rather than dropping the speed left over, which can be most of the taxi speed when the
+                    // hold came just short of the node. The arrival (a cleared runway bar's hands off to its crossing,
+                    // where a GIVEWAY waits until the far marking is behind the tail) fires the node's AT triggers and sets up the
+                    // next segment, and re-publishes the taxi target, so the held speed is pinned again after it.
+                    if (ArriveAtNode(ctx, route))
+                    {
+                        return true;
+                    }
+
+                    ctx.Targets.TargetSpeed = heldSpeedKts;
+                }
+                else
+                {
+                    // At an uncleared bar or the route's end and already braking: clean up the residual and leave the arrival
+                    // itself to the first un-held tick. A hold must not be able to insert a HoldingShortPhase or
+                    // complete the route — and so start a stored takeoff clearance's line-up — while the controller
+                    // has said hold.
+                    ctx.Aircraft.IndicatedAirspeed = 0;
+                }
             }
 
             return false;
@@ -325,12 +348,11 @@ public sealed class TaxiingPhase : Phase
     {
         var phase = new TaxiingPhase
         {
-            // GroundNavigator's snapshot does not carry the active PathPrimitive
-            // (or its arc/synthesis derived state). Force a re-init on the next
-            // OnTick: SetupCurrentSegment will rebuild the primitive and speed
-            // constraints from route.CurrentSegmentIndex. Without this, the next
-            // Tick would see _currentPrimitive=null, return ArrivedAtNode, and
-            // skip the segment the aircraft was traversing.
+            // The restored navigator holds the primitive it was playing and its progress back until a segment set-up
+            // (GroundNavigator.FromSnapshot). Force a re-init on the next OnTick: SetupCurrentSegment sets up
+            // route.CurrentSegmentIndex, which resumes that primitive where it stood and rebuilds the speed plan from the
+            // route (a snapshot without the primitive builds it afresh from the aircraft's pose). Without the set-up,
+            // the next Tick would find no primitive, return ArrivedAtNode, and skip the segment the aircraft was on.
             _initialized = false,
             _timeSinceLastLog = dto.TimeSinceLastLog,
             _unableStopNodeId = dto.UnableStopNodeId,
@@ -712,6 +734,136 @@ public sealed class TaxiingPhase : Phase
         HoldShortPoint? hs = route.GetHoldShortAt(nodeId);
         return hs is null || hs.IsCleared;
     }
+
+    /// <summary>
+    /// Applies the hold to a held aircraft after the navigator has ticked and returns the speed it is pinned to. HOLD, and a
+    /// GIVEWAY with no give-way point (<see cref="GroundConflictDetector.GiveWayStop"/> finds none), stop it where it is. A
+    /// GIVEWAY whose route meets the traffic's ahead keeps it taxiing on its route toward the give-way point — where its
+    /// centre, and its nose, first come within wingtip clearance of the traffic's track through the junction — or toward the
+    /// first stop short of it (<see cref="DistanceToNextHeldStopFt"/>: a hold-short's painted stop of any kind not yet
+    /// passed, or the route's end), whichever comes first, held to the braking curve that stops it there, so the
+    /// arrival has no speed left to drop: at the taxi brake rate; at the firm rate
+    /// (<see cref="CategoryPerformance.ExpediteExitDecelRate"/>), published as the brake rate, when only that makes the
+    /// point — the choice a follower makes at a runway bar (<see cref="GroundStopBraking.ChooseStopBraking"/>). Unlike the
+    /// follower, it never stops dead: when not even the firm rate makes the point, or it is already inside the clearance,
+    /// it brakes at the firm rate to a stop wherever that takes it. Writes the published brake rate and the once-per-target
+    /// log latch, which a hold that is no longer a GIVEWAY clears.
+    /// </summary>
+    private double ApplyHeldSpeed(PhaseContext ctx, TaxiRoute route)
+    {
+        if (ctx.Aircraft.Ground.Hold is not { Kind: HoldKind.GiveWay, YieldTarget: { } yieldTarget })
+        {
+            _loggedGiveWayTarget = null;
+            return 0.0;
+        }
+
+        string? noStopReason = "the traffic was not found";
+        if (
+            (ctx.AircraftLookup?.Invoke(yieldTarget) is not { } target)
+            || (GroundConflictDetector.GiveWayStop(ctx.Aircraft, target, out noStopReason) is not { } stop)
+        )
+        {
+            if (_loggedGiveWayTarget != yieldTarget)
+            {
+                _loggedGiveWayTarget = yieldTarget;
+                Log.LogDebug(
+                    "[Taxi] {Callsign}: no give-way point for {Target} ({Reason}): stopping where it is",
+                    ctx.Aircraft.Callsign,
+                    yieldTarget,
+                    noStopReason
+                );
+            }
+
+            return 0.0;
+        }
+
+        // The stop is braked for at whichever comes first: the give-way point or the next bar's painted stop or route end.
+        double toNodeStopFt = DistanceToNextHeldStopFt(ctx, route);
+        double toStopFt = Math.Min(stop.ToStopFt, toNodeStopFt);
+        GroundStopBraking.StopBraking braking = GroundStopBraking.ChooseStopBraking(ctx, toStopFt);
+        if (_loggedGiveWayTarget != yieldTarget)
+        {
+            _loggedGiveWayTarget = yieldTarget;
+            Log.LogDebug(
+                "[Taxi] {Callsign}: giving way to {Target} at node {NodeId}, {ToStop:F1} ft from its stop (the give-way point clear of "
+                    + "its track {GiveWay:F1} ft, the next node a held arrival stops at {NodeStop:F1} ft), {Speed:F1} kt, {Braking} braking",
+                ctx.Aircraft.Callsign,
+                yieldTarget,
+                stop.NodeId,
+                toStopFt,
+                stop.ToStopFt,
+                toNodeStopFt,
+                ctx.Aircraft.GroundSpeed,
+                braking
+            );
+        }
+
+        double rate = CategoryPerformance.TaxiDecelRate(ctx.Category);
+        if (braking != GroundStopBraking.StopBraking.Routine)
+        {
+            rate = CategoryPerformance.ExpediteExitDecelRate(ctx.Category);
+            ctx.Targets.DesiredDecelRate = rate;
+        }
+
+        // A GIVEWAY never stops dead: when not even the firm rate makes its stop, or the aircraft is already inside the
+        // clearance, it brakes at the firm rate and stops where that takes it.
+        if (braking == GroundStopBraking.StopBraking.Backstop)
+        {
+            return 0.0;
+        }
+
+        return Math.Min(ctx.Targets.TargetSpeed ?? 0.0, GroundStopBraking.StopCurveKts(ctx, toStopFt, rate));
+    }
+
+    /// <summary>
+    /// How far (ft) along the route the aircraft is from the next place a GIVEWAY stops it: the first node ahead carrying a
+    /// hold-short of any kind, or the route's last. A hold-short, cleared or not, is measured to its painted stop
+    /// (<see cref="AlongRouteDistanceToHoldShortFt"/>, where the navigator is aimed at an uncleared bar), so a GIVEWAY never
+    /// leaves the nose over a holding-position marking (AIM 2-3-5.a.1); the route's end is measured to the node. A cleared
+    /// bar whose painted stop is already behind the aircraft is passed over for the next stop after it: the aircraft is
+    /// past the hold line and carries on across rather than stopping between the marking and the runway (AIM 4-3-21.a). An
+    /// uncleared one behind it still reads zero. The segment in progress is measured straight from the aircraft to its end
+    /// node. Never negative; infinity with no segment ahead.
+    /// </summary>
+    private static double DistanceToNextHeldStopFt(PhaseContext ctx, TaxiRoute route)
+    {
+        int first = Math.Max(0, route.CurrentSegmentIndex);
+        double alongFt = 0;
+        for (int i = first; i < route.Segments.Count; i++)
+        {
+            TaxiRouteSegment seg = route.Segments[i];
+            alongFt +=
+                i == first
+                    ? GeoMath.DistanceNm(ctx.Aircraft.Position, seg.Edge.ToNode.Position) * GeoMath.FeetPerNm
+                    : seg.Edge.DistanceNm * GeoMath.FeetPerNm;
+            if (route.GetHoldShortAt(seg.ToNodeId) is { } holdShort)
+            {
+                double toPaintedStopFt = ctx.GroundLayout is { } layout
+                    ? AlongRouteDistanceToHoldShortFt(layout, route, ctx.Aircraft.Position, holdShort)
+                    : double.PositiveInfinity;
+                if (!holdShort.IsCleared || (toPaintedStopFt >= 0.0))
+                {
+                    return Math.Max(0.0, Math.Min(alongFt, toPaintedStopFt));
+                }
+            }
+
+            if (i == route.Segments.Count - 1)
+            {
+                return alongFt;
+            }
+        }
+
+        return double.PositiveInfinity;
+    }
+
+    /// <summary>
+    /// The navigator's target node carries no uncleared hold-short and is not the route's last: arriving there under a hold
+    /// runs <see cref="ArriveAtNode"/> rather than stopping, so a node with no bar only advances to the next segment and a
+    /// cleared bar hands off to the crossing it clears (a held aircraft already past a cleared bar's hold line carries on
+    /// across rather than stopping between the marking and the runway, AIM 4-3-21.a).
+    /// </summary>
+    private bool IsPassThroughNode(TaxiRoute route) =>
+        (route.GetHoldShortAt(_nav.TargetNodeId) is null or { IsCleared: true }) && ((route.CurrentSegmentIndex + 1) < route.Segments.Count);
 
     private bool ArriveAtNode(PhaseContext ctx, TaxiRoute route)
     {

@@ -1,8 +1,11 @@
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
+using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
 
@@ -198,6 +201,56 @@ public sealed class NodeAimedEntryOntoFilletTests(ITestOutputHelper output)
 
         Assert.True(restoredRoute.CurrentSegmentIndex >= 2, $"the restored {Callsign} did not reach the fillet's far end on the same trace");
     }
+
+    /// <summary>
+    /// A snapshot taken half-way along the aimed straight, with the navigator flying the fillet as that line, saves the
+    /// playback on the fillet segment — its from-node is the fillet's — and the restore resumes it rather than
+    /// dropping it with a "restored playback dropped" warning, and the restored aircraft is on the uninterrupted run's
+    /// position every second after.
+    /// </summary>
+    [Fact]
+    public void AimedStraightOverFillet_SnapshotMidStraight_ResumesThePlaybackOnTheSamePositions()
+    {
+        if (BuildCase(StandOffFt, StandOffBearingRelDeg, HeadingRelDeg) is not { } fc)
+        {
+            return;
+        }
+
+        TaxiRoute route = SendTaxiOverTheFilletSecond(fc);
+        TickToMidStraight(fc, route);
+        StateSnapshotDto snapshot = fc.Ground.Engine.CaptureSnapshot();
+        string snapshotJson = JsonSerializer.Serialize(snapshot, RecordingJsonOptions.Default);
+        Assert.True(
+            snapshotJson.Contains("\"OnAimedLineOverFillet\":true", StringComparison.Ordinal),
+            "the snapshot was not taken on the aimed line"
+        );
+        JsonObject playback = Assert.Single(GroundNavigatorArcRestoreTests.PlaybackObjects(JsonNode.Parse(snapshotJson)));
+        Assert.Equal(fc.RampEnd.Id, (int?)playback["FromNodeId"]);
+
+        var uninterrupted = new List<LatLon>(PositionCompareSeconds);
+        for (int i = 0; i < PositionCompareSeconds; i++)
+        {
+            fc.Ground.Engine.TickOneSecond();
+            uninterrupted.Add(fc.Aircraft.Position);
+        }
+
+        var warnings = WarningLogCapture.Install();
+        fc.Ground.Engine.RestoreFromSnapshot(
+            Assert.IsType<StateSnapshotDto>(JsonSerializer.Deserialize<StateSnapshotDto>(snapshotJson, RecordingJsonOptions.Default))
+        );
+        AircraftState restored = Assert.IsType<AircraftState>(fc.Ground.Engine.FindAircraft(Callsign));
+        for (int i = 0; i < PositionCompareSeconds; i++)
+        {
+            fc.Ground.Engine.TickOneSecond();
+            output.WriteLine($"+{i + 1, 3}s uninterrupted {uninterrupted[i]} restored {restored.Position}");
+            Assert.Equal(uninterrupted[i], restored.Position);
+        }
+
+        Assert.DoesNotContain(warnings.Warnings, w => w.Contains(WarningLogCapture.PlaybackDropped, StringComparison.Ordinal));
+    }
+
+    /// <summary>Seconds the restored run's positions are compared with the uninterrupted run's.</summary>
+    private const int PositionCompareSeconds = 10;
 
     /// <summary>
     /// The branch where the alignment arc is aimed at the current fillet's OWN end node: the aircraft stands on the

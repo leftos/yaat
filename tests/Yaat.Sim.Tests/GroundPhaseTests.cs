@@ -589,8 +589,9 @@ public class GroundPhaseTests
                 break;
             }
 
-            // Physics owns ground speed: the phase publishes the follow target and physics integrates it.
-            // The hold-short check only arms on a moving aircraft, so the tick loop has to run both halves.
+            // Physics owns ground speed: the phase publishes the follow target, capped by the braking curve onto the
+            // bar it has latched, and physics integrates it. The hold is taken once the follower has braked to rest at
+            // the hold line, so the tick loop has to run both halves.
             FlightPhysics.Update(aircraft, 1.0, cs => cs == "LEAD01" ? target : null, null, simTimeSeconds: i);
         }
 

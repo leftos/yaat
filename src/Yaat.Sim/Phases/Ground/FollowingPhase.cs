@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
 
@@ -30,10 +31,39 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
 
     private const double HoldShortDetectionNm = 0.02; // ~120 ft
     private const double HoldShortAngleThreshold = 90.0;
+
+    /// <summary>
+    /// How far (ft) beyond <see cref="HoldShortDetectionNm"/> a bar may sit off the follower's line of travel and still be
+    /// one it is rolling toward: a taxiway's half-width plus the slack of steering on the lead rather than a centerline.
+    /// </summary>
+    private const double BarCorridorHalfWidthFt = 50.0;
+
+    /// <summary>How close (ft) to a bar's stop the hold is taken — the same window a taxiing aircraft takes a set-back stop in.</summary>
+    private const double BarStopTakeFt = GroundNavigator.SetBackStopMarginFt + 1.0;
+
+    /// <summary>How far (ft) off a taxiway's centreline a moving follower still counts as on that taxiway.</summary>
+    private const double OnTaxiwayMaxOffsetFt = 50.0;
+
     private const double LogIntervalSeconds = 3.0;
 
     private readonly string _targetCallsign = targetCallsign;
     private double _timeSinceLastLog;
+
+    /// <summary>
+    /// The runway bar the follow is stopping at, held from the tick it is first seen until the hold is taken there, so it
+    /// stays the stop once the bar is off the nose — an aircraft cutting the corner onto the taxiway passes abeam the bar
+    /// node with its nose still short of the hold line. Null with no bar ahead.
+    /// </summary>
+    private int? _latchedBarNodeId;
+
+    /// <summary>The bearing (deg true) from the latched bar back up the taxiway edge leading into it, read when it was latched.</summary>
+    private double? _latchedBarApproachDeg;
+
+    /// <summary>
+    /// The straight taxi edge the moving follower was last found on, by its end nodes (<c>Nodes[0]</c>, <c>Nodes[1]</c>):
+    /// where <see cref="RefreshCurrentTaxiway"/> looks first. Null before the first find and while off every taxiway.
+    /// </summary>
+    private (int NodeA, int NodeB)? _taxiEdgeNodeIds;
 
     public string TargetCallsign => _targetCallsign;
 
@@ -71,7 +101,8 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
         }
 
         ExpireUsedCrossingClearance(ctx);
-        if (CheckRunwayHoldShort(ctx))
+        RefreshCurrentTaxiway(ctx);
+        if (CheckRunwayHoldShort(ctx, out double? barStopCurveKts))
         {
             return true;
         }
@@ -121,6 +152,12 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
             ctx.Targets.TargetSpeed = CategoryPerformance.TaxiSpeed(ctx.Category);
         }
 
+        // A runway bar ahead caps the follow at the braking curve onto its stop, whatever the lead is doing.
+        if ((barStopCurveKts is { } curveKts) && ((ctx.Targets.TargetSpeed ?? 0.0) > curveKts))
+        {
+            ctx.Targets.TargetSpeed = curveKts;
+        }
+
         _timeSinceLastLog += ctx.DeltaSeconds;
         if (_timeSinceLastLog >= LogIntervalSeconds)
         {
@@ -137,6 +174,12 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
 
         return false;
     }
+
+    /// <summary>
+    /// A firm stop at a runway bar publishes its own brake rate; clearing it on exit keeps that rate from carrying into the
+    /// next phase, since <see cref="ControlTargets"/> persist across phases.
+    /// </summary>
+    public override void OnEnd(PhaseContext ctx, PhaseStatus endStatus) => ctx.Targets.DesiredDecelRate = null;
 
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)
     {
@@ -162,6 +205,10 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
             TimeSinceLastLog = _timeSinceLastLog,
             CrossingClearedRunways = [.. _crossingClearedRunways.Select(static r => r.ToString())],
             HasBeenOnClearedRunway = _hasBeenOnClearedRunway,
+            LatchedBarNodeId = _latchedBarNodeId,
+            LatchedBarApproachDeg = _latchedBarApproachDeg,
+            TaxiEdgeNodeA = _taxiEdgeNodeIds?.NodeA,
+            TaxiEdgeNodeB = _taxiEdgeNodeIds?.NodeB,
         };
 
     public static FollowingPhase FromSnapshot(FollowingPhaseDto dto)
@@ -171,6 +218,9 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
             _timeSinceLastLog = dto.TimeSinceLastLog,
             CrossingClearedRunways = [.. dto.CrossingClearedRunways.Select(RunwayIdentifier.Parse)],
             _hasBeenOnClearedRunway = dto.HasBeenOnClearedRunway,
+            _latchedBarNodeId = dto.LatchedBarNodeId,
+            _latchedBarApproachDeg = dto.LatchedBarApproachDeg,
+            _taxiEdgeNodeIds = (dto.TaxiEdgeNodeA is { } nodeA) && (dto.TaxiEdgeNodeB is { } nodeB) ? (nodeA, nodeB) : null,
             Status = (PhaseStatus)dto.Status,
             ElapsedSeconds = dto.ElapsedSeconds,
         };
@@ -179,73 +229,331 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
     }
 
     /// <summary>
-    /// Check if the aircraft is approaching a runway hold-short node it must stop at. If so, insert
-    /// HoldingShortPhase + new FollowingPhase and stop.
-    /// Returns true if a hold-short was triggered (phase should complete).
+    /// A runway bar the follower must stop at, with the reason it holds there, the bearing (deg true) from the bar back up
+    /// the taxiway edge leading into it, and how far (ft) the nose still has to roll to the hold line — the line through the
+    /// bar node square to that edge — measured along the edge; negative once the nose is past the line.
     /// </summary>
-    private bool CheckRunwayHoldShort(PhaseContext ctx)
+    private readonly record struct BarAhead(GroundNode Node, HoldShortReason Reason, double ApproachDeg, double ToStopFt);
+
+    /// <summary>
+    /// Brake for a runway bar ahead the follower must stop at, and hold there once stopped. Returns true when the hold
+    /// was taken (<see cref="HoldingShortPhase"/> + a new <see cref="FollowingPhase"/> inserted, this phase completes);
+    /// otherwise <paramref name="barStopCurveKts"/> is the braking-curve cap onto the bar's stop, or null with no bar ahead.
+    /// Publishes the brake rate the stop needs: the taxi rate (no override) when that makes the hold line, the firm rate
+    /// when only that does.
+    /// </summary>
+    private bool CheckRunwayHoldShort(PhaseContext ctx, out double? barStopCurveKts)
     {
-        if (ctx.GroundLayout is null || ctx.Aircraft.GroundSpeed <= 0)
+        barStopCurveKts = null;
+        ctx.Targets.DesiredDecelRate = null;
+        if (FindBarAhead(ctx) is not { } bar)
         {
             return false;
         }
 
-        foreach (GroundNode node in ctx.GroundLayout.Nodes.Values)
+        GroundStopBraking.StopBraking braking = GroundStopBraking.ChooseStopBraking(ctx, bar.ToStopFt);
+        if (TryTakeHoldAtBar(ctx, bar, braking))
         {
-            if (!IsBarImmediatelyAhead(ctx, node) || IsAlreadyOnThatRunway(ctx, node))
-            {
-                continue;
-            }
-
-            // A crossing clearance never covers the follower's own departure bar: that runway is left by LUAW/CTO.
-            bool ownDestination = BarIsOwnDestination(ctx, node);
-            if (!ownDestination && IsClearedToCross(node))
-            {
-                continue;
-            }
-
-            HoldShortReason reason = ownDestination ? HoldShortReason.DestinationRunway : HoldShortReason.RunwayCrossing;
-            Log.LogDebug(
-                "[Follow] {Callsign}: hold short triggered at runway node {NodeId} ({Runway}), reason={Reason}",
-                ctx.Aircraft.Callsign,
-                node.Id,
-                node.RunwayId?.ToString() ?? "unknown",
-                reason
-            );
-            ctx.Aircraft.IndicatedAirspeed = 0;
-            ctx.Targets.TargetSpeed = 0;
-
-            var holdShort = new HoldShortPoint
-            {
-                NodeId = node.Id,
-                Reason = reason,
-                TargetName = node.RunwayId?.ToString(),
-            };
-
-            var holdPhase = new HoldingShortPhase(holdShort);
-            var resumeFollow = new FollowingPhase(_targetCallsign);
-            ctx.Aircraft.Phases?.InsertAfterCurrent([holdPhase, resumeFollow]);
             return true;
         }
 
+        double firmRate = CategoryPerformance.ExpediteExitDecelRate(ctx.Category);
+        barStopCurveKts = braking switch
+        {
+            GroundStopBraking.StopBraking.Routine => GroundStopBraking.StopCurveKts(
+                ctx,
+                bar.ToStopFt,
+                CategoryPerformance.TaxiDecelRate(ctx.Category)
+            ),
+            GroundStopBraking.StopBraking.Firm => GroundStopBraking.StopCurveKts(ctx, bar.ToStopFt, firmRate),
+            _ => 0.0,
+        };
+        ctx.Targets.DesiredDecelRate = braking == GroundStopBraking.StopBraking.Routine ? null : firmRate;
         return false;
     }
 
-    /// <summary>A runway hold-short bar within <see cref="HoldShortDetectionNm"/> and roughly off the nose.</summary>
-    private static bool IsBarImmediatelyAhead(PhaseContext ctx, GroundNode node)
+    /// <summary>
+    /// The runway bar the follower must stop at, or null: the latched bar while the follower is still closing on its hold
+    /// line, otherwise the nearest bar ahead it is closing on, which is then latched. Looked for out to the follower's
+    /// braking distance to the bar's stop (<see cref="BarLookAheadFt"/>), so the stop is braked for at the taxi brake rate
+    /// rather than met inside it. Bars the follower is already on the runway of, and bars of a runway its crossing clearance
+    /// covers, are passed — except its own departure bar, which no crossing clearance covers: that runway is left by LUAW/CTO.
+    /// </summary>
+    private BarAhead? FindBarAhead(PhaseContext ctx)
+    {
+        if (ctx.GroundLayout is null)
+        {
+            return null;
+        }
+
+        double halfLengthFt = AircraftLength.ResolveFt(ctx.Aircraft.AircraftType) / 2.0;
+        double lookAheadFt = BarLookAheadFt(ctx, halfLengthFt);
+        if (LatchedBar(ctx, ctx.GroundLayout, halfLengthFt, lookAheadFt) is { } latched)
+        {
+            return latched;
+        }
+
+        BarAhead? nearest = null;
+        double nearestDistanceFt = double.MaxValue;
+        foreach (GroundNode node in ctx.GroundLayout.Nodes.Values)
+        {
+            if (!IsBarAhead(ctx, node, lookAheadFt) || !MustStopAt(ctx, node))
+            {
+                continue;
+            }
+
+            double distanceFt = GeoMath.DistanceNm(ctx.Aircraft.Position, node.Position) * GeoMath.FeetPerNm;
+            if (distanceFt >= nearestDistanceFt)
+            {
+                continue;
+            }
+
+            BarAhead candidate = ToBarAhead(ctx, node, ApproachBearingDeg(node, ctx.Aircraft.Position), halfLengthFt);
+            if (IsClosingOnHoldLine(ctx, candidate, lookAheadFt))
+            {
+                nearest = candidate;
+                nearestDistanceFt = distanceFt;
+            }
+        }
+
+        if (nearest is { } bar)
+        {
+            _latchedBarNodeId = bar.Node.Id;
+            _latchedBarApproachDeg = bar.ApproachDeg;
+            Log.LogDebug(
+                "[Follow] {Callsign}: runway bar node {NodeId} ({Runway}) ahead, nose {ToStop:F1} ft from its hold line at {Speed:F1} kt",
+                ctx.Aircraft.Callsign,
+                bar.Node.Id,
+                bar.Node.RunwayId?.ToString() ?? "unknown",
+                bar.ToStopFt,
+                ctx.Aircraft.GroundSpeed
+            );
+        }
+
+        return nearest;
+    }
+
+    /// <summary>
+    /// The latched bar, while the follower must still stop there and is still closing on its hold line; otherwise the
+    /// latch is released and null returned.
+    /// </summary>
+    private BarAhead? LatchedBar(PhaseContext ctx, AirportGroundLayout layout, double halfLengthFt, double lookAheadFt)
+    {
+        if ((_latchedBarNodeId is not { } nodeId) || (_latchedBarApproachDeg is not { } approachDeg))
+        {
+            return null;
+        }
+
+        if (layout.Nodes.TryGetValue(nodeId, out GroundNode? node) && MustStopAt(ctx, node))
+        {
+            BarAhead bar = ToBarAhead(ctx, node, approachDeg, halfLengthFt);
+            if (IsClosingOnHoldLine(ctx, bar, lookAheadFt))
+            {
+                return bar;
+            }
+        }
+
+        Log.LogDebug("[Follow] {Callsign}: runway bar node {NodeId} no longer ahead; released", ctx.Aircraft.Callsign, nodeId);
+        ReleaseLatchedBar();
+        return null;
+    }
+
+    private void ReleaseLatchedBar()
+    {
+        _latchedBarNodeId = null;
+        _latchedBarApproachDeg = null;
+    }
+
+    /// <summary>
+    /// Whether the follower must stop at this bar: not when it is already on that runway, nor when its crossing clearance
+    /// covers the runway — unless the bar is its own departure bar.
+    /// </summary>
+    private bool MustStopAt(PhaseContext ctx, GroundNode node) =>
+        !IsAlreadyOnThatRunway(ctx, node) && (BarIsOwnDestination(ctx, node) || !IsClearedToCross(node));
+
+    /// <summary><paramref name="node"/> as a bar ahead of the follower, its hold line square to <paramref name="approachDeg"/>.</summary>
+    private static BarAhead ToBarAhead(PhaseContext ctx, GroundNode node, double approachDeg, double halfLengthFt)
+    {
+        HoldShortReason reason = BarIsOwnDestination(ctx, node) ? HoldShortReason.DestinationRunway : HoldShortReason.RunwayCrossing;
+        LatLon nose = GeoMath.ProjectPoint(ctx.Aircraft.Position, ctx.Aircraft.TrueHeading, halfLengthFt / GeoMath.FeetPerNm);
+        double noseFromBarFt = GeoMath.DistanceNm(node.Position, nose) * GeoMath.FeetPerNm;
+        double offAxisRad = GeoMath.SignedBearingDifference(approachDeg, GeoMath.BearingTo(node.Position, nose)) * Math.PI / 180.0;
+        return new BarAhead(node, reason, approachDeg, noseFromBarFt * Math.Cos(offAxisRad));
+    }
+
+    /// <summary>
+    /// The bearing (deg true) from <paramref name="bar"/> back up the edge leading into it: of the bar node's edges, the
+    /// one whose far end lies nearest in bearing to <paramref name="aircraftPosition"/>.
+    /// </summary>
+    private static double ApproachBearingDeg(GroundNode bar, LatLon aircraftPosition)
+    {
+        double towardAircraft = GeoMath.BearingTo(bar.Position, aircraftPosition);
+        double approachDeg = towardAircraft;
+        double nearestOffDeg = double.MaxValue;
+        foreach (IGroundEdge edge in bar.Edges)
+        {
+            double edgeDeg = GeoMath.BearingTo(bar.Position, FarNode(edge, bar).Position);
+            double offDeg = Math.Abs(GeoMath.SignedBearingDifference(towardAircraft, edgeDeg));
+            if (offDeg < nearestOffDeg)
+            {
+                nearestOffDeg = offDeg;
+                approachDeg = edgeDeg;
+            }
+        }
+
+        return approachDeg;
+    }
+
+    private static GroundNode FarNode(IGroundEdge edge, GroundNode from) => edge.Nodes[0].Id == from.Id ? edge.Nodes[1] : edge.Nodes[0];
+
+    /// <summary>
+    /// Whether the follower is rolling into the bar's hold line: its heading carries it toward the line, and at that angle
+    /// the nose meets the line within <paramref name="lookAheadFt"/> (or is already at or past it). A bar beside the
+    /// follower's path, whose line it runs along rather than into, is not one it stops at.
+    /// </summary>
+    private static bool IsClosingOnHoldLine(PhaseContext ctx, BarAhead bar, double lookAheadFt)
+    {
+        double towardLineDeg = (bar.ApproachDeg + 180.0) % 360.0;
+        double offLineRad = GeoMath.SignedBearingDifference(ctx.Aircraft.TrueHeading.Degrees, towardLineDeg) * Math.PI / 180.0;
+        double closingCos = Math.Cos(offLineRad);
+        return (closingCos > 0.0) && (bar.ToStopFt <= (lookAheadFt * closingCos));
+    }
+
+    /// <summary>
+    /// How far ahead (ft) a bar is looked for: far enough to brake from the current speed at the category's taxi brake
+    /// rate to a stop half a fuselage short of the bar, with one tick of travel on top, and never less than
+    /// <see cref="HoldShortDetectionNm"/>.
+    /// </summary>
+    private static double BarLookAheadFt(PhaseContext ctx, double halfLengthFt)
+    {
+        double speedKts = ctx.Aircraft.GroundSpeed;
+        double brakingFt = (speedKts * speedKts) / (2.0 * CategoryPerformance.TaxiDecelRate(ctx.Category)) * GroundStopBraking.FeetPerSecondPerKt;
+        double oneTickFt = speedKts * GroundStopBraking.FeetPerSecondPerKt * ctx.DeltaSeconds;
+        double stopFt = halfLengthFt + GroundNavigator.SetBackStopMarginFt + brakingFt + oneTickFt;
+        return Math.Max(HoldShortDetectionNm * GeoMath.FeetPerNm, stopFt);
+    }
+
+    /// <summary>
+    /// A runway hold-short bar within <paramref name="lookAheadFt"/> and off the nose. Inside
+    /// <see cref="HoldShortDetectionNm"/> any bar within <see cref="HoldShortAngleThreshold"/> of the nose counts; beyond
+    /// it, only a bar within <see cref="BarCorridorHalfWidthFt"/> of the line the follower is rolling along, so the longer
+    /// look-ahead a fast follower needs does not stop it at a bar on a connector beside its taxiway.
+    /// </summary>
+    private static bool IsBarAhead(PhaseContext ctx, GroundNode node, double lookAheadFt)
     {
         if (node.Type != GroundNodeType.RunwayHoldShort)
         {
             return false;
         }
 
-        if (GeoMath.DistanceNm(ctx.Aircraft.Position, node.Position) > HoldShortDetectionNm)
+        double distFt = GeoMath.DistanceNm(ctx.Aircraft.Position, node.Position) * GeoMath.FeetPerNm;
+        if (distFt > lookAheadFt)
         {
             return false;
         }
 
         double bearing = GeoMath.BearingTo(ctx.Aircraft.Position, node.Position);
-        return Math.Abs(GeoMath.SignedBearingDifference(ctx.Aircraft.TrueHeading.Degrees, bearing)) <= HoldShortAngleThreshold;
+        double offNoseDeg = Math.Abs(GeoMath.SignedBearingDifference(ctx.Aircraft.TrueHeading.Degrees, bearing));
+        if (offNoseDeg > HoldShortAngleThreshold)
+        {
+            return false;
+        }
+
+        double offLineFt = distFt * Math.Sin(offNoseDeg * Math.PI / 180.0);
+        return (distFt <= (HoldShortDetectionNm * GeoMath.FeetPerNm)) || (offLineFt <= BarCorridorHalfWidthFt);
+    }
+
+    /// <summary>
+    /// Take the hold at <paramref name="bar"/> once the follower is within one sub-tick of braking of rest — so clearing the
+    /// residual is no more than physics' own ground snap would — and within <see cref="BarStopTakeFt"/> of the hold line
+    /// (or past it). On the <see cref="GroundStopBraking.StopBraking.Backstop"/>, take it the tick before the nose would
+    /// reach the line even braking at the firm rate, stopping dead where the follower is, and log that one-tick stop as a
+    /// warning. Inserts <see cref="HoldingShortPhase"/> and a fresh follow behind it. Returns true when the hold was taken.
+    /// </summary>
+    private bool TryTakeHoldAtBar(PhaseContext ctx, BarAhead bar, GroundStopBraking.StopBraking braking)
+    {
+        double residualKts = CategoryPerformance.TaxiDecelRate(ctx.Category) / SimulationEngine.PhysicsSubTickRate;
+        bool settled = (ctx.Aircraft.IndicatedAirspeed <= residualKts) && (bar.ToStopFt <= BarStopTakeFt);
+        bool lastResort =
+            (braking == GroundStopBraking.StopBraking.Backstop)
+            && (bar.ToStopFt <= (GroundStopBraking.FirmBrakingTravelThisTickFt(ctx) + BarStopTakeFt));
+        if (!settled && !lastResort)
+        {
+            return false;
+        }
+
+        GroundNode node = bar.Node;
+        if (lastResort)
+        {
+            Log.LogWarning(
+                "[Follow] {Callsign}: stopped dead at runway node {NodeId} ({Runway}), reason={Reason}, nose {ToStop:F1} ft from the hold line "
+                    + "at {Speed:F1} kt: no brake rate made the line",
+                ctx.Aircraft.Callsign,
+                node.Id,
+                node.RunwayId?.ToString() ?? "unknown",
+                bar.Reason,
+                bar.ToStopFt,
+                ctx.Aircraft.GroundSpeed
+            );
+        }
+        else
+        {
+            Log.LogDebug(
+                "[Follow] {Callsign}: holding short at runway node {NodeId} ({Runway}), reason={Reason}, nose {ToStop:F1} ft from the hold line, "
+                    + "{Speed:F1} kt at rest",
+                ctx.Aircraft.Callsign,
+                node.Id,
+                node.RunwayId?.ToString() ?? "unknown",
+                bar.Reason,
+                bar.ToStopFt,
+                ctx.Aircraft.GroundSpeed
+            );
+        }
+        ctx.Aircraft.IndicatedAirspeed = 0;
+        ctx.Targets.TargetSpeed = 0;
+        ctx.Targets.DesiredDecelRate = null;
+        ctx.Aircraft.Ground.CurrentTaxiway = TaxiwayAtBar(node, ctx.Aircraft.Position);
+        ReleaseLatchedBar();
+
+        var holdShort = new HoldShortPoint
+        {
+            NodeId = node.Id,
+            Reason = bar.Reason,
+            TargetName = node.RunwayId?.ToString(),
+        };
+
+        var holdPhase = new HoldingShortPhase(holdShort);
+        var resumeFollow = new FollowingPhase(_targetCallsign);
+        ctx.Aircraft.Phases?.InsertAfterCurrent([holdPhase, resumeFollow]);
+        return true;
+    }
+
+    /// <summary>
+    /// The taxiway the follower holds on: the name of the bar node's taxiway edge that runs back toward the aircraft, or
+    /// null when no edge there is named, so the hold-short report falls back to "taxiway" rather than naming a stale one.
+    /// A follow has no route to read it from, and the hold-short report names it.
+    /// </summary>
+    private static string? TaxiwayAtBar(GroundNode bar, LatLon aircraftPosition)
+    {
+        double towardAircraft = GeoMath.BearingTo(bar.Position, aircraftPosition);
+        string? nearest = null;
+        double nearestOffDeg = double.MaxValue;
+        foreach (IGroundEdge edge in bar.Edges)
+        {
+            if (edge.IsRunwayCenterline || string.IsNullOrEmpty(edge.TaxiwayName))
+            {
+                continue;
+            }
+
+            double offDeg = Math.Abs(GeoMath.SignedBearingDifference(towardAircraft, GeoMath.BearingTo(bar.Position, FarNode(edge, bar).Position)));
+            if (offDeg < nearestOffDeg)
+            {
+                nearestOffDeg = offDeg;
+                nearest = edge.TaxiwayName;
+            }
+        }
+
+        return nearest;
     }
 
     /// <summary>
@@ -270,6 +578,71 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
         }
 
         return false;
+    }
+
+    /// <summary>
+    /// A follow has no route to name the taxiway it is on, so a moving follower reads it from the straight taxiway edge it
+    /// is rolling on — null off every taxiway or on an unnamed one — rather than carry a name from before, such as the
+    /// taxiway a previous hold was on. The edge is looked for first where the follower last was
+    /// (<see cref="NearestTaxiEdgeAroundLast"/>), and the whole layout is scanned only when nothing there is within
+    /// <see cref="OnTaxiwayMaxOffsetFt"/>.
+    /// </summary>
+    private void RefreshCurrentTaxiway(PhaseContext ctx)
+    {
+        if ((ctx.GroundLayout is null) || (ctx.Aircraft.GroundSpeed <= 0.0))
+        {
+            return;
+        }
+
+        GroundEdge? onEdge = NearestTaxiEdgeAroundLast(ctx.GroundLayout, ctx.Aircraft.Position);
+        if (
+            (onEdge is null)
+            && (ctx.GroundLayout.FindNearestTaxiEdge(ctx.Aircraft.Position) is { } nearest)
+            && ((nearest.DistNm * GeoMath.FeetPerNm) <= OnTaxiwayMaxOffsetFt)
+        )
+        {
+            onEdge = nearest.Edge;
+        }
+
+        _taxiEdgeNodeIds = onEdge is null ? null : (onEdge.Nodes[0].Id, onEdge.Nodes[1].Id);
+        ctx.Aircraft.Ground.CurrentTaxiway = onEdge?.TaxiwayName is { Length: > 0 } taxiway ? taxiway : null;
+    }
+
+    /// <summary>
+    /// The nearest straight taxi edge within <see cref="OnTaxiwayMaxOffsetFt"/> of <paramref name="position"/> among the edge
+    /// the follower was last on (<see cref="_taxiEdgeNodeIds"/>) and the edges meeting it at its two end nodes — the edges
+    /// <see cref="AirportGroundLayout.FindNearestTaxiEdge(LatLon)"/> considers (no fillet arc, runway centreline or ramp
+    /// connector), measured the way it measures them. Null with no last edge, or none of them that close.
+    /// </summary>
+    private GroundEdge? NearestTaxiEdgeAroundLast(AirportGroundLayout layout, LatLon position)
+    {
+        if (
+            (_taxiEdgeNodeIds is not { } ends)
+            || !layout.Nodes.TryGetValue(ends.NodeA, out GroundNode? nodeA)
+            || !layout.Nodes.TryGetValue(ends.NodeB, out GroundNode? nodeB)
+        )
+        {
+            return null;
+        }
+
+        GroundEdge? best = null;
+        double bestFt = OnTaxiwayMaxOffsetFt;
+        foreach (IGroundEdge edge in nodeA.Edges.Concat(nodeB.Edges))
+        {
+            if ((edge is not GroundEdge straight) || edge.IsRunwayCenterline || edge.IsRamp)
+            {
+                continue;
+            }
+
+            double distFt = GeoMath.DistanceToSegmentFt(position, straight.Nodes[0].Position, straight.Nodes[1].Position);
+            if ((distFt < bestFt) || ((best is null) && (distFt <= bestFt)))
+            {
+                best = straight;
+                bestFt = distFt;
+            }
+        }
+
+        return best;
     }
 
     /// <summary>Whether the bar protects a runway the crossing clearance that started this follow already cleared.</summary>

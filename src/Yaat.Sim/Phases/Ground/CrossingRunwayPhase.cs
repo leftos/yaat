@@ -52,6 +52,16 @@ public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, st
     private int _tailClearFullSegments;
     private bool _tailClearPartial;
 
+    // The pose the navigator set up the current slice segment at. The navigator builds the segment's primitive from the
+    // pose it is set up at (an entry-alignment turn starts at the aircraft), so a restore sets the segment up again from
+    // this pose rather than from where the aircraft stands at restore time. Snapshotted with the slice segment index.
+    private (LatLon Position, TrueHeading Heading)? _segmentSetupPose;
+
+    // Set by FromSnapshot and consumed (reset to null) by the first slice build after a restore.
+    private int? _restoredSegmentIndex;
+    private (LatLon Position, TrueHeading Heading)? _restoredSetupPose;
+    private GroundNavigatorDto? _restoredNavigator;
+
     public override string Name => "Crossing Runway";
 
     public string? RunwayId => _runwayId;
@@ -95,7 +105,9 @@ public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, st
             TryBuildCrossingRoute(ctx);
         }
 
-        if (ctx.Aircraft.Ground.IsImmobile)
+        // A GIVEWAY does not act on the runway: the crossing runs on until the tail is past the far holding-position marking
+        // (AIM 4-3-21.a/b) and the onward TaxiingPhase applies the give-way braking from there. A HOLD stops it here.
+        if (ctx.Aircraft.Ground.IsImmobile && (ctx.Aircraft.Ground.Hold?.Kind != HoldKind.GiveWay))
         {
             ctx.Aircraft.IndicatedAirspeed = 0;
             // Pin the target too: a stale nonzero TargetSpeed left by the navigator would let
@@ -137,8 +149,7 @@ public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, st
                 return true;
             }
 
-            _navigator.SetupSegment(_crossingRoute, ctx, _ => true);
-            ApplyExitHoldShortOffset(ctx);
+            SetupCurrentSegment(ctx, _navigator, _crossingRoute);
         }
 
         _timeSinceLastLog += ctx.DeltaSeconds;
@@ -211,7 +222,29 @@ public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, st
         _exitRouteIndex = plan.ExitIndex;
         _tailClearFullSegments = plan.FullTailSegments;
         _tailClearPartial = plan.PartialTail;
-        _crossingRoute = new TaxiRoute { Segments = plan.Segments, HoldShortPoints = [] };
+        var crossingRoute = new TaxiRoute
+        {
+            Segments = plan.Segments,
+            HoldShortPoints = [],
+            CurrentSegmentIndex = Math.Clamp(_restoredSegmentIndex ?? 0, 0, plan.Segments.Count - 1),
+        };
+        _crossingRoute = crossingRoute;
+
+        // The saved set-up pose belongs to the saved slice segment: when the rebuilt slice no longer has that segment and
+        // the index was clamped, the segment set up is a different one, and it is set up from the live pose instead.
+        bool restoredIndexClamped = false;
+        if (_restoredSegmentIndex is { } restoredIndex)
+        {
+            restoredIndexClamped = restoredIndex != crossingRoute.CurrentSegmentIndex;
+            Log.LogDebug(
+                "[Crossing] {Callsign}: restored slice segment {Index} applied (slice segment {Applied} of {Count})",
+                ctx.Aircraft.Callsign,
+                restoredIndex,
+                crossingRoute.CurrentSegmentIndex,
+                plan.Segments.Count
+            );
+            _restoredSegmentIndex = null;
+        }
 
         // Cross at normal taxi speed and continue without delay (7110.65 §3-7-2.a.10, "CROSS (runway) at
         // (taxiway) WITHOUT DELAY"; AIM 4-3-21.a): a crossing is just taxiing across, so the cap is the
@@ -221,14 +254,23 @@ public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, st
         // in the painted line and a conflict/airport speed-limit ceiling still outrank that floor (see
         // GroundNavigator.ClampBySpeedLimit). The aircraft hands off to the onward TaxiingPhase moving; that
         // phase owns the real deceleration for the destination.
-        _navigator = new GroundNavigator
+        // A restored crossing takes the navigator from the snapshot, so the set-up below resumes the primitive it was
+        // playing at the progress it had reached (GroundNavigator.TryResumeRestoredPlayback).
+        GroundNavigator navigator = _restoredNavigator is { } savedNavigator ? GroundNavigator.FromSnapshot(savedNavigator) : new GroundNavigator();
+        _navigator = navigator;
+        navigator.MaxSpeedKts = CategoryPerformance.TaxiSpeed(ctx.Category);
+        navigator.MinSpeedKts = CategoryPerformance.RunwayCrossingSpeed(ctx.Category);
+        _restoredNavigator = null;
+        if ((_restoredSetupPose is { } setupPose) && !restoredIndexClamped)
         {
-            MaxSpeedKts = CategoryPerformance.TaxiSpeed(ctx.Category),
-            MinSpeedKts = CategoryPerformance.RunwayCrossingSpeed(ctx.Category),
-        };
-        _navigator.SetupSegment(_crossingRoute, ctx, _ => true);
-        ApplyExitHoldShortOffset(ctx);
+            SetupRestoredSegment(ctx, navigator, crossingRoute, setupPose);
+        }
+        else
+        {
+            SetupCurrentSegment(ctx, navigator, crossingRoute);
+        }
 
+        _restoredSetupPose = null;
         _initialized = true;
 
         Log.LogDebug(
@@ -242,6 +284,43 @@ public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, st
             _navigator.MaxSpeedKts,
             _navigator.MinSpeedKts
         );
+    }
+
+    /// <summary>Set up the slice segment the crossing is on from the aircraft's pose, and remember that pose for a snapshot.</summary>
+    private void SetupCurrentSegment(PhaseContext ctx, GroundNavigator navigator, TaxiRoute crossingRoute)
+    {
+        _segmentSetupPose = (ctx.Aircraft.Position, ctx.Aircraft.TrueHeading);
+        navigator.SetupSegment(crossingRoute, ctx, _ => true);
+        ApplyExitHoldShortOffset(ctx);
+    }
+
+    /// <summary>
+    /// Set the restored slice segment up again from the pose the original set it up at, so the navigator plays back the
+    /// same primitive (an entry-alignment turn is built from the aircraft's pose) and the restored crossing goes on as the
+    /// original. The aircraft is put back where it stands before the first tick. A navigator restored with its playback
+    /// resumes the saved primitive at its saved progress; one without it captures its progress on the primitive's first
+    /// tick, as it does for any primitive.
+    /// </summary>
+    private void SetupRestoredSegment(
+        PhaseContext ctx,
+        GroundNavigator navigator,
+        TaxiRoute crossingRoute,
+        (LatLon Position, TrueHeading Heading) setupPose
+    )
+    {
+        LatLon livePosition = ctx.Aircraft.Position;
+        TrueHeading liveHeading = ctx.Aircraft.TrueHeading;
+        ctx.Aircraft.Position = setupPose.Position;
+        ctx.Aircraft.TrueHeading = setupPose.Heading;
+        try
+        {
+            SetupCurrentSegment(ctx, navigator, crossingRoute);
+        }
+        finally
+        {
+            ctx.Aircraft.Position = livePosition;
+            ctx.Aircraft.TrueHeading = liveHeading;
+        }
     }
 
     /// <summary>
@@ -502,8 +581,13 @@ public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, st
             CrossingRunwayId = _runwayId,
             Initialized = _initialized,
             TimeSinceLastLog = _timeSinceLastLog,
-            Navigator = _navigator?.ToSnapshot(),
-            CrossingRouteSegmentIndex = _crossingRoute?.CurrentSegmentIndex ?? 0,
+            Navigator = _navigator?.ToSnapshot() ?? _restoredNavigator,
+            // A restored crossing not yet ticked has built no slice: it still holds the segment and set-up pose it was
+            // restored with, which a snapshot taken now must carry on.
+            CrossingRouteSegmentIndex = _crossingRoute?.CurrentSegmentIndex ?? _restoredSegmentIndex ?? 0,
+            SegmentSetupLat = (_segmentSetupPose ?? _restoredSetupPose)?.Position.Lat,
+            SegmentSetupLon = (_segmentSetupPose ?? _restoredSetupPose)?.Position.Lon,
+            SegmentSetupHeadingDeg = (_segmentSetupPose ?? _restoredSetupPose)?.Heading.Degrees,
             OwnPath = _ownPath?.ToSnapshot(),
         };
 
@@ -513,22 +597,23 @@ public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, st
         {
             _timeSinceLastLog = dto.TimeSinceLastLog,
             _ownPath = dto.OwnPath is { } ownPath ? TaxiRoute.FromSnapshot(ownPath, groundLayout) : null,
+            _restoredSegmentIndex = dto.CrossingRouteSegmentIndex,
+            _restoredSetupPose =
+                (dto.SegmentSetupLat is { } lat) && (dto.SegmentSetupLon is { } lon) && (dto.SegmentSetupHeadingDeg is { } heading)
+                    ? (new LatLon(lat, lon), new TrueHeading(heading))
+                    : null,
+            _restoredNavigator = dto.Navigator,
             Status = (PhaseStatus)dto.Status,
             ElapsedSeconds = dto.ElapsedSeconds,
         };
         phase.RestoreRequirements(dto.Requirements);
-        // Leave _initialized=false so the first OnTick rebuilds the
-        // navigator + route slice from the restored source route (own path, else AssignedTaxiRoute).
-        // dto.Navigator / dto.CrossingRouteSegmentIndex are forward-compat
-        // placeholders; the rebuilt slice is canonical because the route
-        // (and the airport layout) are what FromSnapshot can actually
-        // resolve at restore time. The slice's route index and tail-clearance
-        // counters are not snapshotted either: BuildSlice derives all three
-        // from the restored route, the layout and the aircraft's length, so a
-        // restore mid-crossing recomputes exactly what the live phase held.
+        // Leave _initialized=false so the first OnTick rebuilds the route slice from the restored source route (own path,
+        // else AssignedTaxiRoute): BuildSlice derives the slice, its route index and the tail-clearance counters from that
+        // route, the layout and the aircraft's length. The slice segment the crossing was on is then set up again on the
+        // restored navigator from the pose the original set it up at: the navigator resumes the primitive its snapshot
+        // carries, and a snapshot without one (written before the navigator carried it) rebuilds the same primitive from
+        // that pose.
         _ = dto.Initialized;
-        _ = dto.Navigator;
-        _ = dto.CrossingRouteSegmentIndex;
         return phase;
     }
 }
