@@ -155,6 +155,7 @@ The YAAT command bar is the only YAAT UI you should rely on during the session. 
 Inside this layout, the workflow is:
 
 - The student manipulates CRC normally - track, accept handoffs, scratchpad, etc. CRC interactions that YAAT supports are reflected back into the simulation.
+- Handoffs the student starts to the automated positions sit pending at least 5 seconds before they are accepted, and a handoff of an aircraft on the ground or below 1,500 ft above its field waits until it climbs into coverage (see [Auto-Accept](USER_GUIDE.md#auto-accept)).
 - Anything the student would say to a pilot becomes a YAAT command in the popped-out terminal: callsign plus a canonical command or an ATC-style instruction (Solo Training accepts both).
 - Pilot readbacks and pilot-initiated calls land in the terminal as `SAY` lines. Optional Solo pilot voice (Settings > Speech) lets these play out loud.
 - Avoid the YAAT radar view, ground view, and aircraft list for control decisions. If you need them at all - usually for setup or debriefing - bring the YAAT main window back, then minimize it again.

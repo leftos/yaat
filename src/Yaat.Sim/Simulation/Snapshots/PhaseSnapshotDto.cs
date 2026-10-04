@@ -1180,7 +1180,24 @@ public sealed class DownwindPhaseDto : PhaseDto
     public required double ThresholdLon { get; init; }
     public required double DownwindHeadingDeg { get; init; }
     public required bool PastAbeam { get; init; }
-    public required double AltitudeFloor { get; init; }
+
+    /// <summary>The level a hold past abeam latched (null = no hold latched).</summary>
+    public double? HoldLevelFt { get; init; }
+
+    /// <summary>The line descent's fixed altitude at the base trigger (null = no line descent being flown).</summary>
+    public double? DescentTargetFt { get; init; }
+
+    /// <summary>A controller altitude issued during the leg, which owns its altitude (null = none).</summary>
+    public double? ControllerAltitudeFt { get; init; }
+
+    /// <summary>The assigned altitude the leg last saw, recorded at its start; a change is a new controller
+    /// assignment. Null for no assignment; meaningful only when <see cref="AssignedAltitudeBaselineRecorded"/>.</summary>
+    public double? SeenAssignedAltitudeFt { get; init; }
+
+    /// <summary>True once the leg has recorded <see cref="SeenAssignedAltitudeFt"/>. Null or false (a recording predating
+    /// the field) makes the restored leg take the assignment in force on its next tick as the baseline.</summary>
+    public bool? AssignedAltitudeBaselineRecorded { get; init; }
+
     public required bool MidfieldBroadcastIssued { get; init; } = false;
     public bool ShortApproachArmed { get; init; }
 
@@ -1410,4 +1427,9 @@ public sealed class DepartureProcedurePhaseDto : PhaseDto
     public LatLon? LegEntryPosition { get; init; }
     public double? PreviousSignedCrossTrack { get; init; }
     public double LegElapsedSeconds { get; init; }
+
+    /// <summary>A controller "maintain" interrupting the SID's vertical navigation
+    /// (<see cref="Phases.Tower.DepartureProcedurePhase"/>); written only when set, and absent reads as
+    /// false, so a snapshot taken before it existed needs no migration.</summary>
+    public bool? ControllerAltitude { get; init; }
 }

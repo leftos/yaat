@@ -553,6 +553,7 @@ All four drain in `TickPrePhysics` (`SimulationEngine.cs:465`) once per sim-seco
   figures (turbojet 210/170, recip+turboprop 200/150, helicopter 60), **not** at Vref, while the simulated *approach* controller
   owns the aircraft — Vref asserts a configuration the aircraft does not have that far out. Two extensions (from
   the S1-SFO-2 bundle: WJA1508 delivered 67 s behind an E75L that needed 80 s):
+  - **The radar floor stays at 3 NM.** `SameRunwayArrivalProtection.TerminalRadarFloorNm` is 3.0, not the 7110.65 §5-5-4.j 2.5 NM reduced in-trail separation on final: that relief needs a documented average runway occupancy of 50 s or less and CTRDs or turnoffs visible from the tower, none of which YAAT models.
   - **Pre-clearance engagement.** Stream membership resolves the runway from `Phases.AssignedRunway`, else from
     `Approach.Expected` / `Procedure.DestinationRunway` via `ApproachCommandHandler.ResolveApproach` (`ResolveArrivalRunway`,
     memoized per airport+hint). An airborne aircraft with no phase of its own, established on that runway's final course

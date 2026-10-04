@@ -143,7 +143,7 @@ both the wrapper name and the hub method's own semantics** — grep for the stri
 | `GetTimelineInfoAsync()` | `GetTimelineInfo` | `GetTimelineInfo()` |
 | `GetTerminalLogAsync()` | `GetTerminalLog` | `GetTerminalLog()` → `List<TerminalBroadcastDto>` (recorded terminal stream; client repopulates the terminal after a recording load) |
 | `ExportRecordingAsync()` | `ExportRecording` | `ExportRecording()` `:961` (stream) |
-| `LoadRecordingAsync(bytes)` | `LoadRecording` | `LoadRecording(stream)` → `RewindResultDto`. Drains the upload, then holds the room's load flag like a scenario load: fetches the recording scenario's ARTCC configs and layouts before taking the tick gate, sends no progress events, and replaces the room's resource pin |
+| `LoadRecordingAsync(bytes)` | `LoadRecording` | `LoadRecording(stream)` → `RewindResultDto`. Drains the upload, then holds the room's load flag like a scenario load: fetches the recording scenario's ARTCC configs and layouts before taking the tick gate, sends no progress events, and replaces the room's resource pin. The room takes the tape's session settings (its t≤0 setting changes applied at load), and `SessionSettingsChanged` goes to the room group just before `RecordingLoaded` |
 | `AddBookmarkAsync(timeSeconds, name, initials)` | `AddBookmark` | `AddBookmark(...)` — adds a shared timeline bookmark, broadcasts `BookmarksChanged` |
 | `RenameBookmarkAsync(id, name)` | `RenameBookmark` | `RenameBookmark(id, name)` — any RPO may rename any bookmark |
 | `DeleteBookmarkAsync(id)` | `DeleteBookmark` | `DeleteBookmark(id)` — any RPO may delete any bookmark |
@@ -454,6 +454,8 @@ event), not the stream itself. Copying the `InvokeAsync<T>` wrapper pattern for 
 
 This is the canonical version of the add-a-field flow. [server-rooms-and-hub.md](server-rooms-and-hub.md) links here
 rather than restating it.
+
+**Decided shape, not converted yet:** `AircraftStateDto` becomes `required` init properties server-side and `AircraftDto` plain init properties client-side, replacing the defaulted positional constructor parameters (about 100 on the server DTO, against the no-optional-parameters rule). The defaults buy nothing: there is one production construction site (`DtoConverter.cs`), and System.Text.Json fills a missing constructor parameter either way. Until the pair is converted, step 1 below still adds a defaulted parameter; the conversion rewrites this checklist.
 
 1. **Add to `AircraftStateDto`** (`../yaat-server/.../Dtos/TrainingDtos.cs:3`) — a new constructor param with a default
    so older positional call sites still compile.

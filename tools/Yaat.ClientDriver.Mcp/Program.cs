@@ -2,6 +2,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Yaat.ClientDriver.Mcp;
+using Yaat.ClientDriver.Mcp.Pipe;
+using Yaat.ClientDriver.Mcp.Recording;
 
 // Per-monitor-v2 awareness must be set before any UI Automation or screen-capture call, so it comes first:
 // without it Windows virtualises coordinates on scaled monitors and UIA rectangles stop matching screen pixels.
@@ -13,5 +15,22 @@ if (!NativeInput.EnablePerMonitorDpiAwareness())
 HostApplicationBuilder builder = Host.CreateApplicationBuilder(args);
 builder.Logging.AddConsole(options => options.LogToStandardErrorThreshold = LogLevel.Trace);
 builder.Services.AddSingleton<ElementRegistry>();
-builder.Services.AddMcpServer().WithStdioServerTransport().WithToolsFromAssembly();
+builder.Services.AddSingleton<IProcessStarter, ProcessStarter>();
+
+// One recording at a time, shared by the record_* tools and wait_until's stop_recording (tool classes are built per call).
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddSingleton<IRecordingBackend, ProcessRecordingBackend>();
+builder.Services.AddSingleton<RecordingSession>();
+
+// The client advertises its pipe under %TEMP%/yaat-automation, whatever YAAT_APPDATA_DIR either process runs with
+// (AutomationHostFactory.DiscoveryDirectory in the client; the MCP links the protocol types, not the client).
+builder.Services.AddSingleton(provider => new PipeDirectory(
+    Path.Combine(Path.GetTempPath(), "yaat-automation"),
+    PipeDirectory.ClientProcessName,
+    provider.GetRequiredService<ILogger<PipeDirectory>>(),
+    provider.GetRequiredService<ILogger<PipeClient>>()
+));
+
+// Every tool result also shows the errors the client logged while its pipe calls ran (PipeCallErrors).
+builder.Services.AddMcpServer().WithStdioServerTransport().WithToolsFromAssembly().WithPipeCallErrors();
 await builder.Build().RunAsync();

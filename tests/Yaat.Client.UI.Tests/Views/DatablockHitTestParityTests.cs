@@ -3,6 +3,7 @@ using SkiaSharp;
 using Xunit;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
+using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Map;
 using Yaat.Client.Views.Radar;
 using Yaat.Sim;
@@ -177,5 +178,87 @@ public class DatablockHitTestParityTests
 
         Assert.True(large.Width > small.Width, "a larger datablock font must produce a wider hit rect");
         Assert.True(large.Height > small.Height, "a larger datablock font must produce a taller hit rect");
+    }
+
+    [AvaloniaFact]
+    public void HitTestOffset_MatchesNudgedDrawOffset_Radar() => AssertNudgedBlockParity(DatablockDeconflictMode.FreeForm);
+
+    [AvaloniaFact]
+    public void NudgeApplies_WhenDeconflictModeOff() => AssertNudgedBlockParity(DatablockDeconflictMode.Off);
+
+    [AvaloniaFact]
+    public void ManualOffsetBlock_NeverNudged_Radar()
+    {
+        // A dragged block over the CRC spot is fixed: the readout moves around it and the block ships no nudge delta.
+        AircraftModel ac = CreateModel();
+        var state = new RadarDataBlockViewState();
+        var manual = new SKPoint(28f, -28f);
+        state.ManualOffsets[ac.Callsign] = manual;
+        var canvas = new RadarCanvas
+        {
+            Aircraft = [ac],
+            DeconflictMode = DatablockDeconflictMode.Off,
+            DataBlockState = state,
+        };
+        canvas.Viewport.CenterLat = ac.Position.Lat;
+        canvas.Viewport.CenterLon = ac.Position.Lon;
+        canvas.Viewport.PixelWidth = 800f;
+        canvas.Viewport.PixelHeight = 600f;
+        SKRect block = canvas.ComputeDataBlockPlacement(ac).Rect;
+        (double bLat, double bLon) = canvas.Viewport.ScreenToLatLon(block.MidX, block.MidY);
+        (double aLat, double aLon) = canvas.Viewport.ScreenToLatLon(100f, 500f);
+        canvas.RangeBearingLines =
+        [
+            new RangeBearingLine(1, RblEndpoint.AtPoint(new LatLon(aLat, aLon), ""), RblEndpoint.AtPoint(new LatLon(bLat, bLon), ""), RblView.Radar),
+        ];
+
+        (IReadOnlyDictionary<string, SKPoint> offsets, IReadOnlyDictionary<int, SKRect> readouts) = canvas.CaptureSnapshotPlacement();
+
+        Assert.False(offsets.ContainsKey(ac.Callsign));
+        Assert.Equal(manual, canvas.ComputeDataBlockPlacement(ac).Offset);
+        Assert.Contains(1, readouts);
+    }
+
+    /// <summary>
+    /// Puts a measurement's far end at the centre of an auto-placed datablock, so every readout spot covers the block
+    /// and the readout nudges it, then asserts the hit-test rect is the rect the snapshot's shipped offset draws.
+    /// </summary>
+    private static void AssertNudgedBlockParity(DatablockDeconflictMode mode)
+    {
+        AircraftModel ac = CreateModel();
+        var canvas = new RadarCanvas { Aircraft = [ac], DeconflictMode = mode };
+        canvas.Viewport.CenterLat = ac.Position.Lat;
+        canvas.Viewport.CenterLon = ac.Position.Lon;
+        canvas.Viewport.PixelWidth = 800f;
+        canvas.Viewport.PixelHeight = 600f;
+        canvas.CaptureSnapshotPlacement();
+        canvas.CaptureSnapshotPlacement();
+        (SKPoint unnudgedOffset, SKRect block) = canvas.ComputeDataBlockPlacement(ac);
+
+        (double bLat, double bLon) = canvas.Viewport.ScreenToLatLon(block.MidX, block.MidY);
+        (double aLat, double aLon) = canvas.Viewport.ScreenToLatLon(100f, 500f);
+        canvas.RangeBearingLines =
+        [
+            new RangeBearingLine(1, RblEndpoint.AtPoint(new LatLon(aLat, aLon), ""), RblEndpoint.AtPoint(new LatLon(bLat, bLon), ""), RblView.Radar),
+        ];
+        (IReadOnlyDictionary<string, SKPoint> offsets, IReadOnlyDictionary<int, SKRect> readouts) = canvas.CaptureSnapshotPlacement();
+
+        SKPoint shipped = Assert.Contains(ac.Callsign, offsets);
+        Assert.NotEqual(unnudgedOffset, shipped);
+        (float sx, float sy) = canvas.Viewport.LatLonToScreen(ac.Position.Lat, ac.Position.Lon);
+        SKRect rectAtOrigin = canvas.ComputeStableRectAtOrigin(ac);
+        var drawn = new SKRect(
+            rectAtOrigin.Left + sx + shipped.X,
+            rectAtOrigin.Top + sy + shipped.Y,
+            rectAtOrigin.Right + sx + shipped.X,
+            rectAtOrigin.Bottom + sy + shipped.Y
+        );
+        (SKPoint hitOffset, SKRect hitRect) = canvas.ComputeDataBlockPlacement(ac);
+        Assert.Equal(shipped, hitOffset);
+        Assert.Equal(drawn, hitRect);
+        Assert.False(
+            SKRect.Intersect(Assert.Contains(1, readouts), hitRect) is { Width: > 0f, Height: > 0f },
+            "the nudged block must clear the readout"
+        );
     }
 }

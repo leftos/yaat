@@ -116,7 +116,7 @@ internal static class WindowHotkeys
     /// is used directly for MainViewModel-backed windows; other windows fall back to the app's
     /// MainWindow, which always carries the one VM.
     /// </summary>
-    private static MainViewModel? ResolveMainViewModel(Window window) =>
+    internal static MainViewModel? ResolveMainViewModel(TopLevel window) =>
         window.DataContext as MainViewModel
         ?? (Application.Current?.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime)?.MainWindow?.DataContext as MainViewModel;
 }

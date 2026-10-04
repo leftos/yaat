@@ -1,0 +1,34 @@
+# C2 — pursuit that starts too close behind a pattern-bound lead.
+# KOAK runway 28R, right traffic. Two VFR C172s, neither placed on a leg by the scenario.
+#
+#   N52417  lead     — C172 13 NM east of the field, inbound direct Lake Chabot (VPCBT) at 70 kt, then a right base for 28R
+#   N738SP  follower — C172 1.6 NM behind it on the same inbound at 100 kt, overtaking
+#
+# The lead has no runway until its queued right base fires at Lake Chabot, so the FOLLOW is a pursuit; behind a lead
+# bound for the pattern the pursuit keeps pattern spacing, 1.0 NM.
+# Times are sim seconds. See card.md for what the clip shows.
+
+# t=1  Inhibit conflict alerts on both aircraft (CAINH toggles).
+t=1 N52417 CAINH
+t=1 N738SP CAINH
+
+# t=1  Traffic advisories, both ways: the Cessna at 12 o'clock, 2 miles, westbound for the follower; the Cessna at
+#      6 o'clock, 2 miles, westbound for the lead.
+t=1 N738SP RTIS 12 2 W C172
+t=1 N52417 RTIS 6 2 W C172
+
+# t=2  Lead: direct Lake Chabot, then enter a right base for 28R from there; slow to 70 kt.
+t=2 N52417 DCT VPCBT; ERB 28R
+t=3 N52417 SPD 70
+
+# t=4  Follower: direct Lake Chabot too, overtaking the slower Cessna.
+t=4 N738SP DCT VPCBT
+
+# t=100 The follow, with the follower 0.8 NM behind the lead, short of the 1.0 NM it must keep.
+t=100 N738SP FOLLOW N52417
+
+# t=390 Lead: cleared to land 28R once its right base has begun (first in the sequence).
+t=390 N52417 CLAND 28R
+
+# t=420 Follower: cleared to land 28R, behind the traffic.
+t=420 N738SP CLAND 28R

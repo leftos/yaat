@@ -105,7 +105,8 @@ public class OakTaxiResolutionE2ETests(ITestOutputHelper output)
     [Fact]
     public void TaxiCD_AfterExit_ResponseNamesOnlyTraversedTaxiways()
     {
-        (CommandResult Result, TaxiRoute Route)? issued = IssueTaxi(2255, "N622JQ", "TAXI C D");
+        const string command = "TAXI C D";
+        (CommandResult Result, TaxiRoute Route)? issued = IssueTaxi(2255, "N622JQ", command);
         if (issued is null)
         {
             return;
@@ -114,10 +115,14 @@ public class OakTaxiResolutionE2ETests(ITestOutputHelper output)
         (CommandResult? result, TaxiRoute? route) = issued.Value;
         Assert.True(result.Success, result.Message);
         Assert.NotNull(result.Message);
+        Assert.StartsWith("Taxi via E C D", result.Message);
 
         // The response's route summary must only name taxiways the installed route actually
-        // touches — the recorded bug echoed "Taxi via G C" for a route that never goes near G.
+        // touches — the recorded bug echoed "Taxi via G C" for a route that never goes near G —
+        // or ones the clearance issued: a route with no destination ends where its last issued
+        // taxiway begins (here the C/D junction), and the readback names the route as issued.
         HashSet<string> traversed = TraversedTaxiways(route);
+        traversed.UnionWith(command.Split(' ')[1..]);
         string summaryPart = result.Message["Taxi via ".Length..];
         int cutoff = summaryPart.IndexOfAny(['[', '(', '—']);
         if (cutoff >= 0)

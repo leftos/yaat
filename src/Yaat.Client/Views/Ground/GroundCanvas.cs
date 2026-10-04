@@ -205,6 +205,15 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
     // frames to seed the next pass for stability.
     private readonly Dictionary<string, SKPoint> _resolvedDeconflictOffsets = [];
     private readonly Dictionary<string, SKPoint> _deconflictScratch = [];
+
+    // Nudges the measurement readouts gave auto-placed datablocks this frame (callsign -> delta added to the
+    // block's offset), and each readout's spot (slot -> spot). Written once per snapshot build; the draw reads
+    // the nudges through the snapshot's merged offsets, the hit-test through DeconflictOffsetFor. Kept apart
+    // from _resolvedDeconflictOffsets, which seeds the next deconfliction pass, so a nudge never feeds back.
+    private readonly Dictionary<string, RblNudge> _rblNudgeOffsets = [];
+    private readonly Dictionary<int, RblReadoutSpot> _rblReadoutSpots = [];
+    private readonly SKFont _rblMeasureFont = PlatformHelper.MonospaceFont(RangeBearingRenderer.LabelFontSize);
+    private static readonly IReadOnlyDictionary<int, SKRect> NoReadoutRects = new Dictionary<int, SKRect>();
     private readonly SKPaint _hitTestPaint = new();
     private readonly SKFont _hitTestFont = PlatformHelper.MonospaceFontBold(12);
 
@@ -212,7 +221,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
     /// Measuring pair for the hit-test path. Must stay metric-identical to the renderer's ground
     /// datablock style, or clicks miss the block.
     /// </summary>
-    private TextStyle HitTestStyle => new(_hitTestFont, _hitTestPaint);
+    internal TextStyle HitTestStyle => new(_hitTestFont, _hitTestPaint);
 
     public float DatablockTextSize
     {
@@ -341,6 +350,16 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
     // context menu on release if the pointer never moved past the threshold, so both gestures share
     // the button.
     private readonly RightClickGesture _rightClick = new();
+
+    // The menu a right-click on two or more targets opens to choose between them.
+    private readonly RightClickPicker _rightClickPicker = new();
+
+    // Pixel radius within which a click lands on an aircraft symbol.
+    private const float AircraftHitRadiusPx = 28f;
+
+    // Pixel radius within which a right-click with an aircraft selected lands on a parking, spot or helipad marker. Tighter
+    // than the general node radius so a stand only joins the picker when the click is really on its marker.
+    private const float StandHitRadiusPx = 10f;
 
     // Pixel radius for deciding a right-click is pointing at an already-drawn measurement.
     private const float MeasurePickRadiusPx = 8f;
@@ -862,6 +881,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         bool ShowAdwMarkings,
         IReadOnlyList<ResolvedRbl>? RangeBearingLines,
         ResolvedRbl? PendingRangeBearingLine,
+        IReadOnlyDictionary<int, SKRect> RblReadoutRects,
         (string Label, SKPoint NodePos)? CtrlNodeHover,
         PendingPushPoint? PendingPushPoint
     );
@@ -891,36 +911,14 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             }
         }
 
-        List<ResolvedRbl>? measurements = null;
-        ResolvedRbl? pendingMeasurement = null;
-        IReadOnlyList<RangeBearingLine>? placedMeasurements = RangeBearingLines;
-        // A half-placed anchor picked in the other view previews there, not here.
-        RblEndpoint? measureAnchor =
-            _measureDragAnchor ?? (MeasureAnchor is { View: RblView.Ground } pending ? pending.Endpoint : (RblEndpoint?)null);
-        if (placedMeasurements is { Count: > 0 } || measureAnchor is not null)
-        {
-            RblTrackLookup lookup = BuildMeasureLookup();
-            if (placedMeasurements is { Count: > 0 })
-            {
-                measurements = RangeBearingLineResolver.Resolve(
-                    placedMeasurements,
-                    lookup,
-                    GroundViewModel.MeasureUnits,
-                    GroundViewModel.MeasureView
-                );
-            }
-
-            if (measureAnchor is not null)
-            {
-                (double Lat, double Lon) cursor = Viewport.ScreenToLatLon((float)_pointerPos.X, (float)_pointerPos.Y);
-                pendingMeasurement = RangeBearingLineResolver.ResolvePending(
-                    measureAnchor,
-                    new LatLon(cursor.Lat, cursor.Lon),
-                    lookup,
-                    GroundViewModel.MeasureUnits
-                );
-            }
-        }
+        (List<ResolvedRbl>? measurements, ResolvedRbl? pendingMeasurement) = ResolveMeasurements();
+        (IReadOnlyDictionary<int, SKRect> readoutRects, IReadOnlyDictionary<string, SKPoint> shippedOffsets) = PlaceRblReadouts(
+            aircraft,
+            hiddenDbs,
+            measurements,
+            pendingMeasurement,
+            deconflictOffsets
+        );
 
         (string Label, SKPoint NodePos)? ctrlNodeHover = ResolveCtrlNodeHover();
         DrawnPendingPushPoint = ResolvePendingPushPoint();
@@ -941,7 +939,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             PushRoutePreview,
             IsDrawingRoute,
             new Dictionary<string, SKPoint>(state.ManualOffsets),
-            deconflictOffsets,
+            shippedOffsets,
             ShowDebugInfo,
             WeatherInfo,
             WeatherNote,
@@ -964,9 +962,148 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             ShowAdwMarkings,
             measurements,
             pendingMeasurement,
+            readoutRects,
             ctrlNodeHover,
             DrawnPendingPushPoint
         );
+    }
+
+    /// <summary>Resolves the placed measurements and the half-placed one (picked in this view) for this frame.</summary>
+    private (List<ResolvedRbl>? Lines, ResolvedRbl? Pending) ResolveMeasurements()
+    {
+        IReadOnlyList<RangeBearingLine>? placedMeasurements = RangeBearingLines;
+        // A half-placed anchor picked in the other view previews there, not here.
+        RblEndpoint? measureAnchor =
+            _measureDragAnchor ?? (MeasureAnchor is { View: RblView.Ground } pending ? pending.Endpoint : (RblEndpoint?)null);
+        if ((placedMeasurements is not { Count: > 0 }) && (measureAnchor is null))
+        {
+            return (null, null);
+        }
+
+        RblTrackLookup lookup = BuildMeasureLookup();
+        List<ResolvedRbl>? measurements = placedMeasurements is { Count: > 0 }
+            ? RangeBearingLineResolver.Resolve(placedMeasurements, lookup, GroundViewModel.MeasureUnits, GroundViewModel.MeasureView)
+            : null;
+        ResolvedRbl? pendingMeasurement = null;
+        if (measureAnchor is not null)
+        {
+            (double Lat, double Lon) cursor = Viewport.ScreenToLatLon((float)_pointerPos.X, (float)_pointerPos.Y);
+            pendingMeasurement = RangeBearingLineResolver.ResolvePending(
+                measureAnchor,
+                new LatLon(cursor.Lat, cursor.Lon),
+                lookup,
+                GroundViewModel.MeasureUnits
+            );
+        }
+
+        return (measurements, pendingMeasurement);
+    }
+
+    /// <summary>
+    /// Places this frame's measurement readouts clear of datablocks and symbols (<see cref="RblReadoutPlacement"/>),
+    /// rewriting <see cref="_rblNudgeOffsets"/> and <see cref="_rblReadoutSpots"/>. Returns each readout's rect by slot
+    /// and the datablock offsets to ship to the draw: <paramref name="deconflictOffsets"/> with every nudge folded in.
+    /// </summary>
+    private (IReadOnlyDictionary<int, SKRect> ReadoutRects, IReadOnlyDictionary<string, SKPoint> Offsets) PlaceRblReadouts(
+        IReadOnlyList<AircraftModel> aircraft,
+        IReadOnlySet<string> hiddenDataBlocks,
+        IReadOnlyList<ResolvedRbl>? lines,
+        ResolvedRbl? pending,
+        IReadOnlyDictionary<string, SKPoint> deconflictOffsets
+    )
+    {
+        if ((lines is not { Count: > 0 }) && (pending is null))
+        {
+            return ClearRblPlacement(deconflictOffsets);
+        }
+
+        List<RblReadout> readouts = RangeBearingRenderer.BuildReadouts(lines, pending, Viewport, _rblMeasureFont);
+        if (readouts.Count == 0)
+        {
+            return ClearRblPlacement(deconflictOffsets);
+        }
+
+        RblObstacles obstacles = BuildRblObstacles(aircraft, hiddenDataBlocks);
+        Dictionary<int, SKRect> rects = RblReadoutPlacement.PlaceAll(readouts, obstacles, _rblReadoutSpots, _rblNudgeOffsets);
+        if (_rblNudgeOffsets.Count == 0)
+        {
+            return (rects, deconflictOffsets);
+        }
+
+        var merged = new Dictionary<string, SKPoint>(deconflictOffsets);
+        foreach (string callsign in _rblNudgeOffsets.Keys)
+        {
+            if (DeconflictOffsetFor(callsign) is { } nudged)
+            {
+                merged[callsign] = nudged;
+            }
+        }
+
+        return (rects, merged);
+    }
+
+    /// <summary>
+    /// What the readouts avoid: every drawn datablock with no nudge applied — movable at its default or
+    /// auto-deconflicted placement, fixed with a manual drag offset — and every symbol. A hidden block is not drawn,
+    /// so it is neither.
+    /// </summary>
+    private RblObstacles BuildRblObstacles(IReadOnlyList<AircraftModel> aircraft, IReadOnlySet<string> hiddenDataBlocks)
+    {
+        var fixedBlocks = new List<SKRect>();
+        var movable = new List<RblMovableBlock>();
+        var symbols = new List<SKPoint>(aircraft.Count);
+        foreach (AircraftModel ac in aircraft)
+        {
+            (float sx, float sy) = Viewport.LatLonToScreen(ac.Position.Lat, ac.Position.Lon);
+            symbols.Add(new SKPoint(sx, sy));
+            if (hiddenDataBlocks.Contains(ac.Callsign) && !ReferenceEquals(ac, SelectedAircraft))
+            {
+                continue;
+            }
+
+            SKRect rect = DataBlockRect(ac, includeNudge: false);
+            if (State.ManualOffsets.ContainsKey(ac.Callsign))
+            {
+                fixedBlocks.Add(rect);
+            }
+            else
+            {
+                movable.Add(new RblMovableBlock(ac.Callsign, new SKPoint(sx, sy), rect));
+            }
+        }
+
+        var bounds = new SKRect(0, 0, Viewport.PixelWidth, Viewport.PixelHeight);
+        float maxLeader = DatablockDeconfliction.MaxLeaderLength(DatablockDeconfliction.Options.Default(bounds));
+        return new RblObstacles
+        {
+            FixedBlocks = fixedBlocks,
+            PlacedThisFrame = [],
+            MovableBlocks = movable,
+            SymbolCentres = symbols,
+            SymbolHalfSide = AircraftHitRadiusPx,
+            MaxLeaderLength = maxLeader,
+            ViewSize = new SKSize(Viewport.PixelWidth, Viewport.PixelHeight),
+        };
+    }
+
+    /// <summary>No readouts this frame: every nudge returns and no spot is remembered.</summary>
+    private (IReadOnlyDictionary<int, SKRect> ReadoutRects, IReadOnlyDictionary<string, SKPoint> Offsets) ClearRblPlacement(
+        IReadOnlyDictionary<string, SKPoint> deconflictOffsets
+    )
+    {
+        _rblNudgeOffsets.Clear();
+        _rblReadoutSpots.Clear();
+        return (NoReadoutRects, deconflictOffsets);
+    }
+
+    /// <summary>
+    /// Builds one render snapshot, as a frame does, and returns the datablock offsets and readout rects it ships to the
+    /// draw — the parity tests compare them with the hit-test placement.
+    /// </summary>
+    internal (IReadOnlyDictionary<string, SKPoint> DeconflictOffsets, IReadOnlyDictionary<int, SKRect> ReadoutRects) CaptureSnapshotPlacement()
+    {
+        var snapshot = (RenderSnapshot)CreateRenderSnapshot()!;
+        return (snapshot.DeconflictOffsets, snapshot.RblReadoutRects);
     }
 
     /// <summary>
@@ -1067,7 +1204,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         _renderer.DrawPendingPushPoint(canvas, viewport, s.PendingPushPoint);
 
         // Drawn last so a measurement stays readable over aircraft symbols, datablocks, and the surface.
-        _renderer.DrawRangeBearingLines(canvas, viewport, s.RangeBearingLines, s.PendingRangeBearingLine);
+        _renderer.DrawRangeBearingLines(canvas, viewport, s.RangeBearingLines, s.PendingRangeBearingLine, s.RblReadoutRects);
     }
 
     private static IReadOnlyList<AircraftModel> SortByZOrder(IReadOnlyList<AircraftModel> aircraft, Dictionary<string, int> zOrder)
@@ -1580,26 +1717,47 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
 
         if (IsDrawingRoute)
         {
-            // A push route decides in the view model whether the click finishes the route or opens an earlier
-            // point's push/pull menu, so it gets the markers under the pointer as well as the node.
-            if (PushWaypointMarks is { } marks)
-            {
-                PushRouteRightClicked?.Invoke(PushMarkersAt(marks, screenPos), FindNodeAtPoint(screenPos)?.Id);
-                return true;
-            }
-
-            // Right-click finishes the drawn route at the clicked node; anywhere else it does nothing,
-            // so the gesture stays free for panning while the route is being laid out.
-            GroundNodeDto? drawNode = FindNodeAtPoint(screenPos);
-            if (drawNode is not null)
-            {
-                DrawNodeFinished?.Invoke(drawNode.Id, screenPos);
-                return true;
-            }
-
-            return false;
+            return HandleDrawRouteRightClick(screenPos);
         }
 
+        // Two or more things under the pointer (a parked aircraft over its stand, overlapping aircraft) are offered in a
+        // picker; one target or none falls through to the single-target chain below.
+        IReadOnlyList<RightClickTarget> targets = FindRightClickTargets(screenPos);
+        if (targets.Count >= 2)
+        {
+            _rightClickPicker.Open(this, screenPos, targets, target => RaiseRightClickTarget(target, screenPos));
+            return true;
+        }
+
+        return TryRaiseHitRightClick(screenPos) || TryRaiseThresholdOrNearestNodeRightClick(screenPos);
+    }
+
+    /// <summary>A right-click while a route is being drawn: it reports push-route markers, or finishes the route at a node.</summary>
+    private bool HandleDrawRouteRightClick(Point screenPos)
+    {
+        // A push route decides in the view model whether the click finishes the route or opens an earlier
+        // point's push/pull menu, so it gets the markers under the pointer as well as the node.
+        if (PushWaypointMarks is { } marks)
+        {
+            PushRouteRightClicked?.Invoke(PushMarkersAt(marks, screenPos), FindNodeAtPoint(screenPos)?.Id);
+            return true;
+        }
+
+        // Right-click finishes the drawn route at the clicked node; anywhere else it does nothing,
+        // so the gesture stays free for panning while the route is being laid out.
+        GroundNodeDto? drawNode = FindNodeAtPoint(screenPos);
+        if (drawNode is not null)
+        {
+            DrawNodeFinished?.Invoke(drawNode.Id, screenPos);
+            return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>Raises the menu of the single datablock, aircraft or node under the pointer; false when nothing is hit.</summary>
+    private bool TryRaiseHitRightClick(Point screenPos)
+    {
         AircraftModel? dataBlockAc = FindDataBlockAtPoint(screenPos);
         if (dataBlockAc is not null)
         {
@@ -1627,6 +1785,12 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             return true;
         }
 
+        return false;
+    }
+
+    /// <summary>Raises the menu of a runway threshold under the pointer, else of the nearest ground node; false with no layout.</summary>
+    private bool TryRaiseThresholdOrNearestNodeRightClick(Point screenPos)
+    {
         // Runway thresholds: mirror the left-click menu so the user gets the
         // same Taxi/Takeoff options regardless of which mouse button they used. Needs a selection —
         // the items it offers are taxi/takeoff clearances for the selected aircraft.
@@ -2048,6 +2212,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         return Math.Sqrt((fx * fx) + (fy * fy));
     }
 
+    /// <summary>The aircraft whose datablock is drawn on top at <paramref name="screenPos"/>, or null when none contains it.</summary>
     public AircraftModel? FindDataBlockAtPoint(Point screenPos)
     {
         if (Aircraft is null)
@@ -2055,21 +2220,11 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             return null;
         }
 
-        // Use z-order-sorted list so the topmost (last-drawn) datablock wins
-        IReadOnlyList<AircraftModel> sorted = SortByZOrder(VisibleAircraft(), State.DataBlockZOrder);
+        // The z-order list is drawn first to last, so the last hit is the block on top.
         AircraftModel? best = null;
-
-        foreach (AircraftModel ac in sorted)
+        foreach (AircraftModel ac in SortByZOrder(VisibleAircraft(), State.DataBlockZOrder))
         {
-            (float sx, float sy) = Viewport.LatLonToScreen(ac.Position.Lat, ac.Position.Lon);
-
-            SKPoint offset = ResolvedDataBlockOffset(ac.Callsign);
-
-            // Match the draw path's airborne flag (GroundRenderer.DrawOneDataBlock) so an airborne
-            // aircraft's altitude line is included in the hit rect — otherwise its block is one line
-            // shorter than drawn and clicks near the bottom miss.
-            var layout = DataBlockLayout.Compute(ac, sx, sy, offset, HitTestStyle, isAirborne: !ac.IsOnGround);
-            if (layout.Rect.Contains((float)screenPos.X, (float)screenPos.Y))
+            if (DataBlockContains(ac, screenPos))
             {
                 best = ac;
             }
@@ -2078,23 +2233,83 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         return best;
     }
 
+    /// <summary>Every aircraft whose datablock contains <paramref name="screenPos"/>, topmost (last-drawn) first.</summary>
+    private List<AircraftModel> DataBlocksAtPoint(Point screenPos)
+    {
+        var hits = new List<AircraftModel>();
+        if (Aircraft is null)
+        {
+            return hits;
+        }
+
+        foreach (AircraftModel ac in SortByZOrder(VisibleAircraft(), State.DataBlockZOrder))
+        {
+            if (DataBlockContains(ac, screenPos))
+            {
+                hits.Add(ac);
+            }
+        }
+
+        hits.Reverse();
+        return hits;
+    }
+
+    private bool DataBlockContains(AircraftModel ac, Point screenPos) =>
+        DataBlockRect(ac, includeNudge: true).Contains((float)screenPos.X, (float)screenPos.Y);
+
+    /// <summary>The datablock's hit-test rect where it is drawn, measurement-readout nudge included.</summary>
+    internal SKRect DataBlockRect(AircraftModel ac) => DataBlockRect(ac, includeNudge: true);
+
+    private SKRect DataBlockRect(AircraftModel ac, bool includeNudge)
+    {
+        (float sx, float sy) = Viewport.LatLonToScreen(ac.Position.Lat, ac.Position.Lon);
+        SKPoint offset = ResolvedDataBlockOffset(ac.Callsign, includeNudge);
+
+        // Match the draw path's airborne flag (GroundRenderer.DrawOneDataBlock) so an airborne
+        // aircraft's altitude line is included in the hit rect — otherwise its block is one line
+        // shorter than drawn and clicks near the bottom miss.
+        return DataBlockLayout.Compute(ac, sx, sy, offset, HitTestStyle, isAirborne: !ac.IsOnGround).Rect;
+    }
+
     /// <summary>
-    /// The offset the callsign's datablock is currently drawn at: manual drag > deconfliction > default.
-    /// Shared by hit-testing and the drag-start seed so grabbing a deconflicted block never jumps it
-    /// back to the default slot on the first move (mirrors <c>RadarCanvas.ComputeDataBlockPlacement</c>).
+    /// The offset the callsign's datablock is currently drawn at: manual drag > deconfliction (plus any
+    /// measurement-readout nudge) > default. Shared by hit-testing and the drag-start seed so grabbing a
+    /// deconflicted block never jumps it back to the default slot on the first move (mirrors
+    /// <c>RadarCanvas.ComputeDataBlockPlacement</c>).
     /// </summary>
-    public SKPoint ResolvedDataBlockOffset(string callsign)
+    public SKPoint ResolvedDataBlockOffset(string callsign) => ResolvedDataBlockOffset(callsign, includeNudge: true);
+
+    private SKPoint ResolvedDataBlockOffset(string callsign, bool includeNudge)
     {
         if (State.ManualOffsets.TryGetValue(callsign, out SKPoint manual))
         {
             return manual;
         }
-        return DeconflictOffsetFor(callsign) ?? DataBlockLayout.DefaultOffset;
+
+        SKPoint? deconflict = includeNudge ? DeconflictOffsetFor(callsign) : BaseDeconflictOffsetFor(callsign);
+        return deconflict ?? DataBlockLayout.DefaultOffset;
     }
 
     /// <summary>The deconfliction-resolved offset for a callsign, or null when deconfliction is off or absent.</summary>
-    private SKPoint? DeconflictOffsetFor(string callsign) =>
+    private SKPoint? BaseDeconflictOffsetFor(string callsign) =>
         DeconflictMode != DatablockDeconflictMode.Off && _resolvedDeconflictOffsets.TryGetValue(callsign, out SKPoint off) ? off : null;
+
+    /// <summary>
+    /// The offset the deconfliction layer gives a block, plus its measurement-readout nudge when it has one: with a
+    /// nudge and no deconfliction offset (mode Off), the default offset plus the nudge. Null when neither applies.
+    /// A manual offset still wins over this in <see cref="ResolvedDataBlockOffset"/>; manual blocks are never nudged.
+    /// </summary>
+    private SKPoint? DeconflictOffsetFor(string callsign)
+    {
+        SKPoint? deconflict = BaseDeconflictOffsetFor(callsign);
+        if (!_rblNudgeOffsets.TryGetValue(callsign, out RblNudge nudge))
+        {
+            return deconflict;
+        }
+
+        SKPoint from = deconflict ?? DataBlockLayout.DefaultOffset;
+        return new SKPoint(from.X + nudge.Delta.X, from.Y + nudge.Delta.Y);
+    }
 
     /// <summary>
     /// Runs the deconfliction pass for the current frame and returns an immutable copy for the snapshot.
@@ -2168,6 +2383,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
     /// <summary>Returns true if the callsign's datablock has been manually dragged to a custom position.</summary>
     public bool HasManualDataBlockOffset(string callsign) => State.ManualOffsets.ContainsKey(callsign);
 
+    /// <summary>The aircraft whose symbol is nearest <paramref name="screenPos"/> within <see cref="AircraftHitRadiusPx"/>, or null.</summary>
     public AircraftModel? FindAircraftAtPoint(Point screenPos)
     {
         if (Aircraft is null)
@@ -2175,17 +2391,11 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             return null;
         }
 
-        const float hitRadius = 28f;
         AircraftModel? closest = null;
-        float closestDist = hitRadius;
-
+        float closestDist = AircraftHitRadiusPx;
         foreach (AircraftModel ac in VisibleAircraft())
         {
-            (float sx, float sy) = Viewport.LatLonToScreen(ac.Position.Lat, ac.Position.Lon);
-            float dx = (float)screenPos.X - sx;
-            float dy = (float)screenPos.Y - sy;
-            float dist = MathF.Sqrt(dx * dx + dy * dy);
-
+            float dist = ScreenDistance(screenPos, ac.Position.Lat, ac.Position.Lon);
             if (dist < closestDist)
             {
                 closestDist = dist;
@@ -2194,6 +2404,124 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         }
 
         return closest;
+    }
+
+    /// <summary>Every aircraft whose symbol is within <see cref="AircraftHitRadiusPx"/> of <paramref name="screenPos"/>, nearest first.</summary>
+    private List<AircraftModel> AircraftNearPoint(Point screenPos)
+    {
+        if (Aircraft is null)
+        {
+            return [];
+        }
+
+        var hits = new List<(AircraftModel Aircraft, float Distance)>();
+        foreach (AircraftModel ac in VisibleAircraft())
+        {
+            float dist = ScreenDistance(screenPos, ac.Position.Lat, ac.Position.Lon);
+            if (dist < AircraftHitRadiusPx)
+            {
+                hits.Add((ac, dist));
+            }
+        }
+
+        // OrderBy is stable, so of two equally near aircraft the earlier in the list stays first.
+        return [.. hits.OrderBy(h => h.Distance).Select(h => h.Aircraft)];
+    }
+
+    /// <summary>
+    /// Every parking, spot and helipad node within <see cref="StandHitRadiusPx"/> of <paramref name="screenPos"/>, nearest
+    /// first, except the stand <paramref name="selected"/> occupies (one within <see cref="AircraftHitRadiusPx"/> of its
+    /// symbol): right-clicking the selected aircraft at its own gate opens its menu, not a picker.
+    /// </summary>
+    private List<GroundNodeDto> StandsNearPoint(Point screenPos, AircraftModel selected)
+    {
+        if (Layout is null)
+        {
+            return [];
+        }
+
+        (float selX, float selY) = Viewport.LatLonToScreen(selected.Position.Lat, selected.Position.Lon);
+        var selectedPos = new Point(selX, selY);
+        var hits = new List<(GroundNodeDto Node, float Distance)>();
+        foreach (GroundNodeDto node in Layout.Nodes)
+        {
+            if (node.Type is not ("Parking" or "Spot" or "Helipad"))
+            {
+                continue;
+            }
+
+            float dist = ScreenDistance(screenPos, node.Latitude, node.Longitude);
+            if ((dist <= StandHitRadiusPx) && (ScreenDistance(selectedPos, node.Latitude, node.Longitude) >= AircraftHitRadiusPx))
+            {
+                hits.Add((node, dist));
+            }
+        }
+
+        return [.. hits.OrderBy(h => h.Distance).Select(h => h.Node)];
+    }
+
+    private float ScreenDistance(Point screenPos, double lat, double lon)
+    {
+        (float sx, float sy) = Viewport.LatLonToScreen(lat, lon);
+        float dx = (float)screenPos.X - sx;
+        float dy = (float)screenPos.Y - sy;
+        return MathF.Sqrt((dx * dx) + (dy * dy));
+    }
+
+    /// <summary>
+    /// Every target a right-click at <paramref name="screenPos"/> lands on, in the order the picker lists them: aircraft
+    /// whose datablock contains the point (topmost first), then aircraft whose symbol is within <see cref="AircraftHitRadiusPx"/>
+    /// (nearest first), then — only with an aircraft selected, the only time a stand's menu offers more than measuring —
+    /// parking, spot and helipad nodes within <see cref="StandHitRadiusPx"/> (nearest first). An aircraft hit both ways is
+    /// listed once, as its datablock hit.
+    /// </summary>
+    public IReadOnlyList<RightClickTarget> FindRightClickTargets(Point screenPos)
+    {
+        var targets = new List<RightClickTarget>();
+        var listed = new HashSet<string>(StringComparer.Ordinal);
+        foreach (AircraftModel ac in DataBlocksAtPoint(screenPos))
+        {
+            if (listed.Add(ac.Callsign))
+            {
+                targets.Add(RightClickTarget.ForAircraft(ac.Callsign, ac.AircraftType, viaDataBlock: true));
+            }
+        }
+
+        foreach (AircraftModel ac in AircraftNearPoint(screenPos))
+        {
+            if (listed.Add(ac.Callsign))
+            {
+                targets.Add(RightClickTarget.ForAircraft(ac.Callsign, ac.AircraftType, viaDataBlock: false));
+            }
+        }
+
+        if (SelectedAircraft is { } selected)
+        {
+            targets.AddRange(StandsNearPoint(screenPos, selected).Select(RightClickTarget.ForNode));
+        }
+
+        return targets;
+    }
+
+    /// <summary>The right-click target picker while it is open, or null.</summary>
+    public ContextMenu? ActiveRightClickPicker => _rightClickPicker.Menu;
+
+    /// <summary>Raises the right-click event of a target chosen in the picker, at the original click position.</summary>
+    private void RaiseRightClickTarget(RightClickTarget target, Point screenPos)
+    {
+        if (target.Callsign is { } callsign)
+        {
+            if (target.ViaDataBlock)
+            {
+                SurfaceDataBlock(callsign);
+            }
+
+            AircraftRightClicked?.Invoke(callsign, screenPos);
+        }
+        else if (target.NodeId is { } nodeId)
+        {
+            NodeRightClicked?.Invoke(nodeId, screenPos);
+        }
     }
 
     private void UpdateHoveredNode(Point screenPos)
@@ -2372,8 +2700,10 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
 
     public void Dispose()
     {
+        _rightClickPicker.Close();
         _renderer.Dispose();
         _hitTestPaint.Dispose();
         _hitTestFont.Dispose();
+        _rblMeasureFont.Dispose();
     }
 }

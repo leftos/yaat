@@ -852,6 +852,7 @@ internal static class PatternCommandHandler
                     waypoints,
                     category,
                     aircraft.Pattern.AltitudeOverrideFt,
+                    runway.AirportElevationFt,
                     circuitPhases
                 )
             )
@@ -898,13 +899,13 @@ internal static class PatternCommandHandler
             );
         }
 
-        string legDesc =
+        string verb =
             entryLeg == PatternEntryLeg.Final
-                ? "final"
-                : $"{(direction == PatternDirection.Left ? "left" : "right")} {entryLeg.ToString().ToLowerInvariant()}";
+                ? "Make straight-in"
+                : $"Enter {(direction == PatternDirection.Left ? "left" : "right")} {entryLeg.ToString().ToLowerInvariant()}";
         string distStr = finalDistanceNm is not null ? $", {finalDistanceNm:G}nm final" : "";
         string sideStr = isOnWrongSide ? " (crossing midfield)" : "";
-        return CommandDispatcher.Ok($"Enter {legDesc}{CommandDispatcher.RunwayLabel(aircraft)}{distStr}{sideStr}");
+        return CommandDispatcher.Ok($"{verb}{CommandDispatcher.RunwayLabel(aircraft)}{distStr}{sideStr}");
     }
 
     internal static CommandResult TryChangePatternDirection(
@@ -1390,6 +1391,7 @@ internal static class PatternCommandHandler
             newWaypoints,
             category,
             aircraft.Pattern.AltitudeOverrideFt,
+            runway.AirportElevationFt,
             circuit
         );
         chain.AddRange(circuit);
@@ -4321,12 +4323,13 @@ internal static class PatternCommandHandler
     /// CLANDF — instructor/RPO forced landing. Grants landing clearance, commits a full-stop
     /// landing, and raises <see cref="PhaseList.ForceLanding"/> so FinalApproachPhase and
     /// LandingPhase suppress every automatic go-around and drive the aircraft to a touchdown
-    /// regardless of energy state. RPO-only (rejected in solo training). Canceled by GA, by
-    /// cancelling the landing clearance (CLC/CTLC), or by touchdown.
+    /// regardless of energy state. RPO-only (rejected in solo training unless the scenario's
+    /// SoloRpoCommandsAllowed development flag is set). Canceled by GA, by cancelling the landing
+    /// clearance (CLC/CTLC), or by touchdown.
     /// </summary>
     internal static CommandResult TryForceLanding(AircraftState aircraft, DispatchContext ctx)
     {
-        if (ctx.SoloTrainingMode)
+        if (ctx.RefusesRpoOnly)
         {
             return new CommandResult(false, "CLANDF is RPO-only; clear the aircraft to land with CLAND in solo training");
         }

@@ -84,6 +84,18 @@ public class NatoPhoneticAlphabetTests
     }
 
     [Fact]
+    public void Alfa_IsAcceptedAsAnInputAlias()
+    {
+        // ICAO spells A "Alfa" and Whisper often writes it that way; the canonical (spoken and
+        // biasing-prompt) word stays "alpha", like "juliet" beside "juliett".
+        Assert.True(NatoPhoneticAlphabet.TryGetLetter("alfa", out char letter));
+        Assert.Equal('A', letter);
+        Assert.True(NatoPhoneticAlphabet.TryGetLetter("ALFA", out _));
+        Assert.Equal("alpha", NatoPhoneticAlphabet.LetterToWord['A']);
+        Assert.DoesNotContain("alfa", NatoPhoneticAlphabet.Words);
+    }
+
+    [Fact]
     public void TryGetLetter_Returns_False_For_Non_Nato()
     {
         Assert.False(NatoPhoneticAlphabet.TryGetLetter("runway", out _));

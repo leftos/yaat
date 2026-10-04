@@ -1,5 +1,4 @@
 using Avalonia.Controls;
-using Avalonia.Platform.Storage;
 using Microsoft.Extensions.Logging;
 using NAudio.Wave;
 using Yaat.Client.Logging;
@@ -163,17 +162,17 @@ public partial class SpeechDebugWindow : Window
 
     private async Task<string?> PromptForBundlePath(string suggestedName)
     {
-        IStorageFile? file = await StorageProvider.SaveFilePickerAsync(
-            new FilePickerSaveOptions
-            {
-                Title = "Save speech sample bundle",
-                SuggestedFileName = suggestedName,
-                DefaultExtension = "zip",
-                FileTypeChoices = [new FilePickerFileType("YAAT speech sample") { Patterns = ["*.yaat-speech-sample.zip", "*.zip"] }],
-            }
-        );
+        string? path = await FilePickerFactory
+            .Create(this)
+            .SaveFileAsync(
+                new SaveFileOptions(
+                    Title: "Save speech sample bundle",
+                    SuggestedFileName: suggestedName,
+                    Filters: [new FilePickerFilter("YAAT speech sample", ["*.yaat-speech-sample.zip", "*.zip"])],
+                    DefaultExtension: "zip"
+                )
+            );
 
-        string? path = file?.TryGetLocalPath();
         return string.IsNullOrEmpty(path) ? null : path;
     }
 

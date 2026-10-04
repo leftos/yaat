@@ -94,7 +94,7 @@ Project-reference direction: `Yaat.Client` → `Yaat.Client.Core` → `Yaat.Clie
 | vatsim-server-rs | `..\vatsim-server-rs` | CRC protocol reference (wire format, DTO ordering) — **read-only emulation**, use vNAS messaging-master for mutation-capable methods |
 | lc-trainer | `..\lc-trainer` | Previous WPF trainer (**NOT trusted** — needs expert review) |
 | vatsim-vnas | `..\vatsim-vnas` | vNAS source: common (GeoCalc), data (nav/scenarios), messaging (CRC DTOs — definitive reference) |
-| vedst | `..\vedst` | vEDST web client (`vFlightDataSystems/VATSIM_EDST_frontend`) — **read-only reference** for the hub methods, callbacks, DTO shapes and `/vnas` endpoints yaat-server serves it ([`docs/vedst.md`](docs/plans/vedst-support.md)) |
+| vedst | `..\vedst` | vEDST web client (`vFlightDataSystems/VATSIM_EDST_frontend`) — **read-only reference** for the hub methods, callbacks, DTO shapes and `/vnas` endpoints yaat-server serves it ([`docs/vedst.md`](docs/vedst.md)) |
 
 **vNAS APIs:** Config: `https://configuration.vnas.vatsim.net/` | Data: `https://data-api.vnas.vatsim.net/api/artccs/{id}` | Airport ground map: `https://data-api.vnas.vatsim.net/api/training/airports/{FAA}/map` (used by `AirportLayoutDownloader`, cached at `%LOCALAPPDATA%/yaat/cache/airports/`)
 
@@ -178,9 +178,10 @@ Subsystem references — open the matching doc *before* exploring, searching, or
 
 - **7110.65**: `.claude/reference/faa/7110.65/` (index: `INDEX.md`)
 - **AIM**: `.claude/reference/faa/aim/` (index: `INDEX.md`)
+- **Semantic search**: the main checkout's `.claude/reference/faa/` is indexed by ck (`mcp__ck__semantic_search` / `mcp__ck__hybrid_search` with `path` set to that folder in the main checkout, not a worktree copy, which would start a fresh index); a hit is a pointer, confirmed by reading the paragraph before it is cited.
 
 When invoking aviation-sim-expert, always include:
-> "IMPORTANT: The FAA 7110.65 and AIM are available as local markdown files in the repo. Read them directly via Read/Grep/Glob at `.claude/reference/faa/7110.65/` and `.claude/reference/faa/aim/`. Do NOT use web search tools to look up 7110.65 or AIM content."
+> "IMPORTANT: The FAA 7110.65 and AIM are available as local markdown files in the repo. Read them directly via Read/Grep/Glob at `.claude/reference/faa/7110.65/` and `.claude/reference/faa/aim/`, and find a paragraph by meaning with ck semantic search over the main checkout's `.claude/reference/faa/` (see your agent file). Do NOT use web search tools to look up 7110.65 or AIM content."
 
 ## Project Skills
 
@@ -209,7 +210,7 @@ When invoking aviation-sim-expert, always include:
 - **Test access**: Making `internal` members `public` for tests is fine. No reflection or `InternalsVisibleTo` hacks.
 - **SimLog in tests**: `SimLog` falls back to `NullLoggerFactory` by default — all Yaat.Sim log output is silently swallowed in tests. To see logs, use `SimLogBuilder.CreateForTest(output).EnableCategory("ClassName", LogLevel.Debug).InitializeSimLog()`. Live test output only reaches the console when the test project runs as a process: `pwsh tools/gate.ps1 -Log .tmp/test-output.log -TimeoutSeconds 120 -Slot heavy -- dotnet run --project tests/Yaat.Sim.Tests -c Release -- --filter-method "*<TestName>*" --show-live-output on`, then read the log (`dotnet test` reports only summaries and failures).
 - **Test runner CLI (Microsoft.Testing.Platform)**: `global.json` selects the MTP runner, so `dotnet test` runs the test assemblies concurrently and takes runner options after a `--` separator: `dotnet test -- --filter-method "*Name*"` (substring of `Namespace.Class.Method`), `--filter-class "*.ClassName"`, `--filter-trait "Category=Nightly"` / `--filter-not-trait ...`, `--report-xunit-trx`. The VSTest forms (`--filter "FullyQualifiedName~X"`, `--logger trx`) are rejected with `Unknown option`. Test output: see **SimLog in tests** below.
-- **Test ceilings**: Every `dotnet test` runs through the gate with a ceiling, which catches soft hangs from broken graph topology or infinite pathfinder loops; never add a `timeout` of your own inside it. Use **`-TimeoutSeconds 30`** for a filtered/targeted run (`-- --filter-method "*Name*"`) — a targeted YAAT sim run that hasn't finished in 30s is stuck, not slow. Use **`-TimeoutSeconds 120`** for a bare full-suite run, which legitimately needs longer.
+- **Test ceilings**: Every `dotnet test` runs through the gate with a ceiling, which catches soft hangs from broken graph topology or infinite pathfinder loops; never add a `timeout` of your own inside it. Use **`-TimeoutSeconds 30`** for a filtered/targeted run (`-- --filter-method "*Name*"`) — a targeted YAAT sim run that hasn't finished in 30s is stuck, not slow. Use **`-TimeoutSeconds 120`** for a bare full-suite run, which legitimately needs longer. Use **`-TimeoutSeconds 360`** for `pwsh tools/test-all.ps1` (both repos, about 2.5 minutes on an idle machine); every skill that runs it uses this ceiling.
 
 ### Code Style
 
@@ -253,13 +254,13 @@ When invoking aviation-sim-expert, always include:
 
 ### Git & Issues
 
-- **Commit directly to `main`, feature branches by marker**: the sole maintainer commits and pushes directly to `main` in both yaat and yaat-server. Work under a feature marker (`branch: feat/<name>` on a `docs/plans/MAIN.md` line) lives on `feat/<name>` in both repos with a feature PR into `main` each, by the user-level route (`nextup` §3 "Feature branches", `/ship` Phase 2F). Branches and PRs outside a marker only when the user asks. (Still ask before committing — auto-commit is never OK.)
+- **Commit directly to `main`, feature branches by marker**: the sole maintainer commits and pushes directly to `main` in both yaat and yaat-server. Work under a feature marker (`branch: feat/<name>` in a Linear project's content) lives on `feat/<name>` in both repos with a feature PR into `main` each, by the user-level route (`nextup` §3 "Feature branches", `/ship` Phase 2F). Branches and PRs outside a marker only when the user asks. (Still ask before committing — auto-commit is never OK.)
 - **Hooks bypass, one standing exception**: the user's standing approval covers exactly one case: an intermediate cherry-pick of a cross-repo landing that cannot pass its hooks until the sibling repo lands, and is never pushed on its own, may be finished with `git -c core.hooksPath=<empty dir> cherry-pick --continue --no-edit` (`yaat-nextup`, `## Ship`). The end gate over both repos passes before any push. Every other commit runs its hooks.
 - **Commits**: `fix:`/`feat:`/`add:`/`docs:`/`ref:`/`test:` etc. Imperative, ≤72 chars.
-- **Cross-repo issues**: GitHub issues tracked on **yaat** repo. In yaat-server commits use full URL `Closes https://github.com/leftos/yaat/issues/N`, never bare `Closes #N`.
+- **Cross-repo issues**: GitHub issues tracked on **yaat** repo. Commits and PR bodies in both repos cite them as `Refs https://github.com/leftos/yaat/issues/N`, never with a closing keyword (`Closes`, `Fixes`, `Resolves`): an issue stays open until the release that ships it (`yaat-nextup`, `## Ship`).
 - **Cross-repo completeness**: Features spanning both repos must be implemented together — no half-done features.
-- **Issue plans**: Write plans to `docs/plans/open-issues/`. Delete plan file after implementing. Folding the open tracker into the plans is the `triage-open-issues` skill.
-- **Plans**: [`docs/plans/MAIN.md`](docs/plans/MAIN.md) is the index — Current focus, Next up, Backlog, Blockers, one line per item with the detail in a subplan. The active programme is the tick-path unification ([`docs/plans/tick-path/README.md`](docs/plans/tick-path/README.md)); YAAT Scope ([`docs/plans/yaat-scope/README.md`](docs/plans/yaat-scope/README.md)) follows it, then controller AI ([`docs/plans/controller-ai/README.md`](docs/plans/controller-ai/README.md)). Finished plans are deleted — git history is the archive.
+- **Issue plans**: Write plans to `docs/plans/open-issues/`, linked from the issue's Linear description. Delete plan file after implementing. Folding the open tracker into the plan is the `triage-open-issues` skill.
+- **Plans**: every task is a Linear issue in team YAAT (which also plans yaat-server), grouped into projects worked in the order the `yaat-nextup` profile gives; the operations (**add**, **land**, **triage** and the rest) are in `~/.claude/docs/plan-operations.md`. [`docs/plans/MAIN.md`](docs/plans/MAIN.md) is a generated snapshot of it, never edited by hand: change Linear, then regenerate it. A steer or finding mid-task gets an **add** first, before any reply in prose. Design files stay in `docs/plans/` while an open issue links them ([`docs/plans/README.md`](docs/plans/README.md)). The active programme is the tick-path unification ([`docs/plans/tick-path/README.md`](docs/plans/tick-path/README.md)); YAAT Scope ([`docs/plans/yaat-scope/README.md`](docs/plans/yaat-scope/README.md)) follows it, then controller AI ([`docs/plans/controller-ai/README.md`](docs/plans/controller-ai/README.md)). Finished plans are deleted — git history is the archive.
 
 ### Misc
 

@@ -2,6 +2,8 @@
 
 **Looking for code, or about to change a subsystem? Read the map before reading source.** YAAT's docs front-load each subsystem's overview, contracts, and footguns — starting here is faster and more accurate than grepping blind.
 
+**Where docs live.** The repo root holds the user-facing docs only (`README`, `INSTALL`, `GETTING_STARTED`, `USER_GUIDE`, `COMMANDS`, `SOLO_TRAINING`, `CHANGELOG`); developer docs live here in `docs/`, and the root README points users at the root set. A developer doc still at the root is moved here.
+
 ## 1. Locating files
 
 → **[`architecture.md`](./architecture.md)** — the full annotated file tree. Its top section, *"Task Index — I need to change X, which files?"*, maps common tasks straight to the relevant files in order of relevance. **Read this first.**
@@ -34,13 +36,14 @@
 | Pilot phraseology (wording / AIM) | [`pilot-phraseology.md`](./pilot-phraseology.md) |
 | Driving the real client / CRC from an agent | [`client-driver-mcp.md`](./client-driver-mcp.md) |
 | Setting up CRC against a local server (profile, connect, FPE) | [`crc-first-session.md`](./crc-first-session.md) |
+| vEDST sign-in: enabling it on a server, connecting a vEDST checkout | [`vedst-sign-in.md`](./vedst-sign-in.md) |
 | Tests | [`test-map.md`](./test-map.md) (which class of test pins what, and where a new one goes), [`test-harness.md`](./test-harness.md), [`e2e-tdd-issue-debugging.md`](./e2e-tdd-issue-debugging.md), [`test-suite-speed.md`](./test-suite-speed.md) |
 
 The table above is a quick index, not the full list — **[`../CLAUDE.md`](../CLAUDE.md) holds the complete, authoritative subsystem-references table.** When in doubt, consult it.
 
 ## 3. Plans & roadmap
 
-→ [`plans/`](./plans/) — `MAIN.md` is the index; a programme has a folder with its own README (`tick-path/`, `controller-ai/`, `pilot-ai-self-training/`); finished plans are deleted, not archived.
+→ The plan lives in Linear, team YAAT; [`plans/MAIN.md`](./plans/MAIN.md) is a generated snapshot of it. [`plans/README.md`](./plans/README.md) says what each design file and programme folder under `plans/` holds; finished plans are deleted, not archived.
 
 ---
 

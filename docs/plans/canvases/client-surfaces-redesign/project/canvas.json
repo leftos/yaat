@@ -1,0 +1,21 @@
+{
+  "v": 3,
+  "createdOnFiles": {"v": 1, "at": "2026-10-03T17:00:00Z"},
+  "title": "YAAT client surfaces redesign",
+  "launch": {"view": "canvas"},
+  "pages": [],
+  "boards": {
+    "Main.dc.html": {"x": 0, "y": 0, "w": 1040, "h": 720, "title": "Settings: Scenarios (defaults)"},
+    "SettingsSearch.dc.html": {"x": 1120, "y": 0, "w": 1040, "h": 720, "title": "Settings: search across sections"},
+    "ViewMenu.dc.html": {"x": 2240, "y": 0, "w": 760, "h": 560, "title": "View menu, regrouped with hotkeys"},
+    "GearFlyout.dc.html": {"x": 3080, "y": 0, "w": 420, "h": 720, "title": "Session gear flyout (room's live values)"},
+    "ImportExport.dc.html": {"x": 0, "y": 1100, "w": 880, "h": 640, "title": "Import / Export hub: export"},
+    "ImportPreview.dc.html": {"x": 960, "y": 1100, "w": 880, "h": 640, "title": "Import / Export hub: import preview"}
+  },
+  "order": ["Main.dc.html", "SettingsSearch.dc.html", "ViewMenu.dc.html", "GearFlyout.dc.html", "ImportExport.dc.html", "ImportPreview.dc.html"],
+  "notes": {
+    "t1": {"x": 0, "y": -280, "text": "Settings, View menu and the session flyout", "kind": "title1", "maxW": 3500},
+    "t2": {"x": 0, "y": 820, "text": "One Import / Export hub", "kind": "title1", "maxW": 1840}
+  },
+  "designSystems": []
+}

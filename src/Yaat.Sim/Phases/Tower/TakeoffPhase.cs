@@ -250,9 +250,10 @@ public sealed class TakeoffPhase : Phase, IGroundRollClock, IPendingPursuitClimb
             return CommandAcceptance.Allowed;
         }
 
-        // A closed-traffic climb is not cleared by FOLLOW: off its pattern runway it is the circuit's upwind
-        // (AIM §4-3-2.a.3.2) and FOLLOW only sets the lead; off another runway the dispatcher clears the chain itself when it
-        // installs the follow. Either way a refusal leaves the chain untouched. Any other departure climb is cleared.
+        // A closed-traffic climb is not cleared by FOLLOW: off its pattern runway or a close parallel of it, it is the circuit's
+        // upwind (AIM §4-3-2.c.2) and FOLLOW only sets the lead; off a crossing runway, or toward a pattern runway at another
+        // airport, the dispatcher clears the chain itself when it installs the follow. Either way a refusal leaves the chain
+        // untouched. Any other departure climb is cleared.
         if ((cmd == CanonicalCommandType.Follow) && (Departure is ClosedTrafficDeparture))
         {
             return CommandAcceptance.Allowed;

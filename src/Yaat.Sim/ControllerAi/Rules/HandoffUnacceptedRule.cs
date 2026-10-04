@@ -1,9 +1,12 @@
+using Yaat.Sim.Commands;
+
 namespace Yaat.Sim.ControllerAi.Rules;
 
 /// <summary>
 /// Watchdog for the radar roles: a handoff to or from this position still pending
 /// <see cref="GraceSeconds"/> beyond the room's auto-accept delay. Cab positions do not track, so the rule is a no-op
-/// for them.
+/// for them. A handoff auto-accept withholds (<see cref="TrackEngine.IsAutoAcceptWithheld"/>: below ERAM coverage, on the
+/// ground, or a QT coast track) is pending by design, so it opens no anomaly however long it waits.
 /// </summary>
 public sealed class HandoffUnacceptedRule : IDecisionRule
 {
@@ -27,6 +30,11 @@ public sealed class HandoffUnacceptedRule : IDecisionRule
                 (track.Owner is { } owner && owner.MatchesPosition(scope.Position.Identity))
                 || (track.HandoffPeer is { } peer && peer.MatchesPosition(scope.Position.Identity));
             if (!involvesMe || !track.OnHandoff || track.HandoffAccepted || track.HandoffInitiatedAt is not { } initiatedAt)
+            {
+                continue;
+            }
+
+            if (TrackEngine.IsAutoAcceptWithheld(aircraft, scope.Tick.NavDb))
             {
                 continue;
             }

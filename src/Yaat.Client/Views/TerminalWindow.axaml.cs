@@ -37,11 +37,14 @@ public partial class TerminalWindow : Window, IAlwaysOnTopToggle
     /// <summary>
     /// Brings this popped-out terminal window forward and focuses its command input. Called by
     /// MainWindow's focus router when the terminal is popped out (the embedded input in MainWindow
-    /// is hidden in that state).
+    /// is hidden in that state). Automation mode skips the activation and only moves focus.
     /// </summary>
     public void FocusCommandInput()
     {
-        Activate();
+        if (!AutomationGate.SuppressActivation)
+        {
+            Activate();
+        }
         this.FindControl<CommandInputView>("CommandInputView")?.FocusCommandInput();
     }
 

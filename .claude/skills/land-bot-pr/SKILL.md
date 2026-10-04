@@ -159,7 +159,7 @@ The bot's tests are its own claim, not your verification. Run the repo gate in t
 ```bash
 YAAT="$(cd "$(git rev-parse --path-format=absolute --git-common-dir)/.." && pwd)" && cd "$YAAT"
 pwsh tools/gate.ps1 -Log .tmp/build.log -TimeoutSeconds 300 -Slot heavy -- dotnet build -p:TreatWarningsAsErrors=true
-pwsh tools/gate.ps1 -Log .tmp/test-all.log -TimeoutSeconds 900 -Slot heavy -- pwsh tools/test-all.ps1
+pwsh tools/gate.ps1 -Log .tmp/test-all.log -TimeoutSeconds 360 -Slot heavy -- pwsh tools/test-all.ps1
 ```
 
 `test-all.ps1` is the right gate here rather than a bare `dotnet test`: a bot fix
@@ -193,8 +193,7 @@ git -C "$YAAT" fetch origin && git -C "$YAAT" merge --ff-only origin/main
 gh issue view <N> --repo leftos/yaat --json state --jq .state
 ```
 
-If the PR body carried `Closes #N`, the merge closed the issue; otherwise close
-it with a comment naming the merged PR.
+The issue stays open until the release that ships it (`yaat-nextup`, `## Ship`): before the merge, rewrite any closing keyword in the PR body (`Closes #N`, `Fixes #N`) to `Refs #N` with `gh pr edit <PR> --body-file`, since the merge would close it. After the merge, **land** the issue's Linear twin (`linear land <ID> --sha <merge sha>`), then comment on the GitHub issue naming the merged PR, and leave it open.
 
 **Superseded PRs.** If a cloud-agent or bot draft PR duplicates work that has
 already landed on `main` under different SHAs, do not merge it — close it as

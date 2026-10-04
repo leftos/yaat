@@ -124,6 +124,10 @@ public static class NatoPhoneticAlphabet
         // The canonical spelling is the ICAO/AIM "Juliett" (AIM Table 4-2-2), but the common
         // English "Juliet" is what Whisper usually transcribes — accept it as an input alias.
         map["juliet"] = 'J';
+
+        // Likewise ICAO spells A "Alfa" (AIM Table 4-2-2), and Whisper writes it either way; the
+        // spoken and biasing-prompt word stays "alpha".
+        map["alfa"] = 'A';
         return map;
     }
 }

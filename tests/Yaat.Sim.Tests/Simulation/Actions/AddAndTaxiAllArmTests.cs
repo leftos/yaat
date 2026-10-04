@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Microsoft.Extensions.Logging;
 using Xunit;
 using Yaat.Sim.Commands;
@@ -70,6 +71,16 @@ public class AddAndTaxiAllArmTests
 
     private static string Json(AircraftSnapshotDto dto) => JsonSerializer.Serialize(dto);
 
+    // Surface membership is derived state the spawn hook re-derives from position on every run kind, so a record need not carry it.
+    private static string JsonWithoutMembership(AircraftSnapshotDto dto)
+    {
+        JsonNode node = JsonSerializer.SerializeToNode(dto)!;
+        JsonNode stars = node["Stars"]!;
+        stars["VisibleAsdexAirports"] = null;
+        stars["VisibleSaidAirports"] = null;
+        return node.ToJsonString();
+    }
+
     [Fact]
     public void Issue_SpawnsTheAircraft_AndBakesItsSnapshotOntoTheRecord()
     {
@@ -87,7 +98,7 @@ public class AddAndTaxiAllArmTests
         Assert.Contains(spawned.Callsign, outcome.Result.Message);
         RecordedCommand record = Assert.IsType<RecordedCommand>(Assert.Single(engine.Scenario!.ActionLog));
         Assert.NotNull(record.SpawnedAircraft);
-        Assert.Equal(Json(spawned.ToSnapshot()), Json(record.SpawnedAircraft));
+        Assert.Equal(JsonWithoutMembership(spawned.ToSnapshot()), JsonWithoutMembership(record.SpawnedAircraft));
     }
 
     [Fact]
@@ -135,7 +146,11 @@ public class AddAndTaxiAllArmTests
         ActionOutcome outcome = replay.Actions.Apply(record with { SpawnedAircraft = recorded });
 
         Assert.True(outcome.Result.Success, outcome.Result.Message);
-        Assert.Equal(Json(recorded), Json(replay.FindAircraft("REC1")!.ToSnapshot()));
+        AircraftState replayed = replay.FindAircraft("REC1")!;
+        Assert.Equal(JsonWithoutMembership(recorded), JsonWithoutMembership(replayed.ToSnapshot()));
+        // The record carries no membership; the replay's spawn hook derives the one live holds.
+        Assert.Contains("SFO", replayed.Stars.VisibleAsdexAirports);
+        Assert.Equal(live.FindAircraft(derived.Callsign)!.Stars.VisibleAsdexAirports, replayed.Stars.VisibleAsdexAirports);
         Assert.Null(replay.FindAircraft(derived.Callsign));
         Assert.True(replay.BeaconCodePool.IsAssigned(4321));
         Assert.False(replay.BeaconCodePool.IsAssigned(derived.Transponder.AssignedCode));
@@ -165,7 +180,7 @@ public class AddAndTaxiAllArmTests
 
         Assert.True(outcome.Result.Success, outcome.Result.Message);
         AircraftState spawned = Assert.Single(replay.World.GetSnapshot(), ac => ac.Callsign != AiTestFixture.Callsign);
-        Assert.Equal(Json(recorded), Json(spawned.ToSnapshot()));
+        Assert.Equal(JsonWithoutMembership(recorded), JsonWithoutMembership(spawned.ToSnapshot()));
         CapturedLogRecord warning = Assert.Single(tap.Drain(), r => r.Message.Contains("replay-fidelity", StringComparison.Ordinal));
         Assert.Contains("derived no aircraft", warning.Message);
     }

@@ -1,6 +1,7 @@
 ﻿using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
@@ -21,6 +22,29 @@ public class PatternCommandHandlerTests
     // -------------------------------------------------------------------------
 
     private static RunwayInfo DefaultRunway() => TestRunwayFactory.Make(designator: "28", heading: 280, elevationFt: 100);
+
+    /// <summary>
+    /// The default runway with the low pattern OAK authors on the real 28L — 600 ft AGL. A jet's
+    /// AIM 4-3-3.a.2 entry crossing (field + 1,500 ft) then sits 400 ft above the circuit, so the
+    /// wrong-side rebuild still has an entry height for the teardrop to shed. At an unauthored field the
+    /// turbine TPA is itself the entry height and the crossing drops straight onto the downwind.
+    /// </summary>
+    private static AirportGroundLayout AuthoredLowPatternLayout() =>
+        new()
+        {
+            AirportId = "KTEST",
+            Runways =
+            [
+                new GroundRunway
+                {
+                    Name = "28 - 10",
+                    Coordinates = [],
+                    WidthFt = 150,
+                    PatternAltitudeAglFt = 600,
+                    PatternSizeNm = null,
+                },
+            ],
+        };
 
     private static AircraftState MakeAircraft(
         double lat = 37.0,
@@ -833,10 +857,10 @@ public class PatternCommandHandlerTests
     }
 
     /// <summary>
-    /// A wrong-side MLT/MRT crosses the field at the jet/turboprop entry height, so the aircraft has to
-    /// lose that height before joining the downwind — the same <see cref="TeardropReentryPhase"/> an
-    /// arrival entry gets (AIM 4-3-3.a.2 + AC 90-66B §11.4). Without it the jet joined the downwind
-    /// hundreds of feet above pattern altitude.
+    /// A wrong-side MLT/MRT crosses the field at the jet/turboprop entry height, so at an authored-low
+    /// field the aircraft has to lose that height before joining the downwind — the same
+    /// <see cref="TeardropReentryPhase"/> an arrival entry gets (AIM 4-3-3.a.2 + AC 90-66B §11.4). Without
+    /// it the jet joined the downwind hundreds of feet above pattern altitude.
     /// </summary>
     [Fact]
     public void TryChangePatternDirection_ActiveCrosswindWrongSide_Jet_InsertsTeardropReentry()
@@ -857,6 +881,7 @@ public class PatternCommandHandlerTests
             authoredRunway: null
         );
         AircraftState ac = MakeAircraft(lat: northLat, lon: northLon, altitude: 1500); // B738 → Jet
+        ac.Ground.Layout = AuthoredLowPatternLayout();
         ac.Phases = new PhaseList { AssignedRunway = rwy, TrafficDirection = PatternDirection.Right };
         ac.Pattern.TrafficDirection = PatternDirection.Right;
         ac.Phases.Add(new CrosswindPhase { Waypoints = wpRight });

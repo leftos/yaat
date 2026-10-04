@@ -68,6 +68,9 @@ public partial class MainViewModel : ObservableObject
     private string? _studentPositionType;
     private bool _isAutoClearedToLand;
 
+    /// <summary>The URL of the server this client connected to, or empty when it has not connected.</summary>
+    public string ConnectedServerUrl => _connectedServerUrl;
+
     /// <summary>
     /// The single write path for <see cref="_studentPositionType"/>: every scenario load, join, rewind and unload
     /// goes through here so the settings that depend on the position — auto arrival spacing, which has no simulated
@@ -2414,7 +2417,13 @@ public partial class MainViewModel : ObservableObject
 
                 if (parts.Length == 3)
                 {
-                    PlaceMeasurementFromText(parts[1], parts[2]);
+                    // Endpoint errors are reported here; a placed line reports itself through Measure.StatusReported (a full
+                    // store's text is written again, unchanged).
+                    if (PlaceMeasurementFromText(parts[1], parts[2]).Error is { } error)
+                    {
+                        StatusText = error;
+                    }
+
                     return true;
                 }
 
@@ -2432,34 +2441,34 @@ public partial class MainViewModel : ObservableObject
     /// <summary>
     /// Draws a measurement between two typed points, each a fix, an FRD, or a callsign (a callsign
     /// endpoint latches and travels with the aircraft). Text-created measurements belong to the radar
-    /// view, matching CRC STARS' *T.
+    /// view, matching CRC STARS' *T. Shared by the <c>.rbl A B</c> command and the <c>place_rbl</c> app tool.
     /// </summary>
-    private void PlaceMeasurementFromText(string fromToken, string toToken)
+    /// <returns>The slot the line took, or the error text: an unresolvable or ambiguous endpoint, or every slot in use.</returns>
+    public MeasurePlacement PlaceMeasurementFromText(string fromToken, string toToken)
     {
-        if (ResolveMeasureEndpoint(fromToken) is not { } from || ResolveMeasureEndpoint(toToken) is not { } to)
+        (RblEndpoint? from, string? fromError) = ResolveMeasureEndpoint(fromToken);
+        if (from is null)
         {
-            return;
+            return new MeasurePlacement(null, fromError);
+        }
+
+        (RblEndpoint? to, string? toError) = ResolveMeasureEndpoint(toToken);
+        if (to is null)
+        {
+            return new MeasurePlacement(null, toError);
         }
 
         // The primary radar's track lookup is deliberate: Measure is one shared store, so the line renders
         // in every Radar View window without the extra instances needing their own lookup.
-        Measure.Place(from, to, RadarViewModel.MeasureView, Radar.MeasureTrackLookup, RadarViewModel.MeasureUnits);
+        int? slot = Measure.Place(from.Value, to.Value, RadarViewModel.MeasureView, Radar.MeasureTrackLookup, RadarViewModel.MeasureUnits);
+        return slot is { } placed ? new MeasurePlacement(placed, null) : new MeasurePlacement(null, RangeBearingViewState.FullStatus);
     }
 
-    /// <summary>
-    /// Resolves one measurement endpoint token via <see cref="MeasureEndpointResolver" />, reporting a
-    /// failure in the status bar.
-    /// </summary>
-    private RblEndpoint? ResolveMeasureEndpoint(string token)
+    /// <summary>Resolves one measurement endpoint token via <see cref="MeasureEndpointResolver" />.</summary>
+    private (RblEndpoint? Endpoint, string? Error) ResolveMeasureEndpoint(string token)
     {
         Func<string, LatLon?>? resolveFix = _commandInput.NavDbReady ? t => FrdResolver.Resolve(t, NavigationDatabase.Instance) : null;
-        (RblEndpoint? endpoint, string? error) = MeasureEndpointResolver.Resolve(token, Aircraft, resolveFix);
-        if (error is not null)
-        {
-            StatusText = error;
-        }
-
-        return endpoint;
+        return MeasureEndpointResolver.Resolve(token, Aircraft, resolveFix);
     }
 
     [RelayCommand(CanExecute = nameof(CanExecuteInRoom))]
@@ -3381,8 +3390,11 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     public Task SendCommandForViewAsync(string callsign, string command, string initials) => SendCommandForViewCoreAsync(callsign, command, initials);
 
-    /// <summary>Sends a menu command and returns the server's result, or null when the send threw.</summary>
-    private async Task<CommandResultDto?> SendCommandForViewCoreAsync(string callsign, string command, string initials)
+    /// <summary>
+    /// Sends a menu command and returns the server's result, or null when the send threw (<see cref="StatusText"/> then says why).
+    /// Also the send the app tools use for a command a menu item would send.
+    /// </summary>
+    public async Task<CommandResultDto?> SendCommandForViewCoreAsync(string callsign, string command, string initials)
     {
         try
         {

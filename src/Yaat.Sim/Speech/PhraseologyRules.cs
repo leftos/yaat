@@ -280,6 +280,14 @@ public static class PhraseologyRules
             new(["cleared", "into", "bravo", "airspace"], "CLBRV", ClearedBravoAirspace),
             new(["cleared", "out", "of", "bravo", "airspace"], "CLBRV", ClearedBravoAirspace),
             new(["cleared", "bravo", "airspace"], "CLBRV", ClearedBravoAirspace),
+            // Letter twins of the forms above: NATO collapse turns "bravo" into "B" before matching,
+            // so the spoken literals only serve the pilot verbalizer. "the class bravo airspace" is
+            // accepted here too.
+            new(["cleared", "through", "the?", "class?", "b", "airspace"], "CLBRV", ClearedBravoAirspace, SttOnly: true),
+            new(["cleared", "to", "enter", "the?", "class?", "b", "airspace"], "CLBRV", ClearedBravoAirspace, SttOnly: true),
+            new(["cleared", "into", "the?", "class?", "b", "airspace"], "CLBRV", ClearedBravoAirspace, SttOnly: true),
+            new(["cleared", "out", "of", "the?", "class?", "b", "airspace"], "CLBRV", ClearedBravoAirspace, SttOnly: true),
+            new(["cleared", "the?", "class?", "b", "airspace"], "CLBRV", ClearedBravoAirspace, SttOnly: true),
             // AIM 3-2-4 / 3-2-5 and 7110.65 7-8-4: "(aircraft callsign) standby"
             // establishes two-way radio communications for Class C/D entry.
             new(["standby"], "STBY", AcknowledgePilotContact),
@@ -351,126 +359,58 @@ public static class PhraseologyRules
     private static PhraseologyRule[] TrafficAdvisoryRules() =>
         [
             // Relative position off the nose (8 octants).
-            new(
-                ["traffic", "off", "your?", "the?", "nose", "and?", "to?", "the?", "right", "{miles}", "mile?", "miles?", "a?", "an?", "{type}"],
-                "RTIS NR {miles} {type}",
-                ReportTrafficInSight,
-                SttOnly: true
+            TrafficAdvisory(
+                ["traffic", "off", "your?", "the?", "nose", "and?", "to?", "the?", "right", "{miles}", "mile?", "miles?"],
+                "RTIS NR {miles} {type}"
             ),
-            new(
-                ["traffic", "off", "your?", "the?", "nose", "and?", "to?", "the?", "left", "{miles}", "mile?", "miles?", "a?", "an?", "{type}"],
-                "RTIS NL {miles} {type}",
-                ReportTrafficInSight,
-                SttOnly: true
+            TrafficAdvisory(
+                ["traffic", "off", "your?", "the?", "nose", "and?", "to?", "the?", "left", "{miles}", "mile?", "miles?"],
+                "RTIS NL {miles} {type}"
             ),
-            new(
-                ["traffic", "off", "your?", "the?", "nose", "{miles}", "mile?", "miles?", "a?", "an?", "{type}"],
-                "RTIS NOSE {miles} {type}",
-                ReportTrafficInSight,
-                SttOnly: true
+            TrafficAdvisory(["traffic", "off", "your?", "the?", "nose", "{miles}", "mile?", "miles?"], "RTIS NOSE {miles} {type}"),
+            TrafficAdvisory(
+                ["traffic", "off", "your?", "the?", "right", "and?", "slightly?", "behind", "you?", "{miles}", "mile?", "miles?"],
+                "RTIS RR {miles} {type}"
             ),
-            new(
-                [
-                    "traffic",
-                    "off",
-                    "your?",
-                    "the?",
-                    "right",
-                    "and?",
-                    "slightly?",
-                    "behind",
-                    "you?",
-                    "{miles}",
-                    "mile?",
-                    "miles?",
-                    "a?",
-                    "an?",
-                    "{type}",
-                ],
-                "RTIS RR {miles} {type}",
-                ReportTrafficInSight,
-                SttOnly: true
+            TrafficAdvisory(
+                ["traffic", "off", "your?", "the?", "left", "and?", "slightly?", "behind", "you?", "{miles}", "mile?", "miles?"],
+                "RTIS LR {miles} {type}"
             ),
-            new(
-                [
-                    "traffic",
-                    "off",
-                    "your?",
-                    "the?",
-                    "left",
-                    "and?",
-                    "slightly?",
-                    "behind",
-                    "you?",
-                    "{miles}",
-                    "mile?",
-                    "miles?",
-                    "a?",
-                    "an?",
-                    "{type}",
-                ],
-                "RTIS LR {miles} {type}",
-                ReportTrafficInSight,
-                SttOnly: true
-            ),
-            new(
-                ["traffic", "off", "your?", "to?", "your?", "the?", "right", "{miles}", "mile?", "miles?", "a?", "an?", "{type}"],
-                "RTIS R {miles} {type}",
-                ReportTrafficInSight,
-                SttOnly: true
-            ),
-            new(
-                ["traffic", "off", "your?", "to?", "your?", "the?", "left", "{miles}", "mile?", "miles?", "a?", "an?", "{type}"],
-                "RTIS L {miles} {type}",
-                ReportTrafficInSight,
-                SttOnly: true
-            ),
-            new(
-                ["traffic", "off", "your?", "the?", "tail", "{miles}", "mile?", "miles?", "a?", "an?", "{type}"],
-                "RTIS TAIL {miles} {type}",
-                ReportTrafficInSight,
-                SttOnly: true
-            ),
-            new(
-                ["traffic", "behind", "{miles}", "mile?", "miles?", "a?", "an?", "{type}"],
-                "RTIS TAIL {miles} {type}",
-                ReportTrafficInSight,
-                SttOnly: true
-            ),
+            TrafficAdvisory(["traffic", "off", "your?", "to?", "your?", "the?", "right", "{miles}", "mile?", "miles?"], "RTIS R {miles} {type}"),
+            TrafficAdvisory(["traffic", "off", "your?", "to?", "your?", "the?", "left", "{miles}", "mile?", "miles?"], "RTIS L {miles} {type}"),
+            TrafficAdvisory(["traffic", "off", "your?", "the?", "tail", "{miles}", "mile?", "miles?"], "RTIS TAIL {miles} {type}"),
+            TrafficAdvisory(["traffic", "behind", "{miles}", "mile?", "miles?"], "RTIS TAIL {miles} {type}"),
             // Pattern legs.
-            new(
-                ["traffic", "on?", "a?", "{miles}", "mile?", "miles?", "left", "downwind", "for?", "runway?", "{rwy}", "a?", "an?", "{type}"],
-                "RTIS DW L {miles} {rwy} {type}",
-                ReportTrafficInSight,
-                SttOnly: true
+            TrafficAdvisory(
+                ["traffic", "on?", "a?", "{miles}", "mile?", "miles?", "left", "downwind", "for?", "runway?", "{rwy}"],
+                "RTIS DW L {miles} {rwy} {type}"
             ),
-            new(
-                ["traffic", "on?", "a?", "{miles}", "mile?", "miles?", "right", "downwind", "for?", "runway?", "{rwy}", "a?", "an?", "{type}"],
-                "RTIS DW R {miles} {rwy} {type}",
-                ReportTrafficInSight,
-                SttOnly: true
+            TrafficAdvisory(
+                ["traffic", "on?", "a?", "{miles}", "mile?", "miles?", "right", "downwind", "for?", "runway?", "{rwy}"],
+                "RTIS DW R {miles} {rwy} {type}"
             ),
-            new(
-                ["traffic", "on?", "a?", "{miles}", "mile?", "miles?", "left", "base", "for?", "runway?", "{rwy}", "a?", "an?", "{type}"],
-                "RTIS BASE L {miles} {rwy} {type}",
-                ReportTrafficInSight,
-                SttOnly: true
+            TrafficAdvisory(
+                ["traffic", "on?", "a?", "{miles}", "mile?", "miles?", "left", "base", "for?", "runway?", "{rwy}"],
+                "RTIS BASE L {miles} {rwy} {type}"
             ),
-            new(
-                ["traffic", "on?", "a?", "{miles}", "mile?", "miles?", "right", "base", "for?", "runway?", "{rwy}", "a?", "an?", "{type}"],
-                "RTIS BASE R {miles} {rwy} {type}",
-                ReportTrafficInSight,
-                SttOnly: true
+            TrafficAdvisory(
+                ["traffic", "on?", "a?", "{miles}", "mile?", "miles?", "right", "base", "for?", "runway?", "{rwy}"],
+                "RTIS BASE R {miles} {rwy} {type}"
             ),
-            new(
-                ["traffic", "on?", "a?", "{miles}", "mile?", "miles?", "final", "for?", "runway?", "{rwy}", "a?", "an?", "{type}"],
-                "RTIS FINAL {miles} {rwy} {type}",
-                ReportTrafficInSight,
-                SttOnly: true
+            TrafficAdvisory(
+                ["traffic", "on?", "a?", "{miles}", "mile?", "miles?", "final", "for?", "runway?", "{rwy}"],
+                "RTIS FINAL {miles} {rwy} {type}"
             ),
             // Landmark / VFR reporting point.
-            new(["traffic", "over", "the?", "{landmark}", "a?", "an?", "{type}"], "RTIS OVER {landmark} {type}", ReportTrafficInSight, SttOnly: true),
+            TrafficAdvisory(["traffic", "over", "the?", "{landmark}"], "RTIS OVER {landmark} {type}"),
         ];
+
+    /// <summary>
+    /// One traffic-advisory rule: the spoken position, then the shared type tail. The type follows an
+    /// optional article ("a" / "an") or a stray "of" / "to", which is how Whisper often hears "a Boeing".
+    /// </summary>
+    private static PhraseologyRule TrafficAdvisory(string[] position, string canonical) =>
+        new([.. position, "a?", "an?", "of?", "to?", "{type}"], canonical, ReportTrafficInSight, SttOnly: true);
 
     // --- Position-Turn-Altitude-Clearance (CommandRegistry.PositionTurnAltitudeClearance) ---
     //
@@ -582,18 +522,18 @@ public static class PhraseologyRules
             new(["enter", "right", "base"], "ERB", EnterRightBase),
             new(["enter", "left", "crosswind"], "ELC", EnterLeftCrosswind),
             new(["enter", "right", "crosswind"], "ERC", EnterRightCrosswind),
-            // Enter final / make straight-in. The bare "enter final" form stays first so the
-            // pilot AI's verbalizer picks it for null-runway readbacks (existing tests). AIM 4-3-3
-            // and FAA 7110.65 §3-10-4 phrasing: "MAKE STRAIGHT-IN [APPROACH] RUNWAY (number)" —
-            // the runway is captured into the EF canonical so the entry phase knows which final.
-            new(["enter", "final"], "EF", EnterFinal),
-            new(["make", "straight", "in", "approach", "runway", "{rwy}"], "EF {rwy}", EnterFinal),
+            // Enter final / make straight-in (7110.65 §3-10-1.a "MAKE STRAIGHT-IN"; the runway per
+            // §3-10-1.b). The "enter final" and "…approach" forms are SttOnly: accepted when
+            // spoken, never verbalized. The runway is captured into the EF canonical so the entry
+            // phase knows which final.
+            new(["enter", "final"], "EF", EnterFinal, SttOnly: true),
+            new(["make", "straight", "in", "approach", "runway", "{rwy}"], "EF {rwy}", EnterFinal, SttOnly: true),
             new(["make", "straight", "in", "runway", "{rwy}"], "EF {rwy}", EnterFinal),
             new(["enter", "straight", "in", "runway", "{rwy}"], "EF {rwy}", EnterFinal),
-            new(["runway", "{rwy}", "make", "straight", "in", "approach"], "EF {rwy}", EnterFinal),
+            new(["runway", "{rwy}", "make", "straight", "in", "approach"], "EF {rwy}", EnterFinal, SttOnly: true),
             new(["runway", "{rwy}", "make", "straight", "in"], "EF {rwy}", EnterFinal),
             new(["runway", "{rwy}", "enter", "straight", "in"], "EF {rwy}", EnterFinal),
-            new(["make", "straight", "in", "approach"], "EF", EnterFinal),
+            new(["make", "straight", "in", "approach"], "EF", EnterFinal, SttOnly: true),
             new(["make", "straight", "in"], "EF", EnterFinal),
             new(["enter", "straight", "in"], "EF", EnterFinal),
             new(["make", "left", "traffic", "runway", "{rwy}"], "MLT {rwy}", MakeLeftTraffic),
@@ -626,6 +566,15 @@ public static class PhraseologyRules
             new(["make", "left", "two", "seventy"], "L270", MakeLeft270),
             new(["make", "right", "two", "seventy"], "R270", MakeRight270),
             new(["cancel", "the?", "two", "seventy"], "NO270", Cancel270),
+            // Digit twins of the spoken 360/270 forms above: number normalization turns "three sixty"
+            // into 360 before matching, so the spoken literals only serve the pilot verbalizer.
+            new(["make", "a?", "left", "360"], "L360", MakeLeft360, SttOnly: true),
+            new(["make", "a?", "right", "360"], "R360", MakeRight360, SttOnly: true),
+            new(["left", "360"], "L360", MakeLeft360, SttOnly: true),
+            new(["right", "360"], "R360", MakeRight360, SttOnly: true),
+            new(["make", "a?", "left", "270"], "L270", MakeLeft270, SttOnly: true),
+            new(["make", "a?", "right", "270"], "R270", MakeRight270, SttOnly: true),
+            new(["cancel", "the?", "270"], "NO270", Cancel270, SttOnly: true),
             new(["circle", "the?", "airport"], "CIRCLE", CircleAirport),
         ];
 
@@ -942,9 +891,10 @@ public static class PhraseologyRules
             new(["hold", "short", "of?", "runway", "{rwy}"], "HS {rwy}", HoldShort),
             new(["hold", "short", "of?", "{taxiway}"], "HS {taxiway}", HoldShort),
             new(["follow", "the?", "{callsign}", "on", "ground"], "FOLLOWG {callsign}", FollowGround),
-            // §3-7 "BEHIND (traffic)" — alternate to FOLLOW. SttOnly so the pilot AI keeps the
-            // "follow … on ground" canonical readback form.
-            new(["behind", "{callsign}"], "FOLLOWG {callsign}", FollowGround, SttOnly: true),
+            // §3-7-2.a "BEHIND (traffic)" — a taxi element separate from FOLLOW: yield to the traffic
+            // and trail it on your own route, which is GIVEWAY (COMMANDS.md lists BEHIND as its alias).
+            // SttOnly so the pilot AI keeps the "give way to …" canonical readback form.
+            new(["behind", "{callsign}"], "GIVEWAY {callsign}", GiveWay, SttOnly: true),
             new(["give", "way", "to", "{callsign}"], "GIVEWAY {callsign}", GiveWay),
             new(["exit", "left"], "EL", ExitLeft),
             new(["exit", "right"], "ER", ExitRight),

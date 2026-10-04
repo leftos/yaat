@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Import and export: import preview</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0f1215}
+a{color:#7cc4e8}a:hover{color:#a9dbf3}
+input,select,button{font-family:inherit}
+</style>
+</helmet>
+<div style="width: 880px; height: 640px; box-sizing: border-box; display: flex; flex-direction: column; background: #171b20; color: #e4e8ec; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 13px; border: 1px solid #2c333b">
+  <div style="height: 34px; display: flex; align-items: center; padding: 0 14px; background: #11151a; border-bottom: 1px solid #2c333b; font-size: 12px; color: #aeb7c1">Import / Export</div>
+  <div style="display: flex; gap: 4px; padding: 12px 20px 0; border-bottom: 1px solid #2c333b">
+    <button type="button" style="height: 32px; padding: 0 16px; background: transparent; color: #a3adb8; border: 0; font-size: 13px">Export</button>
+    <button type="button" aria-pressed="true" style="height: 32px; padding: 0 16px; background: #1d2228; color: #e4e8ec; border: 1px solid #2c333b; border-bottom-color: #1d2228; border-radius: 4px 4px 0 0; margin-bottom: -1px; font-size: 13px; font-weight: 600">Import</button>
+  </div>
+  <main style="flex: 1; padding: 16px 20px; display: flex; flex-direction: column; gap: 12px; background: #1d2228; min-height: 0">
+    <div style="display: flex; justify-content: space-between; align-items: center"><span style="font-family: 'IBM Plex Mono', monospace; color: #c9d0d7">zoa-instructor.yaat-settings.zip</span><a href="#">Choose another file…</a></div>
+    <table style="border-collapse: collapse; width: 100%">
+      <thead><tr style="color: #a3adb8; font-size: 12px; text-align: left"><th style="width: 32px"></th><th style="font-weight: 500; padding: 6px 0">In the file</th><th style="font-weight: 500">Clashes</th><th style="font-weight: 500; width: 200px">How</th></tr></thead>
+      <tbody>
+        <tr style="border-top: 1px solid #2c333b"><td><input type="checkbox" aria-label="Preferences"></td><td style="padding: 8px 0">Preferences</td><td style="color: #b9c1ca">—</td><td><select aria-label="Preferences mode" style="height: 24px; background: #0f1215; color: #e4e8ec; border: 1px solid #39424c; border-radius: 3px"><option>Replace</option></select></td></tr>
+        <tr style="border-top: 1px solid #2c333b; background: #232a31"><td><input type="checkbox" checked aria-label="Macros"></td><td style="padding: 8px 0">Macros (18)</td><td style="color: #f0c766">3 names clash</td><td><select aria-label="Macros mode" style="height: 24px; background: #0f1215; color: #e4e8ec; border: 1px solid #39424c; border-radius: 3px"><option>Merge</option></select></td></tr>
+        <tr style="border-top: 1px solid #2c333b"><td><input type="checkbox" checked aria-label="Command verbs"></td><td style="padding: 8px 0">Command verbs (6)</td><td style="color: #b9c1ca">1 unknown command, skipped</td><td><select aria-label="Verbs mode" style="height: 24px; background: #0f1215; color: #e4e8ec; border: 1px solid #39424c; border-radius: 3px"><option>Merge</option></select></td></tr>
+        <tr style="border-top: 1px solid #2c333b"><td><input type="checkbox" checked aria-label="Favorites"></td><td style="padding: 8px 0">Favorites (2 sets)</td><td style="color: #b9c1ca">none</td><td><select aria-label="Favorites mode" style="height: 24px; background: #0f1215; color: #e4e8ec; border: 1px solid #39424c; border-radius: 3px"><option>Merge</option></select></td></tr>
+      </tbody>
+    </table>
+    <section style="border: 1px solid #39424c; border-radius: 6px; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px">
+      <h2 style="margin: 0; font-size: 13px; font-weight: 600; color: #f0c766">Macros that clash</h2>
+      <div style="display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 6px 12px; align-items: center">
+        <span style="font-family: 'IBM Plex Mono', monospace">.ilsapp</span><span style="display: flex; gap: 12px"><label><input type="radio" name="m1"> Skip</label><label><input type="radio" name="m1" checked> Overwrite</label><label><input type="radio" name="m1"> Rename</label></span>
+        <span style="font-family: 'IBM Plex Mono', monospace">.pattern</span><span style="display: flex; gap: 12px"><label><input type="radio" name="m2" checked> Skip</label><label><input type="radio" name="m2"> Overwrite</label><label><input type="radio" name="m2"> Rename</label></span>
+        <span style="font-family: 'IBM Plex Mono', monospace">.dep</span><span style="display: flex; gap: 12px"><label><input type="radio" name="m3"> Skip</label><label><input type="radio" name="m3"> Overwrite</label><label><input type="radio" name="m3" checked> Rename</label></span>
+      </div>
+    </section>
+  </main>
+  <div style="height: 52px; flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; background: #13171c; border-top: 1px solid #2c333b">
+    <span style="color: #a3adb8">Applies at once; nothing changes until you press Import.</span>
+    <div style="display: flex; gap: 8px">
+      <button type="button" style="height: 30px; padding: 0 16px; background: #7cc4e8; color: #0f1215; border: 0; border-radius: 4px; font-size: 13px; font-weight: 600">Import</button>
+      <button type="button" style="height: 30px; min-width: 76px; background: #262c33; color: #e4e8ec; border: 1px solid #39424c; border-radius: 4px; font-size: 13px">Close</button>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":880,"height":640}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

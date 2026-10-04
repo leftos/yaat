@@ -541,14 +541,7 @@ public sealed partial class SimulationEngine
             List<AircraftState> snapshot = World.GetSnapshot();
             AircraftState? aircraft = snapshot.FirstOrDefault(a => a.Callsign.Equals(entry.Callsign, StringComparison.OrdinalIgnoreCase));
 
-            if (aircraft is not null && aircraft.Track.Owner is not null)
-            {
-                aircraft.Track.HandoffPeer = entry.Target;
-                aircraft.Track.HandoffInitiatedAt = scenario.ElapsedSeconds;
-
-                EmitTerminal("System", entry.Callsign, "[AutoTrack] Delayed handoff initiated to " + TrackEngine.FormatOwner(entry.Target));
-            }
-            else
+            if (aircraft?.Track.Owner is not { } owner)
             {
                 _logger.LogWarning(
                     "[AutoTrack] Delayed handoff for {Callsign} to {Target} dropped at t={T}s: {Reason}",
@@ -557,6 +550,22 @@ public sealed partial class SimulationEngine
                     scenario.ElapsedSeconds,
                     aircraft is null ? "aircraft not found" : "aircraft is untracked (no owner to hand off from)"
                 );
+            }
+            else if (owner.MatchesPosition(entry.Target))
+            {
+                _logger.LogInformation(
+                    "[AutoTrack] Delayed handoff for {Callsign} to {Target} dropped at t={T}s: already owned by the target",
+                    entry.Callsign,
+                    TrackEngine.FormatOwner(entry.Target),
+                    scenario.ElapsedSeconds
+                );
+            }
+            else
+            {
+                aircraft.Track.HandoffPeer = entry.Target;
+                aircraft.Track.HandoffInitiatedAt = scenario.ElapsedSeconds;
+
+                EmitTerminal("System", entry.Callsign, "[AutoTrack] Delayed handoff initiated to " + TrackEngine.FormatOwner(entry.Target));
             }
         }
     }
@@ -660,11 +669,9 @@ public sealed partial class SimulationEngine
             return;
         }
 
-        // Solo mode forces a >=3s auto-accept for non-student positions even when the operator
+        // Solo mode forces a floored auto-accept for non-student positions even when the operator
         // globally disabled auto-accept; non-solo play uses the operator's configured delay verbatim.
-        TimeSpan effectiveDelay = soloMode
-            ? TimeSpan.FromSeconds(Math.Max(scenario.AutoAcceptDelay.TotalSeconds, SimScenarioState.SoloAutoAcceptFloorSeconds))
-            : scenario.AutoAcceptDelay;
+        double effectiveDelaySeconds = scenario.EffectiveAutoAcceptDelaySeconds;
 
         List<AircraftState> snapshot = World.GetSnapshot();
         var pendingHandoffs = snapshot.Where(a => a.Track.HandoffPeer is not null && a.Track.HandoffInitiatedAt is not null).ToList();
@@ -694,6 +701,17 @@ public sealed partial class SimulationEngine
                 continue;
             }
 
+            // Auto-accept never takes a track ERAM may show as CST (7110.65 §5-4-5.e, §5-4-6.f.3 require verbal
+            // coordination then). The check is stateless (below ERAM coverage, on the ground, or a QT coast track) and
+            // applies to every handoff, STARS included, by design: a low STARS handoff waits until the aircraft climbs
+            // into ERAM coverage. It also holds inside the display's hysteresis band and after the coast has expired,
+            // both of which only keep the handoff pending longer.
+            if (TrackEngine.IsAutoAcceptWithheld(aircraft, NavigationDatabase.Instance))
+            {
+                _logger.LogTrace("TickAutoAccept: {Callsign} handoff withheld below ERAM coverage or on a QT coast, skipping", aircraft.Callsign);
+                continue;
+            }
+
             // Solo mode: never auto-accept a handoff to the student's own position — the student
             // accepts it by hand (in non-solo an RPO does). Every other position auto-accepts below.
             if (soloMode && scenario.StudentPosition is { } student && aircraft.Track.HandoffPeer.MatchesPosition(student))
@@ -703,7 +721,7 @@ public sealed partial class SimulationEngine
             }
 
             double elapsed = scenario.ElapsedSeconds - aircraft.Track.HandoffInitiatedAt.Value;
-            if (elapsed >= effectiveDelay.TotalSeconds)
+            if (elapsed >= effectiveDelaySeconds)
             {
                 TrackOwner? previousOwner = aircraft.Track.Owner;
                 TrackOwner newOwner = aircraft.Track.HandoffPeer;

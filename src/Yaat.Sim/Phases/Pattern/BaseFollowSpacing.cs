@@ -244,7 +244,7 @@ internal static class BaseFollowSpacing
         AircraftCategory leadCategory = AircraftCategorization.Categorize(scope.Lead.AircraftType);
         double leadKts = AirborneFollowHelper.ProjectedLeadSpeedKts(scope.Lead, leadCategory);
         double gapNm = followerFinalNm - (scope.RemainingNm - (leadKts * rolloutSec / 3600.0));
-        double requiredNm = AirborneFollowHelper.PatternSpacingNm(ctx, scope.Lead);
+        double requiredNm = AirborneFollowHelper.PatternSpacingNm(scope.Lead);
 
         // Runway occupancy: seconds the follower would cross the threshold after the lead clears the runway, as a gap at
         // the lead's speed on top of the requirement; negative seconds leave it short of the requirement.

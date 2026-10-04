@@ -1,3 +1,4 @@
+using SkiaSharp;
 using Yaat.Sim;
 
 namespace Yaat.Client.Views.Map;
@@ -467,56 +468,40 @@ public static class RangeBearingLineResolver
 }
 
 /// <summary>
-/// Places a measurement's label so it stays readable: at the far endpoint when that is on-screen
-/// (CRC's placement), otherwise pulled back to where the line leaves the viewport, and always clamped
-/// so the whole text fits inside it.
+/// Keeps a measurement's label readable: anchors it at the far endpoint when that is on-screen, otherwise
+/// where the line leaves the viewport (<see cref="RblReadoutPlacement"/> places it around that anchor), and
+/// clamps the placed label so the whole text fits inside the viewport.
 /// </summary>
 public static class RblLabelPlacement
 {
-    /// <summary>Label offset from its anchor point, matching CRC's ItemB placement.</summary>
-    private const float OffsetX = 9f;
-    private const float OffsetY = 4f;
-
     /// <summary>Minimum gap kept between the label and the viewport edge.</summary>
     private const float EdgePad = 2f;
 
     /// <summary>
-    /// Computes the label's baseline-left position for the line A→B, or null when no part of the line is
-    /// inside the viewport so there is nothing to label.
+    /// The point a label is placed around: the far endpoint B when it is on-screen (or the viewport has no size yet),
+    /// otherwise where the line leaves the viewport toward B; null when no part of the line is inside the viewport.
     /// </summary>
-    /// <param name="labelWidth">Measured width of the label text in pixels.</param>
-    /// <param name="labelHeight">Approximate cap height of the label font, used to keep the text below the top edge.</param>
-    public static (float X, float Y)? Compute(
-        float ax,
-        float ay,
-        float bx,
-        float by,
-        float labelWidth,
-        float labelHeight,
-        float viewWidth,
-        float viewHeight
-    )
+    public static (float X, float Y)? Anchor(float ax, float ay, float bx, float by, float viewWidth, float viewHeight)
     {
-        if (viewWidth < 1f || viewHeight < 1f)
+        if ((viewWidth < 1f) || (viewHeight < 1f) || IsInside(bx, by, viewWidth, viewHeight))
         {
-            return (bx + OffsetX, by + OffsetY);
+            return (bx, by);
         }
 
-        float anchorX = bx;
-        float anchorY = by;
-        if (!IsInside(bx, by, viewWidth, viewHeight))
-        {
-            if (ExitPointNearestB(ax, ay, bx, by, viewWidth, viewHeight) is not { } exit)
-            {
-                return null;
-            }
+        return ExitPointNearestB(ax, ay, bx, by, viewWidth, viewHeight);
+    }
 
-            (anchorX, anchorY) = exit;
+    /// <summary>Moves a placed label rect (bottom on the baseline) the least distance that keeps all of it inside the viewport.</summary>
+    public static SKRect ClampIntoView(SKRect rect, float viewWidth, float viewHeight)
+    {
+        if ((viewWidth < 1f) || (viewHeight < 1f))
+        {
+            return rect;
         }
 
-        float x = Math.Clamp(anchorX + OffsetX, EdgePad, Math.Max(EdgePad, viewWidth - labelWidth - EdgePad));
-        float y = Math.Clamp(anchorY + OffsetY, labelHeight + EdgePad, Math.Max(labelHeight + EdgePad, viewHeight - EdgePad));
-        return (x, y);
+        float left = Math.Clamp(rect.Left, EdgePad, Math.Max(EdgePad, viewWidth - rect.Width - EdgePad));
+        float bottom = Math.Clamp(rect.Bottom, rect.Height + EdgePad, Math.Max(rect.Height + EdgePad, viewHeight - EdgePad));
+        return new SKRect(left, bottom - rect.Height, left + rect.Width, bottom);
     }
 
     private static bool IsInside(float x, float y, float width, float height) => (x >= 0f) && (x <= width) && (y >= 0f) && (y <= height);

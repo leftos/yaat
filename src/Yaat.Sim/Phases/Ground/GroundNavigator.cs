@@ -2003,7 +2003,7 @@ public sealed class GroundNavigator
             {
                 continue;
             }
-            double totalDist = distToEndpointNm + pathDist;
+            double totalDist = Math.Max(0.0, distToEndpointNm + pathDist);
             double limit = Math.Sqrt(reqSpeed * reqSpeed + 2.0 * decelRate * totalDist * 3600.0);
             brakingLimit = Math.Min(brakingLimit, limit);
         }
@@ -2263,6 +2263,54 @@ public sealed class GroundNavigator
     internal void RefreshSpeedConstraints(TaxiRoute route, PhaseContext ctx, Func<int, bool> isHoldShortCleared) =>
         BuildSpeedConstraints(route, ctx, isHoldShortCleared);
 
+    /// <summary>
+    /// How far short (ft) of a set-back bar's stop the braking curve reaches zero, so the aircraft comes to rest with its
+    /// nose at or behind the marking (AIM 2-3-5.b.3: "no part of the aircraft extends beyond"); the owning phase takes the
+    /// hold inside this margin plus a foot.
+    /// </summary>
+    internal const double SetBackStopMarginFt = 2.0;
+
+    /// <summary>
+    /// The current target's own bar. The owning phase aims the target at a stop that lies on this segment; one set back
+    /// past the segment's start is not aimed at, so brake for it here, at its (negative) distance before the node.
+    /// </summary>
+    private void AddSetBackStopAtTarget(TaxiRoute route, TaxiRouteSegment seg)
+    {
+        if (
+            (seg.ToNodeId == TargetNodeId)
+            && (route.GetHoldShortAt(TargetNodeId) is { } bar)
+            && !route.StopLiesOnSegment(route.CurrentSegmentIndex, bar)
+        )
+        {
+            _speedConstraints.Add((-StopDistanceBeforeNodeNm(route, route.CurrentSegmentIndex, bar), 0, TargetNodeId));
+        }
+    }
+
+    /// <summary>
+    /// The zero for the first uncleared bar ahead, the far node of segment <paramref name="barSegmentIndex"/> at
+    /// <paramref name="nodeDistNm"/>. The stop is the bar's painted position, which can sit several segments back from the
+    /// junction it protects, so it may land before constraints already collected — or before the current segment's end,
+    /// at a negative distance — and the list is re-sorted for the backward propagation.
+    /// </summary>
+    private void AddStopAtFutureBar(TaxiRoute route, int barSegmentIndex, double nodeDistNm)
+    {
+        int nodeId = route.Segments[barSegmentIndex].ToNodeId;
+        double beforeNodeNm = route.GetHoldShortAt(nodeId) is { } bar ? StopDistanceBeforeNodeNm(route, barSegmentIndex, bar) : 0.0;
+        _speedConstraints.Add((nodeDistNm - beforeNodeNm, 0, nodeId));
+        _speedConstraints.Sort((a, b) => a.PathDistNm.CompareTo(b.PathDistNm));
+    }
+
+    /// <summary>
+    /// Where the braking curve for <paramref name="bar"/> reaches zero, in nm before its node: the stop itself when it lies
+    /// on the bar's own segment (the phase aims there and takes the hold on arrival), else the stop less
+    /// <see cref="SetBackStopMarginFt"/>.
+    /// </summary>
+    private static double StopDistanceBeforeNodeNm(TaxiRoute route, int barSegmentIndex, HoldShortPoint bar)
+    {
+        double setbackNm = route.HoldShortSetbackNm(barSegmentIndex, bar);
+        return route.StopLiesOnSegment(barSegmentIndex, bar) ? setbackNm : setbackNm + (SetBackStopMarginFt / GeoMath.FeetPerNm);
+    }
+
     private void BuildSpeedConstraints(TaxiRoute route, PhaseContext ctx, Func<int, bool> isHoldShortCleared)
     {
         _speedConstraints.Clear();
@@ -2289,6 +2337,7 @@ public sealed class GroundNavigator
             _nextSegmentBearing = null;
             _nextSegmentIsArc = false;
             _nextSegmentIsShort = false;
+            AddSetBackStopAtTarget(route, seg);
         }
         else if (!isLastSegment)
         {
@@ -2345,7 +2394,7 @@ public sealed class GroundNavigator
 
             if (!isHoldShortCleared(futureSeg.ToNodeId))
             {
-                _speedConstraints.Add((cumulativeDistNm, 0, futureSeg.ToNodeId));
+                AddStopAtFutureBar(route, i, cumulativeDistNm);
                 break;
             }
 
@@ -2385,7 +2434,7 @@ public sealed class GroundNavigator
         if (_speedConstraints.Count > 0)
         {
             (double firstDist, double firstSpeed, int _) = _speedConstraints[0];
-            double backProp = Math.Sqrt(firstSpeed * firstSpeed + 2.0 * decelRate * firstDist * 3600.0);
+            double backProp = Math.Sqrt(firstSpeed * firstSpeed + 2.0 * decelRate * Math.Max(0.0, firstDist) * 3600.0);
             if (backProp < _currentNodeRequiredSpeed)
             {
                 _currentNodeRequiredSpeed = backProp;

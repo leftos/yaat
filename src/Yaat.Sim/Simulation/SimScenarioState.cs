@@ -231,6 +231,13 @@ public sealed class SimScenarioState
     // change.
     public bool SoloTrainingMode { get; set; }
 
+    /// <summary>
+    /// Development flag: when true, solo training accepts the RPO-only commands (FOLLOWF, CVAF, RFISF, RTISF, CLANDF)
+    /// it otherwise refuses. Set only by a recorded setting change (the headless soak runner's switch), never from the
+    /// environment, so a replay restores it from the archive. Default false.
+    /// </summary>
+    public bool SoloRpoCommandsAllowed { get; set; }
+
     public int SoloParkingInitialCallupRatePercent { get; set; } = 100;
 
     public int SoloArrivalGeneratorRatePercent { get; set; } = 100;
@@ -395,8 +402,9 @@ public sealed class SimScenarioState
 
     // Solo student mode has no RPO to work handoffs: traffic handed to AI/scenario positions must
     // auto-accept on a fixed floor so it keeps flowing, while handoffs to the student's own position
-    // are left pending for the student to accept by hand.
-    public const double SoloAutoAcceptFloorSeconds = 3;
+    // are left pending for the student to accept by hand. The floor is 5 s for training value: the
+    // student sees each handoff they initiate sit pending before the receiving position takes it.
+    public const double SoloAutoAcceptFloorSeconds = 5;
 
     /// <summary>
     /// How long a point-out addressed to a position nobody is working may sit before it is withdrawn. 7110.65
@@ -422,6 +430,15 @@ public sealed class SimScenarioState
     public const double CoordinationRecallLingerSeconds = 10;
 
     public TimeSpan AutoAcceptDelay { get; set; } = TimeSpan.FromSeconds(5);
+
+    /// <summary>
+    /// The auto-accept delay the room actually applies: in solo mode the configured <see cref="AutoAcceptDelay"/> raised to
+    /// <see cref="SoloAutoAcceptFloorSeconds"/> (also when the operator disabled auto-accept), otherwise the configured
+    /// delay verbatim. Snapshots and recorded setting changes store the configured delay, never this one.
+    /// </summary>
+    public double EffectiveAutoAcceptDelaySeconds =>
+        SoloTrainingMode ? Math.Max(AutoAcceptDelay.TotalSeconds, SoloAutoAcceptFloorSeconds) : AutoAcceptDelay.TotalSeconds;
+
     public bool IsStudentTowerPosition { get; set; }
 
     /// <summary>
@@ -518,6 +535,7 @@ public sealed class SimScenarioState
             LiveTrafficFilter = LiveTrafficFilter,
             ValidateDctFixes = ValidateDctFixes,
             SoloTrainingMode = SoloTrainingMode,
+            SoloRpoCommandsAllowed = SoloRpoCommandsAllowed,
             SoloParkingInitialCallupRatePercent = SoloParkingInitialCallupRatePercent,
             SoloArrivalGeneratorRatePercent = SoloArrivalGeneratorRatePercent,
             SoloGoAroundProbabilityPercent = SoloGoAroundProbabilityPercent,
@@ -666,5 +684,41 @@ public sealed class SimScenarioState
                     ]
                     : null,
             SuppressedLiveTraffic = SuppressedLiveTraffic.Count > 0 ? [.. SuppressedLiveTraffic.Order(StringComparer.Ordinal)] : null,
+            DisconnectCoasts = SnapshotDisconnectCoasts(),
         };
+
+    /// <summary>
+    /// The coast set as snapshot DTOs, or null when nothing is coasting. The volatile property is read into a local
+    /// once, so a tick landing between the emptiness check and the enumeration cannot straddle two sets.
+    /// </summary>
+    private List<DisconnectCoastDto>? SnapshotDisconnectCoasts()
+    {
+        ImmutableSortedDictionary<string, AircraftDisconnectCoast> coasts = DisconnectCoasts;
+        if (coasts.Count == 0)
+        {
+            return null;
+        }
+
+        return
+        [
+            .. coasts.Select(c => new DisconnectCoastDto
+            {
+                Callsign = c.Key,
+                Anchor = c.Value.Anchor,
+                AnchorTrackDeg = c.Value.AnchorTrackDeg,
+                AnchorGroundSpeed = c.Value.AnchorGroundSpeed,
+                CoastStartSimSeconds = c.Value.CoastStartSimSeconds,
+                Facets =
+                [
+                    .. c.Value.Facets.Select(f => new DisconnectCoastFacetDto
+                    {
+                        Scope = f.Scope,
+                        FacilityId = f.FacilityId,
+                        IsDrop = f.IsDrop,
+                        DeadlineSimSeconds = f.DeadlineSimSeconds,
+                    }),
+                ],
+            }),
+        ];
+    }
 }

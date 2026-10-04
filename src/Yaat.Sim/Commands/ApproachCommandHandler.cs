@@ -510,7 +510,7 @@ public static class ApproachCommandHandler
         // gate below requires: traffic-in-sight when following (§7-4-3.c.2), else field-in-sight.
         if (cmd.Force)
         {
-            if (ctx.SoloTrainingMode)
+            if (ctx.RefusesRpoOnly)
             {
                 return new CommandResult(false, "CVAF is RPO-only; use RFIS/RTIS in solo training");
             }

@@ -62,6 +62,11 @@ public sealed partial class SimulationEngine
         double now = Scenario?.ElapsedSeconds ?? 0;
         ac.LiveTraffic!.AppliedAtSimSeconds = now;
         LiveTrafficKinematics.Resync(ac, now, World.Weather);
+        if (spawned)
+        {
+            EvaluateSurfaceMembership(ac);
+        }
+
         if (Scenario is not null)
         {
             LiveTrafficOwnerResolver.Apply(ac, sample, Scenario);
@@ -413,6 +418,7 @@ public sealed partial class SimulationEngine
     /// </summary>
     public void ApplyRecordedLiveTrafficSample(RecordedLiveTrafficSample recorded)
     {
+        bool spawned = false;
         AircraftState? ac = World.FindAircraft(recorded.Callsign);
         if (ac is null)
         {
@@ -423,6 +429,7 @@ public sealed partial class SimulationEngine
             }
 
             ac = SpawnShadow(recorded.SpawnState);
+            spawned = true;
             TrackShadowBeacon(0, ac.Transponder.Code);
         }
         else
@@ -443,6 +450,11 @@ public sealed partial class SimulationEngine
 
         ac.LiveTraffic!.AppliedAtSimSeconds = Scenario?.ElapsedSeconds ?? 0;
         LiveTrafficKinematics.Resync(ac, Scenario?.ElapsedSeconds ?? 0, World.Weather);
+        if (spawned)
+        {
+            EvaluateSurfaceMembership(ac);
+        }
+
         if (Scenario is not null)
         {
             LiveTrafficOwnerResolver.Apply(ac, recorded.Sample, Scenario);
@@ -476,7 +488,9 @@ public sealed partial class SimulationEngine
 
     /// <summary>
     /// Puts a shadow in the world, live and on replay alike. A live shadow spawn never reaches
-    /// <see cref="AfterAircraftSpawned"/>, so the disconnect-coast clear a re-supplied callsign owes happens here.
+    /// <see cref="AfterAircraftSpawned"/>, so the disconnect-coast clear a re-supplied callsign owes happens here. The
+    /// surface membership is the callers': they evaluate it once the sample is aged to the current second, so live and
+    /// replay evaluate at the same position.
     /// </summary>
     private AircraftState SpawnShadow(AircraftSnapshotDto spawnState)
     {

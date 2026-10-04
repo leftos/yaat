@@ -2,6 +2,7 @@ using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.Threading;
 using Xunit;
+using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Ground;
 using Yaat.Client.Views.Radar;
 
@@ -35,6 +36,30 @@ public class MapCanvasTimerLifecycleTests
         Dispatcher.UIThread.RunJobs();
 
         Assert.False(canvas.IsRepaintTimerRunning, "a detached canvas must stop repainting so it can be collected");
+    }
+
+    // The canvas repaints on its datablock state's offset changes only while it is in the visual tree, so a view-model state
+    // never roots a canvas a pop-out or dock-back abandoned.
+    [AvaloniaFact]
+    public void DataBlockStateSubscription_FollowsAttachBindingAndDetach()
+    {
+        var canvas = new RadarCanvas();
+        Assert.Null(canvas.WatchedDataBlockState);
+
+        var window = new Window { Content = canvas };
+        window.Show();
+        Dispatcher.UIThread.RunJobs();
+        RadarDataBlockViewState? local = canvas.WatchedDataBlockState;
+        Assert.NotNull(local);
+
+        var vmState = new RadarDataBlockViewState();
+        canvas.DataBlockState = vmState;
+        Assert.Same(vmState, canvas.WatchedDataBlockState);
+
+        window.Content = null;
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Null(canvas.WatchedDataBlockState);
     }
 
     [AvaloniaFact]

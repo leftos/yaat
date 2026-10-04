@@ -1478,19 +1478,6 @@ public class PilotResponderTests
     }
 
     [Fact]
-    public void BuildTargetLanded_BreaksOff()
-    {
-        AircraftState ac = MakeAircraft("N294MG");
-        PilotSpeechText result = PilotResponder.BuildTargetLanded(ac, "N784ME");
-
-        Assert.Equal("the traffic's on the ground, breaking off the follow.", result.Terminal);
-        Assert.Equal("N784ME is on the ground, breaking off the follow.", result.TerminalForRpo);
-        Assert.Contains("on the ground", result.Tts);
-        Assert.Contains("breaking off the follow", result.Tts);
-        Assert.DoesNotContain("seven eight four", result.Tts);
-    }
-
-    [Fact]
     public void BuildFollowExtendingUnableToTurn_RpoTerminalNamesTarget_TtsDoesNot()
     {
         AircraftState ac = MakeAircraft("N294MG");

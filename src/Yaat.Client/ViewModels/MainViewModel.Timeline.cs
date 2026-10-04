@@ -95,14 +95,18 @@ public partial class MainViewModel
         }
     }
 
-    public async Task RewindToSeconds(double targetSeconds)
+    /// <summary>
+    /// Moves the room's sim to <paramref name="targetSeconds"/>. The returned task completes once the client has swapped in the
+    /// rewound aircraft and set the status line; the outcome says whether the rewind worked, with that status line.
+    /// </summary>
+    public async Task<RewindOutcome> RewindToSeconds(double targetSeconds)
     {
         // Every timeline jump (buttons, scrub, markers, bookmarks) comes through here; the server refuses RewindTo mid-load.
         if (IsRoomLoading)
         {
             _log.LogInformation("Rewind to {Seconds}s not sent: a scenario is loading in the room", targetSeconds);
             StatusText = "Rewind unavailable while a scenario loads";
-            return;
+            return new RewindOutcome(false, StatusText);
         }
 
         try
@@ -111,11 +115,13 @@ public partial class MainViewModel
             RewindResultDto? result = await _connection.RewindToAsync(targetSeconds);
             if (result is null || !result.Success)
             {
-                StatusText = $"Rewind failed: {result?.Error ?? "Unknown error"}";
-                return;
+                string failed = $"Rewind failed: {result?.Error ?? "Unknown error"}";
+                StatusText = failed;
+                return new RewindOutcome(false, failed);
             }
 
-            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            string rewound = $"Rewound to {FormatTime(targetSeconds)}";
+            await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
             {
                 Aircraft.Clear();
                 if (result.Aircraft is not null)
@@ -131,13 +137,16 @@ public partial class MainViewModel
                 ScenarioElapsedSeconds = targetSeconds;
                 OnPropertyChanged(nameof(ElapsedTimeDisplay));
                 OnPropertyChanged(nameof(TimelineMaximum));
-                StatusText = $"Rewound to {FormatTime(targetSeconds)}";
+                StatusText = rewound;
             });
+            return new RewindOutcome(true, rewound);
         }
         catch (Exception ex)
         {
             _log.LogError(ex, "Rewind failed");
-            StatusText = $"Rewind error: {ex.Message}";
+            string error = $"Rewind error: {ex.Message}";
+            StatusText = error;
+            return new RewindOutcome(false, error);
         }
     }
 
@@ -640,32 +649,57 @@ public partial class MainViewModel
                 return;
             }
 
+            await LoadRecordingFromFileAsync(path);
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Load recording file pick failed");
+            StatusText = $"Load recording error: {ex.Message}";
+        }
+    }
+
+    /// <summary>
+    /// Loads the recording at <paramref name="path"/> into the room, then applies it and rebuilds the terminal from the room's
+    /// log, both done before the returned task completes. The load command and the automation pipe's <c>load_recording</c>
+    /// share it. Never throws: a failure is logged, and the outcome says whether the recording loaded, with the status line (also
+    /// set as <see cref="StatusText"/>) that names the loaded scenario or the failure.
+    /// </summary>
+    internal async Task<RecordingLoadOutcome> LoadRecordingFromFileAsync(string path)
+    {
+        try
+        {
             byte[] recordingBytes = await File.ReadAllBytesAsync(path);
 
             StatusText = "Loading recording...";
             RewindResultDto? result = await _connection.LoadRecordingAsync(recordingBytes);
             if (result is null || !result.Success)
             {
-                StatusText = $"Load recording failed: {result?.Error ?? "Unknown error"}";
-                return;
+                string failed = $"Load recording failed: {result?.Error ?? "Unknown error"}";
+                StatusText = failed;
+                return new RecordingLoadOutcome(false, failed);
             }
 
             List<TerminalBroadcastDto> terminalLog = await _connection.GetTerminalLogAsync();
 
-            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            // Each status is kept in a local: StatusText itself may be overwritten by another UI message before it is returned.
+            string loaded = $"Recording loaded: {result.ScenarioName}";
+            await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
             {
                 // Bookmarks are seeded server-side from the recording's bookmarks.json and arrive via the
                 // BookmarksChanged broadcast (so every RPO in the room sees them), not read locally here.
                 ApplyRecordingResult(result);
                 RepopulateTerminalFromRecording(terminalLog);
-                StatusText = $"Recording loaded: {result.ScenarioName}";
-                AddSystemEntry($"Recording loaded: {result.ScenarioName}");
+                StatusText = loaded;
+                AddSystemEntry(loaded);
             });
+            return new RecordingLoadOutcome(true, loaded);
         }
         catch (Exception ex)
         {
             _log.LogError(ex, "Load recording failed");
-            StatusText = $"Load recording error: {ex.Message}";
+            string error = $"Load recording error: {ex.Message}";
+            StatusText = error;
+            return new RecordingLoadOutcome(false, error);
         }
     }
 
@@ -788,3 +822,9 @@ public partial class MainViewModel
         return $"{(int)ts.TotalMinutes:D2}:{ts.Seconds:D2}";
     }
 }
+
+/// <summary>How a recording load ended: whether the recording loaded, and the status line naming its scenario or the failure.</summary>
+public readonly record struct RecordingLoadOutcome(bool Loaded, string Status);
+
+/// <summary>How a rewind ended: whether the sim moved, and the status line it ended on.</summary>
+public readonly record struct RewindOutcome(bool Rewound, string Status);

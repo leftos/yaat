@@ -109,3 +109,6 @@ resharper_member_initializer_value_ignored_highlighting = none
 # Avalonia XAML DataContext not statically resolvable
 resharper_xaml_binding_with_context_not_resolved_highlighting = none
 resharper_xaml_possible_null_reference_exception_highlighting = none
+
+[*.{bat,cmd}]
+end_of_line = crlf

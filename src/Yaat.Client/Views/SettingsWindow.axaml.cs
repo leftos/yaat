@@ -32,7 +32,7 @@ public partial class SettingsWindow : Window
     public SettingsWindow(UserPreferences preferences, AudioCaptureService? audioCapture, SpeechSampleStore? speechSampleStore)
     {
         InitializeComponent();
-        _filePicker = new AvaloniaFilePickerService(this);
+        _filePicker = FilePickerFactory.Create(this);
 
         var vm = new SettingsViewModel(preferences, audioCapture, speechSampleStore);
         DataContext = vm;
@@ -200,7 +200,7 @@ public partial class SettingsWindow : Window
             }
 
             var importWindow = new MacroImportWindow(conflicts, newMacros, existingBaseNames);
-            MacroImportResult? result = await importWindow.ShowDialog<MacroImportResult?>(this);
+            MacroImportResult? result = await DialogPresenter.ShowModalAsync<MacroImportResult?>(importWindow, this);
             if (result is not null)
             {
                 vm.ImportMacros(result);

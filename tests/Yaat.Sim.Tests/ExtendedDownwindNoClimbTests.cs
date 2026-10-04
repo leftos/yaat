@@ -6,17 +6,12 @@ using Yaat.Sim.Phases.Pattern;
 namespace Yaat.Sim.Tests;
 
 /// <summary>
-/// Regression for the extended-downwind altitude floor (commit e530ecc0). An aircraft told to
-/// extend the downwind (EXT / "I'll call your base", 7110.65 §3-8-1) must HOLD its altitude — the
-/// method's own docstring says the floor "expects the aircraft to hold height, not descend." A
-/// floor is a do-not-descend-below limit; it must never command a CLIMB.
-///
-/// <see cref="DownwindPhase.ExtendedDownwindFloor"/> recomputes the glideslope-intercept altitude
-/// for the aircraft's current (growing) along-track distance every tick and is NOT capped at the
-/// aircraft's current altitude. Once the aircraft is flown past the nominal base-turn point — the
-/// defining case for an extended downwind — that per-tick floor rises above the altitude the
-/// aircraft has already descended to, and the consuming gate (DownwindPhase.OnTick lines ~297-303
-/// / ~340-346) sets TargetAltitude to the higher floor: a commanded climb back up the pattern.
+/// An aircraft told to extend the downwind (EXT; 7110.65 §3-8-1 "EXTEND DOWNWIND") holds its
+/// altitude and never commands a climb back up the pattern. <see cref="DownwindPhase"/> latches the
+/// held level once, on the first held tick past abeam, at the lower of the aircraft's altitude and
+/// pattern altitude, and only a new controller altitude moves it. An aircraft already past the
+/// nominal base-turn point and below pattern altitude — the defining case for an extended downwind —
+/// therefore targets its present altitude, not a level recomputed from its growing distance out.
 /// </summary>
 public class ExtendedDownwindNoClimbTests
 {

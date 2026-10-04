@@ -66,7 +66,10 @@ public sealed class WindowSystemMenuHelper(Window window, WindowGeometryHelper g
 
         _window.Closed += OnWindowClosed;
         _preferences.WindowTopmostChanged += OnWindowTopmostChanged;
+        _geometryHelper.PinnedChanged += OnPinnedChanged;
     }
+
+    private void OnPinnedChanged(bool isPinned) => OnWindowTopmostChanged(_windowName, isPinned);
 
     private void OnWindowOpened(object? sender, EventArgs e)
     {
@@ -77,6 +80,7 @@ public sealed class WindowSystemMenuHelper(Window window, WindowGeometryHelper g
     private void OnWindowClosed(object? sender, EventArgs e)
     {
         _preferences.WindowTopmostChanged -= OnWindowTopmostChanged;
+        _geometryHelper.PinnedChanged -= OnPinnedChanged;
         _window.Closed -= OnWindowClosed;
         _window.Opened -= OnWindowOpened;
 
@@ -119,7 +123,7 @@ public sealed class WindowSystemMenuHelper(Window window, WindowGeometryHelper g
         InsertMenu(_systemMenu, SC_CLOSE, MF_BYCOMMAND | MF_SEPARATOR, UIntPtr.Zero, null);
         InsertMenu(_systemMenu, SC_CLOSE, MF_BYCOMMAND | MF_STRING, new UIntPtr(SC_ALWAYS_ON_TOP), "Always on Top");
 
-        CheckMenuItem(_systemMenu, SC_ALWAYS_ON_TOP, MF_BYCOMMAND | (_window.Topmost ? MF_CHECKED : MF_UNCHECKED));
+        CheckMenuItem(_systemMenu, SC_ALWAYS_ON_TOP, MF_BYCOMMAND | (_geometryHelper.IsPinned ? MF_CHECKED : MF_UNCHECKED));
 
         // Keep the delegate as an instance field so the GC doesn't collect it while
         // unmanaged code holds a function pointer to it.

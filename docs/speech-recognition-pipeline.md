@@ -216,18 +216,7 @@ depend on LM-Kit and PortAudio native libraries.
   tokens *cannot* follow a variadic in the same rule — `TryMatchPattern`
   throws at match time if you wire one by mistake. Minimum variadic
   consumption is 1 token.
-- `src/Yaat.Sim/Speech/PhraseologyMapper.cs` — `Map(transcript, context)`
-  tokenizes, strips fillers, extracts the callsign via
-  `CallsignParser`, extracts a condition prefix (`AT {fix}`,
-  `when level at {alt}` → `LV {alt}`), collapses NATO phonetic runs via
-  `NatoLetterNormalizer` (see below), then does a greedy left-to-right
-  longest-match against `PhraseologyRules.All`. Multiple clause matches
-  are concatenated with commas. Tie-break rule: **more literal tokens
-  wins at equal consumed count** — so a more-specific rule always beats
-  a shorter one. For two rules of equal pattern length this reduces to
-  "fewer captures wins" (e.g. `squawk vfr → SQVFR` beats
-  `squawk {code} → SQ vfr`). Returns `null` if no rule matched any part
-  of the transcript.
+- `src/Yaat.Sim/Speech/PhraseologyMapper.cs` — `Map(transcript, context)` tokenizes, strips fillers, extracts the callsign via `CallsignParser` (whose trailing parse never takes a traffic callsign after a follow / behind / give-way cue as the addressed aircraft), collapses a spoken traffic callsign after such a cue into one ICAO token via `TrafficCallsignNormalizer` (kept only when that callsign is on frequency), extracts a condition prefix (`AT {fix}`, `when level at {alt}` → `LV {alt}`), collapses NATO phonetic runs via `NatoLetterNormalizer` (see below), then does a greedy left-to-right longest-match against `PhraseologyRules.All`. A `{callsign}` or `{rwy}` capture with no digit is no match for that rule. Multiple clause matches are concatenated with commas. Tie-break rule: **more literal tokens wins at equal consumed count** — so a more-specific rule always beats a shorter one. For two rules of equal pattern length this reduces to "fewer captures wins" (e.g. `squawk vfr → SQVFR` beats `squawk {code} → SQ vfr`). Returns `null` if no rule matched any part of the transcript. Because the digit and NATO passes run before matching, a spoken literal they rewrite ("three sixty", "bravo") needs an `SttOnly` twin in the rewritten form; the spoken rule stays for `PhraseologyVerbalizer`.
 - `src/Yaat.Sim/Speech/NatoLetterNormalizer.cs` — after callsign +
   condition extraction, walks the token list and collapses runs of NATO
   phonetic words (`"tango uniform whiskey"`) into taxiway-name tokens
@@ -561,8 +550,9 @@ at startup with `WhisperBiasingPrompt.Default` to match production.
 - Alphanumeric taxiway names (`B6`, `A13`) — `"bravo six"` collides
   with `AtcNumberParser`'s digit pass before `NatoLetterNormalizer`
   sees it. Single-letter + bare-letter-combinations only.
-- Destinations like "the ramp" — no canonical without pre-programmed
-  parking names (`@<name>`).
+- Destinations like "the ramp" — no canonical; a spoken gate, parking or
+  spot name maps to `@<name>` only when the scenario's layout supplies it
+  (NATO letters collapse first, Whisper's ICAO "alfa" included).
 - `face left` / `face right` — no canonical without parking geometry.
 - Intercardinals (`face northeast`).
 - Compound clauses the rule engine can't express.

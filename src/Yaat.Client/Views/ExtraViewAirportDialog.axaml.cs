@@ -23,6 +23,7 @@ public partial class ExtraViewAirportDialog : Window
     public ExtraViewAirportDialog(string title, IReadOnlyList<string> artccAirports, string? initialAirportId, Func<string, bool> isKnownAirport)
     {
         InitializeComponent();
+        AutomationGate.ApplyShowActivated(this);
         _isKnownAirport = isKnownAirport;
         Title = title;
 

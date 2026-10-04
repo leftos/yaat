@@ -196,6 +196,80 @@ public sealed class TaxiRoute
     /// <summary>
     /// Build a human-readable taxi route summary (e.g., "S T U W W1 HS 28L, RWY 30").
     /// </summary>
+    /// <summary>How close (ft) a bar's stop must lie to a segment's chord to count as on that segment.</summary>
+    private const double StopOnChordToleranceFt = 3.0;
+
+    /// <summary>Slack (nm, ~1 ft) when deciding whether a bar's stop lies on the segment that ends at its node.</summary>
+    private const double StopOnSegmentToleranceNm = 1.0 / GeoMath.FeetPerNm;
+
+    /// <summary>
+    /// How far (nm, along the route) <paramref name="holdShort"/>'s stop sits back from the node it protects, the far end of
+    /// segment <paramref name="barSegmentIndex"/>. The stop is placed on the route's node-to-node chords, possibly several
+    /// segments back, so the walk goes backward from the bar's segment to the chord the stop lies on; whole segments count
+    /// at their own length (an arc's arc length), the one the stop lies on pro rata. A stop on no chord (one moved off the
+    /// route) counts its straight-line distance to the node. Zero when the bar has no stop position.
+    /// </summary>
+    /// <param name="barSegmentIndex">Index of the segment whose far node is the bar's node.</param>
+    /// <param name="holdShort">The bar.</param>
+    /// <returns>The setback in nautical miles.</returns>
+    internal double HoldShortSetbackNm(int barSegmentIndex, HoldShortPoint holdShort)
+    {
+        if (
+            (holdShort.Latitude is not { } lat)
+            || (holdShort.Longitude is not { } lon)
+            || (barSegmentIndex < 0)
+            || (barSegmentIndex >= Segments.Count)
+        )
+        {
+            return 0.0;
+        }
+
+        // The chord the stop is closest to, not the first within tolerance: a stop a foot or two before a bend is within
+        // tolerance of the next chord's start too, and taking that one reads the setback short by the gap.
+        var stop = new LatLon(lat, lon);
+        double walkedNm = 0.0;
+        double bestOffFt = StopOnChordToleranceFt;
+        double? setbackNm = null;
+        for (int j = barSegmentIndex; j >= 0; j--)
+        {
+            DirectionalEdge edge = Segments[j].Edge;
+            LatLon from = edge.FromNode.Position;
+            LatLon to = edge.ToNode.Position;
+            double offFt = GeoMath.DistanceToSegmentFt(stop, from, to);
+            if (offFt < bestOffFt)
+            {
+                double chordNm = GeoMath.DistanceNm(from, to);
+                double fraction = chordNm < 1e-9 ? 0.0 : Math.Min(1.0, GeoMath.DistanceNm(stop, to) / chordNm);
+                bestOffFt = offFt;
+                setbackNm = walkedNm + (fraction * edge.DistanceNm);
+            }
+
+            walkedNm += edge.DistanceNm;
+        }
+
+        return setbackNm ?? GeoMath.DistanceNm(stop, Segments[barSegmentIndex].Edge.ToNode.Position);
+    }
+
+    /// <summary>
+    /// True when segment <paramref name="segmentIndex"/> ends at <paramref name="bar"/>'s node and the bar's stop lies on
+    /// that segment, so a navigator aimed at the stop reaches it before the node. False for a stop set back past the
+    /// segment's start (a setback longer than the segment), which the taxi phase takes on an earlier segment.
+    /// </summary>
+    /// <param name="segmentIndex">Index of the segment to test.</param>
+    /// <param name="bar">The bar.</param>
+    /// <returns>True when the stop is on the segment that ends at the bar's node.</returns>
+    internal bool StopLiesOnSegment(int segmentIndex, HoldShortPoint bar) =>
+        (segmentIndex >= 0)
+        && (segmentIndex < Segments.Count)
+        && (Segments[segmentIndex].ToNodeId == bar.NodeId)
+        && (HoldShortSetbackNm(segmentIndex, bar) <= Segments[segmentIndex].Edge.DistanceNm + StopOnSegmentToleranceNm);
+
+    /// <summary>A taxiway as the summary names it: "left on C" / "right on A" when the controller gave it a turn glyph.</summary>
+    private static string WithTurnHint(IReadOnlyDictionary<string, TurnDirection>? turnHints, string twy) =>
+        ((turnHints is not null) && turnHints.TryGetValue(twy, out TurnDirection dir))
+            ? $"{(dir == TurnDirection.Left ? "left" : "right")} on {twy}"
+            : twy;
+
     public string ToSummary() => ToSummary(null, []);
 
     public string ToSummary(IReadOnlyDictionary<string, TurnDirection>? turnHints) => ToSummary(turnHints, []);
@@ -210,17 +284,20 @@ public sealed class TaxiRoute
     /// are ignored).
     /// </summary>
     public string ToSummary(IReadOnlyDictionary<string, TurnDirection>? turnHints, IReadOnlyCollection<string> clearedRunways) =>
-        ToSummary(turnHints, clearedRunways, static _ => true);
+        ToSummary(turnHints, clearedRunways, static _ => true, []);
 
     /// <summary>
     /// The summary above naming only the taxiways <paramref name="includeTaxiway"/> keeps: the TAXI readback
     /// renders the clearance as issued, not every lane the driven path adds. Runways taxied along, hold-shorts
     /// and the destination are always shown. A taxiway left adjacent to itself by a dropped leg is named once.
+    /// <paramref name="issuedBeyondRoute"/> are issued taxiways the route stops short of (it ends at the junction
+    /// where they begin); they follow the driven ones, before the hold-shorts, so the readback is the route as issued.
     /// </summary>
     public string ToSummary(
         IReadOnlyDictionary<string, TurnDirection>? turnHints,
         IReadOnlyCollection<string> clearedRunways,
-        Func<string, bool> includeTaxiway
+        Func<string, bool> includeTaxiway,
+        IReadOnlyList<string> issuedBeyondRoute
     )
     {
         var parts = new List<string>();
@@ -248,11 +325,16 @@ public sealed class TaxiRoute
             }
             else
             {
-                parts.Add(
-                    turnHints is not null && turnHints.TryGetValue(twy, out TurnDirection dir)
-                        ? $"{(dir == TurnDirection.Left ? "left" : "right")} on {twy}"
-                        : twy
-                );
+                parts.Add(WithTurnHint(turnHints, twy));
+            }
+        }
+
+        foreach (string twy in issuedBeyondRoute)
+        {
+            if (!string.Equals(twy, lastShown, StringComparison.OrdinalIgnoreCase))
+            {
+                parts.Add(WithTurnHint(turnHints, twy));
+                lastShown = twy;
             }
         }
 

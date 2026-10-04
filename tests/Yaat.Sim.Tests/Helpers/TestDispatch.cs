@@ -41,6 +41,7 @@ internal static class TestDispatch
             ValidateDctFixes = validateDctFixes,
             AutoCrossRunway = autoCrossRunway,
             SoloTrainingMode = soloTrainingMode,
+            SoloRpoCommandsAllowed = false,
             RpoShowPilotSpeech = rpoShowPilotSpeech,
             TerminalEmitter = terminalEmitter,
             ArtccConfig = artccConfig,

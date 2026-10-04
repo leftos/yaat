@@ -1,0 +1,33 @@
+# A1 — right-downwind follower behind a straight-in on a 2 NM final.
+# KOAK runway 28R, right traffic. Two VFR C172s, both inbound from the northwest,
+# neither placed on a leg by the scenario. The commands below fly them in.
+#
+#   N52417  lead     — C172 on the 28R extended centerline, straight in
+#   N738SP  follower — C172 northwest of the field, joins the right downwind
+#
+# Times are sim seconds. See card.md for what the clip shows.
+
+# t=1  Inhibit conflict alerts on both aircraft (CAINH toggles), so no STARS or ERAM
+#      alert draws over the follow. t=1 is the first second a script line may use.
+t=1 N52417 CAINH
+t=1 N738SP CAINH
+
+# t=2  Lead: join the 28R final straight-in, ~5.5 NM out.
+t=2 N52417 EF 28R
+
+# t=3  Follower: enter the right downwind for 28R, 2.5 NM back of the abeam.
+t=3 N738SP ERD 28R
+
+# t=4  Lead: cleared to land (it is on final, first in the sequence).
+t=4 N52417 CLAND 28R
+
+# t=100 Traffic advisory to the follower: C172 on final, 3 miles. Required before
+#        FOLLOW can be accepted — a pilot cannot follow traffic not in sight.
+t=100 N738SP RTIS FINAL 3 28R C172
+
+# t=142 The follow itself, with the lead at ~2 NM final and the follower on the downwind.
+t=142 N738SP FOLLOW N52417
+
+# t=144 Follower: cleared to land. Armed against the follow — it is applied when the
+#        follower joins 28R's final behind the traffic.
+t=144 N738SP CLAND 28R

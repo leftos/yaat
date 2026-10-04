@@ -11,8 +11,6 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.VisualTree;
 using Microsoft.Extensions.Logging;
-using MsBox.Avalonia;
-using MsBox.Avalonia.Base;
 using MsBox.Avalonia.Enums;
 using Yaat.Client.Logging;
 using Yaat.Client.Models;
@@ -66,7 +64,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
     public MainWindow()
     {
         InitializeComponent();
-        var vm = new MainViewModel(new AvaloniaFilePickerService(this));
+        var vm = new MainViewModel(FilePickerFactory.Create(this));
         DataContext = vm;
 
         // Apply the saved Interface font size into the app-level dynamic resources
@@ -855,7 +853,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
                     defaultOrder
                 );
                 Window ownerWindow = TopLevel.GetTopLevel(dataGrid) as Window ?? this;
-                await chooser.ShowDialog(ownerWindow);
+                await DialogPresenter.ShowModalAsync(chooser, ownerWindow);
 
                 if (!chooser.Confirmed)
                 {
@@ -2124,7 +2122,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         }
 
         var window = new LoadScenarioWindow(vm.Preferences, vm.Connection);
-        ScenarioLoadResult? result = await window.ShowDialog<ScenarioLoadResult?>(this);
+        ScenarioLoadResult? result = await DialogPresenter.ShowModalAsync<ScenarioLoadResult?>(window, this);
         if (result is null)
         {
             return;
@@ -2170,7 +2168,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         }
 
         var window = new LiveSessionWindow(vm.Preferences, vm.Connection);
-        LiveSessionChoice? choice = await window.ShowDialog<LiveSessionChoice?>(this);
+        LiveSessionChoice? choice = await DialogPresenter.ShowModalAsync<LiveSessionChoice?>(window, this);
         if (choice is null)
         {
             return;
@@ -2228,7 +2226,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
     {
         IEnumerable<string> existing = vm.Preferences.WindowProfiles.Select(p => p.Name);
         var dlg = new SaveWindowProfileDialog(existing, null);
-        await dlg.ShowDialog(this);
+        await DialogPresenter.ShowModalAsync(dlg, this);
 
         if (string.IsNullOrWhiteSpace(dlg.ProfileName))
         {
@@ -2243,7 +2241,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
     private async System.Threading.Tasks.Task OnManageWindowProfilesAsync(MainViewModel vm)
     {
         var dlg = new ManageWindowProfilesDialog(vm.Preferences);
-        await dlg.ShowDialog(this);
+        await DialogPresenter.ShowModalAsync(dlg, this);
 
         switch (dlg.Action)
         {
@@ -2374,11 +2372,11 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
     /// Returns keyboard focus to the main window after a profile-apply sweep has
     /// activated each pop-out in turn, so focus ends where the user triggered the
     /// apply while the pop-outs stay raised. Skipped when the profile itself put
-    /// the main window in a minimized state.
+    /// the main window in a minimized state, and in automation mode, which never activates a window.
     /// </summary>
     private void ReclaimFocusAfterProfileApply()
     {
-        if (WindowState != WindowState.Minimized)
+        if (!AutomationGate.SuppressActivation && (WindowState != WindowState.Minimized))
         {
             Activate();
         }
@@ -2469,7 +2467,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         {
             IReadOnlyList<string> airports = await vm.GetArtccAirportIdsAsync();
             var dialog = new ExtraViewAirportDialog(title, airports, vm.DefaultExtraViewAirportId, vm.IsKnownAirport);
-            await dialog.ShowDialog(this);
+            await DialogPresenter.ShowModalAsync(dialog, this);
             if (dialog.AirportId is { } airportId)
             {
                 open(vm, airportId);
@@ -2510,7 +2508,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         };
 
         var dlg = new CopyViewSettingsDialog(context);
-        await dlg.ShowDialog(this);
+        await DialogPresenter.ShowModalAsync(dlg, this);
         if (!dlg.Confirmed || dlg.SourceId is null)
         {
             return;
@@ -2728,7 +2726,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         }
 
         var window = new LoadWeatherWindow(vm.Preferences);
-        WeatherLoadResult? result = await window.ShowDialog<WeatherLoadResult?>(this);
+        WeatherLoadResult? result = await DialogPresenter.ShowModalAsync<WeatherLoadResult?>(window, this);
         if (result is null)
         {
             return;
@@ -2962,7 +2960,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             closeAction: () => connectWindow?.Close()
         );
         connectWindow = new ConnectWindow(connectVm, vm.Preferences);
-        await connectWindow.ShowDialog(this);
+        await DialogPresenter.ShowModalAsync(connectWindow, this);
     }
 
     private async void OnConfigureCrcClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
@@ -2986,7 +2984,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
     private async void OnAboutClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
         var about = new AboutWindow();
-        await about.ShowDialog(this);
+        await DialogPresenter.ShowModalAsync(about, this);
     }
 
     /// <summary>
@@ -3042,11 +3040,8 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         }
     }
 
-    private async Task<bool> AskYesNoAsync(string message)
-    {
-        IMsBox<ButtonResult> box = MessageBoxManager.GetMessageBoxStandard("YAAT", message, ButtonEnum.YesNo);
-        return await box.ShowWindowDialogAsync(this) == ButtonResult.Yes;
-    }
+    private async Task<bool> AskYesNoAsync(string message) =>
+        await MessageBoxPresenter.ShowStandardAsync(this, "YAAT", message, ButtonEnum.YesNo) == ButtonResult.Yes;
 
     private void OnCommandCheatsheetClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
@@ -3060,11 +3055,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         item?.Click += (_, _) => UrlLauncher.OpenInBrowser(url);
     }
 
-    private async Task ShowMessageAsync(string message)
-    {
-        IMsBox<ButtonResult> box = MessageBoxManager.GetMessageBoxStandard("YAAT", message, ButtonEnum.Ok);
-        await box.ShowWindowDialogAsync(this);
-    }
+    private async Task ShowMessageAsync(string message) => await MessageBoxPresenter.ShowStandardAsync(this, "YAAT", message, ButtonEnum.Ok);
 
     private async void OnSettingsClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e) =>
         await ShowSettingsDialogAsync(openOnSpeechTab: false);
@@ -3110,7 +3101,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         // Subscribe to live preview
         settingsVm?.VisualSettingsChanged += OnPreview;
 
-        await dialog.ShowDialog(this);
+        await DialogPresenter.ShowModalAsync(dialog, this);
 
         // Unsubscribe
         settingsVm?.VisualSettingsChanged -= OnPreview;
@@ -3383,18 +3374,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
     /// (e.g. RightCtrl) are matched by key alone because when Ctrl is pressed, <c>e.KeyModifiers</c>
     /// also includes the Control flag — comparing modifiers strictly would never match.
     /// </summary>
-    private bool IsPttKeyEvent(KeyEventArgs e)
-    {
-        if (e.Key != _pttKey)
-        {
-            return false;
-        }
-
-        return IsModifierOnlyKey(_pttKey) || e.KeyModifiers == _pttModifiers;
-    }
-
-    private static bool IsModifierOnlyKey(Key key) =>
-        key is Key.LeftShift or Key.RightShift or Key.LeftCtrl or Key.RightCtrl or Key.LeftAlt or Key.RightAlt or Key.LWin or Key.RWin;
+    private bool IsPttKeyEvent(KeyEventArgs e) => KeybindHelper.MatchesKeybind(e.Key, e.KeyModifiers, _pttKey, _pttModifiers);
 
     /// <summary>
     /// Confirms the destructive, playback-ending Take Control, with <paramref name="message"/> as the body text — the
@@ -3413,6 +3393,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             CanResize = false,
             ShowInTaskbar = false,
         };
+        AutomationGate.ApplyShowActivated(dialog);
 
         var confirmButton = new Button
         {
@@ -3453,7 +3434,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             },
         };
 
-        await dialog.ShowDialog(this);
+        await DialogPresenter.ShowModalAsync(dialog, this);
         return confirmed;
     }
 
@@ -3475,6 +3456,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             CanResize = false,
             ShowInTaskbar = false,
         };
+        AutomationGate.ApplyShowActivated(dialog);
 
         var settingsButton = new Button { Content = "Voice settings", HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Center };
         var startButton = new Button { Content = "Start anyway", HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Center };
@@ -3516,7 +3498,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             },
         };
 
-        await dialog.ShowDialog(this);
+        await DialogPresenter.ShowModalAsync(dialog, this);
         return choice;
     }
 
@@ -3527,7 +3509,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
     private async Task<bool> ShowSpeechTelemetryOptInAsync()
     {
         var dialog = new SpeechTelemetryOptInDialog();
-        await dialog.ShowDialog(this);
+        await DialogPresenter.ShowModalAsync(dialog, this);
         return dialog.Accepted;
     }
 
@@ -3539,7 +3521,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
     private async Task<BugReportForm?> ShowFileBugReportDialogAsync(bool attachesRecording)
     {
         var dialog = new FileBugReportDialog(attachesRecording);
-        await dialog.ShowDialog(this);
+        await DialogPresenter.ShowModalAsync(dialog, this);
         return dialog.Result;
     }
 
@@ -3594,6 +3576,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
                 CanResize = false,
                 ShowInTaskbar = false,
             };
+            AutomationGate.ApplyShowActivated(dialog);
 
             var yesButton = new Button
             {
@@ -3637,7 +3620,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
                 },
             };
 
-            await dialog.ShowDialog(this);
+            await DialogPresenter.ShowModalAsync(dialog, this);
 
             if (confirmed)
             {
@@ -3753,20 +3736,13 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         });
     }
 
-    private bool MatchesPttBinding(Key key, KeyModifiers modifiers)
-    {
-        if (key != _pttKey)
-        {
-            return false;
-        }
-
-        return IsModifierOnlyKey(_pttKey) || modifiers == _pttModifiers;
-    }
+    private bool MatchesPttBinding(Key key, KeyModifiers modifiers) => KeybindHelper.MatchesKeybind(key, modifiers, _pttKey, _pttModifiers);
 
     /// <summary>
     /// Focuses whichever command input is currently visible: the embedded one in MainWindow when
     /// the terminal is docked, or the popped-out <see cref="TerminalWindow"/>'s when it isn't.
-    /// Activating the owning window brings it forward so the focused box is on the active surface.
+    /// Activating the owning window brings it forward so the focused box is on the active surface;
+    /// automation mode skips the activation and only moves focus inside the window.
     /// Wired to <see cref="MainViewModel.RequestCommandInputFocus"/>.
     /// </summary>
     private void FocusActiveCommandInput()
@@ -3778,7 +3754,10 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
 
         if (!vm.IsTerminalPoppedOut)
         {
-            Activate();
+            if (!AutomationGate.SuppressActivation)
+            {
+                Activate();
+            }
             this.FindControl<CommandInputView>("CommandInputView")?.FocusCommandInput();
         }
         else

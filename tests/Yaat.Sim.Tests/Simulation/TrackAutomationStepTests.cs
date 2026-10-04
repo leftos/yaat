@@ -1,5 +1,6 @@
 using Xunit;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Scenarios;
 using Yaat.Sim.Simulation;
@@ -21,6 +22,7 @@ public class TrackAutomationStepTests
     private static readonly TrackOwner Student = TrackOwner.CreateStars("NCT_2B", "NCT", 2, "B");
     private static readonly TrackOwner Nct4Q = TrackOwner.CreateStars("NCT_4Q", "NCT", 4, "Q");
     private static readonly TrackOwner Nct4U = TrackOwner.CreateStars("NCT_4U", "NCT", 4, "U");
+    private static readonly TrackOwner Zoa14 = TrackOwner.CreateEram("OAK_14_CTR", "ZOA", "14");
 
     private readonly ArtccConfigRoot? _zoa = TestArtccConfig.LoadZoa();
 
@@ -74,6 +76,20 @@ public class TrackAutomationStepTests
     {
         AircraftState aircraft = engine.FindAircraft(AiTestFixture.Callsign)!;
         aircraft.Track.Owner = owner;
+        return aircraft;
+    }
+
+    /// <summary>
+    /// An airborne track near OAK, held at <paramref name="feetAboveField"/> above the field elevation the ERAM coverage
+    /// check resolves for it, owned by <paramref name="owner"/>.
+    /// </summary>
+    private static AircraftState AirborneOwned(SimulationEngine engine, TrackOwner owner, double feetAboveField)
+    {
+        AircraftState aircraft = AiTestFixture.Airborne("AAL1", 37.75, -122.25, 0);
+        aircraft.Altitude = FieldElevationResolver.Resolve(aircraft, NavigationDatabase.Instance) + feetAboveField;
+        aircraft.Targets.TargetAltitude = aircraft.Altitude;
+        aircraft.Track.Owner = owner;
+        engine.World.AddAircraft(aircraft);
         return aircraft;
     }
 
@@ -156,7 +172,7 @@ public class TrackAutomationStepTests
 
         SimScenarioState scenario = engine.Scenario!;
         scenario.AutoAcceptDelay = TimeSpan.FromSeconds(5);
-        AircraftState aircraft = Owned(engine, Student);
+        AircraftState aircraft = AirborneOwned(engine, Student, 5000);
         List<string> lines = CaptureTerminal(engine);
         aircraft.Track.HandoffPeer = Nct4U;
         aircraft.Track.HandoffInitiatedAt = scenario.ElapsedSeconds;
@@ -189,7 +205,7 @@ public class TrackAutomationStepTests
         SimScenarioState scenario = engine.Scenario!;
         scenario.AutoAcceptDelay = TimeSpan.FromSeconds(5);
         AttendanceTestSupport.Attend(engine, "4U");
-        AircraftState aircraft = Owned(engine, Student);
+        AircraftState aircraft = AirborneOwned(engine, Student, 5000);
         aircraft.Track.HandoffPeer = Nct4U;
         aircraft.Track.HandoffInitiatedAt = scenario.ElapsedSeconds;
 
@@ -200,7 +216,7 @@ public class TrackAutomationStepTests
     }
 
     [Fact]
-    public void SoloModeLeavesTheStudentsOwnHandoffPendingAndFloorsTheDelayAtThreeSeconds()
+    public void SoloModeLeavesTheStudentsOwnHandoffPendingAndFloorsTheDelayAtFiveSeconds()
     {
         if (Engine() is not { } toStudent)
         {
@@ -210,7 +226,7 @@ public class TrackAutomationStepTests
         SimScenarioState studentScenario = toStudent.Scenario!;
         studentScenario.SoloTrainingMode = true;
         studentScenario.AutoAcceptDelay = TimeSpan.Zero;
-        AircraftState handedToStudent = Owned(toStudent, Nct4U);
+        AircraftState handedToStudent = AirborneOwned(toStudent, Nct4U, 5000);
         handedToStudent.Track.HandoffPeer = Student;
         handedToStudent.Track.HandoffInitiatedAt = studentScenario.ElapsedSeconds;
 
@@ -223,11 +239,11 @@ public class TrackAutomationStepTests
         SimScenarioState aiScenario = toAi.Scenario!;
         aiScenario.SoloTrainingMode = true;
         aiScenario.AutoAcceptDelay = TimeSpan.Zero;
-        AircraftState handedToAi = Owned(toAi, Student);
+        AircraftState handedToAi = AirborneOwned(toAi, Student, 5000);
         handedToAi.Track.HandoffPeer = Nct4U;
         handedToAi.Track.HandoffInitiatedAt = aiScenario.ElapsedSeconds;
 
-        AiTestFixture.Tick(toAi, 2);
+        AiTestFixture.Tick(toAi, 4);
 
         Assert.NotNull(handedToAi.Track.HandoffPeer);
 
@@ -235,6 +251,116 @@ public class TrackAutomationStepTests
 
         Assert.Null(handedToAi.Track.HandoffPeer);
         Assert.True(handedToAi.Track.Owner!.MatchesPosition(Nct4U));
+    }
+
+    [Fact]
+    public void OnGroundHandoffIsNeverAutoAccepted()
+    {
+        if (Engine() is not { } engine)
+        {
+            return;
+        }
+
+        SimScenarioState scenario = engine.Scenario!;
+        scenario.AutoAcceptDelay = TimeSpan.FromSeconds(5);
+        AircraftState aircraft = Owned(engine, Student);
+        aircraft.Track.HandoffPeer = Zoa14;
+        aircraft.Track.HandoffInitiatedAt = scenario.ElapsedSeconds;
+
+        AiTestFixture.Tick(engine, 10);
+
+        Assert.True(aircraft.IsOnGround);
+        Assert.NotNull(aircraft.Track.HandoffPeer);
+        Assert.True(aircraft.Track.Owner!.MatchesPosition(Student));
+    }
+
+    [Fact]
+    public void HandoffBelowEramCoverageFloorIsNeverAutoAccepted()
+    {
+        if (Engine() is not { } engine)
+        {
+            return;
+        }
+
+        SimScenarioState scenario = engine.Scenario!;
+        scenario.AutoAcceptDelay = TimeSpan.FromSeconds(5);
+        AircraftState aircraft = AirborneOwned(engine, Student, 1000);
+        aircraft.Track.HandoffPeer = Zoa14;
+        aircraft.Track.HandoffInitiatedAt = scenario.ElapsedSeconds;
+
+        AiTestFixture.Tick(engine, 10);
+
+        Assert.NotNull(aircraft.Track.HandoffPeer);
+        Assert.True(aircraft.Track.Owner!.MatchesPosition(Student));
+    }
+
+    [Fact]
+    public void HandoffAboveEramCoverageFloorAutoAccepts()
+    {
+        if (Engine() is not { } engine)
+        {
+            return;
+        }
+
+        SimScenarioState scenario = engine.Scenario!;
+        scenario.AutoAcceptDelay = TimeSpan.FromSeconds(5);
+        AircraftState aircraft = AirborneOwned(engine, Student, 2000);
+        aircraft.Track.HandoffPeer = Zoa14;
+        aircraft.Track.HandoffInitiatedAt = scenario.ElapsedSeconds;
+
+        AiTestFixture.Tick(engine, 5);
+
+        Assert.Null(aircraft.Track.HandoffPeer);
+        Assert.True(aircraft.Track.Owner!.MatchesPosition(Zoa14));
+    }
+
+    [Fact]
+    public void QtCoastTrackHandoffIsNeverAutoAccepted()
+    {
+        if (Engine() is not { } engine)
+        {
+            return;
+        }
+
+        SimScenarioState scenario = engine.Scenario!;
+        scenario.AutoAcceptDelay = TimeSpan.FromSeconds(5);
+        AircraftState aircraft = AirborneOwned(engine, Student, 5000);
+        AircraftEramState eram = aircraft.Eram;
+        eram.IsCoastTrack = true;
+        eram.CoastLat = aircraft.Position.Lat;
+        eram.CoastLon = aircraft.Position.Lon;
+        eram.CoastStartSeconds = scenario.ElapsedSeconds;
+        eram.CoastAltitude = (int)(aircraft.Altitude / 100);
+        eram.CoastSpeed = 250;
+        eram.CoastTrueCourse = 90;
+        aircraft.Track.HandoffPeer = Zoa14;
+        aircraft.Track.HandoffInitiatedAt = scenario.ElapsedSeconds;
+
+        AiTestFixture.Tick(engine, 10);
+
+        Assert.True(aircraft.Eram.IsCoastTrack);
+        Assert.NotNull(aircraft.Track.HandoffPeer);
+        Assert.True(aircraft.Track.Owner!.MatchesPosition(Student));
+    }
+
+    [Fact]
+    public void GuardAppliesToStarsHandoffs()
+    {
+        if (Engine() is not { } engine)
+        {
+            return;
+        }
+
+        SimScenarioState scenario = engine.Scenario!;
+        scenario.AutoAcceptDelay = TimeSpan.FromSeconds(5);
+        AircraftState aircraft = AirborneOwned(engine, Student, 1000);
+        aircraft.Track.HandoffPeer = Nct4U;
+        aircraft.Track.HandoffInitiatedAt = scenario.ElapsedSeconds;
+
+        AiTestFixture.Tick(engine, 10);
+
+        Assert.NotNull(aircraft.Track.HandoffPeer);
+        Assert.True(aircraft.Track.Owner!.MatchesPosition(Student));
     }
 
     [Fact]
@@ -247,7 +373,7 @@ public class TrackAutomationStepTests
 
         SimScenarioState scenario = engine.Scenario!;
         scenario.AutoAcceptDelay = TimeSpan.Zero;
-        AircraftState aircraft = Owned(engine, Student);
+        AircraftState aircraft = AirborneOwned(engine, Student, 5000);
         aircraft.Track.HandoffPeer = Nct4U;
         aircraft.Track.HandoffInitiatedAt = scenario.ElapsedSeconds;
 
@@ -267,7 +393,7 @@ public class TrackAutomationStepTests
 
         SimScenarioState scenario = engine.Scenario!;
         scenario.AutoAcceptDelay = TimeSpan.FromSeconds(5);
-        AircraftState aircraft = engine.FindAircraft(AiTestFixture.Callsign)!;
+        AircraftState aircraft = AirborneOwned(engine, Student, 5000);
         aircraft.Track.SetOwnerFromLiveFeed(Student);
         aircraft.Track.HandoffPeer = Nct4U;
         aircraft.Track.HandoffInitiatedAt = scenario.ElapsedSeconds;

@@ -414,6 +414,21 @@ public class PhraseologyVerbalizerTests
         Assert.Equal("make right traffic runway two eight right", result);
     }
 
+    [Fact]
+    public void EnterFinal_WithRunway_ReadsBackMakeStraightInRunway()
+    {
+        // 7110.65 §3-10-1.a "MAKE STRAIGHT-IN"; the "…approach" variant is never spoken back.
+        string? result = PhraseologyVerbalizer.Verbalize(new EnterFinalCommand("28R"));
+        Assert.Equal("make straight in runway two eight right", result);
+    }
+
+    [Fact]
+    public void EnterFinal_WithoutRunway_ReadsBackMakeStraightIn()
+    {
+        string? result = PhraseologyVerbalizer.Verbalize(new EnterFinalCommand());
+        Assert.Equal("make straight in", result);
+    }
+
     // --- CrossFix ---
     // CEPIN is a real intersection in OAK-area test data with a published pronunciation
     // override of "seppin" (Data/ARTCCs/ZOA/FixPronunciations/ambiguous.json) — that's what

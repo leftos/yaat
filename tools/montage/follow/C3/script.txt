@@ -1,0 +1,35 @@
+# C3 — C172 pursuing a B738 extends past the jet's base turn.
+# KOAK runway 30 (10,507 ft; the airliner runway), right traffic. A VFR B738 and a VFR C172, neither placed on a leg
+# by the scenario.
+#
+#   SWA2471 lead     — B738 at 2,500 ft and 200 kt, 9 NM east of Lake Chabot (VPCBT), inbound direct Lake Chabot
+#   N738SP  follower — C172 at 1,500 ft and 100 kt on the same inbound, 3 NM ahead of the jet, which overtakes it
+#
+# The jet passes over the Cessna, the Cessna is told to follow it, and the jet is turned onto a right base for 30 at
+# once, less than half a mile ahead of the Cessna: the Cessna has not got the jet's spacing when the jet turns.
+# Times are sim seconds. See card.md for what the clip shows.
+
+# t=1  Inhibit conflict alerts on both aircraft (CAINH toggles).
+t=1 SWA2471 CAINH
+t=1 N738SP CAINH
+
+# t=1  Traffic advisories, both ways: the Cessna at 12 o'clock, 3 miles, westbound for the jet; the 737 at 6 o'clock,
+#      3 miles, westbound for the Cessna, which calls it in sight once the jet has passed.
+t=1 SWA2471 RTIS 12 3 W C172
+t=1 N738SP RTIS 6 3 W B738
+
+# t=2  Both aircraft: direct Lake Chabot.
+t=2 SWA2471 DCT VPCBT
+t=3 N738SP DCT VPCBT
+
+# t=112 The follow, with the jet just past the Cessna, 0.3 NM ahead.
+t=112 N738SP FOLLOW SWA2471
+
+# t=114 Jet: enter a right base for runway 30 from present position.
+t=114 SWA2471 ERB 30
+
+# t=140 Jet: cleared to land 30 (first in the sequence).
+t=140 SWA2471 CLAND 30
+
+# t=230 Follower: cleared to land 30, behind the jet.
+t=230 N738SP CLAND 30

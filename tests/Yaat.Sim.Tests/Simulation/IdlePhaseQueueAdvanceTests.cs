@@ -1,5 +1,6 @@
 using Xunit;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation;
@@ -274,5 +275,73 @@ public class IdlePhaseQueueAdvanceTests
         Assert.IsType<HoldingAfterPushbackPhase>(ac.Phases?.CurrentPhase);
         Assert.Null(ac.Ground.AssignedTaxiRoute);
         Assert.Contains(ac.Queue.Blocks, b => !b.IsApplied && (b.Description ?? "").Contains("TAXI", System.StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>
+    /// Issue #475: a `,` block whose taxi clears the idle phase carried a sibling the idle phase rejects on its own
+    /// (HS while holding after pushback). The idle advance judged every command of the block against
+    /// HoldingAfterPushbackPhase, so the block never applied; dispatched directly the same block taxis, because the
+    /// taxi clears the phase and the hold-short is judged by the TaxiingPhase it installs.
+    /// </summary>
+    [Theory]
+    [InlineData("SQ; SQNORM; PUSH; TAXIAUTO 30, HS B")]
+    [InlineData("SQ; SQNORM; PUSH; TAXI B3, HS B")]
+    public void TaxiWithParallelHoldShort_FiresAfterPushback(string command)
+    {
+        SimulationEngine? engine = BuildEngine();
+        if (engine is null)
+        {
+            _output.WriteLine("Skipped: OAK layout not available");
+            return;
+        }
+
+        AircraftState ac = AddParked(engine);
+        CommandResult result = engine.SendCommand(ac.Callsign, command);
+        Assert.True(result.Success, result.Message);
+        Assert.IsType<PushbackPhase>(ac.Phases?.CurrentPhase);
+
+        TickUntil(engine, 90, () => ac.Phases?.CurrentPhase is TaxiingPhase);
+        DumpQueue(ac);
+
+        Assert.True(
+            ac.Phases?.CurrentPhase is TaxiingPhase or HoldingShortPhase,
+            $"Queued taxi never fired after pushback; phase={ac.Phases?.CurrentPhase?.GetType().Name ?? "null"}"
+        );
+        Assert.NotNull(ac.Ground.AssignedTaxiRoute);
+        Assert.Contains(ac.Ground.AssignedTaxiRoute.HoldShortPoints, h => (h.TargetName == "B") && (h.Reason == HoldShortReason.ExplicitHoldShort));
+        Assert.All(ac.Queue.Blocks, b => Assert.True(b.IsApplied, $"block '{b.Description}' never applied"));
+    }
+
+    /// <summary>
+    /// A block whose idle-rejected command precedes the phase-clearing one stays held: it would fail at apply time too.
+    /// </summary>
+    [Fact]
+    public void HoldShortBeforeTaxi_StaysQueued()
+    {
+        SimulationEngine? engine = BuildEngine();
+        if (engine is null)
+        {
+            _output.WriteLine("Skipped: OAK layout not available");
+            return;
+        }
+
+        AircraftState ac = AddParked(engine);
+        CommandResult result = engine.SendCommand(ac.Callsign, "PUSH; HS B, TAXIAUTO 30");
+        Assert.True(result.Success, result.Message);
+
+        TickUntil(engine, 90, () => ac.Phases?.CurrentPhase is HoldingAfterPushbackPhase);
+        Assert.IsType<HoldingAfterPushbackPhase>(ac.Phases?.CurrentPhase);
+        int warningsAtIdle = ac.PendingWarnings.Count;
+
+        for (int t = 0; t < 10; t++)
+        {
+            engine.TickOneSecond();
+        }
+
+        DumpQueue(ac);
+        Assert.IsType<HoldingAfterPushbackPhase>(ac.Phases?.CurrentPhase);
+        Assert.Null(ac.Ground.AssignedTaxiRoute);
+        Assert.Contains(ac.Queue.Blocks, b => !b.IsApplied && (b.Description ?? "").Contains("HS", System.StringComparison.Ordinal));
+        Assert.Equal(warningsAtIdle, ac.PendingWarnings.Count);
     }
 }

@@ -353,7 +353,8 @@ public record CancelLandingClearanceCommand : ParsedCommand;
 /// <summary>
 /// CLANDF — instructor/RPO forced landing. Grants landing clearance and forces a touchdown,
 /// suppressing every automatic go-around and disregarding the stabilized-approach / too-high
-/// energy limits. RPO-only (rejected in solo training). Canceled by GA, CTOC, or touchdown.
+/// energy limits. RPO-only (rejected in solo training unless the scenario's SoloRpoCommandsAllowed
+/// development flag is set). Canceled by GA, CTOC, or touchdown.
 /// </summary>
 public record ForceLandingCommand : ParsedCommand;
 

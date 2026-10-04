@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The UI tests that need real pixels: Avalonia's headless platform with the Skia renderer
+       (UseHeadlessDrawing = false), which Yaat.Client.UI.Tests cannot use because the
+       AvaloniaTestApplication attribute that picks the platform is per assembly. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <!-- xUnit v3 test projects are executables (required by Avalonia.Headless.XUnit 12.x). -->
+    <OutputType>Exe</OutputType>
+    <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.8.1" />
+    <PackageReference Include="xunit.v3" Version="3.2.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Avalonia.Headless.XUnit" Version="12.1.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Yaat.Client\Yaat.Client.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The pipe fixture, the pipe client and the per-run app-data redirect are shared with Yaat.Client.UI.Tests. -->
+    <Compile Include="..\Yaat.Client.UI.Tests\Helpers\AutomationHostFixture.cs" Link="Helpers\AutomationHostFixture.cs" />
+    <Compile Include="..\Yaat.Client.UI.Tests\Helpers\AutomationPipeTestClient.cs" Link="Helpers\AutomationPipeTestClient.cs" />
+    <Compile Include="..\Yaat.Client.UI.Tests\ModuleInit.cs" Link="ModuleInit.cs" />
+    <!-- xunit.runner.json must be next to the test DLL or xUnit ignores it. -->
+    <Content Include="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

@@ -535,11 +535,13 @@ public sealed class PushbackPhase : Phase
             ctx.Targets.TargetSpeed = 0;
         }
 
-        // A forced tow ignores parked aircraft until it ends: its last move completes, or anything else ends a move — a
-        // command clearing the tow, which a new tow's install sets the flag again behind.
+        // A forced tow ignores parked aircraft, and every move of a tow is judged against the row it began in, until it
+        // ends: its last move completes, or anything else ends a move — a command clearing the tow, which a new tow's
+        // install sets both again behind.
         if ((endStatus != PhaseStatus.Completed) || IsLastMove)
         {
             ctx.Aircraft.Ground.ForcedTowIgnoresParked = false;
+            ctx.Aircraft.Ground.TowRowAnchor = null;
         }
 
         ctx.Aircraft.Ground.PushbackTrueHeading = null;

@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using ModelContextProtocol;
+using Yaat.ClientDriver.Mcp.Recording;
 
 namespace Yaat.ClientDriver.Mcp;
 
@@ -259,6 +260,39 @@ internal static partial class NativeInput
     }
 
     internal static bool IsMinimised(nint windowHandle) => (windowHandle != 0) && IsIconic(windowHandle);
+
+    /// <summary>
+    /// The window's visible frame (DWM's extended frame bounds, GetWindowRect when DWM does not answer), its client area on the
+    /// screen and whether it is minimized, all in physical pixels since this process is per-monitor-v2 aware; null when the
+    /// handle names no window.
+    /// </summary>
+    internal static WindowGeometry? ReadWindowGeometry(nint windowHandle)
+    {
+        if ((windowHandle == 0) || !GetClientRect(windowHandle, out Win32Rect client))
+        {
+            return null;
+        }
+
+        if (
+            (DwmGetWindowAttributeRect(windowHandle, DwmwaExtendedFrameBounds, out Win32Rect frame, Marshal.SizeOf<Win32Rect>()) != 0)
+            && !GetWindowRect(windowHandle, out frame)
+        )
+        {
+            return null;
+        }
+
+        var origin = new Win32Point();
+        if (!ClientToScreen(windowHandle, ref origin))
+        {
+            return null;
+        }
+
+        return new WindowGeometry(
+            new ScreenRect(frame.Left, frame.Top, frame.Right, frame.Bottom),
+            new ScreenRect(origin.X, origin.Y, origin.X + client.Right - client.Left, origin.Y + client.Bottom - client.Top),
+            IsIconic(windowHandle)
+        );
+    }
 
     /// <summary>Refuses a shift or ctrl click in virtual mode, before any window is looked up.</summary>
     internal static void RefuseVirtualModifiers(KeyModifiers modifiers)
@@ -774,6 +808,14 @@ internal static partial class NativeInput
     [LibraryImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static partial bool ScreenToClient(nint windowHandle, ref Win32Point point);
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool ClientToScreen(nint windowHandle, ref Win32Point point);
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool GetClientRect(nint windowHandle, out Win32Rect rect);
 
     [LibraryImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]

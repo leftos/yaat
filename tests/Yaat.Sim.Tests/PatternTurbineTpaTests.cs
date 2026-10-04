@@ -109,7 +109,7 @@ public class PatternTurbineTpaTests
         };
 
     [Fact]
-    public void DownwindPastAbeam_TargetsGlideslopeInterceptAtRollout_NotFractionOfTpa()
+    public void DownwindPastAbeam_TargetsLineToGlideslopeInterceptAtRollout_NotFractionOfTpa()
     {
         RunwayInfo rwy = TestRunwayFactory.Make(designator: "28", heading: 280, elevationFt: 9);
         PatternWaypoints wp = PatternGeometry.Compute(
@@ -154,18 +154,31 @@ public class PatternTurbineTpaTests
         phase.OnStart(ctx);
         phase.OnTick(ctx);
 
-        // Expected: the glideslope-intercept altitude at the base-to-final rollout point
-        // (base extension actually flown + one turn radius from the threshold), the same
-        // aim point BasePhase stabilizes on — not 60% of the way down from TPA.
-        double baseExtNm = GeoMath.AlongTrackDistanceNm(new LatLon(wp.BaseTurnLat, wp.BaseTurnLon), abeam, downwindHdg);
+        // The anchor: the glideslope-intercept altitude at the base-to-final rollout point BasePhase
+        // plans its descent to when it starts at the base trigger (the trigger's distance out, floored
+        // at one turn radius, plus one turn radius from the threshold) — not a fraction of TPA.
+        var threshold = new LatLon(wp.ThresholdLat, wp.ThresholdLon);
+        double baseTriggerNm =
+            GeoMath.AlongTrackDistanceNm(new LatLon(wp.BaseTurnLat, wp.BaseTurnLon), threshold, downwindHdg) - DownwindPhase.AlongTrackToleranceNm;
         double turnRadiusNm = BasePhase.TurnRadiusNm(BasePhase.PlannedSpeedKt(ac, AircraftCategory.Jet), AircraftCategory.Jet);
-        double expected = GlideSlopeGeometry.AltitudeAtDistance(baseExtNm + turnRadiusNm, rwy.ElevationFt, AircraftCategory.Jet);
+        double rolloutDistNm = Math.Max(baseTriggerNm, turnRadiusNm) + turnRadiusNm;
+        double rolloutAlt = GlideSlopeGeometry.AltitudeAtDistance(rolloutDistNm, rwy.ElevationFt, AircraftCategory.Jet);
+
+        // Expected at the base trigger: the point on the straight line from the aircraft to that
+        // anchor, the downwind flying its share and the base the rest over the distance it descends (the
+        // downwind-to-base arc plus the straight base to the start of the turn to final).
+        double remainingDwNm = baseTriggerNm - GeoMath.AlongTrackDistanceNm(ac.Position, threshold, downwindHdg);
+        double crossTrackNm = Math.Abs(GeoMath.SignedCrossTrackDistanceNm(ac.Position, threshold, wp.FinalHeading));
+        double baseLenNm = (Math.PI / 2.0 * turnRadiusNm) + Math.Max(crossTrackNm - (2.0 * turnRadiusNm), 0);
+        double expected = rolloutAlt + ((wp.PatternAltitude - rolloutAlt) * baseLenNm / (remainingDwNm + baseLenNm));
 
         Assert.NotNull(ctx.Targets.TargetAltitude);
         Assert.Equal(expected, ctx.Targets.TargetAltitude!.Value, 0);
+        Assert.True(ctx.Targets.DesiredVerticalRate < 0, $"Expected a descent rate, got {ctx.Targets.DesiredVerticalRate}.");
+        Assert.InRange(ctx.Targets.TargetAltitude!.Value, rolloutAlt + 1, wp.PatternAltitude - 1);
 
-        // Concrete pin so a formula/sign flip in both implementation and expectation can't
-        // pass tautologically: a category jet's 3° intercept at ~4.2 nm sits near 1,360 AGL.
-        Assert.InRange(ctx.Targets.TargetAltitude!.Value - rwy.ElevationFt, 1300, 1400);
+        // Concrete pin on the anchor so a formula/sign flip in both implementation and expectation
+        // can't pass tautologically: a category jet's 3° intercept at the rollout sits near 1,270 AGL.
+        Assert.InRange(rolloutAlt - rwy.ElevationFt, 1220, 1320);
     }
 }

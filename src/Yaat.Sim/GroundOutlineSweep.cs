@@ -1,6 +1,76 @@
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim;
+
+/// <summary>
+/// Where a tow began and which way its first move went: the pose the row anchor of
+/// <see cref="GroundOutlineSweep.FloorFt"/> slides the mover's outline from, and the direction it slides in. Set when a
+/// tow is installed — off a stand or from wherever a new tug instruction finds the aircraft — and carried unchanged
+/// through every later move of the same tow (continuations, a mid-push re-plan), so every move of it is judged against
+/// the same row.
+/// </summary>
+/// <param name="TowStartPose">The aircraft's pose where the tow began.</param>
+/// <param name="FirstKind">The tow's first move: a push slides the outline aft, a pull forward.</param>
+public readonly record struct TugRowAnchor(TugPose TowStartPose, PushbackLegKind FirstKind)
+{
+    /// <summary>The anchor as its snapshot DTO.</summary>
+    /// <returns>The DTO.</returns>
+    public TugRowAnchorDto ToSnapshot() =>
+        new()
+        {
+            Latitude = TowStartPose.Position.Lat,
+            Longitude = TowStartPose.Position.Lon,
+            NoseTrueDeg = TowStartPose.NoseTrueDeg,
+            FirstKind = FirstKind,
+        };
+
+    /// <summary>The anchor a snapshot DTO carries.</summary>
+    /// <param name="dto">The DTO.</param>
+    /// <returns>The anchor.</returns>
+    public static TugRowAnchor FromSnapshot(TugRowAnchorDto dto) =>
+        new(new TugPose(new LatLon(dto.Latitude, dto.Longitude), dto.NoseTrueDeg), dto.FirstKind);
+}
+
+/// <summary>
+/// The row clearances (<see cref="GroundOutlineSweep.RowClearanceFt"/>) measured so far, by row anchor and neighbour:
+/// each is a pure function of the anchor, the two types and the neighbour's pose, so it is measured once and reused
+/// for as long as those stay the same, and measured again when any of them changes. Never snapshotted — a restored
+/// tow measures it again and gets the same figure.
+/// </summary>
+internal sealed class TugRowClearances
+{
+    private readonly record struct Measured(string MoverType, TugPose NeighbourPose, string NeighbourType, double? RowClearanceFt);
+
+    private readonly Dictionary<(TugRowAnchor Anchor, string Neighbour), Measured> _measured = [];
+
+    /// <summary>The row clearance against one neighbour, measured once for these inputs (<see cref="GroundOutlineSweep.RowClearanceFt"/>).</summary>
+    /// <param name="anchor">Where the tow began and its first move's kind.</param>
+    /// <param name="moverType">The towed aircraft's ICAO type designator.</param>
+    /// <param name="neighbourCallsign">The neighbour's callsign, which keys it.</param>
+    /// <param name="neighbourPose">Where the neighbour stands, with its nose.</param>
+    /// <param name="neighbourType">The neighbour's ICAO type designator.</param>
+    /// <returns>The row clearance, feet, or null when it does not count.</returns>
+    internal double? RowClearanceFt(TugRowAnchor anchor, string moverType, string neighbourCallsign, TugPose neighbourPose, string neighbourType)
+    {
+        if (
+            _measured.TryGetValue((anchor, neighbourCallsign), out Measured measured)
+            && (measured.MoverType == moverType)
+            && (measured.NeighbourPose == neighbourPose)
+            && (measured.NeighbourType == neighbourType)
+        )
+        {
+            return measured.RowClearanceFt;
+        }
+
+        double? rowFt = GroundOutlineSweep.RowClearanceFt(anchor, moverType, neighbourPose, neighbourType);
+        _measured[(anchor, neighbourCallsign)] = new Measured(moverType, neighbourPose, neighbourType, rowFt);
+        return rowFt;
+    }
+
+    /// <summary>Forgets every measurement.</summary>
+    internal void Clear() => _measured.Clear();
+}
 
 /// <summary>Where a swept outline first falls through the clearance floor.</summary>
 /// <param name="SampleIndex">The index of the first fouled sample in the swept path.</param>
@@ -11,12 +81,16 @@ internal readonly record struct GroundOutlineFoul(int SampleIndex, double AlongF
 
 /// <summary>What sweeping a mover's outline along a path against one neighbour found.</summary>
 /// <param name="StartClearanceFt">The clearance at the pose the floor is anchored to, feet.</param>
+/// <param name="RowClearanceFt">
+/// The row anchor's clearance (<see cref="GroundOutlineSweep.RowClearanceFt"/>), feet; null when it does not count.
+/// </param>
 /// <param name="FloorFt">The floor the sweep was judged against, feet.</param>
 /// <param name="SampleCount">How many samples the path carried.</param>
 /// <param name="ClosestFt">The closest the outlines came over the samples that were measured, feet; null when none was in reach.</param>
 /// <param name="Foul">Where the clearance first fell through the floor, or null when the whole path clears it.</param>
 internal readonly record struct GroundOutlineSweepResult(
     double StartClearanceFt,
+    double? RowClearanceFt,
     double FloorFt,
     int SampleCount,
     double? ClosestFt,
@@ -53,10 +127,42 @@ internal static class GroundOutlineSweep
     public const double OutlineClearanceSlackFt = 0.5;
 
     /// <summary>
-    /// The clearance a sweep may not fall through, feet: <see cref="WingtipBufferFt"/>, or — for
-    /// a neighbour the move already starts closer to than that, as the aircraft on the next stand usually is — no
-    /// closer than it started, less <see cref="OutlineClearanceSlackFt"/>. Never below that
-    /// slack, so contact is never passable.
+    /// The least row clearance the row anchor of <see cref="FloorFt"/> counts, feet [J]: about ICAO Annex 14's smallest
+    /// stand clearance. Under it the floor stays where the move started (OAK 26 → 27, a 6.2 ft row, still holds).
+    /// </summary>
+    public const double RowAnchorMinFt = 10.0;
+
+    /// <summary>
+    /// How far a neighbour's nose may point from the mover's nose where the tow began for the row anchor of <see cref="FloorFt"/> to
+    /// count it, degrees [J]: the same direction, not modulo 180, so a nose-to-tail neighbour is not in the row.
+    /// </summary>
+    public const double RowAnchorNoseToleranceDeg = 10.0;
+
+    /// <summary>
+    /// The step the row anchor slides the mover's outline in, feet [J]: the slide's least clearance is read within about
+    /// this much travel of where it really is, which over a wingtip passing abeam moves it by well under the
+    /// <see cref="OutlineClearanceSlackFt"/>.
+    /// </summary>
+    public const double RowSlideStepFt = 1.0;
+
+    /// <summary>
+    /// The clearance a sweep may not fall through, feet: <see cref="WingtipBufferFt"/>, or — for a neighbour the move
+    /// already starts closer to than that, as the aircraft on the next stand usually is, or one in the mover's own row
+    /// that its wingtips pass closer than that — the least of where it started and the row clearance, less
+    /// <see cref="OutlineClearanceSlackFt"/>. Never below that slack, so contact is never passable. In full,
+    /// <c>max(0.5, min(25, start, row) − 0.5)</c>, for every tug move, turning ones included: a swing closer than the row
+    /// lets the wings pass still falls through it.
+    ///
+    /// <para>The row anchor (<see cref="RowClearanceFt"/>) is the least clearance the mover's outline, at the pose the
+    /// tow started from (<see cref="TugRowAnchor"/>), keeps from the neighbour as it slides along its own nose axis in the
+    /// tow's first move's direction only — aft for a push, forward for a pull — from 0 past the neighbour's abeam point
+    /// by the two outlines' reaches, and is carried unchanged through every later move of the same tow. A stand staggered
+    /// further back in a row of parallel stands starts further off than the row's wingtip gap, and a straight push
+    /// past it passes it abeam at that gap and never closer; anchored to the start alone, that push was held at the
+    /// stand forever. The anchor counts only a neighbour whose nose is within <see cref="RowAnchorNoseToleranceDeg"/> of
+    /// the mover's nose where the tow began, in the same direction [J], and only a row clearance of at least
+    /// <see cref="RowAnchorMinFt"/> [J]; otherwise the floor is anchored to the start alone. A neighbour on the push line
+    /// overlaps the slide and keeps that floor. [J] marks a judgement call.</para>
     ///
     /// <para>The floor this works out to — 24.5 ft for the pair of E75Ls on adjacent SFO gates, off
     /// <see cref="WingtipBufferFt"/>'s 25 ft — sits between AC 150/5300-13B's taxilane-to-object
@@ -66,19 +172,37 @@ internal static class GroundOutlineSweep
     /// the swing in the wing walkers' judgement before the move rather than on a design clearance. The AC 150/5300-13B
     /// figures are quoted from memory; that AC is not on disk here.</para>
     /// </summary>
-    /// <param name="startClearanceFt">The clearance at the pose the floor is anchored to, feet.</param>
+    /// <param name="anchorClearanceFt">
+    /// The clearance the floor is anchored to, feet: the clearance at the move's start, or the row clearance when the row
+    /// anchor counts and is the smaller.
+    /// </param>
     /// <returns>The floor, feet.</returns>
-    internal static double FloorFt(double startClearanceFt) =>
-        Math.Max(OutlineClearanceSlackFt, Math.Min(WingtipBufferFt, startClearanceFt) - OutlineClearanceSlackFt);
+    internal static double FloorFt(double anchorClearanceFt) =>
+        Math.Max(OutlineClearanceSlackFt, Math.Min(WingtipBufferFt, anchorClearanceFt) - OutlineClearanceSlackFt);
+
+    /// <summary>
+    /// <see cref="FloorFt"/> anchored to the clearance where the move started and to the row clearance when it counts:
+    /// the one floor <see cref="Sweep"/> and <see cref="TowStartFloorFt"/> both judge by.
+    /// </summary>
+    /// <param name="startClearanceFt">The clearance where the move started, feet.</param>
+    /// <param name="rowClearanceFt">The row clearance (<see cref="RowClearanceFt"/>), feet, or null when it does not count.</param>
+    /// <returns>The floor, feet.</returns>
+    internal static double AnchoredFloorFt(double startClearanceFt, double? rowClearanceFt) =>
+        FloorFt(Math.Min(startClearanceFt, rowClearanceFt ?? double.MaxValue));
 
     /// <summary>
     /// Sweeps <paramref name="path"/> against one neighbour. The floor is anchored to <paramref name="startPose"/> —
     /// where the move began, not where it has got to — because a floor read off the live pose follows the mover down
-    /// and ratchets it into contact a foot at a time. A sample whose reference point is far enough away that no part of
+    /// and ratchets it into contact a foot at a time; and, through <paramref name="rowClearanceFt"/>, to the row the tow
+    /// began in (<see cref="AnchoredFloorFt"/>). A sample whose reference point is far enough away that no part of
     /// either outline can be under the floor is not measured.
     /// </summary>
     /// <param name="path">The poses to sweep, each with how far along the path it sits, feet.</param>
     /// <param name="startPose">The pose the move began at; the floor is anchored to its clearance.</param>
+    /// <param name="rowClearanceFt">
+    /// The tow's row clearance from this neighbour (<see cref="RowClearanceFt"/>), feet, or null for a floor anchored to
+    /// the start alone.
+    /// </param>
     /// <param name="frame">The flat frame both outlines are built in.</param>
     /// <param name="moverSize">The mover's outline size, with the tug's lead when it is being pulled.</param>
     /// <param name="obstaclePosition">Where the neighbour stands.</param>
@@ -88,6 +212,7 @@ internal static class GroundOutlineSweep
     internal static GroundOutlineSweepResult Sweep(
         IReadOnlyList<(TugPose Pose, double AlongFt)> path,
         TugPose startPose,
+        double? rowClearanceFt,
         GroundOutlineFrame frame,
         GroundOutlineSize moverSize,
         LatLon obstaclePosition,
@@ -98,7 +223,7 @@ internal static class GroundOutlineSweep
         OutlinePoint obstacleCentre = frame.ToLocal(obstaclePosition);
         var obstacleOutline = GroundOutline.At(obstacleCentre, obstacleNoseTrueDeg, obstacleSize);
         double startFt = ClearanceAt(startPose, frame, moverSize, obstacleOutline);
-        double floorFt = FloorFt(startFt);
+        double floorFt = AnchoredFloorFt(startFt, rowClearanceFt);
         double reachFt = moverSize.ReachFt + obstacleSize.ReachFt;
         double closestFt = double.MaxValue;
         for (int i = 0; i < path.Count; i++)
@@ -119,10 +244,89 @@ internal static class GroundOutlineSweep
             (TugPose Pose, double AlongFt) previous = path[Math.Max(0, i - 1)];
             double previousClearanceFt = ClearanceAt(previous.Pose, frame, moverSize, obstacleOutline);
             double crossingFt = FloorCrossingAlongFt(floorFt, (previous.AlongFt, previousClearanceFt), (alongFt, clearanceFt));
-            return new GroundOutlineSweepResult(startFt, floorFt, path.Count, closestFt, new GroundOutlineFoul(i, alongFt, clearanceFt, crossingFt));
+            var foul = new GroundOutlineFoul(i, alongFt, clearanceFt, crossingFt);
+            return new GroundOutlineSweepResult(startFt, rowClearanceFt, floorFt, path.Count, closestFt, foul);
         }
 
-        return new GroundOutlineSweepResult(startFt, floorFt, path.Count, closestFt < double.MaxValue ? closestFt : null, null);
+        double? measuredClosestFt = closestFt < double.MaxValue ? closestFt : null;
+        return new GroundOutlineSweepResult(startFt, rowClearanceFt, floorFt, path.Count, measuredClosestFt, null);
+    }
+
+    /// <summary>
+    /// The floor a tow's first move is held to against one neighbour, feet: <see cref="FloorFt"/> anchored to the
+    /// clearance where the tow began and to the row (<see cref="RowClearanceFt"/>), the figures <see cref="Sweep"/> works
+    /// out for that move from the same anchor.
+    /// </summary>
+    /// <param name="rowAnchor">Where the tow began and its first move's kind.</param>
+    /// <param name="moverType">The towed aircraft's ICAO type designator.</param>
+    /// <param name="neighbourPose">Where the neighbour stands, with its nose.</param>
+    /// <param name="neighbourType">The neighbour's ICAO type designator.</param>
+    /// <returns>The floor, feet.</returns>
+    internal static double TowStartFloorFt(TugRowAnchor rowAnchor, string moverType, TugPose neighbourPose, string neighbourType)
+    {
+        var frame = new GroundOutlineFrame(rowAnchor.TowStartPose.Position);
+        var moverSize = GroundOutlineSize.Of(moverType, towedNoseFirst: rowAnchor.FirstKind == PushbackLegKind.Pull);
+        var neighbourSize = GroundOutlineSize.Of(neighbourType, towedNoseFirst: false);
+        var neighbourOutline = GroundOutline.At(frame.ToLocal(neighbourPose.Position), neighbourPose.NoseTrueDeg, neighbourSize);
+        double startFt = ClearanceAt(rowAnchor.TowStartPose, frame, moverSize, neighbourOutline);
+        return AnchoredFloorFt(startFt, RowClearanceFt(rowAnchor, moverType, neighbourPose, neighbourType));
+    }
+
+    /// <summary>
+    /// The row anchor's clearance, feet (<see cref="FloorFt"/>): the least clearance the mover's outline — no tug lead —
+    /// keeps from the neighbour's as it slides from <see cref="TugRowAnchor.TowStartPose"/> along its own nose axis, aft
+    /// for a tow whose first move is a push and forward for a pull, in steps of <see cref="RowSlideStepFt"/>, as far as
+    /// the neighbour's abeam point along that axis plus the two outlines' reaches, so a neighbour staggered however far
+    /// back is measured where the wings pass. A step whose reference point is too far off to come closer than the least
+    /// clearance found so far is not measured. Null when it does not count: the neighbour's nose is more than
+    /// <see cref="RowAnchorNoseToleranceDeg"/> off the mover's, or the slide comes closer than
+    /// <see cref="RowAnchorMinFt"/> — as it does for a neighbour on the push line, which it overlaps. Measured in a frame
+    /// on the tow's start, so the figure depends on its inputs alone and the same inputs always give the same figure
+    /// (<see cref="TugRowClearances"/>).
+    /// </summary>
+    /// <param name="anchor">Where the tow began and its first move's kind.</param>
+    /// <param name="moverType">The towed aircraft's ICAO type designator.</param>
+    /// <param name="neighbourPose">Where the neighbour stands, with its nose.</param>
+    /// <param name="neighbourType">The neighbour's ICAO type designator.</param>
+    /// <returns>The row clearance, feet, or null when it does not count.</returns>
+    internal static double? RowClearanceFt(TugRowAnchor anchor, string moverType, TugPose neighbourPose, string neighbourType)
+    {
+        TugPose start = anchor.TowStartPose;
+        if (new TrueHeading(start.NoseTrueDeg).AbsAngleTo(new TrueHeading(neighbourPose.NoseTrueDeg)) > RowAnchorNoseToleranceDeg)
+        {
+            return null;
+        }
+
+        var frame = new GroundOutlineFrame(start.Position);
+        var moverSize = GroundOutlineSize.Of(moverType, towedNoseFirst: false);
+        var neighbourSize = GroundOutlineSize.Of(neighbourType, towedNoseFirst: false);
+        OutlinePoint neighbourCentre = frame.ToLocal(neighbourPose.Position);
+        var neighbourOutline = GroundOutline.At(neighbourCentre, neighbourPose.NoseTrueDeg, neighbourSize);
+        double slideRad = (anchor.FirstKind == PushbackLegKind.Push ? start.NoseTrueDeg + 180.0 : start.NoseTrueDeg) * Math.PI / 180.0;
+        var slideStep = new OutlinePoint(Math.Sin(slideRad), Math.Cos(slideRad));
+        OutlinePoint origin = frame.ToLocal(start.Position);
+        OutlinePoint toNeighbour = neighbourCentre - origin;
+        double abeamFt = Math.Max(0.0, (toNeighbour.EastFt * slideStep.EastFt) + (toNeighbour.NorthFt * slideStep.NorthFt));
+        double reachFt = moverSize.ReachFt + neighbourSize.ReachFt;
+        double slideFt = abeamFt + reachFt;
+        int steps = (int)Math.Ceiling(slideFt / RowSlideStepFt);
+        double leastFt = double.MaxValue;
+        for (int i = 0; i <= steps; i++)
+        {
+            OutlinePoint centre = origin + (Math.Min(i * RowSlideStepFt, slideFt) * slideStep);
+            if ((OutlinePoint.Distance(centre, neighbourCentre) - reachFt) >= leastFt)
+            {
+                continue;
+            }
+
+            leastFt = Math.Min(leastFt, GroundOutline.Clearance(GroundOutline.At(centre, start.NoseTrueDeg, moverSize), neighbourOutline));
+            if (leastFt < RowAnchorMinFt)
+            {
+                return null;
+            }
+        }
+
+        return leastFt;
     }
 
     /// <summary>The mover's outline clearance from the neighbour at one sample of its path, feet.</summary>

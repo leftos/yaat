@@ -1,8 +1,6 @@
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
-using MsBox.Avalonia;
-using MsBox.Avalonia.Base;
 using MsBox.Avalonia.Enums;
 using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
@@ -212,7 +210,7 @@ public partial class FavoritesEditorWindow : Window
     private async void OnNewSetClick(object? sender, RoutedEventArgs e)
     {
         var dlg = new FavoriteSetNameDialog(NamedSetNames, null) { Title = "New Favorite Set" };
-        await dlg.ShowDialog(this);
+        await DialogPresenter.ShowModalAsync(dlg, this);
         if (dlg.SetName is null)
         {
             return;
@@ -241,7 +239,7 @@ public partial class FavoritesEditorWindow : Window
 
         IEnumerable<string> others = NamedSetNames.Where(n => !string.Equals(n, set.Name, StringComparison.OrdinalIgnoreCase));
         var dlg = new FavoriteSetNameDialog(others, set.Name) { Title = "Rename Favorite Set" };
-        await dlg.ShowDialog(this);
+        await DialogPresenter.ShowModalAsync(dlg, this);
         if (dlg.SetName is null || string.Equals(dlg.SetName, set.Name, StringComparison.Ordinal))
         {
             return;
@@ -271,12 +269,12 @@ public partial class FavoritesEditorWindow : Window
             return;
         }
 
-        IMsBox<ButtonResult> box = MessageBoxManager.GetMessageBoxStandard(
+        ButtonResult result = await MessageBoxPresenter.ShowStandardAsync(
+            this,
             "Delete set?",
             $"Delete \"{set.DisplayName}\"? Its favorites are kept — any not in another set move to \"Not in any set\".",
             ButtonEnum.YesNo
         );
-        ButtonResult result = await box.ShowWindowDialogAsync(this);
         if (result != ButtonResult.Yes)
         {
             return;
@@ -358,7 +356,7 @@ public partial class FavoritesEditorWindow : Window
     private async Task TransferToNewSetAsync(bool move)
     {
         var dlg = new FavoriteSetNameDialog(NamedSetNames, null) { Title = "New Favorite Set" };
-        await dlg.ShowDialog(this);
+        await DialogPresenter.ShowModalAsync(dlg, this);
         if (dlg.SetName is null)
         {
             return;
@@ -430,12 +428,12 @@ public partial class FavoritesEditorWindow : Window
             return;
         }
 
-        IMsBox<ButtonResult> box = MessageBoxManager.GetMessageBoxStandard(
+        ButtonResult result = await MessageBoxPresenter.ShowStandardAsync(
+            this,
             "Delete favorites?",
             $"Delete {selected.Count} favorite(s) everywhere, from every set?",
             ButtonEnum.YesNo
         );
-        ButtonResult result = await box.ShowWindowDialogAsync(this);
         if (result != ButtonResult.Yes)
         {
             return;

@@ -7,21 +7,12 @@
   "families": [
     {
       "family": "TrafficAdvisoryRules",
-      "cases": 7,
+      "cases": 5,
       "pass": 2,
       "flaky": 0,
-      "fail": 5,
-      "passRate": 0.2857142857142857,
-      "meanWer": 0.14612768184196753
-    },
-    {
-      "family": "HoldRules",
-      "cases": 6,
-      "pass": 2,
-      "flaky": 0,
-      "fail": 4,
-      "passRate": 0.3333333333333333,
-      "meanWer": 0.2317460317460317
+      "fail": 3,
+      "passRate": 0.4,
+      "meanWer": 0.17443223443223443
     },
     {
       "family": "PtacRules",
@@ -30,119 +21,118 @@
       "flaky": 0,
       "fail": 3,
       "passRate": 0.5,
-      "meanWer": 0.18412698412698414
+      "meanWer": 0.1126984126984127
     },
     {
-      "family": "HelicopterRules",
+      "family": "HoldRules",
       "cases": 5,
       "pass": 3,
       "flaky": 0,
       "fail": 2,
       "passRate": 0.6,
-      "meanWer": 0.24603174603174605
-    },
-    {
-      "family": "BroadcastRules",
-      "cases": 8,
-      "pass": 5,
-      "flaky": 0,
-      "fail": 3,
-      "passRate": 0.625,
-      "meanWer": 0.5354166666666667
-    },
-    {
-      "family": "PatternRules",
-      "cases": 15,
-      "pass": 10,
-      "flaky": 0,
-      "fail": 5,
-      "passRate": 0.6666666666666666,
-      "meanWer": 0.26455026455026454
-    },
-    {
-      "family": "GroundRules",
-      "cases": 33,
-      "pass": 24,
-      "flaky": 0,
-      "fail": 9,
-      "passRate": 0.7272727272727273,
-      "meanWer": 0.08400168229889592
-    },
-    {
-      "family": "NavigationRules",
-      "cases": 16,
-      "pass": 12,
-      "flaky": 0,
-      "fail": 4,
-      "passRate": 0.75,
-      "meanWer": 0.22493235930735928
+      "meanWer": 0.14079365079365078
     },
     {
       "family": "TransponderRules",
+      "cases": 9,
+      "pass": 6,
+      "flaky": 0,
+      "fail": 3,
+      "passRate": 0.6666666666666666,
+      "meanWer": 0.5648148148148149
+    },
+    {
+      "family": "AltitudeSpeedRules",
+      "cases": 26,
+      "pass": 18,
+      "flaky": 0,
+      "fail": 8,
+      "passRate": 0.6923076923076923,
+      "meanWer": 0.20018315018315022
+    },
+    {
+      "family": "NavigationRules",
+      "cases": 14,
+      "pass": 10,
+      "flaky": 0,
+      "fail": 4,
+      "passRate": 0.7142857142857143,
+      "meanWer": 0.25545506081220365
+    },
+    {
+      "family": "GroundRules",
+      "cases": 34,
+      "pass": 26,
+      "flaky": 0,
+      "fail": 8,
+      "passRate": 0.7647058823529411,
+      "meanWer": 0.14130354459074182
+    },
+    {
+      "family": "BroadcastRules",
       "cases": 9,
       "pass": 7,
       "flaky": 0,
       "fail": 2,
       "passRate": 0.7777777777777778,
-      "meanWer": 0.8685185185185186
+      "meanWer": 0.15740740740740738
     },
     {
-      "family": "AltitudeSpeedRules",
-      "cases": 27,
-      "pass": 22,
+      "family": "HeadingRules",
+      "cases": 10,
+      "pass": 8,
       "flaky": 0,
-      "fail": 5,
-      "passRate": 0.8148148148148148,
-      "meanWer": 0.2736331569664903
-    },
-    {
-      "family": "ApproachRules",
-      "cases": 17,
-      "pass": 14,
-      "flaky": 0,
-      "fail": 3,
-      "passRate": 0.8235294117647058,
-      "meanWer": 0.08391690009337067
+      "fail": 2,
+      "passRate": 0.8,
+      "meanWer": 0.22000000000000003
     },
     {
       "family": "Compound",
       "cases": 15,
-      "pass": 14,
+      "pass": 13,
       "flaky": 0,
-      "fail": 1,
-      "passRate": 0.9333333333333333,
-      "meanWer": 0.08372442372442372
+      "fail": 2,
+      "passRate": 0.8666666666666667,
+      "meanWer": 0.08606060606060605
     },
     {
       "family": "TowerRules",
       "cases": 25,
-      "pass": 24,
+      "pass": 22,
       "flaky": 0,
-      "fail": 1,
-      "passRate": 0.96,
-      "meanWer": 0.08038095238095239
+      "fail": 3,
+      "passRate": 0.88,
+      "meanWer": 0.1248205128205128
     },
     {
-      "family": "HeadingRules",
-      "cases": 11,
-      "pass": 11,
+      "family": "ApproachRules",
+      "cases": 20,
+      "pass": 18,
+      "flaky": 0,
+      "fail": 2,
+      "passRate": 0.9,
+      "meanWer": 0.10853174603174602
+    },
+    {
+      "family": "PatternRules",
+      "cases": 16,
+      "pass": 15,
+      "flaky": 0,
+      "fail": 1,
+      "passRate": 0.9375,
+      "meanWer": 0.1226190476190476
+    },
+    {
+      "family": "HelicopterRules",
+      "cases": 6,
+      "pass": 6,
       "flaky": 0,
       "fail": 0,
       "passRate": 1,
-      "meanWer": 0.048484848484848485
+      "meanWer": 0
     }
   ],
   "templates": [
-    {
-      "template": "atxi",
-      "family": "HelicopterRules",
-      "cases": 1,
-      "pass": 0,
-      "flaky": 0,
-      "fail": 1,
-      "passRate": 0,
-      "meanWer": 0.8333333333333334
-    },
     {
       "template": "cfix-spd",
       "family": "NavigationRules",
@@ -151,57 +141,57 @@
       "flaky": 0,
       "fail": 1,
       "passRate": 0,
-      "meanWer": 0.2727272727272727
+      "meanWer": 0.45454545454545453
     },
     {
-      "template": "circle",
-      "family": "PatternRules",
+      "template": "cvia",
+      "family": "AltitudeSpeedRules",
       "cases": 2,
       "pass": 0,
       "flaky": 0,
       "fail": 2,
       "passRate": 0,
-      "meanWer": 0.8
+      "meanWer": 0.2
     },
     {
-      "template": "cvia",
+      "template": "cvia-alt",
+      "family": "AltitudeSpeedRules",
+      "cases": 2,
+      "pass": 0,
+      "flaky": 0,
+      "fail": 2,
+      "passRate": 0,
+      "meanWer": 0.1875
+    },
+    {
+      "template": "dsr",
       "family": "AltitudeSpeedRules",
       "cases": 1,
       "pass": 0,
       "flaky": 0,
       "fail": 1,
       "passRate": 0,
-      "meanWer": 0.4
+      "meanWer": 1.8
     },
     {
-      "template": "eapp-ils",
-      "family": "ApproachRules",
+      "template": "fph",
+      "family": "HeadingRules",
       "cases": 1,
       "pass": 0,
       "flaky": 0,
       "fail": 1,
       "passRate": 0,
-      "meanWer": 0.14285714285714285
+      "meanWer": 0.2
     },
     {
-      "template": "eld",
-      "family": "PatternRules",
-      "cases": 2,
+      "template": "giveway",
+      "family": "GroundRules",
+      "cases": 1,
       "pass": 0,
       "flaky": 0,
-      "fail": 2,
+      "fail": 1,
       "passRate": 0,
-      "meanWer": 0.3571428571428571
-    },
-    {
-      "template": "hfixl",
-      "family": "HoldRules",
-      "cases": 2,
-      "pass": 0,
-      "flaky": 0,
-      "fail": 2,
-      "passRate": 0,
-      "meanWer": 0.30952380952380953
+      "meanWer": 0.42857142857142855
     },
     {
       "template": "hfixr",
@@ -211,27 +201,17 @@
       "flaky": 0,
       "fail": 1,
       "passRate": 0,
-      "meanWer": 0.42857142857142855
+      "meanWer": 0.25
     },
     {
-      "template": "hs-twy-at",
-      "family": "GroundRules",
+      "template": "luaw",
+      "family": "TowerRules",
       "cases": 1,
       "pass": 0,
       "flaky": 0,
       "fail": 1,
       "passRate": 0,
-      "meanWer": 0.1111111111111111
-    },
-    {
-      "template": "ident",
-      "family": "TransponderRules",
-      "cases": 2,
-      "pass": 0,
-      "flaky": 0,
-      "fail": 2,
-      "passRate": 0,
-      "meanWer": 0.20833333333333331
+      "meanWer": 0.375
     },
     {
       "template": "ptac-fh-rnav",
@@ -241,10 +221,10 @@
       "flaky": 0,
       "fail": 2,
       "passRate": 0,
-      "meanWer": 0.2857142857142857
+      "meanWer": 0.17142857142857143
     },
     {
-      "template": "push-onto",
+      "template": "push-face",
       "family": "GroundRules",
       "cases": 1,
       "pass": 0,
@@ -254,148 +234,158 @@
       "meanWer": 0.3333333333333333
     },
     {
-      "template": "rtis-dw",
-      "family": "TrafficAdvisoryRules",
+      "template": "push-onto",
+      "family": "GroundRules",
       "cases": 2,
       "pass": 0,
       "flaky": 0,
       "fail": 2,
       "passRate": 0,
-      "meanWer": 0.23214285714285715
+      "meanWer": 0.3333333333333333
     },
     {
       "template": "rtis-left",
       "family": "TrafficAdvisoryRules",
-      "cases": 1,
-      "pass": 0,
-      "flaky": 0,
-      "fail": 1,
-      "passRate": 0,
-      "meanWer": 0.2
-    },
-    {
-      "template": "salt",
-      "family": "BroadcastRules",
-      "cases": 1,
-      "pass": 0,
-      "flaky": 0,
-      "fail": 1,
-      "passRate": 0,
-      "meanWer": 0.8
-    },
-    {
-      "template": "sspd",
-      "family": "BroadcastRules",
       "cases": 2,
       "pass": 0,
       "flaky": 0,
       "fail": 2,
       "passRate": 0,
-      "meanWer": 1.2916666666666667
+      "meanWer": 0.18333333333333335
     },
     {
-      "template": "taxi-gate",
-      "family": "GroundRules",
-      "cases": 2,
-      "pass": 0,
-      "flaky": 0,
-      "fail": 2,
-      "passRate": 0,
-      "meanWer": 0.12179487179487179
-    },
-    {
-      "template": "taxi-parking",
-      "family": "GroundRules",
+      "template": "rtis-nr",
+      "family": "TrafficAdvisoryRules",
       "cases": 1,
       "pass": 0,
       "flaky": 0,
       "fail": 1,
       "passRate": 0,
-      "meanWer": 0.16666666666666666
+      "meanWer": 0.21428571428571427
     },
     {
-      "template": "taxi-parking-cross",
-      "family": "GroundRules",
-      "cases": 1,
-      "pass": 0,
-      "flaky": 0,
-      "fail": 1,
-      "passRate": 0,
-      "meanWer": 0.11764705882352941
-    },
-    {
-      "template": "taxi-parking-hs",
-      "family": "GroundRules",
+      "template": "spd-until",
+      "family": "AltitudeSpeedRules",
       "cases": 2,
       "pass": 0,
       "flaky": 0,
       "fail": 2,
       "passRate": 0,
-      "meanWer": 0.0804093567251462
+      "meanWer": 0.13392857142857142
     },
     {
-      "template": "atxi-rwy",
-      "family": "HelicopterRules",
+      "template": "sq",
+      "family": "TransponderRules",
+      "cases": 1,
+      "pass": 0,
+      "flaky": 0,
+      "fail": 1,
+      "passRate": 0,
+      "meanWer": 1
+    },
+    {
+      "template": "adct",
+      "family": "NavigationRules",
       "cases": 2,
       "pass": 1,
       "flaky": 0,
       "fail": 1,
       "passRate": 0.5,
-      "meanWer": 0.05555555555555555
+      "meanWer": 0.14583333333333331
     },
     {
-      "template": "capp",
+      "template": "capp-ils",
       "family": "ApproachRules",
       "cases": 2,
       "pass": 1,
       "flaky": 0,
       "fail": 1,
       "passRate": 0.5,
-      "meanWer": 0.16666666666666666
+      "meanWer": 0.14285714285714285
     },
     {
-      "template": "cfix",
-      "family": "NavigationRules",
+      "template": "cwt",
+      "family": "TowerRules",
       "cases": 2,
       "pass": 1,
       "flaky": 0,
       "fail": 1,
       "passRate": 0.5,
-      "meanWer": 0.20833333333333331
+      "meanWer": 0.2
     },
     {
-      "template": "cfix-above",
-      "family": "NavigationRules",
-      "cases": 2,
-      "pass": 1,
-      "flaky": 0,
-      "fail": 1,
-      "passRate": 0.5,
-      "meanWer": 0.1875
-    },
-    {
-      "template": "cvia-alt",
-      "family": "AltitudeSpeedRules",
-      "cases": 2,
-      "pass": 1,
-      "flaky": 0,
-      "fail": 1,
-      "passRate": 0.5,
-      "meanWer": 0.1625
-    },
-    {
-      "template": "dm-spd",
+      "template": "dct-dm",
       "family": "Compound",
       "cases": 2,
       "pass": 1,
       "flaky": 0,
       "fail": 1,
       "passRate": 0.5,
-      "meanWer": 0.1
+      "meanWer": 0.16666666666666666
     },
     {
-      "template": "exp-climb",
+      "template": "dct-fly",
+      "family": "NavigationRules",
+      "cases": 2,
+      "pass": 1,
+      "flaky": 0,
+      "fail": 1,
+      "passRate": 0.5,
+      "meanWer": 0.35
+    },
+    {
+      "template": "depart",
+      "family": "NavigationRules",
+      "cases": 2,
+      "pass": 1,
+      "flaky": 0,
+      "fail": 1,
+      "passRate": 0.5,
+      "meanWer": 0.3333333333333333
+    },
+    {
+      "template": "dm-fl",
       "family": "AltitudeSpeedRules",
+      "cases": 2,
+      "pass": 1,
+      "flaky": 0,
+      "fail": 1,
+      "passRate": 0.5,
+      "meanWer": 0.38095238095238093
+    },
+    {
+      "template": "el",
+      "family": "GroundRules",
+      "cases": 2,
+      "pass": 1,
+      "flaky": 0,
+      "fail": 1,
+      "passRate": 0.5,
+      "meanWer": 0.21428571428571427
+    },
+    {
+      "template": "er",
+      "family": "GroundRules",
+      "cases": 2,
+      "pass": 1,
+      "flaky": 0,
+      "fail": 1,
+      "passRate": 0.5,
+      "meanWer": 0.2
+    },
+    {
+      "template": "follow",
+      "family": "ApproachRules",
+      "cases": 2,
+      "pass": 1,
+      "flaky": 0,
+      "fail": 1,
+      "passRate": 0.5,
+      "meanWer": 0.08333333333333333
+    },
+    {
+      "template": "ga",
+      "family": "TowerRules",
       "cases": 2,
       "pass": 1,
       "flaky": 0,
@@ -414,24 +404,14 @@
       "meanWer": 0.17142857142857143
     },
     {
-      "template": "japp",
-      "family": "ApproachRules",
+      "template": "ident",
+      "family": "TransponderRules",
       "cases": 2,
       "pass": 1,
       "flaky": 0,
       "fail": 1,
       "passRate": 0.5,
-      "meanWer": 0.11805555555555555
-    },
-    {
-      "template": "la",
-      "family": "TowerRules",
-      "cases": 2,
-      "pass": 1,
-      "flaky": 0,
-      "fail": 1,
-      "passRate": 0.5,
-      "meanWer": 0.41666666666666663
+      "meanWer": 0.5
     },
     {
       "template": "ptac-tl-ils",
@@ -441,90 +421,110 @@
       "flaky": 0,
       "fail": 1,
       "passRate": 0.5,
-      "meanWer": 0.13333333333333333
+      "meanWer": 0.1
     },
     {
-      "template": "rtis-final",
-      "family": "TrafficAdvisoryRules",
-      "cases": 2,
-      "pass": 1,
-      "flaky": 0,
-      "fail": 1,
-      "passRate": 0.5,
-      "meanWer": 0.11025641025641025
-    },
-    {
-      "template": "rtis-nr",
-      "family": "TrafficAdvisoryRules",
-      "cases": 2,
-      "pass": 1,
-      "flaky": 0,
-      "fail": 1,
-      "passRate": 0.5,
-      "meanWer": 0.06904761904761905
-    },
-    {
-      "template": "sa",
+      "template": "r270",
       "family": "PatternRules",
       "cases": 2,
       "pass": 1,
       "flaky": 0,
       "fail": 1,
       "passRate": 0.5,
-      "meanWer": 0.1
+      "meanWer": 0.3
     },
     {
-      "template": "spd-maintain",
-      "family": "AltitudeSpeedRules",
-      "cases": 2,
-      "pass": 1,
-      "flaky": 0,
-      "fail": 1,
-      "passRate": 0.5,
-      "meanWer": 0.8
-    },
-    {
-      "template": "spd-until",
-      "family": "AltitudeSpeedRules",
-      "cases": 2,
-      "pass": 1,
-      "flaky": 0,
-      "fail": 1,
-      "passRate": 0.5,
-      "meanWer": 0.13392857142857142
-    },
-    {
-      "template": "taxi-via",
+      "template": "rwy-taxi-via",
       "family": "GroundRules",
       "cases": 2,
       "pass": 1,
       "flaky": 0,
       "fail": 1,
       "passRate": 0.5,
-      "meanWer": 0.16666666666666666
+      "meanWer": 0.1736111111111111
     },
     {
-      "template": "tldct",
-      "family": "NavigationRules",
+      "template": "salt",
+      "family": "BroadcastRules",
       "cases": 2,
       "pass": 1,
       "flaky": 0,
       "fail": 1,
       "passRate": 0.5,
-      "meanWer": 0.25
+      "meanWer": 0.375
     },
     {
-      "template": "adct",
-      "family": "NavigationRules",
+      "template": "sqnorm",
+      "family": "TransponderRules",
+      "cases": 2,
+      "pass": 1,
+      "flaky": 0,
+      "fail": 1,
+      "passRate": 0.5,
+      "meanWer": 0.625
+    },
+    {
+      "template": "sspd",
+      "family": "BroadcastRules",
+      "cases": 2,
+      "pass": 1,
+      "flaky": 0,
+      "fail": 1,
+      "passRate": 0.5,
+      "meanWer": 0.125
+    },
+    {
+      "template": "taxi-parking-hs",
+      "family": "GroundRules",
+      "cases": 2,
+      "pass": 1,
+      "flaky": 0,
+      "fail": 1,
+      "passRate": 0.5,
+      "meanWer": 0.15073529411764708
+    },
+    {
+      "template": "tl",
+      "family": "HeadingRules",
+      "cases": 2,
+      "pass": 1,
+      "flaky": 0,
+      "fail": 1,
+      "passRate": 0.5,
+      "meanWer": 0.5
+    },
+    {
+      "template": "tr-dm",
+      "family": "Compound",
+      "cases": 2,
+      "pass": 1,
+      "flaky": 0,
+      "fail": 1,
+      "passRate": 0.5,
+      "meanWer": 0.2
+    },
+    {
+      "template": "atxi",
+      "family": "HelicopterRules",
       "cases": 2,
       "pass": 2,
       "flaky": 0,
       "fail": 0,
       "passRate": 1,
-      "meanWer": 0.14583333333333331
+      "meanWer": 0
     },
     {
-      "template": "capp-ils",
+      "template": "atxi-rwy",
+      "family": "HelicopterRules",
+      "cases": 2,
+      "pass": 2,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0
+    },
+    {
+      "template": "capp",
       "family": "ApproachRules",
       "cases": 2,
       "pass": 2,
@@ -541,17 +541,47 @@
       "flaky": 0,
       "fail": 0,
       "passRate": 1,
-      "meanWer": 0
+      "meanWer": 0.21428571428571427
     },
     {
       "template": "capp-rnav",
       "family": "ApproachRules",
+      "cases": 1,
+      "pass": 1,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0.2222222222222222
+    },
+    {
+      "template": "cfix",
+      "family": "NavigationRules",
+      "cases": 1,
+      "pass": 1,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0.25
+    },
+    {
+      "template": "cfix-above",
+      "family": "NavigationRules",
       "cases": 2,
       "pass": 2,
       "flaky": 0,
       "fail": 0,
       "passRate": 1,
-      "meanWer": 0.2857142857142857
+      "meanWer": 0.18055555555555555
+    },
+    {
+      "template": "circle",
+      "family": "PatternRules",
+      "cases": 1,
+      "pass": 1,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0.2
     },
     {
       "template": "cland",
@@ -566,8 +596,18 @@
     {
       "template": "cland-icao",
       "family": "TowerRules",
-      "cases": 2,
-      "pass": 2,
+      "cases": 1,
+      "pass": 1,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0
+    },
+    {
+      "template": "clbrv",
+      "family": "TowerRules",
+      "cases": 1,
+      "pass": 1,
       "flaky": 0,
       "fail": 0,
       "passRate": 1,
@@ -601,17 +641,17 @@
       "flaky": 0,
       "fail": 0,
       "passRate": 1,
-      "meanWer": 0.16666666666666666
+      "meanWer": 0
     },
     {
       "template": "cross",
       "family": "GroundRules",
-      "cases": 1,
-      "pass": 1,
+      "cases": 2,
+      "pass": 2,
       "flaky": 0,
       "fail": 0,
       "passRate": 1,
-      "meanWer": 0
+      "meanWer": 0.2
     },
     {
       "template": "cross-hs",
@@ -621,23 +661,23 @@
       "flaky": 0,
       "fail": 0,
       "passRate": 1,
-      "meanWer": 0.05
+      "meanWer": 0.045454545454545456
     },
     {
       "template": "cto",
       "family": "TowerRules",
-      "cases": 2,
-      "pass": 2,
+      "cases": 1,
+      "pass": 1,
       "flaky": 0,
       "fail": 0,
       "passRate": 1,
-      "meanWer": 0.07142857142857142
+      "meanWer": 0
     },
     {
       "template": "cto-icao",
       "family": "TowerRules",
-      "cases": 1,
-      "pass": 1,
+      "cases": 2,
+      "pass": 2,
       "flaky": 0,
       "fail": 0,
       "passRate": 1,
@@ -646,12 +686,12 @@
     {
       "template": "ctoc",
       "family": "TowerRules",
-      "cases": 1,
-      "pass": 1,
+      "cases": 2,
+      "pass": 2,
       "flaky": 0,
       "fail": 0,
       "passRate": 1,
-      "meanWer": 0
+      "meanWer": 0.3666666666666667
     },
     {
       "template": "ctopp",
@@ -661,57 +701,27 @@
       "flaky": 0,
       "fail": 0,
       "passRate": 1,
-      "meanWer": 0.14285714285714285
+      "meanWer": 0
     },
     {
-      "template": "cwt",
-      "family": "TowerRules",
+      "template": "cva",
+      "family": "ApproachRules",
+      "cases": 2,
+      "pass": 2,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0.07142857142857142
+    },
+    {
+      "template": "dct",
+      "family": "NavigationRules",
       "cases": 1,
       "pass": 1,
       "flaky": 0,
       "fail": 0,
       "passRate": 1,
-      "meanWer": 0.2
-    },
-    {
-      "template": "dct",
-      "family": "NavigationRules",
-      "cases": 2,
-      "pass": 2,
-      "flaky": 0,
-      "fail": 0,
-      "passRate": 1,
-      "meanWer": 0.30000000000000004
-    },
-    {
-      "template": "dct-dm",
-      "family": "Compound",
-      "cases": 2,
-      "pass": 2,
-      "flaky": 0,
-      "fail": 0,
-      "passRate": 1,
-      "meanWer": 0.09545454545454546
-    },
-    {
-      "template": "dct-fly",
-      "family": "NavigationRules",
-      "cases": 2,
-      "pass": 2,
-      "flaky": 0,
-      "fail": 0,
-      "passRate": 1,
-      "meanWer": 0.25
-    },
-    {
-      "template": "depart",
-      "family": "NavigationRules",
-      "cases": 2,
-      "pass": 2,
-      "flaky": 0,
-      "fail": 0,
-      "passRate": 1,
-      "meanWer": 0.25
+      "meanWer": 0.4
     },
     {
       "template": "dm",
@@ -724,24 +734,24 @@
       "meanWer": 0
     },
     {
-      "template": "dm-fl",
-      "family": "AltitudeSpeedRules",
-      "cases": 1,
-      "pass": 1,
+      "template": "dm-spd",
+      "family": "Compound",
+      "cases": 2,
+      "pass": 2,
       "flaky": 0,
       "fail": 0,
       "passRate": 1,
-      "meanWer": 0
+      "meanWer": 0.15000000000000002
     },
     {
-      "template": "dsr",
-      "family": "AltitudeSpeedRules",
+      "template": "eapp-ils",
+      "family": "ApproachRules",
       "cases": 1,
       "pass": 1,
       "flaky": 0,
       "fail": 0,
       "passRate": 1,
-      "meanWer": 0.8
+      "meanWer": 0.14285714285714285
     },
     {
       "template": "eapp-vis",
@@ -751,37 +761,27 @@
       "flaky": 0,
       "fail": 0,
       "passRate": 1,
-      "meanWer": 0.07142857142857142
+      "meanWer": 0.13392857142857142
     },
     {
       "template": "ef",
+      "family": "PatternRules",
+      "cases": 2,
+      "pass": 2,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0.07142857142857142
+    },
+    {
+      "template": "eld",
       "family": "PatternRules",
       "cases": 1,
       "pass": 1,
       "flaky": 0,
       "fail": 0,
       "passRate": 1,
-      "meanWer": 0.1111111111111111
-    },
-    {
-      "template": "el",
-      "family": "GroundRules",
-      "cases": 2,
-      "pass": 2,
-      "flaky": 0,
-      "fail": 0,
-      "passRate": 1,
-      "meanWer": 0
-    },
-    {
-      "template": "er",
-      "family": "GroundRules",
-      "cases": 1,
-      "pass": 1,
-      "flaky": 0,
-      "fail": 0,
-      "passRate": 1,
-      "meanWer": 0
+      "meanWer": 0.2857142857142857
     },
     {
       "template": "erb",
@@ -791,7 +791,7 @@
       "flaky": 0,
       "fail": 0,
       "passRate": 1,
-      "meanWer": 0.14285714285714285
+      "meanWer": 0
     },
     {
       "template": "erd",
@@ -802,6 +802,16 @@
       "fail": 0,
       "passRate": 1,
       "meanWer": 0
+    },
+    {
+      "template": "exp-climb",
+      "family": "AltitudeSpeedRules",
+      "cases": 2,
+      "pass": 2,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0.1
     },
     {
       "template": "ext",
@@ -831,27 +841,17 @@
       "flaky": 0,
       "fail": 0,
       "passRate": 1,
-      "meanWer": 0.07692307692307693
+      "meanWer": 0.08333333333333333
     },
     {
-      "template": "fph",
-      "family": "HeadingRules",
-      "cases": 2,
-      "pass": 2,
+      "template": "followg",
+      "family": "GroundRules",
+      "cases": 1,
+      "pass": 1,
       "flaky": 0,
       "fail": 0,
       "passRate": 1,
-      "meanWer": 0.1
-    },
-    {
-      "template": "ga",
-      "family": "TowerRules",
-      "cases": 2,
-      "pass": 2,
-      "flaky": 0,
-      "fail": 0,
-      "passRate": 1,
-      "meanWer": 0.25
+      "meanWer": 0
     },
     {
       "template": "ga-hdg",
@@ -866,8 +866,8 @@
     {
       "template": "ga-mrt",
       "family": "TowerRules",
-      "cases": 2,
-      "pass": 2,
+      "cases": 1,
+      "pass": 1,
       "flaky": 0,
       "fail": 0,
       "passRate": 1,
@@ -881,7 +881,17 @@
       "flaky": 0,
       "fail": 0,
       "passRate": 1,
-      "meanWer": 0
+      "meanWer": 0.5
+    },
+    {
+      "template": "hfixl",
+      "family": "HoldRules",
+      "cases": 1,
+      "pass": 1,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0.1111111111111111
     },
     {
       "template": "hold",
@@ -906,12 +916,52 @@
     {
       "template": "hs-rwy",
       "family": "GroundRules",
+      "cases": 1,
+      "pass": 1,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0
+    },
+    {
+      "template": "hs-twy-at",
+      "family": "GroundRules",
+      "cases": 1,
+      "pass": 1,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0
+    },
+    {
+      "template": "japp",
+      "family": "ApproachRules",
+      "cases": 2,
+      "pass": 2,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0.1736111111111111
+    },
+    {
+      "template": "l360",
+      "family": "PatternRules",
       "cases": 2,
       "pass": 2,
       "flaky": 0,
       "fail": 0,
       "passRate": 1,
       "meanWer": 0
+    },
+    {
+      "template": "la",
+      "family": "TowerRules",
+      "cases": 2,
+      "pass": 2,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0.16666666666666666
     },
     {
       "template": "lahso",
@@ -921,33 +971,23 @@
       "flaky": 0,
       "fail": 0,
       "passRate": 1,
-      "meanWer": 0
-    },
-    {
-      "template": "luaw",
-      "family": "TowerRules",
-      "cases": 2,
-      "pass": 2,
-      "flaky": 0,
-      "fail": 0,
-      "passRate": 1,
-      "meanWer": 0
+      "meanWer": 0.07692307692307693
     },
     {
       "template": "mlt",
       "family": "PatternRules",
-      "cases": 2,
-      "pass": 2,
+      "cases": 1,
+      "pass": 1,
       "flaky": 0,
       "fail": 0,
       "passRate": 1,
-      "meanWer": 0.1
+      "meanWer": 0.3333333333333333
     },
     {
       "template": "mnt-alt",
       "family": "AltitudeSpeedRules",
-      "cases": 2,
-      "pass": 2,
+      "cases": 1,
+      "pass": 1,
       "flaky": 0,
       "fail": 0,
       "passRate": 1,
@@ -956,12 +996,12 @@
     {
       "template": "mrt",
       "family": "PatternRules",
-      "cases": 2,
-      "pass": 2,
+      "cases": 1,
+      "pass": 1,
       "flaky": 0,
       "fail": 0,
       "passRate": 1,
-      "meanWer": 0.125
+      "meanWer": 0
     },
     {
       "template": "ptac-tr-ils",
@@ -971,27 +1011,17 @@
       "flaky": 0,
       "fail": 0,
       "passRate": 1,
-      "meanWer": 0.13333333333333333
+      "meanWer": 0.06666666666666667
     },
     {
       "template": "push",
       "family": "GroundRules",
-      "cases": 2,
-      "pass": 2,
+      "cases": 1,
+      "pass": 1,
       "flaky": 0,
       "fail": 0,
       "passRate": 1,
       "meanWer": 0
-    },
-    {
-      "template": "push-face",
-      "family": "GroundRules",
-      "cases": 2,
-      "pass": 2,
-      "flaky": 0,
-      "fail": 0,
-      "passRate": 1,
-      "meanWer": 0.16666666666666666
     },
     {
       "template": "rell",
@@ -1006,8 +1036,8 @@
     {
       "template": "relr",
       "family": "HeadingRules",
-      "cases": 2,
-      "pass": 2,
+      "cases": 1,
+      "pass": 1,
       "flaky": 0,
       "fail": 0,
       "passRate": 1,
@@ -1026,12 +1056,12 @@
     {
       "template": "rfas",
       "family": "AltitudeSpeedRules",
-      "cases": 2,
-      "pass": 2,
+      "cases": 1,
+      "pass": 1,
       "flaky": 0,
       "fail": 0,
       "passRate": 1,
-      "meanWer": 0.21428571428571427
+      "meanWer": 0
     },
     {
       "template": "rfis",
@@ -1041,7 +1071,7 @@
       "flaky": 0,
       "fail": 0,
       "passRate": 1,
-      "meanWer": 0
+      "meanWer": 0.08333333333333333
     },
     {
       "template": "rns",
@@ -1051,7 +1081,7 @@
       "flaky": 0,
       "fail": 0,
       "passRate": 1,
-      "meanWer": 0.2
+      "meanWer": 0
     },
     {
       "template": "rtis",
@@ -1064,30 +1094,50 @@
       "meanWer": 0
     },
     {
-      "template": "rwy-taxi-via",
-      "family": "GroundRules",
-      "cases": 2,
-      "pass": 2,
-      "flaky": 0,
-      "fail": 0,
-      "passRate": 1,
-      "meanWer": 0
-    },
-    {
-      "template": "seapp",
-      "family": "BroadcastRules",
+      "template": "rtis-dw",
+      "family": "TrafficAdvisoryRules",
       "cases": 1,
       "pass": 1,
       "flaky": 0,
       "fail": 0,
       "passRate": 1,
-      "meanWer": 0
+      "meanWer": 0.21428571428571427
+    },
+    {
+      "template": "rtis-final",
+      "family": "TrafficAdvisoryRules",
+      "cases": 1,
+      "pass": 1,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0.07692307692307693
+    },
+    {
+      "template": "sa",
+      "family": "PatternRules",
+      "cases": 2,
+      "pass": 2,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0.2
+    },
+    {
+      "template": "seapp",
+      "family": "BroadcastRules",
+      "cases": 2,
+      "pass": 2,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0.08333333333333333
     },
     {
       "template": "sg",
       "family": "TowerRules",
-      "cases": 2,
-      "pass": 2,
+      "cases": 1,
+      "pass": 1,
       "flaky": 0,
       "fail": 0,
       "passRate": 1,
@@ -1101,20 +1151,30 @@
       "flaky": 0,
       "fail": 0,
       "passRate": 1,
-      "meanWer": 0.2
+      "meanWer": 0.125
     },
     {
       "template": "spd-increase",
+      "family": "AltitudeSpeedRules",
+      "cases": 1,
+      "pass": 1,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0
+    },
+    {
+      "template": "spd-knots",
       "family": "AltitudeSpeedRules",
       "cases": 2,
       "pass": 2,
       "flaky": 0,
       "fail": 0,
       "passRate": 1,
-      "meanWer": 0.3333333333333333
+      "meanWer": 0.2
     },
     {
-      "template": "spd-knots",
+      "template": "spd-maintain",
       "family": "AltitudeSpeedRules",
       "cases": 2,
       "pass": 2,
@@ -1136,18 +1196,8 @@
     {
       "template": "spos",
       "family": "BroadcastRules",
-      "cases": 2,
-      "pass": 2,
-      "flaky": 0,
-      "fail": 0,
-      "passRate": 1,
-      "meanWer": 0.25
-    },
-    {
-      "template": "sq",
-      "family": "TransponderRules",
-      "cases": 2,
-      "pass": 2,
+      "cases": 1,
+      "pass": 1,
       "flaky": 0,
       "fail": 0,
       "passRate": 1,
@@ -1161,17 +1211,7 @@
       "flaky": 0,
       "fail": 0,
       "passRate": 1,
-      "meanWer": 0.05555555555555555
-    },
-    {
-      "template": "sqnorm",
-      "family": "TransponderRules",
-      "cases": 2,
-      "pass": 2,
-      "flaky": 0,
-      "fail": 0,
-      "passRate": 1,
-      "meanWer": 2.875
+      "meanWer": 0
     },
     {
       "template": "sqsby",
@@ -1181,13 +1221,13 @@
       "flaky": 0,
       "fail": 0,
       "passRate": 1,
-      "meanWer": 0.575
+      "meanWer": 0.41666666666666663
     },
     {
       "template": "sqvfr",
       "family": "TransponderRules",
-      "cases": 1,
-      "pass": 1,
+      "cases": 2,
+      "pass": 2,
       "flaky": 0,
       "fail": 0,
       "passRate": 1,
@@ -1201,7 +1241,7 @@
       "flaky": 0,
       "fail": 0,
       "passRate": 1,
-      "meanWer": 0.1111111111111111
+      "meanWer": 0.09090909090909091
     },
     {
       "template": "taxi-cross-hs",
@@ -1211,7 +1251,17 @@
       "flaky": 0,
       "fail": 0,
       "passRate": 1,
-      "meanWer": 0
+      "meanWer": 0.06666666666666667
+    },
+    {
+      "template": "taxi-gate",
+      "family": "GroundRules",
+      "cases": 2,
+      "pass": 2,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0.05
     },
     {
       "template": "taxi-hs",
@@ -1224,7 +1274,7 @@
       "meanWer": 0
     },
     {
-      "template": "taxi-rwy",
+      "template": "taxi-parking",
       "family": "GroundRules",
       "cases": 1,
       "pass": 1,
@@ -1234,14 +1284,44 @@
       "meanWer": 0
     },
     {
-      "template": "taxi-spot",
+      "template": "taxi-parking-cross",
+      "family": "GroundRules",
+      "cases": 1,
+      "pass": 1,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0
+    },
+    {
+      "template": "taxi-rwy",
       "family": "GroundRules",
       "cases": 2,
       "pass": 2,
       "flaky": 0,
       "fail": 0,
       "passRate": 1,
-      "meanWer": 0.25
+      "meanWer": 0.4166666666666667
+    },
+    {
+      "template": "taxi-spot",
+      "family": "GroundRules",
+      "cases": 1,
+      "pass": 1,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0
+    },
+    {
+      "template": "taxi-via",
+      "family": "GroundRules",
+      "cases": 1,
+      "pass": 1,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0
     },
     {
       "template": "tb",
@@ -1251,27 +1331,17 @@
       "flaky": 0,
       "fail": 0,
       "passRate": 1,
-      "meanWer": 0.75
+      "meanWer": 0
     },
     {
       "template": "tg",
       "family": "TowerRules",
-      "cases": 1,
-      "pass": 1,
+      "cases": 2,
+      "pass": 2,
       "flaky": 0,
       "fail": 0,
       "passRate": 1,
-      "meanWer": 0
-    },
-    {
-      "template": "tl",
-      "family": "HeadingRules",
-      "cases": 1,
-      "pass": 1,
-      "flaky": 0,
-      "fail": 0,
-      "passRate": 1,
-      "meanWer": 0.3333333333333333
+      "meanWer": 0.0625
     },
     {
       "template": "tl-cm",
@@ -1281,7 +1351,7 @@
       "flaky": 0,
       "fail": 0,
       "passRate": 1,
-      "meanWer": 0.15000000000000002
+      "meanWer": 0
     },
     {
       "template": "tl-dm-spd",
@@ -1294,6 +1364,16 @@
       "meanWer": 0
     },
     {
+      "template": "tldct",
+      "family": "NavigationRules",
+      "cases": 2,
+      "pass": 2,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0.15476190476190477
+    },
+    {
       "template": "tr",
       "family": "HeadingRules",
       "cases": 1,
@@ -1302,16 +1382,6 @@
       "fail": 0,
       "passRate": 1,
       "meanWer": 0
-    },
-    {
-      "template": "tr-dm",
-      "family": "Compound",
-      "cases": 2,
-      "pass": 2,
-      "flaky": 0,
-      "fail": 0,
-      "passRate": 1,
-      "meanWer": 0.1
     },
     {
       "template": "trdct",
@@ -1326,61 +1396,933 @@
   ],
   "totals": {
     "cases": 200,
-    "pass": 153,
+    "pass": 157,
     "flaky": 0,
-    "fail": 47,
-    "passRate": 0.765,
-    "meanWer": 0.19900461934865965
+    "fail": 43,
+    "passRate": 0.785,
+    "meanWer": 0.16540867384249722
   },
-  "gaps": [
+  "gaps": [],
+  "failures": [
     {
-      "template": "clbrv",
-      "transcript": "november nine two two five lima cleared into bravo airspace",
-      "expectedCanonical": "CLBRV",
-      "gotCanonical": "CMTR B",
-      "failureReason": "canonical mismatch"
+      "case": "synth-20260928-000-tl",
+      "template": "tl",
+      "expected": "TL 050",
+      "verdict": "Fail",
+      "trials": [
+        {
+          "transcript": "News inhalator Right",
+          "finalCanonical": "ER 10L"
+        },
+        {
+          "transcript": "News inhalator Right",
+          "finalCanonical": "ER 10L"
+        },
+        {
+          "transcript": "News inhalator Right",
+          "finalCanonical": "ER 10L"
+        }
+      ]
     },
     {
-      "template": "cva",
-      "transcript": "november nine two two five lima cleared visual approach runway one zero left",
-      "expectedCanonical": "CVA 10L",
-      "gotCanonical": "cleared visual approach runway 10L",
-      "failureReason": "canonical mismatch"
+      "case": "synth-20260928-006-fph",
+      "template": "fph",
+      "expected": "FPH",
+      "verdict": "Fail",
+      "trials": [
+        {
+          "transcript": "Lufthansa three thirty one fly present heading",
+          "mapperCanonical": "FPH",
+          "finalCanonical": "FPH"
+        },
+        {
+          "transcript": "Lufthansa three thirty one fly present heading",
+          "mapperCanonical": "FPH",
+          "finalCanonical": "FPH"
+        },
+        {
+          "transcript": "Lufthansa three thirty one fly present heading",
+          "mapperCanonical": "FPH",
+          "finalCanonical": "FPH"
+        }
+      ]
     },
     {
+      "case": "synth-20260928-010-dm-fl",
+      "template": "dm-fl",
+      "expected": "DM 23000",
+      "verdict": "Fail",
+      "trials": [
+        {
+          "transcript": "november nine two two five lien at ascend and maintain flight level two three zero",
+          "mapperCanonical": "CM 23000",
+          "finalCanonical": "CM 23000"
+        },
+        {
+          "transcript": "november nine two two five lien at ascend and maintain flight level two three zero",
+          "mapperCanonical": "CM 23000",
+          "finalCanonical": "CM 23000"
+        },
+        {
+          "transcript": "november nine two two five lien at ascend and maintain flight level two three zero",
+          "mapperCanonical": "CM 23000",
+          "finalCanonical": "CM 23000"
+        }
+      ]
+    },
+    {
+      "case": "synth-20260928-017-spd-until",
+      "template": "spd-until",
+      "expected": "SPD 180 UNTIL CEPIN",
+      "verdict": "Fail",
+      "trials": [
+        {
+          "transcript": "november three four six golf maintain one eight zero knots until seppen",
+          "mapperCanonical": "SPD 180",
+          "finalCanonical": "SPD 180"
+        },
+        {
+          "transcript": "november three four six golf maintain one eight zero knots until seppen",
+          "mapperCanonical": "SPD 180",
+          "finalCanonical": "SPD 180"
+        },
+        {
+          "transcript": "november three four six golf maintain one eight zero knots until seppen",
+          "mapperCanonical": "SPD 180",
+          "finalCanonical": "SPD 180"
+        }
+      ]
+    },
+    {
+      "case": "synth-20260928-019-dsr",
+      "template": "dsr",
+      "expected": "DSR",
+      "verdict": "Fail",
+      "trials": [
+        {
+          "transcript": "Mo warned that the other traffic Promotion checks were"
+        },
+        {
+          "transcript": "Mo warned that the other traffic Promotion checks were"
+        },
+        {
+          "transcript": "Mo warned that the other traffic Promotion checks were"
+        }
+      ]
+    },
+    {
+      "case": "synth-20260928-021-cvia",
+      "template": "cvia",
+      "expected": "CVIA",
+      "verdict": "Fail",
+      "trials": [
+        {
+          "transcript": "delta five twelve climb via sidd",
+          "finalCanonical": "CVIA SID"
+        },
+        {
+          "transcript": "delta five twelve climb via sidd",
+          "finalCanonical": "CVIA SID"
+        },
+        {
+          "transcript": "delta five twelve climb via sidd",
+          "finalCanonical": "CVIA SID"
+        }
+      ]
+    },
+    {
+      "case": "synth-20260928-022-cvia-alt",
+      "template": "cvia-alt",
+      "expected": "CVIA 2000",
+      "verdict": "Fail",
+      "trials": [
+        {
+          "transcript": "laska three thirty one climb via si except maintain two thousand",
+          "mapperCanonical": "CM 2000",
+          "finalCanonical": "CM 2000"
+        },
+        {
+          "transcript": "laska three thirty one climb via si except maintain two thousand",
+          "mapperCanonical": "CM 2000",
+          "finalCanonical": "CM 2000"
+        },
+        {
+          "transcript": "laska three thirty one climb via si except maintain two thousand",
+          "mapperCanonical": "CM 2000",
+          "finalCanonical": "CM 2000"
+        }
+      ]
+    },
+    {
+      "case": "synth-20260928-024-dct-fly",
+      "template": "dct-fly",
+      "expected": "DCT ALTAM",
+      "verdict": "Fail",
+      "trials": [
+        {
+          "transcript": "november nine two two five lima fi direct to alfa",
+          "mapperCanonical": "DCT A2",
+          "finalCanonical": "DCT A2"
+        },
+        {
+          "transcript": "november nine two two five lima fi direct to alfa",
+          "mapperCanonical": "DCT A2",
+          "finalCanonical": "DCT A2"
+        },
+        {
+          "transcript": "november nine two two five lima fi direct to alfa",
+          "mapperCanonical": "DCT A2",
+          "finalCanonical": "DCT A2"
+        }
+      ]
+    },
+    {
+      "case": "synth-20260928-027-adct",
+      "template": "adct",
+      "expected": "ADCT SUNOL",
+      "verdict": "Fail",
+      "trials": [
+        {
+          "transcript": "november five one four romeo mike when able direct sinnel",
+          "mapperCanonical": "ADCT SINEL",
+          "finalCanonical": "ADCT SINEL"
+        },
+        {
+          "transcript": "november five one four romeo mike when able direct sinnel",
+          "mapperCanonical": "ADCT SINEL",
+          "finalCanonical": "ADCT SINEL"
+        },
+        {
+          "transcript": "november five one four romeo mike when able direct sinnel",
+          "mapperCanonical": "ADCT SINEL",
+          "finalCanonical": "ADCT SINEL"
+        }
+      ]
+    },
+    {
+      "case": "synth-20260928-030-cfix-spd",
+      "template": "cfix-spd",
+      "expected": "CFIX ALTAM AT 14000 240",
+      "verdict": "Fail",
+      "trials": [
+        {
+          "transcript": "delta five twelve cross ultem at maintain one four thousand two four zero knots",
+          "mapperCanonical": "CFIX ALTAM AT 14024",
+          "finalCanonical": "CFIX ALTAM AT 14024"
+        },
+        {
+          "transcript": "delta five twelve cross ultem at maintain one four thousand two four zero knots",
+          "mapperCanonical": "CFIX ALTAM AT 14024",
+          "finalCanonical": "CFIX ALTAM AT 14024"
+        },
+        {
+          "transcript": "delta five twelve cross ultem at maintain one four thousand two four zero knots",
+          "mapperCanonical": "CFIX ALTAM AT 14024",
+          "finalCanonical": "CFIX ALTAM AT 14024"
+        }
+      ]
+    },
+    {
+      "case": "synth-20260928-036-luaw",
+      "template": "luaw",
+      "expected": "LUAW",
+      "verdict": "Fail",
+      "trials": [
+        {
+          "transcript": "american twenty to thirty one runway one zero right line up and wait",
+          "mapperCanonical": "LUAW",
+          "finalCanonical": "LUAW"
+        },
+        {
+          "transcript": "american twenty to thirty one runway one zero right line up and wait",
+          "mapperCanonical": "LUAW",
+          "finalCanonical": "LUAW"
+        },
+        {
+          "transcript": "american twenty to thirty one runway one zero right line up and wait",
+          "mapperCanonical": "LUAW",
+          "finalCanonical": "LUAW"
+        }
+      ]
+    },
+    {
+      "case": "synth-20260928-038-ga",
+      "template": "ga",
+      "expected": "GA",
+      "verdict": "Fail",
+      "trials": [
+        {
+          "transcript": "suggestiveID Mrs Nietzsche schatziWatch",
+          "finalCanonical": "IDENT"
+        },
+        {
+          "transcript": "suggestiveID Mrs Nietzsche schatziWatch",
+          "finalCanonical": "IDENT"
+        },
+        {
+          "transcript": "suggestiveID Mrs Nietzsche schatziWatch",
+          "finalCanonical": "IDENT"
+        }
+      ]
+    },
+    {
+      "case": "synth-20260928-046-cwt",
+      "template": "cwt",
+      "expected": "CWT",
+      "verdict": "Fail",
+      "trials": [
+        {
+          "transcript": "american762 31 caution wake turbulence",
+          "mapperCanonical": "CWT",
+          "finalCanonical": "CWT"
+        },
+        {
+          "transcript": "american762 31 caution wake turbulence",
+          "mapperCanonical": "CWT",
+          "finalCanonical": "CWT"
+        },
+        {
+          "transcript": "american762 31 caution wake turbulence",
+          "mapperCanonical": "CWT",
+          "finalCanonical": "CWT"
+        }
+      ]
+    },
+    {
+      "case": "synth-20260928-056-follow",
       "template": "follow",
-      "transcript": "delta five twelve follow american twenty two thirty one",
-      "expectedCanonical": "FOLLOW AAL2231",
-      "gotCanonical": "follow american 2231",
-      "failureReason": "canonical mismatch"
+      "expected": "FOLLOW ASA331",
+      "verdict": "Fail",
+      "trials": [
+        {
+          "transcript": "november three four six golf follow elaska three thirty one",
+          "finalCanonical": "FOLLOW ELASKA"
+        },
+        {
+          "transcript": "november three four six golf follow elaska three thirty one",
+          "finalCanonical": "FOLLOW ELASKA"
+        },
+        {
+          "transcript": "november three four six golf follow elaska three thirty one",
+          "finalCanonical": "FOLLOW ELASKA"
+        }
+      ]
     },
     {
-      "template": "l360",
-      "transcript": "united two thirty four make left three sixty",
-      "expectedCanonical": "L360",
-      "gotCanonical": "make left 360",
-      "failureReason": "canonical mismatch"
+      "case": "synth-20260928-059-rtis-nr",
+      "template": "rtis-nr",
+      "expected": "RTIS NR 5 AIRBUS",
+      "verdict": "Fail",
+      "trials": [
+        {
+          "transcript": "united two thirty four traffic off your nose into the right five miles the airbus",
+          "finalCanonical": "RTIS NOSE 5 MILES A AN OF TO AIRBUS"
+        },
+        {
+          "transcript": "united two thirty four traffic off your nose into the right five miles the airbus",
+          "finalCanonical": "RTIS NOSE 5 MILES A AN OF TO AIRBUS"
+        },
+        {
+          "transcript": "united two thirty four traffic off your nose into the right five miles the airbus",
+          "finalCanonical": "RTIS NOSE 5 MILES A AN OF TO AIRBUS"
+        }
+      ]
     },
     {
-      "template": "r270",
-      "transcript": "united two thirty four make right two seventy",
-      "expectedCanonical": "R270",
-      "gotCanonical": "make right 270",
-      "failureReason": "canonical mismatch"
+      "case": "synth-20260928-060-rtis-left",
+      "template": "rtis-left",
+      "expected": "RTIS L 3 CIRRUS",
+      "verdict": "Fail",
+      "trials": [
+        {
+          "transcript": "november five one four romeo mike traffic off your left three miles asiris",
+          "mapperCanonical": "RTIS L 3 asiris",
+          "finalCanonical": "RTIS L 3 asiris"
+        },
+        {
+          "transcript": "november five one four romeo mike traffic off your left three miles asiris",
+          "mapperCanonical": "RTIS L 3 asiris",
+          "finalCanonical": "RTIS L 3 asiris"
+        },
+        {
+          "transcript": "november five one four romeo mike traffic off your left three miles asiris",
+          "mapperCanonical": "RTIS L 3 asiris",
+          "finalCanonical": "RTIS L 3 asiris"
+        }
+      ]
     },
     {
+      "case": "synth-20260928-063-ptac-tl-ils",
+      "template": "ptac-tl-ils",
+      "expected": "PTAC 080 13000 ILS15",
+      "verdict": "Fail",
+      "trials": [
+        {
+          "transcript": "out west nineteen forty three turn left heading zero eight zero descend and maintain one three thousand cleared veils runway one five approach",
+          "mapperCanonical": "TL 080, DM 13000",
+          "finalCanonical": "TL 080, DM 13000"
+        },
+        {
+          "transcript": "out west nineteen forty three turn left heading zero eight zero descend and maintain one three thousand cleared veils runway one five approach",
+          "mapperCanonical": "TL 080, DM 13000",
+          "finalCanonical": "TL 080, DM 13000"
+        },
+        {
+          "transcript": "out west nineteen forty three turn left heading zero eight zero descend and maintain one three thousand cleared veils runway one five approach",
+          "mapperCanonical": "TL 080, DM 13000",
+          "finalCanonical": "TL 080, DM 13000"
+        }
+      ]
+    },
+    {
+      "case": "synth-20260928-065-ptac-fh-rnav",
+      "template": "ptac-fh-rnav",
+      "expected": "PTAC 170 9000 RNAV28R",
+      "verdict": "Fail",
+      "trials": [
+        {
+          "transcript": "november nine two two five lima fly heading one seven zero descend and maintain nine thousand clear arn have runway two eight right approach",
+          "mapperCanonical": "FH 170, DM 9000",
+          "finalCanonical": "FH 170, DM 9000"
+        },
+        {
+          "transcript": "november nine two two five lima fly heading one seven zero descend and maintain nine thousand clear arn have runway two eight right approach",
+          "mapperCanonical": "FH 170, DM 9000",
+          "finalCanonical": "FH 170, DM 9000"
+        },
+        {
+          "transcript": "november nine two two five lima fly heading one seven zero descend and maintain nine thousand clear arn have runway two eight right approach",
+          "mapperCanonical": "FH 170, DM 9000",
+          "finalCanonical": "FH 170, DM 9000"
+        }
+      ]
+    },
+    {
+      "case": "synth-20260928-078-hfix",
+      "template": "hfix",
+      "expected": "HFIX SUNOL",
+      "verdict": "Fail",
+      "trials": [
+        {
+          "transcript": "american twenty two thirty one hold at sown",
+          "mapperCanonical": "HFIX SLOWN",
+          "finalCanonical": "HFIX SLOWN"
+        },
+        {
+          "transcript": "american twenty two thirty one hold at sown",
+          "mapperCanonical": "HFIX SLOWN",
+          "finalCanonical": "HFIX SLOWN"
+        },
+        {
+          "transcript": "american twenty two thirty one hold at sown",
+          "mapperCanonical": "HFIX SLOWN",
+          "finalCanonical": "HFIX SLOWN"
+        }
+      ]
+    },
+    {
+      "case": "synth-20260928-080-hfixr",
+      "template": "hfixr",
+      "expected": "HFIXR CEPIN",
+      "verdict": "Fail",
+      "trials": [
+        {
+          "transcript": "november three four six golf hold at seven right turns",
+          "mapperCanonical": "HFIX 07R",
+          "finalCanonical": "HFIX 07R"
+        },
+        {
+          "transcript": "november three four six golf hold at seven right turns",
+          "mapperCanonical": "HFIX 07R",
+          "finalCanonical": "HFIX 07R"
+        },
+        {
+          "transcript": "november three four six golf hold at seven right turns",
+          "mapperCanonical": "HFIX 07R",
+          "finalCanonical": "HFIX 07R"
+        }
+      ]
+    },
+    {
+      "case": "synth-20260928-085-sq",
+      "template": "sq",
+      "expected": "SQ 6126",
+      "verdict": "Fail",
+      "trials": [
+        {
+          "transcript": "americanrm bis checker five six one two six"
+        },
+        {
+          "transcript": "americanrm bis checker five six one two six"
+        },
+        {
+          "transcript": "americanrm bis checker five six one two six"
+        }
+      ]
+    },
+    {
+      "case": "synth-20260928-107-push-onto",
+      "template": "push-onto",
+      "expected": "PUSH D",
+      "verdict": "Fail",
+      "trials": [
+        {
+          "transcript": "united two thirty four pushback on to delta approved",
+          "finalCanonical": "PUSH DELTA"
+        },
+        {
+          "transcript": "united two thirty four pushback on to delta approved",
+          "finalCanonical": "PUSH DELTA"
+        },
+        {
+          "transcript": "united two thirty four pushback on to delta approved",
+          "finalCanonical": "PUSH DELTA"
+        }
+      ]
+    },
+    {
+      "case": "synth-20260928-108-push-face",
+      "template": "push-face",
+      "expected": "PUSH FACE W",
+      "verdict": "Fail",
+      "trials": [
+        {
+          "transcript": "delta five bravo pushback approved facing west",
+          "mapperCanonical": "PUSH FACE W",
+          "finalCanonical": "PUSH FACE W"
+        },
+        {
+          "transcript": "delta five bravo pushback approved facing west",
+          "mapperCanonical": "PUSH FACE W",
+          "finalCanonical": "PUSH FACE W"
+        },
+        {
+          "transcript": "delta five bravo pushback approved facing west",
+          "mapperCanonical": "PUSH FACE W",
+          "finalCanonical": "PUSH FACE W"
+        }
+      ]
+    },
+    {
+      "case": "synth-20260928-111-giveway",
       "template": "giveway",
-      "transcript": "november three four six golf give way to american twenty two thirty one",
-      "expectedCanonical": "GIVEWAY AAL2231",
-      "gotCanonical": "give way to american 2231",
-      "failureReason": "canonical mismatch"
+      "expected": "GIVEWAY SWA1943",
+      "verdict": "Fail",
+      "trials": [
+        {
+          "transcript": "elasco three thirty one give way to south west nineteen forty three",
+          "finalCanonical": "GIVEWAY KOAK"
+        },
+        {
+          "transcript": "elasco three thirty one give way to south west nineteen forty three",
+          "finalCanonical": "GIVEWAY KOAK"
+        },
+        {
+          "transcript": "elasco three thirty one give way to south west nineteen forty three",
+          "finalCanonical": "GIVEWAY KOAK"
+        }
+      ]
     },
     {
-      "template": "followg",
-      "transcript": "november three four six golf follow american twenty two thirty one on ground",
-      "expectedCanonical": "FOLLOWG AAL2231",
-      "gotCanonical": "FOLLOW american",
-      "failureReason": "canonical mismatch"
+      "case": "synth-20260928-113-salt",
+      "template": "salt",
+      "expected": "SALT",
+      "verdict": "Fail",
+      "trials": [
+        {
+          "transcript": "three thirty one Osz Destination altitude"
+        },
+        {
+          "transcript": "three thirty one Osz Destination altitude"
+        },
+        {
+          "transcript": "three thirty one Osz Destination altitude"
+        }
+      ]
+    },
+    {
+      "case": "synth-20260928-131-spd-until",
+      "template": "spd-until",
+      "expected": "SPD 160 UNTIL CEPIN",
+      "verdict": "Fail",
+      "trials": [
+        {
+          "transcript": "american twenty two thirty one maintain one six zero knots until seven",
+          "mapperCanonical": "SPD 160",
+          "finalCanonical": "SPD 160"
+        },
+        {
+          "transcript": "american twenty two thirty one maintain one six zero knots until seven",
+          "mapperCanonical": "SPD 160",
+          "finalCanonical": "SPD 160"
+        },
+        {
+          "transcript": "american twenty two thirty one maintain one six zero knots until seven",
+          "mapperCanonical": "SPD 160",
+          "finalCanonical": "SPD 160"
+        }
+      ]
+    },
+    {
+      "case": "synth-20260928-135-rwy-taxi-via",
+      "template": "rwy-taxi-via",
+      "expected": "TAXI F H E 01L",
+      "verdict": "Fail",
+      "trials": [
+        {
+          "transcript": "united two thirty four runway one left taxiway foxtrot hotel echo",
+          "finalCanonical": "TAXI 01L"
+        },
+        {
+          "transcript": "united two thirty four runway one left taxiway foxtrot hotel echo",
+          "finalCanonical": "TAXI 01L"
+        },
+        {
+          "transcript": "united two thirty four runway one left taxiway foxtrot hotel echo",
+          "finalCanonical": "TAXI 01L"
+        }
+      ]
+    },
+    {
+      "case": "synth-20260928-140-r270",
+      "template": "r270",
+      "expected": "R270",
+      "verdict": "Fail",
+      "trials": [
+        {
+          "transcript": "American quality two thirty one make right three seventy",
+          "finalCanonical": "TR 370"
+        },
+        {
+          "transcript": "American quality two thirty one make right three seventy",
+          "finalCanonical": "TR 370"
+        },
+        {
+          "transcript": "American quality two thirty one make right three seventy",
+          "finalCanonical": "TR 370"
+        }
+      ]
+    },
+    {
+      "case": "synth-20260928-141-tr-dm",
+      "template": "tr-dm",
+      "expected": "TR 230, DM 12000",
+      "verdict": "Fail",
+      "trials": [
+        {
+          "transcript": "alfa west nineteen forty three turn right heading two three zero descend and maintain when two thousand",
+          "mapperCanonical": "TR 230",
+          "finalCanonical": "TR 230"
+        },
+        {
+          "transcript": "alfa west nineteen forty three turn right heading two three zero descend and maintain when two thousand",
+          "mapperCanonical": "TR 230",
+          "finalCanonical": "TR 230"
+        },
+        {
+          "transcript": "alfa west nineteen forty three turn right heading two three zero descend and maintain when two thousand",
+          "mapperCanonical": "TR 230",
+          "finalCanonical": "TR 230"
+        }
+      ]
+    },
+    {
+      "case": "synth-20260928-144-push-onto",
+      "template": "push-onto",
+      "expected": "PUSH C",
+      "verdict": "Fail",
+      "trials": [
+        {
+          "transcript": "delta five twelve pushback on to charlie approved",
+          "finalCanonical": "PUSH CHARLIE"
+        },
+        {
+          "transcript": "delta five twelve pushback on to charlie approved",
+          "finalCanonical": "PUSH CHARLIE"
+        },
+        {
+          "transcript": "delta five twelve pushback on to charlie approved",
+          "finalCanonical": "PUSH CHARLIE"
+        }
+      ]
+    },
+    {
+      "case": "synth-20260928-147-cvia-alt",
+      "template": "cvia-alt",
+      "expected": "CVIA 13000",
+      "verdict": "Fail",
+      "trials": [
+        {
+          "transcript": "american twenty two thirty one climb via sit except maintain one three thousand",
+          "mapperCanonical": "CM 13000",
+          "finalCanonical": "CM 13000"
+        },
+        {
+          "transcript": "american twenty two thirty one climb via sit except maintain one three thousand",
+          "mapperCanonical": "CM 13000",
+          "finalCanonical": "CM 13000"
+        },
+        {
+          "transcript": "american twenty two thirty one climb via sit except maintain one three thousand",
+          "mapperCanonical": "CM 13000",
+          "finalCanonical": "CM 13000"
+        }
+      ]
+    },
+    {
+      "case": "synth-20260928-149-taxi-parking-hs",
+      "template": "taxi-parking-hs",
+      "expected": "TAXI W J @FDX12 HS 33",
+      "verdict": "Fail",
+      "trials": [
+        {
+          "transcript": "alfa west nineteen forty three taxi via whiskey juliett parking foxtrot delta xray one two hold short of runway three three",
+          "mapperCanonical": "TAXI W J parking F D X 12 HS 33",
+          "finalCanonical": "TAXI W J parking F D X 12 HS 33"
+        },
+        {
+          "transcript": "alfa west nineteen forty three taxi via whiskey juliett parking foxtrot delta xray one two hold short of runway three three",
+          "mapperCanonical": "TAXI W J parking F D X 12 HS 33",
+          "finalCanonical": "TAXI W J parking F D X 12 HS 33"
+        },
+        {
+          "transcript": "alfa west nineteen forty three taxi via whiskey juliett parking foxtrot delta xray one two hold short of runway three three",
+          "mapperCanonical": "TAXI W J parking F D X 12 HS 33",
+          "finalCanonical": "TAXI W J parking F D X 12 HS 33"
+        }
+      ]
+    },
+    {
+      "case": "synth-20260928-150-ptac-fh-rnav",
+      "template": "ptac-fh-rnav",
+      "expected": "PTAC 280 11000 RNAV15",
+      "verdict": "Fail",
+      "trials": [
+        {
+          "transcript": "american twenty two thirty one fly heading two eight zero descend and maintain one one thousand cleared arn of runway one five approach",
+          "mapperCanonical": "FH 280, DM 11000",
+          "finalCanonical": "FH 280, DM 11000"
+        },
+        {
+          "transcript": "american twenty two thirty one fly heading two eight zero descend and maintain one one thousand cleared arn of runway one five approach",
+          "mapperCanonical": "FH 280, DM 11000",
+          "finalCanonical": "FH 280, DM 11000"
+        },
+        {
+          "transcript": "american twenty two thirty one fly heading two eight zero descend and maintain one one thousand cleared arn of runway one five approach",
+          "mapperCanonical": "FH 280, DM 11000",
+          "finalCanonical": "FH 280, DM 11000"
+        }
+      ]
+    },
+    {
+      "case": "synth-20260928-156-el",
+      "template": "el",
+      "expected": "EL A",
+      "verdict": "Fail",
+      "trials": [
+        {
+          "transcript": "november three four six golf x it left at alfa",
+          "finalCanonical": "TL 090"
+        },
+        {
+          "transcript": "november three four six golf x it left at alfa",
+          "finalCanonical": "TL 090"
+        },
+        {
+          "transcript": "november three four six golf x it left at alfa",
+          "finalCanonical": "TL 090"
+        }
+      ]
+    },
+    {
+      "case": "synth-20260928-159-depart",
+      "template": "depart",
+      "expected": "DEPART SUNOL 180",
+      "verdict": "Fail",
+      "trials": [
+        {
+          "transcript": "american twenty two thirty one depart sun all heading one eight zero",
+          "mapperCanonical": "FH 180",
+          "finalCanonical": "FH 180"
+        },
+        {
+          "transcript": "american twenty two thirty one depart sun all heading one eight zero",
+          "mapperCanonical": "FH 180",
+          "finalCanonical": "FH 180"
+        },
+        {
+          "transcript": "american twenty two thirty one depart sun all heading one eight zero",
+          "mapperCanonical": "FH 180",
+          "finalCanonical": "FH 180"
+        }
+      ]
+    },
+    {
+      "case": "synth-20260928-165-rtis-left",
+      "template": "rtis-left",
+      "expected": "RTIS L 4 CIRRUS",
+      "verdict": "Fail",
+      "trials": [
+        {
+          "transcript": "american twenty two thirty one traffic off your left four miles asiras",
+          "mapperCanonical": "RTIS L 4 asiras",
+          "finalCanonical": "RTIS L 4 asiras"
+        },
+        {
+          "transcript": "american twenty two thirty one traffic off your left four miles asiras",
+          "mapperCanonical": "RTIS L 4 asiras",
+          "finalCanonical": "RTIS L 4 asiras"
+        },
+        {
+          "transcript": "american twenty two thirty one traffic off your left four miles asiras",
+          "mapperCanonical": "RTIS L 4 asiras",
+          "finalCanonical": "RTIS L 4 asiras"
+        }
+      ]
+    },
+    {
+      "case": "synth-20260928-168-cvia",
+      "template": "cvia",
+      "expected": "CVIA",
+      "verdict": "Fail",
+      "trials": [
+        {
+          "transcript": "United 234 climb via fabrics",
+          "finalCanonical": "CVIA FABRIC"
+        },
+        {
+          "transcript": "United 234 climb via fabrics",
+          "finalCanonical": "CVIA FABRIC"
+        },
+        {
+          "transcript": "United 234 climb via fabrics",
+          "finalCanonical": "CVIA FABRIC"
+        }
+      ]
+    },
+    {
+      "case": "synth-20260928-169-dct-dm",
+      "template": "dct-dm",
+      "expected": "DCT ALTAM, DM 3000",
+      "verdict": "Fail",
+      "trials": [
+        {
+          "transcript": "american twenty two thirty one proceed direct holes on descend and maintain three thousand",
+          "mapperCanonical": "DCT HOLES, DM 3000",
+          "finalCanonical": "DCT HOLES, DM 3000"
+        },
+        {
+          "transcript": "american twenty two thirty one proceed direct holes on descend and maintain three thousand",
+          "mapperCanonical": "DCT HOLES, DM 3000",
+          "finalCanonical": "DCT HOLES, DM 3000"
+        },
+        {
+          "transcript": "american twenty two thirty one proceed direct holes on descend and maintain three thousand",
+          "mapperCanonical": "DCT HOLES, DM 3000",
+          "finalCanonical": "DCT HOLES, DM 3000"
+        }
+      ]
+    },
+    {
+      "case": "synth-20260928-173-capp-ils",
+      "template": "capp-ils",
+      "expected": "CAPP ILS15",
+      "verdict": "Fail",
+      "trials": [
+        {
+          "transcript": "laska three thirty one cleared heels runway one five approach",
+          "finalCanonical": "CAPP LOC15"
+        },
+        {
+          "transcript": "laska three thirty one cleared heels runway one five approach",
+          "finalCanonical": "CAPP LOC15"
+        },
+        {
+          "transcript": "laska three thirty one cleared heels runway one five approach",
+          "finalCanonical": "CAPP LOC15"
+        }
+      ]
+    },
+    {
+      "case": "synth-20260928-179-er",
+      "template": "er",
+      "expected": "ER",
+      "verdict": "Fail",
+      "trials": [
+        {
+          "transcript": "lufthansa nine two two five lima at right",
+          "finalCanonical": "ER KOAK"
+        },
+        {
+          "transcript": "lufthansa nine two two five lima at right",
+          "finalCanonical": "ER KOAK"
+        },
+        {
+          "transcript": "lufthansa nine two two five lima at right",
+          "finalCanonical": "ER KOAK"
+        }
+      ]
+    },
+    {
+      "case": "synth-20260928-191-sqnorm",
+      "template": "sqnorm",
+      "expected": "SQNORM",
+      "verdict": "Fail",
+      "trials": [
+        {
+          "transcript": "eting juliett four point nine",
+          "finalCanonical": "TLDCT KOAK"
+        },
+        {
+          "transcript": "eting juliett four point nine",
+          "finalCanonical": "TLDCT KOAK"
+        },
+        {
+          "transcript": "eting juliett four point nine",
+          "finalCanonical": "TLDCT KOAK"
+        }
+      ]
+    },
+    {
+      "case": "synth-20260928-195-ident",
+      "template": "ident",
+      "expected": "IDENT",
+      "verdict": "Fail",
+      "trials": [
+        {
+          "transcript": "Lasc three thirty one squawk e boundary",
+          "finalCanonical": "SQ EW"
+        },
+        {
+          "transcript": "Lasc three thirty one squawk e boundary",
+          "finalCanonical": "SQ EW"
+        },
+        {
+          "transcript": "Lasc three thirty one squawk e boundary",
+          "finalCanonical": "SQ EW"
+        }
+      ]
+    },
+    {
+      "case": "synth-20260928-198-sspd",
+      "template": "sspd",
+      "expected": "SSPD",
+      "verdict": "Fail",
+      "trials": [
+        {
+          "transcript": "united two three four safe speed",
+          "finalCanonical": "DSR"
+        },
+        {
+          "transcript": "united two three four safe speed",
+          "finalCanonical": "DSR"
+        },
+        {
+          "transcript": "united two three four safe speed",
+          "finalCanonical": "DSR"
+        }
+      ]
     }
   ]
 }

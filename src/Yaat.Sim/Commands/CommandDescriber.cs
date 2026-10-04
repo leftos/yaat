@@ -1185,7 +1185,9 @@ public static class CommandDescriber
             EnterRightCrosswindCommand erc => DescribePatternEntryNatural("right crosswind", erc.RunwayId, null),
             EnterLeftBaseCommand elb => DescribePatternEntryNatural("left base", elb.RunwayId, elb.FinalDistanceNm),
             EnterRightBaseCommand erb => DescribePatternEntryNatural("right base", erb.RunwayId, erb.FinalDistanceNm),
-            EnterFinalCommand ef => DescribePatternEntryNatural("straight-in final", ef.RunwayId, null),
+            EnterFinalCommand ef => ef.RunwayId is not null
+                ? $"Make straight-in, Runway {RunwayIdentifier.ToDisplayDesignator(ef.RunwayId)}"
+                : "Make straight-in",
             MakeLeftTrafficCommand => "Make left traffic",
             MakeRightTrafficCommand => "Make right traffic",
             TurnCrosswindCommand => "Turn crosswind",

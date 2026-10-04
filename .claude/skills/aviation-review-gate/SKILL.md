@@ -46,10 +46,7 @@ invocation, verbatim — it is in CLAUDE.md so it is never retyped from memory,
 and without it the reviewer burns the turn web-searching documents that are
 already on disk:
 
-> "IMPORTANT: The FAA 7110.65 and AIM are available as local markdown files in
-> the repo. Read them directly via Read/Grep/Glob at
-> `.claude/reference/faa/7110.65/` and `.claude/reference/faa/aim/`. Do NOT use
-> web search tools to look up 7110.65 or AIM content."
+> "IMPORTANT: The FAA 7110.65 and AIM are available as local markdown files in the repo. Read them directly via Read/Grep/Glob at `.claude/reference/faa/7110.65/` and `.claude/reference/faa/aim/`, and find a paragraph by meaning with ck semantic search over the main checkout's `.claude/reference/faa/` (see your agent file). Do NOT use web search tools to look up 7110.65 or AIM content."
 
 Alongside it, give the reviewer:
 

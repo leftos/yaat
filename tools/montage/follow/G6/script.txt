@@ -1,0 +1,30 @@
+# G6 — closed-traffic departure told to follow a runwayless lead during its climb.
+# KOAK runway 28R, right traffic. Two VFR C172s; the follower starts on the runway, the lead is airborne.
+#
+#   N52417  lead     — C172 at 1,500 ft north-west of the field, eastbound direct Lake Chabot (VPCBT), then a right base for 28R
+#   N738SP  follower — C172 lined up on 28R, cleared for takeoff with right closed traffic
+#
+# At the FOLLOW the lead has no runway: it is a free-flight lead with its pattern entry queued behind DCT VPCBT.
+# Times are sim seconds. See card.md for what the clip shows.
+
+# t=1  Inhibit conflict alerts on both aircraft (CAINH toggles).
+t=1 N52417 CAINH
+t=1 N738SP CAINH
+
+# t=2  Lead: direct Lake Chabot, then enter a right base for 28R from there.
+t=2 N52417 DCT VPCBT; ERB 28R
+
+# t=4  Traffic advisory to the follower on the runway: the Cessna at 1 o'clock, 2 miles, eastbound.
+t=4 N738SP RTIS 1 2 E C172
+
+# t=6  Follower: cleared for takeoff 28R, make right traffic.
+t=6 N738SP CTO MRT
+
+# t=40 The follow, in the climb: the follower airborne at about 130 ft, the lead 1.2 NM to its north-east.
+t=40 N738SP FOLLOW N52417
+
+# t=185 Lead: cleared to land 28R once its right base has begun (first in the sequence).
+t=185 N52417 CLAND 28R
+
+# t=190 Follower: cleared to land 28R, behind the traffic.
+t=190 N738SP CLAND 28R

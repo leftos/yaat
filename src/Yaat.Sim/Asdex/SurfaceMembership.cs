@@ -38,13 +38,30 @@ public static class SurfaceMembership
         foreach (AsdexAirportInfo apt in airports.Asdex)
         {
             double dist = GeoMath.DistanceNm(ac.Position, new LatLon(apt.Lat, apt.Lon));
-            bool mayEnter = (dist <= apt.Range) && (ac.Altitude <= apt.Ceiling);
             bool mustLeave = (dist > apt.Range) || (ac.Altitude >= apt.Ceiling + AsdexHysteresisFt);
-            visible = Next(visible, apt.AirportId, mayEnter, mustLeave);
+            visible = Next(visible, apt.AirportId, MayEnterAsdex(ac, apt, dist), mustLeave);
         }
 
         return visible;
     }
+
+    /// <summary>
+    /// Whether <paramref name="ac"/> may join <paramref name="apt"/>'s ASDE-X display: inside its range and at or below its
+    /// visibility ceiling. Leaving takes the hysteresis band on top of the ceiling, which only <see cref="EvaluateAsdex"/> applies.
+    /// </summary>
+    public static bool MayEnterAsdex(AircraftState ac, AsdexAirportInfo apt) =>
+        MayEnterAsdex(ac, apt, GeoMath.DistanceNm(ac.Position, new LatLon(apt.Lat, apt.Lon)));
+
+    /// <summary>
+    /// Whether <paramref name="ac"/> may join <paramref name="apt"/>'s SAAB SAID display: inside its range and at or below its
+    /// resolved ceiling. Leaving takes the hysteresis band on top of the ceiling, which only <see cref="EvaluateSaid"/> applies.
+    /// </summary>
+    public static bool MayEnterSaid(AircraftState ac, SaidSurfaceAirport apt) => MayEnterSaid(ac, apt, GeoMath.DistanceNm(ac.Position, apt.Position));
+
+    private static bool MayEnterAsdex(AircraftState ac, AsdexAirportInfo apt, double distNm) => (distNm <= apt.Range) && (ac.Altitude <= apt.Ceiling);
+
+    private static bool MayEnterSaid(AircraftState ac, SaidSurfaceAirport apt, double distNm) =>
+        (distNm <= apt.Range) && (ac.Altitude <= apt.CeilingFt);
 
     /// <summary>Next second's SAAB SAID membership, from the one <paramref name="visible"/> held this second.</summary>
     public static ImmutableSortedSet<string> EvaluateSaid(AircraftState ac, ImmutableSortedSet<string> visible, SurfaceAirports airports)
@@ -58,9 +75,8 @@ public static class SurfaceMembership
         foreach (SaidSurfaceAirport apt in airports.Said)
         {
             double dist = GeoMath.DistanceNm(ac.Position, apt.Position);
-            bool mayEnter = (dist <= apt.Range) && (ac.Altitude <= apt.CeilingFt);
             bool mustLeave = (dist > apt.Range) || (ac.Altitude >= apt.CeilingFt + SaidHysteresisFt);
-            visible = Next(visible, apt.AirportId, mayEnter, mustLeave);
+            visible = Next(visible, apt.AirportId, MayEnterSaid(ac, apt, dist), mustLeave);
         }
 
         return visible;
@@ -80,7 +96,17 @@ public static class SurfaceMembership
 }
 
 /// <summary>A configured SAAB SAID airport with its vertical limit resolved: field elevation plus 2,500 ft AGL.</summary>
-public sealed record SaidSurfaceAirport(string AirportId, LatLon Position, double Range, double CeilingFt);
+public sealed record SaidSurfaceAirport(string AirportId, LatLon Position, double Range, double CeilingFt)
+{
+    /// <summary>Resolves <paramref name="apt"/>'s ceiling; a field elevation <paramref name="navDb"/> does not know is 0.</summary>
+    public static SaidSurfaceAirport From(SaidAirportInfo apt, NavigationDatabase navDb) =>
+        new(
+            apt.AirportId,
+            new LatLon(apt.Lat, apt.Lon),
+            apt.Range,
+            (navDb.GetAirportElevation(apt.AirportId) ?? 0) + SurfaceMembership.SaidAglCeilingFt
+        );
+}
 
 /// <summary>
 /// The surface-display airports an ARTCC config declares, with each list's airport ids as an ordinal set (what a
@@ -100,16 +126,7 @@ public sealed record SurfaceAirports(
     public static SurfaceAirports Resolve(ArtccConfigRoot config, NavigationDatabase navDb)
     {
         var asdex = config.GetAllAsdexAirports().DistinctBy(apt => apt.AirportId).ToList();
-        var said = config
-            .GetAllSaidAirports()
-            .DistinctBy(apt => apt.AirportId)
-            .Select(apt => new SaidSurfaceAirport(
-                apt.AirportId,
-                new LatLon(apt.Lat, apt.Lon),
-                apt.Range,
-                (navDb.GetAirportElevation(apt.AirportId) ?? 0) + SurfaceMembership.SaidAglCeilingFt
-            ))
-            .ToList();
+        var said = config.GetAllSaidAirports().DistinctBy(apt => apt.AirportId).Select(apt => SaidSurfaceAirport.From(apt, navDb)).ToList();
         return new SurfaceAirports(
             asdex,
             SurfaceMembership.FromIds(asdex.Select(apt => apt.AirportId)),

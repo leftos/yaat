@@ -132,6 +132,12 @@ public static class WindowGroupRaiser
 
     private static void RaiseAll(Window activatedWindow)
     {
+        // Automation mode never pulses Topmost: the raise would reorder the user's desktop.
+        if (AutomationGate.SuppressActivation)
+        {
+            return;
+        }
+
         List<Window> order = ComputeRaiseOrder(Tracked, activatedWindow);
 
         IsRaising = true;

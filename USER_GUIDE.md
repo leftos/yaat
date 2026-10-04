@@ -365,6 +365,7 @@ An interactive airport surface map showing taxiways, runways, and aircraft posit
 **Datablock.** Each aircraft's ground datablock shows the callsign, then its CWT wake category and type as `cwt/type` followed by the ASDE-style fix (e.g. `E/B738 SFO`) — a departure's exit fix or the destination airport, chosen per the airport's ASDE-X/SAID facility configuration and falling back to the destination when no fix rule applies, mirroring a real surface display. An unknown type or category just shows whichever part is known. Airborne aircraft add an altitude line. An aircraft squawking a code other than its assigned one gets a [squawk-mismatch](#squawk-beacon-code-mismatch) line next (`1200 0301` — reported code solid, assigned code pulsing), the same indication as the radar datablock, so a departure still on `1200` after you assigned it a code stands out before it ever reaches the scope. Below that, a hold / squawk-standby / auto-yield status line and any instructor note appear. When a departure is queued for a runway, the callsign line also gains a **runway + place-in-line** suffix such as `28R #2`, or `28R@E #2` for an intersection departure (see *Departure-queue numbers* below).
 
 **Right-click context menus:**
+- **When the click lands on more than one thing** — two aircraft whose symbols or datablocks overlap, or (with an aircraft selected) a parking, spot or helipad marker with another aircraft parked over it — a short list opens first, naming each one (`UAL238 (B738)`, `Parking A5`); pick the one you meant and its usual menu opens. The Radar View does the same for overlapping aircraft. A click on exactly one thing opens its menu directly, as before, and so does a right-click on the selected aircraft at its own stand.
 - **Anywhere on the ground** — the click snaps to the nearest node, so the menu appears even on an open stretch of runway or taxiway with no node directly under the cursor. *With an aircraft selected* it carries up to 4 route options ("Taxi via T U W") computed via K-shortest paths — routes that cross runways automatically append crossing commands — plus "Push to {spot}" (on a parking or spot node, when the selected aircraft is at a stand or resting after a push), "Push route…" (same condition — start a multi-point tug move at that node), "Draw taxi route…", "Custom taxi…", and "Warp here". **"Warp here" on a gate or helipad parks the aircraft at that stand** — it comes to rest on the stand's heading, the Aircraft List names the stand, and the aircraft's menu switches to the *At Parking* items below, so you can push it back straight away. Warping anywhere else leaves it holding in position. *With nothing selected* it carries the [measuring](#measuring-distance-and-bearing) items.
 - **On a runway** — with a selected aircraft that can taxi, a right-click anywhere on a runway's surface (away from its hold-short bars and threshold marker) offers "Taxi to {end}" for each end of every runway under the click. Each end lists up to three hold shorts, named by their taxiway: the nearest one by taxi route ("At B (nearest)"), the one nearest where you clicked ("At E (near click)"), and the one at that end's threshold ("Full length (at W)"); one hold short that fits two of these shows once with both tags. Each opens the same route choices as "Taxi here", with the route preview on hover. "Warp here" warps to the node nearest the click.
 - **On an aircraft** — items vary by phase:
@@ -571,6 +572,8 @@ Once armed, the first click sets the anchor and a dashed line follows your curso
 - `-1` — the measurement's number, used to remove it.
 
 The label sits at the line's far end. When that end is off-screen — say you measured `OAK` to `MOD` and are zoomed in on OAK — the reading is pulled back to where the line leaves the screen, so a partially visible line always shows its numbers.
+
+The label stays readable around traffic: it normally sits just right of the line's end, as in CRC, but moves to whichever side around the end is clearest of data blocks and aircraft. When every side is covered, it pushes the data blocks in the way just far enough aside, and they slide back once the label no longer needs the room. A data block you dragged by hand is never moved; the label works around it instead. (CRC leaves its label where it is, covered or not.)
 
 **Removing measurements:**
 
@@ -1687,6 +1690,14 @@ Once CRC is configured:
 
 If the student's VATSIM CID matches a YAAT client in the room, they're pulled in automatically.
 
+### TowerCab 3D
+
+TowerCab 3D, the 3D tower view, can join a student's CRC session on a YAAT server and show the Tower Cab traffic, as it does on vNAS. It needs a TowerCab 3D version that lists the YAAT environments.
+
+1. The student connects CRC to the room first, as above
+2. In TowerCab 3D's vNAS environment picker, the student chooses **YAAT1** (or **YAAT Local**, offered when a YAAT server runs on the same computer)
+3. The student signs in with VATSIM; TowerCab 3D joins the CRC session open under the same CID and shows its Tower Cab traffic
+
 ---
 
 ## Customization
@@ -2128,7 +2139,9 @@ Optional shortcuts in **Settings > Scenarios > Simulation Shortcuts** simplify t
 
 Handoffs to unattended positions can be automatically accepted after a configurable delay. Enable in **Settings > General > Auto-accept handoffs**.
 
-In **solo training mode** this is overridden so the session behaves as if you are the only controller working a live position: handoffs to **your own (student) position** are never auto-accepted — you accept them by hand, just as you would on the network — while handoffs between the automated background positions always auto-accept (never faster than 3 seconds) so traffic keeps flowing even when you have auto-accept switched off.
+In **solo training mode** this is overridden so the session behaves as if you are the only controller working a live position: handoffs to **your own (student) position** are never auto-accepted — you accept them by hand, just as you would on the network — while handoffs between the automated background positions always auto-accept (never faster than 5 seconds, so you see each handoff you start sit pending before the receiving position takes it) so traffic keeps flowing even when you have auto-accept switched off.
+
+Auto-accept never takes a handoff of an aircraft that is on the ground, below 1,500 ft above its field, or on a coast track: ERAM may show such a track as CST, and a controller must coordinate verbally before accepting it (7110.65 §5-4-6.f.3). The handoff stays pending until the aircraft climbs into coverage, at any facility, so a departure handed off right after takeoff is accepted once it passes 1,500 ft above the field.
 
 **Point-outs** are different. A point-out to a position nobody is working is never acknowledged on that controller's behalf: if it sits for 30 seconds with no action, YAAT withdraws it and tells the initiator to coordinate verbally, because 7110.65 §5-4-7 requires reverting to verbal procedures when the receiving controller takes no action — a non-response is never approval. The 30-second interval and the withdrawal itself are YAAT's mechanism for that; the order sets no timer. A point-out to a position a CRC client is working is left for that controller, and in solo mode a point-out to your own position always waits for you. Switching auto-accept off (outside solo mode) also switches the withdrawal off, so point-outs then sit until someone acts — the real STARS display.
 

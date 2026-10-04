@@ -27,6 +27,7 @@ public partial class FileBugReportDialog : Window
     public FileBugReportDialog(bool attachesRecording)
     {
         InitializeComponent();
+        AutomationGate.ApplyShowActivated(this);
 
         TextBox? titleBox = this.FindControl<TextBox>("TitleTextBox");
         TextBox? happenedBox = this.FindControl<TextBox>("WhatHappenedTextBox");

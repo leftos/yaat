@@ -532,7 +532,8 @@ public static class DatablockDeconfliction
         ApplyForces(blocks, allItems, delta, o, offsets, maxLeaders);
     }
 
-    private static float MaxLeaderLength(in Options o) => o.LeaderGap + (o.LeaderExtraRings * o.LeaderRingStep);
+    /// <summary>The hard leader cap: the outermost compass ring's gap from the symbol.</summary>
+    public static float MaxLeaderLength(in Options o) => o.LeaderGap + (o.LeaderExtraRings * o.LeaderRingStep);
 
     private static void AccumulateBlockForces(Block[] blocks, SKPoint[] delta, in Options o)
     {
@@ -996,7 +997,7 @@ public static class DatablockDeconfliction
         && (anchor.Y >= bounds.Top - OffscreenAnchorMargin)
         && (anchor.Y <= bounds.Bottom + OffscreenAnchorMargin);
 
-    private static float IntersectArea(SKRect a, SKRect b)
+    internal static float IntersectArea(SKRect a, SKRect b)
     {
         float ix = MathF.Min(a.Right, b.Right) - MathF.Max(a.Left, b.Left);
         float iy = MathF.Min(a.Bottom, b.Bottom) - MathF.Max(a.Top, b.Top);
@@ -1016,7 +1017,7 @@ public static class DatablockDeconfliction
         return total - (ix * iy);
     }
 
-    private static float LeaderLength(SKPoint anchor, SKRect rect)
+    internal static float LeaderLength(SKPoint anchor, SKRect rect)
     {
         float cx = Math.Clamp(anchor.X, rect.Left, rect.Right);
         float cy = Math.Clamp(anchor.Y, rect.Top, rect.Bottom);

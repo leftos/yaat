@@ -165,11 +165,27 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
     private readonly RadarDataBlockViewState _localDataBlockState = new();
     private RadarDataBlockViewState State => DataBlockState ?? _localDataBlockState;
 
+    // The state whose offset changes (a drag, the reset menu item, an app tool) repaint this canvas: State while the
+    // canvas is in the visual tree, null otherwise, so a view-model state never holds a detached canvas.
+    private RadarDataBlockViewState? _watchedDataBlockState;
+
+    /// <summary>The datablock state whose offset changes repaint this canvas now, or null while detached. Test seam.</summary>
+    internal RadarDataBlockViewState? WatchedDataBlockState => _watchedDataBlockState;
+
     // Per-frame deconfliction result (callsign -> effective text-origin offset). Written on the UI
     // thread at snapshot build; read by the snapshot copy (draw) and by hit-testing. Persists across
     // frames to seed the next pass for stability.
     private readonly Dictionary<string, SKPoint> _resolvedDeconflictOffsets = [];
     private readonly Dictionary<string, SKPoint> _deconflictScratch = [];
+
+    // Nudges the measurement readouts gave auto-placed datablocks this frame (callsign -> delta added to the
+    // block's offset), and each readout's spot (slot -> spot). Written once per snapshot build; the draw reads
+    // the nudges through the snapshot's merged offsets, the hit-test through DeconflictOffsetFor. Kept apart
+    // from _resolvedDeconflictOffsets, which seeds the next deconfliction pass, so a nudge never feeds back.
+    private readonly Dictionary<string, RblNudge> _rblNudgeOffsets = [];
+    private readonly Dictionary<int, RblReadoutSpot> _rblReadoutSpots = [];
+    private readonly SKFont _rblMeasureFont = Services.PlatformHelper.MonospaceFont(RangeBearingRenderer.LabelFontSize);
+    private static readonly IReadOnlyDictionary<int, SKRect> NoReadoutRects = new Dictionary<int, SKRect>();
     private readonly SKPaint _hitTestPaint = new();
     private readonly SKFont _hitTestFont = Services.PlatformHelper.MonospaceFontBold(12);
 
@@ -183,6 +199,10 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
     private bool _suppressCenterSync;
     private readonly Services.ScrollStepAccumulator _rangeRingSizeScroll = new();
     private readonly RightClickGesture _rightClick = new();
+    private readonly RightClickPicker _rightClickPicker = new();
+
+    // Pixel radius within which a click lands on an aircraft symbol.
+    private const float AircraftHitRadiusPx = 28f;
     private Dictionary<string, string> _brightnessLookup = [];
     private bool _isDraggingDataBlock;
     private string? _dragCallsign;
@@ -792,12 +812,25 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
     /// direction (when leader-direction sync is on) or the default placement. Backs the radar
     /// "Reset datablock position" context-menu item.
     /// </summary>
-    public void ResetDataBlockOffset(string callsign)
+    public void ResetDataBlockOffset(string callsign) => State.RemoveManualOffset(callsign);
+
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
-        if (State.ManualOffsets.Remove(callsign))
-        {
-            MarkDirty();
-        }
+        base.OnAttachedToVisualTree(e);
+        WatchDataBlockState(State);
+    }
+
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        WatchDataBlockState(null);
+        base.OnDetachedFromVisualTree(e);
+    }
+
+    private void WatchDataBlockState(RadarDataBlockViewState? state)
+    {
+        _watchedDataBlockState?.ManualOffsetsChanged -= MarkDirty;
+        _watchedDataBlockState = state;
+        _watchedDataBlockState?.ManualOffsetsChanged += MarkDirty;
     }
 
     /// <summary>Returns true if the callsign's datablock has been manually dragged to a custom position.</summary>
@@ -897,6 +930,11 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             MarkDirty();
         }
 
+        if ((change.Property == DataBlockStateProperty) && (_watchedDataBlockState is not null))
+        {
+            WatchDataBlockState(State);
+        }
+
         // Sync center from binding → viewport. On initial load, also zoom to range.
         // Don't mark as done unless the viewport has pixel dimensions;
         // otherwise OnSizeChanged will handle it when the tab becomes visible.
@@ -972,7 +1010,8 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         int HistoryCount,
         (string Text, SKPoint Pos)? MvaHover,
         IReadOnlyList<ResolvedRbl>? RangeBearingLines,
-        ResolvedRbl? PendingRangeBearingLine
+        ResolvedRbl? PendingRangeBearingLine,
+        IReadOnlyDictionary<int, SKRect> RblReadoutRects
     );
 
     /// <summary>
@@ -1084,31 +1123,13 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             State.DataBlockZOrder
         );
         IReadOnlyDictionary<string, SKPoint> deconflictOffsets = RunDeconfliction(sorted);
-
-        List<ResolvedRbl>? measurements = null;
-        ResolvedRbl? pendingMeasurement = null;
-        IReadOnlyList<RangeBearingLine>? placedMeasurements = RangeBearingLines;
-        // A half-placed anchor picked in the other view previews there, not here.
-        RblEndpoint? measureAnchor = _measureDragAnchor ?? (MeasureAnchor is { View: RblView.Radar } pending ? pending.Endpoint : (RblEndpoint?)null);
-        if (placedMeasurements is { Count: > 0 } || measureAnchor is not null)
-        {
-            RblTrackLookup lookup = BuildMeasureLookup();
-            if (placedMeasurements is { Count: > 0 })
-            {
-                measurements = RangeBearingLineResolver.Resolve(placedMeasurements, lookup, RadarViewModel.MeasureUnits, RadarViewModel.MeasureView);
-            }
-
-            if (measureAnchor is not null)
-            {
-                (double lat, double lon) = Viewport.ScreenToLatLon((float)_lastPointerPos.X, (float)_lastPointerPos.Y);
-                pendingMeasurement = RangeBearingLineResolver.ResolvePending(
-                    measureAnchor,
-                    new LatLon(lat, lon),
-                    lookup,
-                    RadarViewModel.MeasureUnits
-                );
-            }
-        }
+        (List<ResolvedRbl>? measurements, ResolvedRbl? pendingMeasurement) = ResolveMeasurements();
+        (IReadOnlyDictionary<int, SKRect> readoutRects, IReadOnlyDictionary<string, SKPoint> shippedOffsets) = PlaceRblReadouts(
+            sorted,
+            measurements,
+            pendingMeasurement,
+            deconflictOffsets
+        );
 
         return new RenderSnapshot(
             VideoMaps ?? [],
@@ -1130,7 +1151,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             RangeRingCenterLon,
             RangeRingSizeNm,
             new Dictionary<string, SKPoint>(State.ManualOffsets),
-            deconflictOffsets,
+            shippedOffsets,
             hoveredFix,
             PtlLengthMinutes,
             PtlOwn,
@@ -1151,8 +1172,133 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             HistoryCount,
             mvaHover,
             measurements,
-            pendingMeasurement
+            pendingMeasurement,
+            readoutRects
         );
+    }
+
+    /// <summary>Resolves the placed measurements and the half-placed one (picked in this view) for this frame.</summary>
+    private (List<ResolvedRbl>? Lines, ResolvedRbl? Pending) ResolveMeasurements()
+    {
+        IReadOnlyList<RangeBearingLine>? placedMeasurements = RangeBearingLines;
+        // A half-placed anchor picked in the other view previews there, not here.
+        RblEndpoint? measureAnchor = _measureDragAnchor ?? (MeasureAnchor is { View: RblView.Radar } pending ? pending.Endpoint : (RblEndpoint?)null);
+        if ((placedMeasurements is not { Count: > 0 }) && (measureAnchor is null))
+        {
+            return (null, null);
+        }
+
+        RblTrackLookup lookup = BuildMeasureLookup();
+        List<ResolvedRbl>? measurements = placedMeasurements is { Count: > 0 }
+            ? RangeBearingLineResolver.Resolve(placedMeasurements, lookup, RadarViewModel.MeasureUnits, RadarViewModel.MeasureView)
+            : null;
+        ResolvedRbl? pendingMeasurement = null;
+        if (measureAnchor is not null)
+        {
+            (double lat, double lon) = Viewport.ScreenToLatLon((float)_lastPointerPos.X, (float)_lastPointerPos.Y);
+            pendingMeasurement = RangeBearingLineResolver.ResolvePending(measureAnchor, new LatLon(lat, lon), lookup, RadarViewModel.MeasureUnits);
+        }
+
+        return (measurements, pendingMeasurement);
+    }
+
+    /// <summary>
+    /// Places this frame's measurement readouts clear of datablocks and symbols (<see cref="RblReadoutPlacement"/>),
+    /// rewriting <see cref="_rblNudgeOffsets"/> and <see cref="_rblReadoutSpots"/>. Returns each readout's rect by slot
+    /// and the datablock offsets to ship to the draw: <paramref name="deconflictOffsets"/> with every nudge folded in.
+    /// </summary>
+    private (IReadOnlyDictionary<int, SKRect> ReadoutRects, IReadOnlyDictionary<string, SKPoint> Offsets) PlaceRblReadouts(
+        IReadOnlyList<AircraftModel> sorted,
+        IReadOnlyList<ResolvedRbl>? lines,
+        ResolvedRbl? pending,
+        IReadOnlyDictionary<string, SKPoint> deconflictOffsets
+    )
+    {
+        if ((lines is not { Count: > 0 }) && (pending is null))
+        {
+            return ClearRblPlacement(deconflictOffsets);
+        }
+
+        List<RblReadout> readouts = RangeBearingRenderer.BuildReadouts(lines, pending, Viewport, _rblMeasureFont);
+        if (readouts.Count == 0)
+        {
+            return ClearRblPlacement(deconflictOffsets);
+        }
+
+        Dictionary<int, SKRect> rects = RblReadoutPlacement.PlaceAll(readouts, BuildRblObstacles(sorted), _rblReadoutSpots, _rblNudgeOffsets);
+        if (_rblNudgeOffsets.Count == 0)
+        {
+            return (rects, deconflictOffsets);
+        }
+
+        var merged = new Dictionary<string, SKPoint>(deconflictOffsets);
+        foreach (AircraftModel ac in sorted)
+        {
+            if (_rblNudgeOffsets.ContainsKey(ac.Callsign) && (DeconflictOffsetFor(ac, ComputeStableRectAtOrigin(ac)) is { } nudged))
+            {
+                merged[ac.Callsign] = nudged;
+            }
+        }
+
+        return (rects, merged);
+    }
+
+    /// <summary>
+    /// What the readouts avoid: every drawn datablock with no nudge applied — movable when it sits at its default or
+    /// auto-deconflicted placement, fixed when it has a manual drag offset or is a EuroScope tag — and every symbol.
+    /// </summary>
+    private RblObstacles BuildRblObstacles(IReadOnlyList<AircraftModel> sorted)
+    {
+        var fixedBlocks = new List<SKRect>();
+        var movable = new List<RblMovableBlock>();
+        var symbols = new List<SKPoint>(sorted.Count);
+        foreach (AircraftModel ac in sorted)
+        {
+            (float sx, float sy) = Viewport.LatLonToScreen(ac.Position.Lat, ac.Position.Lon);
+            symbols.Add(new SKPoint(sx, sy));
+            SKRect rect = ComputeDataBlockPlacement(ac, includeNudge: false).Rect;
+            if (State.ManualOffsets.ContainsKey(ac.Callsign) || TryGetEuroScopeTag(ac, out _))
+            {
+                fixedBlocks.Add(rect);
+            }
+            else
+            {
+                movable.Add(new RblMovableBlock(ac.Callsign, new SKPoint(sx, sy), rect));
+            }
+        }
+
+        var bounds = new SKRect(0, 0, Viewport.PixelWidth, Viewport.PixelHeight);
+        float maxLeader = DatablockDeconfliction.MaxLeaderLength(DatablockDeconfliction.Options.Default(bounds));
+        return new RblObstacles
+        {
+            FixedBlocks = fixedBlocks,
+            PlacedThisFrame = [],
+            MovableBlocks = movable,
+            SymbolCentres = symbols,
+            SymbolHalfSide = AircraftHitRadiusPx,
+            MaxLeaderLength = maxLeader,
+            ViewSize = new SKSize(Viewport.PixelWidth, Viewport.PixelHeight),
+        };
+    }
+
+    /// <summary>No readouts this frame: every nudge returns and no spot is remembered.</summary>
+    private (IReadOnlyDictionary<int, SKRect> ReadoutRects, IReadOnlyDictionary<string, SKPoint> Offsets) ClearRblPlacement(
+        IReadOnlyDictionary<string, SKPoint> deconflictOffsets
+    )
+    {
+        _rblNudgeOffsets.Clear();
+        _rblReadoutSpots.Clear();
+        return (NoReadoutRects, deconflictOffsets);
+    }
+
+    /// <summary>
+    /// Builds one render snapshot, as a frame does, and returns the datablock offsets and readout rects it ships to the
+    /// draw — the parity tests compare them with the hit-test placement.
+    /// </summary>
+    internal (IReadOnlyDictionary<string, SKPoint> DeconflictOffsets, IReadOnlyDictionary<int, SKRect> ReadoutRects) CaptureSnapshotPlacement()
+    {
+        var snapshot = (RenderSnapshot)CreateRenderSnapshot()!;
+        return (snapshot.DeconflictOffsets, snapshot.RblReadoutRects);
     }
 
     private string? FindHoveredFixName(IReadOnlyList<(string Name, double Lat, double Lon)> fixes, Point mousePos)
@@ -1224,7 +1370,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         );
 
         // Drawn last so a measurement stays readable over targets, datablocks, and video maps.
-        _renderer.DrawRangeBearingLines(canvas, viewport, s.RangeBearingLines, s.PendingRangeBearingLine);
+        _renderer.DrawRangeBearingLines(canvas, viewport, s.RangeBearingLines, s.PendingRangeBearingLine, s.RblReadoutRects);
     }
 
     protected override void OnPointerPressed(PointerPressedEventArgs e)
@@ -1369,6 +1515,15 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             }
         }
 
+        // Two or more aircraft under the pointer are offered in a picker; one or none falls through to the single-target
+        // menus below.
+        if (props.IsRightButtonPressed && FindRightClickTargets(pos) is { Count: >= 2 } targets)
+        {
+            _rightClickPicker.Open(this, pos, targets, target => RaiseRightClickTarget(target, pos));
+            e.Handled = true;
+            return;
+        }
+
         AircraftModel? dataBlockAc = FindDataBlockAtPoint(pos);
         if (dataBlockAc is not null)
         {
@@ -1482,8 +1637,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
 
             if (_dragThresholdMet && _dragCallsign is not null)
             {
-                State.ManualOffsets[_dragCallsign] = new SKPoint(_dragStartOffset.X + dx, _dragStartOffset.Y + dy);
-                MarkDirty();
+                State.SetManualOffset(_dragCallsign, new SKPoint(_dragStartOffset.X + dx, _dragStartOffset.Y + dy));
             }
 
             e.Handled = true;
@@ -1667,6 +1821,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
     /// </summary>
     public event Func<AircraftModel, TagFieldId, Point, bool>? EuroScopeFieldRightClicked;
 
+    /// <summary>The aircraft whose datablock is drawn on top at <paramref name="screenPos"/>, or null when none contains it.</summary>
     public AircraftModel? FindDataBlockAtPoint(Point screenPos)
     {
         if (Aircraft is null)
@@ -1674,23 +1829,91 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             return null;
         }
 
-        // Use z-order-sorted list so the topmost (last-drawn) datablock wins
-        IReadOnlyList<AircraftModel> sorted = SortByZOrder(
-            FilterAircraft(Aircraft, ShowTopDown, ShowSpeechBubbles, AlwaysShowGroundBubblesOnRadar, GroundShownAirportId, DateTime.UtcNow),
-            State.DataBlockZOrder
-        );
+        // The z-order list is drawn first to last, so the last hit is the block on top.
         AircraftModel? best = null;
-
-        foreach (AircraftModel ac in sorted)
+        foreach (AircraftModel ac in SortByZOrder(HitTestableAircraft(), State.DataBlockZOrder))
         {
-            SKRect blockRect = ComputeDataBlockRect(ac);
-            if (blockRect.Contains((float)screenPos.X, (float)screenPos.Y))
+            if (ComputeDataBlockRect(ac).Contains((float)screenPos.X, (float)screenPos.Y))
             {
                 best = ac;
             }
         }
 
         return best;
+    }
+
+    /// <summary>Every aircraft whose datablock contains <paramref name="screenPos"/>, topmost (last-drawn) first.</summary>
+    private List<AircraftModel> DataBlocksAtPoint(Point screenPos)
+    {
+        var hits = new List<AircraftModel>();
+        if (Aircraft is null)
+        {
+            return hits;
+        }
+
+        foreach (AircraftModel ac in SortByZOrder(HitTestableAircraft(), State.DataBlockZOrder))
+        {
+            SKRect blockRect = ComputeDataBlockRect(ac);
+            if (blockRect.Contains((float)screenPos.X, (float)screenPos.Y))
+            {
+                hits.Add(ac);
+            }
+        }
+
+        // The z-order list is drawn first to last, so the last hit is the block on top.
+        hits.Reverse();
+        return hits;
+    }
+
+    /// <summary>The aircraft the radar draws, which are the ones a click can land on.</summary>
+    private IReadOnlyList<AircraftModel> HitTestableAircraft() =>
+        FilterAircraft(Aircraft, ShowTopDown, ShowSpeechBubbles, AlwaysShowGroundBubblesOnRadar, GroundShownAirportId, DateTime.UtcNow);
+
+    /// <summary>
+    /// Every aircraft a right-click at <paramref name="screenPos"/> lands on, in the order the picker lists them: those whose
+    /// datablock contains the point (topmost first), then those whose symbol is within <see cref="AircraftHitRadiusPx"/>
+    /// (nearest first). An aircraft hit both ways is listed once, as its datablock hit.
+    /// </summary>
+    public IReadOnlyList<RightClickTarget> FindRightClickTargets(Point screenPos)
+    {
+        var targets = new List<RightClickTarget>();
+        var listed = new HashSet<string>(StringComparer.Ordinal);
+        foreach (AircraftModel ac in DataBlocksAtPoint(screenPos))
+        {
+            if (listed.Add(ac.Callsign))
+            {
+                targets.Add(RightClickTarget.ForAircraft(ac.Callsign, ac.DisplayAircraftType, viaDataBlock: true));
+            }
+        }
+
+        foreach (AircraftModel ac in AircraftNearPoint(screenPos))
+        {
+            if (listed.Add(ac.Callsign))
+            {
+                targets.Add(RightClickTarget.ForAircraft(ac.Callsign, ac.DisplayAircraftType, viaDataBlock: false));
+            }
+        }
+
+        return targets;
+    }
+
+    /// <summary>The right-click target picker while it is open, or null.</summary>
+    public ContextMenu? ActiveRightClickPicker => _rightClickPicker.Menu;
+
+    /// <summary>Raises <see cref="AircraftRightClicked"/> for an aircraft chosen in the picker, at the original click position.</summary>
+    private void RaiseRightClickTarget(RightClickTarget target, Point screenPos)
+    {
+        if (target.Callsign is not { } callsign)
+        {
+            return;
+        }
+
+        if (target.ViaDataBlock)
+        {
+            SurfaceDataBlock(callsign);
+        }
+
+        AircraftRightClicked?.Invoke(callsign, screenPos);
     }
 
     private SKRect ComputeDataBlockRect(AircraftModel ac) => ComputeDataBlockPlacement(ac).Rect;
@@ -1700,26 +1923,25 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
     /// resulting bounds — using the same offset rules the renderer draws with: a manual drag offset
     /// wins, else the student's leader direction when leader sync is on, else the default upper-right
     /// offset. Hit testing uses the rect; drag start uses the offset so a leader-placed block whose
-    /// position hasn't been dragged doesn't jump on the first drag.
+    /// position hasn't been dragged doesn't jump on the first drag. Includes any measurement-readout nudge,
+    /// as the draw does.
     /// </summary>
-    private (SKPoint Offset, SKRect Rect) ComputeDataBlockPlacement(AircraftModel ac)
+    internal (SKPoint Offset, SKRect Rect) ComputeDataBlockPlacement(AircraftModel ac) => ComputeDataBlockPlacement(ac, includeNudge: true);
+
+    private (SKPoint Offset, SKRect Rect) ComputeDataBlockPlacement(AircraftModel ac, bool includeNudge)
     {
         bool hasManual = State.ManualOffsets.TryGetValue(ac.Callsign, out SKPoint manualOffset);
 
         // EuroScope path uses the bounds the renderer cached during the last frame so
         // hit testing always matches what's actually on screen.
-        if (
-            EuroScopeMode
-            && !State.MinifiedCallsigns.Contains(ac.Callsign)
-            && LastEuroScopeTags.TryGetValue(ac.Callsign, out EuroScopeTagResult esResult)
-        )
+        if (TryGetEuroScopeTag(ac, out EuroScopeTagResult esResult))
         {
             return (hasManual ? manualOffset : RadarDatablockLayout.DefaultOffset, esResult.Bounds);
         }
 
         (float sx, float sy) = Viewport.LatLonToScreen(ac.Position.Lat, ac.Position.Lon);
         SKRect rectAtOrigin = ComputeStableRectAtOrigin(ac);
-        SKPoint? deconflict = DeconflictOffsetFor(ac.Callsign);
+        SKPoint? deconflict = includeNudge ? DeconflictOffsetFor(ac, rectAtOrigin) : BaseDeconflictOffsetFor(ac.Callsign);
         SKPoint offset = RadarDatablockLayout.ResolveBlockOffset(ac, SyncStudentLeaderDirection, hasManual, manualOffset, rectAtOrigin, deconflict);
         var rect = new SKRect(
             rectAtOrigin.Left + sx + offset.X,
@@ -1807,8 +2029,50 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
     }
 
     /// <summary>The deconfliction-resolved offset for a callsign, or null when deconfliction is off or absent.</summary>
-    private SKPoint? DeconflictOffsetFor(string callsign) =>
+    private SKPoint? BaseDeconflictOffsetFor(string callsign) =>
         DeconflictMode != DatablockDeconflictMode.Off && _resolvedDeconflictOffsets.TryGetValue(callsign, out SKPoint off) ? off : null;
+
+    /// <summary>
+    /// The offset the deconfliction layer gives a block, plus its measurement-readout nudge when it has one: with a
+    /// nudge and no deconfliction offset (mode Off), the default placement plus the nudge. Null when neither applies.
+    /// A manual offset still wins over this in <see cref="RadarDatablockLayout.ResolveBlockOffset"/>; manual blocks
+    /// are never nudged.
+    /// </summary>
+    private SKPoint? DeconflictOffsetFor(AircraftModel ac, SKRect rectAtOrigin)
+    {
+        SKPoint? deconflict = BaseDeconflictOffsetFor(ac.Callsign);
+        if (!_rblNudgeOffsets.TryGetValue(ac.Callsign, out RblNudge nudge))
+        {
+            return deconflict;
+        }
+
+        SKPoint from =
+            deconflict
+            ?? RadarDatablockLayout.ResolveBlockOffset(
+                ac,
+                SyncStudentLeaderDirection,
+                hasManual: false,
+                manual: default,
+                rectAtOrigin,
+                deconflictOffset: null
+            );
+        return new SKPoint(from.X + nudge.Delta.X, from.Y + nudge.Delta.Y);
+    }
+
+    /// <summary>
+    /// The aircraft's EuroScope tag as the renderer cached it last frame, when its block is drawn as one: such a tag is
+    /// pinned at its cached bounds.
+    /// </summary>
+    private bool TryGetEuroScopeTag(AircraftModel ac, out EuroScopeTagResult tag)
+    {
+        if (EuroScopeMode && !State.MinifiedCallsigns.Contains(ac.Callsign))
+        {
+            return LastEuroScopeTags.TryGetValue(ac.Callsign, out tag);
+        }
+
+        tag = default;
+        return false;
+    }
 
     /// <summary>
     /// Runs the deconfliction pass for the current frame and returns an immutable copy for the snapshot.
@@ -1898,6 +2162,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         return items;
     }
 
+    /// <summary>The aircraft whose symbol is nearest <paramref name="screenPos"/> within <see cref="AircraftHitRadiusPx"/>, or null.</summary>
     public AircraftModel? FindAircraftAtPoint(Point screenPos)
     {
         if (Aircraft is null)
@@ -1905,26 +2170,11 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             return null;
         }
 
-        const float hitRadius = 28f;
         AircraftModel? closest = null;
-        float closestDist = hitRadius;
-
-        foreach (
-            AircraftModel ac in FilterAircraft(
-                Aircraft,
-                ShowTopDown,
-                ShowSpeechBubbles,
-                AlwaysShowGroundBubblesOnRadar,
-                GroundShownAirportId,
-                DateTime.UtcNow
-            )
-        )
+        float closestDist = AircraftHitRadiusPx;
+        foreach (AircraftModel ac in HitTestableAircraft())
         {
-            (float sx, float sy) = Viewport.LatLonToScreen(ac.Position.Lat, ac.Position.Lon);
-            float dx = (float)screenPos.X - sx;
-            float dy = (float)screenPos.Y - sy;
-            float dist = MathF.Sqrt(dx * dx + dy * dy);
-
+            float dist = ScreenDistance(screenPos, ac);
             if (dist < closestDist)
             {
                 closestDist = dist;
@@ -1933,6 +2183,36 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         }
 
         return closest;
+    }
+
+    /// <summary>Every aircraft whose symbol is within <see cref="AircraftHitRadiusPx"/> of <paramref name="screenPos"/>, nearest first.</summary>
+    private List<AircraftModel> AircraftNearPoint(Point screenPos)
+    {
+        if (Aircraft is null)
+        {
+            return [];
+        }
+
+        var hits = new List<(AircraftModel Aircraft, float Distance)>();
+        foreach (AircraftModel ac in HitTestableAircraft())
+        {
+            float dist = ScreenDistance(screenPos, ac);
+            if (dist < AircraftHitRadiusPx)
+            {
+                hits.Add((ac, dist));
+            }
+        }
+
+        // OrderBy is stable, so of two equally near aircraft the earlier in the list stays first.
+        return [.. hits.OrderBy(h => h.Distance).Select(h => h.Aircraft)];
+    }
+
+    private float ScreenDistance(Point screenPos, AircraftModel ac)
+    {
+        (float sx, float sy) = Viewport.LatLonToScreen(ac.Position.Lat, ac.Position.Lon);
+        float dx = (float)screenPos.X - sx;
+        float dy = (float)screenPos.Y - sy;
+        return MathF.Sqrt((dx * dx) + (dy * dy));
     }
 
     /// <summary>
@@ -2289,8 +2569,10 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
 
     public void Dispose()
     {
+        _rightClickPicker.Close();
         _renderer.Dispose();
         _hitTestPaint.Dispose();
         _hitTestFont.Dispose();
+        _rblMeasureFont.Dispose();
     }
 }

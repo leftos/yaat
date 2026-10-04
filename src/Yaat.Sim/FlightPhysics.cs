@@ -1583,8 +1583,9 @@ public static class FlightPhysics
     /// <see cref="ApplyReadyConditionalBlocks"/>; additionally, untriggered blocks are applied in
     /// strict `;` order — an idle phase never completes on its own, so without this the blocks
     /// queued behind PUSH / TAXI-to-hold-short strand forever (issue #407). An untriggered block
-    /// never leapfrogs an earlier unfired block, is held while any of its non-transparent commands
-    /// is Rejected by the idle phase (it stays queued and visible), counts a WAIT down before firing
+    /// never leapfrogs an earlier unfired block, is held while a non-transparent command before its
+    /// first phase-clearing command is Rejected by the idle phase (it stays queued and visible; the
+    /// pre-check stops at the first phase-clearing command), counts a WAIT down before firing
     /// its payload, and stops advancing the moment an applied block leaves the idle phase.
     /// </summary>
     private static void AdvanceQueueWhileIdle(
@@ -1660,9 +1661,9 @@ public static class FlightPhysics
     /// <summary>
     /// Applies one untriggered block while the aircraft idles. Returns <c>false</c> when the idle
     /// scan must stop: the aircraft left its idle phase (an earlier applied block installed a new
-    /// one), the idle phase rejects a command in the block (it stays queued and visible), or an
-    /// untriggered WAIT is still counting down. Consecutive returns of <c>true</c> deliberately do
-    /// NOT wait for the previous block's tracked commands to complete — completion tracking does
+    /// one), the idle phase rejects a command in the block ahead of its first phase-clearing command
+    /// (it stays queued and visible), or an untriggered WAIT is still counting down. Consecutive
+    /// returns of <c>true</c> deliberately do NOT wait for the previous block's tracked commands to complete — completion tracking does
     /// not run while a phase is active, so gating on it would re-strand pre-arm chains like
     /// <c>PUSH; CM 5000; TAXI ...</c> whose altitude target cannot complete on the ground.
     /// </summary>
@@ -1680,10 +1681,33 @@ public static class FlightPhysics
             return false;
         }
 
-        // Acceptance pre-check: phase-transparent commands (squawk family, say/report, ...)
-        // always pass — every ground hold phase nominally "Rejects" them, yet they apply fine
-        // through BuildApplyAction. A WAIT is queue mechanics (its countdown is handled below),
-        // not a phase-interactive instruction — no phase accepts CanonicalCommandType.Wait.
+        if (!IdlePhaseAcceptsBlock(idlePhase, parsed))
+        {
+            return false;
+        }
+
+        // An untriggered WAIT holds its payload until the countdown elapses (a triggered WAIT
+        // is handled by ApplyOrCountdownWait on the triggered path).
+        if (block.IsWaitBlock && !CheckWaitComplete(block, aircraft, deltaSeconds))
+        {
+            return false;
+        }
+
+        // A failed apply has already discarded the chain remainder; stop the idle scan this tick.
+        return ApplyBlock(aircraft, block);
+    }
+
+    /// <summary>
+    /// Acceptance pre-check of an idle block against the idle phase. Phase-transparent commands
+    /// (squawk family, say/report, ...) always pass — every ground hold phase nominally "Rejects"
+    /// them, yet they apply fine through BuildApplyAction. A WAIT is queue mechanics, not a
+    /// phase-interactive instruction — no phase accepts CanonicalCommandType.Wait. The check stops
+    /// at the first command that clears the idle phase: the commands after it are judged at apply
+    /// time by the phase it installs (BuildApplyAction re-reads the current phase per command), so
+    /// <c>TAXI ..., HS B</c> fires while holding after pushback even though that phase rejects HS.
+    /// </summary>
+    private static bool IdlePhaseAcceptsBlock(Phase idlePhase, IReadOnlyList<ParsedCommand> parsed)
+    {
         foreach (ParsedCommand cmd in parsed)
         {
             if (cmd is UnsupportedCommand or WaitCommand)
@@ -1697,21 +1721,19 @@ public static class FlightPhysics
                 continue;
             }
 
-            if (idlePhase.CanAcceptCommand(canonical).IsRejected)
+            CommandAcceptance acceptance = idlePhase.CanAcceptCommand(canonical);
+            if (acceptance.IsRejected)
             {
                 return false;
             }
+
+            if (acceptance.ClearsThePhase)
+            {
+                return true;
+            }
         }
 
-        // An untriggered WAIT holds its payload until the countdown elapses (a triggered WAIT
-        // is handled by ApplyOrCountdownWait on the triggered path).
-        if (block.IsWaitBlock && !CheckWaitComplete(block, aircraft, deltaSeconds))
-        {
-            return false;
-        }
-
-        // A failed apply has already discarded the chain remainder; stop the idle scan this tick.
-        return ApplyBlock(aircraft, block);
+        return true;
     }
 
     /// <summary>

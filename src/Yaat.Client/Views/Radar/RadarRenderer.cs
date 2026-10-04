@@ -873,8 +873,13 @@ public sealed class RadarRenderer : IDisposable
     /// Draws the distance measuring tool's range/bearing lines. Called after <see cref="Render" /> so
     /// measurements stay legible over targets, datablocks, and video maps.
     /// </summary>
-    public void DrawRangeBearingLines(SKCanvas canvas, MapViewport vp, IReadOnlyList<ResolvedRbl>? lines, ResolvedRbl? pending) =>
-        _rangeBearingRenderer.Draw(canvas, vp, lines, pending);
+    public void DrawRangeBearingLines(
+        SKCanvas canvas,
+        MapViewport vp,
+        IReadOnlyList<ResolvedRbl>? lines,
+        ResolvedRbl? pending,
+        IReadOnlyDictionary<int, SKRect> readoutRects
+    ) => _rangeBearingRenderer.Draw(canvas, vp, lines, pending, readoutRects);
 
     public void Dispose()
     {

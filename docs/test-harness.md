@@ -407,10 +407,7 @@ duplicate-arc/parallel-bypass removals — i.e. the generator produced clean out
 
 ### The heavy categories
 
-`[Trait("Category", "Nightly")]` (per-spot taxi-coverage grid sweeps, e.g. `TaxiCoverageOakGridTests` / `TaxiCoverageSfoGridTests`) and
-`[Trait("Category", "PathfinderGrid")]` (the state-aware-pruning necessity oracle sweep) are excluded from the default `test-all.ps1` run
-for speed. The default filter is `Category!=Nightly&Category!=PathfinderGrid` (untagged tests still run — a trait-inequality filter only
-drops explicitly tagged tests). Pass `pwsh tools/test-all.ps1 -Full` to include them (CI/nightly do).
+`[Trait("Category", "Nightly")]` (per-spot taxi-coverage grid sweeps, e.g. `TaxiCoverageOakGridTests` / `TaxiCoverageSfoGridTests`) and `[Trait("Category", "PathfinderGrid")]` (the state-aware-pruning necessity oracle sweep) are excluded from the default `test-all.ps1` run for speed, and `[Trait("Category", "Desktop")]` (`AutomationClientZOrderTests`, which launch the real client on the interactive desktop; Windows only, so never in the Linux CI) because it puts windows on the developer's screen. The default run passes `--filter-not-trait` for each of the three (untagged tests still run — a trait-inequality filter only drops explicitly tagged tests). Pass `pwsh tools/test-all.ps1 -Full` to include them (CI/nightly run Nightly and PathfinderGrid).
 
 ## Other fixtures
 

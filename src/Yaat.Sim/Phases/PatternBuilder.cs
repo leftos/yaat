@@ -348,38 +348,58 @@ public static class PatternBuilder
         var downwind = new DownwindPhase { Waypoints = patternWaypoints };
 
         List<Phase> phases = [new UpwindPhase { Waypoints = flownWaypoints }];
-        phases.AddRange(BuildFieldCrossingPrefix(crossing, patternWaypoints, category, altitudeOverrideFt, [downwind]));
+        phases.AddRange(
+            BuildFieldCrossingPrefix(crossing, patternWaypoints, category, altitudeOverrideFt, flownRunway.AirportElevationFt, [downwind])
+        );
         phases.Add(downwind);
         return phases;
     }
 
     /// <summary>
     /// The phases that carry an aircraft across the field and onto the downwind of
-    /// <paramref name="circuit"/>: the crossing itself, and — when it is flown at the AIM 4-3-3.a.2
-    /// entry height rather than at pattern altitude — a <see cref="TeardropReentryPhase"/> to shed that
-    /// height on an outbound leg and a 45° intercept to abeam before joining. The gate is what the
-    /// crossing will actually be flown at
-    /// (<see cref="MidfieldCrossingPhase.CrossesAtPatternAltitude"/>), not the category alone: a piston
-    /// or helicopter entry, an in-pattern crossover, a departure crossing into another runway's pattern,
-    /// and a jet flying a controller-assigned pattern altitude all cross at pattern altitude and have
-    /// nothing to descend. Those drop straight into the downwind, and that downwind re-intercepts its
-    /// computed track — the crossing can leave the aircraft inside it, and base/final geometry built for
-    /// the computed width would otherwise turn early.
+    /// <paramref name="circuit"/>: the crossing itself, and — when it is flown above pattern altitude —
+    /// a <see cref="TeardropReentryPhase"/> to shed that height on an outbound leg and a 45° intercept to
+    /// abeam before joining. The gate is the altitude the crossing will actually be flown at
+    /// (<see cref="MidfieldCrossingPhase.ResolveCrossingAltitude(bool, AircraftCategory, double?, double, double?)"/>),
+    /// not the category alone: a piston or helicopter entry, an in-pattern crossover, a departure crossing
+    /// into another runway's pattern, a jet flying a controller-assigned pattern altitude, and a turbine
+    /// entering at a field whose pattern altitude already is the AIM 4-3-3.a.2 entry height all cross at
+    /// pattern altitude and have nothing to descend. Those drop straight into the downwind, and that
+    /// downwind re-intercepts its computed track — the crossing can leave the aircraft inside it, and
+    /// base/final geometry built for the computed width would otherwise turn early.
     ///
     /// <para>Every join that crosses the field flies this: the arrival entry and the wrong-side MLT/MRT
     /// rebuild (<c>PatternCommandHandler</c>) and the crossing-runway transition circuit
     /// (<see cref="BuildRunwayTransitionCircuit"/>, e.g. <c>CTO 33 MRT 28R</c>).</para>
     /// </summary>
+    /// <param name="crossing">The crossing the prefix leads with.</param>
+    /// <param name="waypoints">The circuit's waypoints, shared with the crossing and the re-entry.</param>
+    /// <param name="category">The aircraft's category, used to resolve the crossing altitude.</param>
+    /// <param name="altitudeOverrideFt">A controller-assigned pattern altitude, which outranks the entry height (AIM 4-4-7.b).</param>
+    /// <param name="airportElevationFt">
+    /// Field elevation (ft MSL) the AIM 4-3-3.a.2 entry height is measured from. Null when the caller has
+    /// no runway: the crossing then resolves to pattern altitude, so no teardrop is inserted.
+    /// </param>
+    /// <param name="circuit">The rest of the circuit, whose downwind this prefix joins.</param>
     public static List<Phase> BuildFieldCrossingPrefix(
         MidfieldCrossingPhase crossing,
         PatternWaypoints waypoints,
         AircraftCategory category,
         double? altitudeOverrideFt,
+        double? airportElevationFt,
         IReadOnlyList<Phase> circuit
     )
     {
         var prefix = new List<Phase> { crossing };
-        if (!MidfieldCrossingPhase.CrossesAtPatternAltitude(crossing.CrossAtPatternAltitude, category, altitudeOverrideFt))
+        double crossingAlt = MidfieldCrossingPhase.ResolveCrossingAltitude(
+            crossing.CrossAtPatternAltitude,
+            category,
+            altitudeOverrideFt,
+            waypoints.PatternAltitude,
+            airportElevationFt
+        );
+
+        if (crossingAlt > waypoints.PatternAltitude + FlightPhysics.AltitudeSnapFt)
         {
             prefix.Add(new TeardropReentryPhase { Waypoints = waypoints });
         }

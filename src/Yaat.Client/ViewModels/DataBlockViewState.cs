@@ -15,6 +15,32 @@ public class DataBlockViewState
     /// <summary>Manual drag offsets (callsign → screen-space offset from the position symbol).</summary>
     public Dictionary<string, SKPoint> ManualOffsets { get; } = [];
 
+    /// <summary>
+    /// Raised when <see cref="SetManualOffset"/> or <see cref="RemoveManualOffset"/> changes an offset, so the canvas showing it
+    /// repaints. <see cref="Clear"/> does not raise it: its callers reset the whole view on a layout or scenario change.
+    /// </summary>
+    public event Action? ManualOffsetsChanged;
+
+    /// <summary>Moves the callsign's datablock to <paramref name="offset"/> from its position symbol, as a drag does.</summary>
+    public void SetManualOffset(string callsign, SKPoint offset)
+    {
+        ManualOffsets[callsign] = offset;
+        ManualOffsetsChanged?.Invoke();
+    }
+
+    /// <summary>Returns the callsign's datablock to its default placement.</summary>
+    /// <returns>True when the datablock had a manual offset to remove.</returns>
+    public bool RemoveManualOffset(string callsign)
+    {
+        if (!ManualOffsets.Remove(callsign))
+        {
+            return false;
+        }
+
+        ManualOffsetsChanged?.Invoke();
+        return true;
+    }
+
     /// <summary>Callsigns whose datablocks are highlighted (middle-click toggle).</summary>
     public HashSet<string> HighlightedCallsigns { get; } = [];
 

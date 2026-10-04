@@ -310,6 +310,16 @@ public partial class RadarViewModel(
     /// </summary>
     public RadarDataBlockViewState DataBlockState { get; } = new();
 
+    /// <summary>
+    /// Moves the callsign's datablock to a screen-pixel <paramref name="offset"/> from its target symbol, as dragging it does;
+    /// every bound radar canvas repaints on <see cref="DataBlockViewState.ManualOffsetsChanged"/>.
+    /// </summary>
+    public void SetDataBlockOffset(string callsign, SKPoint offset) => DataBlockState.SetManualOffset(callsign, offset);
+
+    /// <summary>Returns the callsign's datablock to its default placement.</summary>
+    /// <returns>True when the datablock had a manual offset to remove.</returns>
+    public bool ResetDataBlockOffset(string callsign) => DataBlockState.RemoveManualOffset(callsign);
+
     private readonly HashSet<string> _shownPathCallsigns = [];
     private readonly Dictionary<string, (IReadOnlyList<ShownPathEntry> Segments, string Fingerprint)> _pathCache = [];
     private readonly Dictionary<string, int> _pathColorIndices = [];
@@ -336,6 +346,20 @@ public partial class RadarViewModel(
     /// server round-trip that method needs.
     /// </summary>
     internal void SetScenarioIdForTesting(string? scenarioId) => _activeScenarioId = scenarioId;
+
+    /// <summary>
+    /// True once the latest <see cref="LoadVideoMapsForArtccAsync"/> attempt is over: it downloaded the maps and restored the
+    /// scenario's saved radar settings over them, or it ended with no maps or failed, leaving nothing to restore. False while a
+    /// load is in flight and after <see cref="ClearVideoMaps"/>; in flight the toggles may exist, but a map turned on, or a centre
+    /// or range set, would be overwritten by the restore.
+    /// </summary>
+    public bool VideoMapsReady { get; private set; }
+
+    /// <summary>Counts load starts and clears, so only the latest load attempt marks the maps ready when it ends.</summary>
+    private int _videoMapLoadGeneration;
+
+    /// <summary>Test-only hook: marks the maps and saved settings as applied, without the server round-trip a load needs.</summary>
+    internal void SetVideoMapsReadyForTesting() => VideoMapsReady = true;
 
     public void SetPreferences(UserPreferences prefs)
     {
@@ -599,6 +623,8 @@ public partial class RadarViewModel(
 
     public async Task LoadVideoMapsForArtccAsync(string artccId, string? airportId = null, string? scenarioId = null)
     {
+        VideoMapsReady = false;
+        int load = ++_videoMapLoadGeneration;
         try
         {
             FacilityVideoMapsDto? dto = await _connection.GetFacilityVideoMapsForArtccAsync(artccId, airportId);
@@ -628,6 +654,15 @@ public partial class RadarViewModel(
         catch (Exception ex)
         {
             _log.LogError(ex, "Failed to load video maps for {Artcc}", artccId);
+        }
+        finally
+        {
+            // Loaded, no maps, or failed: the attempt is over and nothing will restore settings over a later change. A newer load
+            // or a clear since this one began owns the flag instead.
+            if (load == _videoMapLoadGeneration)
+            {
+                VideoMapsReady = true;
+            }
         }
     }
 
@@ -855,6 +890,8 @@ public partial class RadarViewModel(
 
     public void ClearVideoMaps()
     {
+        VideoMapsReady = false;
+        _videoMapLoadGeneration++;
         MapToggles.Clear();
         BrightnessLookup.Clear();
         ActiveVideoMaps = null;

@@ -94,6 +94,8 @@ A tangent cut is a new node placed a computed distance **along an arm, away from
 
 `preserveNode` junctions are classified `JunctionKind.Preserve` and never added to `nodesToRemove` — their corners still get arcs, but the original vertex stays.
 
+**A collinear through-pair also preserves the node.** `JunctionClassifier.Classify` classifies a junction `Preserve` whenever `CornerPlanner.PlanCorners` finds a collinear pair (two arms turning less than `CollinearThresholdDeg`), whatever `FilletEligibility` said: the straight-through is kept as the original vertex with its arms, and only the junction's real corners get arcs. `FilletPlanBuilder` likewise removes a junction node only when it is neither `PreserveNode` nor holds a collinear pair.
+
 ### Runway-crossing centerline projection
 
 `RunwayCrossingDetector.ConnectOnRunwayNodes` (parse stage, **before** fillet) links each taxiway hold-short representative to the runway centerline. When the representative sits ≥5 ft off the centerline it needs a point **on** the centerline; `ResolveCenterlineProjectionNode` either reuses a pre-existing `TaxiwayIntersection` already within `CoincidentNodeThresholdFt` (5 ft) of the projected point or, failing that, mints a `RunwayCrossing:centerline-projection` node there. Reusing rather than minting is what keeps the projection from landing coincident with an existing intermediate node — the case the retired post-execute coincident-node merge used to clean up.

@@ -1,0 +1,30 @@
+# A8 — 28L left-downwind follower told to follow a 28R straight-in.
+# KOAK close parallels: 28L flies left traffic (south side), 28R right traffic (north side).
+# Two VFR C172s, neither placed on a leg by the scenario. The commands below fly them in.
+#
+#   N52417  lead     — C172 east of the field on the 28R extended centerline, straight in
+#   N738SP  follower — C172 west of the field, inbound from San Carlos along the shoreline, joins 28L's left downwind
+#
+# Times are sim seconds. See card.md for what the clip shows.
+
+# t=1  Inhibit conflict alerts on both aircraft (CAINH toggles).
+t=1 N52417 CAINH
+t=1 N738SP CAINH
+
+# t=2  Lead: join the 28R final straight-in.
+t=2 N52417 EF 28R
+
+# t=3  Follower: enter the left downwind for 28L.
+t=3 N738SP ELD 28L
+
+# t=4  Lead: cleared to land 28R (first in the sequence).
+t=4 N52417 CLAND 28R
+
+# t=100 Traffic advisory to the follower: the Cessna at 11 o'clock, 4 miles, westbound on the 28R straight-in.
+t=100 N738SP RTIS 11 4 W C172
+
+# t=142 The follow, once the traffic is called in sight: the follower on the 28L downwind, the lead on a 2 NM final for 28R.
+t=142 N738SP FOLLOW N52417
+
+# t=144 Follower: cleared to land 28R, the lead's runway, behind the traffic.
+t=144 N738SP CLAND 28R

@@ -136,10 +136,31 @@ public sealed partial class SimulationEngine
         SurfaceAirports airports = ResolveSurfaceAirports(scenario.ArtccConfig, NavigationDatabase.InstanceOrNull);
         foreach (AircraftState ac in World.GetSnapshot())
         {
-            AircraftStarsState stars = ac.Stars;
-            stars.VisibleAsdexAirports = SurfaceMembership.EvaluateAsdex(ac, stars.VisibleAsdexAirports, airports);
-            stars.VisibleSaidAirports = SurfaceMembership.EvaluateSaid(ac, stars.VisibleSaidAirports, airports);
+            EvaluateSurfaceMembership(ac, airports);
         }
+    }
+
+    /// <summary>
+    /// One aircraft's ASDE-X and SAAB SAID membership, moved on from the one it holds by the rule the tick step applies.
+    /// The step runs only on ticks while the CRC broadcast also runs paused, so a body that puts an aircraft in the world
+    /// or moves it between ticks (a spawn, a warp) calls this to keep the displays current. An aircraft that has not moved
+    /// since its last evaluation keeps the set it holds, so a call between ticks changes nothing the next step would not.
+    /// </summary>
+    public void EvaluateSurfaceMembership(AircraftState ac)
+    {
+        if (Scenario is not { } scenario)
+        {
+            return;
+        }
+
+        EvaluateSurfaceMembership(ac, ResolveSurfaceAirports(scenario.ArtccConfig, NavigationDatabase.InstanceOrNull));
+    }
+
+    private static void EvaluateSurfaceMembership(AircraftState ac, SurfaceAirports airports)
+    {
+        AircraftStarsState stars = ac.Stars;
+        stars.VisibleAsdexAirports = SurfaceMembership.EvaluateAsdex(ac, stars.VisibleAsdexAirports, airports);
+        stars.VisibleSaidAirports = SurfaceMembership.EvaluateSaid(ac, stars.VisibleSaidAirports, airports);
     }
 
     /// <summary>

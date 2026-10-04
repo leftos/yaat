@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Approach;
 using Yaat.Sim.Phases.Pattern;
@@ -34,8 +35,10 @@ public class FollowClimbFollowerTests(ITestOutputHelper output)
         return new SimulationEngine(new TestAirportGroundData());
     }
 
-    private static RunwayInfo Oak28R() =>
-        NavigationDatabase.Instance.GetRunway("KOAK", "28R") ?? throw new InvalidOperationException("KOAK 28R missing from navdata");
+    private static RunwayInfo Oak(string designator) =>
+        NavigationDatabase.Instance.GetRunway("KOAK", designator) ?? throw new InvalidOperationException($"KOAK {designator} missing from navdata");
+
+    private static RunwayInfo Oak28R() => Oak("28R");
 
     /// <summary>
     /// Point <paramref name="alongNm"/> out the final (past the threshold when negative) and <paramref name="crossNm"/> to the
@@ -96,17 +99,17 @@ public class FollowClimbFollowerTests(ITestOutputHelper output)
         );
 
     /// <summary>
-    /// An aircraft on the 28R right circuit from <paramref name="leg"/>, placed where <paramref name="place"/> puts it on that
-    /// circuit.
+    /// An aircraft on the right circuit for KOAK <paramref name="rwy"/> from <paramref name="leg"/>, placed where
+    /// <paramref name="place"/> puts it on that circuit.
     /// </summary>
     private static AircraftState AddOnCircuit(
         SimulationEngine engine,
         string callsign,
+        RunwayInfo rwy,
         PatternEntryLeg leg,
         Func<PatternWaypoints, (LatLon, TrueHeading)> place
     )
     {
-        RunwayInfo rwy = Oak28R();
         AircraftState ac = MakeAircraft(callsign, OffFinal(rwy, 1.0, 1.0), rwy.TrueHeading, 1000, "VFR");
         engine.World.AddAircraft(ac);
         ac.Phases = new PhaseList { AssignedRunway = rwy, TrafficDirection = PatternDirection.Right };
@@ -172,21 +175,8 @@ public class FollowClimbFollowerTests(ITestOutputHelper output)
         AircraftState follower = MakeAircraft(Follower, OffFinal(rwy, -pastThresholdNm, 0), rwy.TrueHeading, rwy.AirportElevationFt + 300, "VFR");
         follower.Approach.HasReportedTrafficInSight = true;
         engine.World.AddAircraft(follower);
-        var takeoff = TakeoffPhase.FromSnapshot(
-            new TakeoffPhaseDto
-            {
-                Status = (int)PhaseStatus.Active,
-                ElapsedSeconds = 30,
-                Airborne = true,
-                FieldElevation = rwy.AirportElevationFt,
-                RunwayHeadingDeg = rwy.TrueHeading.Degrees,
-                ThresholdLat = rwy.ThresholdLatitude,
-                ThresholdLon = rwy.ThresholdLongitude,
-                Departure = new ClosedTrafficDepartureDto { Direction = (int)PatternDirection.Right },
-            }
-        );
         follower.Phases = new PhaseList { AssignedRunway = rwy, TrafficDirection = PatternDirection.Right };
-        follower.Phases.Add(takeoff); // CurrentIndex defaults to 0: the active takeoff is the current phase
+        follower.Phases.Add(ClosedTrafficTakeoff(rwy)); // CurrentIndex defaults to 0: the active takeoff is the current phase
         foreach (Phase phase in RightCircuit(rwy, PatternEntryLeg.Upwind))
         {
             follower.Phases.Add(phase);
@@ -195,6 +185,22 @@ public class FollowClimbFollowerTests(ITestOutputHelper output)
         Assert.True(AirborneFollowHelper.IsClosedTrafficClimb(follower));
         return follower;
     }
+
+    /// <summary>An active, airborne closed-traffic takeoff (right traffic) off <paramref name="flown"/>, 30 s into its roll.</summary>
+    private static TakeoffPhase ClosedTrafficTakeoff(RunwayInfo flown) =>
+        TakeoffPhase.FromSnapshot(
+            new TakeoffPhaseDto
+            {
+                Status = (int)PhaseStatus.Active,
+                ElapsedSeconds = 30,
+                Airborne = true,
+                FieldElevation = flown.AirportElevationFt,
+                RunwayHeadingDeg = flown.TrueHeading.Degrees,
+                ThresholdLat = flown.ThresholdLatitude,
+                ThresholdLon = flown.ThresholdLongitude,
+                Departure = new ClosedTrafficDepartureDto { Direction = (int)PatternDirection.Right },
+            }
+        );
 
     /// <summary>The waypoints of the follower's queued circuit, or of a right circuit on 28R when it carries none.</summary>
     private static PatternWaypoints CircuitWaypoints(AircraftState ac) =>
@@ -212,7 +218,7 @@ public class FollowClimbFollowerTests(ITestOutputHelper output)
         );
 
     private static AircraftState AddCrosswindLead(SimulationEngine engine) =>
-        AddOnCircuit(engine, Leader, PatternEntryLeg.Crosswind, wp => OutOnCrosswind(wp, 0.5));
+        AddOnCircuit(engine, Leader, Oak28R(), PatternEntryLeg.Crosswind, wp => OutOnCrosswind(wp, 0.5));
 
     /// <summary>Lead north of the field entering the 28R right downwind (ERD 28R), still on its pattern entry.</summary>
     private static AircraftState AddEntryLead(SimulationEngine engine)
@@ -319,7 +325,7 @@ public class FollowClimbFollowerTests(ITestOutputHelper output)
     public void GoAroundFollower_LeadBehind_RefusedWithGoAroundText()
     {
         SimulationEngine engine = BuildEngine();
-        AircraftState lead = AddOnCircuit(engine, Leader, PatternEntryLeg.Upwind, wp => UpwindShortOfCrosswindTurn(wp, 1.0));
+        AircraftState lead = AddOnCircuit(engine, Leader, Oak28R(), PatternEntryLeg.Upwind, wp => UpwindShortOfCrosswindTurn(wp, 1.0));
         AircraftState follower = AddGoAroundFollower(engine, 0.5, reenter: true, "VFR");
         (LatLon ahead, TrueHeading heading) = UpwindShortOfCrosswindTurn(CircuitWaypoints(lead), 0.2);
         follower.Position = ahead;
@@ -411,7 +417,7 @@ public class FollowClimbFollowerTests(ITestOutputHelper output)
         SimulationEngine engine = BuildEngine();
         AircraftState follower = followerKind switch
         {
-            "pattern" => AddOnCircuit(engine, Follower, PatternEntryLeg.Downwind, wp => DownwindShortOfBaseTurn(wp, 1.0)),
+            "pattern" => AddOnCircuit(engine, Follower, Oak28R(), PatternEntryLeg.Downwind, wp => DownwindShortOfBaseTurn(wp, 1.0)),
             "go-around" => AddGoAroundFollower(engine, 0.5, reenter: true, "VFR"),
             _ => AddClosedClimbFollower(engine, 1.0),
         };
@@ -504,7 +510,7 @@ public class FollowClimbFollowerTests(ITestOutputHelper output)
         Assert.Null(follower.Phases.LandingClearance);
         Assert.Null(follower.Phases.ClearedRunwayId);
         Assert.Equal(Leader, follower.Approach.FollowingCallsign);
-        Assert.Equal(1, AirborneFollowHelper.PatternLegIndex(follower));
+        Assert.Equal(AirborneFollowHelper.UpwindLegIndex, AirborneFollowHelper.PatternLegIndex(follower));
     }
 
     // ─── Rule 5: a runwayless lead ───
@@ -568,7 +574,7 @@ public class FollowClimbFollowerTests(ITestOutputHelper output)
         {
             "go-around" => AddGoAroundFollower(engine, 0.5, reenter: true, "VFR"),
             "closed-climb" => AddClosedClimbFollower(engine, 1.0),
-            _ => AddOnCircuit(engine, Follower, PatternEntryLeg.Upwind, wp => UpwindShortOfCrosswindTurn(wp, 1.0)),
+            _ => AddOnCircuit(engine, Follower, Oak28R(), PatternEntryLeg.Upwind, wp => UpwindShortOfCrosswindTurn(wp, 1.0)),
         };
         follower.Approach.HasReportedTrafficInSight = true;
         RunwayInfo rwy = Oak28R();
@@ -600,7 +606,7 @@ public class FollowClimbFollowerTests(ITestOutputHelper output)
     {
         SimulationEngine engine = BuildEngine();
         AircraftState follower = AddGoAroundFollower(engine, 0.5, reenter: true, "VFR");
-        RunwayInfo rwy28L = NavigationDatabase.Instance.GetRunway("KOAK", "28L") ?? throw new InvalidOperationException("KOAK 28L missing");
+        RunwayInfo rwy28L = Oak("28L");
         AircraftState lead = MakeAircraft(Leader, OffFinal(rwy28L, -1.0, -1.0), rwy28L.TrueHeading.ToReciprocal(), 1000, "VFR");
         engine.World.AddAircraft(lead);
         lead.Phases = new PhaseList { AssignedRunway = rwy28L, TrafficDirection = PatternDirection.Left };
@@ -714,7 +720,7 @@ public class FollowClimbFollowerTests(ITestOutputHelper output)
     public void ClimbFollower_RefusedFollow_DryRunLeavesChainUntouched()
     {
         SimulationEngine engine = BuildEngine();
-        AircraftState lead = AddOnCircuit(engine, Leader, PatternEntryLeg.Upwind, wp => UpwindShortOfCrosswindTurn(wp, 1.0));
+        AircraftState lead = AddOnCircuit(engine, Leader, Oak28R(), PatternEntryLeg.Upwind, wp => UpwindShortOfCrosswindTurn(wp, 1.0));
         AircraftState follower = AddGoAroundFollower(engine, 0.5, reenter: false, "VFR");
         (LatLon ahead, TrueHeading heading) = UpwindShortOfCrosswindTurn(CircuitWaypoints(lead), 0.2);
         follower.Position = ahead;
@@ -1033,7 +1039,7 @@ public class FollowClimbFollowerTests(ITestOutputHelper output)
         Assert.True(Send(engine, $"FOLLOW {Leader}").Success);
         Assert.True(PendingPursuitOf(follower));
 
-        AddOnCircuit(engine, OtherLeader, PatternEntryLeg.Crosswind, wp => OutOnCrosswind(wp, 0.5));
+        AddOnCircuit(engine, OtherLeader, Oak28R(), PatternEntryLeg.Crosswind, wp => OutOnCrosswind(wp, 0.5));
         CommandResult refollow = Send(engine, $"FOLLOW {OtherLeader}");
 
         Assert.True(refollow.Success, refollow.Message);
@@ -1161,7 +1167,7 @@ public class FollowClimbFollowerTests(ITestOutputHelper output)
     {
         SimulationEngine engine = BuildEngine();
         RunwayInfo rwy = Oak28R();
-        AircraftState follower = AddOnCircuit(engine, Follower, PatternEntryLeg.Upwind, wp => UpwindShortOfCrosswindTurn(wp, 1.0));
+        AircraftState follower = AddOnCircuit(engine, Follower, Oak28R(), PatternEntryLeg.Upwind, wp => UpwindShortOfCrosswindTurn(wp, 1.0));
         follower.Approach.HasReportedTrafficInSight = true;
         AircraftState lead = AddLeadInDownwindBox(engine, follower);
         Assert.True(Send(engine, $"FOLLOW {Leader}").Success);
@@ -1327,9 +1333,9 @@ public class FollowClimbFollowerTests(ITestOutputHelper output)
     {
         SimulationEngine engine = BuildEngine();
         RunwayInfo rwy = Oak28R();
-        AircraftState follower = AddOnCircuit(engine, Follower, PatternEntryLeg.Upwind, wp => UpwindShortOfCrosswindTurn(wp, 1.0));
+        AircraftState follower = AddOnCircuit(engine, Follower, Oak28R(), PatternEntryLeg.Upwind, wp => UpwindShortOfCrosswindTurn(wp, 1.0));
         follower.Approach.HasReportedTrafficInSight = true;
-        AircraftState lead = AddLeadOn28L(engine, follower, 1.5);
+        AircraftState lead = AddLeadOnRunway(engine, follower, Oak("28L"), 1.5);
         Assert.True(Send(engine, $"FOLLOW {Leader}").Success);
         HoldGeometry hold = HoldFrom(CircuitWaypoints(follower), clearedAltitude: null);
 
@@ -1337,18 +1343,765 @@ public class FollowClimbFollowerTests(ITestOutputHelper output)
         TickThroughDepartureLegHold(engine, follower, lead, rwy, hold);
     }
 
+    // ─── A closed-traffic climb off another runway of the field: 28R departure, 28L or 33 pattern ───
+
+    private static string ParallelUpwindNotAhead => $"Unable, on upwind for runway 28L, {Leader} is not ahead of us, request vectors";
+
+    private const string DepartingText = $"Unable, {Leader} is departing, request vectors";
+
     /// <summary>
-    /// A lead assigned another runway of the field (28L) but flying no pattern phase, so FOLLOW installs a free pursuit rather
-    /// than sequencing onto its circuit. Placed abeam of the follower's track, which takes a turn well past the upwind heading.
+    /// An aircraft airborne in its closed-traffic takeoff climb off KOAK 28R, <paramref name="pastThresholdNm"/> past the 28R
+    /// threshold at 300 ft, making right traffic for <paramref name="patternRunway"/>. It mirrors
+    /// <see cref="DepartureClearanceHandler.ApplyClosedTraffic"/> for a cross-runway closed-traffic departure: the pattern runway
+    /// assigned, the takeoff runway as <see cref="PhaseList.DepartureRunway"/>, and the first circuit from
+    /// <see cref="PatternBuilder.BuildRunwayTransitionCircuit"/> with the layout's authored pattern size and altitude. When
+    /// <paramref name="flownPatternAltitudeFt"/> is set, the upwind flown on 28R is built at that altitude instead: 28R's own
+    /// pattern altitude differing from the pattern runway's, so an assertion that must read the pattern runway's altitude
+    /// cannot pass on 28R's.
     /// </summary>
-    private static AircraftState AddLeadOn28L(SimulationEngine engine, AircraftState follower, double sideNm)
+    private static AircraftState AddRunwayTransitionClimb(
+        SimulationEngine engine,
+        string callsign,
+        RunwayInfo patternRunway,
+        double pastThresholdNm,
+        double? flownPatternAltitudeFt
+    )
     {
-        RunwayInfo rwy28L =
-            NavigationDatabase.Instance.GetRunway("KOAK", "28L") ?? throw new InvalidOperationException("KOAK 28L missing from navdata");
+        RunwayInfo flown = Oak28R();
+        AircraftState ac = MakeAircraft(callsign, OffFinal(flown, -pastThresholdNm, 0), flown.TrueHeading, flown.AirportElevationFt + 300, "VFR");
+        engine.World.AddAircraft(ac);
+        ac.Phases = new PhaseList
+        {
+            AssignedRunway = patternRunway,
+            PatternRunway = patternRunway,
+            DepartureRunway = flown,
+            TrafficDirection = PatternDirection.Right,
+        };
+        ac.Phases.Add(ClosedTrafficTakeoff(flown)); // CurrentIndex defaults to 0: the active takeoff is the current phase
+
+        // The aircraft left the ground at KOAK, so it still carries the field's layout, whose authored pattern size and
+        // altitude the circuit is built with, as the departure clearance builds it.
+        ac.Ground.Layout = new TestAirportGroundData().GetLayout("OAK");
+        AircraftCategory category = AircraftCategorization.Categorize("C172");
+        GroundRunway? authoredPatternRunway = ac.Ground.Layout?.FindRunway(patternRunway.Designator);
+        (double? sizeOverrideNm, double? altitudeOverrideFt) = PatternGeometry.ResolveAuthoredOverrides(
+            patternRunway,
+            authoredPatternRunway,
+            category,
+            commandSizeNm: null,
+            commandAltitudeMslFt: null
+        );
+        List<Phase> circuit = PatternBuilder.BuildRunwayTransitionCircuit(
+            flown,
+            patternRunway,
+            category,
+            "C172",
+            windSpeedKt: 0,
+            PatternDirection.Right,
+            touchAndGo: true,
+            sizeOverrideNm,
+            altitudeOverrideFt,
+            NavigationDatabase.Instance.GetRunways("KOAK"),
+            ac.Ground.Layout?.FindRunway(flown.Designator),
+            authoredPatternRunway
+        );
+        if (flownPatternAltitudeFt is { } flownAltitude)
+        {
+            circuit.OfType<UpwindPhase>().First().Waypoints = PatternGeometry.Compute(
+                flown,
+                category,
+                "C172",
+                0,
+                PatternDirection.Right,
+                sizeOverrideNm,
+                flownAltitude,
+                NavigationDatabase.Instance.GetRunways("KOAK"),
+                ac.Ground.Layout?.FindRunway(flown.Designator)
+            );
+        }
+
+        foreach (Phase phase in circuit)
+        {
+            ac.Phases.Add(phase);
+        }
+
+        return ac;
+    }
+
+    /// <summary>The follower in a close-parallel closed-traffic climb: off 28R, right traffic for 28L.</summary>
+    private static AircraftState AddParallelClimbFollower(SimulationEngine engine, double pastThresholdNm)
+    {
+        AircraftState follower = AddRunwayTransitionClimb(engine, Follower, Oak("28L"), pastThresholdNm, flownPatternAltitudeFt: null);
+        follower.Approach.HasReportedTrafficInSight = true;
+        return follower;
+    }
+
+    /// <summary>Along-track distance (nm) of <paramref name="point"/> from <paramref name="rwy"/>'s threshold on its heading.</summary>
+    private static double AlongFromThresholdNm(RunwayInfo rwy, LatLon point) =>
+        GeoMath.AlongTrackDistanceNm(point, new LatLon(rwy.ThresholdLatitude, rwy.ThresholdLongitude), rwy.TrueHeading);
+
+    /// <summary>A close-parallel climb is the circuit's upwind: a lead ahead on the 28L crosswind is followed and the climb kept.</summary>
+    [Fact]
+    public void ParallelClimbFollower_LeadAhead_KeepsClimbAndSetsLead()
+    {
+        SimulationEngine engine = BuildEngine();
+        AircraftState follower = AddParallelClimbFollower(engine, 1.0);
+        AddOnCircuit(engine, Leader, Oak("28L"), PatternEntryLeg.Crosswind, wp => OutOnCrosswind(wp, 0.5));
+        Phase takeoff = follower.Phases!.CurrentPhase!;
+        ClimbState before = Capture(follower);
+
+        CommandResult result = Send(engine, $"FOLLOW {Leader}");
+
+        AssertKeptClimbFollowingLead(follower, before, result);
+        Assert.Same(takeoff, follower.Phases.CurrentPhase);
+    }
+
+    /// <summary>A lead behind on the 28L upwind is refused with the upwind text for the pattern runway, not the runway flown.</summary>
+    [Fact]
+    public void ParallelClimbFollower_LeadBehind_RefusedOnUpwindForPatternRunway()
+    {
+        SimulationEngine engine = BuildEngine();
+        RunwayInfo rwy28L = Oak("28L");
+        AircraftState follower = AddParallelClimbFollower(engine, 1.2);
+        AddOnCircuit(engine, Leader, rwy28L, PatternEntryLeg.Upwind, wp => (OffFinal(rwy28L, -0.2, 0), wp.UpwindHeading));
+        ClimbState before = Capture(follower);
+
+        CommandResult result = Send(engine, $"FOLLOW {Leader}");
+
+        AssertRefusedUnchanged(follower, before, result, ParallelUpwindNotAhead);
+    }
+
+    /// <summary>
+    /// The close-parallel climb as a lead is the 28L circuit's upwind, not a departure: ahead of an upwind follower on 28L, it
+    /// is followed in place.
+    /// </summary>
+    [Fact]
+    public void ParallelClimbLead_AcceptedFromUpwindFollower()
+    {
+        SimulationEngine engine = BuildEngine();
+        AircraftState follower = AddOnCircuit(engine, Follower, Oak("28L"), PatternEntryLeg.Upwind, wp => UpwindShortOfCrosswindTurn(wp, 0.8));
+        follower.Approach.HasReportedTrafficInSight = true;
+        AircraftState lead = AddRunwayTransitionClimb(engine, Leader, Oak("28L"), 0.5, flownPatternAltitudeFt: null);
+        lead.Position = OffFinal(Oak28R(), -(AlongFromThresholdNm(Oak28R(), follower.Position) + 0.5), 0);
+        Assert.True(AirborneFollowHelper.IsClosedTrafficClimb(lead));
+        Phase upwind = follower.Phases!.CurrentPhase!;
+        ClimbState before = Capture(follower);
+
+        CommandResult result = Send(engine, $"FOLLOW {Leader}");
+
+        AssertKeptClimbFollowingLead(follower, before, result);
+        Assert.Same(upwind, follower.Phases.CurrentPhase);
+        Assert.False(AirborneFollowHelper.IsLeadPatternFlowBehind(follower, lead), "the running follow must keep the lead ahead");
+    }
+
+    /// <summary>
+    /// Two close-parallel climbs share the 28L upwind and are ordered by along-track distance from the pattern runway's
+    /// threshold: farther out is ahead, both at command time and in the running follow.
+    /// </summary>
+    [Fact]
+    public void ParallelClimbOrdering_AlongTrackFromPatternThreshold()
+    {
+        SimulationEngine aheadEngine = BuildEngine();
+        AircraftState follower = AddParallelClimbFollower(aheadEngine, 0.4);
+        AircraftState leadAhead = AddRunwayTransitionClimb(aheadEngine, Leader, Oak("28L"), 1.2, flownPatternAltitudeFt: null);
+        Assert.True(AlongFromThresholdNm(Oak("28L"), leadAhead.Position) > AlongFromThresholdNm(Oak("28L"), follower.Position));
+        ClimbState before = Capture(follower);
+
+        CommandResult accepted = Send(aheadEngine, $"FOLLOW {Leader}");
+
+        AssertKeptClimbFollowingLead(follower, before, accepted);
+        Assert.False(AirborneFollowHelper.IsLeadPatternFlowBehind(follower, leadAhead), "the running follow must keep the lead ahead");
+
+        SimulationEngine behindEngine = BuildEngine();
+        AircraftState aheadFollower = AddParallelClimbFollower(behindEngine, 1.2);
+        AircraftState leadBehind = AddRunwayTransitionClimb(behindEngine, Leader, Oak("28L"), 0.4, flownPatternAltitudeFt: null);
+        ClimbState beforeRefusal = Capture(aheadFollower);
+
+        CommandResult refused = Send(behindEngine, $"FOLLOW {Leader}");
+
+        AssertRefusedUnchanged(aheadFollower, beforeRefusal, refused, ParallelUpwindNotAhead);
+        Assert.True(AirborneFollowHelper.IsLeadPatternFlowBehind(aheadFollower, leadBehind), "the running follow must keep the lead behind");
+    }
+
+    /// <summary>
+    /// A runwayless lead followed from the close-parallel climb arms the pending pursuit; after the hand-over the pursuit holds
+    /// the departure leg until past 28R's departure end at or above the 28L pattern altitude less 300 ft, returns to the 28L
+    /// circuit, and turns toward its lead on the 28L downwind. A lead on 28R flying no circuit, followed from the climb itself,
+    /// installs the pursuit at once with the gate on the runway flown: 28R's heading, the farther of the two departure ends
+    /// (28L's), the 28L pattern altitude.
+    /// </summary>
+    [Fact]
+    public void ParallelClimb_PendingPursuitAndGate_UseDepartureRunway()
+    {
+        SimulationEngine engine = BuildEngine();
+        RunwayInfo rwy28R = Oak28R();
+        RunwayInfo rwy28L = Oak("28L");
+        AircraftState follower = AddParallelClimbFollower(engine, 0.5);
+        AircraftState lead = AddLeadInDownwindBox(engine, follower);
+        PatternWaypoints circuit = CircuitWaypoints(follower);
+        ClimbState before = Capture(follower);
+
+        CommandResult result = Send(engine, $"FOLLOW {Leader}");
+
+        AssertKeptClimbFollowingLead(follower, before, result);
+        Assert.True(PendingPursuitOf(follower), "the pursuit must be pending on the climb, not started");
+        HoldGeometry hold = HoldFrom(circuit, clearedAltitude: null);
+        Assert.True(
+            AlongFromThresholdNm(rwy28R, hold.DepartureEnd)
+                >= AlongFromThresholdNm(rwy28R, new LatLon(rwy28R.EndLatitude, rwy28R.EndLongitude)) - 0.01,
+            "the hold must reach past 28R's departure end"
+        );
+        ReadyClosedClimbToComplete(follower);
+
+        TickSeconds(engine, 1);
+
+        VfrFollowPhase pursuit = Assert.IsType<VfrFollowPhase>(follower.Phases!.CurrentPhase);
+        FollowPatternReturn patternReturn = pursuit.PatternReturn ?? throw new InvalidOperationException("the pursuit must carry a pattern return");
+        Assert.Equal("28L", patternReturn.Runway.Designator);
+        Assert.Equal(PatternDirection.Right, patternReturn.Direction);
+        Assert.Equal(circuit.PatternAltitude, patternReturn.PatternAltitudeFt, 1);
+        Assert.True(HoldsDepartureLeg(follower, hold), "the hand-over is short of the departure end and below TPA - 300");
+        TickThroughDepartureLegHold(engine, follower, lead, rwy28R, hold);
+        Assert.True(follower.Altitude >= LegalTurnAltitude(hold), "the follower must reach the 28L pattern altitude less 300 ft");
+        Assert.True(
+            GeoMath.SignedCrossTrackDistanceNm(lead.Position, new LatLon(rwy28L.ThresholdLatitude, rwy28L.ThresholdLongitude), rwy28L.TrueHeading)
+                > 0,
+            "the lead is on the 28L right downwind side, so the turn toward it is toward the 28L circuit"
+        );
+
+        // From the climb itself, a lead on 28R flying no circuit is pursued at once. The gate holds the heading of the runway
+        // being flown, past the farther departure end of the two along 28L's heading — 28L's at KOAK — so the turn carries the
+        // aircraft over neither runway, at the 28L pattern altitude less 300 ft.
+        Assert.True(
+            AlongFromThresholdNm(rwy28L, new LatLon(rwy28L.EndLatitude, rwy28L.EndLongitude))
+                > AlongFromThresholdNm(rwy28L, new LatLon(rwy28R.EndLatitude, rwy28R.EndLongitude)),
+            "28L's departure end must be the farther one along 28L's heading"
+        );
+        SimulationEngine installEngine = BuildEngine();
+        AircraftState climber = AddParallelClimbFollower(installEngine, 0.5);
+        AddLeadOnRunway(installEngine, climber, rwy28R, 1.5);
+
+        CommandResult installed = Send(installEngine, $"FOLLOW {Leader}");
+
+        Assert.True(installed.Success, installed.Message);
+        VfrFollowPhase installedPursuit = Assert.IsType<VfrFollowPhase>(climber.Phases!.CurrentPhase);
+        FollowClimbOutGate gate = installedPursuit.ClimbOutGate ?? throw new InvalidOperationException("the pursuit must hold the departure leg");
+        Assert.Equal(rwy28L.EndLatitude, gate.DepartureEnd.Lat, 6);
+        Assert.Equal(rwy28L.EndLongitude, gate.DepartureEnd.Lon, 6);
+        Assert.Equal(rwy28R.TrueHeading.Degrees, gate.UpwindHeading.Degrees, 3);
+        Assert.Equal(circuit.PatternAltitude - UpwindPhase.PatternHandoffMarginFt, gate.MinTurnAltitude, 1);
+    }
+
+    /// <summary>
+    /// A closed-traffic climb whose pattern runway is at another airport is still departing, whatever its geometry. Navdata has
+    /// no other airport whose runway is a close parallel of KOAK 28R, so the pattern runway is a <see cref="TestRunwayFactory"/>
+    /// runway: KOAK 28L's real geometry under a second airport id.
+    /// </summary>
+    [Fact]
+    public void PatternRunwayAtOtherAirport_ClimbLead_StaysDeparting()
+    {
+        SimulationEngine engine = BuildEngine();
+        RunwayInfo oak28L = Oak("28L");
+        RunwayInfo elsewhere28L = TestRunwayFactory.Make(
+            designator: "28L",
+            airportId: "KHWD",
+            thresholdLat: oak28L.ThresholdLatitude,
+            thresholdLon: oak28L.ThresholdLongitude,
+            endLat: oak28L.EndLatitude,
+            endLon: oak28L.EndLongitude,
+            heading: oak28L.TrueHeading.Degrees,
+            elevationFt: oak28L.AirportElevationFt
+        );
+        AircraftState follower = AddOnCircuit(engine, Follower, Oak28R(), PatternEntryLeg.Upwind, wp => UpwindShortOfCrosswindTurn(wp, 0.8));
+        follower.Approach.HasReportedTrafficInSight = true;
+        AircraftState lead = AddRunwayTransitionClimb(engine, Leader, oak28L, 0.5, flownPatternAltitudeFt: null);
+        lead.Phases!.AssignedRunway = elsewhere28L;
+        lead.Phases.PatternRunway = elsewhere28L;
+        lead.Position = OffFinal(Oak28R(), -(AlongFromThresholdNm(Oak28R(), follower.Position) + 0.5), 0);
+        Assert.False(AirborneFollowHelper.IsClosedTrafficClimb(lead));
+        ClimbState before = Capture(follower);
+
+        CommandResult result = Send(engine, $"FOLLOW {Leader}");
+
+        AssertRefusedUnchanged(follower, before, result, DepartingText);
+    }
+
+    /// <summary>
+    /// A crossing-pair closed-traffic climb (28R, right traffic for 33) is not the pattern runway's upwind
+    /// (<see cref="AirborneFollowHelper.IsClosedTrafficClimb"/> stays false): it is a pattern entry. A lead on 28R flying no
+    /// circuit is on another runway than the pattern runway, so FOLLOW clears the climb and installs the pursuit, gated on the
+    /// runway flown: 28R's heading, past 28R's own departure end, at the 33 pattern altitude less 300 ft.
+    /// </summary>
+    [Fact]
+    public void CrossingPairClimb_LeadOnAnotherRunway_ClearsChainWithGatedPursuit()
+    {
+        SimulationEngine engine = BuildEngine();
+        RunwayInfo rwy28R = Oak28R();
+        AircraftState follower = AddCrossingClimbFollower(engine, 0.5);
+        Assert.False(AirborneFollowHelper.IsClosedTrafficClimb(follower));
+        AddLeadOnRunway(engine, follower, rwy28R, 1.5);
+        Phase takeoff = follower.Phases!.CurrentPhase!;
+        double turnAltitude = VfrFollowPhase.ResolvePatternAltitudeFt(follower, Oak("33"), groundLayout: null) - UpwindPhase.PatternHandoffMarginFt;
+
+        CommandResult result = Send(engine, $"FOLLOW {Leader}");
+
+        Assert.True(result.Success, result.Message);
+        Assert.NotSame(takeoff, follower.Phases?.CurrentPhase);
+        VfrFollowPhase pursuit = Assert.IsType<VfrFollowPhase>(follower.Phases?.CurrentPhase);
+        FollowClimbOutGate gate = pursuit.ClimbOutGate ?? throw new InvalidOperationException("the pursuit must hold the departure leg");
+        Assert.Equal(rwy28R.EndLatitude, gate.DepartureEnd.Lat, 6);
+        Assert.Equal(rwy28R.EndLongitude, gate.DepartureEnd.Lon, 6);
+        Assert.Equal(rwy28R.TrueHeading.Degrees, gate.UpwindHeading.Degrees, 3);
+        Assert.Equal(turnAltitude, gate.MinTurnAltitude, 1);
+        Assert.Equal(Leader, follower.Approach.FollowingCallsign);
+        Assert.False(PendingPursuitOf(follower));
+    }
+
+    // ─── A closed-traffic climb off a crossing runway: 28R departure, 33 pattern — a pattern entry until it joins ───
+
+    private static string PatternEntryNotAhead => $"Unable, on pattern entry for runway 33, {Leader} is not ahead of us, request vectors";
+
+    /// <summary>The follower in a crossing-pair closed-traffic climb: off 28R, right traffic for 33.</summary>
+    private static AircraftState AddCrossingClimbFollower(SimulationEngine engine, double pastThresholdNm)
+    {
+        AircraftState follower = AddRunwayTransitionClimb(engine, Follower, Oak("33"), pastThresholdNm, flownPatternAltitudeFt: null);
+        follower.Approach.HasReportedTrafficInSight = true;
+        return follower;
+    }
+
+    /// <summary>
+    /// The crossing-pair follower with 28R's upwind flown at 600 ft above the field, below the 33 circuit's pattern altitude, so
+    /// a pattern return or a turn altitude read from 28R's frame is caught.
+    /// </summary>
+    private static AircraftState AddCrossingClimbFollowerWithLowerFlownTpa(SimulationEngine engine, double pastThresholdNm)
+    {
+        AircraftState follower = AddRunwayTransitionClimb(engine, Follower, Oak("33"), pastThresholdNm, Oak28R().AirportElevationFt + 600.0);
+        follower.Approach.HasReportedTrafficInSight = true;
+        Assert.True(
+            Math.Abs(FlownUpwindWaypoints(follower).PatternAltitude - CrossingWaypoints(follower).PatternAltitude) >= 300.0,
+            "28R's upwind must fly a different pattern altitude from the 33 circuit"
+        );
+        return follower;
+    }
+
+    /// <summary>Hand the crossing climb over to its transition upwind on 28R, as the climb's completion does.</summary>
+    private static UpwindPhase AdvanceToTransitionUpwind(AircraftState ac)
+    {
+        ac.Phases!.AdvanceToNext(CommandDispatcher.BuildMinimalContext(ac));
+        return Assert.IsType<UpwindPhase>(ac.Phases.CurrentPhase);
+    }
+
+    /// <summary>The waypoints of the crossing transition's upwind on the runway flown (28R).</summary>
+    private static PatternWaypoints FlownUpwindWaypoints(AircraftState ac) =>
+        ac.Phases!.Phases.OfType<UpwindPhase>().First().Waypoints ?? throw new InvalidOperationException("the upwind carries no waypoints");
+
+    /// <summary>The waypoints of the crossing transition's queued midfield crossing (the 33 circuit).</summary>
+    private static PatternWaypoints CrossingWaypoints(AircraftState ac) =>
+        ac.Phases!.Phases.OfType<MidfieldCrossingPhase>().First().Waypoints
+        ?? throw new InvalidOperationException("the crossing carries no waypoints");
+
+    /// <summary>An aircraft on the right circuit's final for KOAK <paramref name="rwy"/>, <paramref name="outNm"/> out on the centerline.</summary>
+    private static AircraftState AddOnFinal(SimulationEngine engine, string callsign, RunwayInfo rwy, double outNm)
+    {
+        AircraftState ac = MakeAircraft(callsign, OffFinal(rwy, outNm, 0.0), rwy.TrueHeading, rwy.AirportElevationFt + 400, "VFR");
+        engine.World.AddAircraft(ac);
+        ac.Phases = new PhaseList { AssignedRunway = rwy, TrafficDirection = PatternDirection.Right };
+        foreach (Phase phase in RightCircuit(rwy, PatternEntryLeg.Final))
+        {
+            ac.Phases.Add(phase);
+        }
+
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+        Assert.IsType<FinalApproachPhase>(ac.Phases.CurrentPhase);
+        return ac;
+    }
+
+    /// <summary>
+    /// A crossing-pair climb is a pattern entry: a lead ahead on the 33 downwind is followed and the climb kept, and the running
+    /// follow keeps that lead ahead.
+    /// </summary>
+    [Fact]
+    public void CrossingClimbFollower_LeadAhead_KeepsClimbAndSetsLead()
+    {
+        SimulationEngine engine = BuildEngine();
+        AircraftState follower = AddCrossingClimbFollower(engine, 1.0);
+        AircraftState lead = AddOnCircuit(engine, Leader, Oak("33"), PatternEntryLeg.Downwind, wp => DownwindShortOfBaseTurn(wp, 1.0));
+        Phase takeoff = follower.Phases!.CurrentPhase!;
+        ClimbState before = Capture(follower);
+
+        CommandResult result = Send(engine, $"FOLLOW {Leader}");
+
+        AssertKeptClimbFollowingLead(follower, before, result);
+        Assert.Same(takeoff, follower.Phases.CurrentPhase);
+        Assert.False(PendingPursuitOf(follower), "a lead flying the pattern runway is sequenced in trail, not pursued");
+        Assert.False(AirborneFollowHelper.IsLeadPatternFlowBehind(follower, lead), "the running follow must keep the lead ahead");
+    }
+
+    /// <summary>
+    /// The crossing-pair climb's frame is read from its phase list with no ground check, but FOLLOW during the 28R ground roll is
+    /// still rejected and leaves the takeoff, its circuit and the follow untouched.
+    /// </summary>
+    [Fact]
+    public void CrossingClimb_OnGroundRoll_FollowStillRejected()
+    {
+        SimulationEngine engine = BuildEngine();
+        RunwayInfo rwy28R = Oak28R();
+        AircraftState follower = AddCrossingClimbFollower(engine, 0.3);
+        follower.Phases!.Phases[0] = TakeoffPhase.FromSnapshot(
+            new TakeoffPhaseDto
+            {
+                Status = (int)PhaseStatus.Active,
+                ElapsedSeconds = 10,
+                Airborne = false,
+                FieldElevation = rwy28R.AirportElevationFt,
+                RunwayHeadingDeg = rwy28R.TrueHeading.Degrees,
+                ThresholdLat = rwy28R.ThresholdLatitude,
+                ThresholdLon = rwy28R.ThresholdLongitude,
+                Departure = new ClosedTrafficDepartureDto { Direction = (int)PatternDirection.Right },
+            }
+        );
+        follower.IsOnGround = true;
+        follower.Altitude = rwy28R.AirportElevationFt;
+        follower.IndicatedAirspeed = 50;
+        AddLeadAheadOfClimb(engine);
+        ClimbState before = Capture(follower);
+
+        CommandResult result = Send(engine, $"FOLLOW {Leader}");
+
+        AssertRefusedUnchanged(follower, before, result, "aircraft is on the takeoff roll; only CTOC (before V1), CM/DM, or DEL apply");
+        Assert.False(PendingPursuitOf(follower));
+    }
+
+    /// <summary>A runwayless lead behind the crossing-pair climb is refused with the pattern-entry text for the pattern runway.</summary>
+    [Fact]
+    public void CrossingClimbFollower_RunwaylessLeadBehind_RefusedOnPatternEntry()
+    {
+        SimulationEngine engine = BuildEngine();
+        RunwayInfo rwy28R = Oak28R();
+        AircraftState follower = AddCrossingClimbFollower(engine, 1.0);
+        AircraftState lead = AddRunwaylessLead(engine, OffFinal(rwy28R, 3.0, -2.0), rwy28R.TrueHeading);
+        Assert.False(AirborneFollowHelper.IsLeadAheadOfTrack(follower, lead), "the lead must sit behind the climb");
+        ClimbState before = Capture(follower);
+
+        CommandResult result = Send(engine, $"FOLLOW {Leader}");
+
+        AssertRefusedUnchanged(follower, before, result, PatternEntryNotAhead);
+    }
+
+    /// <summary>The same refusal once the climb has handed over to its transition upwind on 28R: the same answer before and after.</summary>
+    [Fact]
+    public void CrossingTransitionUpwindFollower_RunwaylessLeadBehind_SaysPatternEntry()
+    {
+        SimulationEngine engine = BuildEngine();
+        RunwayInfo rwy28R = Oak28R();
+        AircraftState follower = AddCrossingClimbFollower(engine, 1.0);
+        AdvanceToTransitionUpwind(follower);
+        AircraftState lead = AddRunwaylessLead(engine, OffFinal(rwy28R, 3.0, -2.0), rwy28R.TrueHeading);
+        Assert.False(AirborneFollowHelper.IsLeadAheadOfTrack(follower, lead), "the lead must sit behind the upwind");
+        ClimbState before = Capture(follower);
+
+        CommandResult result = Send(engine, $"FOLLOW {Leader}");
+
+        AssertRefusedUnchanged(follower, before, result, PatternEntryNotAhead);
+    }
+
+    /// <summary>
+    /// A crossing-pair climb as a lead is a pattern entry (leg 0), not a departure: followed in place from the 33 upwind,
+    /// crosswind and downwind (it stays flow-behind until it joins), refused from base and final with the not-ahead text.
+    /// </summary>
+    [Theory]
+    [InlineData("upwind")]
+    [InlineData("crosswind")]
+    [InlineData("downwind")]
+    [InlineData("base")]
+    [InlineData("final")]
+    public void CrossingClimbLead_AcceptedFromOutboundLegs_RefusedFromBaseAndFinal(string followerLeg)
+    {
+        SimulationEngine engine = BuildEngine();
+        RunwayInfo rwy33 = Oak("33");
+        AircraftState follower = followerLeg switch
+        {
+            "upwind" => AddOnCircuit(engine, Follower, rwy33, PatternEntryLeg.Upwind, wp => UpwindShortOfCrosswindTurn(wp, 0.5)),
+            "crosswind" => AddOnCircuit(engine, Follower, rwy33, PatternEntryLeg.Crosswind, wp => OutOnCrosswind(wp, 0.3)),
+            "downwind" => AddOnCircuit(engine, Follower, rwy33, PatternEntryLeg.Downwind, wp => DownwindShortOfBaseTurn(wp, 1.0)),
+            "base" => AddOnCircuit(
+                engine,
+                Follower,
+                rwy33,
+                PatternEntryLeg.Base,
+                wp => (GeoMath.ProjectPoint(new LatLon(wp.BaseTurnLat, wp.BaseTurnLon), wp.BaseHeading, 0.2), wp.BaseHeading)
+            ),
+            _ => AddOnFinal(engine, Follower, rwy33, 1.5),
+        };
+        follower.Approach.HasReportedTrafficInSight = true;
+        AircraftState lead = AddRunwayTransitionClimb(engine, Leader, rwy33, 0.5, flownPatternAltitudeFt: null);
+        Assert.Equal(AirborneFollowHelper.EntryLegIndex, AirborneFollowHelper.PatternLegIndex(lead));
+        Phase leg = follower.Phases!.CurrentPhase!;
+        ClimbState before = Capture(follower);
+
+        CommandResult result = Send(engine, $"FOLLOW {Leader}");
+
+        if (followerLeg is "base" or "final")
+        {
+            AssertRefusedUnchanged(follower, before, result, $"Unable, on {followerLeg} for runway 33, {Leader} is not ahead of us, request vectors");
+            return;
+        }
+
+        AssertKeptClimbFollowingLead(follower, before, result);
+        Assert.Same(leg, follower.Phases.CurrentPhase);
+        Assert.True(AirborneFollowHelper.IsLeadPatternFlowBehind(follower, lead), "an entrant lead stays flow-behind until it joins");
+    }
+
+    /// <summary>
+    /// A crossing-pair climb whose pattern runway is at another airport is still departing. Navdata has no other airport whose
+    /// runway crosses KOAK 28R, so the pattern runway is a <see cref="TestRunwayFactory"/> runway: KOAK 33's real geometry under
+    /// a second airport id.
+    /// </summary>
+    [Fact]
+    public void CrossingClimbLead_PatternRunwayAtOtherAirport_StaysDeparting()
+    {
+        SimulationEngine engine = BuildEngine();
+        RunwayInfo oak33 = Oak("33");
+        RunwayInfo elsewhere33 = TestRunwayFactory.Make(
+            designator: "33",
+            airportId: "KHWD",
+            thresholdLat: oak33.ThresholdLatitude,
+            thresholdLon: oak33.ThresholdLongitude,
+            endLat: oak33.EndLatitude,
+            endLon: oak33.EndLongitude,
+            heading: oak33.TrueHeading.Degrees,
+            elevationFt: oak33.AirportElevationFt
+        );
+        AircraftState follower = AddOnCircuit(engine, Follower, Oak28R(), PatternEntryLeg.Upwind, wp => UpwindShortOfCrosswindTurn(wp, 0.8));
+        follower.Approach.HasReportedTrafficInSight = true;
+        AircraftState lead = AddRunwayTransitionClimb(engine, Leader, oak33, 0.5, flownPatternAltitudeFt: null);
+        lead.Phases!.AssignedRunway = elsewhere33;
+        lead.Phases.PatternRunway = elsewhere33;
+        Assert.False(AirborneFollowHelper.IsCrossingTransitionClimb(lead));
+        Assert.Null(AirborneFollowHelper.PatternLegIndex(lead));
+        ClimbState before = Capture(follower);
+
+        CommandResult result = Send(engine, $"FOLLOW {Leader}");
+
+        AssertRefusedUnchanged(follower, before, result, DepartingText);
+    }
+
+    /// <summary>
+    /// The crossing transition is a pattern entry (leg 0) through the climb, its upwind on 28R and the crossing, and the
+    /// downwind its crossing hands it to is leg 3. A later 33 upwind with <see cref="PhaseList.DepartureRunway"/> still set
+    /// is the circuit's upwind, leg 1: the transition is read from the phase list, not from the departure runway.
+    /// </summary>
+    [Fact]
+    public void CrossingTransition_LegIsEntry_UntilMidfieldHandsToDownwind()
+    {
+        SimulationEngine engine = BuildEngine();
+        AircraftState ac = AddRunwayTransitionClimb(engine, Follower, Oak("33"), 1.0, flownPatternAltitudeFt: null);
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(ac);
+
+        Assert.Equal(AirborneFollowHelper.EntryLegIndex, AirborneFollowHelper.PatternLegIndex(ac));
+        AdvanceToTransitionUpwind(ac);
+        Assert.Equal(AirborneFollowHelper.EntryLegIndex, AirborneFollowHelper.PatternLegIndex(ac));
+        ac.Phases!.AdvanceToNext(ctx);
+        Assert.IsType<MidfieldCrossingPhase>(ac.Phases.CurrentPhase);
+        Assert.Equal(AirborneFollowHelper.EntryLegIndex, AirborneFollowHelper.PatternLegIndex(ac));
+        ac.Phases.AdvanceToNext(ctx);
+        Assert.IsType<DownwindPhase>(ac.Phases.CurrentPhase);
+        Assert.Equal(AirborneFollowHelper.DownwindLegIndex, AirborneFollowHelper.PatternLegIndex(ac));
+
+        AircraftState later = AddOnCircuit(engine, "LATER1", Oak("33"), PatternEntryLeg.Upwind, wp => UpwindShortOfCrosswindTurn(wp, 0.5));
+        later.Phases!.DepartureRunway = Oak28R();
+        Assert.Equal(AirborneFollowHelper.UpwindLegIndex, AirborneFollowHelper.PatternLegIndex(later));
+    }
+
+    /// <summary>
+    /// The crossing transition's remaining path, from the climb and from its upwind, is the straight line to the queued
+    /// crossing's midfield point plus the 33 downwind from there — exactly what the crossing itself reads from the same
+    /// position — and not the figure 28R's own circuit frame gives.
+    /// </summary>
+    [Fact]
+    public void CrossingTransition_EntryRemainingPath_UsesPatternRunwayFrame()
+    {
+        SimulationEngine engine = BuildEngine();
+        RunwayInfo rwy33 = Oak("33");
+        AircraftState ac = AddRunwayTransitionClimb(engine, Follower, rwy33, 1.0, flownPatternAltitudeFt: null);
+
+        double climbNm = AirborneFollowHelper.SequenceRemainingPathNm(ac, rwy33);
+        AdvanceToTransitionUpwind(ac);
+        double upwindNm = AirborneFollowHelper.SequenceRemainingPathNm(ac, rwy33);
+        double flownFrameNm = AirborneFollowHelper.RemainingPatternPathNm(ac, FlownUpwindWaypoints(ac));
+        ac.Phases!.AdvanceToNext(CommandDispatcher.BuildMinimalContext(ac));
+        Assert.IsType<MidfieldCrossingPhase>(ac.Phases.CurrentPhase);
+        double crossingNm = AirborneFollowHelper.SequenceRemainingPathNm(ac, rwy33);
+        output.WriteLine($"climb {climbNm:F3} nm, upwind {upwindNm:F3} nm, crossing {crossingNm:F3} nm, 28R frame {flownFrameNm:F3} nm");
+
+        Assert.True(double.IsFinite(crossingNm), "the crossing's own path must be measurable");
+        Assert.Equal(crossingNm, climbNm, 6);
+        Assert.Equal(crossingNm, upwindNm, 6);
+        Assert.True(Math.Abs(upwindNm - flownFrameNm) > 0.1, "the 33 frame must not be 28R's");
+    }
+
+    /// <summary>
+    /// The crossing transition's upwind is never held for remaining-path sequencing: told to follow a lead ahead on the 33
+    /// downwind (3 nm short of its base turn, a long remaining path measured on 28R's circuit), it hands to its midfield
+    /// crossing at the crosswind turn point instead of extending the upwind on 28R.
+    /// </summary>
+    [Fact]
+    public void CrossingTransitionUpwind_NoLegHold_WithLeadAheadOnCircuit()
+    {
+        SimulationEngine engine = BuildEngine();
+        AircraftState follower = AddCrossingUpwindShortOfTurn(engine);
+        Phase upwind = follower.Phases!.CurrentPhase!;
+        AddOnCircuit(engine, Leader, Oak("33"), PatternEntryLeg.Downwind, wp => DownwindShortOfBaseTurn(wp, 3.0));
+        Assert.True(Send(engine, $"FOLLOW {Leader}").Success);
+        Assert.Same(upwind, follower.Phases.CurrentPhase);
+
+        int ticks = TicksToHandOver(engine, follower);
+
+        PatternWaypoints flown = FlownUpwindWaypoints(follower);
+        double pastTurnNm = GeoMath.AlongTrackDistanceNm(
+            follower.Position,
+            new LatLon(flown.CrosswindTurnLat, flown.CrosswindTurnLon),
+            flown.UpwindHeading
+        );
+        output.WriteLine($"handed to {follower.Phases.CurrentPhase?.GetType().Name} after {ticks} ticks, {pastTurnNm:F2} nm past the turn point");
+        Assert.IsType<MidfieldCrossingPhase>(follower.Phases.CurrentPhase);
+        Assert.True(pastTurnNm < 0.2, $"the upwind must not be extended for sequencing; {pastTurnNm:F2} nm past the crosswind turn point");
+    }
+
+    /// <summary>
+    /// The crossing-pair follower on its transition upwind 0.3 nm short of 28R's crosswind turn point, already above the turn
+    /// altitude, so only the turn point stands between it and its crossing.
+    /// </summary>
+    private static AircraftState AddCrossingUpwindShortOfTurn(SimulationEngine engine)
+    {
+        AircraftState follower = AddCrossingClimbFollower(engine, 0.5);
+        AdvanceToTransitionUpwind(follower);
+        PatternWaypoints flown = FlownUpwindWaypoints(follower);
+        (LatLon position, TrueHeading heading) = UpwindShortOfCrosswindTurn(flown, 0.3);
+        follower.Position = position;
+        follower.TrueHeading = heading;
+        follower.TrueTrack = heading;
+        follower.Altitude = flown.PatternAltitude - 250.0;
+        return follower;
+    }
+
+    /// <summary>Ticks <paramref name="engine"/> until <paramref name="ac"/> leaves its upwind, at most <see cref="MaxHoldTicks"/>.</summary>
+    private static int TicksToHandOver(SimulationEngine engine, AircraftState ac)
+    {
+        int ticks = 0;
+        while ((ac.Phases?.CurrentPhase is UpwindPhase) && (ticks < MaxHoldTicks))
+        {
+            engine.TickPhysics(0.25);
+            ticks++;
+        }
+
+        return ticks;
+    }
+
+    /// <summary>
+    /// A runwayless lead followed from the crossing-pair climb arms the pending pursuit; at the hand-over to the 28R upwind the
+    /// pursuit returns to the 33 circuit: runway 33, its right side and its pattern altitude, not 28R's.
+    /// </summary>
+    [Fact]
+    public void CrossingClimb_PendingPursuit_PatternReturnIsPatternRunway()
+    {
+        SimulationEngine engine = BuildEngine();
+        AircraftState follower = AddCrossingClimbFollowerWithLowerFlownTpa(engine, 1.0);
+        AddLeadAheadOfClimb(engine);
+        PatternWaypoints crossing = CrossingWaypoints(follower);
+        Assert.True(Send(engine, $"FOLLOW {Leader}").Success);
+        Assert.True(PendingPursuitOf(follower), "the pursuit must be pending on the climb, not started");
+        ReadyClosedClimbToComplete(follower);
+
+        TickSeconds(engine, 1);
+
+        VfrFollowPhase pursuit = Assert.IsType<VfrFollowPhase>(follower.Phases!.CurrentPhase);
+        FollowPatternReturn patternReturn = pursuit.PatternReturn ?? throw new InvalidOperationException("the pursuit must carry a pattern return");
+        Assert.Equal("33", patternReturn.Runway.Designator);
+        Assert.Equal(PatternDirection.Right, patternReturn.Direction);
+        Assert.Equal(crossing.PatternAltitude, patternReturn.PatternAltitudeFt, 1);
+    }
+
+    /// <summary>
+    /// The pursuit that starts at the crossing-pair climb's hand-over holds 28R's heading past 28R's own departure end (not
+    /// 33's, nor the farther of the two), at the 33 pattern altitude less 300 ft (AIM §4-3-2.c.1).
+    /// </summary>
+    [Fact]
+    public void CrossingClimb_PendingPursuit_GatedPastFlownDepartureEndAtPatternTpa()
+    {
+        SimulationEngine engine = BuildEngine();
+        RunwayInfo rwy28R = Oak28R();
+        RunwayInfo rwy33 = Oak("33");
+        AircraftState follower = AddCrossingClimbFollowerWithLowerFlownTpa(engine, 1.0);
+        AddLeadAheadOfClimb(engine);
+        Assert.True(Send(engine, $"FOLLOW {Leader}").Success);
+        ReadyClosedClimbToComplete(follower);
+        double turnAltitude = VfrFollowPhase.ResolvePatternAltitudeFt(follower, rwy33, groundLayout: null) - UpwindPhase.PatternHandoffMarginFt;
+
+        TickSeconds(engine, 1);
+
+        VfrFollowPhase pursuit = Assert.IsType<VfrFollowPhase>(follower.Phases!.CurrentPhase);
+        FollowClimbOutGate gate = pursuit.ClimbOutGate ?? throw new InvalidOperationException("the pursuit must hold the departure leg");
+        var end28R = new LatLon(rwy28R.EndLatitude, rwy28R.EndLongitude);
+        var end33 = new LatLon(rwy33.EndLatitude, rwy33.EndLongitude);
+        Assert.True(
+            GeoMath.DistanceNm(gate.DepartureEnd, end28R) < 0.05,
+            $"the gate must end at 28R's own departure end, {GeoMath.DistanceNm(gate.DepartureEnd, end28R):F3} nm off"
+        );
+        Assert.True(GeoMath.DistanceNm(gate.DepartureEnd, end33) > 0.1, "the gate must not end at 33's departure end");
+        Assert.True(rwy28R.TrueHeading.AbsAngleTo(gate.UpwindHeading) < 0.5, "the gate holds 28R's heading");
+        Assert.Equal(turnAltitude, gate.MinTurnAltitude, 1);
+    }
+
+    /// <summary>
+    /// A runwayless lead queued to enter the pattern is compared with the climb's pattern runway (33), not the runway flown:
+    /// queued for 28R it is another runway, so the follower is re-sequenced onto 28R; queued for 33 it is the follower's own,
+    /// so the climb is kept and the pursuit left pending.
+    /// </summary>
+    [Fact]
+    public void CrossingClimb_QueuedEntryForOtherRunway_ComparesAssignedRunway()
+    {
+        SimulationEngine flownEngine = BuildEngine();
+        AircraftState follower = AddCrossingClimbFollower(flownEngine, 1.0);
+        AircraftState lead = AddLeadAheadOfClimb(flownEngine);
+        CommandResult setup = flownEngine.SendCommand(Leader, "DCT VPCBT; ERD 28R");
+        Assert.True(setup.Success, setup.Message);
+        Assert.Equal(("28R", PatternDirection.Right), PatternCommandHandler.QueuedPatternEntry(lead));
+
+        CommandResult result = Send(flownEngine, $"FOLLOW {Leader}");
+
+        Assert.True(result.Success, result.Message);
+        Assert.Equal("28R", follower.Phases!.AssignedRunway?.Designator);
+        Assert.True(
+            follower.Phases.CurrentPhase is PatternEntryPhase or MidfieldCrossingPhase or DownwindPhase,
+            $"expected a downwind entry to 28R, got {follower.Phases.CurrentPhase?.GetType().Name}"
+        );
+
+        SimulationEngine patternEngine = BuildEngine();
+        AircraftState ownFollower = AddCrossingClimbFollower(patternEngine, 1.0);
+        AircraftState ownLead = AddLeadAheadOfClimb(patternEngine);
+        CommandResult ownSetup = patternEngine.SendCommand(Leader, "DCT VPCBT; ERD 33");
+        Assert.True(ownSetup.Success, ownSetup.Message);
+        Assert.Equal(("33", PatternDirection.Right), PatternCommandHandler.QueuedPatternEntry(ownLead));
+        ClimbState before = Capture(ownFollower);
+
+        CommandResult kept = Send(patternEngine, $"FOLLOW {Leader}");
+
+        AssertKeptClimbFollowingLead(ownFollower, before, kept);
+        Assert.True(PendingPursuitOf(ownFollower), "the pursuit must be pending on the climb, not started");
+    }
+
+    /// <summary>
+    /// A lead assigned KOAK <paramref name="rwy"/> but flying no pattern phase, so FOLLOW installs a free pursuit rather than
+    /// sequencing onto its circuit. Placed <paramref name="sideNm"/> abeam of the follower's track to its right, which takes a
+    /// turn well past the upwind heading.
+    /// </summary>
+    private static AircraftState AddLeadOnRunway(SimulationEngine engine, AircraftState follower, RunwayInfo rwy, double sideNm)
+    {
         LatLon position = GeoMath.ProjectPoint(follower.Position, follower.TrueHeading + 90.0, sideNm);
         AircraftState lead = MakeAircraft(Leader, position, follower.TrueHeading, 1500, "VFR");
         engine.World.AddAircraft(lead);
-        lead.Phases = new PhaseList { AssignedRunway = rwy28L };
+        lead.Phases = new PhaseList { AssignedRunway = rwy };
         return lead;
     }
 }

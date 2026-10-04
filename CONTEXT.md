@@ -99,6 +99,11 @@ The single route every action takes, on every run kind, from text to effect. The
 it lives in `Yaat.Sim`, and no entry point decides anything the router decides.
 _Avoid_: dispatch chain, handler chain, command pipeline (the pipeline is the whole path from keyboard to aircraft)
 
+**RPO-only command**:
+A command only a pilot operator may give, because it makes a pilot do something no controller instruction can, such as
+FOLLOWF, CVAF, RFISF, RTISF or CLANDF. Solo training refuses them unless the scenario's recorded `SoloRpoCommandsAllowed`
+flag is set (`DispatchContext.RefusesRpoOnly`).
+
 **Kind**:
 What sort of action a text is, decided once by the router before anything runs. Every text has exactly
 one kind; a text with none is an error, never a default.
@@ -243,10 +248,16 @@ A follower on base flying 30° off its base heading away from the field, down to
 _Avoid_: excursion (that is the pursuit's S-turn)
 
 **Behind in sequence**:
-A same-runway lead whose remaining path to the threshold is longer than the follower's by more than 0.5 NM (along-final distance, no tolerance, when both are on final); FOLLOW of such a lead is refused (docs/plans/follow-lead-ahead-study.md).
+A same-runway lead that comes after the follower in the landing order: on a shared leg by position along it, on different legs by leg order, and for a follower on base, final or an instrument approach by remaining path to the threshold (no tolerance); FOLLOW of such a lead is refused (docs/approach-and-pattern-geometry.md, *Sequence order*).
 
 **Lead-ahead gate**:
-The command-time checks that refuse a FOLLOW whose lead is not ahead of the follower: behind in sequence, outside the ±60° cone, on the ground, or bound for another airport (docs/plans/follow-lead-ahead-study.md).
+The command-time checks that refuse a FOLLOW whose lead is not ahead of the follower: behind in sequence, outside the ±60° cone, on the ground, or bound for another airport (docs/approach-and-pattern-geometry.md, *Sequence refusals*; the full list is COMMANDS.md *FOLLOW refusals*).
+
+**Downwind box**:
+The area an upwind or crosswind follower accepts a lead with no runway in, outside the ±60° cone: along the downwind line from the downwind turn point to 3 NM past the base turn point, on the circuit side, tracking with the downwind (`CommandDispatcher.IsLeadInDownwindBox`, docs/approach-and-pattern-geometry.md).
+
+**Judgement figure**:
+A value or rule the aviation review set where 7110.65 and the AIM give no figure; the docs mark it so a later change knows it is a modelling choice, not a regulation (docs/approach-and-pattern-geometry.md, *FOLLOW rulings a change must respect*).
 
 **Turn-out**:
 A follower level with or ahead of its lead turning to the downwind heading with one call, holding an offset band, and turning base behind the lead once it has passed (`VfrFollowPhase`, docs/approach-and-pattern-geometry.md).
@@ -317,6 +328,15 @@ YAAT Scope overlays drawn from simulation truth rather than from what the contro
 **Scope entry**:
 Data a controller types into their display's automation (ERAM `QQ`, a STARS scratchpad): it changes what the displays show and never moves the aircraft, unlike a pilot command.
 
+**Nudge**:
+A range/bearing readout pushing an auto-placed data block (one at its default or deconflicted placement, never a manually dragged one) just far enough aside to stay readable, capped at the leader's maximum length; the block returns once the readout no longer needs the room (`RblReadoutPlacement`).
+
+**App tool**:
+A YAAT client method marked `[AutomationTool]` that the client-driver MCP lists (`list_app_tools`) and calls by name (`call_app_tool`): a setup action such as framing the radar or loading a recording, done directly rather than through the UI.
+
+**Recording mark**:
+A labelled moment in a client-driver recording (`record_mark`, or `wait_until`'s `stop_recording`), saved in `<clip>-marks.json` beside the MP4 with its wall time, its seconds into the clip and the scenario's sim seconds, so an edit can find the moment again.
+
 **Situation**:
 A named bucket of aircraft phases and state (Taxiing, Holding short, Final, IFR arrival…) that picks an aircraft menu's quick commands.
 _Avoid_: phase (one situation spans several phases)
@@ -385,8 +405,31 @@ One of the `(logical processors - 1) / 2` slots (`light` in `%LOCALAPPDATA%\gate
 **Feature PR**:
 The draft pull request from a marker's `feat/<name>` into `main`, one per repo, opened with the marker; CI runs on each push to it, and `/ship` Phase 2F merges it with `--rebase` once every line under the marker is done.
 
+**Automation mode**:
+The client's mode for being driven by an agent without disturbing the user, on when `YAAT_AUTOMATION=1` (`AutomationMode.IsEnabled`, `AutomationGate.SuppressActivation`): every window the client builds shows never-activated and stays in its Normal state; dialogs and message boxes open non-modal through `DialogPresenter` (message boxes through `MessageBoxPresenter`) with their owner disabled, popups draw inside their window, the client never activates itself or sets `Topmost`, and the global push-to-talk key hook and Discord Rich Presence are off (docs/plans/client-driver-background.md).
+
+**Never-activated window**:
+A window shown with `ShowActivated = false` that the client never activates afterwards, so it opens behind the user's foreground window without taking focus; automation mode shows every window this way.
+
+**Cloaked window**:
+A window the client has hidden from the desktop with a DWM cloak (`DWMWA_CLOAK`) while it keeps rendering, so window capture still records it; an automation-mode client cloaks every window before its first show when `YAAT_CLOAK=1` (`launch_yaat` `cloaked`), and the app tool `set_cloaked` toggles it on a running client (docs/client-driver-mcp.md).
+
+**Pipe host**:
+The client's in-process automation endpoint (`src/Yaat.Client/Automation/AutomationHost.cs`), started on Windows in automation mode: a named pipe `yaat-automation-<pid>` open to the current user only, speaking line-delimited JSON requests `{id, method, params}` and answering a result or a coded error with a recovery hint; derived from Zafiro.Avalonia.Mcp (docs/plans/client-driver-background.md).
+
+**Discovery file**:
+`%TEMP%/yaat-automation/<pid>.json`, written by the pipe host on start and deleted on exit, naming the pid, pipe name, process name, start time and protocol version, so a driver finds every running client's pipe; files whose process is gone, or whose pid now runs another program, are swept on start.
+
+**Node id**:
+The pipe host's stable id for a window, popup or element, issued by its `NodeRegistry` and kept for as long as the element lives, so a driver can name the same element across calls.
+
 **Ouroboros**:
 A synthetic round trip through the speech pipeline: a known canonical command is rendered to speech with Piper, fed through Whisper, the rule mapper and the LLM fallback, and the recovered canonical is compared with the one it started from. `--ouroboros` speaks pilot readbacks; `--atc-ouroboros` speaks controller transmissions across every phraseology rule family and diffs each family's pass rate against a committed baseline (`tools/Yaat.SpeechSandbox`, docs/speech-recognition-pipeline.md).
 
 **Speech telemetry**:
 Push-to-talk samples (audio, per-stage transcripts, scenario context) that opted-in users' clients upload to the official yaat-server, which stores them for developers to pull with `tools/speech_telemetry.py` (docs/speech-recognition-pipeline.md).
+
+## Releases
+
+**Sizzle reel**:
+A short captioned video showing a major feature a release introduces or reworks, made from scripted scenes replayed in the client and recorded with the client driver, before the release is cut (the FOLLOW reel: docs/plans/follow-video-montage.md). Every release is reviewed for features that warrant one (`prepare-release` Step 5d).

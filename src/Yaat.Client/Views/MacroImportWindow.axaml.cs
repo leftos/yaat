@@ -66,6 +66,7 @@ public partial class MacroImportWindow : Window
         _newMacros = [];
         _allExistingBaseNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         InitializeComponent();
+        AutomationGate.ApplyShowActivated(this);
     }
 
     public MacroImportWindow(List<MacroImportItem> conflicts, List<SavedMacro> newMacros, HashSet<string> allExistingBaseNames)
@@ -75,6 +76,7 @@ public partial class MacroImportWindow : Window
         _allExistingBaseNames = allExistingBaseNames;
 
         InitializeComponent();
+        AutomationGate.ApplyShowActivated(this);
 
         ItemsControl? list = this.FindControl<ItemsControl>("ConflictList");
         list?.ItemsSource = _items;
@@ -111,7 +113,7 @@ public partial class MacroImportWindow : Window
             return;
         }
 
-        Close(BuildResult());
+        DialogPresenter.Close(this, BuildResult());
     }
 
     private void OnOverwriteAllClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
@@ -121,7 +123,7 @@ public partial class MacroImportWindow : Window
             item.Resolution = ConflictResolution.Overwrite;
         }
 
-        Close(BuildResult());
+        DialogPresenter.Close(this, BuildResult());
     }
 
     private void OnSkipAllClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
@@ -131,10 +133,10 @@ public partial class MacroImportWindow : Window
             item.Resolution = ConflictResolution.Skip;
         }
 
-        Close(BuildResult());
+        DialogPresenter.Close(this, BuildResult());
     }
 
-    private void OnCancelClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e) => Close(null);
+    private void OnCancelClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e) => DialogPresenter.Close(this, null);
 
     private MacroImportResult BuildResult()
     {

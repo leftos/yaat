@@ -1,4 +1,5 @@
 using Yaat.Sim.Asdex;
+using Yaat.Sim.Simulation.Coast;
 
 namespace Yaat.Sim.Simulation.Snapshots;
 
@@ -49,6 +50,10 @@ public sealed class ScenarioSnapshotDto
     // Optional so older snapshots deserialize cleanly with the default (false = instructor
     // topology). New snapshots always carry the current value.
     public bool SoloTrainingMode { get; init; }
+
+    // Optional so a snapshot written before the field existed restores the default (false: solo refuses the
+    // RPO-only commands).
+    public bool SoloRpoCommandsAllowed { get; init; }
 
     public int SoloParkingInitialCallupRatePercent { get; init; } = 100;
 
@@ -143,6 +148,13 @@ public sealed class ScenarioSnapshotDto
     // told about — a restore that started from an empty set would re-announce every standing alert.
     public List<AsdexSafetyAlertDto>? ActiveAsdexAlerts { get; init; }
 
+    // The tracks still coasting after their aircraft left the world, in the dictionary's ordinal callsign order and
+    // each facet in its registered order. Optional: null in snapshots that predate it and whenever nothing is
+    // coasting, which is also what the scenario state then holds. Snapshotted because a restore of an empty set would
+    // lose a coast the live run had registered, and the coasts registered in the undone future would otherwise coast
+    // on after a rewind.
+    public List<DisconnectCoastDto>? DisconnectCoasts { get; init; }
+
     // The live-traffic callsigns the instructor hid with DEL, ordinal-sorted. Optional: null in snapshots that predate
     // it and whenever nothing is hidden, which is also what the scenario state then holds.
     public List<string>? SuppressedLiveTraffic { get; init; }
@@ -158,6 +170,28 @@ public sealed class AsdexSafetyAlertDto
     public required List<string> Callsigns { get; init; }
     public required List<string> MessageLines { get; init; }
     public required bool PlayAuralAlert { get; init; }
+}
+
+/// <summary>Snapshot of one coasting <c>AircraftDisconnectCoast</c>: the last position and velocity the removed track
+/// dead-reckons from, and every display still coasting it. Snapshotted so a rewind or a session restore lands on the
+/// coast set the live run had rather than dropping a standing coast or keeping one the rewind undid.</summary>
+public sealed class DisconnectCoastDto
+{
+    public required string Callsign { get; init; }
+    public required LatLon Anchor { get; init; }
+    public required double AnchorTrackDeg { get; init; }
+    public required double AnchorGroundSpeed { get; init; }
+    public required double CoastStartSimSeconds { get; init; }
+    public required List<DisconnectCoastFacetDto> Facets { get; init; }
+}
+
+/// <summary>Snapshot of one <c>DisconnectCoastFacet</c>: a display the track coasts on and the sim second it stops.</summary>
+public sealed class DisconnectCoastFacetDto
+{
+    public required DisconnectCoastScope Scope { get; init; }
+    public required string? FacilityId { get; init; }
+    public required bool IsDrop { get; init; }
+    public required double DeadlineSimSeconds { get; init; }
 }
 
 /// <summary>Snapshot of <c>AsdexSafetyLogicConfig</c>: the configured runway footprints, the runway-configuration id they came from,

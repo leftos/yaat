@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.CompilerServices;
+using Yaat.Client.Logging;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Testing;
 
@@ -37,18 +38,23 @@ internal static class ModuleInit
         Environment.SetEnvironmentVariable("YAAT_SKIP_CIFP_DOWNLOAD", "1");
         ResolveCommittedNavData();
 
+        // Logging is set up once, before any test or YAAT static runs, so every logger a class creates on first use (the
+        // automation dispatcher's among them) writes to the per-run log and feeds AppLog.RecentErrors, whatever the order.
+        AppLog.Initialize("yaat-ui-tests.log");
+
         AppDomain.CurrentDomain.ProcessExit += (_, _) => TryDeleteDir(testDir);
     }
 
     /// <summary>
-    /// Resolves NavData and CIFP against the committed copies in <c>TestData</c> before any test runs. Both resolvers keep
-    /// their first answer for the whole process, so without this a <c>MainViewModel</c>'s background navdata load, which
-    /// finds no cache in the per-process app-data folder and may not download, could store a null that the menu goldens'
+    /// Resolves NavData and CIFP against the pins committed in <c>tests/Yaat.Sim.Tests/TestData</c> of this checkout before
+    /// any test runs; every assembly that links this file reads them there, offline. Both resolvers keep their first answer
+    /// for the whole process, so without this a <c>MainViewModel</c>'s background navdata load, which finds no cache in the
+    /// per-process app-data folder and may not download, could store a null that the menu goldens'
     /// <see cref="TestVnasData"/> would then read.
     /// </summary>
     private static void ResolveCommittedNavData()
     {
-        string testDataDir = Path.Combine(AppContext.BaseDirectory, "TestData");
+        string testDataDir = Path.Combine(FindRepoRoot(), "tests", "Yaat.Sim.Tests", "TestData");
         TestVnasData.SetTestDataDir(testDataDir);
 
         string? cifpPath = CifpPathResolver.EnsureCurrentCycle(
@@ -70,9 +76,26 @@ internal static class ModuleInit
         {
             throw new InvalidOperationException(
                 $"The committed NavData or CIFP under {testDataDir} could not be resolved (CIFP: {cifpPath ?? "none"}, NavData: "
-                    + $"{navDataPath ?? "none"}). The csproj links them from tests/Yaat.Sim.Tests/TestData; restore them with git checkout."
+                    + $"{navDataPath ?? "none"}); restore them with git checkout."
             );
         }
+    }
+
+    /// <summary>The checkout this test assembly was built in: the nearest folder above the output that holds yaat.slnx.</summary>
+    /// <exception cref="InvalidOperationException">No folder above the test output holds yaat.slnx.</exception>
+    private static string FindRepoRoot()
+    {
+        for (DirectoryInfo? dir = new(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)
+        {
+            if (File.Exists(Path.Combine(dir.FullName, "yaat.slnx")))
+            {
+                return dir.FullName;
+            }
+        }
+
+        throw new InvalidOperationException(
+            $"No yaat.slnx above {AppContext.BaseDirectory}: the UI tests read navdata from tests/Yaat.Sim.Tests/TestData in the checkout."
+        );
     }
 
     private static void SweepStaleDirs()

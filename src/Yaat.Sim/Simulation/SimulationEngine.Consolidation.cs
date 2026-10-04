@@ -109,6 +109,15 @@ public sealed partial class SimulationEngine
 
             if ((ac.Track.HandoffPeer is not null) && MatchesMoved(ac.Track.HandoffPeer))
             {
+                // The receiver already owns the track: a handoff to it could never be accepted, so it ends here.
+                if ((ac.Track.Owner is not null) && receivingOwner.MatchesPosition(ac.Track.Owner))
+                {
+                    ac.Track.HandoffPeer = null;
+                    ac.Track.HandoffInitiatedAt = null;
+                    ac.Track.HandoffRedirectedBy = null;
+                    continue;
+                }
+
                 ac.Track.HandoffRedirectedBy = ac.Track.HandoffPeer;
                 ac.Track.HandoffPeer = receivingOwner;
                 redirected++;

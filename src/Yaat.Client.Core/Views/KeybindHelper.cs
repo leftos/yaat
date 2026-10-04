@@ -41,4 +41,14 @@ public static class KeybindHelper
 
         return key != Key.None;
     }
+
+    /// <summary>
+    /// True when <paramref name="key"/> pressed with <paramref name="modifiers"/> matches the binding. A modifier-only binding
+    /// (e.g. RightCtrl) matches by key alone, since pressing it also sets its own flag in the event's modifiers.
+    /// </summary>
+    public static bool MatchesKeybind(Key key, KeyModifiers modifiers, Key bindKey, KeyModifiers bindModifiers) =>
+        (key == bindKey) && (IsModifierOnlyKey(bindKey) || (modifiers == bindModifiers));
+
+    public static bool IsModifierOnlyKey(Key key) =>
+        key is Key.LeftShift or Key.RightShift or Key.LeftCtrl or Key.RightCtrl or Key.LeftAlt or Key.RightAlt or Key.LWin or Key.RWin;
 }

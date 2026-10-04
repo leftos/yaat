@@ -39,6 +39,13 @@ public class NatoLetterNormalizerTests
     }
 
     [Fact]
+    public void Collapse_Alfa_BecomesA()
+    {
+        List<string> result = NatoLetterNormalizer.Collapse(["to", "parking", "golf", "alfa", "5"], EmptySet);
+        Assert.Equal(["to", "parking", "G", "A", "5"], result);
+    }
+
+    [Fact]
     public void Mixed_Nato_And_Non_Nato_Only_Collapses_Nato_Runs()
     {
         string[] input = ["taxi", "via", "tango", "uniform", "whiskey"];

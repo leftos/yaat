@@ -99,7 +99,6 @@ public static class SpineOrder
         // The only step that removes aircraft, on every path (ADR 0002 membership: live wins) — a replay that kept
         // an aircraft the live session auto-deleted drifted until the next snapshot restore snapped it back.
         SpineStep.Sim(StepId.AutoDelete, static (engine, host) => host.OnAutoDeleted(engine.TickAutoDelete())),
-        SpineStep.Host(StepId.SurfaceCoastExpiry, static host => host.SurfaceCoastExpiry()),
         // After AutoDelete, so a track removed this second has its coast registered; a facet whose deadline this second
         // reaches expires here on every run kind, since the coasts are scenario state.
         SpineStep.Sim(StepId.DisconnectCoastExpiry, static (engine, host) => engine.TickDisconnectCoastExpiry(host)),

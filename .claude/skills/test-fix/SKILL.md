@@ -202,7 +202,7 @@ If the change touched a type, signature or DTO in `src/Yaat.Sim`, a bare
 `dotnet test` in yaat cannot see that it broke the sibling yaat-server repo:
 
 ```bash
-pwsh tools/gate.ps1 -Log .tmp/test-all.log -TimeoutSeconds 900 -Slot heavy -- pwsh tools/test-all.ps1
+pwsh tools/gate.ps1 -Log .tmp/test-all.log -TimeoutSeconds 360 -Slot heavy -- pwsh tools/test-all.ps1
 ```
 
 ## Step 9: Aviation review (when behaviour changed)

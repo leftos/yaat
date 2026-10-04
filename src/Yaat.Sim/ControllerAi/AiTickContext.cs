@@ -1,3 +1,4 @@
+using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Simulation;
@@ -46,6 +47,9 @@ public sealed class AiTickContext
     public required IReadOnlyList<EramActiveConflict> EramConflicts { get; init; }
 
     public required double AutoAcceptDelaySeconds { get; init; }
+
+    /// <summary>The navigation data the room runs on: field elevations for the ERAM coverage check, among others.</summary>
+    public required NavigationDatabase NavDb { get; init; }
 
     /// <summary>The ground layout an aircraft is operating on; null when its airport has none loaded.</summary>
     public required Func<AircraftState, AirportGroundLayout?> LayoutFor { get; init; }

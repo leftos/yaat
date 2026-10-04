@@ -277,6 +277,22 @@ public static class PatternGeometry
     }
 
     /// <summary>
+    /// The departure end a climb-out on <paramref name="flownRunway"/> must pass before it turns crosswind into
+    /// <paramref name="patternRunway"/>'s circuit: whichever of the two runways' departure ends lies farther along the pattern
+    /// runway's heading (the same runway's own end when they are one). Turning short of either carries the aircraft back over
+    /// the runway it is leaving or the one it is joining (AIM 4-3-2).
+    /// </summary>
+    public static LatLon TransitionDepartureEnd(RunwayInfo flownRunway, RunwayInfo patternRunway)
+    {
+        var patternThreshold = new LatLon(patternRunway.ThresholdLatitude, patternRunway.ThresholdLongitude);
+        var flownEnd = new LatLon(flownRunway.EndLatitude, flownRunway.EndLongitude);
+        var patternEnd = new LatLon(patternRunway.EndLatitude, patternRunway.EndLongitude);
+        double flownAlong = GeoMath.AlongTrackDistanceNm(flownEnd, patternThreshold, patternRunway.TrueHeading);
+        double patternAlong = GeoMath.AlongTrackDistanceNm(patternEnd, patternThreshold, patternRunway.TrueHeading);
+        return (flownAlong > patternAlong) ? flownEnd : patternEnd;
+    }
+
+    /// <summary>
     /// Pattern geometry for an aircraft transitioning from <paramref name="flownRunway"/>'s upwind
     /// onto <paramref name="patternRunway"/>'s pattern: identical to
     /// <see cref="Compute(RunwayInfo, AircraftCategory, string, double, PatternDirection, double?, double?, IReadOnlyList{RunwayInfo}?, GroundRunway?)"/>
@@ -302,23 +318,12 @@ public static class PatternGeometry
         GroundRunway? patternAuthoredRunway
     )
     {
-        var patternThreshold = new LatLon(patternRunway.ThresholdLatitude, patternRunway.ThresholdLongitude);
-        double flownAlong = GeoMath.AlongTrackDistanceNm(
-            new LatLon(flownRunway.EndLatitude, flownRunway.EndLongitude),
-            patternThreshold,
-            patternRunway.TrueHeading
-        );
-        double patternAlong = GeoMath.AlongTrackDistanceNm(
-            new LatLon(patternRunway.EndLatitude, patternRunway.EndLongitude),
-            patternThreshold,
-            patternRunway.TrueHeading
-        );
-        bool flownIsFarther = flownAlong > patternAlong;
+        LatLon departureEnd = TransitionDepartureEnd(flownRunway, patternRunway);
 
         return ComputeCore(
             patternRunway,
-            flownIsFarther ? flownRunway.EndLatitude : patternRunway.EndLatitude,
-            flownIsFarther ? flownRunway.EndLongitude : patternRunway.EndLongitude,
+            departureEnd.Lat,
+            departureEnd.Lon,
             category,
             aircraftType,
             windSpeedKt,

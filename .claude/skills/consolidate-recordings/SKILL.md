@@ -41,9 +41,7 @@ pwsh tools/gate.ps1 -Log .tmp/consolidate-build.log -TimeoutSeconds 300 -Slot he
 pwsh tools/gate.ps1 -Log .tmp/consolidate-test.log -TimeoutSeconds 120 -Slot heavy -- dotnet test tests/Yaat.Sim.Tests
 ```
 
-This is a full-project run of roughly 300 replay E2E tests. It legitimately
-takes minutes, so the gate's ceiling is `-TimeoutSeconds 120`, not the 30 CLAUDE.md specifies for *filtered* runs. A kill at 120 s means a
-genuine hang, not a slow suite.
+This is a full-project run, so the gate's ceiling is the full-suite `-TimeoutSeconds 120` from CLAUDE.md "Test ceilings", not the 30 it gives *filtered* runs. The ceiling counts on the gate's load-adjusted clock, so a kill at 120 means a genuine hang, not a busy machine.
 
 If a test fails because it references a renamed file the tool missed, fix the
 reference by hand before committing. Do not revert the consolidation.

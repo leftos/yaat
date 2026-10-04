@@ -4,19 +4,23 @@ using System.Windows.Automation;
 using Microsoft.Extensions.Logging;
 using ModelContextProtocol;
 using ModelContextProtocol.Server;
+using Yaat.ClientDriver.Mcp.Pipe;
 using Rect = System.Windows.Rect;
 
 namespace Yaat.ClientDriver.Mcp.Tools;
 
 /// <summary>
-/// Acting on the screen: UI Automation patterns where they work, and mouse and keyboard input where they do not. Input goes one of
-/// two ways, chosen server-wide by set_input_mode: virtual (the default) posts window messages to a YAAT window and never touches
-/// the real cursor or the foreground; real sends SendInput and SendKeys after bringing the window to the foreground.
+/// Acting on the screen. An id from a YAAT client's automation pipe is acted on over that pipe (<see cref="PipeInput"/>),
+/// whatever the input mode. Anything else goes through UI Automation patterns where they work, and mouse and keyboard input
+/// where they do not, one of two ways chosen server-wide by set_input_mode: virtual (the default) posts window messages to a
+/// YAAT window and never touches the real cursor or the foreground; real sends SendInput and SendKeys after bringing the
+/// window to the foreground.
 /// </summary>
 /// <param name="registry">Shared element registry; ids come from the inspect tools.</param>
+/// <param name="pipes">Finds and caches the YAAT clients' automation pipes, and remembers the client last reached over one.</param>
 /// <param name="logger">Server logger, writing to stderr.</param>
 [McpServerToolType]
-public sealed class InputTools(ElementRegistry registry, ILogger<InputTools> logger)
+public sealed class InputTools(ElementRegistry registry, PipeDirectory pipes, ILogger<InputTools> logger)
 {
     private const string SendKeysSpecialCharacters = "+^%~(){}[]";
     private const string SwitchToReal = "switch to real input with set_input_mode real";
@@ -28,7 +32,7 @@ public sealed class InputTools(ElementRegistry registry, ILogger<InputTools> log
             + "posts window messages to the YAAT window: the real mouse pointer never moves, the foreground never changes, and a covered "
             + "or background window still gets the input — but it reaches YAAT windows only and cannot hold Ctrl, Alt or Shift. 'real' "
             + "moves the real cursor and brings the window to the foreground (SendInput, SendKeys): for recording a video, for CRC, and "
-            + "for modifier keys. Returns the mode now in effect."
+            + "for modifier keys. Calls on an id from a YAAT client's automation pipe ignore the mode. Returns the mode now in effect."
     )]
     public static string SetInputMode([Description("virtual or real.")] string mode)
     {
@@ -38,50 +42,191 @@ public sealed class InputTools(ElementRegistry registry, ILogger<InputTools> log
             "real" => InputMode.Real,
             _ => throw new McpException($"Unknown input mode '{mode}' — use virtual or real"),
         };
-        return $"input mode: {ModeName(NativeInput.Mode)}";
+        return $"input mode: {ModeName(NativeInput.Mode)} (pipe-routed calls ignore it)";
     }
 
     [McpServerTool]
-    [Description("Invokes an element through its InvokePattern — the fast, focus-free path for buttons and other controls that support it.")]
-    public string Invoke([Description("Element id from find_elements, list_windows or dump_tree.")] string elementId)
+    [Description(
+        "Invokes an element through its InvokePattern — the fast, focus-free path for buttons and other controls that support it. An id "
+            + "from a YAAT client's automation pipe gets a plain left click over the pipe, which runs the control's own action."
+    )]
+    public async Task<string> InvokeAsync(
+        [Description("Element id from find_elements, list_windows or dump_tree.")] string elementId,
+        CancellationToken cancellationToken
+    )
     {
-        AutomationElement element = registry.Resolve(elementId);
-        return UiaQuery.Guarded(logger, "invoke", elementId, () => InvokeElement(element, elementId));
+        if (registry.Resolve(elementId) is PipeNodeRef node)
+        {
+            return await PipeInput
+                .ClickAsync(pipes, new PipeElement(elementId, node), PipePointer.PlainLeft, "invoked", cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        AutomationElement element = registry.ResolveUia(elementId);
+        return UiaRouted(UiaQuery.Guarded(logger, "invoke", elementId, () => InvokeElement(element, elementId)));
     }
 
     [McpServerTool]
     [Description(
         "Clicks an element at the centre of its rectangle. Avalonia menus support neither InvokePattern nor ExpandCollapsePattern, so "
             + "this is the only way to open one — and the only way to pick an item from the popup it opens. The result ends with the "
-            + "input mode used, (virtual) or (real); see set_input_mode. A virtual click reaches YAAT windows only and cannot carry modifiers."
+            + "input mode used, (virtual) or (real); see set_input_mode. A virtual click reaches YAAT windows only and cannot carry modifiers. "
+            + "An id from a YAAT client's automation pipe is clicked over the pipe in any mode, with any of ctrl, shift, alt and meta held; "
+            + "the result names what ran (command, toggle, menu_item, pointer, …) and ends with (pipe)."
     )]
-    public string Click(
+    public async Task<string> ClickAsync(
         [Description("Element id from find_elements, list_windows or dump_tree.")] string elementId,
+        CancellationToken cancellationToken,
         [Description("Which button: left, right or middle.")] string button = "left",
         [Description("True to send two clicks in quick succession.")] bool doubleClick = false,
-        [Description("Keys held during the click: shift, ctrl or shift+ctrl; empty for none. Real input only.")] string modifiers = ""
+        [Description(
+            "Keys held during the click: shift, ctrl or shift+ctrl, real input only; over a YAAT client's automation pipe, any of ctrl, "
+                + "shift, alt and meta joined by '+'. Empty for none."
+        )]
+            string modifiers = ""
     )
     {
-        AutomationElement element = registry.Resolve(elementId);
+        if (registry.Resolve(elementId) is PipeNodeRef node)
+        {
+            var pointer = new PipePointer(button, modifiers, doubleClick);
+            return await PipeInput.ClickAsync(pipes, new PipeElement(elementId, node), pointer, "clicked", cancellationToken).ConfigureAwait(false);
+        }
+
+        AutomationElement element = registry.ResolveUia(elementId);
         MouseButton mouseButton = ParseButton(button);
         KeyModifiers keyModifiers = ParseModifiers(modifiers);
-        return UiaQuery.Guarded(logger, "click", elementId, () => ClickElement(element, elementId, mouseButton, doubleClick, keyModifiers));
+        return UiaRouted(
+            UiaQuery.Guarded(logger, "click", elementId, () => ClickElement(element, elementId, mouseButton, doubleClick, keyModifiers))
+        );
     }
 
     [McpServerTool]
     [Description(
-        "Clicks at absolute screen coordinates, for surfaces UI Automation cannot see into — YAAT's radar and ground views, and CRC's "
-            + "OpenGL scopes, where a track or datablock exists only as pixels. Take a screenshot first and read the coordinates off the "
-            + "window's rectangle. In virtual mode the click goes to the topmost YAAT window under the point, even a covered one; CRC "
-            + "needs real mode. The result ends with (virtual) or (real)."
+        "Clicks at a point, for surfaces UI Automation cannot see into — YAAT's radar and ground views, and CRC's OpenGL scopes, where a "
+            + "track or datablock exists only as pixels. With windowElementId empty, x and y are absolute screen coordinates in physical "
+            + "pixels: take a screenshot first and read them off the window's rectangle. In virtual mode that click goes to the topmost "
+            + "YAAT window under the point, even a covered one; CRC needs real mode; the result ends with (virtual) or (real). With "
+            + "windowElementId a window from a YAAT client's automation pipe (list_windows), x and y are DIPs from the top-left of that "
+            + "window's client area, the click goes over the pipe in any mode to the element under the point, and the result ends with (pipe)."
     )]
-    public string ClickPoint(
-        [Description("Screen X in physical pixels.")] int x,
-        [Description("Screen Y in physical pixels.")] int y,
+    public async Task<string> ClickPointAsync(
+        [Description("Screen X in physical pixels, or window X in DIPs from the client area's left edge when windowElementId is given.")] int x,
+        [Description("Screen Y in physical pixels, or window Y in DIPs from the client area's top edge when windowElementId is given.")] int y,
+        CancellationToken cancellationToken,
         [Description("Which button: left, right or middle.")] string button = "left",
         [Description("True to send two clicks in quick succession.")] bool doubleClick = false,
-        [Description("Keys held during the click: shift, ctrl or shift+ctrl; empty for none. Real input only.")] string modifiers = ""
+        [Description(
+            "Keys held during the click: shift, ctrl or shift+ctrl, real input only; over a YAAT client's automation pipe, any of ctrl, "
+                + "shift, alt and meta joined by '+'. Empty for none."
+        )]
+            string modifiers = "",
+        [Description(
+            "Element id of a window from a YAAT client's automation pipe, to click at window-relative DIPs over the pipe; empty to click "
+                + "at screen coordinates."
+        )]
+            string windowElementId = ""
     )
+    {
+        if (string.IsNullOrEmpty(windowElementId))
+        {
+            return UiaRouted(ClickScreenPoint(x, y, button, doubleClick, modifiers));
+        }
+
+        if (registry.Resolve(windowElementId) is not PipeNodeRef window)
+        {
+            throw new McpException(
+                $"windowElementId '{windowElementId}' must be a window from a YAAT client driven over its automation pipe; leave it empty "
+                    + "to click at screen coordinates"
+            );
+        }
+
+        var pointer = new PipePointer(button, modifiers, doubleClick);
+        return await PipeInput
+            .ClickPointAsync(pipes, new PipeElement(windowElementId, window), x, y, pointer, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    [McpServerTool]
+    [Description(
+        "Replaces an element's text. Virtual mode (the default) focuses it with a posted click, clears it with End and one Backspace "
+            + "per character it holds, and types the text as posted characters — never through ValuePattern, whose SetValue brings the "
+            + "window to the foreground. Real mode uses a writable ValuePattern when there is one, otherwise select-all and keystrokes. "
+            + "The result ends with (virtual) or (real). An id from a YAAT client's automation pipe has its TextBox's text written "
+            + "directly over the pipe, with no keystrokes, in any mode; the result ends with (pipe)."
+    )]
+    public async Task<string> SetTextAsync(
+        [Description("Element id of the text box or other value control.")] string elementId,
+        [Description("The text to put in it. Typed verbatim; SendKeys special characters are escaped for you when the typing path is used.")]
+            string text,
+        CancellationToken cancellationToken
+    )
+    {
+        if (registry.Resolve(elementId) is PipeNodeRef node)
+        {
+            return await PipeInput.SetTextAsync(pipes, new PipeElement(elementId, node), text, cancellationToken).ConfigureAwait(false);
+        }
+
+        AutomationElement element = registry.ResolveUia(elementId);
+        return UiaRouted(UiaQuery.Guarded(logger, "set_text", elementId, () => WriteText(element, elementId, text)));
+    }
+
+    [McpServerTool]
+    [Description(
+        "Sends keystrokes in SendKeys syntax to the focused element: {ENTER}, {ESC}, {TAB}, {F4}; a literal + ^ % ~ ( ) { } [ ] must be "
+            + "wrapped in braces. Virtual mode (the default) sends characters, braced literals, {ENTER} {ESC} {TAB} {BACKSPACE} {DEL} "
+            + "{HOME} {END} the arrows and {F1}–{F12} to the YAAT window last targeted, or to focusElementId's window. Real mode also "
+            + "sends modifiers — ^a for Ctrl+A, %{F4} for Alt+F4, +a for Shift+A. It cannot fill the native file dialog, which runs "
+            + "outside the client; launch with launch_yaat and answer dialogs with queue_file_pick. The result ends with (virtual) or (real). "
+            + "Over a YAAT client's automation pipe the keys, modifiers included, go in any mode: to focusElementId when it is an id "
+            + "from the pipe, or, with focusElementId empty, to the focused element of the client the last pipe call reached, unless a UI "
+            + "Automation call came since; the result ends with (pipe)."
+    )]
+    public async Task<string> SendKeysAsync(
+        [Description("The keystrokes, in SendKeys syntax.")] string keys,
+        CancellationToken cancellationToken,
+        [Description(
+            "Element id to focus first, or empty to type into whatever is focused now — or, after a call over a YAAT client's automation "
+                + "pipe, the focused element of that client, unless a UI Automation call came since."
+        )]
+            string focusElementId = ""
+    )
+    {
+        if (string.IsNullOrEmpty(focusElementId))
+        {
+            if (pipes.LastTargetPid is int pid)
+            {
+                return await PipeInput.SendKeysToFocusedAsync(pipes, pid, keys, cancellationToken).ConfigureAwait(false);
+            }
+        }
+        else if (registry.Resolve(focusElementId) is PipeNodeRef node)
+        {
+            return await PipeInput.SendKeysAsync(pipes, new PipeElement(focusElementId, node), keys, cancellationToken).ConfigureAwait(false);
+        }
+
+        return UiaRouted(SendUiaKeys(keys, focusElementId));
+    }
+
+    [McpServerTool]
+    [Description(
+        "Gives an element the keyboard focus, so a following send_keys goes to it: a posted click at its centre in virtual mode (YAAT "
+            + "windows only), UI Automation's SetFocus — which brings its window to the foreground — in real mode. The result ends with "
+            + "(virtual) or (real). An id from a YAAT client's automation pipe is focused over the pipe without activating its window, in "
+            + "any mode; the result ends with (pipe)."
+    )]
+    public async Task<string> FocusAsync([Description("Element id to focus.")] string elementId, CancellationToken cancellationToken)
+    {
+        if (registry.Resolve(elementId) is PipeNodeRef node)
+        {
+            return await PipeInput.FocusAsync(pipes, new PipeElement(elementId, node), cancellationToken).ConfigureAwait(false);
+        }
+
+        AutomationElement element = registry.ResolveUia(elementId);
+        return UiaRouted(UiaQuery.Guarded(logger, "focus", elementId, () => FocusAndRemember(element, elementId)));
+    }
+
+    private static string ModeName(InputMode mode) => mode == InputMode.Real ? "real" : "virtual";
+
+    private static string ClickScreenPoint(int x, int y, string button, bool doubleClick, string modifiers)
     {
         MouseButton mouseButton = ParseButton(button);
         KeyModifiers keyModifiers = ParseModifiers(modifiers);
@@ -110,35 +255,11 @@ public sealed class InputTools(ElementRegistry registry, ILogger<InputTools> log
         }
     }
 
-    [McpServerTool]
-    [Description(
-        "Replaces an element's text. Virtual mode (the default) focuses it with a posted click, clears it with End and one Backspace "
-            + "per character it holds, and types the text as posted characters — never through ValuePattern, whose SetValue brings the "
-            + "window to the foreground. Real mode uses a writable ValuePattern when there is one, otherwise select-all and keystrokes. "
-            + "The result ends with (virtual) or (real)."
-    )]
-    public string SetText(
-        [Description("Element id of the text box or other value control.")] string elementId,
-        [Description("The text to put in it. Typed verbatim; SendKeys special characters are escaped for you when the typing path is used.")]
-            string text
-    )
-    {
-        AutomationElement element = registry.Resolve(elementId);
-        return UiaQuery.Guarded(logger, "set_text", elementId, () => WriteText(element, elementId, text));
-    }
-
-    [McpServerTool]
-    [Description(
-        "Sends keystrokes in SendKeys syntax to the focused element: {ENTER}, {ESC}, {TAB}, {F4}; a literal + ^ % ~ ( ) { } [ ] must be "
-            + "wrapped in braces. Virtual mode (the default) sends characters, braced literals, {ENTER} {ESC} {TAB} {BACKSPACE} {DEL} "
-            + "{HOME} {END} the arrows and {F1}–{F12} to the YAAT window last targeted, or to focusElementId's window. Real mode also "
-            + "sends modifiers — ^a for Ctrl+A, %{F4} for Alt+F4, +a for Shift+A — and drives the native file dialog, which never "
-            + "appears in a process's window list: send the full path followed by {ENTER}. The result ends with (virtual) or (real)."
-    )]
-    public string SendKeys(
-        [Description("The keystrokes, in SendKeys syntax.")] string keys,
-        [Description("Element id to focus first, or empty to type into whatever is focused now.")] string focusElementId = ""
-    )
+    /// <summary>
+    /// send_keys through virtual or real input, to <paramref name="focusElementId"/>'s UI Automation element or, when it is
+    /// empty, to whatever has the focus.
+    /// </summary>
+    private string SendUiaKeys(string keys, string focusElementId)
     {
         lock (NativeInput.InputGate)
         {
@@ -147,7 +268,7 @@ public sealed class InputTools(ElementRegistry registry, ILogger<InputTools> log
                 return NativeInput.Mode == InputMode.Real ? RealKeysToFocused(keys) : VirtualKeysToFocused(keys);
             }
 
-            AutomationElement element = registry.Resolve(focusElementId);
+            AutomationElement element = registry.ResolveUia(focusElementId);
             return UiaQuery.Guarded(
                 logger,
                 "send_keys",
@@ -160,19 +281,15 @@ public sealed class InputTools(ElementRegistry registry, ILogger<InputTools> log
         }
     }
 
-    [McpServerTool]
-    [Description(
-        "Gives an element the keyboard focus, so a following send_keys goes to it: a posted click at its centre in virtual mode (YAAT "
-            + "windows only), UI Automation's SetFocus — which brings its window to the foreground — in real mode. The result ends with "
-            + "(virtual) or (real)."
-    )]
-    public string Focus([Description("Element id to focus.")] string elementId)
+    /// <summary>
+    /// A call's <paramref name="result"/> once it went through UI Automation or native input and succeeded: untargeted keys follow
+    /// what was touched last, so the client remembered from the last pipe call is forgotten.
+    /// </summary>
+    private string UiaRouted(string result)
     {
-        AutomationElement element = registry.Resolve(elementId);
-        return UiaQuery.Guarded(logger, "focus", elementId, () => FocusAndRemember(element, elementId));
+        pipes.ForgetLastTarget();
+        return result;
     }
-
-    private static string ModeName(InputMode mode) => mode == InputMode.Real ? "real" : "virtual";
 
     private static string ClickVerb(bool doubleClick) => doubleClick ? "double-clicked" : "clicked";
 

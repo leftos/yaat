@@ -4,6 +4,26 @@
 
 ### Added
 
+- A range/bearing measurement's label moves clear of data blocks and aircraft, pushing auto-placed data blocks aside while every side is covered.
+
+### Fixed
+
+- A loaded solo recording comes up in solo mode, so its replay speaks every pilot line and keeps its recorded conflict-alert inhibits.
+- `EF` reads back and shows as "make straight-in", per 7110.65; "straight-in approach" and "enter final" are still understood when spoken.
+- An aircraft told to `FOLLOW` traffic keeps pattern spacing instead of the radar wake minimum, so a Cessna following a jet turns base about 3 NM behind it, not 4–6.
+- A track never flashes a handoff to the position that already owns it: an auto-tracked arrival owned by the student stays owned, and `HO`/`HOALL` to your own position is refused.
+- A pilot following traffic no longer says "the traffic's on the ground, breaking off the follow" when its lead lands; the follow simply ends.
+
+## v0.15.0-beta [2026/10/02]
+
+### Highlights
+- Loading a scenario shows each step's progress and names anything missing, such as an airport map; other members see who is loading.
+- `FOLLOW` works from an approach, any pattern leg or a climb-out: pilots keep their spacing, and say why when they can't follow.
+- New ERAM entries: `FP`, `CA`/`RK`, `SM`, `SW`, `WX` and `UR`. ERAM targets now update every 12 seconds, as on the real system.
+- **Scenario → File Bug Report…** opens a prefilled GitHub issue with the bug report bundle ready to drag in.
+
+### Added
+
 - ERAM `FP` files a flight plan for an aircraft without one, drawing a beacon code if none is given; `SP` answers NOT ADAPTED.
 - Loading a scenario or starting a live session shows each step's progress, and keeps the panel open naming anything missing, such as an airport map.
 - While a member loads a scenario, the terminal and every client say who is loading, and load, unload, restart and rewind are disabled.
@@ -23,39 +43,52 @@
 ### Changed
 
 - CRC's Tower Cab and TowerCab 3D receive aircraft position updates over UDP, as on vNAS; new aircraft and removals still arrive over the hub connection.
-- A pilot on an instrument approach told to `FOLLOW` traffic to its runway keeps flying the approach and keeps its landing clearance.
-- A pilot told to `FOLLOW` traffic behind it in the landing sequence, departing, on a missed approach, or with no runway and not ahead of it answers unable, on an approach or already following too.
+- A pilot on an instrument approach told to `FOLLOW` same-runway traffic keeps the approach and its landing clearance, slowing before final to hold spacing.
+- `FOLLOW` is refused, with the pilot's reason, for traffic behind, on the ground, departing, going missed, bound elsewhere, or landing another runway from base or final.
 - Repeating `FOLLOW` for the traffic already being followed keeps the aircraft's current maneuver, and a refused `FOLLOWF` leaves the traffic not in sight.
 - A pilot on final or an approach follows same-runway traffic by distance to the runway, so a long straight-in can follow an aircraft on close base.
 - A pilot on an instrument approach told to `FOLLOW` traffic landing another runway answers unable; on a VFR practice approach, only inside the final approach fix.
-- A pilot going around into the pattern, or climbing out on closed traffic, told to `FOLLOW` keeps its climb; traffic behind it or going around is refused.
+- A pilot going around into the pattern, or climbing out on closed traffic, also to another runway, told to `FOLLOW` keeps its climb; traffic behind it or going around is refused.
 - A pilot told to `FOLLOW` from the upwind or a climb-out flies past the runway end and near pattern altitude before turning toward the traffic.
 - A pilot on an approach told to `FOLLOW` traffic still entering the pattern judges whether it is ahead by the path that traffic has left to fly.
 - A pilot already following told to `FOLLOW` different traffic ahead in the landing sequence switches to it in place; traffic behind or landing another runway gets unable.
 - `ATXI` needs `@` for a helipad or gate and `$` for a spot; a bare name such as `ATXI 27` is always a runway.
 - A plain `TAXI $spot` or `TAXI @gate` from the ramp stays in the ramp, cutting across taxilanes, or is refused with a `TAXIAUTO` hint.
 - `TAXI A` from a stand several taxilanes from A taxis across the ramp to reach it instead of being refused.
+- In solo sessions, handoffs to the automated positions are accepted after at least 5 seconds instead of 3.
+- Handoffs of an aircraft on the ground, below 1,500 ft above its field, or on a coast track are no longer auto-accepted; they wait until it climbs into coverage.
 
 ### Fixed
 
+- A deleted aircraft's coasting track on CRC's ERAM, ASDE-X and SAID displays now ends on sim time, and a rewind, restart or reload clears it.
+- CRC's ASDE-X and SAID displays show aircraft right after a paused scenario load, spawn or warp, and a display opened mid-session shows exactly the room's tracks.
+- Speech recognition understands spoken 270s and 360s, Class B clearances, and "cleared visual approach runway…" with a scenario loaded.
+- Speech recognition maps gate and parking names spelled "alfa" ("taxi to gate golf alfa five") and traffic calls heard as "…miles of Boeing".
+- Spoken "follow", "behind" and "give way to" a full callsign now target that traffic; "behind" means give way, not follow.
+- Wrong-side jet and turboprop pattern entries at a field with no authored pattern altitude join downwind directly instead of climbing into a teardrop.
+- Right-clicking a parking spot beside a parked aircraft, or overlapping aircraft on the ground or radar view, opens a list to pick the one you meant.
+- An aircraft holding short of a taxiway or runway stops at the hold line instead of rolling up to the intersection when the line sits well back.
+- `TAXI TE T U HS T` reads back the route as issued, and its wingtip warning names the crossing taxiways, not T straight ahead.
+- A push from a stand beside a parked aircraft on a staggered neighbouring stand no longer stops for good after a few feet.
+- A queued taxi with a hold short, such as `PUSH; TAXIAUTO 30, HS B`, now taxis when the push ends instead of waiting forever.
+- The Ground View's taxi route overlay follows the aircraft's heading, so a one-taxiway route such as `TAXI S HS B` is no longer drawn the wrong way.
+- Pattern traffic holds pattern altitude until abeam and descends on through base; an extended or held downwind levels off instead of sinking toward the runway.
+- A climb or descent you assign on the downwind stays in force instead of being replaced by the pattern descent.
+- An aircraft on a charted SID keeps a climb or descent you assign, and a vector off the SID no longer stalls it at a crossing altitude.
 - A new aircraft taking a just-removed aircraft's callsign always gets its ERAM data block and tracks on CRC displays.
 - vEDST joining a controller's session as it ends is refused, instead of staying attached to a session with no position.
 - An airport map the server already holds stays loaded, reported as a cached copy, when a refresh cannot reach vNAS or gets a broken map.
 - The server's admin endpoints take the admin password only in the `X-Yaat-Admin-Password` header; a `?password=` query is refused.
-- An aircraft following traffic on an instrument approach slows to keep its spacing before final, instead of closing on a slower lead.
 - Joining a room just as it closes no longer leaves you, or your CRC display, attached to the closed room.
 - A long-running room picks up ARTCC config changes to ASDE-X, SAID and Tower Cab airports, and CRC drops targets at an airport a config no longer lists.
 - A CRC display or TowerCab 3D that subscribes to the same data twice receives each update once, not once per subscription.
 - A room whose creation or first join fails is closed at once instead of lingering in the room list.
-- An ERAM track that loses radar coverage starts coasting from where CRC last drew it, instead of jumping ahead up to 12 seconds.
-- An ERAM `QT` with no location coasts from the position and track CRC shows, not the aircraft's hidden live position.
 - A CRC ERAM display that connects while a track is coasting now shows that track and its data block.
-- ERAM `FP`, `VP` and `AM TYP`, and the CRC flight plan editor, store a lower-case aircraft type or equipment suffix in upper case.
+- ERAM `VP` and `AM TYP`, and the CRC flight plan editor, store a lower-case aircraft type or equipment suffix in upper case.
 - A pattern follower sequences behind traffic on an instrument approach or a go-around, and aircraft on one leg are ordered by position, not who joined first.
 - ERAM `QF`, `FR` and a bare `AM` show the flight plan line in ERAM's column order: filed speed before the altitude, remarks last.
 - An altitude-only flight plan amend no longer strips the equipment suffix from CRC's equipment field, and CRC gets each type's real wake category.
 - A scenario flight plan filed with a heavy or formation prefix (`H/A306/L`, `2/C130/G`) reads its type and suffix correctly and keeps them on export.
-- A flight plan filed with an altitude off the hundred (`FP B738 35050 …`) keeps that altitude on replay.
 - ERAM `AM TYP` and `VP` keep a formation count and heavy indicator such as `2H/F16`, and `AM TYP` refuses a malformed type field.
 - A CRC flight plan edit whose equipment ends in `/` no longer clears the filed equipment suffix.
 - `FOLLOWF` keeps the aircraft's pattern leg, approach and landing clearance and gets the same refusals as `FOLLOW`; only the traffic-in-sight step is skipped.
@@ -66,15 +99,12 @@
 - At SFO, a 28R arrival no longer turns off onto a full T: two aircraft only when both are CWT G or smaller.
 - A scenario's timed `TAXI` waits for the pushback to finish, and scripted commands behind it wait too, instead of cutting the tug off mid-push.
 - ASDE-X and SAID history dots collapse onto an aircraft that stops instead of freezing where it was rolling.
-
 - Two rooms loading scenarios from the same ARTCC at once no longer leave the second room's positions unresolved.
 - A CRC message larger than 64 KB is no longer cut short, and CRC gets an answer when it unsubscribes or a command fails on the server.
 - The aircraft list and the Flight Plan Editor show a Mach or classified cruise speed (`M078`, `SC`) instead of nothing.
 - FOLLOW behind a lead that has no runway yet trails it nose-on, S-turns for spacing when too close, joins the lead's base where it began, and from a pattern leg climbs to pattern altitude and rejoins its own pattern if the lead is lost.
 - A FOLLOW aircraft on base too close to its lead widens its base, or turns downwind for spacing and asks for a base turn; it never joins final from beyond the threshold.
 - A follower that cannot build spacing extends its downwind, says it is unable to follow and asks for a base turn.
-- FOLLOW is refused, with the pilot's reason, from base or final, behind a lead on the ground, or behind a lead bound for another airport.
-- FOLLOW from an approach keeps the landing clearance.
 - `WAIT 2NM`, `WAIT 2 NM` and `WAIT .5NM` wait a distance, like `WAITD`.
 - ERAM shows `X`/`XXX` for an aircraft whose transponder is in standby, and a stopped target shows no `000` ground speed.
 - ERAM emergency and special-code text (EMRG, RDOF, HIJK) blinks for 30 seconds instead of for as long as the code is squawked.
@@ -95,7 +125,7 @@
 - ERAM flight IDs follow the SRS format: a two-character ID is a letter and a digit, Mode C intruder IDs are reserved, and 15 is the most per entry.
 - ERAM `QB` and `LF` refuse a beacon code as the flight ID, and `QB` changes a qualifier or voice type for several flights at once.
 - ERAM `AM =EQP` (or `AM =24`) reads out the filed equipment codes.
-- A flight plan created from CRC or typed with `FP` keeps a fix-qualified altitude (`170/SJC/110`) or an at-or-above altitude (`A170`).
+- A flight plan created from CRC keeps a fix-qualified altitude (`170/SJC/110`) or an at-or-above altitude (`A170`).
 - ERAM `QF` shows the assigned beacon code, the CID and the controlling sector, and reads the ERAM assigned altitude, or `-` when the flight plan has none.
 - ERAM `QS` takes every speed form, such as `/78`, `/.78`, `/M.78`, `/+50` and `/PS`, shows knots as `S250`, and takes heading and speed together.
 - After an ERAM handoff is accepted, the handing-off sector keeps its full data block until it toggles it, and `<FLID>` toggles STARS-owned tracks too.

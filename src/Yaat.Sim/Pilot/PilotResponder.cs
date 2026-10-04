@@ -1790,22 +1790,6 @@ public static class PilotResponder
     }
 
     /// <summary>
-    /// Pilot transmission when the follow target has landed and the follow is over. Spoken and solo
-    /// terminal forms say "the traffic"; the RPO terminal names the lead as a diagnostic.
-    /// </summary>
-    public static PilotSpeechText BuildTargetLanded(AircraftState aircraft, string targetCallsign)
-    {
-        string spoken = SpokenOwnCallsign(aircraft);
-        return new PilotSpeechText(
-            "the traffic's on the ground, breaking off the follow.",
-            $"{spoken}, the traffic's on the ground, breaking off the follow."
-        )
-        {
-            RpoTerminal = $"{targetCallsign} is on the ground, breaking off the follow.",
-        };
-    }
-
-    /// <summary>
     /// Pilot advisory when a following aircraft has extended its current pattern leg
     /// (<paramref name="legWord"/> = "upwind", "crosswind", or "downwind") to the maximum
     /// follow-extension distance and still cannot turn without cutting off the traffic it was told

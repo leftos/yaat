@@ -13,6 +13,7 @@ using Yaat.Client.UI.Tests.Fakes;
 using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views;
+using Yaat.Sim.Data;
 
 namespace Yaat.Client.UI.Tests.Views;
 
@@ -377,6 +378,7 @@ public class DataGridContextMenuStateTests
     [AvaloniaFact]
     public void ListRightClick_OnAnotherRow_KeepsTheSelectionAndOffersTheRelativeItems()
     {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
         (Window window, MainViewModel main, DataGrid grid) = HostList();
         try
         {
@@ -400,6 +402,7 @@ public class DataGridContextMenuStateTests
     [AvaloniaFact]
     public void ListLeftClick_OnAnotherRow_MovesTheSelection()
     {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
         (Window window, MainViewModel main, DataGrid grid) = HostList();
         try
         {
@@ -419,6 +422,7 @@ public class DataGridContextMenuStateTests
     [AvaloniaFact]
     public void ListRightClick_WithNothingSelected_SelectsTheRowAndOffersNoRelativeItems()
     {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
         (Window window, MainViewModel main, DataGrid grid) = HostList();
         try
         {
@@ -441,6 +445,7 @@ public class DataGridContextMenuStateTests
     [AvaloniaFact]
     public void ListKeyboardContextRequest_CommandsTheSelectedRowWithNoRelativeItems()
     {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
         (Window window, MainViewModel main, DataGrid grid) = HostList();
         try
         {
@@ -465,6 +470,7 @@ public class DataGridContextMenuStateTests
     [AvaloniaFact]
     public void ListRightClick_OnColumnHeader_LeavesNoStaleMenu()
     {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
         (Window window, MainViewModel main, DataGrid grid) = HostList();
         try
         {

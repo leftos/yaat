@@ -1448,10 +1448,48 @@ public static class GroundConflictDetector
     }
 
     /// <summary>
+    /// The tug move's remaining path swept against one parked or held neighbour (<see cref="GroundOutlineSweep.Sweep"/>),
+    /// with the floor anchored to the move's start and to the row the tow began in. The row clearance is read from the
+    /// tow's own measurements (<see cref="AircraftGroundOps.TowRowClearances"/>), measured once per neighbour for the tow
+    /// rather than on every physics sub-tick.
+    /// </summary>
+    /// <param name="mover">The towed aircraft.</param>
+    /// <param name="tugMove">Its running tug move.</param>
+    /// <param name="obstacle">The neighbour.</param>
+    /// <returns>What the sweep found.</returns>
+    internal static GroundOutlineSweepResult TugMoveSweep(AircraftState mover, PushbackPhase tugMove, AircraftState obstacle)
+    {
+        IReadOnlyList<(TugPose Pose, double AlongFt)> path = tugMove.RemainingPath(mover, TugRunContinuation(mover));
+        double? rowFt = mover.Ground.TowRowAnchor is { } anchor
+            ? mover.Ground.TowRowClearances.RowClearanceFt(
+                anchor,
+                mover.AircraftType,
+                obstacle.Callsign,
+                new TugPose(obstacle.Position, obstacle.TrueHeading.Degrees),
+                obstacle.AircraftType
+            )
+            : null;
+        return GroundOutlineSweep.Sweep(
+            path,
+            tugMove.StartPose(mover),
+            rowFt,
+            new GroundOutlineFrame(mover.Position),
+            GroundOutlineSize.Of(mover.AircraftType, towedNoseFirst: tugMove.Kind == PushbackLegKind.Pull),
+            obstacle.Position,
+            obstacle.TrueHeading.Degrees,
+            GroundOutlineSize.Of(obstacle.AircraftType, towedNoseFirst: false)
+        );
+    }
+
+    /// <summary>The row clearance as the outline diagnostic shows it; empty when it does not count.</summary>
+    private static string RowText(GroundOutlineSweepResult swept) => swept.RowClearanceFt is { } rowFt ? $", row {rowFt:F1}ft" : "";
+
+    /// <summary>
     /// Where a tug move fouls a parked or held neighbour: its <see cref="GroundOutline"/>, swept along the rest of its
     /// move (<see cref="PushbackPhase.RemainingPath"/>), may not come within <see cref="GroundOutlineSweep.WingtipBufferFt"/> of the
     /// neighbour's — or, for a neighbour the move already started closer to than that, as the aircraft on the next stand
-    /// usually is, no closer than it was when the move began, less <see cref="GroundOutlineSweep.OutlineClearanceSlackFt"/>. Null when the
+    /// usually is, no closer than it was when the move began (or than the row the tow began in lets the wings pass,
+    /// <see cref="AircraftGroundOps.TowRowAnchor"/>), less <see cref="GroundOutlineSweep.OutlineClearanceSlackFt"/>. Null when the
     /// whole move clears; otherwise how far along the remaining path the first fouled sample sits, which is what
     /// <see cref="ComputeClosingLimit"/> stops the move by.
     ///
@@ -1473,29 +1511,19 @@ public static class GroundConflictDetector
     /// </summary>
     private static double? TugMoveFoulsParkedAt(AircraftState mover, PushbackPhase tugMove, AircraftState obstacle, Action<string>? diagnosticLog)
     {
-        IReadOnlyList<(TugPose Pose, double AlongFt)> path = tugMove.RemainingPath(mover, TugRunContinuation(mover));
-        var frame = new GroundOutlineFrame(mover.Position);
-        GroundOutlineSweepResult swept = GroundOutlineSweep.Sweep(
-            path,
-            tugMove.StartPose(mover),
-            frame,
-            GroundOutlineSize.Of(mover.AircraftType, towedNoseFirst: tugMove.Kind == PushbackLegKind.Pull),
-            obstacle.Position,
-            obstacle.TrueHeading.Degrees,
-            GroundOutlineSize.Of(obstacle.AircraftType, towedNoseFirst: false)
-        );
+        GroundOutlineSweepResult swept = TugMoveSweep(mover, tugMove, obstacle);
         if (swept.Foul is not { } foul)
         {
             string closestText = swept.ClosestFt is { } closestFt ? $"{closestFt:F1}ft" : "nothing in reach";
             diagnosticLog?.Invoke(
-                $"    [Outline] {mover.Callsign}→{obstacle.Callsign}: {tugMove.Kind} started {swept.StartClearanceFt:F1}ft off, closest "
+                $"    [Outline] {mover.Callsign}→{obstacle.Callsign}: {tugMove.Kind} started {swept.StartClearanceFt:F1}ft off{RowText(swept)}, closest "
                     + $"{closestText} over {swept.SampleCount} samples ≥ floor({swept.FloorFt:F1}ft), passable"
             );
             return null;
         }
 
         diagnosticLog?.Invoke(
-            $"    [Outline] {mover.Callsign}→{obstacle.Callsign}: {tugMove.Kind} started {swept.StartClearanceFt:F1}ft off, sample "
+            $"    [Outline] {mover.Callsign}→{obstacle.Callsign}: {tugMove.Kind} started {swept.StartClearanceFt:F1}ft off{RowText(swept)}, sample "
                 + $"{foul.SampleIndex}/{swept.SampleCount} {foul.AlongFt:F1}ft along {foul.ClearanceFt:F1}ft < floor({swept.FloorFt:F1}ft), "
                 + $"crossing {foul.CrossingAlongFt:F1}ft along, in the way"
         );

@@ -165,7 +165,17 @@ position that no longer works that airspace. Both walks then match **by `(Subset
 
 - **Transfers tracks**: any aircraft whose `Track.Owner` matches a moving TCP has its `Owner` reassigned to the receiving owner.
 - **Redirects in-flight handoffs**: any aircraft whose `Track.HandoffPeer` matches a moving TCP gets `HandoffRedirectedBy` set to
-  the original peer and `HandoffPeer` reassigned to the receiving owner.
+  the original peer and `HandoffPeer` reassigned to the receiving owner. When the receiver already owns the track (same position,
+  after the transfer above), the handoff is cleared instead (`HandoffPeer`, `HandoffRedirectedBy`, `HandoffInitiatedAt` null) and
+  not counted as redirected.
+
+**No handoff to oneself.** Every path that sets a handoff refuses one whose recipient is the track's owner's position, TCP included
+(`TrackOwner.MatchesPosition`): positions sharing a TCP (a tower cab's GND, TWR and DEL) hand off by coordination, never by a
+STARS/ERAM handoff.
+`TrackEngine.ApplyHandoff` (every branch, the redirected recipient included) fails with `<callsign> is already owned by <owner>`,
+`HOALL` to one's own position fails with `Cannot hand off to your own position <tcp>` and skips tracks the target already owns,
+the consolidation transfer clears as above, and `TickDelayedHandoffs` drops a scenario handoff to the current owner (logged at
+Information) — the auto-track case where `autoTrackConditions.positionId` is the student's own position.
 
 If the ARTCC/facility can't be resolved the block degrades to the sender alone, preserving the old single-TCP behaviour.
 
@@ -268,6 +278,8 @@ sequence: Yellow FDB (pending) → Yellow FDB (accepted) → Green PDB (recipien
 sets it true locally): `TrackEngine.AcceptIncomingPointout` (from `HandleAcknowledge` + the `PO` accept branch) sets
 `SharedState[recipient.Id].IsRecentlyAcceptedIncomingPointout = true` on accept, and `TrackEngine.ClearDismissedIncomingPointout` drops the
 stale accepted pointout on the true→false slew flip.
+
+**An unanswered pointout is withdrawn, never accepted.** `TickPointoutTimeout` (a sim spine step) withdraws a pointout still pending after `PointoutNoActionSeconds` (30 s) and advises the initiator to coordinate verbally, because 7110.65 §5-4-7.a.1 says that when the receiver takes no action the controllers revert to verbal procedures: non-response must never become approval. The withdrawal applies everywhere, with no carve-out for the a.1.(b) terminal case. Real STARS never times a pointout out, so this display divergence is deliberate: the timeout exists to clear the flashing pending indicator, and withdrawing (rather than accepting) is what keeps it faithful to §5-4-7.
 
 ### ERAM pointouts — `AircraftEramState.Pointouts`
 

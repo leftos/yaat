@@ -5,8 +5,11 @@ using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using Avalonia.Threading;
 using Microsoft.Extensions.Logging;
+using Yaat.Client.Automation;
+using Yaat.Client.Automation.Tools;
 using Yaat.Client.Logging;
 using Yaat.Client.Services;
+using Yaat.Client.ViewModels;
 using Yaat.Client.Views;
 
 namespace Yaat.Client;
@@ -86,6 +89,24 @@ public class App : Application
             desktop.ShutdownMode = ShutdownMode.OnMainWindowClose;
             desktop.MainWindow = new MainWindow();
 
+            // Automation mode (YAAT_AUTOMATION=1): the in-process pipe an agent drives the client through. Windows only,
+            // like the client-driver MCP and the overlay popups Program turns on there (list_windows lists no popup windows).
+            AutomationHost? automationHost = AutomationHostFactory.StartIfEnabled(
+                OperatingSystem.IsWindows() && AutomationMode.IsEnabled,
+                AutomationHostFactory.PipeName(Environment.ProcessId),
+                AutomationHostFactory.DiscoveryDirectory,
+                () => desktop.Windows,
+                () => (desktop.MainWindow?.DataContext is MainViewModel viewModel) ? new MainViewModelAutomationState(viewModel) : null,
+                () =>
+                    (desktop.MainWindow?.DataContext is MainViewModel viewModel)
+                        ? new AutomationTools(viewModel, new MainViewModelAutomationState(viewModel))
+                        : null
+            );
+            if (automationHost is not null)
+            {
+                desktop.Exit += (_, _) => automationHost.Dispose();
+            }
+
             // Graceful Ctrl+C: when the launch script is configured to send a real CTRL_C
             // signal (rather than TerminateProcess via Stop-Process -Force), flush any
             // in-memory window geometry and signal app shutdown before letting the runtime
@@ -95,6 +116,7 @@ public class App : Application
             {
                 AppLifetime.MarkShuttingDown();
                 _uiWatchdog?.Dispose();
+                automationHost?.Dispose();
                 Yaat.Client.Views.WindowGeometryHelper.FlushAllSavedGeometries();
                 args.Cancel = false;
             };

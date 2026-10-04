@@ -23,10 +23,8 @@ public static class AirborneFollowHelper
     private const double DesiredDistanceMediumNm = 1.5;
 
     /// <summary>
-    /// Desired following distance when leader is a jet (nm). 3.0 nm matches
-    /// the FAA 7110.65 §5-5-4 IFR same-runway / same-altitude radar separation
-    /// minimum, which is the floor real controllers aim for on jet-follows-jet
-    /// approaches even under visual separation.
+    /// Desired following distance when leader is a jet (nm): the pattern spacing YAAT flies behind a jet, not a radar
+    /// separation minimum — a visual follow carries none (AIM 7-4-6.a, 7-4-8.b).
     /// </summary>
     private const double DesiredDistanceLargeNm = 3.0;
 
@@ -201,9 +199,12 @@ public static class AirborneFollowHelper
 
     /// <summary>
     /// Per-tick lifecycle watchdog for any aircraft with
-    /// <see cref="AircraftApproachState.FollowingCallsign"/> set. Cancels follow
-    /// (clearing FollowingCallsign + emitting the appropriate pilot transmission)
-    /// when:
+    /// <see cref="AircraftApproachState.FollowingCallsign"/> set. Cancels the follow (clearing FollowingCallsign in every
+    /// case) and returns true when one of the conditions below holds. Of those, the lead-missing and lost-visual branches
+    /// hand off to <see cref="Tower.VisualApproachHelper.HandleTrafficContactLost"/> — the pilot reports losing sight and
+    /// an IFR follower's visual separation is warned as terminated — the lead-went-around branch warns the instructor
+    /// only (the pilot still has the lead in sight), and a lead that lands ends the follow silently, being the normal end
+    /// of a follow. The conditions are:
     /// <list type="bullet">
     /// <item><description>The lead is no longer in the world (lookup returns null).</description></item>
     /// <item><description>The lead has transitioned to <see cref="AircraftState.IsOnGround"/>.</description></item>
@@ -238,16 +239,9 @@ public static class AirborneFollowHelper
 
         if (lead.IsOnGround)
         {
+            // The lead landing is the normal end of a follow, so the follower reports nothing.
             Log.LogDebug("[Follow] {Callsign}: target {Target} on ground, ending follow", follower.Callsign, targetCallsign);
             ClearFollowState(follower);
-            Pilot.PilotResponder.RouteSoloOrRpoTransmission(
-                follower,
-                ctx.SoloTrainingMode,
-                ctx.RpoShowPilotSpeech,
-                ctx.StudentPositionType,
-                Pilot.PilotResponder.BuildTargetLanded(follower, targetCallsign),
-                Pilot.PilotResponder.SoloPositionsTowerApproach
-            );
             return true;
         }
 
@@ -398,13 +392,13 @@ public static class AirborneFollowHelper
     internal const int EntryLegIndex = 0;
 
     /// <summary>Leg index of the upwind in <see cref="PatternLegIndex"/>.</summary>
-    private const int UpwindLegIndex = 1;
+    internal const int UpwindLegIndex = 1;
 
     /// <summary>Leg index of the crosswind in <see cref="PatternLegIndex"/>.</summary>
     private const int CrosswindLegIndex = 2;
 
     /// <summary>Leg index of the downwind in <see cref="PatternLegIndex"/>.</summary>
-    private const int DownwindLegIndex = 3;
+    internal const int DownwindLegIndex = 3;
 
     /// <summary>Leg index of the base in <see cref="PatternLegIndex"/>.</summary>
     private const int BaseLegIndex = 4;
@@ -420,7 +414,9 @@ public static class AirborneFollowHelper
     /// a monotonically increasing index. Used by <see cref="IsLeadPatternFlowBehind"/>
     /// to compare two aircraft's progress along the same pattern. An aircraft flying no
     /// pattern leg but still in the landing sequence gets the leg it stands in for
-    /// (<see cref="SequenceLegIndex"/>); anything else returns null.
+    /// (<see cref="SequenceLegIndex"/>); anything else returns null. The upwind of a crossing-runway transition
+    /// (<see cref="IsCrossingTransitionClimb"/>), flown on another runway's centerline toward the pattern runway's crossing, is
+    /// a pattern entry.
     /// </summary>
     internal static int? PatternLegIndex(AircraftState aircraft) =>
         aircraft.Phases?.CurrentPhase switch
@@ -430,6 +426,7 @@ public static class AirborneFollowHelper
             // leg, and returning null here would suppress the flow-behind guard — the follower
             // would slow toward Vref chasing traffic that has not even joined the pattern yet.
             PatternEntryPhase or MidfieldCrossingPhase or TeardropReentryPhase => EntryLegIndex,
+            UpwindPhase when IsCrossingTransitionClimb(aircraft) => EntryLegIndex,
             UpwindPhase => UpwindLegIndex,
             CrosswindPhase => CrosswindLegIndex,
             DownwindPhase => DownwindLegIndex,
@@ -449,9 +446,11 @@ public static class AirborneFollowHelper
     /// The pattern leg an aircraft flying no pattern-leg phase stands in for in the landing sequence: an instrument approach
     /// (<see cref="InterceptCoursePhase"/>, an inbound <see cref="ApproachNavigationPhase"/>) or any other phase flown on its
     /// runway's final by geometry (<see cref="IsOnFinalByGeometry"/>) is the final; a go-around that re-enters the pattern
-    /// (<see cref="GoAroundPhase.ReenterPattern"/>) and a closed-traffic takeoff climb are the upwind (AIM §4-3-2.a.3.2). Null
-    /// for the published missed approach (<see cref="IsOnMissedApproach"/>), even where it climbs out over the final, and
-    /// otherwise: a go-around leaving the pattern, a departure leaving the pattern, a hold.
+    /// (<see cref="GoAroundPhase.ReenterPattern"/>) and a closed-traffic takeoff climb are the upwind (AIM §4-3-2.c.2), except
+    /// a closed-traffic climb off a runway crossing its pattern runway (<see cref="IsCrossingTransitionClimb"/>), which is a
+    /// pattern entry until its crossing hands it to the downwind. Null for the published missed approach
+    /// (<see cref="IsOnMissedApproach"/>), even where it climbs out over the final, and otherwise: a go-around leaving the
+    /// pattern, a departure leaving the pattern, a hold.
     /// </summary>
     private static int? SequenceLegIndex(AircraftState aircraft)
     {
@@ -466,6 +465,11 @@ public static class AirborneFollowHelper
             return FinalLegIndex;
         }
 
+        if (IsCrossingTransitionClimb(aircraft))
+        {
+            return EntryLegIndex;
+        }
+
         if ((phase is GoAroundPhase { ReenterPattern: true }) || IsClosedTrafficClimb(aircraft))
         {
             return UpwindLegIndex;
@@ -475,12 +479,92 @@ public static class AirborneFollowHelper
     }
 
     /// <summary>
-    /// True when <paramref name="aircraft"/> is airborne on a closed-traffic takeoff off its pattern runway: the climb-out is the
-    /// circuit's upwind. A cross-runway closed-traffic climb (<see cref="PhaseList.DepartureRunway"/> set) is not on the pattern
-    /// runway's upwind, so it is left out.
+    /// True when <paramref name="aircraft"/> is airborne on a closed-traffic takeoff whose climb-out is its pattern circuit's
+    /// upwind: off the pattern runway itself, or off a close parallel of it (<see cref="PhaseList.DepartureRunway"/> set,
+    /// <see cref="RunwayGeometry.AreCloseParallels"/>), which continues its upwind past both departure ends. A climb off a
+    /// crossing runway is not on the pattern runway's upwind, so it is left out, and so is one whose pattern runway is at
+    /// another airport: <see cref="RunwayGeometry.AreCloseParallels"/> holds only for two runways with the same airport id.
     /// </summary>
     internal static bool IsClosedTrafficClimb(AircraftState aircraft) =>
-        !aircraft.IsOnGround && (aircraft.Phases is { CurrentPhase: TakeoffPhase { Departure: ClosedTrafficDeparture }, DepartureRunway: null });
+        !aircraft.IsOnGround
+        && (aircraft.Phases is { CurrentPhase: TakeoffPhase { Departure: ClosedTrafficDeparture } } phases)
+        && (
+            (phases.DepartureRunway is not { } flown)
+            || ((phases.AssignedRunway is { } patternRunway) && RunwayGeometry.AreCloseParallels(flown, patternRunway))
+        );
+
+    /// <summary>
+    /// Farthest (nm) an upwind's threshold may sit off the assigned runway's extended centerline and still be that runway's
+    /// (a displaced landing threshold moves it along the centerline, never across it).
+    /// </summary>
+    private const double TransitionThresholdOffCenterlineNm = 0.05;
+
+    /// <summary>
+    /// True when <paramref name="aircraft"/> is airborne on the first circuit of a closed-traffic departure off a runway that
+    /// crosses its pattern runway at the same airport (<see cref="PatternBuilder.BuildRunwayTransitionCircuit"/>'s crossing
+    /// legs): in the takeoff climb, or on the flown runway's upwind before its <see cref="MidfieldCrossingPhase"/> carries it to
+    /// the pattern runway's downwind. It is a pattern entry (<see cref="EntryLegIndex"/>) until then. Read from the phase list
+    /// (<see cref="IsCrossingTransition"/>), never from <see cref="PhaseList.DepartureRunway"/> alone, which is never cleared;
+    /// a pattern runway at another airport is left out. <see cref="IsClosedTrafficClimb"/> stays false for such a climb.
+    /// </summary>
+    internal static bool IsCrossingTransitionClimb(AircraftState aircraft) =>
+        !aircraft.IsOnGround && (aircraft.Phases is { } phases) && IsCrossingTransition(phases);
+
+    /// <summary>
+    /// The pattern-runway waypoints of a crossing transition's queued <see cref="MidfieldCrossingPhase"/>: the frame the climb
+    /// and its upwind are sequenced, boxed and returned to (side and pattern altitude of the pattern runway, not the runway
+    /// flown). Read from the phase list alone (<see cref="IsCrossingTransition"/>); null for any other phase list.
+    /// </summary>
+    internal static PatternWaypoints? CrossingTransitionWaypoints(PhaseList? phases) =>
+        ((phases is not null) && IsCrossingTransition(phases)) ? QueuedMidfieldCrossing(phases)?.Waypoints : null;
+
+    /// <summary>
+    /// True when <paramref name="phases"/> flies a crossing-runway transition: its takeoff runway and pattern runway are two
+    /// runways of one airport, and its current phase is a closed-traffic takeoff whose next upwind hands to a
+    /// <see cref="MidfieldCrossingPhase"/>, or an upwind followed by a crossing or flown on another runway's centerline
+    /// (<see cref="IsOffPatternRunwayUpwind"/>).
+    /// </summary>
+    private static bool IsCrossingTransition(PhaseList phases) =>
+        (phases.DepartureRunway is { } flown)
+        && (phases.AssignedRunway is { } patternRunway)
+        && Data.NavigationDatabase.AirportIdsMatch(flown.AirportId, patternRunway.AirportId)
+        && !IsSameRunway(flown, patternRunway)
+        && phases.CurrentPhase switch
+        {
+            TakeoffPhase { Departure: ClosedTrafficDeparture } => NextUpwindHandsToCrossing(phases),
+            // The off-centerline fallback covers a transition upwind whose crossing is no longer next (the queue behind it was
+            // changed); with no crossing queued, EntryRemainingPathNm is +∞ like any entrant without a path to measure.
+            UpwindPhase upwind => (phases.Phases.ElementAtOrDefault(phases.CurrentIndex + 1) is MidfieldCrossingPhase)
+                || IsOffPatternRunwayUpwind(upwind, patternRunway),
+            _ => false,
+        };
+
+    /// <summary>True when the first <see cref="UpwindPhase"/> queued after the current phase is followed by a crossing.</summary>
+    private static bool NextUpwindHandsToCrossing(PhaseList phases)
+    {
+        int upwindIndex = phases.Phases.FindIndex(phases.CurrentIndex + 1, phase => phase is UpwindPhase);
+        return (upwindIndex >= 0) && (phases.Phases.ElementAtOrDefault(upwindIndex + 1) is MidfieldCrossingPhase);
+    }
+
+    /// <summary>
+    /// True when <paramref name="upwind"/>'s threshold lies off <paramref name="patternRunway"/>'s extended centerline (more than
+    /// <see cref="TransitionThresholdOffCenterlineNm"/>): it is flown on another runway.
+    /// </summary>
+    private static bool IsOffPatternRunwayUpwind(UpwindPhase upwind, RunwayInfo patternRunway) =>
+        (upwind.Waypoints is { } waypoints)
+        && (
+            Math.Abs(
+                GeoMath.SignedCrossTrackDistanceNm(
+                    new LatLon(waypoints.ThresholdLat, waypoints.ThresholdLon),
+                    new LatLon(patternRunway.ThresholdLatitude, patternRunway.ThresholdLongitude),
+                    patternRunway.TrueHeading
+                )
+            ) > TransitionThresholdOffCenterlineNm
+        );
+
+    /// <summary>The first <see cref="MidfieldCrossingPhase"/> queued after the current phase; null when none is.</summary>
+    private static MidfieldCrossingPhase? QueuedMidfieldCrossing(PhaseList phases) =>
+        phases.Phases.Skip(phases.CurrentIndex + 1).OfType<MidfieldCrossingPhase>().FirstOrDefault();
 
     /// <summary>
     /// True when both aircraft are flying patterns to the same runway and the
@@ -744,18 +828,28 @@ public static class AirborneFollowHelper
 
     /// <summary>
     /// The pattern geometry <paramref name="ac"/> flies: its current leg's waypoints, else those of the first leg in its phase
-    /// list that carries them (a follower on final keeps its flown legs; one on an entry has its downwind queued). Null when
-    /// it has none.
+    /// list that carries them (a follower on final keeps its flown legs; one on an entry has its downwind queued). A crossing
+    /// transition's climb and upwind fly the pattern runway's circuit through their queued crossing
+    /// (<see cref="CrossingTransitionWaypoints"/>), not the upwind's own frame on the runway flown. Null when it has none.
     /// </summary>
     private static PatternWaypoints? SequenceWaypoints(AircraftState ac) =>
-        PatternWaypointsOf(ac.Phases?.CurrentPhase) ?? FirstPatternWaypoints(ac.Phases);
+        CrossingTransitionWaypoints(ac.Phases) ?? PatternWaypointsOf(ac.Phases?.CurrentPhase) ?? FirstPatternWaypoints(ac.Phases);
 
-    /// <summary>The waypoints of the first phase in <paramref name="phases"/> that carries pattern waypoints; null when none does.</summary>
+    /// <summary>
+    /// The waypoints of the circuit <paramref name="phases"/> flies: a crossing transition's queued crossing
+    /// (<see cref="CrossingTransitionWaypoints"/>, the pattern runway's circuit), else the first phase that carries pattern
+    /// waypoints; null when none does.
+    /// </summary>
     internal static PatternWaypoints? FirstPatternWaypoints(PhaseList? phases)
     {
         if (phases is null)
         {
             return null;
+        }
+
+        if (CrossingTransitionWaypoints(phases) is { } crossingWaypoints)
+        {
+            return crossingWaypoints;
         }
 
         foreach (Phase phase in phases.Phases)
@@ -1551,8 +1645,10 @@ public static class AirborneFollowHelper
     /// flies its lead-in while that is still in its navigation route, then its entry point, and joins the leg it hands over to
     /// (<see cref="EntryJoinedLeg"/>); a <see cref="MidfieldCrossingPhase"/> flies to the midfield point and joins the
     /// downwind there, or with a <see cref="TeardropReentryPhase"/> next flies the teardrop's fixes and joins at the downwind
-    /// abeam point; a teardrop flies the fixes left in its route to the abeam point. A crossing with no waypoints of its own
-    /// flies nowhere and cannot be measured.
+    /// abeam point; a teardrop flies the fixes left in its route to the abeam point. A crossing transition's climb or upwind
+    /// (<see cref="IsCrossingTransitionClimb"/>) flies straight to its queued crossing's midfield point and joins the downwind
+    /// there (<see cref="MidfieldDirectPathNm"/>, no credit for the corner). A crossing with no waypoints of its own flies
+    /// nowhere and cannot be measured.
     /// </summary>
     private static double EntryRemainingPathNm(AircraftState ac, PatternFrame frame) =>
         ac.Phases?.CurrentPhase switch
@@ -1560,6 +1656,7 @@ public static class AirborneFollowHelper
             PatternEntryPhase entry => PatternEntryPathNm(ac, entry, frame),
             MidfieldCrossingPhase { Waypoints: { } waypoints } => MidfieldCrossingPathNm(ac, waypoints, frame),
             TeardropReentryPhase teardrop => TeardropPathNm(ac, teardrop.Waypoints, frame),
+            UpwindPhase or TakeoffPhase when CrossingTransitionWaypoints(ac.Phases) is { } crossing => MidfieldDirectPathNm(ac, crossing, frame),
             _ => double.PositiveInfinity,
         };
 
@@ -1632,15 +1729,25 @@ public static class AirborneFollowHelper
     /// </summary>
     private static double MidfieldCrossingPathNm(AircraftState ac, PatternWaypoints waypoints, PatternFrame frame)
     {
-        LatLon midfield = MidfieldCrossingPhase.MidfieldTarget(waypoints);
         if (ac.Phases?.Phases.ElementAtOrDefault(ac.Phases.CurrentIndex + 1) is not TeardropReentryPhase teardrop)
         {
-            return PolylineNm(ac.Position, [midfield]) + DownwindJoinRemainingNm(frame, midfield);
+            return MidfieldDirectPathNm(ac, waypoints, frame);
         }
 
+        LatLon midfield = MidfieldCrossingPhase.MidfieldTarget(waypoints);
         (LatLon outbound, LatLon leadIn) = TeardropReentryPhase.ReentryFixes(teardrop.Waypoints, AircraftCategorization.Categorize(ac.AircraftType));
         var abeam = new LatLon(teardrop.Waypoints.DownwindAbeamLat, teardrop.Waypoints.DownwindAbeamLon);
         return PolylineNm(ac.Position, [midfield, outbound, leadIn, abeam]) + DownwindJoinRemainingNm(frame, abeam);
+    }
+
+    /// <summary>
+    /// The remaining path of <paramref name="ac"/> flying straight to the midfield point of the crossing on
+    /// <paramref name="crossingWaypoints"/> (<see cref="MidfieldCrossingPhase.MidfieldTarget"/>), then the downwind from there.
+    /// </summary>
+    private static double MidfieldDirectPathNm(AircraftState ac, PatternWaypoints crossingWaypoints, PatternFrame frame)
+    {
+        LatLon midfield = MidfieldCrossingPhase.MidfieldTarget(crossingWaypoints);
+        return PolylineNm(ac.Position, [midfield]) + DownwindJoinRemainingNm(frame, midfield);
     }
 
     /// <summary>
@@ -1694,8 +1801,10 @@ public static class AirborneFollowHelper
     /// </summary>
     public static bool ShouldHoldLegForRemainingPathSequencing(PhaseContext ctx, PatternWaypoints wp)
     {
+        // A crossing transition's upwind is a pattern entry, not a leg of the pattern runway's circuit: it keeps its speed
+        // spacing and is sequenced from the downwind its crossing hands it to, never held on the runway flown.
         string? targetCallsign = ctx.Aircraft.Approach.FollowingCallsign;
-        if (targetCallsign is null)
+        if ((targetCallsign is null) || IsCrossingTransitionClimb(ctx.Aircraft))
         {
             return false;
         }
@@ -1921,15 +2030,11 @@ public static class AirborneFollowHelper
     }
 
     /// <summary>
-    /// Spacing behind a lead in the pattern: the pattern spacing (<see cref="DesiredDistanceForLeader"/>), or the on-approach
-    /// wake-turbulence minimum behind a heavier lead when that is more.
+    /// Spacing behind a lead in the pattern: YAAT's pattern spacing (<see cref="DesiredDistanceForLeader"/>), with no radar
+    /// wake minimum (TBL 5-5-2) — accepting instructions to follow an aircraft puts wake turbulence separation on the pilot
+    /// (AIM 7-4-8.b).
     /// </summary>
-    internal static double PatternSpacingNm(PhaseContext ctx, AircraftState lead)
-    {
-        AircraftCategory leadCategory = AircraftCategorization.Categorize(lead.AircraftType);
-        double wakeNm = WakeTurbulenceData.OnApproachWakeSeparationNm(lead.AircraftType, leadCategory, ctx.AircraftType, ctx.Category);
-        return Math.Max(DesiredDistanceForLeader(leadCategory), wakeNm);
-    }
+    internal static double PatternSpacingNm(AircraftState lead) => DesiredDistanceForLeader(AircraftCategorization.Categorize(lead.AircraftType));
 
     /// <summary>
     /// Runway occupancy allowance for a landing lead of the given category: seconds from its

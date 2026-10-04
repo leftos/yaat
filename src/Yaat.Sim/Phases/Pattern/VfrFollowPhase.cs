@@ -46,13 +46,19 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
     public const double MaxJoinGapNm = 5.0;
 
     /// <summary>
-    /// Minimum in-trail spacing (follower distance-to-threshold minus the lead's) before
-    /// sequencing onto a straight-in lead's final. Keeps the follower genuinely behind the
-    /// traffic (AIM 4-3-4.4 "no cutting in front") and at the same-runway separation floor
-    /// for a light single behind same/lighter traffic (7110.65 3-10-3); a heavier lead
-    /// raises the requirement to its wake minimum (see <see cref="TryJoinLeadFinal"/>).
+    /// The final-join in-trail floor behind a lead with no wake minimum for this follower: 1.5 NM, a YAAT convention (the pattern spacing behind a
+    /// turboprop), not an FAA figure. It keeps the follower behind the traffic (AIM 4-3-4.d). Behind a lead that carries a wake minimum for this
+    /// follower, <see cref="WakeLeadInTrailFloorNm"/> applies instead.
     /// </summary>
     public const double SameRunwayInTrailFloorNm = 1.5;
+
+    /// <summary>
+    /// The final-join in-trail floor behind a lead that carries a wake minimum for this follower. A judgement call: no interval is published for a
+    /// pilot landing behind a larger aircraft on a visual follow, so 2.5 NM borrows the two-minute interval the AIM recommends to pilots landing
+    /// after a larger aircraft's low approach, missed approach or touch-and-go ("an interval of at least 2 minutes", AIM 7-4-6.b.8), at a light
+    /// single's ~75 kt final groundspeed.
+    /// </summary>
+    public const double WakeLeadInTrailFloorNm = 2.5;
 
     /// <summary>Maximum cross-track from the extended centerline allowed when committing the turn onto a straight-in lead's final.</summary>
     public const double MaxFinalJoinCrossTrackNm = 1.0;
@@ -193,26 +199,72 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
 
     /// <summary>
     /// The departure-leg hold pursuing <paramref name="aircraft"/> owes: its upwind leg's gate when that is the leg it is on (a
-    /// FOLLOW issued on the upwind, or the hand-over from a climb-out to one), the runway's own when it is climbing out with no
-    /// circuit to read (a go-around flown as the published missed), else null — a pursuit started anywhere else may steer at its
-    /// lead at once.
+    /// FOLLOW issued on the upwind, or the hand-over from a climb-out to one); when it is still climbing out (a go-around, or a
+    /// closed-traffic climb off its pattern runway or a close parallel of it), the runway it is flying: that runway's heading,
+    /// past the farther departure end of it and the pattern runway (<see cref="PatternGeometry.TransitionDepartureEnd"/>), at
+    /// the pattern runway's pattern altitude less the turn margin; else null — a pursuit started anywhere else may steer at its
+    /// lead at once. A crossing-runway transition (<see cref="CrossingTransitionGate"/>) has its own gate.
     /// </summary>
     internal static FollowClimbOutGate? ClimbOutGateFor(AircraftState aircraft, AirportGroundLayout? groundLayout)
     {
+        if (CrossingTransitionGate(aircraft, groundLayout) is { } crossingGate)
+        {
+            return crossingGate;
+        }
+
         Phase? current = aircraft.Phases?.CurrentPhase;
         if (current is UpwindPhase { Waypoints: { } waypoints })
         {
             return FollowClimbOutGate.FromWaypoints(waypoints);
         }
 
-        bool climbingOutOfPattern = (current is GoAroundPhase) || ((current is TakeoffPhase) && AirborneFollowHelper.IsClosedTrafficClimb(aircraft));
-        if (climbingOutOfPattern && (aircraft.Phases?.AssignedRunway is { } runway))
+        bool closedTrafficClimb = (current is TakeoffPhase) && AirborneFollowHelper.IsClosedTrafficClimb(aircraft);
+        bool climbingOutOfPattern = (current is GoAroundPhase) || closedTrafficClimb;
+        if (climbingOutOfPattern && (aircraft.Phases?.AssignedRunway is { } patternRunway))
         {
-            return FollowClimbOutGate.ForRunway(runway, ResolvePatternAltitudeFt(aircraft, runway, groundLayout));
+            // A closed-traffic climb off a close parallel flies that runway's centerline; the pattern runway sets the altitude.
+            RunwayInfo flownRunway = (closedTrafficClimb ? aircraft.Phases.DepartureRunway : null) ?? patternRunway;
+            return FollowClimbOutGate.ForClimbOut(flownRunway, patternRunway, ResolvePatternAltitudeFt(aircraft, patternRunway, groundLayout));
         }
 
         return null;
     }
+
+    /// <summary>
+    /// The departure-leg hold of a closed-traffic climb off a runway crossing its pattern runway, or of its upwind
+    /// (<see cref="AirborneFollowHelper.IsCrossingTransitionClimb"/>): the flown runway's heading, held past that runway's own
+    /// departure end (the upwind's crosswind-turn point; the crossing runway's end may lie anywhere along another heading), at
+    /// the pattern runway's pattern altitude less the turn margin (AIM §4-3-2.c.1, FIG 4-3-2/4-3-3 keys 4–5). Null for any
+    /// other aircraft.
+    /// </summary>
+    private static FollowClimbOutGate? CrossingTransitionGate(AircraftState aircraft, AirportGroundLayout? groundLayout)
+    {
+        if (
+            !AirborneFollowHelper.IsCrossingTransitionClimb(aircraft)
+            || (aircraft.Phases?.AssignedRunway is not { } patternRunway)
+            || (aircraft.Phases.DepartureRunway is not { } flown)
+        )
+        {
+            return null;
+        }
+
+        if (aircraft.Phases.CurrentPhase is UpwindPhase { Waypoints: { } waypoints })
+        {
+            return FollowClimbOutGate.FromWaypoints(waypoints) with
+            {
+                MinTurnAltitude = CrossingTurnAltitudeFt(aircraft, patternRunway, groundLayout),
+            };
+        }
+
+        return FollowClimbOutGate.ForClimbOut(flown, flown, ResolvePatternAltitudeFt(aircraft, patternRunway, groundLayout));
+    }
+
+    /// <summary>
+    /// The legal crosswind-turn altitude of a crossing transition's upwind: <paramref name="patternRunway"/>'s pattern altitude
+    /// (<see cref="ResolvePatternAltitudeFt"/>) less <see cref="UpwindPhase.PatternHandoffMarginFt"/>, not the runway flown's.
+    /// </summary>
+    private static double CrossingTurnAltitudeFt(AircraftState aircraft, RunwayInfo patternRunway, AirportGroundLayout? groundLayout) =>
+        ResolvePatternAltitudeFt(aircraft, patternRunway, groundLayout) - UpwindPhase.PatternHandoffMarginFt;
 
     /// <summary>
     /// The runway the followed traffic is landing on, captured while the lead is
@@ -703,7 +755,7 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
     {
         if ((leadBase is not null) || (LeadCircuit(lead) is not null) || Commands.PatternCommandHandler.HasQueuedPatternEntry(lead))
         {
-            return AirborneFollowHelper.PatternSpacingNm(ctx, lead);
+            return AirborneFollowHelper.PatternSpacingNm(lead);
         }
 
         bool leadOnStraightInFinal =
@@ -1171,7 +1223,7 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
 
         if (
             (lead.Phases?.CurrentPhase is not BasePhase)
-            || !CanJoinLeadBase(ctx.Aircraft, join, gapToLeadNm, AirborneFollowHelper.PatternSpacingNm(ctx, lead))
+            || !CanJoinLeadBase(ctx.Aircraft, join, gapToLeadNm, AirborneFollowHelper.PatternSpacingNm(lead))
         )
         {
             return false;
@@ -1250,7 +1302,7 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
         double pathGapNm = _leadPath.LengthFromNm(join.StartPoint, lead.Position) + extensionNm;
         if (
             _widen.Active
-            || (pathGapNm < AirborneFollowHelper.PatternSpacingNm(ctx, lead))
+            || (pathGapNm < AirborneFollowHelper.PatternSpacingNm(lead))
             || !IsOnPatternSide(ctx.Aircraft, runway, join.Waypoints.Direction)
             || CapturePathCrossesParallelFinal(ctx.Aircraft.Position, finalAbeam, runway)
         )
@@ -1368,10 +1420,10 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
         double crossTrackNm = Math.Abs(GeoMath.SignedCrossTrackDistanceNm(ctx.Aircraft.Position, threshold, runway.TrueHeading));
         double interceptDeg = ctx.Aircraft.TrueTrack.AbsAngleTo(runway.TrueHeading);
 
-        // In-trail floor: stay genuinely behind the traffic (AIM 4-3-4.4 "no cutting in
-        // front") and no closer than the same-runway separation minimum (7110.65 3-10-3) —
-        // or the wake-turbulence minimum when the lead is heavier (TBL 5-5-2). Until that
-        // spacing exists, keep pursuing rather than rolling onto final too close.
+        // In-trail floor: stay behind the traffic (a pilot "should not take advantage of another aircraft, which is on final approach to land,
+        // by cutting in front of, or overtaking that aircraft", AIM 4-3-4.d) and no closer than the same-runway floor, or the wake floor
+        // behind a lead that carries a wake minimum for this follower. Until that spacing exists, keep pursuing rather than rolling onto final
+        // too close.
         if (followerDistNm - leadDistNm < RequiredFinalInTrailNm(ctx, lead))
         {
             return false;
@@ -1406,9 +1458,11 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
 
     /// <summary>
     /// The in-trail spacing a follower needs before it is sequenced onto a straight-in lead's final: the same-runway floor
-    /// (<see cref="SameRunwayInTrailFloorNm"/>), or the wake-turbulence minimum behind a heavier lead.
+    /// (<see cref="SameRunwayInTrailFloorNm"/>), or <see cref="WakeLeadInTrailFloorNm"/> behind a lead with a wake minimum
+    /// for this follower. The radar wake minimum itself does not apply: accepting instructions to follow an aircraft puts
+    /// wake turbulence separation on the pilot (AIM 7-4-8.b).
     /// </summary>
-    private static double RequiredFinalInTrailNm(PhaseContext ctx, AircraftState lead)
+    internal static double RequiredFinalInTrailNm(PhaseContext ctx, AircraftState lead)
     {
         double leadWakeMinNm = WakeTurbulenceData.OnApproachWakeSeparationNm(
             lead.AircraftType,
@@ -1416,7 +1470,7 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
             ctx.AircraftType,
             ctx.Category
         );
-        return Math.Max(SameRunwayInTrailFloorNm, leadWakeMinNm);
+        return leadWakeMinNm > 0 ? WakeLeadInTrailFloorNm : SameRunwayInTrailFloorNm;
     }
 
     /// <summary>
@@ -2025,7 +2079,7 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
             && ShouldExitTurnOut(
                 leadPassedAbeam,
                 BaseFollowSpacing.ProjectedBaseGapNm(ctx, lead, runway),
-                AirborneFollowHelper.PatternSpacingNm(ctx, lead)
+                AirborneFollowHelper.PatternSpacingNm(lead)
             )
             && !CapturePathCrossesParallelFinal(
                 ctx.Aircraft.Position,
@@ -2457,12 +2511,18 @@ internal sealed record FollowClimbOutGate(LatLon DepartureEnd, TrueHeading Upwin
         );
 
     /// <summary>
-    /// The gate a runway puts on a departure-leg pursuit with no circuit of its own: the runway's pavement end — the point
-    /// <see cref="PatternGeometry"/> anchors a circuit's crosswind turn at — its true heading, and the circuit's pattern altitude
-    /// less the legal-turn margin.
+    /// The gate a climb-out on <paramref name="flownRunway"/> into <paramref name="patternRunway"/>'s circuit puts on a
+    /// departure-leg pursuit with no circuit waypoints to read: the farther of the two runways' departure ends along the pattern
+    /// runway's heading (<see cref="PatternGeometry.TransitionDepartureEnd"/>, the point a transition circuit anchors its
+    /// crosswind turn at; the runway's own pavement end when the two are one), the flown runway's true heading (AIM 4-3-2.c.1),
+    /// and the pattern altitude less the legal-turn margin.
     /// </summary>
-    internal static FollowClimbOutGate ForRunway(RunwayInfo runway, double patternAltitudeFt) =>
-        new(new LatLon(runway.EndLatitude, runway.EndLongitude), runway.TrueHeading, patternAltitudeFt - UpwindPhase.PatternHandoffMarginFt);
+    internal static FollowClimbOutGate ForClimbOut(RunwayInfo flownRunway, RunwayInfo patternRunway, double patternAltitudeFt) =>
+        new(
+            PatternGeometry.TransitionDepartureEnd(flownRunway, patternRunway),
+            flownRunway.TrueHeading,
+            patternAltitudeFt - UpwindPhase.PatternHandoffMarginFt
+        );
 }
 
 /// <summary>A position and heading in a runway's final frame, for the turn-out geometry (<see cref="VfrFollowPhase.FinalFrameOf"/>).</summary>

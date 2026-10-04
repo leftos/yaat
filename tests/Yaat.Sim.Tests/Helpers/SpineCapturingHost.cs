@@ -126,8 +126,6 @@ public sealed class SpineCapturingHost(ISimulationHost inner) : ISimulationHost
 
     public void ApplyPreTickRecordedActions(int second) => _inner.ApplyPreTickRecordedActions(second);
 
-    public void SurfaceCoastExpiry() => _inner.SurfaceCoastExpiry();
-
     public void RundownBroadcast() => _inner.RundownBroadcast();
 
     public void LiveTrafficStatusBroadcast() => _inner.LiveTrafficStatusBroadcast();

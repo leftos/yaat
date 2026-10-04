@@ -1,6 +1,8 @@
 using Microsoft.Extensions.Logging;
+using Yaat.Sim.Data;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Simulation.Coast;
 using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Commands;
@@ -201,6 +203,14 @@ public static partial class TrackEngine
         MarkRecentHandoffAccepted(ac, previousOwner, wasForced: false, scenario);
         return new CommandResult(true, $"Accepted {ac.Callsign}");
     }
+
+    /// <summary>
+    /// True when auto-accept leaves a pending handoff alone because ERAM may show the track as CST: below ERAM coverage,
+    /// on the ground, or a QT coast track (7110.65 §5-4-5.e, §5-4-6.f.3 require verbal coordination then). Shared by the
+    /// auto-accept timer and the controller-AI handoff watchdog so they cannot drift.
+    /// </summary>
+    public static bool IsAutoAcceptWithheld(AircraftState ac, NavigationDatabase navDb) =>
+        !DisconnectCoastRules.IsVisibleOnEram(ac, navDb) || ac.Eram.IsCoastTrack;
 
     /// <summary>
     /// Flags the previous owner's STARS <c>SharedState</c> entry as previously-owned so that, after a
@@ -751,73 +761,104 @@ public static partial class TrackEngine
         ConsolidationRedirect? redirect
     )
     {
-        if (ac.Track.Owner is null)
+        if (ac.Track.Owner is not { } owner)
         {
             return new CommandResult(false, $"{ac.Callsign} is not tracked");
         }
 
+        HandoffPlan plan;
         if (tcpCode is null)
         {
-            TrackOwner? studentPos = scenario.StudentPosition;
-            if (studentPos is null)
+            if (scenario.StudentPosition is not { } studentPos)
             {
                 return new CommandResult(false, "No student position configured");
             }
 
-            ac.Track.HandoffPeer = studentPos;
-            ac.Track.HandoffRedirectedBy = null;
-            ac.Track.HandoffInitiatedAt = scenario.ElapsedSeconds;
-            return new CommandResult(true, $"Handoff {ac.Callsign} to {FormatOwner(studentPos)}");
+            plan = new HandoffPlan(studentPos, null, $"Handoff {ac.Callsign} to {FormatOwner(studentPos)}", IsPlain: false);
         }
-
-        TrackOwner? target = TrackResolver.ResolveTcpToOwner(scenario, tcpCode, identity?.FacilityId);
-        if (target is null)
+        else if (TrackResolver.ResolveTcpToOwner(scenario, tcpCode, identity?.FacilityId) is { } target)
+        {
+            plan = PlanTcpHandoff(ac, target, tcpCode, identity, redirect);
+        }
+        else
         {
             return new CommandResult(false, $"Unknown position: {tcpCode}");
         }
 
+        // By position, TCP included: positions sharing a TCP (a tower cab's GND/TWR/DEL) hand off by coordination, never by a STARS/ERAM handoff.
+        if (owner.MatchesPosition(plan.Peer))
+        {
+            return new CommandResult(false, $"{ac.Callsign} is already owned by {FormatOwner(owner)}");
+        }
+
+        ac.Track.HandoffPeer = plan.Peer;
+        ac.Track.HandoffRedirectedBy = plan.RedirectedBy;
+        ac.Track.HandoffInitiatedAt = scenario.ElapsedSeconds;
+        if (plan.IsPlain)
+        {
+            Log.LogInformation(
+                "[Handoff] {Callsign}: Owner={OwnerCallsign} (type={OwnerType}, fac={OwnerFac}, {OwnerSubset}{OwnerSector}) → "
+                    + "Peer={PeerCallsign} (type={PeerType}, fac={PeerFac}, {PeerSubset}{PeerSector})",
+                ac.Callsign,
+                owner.Callsign,
+                owner.OwnerType,
+                owner.FacilityId,
+                owner.Subset,
+                owner.SectorId,
+                plan.Peer.Callsign,
+                plan.Peer.OwnerType,
+                plan.Peer.FacilityId,
+                plan.Peer.Subset,
+                plan.Peer.SectorId
+            );
+        }
+
+        return new CommandResult(true, plan.Message);
+    }
+
+    /// <summary>
+    /// Who receives an <c>HO {tcp}</c>: the recipient's redirect, the consolidation host of an unattended target, or the
+    /// target itself (see <see cref="ApplyHandoff"/>).
+    /// </summary>
+    private static HandoffPlan PlanTcpHandoff(
+        AircraftState ac,
+        TrackOwner target,
+        string tcpCode,
+        TrackOwner? identity,
+        ConsolidationRedirect? redirect
+    )
+    {
         if (
             (identity is not null)
-            && (ac.Track.HandoffPeer is not null)
-            && ac.Track.HandoffPeer.MatchesPosition(identity)
-            && !ac.Track.Owner.MatchesPosition(identity)
+            && (ac.Track.HandoffPeer is { } pendingPeer)
+            && pendingPeer.MatchesPosition(identity)
+            && (ac.Track.Owner is { } owner)
+            && !owner.MatchesPosition(identity)
         )
         {
-            TrackOwner manualRedirectFrom = ac.Track.HandoffPeer;
-            ac.Track.HandoffPeer = redirect?.TryRedirect(target) ?? target;
-            ac.Track.HandoffRedirectedBy = manualRedirectFrom;
-            ac.Track.HandoffInitiatedAt = scenario.ElapsedSeconds;
-            return new CommandResult(true, $"Redirected handoff {ac.Callsign} to {tcpCode}");
+            return new HandoffPlan(
+                redirect?.TryRedirect(target) ?? target,
+                pendingPeer,
+                $"Redirected handoff {ac.Callsign} to {tcpCode}",
+                IsPlain: false
+            );
         }
 
         if (redirect?.TryRedirect(target) is { } redirectOwner)
         {
-            ac.Track.HandoffPeer = redirectOwner;
-            ac.Track.HandoffRedirectedBy = target;
-            ac.Track.HandoffInitiatedAt = scenario.ElapsedSeconds;
-            return new CommandResult(true, $"Handoff {ac.Callsign} to {tcpCode} (redirected to {redirectOwner.Subset}{redirectOwner.SectorId})");
+            return new HandoffPlan(
+                redirectOwner,
+                target,
+                $"Handoff {ac.Callsign} to {tcpCode} (redirected to {redirectOwner.Subset}{redirectOwner.SectorId})",
+                IsPlain: false
+            );
         }
 
-        ac.Track.HandoffPeer = target;
-        ac.Track.HandoffRedirectedBy = null;
-        ac.Track.HandoffInitiatedAt = scenario.ElapsedSeconds;
-        Log.LogInformation(
-            "[Handoff] {Callsign}: Owner={OwnerCallsign} (type={OwnerType}, fac={OwnerFac}, {OwnerSubset}{OwnerSector}) → "
-                + "Peer={PeerCallsign} (type={PeerType}, fac={PeerFac}, {PeerSubset}{PeerSector})",
-            ac.Callsign,
-            ac.Track.Owner.Callsign,
-            ac.Track.Owner.OwnerType,
-            ac.Track.Owner.FacilityId,
-            ac.Track.Owner.Subset,
-            ac.Track.Owner.SectorId,
-            target.Callsign,
-            target.OwnerType,
-            target.FacilityId,
-            target.Subset,
-            target.SectorId
-        );
-        return new CommandResult(true, $"Handoff {ac.Callsign} to {tcpCode}");
+        return new HandoffPlan(target, null, $"Handoff {ac.Callsign} to {tcpCode}", IsPlain: true);
     }
+
+    /// <summary>The recipient a handoff would set, the position it was redirected from, and the success text.</summary>
+    private readonly record struct HandoffPlan(TrackOwner Peer, TrackOwner? RedirectedBy, string Message, bool IsPlain);
 
     /// <summary>
     /// Mirrors yaat-server's <c>TrackCommandHandler.HandleForceHandoff</c>: transfer
@@ -1077,10 +1118,20 @@ public static partial class TrackEngine
                 return new CommandResult(false, $"Unknown position: {hoAll.TcpCode}");
             }
 
+            if (target.MatchesPosition(identity))
+            {
+                return new CommandResult(false, $"Cannot hand off to your own position {hoAll.TcpCode}");
+            }
+
             int count = 0;
             foreach (AircraftState ac in snapshot)
             {
-                if ((ac.Track.Owner is not null) && ac.Track.Owner.MatchesPosition(identity) && (ac.Track.HandoffPeer is null))
+                if (
+                    (ac.Track.Owner is not null)
+                    && ac.Track.Owner.MatchesPosition(identity)
+                    && (ac.Track.HandoffPeer is null)
+                    && !ac.Track.Owner.MatchesPosition(target)
+                )
                 {
                     ac.Track.HandoffPeer = target;
                     ac.Track.HandoffInitiatedAt = scenario.ElapsedSeconds;

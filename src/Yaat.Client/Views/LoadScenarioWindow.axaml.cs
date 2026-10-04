@@ -50,7 +50,7 @@ public partial class LoadScenarioWindow : Window
         _connection = connection;
         _artccId = preferences.ArtccId;
         InitializeComponent();
-        _filePicker = new AvaloniaFilePickerService(this);
+        _filePicker = FilePickerFactory.Create(this);
         new WindowGeometryHelper(this, preferences, "LoadScenario", 600, 500).Restore();
 
         _sourceTabs = this.FindControl<TabControl>("SourceTabs")!;
@@ -70,7 +70,7 @@ public partial class LoadScenarioWindow : Window
         _localScenarioList = this.FindControl<ListBox>("LocalScenarioList")!;
 
         // Wire events
-        this.FindControl<Button>("CancelButton")!.Click += (_, _) => Close(null);
+        this.FindControl<Button>("CancelButton")!.Click += (_, _) => DialogPresenter.Close(this, null);
         this.FindControl<Button>("BrowseButton")!.Click += OnBrowseClick;
         _loadButton.Click += OnLoadClick;
 
@@ -288,7 +288,7 @@ public partial class LoadScenarioWindow : Window
     {
         if (_artccScenarioList.SelectedItem is ArtccScenarioItem item)
         {
-            Close(new ScenarioLoadResult(null, item.Id, item.Name));
+            DialogPresenter.Close(this, new ScenarioLoadResult(null, item.Id, item.Name));
         }
     }
 
@@ -296,7 +296,7 @@ public partial class LoadScenarioWindow : Window
     {
         if (_localScenarioList.SelectedItem is LocalScenarioItem item)
         {
-            Close(new ScenarioLoadResult(item.FilePath, null));
+            DialogPresenter.Close(this, new ScenarioLoadResult(item.FilePath, null));
         }
     }
 
@@ -304,11 +304,11 @@ public partial class LoadScenarioWindow : Window
     {
         if (IsArtccTabActive && _artccScenarioList.SelectedItem is ArtccScenarioItem artcc)
         {
-            Close(new ScenarioLoadResult(null, artcc.Id, artcc.Name));
+            DialogPresenter.Close(this, new ScenarioLoadResult(null, artcc.Id, artcc.Name));
         }
         else if (!IsArtccTabActive && _localScenarioList.SelectedItem is LocalScenarioItem local)
         {
-            Close(new ScenarioLoadResult(local.FilePath, null));
+            DialogPresenter.Close(this, new ScenarioLoadResult(local.FilePath, null));
         }
     }
 

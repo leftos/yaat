@@ -325,6 +325,19 @@ public sealed record TugForcedOverswings(double SwingDeg, double LaneTurnDeg) : 
 /// <summary>The tow had parked aircraft near it and will not stop for them.</summary>
 public sealed record TugForcedIgnoresParked : TugForcedOverride;
 
+/// <summary>A candidate a plain tow ranked by the clearance band, with the room the band compared it by.</summary>
+/// <param name="Candidate">The candidate.</param>
+/// <param name="RoomFt">
+/// The closest its outline comes to any parked neighbour's over its whole path, capped at
+/// <see cref="GroundOutlineSweep.WingtipBufferFt"/>, feet.
+/// </param>
+internal readonly record struct TugBandRoom(TugCandidate Candidate, double RoomFt);
+
+/// <summary>One choice a plain tow made by the clearance band: the candidate kept and the candidates it was ranked among.</summary>
+/// <param name="Kept">The candidate kept.</param>
+/// <param name="RankedAmong">Every candidate with as few reversals as the fewest, the kept one included.</param>
+internal sealed record TugBandChoice(TugBandRoom Kept, IReadOnlyList<TugBandRoom> RankedAmong);
+
 /// <summary>
 /// How a forced tow's candidate passes the parked neighbours, the key a forced tow is ranked by first
 /// (<see cref="Shortlist{T}"/>).
@@ -1447,6 +1460,19 @@ internal sealed class TugPlanBuilder
     private readonly List<ResolvedTugGoal> _pendingHints = [];
 
     private readonly List<TugMoveTrace> _moves = [];
+
+    /// <summary>The row clearances this request's candidates are judged against, each measured once (<see cref="RowClearanceFt"/>).</summary>
+    private readonly TugRowClearances _rowClearances = new();
+
+    private readonly List<TugBandChoice> _bandChoices = [];
+
+    /// <summary>
+    /// Every choice ranked by the clearance band (<see cref="BestWithinClearanceBand"/>), in the order made: the
+    /// read-only hook the planner tests assert the ranking through, since which candidates a plan was chosen among is
+    /// not otherwise visible in the plan it returns.
+    /// </summary>
+    internal IReadOnlyList<TugBandChoice> BandChoices => _bandChoices;
+
     private TugPose _end;
     private PushbackLegKind? _lastKind;
     private TugRun? _run;
@@ -1808,9 +1834,16 @@ internal sealed class TugPlanBuilder
 
     /// <summary>
     /// Whether a goal's choice is ranked past its parked neighbours first (<see cref="BestPastNeighbours"/>): a forced tow
-    /// with any parked neighbour. Every other tow is ranked by the usual keys alone (<see cref="IsBetter"/>).
+    /// with any parked neighbour. Every other tow with a parked neighbour is ranked by the clearance band
+    /// (<see cref="RanksWithinClearanceBand"/>), and one without by the usual keys alone (<see cref="IsBetter"/>).
     /// </summary>
     private bool RanksPastNeighbours => _request.Forced && (_request.ParkedNeighbours.Count > 0);
+
+    /// <summary>
+    /// Whether a goal's choice — the ranking's own (<see cref="Choose"/>) and the keep pools' (<see cref="BestClear"/>) —
+    /// is ranked by the clearance band (<see cref="BestWithinClearanceBand"/>): a plain tow with any parked neighbour.
+    /// </summary>
+    private bool RanksWithinClearanceBand => !_request.Forced && (_request.ParkedNeighbours.Count > 0);
 
     /// <summary>
     /// A forced tow's choice among <paramref name="candidates"/>: the neighbour ranking step
@@ -1829,6 +1862,53 @@ internal sealed class TugPlanBuilder
     }
 
     /// <summary>
+    /// How much less room to a parked neighbour than the roomiest candidate with the same number of reversals a plain tow's
+    /// candidate may keep and still count as tied with it, feet [J] (<see cref="BestWithinClearanceBand"/>).
+    /// </summary>
+    internal const double ClearanceTieBandFt = 5.0;
+
+    /// <summary>
+    /// A plain tow's choice among <paramref name="candidates"/> when it has parked neighbours: the fewest reversals first;
+    /// then, among the candidates with that many, only those whose room — the least clearance to any parked neighbour
+    /// (<see cref="NeighbourClearance"/>), capped at <see cref="GroundOutlineSweep.WingtipBufferFt"/> — is within
+    /// <see cref="ClearanceTieBandFt"/> of the roomiest count as tied; then <paramref name="isBetter"/> among them — the
+    /// usual keys (<see cref="IsBetter"/>) for the ranking's own choice, and staying out of the empty stands before them
+    /// for a keep pool's (<see cref="IsBetterClear"/>). Room above the floor never buys a reversal: a candidate with more
+    /// reversals never ranks ahead, however much room it keeps. Nor does room beyond the wingtip buffer buy anything:
+    /// candidates that all keep the full buffer tie, and the usual keys decide. The choice goes on
+    /// <see cref="BandChoices"/>. Null when there are no candidates.
+    /// </summary>
+    private TugCandidate? BestWithinClearanceBand(IReadOnlyList<TugCandidate> candidates, Func<TugCandidate, TugCandidate?, bool> isBetter)
+    {
+        if (candidates.Count == 0)
+        {
+            return null;
+        }
+
+        int fewestReversals = candidates.Min(c => c.Reversals);
+        List<TugBandRoom> fewest =
+        [
+            .. candidates
+                .Where(c => c.Reversals == fewestReversals)
+                .Select(c => new TugBandRoom(c, Math.Min(NeighbourClearance(c).ClosestFt, GroundOutlineSweep.WingtipBufferFt))),
+        ];
+        double mostRoomFt = fewest.Max(r => r.RoomFt);
+        TugBandRoom? best = null;
+        foreach (TugBandRoom room in fewest.Where(r => (mostRoomFt - r.RoomFt) <= ClearanceTieBandFt))
+        {
+            best = isBetter(room.Candidate, best?.Candidate) ? room : best;
+        }
+
+        if (best is not { } kept)
+        {
+            return null;
+        }
+
+        _bandChoices.Add(new TugBandChoice(kept, fewest));
+        return kept.Candidate;
+    }
+
+    /// <summary>
     /// Whether a candidate keeps every parked neighbour at the sweep floor, and the closest its outline comes to any of
     /// them over its whole path, feet (<see cref="NeighbourPass"/>); measured once.
     /// </summary>
@@ -1841,7 +1921,7 @@ internal sealed class TugPlanBuilder
             clearance = new TugNeighbourClearance(passes.All(p => p.KeepsFloor), closestFt);
             _neighbourClearanceByCandidate[candidate] = clearance;
             Log.LogDebug(
-                "Tug forced candidate {Template}: {Keeps} the neighbour floor, closest {ClosestFt:F1} ft",
+                "Tug candidate {Template}: {Keeps} the neighbour floor, closest {ClosestFt:F1} ft",
                 candidate.Template,
                 clearance.KeepsFloor ? "keeps" : "breaks",
                 clearance.ClosestFt
@@ -1880,6 +1960,7 @@ internal sealed class TugPlanBuilder
                 GroundOutlineSweepResult swept = GroundOutlineSweep.Sweep(
                     path,
                     path[0].Pose,
+                    RowClearanceFt(traces, neighbour),
                     frame,
                     moverSize,
                     neighbour.Position,
@@ -1892,6 +1973,34 @@ internal sealed class TugPlanBuilder
 
         return new TugNeighbourClearance(!fouls, closestFt);
     }
+
+    /// <summary>
+    /// The row anchor a candidate's moves are judged against (<see cref="GroundOutlineSweep.FloorFt"/>): the request's
+    /// start, where the tow begins, with the kind of the plan's first move — the first committed move, or the candidate's
+    /// own first when nothing is committed yet. The conflict detector reads the same anchor off the installed tow
+    /// (<see cref="AircraftGroundOps.TowRowAnchor"/>), so the two judge every move against the same row.
+    /// </summary>
+    private TugRowAnchor? RowAnchor(IReadOnlyList<TugMoveTrace> traces)
+    {
+        TugMoveTrace? first = _moves.Count > 0 ? _moves[0] : traces.FirstOrDefault();
+        return first is null ? null : new TugRowAnchor(_request.Start, first.Move.Kind);
+    }
+
+    /// <summary>
+    /// A candidate's row clearance from one parked neighbour (<see cref="GroundOutlineSweep.RowClearanceFt"/>), from its
+    /// row anchor (<see cref="RowAnchor"/>); measured once per anchor and neighbour for the whole request, however many
+    /// candidates and runs are swept against it. Null when there is no anchor or the row does not count.
+    /// </summary>
+    private double? RowClearanceFt(IReadOnlyList<TugMoveTrace> traces, TugParkedNeighbour neighbour) =>
+        RowAnchor(traces) is { } anchor
+            ? _rowClearances.RowClearanceFt(
+                anchor,
+                _request.AircraftType,
+                neighbour.Callsign,
+                new TugPose(neighbour.Position, neighbour.TrueHeadingDeg),
+                neighbour.AircraftType
+            )
+            : null;
 
     /// <summary>Appends a kept candidate's moves to the plan, which then continues from where it ends.</summary>
     private void Commit(TugCandidate best, ResolvedTugGoal goal)
@@ -2226,13 +2335,23 @@ internal sealed class TugPlanBuilder
             : $"{staysOut} of the {built.Count} candidates built stay out of it and rank below it";
     }
 
-    /// <summary>The best of the candidates that stay clear, ranked by <see cref="IsBetterClear"/>; null when there are none.</summary>
+    /// <summary>
+    /// The best of the candidates that stay clear, ranked by <see cref="IsBetterClear"/> — for a plain tow with parked
+    /// neighbours, within the clearance band first (<see cref="BestWithinClearanceBand"/>); null when there are none.
+    /// </summary>
     private TugCandidate? BestClear(ResolvedTugGoal goal, bool offStand, IEnumerable<TugCandidate> clear)
     {
         TugCandidate? bestClear = null;
-        foreach (TugCandidate candidate in clear)
+        if (RanksWithinClearanceBand)
         {
-            bestClear = IsBetterClear(goal, offStand, candidate, bestClear) ? candidate : bestClear;
+            bestClear = BestWithinClearanceBand([.. clear], (c, incumbent) => IsBetterClear(goal, offStand, c, incumbent));
+        }
+        else
+        {
+            foreach (TugCandidate candidate in clear)
+            {
+                bestClear = IsBetterClear(goal, offStand, candidate, bestClear) ? candidate : bestClear;
+            }
         }
 
         if (bestClear is not null)
@@ -3742,6 +3861,10 @@ internal sealed class TugPlanBuilder
         {
             tally.Best = BestPastNeighbours(goal, offStand, tally.Survivors);
         }
+        else if (RanksWithinClearanceBand)
+        {
+            tally.Best = BestWithinClearanceBand(tally.Survivors, (c, incumbent) => IsBetter(goal, offStand, c, incumbent));
+        }
 
         TugCandidate? best = tally.Best;
         if (best is not null)
@@ -4075,6 +4198,7 @@ internal sealed class TugPlanBuilder
                 GroundOutlineSweepResult swept = GroundOutlineSweep.Sweep(
                     path,
                     path[0].Pose,
+                    RowClearanceFt(traces, neighbour),
                     frame,
                     moverSize,
                     neighbour.Position,

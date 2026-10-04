@@ -1921,7 +1921,9 @@ public class FollowRunwaylessLeadFromPatternTests(ITestOutputHelper output)
     {
         SimulationEngine engine = BuildEngine();
         (AircraftState lead, AircraftState follower) = JetBaseLeadWithExtendedFollower(engine, 0.5);
-        TrueHeading downwind = ((BasePhase)lead.Phases!.CurrentPhase!).Waypoints!.DownwindHeading;
+        PatternWaypoints waypoints = ((BasePhase)lead.Phases!.CurrentPhase!).Waypoints!;
+        TrueHeading downwind = waypoints.DownwindHeading;
+        double leadRemainingAtBaseStartNm = AirborneFollowHelper.RemainingPatternPathNm(lead, waypoints);
         var path = new LeadPathTrail();
         path.Record(lead.Position);
 
@@ -1952,10 +1954,14 @@ public class FollowRunwaylessLeadFromPatternTests(ITestOutputHelper output)
         Assert.Equal(Leader, follower.Approach.FollowingCallsign);
         LatLon baseStart = Assert.IsType<LatLon>(followerBase.StartPoint);
         double pastLeadStartNm = GeoMath.AlongTrackDistanceNm(baseStart, LeadBaseStart, downwind);
-        output.WriteLine($"turned base {pastLeadStartNm:F2} nm past the lead's base turn point, {joinGapNm:F2} nm behind along its path");
+        double alongPathGapNm = BaseTurnGapNm(lead, follower, waypoints, leadRemainingAtBaseStartNm);
+        output.WriteLine(
+            $"turned base {pastLeadStartNm:F2} nm past the lead's base turn point, {joinGapNm:F2} nm behind on the trail, "
+                + $"{alongPathGapNm:F2} nm behind along its path"
+        );
         Assert.True(pastLeadStartNm > 0.5, $"turned base only {pastLeadStartNm:F2} nm past the lead's base turn point");
         Assert.True(pastLeadStartNm <= VfrFollowPhase.BaseExtensionLimitNm);
-        Assert.True(joinGapNm >= 3.0, $"turned base {joinGapNm:F2} nm behind the lead along its path");
+        Assert.True(alongPathGapNm >= 3.0, $"turned base {alongPathGapNm:F2} nm behind the lead along its path");
     }
 
     /// <summary>A jet lead on its right base to 28R, its base started at <see cref="LeadBaseStart"/>.</summary>
@@ -2378,23 +2384,69 @@ public class FollowRunwaylessLeadFromPatternTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public void TryJoinLeadBase_BehindAJet_WaitsForTheWakeMinimum()
+    public void TryJoinLeadBase_BehindAJet_JoinsAtThePatternSpacing()
     {
         SimulationEngine engine = BuildEngine();
         RunwayInfo rwy = Oak("28R");
         AddJetBaseLead(engine);
         double patternNm = AirborneFollowHelper.DesiredDistanceForLeader(AircraftCategory.Jet);
-        double wakeNm = WakeTurbulenceData.OnApproachWakeSeparationNm("B738", AircraftCategory.Jet, "C172", AircraftCategory.Piston);
-        Assert.True(wakeNm > patternNm, $"wake minimum {wakeNm:F1} nm, pattern spacing {patternNm:F1} nm");
         LatLon start = OffFinal(rwy, 7.0, 4.0);
         double gapNm = GeoMath.DistanceNm(start, LeadBaseStart);
-        Assert.InRange(gapNm, patternNm, wakeNm - 0.2);
+        Assert.InRange(gapNm, patternNm, patternNm + 0.4);
         AircraftState follower = AddPursuingFollower(engine, start, new TrueHeading(GeoMath.BearingTo(start, LeadBaseStart)));
 
         TickSeconds(engine, 1);
 
-        Assert.IsType<VfrFollowPhase>(follower.Phases!.CurrentPhase);
+        AssertJoinedBaseAt(follower, LeadBaseStart);
         Assert.Equal(Leader, follower.Approach.FollowingCallsign);
+    }
+
+    /// <summary>
+    /// The C3 clip's setup: a C172 in free pursuit of a jet that turned base half a mile ahead of it. The visual follow
+    /// carries no radar wake minimum (AIM 7-4-8.b puts wake avoidance on the pilot who accepts it), so the follower turns
+    /// base at YAAT's 3 nm pattern spacing behind the jet — not the TBL 5-5-2 4 nm behind a B738, nor the 6 nm behind a B744.
+    /// </summary>
+    [Theory]
+    [InlineData("B738", 4.0)] // TBL 5-5-2: 4 nm for a category I follower behind a B738
+    [InlineData("B744", 6.0)] // and 6 nm behind a heavy four-engine jet
+    public void C172FollowingAJet_TurnsBaseAtPatternSpacingNotTheWakeMinimum(string leadType, double radarMinimumNm)
+    {
+        SimulationEngine engine = BuildEngine();
+        (AircraftState lead, AircraftState follower) = JetBaseLeadWithExtendedFollower(engine, 0.5);
+        lead.AircraftType = leadType;
+        PatternWaypoints waypoints = ((BasePhase)lead.Phases!.CurrentPhase!).Waypoints!;
+        double leadRemainingAtBaseStartNm = AirborneFollowHelper.RemainingPatternPathNm(lead, waypoints);
+
+        bool turnedBase = false;
+        for (int s = 0; (s < 300) && !turnedBase; s++)
+        {
+            TickSeconds(engine, 1);
+            turnedBase = follower.Phases?.CurrentPhase is not VfrFollowPhase;
+        }
+
+        Assert.True(turnedBase, $"the follower never turned base within 300 s of following the {leadType}");
+        Assert.IsType<BasePhase>(follower.Phases!.CurrentPhase);
+        double gapNm = BaseTurnGapNm(lead, follower, waypoints, leadRemainingAtBaseStartNm);
+        double patternNm = AirborneFollowHelper.DesiredDistanceForLeader(AircraftCategory.Jet);
+        output.WriteLine($"{leadType} lead: the follower turned base {gapNm:F2} nm behind it along its path");
+        Assert.True(gapNm >= patternNm, $"turned base only {gapNm:F2} nm behind the {leadType}, inside the {patternNm:F1} nm pattern spacing");
+        Assert.True(
+            gapNm < radarMinimumNm,
+            $"turned base {gapNm:F2} nm behind the {leadType}: a visual follow carries no radar wake minimum. "
+                + $"TBL 5-5-2 would be {radarMinimumNm:F1} nm"
+        );
+    }
+
+    /// <summary>
+    /// How far (nm) along the lead's path the follower turned base behind it: how far past the lead's base turn point the
+    /// follower's base began, plus the path the lead has flown since its base began.
+    /// </summary>
+    private static double BaseTurnGapNm(AircraftState lead, AircraftState follower, PatternWaypoints waypoints, double leadRemainingAtBaseStartNm)
+    {
+        BasePhase followerBase = Assert.IsType<BasePhase>(follower.Phases!.CurrentPhase);
+        LatLon baseStart = Assert.IsType<LatLon>(followerBase.StartPoint);
+        double pastLeadStartNm = GeoMath.AlongTrackDistanceNm(baseStart, LeadBaseStart, waypoints.DownwindHeading);
+        return pastLeadStartNm + (leadRemainingAtBaseStartNm - AirborneFollowHelper.RemainingPatternPathNm(lead, waypoints));
     }
 
     [Fact]

@@ -1,7 +1,5 @@
 using Avalonia.Controls;
 using Avalonia.Interactivity;
-using MsBox.Avalonia;
-using MsBox.Avalonia.Base;
 using MsBox.Avalonia.Enums;
 using Yaat.Client.Services;
 
@@ -128,7 +126,7 @@ public partial class ManageWindowProfilesDialog : Window
             .WindowProfiles.Where(p => !string.Equals(p.Name, oldName, StringComparison.OrdinalIgnoreCase))
             .Select(p => p.Name);
         var dlg = new SaveWindowProfileDialog(others, oldName) { Title = "Rename Window Profile" };
-        await dlg.ShowDialog(this);
+        await DialogPresenter.ShowModalAsync(dlg, this);
 
         if (dlg.ProfileName is null || string.Equals(dlg.ProfileName, oldName, StringComparison.OrdinalIgnoreCase))
         {
@@ -154,8 +152,12 @@ public partial class ManageWindowProfilesDialog : Window
             return;
         }
 
-        IMsBox<ButtonResult> box = MessageBoxManager.GetMessageBoxStandard("Delete profile?", $"Delete window profile \"{name}\"?", ButtonEnum.YesNo);
-        ButtonResult result = await box.ShowWindowDialogAsync(this);
+        ButtonResult result = await MessageBoxPresenter.ShowStandardAsync(
+            this,
+            "Delete profile?",
+            $"Delete window profile \"{name}\"?",
+            ButtonEnum.YesNo
+        );
         if (result != ButtonResult.Yes)
         {
             return;

@@ -53,7 +53,6 @@ public enum StepId
     StripDispatches,
     StateChanges,
     AutoDelete,
-    SurfaceCoastExpiry,
     DisconnectCoastExpiry,
     RundownBroadcast,
     LiveTrafficStatusBroadcast,

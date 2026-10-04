@@ -73,6 +73,12 @@ public sealed record DispatchContext
 
     public required bool SoloTrainingMode { get; init; }
 
+    /// <summary>
+    /// The scenario's <see cref="Simulation.SimScenarioState.SoloRpoCommandsAllowed"/> development flag: lets solo training
+    /// accept the RPO-only commands it otherwise refuses.
+    /// </summary>
+    public required bool SoloRpoCommandsAllowed { get; init; }
+
     public required bool RpoShowPilotSpeech { get; init; }
 
     public required Action<TerminalEntry>? TerminalEmitter { get; init; }
@@ -98,4 +104,10 @@ public sealed record DispatchContext
     /// for the verbs whose answer carries a time of day.
     /// </summary>
     public DateTime SessionNowUtc => SessionStartUtc.AddSeconds(ScenarioElapsedSeconds);
+
+    /// <summary>
+    /// Whether an RPO-only command (FOLLOWF, CVAF, RFISF, RTISF, CLANDF) is refused: in solo training, unless the
+    /// scenario's <see cref="SoloRpoCommandsAllowed"/> flag lets it through.
+    /// </summary>
+    public bool RefusesRpoOnly => SoloTrainingMode && !SoloRpoCommandsAllowed;
 }

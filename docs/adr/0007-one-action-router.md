@@ -77,14 +77,4 @@ and a test per verb is exactly the list-in-two-places shape ADR 0001 forbids. A 
 the live chain left alone: the arms drift again the day someone adds a verb live, which is how the
 audit's class came to exist.
 
-**Consequences.** Adding a verb is a `RecordedCommandKind`, an `ArmTable` row and, only if its state
-is still the room's, an `IActionHost` slot — nothing is added to any entry point. The `actions`
-oracle fixture drives a script of global, position-scoped, reaction-delayed and refused commands
-through every leg, and its three baselines emptied as the sub-commits landed (69 → 0 on reconstruct);
-the twelve baselines were byte-identical through the Class B work, which is the check that recording
-a handler's write changes nothing live. A rewind now restores position selections, ownership,
-consolidations, CRC display state and the CRC-entered clearances as of its target. Two chains'
-worth of code left: `TrackCommandHandler`, `ReplayTrackApplier`, `RecordingManager.ReplayCommand`
-and the thirty-arm `SendCommandAsync` are gone. The evidence per sub-commit — predicted-vs-got on the
-baselines, the corpus triage, the corrections to the plan — is in
-`docs/plans/tick-path/03d-action-router.md` until that plan is deleted, then in git history.
+**Consequences.** Adding a verb is a `RecordedCommandKind`, an `ArmTable` row and, only if its state is still the room's, an `IActionHost` slot — nothing is added to any entry point. The `actions` oracle fixture drives a script of global, position-scoped, reaction-delayed and refused commands through every leg, and its three baselines emptied as the sub-commits landed (69 → 0 on reconstruct); the twelve baselines were byte-identical through the Class B work, which is the check that recording a handler's write changes nothing live. A rewind now restores position selections, ownership, consolidations, CRC display state and the CRC-entered clearances as of its target. Two chains' worth of code left: `TrackCommandHandler`, `ReplayTrackApplier`, `RecordingManager.ReplayCommand` and the thirty-arm `SendCommandAsync` are gone. The evidence per sub-commit — predicted-vs-got on the baselines, the corpus triage, the corrections to the plan — is in git history, in the deleted plan `docs/plans/tick-path/03d-action-router.md`.

@@ -115,6 +115,15 @@ Note for anyone re-measuring: `--list-tests` is a poor proxy for discovery. On t
 it costs ~1.06 s more than a zero-match run at the same test count, almost all of it printing ~9,300
 lines to the console.
 
+## Tick-performance regression tests (decided design, not built yet)
+
+A test in the suite fails early when a change makes the simulation too slow. Both assertions live in `Yaat.Sim.Tests` over the engine tick, on a realistic room of 20–30 active aircraft on a real layout (mixed airborne, on approach and taxiing, so pathfinding, conflict detection and phases all run):
+
+- **Allocations per tick against a committed baseline, on every commit.** A deterministic measure, so it can run on shared CI runners. The baseline is a committed JSON, re-recorded by an environment flag when a slowdown is accepted.
+- **A p95 CPU budget under the `Nightly` trait**, measured in thread CPU time rather than wall time (`Yaat.Sim.Diagnostics.ThreadCpuTime`), asserted on the 95th percentile over a few simulated minutes, never on one tick. The budget is the fixed tick period / 10, which leaves headroom for ten rooms on the hosted loop's one tick thread.
+
+Wall time was rejected for the per-commit guard because it is noisy on shared runners. The soak runner (about 420× realtime, byte-identical seeds) and the `dotnet-test-suite-profiling` skill's trace method serve the first baseline and the diagnosis of a failure.
+
 ## Follow-ups (not done)
 
 - [ ] The bounded-detour search itself (`SegmentExpander.RunBoundedDetour`, >1s for one TAXI resolution) — algorithmic; needs its own profile.

@@ -14,7 +14,7 @@ Instructors and RPOs use YAAT to create training rooms, load scenarios, issue AT
 - **Radar view** — STARS-style radar display with video maps, range rings, and data blocks
 - **Weather** — load ATCTrainer-compatible wind/weather profiles; wind affects aircraft physics
 - **Full nav data** — VNAS protobuf nav data, FAA CIFP procedures (SIDs, STARs, approaches), and aircraft performance specs downloaded automatically
-- **CRC integration** — CRC clients connect to the same server and see all simulated traffic
+- **CRC integration** — CRC clients, and TowerCab 3D, connect to the same server and see all simulated traffic
 - **Rewind** — scrub back through a session and replay from any point
 
 ## Download

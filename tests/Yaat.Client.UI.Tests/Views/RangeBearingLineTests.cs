@@ -1,3 +1,4 @@
+using SkiaSharp;
 using Xunit;
 using Yaat.Client.Views.Map;
 using Yaat.Sim;
@@ -382,72 +383,78 @@ public class RblLabelPlacementTests
 {
     private const float ViewW = 800f;
     private const float ViewH = 600f;
-    private const float LabelW = 80f;
-    private const float LabelH = 12f;
+    private static readonly SKSize Label = new(80f, 12f);
+
+    /// <summary>The CRC (East) spot around the line's label anchor, clamped into a view of the given size.</summary>
+    private static SKRect EastLabel(float ax, float ay, float bx, float by, float viewW, float viewH)
+    {
+        (float X, float Y)? anchor = RblLabelPlacement.Anchor(ax, ay, bx, by, viewW, viewH);
+        Assert.NotNull(anchor);
+        SKRect east = RblReadoutPlacement.SpotRect(RblReadoutSpot.East, new SKPoint(anchor.Value.X, anchor.Value.Y), Label);
+        return RblLabelPlacement.ClampIntoView(east, viewW, viewH);
+    }
 
     [Fact]
     public void OnScreenEndpointKeepsTheCrcOffset()
     {
-        (float X, float Y)? label = RblLabelPlacement.Compute(100f, 100f, 400f, 300f, LabelW, LabelH, ViewW, ViewH);
+        SKRect label = EastLabel(100f, 100f, 400f, 300f, ViewW, ViewH);
 
-        Assert.NotNull(label);
-        Assert.Equal(409f, label.Value.X, 3);
-        Assert.Equal(304f, label.Value.Y, 3);
+        Assert.Equal(409f, label.Left, 3);
+        Assert.Equal(304f, label.Bottom, 3);
     }
 
     [Fact]
-    public void OffScreenEndpointPullsTheLabelToWhereTheLineExits()
+    public void OffScreenEndpointAnchorsWhereTheLineExits()
     {
-        // Line from screen centre heading due right, far end well past the right edge: the label lands
-        // at the right edge, pulled in so the text fits.
-        (float X, float Y)? label = RblLabelPlacement.Compute(400f, 300f, 2000f, 300f, LabelW, LabelH, ViewW, ViewH);
+        // Line from screen centre heading due right, far end well past the right edge: the anchor is the
+        // right edge, and the label is pulled in so the text fits.
+        Assert.Equal((ViewW, 300f), RblLabelPlacement.Anchor(400f, 300f, 2000f, 300f, ViewW, ViewH));
 
-        Assert.NotNull(label);
-        Assert.Equal(ViewW - LabelW - 2f, label.Value.X, 3);
-        Assert.Equal(304f, label.Value.Y, 3);
+        SKRect label = EastLabel(400f, 300f, 2000f, 300f, ViewW, ViewH);
+        Assert.Equal(ViewW - Label.Width - 2f, label.Left, 3);
+        Assert.Equal(304f, label.Bottom, 3);
     }
 
     [Fact]
-    public void BothEndpointsOffScreenStillLabelsTheCrossingLine()
+    public void BothEndpointsOffScreenStillAnchorsTheCrossingLine()
     {
-        // Horizontal line crossing the whole viewport: the label sits at the exit edge nearest B.
-        (float X, float Y)? label = RblLabelPlacement.Compute(-500f, 300f, 1500f, 300f, LabelW, LabelH, ViewW, ViewH);
+        // Horizontal line crossing the whole viewport: the anchor is the exit edge nearest B.
+        (float X, float Y)? anchor = RblLabelPlacement.Anchor(-500f, 300f, 1500f, 300f, ViewW, ViewH);
 
-        Assert.NotNull(label);
-        Assert.Equal(ViewW - LabelW - 2f, label.Value.X, 3);
+        Assert.NotNull(anchor);
+        Assert.Equal(ViewW, anchor.Value.X, 3);
+        Assert.Equal(300f, anchor.Value.Y, 3);
     }
 
     [Fact]
-    public void LineEntirelyOffScreenGetsNoLabel() => Assert.Null(RblLabelPlacement.Compute(-500f, -50f, -100f, -20f, LabelW, LabelH, ViewW, ViewH));
+    public void LineEntirelyOffScreenGetsNoAnchor() => Assert.Null(RblLabelPlacement.Anchor(-500f, -50f, -100f, -20f, ViewW, ViewH));
 
     [Fact]
     public void LabelNearTheEdgeIsClampedFullyInsideTheViewport()
     {
         // B sits just inside the bottom-right corner; the naive offset would push the text off both edges.
-        (float X, float Y)? label = RblLabelPlacement.Compute(400f, 300f, 795f, 595f, LabelW, LabelH, ViewW, ViewH);
+        SKRect label = EastLabel(400f, 300f, 795f, 595f, ViewW, ViewH);
 
-        Assert.NotNull(label);
-        Assert.True(label.Value.X + LabelW <= ViewW);
-        Assert.True(label.Value.Y <= ViewH - 2f);
+        Assert.True(label.Right <= ViewW - 2f);
+        Assert.True(label.Bottom <= ViewH - 2f);
     }
 
     [Fact]
     public void LabelNearTheTopStaysBelowTheEdge()
     {
-        (float X, float Y)? label = RblLabelPlacement.Compute(400f, 300f, 400f, 1f, LabelW, LabelH, ViewW, ViewH);
+        SKRect label = EastLabel(400f, 300f, 400f, 1f, ViewW, ViewH);
 
-        Assert.NotNull(label);
-        Assert.True(label.Value.Y >= LabelH);
+        Assert.True(label.Top >= 2f);
     }
 
     [Fact]
     public void UnsizedViewportFallsBackToTheRawOffset()
     {
-        // Before the first layout pass the viewport reports zero size; keep CRC's plain offset there.
-        (float X, float Y)? label = RblLabelPlacement.Compute(0f, 0f, 50f, 50f, LabelW, LabelH, 0f, 0f);
+        // Before the first layout pass the viewport reports zero size: the anchor is B and nothing is clamped.
+        Assert.Equal((50f, 50f), RblLabelPlacement.Anchor(0f, 0f, 50f, 50f, 0f, 0f));
 
-        Assert.NotNull(label);
-        Assert.Equal(59f, label.Value.X, 3);
-        Assert.Equal(54f, label.Value.Y, 3);
+        SKRect label = EastLabel(0f, 0f, 50f, 50f, 0f, 0f);
+        Assert.Equal(59f, label.Left, 3);
+        Assert.Equal(54f, label.Bottom, 3);
     }
 }

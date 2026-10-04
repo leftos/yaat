@@ -56,13 +56,17 @@ builds and tests yaat + yaat-server in Release configuration; failures here
 would ship to users:
 
 ```bash
-pwsh tools/gate.ps1 -Log .tmp/test-all-prerelease.log -TimeoutSeconds 900 -Slot heavy -- pwsh tools/test-all.ps1
+pwsh tools/gate.ps1 -Log .tmp/test-all-prerelease.log -TimeoutSeconds 360 -Slot heavy -- pwsh tools/test-all.ps1
 ```
 
 **Do not append `| tail` or `| grep`.** A teed pipeline reports its last stage's status, so a failed build reads as green — that is exactly how a release once went out over a `main` that did not compile, with four "Passed!" lines above it. `tools/gate.ps1` propagates the command's own status and also fails when the log contains `Build FAILED` or `error CS`.
 
 If anything fails, stop and surface it. Do not proceed to the version-bump
 commit on a red suite — fix forward (or abort the release), then re-run.
+
+## Step 0d: No open user-reported bug ships
+
+A release never ships with a known user-reported bug: an open issue reporting a defect that a person other than the owner hit — a Discord thread, a named reporter, an attached bug bundle or recording — whoever filed it, an agent included. A defect only an agent, a nightly review or an audit found does not count. The Discord bot's `/create-issue` labels its issues `bug` (`/create-feature-request` uses `enhancement`), so start from `gh issue list --repo leftos/yaat --state open --label bug --limit 200`; issues filed any other way (agent-filed reports from Discord, Linear-synced ones) carry no label, so also read the unlabelled open issues' bodies (`gh issue list --repo leftos/yaat --state open --limit 400 --json number,title,labels,body`) to judge them. For each user-reported bug, its Linear issue must be Landed in the open release, or the user must have agreed in this session or a comment on the issue to defer it. Any other one stops the release: list them and ask the user, one question per bug, whether to fix it first or defer it; a deferral is written as a comment on the Linear issue.
 
 ## Step 1: Read current version
 Read `Directory.Build.props` at the repo root to get the current `<Version>` value.
@@ -166,6 +170,10 @@ reader gets wrong. Skipping the check leaves both errors available: a bullet tha
 under-states its reach, and a needless narrowing of correct behavior because the
 reviewer trusted a heading instead of a call site.
 
+### 5d. Sizzle-reel review
+
+Every release is reviewed for features that warrant a **sizzle reel** (`CONTEXT.md`, "Releases"): a major feature this release introduces or reworks, or a set of UI and UX changes worth showing together. Read the open release's issues (`linear list yaat`, release `vNext`) beside the unreleased section, and list each candidate with the reel that covers it: an existing reel issue in the release (the FOLLOW reel, YAAT-7, and its sub-issues are the model), or none. A candidate with no reel is put to the user, one question per candidate: plan a reel now (an **add** in the release, `linear release add`), or ship without one. A reel issue in the release that is not finished stops the release like any other open release item, unless the user agrees to cut without it.
+
 ## Step 6: Audit user-facing documentation against the release commits
 
 Before locking the release notes, walk the commits going into this release and confirm user-facing documentation actually covers what changed. Stale or missing docs hurt users more than missing changelog bullets — they steer instructors and RPOs wrong on real workflows.
@@ -214,11 +222,7 @@ Doc updates ride along in the release commit; the staging list in Step 9 picks t
 
 ## Step 6d: Scan for open issues this release fixes
 
-GitHub auto-closes issues whose commits carry `Closes #N` (yaat) or
-`Closes https://github.com/leftos/yaat/issues/N` (yaat-server). That only
-catches issues someone remembered to cite. Feature work driven by a Discord
-thread routinely ships without ever naming the issue, leaving a fixed request
-open — the reporter never learns it landed.
+Step 14's `linear release complete` moves every Landed issue in the release to Done, which closes its GitHub issue through the sync. That only catches issues someone **land**ed in Linear. Feature work driven by a Discord thread routinely ships without ever naming the issue, leaving a fixed request open — the reporter never learns it landed.
 
 Match open issues against what actually shipped, not against commit metadata:
 
@@ -463,8 +467,8 @@ Once the user approves:
     three listed, publish:
     `gh release edit v{version} --repo leftos/yaat --draft=false`
     Publishing with the user token raises `release: published`, which fires the Discord
-    announcement on its own — do **not** also dispatch `discord-release.yml`. Skip the remaining
-    steps (they're the image-build/deploy path) unless a redeploy was forced in step 8.
+    announcement on its own — do **not** also dispatch `discord-release.yml`. Skip steps 10-13
+    (they're the image-build/deploy path) unless a redeploy was forced in step 8, and go on to step 14.
 10. **If an image build was chosen:** run it **in the background**, through the gate wrapper so a failed build cannot read as green:
 
     ```bash
@@ -484,5 +488,12 @@ Once the user approves:
 
     `-SkipCiBuild` deploys the image step 10 already built instead of building again; always pass `-NoLogs` — without it the script tails server logs indefinitely and blocks the agent until timeout. The script calls `POST /admin/prepare-restart` first (needs `ADMIN_PASSWORD` in yaat `.env`, matching the droplet) so active training sessions survive the deploy. Use `-SkipSessionSave` only for emergency deploys. Wait for the `Deployment complete!` banner before declaring the release done.
 13. **Verify the release is public.** `release.yml` always creates the GitHub Release as a **draft**; on the deploy path `deploy-to-droplet.ps1` publishes it after verifying the deployed client commit matches the tag — watch for its "Published GitHub release" line. Confirm with `gh release view v{version} --repo leftos/yaat --json isDraft,assets`: `isDraft` false **and** the three installers of step 9b listed — a public release missing one means its run failed or never uploaded, so go back to step 9a for it. If it's still a draft (deploy skipped, failed, the commit check refused, or `release.yml` hadn't created the draft yet when the deploy finished), the release is invisible to users and auto-update; publish manually with `gh release edit v{version} --repo leftos/yaat --draft=false` once the matching server is live. The Discord announcement fires on its own: publishing with a user token (manually or via the deploy script) raises the `release: published` event that triggers `discord-release.yml` — do **not** also dispatch that workflow, or the announcement posts twice.
+14. **Complete the Linear release — no confirmation.** Cutting the release is the owner's ack for every issue that shipped in it, so this step runs without asking, once the release is public (step 13, or 9b on the client-only path). First **land** the issue that tracks this cut, if the queue has one (a "Cut the release…" gate item), on the tag commit (`linear land <ID> --sha <tag commit>`): only Landed issues ship, so an unlanded cut item rolls over into `vNext`. Then:
+
+    ```bash
+    uv run --project ~/.claude/tools/linear python -m linear release complete yaat --version v{version} --sha "$(git rev-parse v{version}^{commit})" --repo-root "$YAAT"
+    ```
+
+    It moves each Landed issue of the `yaat` pipeline's open release whose landing commit is in the tag's history to Done with the comment `Released v{version}`, which closes its GitHub issue through the sync; moves the rest to a new `vNext`; and completes the release under the version. Report its `<ID>: Done` / `<ID>: moved to vNext` lines. If it exits 2 with `LINEAR_OAUTH_CLIENT_ID is not set`, the shell predates the user variables: run it from PowerShell after `$env:LINEAR_OAUTH_CLIENT_ID = [Environment]::GetEnvironmentVariable('LINEAR_OAUTH_CLIENT_ID','User')` and the same for `LINEAR_OAUTH_CLIENT_SECRET`. A failure after its first write leaves two open releases; `~/.claude/tools/linear/README.md` ("Workspace") says how to finish it. Then sweep the project statuses with the Linear MCP `save_project`: a project whose every issue is Done or Canceled → `completed` (the snapshot also does this), one with an In Progress issue → `started`. Then regenerate the plan snapshot (`linear snapshot yaat --repo-root "$YAAT"`) and commit `docs/plans/MAIN.md` as `docs: plan snapshot` and push it, if it changed; the deploy is over, so a commit past the tag is safe now.
 
 The tag push triggers the `release.yml` GitHub Actions workflow. The workflow extracts the matching section from `CHANGELOG.md` (using the tag name), splits out the `### Highlights` subsection for the GitHub Release's "Highlights" block, and uses the rest of the section as the "Changelog" block. The highlights you and the user agreed on in Step 8 are exactly what ships — no AI rewriting at release time. Every release is created as a draft and published by this flow: step 9b for client-only releases, the deploy script for server-affecting ones (full mechanics: `docs/installer-release.md`).
