@@ -56,7 +56,7 @@
   - [x] YAAT-13 Context-menu quick commands: brief 7d (header, footer, relative items) · release vNext
   - [x] YAAT-14 Context-menu quick commands: brief 7e (one tree on every surface) · release vNext
     - [ ] YAAT-312 Context menu: stale descriptions after the builder refactor
-  - [/] YAAT-15 Context-menu quick commands step 3: per-situation lists with the icon strip · release vNext
+  - [x] YAAT-15 Context-menu quick commands step 3: per-situation lists with the icon strip · release vNext
 - [ ] YAAT-229 Route the data-block field popups through MenuPopups.Open; wrap MenuPopups' summary line
 - [ ] YAAT-264 Context menus: no double separator before Track in the builder
 - [ ] YAAT-268 Context menus in an extra ground window at another airport use the primary view's layout
@@ -71,7 +71,7 @@
 - [x] YAAT-291 Client surfaces redesign: Settings window shell (sidebar sections, OK/Apply/Cancel) · release vNext
 - [ ] YAAT-292 Client surfaces redesign: Settings search with aliases and cross-section links
 - [ ] YAAT-293 Client surfaces redesign: open Settings at a section (view menus, Ctrl+comma, status-bar links)
-- [/] YAAT-294 Client surfaces redesign: reconcile Scenario defaults with the session flyout
+- [x] YAAT-294 Client surfaces redesign: reconcile Scenario defaults with the session flyout · release vNext
 - [ ] YAAT-295 Client surfaces redesign: regroup the View menu and add pop-out hotkeys
 - [x] YAAT-296 Client surfaces redesign: merge Window Profiles and Copy View Settings into Layouts · release vNext
 - [ ] YAAT-297 Client surfaces redesign: one Import / Export hub with a .yaat-settings.zip bundle
@@ -156,8 +156,8 @@
 
 ## Wave 2 — Ground command grammar and dispatch
 
-- [/] YAAT-308 Solo ready-to-taxi call-up fires for aircraft taxiing, following or arrived · release vNext
-  - [ ] YAAT-317 Inventory every ZOA scenario spawn and settle each kind's initial pilot call · release vNext
+- [x] YAAT-308 Solo ready-to-taxi call-up fires for aircraft taxiing, following or arrived · release vNext
+  - [x] YAAT-317 Inventory every ZOA scenario spawn and settle each kind's initial pilot call · release vNext
 - [x] YAAT-307 FOLLOWG and GIVEWAY get no pilot readback · release vNext
 - [ ] YAAT-50 Armed FOLLOWG leftovers: RES at bars, follow readbacks, repeat crossings
 - [ ] YAAT-51 Offer standalone TAXI modifiers at slot 1; test cross-command alias collisions
@@ -254,6 +254,7 @@
 
 ## Wave 9 — Docs and repo hygiene
 
+- [x] YAAT-276 Correct the gear flyout's field count in client-mainviewmodel.md · release vNext
 - [ ] YAAT-110 Replace stale MainViewModel line numbers in docs/command-input-ux.md
 - [ ] YAAT-111 Code hygiene from the ERAM session: long lines, sync-over-async, optional params
 - [ ] YAAT-112 Move developer docs from the repo root into docs/
@@ -284,7 +285,6 @@
 - [ ] YAAT-265 Re-measure the bare dotnet test ceilings and the test-loop baseline on a quiet machine
 - [ ] YAAT-267 Record AircraftProfiles.json provenance and licence in NOTICE
 - [ ] YAAT-271 Use linear release add in the yaat-nextup profile; note test-all's silent test phase
-- [ ] YAAT-276 Correct the gear flyout's field count in client-mainviewmodel.md
 - [ ] YAAT-287 Remove the phantom GuideCapture Fakes/FakeFilePickerService.cs line from architecture.md
 - [ ] YAAT-290 Run the tools/tests Python suite in CI
 - [ ] YAAT-323 Fix two stale yaat-server test comments (weather fixture, TickTimings cref)
