@@ -4072,14 +4072,25 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
-    private void ApplySimState(bool paused, int rate, double elapsed = 0, bool isPlayback = false, double tapeEnd = 0)
+    public void ApplySimState(bool paused, int rate, double elapsed, bool isPlayback, double tapeEnd)
     {
         IsPaused = paused;
         SimRate = rate;
         SelectedSimRateIndex = Array.IndexOf(SimRateOptions, rate);
         ScenarioElapsedSeconds = elapsed;
-        IsPlaybackMode = isPlayback;
-        PlaybackTapeEnd = tapeEnd;
+        // TimelineMaximum reads the tape end only in playback, so the tape end changes while it is not read: before
+        // entering playback, after leaving it. The other order shows a zero maximum for a moment, and the timeline
+        // slider clamps its thumb to 0 and keeps it there.
+        if (isPlayback)
+        {
+            PlaybackTapeEnd = tapeEnd;
+            IsPlaybackMode = true;
+        }
+        else
+        {
+            IsPlaybackMode = false;
+            PlaybackTapeEnd = tapeEnd;
+        }
         OnPropertyChanged(nameof(ElapsedTimeDisplay));
         OnPropertyChanged(nameof(TapeEndDisplay));
         OnPropertyChanged(nameof(TimelineMaximum));

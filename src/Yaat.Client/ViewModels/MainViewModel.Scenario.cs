@@ -697,7 +697,7 @@ public partial class MainViewModel
         );
         StashScenarioGeneratorsAndPositions(result.AircraftGenerators, result.VfrArrivalGenerators, result.OverflightGenerators, result.Positions);
         IsLiveSession = result.IsLiveSession;
-        ApplySimState(result.IsPaused, result.SimRate);
+        ApplySimState(result.IsPaused, result.SimRate, 0, false, 0);
         ApplySessionSettingsFromLoadScenarioResult(result);
 
         _ = SendAutoAcceptDelay();
@@ -744,7 +744,7 @@ public partial class MainViewModel
             );
             StashScenarioGeneratorsAndPositions(dto.AircraftGenerators, dto.VfrArrivalGenerators, dto.OverflightGenerators, dto.Positions);
             IsLiveSession = dto.IsLiveSession;
-            ApplySimState(dto.IsPaused, dto.SimRate);
+            ApplySimState(dto.IsPaused, dto.SimRate, 0, false, 0);
 
             // Apply session settings from the server (set by the loading RPO).
             // Do NOT send our preferences — only the loading RPO applies theirs.
