@@ -23,6 +23,13 @@ namespace Yaat.Client.ViewModels;
 /// </summary>
 public partial class VStripsViewModel : ObservableObject
 {
+    /// <summary>
+    /// The wall clock that stamps the METAR bar's default report when no weather is loaded.
+    /// <see cref="TimeProvider.System"/> in the apps; the user-guide screenshot harness pins it so its captures come out
+    /// identical run to run.
+    /// </summary>
+    public static TimeProvider WallClock { get; set; } = TimeProvider.System;
+
     private readonly ILogger _log = SimLog.CreateLogger("VStripsViewModel");
 
     private readonly IStripsTransport _transport;
@@ -466,7 +473,7 @@ public partial class VStripsViewModel : ObservableObject
         // leaves the bar empty instead of fabricating a stale report.
         if (Metars.Count == 0 && IsConnected && _latestMetars.Count == 0 && _facilityAirports.Length > 0)
         {
-            DateTime now = DateTime.UtcNow;
+            DateTime now = WallClock.GetUtcNow().UtcDateTime;
             foreach (string airport in _facilityAirports)
             {
                 Metars.Add(new StripMetarEntry(MetarParser.ToIcao(airport), DefaultMetar.Build(airport, now)));

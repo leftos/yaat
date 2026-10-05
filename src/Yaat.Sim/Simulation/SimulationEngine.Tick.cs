@@ -70,6 +70,7 @@ public sealed partial class SimulationEngine
         ProcessReleaseQueue();
         ProcessTimers();
         ProcessReleasedGroundDepartures();
+        ProcessRunwaySpawnAutoTakeoffs();
 
         // Ensure ground layout is set
         if (scenario.PrimaryAirportId is not null && World.GroundLayout is null)
@@ -1581,6 +1582,7 @@ public sealed partial class SimulationEngine
             TryReserveSoloParkingInitialCallupSlot = TryReserveSoloParkingInitialCallupSlot,
             RpoShowPilotSpeech = Scenario?.RpoShowPilotSpeech ?? false,
             StudentPositionType = Scenario?.StudentPositionType,
+            IsRunwaySpawnFieldTowered = IsRunwaySpawnFieldTowered(aircraft),
             StudentPosition = Scenario?.StudentPosition,
             ArtccId = Scenario?.ArtccId,
             PrimaryAirportId = Scenario?.PrimaryAirportId,

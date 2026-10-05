@@ -85,6 +85,12 @@ public class SnapshotRoundTripTests
             },
         };
         ac.Ground.InitialCallupDecisionProcessed = true;
+        ac.Ground.InitialCallup = InitialCallupPlan.AfterPush;
+        ac.Ground.SpawnTaxiway = "K";
+        ac.Ground.PushedBackFrom = "F8";
+        ac.Ground.PushEndSpot = "5A";
+        ac.Ground.PresetTaxiStop = new PresetTaxiStop(PresetTaxiStopKind.TaxiwayHoldShort, "C", "T41W");
+        ac.Ground.VfrDepartureDirection = "north";
 
         ac.WindComponents = (5.0, -3.0);
         ac.Targets.TargetAltitude = 10000;
@@ -122,6 +128,12 @@ public class SnapshotRoundTripTests
         Assert.True(restored.IsClearedIntoBravo);
         Assert.True(restored.HasAnnouncedLinedUpReady);
         Assert.True(restored.Ground.InitialCallupDecisionProcessed);
+        Assert.Equal(InitialCallupPlan.AfterPush, restored.Ground.InitialCallup);
+        Assert.Equal("K", restored.Ground.SpawnTaxiway);
+        Assert.Equal("F8", restored.Ground.PushedBackFrom);
+        Assert.Equal("5A", restored.Ground.PushEndSpot);
+        Assert.Equal(new PresetTaxiStop(PresetTaxiStopKind.TaxiwayHoldShort, "C", "T41W"), restored.Ground.PresetTaxiStop);
+        Assert.Equal("north", restored.Ground.VfrDepartureDirection);
         Assert.NotNull(restored.PendingPilotRequest);
         Assert.Equal(PilotPendingRequestKind.Approach, restored.PendingPilotRequest.Kind);
         Assert.Equal(PilotPendingRequestResponseState.Standby, restored.PendingPilotRequest.ResponseState);
@@ -198,6 +210,85 @@ public class SnapshotRoundTripTests
         SnapshotSchemaMigrator.Migrate(snapshot);
 
         Assert.Equal(expectedEfc, AircraftHoldAnnotation.FromSnapshot(Assert.Single(snapshot.Aircraft).HoldAnnotation).Efc);
+    }
+
+    [Theory]
+    [InlineData(InitialCallupPlan.RunwaySayOnly, PilotPendingRequestKind.Clearance)]
+    [InlineData(InitialCallupPlan.RunwayNoPreset, PilotPendingRequestKind.Release)]
+    public void RunwayPlansAndTheNewRequestKinds_RoundTrip(InitialCallupPlan plan, PilotPendingRequestKind kind)
+    {
+        var ac = new AircraftState { Callsign = "N513SJ", AircraftType = "C421" };
+        ac.Ground.InitialCallup = plan;
+        ac.PendingPilotRequest = new PilotPendingRequest
+        {
+            Kind = kind,
+            FirstRequestedAtSeconds = 90,
+            LastRequestedAtSeconds = 90,
+            NextFollowUpDueSeconds = 210,
+            LastPilotLine = "approach, runway 25 at Auburn, ready for departure, request release.",
+            LastPilotLineTts = "approach, november five one three sierra juliet, runway two five at Auburn, ready for departure, request release.",
+        };
+
+        var restored = AircraftState.FromSnapshot(ac.ToSnapshot(), null);
+
+        Assert.Equal(plan, restored.Ground.InitialCallup);
+        Assert.Equal(kind, restored.PendingPilotRequest!.Kind);
+    }
+
+    [Theory]
+    [InlineData(true, false, "AtParking", InitialCallupPlan.None)] // a scripted departure never called
+    [InlineData(false, false, "AtParking", InitialCallupPlan.StandCall)] // an open decision at its stand would have made the stand call
+    [InlineData(false, true, "AtParking", InitialCallupPlan.None)] // a decided one never calls again
+    [InlineData(true, true, "AtParking", InitialCallupPlan.None)]
+    [InlineData(false, false, "HoldingInPosition", InitialCallupPlan.None)] // an open decision away from a stand never calls from one
+    [InlineData(false, false, null, InitialCallupPlan.None)] // nor does one with no phase (an airborne arrival)
+    public void Ground_IsScriptedDeparture_MigratesToAnInitialCallupPlanFromBeforeV33(
+        bool scriptedDeparture,
+        bool decisionProcessed,
+        string? currentPhase,
+        InitialCallupPlan expected
+    )
+    {
+        string phases = currentPhase is null
+            ? ""
+            : ", \"Phases\": { \"CurrentIndex\": 0, \"Phases\": [ { \"$type\": \"" + currentPhase + "\", \"Status\": 1, \"ElapsedSeconds\": 3 } ] }";
+        string json =
+            "{ \"SchemaVersion\": 32, \"ElapsedSeconds\": 10, \"Rng\": { \"S0\": 1, \"S1\": 2, \"S2\": 3, \"S3\": 4 },"
+            + " \"Aircraft\": [ { \"Callsign\": \"AAL1\", \"AircraftType\": \"B738\", \"Ground\": { \"IsHeld\": false, \"AutoDeleteExempt\": true,"
+            + " \"ConflictBreakRemainingSeconds\": 0, \"HasAnnouncedReady\": false, \"IsScriptedDeparture\": "
+            + (scriptedDeparture ? "true" : "false")
+            + ", \"InitialCallupDecisionProcessed\": "
+            + (decisionProcessed ? "true" : "false")
+            + " }"
+            + phases
+            + " } ],"
+            + " \"Scenario\": { \"ScenarioId\": \"t\", \"ScenarioName\": \"T\", \"RngSeed\": 1, \"ElapsedSeconds\": 10, \"SimRate\": 1 } }";
+        StateSnapshotDto snapshot = JsonSerializer.Deserialize<StateSnapshotDto>(json, RecordingJsonOptions.Default)!;
+
+        SnapshotSchemaMigrator.Migrate(snapshot);
+
+        AircraftGroundOpsDto ground = Assert.Single(snapshot.Aircraft).Ground;
+        Assert.Equal(expected, ground.InitialCallup);
+        Assert.Null(ground.SpawnTaxiway);
+        Assert.Equal(SnapshotSchemaMigrator.CurrentSchemaVersion, snapshot.SchemaVersion);
+        // The legacy field is read once and dropped, so a rewritten snapshot no longer carries it.
+        Assert.DoesNotContain("IsScriptedDeparture", JsonSerializer.Serialize(snapshot, RecordingJsonOptions.Default), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Ground_InitialCallup_IsNotRederivedFromAV33Snapshot()
+    {
+        string json =
+            "{ \"SchemaVersion\": 33, \"ElapsedSeconds\": 10, \"Rng\": { \"S0\": 1, \"S1\": 2, \"S2\": 3, \"S3\": 4 },"
+            + " \"Aircraft\": [ { \"Callsign\": \"AAL1\", \"AircraftType\": \"B738\", \"Ground\": { \"IsHeld\": false, \"AutoDeleteExempt\": true,"
+            + " \"ConflictBreakRemainingSeconds\": 0, \"HasAnnouncedReady\": false, \"InitialCallupDecisionProcessed\": false,"
+            + " \"InitialCallup\": 2 } } ],"
+            + " \"Scenario\": { \"ScenarioId\": \"t\", \"ScenarioName\": \"T\", \"RngSeed\": 1, \"ElapsedSeconds\": 10, \"SimRate\": 1 } }";
+        StateSnapshotDto snapshot = JsonSerializer.Deserialize<StateSnapshotDto>(json, RecordingJsonOptions.Default)!;
+
+        SnapshotSchemaMigrator.Migrate(snapshot);
+
+        Assert.Equal(InitialCallupPlan.AfterPush, Assert.Single(snapshot.Aircraft).Ground.InitialCallup);
     }
 
     private static AircraftHoldAnnotation RoundTripThroughJson(AircraftHoldAnnotation annotation)
@@ -393,6 +484,17 @@ public class SnapshotRoundTripTests
                         ConflictBreakRemainingSeconds = 0,
                         HasAnnouncedReady = false,
                         InitialCallupDecisionProcessed = true,
+                        InitialCallup = InitialCallupPlan.AfterTaxiArrival,
+                        SpawnTaxiway = "K",
+                        PushedBackFrom = "G9",
+                        PushEndSpot = "5A",
+                        PresetTaxiStop = new PresetTaxiStopDto
+                        {
+                            Kind = PresetTaxiStopKind.TaxiwayHoldShort,
+                            Name = "C",
+                            OnTaxiway = "T41W",
+                        },
+                        VfrDepartureDirection = "north",
                     },
                     Track = new AircraftTrackDto { OnHandoff = false, HandoffAccepted = false },
                     Stars = new AircraftStarsStateDto
@@ -463,6 +565,16 @@ public class SnapshotRoundTripTests
         Assert.Single(deserialized.Aircraft);
         Assert.Equal("AAL100", deserialized.Aircraft[0].Callsign);
         Assert.True(deserialized.Aircraft[0].Ground.InitialCallupDecisionProcessed);
+        Assert.Equal(InitialCallupPlan.AfterTaxiArrival, deserialized.Aircraft[0].Ground.InitialCallup);
+        Assert.Equal("K", deserialized.Aircraft[0].Ground.SpawnTaxiway);
+        Assert.Equal("G9", deserialized.Aircraft[0].Ground.PushedBackFrom);
+        Assert.Equal("5A", deserialized.Aircraft[0].Ground.PushEndSpot);
+        PresetTaxiStopDto stop = Assert.IsType<PresetTaxiStopDto>(deserialized.Aircraft[0].Ground.PresetTaxiStop);
+        Assert.Equal(PresetTaxiStopKind.TaxiwayHoldShort, stop.Kind);
+        Assert.Equal("C", stop.Name);
+        Assert.Equal("T41W", stop.OnTaxiway);
+        Assert.Equal("north", deserialized.Aircraft[0].Ground.VfrDepartureDirection);
+        Assert.DoesNotContain("IsScriptedDeparture", json, StringComparison.Ordinal);
         Assert.Equal(45, deserialized.Scenario.SoloParkingInitialCallupRatePercent);
         Assert.Equal(70, deserialized.Scenario.SoloArrivalGeneratorRatePercent);
         Assert.True(deserialized.Scenario.HasSoloParkingInitialCallupSource);

@@ -317,6 +317,12 @@
                   <views:TimelineMarkerCanvas MaxTime="{Binding $parent[ItemsControl].DataContext.TimelineMaximum}" />
                 </ItemsPanelTemplate>
               </ItemsControl.ItemsPanel>
+              <!-- The canvas arranges the item containers, so each container carries its item's time. -->
+              <ItemsControl.ItemContainerTheme>
+                <ControlTheme TargetType="ContentPresenter" x:DataType="vm:TimelineBookmarkVm">
+                  <Setter Property="views:TimelineMarkerCanvas.Time" Value="{Binding TimeSeconds}" />
+                </ControlTheme>
+              </ItemsControl.ItemContainerTheme>
               <ItemsControl.ItemTemplate>
                 <DataTemplate DataType="vm:TimelineBookmarkVm" x:DataType="vm:TimelineBookmarkVm">
                   <Border
@@ -327,7 +333,6 @@
                     Cursor="Hand"
                     VerticalAlignment="Bottom"
                     Tag="{Binding TimeSeconds}"
-                    views:TimelineMarkerCanvas.Time="{Binding TimeSeconds}"
                   >
                     <Border.ContextMenu>
                       <ContextMenu>
@@ -345,6 +350,12 @@
                   <views:TimelineMarkerCanvas MaxTime="{Binding $parent[ItemsControl].DataContext.TimelineMaximum}" />
                 </ItemsPanelTemplate>
               </ItemsControl.ItemsPanel>
+              <!-- The canvas arranges the item containers, so each container carries its item's time. -->
+              <ItemsControl.ItemContainerTheme>
+                <ControlTheme TargetType="ContentPresenter" x:DataType="vm:TimelineMarkerVm">
+                  <Setter Property="views:TimelineMarkerCanvas.Time" Value="{Binding TimeSeconds}" />
+                </ControlTheme>
+              </ItemsControl.ItemContainerTheme>
               <ItemsControl.ItemTemplate>
                 <DataTemplate DataType="vm:TimelineMarkerVm" x:DataType="vm:TimelineMarkerVm">
                   <Border
@@ -355,7 +366,6 @@
                     Cursor="Hand"
                     VerticalAlignment="Bottom"
                     Tag="{Binding TimeSeconds}"
-                    views:TimelineMarkerCanvas.Time="{Binding TimeSeconds}"
                   />
                 </DataTemplate>
               </ItemsControl.ItemTemplate>

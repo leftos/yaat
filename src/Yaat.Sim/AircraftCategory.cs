@@ -405,7 +405,7 @@ public static class CategoryPerformance
     /// <summary>
     /// Comfortable braking deceleration (kts/sec): the most a pilot brakes to make a high-speed exit when
     /// selecting one uninstructed (standard exits qualify only at <see cref="RolloutDecelRate"/>). Sits above
-    /// <see cref="RolloutDecelRate"/>, below the firm <see cref="Phases.RolloutBraking.FirmBrakingRateKtsPerSec"/>
+    /// <see cref="RolloutDecelRate"/>, at or below the firm <see cref="FirmBrakingRate"/>
     /// for every fixed-wing category, and at or below
     /// <see cref="ExpediteExitDecelRate"/>. Judgement calls (aviation review 2026-09-24); no FAA figure
     /// exists. Helicopter: 0 (no rollout).
@@ -418,6 +418,23 @@ public static class CategoryPerformance
             AircraftCategory.Piston => 3.75, // ≈0.19 g
             AircraftCategory.Helicopter => 0,
             _ => 4.5,
+        };
+
+    /// <summary>
+    /// Firm braking deceleration (kts/sec): the most a pilot brakes for an exit the controller named
+    /// (<c>ER</c>/<c>EL</c>/<c>EXIT</c>), for the firm-braking fallback when no exit qualifies at the comfortable
+    /// rates, and short of a LAHSO hold-short point. At or above <see cref="ComfortableExitDecelRate"/> and below the
+    /// max-effort <see cref="ExpediteExitDecelRate"/> reserved for <c>EXP</c>, for every category. Judgement calls
+    /// (owner ruling on aviation review); no FAA figure exists.
+    /// </summary>
+    public static double FirmBrakingRate(AircraftCategory cat) =>
+        cat switch
+        {
+            AircraftCategory.Jet => 5.0, // ≈0.26 g
+            AircraftCategory.Turboprop => 5.0, // ≈0.26 g
+            AircraftCategory.Piston => 4.0, // ≈0.21 g, inside the C172 POH max-effort ≈3.7–4.4
+            AircraftCategory.Helicopter => 3.0, // running-landing rollout; wheel braking barely applies
+            _ => 5.0,
         };
 
     /// <summary>
@@ -719,9 +736,9 @@ public static class CategoryPerformance
 
     /// <summary>
     /// Max-effort braking deceleration (kts/s) used when a runway exit is
-    /// expedited (<c>EXP</c>) — above the firm 5 kts/s used for normal explicit
-    /// exits. Lets LandingPhase take the earliest reachable exit and lets
-    /// RunwayExitPhase brake firmly to the hold-short stop after the turn-off.
+    /// expedited (<c>EXP</c>) — above the <see cref="FirmBrakingRate"/> used for normal
+    /// explicit exits. Lets LandingPhase take the earliest reachable exit and lets
+    /// RunwayExitPhase brake at max effort to the hold-short stop after the turn-off.
     /// Category-specific (aviation-reviewed): jets have anti-skid / autobrake so
     /// ~0.39 g is firm-but-normal on dry; lighter types come down to avoid
     /// modeling a skid (no anti-skid on most pistons), and a helicopter
@@ -732,7 +749,7 @@ public static class CategoryPerformance
         {
             AircraftCategory.Jet => 7.5, // ~0.39 g, autobrake-MAX / firm manual, dry
             AircraftCategory.Turboprop => 6.0, // ~0.31 g, beta/reverse + brakes, mostly no anti-skid
-            AircraftCategory.Piston => 5.0, // ~0.26 g, controlled hard brake, no anti-skid (avoid skid)
+            AircraftCategory.Piston => 4.5, // ~0.23 g, controlled hard brake, no anti-skid, just above the C172 POH max effort ≈3.7–4.4
             AircraftCategory.Helicopter => 4.0, // running-landing rollout; wheel braking barely applies
             _ => 7.5,
         };
@@ -843,34 +860,17 @@ public static class CategoryPerformance
     /// Distance (nm) for a simple pushback (no taxiway/heading target). Floors
     /// at the prior 0.015 nm (~91 ft) baseline so small aircraft are unaffected;
     /// scales up to ~1× aircraft length for jets so the tail clears the gate
-    /// envelope. B738 (~110 ft) pushes ~110 ft; A388 (~240 ft) pushes ~240 ft.
+    /// envelope. The length is <see cref="AircraftLength.ResolveFt"/>: the FAA
+    /// ACD length when the database carries the type, else the CWT-bucket
+    /// fallback. A B738 (~129.5 ft) pushes ~129.5 ft; an A388 (~240 ft) pushes
+    /// ~240 ft.
     /// </summary>
     public static double SimplePushbackDistanceNm(string aircraftType)
     {
         const double FtPerNm = 6076.12;
         const double BaselineNm = 0.015;
 
-        double lengthFt;
-        FaaAircraftRecord? record = FaaAircraftDatabase.Get(aircraftType);
-        if (record?.LengthFt is { } len && len > 0)
-        {
-            lengthFt = len;
-        }
-        else
-        {
-            string? cwt = WakeTurbulenceData.GetCwt(aircraftType);
-            lengthFt = cwt switch
-            {
-                "A" => 240, // Super (A388)
-                "B" => 230, // Upper Heavy (B744)
-                "C" => 180, // Lower Heavy (B763)
-                "D" => 110, // Upper Large (B738)
-                "E" => 95, // Lower Large (E170)
-                "F" => 50, // Upper Small (C560)
-                _ => 30, // G-I Small/Light (C172)
-            };
-        }
-
+        double lengthFt = AircraftLength.ResolveFt(aircraftType);
         return Math.Max(BaselineNm, lengthFt / FtPerNm);
     }
 

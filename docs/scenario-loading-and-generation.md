@@ -143,8 +143,7 @@ load-time triage at `ScenarioLoader.cs:71`:
 - **Delayed** (`SpawnDelaySeconds > 0`) — positioned correctly but held in `DelayedQueue` until its delay elapses.
 - **Immediate** (everything else) — added to the world and its presets dispatched at load.
 
-`ScenarioLoadResult` also surfaces `HasParkingSpawns` (any `Parking` spawn without a TAXI preset — drives the solo-training
-parking call-up source gate) and `HasArrivalGenerators`.
+`ScenarioLoadResult` also surfaces `HasParkingSpawns` (any immediate, delayed or deferred aircraft whose `InitialCallup` plan is a paced ground call — `StandCall`, `AfterPush` or `AfterTaxiArrival`, not `None` and not a runway plan; drives the solo-training call-up pacing gate; the plans are in [solo-training-pilot-speech.md](solo-training-pilot-speech.md), "Which spawns make the first call") and `HasArrivalGenerators`.
 
 It also surfaces `InitialStripBayByCallsign` — the scenario's top-level `flightStripConfigurations`
 (entries of `{ facilityId, bayId, rack, aircraftIds }`) resolved to a callsign-keyed
@@ -163,23 +162,17 @@ The server's `PopulateRoom` (`ScenarioLifecycleService.PlaceLoadedAircraft`, run
 
 ## The five spawn-condition types and phase-list seeding
 
-`LoadAircraft` (`ScenarioLoader.cs:199`) switches on `StartingConditions.Type`:
+`LoadAircraft` (`ScenarioLoader.cs:434`) switches on `StartingConditions.Type`:
 
 | Type | Position source | Phase seeding | Notes |
 |---|---|---|---|
 | `Coordinates` | explicit lat/lon | none until ground check (below) | airborne unless at/near field elevation with no positive authored speed |
 | `FixOrFrd` | `FrdResolver.Resolve(fix)` | none until ground check | accepts a fix name or an FRD string |
-| `OnRunway` | `AircraftInitializer.InitializeOnRunway` | `LinedUpAndWaiting → Takeoff → InitialClimb` | helicopter swaps in `HelicopterTakeoffPhase` |
+| `OnRunway` | `AircraftInitializer.InitializeOnRunway` | `LinedUpAndWaiting → Takeoff → InitialClimb` | helicopter swaps in `HelicopterTakeoffPhase`; sets the `InitialCallup` plan by the runway-spawn rules (`RunwaySayOnly` / `RunwayNoPreset` / `None`) |
 | `OnFinal` | `AircraftInitializer.InitializeOnFinal` | `FinalApproach(SkipInterceptCheck) → Landing` | helicopter swaps in `HelicopterLandingPhase` |
-| `Parking` | `layout.FindParkingByName ?? FindSpotByName` | `AtParkingPhase` | sets `Ground.AutoDeleteExempt` and `IsScriptedDeparture` |
+| `Parking` | `layout.FindParkingByName ?? FindSpotByName` | `AtParkingPhase` | sets `Ground.AutoDeleteExempt`, the `InitialCallup` plan and, for an after-taxi-arrival plan, `Ground.PresetTaxiStop` |
 
-`Coordinates` and `FixOrFrd` share a code path. The ground check runs **before** the cruise-speed default: if the authored speed is
-non-positive (`0` when both altitude and speed are omitted, `-1` when altitude is authored but speed omitted) and altitude is within
-200 ft of field elevation, the aircraft is a ground spawn — speed is forced to `0`, it is marked `IsOnGround`, given an
-`AtParkingPhase`, assigned a ground layout, and (mirroring the `Parking` path) flagged `Ground.AutoDeleteExempt` +
-`IsScriptedDeparture` so a `TAXI` preset fires and it isn't culled under `autoDeleteMode: Parked`. Only an airborne spawn falls
-through to `AircraftPerformance.DefaultSpeed`. Order matters: resolving the default first would turn the `-1` sentinel into a
-positive cruise speed and spawn a field-elevation departure airborne.
+`Coordinates` and `FixOrFrd` share a code path. The ground check runs **before** the cruise-speed default: if the authored speed is non-positive (`0` when both altitude and speed are omitted, `-1` when altitude is authored but speed omitted) and altitude is within 200 ft of field elevation, the aircraft is a ground spawn — speed is forced to `0`, it is marked `IsOnGround`, given an `AtParkingPhase`, assigned a ground layout and (mirroring the `Parking` path) flagged `Ground.AutoDeleteExempt` so it isn't culled under `autoDeleteMode: Parked`. `ArmCoordinateGroundSpawn` then snaps it onto the nearest taxi edge (`GroundSpawnSnap.Apply`, below), records the movement-area taxiway it sits on as `Ground.SpawnTaxiway` (`GroundSpawnSnap.SpawnTaxiwayAt`, judged from the pre-snap position), and gives it its `InitialCallup` plan and `PresetTaxiStop` (an airport with no layout gets `None`). Only an airborne spawn falls through to `AircraftPerformance.DefaultSpeed`. Order matters: resolving the default first would turn the `-1` sentinel into a positive cruise speed and spawn a field-elevation departure airborne.
 
 `AircraftInitializer` (`src/Yaat.Sim/Scenarios/AircraftInitializer.cs`) is the shared phase/pose builder:
 
@@ -197,9 +190,7 @@ See [phases.md](phases.md) for what each seeded phase does once the aircraft sta
 
 ## `CreateBaseState`, approach inheritance, beacon assignment
 
-`CreateBaseState(ac, primaryAirportId, primaryApproach)` (`ScenarioLoader.cs:108`) builds the shared `AircraftState` skeleton —
-callsign, type, airport id, transponder, flight plan, approach — that all five spawn types then fill in with position/phase.
-Three decisions matter:
+`CreateBaseState(ac, primaryAirportId, primaryApproach)` (`ScenarioLoader.cs:211`) builds the shared `AircraftState` skeleton — callsign, type, airport id, transponder, flight plan, approach — that all five spawn types then fill in with position/phase. Three decisions matter:
 
 - **Actual vs filed type.** `AircraftType` (top-level) is the *physical* type and always wins for performance. The filed FP type
   (`FlightPlan.aircraftType`) is opt-in: `FlightPlan.AircraftType` is only populated when the JSON explicitly sets it.
@@ -279,14 +270,9 @@ procedure-shaped token that NavData doesn't know, it warns and applies nothing.
 
 ## `GroundSpawnSnap` for coordinate ground spawns
 
-`Coordinates` / `FixOrFrd` ground spawns express "ready to taxi from this point" — but the authored coordinates are usually a
-few feet off the nearest taxiway edge, which would force any subsequent `TAXI` to cut diagonally across terrain. After heading
-derivation (`ScenarioLoader.cs:331`), `GroundSpawnSnap.Apply(state, layout)`
-(`src/Yaat.Sim/Data/Airport/GroundSpawnSnap.cs:48`) snaps an on-ground aircraft onto the nearest taxi edge and rotates its
-heading to that edge's bearing — choosing the edge direction closer to the aircraft's original heading as a tiebreaker. It runs
-at load time (before the first tick) so a paused-at-load scenario shows the snapped pose with no visible teleport. It is bounded
-by `MaxSnapDistanceFt = 200.0` (`:39`); beyond that, or when no edge is found, it logs a warning and leaves the pose unchanged.
-It does **not** apply to `Parking` (already on a graph node), `OnRunway`/`OnFinal`, or airborne aircraft.
+`Coordinates` / `FixOrFrd` ground spawns express "ready to taxi from this point" — but the authored coordinates are usually a few feet off the nearest taxiway edge, which would force any subsequent `TAXI` to cut diagonally across terrain. After heading derivation (`ScenarioLoader.LoadAircraft`, through `ArmCoordinateGroundSpawn`), `GroundSpawnSnap.Apply(state, layout)` (`src/Yaat.Sim/Data/Airport/GroundSpawnSnap.cs:53`) snaps an on-ground aircraft onto the nearest taxi edge and rotates its heading to that edge's bearing — choosing the edge direction closer to the aircraft's original heading as a tiebreaker. It runs at load time (before the first tick) so a paused-at-load scenario shows the snapped pose with no visible teleport. It is bounded by `MaxSnapDistanceFt = 200.0` (`:39`); beyond that, or when no edge is found, it logs a warning and leaves the pose unchanged. It does **not** apply to `Parking` (already on a graph node), `OnRunway`/`OnFinal`, or airborne aircraft.
+
+`Apply` returns the nearest taxi edge it found, with its distance measured from the pose before any snap — also when that edge lies beyond `MaxSnapDistanceFt` and the pose is left unchanged — or null when the aircraft is airborne or no edge was found. `GroundSpawnSnap.SpawnTaxiwayAt(layout, preSnapPosition, nearest)` reads it to decide whether the spawn sits **on a taxiway**: the edge is within 150 ft (`RampLaneReposition.CurrentLaneMaxFt`), carries a name that `MovementAreaClassification` counts as movement area, and no parking or helipad node and no straight `RAMP` connector edge (which `FindNearestTaxiEdge` skips) is nearer to the pre-snap position than it. A stand within a lane's width of a taxiway is therefore at the stand, not on the taxiway. The name it returns is `Ground.SpawnTaxiway`, which the solo stand call names ("on taxiway K", [solo-training-pilot-speech.md](solo-training-pilot-speech.md)).
 
 ## The `ADD` command grammar and trailing-override slot-skip
 
@@ -790,9 +776,7 @@ reattachment pattern.
 
 ## Checklist: adding a spawn-condition type or `ADD` variant
 
-1. **New `StartingConditions.Type`:** add a `case` in `LoadAircraft` (`ScenarioLoader.cs:218`); build the pose + phase list via a
-   new `AircraftInitializer` method (or reuse one); decide ground vs airborne and whether `GroundSpawnSnap` applies; on any
-   un-resolvable position, return `BuildDeferredAircraft` rather than `null` so the aircraft still shows in lists.
+1. **New `StartingConditions.Type`:** add a `case` in `LoadAircraft` (`ScenarioLoader.cs:454`); build the pose + phase list via a new `AircraftInitializer` method (or reuse one); decide ground vs airborne and whether `GroundSpawnSnap` applies; on any un-resolvable position, return `BuildDeferredAircraft` rather than `null` so the aircraft still shows in lists.
 2. **New `ADD` position variant:** add a `SpawnPositionType` enum value (`SpawnRequest.cs:23`) and the per-variant fields; add a
    `Parse*Variant` branch in `SpawnParser` (mind the `@`/`-`/runway disambiguation and the index-4 slot-skip); add the matching
    `Generate*` method in `AircraftGenerator` and a `case` in `GenerateCore`.

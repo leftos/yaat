@@ -244,13 +244,26 @@ public sealed class GroundNavigator
     public double RouteEndSpeedKts { get; set; }
 
     /// <summary>
-    /// Deceleration rate (kts/s) used by the braking curve and backward-propagated
-    /// speed constraints. Null = the category taxi decel rate (normal taxi/exit).
-    /// <see cref="RunwayExitPhase"/> raises it to
-    /// <see cref="CategoryPerformance.ExpediteExitDecelRate"/> for an expedited
-    /// exit so the aircraft brakes firmly to the hold-short stop after the turn-off.
+    /// Deceleration rate (kts/s) for the whole route: the braking curve to every corner, arc and stop, and the rate published
+    /// to physics. Null = the category taxi decel rate (normal taxi/exit). <see cref="RunwayExitPhase"/> sets it to
+    /// <see cref="CategoryPerformance.ExpediteExitDecelRate"/> for an expedited (<c>EXP</c>) exit, so the aircraft brakes at
+    /// max effort through the turn-off and to the hold-short stop, and leaves it null otherwise.
     /// </summary>
     public double? DecelRateKts { get; set; }
+
+    /// <summary>
+    /// Deceleration rate (kts/s) for the route's in-route slowdowns — corner and arc speeds — when set; null leaves them at
+    /// <see cref="DecelRateKts"/>'s rate. Stops — the route end, and every bar ahead not cleared — are planned each on its own
+    /// braking curve at <see cref="DecelRateKts"/>'s rate (the category taxi rate when null), and that rate is published
+    /// whenever a stop's curve sets the target, so a softer or firmer slowdown rate never moves a stop. A bar's stop is dropped
+    /// once the bar is cleared; the route-end stop never is. <see cref="RunwayExitPhase"/> sets it on the turn-off to the rate the
+    /// rollout chose the exit with. Not serialized: the owning phase re-applies it before every tick and segment set-up.
+    /// </summary>
+    public double? SlowdownDecelRateKts { get; set; }
+
+    // Set by ComputeTargetSpeed when a stop's braking curve set the target while SlowdownDecelRateKts applies, so
+    // PublishSpeed publishes the stop rate rather than the slowdown rate. Reset at the start of every tick.
+    private bool _stopCurveBinds;
 
     public void SetTargetNodeId(int nodeId) => TargetNodeId = nodeId;
 
@@ -470,12 +483,13 @@ public sealed class GroundNavigator
 
     /// <summary>
     /// Speed constraints from future segments, each as a tuple of:
-    /// (path distance from current target, required speed at that point, node id).
+    /// (path distance from current target, required speed at that point, node id, whether it is the stop for a bar).
     /// Computed during <see cref="SetupSegment"/> via forward-walk + backward-
     /// propagation, mirroring V1's approach but populated directly from
-    /// <see cref="TaxiRouteSegment"/> iteration.
+    /// <see cref="TaxiRouteSegment"/> iteration. A bar stop is dropped once its bar is cleared; every other constraint,
+    /// the route-end stop included, always applies.
     /// </summary>
-    private readonly List<(double PathDistNm, double RequiredSpeedKts, int NodeId)> _speedConstraints = [];
+    private readonly List<(double PathDistNm, double RequiredSpeedKts, int NodeId, bool IsBarStop)> _speedConstraints = [];
 
     /// <summary>
     /// Heading-misalignment threshold (deg) above which a new segment gets a
@@ -1309,6 +1323,7 @@ public sealed class GroundNavigator
     {
         _restoredPlayback = null;
         double headingBeforeDeg = ctx.Aircraft.TrueHeading.Degrees;
+        _stopCurveBinds = false;
 
         NavigatorResult result = _currentPrimitive switch
         {
@@ -2063,21 +2078,11 @@ public sealed class GroundNavigator
     private double ComputeTargetSpeed(PhaseContext ctx, double distToEndpointNm, Func<int, bool> isHoldShortCleared)
     {
         double decelRate = DecelRateKts ?? CategoryPerformance.TaxiDecelRate(ctx.Category);
-
-        // Brake curve from the current node's required speed.
-        double brakingLimit = Math.Sqrt(_currentNodeRequiredSpeed * _currentNodeRequiredSpeed + 2.0 * decelRate * distToEndpointNm * 3600.0);
-
-        // Apply each future constraint.
-        foreach ((double pathDist, double reqSpeed, int nodeId) in _speedConstraints)
-        {
-            if (reqSpeed == 0 && isHoldShortCleared(nodeId))
-            {
-                continue;
-            }
-            double totalDist = Math.Max(0.0, distToEndpointNm + pathDist);
-            double limit = Math.Sqrt(reqSpeed * reqSpeed + 2.0 * decelRate * totalDist * 3600.0);
-            brakingLimit = Math.Min(brakingLimit, limit);
-        }
+        bool stopCurveBinds = false;
+        double brakingLimit = SlowdownDecelRateKts is { } slowdownRate
+            ? SplitRateBrakingLimit(distToEndpointNm, isHoldShortCleared, (decelRate, slowdownRate), out stopCurveBinds)
+            : SingleRateBrakingLimit(distToEndpointNm, isHoldShortCleared, decelRate);
+        decelRate = SlowdownDecelRateKts ?? decelRate;
 
         // Quadratic scaling by heading error so the aircraft slows during
         // large re-alignments. On a Bézier this is ~1 (we write the exact
@@ -2103,12 +2108,74 @@ public sealed class GroundNavigator
         double arcCap = BezierArcCapKts(decelRate);
         target = Math.Min(target, arcCap);
 
+        // The stop rate is published only while the stop's curve is what sets the target.
+        _stopCurveBinds = stopCurveBinds && (brakingLimit <= target);
+
         if (Log.IsEnabled(LogLevel.Debug))
         {
             LogSpeedCaps(ctx, distToEndpointNm, target, headingCap, angleDiff, speedFraction, brakingLimit, connectorCap, arcCap);
         }
 
         return target;
+    }
+
+    /// <summary>
+    /// The braking-curve ceiling (kts) at <paramref name="decelRate"/> to the current node's required speed and every future
+    /// constraint, which <see cref="BuildSpeedConstraints"/> back-propagated at the same rate.
+    /// </summary>
+    private double SingleRateBrakingLimit(double distToEndpointNm, Func<int, bool> isHoldShortCleared, double decelRate)
+    {
+        double brakingLimit = Math.Sqrt(_currentNodeRequiredSpeed * _currentNodeRequiredSpeed + 2.0 * decelRate * distToEndpointNm * 3600.0);
+
+        foreach ((double pathDist, double reqSpeed, int nodeId, bool isBarStop) in _speedConstraints)
+        {
+            if (isBarStop && isHoldShortCleared(nodeId))
+            {
+                continue;
+            }
+            double totalDist = Math.Max(0.0, distToEndpointNm + pathDist);
+            double limit = Math.Sqrt(reqSpeed * reqSpeed + 2.0 * decelRate * totalDist * 3600.0);
+            brakingLimit = Math.Min(brakingLimit, limit);
+        }
+
+        return brakingLimit;
+    }
+
+    /// <summary>
+    /// The braking-curve ceiling (kts) with <see cref="SlowdownDecelRateKts"/> set: each stop (a zero required speed) on its own
+    /// curve at <paramref name="rates"/>' stop rate and each slowdown on its own curve at its slowdown rate.
+    /// <see cref="BuildSpeedConstraints"/> skips its back-propagation in this mode, so every constraint keeps its own speed and
+    /// the minimum over the individual curves is the plan. <paramref name="stopBinds"/> says whether a stop's curve set it.
+    /// </summary>
+    private double SplitRateBrakingLimit(
+        double distToEndpointNm,
+        Func<int, bool> isHoldShortCleared,
+        (double Stop, double Slowdown) rates,
+        out bool stopBinds
+    )
+    {
+        double CurveKts(double reqSpeed, double distNm) =>
+            Math.Sqrt(reqSpeed * reqSpeed + 2.0 * (reqSpeed == 0 ? rates.Stop : rates.Slowdown) * Math.Max(0.0, distNm) * 3600.0);
+
+        double brakingLimit = CurveKts(_currentNodeRequiredSpeed, distToEndpointNm);
+        stopBinds = _currentNodeRequiredSpeed == 0;
+
+        foreach ((double pathDist, double reqSpeed, int nodeId, bool isBarStop) in _speedConstraints)
+        {
+            if (isBarStop && isHoldShortCleared(nodeId))
+            {
+                continue;
+            }
+
+            double limit = CurveKts(reqSpeed, distToEndpointNm + pathDist);
+            if (limit < brakingLimit)
+            {
+                brakingLimit = limit;
+                stopBinds = reqSpeed == 0;
+            }
+        }
+
+        return brakingLimit;
     }
 
     /// <summary>
@@ -2353,7 +2420,7 @@ public sealed class GroundNavigator
             && !route.StopLiesOnSegment(route.CurrentSegmentIndex, bar)
         )
         {
-            _speedConstraints.Add((-StopDistanceBeforeNodeNm(route, route.CurrentSegmentIndex, bar), 0, TargetNodeId));
+            _speedConstraints.Add((-StopDistanceBeforeNodeNm(route, route.CurrentSegmentIndex, bar), 0, TargetNodeId, true));
         }
     }
 
@@ -2367,7 +2434,7 @@ public sealed class GroundNavigator
     {
         int nodeId = route.Segments[barSegmentIndex].ToNodeId;
         double beforeNodeNm = route.GetHoldShortAt(nodeId) is { } bar ? StopDistanceBeforeNodeNm(route, barSegmentIndex, bar) : 0.0;
-        _speedConstraints.Add((nodeDistNm - beforeNodeNm, 0, nodeId));
+        _speedConstraints.Add((nodeDistNm - beforeNodeNm, 0, nodeId, true));
         _speedConstraints.Sort((a, b) => a.PathDistNm.CompareTo(b.PathDistNm));
     }
 
@@ -2458,7 +2525,9 @@ public sealed class GroundNavigator
                 {
                     if (sample.SpeedKts < MaxSpeedKts)
                     {
-                        _speedConstraints.Add((arcStartDist + (sample.LengthFt / GeoMath.FeetPerNm), sample.SpeedKts, futureSeg.Edge.FromNodeId));
+                        _speedConstraints.Add(
+                            (arcStartDist + (sample.LengthFt / GeoMath.FeetPerNm), sample.SpeedKts, futureSeg.Edge.FromNodeId, false)
+                        );
                     }
                 }
             }
@@ -2483,28 +2552,35 @@ public sealed class GroundNavigator
 
             if (reqSpeed < MaxSpeedKts)
             {
-                _speedConstraints.Add((cumulativeDistNm, reqSpeed, futureSeg.ToNodeId));
+                _speedConstraints.Add((cumulativeDistNm, reqSpeed, futureSeg.ToNodeId, false));
             }
+        }
+
+        // With a separate slowdown rate each constraint keeps its own speed: SplitRateBrakingLimit plans every one on its own
+        // curve at its own rate, which is what back-propagating at one rate would otherwise compute.
+        if (SlowdownDecelRateKts is not null)
+        {
+            return;
         }
 
         // Backward propagation: apply kinematic decel between adjacent constraints.
         double decelRate = DecelRateKts ?? CategoryPerformance.TaxiDecelRate(ctx.Category);
         for (int i = _speedConstraints.Count - 2; i >= 0; i--)
         {
-            (double dist, double speed, int nodeId) = _speedConstraints[i];
-            (double nextDist, double nextSpeed, int _) = _speedConstraints[i + 1];
+            (double dist, double speed, int nodeId, bool isBarStop) = _speedConstraints[i];
+            (double nextDist, double nextSpeed, int _, bool _) = _speedConstraints[i + 1];
             double legDist = nextDist - dist;
             double backProp = Math.Sqrt(nextSpeed * nextSpeed + 2.0 * decelRate * legDist * 3600.0);
             if (backProp < speed)
             {
-                _speedConstraints[i] = (dist, backProp, nodeId);
+                _speedConstraints[i] = (dist, backProp, nodeId, isBarStop);
             }
         }
 
         // Propagate the first future constraint back into the current node's required speed.
         if (_speedConstraints.Count > 0)
         {
-            (double firstDist, double firstSpeed, int _) = _speedConstraints[0];
+            (double firstDist, double firstSpeed, int _, bool _) = _speedConstraints[0];
             double backProp = Math.Sqrt(firstSpeed * firstSpeed + 2.0 * decelRate * Math.Max(0.0, firstDist) * 3600.0);
             if (backProp < _currentNodeRequiredSpeed)
             {
@@ -2540,7 +2616,7 @@ public sealed class GroundNavigator
     {
         if (_currentPrimitive is PathPrimitiveBezier)
         {
-            return BezierArcCapKts(DecelRateKts ?? CategoryPerformance.TaxiDecelRate(ctx.Category));
+            return BezierArcCapKts(SlowdownDecelRateKts ?? DecelRateKts ?? CategoryPerformance.TaxiDecelRate(ctx.Category));
         }
 
         return _currentPrimitive is PathPrimitiveSlowTurn slowTurn ? slowTurn.MaxSpeedKts : double.MaxValue;
@@ -2566,7 +2642,7 @@ public sealed class GroundNavigator
     private void PublishSpeed(PhaseContext ctx, double targetKts)
     {
         ctx.Targets.TargetSpeed = ClampBySpeedLimit(ctx, targetKts);
-        ctx.Targets.DesiredDecelRate = DecelRateKts;
+        ctx.Targets.DesiredDecelRate = ((SlowdownDecelRateKts is { } slowdownRate) && !_stopCurveBinds) ? slowdownRate : DecelRateKts;
     }
 
     /// <summary>

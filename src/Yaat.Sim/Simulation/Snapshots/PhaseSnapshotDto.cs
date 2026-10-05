@@ -22,6 +22,13 @@ public sealed class PhaseListDto
     public string? RequestedExitTaxiway { get; init; }
     public ApproachClearanceDto? ActiveApproach { get; init; }
     public LahsoTargetDto? LahsoHoldShort { get; init; }
+
+    // Taxiways the crew has told the controller it is unable to exit at on this landing: every exit search of the landing and the
+    // runway exit skips them until a new instruction names one again. Not `required`: absent on older snapshots, where none is given
+    // up; and not written while null, so a snapshot with nothing given up — every snapshot 0 — serializes exactly as it did before
+    // the field existed (yaat-server pins snapshot 0's hash).
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<string>? GivenUpExitTaxiways { get; init; }
     public required int CurrentIndex { get; init; }
     public required List<PhaseDto> Phases { get; init; }
 }
@@ -775,6 +782,10 @@ public sealed class RunwayExitPhaseDto : PhaseDto
     // (the restore path rebuilds the exit route from segment 0 anyway).
     public bool TurnStarted { get; init; }
 
+    // The braking rate the committed exit was chosen with, which the turn-off flies at. Not `required`: absent on older
+    // snapshots, where null (the category taxi rate) is what those builds braked the turn-off at.
+    public double? TurnOffDecelRate { get; init; }
+
     // A backtrack exit committed whose route is not yet built: the heading flips to the reciprocal when it is.
     public bool BacktrackPending { get; init; }
 
@@ -1169,6 +1180,15 @@ public sealed class LandingPhaseDto : PhaseDto
     public int? OriginalPreferenceSide { get; init; }
     public string? OriginalPreferenceTaxiway { get; init; }
     public bool ExitResolutionEnabled { get; init; }
+
+    // The crew has told the controller it is unable to make the exit the controller named, so it does not say it again
+    // for that exit. Not `required`: absent on older snapshots, where false lets the call be made once more.
+    public bool UnableBroadcast { get; init; }
+
+    // The remembered original preference was the very instance the phase list's RequestedExit held, so a restore shares it
+    // again; an equal but separate instruction (re-issued, not yet ticked) restores as new. Not `required`: absent on older
+    // snapshots, where false makes the restored list's preference read as a new instruction.
+    public bool OriginalPreferenceIsRequestedExit { get; init; }
     public required bool StoppedForLahso { get; init; }
 
     // LandingPhase additions (optional for backward-compat with older snapshots)

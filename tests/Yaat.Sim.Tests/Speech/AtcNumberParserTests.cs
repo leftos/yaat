@@ -103,6 +103,23 @@ public class AtcNumberParserTests
     public void NormalizeDigits_NoNumbers_PassesThrough(string input, string expected) =>
         Assert.Equal(expected, AtcNumberParser.NormalizeDigits(input));
 
+    [Theory]
+    // After a "thousand" multiplier, only a teen or tens word joins the number; bare digit words
+    // start a new number. "one four thousand two four zero" is altitude 14000 followed by speed
+    // 240, never 14024. A "hundred" multiplier keeps taking its trailing pair as before.
+    [InlineData("one four thousand two four zero", "14000 240")]
+    [InlineData("one one thousand five hundred two five zero", "11500 250")]
+    [InlineData("five thousand fifty", "5050")]
+    [InlineData("five thousand fifty five", "5055")]
+    [InlineData("one zero thousand", "10000")]
+    [InlineData("two thousand", "2000")]
+    // Must stay: no thousand multiplier, so a bare digit pair still coalesces.
+    [InlineData("two hundred forty two", "242")]
+    [InlineData("two hundred four two", "242")]
+    [InlineData("fifteen zero zero", "1500")]
+    public void NormalizeDigits_ThousandBoundary_OnlyWordPairsJoinTheNumber(string input, string expected) =>
+        Assert.Equal(expected, AtcNumberParser.NormalizeDigits(input));
+
     // --- NormalizeDigits: paired-cardinal flight-number coalescing ---
     //
     // Inverse of FlightNumberToPairedWords. The pre-fix parser treated each spoken compound as

@@ -38,7 +38,11 @@ internal static class Runner
         {
             try
             {
-                await CaptureOneAsync(scene, ctx, outDir, renderScaling);
+                Exception? afterCaptureFailure = await CaptureOneAsync(scene, ctx, outDir, renderScaling);
+                if (afterCaptureFailure is not null)
+                {
+                    failed++;
+                }
             }
             catch (Exception ex)
             {
@@ -53,7 +57,9 @@ internal static class Runner
         return failed == 0 ? 0 : 1;
     }
 
-    private static async Task CaptureOneAsync(Scene scene, CaptureContext ctx, string outDir, double renderScaling)
+    // Returns the exception a scene's AfterCapture threw, or null. A failed AfterCapture fails the
+    // scene: the run counts it and its exit status reflects it, the way a capture failure does.
+    private static async Task<Exception?> CaptureOneAsync(Scene scene, CaptureContext ctx, string outDir, double renderScaling)
     {
         Console.WriteLine($"Capturing {scene.Name} ({scene.Width}x{scene.Height}) ...");
 
@@ -105,10 +111,43 @@ internal static class Runner
             bitmap.Save(path, PngBitmapEncoderOptions.Default);
             Console.WriteLine($"  -> {path}");
         }
-        finally
+        catch
         {
-            window.Close();
+            RestoreAndClose(scene, window);
+            throw;
+        }
+
+        return RestoreAndClose(scene, window);
+    }
+
+    // Runs the scene's AfterCapture and closes its windows; returns the AfterCapture exception, if any, so the scene counts as failed.
+    private static Exception? RestoreAndClose(Scene scene, Window window)
+    {
+        Exception? afterCaptureFailure = null;
+        try
+        {
+            scene.AfterCapture();
             Dispatcher.UIThread.RunJobs();
         }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"  {scene.Name}: restoring state after the capture failed: {ex}");
+            afterCaptureFailure = ex;
+        }
+
+        foreach (Window extra in scene.ExtraWindows)
+        {
+            try
+            {
+                extra.Close();
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"  {scene.Name}: closing extra window '{extra.Title}' failed: {ex}");
+            }
+        }
+        window.Close();
+        Dispatcher.UIThread.RunJobs();
+        return afterCaptureFailure;
     }
 }

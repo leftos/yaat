@@ -15,12 +15,12 @@ internal static class GroundStopBraking
         /// <summary>The taxi brake rate stops it at the point.</summary>
         Routine,
 
-        /// <summary>Only the category's firm rate, <see cref="CategoryPerformance.ExpediteExitDecelRate"/>, does.</summary>
-        Firm,
+        /// <summary>Only the category's max-effort rate, <see cref="CategoryPerformance.ExpediteExitDecelRate"/>, does.</summary>
+        MaxEffort,
 
         /// <summary>
-        /// Not even the firm rate does: brake at it. The follower stops dead short of the hold line as the last resort; a
-        /// GIVEWAY, with no marking to protect, stops where the firm rate takes it.
+        /// Not even the max-effort rate does: brake at it. The follower stops dead short of the hold line as the last resort;
+        /// a GIVEWAY, with no marking to protect, stops where the max-effort rate takes it.
         /// </summary>
         Backstop,
     }
@@ -28,7 +28,7 @@ internal static class GroundStopBraking
     /// <summary>
     /// The gentlest braking that stops the aircraft at a point <paramref name="toStopFt"/> ahead (a follower's runway hold
     /// line, a GIVEWAY's give-way point) from the current speed: the taxi brake rate when its stopping distance fits, the
-    /// firm rate when only that fits, else the backstop.
+    /// max-effort rate when only that fits, else the backstop.
     /// </summary>
     internal static StopBraking ChooseStopBraking(PhaseContext ctx, double toStopFt)
     {
@@ -39,15 +39,15 @@ internal static class GroundStopBraking
         }
 
         return StoppingDistanceFt(speedKts, CategoryPerformance.ExpediteExitDecelRate(ctx.Category)) <= toStopFt
-            ? StopBraking.Firm
+            ? StopBraking.MaxEffort
             : StopBraking.Backstop;
     }
 
     private static double StoppingDistanceFt(double speedKts, double decelKtsPerSec) =>
         (speedKts * speedKts) / (2.0 * decelKtsPerSec) * FeetPerSecondPerKt;
 
-    /// <summary>How far (ft) the aircraft rolls this tick braking at its category's firm rate.</summary>
-    internal static double FirmBrakingTravelThisTickFt(PhaseContext ctx)
+    /// <summary>How far (ft) the aircraft rolls this tick braking at its category's max-effort rate.</summary>
+    internal static double MaxEffortBrakingTravelThisTickFt(PhaseContext ctx)
     {
         double speedKts = ctx.Aircraft.GroundSpeed;
         double rate = CategoryPerformance.ExpediteExitDecelRate(ctx.Category);

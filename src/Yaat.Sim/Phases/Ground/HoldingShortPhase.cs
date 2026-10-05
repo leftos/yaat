@@ -67,7 +67,14 @@ public sealed class HoldingShortPhase(HoldShortPoint holdShort) : Phase
         PilotSpeechText speechText = heldAtNamedTarget
             ? PilotResponder.BuildHoldingShortTaxi(ctx.Aircraft, label, taxiway, requestFurtherTaxi)
             : PilotResponder.BuildHoldingShortCrossing(ctx.Aircraft, ResolveSpokenCrossingRunway(ctx, target));
-        PilotResponder.RouteRpoTransmission(ctx.Aircraft, ctx.SoloTrainingMode, ctx.RpoShowPilotSpeech, speechText.Tts, warningText);
+        // At the stop a spawn's preset taxi ends at, the delayed "holding short of C at T41W, … ready to taxi" call replaces
+        // this report when that call can come (someone answers it and the pacing rate is above zero), so the pilot does not
+        // say it twice and never sits at the bar with neither.
+        bool replacedByInitialCall = (PresetTaxiStopLocation(ctx.Aircraft) is not null) && InitialCallupCall.CanCall(ctx);
+        if (!replacedByInitialCall)
+        {
+            PilotResponder.RouteRpoTransmission(ctx.Aircraft, ctx.SoloTrainingMode, ctx.RpoShowPilotSpeech, speechText.Tts, warningText);
+        }
 
         // Tail-over-runway (issue #172 W3): the aircraft holds at the taxiway line with its tail still
         // over the runway behind it. Protecting the runway is the controller's job (7110.65 3-7-4), not
@@ -156,8 +163,51 @@ public sealed class HoldingShortPhase(HoldShortPoint holdShort) : Phase
             }
         }
 
+        if (
+            (PresetTaxiStopLocation(ctx.Aircraft) is { } location)
+            && (ElapsedSeconds >= InitialCallupCall.AfterTaxiArrivalDelaySeconds(ctx.Aircraft.Callsign))
+        )
+        {
+            InitialCallupCall.TryMake(ctx, location);
+        }
+
         return false;
     }
+
+    /// <summary>
+    /// Where the after-taxi-arrival call is made from when this bar is the stop the spawn's preset taxi ends at
+    /// (<see cref="AircraftGroundOps.PresetTaxiStop"/>) and the call is still owed: "holding short of C at T41W" at its
+    /// taxiway hold short, "at spot 5" at its spot hold short. Null at any other bar, and always at a runway bar.
+    /// </summary>
+    private ReadyToTaxiLocation? PresetTaxiStopLocation(AircraftState aircraft)
+    {
+        AircraftGroundOps ground = aircraft.Ground;
+        if ((ground.InitialCallup != InitialCallupPlan.AfterTaxiArrival) || ground.InitialCallupDecisionProcessed || ProtectsARunway)
+        {
+            return null;
+        }
+
+        return (ground.PresetTaxiStop is { } stop) && (_holdShort.TargetName is { Length: > 0 } target)
+            ? MatchPresetTaxiStop(ground, stop, target)
+            : null;
+    }
+
+    private static ReadyToTaxiLocation? MatchPresetTaxiStop(AircraftGroundOps ground, PresetTaxiStop stop, string target)
+    {
+        if (stop.Kind == PresetTaxiStopKind.Spot)
+        {
+            bool atTheSpot = HoldShortTarget.IsSpotTargetName(target) && SameName(HoldShortTarget.SpotNameOf(target), stop.Name);
+            return atTheSpot ? ReadyToTaxiLocation.Spot(stop.Name) : null;
+        }
+
+        bool atTheBar =
+            (stop.Kind == PresetTaxiStopKind.TaxiwayHoldShort)
+            && SameName(target, stop.Name)
+            && ((stop.OnTaxiway is null) || SameName(ground.CurrentTaxiway, stop.OnTaxiway));
+        return atTheBar ? ReadyToTaxiLocation.HoldingShort(target, ground.CurrentTaxiway ?? "taxiway") : null;
+    }
+
+    private static bool SameName(string? a, string? b) => string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// Whether this bar protects a runway. A <see cref="HoldShortReason.RunwayCrossing"/> or

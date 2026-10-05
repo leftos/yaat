@@ -2,6 +2,7 @@ using System.Text;
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Vnas;
+using Yaat.Sim.Pilot;
 
 namespace Yaat.Sim.Simulation.Tdls;
 
@@ -145,8 +146,28 @@ public static class TdlsCommandHandler
         }
 
         EmitSendTerminal(engine, callsign, facility, payload);
+        AnswerClearanceRequest(engine, callsign, facility);
 
         return new CommandResult(true, $"PDC sent to {callsign} at {facility}");
+    }
+
+    /// <summary>
+    /// A PDC is the controller answering the pilot's clearance request: an open <see cref="PilotPendingRequestKind.Clearance"/>
+    /// request is satisfied, so it stops following up, and the awaiting-controller-response gate clears. TDLSS never reaches
+    /// <see cref="PilotRequestTracker.ApplyControllerResponse"/>, which answers requests for aircraft commands only.
+    /// </summary>
+    private static void AnswerClearanceRequest(SimulationEngine engine, string callsign, string facility)
+    {
+        if (
+            (engine.FindAircraft(callsign) is not { } aircraft)
+            || !PilotRequestTracker.SatisfyOpenRequest(aircraft, PilotPendingRequestKind.Clearance)
+        )
+        {
+            return;
+        }
+
+        engine.World.AcknowledgeControllerResponse(callsign);
+        Log.LogDebug("TDLSS answered the clearance request of {Callsign} at {Facility}", callsign, facility);
     }
 
     // ── TDLSW — mark Sent → Wilco ─────────────────────────────────

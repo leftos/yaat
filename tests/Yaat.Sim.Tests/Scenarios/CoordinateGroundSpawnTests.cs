@@ -1,5 +1,7 @@
+using System.Globalization;
 using Xunit;
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Scenarios;
 using Yaat.Sim.Tests.Helpers;
@@ -181,7 +183,141 @@ public class CoordinateGroundSpawnTests
         Assert.IsType<AtParkingPhase>(state.Phases?.CurrentPhase);
         Assert.NotNull(state.Ground.Layout);
         Assert.True(state.Ground.AutoDeleteExempt, "Ground departures must be exempt from Parked auto-delete");
-        Assert.True(state.Ground.IsScriptedDeparture, "A TAXI preset marks this a scripted departure");
+        // The point sits within the lane width of taxiway C, so its TAXI to the runway is scripted and never calls.
+        Assert.Equal("C", state.Ground.SpawnTaxiway);
+        Assert.Equal(InitialCallupPlan.None, state.Ground.InitialCallup);
+    }
+
+    // Taxiway K at OAK, the H2 case's ground spawn (YAAT-308): a coordinate spawn on a movement-area taxiway.
+    private const string CoordinatesOnTaxiwayK = """
+        {
+          "id": "test",
+          "name": "Test",
+          "primaryAirportId": "OAK",
+          "aircraft": [
+            {
+              "id": "ac1",
+              "aircraftId": "N52417",
+              "aircraftType": "C172",
+              "startingConditions": { "type": "Coordinates", "coordinates": { "lat": 37.73212069, "lon": -122.22503752 } },
+              "flightplan": { "rules": "VFR", "departure": "KLVK", "destination": "KOAK" },
+              "presetCommands": __PRESETS__,
+              "airportId": "OAK"
+            }
+          ]
+        }
+        """;
+
+    // The south GA ramp at OAK between GA7 and GA8: no movement-area taxiway within the lane width.
+    private const string CoordinatesOnTheGaRamp = """
+        {
+          "id": "test",
+          "name": "Test",
+          "primaryAirportId": "OAK",
+          "aircraft": [
+            {
+              "id": "ac1",
+              "aircraftId": "N123SP",
+              "aircraftType": "C172",
+              "startingConditions": { "type": "Coordinates", "coordinates": { "lat": 37.732479, "lon": -122.215235 } },
+              "flightplan": { "rules": "VFR", "departure": "KOAK", "destination": "KSFO" },
+              "presetCommands": [ { "id": "p1", "command": "TAXI W 28R", "timeOffset": 0 } ],
+              "airportId": "OAK"
+            }
+          ]
+        }
+        """;
+
+    private static AircraftState LoadSingle(string json) =>
+        Assert
+            .Single(ScenarioLoader.Load(json, new TestAirportGroundData(), new Random(0), MagneticDeclination.EvaluationDateUtc).ImmediateAircraft)
+            .State;
+
+    [Theory]
+    [InlineData("[]", InitialCallupPlan.StandCall)]
+    [InlineData("""[ { "id": "p1", "command": "TAXI K W 28R", "timeOffset": 0 } ]""", InitialCallupPlan.None)]
+    [InlineData("""[ { "id": "p1", "command": "PUSH K", "timeOffset": 0 } ]""", InitialCallupPlan.AfterPush)]
+    public void CoordinateSpawnOnTaxiwayK_RecordsTheTaxiwayAndPlansFromItsPresets(string presets, InitialCallupPlan expected)
+    {
+        AircraftState state = LoadSingle(CoordinatesOnTaxiwayK.Replace("__PRESETS__", presets, StringComparison.Ordinal));
+
+        Assert.Equal("K", state.Ground.SpawnTaxiway);
+        Assert.Equal(expected, state.Ground.InitialCallup);
+    }
+
+    [Fact]
+    public void CoordinateSpawnOnTheRamp_HasNoSpawnTaxiwayAndItsScriptedTaxiToTheRunwayMakesNoCall()
+    {
+        AircraftState state = LoadSingle(CoordinatesOnTheGaRamp);
+
+        Assert.True(state.IsOnGround);
+        Assert.Null(state.Ground.SpawnTaxiway);
+        Assert.Equal(InitialCallupPlan.None, state.Ground.InitialCallup);
+    }
+
+    // Y-PY SMFN TWR's coordinate spawns parked at SMF stands (the YAAT-317 inventory): each sits a few feet from its
+    // stand, so it is at the stand, not on a taxiway, however near a taxiway runs.
+    private const string CoordinatesAtAnSmfStand = """
+        {
+          "id": "test",
+          "name": "Test",
+          "primaryAirportId": "SMF",
+          "aircraft": [
+            {
+              "id": "ac1",
+              "aircraftId": "SWA2756",
+              "aircraftType": "B737",
+              "startingConditions": { "type": "Coordinates", "coordinates": { "lat": __LAT__, "lon": __LON__ } },
+              "flightplan": { "rules": "IFR", "departure": "KSMF", "destination": "KBUR" },
+              "presetCommands": [],
+              "airportId": "SMF"
+            }
+          ]
+        }
+        """;
+
+    // A coordinate spawn on a stand that lies within the lane width of a movement-area taxiway: the nearest taxi edge
+    // alone would call it on that taxiway, but the stand is nearer, so it is at the stand.
+    [Theory]
+    [InlineData("OAK")]
+    [InlineData("SMF")]
+    public void CoordinateSpawnOnAStandBesideATaxiway_IsNotOnTheTaxiway(string airport)
+    {
+        AirportGroundLayout layout = new TestAirportGroundData().GetLayout(airport)!;
+        var movementArea = MovementAreaClassification.For(layout);
+        GroundNode stand = layout.Nodes.Values.First(node =>
+            (node.Type == GroundNodeType.Parking)
+            && layout.FindNearestTaxiEdge(node.Position) is { } edge
+            && (edge.DistNm * GeoMath.FeetPerNm is > 1.0 and <= RampLaneReposition.CurrentLaneMaxFt)
+            && movementArea.IsMovementArea(edge.Edge.TaxiwayName)
+        );
+        string json = CoordinatesAtAnSmfStand
+            .Replace("\"SMF\"", $"\"{airport}\"", StringComparison.Ordinal)
+            .Replace("__LAT__", stand.Position.Lat.ToString("R", CultureInfo.InvariantCulture), StringComparison.Ordinal)
+            .Replace("__LON__", stand.Position.Lon.ToString("R", CultureInfo.InvariantCulture), StringComparison.Ordinal)
+            .Replace("KSMF", "K" + airport, StringComparison.Ordinal);
+
+        AircraftState state = LoadSingle(json);
+
+        Assert.True(state.IsOnGround);
+        Assert.Null(state.Ground.SpawnTaxiway);
+        Assert.Equal(InitialCallupPlan.StandCall, state.Ground.InitialCallup);
+    }
+
+    [Theory]
+    [InlineData("38.695229", "-121.593859")] // SWA2756, 24 ft from stand B17
+    [InlineData("38.69478", "-121.58803")] // SKW5513, 19 ft from stand A16
+    [InlineData("38.691187", "-121.597433")] // FDX3670, 19 ft from stand F2
+    [InlineData("38.695234", "-121.591971")] // NKS1819, 25 ft from stand B11
+    public void CoordinateSpawnAtAnSmfStand_IsNotOnATaxiway(string lat, string lon)
+    {
+        AircraftState state = LoadSingle(
+            CoordinatesAtAnSmfStand.Replace("__LAT__", lat, StringComparison.Ordinal).Replace("__LON__", lon, StringComparison.Ordinal)
+        );
+
+        Assert.True(state.IsOnGround);
+        Assert.Null(state.Ground.SpawnTaxiway);
+        Assert.Equal(InitialCallupPlan.StandCall, state.Ground.InitialCallup);
     }
 
     [Fact]

@@ -486,6 +486,7 @@ public static class AtcNumberParser
         int total = leadValue.Value;
         int used = leadConsumed;
         bool hasMultiplier = false;
+        bool thousandApplied = false;
 
         // Optional "thousand" scale.
         if (i < tokens.Count && tokens[i] == "thousand")
@@ -494,6 +495,7 @@ public static class AtcNumberParser
             i++;
             used++;
             hasMultiplier = true;
+            thousandApplied = true;
 
             // Optional "<compound> hundred" suffix, e.g. "five thousand five hundred" → 5500.
             if (TryReadCompoundValue(tokens, i, out CompoundValue afterThousand, out int atcConsumed))
@@ -532,7 +534,7 @@ public static class AtcNumberParser
             {
                 // Optional "and" filler: "two hundred and thirty four" → 234.
                 int pairStart = tokens[i] == "and" ? i + 1 : i;
-                if (!TryReadTwoDigitPair(tokens, pairStart, out int pairValue, out int pairConsumed))
+                if (!TryReadTwoDigitPair(tokens, pairStart, allowDigitWords: !thousandApplied, out int pairValue, out int pairConsumed))
                 {
                     break;
                 }
@@ -597,7 +599,13 @@ public static class AtcNumberParser
     /// because those are greedy — a digit-by-digit reader called on "zero zero zero" would
     /// consume all three, but a pair must be exactly 2.
     /// </summary>
-    private static bool TryReadTwoDigitPair(List<string> tokens, int start, out int value, out int consumed)
+    /// <param name="allowDigitWords">
+    /// When false, a pair of bare digit-words does not match — only a teen or tens word does. The
+    /// caller passes false after a "thousand" multiplier, so "one four thousand two four zero" is
+    /// altitude 14000 followed by speed 240 rather than the single 14024, while "...thousand fifty
+    /// five" still joins to 5055.
+    /// </param>
+    private static bool TryReadTwoDigitPair(List<string> tokens, int start, bool allowDigitWords, out int value, out int consumed)
     {
         value = 0;
         consumed = 0;
@@ -633,8 +641,14 @@ public static class AtcNumberParser
         }
 
         // Two consecutive digit-by-digit words. Any pair of digits is fair game here, including
-        // leading-zero pairs ("zero five" → 5) and double-zero pairs ("zero zero" → 0).
-        if (start + 1 < tokens.Count && DigitWords.TryGetValue(first, out int d1) && DigitWords.TryGetValue(tokens[start + 1], out int d2))
+        // leading-zero pairs ("zero five" → 5) and double-zero pairs ("zero zero" → 0). Suppressed
+        // after a thousand multiplier (allowDigitWords false) so bare digit words start a new number.
+        if (
+            allowDigitWords
+            && (start + 1 < tokens.Count)
+            && DigitWords.TryGetValue(first, out int d1)
+            && DigitWords.TryGetValue(tokens[start + 1], out int d2)
+        )
         {
             value = (d1 * 10) + d2;
             consumed = 2;

@@ -13,6 +13,12 @@
 - Settings › Scenario defaults sets the solo parking call-up interval and arrival generator rate for new rooms, and lists the settings only the room changes.
 - Tools › Import / Export… saves or loads your settings, macros, verbs, favorites, columns and layouts in one file; each feature's Import and Export buttons open it.
 - Import / Export backs up all your settings to YAAT's backups folder before each import, and says what each item's import will change.
+- With a solo student on clearance delivery, departures call for their IFR clearance, or a VFR departure naming a direction and altitude, instead of "ready to taxi".
+- A beacon code (`SQ`, `RANDSQ`, `SQVFR`) or a PDC sent with `TDLSS` answers a departure's clearance request, so the pilot stops repeating it.
+- In solo radar sessions, IFR departures lined up at untowered fields ask for their release and wait in the Releases flyout until `REL` or `HFROFF`.
+- In solo training with a radar student, unscripted runway departures at towered fields, or VFR at untowered ones, depart unprompted; RPOs launch them manually.
+- Load Scenario's Local Files tab can load one scenario file directly and lists recent scenarios, marking moved or deleted files missing; Remove drops one.
+- Getting Started and the User Guide show screenshots of every step, including the terminal, timeline and bookmarks, taxi routes, a landing, and the vTDLS tab.
 
 ### Changed
 
@@ -21,21 +27,38 @@
 - The session flyout's auto-accept is a checkbox with a 0–60 second delay, matching its Settings default.
 - The session flyout's auto cleared-to-land and arrival spacing switches name the student's position, such as "Auto cleared-to-land (TWR)".
 - The scenario setup dialog starts from your Settings solo pacing defaults without changing them, and a load without the dialog uses them too.
+- In RPO rooms, a departure released with `REL` or `HFROFF` no longer takes off by itself; the RPO's `CTO` or its scenario preset launches it.
+- Piston aircraft brake at most 4.0 kt/s for an assigned exit and 4.5 with `EXP`, down from 5.0.
+- An assigned exit the pilot can't make gets "unable W3" instead of a readback, and isn't used that landing unless reassigned or once stopped.
 
 ### Fixed
 
+- A landed aircraft turning off onto its exit keeps the braking it used on the rollout, instead of braking hard for the turn.
+- Aircraft types missing from the FAA database push back, stop at gates and yield on the ramp using their wake category's length, not a fixed guess.
+- Spoken "climb via SID except maintain" stays a climb-via when the SID word is misheard, instead of becoming a plain climb.
+- Speech understands "pushback on to", and a crossing altitude followed by a digit-by-digit speed ("one four thousand two four zero knots").
 - A pilot told to follow or give way to taxiing traffic reads it back: "follow the traffic", "behind the traffic".
 - A taxiing aircraft slowing for converging traffic brakes smoothly instead of losing 10 kt in an instant.
 - An aircraft following traffic on the ground brakes to a stop at a runway hold-short line instead of stopping dead.
 - An aircraft told to `GIVEWAY` taxis on and brakes to a stop just clear of the other aircraft's path, instead of stopping dead where it was.
 - The hold-short warning for an aircraft following traffic on the ground names the taxiway it is holding on.
 - A rewind or replay that resumes mid-turn on the ground carries on through the same turn instead of starting it again.
+- A takeoff or line-up clearance queued for an aircraft held for release, in a timed preset or a chain such as `TAXIAUTO 28R; CTO`, now waits for the release instead of being dropped.
+- In solo sessions, an aircraft never calls "ready to taxi" once it has taxied off its stand or parked at one.
+- In solo sessions, an aircraft scripted to taxi to the runway or to parking, including after a `WAIT`, never calls "ready to taxi".
+- In solo sessions, an aircraft scripted to push back calls "ready to taxi" once pushed back, naming the gate it left or the spot it reached.
+- In solo sessions, an aircraft scripted to taxi to a spot or taxiway hold short calls "ready to taxi" from there 10–20 seconds after stopping.
+- A solo aircraft spawned on a taxiway names it, "on taxiway K, ready to taxi", and asks for taxi to parking when already at its destination.
+- An aircraft starting lined up on the runway with a scripted `SAY` line says only that, never also "tower, runway 28R, ready".
 - A loaded solo recording comes up in solo mode, so its replay speaks every pilot line and keeps its recorded conflict-alert inhibits.
 - `EF` reads back and shows as "make straight-in", per 7110.65; "straight-in approach" and "enter final" are still understood when spoken.
 - An aircraft told to `FOLLOW` traffic keeps pattern spacing instead of the radar wake minimum, so a Cessna following a jet turns base about 3 NM behind it, not 4–6.
 - A track never flashes a handoff to the position that already owns it: an auto-tracked arrival owned by the student stays owned, and `HO`/`HOALL` to your own position is refused.
 - A pilot following traffic no longer says "the traffic's on the ground, breaking off the follow" when its lead lands; the follow simply ends.
 - The Quick bookmark key can be rebound again.
+- In CRC's STARS display, a stopped aircraft's history trail now shrinks onto its target instead of freezing where it last moved.
+- The timeline rail draws bookmark and finding ticks at their times instead of all at its left edge.
+- After a rewind, the timeline slider sits at the playhead instead of jumping back to the start.
 
 ## v0.15.0-beta [2026/10/02]
 

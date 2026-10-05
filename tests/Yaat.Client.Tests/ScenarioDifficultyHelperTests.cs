@@ -342,16 +342,17 @@ public class ScenarioDifficultyHelperTests
     }
 
     // -------------------------------------------------------------------------
-    // HasParkingSpawns — preset TAXI filter
+    // HasParkingSpawns — the initial call-up plan from the presets (YAAT-308)
     // -------------------------------------------------------------------------
 
+    // A TAXI to a stand scripts the aircraft's ground sequence: it makes no initial call.
     private const string ParkingWithTaxiPreset = """
         {
           "aircraft": [
             {
-              "callsign": "A1",
-              "startingConditions": { "type": "Parking", "parking": "A1" },
-              "presetCommands": [ { "id": "p1", "command": "TAXI VIA A B", "timeOffset": 0 } ]
+              "aircraftId": "A1",
+              "startingConditions": { "type": "Parking", "parking": "GA7" },
+              "presetCommands": [ { "id": "p1", "command": "TAXI W @GA8", "timeOffset": 0 } ]
             }
           ]
         }
@@ -361,17 +362,24 @@ public class ScenarioDifficultyHelperTests
         {
           "aircraft": [
             {
-              "callsign": "A1",
-              "startingConditions": { "type": "Parking", "parking": "A1" },
-              "presetCommands": [ { "id": "p1", "command": "TAXI VIA A", "timeOffset": 0 } ]
+              "aircraftId": "A1",
+              "startingConditions": { "type": "Parking", "parking": "GA7" },
+              "presetCommands": [ { "id": "p1", "command": "TAXI W @GA8", "timeOffset": 0 } ]
             },
             {
-              "callsign": "A2",
-              "startingConditions": { "type": "Parking", "parking": "A2" }
+              "aircraftId": "A2",
+              "startingConditions": { "type": "Parking", "parking": "GA8" }
             }
           ]
         }
         """;
+
+    private static string OneSpawn(string startingConditions, string preset) =>
+        $$"""{ "aircraft": [ { "aircraftId": "A1", "startingConditions": {{startingConditions}}, "presetCommands": [ { "id": "p1", "command": "{{preset}}", "timeOffset": 0 } ] } ] }""";
+
+    private const string AtParking = """{ "type": "Parking", "parking": "GA7" }""";
+    private const string OnCoordinates = """{ "type": "Coordinates", "coordinates": { "lat": 37.73212069, "lon": -122.22503752 } }""";
+    private const string AirborneCoordinates = """{ "type": "Coordinates", "coordinates": { "lat": 37.4, "lon": -122.0 }, "altitude": 6000 }""";
 
     [Fact]
     public void HasParkingSpawns_AllParkingAircraftScripted_ReturnsFalse() =>
@@ -383,6 +391,27 @@ public class ScenarioDifficultyHelperTests
 
     [Fact]
     public void HasParkingSpawns_NoPresets_ReturnsTrue() => Assert.True(ScenarioDifficultyHelper.HasParkingSpawns(EasyOnlyWithParking));
+
+    [Fact]
+    public void HasParkingSpawns_ParkingPushOnly_ReturnsTrue() =>
+        Assert.True(ScenarioDifficultyHelper.HasParkingSpawns(OneSpawn(AtParking, "PUSH Z")));
+
+    [Fact]
+    public void HasParkingSpawns_ParkingWaitTaxiToARunway_ReturnsFalse() =>
+        // A scripted taxi to the runway never makes a call while it runs, whoever the student is.
+        Assert.False(ScenarioDifficultyHelper.HasParkingSpawns(OneSpawn(AtParking, "WAIT 30 TAXI B W 28L")));
+
+    [Fact]
+    public void HasParkingSpawns_CoordinateTaxiToARunway_ReturnsFalse() =>
+        Assert.False(ScenarioDifficultyHelper.HasParkingSpawns(OneSpawn(OnCoordinates, "TAXI K W 28R")));
+
+    [Fact]
+    public void HasParkingSpawns_CoordinateWithoutATaxiToARunway_ReturnsTrue() =>
+        Assert.True(ScenarioDifficultyHelper.HasParkingSpawns(OneSpawn(OnCoordinates, "PUSH K")));
+
+    [Fact]
+    public void HasParkingSpawns_AirborneCoordinates_ReturnsFalse() =>
+        Assert.False(ScenarioDifficultyHelper.HasParkingSpawns(OneSpawn(AirborneCoordinates, "PUSH K")));
 
     [Fact]
     public void ScenarioSetupPlan_AllParkingScripted_HidesParkingSlider()

@@ -108,7 +108,14 @@ public class Issue134OakRunwayExitTests(ITestOutputHelper output)
         double lat = coords[idx].Lat;
         double lon = coords[idx].Lon;
 
-        (GroundNode Node, string Taxiway)? result = layout.FindExitAheadOnRunway(lat, lon, new TrueHeading(280.0), null, "28L");
+        (GroundNode Node, string Taxiway)? result = layout.FindExitAheadOnRunway(
+            lat,
+            lon,
+            new TrueHeading(280.0),
+            null,
+            "28L",
+            excludeTaxiways: null
+        );
         Assert.NotNull(result);
 
         GroundNode exitNode = result.Value.Node;

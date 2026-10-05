@@ -937,6 +937,152 @@ public class PilotResponderTests
     }
 
     [Fact]
+    public void BuildReadyToTaxi_TaxiwaySpawn_NamesTheTaxiway()
+    {
+        AircraftState ac = MakeAircraft("N123AB");
+        ac.Ground.SpawnTaxiway = "K";
+
+        PilotSpeechText result = PilotResponder.BuildReadyToTaxi(ac, "ground", "A");
+
+        Assert.Equal("ground, on taxiway K, with information Alpha, ready to taxi.", result.Terminal);
+        Assert.Equal("ground, november one two three alpha bravo on taxiway kilo, with information Alpha, ready to taxi.", result.Tts);
+    }
+
+    [Fact]
+    public void BuildReadyToTaxi_TaxiwaySpawnBoundForThisField_RequestsTaxiToParking()
+    {
+        AircraftState ac = MakeAircraft("N123AB", isVfr: true);
+        ac.Ground.SpawnTaxiway = "K";
+        ac.Ground.LayoutAirportId = "KLVK";
+        ac.FlightPlan.Destination = "KLVK";
+
+        PilotSpeechText result = PilotResponder.BuildReadyToTaxi(ac, "ground", "A");
+
+        Assert.Equal("ground, on taxiway K, with information Alpha, request taxi to parking.", result.Terminal);
+        Assert.Equal("ground, november one two three alpha bravo on taxiway kilo, with information Alpha, request taxi to parking.", result.Tts);
+    }
+
+    [Fact]
+    public void BuildClearanceRequest_Ifr_NamesTheDestination_NoTypeNoRequestClearance()
+    {
+        AircraftState ac = MakeAircraft("SWA2099");
+        ac.FlightPlan.Destination = "KLAX";
+
+        PilotSpeechText result = PilotResponder.BuildClearanceRequest(ac, "Oakland Clearance", "A", ReadyToTaxiLocation.Stand("F8"), null);
+
+        Assert.Equal("Oakland Clearance, at gate F8, with information Alpha, IFR to Los Angeles Airport.", result.Terminal);
+        Assert.Equal(
+            "Oakland Clearance, southwest twenty ninety nine, at gate foxtrot eight, with information Alpha, IFR to Los Angeles Airport.",
+            result.Tts
+        );
+    }
+
+    [Fact]
+    public void BuildClearanceRequest_IfrHeavy_SaysHeavyAfterTheCallsign()
+    {
+        AircraftState ac = MakeAircraft("UAL1");
+        ac.AircraftType = "B77W";
+        ac.FlightPlan.Destination = "KLAX";
+
+        PilotSpeechText result = PilotResponder.BuildClearanceRequest(ac, "clearance", "A", ReadyToTaxiLocation.Stand("F8"), null);
+
+        Assert.Equal("clearance, at gate F8, with information Alpha, IFR to Los Angeles Airport.", result.Terminal);
+        Assert.StartsWith("clearance, united one heavy, at gate", result.Tts, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void BuildClearanceRequest_Vfr_NamesTheDirectionAndAltitude_NeverTheDestination()
+    {
+        AircraftState ac = MakeAircraft("N123AB", isVfr: true);
+        ac.FlightPlan.Destination = "KSAC";
+        ac.FlightPlan.Altitude = new PlannedAltitude(4500, null, true, false, false);
+
+        PilotSpeechText result = PilotResponder.BuildClearanceRequest(ac, "Oakland Clearance", "A", ReadyToTaxiLocation.Stand("F8"), "north");
+
+        Assert.Equal("Oakland Clearance, at gate F8, with information Alpha, VFR departure to the north, at 4500.", result.Terminal);
+        Assert.Equal(
+            "Oakland Clearance, november one two three alpha bravo, at gate foxtrot eight, with information Alpha, VFR departure to the north, at four thousand five hundred.",
+            result.Tts
+        );
+    }
+
+    [Fact]
+    public void BuildClearanceRequest_VfrWithNoFiledAltitude_LeavesTheAltitudeOut()
+    {
+        AircraftState ac = MakeAircraft("N123AB", isVfr: true);
+
+        PilotSpeechText result = PilotResponder.BuildClearanceRequest(ac, "clearance", "A", ReadyToTaxiLocation.PushedBackFrom("F8"), "west");
+
+        Assert.Equal("clearance, pushed back from gate F8, with information Alpha, VFR departure to the west.", result.Terminal);
+    }
+
+    [Fact]
+    public void BuildReleaseRequest_NamesTheRunwayAndTheField()
+    {
+        AircraftState ac = MakeAircraft("N513SJ");
+        string auburn = PhraseologyVerbalizer.SpellAirportName("AUN");
+
+        PilotSpeechText result = PilotResponder.BuildReleaseRequest(ac, "25", "AUN", "NorCal Approach");
+
+        Assert.StartsWith("Auburn", auburn, StringComparison.Ordinal);
+        Assert.Equal($"NorCal Approach, runway 25 at {auburn}, ready for departure, request release.", result.Terminal);
+        Assert.Equal(
+            $"NorCal Approach, november five one three sierra juliett, runway two five at {auburn}, ready for departure, request release.",
+            result.Tts
+        );
+    }
+
+    [Fact]
+    public void BuildReadyToTaxi_AfterAPush_SaysPushedBackFromTheGate()
+    {
+        AircraftState ac = MakeAircraft("N123AB");
+
+        PilotSpeechText result = PilotResponder.BuildReadyToTaxi(ac, "ground", "A", ReadyToTaxiLocation.PushedBackFrom("F8"));
+
+        Assert.Equal("ground, pushed back from gate F8, with information Alpha, ready to taxi.", result.Terminal);
+        Assert.Equal(
+            "ground, november one two three alpha bravo pushed back from gate foxtrot eight, with information Alpha, ready to taxi.",
+            result.Tts
+        );
+    }
+
+    [Fact]
+    public void BuildReadyToTaxi_AtASpot_TakesTheNounSpot()
+    {
+        AircraftState ac = MakeAircraft("N123AB");
+
+        PilotSpeechText result = PilotResponder.BuildReadyToTaxi(ac, "ground", "A", ReadyToTaxiLocation.Spot("9"));
+
+        Assert.Equal("ground, at spot 9, with information Alpha, ready to taxi.", result.Terminal);
+        Assert.Equal("ground, november one two three alpha bravo at spot nine, with information Alpha, ready to taxi.", result.Tts);
+    }
+
+    [Fact]
+    public void BuildReadyToTaxi_AtASpotNamedSpot_DropsTheRepeatedNoun()
+    {
+        AircraftState ac = MakeAircraft("N123AB");
+
+        PilotSpeechText result = PilotResponder.BuildReadyToTaxi(ac, "ground", "A", ReadyToTaxiLocation.Spot("SPOT7"));
+
+        Assert.Equal("ground, at spot 7, with information Alpha, ready to taxi.", result.Terminal);
+        Assert.Equal("ground, november one two three alpha bravo at spot seven, with information Alpha, ready to taxi.", result.Tts);
+    }
+
+    [Fact]
+    public void BuildReadyToTaxi_AtATaxiwayHoldShort_UsesTheHoldShortLocative()
+    {
+        AircraftState ac = MakeAircraft("N123AB");
+
+        PilotSpeechText result = PilotResponder.BuildReadyToTaxi(ac, "ground", "A", ReadyToTaxiLocation.HoldingShort("C", "T41W"));
+
+        Assert.Equal("ground, holding short of C at T41W, with information Alpha, ready to taxi.", result.Terminal);
+        Assert.Equal(
+            "ground, november one two three alpha bravo holding short of charlie at tango four one whiskey, with information Alpha, ready to taxi.",
+            result.Tts
+        );
+    }
+
+    [Fact]
     public void BuildReadyToTaxi_WithRadioName_AddressesFacility()
     {
         AircraftState ac = MakeAircraft("N123AB", parkingSpot: "B22");
@@ -1435,13 +1581,28 @@ public class PilotResponderTests
     }
 
     [Fact]
-    public void BuildUnableToExit_UsesNegative()
+    public void BuildUnableToExit_SaysUnableAndTheTaxiway()
     {
         AircraftState ac = MakeAircraft("N123AB");
         PilotSpeechText result = PilotResponder.BuildUnableToExit(ac, "M2");
 
-        Assert.Contains("negative", result.Tts, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("M2", result.Tts);
+        Assert.Equal("unable M2.", result.Terminal);
+        Assert.EndsWith(", unable mike two.", result.Tts, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The terminal line is what <see cref="PilotResponder.BuildUnable"/> makes of the controller-facing "Unable, no M2 ahead",
+    /// so the instructor reads the same text either way; only the spoken form spells the taxiway (AIM 4-2-7).
+    /// </summary>
+    [Fact]
+    public void BuildUnableNoExitAhead_KeepsTheTerminalLine_AndSpellsTheTaxiway()
+    {
+        AircraftState ac = MakeAircraft("N123AB");
+        PilotSpeechText result = PilotResponder.BuildUnableNoExitAhead(ac, "M2");
+
+        Assert.Equal(PilotResponder.BuildUnable(ac, "Unable, no M2 ahead").Terminal, result.Terminal);
+        Assert.Equal("unable, no M2 ahead.", result.Terminal);
+        Assert.EndsWith(", unable, no mike two ahead.", result.Tts, StringComparison.Ordinal);
     }
 
     /// <summary>

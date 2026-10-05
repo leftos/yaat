@@ -9,10 +9,11 @@ namespace Yaat.SpeechSandbox;
 /// <param name="Cases">Number of cases to plan.</param>
 /// <param name="Seed">Seed for template sampling, slot values and voices.</param>
 /// <param name="VoiceDir">Piper voice-pack directory.</param>
-internal sealed record SynthCorpusOptions(string OutDir, int Cases, int Seed, string VoiceDir);
+/// <param name="UseSynthCache">Reuse the content-addressed synth-audio cache instead of re-synthesizing every case.</param>
+internal sealed record SynthCorpusOptions(string OutDir, int Cases, int Seed, string VoiceDir, bool UseSynthCache);
 
-/// <summary>One case directory the generator wrote.</summary>
-internal sealed record WrittenCase(string CaseDir, string TemplateKey);
+/// <summary>One case directory the generator wrote, and whether its audio came from the cache.</summary>
+internal sealed record WrittenCase(string CaseDir, string TemplateKey, bool CacheHit);
 
 /// <summary>What a generation run produced: the written cases and every gap found.</summary>
 internal sealed record SynthCorpusResult(IReadOnlyList<WrittenCase> Written, IReadOnlyList<TemplateGap> Gaps);
@@ -32,9 +33,11 @@ internal sealed record SynthCorpusResult(IReadOnlyList<WrittenCase> Written, IRe
 /// fails that check is a gap: it is printed as a warning and left out of the corpus, never written
 /// with a wrong label.
 ///
-/// Run with <c>--synth-corpus &lt;out-dir&gt; [--cases N] [--seed S] [--voice &lt;dir&gt;]</c>.
-/// Deterministic for a given seed. Generated corpora are reproducible and are NOT meant to be
-/// committed — generate into <c>.tmp/</c> and point <c>--eval</c> at the directory. Synthetic
+/// Run with <c>--synth-corpus &lt;out-dir&gt; [--cases N] [--seed S] [--voice &lt;dir&gt;] [--no-synth-cache]</c>.
+/// Deterministic for a given seed: each case's audio is cached by its synthesis inputs
+/// (<see cref="SynthAudioCache"/>) and reused, so a repeat run of one seed is byte-identical and all
+/// cache hits — Piper's own sampling differs between processes. Generated corpora are NOT meant to
+/// be committed — generate into <c>.tmp/</c> and point <c>--eval</c> at the directory. Synthetic
 /// results measure the phonetic surface only (clean TTS audio, limited voice variety); keep
 /// real-mic cases authoritative for model decisions.
 /// </summary>
@@ -47,10 +50,11 @@ internal static class SynthCorpusGenerator
     {
         if (args.Length == 0)
         {
-            Console.Error.WriteLine("Usage: Yaat.SpeechSandbox --synth-corpus <out-dir> [--cases N] [--seed S] [--voice <dir>]");
+            Console.Error.WriteLine("Usage: Yaat.SpeechSandbox --synth-corpus <out-dir> [--cases N] [--seed S] [--voice <dir>] [--no-synth-cache]");
             Console.Error.WriteLine();
             Console.Error.WriteLine("Generates labeled synthetic controller-phraseology eval cases (audio.wav + expected.json).");
-            Console.Error.WriteLine("Point --eval at the output directory afterwards. Deterministic per seed.");
+            Console.Error.WriteLine("Point --eval at the output directory afterwards. Deterministic per seed: synthesized audio");
+            Console.Error.WriteLine("is cached by its synthesis inputs, so a repeat run is byte-identical.");
             return 1;
         }
 
@@ -58,6 +62,7 @@ internal static class SynthCorpusGenerator
         int cases = 30;
         int seed = 20260730;
         string? voiceDir = null;
+        bool useSynthCache = true;
         for (int i = 1; i < args.Length; i++)
         {
             if (args[i] == "--cases" && i + 1 < args.Length)
@@ -72,6 +77,10 @@ internal static class SynthCorpusGenerator
             {
                 voiceDir = args[++i];
             }
+            else if (args[i] == "--no-synth-cache")
+            {
+                useSynthCache = false;
+            }
         }
 
         voiceDir ??= PiperSynthesizer.ResolveDefaultVoiceDir();
@@ -81,9 +90,11 @@ internal static class SynthCorpusGenerator
             return 2;
         }
 
-        SynthCorpusResult result = await GenerateAsync(new SynthCorpusOptions(outDir, cases, seed, voiceDir)).ConfigureAwait(false);
+        SynthCorpusResult result = await GenerateAsync(new SynthCorpusOptions(outDir, cases, seed, voiceDir, useSynthCache)).ConfigureAwait(false);
+        int fromCache = result.Written.Count(c => c.CacheHit);
+        string fullOutDir = Path.GetFullPath(outDir);
         Console.WriteLine(
-            $"Wrote {result.Written.Count} synthetic cases to {Path.GetFullPath(outDir)} (seed {seed}, {result.Gaps.Count} gaps left out)."
+            $"Wrote {result.Written.Count} synthetic cases to {fullOutDir} (seed {seed}, {result.Gaps.Count} gaps left out, {fromCache} from cache)."
         );
         Console.WriteLine($"Score them with: --eval {outDir} [--trials N]");
         return 0;
@@ -103,20 +114,56 @@ internal static class SynthCorpusGenerator
 
         Directory.CreateDirectory(options.OutDir);
         using var piper = new PiperSynthesizer(options.VoiceDir);
+        SynthAudioCache? cache = options.UseSynthCache ? new SynthAudioCache(SynthAudioCache.DefaultRoot) : null;
         var written = new List<WrittenCase>();
         foreach (RenderedCase rendered in plan.Cases)
         {
-            written.Add(await WriteCaseAsync(piper, rendered, options).ConfigureAwait(false));
+            written.Add(await WriteCaseAsync(piper, rendered, options, cache).ConfigureAwait(false));
         }
         return new SynthCorpusResult(written, plan.Gaps);
     }
 
-    private static async Task<WrittenCase> WriteCaseAsync(PiperSynthesizer piper, RenderedCase rendered, SynthCorpusOptions options)
+    private static float[] SynthesizeCaseAudio(PiperSynthesizer piper, RenderedCase rendered, string text)
+    {
+        PiperSynthesizer.SynthResult synth = piper.Synthesize(text, rendered.Speaker, rendered.Speed);
+        float[] resampled = PiperSynthesizer.Resample(synth.Samples, synth.SampleRate, AudioCaptureService.SampleRate);
+        return PiperSynthesizer.PadWithSilence(resampled, AudioCaptureService.SampleRate, LeadingSilenceMs, TrailingSilenceMs);
+    }
+
+    private static async Task<WrittenCase> WriteCaseAsync(
+        PiperSynthesizer piper,
+        RenderedCase rendered,
+        SynthCorpusOptions options,
+        SynthAudioCache? cache
+    )
     {
         EvalExpectation e = rendered.Expectation;
-        PiperSynthesizer.SynthResult synth = piper.Synthesize(e.Transcript!, rendered.Speaker, rendered.Speed);
-        float[] resampled = PiperSynthesizer.Resample(synth.Samples, synth.SampleRate, AudioCaptureService.SampleRate);
-        float[] samples = PiperSynthesizer.PadWithSilence(resampled, AudioCaptureService.SampleRate, LeadingSilenceMs, TrailingSilenceMs);
+        string text = e.Transcript!;
+        string cacheKey = SynthAudioCache.ComputeKey(
+            new SynthAudioKeyInputs
+            {
+                VoiceIdentity = piper.VoiceIdentity,
+                Text = text,
+                SpeakerId = rendered.Speaker,
+                Speed = rendered.Speed,
+                LengthScale = PiperSynthesizer.LengthScale,
+                SampleRate = AudioCaptureService.SampleRate,
+                LeadingSilenceMs = LeadingSilenceMs,
+                TrailingSilenceMs = TrailingSilenceMs,
+            }
+        );
+        float[] samples;
+        bool cacheHit = false;
+        if ((cache is not null) && cache.TryGet(cacheKey, out float[] cached))
+        {
+            samples = cached;
+            cacheHit = true;
+        }
+        else
+        {
+            float[] synthesized = SynthesizeCaseAudio(piper, rendered, text);
+            samples = cache is null ? synthesized : cache.PutOrGetExisting(cacheKey, synthesized, AudioCaptureService.SampleRate);
+        }
 
         string caseDir = Path.Combine(options.OutDir, $"synth-{options.Seed}-{rendered.Index:D3}-{rendered.Template.Key}");
         Directory.CreateDirectory(caseDir);
@@ -136,12 +183,13 @@ internal static class SynthCorpusGenerator
             ["taxiwayNames"] = e.TaxiwayNames,
             ["destinationNames"] = e.DestinationNames,
             ["voice"] = $"piper speaker {rendered.Speaker} speed {rendered.Speed.ToString("F1", CultureInfo.InvariantCulture)}",
+            ["cacheKey"] = cacheKey,
         };
         await File.WriteAllTextAsync(
                 Path.Combine(caseDir, "expected.json"),
                 JsonSerializer.Serialize(expected, new JsonSerializerOptions { WriteIndented = true })
             )
             .ConfigureAwait(false);
-        return new WrittenCase(caseDir, rendered.Template.Key);
+        return new WrittenCase(caseDir, rendered.Template.Key, cacheHit);
     }
 }

@@ -92,9 +92,9 @@ public class UninstructedExitSelectionTests(ITestOutputHelper output)
     /// <summary>
     /// A fast lander on a short runway: at a 140 kt touchdown on OAK 28R (5,458 ft) no exit passes the class-based
     /// filter, so the crew takes the earliest exit it can make braking firmly — C1 — rather than stopping on the
-    /// runway. The exit carries the firm cap as its selection rate, and the rollout brakes harder than the routine
+    /// runway. The exit carries the firm rate as its selection rate, and the rollout brakes harder than the routine
     /// rate that would have admitted C1 (a standard exit) under the class-based filter — the firm-braking fallback
-    /// chose it — while the firm cap bounds the braking.
+    /// chose it — while the firm rate bounds the braking.
     /// </summary>
     [Fact]
     public void Oak28R_Crj9_Uninstructed_ExitsTheRunway()
@@ -107,19 +107,19 @@ public class UninstructedExitSelectionTests(ITestOutputHelper output)
 
         const AircraftCategory Category = AircraftCategory.Jet;
         double standardExitLimit = CategoryPerformance.RolloutDecelRate(Category);
-        double firmCap = Math.Min(RolloutBraking.FirmBrakingRateKtsPerSec, CategoryPerformance.ExpediteExitDecelRate(Category));
+        double firmRate = CategoryPerformance.FirmBrakingRate(Category);
 
         Assert.Equal("C1", landing.ExitTaxiway);
         Assert.NotNull(landing.Candidate);
         Assert.True(landing.Candidate.TurnOffSpeed < CategoryPerformance.HighSpeedExitSpeed(Category), "C1 should be a standard exit");
-        Assert.Equal(firmCap, landing.Candidate.SelectionDecelRate);
+        Assert.Equal(firmRate, landing.Candidate.SelectionDecelRate);
         Assert.True(
             landing.PeakRolloutDecel > standardExitLimit + SampleToleranceKtsPerSec,
             $"CRJ9 rollout peak decel {landing.PeakRolloutDecel:F2} kt/s is not above the standard-exit selection rate {standardExitLimit:F2} kt/s"
         );
         Assert.True(
-            landing.PeakRolloutDecel <= firmCap + SampleToleranceKtsPerSec,
-            $"CRJ9 rollout peak decel {landing.PeakRolloutDecel:F2} kt/s exceeds the firm cap {firmCap:F2} kt/s"
+            landing.PeakRolloutDecel <= firmRate + SampleToleranceKtsPerSec,
+            $"CRJ9 rollout peak decel {landing.PeakRolloutDecel:F2} kt/s exceeds the firm rate {firmRate:F2} kt/s"
         );
     }
 

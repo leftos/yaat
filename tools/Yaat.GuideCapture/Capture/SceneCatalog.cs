@@ -4,13 +4,23 @@ namespace Yaat.GuideCapture.Capture;
 
 internal static class SceneCatalog
 {
-    // Static catalog. Phase A starts with one proof-of-pipeline scene; Phase D
-    // populates the full list (~28 scenes — see plan).
+    // Every scene the harness captures, in capture order, grouped by the guide
+    // section that shows it. A scene's Name is its PNG file name. The popout
+    // scenes run after every other main-window scene: the pop-out state they
+    // set is saved to preferences and restored by every later MainWindow,
+    // which would drop the Ground and Radar tabs from those shots.
     public static IReadOnlyList<Scene> All { get; } =
     [
         // Interface Overview
         new MainWindowEmptyScene(),
         new MainWindowConnectedEmptyScene(),
+        new TerminalPanelScene(),
+        new CommandBarScene(),
+        // Getting Started
+        new MenuFileScene(),
+        new ConnectDialogScene(),
+        new MenuScenarioScene(),
+        new FirstCommandScene(),
         new MainWindowWithScenarioScene(),
         // Views
         new AircraftListScene(),
@@ -19,21 +29,35 @@ internal static class SceneCatalog
 #if HAS_YAAT_SERVER
         new LiveTrafficScene(),
 #endif
+        // Strips, vTDLS + flight plan editor
+        new FlightStripsScene(),
+        new VtdlsTabScene(),
+        new FlightPlanEditorScene(),
+        // Command Input > Favorite Commands
+        new FavoritesBarScene(),
+        new FavoritesPanelScene(),
+        // Scenarios and Weather (connected) + Simulation Controls
+        new MetarWindowScene(),
+        new ExportRoomScenarioScene(),
+        // Timeline / Rewind + Bookmarks + Terminal > Scrub to a Moment
+        new TimelinePlaybackScene(),
+        new BookmarksListScene(),
+        new TakeControlDialogScene(),
+        new TerminalRewindMenuScene(),
+        // Ground View: a taxi route and a landing roll-out
+        new GroundTaxiRouteScene(),
+        new JustLandedScene(),
         // Popouts
         new MainWindowPoppedOutScene(),
         new GroundViewPopoutScene(),
         new RadarViewPopoutScene(),
-        // Strips + flight plan editor
-        new FlightStripsScene(),
-        new FlightPlanEditorScene(),
-        new FavoritesBarScene(),
-        new FavoritesPanelScene(),
         // Standalone dialogs / windows
         new SettingsWindowScene(),
         new LoadScenarioDialogScene(),
         new LoadWeatherDialogScene(),
         new WeatherEditorScene(),
         new ArrivalGeneratorsEditorScene(),
+        new FileBugReportDialogScene(),
         new AboutWindowScene(),
     ];
 }

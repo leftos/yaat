@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Phases.Ground;
@@ -67,9 +68,6 @@ public sealed class PushbackPhase : Phase
 
     /// <summary>Feet per second per knot: how fast a knot is, for the braking curve's unit conversion.</summary>
     private const double FtPerSecPerKt = GeoMath.FeetPerNm / 3600.0;
-
-    /// <summary>Fuselage length assumed by <see cref="HasRampPriority"/> for a type the FAA database does not carry.</summary>
-    private const double DefaultFuselageLengthFt = 110.0;
 
     /// <summary>The farthest apart two <see cref="RemainingPath"/> samples lie, feet.</summary>
     private const double RemainingPathSpacingFt = 5.0;
@@ -212,7 +210,7 @@ public sealed class PushbackPhase : Phase
             return false;
         }
 
-        double halfFuselageFt = (Data.Faa.FaaAircraftDatabase.Get(aircraft.AircraftType)?.LengthFt ?? DefaultFuselageLengthFt) / 2.0;
+        double halfFuselageFt = AircraftLength.ResolveFt(aircraft.AircraftType) / 2.0;
         return FeetBetween(start, aircraft.Position) > halfFuselageFt;
     }
 
@@ -718,7 +716,7 @@ public sealed class PushbackPhase : Phase
             return 0.0;
         }
 
-        double? recordedWheelbaseFt = Data.Faa.FaaAircraftDatabase.Get(aircraftType)?.WheelbaseFt;
+        double? recordedWheelbaseFt = FaaAircraftDatabase.Get(aircraftType)?.WheelbaseFt;
         double wheelbaseFt =
             (recordedWheelbaseFt is { } recorded && (recorded > 0.0)) ? recorded : TugKinematics.TurnRadiusFt(aircraftType, tight: false);
         double curvaturePerFt = (travelTurnDeg / RadToDeg) / stepFt;

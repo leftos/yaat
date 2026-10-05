@@ -121,9 +121,6 @@ public class SfoPushRouteE2ETests(ITestOutputHelper output)
     /// </summary>
     private const int MinStillSecondsBeforeReversal = 4;
 
-    /// <summary>Fuselage length assumed for a type the FAA database does not carry, matching the handler's.</summary>
-    private const double DefaultFuselageLengthFt = 110.0;
-
     /// <summary>
     /// <c>PUSH $6A</c> off D15: the straight push-off, a second straight push, a push onto the T6A lane's line, then a
     /// reversal and a creep pull up the lane onto the mark — flown without a pivot or a crab, ending nose-out on the rest
@@ -1016,7 +1013,7 @@ public class SfoPushRouteE2ETests(ITestOutputHelper output)
     {
         GroundNode spot = Spot(layout, spotName);
         Assert.True(layout.TryGetSpotOutboundHeading(spot, out double outBearingDeg), $"spot '{spotName}' has no outbound heading in the layout");
-        double halfLengthNm = ((FaaAircraftDatabase.Get(AircraftType)?.LengthFt ?? DefaultFuselageLengthFt) / 2.0) / GeoMath.FeetPerNm;
+        double halfLengthNm = (AircraftLength.ResolveFt(AircraftType) / 2.0) / GeoMath.FeetPerNm;
         return (GeoMath.ProjectPoint(spot.Position, new TrueHeading(outBearingDeg).ToReciprocal(), halfLengthNm), outBearingDeg);
     }
 

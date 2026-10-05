@@ -207,7 +207,7 @@ public class Oak28rPExitHoldingPositionTests(ITestOutputHelper output)
         var unableCalls = new List<string>();
         void Capture(string callsign, string line)
         {
-            if ((callsign == aircraft.Callsign) && line.Contains("negative on the exit", StringComparison.OrdinalIgnoreCase))
+            if ((callsign == aircraft.Callsign) && line.StartsWith("unable", StringComparison.OrdinalIgnoreCase))
             {
                 unableCalls.Add(line);
             }
@@ -234,7 +234,7 @@ public class Oak28rPExitHoldingPositionTests(ITestOutputHelper output)
                 );
                 Assert.NotEqual("P", exitTaxiway);
                 Assert.True(barSideDeg > 0, $"held at #{bar.Id}, left of 28R");
-                Assert.Contains(unableCalls, line => line.Contains("negative on the exit at P", StringComparison.OrdinalIgnoreCase));
+                Assert.Contains(unableCalls, line => line == "unable P.");
                 return;
             }
         }

@@ -1,4 +1,5 @@
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Pilot;
 
 namespace Yaat.Sim.Phases;
 
@@ -15,11 +16,21 @@ public sealed class ExitPreference
 }
 
 /// <summary>
-/// Whether a late <c>EL</c>/<c>ER</c>/<c>EXIT</c> can still change the exit an aircraft is committed to.
-/// <paramref name="UnableReason"/> is the controller-facing refusal text, non-null exactly when
-/// <paramref name="Allowed"/> is false. Produced by <c>RunwayExitPhase.EvaluateRetarget</c>.
+/// Whether an exit instruction (<c>EL</c>/<c>ER</c>/<c>EXIT</c>) can be accepted for the exit an aircraft is braking for or
+/// committed to. <paramref name="UnableReason"/> is the controller-facing refusal text, non-null exactly when
+/// <paramref name="Allowed"/> is false. Produced by <c>LandingPhase.EvaluateAndApplyNamedExitInstruction</c> (a named exit on the rollout) and
+/// <c>RunwayExitPhase.EvaluateRetarget</c> (a late change once the exit route is handed to the navigator).
 /// </summary>
-public readonly record struct ExitRetargetVerdict(bool Allowed, string? UnableReason);
+public readonly record struct ExitInstructionVerdict(bool Allowed, string? UnableReason)
+{
+    /// <summary>
+    /// The pilot's own words for the refusal, when it has them — the crew's "unable" for a named exit it cannot make
+    /// (<see cref="PilotResponder.BuildUnableToExit"/>) or that is not ahead (<see cref="PilotResponder.BuildUnableNoExitAhead"/>),
+    /// whose terminal line is what <see cref="PilotResponder.BuildUnable"/> would make of <see cref="UnableReason"/>; null when
+    /// that generic form applies.
+    /// </summary>
+    public PilotSpeechText? PilotUnable { get; init; }
+}
 
 /// <summary>
 /// Fully resolved exit: hold-short node, branch point on the centerline,

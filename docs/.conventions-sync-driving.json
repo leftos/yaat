@@ -1,0 +1,241 @@
+{
+  "rules": {
+    "arm-before-start": {
+      "declined": "an app started without its switch is driven through UI Automation instead",
+      "user": "d9167b03ff6d6924"
+    },
+    "backing-store-ratio": {
+      "repo": "07a3dbd38de66e70",
+      "user": "c926ca623a872aa1"
+    },
+    "build-before-launch": {
+      "repo": "7ed4fd93168c1c0d",
+      "user": "1bc8f3784a841f27"
+    },
+    "cancel-timed-out-requests": {
+      "repo": "c853de094de39503",
+      "user": "b28aa32b9c3db402"
+    },
+    "check-action-effects": {
+      "repo": "88440095223eb5fd",
+      "user": "3406dfa4833edc3d"
+    },
+    "coded-errors-never-throw": {
+      "repo": "4ec40309123106a6",
+      "user": "a312da8f45bbb1cb"
+    },
+    "design-names-hook-surface": {
+      "repo": "996eddb4785abb4a",
+      "user": "b59f296c1d742674"
+    },
+    "dev-flag-gates-hook": {
+      "declined": "ships the hook in release builds by design, gated at run time by one switch",
+      "user": "b96675d8e49a867d"
+    },
+    "discovery-file-per-pid": {
+      "repo": "64676cdc51c290ef",
+      "user": "47ab1932bbec8bfd"
+    },
+    "drive-owned-app-in-process": {
+      "repo": "f38cefd711838bf5",
+      "user": "17ce7241b4bfc394"
+    },
+    "emulation-per-call": {
+      "declined": "no CDP or webview",
+      "user": "3555c3f5e23d3374"
+    },
+    "error-feed-on-results": {
+      "repo": "769169f749b50abe",
+      "user": "200f46e348a261de"
+    },
+    "fixed-tool-surface": {
+      "repo": "7385106c2a941c67",
+      "user": "8f6390c917ab507d"
+    },
+    "force-conditions-dev-panel": {
+      "repo": "4eb53e2d0bc82c76",
+      "user": "5bab8a6ad2cb8c99"
+    },
+    "friction-log-per-session": {
+      "repo": "3b807765641dceaf",
+      "user": "d9c3c31c77a01fd0"
+    },
+    "hook-dials-in-token": {
+      "declined": "the app hosts a current-user pipe found through a discovery file",
+      "user": "3997ad42dcc9a9df"
+    },
+    "hook-over-scraping": {
+      "repo": "110bb2db8d05ce00",
+      "user": "90d480cd2757e795"
+    },
+    "hook-throws-when-unready": {
+      "repo": "09a25a7affd65c5b",
+      "user": "5be1f004c3b9e682"
+    },
+    "inject-never-commit": {
+      "declined": "the hook is compiled into the app",
+      "user": "1f9785dcea80e497"
+    },
+    "install-owner-cleanup-own": {
+      "repo": "a16fc50cd57cb5e0",
+      "user": "3a775768199ca968"
+    },
+    "launch-isolated-lifecycle": {
+      "repo": "a94f39f5d9e84076",
+      "user": "79841e3cc35bd56b"
+    },
+    "load-adjusted-timeouts": {
+      "repo": "cd6a823317bbf1a8",
+      "user": "f233b8e8f0288681"
+    },
+    "mark-injected-input": {
+      "declined": "offers no hover or drag gestures (its \"Not applicable\")",
+      "user": "f5ccf5bbedad9bd7"
+    },
+    "merge-inherited-webview-args": {
+      "declined": "no webview",
+      "user": "f5d059f2475ecb67"
+    },
+    "name-out-of-reach-ui": {
+      "repo": "1907d36046a9e933",
+      "user": "e35b7d8c79ecea1a"
+    },
+    "never-block-main-thread": {
+      "repo": "1fcf0f8cddff3af7",
+      "user": "3e6a2c9e099b166d"
+    },
+    "no-default-session": {
+      "repo": "18c4e99fbf1cca19",
+      "user": "789cf57942ac894d"
+    },
+    "one-coordinate-space": {
+      "repo": "46b9f3ff13ccb405",
+      "user": "fb5bff1ef7b7ffe8"
+    },
+    "one-env-switch": {
+      "repo": "04a30eb5f9b59682",
+      "user": "71a6cbdc06ef7ea8"
+    },
+    "one-gate-source-pinned": {
+      "repo": "b23ab7c33845389d",
+      "user": "074e78fa8da328c2"
+    },
+    "one-id-registry": {
+      "repo": "f5a9527306bc59c7",
+      "user": "660e4681d07a2cc2"
+    },
+    "one-typed-window-global": {
+      "repo": "fa731974ade635d5",
+      "user": "3dfce1bce3dba534"
+    },
+    "opt-in-by-name": {
+      "repo": "8f52c348473cb10e",
+      "user": "34a5a7e9b85b99d5"
+    },
+    "own-launched-processes": {
+      "repo": "d85971f7ccf5b4e7",
+      "user": "a1e4fb8e8d88722a"
+    },
+    "posted-input-hygiene": {
+      "repo": "ed922ce158c17988",
+      "user": "cb158270b0393e25"
+    },
+    "queue-file-answers": {
+      "repo": "9b38ace3f1016c27",
+      "user": "ebfaa4da3ea3e159"
+    },
+    "quiet-by-default": {
+      "repo": "d39e5d9d22140094",
+      "user": "70671da553c74f3c"
+    },
+    "real-app-over-frontend-only": {
+      "repo": "f403032e1736ece0",
+      "user": "25391fd0fbce5897"
+    },
+    "real-devices-leak-in": {
+      "declined": "the app takes no gamepad input",
+      "user": "2080245fcad3f6cd"
+    },
+    "record-and-replay": {
+      "repo": "6cabfe9fc8fbccbf",
+      "user": "facfc27a182f31fc"
+    },
+    "record-steady-never-minimize": {
+      "repo": "60e1503fef1c130b",
+      "user": "ee65adf7954cc463"
+    },
+    "recording-shellout-hardening": {
+      "repo": "4c9c2cb902850d57",
+      "user": "7983f200c9555c3b"
+    },
+    "refcount-shared-hook": {
+      "declined": "the hook is compiled into the app; no shared file",
+      "user": "37a28ee5b0089915"
+    },
+    "refusals-name-the-fix": {
+      "repo": "57771185dfad2608",
+      "user": "440595fe9dd9284d"
+    },
+    "refuse-before-pressing": {
+      "repo": "10b6eda3869b6015",
+      "user": "6ed0a4a3ec6f43cb"
+    },
+    "run-server-from-copy": {
+      "repo": "4df71af6d17cc7bd",
+      "user": "eb9daecf6953e393"
+    },
+    "say-hands-off-first": {
+      "repo": "6ccd088469880ab5",
+      "user": "3876083c457cc8f6"
+    },
+    "semantic-click-first": {
+      "repo": "db085b31f2540228",
+      "user": "0dfdb877d73519e8"
+    },
+    "shared-wire-types": {
+      "repo": "9bd19d213c870c75",
+      "user": "bde79d8f19cf9508"
+    },
+    "stdio-protocol-only": {
+      "repo": "2d089effc5a05d21",
+      "user": "b0ded98c65dede09"
+    },
+    "test-against-real-host": {
+      "repo": "9816044d4d450464",
+      "user": "d40660b8fdce00af"
+    },
+    "test-server-over-stdio": {
+      "repo": "e68430178b03aadd",
+      "user": "9dec6f897204a1c1"
+    },
+    "unified-log-tail": {
+      "repo": "e5a7c17df7f888dc",
+      "user": "c3f49d783eac66ac"
+    },
+    "verify-foreground-before-real": {
+      "repo": "f1e814d7e23e1b9d",
+      "user": "76d711df41844d00"
+    },
+    "verify-writes-read-back": {
+      "repo": "e8045c2d982c1658",
+      "user": "f453e38c47aef7b1"
+    },
+    "wait-after-heavy-transition": {
+      "repo": "a6d3f56cfe6f3225",
+      "user": "bc9d516029aa4ce8"
+    },
+    "wait-for-conditions": {
+      "repo": "e1605cad6e03e055",
+      "user": "0f18f2bddb9a521a"
+    },
+    "waits-bounded-outcome-as-data": {
+      "repo": "4d804875f18a63af",
+      "user": "5e4edf05ff574035"
+    },
+    "what-capture-misses": {
+      "repo": "f8c5f0f6b948b211",
+      "user": "05e487db93813f43"
+    }
+  },
+  "user_revision": 1
+}

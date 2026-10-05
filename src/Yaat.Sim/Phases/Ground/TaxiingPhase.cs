@@ -24,10 +24,6 @@ public sealed class TaxiingPhase : Phase
 
     private const double LogIntervalSeconds = 3.0;
 
-    // Fallback fuselage length (ft) for the nose-at-spot setback when the aircraft type has no FAA
-    // length. Matches GroundConflictDetector's default footprint so both reason about the same length.
-    private const double DefaultSpotStopLengthFt = 60.0;
-
     // Slow parking-approach speed (kts) applied within a fuselage of the destination spot so the
     // nose-at-spot terminal stop lands cleanly instead of braking abruptly from taxi speed.
     private const double SpotApproachSpeedKts = 4.0;
@@ -1064,7 +1060,7 @@ public sealed class TaxiingPhase : Phase
             return false;
         }
 
-        double lengthFt = FaaAircraftDatabase.Get(ctx.Aircraft.AircraftType)?.LengthFt ?? DefaultSpotStopLengthFt;
+        double lengthFt = AircraftLength.ResolveFt(ctx.Aircraft.AircraftType);
         double halfLenNm = (lengthFt / 2.0) / GeoMath.FeetPerNm;
         double distToSpotNm = GeoMath.DistanceNm(ctx.Aircraft.Position, spotNode.Position);
 

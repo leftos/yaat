@@ -253,7 +253,7 @@ public sealed partial class SimulationEngine
             return;
         }
 
-        PilotSpeechText transmission = PilotResponder.BuildUnable(aircraft, result.Message);
+        PilotSpeechText transmission = result.PilotUnable ?? PilotResponder.BuildUnable(aircraft, result.Message);
         PilotResponder.QueueSoloPilotTransmission(aircraft, transmission, PilotTransmissionKind.Readback, PilotResponder.SourceResponse);
     }
 

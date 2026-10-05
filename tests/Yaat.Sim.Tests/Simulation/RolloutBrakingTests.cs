@@ -17,7 +17,7 @@ public class RolloutBrakingTests
         const double Rate = 5.0;
 
         double distanceNm = RolloutBraking.BrakingDistanceNm(From, To, Rate);
-        double required = RolloutBraking.RequiredDecelKtsPerSec(From, To, distanceNm);
+        double required = RolloutBraking.RequiredDecelKtsPerSec(From, To, distanceNm, AircraftCategory.Jet);
 
         Assert.Equal(Rate, required, 6);
     }
@@ -29,7 +29,7 @@ public class RolloutBrakingTests
     [Fact]
     public void BrakingDistance_JetCoastToStandardTurnOff_IsAboutTwoHundredThirtyFeet()
     {
-        double distFt = RolloutBraking.BrakingDistanceNm(40.0, 15.0, RolloutBraking.FirmBrakingRateKtsPerSec) * GeoMath.FeetPerNm;
+        double distFt = RolloutBraking.BrakingDistanceNm(40.0, 15.0, CategoryPerformance.FirmBrakingRate(AircraftCategory.Jet)) * GeoMath.FeetPerNm;
 
         Assert.InRange(distFt, 225.0, 240.0);
     }
@@ -37,8 +37,8 @@ public class RolloutBrakingTests
     [Fact]
     public void RequiredDecel_TightensAsDistanceShrinks()
     {
-        double far = RolloutBraking.RequiredDecelKtsPerSec(40.0, 15.0, 0.1);
-        double near = RolloutBraking.RequiredDecelKtsPerSec(40.0, 15.0, 0.02);
+        double far = RolloutBraking.RequiredDecelKtsPerSec(40.0, 15.0, 0.1, AircraftCategory.Jet);
+        double near = RolloutBraking.RequiredDecelKtsPerSec(40.0, 15.0, 0.02, AircraftCategory.Jet);
 
         Assert.True(near > far, $"expected a shorter run to demand harder braking, got near={near:F2} far={far:F2}");
     }
@@ -51,7 +51,10 @@ public class RolloutBrakingTests
     [InlineData(0.0)]
     [InlineData(-0.5)]
     public void RequiredDecel_WithNoDistanceLeft_ReportsFirmBraking(double distanceNm) =>
-        Assert.Equal(RolloutBraking.FirmBrakingRateKtsPerSec, RolloutBraking.RequiredDecelKtsPerSec(40.0, 15.0, distanceNm));
+        Assert.Equal(
+            CategoryPerformance.FirmBrakingRate(AircraftCategory.Jet),
+            RolloutBraking.RequiredDecelKtsPerSec(40.0, 15.0, distanceNm, AircraftCategory.Jet)
+        );
 
     [Fact]
     public void BrakingDistance_WithNoDecelRate_IsZeroRatherThanInfinite() => Assert.Equal(0.0, RolloutBraking.BrakingDistanceNm(40.0, 15.0, 0.0));
@@ -59,7 +62,7 @@ public class RolloutBrakingTests
     /// <summary>Already at or below the target speed needs no room.</summary>
     [Fact]
     public void BrakingDistance_WhenAlreadySlowEnough_IsNotPositive() =>
-        Assert.True(RolloutBraking.BrakingDistanceNm(15.0, 15.0, RolloutBraking.FirmBrakingRateKtsPerSec) <= 0.0);
+        Assert.True(RolloutBraking.BrakingDistanceNm(15.0, 15.0, CategoryPerformance.FirmBrakingRate(AircraftCategory.Jet)) <= 0.0);
 
     /// <summary>
     /// The LAHSO speed ceiling is the braking distance read backwards: whatever
@@ -81,7 +84,7 @@ public class RolloutBrakingTests
     [InlineData(0.0)]
     [InlineData(-0.01)]
     public void MaxEntrySpeed_WithNoDistanceLeft_IsZero(double distanceNm) =>
-        Assert.Equal(0.0, RolloutBraking.MaxEntrySpeedKts(distanceNm, RolloutBraking.FirmBrakingRateKtsPerSec));
+        Assert.Equal(0.0, RolloutBraking.MaxEntrySpeedKts(distanceNm, CategoryPerformance.FirmBrakingRate(AircraftCategory.Jet)));
 
     /// <summary>
     /// An aircraft that cannot brake cannot stop, however much runway is left: the ceiling is zero rather than

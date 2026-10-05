@@ -160,7 +160,8 @@ public class FilletLandingExitTests
             -122.204721,
             new TrueHeading(280.0),
             new ExitPreference { Taxiway = "H" },
-            "28R"
+            "28R",
+            excludeTaxiways: null
         );
         Assert.NotNull(result);
     }

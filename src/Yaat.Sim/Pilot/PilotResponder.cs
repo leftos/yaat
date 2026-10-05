@@ -976,40 +976,150 @@ public static class PilotResponder
     /// </summary>
     public static PilotSpeechText BuildReadyToTaxi(AircraftState aircraft) => BuildReadyToTaxi(aircraft, "ground", "A");
 
-    public static PilotSpeechText BuildReadyToTaxi(AircraftState aircraft, string facilityCallName, string? atisLetter)
-    {
-        string location;
-        string locationSpoken;
-        if (aircraft.Ground.ParkingSpot is { Length: > 0 } spot)
-        {
-            string noun = SpotNoun(spot);
-            location = $"at {WithNoun(spot, noun)}";
-            locationSpoken = $"at {WithNoun(PhraseologyVerbalizer.SpellDestinationName(spot, noun), noun)}";
-        }
-        else
-        {
-            location = "at the ramp";
-            locationSpoken = "at the ramp";
-        }
+    public static PilotSpeechText BuildReadyToTaxi(AircraftState aircraft, string facilityCallName, string? atisLetter) =>
+        BuildReadyToTaxi(aircraft, facilityCallName, atisLetter, ReadyToTaxiLocation.ForStandCall(aircraft));
 
+    /// <summary>
+    /// A "ready to taxi" call from <paramref name="location"/>: <c>{facility}, {location}{info}{intent}, ready to taxi.</c>,
+    /// with the location "at gate F8", "at spot 9", "on taxiway K", "pushed back from gate F8" or "holding short of C at
+    /// T41W". An aircraft on a taxiway whose filed destination is the field it is at asks for parking instead:
+    /// <c>{facility}, on taxiway K{info}, request taxi to parking.</c> (AIM 4-2-3.a.1.c, 4-3-18.a.1, 4-3-18.d.1).
+    /// </summary>
+    public static PilotSpeechText BuildReadyToTaxi(AircraftState aircraft, string facilityCallName, string? atisLetter, ReadyToTaxiLocation location)
+    {
+        (string place, string placeSpoken) = DescribeReadyToTaxiLocation(location);
         string spoken = SpokenOwnCallsign(aircraft);
         string facility = CleanFacilityCallName(facilityCallName, "ground");
         string info = AtisInfoClause(atisLetter);
-        string intent = ReadyToTaxiIntentClause(aircraft);
-        return new PilotSpeechText(
-            $"{facility}, {location}{info}{intent}, ready to taxi.",
-            $"{facility}, {spoken} {locationSpoken}{info}{intent}, ready to taxi."
+        string tail = RequestsTaxiToParking(aircraft, location)
+            ? $"{info}, request taxi to parking."
+            : $"{info}{ReadyToTaxiIntentClause(aircraft)}, ready to taxi.";
+        return new PilotSpeechText($"{facility}, {place}{tail}", $"{facility}, {spoken} {placeSpoken}{tail}");
+    }
+
+    /// <summary>
+    /// True when a call from <paramref name="location"/> asks for taxi to parking rather than reporting ready to taxi: the
+    /// aircraft sits on a taxiway and its filed destination is the field it is at.
+    /// </summary>
+    public static bool RequestsTaxiToParking(AircraftState aircraft, ReadyToTaxiLocation location) =>
+        (location.Kind == ReadyToTaxiLocationKind.Taxiway)
+        && NavigationDatabase.AirportIdsMatch(aircraft.FlightPlan.Destination, PilotContactRoster.SurfaceAirportOf(aircraft));
+
+    /// <summary>
+    /// A departure's request to a delivery student from <paramref name="location"/> (AIM 5-2-6.h.2, 5-2-3.a, 4-2-3.a.1). IFR:
+    /// <c>{facility}, at gate F8, with information A, IFR to Los Angeles Airport.</c> — no aircraft type, no
+    /// "request clearance". VFR: <c>{facility}, at gate F8, with information A, VFR departure to the north, at 4500.</c>
+    /// naming <paramref name="vfrDirection"/> and the filed cruise altitude (left out when none is filed), never the destination.
+    /// </summary>
+    public static PilotSpeechText BuildClearanceRequest(
+        AircraftState aircraft,
+        string facilityCallName,
+        string? atisLetter,
+        ReadyToTaxiLocation location,
+        string? vfrDirection
+    )
+    {
+        (string place, string placeSpoken) = DescribeReadyToTaxiLocation(location);
+        string spoken = SpokenOwnCallsign(aircraft);
+        string facility = CleanFacilityCallName(facilityCallName, "clearance");
+        string info = AtisInfoClause(atisLetter);
+        (string intent, string intentSpoken) = aircraft.FlightPlan.IsVfr ? VfrDepartureClause(aircraft, vfrDirection) : IfrClearanceClause(aircraft);
+        return new PilotSpeechText($"{facility}, {place}{info}{intent}.", $"{facility}, {spoken}, {placeSpoken}{info}{intentSpoken}.");
+    }
+
+    private static (string Terminal, string Spoken) IfrClearanceClause(AircraftState aircraft)
+    {
+        string dest = aircraft.FlightPlan.Destination;
+        string clause = string.IsNullOrWhiteSpace(dest) ? ", IFR" : $", IFR to {PhraseologyVerbalizer.SpellAirportName(dest)}";
+        return (clause, clause);
+    }
+
+    private static (string Terminal, string Spoken) VfrDepartureClause(AircraftState aircraft, string? vfrDirection)
+    {
+        string direction = vfrDirection is { Length: > 0 } dir ? $" to the {dir}" : "";
+        if (aircraft.FlightPlan.Altitude.CruiseFeet is not { } cruise || (cruise <= 0))
+        {
+            return ($", VFR departure{direction}", $", VFR departure{direction}");
+        }
+
+        return (
+            $", VFR departure{direction}, at {PhraseologyVerbalizer.CompactAltitude(cruise)}",
+            $", VFR departure{direction}, at {PhraseologyVerbalizer.AltitudeWords(cruise)}"
         );
     }
 
     /// <summary>
-    /// The noun a pilot puts before a spot it names: none when the name reads as a word ("at kilo ramp",
-    /// "taxi to signature"), <c>gate</c> for a gate name, <c>parking</c> otherwise. The empty noun is safe for
-    /// <see cref="PhraseologyVerbalizer.SpellDestinationName(string, string)"/>, whose noun-skip only fires on a
-    /// non-empty match.
+    /// A runway spawn at an untowered field asking the radar controller for its departure release (7110.65 §4-3-4):
+    /// <c>{facility}, runway 25 at Auburn, ready for departure, request release.</c>
     /// </summary>
-    private static string SpotNoun(string name) =>
+    public static PilotSpeechText BuildReleaseRequest(AircraftState aircraft, string runwayId, string airportId, string facilityCallName)
+    {
+        string spoken = SpokenOwnCallsign(aircraft);
+        string facility = CleanFacilityCallName(facilityCallName, "approach");
+        string airport = PhraseologyVerbalizer.SpellAirportName(airportId);
+        return new PilotSpeechText(
+            $"{facility}, runway {PhraseologyVerbalizer.CompactRunway(runwayId)} at {airport}, ready for departure, request release.",
+            $"{facility}, {spoken}, runway {PhraseologyVerbalizer.SpellRunway(runwayId)} at {airport}, ready for departure, request release."
+        );
+    }
+
+    /// <summary>The location clause of a ready-to-taxi call, terminal and spoken.</summary>
+    private static (string Terminal, string Spoken) DescribeReadyToTaxiLocation(ReadyToTaxiLocation location)
+    {
+        switch (location.Kind)
+        {
+            case ReadyToTaxiLocationKind.Stand:
+            case ReadyToTaxiLocationKind.Spot:
+            case ReadyToTaxiLocationKind.PushedBackFrom:
+                string noun = SpotNoun(location);
+                string preposition = location.Kind == ReadyToTaxiLocationKind.PushedBackFrom ? "pushed back from" : "at";
+                string name = noun == "spot" ? DropLeadingSpotWord(location.Name) : location.Name;
+                return (
+                    $"{preposition} {WithNoun(name, noun)}",
+                    $"{preposition} {WithNoun(PhraseologyVerbalizer.SpellDestinationName(location.Name, noun), noun)}"
+                );
+            case ReadyToTaxiLocationKind.Taxiway:
+                return ($"on taxiway {location.Name}", $"on taxiway {PhraseologyVerbalizer.SpellTaxiway(location.Name)}");
+            case ReadyToTaxiLocationKind.HoldingShort:
+                string spokenTarget = CommandParser.IsRunwayArg(location.Name)
+                    ? PhraseologyVerbalizer.SpellRunway(location.Name)
+                    : PhraseologyVerbalizer.SpellTaxiway(location.Name);
+                return (
+                    $"holding short of {HoldShortTarget.Describe(location.Name)} at {location.Taxiway}",
+                    $"holding short of {spokenTarget} at {PhraseologyVerbalizer.SpellTaxiway(location.Taxiway)}"
+                );
+            default:
+                return ("at the ramp", "at the ramp");
+        }
+    }
+
+    /// <summary>
+    /// The noun a pilot puts before a place it names: <c>spot</c> for a ramp spot; for a stand none when the name reads
+    /// as a word ("at kilo ramp", "taxi to signature"), <c>gate</c> for a gate name, <c>parking</c> otherwise. The empty
+    /// noun is safe for <see cref="PhraseologyVerbalizer.SpellDestinationName(string, string)"/>, whose noun-skip only
+    /// fires on a non-empty match.
+    /// </summary>
+    private static string SpotNoun(ReadyToTaxiLocation location) => location.Kind == ReadyToTaxiLocationKind.Spot ? "spot" : StandNoun(location.Name);
+
+    /// <summary>The noun before a stand's name: none for a name that reads as a word, <c>gate</c> for a gate, else <c>parking</c>.</summary>
+    private static string StandNoun(string name) =>
         PhraseologyVerbalizer.ContainsPronounceableWord(name) ? "" : (ArrivalParkingPicker.IsGateName(name) ? "gate" : "parking");
+
+    /// <summary>
+    /// A spot name without a leading "SPOT" that would repeat the noun ("SPOT7" → "7"), as
+    /// <see cref="PhraseologyVerbalizer.SpellDestinationName(string, string)"/> drops it when spoken; a name that is
+    /// only the word keeps it.
+    /// </summary>
+    private static string DropLeadingSpotWord(string name)
+    {
+        string trimmed = name.Trim();
+        if ((trimmed.Length > 4) && trimmed.StartsWith("SPOT", StringComparison.OrdinalIgnoreCase) && !char.IsLetter(trimmed[4]))
+        {
+            return trimmed[4..].TrimStart(' ', '-');
+        }
+
+        return trimmed;
+    }
 
     /// <summary>A name with its noun in front when it has one (<c>gate F8</c>, <c>parking GA13</c>, <c>KILO RAMP</c>).</summary>
     private static string WithNoun(string name, string noun) => noun.Length > 0 ? $"{noun} {name}" : name;
@@ -1727,7 +1837,7 @@ public static class PilotResponder
         string runwaySpoken = runwayId is { Length: > 0 } ? $"runway {PhraseologyVerbalizer.SpellRunway(runwayId)}" : "the runway";
         string at = taxiway is { Length: > 0 } ? $" at {taxiway}" : "";
         string atSpoken = taxiway is { Length: > 0 } ? $" at {PhraseologyVerbalizer.SpellTaxiway(taxiway)}" : "";
-        string noun = SpotNoun(parking);
+        string noun = StandNoun(parking);
         string destination = WithNoun(parking, noun);
         string destinationSpoken = WithNoun(PhraseologyVerbalizer.SpellDestinationName(parking, noun), noun);
         return new PilotSpeechText(
@@ -1795,10 +1905,25 @@ public static class PilotResponder
         };
     }
 
+    /// <summary>
+    /// Pilot report that it cannot make the exit at <paramref name="taxiway"/> the controller named (P/CG UNABLE): the
+    /// rollout gave the exit up rather than brake harder than its firm rate for it.
+    /// </summary>
     public static PilotSpeechText BuildUnableToExit(AircraftState aircraft, string taxiway)
     {
         string spoken = SpokenOwnCallsign(aircraft);
-        return new PilotSpeechText($"negative on the exit at {taxiway}.", $"{spoken}, negative on the exit at {taxiway}.");
+        return new PilotSpeechText($"unable {taxiway}.", $"{spoken}, unable {PhraseologyVerbalizer.SpellTaxiway(taxiway)}.");
+    }
+
+    /// <summary>
+    /// Pilot report that the exit at <paramref name="taxiway"/> the controller named is not ahead of it on this runway — rolled
+    /// past, or a taxiway that never touches the runway. The terminal line is the one <see cref="BuildUnable"/> makes of the
+    /// controller-facing "Unable, no {taxiway} ahead"; the spoken form spells the taxiway (AIM 4-2-7).
+    /// </summary>
+    public static PilotSpeechText BuildUnableNoExitAhead(AircraftState aircraft, string taxiway)
+    {
+        string spoken = SpokenOwnCallsign(aircraft);
+        return new PilotSpeechText($"unable, no {taxiway} ahead.", $"{spoken}, unable, no {PhraseologyVerbalizer.SpellTaxiway(taxiway)} ahead.");
     }
 
     /// <summary>

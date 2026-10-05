@@ -95,6 +95,8 @@ All views can be popped out simultaneously. Pop-out state and window positions a
 
 The terminal panel shows a scrolling history of all commands and server feedback, visible to all connected [RPOs](#glossary).
 
+![The terminal panel after a scenario load, ending with the FH 270 command echo and the aircraft's "Fly heading 270" response](docs/user-guide/img/terminal-panel.png)
+
 #### Entry Format
 
 Each line shows:
@@ -124,7 +126,9 @@ The button at the left of the filter toggles cycles what the leading timestamp s
 
 #### Scrub to a Moment
 
-Right-click any terminal line and choose **Rewind to this moment** to jump the replay timeline to the scenario-second that line happened — a command, chat, SAY, response, or warning. This is the fastest way to get back to "right when I issued that clearance." It's enabled whenever the timeline is available and the line has a known scenario time. Loading a recording or bug bundle repopulates the terminal with the full session history, so every line stays scrubbable after a load.
+Right-click any terminal line and choose **Rewind to m:ss** (the line's scenario time, e.g. **Rewind to 1:30**; `h:mm:ss` past the first hour) to jump the replay timeline to the scenario-second that line happened — a command, chat, SAY, response, or warning. This is the fastest way to get back to "right when I issued that clearance." It's enabled whenever the timeline bar is showing (a scenario is loaded and **View > Show Timeline Bar** is checked) and the line has a known scenario time; otherwise the item reads **Rewind to this moment** and is greyed out. Loading a recording or bug bundle repopulates the terminal with the full session history, so every line stays scrubbable after a load.
+
+![The terminal's right-click menu on an aircraft's response line, offering Rewind to 1:30 and Clear](docs/user-guide/img/terminal-rewind-menu.png)
 
 #### Filters
 
@@ -158,6 +162,8 @@ Warning messages appear when the simulator detects potential issues:
 ### Command Bar
 
 The command bar at the bottom is where you type and send commands. See [Commands](#commands) for details.
+
+![The command bar with DCT typed for a selected aircraft, its signature help and a list of route-fix suggestions open above it](docs/user-guide/img/command-bar.png)
 
 ### Keyboard Shortcuts
 
@@ -389,9 +395,13 @@ An interactive airport surface map showing taxiways, runways, and aircraft posit
 
 **Pattern changes on the go.** `OTG` ("on the go") is a condition prefix like `ONHS`: `OTG MLT 28L` against an aircraft on final for 28R lets it fly the option it was cleared for and then, once it is climbing out again after the touch-and-go (or after a go-around), makes left traffic for 28L. Any command can follow `OTG`. The option clearances take the same modifier directly — `COPT MLT 28L`, `TG MLT 28L 15`, `SG MRT 28R`, `LA MLT 28L` — flying the clearance on the current runway and then the named runway's pattern. A runway change issued while the aircraft is already on a pattern leg of the neighbouring runway transitions leg to leg — from the upwind it keeps climbing straight ahead and turns crosswind only past both departure ends; from a close parallel's downwind it crosses over at midfield — instead of cutting across the field the moment the command lands.
 
-**Expedite a runway exit ("without delay").** When you need a landed aircraft off the runway fast — to land or depart the next one — add `EXP` to its exit command (`ER EXP`, `ER W5 EXP`, `EL EXP`, `EXIT A3 EXP`), or type a bare `EXP` to one that is rolling out or already exiting. The pilot takes the *earliest* reachable exit instead of the first comfortable one, braking harder (a max-effort rate, e.g. ~7.5 kts/s for a jet vs the normal firm 5) to make it, keeps the higher turn-off speed at a high-speed exit, and brakes firmly to a stop at the hold-short. `EXP` combines with `NODEL` in any order. This reduces runway occupancy at the cost of a firmer rollout — the controller phrase is "exit … without delay".
+![Ground View zoomed in on UAL546 rolling out on runway 30 just after touchdown](docs/user-guide/img/just-landed.png)
 
-**Changing a runway exit late.** You can reassign an exit right up until the aircraft starts turning off it — on final, during the rollout, and while it is still rolling down the centerline toward the exit it already picked. Send another `EL` / `ER` / `EXIT <taxiway>` and it rolls past the old one, adding power back so it does not crawl to the new exit. Once it is actually turning — or close enough that it could no longer brake for a different exit — the pilot answers *"Unable, already turning off at D"* and stays where it is. Name a taxiway that is not ahead of it and you get *"Unable, no B ahead"* instead of a silent substitution, so a late change never quietly sends the aircraft somewhere you did not ask for.
+**Expedite a runway exit ("without delay").** When you need a landed aircraft off the runway fast — to land or depart the next one — add `EXP` to its exit command (`ER EXP`, `ER W5 EXP`, `EL EXP`, `EXIT A3 EXP`), or type a bare `EXP` to one that is rolling out or already exiting. The pilot takes the *earliest* reachable exit instead of the first comfortable one, braking harder (a max-effort rate, e.g. ~7.5 kts/s for a jet vs the normal firm 5, or 4.5 vs 4.0 for a light single) to make it, keeps the higher turn-off speed at a high-speed exit, and brakes at max effort to a stop at the hold-short. `EXP` combines with `NODEL` in any order. This reduces runway occupancy at the cost of a firmer rollout — the controller phrase is "exit … without delay".
+
+**Changing a runway exit late.** You can reassign an exit right up until the aircraft starts turning off it — on final, during the rollout, and while it is still rolling down the centerline toward the exit it already picked. Send another `EL` / `ER` / `EXIT <taxiway>` and it rolls past the old one, adding power back so it does not crawl to the new exit. Once it is actually turning — or close enough that it could no longer brake for a different exit — the pilot answers *"Unable, already turning off at D"* and stays where it is. Name a taxiway that is ahead but too close to brake for and you get *"unable B"*; name one that is not ahead of it at all and you get *"Unable, no B ahead"* — never a silent substitution, so a late change never quietly sends the aircraft somewhere you did not ask for.
+
+**When the pilot can't make the exit.** A pilot brakes firmly for an exit you assign, never harder unless you add `EXP`. An exit that would need more is refused with *"unable W3"*: straight away if you send `EXIT W3` during the rollout, or as soon as the pilot knows when an exit read back on final drifts out of reach (a long float). The aircraft then takes a later exit, and does not use W3 for the rest of that landing — a bare `EXP` does not bring it back; a new `EXIT W3` does, if it can still be made. If the aircraft ends up stopped on the runway with W3 still ahead, it may taxi forward to it.
 
 **Taxiing from where the aircraft already is.** A `TAXI` clearance need not name the taxiway the aircraft currently occupies — issue just the continuation (`TAXI W` to an aircraft sitting on W5, `TAXI E RWY 28R` to one on C) and the current taxiway is added to the route automatically when it joins the first cleared taxiway directly. The aircraft is never warned about the taxiway it is already on, and a `TAXI` issued just after a runway exit also clears finishing the crossing of that same runway. See [Command Reference](COMMANDS.md) for details and the across-a-runway exception.
 
@@ -442,6 +452,8 @@ An interactive airport surface map showing taxiways, runways, and aircraft posit
 **Showing taxi routes.** The ground view can draw an aircraft's remaining taxi route (each drawn route gets its own color). Two **Settings › Ground** options set the default behavior:
 - **Show taxi route when hovering an aircraft** (on by default) — moving the mouse over an aircraft temporarily draws its route in white; it clears when the cursor leaves.
 - **Show all taxiing aircraft's routes** (off by default) — every taxiing aircraft's route is drawn at once.
+
+![Ground View zoomed in on SWA5456 taxiing out of the terminal 2 alley with its route via TE, U and W to runway 30 drawn in red](docs/user-guide/img/ground-taxi-route.png)
 
 Right-click an aircraft and open the **Taxi route** submenu to override the default for that one aircraft: **Always show** (pin it on), **Always hide** (pin it off), or **Follow "Show all" setting** (the default — tracks the global toggle). An explicit Always show / Always hide sticks even when you flip the global setting; pick Follow to return the aircraft to tracking it. Hovering always reveals a route, even one set to Always hide.
 
@@ -896,6 +908,8 @@ The **vTDLS** tab is YAAT's emulation of vNAS's [Tower Data Link Services](https
 
 vTDLS state lives on the server and broadcasts over SignalR — there is no CRC topic counterpart, so trainees do not see a vTDLS view in their CRC. The same display is also available in any browser at `/vtdls/` on the server (no install), backed by the WASM `Yaat.VTdls.Web` bundle. While connected, **Tools → Open TDLS in Browser** opens that page in your default browser with your initials/ARTCC/room pre-filled — the vTDLS counterpart to **Open Strips in Browser**. The browser page signs in with VATSIM itself (so your CID is verified there too).
 
+![The OAK vTDLS tab with the DCL list holding the scenario's departures above empty PDC and CPDLC lists](docs/user-guide/img/vtdls-tab.png)
+
 #### Lists
 
 - **DCL** (top, full width, column-wrapping) — Pending PDCs. A callsign appears here automatically when a flight plan is filed at a TDLS-configured facility (no controller action needed, just like real life). Pre-files generate entries too.
@@ -952,8 +966,8 @@ Use **View > Layout > From this scenario's views…** to open the **Apply Layout
 
 **Scenario > Load Scenario...** opens a dialog with two tabs:
 
-- **ARTCC Scenarios** (default) — lists training scenarios from the [vNAS](#glossary) data API for the room's ARTCC: normally your home ARTCC, or the one you picked when creating the room if you've been granted another ARTCC's scenarios (see [Visiting another ARTCC](#visiting-another-artcc)). Use the Airport filter to narrow by primary airport.
-- **Local Files** — browse a local folder for ATCTrainer-format JSON scenario files. Supports Facility and Rating filters.
+- **ARTCC Scenarios** (default) — lists training scenarios from the [vNAS](#glossary) data API for the room's ARTCC: normally your home ARTCC, or the one you picked when creating the room if you've been granted another ARTCC's scenarios (see [Visiting another ARTCC](#visiting-another-artcc)). Use the Facility filter to narrow by the facility code after the prefix at the start of each scenario's name (`OAK` in a name beginning `S1-OAK`); names without that prefix fall under `Unknown`.
+- **Local Files** — **Load File…** opens a file picker for a single scenario JSON and loads it at once, leaving the browsed folder unchanged. Below it, the **Recent** list shows the same local-file scenarios as **Scenario > Load Recent Scenario**; a file that has been moved or deleted shows "(missing)", dimmed, and cannot be loaded, and **Remove** drops the selected entry from the list. Under that, browse a local folder for ATCTrainer-format JSON scenario files, with Facility and Rating filters.
 
 Select a scenario and click **Load** (or double-click). Aircraft spawn at their configured starting positions. The window title shows the room name and scenario name. To switch scenarios, load a new one — a confirmation dialog appears if one is already active.
 
@@ -1037,6 +1051,8 @@ The active weather name is shown in the terminal when weather is loaded or clear
 ### Viewing METARs
 
 The **METAR** tab in the main window lists the METAR string for each airport in the currently active weather, with the station id labeled. Stations are listed **alphabetically**, and clicking the **☆ star** next to a station id favorites it **for the current scenario** — favorited stations surface to the top of the list (alphabetical among themselves) and stay favorited across sessions. Click the ★ again to unfavorite. The text is selectable so you can copy it; pop the tab out via **View > Windows > METAR** (**Ctrl+Shift+M**). The list reflects whatever weather is loaded — the scenario's default weather or a profile you loaded over it. With **no weather loaded**, it shows default standard conditions (calm wind, 10SM, clear, 29.92) for each of the scenario's airports rather than nothing, and for the airport every Ground View depicts.
+
+![The METAR window showing the default KOAK report for the loaded scenario](docs/user-guide/img/metar-window.png)
 
 The weather readout at the top-left of each **Ground View** shows the wind and altimeter of the airport that view depicts; each **Radar View** lists the stations of its position's airports. When the loaded weather has no METAR for those airports, the readout says so (`No METAR for SFO`) rather than showing another airport's weather.
 
@@ -1463,11 +1479,16 @@ Pause and sim rate are scoped to your room — they don't affect other rooms.
 
 ### Timeline / Rewind
 
-When a scenario is loaded, a timeline bar appears below the menu. It shows elapsed time and provides rewind controls:
+When a scenario is loaded and **View > Show Timeline Bar** is checked (it is off by default), a timeline bar appears below the menu. It shows elapsed time and provides rewind controls:
 
-- **|◀** — rewind to the start of the scenario
-- **-30s / -15s** — rewind 30 or 15 seconds back from current time
-- **Elapsed time** — displayed in mm:ss format
+- **⏮** — jump to the start of the scenario
+- **⏪30 / ⏪15** — rewind 30 or 15 seconds back from current time
+- **▶ / ⏸** — play / pause
+- **15⏩ / 30⏩** — skip 15 or 30 seconds forward, no further than the end of the recorded tape
+- **⏭** — jump to the end of the recorded tape
+- **Elapsed time** — displayed in mm:ss format; in playback the tape's end time shows to the right of the slider
+
+![The timeline bar after a rewind to 1:00 of a 2:00 tape, with the PLAYBACK badge, the Take Control button and two gold bookmark ticks on the rail](docs/user-guide/img/timeline-playback.png)
 
 After rewinding, the simulation enters **Playback Mode**. The timeline bar shows "PLAYBACK" and a "Take Control" button. In playback mode:
 
@@ -1478,13 +1499,17 @@ After rewinding, the simulation enters **Playback Mode**. The timeline bar shows
 - Pausing, placing or jumping to a bookmark, and asking `SHOWAT` / `SHOWCOND` all leave the recording alone, so they're safe to use mid-playback
 - Press **Take Control**, or issue any other command, to exit playback and resume live operation. Either way you're asked to confirm first, since it discards everything on the tape after the point you scrubbed to and can't be undone
 
+![The confirmation shown before Take Control, warning that the replay stops and the rest of the playback timeline is discarded, with Take Control and Cancel buttons](docs/user-guide/img/take-control-dialog.png)
+
 ### Bookmarks
 
 Mark highlight moments on the timeline so you can scrub back to them later (a go-around, a conflict, a teaching point). Bookmark controls sit at the right end of the timeline bar:
 
-- **🔖** — add a bookmark at the current position and type an optional name. Leave the name blank to keep the timestamp default ("Bookmark 14:32"). The default keybind **Ctrl+B** drops an unnamed bookmark instantly (configurable under **Settings › Keys**).
+- **🔖** — add a bookmark at the current position and type an optional name. Leave the name blank for an unnamed bookmark: the list shows it by its id and time (e.g. "bm-0 0:00:30 · AB"), and its rail tick's tooltip calls it "Bookmark 0:00:30". The default keybind **Ctrl+B** drops an unnamed bookmark instantly (configurable under **Settings › Keys**).
 - **◀🔖 / 🔖▶** — jump to the previous / next bookmark.
-- **Bookmarks ▾** — a list of all bookmarks (time, name, and the initials of whoever placed it); click one to jump, or use the ✎ / ✕ buttons to rename or delete.
+- **Bookmarks ▾** — a list of all bookmarks (id, time, name, and the initials of whoever placed it); click one to jump, or use the ✎ / ✕ buttons to rename or delete.
+
+![The Bookmarks list open below the timeline bar, showing two bookmarks at 0:00:30 and 0:01:30 with rename and delete buttons](docs/user-guide/img/bookmarks-list.png)
 
 Bookmarks also appear as gold ticks on the rail above the slider — click a tick to seek, or right-click it to Rename/Delete. Bookmarks work in both live and playback modes.
 
@@ -1507,6 +1532,8 @@ Recordings are self-contained archives that include the scenario definition, RNG
 
 **Scenario → File Bug Report...** is the quickest way to report a problem. It asks for a title, what happened, what you expected, and the callsigns involved, then:
 
+![The empty File Bug Report form with Title, What happened, What did you expect and Callsigns fields](docs/user-guide/img/file-bug-report-dialog.png)
+
 1. saves a bug report bundle to `%LOCALAPPDATA%\yaat\bug-reports\`. In a room the bundle holds the session recording, your bookmarks, the client log and the server log; outside a room it holds the client log only;
 2. opens a new GitHub issue in your browser with your answers and your YAAT version, OS and scenario already filled in;
 3. opens the folder with the bundle selected. Drag the bundle into the issue before you submit it, since GitHub can't attach it for you.
@@ -1528,6 +1555,8 @@ Every aircraft becomes a starting condition:
 Live-traffic aircraft are exported with the flight plan the live feed filed for them.
 
 After you pick where to save, the **Exported Scenario — Needs Review** window lists every flagged aircraft with the reason, and **Copy** puts the list on the clipboard. The reasons are: holding short, taxiing / not at a stand, arrived (parked at its own destination), airborne VFR, vectored / off route, in a procedure / holding, no flight plan, no filed route, filed route not trimmed, on final for a runway that is not its destination, aligned with final but off the glidepath, and over the threshold / landing. Edit those aircraft in the scenario file (or add presets) before using it for training. The terminal reports `Exported <n> aircraft to <path> (<k> need review). Weather is not included.`
+
+![The Exported Scenario — Needs Review window listing a flagged aircraft (N111XX, no flight plan) with Copy and Close buttons](docs/user-guide/img/export-room-scenario.png)
 
 ### ASDE-X / SAID drawn geometry
 
@@ -1682,11 +1711,10 @@ For a server you host yourself, add a second object with your own name and base 
 
 Once CRC is configured:
 
-1. Make sure the YAAT server is running (or use the hosted YAAT1 server)
-2. Have the student restart CRC (it reads `DevEnvironments.json` on startup)
-3. In CRC's environment selector, the student chooses **YAAT1** (or the entry for your own server)
-4. The student connects with their VATSIM credentials
-5. In YAAT, open **Room > Members...** and click **Pull** next to the student in the **CRC Lobby** to bring them into your room — they immediately start seeing your room's traffic
+1. Have the student restart CRC (it reads `DevEnvironments.json` on startup)
+2. In CRC's environment selector, the student chooses **YAAT1** (or the entry for your own server)
+3. The student connects with their VATSIM credentials
+4. In YAAT, open **Room > Members...** and click **Pull** next to the student in the **CRC Lobby** to bring them into your room — they immediately start seeing your room's traffic
 
 If the student's VATSIM CID matches a YAAT client in the room, they're pulled in automatically.
 

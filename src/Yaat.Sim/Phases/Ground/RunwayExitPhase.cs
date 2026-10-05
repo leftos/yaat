@@ -65,6 +65,12 @@ public sealed class RunwayExitPhase : Phase
     private const double RestoredApproachSegmentNm = 0.25;
 
     /// <summary>
+    /// Last exit-route segment of the turn-off: segment 0 is the virtual approach leg to the branch node and segment 1
+    /// the first exit edge from it, where the turn arc is flown.
+    /// </summary>
+    private const int TurnOffLastSegmentIndex = 1;
+
+    /// <summary>
     /// Ground speed (kts) at or below which an aircraft with no exit ahead counts as stopped and the backstop
     /// (<see cref="TryCommitExitBehind"/>) looks for an exit behind it.
     /// </summary>
@@ -104,6 +110,9 @@ public sealed class RunwayExitPhase : Phase
     // Latched once the turn-off is physically under way — see TurnStarted.
     private bool _turnStarted;
 
+    // The braking rate the committed exit was chosen with — see TurnOffDecelRate.
+    private double? _turnOffDecelRate;
+
     // The committed exit is behind the aircraft (the forced rollout's backstop): the rollout datum flips to the
     // reciprocal heading once the route to it is built, and stays put if the build fails.
     private bool _backtrackPending;
@@ -120,6 +129,11 @@ public sealed class RunwayExitPhase : Phase
     // The navigator's snapshot, held by FromSnapshot until the first tick's route rebuild restores the navigator from it,
     // so the rebuilt exit route resumes the primitive the navigator was playing. Null for a phase that was never restored.
     private GroundNavigatorDto? _restoredNavigator;
+
+    // Why FromSnapshot rejected the stored exit path — a node id the current layout lacks, or a consecutive pair with no
+    // connecting edge. Held for the first tick's rebuild, which takes the centreline fallback and logs the reason with the
+    // callsign, which the restore itself does not have. Null for a phase whose path restored cleanly.
+    private string? _restorePathRejectedReason;
 
     // The aircraft's RequestedExit as it stood when the route was handed to the navigator. A late exit
     // change is "the controller issued something new since we committed", which is identity against this —
@@ -142,6 +156,9 @@ public sealed class RunwayExitPhase : Phase
     /// </summary>
     public int? TargetHoldShortNodeId => _holdShortNode?.Id;
 
+    /// <summary>The taxiway of the exit this aircraft is committed to, or null while it is still searching.</summary>
+    public string? ExitTaxiway => _exitTaxiway;
+
     /// <summary>
     /// True while the aircraft is rolling along the runway centerline searching for
     /// an exit. False once it has committed to an exit and is following the taxiway
@@ -156,6 +173,25 @@ public sealed class RunwayExitPhase : Phase
     /// heading. Latched — a momentary re-alignment must not reopen the window.
     /// </summary>
     public bool TurnStarted => _turnStarted;
+
+    /// <summary>
+    /// True while the navigator flies the turn-off: the virtual approach leg down the runway to the branch node and the
+    /// first exit edge from it, where the turn arc is flown. From the following segment on the aircraft is taxiing to the bar.
+    /// </summary>
+    public bool IsOnTurnOff => (_state == ExitState.FollowingExitPath) && (_exitRoute is { } route) && IsTurnOffSegment(route.CurrentSegmentIndex);
+
+    /// <summary>
+    /// True while the navigator flies the approach leg down the runway to the branch node (segment 0), before the turn itself.
+    /// </summary>
+    public bool IsOnApproachLeg => (_state == ExitState.FollowingExitPath) && (_exitRoute is { CurrentSegmentIndex: 0 });
+
+    /// <summary>
+    /// The braking rate (kts/s) the turn-off flies at: the rate <see cref="Tower.LandingPhase"/> chose the committed exit with
+    /// (<see cref="ResolvedExitInfo.SelectionDecelRate"/>), or a late <c>EL</c>/<c>ER</c>/<c>EXIT</c> re-target's firm (or
+    /// expedite) limit. Null — the category taxi rate — for an exit this phase found on its own, one the rollout committed
+    /// without a rate, and one dropped for occupancy at the hand-off.
+    /// </summary>
+    public double? TurnOffDecelRate => _turnOffDecelRate;
 
     /// <summary>
     /// The runway being exited. Captured in <see cref="OnStart"/> from the
@@ -216,6 +252,7 @@ public sealed class RunwayExitPhase : Phase
                 _holdShortNode = committed.HoldShortNode;
                 _exitTaxiway = committed.TaxiwayName;
                 _exitPath = committed.Path;
+                _turnOffDecelRate = CaptureTurnOffRate(committed.SelectionDecelRate, ctx.Category);
 
                 Log.LogDebug(
                     "[Exit] {Callsign}: using committed exit {Twy}, path=[{Path}]",
@@ -263,6 +300,8 @@ public sealed class RunwayExitPhase : Phase
             return TickStopWithoutLayout(ctx);
         }
 
+        WarnIfRestorePathRejected(ctx);
+
         if (_state == ExitState.FollowingExitPath)
         {
             // A snapshot restore brings back the state, the waypoint nodes and the navigator, but the exit route is
@@ -279,9 +318,9 @@ public sealed class RunwayExitPhase : Phase
                 {
                     // Rebuild failed (layout gone, or an edge on the stored path no longer exists). Fall back to the
                     // centerline search rather than silently declaring the exit complete — same recovery the
-                    // build-time failure path takes. The navigator the phase was restored with belongs to the route that
-                    // could not be rebuilt: drop it, so a later exit build starts a fresh navigator and a later snapshot
-                    // does not carry it on.
+                    // build-time failure path takes. A rejected restored path was already logged and cleared at the
+                    // top of this tick; only the navigator the phase came back with is left to drop, so a later exit
+                    // build starts a fresh one and a later snapshot does not carry it on.
                     if (_restoredNavigator is { } staleNavigator)
                     {
                         Log.LogWarning(
@@ -291,9 +330,9 @@ public sealed class RunwayExitPhase : Phase
                             string.Join("→", _exitPath?.Select(node => node.Id) ?? []),
                             staleNavigator.TargetNodeId
                         );
-                        _restoredNavigator = null;
                     }
 
+                    _restoredNavigator = null;
                     _state = ExitState.RollingOnCenterline;
                     ClearCommittedExit();
                     return TickRolling(ctx);
@@ -339,6 +378,24 @@ public sealed class RunwayExitPhase : Phase
         _exitTaxiway = null;
         _exitPath = null;
         _backtrackPending = false;
+        _restorePathRejectedReason = null;
+        _turnOffDecelRate = null;
+    }
+
+    /// <summary>
+    /// Emit the restore-rejection warning once, on the first tick after a restore, whatever state the phase came back
+    /// in: a rejected stored path also lands a <c>RollingOnCenterline</c> phase that carries a restored hold-short, and
+    /// that state never enters the <c>FollowingExitPath</c> rebuild. Clears the reason so it is logged exactly once.
+    /// </summary>
+    private void WarnIfRestorePathRejected(PhaseContext ctx)
+    {
+        if (_restorePathRejectedReason is not { } reason)
+        {
+            return;
+        }
+
+        Log.LogWarning("[Exit] {Callsign}: restored exit path rejected — {Reason}; falling back to the centerline", ctx.Aircraft.Callsign, reason);
+        _restorePathRejectedReason = null;
     }
 
     /// <summary>
@@ -387,7 +444,7 @@ public sealed class RunwayExitPhase : Phase
         }
 
         // Stopped with no free exit ahead (the runway-end stop below, or a forced landing that stopped short of its end).
-        if ((_holdShortNode is null) && (ctx.Aircraft.GroundSpeed <= BackstopStoppedSpeedKts))
+        if ((_holdShortNode is null) && !IsRolling(ctx.Aircraft))
         {
             return TickStoppedWithoutExit(ctx);
         }
@@ -409,7 +466,7 @@ public sealed class RunwayExitPhase : Phase
             if (distToEndNm <= TerminalStopBufferNm)
             {
                 // A runway-overrun backstop brakes at the category's max-effort rate, not the comfort rate
-                // a piston would otherwise coast off the end at (jet 7.5, turboprop 6.0, piston 5.0 kts/s).
+                // a piston would otherwise coast off the end at (jet 7.5, turboprop 6.0, piston 4.5 kts/s).
                 ctx.Targets.TargetSpeed = 0;
                 ctx.Targets.DesiredDecelRate = CategoryPerformance.ExpediteExitDecelRate(ctx.Category);
                 if (_timeSinceLastLog >= LogIntervalSeconds)
@@ -532,7 +589,8 @@ public sealed class RunwayExitPhase : Phase
     /// on its own (<see cref="TryCommitExitBehind"/>). Any other aircraft stays stopped — reversing on the runway needs
     /// ATC approval (AIM 4-3-21.a) — and re-searches every tick: when an exit ahead exists but is occupied or full it
     /// waits for it to clear, and when there is none at all (nor for a forced rollout any behind) the pilot reports
-    /// once that it cannot exit and waits for an instructor TAXI or EXIT.
+    /// once that it cannot exit and waits for an instructor TAXI or EXIT. A taxiway the crew gave up on the rollout counts
+    /// as an exit ahead here: the give-up was about speed, and a stopped aircraft may taxi forward to it (<see cref="IsGivenUp"/>).
     /// </summary>
     private bool TickStoppedWithoutExit(PhaseContext ctx)
     {
@@ -637,7 +695,8 @@ public sealed class RunwayExitPhase : Phase
                 preference: null,
                 sidePref: null,
                 excludeBranchPoints: null,
-                excludeHoldShortNodes: ctx.OccupiedHoldShortNodes
+                excludeHoldShortNodes: ctx.OccupiedHoldShortNodes,
+                filter: null
             );
             if (found is { } exit)
             {
@@ -709,6 +768,11 @@ public sealed class RunwayExitPhase : Phase
             excludeHoldShortNodes: occupied,
             filter: candidate =>
             {
+                if (IsGivenUp(ctx.Aircraft, candidate.Taxiway))
+                {
+                    return AirportGroundLayout.CandidateVerdict.Skip;
+                }
+
                 // Skip backward exits when no explicit preference
                 if ((candidate.ExitAngle > 100) && !isExplicit)
                 {
@@ -726,6 +790,28 @@ public sealed class RunwayExitPhase : Phase
             }
         );
     }
+
+    /// <summary>
+    /// True when <paramref name="taxiway"/> is one the crew has given up on this landing
+    /// (<see cref="PhaseList.GivenUpExitTaxiways"/>, written by <see cref="Tower.LandingPhase"/> with its "unable" call) and the
+    /// aircraft is still rolling. Every search of this phase skips such a taxiway while rolling, so the runway exit never turns off
+    /// at an exit the crew told the controller it could not make. Only a fresh <c>EXIT</c> naming the taxiway revives it
+    /// (<see cref="Commands.GroundCommandHandler.TryExitCommand"/> takes it out of the set once accepted); <see cref="RunRetargetSearch"/>
+    /// probes that instruction before the revival is written, so it alone treats the taxiway the instruction names as eligible.
+    /// The "unable" was about rollout speed: once stopped on the runway — where it may not reverse without ATC approval
+    /// (AIM 4-3-21.a) — the crew may taxi forward to a given-up taxiway ahead like any other exit, so a search run from a stop
+    /// treats it as eligible; so does the forced rollout's search behind it (<see cref="FindExitBehind"/>, which only ever runs
+    /// stopped and so applies no given-up filter). The stop does not clear the set; a search run once the aircraft is rolling
+    /// again skips it again.
+    /// </summary>
+    private static bool IsGivenUp(AircraftState aircraft, string taxiway) =>
+        IsRolling(aircraft) && (aircraft.Phases?.GivenUpExitTaxiways.Contains(taxiway) is true);
+
+    /// <summary>
+    /// True while the aircraft is moving on the runway, by the speed at or below which the stopped-without-exit backstop counts it
+    /// as stopped (<see cref="BackstopStoppedSpeedKts"/>).
+    /// </summary>
+    private static bool IsRolling(AircraftState aircraft) => aircraft.GroundSpeed > BackstopStoppedSpeedKts;
 
     private void CommitFoundExit(
         PhaseContext ctx,
@@ -749,6 +835,7 @@ public sealed class RunwayExitPhase : Phase
         _holdShortNode = holdShort;
         _exitTaxiway = taxiway;
         _exitPath = path;
+        _turnOffDecelRate = null;
 
         Log.LogDebug(
             "[Exit] {Callsign}: found exit {Twy}, angle={Angle:F0}°, path=[{Path}]",
@@ -765,51 +852,69 @@ public sealed class RunwayExitPhase : Phase
     /// virtual straight down the runway centerline, so the aircraft can be committed and still have the whole
     /// runway to run. This is the shared verdict — <see cref="Commands.GroundCommandHandler"/> asks it at
     /// command time so the controller gets immediate feedback, and <see cref="TryRetargetCommittedExit"/>
-    /// re-asks it at tick time from the aircraft's updated position.
+    /// re-asks it at tick time from the aircraft's updated position. <paramref name="expedite"/> is whether the
+    /// instruction will run without delay (<c>EXP</c> on it, or standing for the same taxiway), so the exit is judged
+    /// at the limit it will brake at: the handler passes what it is about to write, the tick reads what it wrote.
     /// </summary>
-    public ExitRetargetVerdict EvaluateRetarget(AircraftState aircraft, ExitPreference newPreference)
+    public ExitInstructionVerdict EvaluateRetarget(AircraftState aircraft, ExitPreference newPreference, bool expedite)
     {
         if (_state != ExitState.FollowingExitPath)
         {
             // Still tracking the centerline with no route handed over — OnTick's own preference re-check
             // picks the change up, no gate needed.
-            return new ExitRetargetVerdict(true, null);
+            return new ExitInstructionVerdict(true, null);
         }
 
         if ((_exitTaxiway is null) || (_exitPath is not { Count: > 0 }))
         {
             // FollowingExitPath with nothing resolved behind it — a restore whose stored nodes no longer
             // exist. There is no turn to protect, and refusing here would assert one that isn't happening.
-            return new ExitRetargetVerdict(true, null);
+            return new ExitInstructionVerdict(true, null);
         }
 
         if (_turnStarted || IsInsideTurnLead(aircraft))
         {
             // Names the exit the aircraft will actually take: the controller's next crossing decision
             // depends on knowing where this arrival turns off (7110.65 §3-7-2.a.7.b.2).
-            return new ExitRetargetVerdict(false, $"Unable, already turning off at {_exitTaxiway}");
+            return new ExitInstructionVerdict(false, $"Unable, already turning off at {_exitTaxiway}");
         }
 
         if (aircraft.Ground.Layout is not { } layout)
         {
             // No layout to reason about. Never refuse because of missing data.
-            return new ExitRetargetVerdict(true, null);
+            return new ExitInstructionVerdict(true, null);
         }
 
         // No occupancy set outside the tick loop; this probe only answers "is that exit still reachable",
         // and the tick-time search re-runs it with live occupancy before anything is torn down.
-        if (RunRetargetSearch(layout, aircraft, newPreference, occupied: null) is not null)
+        return RunRetargetSearch(layout, aircraft, newPreference, occupied: null, expedite) is not null
+            ? new ExitInstructionVerdict(true, null)
+            : RefuseRetarget(layout, aircraft, newPreference);
+    }
+
+    /// <summary>
+    /// The refusal for a re-target whose search found nothing: the crew's plain "unable {twy}" when a connection of the named
+    /// taxiway is ahead but the crew cannot use it (past the braking limit, or inside the turn lead), "no {twy} ahead" when no
+    /// connection of it lies ahead at all — and rather than "{twy} is behind us": the search returns nothing both when the taxiway
+    /// was passed and when it isn't on this runway, and only the first would justify "behind". A side-only instruction has no
+    /// exit on that side ahead.
+    /// </summary>
+    private ExitInstructionVerdict RefuseRetarget(AirportGroundLayout layout, AircraftState aircraft, ExitPreference newPreference)
+    {
+        if (newPreference.Taxiway is { } taxiway)
         {
-            return new ExitRetargetVerdict(true, null);
+            if (IsAnyConnectionAhead(layout, aircraft, newPreference))
+            {
+                PilotSpeechText unable = Pilot.PilotResponder.BuildUnableToExit(aircraft, taxiway);
+                return new ExitInstructionVerdict(false, unable.Terminal) { PilotUnable = unable };
+            }
+
+            PilotSpeechText noExit = Pilot.PilotResponder.BuildUnableNoExitAhead(aircraft, taxiway);
+            return new ExitInstructionVerdict(false, $"Unable, no {taxiway} ahead") { PilotUnable = noExit };
         }
 
-        // "no X ahead" rather than "X is behind us": the search returns nothing both when the taxiway was
-        // passed and when it isn't on this runway at all, and only the first would justify "behind".
-        string what =
-            newPreference.Taxiway is { } taxiway ? $"no {taxiway} ahead"
-            : newPreference.Side == ExitSide.Left ? "no left exit ahead"
-            : "no right exit ahead";
-        return new ExitRetargetVerdict(false, $"Unable, {what}");
+        string what = (newPreference.Side == ExitSide.Left) ? "no left exit ahead" : "no right exit ahead";
+        return new ExitInstructionVerdict(false, $"Unable, {what}");
     }
 
     /// <summary>
@@ -846,7 +951,8 @@ public sealed class RunwayExitPhase : Phase
         AirportGroundLayout layout,
         AircraftState aircraft,
         ExitPreference preference,
-        HashSet<int>? occupied
+        HashSet<int>? occupied,
+        bool expedite
     )
     {
         if (_runwayId is null)
@@ -854,20 +960,11 @@ public sealed class RunwayExitPhase : Phase
             return null;
         }
 
-        ExitPreference searchPref =
-            (preference.Side is null) && (_inferredSide is not null)
-                ? new ExitPreference { Taxiway = preference.Taxiway, Side = _inferredSide.Value }
-                : preference;
-
+        ExitPreference searchPref = RetargetSearchPreference(preference);
         AircraftCategory category = AircraftCategorization.Categorize(aircraft.AircraftType);
         double leadFt = TurnLeadDistanceFt(aircraft, category);
 
-        // A re-target is always an explicit instruction, so the pilot will brake firmly for it — or at the
-        // max-effort rate when the exit was ordered without delay. Mirrors LandingPhase.BrakingLimit's
-        // explicit-exit branch.
-        double brakingLimit = aircraft.Ground.IsExpeditingExit
-            ? CategoryPerformance.ExpediteExitDecelRate(category)
-            : RolloutBraking.FirmBrakingRateKtsPerSec;
+        double brakingLimit = RetargetBrakingLimit(category, expedite);
 
         return layout.FindOnSidePreferredExit(
             aircraft.Position.Lat,
@@ -880,6 +977,12 @@ public sealed class RunwayExitPhase : Phase
             excludeHoldShortNodes: occupied,
             filter: candidate =>
             {
+                bool namedByThisInstruction = string.Equals(preference.Taxiway, candidate.Taxiway, StringComparison.OrdinalIgnoreCase);
+                if (!namedByThisInstruction && IsGivenUp(aircraft, candidate.Taxiway))
+                {
+                    return AirportGroundLayout.CandidateVerdict.Skip;
+                }
+
                 double distToBranchNm = GeoMath.AlongTrackDistanceNm(candidate.Path[0].Position, aircraft.Position, _runwayHeading);
 
                 // Far enough ahead that the pilot has time to take the instruction...
@@ -893,7 +996,10 @@ public sealed class RunwayExitPhase : Phase
                 // coast speed could send it to an exit it can only arrive at hot.
                 double turnOffSpeed = CategoryPerformance.ExitTurnOffSpeed(category, candidate.ExitAngle);
                 bool alreadySlowEnough = aircraft.GroundSpeed <= turnOffSpeed + RolloutBraking.TurnOffSpeedToleranceKts;
-                if (!alreadySlowEnough && (RolloutBraking.RequiredDecelKtsPerSec(aircraft.GroundSpeed, turnOffSpeed, distToBranchNm) > brakingLimit))
+                if (
+                    !alreadySlowEnough
+                    && (RolloutBraking.RequiredDecelKtsPerSec(aircraft.GroundSpeed, turnOffSpeed, distToBranchNm, category) > brakingLimit)
+                )
                 {
                     return AirportGroundLayout.CandidateVerdict.Skip;
                 }
@@ -901,6 +1007,49 @@ public sealed class RunwayExitPhase : Phase
                 return AirportGroundLayout.CandidateVerdict.Accept;
             }
         );
+    }
+
+    /// <summary>
+    /// Most a re-target brakes to make its new exit: a re-target is always an explicit instruction, so it is the limit every
+    /// named exit is judged by (<see cref="RolloutBraking.NamedExitBrakingLimit"/>), at the max-effort rate when the
+    /// instruction runs without delay (<paramref name="expedite"/>) and the firm rate otherwise.
+    /// </summary>
+    private static double RetargetBrakingLimit(AircraftCategory category, bool expedite) => RolloutBraking.NamedExitBrakingLimit(category, expedite);
+
+    /// <summary>
+    /// The preference a re-target searches with: the instruction as given, with the inferred side as a soft tiebreaker when it
+    /// names no side, so a taxiway found on both sides resolves to the one a default rollout would take.
+    /// </summary>
+    private ExitPreference RetargetSearchPreference(ExitPreference preference) =>
+        (preference.Side is null) && (_inferredSide is not null)
+            ? new ExitPreference { Taxiway = preference.Taxiway, Side = _inferredSide.Value }
+            : preference;
+
+    /// <summary>
+    /// True when any connection of the taxiway <paramref name="preference"/> names lies ahead of the aircraft on this runway,
+    /// whatever its energy state and however close: the line between the crew's "unable {twy}" (it is there, they cannot use
+    /// it) and "unable, no {twy} ahead". The taxiway name is a hard constraint of the search, so only its connections count.
+    /// </summary>
+    private bool IsAnyConnectionAhead(AirportGroundLayout layout, AircraftState aircraft, ExitPreference preference)
+    {
+        if (_runwayId is null)
+        {
+            return false;
+        }
+
+        ExitPreference searchPref = RetargetSearchPreference(preference);
+        return layout.FindOnSidePreferredExit(
+            aircraft.Position.Lat,
+            aircraft.Position.Lon,
+            _runwayHeading,
+            _runwayId,
+            searchPref,
+            searchPref.Side ?? _inferredSide,
+            excludeBranchPoints: null,
+            excludeHoldShortNodes: null,
+            filter: null
+        )
+            is not null;
     }
 
     /// <summary>
@@ -938,10 +1087,12 @@ public sealed class RunwayExitPhase : Phase
             return false;
         }
 
-        // Considered — whatever the outcome, don't re-evaluate this same instruction every tick.
+        // Considered — whatever the outcome, don't re-evaluate this same instruction every tick. The handler wrote the
+        // expedite the accepted instruction runs under before this tick, so the flag is the limit it was judged at.
         _committedPreference = newPreference;
+        bool expedite = ctx.Aircraft.Ground.IsExpeditingExit;
 
-        ExitRetargetVerdict verdict = EvaluateRetarget(ctx.Aircraft, newPreference);
+        ExitInstructionVerdict verdict = EvaluateRetarget(ctx.Aircraft, newPreference, expedite);
         if (!verdict.Allowed)
         {
             // The command handler already refused this, so reaching here means the aircraft crossed into the
@@ -959,7 +1110,13 @@ public sealed class RunwayExitPhase : Phase
             return false;
         }
 
-        AirportGroundLayout.CenterlineExitResult? found = RunRetargetSearch(layout, ctx.Aircraft, newPreference, RetargetOccupancyExcludingSelf(ctx));
+        AirportGroundLayout.CenterlineExitResult? found = RunRetargetSearch(
+            layout,
+            ctx.Aircraft,
+            newPreference,
+            RetargetOccupancyExcludingSelf(ctx),
+            expedite
+        );
         if ((found is null) || (found.Value.HoldShort.Id == _holdShortNode?.Id))
         {
             return false;
@@ -982,6 +1139,7 @@ public sealed class RunwayExitPhase : Phase
         _holdShortNode = found.Value.HoldShort;
         _exitTaxiway = found.Value.Taxiway;
         _exitPath = found.Value.Path;
+        _turnOffDecelRate = CaptureTurnOffRate(RetargetBrakingLimit(ctx.Category, expedite), ctx.Category);
         return true;
     }
 
@@ -1121,12 +1279,7 @@ public sealed class RunwayExitPhase : Phase
         _navigator = _restoredNavigator is { } savedNavigator ? GroundNavigator.FromSnapshot(savedNavigator) : new GroundNavigator();
         _navigator.MaxSpeedKts = maxSpeed;
         _restoredNavigator = null;
-        if (ctx.Aircraft.Ground.IsExpeditingExit)
-        {
-            // Brake firmly to the hold-short stop after the turn-off. Corner-speed
-            // caps still govern the turn itself, so a high-speed exit keeps its speed.
-            _navigator.DecelRateKts = CategoryPerformance.ExpediteExitDecelRate(ctx.Category);
-        }
+        ApplyExitDecelRate(ctx);
 
         _navigator.SetupSegment(_exitRoute, ctx, _ => true);
 
@@ -1176,6 +1329,7 @@ public sealed class RunwayExitPhase : Phase
         }
 
         bool isLastSegment = _exitRoute.CurrentSegmentIndex + 1 >= _exitRoute.Segments.Count;
+        ApplyExitDecelRate(ctx);
         NavigatorResult result = _navigator.Tick(ctx, isLastSegment, _ => true);
 
         if (result == NavigatorResult.ArrivedAtNode)
@@ -1196,11 +1350,64 @@ public sealed class RunwayExitPhase : Phase
                 return CompleteExit(ctx);
             }
 
+            ApplyExitDecelRate(ctx);
             _navigator.SetupSegment(_exitRoute, ctx, _ => true);
         }
 
         return false;
     }
+
+    /// <summary>
+    /// The navigator's braking rates for the exit route's current segment. Under <c>EXP</c>, the max-effort rate for the whole
+    /// route: the corner-speed caps still govern the turn, so a high-speed exit keeps its speed, and the aircraft brakes at max
+    /// effort to the route-end stop. Otherwise the in-route slowdowns (<see cref="GroundNavigator.SlowdownDecelRateKts"/>) continue
+    /// the rollout's braking: the approach leg down the runway at the rate the exit was chosen with
+    /// (<see cref="TurnOffDecelRate"/>), the first exit edge, where the turn arc is flown, at that rate but no more than the
+    /// category taxi rate, and the rest of the route at the taxi rate. The route-end stop — the tail-clear point past the bar,
+    /// not the bar itself — is planned in every mode, at the taxi rate unless expedited.
+    /// </summary>
+    private void ApplyExitDecelRate(PhaseContext ctx)
+    {
+        if ((_navigator is null) || (_exitRoute is null))
+        {
+            return;
+        }
+
+        if (ctx.Aircraft.Ground.IsExpeditingExit)
+        {
+            _navigator.DecelRateKts = CategoryPerformance.ExpediteExitDecelRate(ctx.Category);
+            _navigator.SlowdownDecelRateKts = null;
+            return;
+        }
+
+        _navigator.DecelRateKts = null;
+        _navigator.SlowdownDecelRateKts = TurnOffSlowdownRate(_exitRoute.CurrentSegmentIndex, ctx.Category);
+    }
+
+    /// <summary>
+    /// The slowdown rate for exit-route segment <paramref name="segmentIndex"/>: <see cref="TurnOffDecelRate"/> on the approach
+    /// leg (segment 0), that rate capped at the category taxi rate on the rest of the turn-off, and null (the taxi rate) after it.
+    /// </summary>
+    private double? TurnOffSlowdownRate(int segmentIndex, AircraftCategory category)
+    {
+        if ((_turnOffDecelRate is not { } rate) || !IsTurnOffSegment(segmentIndex))
+        {
+            return null;
+        }
+
+        return (segmentIndex == 0) ? rate : Math.Min(rate, CategoryPerformance.TaxiDecelRate(category));
+    }
+
+    private static bool IsTurnOffSegment(int segmentIndex) => segmentIndex <= TurnOffLastSegmentIndex;
+
+    /// <summary>
+    /// The turn-off rate to keep from an exit chosen at <paramref name="selectionRate"/>: capped at the category's max-effort
+    /// <see cref="CategoryPerformance.ExpediteExitDecelRate"/> (a <c>CLANDF</c> forced rollout commits its exit at
+    /// <see cref="Tower.ForcedLandingProfile.RolloutMaxDecelKtsPerSec"/>), and null — the taxi rate — for no rate or one that is
+    /// not positive.
+    /// </summary>
+    private static double? CaptureTurnOffRate(double? selectionRate, AircraftCategory category) =>
+        ((selectionRate is { } rate) && (rate > 0)) ? Math.Min(rate, CategoryPerformance.ExpediteExitDecelRate(category)) : null;
 
     private bool CompleteExit(PhaseContext ctx)
     {
@@ -1211,6 +1418,9 @@ public sealed class RunwayExitPhase : Phase
         // into a subsequent taxi (which has its own EXP).
         ctx.Aircraft.Ground.IsExpeditingExit = false;
         ctx.Aircraft.Ground.AwaitingTaxiInCall = true;
+
+        // The landing's given-up exits end with its runway exit: a later runway exit of this aircraft starts with none.
+        ctx.Aircraft.Phases?.GivenUpExitTaxiways.Clear();
 
         // No position snap — the GroundNavigator already brakes to 0 at the
         // final node (FinalNodeArrivalThresholdNm ≈ 1.8ft). The aircraft is
@@ -1427,10 +1637,40 @@ public sealed class RunwayExitPhase : Phase
             RunwayHeadingDeg = _runwayHeading.Degrees,
             ExitStateValue = (int)_state,
             TurnStarted = _turnStarted,
+            TurnOffDecelRate = _turnOffDecelRate,
             BacktrackPending = _backtrackPending,
             ReportedNoExitAhead = _reportedNoExitAhead,
             Navigator = _navigator?.ToSnapshot() ?? _restoredNavigator,
         };
+
+    /// <summary>
+    /// Rebuild a restored exit path from <paramref name="nodeIds"/>, requiring every id to resolve on
+    /// <paramref name="layout"/> and every consecutive pair to share an edge. Returns false with a human-readable
+    /// <paramref name="failure"/> when the stored chain is no longer drivable on this layout.
+    /// </summary>
+    private static bool TryRestoreExitPath(List<int> nodeIds, AirportGroundLayout layout, out List<GroundNode> path, out string? failure)
+    {
+        path = new List<GroundNode>(nodeIds.Count);
+        foreach (int id in nodeIds)
+        {
+            if (!layout.Nodes.TryGetValue(id, out GroundNode? node))
+            {
+                failure = $"node {id} is not on the current layout";
+                return false;
+            }
+
+            if ((path.Count > 0) && (FindEdgeBetween(path[^1], id) is null))
+            {
+                failure = $"nodes {path[^1].Id} and {id} are not joined by an edge";
+                return false;
+            }
+
+            path.Add(node);
+        }
+
+        failure = null;
+        return true;
+    }
 
     public static RunwayExitPhase FromSnapshot(RunwayExitPhaseDto dto, AirportGroundLayout? groundLayout)
     {
@@ -1446,6 +1686,7 @@ public sealed class RunwayExitPhase : Phase
             _coastSpeed = dto.ExitSpeed,
             _timeSinceLastLog = dto.TimeSinceLastLog,
             _turnStarted = dto.TurnStarted,
+            _turnOffDecelRate = dto.TurnOffDecelRate,
             _backtrackPending = dto.BacktrackPending,
             _reportedNoExitAhead = dto.ReportedNoExitAhead,
             _restoreSegmentIndex = Math.Max(dto.ExitWaypointIndex, 0),
@@ -1462,17 +1703,21 @@ public sealed class RunwayExitPhase : Phase
             }
             if (dto.ExitWaypointNodeIds is not null)
             {
-                var path = new List<GroundNode>();
-                foreach (int id in dto.ExitWaypointNodeIds)
+                if (TryRestoreExitPath(dto.ExitWaypointNodeIds, groundLayout, out List<GroundNode> path, out string? failure))
                 {
-                    if (groundLayout.Nodes.TryGetValue(id, out GroundNode? n))
+                    if (path.Count > 0)
                     {
-                        path.Add(n);
+                        phase._exitPath = path;
                     }
                 }
-                if (path.Count > 0)
+                else
                 {
-                    phase._exitPath = path;
+                    // Node ids are assigned when the layout is built, so a snapshot taken against an older build can name
+                    // nodes that have moved or vanished, or nodes no longer joined by an edge. A path is only usable when
+                    // every id resolves and every consecutive pair shares an edge; otherwise leave it unset so the first
+                    // tick's rebuild fails and takes the centerline fallback, rather than following a truncated or broken
+                    // chain that the old drop-missing-and-keep-the-rest rebuild would have accepted.
+                    phase._restorePathRejectedReason = failure;
                 }
             }
             // Held for the first tick's route rebuild (StartExitNavigation), which needs the live layout and pose.

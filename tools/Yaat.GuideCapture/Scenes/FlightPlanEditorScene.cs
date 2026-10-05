@@ -34,4 +34,6 @@ internal sealed class FlightPlanEditorScene : ScenarioSceneBase
     }
 
     public override Window GetCaptureTarget(Window primary) => _editor ?? primary;
+
+    public override IEnumerable<Window> ExtraWindows => _editor is null ? [] : [_editor];
 }

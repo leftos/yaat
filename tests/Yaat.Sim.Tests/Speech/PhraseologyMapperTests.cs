@@ -62,6 +62,8 @@ public class PhraseologyMapperTests
     [InlineData("climb and maintain 8,000 to fly heading to 7-0.", "CM 8000, FH 270")]
     [InlineData("expedite climb to one one thousand", "EXP 11000")]
     [InlineData("expedite descent to five thousand", "EXP 5000")]
+    // Must stay: a "climb" without "via" is a climb-and-maintain, never CVIA.
+    [InlineData("climb and maintain one three thousand", "CM 13000")]
     public void Altitude_Rules(string transcript, string expected)
     {
         MapResult? result = PhraseologyMapper.Map(transcript, NoContext);
@@ -158,6 +160,23 @@ public class PhraseologyMapperTests
         Assert.Equal("CROSS 28R", result!.CanonicalCommand);
     }
 
+    [Theory]
+    // Whisper drops the second "at" in the altitude+speed crossing, and speaks the speed
+    // digit-by-digit after the "thousand" altitude. Both defects must still yield 14000 / 240.
+    [InlineData("cross altam at maintain one four thousand two four zero knots", "CFIX ALTAM AT 14000 240")]
+    [InlineData("cross altam at and maintain one four thousand at two four zero knots", "CFIX ALTAM AT 14000 240")]
+    // Whisper's mishear of the fix ("ultem" for ALTAM) and the shortest spoken form, with the
+    // "maintain" and second "at" both dropped.
+    [InlineData("cross ultem at maintain one four thousand two four zero knots", "CFIX ALTAM AT 14000 240")]
+    [InlineData("cross altam at one four thousand two four zero knots", "CFIX ALTAM AT 14000 240")]
+    public void CrossFix_AltitudeThenDigitSpokenSpeed_ParsesBothNumbers(string transcript, string expected)
+    {
+        var ctx = new MapContext([], ["ALTAM"]);
+        MapResult? result = PhraseologyMapper.Map(transcript, ctx);
+        Assert.NotNull(result);
+        Assert.Equal(expected, result!.CanonicalCommand.ToUpperInvariant());
+    }
+
     [Fact]
     public void CrossFix_PlusClearedApproach_CompoundsViaGreedyMatcher()
     {
@@ -183,6 +202,43 @@ public class PhraseologyMapperTests
         MapResult? result = PhraseologyMapper.Map(transcript, NoContext);
         Assert.NotNull(result);
         Assert.Equal(expected, result!.CanonicalCommand);
+    }
+
+    [Theory]
+    // Whisper garbles the SID word after "climb via" ("sid" heard as "sidd"/"si"/"sit", or a
+    // stray word). The one-word capture recovers the bare CVIA without a real SID name.
+    [InlineData("climb via sidd", "CVIA")]
+    [InlineData("climb via fabrics", "CVIA")]
+    [InlineData("climb via si except maintain two thousand", "CVIA 2000")]
+    [InlineData("climb via sit except maintain one three thousand", "CVIA 13000")]
+    // Whisper dropped the SID word entirely, or kept the article with it.
+    [InlineData("climb via except maintain five thousand", "CVIA 5000")]
+    [InlineData("climb via the sid except maintain five thousand", "CVIA 5000")]
+    [InlineData("climb via the bizee two", "CVIA")]
+    public void ClimbVia_GarbledSidWord_StillEmitsBareCvia(string transcript, string expected)
+    {
+        MapResult? result = PhraseologyMapper.Map(transcript, NoContext);
+        Assert.NotNull(result);
+        Assert.Equal(expected, result!.CanonicalCommand);
+    }
+
+    [Fact]
+    public void ClimbVia_NumberWordAfterVia_IsNotCvia()
+    {
+        // "climb via one zero thousand" is not a climb-via: the {viaword} guard rejects a numeric
+        // capture, so no rule matches and the LLM fallback gets the transcript.
+        MapResult? result = PhraseologyMapper.Map("climb via one zero thousand", NoContext);
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public void ClimbVia_UnknownSidName_FailsAndFallsThrough()
+    {
+        // The named-SID form keeps its procedure validation: with a scenario that knows only
+        // SUZAN2, "climb via the oshen one departure" is not a climb-via and falls to the LLM,
+        // exactly as StarUnknownName_FailsAndFallsThrough does for STARs.
+        MapResult? result = PhraseologyMapper.Map("climb via the oshen one departure", ProcedureContext(Suzan2Sid));
+        Assert.Null(result);
     }
 
     [Fact]
@@ -1231,6 +1287,10 @@ public class PhraseologyMapperTests
     // Pushback — onto taxiway variations.
     [InlineData("pushback onto tango approved", "PUSH T")]
     [InlineData("push back onto tango approved", "PUSH T")]
+    // Whisper writes "onto" as two words — the "on to" twin of the plain onto-rule.
+    [InlineData("pushback on to tango approved", "PUSH T")]
+    [InlineData("push back on to tango approved", "PUSH T")]
+    [InlineData("pushback on to delta approved", "PUSH D")]
     [InlineData("pushback onto tango facing taxiway uniform approved", "PUSH T U")]
     [InlineData("pushback onto tango facing taxiway uniform", "PUSH T U")]
     [InlineData("pushback approved facing north", "PUSH FACE N")]

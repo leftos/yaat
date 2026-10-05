@@ -78,6 +78,13 @@ What a scenario JSON will make the server fetch — its ARTCC, the roster's neig
 **Map-required airport**:
 An airport in the resource manifest whose full ground map the load needs: the primary airport, and each airport an aircraft parks at or spawns on the ground at. A missing map there is a load warning; elsewhere it is not.
 
+**Preset**:
+A command the scenario gives one aircraft (`presetCommands`), dispatched at load or at its `timeOffset`, and scripted rather than spoken by the student: it does not count as the student's contact with the pilot.
+
+**Runway spawn**:
+An aircraft the scenario starts lined up on a runway (`OnRunway`), as opposed to a ground spawn at a stand or on a taxiway.
+_Avoid_: runway departure (any departure ends up on a runway), on-runway aircraft
+
 **Prepare / commit**:
 The two halves of a scenario load. Prepare reads the manifest, fetches the resources and builds the aircraft without touching the room or holding its tick gate; commit swaps the prepared scenario into the room under the gate, CPU only.
 
@@ -135,6 +142,14 @@ difference is reported, never hidden by dropping the record.
 _Avoid_: determinism (determinism is the same-seed, same-world property of the simulation itself)
 
 ## Ground movement
+
+**Given-up exit**:
+A taxiway a landing aircraft has said "unable" to: it is skipped by every exit search while the aircraft rolls, for the rest of that landing, until an accepted `EXIT` names it again; once stopped on the runway the aircraft may still taxi to it (`PhaseList.GivenUpExitTaxiways`, docs/landing-and-runway-exit.md).
+_Avoid_: missed exit (an exit passed without an instruction is not given up)
+
+**Initial call-up**:
+The first call a spawned aircraft makes on its own to get moving: a ground spawn's "ready to taxi" (or its clearance request to a delivery student), or an untowered runway spawn's release request to a radar student. Whether and when an aircraft makes it is decided once, at scenario load, as its `InitialCallupPlan` (`InitialCallupClassifier`, docs/solo-training-pilot-speech.md); an aircraft the loader did not arm never makes one.
+_Avoid_: check-in (a check-in is the call on a frequency change), initial contact (an airborne check-in still follows a release request)
 
 **Spot line-up**:
 The route a `TAXI … $spot` from the ramp is re-planned into: across the apron, a ~90° turn onto the spot's lane on the ramp side, and a slow pull onto the mark facing the movement-area taxiway the lane joins (`RampLaneReposition.TryPlanSpotLineUp`, docs/ground/pathfinder.md).
@@ -373,6 +388,12 @@ _Avoid_: settings backup, profile (a layout is not a bundle)
 An incoming named entry (a macro, a favorite set, a layout) that matches an existing one under Merge, resolved per entry by Skip, Overwrite or Rename.
 
 ## Tooling
+
+**Ouroboros** (controller-voice ouroboros):
+The speech sandbox's self-test (`--atc-ouroboros`): it synthesises controller transmissions from templates with a TTS voice, runs them through speech recognition and the phraseology mapper, and scores each case against the template's expected command (`tools/Yaat.SpeechSandbox/Corpus/atc-ouroboros-baseline.json`).
+
+**SttOnly rule**:
+A phraseology rule the speech mapper matches but `PhraseologyVerbalizer` never speaks: it covers how speech recognition writes a phrase (a misheard or split word), not how a pilot says it.
 
 **Gate**:
 `tools/gate.ps1` (a copy of the canonical `~/.claude/tools/gate/gate.ps1`, called as `pwsh tools/gate.ps1 -Log <log> -TimeoutSeconds <seconds> -Slot heavy|light -- <command...>` from PowerShell or Bash): runs one build or test command with its whole output in a log under `.tmp/`, the tail on screen and the command's own exit status, and kills it (exit 124) when it stalls, passes its ceiling on the load-adjusted clock, or reaches the backstop.

@@ -13,11 +13,9 @@ YAAT is a tool for ATC (air traffic control) training instructors and RPOs (Remo
 - **RPO** — a YAAT user who controls simulated aircraft by issuing commands. Multiple RPOs can work the same room.
 - **Student** — a trainee using CRC to practice radar/tower operations. Students see the simulated traffic but don't use YAAT directly.
 
+**There's nothing to host.** VATSIM controllers and students use the public YAAT server, **YAAT1** (`https://yaat1.leftos.dev`): YAAT has it selected the first time you connect, and students reach it from CRC (see [Helping Students Connect CRC](#helping-students-connect-crc)).
+
 ## Step 1: Launch YAAT
-
-How you launch depends on how you installed YAAT. Pick the section that matches.
-
-### If you installed a release (most users)
 
 Launch YAAT the same way you launch any other application:
 
@@ -27,37 +25,9 @@ Launch YAAT the same way you launch any other application:
 
 YAAT opens to an empty main window — no server connection yet. That happens in Step 3.
 
-### If you built from source
+![YAAT's main window on first launch, before connecting to a server](docs/user-guide/img/main-window-empty.png)
 
-Start the server and client together using the start script:
-
-```powershell
-.\start.ps1          # Windows (PowerShell)
-```
-
-```bash
-./start.sh           # macOS / Linux
-```
-
-Or launch the client manually (requires a running server):
-
-```bash
-dotnet run --project src/Yaat.Client
-```
-
-The client connects to `http://localhost:5000` by default.
-
-If an instructor is already hosting a YAAT server and you want to pin your source build to the exact commit they're running, the `--sync` flag checks out that commit, builds, and connects in one step:
-
-```powershell
-.\start.ps1 -Sync https://yaat1.leftos.dev    # Windows
-```
-
-```bash
-./start.sh --sync https://yaat1.leftos.dev     # macOS / Linux
-```
-
-Your git working tree must be clean. Return to the latest code with `git checkout main` afterwards. If you don't need a specific commit, the prebuilt installer is a simpler way to connect to a hosted server.
+Building YAAT from source to contribute, or hosting your own server? That's covered in the Installation Guide's [Building from source](INSTALL.md#building-from-source); you don't need it to train on VATSIM.
 
 ## Step 2: Sign In with VATSIM
 
@@ -65,27 +35,38 @@ YAAT verifies your identity through **VATSIM sign-in** — you no longer type yo
 
 One field stays yours to set, under **Tools > Settings**, in the **General** section — your operating **initials** (e.g., "JE", "AB"), suggested from your VATSIM name and shown in the terminal so other RPOs can see who issued each command. Your **[ARTCC](#glossary)** is filled in automatically from your VATSIM/VATUSA profile when you sign in (US controllers from VATUSA, everyone else from their VATSIM subdivision) and updates on its own if you transfer facilities — there is no ARTCC field to enter.
 
-> **Who can connect:** a hosted server admits you to **create rooms and load scenarios** if you hold a VATUSA mentor role or a VATSIM Instructor rating (I1/I2/I3) or higher. Any other signed-in VATSIM controller can connect as an **[RPO](#glossary)**: you wait on a "waiting for room assignment" screen until an instructor pulls you into a room, then work the position like any room member (but you can't create rooms or load/unload scenarios). Students being trained connect with [CRC](#glossary) and are unaffected.
+> **Who can connect:** YAAT1 admits you to **create rooms and load scenarios** if you hold a VATUSA mentor role or a VATSIM Instructor rating (I1/I2/I3) or higher. Any other signed-in VATSIM controller can connect as an **[RPO](#glossary)**: you wait on a "waiting for room assignment" screen until an instructor pulls you into a room, then work the position like any room member (but you can't create rooms or load/unload scenarios). Students being trained connect with [CRC](#glossary) and are unaffected.
 
 ## Step 3: Connect and Create a Room
 
 1. **File > Connect** opens the connect dialog
-2. Enter the **server URL**:
-   - `http://localhost:5000` if you're running `start.ps1`/`start.sh` on your own machine
-   - The URL your instructor gave you (e.g., `https://yaat1.leftos.dev`) for a hosted server
+
+   ![The File menu open, with Connect at the top](docs/user-guide/img/menu-file.png)
+
+   ![The Connect dialog with the public YAAT1 server selected](docs/user-guide/img/connect-dialog.png)
+
+2. Leave **YAAT1** selected: it's the public YAAT server every VATSIM controller and student uses. Change the server only if your instructor runs a separate one and gives you its URL.
 3. Click **Connect**. The first time you connect to a given server, your browser opens to **VATSIM sign-in** — authorize, and YAAT receives your verified identity. YAAT remembers both the URL and your sign-in, so you don't repeat either next time.
 4. The **room list** appears. Either:
    - **Create** a new room (give it a name), or
    - **Join** an existing room that another instructor created
+
+   ![The room list after connecting, ready to create or join a room](docs/user-guide/img/main-window-connected-empty.png)
+
 5. You're now in a room, ready to load traffic
 
 ## Step 4: Load a Scenario
 
 1. **Scenario > Load Scenario...** opens the scenario browser
+
+   ![The Scenario menu open, with Load Scenario and the weather items](docs/user-guide/img/menu-scenario.png)
+
 2. Two tabs:
    - **ARTCC Scenarios** — training scenarios from the [vNAS](#glossary) data API for your ARTCC. Use the Airport filter to narrow results.
    - **Local Files** — browse for ATCTrainer-format JSON scenario files on your machine
 3. Select a scenario and click **Load** (or double-click)
+
+   ![The Load Scenario dialog with the ARTCC Scenarios tab](docs/user-guide/img/load-scenario-dialog.png)
 
 Aircraft spawn at their configured starting positions. The window title updates to show the room and scenario name.
 
@@ -107,6 +88,8 @@ You can also prefix any command with a callsign: `UAL123 FH 270`.
 
 The **terminal panel** (below the grid) shows command confirmations, errors, and aircraft responses.
 
+![An aircraft selected in the Aircraft List, its FH 270 confirmation in the terminal, and a second command typed in the command bar](docs/user-guide/img/first-command.png)
+
 ## Step 6: Explore the Views
 
 YAAT has three main views, accessible via tabs or pop-out windows (**View** menu):
@@ -114,6 +97,12 @@ YAAT has three main views, accessible via tabs or pop-out windows (**View** menu
 - **Aircraft List** — data grid with all aircraft state (altitude, speed, heading, phase, etc.)
 - **Ground View** — airport surface map for tower operations. Right-click aircraft or taxiway nodes for context menus (taxi routes, hold short, cross runway).
 - **Radar View** — STARS-style scope for approach/departure. Shows targets, video maps, and data blocks. Right-click for heading, altitude, and approach options.
+
+![The Aircraft List](docs/user-guide/img/aircraft-list.png)
+
+![The Ground View at Oakland](docs/user-guide/img/ground-view.png)
+
+![The Radar View](docs/user-guide/img/radar-view.png)
 
 ## Step 7: Load Weather (Optional)
 
@@ -123,9 +112,11 @@ Weather affects aircraft performance — headwinds reduce ground speed, tailwind
 - **Scenario > Load Live Weather** — fetch real-world METARs and winds aloft
 - **Scenario > New Weather...** — create a custom weather profile
 
+![The Load Weather dialog](docs/user-guide/img/load-weather-dialog.png)
+
 ## Helping Students Connect CRC
 
-If you're setting up a training session with students, see the [CRC Setup section](USER_GUIDE.md#connecting-crc-for-students) in the User Guide for how to configure CRC to connect to your YAAT server.
+If you're setting up a training session with students, see the [CRC Setup section](USER_GUIDE.md#connecting-crc-for-students) in the User Guide for how to configure CRC to connect to YAAT1.
 
 ## Next Steps
 

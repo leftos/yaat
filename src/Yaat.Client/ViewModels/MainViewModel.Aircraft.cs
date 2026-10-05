@@ -46,12 +46,19 @@ public partial class MainViewModel
     /// </summary>
     private double? CurrentEntryElapsedSeconds => ActiveScenarioName is not null ? ScenarioElapsedSeconds : null;
 
+    /// <summary>
+    /// The wall clock behind the client's own time stamps: client-local terminal entries (system and warning lines) and
+    /// the default METAR shown when no weather is loaded. <see cref="TimeProvider.System"/> in the app; the user-guide
+    /// screenshot harness pins it so its captures come out identical run to run.
+    /// </summary>
+    public static TimeProvider WallClock { get; set; } = TimeProvider.System;
+
     public void AddSystemEntry(string message)
     {
         AddTerminalEntry(
             new TerminalEntry
             {
-                Timestamp = DateTime.Now,
+                Timestamp = WallClock.GetUtcNow().LocalDateTime,
                 ElapsedSeconds = CurrentEntryElapsedSeconds,
                 Initials = "",
                 Kind = TerminalEntryKind.System,
@@ -66,7 +73,7 @@ public partial class MainViewModel
         AddTerminalEntry(
             new TerminalEntry
             {
-                Timestamp = DateTime.Now,
+                Timestamp = WallClock.GetUtcNow().LocalDateTime,
                 ElapsedSeconds = CurrentEntryElapsedSeconds,
                 Initials = "",
                 Kind = TerminalEntryKind.Warning,
@@ -86,7 +93,7 @@ public partial class MainViewModel
         AddTerminalEntry(
             new TerminalEntry
             {
-                Timestamp = DateTime.Now,
+                Timestamp = WallClock.GetUtcNow().LocalDateTime,
                 ElapsedSeconds = CurrentEntryElapsedSeconds,
                 Initials = "",
                 Kind = TerminalEntryKind.Warning,
