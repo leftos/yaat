@@ -4,7 +4,7 @@
 
 ## Do first
 
-- [/] YAAT-373 Load Scenario: pick a single scenario file, not only a folder to index — High · Bug reports and feature requests
+- [x] YAAT-373 Load Scenario: pick a single scenario file, not only a folder to index · release vNext — High · Bug reports and feature requests
 - [/] YAAT-274 Redesign overwhelming client surfaces: Settings, import/export, View menu pop-outs — High · Client surfaces redesign
 - [/] YAAT-354 Add screenshots to Getting Started and the User Guide — High · Wave 9 — Docs and repo hygiene
 - [x] YAAT-228 release.yml drops the changelog output as 'may contain secret', leaving the draft's Changelog empty · release vNext — High · Singles
@@ -79,18 +79,20 @@
 
 ## Client surfaces redesign
 
-- [/] YAAT-310 Merge feat/client-surfaces-redesign (#782)
+- [/] YAAT-310 Merge feat/client-surfaces-redesign (#782) · release vNext
 - [x] YAAT-291 Client surfaces redesign: Settings window shell (sidebar sections, OK/Apply/Cancel) · release vNext
 - [x] YAAT-292 Client surfaces redesign: Settings search with aliases and cross-section links · release vNext
 - [x] YAAT-293 Client surfaces redesign: open Settings at a section (view menus, Ctrl+comma, status-bar links) · release vNext
 - [x] YAAT-294 Client surfaces redesign: reconcile Scenario defaults with the session flyout · release vNext
 - [x] YAAT-295 Client surfaces redesign: regroup the View menu and add pop-out hotkeys · release vNext
 - [x] YAAT-296 Client surfaces redesign: merge Window Profiles and Copy View Settings into Layouts · release vNext
-- [/] YAAT-297 Client surfaces redesign: one Import / Export hub with a .yaat-settings.zip bundle
+- [x] YAAT-297 Client surfaces redesign: one Import / Export hub with a .yaat-settings.zip bundle · release vNext
 - [ ] YAAT-340 Quick commands as an Import / Export hub item type
 - [ ] YAAT-344 Bundle import: reject a favorite set with no name instead of throwing in the planner
 - [ ] YAAT-351 Replace the private BootMainWindow copies in two UI test classes with MainWindowHost
 - [ ] YAAT-352 Stop UI tests leaking preferences between tests (hidden windows flush stale prefs; two order-dependent flakes)
+- [ ] YAAT-380 Settings: block other windows after OnOpened's layout work, not before
+- [x] YAAT-395 Import / Export: full-backup checkbox and clear Merge/Replace effects on import · release vNext
 
 ## Tick-path unification
 
@@ -154,7 +156,7 @@
 - [ ] YAAT-39 Push-rethink leftovers: wingtip allowance comments, turning-tow yield test, perf
 - [ ] YAAT-40 Stop spot line-up from past the spot looping behind the spot (SKW5564)
 - [ ] YAAT-41 Bare PUSH T7A from SFO F8 should line up on T7A, not end across the lane
-- [ ] YAAT-42 Add position history to the STARS track fingerprint (yaat-server)
+- [x] YAAT-42 Add position history to the STARS track fingerprint (yaat-server) · release vNext
 - [ ] YAAT-43 A cleared first taxiway must be driven, or the TAXI refused (SFO M4 M1)
 - [ ] YAAT-44 Confine TryTaxiCore's zero-segment re-route to the ramp
 - [ ] YAAT-45 Count a 28L arrival exiting north onto T in SFO's exit capacity
@@ -180,6 +182,8 @@
 - [ ] YAAT-368 RunwayExitPhase: a re-issued EXIT snapshotted before the next tick restores as already committed (live and replay diverge)
 - [ ] YAAT-376 Uninstructed missed-exit exclusion keys on Path[0], not the walked centerline node
 - [ ] YAAT-378 LAHSO: query an EXIT instructed beyond the hold-short point at the readback
+- [ ] YAAT-397 Repeat EXIT under a standing EXP: judge it the same before and after the exit hand-off
+- [ ] YAAT-398 Runway exit EXIT judgement leftovers: confirming EXIT under EXP, unchecked EXIT while searching, behind-wording
 
 ## Wave 2 — Ground command grammar and dispatch
 
@@ -320,8 +324,8 @@
 - [ ] YAAT-338 Fix stale MainViewModel line anchors and misplaced Client.Core files in the docs
 - [ ] YAAT-350 Correct three stale speech-pipeline comments and doc lines (LocalLlmService CUDA, ScenarioCallsignExtractor prompt, LM-Kit csproj note)
 - [ ] YAAT-371 Datablock flash phase follows process uptime (Environment.TickCount64): add a shared flash clock GuideCapture can pin
-- [ ] YAAT-374 Timeline rail draws every bookmark and finding tick at its left edge
-- [ ] YAAT-375 Timeline slider thumb jumps to 0 after a rewind instead of the playhead
+- [ ] YAAT-374 Timeline rail draws every bookmark and finding tick at its left edge · release vNext
+- [ ] YAAT-375 Timeline slider thumb jumps to 0 after a rewind instead of the playhead · release vNext
 
 ## Singles
 
@@ -433,3 +437,19 @@
 - [ ] YAAT-370 LayoutInspector --exits prints double.MaxValue avg parking distance for a runway side with no exits
 - [ ] YAAT-372 ERAM conformance test flakes when the harness aircraft's random CID is 128
 - [ ] YAAT-379 Client-driver smoke test misses the record and app-tool tools
+- [ ] YAAT-381 Adopt client-driver lessons from the sibling projects
+  - [ ] YAAT-382 Count client-driver timeouts in load-adjusted time with a wall-time backstop
+  - [ ] YAAT-383 Require an explicit client pid instead of the remembered last pipe target
+  - [ ] YAAT-384 Build a stale or missing client before launch_yaat starts it
+  - [ ] YAAT-385 Add a "hands off" step to real-mode driving sessions
+  - [ ] YAAT-386 Refuse a synthetic press when another control covers the target
+  - [ ] YAAT-387 Record a drive's input on the client's clock and replay it over the pipe
+  - [ ] YAAT-388 Log a frame-timing line when the radar's frame rate drops below a floor
+  - [ ] YAAT-389 Add typed get and set of the client's live state over the automation pipe
+  - [ ] YAAT-390 Name the app tools that verify a feature in its issue plan
+  - [ ] YAAT-391 Fail set_text and other writes whose read-back differs from the value sent
+  - [ ] YAAT-392 Give launch_yaat's client its own closed stdin
+  - [ ] YAAT-393 Say whether the client is busy or stuck when a pipe request times out
+  - [ ] YAAT-394 Annotate every client-driver tool and check the annotations in the smoke test
+- [ ] YAAT-396 TAXI from a nose-in OAK gate is accepted but the aircraft never moves
+- [ ] YAAT-399 GuideCapture: default --out to this repo's docs/user-guide/img, not the current directory
