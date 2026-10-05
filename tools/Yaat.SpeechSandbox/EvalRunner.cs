@@ -200,7 +200,10 @@ internal sealed class EvalPipeline : IDisposable
 ///
 /// Run with <c>--eval &lt;corpus-dir&gt; [--out-dir &lt;dir&gt;] [--trials N]</c>. Like ouroboros,
 /// N &gt; 1 transcribes+maps each case N times to see through GPU nondeterminism: PASS = all
-/// trials produced the expected canonical, FAIL = none did, FLAKY = some did.
+/// trials produced the expected canonical, FAIL = none did, FLAKY = some did. Within one run a
+/// case's audio is fixed, so the trials vary only the STT path; the synthetic corpus pins that
+/// audio across runs with <c>SynthAudioCache</c>, because Piper's sampling differs between
+/// processes.
 /// </summary>
 public static class EvalRunner
 {

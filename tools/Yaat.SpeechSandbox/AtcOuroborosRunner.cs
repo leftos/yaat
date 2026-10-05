@@ -12,7 +12,7 @@ namespace Yaat.SpeechSandbox;
 /// tuning change shows its improvements and regressions per family.
 ///
 /// Run with <c>--atc-ouroboros [--cases N] [--seed S] [--trials N] [--out-dir D] [--baseline &lt;json&gt;]
-/// [--update-baseline] [--voice &lt;dir&gt;]</c>. Default paths resolve against the repo root (main
+/// [--update-baseline] [--voice &lt;dir&gt;] [--no-synth-cache]</c>. Default paths resolve against the repo root (main
 /// checkout or worktree; the working directory when none is found); paths passed as arguments are
 /// used as given. Regressions are judged per rule family and on the totals; per-template rows are
 /// information only. Writes <c>corpus/</c>, <c>eval/</c>, <c>results.json</c> and
@@ -38,7 +38,16 @@ public static class AtcOuroborosRunner
         "atc-ouroboros-baseline.json"
     );
 
-    private sealed record Options(int Cases, int Seed, int Trials, string OutDir, string BaselinePath, bool UpdateBaseline, string? VoiceDir);
+    private sealed record Options(
+        int Cases,
+        int Seed,
+        int Trials,
+        string OutDir,
+        string BaselinePath,
+        bool UpdateBaseline,
+        string? VoiceDir,
+        bool UseSynthCache
+    );
 
     public static async Task<int> RunAsync(string[] args)
     {
@@ -46,7 +55,7 @@ public static class AtcOuroborosRunner
         if (options is null)
         {
             Console.Error.WriteLine(
-                "Usage: Yaat.SpeechSandbox --atc-ouroboros [--cases N] [--seed S] [--trials N] [--out-dir D] [--baseline <json>] [--update-baseline] [--voice <dir>]"
+                "Usage: Yaat.SpeechSandbox --atc-ouroboros [--cases N] [--seed S] [--trials N] [--out-dir D] [--baseline <json>] [--update-baseline] [--voice <dir>] [--no-synth-cache]"
             );
             return AtcOuroborosAnalysis.ExitSetupError;
         }
@@ -69,9 +78,12 @@ public static class AtcOuroborosRunner
         Directory.CreateDirectory(options.OutDir);
         string corpusDir = Path.Combine(options.OutDir, "corpus");
         SynthCorpusResult generated = await SynthCorpusGenerator
-            .GenerateAsync(new SynthCorpusOptions(corpusDir, options.Cases, options.Seed, voiceDir))
+            .GenerateAsync(new SynthCorpusOptions(corpusDir, options.Cases, options.Seed, voiceDir, options.UseSynthCache))
             .ConfigureAwait(false);
-        Console.WriteLine($"Generated {generated.Written.Count} cases ({generated.Gaps.Count} gaps) into {Path.GetFullPath(corpusDir)}");
+        int fromCache = generated.Written.Count(c => c.CacheHit);
+        Console.WriteLine(
+            $"Generated {generated.Written.Count} cases ({generated.Gaps.Count} gaps, {fromCache} from cache) into {Path.GetFullPath(corpusDir)}"
+        );
         Console.WriteLine();
 
         EvalRunResult scored = await EvalRunner
@@ -154,6 +166,7 @@ public static class AtcOuroborosRunner
         string baselinePath = DefaultBaselinePath;
         bool updateBaseline = false;
         string? voiceDir = null;
+        bool useSynthCache = true;
         for (int i = 0; i < args.Length; i++)
         {
             bool hasValue = i + 1 < args.Length;
@@ -175,13 +188,16 @@ public static class AtcOuroborosRunner
                 case "--update-baseline":
                     updateBaseline = true;
                     break;
+                case "--no-synth-cache":
+                    useSynthCache = false;
+                    break;
                 default:
                     Console.Error.WriteLine($"FATAL: unrecognised or malformed argument '{args[i]}'");
                     return null;
             }
         }
         outDir ??= Path.Combine(DefaultsRoot, ".tmp", $"atc-ouroboros-{DateTime.Now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture)}");
-        return new Options(cases, seed, trials, outDir, baselinePath, updateBaseline, voiceDir);
+        return new Options(cases, seed, trials, outDir, baselinePath, updateBaseline, voiceDir, useSynthCache);
     }
 
     private static bool TryParsePositive(string text, out int value) => int.TryParse(text, CultureInfo.InvariantCulture, out value) && value > 0;

@@ -4,7 +4,7 @@ Work found by the controller-voice ouroboros (`--atc-ouroboros`; see "Tuning loo
 
 **Baseline** (`tools/Yaat.SpeechSandbox/Corpus/atc-ouroboros-baseline.json`):
 - Run: seed 20260928, 200 cases × 3 trials. STT was the Whisper-medium ATC fine-tune (`borisdiakur/whisper-finetuned-for-ATC-ggml`); the LLM was `gemma4:e4b`.
-- **Totals at batch 2 (the committed baseline): 157 PASS of 200, 0 gaps, 43 failing cases with their transcripts.** The first baseline (153 PASS, 76.5 %, mean WER 19.9 %, 7 gaps) is the table below. Runs of one seed are not reproducible: two batch-2 runs differed in 104 of 200 transcripts, so a family can move several cases on noise (YAAT-225).
+- **Totals at batch 2 (the committed baseline): 157 PASS of 200, 0 gaps, 43 failing cases with their transcripts.** The first baseline (153 PASS, 76.5 %, mean WER 19.9 %, 7 gaps) is the table below. Two batch-2 runs of one seed differed in 104 of 200 transcripts because Piper synthesized different audio in each process; the synthesized audio is now cached (YAAT-225), so runs of one seed on one machine transcribe the same audio. Re-take the baseline once before reading a family's movement against it.
 
 | Family | Cases | Pass rate |
 |---|---|---|
