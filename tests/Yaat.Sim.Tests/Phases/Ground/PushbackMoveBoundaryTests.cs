@@ -57,9 +57,6 @@ public class PushbackMoveBoundaryTests
     /// <summary>How far off the spot's outbound heading a completed spot push may rest, degrees.</summary>
     private const double SpotHeadingToleranceDeg = 15.0;
 
-    /// <summary>Fuselage length assumed for a type the FAA database does not carry, feet.</summary>
-    private const double DefaultFuselageLengthFt = 110.0;
-
     /// <summary>
     /// The clearance that takes the tug off mid-move: a taxi to the spot, which routes from the ramp the push is
     /// still on (a movement-area taxiway does not, mid-push-off — the route leaves the movement area). It is a TAXIAUTO: a
@@ -469,7 +466,7 @@ public class PushbackMoveBoundaryTests
     /// </summary>
     private static void AssertRestingOnSpot(AircraftState ac, GroundNode spot, AirportGroundLayout layout)
     {
-        double halfLengthFt = (FaaAircraftDatabase.Get(ac.AircraftType)?.LengthFt ?? DefaultFuselageLengthFt) / 2.0;
+        double halfLengthFt = AircraftLength.ResolveFt(ac.AircraftType) / 2.0;
         double distFt = GeoMath.DistanceNm(ac.Position, spot.Position) * GeoMath.FeetPerNm;
         Assert.True(
             distFt <= halfLengthFt + SpotToleranceMarginFt,

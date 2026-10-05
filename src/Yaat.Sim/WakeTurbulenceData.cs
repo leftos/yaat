@@ -44,7 +44,7 @@ public static class WakeTurbulenceData
                 "A" => WakeClass.Super, // Super (A388)
                 "B" or "C" or "D" => WakeClass.Heavy, // Heavy widebodies (B77W, B763, B744/A339/IL76)
                 "E" or "F" or "G" => WakeClass.Large, // B757 (E), Upper/Lower Large, regional jets (G)
-                "H" or "I" => WakeClass.Small, // Upper Small, Small
+                "H" or "I" => WakeClass.Small, // Upper Small, Lower Small
                 _ => WakeClass.Large,
             };
         }
@@ -186,12 +186,12 @@ public static class WakeTurbulenceData
                 "A" => 12.0, // Super (A388): silhouette ~332 ft → ~21 nm, clamped
                 "B" => 12.0, // Upper Heavy (B744): silhouette ~288 ft → ~18 nm, clamped
                 "C" => 12.0, // Lower Heavy (B763): silhouette ~219 ft → ~14 nm, clamped
-                "D" => 12.0, // Heavy bucket (A124/IL76/B741-class): silhouette ~210 ft → ~13 nm, clamped
+                "D" => 12.0, // Non-Pairwise Heavy (A124/IL76/B741-class): silhouette ~210 ft → ~13 nm, clamped
                 "E" => 11.4, // B757 (B752/B753 only): silhouette ~181 ft
-                "F" => 10.1, // Upper Medium (B738): silhouette ~161 ft
-                "G" => 6.4, // Lower Medium (CRJ7): silhouette ~102 ft
+                "F" => 10.1, // Upper Large (B738): silhouette ~161 ft
+                "G" => 6.4, // Lower Large (CRJ7): silhouette ~102 ft
                 "H" => 3.9, // Upper Small (B190/ASTR-class): silhouette ~62 ft
-                "I" => 2.7, // Small (C172/PA28): silhouette ~43 ft
+                "I" => 2.7, // Lower Small (C172/PA28): silhouette ~43 ft
                 _ => 6.4,
             };
         }

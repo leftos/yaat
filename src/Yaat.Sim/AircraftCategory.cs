@@ -843,34 +843,17 @@ public static class CategoryPerformance
     /// Distance (nm) for a simple pushback (no taxiway/heading target). Floors
     /// at the prior 0.015 nm (~91 ft) baseline so small aircraft are unaffected;
     /// scales up to ~1× aircraft length for jets so the tail clears the gate
-    /// envelope. B738 (~110 ft) pushes ~110 ft; A388 (~240 ft) pushes ~240 ft.
+    /// envelope. The length is <see cref="AircraftLength.ResolveFt"/>: the FAA
+    /// ACD length when the database carries the type, else the CWT-bucket
+    /// fallback. A B738 (~129.5 ft) pushes ~129.5 ft; an A388 (~240 ft) pushes
+    /// ~240 ft.
     /// </summary>
     public static double SimplePushbackDistanceNm(string aircraftType)
     {
         const double FtPerNm = 6076.12;
         const double BaselineNm = 0.015;
 
-        double lengthFt;
-        FaaAircraftRecord? record = FaaAircraftDatabase.Get(aircraftType);
-        if (record?.LengthFt is { } len && len > 0)
-        {
-            lengthFt = len;
-        }
-        else
-        {
-            string? cwt = WakeTurbulenceData.GetCwt(aircraftType);
-            lengthFt = cwt switch
-            {
-                "A" => 240, // Super (A388)
-                "B" => 230, // Upper Heavy (B744)
-                "C" => 180, // Lower Heavy (B763)
-                "D" => 110, // Upper Large (B738)
-                "E" => 95, // Lower Large (E170)
-                "F" => 50, // Upper Small (C560)
-                _ => 30, // G-I Small/Light (C172)
-            };
-        }
-
+        double lengthFt = AircraftLength.ResolveFt(aircraftType);
         return Math.Max(BaselineNm, lengthFt / FtPerNm);
     }
 

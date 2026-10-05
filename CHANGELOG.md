@@ -17,6 +17,7 @@
 
 ### Fixed
 
+- Aircraft types missing from the FAA database push back, stop at gates and yield on the ramp using their wake category's length, not a fixed guess.
 - Spoken "climb via SID except maintain" stays a climb-via when the SID word is misheard, instead of becoming a plain climb.
 - Speech understands "pushback on to", and a crossing altitude followed by a digit-by-digit speed ("one four thousand two four zero knots").
 - A pilot told to follow or give way to taxiing traffic reads it back: "follow the traffic", "behind the traffic".
