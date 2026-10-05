@@ -7,9 +7,9 @@ using Yaat.GuideCapture.Capture;
 namespace Yaat.GuideCapture.Scenes;
 
 // GETTING_STARTED.md > Step 3. The Connect dialog as a first-launch user sees
-// it from File > Connect (the default server list), after clicking Add: the
-// new entry is selected and its URL field reads http://localhost:5000. The
-// actions are no-ops: the dialog is never submitted.
+// it from File > Connect: the server list holds the default servers, with the
+// public server YAAT1 selected and its URL (https://yaat1.leftos.dev) in the
+// URL field. The actions are no-ops: the dialog is never submitted.
 internal sealed class ConnectDialogScene : StandaloneWindowSceneBase
 {
     public override string Name => "connect-dialog";
@@ -19,14 +19,13 @@ internal sealed class ConnectDialogScene : StandaloneWindowSceneBase
         var preferences = new UserPreferences();
         var vm = new ConnectViewModel(
             UserPreferences.DefaultServers,
-            preferences.LastUsedServerUrl,
+            UserPreferences.OfficialServerUrl,
             preferences.UserInitials,
             connectAction: (_, _) => Task.FromResult<string?>(null),
             saveAction: (_, _) => { },
             identitySaveAction: _ => { },
             closeAction: () => { }
         );
-        vm.AddServerCommand.Execute(null);
         return new ConnectWindow(vm, preferences);
     }
 }

@@ -97,6 +97,8 @@ All views can be popped out simultaneously. Pop-out state and window positions a
 
 The terminal panel shows a scrolling history of all commands and server feedback, visible to all connected [RPOs](#glossary).
 
+![The terminal panel after a scenario load, ending with the FH 270 command echo and the aircraft's "Fly heading 270" response](docs/user-guide/img/terminal-panel.png)
+
 #### Entry Format
 
 Each line shows:
@@ -160,6 +162,8 @@ Warning messages appear when the simulator detects potential issues:
 ### Command Bar
 
 The command bar at the bottom is where you type and send commands. See [Commands](#commands) for details.
+
+![The command bar with DCT typed for a selected aircraft, its signature help and a list of route-fix suggestions open above it](docs/user-guide/img/command-bar.png)
 
 ### Keyboard Shortcuts
 
@@ -895,6 +899,8 @@ The **vTDLS** tab is YAAT's emulation of vNAS's [Tower Data Link Services](https
 
 vTDLS state lives on the server and broadcasts over SignalR — there is no CRC topic counterpart, so trainees do not see a vTDLS view in their CRC. The same display is also available in any browser at `/vtdls/` on the server (no install), backed by the WASM `Yaat.VTdls.Web` bundle. While connected, **Tools → Open TDLS in Browser** opens that page in your default browser with your initials/ARTCC/room pre-filled — the vTDLS counterpart to **Open Strips in Browser**. The browser page signs in with VATSIM itself (so your CID is verified there too).
 
+![The OAK vTDLS tab with the DCL list holding the scenario's departures above empty PDC and CPDLC lists](docs/user-guide/img/vtdls-tab.png)
+
 #### Lists
 
 - **DCL** (top, full width, column-wrapping) — Pending PDCs. A callsign appears here automatically when a flight plan is filed at a TDLS-configured facility (no controller action needed, just like real life). Pre-files generate entries too.
@@ -1036,6 +1042,8 @@ The active weather name is shown in the terminal when weather is loaded or clear
 ### Viewing METARs
 
 The **METAR** tab in the main window lists the METAR string for each airport in the currently active weather, with the station id labeled. Stations are listed **alphabetically**, and clicking the **☆ star** next to a station id favorites it **for the current scenario** — favorited stations surface to the top of the list (alphabetical among themselves) and stay favorited across sessions. Click the ★ again to unfavorite. The text is selectable so you can copy it; pop the tab out via **View > Pop Out METAR**. The list reflects whatever weather is loaded — the scenario's default weather or a profile you loaded over it. With **no weather loaded**, it shows default standard conditions (calm wind, 10SM, clear, 29.92) for each of the scenario's airports rather than nothing, and for the airport every Ground View depicts.
+
+![The METAR window showing the default KOAK report for the loaded scenario](docs/user-guide/img/metar-window.png)
 
 The weather readout at the top-left of each **Ground View** shows the wind and altimeter of the airport that view depicts; each **Radar View** lists the stations of its position's airports. When the loaded weather has no METAR for those airports, the readout says so (`No METAR for SFO`) rather than showing another airport's weather.
 
@@ -1506,6 +1514,8 @@ Recordings are self-contained archives that include the scenario definition, RNG
 
 **Scenario → File Bug Report...** is the quickest way to report a problem. It asks for a title, what happened, what you expected, and the callsigns involved, then:
 
+![The empty File Bug Report form with Title, What happened, What did you expect and Callsigns fields](docs/user-guide/img/file-bug-report-dialog.png)
+
 1. saves a bug report bundle to `%LOCALAPPDATA%\yaat\bug-reports\`. In a room the bundle holds the session recording, your bookmarks, the client log and the server log; outside a room it holds the client log only;
 2. opens a new GitHub issue in your browser with your answers and your YAAT version, OS and scenario already filled in;
 3. opens the folder with the bundle selected. Drag the bundle into the issue before you submit it, since GitHub can't attach it for you.
@@ -1527,6 +1537,8 @@ Every aircraft becomes a starting condition:
 Live-traffic aircraft are exported with the flight plan the live feed filed for them.
 
 After you pick where to save, the **Exported Scenario — Needs Review** window lists every flagged aircraft with the reason, and **Copy** puts the list on the clipboard. The reasons are: holding short, taxiing / not at a stand, arrived (parked at its own destination), airborne VFR, vectored / off route, in a procedure / holding, no flight plan, no filed route, filed route not trimmed, on final for a runway that is not its destination, aligned with final but off the glidepath, and over the threshold / landing. Edit those aircraft in the scenario file (or add presets) before using it for training. The terminal reports `Exported <n> aircraft to <path> (<k> need review). Weather is not included.`
+
+![The Exported Scenario — Needs Review window listing a flagged aircraft (N111XX, no flight plan) with Copy and Close buttons](docs/user-guide/img/export-room-scenario.png)
 
 ### ASDE-X / SAID drawn geometry
 

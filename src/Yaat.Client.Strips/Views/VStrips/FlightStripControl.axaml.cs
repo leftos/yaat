@@ -1,3 +1,4 @@
+using System.Text;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Shapes;
@@ -146,8 +147,24 @@ public partial class FlightStripControl : UserControl
     }
 
     /// <summary>
+    /// The hash a strip's barcode bars are drawn from: 32-bit FNV-1a over the id's UTF-8 bytes, so a strip draws the same
+    /// barcode in every process (<see cref="string.GetHashCode()"/> is randomized per process).
+    /// </summary>
+    public static uint BarcodeHash(string stripId)
+    {
+        const uint offsetBasis = 2166136261;
+        const uint prime = 16777619;
+        uint hash = offsetBasis;
+        foreach (byte b in Encoding.UTF8.GetBytes(stripId))
+        {
+            hash = unchecked((hash ^ b) * prime);
+        }
+        return hash;
+    }
+
+    /// <summary>
     /// Renders a deterministic barcode-like glyph derived from the strip id
-    /// hash. Matches the visual hierarchy of docs/crc/img/printer.png (dense
+    /// hash (<see cref="BarcodeHash"/>). Matches the visual hierarchy of docs/crc/img/printer.png (dense
     /// alternating vertical bars beside the CID) without shipping a real
     /// barcode font. Only drawn for full strips — half/separator/blank have
     /// no BarcodeCanvas in the template. Uses the Canvas's rendered width so
@@ -175,7 +192,7 @@ public partial class FlightStripControl : UserControl
 
         // Dense pattern: ~1.4 bars per pixel of width. Widths alternate between
         // thin/thick (1.0 / 2.0) and gaps alternate between tight/normal (0.8 / 1.2).
-        uint hash = (uint)vm.Id.GetHashCode();
+        uint hash = BarcodeHash(vm.Id);
         double x = 0.0;
         int i = 0;
         while (x < totalWidth - 1 && i < 64)

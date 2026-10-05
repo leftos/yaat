@@ -107,6 +107,17 @@ internal static class Runner
         }
         finally
         {
+            foreach (Window extra in scene.ExtraWindows)
+            {
+                try
+                {
+                    extra.Close();
+                }
+                catch (Exception ex)
+                {
+                    Console.Error.WriteLine($"  {scene.Name}: closing extra window '{extra.Title}' failed: {ex}");
+                }
+            }
             window.Close();
             Dispatcher.UIThread.RunJobs();
         }

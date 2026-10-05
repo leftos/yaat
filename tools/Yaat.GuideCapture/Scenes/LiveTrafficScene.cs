@@ -47,7 +47,7 @@ internal sealed class LiveTrafficScene : ScenarioSceneBase
 
     protected override async Task OnSceneReadyAsync(Window window, MainViewModel vm, CaptureContext ctx)
     {
-        await RadarViewScene.EnableLoWestSectorAsync(vm);
+        await RadarViewScene.EnableLoWestSectorAsync(vm, ctx);
 
         LiveTrafficStore store = ctx.ServerServices.GetRequiredService<LiveTrafficStore>();
         store.ReportFeedState(connected: true, DateTimeOffset.UtcNow);
@@ -56,35 +56,21 @@ internal sealed class LiveTrafficScene : ScenarioSceneBase
         vm.SessionLiveTrafficEnabled = true;
         Dispatcher.UIThread.RunJobs();
 
-        // The sync only runs on a room tick, so let the sim run at 1x until the shadows have arrived,
-        // republishing each second so no sample ages past the STARS staleness window meanwhile.
-        if (vm.IsPaused)
+        // The sync only runs on a room tick, so step the paused room a second at a time until the shadows
+        // have arrived, republishing before each step so no sample ages past the STARS staleness window.
+        const int maxSteps = 20;
+        for (int step = 0; vm.Aircraft.Count(a => a.IsLiveTraffic) < Tracks.Length; step++)
         {
-            await vm.TogglePauseCommand.ExecuteAsync(null);
-            await SceneActions.WaitUntilAsync(() => !vm.IsPaused, TimeSpan.FromSeconds(5), "sim to unpause");
-        }
-
-        DateTime deadline = DateTime.UtcNow + TimeSpan.FromSeconds(20);
-        while (vm.Aircraft.Count(a => a.IsLiveTraffic) < Tracks.Length)
-        {
-            if (DateTime.UtcNow > deadline)
+            if (step >= maxSteps)
             {
-                throw new TimeoutException("Timed out waiting for live-traffic shadows to appear on the radar");
+                throw new TimeoutException($"Live-traffic shadows did not appear on the radar within {maxSteps} sim-seconds");
             }
 
-            await Task.Delay(TimeSpan.FromSeconds(1));
             PublishTracks(store);
-            Dispatcher.UIThread.RunJobs();
+            await RoomTicks.AdvancePausedAsync(vm, ctx, seconds: 1, secondsPerStep: 1);
         }
 
         await SceneActions.WaitUntilAsync(() => vm.IsLiveTrafficStatusVisible, TimeSpan.FromSeconds(5), "LIVE status-bar indicator");
-
-        if (!vm.IsPaused)
-        {
-            await vm.TogglePauseCommand.ExecuteAsync(null);
-            await SceneActions.WaitUntilAsync(() => vm.IsPaused, TimeSpan.FromSeconds(5), "sim to pause");
-        }
-
         Dispatcher.UIThread.RunJobs();
     }
 

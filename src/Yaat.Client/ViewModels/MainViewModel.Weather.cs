@@ -540,7 +540,7 @@ public partial class MainViewModel
             return;
         }
 
-        DateTime now = DateTime.UtcNow;
+        DateTime now = WallClock.GetUtcNow().UtcDateTime;
         var defaults = new List<string>();
         foreach (string icao in CollectScenarioAirportIcaos())
         {

@@ -10,6 +10,7 @@
 - A beacon code (`SQ`, `RANDSQ`, `SQVFR`) or a PDC sent with `TDLSS` answers a departure's clearance request, so the pilot stops repeating it.
 - In solo radar sessions, IFR departures lined up at untowered fields ask for their release and wait in the Releases flyout until `REL` or `HFROFF`.
 - In solo training with a radar student, unscripted runway departures at towered fields, or VFR at untowered ones, depart unprompted; RPOs launch them manually.
+- Getting Started and the User Guide show screenshots of every step, including the terminal, command bar, vTDLS tab, METAR window and bug-report dialog.
 
 ### Changed
 

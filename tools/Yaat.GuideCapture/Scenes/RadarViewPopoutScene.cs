@@ -25,7 +25,7 @@ internal sealed class RadarViewPopoutScene : ScenarioSceneBase
 
     protected override async Task OnSceneReadyAsync(Window window, MainViewModel vm, CaptureContext ctx)
     {
-        await RadarViewScene.EnableLoWestSectorAsync(vm);
+        await RadarViewScene.EnableLoWestSectorAsync(vm, ctx);
 
         vm.IsRadarViewPoppedOut = true;
         Dispatcher.UIThread.RunJobs();

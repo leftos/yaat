@@ -7,8 +7,9 @@ using Yaat.GuideCapture.Capture;
 
 namespace Yaat.GuideCapture.Scenes;
 
-// Most "scene with X tab visible" captures share the same setup: connect →
-// create room → load the OAK clearances scenario → switch a tab → settle. This
+// Most "scene with X tab visible" captures share the same setup: connect (and
+// drop the terminal's loopback-URL connect line) → create room → load the OAK
+// clearances scenario → close its load report → switch a tab → settle. This
 // base class owns the boilerplate so concrete scenes only declare a name, a
 // tab index, and any extra UI tweaks via OnSceneReadyAsync.
 internal abstract class ScenarioSceneBase : Scene
@@ -39,10 +40,12 @@ internal abstract class ScenarioSceneBase : Scene
         }
 
         await SceneActions.WaitForConnectionAsync(vm, TimeSpan.FromSeconds(15));
+        await SceneActions.RemoveConnectLineAsync(vm, ctx.ServerUrl, TimeSpan.FromSeconds(5));
         await SceneActions.CreateRoomAsync(vm, TimeSpan.FromSeconds(10));
 
         string scenarioPath = Path.Combine(ctx.RepoRoot, "docs", "atctrainer-scenario-examples", ScenarioFile);
         await SceneActions.LoadScenarioAsync(vm, scenarioPath, TimeSpan.FromSeconds(30));
+        await SceneActions.CloseLoadReportAsync(vm, TimeSpan.FromSeconds(30));
 
         vm.SelectedTabIndex = TabIndex;
         Dispatcher.UIThread.RunJobs();

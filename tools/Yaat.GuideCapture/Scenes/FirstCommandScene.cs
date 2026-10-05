@@ -21,16 +21,17 @@ internal sealed class FirstCommandScene : ScenarioSceneBase
 
     protected override async Task OnSceneReadyAsync(Window window, MainViewModel vm, CaptureContext ctx)
     {
-        await SceneActions.WaitUntilAsync(() => vm.LoadOverlay.IsComplete, TimeSpan.FromSeconds(30), "the scenario load to complete");
+        await SendFirstCommandAsync(vm);
 
-        // S3-NCTC-3's load report carries warnings, so the overlay stays open
-        // over the grid until it is closed, as the user would close it.
-        if (vm.LoadOverlay.IsOpen)
-        {
-            vm.LoadOverlay.CloseCommand.Execute(null);
-        }
-        await SceneActions.WaitUntilAsync(() => !vm.LoadOverlay.IsOpen, TimeSpan.FromSeconds(5), "the load report overlay to close");
+        vm.CommandText = "CM 100";
+        Dispatcher.UIThread.RunJobs();
+    }
 
+    // Selects the first active airborne aircraft in the Aircraft List and sends
+    // it FH 270, returning once the terminal shows the aircraft's response.
+    // Shared with the terminal-panel scene, which shows the same exchange.
+    public static async Task<AircraftModel> SendFirstCommandAsync(MainViewModel vm)
+    {
         await SceneActions.WaitUntilAsync(
             () => vm.AircraftView.OfType<AircraftModel>().Any(IsActiveAirborne),
             TimeSpan.FromSeconds(10),
@@ -49,9 +50,7 @@ internal sealed class FirstCommandScene : ScenarioSceneBase
             TimeSpan.FromSeconds(10),
             $"the terminal response to FH 270 for {aircraft.Callsign}"
         );
-
-        vm.CommandText = "CM 100";
-        Dispatcher.UIThread.RunJobs();
+        return aircraft;
     }
 
     private static bool IsActiveAirborne(AircraftModel aircraft) => (!aircraft.IsOnGround) && (!aircraft.IsDelayed);

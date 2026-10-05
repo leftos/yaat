@@ -47,5 +47,7 @@ internal sealed class MainWindowConnectedEmptyScene : Scene
         {
             throw new InvalidOperationException($"Failed to connect to {ctx.ServerUrl} within 15s. Status: {vm.StatusText}");
         }
+
+        await SceneActions.RemoveConnectLineAsync(vm, ctx.ServerUrl, TimeSpan.FromSeconds(5));
     }
 }

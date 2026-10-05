@@ -19,9 +19,9 @@ internal sealed class RadarViewScene : ScenarioSceneBase
 
     protected override string ScenarioFile => "01J02M96SPYP4JV55R5RMVCQBS.json";
 
-    protected override Task OnSceneReadyAsync(Window window, MainViewModel vm, CaptureContext ctx) => EnableLoWestSectorAsync(vm);
+    protected override Task OnSceneReadyAsync(Window window, MainViewModel vm, CaptureContext ctx) => EnableLoWestSectorAsync(vm, ctx);
 
-    public static async Task EnableLoWestSectorAsync(MainViewModel vm)
+    public static async Task EnableLoWestSectorAsync(MainViewModel vm, CaptureContext ctx)
     {
         // Wait for the server to push the initial aircraft state — vm.HasScenario
         // flips on the LoadScenarioResult arriving, but the AircraftUpdated
@@ -47,35 +47,16 @@ internal sealed class RadarViewScene : ScenarioSceneBase
             "LO-W_S map geometry to be cached"
         );
 
-        // Run the sim briefly so fix-anchored aircraft (S3-NCTC-3 starts every
-        // jet at a named fix with no resolved lat/lon) get a tick to compute
-        // their position, leader line, and projected track. Without this the
-        // canvas paints aircraft-less because the AircraftModel positions are
-        // still at (0,0). Bump SIMRATE so the aircraft also separate visibly
-        // and the resulting radar feels live, not frozen at t=0.
-        if (vm.IsPaused)
-        {
-            await vm.TogglePauseCommand.ExecuteAsync(null);
-            await SceneActions.WaitUntilAsync(() => !vm.IsPaused, TimeSpan.FromSeconds(5), "sim to unpause");
-        }
-
-        int prevRateIndex = vm.SelectedSimRateIndex;
-        vm.SelectedSimRateIndex = Array.IndexOf(MainViewModel.SimRateOptions, 16);
-        // 30 real-seconds × 16x = ~8 minutes of sim time — long enough for fix-
-        // anchored aircraft to spread out from their start fixes, accept
-        // handoffs to TRACON positions, and have steady leader-line vectors.
-        await Task.Delay(TimeSpan.FromSeconds(30));
-        Dispatcher.UIThread.RunJobs();
-
-        // Re-pause to freeze the radar for a stable capture; restore the rate
-        // dropdown so the scene's terminal log shows '1x' under the play
-        // button rather than '16x' (which would be misleading for the guide).
-        if (!vm.IsPaused)
-        {
-            await vm.TogglePauseCommand.ExecuteAsync(null);
-            await SceneActions.WaitUntilAsync(() => vm.IsPaused, TimeSpan.FromSeconds(5), "sim to pause");
-        }
-        vm.SelectedSimRateIndex = prevRateIndex < 0 ? 0 : prevRateIndex;
+        // Run the paused sim forward so fix-anchored aircraft (S3-NCTC-3 starts
+        // every jet at a named fix with no resolved lat/lon) get ticks to
+        // compute their position, leader line, and projected track. Without
+        // this the canvas paints aircraft-less because the AircraftModel
+        // positions are still at (0,0). 480 sim-seconds (8 minutes) in steps
+        // of 16 is long enough for fix-anchored aircraft to spread out from
+        // their start fixes, accept handoffs to TRACON positions, and have
+        // steady leader-line vectors; a fixed count keeps the picture the same
+        // every run.
+        await RoomTicks.AdvancePausedAsync(vm, ctx, seconds: 480, secondsPerStep: 16);
 
         // Range first so that the SaveSettings call triggered by the toggle
         // flip writes RangeNm=120 to the prefs file. If we set range *after*
