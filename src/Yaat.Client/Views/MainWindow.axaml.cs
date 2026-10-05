@@ -1391,8 +1391,8 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
     /// <summary>
     /// Rebuilds the View → Strips submenu from current
     /// <see cref="MainViewModel.StripsEntries"/>. Each entry becomes a
-    /// checkable 'Pop Out …' item; non-student entries also get a
-    /// 'Close …' action. A trailing 'New Strips Tab…' item opens a
+    /// checkable 'Pop out …' item; non-student entries also get a
+    /// 'Close …' action. A trailing 'New strips tab…' item opens a
     /// facility picker. Called whenever the collection or any entry's
     /// pop-out state / facility name changes.
     /// </summary>
@@ -1409,7 +1409,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         {
             var popOut = new MenuItem
             {
-                Header = $"Pop Out {entry.TabTitle}",
+                Header = $"Pop out {entry.TabTitle}",
                 ToggleType = MenuItemToggleType.CheckBox,
                 IsChecked = entry.IsPoppedOut,
                 Tag = entry,
@@ -1449,7 +1449,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         // menu chain doesn't work in Avalonia — the parent menu loses focus
         // and dismisses, taking the flyout's anchor with it. The submenu
         // pattern (also used by RecentScenariosMenuItem) populates dynamically on SubmenuOpened.
-        var newTabItem = new MenuItem { Header = "_New Strips Tab..." };
+        var newTabItem = new MenuItem { Header = "_New strips tab…" };
         // Pre-seed with one placeholder so Avalonia recognises this as a real
         // parent and shows the expand arrow before the user opens it.
         newTabItem.Items.Add(new MenuItem { Header = "(Loading...)", IsEnabled = false });
@@ -1681,7 +1681,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         {
             var popOut = new MenuItem
             {
-                Header = $"Pop Out {entry.TabTitle}",
+                Header = $"Pop out {entry.TabTitle}",
                 ToggleType = MenuItemToggleType.CheckBox,
                 IsChecked = entry.IsPoppedOut,
                 Tag = entry,
@@ -1709,7 +1709,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             }
         }
         items.Add(new Separator());
-        var newTabItem = new MenuItem { Header = "_New vTDLS Tab..." };
+        var newTabItem = new MenuItem { Header = "_New vTDLS tab…" };
         newTabItem.Items.Add(new MenuItem { Header = "(Loading...)", IsEnabled = false });
         newTabItem.SubmenuOpened += OnNewTdlsTabSubmenuOpened;
         items.Add(newTabItem);
@@ -3439,7 +3439,24 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             _pttKey = pttKey;
             _pttModifiers = pttMods;
         }
+
+        ShowMenuHotkeys(prefs);
     }
+
+    // The View menu's pop-out and bar items show the key WindowHotkeys answers to; the gesture is text only.
+    private void ShowMenuHotkeys(UserPreferences prefs)
+    {
+        PopOutAircraftListMenuItem.InputGesture = ToGesture(prefs.PopOutAircraftListKey);
+        PopOutGroundViewMenuItem.InputGesture = ToGesture(prefs.PopOutGroundViewKey);
+        PopOutRadarViewMenuItem.InputGesture = ToGesture(prefs.PopOutRadarViewKey);
+        PopOutTerminalMenuItem.InputGesture = ToGesture(prefs.PopOutTerminalKey);
+        PopOutControllersMenuItem.InputGesture = ToGesture(prefs.PopOutControllersKey);
+        PopOutMetarMenuItem.InputGesture = ToGesture(prefs.PopOutMetarKey);
+        FavoritesBarMenuItem.InputGesture = ToGesture(prefs.FavoritesBarKey);
+    }
+
+    private static KeyGesture? ToGesture(string keybind) =>
+        KeybindHelper.ParseKeybind(keybind, out Key key, out KeyModifiers modifiers) ? new KeyGesture(key, modifiers) : null;
 
     /// <summary>
     /// Returns true if the pressed key matches the configured PTT keybind. Modifier-only keybinds

@@ -232,16 +232,10 @@ public partial class SettingsWindowSourceTests
         "Command={Binding UninstallPiperVoicePackCommand}",
         "IsVisible={Binding PiperVoice.IsInstalled}",
         "IsEnabled={Binding !PiperVoice.IsBusy}",
-        "Content={Binding AircraftSelectKeyDisplay}",
-        "Command={Binding StartKeyCaptureCommand}",
-        "Content={Binding FocusInputKeyDisplay}",
-        "Command={Binding StartFocusInputKeyCaptureCommand}",
-        "Content={Binding TakeControlKeyDisplay}",
-        "Command={Binding StartTakeControlKeyCaptureCommand}",
-        "Content={Binding AlwaysOnTopKeyDisplay}",
-        "Command={Binding StartAlwaysOnTopKeyCaptureCommand}",
-        "Content={Binding QuickBookmarkKeyDisplay}",
-        "Command={Binding StartQuickBookmarkKeyCaptureCommand}",
+        // The Keys section lists its keys from the view model's keybind rows, one capture button per row.
+        "ItemsSource={Binding KeysSectionKeybindRows}",
+        "Content={Binding Display}",
+        "Command={Binding StartCaptureCommand}",
         "IsChecked={Binding IsAdminMode}",
         "IsVisible={Binding IsAdminMode}",
         "Text={Binding AdminPassword}",
@@ -264,11 +258,6 @@ public partial class SettingsWindowSourceTests
         "MacroDataGrid",
         "BrowseLlmModelButton",
         "PttKeyButton",
-        "AircraftSelectKeyButton",
-        "FocusInputKeyButton",
-        "TakeControlKeyButton",
-        "AlwaysOnTopKeyButton",
-        "QuickBookmarkKeyButton",
     ];
 
     [Fact]
@@ -334,11 +323,19 @@ public partial class SettingsWindowSourceTests
 
     /// <summary>
     /// Every input control a section binds to the view model (a text box, checkbox, slider, number box, colour picker,
-    /// combo box selection or command button) has a Settings search entry, so search reaches every setting.
+    /// combo box selection or command button) has a Settings search entry, so search reaches every setting. The Keys
+    /// section's rows come from an item template over the keybind list, so instead of its template each key the section
+    /// lists has one entry, in the section's order, labelled as its row is.
     /// </summary>
     [Fact]
     public void EveryBoundControlHasACatalogEntry()
     {
+        KeybindDescriptor[] keysSectionKeys = [.. SettingsViewModel.KeybindDescriptors.Where(d => d.InKeysSection)];
+        SettingsSearchEntry[] keyRows = [.. SettingsSearchCatalog.Entries.Where(e => (e.Section == SettingsSectionId.Keys) && !e.IsLink)];
+        Assert.Equal(keysSectionKeys.Select(d => d.Label), keyRows.Select(e => e.Label));
+        Assert.Equal(keysSectionKeys.Select(d => $"Keybind.{d.Id}"), keyRows.Select(e => e.Key));
+        Assert.Equal(SettingsSearchCatalog.KeybindRowEntries, keyRows);
+
         var catalogued = SettingsSearchCatalog
             .Entries.Select(e => e.Key is { } key ? (e.Section, Key: key) : default)
             .Where(pair => pair.Key is not null)
@@ -382,14 +379,15 @@ public partial class SettingsWindowSourceTests
     /// <summary>
     /// Each catalog entry's label (and heading, when set) is text its section shows, the heading comes before the label,
     /// a label that repeats in its section has a heading, a control entry's binding is in the section, and the link
-    /// entries are exactly the section's link buttons.
+    /// entries are exactly the section's link buttons. The Keys section's rows are generated from the keybind list, so
+    /// their labels are not in its source; EveryCatalogEntry_ResolvesToItsOwnControlInItsSection finds them on screen.
     /// </summary>
     [Fact]
     public void EveryCatalogLabelExistsInItsSection()
     {
         var documents = ReadSectionDocuments().ToDictionary(pair => pair.Section, pair => pair.Document);
         var problems = new List<string>();
-        foreach (SettingsSearchEntry entry in SettingsSearchCatalog.Entries)
+        foreach (SettingsSearchEntry entry in SettingsSearchCatalog.Entries.Except(SettingsSearchCatalog.KeybindRowEntries))
         {
             string source = documents[entry.Section].ToString();
             string quotedLabel = $"\"{entry.Label}\"";

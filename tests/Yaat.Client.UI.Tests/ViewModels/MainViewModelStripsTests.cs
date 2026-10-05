@@ -9,7 +9,7 @@ namespace Yaat.Client.UI.Tests.ViewModels;
 
 /// <summary>
 /// Pins the contract of <c>MainViewModel.OpenStripsEntryForFacilityAsync</c> —
-/// the underlying command the View → Strips → "New Strips Tab..." menu picker
+/// the underlying command the View → Strips → "New strips tab…" menu picker
 /// invokes once the user picks a facility. The picker itself (parent-submenu
 /// wiring in <c>MainWindow.axaml.cs::OnNewStripsTabSubmenuOpened</c>) is
 /// verified manually because there is no headless harness for nested

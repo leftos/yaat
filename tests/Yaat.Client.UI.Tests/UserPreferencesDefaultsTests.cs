@@ -40,6 +40,21 @@ public class UserPreferencesDefaultsTests
     }
 
     [Fact]
+    public void CreateDefaults_HoldsThePopOutAndBarHotkeys()
+    {
+        var defaults = UserPreferences.CreateDefaults();
+
+        Assert.Equal("Ctrl+Shift+L", defaults.PopOutAircraftListKey);
+        Assert.Equal("Ctrl+Shift+G", defaults.PopOutGroundViewKey);
+        Assert.Equal("Ctrl+Shift+R", defaults.PopOutRadarViewKey);
+        Assert.Equal("Ctrl+Shift+E", defaults.PopOutTerminalKey);
+        Assert.Equal("Ctrl+Shift+C", defaults.PopOutControllersKey);
+        Assert.Equal("Ctrl+Shift+M", defaults.PopOutMetarKey);
+        Assert.Equal("Ctrl+Shift+F", defaults.FavoritesBarKey);
+        Assert.Equal("Ctrl+Shift+T", defaults.AlwaysOnTopKey);
+    }
+
+    [Fact]
     public void ASetterOnTheDefaults_Throws_AndLeavesTheUsersFileAlone()
     {
         using var scope = new PreferencesFileScope();

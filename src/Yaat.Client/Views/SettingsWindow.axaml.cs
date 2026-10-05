@@ -121,7 +121,28 @@ public partial class SettingsWindow : Window
         SectionNav.SelectedItem = NavRowFor(id);
     }
 
+    /// <summary>The view showing <paramref name="id"/>, whether or not it is the section on show.</summary>
+    public Control SectionView(SettingsSectionId id) => _sections[id];
+
     private SettingsNavItem? NavRowFor(SettingsSectionId id) => _navItems.FirstOrDefault(item => item.Id == id);
+
+    // The Keys section's keybind rows come from an item template, so they have no controls until the section has been laid
+    // out in the open window. It is laid out once here, before the section on show is put back, so IsShown (which calls
+    // FindLabel on the live controls) sees the generated Keys rows before the section is first opened; they stay when it
+    // is swapped out.
+    protected override void OnOpened(EventArgs e)
+    {
+        base.OnOpened(e);
+        object? shown = SectionHost.Content;
+        if (!ReferenceEquals(_sections[SettingsSectionId.Keys], shown))
+        {
+            SectionHost.Content = _sections[SettingsSectionId.Keys];
+            UpdateLayout();
+        }
+
+        SectionHost.Content = shown;
+        UpdateLayout();
+    }
 
     // Each section holds the window's view model itself, so a section keeps its bindings while another is shown.
     private Dictionary<SettingsSectionId, Control> CreateSections(SettingsViewModel vm)
@@ -227,6 +248,14 @@ public partial class SettingsWindow : Window
         SectionTitle.Text = SettingsNavigation.ItemFor(id).Title;
         SectionHost.Content = _sections[id];
         ViewModel.SelectedSection = id;
+
+        // Putting a section back in the window can rebuild the rows of its item templates on the next layout pass, so in the
+        // open window the section is laid out first and the match is found among the rows on screen.
+        if (IsVisible)
+        {
+            UpdateLayout();
+        }
+
         if (_search.FirstMatchIn(id) is { } match)
         {
             HighlightMatch(_sections[id], match);

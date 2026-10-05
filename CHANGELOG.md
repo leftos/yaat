@@ -6,11 +6,14 @@
 
 - A range/bearing measurement's label moves clear of data blocks and aircraft, pushing auto-placed data blocks aside while every side is covered.
 - Settings is a searchable sidebar of sections with links between related settings, a Reset section button on each, and OK, Apply and Cancel.
+- Ctrl+Shift+L, G, R, E, C and M pop out or dock each view, and Ctrl+Shift+F toggles the favorites bar, from any YAAT window.
+- Settings › Keys warns when two actions share a key and blocks OK until one changes.
 - Settings › Speech has a Speed slider for the solo pilot voice, 0.75× to 1.5×; pilots now speak at 1.1× by default.
 - Settings › Scenario defaults sets the solo parking call-up interval and arrival generator rate for new rooms, and lists the settings only the room changes.
 
 ### Changed
 
+- The View menu groups its items into Windows, Bars and Layout submenus, each item showing its hotkey.
 - View › Layout replaces Window Profiles and Copy View Settings: a layout saves the window arrangement and open Strips and vTDLS tabs; saved profiles carry over.
 - The session flyout's auto-accept is a checkbox with a 0–60 second delay, matching its Settings default.
 - The session flyout's auto cleared-to-land and arrival spacing switches name the student's position, such as "Auto cleared-to-land (TWR)".

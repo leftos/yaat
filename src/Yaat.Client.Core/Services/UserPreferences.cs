@@ -519,6 +519,13 @@ public sealed partial class UserPreferences
     public string TakeControlKey => _data.TakeControlKey;
     public string AlwaysOnTopKey => _data.AlwaysOnTopKey;
     public string QuickBookmarkKey => _data.QuickBookmarkKey;
+    public string PopOutAircraftListKey => _data.PopOutAircraftListKey;
+    public string PopOutGroundViewKey => _data.PopOutGroundViewKey;
+    public string PopOutRadarViewKey => _data.PopOutRadarViewKey;
+    public string PopOutTerminalKey => _data.PopOutTerminalKey;
+    public string PopOutControllersKey => _data.PopOutControllersKey;
+    public string PopOutMetarKey => _data.PopOutMetarKey;
+    public string FavoritesBarKey => _data.FavoritesBarKey;
 
     /// <summary>When true, activating any YAAT window raises all YAAT windows above other apps (CRC-style group raise).</summary>
     public bool RaiseWindowsTogether => _data.RaiseWindowsTogether;
@@ -1077,20 +1084,60 @@ public sealed partial class UserPreferences
         Save();
     }
 
-    public void SetSpeechSettings(
-        bool enabled,
-        string whisperModelSize,
-        string llmModelPath,
-        int llmGpuLayers,
-        string pttKey,
-        bool autoFocusInputAfterSpeech
-    )
+    public void SetPopOutAircraftListKey(string key)
+    {
+        _data.PopOutAircraftListKey = key;
+        Save();
+    }
+
+    public void SetPopOutGroundViewKey(string key)
+    {
+        _data.PopOutGroundViewKey = key;
+        Save();
+    }
+
+    public void SetPopOutRadarViewKey(string key)
+    {
+        _data.PopOutRadarViewKey = key;
+        Save();
+    }
+
+    public void SetPopOutTerminalKey(string key)
+    {
+        _data.PopOutTerminalKey = key;
+        Save();
+    }
+
+    public void SetPopOutControllersKey(string key)
+    {
+        _data.PopOutControllersKey = key;
+        Save();
+    }
+
+    public void SetPopOutMetarKey(string key)
+    {
+        _data.PopOutMetarKey = key;
+        Save();
+    }
+
+    public void SetFavoritesBarKey(string key)
+    {
+        _data.FavoritesBarKey = key;
+        Save();
+    }
+
+    public void SetPttKey(string key)
+    {
+        _data.PttKey = key;
+        Save();
+    }
+
+    public void SetSpeechSettings(bool enabled, string whisperModelSize, string llmModelPath, int llmGpuLayers, bool autoFocusInputAfterSpeech)
     {
         _data.SpeechEnabled = enabled;
         _data.WhisperModelSize = whisperModelSize;
         _data.LlmModelPath = llmModelPath;
         _data.LlmGpuLayers = llmGpuLayers;
-        _data.PttKey = pttKey;
         _data.AutoFocusInputAfterSpeech = autoFocusInputAfterSpeech;
         Save();
     }
@@ -1982,6 +2029,13 @@ public sealed partial class UserPreferences
             TakeControlKey = GetFieldOr(obj, "takeControlKey", "Ctrl+T"),
             AlwaysOnTopKey = GetFieldOr(obj, "alwaysOnTopKey", "Ctrl+Shift+T"),
             QuickBookmarkKey = GetFieldOr(obj, "quickBookmarkKey", "Ctrl+B"),
+            PopOutAircraftListKey = GetFieldOr(obj, "popOutAircraftListKey", "Ctrl+Shift+L"),
+            PopOutGroundViewKey = GetFieldOr(obj, "popOutGroundViewKey", "Ctrl+Shift+G"),
+            PopOutRadarViewKey = GetFieldOr(obj, "popOutRadarViewKey", "Ctrl+Shift+R"),
+            PopOutTerminalKey = GetFieldOr(obj, "popOutTerminalKey", "Ctrl+Shift+E"),
+            PopOutControllersKey = GetFieldOr(obj, "popOutControllersKey", "Ctrl+Shift+C"),
+            PopOutMetarKey = GetFieldOr(obj, "popOutMetarKey", "Ctrl+Shift+M"),
+            FavoritesBarKey = GetFieldOr(obj, "favoritesBarKey", "Ctrl+Shift+F"),
             RaiseWindowsTogether = GetFieldOr(obj, "raiseWindowsTogether", true),
             DiscordRichPresenceEnabled = GetFieldOr(obj, "discordRichPresenceEnabled", true),
             ShowFavoritesBar = GetFieldOr(obj, "showFavoritesBar", true),
@@ -2105,11 +2159,56 @@ public sealed partial class UserPreferences
         }
     }
 
+    /// <summary>
+    /// Holds every save until the returned scope is disposed, then writes the file once if anything changed, so a
+    /// caller that sets many preferences in a row (the Settings window's Apply) writes the file once.
+    /// </summary>
+    public IDisposable DeferSave()
+    {
+        _saveDeferrals++;
+        return new SaveDeferral(this);
+    }
+
+    private int _saveDeferrals;
+    private bool _savePending;
+
+    private void EndSaveDeferral()
+    {
+        _saveDeferrals--;
+        if ((_saveDeferrals == 0) && _savePending)
+        {
+            _savePending = false;
+            Save();
+        }
+    }
+
+    private sealed class SaveDeferral(UserPreferences preferences) : IDisposable
+    {
+        private bool _disposed;
+
+        public void Dispose()
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            _disposed = true;
+            preferences.EndSaveDeferral();
+        }
+    }
+
     private void Save()
     {
         if (_isDefaults)
         {
             throw new InvalidOperationException("UserPreferences: a defaults instance is read-only; change the user's own preferences instead.");
+        }
+
+        if (_saveDeferrals > 0)
+        {
+            _savePending = true;
+            return;
         }
 
         Directory.CreateDirectory(ConfigDir);
@@ -2317,6 +2416,13 @@ public sealed partial class UserPreferences
         public string TakeControlKey { get; set; } = "Ctrl+T";
         public string AlwaysOnTopKey { get; set; } = "Ctrl+Shift+T";
         public string QuickBookmarkKey { get; set; } = "Ctrl+B";
+        public string PopOutAircraftListKey { get; set; } = "Ctrl+Shift+L";
+        public string PopOutGroundViewKey { get; set; } = "Ctrl+Shift+G";
+        public string PopOutRadarViewKey { get; set; } = "Ctrl+Shift+R";
+        public string PopOutTerminalKey { get; set; } = "Ctrl+Shift+E";
+        public string PopOutControllersKey { get; set; } = "Ctrl+Shift+C";
+        public string PopOutMetarKey { get; set; } = "Ctrl+Shift+M";
+        public string FavoritesBarKey { get; set; } = "Ctrl+Shift+F";
         public bool RaiseWindowsTogether { get; set; } = true;
         public bool DiscordRichPresenceEnabled { get; set; } = true;
         public bool ShowFavoritesBar { get; set; } = true;

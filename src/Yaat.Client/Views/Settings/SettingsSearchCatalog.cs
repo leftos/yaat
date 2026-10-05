@@ -13,8 +13,7 @@ public static class SettingsSearchCatalog
     private static readonly string[] Zoom = ["zoom"];
     private static readonly string[] OnTop = ["topmost", "pin"];
     private static readonly string[] Mic = ["mic"];
-    private static readonly string[] Ptt = ["PTT"];
-    private static readonly string[] Hotkey = ["hotkey", "keybind"];
+    private static readonly string[] Keybind = ["hotkey", "keybind", "shortcut"];
     private static readonly string[] Colour = ["colour", "color"];
     private static readonly string[] Tint = ["tint", "colour", "color"];
     private static readonly string[] Delay = ["delay"];
@@ -35,6 +34,19 @@ public static class SettingsSearchCatalog
     private const string Acceleration = "Acceleration";
     private const string PiperVoicePack = "Piper voice pack";
     private const string SoloPilotVoice = "Solo pilot voice";
+
+    /// <summary>
+    /// The Keys section's rows, one per key it lists, made from the view model's keybind list in the order it shows them,
+    /// so a key added to that list is searchable with no edit here. Each is keyed <c>Keybind.&lt;id&gt;</c>, labelled as
+    /// its row is, and found by the keybind words plus the key's own search words. Declared ahead of
+    /// <see cref="Entries"/>, whose initializer reads it.
+    /// </summary>
+    public static IReadOnlyList<SettingsSearchEntry> KeybindRowEntries { get; } =
+    [
+        .. SettingsViewModel
+            .KeybindDescriptors.Where(d => d.InKeysSection)
+            .Select(d => Setting(SettingsSectionId.Keys, $"Keybind.{d.Id}", d.Label, KeyAliases(d))),
+    ];
 
     public static IReadOnlyList<SettingsSearchEntry> Entries { get; } =
     [
@@ -218,20 +230,16 @@ public static class SettingsSearchCatalog
             Setting(SettingsSectionId.Macros, "ExportAllMacrosButton", "Export All", Macro),
         ];
 
-    private static IEnumerable<SettingsSearchEntry> Keys()
-    {
-        const SettingsSectionId s = SettingsSectionId.Keys;
-        return
+    private static IEnumerable<SettingsSearchEntry> Keys() =>
         [
-            Link(s, "Push-to-talk key → Speech", SettingsSectionId.Speech, [.. Ptt, .. Hotkey]),
-            Link(s, "Always on top → General", SettingsSectionId.General, OnTop),
-            Setting(s, "StartKeyCaptureCommand", "Aircraft Select Key:", Hotkey),
-            Setting(s, "StartFocusInputKeyCaptureCommand", "Focus Command Input Key:", Hotkey),
-            Setting(s, "StartTakeControlKeyCaptureCommand", "Take Control Key:", Hotkey),
-            Setting(s, "StartAlwaysOnTopKeyCaptureCommand", "Always on Top Key:", [.. Hotkey, .. OnTop]),
-            Setting(s, "StartQuickBookmarkKeyCaptureCommand", "Quick Bookmark Key:", Hotkey),
+            Link(SettingsSectionId.Keys, "Push-to-talk key → Speech", SettingsSectionId.Speech, KeyAliases(PushToTalkKey)),
+            Link(SettingsSectionId.Keys, "Always on top → General", SettingsSectionId.General, OnTop),
+            .. KeybindRowEntries,
         ];
-    }
+
+    private static KeybindDescriptor PushToTalkKey => SettingsViewModel.KeybindDescriptors.Single(d => d.Kind == KeybindKind.PushToTalk);
+
+    private static string[] KeyAliases(KeybindDescriptor key) => [.. Keybind, .. key.SearchWords];
 
     private static IEnumerable<SettingsSearchEntry> Speech()
     {
@@ -252,7 +260,7 @@ public static class SettingsSearchCatalog
             SettingWithin(s, "CancelCudaBackendInstallCommand", "Cancel", Acceleration, None),
             SettingWithin(s, "UninstallCudaBackendCommand", "Uninstall CUDA", Acceleration, None),
             SettingWithin(s, "LlmGpuLayers", "LLM GPU layers:", Acceleration, None),
-            SettingWithin(s, "StartPttKeyCaptureCommand", "PTT key:", "Push-to-Talk", [.. Ptt, .. Hotkey]),
+            SettingWithin(s, "StartPttKeyCaptureCommand", "PTT key:", "Push-to-Talk", KeyAliases(PushToTalkKey)),
             Link(s, "Microphone → Audio devices", SettingsSectionId.AudioDevices, Mic),
             SettingWithin(s, "SpeechTelemetryEnabled", "Automatically send my push-to-talk recordings to the YAAT developers", improve, None),
             SettingWithin(s, "SpeechSampleCaptureEnabled", "Save my push-to-talk samples locally for review", improve, None),

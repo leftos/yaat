@@ -13,7 +13,7 @@ public sealed class SettingsSearchEntry
 
     /// <summary>
     /// What identifies the control: the view-model path it binds to, or the <c>x:Name</c> of a button the window wires
-    /// up in code. Null for a link.
+    /// up in code, or <c>Keybind.&lt;id&gt;</c> for a Keys-section row generated from the keybind descriptors. Null for a link.
     /// </summary>
     public required string? Key { get; init; }
 

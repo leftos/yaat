@@ -80,8 +80,23 @@
           ToolTip.ShowOnDisabled="True"
         />
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
-          <Button Content="OK" x:Name="OkButton" Width="80" IsDefault="True" />
-          <Button Content="Apply" x:Name="ApplyButton" Width="80" />
+          <Button
+            Content="OK"
+            x:Name="OkButton"
+            Width="80"
+            IsDefault="True"
+            IsEnabled="{Binding !HasKeybindClash}"
+            ToolTip.ShowOnDisabled="True"
+            ToolTip.Tip="{Binding KeybindClashSummary}"
+          />
+          <Button
+            Content="Apply"
+            x:Name="ApplyButton"
+            Width="80"
+            IsEnabled="{Binding !HasKeybindClash}"
+            ToolTip.ShowOnDisabled="True"
+            ToolTip.Tip="{Binding KeybindClashSummary}"
+          />
           <Button Content="Cancel" x:Name="CancelButton" Width="80" IsCancel="True" />
         </StackPanel>
       </DockPanel>

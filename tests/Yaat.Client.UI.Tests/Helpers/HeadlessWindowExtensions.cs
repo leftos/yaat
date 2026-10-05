@@ -71,6 +71,7 @@ internal static class HeadlessWindowExtensions
             Key.L => PhysicalKey.L,
             Key.T => PhysicalKey.T,
             Key.F8 => PhysicalKey.F8,
+            Key.F => PhysicalKey.F,
             _ => throw new System.ArgumentOutOfRangeException(nameof(key), key, "Add mapping in HeadlessWindowExtensions.ToPhysicalKey"),
         };
 }

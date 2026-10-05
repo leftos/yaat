@@ -90,6 +90,96 @@ public partial class MacroRow : ObservableObject
     }
 }
 
+/// <summary>What a configurable key is for, which decides the combos it accepts and the Settings section that resets it.</summary>
+public enum KeybindKind
+{
+    /// <summary>Fires from any YAAT working window, so a bare key would swallow typing: it needs Ctrl or Alt, or is F1–F24.</summary>
+    WindowHotkey,
+
+    /// <summary>Read by the command input only; a bare key is fine.</summary>
+    CommandInputKey,
+
+    /// <summary>The global hold-to-talk key; a bare key or a lone modifier is fine.</summary>
+    PushToTalk,
+}
+
+/// <summary>
+/// One configurable key: its id, the action name Settings shows (and names in a clash), what it does, the other words a
+/// Settings search finds it by, what it is for, and how it is read from and written to <see cref="UserPreferences"/>. Its
+/// default is what <see cref="Read"/> returns on <see cref="UserPreferences.CreateDefaults"/>.
+/// </summary>
+public sealed record KeybindDescriptor(
+    string Id,
+    string Name,
+    string Help,
+    IReadOnlyList<string> SearchWords,
+    KeybindKind Kind,
+    Func<UserPreferences, string> Read,
+    Action<UserPreferences, string> Write
+)
+{
+    /// <summary>The label its row shows in Settings.</summary>
+    public string Label => $"{Name} key:";
+
+    /// <summary>True for every key the Keys section lists; push-to-talk shows in the Speech section instead.</summary>
+    public bool InKeysSection => Kind != KeybindKind.PushToTalk;
+}
+
+/// <summary>A configurable key's row in Settings: the combo being edited, what its capture button shows, and its clash.</summary>
+public sealed partial class KeybindRow : ObservableObject
+{
+    public const string CapturePrompt = "Press a key combo...";
+
+    private string _combo;
+
+    public KeybindRow(KeybindDescriptor descriptor, string combo, string defaultCombo, Action<KeybindRow> startCapture)
+    {
+        Descriptor = descriptor;
+        _combo = combo;
+        _display = SettingsViewModel.KeyComboToDisplay(combo);
+        Description = $"{descriptor.Help} Default: {SettingsViewModel.KeyComboToDisplay(defaultCombo)}";
+        StartCaptureCommand = new RelayCommand(() => startCapture(this));
+    }
+
+    public KeybindDescriptor Descriptor { get; }
+    public string Id => Descriptor.Id;
+    public string Name => Descriptor.Name;
+    public KeybindKind Kind => Descriptor.Kind;
+    public string Label => Descriptor.Label;
+    public string Description { get; }
+    public IRelayCommand StartCaptureCommand { get; }
+
+    /// <summary>The combo in <see cref="UserPreferences"/> form (<c>"Ctrl+Shift+L"</c>), written on Apply.</summary>
+    public string Combo => _combo;
+
+    /// <summary>What the capture button shows: the combo for display, or the prompt while capturing.</summary>
+    [ObservableProperty]
+    private string _display;
+
+    /// <summary>"Also used by …" while another row or a fixed chord has the same combo; null otherwise.</summary>
+    [ObservableProperty]
+    private string? _clashMessage;
+
+    /// <summary>Why the last key pressed during a capture was refused; null otherwise.</summary>
+    [ObservableProperty]
+    private string? _captureHint;
+
+    public void SetCombo(string combo)
+    {
+        SetProperty(ref _combo, combo, nameof(Combo));
+        Display = SettingsViewModel.KeyComboToDisplay(combo);
+        CaptureHint = null;
+    }
+
+    public void ShowCapturePrompt() => Display = CapturePrompt;
+
+    public void EndCapture()
+    {
+        Display = SettingsViewModel.KeyComboToDisplay(_combo);
+        CaptureHint = null;
+    }
+}
+
 public partial class SettingsViewModel : ObservableObject
 {
     private static readonly ILogger Log = AppLog.CreateLogger<SettingsViewModel>();
@@ -297,21 +387,6 @@ public partial class SettingsViewModel : ObservableObject
 
     [ObservableProperty]
     private double _pilotVoiceSpeechRate = UserPreferences.PilotVoiceSpeechRateDefault;
-
-    [ObservableProperty]
-    private string _aircraftSelectKeyDisplay = "Numpad +";
-
-    [ObservableProperty]
-    private string _focusInputKeyDisplay = "~";
-
-    [ObservableProperty]
-    private string _takeControlKeyDisplay = "Ctrl + T";
-
-    [ObservableProperty]
-    private string _alwaysOnTopKeyDisplay = "Ctrl + Shift + T";
-
-    [ObservableProperty]
-    private string _quickBookmarkKeyDisplay = "Ctrl + B";
 
     [ObservableProperty]
     private bool _raiseWindowsTogether;
@@ -538,8 +613,11 @@ public partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     private int _speechSampleCacheMaxMb = 50;
 
-    [ObservableProperty]
-    private string _pttKeyDisplay = "Right Ctrl";
+    /// <summary>The push-to-talk row's button text, for the Speech section's capture button.</summary>
+    public string PttKeyDisplay => PttRow.Display;
+
+    /// <summary>The push-to-talk row's clash, shown under the Speech section's capture button.</summary>
+    public string? PttKeyClashMessage => PttRow.ClashMessage;
 
     [ObservableProperty]
     private string _audioInputDevice = "";
@@ -580,13 +658,7 @@ public partial class SettingsViewModel : ObservableObject
         OnPropertyChanged(nameof(SelectedAudioOutputDeviceDisplay));
     }
 
-    private string _aircraftSelectKeyName = "Add";
-    private string _focusInputKeyName = "OemTilde";
-    private string _takeControlKeyName = "Ctrl+T";
-    private string _alwaysOnTopKeyName = "Ctrl+Shift+T";
-    private string _quickBookmarkKeyName = "Ctrl+B";
-    private string _pttKeyName = "RightCtrl";
-    private string? _captureTarget;
+    private KeybindRow? _captureRow;
 
     /// <summary>
     /// LM-Kit STT model catalog, built at runtime from <see cref="LMKit.Model.ModelCard.GetPredefinedModelCards"/>.
@@ -765,16 +837,22 @@ public partial class SettingsViewModel : ObservableObject
         _pilotVoiceVolume = _preferences.PilotVoiceVolume;
         _pilotVoiceRadioFxEnabled = _preferences.PilotVoiceRadioFxEnabled;
         _pilotVoiceSpeechRate = _preferences.PilotVoiceSpeechRate;
-        _aircraftSelectKeyName = _preferences.AircraftSelectKey;
-        _aircraftSelectKeyDisplay = KeyComboToDisplay(_aircraftSelectKeyName);
-        _focusInputKeyName = _preferences.FocusInputKey;
-        _focusInputKeyDisplay = KeyComboToDisplay(_focusInputKeyName);
-        _takeControlKeyName = _preferences.TakeControlKey;
-        _takeControlKeyDisplay = KeyComboToDisplay(_takeControlKeyName);
-        _alwaysOnTopKeyName = _preferences.AlwaysOnTopKey;
-        _alwaysOnTopKeyDisplay = KeyComboToDisplay(_alwaysOnTopKeyName);
-        _quickBookmarkKeyName = _preferences.QuickBookmarkKey;
-        _quickBookmarkKeyDisplay = KeyComboToDisplay(_quickBookmarkKeyName);
+        var keyDefaults = UserPreferences.CreateDefaults();
+        KeybindRows = [.. KeybindDescriptors.Select(d => new KeybindRow(d, d.Read(_preferences), d.Read(keyDefaults), StartKeyCaptureFor))];
+        KeysSectionKeybindRows = [.. KeybindRows.Where(r => r.Descriptor.InKeysSection)];
+        PttRow = KeybindRows.Single(r => r.Kind == KeybindKind.PushToTalk);
+        PttRow.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(KeybindRow.Display))
+            {
+                OnPropertyChanged(nameof(PttKeyDisplay));
+            }
+            else if (e.PropertyName == nameof(KeybindRow.ClashMessage))
+            {
+                OnPropertyChanged(nameof(PttKeyClashMessage));
+            }
+        };
+        RecomputeKeybindClashes();
         _speechEnabled = _preferences.SpeechEnabled;
         _whisperModelSize = _preferences.WhisperModelSize;
         _llmModelPath = _preferences.LlmModelPath;
@@ -785,8 +863,6 @@ public partial class SettingsViewModel : ObservableObject
         _speechTelemetryEnabled = _preferences.SpeechTelemetryEnabled;
         _appliedSpeechTelemetryEnabled = _preferences.SpeechTelemetryEnabled;
 
-        _pttKeyName = _preferences.PttKey;
-        _pttKeyDisplay = KeyComboToDisplay(_pttKeyName);
         _audioInputDevice = _preferences.AudioInputDevice;
         _audioOutputDevice = _preferences.AudioOutputDevice;
         _raiseWindowsTogether = _preferences.RaiseWindowsTogether;
@@ -931,10 +1007,15 @@ public partial class SettingsViewModel : ObservableObject
     [RelayCommand]
     private void Apply()
     {
-        ApplyCommandsAndScenarioDefaults();
-        ApplySpeechAndWindows();
-        ApplyColorsAndDisplay();
-        SaveMacros();
+        // Every setter below saves; the deferral writes the preferences file once.
+        using (_preferences.DeferSave())
+        {
+            ApplyCommandsAndScenarioDefaults();
+            ApplySpeechAndWindows();
+            ApplyColorsAndDisplay();
+            SaveMacros();
+        }
+
         Applied?.Invoke();
     }
 
@@ -985,11 +1066,10 @@ public partial class SettingsViewModel : ObservableObject
             AutoArrivalSpacingOnOccupiedRunwayTwr
         );
         _preferences.SetVfrCommandsForIfr((VfrCommandsForIfr)SelectedVfrCommandsForIfrIndex);
-        _preferences.SetAircraftSelectKey(_aircraftSelectKeyName);
-        _preferences.SetFocusInputKey(_focusInputKeyName);
-        _preferences.SetTakeControlKey(_takeControlKeyName);
-        _preferences.SetAlwaysOnTopKey(_alwaysOnTopKeyName);
-        _preferences.SetQuickBookmarkKey(_quickBookmarkKeyName);
+        foreach (KeybindRow row in KeybindRows)
+        {
+            row.Descriptor.Write(_preferences, row.Combo);
+        }
     }
 
     // The slider shows the stored call-up rate as the nearest interval it offers, so writing the interval back on every
@@ -1012,7 +1092,7 @@ public partial class SettingsViewModel : ObservableObject
 
     private void ApplySpeechAndWindows()
     {
-        _preferences.SetSpeechSettings(SpeechEnabled, WhisperModelSize, LlmModelPath, LlmGpuLayers, _pttKeyName, AutoFocusInputAfterSpeech);
+        _preferences.SetSpeechSettings(SpeechEnabled, WhisperModelSize, LlmModelPath, LlmGpuLayers, AutoFocusInputAfterSpeech);
         // Before the sample settings: enabling telemetry there forces capture on, and writing capture
         // first would briefly store it off.
         if (SpeechTelemetryEnabled != _appliedSpeechTelemetryEnabled)
@@ -1428,132 +1508,283 @@ public partial class SettingsViewModel : ObservableObject
             _ => "",
         };
 
-    [RelayCommand]
-    private void StartKeyCapture() => StartKeyCaptureFor("AircraftSelect");
+    private static string[] PopOutSearchWords => ["popout", "pop-out", "window", "dock"];
+
+    /// <summary>
+    /// Every configurable key, in the order the Keys section lists them. A new key is one entry here plus its
+    /// <see cref="UserPreferences"/> field; capture, cancel, reset, Apply, load, the clash check and the Settings search
+    /// catalog all read this list.
+    /// </summary>
+    public static IReadOnlyList<KeybindDescriptor> KeybindDescriptors { get; } =
+    [
+        new(
+            "AircraftSelect",
+            "Aircraft select",
+            "Pressing this key in the command input selects the aircraft matching the typed callsign without sending a command.",
+            [],
+            KeybindKind.CommandInputKey,
+            p => p.AircraftSelectKey,
+            (p, k) => p.SetAircraftSelectKey(k)
+        ),
+        new(
+            "FocusInput",
+            "Focus command input",
+            "Pressing this key from anywhere in the app puts focus on the command input.",
+            [],
+            KeybindKind.CommandInputKey,
+            p => p.FocusInputKey,
+            (p, k) => p.SetFocusInputKey(k)
+        ),
+        new(
+            "TakeControl",
+            "Take control",
+            "Pressing this key combo assigns the selected aircraft to yourself (RPO take control).",
+            [],
+            KeybindKind.WindowHotkey,
+            p => p.TakeControlKey,
+            (p, k) => p.SetTakeControlKey(k)
+        ),
+        new(
+            "AlwaysOnTop",
+            "Always on top",
+            "Pressing this key combo toggles always-on-top for the focused pop-out window.",
+            ["topmost", "pin"],
+            KeybindKind.WindowHotkey,
+            p => p.AlwaysOnTopKey,
+            (p, k) => p.SetAlwaysOnTopKey(k)
+        ),
+        new(
+            "QuickBookmark",
+            "Quick bookmark",
+            "Pressing this key combo drops an unnamed bookmark on the timeline at the current position.",
+            [],
+            KeybindKind.WindowHotkey,
+            p => p.QuickBookmarkKey,
+            (p, k) => p.SetQuickBookmarkKey(k)
+        ),
+        new(
+            "PopOutAircraftList",
+            "Pop out aircraft list",
+            "Pops the aircraft list out into its own window, or docks it back, from any YAAT window.",
+            PopOutSearchWords,
+            KeybindKind.WindowHotkey,
+            p => p.PopOutAircraftListKey,
+            (p, k) => p.SetPopOutAircraftListKey(k)
+        ),
+        new(
+            "PopOutGroundView",
+            "Pop out ground view",
+            "Pops the ground view out into its own window, or docks it back, from any YAAT window.",
+            PopOutSearchWords,
+            KeybindKind.WindowHotkey,
+            p => p.PopOutGroundViewKey,
+            (p, k) => p.SetPopOutGroundViewKey(k)
+        ),
+        new(
+            "PopOutRadarView",
+            "Pop out radar view",
+            "Pops the radar view out into its own window, or docks it back, from any YAAT window.",
+            PopOutSearchWords,
+            KeybindKind.WindowHotkey,
+            p => p.PopOutRadarViewKey,
+            (p, k) => p.SetPopOutRadarViewKey(k)
+        ),
+        new(
+            "PopOutTerminal",
+            "Pop out terminal",
+            "Pops the terminal out into its own window, or docks it back, from any YAAT window.",
+            PopOutSearchWords,
+            KeybindKind.WindowHotkey,
+            p => p.PopOutTerminalKey,
+            (p, k) => p.SetPopOutTerminalKey(k)
+        ),
+        new(
+            "PopOutControllers",
+            "Pop out controllers",
+            "Pops the controllers list out into its own window, or docks it back, from any YAAT window.",
+            PopOutSearchWords,
+            KeybindKind.WindowHotkey,
+            p => p.PopOutControllersKey,
+            (p, k) => p.SetPopOutControllersKey(k)
+        ),
+        new(
+            "PopOutMetar",
+            "Pop out METAR",
+            "Pops the METAR list out into its own window, or docks it back, from any YAAT window.",
+            PopOutSearchWords,
+            KeybindKind.WindowHotkey,
+            p => p.PopOutMetarKey,
+            (p, k) => p.SetPopOutMetarKey(k)
+        ),
+        new(
+            "FavoritesBar",
+            "Favorites bar",
+            "Shows or hides the favorites bar, from any YAAT window.",
+            ["favorites", "favourites"],
+            KeybindKind.WindowHotkey,
+            p => p.FavoritesBarKey,
+            (p, k) => p.SetFavoritesBarKey(k)
+        ),
+        new("Ptt", "Push-to-talk", "Hold this key to talk.", ["PTT"], KeybindKind.PushToTalk, p => p.PttKey, (p, k) => p.SetPttKey(k)),
+    ];
+
+    /// <summary>Every configurable key's row, push-to-talk included.</summary>
+    public IReadOnlyList<KeybindRow> KeybindRows { get; }
+
+    /// <summary>The rows the Keys section lists: every key but push-to-talk, which the Speech section shows.</summary>
+    public IReadOnlyList<KeybindRow> KeysSectionKeybindRows { get; }
+
+    private KeybindRow PttRow { get; }
+
+    /// <summary>True while two rows, or a row and a fixed chord, share a combo; OK and Apply stay disabled until it clears.</summary>
+    [ObservableProperty]
+    private bool _hasKeybindClash;
 
     [RelayCommand]
-    private void StartFocusInputKeyCapture() => StartKeyCaptureFor("FocusInput");
+    private void StartPttKeyCapture() => StartKeyCaptureFor(PttRow);
 
-    [RelayCommand]
-    private void StartTakeControlKeyCapture() => StartKeyCaptureFor("TakeControl");
-
-    [RelayCommand]
-    private void StartAlwaysOnTopKeyCapture() => StartKeyCaptureFor("AlwaysOnTop");
-
-    [RelayCommand]
-    private void StartQuickBookmarkKeyCapture() => StartKeyCaptureFor("QuickBookmark");
-
-    [RelayCommand]
-    private void StartPttKeyCapture() => StartKeyCaptureFor("Ptt");
-
-    private void StartKeyCaptureFor(string target)
+    private void StartKeyCaptureFor(KeybindRow row)
     {
-        _captureTarget = target;
+        CancelKeyCapture();
+        _captureRow = row;
         IsCapturingKey = true;
-        switch (target)
-        {
-            case "AircraftSelect":
-                AircraftSelectKeyDisplay = "Press a key combo...";
-                break;
-            case "FocusInput":
-                FocusInputKeyDisplay = "Press a key combo...";
-                break;
-            case "TakeControl":
-                TakeControlKeyDisplay = "Press a key combo...";
-                break;
-            case "AlwaysOnTop":
-                AlwaysOnTopKeyDisplay = "Press a key combo...";
-                break;
-            case "QuickBookmark":
-                QuickBookmarkKeyDisplay = "Press a key combo...";
-                break;
-            case "Ptt":
-                PttKeyDisplay = "Press a key combo...";
-                break;
-        }
+        row.ShowCapturePrompt();
     }
 
+    /// <summary>Shown under a window-hotkey row when a key without Ctrl or Alt is pressed during its capture.</summary>
+    public const string NeedsModifierHint = "Add Ctrl or Alt, or use an F-key";
+
     public void CaptureKey(Key key, KeyModifiers modifiers)
+    {
+        if (!IsCapturingKey || (_captureRow is null))
+        {
+            return;
+        }
+
+        KeybindRow row = _captureRow;
+        switch (ClassifyCapture(row.Kind, key, modifiers))
+        {
+            case CaptureOutcome.Ignore:
+                return;
+            case CaptureOutcome.Cancel:
+                CancelKeyCapture();
+                return;
+            case CaptureOutcome.NeedsModifier:
+                row.CaptureHint = NeedsModifierHint;
+                return;
+            case CaptureOutcome.Accept:
+                break;
+        }
+
+        // A modifier-only PTT key is stored as the raw key name with no modifier prefix so
+        // the combo round-trips cleanly through Enum.TryParse<Key> in KeyNameToDisplay.
+        row.SetCombo(KeybindHelper.IsModifierOnlyKey(key) ? key.ToString() : BuildKeyCombo(key, modifiers));
+        IsCapturingKey = false;
+        _captureRow = null;
+        RecomputeKeybindClashes();
+    }
+
+    public void CancelKeyCapture()
     {
         if (!IsCapturingKey)
         {
             return;
         }
 
-        // Modifier-only keys (RightCtrl, LeftShift, etc.) are normally rejected, but PTT is commonly
-        // bound to a bare modifier — so accept it when the capture target is Ptt.
-        bool isModifierOnly =
-            key is Key.LeftShift or Key.RightShift or Key.LeftCtrl or Key.RightCtrl or Key.LeftAlt or Key.RightAlt or Key.LWin or Key.RWin;
-        if (isModifierOnly && _captureTarget != "Ptt")
-        {
-            return;
-        }
-
-        // For PTT modifier-only capture, store just the raw key name with no modifier prefix so
-        // the combo round-trips cleanly through Enum.TryParse<Key> in KeyNameToDisplay.
-        string combo = isModifierOnly ? key.ToString() : BuildKeyCombo(key, modifiers);
-        switch (_captureTarget)
-        {
-            case "AircraftSelect":
-                _aircraftSelectKeyName = combo;
-                AircraftSelectKeyDisplay = KeyComboToDisplay(combo);
-                break;
-            case "FocusInput":
-                _focusInputKeyName = combo;
-                FocusInputKeyDisplay = KeyComboToDisplay(combo);
-                break;
-            case "TakeControl":
-                _takeControlKeyName = combo;
-                TakeControlKeyDisplay = KeyComboToDisplay(combo);
-                break;
-            case "AlwaysOnTop":
-                _alwaysOnTopKeyName = combo;
-                AlwaysOnTopKeyDisplay = KeyComboToDisplay(combo);
-                break;
-            case "QuickBookmark":
-                _quickBookmarkKeyName = combo;
-                QuickBookmarkKeyDisplay = KeyComboToDisplay(combo);
-                break;
-            case "Ptt":
-                _pttKeyName = combo;
-                PttKeyDisplay = KeyComboToDisplay(combo);
-                break;
-        }
-
+        _captureRow?.EndCapture();
         IsCapturingKey = false;
-        _captureTarget = null;
+        _captureRow = null;
     }
 
-    public void CancelKeyCapture()
+    private enum CaptureOutcome
     {
-        if (IsCapturingKey)
-        {
-            switch (_captureTarget)
-            {
-                case "AircraftSelect":
-                    AircraftSelectKeyDisplay = KeyComboToDisplay(_aircraftSelectKeyName);
-                    break;
-                case "FocusInput":
-                    FocusInputKeyDisplay = KeyComboToDisplay(_focusInputKeyName);
-                    break;
-                case "TakeControl":
-                    TakeControlKeyDisplay = KeyComboToDisplay(_takeControlKeyName);
-                    break;
-                case "AlwaysOnTop":
-                    AlwaysOnTopKeyDisplay = KeyComboToDisplay(_alwaysOnTopKeyName);
-                    break;
-                case "QuickBookmark":
-                    QuickBookmarkKeyDisplay = KeyComboToDisplay(_quickBookmarkKeyName);
-                    break;
-                case "Ptt":
-                    PttKeyDisplay = KeyComboToDisplay(_pttKeyName);
-                    break;
-            }
-
-            IsCapturingKey = false;
-            _captureTarget = null;
-        }
+        Accept,
+        Ignore,
+        Cancel,
+        NeedsModifier,
     }
+
+    /// <summary>What a key pressed during a capture does to a row of this kind.</summary>
+    private static CaptureOutcome ClassifyCapture(KeybindKind kind, Key key, KeyModifiers modifiers)
+    {
+        // A lone modifier (RightCtrl, LeftShift, etc.) waits for the real key, except for PTT, which is commonly bound to one.
+        if (KeybindHelper.IsModifierOnlyKey(key))
+        {
+            return (kind == KeybindKind.PushToTalk) ? CaptureOutcome.Accept : CaptureOutcome.Ignore;
+        }
+
+        if (kind != KeybindKind.WindowHotkey)
+        {
+            return CaptureOutcome.Accept;
+        }
+
+        // A window hotkey fires from every YAAT window, so a bare key would eat that key wherever the user types.
+        // A bare Escape cannot be a binding there, so it backs out of the capture, as clicking away does.
+        if ((key == Key.Escape) && (modifiers == KeyModifiers.None))
+        {
+            return CaptureOutcome.Cancel;
+        }
+
+        bool hasCtrlOrAlt = modifiers.HasFlag(KeyModifiers.Control) || modifiers.HasFlag(KeyModifiers.Alt);
+        return (hasCtrlOrAlt || IsFunctionKey(key)) ? CaptureOutcome.Accept : CaptureOutcome.NeedsModifier;
+    }
+
+    private static bool IsFunctionKey(Key key) => (key >= Key.F1) && (key <= Key.F24);
+
+    // Each row names every other row and fixed chord that shares its combo, so both sides of a clash show it.
+    private void RecomputeKeybindClashes()
+    {
+        foreach (KeybindRow row in KeybindRows)
+        {
+            List<string> others =
+            [
+                .. KeybindRows.Where(o => !ReferenceEquals(o, row) && SameChord(o.Combo, row.Combo)).Select(o => o.Name),
+                .. WindowHotkeys.FixedChords.Where(f => SameChord(f.Chord, row.Combo)).Select(f => f.Name),
+            ];
+            row.ClashMessage = (others.Count == 0) ? null : $"Also used by {string.Join(", ", others)}";
+        }
+
+        HasKeybindClash = KeybindRows.Any(r => r.ClashMessage is not null);
+        KeybindClashSummary = BuildClashSummary();
+    }
+
+    /// <summary>
+    /// Why OK and Apply are disabled, for their tooltip: the clashing rows grouped by the Settings section that shows
+    /// them, then any fixed chord they take, e.g. "Key clash: Take control and Pop out controllers (Keys)". Null with no clash.
+    /// </summary>
+    [ObservableProperty]
+    private string? _keybindClashSummary;
+
+    private string? BuildClashSummary()
+    {
+        List<string> groups =
+        [
+            .. KeybindRows
+                .Where(r => r.ClashMessage is not null)
+                .GroupBy(SectionName)
+                .Select(section => $"{JoinNames([.. section.Select(r => r.Name)])} ({section.Key})"),
+        ];
+        List<string> fixedNames = [.. WindowHotkeys.FixedChords.Where(f => KeybindRows.Any(r => SameChord(f.Chord, r.Combo))).Select(f => f.Name)];
+        if (fixedNames.Count > 0)
+        {
+            groups.Add($"{JoinNames(fixedNames)} (fixed)");
+        }
+
+        return (groups.Count == 0) ? null : $"Key clash: {JoinNames(groups)}";
+    }
+
+    private static string SectionName(KeybindRow row) => (row.Kind == KeybindKind.PushToTalk) ? "Speech" : "Keys";
+
+    private static string JoinNames(IReadOnlyList<string> names) =>
+        (names.Count == 1) ? names[0] : $"{string.Join(", ", names.Take(names.Count - 1))} and {names[^1]}";
+
+    private static bool SameChord(string a, string b) =>
+        (
+            KeybindHelper.ParseKeybind(a, out Key keyA, out KeyModifiers modifiersA)
+            && KeybindHelper.ParseKeybind(b, out Key keyB, out KeyModifiers modifiersB)
+        )
+            ? (keyA == keyB) && (modifiersA == modifiersB)
+            : string.Equals(a, b, StringComparison.Ordinal);
 
     internal static string KeyNameToDisplay(string keyName)
     {
@@ -1907,16 +2138,12 @@ public partial class SettingsViewModel : ObservableObject
     private void ResetKeys(UserPreferences defaults)
     {
         CancelKeyCapture();
-        _aircraftSelectKeyName = defaults.AircraftSelectKey;
-        AircraftSelectKeyDisplay = KeyComboToDisplay(_aircraftSelectKeyName);
-        _focusInputKeyName = defaults.FocusInputKey;
-        FocusInputKeyDisplay = KeyComboToDisplay(_focusInputKeyName);
-        _takeControlKeyName = defaults.TakeControlKey;
-        TakeControlKeyDisplay = KeyComboToDisplay(_takeControlKeyName);
-        _alwaysOnTopKeyName = defaults.AlwaysOnTopKey;
-        AlwaysOnTopKeyDisplay = KeyComboToDisplay(_alwaysOnTopKeyName);
-        _quickBookmarkKeyName = defaults.QuickBookmarkKey;
-        QuickBookmarkKeyDisplay = KeyComboToDisplay(_quickBookmarkKeyName);
+        foreach (KeybindRow row in KeysSectionKeybindRows)
+        {
+            row.SetCombo(row.Descriptor.Read(defaults));
+        }
+
+        RecomputeKeybindClashes();
     }
 
     // Settings only: downloaded models, the CUDA backend, the Piper voice pack and saved samples stay as they are.
@@ -1930,8 +2157,8 @@ public partial class SettingsViewModel : ObservableObject
         LlmModelPath = defaults.LlmModelPath;
         SelectedLlmLmKitModel = LmKitModelCatalog.FindById(LlmLmKitModels, LlmModelPath);
         LlmGpuLayers = defaults.LlmGpuLayers;
-        _pttKeyName = defaults.PttKey;
-        PttKeyDisplay = KeyComboToDisplay(_pttKeyName);
+        PttRow.SetCombo(defaults.PttKey);
+        RecomputeKeybindClashes();
         // Before capture: turning telemetry on would tick capture with it.
         SpeechTelemetryEnabled = defaults.SpeechTelemetryEnabled;
         SpeechSampleCaptureEnabled = defaults.SpeechSampleCaptureEnabled;

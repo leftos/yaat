@@ -367,28 +367,95 @@ public class SettingsWindowNavigationTests
         }
     }
 
+    // The window's own sections, so the Keys section's rows (built from its item template) are there to find even though
+    // the section on show is General.
+    // SettingsWindow.OnOpened lays the Keys section out once as the window opens, which realises its keybind rows.
     [AvaloniaFact(Timeout = 60_000)]
     public void EveryCatalogEntry_ResolvesToItsOwnControlInItsSection()
     {
-        var sections = SectionViews.ToDictionary(pair => pair.Key, pair => (Control)Activator.CreateInstance(pair.Value)!);
+        var window = new SettingsWindow();
+        window.ShowAndRunLayout();
 
-        var unresolved = new List<string>();
-        var resolved = new List<Control>();
-        foreach (SettingsSearchEntry entry in SettingsSearchCatalog.Entries)
+        try
         {
-            if (SettingsWindow.FindLabel(sections[entry.Section], entry) is { } label)
+            var unresolved = new List<string>();
+            var resolved = new List<Control>();
+            foreach (SettingsSearchEntry entry in SettingsSearchCatalog.Entries)
             {
-                resolved.Add(label);
+                if (SettingsWindow.FindLabel(window.SectionView(entry.Section), entry) is { } label)
+                {
+                    resolved.Add(label);
+                }
+                else
+                {
+                    unresolved.Add($"{entry.Section}: {entry.Label} (after {entry.Within})");
+                }
             }
-            else
-            {
-                unresolved.Add($"{entry.Section}: {entry.Label} (after {entry.Within})");
-            }
-        }
 
-        Assert.Empty(unresolved);
-        Assert.Equal(resolved.Count, resolved.Distinct(ReferenceEqualityComparer.Instance).Count());
+            Assert.Empty(unresolved);
+            Assert.Equal(resolved.Count, resolved.Distinct(ReferenceEqualityComparer.Instance).Count());
+        }
+        finally
+        {
+            window.Close();
+            Dispatcher.UIThread.RunJobs();
+        }
     }
+
+    [AvaloniaFact(Timeout = 60_000)]
+    public void KeybindRows_AreFoundByTheirOwnWords_AndByHotkey_BeforeAndAfterTheKeysSectionIsOpened()
+    {
+        var window = new SettingsWindow();
+        window.ShowAndRunLayout();
+
+        try
+        {
+            ListBox nav = window.FindControl<ListBox>("SectionNav")!;
+            ContentControl host = window.FindControl<ContentControl>("SectionHost")!;
+            TextBox box = window.FindControl<TextBox>("SettingsSearchBox")!;
+
+            // The Keys section has not been opened, yet its six pop-out rows count.
+            Search(window, "pop out");
+            Assert.Equal(6, MatchCount(nav, SettingsSectionId.Keys));
+
+            // Opening it lights up the first pop-out row's label, and Enter moves to that row's capture button.
+            window.SelectSection(SettingsSectionId.Keys);
+            Dispatcher.UIThread.RunJobs();
+            TextBlock hit = Assert.IsType<TextBlock>(Assert.Single(Highlighted(host)));
+            Assert.Equal("Pop out aircraft list key:", hit.Text);
+            box.Focus();
+            Dispatcher.UIThread.RunJobs();
+            window.DispatchKey(Avalonia.Input.Key.Enter);
+            Button capture = Assert.IsType<Button>(window.FocusManager!.GetFocusedElement());
+            Assert.Contains("key-capture", capture.Classes);
+            Assert.Equal("PopOutAircraftList", Assert.IsType<KeybindRow>(capture.DataContext).Id);
+
+            // "hotkey" counts every Keys row and its link to the push-to-talk key, and the push-to-talk key in Speech,
+            // with the Keys section on show and after leaving it.
+            int keysRows = SettingsViewModel.KeybindDescriptors.Count(d => d.InKeysSection);
+            Search(window, "hotkey");
+            Assert.Equal(keysRows + 1, MatchCount(nav, SettingsSectionId.Keys));
+            Assert.Equal(1, MatchCount(nav, SettingsSectionId.Speech));
+
+            window.SelectSection(SettingsSectionId.Speech);
+            Dispatcher.UIThread.RunJobs();
+            Assert.Equal("PTT key:", Assert.IsType<TextBlock>(Assert.Single(Highlighted(host))).Text);
+
+            Search(window, "");
+            window.SelectSection(SettingsSectionId.General);
+            Dispatcher.UIThread.RunJobs();
+            Search(window, "hotkey");
+            Assert.Equal(keysRows + 1, MatchCount(nav, SettingsSectionId.Keys));
+        }
+        finally
+        {
+            window.Close();
+            Dispatcher.UIThread.RunJobs();
+        }
+    }
+
+    private static int? MatchCount(ListBox nav, SettingsSectionId id) =>
+        nav.Items.OfType<SettingsNavItem>().SingleOrDefault(row => row.Id == id)?.MatchCount;
 
     [AvaloniaFact(Timeout = 60_000)]
     public void ClearingTheQuery_RestoresEverySection_AndKeepsTheSelection()

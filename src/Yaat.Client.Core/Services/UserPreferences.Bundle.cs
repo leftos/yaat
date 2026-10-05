@@ -125,6 +125,13 @@ public sealed partial class UserPreferences
         ("focusInputKey", KeyName),
         ("takeControlKey", KeyName),
         ("alwaysOnTopKey", KeyName),
+        ("popOutAircraftListKey", KeyName),
+        ("popOutGroundViewKey", KeyName),
+        ("popOutRadarViewKey", KeyName),
+        ("popOutTerminalKey", KeyName),
+        ("popOutControllersKey", KeyName),
+        ("popOutMetarKey", KeyName),
+        ("favoritesBarKey", KeyName),
         ("quickBookmarkKey", KeyName),
         ("pttKey", KeyName),
         // Speech; a model source is exported only without a local path, user part or query, and imported only as a

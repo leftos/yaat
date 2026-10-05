@@ -221,6 +221,12 @@
               />
             </StackPanel>
             <TextBlock
+              Text="{Binding PttKeyClashMessage}"
+              IsVisible="{Binding PttKeyClashMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+              Foreground="Orange"
+              FontSize="11"
+            />
+            <TextBlock
               Text="Hold this key to record speech. Default: Right Ctrl."
               TextWrapping="Wrap"
               Foreground="{DynamicResource SubtleTextBrush}"

@@ -81,11 +81,11 @@ This applies only to **planned** restarts announced by the server. An unexpected
 
 ![Main window after Ground View and Radar View have been popped out](docs/user-guide/img/main-window-popped-out.png)
 
-Each view can be popped out into its own window via **View > Pop Out Aircraft List / Ground View / Radar View / Controllers / METAR / Terminal**. When a view is popped out, its tab disappears from the main window and a separate window opens. Close the pop-out window (or uncheck the menu item) to dock it back as a tab.
+The **View** menu has three submenus: **Windows** (the pop-outs, new Radar and Ground windows, Strips and vTDLS), **Bars** (the favorites bar and panel, the timeline bar) and **Layout** (saved layouts, Reset Aircraft List Layout). Each view can be popped out into its own window via **View > Windows > Aircraft list / Ground view / Radar view / Terminal / Controllers / METAR**, or with its hotkey: **Ctrl+Shift+L** aircraft list, **Ctrl+Shift+G** ground, **Ctrl+Shift+R** radar, **Ctrl+Shift+E** terminal, **Ctrl+Shift+C** controllers, **Ctrl+Shift+M** METAR (all rebindable in **Settings › Keys**, and shown beside each menu item). The hotkeys work from any YAAT window, pop-outs included. When a view is popped out, its tab disappears from the main window and a separate window opens. Close the pop-out window (or uncheck the menu item) to dock it back as a tab.
 
 All views can be popped out simultaneously. Pop-out state and window positions are remembered across sessions.
 
-**View > New Radar Window** and **View > New Ground Window** open additional, independent copies of those views ("Radar View #2 — KSFO", "Ground View #2 — KOAK", …). Because a second view has no obvious target, each asks which airport to base it on first: pick one of the ARTCC's airports (the scenario's primary airport is preselected) or type any airport the navigation database knows. An extra Radar window centres on that airport and loads the video maps favoured for it; an extra Ground window shows that airport's ground layout (choosing the main view's airport simply shows the same layout again). Each extra window keeps its own centre, range, zoom, rotation, filters, DCB and datablock positions, and remembers them per scenario separately from the main view; the selected aircraft is shared across every window and the Aircraft List, so clicking a target anywhere selects it everywhere. Close an extra window to remove it; open extras (with their airports) are restored on the next launch and are saved in layouts. Scope markers (`.ff`, `.markers`) and settings toggles that apply app-wide act on the main Radar/Ground view only.
+**View > Windows > New radar window…** and **View > Windows > New ground window…** open additional, independent copies of those views ("Radar View #2 — KSFO", "Ground View #2 — KOAK", …). Because a second view has no obvious target, each asks which airport to base it on first: pick one of the ARTCC's airports (the scenario's primary airport is preselected) or type any airport the navigation database knows. An extra Radar window centres on that airport and loads the video maps favoured for it; an extra Ground window shows that airport's ground layout (choosing the main view's airport simply shows the same layout again). Each extra window keeps its own centre, range, zoom, rotation, filters, DCB and datablock positions, and remembers them per scenario separately from the main view; the selected aircraft is shared across every window and the Aircraft List, so clicking a target anywhere selects it everywhere. Close an extra window to remove it; open extras (with their airports) are restored on the next launch and are saved in layouts. Scope markers (`.ff`, `.markers`) and settings toggles that apply app-wide act on the main Radar/Ground view only.
 
 **Layouts** save and restore named window arrangements — geometry, minimized/maximized/always-on-top state, dock/pop-out state of every pop-out window (Controllers, METAR and the favorites panel included), which extra Radar/Ground windows are open, whether the favorites bar is shown, DataGrid columns, which [favorite sets](#favorite-sets) are loaded, and which Strips and vTDLS tabs are open. A layout never holds radar, ground or terminal view settings, so one layout works in every scenario. The **View > Layout** submenu lists your saved layouts (click one to apply it), then **Save current as layout…**, **From this scenario's views…** (see [Applying a Layout or Another Scenario's Views](#applying-a-layout-or-another-scenarios-views)), **Manage layouts…** (apply, update from the current arrangement, rename or delete) and **Reset aircraft list columns**. Applying a layout brings its saved windows to the front (un-minimizing them if needed) and leaves focus on the main window; a window the layout saved minimized is restored minimized. A layout saved before it recorded the open Strips/vTDLS tabs leaves your open tabs as they are, and a saved tab that no longer exists is skipped. Window profiles saved by an earlier version appear as layouts with the same names. Useful for keeping separate GC and LC layouts (each with its own favorite sets) and switching between them in one click.
 
@@ -145,7 +145,7 @@ Type a message prefixed with `'`, `/`, or `>` to send a text chat to all RPOs in
 
 #### Resizing and Pop Out
 
-Drag the splitter bar between the aircraft grid and terminal panel to resize them. Check **View > Pop Out Terminal** to undock the terminal into a separate floating window. The command input bar moves to the terminal window. Uncheck the menu item (or close the window) to return it to the main window.
+Drag the splitter bar between the aircraft grid and terminal panel to resize them. Check **View > Windows > Terminal** (or press **Ctrl+Shift+E**) to undock the terminal into a separate floating window. The command input bar moves to the terminal window. Uncheck the menu item (or close the window) to return it to the main window.
 
 #### Warnings
 
@@ -163,7 +163,7 @@ The command bar at the bottom is where you type and send commands. See [Commands
 
 > **macOS:** Substitute **⌘ (Cmd)** for **Ctrl** in all shortcuts below.
 
-Keys marked *(default)* are configurable under **Settings › Keys** (push-to-talk under **Settings › Speech**).
+Keys marked *(default)* are configurable under **Settings › Keys** (push-to-talk under **Settings › Speech**). A key another action already uses (or a fixed chord such as Ctrl+M measure, Ctrl+F8 DCB, Ctrl+F find in Strips and vTDLS, Ctrl+D the ground debug overlay) is shown as "Also used by …" on every row involved, and **OK** and **Apply** stay disabled until it is changed. Window hotkeys need Ctrl or Alt (or an F-key), so they never fire while you type; **Esc** while capturing one cancels the capture.
 
 #### Command Input
 
@@ -186,6 +186,8 @@ To the left of the command box, the **active-position selector** shows the [TCP]
 | Ctrl+T | Take control of the selected aircraft *(default)* |
 | Ctrl+Shift+T | Toggle window always-on-top *(default)* |
 | Ctrl+B | Drop a quick timeline bookmark *(default)* |
+| Ctrl+Shift+L / G / R / E / C / M | Pop out or dock the aircraft list / ground view / radar view / terminal / controllers / METAR *(default)* |
+| Ctrl+Shift+F | Show or hide the favorites bar *(default)* |
 | Right Ctrl | Push-to-talk for speech recognition *(default)* |
 
 #### Radar View
@@ -242,7 +244,7 @@ Route drawing and heading mode start from the aircraft right-click menu.
 
 ![Aircraft List with the OAK scenario's 18 aircraft](docs/user-guide/img/aircraft-list.png)
 
-The default view. Shows all aircraft in your scenario, grouped into **Active** and **Delayed** sections. Click the group header row to collapse or expand each section. Use **View > Reset Aircraft List Layout** to restore defaults. Selecting an aircraft anywhere — clicking it on the Ground or Radar view, via a context menu, or by typing its callsign — automatically scrolls the list to bring its row into view.
+The default view. Shows all aircraft in your scenario, grouped into **Active** and **Delayed** sections. Click the group header row to collapse or expand each section. Use **View > Layout > Reset Aircraft List Layout** to restore defaults. Selecting an aircraft anywhere — clicking it on the Ground or Radar view, via a context menu, or by typing its callsign — automatically scrolls the list to bring its row into view.
 
 | Column | Description |
 |--------|-------------|
@@ -731,9 +733,9 @@ The Strips tab appears next to Aircraft List / Ground View / Radar View as soon 
 
 A facility is openable when it is your own, a facility below you in the tree (a TRACON working its child towers top-down), **or** a facility your own config links a bay from. That last case is the common one at a tower: KOAK's strips config links NorCal (NCT) and Oakland Bay (O90) bays for scanning strips outward, so both TRACONs can be opened as their own tabs — otherwise a strip you scanned to NorCal would be write-only. A facility's tab shows **all** of its bays, not just the linked ones.
 
-- **View → Strips → New Strips Tab…** opens a picker of accessible facilities and adds a new tab. Useful when you control a tower position and want both the local and TRACON bays visible at once. Picking a facility that already has a tab opens a **second independent view** of it — each view keeps its own selected bay, so you can monitor two bays of the same facility side by side (pop one out and dock the other, or pop out both). Duplicate tabs are numbered — `Strips (Oakland Intl ATCT)` and `Strips (Oakland Intl ATCT) #2`.
-- **View → Strips → Pop Out Strips (X)** detaches the tab into its own window. The student entry can be popped out and re-docked but not closed. Non-student entries also get a **Close Strips (X)** action.
-- **View → Strips → Split Strips (X)** (also on the tab header's right-click menu) splits that tab or popped-out window into two full strips views — **Side by Side** or **Stacked** — separated by a draggable grip bar (wider and brighter than the bay dividers inside a pane, so it's clear where one pane ends and the other begins). Each pane has its own header and its own selected bay, so one window can watch two bays of the same facility at once (each pane can also switch facilities independently). **Unsplit** collapses back to a single pane. The student tab's split layout and divider position persist across restarts. Strips can be moved between panes by dropping on the target bay's header drop zone or via right-click **Push…** — dragging a strip directly across the divider is not supported.
+- **View → Windows → Strips → New strips tab…** opens a picker of accessible facilities and adds a new tab. Useful when you control a tower position and want both the local and TRACON bays visible at once. Picking a facility that already has a tab opens a **second independent view** of it — each view keeps its own selected bay, so you can monitor two bays of the same facility side by side (pop one out and dock the other, or pop out both). Duplicate tabs are numbered — `Strips (Oakland Intl ATCT)` and `Strips (Oakland Intl ATCT) #2`.
+- **View → Windows → Strips → Pop out Strips (X)** detaches the tab into its own window. The student entry can be popped out and re-docked but not closed. Non-student entries also get a **Close Strips (X)** action.
+- **View → Windows → Strips → Split Strips (X)** (also on the tab header's right-click menu) splits that tab or popped-out window into two full strips views — **Side by Side** or **Stacked** — separated by a draggable grip bar (wider and brighter than the bay dividers inside a pane, so it's clear where one pane ends and the other begins). Each pane has its own header and its own selected bay, so one window can watch two bays of the same facility at once (each pane can also switch facilities independently). **Unsplit** collapses back to a single pane. The student tab's split layout and divider position persist across restarts. Strips can be moved between panes by dropping on the target bay's header drop zone or via right-click **Push…** — dragging a strip directly across the divider is not supported.
 - Each tab is titled `Strips (FacilityName)` so multiple strip tabs/windows can be told apart at a glance.
 
 #### Header bar
@@ -916,9 +918,9 @@ Click a callsign in the **PDC** list to re-open the editor on the clearance that
 
 #### Multi-facility tabs
 
-- **View → vTDLS → New vTDLS Tab…** opens a picker of accessible TDLS facilities and adds a new tab. Useful when working a parent TRACON whose child ATCTs are unstaffed top-down (e.g. NCT with OAK/SFO/SJC/SMF/RNO).
+- **View → Windows → vTDLS → New vTDLS tab…** opens a picker of accessible TDLS facilities and adds a new tab. Useful when working a parent TRACON whose child ATCTs are unstaffed top-down (e.g. NCT with OAK/SFO/SJC/SMF/RNO).
 - Working such a parent, the parent itself is offered as a **(consolidated)** entry — one page merging every child facility's DCL and PDC lists, so you can watch all five airports at once. Each row is prefixed with its facility id. Selecting an item switches the editor to *that* airport's SIDs, mandatory fields and Ops Config, so a consolidated page issues clearances exactly as the per-airport page would. Unlike upstream vTDLS, YAAT never hides a child facility because it is staffed — in a training room that would hide the very lists you opened the page to watch.
-- **View → vTDLS → Pop Out vTDLS (X)** detaches a tab into its own window. The student entry can be popped out but not closed. Non-student entries get a **Close vTDLS (X)** action.
+- **View → Windows → vTDLS → Pop out vTDLS (X)** detaches a tab into its own window. The student entry can be popped out but not closed. Non-student entries get a **Close vTDLS (X)** action.
 - Each tab is titled `vTDLS (FacilityName)` so multiple tabs/windows are distinguishable.
 
 #### Persistence
@@ -1033,7 +1035,7 @@ The active weather name is shown in the terminal when weather is loaded or clear
 
 ### Viewing METARs
 
-The **METAR** tab in the main window lists the METAR string for each airport in the currently active weather, with the station id labeled. Stations are listed **alphabetically**, and clicking the **☆ star** next to a station id favorites it **for the current scenario** — favorited stations surface to the top of the list (alphabetical among themselves) and stay favorited across sessions. Click the ★ again to unfavorite. The text is selectable so you can copy it; pop the tab out via **View > Pop Out METAR**. The list reflects whatever weather is loaded — the scenario's default weather or a profile you loaded over it. With **no weather loaded**, it shows default standard conditions (calm wind, 10SM, clear, 29.92) for each of the scenario's airports rather than nothing, and for the airport every Ground View depicts.
+The **METAR** tab in the main window lists the METAR string for each airport in the currently active weather, with the station id labeled. Stations are listed **alphabetically**, and clicking the **☆ star** next to a station id favorites it **for the current scenario** — favorited stations surface to the top of the list (alphabetical among themselves) and stay favorited across sessions. Click the ★ again to unfavorite. The text is selectable so you can copy it; pop the tab out via **View > Windows > METAR** (**Ctrl+Shift+M**). The list reflects whatever weather is loaded — the scenario's default weather or a profile you loaded over it. With **no weather loaded**, it shows default standard conditions (calm wind, 10SM, clear, 29.92) for each of the scenario's airports rather than nothing, and for the airport every Ground View depicts.
 
 The weather readout at the top-left of each **Ground View** shows the wind and altimeter of the airport that view depicts; each **Radar View** lists the stations of its position's airports. When the loaded weather has no METAR for those airports, the readout says so (`No METAR for SFO`) rather than showing another airport's weather.
 
@@ -1619,7 +1621,7 @@ Open **Room > Members...** for one window that shows everyone in the current tra
 
 ### Controllers
 
-The **Controllers** tab in the main window lists the controllers in the current room in CRC's style, so you don't have to open CRC just to check who's covering what frequency. It combines live CRC-connected controllers with the scenario's auto-connect ATC positions. Pop it out into its own window via **View > Pop Out Controllers**.
+The **Controllers** tab in the main window lists the controllers in the current room in CRC's style, so you don't have to open CRC just to check who's covering what frequency. It combines live CRC-connected controllers with the scenario's auto-connect ATC positions. Pop it out into its own window via **View > Windows > Controllers** (**Ctrl+Shift+C**).
 
 Controllers are grouped by facility (the header shows the facility id and name). Each row shows:
 
@@ -1807,7 +1809,7 @@ The favorites bar sits below the command input and provides quick-access buttons
 - **Ctrl+Click** a favorite to append its command text without sending (joined with `,`).
 - **Right-click** a favorite to edit its label, command text, ground override, category, which sets it's in, button colors, button height, or delete it.
 - Click **+** to add a new favorite.
-- **View > Show Favorites Bar** hides or shows the bar (in the main window, or in the Terminal window when the Terminal is popped out). The pop-out panel keeps working while the bar is hidden. The setting is remembered across sessions and captured by layouts.
+- **View > Bars > Favorites bar** (**Ctrl+Shift+F**) hides or shows the bar (in the main window, or in the Terminal window when the Terminal is popped out). The pop-out panel keeps working while the bar is hidden. The setting is remembered across sessions and captured by layouts.
 - Click **Panel** or use **View > Open Favorites Panel...** for a larger pop-out panel with **Air**, **Ground**, **Vehicle**, and **Airport** tabs. The panel follows your selection: picking an aircraft on the ground opens the **Ground** tab and an airborne one the **Air** tab (**Vehicle** and **Airport** are only ever chosen by hand, and a tab you click stays until the next selection). Buttons fill the grid edge to edge from the top-left, and the tallest favorite's height sets the row height for its tab. The panel's status bar shows which aircraft a favorite will act on (your current selection) and the result of your last click. Because favorites act on the selected aircraft, select one in the main window first; the panel floats freely, so you can bring the main window forward to change your selection.
 - In the pop-out panel, set **Cols** for a fixed grid, click **Batch** to add a screenful of blank slots to the active tab, then right-click each slot to fill in its label and command. Click **Blank** for a single extra slot. Blank slots reserve button-sized space so you can line up commands in predictable positions; click-hold-drag favorites or blank slots to rearrange them, or right-click to move left/right, insert blanks before/after, change category/sets/height, or delete. The same drag and move controls are available from the main favorites bar.
 - **Right-click the command input** with text present to choose **Save as favorite…** — the add dialog opens with the command pre-filled, so you only need to type a label.

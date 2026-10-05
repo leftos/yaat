@@ -167,18 +167,18 @@ public class SettingsViewModelResetSectionTests
         );
 
     [AvaloniaFact(Timeout = 60_000)]
-    public void Keys_ResetsTheFiveKeys() =>
+    public void Keys_ResetsTheKeys() =>
         AssertResetsToDefault(
             SettingsSectionId.Keys,
             vm =>
             {
-                vm.StartTakeControlKeyCaptureCommand.Execute(null);
+                vm.KeybindRows.Single(r => r.Id == "TakeControl").StartCaptureCommand.Execute(null);
                 vm.CaptureKey(Key.Y, KeyModifiers.Control);
-                vm.StartQuickBookmarkKeyCaptureCommand.Execute(null);
+                vm.KeybindRows.Single(r => r.Id == "PopOutMetar").StartCaptureCommand.Execute(null);
                 vm.CaptureKey(Key.J, KeyModifiers.Control);
             },
-            vm => (vm.TakeControlKeyDisplay, vm.QuickBookmarkKeyDisplay),
-            p => (SettingsViewModel.KeyComboToDisplay(p.TakeControlKey), SettingsViewModel.KeyComboToDisplay(p.QuickBookmarkKey))
+            vm => (vm.KeybindRows.Single(r => r.Id == "TakeControl").Display, vm.KeybindRows.Single(r => r.Id == "PopOutMetar").Display),
+            p => (SettingsViewModel.KeyComboToDisplay(p.TakeControlKey), SettingsViewModel.KeyComboToDisplay(p.PopOutMetarKey))
         );
 
     [AvaloniaFact(Timeout = 60_000)]

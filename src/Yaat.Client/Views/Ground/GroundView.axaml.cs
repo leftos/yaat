@@ -228,7 +228,7 @@ public partial class GroundView : UserControl
             }
         }
 
-        if (e.Key == Key.D && PlatformHelper.HasActionModifier(e.KeyModifiers) && _canvas is not null)
+        if ((e.Key == Key.D) && (e.KeyModifiers == (PlatformHelper.IsMacOS ? KeyModifiers.Meta : KeyModifiers.Control)) && (_canvas is not null))
         {
             _canvas.ShowDebugInfo = !_canvas.ShowDebugInfo;
             e.Handled = true;

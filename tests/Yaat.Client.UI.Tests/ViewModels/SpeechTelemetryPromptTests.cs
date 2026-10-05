@@ -47,7 +47,6 @@ public class SpeechTelemetryPromptTests
         private readonly string _whisperModelSource;
         private readonly string _llmModelSource;
         private readonly int _llmGpuLayers;
-        private readonly string _pttKey;
         private readonly bool _autoFocusInputAfterSpeech;
 
         public SpeechPrefsGuard()
@@ -60,7 +59,6 @@ public class SpeechTelemetryPromptTests
             _whisperModelSource = prefs.WhisperModelSize;
             _llmModelSource = prefs.LlmModelPath;
             _llmGpuLayers = prefs.LlmGpuLayers;
-            _pttKey = prefs.PttKey;
             _autoFocusInputAfterSpeech = prefs.AutoFocusInputAfterSpeech;
         }
 
@@ -70,7 +68,7 @@ public class SpeechTelemetryPromptTests
             prefs.SetSpeechTelemetryEnabled(false);
             prefs.SetSpeechSampleSettings(enabled: false, maxMb: prefs.SpeechSampleCacheMaxMb);
             prefs.SetSpeechTelemetryPromptShown(promptShown);
-            prefs.SetSpeechSettings(speechEnabled, "", "", _llmGpuLayers, _pttKey, _autoFocusInputAfterSpeech);
+            prefs.SetSpeechSettings(speechEnabled, "", "", _llmGpuLayers, _autoFocusInputAfterSpeech);
         }
 
         public void Dispose()
@@ -79,7 +77,7 @@ public class SpeechTelemetryPromptTests
             prefs.SetSpeechTelemetryEnabled(_telemetryEnabled);
             prefs.SetSpeechSampleSettings(_captureEnabled, prefs.SpeechSampleCacheMaxMb);
             prefs.SetSpeechTelemetryPromptShown(_promptShown);
-            prefs.SetSpeechSettings(_speechEnabled, _whisperModelSource, _llmModelSource, _llmGpuLayers, _pttKey, _autoFocusInputAfterSpeech);
+            prefs.SetSpeechSettings(_speechEnabled, _whisperModelSource, _llmModelSource, _llmGpuLayers, _autoFocusInputAfterSpeech);
         }
     }
 
