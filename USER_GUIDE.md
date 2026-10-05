@@ -957,8 +957,8 @@ Use **View > Copy View Settings...** to open a comparison dialog that copies vie
 
 **Scenario > Load Scenario...** opens a dialog with two tabs:
 
-- **ARTCC Scenarios** (default) — lists training scenarios from the [vNAS](#glossary) data API for the room's ARTCC: normally your home ARTCC, or the one you picked when creating the room if you've been granted another ARTCC's scenarios (see [Visiting another ARTCC](#visiting-another-artcc)). Use the Airport filter to narrow by primary airport.
-- **Local Files** — browse a local folder for ATCTrainer-format JSON scenario files. Supports Facility and Rating filters.
+- **ARTCC Scenarios** (default) — lists training scenarios from the [vNAS](#glossary) data API for the room's ARTCC: normally your home ARTCC, or the one you picked when creating the room if you've been granted another ARTCC's scenarios (see [Visiting another ARTCC](#visiting-another-artcc)). Use the Facility filter to narrow by the facility code after the prefix at the start of each scenario's name (`OAK` in a name beginning `S1-OAK`); names without that prefix fall under `Unknown`.
+- **Local Files** — **Load File…** opens a file picker for a single scenario JSON and loads it at once, leaving the browsed folder unchanged. Below it, the **Recent** list shows the same local-file scenarios as **Scenario > Load Recent Scenario**; a file that has been moved or deleted shows "(missing)", dimmed, and cannot be loaded, and **Remove** drops the selected entry from the list. Under that, browse a local folder for ATCTrainer-format JSON scenario files, with Facility and Rating filters.
 
 Select a scenario and click **Load** (or double-click). Aircraft spawn at their configured starting positions. The window title shows the room name and scenario name. To switch scenarios, load a new one — a confirmation dialog appears if one is already active.
 

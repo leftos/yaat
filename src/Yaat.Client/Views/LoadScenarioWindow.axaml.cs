@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Threading;
 using Microsoft.Extensions.Logging;
 using Yaat.Client.Logging;
 using Yaat.Client.Services;
@@ -36,21 +37,28 @@ public partial class LoadScenarioWindow : Window
     private readonly ComboBox _ratingFilter;
     private readonly TextBlock _localStatusText;
     private readonly ListBox _localScenarioList;
+    private readonly ListBox _recentScenarioList;
+    private readonly Button _removeRecentButton;
     private List<LocalScenarioItem> _allLocalItems = [];
 
     private readonly Button _loadButton;
     private readonly TabControl _sourceTabs;
 
-    public LoadScenarioWindow()
-        : this(new UserPreferences(), null) { }
+    /// <summary>Completes once the recent-scenario file checks finish and the list is populated. Tests await it.</summary>
+    internal Task RecentListReady { get; private set; } = Task.CompletedTask;
 
-    public LoadScenarioWindow(UserPreferences preferences, ServerConnection? connection)
+    // Parameterless ctor for the Avalonia designer / XamlLoader and for GuideCapture's offscreen render. It builds the
+    // real picker rather than taking one, because a picker cannot be created before `this` exists.
+    public LoadScenarioWindow()
+        : this(new UserPreferences(), null, FilePickerFactory.Create) { }
+
+    public LoadScenarioWindow(UserPreferences preferences, ServerConnection? connection, Func<TopLevel, IFilePickerService> filePickerFactory)
     {
         _preferences = preferences;
         _connection = connection;
         _artccId = preferences.ArtccId;
         InitializeComponent();
-        _filePicker = FilePickerFactory.Create(this);
+        _filePicker = filePickerFactory(this);
         new WindowGeometryHelper(this, preferences, "LoadScenario", 600, 500).Restore();
 
         _sourceTabs = this.FindControl<TabControl>("SourceTabs")!;
@@ -68,10 +76,14 @@ public partial class LoadScenarioWindow : Window
         _ratingFilter = this.FindControl<ComboBox>("RatingFilter")!;
         _localStatusText = this.FindControl<TextBlock>("LocalStatusText")!;
         _localScenarioList = this.FindControl<ListBox>("LocalScenarioList")!;
+        _recentScenarioList = this.FindControl<ListBox>("RecentScenarioList")!;
+        _removeRecentButton = this.FindControl<Button>("RemoveRecentButton")!;
 
         // Wire events
         this.FindControl<Button>("CancelButton")!.Click += (_, _) => DialogPresenter.Close(this, null);
         this.FindControl<Button>("BrowseButton")!.Click += OnBrowseClick;
+        this.FindControl<Button>("LoadFileButton")!.Click += OnLoadFileClick;
+        _removeRecentButton.Click += OnRemoveRecentClick;
         _loadButton.Click += OnLoadClick;
 
         _artccScenarioList.SelectionChanged += OnArtccSelectionChanged;
@@ -80,10 +92,14 @@ public partial class LoadScenarioWindow : Window
 
         _localScenarioList.SelectionChanged += OnLocalSelectionChanged;
         _localScenarioList.DoubleTapped += OnLocalDoubleTapped;
+        _recentScenarioList.SelectionChanged += OnRecentSelectionChanged;
+        _recentScenarioList.DoubleTapped += OnRecentDoubleTapped;
         _facilityFilter.SelectionChanged += (_, _) => ApplyLocalFilter();
         _ratingFilter.SelectionChanged += (_, _) => ApplyLocalFilter();
 
         _sourceTabs.SelectionChanged += OnTabChanged;
+
+        RebuildRecentList();
 
         // Load ARTCC scenarios if we have an ARTCC ID and a live connection.
         if (string.IsNullOrWhiteSpace(_artccId))
@@ -267,6 +283,86 @@ public partial class LoadScenarioWindow : Window
     private void ApplyLocalFilter() =>
         ApplyFilter(_facilityFilter, _ratingFilter, _localScenarioList, _localStatusText, _allLocalItems, i => i.Facility, i => i.Rating);
 
+    // --- Recent scenarios ---
+
+    private void RebuildRecentList() => RecentListReady = RebuildRecentListAsync();
+
+    // File.Exists can block for tens of seconds on an unreachable network share, so the checks run off the UI
+    // thread; the list is empty until they finish. A failed check leaves the list empty and logs, never throws.
+    private async Task RebuildRecentListAsync()
+    {
+        List<RecentScenario> recents = [.. _preferences.RecentScenarios.Where(r => !r.IsApi)];
+        List<RecentScenarioItem> items;
+        try
+        {
+            items = await Task.Run(() => BuildRecentItems(recents));
+        }
+        catch (Exception ex)
+        {
+            Log.LogWarning(ex, "Failed to check recent scenario files for missing files.");
+            items = [];
+        }
+
+        await Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            _recentScenarioList.ItemsSource = items;
+            _recentScenarioList.SelectedItem = null;
+            UpdateRecentRemoveButton();
+            UpdateLoadButton();
+        });
+    }
+
+    private static List<RecentScenarioItem> BuildRecentItems(List<RecentScenario> recents) =>
+        [
+            .. recents.Select(r =>
+            {
+                bool missing = !File.Exists(r.FilePath);
+                string displayName = missing ? $"{r.Name} (missing)" : r.Name;
+                return new RecentScenarioItem(r.Key, displayName, r.FilePath, missing);
+            }),
+        ];
+
+    private async void OnLoadFileClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        string? path = await _filePicker.OpenFileAsync(
+            new OpenFileOptions("Load Scenario File", [new FilePickerFilter("Scenario files", ["*.json"])])
+        );
+        if (path is not null)
+        {
+            DialogPresenter.Close(this, new ScenarioLoadResult(path, null));
+        }
+    }
+
+    private void OnRemoveRecentClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (_recentScenarioList.SelectedItem is RecentScenarioItem item)
+        {
+            _preferences.RemoveRecentScenario(item.Key);
+            RebuildRecentList();
+        }
+    }
+
+    private void OnRecentSelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_recentScenarioList.SelectedItem is RecentScenarioItem)
+        {
+            _localScenarioList.SelectedItem = null;
+        }
+
+        UpdateRecentRemoveButton();
+        UpdateLoadButton();
+    }
+
+    private void OnRecentDoubleTapped(object? sender, TappedEventArgs e)
+    {
+        if (_recentScenarioList.SelectedItem is RecentScenarioItem { IsMissing: false } item)
+        {
+            DialogPresenter.Close(this, new ScenarioLoadResult(item.FilePath, null));
+        }
+    }
+
+    private void UpdateRecentRemoveButton() => _removeRecentButton.IsEnabled = _recentScenarioList.SelectedItem is RecentScenarioItem;
+
     // --- Selection / load ---
 
     private bool IsArtccTabActive => _sourceTabs.SelectedIndex == 0;
@@ -275,13 +371,26 @@ public partial class LoadScenarioWindow : Window
 
     private void OnArtccSelectionChanged(object? sender, SelectionChangedEventArgs e) => UpdateLoadButton();
 
-    private void OnLocalSelectionChanged(object? sender, SelectionChangedEventArgs e) => UpdateLoadButton();
+    private void OnLocalSelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_localScenarioList.SelectedItem is LocalScenarioItem)
+        {
+            _recentScenarioList.SelectedItem = null;
+        }
+
+        UpdateLoadButton();
+    }
 
     private void UpdateLoadButton()
     {
-        _loadButton.IsEnabled = IsArtccTabActive
-            ? _artccScenarioList.SelectedItem is ArtccScenarioItem
-            : _localScenarioList.SelectedItem is LocalScenarioItem;
+        if (IsArtccTabActive)
+        {
+            _loadButton.IsEnabled = _artccScenarioList.SelectedItem is ArtccScenarioItem;
+            return;
+        }
+
+        _loadButton.IsEnabled =
+            (_recentScenarioList.SelectedItem is RecentScenarioItem { IsMissing: false }) || (_localScenarioList.SelectedItem is LocalScenarioItem);
     }
 
     private void OnArtccDoubleTapped(object? sender, TappedEventArgs e)
@@ -305,6 +414,10 @@ public partial class LoadScenarioWindow : Window
         if (IsArtccTabActive && _artccScenarioList.SelectedItem is ArtccScenarioItem artcc)
         {
             DialogPresenter.Close(this, new ScenarioLoadResult(null, artcc.Id, artcc.Name));
+        }
+        else if (!IsArtccTabActive && _recentScenarioList.SelectedItem is RecentScenarioItem { IsMissing: false } recent)
+        {
+            DialogPresenter.Close(this, new ScenarioLoadResult(recent.FilePath, null));
         }
         else if (!IsArtccTabActive && _localScenarioList.SelectedItem is LocalScenarioItem local)
         {
@@ -418,3 +531,9 @@ public partial class LoadScenarioWindow : Window
 internal sealed record ArtccScenarioItem(string Id, string Name, string Facility);
 
 internal sealed record LocalScenarioItem(string FilePath, string Name, string Facility, string Rating);
+
+internal sealed record RecentScenarioItem(string Key, string DisplayName, string FilePath, bool IsMissing)
+{
+    /// <summary>Dim a missing entry so it reads as unavailable; loadable entries are fully opaque.</summary>
+    public double Opacity => IsMissing ? 0.5 : 1.0;
+}

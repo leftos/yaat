@@ -2118,8 +2118,10 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             return;
         }
 
-        var window = new LoadScenarioWindow(vm.Preferences, vm.Connection);
+        var window = new LoadScenarioWindow(vm.Preferences, vm.Connection, FilePickerFactory.Create);
         ScenarioLoadResult? result = await DialogPresenter.ShowModalAsync<ScenarioLoadResult?>(window, this);
+        // A Remove in the dialog can empty the list even when the user then cancels, so refresh unconditionally.
+        RefreshRecentScenariosEnabled(vm);
         if (result is null)
         {
             return;

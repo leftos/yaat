@@ -1518,6 +1518,12 @@ public sealed class UserPreferences
         Save();
     }
 
+    public void RemoveRecentScenario(string key)
+    {
+        _data.RecentScenarios.RemoveAll(r => r.Key == key);
+        Save();
+    }
+
     public void AddRecentWeather(string filePath, string name, string? apiId = null)
     {
         string key = apiId ?? filePath;
