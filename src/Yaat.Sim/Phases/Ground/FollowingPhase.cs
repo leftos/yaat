@@ -239,8 +239,8 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
     /// Brake for a runway bar ahead the follower must stop at, and hold there once stopped. Returns true when the hold
     /// was taken (<see cref="HoldingShortPhase"/> + a new <see cref="FollowingPhase"/> inserted, this phase completes);
     /// otherwise <paramref name="barStopCurveKts"/> is the braking-curve cap onto the bar's stop, or null with no bar ahead.
-    /// Publishes the brake rate the stop needs: the taxi rate (no override) when that makes the hold line, the firm rate
-    /// when only that does.
+    /// Publishes the brake rate the stop needs: the taxi rate (no override) when that makes the hold line, the max-effort
+    /// rate when only that does.
     /// </summary>
     private bool CheckRunwayHoldShort(PhaseContext ctx, out double? barStopCurveKts)
     {
@@ -257,7 +257,7 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
             return true;
         }
 
-        double firmRate = CategoryPerformance.ExpediteExitDecelRate(ctx.Category);
+        double maxEffortRate = CategoryPerformance.ExpediteExitDecelRate(ctx.Category);
         barStopCurveKts = braking switch
         {
             GroundStopBraking.StopBraking.Routine => GroundStopBraking.StopCurveKts(
@@ -265,10 +265,10 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
                 bar.ToStopFt,
                 CategoryPerformance.TaxiDecelRate(ctx.Category)
             ),
-            GroundStopBraking.StopBraking.Firm => GroundStopBraking.StopCurveKts(ctx, bar.ToStopFt, firmRate),
+            GroundStopBraking.StopBraking.MaxEffort => GroundStopBraking.StopCurveKts(ctx, bar.ToStopFt, maxEffortRate),
             _ => 0.0,
         };
-        ctx.Targets.DesiredDecelRate = braking == GroundStopBraking.StopBraking.Routine ? null : firmRate;
+        ctx.Targets.DesiredDecelRate = braking == GroundStopBraking.StopBraking.Routine ? null : maxEffortRate;
         return false;
     }
 
@@ -467,7 +467,7 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
     /// Take the hold at <paramref name="bar"/> once the follower is within one sub-tick of braking of rest — so clearing the
     /// residual is no more than physics' own ground snap would — and within <see cref="BarStopTakeFt"/> of the hold line
     /// (or past it). On the <see cref="GroundStopBraking.StopBraking.Backstop"/>, take it the tick before the nose would
-    /// reach the line even braking at the firm rate, stopping dead where the follower is, and log that one-tick stop as a
+    /// reach the line even braking at the max-effort rate, stopping dead where the follower is, and log that one-tick stop as a
     /// warning. Inserts <see cref="HoldingShortPhase"/> and a fresh follow behind it. Returns true when the hold was taken.
     /// </summary>
     private bool TryTakeHoldAtBar(PhaseContext ctx, BarAhead bar, GroundStopBraking.StopBraking braking)
@@ -476,7 +476,7 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
         bool settled = (ctx.Aircraft.IndicatedAirspeed <= residualKts) && (bar.ToStopFt <= BarStopTakeFt);
         bool lastResort =
             (braking == GroundStopBraking.StopBraking.Backstop)
-            && (bar.ToStopFt <= (GroundStopBraking.FirmBrakingTravelThisTickFt(ctx) + BarStopTakeFt));
+            && (bar.ToStopFt <= (GroundStopBraking.MaxEffortBrakingTravelThisTickFt(ctx) + BarStopTakeFt));
         if (!settled && !lastResort)
         {
             return false;

@@ -3577,6 +3577,8 @@ public sealed class AirportGroundLayout
     /// Find a runway exit that is ahead of the aircraft along the runway heading.
     /// Applies the given exit preference (taxiway name, side, or nearest).
     /// Returns the exit node and its taxiway name, or null if no suitable exit is ahead.
+    /// A node whose taxiway is in <paramref name="excludeTaxiways"/> (compared without regard to case) is never returned: the
+    /// rollout passes the taxiways the crew has given up on this landing.
     /// </summary>
     public (GroundNode Node, string Taxiway)? FindExitAheadOnRunway(
         double lat,
@@ -3584,6 +3586,7 @@ public sealed class AirportGroundLayout
         TrueHeading runwayHeading,
         ExitPreference? preference,
         string? runwayDesignator,
+        IReadOnlySet<string>? excludeTaxiways,
         double maxSearchNm = 1.5
     )
     {
@@ -3593,7 +3596,7 @@ public sealed class AirportGroundLayout
 
         foreach (GroundNode node in Nodes.Values)
         {
-            if (!IsValidExitCandidate(node, targetRunway))
+            if (!IsValidExitCandidate(node, targetRunway) || IsOnExcludedTaxiway(node, excludeTaxiways))
             {
                 continue;
             }
@@ -3666,6 +3669,15 @@ public sealed class AirportGroundLayout
 
         return (best, taxiwayName);
     }
+
+    /// <summary>
+    /// True when the exit taxiway <paramref name="node"/> leads onto is one of <paramref name="excludeTaxiways"/>, compared without
+    /// regard to case.
+    /// </summary>
+    private bool IsOnExcludedTaxiway(GroundNode node, IReadOnlySet<string>? excludeTaxiways) =>
+        (excludeTaxiways is { Count: > 0 })
+        && (GetExitTaxiwayName(node) is { } nodeTaxiway)
+        && excludeTaxiways.Any(excluded => string.Equals(excluded, nodeTaxiway, StringComparison.OrdinalIgnoreCase));
 
     /// <summary>
     /// Number of nearest parking nodes to average when computing parking proximity bias.

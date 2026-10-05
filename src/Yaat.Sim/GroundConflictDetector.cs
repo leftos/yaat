@@ -689,7 +689,7 @@ public static class GroundConflictDetector
             double yielderDecelRate = yielder.Targets.DesiredDecelRate ?? CategoryPerformance.TaxiDecelRate(yielderCategory);
             // When even the routine rate's own stopping distance no longer fits in the room left before the stop ring,
             // a routine-rate floor lets the aircraft arrive at the ring still carrying speed it cannot shed there (the
-            // ring is an instant stop), so floor at the category's firm rate instead.
+            // ring is an instant stop), so floor at the category's max-effort rate instead.
             double roomFt = conflictDistFt - DefaultStopDistanceFt;
             double routineStopFt = yielder.GroundSpeed * yielder.GroundSpeed / (2.0 * yielderDecelRate) * FtPerNm / 3600.0;
             if (routineStopFt > roomFt)

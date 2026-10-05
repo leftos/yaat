@@ -143,6 +143,10 @@ _Avoid_: determinism (determinism is the same-seed, same-world property of the s
 
 ## Ground movement
 
+**Given-up exit**:
+A taxiway a landing aircraft has said "unable" to: it is skipped by every exit search while the aircraft rolls, for the rest of that landing, until an accepted `EXIT` names it again; once stopped on the runway the aircraft may still taxi to it (`PhaseList.GivenUpExitTaxiways`, docs/landing-and-runway-exit.md).
+_Avoid_: missed exit (an exit passed without an instruction is not given up)
+
 **Initial call-up**:
 The first call a spawned aircraft makes on its own to get moving: a ground spawn's "ready to taxi" (or its clearance request to a delivery student), or an untowered runway spawn's release request to a radar student. Whether and when an aircraft makes it is decided once, at scenario load, as its `InitialCallupPlan` (`InitialCallupClassifier`, docs/solo-training-pilot-speech.md); an aircraft the loader did not arm never makes one.
 _Avoid_: check-in (a check-in is the call on a frequency change), initial contact (an airborne check-in still follows a release request)

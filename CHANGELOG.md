@@ -16,9 +16,12 @@
 ### Changed
 
 - In RPO rooms, a departure released with `REL` or `HFROFF` no longer takes off by itself; the RPO's `CTO` or its scenario preset launches it.
+- Piston aircraft brake at most 4.0 kt/s for an assigned exit and 4.5 with `EXP`, down from 5.0.
+- An assigned exit the pilot can't make gets "unable W3" instead of a readback, and isn't used that landing unless reassigned or once stopped.
 
 ### Fixed
 
+- A landed aircraft turning off onto its exit keeps the braking it used on the rollout, instead of braking hard for the turn.
 - Aircraft types missing from the FAA database push back, stop at gates and yield on the ramp using their wake category's length, not a fixed guess.
 - Spoken "climb via SID except maintain" stays a climb-via when the SID word is misheard, instead of becoming a plain climb.
 - Speech understands "pushback on to", and a crossing altitude followed by a digit-by-digit speed ("one four thousand two four zero knots").

@@ -489,6 +489,79 @@ public sealed class RunwayExitRestoreTests
     }
 
     /// <summary>
+    /// The turn-off brakes at the rate the rollout chose the exit with, which the phase captured at the hand-off and cannot
+    /// recompute — so it has to round-trip, or an aircraft restored mid-turn would finish the turn at the taxi rate.
+    /// </summary>
+    [Fact]
+    public void TurnOffDecelRate_SurvivesASnapshotRoundTrip()
+    {
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("OAK");
+        if (layout is null)
+        {
+            return;
+        }
+
+        (GroundNode Branch, GroundNode HoldShort, string Taxiway)? pair = FindExitPair(layout, "28R");
+        if (pair is null)
+        {
+            return;
+        }
+
+        (GroundNode? branch, GroundNode? holdShort, string? taxiway) = pair.Value;
+        double selectionRate = CategoryPerformance.ComfortableExitDecelRate(AircraftCategory.Turboprop);
+        var runwayHeading = new TrueHeading(281.0);
+
+        var dto = new RunwayExitPhaseDto
+        {
+            Status = (int)PhaseStatus.Active,
+            ElapsedSeconds = 4.0,
+            ReachedExitNode = true,
+            ExitNodeId = holdShort.Id,
+            ExitTaxiway = taxiway,
+            RunwayId = "28R",
+            ExitSpeed = 25.0,
+            TimeSinceLastLog = 0.0,
+            RunwayHeadingDeg = runwayHeading.Degrees,
+            ExitStateValue = (int)RunwayExitPhase.ExitState.FollowingExitPath,
+            TurnStarted = true,
+            TurnOffDecelRate = selectionRate,
+            ExitWaypointNodeIds = [branch.Id, holdShort.Id],
+        };
+
+        var restored = RunwayExitPhase.FromSnapshot(dto, layout);
+        RunwayExitPhaseDto round = Assert.IsType<RunwayExitPhaseDto>(restored.ToSnapshot());
+        Assert.Equal(selectionRate, round.TurnOffDecelRate);
+
+        // 50 ft short of the branch on the approach leg at 15 kt, under the taxi-rate stopping curve to the tail-clear point past
+        // the bar (planned from here on), so that stop does not set the target and the published rate is the turn-off rate.
+        var aircraft = new AircraftState
+        {
+            Callsign = "TEST3",
+            AircraftType = "DH8D",
+            Position = GeoMath.ProjectPoint(branch.Position, runwayHeading.ToReciprocal(), 50.0 / GeoMath.FeetPerNm),
+            TrueHeading = runwayHeading,
+            Altitude = 9.0,
+            IndicatedAirspeed = 15.0,
+            IsOnGround = true,
+            FlightPlan = new AircraftFlightPlan { Destination = "OAK" },
+            Phases = new PhaseList(),
+        };
+        var ctx = new PhaseContext
+        {
+            Aircraft = aircraft,
+            Targets = aircraft.Targets,
+            Category = AircraftCategory.Turboprop,
+            DeltaSeconds = 1.0,
+            GroundLayout = layout,
+            FieldElevation = 9.0,
+            Logger = NullLogger.Instance,
+        };
+
+        Assert.False(restored.OnTick(ctx));
+        Assert.Equal(selectionRate, ctx.Targets.DesiredDecelRate);
+    }
+
+    /// <summary>
     /// A snapshot can land on the tick before <c>GroundNavigator</c> signals arrival at the branch node, so the
     /// stored segment index alone is not enough: it still reads 0 while the aircraft is physically past the branch.
     /// The rebuild has to notice that and resume on the exit taxiway anyway.

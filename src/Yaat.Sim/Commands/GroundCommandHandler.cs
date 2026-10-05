@@ -6071,6 +6071,16 @@ public static class GroundCommandHandler
         return CommandDispatcher.Ok("Begin takeoff roll");
     }
 
+    /// <summary>
+    /// True when <paramref name="preference"/> repeats the taxiway the aircraft is already instructed to take while an
+    /// <c>EXIT … EXP</c> stands: the crew is judged at, and goes on braking at, the max-effort rate it was already given, so a bare
+    /// <c>EXIT W3</c> after <c>EXIT W3 EXP</c> does not relax the braking. The readback stays the new command's own.
+    /// </summary>
+    private static bool KeepsStandingExpedite(AircraftState aircraft, ExitPreference preference) =>
+        aircraft.Ground.IsExpeditingExit
+        && (preference.Taxiway is not null)
+        && string.Equals(preference.Taxiway, aircraft.Phases?.RequestedExit?.Taxiway, StringComparison.OrdinalIgnoreCase);
+
     internal static CommandResult TryExitCommand(AircraftState aircraft, ExitPreference preference, bool noDelete, bool expedite)
     {
         if (aircraft.Phases is null)
@@ -6096,18 +6106,42 @@ public static class GroundCommandHandler
             preference = new ExitPreference { Side = standingSide, Taxiway = preference.Taxiway };
         }
 
+        bool expediteStands = expedite || KeepsStandingExpedite(aircraft, preference);
+
         // Handing a route to the navigator is not the same as turning off: the route's first segment runs
         // straight down the runway centerline to the branch node, so a committed aircraft can still have the
         // whole runway to run. The phase owns that distinction — it honors a change made before the turn-off
         // begins and refuses one made after. Evaluated with the merged preference so "ER ; EXIT D" is probed
-        // as "right at D", not as a bare D.
+        // as "right at D", not as a bare D, and with the expedite the instruction will run under (not the flag
+        // as it stands), so both branches judge one instruction alike: a fresh EXIT W5 EXP at the max-effort
+        // limit, a bare EXIT W5 naming a new taxiway under a standing EXP at the firm rate.
         if (aircraft.Phases.CurrentPhase is Phases.Ground.RunwayExitPhase exitPhase)
         {
-            ExitRetargetVerdict verdict = exitPhase.EvaluateRetarget(aircraft, preference);
+            ExitInstructionVerdict verdict = exitPhase.EvaluateRetarget(aircraft, preference, expediteStands);
             if (!verdict.Allowed)
             {
-                return new CommandResult(false, verdict.UnableReason!);
+                return new CommandResult(false, verdict.UnableReason!) { PilotUnable = verdict.PilotUnable };
             }
+        }
+        else if (aircraft.Phases.CurrentPhase is LandingPhase landing)
+        {
+            // On the rollout, a named exit is refused here rather than read back and given up a tick later: with the crew's
+            // "unable" when it could be made only by braking past the firm rate (max-effort with EXP, standing or new), and as
+            // "no {taxiway} ahead" when no connection of it is ahead on this runway. The standing preference is left as it was;
+            // a refusal of the exit the aircraft is already braking for gives that exit up now.
+            ExitInstructionVerdict verdict = landing.EvaluateAndApplyNamedExitInstruction(aircraft, preference, expediteStands);
+            if (!verdict.Allowed)
+            {
+                return new CommandResult(false, verdict.UnableReason!) { PilotUnable = verdict.PilotUnable };
+            }
+        }
+
+        // An accepted instruction naming a taxiway revives it: an exit the crew gave up on this landing ("unable W3") is judged
+        // afresh under a fresh EXIT naming it, whatever phase the aircraft is in, and by nothing else — a side-only EL/ER leaves
+        // the set as it is. A refused instruction leaves it alone too.
+        if (preference.Taxiway is { } revivedTaxiway)
+        {
+            aircraft.Phases.GivenUpExitTaxiways.Remove(revivedTaxiway);
         }
 
         aircraft.Phases.RequestedExit = preference;
@@ -6117,7 +6151,7 @@ public static class GroundCommandHandler
             aircraft.Ground.NoDeleteRequested = true;
         }
 
-        aircraft.Ground.IsExpeditingExit = expedite;
+        aircraft.Ground.IsExpeditingExit = expediteStands;
 
         // 7110.65 §3-7-2.b.10: the phrase is "without delay" (the word "expedite"
         // is reserved by §2-1-5 for imminent situations). The EXP token is just a

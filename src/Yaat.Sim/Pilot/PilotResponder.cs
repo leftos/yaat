@@ -1905,10 +1905,25 @@ public static class PilotResponder
         };
     }
 
+    /// <summary>
+    /// Pilot report that it cannot make the exit at <paramref name="taxiway"/> the controller named (P/CG UNABLE): the
+    /// rollout gave the exit up rather than brake harder than its firm rate for it.
+    /// </summary>
     public static PilotSpeechText BuildUnableToExit(AircraftState aircraft, string taxiway)
     {
         string spoken = SpokenOwnCallsign(aircraft);
-        return new PilotSpeechText($"negative on the exit at {taxiway}.", $"{spoken}, negative on the exit at {taxiway}.");
+        return new PilotSpeechText($"unable {taxiway}.", $"{spoken}, unable {PhraseologyVerbalizer.SpellTaxiway(taxiway)}.");
+    }
+
+    /// <summary>
+    /// Pilot report that the exit at <paramref name="taxiway"/> the controller named is not ahead of it on this runway — rolled
+    /// past, or a taxiway that never touches the runway. The terminal line is the one <see cref="BuildUnable"/> makes of the
+    /// controller-facing "Unable, no {taxiway} ahead"; the spoken form spells the taxiway (AIM 4-2-7).
+    /// </summary>
+    public static PilotSpeechText BuildUnableNoExitAhead(AircraftState aircraft, string taxiway)
+    {
+        string spoken = SpokenOwnCallsign(aircraft);
+        return new PilotSpeechText($"unable, no {taxiway} ahead.", $"{spoken}, unable, no {PhraseologyVerbalizer.SpellTaxiway(taxiway)} ahead.");
     }
 
     /// <summary>

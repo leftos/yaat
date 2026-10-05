@@ -564,14 +564,17 @@ public class ForcedRolloutStopAndBackstopTests(ITestOutputHelper output)
     {
         Assert.Equal(ForcedLandingProfile.RolloutMinDecelKtsPerSec, LandingPhase.ForcedRunwayEndStopDecelKtsPerSec(30, 5000), 6);
 
-        double stopShort = RolloutBraking.RequiredDecelKtsPerSec(60, 0, 700 / GeoMath.FeetPerNm);
+        double stopShort = RolloutBraking.RequiredDecelKtsPerSec(60, 0, 700 / GeoMath.FeetPerNm, AircraftCategory.Jet);
         Assert.InRange(stopShort, ForcedLandingProfile.RolloutMinDecelKtsPerSec, ForcedLandingProfile.RunwayEndStopMaxDecelKtsPerSec);
         Assert.Equal(stopShort, LandingPhase.ForcedRunwayEndStopDecelKtsPerSec(60, 1000), 6);
 
-        Assert.True(RolloutBraking.RequiredDecelKtsPerSec(60, 0, 400 / GeoMath.FeetPerNm) < ForcedLandingProfile.RunwayEndStopMaxDecelKtsPerSec);
+        Assert.True(
+            RolloutBraking.RequiredDecelKtsPerSec(60, 0, 400 / GeoMath.FeetPerNm, AircraftCategory.Jet)
+                < ForcedLandingProfile.RunwayEndStopMaxDecelKtsPerSec
+        );
         Assert.Equal(ForcedLandingProfile.RunwayEndStopMaxDecelKtsPerSec, LandingPhase.ForcedRunwayEndStopDecelKtsPerSec(60, 400), 6);
 
-        double toEnd = RolloutBraking.RequiredDecelKtsPerSec(80, 0, 400 / GeoMath.FeetPerNm);
+        double toEnd = RolloutBraking.RequiredDecelKtsPerSec(80, 0, 400 / GeoMath.FeetPerNm, AircraftCategory.Jet);
         Assert.True(toEnd > ForcedLandingProfile.RunwayEndStopMaxDecelKtsPerSec);
         Assert.Equal(toEnd, LandingPhase.ForcedRunwayEndStopDecelKtsPerSec(80, 400), 6);
     }

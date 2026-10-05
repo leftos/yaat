@@ -1,11 +1,10 @@
 using Xunit;
-using Yaat.Sim.Phases;
 
 namespace Yaat.Sim.Tests.Simulation;
 
 /// <summary>
 /// Pins the per-category landing-rollout braking rates (aviation rulings 2026-09-24, judgement calls with no FAA
-/// figure) and the ordering that keeps them coherent: routine rollout &lt; comfortable exit &lt; firm exit &lt;= expedite.
+/// figure) and the ordering that keeps them coherent: routine rollout &lt;= comfortable exit &lt;= firm exit &lt; expedite.
 /// </summary>
 public class RolloutBrakingRatesTests
 {
@@ -36,17 +35,38 @@ public class RolloutBrakingRatesTests
         Assert.Equal(expected, CategoryPerformance.TouchAndGoDecelRate(category));
 
     [Theory]
+    [InlineData(AircraftCategory.Jet, 5.0)]
+    [InlineData(AircraftCategory.Turboprop, 5.0)]
+    [InlineData(AircraftCategory.Piston, 4.0)]
+    [InlineData(AircraftCategory.Helicopter, 3.0)]
+    public void FirmBrakingRate_PerCategory(AircraftCategory category, double expected) =>
+        Assert.Equal(expected, CategoryPerformance.FirmBrakingRate(category));
+
+    [Fact]
+    public void PistonExpediteExitDecelRate_Is4Point5() => Assert.Equal(4.5, CategoryPerformance.ExpediteExitDecelRate(AircraftCategory.Piston));
+
+    [Theory]
     [InlineData(AircraftCategory.Jet)]
     [InlineData(AircraftCategory.Turboprop)]
     [InlineData(AircraftCategory.Piston)]
-    public void RolloutBelowComfortableExitBelowFirm_FixedWing(AircraftCategory category)
+    public void RolloutAtOrBelowComfortableAtOrBelowFirmBelowExpedite_FixedWing(AircraftCategory category)
     {
         double rollout = CategoryPerformance.RolloutDecelRate(category);
         double comfortable = CategoryPerformance.ComfortableExitDecelRate(category);
-        double firm = RolloutBraking.FirmBrakingRateKtsPerSec;
+        double firm = CategoryPerformance.FirmBrakingRate(category);
+        double expedite = CategoryPerformance.ExpediteExitDecelRate(category);
 
-        Assert.True(rollout < comfortable, $"{category}: RolloutDecelRate {rollout} should be below ComfortableExitDecelRate {comfortable}");
-        Assert.True(comfortable < firm, $"{category}: ComfortableExitDecelRate {comfortable} should be below the firm rate {firm}");
+        Assert.True(rollout <= comfortable, $"{category}: RolloutDecelRate {rollout} should not exceed ComfortableExitDecelRate {comfortable}");
+        Assert.True(comfortable <= firm, $"{category}: ComfortableExitDecelRate {comfortable} should not exceed FirmBrakingRate {firm}");
+        Assert.True(firm < expedite, $"{category}: FirmBrakingRate {firm} should be below ExpediteExitDecelRate {expedite}");
+    }
+
+    [Fact]
+    public void FirmBelowExpedite_Helicopter()
+    {
+        double firm = CategoryPerformance.FirmBrakingRate(AircraftCategory.Helicopter);
+        double expedite = CategoryPerformance.ExpediteExitDecelRate(AircraftCategory.Helicopter);
+        Assert.True(firm < expedite, $"Helicopter: FirmBrakingRate {firm} should be below ExpediteExitDecelRate {expedite}");
     }
 
     [Fact]

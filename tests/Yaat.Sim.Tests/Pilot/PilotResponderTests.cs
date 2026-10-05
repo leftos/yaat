@@ -1581,13 +1581,28 @@ public class PilotResponderTests
     }
 
     [Fact]
-    public void BuildUnableToExit_UsesNegative()
+    public void BuildUnableToExit_SaysUnableAndTheTaxiway()
     {
         AircraftState ac = MakeAircraft("N123AB");
         PilotSpeechText result = PilotResponder.BuildUnableToExit(ac, "M2");
 
-        Assert.Contains("negative", result.Tts, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("M2", result.Tts);
+        Assert.Equal("unable M2.", result.Terminal);
+        Assert.EndsWith(", unable mike two.", result.Tts, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The terminal line is what <see cref="PilotResponder.BuildUnable"/> makes of the controller-facing "Unable, no M2 ahead",
+    /// so the instructor reads the same text either way; only the spoken form spells the taxiway (AIM 4-2-7).
+    /// </summary>
+    [Fact]
+    public void BuildUnableNoExitAhead_KeepsTheTerminalLine_AndSpellsTheTaxiway()
+    {
+        AircraftState ac = MakeAircraft("N123AB");
+        PilotSpeechText result = PilotResponder.BuildUnableNoExitAhead(ac, "M2");
+
+        Assert.Equal(PilotResponder.BuildUnable(ac, "Unable, no M2 ahead").Terminal, result.Terminal);
+        Assert.Equal("unable, no M2 ahead.", result.Terminal);
+        Assert.EndsWith(", unable, no mike two ahead.", result.Tts, StringComparison.Ordinal);
     }
 
     /// <summary>

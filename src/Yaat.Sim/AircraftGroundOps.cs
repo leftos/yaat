@@ -141,8 +141,8 @@ public class AircraftGroundOps
     /// <summary>
     /// When true, a just-landed aircraft clears the runway as fast as possible:
     /// LandingPhase brakes at <see cref="CategoryPerformance.ExpediteExitDecelRate"/>
-    /// (vs the firm 5 kts/s) to take the earliest reachable exit, and
-    /// RunwayExitPhase brakes firmly to the hold-short stop after the turn-off.
+    /// (vs the per-category firm <see cref="CategoryPerformance.FirmBrakingRate"/>) to take the earliest
+    /// reachable exit, and RunwayExitPhase's navigator brakes at max effort over the whole exit route.
     /// Set by <c>EXP</c> (standalone on rollout, or the <c>ER</c>/<c>EL</c>/<c>EXIT</c>
     /// modifier). Cleared on exit completion and by <c>NORM</c>.
     /// </summary>
