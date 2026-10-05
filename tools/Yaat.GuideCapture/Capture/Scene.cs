@@ -31,6 +31,11 @@ internal abstract class Scene
     // a state change in AfterShowAsync).
     public virtual Window GetCaptureTarget(Window primary) => primary;
 
+    // Runs once the scene ends, captured or not, before the runner closes its
+    // windows. A scene that changed a saved preference or a view setting to
+    // stage its shot puts it back here, so no later scene inherits it.
+    public virtual void AfterCapture() { }
+
     // Windows the scene opened besides the primary (a host window, a child
     // window it captures). The runner closes them when the scene ends, before
     // the primary, so no later scene sees them.

@@ -82,6 +82,43 @@ internal static class SceneActions
         await WaitUntilAsync(() => IsDropdownLaidOut(item), timeout, $"menu '{menuHeader}' to open");
     }
 
+    // Opens the flyout attached to the window's button whose content is
+    // buttonContent and waits until its content is laid out. Like a menu's
+    // dropdown, the headless flyout opens in the window's overlay layer, so
+    // CaptureRenderedFrame includes it.
+    public static async Task<Control> OpenButtonFlyoutAsync(Window window, string buttonContent, TimeSpan timeout)
+    {
+        Button button =
+            window.GetLogicalDescendants().OfType<Button>().FirstOrDefault(b => (b.Content is string content) && (content == buttonContent))
+            ?? throw new InvalidOperationException($"No button '{buttonContent}' in {window.GetType().Name}.");
+        Flyout flyout = button.Flyout as Flyout ?? throw new InvalidOperationException($"Button '{buttonContent}' has no Flyout.");
+        Control content = flyout.Content as Control ?? throw new InvalidOperationException($"The flyout of button '{buttonContent}' has no content.");
+
+        flyout.ShowAt(button);
+        await WaitUntilAsync(
+            () => flyout.IsOpen && (TopLevel.GetTopLevel(content) is not null) && content.IsArrangeValid && (content.Bounds.Width > 0),
+            timeout,
+            $"the flyout of button '{buttonContent}' to open"
+        );
+        return content;
+    }
+
+    // Sends a command to the selected aircraft and returns the first terminal
+    // line about that aircraft that answers it: its response, or the warning
+    // or error a refused command produces.
+    public static async Task<TerminalEntry> SendCommandAsync(MainViewModel vm, string callsign, string command)
+    {
+        long sentAfter = TerminalEntry.LastSequence;
+        vm.CommandText = command;
+        await vm.SendCommandCommand.ExecuteAsync(null);
+        await WaitUntilAsync(
+            () => vm.TerminalEntries.Any(e => IsReply(e, sentAfter, callsign)),
+            TimeSpan.FromSeconds(10),
+            $"the terminal reply to '{command}' for {callsign}"
+        );
+        return vm.TerminalEntries.First(e => IsReply(e, sentAfter, callsign));
+    }
+
     public static async Task LoadScenarioAsync(MainViewModel vm, string scenarioPath, TimeSpan timeout)
     {
         string json = await File.ReadAllTextAsync(scenarioPath);
@@ -105,6 +142,11 @@ internal static class SceneActions
         (entry.Kind == TerminalEntryKind.System)
         && (entry.Message.StartsWith("Connected to ", StringComparison.Ordinal))
         && (entry.Message.Contains(serverUrl, StringComparison.Ordinal));
+
+    private static bool IsReply(TerminalEntry entry, long sentAfter, string callsign) =>
+        (entry.Sequence > sentAfter)
+        && (entry.Kind is TerminalEntryKind.Response or TerminalEntryKind.Warning or TerminalEntryKind.Error)
+        && (entry.Callsign == callsign);
 
     private static string StripAccessKeys(string header) => header.Replace("_", string.Empty, StringComparison.Ordinal);
 }

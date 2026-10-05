@@ -41,15 +41,11 @@ internal sealed class FirstCommandScene : ScenarioSceneBase
         vm.SelectedAircraft = aircraft;
         Dispatcher.UIThread.RunJobs();
 
-        long sentAfter = TerminalEntry.LastSequence;
-        vm.CommandText = "FH 270";
-        await vm.SendCommandCommand.ExecuteAsync(null);
-        await SceneActions.WaitUntilAsync(
-            () =>
-                vm.TerminalEntries.Any(e => (e.Sequence > sentAfter) && (e.Kind == TerminalEntryKind.Response) && (e.Callsign == aircraft.Callsign)),
-            TimeSpan.FromSeconds(10),
-            $"the terminal response to FH 270 for {aircraft.Callsign}"
-        );
+        TerminalEntry reply = await SceneActions.SendCommandAsync(vm, aircraft.Callsign, "FH 270");
+        if (reply.Kind != TerminalEntryKind.Response)
+        {
+            throw new InvalidOperationException($"FH 270 was not accepted for {aircraft.Callsign}: {reply.Kind} {reply.Message}");
+        }
         return aircraft;
     }
 

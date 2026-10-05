@@ -128,7 +128,9 @@ The button at the left of the filter toggles cycles what the leading timestamp s
 
 #### Scrub to a Moment
 
-Right-click any terminal line and choose **Rewind to this moment** to jump the replay timeline to the scenario-second that line happened — a command, chat, SAY, response, or warning. This is the fastest way to get back to "right when I issued that clearance." It's enabled whenever the timeline is available and the line has a known scenario time. Loading a recording or bug bundle repopulates the terminal with the full session history, so every line stays scrubbable after a load.
+Right-click any terminal line and choose **Rewind to m:ss** (the line's scenario time, e.g. **Rewind to 1:30**; `h:mm:ss` past the first hour) to jump the replay timeline to the scenario-second that line happened — a command, chat, SAY, response, or warning. This is the fastest way to get back to "right when I issued that clearance." It's enabled whenever the timeline bar is showing (a scenario is loaded and **View > Show Timeline Bar** is checked) and the line has a known scenario time; otherwise the item reads **Rewind to this moment** and is greyed out. Loading a recording or bug bundle repopulates the terminal with the full session history, so every line stays scrubbable after a load.
+
+![The terminal's right-click menu on an aircraft's response line, offering Rewind to 1:30 and Clear](docs/user-guide/img/terminal-rewind-menu.png)
 
 #### Filters
 
@@ -392,6 +394,8 @@ An interactive airport surface map showing taxiways, runways, and aircraft posit
 
 **Pattern changes on the go.** `OTG` ("on the go") is a condition prefix like `ONHS`: `OTG MLT 28L` against an aircraft on final for 28R lets it fly the option it was cleared for and then, once it is climbing out again after the touch-and-go (or after a go-around), makes left traffic for 28L. Any command can follow `OTG`. The option clearances take the same modifier directly — `COPT MLT 28L`, `TG MLT 28L 15`, `SG MRT 28R`, `LA MLT 28L` — flying the clearance on the current runway and then the named runway's pattern. A runway change issued while the aircraft is already on a pattern leg of the neighbouring runway transitions leg to leg — from the upwind it keeps climbing straight ahead and turns crosswind only past both departure ends; from a close parallel's downwind it crosses over at midfield — instead of cutting across the field the moment the command lands.
 
+![Ground View zoomed in on UAL546 rolling out on runway 30 just after touchdown](docs/user-guide/img/just-landed.png)
+
 **Expedite a runway exit ("without delay").** When you need a landed aircraft off the runway fast — to land or depart the next one — add `EXP` to its exit command (`ER EXP`, `ER W5 EXP`, `EL EXP`, `EXIT A3 EXP`), or type a bare `EXP` to one that is rolling out or already exiting. The pilot takes the *earliest* reachable exit instead of the first comfortable one, braking harder (a max-effort rate, e.g. ~7.5 kts/s for a jet vs the normal firm 5, or 4.5 vs 4.0 for a light single) to make it, keeps the higher turn-off speed at a high-speed exit, and brakes at max effort to a stop at the hold-short. `EXP` combines with `NODEL` in any order. This reduces runway occupancy at the cost of a firmer rollout — the controller phrase is "exit … without delay".
 
 **Changing a runway exit late.** You can reassign an exit right up until the aircraft starts turning off it — on final, during the rollout, and while it is still rolling down the centerline toward the exit it already picked. Send another `EL` / `ER` / `EXIT <taxiway>` and it rolls past the old one, adding power back so it does not crawl to the new exit. Once it is actually turning — or close enough that it could no longer brake for a different exit — the pilot answers *"Unable, already turning off at D"* and stays where it is. Name a taxiway that is ahead but too close to brake for and you get *"unable B"*; name one that is not ahead of it at all and you get *"Unable, no B ahead"* — never a silent substitution, so a late change never quietly sends the aircraft somewhere you did not ask for.
@@ -447,6 +451,8 @@ An interactive airport surface map showing taxiways, runways, and aircraft posit
 **Showing taxi routes.** The ground view can draw an aircraft's remaining taxi route (each drawn route gets its own color). Two **Settings > Display** options set the default behavior:
 - **Show taxi route when hovering an aircraft** (on by default) — moving the mouse over an aircraft temporarily draws its route in white; it clears when the cursor leaves.
 - **Show all taxiing aircraft's routes** (off by default) — every taxiing aircraft's route is drawn at once.
+
+![Ground View zoomed in on SWA5456 taxiing out of the terminal 2 alley with its route via TE, U and W to runway 30 drawn in red](docs/user-guide/img/ground-taxi-route.png)
 
 Right-click an aircraft and open the **Taxi route** submenu to override the default for that one aircraft: **Always show** (pin it on), **Always hide** (pin it off), or **Follow "Show all" setting** (the default — tracks the global toggle). An explicit Always show / Always hide sticks even when you flip the global setting; pick Follow to return the aircraft to tracking it. Hovering always reveals a route, even one set to Always hide.
 
@@ -1472,11 +1478,16 @@ Pause and sim rate are scoped to your room — they don't affect other rooms.
 
 ### Timeline / Rewind
 
-When a scenario is loaded, a timeline bar appears below the menu. It shows elapsed time and provides rewind controls:
+When a scenario is loaded and **View > Show Timeline Bar** is checked (it is off by default), a timeline bar appears below the menu. It shows elapsed time and provides rewind controls:
 
-- **|◀** — rewind to the start of the scenario
-- **-30s / -15s** — rewind 30 or 15 seconds back from current time
-- **Elapsed time** — displayed in mm:ss format
+- **⏮** — jump to the start of the scenario
+- **⏪30 / ⏪15** — rewind 30 or 15 seconds back from current time
+- **▶ / ⏸** — play / pause
+- **15⏩ / 30⏩** — skip 15 or 30 seconds forward, no further than the end of the recorded tape
+- **⏭** — jump to the end of the recorded tape
+- **Elapsed time** — displayed in mm:ss format; in playback the tape's end time shows to the right of the slider
+
+![The timeline bar after a rewind to 1:00 of a 2:00 tape, with the PLAYBACK badge, the Take Control button and two gold bookmark ticks on the rail](docs/user-guide/img/timeline-playback.png)
 
 After rewinding, the simulation enters **Playback Mode**. The timeline bar shows "PLAYBACK" and a "Take Control" button. In playback mode:
 
@@ -1487,13 +1498,17 @@ After rewinding, the simulation enters **Playback Mode**. The timeline bar shows
 - Pausing, placing or jumping to a bookmark, and asking `SHOWAT` / `SHOWCOND` all leave the recording alone, so they're safe to use mid-playback
 - Press **Take Control**, or issue any other command, to exit playback and resume live operation. Either way you're asked to confirm first, since it discards everything on the tape after the point you scrubbed to and can't be undone
 
+![The confirmation shown before Take Control, warning that the replay stops and the rest of the playback timeline is discarded, with Take Control and Cancel buttons](docs/user-guide/img/take-control-dialog.png)
+
 ### Bookmarks
 
 Mark highlight moments on the timeline so you can scrub back to them later (a go-around, a conflict, a teaching point). Bookmark controls sit at the right end of the timeline bar:
 
-- **🔖** — add a bookmark at the current position and type an optional name. Leave the name blank to keep the timestamp default ("Bookmark 14:32"). The default keybind **Ctrl+B** drops an unnamed bookmark instantly (configurable under **Settings > Quick Bookmark Key**).
+- **🔖** — add a bookmark at the current position and type an optional name. Leave the name blank for an unnamed bookmark: the list shows it by its id and time (e.g. "bm-0 0:00:30 · AB"), and its rail tick's tooltip calls it "Bookmark 0:00:30". The default keybind **Ctrl+B** drops an unnamed bookmark instantly (configurable under **Settings > Quick Bookmark Key**).
 - **◀🔖 / 🔖▶** — jump to the previous / next bookmark.
-- **Bookmarks ▾** — a list of all bookmarks (time, name, and the initials of whoever placed it); click one to jump, or use the ✎ / ✕ buttons to rename or delete.
+- **Bookmarks ▾** — a list of all bookmarks (id, time, name, and the initials of whoever placed it); click one to jump, or use the ✎ / ✕ buttons to rename or delete.
+
+![The Bookmarks list open below the timeline bar, showing two bookmarks at 0:00:30 and 0:01:30 with rename and delete buttons](docs/user-guide/img/bookmarks-list.png)
 
 Bookmarks also appear as gold ticks on the rail above the slider — click a tick to seek, or right-click it to Rename/Delete. Bookmarks work in both live and playback modes.
 

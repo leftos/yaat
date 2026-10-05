@@ -39,6 +39,14 @@ internal static class SceneCatalog
         // Scenarios and Weather (connected) + Simulation Controls
         new MetarWindowScene(),
         new ExportRoomScenarioScene(),
+        // Timeline / Rewind + Bookmarks + Terminal > Scrub to a Moment
+        new TimelinePlaybackScene(),
+        new BookmarksListScene(),
+        new TakeControlDialogScene(),
+        new TerminalRewindMenuScene(),
+        // Ground View: a taxi route and a landing roll-out
+        new GroundTaxiRouteScene(),
+        new JustLandedScene(),
         // Popouts
         new MainWindowPoppedOutScene(),
         new GroundViewPopoutScene(),
