@@ -31,7 +31,7 @@
   - [x] YAAT-238 Re-script montage clip C3 on OAK runway 30 (no B738 on 28R) · release vNext
   - [ ] YAAT-239 Short edited montage sampler of the clips so far, for presentation feedback · release vNext
   - [x] YAAT-240 Aviation review of the montage cards; visual follow should not use the radar wake minimum (C3) · release vNext
-  - [!] YAAT-278 FOLLOW sizzle reel: add ground FOLLOW and give-way taxi clips · release vNext
+  - [ ] YAAT-278 FOLLOW sizzle reel: add ground FOLLOW and give-way taxi clips · release vNext
 - [ ] YAAT-217 Pattern: apply a pending pattern-altitude override before the wrong-side join decides on a teardrop
 - [ ] YAAT-256 batch_drive: save a wait_until step's screenshot and fit its wait inside the batch ceiling
 - [ ] YAAT-261 AutomationWaitUntilTests.Landed_HeldAfterAirborneThenGround times out in the full UI suite
@@ -49,14 +49,14 @@
 
 ## Context-menu quick commands (#471)
 
-- [/] YAAT-16 Merge feat/context-menu-quick-commands (#471, yaat-server#21) · release vNext
-- [x] YAAT-275 Ground right-click on a runway surface offers taxi to that runway (nearest hold short) · release vNext
-- [x] YAAT-224 Open the command and note flyouts through MenuPopups; drop the unreachable blank-input branches · release vNext
 - [/] YAAT-12 Context-menu quick commands: per-situation lists with the icon strip · release vNext
   - [x] YAAT-13 Context-menu quick commands: brief 7d (header, footer, relative items) · release vNext
   - [x] YAAT-14 Context-menu quick commands: brief 7e (one tree on every surface) · release vNext
     - [ ] YAAT-312 Context menu: stale descriptions after the builder refactor
   - [x] YAAT-15 Context-menu quick commands step 3: per-situation lists with the icon strip · release vNext
+- [/] YAAT-16 Merge feat/context-menu-quick-commands (#471, yaat-server#21) · release vNext
+- [x] YAAT-275 Ground right-click on a runway surface offers taxi to that runway (nearest hold short) · release vNext
+- [x] YAAT-224 Open the command and note flyouts through MenuPopups; drop the unreachable blank-input branches · release vNext
 - [ ] YAAT-229 Route the data-block field popups through MenuPopups.Open; wrap MenuPopups' summary line
 - [ ] YAAT-264 Context menus: no double separator before Track in the builder
 - [ ] YAAT-268 Context menus in an extra ground window at another airport use the primary view's layout
@@ -69,12 +69,13 @@
 
 - [/] YAAT-310 Merge feat/client-surfaces-redesign (#782)
 - [x] YAAT-291 Client surfaces redesign: Settings window shell (sidebar sections, OK/Apply/Cancel) · release vNext
-- [ ] YAAT-292 Client surfaces redesign: Settings search with aliases and cross-section links
+- [x] YAAT-292 Client surfaces redesign: Settings search with aliases and cross-section links · release vNext
 - [ ] YAAT-293 Client surfaces redesign: open Settings at a section (view menus, Ctrl+comma, status-bar links)
 - [x] YAAT-294 Client surfaces redesign: reconcile Scenario defaults with the session flyout · release vNext
-- [ ] YAAT-295 Client surfaces redesign: regroup the View menu and add pop-out hotkeys
+- [x] YAAT-295 Client surfaces redesign: regroup the View menu and add pop-out hotkeys · release vNext
 - [x] YAAT-296 Client surfaces redesign: merge Window Profiles and Copy View Settings into Layouts · release vNext
-- [ ] YAAT-297 Client surfaces redesign: one Import / Export hub with a .yaat-settings.zip bundle
+- [/] YAAT-297 Client surfaces redesign: one Import / Export hub with a .yaat-settings.zip bundle
+- [ ] YAAT-340 Quick commands as an Import / Export hub item type
 
 ## Tick-path unification
 
@@ -390,3 +391,5 @@
 - [ ] YAAT-332 VFR departure direction: skip heliports and private strips, prefer the 91.159 direction
 - [ ] YAAT-333 Drop the generic Airport suffix from spoken airport names
 - [ ] YAAT-339 Client.UI.Tests: TestVnasData.NavigationDb null flake in AppToolsTests on CI
+- [ ] YAAT-341 Take control and quick bookmark keys work from pop-out windows
+- [ ] YAAT-342 MainWindowLifecycleTests pop-out close tests fail in some full UI test runs
