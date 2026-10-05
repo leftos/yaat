@@ -13,11 +13,9 @@ YAAT is a tool for ATC (air traffic control) training instructors and RPOs (Remo
 - **RPO** — a YAAT user who controls simulated aircraft by issuing commands. Multiple RPOs can work the same room.
 - **Student** — a trainee using CRC to practice radar/tower operations. Students see the simulated traffic but don't use YAAT directly.
 
+**There's nothing to host.** VATSIM controllers and students use the public YAAT server, **YAAT1** (`https://yaat1.leftos.dev`): YAAT has it selected the first time you connect, and students reach it from CRC (see [Helping Students Connect CRC](#helping-students-connect-crc)).
+
 ## Step 1: Launch YAAT
-
-How you launch depends on how you installed YAAT. Pick the section that matches.
-
-### If you installed a release (most users)
 
 Launch YAAT the same way you launch any other application:
 
@@ -29,37 +27,7 @@ YAAT opens to an empty main window — no server connection yet. That happens in
 
 ![YAAT's main window on first launch, before connecting to a server](docs/user-guide/img/main-window-empty.png)
 
-### If you built from source
-
-Start the server and client together using the start script:
-
-```powershell
-.\start.ps1          # Windows (PowerShell)
-```
-
-```bash
-./start.sh           # macOS / Linux
-```
-
-Or launch the client manually (requires a running server):
-
-```bash
-dotnet run --project src/Yaat.Client
-```
-
-The client connects to `http://localhost:5000` by default.
-
-If an instructor is already hosting a YAAT server and you want to pin your source build to the exact commit they're running, the `--sync` flag checks out that commit, builds, and connects in one step:
-
-```powershell
-.\start.ps1 -Sync https://yaat1.leftos.dev    # Windows
-```
-
-```bash
-./start.sh --sync https://yaat1.leftos.dev     # macOS / Linux
-```
-
-Your git working tree must be clean. Return to the latest code with `git checkout main` afterwards. If you don't need a specific commit, the prebuilt installer is a simpler way to connect to a hosted server.
+Building YAAT from source to contribute, or hosting your own server? That's covered in the Installation Guide's [Building from source](INSTALL.md#building-from-source); you don't need it to train on VATSIM.
 
 ## Step 2: Sign In with VATSIM
 
@@ -67,7 +35,7 @@ YAAT verifies your identity through **VATSIM sign-in** — you no longer type yo
 
 One field stays yours to set, under **Settings** (gear icon) → **Identity** tab — your operating **initials** (e.g., "JE", "AB"), suggested from your VATSIM name and shown in the terminal so other RPOs can see who issued each command. Your **[ARTCC](#glossary)** is filled in automatically from your VATSIM/VATUSA profile when you sign in (US controllers from VATUSA, everyone else from their VATSIM subdivision) and updates on its own if you transfer facilities — there is no ARTCC field to enter.
 
-> **Who can connect:** a hosted server admits you to **create rooms and load scenarios** if you hold a VATUSA mentor role or a VATSIM Instructor rating (I1/I2/I3) or higher. Any other signed-in VATSIM controller can connect as an **[RPO](#glossary)**: you wait on a "waiting for room assignment" screen until an instructor pulls you into a room, then work the position like any room member (but you can't create rooms or load/unload scenarios). Students being trained connect with [CRC](#glossary) and are unaffected.
+> **Who can connect:** YAAT1 admits you to **create rooms and load scenarios** if you hold a VATUSA mentor role or a VATSIM Instructor rating (I1/I2/I3) or higher. Any other signed-in VATSIM controller can connect as an **[RPO](#glossary)**: you wait on a "waiting for room assignment" screen until an instructor pulls you into a room, then work the position like any room member (but you can't create rooms or load/unload scenarios). Students being trained connect with [CRC](#glossary) and are unaffected.
 
 ## Step 3: Connect and Create a Room
 
@@ -75,11 +43,9 @@ One field stays yours to set, under **Settings** (gear icon) → **Identity** ta
 
    ![The File menu open, with Connect at the top](docs/user-guide/img/menu-file.png)
 
-   ![The Connect dialog with the server URL field](docs/user-guide/img/connect-dialog.png)
+   ![The Connect dialog with the public YAAT1 server selected](docs/user-guide/img/connect-dialog.png)
 
-2. Enter the **server URL**:
-   - `http://localhost:5000` if you're running `start.ps1`/`start.sh` on your own machine
-   - The URL your instructor gave you (e.g., `https://yaat1.leftos.dev`) for a hosted server
+2. Leave **YAAT1** selected: it's the public YAAT server every VATSIM controller and student uses. Change the server only if your instructor runs a separate one and gives you its URL.
 3. Click **Connect**. The first time you connect to a given server, your browser opens to **VATSIM sign-in** — authorize, and YAAT receives your verified identity. YAAT remembers both the URL and your sign-in, so you don't repeat either next time.
 4. The **room list** appears. Either:
    - **Create** a new room (give it a name), or
@@ -150,7 +116,7 @@ Weather affects aircraft performance — headwinds reduce ground speed, tailwind
 
 ## Helping Students Connect CRC
 
-If you're setting up a training session with students, see the [CRC Setup section](USER_GUIDE.md#connecting-crc-for-students) in the User Guide for how to configure CRC to connect to your YAAT server.
+If you're setting up a training session with students, see the [CRC Setup section](USER_GUIDE.md#connecting-crc-for-students) in the User Guide for how to configure CRC to connect to YAAT1.
 
 ## Next Steps
 

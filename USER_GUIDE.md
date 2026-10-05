@@ -1681,11 +1681,10 @@ For a server you host yourself, add a second object with your own name and base 
 
 Once CRC is configured:
 
-1. Make sure the YAAT server is running (or use the hosted YAAT1 server)
-2. Have the student restart CRC (it reads `DevEnvironments.json` on startup)
-3. In CRC's environment selector, the student chooses **YAAT1** (or the entry for your own server)
-4. The student connects with their VATSIM credentials
-5. In YAAT, open **Room > Members...** and click **Pull** next to the student in the **CRC Lobby** to bring them into your room — they immediately start seeing your room's traffic
+1. Have the student restart CRC (it reads `DevEnvironments.json` on startup)
+2. In CRC's environment selector, the student chooses **YAAT1** (or the entry for your own server)
+3. The student connects with their VATSIM credentials
+4. In YAAT, open **Room > Members...** and click **Pull** next to the student in the **CRC Lobby** to bring them into your room — they immediately start seeing your room's traffic
 
 If the student's VATSIM CID matches a YAAT client in the room, they're pulled in automatically.
 
