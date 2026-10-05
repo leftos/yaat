@@ -242,13 +242,40 @@ public class AircraftGroundOps
     public bool InitialCallupDecisionProcessed { get; set; }
 
     /// <summary>
-    /// True when the scenario author preset a TAXI command on this parking aircraft.
-    /// The autonomous solo-training ready-to-taxi call-up is suppressed for these
-    /// aircraft — the scripted ground sequence covers what the pilot would otherwise
-    /// volunteer. Such aircraft also do not count toward
-    /// <c>HasSoloParkingInitialCallupSource</c> (the slider availability gate).
+    /// The initial call this aircraft makes in solo training, set once by the scenario loader from where it spawned and
+    /// its timed presets. <see cref="InitialCallupPlan.None"/> for every aircraft the loader did not arm, so a stand an
+    /// aircraft taxied to never starts a call. Only aircraft whose plan is not None count toward
+    /// <c>HasSoloParkingInitialCallupSource</c> (the pacing slider's availability gate).
     /// </summary>
-    public bool IsScriptedDeparture { get; set; }
+    public InitialCallupPlan InitialCallup { get; set; }
+
+    /// <summary>
+    /// The movement-area taxiway a coordinate ground spawn sits on (within <c>RampLaneReposition.CurrentLaneMaxFt</c> of
+    /// it, before the spawn snap), or null — always null for a parking spawn and for a spawn on a ramp lane.
+    /// </summary>
+    public string? SpawnTaxiway { get; set; }
+
+    /// <summary>
+    /// The stand the aircraft's push started from, set when a tow is installed off a stand and kept through a further tow
+    /// from the alley; null until then. Names the stand in the after-push call ("pushed back from gate F8"), and being set
+    /// tells a completed push apart from the aircraft still at its spawn stand.
+    /// </summary>
+    public string? PushedBackFrom { get; set; }
+
+    /// <summary>The spot the aircraft's last tow ends on ("at spot 5" in the after-push call), or null when it ends elsewhere.</summary>
+    public string? PushEndSpot { get; set; }
+
+    /// <summary>
+    /// The stop the spawn's timed TAXI preset ends at, recorded at load for an <see cref="InitialCallupPlan.AfterTaxiArrival"/>
+    /// aircraft (null otherwise): the after-taxi-arrival call fires only when the aircraft comes to rest there.
+    /// </summary>
+    public PresetTaxiStop? PresetTaxiStop { get; set; }
+
+    /// <summary>
+    /// The cardinal ("north", "east", "south", "west") a VFR departure names in its request to a delivery student, chosen
+    /// once by <see cref="Pilot.VfrDepartureDirection"/> when it first asks and kept so a follow-up repeats it; null until then.
+    /// </summary>
+    public string? VfrDepartureDirection { get; set; }
 
     /// <summary>
     /// Set when the aircraft finishes its runway exit after landing: the pilot owes ground a taxi-in call (AIM 4-3-21.c)
@@ -307,6 +334,12 @@ public class AircraftGroundOps
     public double ReleasedAtSeconds { get; set; }
 
     /// <summary>
+    /// Set when a held runway spawn is released through the hold-for-release spawn gate (<c>REL</c> before it spawned): it
+    /// already has its release, so it never asks for one, and it departs as a runway spawn that asked and got <c>REL</c>.
+    /// </summary>
+    public bool ReleasedAtSpawnGate { get; set; }
+
+    /// <summary>
     /// Absolute-UTC start of this departure's Call-For-Release window (<c>CFR</c>), or null
     /// when no window is set. Wall-clock based and used only for instructor-facing expiry alerts on the
     /// client — never gates takeoff and never influences the simulation (GitHub issue #230). Paired with
@@ -342,7 +375,12 @@ public class AircraftGroundOps
             TowbarTrueHeadingDeg = TowbarTrueHeading?.Degrees,
             HasAnnouncedReady = HasAnnouncedReady,
             InitialCallupDecisionProcessed = InitialCallupDecisionProcessed,
-            IsScriptedDeparture = IsScriptedDeparture,
+            InitialCallup = InitialCallup,
+            SpawnTaxiway = SpawnTaxiway,
+            PushedBackFrom = PushedBackFrom,
+            VfrDepartureDirection = VfrDepartureDirection,
+            PushEndSpot = PushEndSpot,
+            PresetTaxiStop = PresetTaxiStop?.ToSnapshot(),
             AwaitingTaxiInCall = AwaitingTaxiInCall,
             ReleasedToGround = ReleasedToGround,
             IsExpeditingTaxi = IsExpeditingTaxi,
@@ -354,6 +392,7 @@ public class AircraftGroundOps
             HeldForRelease = HeldForRelease,
             ReleasedForDeparture = ReleasedForDeparture,
             ReleasedAtSeconds = ReleasedAtSeconds,
+            ReleasedAtSpawnGate = ReleasedAtSpawnGate,
             ReleaseWindowStartUtc = ReleaseWindowStartUtc,
             ReleaseWindowEndUtc = ReleaseWindowEndUtc,
         };
@@ -383,7 +422,12 @@ public class AircraftGroundOps
             TowbarTrueHeading = dto.TowbarTrueHeadingDeg.HasValue ? new TrueHeading(dto.TowbarTrueHeadingDeg.Value) : null,
             HasAnnouncedReady = dto.HasAnnouncedReady,
             InitialCallupDecisionProcessed = dto.InitialCallupDecisionProcessed,
-            IsScriptedDeparture = dto.IsScriptedDeparture,
+            InitialCallup = dto.InitialCallup,
+            SpawnTaxiway = dto.SpawnTaxiway,
+            PushedBackFrom = dto.PushedBackFrom,
+            VfrDepartureDirection = dto.VfrDepartureDirection,
+            PushEndSpot = dto.PushEndSpot,
+            PresetTaxiStop = dto.PresetTaxiStop is { } presetTaxiStop ? PresetTaxiStop.FromSnapshot(presetTaxiStop) : null,
             AwaitingTaxiInCall = dto.AwaitingTaxiInCall,
             ReleasedToGround = dto.ReleasedToGround,
             IsExpeditingTaxi = dto.IsExpeditingTaxi,
@@ -395,6 +439,7 @@ public class AircraftGroundOps
             HeldForRelease = dto.HeldForRelease,
             ReleasedForDeparture = dto.ReleasedForDeparture,
             ReleasedAtSeconds = dto.ReleasedAtSeconds,
+            ReleasedAtSpawnGate = dto.ReleasedAtSpawnGate,
             ReleaseWindowStartUtc = dto.ReleaseWindowStartUtc,
             ReleaseWindowEndUtc = dto.ReleaseWindowEndUtc,
         };

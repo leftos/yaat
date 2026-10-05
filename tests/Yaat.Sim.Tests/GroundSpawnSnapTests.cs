@@ -257,4 +257,44 @@ public class GroundSpawnSnapTests(ITestOutputHelper output)
         Assert.Equal(acLon, aircraft.Position.Lon);
         Assert.Equal(45.0, aircraft.TrueHeading.Degrees);
     }
+
+    [Theory]
+    [InlineData(35.0)] // snapped: the distance is the one before the snap moved it, not the 0 ft after
+    [InlineData(500.0)] // beyond the snap threshold: left in place, the edge is still reported
+    public void Apply_ReturnsTheNearestEdgeWithThePreSnapDistance(double offsetFt)
+    {
+        AirportGroundLayout layout = BuildLayout();
+        GroundNode n1 = layout.Nodes[1];
+        (double midLat, double midLon) = GeoMath.ProjectPoint(n1.Position, new TrueHeading(90.0), 500.0 / GeoMath.FeetPerNm);
+        (double acLat, double acLon) = GeoMath.ProjectPoint(midLat, midLon, new TrueHeading(180.0), offsetFt / GeoMath.FeetPerNm);
+        var aircraft = new AircraftState
+        {
+            Callsign = "TEST5",
+            AircraftType = "B738",
+            Position = new LatLon(acLat, acLon),
+            TrueHeading = new TrueHeading(80.0),
+            IsOnGround = true,
+        };
+
+        AirportGroundLayout.NearestTaxiEdge? found = GroundSpawnSnap.Apply(aircraft, layout);
+
+        Assert.NotNull(found);
+        Assert.Equal("A", found.Value.Edge.TaxiwayName);
+        Assert.InRange(found.Value.DistNm * GeoMath.FeetPerNm, offsetFt - 1.0, offsetFt + 1.0);
+    }
+
+    [Fact]
+    public void Apply_AirborneAircraft_ReturnsNull()
+    {
+        AirportGroundLayout layout = BuildLayout();
+        var aircraft = new AircraftState
+        {
+            Callsign = "TEST6",
+            AircraftType = "B738",
+            Position = layout.Nodes[1].Position,
+            IsOnGround = false,
+        };
+
+        Assert.Null(GroundSpawnSnap.Apply(aircraft, layout));
+    }
 }

@@ -81,6 +81,8 @@ not-yet-applied block with the same `SourceCommandText` (the per-dispatch groupi
 queued by *other* dispatches survive), marks the failed block's commands complete so the queue
 advances past it, and one warning names both the failure and the discarded commands.
 
+One block is not a fire-time failure: a CTO, CTOPP or LUAW block for a departure under a hold for release (`Ground.HeldForRelease`). `FlightPhysics.ApplyBlock` leaves it unapplied with its chain intact (`WaitsForRelease`) and returns `BlockApplyOutcome.Deferred`, not `Failed`: nothing is discarded. At the triggered sites (`ApplyReadyConditionalBlocks`, the idle scan's triggered branch, the fix and ground-node Notify loops) a deferred block is skipped like an unmet trigger, so triggered blocks behind it still fire; an untriggered deferred block stops the idle scan as an unfinished regime-C block does. The first time a block waits, the terminal shows `{callsign} {block} waits for the release`. It fires once `REL` or `HFROFF` lifts the hold ([hold-for-release.md](hold-for-release.md), "Runway-entry gate").
+
 Ownership: `FlightPhysics.ApplyBlock` owns the abort for every apply path (all three regimes, both
 Notify event paths, `NotifyPhaseAdvanced`); `SimulationEngine.ProcessTriggeredTrackBlocks` invokes
 the same discard when a triggered **track** command fails at `TrackEngine.Dispatch`

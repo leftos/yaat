@@ -3332,20 +3332,23 @@ public static class GroundCommandHandler
     }
 
     /// <summary>
-    /// Where a tug move ends: the phase it leaves the aircraft in, the stand it parks on, and the taxiway its completion
-    /// records as the aircraft's.
+    /// Where a tug move ends: the phase it leaves the aircraft in, the stand it parks on or the spot it holds on, and the
+    /// taxiway its completion records as the aircraft's.
     /// </summary>
     /// <param name="Kind">What the move leaves the aircraft doing.</param>
-    /// <param name="StandName">The stand's name, upper-cased, for a move that parks.</param>
+    /// <param name="Name">
+    /// The stand's name, upper-cased, for a move that parks; the spot's name for one that ends on a spot (null for an
+    /// unnamed spot node); null otherwise.
+    /// </param>
     /// <param name="EndTaxiway">
     /// The taxiway the final goal names — a push onto a taxiway ends on it — or null for every other tow; the last move's
     /// completion records it as the aircraft's (<see cref="PushbackPhase.EndTaxiway"/>).
     /// </param>
-    private readonly record struct TugTerminus(TugTerminusKind Kind, string? StandName, string? EndTaxiway)
+    private readonly record struct TugTerminus(TugTerminusKind Kind, string? Name, string? EndTaxiway)
     {
         internal static TugTerminus AtStand(string name) => new(TugTerminusKind.Stand, name.ToUpperInvariant(), null);
 
-        internal static readonly TugTerminus OnSpot = new(TugTerminusKind.Spot, null, null);
+        internal static TugTerminus OnSpot(string? spotName) => new(TugTerminusKind.Spot, spotName, null);
 
         /// <summary>Holding where the tow ends, recording <paramref name="endTaxiway"/> (null off a taxiway) as the aircraft's taxiway.</summary>
         internal static TugTerminus Holding(string? endTaxiway) => new(TugTerminusKind.Hold, null, endTaxiway);
@@ -3752,7 +3755,9 @@ public static class GroundCommandHandler
         );
 
         PushReadback readback = SpotReadback(push, groundLayout, resolved.Goal.Node!, label);
-        return PushResolution.Of(new PushTarget(resolved.Goal, resolved.FinalFacingTrueDeg, TugTerminus.OnSpot, _ => readback));
+        return PushResolution.Of(
+            new PushTarget(resolved.Goal, resolved.FinalFacingTrueDeg, TugTerminus.OnSpot(resolved.Goal.Node!.Name), _ => readback)
+        );
     }
 
     /// <summary>
@@ -3801,7 +3806,9 @@ public static class GroundCommandHandler
         PushReadback readback = onSpot
             ? SpotReadback(push, groundLayout, goal.Node!, name)
             : new PushReadback(PushReadbackPhrases.ToNode(push, goal.Node!.Id), null);
-        return PushResolution.Of(new PushTarget(goal, facingTrueDeg, onSpot ? TugTerminus.OnSpot : TugTerminus.Holding(null), _ => readback));
+        return PushResolution.Of(
+            new PushTarget(goal, facingTrueDeg, onSpot ? TugTerminus.OnSpot(goal.Node!.Name) : TugTerminus.Holding(null), _ => readback)
+        );
     }
 
     /// <summary>
@@ -4081,7 +4088,7 @@ public static class GroundCommandHandler
         TugTerminus terminus = last.Kind switch
         {
             TugGoalKind.Stand => TugTerminus.AtStand(destination),
-            TugGoalKind.Spot => TugTerminus.OnSpot,
+            TugGoalKind.Spot => TugTerminus.OnSpot(last.Node!.Name),
             _ => TugTerminus.Holding(last.TaxiwayName),
         };
         if (OverlapRefusal(aircraft, plan, listAircraft) is { } refused)
@@ -4218,6 +4225,7 @@ public static class GroundCommandHandler
     {
         TugTerminus terminus = tow.Terminus;
         bool atStand = aircraft.Phases?.CurrentPhase is AtParkingPhase;
+        bool callsAfterThisPush = InitialCallupCall.BeforeTow(aircraft, atStand, terminus.Kind == TugTerminusKind.Spot ? terminus.Name : null);
         TugRowAnchor? rowAnchor = plan.Moves.Count > 0 ? new TugRowAnchor(PoseOf(aircraft), plan.Moves[0].Move.Kind) : null;
         PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft, groundLayout);
         aircraft.Phases!.Clear(ctx);
@@ -4228,6 +4236,7 @@ public static class GroundCommandHandler
         }
 
         aircraft.Phases.Start(ctx);
+        InitialCallupCall.AfterTow(aircraft, callsAfterThisPush);
 
         // Set behind the clear: ending the tow it replaces cleared them (PushbackPhase.OnEnd). The row anchor is where this
         // tow begins, the same pose the planner judged it from (TugRequest.Start).
@@ -4237,7 +4246,7 @@ public static class GroundCommandHandler
         switch (terminus.Kind)
         {
             case TugTerminusKind.Stand:
-                aircraft.Ground.ParkingSpot = terminus.StandName;
+                aircraft.Ground.ParkingSpot = terminus.Name;
                 break;
             case TugTerminusKind.Spot:
                 aircraft.Ground.ParkingSpot = null;

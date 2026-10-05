@@ -1691,11 +1691,9 @@ or callsign rides in the argument, no aircraft selection is needed.
 | `REL <callsign>` | Release a specific held departure. |
 | `REL <airport> <minutes>` | Release the field's **whole** held queue, auto-spaced by the given interval in minutes (e.g. `REL SJC 2` = one every two minutes). |
 
-Released departures don't pop airborne instantly — a held runway/airborne departure appears after a
-20–60 s delay; a held ground departure is auto-cleared for takeoff once it's holding short (after a
-short readback delay) and departs normally. The **Releases** flyout on the command bar shows the live
-rundown of what's held at each armed field with click-to-release buttons; a held departure also gets a
-one-click "Release (HFR)" item in its radar right-click menu.
+Released departures don't pop airborne instantly — a held runway/airborne departure appears after a 20–60 s delay; in solo training a held ground departure is auto-cleared for takeoff once it's holding short (after a short readback delay) and departs normally. In an RPO room a released departure is only released (the hold is lifted) and waits for the RPO's `CTO` or its timed preset. In any room, a timed `CTO`, `CTOPP` or `LUAW` preset that comes due while the departure is held waits, and fires on the tick after `REL` or `HFROFF`. The **Releases** flyout on the command bar shows the live rundown of what's held at each armed field with click-to-release buttons; a held departure also gets a one-click "Release (HFR)" item in its radar right-click menu.
+
+In solo training with a radar (approach or center) student, an IFR departure that starts lined up at an untowered field asks for its release ("ready for departure, request release") without any `HFR`: it shows in the **Releases** flyout as "Lined up (held)", and `REL <callsign>`, `REL <airport>` or `HFROFF` (at an armed field) answers the request and auto-clears it for takeoff after the same short delay.
 
 ### Call for Release (CFR)
 

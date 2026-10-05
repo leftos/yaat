@@ -1,4 +1,6 @@
 using Yaat.Sim.Commands;
+using Yaat.Sim.Phases;
+using Yaat.Sim.Phases.Ground;
 
 namespace Yaat.Sim.Pilot;
 
@@ -76,6 +78,24 @@ public static class PilotRequestTracker
         }
     }
 
+    /// <summary>
+    /// Answers the aircraft's open request of <paramref name="kind"/> by an action that is not an aircraft command, so it
+    /// never passes <see cref="ApplyControllerResponse"/>: a release (<c>REL</c>, <c>HFROFF</c>) answers a
+    /// <see cref="PilotPendingRequestKind.Release"/> request, a PDC sent by data link (<c>TDLSS</c>) a
+    /// <see cref="PilotPendingRequestKind.Clearance"/> request. An open request of any other kind is left alone.
+    /// </summary>
+    /// <returns>True when an open request of <paramref name="kind"/> was marked satisfied.</returns>
+    public static bool SatisfyOpenRequest(AircraftState aircraft, PilotPendingRequestKind kind)
+    {
+        if ((aircraft.PendingPilotRequest is not { IsOpen: true } request) || (request.Kind != kind))
+        {
+            return false;
+        }
+
+        request.ResponseState = PilotPendingRequestResponseState.Satisfied;
+        return true;
+    }
+
     public static bool TryQueueFollowUp(AircraftState aircraft, double nowSeconds)
     {
         PilotPendingRequest? pending = aircraft.PendingPilotRequest;
@@ -84,10 +104,7 @@ public static class PilotRequestTracker
             return false;
         }
 
-        // A ready-to-taxi / ready-for-departure call is only meaningful on the surface. Once the
-        // aircraft is airborne the request is moot however it got resolved, so close it rather than
-        // re-announce "holding short runway 28R, ready for departure" from 3000 ft (issue #307).
-        if (pending.Kind is PilotPendingRequestKind.Taxi or PilotPendingRequestKind.Takeoff && !aircraft.IsOnGround)
+        if (IsMoot(pending, aircraft))
         {
             pending.ResponseState = PilotPendingRequestResponseState.Superseded;
             return false;
@@ -118,6 +135,51 @@ public static class PilotRequestTracker
         return true;
     }
 
+    /// <summary>
+    /// Whether an open request no longer needs its follow-up because the aircraft has moved past it, so it is closed
+    /// rather than re-announced.
+    /// </summary>
+    private static bool IsMoot(PilotPendingRequest request, AircraftState aircraft)
+    {
+        // A ready-to-taxi / ready-for-departure call is only meaningful on the surface. Once the
+        // aircraft is airborne the request is moot however it got resolved, so close it rather than
+        // re-announce "holding short runway 28R, ready for departure" from 3000 ft.
+        bool surfaceRequest =
+            request.Kind
+            is PilotPendingRequestKind.Taxi
+                or PilotPendingRequestKind.Takeoff
+                or PilotPendingRequestKind.Clearance
+                or PilotPendingRequestKind.Release;
+        if (surfaceRequest && !aircraft.IsOnGround)
+        {
+            return true;
+        }
+
+        // A ready-to-taxi or taxi-in follow-up is only voiced while the aircraft is stopped and waiting on a
+        // clearance. An aircraft that is taxiing, following, holding short, or crossing a runway is executing
+        // one, so the request is moot and re-announcing "at parking GA16 … ready to taxi" from the taxiway is
+        // wrong. A minimal harness with no active phase is left alone.
+        return (request.Kind is PilotPendingRequestKind.Taxi or PilotPendingRequestKind.Clearance)
+            && (aircraft.Phases?.CurrentPhase is { } phase)
+            && !IsWaitingForTaxi(phase);
+    }
+
+    /// <summary>
+    /// The ground phases in which a pilot still legitimately awaits a taxi clearance: parked at a stand
+    /// (<see cref="AtParkingPhase"/>), holding after pushback (<see cref="HoldingAfterPushbackPhase"/>), stopped
+    /// after a runway exit for the taxi-in call (<see cref="HoldingAfterExitPhase"/>), or holding in position
+    /// (<see cref="HoldingInPositionPhase"/>), or holding short of a taxiway or spot bar (<see cref="HoldingShortPhase"/>
+    /// at a bar that protects no runway), where a spawn's preset taxi can end and its delayed call opens the request. Any
+    /// other ground phase means the aircraft is already moving on one. Asked only of an open Taxi or Clearance request.
+    /// </summary>
+    private static bool IsWaitingForTaxi(Phase phase) =>
+        phase
+            is AtParkingPhase
+                or HoldingAfterPushbackPhase
+                or HoldingAfterExitPhase
+                or HoldingInPositionPhase
+                or HoldingShortPhase { ProtectsARunway: false };
+
     private static PilotPendingRequestResponseState ResolveResponse(PilotPendingRequestKind kind, ParsedCommand command) =>
         kind switch
         {
@@ -129,7 +191,18 @@ public static class PilotRequestTracker
                 or TaxiAutoCommand
                 or AirTaxiCommand
                 or LandCommand
-                or ClearedTakeoffPresentCommand => PilotPendingRequestResponseState.Satisfied,
+                or ClearedTakeoffPresentCommand
+                // FOLLOWG clears the aircraft off its stand (AtParkingPhase.CanAcceptCommand): the pilot is
+                // moving on a ground clearance now, so the ready-to-taxi request is answered.
+                or FollowGroundCommand => PilotPendingRequestResponseState.Satisfied,
+                _ => PilotPendingRequestResponseState.None,
+            },
+            // A delivery controller's clearance ends with the beacon code, IFR and VFR alike. A PDC sent by data link (TDLSS)
+            // also clears an IFR departure, but only once it is actually sent: TdlsCommandHandler.HandleSend answers the request
+            // then, so no TDLSS arm belongs here. A release (REL) is a group command, answered in HeldReleaseService.
+            PilotPendingRequestKind.Clearance => command switch
+            {
+                SquawkCommand or RandomSquawkCommand or SquawkVfrCommand => PilotPendingRequestResponseState.Satisfied,
                 _ => PilotPendingRequestResponseState.None,
             },
             PilotPendingRequestKind.Takeoff => command switch
@@ -150,7 +223,7 @@ public static class PilotRequestTracker
                 // "LEFT/RIGHT CLOSED TRAFFIC APPROVED" (7110.65 3-10-11) is the grant for the
                 // "request closed traffic" call PatternEntryPhase records as a Landing request; in
                 // YAAT that is MLT/MRT. Without it the approved pilot re-announces the request every
-                // 120 s (issue #307 class). Mirrors the AirspaceEntry arm below.
+                // 120 s. Mirrors the AirspaceEntry arm below.
                 or MakeLeftTrafficCommand
                 or MakeRightTrafficCommand => PilotPendingRequestResponseState.Satisfied,
                 _ => PilotPendingRequestResponseState.None,

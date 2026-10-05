@@ -6,6 +6,14 @@
 
 - A range/bearing measurement's label moves clear of data blocks and aircraft, pushing auto-placed data blocks aside while every side is covered.
 - Settings › Speech has a Speed slider for the solo pilot voice, 0.75× to 1.5×; pilots now speak at 1.1× by default.
+- With a solo student on clearance delivery, departures call for their IFR clearance, or a VFR departure naming a direction and altitude, instead of "ready to taxi".
+- A beacon code (`SQ`, `RANDSQ`, `SQVFR`) or a PDC sent with `TDLSS` answers a departure's clearance request, so the pilot stops repeating it.
+- In solo radar sessions, IFR departures lined up at untowered fields ask for their release and wait in the Releases flyout until `REL` or `HFROFF`.
+- In solo training with a radar student, unscripted runway departures at towered fields, or VFR at untowered ones, depart unprompted; RPOs launch them manually.
+
+### Changed
+
+- In RPO rooms, a departure released with `REL` or `HFROFF` no longer takes off by itself; the RPO's `CTO` or its scenario preset launches it.
 
 ### Fixed
 
@@ -15,6 +23,13 @@
 - An aircraft told to `GIVEWAY` taxis on and brakes to a stop just clear of the other aircraft's path, instead of stopping dead where it was.
 - The hold-short warning for an aircraft following traffic on the ground names the taxiway it is holding on.
 - A rewind or replay that resumes mid-turn on the ground carries on through the same turn instead of starting it again.
+- A takeoff or line-up clearance queued for an aircraft held for release, in a timed preset or a chain such as `TAXIAUTO 28R; CTO`, now waits for the release instead of being dropped.
+- In solo sessions, an aircraft never calls "ready to taxi" once it has taxied off its stand or parked at one.
+- In solo sessions, an aircraft scripted to taxi to the runway or to parking, including after a `WAIT`, never calls "ready to taxi".
+- In solo sessions, an aircraft scripted to push back calls "ready to taxi" once pushed back, naming the gate it left or the spot it reached.
+- In solo sessions, an aircraft scripted to taxi to a spot or taxiway hold short calls "ready to taxi" from there 10–20 seconds after stopping.
+- A solo aircraft spawned on a taxiway names it, "on taxiway K, ready to taxi", and asks for taxi to parking when already at its destination.
+- An aircraft starting lined up on the runway with a scripted `SAY` line says only that, never also "tower, runway 28R, ready".
 - A loaded solo recording comes up in solo mode, so its replay speaks every pilot line and keeps its recorded conflict-alert inhibits.
 - `EF` reads back and shows as "make straight-in", per 7110.65; "straight-in approach" and "enter final" are still understood when spoken.
 - An aircraft told to `FOLLOW` traffic keeps pattern spacing instead of the radar wake minimum, so a Cessna following a jet turns base about 3 NM behind it, not 4–6.

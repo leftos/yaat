@@ -1,12 +1,12 @@
 using Xunit;
 using Yaat.Sim.Scenarios;
+using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Scenarios;
 
 /// <summary>
-/// Verifies that parking aircraft with preset TAXI commands are excluded from the
-/// scenario's parking-call-up source set — the autonomous solo-training ready-to-taxi
-/// call-up must not fire on top of a scenario-scripted ground sequence.
+/// The loader arms each parking spawn's initial call-up plan from its timed presets (YAAT-308), and the scenario's
+/// parking-call-up source flag (the pacing slider's gate) is true only when some loaded aircraft may make an initial call.
 /// </summary>
 [Collection("NavDbMutator")]
 public class ScenarioLoaderTaxiPresetTests
@@ -16,64 +16,86 @@ public class ScenarioLoaderTaxiPresetTests
         TestVnasData.EnsureInitialized();
     }
 
-    private const string ParkingWithTaxiPreset = """
+    private static string OakParkingScenario(params (string Callsign, string Stand, string[] Presets)[] aircraft)
+    {
+        IEnumerable<string> entries = aircraft.Select(ac =>
         {
-          "id": "test",
-          "name": "Test",
-          "aircraft": [
-            {
-              "id": "ac1",
-              "aircraftId": "N123",
-              "aircraftType": "C172",
-              "startingConditions": { "type": "Parking", "parking": "A1" },
-              "presetCommands": [ { "id": "p1", "command": "TAXI VIA A B", "timeOffset": 0 } ]
-            }
-          ]
-        }
-        """;
+            string presets = string.Join(", ", ac.Presets.Select((p, i) => $$"""{ "id": "p{{i}}", "command": "{{p}}", "timeOffset": 0 }"""));
+            return $$"""
+                {
+                  "id": "{{ac.Callsign}}",
+                  "aircraftId": "{{ac.Callsign}}",
+                  "aircraftType": "C172",
+                  "startingConditions": { "type": "Parking", "parking": "{{ac.Stand}}" },
+                  "presetCommands": [ {{presets}} ]
+                }
+                """;
+        });
+        return $$"""{ "id": "test", "name": "Test", "primaryAirportId": "OAK", "aircraft": [ {{string.Join(", ", entries)}} ] }""";
+    }
 
-    private const string ParkingWithoutPreset = """
-        {
-          "id": "test",
-          "name": "Test",
-          "aircraft": [
-            {
-              "id": "ac1",
-              "aircraftId": "N123",
-              "aircraftType": "C172",
-              "startingConditions": { "type": "Parking", "parking": "A1" }
-            }
-          ]
-        }
-        """;
-
-    private const string MixedScriptedAndUnscripted = """
-        {
-          "id": "test",
-          "name": "Test",
-          "aircraft": [
-            {
-              "id": "ac1",
-              "aircraftId": "N111",
-              "aircraftType": "C172",
-              "startingConditions": { "type": "Parking", "parking": "A1" },
-              "presetCommands": [ { "id": "p1", "command": "TAXI VIA A", "timeOffset": 0 } ]
-            },
-            {
-              "id": "ac2",
-              "aircraftId": "N222",
-              "aircraftType": "C172",
-              "startingConditions": { "type": "Parking", "parking": "A2" }
-            }
-          ]
-        }
-        """;
+    private static ScenarioLoadResult Load(string json) =>
+        ScenarioLoader.Load(json, new TestAirportGroundData(), new Random(0), MagneticDeclination.EvaluationDateUtc);
 
     [Fact]
-    public void HasParkingSpawns_AllScripted_IsFalse()
+    public void ParkingSpawnWithWaitPrefixedTaxiToASpot_AfterTaxiArrival()
     {
+        // Inventory finding 1: a TAXI behind a WAIT was missed by the first-word check.
+        ScenarioLoadResult result = Load(OakParkingScenario(("N111", "GA7", ["WAIT 30 TAXI M4 M1 $1"])));
+
+        Assert.Equal(InitialCallupPlan.AfterTaxiArrival, Assert.Single(result.ImmediateAircraft).State.Ground.InitialCallup);
+    }
+
+    [Fact]
+    public void ParkingSpawnWithNoPresets_StandCall()
+    {
+        ScenarioLoadResult result = Load(OakParkingScenario(("N111", "GA7", [])));
+
+        AircraftState state = Assert.Single(result.ImmediateAircraft).State;
+        Assert.Equal(InitialCallupPlan.StandCall, state.Ground.InitialCallup);
+        Assert.Null(state.Ground.SpawnTaxiway);
+    }
+
+    [Fact]
+    public void HasParkingSpawns_OnlyGroundSpawnPushes_IsTrue()
+    {
+        ScenarioLoadResult result = Load(OakParkingScenario(("N111", "GA7", ["PUSH Z"])));
+
+        Assert.True(result.HasParkingSpawns);
+    }
+
+    [Fact]
+    public void HasParkingSpawns_EveryGroundSpawnPlansNone_IsFalse()
+    {
+        ScenarioLoadResult result = Load(OakParkingScenario(("N111", "GA7", ["TAXI W @GA8"]), ("N222", "GA8", ["TAXI W @GA7"])));
+
+        Assert.All(result.ImmediateAircraft, loaded => Assert.Equal(InitialCallupPlan.None, loaded.State.Ground.InitialCallup));
+        Assert.False(result.HasParkingSpawns);
+    }
+
+    [Fact]
+    public void HasParkingSpawns_NoPresets_IsTrue()
+    {
+        ScenarioLoadResult result = Load(OakParkingScenario(("N111", "GA7", [])));
+
+        Assert.True(result.HasParkingSpawns);
+    }
+
+    [Fact]
+    public void HasParkingSpawns_MixedPlans_IsTrue()
+    {
+        // A single aircraft that may call is enough for the slider to remain available.
+        ScenarioLoadResult result = Load(OakParkingScenario(("N111", "GA7", ["TAXI W @GA8"]), ("N222", "GA8", [])));
+
+        Assert.True(result.HasParkingSpawns);
+    }
+
+    [Fact]
+    public void HasParkingSpawns_ParkingWithoutGroundData_IsFalse()
+    {
+        // A parking spawn the loader cannot place is deferred with no plan.
         ScenarioLoadResult result = ScenarioLoader.Load(
-            ParkingWithTaxiPreset,
+            OakParkingScenario(("N111", "GA7", [])),
             groundData: null,
             new Random(0),
             MagneticDeclination.EvaluationDateUtc
@@ -81,49 +103,4 @@ public class ScenarioLoaderTaxiPresetTests
 
         Assert.False(result.HasParkingSpawns);
     }
-
-    [Fact]
-    public void HasParkingSpawns_NoPresets_IsTrue()
-    {
-        ScenarioLoadResult result = ScenarioLoader.Load(ParkingWithoutPreset, groundData: null, new Random(0), MagneticDeclination.EvaluationDateUtc);
-
-        Assert.True(result.HasParkingSpawns);
-    }
-
-    [Fact]
-    public void HasParkingSpawns_MixedScriptedAndUnscripted_IsTrue()
-    {
-        // A single unscripted parking aircraft is enough for the slider to remain available.
-        ScenarioLoadResult result = ScenarioLoader.Load(
-            MixedScriptedAndUnscripted,
-            groundData: null,
-            new Random(0),
-            MagneticDeclination.EvaluationDateUtc
-        );
-
-        Assert.True(result.HasParkingSpawns);
-    }
-
-    [Fact]
-    public void HasTaxiPreset_TaxiAlias_ReturnsTrue()
-    {
-        var presets = new List<PresetCommand> { new() { Command = "TAXI VIA A B" } };
-
-        Assert.True(ScenarioLoader.HasTaxiPreset(presets));
-    }
-
-    [Fact]
-    public void HasTaxiPreset_NonTaxiCommand_ReturnsFalse()
-    {
-        var presets = new List<PresetCommand>
-        {
-            new() { Command = "FH 270" },
-            new() { Command = "CM 5000" },
-        };
-
-        Assert.False(ScenarioLoader.HasTaxiPreset(presets));
-    }
-
-    [Fact]
-    public void HasTaxiPreset_EmptyList_ReturnsFalse() => Assert.False(ScenarioLoader.HasTaxiPreset([]));
 }

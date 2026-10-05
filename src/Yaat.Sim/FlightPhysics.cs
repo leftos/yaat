@@ -3,6 +3,7 @@ using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases;
+using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim;
 
@@ -1453,7 +1454,8 @@ public static class FlightPhysics
             }
 
             // Apply the block's commands (a triggered WAIT holds the payload until its countdown
-            // elapses; a Failed apply has already discarded the chain remainder — stop for this tick).
+            // elapses; a Failed apply has already discarded the chain remainder — stop for this tick; a Deferred one
+            // waits for its departure's release, unapplied, and is retried next tick).
             if (ApplyOrCountdownWait(aircraft, block, deltaSeconds) == BlockApplyOutcome.WaitCounting)
             {
                 // The current block is a WAIT still counting down. Latch the triggers of the following
@@ -1570,6 +1572,12 @@ public static class FlightPhysics
                 // stop scanning for the tick (latched triggers re-fire next sub-tick).
                 return;
             }
+            if (outcome == BlockApplyOutcome.Deferred)
+            {
+                // Waiting for its departure's release, trigger latched: skipped like an unmet trigger, so the
+                // triggered blocks behind it still fire; the next sub-tick retries it.
+                continue;
+            }
             if (outcome == BlockApplyOutcome.WaitCounting)
             {
                 holdApplies = true;
@@ -1638,6 +1646,13 @@ public static class FlightPhysics
                     // Chain remainder already discarded; stop scanning the mutated queue this tick.
                     return;
                 }
+                if (outcome == BlockApplyOutcome.Deferred)
+                {
+                    // Waiting for its departure's release: like an unmet trigger, later triggered blocks may still
+                    // fire, but no untriggered block behind it jumps the sequence.
+                    frontierBroken = true;
+                    continue;
+                }
                 if (outcome == BlockApplyOutcome.WaitCounting)
                 {
                     holdApplies = true;
@@ -1693,8 +1708,9 @@ public static class FlightPhysics
             return false;
         }
 
-        // A failed apply has already discarded the chain remainder; stop the idle scan this tick.
-        return ApplyBlock(aircraft, block);
+        // A failed apply has already discarded the chain remainder, and a block waiting for its departure's release holds
+        // its `;` successors behind it; either way stop the idle scan this tick.
+        return ApplyBlock(aircraft, block) == BlockApplyOutcome.Applied;
     }
 
     /// <summary>
@@ -2302,15 +2318,22 @@ public static class FlightPhysics
     }
 
     /// <summary>
-    /// Fires a queued block's <see cref="CommandBlock.ApplyAction"/>. Returns <c>true</c> on success.
-    /// On failure the remainder of the block's own chain is discarded
+    /// Fires a queued block's <see cref="CommandBlock.ApplyAction"/>. Returns <see cref="BlockApplyOutcome.Applied"/> on success.
+    /// On failure (<see cref="BlockApplyOutcome.Failed"/>) the remainder of the block's own chain is discarded
     /// (<see cref="CommandQueue.DiscardChainRemainder"/>) — the follow-on instructions were premised
     /// on the failed one — and one warning names both the failure and the discarded blocks. Every
     /// fire-time apply path funnels through here so the abort covers all of them; callers must stop
-    /// scanning the (now mutated) queue for the rest of the tick when this returns <c>false</c>.
+    /// scanning the (now mutated) queue for the rest of the tick on a failure.
+    /// Returns <see cref="BlockApplyOutcome.Deferred"/>, leaving the block unapplied and its chain intact, while the
+    /// block waits for its departure's release (<see cref="WaitsForRelease"/>); the next scan retries it.
     /// </summary>
-    private static bool ApplyBlock(AircraftState aircraft, CommandBlock block)
+    private static BlockApplyOutcome ApplyBlock(AircraftState aircraft, CommandBlock block)
     {
+        if (WaitsForRelease(aircraft, block))
+        {
+            return BlockApplyOutcome.Deferred;
+        }
+
         block.IsApplied = true;
         CommandResult? result = block.ApplyAction?.Invoke(aircraft);
 
@@ -2336,7 +2359,7 @@ public static class FlightPhysics
                 warning += $" — rest of transmission discarded: {string.Join("; ", discarded)}";
             }
             aircraft.PendingWarnings.Add(warning);
-            return false;
+            return BlockApplyOutcome.Failed;
         }
 
         if (result is { Success: true, Message: not null })
@@ -2358,19 +2381,58 @@ public static class FlightPhysics
             aircraft.PendingNotifications.Add($"[Executing] {desc}");
         }
 
-        return true;
+        return BlockApplyOutcome.Applied;
     }
 
     /// <summary>
-    /// Outcome of one <see cref="ApplyOrCountdownWait"/> attempt. <see cref="Failed"/> means the block
-    /// fired and its handler failed — the chain remainder is already discarded and the caller must stop
-    /// scanning the mutated queue for the rest of the tick.
+    /// A queued block that enters the runway (<see cref="HeldReleaseService.IsRunwayEntryCommand"/>) for a departure held
+    /// for release waits in the queue, unapplied, until the release (REL or HFROFF) clears the hold, rather than meeting the
+    /// dispatcher's hold-for-release refusal and being dropped with its chain. A takeoff clearance the controller chained or
+    /// scheduled is delayed by the hold, never lost. A directly typed CTO is answered by the dispatcher's gate instead, since
+    /// it never reaches the queue. The first time a block waits, the RPO is told once.
+    /// </summary>
+    private static bool WaitsForRelease(AircraftState aircraft, CommandBlock block)
+    {
+        if ((block.ParsedCommands is not { } parsed) || !parsed.Exists(HeldReleaseService.IsRunwayEntryCommand))
+        {
+            return false;
+        }
+
+        if (aircraft.Ground.HeldForRelease)
+        {
+            if (!block.WaitingForRelease)
+            {
+                block.WaitingForRelease = true;
+                string desc = RunwayIdentifier.ToDisplayDesignator(block.Description);
+                aircraft.PendingNotifications.Add($"{aircraft.Callsign} {desc} waits for the release");
+                Log.LogDebug("{Callsign}: queued {Block} waits for the release", aircraft.Callsign, block.Description);
+            }
+
+            return true;
+        }
+
+        if (block.WaitingForRelease)
+        {
+            block.WaitingForRelease = false;
+            Log.LogDebug("{Callsign}: released, queued {Block} resumes", aircraft.Callsign, block.Description);
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Outcome of one <see cref="ApplyBlock"/> or <see cref="ApplyOrCountdownWait"/> attempt. <see cref="Failed"/> means
+    /// the block fired and its handler failed — the chain remainder is already discarded and the caller must stop
+    /// scanning the mutated queue for the rest of the tick. <see cref="Deferred"/> means the block did not fire because it
+    /// waits for its departure's release (<see cref="WaitsForRelease"/>): the queue is untouched, the caller treats it as
+    /// an unmet trigger, and a later scan retries it.
     /// </summary>
     private enum BlockApplyOutcome
     {
         WaitCounting,
         Applied,
         Failed,
+        Deferred,
     }
 
     /// <summary>
@@ -2387,7 +2449,7 @@ public static class FlightPhysics
             return BlockApplyOutcome.WaitCounting;
         }
 
-        return ApplyBlock(aircraft, block) ? BlockApplyOutcome.Applied : BlockApplyOutcome.Failed;
+        return ApplyBlock(aircraft, block);
     }
 
     /// <summary>
@@ -2436,9 +2498,11 @@ public static class FlightPhysics
             {
                 pendingWaitAhead = true;
             }
-            else if (!pendingWaitAhead && !ApplyBlock(aircraft, block))
+            else if (!pendingWaitAhead && (ApplyBlock(aircraft, block) == BlockApplyOutcome.Failed))
             {
-                // Chain remainder already discarded; stop scanning the mutated queue.
+                // Chain remainder already discarded; stop scanning the mutated queue. A block deferred for its
+                // departure's release keeps its latched trigger and the scan goes on, so a later block on the same
+                // event still latches and fires.
                 return;
             }
         }
@@ -2508,9 +2572,11 @@ public static class FlightPhysics
             {
                 pendingWaitAhead = true;
             }
-            else if (!pendingWaitAhead && !ApplyBlock(aircraft, block))
+            else if (!pendingWaitAhead && (ApplyBlock(aircraft, block) == BlockApplyOutcome.Failed))
             {
-                // Chain remainder already discarded; stop scanning the mutated queue.
+                // Chain remainder already discarded; stop scanning the mutated queue. A block deferred for its
+                // departure's release keeps its latched trigger and the scan goes on, so a later block on the same
+                // event still latches and fires.
                 return;
             }
         }
@@ -2623,8 +2689,9 @@ public static class FlightPhysics
                 block.Description
             );
 
-            // A failed apply discards the chain remainder inside ApplyBlock; this path fires at most
-            // one block and returns either way, so no further scan needs guarding here.
+            // A failed apply discards the chain remainder inside ApplyBlock, and a block deferred for its departure's
+            // release stays queued for the idle scan to retry; this path fires at most one block and returns either
+            // way, so no further scan needs guarding here.
             _ = ApplyBlock(aircraft, block);
             return;
         }

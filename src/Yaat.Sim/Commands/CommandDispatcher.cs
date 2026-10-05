@@ -2278,7 +2278,7 @@ public static class CommandDispatcher
 
         // Hold-for-release runway-entry gate: a held departure may not enter the runway (LUAW) or
         // take off (CTO/CTOPP) until released. It stays holding short. Cleared by REL/CTOA.
-        if (aircraft.Ground.HeldForRelease && command is ClearedForTakeoffCommand or ClearedTakeoffPresentCommand or LineUpAndWaitCommand)
+        if (aircraft.Ground.HeldForRelease && HeldReleaseService.IsRunwayEntryCommand(command))
         {
             return new CommandResult(
                 false,
@@ -3404,6 +3404,7 @@ public static class CommandDispatcher
         rebuilt.WaitRemainingSeconds = block.WaitRemainingSeconds;
         rebuilt.WaitRemainingDistanceNm = block.WaitRemainingDistanceNm;
         rebuilt.TrackApplied = block.TrackApplied;
+        rebuilt.WaitingForRelease = block.WaitingForRelease;
         rebuilt.IsApplied = block.IsApplied;
         rebuilt.TriggerMet = block.TriggerMet;
         rebuilt.TriggerCrossingObserved = block.TriggerCrossingObserved;

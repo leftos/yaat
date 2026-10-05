@@ -27,11 +27,10 @@ public sealed class AtParkingPhase : Phase
         ctx.Aircraft.IndicatedAirspeed = 0;
         ctx.Aircraft.IsOnGround = true;
 
-        // Scenario-scripted departures (preset TAXI) skip the autonomous ready-to-taxi
-        // call-up. Marking the decision processed up front prevents OnTick's pacing path
-        // from ever firing on these aircraft, even at large preset timeOffsets where the
-        // aircraft genuinely sits at parking until the scripted preset fires.
-        if (ctx.Aircraft.Ground.IsScriptedDeparture)
+        // An aircraft the loader did not arm (an arrival that taxied to this stand, a warp, a generated aircraft, or a
+        // spawn whose presets script its ground sequence) makes no initial call. Marking the decision processed up front
+        // keeps OnTick's pacing path from ever firing on it, however long it sits here.
+        if (ctx.Aircraft.Ground.InitialCallup == InitialCallupPlan.None)
         {
             ctx.Aircraft.Ground.InitialCallupDecisionProcessed = true;
         }
@@ -50,45 +49,53 @@ public sealed class AtParkingPhase : Phase
     {
         ctx.Aircraft.IndicatedAirspeed = 0;
 
-        if (!ctx.Aircraft.Ground.InitialCallupDecisionProcessed && ElapsedSeconds >= ReadyToTaxiDelaySeconds)
+        if (!ctx.Aircraft.Ground.InitialCallupDecisionProcessed && (CallDelaySeconds(ctx) is { } delay) && (ElapsedSeconds >= delay))
         {
-            // Nobody answering (instructor room, no AI) or the SOP says this aircraft does not call the student yet:
-            // retry next tick, exactly as before the roster.
-            string? atAirportId = PilotContactRoster.SurfaceAirportOf(ctx.Aircraft);
-            if (ctx.PilotContacts.ResolveFor(ctx.Aircraft, "GND", atAirportId, ctx.ToEligibilityContext(), true) is not { } answering)
-            {
-                return false;
-            }
-
-            if (TryReserveInitialCallupSlot(ctx))
-            {
-                string facilityCallName = PilotResponder.ResolveAnsweringCallName(answering, "GND", "ground");
-                PilotSpeechText line = PilotResponder.BuildReadyToTaxi(ctx.Aircraft, facilityCallName, ctx.AtisLetter);
-                PilotResponder.QueueSoloPilotTransmission(ctx.Aircraft, line, PilotTransmissionKind.Proactive, PilotResponder.SourceResponse);
-                PilotRequestTracker.RecordRequest(
-                    ctx.Aircraft,
-                    PilotPendingRequestKind.Taxi,
-                    ctx.ScenarioElapsedSeconds,
-                    line,
-                    PilotRequestContext.Facility(facilityCallName)
-                );
-                ctx.Aircraft.Ground.HasAnnouncedReady = true;
-                answering.MarkInitialContact(ctx.Aircraft);
-                ctx.Aircraft.Ground.InitialCallupDecisionProcessed = true;
-            }
+            InitialCallupCall.TryMake(ctx, ReadyToTaxiLocation.ForStandCall(ctx.Aircraft));
         }
 
         return false;
     }
 
-    private static bool TryReserveInitialCallupSlot(PhaseContext ctx)
-    {
-        if (ScenarioPacing.ClampParkingInitialCallupPercent(ctx.SoloParkingInitialCallupRatePercent) <= 0)
+    /// <summary>
+    /// How long after this phase starts the aircraft calls, or null when it makes no call from here: the stand call's
+    /// delay, or the post-push setup delay on a stand a tow ended on. An after-push aircraft still at its spawn stand
+    /// (not yet pushed) calls only after its push.
+    /// </summary>
+    private static double? CallDelaySeconds(PhaseContext ctx) =>
+        ctx.Aircraft.Ground.InitialCallup switch
         {
-            return false;
-        }
+            InitialCallupPlan.StandCall => ReadyToTaxiDelaySeconds,
+            InitialCallupPlan.AfterPush when ctx.Aircraft.Ground.PushedBackFrom is not null => InitialCallupCall.PostPushSetupDelaySeconds(
+                ctx.Category
+            ),
+            _ => null,
+        };
 
-        return ctx.TryReserveSoloParkingInitialCallupSlot?.Invoke(ctx.ScenarioElapsedSeconds) ?? true;
+    /// <summary>
+    /// Leaving the stand uncalled ends the call this stand owed: an aircraft that leaves before its stand call (a
+    /// controller's TAXI or PUSH) never makes it later, and a stand it taxis to starts no new one; likewise for the
+    /// after-push call owed on a stand a tow ended on. A tow off the stand carries an uncalled call over itself
+    /// (<c>GroundCommandHandler.InstallTugMove</c>), and an after-push aircraft still at its spawn stand and an
+    /// after-arrival one keep theirs, since their call comes after the move this phase ends for.
+    /// </summary>
+    public override void OnEnd(PhaseContext ctx, PhaseStatus endStatus)
+    {
+        AircraftGroundOps ground = ctx.Aircraft.Ground;
+        bool owedHere =
+            (ground.InitialCallup == InitialCallupPlan.StandCall)
+            || (
+                (ground.InitialCallup == InitialCallupPlan.AfterPush) && (ground.PushedBackFrom is not null) && !ground.InitialCallupDecisionProcessed
+            );
+        if (owedHere)
+        {
+            Log.LogDebug(
+                "[Parking] {Callsign}: left the stand with its {Plan} call unmade; plan dropped",
+                ctx.Aircraft.Callsign,
+                ground.InitialCallup
+            );
+            ground.InitialCallup = InitialCallupPlan.None;
+        }
     }
 
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)

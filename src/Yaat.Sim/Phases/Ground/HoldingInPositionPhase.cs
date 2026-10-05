@@ -1,5 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Pilot;
 using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Phases.Ground;
@@ -40,7 +42,46 @@ public sealed class HoldingInPositionPhase : Phase
     {
         ctx.Aircraft.IndicatedAirspeed = 0;
         Pilot.TaxiInRequest.TryAnnounce(ctx, ElapsedSeconds, ctx.Aircraft.Phases?.AssignedRunway?.Designator, ctx.Aircraft.Ground.CurrentTaxiway);
+        if (
+            (PresetTaxiStopLocation(ctx.Aircraft.Ground) is { } location)
+            && (ElapsedSeconds >= InitialCallupCall.AfterTaxiArrivalDelaySeconds(ctx.Aircraft.Callsign))
+        )
+        {
+            InitialCallupCall.TryMake(ctx, location);
+        }
+
         return false;
+    }
+
+    /// <summary>
+    /// Where the after-taxi-arrival call is made from when the aircraft has come to rest at the stop its spawn's preset taxi
+    /// ends at (<see cref="AircraftGroundOps.PresetTaxiStop"/>) and the call is still owed: "at spot 9" when its route ended
+    /// at that spot, "on taxiway K" when a route with no destination ended on that taxiway. Null anywhere else, so a
+    /// controller's TAXI that took the aircraft elsewhere never triggers the call.
+    /// </summary>
+    private static ReadyToTaxiLocation? PresetTaxiStopLocation(AircraftGroundOps ground)
+    {
+        if ((ground.InitialCallup != InitialCallupPlan.AfterTaxiArrival) || ground.InitialCallupDecisionProcessed)
+        {
+            return null;
+        }
+
+        return (ground.PresetTaxiStop is { } stop) && (ground.AssignedTaxiRoute is { } route) ? MatchPresetTaxiStop(ground, stop, route) : null;
+    }
+
+    private static ReadyToTaxiLocation? MatchPresetTaxiStop(AircraftGroundOps ground, PresetTaxiStop stop, TaxiRoute route)
+    {
+        if (stop.Kind == PresetTaxiStopKind.Spot)
+        {
+            return string.Equals(route.DestinationSpot, stop.Name, StringComparison.OrdinalIgnoreCase) ? ReadyToTaxiLocation.Spot(stop.Name) : null;
+        }
+
+        bool endedOnTheTaxiway =
+            (stop.Kind == PresetTaxiStopKind.RouteEnd)
+            && (route.DestinationSpot is null)
+            && (route.DestinationParking is null)
+            && string.Equals(ground.CurrentTaxiway, stop.Name, StringComparison.OrdinalIgnoreCase);
+        return endedOnTheTaxiway ? ReadyToTaxiLocation.OnTaxiway(stop.Name) : null;
     }
 
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)

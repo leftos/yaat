@@ -54,6 +54,7 @@ public class SplitBlockPreservationTests : IDisposable
         ["WaitRemainingSeconds"] = "copied",
         ["WaitRemainingDistanceNm"] = "copied",
         ["TrackApplied"] = "copied",
+        ["WaitingForRelease"] = "copied",
         ["IsApplied"] = "copied",
         ["TriggerMet"] = "copied",
         ["TriggerCrossingObserved"] = "copied",
@@ -112,6 +113,7 @@ public class SplitBlockPreservationTests : IDisposable
         original.TriggerMissed = true;
         original.TriggerClosestApproach = 3.25;
         original.TrackApplied = true;
+        original.WaitingForRelease = true;
 
         // Fresh immediate lateral supersede: conflicts with the FH half only → block is split.
         ParseResult<CompoundCommand> supersede = CommandParser.ParseCompound("FH 090");
@@ -142,6 +144,7 @@ public class SplitBlockPreservationTests : IDisposable
         Assert.True(survivor.TriggerMissed);
         Assert.Equal(3.25, survivor.TriggerClosestApproach);
         Assert.True(survivor.TrackApplied, "TrackApplied guard lost — an already-fired handoff would re-dispatch");
+        Assert.True(survivor.WaitingForRelease, "WaitingForRelease lost — the RPO would be told of the same wait twice");
         Assert.False(survivor.IsApplied);
     }
 }

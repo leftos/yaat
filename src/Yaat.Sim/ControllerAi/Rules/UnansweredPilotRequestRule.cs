@@ -50,6 +50,8 @@ public sealed class UnansweredPilotRequestRule : IDecisionRule
             PilotPendingRequestKind.Taxi => role == ControlRole.Ground,
             PilotPendingRequestKind.Takeoff or PilotPendingRequestKind.Landing => role == ControlRole.Local,
             PilotPendingRequestKind.Approach or PilotPendingRequestKind.AirspaceEntry => role is ControlRole.Approach or ControlRole.Center,
+            // No AI delivery or radar position answers a clearance or release request yet.
+            PilotPendingRequestKind.Clearance or PilotPendingRequestKind.Release => false,
             _ => false,
         };
 }

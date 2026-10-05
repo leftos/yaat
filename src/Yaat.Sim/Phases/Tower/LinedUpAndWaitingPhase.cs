@@ -91,10 +91,34 @@ public sealed class LinedUpAndWaitingPhase : Phase
         if (
             !ctx.Aircraft.HasAnnouncedLinedUpReady
             && ctx.Aircraft.Phases?.DepartureClearance is null
-            && ElapsedSeconds >= LinedUpReadyDelaySeconds
-            && (ctx.Aircraft.Phases?.DepartureRunway ?? ctx.Runway) is { } rwy
-            && ctx.PilotContacts.ResolveFor(ctx.Aircraft, "TWR", rwy.AirportId, ctx.ToEligibilityContext(), false) is { } answering
+            && (RunwaySpawnCall.RunwayOf(ctx.Aircraft) ?? ctx.Runway) is { } rwy
         )
+        {
+            RunwaySpawnCallKind kind = RunwaySpawnCall.Decide(ctx.Aircraft, ctx.StudentPositionType, ctx.IsRunwaySpawnFieldTowered);
+            if (ElapsedSeconds >= RunwaySpawnCall.CallPointSeconds(kind, ctx.Aircraft.Callsign))
+            {
+                MakeLinedUpCall(ctx, rwy, kind);
+            }
+        }
+
+        return Requirements[0].IsSatisfied;
+    }
+
+    /// <summary>The call at the lined-up call point, by the runway-spawn rules (<see cref="RunwaySpawnCall"/>).</summary>
+    private static void MakeLinedUpCall(PhaseContext ctx, RunwayInfo rwy, RunwaySpawnCallKind kind)
+    {
+        switch (kind)
+        {
+            case RunwaySpawnCallKind.Silent:
+                return;
+            case RunwaySpawnCallKind.ReleaseRequest when ctx.StudentPositionType is { } positionType:
+                RunwaySpawnCall.TryRequestRelease(ctx, rwy, positionType);
+                return;
+            case RunwaySpawnCallKind.ReleaseRequest:
+                return;
+        }
+
+        if (ctx.PilotContacts.ResolveFor(ctx.Aircraft, "TWR", rwy.AirportId, ctx.ToEligibilityContext(), false) is { } answering)
         {
             string facilityCallName = PilotResponder.ResolveAnsweringCallName(answering, "TWR", "tower");
             PilotSpeechText line = PilotResponder.BuildLinedUpReady(ctx.Aircraft, rwy.Designator, facilityCallName);
@@ -109,8 +133,6 @@ public sealed class LinedUpAndWaitingPhase : Phase
             ctx.Aircraft.HasAnnouncedLinedUpReady = true;
             answering.MarkInitialContact(ctx.Aircraft);
         }
-
-        return Requirements[0].IsSatisfied;
     }
 
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)
