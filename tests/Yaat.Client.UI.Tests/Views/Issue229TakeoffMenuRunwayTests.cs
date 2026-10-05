@@ -19,7 +19,8 @@ public class Issue229TakeoffMenuRunwayTests
     private const string Initials = "GG";
 
     /// <summary>A recording host whose session sends with this test's initials.</summary>
-    private static RecordingMenuHost Host() => new("") { Session = new MenuSession(Initials, false, VfrCommandsForIfr.EnterFinalOnly) };
+    private static RecordingMenuHost Host() =>
+        new("") { Session = new MenuSession(Initials, false, VfrCommandsForIfr.EnterFinalOnly, QuickCommandDefaults.For) };
 
     /// <summary>The Tower submenu's items for an aircraft holding short of 28R/10L, built over <paramref name="host"/>.</summary>
     private static ItemCollection BuildTowerItems(RecordingMenuHost host)

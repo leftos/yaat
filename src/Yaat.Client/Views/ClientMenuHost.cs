@@ -34,6 +34,9 @@ internal sealed class ClientMenuHost(MainViewModel main, AircraftModel? aircraft
 
     public Task SendAsync(string callsign, string command, string initials) => main.SendCommandForViewAsync(callsign, command, initials);
 
+    public Task SendGatedAsync(string callsign, string command, string initials) =>
+        main.SendGatedCommandForViewAsync(FindAircraft(callsign), callsign, command, initials);
+
     public void ShowInputPopup(string placeholder, BlankInput blank, string initialText, int caretIndex, Func<string, Task> onSubmit) =>
         MenuPopups.ShowInput(anchor, placeholder, initialText, caretIndex, blank, onSubmit);
 
@@ -369,7 +372,7 @@ internal sealed class ClientMenuHost(MainViewModel main, AircraftModel? aircraft
 
     /// <summary>The controller's session settings as <paramref name="main"/> holds them.</summary>
     internal static MenuSession SessionOf(MainViewModel main) =>
-        new(main.Preferences.UserInitials, main.SessionSoloTrainingMode, main.VfrCommandsForIfr);
+        new(main.Preferences.UserInitials, main.SessionSoloTrainingMode, main.VfrCommandsForIfr, main.Preferences.GetQuickCommandList);
 
     /// <summary>
     /// The room's control items for <paramref name="callsigns"/> as <see cref="MainViewModel.BuildRpoMenuItems"/> builds

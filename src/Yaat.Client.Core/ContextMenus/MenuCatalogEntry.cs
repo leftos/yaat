@@ -11,7 +11,7 @@ namespace Yaat.Client.ContextMenus;
 /// <param name="Label">The text the menu item shows; a host-built entry may show a state-dependent header instead.</param>
 /// <param name="DefaultFlightRules">
 /// The flight rules a quick-command list entry for the action is offered under when it sets none of its own
-/// (<see cref="QuickCommandEntry.FlightRules"/> null): <see cref="QuickCommandResolver"/> filters the quick list by them at runtime.
+/// (<see cref="CatalogQuickCommandEntry.FlightRules"/> null): <see cref="QuickCommandResolver"/> filters the quick list by them at runtime.
 /// </param>
 /// <param name="IsApplicable">
 /// Whether the action fits the aircraft now. False leaves it out of All Commands; the quick list can still show it where a

@@ -22,7 +22,7 @@ public class RelativeTrafficTests
         };
 
     private static MenuContext Context(AircraftModel? previousSelection, string callsign = "N172SP") =>
-        new(new MenuClick(callsign, previousSelection, null, []), new MenuSession("AB", false, VfrCommandsForIfr.None));
+        new(new MenuClick(callsign, previousSelection, null, []), new MenuSession("AB", false, VfrCommandsForIfr.None, QuickCommandDefaults.For));
 
     // --- HasRelativeContext -----------------------------------------------------
 

@@ -1,16 +1,20 @@
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Headless.XUnit;
+using Avalonia.Interactivity;
 using Avalonia.LogicalTree;
 using Xunit;
 using Yaat.Client.ContextMenus;
 using Yaat.Client.Models;
+using Yaat.Client.Services;
 using Yaat.Client.UI.Tests.Fakes;
 using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views;
 using Yaat.Client.Views.Radar;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
+using Yaat.Sim.Situation;
 
 namespace Yaat.Client.UI.Tests.Views;
 
@@ -115,5 +119,56 @@ public class ClientMenuHostTests
 
         Assert.NotNull(main.GroundShownAirportId);
         Assert.True(main.Ground.IsDrawingRoute, "The draw should start on the primary ground view.");
+    }
+
+    /// <summary>
+    /// A custom quick command carries text the controller typed, so its click goes through the VFR gate as a favorite's
+    /// does: a VFR-only command offered under Both is refused for an IFR aircraft when VFR commands for IFR are off, and
+    /// passes the gate for a VFR aircraft (whose send then fails only because no server is connected).
+    /// </summary>
+    [AvaloniaTheory]
+    [InlineData("IFR", true)]
+    [InlineData("VFR", false)]
+    public void CustomQuickCommand_Click_GoesThroughTheVfrGate(string flightRules, bool rejected)
+    {
+        var main = new MainViewModel(new FakeFilePickerService());
+        VfrCommandsForIfr savedMode = main.Preferences.VfrCommandsForIfr;
+        main.Preferences.SetVfrCommandsForIfr(VfrCommandsForIfr.None);
+        try
+        {
+            var ac = new AircraftModel
+            {
+                Callsign = "N123AB",
+                CurrentPhase = "",
+                IsOnGround = false,
+                FlightRules = flightRules,
+                Situation = AircraftSituation.IfrEnroute,
+            };
+            main.Aircraft.Add(ac);
+            IMenuHost host = new ClientMenuHost(main, ac, new Border());
+            var context = new MenuContext(new MenuClick(ac.Callsign, null, null, []), host.Session);
+            List<QuickCommandEntry> entries = [new CustomQuickCommandEntry("Left traffic", "MLT", null, MenuFlightRules.Both)];
+            MenuCatalogEntry entry = Assert.Single(QuickCommandResolver.Resolve(entries, ac, context, _ => true).Text);
+            MenuItem item = Assert.IsType<MenuItem>(entry.Build(ac, context, host));
+
+            item.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+            HeadlessWindowExtensions.PumpDispatcher();
+
+            string? rejection = VfrCommandGate.Evaluate(ac, "MLT", VfrCommandsForIfr.None).RejectionMessage;
+            if (rejected)
+            {
+                Assert.NotNull(rejection);
+                Assert.Equal(rejection, main.StatusText);
+            }
+            else
+            {
+                Assert.Null(rejection);
+                Assert.StartsWith("Command error:", main.StatusText);
+            }
+        }
+        finally
+        {
+            main.Preferences.SetVfrCommandsForIfr(savedMode);
+        }
     }
 }

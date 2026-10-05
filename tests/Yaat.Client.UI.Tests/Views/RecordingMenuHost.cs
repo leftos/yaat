@@ -34,6 +34,15 @@ internal sealed class RecordingMenuHost(string input) : IMenuHost
 
     public int FlightPlanEditorOpens { get; private set; }
 
+    /// <summary>Every send through the VFR gate (<see cref="IMenuHost.SendGatedAsync"/>), in order; not in <see cref="Sent"/>.</summary>
+    public List<(string Callsign, string Command, string Initials)> GatedSent { get; } = [];
+
+    public Task SendGatedAsync(string callsign, string command, string initials)
+    {
+        GatedSent.Add((callsign, command, initials));
+        return Task.CompletedTask;
+    }
+
     public Task SendAsync(string callsign, string command, string initials)
     {
         Sent.Add((callsign, command, initials));
@@ -147,7 +156,7 @@ internal sealed class RecordingMenuHost(string input) : IMenuHost
     }
 
     /// <summary>The session the menu is built with: initials "AB", no solo training, no VFR commands for IFR aircraft.</summary>
-    public MenuSession Session { get; init; } = new("AB", false, VfrCommandsForIfr.None);
+    public MenuSession Session { get; init; } = new("AB", false, VfrCommandsForIfr.None, QuickCommandDefaults.For);
 
     /// <summary>The callsign lists the RPO items were asked for, in order; the host answers none.</summary>
     public List<IReadOnlyList<string>> RpoRequests { get; } = [];

@@ -1,4 +1,5 @@
 using Yaat.Sim.Commands;
+using Yaat.Sim.Situation;
 
 namespace Yaat.Client.ContextMenus;
 
@@ -7,7 +8,9 @@ namespace Yaat.Client.ContextMenus;
 /// that opened the menu and the controller's session settings.
 /// </summary>
 /// <param name="Click">The right-clicked aircraft, the previous selection and the list's selected rows.</param>
-/// <param name="Session">The controller's initials, solo-training flag and "VFR commands for IFR aircraft" setting.</param>
+/// <param name="Session">
+/// The controller's initials, solo-training flag, "VFR commands for IFR aircraft" setting and quick-command lists.
+/// </param>
 public sealed record MenuContext(MenuClick Click, MenuSession Session)
 {
     /// <summary>The aircraft the menu was opened on.</summary>
@@ -24,4 +27,7 @@ public sealed record MenuContext(MenuClick Click, MenuSession Session)
 
     /// <summary>The controller's "VFR commands for IFR aircraft" setting.</summary>
     public VfrCommandsForIfr VfrCommandsForIfr => Session.VfrCommandsForIfr;
+
+    /// <summary>The effective quick-command list for <paramref name="situation"/>: the controller's stored list, else the default.</summary>
+    public IReadOnlyList<QuickCommandEntry> QuickCommandListFor(AircraftSituation situation) => Session.QuickCommandLists(situation);
 }

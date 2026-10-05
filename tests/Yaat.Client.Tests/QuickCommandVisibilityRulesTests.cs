@@ -23,7 +23,8 @@ public class QuickCommandVisibilityRulesTests
             FlightRules = rules,
         };
 
-    private static MenuContext Context(VfrCommandsForIfr mode) => new(new MenuClick("TST123", null, null, []), new MenuSession("XX", false, mode));
+    private static MenuContext Context(VfrCommandsForIfr mode) =>
+        new(new MenuClick("TST123", null, null, []), new MenuSession("XX", false, mode, QuickCommandDefaults.For));
 
     private static bool Shows(AircraftModel aircraft, string id, VfrCommandsForIfr mode)
     {
@@ -31,7 +32,8 @@ public class QuickCommandVisibilityRulesTests
         return resolution.Strip.Any(item => item.Entry.Id == id) || resolution.Text.Any(entry => entry.Id == id);
     }
 
-    private static bool Lists(AircraftSituation situation, string id) => QuickCommandDefaults.For(situation).Any(entry => entry.CatalogId == id);
+    private static bool Lists(AircraftSituation situation, string id) =>
+        QuickCommandDefaults.For(situation).Any(entry => entry is CatalogQuickCommandEntry catalog && catalog.CatalogId == id);
 
     // --- Dropped entries ---
 

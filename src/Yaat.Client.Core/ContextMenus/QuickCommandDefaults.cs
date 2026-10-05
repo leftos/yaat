@@ -178,9 +178,15 @@ public static class QuickCommandDefaults
     public static IReadOnlyList<QuickCommandEntry> For(AircraftSituation situation) =>
         Lists.TryGetValue(situation, out IReadOnlyList<QuickCommandEntry>? list) ? list : [];
 
-    private static QuickCommandEntry Entry(string id) => new(id, null);
+    /// <summary>
+    /// True when <paramref name="entries"/> is <paramref name="situation"/>'s default list, entry for entry; an empty list
+    /// is the default for <see cref="AircraftSituation.Unknown"/>.
+    /// </summary>
+    public static bool IsDefault(AircraftSituation situation, IReadOnlyList<QuickCommandEntry> entries) => entries.SequenceEqual(For(situation));
 
-    private static QuickCommandEntry Ifr(string id) => new(id, MenuFlightRules.IfrOnly);
+    private static QuickCommandEntry Entry(string id) => new CatalogQuickCommandEntry(id, null);
 
-    private static QuickCommandEntry Vfr(string id) => new(id, MenuFlightRules.VfrOnly);
+    private static QuickCommandEntry Ifr(string id) => new CatalogQuickCommandEntry(id, MenuFlightRules.IfrOnly);
+
+    private static QuickCommandEntry Vfr(string id) => new CatalogQuickCommandEntry(id, MenuFlightRules.VfrOnly);
 }

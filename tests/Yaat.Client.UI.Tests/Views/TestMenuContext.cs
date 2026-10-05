@@ -13,5 +13,9 @@ internal static class TestMenuContext
         IMenuAircraft? previousSelection,
         bool soloTrainingMode,
         VfrCommandsForIfr vfrCommandsForIfr
-    ) => new(new MenuClick(callsign, previousSelection, null, []), new MenuSession(initials, soloTrainingMode, vfrCommandsForIfr));
+    ) =>
+        new(
+            new MenuClick(callsign, previousSelection, null, []),
+            new MenuSession(initials, soloTrainingMode, vfrCommandsForIfr, QuickCommandDefaults.For)
+        );
 }

@@ -23,6 +23,9 @@ internal sealed class SendCapturingHost(IMenuHost inner, string sessionInitials)
         return Task.CompletedTask;
     }
 
+    /// <summary>Captured into <see cref="Sent"/> like an ungated send; the gate itself is the real host's.</summary>
+    public Task SendGatedAsync(string callsign, string command, string initials) => SendAsync(callsign, command, initials);
+
     public void ShowInputPopup(string placeholder, BlankInput blank, string initialText, int caretIndex, Func<string, Task> onSubmit) =>
         inner.ShowInputPopup(placeholder, blank, initialText, caretIndex, onSubmit);
 

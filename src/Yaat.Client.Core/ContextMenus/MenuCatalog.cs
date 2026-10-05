@@ -514,6 +514,19 @@ public static class MenuCatalog
         return item;
     }
 
+    /// <summary>
+    /// A menu item labelled <paramref name="label"/> that sends the controller-authored text <paramref name="command"/>
+    /// gives, read again when clicked, for the menu's aircraft through the host's VFR gate
+    /// (<see cref="IMenuHost.SendGatedAsync"/>); the item records the text it gives when built.
+    /// </summary>
+    internal static MenuItem BuildGatedSend(string label, Func<string> command, MenuContext context, IMenuHost host)
+    {
+        var item = new MenuItem { Header = label };
+        MenuCommandText.SetCommand(item, command());
+        item.Click += async (_, _) => await host.SendGatedAsync(context.Callsign, command(), context.Initials);
+        return item;
+    }
+
     private static Func<IMenuAircraft?, MenuContext, bool> Always => (_, _) => true;
 
     private static Func<IMenuAircraft?, MenuContext, bool> CanAskPilot => (ac, _) => AircraftCommandApplicability.CanAskPilot(ac);

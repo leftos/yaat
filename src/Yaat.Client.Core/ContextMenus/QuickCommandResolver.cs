@@ -79,7 +79,8 @@ public static class QuickCommandResolver
     }.ToFrozenDictionary(StringComparer.Ordinal);
 
     /// <summary>
-    /// The quick commands for <paramref name="aircraft"/> from its situation's default list; empty for an
+    /// The quick commands for <paramref name="aircraft"/> from its situation's effective list
+    /// (<see cref="MenuContext.QuickCommandListFor"/>: the stored list, else the default); empty for an
     /// <see cref="AircraftSituation.Unknown"/> aircraft, which shows no quick list.
     /// </summary>
     /// <param name="aircraft">The aircraft the menu commands.</param>
@@ -91,9 +92,13 @@ public static class QuickCommandResolver
     public static QuickCommandResolution Resolve(IMenuAircraft aircraft, MenuContext context, Func<MenuCatalogEntry, bool> buildsAnItem) =>
         aircraft.Situation == AircraftSituation.Unknown
             ? QuickCommandResolution.Empty
-            : Resolve(QuickCommandDefaults.For(aircraft.Situation), aircraft, context, buildsAnItem);
+            : Resolve(context.QuickCommandListFor(aircraft.Situation), aircraft, context, buildsAnItem);
 
-    /// <summary>The quick commands <paramref name="entries"/> leaves for <paramref name="aircraft"/>, in list order.</summary>
+    /// <summary>
+    /// The quick commands <paramref name="entries"/> leaves for <paramref name="aircraft"/>, in list order. A custom entry
+    /// resolves to a text entry (<see cref="CustomQuickCommandEntry.MenuId"/>, no glyph) that sends
+    /// <see cref="CustomQuickCommandEntry.CommandFor"/>; it is filtered by its flight rules alone.
+    /// </summary>
     /// <param name="entries">The quick-command list to resolve, in order.</param>
     /// <param name="aircraft">The aircraft the menu commands.</param>
     /// <param name="context">The menu's click and session.</param>
@@ -108,15 +113,49 @@ public static class QuickCommandResolver
         List<MenuCatalogEntry> shown = [];
         foreach (QuickCommandEntry entry in entries)
         {
-            MenuCatalogEntry catalogEntry = MenuCatalog.Get(entry.CatalogId);
-            bool rulesMatch = MatchesFlightRules(entry.FlightRules ?? catalogEntry.DefaultFlightRules, entry.CatalogId, aircraft, context);
-            if (rulesMatch && IsAdmitted(catalogEntry, aircraft, context) && IsVisible(entry.CatalogId, aircraft) && buildsAnItem(catalogEntry))
+            MenuCatalogEntry? menuEntry = entry switch
             {
-                shown.Add(catalogEntry);
+                CatalogQuickCommandEntry catalog => ShownCatalogEntry(catalog, aircraft, context),
+                CustomQuickCommandEntry custom => ShownCustomEntry(custom, aircraft, context),
+                _ => throw new ArgumentOutOfRangeException(nameof(entries), entry, "Unknown quick-command entry kind."),
+            };
+            if ((menuEntry is not null) && buildsAnItem(menuEntry))
+            {
+                shown.Add(menuEntry);
             }
         }
 
         return QuickCommandGlyphs.Split(shown);
+    }
+
+    private static MenuCatalogEntry? ShownCatalogEntry(CatalogQuickCommandEntry entry, IMenuAircraft aircraft, MenuContext context)
+    {
+        MenuCatalogEntry catalogEntry = MenuCatalog.Get(entry.CatalogId);
+        bool rulesMatch = MatchesFlightRules(entry.FlightRules ?? catalogEntry.DefaultFlightRules, entry.CatalogId, aircraft, context);
+        return (rulesMatch && IsAdmitted(catalogEntry, aircraft, context) && IsVisible(entry.CatalogId, aircraft)) ? catalogEntry : null;
+    }
+
+    /// <summary>
+    /// A custom entry as a menu entry whose click sends its command for <paramref name="aircraft"/> through the host's VFR
+    /// gate, as a favorite's does, since the controller typed it; the ground or air text is chosen at the click, on the
+    /// live aircraft. Null when its flight rules leave it out. A VFR-only custom entry is hidden from an IFR aircraft under
+    /// <see cref="VfrCommandsForIfr.EnterFinalOnly"/> even when its command is <c>EF</c>, which the gate would let through:
+    /// the straight-in exception is keyed on the catalog's enter-final action, not on command text.
+    /// </summary>
+    private static MenuCatalogEntry? ShownCustomEntry(CustomQuickCommandEntry entry, IMenuAircraft aircraft, MenuContext context)
+    {
+        if (!MatchesFlightRules(entry.FlightRules, CustomQuickCommandEntry.MenuId, aircraft, context))
+        {
+            return null;
+        }
+
+        return new MenuCatalogEntry(
+            CustomQuickCommandEntry.MenuId,
+            entry.Label,
+            entry.FlightRules,
+            (_, _) => true,
+            (_, menuContext, host) => MenuCatalog.BuildGatedSend(entry.Label, () => entry.CommandFor(aircraft), menuContext, host)
+        );
     }
 
     private static bool WidensLegEntry(IMenuAircraft aircraft, MenuContext context, bool takenInClimbOut) =>

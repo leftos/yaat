@@ -18,6 +18,12 @@ public interface IMenuHost
     Task SendAsync(string callsign, string command, string initials);
 
     /// <summary>
+    /// For <paramref name="callsign"/>, sends <paramref name="command"/>, text the controller authored, on behalf of
+    /// <paramref name="initials"/> through the "VFR commands for IFR aircraft" gate, as typed input and favorites go.
+    /// </summary>
+    Task SendGatedAsync(string callsign, string command, string initials);
+
+    /// <summary>
     /// Opens the surface's free-text input showing <paramref name="placeholder"/>, holding <paramref name="initialText"/>
     /// with the caret at <paramref name="caretIndex"/>, and hands the submitted text to <paramref name="onSubmit"/>. A
     /// blank submit follows <paramref name="blank"/>: <see cref="BlankInput.Closes"/> closes the popup without calling

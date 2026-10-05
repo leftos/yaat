@@ -4,10 +4,12 @@ using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Microsoft.Extensions.Logging;
+using Yaat.Client.ContextMenus;
 using Yaat.Client.Logging;
 using Yaat.Client.Models;
 using Yaat.Sim;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Situation;
 
 namespace Yaat.Client.Services;
 
@@ -68,12 +70,14 @@ public sealed class UserPreferences
     private readonly SavedPrefs _data;
     private CommandScheme _commandScheme;
     private List<MacroDefinition> _macros;
+    private readonly Dictionary<AircraftSituation, IReadOnlyList<QuickCommandEntry>> _quickCommandLists;
 
     public UserPreferences()
     {
         _data = Load();
         _commandScheme = _data.CommandScheme is not null ? FromSaved(_data.CommandScheme) ?? CommandScheme.Default() : CommandScheme.Default();
         _macros = [.. _data.Macros.Select(m => new MacroDefinition { Name = m.Name, Expansion = m.Expansion })];
+        _quickCommandLists = LoadQuickCommandLists(_data.QuickCommandLists);
         HiddenTerminalKinds =
         [
             .. _data.HiddenTerminalKinds.Where(s => Enum.TryParse<TerminalEntryKind>(s, out _)).Select(s => Enum.Parse<TerminalEntryKind>(s)),
@@ -1035,6 +1039,54 @@ public sealed class UserPreferences
     public bool SpeechTelemetryPromptShown => _data.SpeechTelemetryPromptShown;
 
     /// <summary>
+    /// The quick-command lists the controller changed, by situation; a situation absent here takes its
+    /// <see cref="QuickCommandDefaults"/> list.
+    /// </summary>
+    public IReadOnlyDictionary<AircraftSituation, IReadOnlyList<QuickCommandEntry>> QuickCommandOverrides => _quickCommandLists.AsReadOnly();
+
+    /// <summary>The effective quick-command list for <paramref name="situation"/>: the controller's stored list, else the default.</summary>
+    public IReadOnlyList<QuickCommandEntry> GetQuickCommandList(AircraftSituation situation) =>
+        _quickCommandLists.TryGetValue(situation, out IReadOnlyList<QuickCommandEntry>? list) ? list : QuickCommandDefaults.For(situation);
+
+    /// <summary>
+    /// Stores <paramref name="entries"/> as <paramref name="situation"/>'s quick-command list and saves; a list equal to
+    /// the default removes the stored one, so the situation follows future defaults.
+    /// </summary>
+    /// <exception cref="ArgumentException"><paramref name="situation"/> is <see cref="AircraftSituation.Unknown"/>, which has no list.</exception>
+    public void SetQuickCommandList(AircraftSituation situation, IReadOnlyList<QuickCommandEntry> entries)
+    {
+        if (situation == AircraftSituation.Unknown)
+        {
+            throw new ArgumentException("The Unknown situation has no quick-command list to store.", nameof(situation));
+        }
+
+        if (QuickCommandDefaults.IsDefault(situation, entries))
+        {
+            _quickCommandLists.Remove(situation);
+        }
+        else
+        {
+            _quickCommandLists[situation] = entries.ToList().AsReadOnly();
+        }
+
+        Save();
+    }
+
+    /// <summary>Removes <paramref name="situation"/>'s stored quick-command list, so it takes the default again, and saves.</summary>
+    public void ResetQuickCommandList(AircraftSituation situation)
+    {
+        _quickCommandLists.Remove(situation);
+        Save();
+    }
+
+    /// <summary>Removes every stored quick-command list, so every situation takes its default again, and saves.</summary>
+    public void ResetAllQuickCommandLists()
+    {
+        _quickCommandLists.Clear();
+        Save();
+    }
+
+    /// <summary>
     /// Persists the opt-in speech-sample capture toggle and its on-disk size cap (in MB). When
     /// capture is on, the speech pipeline writes every push-to-talk recording + pipeline trace
     /// under <c>%LOCALAPPDATA%/yaat/speech-samples/</c>; <see cref="SpeechSampleCacheMaxMb"/>
@@ -1976,9 +2028,38 @@ public sealed class UserPreferences
             SoloGoAroundProbabilityByScenario = GetFieldOr<Dictionary<string, int>>(obj, "soloGoAroundProbabilityByScenario", []),
             SpeechTelemetryEnabled = GetFieldOr(obj, "speechTelemetryEnabled", false),
             SpeechTelemetryPromptShown = GetFieldOr(obj, "speechTelemetryPromptShown", false),
+            QuickCommandLists = (obj["quickCommandLists"] as JsonObject)?.DeepClone().AsObject(),
         };
 
         return ApplyDefaultServers(result);
+    }
+
+    /// <summary>
+    /// The stored quick-command lists, leaving out with a warning every situation and entry this build cannot read (an
+    /// unknown situation name, a catalog id the catalog no longer has).
+    /// </summary>
+    private static Dictionary<AircraftSituation, IReadOnlyList<QuickCommandEntry>> LoadQuickCommandLists(JsonObject? saved)
+    {
+        List<QuickCommandListDrop> dropped = [];
+        Dictionary<AircraftSituation, IReadOnlyList<QuickCommandEntry>> lists = QuickCommandListsFile.FromSaved(saved, dropped);
+        foreach (QuickCommandListDrop drop in dropped)
+        {
+            if (drop.Entry is null)
+            {
+                Log.LogWarning("Dropped the stored quick-command list for situation '{Situation}': {Reason}", drop.Situation, drop.Reason);
+            }
+            else
+            {
+                Log.LogWarning(
+                    "Dropped stored quick command '{Entry}' from situation '{Situation}': {Reason}",
+                    drop.Entry,
+                    drop.Situation,
+                    drop.Reason
+                );
+            }
+        }
+
+        return lists;
     }
 
     /// <summary>
@@ -2044,6 +2125,7 @@ public sealed class UserPreferences
         // Sync cached conversions back to _data before serializing
         _data.CommandScheme = ToSaved(_commandScheme);
         _data.Macros = [.. _macros.Select(m => new SavedMacro { Name = m.Name, Expansion = m.Expansion })];
+        _data.QuickCommandLists = QuickCommandListsFile.ToSaved(_quickCommandLists);
 
         string json = JsonSerializer.Serialize(_data, JsonOptions);
 
@@ -2360,6 +2442,10 @@ public sealed class UserPreferences
         // it isn't re-raised on every launch.
         public bool SpeechTelemetryEnabled { get; set; }
         public bool SpeechTelemetryPromptShown { get; set; }
+
+        // Only the situations whose quick-command list the controller changed, by situation name; an absent situation
+        // takes QuickCommandDefaults, so improved defaults reach everyone who never customised it.
+        public JsonObject? QuickCommandLists { get; set; }
         public string PttKey { get; set; } = "RightCtrl";
         public string AudioInputDevice { get; set; } = "";
         public string AudioOutputDevice { get; set; } = "";

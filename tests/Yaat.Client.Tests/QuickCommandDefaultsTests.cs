@@ -27,11 +27,15 @@ public class QuickCommandDefaultsTests
         Assert.False(QuickCommandDefaults.Lists.ContainsKey(AircraftSituation.Unknown));
     }
 
+    /// <summary>The catalog ids <paramref name="situation"/>'s default list names; every default entry is a catalog entry.</summary>
+    private static IEnumerable<string> Ids(AircraftSituation situation) =>
+        QuickCommandDefaults.For(situation).Select(entry => Assert.IsType<CatalogQuickCommandEntry>(entry).CatalogId);
+
     [Theory]
     [MemberData(nameof(ClassifiedSituations))]
     public void EveryListedId_IsACatalogAction(AircraftSituation situation)
     {
-        List<string> missing = [.. QuickCommandDefaults.For(situation).Select(entry => entry.CatalogId).Where(id => !CatalogIds.Contains(id))];
+        List<string> missing = [.. Ids(situation).Where(id => !CatalogIds.Contains(id))];
         Assert.Empty(missing);
     }
 
@@ -39,10 +43,7 @@ public class QuickCommandDefaultsTests
     [MemberData(nameof(ClassifiedSituations))]
     public void NoList_NamesADisplayItem(AircraftSituation situation)
     {
-        List<string> display =
-        [
-            .. QuickCommandDefaults.For(situation).Select(entry => entry.CatalogId).Where(id => id.StartsWith("display.", StringComparison.Ordinal)),
-        ];
+        List<string> display = [.. Ids(situation).Where(id => id.StartsWith("display.", StringComparison.Ordinal))];
         Assert.Empty(display);
     }
 
@@ -50,10 +51,7 @@ public class QuickCommandDefaultsTests
     [MemberData(nameof(ClassifiedSituations))]
     public void NoList_RepeatsAnId(AircraftSituation situation)
     {
-        List<string> repeated =
-        [
-            .. QuickCommandDefaults.For(situation).GroupBy(entry => entry.CatalogId).Where(group => group.Count() > 1).Select(group => group.Key),
-        ];
+        List<string> repeated = [.. Ids(situation).GroupBy(id => id).Where(group => group.Count() > 1).Select(group => group.Key)];
         Assert.Empty(repeated);
     }
 

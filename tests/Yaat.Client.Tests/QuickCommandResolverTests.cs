@@ -1,3 +1,5 @@
+using Avalonia.Controls;
+using Avalonia.Headless.XUnit;
 using Xunit;
 using Yaat.Client.ContextMenus;
 using Yaat.Client.Models;
@@ -39,9 +41,29 @@ public class QuickCommandResolverTests
             Situation = situation,
         };
 
-    private static MenuContext Context() => new(new MenuClick("TST123", null, null, []), new MenuSession("XX", false, VfrCommandsForIfr.None));
+    private static AircraftModel OnGround(string rules) =>
+        new()
+        {
+            Callsign = "TST123",
+            CurrentPhase = "",
+            IsOnGround = true,
+            FlightRules = rules,
+            Situation = AircraftSituation.Taxiing,
+        };
 
-    private static List<QuickCommandEntry> Entries(params string[] ids) => [.. ids.Select(id => new QuickCommandEntry(id, null))];
+    private static MenuContext Context() => Context(QuickCommandDefaults.For);
+
+    private static MenuContext Context(Func<AircraftSituation, IReadOnlyList<QuickCommandEntry>> lists) =>
+        new(new MenuClick("TST123", null, null, []), new MenuSession("XX", false, VfrCommandsForIfr.None, lists));
+
+    private static List<QuickCommandEntry> Entries(params string[] ids) => [.. ids.Select(id => new CatalogQuickCommandEntry(id, null))];
+
+    /// <summary>The command the resolved entry's item sends; the send path reads the host only when the item is clicked.</summary>
+    private static string? SentCommand(MenuCatalogEntry entry, IMenuAircraft aircraft, MenuContext context)
+    {
+        MenuItem item = Assert.IsType<MenuItem>(entry.Build(aircraft, context, null!));
+        return MenuCommandText.GetCommand(item);
+    }
 
     private static List<string> StripIds(QuickCommandResolution resolution) => [.. resolution.Strip.Select(item => item.Entry.Id)];
 
@@ -52,7 +74,11 @@ public class QuickCommandResolverTests
     [InlineData("VFR", false)]
     public void IfrOnlyEntry_KeptForIfr_DroppedForVfr(string rules, bool kept)
     {
-        List<QuickCommandEntry> entries = [new(MenuIds.TrackTrack, MenuFlightRules.IfrOnly), new(MenuIds.HeadingPresent, null)];
+        List<QuickCommandEntry> entries =
+        [
+            new CatalogQuickCommandEntry(MenuIds.TrackTrack, MenuFlightRules.IfrOnly),
+            new CatalogQuickCommandEntry(MenuIds.HeadingPresent, null),
+        ];
 
         QuickCommandResolution resolution = QuickCommandResolver.Resolve(
             entries,
@@ -132,5 +158,123 @@ public class QuickCommandResolverTests
 
         Assert.Empty(resolution.Strip);
         Assert.Empty(resolution.Text);
+    }
+
+    [Fact]
+    public void StoredList_ReplacesTheDefault_ForItsSituationOnly()
+    {
+        MenuContext context = Context(situation =>
+            situation == AircraftSituation.IfrEnroute ? Entries(MenuIds.HeadingPresent, MenuIds.SpeedNormal) : QuickCommandDefaults.For(situation)
+        );
+        AircraftModel arrival = Airborne("IFR", AircraftSituation.IfrArrival);
+
+        QuickCommandResolution enroute = QuickCommandResolver.Resolve(Airborne("IFR", AircraftSituation.IfrEnroute), context, _ => true);
+        QuickCommandResolution arrivalStored = QuickCommandResolver.Resolve(arrival, context, _ => true);
+        QuickCommandResolution arrivalDefault = QuickCommandResolver.Resolve(
+            QuickCommandDefaults.For(AircraftSituation.IfrArrival),
+            arrival,
+            Context(),
+            _ => true
+        );
+
+        Assert.Empty(enroute.Strip);
+        Assert.Equal([MenuIds.HeadingPresent, MenuIds.SpeedNormal], TextIds(enroute));
+        Assert.Equal(StripIds(arrivalDefault), StripIds(arrivalStored));
+        Assert.Equal(TextIds(arrivalDefault), TextIds(arrivalStored));
+        Assert.NotEmpty(StripIds(arrivalStored));
+    }
+
+    [AvaloniaFact]
+    public void CustomEntry_ResolvesToItsLabel_AndSendsItsCommandTextTrimmed()
+    {
+        AircraftModel aircraft = Airborne("IFR", AircraftSituation.IfrEnroute);
+        List<QuickCommandEntry> entries = [new CustomQuickCommandEntry("Say altitude", "  SA  ", "TAXI A", MenuFlightRules.Both)];
+
+        QuickCommandResolution resolution = QuickCommandResolver.Resolve(entries, aircraft, Context(), _ => true);
+
+        MenuCatalogEntry entry = Assert.Single(resolution.Text);
+        Assert.Equal("Say altitude", entry.Label);
+        Assert.Equal("SA", SentCommand(entry, aircraft, Context()));
+    }
+
+    [AvaloniaFact]
+    public void CustomEntry_OnTheGround_SendsItsGroundText()
+    {
+        AircraftModel aircraft = OnGround("IFR");
+        List<QuickCommandEntry> entries = [new CustomQuickCommandEntry("Go", "FH 270", " TAXI A B ", MenuFlightRules.Both)];
+
+        QuickCommandResolution resolution = QuickCommandResolver.Resolve(entries, aircraft, Context(), _ => true);
+
+        Assert.Equal("TAXI A B", SentCommand(Assert.Single(resolution.Text), aircraft, Context()));
+    }
+
+    [AvaloniaTheory]
+    [InlineData(null)]
+    [InlineData("   ")]
+    public void CustomEntry_OnTheGround_WithoutGroundText_SendsItsCommandText(string? groundText)
+    {
+        AircraftModel aircraft = OnGround("IFR");
+        List<QuickCommandEntry> entries = [new CustomQuickCommandEntry("Hold", "HOLD", groundText, MenuFlightRules.Both)];
+
+        QuickCommandResolution resolution = QuickCommandResolver.Resolve(entries, aircraft, Context(), _ => true);
+
+        Assert.Equal("HOLD", SentCommand(Assert.Single(resolution.Text), aircraft, Context()));
+    }
+
+    [Theory]
+    [InlineData("IFR", MenuFlightRules.IfrOnly, true)]
+    [InlineData("VFR", MenuFlightRules.IfrOnly, false)]
+    [InlineData("IFR", MenuFlightRules.VfrOnly, false)]
+    [InlineData("VFR", MenuFlightRules.VfrOnly, true)]
+    [InlineData("", MenuFlightRules.Both, true)]
+    [InlineData("", MenuFlightRules.VfrOnly, false)]
+    public void CustomEntry_IsFilteredByItsFlightRules(string rules, MenuFlightRules entryRules, bool kept)
+    {
+        List<QuickCommandEntry> entries = [new CustomQuickCommandEntry("Custom", "SA", null, entryRules)];
+
+        QuickCommandResolution resolution = QuickCommandResolver.Resolve(
+            entries,
+            Airborne(rules, AircraftSituation.IfrEnroute),
+            Context(),
+            _ => true
+        );
+
+        Assert.Equal(kept, TextIds(resolution).Contains(CustomQuickCommandEntry.MenuId));
+    }
+
+    [Theory]
+    [InlineData(VfrCommandsForIfr.All, true)]
+    [InlineData(VfrCommandsForIfr.EnterFinalOnly, false)]
+    [InlineData(VfrCommandsForIfr.None, false)]
+    public void VfrOnlyCustomEntry_ReachesAnIfrAircraft_OnlyUnderAll(VfrCommandsForIfr mode, bool kept)
+    {
+        List<QuickCommandEntry> entries = [new CustomQuickCommandEntry("Left traffic", "MLT", null, MenuFlightRules.VfrOnly)];
+        var context = new MenuContext(new MenuClick("TST123", null, null, []), new MenuSession("XX", false, mode, QuickCommandDefaults.For));
+
+        QuickCommandResolution resolution = QuickCommandResolver.Resolve(entries, Airborne("IFR", AircraftSituation.IfrEnroute), context, _ => true);
+
+        Assert.Equal(kept, TextIds(resolution).Contains(CustomQuickCommandEntry.MenuId));
+    }
+
+    [Fact]
+    public void CustomEntry_NeverEntersTheStrip_EvenWithStripRoomLeft()
+    {
+        List<QuickCommandEntry> entries =
+        [
+            new CustomQuickCommandEntry("First", "SA", null, MenuFlightRules.Both),
+            new CatalogQuickCommandEntry(MenuIds.TrackTrack, null),
+            new CustomQuickCommandEntry("Second", "SS", null, MenuFlightRules.Both),
+        ];
+
+        QuickCommandResolution resolution = QuickCommandResolver.Resolve(
+            entries,
+            Airborne("IFR", AircraftSituation.IfrEnroute),
+            Context(),
+            _ => true
+        );
+
+        Assert.Equal([MenuIds.TrackTrack], StripIds(resolution));
+        Assert.Equal(["First", "Second"], resolution.Text.Select(entry => entry.Label));
+        Assert.All(resolution.Text, entry => Assert.Equal(CustomQuickCommandEntry.MenuId, entry.Id));
     }
 }

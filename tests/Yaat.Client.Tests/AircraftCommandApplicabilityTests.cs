@@ -544,7 +544,7 @@ public class AircraftCommandApplicabilityTests
 
     /// <summary>A menu context for the <see cref="Ac"/> aircraft, with <paramref name="previousSelection"/> selected before it.</summary>
     private static MenuContext Context(AircraftModel? previousSelection) =>
-        new(new MenuClick("TST123", previousSelection, null, []), new MenuSession("AB", false, VfrCommandsForIfr.None));
+        new(new MenuClick("TST123", previousSelection, null, []), new MenuSession("AB", false, VfrCommandsForIfr.None, QuickCommandDefaults.For));
 
     /// <summary>Another on-ground aircraft, selected before the right-click, which makes the ground menu relative.</summary>
     private static AircraftModel OtherGroundAircraft()
