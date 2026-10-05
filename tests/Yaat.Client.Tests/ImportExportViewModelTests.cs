@@ -16,12 +16,23 @@ public class ImportExportViewModelTests : IDisposable
 {
     private const string WrittenBy = "test-version";
 
+    // The backup's name for the fixed clock's instant, without the extension.
+    private const string BackupName = "settings-backup-20261005-142233";
+
     private readonly string _root = Path.Combine(Path.GetTempPath(), "yaat-importexport-vm-tests", Guid.NewGuid().ToString("N"));
+
+    private readonly UserPreferences _preferences = new();
+
+    private readonly FixedClock _clock = new(new DateTimeOffset(2026, 10, 5, 14, 22, 33, TimeSpan.Zero));
 
     public ImportExportViewModelTests() => Directory.CreateDirectory(_root);
 
+    private string BackupsFolder => Path.Combine(_root, "backups");
+
     public void Dispose()
     {
+        // A test that unticks the backup saves it in the shared preferences file; every hub after it starts ticked again.
+        _preferences.SetBackUpSettingsBeforeImport(true);
         if (Directory.Exists(_root))
         {
             Directory.Delete(_root, recursive: true);
@@ -505,146 +516,263 @@ public class ImportExportViewModelTests : IDisposable
         Assert.Equal(["Tower"], other.Favorites.OrderedSets.Where(s => s.Kind == FavoriteSetKind.Named).Select(s => s.Name));
     }
 
-    [Theory]
-    [InlineData(new[] { SettingsItemType.Macros }, "Replace removes your current Macros. Save a copy of them first?")]
-    [InlineData(
-        new[] { SettingsItemType.Macros, SettingsItemType.Layouts },
-        "Replace removes your current Macros and Layouts. Save a copy of them first?"
-    )]
-    [InlineData(
-        new[] { SettingsItemType.Macros, SettingsItemType.Verbs, SettingsItemType.GridLayout },
-        "Replace removes your current Macros, Command verbs and Aircraft list columns. Save a copy of them first?"
-    )]
-    public void BackupMessage_NamesTheItemsAsTheHubListsThem(SettingsItemType[] itemTypes, string expected) =>
-        Assert.Equal(expected, ImportExportViewModel.BackupMessage(itemTypes));
-
     [Fact]
-    public async Task ImportWithReplace_BackUpToAPath_SavesTheReplaceTickedItemsOnly_ThenImports()
+    public void Import_BackUpFirstWithAReplace_SavesEverySettingToATimestampedBackup_ThenImports()
     {
         (ImportExportViewModel vm, InMemorySettingsImportTarget target) = OpenMacrosReplaceLayoutsMerge();
-        var asked = new List<string>();
-        string backup = Path.Combine(_root, "backup" + SettingsBundleFile.Extension);
-        SettingsExportPlan? offered = null;
+        Assert.True(vm.BackUpFirst);
 
-        await vm.ImportAsync(
-            message =>
-            {
-                asked.Add(message);
-                return Task.FromResult(ReplaceBackupChoice.BackUp);
-            },
-            plan =>
-            {
-                offered = plan;
-                return Task.FromResult<string?>(backup);
-            }
-        );
+        vm.Import();
 
-        Assert.Equal(["Replace removes your current Macros. Save a copy of them first?"], asked);
-        Assert.Equal(ImportExportViewModel.BackupFileName, offered!.SuggestedFileName);
-        Assert.Equal(SettingsBundleFile.Extension, offered.Extension);
+        string backup = Assert.Single(Directory.GetFiles(BackupsFolder));
+        Assert.Equal(BackupName + SettingsBundleFile.Extension, Path.GetFileName(backup));
         SettingsBundle saved = ReadBundle(backup);
         Assert.False(saved.IsSingleItemFile);
-        SettingsBundleEntry macros = Assert.Single(saved.Entries);
-        Assert.Equal(SettingsItemType.Macros, macros.ItemType);
-        Assert.Equal(new FakeExportSource(null).Export(SettingsItemType.Macros).Content, macros.Content);
+        Assert.Equal(Enum.GetValues<SettingsItemType>().Order(), saved.Entries.Select(e => e.ItemType).Order());
+        Assert.Empty(saved.Skipped);
         Assert.Equal(["IMP"], target.MacroList.Select(m => m.Name));
         Assert.Equal(["OLDLAYOUT", "NEWLAYOUT"], target.LayoutList.Select(l => l.Name));
         Assert.Null(vm.ImportError);
+        Assert.Equal($"Backed up all settings to {BackupName}{SettingsBundleFile.Extension}.", vm.BackupResult);
     }
 
-    [Theory]
-    [InlineData(ReplaceBackupChoice.BackUp)]
-    [InlineData(ReplaceBackupChoice.Cancel)]
-    public async Task ImportWithReplace_CancelOrACancelledBackupSave_ImportsNothing(ReplaceBackupChoice choice)
+    [Fact]
+    public void Import_BackUpFirstWithMergeOnly_SavesTheBackup_ThenImports()
     {
         (ImportExportViewModel vm, InMemorySettingsImportTarget target) = OpenMacrosReplaceLayoutsMerge();
-        int saves = 0;
+        vm.ImportItems.Single(r => r.ItemType == SettingsItemType.Macros).Mode = SettingsImportMode.Merge;
 
-        await vm.ImportAsync(
-            _ => Task.FromResult(choice),
-            _ =>
-            {
-                saves++;
-                return Task.FromResult<string?>(null);
-            }
-        );
+        vm.Import();
 
-        Assert.Equal((choice == ReplaceBackupChoice.BackUp) ? 1 : 0, saves);
+        Assert.Equal(BackupName + SettingsBundleFile.Extension, Path.GetFileName(Assert.Single(Directory.GetFiles(BackupsFolder))));
+        Assert.Equal(["OLD", "IMP"], target.MacroList.Select(m => m.Name));
+        Assert.Null(vm.ImportError);
+    }
+
+    [Fact]
+    public void Import_BackUpFirstUnticked_WritesNoBackup_AndImports()
+    {
+        (ImportExportViewModel vm, InMemorySettingsImportTarget target) = OpenMacrosReplaceLayoutsMerge();
+        vm.BackUpFirst = false;
+
+        vm.Import();
+
+        Assert.False(Directory.Exists(BackupsFolder) && (Directory.GetFiles(BackupsFolder).Length > 0));
+        Assert.Equal(["IMP"], target.MacroList.Select(m => m.Name));
+        Assert.Null(vm.BackupResult);
+        Assert.Null(vm.ImportError);
+    }
+
+    [Fact]
+    public void Import_BackupThatFailsPartway_ImportsNothing_SaysWhy_AndLeavesNoTemporaryFile()
+    {
+        (ImportExportViewModel vm, InMemorySettingsImportTarget target) = OpenMacrosReplaceLayoutsMerge(FailAfterFirstWrite);
+
+        vm.Import();
+
+        Assert.Empty(Directory.GetFiles(BackupsFolder));
         Assert.Equal(["OLD"], target.MacroList.Select(m => m.Name));
         Assert.Equal(["OLDLAYOUT"], target.LayoutList.Select(l => l.Name));
         Assert.Empty(vm.ImportResults);
         Assert.Empty(vm.AppliedItemTypes);
+        Assert.Null(vm.BackupResult);
+        const string diskFull = "There is not enough space on the disk (test)";
+        Assert.Equal(
+            $"Could not write the backup '{BackupName}{SettingsBundleFile.Extension}': " + diskFull + ". Nothing was imported.",
+            vm.ImportError
+        );
         Assert.True(vm.CanImport);
     }
 
     [Fact]
-    public async Task ImportWithReplace_ReplaceWithoutBackup_ImportsAndWritesNoFile()
+    public void Import_SecondBackupInTheSameSecond_IsNumbered()
     {
-        (ImportExportViewModel vm, InMemorySettingsImportTarget target) = OpenMacrosReplaceLayoutsMerge();
-        int saves = 0;
-        int filesBefore = Directory.GetFiles(_root).Length;
+        (ImportExportViewModel first, _) = OpenMacrosReplaceLayoutsMerge();
+        first.Import();
+        (ImportExportViewModel second, _) = OpenMacrosReplaceLayoutsMerge();
 
-        await vm.ImportAsync(
-            _ => Task.FromResult(ReplaceBackupChoice.ReplaceWithoutBackup),
-            _ =>
-            {
-                saves++;
-                return Task.FromResult<string?>(Path.Combine(_root, "unexpected" + SettingsBundleFile.Extension));
-            }
+        second.Import();
+
+        Assert.Equal(
+            [BackupName + "-2" + SettingsBundleFile.Extension, BackupName + SettingsBundleFile.Extension],
+            Directory.GetFiles(BackupsFolder).Select(Path.GetFileName).Order(StringComparer.Ordinal)
         );
-
-        Assert.Equal(0, saves);
-        Assert.Equal(filesBefore, Directory.GetFiles(_root).Length);
-        Assert.Equal(["IMP"], target.MacroList.Select(m => m.Name));
+        Assert.Equal($"Backed up all settings to {BackupName}-2{SettingsBundleFile.Extension}.", second.BackupResult);
     }
 
     [Fact]
-    public async Task ImportWithReplace_BackupPathThatCannotBeWritten_ImportsNothing_AndSaysWhy()
+    public void BackUpFirst_Toggled_IsSavedInThePreferences_AndANewHubReadsItBack()
     {
-        (ImportExportViewModel vm, InMemorySettingsImportTarget target) = OpenMacrosReplaceLayoutsMerge();
-        string backup = Path.Combine(_root, "missing-folder", "backup" + SettingsBundleFile.Extension);
+        ImportExportViewModel vm = NewViewModel(NewTarget(), [], ImportExportTab.Import);
+        Assert.True(vm.BackUpFirst);
 
-        await vm.ImportAsync(_ => Task.FromResult(ReplaceBackupChoice.BackUp), _ => Task.FromResult<string?>(backup));
+        vm.BackUpFirst = false;
 
-        Assert.False(File.Exists(backup));
-        Assert.Equal(["OLD"], target.MacroList.Select(m => m.Name));
-        Assert.Equal(["OLDLAYOUT"], target.LayoutList.Select(l => l.Name));
-        Assert.Empty(vm.ImportResults);
-        Assert.Empty(vm.AppliedItemTypes);
-        Assert.NotNull(vm.ImportError);
-        Assert.StartsWith($"Could not write the backup 'backup{SettingsBundleFile.Extension}'", vm.ImportError);
-        Assert.EndsWith("Nothing was imported.", vm.ImportError);
+        Assert.False(_preferences.BackUpSettingsBeforeImport);
+        var reloaded = new UserPreferences();
+        Assert.False(reloaded.BackUpSettingsBeforeImport);
+        InMemorySettingsImportTarget target = NewTarget();
+        var next = new ImportExportViewModel(
+            target,
+            new FakeExportSource(target.Favorites),
+            new ImportExportOpening(new HashSet<SettingsItemType>(), ImportExportTab.Import),
+            Files(CreateFile),
+            reloaded
+        );
+        Assert.False(next.BackUpFirst);
     }
 
     [Fact]
-    public async Task ImportWithReplace_BackupThatFailsPartway_LeavesTheOlderBackupAsItWas_AndNoTemporaryFile()
+    public void Import_BackupThatCannotBeBuilt_ImportsNothing_AndSaysWhy()
     {
-        (ImportExportViewModel vm, InMemorySettingsImportTarget target) = OpenMacrosReplaceLayoutsMerge(FailAfterFirstWrite);
-        string backup = WriteBundle("backup" + SettingsBundleFile.Extension, [SettingsBundleItems.Macros([Macro("KEEP", "X")])]);
-        byte[] older = File.ReadAllBytes(backup);
-        string[] filesBefore = Directory.GetFiles(_root);
+        InMemorySettingsImportTarget target = NewTarget();
+        target.ReplaceMacros([Macro("OLD", "X")]);
+        string path = WriteBundle("macros.yaat-settings.zip", [SettingsBundleItems.Macros([Macro("IMP", "CTO")])]);
+        ImportExportViewModel vm = NewHub(target, new FakeExportSource(null), [], ImportExportTab.Import, CreateFile);
+        vm.OpenImportFile(path);
 
-        await vm.ImportAsync(_ => Task.FromResult(ReplaceBackupChoice.BackUp), _ => Task.FromResult<string?>(backup));
+        vm.Import();
 
-        Assert.Equal(older, File.ReadAllBytes(backup));
-        Assert.Equal(filesBefore.Order(), Directory.GetFiles(_root).Order());
+        Assert.Equal("Backup failed: The test export source has no Favorites. Nothing was imported.", vm.ImportError);
         Assert.Equal(["OLD"], target.MacroList.Select(m => m.Name));
         Assert.Empty(vm.ImportResults);
         Assert.Empty(vm.AppliedItemTypes);
-        Assert.NotNull(vm.ImportError);
-        Assert.StartsWith($"Could not write the backup 'backup{SettingsBundleFile.Extension}'", vm.ImportError);
-        Assert.EndsWith("Nothing was imported.", vm.ImportError);
+        Assert.Null(vm.BackupResult);
+        Assert.False(Directory.Exists(BackupsFolder) && (Directory.GetFiles(BackupsFolder).Length > 0));
+    }
+
+    [Fact]
+    public void Import_BackedUpThenTheFirstItemFails_StillSaysWhereTheBackupWent()
+    {
+        var target = new ThrowingLayoutsTarget(NewTarget());
+        string path = WriteBundle("layouts.yaat-settings.zip", [SettingsBundleItems.Layouts([new SavedLayout { Name = "NEWLAYOUT" }])]);
+        ImportExportViewModel vm = NewHub(target, new FakeExportSource(target.Favorites), [], ImportExportTab.Import, CreateFile);
+        vm.OpenImportFile(path);
+
+        vm.Import();
+
+        Assert.Empty(vm.ImportResults);
+        Assert.False(vm.HasImportResults);
+        Assert.StartsWith("Import failed: layouts are read-only", vm.ImportError, StringComparison.Ordinal);
+        Assert.Equal($"Backed up all settings to {BackupName}{SettingsBundleFile.Extension}.", vm.BackupResult);
+        Assert.True(vm.HasBackupResult);
+        Assert.Single(Directory.GetFiles(BackupsFolder));
+    }
+
+    [Fact]
+    public void EffectText_FavoritesReplaceWhenYouHaveNoFavorites_SaysThereIsNoneToDelete()
+    {
+        ImportExportViewModel vm = NewViewModel(NewTarget(), [], ImportExportTab.Import);
+        vm.OpenImportFile(WriteFavoritesFile());
+        ImportItemRow favorites = vm.ImportItems.Single(r => r.ItemType == SettingsItemType.Favorites);
+
+        favorites.Mode = SettingsImportMode.Replace;
+
+        Assert.StartsWith("Adds the file's ", favorites.EffectText, StringComparison.Ordinal);
+        Assert.EndsWith("; you have none to delete.", favorites.EffectText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void EffectText_FavoritesReplaceWithFavoritesInGlobal_CountsTheGlobalSet()
+    {
+        InMemorySettingsImportTarget target = NewTarget();
+        var favorite = new FavoriteCommand { Label = "CTO", CommandText = "CTO" };
+        target.Favorites.SaveFavorite(favorite);
+        target.Favorites.AddToSet(target.Favorites.GlobalSet.Id, favorite.Id);
+        ImportExportViewModel vm = NewViewModel(target, [], ImportExportTab.Import);
+        vm.OpenImportFile(WriteFavoritesFile());
+        ImportItemRow favorites = vm.ImportItems.Single(r => r.ItemType == SettingsItemType.Favorites);
+
+        favorites.Mode = SettingsImportMode.Replace;
+
+        Assert.StartsWith("Deletes your 1 favorite set, then adds the file's ", favorites.EffectText, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(SettingsItemType.Macros, SettingsImportMode.Merge, 6, 14, 0, "Adds the file's 6 macros to yours.")]
+    [InlineData(SettingsItemType.Macros, SettingsImportMode.Merge, 1, 14, 1, "Adds the file's 1 macro to yours; 1 name clashes, listed below.")]
+    [InlineData(SettingsItemType.Macros, SettingsImportMode.Merge, 6, 14, 2, "Adds the file's 6 macros to yours; 2 names clash, listed below.")]
+    [InlineData(SettingsItemType.Macros, SettingsImportMode.Replace, 6, 14, 0, "Deletes your 14 macros, then adds the file's 6.")]
+    [InlineData(SettingsItemType.Macros, SettingsImportMode.Replace, 1, 1, 0, "Deletes your 1 macro, then adds the file's 1.")]
+    [InlineData(SettingsItemType.Macros, SettingsImportMode.Replace, 6, 0, 0, "Adds the file's 6 macros; you have none to delete.")]
+    [InlineData(SettingsItemType.Layouts, SettingsImportMode.Merge, 1, 3, 0, "Adds the file's 1 layout to yours.")]
+    [InlineData(SettingsItemType.Layouts, SettingsImportMode.Merge, 4, 3, 3, "Adds the file's 4 layouts to yours; 3 names clash, listed below.")]
+    [InlineData(SettingsItemType.Layouts, SettingsImportMode.Replace, 2, 1, 0, "Deletes your 1 layout, then adds the file's 2.")]
+    [InlineData(SettingsItemType.Layouts, SettingsImportMode.Replace, 1, 0, 0, "Adds the file's 1 layout; you have none to delete.")]
+    [InlineData(SettingsItemType.Favorites, SettingsImportMode.Merge, 2, 4, 0, "Adds the file's 2 favorite sets to yours.")]
+    [InlineData(
+        SettingsItemType.Favorites,
+        SettingsImportMode.Merge,
+        1,
+        4,
+        1,
+        "Adds the file's 1 favorite set to yours; 1 name clashes, listed below."
+    )]
+    [InlineData(SettingsItemType.Favorites, SettingsImportMode.Replace, 3, 5, 0, "Deletes your 5 favorite sets, then adds the file's 3.")]
+    [InlineData(SettingsItemType.Favorites, SettingsImportMode.Replace, 1, 0, 0, "Adds the file's 1 favorite set; you have none to delete.")]
+    [InlineData(
+        SettingsItemType.Verbs,
+        SettingsImportMode.Replace,
+        1,
+        0,
+        0,
+        "Changes only the 1 command the file lists; every other command keeps its verbs."
+    )]
+    [InlineData(
+        SettingsItemType.Verbs,
+        SettingsImportMode.Replace,
+        12,
+        0,
+        0,
+        "Changes only the 12 commands the file lists; every other command keeps its verbs."
+    )]
+    [InlineData(
+        SettingsItemType.Preferences,
+        SettingsImportMode.Replace,
+        1,
+        0,
+        0,
+        "Sets the 1 setting the file carries; every other setting stays as it is."
+    )]
+    [InlineData(
+        SettingsItemType.Preferences,
+        SettingsImportMode.Replace,
+        40,
+        0,
+        0,
+        "Sets the 40 settings the file carries; every other setting stays as it is."
+    )]
+    [InlineData(SettingsItemType.GridLayout, SettingsImportMode.Replace, 1, 0, 0, "Replaces your Aircraft list columns with the file's.")]
+    public void Effect_SaysWhatTheImportDoesToTheItem(
+        SettingsItemType itemType,
+        SettingsImportMode mode,
+        int fileCount,
+        int currentCount,
+        int clashCount,
+        string expected
+    ) => Assert.Equal(expected, ImportItemRow.Effect(itemType, mode, fileCount, currentCount, clashCount));
+
+    [Fact]
+    public void EffectText_MacrosSwitchedFromMergeToReplace_SaysWhatReplaceDeletes()
+    {
+        (ImportExportViewModel vm, _) = OpenMacrosReplaceLayoutsMerge();
+        ImportItemRow macros = vm.ImportItems.Single(r => r.ItemType == SettingsItemType.Macros);
+        macros.Mode = SettingsImportMode.Merge;
+        Assert.Equal("Adds the file's 1 macro to yours.", macros.EffectText);
+
+        macros.Mode = SettingsImportMode.Replace;
+
+        Assert.Equal("Deletes your 1 macro, then adds the file's 1.", macros.EffectText);
     }
 
     [Fact]
     public void Export_ThatFailsPartway_LeavesTheExistingFileAsItWas_AndNoTemporaryFile()
     {
-        var vm = new ImportExportViewModel(
+        ImportExportViewModel vm = NewHub(
             NewTarget(),
             new FakeExportSource(null),
-            new HashSet<SettingsItemType> { SettingsItemType.Macros },
+            [SettingsItemType.Macros],
             ImportExportTab.Export,
-            WrittenBy,
             FailAfterFirstWrite
         );
         SettingsExportPlan plan = Assert.IsType<SettingsExportPlan>(vm.PrepareExport());
@@ -657,26 +785,6 @@ public class ImportExportViewModelTests : IDisposable
         Assert.Equal(existing, File.ReadAllBytes(path));
         Assert.Equal(filesBefore.Order(), Directory.GetFiles(_root).Order());
         Assert.StartsWith($"Could not write '{plan.SuggestedFileName}'", vm.ExportStatus);
-    }
-
-    [Fact]
-    public async Task ImportWithMergeOnly_AsksNothing_AndImports()
-    {
-        (ImportExportViewModel vm, InMemorySettingsImportTarget target) = OpenMacrosReplaceLayoutsMerge();
-        vm.ImportItems.Single(r => r.ItemType == SettingsItemType.Macros).Mode = SettingsImportMode.Merge;
-        int asked = 0;
-
-        await vm.ImportAsync(
-            _ =>
-            {
-                asked++;
-                return Task.FromResult(ReplaceBackupChoice.Cancel);
-            },
-            _ => Task.FromResult<string?>(null)
-        );
-
-        Assert.Equal(0, asked);
-        Assert.Equal(["OLD", "IMP"], target.MacroList.Select(m => m.Name));
     }
 
     // A hub over a target holding macro OLD and layout OLDLAYOUT, with a file of macro IMP and layout NEWLAYOUT open:
@@ -693,14 +801,7 @@ public class ImportExportViewModelTests : IDisposable
             "replace.yaat-settings.zip",
             [SettingsBundleItems.Macros([Macro("IMP", "CTO")]), SettingsBundleItems.Layouts([new SavedLayout { Name = "NEWLAYOUT" }])]
         );
-        var vm = new ImportExportViewModel(
-            target,
-            new FakeExportSource(target.Favorites),
-            new HashSet<SettingsItemType>(),
-            ImportExportTab.Import,
-            WrittenBy,
-            createFile
-        );
+        ImportExportViewModel vm = NewHub(target, new FakeExportSource(target.Favorites), [], ImportExportTab.Import, createFile);
         vm.OpenImportFile(path);
         vm.ImportItems.Single(r => r.ItemType == SettingsItemType.Macros).Mode = SettingsImportMode.Replace;
         Assert.Equal(SettingsImportMode.Merge, vm.ImportItems.Single(r => r.ItemType == SettingsItemType.Layouts).Mode);
@@ -734,8 +835,26 @@ public class ImportExportViewModelTests : IDisposable
     }
 
     // The export source reads the target's favorites store, as the hub's live export source reads the store it imports into.
-    private static ImportExportViewModel NewViewModel(ISettingsImportTarget target, SettingsItemType[] preselected, ImportExportTab tab) =>
-        new(target, new FakeExportSource(target.Favorites), new HashSet<SettingsItemType>(preselected), tab, WrittenBy, CreateFile);
+    private ImportExportViewModel NewViewModel(ISettingsImportTarget target, SettingsItemType[] preselected, ImportExportTab tab) =>
+        NewHub(target, new FakeExportSource(target.Favorites), preselected, tab, CreateFile);
+
+    private ImportExportViewModel NewHub(
+        ISettingsImportTarget target,
+        ISettingsExportSource source,
+        SettingsItemType[] preselected,
+        ImportExportTab tab,
+        Func<string, Stream> createFile
+    ) => new(target, source, new ImportExportOpening(new HashSet<SettingsItemType>(preselected), tab), Files(createFile), _preferences);
+
+    private ImportExportFiles Files(Func<string, Stream> createFile) => new(WrittenBy, createFile, BackupsFolder, _clock);
+
+    // A favorites file holding the named set Ground with one favorite.
+    private string WriteFavoritesFile()
+    {
+        InMemorySettingsImportTarget source = NewTarget();
+        AddSet(source.Favorites, "Ground", "TAXI");
+        return WriteBundle("favorites.yaat-settings.zip", [SettingsBundleItems.Favorites(source.Favorites, [])]);
+    }
 
     private static Stream CreateFile(string path) => File.Open(path, FileMode.CreateNew);
 
@@ -787,11 +906,21 @@ public class ImportExportViewModelTests : IDisposable
                 SettingsItemType.Layouts => SettingsBundleItems.Layouts([new SavedLayout { Name = "GC" }]),
                 SettingsItemType.Preferences => SettingsBundleItems.Preferences(UserPreferences.CreateDefaults()),
                 SettingsItemType.Favorites when favorites is not null => SettingsBundleItems.Favorites(favorites, []),
+                SettingsItemType.Verbs => SettingsBundleItems.Verbs(CommandScheme.Default()),
+                SettingsItemType.GridLayout => SettingsBundleItems.GridLayout(new SavedGridLayout()),
                 _ => throw new NotSupportedException($"The test export source has no {itemType}."),
             };
 
         public SettingsBundleEntry ExportFavoriteSet(string setId) =>
             SettingsBundleItems.FavoriteSet(favorites ?? throw new NotSupportedException("The test export source has no favorites."), setId);
+    }
+
+    // A clock stopped at one instant, in a UTC local time zone, so the backup's name is the same on every machine.
+    private sealed class FixedClock(DateTimeOffset now) : TimeProvider
+    {
+        public override TimeZoneInfo LocalTimeZone => TimeZoneInfo.Utc;
+
+        public override DateTimeOffset GetUtcNow() => now;
     }
 
     // Writes the first block to the file and flushes it, then throws IOException on that and every later write.

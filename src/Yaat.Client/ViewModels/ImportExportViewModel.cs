@@ -1,7 +1,9 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using Yaat.Client.Logging;
 using Yaat.Client.Services;
@@ -15,24 +17,26 @@ public enum ImportExportTab
     Import,
 }
 
-/// <summary>The answers to the backup question an import with a Replace ticked asks first, in the order its buttons show.</summary>
-public enum ReplaceBackupChoice
-{
-    /// <summary>Save the current values of the Replace-ticked items, then import.</summary>
-    BackUp,
-
-    /// <summary>Import at once.</summary>
-    ReplaceWithoutBackup,
-
-    /// <summary>Import nothing.</summary>
-    Cancel,
-}
-
 /// <summary>An export ready to write: the entries, the extension the file carries, and the name the save picker suggests.</summary>
 /// <param name="Entries">One entry per ticked item type, in item type order.</param>
 /// <param name="Extension">The file's extension, dot included (<see cref="SettingsBundleFile.ExportExtension"/>).</param>
 /// <param name="SuggestedFileName">The file name offered in the save picker.</param>
 public sealed record SettingsExportPlan(IReadOnlyList<SettingsBundleEntry> Entries, string Extension, string SuggestedFileName);
+
+/// <summary>How the hub opens.</summary>
+/// <param name="Preselected">The item types ticked on the Export tab, and in an import preview when not empty.</param>
+/// <param name="InitialTab">The tab shown first.</param>
+public sealed record ImportExportOpening(IReadOnlySet<SettingsItemType> Preselected, ImportExportTab InitialTab);
+
+/// <summary>What the hub writes exports and backups with, and where a backup goes.</summary>
+/// <param name="WrittenBy">The client version recorded in a bundle's manifest.</param>
+/// <param name="CreateFile">
+/// Creates the temporary file an export or backup is written to before it is moved into place; it must fail when the file
+/// already exists (<c>File.Open(path, FileMode.CreateNew)</c>).
+/// </param>
+/// <param name="BackupsFolder">The folder the backup taken before an import is written to; created when missing.</param>
+/// <param name="Clock">The clock whose local time names the backup.</param>
+public sealed record ImportExportFiles(string WrittenBy, Func<string, Stream> CreateFile, string BackupsFolder, TimeProvider Clock);
 
 /// <summary>One line of the result after an import.</summary>
 /// <param name="Result">What the item's import changed.</param>
@@ -43,13 +47,13 @@ public sealed record ImportSummaryRow(SettingsImportResult Result, string Text);
 /// The Import / Export hub. Export ticks item types and writes them through <see cref="SettingsBundleFile.WriteExport"/>:
 /// one item as its own single-item file, two or more as a <c>.yaat-settings.zip</c> bundle. Import reads a file, lists
 /// each entry with Merge or Replace (Merge only where <see cref="SettingsBundleFormats.SupportsMerge"/>), lists the Merge
-/// clashes to resolve, and applies the ticked entries to the import target in one go. File pickers stay in the window,
-/// so tests drive this with paths.
+/// clashes to resolve, and applies the ticked entries to the import target in one go. While <see cref="BackUpFirst"/> is
+/// ticked, an import first saves every setting to a <c>.yaat-settings.zip</c> in the backups folder. File pickers stay in
+/// the window, so tests drive this with paths.
 /// </summary>
 public partial class ImportExportViewModel : ObservableObject
 {
-    /// <summary>The name the save picker suggests for the backup taken before a Replace.</summary>
-    public const string BackupFileName = "settings-backup" + SettingsBundleFile.Extension;
+    private const string BackupNamePrefix = "settings-backup-";
 
     private static readonly ILogger Log = AppLog.CreateLogger<ImportExportViewModel>();
 
@@ -58,8 +62,18 @@ public partial class ImportExportViewModel : ObservableObject
     private readonly IReadOnlySet<SettingsItemType> _preselected;
     private readonly string _writtenBy;
     private readonly Func<string, Stream> _createFile;
+    private readonly UserPreferences _preferences;
+    private readonly string _backupsFolder;
+    private readonly TimeProvider _clock;
     private readonly HashSet<SettingsItemType> _appliedItemTypes = [];
     private bool _imported;
+
+    [ObservableProperty]
+    private bool _backUpFirst;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasBackupResult))]
+    private string? _backupResult;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(SelectedTab))]
@@ -92,32 +106,31 @@ public partial class ImportExportViewModel : ObservableObject
     /// <summary>Builds the hub.</summary>
     /// <param name="target">Where an import reads the current state from and writes to.</param>
     /// <param name="source">Where an export reads each item from.</param>
-    /// <param name="preselected">The item types ticked on the Export tab, and in an import preview when not empty.</param>
-    /// <param name="initialTab">The tab shown first.</param>
-    /// <param name="writtenBy">The client version recorded in a bundle's manifest.</param>
-    /// <param name="createFile">
-    /// Creates the temporary file an export or backup is written to before it is moved into place; it must fail when the
-    /// file already exists (<c>File.Open(path, FileMode.CreateNew)</c>).
-    /// </param>
+    /// <param name="opening">The item types ticked and the tab shown first.</param>
+    /// <param name="files">What exports and backups are written with, and where backups go.</param>
+    /// <param name="preferences">Holds whether an import backs up first (<see cref="UserPreferences.BackUpSettingsBeforeImport"/>).</param>
     public ImportExportViewModel(
         ISettingsImportTarget target,
         ISettingsExportSource source,
-        IReadOnlySet<SettingsItemType> preselected,
-        ImportExportTab initialTab,
-        string writtenBy,
-        Func<string, Stream> createFile
+        ImportExportOpening opening,
+        ImportExportFiles files,
+        UserPreferences preferences
     )
     {
         _target = target;
         _source = source;
-        _preselected = preselected;
-        _writtenBy = writtenBy;
-        _createFile = createFile;
-        _selectedTabIndex = (int)initialTab;
+        _preselected = opening.Preselected;
+        _writtenBy = files.WrittenBy;
+        _createFile = files.CreateFile;
+        _preferences = preferences;
+        _backupsFolder = files.BackupsFolder;
+        _clock = files.Clock;
+        _backUpFirst = preferences.BackUpSettingsBeforeImport;
+        _selectedTabIndex = (int)opening.InitialTab;
 
         foreach (SettingsItemType itemType in Enum.GetValues<SettingsItemType>())
         {
-            var row = new ExportItemRow(itemType, preselected.Contains(itemType), DescribeExport(itemType, source));
+            var row = new ExportItemRow(itemType, _preselected.Contains(itemType), DescribeExport(itemType, source));
             row.PropertyChanged += (_, _) => RefreshExport();
             ExportItems.Add(row);
         }
@@ -147,6 +160,8 @@ public partial class ImportExportViewModel : ObservableObject
     public string ChooseFileLabel => HasImportFile ? "Choose another file…" : "Choose a file…";
 
     public bool HasImportItems => ImportItems.Count > 0;
+
+    public bool HasBackupResult => BackupResult is not null;
 
     /// <summary>
     /// Builds the entries of the ticked items; null, with the reason in <see cref="ExportStatus"/>, when nothing is ticked
@@ -212,6 +227,7 @@ public partial class ImportExportViewModel : ObservableObject
         ImportResults.Clear();
         HasImportResults = false;
         ImportError = null;
+        BackupResult = null;
         _imported = false;
         ImportFileName = Path.GetFileName(path);
 
@@ -235,13 +251,27 @@ public partial class ImportExportViewModel : ObservableObject
 
     /// <summary>
     /// Applies the ticked entries to the import target and lists what each changed; does nothing while
-    /// <see cref="CanImport"/> is false. A failure stops the import; the items applied before it stay applied and listed.
+    /// <see cref="CanImport"/> is false. While <see cref="BackUpFirst"/> is ticked, every setting is first saved to a new
+    /// backup in the backups folder, and nothing is imported unless it was written. A failure stops the import; the items
+    /// applied before it stay applied and listed.
     /// </summary>
     public void Import()
     {
         if (!CanImport)
         {
             return;
+        }
+
+        ImportError = null;
+        BackupResult = null;
+        if (BackUpFirst)
+        {
+            if (BackUp() is not { } backupFileName)
+            {
+                return;
+            }
+
+            BackupResult = $"Backed up all settings to {backupFileName}.";
         }
 
         List<SettingsImportPlan> plans = [.. ImportItems.Where(r => r.IsSelected && (r.Plan is not null)).Select(r => r.Plan!)];
@@ -273,68 +303,60 @@ public partial class ImportExportViewModel : ObservableObject
         RefreshFavoritesChoices();
     }
 
-    /// <summary>
-    /// Imports as <see cref="Import"/> does, first offering a backup when a ticked item is set to Replace: asks
-    /// <paramref name="askBackup"/> with <see cref="BackupMessage"/>; on <see cref="ReplaceBackupChoice.BackUp"/> asks
-    /// <paramref name="chooseBackupPath"/> where to save a <c>.yaat-settings.zip</c> of the current values of the
-    /// Replace-ticked items (<see cref="PrepareBackup"/>) and imports once it is written. Cancel, a cancelled save and a
-    /// backup that cannot be written import nothing. An import with no Replace ticked asks nothing.
-    /// </summary>
-    /// <param name="askBackup">Shows the question and returns the user's choice.</param>
-    /// <param name="chooseBackupPath">Shows the save picker for the backup and returns the path, or null when cancelled.</param>
-    public async Task ImportAsync(Func<string, Task<ReplaceBackupChoice>> askBackup, Func<SettingsExportPlan, Task<string?>> chooseBackupPath)
+    /// <summary>Opens the backups folder in the system's file manager, creating it when missing.</summary>
+    [RelayCommand]
+    private void OpenBackupsFolder()
     {
-        if (!CanImport)
+        try
         {
-            return;
+            Directory.CreateDirectory(_backupsFolder);
+            Process.Start(new ProcessStartInfo { FileName = _backupsFolder, UseShellExecute = true });
         }
-
-        ImportError = null;
-        IReadOnlyList<SettingsItemType> replacing = ReplaceTickedItemTypes;
-        if (replacing.Count > 0)
+        catch (Exception ex)
         {
-            ReplaceBackupChoice choice = await askBackup(BackupMessage(replacing));
-            if (choice == ReplaceBackupChoice.Cancel)
-            {
-                return;
-            }
-
-            if ((choice == ReplaceBackupChoice.BackUp) && !await BackUpAsync(replacing, chooseBackupPath))
-            {
-                return;
-            }
+            Log.LogError(ex, "Opening the settings backups folder {Path} failed", _backupsFolder);
         }
-
-        Import();
     }
 
-    // True once the backup is written; false when the save is cancelled or the backup cannot be built or written.
-    private async Task<bool> BackUpAsync(IReadOnlyList<SettingsItemType> itemTypes, Func<SettingsExportPlan, Task<string?>> chooseBackupPath)
-    {
-        if (PrepareBackup(itemTypes) is not { } plan)
-        {
-            return false;
-        }
+    partial void OnBackUpFirstChanged(bool value) => _preferences.SetBackUpSettingsBeforeImport(value);
 
-        string? path = await chooseBackupPath(plan);
-        if (path is null)
+    // Saves every setting as the export source holds it now to a new file in the backups folder. Returns the file's name
+    // once written; null, with the reason in ImportError, when the backup cannot be built or written.
+    private string? BackUp()
+    {
+        string path = NextBackupPath();
+        string fileName = Path.GetFileName(path);
+        if (PrepareBackup(fileName) is not { } plan)
         {
-            Log.LogInformation("Backup before replacing {Items} cancelled; nothing imported", string.Join(", ", itemTypes));
-            return false;
+            return null;
         }
 
         try
         {
+            Directory.CreateDirectory(_backupsFolder);
             WriteAtomically(path, stream => SettingsBundleFile.Write(plan.Entries, _writtenBy, stream));
-            Log.LogInformation("Backed up settings ({Items}) to {Path} before replacing them", string.Join(", ", itemTypes), path);
-            return true;
+            Log.LogInformation("Backed up all settings to {Path} before importing {File}", path, ImportFileName);
+            return fileName;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             Log.LogError(ex, "Writing the settings backup to {Path} failed", path);
-            ImportError = $"Could not write the backup '{Path.GetFileName(path)}': {ex.Message}. Nothing was imported.";
-            return false;
+            ImportError = $"Could not write the backup '{fileName}': {ex.Message.TrimEnd('.')}. Nothing was imported.";
+            return null;
         }
+    }
+
+    // settings-backup-<yyyyMMdd-HHmmss>.yaat-settings.zip in the clock's local time, numbered -2, -3, … while the name is taken.
+    private string NextBackupPath()
+    {
+        string stem = BackupNamePrefix + _clock.GetLocalNow().ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture);
+        string path = Path.Combine(_backupsFolder, stem + SettingsBundleFile.Extension);
+        for (int number = 2; File.Exists(path); number++)
+        {
+            path = Path.Combine(_backupsFolder, $"{stem}-{number.ToString(CultureInfo.InvariantCulture)}{SettingsBundleFile.Extension}");
+        }
+
+        return path;
     }
 
     // Writes to a temporary file in the path's folder and moves it over the path only once it is complete, so a failure
@@ -377,38 +399,22 @@ public partial class ImportExportViewModel : ObservableObject
         }
     }
 
-    /// <summary>The ticked item types set to Replace, in the order the file lists them.</summary>
-    public IReadOnlyList<SettingsItemType> ReplaceTickedItemTypes =>
-        [
-            .. ImportItems
-                .Where(r => r.IsSelected && (r.Plan is not null) && (r.Mode == SettingsImportMode.Replace))
-                .Select(r => r.ItemType!.Value)
-                .Distinct(),
-        ];
-
-    /// <summary>The backup question for the item types, e.g. "Replace removes your current Macros and Layouts. Save a copy of them first?".</summary>
-    public static string BackupMessage(IReadOnlyList<SettingsItemType> itemTypes)
-    {
-        List<string> names = [.. itemTypes.Select(ImportExportItemText.Title)];
-        string items = (names.Count <= 1) ? string.Join("", names) : $"{string.Join(", ", names.Take(names.Count - 1))} and {names[^1]}";
-        return $"Replace removes your current {items}. Save a copy of them first?";
-    }
-
     /// <summary>
-    /// The backup of the item types as the export source holds them now, always as a <c>.yaat-settings.zip</c> bundle;
+    /// The backup of every item type as the export source holds it now, always as a <c>.yaat-settings.zip</c> bundle;
     /// null, with the reason in <see cref="ImportError"/>, when an item cannot be read.
     /// </summary>
-    public SettingsExportPlan? PrepareBackup(IReadOnlyList<SettingsItemType> itemTypes)
+    /// <param name="fileName">The backup's file name.</param>
+    public SettingsExportPlan? PrepareBackup(string fileName)
     {
         try
         {
-            List<SettingsBundleEntry> entries = [.. itemTypes.Select(_source.Export)];
-            return new SettingsExportPlan(entries, SettingsBundleFile.Extension, BackupFileName);
+            List<SettingsBundleEntry> entries = [.. Enum.GetValues<SettingsItemType>().Select(_source.Export)];
+            return new SettingsExportPlan(entries, SettingsBundleFile.Extension, fileName);
         }
         catch (Exception ex)
         {
             Log.LogError(ex, "Building the settings backup failed");
-            ImportError = $"Backup failed: {ex.Message}. Nothing was imported.";
+            ImportError = $"Backup failed: {ex.Message.TrimEnd('.')}. Nothing was imported.";
             return null;
         }
     }
@@ -617,6 +623,7 @@ public partial class ImportItemRow : ObservableObject
     private string? _error;
     private string _title;
     private string _clashSummary;
+    private string _effectText = "";
     private SettingsImportPlan? _plan;
 
     private ImportItemRow(SettingsBundleEntry? entry, ISettingsImportTarget? target, string skippedTitle, string skippedReason)
@@ -671,6 +678,16 @@ public partial class ImportItemRow : ObservableObject
     {
         get => _clashSummary;
         private set => SetProperty(ref _clashSummary, value);
+    }
+
+    /// <summary>
+    /// What importing the entry under <see cref="Mode"/> does to the user's own items (<see cref="Effect"/>); empty when it
+    /// did not plan.
+    /// </summary>
+    public string EffectText
+    {
+        get => _effectText;
+        private set => SetProperty(ref _effectText, value);
     }
 
     /// <summary>The modes offered: Merge and Replace where the item supports Merge, Replace alone otherwise, none when skipped.</summary>
@@ -771,6 +788,10 @@ public partial class ImportItemRow : ObservableObject
                 ? $"{ImportExportItemText.Title(entry.ItemType)} ({Count(plan)})"
                 : ImportExportItemText.Title(entry.ItemType);
         ClashSummary = Describe(Plan);
+        EffectText =
+            (Plan is { } planned)
+                ? Effect(entry.ItemType, Mode, planned.IncomingNames.Count, CurrentCount(entry.ItemType, target), planned.Clashes.Count)
+                : "";
         OnPropertyChanged(nameof(IsSelectable));
         OnPropertyChanged(nameof(CanChooseMode));
         OnPropertyChanged(nameof(RowOpacity));
@@ -778,6 +799,63 @@ public partial class ImportItemRow : ObservableObject
         OnPropertyChanged(nameof(ShowClashes));
         Validate();
     }
+
+    /// <summary>
+    /// The line under a row saying what the import does to the user's own items, e.g. "Adds the file's 6 macros to yours;
+    /// 2 names clash, listed below." or "Deletes your 14 macros, then adds the file's 6.".
+    /// </summary>
+    /// <param name="itemType">The entry's item type.</param>
+    /// <param name="mode">The mode the entry is imported by.</param>
+    /// <param name="fileCount">How many named items the file carries (macros, layouts, favorite sets, commands, settings).</param>
+    /// <param name="currentCount">How many the user has now; read only for macros, layouts and favorites under Replace.</param>
+    /// <param name="clashCount">How many names clash under Merge.</param>
+    public static string Effect(SettingsItemType itemType, SettingsImportMode mode, int fileCount, int currentCount, int clashCount)
+    {
+        if (itemType == SettingsItemType.GridLayout)
+        {
+            return "Replaces your Aircraft list columns with the file's.";
+        }
+
+        string incoming = Counted(fileCount, itemType);
+        string files = fileCount.ToString(CultureInfo.InvariantCulture);
+        string clashes = clashCount.ToString(CultureInfo.InvariantCulture);
+        bool replace = mode == SettingsImportMode.Replace;
+        return itemType switch
+        {
+            SettingsItemType.Verbs => $"Changes only the {incoming} the file lists; every other command keeps its verbs.",
+            SettingsItemType.Preferences => $"Sets the {incoming} the file carries; every other setting stays as it is.",
+            _ when replace && (currentCount > 0) => $"Deletes your {Counted(currentCount, itemType)}, then adds the file's {files}.",
+            _ when replace => $"Adds the file's {incoming}; you have none to delete.",
+            _ when clashCount == 0 => $"Adds the file's {incoming} to yours.",
+            _ when clashCount == 1 => $"Adds the file's {incoming} to yours; 1 name clashes, listed below.",
+            _ => $"Adds the file's {incoming} to yours; {clashes} names clash, listed below.",
+        };
+    }
+
+    // "1 macro", "6 macros": the count with the item's noun, singular for one.
+    private static string Counted(int count, SettingsItemType itemType)
+    {
+        (string one, string many) = itemType switch
+        {
+            SettingsItemType.Macros => ("macro", "macros"),
+            SettingsItemType.Layouts => ("layout", "layouts"),
+            SettingsItemType.Favorites => ("favorite set", "favorite sets"),
+            SettingsItemType.Verbs => ("command", "commands"),
+            SettingsItemType.Preferences => ("setting", "settings"),
+            _ => throw new ArgumentOutOfRangeException(nameof(itemType), itemType, "The item type has no counted noun"),
+        };
+        return $"{count.ToString(CultureInfo.InvariantCulture)} {((count == 1) ? one : many)}";
+    }
+
+    // How many items of the type the user has now; favorites count the sets that hold at least one favorite.
+    private static int CurrentCount(SettingsItemType itemType, ISettingsImportTarget target) =>
+        itemType switch
+        {
+            SettingsItemType.Macros => target.Macros.Count,
+            SettingsItemType.Layouts => target.Layouts.Count,
+            SettingsItemType.Favorites => target.Favorites.OrderedSets.Count(s => s.FavoriteIds.Count > 0),
+            _ => 0,
+        };
 
     private static string Count(SettingsImportPlan plan) =>
         (plan.ItemType == SettingsItemType.Favorites)

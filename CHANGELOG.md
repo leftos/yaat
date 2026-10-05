@@ -12,6 +12,7 @@
 - Settings › Speech has a Speed slider for the solo pilot voice, 0.75× to 1.5×; pilots now speak at 1.1× by default.
 - Settings › Scenario defaults sets the solo parking call-up interval and arrival generator rate for new rooms, and lists the settings only the room changes.
 - Tools › Import / Export… saves or loads your settings, macros, verbs, favorites, columns and layouts in one file; each feature's Import and Export buttons open it.
+- Import / Export backs up all your settings to YAAT's backups folder before each import, and says what each item's import will change.
 
 ### Changed
 

@@ -169,6 +169,7 @@ public sealed partial class UserPreferences
         ["loadedFavoriteSetNames"] = "legacy favorites, migrated into the favorites store",
         ["showFavoritesBar"] = "favorites bar state, carried by layouts",
         ["isFavoritesPanelOpen"] = "favorites panel state, carried by layouts",
+        ["backUpSettingsBeforeImport"] = "the Import / Export hub's own checkbox, a local workflow choice",
         ["favoritePanelColumns"] = "favorites panel state, not a Settings section field",
         ["savedServers"] = "servers belong to this machine's user",
         ["lastUsedServerUrl"] = "servers belong to this machine's user",

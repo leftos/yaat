@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using Yaat.Client.Logging;
 using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
+using Yaat.Sim;
 
 namespace Yaat.Client.Views;
 
@@ -55,10 +56,9 @@ public partial class ImportExportWindow : Window
         _viewModel = new ImportExportViewModel(
             target,
             source,
-            preselected,
-            initialTab,
-            BuildInfo.Version,
-            path => File.Open(path, FileMode.CreateNew)
+            new ImportExportOpening(preselected, initialTab),
+            new ImportExportFiles(BuildInfo.Version, path => File.Open(path, FileMode.CreateNew), YaatPaths.Combine("backups"), TimeProvider.System),
+            preferences
         );
         DataContext = _viewModel;
         InitializeComponent();
@@ -146,28 +146,17 @@ public partial class ImportExportWindow : Window
         }
     }
 
-    // An import that replaces an item first offers to back up its current values (ImportExportViewModel.ImportAsync).
-    private async void OnImportClick(object? sender, RoutedEventArgs e)
+    // With "Back up all settings first" ticked, the import saves every setting to the backups folder first (ImportExportViewModel.Import).
+    private void OnImportClick(object? sender, RoutedEventArgs e)
     {
-        if ((_viewModel is not { } vm) || (_filePicker is not { } picker))
+        if (_viewModel is not { } vm)
         {
             return;
         }
 
         try
         {
-            await vm.ImportAsync(
-                message => ReplaceBackupDialog.AskAsync(this, message),
-                plan =>
-                    picker.SaveFileAsync(
-                        new SaveFileOptions(
-                            Title: "Back Up Settings",
-                            SuggestedFileName: plan.SuggestedFileName,
-                            Filters: [new FilePickerFilter("YAAT settings file", ["*" + plan.Extension])],
-                            DefaultExtension: plan.Extension.TrimStart('.')
-                        )
-                    )
-            );
+            vm.Import();
         }
         catch (Exception ex)
         {

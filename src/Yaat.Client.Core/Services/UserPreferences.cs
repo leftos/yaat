@@ -531,10 +531,16 @@ public sealed partial class UserPreferences
     /// <summary>When true, activating any YAAT window raises all YAAT windows above other apps (CRC-style group raise).</summary>
     public bool RaiseWindowsTogether => _data.RaiseWindowsTogether;
 
+    /// <summary>When true, the Import / Export hub saves every setting to a backup before each import.</summary>
+    public bool BackUpSettingsBeforeImport => _data.BackUpSettingsBeforeImport;
+
     /// <summary>When true, the scenario being run is published to Discord as the user's rich-presence status.</summary>
     public bool DiscordRichPresenceEnabled => _data.DiscordRichPresenceEnabled;
 
-    /// <summary>When true, the favorites bar is shown (in the main window when the Terminal is docked, in the Terminal window when it is popped out).</summary>
+    /// <summary>
+    /// When true, the favorites bar is shown (in the main window when the Terminal is docked, in the Terminal window when it
+    /// is popped out).
+    /// </summary>
     public bool ShowFavoritesBar => _data.ShowFavoritesBar;
 
     /// <summary>When true, the pop-out Favorites Panel window was open at last shutdown and is reopened on the next launch.</summary>
@@ -636,7 +642,10 @@ public sealed partial class UserPreferences
     public int StripsZoomPercent => _data.StripsZoomPercent;
     public int TdlsZoomPercent => _data.TdlsZoomPercent;
 
-    /// <summary>Split layout of the student strips tab ("None" / "SideBySide" / "Stacked"); the enum lives in Yaat.Client so this stays a string.</summary>
+    /// <summary>
+    /// Split layout of the student strips tab ("None" / "SideBySide" / "Stacked"); the enum lives in Yaat.Client so this
+    /// stays a string.
+    /// </summary>
     public string VStripsSplitMode => _data.VStripsSplitMode;
 
     /// <summary>Fraction of the split axis the first strips pane occupies.</summary>
@@ -1242,6 +1251,17 @@ public sealed partial class UserPreferences
         }
 
         _data.RaiseWindowsTogether = enabled;
+        Save();
+    }
+
+    public void SetBackUpSettingsBeforeImport(bool enabled)
+    {
+        if (_data.BackUpSettingsBeforeImport == enabled)
+        {
+            return;
+        }
+
+        _data.BackUpSettingsBeforeImport = enabled;
         Save();
     }
 
@@ -2045,6 +2065,7 @@ public sealed partial class UserPreferences
             FavoritesBarKey = GetFieldOr(obj, "favoritesBarKey", "Ctrl+Shift+F"),
             OpenSettingsKey = GetFieldOr(obj, "openSettingsKey", "Ctrl+OemComma"),
             RaiseWindowsTogether = GetFieldOr(obj, "raiseWindowsTogether", true),
+            BackUpSettingsBeforeImport = GetFieldOr(obj, "backUpSettingsBeforeImport", true),
             DiscordRichPresenceEnabled = GetFieldOr(obj, "discordRichPresenceEnabled", true),
             ShowFavoritesBar = GetFieldOr(obj, "showFavoritesBar", true),
             IsFavoritesPanelOpen = GetFieldOr(obj, "isFavoritesPanelOpen", false),
@@ -2433,6 +2454,7 @@ public sealed partial class UserPreferences
         public string FavoritesBarKey { get; set; } = "Ctrl+Shift+F";
         public string OpenSettingsKey { get; set; } = "Ctrl+OemComma";
         public bool RaiseWindowsTogether { get; set; } = true;
+        public bool BackUpSettingsBeforeImport { get; set; } = true;
         public bool DiscordRichPresenceEnabled { get; set; } = true;
         public bool ShowFavoritesBar { get; set; } = true;
         public bool IsFavoritesPanelOpen { get; set; }

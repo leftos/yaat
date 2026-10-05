@@ -106,7 +106,16 @@
               Foreground="{DynamicResource SubtleTextBrush}"
               VerticalAlignment="Center"
             />
-            <Button Grid.Column="1" Content="Import" x:Name="ImportButton" IsEnabled="{Binding CanImport}" Width="90" />
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="12">
+              <CheckBox
+                x:Name="BackUpFirstCheckBox"
+                Content="Back up all settings first"
+                ToolTip.Tip="Before importing, saves every setting to a .yaat-settings.zip in YAAT's backups folder."
+                IsChecked="{Binding BackUpFirst}"
+                VerticalAlignment="Center"
+              />
+              <Button Content="Import" x:Name="ImportButton" IsEnabled="{Binding CanImport}" Width="90" />
+            </StackPanel>
           </Grid>
 
           <ScrollViewer>
@@ -140,11 +149,17 @@
                               Grid.Column="3"
                               ItemsSource="{Binding Modes}"
                               SelectedItem="{Binding Mode}"
-                              IsEnabled="{Binding CanChooseMode}"
-                              IsVisible="{Binding IsSelectable}"
+                              IsVisible="{Binding CanChooseMode}"
                               HorizontalAlignment="Stretch"
                             />
                           </Grid>
+                          <TextBlock
+                            Text="{Binding EffectText}"
+                            IsVisible="{Binding IsSelectable}"
+                            Foreground="{DynamicResource SubtleTextBrush}"
+                            TextWrapping="Wrap"
+                            Margin="32,0,0,0"
+                          />
                           <TextBlock
                             Text="{Binding Error}"
                             IsVisible="{Binding HasError}"
@@ -218,6 +233,11 @@
                     </DataTemplate>
                   </ItemsControl.ItemTemplate>
                 </ItemsControl>
+              </StackPanel>
+
+              <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding HasBackupResult}">
+                <TextBlock x:Name="BackupResultText" Text="{Binding BackupResult}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                <Button x:Name="OpenBackupsFolderButton" Content="Open Folder" Command="{Binding OpenBackupsFolderCommand}" />
               </StackPanel>
             </StackPanel>
           </ScrollViewer>

@@ -40,13 +40,13 @@ A modal window with a sidebar of fifteen sections in six groups, a "Reset sectio
 
 All pickers go through `FilePickerFactory` / `IFilePickerService`.
 
-**Done by the hub (YAAT-297).** Every per-feature file flow below is replaced by the one Import / Export window (`ImportExportWindow`, `ImportExportViewModel`): the per-feature buttons open it with their item preselected, and Tools › Import / Export… and Settings › General › Import / Export… open it with nothing preselected. Merge or Replace is per item (Merge for macros, favorites and layouts), clashes are listed with Skip, Overwrite or Rename, a Replace first offers "Back Up Before Replacing?", and single-item exports keep the extensions below. Imports opened inside Settings stage until Apply or OK (`SettingsViewModelImportTarget`); the others apply at once. The rows record the flows the hub replaced.
+**Done by the hub (YAAT-297).** Every per-feature file flow below is replaced by the one Import / Export window (`ImportExportWindow`, `ImportExportViewModel`): the per-feature buttons open it with their item preselected, and Tools › Import / Export… and Settings › General › Import / Export… open it with nothing preselected. Merge or Replace is per item (Merge for macros, favorites and layouts; the other items only replace and show no mode choice), each item shows a line saying what the chosen mode does, clashes are listed with Skip, Overwrite or Rename, and single-item exports keep the extensions below. With "Back up all settings first" ticked (default on, remembered in the unbundled `backUpSettingsBeforeImport` preference), every import first writes all six items, as the hub's source holds them, to `backups/settings-backup-<yyyyMMdd-HHmmss>.yaat-settings.zip` in the YAAT data folder with no picker, and imports nothing if that fails. Imports opened inside Settings stage until Apply or OK (`SettingsViewModelImportTarget`); the others apply at once. The rows record the flows the hub replaced.
 
 | Data | Trigger | Format | Merge or replace | When applied | Code |
 |---|---|---|---|---|---|
 | Macros | Settings › Macros › Import… / Export… / Export Selected… → hub (done) | JSON `List<SavedMacro>`, `*.yaat-macros.json` | Merge or Replace; name clash → Skip, Overwrite or Rename in the hub | On Apply or OK | `SettingsWindow.axaml.cs` (`OpenImportExport`) |
 | Command verbs | Settings › Command verbs › Import… / Export… → hub (done) | `*.yaat-verbs.json` | Overlay: listed commands change, unknown skipped and reported in the hub's summary | On Apply or OK | `SettingsWindow.axaml.cs` (`OpenImportExport`) |
-| Favorites | Favorites panel header Import / Export → hub (done); the hub's favorites row exports all sets or one set | `*.yaat-favset.zip`, `*.yaat-favlibrary.zip`, single `.json` | Merge (by id; set clashes listed) or Replace, with the hub's backup offer | Immediately | `FavoritesBarView.axaml.cs` (`OpenImportExport`), `FavoritesBundleImport.cs`, `FavoriteExport.cs` |
+| Favorites | Favorites panel header Import / Export → hub (done); the hub's favorites row exports all sets or one set | `*.yaat-favset.zip`, `*.yaat-favlibrary.zip`, single `.json` | Merge (by id; set clashes listed) or Replace, after the hub's full backup when ticked | Immediately | `FavoritesBarView.axaml.cs` (`OpenImportExport`), `FavoritesBundleImport.cs`, `FavoriteExport.cs` |
 | Aircraft List layout | Column header right-click → Column Chooser → Import… / Export… → hub (done) | `*.yaat-grid-layout.json` | Replace | On the chooser's OK (other items imported there: immediately) | `ColumnChooserWindow.axaml.cs` (`OpenImportExport`) |
 | Layouts | Hub only (done) | In `*.yaat-settings.zip` | Merge or Replace | Per the hub's entry point | `SettingsBundleItems.cs` |
 | Preferences | Hub only (done) | In `*.yaat-settings.zip` | Replace (allowlisted keys) | Per the hub's entry point | `UserPreferences.Bundle.cs` |
@@ -78,7 +78,7 @@ No item has a hotkey.
 | 15 | Copy View Settings… | with a scenario; `CopyViewSettingsDialog` |
 | 16 | Window Profiles ▸ | Save Current as Profile…, Manage Profiles…, one item per profile |
 
-Every pop-out and editor window uses `WindowGeometryHelper`; the small modal dialogs (About, Column Chooser, Back Up Before Replacing?, Save Window Profile, airport picker, bug report, favorite set name, telemetry opt-in) do not.
+Every pop-out and editor window uses `WindowGeometryHelper`; the small modal dialogs (About, Column Chooser, Save Window Profile, airport picker, bug report, favorite set name, telemetry opt-in) do not.
 
 ## Duplication across surfaces
 

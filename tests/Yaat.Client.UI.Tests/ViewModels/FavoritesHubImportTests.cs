@@ -279,10 +279,14 @@ public class FavoritesHubImportTests : IDisposable
             var hub = new ImportExportViewModel(
                 target,
                 new SettingsViewModelExportSource(settings, vm.Preferences, target, selectedMacros: null),
-                new HashSet<SettingsItemType> { SettingsItemType.Favorites },
-                ImportExportTab.Export,
-                "test-version",
-                path => File.Open(path, FileMode.CreateNew)
+                new ImportExportOpening(new HashSet<SettingsItemType> { SettingsItemType.Favorites }, ImportExportTab.Export),
+                new ImportExportFiles(
+                    "test-version",
+                    path => File.Open(path, FileMode.CreateNew),
+                    Path.Combine(_root, "backups"),
+                    TimeProvider.System
+                ),
+                vm.Preferences
             );
             SettingsExportPlan plan = Assert.IsType<SettingsExportPlan>(hub.PrepareExport());
             SettingsBundleEntry favorites = Assert.Single(plan.Entries);
@@ -318,10 +322,14 @@ public class FavoritesHubImportTests : IDisposable
             var hub = new ImportExportViewModel(
                 target,
                 new SettingsViewModelExportSource(settings, vm.Preferences, target, selectedMacros: null),
-                new HashSet<SettingsItemType> { SettingsItemType.Favorites },
-                ImportExportTab.Export,
-                "test-version",
-                path => File.Open(path, FileMode.CreateNew)
+                new ImportExportOpening(new HashSet<SettingsItemType> { SettingsItemType.Favorites }, ImportExportTab.Export),
+                new ImportExportFiles(
+                    "test-version",
+                    path => File.Open(path, FileMode.CreateNew),
+                    Path.Combine(_root, "backups"),
+                    TimeProvider.System
+                ),
+                vm.Preferences
             );
             ExportItemRow favoritesRow = hub.ExportItems.Single(r => r.ItemType == SettingsItemType.Favorites);
             Assert.Equal(FavoritesExportChoice.AllSets, favoritesRow.FavoritesChoice);
@@ -390,10 +398,14 @@ public class FavoritesHubImportTests : IDisposable
         var hub = new ImportExportViewModel(
             target,
             new UserPreferencesExportSource(vm.Preferences, vm.FavoriteStore),
-            new HashSet<SettingsItemType>(),
-            ImportExportTab.Import,
-            "test-version",
-            path => File.Open(path, FileMode.CreateNew)
+            new ImportExportOpening(new HashSet<SettingsItemType>(), ImportExportTab.Import),
+            new ImportExportFiles(
+                "test-version",
+                tempPath => File.Open(tempPath, FileMode.CreateNew),
+                Path.Combine(Path.GetDirectoryName(path)!, "backups"),
+                TimeProvider.System
+            ),
+            vm.Preferences
         );
         hub.OpenImportFile(path);
         ImportItemRow row = hub.ImportItems.Single(r => r.ItemType == SettingsItemType.Favorites);
