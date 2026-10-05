@@ -365,6 +365,13 @@ A direct connection that also negotiated first (TowerCab 3D): it keeps its negot
 A session setting with no default in Settings › Scenario defaults: it belongs to the room, and any RPO in it changes it only in the session flyout or on its own button (live traffic; releases). Scenario defaults lists them in its "Room only" card (USER_GUIDE.md "Scenario defaults").
 _Avoid_: flyout-only setting (releases have their own button, not the flyout)
 
+**Settings bundle**:
+A `.yaat-settings.zip` holding a `manifest.json` and one file per item type (preferences, macros, command verbs, favorites, grid layout, layouts), each in its single-item format; the Import / Export hub reads and writes it. Preferences travel only by an allowlist of Settings-section keys, each validated on import.
+_Avoid_: settings backup, profile (a layout is not a bundle)
+
+**Import clash**:
+An incoming named entry (a macro, a favorite set, a layout) that matches an existing one under Merge, resolved per entry by Skip, Overwrite or Rename.
+
 ## Tooling
 
 **Gate**:

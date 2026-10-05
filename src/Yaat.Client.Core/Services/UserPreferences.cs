@@ -43,7 +43,7 @@ public readonly record struct FontSizePrefs(
     int Interface
 );
 
-public sealed class UserPreferences
+public sealed partial class UserPreferences
 {
     private static readonly ILogger Log = AppLog.CreateLogger<UserPreferences>();
 
