@@ -324,8 +324,8 @@
 - [ ] YAAT-338 Fix stale MainViewModel line anchors and misplaced Client.Core files in the docs
 - [ ] YAAT-350 Correct three stale speech-pipeline comments and doc lines (LocalLlmService CUDA, ScenarioCallsignExtractor prompt, LM-Kit csproj note)
 - [ ] YAAT-371 Datablock flash phase follows process uptime (Environment.TickCount64): add a shared flash clock GuideCapture can pin
-- [ ] YAAT-374 Timeline rail draws every bookmark and finding tick at its left edge · release vNext
-- [ ] YAAT-375 Timeline slider thumb jumps to 0 after a rewind instead of the playhead · release vNext
+- [x] YAAT-374 Timeline rail draws every bookmark and finding tick at its left edge · release vNext
+- [x] YAAT-375 Timeline slider thumb jumps to 0 after a rewind instead of the playhead · release vNext
 
 ## Singles
 
