@@ -389,3 +389,4 @@
 - [ ] YAAT-331 Move the remaining FNV callsign hashes onto one DeterministicHash helper
 - [ ] YAAT-332 VFR departure direction: skip heliports and private strips, prefer the 91.159 direction
 - [ ] YAAT-333 Drop the generic Airport suffix from spoken airport names
+- [ ] YAAT-339 Client.UI.Tests: TestVnasData.NavigationDb null flake in AppToolsTests on CI
