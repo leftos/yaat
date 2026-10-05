@@ -277,8 +277,8 @@
 
 ## Wave 9 — Docs and repo hygiene
 
-- [ ] YAAT-356 Fix the GuideCapture flight-strips scene: its strips tab lookup no longer matches
-- [ ] YAAT-357 Make GuideCapture images identical run to run (fixed clock for terminal timestamps)
+- [x] YAAT-356 Fix the GuideCapture flight-strips scene: its strips tab lookup no longer matches · release vNext
+- [x] YAAT-357 Make GuideCapture images identical run to run (fixed clock for terminal timestamps) · release vNext
 - [x] YAAT-287 Remove the phantom GuideCapture Fakes/FakeFilePickerService.cs line from architecture.md · release vNext
 - [x] YAAT-276 Correct the gear flyout's field count in client-mainviewmodel.md · release vNext
 - [ ] YAAT-110 Replace stale MainViewModel line numbers in docs/command-input-ux.md
@@ -315,6 +315,7 @@
 - [ ] YAAT-323 Fix two stale yaat-server test comments (weather fixture, TickTimings cref)
 - [ ] YAAT-338 Fix stale MainViewModel line anchors and misplaced Client.Core files in the docs
 - [ ] YAAT-350 Correct three stale speech-pipeline comments and doc lines (LocalLlmService CUDA, ScenarioCallsignExtractor prompt, LM-Kit csproj note)
+- [ ] YAAT-371 Datablock flash phase follows process uptime (Environment.TickCount64): add a shared flash clock GuideCapture can pin
 
 ## Singles
 
@@ -423,3 +424,5 @@
 - [ ] YAAT-346 Flaky: ProcessRecordingBackendTests.KillRecorder depends on a 500 ms startup window
 - [ ] YAAT-366 Fix the garbled solo readback of EXIT given on final ('exit when if able at on to W3')
 - [ ] YAAT-369 Scenario load: status bar can end on 'Load by AB ended' instead of the load result (RoomLoadingChanged arrival-order race)
+- [ ] YAAT-370 LayoutInspector --exits prints double.MaxValue avg parking distance for a runway side with no exits
+- [ ] YAAT-372 ERAM conformance test flakes when the harness aircraft's random CID is 128
