@@ -1665,12 +1665,14 @@ internal static class DepartureClearanceHandler
             // which case continuing means a certain collision and the pilot rejects anyway
             // (AIM 4-4-1.a; 14 CFR 91.3(a) — the pilot in command is the final authority).
             AircraftCategory cat = AircraftCategorization.Categorize(aircraft.AircraftType);
-            double v1 = AircraftPerformance.DecisionSpeed(aircraft.AircraftType, cat);
-            double indicated = GroundFrame.IasForGroundSpeed(aircraft, aircraft.IndicatedAirspeed);
             AircraftState? blocked = null;
             double blockedDistanceFt = double.MaxValue;
-            if ((indicated >= v1) && !RejectedTakeoff.TryFindBlockedBeyondOverfly(aircraft, cat, ctx, out blocked, out blockedDistanceFt))
+            if (
+                RejectedTakeoff.IsAtOrPastV1(aircraft)
+                && !RejectedTakeoff.TryFindBlockedBeyondOverfly(aircraft, cat, ctx, out blocked, out blockedDistanceFt)
+            )
             {
+                double v1 = AircraftPerformance.DecisionSpeed(aircraft.AircraftType, cat);
                 return new CommandResult(false, $"Unable — past V1 ({v1:F0} kts), continuing the takeoff");
             }
 

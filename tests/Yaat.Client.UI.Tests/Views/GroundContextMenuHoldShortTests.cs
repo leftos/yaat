@@ -27,13 +27,15 @@ public class GroundContextMenuHoldShortTests
         };
         ContextMenu menu = AircraftMenuBuilder.Build(ac, new MenuClick("N784ME", null, null, []), new RecordingMenuHost(""), _ => []);
 
-        var crossItems = menu
-            .Items.OfType<MenuItem>()
+        ItemCollection commandTree = menu.Items.OfType<MenuItem>().Single(m => (m.Header as string) == AircraftMenuBuilder.AllCommandsHeader).Items;
+        var crossItems = commandTree
+            .OfType<MenuItem>()
             .Where(m => m.Header is string s && s.StartsWith("Cross ", StringComparison.Ordinal))
             .Select(m => (string)m.Header!)
             .ToList();
 
         Assert.Equal(new[] { "Cross 15" }, crossItems);
+        Assert.DoesNotContain(commandTree.OfType<MenuItem>(), m => m.Header is string s && s.Contains("28R", StringComparison.Ordinal));
         Assert.DoesNotContain(menu.Items.OfType<MenuItem>(), m => m.Header is string s && s.Contains("28R", StringComparison.Ordinal));
     }
 }

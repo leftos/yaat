@@ -4,6 +4,7 @@ using Xunit;
 using Yaat.Client.ContextMenus;
 using Yaat.Client.Models;
 using Yaat.Sim.Data;
+using Yaat.Sim.Situation;
 
 namespace Yaat.Client.UI.Tests.Views;
 
@@ -12,9 +13,67 @@ namespace Yaat.Client.UI.Tests.Views;
 public class AircraftMenuBuilderTests
 {
     private const string ViewItem = "View item";
+    private const string AllCommands = "All Commands";
 
     [AvaloniaFact]
-    public void GroundAircraft_OffersTheGroundBlock()
+    public void AirborneIfr_TopLevelRunsHeaderQuickCommandsThenTheFixedGroups()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        var host = new RecordingMenuHost("");
+
+        List<string> items = Sequence(Build(Fixture("ifr-enroute"), host, _ => [new MenuItem { Header = ViewItem }]));
+
+        int note = items.IndexOf(Label(MenuIds.AircraftNote));
+        int track = items.IndexOf("Track");
+        Assert.True(items.IndexOf(Label(MenuIds.AircraftCommand)) < note, string.Join(" | ", items));
+        Assert.True(track > note + 2, $"no quick commands between the header and Track in: {string.Join(" | ", items)}");
+        Assert.Equal(
+            ["Track", "Data Block", "Squawk", ViewItem, Label(MenuIds.FavoritesMenu), AllCommands, "---", Label(MenuIds.SimControlDelete)],
+            items[track..]
+        );
+    }
+
+    [AvaloniaFact]
+    public void AirborneIfr_AskPilotCoordinationAndSimControlLiveUnderAllCommands()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        var host = new RecordingMenuHost("");
+        AircraftModel ac = Fixture("ifr-enroute");
+        ac.AssumedFromLiveTraffic = true;
+
+        ContextMenu menu = Build(ac, host, _ => []);
+        List<string> top = Sequence(menu);
+        List<string> all = Sequence(AllCommandsItem(menu));
+
+        string[] moved = ["Ask pilot to say…", "Coordination", Label(MenuIds.SimControlWarp), Label(MenuIds.LiveTrafficUnassume)];
+        foreach (string label in moved)
+        {
+            Assert.DoesNotContain(label, top);
+            Assert.Contains(label, all);
+        }
+
+        Assert.Equal([Label(MenuIds.SimControlWarp), Label(MenuIds.LiveTrafficUnassume)], all[^2..]);
+    }
+
+    [AvaloniaFact]
+    public void UnknownSituation_ShowsNoQuickCommandsAndNoStrip()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        var host = new RecordingMenuHost("");
+        AircraftModel ac = Fixture("ifr-enroute");
+        ac.Situation = AircraftSituation.Unknown;
+
+        ContextMenu menu = Build(ac, host, _ => []);
+        List<string> items = Sequence(menu);
+
+        int track = items.IndexOf("Track");
+        Assert.Equal([Label(MenuIds.AircraftCommand), Label(MenuIds.AircraftNote), "---", "Track"], items[(track - 3)..(track + 1)]);
+        Assert.DoesNotContain(menu.Items.OfType<MenuItem>(), item => item.Header is not string);
+        Assert.Contains(AllCommands, items);
+    }
+
+    [AvaloniaFact]
+    public void GroundAircraft_OffersTheGroundBlockUnderAllCommands()
     {
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
         var host = new RecordingMenuHost("");
@@ -22,28 +81,28 @@ public class AircraftMenuBuilderTests
         host.PushbackToChoices.Add(new MenuCommandChoice("Gate 26", "PUSH 26", null, []));
         host.PresetTaxiChoices.Add(new MenuCommandChoice("Via B", "TAXI B 30", null, []));
 
-        List<string> atParking = Sequence(Build(Fixture("at-parking"), host, _ => []));
-        AssertBeforeTrack(atParking, Label(MenuIds.GroundPushback), Label(MenuIds.GroundPushbackTo), Label(MenuIds.GroundFollow));
+        List<string> atParking = Sequence(AllCommandsItem(Build(Fixture("at-parking"), host, _ => [])));
+        AssertBeforeCoordination(atParking, Label(MenuIds.GroundPushback), Label(MenuIds.GroundPushbackTo), Label(MenuIds.GroundFollow));
 
-        List<string> taxiing = Sequence(Build(Fixture("taxiing"), host, _ => []));
-        AssertBeforeTrack(taxiing, Label(MenuIds.GroundHoldPosition), Label(MenuIds.GroundBreakConflict), Label(MenuIds.GroundTaxiPreset));
+        List<string> taxiing = Sequence(AllCommandsItem(Build(Fixture("taxiing"), host, _ => [])));
+        AssertBeforeCoordination(taxiing, Label(MenuIds.GroundHoldPosition), Label(MenuIds.GroundBreakConflict), Label(MenuIds.GroundTaxiPreset));
     }
 
     [AvaloniaFact]
-    public void GroundAircraft_OffersDrawTaxiRouteAndPushRoute()
+    public void GroundAircraft_OffersDrawTaxiRouteAndPushRouteUnderAllCommands()
     {
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
         var host = new RecordingMenuHost("");
         host.PushbackToChoices.Add(new MenuCommandChoice("Gate 26", "PUSH 26", null, []));
         host.PresetTaxiChoices.Add(new MenuCommandChoice("Via B", "TAXI B 30", null, []));
 
-        List<string> atParking = Sequence(Build(Fixture("at-parking"), host, _ => []));
+        List<string> atParking = Sequence(AllCommandsItem(Build(Fixture("at-parking"), host, _ => [])));
         Assert.True(
             atParking.IndexOf(Label(MenuIds.GroundPushRoute)) == atParking.IndexOf(Label(MenuIds.GroundPushbackTo)) + 1,
             $"Push route… should follow Push back to… in: {string.Join(" | ", atParking)}"
         );
 
-        List<string> taxiing = Sequence(Build(Fixture("taxiing"), host, _ => []));
+        List<string> taxiing = Sequence(AllCommandsItem(Build(Fixture("taxiing"), host, _ => [])));
         Assert.True(
             taxiing.IndexOf(Label(MenuIds.GroundDrawTaxiRoute)) == taxiing.IndexOf(Label(MenuIds.GroundTaxiPreset)) + 1,
             $"Draw taxi route… should follow Preset taxi route in: {string.Join(" | ", taxiing)}"
@@ -52,7 +111,34 @@ public class AircraftMenuBuilderTests
     }
 
     [AvaloniaFact]
-    public void ViewSection_SitsAboveTheFoot()
+    public void GroundAircraft_AllCommandsLeavesOutTheFlightGroups()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        var host = new RecordingMenuHost("");
+
+        List<string> taxiing = Sequence(AllCommandsItem(Build(Fixture("taxiing"), host, _ => [])));
+
+        Assert.DoesNotContain(taxiing, item => item.StartsWith("Heading", StringComparison.Ordinal));
+        Assert.DoesNotContain(taxiing, item => item.StartsWith("Altitude", StringComparison.Ordinal));
+        Assert.DoesNotContain("Pattern", taxiing);
+    }
+
+    [AvaloniaFact]
+    public void AirborneIfr_AllCommandsListsTheGroupsInOneFixedOrder()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        var host = new RecordingMenuHost("");
+
+        List<string> all = Sequence(AllCommandsItem(Build(Fixture("approach-ifr"), host, _ => [])));
+
+        string[] heads = ["Heading", "Altitude", "Speed", "Navigation", "Hold", "Approach", "Procedures", "Tower"];
+        List<int> positions = [.. heads.Select(head => all.FindIndex(item => item.StartsWith(head, StringComparison.Ordinal)))];
+        Assert.DoesNotContain(-1, positions);
+        Assert.Equal([.. positions.Order()], positions);
+    }
+
+    [AvaloniaFact]
+    public void ViewSection_SitsAfterSquawkBeforeFavorites()
     {
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
         var host = new RecordingMenuHost("");
@@ -62,8 +148,7 @@ public class AircraftMenuBuilderTests
         List<string> items = Sequence(Build(ac, host, _ => [new MenuItem { Header = ViewItem }]));
 
         int view = items.IndexOf(ViewItem);
-        Assert.True(view > items.IndexOf("Coordination"), string.Join(" | ", items));
-        Assert.Equal(["---", ViewItem, "---", Label(MenuIds.SimControlWarp)], items[(view - 1)..(view + 3)]);
+        Assert.Equal(["Squawk", ViewItem, Label(MenuIds.FavoritesMenu)], items[(view - 1)..(view + 2)]);
         Assert.Equal(Label(MenuIds.SimControlDelete), items[^1]);
         Assert.Equal([ac.Callsign], Assert.Single(host.RpoRequests));
     }
@@ -103,19 +188,27 @@ public class AircraftMenuBuilderTests
 
     private static string Label(string id) => MenuCatalog.Get(id).Label;
 
-    /// <summary>Each top-level item as its header text, with a separator written as <c>---</c>.</summary>
-    private static List<string> Sequence(ContextMenu menu) =>
-        [.. menu.Items.Select(item => item is Separator ? "---" : (item as MenuItem)?.Header as string ?? "")];
+    /// <summary>The top-level All Commands submenu.</summary>
+    private static MenuItem AllCommandsItem(ContextMenu menu) => menu.Items.OfType<MenuItem>().Single(item => (item.Header as string) == AllCommands);
 
-    /// <summary>Every one of <paramref name="labels"/> is a top-level item above the Track submenu.</summary>
-    private static void AssertBeforeTrack(List<string> items, params string[] labels)
+    /// <summary>Each top-level item as its header text, with a separator written as <c>---</c>.</summary>
+    private static List<string> Sequence(ContextMenu menu) => Sequence(menu.Items);
+
+    /// <summary>Each of the submenu's items as its header text, with a separator written as <c>---</c>.</summary>
+    private static List<string> Sequence(MenuItem submenu) => Sequence(submenu.Items);
+
+    private static List<string> Sequence(ItemCollection items) =>
+        [.. items.Select(item => item is Separator ? "---" : (item as MenuItem)?.Header as string ?? "")];
+
+    /// <summary>Every one of <paramref name="labels"/> is an item listed before the Ask pilot and Coordination block.</summary>
+    private static void AssertBeforeCoordination(List<string> items, params string[] labels)
     {
-        int track = items.IndexOf("Track");
-        Assert.True(track >= 0, string.Join(" | ", items));
+        int coordination = items.IndexOf("Coordination");
+        Assert.True(coordination >= 0, string.Join(" | ", items));
         foreach (string label in labels)
         {
             int at = items.IndexOf(label);
-            Assert.True((at >= 0) && (at < track), $"'{label}' is not above Track in: {string.Join(" | ", items)}");
+            Assert.True((at >= 0) && (at < coordination), $"'{label}' is not above Coordination in: {string.Join(" | ", items)}");
         }
     }
 }

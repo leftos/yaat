@@ -1,5 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data;
+using Yaat.Sim.Situation;
 
 namespace Yaat.Client.ContextMenus;
 
@@ -440,6 +442,7 @@ public static class AircraftCommandApplicability
     /// re-plans, so the target phases must accept a new TAXI (HoldingInPositionPhase /
     /// FollowingPhase treat it as ClearsPhase). The airborne pattern-follow phase is named
     /// "VFR Follow", so the "Following" prefix here matches only the ground taxi-follow.
+    /// Only the quick list widens it, to the line-up and rollout phases (<see cref="WidensDrawTaxiRoute"/>).
     /// </summary>
     public static bool CanDrawTaxiRoute(IMenuAircraft? ac)
     {
@@ -494,4 +497,206 @@ public static class AircraftCommandApplicability
     /// only when the controller opted into the full VFR command set.
     /// </summary>
     public static bool CanIssuePatternManeuvers(IMenuAircraft? ac, VfrCommandsForIfr mode) => AllowsVfrOnly(ac, mode);
+
+    // --- Quick-list visibility ---
+    //
+    // These read the server's situation flags and decide only whether a quick command shows in a situation's quick list;
+    // All Commands keeps every entry whatever the flags say. Each answers true outside the situation its rule is about.
+
+    /// <summary>
+    /// Cleared for takeoff shows while taxiing only within reach of the departure runway's hold line
+    /// (<see cref="SituationFlags.NearingDepartureHoldLine"/>); 7110.65 §3-9-10 allows it while taxiing, but further out
+    /// it is clutter.
+    /// </summary>
+    public static bool ShowsTakeoffWhileTaxiing(IMenuAircraft? ac) =>
+        ac is not null && ((ac.Situation != AircraftSituation.Taxiing) || ac.SituationFlags.HasFlag(SituationFlags.NearingDepartureHoldLine));
+
+    /// <summary>
+    /// Cleared for takeoff and Line up and wait show at a hold-short only when it is the departure runway's
+    /// (<see cref="SituationFlags.HoldShortIsDepartureRunway"/>): a runway the aircraft only crosses offers neither (§3-7-2).
+    /// </summary>
+    public static bool ShowsDepartureClearanceAtHoldShort(IMenuAircraft? ac) =>
+        ac is not null && ((ac.Situation != AircraftSituation.HoldingShort) || ac.SituationFlags.HasFlag(SituationFlags.HoldShortIsDepartureRunway));
+
+    /// <summary>
+    /// Cross runway shows at a hold-short only when it is not the departure runway's, which the aircraft departs from
+    /// rather than crosses.
+    /// </summary>
+    public static bool ShowsCrossAtHoldShort(IMenuAircraft? ac) =>
+        ac is not null && ((ac.Situation != AircraftSituation.HoldingShort) || !ac.SituationFlags.HasFlag(SituationFlags.HoldShortIsDepartureRunway));
+
+    /// <summary>
+    /// Resume taxi shows at a hold-short only when it is not the departure runway's, where the sim refuses <c>RES</c>
+    /// (<c>HoldingShortPhase.CanAcceptCommand</c>). Its own predicate although <see cref="ShowsCrossAtHoldShort"/> has the
+    /// same body: the two rules answer different questions and may part.
+    /// </summary>
+    public static bool ShowsResumeTaxiAtHoldShort(IMenuAircraft? ac) =>
+        ac is not null && ((ac.Situation != AircraftSituation.HoldingShort) || !ac.SituationFlags.HasFlag(SituationFlags.HoldShortIsDepartureRunway));
+
+    /// <summary>
+    /// Cleared visual shows only for an IFR aircraft that has reported the field or the preceding traffic in sight
+    /// (§7-4-3.a, §7-4-3.c.2), the reports the sim checks before it accepts the clearance.
+    /// </summary>
+    public static bool ShowsClearedVisual(IMenuAircraft? ac) =>
+        ac is not null
+        && string.Equals(ac.FlightRules, "IFR", StringComparison.OrdinalIgnoreCase)
+        && (ac.SituationFlags.HasFlag(SituationFlags.HasReportedFieldInSight) || ac.SituationFlags.HasFlag(SituationFlags.HasReportedTrafficInSight));
+
+    /// <summary>
+    /// A speed adjustment (Speed, Reduce to final approach speed) hides inside the final approach fix
+    /// (<see cref="SituationFlags.InsideFinalApproachFix"/>, §5-7-1); Resume normal speed is a termination and is not
+    /// gated by this rule.
+    /// </summary>
+    public static bool ShowsSpeedAdjustment(IMenuAircraft? ac) => ac is not null && !ac.SituationFlags.HasFlag(SituationFlags.InsideFinalApproachFix);
+
+    /// <summary>
+    /// Exit left / right shows on the rollout only once the aircraft is decelerating
+    /// (<see cref="SituationFlags.RolloutDecelerating"/>): no exit instruction immediately after touchdown (§3-10-9 note).
+    /// </summary>
+    public static bool ShowsRunwayExit(IMenuAircraft? ac) =>
+        ac is not null && ((ac.Situation != AircraftSituation.RolloutExit) || ac.SituationFlags.HasFlag(SituationFlags.RolloutDecelerating));
+
+    /// <summary>
+    /// Cleared for takeoff and Line up and wait hide while a hold-for-release keeps the departure from departing: the sim
+    /// refuses CTO, CTOPP and LUAW for a held aircraft until it is released.
+    /// </summary>
+    public static bool ShowsDepartureClearanceWhileHeld(IMenuAircraft? ac) => ac is { IsHeldForRelease: false };
+
+    /// <summary>
+    /// Cancel takeoff clearance shows only once the aircraft is cleared for takeoff (<see cref="SituationFlags.HasTakeoffClearance"/>,
+    /// §3-9-10) and not past V1 (<see cref="SituationFlags.PastV1"/>), where the sim answers "unable" (§3-9-11).
+    /// </summary>
+    public static bool ShowsCancelTakeoff(IMenuAircraft? ac) =>
+        ac is not null && ac.SituationFlags.HasFlag(SituationFlags.HasTakeoffClearance) && !ac.SituationFlags.HasFlag(SituationFlags.PastV1);
+
+    /// <summary>
+    /// Cleared approach hides once the aircraft holds an approach clearance with descent on it
+    /// (<see cref="SituationFlags.ApproachClearedForDescent"/>, §5-9-4); a lateral intercept only (JFAC/JLOC) still offers it.
+    /// </summary>
+    public static bool ShowsApproachClearanceUntilCleared(IMenuAircraft? ac) =>
+        ac is not null && !ac.SituationFlags.HasFlag(SituationFlags.ApproachClearedForDescent);
+
+    /// <summary>Give way shows only with a taxi route, which the sim needs before it accepts <c>GW</c>.</summary>
+    public static bool ShowsGiveWay(IMenuAircraft? ac) => ac is { HasActiveTaxiRoute: true };
+
+    /// <summary>Cleared to land hides on final once a landing clearance is on the aircraft.</summary>
+    public static bool ShowsClearedToLandOnFinal(IMenuAircraft? ac) =>
+        ac is not null && ((ac.Situation != AircraftSituation.Final) || string.IsNullOrEmpty(ac.LandingClearance));
+
+    /// <summary>
+    /// Cleared approach shows after a go-around only once an altitude is assigned: an approach clearance carries the altitude
+    /// to maintain until established (§4-8-1).
+    /// </summary>
+    public static bool ShowsApproachClearanceAfterGoAround(IMenuAircraft? ac) =>
+        ac is not null && ((ac.Situation != AircraftSituation.GoAround) || ac.AssignedAltitude is not null);
+
+    /// <summary>
+    /// Climb via SID shows only with a SID to climb via: an active one, or one in the filed route the sim would activate
+    /// (<c>NavigationCommandHandler.DispatchClimbVia</c>, which refuses <c>CVIA</c> with neither).
+    /// </summary>
+    public static bool ShowsClimbViaSid(IMenuAircraft? ac) => ac is not null && (!string.IsNullOrEmpty(ac.ActiveSidId) || HasFiledSid(ac));
+
+    /// <summary>
+    /// Descend via STAR shows only with a STAR to descend via: an active one, or one in the filed route the sim would
+    /// activate (<c>NavigationCommandHandler.DispatchDescendVia</c>, which refuses <c>DVIA</c> with neither).
+    /// </summary>
+    public static bool ShowsDescendViaStar(IMenuAircraft? ac) => ac is not null && (!string.IsNullOrEmpty(ac.ActiveStarId) || HasFiledStar(ac));
+
+    /// <summary>
+    /// Whether the filed route names a SID the departure airport publishes: the sim's own lookup
+    /// (<see cref="FiledProcedureLookup.FindSid"/>), which a VFR aircraft never flies.
+    /// </summary>
+    private static bool HasFiledSid(IMenuAircraft ac) =>
+        (!IsVfr(ac)) && (NavigationDatabase.InstanceOrNull is { } navDb) && (FiledProcedureLookup.FindSid(navDb, ac.Departure, ac.Route) is not null);
+
+    /// <summary>
+    /// Whether the filed route names a STAR the destination airport publishes: the sim's own lookup
+    /// (<see cref="FiledProcedureLookup.FindStar"/>).
+    /// </summary>
+    private static bool HasFiledStar(IMenuAircraft ac) =>
+        (NavigationDatabase.InstanceOrNull is { } navDb) && (FiledProcedureLookup.FindStar(navDb, ac.Destination, ac.Route) is not null);
+
+    // --- Quick-list widening ---
+    //
+    // A quick entry these admit shows in its situation's list although its catalog predicate (and so All Commands) leaves
+    // it out. Each phase here is one QuickCommandSimAcceptanceTests proves the sim accepts the command in.
+
+    /// <summary>Push route (<c>PUSHM</c>) while the push is under way: the sim takes a tug move as a redirect of the running one.</summary>
+    public static bool WidensPushRoute(IMenuAircraft? ac) => IsControllable(ac) && (ac.CurrentPhase == "Pushback");
+
+    /// <summary>
+    /// Draw taxi route (a <c>TAXI</c>) while lining up, lined up and waiting, on the landing rollout and in the runway exit,
+    /// which the sim accepts as a new route from where the aircraft is.
+    /// </summary>
+    public static bool WidensDrawTaxiRoute(IMenuAircraft? ac) =>
+        IsControllable(ac) && ac.IsOnGround && (ac.CurrentPhase is "LiningUp" or "LinedUpAndWaiting" or "Landing" or "Runway Exit");
+
+    /// <summary>
+    /// A downwind or left-base pattern entry over the runway at the start of a go-around or low approach, or any leg entry
+    /// in an airspace-boundary hold or an AR anchor; VFR-only, as <see cref="CanEnterPattern"/>. A right base and a
+    /// straight-in final are refused over the runway by geometry, so <paramref name="takenInClimbOut"/> is false for them.
+    /// </summary>
+    public static bool WidensPatternLegEntry(IMenuAircraft? ac, VfrCommandsForIfr mode, bool takenInClimbOut) =>
+        IsAirborneControllable(ac)
+        && (IsVfr(ac) || (mode == VfrCommandsForIfr.All))
+        && (IsBoundaryOrAnchorHold(ac.CurrentPhase) || (takenInClimbOut && (ac.CurrentPhase is "GoAround" or "LowApproach")));
+
+    /// <summary>Straight-in final in an airspace-boundary hold or an AR anchor, under the same rules as <see cref="CanEnterFinal"/>.</summary>
+    public static bool WidensEnterFinal(IMenuAircraft? ac, VfrCommandsForIfr mode) =>
+        IsAirborneControllable(ac) && (IsVfr(ac) || (mode != VfrCommandsForIfr.None)) && IsBoundaryOrAnchorHold(ac.CurrentPhase);
+
+    /// <summary>
+    /// The rejected-takeoff "slowed to taxi speed" threshold (kt ground speed) below which Cross runway shows in a rejected
+    /// takeoff: <c>CategoryPerformance.TaxiSpeed</c>'s jet figure, the highest category taxi speed.
+    /// </summary>
+    public const double RejectedTakeoffCrossMaxGroundSpeedKts = 30.0;
+
+    /// <summary>
+    /// Cross runway on the ground while taxiing, holding on the ground (in position, after an exit, after a push) or in a
+    /// rollout/exit phase (the landing rollout, the runway exit, clearing the runway, a rejected takeoff), when the next
+    /// uncleared bar on the taxi route is a runway to cross (<see cref="IMenuAircraft.NextCrossingRunway"/>, §3-7-2): the
+    /// sim takes <c>CROSS</c> for it in every one of those phases, before the aircraft reaches the bar. The menu holds it
+    /// back on the landing rollout until the aircraft is decelerating (<see cref="SituationFlags.RolloutDecelerating"/>, no
+    /// taxi instruction immediately after touchdown, §3-10-9 note) and in a rejected takeoff until it has slowed to
+    /// <see cref="RejectedTakeoffCrossMaxGroundSpeedKts"/>.
+    /// </summary>
+    public static bool WidensCrossRunway(IMenuAircraft? ac) =>
+        IsControllable(ac)
+        && ac.IsOnGround
+        && (ac.Situation is AircraftSituation.Taxiing or AircraftSituation.HoldingOnGround or AircraftSituation.RolloutExit)
+        && !string.IsNullOrEmpty(ac.NextCrossingRunway)
+        && IsSettledForCrossing(ac);
+
+    /// <summary>
+    /// Not on the landing rollout before it decelerates, and not in a rejected takeoff above taxi speed; every other phase
+    /// is settled.
+    /// </summary>
+    private static bool IsSettledForCrossing(IMenuAircraft ac) =>
+        ac.CurrentPhase switch
+        {
+            "Landing" => ac.SituationFlags.HasFlag(SituationFlags.RolloutDecelerating),
+            "Rejected Takeoff" => ac.GroundSpeedKnots <= RejectedTakeoffCrossMaxGroundSpeedKts,
+            _ => true,
+        };
+
+    /// <summary>
+    /// Cancel takeoff clearance while taxiing with a takeoff clearance stored for the runway
+    /// (<see cref="SituationFlags.HasTakeoffClearance"/>, §3-9-10): the sim drops the stored clearance and the aircraft
+    /// holds short.
+    /// </summary>
+    public static bool WidensCancelTakeoff(IMenuAircraft? ac) =>
+        IsControllable(ac) && ac.IsOnGround && (ac.CurrentPhase == "Taxiing") && ac.SituationFlags.HasFlag(SituationFlags.HasTakeoffClearance);
+
+    /// <summary>
+    /// Follow another ground aircraft while already following one: the sim replaces the follow. Give way while following
+    /// is admitted by this too; its taxi-route requirement is <see cref="ShowsGiveWay"/>'s.
+    /// </summary>
+    public static bool WidensFollowWhileFollowing(IMenuAircraft? ac, MenuContext context) =>
+        IsControllable(ac) && !RelativeTraffic.OffersGroundRelative(ac, context) && ac.CurrentPhase.StartsWith("Following", StringComparison.Ordinal);
+
+    /// <summary>The airspace-boundary holds (LevelBelow…, HoldOutside…) and an AR anchor orbit (AR anchor …).</summary>
+    private static bool IsBoundaryOrAnchorHold(string phase) =>
+        phase.StartsWith("LevelBelow", StringComparison.Ordinal)
+        || phase.StartsWith("HoldOutside", StringComparison.Ordinal)
+        || phase.StartsWith("AR anchor ", StringComparison.Ordinal);
 }

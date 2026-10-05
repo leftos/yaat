@@ -343,6 +343,19 @@ _Avoid_: phase (one situation spans several phases)
 
 **Quick commands**:
 The short, user-editable list of commands an aircraft's right-click menu shows first for its current situation; the rest sit under All Commands.
+_Avoid_: favorites (the Favorite Commands submenu is the user's own typed commands, the same in every situation)
+
+**All Commands**:
+The aircraft menu's submenu holding every command for the aircraft in one fixed order, each shown by its catalog predicate alone; the quick commands are a filtered pick from it.
+
+**Icon strip**:
+The up to ten glyph buttons (two rows of five) at the top of an aircraft menu: the glyph-bearing quick commands in list order; the rest show as text below it.
+
+**Quick-list visibility rule**:
+A rule that hides a quick command in its situation by the server's situation flags or `NextCrossingRunway` (Cross only when a runway lies next on the taxi route, Cancel takeoff clearance only before V1); quick list only, All Commands keeps the entry (`AircraftCommandApplicability.Shows*`, applied by `QuickCommandResolver`).
+
+**Quick-list widening**:
+A rule that admits a quick command in a phase its catalog predicate leaves out, once a sim acceptance test proves the sim takes the command there (`AircraftCommandApplicability.Widens*`); quick list only.
 
 **Catalog entry (menu catalog)**:
 One command the aircraft menus can offer, with a stable ID (`<group>.<item>`, never reused), a label, a default flight-rules filter, an applicability predicate and a builder (`MenuCatalogEntry` in `Yaat.Client.Core/ContextMenus/`); quick commands are lists of these IDs.
@@ -357,7 +370,7 @@ What a right-click gives an aircraft menu (`MenuClick`): the aircraft the menu c
 The menu a right-click on empty map (radar) or on a taxi node, runway threshold or runway surface (ground) opens for the selected aircraft: the shared `point.*` items its state allows (Fly heading, Direct to, Hold, Taxi here, Taxi to {end}, Push to, Custom taxi, Warp here), then the view's own point items (markers, Measure, FRD, Draw taxi route from the node).
 
 **View section**:
-The few canvas-only items a view adds to the shared aircraft menu, which the builder places above the menu's foot (the radar's Display and Draw route, the ground's Display; the aircraft list has none); they have no catalog entry and never sit on a quick-command list.
+The few canvas-only items a view adds to the shared aircraft menu, which the builder places after Squawk and before Favorite Commands (the radar's Display and Draw route, the ground's Display; the aircraft list has none); they have no catalog entry and never sit on a quick-command list.
 
 **Menu session**:
 The session settings an aircraft menu's predicates read (`MenuSession`): the user's initials, solo training mode and the VFR-commands-for-IFR mode.

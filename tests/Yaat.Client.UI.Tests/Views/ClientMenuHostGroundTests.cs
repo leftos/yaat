@@ -323,19 +323,19 @@ public class ClientMenuHostGroundTests
         ContextMenu menu = AircraftMenuBuilder.Build(target, new MenuClick(Callsign, null, null, []), host, _ => []);
 
         string[] groundItems = ["Hold short of…", "Follow…", "Give way to…"];
-        Assert.Equal(groundItems, Headers(menu.Items).Where(groundItems.Contains));
-        Assert.Equal(["Runway 12", "Runway 30"], Headers(Item(menu.Items, "Hold short of…").Items));
-        Assert.Equal([OtherCallsign], Headers(Item(menu.Items, "Follow…").Items));
-        Assert.Equal([OtherCallsign], Headers(Item(menu.Items, "Give way to…").Items));
+        Assert.Equal(groundItems, Headers(CommandTree(menu)).Where(groundItems.Contains));
+        Assert.Equal(["Runway 12", "Runway 30"], Headers(Item(CommandTree(menu), "Hold short of…").Items));
+        Assert.Equal([OtherCallsign], Headers(Item(CommandTree(menu), "Follow…").Items));
+        Assert.Equal([OtherCallsign], Headers(Item(CommandTree(menu), "Give way to…").Items));
 
-        MenuItem holdShort30 = Item(Item(menu.Items, "Hold short of…").Items, "Runway 30");
+        MenuItem holdShort30 = Item(Item(CommandTree(menu), "Hold short of…").Items, "Runway 30");
         RaisePointerEntered(holdShort30);
         Assert.NotNull(main.Ground.PreviewRoute);
         Assert.Equal(SegmentsOf(main.Ground.FindHoldShortPreviewRoute(target, "30")!), SegmentsOf(main.Ground.PreviewRoute));
 
         Click(holdShort30);
-        Click(Item(Item(menu.Items, "Follow…").Items, OtherCallsign));
-        Click(Item(Item(menu.Items, "Give way to…").Items, OtherCallsign));
+        Click(Item(Item(CommandTree(menu), "Follow…").Items, OtherCallsign));
+        Click(Item(Item(CommandTree(menu), "Give way to…").Items, OtherCallsign));
 
         Assert.Equal([(Callsign, "HS 30", "AB"), (Callsign, $"FOLLOWG {OtherCallsign}", "AB"), (Callsign, $"GW {OtherCallsign}", "AB")], host.Sent);
     }
@@ -438,6 +438,9 @@ public class ClientMenuHostGroundTests
 
     private static List<string> Headers(ItemCollection items) =>
         [.. items.OfType<MenuItem>().Where(m => m.Header is string).Select(m => (string)m.Header!)];
+
+    /// <summary>The items of the menu's All Commands submenu, where the ground block lives.</summary>
+    private static ItemCollection CommandTree(ContextMenu menu) => Item(menu.Items, AircraftMenuBuilder.AllCommandsHeader).Items;
 
     private static MenuItem Item(ItemCollection items, string header)
     {

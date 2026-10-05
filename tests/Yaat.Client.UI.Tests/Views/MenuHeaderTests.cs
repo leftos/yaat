@@ -272,20 +272,30 @@ public class MenuHeaderTests
     // --- The views ----------------------------------------------------------------------------
 
     [AvaloniaFact]
-    public void GroundMenu_StartsWithTheSharedHeaderThenFavorites() => AssertStartsWithHeaderThenFavorites(MenuView.Ground);
+    public void GroundMenu_StartsWithTheSharedHeader_FavoritesBeforeAllCommands() =>
+        AssertStartsWithHeaderFavoritesBeforeAllCommands(MenuView.Ground);
 
     [AvaloniaFact]
-    public void ListMenu_StartsWithTheSharedHeaderThenFavorites() => AssertStartsWithHeaderThenFavorites(MenuView.List);
+    public void ListMenu_StartsWithTheSharedHeader_FavoritesBeforeAllCommands() => AssertStartsWithHeaderFavoritesBeforeAllCommands(MenuView.List);
 
-    private void AssertStartsWithHeaderThenFavorites(MenuView view)
+    private void AssertStartsWithHeaderFavoritesBeforeAllCommands(MenuView view)
     {
         List<string> items = TopLevel(view, "taxiing", out ContextMenu _);
 
-        Assert.Equal(["SWA104 — B738", "---", "Command…", "Note…", "---", "Favorite Commands", "---"], items[..7]);
+        Assert.Equal(["SWA104 — B738", "---", "Command…", "Note…", "---"], items[..5]);
+        AssertFavoritesBeforeAllCommands(items);
+    }
+
+    /// <summary>Favorites sits once at the top level, straight before All Commands.</summary>
+    private static void AssertFavoritesBeforeAllCommands(List<string> items)
+    {
+        int favorites = items.IndexOf("Favorite Commands");
+        Assert.Single(items, i => i == "Favorite Commands");
+        Assert.Equal(AircraftMenuBuilder.AllCommandsHeader, items[favorites + 1]);
     }
 
     [AvaloniaFact]
-    public void RadarMenu_StartsWithTheSharedHeader_ItsOwnRowsUnderTheTitle_ThenFavorites()
+    public void RadarMenu_StartsWithTheSharedHeader_ItsOwnRowsUnderTheTitle_FavoritesBeforeAllCommands()
     {
         List<string> items = TopLevel(MenuView.Radar, "ifr-enroute", out ContextMenu _);
 
@@ -294,7 +304,8 @@ public class MenuHeaderTests
         Assert.True(command > 1, "Command… should follow the title, any radar rows and a separator.");
         Assert.Equal("---", items[command - 1]);
         Assert.DoesNotContain("---", items[1..(command - 1)]);
-        Assert.Equal(["Command…", "Note…", "---", "Favorite Commands", "---"], items[command..(command + 5)]);
+        Assert.Equal(["Command…", "Note…", "---"], items[command..(command + 3)]);
+        AssertFavoritesBeforeAllCommands(items);
         Assert.Single(items, i => i == "Command…");
         Assert.Single(items, i => i == "Note…");
     }

@@ -68,6 +68,17 @@ internal static class RejectedTakeoff
     private const double KtSecondsToFt = GeoMath.FeetPerNm / 3600.0;
 
     /// <summary>
+    /// Whether the roll is at or past V1 (<see cref="AircraftPerformance.DecisionSpeed"/>, 14 CFR 25.107(a)(2)), compared in
+    /// indicated: the on-ground airspeed field carries groundspeed, so a headwind moves the gate. Past it the aircraft is
+    /// committed to the takeoff and a controller's cancellation draws "unable" (7110.65 §3-9-11).
+    /// </summary>
+    public static bool IsAtOrPastV1(AircraftState aircraft)
+    {
+        double v1 = AircraftPerformance.DecisionSpeed(aircraft.AircraftType, AircraftCategorization.Categorize(aircraft.AircraftType));
+        return GroundFrame.IasForGroundSpeed(aircraft, aircraft.IndicatedAirspeed) >= v1;
+    }
+
+    /// <summary>
     /// Rejects (or, from a standstill, declines) the takeoff when a blocking occupant sits on the
     /// runway ahead and doctrine says stop. Called from <see cref="TakeoffPhase"/> each
     /// ground-roll tick with the roll clock it has flown so far; gated by the session setting.

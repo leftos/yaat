@@ -21,10 +21,18 @@ namespace Yaat.Client.UI.Tests.Views;
 public class ContextMenuBuilderSeamTests
 {
     /// <summary>Each top-level item as its header text, with a separator written as <c>---</c>.</summary>
-    private static List<string> Sequence(ContextMenu menu)
+    private static List<string> Sequence(ContextMenu menu) => Sequence(menu.Items);
+
+    /// <summary>The All Commands submenu's items as header text, with a separator written as <c>---</c>.</summary>
+    private static List<string> AllCommandsSequence(ContextMenu menu) => Sequence(AllCommands(menu).Items);
+
+    private static MenuItem AllCommands(ContextMenu menu) =>
+        menu.Items.OfType<MenuItem>().Single(m => (m.Header as string) == AircraftMenuBuilder.AllCommandsHeader);
+
+    private static List<string> Sequence(ItemCollection menuItems)
     {
-        var items = new List<string>(menu.Items.Count);
-        foreach (object? item in menu.Items)
+        var items = new List<string>(menuItems.Count);
+        foreach (object? item in menuItems)
         {
             items.Add(
                 item switch
@@ -96,30 +104,34 @@ public class ContextMenuBuilderSeamTests
             "Command…",
             "Note…",
             "---",
-            "Favorite Commands",
-            "---",
-            "Heading",
-            "Altitude",
-            "Speed",
-            "Navigation",
-            "---",
-            "Hold",
-            "Approach",
-            "Procedures",
-            "---",
             "Track",
             "Data Block",
             "Squawk",
-            "Ask pilot to say…",
-            "Coordination",
-            "---",
-            "Edit flight plan",
-            "---",
             "Display",
             "Draw route",
+            "Favorite Commands",
+            "All Commands",
             "---",
-            "Warp…",
             "Delete"
+        );
+        Assert.Equal(
+            [
+                "Heading",
+                "Altitude",
+                "Speed",
+                "Navigation",
+                "Hold",
+                "Approach",
+                "Procedures",
+                "---",
+                "Ask pilot to say…",
+                "Coordination",
+                "---",
+                "Edit flight plan",
+                "---",
+                "Warp…",
+            ],
+            AllCommandsSequence(menu)
         );
     }
 
@@ -141,15 +153,15 @@ public class ContextMenuBuilderSeamTests
             "Command…",
             "Note…",
             "---",
-            "Favorite Commands",
-            "---",
             "Track",
             "Data Block",
-            "Coordination",
             "Display",
+            "Favorite Commands",
+            "All Commands",
             "---",
             "Delete"
         );
+        Assert.Equal(["Coordination"], AllCommandsSequence(menu));
         // A surface shadow is not assumable, so it gets neither the assume items nor any relative-traffic block.
         Assert.DoesNotContain(Sequence(menu), item => item.StartsWith('↪'));
     }
@@ -187,11 +199,11 @@ public class ContextMenuBuilderSeamTests
         return DataGridView.BuildAircraftMenu(main, new DataGrid(), shadow, null, [shadow]);
     }
 
-    /// <summary>The top-level items after the favorites block: the groups every aircraft menu opens with.</summary>
-    private static List<string> AfterFavorites(ContextMenu menu)
+    /// <summary>The top-level items after the header (Command…, Note… and their separator).</summary>
+    private static List<string> AfterHeader(ContextMenu menu)
     {
         List<string> sequence = Sequence(menu);
-        return sequence[(sequence.IndexOf("Favorite Commands") + 2)..];
+        return sequence[(sequence.IndexOf("Note…") + 2)..];
     }
 
     /// <summary>The top-level Display submenu of a menu that offers one.</summary>
@@ -224,17 +236,18 @@ public class ContextMenuBuilderSeamTests
         }
     }
 
-    // Every view gives a surface shadow the same read-only tree: track / data block / coordination, then the view's
-    // section (Display on the canvases, nothing on the list), then the foot.
+    // Every view gives a surface shadow the same read-only tree: track / data block, then the view's section (Display on
+    // the canvases, nothing on the list), Favorites, All Commands holding Coordination, then the foot.
     [AvaloniaFact]
     public void SurfaceShadow_OffersTheSameGroupsOnEveryView()
     {
         AircraftModel shadow = SurfaceShadow("SWA9");
 
-        string[] canvas = ["Track", "Data Block", "Coordination", "Display", "---", "Delete"];
-        Assert.Equal(canvas, AfterFavorites(RadarSurfaceShadowMenu(shadow)));
-        Assert.Equal(canvas, AfterFavorites(GroundSurfaceShadowMenu(shadow)));
-        Assert.Equal(["Track", "Data Block", "Coordination", "---", "Delete"], AfterFavorites(ListSurfaceShadowMenu(shadow)));
+        string[] canvas = ["Track", "Data Block", "Display", "Favorite Commands", "All Commands", "---", "Delete"];
+        Assert.Equal(canvas, AfterHeader(RadarSurfaceShadowMenu(shadow)));
+        Assert.Equal(canvas, AfterHeader(GroundSurfaceShadowMenu(shadow)));
+        Assert.Equal(["Track", "Data Block", "Favorite Commands", "All Commands", "---", "Delete"], AfterHeader(ListSurfaceShadowMenu(shadow)));
+        Assert.Equal(["Coordination"], AllCommandsSequence(ListSurfaceShadowMenu(shadow)));
     }
 
     // Only the ground view's shadow offers the ground's own display entries; the radar's does not.
@@ -274,24 +287,18 @@ public class ContextMenuBuilderSeamTests
             "Command…",
             "Note…",
             "---",
-            "Favorite Commands",
-            "---",
-            "Push back",
-            "Push route…",
-            "Draw taxi route…",
-            "---",
             "Track",
             "Data Block",
             "Squawk",
-            "Ask pilot to say…",
-            "Coordination",
-            "---",
-            "Edit flight plan",
-            "---",
             "Display",
+            "Favorite Commands",
+            "All Commands",
             "---",
-            "Warp…",
             "Delete"
+        );
+        Assert.Equal(
+            ["Push back", "Push route…", "Draw taxi route…", "---", "Ask pilot to say…", "Coordination", "---", "Edit flight plan", "---", "Warp…"],
+            AllCommandsSequence(menu)
         );
     }
 
@@ -318,21 +325,15 @@ public class ContextMenuBuilderSeamTests
             "Command…",
             "Note…",
             "---",
-            "Favorite Commands",
-            "---",
-            "Tower",
-            "---",
             "Track",
             "Data Block",
             "Squawk",
-            "Ask pilot to say…",
-            "Coordination",
+            "Favorite Commands",
+            "All Commands",
             "---",
-            "Edit flight plan",
-            "---",
-            "Warp…",
             "Delete"
         );
+        Assert.Equal(["Tower", "---", "Ask pilot to say…", "Coordination", "---", "Edit flight plan", "---", "Warp…"], AllCommandsSequence(menu));
     }
 
     [AvaloniaFact]
@@ -347,9 +348,9 @@ public class ContextMenuBuilderSeamTests
         ContextMenu menu = DataGridView.BuildAircraftMenu(main, new DataGrid(), first, null, [first, second]);
 
         List<string> sequence = Sequence(menu);
-        // The right-clicked shadow is assumable, so it leads with the assume items...
-        Assert.Contains("Assume control", sequence);
-        Assert.Contains("Assume and track", sequence);
+        // The right-clicked shadow is assumable, so its command tree leads with the assume items...
+        Assert.Contains("Assume control", AllCommandsSequence(menu));
+        Assert.Contains("Assume and track", AllCommandsSequence(menu));
         // ...and the two selected shadows add the multi-selection item after the Delete, not the release item.
         Assert.Equal("---", sequence[^2]);
         Assert.Equal("Assume selected live traffic (2)", sequence[^1]);
@@ -390,7 +391,7 @@ public class ContextMenuBuilderSeamTests
         ContextMenu menu = view.BuildAircraftContextMenu(main.Radar, ac, prevSelected: null, ac.Callsign);
 
         // "Fly heading" lists every 5-degree heading the popup would list, in the same order.
-        MenuItem heading = menu.Items.OfType<MenuItem>().Single(m => (string?)m.Header == "Heading");
+        MenuItem heading = AllCommands(menu).Items.OfType<MenuItem>().Single(m => (string?)m.Header == "Heading");
         MenuItem flyHeading = heading.Items.OfType<MenuItem>().Single(m => (string?)m.Header == "Fly heading");
         MenuPickerDescriptor headingDescriptor = Assert.IsType<MenuPickerDescriptor>(flyHeading.Tag);
         Assert.Equal(MenuPickerDescriptor.List, headingDescriptor.Kind);
@@ -399,7 +400,7 @@ public class ContextMenuBuilderSeamTests
         Assert.Equal("360", headingDescriptor.Items[^1]);
 
         // A free-text picker carries the input kind and no values.
-        MenuItem speed = menu.Items.OfType<MenuItem>().Single(m => (string?)m.Header == "Speed");
+        MenuItem speed = AllCommands(menu).Items.OfType<MenuItem>().Single(m => (string?)m.Header == "Speed");
         MenuItem speedInput = speed.Items.OfType<MenuItem>().Single(m => (string?)m.Header == "Speed…");
         MenuPickerDescriptor inputDescriptor = Assert.IsType<MenuPickerDescriptor>(speedInput.Tag);
         Assert.Equal(MenuPickerDescriptor.Input, inputDescriptor.Kind);
@@ -419,7 +420,7 @@ public class ContextMenuBuilderSeamTests
 
         ContextMenu menu = view.BuildAircraftContextMenu(main.Radar, clicked, selected, clicked.Callsign);
 
-        List<string> sequence = Sequence(menu);
+        List<string> sequence = AllCommandsSequence(menu);
         Assert.Contains("↪ SWA602:", sequence);
         Assert.Contains("SWA602: give way to SWA104", sequence);
         Assert.Contains("SWA602: follow SWA104", sequence);
@@ -438,7 +439,7 @@ public class ContextMenuBuilderSeamTests
 
         ContextMenu menu = view.BuildAircraftContextMenu(ground, clicked, selected, clicked.Callsign);
 
-        List<string> sequence = Sequence(menu);
+        List<string> sequence = AllCommandsSequence(menu);
         Assert.Contains("↪ AAL602:", sequence);
         Assert.Contains("AAL602: report AAL601 in sight", sequence);
         Assert.Contains("AAL602: follow AAL601", sequence);

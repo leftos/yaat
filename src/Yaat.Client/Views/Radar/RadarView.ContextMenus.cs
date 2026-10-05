@@ -114,15 +114,13 @@ public partial class RadarView
     /// <summary>
     /// The radar's view section: its Display submenu (<see cref="BuildCanvasDisplay"/>), then Draw route. A surface
     /// live-traffic shadow — read-only, so nothing may command it — goes without Draw route, and so does an aircraft
-    /// whose phase hides the flight commands (<see cref="ContextMenuProfileService"/>: on the ground, landing or rolling).
+    /// whose phase hides the flight commands (<see cref="AircraftMenuBuilder.HidesFlightCommands"/>: on the ground, landing or rolling).
     /// </summary>
     internal IReadOnlyList<Control> BuildViewSection(RadarViewModel vm, AircraftModel? ac, MenuContext context, IMenuHost host)
     {
         MenuItem display = BuildCanvasDisplay(vm, context, host);
         bool surfaceShadow = AircraftCommandApplicability.IsSurfaceShadow(ac);
-        bool flightCommandsHidden = ContextMenuProfileService
-            .GetProfile(ac?.CurrentPhase, ac?.IsOnGround ?? false)
-            .HiddenGroups.Contains(MenuGroup.Navigation);
+        bool flightCommandsHidden = AircraftMenuBuilder.HidesFlightCommands(ac?.CurrentPhase, ac?.IsOnGround ?? false);
         if (surfaceShadow || flightCommandsHidden)
         {
             return [display];

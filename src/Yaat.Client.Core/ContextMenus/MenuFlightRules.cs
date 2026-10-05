@@ -1,9 +1,11 @@
 namespace Yaat.Client.ContextMenus;
 
 /// <summary>
-/// The flight-rules filter an action carries by default in the quick-command editor, independent of the
-/// applicability predicates: a VFR-only action can sit in a stored list and still be filtered out of the menu by
-/// <see cref="AircraftCommandApplicability"/> for the aircraft in front of the controller.
+/// The flight rules a quick-command list entry is offered under: its own (<see cref="QuickCommandEntry.FlightRules"/>),
+/// else its catalog default (<see cref="MenuCatalogEntry.DefaultFlightRules"/>). <see cref="QuickCommandResolver"/> applies
+/// it at runtime against the aircraft's filed rules, separately from the applicability predicates, so a VFR-only entry can
+/// sit in a stored list and still be left out of the quick list for an IFR aircraft (unless the "VFR commands for IFR
+/// aircraft" setting admits it).
 /// </summary>
 public enum MenuFlightRules
 {

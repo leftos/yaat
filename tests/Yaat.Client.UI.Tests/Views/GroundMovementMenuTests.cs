@@ -25,8 +25,17 @@ public class GroundMovementMenuTests
     private const double Lat = 37.620;
     private const double Lon = -122.380;
 
-    private static List<string> Headers(ContextMenu menu) =>
-        [.. menu.Items.OfType<MenuItem>().Where(m => m.Header is string).Select(m => (string)m.Header!)];
+    /// <summary>The headers of the command tree under All Commands, where the ground block and the flight groups live.</summary>
+    private static List<string> Headers(ContextMenu menu) => HeadersIn(AllCommands(menu).Items);
+
+    /// <summary>The headers of the menu's top level.</summary>
+    private static List<string> TopHeaders(ContextMenu menu) => HeadersIn(menu.Items);
+
+    private static List<string> HeadersIn(ItemCollection items) =>
+        [.. items.OfType<MenuItem>().Where(m => m.Header is string).Select(m => (string)m.Header!)];
+
+    private static MenuItem AllCommands(ContextMenu menu) =>
+        menu.Items.OfType<MenuItem>().Single(m => (m.Header as string) == AircraftMenuBuilder.AllCommandsHeader);
 
     /// <summary>
     /// Builds a ground aircraft in <paramref name="phase"/>. <paramref name="held"/> mirrors the wire form of an
@@ -120,47 +129,37 @@ public class GroundMovementMenuTests
     [AvaloniaFact]
     public void GroundMenu_AirborneAircraft_OffersTheFlightSubmenus()
     {
-        List<string> headers = Headers(BuildWholeGroundMenu(AirborneIfr("AAL601", "ApproachNav")));
+        ContextMenu menu = BuildWholeGroundMenu(AirborneIfr("AAL601", "ApproachNav"));
+        List<string> headers = Headers(menu);
 
-        string[] expected =
-        [
-            "Heading",
-            "Altitude",
-            "Speed",
-            "Navigation",
-            "Approach",
-            "Procedures",
-            "Track",
-            "Data Block",
-            "Squawk",
-            "Coordination",
-            "Edit flight plan",
-        ];
+        string[] expected = ["Heading", "Altitude", "Speed", "Navigation", "Approach", "Procedures", "Coordination", "Edit flight plan"];
         Assert.All(expected, header => Assert.Contains(header, headers));
+        Assert.All(["Track", "Data Block", "Squawk"], header => Assert.Contains(header, TopHeaders(menu)));
     }
 
-    // The ground's canvas items live in its view section: one Display submenu after Edit flight plan, directly above
-    // the foot, and none of them flat at the top level.
+    // The ground's canvas items live in its view section: one Display submenu between Squawk and Favorites, and none of
+    // them flat at the top level or in the command tree.
     [AvaloniaFact]
     public void GroundMenu_DisplayIsASubmenuInTheViewSection()
     {
         ContextMenu menu = BuildWholeGroundMenu(GroundAircraft("UAL100", "Taxiing", held: false));
         List<object?> items = [.. menu.Items];
-        List<string> headers = Headers(menu);
 
         MenuItem display = Assert.Single(menu.Items.OfType<MenuItem>(), m => (m.Header as string) == "Display");
         List<string> displayHeaders = [.. display.Items.OfType<MenuItem>().Select(m => m.Header as string ?? "")];
         Assert.Equal(["Taxi route", "Hide datablock", "Measure from UAL100"], displayHeaders);
 
         int displayIndex = items.IndexOf(display);
-        Assert.True(headers.IndexOf("Edit flight plan") >= 0, string.Join(" | ", headers));
-        Assert.True(items.IndexOf(menu.Items.OfType<MenuItem>().Single(m => (m.Header as string) == "Edit flight plan")) < displayIndex);
-        Assert.IsType<Separator>(items[displayIndex + 1]);
-        Assert.Equal("Warp…", Assert.IsType<MenuItem>(items[displayIndex + 2]).Header);
+        Assert.Equal("Squawk", Assert.IsType<MenuItem>(items[displayIndex - 1]).Header);
+        Assert.Equal(MenuCatalog.Get(MenuIds.FavoritesMenu).Label, Assert.IsType<MenuItem>(items[displayIndex + 1]).Header);
+        Assert.Contains("Edit flight plan", Headers(menu));
 
-        Assert.DoesNotContain("Taxi route", headers);
-        Assert.DoesNotContain("Hide datablock", headers);
-        Assert.DoesNotContain(headers, h => h.StartsWith("Measure", StringComparison.Ordinal));
+        foreach (List<string> headers in (List<string>[])[Headers(menu), TopHeaders(menu)])
+        {
+            Assert.DoesNotContain("Taxi route", headers);
+            Assert.DoesNotContain("Hide datablock", headers);
+            Assert.DoesNotContain(headers, h => h.StartsWith("Measure", StringComparison.Ordinal));
+        }
     }
 
     [AvaloniaTheory]

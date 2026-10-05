@@ -5,6 +5,8 @@
 ### Added
 
 - A range/bearing measurement's label moves clear of data blocks and aircraft, pushing auto-placed data blocks aside while every side is covered.
+- An aircraft's right-click menu leads with quick commands for its current situation, shown as an icon strip and text; the rest sit under All Commands.
+- Quick commands show only what the aircraft can take: Cross names its runway and waits for the rollout to slow; Cancel takeoff stops at V1.
 
 ### Fixed
 

@@ -4,24 +4,7 @@ SWA601 — B738 [disabled]
 Command…
 Note…
 ---
-Favorite Commands
-  (no items) [disabled]
----
-↪ SWA602: [disabled]
-SWA602: give way to SWA601
-SWA602: follow SWA601
----
-Cross 30
-Tower
-  Line up and wait 30
-  Cleared for takeoff 30
-    Default (SID/on course)
-    Fly runway heading
-    ---
-    Custom… picker:input
-Preset taxi route
-  30 to TERMINAL
-Draw taxi route…
+strip: [ground.cross-runway]
 ---
 Track
   Track
@@ -46,22 +29,42 @@ Squawk
   Squawk standby
   ---
   Ident
-Ask pilot to say…
-  Altitude
-  Heading
-  Speed
-  Mach
-  Position
-  Expected approach
+Favorite Commands
+  (no items) [disabled]
+All Commands
+  ↪ SWA602: [disabled]
+  SWA602: give way to SWA601
+  SWA602: follow SWA601
   ---
-  Custom… picker:input
-Coordination
-  Release
-  Hold
-  Recall
-  Acknowledge release
+  Cross 30
+  Tower
+    Line up and wait 30
+    Cleared for takeoff 30
+      Default (SID/on course)
+      Fly runway heading
+      ---
+      Custom… picker:input
+  Preset taxi route
+    30 to TERMINAL
+  Draw taxi route…
+  ---
+  Ask pilot to say…
+    Altitude
+    Heading
+    Speed
+    Mach
+    Position
+    Expected approach
+    ---
+    Custom… picker:input
+  Coordination
+    Release
+    Hold
+    Recall
+    Acknowledge release
+  ---
+  Edit flight plan
+  ---
+  Warp…
 ---
-Edit flight plan
----
-Warp…
 Delete

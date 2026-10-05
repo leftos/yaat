@@ -25,7 +25,7 @@ public class GroundSubmenuGroupTests
         AircraftMenuBuilder.Build(ac, new MenuClick(Callsign, null, null, []), host, _ => []);
 
     /// <summary>The top-level headers of <paramref name="menu"/> that <paramref name="keep"/> picks, in order.</summary>
-    private static List<string> HeadersWhere(ContextMenu menu, Func<string, bool> keep) => [.. Headers(menu.Items).Where(keep)];
+    private static List<string> HeadersWhere(ContextMenu menu, Func<string, bool> keep) => [.. Headers(CommandTree(menu)).Where(keep)];
 
     private static bool IsTaxiGroup(string header) => header is "Hold short of…" or "Follow…" or "Give way to…";
 
@@ -65,7 +65,7 @@ public class GroundSubmenuGroupTests
         host.HoldShortChoices.Add(new MenuCommandChoice("Runway 30", "HS 30", route, []));
 
         ContextMenu menu = BuildTaxiGroups(host);
-        MenuItem holdShort = Item(menu.Items, "Hold short of…");
+        MenuItem holdShort = Item(CommandTree(menu), "Hold short of…");
         Assert.Equal(["Runway 12", "Runway 30"], Headers(holdShort.Items));
 
         RaisePointerEntered(Item(holdShort.Items, "Runway 12"));
@@ -89,8 +89,8 @@ public class GroundSubmenuGroupTests
         ContextMenu menu = BuildTaxiGroups(host);
         Assert.Equal(["Follow…", "Give way to…"], HeadersWhere(menu, IsTaxiGroup));
 
-        MenuItem follow = Item(menu.Items, "Follow…");
-        MenuItem giveWay = Item(menu.Items, "Give way to…");
+        MenuItem follow = Item(CommandTree(menu), "Follow…");
+        MenuItem giveWay = Item(CommandTree(menu), "Give way to…");
         Assert.Equal(traffic, Headers(follow.Items));
         Assert.Equal(traffic, Headers(giveWay.Items));
 
@@ -134,8 +134,8 @@ public class GroundSubmenuGroupTests
         ContextMenu menu = BuildPushbackGroup(host);
         Assert.Equal(["Push back", "Push back, face W1", "Push back, face W2", "Push route…"], HeadersWhere(menu, IsPushItem));
 
-        Click(Item(menu.Items, "Push back, face W1"));
-        Click(Item(menu.Items, "Push back, face W2"));
+        Click(Item(CommandTree(menu), "Push back, face W1"));
+        Click(Item(CommandTree(menu), "Push back, face W2"));
         Assert.Equal([(Callsign, "PUSH FACE N", Initials), (Callsign, "PUSH FACE SE", Initials)], host.Sent);
     }
 
@@ -149,7 +149,7 @@ public class GroundSubmenuGroupTests
         ContextMenu menu = BuildPushbackGroup(host);
         Assert.Equal(["Push back", "Push back to…", "Push route…"], HeadersWhere(menu, IsPushItem));
 
-        MenuItem pushTo = Item(menu.Items, "Push back to…");
+        MenuItem pushTo = Item(CommandTree(menu), "Push back to…");
         Assert.Equal(["1", "32"], Headers(pushTo.Items));
 
         Click(Item(pushTo.Items, "32"));
@@ -162,7 +162,7 @@ public class GroundSubmenuGroupTests
     {
         var host = new RecordingMenuHost("");
 
-        Click(Item(BuildPushbackGroup(host).Items, "Push route…"));
+        Click(Item(CommandTree(BuildPushbackGroup(host)), "Push route…"));
 
         Assert.Equal([Callsign], host.PushRouteCallsigns);
         Assert.Empty(host.Sent);
@@ -196,12 +196,12 @@ public class GroundSubmenuGroupTests
         ContextMenu menu = BuildMenu(host, Taxiing());
         Assert.Equal(["Preset taxi route", "Draw taxi route…"], HeadersWhere(menu, IsTaxiRouteItem));
 
-        MenuItem presets = Item(menu.Items, "Preset taxi route");
+        MenuItem presets = Item(CommandTree(menu), "Preset taxi route");
         Assert.Equal(["TERMINAL to 30", "TERMINAL to 28R"], Headers(presets.Items));
         Click(Item(presets.Items, "TERMINAL to 28R"));
         Assert.Equal([(Callsign, "TAXI B C RWY 28R", Initials)], host.Sent);
 
-        Click(Item(menu.Items, "Draw taxi route…"));
+        Click(Item(CommandTree(menu), "Draw taxi route…"));
         Assert.Equal([Callsign], host.DrawRouteCallsigns);
     }
 
@@ -229,6 +229,9 @@ public class GroundSubmenuGroupTests
 
     private static List<string> Headers(ItemCollection items) =>
         [.. items.OfType<MenuItem>().Where(m => m.Header is string).Select(m => (string)m.Header!)];
+
+    /// <summary>The items of the menu's All Commands submenu, where the ground block lives.</summary>
+    private static ItemCollection CommandTree(ContextMenu menu) => Item(menu.Items, AircraftMenuBuilder.AllCommandsHeader).Items;
 
     private static MenuItem Item(ItemCollection items, string header)
     {

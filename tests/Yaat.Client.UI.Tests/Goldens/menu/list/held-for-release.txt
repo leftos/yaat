@@ -5,21 +5,7 @@ Release (HFR)
 Command…
 Note…
 ---
-Favorite Commands
-  (no items) [disabled]
----
-Hold position
-Break conflict
-Tower
-  Line up and wait 30
-  Cleared for takeoff 30
-    Default (SID/on course)
-    Fly runway heading
-    ---
-    Custom… picker:input
-Preset taxi route
-  30 to TERMINAL
-Draw taxi route…
+strip: [ground.hold-position, ground.break-conflict]
 ---
 Track
   Track
@@ -44,22 +30,39 @@ Squawk
   Squawk standby
   ---
   Ident
-Ask pilot to say…
-  Altitude
-  Heading
-  Speed
-  Mach
-  Position
-  Expected approach
+Favorite Commands
+  (no items) [disabled]
+All Commands
+  Hold position
+  Break conflict
+  Tower
+    Line up and wait 30
+    Cleared for takeoff 30
+      Default (SID/on course)
+      Fly runway heading
+      ---
+      Custom… picker:input
+  Preset taxi route
+    30 to TERMINAL
+  Draw taxi route…
   ---
-  Custom… picker:input
-Coordination
-  Release
-  Hold
-  Recall
-  Acknowledge release
+  Ask pilot to say…
+    Altitude
+    Heading
+    Speed
+    Mach
+    Position
+    Expected approach
+    ---
+    Custom… picker:input
+  Coordination
+    Release
+    Hold
+    Recall
+    Acknowledge release
+  ---
+  Edit flight plan
+  ---
+  Warp…
 ---
-Edit flight plan
----
-Warp…
 Delete

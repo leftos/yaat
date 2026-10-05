@@ -344,7 +344,66 @@ public static class MenuCatalog
             (ac, context) => (context.Click.Point is not null) && AircraftCommandApplicability.IsControllable(ac),
             BuildPointWarp
         ),
+        new(
+            MenuIds.PatternMakeLeftTraffic,
+            "Make left closed traffic",
+            MenuFlightRules.VfrOnly,
+            CanMakeClosedTraffic,
+            (_, context, host) => BuildSend("Make left closed traffic", "MLT", context, host)
+        ),
+        new(
+            MenuIds.PatternMakeRightTraffic,
+            "Make right closed traffic",
+            MenuFlightRules.VfrOnly,
+            CanMakeClosedTraffic,
+            (_, context, host) => BuildSend("Make right closed traffic", "MRT", context, host)
+        ),
+        new(
+            MenuIds.PatternFollow,
+            "Follow…",
+            MenuFlightRules.VfrOnly,
+            CanFollowTraffic,
+            (_, context, host) => BuildInput("Follow…", "Traffic callsign (optional)", BlankInput.Submits, FormatFollow, context, host)
+        ),
+        new(
+            MenuIds.NavigationOnCourse,
+            "On course",
+            MenuFlightRules.Both,
+            (ac, _) => AircraftCommandApplicability.IsAirborneControllable(ac),
+            (_, context, host) => BuildSend("On course", "OC", context, host)
+        ),
+        new(
+            MenuIds.HoldPattern,
+            "Hold…",
+            MenuFlightRules.IfrOnly,
+            (ac, _) => AircraftCommandApplicability.IsAirborneControllable(ac),
+            (_, context, host) => BuildInput("Hold…", HoldPatternPlaceholder, BlankInput.Closes, input => $"HOLDP {input}", context, host)
+        ),
     ];
+
+    /// <summary>The placeholder of the holding-pattern input, naming the <c>HOLDP</c> arguments in order.</summary>
+    private const string HoldPatternPlaceholder = "Fix, inbound course, legs, turns (e.g. SUNOL 180 1M R)";
+
+    /// <summary>
+    /// Make closed traffic in the air (<c>MLT</c> / <c>MRT</c>), which puts the aircraft into the pattern: a VFR command,
+    /// offered to an IFR aircraft only under the controller's full VFR setting. On the ground the verb only records the
+    /// pattern side, which the takeoff clearance's closed-traffic modifiers already cover.
+    /// </summary>
+    private static Func<IMenuAircraft?, MenuContext, bool> CanMakeClosedTraffic =>
+        (ac, context) => AircraftCommandApplicability.CanIssuePatternManeuvers(ac, context.VfrCommandsForIfr) && (ac is { IsOnGround: false });
+
+    /// <summary>
+    /// Follow traffic in the air (<c>FOLLOW</c>): a VFR command the sim takes only after the aircraft reported traffic in
+    /// sight (<see cref="IMenuAircraft.LastReportedTrafficCallsign"/>), which a bare <c>FOLLOW</c> follows.
+    /// </summary>
+    private static Func<IMenuAircraft?, MenuContext, bool> CanFollowTraffic =>
+        (ac, context) =>
+            AircraftCommandApplicability.CanIssuePatternManeuvers(ac, context.VfrCommandsForIfr)
+            && (ac is { IsOnGround: false })
+            && !string.IsNullOrEmpty(ac.LastReportedTrafficCallsign);
+
+    /// <summary><c>FOLLOW</c> with the typed callsign, or bare (the last traffic reported in sight) when the input is blank.</summary>
+    private static string FormatFollow(string input) => string.IsNullOrWhiteSpace(input) ? "FOLLOW" : $"FOLLOW {input.Trim()}";
 
     /// <summary>
     /// A pattern entry's label and the verb it sends, with the runway after it when one is given. A method rather than
@@ -450,6 +509,7 @@ public static class MenuCatalog
     internal static MenuItem BuildSend(string label, string command, MenuContext context, IMenuHost host)
     {
         var item = new MenuItem { Header = label };
+        MenuCommandText.SetCommand(item, command);
         item.Click += async (_, _) => await host.SendAsync(context.Callsign, command, context.Initials);
         return item;
     }
@@ -512,13 +572,17 @@ public static class MenuCatalog
         BuildSend(LineUpAndWaitLabel + DisplaySuffix(HoldShortMenuHelper.HeldRunway(aircraft)), "LUAW", context, host);
 
     /// <summary>
-    /// Cross the held runway, else the assigned one (<see cref="HoldShortMenuHelper.HeldRunway(IMenuAircraft?)"/>), named
-    /// in display form and sent as resolved; null when the aircraft has neither.
+    /// Cross a runway, named in display form and sent as resolved: at a hold-short the held runway, else the assigned one
+    /// (<see cref="HoldShortMenuHelper.HeldRunway(IMenuAircraft?)"/>); off a hold-short the runway to cross next
+    /// (<see cref="IMenuAircraft.NextCrossingRunway"/>), never the assigned one. Null when there is no runway to name.
     /// </summary>
     private static MenuItem? BuildCrossRunway(IMenuAircraft? aircraft, MenuContext context, IMenuHost host) =>
-        HoldShortMenuHelper.HeldRunway(aircraft) is { } runway
-            ? BuildSend(CrossRunwayLabel + DisplaySuffix(runway), $"CROSS {runway}", context, host)
-            : null;
+        RunwayToCross(aircraft) is { } runway ? BuildSend(CrossRunwayLabel + DisplaySuffix(runway), $"CROSS {runway}", context, host) : null;
+
+    private static string? RunwayToCross(IMenuAircraft? aircraft) =>
+        (aircraft is not null) && (!aircraft.CurrentPhase.StartsWith(HoldShortMenuHelper.HoldingShortPrefix, StringComparison.Ordinal))
+            ? aircraft.NextCrossingRunway
+            : HoldShortMenuHelper.HeldRunway(aircraft);
 
     /// <summary>
     /// The Change spawn delay submenu: one item per <see cref="SpawnDelay.Presets"/> entry, then a free-text box that

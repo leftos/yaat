@@ -4,13 +4,8 @@ SWA102 — B738 [disabled]
 Command…
 Note…
 ---
-Favorite Commands
-  (no items) [disabled]
----
-Hold position
-Preset taxi route
-  TERMINAL to 30
-Draw taxi route…
+strip: [ground.hold-position]
+Push route…
 ---
 Track
   Track
@@ -35,22 +30,31 @@ Squawk
   Squawk standby
   ---
   Ident
-Ask pilot to say…
-  Altitude
-  Heading
-  Speed
-  Mach
-  Position
-  Expected approach
+Favorite Commands
+  (no items) [disabled]
+All Commands
+  Hold position
+  Preset taxi route
+    TERMINAL to 30
+  Draw taxi route…
   ---
-  Custom… picker:input
-Coordination
-  Release
-  Hold
-  Recall
-  Acknowledge release
+  Ask pilot to say…
+    Altitude
+    Heading
+    Speed
+    Mach
+    Position
+    Expected approach
+    ---
+    Custom… picker:input
+  Coordination
+    Release
+    Hold
+    Recall
+    Acknowledge release
+  ---
+  Edit flight plan
+  ---
+  Warp…
 ---
-Edit flight plan
----
-Warp…
 Delete

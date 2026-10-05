@@ -1027,6 +1027,9 @@ public partial class AircraftModel : ObservableObject, IMenuAircraft
     [ObservableProperty]
     private SituationFlags _situationFlags = SituationFlags.None;
 
+    [ObservableProperty]
+    private string? _nextCrossingRunway;
+
     // Live CFR release-window badge shown as a prefix in the Aircraft List Info column.
     [ObservableProperty]
     private string _cfrBadge = "";
@@ -1094,6 +1097,9 @@ public partial class AircraftModel : ObservableObject, IMenuAircraft
 
     /// <inheritdoc />
     public double IndicatedAirspeedKnots => IndicatedAirspeed;
+
+    /// <inheritdoc />
+    public double GroundSpeedKnots => GroundSpeed;
 
     /// <inheritdoc />
     public IReadOnlyList<string> RouteFixNames() => FixSuggester.CollectRouteFixNames(this);
@@ -1266,6 +1272,7 @@ public partial class AircraftModel : ObservableObject, IMenuAircraft
         model.SmartStatusSeverity = dto.SmartStatusSeverity;
         model.Situation = dto.Situation;
         model.SituationFlags = dto.SituationFlags;
+        model.NextCrossingRunway = dto.NextCrossingRunway;
         return model;
     }
 
@@ -1388,6 +1395,7 @@ public partial class AircraftModel : ObservableObject, IMenuAircraft
         SmartStatusSeverity = dto.SmartStatusSeverity;
         Situation = dto.Situation;
         SituationFlags = dto.SituationFlags;
+        NextCrossingRunway = dto.NextCrossingRunway;
     }
 
     internal static (int Order, int Seconds) ParseStatusSortKey(string status)

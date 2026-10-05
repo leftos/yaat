@@ -1202,34 +1202,14 @@ internal static class NavigationCommandHandler
     /// </summary>
     private static bool TryActivateFiledStar(AircraftState aircraft)
     {
-        NavigationDatabase navDb = NavigationDatabase.Instance;
-        string destination = aircraft.FlightPlan.Destination;
-        if (string.IsNullOrEmpty(destination) || string.IsNullOrWhiteSpace(aircraft.FlightPlan.Route))
+        if (FiledProcedureLookup.FindStar(NavigationDatabase.Instance, aircraft.FlightPlan.Destination, aircraft.FlightPlan.Route) is not { } filed)
         {
             return false;
         }
 
-        foreach (string token in aircraft.FlightPlan.Route.Split(' ', StringSplitOptions.RemoveEmptyEntries))
-        {
-            // Filed routes carry versioned STAR names (e.g. TEJAS5), so the strict route-token
-            // resolver is correct here — a bare fix must not be mistaken for a STAR.
-            if (navDb.ResolveStarId(token) is not { } resolvedStarId)
-            {
-                continue;
-            }
-
-            CifpStarProcedure? star = navDb.GetStar(destination, resolvedStarId);
-            if (star is null)
-            {
-                continue;
-            }
-
-            OverlayStarRestrictions(aircraft, star);
-            aircraft.Procedure.ActiveStarId = resolvedStarId;
-            return true;
-        }
-
-        return false;
+        OverlayStarRestrictions(aircraft, filed.Procedure);
+        aircraft.Procedure.ActiveStarId = filed.Id;
+        return true;
     }
 
     /// <summary>
@@ -1287,34 +1267,14 @@ internal static class NavigationCommandHandler
             return false;
         }
 
-        NavigationDatabase navDb = NavigationDatabase.Instance;
-        string departure = aircraft.FlightPlan.Departure;
-        if (string.IsNullOrEmpty(departure) || string.IsNullOrWhiteSpace(aircraft.FlightPlan.Route))
+        if (FiledProcedureLookup.FindSid(NavigationDatabase.Instance, aircraft.FlightPlan.Departure, aircraft.FlightPlan.Route) is not { } filed)
         {
             return false;
         }
 
-        foreach (string token in aircraft.FlightPlan.Route.Split(' ', StringSplitOptions.RemoveEmptyEntries))
-        {
-            // Filed routes carry versioned SID names (e.g. NIMI5), so the strict route-token
-            // resolver is correct here — a bare enroute fix must not be mistaken for a SID.
-            if (navDb.ResolveSidId(token) is not { } resolvedSidId)
-            {
-                continue;
-            }
-
-            CifpSidProcedure? sid = navDb.GetSid(departure, resolvedSidId);
-            if (sid is null)
-            {
-                continue;
-            }
-
-            OverlaySidRestrictions(aircraft, sid);
-            aircraft.Procedure.ActiveSidId = resolvedSidId;
-            return true;
-        }
-
-        return false;
+        OverlaySidRestrictions(aircraft, filed.Procedure);
+        aircraft.Procedure.ActiveSidId = filed.Id;
+        return true;
     }
 
     /// <summary>

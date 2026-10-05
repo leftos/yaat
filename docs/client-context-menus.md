@@ -1,19 +1,77 @@
 # Aircraft context menus — design
 
-The aircraft right-click menus on the radar, ground and aircraft-list views. This doc holds the settled design; it is being built on `feat/context-menu-quick-commands` (PR #471, server half leftos/yaat-server#21), so parts of it are not on `main` yet. The step list and the default situation table are in [plans/context-menu-quick-commands.md](plans/context-menu-quick-commands.md); the icon strip's mock is the repo copy in `plans/canvases/quick-command-icons/`.
+The aircraft right-click menus on the radar, ground and aircraft-list views. This doc holds the settled design; it is being built on `feat/context-menu-quick-commands` (PR #471, server half leftos/yaat-server#21), so parts of it are not on `main` yet. The step list and the reviewed default situation table are in [plans/context-menu-quick-commands.md](plans/context-menu-quick-commands.md); the icon strip's mock is the repo copy in `plans/canvases/quick-command-icons/`.
 
 ## The menu
 
 - **Quick commands by situation.** An aircraft's menu shows a short flat list of quick commands chosen by its situation, with the full tree one level down under **All Commands**. Situations, not raw phases: about 20 named situations, each a set of phases plus DTO flags. Both terms are in [`CONTEXT.md`](../CONTEXT.md).
-- **Top level:** header, `Command…`, the quick commands, then Track ▸, Data Block ▸, Squawk ▸, Display ▸, Favorites ▸, All Commands ▸, then Delete and the RPO items. Ask pilot, Coordination and Sim Control live under All Commands.
-- **Flight rules are a runtime filter, not separate lists.** Each situation has one list; every entry carries *Both* / *IFR only* / *VFR only*, defaulted from the catalog item and overridable per entry, evaluated against `FlightRules` when the menu opens.
-- **An entry is a catalog item or custom text.** Catalog items are stable IDs for the menu's items and submenus, keeping their pickers, smart runway defaults and applicability predicates; custom text is a command template with the same substitution as Favorites.
+- **Top level:** the header (title, the hold-for-release rows, `Command…`, `Note…`), the icon strip, the text quick commands, then Track ▸, Data Block ▸, Squawk ▸, the view section (the radar's Display ▸ and Draw route, the ground's Display ▸, nothing on the aircraft list), Favorite Commands ▸, All Commands ▸, then Delete and the RPO items.
+- **All Commands** holds the full tree in one fixed order: the relative items and the ground-movement block, Heading, Altitude, Speed, Navigation, Hold, Approach, Procedures, Tower, Pattern, Preset taxi route, Draw taxi route…, Ask pilot, Coordination, Edit flight plan, then Warp… and Release to live feed. In a ground phase, a takeoff still on the ground, a landing roll and the touch-and-go variants every flight group but Tower is left out (`AircraftMenuBuilder.HidesFlightCommands`). Each entry shows by its own catalog predicate, never by the situation flags.
+- **Flight rules are a runtime filter, not separate lists.** Each situation has one list; every entry carries *Both* / *IFR only* / *VFR only*, defaulted from the catalog item and overridable per entry, evaluated against `FlightRules` when the menu opens. An aircraft with no flight rules filed gets only the *Both* entries; a *VFR only* entry reaches an IFR aircraft under the "VFR commands for IFR aircraft" setting, as All Commands offers it (every one under *All*, straight-in final alone under *Enter final only*).
+- **An entry is a catalog item or custom text.** Catalog items are stable IDs for the menu's items and submenus, keeping their pickers, smart runway defaults and applicability predicates; custom text is a command template with the same substitution as Favorites. A quick entry builds through its catalog entry's own builder, so it behaves exactly as the same item under All Commands.
 - **Inapplicable entries are hidden, not disabled.** An issued clearance hides itself and shows its cancel entry instead.
-- **The icon strip** shows the glyph-bearing entries of the one per-situation list (two rows of five above the text entries), the rest as text below. Cancel landing clearance shares the Cancel takeoff glyph.
+- **The icon strip** shows the glyph-bearing entries of the one per-situation list: the first ten in list order, two rows of five, the first row filled first and an empty second row hidden; every other entry, a glyph-bearing one past the tenth included, is a text entry below it. A list left with no glyph-bearing entry has no strip. A button stands for its entry's own menu item: a sending or prompting item is clicked through, and a submenu (Maintain ▸, Cleared for takeoff ▸) opens as a flyout under the button, marked by a corner notch; choosing a command closes the menu. The tooltip names the entry and, for one that sends a fixed command, that command (`Hold position — HOLD`). Glyphs are coloured by family (tower, ground, flight, pattern, scope and sim); a left/right pair shares one glyph, and so do Cancel landing clearance and Cancel takeoff clearance, which no situation offers together.
+
+## Quick commands by situation
+
+The default list of each situation, most frequent first (`QuickCommandDefaults`); *(IFR)* and *(VFR)* mark a per-entry flight-rules override. An aircraft whose situation is Unknown shows no quick commands and no strip. A list names catalog actions only, never a view's display item.
+
+| Situation | Default quick commands |
+|---|---|
+| At parking | Push back, Preset taxi route ▸, Draw taxi route…, Push back to…, Check release window |
+| Pushing back | Hold position, Push route… |
+| Holding on ground | Resume taxi, Draw taxi route…, Follow…, Give way to…, Cross |
+| Taxiing | Hold position, Hold short of…, Cross, Follow…, Give way to…, Break conflict, Cleared for takeoff ▸, Cancel takeoff clearance |
+| Holding short | Cleared for takeoff ▸, Line up and wait, Cross, Resume taxi |
+| Lined up | Cleared for takeoff ▸, Cancel takeoff clearance, Draw taxi route… |
+| Departing | Fly heading ▸, Maintain ▸, Climb via SID *(IFR)*, Direct to…, Assign speed ▸ |
+| IFR enroute | Fly heading ▸, Maintain ▸, Direct to…, Assign speed ▸, Hold…, Cross fix |
+| IFR arrival | Descend via STAR *(IFR)*, Maintain ▸, Assign speed ▸, Fly heading ▸, Direct to…, Expect approach ▸, Hold… |
+| VFR flight following | Report traffic in sight…, Fly heading ▸, Maintain ▸, Direct to…, Expect approach ▸ |
+| Approach | Cleared approach ▸, Maintain ▸, Assign speed ▸, Report field in sight, Cleared visual *(IFR)*, Cleared to land |
+| Holding | Cleared approach ▸ *(IFR)*, Direct to…, Maintain ▸, then *(VFR)* Enter left / right downwind, Enter left / right base, Enter final |
+| Pattern | Cleared to land, Cleared for the option, Touch and go, Follow…, Extend pattern leg, Make short approach, Make left / right 360, Turn base, Go around |
+| Final | Cleared to land, Go around, Cancel landing clearance, Reduce to final approach speed |
+| Rollout / exit | Exit left, Exit right, Cross, Draw taxi route… |
+| Go-around | Fly heading ▸, Maintain ▸, Cleared approach ▸ *(IFR)*, *(VFR)* Enter left / right downwind |
+| Live traffic | Assume control, Assume and track |
+| VFR arrival, inbound | Enter left / right downwind, Enter left / right base, Enter final, Report N-mile final…, Report at fix…, Cleared to land, Follow… |
+| VFR departure | Fly heading ▸, On course, Maintain ▸, Report at fix…, Make left / right closed traffic |
+
+Holding is also the situation of a VFR hold and an airspace-boundary hold, which is why its IFR entries are followed by VFR-tagged pattern entries. Exit hold and Expect further clearance time have no sim command yet, so the Holding list leaves them out.
+
+### When a quick command shows
+
+A quick command shows when its flight rules fit, its catalog predicate holds (or a quick-list widening below admits it), it builds an item for the aircraft, and no quick-list rule hides it. The rules read the server's situation flags and `NextCrossingRunway` ([training-hub-contract.md](training-hub-contract.md)) and apply to the quick list only: All Commands keeps every entry whatever they say. They live in `AircraftCommandApplicability` (`Shows*`, `Widens*`) and are applied by `QuickCommandResolver`.
+
+- **Cleared for takeoff** shows while taxiing only within reach of the departure runway's hold line, and at a hold-short only at the departure runway's bar; **Line up and wait** also only at that bar. Both hide while the aircraft is held for release, which the sim refuses.
+- **Cross** is named with its runway ("Cross 28R") and sends `CROSS 28R`: at a hold-short the held runway, elsewhere the runway the server reports as next to cross, never the assigned runway.
+  - At a hold-short it shows only when the bar is not the departure runway's; **Resume taxi** likewise, since the sim refuses `RES` at the departure runway's bar.
+  - While taxiing, holding on the ground (in position, after an exit, after a push) or in a rollout/exit phase (the landing rollout, the runway exit, clearing the runway, a rejected takeoff) it shows only when the next uncleared bar on the taxi route is a runway to cross.
+  - On the landing rollout it waits until the rollout decelerates, as Exit left / right do: no taxi instruction immediately after touchdown (7110.65 §3-10-9 note).
+  - In a rejected takeoff it waits until the aircraft has slowed to taxi speed (30 kt ground speed or less).
+  - No Cross is offered for the next runway while the aircraft is still crossing a runway, or while a runway already cleared to cross lies ahead: one crossing at a time (§3-7-2.c). Leaving the runway the aircraft landed on or is clearing does not count as crossing another.
+- **Cancel takeoff clearance** shows only once the aircraft holds a takeoff clearance and is not past V1, where the sim answers "unable" (§3-9-11); it also shows while taxiing with a stored takeoff clearance.
+- **Cleared approach** hides once the aircraft holds an approach clearance with descent on it (a JFAC/JLOC lateral intercept still offers it). After a go-around or a missed approach it shows again only once a new altitude is assigned: an approach clearance carries the altitude to maintain until established (§4-8-1).
+- **Cleared to land** hides on final once a landing clearance is on the aircraft.
+- **Cleared visual** shows only for an IFR aircraft that has reported the field or the preceding traffic in sight (§7-4-3).
+- **Assign speed** and **Reduce to final approach speed** hide inside the final approach fix (§5-7-1).
+- **Exit left / right** show on the rollout only once it decelerates.
+- **Give way to…** shows only with a taxi route.
+- **Climb via SID** shows only with an active SID or one the filed route names at the departure airport (never for a VFR aircraft); **Descend via STAR** only with an active STAR or one the filed route names at the destination. The lookup is the sim's own (`FiledProcedureLookup`), so the menu offers exactly what a bare `CVIA` / `DVIA` accepts.
+
+Quick-list widenings, each first proven against the sim (`QuickCommandSimAcceptanceTests`):
+
+- **Push route…** also while the push is under way.
+- **Draw taxi route…** also while lining up, lined up and waiting, on the landing rollout and in the runway exit.
+- **Follow…** and **Give way to…** also while already following another aircraft on the ground.
+- The VFR **pattern entries**: a downwind or left base also at the start of a go-around or low approach; any leg entry, straight-in final included, also in an airspace-boundary hold or an AR anchor.
+- **Cross** and **Cancel takeoff clearance** in the phases listed above.
 
 ## Where it lives
 
 - **One catalog in `Yaat.Client.Core`, behind interfaces** (`IMenuAircraft`, `IMenuHost`, `MenuCatalogEntry`, `MenuIds`), one tree on every surface: radar, ground and the aircraft list build the same menu from the same catalog with no per-surface filtering, and the same view-agnostic builder serves YAAT Scope's aircraft menu. Every entry resolves to command text sent through `IMenuHost.SendAsync`, which `ClientMenuHost` routes to `MainViewModel.SendCommandForViewAsync` on every view, so a failed send shows in the status line wherever the menu opened. A view adds only its view section of canvas items (Display, Draw route), and a point click opens the point menu; both terms are in [`CONTEXT.md`](../CONTEXT.md).
-- **The server classifies the situation.** `SituationClassifier` (`src/Yaat.Sim/Situation/`) stores a snapshotted situation from a sim step with hysteresis bands whose widths the aviation review set, and sends it with one `SituationFlags` wire field; the client never re-derives it from the phase string.
+- **The quick commands** are `QuickCommandDefaults` (the lists), `QuickCommandResolver` (the filters), `QuickCommandGlyphs` (the glyphs and the strip split) and `QuickCommandStrip` (the strip control), placed by `AircraftMenuBuilder`.
+- **The server classifies the situation.** `SituationClassifier` (`src/Yaat.Sim/Situation/`) stores a snapshotted situation from a sim step with hysteresis bands whose widths the aviation review set, and sends it with one `SituationFlags` wire field and the `NextCrossingRunway` field; the client never re-derives them from the phase string.
 - **Storage: global per user, exportable.** Only the situations a user changed are stored in `preferences.json`, so improved defaults reach users who never customised; import and export to a `*.yaat-verbs.json` file.
 - **Editor:** a Quick Commands section in Settings, situations on the left and the ordered entry list on the right (add from catalog, add custom text, reorder, flight-rules filter per entry), with **Reset this situation** and **Reset all**.

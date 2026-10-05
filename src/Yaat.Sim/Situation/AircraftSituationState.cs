@@ -34,6 +34,12 @@ public class AircraftSituationState
     /// </summary>
     public SituationFlags Flags { get; set; }
 
+    /// <summary>
+    /// The runway to cross next that the last <c>Situation</c> step found (<see cref="SituationFlagCalculator.NextCrossingRunway"/>),
+    /// as the end to name in <c>CROSS</c> (e.g. "28R"); null when the next bar is no runway crossing, or until it first runs.
+    /// </summary>
+    public string? NextCrossingRunway { get; set; }
+
     public AircraftSituationStateDto ToSnapshot() =>
         new()
         {
@@ -41,6 +47,7 @@ public class AircraftSituationState
             AirborneAtSeconds = AirborneAtSeconds,
             WasOnGround = WasOnGround,
             Flags = (int)Flags,
+            NextCrossingRunway = NextCrossingRunway,
         };
 
     public static AircraftSituationState FromSnapshot(AircraftSituationStateDto dto) =>
@@ -50,5 +57,6 @@ public class AircraftSituationState
             AirborneAtSeconds = dto.AirborneAtSeconds,
             WasOnGround = dto.WasOnGround,
             Flags = (SituationFlags)dto.Flags,
+            NextCrossingRunway = dto.NextCrossingRunway,
         };
 }

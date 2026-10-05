@@ -590,7 +590,11 @@ public class MenuPopupsTests
         new Window { Content = grid }.ShowAndRunLayout();
 
         ContextMenu menu = DataGridView.BuildAircraftMenu(main, grid, ac, null, [ac]);
-        MenuItem tower = menu.Items.OfType<MenuItem>().Single(m => (m.Header as string) == "Tower");
+        MenuItem tower = menu
+            .Items.OfType<MenuItem>()
+            .Single(m => (m.Header as string) == AircraftMenuBuilder.AllCommandsHeader)
+            .Items.OfType<MenuItem>()
+            .Single(m => (m.Header as string) == "Tower");
         MenuItem takeoff = tower
             .Items.OfType<MenuItem>()
             .Single(m => ((m.Header as string) ?? "").StartsWith("Cleared for takeoff", StringComparison.Ordinal));

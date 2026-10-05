@@ -94,6 +94,9 @@ public interface IMenuAircraft
     /// <summary>The current indicated airspeed in knots, which the warp popup seeds its speed field with.</summary>
     double IndicatedAirspeedKnots { get; }
 
+    /// <summary>The current ground speed in knots, which tells a rejected takeoff still braking from one slowed to taxi speed.</summary>
+    double GroundSpeedKnots { get; }
+
     /// <summary>The fix the aircraft is navigating to, empty when it is not navigating to one.</summary>
     string NavigatingTo { get; }
 
@@ -127,14 +130,32 @@ public interface IMenuAircraft
     /// <summary>The flight plan's route text, empty when none.</summary>
     string Route { get; }
 
+    /// <summary>The SID the aircraft is flying, empty when none is active.</summary>
+    string ActiveSidId { get; }
+
+    /// <summary>The STAR the aircraft is flying, empty when none is active.</summary>
+    string ActiveStarId { get; }
+
     /// <summary>The approach the aircraft is cleared for or flying, or null when none.</summary>
     string? ActiveApproachId { get; }
 
     /// <summary>The approach the aircraft has been told to expect, or null when none.</summary>
     string? ExpectedApproach { get; }
 
+    /// <summary>
+    /// The server-classified situation (the stored AircraftSituationState.Current), which picks the aircraft's quick-command
+    /// list; <see cref="AircraftSituation.Unknown"/> when none could be determined.
+    /// </summary>
+    AircraftSituation Situation { get; }
+
     /// <summary>The server-computed situation flags (the stored AircraftSituationState.Flags), sent beside Situation.</summary>
     SituationFlags SituationFlags { get; }
+
+    /// <summary>
+    /// The server-computed runway to cross next (the stored AircraftSituationState.NextCrossingRunway), as the end to name
+    /// in <c>CROSS</c>; null when the next bar on the taxi route is no runway crossing.
+    /// </summary>
+    string? NextCrossingRunway { get; }
 
     /// <summary>The fixes along the aircraft's route that a fix picker offers first, computed on each call.</summary>
     IReadOnlyList<string> RouteFixNames();

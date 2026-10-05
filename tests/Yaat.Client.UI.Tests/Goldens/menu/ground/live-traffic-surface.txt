@@ -4,9 +4,6 @@ UAL402 — B738 [disabled]
 Command…
 Note…
 ---
-Favorite Commands
-  (no items) [disabled]
----
 Track
   Track
   Drop track
@@ -22,11 +19,6 @@ Data Block
   Temporary altitude… picker:input
   Cruise… picker:input
   Annotate
-Coordination
-  Release
-  Hold
-  Recall
-  Acknowledge release
 Display
   Taxi route
     Always show
@@ -34,5 +26,13 @@ Display
     Follow “Show all” setting [checked]
   Hide datablock
   Measure from UAL402
+Favorite Commands
+  (no items) [disabled]
+All Commands
+  Coordination
+    Release
+    Hold
+    Recall
+    Acknowledge release
 ---
 Delete

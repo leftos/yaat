@@ -200,16 +200,30 @@ public static class SharedMenuGroups
 
     /// <summary>
     /// The foot every aircraft menu ends with, before the RPO items the caller appends: a separator (unless the menu
-    /// already ends in one), Warp… where it applies (every view offers it, never a surface live-traffic shadow), "Release
-    /// to live feed" when the aircraft was assumed from the feed (<see cref="AircraftCommandApplicability.CanUnassume"/>),
-    /// then Delete. Every view's delayed-spawn menu keeps its own foot (<see cref="AddDelayedSpawn"/>).
+    /// already ends in one), then Delete. Every view's delayed-spawn menu keeps its own foot (<see cref="AddDelayedSpawn"/>).
     /// </summary>
     public static void AddFoot(ItemCollection items, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
     {
         AddBlockSeparator(items);
+        items.Add(Delete(aircraft, context, host));
+    }
+
+    /// <summary>
+    /// The sim-control items that close All Commands: a separator (unless the list already ends in one), Warp… where it
+    /// applies (every view offers it, never a surface live-traffic shadow), then "Release to live feed" when the aircraft
+    /// was assumed from the feed (<see cref="AircraftCommandApplicability.CanUnassume"/>). Nothing, not even the
+    /// separator, when neither applies.
+    /// </summary>
+    public static void AddSimControl(ItemCollection items, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
+    {
+        if (!IsApplicable(MenuIds.SimControlWarp, aircraft, context) && !IsApplicable(MenuIds.LiveTrafficUnassume, aircraft, context))
+        {
+            return;
+        }
+
+        AddBlockSeparator(items);
         AddIfApplicable(items, MenuIds.SimControlWarp, aircraft, context, host);
         AddIfApplicable(items, MenuIds.LiveTrafficUnassume, aircraft, context, host);
-        items.Add(Delete(aircraft, context, host));
     }
 
     /// <summary>The Delete leaf that sends <c>DEL</c>.</summary>

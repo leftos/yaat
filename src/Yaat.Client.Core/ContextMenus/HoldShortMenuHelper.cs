@@ -9,7 +9,8 @@ namespace Yaat.Client.ContextMenus;
 /// </summary>
 public static class HoldShortMenuHelper
 {
-    private const string HoldingShortPrefix = "Holding Short ";
+    /// <summary>The start of a holding-short phase's name ("Holding Short 28R/10L"), the held target following it.</summary>
+    public const string HoldingShortPrefix = "Holding Short ";
 
     /// <summary>
     /// Whether <paramref name="phase"/> holds short of a named target that is not a runway — a taxiway or spot bar

@@ -4,16 +4,7 @@ SWA106 — B738 [disabled]
 Command…
 Note…
 ---
-Favorite Commands
-  (no items) [disabled]
----
-Tower
-  Cleared for takeoff 30
-    Default (SID/on course)
-    Fly runway heading
-    ---
-    Custom… picker:input
-  Cancel takeoff clearance
+strip: [tower.cto, ground.draw-taxi-route]
 ---
 Track
   Track
@@ -38,23 +29,6 @@ Squawk
   Squawk standby
   ---
   Ident
-Ask pilot to say…
-  Altitude
-  Heading
-  Speed
-  Mach
-  Position
-  Expected approach
-  ---
-  Custom… picker:input
-Coordination
-  Release
-  Hold
-  Recall
-  Acknowledge release
----
-Edit flight plan
----
 Display
   Taxi route
     Always show
@@ -62,6 +36,34 @@ Display
     Follow “Show all” setting [checked]
   Hide datablock
   Measure from SWA106
+Favorite Commands
+  (no items) [disabled]
+All Commands
+  Tower
+    Cleared for takeoff 30
+      Default (SID/on course)
+      Fly runway heading
+      ---
+      Custom… picker:input
+    Cancel takeoff clearance
+  ---
+  Ask pilot to say…
+    Altitude
+    Heading
+    Speed
+    Mach
+    Position
+    Expected approach
+    ---
+    Custom… picker:input
+  Coordination
+    Release
+    Hold
+    Recall
+    Acknowledge release
+  ---
+  Edit flight plan
+  ---
+  Warp…
 ---
-Warp…
 Delete

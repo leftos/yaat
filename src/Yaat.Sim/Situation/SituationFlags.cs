@@ -27,4 +27,19 @@ public enum SituationFlags
 
     /// <summary>An IFR aircraft has reported the preceding traffic in sight.</summary>
     HasReportedTrafficInSight = 32,
+
+    /// <summary>Cleared for takeoff (7110.65 §3-9-10); a line-up-and-wait clearance does not count.</summary>
+    HasTakeoffClearance = 64,
+
+    /// <summary>
+    /// On the takeoff, airborne or rolling at or above V1: committed to the takeoff, so the clearance can no longer be
+    /// cancelled (§3-9-11).
+    /// </summary>
+    PastV1 = 128,
+
+    /// <summary>
+    /// Cleared for the approach with descent on it, not a lateral intercept only (JFAC/JLOC): no further approach
+    /// clearance to issue (§5-9-4).
+    /// </summary>
+    ApproachClearedForDescent = 256,
 }

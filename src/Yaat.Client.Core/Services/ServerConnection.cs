@@ -1324,7 +1324,11 @@ public record AircraftDto(
     double? TowbarTrueHeadingDeg = null,
     // The speed the aircraft is commanding, knots, null when it commands none. Kept name-for-name in sync with the
     // server's AircraftStateDto; the push-route preview reads it to tell a parked or held neighbour from a creeping one.
-    double? TargetSpeedKts = null
+    double? TargetSpeedKts = null,
+    // The runway whose bar is the next uncleared one on the taxi route, as the end to name in CROSS ("28R"), computed
+    // beside the situation flags; null when the next bar is no runway crossing. Kept name-for-name in sync with the
+    // server's AircraftStateDto; the quick list's Cross names and sends it.
+    string? NextCrossingRunway = null
 );
 
 public record LoadScenarioResultDto(

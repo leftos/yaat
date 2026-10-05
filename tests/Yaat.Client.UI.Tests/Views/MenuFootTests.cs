@@ -12,8 +12,8 @@ using Yaat.Sim.Data;
 namespace Yaat.Client.UI.Tests.Views;
 
 /// <summary>
-/// The foot every aircraft menu ends with: a separator, Warp… (radar only), the release-to-live-feed item, Delete, then
-/// the RPO items, built through each view's whole-menu builder over the golden fixtures. The aircraft is marked as
+/// The foot every aircraft menu ends with: a separator, Delete, then the RPO items, with Warp… and the
+/// release-to-live-feed item closing All Commands, built through each view's whole-menu builder over the golden fixtures. The aircraft is marked as
 /// assumed from the live feed so the release item shows, and the room has one other member so the RPO items show.
 /// </summary>
 public class MenuFootTests
@@ -23,49 +23,53 @@ public class MenuFootTests
     private readonly NavigationDatabase _navDb = MenuGoldenFixtures.EnsureNavData();
 
     [AvaloniaFact]
-    public void RadarMenu_EndsWithSeparatorWarpReleaseDeleteThenRpoItems()
+    public void RadarMenu_EndsWithDeleteThenRpoItems_WarpAndReleaseCloseAllCommands()
     {
-        List<string> items = TopLevel(MenuView.Radar, "ifr-enroute", assumedFromLiveFeed: true);
+        (List<string> items, List<string> commands) = TopLevelAndCommands(MenuView.Radar, "ifr-enroute", assumedFromLiveFeed: true);
 
-        Assert.Equal(["Draw route", "---", "Warp…", "Release to live feed", "Delete", "---", "Give control", "Unassign"], items[^8..]);
+        Assert.Equal(["All Commands", "---", "Delete", "---", "Give control", "Unassign"], items[^6..]);
+        Assert.Equal(["---", "Warp…", "Release to live feed"], commands[^3..]);
     }
 
     [AvaloniaFact]
     public void RadarMenu_HasNoSimControlSubmenu()
     {
-        List<string> items = TopLevel(MenuView.Radar, "taxiing", assumedFromLiveFeed: false);
+        (List<string> items, List<string> commands) = TopLevelAndCommands(MenuView.Radar, "taxiing", assumedFromLiveFeed: false);
 
         Assert.DoesNotContain("Sim Control", items);
-        Assert.Single(items, i => i == "Warp…");
+        Assert.DoesNotContain("Sim Control", commands);
+        Assert.DoesNotContain("Warp…", items);
+        Assert.Single(commands, i => i == "Warp…");
     }
 
-    // A surface shadow is never assumable, so the warp, which goes through the command path, stays out of its foot.
+    // A surface shadow is never assumable, so the warp, which goes through the command path, stays out of its menu.
     [AvaloniaFact]
-    public void RadarSurfaceShadowMenu_FootOffersNoWarp()
+    public void RadarSurfaceShadowMenu_OffersNoWarp()
     {
-        List<string> items = TopLevel(MenuView.Radar, "live-traffic-surface", assumedFromLiveFeed: false);
+        (List<string> items, List<string> commands) = TopLevelAndCommands(MenuView.Radar, "live-traffic-surface", assumedFromLiveFeed: false);
 
-        Assert.Equal(["Display", "---", "Delete", "---", "Give control", "Unassign"], items[^6..]);
+        Assert.Equal(["Display", "Favorite Commands", "All Commands", "---", "Delete", "---", "Give control", "Unassign"], items[^8..]);
+        Assert.DoesNotContain("Warp…", commands);
     }
 
     [AvaloniaFact]
-    public void GroundMenu_EndsWithSeparatorWarpReleaseDeleteThenRpoItems()
+    public void GroundMenu_EndsWithDeleteThenRpoItems_WarpAndReleaseCloseAllCommands()
     {
-        List<string> items = TopLevel(MenuView.Ground, "taxiing", assumedFromLiveFeed: true);
+        (List<string> items, List<string> commands) = TopLevelAndCommands(MenuView.Ground, "taxiing", assumedFromLiveFeed: true);
 
-        Assert.Equal(["Display", "---", "Warp…", "Release to live feed", "Delete", "---", "Give control", "Unassign"], items[^8..]);
+        Assert.Equal(["Display", "Favorite Commands", "All Commands", "---", "Delete", "---", "Give control", "Unassign"], items[^8..]);
+        Assert.Equal(["---", "Warp…", "Release to live feed"], commands[^3..]);
     }
 
-    // The list's view section is empty, so the foot follows Edit flight plan with one separator and no Display.
+    // The list's view section is empty, so Favorites follows Squawk; Edit flight plan stays in the command tree, before
+    // the sim-control items.
     [AvaloniaFact]
-    public void ListMenu_EndsWithSeparatorWarpReleaseDeleteThenRpoItems_EditFlightPlanStaysInCommandBlock()
+    public void ListMenu_EndsWithDeleteThenRpoItems_EditFlightPlanStaysInCommandBlock()
     {
-        List<string> items = TopLevel(MenuView.List, "taxiing", assumedFromLiveFeed: true);
+        (List<string> items, List<string> commands) = TopLevelAndCommands(MenuView.List, "taxiing", assumedFromLiveFeed: true);
 
-        Assert.Equal(
-            ["Coordination", "---", "Edit flight plan", "---", "Warp…", "Release to live feed", "Delete", "---", "Give control", "Unassign"],
-            items[^10..]
-        );
+        Assert.Equal(["Squawk", "Favorite Commands", "All Commands", "---", "Delete", "---", "Give control", "Unassign"], items[^8..]);
+        Assert.Equal(["Coordination", "---", "Edit flight plan", "---", "Warp…", "Release to live feed"], commands[^6..]);
     }
 
     [AvaloniaFact]
@@ -79,7 +83,18 @@ public class MenuFootTests
     private static MenuFixture Fixture(MenuView view, string name) => MenuGoldenFixtures.For(view).Single(f => f.Name == name);
 
     /// <summary>The top-level items of one fixture's menu on <paramref name="view"/>: each item's header, a separator as <c>---</c>.</summary>
-    private List<string> TopLevel(MenuView view, string fixtureName, bool assumedFromLiveFeed)
+    private List<string> TopLevel(MenuView view, string fixtureName, bool assumedFromLiveFeed) =>
+        [.. Menu(view, fixtureName, assumedFromLiveFeed).Items.Select(Describe)];
+
+    /// <summary>The top-level items and the All Commands submenu's items of one fixture's menu, described as <see cref="TopLevel"/> does.</summary>
+    private (List<string> Items, List<string> Commands) TopLevelAndCommands(MenuView view, string fixtureName, bool assumedFromLiveFeed)
+    {
+        ContextMenu menu = Menu(view, fixtureName, assumedFromLiveFeed);
+        MenuItem allCommands = menu.Items.OfType<MenuItem>().Single(m => (m.Header as string) == AircraftMenuBuilder.AllCommandsHeader);
+        return ([.. menu.Items.Select(Describe)], [.. allCommands.Items.Select(Describe)]);
+    }
+
+    private ContextMenu Menu(MenuView view, string fixtureName, bool assumedFromLiveFeed)
     {
         using IDisposable navScope = NavigationDatabase.ScopedOverride(_navDb);
         var main = new MainViewModel(new FakeFilePickerService());
@@ -92,13 +107,12 @@ public class MenuFootTests
         ac.AssumedFromLiveTraffic = assumedFromLiveFeed;
         main.Aircraft.Add(ac);
 
-        ContextMenu menu = view switch
+        return view switch
         {
             MenuView.Radar => MenuHostHarness.BuildRadarMenu(main, ac, null),
             MenuView.Ground => MenuHostHarness.BuildGroundMenu(main, ac, null),
             _ => DataGridView.BuildAircraftMenu(main, new DataGrid(), ac, null, [ac]),
         };
-        return [.. menu.Items.Select(Describe)];
     }
 
     private static string Describe(object? item) =>

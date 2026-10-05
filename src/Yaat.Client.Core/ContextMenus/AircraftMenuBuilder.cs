@@ -4,20 +4,26 @@ namespace Yaat.Client.ContextMenus;
 
 /// <summary>
 /// The aircraft context menu, built from the aircraft, the click and the host and the same whichever view opened it. A
-/// view adds only its view section, the canvas items it alone can serve, which the builder places above the foot.
+/// view adds only its view section, the canvas items it alone can serve, which the builder places after Squawk.
 /// </summary>
 public static class AircraftMenuBuilder
 {
+    /// <summary>The header of the submenu that holds the full command tree.</summary>
+    public const string AllCommandsHeader = "All Commands";
+
     /// <summary>
     /// The menu for <paramref name="aircraft"/> (null when the clicked callsign has no aircraft model), in one order: the
-    /// header, Favorites, then by the aircraft's kind —
+    /// header (with Command…), then by the aircraft's kind —
     /// <list type="bullet">
-    /// <item>a delayed spawn: Spawn now, Change spawn delay and Delete, and nothing else;</item>
-    /// <item>a surface live-traffic shadow: Track, Data Block and Coordination, the view section, the foot;</item>
+    /// <item>a delayed spawn: Favorites, Spawn now, Change spawn delay and Delete, and nothing else;</item>
     /// <item>
-    /// any other aircraft, an assumable shadow opening with its assume items: the relative items, the ground-movement
-    /// block, the phase-ordered profile groups, Preset taxi route, Draw taxi route…, Track, Data Block, Squawk, Ask pilot,
-    /// Coordination, Edit flight plan, the view section after a separator, the foot;
+    /// a surface live-traffic shadow: Track, Data Block, the view section, Favorites, All Commands (Coordination only),
+    /// then Delete;
+    /// </item>
+    /// <item>
+    /// any other aircraft: the quick commands its situation resolves to (<see cref="QuickCommandResolver"/>; the icon
+    /// strip, then the text entries), Track, Data Block, Squawk, the view section, Favorites, All Commands (the full
+    /// command tree, <see cref="AddAllCommands"/>), then Delete;
     /// </item>
     /// </list>
     /// then "Assume selected live traffic (N)" and the RPO items for the click's selection, else for the clicked aircraft.
@@ -49,11 +55,11 @@ public static class AircraftMenuBuilder
 
         var menu = new ContextMenu();
         SharedMenuGroups.AddHeader(menu.Items, aircraft, context, host);
-        menu.Items.Add(SharedMenuGroups.Favorites(aircraft, context, host));
-        menu.Items.Add(new Separator());
 
         if (aircraft is { IsDelayed: true })
         {
+            menu.Items.Add(SharedMenuGroups.Favorites(aircraft, context, host));
+            menu.Items.Add(new Separator());
             SharedMenuGroups.AddDelayedSpawn(menu, aircraft, context, host);
             return menu;
         }
@@ -64,13 +70,31 @@ public static class AircraftMenuBuilder
         }
         else
         {
-            AddCommandTree(menu.Items, aircraft, context, host, viewSection(context));
+            AddQuickCommands(menu, aircraft, context, host);
+            AddTopLevelGroups(menu.Items, aircraft, context, host, viewSection(context));
         }
 
         SharedMenuGroups.AddFoot(menu.Items, aircraft, context, host);
         SharedMenuGroups.AddAssumeSelected(menu, context, host);
         SharedMenuGroups.AddRange(menu.Items, host.BuildRpoItems(RpoCallsigns(click)));
         return menu;
+    }
+
+    /// <summary>
+    /// Whether the aircraft's phase hides the flight groups (Heading, Altitude, Speed, Navigation, Hold, Approach,
+    /// Procedures) and Pattern from All Commands, leaving Tower: a ground phase, a takeoff still on the ground, a landing
+    /// roll and the touch-and-go variants. An aircraft with no phase shows them. The radar's Draw route follows the same rule.
+    /// </summary>
+    public static bool HidesFlightCommands(string? phase, bool isOnGround)
+    {
+        if (string.IsNullOrEmpty(phase))
+        {
+            return false;
+        }
+
+        return AircraftCommandApplicability.IsGroundPhase(phase)
+            || ((phase == "Takeoff") && isOnGround)
+            || (phase is "Landing" or "Landing-H" or "TouchAndGo" or "StopAndGo" or "LowApproach" or "Takeoff-H");
     }
 
     /// <summary>The point items before Warp here, each where its own predicate allows it, in menu order.</summary>
@@ -133,8 +157,8 @@ public static class AircraftMenuBuilder
     }
 
     /// <summary>
-    /// A surface shadow's read-only tree: Track, Data Block and Coordination, then the view section straight after, and
-    /// nothing that commands it.
+    /// A surface shadow's read-only menu: Track and Data Block, the view section, Favorites, then All Commands holding
+    /// only Coordination, and nothing that commands it.
     /// </summary>
     private static void AddSurfaceShadow(
         ItemCollection items,
@@ -146,23 +170,76 @@ public static class AircraftMenuBuilder
     {
         items.Add(SharedMenuGroups.Track(aircraft, context, host));
         items.Add(SharedMenuGroups.DataBlock(aircraft, context, host));
-        items.Add(SharedMenuGroups.Coordination(aircraft, context, host));
         SharedMenuGroups.AddRange(items, section);
+        items.Add(SharedMenuGroups.Favorites(aircraft, context, host));
+        var all = new MenuItem { Header = AllCommandsHeader };
+        all.Items.Add(SharedMenuGroups.Coordination(aircraft, context, host));
+        items.Add(all);
     }
 
     /// <summary>
-    /// Everything between Favorites and the foot for an aircraft the controller commands: an assumable shadow's assume
-    /// items, the relative items, the ground-movement block, the profile groups, Preset taxi route, Draw taxi route…
-    /// (which starts on the primary ground view, the host showing it first), the always-present groups, Edit flight plan,
-    /// then the view section after a separator.
+    /// The aircraft's quick commands, each built through its catalog entry's own builder so its pickers, prompts and
+    /// runway defaults match All Commands: the icon strip when the resolution has strip items, then the text entries.
+    /// Nothing for an aircraft whose situation is unknown.
     /// </summary>
-    private static void AddCommandTree(
+    private static void AddQuickCommands(ContextMenu menu, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
+    {
+        if (aircraft is null)
+        {
+            return;
+        }
+
+        // An entry that builds no item is dropped before the strip is capped; the strip and the text list build it again.
+        QuickCommandResolution resolution = QuickCommandResolver.Resolve(
+            aircraft,
+            context,
+            entry => entry.Build(aircraft, context, host) is not null
+        );
+        if (QuickCommandStrip.Build(menu, resolution.Strip, aircraft, context, host) is { } strip)
+        {
+            menu.Items.Add(strip);
+        }
+
+        foreach (MenuCatalogEntry entry in resolution.Text)
+        {
+            if (entry.Build(aircraft, context, host) is { } item)
+            {
+                menu.Items.Add(item);
+            }
+        }
+    }
+
+    /// <summary>
+    /// The top-level groups below the quick commands: Track, Data Block, Squawk, the view section, Favorites, then All
+    /// Commands, after a separator.
+    /// </summary>
+    private static void AddTopLevelGroups(
         ItemCollection items,
         IMenuAircraft? aircraft,
         MenuContext context,
         IMenuHost host,
         IReadOnlyList<Control> section
     )
+    {
+        SharedMenuGroups.AddBlockSeparator(items);
+        items.Add(SharedMenuGroups.Track(aircraft, context, host));
+        items.Add(SharedMenuGroups.DataBlock(aircraft, context, host));
+        items.Add(SharedMenuGroups.Squawk(aircraft, context, host));
+        SharedMenuGroups.AddRange(items, section);
+        items.Add(SharedMenuGroups.Favorites(aircraft, context, host));
+
+        var all = new MenuItem { Header = AllCommandsHeader };
+        AddAllCommands(all.Items, aircraft, context, host);
+        items.Add(all);
+    }
+
+    /// <summary>
+    /// The full command tree under All Commands: an assumable shadow's assume items, the relative items, the
+    /// ground-movement block, the flight and tower groups in one fixed order (<see cref="AddFlightGroups"/>), Preset taxi
+    /// route, Draw taxi route… (which starts on the primary ground view, the host showing it first), Ask pilot,
+    /// Coordination, Edit flight plan, then the sim-control items (Warp…, Release to live feed) after a separator.
+    /// </summary>
+    private static void AddAllCommands(ItemCollection items, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
     {
         if (aircraft is { IsLiveTraffic: true })
         {
@@ -173,14 +250,11 @@ public static class AircraftMenuBuilder
 
         SharedMenuGroups.AddRelative(items, aircraft, context, host);
         AddGroundMovement(items, aircraft, context, host);
-        AddProfileGroups(items, aircraft, context, host);
+        AddFlightGroups(items, aircraft, context, host);
         SharedMenuGroups.AddIfApplicable(items, MenuIds.GroundTaxiPreset, aircraft, context, host);
         SharedMenuGroups.AddIfApplicable(items, MenuIds.GroundDrawTaxiRoute, aircraft, context, host);
 
         items.Add(new Separator());
-        items.Add(SharedMenuGroups.Track(aircraft, context, host));
-        items.Add(SharedMenuGroups.DataBlock(aircraft, context, host));
-        items.Add(SharedMenuGroups.Squawk(aircraft, context, host));
         if (AircraftCommandApplicability.CanAskPilot(aircraft))
         {
             items.Add(SharedMenuGroups.AskPilot(aircraft, context, host));
@@ -193,10 +267,10 @@ public static class AircraftMenuBuilder
             items.Add(editFlightPlan);
         }
 
-        if (section.Count > 0)
+        SharedMenuGroups.AddSimControl(items, aircraft, context, host);
+        if (items[^1] is Separator)
         {
-            SharedMenuGroups.AddBlockSeparator(items);
-            SharedMenuGroups.AddRange(items, section);
+            items.RemoveAt(items.Count - 1);
         }
     }
 
@@ -235,47 +309,32 @@ public static class AircraftMenuBuilder
     }
 
     /// <summary>
-    /// The flight and tower groups in the order <see cref="ContextMenuProfileService"/> gives the aircraft's phase: the
-    /// primary groups, a separator, the secondary groups; the phase's hidden groups are left out, and so is a Tower or
-    /// Pattern submenu with nothing in it.
+    /// The flight and tower groups in one order on every aircraft: Heading, Altitude, Speed, Navigation, Hold, Approach,
+    /// Procedures, Tower, Pattern. All but Tower are left out while the phase hides the flight commands
+    /// (<see cref="HidesFlightCommands"/>), and a Tower or Pattern submenu with nothing in it is left out.
     /// </summary>
-    private static void AddProfileGroups(ItemCollection items, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
+    private static void AddFlightGroups(ItemCollection items, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
     {
-        ContextMenuProfile profile = ContextMenuProfileService.GetProfile(aircraft?.CurrentPhase, aircraft?.IsOnGround ?? false);
-        foreach (MenuGroup group in profile.PrimaryGroups)
+        bool hidden = HidesFlightCommands(aircraft?.CurrentPhase, aircraft?.IsOnGround ?? false);
+        if (!hidden)
         {
-            AddProfileGroup(items, group, aircraft, context, host);
+            items.Add(SharedMenuGroups.Heading(aircraft, context, host));
+            items.Add(SharedMenuGroups.Altitude(aircraft, context, host));
+            items.Add(SharedMenuGroups.Speed(aircraft, context, host));
+            items.Add(SharedMenuGroups.Navigation(aircraft, context, host));
+            items.Add(SharedMenuGroups.Hold(aircraft, context, host));
+            items.Add(SharedMenuGroups.Approach(aircraft, context, host));
+            items.Add(SharedMenuGroups.Procedures(aircraft, context, host));
         }
 
-        if ((profile.PrimaryGroups.Count > 0) && (profile.SecondaryGroups.Count > 0))
+        if (SharedMenuGroups.Tower(aircraft, context, host) is { } tower)
         {
-            items.Add(new Separator());
+            items.Add(tower);
         }
 
-        foreach (MenuGroup group in profile.SecondaryGroups)
+        if (!hidden && (SharedMenuGroups.Pattern(aircraft, context, host) is { } pattern))
         {
-            AddProfileGroup(items, group, aircraft, context, host);
-        }
-    }
-
-    private static void AddProfileGroup(ItemCollection items, MenuGroup group, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
-    {
-        MenuItem? item = group switch
-        {
-            MenuGroup.Heading => SharedMenuGroups.Heading(aircraft, context, host),
-            MenuGroup.Altitude => SharedMenuGroups.Altitude(aircraft, context, host),
-            MenuGroup.Speed => SharedMenuGroups.Speed(aircraft, context, host),
-            MenuGroup.Navigation => SharedMenuGroups.Navigation(aircraft, context, host),
-            MenuGroup.Hold => SharedMenuGroups.Hold(aircraft, context, host),
-            MenuGroup.Approach => SharedMenuGroups.Approach(aircraft, context, host),
-            MenuGroup.Procedures => SharedMenuGroups.Procedures(aircraft, context, host),
-            MenuGroup.Tower => SharedMenuGroups.Tower(aircraft, context, host),
-            MenuGroup.Pattern => SharedMenuGroups.Pattern(aircraft, context, host),
-            _ => throw new ArgumentOutOfRangeException(nameof(group), group, "The context-menu profile named a group the menu does not build"),
-        };
-        if (item is not null)
-        {
-            items.Add(item);
+            items.Add(pattern);
         }
     }
 

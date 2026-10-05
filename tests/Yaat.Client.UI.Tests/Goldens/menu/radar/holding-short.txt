@@ -4,20 +4,7 @@ SWA105 — B738 [disabled]
 Command…
 Note…
 ---
-Favorite Commands
-  (no items) [disabled]
----
-Cross 30
-Tower
-  Line up and wait 30
-  Cleared for takeoff 30
-    Default (SID/on course)
-    Fly runway heading
-    ---
-    Custom… picker:input
-Preset taxi route
-  30 to TERMINAL
-Draw taxi route…
+strip: [ground.cross-runway]
 ---
 Track
   Track
@@ -42,23 +29,6 @@ Squawk
   Squawk standby
   ---
   Ident
-Ask pilot to say…
-  Altitude
-  Heading
-  Speed
-  Mach
-  Position
-  Expected approach
-  ---
-  Custom… picker:input
-Coordination
-  Release
-  Hold
-  Recall
-  Acknowledge release
----
-Edit flight plan
----
 Display
   Mini datablock
   Show nav route
@@ -91,6 +61,38 @@ Display
   ---
   Blank target
   Unblank target
+Favorite Commands
+  (no items) [disabled]
+All Commands
+  Cross 30
+  Tower
+    Line up and wait 30
+    Cleared for takeoff 30
+      Default (SID/on course)
+      Fly runway heading
+      ---
+      Custom… picker:input
+  Preset taxi route
+    30 to TERMINAL
+  Draw taxi route…
+  ---
+  Ask pilot to say…
+    Altitude
+    Heading
+    Speed
+    Mach
+    Position
+    Expected approach
+    ---
+    Custom… picker:input
+  Coordination
+    Release
+    Hold
+    Recall
+    Acknowledge release
+  ---
+  Edit flight plan
+  ---
+  Warp…
 ---
-Warp…
 Delete

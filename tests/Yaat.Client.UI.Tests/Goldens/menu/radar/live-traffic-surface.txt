@@ -4,9 +4,6 @@ UAL402 — B738 [disabled]
 Command…
 Note…
 ---
-Favorite Commands
-  (no items) [disabled]
----
 Track
   Track
   Drop track
@@ -22,11 +19,6 @@ Data Block
   Temporary altitude… picker:input
   Cruise… picker:input
   Annotate
-Coordination
-  Release
-  Hold
-  Recall
-  Acknowledge release
 Display
   Mini datablock
   Show nav route
@@ -59,5 +51,13 @@ Display
   ---
   Blank target
   Unblank target
+Favorite Commands
+  (no items) [disabled]
+All Commands
+  Coordination
+    Release
+    Hold
+    Recall
+    Acknowledge release
 ---
 Delete

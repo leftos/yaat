@@ -156,6 +156,11 @@ public class MenuCatalogCommandTests
         (MenuIds.PatternPlan270, "", "P270"),
         (MenuIds.PatternCancel270, "", "NO270"),
         (MenuIds.PatternCircleAirport, "", "CA"),
+        (MenuIds.PatternMakeLeftTraffic, "", "MLT"),
+        (MenuIds.PatternMakeRightTraffic, "", "MRT"),
+        (MenuIds.PatternFollow, Fix, "FOLLOW SUNOL"),
+        (MenuIds.NavigationOnCourse, "", "OC"),
+        (MenuIds.HoldPattern, Fix, "HOLDP SUNOL"),
         (MenuIds.GroundPushback, "", "PUSH"),
         (MenuIds.GroundHoldPosition, "", "HOLD"),
         (MenuIds.GroundResumeTaxi, "", "RES"),
@@ -1093,6 +1098,31 @@ public class MenuCatalogCommandTests
         Assert.Equal([(Callsign, "CROSS 28R", Initials)], host.Sent);
     }
 
+    /// <summary>Off a hold-short, Cross names the runway to cross next and sends CROSS for it, never the assigned runway.</summary>
+    [AvaloniaFact]
+    public void GroundCrossRunway_OffAHoldShort_NamesTheRunwayToCrossNext()
+    {
+        var host = new RecordingMenuHost("");
+        AircraftModel ac = OnGround("Taxiing", "IFR", "28L");
+        ac.NextCrossingRunway = "28R";
+
+        MenuItem? item = MenuCatalog.Get(MenuIds.GroundCrossRunway).Build(ac, Context(VfrCommandsForIfr.None), host);
+        Assert.NotNull(item);
+        Assert.Equal("Cross 28R", item.Header as string);
+        Click(item);
+
+        Assert.Equal([(Callsign, "CROSS 28R", Initials)], host.Sent);
+    }
+
+    /// <summary>Off a hold-short with no runway to cross next, Cross builds nothing rather than naming the assigned runway.</summary>
+    [AvaloniaFact]
+    public void GroundCrossRunway_OffAHoldShortWithNoCrossingAhead_BuildsNothing()
+    {
+        AircraftModel ac = OnGround("Taxiing", "IFR", "28L");
+
+        Assert.Null(MenuCatalog.Get(MenuIds.GroundCrossRunway).Build(ac, Context(VfrCommandsForIfr.None), new RecordingMenuHost("")));
+    }
+
     [AvaloniaFact]
     public void GroundRelative_SendsAsTheSelectedAircraft_NamingTheRightClickedOne()
     {
@@ -1892,6 +1922,8 @@ public class MenuCatalogCommandTests
 
         public double IndicatedAirspeedKnots { get; init; }
 
+        public double GroundSpeedKnots { get; init; }
+
         public string NavigatingTo { get; init; } = "";
 
         public IReadOnlyList<string> NavigationRoute => [];
@@ -1914,11 +1946,19 @@ public class MenuCatalogCommandTests
 
         public string Route { get; init; } = "";
 
+        public string ActiveSidId { get; init; } = "";
+
+        public string ActiveStarId { get; init; } = "";
+
         public string? ActiveApproachId { get; init; }
 
         public string? ExpectedApproach { get; init; }
 
+        public AircraftSituation Situation { get; init; }
+
         public SituationFlags SituationFlags { get; init; }
+
+        public string? NextCrossingRunway { get; init; }
 
         public IReadOnlyList<string> RouteFixes { get; init; } = [];
 

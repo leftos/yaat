@@ -2,6 +2,7 @@ using Xunit;
 using Yaat.Client.ContextMenus;
 using Yaat.Client.Models;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Situation;
 
 namespace Yaat.Client.Tests;
 
@@ -650,5 +651,166 @@ public class AircraftCommandApplicabilityTests
 
         Assert.True(AircraftCommandApplicability.CanGiveWayTo(ac, Context(airborne)));
         Assert.True(AircraftCommandApplicability.CanGiveWayTo(ac, Context(Ac("Taxiing", onGround: true))));
+    }
+
+    // --- Quick-list visibility (situation flags) ---
+
+    private static AircraftModel Situated(AircraftSituation situation, SituationFlags flags, string rules)
+    {
+        AircraftModel ac = Ac("", onGround: false, rules);
+        ac.Situation = situation;
+        ac.SituationFlags = flags;
+        return ac;
+    }
+
+    [Theory]
+    [InlineData(AircraftSituation.Taxiing, SituationFlags.NearingDepartureHoldLine, true)]
+    [InlineData(AircraftSituation.Taxiing, SituationFlags.None, false)]
+    [InlineData(AircraftSituation.LinedUp, SituationFlags.None, true)] // the rule hides takeoff only while taxiing
+    public void ShowsTakeoffWhileTaxiing_OnlyNearingTheDepartureHoldLine(AircraftSituation situation, SituationFlags flags, bool expected) =>
+        Assert.Equal(expected, AircraftCommandApplicability.ShowsTakeoffWhileTaxiing(Situated(situation, flags, "IFR")));
+
+    [Theory]
+    [InlineData(AircraftSituation.HoldingShort, SituationFlags.HoldShortIsDepartureRunway, true)]
+    [InlineData(AircraftSituation.HoldingShort, SituationFlags.None, false)]
+    [InlineData(AircraftSituation.Taxiing, SituationFlags.None, true)] // the rule hides takeoff and LUAW only at a hold-short
+    public void ShowsDepartureClearanceAtHoldShort_OnlyAtTheDepartureRunway(AircraftSituation situation, SituationFlags flags, bool expected) =>
+        Assert.Equal(expected, AircraftCommandApplicability.ShowsDepartureClearanceAtHoldShort(Situated(situation, flags, "IFR")));
+
+    [Theory]
+    [InlineData(AircraftSituation.HoldingShort, SituationFlags.None, true)]
+    [InlineData(AircraftSituation.HoldingShort, SituationFlags.HoldShortIsDepartureRunway, false)]
+    [InlineData(AircraftSituation.RolloutExit, SituationFlags.HoldShortIsDepartureRunway, true)]
+    public void ShowsCrossAtHoldShort_NeverAtTheDepartureRunway(AircraftSituation situation, SituationFlags flags, bool expected) =>
+        Assert.Equal(expected, AircraftCommandApplicability.ShowsCrossAtHoldShort(Situated(situation, flags, "IFR")));
+
+    [Theory]
+    [InlineData(AircraftSituation.HoldingShort, SituationFlags.None, true)]
+    [InlineData(AircraftSituation.HoldingShort, SituationFlags.HoldShortIsDepartureRunway, false)]
+    [InlineData(AircraftSituation.HoldingOnGround, SituationFlags.HoldShortIsDepartureRunway, true)]
+    public void ShowsResumeTaxiAtHoldShort_NeverAtTheDepartureRunway(AircraftSituation situation, SituationFlags flags, bool expected) =>
+        Assert.Equal(expected, AircraftCommandApplicability.ShowsResumeTaxiAtHoldShort(Situated(situation, flags, "IFR")));
+
+    [Theory]
+    [InlineData("IFR", SituationFlags.HasReportedFieldInSight, true)]
+    [InlineData("IFR", SituationFlags.HasReportedTrafficInSight, true)]
+    [InlineData("IFR", SituationFlags.None, false)]
+    [InlineData("VFR", SituationFlags.HasReportedFieldInSight, false)]
+    public void ShowsClearedVisual_IfrAfterFieldOrTrafficInSight(string rules, SituationFlags flags, bool expected) =>
+        Assert.Equal(expected, AircraftCommandApplicability.ShowsClearedVisual(Situated(AircraftSituation.Approach, flags, rules)));
+
+    [Theory]
+    [InlineData(SituationFlags.None, true)]
+    [InlineData(SituationFlags.InsideFinalApproachFix, false)]
+    public void ShowsSpeedAdjustment_HiddenInsideTheFinalApproachFix(SituationFlags flags, bool expected) =>
+        Assert.Equal(expected, AircraftCommandApplicability.ShowsSpeedAdjustment(Situated(AircraftSituation.Final, flags, "IFR")));
+
+    [Theory]
+    [InlineData(AircraftSituation.RolloutExit, SituationFlags.RolloutDecelerating, true)]
+    [InlineData(AircraftSituation.RolloutExit, SituationFlags.None, false)]
+    [InlineData(AircraftSituation.LinedUp, SituationFlags.None, true)] // the rule hides exits only on the rollout
+    public void ShowsRunwayExit_OnRolloutOnlyOnceDecelerating(AircraftSituation situation, SituationFlags flags, bool expected) =>
+        Assert.Equal(expected, AircraftCommandApplicability.ShowsRunwayExit(Situated(situation, flags, "IFR")));
+
+    [Theory]
+    [InlineData(AircraftSituation.Taxiing, "28R", true)]
+    [InlineData(AircraftSituation.HoldingOnGround, "28R", true)]
+    [InlineData(AircraftSituation.RolloutExit, "10L", true)]
+    [InlineData(AircraftSituation.Taxiing, null, false)]
+    [InlineData(AircraftSituation.RolloutExit, null, false)]
+    [InlineData(AircraftSituation.LinedUp, "28R", false)] // the widening admits Cross only in the three ground-movement situations
+    public void WidensCrossRunway_OnlyWithARunwayToCrossNext(AircraftSituation situation, string? nextCrossing, bool expected)
+    {
+        AircraftModel ac = Situated(situation, SituationFlags.None, "IFR");
+        ac.IsOnGround = true;
+        ac.NextCrossingRunway = nextCrossing;
+        Assert.Equal(expected, AircraftCommandApplicability.WidensCrossRunway(ac));
+    }
+
+    [Fact]
+    public void WidensCrossRunway_Airborne_IsFalse()
+    {
+        AircraftModel ac = Situated(AircraftSituation.RolloutExit, SituationFlags.None, "IFR");
+        ac.NextCrossingRunway = "10L";
+
+        Assert.False(AircraftCommandApplicability.WidensCrossRunway(ac));
+    }
+
+    /// <summary>
+    /// On the landing rollout Cross waits for the deceleration, as the runway exits do: no taxi instruction immediately
+    /// after touchdown (7110.65 §3-10-9 note). Clearing the runway does not wait on it.
+    /// </summary>
+    [Theory]
+    [InlineData("Landing", SituationFlags.None, false)]
+    [InlineData("Landing", SituationFlags.RolloutDecelerating, true)]
+    [InlineData("Clearing Runway", SituationFlags.None, true)]
+    public void WidensCrossRunway_OnTheLandingRollout_OnlyOnceDecelerating(string phase, SituationFlags flags, bool expected)
+    {
+        AircraftModel ac = Situated(AircraftSituation.RolloutExit, flags, "IFR");
+        ac.CurrentPhase = phase;
+        ac.IsOnGround = true;
+        ac.NextCrossingRunway = "28R";
+
+        Assert.Equal(expected, AircraftCommandApplicability.WidensCrossRunway(ac));
+    }
+
+    /// <summary>A rejected takeoff shows Cross only once the aircraft has slowed to taxi speed, not while it brakes from up to V1.</summary>
+    [Theory]
+    [InlineData(100.0, false)]
+    [InlineData(31.0, false)]
+    [InlineData(30.0, true)]
+    [InlineData(0.0, true)]
+    public void WidensCrossRunway_InARejectedTakeoff_OnlyAtTaxiSpeed(double groundSpeedKts, bool expected)
+    {
+        AircraftModel ac = Situated(AircraftSituation.RolloutExit, SituationFlags.None, "IFR");
+        ac.CurrentPhase = "Rejected Takeoff";
+        ac.IsOnGround = true;
+        ac.GroundSpeed = groundSpeedKts;
+        ac.NextCrossingRunway = "28R";
+
+        Assert.Equal(expected, AircraftCommandApplicability.WidensCrossRunway(ac));
+    }
+
+    [Theory]
+    [InlineData("Taxiing", true, SituationFlags.HasTakeoffClearance, true)]
+    [InlineData("Taxiing", true, SituationFlags.None, false)]
+    [InlineData("Holding In Position", true, SituationFlags.HasTakeoffClearance, false)]
+    [InlineData("Taxiing", false, SituationFlags.HasTakeoffClearance, false)]
+    public void WidensCancelTakeoff_OnlyTaxiingWithAStoredTakeoffClearance(string phase, bool onGround, SituationFlags flags, bool expected)
+    {
+        AircraftModel ac = Situated(AircraftSituation.Taxiing, flags, "IFR");
+        ac.CurrentPhase = phase;
+        ac.IsOnGround = onGround;
+
+        Assert.Equal(expected, AircraftCommandApplicability.WidensCancelTakeoff(ac));
+    }
+
+    [Theory]
+    [InlineData(SituationFlags.HasTakeoffClearance, true)]
+    [InlineData(SituationFlags.None, false)]
+    [InlineData(SituationFlags.HasTakeoffClearance | SituationFlags.PastV1, false)]
+    public void ShowsCancelTakeoff_OnlyClearedForTakeoffAndBelowV1(SituationFlags flags, bool expected) =>
+        Assert.Equal(expected, AircraftCommandApplicability.ShowsCancelTakeoff(Situated(AircraftSituation.LinedUp, flags, "IFR")));
+
+    [Theory]
+    [InlineData(SituationFlags.None, true)]
+    [InlineData(SituationFlags.ApproachClearedForDescent, false)]
+    public void ShowsApproachClearanceUntilCleared_HiddenOnceClearedForTheApproach(SituationFlags flags, bool expected) =>
+        Assert.Equal(expected, AircraftCommandApplicability.ShowsApproachClearanceUntilCleared(Situated(AircraftSituation.Approach, flags, "IFR")));
+
+    [Fact]
+    public void QuickVisibilityPredicates_NullAircraft_AreFalse()
+    {
+        Assert.False(AircraftCommandApplicability.WidensCrossRunway(null));
+        Assert.False(AircraftCommandApplicability.WidensCancelTakeoff(null));
+        Assert.False(AircraftCommandApplicability.ShowsCancelTakeoff(null));
+        Assert.False(AircraftCommandApplicability.ShowsApproachClearanceUntilCleared(null));
+        Assert.False(AircraftCommandApplicability.ShowsTakeoffWhileTaxiing(null));
+        Assert.False(AircraftCommandApplicability.ShowsDepartureClearanceAtHoldShort(null));
+        Assert.False(AircraftCommandApplicability.ShowsCrossAtHoldShort(null));
+        Assert.False(AircraftCommandApplicability.ShowsResumeTaxiAtHoldShort(null));
+        Assert.False(AircraftCommandApplicability.ShowsClearedVisual(null));
+        Assert.False(AircraftCommandApplicability.ShowsSpeedAdjustment(null));
+        Assert.False(AircraftCommandApplicability.ShowsRunwayExit(null));
     }
 }

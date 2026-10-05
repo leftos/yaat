@@ -8,6 +8,7 @@ using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.LiveTraffic;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Approach;
+using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
@@ -229,6 +230,7 @@ public class SituationStepTests(ITestOutputHelper output)
         ac.Situation.Current = AircraftSituation.VfrDeparting;
         ac.Situation.AirborneAtSeconds = 1234.5;
         ac.Situation.WasOnGround = true;
+        ac.Situation.NextCrossingRunway = "28R";
 
         string json = JsonSerializer.Serialize(ac.ToSnapshot(), RecordingJsonOptions.Default);
         AircraftSnapshotDto dto = JsonSerializer.Deserialize<AircraftSnapshotDto>(json, RecordingJsonOptions.Default)!;
@@ -237,6 +239,87 @@ public class SituationStepTests(ITestOutputHelper output)
         Assert.Equal(AircraftSituation.VfrDeparting, restored.Situation.Current);
         Assert.Equal(1234.5, restored.Situation.AirborneAtSeconds);
         Assert.True(restored.Situation.WasOnGround);
+        Assert.Equal("28R", restored.Situation.NextCrossingRunway);
+    }
+
+    /// <summary>A taxi to 28L from SIG1 crosses a runway first: the step stores the runway to cross beside the flags.</summary>
+    [Fact]
+    public void TickSituation_StoresTheNextCrossingRunway()
+    {
+        if (Engine(AiTestFixture.ParkedAtOak) is not { } engine)
+        {
+            return;
+        }
+
+        CommandResult result = engine.SendCommand(AiTestFixture.Callsign, "TAXIAUTO 28L");
+        Assert.True(result.Success, result.Message);
+        AircraftState ac = engine.FindAircraft(AiTestFixture.Callsign)!;
+        Assert.Null(ac.Situation.NextCrossingRunway);
+
+        engine.TickSituation();
+
+        Assert.Equal(AircraftSituation.Taxiing, ac.Situation.Current);
+        Assert.NotNull(ac.Situation.NextCrossingRunway);
+    }
+
+    /// <summary>
+    /// Holding in position with a taxi route whose next bar is an explicit hold-short of 28R: the step resolves the ground
+    /// layout for a holding-on-ground aircraft, which the explicit bar needs to be read as a runway's. The route comes from a
+    /// taxi; the aircraft is then put in the holding phase directly, since a sim command that holds it keeps it taxiing.
+    /// </summary>
+    [Fact]
+    public void TickSituation_HoldingOnGround_ResolvesTheLayoutForTheNextCrossing()
+    {
+        if (Engine(AiTestFixture.ParkedAtOak) is not { } engine)
+        {
+            return;
+        }
+
+        Assert.True(engine.SendCommand(AiTestFixture.Callsign, "TAXIAUTO 28L").Success);
+        Assert.True(engine.SendCommand(AiTestFixture.Callsign, "HS 28R").Success);
+        AircraftState ac = AiTestFixture.TickUntil(engine, AiTestFixture.Callsign, a => a.Phases?.CurrentPhase is TaxiingPhase, 120);
+        ac.Phases = PhasesOf(new HoldingInPositionPhase(), ac.Phases!.AssignedRunway);
+
+        engine.TickSituation();
+
+        Assert.Equal(AircraftSituation.HoldingOnGround, ac.Situation.Current);
+        Assert.NotNull(ac.Situation.NextCrossingRunway);
+    }
+
+    /// <summary>
+    /// An OAK 28R arrival in the runway exit, with a taxi route to 30 whose next uncleared bar is an explicit hold-short of
+    /// 28L: the step resolves the ground layout for a rollout/exit aircraft and names the runway to cross. A TAXI moves the
+    /// aircraft out of the exit into taxiing, so the exit phase is put back after it, the route kept.
+    /// </summary>
+    [Fact]
+    public void TickSituation_RolloutExit_ResolvesTheLayoutForTheNextCrossing()
+    {
+        if (ShortFinalArrival.SpawnClearedToLand("OAK", "28R", "B738", "ARR1") is not { } spawned)
+        {
+            return;
+        }
+
+        AircraftState ac = spawned.Aircraft;
+        int reached = SfoGroundHarness.TickUntil(spawned.Engine, () => ac.Phases?.CurrentPhase is RunwayExitPhase, 300, null);
+        Assert.True(reached > 0, $"never reached the runway exit: {ac.Phases?.CurrentPhase?.Name}");
+        Phase exit = ac.Phases!.CurrentPhase!;
+        RunwayInfo? landing = ac.Phases.AssignedRunway;
+        Assert.True(spawned.Engine.SendCommand("ARR1", "TAXIAUTO 30").Success);
+        CommandResult hs = spawned.Engine.SendCommand("ARR1", "HS 28L");
+        Assert.True(hs.Success, hs.Message);
+        ac.Phases = PhasesOf(exit, landing);
+
+        spawned.Engine.TickSituation();
+
+        Assert.Equal(AircraftSituation.RolloutExit, ac.Situation.Current);
+        Assert.NotNull(ac.Situation.NextCrossingRunway);
+    }
+
+    private static PhaseList PhasesOf(Phase phase, RunwayInfo? assignedRunway)
+    {
+        var phases = new PhaseList { AssignedRunway = assignedRunway };
+        phases.Add(phase);
+        return phases;
     }
 
     [Fact]

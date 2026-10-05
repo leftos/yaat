@@ -4,10 +4,7 @@ SWA101 — B738 [disabled]
 Command…
 Note…
 ---
-Favorite Commands
-  (no items) [disabled]
----
-Push back
+strip: [ground.pushback, ground.taxi-preset, ground.draw-taxi-route]
 Push back to…
   24
   26
@@ -39,10 +36,6 @@ Push back to…
   17
   9A
   1
-Push route…
-Preset taxi route
-  TERMINAL to 30
-Draw taxi route…
 ---
 Track
   Track
@@ -67,23 +60,6 @@ Squawk
   Squawk standby
   ---
   Ident
-Ask pilot to say…
-  Altitude
-  Heading
-  Speed
-  Mach
-  Position
-  Expected approach
-  ---
-  Custom… picker:input
-Coordination
-  Release
-  Hold
-  Recall
-  Acknowledge release
----
-Edit flight plan
----
 Display
   Taxi route
     Always show
@@ -91,6 +67,63 @@ Display
     Follow “Show all” setting [checked]
   Hide datablock
   Measure from SWA101
+Favorite Commands
+  (no items) [disabled]
+All Commands
+  Push back
+  Push back to…
+    24
+    26
+    23
+    27
+    22
+    29
+    21
+    30
+    20
+    31
+    6
+    4
+    32
+    8
+    8B
+    E
+    8A
+    C
+    10
+    3
+    3A
+    12
+    5
+    14
+    7A
+    7
+    9
+    17
+    9A
+    1
+  Push route…
+  Preset taxi route
+    TERMINAL to 30
+  Draw taxi route…
+  ---
+  Ask pilot to say…
+    Altitude
+    Heading
+    Speed
+    Mach
+    Position
+    Expected approach
+    ---
+    Custom… picker:input
+  Coordination
+    Release
+    Hold
+    Recall
+    Acknowledge release
+  ---
+  Edit flight plan
+  ---
+  Warp…
 ---
-Warp…
 Delete

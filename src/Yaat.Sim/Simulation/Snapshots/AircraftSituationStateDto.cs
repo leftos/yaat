@@ -14,4 +14,7 @@ public sealed class AircraftSituationStateDto
 
     /// <summary>The stored <see cref="Yaat.Sim.Situation.SituationFlags"/> as their fixed bits; 0 (none) when absent.</summary>
     public int Flags { get; init; }
+
+    /// <summary>The runway to cross next, as the end to name in <c>CROSS</c>; null when none or absent.</summary>
+    public string? NextCrossingRunway { get; init; }
 }

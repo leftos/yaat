@@ -455,4 +455,19 @@ public static class MenuIds
 
     /// <summary>Warp to the right-clicked taxi node (<c>WARPG</c>) or map point (<c>WARP</c>, through the warp popup).</summary>
     public const string PointWarpHere = "point.warp-here";
+
+    /// <summary>Make left closed traffic in the air (<c>MLT</c>).</summary>
+    public const string PatternMakeLeftTraffic = "pattern.make-left-traffic";
+
+    /// <summary>Make right closed traffic in the air (<c>MRT</c>).</summary>
+    public const string PatternMakeRightTraffic = "pattern.make-right-traffic";
+
+    /// <summary>Follow traffic in the air (<c>FOLLOW</c>, with a typed callsign or bare for the last traffic reported in sight).</summary>
+    public const string PatternFollow = "pattern.follow";
+
+    /// <summary>Navigate on course, direct to the destination (<c>OC</c>).</summary>
+    public const string NavigationOnCourse = "navigation.on-course";
+
+    /// <summary>Hold in a holding pattern at a fix, with typed inbound course, legs and turns (<c>HOLDP</c>).</summary>
+    public const string HoldPattern = "hold.pattern";
 }

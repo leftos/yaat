@@ -8,7 +8,9 @@ namespace Yaat.Client.UI.Tests.Views;
 /// Renders a context menu as plain text, one line per node, depth-first in <c>Items</c> order with two spaces of
 /// indent per level: a <see cref="MenuItem"/> as its header text followed by <c>[disabled]</c>, <c>[checked]</c> and
 /// its <see cref="MenuPickerDescriptor"/> (<c>picker:list [a, b]</c>, <c>picker:filteredList [a, b]</c> or
-/// <c>picker:input</c>); a <see cref="Separator"/> as <c>---</c>; anything else as its type name in angle brackets.
+/// <c>picker:input</c>); the quick-command strip (<see cref="QuickCommandStrip"/>) as one node naming its buttons' catalog
+/// ids in order, <c>strip: [id, id, …]</c>; a <see cref="Separator"/> as <c>---</c>; anything else as its type name in
+/// angle brackets.
 /// Commands, tooltips, gestures and icons are left out. Every line ends with <c>\n</c>.
 /// </summary>
 internal static class MenuTreeSnapshot
@@ -42,6 +44,9 @@ internal static class MenuTreeSnapshot
         {
             case Separator:
                 text.Append("---\n");
+                break;
+            case MenuItem strip when QuickCommandStrip.IsStrip(strip):
+                text.Append("strip: [").AppendJoin(", ", QuickCommandStrip.Buttons(strip).Select(button => button.Tag as string)).Append("]\n");
                 break;
             case MenuItem menuItem:
                 text.Append(Describe(menuItem)).Append('\n');

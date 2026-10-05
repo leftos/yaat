@@ -256,7 +256,9 @@ public sealed partial class SimulationEngine
     /// last step saw on the ground is now airborne, so every liftoff counts, including one begun inside command dispatch
     /// and a second departure. Then it computes <see cref="AircraftSituationState.Flags"/>
     /// (<see cref="SituationFlagCalculator"/>) against the new situation, the stored flags, the aircraft's ground
-    /// layout as its phases see it (taxi and hold-short flags) and its assigned runway's own airport layout (inside-FAF). A spine step (<see cref="Spine.StepId.Situation"/>) after the pilot-proactive step, so
+    /// layout (resolved only while holding short or in the taxiing, holding-on-ground and rollout/exit situations: taxi
+    /// and hold-short flags) and its assigned runway's own airport layout (inside-FAF), and beside them
+    /// <see cref="AircraftSituationState.NextCrossingRunway"/> from the same ground layout. A spine step (<see cref="Spine.StepId.Situation"/>) after the pilot-proactive step, so
     /// it sees this second's phase changes; it runs on every run kind because the stored situation is snapshotted state
     /// that depends on the previous second's.
     /// </summary>
@@ -279,7 +281,7 @@ public sealed partial class SimulationEngine
             situation.Current = SituationClassifier.Classify(ac, scenario.ElapsedSeconds, situation.Current);
             // Layouts are resolved only for the phases that read them: a resolve can fetch and pin an airport's map.
             Phase? phase = ac.Phases?.CurrentPhase;
-            AirportGroundLayout? groundLayout = SituationFlagCalculator.NeedsGroundLayout(phase)
+            AirportGroundLayout? groundLayout = SituationFlagCalculator.NeedsGroundLayout(situation.Current, phase)
                 ? (ac.Ground.Layout ?? ResolveGroundLayout(ac))
                 : null;
             AirportGroundLayout? runwayLayout =
@@ -287,6 +289,7 @@ public sealed partial class SimulationEngine
                     ? ResolveAirportLayout(runway.AirportId)
                     : null;
             situation.Flags = SituationFlagCalculator.Compute(ac, situation.Current, situation.Flags, groundLayout, runwayLayout);
+            situation.NextCrossingRunway = SituationFlagCalculator.NextCrossingRunway(ac, situation.Current, groundLayout);
         }
     }
 

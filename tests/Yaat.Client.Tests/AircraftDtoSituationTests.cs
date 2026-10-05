@@ -90,6 +90,23 @@ public class AircraftDtoSituationTests
         Assert.Equal(SituationFlags.None, model.SituationFlags);
     }
 
+    [Fact]
+    public void Json_NextCrossingRunway_ReachesTheModel_OnCreateAndUpdate()
+    {
+        string json = JsonSerializer.Serialize(Dto(AircraftSituation.Taxiing) with { NextCrossingRunway = "28R" }, WireOptions);
+        Assert.Contains("\"nextCrossingRunway\":\"28R\"", json, StringComparison.Ordinal);
+        AircraftDto back = JsonSerializer.Deserialize<AircraftDto>(json, WireOptions)!;
+
+        var model = AircraftModel.FromDto(back);
+        Assert.Equal("28R", model.NextCrossingRunway);
+
+        model.UpdateFromDto(Dto(AircraftSituation.Taxiing));
+        Assert.Null(model.NextCrossingRunway);
+
+        model.UpdateFromDto(Dto(AircraftSituation.RolloutExit) with { NextCrossingRunway = "10L" });
+        Assert.Equal("10L", model.NextCrossingRunway);
+    }
+
     private static AircraftDto Dto(AircraftSituation situation) =>
         new(
             Callsign: "UAL123",
