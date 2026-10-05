@@ -41,6 +41,26 @@
       <Setter Property="FontWeight" Value="SemiBold" />
       <Setter Property="Foreground" Value="{DynamicResource SubtleTextBrush}" />
     </Style>
+    <Style Selector="TextBlock.nav-count">
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Foreground" Value="#93C5FD" />
+      <Setter Property="Margin" Value="8,0,0,0" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <!-- The row a Settings search lands on: the first matching setting of the selected section -->
+    <Style Selector="TextBlock.search-hit">
+      <Setter Property="Background" Value="#4D3F12" />
+    </Style>
+    <Style Selector="StackPanel.search-hit">
+      <Setter Property="Background" Value="#4D3F12" />
+    </Style>
+    <Style Selector="CheckBox.search-hit">
+      <Setter Property="Background" Value="#4D3F12" />
+    </Style>
+    <Style Selector="Button.search-hit">
+      <Setter Property="Background" Value="#4D3F12" />
+    </Style>
   </Window.Styles>
 
   <Design.DataContext>
@@ -67,18 +87,47 @@
       </DockPanel>
     </Border>
 
-    <!-- Sidebar: group headers and the sections under them -->
+    <!-- Sidebar: the search box, then group headers and the sections under them (filtered while a query is typed) -->
     <Border DockPanel.Dock="Left" Width="232" BorderBrush="#334155" BorderThickness="0,0,1,0">
-      <ListBox x:Name="SectionNav" ItemsSource="{x:Static settings:SettingsNavigation.Items}" Background="Transparent" Margin="0,8">
-        <ListBox.ItemTemplate>
-          <DataTemplate x:DataType="settings:SettingsNavItem">
-            <Panel>
-              <TextBlock Text="{Binding Title}" IsVisible="{Binding !IsHeader}" FontSize="{DynamicResource UiFontSize}" />
-              <TextBlock Text="{Binding Title}" IsVisible="{Binding IsHeader}" Classes="nav-group" />
-            </Panel>
-          </DataTemplate>
-        </ListBox.ItemTemplate>
-      </ListBox>
+      <DockPanel>
+        <TextBox
+          x:Name="SettingsSearchBox"
+          DockPanel.Dock="Top"
+          PlaceholderText="Search settings"
+          AutomationProperties.AutomationId="SettingsSearch"
+          AutomationProperties.Name="Search settings"
+          Margin="8,8,8,0"
+        />
+        <TextBlock
+          x:Name="NoMatchText"
+          DockPanel.Dock="Top"
+          Text="No settings match"
+          IsVisible="False"
+          Foreground="{DynamicResource SubtleTextBrush}"
+          Margin="12,12,12,0"
+        />
+        <ListBox x:Name="SectionNav" Background="Transparent" Margin="0,8">
+          <ListBox.ItemTemplate>
+            <DataTemplate x:DataType="settings:SettingsNavItem">
+              <Grid ColumnDefinitions="*,Auto">
+                <TextBlock
+                  Text="{Binding Title}"
+                  IsVisible="{Binding !IsHeader}"
+                  FontSize="{DynamicResource UiFontSize}"
+                  TextTrimming="CharacterEllipsis"
+                />
+                <TextBlock Text="{Binding Title}" IsVisible="{Binding IsHeader}" Classes="nav-group" />
+                <TextBlock
+                  Grid.Column="1"
+                  Text="{Binding MatchCount}"
+                  IsVisible="{Binding MatchCount, Converter={x:Static ObjectConverters.IsNotNull}}"
+                  Classes="nav-count"
+                />
+              </Grid>
+            </DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
+      </DockPanel>
     </Border>
 
     <!-- The selected section -->

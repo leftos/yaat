@@ -1,5 +1,8 @@
 using System.Text.RegularExpressions;
+using System.Xml.Linq;
 using Xunit;
+using Yaat.Client.ViewModels;
+using Yaat.Client.Views.Settings;
 
 namespace Yaat.Client.UI.Tests.Views;
 
@@ -329,6 +332,149 @@ public partial class SettingsWindowSourceTests
         Assert.Contains("Content=\"{Binding SessionAutoArrivalSpacingLabel}\"", flyout);
     }
 
+    /// <summary>
+    /// Every input control a section binds to the view model (a text box, checkbox, slider, number box, colour picker,
+    /// combo box selection or command button) has a Settings search entry, so search reaches every setting.
+    /// </summary>
+    [Fact]
+    public void EveryBoundControlHasACatalogEntry()
+    {
+        var catalogued = SettingsSearchCatalog
+            .Entries.Select(e => e.Key is { } key ? (e.Section, Key: key) : default)
+            .Where(pair => pair.Key is not null)
+            .ToHashSet();
+
+        var missing = new List<string>();
+        foreach ((SettingsSectionId section, XDocument document) in ReadSectionDocuments())
+        {
+            foreach (XElement element in document.Descendants().Where(e => !IsBindingPlumbing(e)))
+            {
+                foreach (XAttribute attribute in element.Attributes().Where(a => a.Value.StartsWith("{Binding ", StringComparison.Ordinal)))
+                {
+                    if (IsPlumbingAttribute(element, attribute))
+                    {
+                        continue;
+                    }
+
+                    string path = BindingPathRegex().Match(attribute.Value).Groups[1].Value;
+                    if (!catalogued.Contains((section, path)))
+                    {
+                        missing.Add($"{section}: {element.Name.LocalName}.{attribute.Name.LocalName} -> {path}");
+                    }
+                }
+
+                // A button the window wires up in code has no binding; the catalog keys it by its x:Name.
+                if (
+                    (element.Name.LocalName == "Button")
+                    && (element.Attribute(XamlName) is { } name)
+                    && !element.Attributes().Any(a => a.Name.LocalName == "Command")
+                    && !catalogued.Contains((section, name.Value))
+                )
+                {
+                    missing.Add($"{section}: Button x:Name={name.Value}");
+                }
+            }
+        }
+
+        Assert.Empty(missing);
+    }
+
+    /// <summary>
+    /// Each catalog entry's label (and heading, when set) is text its section shows, the heading comes before the label,
+    /// a label that repeats in its section has a heading, a control entry's binding is in the section, and the link
+    /// entries are exactly the section's link buttons.
+    /// </summary>
+    [Fact]
+    public void EveryCatalogLabelExistsInItsSection()
+    {
+        var documents = ReadSectionDocuments().ToDictionary(pair => pair.Section, pair => pair.Document);
+        var problems = new List<string>();
+        foreach (SettingsSearchEntry entry in SettingsSearchCatalog.Entries)
+        {
+            string source = documents[entry.Section].ToString();
+            string quotedLabel = $"\"{entry.Label}\"";
+            int labelAt = source.IndexOf(quotedLabel, StringComparison.Ordinal);
+            if (labelAt < 0)
+            {
+                problems.Add($"{entry.Section}: no \"{entry.Label}\"");
+                continue;
+            }
+
+            if (entry.Within is { } within)
+            {
+                int withinAt = source.IndexOf($"\"{within}\"", StringComparison.Ordinal);
+                if ((withinAt < 0) || (source.IndexOf(quotedLabel, withinAt, StringComparison.Ordinal) < 0))
+                {
+                    problems.Add($"{entry.Section}: no \"{entry.Label}\" after heading \"{within}\"");
+                }
+            }
+            else if (source.IndexOf(quotedLabel, labelAt + quotedLabel.Length, StringComparison.Ordinal) >= 0)
+            {
+                problems.Add($"{entry.Section}: \"{entry.Label}\" repeats in its section but has no heading");
+            }
+
+            if (
+                (entry.Key is { } key)
+                && !Regex.IsMatch(source, $@"\{{Binding {Regex.Escape(key)}[,}}]")
+                && !source.Contains($"x:Name=\"{key}\"", StringComparison.Ordinal)
+            )
+            {
+                problems.Add($"{entry.Section}: \"{entry.Label}\" is keyed {key}, which the section neither binds nor names");
+            }
+        }
+
+        var actualLinks = documents
+            .SelectMany(pair => pair.Value.Descendants().Where(IsSectionLink).Select(button => LinkOf(pair.Key, button)))
+            .ToHashSet();
+        var catalogLinks = SettingsSearchCatalog.Entries.Where(e => e.IsLink).Select(e => (e.Section, e.Label, e.LinkTarget!.Value)).ToHashSet();
+        problems.AddRange(catalogLinks.Except(actualLinks).Select(link => $"catalog link {link} has no section-link button"));
+        problems.AddRange(actualLinks.Except(catalogLinks).Select(link => $"section-link button {link} has no catalog entry"));
+
+        Assert.Empty(problems);
+    }
+
+    // Bindings that are not a setting a user edits: display-only text and progress, the cells of a table (bound to its
+    // rows, not the view model), and anything inside an item template.
+    private static readonly HashSet<string> PlumbingElements = new(StringComparer.Ordinal) { "TextBlock", "ProgressBar", "DataGridTextColumn" };
+
+    // Visibility, enabled and expanded toggles, the item sources of combo boxes and tables, and style classes.
+    private static readonly HashSet<string> PlumbingAttributes = new(StringComparer.Ordinal)
+    {
+        "IsVisible",
+        "IsEnabled",
+        "IsExpanded",
+        "ItemsSource",
+        "Classes.error",
+    };
+
+    private static bool IsBindingPlumbing(XElement element) =>
+        PlumbingElements.Contains(element.Name.LocalName) || element.AncestorsAndSelf().Any(e => e.Name.LocalName == "DataTemplate");
+
+    // A key-capture button's content shows the bound key; its command is the binding the catalog keys it by.
+    private static bool IsPlumbingAttribute(XElement element, XAttribute attribute) =>
+        PlumbingAttributes.Contains(attribute.Name.LocalName)
+        || ((element.Name.LocalName == "Button") && (attribute.Name.LocalName == "Content") && HasClass(element, "key-capture"));
+
+    private static readonly XName XamlName = XName.Get("Name", "http://schemas.microsoft.com/winfx/2006/xaml");
+
+    private static bool HasClass(XElement element, string styleClass) =>
+        ((string?)element.Attribute("Classes"))?.Split(' ').Contains(styleClass) == true;
+
+    private static bool IsSectionLink(XElement element) => (element.Name.LocalName == "Button") && HasClass(element, "section-link");
+
+    private static (SettingsSectionId Section, string Label, SettingsSectionId Target) LinkOf(SettingsSectionId section, XElement button)
+    {
+        string tag = (string?)button.Attribute("Tag") ?? "";
+        Match target = Regex.Match(tag, @"SettingsSectionId\.(\w+)\}");
+        return (section, (string?)button.Attribute("Content") ?? "", Enum.Parse<SettingsSectionId>(target.Groups[1].Value));
+    }
+
+    private static IEnumerable<(SettingsSectionId Section, XDocument Document)> ReadSectionDocuments()
+    {
+        string sections = Path.Combine(FindRepoRoot(), "src", "Yaat.Client", "Views", "Settings");
+        return Enum.GetValues<SettingsSectionId>().Select(id => (id, XDocument.Load(Path.Combine(sections, $"{id}Section.axaml"))));
+    }
+
     private static string Normalize(Match match) => $"{match.Groups[1].Value}={WhitespaceRegex().Replace(match.Groups[2].Value, " ")}";
 
     private static List<string> ReadSettingsAxaml()
@@ -363,4 +509,7 @@ public partial class SettingsWindowSourceTests
 
     [GeneratedRegex(@"\s+")]
     private static partial Regex WhitespaceRegex();
+
+    [GeneratedRegex(@"^\{Binding ([^,}]+)")]
+    private static partial Regex BindingPathRegex();
 }

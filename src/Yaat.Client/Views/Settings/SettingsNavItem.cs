@@ -12,4 +12,7 @@ namespace Yaat.Client.Views.Settings;
 public sealed record SettingsNavItem(SettingsSectionId? Id, string Group, string Title)
 {
     public bool IsHeader => Id is null;
+
+    /// <summary>While a Settings search filters the sidebar, how many of the section's settings match; otherwise null.</summary>
+    public int? MatchCount { get; init; }
 }

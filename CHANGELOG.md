@@ -5,7 +5,7 @@
 ### Added
 
 - A range/bearing measurement's label moves clear of data blocks and aircraft, pushing auto-placed data blocks aside while every side is covered.
-- Settings is a sidebar of sections with links between related settings, a Reset section button on each, and OK, Apply and Cancel.
+- Settings is a searchable sidebar of sections with links between related settings, a Reset section button on each, and OK, Apply and Cancel.
 - Settings › Speech has a Speed slider for the solo pilot voice, 0.75× to 1.5×; pilots now speak at 1.1× by default.
 - Settings › Scenario defaults sets the solo parking call-up interval and arrival generator rate for new rooms, and lists the settings only the room changes.
 

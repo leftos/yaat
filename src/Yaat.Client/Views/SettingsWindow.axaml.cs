@@ -2,6 +2,8 @@ using System.Text.Json;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Layout;
+using Avalonia.LogicalTree;
 using Avalonia.Threading;
 using Microsoft.Extensions.Logging;
 using Yaat.Client.Logging;
@@ -30,6 +32,9 @@ public partial class SettingsWindow : Window
     /// <summary>Style class on the sidebar rows that are group headers.</summary>
     private const string GroupHeaderClass = "group-header";
 
+    /// <summary>Style class on the row a Settings search lands on in the selected section.</summary>
+    private const string SearchHitClass = "search-hit";
+
     private readonly IFilePickerService _filePicker;
 
     private readonly CommandVerbsSection _verbs = new();
@@ -39,6 +44,19 @@ public partial class SettingsWindow : Window
     private readonly SpeechSection _speech = new();
 
     private readonly Dictionary<SettingsSectionId, Control> _sections;
+
+    private SettingsSearchResult _search = SettingsSearchResult.Unfiltered("");
+
+    // The sidebar rows on show: every row, or the sections the search matched under their group headers.
+    private IReadOnlyList<SettingsNavItem> _navItems = SettingsNavigation.Items;
+
+    // The highlighted row, and the label in it that the search found.
+    private Control? _highlighted;
+
+    private Control? _highlightedLabel;
+
+    // Set while the sidebar's rows are swapped for a new search, when the selection changes are this window's own.
+    private bool _updatingNav;
 
     public SettingsWindow()
         : this(new UserPreferences(), audioCapture: null, speechSampleStore: null) { }
@@ -75,16 +93,35 @@ public partial class SettingsWindow : Window
         AddHandler(LostFocusEvent, OnKeyCaptureLostFocus);
         AddHandler(Button.ClickEvent, OnSectionLinkClick);
 
+        SectionNav.ItemsSource = _navItems;
         SectionNav.ContainerPrepared += OnNavContainerPrepared;
         SectionNav.SelectionChanged += OnNavSelectionChanged;
+        SettingsSearchBox.TextChanged += OnSearchTextChanged;
+        SettingsSearchBox.AddHandler(KeyDownEvent, OnSearchKeyDown, Avalonia.Interactivity.RoutingStrategies.Tunnel);
         SelectSection(SettingsSectionId.General);
     }
 
     /// <summary>The settings this window edits; also its DataContext and every section's.</summary>
     public SettingsViewModel ViewModel { get; }
 
-    /// <summary>Shows <paramref name="id"/> in the content pane and selects its sidebar row.</summary>
-    public void SelectSection(SettingsSectionId id) => SectionNav.SelectedItem = SettingsNavigation.ItemFor(id);
+    /// <summary>
+    /// Shows <paramref name="id"/> in the content pane and selects its sidebar row. When a search has filtered the
+    /// section out of the sidebar, the search is cleared first.
+    /// </summary>
+    public void SelectSection(SettingsSectionId id)
+    {
+        if (NavRowFor(id) is null)
+        {
+            // TextChanged arrives after this method returns, so the sidebar is restored here; the event then finds the
+            // search already cleared and does nothing.
+            SettingsSearchBox.Text = "";
+            ApplySearch("");
+        }
+
+        SectionNav.SelectedItem = NavRowFor(id);
+    }
+
+    private SettingsNavItem? NavRowFor(SettingsSectionId id) => _navItems.FirstOrDefault(item => item.Id == id);
 
     // Each section holds the window's view model itself, so a section keeps its bindings while another is shown.
     private Dictionary<SettingsSectionId, Control> CreateSections(SettingsViewModel vm)
@@ -130,15 +167,28 @@ public partial class SettingsWindow : Window
         _speech.BrowseLlmModelButton.Click += OnBrowseLlmModelClick;
     }
 
-    // Group headers are labels: they take no pointer or focus, so only a section row can be selected.
+    // Group headers are labels: they take no pointer or focus, so only a section row can be selected. The row comes
+    // from the container's own item, since a search shows only some of the rows.
     private void OnNavContainerPrepared(object? sender, ContainerPreparedEventArgs e)
     {
-        SettingsNavItem item = SettingsNavigation.Items[e.Index];
         Control container = e.Container;
+        if (container is not ContentControl { Content: SettingsNavItem item })
+        {
+            throw new InvalidOperationException(
+                $"Settings sidebar row {e.Index} holds {(container as ContentControl)?.Content}, not a SettingsNavItem"
+            );
+        }
+
         container.Classes.Set(GroupHeaderClass, item.IsHeader);
         container.Focusable = !item.IsHeader;
         container.IsHitTestVisible = !item.IsHeader;
-        AutomationProperties.SetName(container, item.Title);
+        string name = item.MatchCount switch
+        {
+            null => item.Title,
+            1 => $"{item.Title}, 1 match",
+            { } count => $"{item.Title}, {count} matches",
+        };
+        AutomationProperties.SetName(container, name);
         if (item.Id is { } id)
         {
             AutomationProperties.SetAutomationId(container, $"SettingsNav.{id}");
@@ -151,20 +201,191 @@ public partial class SettingsWindow : Window
 
     private void OnNavSelectionChanged(object? sender, SelectionChangedEventArgs e)
     {
-        if (SectionNav.SelectedItem is SettingsNavItem { Id: { } id } item)
+        if (_updatingNav)
         {
-            SectionTitle.Text = item.Title;
-            SectionHost.Content = _sections[id];
-            ViewModel.SelectedSection = id;
+            return;
+        }
+
+        if (SectionNav.SelectedItem is SettingsNavItem { Id: { } id })
+        {
+            ShowSection(id);
             return;
         }
 
         // A group header (or nothing) became selected: put the selection back on the section it left.
-        SettingsNavItem previous =
-            e.RemovedItems.OfType<SettingsNavItem>().FirstOrDefault(removed => !removed.IsHeader)
-            ?? SettingsNavigation.ItemFor(SettingsSectionId.General);
-        Dispatcher.UIThread.Post(() => SectionNav.SelectedItem = previous);
+        SettingsSectionId previous =
+            e.RemovedItems.OfType<SettingsNavItem>().FirstOrDefault(removed => !removed.IsHeader)?.Id ?? ViewModel.SelectedSection;
+        if (NavRowFor(previous) is { } row)
+        {
+            Dispatcher.UIThread.Post(() => SectionNav.SelectedItem = row);
+        }
     }
+
+    private void ShowSection(SettingsSectionId id)
+    {
+        ClearHighlight();
+        SectionTitle.Text = SettingsNavigation.ItemFor(id).Title;
+        SectionHost.Content = _sections[id];
+        ViewModel.SelectedSection = id;
+        if (_search.FirstMatchIn(id) is { } match)
+        {
+            HighlightMatch(_sections[id], match);
+        }
+    }
+
+    private void OnSearchTextChanged(object? sender, TextChangedEventArgs e)
+    {
+        string query = SettingsSearchBox.Text ?? "";
+        if (query != _search.Query)
+        {
+            ApplySearch(query);
+        }
+    }
+
+    // Escape with a query clears it and stops there, so the Cancel button does not close the window; with no query it
+    // reaches Cancel as before. Enter never reaches OK: it moves to the highlighted setting, or stays in the box.
+    private void OnSearchKeyDown(object? sender, KeyEventArgs e)
+    {
+        if ((e.Key == Key.Escape) && !string.IsNullOrEmpty(SettingsSearchBox.Text))
+        {
+            SettingsSearchBox.Text = "";
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Enter)
+        {
+            e.Handled = true;
+            FocusTargetOfHighlight()?.Focus();
+        }
+    }
+
+    // The control Enter moves to: the first focusable control from the highlighted label on (the checkbox or button
+    // itself, or the input beside or below a text label).
+    private Control? FocusTargetOfHighlight()
+    {
+        if ((_highlightedLabel is null) || (SectionHost.Content is not Control section))
+        {
+            return null;
+        }
+
+        List<Control> controls = [.. section.GetLogicalDescendants().OfType<Control>()];
+        return controls
+            .Skip(controls.IndexOf(_highlightedLabel))
+            .FirstOrDefault(control => control.Focusable && control.IsEffectivelyEnabled && control.IsEffectivelyVisible);
+    }
+
+    // Filters the sidebar to the sections the query matches, counting only settings on show. The section on show stays
+    // selected while it matches, and otherwise the first matching section opens; with no match at all the content pane
+    // keeps its section and the sidebar says so.
+    private void ApplySearch(string query)
+    {
+        ClearHighlight();
+        _search = SettingsSearch.Run(query, [.. SettingsSearchCatalog.Entries.Where(IsShown)]);
+        _navItems = _search.NavItems();
+        NoMatchText.IsVisible = _search.IsFiltered && (_search.Matches.Count == 0);
+        SettingsNavItem? row = NavRowFor(ViewModel.SelectedSection) ?? _navItems.FirstOrDefault(item => !item.IsHeader);
+
+        _updatingNav = true;
+        try
+        {
+            SectionNav.ItemsSource = _navItems;
+            SectionNav.SelectedItem = row;
+        }
+        finally
+        {
+            _updatingNav = false;
+        }
+
+        if (row?.Id is { } id)
+        {
+            ShowSection(id);
+        }
+    }
+
+    // Lights up the match's row, opening any group that hides it, and scrolls it into view once laid out.
+    private void HighlightMatch(Control section, SettingsSearchEntry match)
+    {
+        if (FindLabel(section, match) is not { } label)
+        {
+            Log.LogWarning("Settings search: no control labelled {Label} in the {Section} section", match.Label, match.Section);
+            return;
+        }
+
+        foreach (Expander group in label.GetLogicalAncestors().OfType<Expander>())
+        {
+            group.SetCurrentValue(Expander.IsExpandedProperty, true);
+        }
+
+        Control row = RowOf(label);
+        row.Classes.Add(SearchHitClass);
+        _highlighted = row;
+        _highlightedLabel = label;
+        Dispatcher.UIThread.Post(() => row.BringIntoView(), DispatcherPriority.Loaded);
+    }
+
+    private void ClearHighlight()
+    {
+        _highlighted?.Classes.Remove(SearchHitClass);
+        _highlighted = null;
+        _highlightedLabel = null;
+    }
+
+    // A setting counts only while its control is shown: its label and every parent up to the section are visible. A
+    // collapsed Expander does not hide its content this way, so a setting in one still counts and its group opens.
+    private bool IsShown(SettingsSearchEntry entry)
+    {
+        Control section = _sections[entry.Section];
+        for (Control? control = FindLabel(section, entry); control is not null; control = control.GetLogicalParent() as Control)
+        {
+            if (!control.IsVisible)
+            {
+                return false;
+            }
+
+            if (ReferenceEquals(control, section))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// The control in <paramref name="section"/> showing <paramref name="entry"/>'s label: the first after its heading
+    /// when it has one, and for a link the section-link button itself. Null when the section shows no such label.
+    /// </summary>
+    public static Control? FindLabel(Control section, SettingsSearchEntry entry)
+    {
+        List<Control> controls = [.. section.GetLogicalDescendants().OfType<Control>()];
+        int start = 0;
+        if (entry.Within is { } within)
+        {
+            start = controls.FindIndex(control => TextOf(control) == within) + 1;
+            if (start == 0)
+            {
+                return null;
+            }
+        }
+
+        return controls
+            .Skip(start)
+            .FirstOrDefault(control => (TextOf(control) == entry.Label) && (!entry.IsLink || control.Classes.Contains(SectionLinkClass)));
+    }
+
+    private static string? TextOf(Control control) =>
+        control switch
+        {
+            TextBlock text => text.Text,
+            ContentControl { Content: string content } => content,
+            _ => null,
+        };
+
+    /// <summary>
+    /// The row a search highlights for <paramref name="label"/>: a text label on one line with its control lights up
+    /// with it; any other label (a checkbox, a button) lights up alone.
+    /// </summary>
+    public static Control RowOf(Control label) =>
+        ((label is TextBlock) && (label.Parent is StackPanel { Orientation: Orientation.Horizontal } row)) ? row : label;
 
     private void OnSectionLinkClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
