@@ -36,6 +36,8 @@ This guide is written for students who may never have worked as an RPO in YAAT, 
 
 Solo Training removes the human RPO. It does not remove the mentor.
 
+Self-training needs your training administrator's (TA's) and your mentor's approval: agree it with them before you start a solo session.
+
 On a YAAT server, creating a room and loading a scenario require a **VATUSA mentor role** or a **VATSIM Instructor rating (I1/I2/I3) or higher**. Everything else — issuing commands, working the frequency, reading the Session Report — is open to any signed-in VATSIM controller. That means there are two ways into a solo session:
 
 - **You hold a mentor role or an instructor rating.** Sign in, create your own room, load whatever scenario you like, and run the session start to finish on your own.
