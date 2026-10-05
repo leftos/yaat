@@ -296,36 +296,4 @@ public partial class MainViewModel
         _favoriteStore.ReplaceSetFavorites(set.Id, ids);
         RefreshDisplayFavorites();
     }
-
-    public void ExportFavoriteSet(string setId, Stream output) => FavoriteExport.ExportSet(_favoriteStore, setId, output);
-
-    public void ExportFavoriteLibrary(Stream output) => FavoriteExport.ExportLibrary(_favoriteStore, _preferences.LoadedFavoriteSetIds, output);
-
-    /// <summary>
-    /// Imports a favorites zip or entity json; newly imported sets that the export had loaded get
-    /// loaded here too. A <see cref="FavoriteImportMode.Replace"/> import took every previously
-    /// loaded set with it, so the loaded list becomes exactly the sets the file brought in.
-    /// </summary>
-    public FavoriteImportResult? ImportFavoritesFile(string fileName, Stream input, FavoriteImportMode mode)
-    {
-        FavoriteImportResult? result = FavoriteExport.ImportFile(_favoriteStore, fileName, input, mode);
-        if (result is null)
-        {
-            return null;
-        }
-
-        if (mode == FavoriteImportMode.Replace)
-        {
-            _preferences.SetLoadedFavoriteSets([.. result.NewSetIdsToLoad]);
-        }
-        else
-        {
-            foreach (string setId in result.NewSetIdsToLoad)
-            {
-                _preferences.SetFavoriteSetLoaded(setId, true);
-            }
-        }
-        RefreshDisplayFavorites();
-        return result;
-    }
 }

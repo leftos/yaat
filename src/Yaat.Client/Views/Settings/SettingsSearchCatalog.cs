@@ -72,6 +72,7 @@ public static class SettingsSearchCatalog
         return
         [
             Setting(s, "UserInitials", "Initials (2 letters):", None),
+            SettingWithin(s, "ImportExportButton", "Import / Export...", "Settings Files", ["import", "export", "backup", "share"]),
             SettingWithin(s, "DiscordRichPresenceEnabled", "Show the scenario I'm running as my Discord status", "Discord", None),
             SettingWithin(s, "RaiseWindowsTogether", "Bring all windows to front together", "Windows", None),
             SettingWithin(s, "MainWindowTopmost", "Main Window", AlwaysOnTop, OnTop),
@@ -226,8 +227,8 @@ public static class SettingsSearchCatalog
             SettingWithin(SettingsSectionId.Macros, "BrowseCrcAliasDirectoryButton", "Browse...", "CRC Aliases", ["alias", .. Macro]),
             Setting(SettingsSectionId.Macros, "AddMacroCommand", "Add Macro", Macro),
             Setting(SettingsSectionId.Macros, "ImportMacrosButton", "Import...", Macro),
-            Setting(SettingsSectionId.Macros, "ExportSelectedMacrosButton", "Export Selected", Macro),
-            Setting(SettingsSectionId.Macros, "ExportAllMacrosButton", "Export All", Macro),
+            Setting(SettingsSectionId.Macros, "ExportMacrosButton", "Export...", Macro),
+            Setting(SettingsSectionId.Macros, "ExportSelectedMacrosButton", "Export Selected...", Macro),
         ];
 
     private static IEnumerable<SettingsSearchEntry> Keys() =>

@@ -290,6 +290,42 @@ public sealed partial class UserPreferences
     /// </summary>
     public PreferencesImportResult ImportBundlePreferences(JsonObject incoming)
     {
+        (IReadOnlyDictionary<string, object?> accepted, PreferencesImportResult result) = ReadBundledPreferences(
+            incoming,
+            _data.CommandRunDelayMinSeconds,
+            _data.CommandRunDelayMaxSeconds
+        );
+        foreach ((string key, object? parsed) in accepted)
+        {
+            PreferenceProperties.Value[key].Set!(_data, parsed);
+        }
+
+        if (accepted.Count > 0)
+        {
+            Save();
+            TerminalColorsChanged?.Invoke();
+            FontSizesChanged?.Invoke();
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Reads the bundled preferences in an imported object, each as its preference's type and checked against its rule
+    /// (<see cref="TryReadBundledPreference"/>). A run-delay minimum that would end up above its maximum, compared with
+    /// the current value of a run-delay key the object leaves out, has both run-delay keys ignored. Every other key is
+    /// ignored with a logged warning.
+    /// </summary>
+    /// <param name="incoming">The imported object.</param>
+    /// <param name="currentRunDelayMinSeconds">The run-delay minimum as it stands, for an object that carries only the maximum.</param>
+    /// <param name="currentRunDelayMaxSeconds">The run-delay maximum as it stands, for an object that carries only the minimum.</param>
+    /// <returns>The accepted values by key, and the applied and ignored keys in the object's order.</returns>
+    internal static (IReadOnlyDictionary<string, object?> Accepted, PreferencesImportResult Result) ReadBundledPreferences(
+        JsonObject incoming,
+        int currentRunDelayMinSeconds,
+        int currentRunDelayMaxSeconds
+    )
+    {
         var accepted = new Dictionary<string, object?>(StringComparer.Ordinal);
         var ignored = new List<string>();
         foreach ((string key, JsonNode? value) in incoming)
@@ -304,20 +340,8 @@ public sealed partial class UserPreferences
             }
         }
 
-        RejectInvertedRunDelay(accepted, ignored);
-        foreach ((string key, object? parsed) in accepted)
-        {
-            PreferenceProperties.Value[key].Set!(_data, parsed);
-        }
-
-        if (accepted.Count > 0)
-        {
-            Save();
-            TerminalColorsChanged?.Invoke();
-            FontSizesChanged?.Invoke();
-        }
-
-        return new PreferencesImportResult([.. incoming.Select(p => p.Key).Where(accepted.ContainsKey)], ignored);
+        RejectInvertedRunDelay(accepted, ignored, currentRunDelayMinSeconds, currentRunDelayMaxSeconds);
+        return (accepted, new PreferencesImportResult([.. incoming.Select(p => p.Key).Where(accepted.ContainsKey)], ignored));
     }
 
     /// <summary>
@@ -382,15 +406,15 @@ public sealed partial class UserPreferences
         return JsonOptions.GetTypeInfo(typeof(SavedPrefs)).Properties.ToDictionary(p => p.Name, StringComparer.Ordinal);
     }
 
-    private void RejectInvertedRunDelay(Dictionary<string, object?> accepted, List<string> ignored)
+    private static void RejectInvertedRunDelay(Dictionary<string, object?> accepted, List<string> ignored, int currentMin, int currentMax)
     {
         if (!accepted.ContainsKey(RunDelayMinKey) && !accepted.ContainsKey(RunDelayMaxKey))
         {
             return;
         }
 
-        int min = accepted.TryGetValue(RunDelayMinKey, out object? newMin) ? (int)newMin! : _data.CommandRunDelayMinSeconds;
-        int max = accepted.TryGetValue(RunDelayMaxKey, out object? newMax) ? (int)newMax! : _data.CommandRunDelayMaxSeconds;
+        int min = accepted.TryGetValue(RunDelayMinKey, out object? newMin) ? (int)newMin! : currentMin;
+        int max = accepted.TryGetValue(RunDelayMaxKey, out object? newMax) ? (int)newMax! : currentMax;
         if (min <= max)
         {
             return;
@@ -407,6 +431,7 @@ public sealed partial class UserPreferences
         Log.LogWarning("Ignored imported command run delay: minimum {Min} s is above maximum {Max} s", min, max);
     }
 
-    private static bool IsExportable(string key, JsonNode? value) =>
+    /// <summary>Whether a bundled preference's value goes into an export: a model source that names a local file does not.</summary>
+    internal static bool IsExportable(string key, JsonNode? value) =>
         !ModelSourceKeys.Contains(key) || ((value is JsonValue json) && json.TryGetValue(out string? source) && IsExportableModelSource(source));
 }

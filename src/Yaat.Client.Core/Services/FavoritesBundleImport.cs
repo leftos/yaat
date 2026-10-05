@@ -62,19 +62,24 @@ internal sealed class FavoritesBundleImport
         }
     }
 
-    /// <summary>Imports the file into the store, applying the clash choices first when merging.</summary>
-    public FavoritesImportOutcome Import(IReadOnlyList<ImportClash> clashes, FavoriteStore store, SettingsImportMode mode)
+    /// <summary>
+    /// Imports the file into the target's store, applying the clash choices first when merging. Every id the store would
+    /// otherwise generate is written into the file first (<see cref="PinGeneratedIds"/>), so a target that stages the
+    /// import and replays the same file later gets the same ids.
+    /// </summary>
+    public FavoritesImportOutcome Import(IReadOnlyList<ImportClash> clashes, ISettingsImportTarget target, SettingsImportMode mode)
     {
+        FavoriteStore store = target.Favorites;
         List<string> incomingIds = [.. Sets.Where(s => s.Set.Kind == FavoriteSetKind.Named).Select(s => s.Set.Id)];
         ClashOutcome applied = (mode == SettingsImportMode.Merge) ? ApplyClashChoices(clashes, store) : new ClashOutcome();
+        PinGeneratedIds(store, mode, applied.IdChanges);
         FavoriteImportMode importMode = (mode == SettingsImportMode.Replace) ? FavoriteImportMode.Replace : FavoriteImportMode.Merge;
 
         // Skipping the only set of a lone set json leaves nothing to import.
         FavoriteImportResult? result = null;
         if (Entities.Count > 0)
         {
-            using var buffer = new MemoryStream(Serialize());
-            result = FavoriteExport.ImportFile(store, IsZip ? "favorites.zip" : "favorites.json", buffer, importMode);
+            result = target.ImportFavoritesFile(IsZip ? "favorites.zip" : "favorites.json", Serialize(), importMode);
         }
 
         Dictionary<string, string?> setIdMap = FinalSetIds(incomingIds, applied.IdChanges, result);
@@ -201,6 +206,52 @@ internal sealed class FavoritesBundleImport
 
         outcome.Renamed++;
     }
+
+    // The store numbers at random a favorite with a blank id, and a set taking the named-set path whose id is blank or,
+    // when merging, already belongs to a set of another kind (FavoriteStore.UpsertImportedNamedSet). Each gets its new id
+    // here, in the file, so every import of the bytes gives the same ids.
+    private void PinGeneratedIds(FavoriteStore store, SettingsImportMode mode, Dictionary<string, string?> idChanges)
+    {
+        var pinnedSetIds = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
+        foreach ((string name, JsonObject root) in Entities.Where(e => !IsLibraryManifest(e.Name)))
+        {
+            string id = StringValue(root, "id") ?? "";
+            if (!IsSet(name, root))
+            {
+                if (string.IsNullOrWhiteSpace(id))
+                {
+                    root["id"] = store.NewFavoriteId();
+                }
+
+                continue;
+            }
+
+            bool takenByAnotherKind = (mode == SettingsImportMode.Merge) && (store.GetSet(id) is { Kind: not FavoriteSetKind.Named });
+            if ((Deserialize<FavoriteSet>(root) is { } set) && ImportsAsNamedSet(set) && (string.IsNullOrWhiteSpace(id) || takenByAnotherKind))
+            {
+                string pinned = store.NewSetId();
+                root["id"] = pinned;
+                pinnedSetIds[id] = pinned;
+            }
+        }
+
+        RemapLoadedSetIds(pinnedSetIds);
+        foreach ((string id, string? pinned) in pinnedSetIds)
+        {
+            idChanges[id] = pinned;
+        }
+    }
+
+    // The sets FavoriteExport's merge sends through FavoriteStore.UpsertImportedNamedSet: named sets, and airport or scenario
+    // sets without a key.
+    private static bool ImportsAsNamedSet(FavoriteSet set) =>
+        set.Kind switch
+        {
+            FavoriteSetKind.Global => false,
+            FavoriteSetKind.Airport => FavoriteStore.NormalizeAirportId(set.Key) is null,
+            FavoriteSetKind.Scenario => string.IsNullOrWhiteSpace(set.Key),
+            _ => true,
+        };
 
     // A skipped set takes the favorites only it references with it; one a kept set also lists still imports.
     private void DropSkippedSets(HashSet<int> skippedIndexes)

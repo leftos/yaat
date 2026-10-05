@@ -253,7 +253,12 @@ public class SettingsViewModelResetSectionTests
     {
         using var scope = new PreferencesFileScope();
         new UserPreferences().SetPilotVoiceSettings(enabled: true, volume: 30, radioFxEnabled: false, speechRate: 1.3);
-        var window = new SettingsWindow(new UserPreferences());
+        var window = new SettingsWindow(
+            new UserPreferences(),
+            audioCapture: null,
+            speechSampleStore: null,
+            new FavoriteStore(FavoriteStore.DefaultRootDir)
+        );
         window.ShowAndRunLayout();
         var vm = (SettingsViewModel)window.DataContext!;
 

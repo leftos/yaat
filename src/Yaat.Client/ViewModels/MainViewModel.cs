@@ -1162,6 +1162,21 @@ public partial class MainViewModel : ObservableObject
     /// <summary>Asks for Settings opened at <paramref name="section"/>, or with no section of its own when it is null.</summary>
     public void RequestSettings(SettingsSectionId? section) => SettingsRequested?.Invoke(section);
 
+    /// <summary>
+    /// Raised after an Import / Export window opened outside Settings applied an import straight to the preferences, with
+    /// the item types it applied; the main window brings the live views up to them as it does after Settings' Apply.
+    /// </summary>
+    public event Action<IReadOnlySet<SettingsItemType>>? SettingsImported;
+
+    /// <summary>Tells the live views an import applied <paramref name="itemTypes"/>; nothing is raised when it is empty.</summary>
+    public void NotifySettingsImported(IReadOnlySet<SettingsItemType> itemTypes)
+    {
+        if (itemTypes.Count > 0)
+        {
+            SettingsImported?.Invoke(itemTypes);
+        }
+    }
+
     [ObservableProperty]
     private bool _showCommandEntries = true;
 

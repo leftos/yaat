@@ -160,6 +160,7 @@
         </MenuItem>
         <MenuItem Header="_Tools">
           <MenuItem Header="_Settings" x:Name="SettingsMenuItem" />
+          <MenuItem Header="_Import / Export..." x:Name="ImportExportMenuItem" />
           <Separator />
           <MenuItem
             Header="Open Strips in _Browser"

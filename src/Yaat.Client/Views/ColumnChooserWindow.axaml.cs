@@ -2,23 +2,32 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Linq;
-using System.Text.Json;
+using System.Text.Json.Nodes;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using CommunityToolkit.Mvvm.ComponentModel;
+using Microsoft.Extensions.Logging;
+using Yaat.Client.Logging;
 using Yaat.Client.Services;
+using Yaat.Client.ViewModels;
+using Yaat.Sim.Commands;
 
 namespace Yaat.Client.Views;
 
+/// <summary>
+/// Chooses the Aircraft List's columns. Its Import / Export opens the hub with the column layout ticked: an imported column
+/// layout is staged in the chooser's rows (OK applies it, Cancel drops it), and any other item ticked there applies at once.
+/// </summary>
 public partial class ColumnChooserWindow : Window
 {
-    private static readonly FilePickerFilter GridLayoutFileType = new("YAAT Grid Layout", ["*.yaat-grid-layout.json"]);
+    private static readonly ILogger Log = AppLog.CreateLogger<ColumnChooserWindow>();
 
-    private readonly Dictionary<string, double>? _columnWidths;
-    private readonly string? _sortColumn;
-    private readonly ListSortDirection? _sortDirection;
-    private readonly List<string> _defaultOrder;
-    private readonly IFilePickerService _filePicker;
+    private readonly ColumnChooserState _state;
+    private readonly UserPreferences _preferences;
+
+    // Null only in the designer window, which wires no Import / Export button.
+    private readonly FavoriteStore? _favorites;
+    private readonly HashSet<SettingsItemType> _liveImported = [];
 
     public ObservableCollection<ColumnEntry> Entries { get; } = [];
     public bool Confirmed { get; private set; }
@@ -26,49 +35,56 @@ public partial class ColumnChooserWindow : Window
     public bool AlternatingRowColor { get; private set; }
     public SavedGridLayout? ImportedLayout { get; private set; }
 
+    /// <summary>The item types an import from this window applied straight to the preferences (every one but the column layout).</summary>
+    public IReadOnlySet<SettingsItemType> LiveImported => _liveImported;
+
+    // Parameterless ctor required for the Avalonia designer / XamlLoader. Not used at runtime.
     public ColumnChooserWindow()
     {
         InitializeComponent();
         AutomationGate.ApplyShowActivated(this);
-        _defaultOrder = [];
-        _filePicker = FilePickerFactory.Create(this);
+        _state = new ColumnChooserState
+        {
+            Columns = [],
+            ShowOnlyActive = false,
+            AlternatingRowColor = false,
+            ColumnWidths = null,
+            SortColumn = null,
+            SortDirection = null,
+            DefaultOrder = [],
+        };
+        _preferences = new UserPreferences();
     }
 
-    public ColumnChooserWindow(
-        List<ColumnEntry> columns,
-        bool showOnlyActive,
-        bool alternatingRowColor,
-        Dictionary<string, double>? columnWidths,
-        string? sortColumn,
-        ListSortDirection? sortDirection,
-        List<string> defaultOrder
-    )
+    /// <summary>Builds the chooser over the grid's columns and settings as they are now.</summary>
+    /// <param name="state">The grid's columns, settings, widths and sort the chooser opens on.</param>
+    /// <param name="preferences">The preferences an import from the chooser's Import / Export writes every item but the column layout to.</param>
+    /// <param name="favorites">The favorites store that Import / Export imports and exports.</param>
+    public ColumnChooserWindow(ColumnChooserState state, UserPreferences preferences, FavoriteStore favorites)
     {
         InitializeComponent();
         AutomationGate.ApplyShowActivated(this);
-        _filePicker = FilePickerFactory.Create(this);
 
-        _columnWidths = columnWidths;
-        _sortColumn = sortColumn;
-        _sortDirection = sortDirection;
-        _defaultOrder = defaultOrder;
+        _state = state;
+        _preferences = preferences;
+        _favorites = favorites;
 
-        foreach (ColumnEntry col in columns)
+        foreach (ColumnEntry col in state.Columns)
         {
             Entries.Add(col);
         }
 
         ColumnList.ItemsSource = Entries;
-        ShowOnlyActiveCheckBox.IsChecked = showOnlyActive;
-        AlternatingRowColorCheckBox.IsChecked = alternatingRowColor;
+        ShowOnlyActiveCheckBox.IsChecked = state.ShowOnlyActive;
+        AlternatingRowColorCheckBox.IsChecked = state.AlternatingRowColor;
 
         MoveTopButton.Click += OnMoveTop;
         MoveUpButton.Click += OnMoveUp;
         MoveDownButton.Click += OnMoveDown;
         MoveLastButton.Click += OnMoveLast;
         ToggleButton.Click += OnToggle;
-        ExportButton.Click += OnExport;
-        ImportButton.Click += OnImport;
+        ExportButton.Click += (_, _) => OpenImportExport(ImportExportTab.Export);
+        ImportButton.Click += (_, _) => OpenImportExport(ImportExportTab.Import);
         ResetButton.Click += OnReset;
         OkButton.Click += OnOk;
         CancelButton.Click += OnCancel;
@@ -204,59 +220,75 @@ public partial class ColumnChooserWindow : Window
         }
     }
 
-    private async void OnExport(object? sender, RoutedEventArgs e)
+    private async void OpenImportExport(ImportExportTab initialTab)
     {
-        var layout = new SavedGridLayout
+        try
+        {
+            FavoriteStore favorites =
+                _favorites ?? throw new InvalidOperationException("The column chooser's designer window has no favorites store to import or export");
+            var hub = new ImportExportWindow(
+                _preferences,
+                new StagingImportTarget(this, new UserPreferencesImportTarget(_preferences, favorites)),
+                new StagingExportSource(this, new UserPreferencesExportSource(_preferences, favorites)),
+                new HashSet<SettingsItemType> { SettingsItemType.GridLayout },
+                initialTab
+            );
+            IReadOnlySet<SettingsItemType> imported = await hub.ShowOverAsync(this);
+            _liveImported.UnionWith(imported.Where(itemType => itemType != SettingsItemType.GridLayout));
+        }
+        catch (Exception ex)
+        {
+            Log.LogError(ex, "The column chooser's Import / Export failed");
+        }
+    }
+
+    /// <summary>
+    /// The column layout OK would apply: the rows' order and visibility, over the grid's widths and sort with a staged
+    /// imported layout's widths and sort in their place.
+    /// </summary>
+    private SavedGridLayout ShownLayout()
+    {
+        (string? Column, ListSortDirection? Direction) sort = SortOnOk();
+        return new SavedGridLayout
         {
             ColumnOrder = [.. Entries.Select(entry => entry.Key)],
             HiddenColumns = Entries.Where(entry => !entry.IsVisible).Select(entry => entry.Key).ToList() is { Count: > 0 } hidden ? hidden : null,
-            ColumnWidths = _columnWidths,
-            SortColumn = _sortColumn,
-            SortDirection = _sortDirection,
+            ColumnWidths = WidthsOnOk(),
+            SortColumn = sort.Column,
+            SortDirection = sort.Direction,
         };
-
-        string? path = await _filePicker.SaveFileAsync(
-            new SaveFileOptions(
-                Title: "Export Grid Layout",
-                SuggestedFileName: "layout.yaat-grid-layout.json",
-                Filters: [GridLayoutFileType],
-                DefaultExtension: "yaat-grid-layout.json"
-            )
-        );
-
-        if (path is null)
-        {
-            return;
-        }
-
-        await using FileStream stream = File.Create(path);
-        await JsonSerializer.SerializeAsync(stream, layout, UserPreferences.JsonOptions);
     }
 
-    private async void OnImport(object? sender, RoutedEventArgs e)
+    // OK sorts the grid by a staged layout's sort when it names one of the grid's columns, and otherwise leaves the sort as it is.
+    private (string? Column, ListSortDirection? Direction) SortOnOk() =>
+        ((ImportedLayout is { SortColumn: { } column, SortDirection: { } direction }) && Entries.Any(entry => entry.Key == column))
+            ? (column, direction)
+            : (_state.SortColumn, _state.SortDirection);
+
+    // OK sets each of the grid's columns that a staged layout gives a width to that width, and leaves the rest as they are.
+    private Dictionary<string, double>? WidthsOnOk()
     {
-        string? path = await _filePicker.OpenFileAsync(new OpenFileOptions("Import Grid Layout", [GridLayoutFileType]));
-        if (path is null)
+        Dictionary<string, double>? current = (_state.ColumnWidths is { } widthsNow) ? new Dictionary<string, double>(widthsNow) : null;
+        if (ImportedLayout?.ColumnWidths is not { Count: > 0 } imported)
         {
-            return;
+            return current;
         }
 
-        SavedGridLayout? layout;
-        try
+        Dictionary<string, double> widths = current ?? [];
+        foreach (ColumnEntry entry in Entries)
         {
-            await using FileStream stream = File.OpenRead(path);
-            layout = await JsonSerializer.DeserializeAsync<SavedGridLayout>(stream, UserPreferences.JsonOptions);
-        }
-        catch (JsonException)
-        {
-            return;
+            if (imported.TryGetValue(entry.Key, out double width))
+            {
+                widths[entry.Key] = width;
+            }
         }
 
-        if (layout is null)
-        {
-            return;
-        }
+        return widths;
+    }
 
+    /// <summary>Shows an imported column layout in the rows; OK hands it to the grid with its widths and sort.</summary>
+    private void StageGridLayout(SavedGridLayout layout)
+    {
         // Reorder entries to match imported column order
         if (layout.ColumnOrder is { Count: > 0 })
         {
@@ -316,7 +348,7 @@ public partial class ColumnChooserWindow : Window
         var ordered = new List<ColumnEntry>();
         var used = new HashSet<string>();
 
-        foreach (string key in _defaultOrder)
+        foreach (string key in _state.DefaultOrder)
         {
             if (keyToEntry.TryGetValue(key, out ColumnEntry? entry))
             {
@@ -353,6 +385,65 @@ public partial class ColumnChooserWindow : Window
     }
 
     private void OnCancel(object? sender, RoutedEventArgs e) => Close();
+
+    /// <summary>Stages an imported column layout in the chooser; every other item imports straight into the preferences.</summary>
+    private sealed class StagingImportTarget(ColumnChooserWindow chooser, ISettingsImportTarget live) : ISettingsImportTarget
+    {
+        public IReadOnlyList<SavedMacro> Macros => live.Macros;
+
+        public IReadOnlyList<SavedLayout> Layouts => live.Layouts;
+
+        public FavoriteStore Favorites => live.Favorites;
+
+        public FavoriteImportResult? ImportFavoritesFile(string fileName, byte[] content, FavoriteImportMode mode) =>
+            live.ImportFavoritesFile(fileName, content, mode);
+
+        public void ReplaceMacros(IReadOnlyList<SavedMacro> macros) => live.ReplaceMacros(macros);
+
+        public void ReplaceLayouts(IReadOnlyList<SavedLayout> layouts) => live.ReplaceLayouts(layouts);
+
+        public int ApplyVerbs(CommandSchemeImport verbs) => live.ApplyVerbs(verbs);
+
+        public void ReplaceGridLayout(SavedGridLayout layout) => chooser.StageGridLayout(layout);
+
+        public PreferencesImportResult ReplacePreferences(JsonObject preferences) => live.ReplacePreferences(preferences);
+
+        public void LoadImportedFavoriteSets(IReadOnlyList<string> setIds, bool replace) => live.LoadImportedFavoriteSets(setIds, replace);
+    }
+
+    /// <summary>Exports the column layout the chooser shows; every other item as the preferences hold it.</summary>
+    private sealed class StagingExportSource(ColumnChooserWindow chooser, ISettingsExportSource live) : ISettingsExportSource
+    {
+        public SettingsBundleEntry Export(SettingsItemType itemType) =>
+            (itemType == SettingsItemType.GridLayout) ? SettingsBundleItems.GridLayout(chooser.ShownLayout()) : live.Export(itemType);
+
+        public IReadOnlyList<FavoriteSet> FavoriteSets => live.FavoriteSets;
+
+        public SettingsBundleEntry ExportFavoriteSet(string setId) => live.ExportFavoriteSet(setId);
+
+        public IReadOnlyList<SavedMacro>? SelectedMacros => live.SelectedMacros;
+    }
+}
+
+/// <summary>What the column chooser opens on: the grid's columns in display order and the settings, widths and sort it has now.</summary>
+public sealed record ColumnChooserState
+{
+    /// <summary>The grid's columns in display order, with their visibility.</summary>
+    public required IReadOnlyList<ColumnEntry> Columns { get; init; }
+
+    public required bool ShowOnlyActive { get; init; }
+
+    public required bool AlternatingRowColor { get; init; }
+
+    /// <summary>The widths of the columns that are not auto-sized; null when every column is.</summary>
+    public required IReadOnlyDictionary<string, double>? ColumnWidths { get; init; }
+
+    public required string? SortColumn { get; init; }
+
+    public required ListSortDirection? SortDirection { get; init; }
+
+    /// <summary>The grid's column keys in the order the grid declares them, which Reset puts back.</summary>
+    public required IReadOnlyList<string> DefaultOrder { get; init; }
 }
 
 public partial class ColumnEntry : ObservableObject

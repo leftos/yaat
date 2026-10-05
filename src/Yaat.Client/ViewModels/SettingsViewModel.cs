@@ -226,18 +226,6 @@ public partial class SettingsViewModel : ObservableObject
     private bool _testCommandIsError;
 
     [ObservableProperty]
-    private string _verbImportNote = "";
-
-    [ObservableProperty]
-    private bool _verbImportIsError;
-
-    [ObservableProperty]
-    private string _macroImportNote = "";
-
-    [ObservableProperty]
-    private bool _macroImportIsError;
-
-    [ObservableProperty]
     private bool _isAdminMode;
 
     [ObservableProperty]
@@ -1014,6 +1002,8 @@ public partial class SettingsViewModel : ObservableObject
             ApplySpeechAndWindows();
             ApplyColorsAndDisplay();
             SaveMacros();
+            ApplyStagedFavoritesWrites();
+            ApplyStagedLayouts();
         }
 
         Applied?.Invoke();
@@ -1074,21 +1064,28 @@ public partial class SettingsViewModel : ObservableObject
 
     // The slider shows the stored call-up rate as the nearest interval it offers, so writing the interval back on every
     // Apply would snap an off-grid stored rate (e.g. 150%) to the slider's value. Write the pacing pair only when an edit
-    // since the last commit (or the window opening) changed it.
+    // since the last commit (or the window opening) changed it; an imported rate is written exactly unless the slider moved after it.
     private void ApplySoloPacingIfChanged()
     {
-        bool intervalEdited = SoloParkingInitialCallupIntervalSeconds != _appliedSoloParkingInitialCallupIntervalSeconds;
-        if (!intervalEdited && (SoloArrivalGeneratorRatePercent == _preferences.SoloArrivalGeneratorRatePercent))
+        int parkingRate = StagedSoloParkingInitialCallupRatePercent();
+        if (
+            (parkingRate == _preferences.SoloParkingInitialCallupRatePercent)
+            && (SoloArrivalGeneratorRatePercent == _preferences.SoloArrivalGeneratorRatePercent)
+        )
         {
             return;
         }
 
-        int parkingRate = intervalEdited
-            ? SoloPacing.ParkingInitialCallupIntervalSecondsToRate(SoloParkingInitialCallupIntervalSeconds)
-            : _preferences.SoloParkingInitialCallupRatePercent;
         _preferences.SetSoloPacingRates(parkingRate, SoloArrivalGeneratorRatePercent);
         _appliedSoloParkingInitialCallupIntervalSeconds = SoloParkingInitialCallupIntervalSeconds;
+        _importedSoloParkingInitialCallupRatePercent = null;
     }
+
+    // The parking call-up rate Apply writes: the slider's interval as a rate once edited, else the imported or stored rate.
+    private int StagedSoloParkingInitialCallupRatePercent() =>
+        SoloParkingInitialCallupIntervalSeconds != _appliedSoloParkingInitialCallupIntervalSeconds
+            ? SoloPacing.ParkingInitialCallupIntervalSecondsToRate(SoloParkingInitialCallupIntervalSeconds)
+            : _importedSoloParkingInitialCallupRatePercent ?? _preferences.SoloParkingInitialCallupRatePercent;
 
     private void ApplySpeechAndWindows()
     {
@@ -1193,42 +1190,6 @@ public partial class SettingsViewModel : ObservableObject
         _preferences.SetCrcAliasDirectory(CrcAliasDirectory);
     }
 
-    /// <summary>
-    /// Applies an imported command-verb file to the verb grid.
-    ///
-    /// Only the commands the file listed are touched; every other row keeps the verbs the user has now. Nothing
-    /// is written to preferences here — the edit lives in the grid until the user saves, exactly like a macro import.
-    /// </summary>
-    /// <param name="import">The parsed file, including any command names this build does not know.</param>
-    public void ImportVerbs(CommandSchemeImport import)
-    {
-        int applied = 0;
-
-        foreach ((CanonicalCommandType type, List<string>? aliases) in import.Verbs)
-        {
-            VerbMappingRow? row = VerbMappings.FirstOrDefault(r => r.CommandType == type);
-            if (row is null)
-            {
-                continue;
-            }
-
-            row.Aliases = string.Join(", ", aliases);
-            applied++;
-        }
-
-        // Re-run the test input against the imported scheme
-        OnTestCommandInputChanged(TestCommandInput);
-
-        string note = $"Imported {applied} verb mapping(s).";
-        if (import.UnknownCommands.Count > 0)
-        {
-            note += $" Skipped unknown command(s): {string.Join(", ", import.UnknownCommands)}.";
-        }
-
-        VerbImportNote = note;
-        VerbImportIsError = false;
-    }
-
     /// <summary>Builds the full command scheme currently shown in the verb grid, for export to a shareable file.</summary>
     /// <returns>A scheme carrying every command, with the grid's edits applied over the built-in defaults.</returns>
     public CommandScheme ExportVerbs() => BuildSchemeFromRows();
@@ -1297,76 +1258,12 @@ public partial class SettingsViewModel : ObservableObject
     [RelayCommand]
     private void AddMacro() => MacroRows.Add(new MacroRow { RemoveAction = r => MacroRows.Remove(r) });
 
-    public void ImportMacros(MacroImportResult result)
-    {
-        var existingBaseNames = new HashSet<string>(MacroRows.Select(r => MacroDefinition.ExtractBaseName(r.Name)), StringComparer.OrdinalIgnoreCase);
-
-        // Add non-conflicting macros
-        foreach (SavedMacro m in result.NewMacros)
-        {
-            string baseName = MacroDefinition.ExtractBaseName(m.Name);
-            if (!existingBaseNames.Contains(baseName))
-            {
-                MacroRows.Add(
-                    new MacroRow
-                    {
-                        Name = m.Name,
-                        Expansion = m.Expansion,
-                        RemoveAction = r => MacroRows.Remove(r),
-                    }
-                );
-                existingBaseNames.Add(baseName);
-            }
-        }
-
-        // Apply conflict resolutions
-        foreach (MacroConflictResolution conflict in result.Conflicts)
-        {
-            switch (conflict.Resolution)
-            {
-                case ConflictResolution.Overwrite:
-                {
-                    string importBaseName = MacroDefinition.ExtractBaseName(conflict.Macro.Name);
-                    MacroRow existing = MacroRows.First(r =>
-                        string.Equals(MacroDefinition.ExtractBaseName(r.Name), importBaseName, StringComparison.OrdinalIgnoreCase)
-                    );
-                    existing.Name = conflict.Macro.Name;
-                    existing.Expansion = conflict.Macro.Expansion;
-                    break;
-                }
-
-                case ConflictResolution.Skip:
-                    break;
-
-                case ConflictResolution.Rename:
-                {
-                    string renamedName = conflict.RenamedName!;
-                    // Preserve parameter declarations from original name if the rename is just a base name
-                    string[] originalTokens = conflict.Macro.Name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-                    if (originalTokens.Length > 1 && !renamedName.Contains(' '))
-                    {
-                        renamedName = renamedName + " " + string.Join(" ", originalTokens.Skip(1));
-                    }
-
-                    MacroRows.Add(
-                        new MacroRow
-                        {
-                            Name = renamedName,
-                            Expansion = conflict.Macro.Expansion,
-                            RemoveAction = r => MacroRows.Remove(r),
-                        }
-                    );
-                    break;
-                }
-            }
-        }
-    }
-
-    public List<SavedMacro> ExportMacros(IEnumerable<MacroRow>? rows = null)
+    /// <summary>The macros the grid shows, trimmed, without the rows lacking a name or an expansion.</summary>
+    public List<SavedMacro> ExportMacros()
     {
         return
         [
-            .. (rows ?? MacroRows)
+            .. MacroRows
                 .Where(r => !string.IsNullOrWhiteSpace(r.Name) && !string.IsNullOrWhiteSpace(r.Expansion))
                 .Select(r => new SavedMacro { Name = r.Name.Trim(), Expansion = r.Expansion.Trim() }),
         ];

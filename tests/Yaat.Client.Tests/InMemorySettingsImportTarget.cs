@@ -20,11 +20,19 @@ internal sealed class InMemorySettingsImportTarget(FavoriteStore favorites) : IS
 
     public JsonObject? Preferences { get; private set; }
 
+    public List<string> LoadedFavoriteSetIds { get; } = [];
+
     public IReadOnlyList<SavedMacro> Macros => MacroList;
 
     public IReadOnlyList<SavedLayout> Layouts => LayoutList;
 
     public FavoriteStore Favorites => favorites;
+
+    public FavoriteImportResult? ImportFavoritesFile(string fileName, byte[] content, FavoriteImportMode mode)
+    {
+        using var stream = new MemoryStream(content);
+        return FavoriteExport.ImportFile(favorites, fileName, stream, mode);
+    }
 
     public void ReplaceMacros(IReadOnlyList<SavedMacro> macros) => MacroList = [.. macros];
 
@@ -46,5 +54,15 @@ internal sealed class InMemorySettingsImportTarget(FavoriteStore favorites) : IS
     {
         Preferences = preferences;
         return new PreferencesImportResult([.. preferences.Select(p => p.Key)], []);
+    }
+
+    public void LoadImportedFavoriteSets(IReadOnlyList<string> setIds, bool replace)
+    {
+        if (replace)
+        {
+            LoadedFavoriteSetIds.Clear();
+        }
+
+        LoadedFavoriteSetIds.AddRange(setIds.Where(id => !LoadedFavoriteSetIds.Contains(id)));
     }
 }

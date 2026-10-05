@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -15,12 +14,6 @@ namespace Yaat.Client.Views;
 
 public partial class SettingsWindow : Window
 {
-    private static readonly FilePickerFilter MacroFileType = new("YAAT Macros", ["*.yaat-macros.json"]);
-
-    private static readonly FilePickerFilter VerbsFileType = new("YAAT Command Verbs", ["*" + CommandSchemeFile.Extension]);
-
-    private static readonly FilePickerFilter JsonFileType = new("JSON Files", ["*.json"]);
-
     private static readonly ILogger Log = AppLog.CreateLogger<SettingsWindow>();
 
     /// <summary>Style class marking a button that captures a key combo for a keybind setting.</summary>
@@ -36,6 +29,13 @@ public partial class SettingsWindow : Window
     private const string SearchHitClass = "search-hit";
 
     private readonly IFilePickerService _filePicker;
+
+    private readonly UserPreferences _preferences;
+
+    // Where every Import / Export hub opened from this window stages its import, for the window's whole session.
+    private readonly SettingsViewModelImportTarget _importTarget;
+
+    private readonly GeneralSection _general = new();
 
     private readonly CommandVerbsSection _verbs = new();
 
@@ -58,23 +58,52 @@ public partial class SettingsWindow : Window
     // Set while the sidebar's rows are swapped for a new search, when the selection changes are this window's own.
     private bool _updatingNav;
 
+    // The input events Settings stops from reaching the other windows while it is open.
+    private static readonly Avalonia.Interactivity.RoutedEvent[] BlockedInputEvents =
+    [
+        PointerPressedEvent,
+        PointerReleasedEvent,
+        PointerWheelChangedEvent,
+        KeyDownEvent,
+        KeyUpEvent,
+        TextInputEvent,
+    ];
+
+    // The windows whose input this window blocks while it is open, unblocked when it closes.
+    private readonly List<Window> _blockedWindows = [];
+
+    // The one handler added to and removed from every blocked window.
+    private readonly EventHandler<Avalonia.Interactivity.RoutedEventArgs> _blockInput;
+
+    // The class handlers that stop the tap gestures in the blocked windows while this window is open, disposed when it closes.
+    private readonly List<IDisposable> _gestureBlocks = [];
+
+    // The standalone window (the designer, XamlLoader, the guide's screenshots): it has no caller to hand it preferences or
+    // a favorites store, so it builds its own.
     public SettingsWindow()
-        : this(new UserPreferences(), audioCapture: null, speechSampleStore: null) { }
+        : this(new UserPreferences(), audioCapture: null, speechSampleStore: null, new FavoriteStore(FavoriteStore.DefaultRootDir)) { }
 
-    public SettingsWindow(UserPreferences preferences)
-        : this(preferences, audioCapture: null, speechSampleStore: null) { }
-
-    public SettingsWindow(UserPreferences preferences, AudioCaptureService? audioCapture)
-        : this(preferences, audioCapture, speechSampleStore: null) { }
-
-    public SettingsWindow(UserPreferences preferences, AudioCaptureService? audioCapture, SpeechSampleStore? speechSampleStore)
+    /// <summary>Builds the window over the preferences it edits.</summary>
+    /// <param name="preferences">The preferences OK and Apply write.</param>
+    /// <param name="audioCapture">The microphone capture the audio sections list devices from; null when there is none.</param>
+    /// <param name="speechSampleStore">The store of saved speech samples; null when there is none.</param>
+    /// <param name="favorites">The favorites store a favorites import from the Import / Export hub changes on OK or Apply.</param>
+    public SettingsWindow(
+        UserPreferences preferences,
+        AudioCaptureService? audioCapture,
+        SpeechSampleStore? speechSampleStore,
+        FavoriteStore favorites
+    )
     {
         InitializeComponent();
         _filePicker = FilePickerFactory.Create(this);
+        _preferences = preferences;
+        _blockInput = OnBlockedInput;
 
         var vm = new SettingsViewModel(preferences, audioCapture, speechSampleStore);
         ViewModel = vm;
         DataContext = vm;
+        _importTarget = new SettingsViewModelImportTarget(vm, favorites);
 
         // Fire-and-forget by design: the model pickers and GPU panel fill in a moment later so the
         // window opens immediately. LoadModelCatalogsAsync handles its own failures and never throws,
@@ -133,6 +162,7 @@ public partial class SettingsWindow : Window
     protected override void OnOpened(EventArgs e)
     {
         base.OnOpened(e);
+        BlockOtherWindows();
         object? shown = SectionHost.Content;
         if (!ReferenceEquals(_sections[SettingsSectionId.Keys], shown))
         {
@@ -149,7 +179,7 @@ public partial class SettingsWindow : Window
     {
         var sections = new Dictionary<SettingsSectionId, Control>
         {
-            [SettingsSectionId.General] = new GeneralSection(),
+            [SettingsSectionId.General] = _general,
             [SettingsSectionId.Appearance] = new AppearanceSection(),
             [SettingsSectionId.ScenarioDefaults] = new ScenarioDefaultsSection(),
             [SettingsSectionId.Radar] = new RadarSection(),
@@ -179,13 +209,140 @@ public partial class SettingsWindow : Window
         OkButton.Click += OnOkClick;
         ApplyButton.Click += OnApplyClick;
         CancelButton.Click += OnCancelClick;
-        _macros.ImportMacrosButton.Click += OnImportMacrosClick;
-        _macros.ExportSelectedMacrosButton.Click += OnExportSelectedClick;
-        _macros.ExportAllMacrosButton.Click += OnExportAllClick;
+        _general.ImportExportButton.Click += (_, _) => OpenImportExport([], ImportExportTab.Export, selectedMacros: null);
+        _macros.ImportMacrosButton.Click += (_, _) => OpenImportExport([SettingsItemType.Macros], ImportExportTab.Import, selectedMacros: null);
+        _macros.ExportMacrosButton.Click += (_, _) => OpenImportExport([SettingsItemType.Macros], ImportExportTab.Export, selectedMacros: null);
+        _macros.ExportSelectedMacrosButton.Click += (_, _) =>
+            OpenImportExport([SettingsItemType.Macros], ImportExportTab.Export, selectedMacros: SelectedMacros());
+        _macros.MacroDataGrid.SelectionChanged += (_, _) =>
+            _macros.ExportSelectedMacrosButton.IsEnabled = _macros.MacroDataGrid.SelectedItems.Count > 0;
         _macros.BrowseCrcAliasDirectoryButton.Click += OnBrowseCrcAliasDirectoryClick;
-        _verbs.ImportVerbsButton.Click += OnImportVerbsClick;
-        _verbs.ExportVerbsButton.Click += OnExportVerbsClick;
+        _verbs.ImportVerbsButton.Click += (_, _) => OpenImportExport([SettingsItemType.Verbs], ImportExportTab.Import, selectedMacros: null);
+        _verbs.ExportVerbsButton.Click += (_, _) => OpenImportExport([SettingsItemType.Verbs], ImportExportTab.Export, selectedMacros: null);
         _speech.BrowseLlmModelButton.Click += OnBrowseLlmModelClick;
+    }
+
+    // Drops whatever an import staged and was never applied: the staged copy of the favorites goes with it. Every close
+    // (OK, Cancel, the title bar, or a close after a failed Apply) comes through here, so the other windows always come back.
+    protected override void OnClosed(EventArgs e)
+    {
+        try
+        {
+            UnblockOtherWindows();
+            _importTarget.Dispose();
+        }
+        finally
+        {
+            base.OnClosed(e);
+        }
+    }
+
+    // Settings is modal over every YAAT window, pop-outs included: each window open now gets no pointer or key input while
+    // it is open, and a press on one brings Settings forward. The windows are not disabled, so they keep their normal look
+    // and the live preview shows the colours as they will be. The windows Settings opens itself (the hub, file dialogs,
+    // confirmations) open later, so they stay usable.
+    //
+    // The tap gestures (Tapped, DoubleTapped, RightTapped, Holding) are raised once the pointer press has finished routing,
+    // handled or not, as bubble-only events the tunnel handler never sees, so they are stopped by class handlers that mark
+    // them handled at the source element, ahead of the element's own handler (a double-tap on a popped-out aircraft list
+    // would otherwise open the Flight Plan Editor).
+    private void BlockOtherWindows()
+    {
+        IReadOnlyList<Window> open = OpenWindows.All;
+        if (open.Count == 0)
+        {
+            Log.LogDebug("No windows registered; Settings is not modal over other windows");
+        }
+
+        foreach (Window window in open)
+        {
+            if (ReferenceEquals(window, this))
+            {
+                continue;
+            }
+
+            // Listed first so a handler added before a throw mid-loop is still removed on close.
+            _blockedWindows.Add(window);
+            foreach (Avalonia.Interactivity.RoutedEvent routedEvent in BlockedInputEvents)
+            {
+                window.AddHandler(routedEvent, _blockInput, Avalonia.Interactivity.RoutingStrategies.Tunnel, handledEventsToo: true);
+            }
+        }
+
+        const Avalonia.Interactivity.RoutingStrategies bubble = Avalonia.Interactivity.RoutingStrategies.Bubble;
+        _gestureBlocks.Add(TappedEvent.AddClassHandler<Avalonia.Interactivity.Interactive>(OnBlockedGesture, bubble, handledEventsToo: true));
+        _gestureBlocks.Add(DoubleTappedEvent.AddClassHandler<Avalonia.Interactivity.Interactive>(OnBlockedGesture, bubble, handledEventsToo: true));
+        _gestureBlocks.Add(RightTappedEvent.AddClassHandler<Avalonia.Interactivity.Interactive>(OnBlockedGesture, bubble, handledEventsToo: true));
+        _gestureBlocks.Add(HoldingEvent.AddClassHandler<Avalonia.Interactivity.Interactive>(OnBlockedGesture, bubble, handledEventsToo: true));
+    }
+
+    private void UnblockOtherWindows()
+    {
+        foreach (IDisposable gestureBlock in _gestureBlocks)
+        {
+            gestureBlock.Dispose();
+        }
+
+        _gestureBlocks.Clear();
+
+        foreach (Window window in _blockedWindows)
+        {
+            foreach (Avalonia.Interactivity.RoutedEvent routedEvent in BlockedInputEvents)
+            {
+                window.RemoveHandler(routedEvent, _blockInput);
+            }
+        }
+
+        _blockedWindows.Clear();
+    }
+
+    // Runs for every element a tap gesture routes through, in every window: only the gestures in a blocked window are stopped.
+    private void OnBlockedGesture(Avalonia.Interactivity.Interactive target, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if ((TopLevel.GetTopLevel(target) is Window window) && _blockedWindows.Contains(window))
+        {
+            e.Handled = true;
+        }
+    }
+
+    private void OnBlockedInput(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        e.Handled = true;
+        if (e.RoutedEvent == PointerPressedEvent)
+        {
+            this.RestoreAndActivate();
+        }
+    }
+
+    // The macro rows selected in the grid, in grid order, trimmed, without the rows lacking a name or an expansion (as
+    // SettingsViewModel.ExportMacros leaves out of an export of every macro).
+    private List<SavedMacro> SelectedMacros() =>
+        [
+            .. ViewModel
+                .MacroRows.Where(r => _macros.MacroDataGrid.SelectedItems.Contains(r))
+                .Where(r => !string.IsNullOrWhiteSpace(r.Name) && !string.IsNullOrWhiteSpace(r.Expansion))
+                .Select(r => new SavedMacro { Name = r.Name.Trim(), Expansion = r.Expansion.Trim() }),
+        ];
+
+    // The hub opened from Settings stages an import in this window (OK or Apply commits it, Cancel drops it) and exports
+    // what the window shows, unsaved edits included; a macros export holds only selectedMacros when it is not null.
+    private async void OpenImportExport(SettingsItemType[] preselected, ImportExportTab initialTab, IReadOnlyList<SavedMacro>? selectedMacros)
+    {
+        try
+        {
+            var hub = new ImportExportWindow(
+                _preferences,
+                _importTarget,
+                new SettingsViewModelExportSource(ViewModel, _preferences, _importTarget, selectedMacros),
+                new HashSet<SettingsItemType>(preselected),
+                initialTab
+            );
+            await hub.ShowOverAsync(this);
+        }
+        catch (Exception ex)
+        {
+            Log.LogError(ex, "Settings' Import / Export failed");
+        }
     }
 
     // Group headers are labels: they take no pointer or focus, so only a section row can be selected. The row comes
@@ -477,201 +634,6 @@ public partial class SettingsWindow : Window
         }
     }
 
-    private async void OnImportMacrosClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-    {
-        if (DataContext is not SettingsViewModel vm)
-        {
-            return;
-        }
-
-        string? path = await _filePicker.OpenFileAsync(new OpenFileOptions("Import Macros", [MacroFileType, JsonFileType]));
-        if (path is null)
-        {
-            return;
-        }
-
-        try
-        {
-            await using FileStream stream = File.OpenRead(path);
-            List<SavedMacro>? macros = await JsonSerializer.DeserializeAsync<List<SavedMacro>>(stream, UserPreferences.JsonOptions);
-            if (macros is null || macros.Count == 0)
-            {
-                return;
-            }
-
-            var existingBaseNames = new HashSet<string>(
-                vm.MacroRows.Select(r => MacroDefinition.ExtractBaseName(r.Name)),
-                StringComparer.OrdinalIgnoreCase
-            );
-
-            var newMacros = new List<SavedMacro>();
-            var conflicts = new List<MacroImportItem>();
-
-            foreach (SavedMacro m in macros)
-            {
-                string baseName = MacroDefinition.ExtractBaseName(m.Name);
-                if (existingBaseNames.Contains(baseName))
-                {
-                    MacroRow existingRow = vm.MacroRows.First(r =>
-                        string.Equals(MacroDefinition.ExtractBaseName(r.Name), baseName, StringComparison.OrdinalIgnoreCase)
-                    );
-
-                    // Generate a default rename suggestion
-                    string renameCandidate = GenerateRenameSuggestion(baseName, existingBaseNames, macros);
-
-                    conflicts.Add(
-                        new MacroImportItem
-                        {
-                            Macro = m,
-                            ExistingExpansion = existingRow.Expansion,
-                            RenamedName = renameCandidate,
-                        }
-                    );
-                }
-                else
-                {
-                    newMacros.Add(m);
-                }
-            }
-
-            if (conflicts.Count == 0)
-            {
-                // No conflicts — import all directly
-                vm.ImportMacros(new MacroImportResult { NewMacros = newMacros, Conflicts = [] });
-                vm.MacroImportNote = "";
-                vm.MacroImportIsError = false;
-                return;
-            }
-
-            var importWindow = new MacroImportWindow(conflicts, newMacros, existingBaseNames);
-            MacroImportResult? result = await DialogPresenter.ShowModalAsync<MacroImportResult?>(importWindow, this);
-            if (result is not null)
-            {
-                vm.ImportMacros(result);
-                vm.MacroImportNote = "";
-                vm.MacroImportIsError = false;
-            }
-        }
-        catch (Exception ex) when ((ex is JsonException) || (ex is IOException))
-        {
-            Log.LogWarning(ex, "Could not import macros from {Path}", path);
-            vm.MacroImportNote = "Could not read that file as a macro file.";
-            vm.MacroImportIsError = true;
-        }
-    }
-
-    private async void OnImportVerbsClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-    {
-        if (DataContext is not SettingsViewModel vm)
-        {
-            return;
-        }
-
-        string? path = await _filePicker.OpenFileAsync(new OpenFileOptions("Import Command Verbs", [VerbsFileType, JsonFileType]));
-        if (path is null)
-        {
-            return;
-        }
-
-        try
-        {
-            string json = await File.ReadAllTextAsync(path);
-            vm.ImportVerbs(CommandSchemeFile.Deserialize(json));
-        }
-        catch (Exception ex) when ((ex is JsonException) || (ex is IOException))
-        {
-            Log.LogWarning(ex, "Could not import command verbs from {Path}", path);
-            vm.VerbImportNote = "Could not read that file as a command verb file.";
-            vm.VerbImportIsError = true;
-        }
-    }
-
-    private async void OnExportVerbsClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-    {
-        if (DataContext is not SettingsViewModel vm)
-        {
-            return;
-        }
-
-        string? path = await _filePicker.SaveFileAsync(
-            new SaveFileOptions(
-                Title: "Export Command Verbs",
-                SuggestedFileName: "yaat-command-verbs" + CommandSchemeFile.Extension,
-                Filters: [VerbsFileType],
-                DefaultExtension: CommandSchemeFile.Extension.TrimStart('.')
-            )
-        );
-
-        if (path is null)
-        {
-            return;
-        }
-
-        try
-        {
-            await File.WriteAllTextAsync(path, CommandSchemeFile.Serialize(vm.ExportVerbs()));
-            vm.VerbImportNote = $"Exported to {Path.GetFileName(path)}.";
-            vm.VerbImportIsError = false;
-        }
-        catch (IOException ex)
-        {
-            Log.LogWarning(ex, "Could not export command verbs to {Path}", path);
-            vm.VerbImportNote = "Could not write that file.";
-            vm.VerbImportIsError = true;
-        }
-    }
-
-    private static string GenerateRenameSuggestion(string baseName, HashSet<string> existingBaseNames, List<SavedMacro> incomingMacros)
-    {
-        var incomingBaseNames = new HashSet<string>(
-            incomingMacros.Select(m => MacroDefinition.ExtractBaseName(m.Name)),
-            StringComparer.OrdinalIgnoreCase
-        );
-
-        for (int i = 2; i < 100; i++)
-        {
-            string candidate = $"{baseName}_{i}";
-            if (!existingBaseNames.Contains(candidate) && !incomingBaseNames.Contains(candidate))
-            {
-                return candidate;
-            }
-        }
-
-        return $"{baseName}_renamed";
-    }
-
-    private async void OnExportSelectedClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-    {
-        if (DataContext is not SettingsViewModel vm)
-        {
-            return;
-        }
-
-        var selected = _macros.MacroDataGrid.SelectedItems.OfType<MacroRow>().ToList();
-        if (selected.Count == 0)
-        {
-            return;
-        }
-
-        await ExportMacrosAsync(vm.ExportMacros(selected));
-    }
-
-    private async void OnExportAllClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-    {
-        if (DataContext is not SettingsViewModel vm)
-        {
-            return;
-        }
-
-        List<SavedMacro> all = vm.ExportMacros();
-        if (all.Count == 0)
-        {
-            return;
-        }
-
-        await ExportMacrosAsync(all);
-    }
-
     private void OnKeyCaptureKeyDown(object? sender, KeyEventArgs e)
     {
         if (IsKeyCaptureButton(e.Source) && (DataContext is SettingsViewModel vm) && vm.IsCapturingKey)
@@ -687,25 +649,5 @@ public partial class SettingsWindow : Window
         {
             vm.CancelKeyCapture();
         }
-    }
-
-    private async Task ExportMacrosAsync(List<SavedMacro> macros)
-    {
-        string? path = await _filePicker.SaveFileAsync(
-            new SaveFileOptions(
-                Title: "Export Macros",
-                SuggestedFileName: "macros.yaat-macros.json",
-                Filters: [MacroFileType, JsonFileType],
-                DefaultExtension: "yaat-macros.json"
-            )
-        );
-
-        if (path is null)
-        {
-            return;
-        }
-
-        await using FileStream stream = File.Create(path);
-        await JsonSerializer.SerializeAsync(stream, macros, UserPreferences.JsonOptions);
     }
 }

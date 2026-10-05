@@ -53,6 +53,24 @@ public static class SettingsBundleItems
         );
     }
 
+    /// <summary>
+    /// One favorite set and the favorites it lists, as the <c>[Name].yaat-favset.zip</c> file a single-set export has always
+    /// written (<see cref="FavoriteExport.ExportSet"/>).
+    /// </summary>
+    /// <exception cref="ArgumentException">No set has the id.</exception>
+    public static SettingsBundleEntry FavoriteSet(FavoriteStore store, string setId)
+    {
+        FavoriteSet set = store.GetSet(setId) ?? throw new ArgumentException($"Unknown favorite set id '{setId}'", nameof(setId));
+        using var buffer = new MemoryStream();
+        FavoriteExport.ExportSet(store, setId, buffer);
+        return new SettingsBundleEntry(
+            SettingsItemType.Favorites,
+            SettingsBundleFormats.FavoritesSetZip,
+            FavoriteStore.SanitizeFileName(set.DisplayName, "set") + FavoriteExport.SetExportExtension,
+            buffer.ToArray()
+        );
+    }
+
     /// <summary>The Aircraft List column layout, as a <c>*.yaat-grid-layout.json</c> file.</summary>
     public static SettingsBundleEntry GridLayout(SavedGridLayout layout) =>
         new(

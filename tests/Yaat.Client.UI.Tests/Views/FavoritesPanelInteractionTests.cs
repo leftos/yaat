@@ -50,6 +50,39 @@ public class FavoritesPanelInteractionTests
             Status: "Active"
         );
 
+    [AvaloniaTheory]
+    [InlineData("FavoritesImportButton", ImportExportTab.Import)]
+    [InlineData("FavoritesExportButton", ImportExportTab.Export)]
+    public void ImportExportButton_OpensTheHubWithFavoritesTicked(string buttonName, ImportExportTab tab)
+    {
+        using var scope = new PreferencesFileScope();
+        var view = new FavoritesBarView { IsPaletteMode = true };
+        var window = new Window
+        {
+            Width = 600,
+            Height = 450,
+            Content = view,
+            DataContext = NewVm(),
+        };
+        window.ShowAndRunLayout();
+        try
+        {
+            Button button = view.GetVisualDescendants().OfType<Button>().Single(b => b.Name == buttonName);
+            button.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+            Dispatcher.UIThread.RunJobs();
+
+            ImportExportWindow hub = Assert.Single(window.OwnedWindows.OfType<ImportExportWindow>());
+            ImportExportViewModel hubVm = Assert.IsType<ImportExportViewModel>(hub.DataContext);
+            Assert.Equal(tab, hubVm.SelectedTab);
+            Assert.Equal([SettingsItemType.Favorites], hubVm.ExportItems.Where(r => r.IsSelected).Select(r => r.ItemType));
+            hub.Close();
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
     [AvaloniaFact]
     public void FavoriteButtonClick_InPaletteMode_ReachesCommandDispatch()
     {

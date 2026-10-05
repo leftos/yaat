@@ -38,7 +38,11 @@ public class App : Application
 
     private static UiThreadWatchdog? _uiWatchdog;
 
-    public override void Initialize() => AvaloniaXamlLoader.Load(this);
+    public override void Initialize()
+    {
+        OpenWindows.Register();
+        AvaloniaXamlLoader.Load(this);
+    }
 
     /// <summary>
     /// Pushes the user's Interface font size into the application-level dynamic

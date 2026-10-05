@@ -503,7 +503,12 @@ public static class SettingsImportPlanner
 
     private static SettingsImportResult ApplyFavorites(SettingsImportPlan plan, ISettingsImportTarget target)
     {
-        FavoritesImportOutcome outcome = plan.Favorites!.Import(plan.Clashes, target.Favorites, plan.Mode);
+        FavoritesImportOutcome outcome = plan.Favorites!.Import(plan.Clashes, target, plan.Mode);
+        if (outcome.Result is { } imported)
+        {
+            target.LoadImportedFavoriteSets(imported.NewSetIdsToLoad, replace: plan.Mode == SettingsImportMode.Replace);
+        }
+
         return new SettingsImportResult
         {
             ItemType = plan.ItemType,

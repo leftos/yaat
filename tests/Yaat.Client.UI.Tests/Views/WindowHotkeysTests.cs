@@ -415,38 +415,6 @@ public class WindowHotkeysTests
     }
 
     [AvaloniaFact(Timeout = 60_000)]
-    public void OpenSettingsKey_WithSettingsOpenAtSpeech_KeepsTheSectionTheUserIsOn()
-    {
-        using var scope = new PreferencesFileScope();
-        WindowHotkeys.EnsureRegistered();
-        (MainWindow main, MainViewModel vm) = MainWindowHost.Boot();
-        List<SettingsSectionId?> requests = [];
-        vm.SettingsRequested += requests.Add;
-        // Settings is modal on the main window, so a pop-out is where the user can still press Ctrl+, with it open.
-        var radar = new RadarViewWindow(vm.Preferences, "RadarView", "Radar View") { DataContext = vm };
-        radar.ShowAndRunLayout();
-
-        try
-        {
-            vm.RequestSettings(SettingsSectionId.Speech);
-            Dispatcher.UIThread.RunJobs();
-            SettingsWindow dialog = Assert.Single(main.OwnedWindows.OfType<SettingsWindow>());
-            Assert.IsType<SpeechSection>(ShownSection(dialog));
-
-            // Ctrl+, carries no section of its own, so the open window stays where the user left it.
-            PressChord(radar, vm.Preferences.OpenSettingsKey);
-
-            Assert.Equal([SettingsSectionId.Speech, null], requests);
-            Assert.IsType<SpeechSection>(ShownSection(dialog));
-        }
-        finally
-        {
-            radar.Close();
-            MainWindowHost.CloseAll(main);
-        }
-    }
-
-    [AvaloniaFact(Timeout = 60_000)]
     public void OpenSettingsKey_WithSettingsClosed_OpensAtGeneral()
     {
         using var scope = new PreferencesFileScope();

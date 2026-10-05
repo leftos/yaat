@@ -38,6 +38,20 @@
       </Border>
       <Border Classes="card">
         <StackPanel Spacing="12">
+          <TextBlock Text="Settings Files" FontWeight="SemiBold" />
+          <StackPanel Spacing="4">
+            <Button Content="Import / Export..." x:Name="ImportExportButton" HorizontalAlignment="Left" />
+            <TextBlock
+              Text="Save your preferences, macros, command verbs, favorites and layouts to a file to back them up or share them, or load them from one. Imports land in this window: nothing changes until you press OK or Apply, and Cancel drops them."
+              TextWrapping="Wrap"
+              Foreground="{DynamicResource SubtleTextBrush}"
+              FontSize="11"
+            />
+          </StackPanel>
+        </StackPanel>
+      </Border>
+      <Border Classes="card">
+        <StackPanel Spacing="12">
           <TextBlock Text="Discord" FontWeight="SemiBold" />
           <StackPanel Spacing="4">
             <CheckBox

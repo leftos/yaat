@@ -9,6 +9,7 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Data;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.LogicalTree;
 using Avalonia.VisualTree;
 using Microsoft.Extensions.Logging;
 using MsBox.Avalonia.Enums;
@@ -120,6 +121,10 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
 
         MenuItem? settingsItem = this.FindControl<MenuItem>("SettingsMenuItem");
         settingsItem?.Click += OnSettingsClick;
+
+        MenuItem? importExportItem = this.FindControl<MenuItem>("ImportExportMenuItem");
+        importExportItem?.Click += OnImportExportClick;
+        vm.SettingsImported += OnSettingsImported;
 
         MenuItem? connectItem = this.FindControl<MenuItem>("ConnectMenuItem");
         connectItem?.Click += OnConnectClick;
@@ -828,106 +833,127 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
                 }
 
                 e.Handled = true;
-
-                var entries = new List<ColumnEntry>();
-                foreach (DataGridColumn? col in dataGrid.Columns.OrderBy(c => c.DisplayIndex))
-                {
-                    entries.Add(
-                        new ColumnEntry
-                        {
-                            Key = GetColumnKey(col),
-                            Name = GetColumnKey(col),
-                            IsVisible = col.IsVisible,
-                        }
-                    );
-                }
-
-                Dictionary<string, double>? currentWidths = null;
-                foreach (DataGridColumn? col in dataGrid.Columns)
-                {
-                    if (!col.Width.IsAuto)
-                    {
-                        currentWidths ??= [];
-                        currentWidths[GetColumnKey(col)] = col.ActualWidth;
-                    }
-                }
-
-                var defaultOrder = dataGrid.Columns.Select(GetColumnKey).ToList();
-                var chooser = new ColumnChooserWindow(
-                    entries,
-                    vm.ShowOnlyActiveAircraft,
-                    vm.DataGridAlternatingRowColor,
-                    currentWidths,
-                    _sortColumnKey,
-                    _sortDirection,
-                    defaultOrder
-                );
-                Window ownerWindow = TopLevel.GetTopLevel(dataGrid) as Window ?? this;
-                await DialogPresenter.ShowModalAsync(chooser, ownerWindow);
-
-                if (!chooser.Confirmed)
-                {
-                    return;
-                }
-
-                _restoringGrid = true;
-                try
-                {
-                    int displayIndex = 0;
-                    var keyToColumn = new Dictionary<string, DataGridColumn>();
-                    foreach (DataGridColumn? col in dataGrid.Columns)
-                    {
-                        keyToColumn[GetColumnKey(col)] = col;
-                    }
-
-                    foreach (ColumnEntry entry in chooser.Entries)
-                    {
-                        if (keyToColumn.TryGetValue(entry.Key, out DataGridColumn? col))
-                        {
-                            col.IsVisible = entry.IsVisible;
-                            col.DisplayIndex = displayIndex;
-                            displayIndex++;
-                        }
-                    }
-                }
-                finally
-                {
-                    _restoringGrid = false;
-                }
-
-                if (chooser.ImportedLayout is { } imported)
-                {
-                    if (imported.ColumnWidths is { Count: > 0 })
-                    {
-                        foreach (DataGridColumn? col in dataGrid.Columns)
-                        {
-                            if (imported.ColumnWidths.TryGetValue(GetColumnKey(col), out double width))
-                            {
-                                col.Width = new DataGridLength(width);
-                            }
-                        }
-                    }
-
-                    if (imported.SortColumn is not null && imported.SortDirection is not null)
-                    {
-                        foreach (DataGridColumn? col in dataGrid.Columns)
-                        {
-                            if (GetColumnKey(col) == imported.SortColumn)
-                            {
-                                col.Sort(imported.SortDirection.Value);
-                                _sortColumnKey = imported.SortColumn;
-                                _sortDirection = imported.SortDirection;
-                                break;
-                            }
-                        }
-                    }
-                }
-
-                vm.ShowOnlyActiveAircraft = chooser.ShowOnlyActive;
-                vm.DataGridAlternatingRowColor = chooser.AlternatingRowColor;
-                SaveGridLayout(dataGrid, vm.Preferences);
+                await ShowColumnChooserAsync(dataGrid, vm);
             };
         };
+    }
+
+    /// <summary>
+    /// Opens the column chooser over <paramref name="dataGrid"/>'s window and, on OK, applies its columns (and any column
+    /// layout imported into it) to the grid and saves them. Items the chooser's Import / Export applied straight to the
+    /// preferences reach the live views whether it closes with OK or Cancel.
+    /// </summary>
+    public async Task ShowColumnChooserAsync(DataGrid dataGrid, MainViewModel vm)
+    {
+        var chooser = new ColumnChooserWindow(BuildChooserState(dataGrid, vm), vm.Preferences, vm.FavoriteStore);
+        Window ownerWindow = TopLevel.GetTopLevel(dataGrid) as Window ?? this;
+        await DialogPresenter.ShowModalAsync(chooser, ownerWindow);
+        vm.NotifySettingsImported(chooser.LiveImported);
+
+        if (!chooser.Confirmed)
+        {
+            return;
+        }
+
+        ApplyChooserColumns(dataGrid, chooser.Entries);
+        if (chooser.ImportedLayout is { } imported)
+        {
+            ApplyImportedWidthsAndSort(dataGrid, imported);
+        }
+
+        vm.ShowOnlyActiveAircraft = chooser.ShowOnlyActive;
+        vm.DataGridAlternatingRowColor = chooser.AlternatingRowColor;
+        SaveGridLayout(dataGrid, vm.Preferences);
+    }
+
+    // The grid's columns in display order with their visibility, the widths of the columns not auto-sized, and its sort.
+    private ColumnChooserState BuildChooserState(DataGrid dataGrid, MainViewModel vm)
+    {
+        List<ColumnEntry> entries =
+        [
+            .. dataGrid
+                .Columns.OrderBy(col => col.DisplayIndex)
+                .Select(col => new ColumnEntry
+                {
+                    Key = GetColumnKey(col),
+                    Name = GetColumnKey(col),
+                    IsVisible = col.IsVisible,
+                }),
+        ];
+
+        Dictionary<string, double>? currentWidths = null;
+        foreach (DataGridColumn col in dataGrid.Columns.Where(col => !col.Width.IsAuto))
+        {
+            currentWidths ??= [];
+            currentWidths[GetColumnKey(col)] = col.ActualWidth;
+        }
+
+        return new ColumnChooserState
+        {
+            Columns = entries,
+            ShowOnlyActive = vm.ShowOnlyActiveAircraft,
+            AlternatingRowColor = vm.DataGridAlternatingRowColor,
+            ColumnWidths = currentWidths,
+            SortColumn = _sortColumnKey,
+            SortDirection = _sortDirection,
+            DefaultOrder = [.. dataGrid.Columns.Select(GetColumnKey)],
+        };
+    }
+
+    // Shows and orders the grid's columns as the chooser's rows list them.
+    private void ApplyChooserColumns(DataGrid dataGrid, IEnumerable<ColumnEntry> entries)
+    {
+        _restoringGrid = true;
+        try
+        {
+            int displayIndex = 0;
+            var keyToColumn = new Dictionary<string, DataGridColumn>();
+            foreach (DataGridColumn? col in dataGrid.Columns)
+            {
+                keyToColumn[GetColumnKey(col)] = col;
+            }
+
+            foreach (ColumnEntry entry in entries)
+            {
+                if (keyToColumn.TryGetValue(entry.Key, out DataGridColumn? col))
+                {
+                    col.IsVisible = entry.IsVisible;
+                    col.DisplayIndex = displayIndex;
+                    displayIndex++;
+                }
+            }
+        }
+        finally
+        {
+            _restoringGrid = false;
+        }
+    }
+
+    // Gives each column the layout has a width for that width, and sorts the grid by the layout's sort when it names a column.
+    private void ApplyImportedWidthsAndSort(DataGrid dataGrid, SavedGridLayout imported)
+    {
+        if (imported.ColumnWidths is { Count: > 0 } widths)
+        {
+            foreach (DataGridColumn? col in dataGrid.Columns)
+            {
+                if (widths.TryGetValue(GetColumnKey(col), out double width))
+                {
+                    col.Width = new DataGridLength(width);
+                }
+            }
+        }
+
+        if (imported is not { SortColumn: { } sortColumn, SortDirection: { } sortDirection })
+        {
+            return;
+        }
+
+        if (dataGrid.Columns.FirstOrDefault(col => GetColumnKey(col) == sortColumn) is { } sorted)
+        {
+            sorted.Sort(sortDirection);
+            _sortColumnKey = sortColumn;
+            _sortDirection = sortDirection;
+        }
     }
 
     private static void WireDistanceFlyout(MainViewModel vm, DataGrid dataGrid)
@@ -3102,6 +3128,39 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
 
     private async void OnSettingsRequested(SettingsSectionId? section) => await ShowSettingsDialogAsync(section);
 
+    private async void OnImportExportClick(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not MainViewModel vm)
+        {
+            return;
+        }
+
+        try
+        {
+            await ImportExportWindow.ShowLiveAsync(this, vm, new HashSet<SettingsItemType>(), ImportExportTab.Export);
+        }
+        catch (Exception ex)
+        {
+            Log.LogError(ex, "Tools › Import / Export failed");
+        }
+    }
+
+    // An import that applied straight to the preferences reaches the live views as Settings' Apply does, and an imported
+    // column layout reaches the open Aircraft List grids.
+    private void OnSettingsImported(IReadOnlySet<SettingsItemType> itemTypes)
+    {
+        if (DataContext is not MainViewModel vm)
+        {
+            return;
+        }
+
+        ApplyCommittedSettings(vm);
+        if (itemTypes.Contains(SettingsItemType.GridLayout))
+        {
+            ApplyGridLayoutToLiveGrids(vm);
+        }
+    }
+
     // The live-traffic status menu's "Live traffic…" opens the session flyout on whichever command input is showing: the
     // docked one, or the popped-out terminal's.
     private void OnLiveTrafficSessionClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
@@ -3132,6 +3191,41 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         commandInput.OpenSessionFlyout();
     }
 
+    // The element with keyboard focus in the active window (a pop-out when the request came from one), else in this one.
+    private IInputElement? FocusedElementOfActiveWindow()
+    {
+        Window active = OpenWindows.All.FirstOrDefault(window => window.IsActive) ?? this;
+        return active.FocusManager?.GetFocusedElement();
+    }
+
+    // Puts keyboard focus back where it was before Settings opened, or on the command input when that element is gone or
+    // was a menu (Tools › Settings… leaves focus on the menu item that opened it; an element in a popup has no Window
+    // as its top level).
+    private void RestoreFocusAfterSettings(IInputElement? focused)
+    {
+        if (
+            (focused is Control control)
+            && (TopLevel.GetTopLevel(control) is Window { IsVisible: true } window)
+            && control.IsEffectivelyVisible
+            && control.IsEffectivelyEnabled
+            && !IsInMenu(control)
+        )
+        {
+            window.RestoreAndActivate();
+            if (control.Focus())
+            {
+                return;
+            }
+        }
+
+        Log.LogDebug("The element focused before Settings opened cannot take focus again; focusing the command input");
+        FocusActiveCommandInput();
+    }
+
+    private static bool IsInMenu(Control control) =>
+        (control.FindLogicalAncestorOfType<MenuBase>(includeSelf: true) is not null)
+        || (control.FindLogicalAncestorOfType<MenuItem>(includeSelf: true) is not null);
+
     private async Task ShowSettingsDialogAsync(SettingsSectionId? section)
     {
         if (DataContext is not MainViewModel vm)
@@ -3139,9 +3233,9 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             return;
         }
 
-        // The modal disables only this window, so Speech Debug can still ask for Settings while it is open. A
-        // second window would take its own preview snapshot and undo the first one's on close: move the open
-        // window to the requested section instead.
+        // Settings blocks every other window's input while it is open, but a request can still reach the view model from
+        // code. A second window would take its own preview snapshot and undo the first one's on close: move the
+        // open window to the requested section instead.
         if (_settingsDialog is { } open)
         {
             // A request with no section of its own leaves the window where the user is and only brings it forward.
@@ -3162,7 +3256,10 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         // persisted by the dialog's Apply or OK).
         vm.IsSettingsPreviewActive = true;
 
-        var dialog = new SettingsWindow(vm.Preferences, vm.AudioCapture, vm.SpeechSampleStore);
+        // Where keyboard focus goes back to when the window closes: the element focused in the window active now.
+        IInputElement? focusedBeforeSettings = FocusedElementOfActiveWindow();
+
+        var dialog = new SettingsWindow(vm.Preferences, vm.AudioCapture, vm.SpeechSampleStore, vm.FavoriteStore);
         dialog.SelectSection(section ?? SettingsSectionId.General);
 
         SettingsViewModel settingsVm = dialog.ViewModel;
@@ -3177,6 +3274,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         finally
         {
             _settingsDialog = null;
+            RestoreFocusAfterSettings(focusedBeforeSettings);
         }
 
         settingsVm.VisualSettingsChanged -= OnPreview;
@@ -3194,6 +3292,11 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         void OnApplied()
         {
             ApplyCommittedSettings(vm);
+            if (settingsVm.LastApplyCommittedGridLayout)
+            {
+                ApplyGridLayoutToLiveGrids(vm);
+            }
+
             snapshot = SettingsPreviewSnapshot.Take(vm);
         }
 

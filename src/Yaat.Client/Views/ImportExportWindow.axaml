@@ -46,17 +46,28 @@
               <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="vm:ExportItemRow">
                   <Border BorderBrush="{DynamicResource SystemControlForegroundBaseMediumBrush}" BorderThickness="0,1,0,0" Padding="0,4">
-                    <Grid ColumnDefinitions="32,180,*,180">
-                      <CheckBox Grid.Column="0" IsChecked="{Binding IsSelected}" VerticalAlignment="Center" />
-                      <TextBlock Grid.Column="1" Text="{Binding Title}" VerticalAlignment="Center" />
-                      <TextBlock
-                        Grid.Column="2"
-                        Text="{Binding Description}"
-                        Foreground="{DynamicResource SubtleTextBrush}"
-                        VerticalAlignment="Center"
-                      />
-                      <TextBlock Grid.Column="3" Text="{Binding ExportedAs}" FontFamily="Consolas,Menlo,monospace" VerticalAlignment="Center" />
-                    </Grid>
+                    <StackPanel Spacing="4">
+                      <Grid ColumnDefinitions="32,180,*,180">
+                        <CheckBox Grid.Column="0" IsChecked="{Binding IsSelected}" VerticalAlignment="Center" />
+                        <TextBlock Grid.Column="1" Text="{Binding Title}" VerticalAlignment="Center" />
+                        <TextBlock
+                          Grid.Column="2"
+                          Text="{Binding Description}"
+                          Foreground="{DynamicResource SubtleTextBrush}"
+                          VerticalAlignment="Center"
+                        />
+                        <TextBlock Grid.Column="3" Text="{Binding ExportedAs}" FontFamily="Consolas,Menlo,monospace" VerticalAlignment="Center" />
+                      </Grid>
+                      <StackPanel Orientation="Horizontal" Spacing="8" Margin="32,0,0,0" IsVisible="{Binding HasFavoritesChoices}">
+                        <TextBlock Text="Favorites to export:" VerticalAlignment="Center" />
+                        <ComboBox
+                          ItemsSource="{Binding FavoritesChoices}"
+                          SelectedItem="{Binding FavoritesChoice}"
+                          IsEnabled="{Binding IsSelected}"
+                          MinWidth="200"
+                        />
+                      </StackPanel>
+                    </StackPanel>
                   </Border>
                 </DataTemplate>
               </ItemsControl.ItemTemplate>
