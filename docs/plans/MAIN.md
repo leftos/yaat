@@ -5,7 +5,18 @@
 ## Do first
 
 - [/] YAAT-274 Redesign overwhelming client surfaces: Settings, import/export, View menu pop-outs — High · Client surfaces redesign
+- [/] YAAT-354 Add screenshots to Getting Started and the User Guide — High · Wave 9 — Docs and repo hygiene
 - [x] YAAT-228 release.yml drops the changelog output as 'may contain secret', leaving the draft's Changelog empty · release vNext — High · Singles
+
+## Tower view (#829)
+
+- [/] YAAT-355 Built-in 3D tower cab view, no separate Tower Cab 3D install
+  - [ ] YAAT-358 Tower view 1: spike an Avalonia 12 web view on Windows with a JS bridge
+  - [!] YAAT-359 Tower view 2: split Tower Cab 3D's frontend into reusable libraries (towercab-3d)
+  - [ ] YAAT-360 Tower view 3: YAAT host adapter and the versioned page bundle
+  - [ ] YAAT-361 Tower view 4: Tower View tab and pop-out in the client
+  - [ ] YAAT-362 Tower view 5: tower mods and MSFS models in the built-in view
+  - [ ] YAAT-363 Tower view 6: macOS and Linux web views
 
 ## Bug reports and feature requests
 
@@ -161,6 +172,8 @@
 - [ ] YAAT-334 TAXI during landing rollout throws a navigator teleport on the next tick
 - [ ] YAAT-348 CWT F length fallback overstates turboprops (AN26, DH8D, C130): pick by category
 - [ ] YAAT-353 Stop a landed aircraft re-accelerating on the exit route before the hold-bar stop (C172 OAK 28R H: +1 kt)
+- [ ] YAAT-364 C172 exiting OAK 28R at H stops with its tail 0.7 ft short of clearing the bar
+- [ ] YAAT-365 Check RunwayExitPhase's exit-preference reference compares survive a restore
 
 ## Wave 2 — Ground command grammar and dispatch
 
@@ -262,6 +275,9 @@
 
 ## Wave 9 — Docs and repo hygiene
 
+- [ ] YAAT-356 Fix the GuideCapture flight-strips scene: its strips tab lookup no longer matches
+- [ ] YAAT-357 Make GuideCapture images identical run to run (fixed clock for terminal timestamps)
+- [x] YAAT-287 Remove the phantom GuideCapture Fakes/FakeFilePickerService.cs line from architecture.md · release vNext
 - [x] YAAT-276 Correct the gear flyout's field count in client-mainviewmodel.md · release vNext
 - [ ] YAAT-110 Replace stale MainViewModel line numbers in docs/command-input-ux.md
 - [ ] YAAT-111 Code hygiene from the ERAM session: long lines, sync-over-async, optional params
@@ -293,7 +309,6 @@
 - [ ] YAAT-265 Re-measure the bare dotnet test ceilings and the test-loop baseline on a quiet machine
 - [ ] YAAT-267 Record AircraftProfiles.json provenance and licence in NOTICE
 - [ ] YAAT-271 Use linear release add in the yaat-nextup profile; note test-all's silent test phase
-- [ ] YAAT-287 Remove the phantom GuideCapture Fakes/FakeFilePickerService.cs line from architecture.md
 - [ ] YAAT-290 Run the tools/tests Python suite in CI
 - [ ] YAAT-323 Fix two stale yaat-server test comments (weather fixture, TickTimings cref)
 - [ ] YAAT-338 Fix stale MainViewModel line anchors and misplaced Client.Core files in the docs
@@ -404,3 +419,4 @@
 - [ ] YAAT-341 Take control and quick bookmark keys work from pop-out windows
 - [ ] YAAT-342 MainWindowLifecycleTests pop-out close tests fail in some full UI test runs
 - [ ] YAAT-346 Flaky: ProcessRecordingBackendTests.KillRecorder depends on a 500 ms startup window
+- [ ] YAAT-366 Fix the garbled solo readback of EXIT given on final ('exit when if able at on to W3')
