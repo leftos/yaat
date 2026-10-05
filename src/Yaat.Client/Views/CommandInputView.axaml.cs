@@ -3,6 +3,9 @@ using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Threading;
+using Microsoft.Extensions.Logging;
+using Yaat.Client.Logging;
 using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
 
@@ -10,19 +13,67 @@ namespace Yaat.Client.Views;
 
 public partial class CommandInputView : UserControl
 {
+    private static readonly ILogger Log = AppLog.CreateLogger<CommandInputView>();
+
     private Key _aircraftSelectKey = Key.Add;
     private KeyModifiers _aircraftSelectModifiers = KeyModifiers.None;
     private Popup? _commandPopup;
+    private readonly FlyoutShowMode _sessionFlyoutShowMode = FlyoutShowMode.Standard;
 
     public CommandInputView()
     {
         InitializeComponent();
+
+        // The mode the session button's flyout opens in, captured once at construction: a re-entrant OpenSessionFlyout
+        // must restore this rather than whatever mode the flyout happens to be showing.
+        if (SessionSettingsButton.Flyout is PopupFlyoutBase sessionFlyout)
+        {
+            _sessionFlyoutShowMode = sessionFlyout.ShowMode;
+        }
     }
 
     public void SetAircraftSelectKeybind(Key key, KeyModifiers modifiers)
     {
         _aircraftSelectKey = key;
         _aircraftSelectModifiers = modifiers;
+    }
+
+    /// <summary>
+    /// Opens the session settings flyout from elsewhere (the live-traffic status menu) and brings its live-traffic settings
+    /// into view. Does nothing while the session button is hidden (no scenario loaded).
+    /// </summary>
+    public void OpenSessionFlyout()
+    {
+        if (!SessionSettingsButton.IsEffectivelyVisible || (SessionSettingsButton.Flyout is not PopupFlyoutBase flyout))
+        {
+            Log.LogDebug("Session flyout not opened: the session settings button is hidden");
+            return;
+        }
+
+        // Already open: leave it as it is and only scroll the live-traffic row into view. Showing it again would re-arm the
+        // close handler and capture the temporary Standard mode as the one to restore.
+        if (flyout.IsOpen)
+        {
+            Dispatcher.UIThread.Post(() => SessionLiveTrafficCheckBox.BringIntoView(), DispatcherPriority.Loaded);
+            return;
+        }
+
+        // The button opens the flyout under the pointer and dismisses it when the pointer moves away. Opened from the status
+        // bar the pointer starts away from it, so it shows in Standard mode for this opening and gets the mode it was loaded
+        // with back when it closes.
+        flyout.ShowMode = FlyoutShowMode.Standard;
+        flyout.Closed += OnSessionFlyoutClosed;
+        flyout.ShowAt(SessionSettingsButton);
+        Dispatcher.UIThread.Post(() => SessionLiveTrafficCheckBox.BringIntoView(), DispatcherPriority.Loaded);
+    }
+
+    private void OnSessionFlyoutClosed(object? sender, EventArgs e)
+    {
+        if (SessionSettingsButton.Flyout is PopupFlyoutBase flyout)
+        {
+            flyout.Closed -= OnSessionFlyoutClosed;
+            flyout.ShowMode = _sessionFlyoutShowMode;
+        }
     }
 
     protected override void OnLoaded(RoutedEventArgs e)

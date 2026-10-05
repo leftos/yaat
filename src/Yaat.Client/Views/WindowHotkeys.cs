@@ -29,6 +29,9 @@ namespace Yaat.Client.Views;
 /// <item><b>Panel toggles</b> — the pop-out keys (aircraft list, ground, radar, terminal, controllers, METAR)
 /// and the favorites-bar key flip their flag on the <see cref="MainViewModel"/>, the same flag the View menu's
 /// checkable item binds. Scoped to YAAT working windows.</item>
+/// <item><b>Open Settings</b> — Ctrl+, by default asks the <see cref="MainViewModel"/> for Settings with no section of its
+/// own: an open Settings window comes to the front on the section it is on, and a closed one opens at General. Scoped to
+/// YAAT working windows, so it does nothing inside Settings itself.</item>
 /// </list>
 ///
 /// These are in-app shortcuts (they only fire while a YAAT window has focus), deliberately unlike the
@@ -52,8 +55,9 @@ internal static class WindowHotkeys
         ("Ground view debug overlay", "Ctrl+D"),
     ];
 
-    // Each configurable panel key and the main-view-model flag it flips.
-    private static readonly (Func<UserPreferences, string> Keybind, Action<MainViewModel> Toggle)[] PanelToggles =
+    // Each configurable key scoped to YAAT working windows and what it does to the main view model: the panel keys flip the
+    // flag the View menu binds, and the Open Settings key asks for Settings with no section of its own.
+    private static readonly (Func<UserPreferences, string> Keybind, Action<MainViewModel> Action)[] ScopedKeyActions =
     [
         (p => p.PopOutAircraftListKey, vm => vm.IsDataGridPoppedOut = !vm.IsDataGridPoppedOut),
         (p => p.PopOutGroundViewKey, vm => vm.IsGroundViewPoppedOut = !vm.IsGroundViewPoppedOut),
@@ -62,6 +66,7 @@ internal static class WindowHotkeys
         (p => p.PopOutControllersKey, vm => vm.IsControllersPoppedOut = !vm.IsControllersPoppedOut),
         (p => p.PopOutMetarKey, vm => vm.IsMetarPoppedOut = !vm.IsMetarPoppedOut),
         (p => p.FavoritesBarKey, vm => vm.ShowFavoritesBar = !vm.ShowFavoritesBar),
+        (p => p.OpenSettingsKey, vm => vm.RequestSettings(section: null)),
     ];
 
     private static bool _registered;
@@ -133,17 +138,17 @@ internal static class WindowHotkeys
 
         if (IsFocusInputScope(window))
         {
-            TogglePanel(vm, e);
+            RunScopedKeyAction(vm, e);
         }
     }
 
-    private static void TogglePanel(MainViewModel vm, KeyEventArgs e)
+    private static void RunScopedKeyAction(MainViewModel vm, KeyEventArgs e)
     {
-        foreach ((Func<UserPreferences, string> keybind, Action<MainViewModel> toggle) in PanelToggles)
+        foreach ((Func<UserPreferences, string> keybind, Action<MainViewModel> action) in ScopedKeyActions)
         {
             if (Matches(keybind(vm.Preferences), e))
             {
-                toggle(vm);
+                action(vm);
                 e.Handled = true;
                 return;
             }

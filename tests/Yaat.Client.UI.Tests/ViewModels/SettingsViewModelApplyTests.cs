@@ -189,7 +189,7 @@ public class SettingsViewModelApplyTests
     {
         using var scope = new PreferencesFileScope();
         var vm = new SettingsViewModel();
-        Key[] functionKeys = [Key.F1, Key.F2, Key.F3, Key.F4, Key.F5, Key.F6, Key.F7, Key.F9, Key.F10, Key.F11, Key.F12, Key.F13, Key.F14];
+        Key[] functionKeys = [Key.F1, Key.F2, Key.F3, Key.F4, Key.F5, Key.F6, Key.F7, Key.F9, Key.F10, Key.F11, Key.F12, Key.F13, Key.F14, Key.F15];
         Assert.Equal(functionKeys.Length, vm.KeybindRows.Count);
         foreach ((KeybindRow row, Key key) in vm.KeybindRows.Zip(functionKeys))
         {
@@ -215,6 +215,7 @@ public class SettingsViewModelApplyTests
             stored.PopOutControllersKey,
             stored.PopOutMetarKey,
             stored.FavoritesBarKey,
+            stored.OpenSettingsKey,
             stored.PttKey,
         ];
         Assert.Equal(expected, actual);
@@ -253,10 +254,11 @@ public class SettingsViewModelApplyTests
             ["PopOutControllers"] = "Ctrl+Shift+C",
             ["PopOutMetar"] = "Ctrl+Shift+M",
             ["FavoritesBar"] = "Ctrl+Shift+F",
+            ["OpenSettings"] = "Ctrl+OemComma",
         };
         Assert.Equal(expected.Keys, vm.KeysSectionKeybindRows.Select(r => r.Id));
 
-        Key[] functionKeys = [Key.F1, Key.F2, Key.F3, Key.F4, Key.F5, Key.F6, Key.F7, Key.F9, Key.F10, Key.F11, Key.F12, Key.F13];
+        Key[] functionKeys = [Key.F1, Key.F2, Key.F3, Key.F4, Key.F5, Key.F6, Key.F7, Key.F9, Key.F10, Key.F11, Key.F12, Key.F13, Key.F14];
         foreach ((KeybindRow row, Key key) in vm.KeysSectionKeybindRows.Zip(functionKeys))
         {
             Capture(vm, row.Id, key, KeyModifiers.Alt);

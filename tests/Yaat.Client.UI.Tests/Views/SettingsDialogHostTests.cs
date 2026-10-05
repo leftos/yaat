@@ -1,3 +1,4 @@
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.Interactivity;
@@ -7,6 +8,7 @@ using Yaat.Client.Services;
 using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views;
+using Yaat.Client.Views.Radar;
 using Yaat.Client.Views.Settings;
 
 namespace Yaat.Client.UI.Tests.Views;
@@ -23,7 +25,7 @@ public class SettingsDialogHostTests
     public void Apply_RefreshesTheLiveViews_AndCancelRollsBackOnlyWhatCameAfterIt()
     {
         using var scope = new PreferencesFileScope();
-        (MainWindow main, MainViewModel vm) = BootMainWindow();
+        (MainWindow main, MainViewModel vm) = MainWindowHost.Boot();
         try
         {
             SettingsWindow dialog = OpenSettings(main);
@@ -51,7 +53,7 @@ public class SettingsDialogHostTests
         }
         finally
         {
-            CloseAll(main);
+            MainWindowHost.CloseAll(main);
         }
     }
 
@@ -59,7 +61,7 @@ public class SettingsDialogHostTests
     public void Ok_CommitsAndCloses()
     {
         using var scope = new PreferencesFileScope();
-        (MainWindow main, MainViewModel vm) = BootMainWindow();
+        (MainWindow main, MainViewModel vm) = MainWindowHost.Boot();
         try
         {
             SettingsWindow dialog = OpenSettings(main);
@@ -74,7 +76,7 @@ public class SettingsDialogHostTests
         }
         finally
         {
-            CloseAll(main);
+            MainWindowHost.CloseAll(main);
         }
     }
 
@@ -82,7 +84,7 @@ public class SettingsDialogHostTests
     public void ToolsMenu_OpensOnGeneral()
     {
         using var scope = new PreferencesFileScope();
-        (MainWindow main, _) = BootMainWindow();
+        (MainWindow main, _) = MainWindowHost.Boot();
         try
         {
             SettingsWindow dialog = OpenSettings(main);
@@ -91,7 +93,28 @@ public class SettingsDialogHostTests
         }
         finally
         {
-            CloseAll(main);
+            MainWindowHost.CloseAll(main);
+        }
+    }
+
+    [AvaloniaFact(Timeout = 60_000)]
+    public void ToolsSettingsItem_RaisesSettingsRequestedWithGeneral()
+    {
+        using var scope = new PreferencesFileScope();
+        (MainWindow main, MainViewModel vm) = MainWindowHost.Boot();
+        List<SettingsSectionId?> requests = [];
+        vm.SettingsRequested += requests.Add;
+
+        try
+        {
+            main.FindControl<MenuItem>("SettingsMenuItem")!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+            Dispatcher.UIThread.RunJobs();
+
+            Assert.Equal([SettingsSectionId.General], requests);
+        }
+        finally
+        {
+            MainWindowHost.CloseAll(main);
         }
     }
 
@@ -99,7 +122,7 @@ public class SettingsDialogHostTests
     public void PilotVoiceSettingsRequest_OpensOnSpeech()
     {
         using var scope = new PreferencesFileScope();
-        (MainWindow main, MainViewModel vm) = BootMainWindow();
+        (MainWindow main, MainViewModel vm) = MainWindowHost.Boot();
         try
         {
             vm.OpenPilotVoiceSettingsCommand.Execute(null);
@@ -110,7 +133,7 @@ public class SettingsDialogHostTests
         }
         finally
         {
-            CloseAll(main);
+            MainWindowHost.CloseAll(main);
         }
     }
 
@@ -118,7 +141,7 @@ public class SettingsDialogHostTests
     public void SpeechDebugRequest_WhileSettingsIsOpen_ShowsSpeechInTheOpenWindow()
     {
         using var scope = new PreferencesFileScope();
-        (MainWindow main, _) = BootMainWindow();
+        (MainWindow main, _) = MainWindowHost.Boot();
         try
         {
             SettingsWindow first = OpenSettings(main);
@@ -136,16 +159,37 @@ public class SettingsDialogHostTests
         }
         finally
         {
-            CloseAll(main);
+            MainWindowHost.CloseAll(main);
         }
     }
 
-    private static (MainWindow Main, MainViewModel Vm) BootMainWindow()
+    [AvaloniaFact(Timeout = 60_000)]
+    public void ViewMenuLink_WhileSettingsIsOpenAtSpeech_MovesToThatViewsSection()
     {
-        var main = new MainWindow();
-        main.Show();
-        Dispatcher.UIThread.RunJobs();
-        return (main, (MainViewModel)main.DataContext!);
+        using var scope = new PreferencesFileScope();
+        (MainWindow main, MainViewModel vm) = MainWindowHost.Boot();
+        try
+        {
+            SettingsWindow dialog = OpenSettings(main);
+            vm.RequestSettings(SettingsSectionId.Speech);
+            Dispatcher.UIThread.RunJobs();
+            Assert.IsType<SpeechSection>(ShownSection(dialog));
+
+            var view = new RadarView { DataContext = vm.Radar };
+            var host = new Grid { DataContext = vm };
+            host.Children.Add(view);
+            ContextMenu? menu = view.BuildMapContextMenu(37.620, -122.380, new Point(10, 10));
+            Assert.NotNull(menu);
+            MenuItem item = Assert.Single(menu.Items.OfType<MenuItem>(), i => (i.Header as string) == "Settings for this view…");
+            item.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+            Dispatcher.UIThread.RunJobs();
+
+            Assert.IsType<RadarSection>(ShownSection(dialog));
+        }
+        finally
+        {
+            MainWindowHost.CloseAll(main);
+        }
     }
 
     private static SettingsWindow OpenSettings(MainWindow main)
@@ -161,22 +205,6 @@ public class SettingsDialogHostTests
     private static void Click(SettingsWindow dialog, string buttonName)
     {
         dialog.FindControl<Button>(buttonName)!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-        Dispatcher.UIThread.RunJobs();
-    }
-
-    // Closes what the test opened and hides the main window. The main window is never closed: a close that goes
-    // through latches the process-wide AppLifetime.IsShuttingDown flag, after which every later test's pop-out
-    // windows treat their own close as an app shutdown.
-    private static void CloseAll(MainWindow main)
-    {
-        foreach (SettingsWindow dialog in main.OwnedWindows.OfType<SettingsWindow>().ToList())
-        {
-            dialog.Close();
-            Dispatcher.UIThread.RunJobs();
-        }
-
-        main.OpenSpeechDebugWindow?.Close();
-        main.Hide();
         Dispatcher.UIThread.RunJobs();
     }
 }

@@ -387,15 +387,27 @@ public partial class GroundView : UserControl
 
     private void OnNodeRightClicked(int nodeId, Point screenPos)
     {
+        if (BuildNodeContextMenu(nodeId, screenPos) is { } menu)
+        {
+            ShowContextMenu(menu);
+        }
+    }
+
+    /// <summary>
+    /// The right-click menu at a ground node (an empty-space click resolves to the nearest one), ending with "Settings for
+    /// this view…"; null without a ground view model or the node, or when the menu would be empty.
+    /// </summary>
+    internal ContextMenu? BuildNodeContextMenu(int nodeId, Point screenPos)
+    {
         if (DataContext is not GroundViewModel vm)
         {
-            return;
+            return null;
         }
 
         GroundNodeDto? node = vm.GetNode(nodeId);
         if (node is null)
         {
-            return;
+            return null;
         }
 
         var menu = new ContextMenu();
@@ -484,10 +496,8 @@ public partial class GroundView : UserControl
             menu.Items.RemoveAt(menu.Items.Count - 1);
         }
 
-        if (menu.Items.Count > 0)
-        {
-            ShowContextMenu(menu);
-        }
+        ViewSettingsMenu.Append(menu, FindMainViewModel(), SettingsSectionId.Ground);
+        return (menu.Items.Count > 0) ? menu : null;
     }
 
     private void OnAircraftRightClicked(string callsign, Point screenPos)

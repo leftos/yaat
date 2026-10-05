@@ -1428,9 +1428,18 @@ public partial class RadarView
 
     private void OnMapRightClicked(double lat, double lon, Point screenPos)
     {
+        if (BuildMapContextMenu(lat, lon, screenPos) is { } menu)
+        {
+            ShowContextMenu(menu);
+        }
+    }
+
+    /// <summary>The map's right-click menu at a point, ending with "Settings for this view…"; null without a radar view model.</summary>
+    internal ContextMenu? BuildMapContextMenu(double lat, double lon, Point screenPos)
+    {
         if (DataContext is not RadarViewModel vm)
         {
-            return;
+            return null;
         }
 
         var menu = new ContextMenu();
@@ -1548,10 +1557,8 @@ public partial class RadarView
             }
         }
 
-        if (menu.Items.Count > 0)
-        {
-            ShowContextMenu(menu);
-        }
+        ViewSettingsMenu.Append(menu, FindMainViewModel(), SettingsSectionId.Radar);
+        return menu;
     }
 
     // --- Menu item factories ---

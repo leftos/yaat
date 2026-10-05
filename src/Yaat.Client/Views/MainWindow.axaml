@@ -564,6 +564,7 @@
                 <MenuItem x:Name="MicMenuEnableItem" Header="Enable speech recognition" ToggleType="CheckBox" IsChecked="{Binding IsSpeechEnabled}" />
                 <Separator />
                 <MenuItem x:Name="MicMenuDebugItem" Header="Show speech recognition debugging..." />
+                <MenuItem x:Name="MicMenuSpeechSettingsItem" Header="Speech settings…" />
               </MenuFlyout>
             </TextBlock.ContextFlyout>
           </TextBlock>
@@ -585,12 +586,14 @@
                 <MenuItem Header="Enable speech recognition" ToggleType="CheckBox" IsChecked="{Binding IsSpeechEnabled}" />
                 <Separator />
                 <MenuItem x:Name="MicOffMenuDebugItem" Header="Show speech recognition debugging..." />
+                <MenuItem x:Name="MicOffMenuSpeechSettingsItem" Header="Speech settings…" />
               </MenuFlyout>
             </TextBlock.ContextFlyout>
           </TextBlock>
 
           <!-- Live-traffic feed health for the room, shown only while the session toggle is on. Right-click
-                     carries the toggle and the aircraft-list filter (all / hide live / only live). -->
+                     carries the toggle, the aircraft-list filter (all / hide live / only live) and a link to the
+                     session flyout's live-traffic settings. -->
           <TextBlock
             Grid.Column="2"
             x:Name="LiveTrafficStatusText"
@@ -622,6 +625,8 @@
                   GroupName="LiveTrafficListFilter"
                   IsChecked="{Binding LiveTrafficListOnlyLive}"
                 />
+                <Separator IsVisible="{Binding LiveTrafficAvailable}" />
+                <MenuItem x:Name="LiveTrafficSessionMenuItem" Header="Live traffic…" IsVisible="{Binding LiveTrafficAvailable}" />
               </MenuFlyout>
             </TextBlock.ContextFlyout>
           </TextBlock>

@@ -526,6 +526,7 @@ public sealed partial class UserPreferences
     public string PopOutControllersKey => _data.PopOutControllersKey;
     public string PopOutMetarKey => _data.PopOutMetarKey;
     public string FavoritesBarKey => _data.FavoritesBarKey;
+    public string OpenSettingsKey => _data.OpenSettingsKey;
 
     /// <summary>When true, activating any YAAT window raises all YAAT windows above other apps (CRC-style group raise).</summary>
     public bool RaiseWindowsTogether => _data.RaiseWindowsTogether;
@@ -1123,6 +1124,12 @@ public sealed partial class UserPreferences
     public void SetFavoritesBarKey(string key)
     {
         _data.FavoritesBarKey = key;
+        Save();
+    }
+
+    public void SetOpenSettingsKey(string key)
+    {
+        _data.OpenSettingsKey = key;
         Save();
     }
 
@@ -2036,6 +2043,7 @@ public sealed partial class UserPreferences
             PopOutControllersKey = GetFieldOr(obj, "popOutControllersKey", "Ctrl+Shift+C"),
             PopOutMetarKey = GetFieldOr(obj, "popOutMetarKey", "Ctrl+Shift+M"),
             FavoritesBarKey = GetFieldOr(obj, "favoritesBarKey", "Ctrl+Shift+F"),
+            OpenSettingsKey = GetFieldOr(obj, "openSettingsKey", "Ctrl+OemComma"),
             RaiseWindowsTogether = GetFieldOr(obj, "raiseWindowsTogether", true),
             DiscordRichPresenceEnabled = GetFieldOr(obj, "discordRichPresenceEnabled", true),
             ShowFavoritesBar = GetFieldOr(obj, "showFavoritesBar", true),
@@ -2423,6 +2431,7 @@ public sealed partial class UserPreferences
         public string PopOutControllersKey { get; set; } = "Ctrl+Shift+C";
         public string PopOutMetarKey { get; set; } = "Ctrl+Shift+M";
         public string FavoritesBarKey { get; set; } = "Ctrl+Shift+F";
+        public string OpenSettingsKey { get; set; } = "Ctrl+OemComma";
         public bool RaiseWindowsTogether { get; set; } = true;
         public bool DiscordRichPresenceEnabled { get; set; } = true;
         public bool ShowFavoritesBar { get; set; } = true;

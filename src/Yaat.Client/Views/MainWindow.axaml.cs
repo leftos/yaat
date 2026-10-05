@@ -103,7 +103,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
                 "Issuing a command stops the replay and discards the rest of the playback timeline, switching to live control. This can't be undone."
             );
         vm.PilotVoiceWarningPrompt = ShowPilotVoiceWarningAsync;
-        vm.PilotVoiceSettingsRequested += OnPilotVoiceSettingsRequested;
+        vm.SettingsRequested += OnSettingsRequested;
         vm.SpeechTelemetryPrompt = ShowSpeechTelemetryOptInAsync;
         vm.BugReportPrompt = ShowFileBugReportDialogAsync;
 
@@ -348,6 +348,15 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             item?.Click += OnShowSpeechDebugClick;
         }
 
+        // "Speech settings…" on both mic-status menus opens Settings at Speech.
+        foreach (string speechSettingsItemName in new[] { "MicMenuSpeechSettingsItem", "MicOffMenuSpeechSettingsItem" })
+        {
+            MenuItem? item = this.FindControl<MenuItem>(speechSettingsItemName);
+            item?.Click += (_, _) => vm.RequestSettings(SettingsSectionId.Speech);
+        }
+
+        LiveTrafficSessionMenuItem.Click += OnLiveTrafficSessionClick;
+
         if (App.AutoConnectTarget is { } target)
         {
             _autoConnectCts = new CancellationTokenSource();
@@ -388,7 +397,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         }
 
         _speechDebugWindow = new SpeechDebugWindow(vm.SpeechService, vm.SpeechSampleStore, vm.Preferences);
-        _speechDebugWindow.SettingsRequested += OnSpeechDebugSettingsRequested;
+        _speechDebugWindow.SettingsRequested += () => vm.RequestSettings(SettingsSectionId.Speech);
         _speechDebugWindow.Closed += (_, _) => _speechDebugWindow = null;
         _speechDebugWindow.Show();
     }
@@ -3083,14 +3092,47 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
 
     private async Task ShowMessageAsync(string message) => await MessageBoxPresenter.ShowStandardAsync(this, "YAAT", message, ButtonEnum.Ok);
 
-    private async void OnSettingsClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e) =>
-        await ShowSettingsDialogAsync(SettingsSectionId.General);
+    private void OnSettingsClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (DataContext is MainViewModel vm)
+        {
+            vm.RequestSettings(SettingsSectionId.General);
+        }
+    }
 
-    private async void OnPilotVoiceSettingsRequested() => await ShowSettingsDialogAsync(SettingsSectionId.Speech);
+    private async void OnSettingsRequested(SettingsSectionId? section) => await ShowSettingsDialogAsync(section);
 
-    private async void OnSpeechDebugSettingsRequested() => await ShowSettingsDialogAsync(SettingsSectionId.Speech);
+    // The live-traffic status menu's "Live traffic…" opens the session flyout on whichever command input is showing: the
+    // docked one, or the popped-out terminal's.
+    private void OnLiveTrafficSessionClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (DataContext is not MainViewModel vm)
+        {
+            return;
+        }
 
-    private async Task ShowSettingsDialogAsync(SettingsSectionId section)
+        CommandInputView? commandInput;
+        if (vm.IsTerminalPoppedOut)
+        {
+            // The terminal is behind the main window because the user just clicked the main window's status bar.
+            _terminalWindow?.RestoreAndActivate();
+            commandInput = _terminalWindow?.FindControl<CommandInputView>("CommandInputView");
+        }
+        else
+        {
+            commandInput = this.FindControl<CommandInputView>("CommandInputView");
+        }
+
+        if (commandInput is null)
+        {
+            Log.LogWarning("Live traffic… found no command input to open the session flyout on");
+            return;
+        }
+
+        commandInput.OpenSessionFlyout();
+    }
+
+    private async Task ShowSettingsDialogAsync(SettingsSectionId? section)
     {
         if (DataContext is not MainViewModel vm)
         {
@@ -3102,7 +3144,12 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         // window to the requested section instead.
         if (_settingsDialog is { } open)
         {
-            open.SelectSection(section);
+            // A request with no section of its own leaves the window where the user is and only brings it forward.
+            if (section is { } requested)
+            {
+                open.SelectSection(requested);
+            }
+
             open.RestoreAndActivate();
             return;
         }
@@ -3116,7 +3163,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         vm.IsSettingsPreviewActive = true;
 
         var dialog = new SettingsWindow(vm.Preferences, vm.AudioCapture, vm.SpeechSampleStore);
-        dialog.SelectSection(section);
+        dialog.SelectSection(section ?? SettingsSectionId.General);
 
         SettingsViewModel settingsVm = dialog.ViewModel;
         settingsVm.VisualSettingsChanged += OnPreview;
@@ -3443,9 +3490,10 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         ShowMenuHotkeys(prefs);
     }
 
-    // The View menu's pop-out and bar items show the key WindowHotkeys answers to; the gesture is text only.
+    // The View menu's pop-out and bar items and Tools › Settings show the key WindowHotkeys answers to; the gesture is text only.
     private void ShowMenuHotkeys(UserPreferences prefs)
     {
+        SettingsMenuItem.InputGesture = ToGesture(prefs.OpenSettingsKey);
         PopOutAircraftListMenuItem.InputGesture = ToGesture(prefs.PopOutAircraftListKey);
         PopOutGroundViewMenuItem.InputGesture = ToGesture(prefs.PopOutGroundViewKey);
         PopOutRadarViewMenuItem.InputGesture = ToGesture(prefs.PopOutRadarViewKey);

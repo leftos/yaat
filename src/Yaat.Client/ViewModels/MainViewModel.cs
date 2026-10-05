@@ -1151,6 +1151,17 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     public void FocusCommandInput() => RequestCommandInputFocus?.Invoke();
 
+    /// <summary>
+    /// Raised to open Settings at a section: the main window shows Settings there, or moves an open Settings window to it.
+    /// A null section is a request with none of its own — an open window comes to the front on the section the user is on,
+    /// and a closed one opens at General. Every way into Settings goes through <see cref="RequestSettings"/>, so pop-outs
+    /// and views need only this view model.
+    /// </summary>
+    public event Action<SettingsSectionId?>? SettingsRequested;
+
+    /// <summary>Asks for Settings opened at <paramref name="section"/>, or with no section of its own when it is null.</summary>
+    public void RequestSettings(SettingsSectionId? section) => SettingsRequested?.Invoke(section);
+
     [ObservableProperty]
     private bool _showCommandEntries = true;
 

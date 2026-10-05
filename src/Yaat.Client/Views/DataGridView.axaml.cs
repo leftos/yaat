@@ -169,6 +169,15 @@ public partial class DataGridView : UserControl
             return;
         }
 
+        grid.ContextMenu = BuildRowContextMenu(grid, ac, vm, [.. grid.SelectedItems.OfType<AircraftModel>()]);
+    }
+
+    /// <summary>
+    /// The right-click menu for the aircraft row <paramref name="ac"/>, with <paramref name="selected"/> the rows selected with
+    /// it; its flyouts open at <paramref name="anchor"/>. It ends with "Settings for this view…".
+    /// </summary>
+    internal static ContextMenu BuildRowContextMenu(Control anchor, AircraftModel ac, MainViewModel vm, IReadOnlyList<AircraftModel> selected)
+    {
         string callsign = ac.Callsign;
         string initials = vm.Preferences.UserInitials;
         var menu = new ContextMenu();
@@ -185,11 +194,11 @@ public partial class DataGridView : UserControl
 
         var commandItem = new MenuItem { Header = "Command…" };
         // Free-text: the RPO types arbitrary canonical, so it goes through the VFR gate like typed input.
-        commandItem.Click += (_, _) => CommandFlyout.Open(grid, callsign, cmd => vm.SendGatedCommandForViewAsync(ac, callsign, cmd, initials));
+        commandItem.Click += (_, _) => CommandFlyout.Open(anchor, callsign, cmd => vm.SendGatedCommandForViewAsync(ac, callsign, cmd, initials));
         menu.Items.Add(commandItem);
 
         var noteItem = new MenuItem { Header = "Note…" };
-        noteItem.Click += (_, _) => NoteFlyout.Open(grid, callsign, ac.Note, cmd => vm.Connection.SendCommandAsync(callsign, cmd, initials));
+        noteItem.Click += (_, _) => NoteFlyout.Open(anchor, callsign, ac.Note, cmd => vm.Connection.SendCommandAsync(callsign, cmd, initials));
         menu.Items.Add(noteItem);
         menu.Items.Add(new Separator());
 
@@ -199,8 +208,8 @@ public partial class DataGridView : UserControl
         if (ac.IsDelayed)
         {
             AddDelayedSpawnItems(menu, vm, callsign, initials);
-            grid.ContextMenu = menu;
-            return;
+            ViewSettingsMenu.Append(menu, vm, SettingsSectionId.AircraftList);
+            return menu;
         }
 
         AddCommandGroups(menu, ac, vm, callsign, initials);
@@ -210,16 +219,13 @@ public partial class DataGridView : UserControl
         menu.Items.Add(deleteItem);
 
         // RPO control
-        var selectedCallsigns = grid.SelectedItems.OfType<AircraftModel>().Select(a => a.Callsign).ToList();
+        var selectedCallsigns = selected.Select(a => a.Callsign).ToList();
         if (selectedCallsigns.Count == 0)
         {
             selectedCallsigns = [callsign];
         }
 
-        List<string> selectedShadows =
-        [
-            .. grid.SelectedItems.OfType<AircraftModel>().Where(AircraftCommandApplicability.CanAssume).Select(a => a.Callsign),
-        ];
+        List<string> selectedShadows = [.. selected.Where(AircraftCommandApplicability.CanAssume).Select(a => a.Callsign)];
         if (selectedShadows.Count >= 2)
         {
             menu.Items.Add(new Separator());
@@ -230,7 +236,8 @@ public partial class DataGridView : UserControl
 
         vm.BuildRpoMenuItems(menu, selectedCallsigns);
 
-        grid.ContextMenu = menu;
+        ViewSettingsMenu.Append(menu, vm, SettingsSectionId.AircraftList);
+        return menu;
     }
 
     /// <summary>

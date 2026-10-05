@@ -132,6 +132,7 @@ public sealed partial class UserPreferences
         ("popOutControllersKey", KeyName),
         ("popOutMetarKey", KeyName),
         ("favoritesBarKey", KeyName),
+        ("openSettingsKey", KeyName),
         ("quickBookmarkKey", KeyName),
         ("pttKey", KeyName),
         // Speech; a model source is exported only without a local path, user part or query, and imported only as a

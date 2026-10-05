@@ -541,7 +541,8 @@ Views/
   FlightPlanEditorManager.cs    # Static single-instance opener/lifecycle for the flight plan editor window (reuses one open editor)
   FlightPlanEditorAmendmentBuilder.cs # Builds a FlightPlanAmendment from the built-in flight plan editor's field/route edits for dispatch to the server
   HoldShortMenuHelper.cs        # Shared resolver: held runway from the "Holding Short {rwy}" phase, used by ground-map + aircraft-list cross/LUAW menu items
-  WindowHotkeys.cs              # App-wide class handler for window-level hotkeys (focus command input, always-on-top, the pop-out and favorites-bar toggles, Ctrl+F8 radar DCB toggle; FixedChords lists the non-rebindable chords the Keys clash check covers); routes focus to the visible CommandInputView and toggles topmost via IAlwaysOnTopToggle
+  ViewSettingsMenu.cs           # The shared "Settings for this view…" item the Radar, Ground, Aircraft list and Terminal right-click menus end with (MainViewModel.RequestSettings)
+  WindowHotkeys.cs              # App-wide class handler for window-level hotkeys (focus command input, always-on-top, the pop-out and favorites-bar toggles, Open Settings, Ctrl+F8 radar DCB toggle; FixedChords lists the non-rebindable chords the Keys clash check covers); routes focus to the visible CommandInputView and toggles topmost via IAlwaysOnTopToggle
 
 Views/Map/
   MapViewport.cs                # Shared equirectangular projection for map views

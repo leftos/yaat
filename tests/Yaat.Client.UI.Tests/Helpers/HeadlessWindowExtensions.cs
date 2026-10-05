@@ -68,6 +68,7 @@ internal static class HeadlessWindowExtensions
             Key.Back => PhysicalKey.Backspace,
             Key.Add => PhysicalKey.NumPadAdd,
             Key.OemTilde => PhysicalKey.Backquote,
+            Key.OemComma => PhysicalKey.Comma,
             Key.L => PhysicalKey.L,
             Key.T => PhysicalKey.T,
             Key.F8 => PhysicalKey.F8,

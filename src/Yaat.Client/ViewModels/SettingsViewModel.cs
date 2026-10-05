@@ -1625,6 +1625,15 @@ public partial class SettingsViewModel : ObservableObject
             p => p.FavoritesBarKey,
             (p, k) => p.SetFavoritesBarKey(k)
         ),
+        new(
+            "OpenSettings",
+            "Open Settings",
+            "Opens this Settings window, from any YAAT working window.",
+            ["preferences", "options"],
+            KeybindKind.WindowHotkey,
+            p => p.OpenSettingsKey,
+            (p, k) => p.SetOpenSettingsKey(k)
+        ),
         new("Ptt", "Push-to-talk", "Hold this key to talk.", ["PTT"], KeybindKind.PushToTalk, p => p.PttKey, (p, k) => p.SetPttKey(k)),
     ];
 

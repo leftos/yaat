@@ -32,9 +32,6 @@ public partial class MainViewModel
     /// </summary>
     public Func<Task<PilotVoiceWarningChoice>>? PilotVoiceWarningPrompt { get; set; }
 
-    /// <summary>Raised when the student asks for the pilot voice settings, from the banner or the dialog.</summary>
-    public event Action? PilotVoiceSettingsRequested;
-
     /// <summary>Re-evaluates <see cref="NoPilotVoiceInSolo"/> from the room, the scenario, the preference and the voice pack.</summary>
     public void RefreshPilotVoiceWarning()
     {
@@ -62,15 +59,16 @@ public partial class MainViewModel
                 _pilotVoiceWarningAcknowledged = true;
                 return true;
             case PilotVoiceWarningChoice.OpenVoiceSettings:
-                PilotVoiceSettingsRequested?.Invoke();
+                RequestSettings(SettingsSectionId.Speech);
                 return false;
             default:
                 return false;
         }
     }
 
+    /// <summary>The banner's link: Settings at Speech, where pilot voice is turned on.</summary>
     [RelayCommand]
-    private void OpenPilotVoiceSettings() => PilotVoiceSettingsRequested?.Invoke();
+    private void OpenPilotVoiceSettings() => RequestSettings(SettingsSectionId.Speech);
 
     /// <summary>Starts a new session for the once-per-session dialog.</summary>
     private void ResetPilotVoiceWarningSession() => _pilotVoiceWarningAcknowledged = false;

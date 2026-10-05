@@ -12,6 +12,7 @@ using Yaat.Client.ViewModels;
 using Yaat.Client.Views;
 using Yaat.Client.Views.Find;
 using Yaat.Client.Views.Radar;
+using Yaat.Client.Views.Settings;
 using Yaat.Client.Views.VStrips;
 
 namespace Yaat.Client.UI.Tests.Views;
@@ -201,7 +202,7 @@ public class WindowHotkeysTests
     {
         using var scope = new PreferencesFileScope();
         WindowHotkeys.EnsureRegistered();
-        (MainWindow? main, MainViewModel? vm) = BootMainWindow();
+        (MainWindow? main, MainViewModel? vm) = MainWindowHost.Boot();
         PanelHotkey hotkey = Panels[panel];
         bool before = hotkey.Get(vm);
 
@@ -217,7 +218,7 @@ public class WindowHotkeysTests
         {
             hotkey.Set(vm, before);
             Dispatcher.UIThread.RunJobs();
-            main.Close();
+            MainWindowHost.CloseAll(main);
         }
     }
 
@@ -252,8 +253,8 @@ public class WindowHotkeysTests
     {
         using var scope = new PreferencesFileScope();
         WindowHotkeys.EnsureRegistered();
-        (MainWindow? main, MainViewModel? vm) = BootMainWindow();
-        vm.IsTerminalPoppedOut = false;
+        (MainWindow? main, MainViewModel? vm) = MainWindowHost.Boot();
+        DockTerminal(main, vm);
         vm.Preferences.SetPopOutAircraftListKey("Ctrl+Shift+L");
         bool before = vm.IsDataGridPoppedOut;
         TextBox box = FindCommandInput(main)!;
@@ -273,7 +274,7 @@ public class WindowHotkeysTests
         {
             vm.IsDataGridPoppedOut = before;
             Dispatcher.UIThread.RunJobs();
-            main.Close();
+            MainWindowHost.CloseAll(main);
         }
     }
 
@@ -319,6 +320,154 @@ public class WindowHotkeysTests
         }
     }
 
+    [AvaloniaFact]
+    public void OpenSettingsKey_DefaultsToCtrlComma_AndFromAPopOutWindow_RequestsNoSection()
+    {
+        using var scope = new PreferencesFileScope();
+        WindowHotkeys.EnsureRegistered();
+        Assert.Equal("Ctrl+OemComma", UserPreferences.CreateDefaults().OpenSettingsKey);
+        var vm = new MainViewModel(new FakeFilePickerService());
+        List<SettingsSectionId?> requests = [];
+        vm.SettingsRequested += requests.Add;
+        var window = new RadarViewWindow(vm.Preferences, "RadarView", "Radar View") { DataContext = vm };
+        window.ShowAndRunLayout();
+
+        try
+        {
+            PressChord(window, "Ctrl+OemComma");
+
+            Assert.Equal([null], requests);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public void OpenSettingsKey_FromTheMainWindow_RequestsNoSection()
+    {
+        using var scope = new PreferencesFileScope();
+        WindowHotkeys.EnsureRegistered();
+        (MainWindow? main, MainViewModel? vm) = MainWindowHost.Boot();
+        List<SettingsSectionId?> requests = [];
+        vm.SettingsRequested += requests.Add;
+
+        try
+        {
+            PressChord(main, vm.Preferences.OpenSettingsKey);
+
+            Assert.Equal([null], requests);
+        }
+        finally
+        {
+            // The main window answers the request by opening Settings; the host closes it and hides the main window
+            // rather than closing it, which would latch the process-wide shutdown flag for later tests.
+            MainWindowHost.CloseAll(main);
+        }
+    }
+
+    [AvaloniaFact]
+    public void OpenSettingsKey_WithTheCommandInputFocused_RequestsNoSectionAndTypesNothing()
+    {
+        using var scope = new PreferencesFileScope();
+        WindowHotkeys.EnsureRegistered();
+        (MainWindow? main, MainViewModel? vm) = MainWindowHost.Boot();
+        DockTerminal(main, vm);
+        List<SettingsSectionId?> requests = [];
+        vm.SettingsRequested += requests.Add;
+        TextBox box = FindCommandInput(main)!;
+        box.Text = "";
+        box.Focus();
+        Dispatcher.UIThread.RunJobs();
+        Assert.True(box.IsFocused);
+
+        try
+        {
+            main.DispatchKey(Key.OemComma, RawInputModifiers.Control);
+
+            Assert.Equal([null], requests);
+            Assert.True(string.IsNullOrEmpty(box.Text));
+        }
+        finally
+        {
+            MainWindowHost.CloseAll(main);
+        }
+    }
+
+    [AvaloniaFact]
+    public void OpenSettingsKey_IsARebindableWindowHotkey_ThatReportsAClash()
+    {
+        using var scope = new PreferencesFileScope();
+        KeybindDescriptor descriptor = SettingsViewModel.KeybindDescriptors.Single(d => d.Id == "OpenSettings");
+        Assert.Equal("Open Settings", descriptor.Name);
+        Assert.Equal(KeybindKind.WindowHotkey, descriptor.Kind);
+        Assert.Equal("Ctrl+OemComma", descriptor.Read(UserPreferences.CreateDefaults()));
+
+        var settings = new SettingsViewModel();
+        KeybindRow takeControl = settings.KeybindRows.Single(r => r.Id == "TakeControl");
+        takeControl.StartCaptureCommand.Execute(null);
+        settings.CaptureKey(Key.OemComma, KeyModifiers.Control);
+
+        Assert.True(settings.HasKeybindClash);
+        Assert.Equal("Also used by Open Settings", takeControl.ClashMessage);
+        Assert.Equal("Also used by Take control", settings.KeybindRows.Single(r => r.Id == "OpenSettings").ClashMessage);
+    }
+
+    [AvaloniaFact(Timeout = 60_000)]
+    public void OpenSettingsKey_WithSettingsOpenAtSpeech_KeepsTheSectionTheUserIsOn()
+    {
+        using var scope = new PreferencesFileScope();
+        WindowHotkeys.EnsureRegistered();
+        (MainWindow main, MainViewModel vm) = MainWindowHost.Boot();
+        List<SettingsSectionId?> requests = [];
+        vm.SettingsRequested += requests.Add;
+        // Settings is modal on the main window, so a pop-out is where the user can still press Ctrl+, with it open.
+        var radar = new RadarViewWindow(vm.Preferences, "RadarView", "Radar View") { DataContext = vm };
+        radar.ShowAndRunLayout();
+
+        try
+        {
+            vm.RequestSettings(SettingsSectionId.Speech);
+            Dispatcher.UIThread.RunJobs();
+            SettingsWindow dialog = Assert.Single(main.OwnedWindows.OfType<SettingsWindow>());
+            Assert.IsType<SpeechSection>(ShownSection(dialog));
+
+            // Ctrl+, carries no section of its own, so the open window stays where the user left it.
+            PressChord(radar, vm.Preferences.OpenSettingsKey);
+
+            Assert.Equal([SettingsSectionId.Speech, null], requests);
+            Assert.IsType<SpeechSection>(ShownSection(dialog));
+        }
+        finally
+        {
+            radar.Close();
+            MainWindowHost.CloseAll(main);
+        }
+    }
+
+    [AvaloniaFact(Timeout = 60_000)]
+    public void OpenSettingsKey_WithSettingsClosed_OpensAtGeneral()
+    {
+        using var scope = new PreferencesFileScope();
+        WindowHotkeys.EnsureRegistered();
+        (MainWindow main, MainViewModel vm) = MainWindowHost.Boot();
+
+        try
+        {
+            PressChord(main, vm.Preferences.OpenSettingsKey);
+
+            SettingsWindow dialog = Assert.Single(main.OwnedWindows.OfType<SettingsWindow>());
+            Assert.IsType<GeneralSection>(ShownSection(dialog));
+        }
+        finally
+        {
+            MainWindowHost.CloseAll(main);
+        }
+    }
+
+    private static object? ShownSection(SettingsWindow dialog) => dialog.FindControl<ContentControl>("SectionHost")!.Content;
+
     // Raises the chord's KeyDown on the window, where the WindowHotkeys class handler listens.
     private static void PressChord(Window window, string keybind)
     {
@@ -338,49 +487,69 @@ public class WindowHotkeysTests
     [AvaloniaFact]
     public void DockedTerminal_FocusRequest_FocusesEmbeddedCommandInput()
     {
-        (MainWindow? main, MainViewModel? vm) = BootMainWindow();
-        vm.IsTerminalPoppedOut = false;
-        Dispatcher.UIThread.RunJobs();
+        using var scope = new PreferencesFileScope();
+        (MainWindow? main, MainViewModel? vm) = MainWindowHost.Boot();
+        DockTerminal(main, vm);
 
-        vm.FocusCommandInput();
-        Dispatcher.UIThread.RunJobs();
+        try
+        {
+            vm.FocusCommandInput();
+            Dispatcher.UIThread.RunJobs();
 
-        TextBox? box = FindCommandInput(main);
-        Assert.NotNull(box);
-        Assert.True(box!.IsFocused);
+            TextBox? box = FindCommandInput(main);
+            Assert.NotNull(box);
+            Assert.True(box!.IsFocused);
+        }
+        finally
+        {
+            MainWindowHost.CloseAll(main);
+        }
     }
 
     [AvaloniaFact]
     public void PoppedTerminal_FocusRequest_FocusesTerminalWindowCommandInput()
     {
-        (MainWindow? main, MainViewModel? vm) = BootMainWindow();
-        vm.IsTerminalPoppedOut = true;
-        Dispatcher.UIThread.RunJobs();
+        using var scope = new PreferencesFileScope();
+        (MainWindow? main, MainViewModel? vm) = MainWindowHost.Boot();
 
-        Assert.NotNull(main.TerminalWindow);
-        main.TerminalWindow!.UpdateLayout();
-        Dispatcher.UIThread.RunJobs();
+        try
+        {
+            vm.IsTerminalPoppedOut = true;
+            Dispatcher.UIThread.RunJobs();
 
-        vm.FocusCommandInput();
-        Dispatcher.UIThread.RunJobs();
+            Assert.NotNull(main.TerminalWindow);
+            main.TerminalWindow!.UpdateLayout();
+            Dispatcher.UIThread.RunJobs();
 
-        TextBox? termBox = FindCommandInput(main.TerminalWindow!);
-        Assert.NotNull(termBox);
-        Assert.True(termBox!.IsFocused);
+            vm.FocusCommandInput();
+            Dispatcher.UIThread.RunJobs();
 
-        // The hidden embedded input must not have stolen focus.
-        TextBox? embedded = FindCommandInput(main);
-        Assert.False(embedded?.IsFocused ?? false);
+            TextBox? termBox = FindCommandInput(main.TerminalWindow!);
+            Assert.NotNull(termBox);
+            Assert.True(termBox!.IsFocused);
+
+            // The hidden embedded input must not have stolen focus.
+            TextBox? embedded = FindCommandInput(main);
+            Assert.False(embedded?.IsFocused ?? false);
+        }
+        finally
+        {
+            // Re-dock in memory as well as in the scoped file: WindowGeometryHelper.FlushAllSavedGeometries writes every
+            // live window's preferences back on teardown, which would leave the terminal popped out for later tests.
+            vm.IsTerminalPoppedOut = false;
+            Dispatcher.UIThread.RunJobs();
+            MainWindowHost.CloseAll(main);
+        }
     }
 
-    private static (MainWindow main, MainViewModel vm) BootMainWindow()
+    // Docks the terminal and settles the layout: the command-input paths below open a flyout or focus the input that is
+    // showing, and the window boots with whatever pop-out state the shared preferences.json holds.
+    private static void DockTerminal(MainWindow main, MainViewModel vm)
     {
-        var main = new MainWindow();
-        main.Show();
+        vm.IsTerminalPoppedOut = false;
         Dispatcher.UIThread.RunJobs();
         main.UpdateLayout();
-        Dispatcher.UIThread.RunJobs();
-        return (main, (MainViewModel)main.DataContext!);
+        MainWindowHost.Pump();
     }
 
     private static TextBox? FindCommandInput(Window window) =>

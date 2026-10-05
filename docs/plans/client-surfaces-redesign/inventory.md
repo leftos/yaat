@@ -6,7 +6,7 @@ What exists today, mapped from source for [the redesign](./README.md). Defaults 
 
 Files: `src/Yaat.Client/Views/SettingsWindow.axaml` (sidebar, section host and footer), `src/Yaat.Client/Views/Settings/*Section.axaml` (one per section; order in `SettingsNavigation.cs`), `SettingsWindow.axaml.cs` (geometry key `"Settings"`, 1040×720, minimum 880×600), `src/Yaat.Client/ViewModels/SettingsViewModel.cs` (~2,100 lines; `Apply()` writes every setting and can run repeatedly; `ResetSection` per section), `src/Yaat.Client/ViewModels/SettingsSectionId.cs`, `UserPreferences.cs` (`CreateDefaults`).
 
-A modal window with a sidebar of fifteen sections in six groups, a "Reset section" button on every section (pending until Apply or OK; disabled on the two link-only sections), and a footer OK, Apply and Cancel. Opened from Tools → Settings (General), and on Speech from the Speech Debug window and from `MainViewModel.PilotVoiceSettingsRequested`; a request while it is open brings the open window to the front at that section.
+A modal window with a sidebar of fifteen sections in six groups, a "Reset section" button on every section (pending until Apply or OK; disabled on the two link-only sections), and a footer OK, Apply and Cancel. Opened from Tools → Settings and the Open Settings key (Ctrl+,; General), from the Radar, Ground, Aircraft list and Terminal right-click menus ("Settings for this view…", at that view's section), and on Speech from the mic status menus ("Speech settings…"), the Speech Debug window and the pilot-voice banner, all through `MainViewModel.RequestSettings`; a request while it is open brings the open window to the front at that section.
 
 | Section | Controls | Contents |
 |---|---|---|
