@@ -8,7 +8,7 @@
   <ScrollViewer>
     <StackPanel Margin="16,8,16,16" Spacing="12">
       <TextBlock
-        Text="Defaults applied when a scenario loads. The session's live values are in the gear menu."
+        Text="Defaults for new rooms, applied when a scenario loads. The room's live values are in the session flyout (the gear in the command bar)."
         TextWrapping="Wrap"
         Foreground="{DynamicResource SubtleTextBrush}"
         FontSize="11"
@@ -29,7 +29,7 @@
           <StackPanel Spacing="4">
             <TextBlock Text="Pilot go-around probability (default)" FontWeight="SemiBold" Margin="0,0,0,2" />
             <TextBlock
-              Text="Per-approach chance that AI aircraft in solo training spontaneously go around on final. Set per-scenario in the scenario setup dialog or the session settings flyout; this value seeds new scenarios that have no saved override."
+              Text="Per-approach chance that AI aircraft in solo training spontaneously go around on final. The default for new rooms, used for a scenario with no saved value of its own; the room's live value is in the session flyout."
               TextWrapping="Wrap"
               Foreground="{DynamicResource SubtleTextBrush}"
               FontSize="11"
@@ -46,6 +46,52 @@
               />
               <TextBlock
                 Text="{Binding SoloGoAroundProbabilityPercent, StringFormat='{}{0}%'}"
+                VerticalAlignment="Center"
+                Width="48"
+                Foreground="{DynamicResource SubtleTextBrush}"
+              />
+            </StackPanel>
+          </StackPanel>
+          <StackPanel Spacing="4">
+            <TextBlock Text="Solo training" FontWeight="SemiBold" Margin="0,0,0,2" />
+            <TextBlock
+              Text="How often parked aircraft call up for taxi, and how fast arrival generators spawn traffic, in solo training. Defaults for new rooms; the scenario setup dialog starts from them, and the room's live values are in the session flyout."
+              TextWrapping="Wrap"
+              Foreground="{DynamicResource SubtleTextBrush}"
+              FontSize="11"
+              Margin="0,0,0,4"
+            />
+            <TextBlock Text="Parking call-up interval:" Foreground="{DynamicResource SubtleTextBrush}" Margin="12,0,0,0" />
+            <StackPanel Orientation="Horizontal" Spacing="12" Margin="12,0,0,0">
+              <Slider
+                Value="{Binding SoloParkingInitialCallupIntervalSeconds}"
+                Minimum="0"
+                Maximum="120"
+                TickFrequency="10"
+                IsSnapToTickEnabled="True"
+                Width="240"
+                VerticalAlignment="Center"
+              />
+              <TextBlock
+                Text="{Binding SoloParkingInitialCallupIntervalLabel}"
+                VerticalAlignment="Center"
+                MinWidth="96"
+                Foreground="{DynamicResource SubtleTextBrush}"
+              />
+            </StackPanel>
+            <TextBlock Text="Arrival generator rate:" Foreground="{DynamicResource SubtleTextBrush}" Margin="12,4,0,0" />
+            <StackPanel Orientation="Horizontal" Spacing="12" Margin="12,0,0,0">
+              <Slider
+                Value="{Binding SoloArrivalGeneratorRatePercent}"
+                Minimum="0"
+                Maximum="100"
+                TickFrequency="5"
+                IsSnapToTickEnabled="True"
+                Width="240"
+                VerticalAlignment="Center"
+              />
+              <TextBlock
+                Text="{Binding SoloArrivalGeneratorRatePercent, StringFormat='{}{0}%'}"
                 VerticalAlignment="Center"
                 Width="48"
                 Foreground="{DynamicResource SubtleTextBrush}"
@@ -227,6 +273,30 @@
               Margin="28,0,0,0"
             />
           </StackPanel>
+        </StackPanel>
+      </Border>
+      <Border Classes="card">
+        <StackPanel Spacing="4">
+          <TextBlock Text="Room only: set in the session flyout" FontWeight="SemiBold" />
+          <TextBlock
+            Text="These have no default here: they belong to the room, and any RPO in it changes them from the command bar."
+            TextWrapping="Wrap"
+            Foreground="{DynamicResource SubtleTextBrush}"
+            FontSize="11"
+            Margin="0,0,0,4"
+          />
+          <TextBlock
+            Text="• Live traffic: SWIM on or off, the ceiling, the filters, and assuming live traffic"
+            TextWrapping="Wrap"
+            Foreground="{DynamicResource SubtleTextBrush}"
+            Margin="12,0,0,0"
+          />
+          <TextBlock
+            Text="• Releases: the hold-for-release rundown, on the Releases button beside the gear once hold for release is armed"
+            TextWrapping="Wrap"
+            Foreground="{DynamicResource SubtleTextBrush}"
+            Margin="12,0,0,0"
+          />
         </StackPanel>
       </Border>
     </StackPanel>

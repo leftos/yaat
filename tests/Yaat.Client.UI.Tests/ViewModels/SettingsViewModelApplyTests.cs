@@ -36,6 +36,37 @@ public class SettingsViewModelApplyTests
     }
 
     [AvaloniaFact(Timeout = 60_000)]
+    public void Apply_PersistsBothSoloPacingDefaults()
+    {
+        using var scope = new PreferencesFileScope();
+        var vm = new SettingsViewModel { SoloParkingInitialCallupIntervalSeconds = 40, SoloArrivalGeneratorRatePercent = 35 };
+        vm.ApplyCommand.Execute(null);
+
+        var stored = new UserPreferences();
+        Assert.Equal(50, stored.SoloParkingInitialCallupRatePercent);
+        Assert.Equal(35, stored.SoloArrivalGeneratorRatePercent);
+        Assert.Equal("Once per 40 sec", vm.SoloParkingInitialCallupIntervalLabel);
+    }
+
+    /// <summary>
+    /// A stored call-up rate the interval slider cannot show exactly (150% sits between 10 s and 20 s) survives an Apply
+    /// that did not touch the slider, instead of snapping to the slider's nearest value.
+    /// </summary>
+    [AvaloniaFact(Timeout = 60_000)]
+    public void Apply_LeavesAnUntouchedOffGridPacingDefaultAsStored()
+    {
+        using var scope = new PreferencesFileScope();
+        new UserPreferences().SetSoloPacingRates(150, 35);
+        var vm = new SettingsViewModel();
+
+        vm.ApplyCommand.Execute(null);
+
+        var stored = new UserPreferences();
+        Assert.Equal(150, stored.SoloParkingInitialCallupRatePercent);
+        Assert.Equal(35, stored.SoloArrivalGeneratorRatePercent);
+    }
+
+    [AvaloniaFact(Timeout = 60_000)]
     public void Apply_WritesOnlyTheAlwaysOnTopSettingsThatChanged()
     {
         using var scope = new PreferencesFileScope();

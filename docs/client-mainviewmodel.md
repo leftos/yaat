@@ -212,28 +212,26 @@ Tests: `LoadOverlayViewModelTests` and `MainViewModelLoadOverlayTests` (`tests/Y
 
 ## Session-settings echo suppression
 
-The session-settings flyout binds 13 `[ObservableProperty]` fields (`SessionAutoDeleteIndex`, `SessionDepartureAutoDeleteDistanceNm` (a nullable `decimal` for its `NumericUpDown`, blank = off), `SessionAutoAcceptDelaySeconds`, `SessionAutoClearedToLand`, `SessionAutoCrossRunway`, `SessionValidateDctFixes`, `SessionSoloTrainingMode`, the three solo-pacing rates, the two `HasSolo*Source` flags, `SessionRpoShowPilotSpeech`, `SessionLiveTrafficEnabled` + `SessionLiveTrafficCeilingFt` — see [live-traffic.md](live-traffic.md) "Client" for the status-bar indicator and the Aircraft List tri-state that hang off them — …). Each has an `OnXxxChanged` partial that re-sends the new value to the server. The problem: when the **server** broadcasts a settings change, applying it to the bound property would re-trigger `OnXxxChanged`, which would re-send it — a ping-pong.
+`ApplySessionSettings` writes 24 `Session*` `[ObservableProperty]` fields from the 23 fields of `SessionSettingsDto`, and the session-settings flyout binds them: `SessionAutoDeleteIndex`, `SessionDepartureAutoDeleteDistanceNm` (a nullable `decimal` for its `NumericUpDown`, blank = off), `SessionAutoAcceptEnabled` + `SessionAutoAcceptDelaySeconds`, the two command-run-delay bounds, `SessionAutoClearedToLand`, `SessionAutoCrossRunway`, `SessionAutoPullUpToParallel`, `SessionAutoGoAroundOnOccupiedRunway`, `SessionAutoRejectTakeoffOnOccupiedRunway`, `SessionAutoArrivalSpacingOnOccupiedRunway`, `SessionLiveTrafficEnabled` + `SessionLiveTrafficCeilingFt` + `SessionLiveTrafficFilter` (see [live-traffic.md](live-traffic.md) "Client" for the status-bar indicator and the Aircraft List tri-state that hang off them), `SessionValidateDctFixes`, `SessionSoloTrainingMode`, the four solo-pacing fields (the parking call-up rate percent and the interval seconds the slider shows, the arrival generator rate, the go-around probability), the two `SessionHasSolo*Source` flags, and `SessionRpoShowPilotSpeech`. Each has an `OnXxxChanged` partial, and the ones that re-send the new value to the server are what the guard protects. The problem: when the **server** broadcasts a settings change, applying it to the bound property would re-trigger `OnXxxChanged`, which would re-send it — a ping-pong.
 
-The guard is `_isApplyingSessionSettings` (`MainViewModel.cs:2434`). `ApplySessionSettings(SessionSettingsDto)`
-(`MainViewModel.cs:2441`) sets it `true`, writes all 13 properties, then sets it `false`. Every `OnXxxChanged`
-handler early-returns while the flag is set (e.g. `OnSessionAutoCrossRunwayChanged`,
-`OnSessionSoloGoAroundProbabilityPercentChanged`), so the broadcast lands without echoing back.
+Properties the flyout binds that are never sent sit beside them, set or recomputed on the client: `SessionAutoClearedToLandLabel` and `SessionAutoArrivalSpacingLabel` ("Auto cleared-to-land (TWR)": the room holds one flag each, while the Settings defaults are per position type, so the suffix names the student's position type when it is GND, TWR, APP or CTR and is left off otherwise; `SetStudentPositionType` raises both), `SessionAutoArrivalSpacingApplies` (false for APP and CTR, which greys the arrival-spacing checkbox), `SessionSoloParkingInitialCallupIntervalLabel` and `SessionLiveTrafficFilterSummary`.
 
-Because the same 13 fields arrive under four different DTO shapes, there are **four adapters** that all build a
-`SessionSettingsDto` and call `ApplySessionSettings`:
+Auto-accept is two flyout controls over one wire value: the hub carries a single delay where any negative value means off. `SessionAutoAcceptWire` (`Yaat.Client.Core/Services/SessionAutoAcceptWire.cs`) maps between them: `ToWire(enabled, delay)` sends the delay or `-1`, and `FromWire(wireDelay, previousDelay)` turns a negative delay into Enabled false with the previous delay kept, so turning the checkbox back on restores it. Both `OnSessionAutoAcceptEnabledChanged` and `OnSessionAutoAcceptDelaySecondsChanged` send `ToWire` of the pair.
+
+The guard is `_isApplyingSessionSettings` (`MainViewModel.cs:3484`). `ApplySessionSettings(SessionSettingsDto)` (`MainViewModel.cs:3490`) sets it `true`, writes all 24 properties, then sets it `false`. Every sending `OnXxxChanged` handler early-returns while the flag is set (e.g. `OnSessionAutoCrossRunwayChanged`, `OnSessionSoloGoAroundProbabilityPercentChanged`), so the broadcast lands without echoing back.
+
+Because the same 23 DTO fields arrive under four different DTO shapes, there are **four adapters** that all build a `SessionSettingsDto` and call `ApplySessionSettings`:
 
 - `ApplySessionSettings(SessionSettingsDto)` — the base, used by the live `OnSessionSettingsChanged` broadcast.
-- `ApplySessionSettingsFromRoom(RoomStateDto)` (`Scenario`-adjacent in `MainViewModel.cs:2463`).
-- `ApplySessionSettingsFromScenarioLoaded(ScenarioLoadedDto)` (`MainViewModel.cs:2484`).
-- `ApplySessionSettingsFromLoadScenarioResult(LoadScenarioResultDto)` (`MainViewModel.cs:2505`).
+- `ApplySessionSettingsFromRoom(RoomStateDto)` (`MainViewModel.cs:3527`).
+- `ApplySessionSettingsFromScenarioLoaded(ScenarioLoadedDto)` (`MainViewModel.cs:3559`).
+- `ApplySessionSettingsFromLoadScenarioResult(LoadScenarioResultDto)` (`MainViewModel.cs:3590`).
 
 Add a session setting and **all four** adapters plus the `SessionSettingsDto` (client + server) and the four
 source DTOs must change in lockstep — see [training-hub-contract.md](training-hub-contract.md) for the cross-repo
 fan-out.
 
-Note the solo-pacing rates funnel through one server call, `SetSoloPacingRatesAsync(parking, arrival, goAround)`, not
-three separate setters — `OnSessionSoloPacingRateChanged` / `OnSessionSoloParkingInitialCallupIntervalSecondsChanged` /
-`OnSessionSoloGoAroundProbabilityPercentChanged` all clamp then call it.
+Note the solo-pacing rates funnel through one server call, `SetSoloPacingRatesAsync(parking, arrival, goAround)`, not three separate setters — `OnSessionSoloPacingRateChanged` / `OnSessionSoloParkingInitialCallupIntervalSecondsChanged` / `OnSessionSoloGoAroundProbabilityPercentChanged` all clamp then call it. The parking pace travels as a rate percent but every control shows an interval; the conversion, the "Paused" / "Once per N sec" label and the load-time defaults (`LoadDefaults`, what a load without the setup dialog sends) live in `Yaat.Client.Core/Services/SoloPacing.cs`, shared by the flyout, the scenario setup dialog and Settings › Scenario defaults. The setup dialog seeds its sliders from the stored defaults and never writes them back; only Settings changes them.
 
 The **terminal-filter solo** feature uses the identical guard pattern under a different flag,
 `_isProgrammaticTerminalToggle` (`MainViewModel.cs:821`): `ApplyVisibilityProgrammatic` sets it while flipping the
@@ -521,11 +519,7 @@ wedging the UI thread (#347):
   into only the loader path silently breaks it for joiners and restart-restore rejoins. Add it to the
   `ScenarioBootstrap` record so all three paths carry it. `ApplyRecordingResult` writes the scenario identity without
   the router, so a consumer of "the active scenario changed" (the Discord presence publish) is wired there too.
-- **Session settings need the echo guard.** A new `Session*` `[ObservableProperty]` with an `OnXxxChanged` that
-  re-sends to the server must early-return on `_isApplyingSessionSettings`, and the field must be added to all four
-  `ApplySessionSettingsFrom*` adapters + `SessionSettingsDto`. Miss the guard and the value ping-pongs with the
-  server or the broadcast overwrites the user's local edit; miss an adapter and it drops on one of the
-  join/load/live paths. The terminal-filter toggles use the same pattern under `_isProgrammaticTerminalToggle`.
+- **Session settings need the echo guard.** A new `Session*` `[ObservableProperty]` with an `OnXxxChanged` that re-sends to the server must early-return on `_isApplyingSessionSettings`, and the field must be added to all four `ApplySessionSettingsFrom*` adapters + `SessionSettingsDto`. Miss the guard and the value ping-pongs with the server or the broadcast overwrites the user's local edit; miss an adapter and it drops on one of the join/load/live paths. A setting the flyout shows as two controls over one wire value (auto-accept: `SessionAutoAcceptEnabled` + `SessionAutoAcceptDelaySeconds` through `SessionAutoAcceptWire`) sends the pair from both handlers, each guarded. The terminal-filter toggles use the same pattern under `_isProgrammaticTerminalToggle`.
 - **`OnClosing` re-enters; `_isMainWindowClosing` must stay sticky.** Resetting it makes pop-out windows treat the
   cascade shutdown as a manual close and clobber persisted pop-out flags. `AppLifetime.MarkShuttingDown()` is the
   cross-window signal for shutdown paths that don't go through `MainWindow.OnClosing`.

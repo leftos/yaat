@@ -103,6 +103,9 @@ public partial class SettingsViewModel : ObservableObject
     /// </summary>
     private bool _appliedSpeechTelemetryEnabled;
 
+    /// <summary>The parking call-up interval as of the last commit (or the window opening), so Apply writes it only when edited.</summary>
+    private int _appliedSoloParkingInitialCallupIntervalSeconds;
+
     /// <summary>Each window's always-on-top setting as of the last commit (or the window opening), keyed by window name.</summary>
     private readonly Dictionary<string, bool> _appliedTopmost;
 
@@ -264,6 +267,18 @@ public partial class SettingsViewModel : ObservableObject
 
     [ObservableProperty]
     private int _soloGoAroundProbabilityPercent;
+
+    /// <summary>Default parking call-up interval for new rooms: 0 (paused) or 10-120 s; stored as a rate percent.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(SoloParkingInitialCallupIntervalLabel))]
+    private int _soloParkingInitialCallupIntervalSeconds;
+
+    /// <summary>"Paused" or "Once per N sec", as the session flyout shows the interval.</summary>
+    public string SoloParkingInitialCallupIntervalLabel => SoloPacing.FormatParkingInitialCallupInterval(SoloParkingInitialCallupIntervalSeconds);
+
+    /// <summary>Default arrival generator rate for new rooms, 0-100%.</summary>
+    [ObservableProperty]
+    private int _soloArrivalGeneratorRatePercent;
 
     [ObservableProperty]
     private bool _rpoShowPilotSpeech;
@@ -739,6 +754,11 @@ public partial class SettingsViewModel : ObservableObject
         _selectedVfrCommandsForIfrIndex = (int)_preferences.VfrCommandsForIfr;
         _soloTrainingMode = _preferences.SoloTrainingMode;
         _soloGoAroundProbabilityPercent = _preferences.SoloGoAroundProbabilityPercent;
+        _soloParkingInitialCallupIntervalSeconds = SoloPacing.ParkingInitialCallupRateToIntervalSeconds(
+            _preferences.SoloParkingInitialCallupRatePercent
+        );
+        _appliedSoloParkingInitialCallupIntervalSeconds = _soloParkingInitialCallupIntervalSeconds;
+        _soloArrivalGeneratorRatePercent = _preferences.SoloArrivalGeneratorRatePercent;
         _rpoShowPilotSpeech = _preferences.RpoShowPilotSpeech;
         _rpoPilotSpeechAudibleAlert = _preferences.RpoPilotSpeechAudibleAlert;
         _pilotVoiceEnabled = _preferences.PilotVoiceEnabled;
@@ -932,6 +952,7 @@ public partial class SettingsViewModel : ObservableObject
         _preferences.SetRpoShowPilotSpeech(RpoShowPilotSpeech);
         _preferences.SetSoloTrainingMode(SoloTrainingMode);
         _preferences.SetSoloGoAroundProbabilityGlobal(SoloGoAroundProbabilityPercent);
+        ApplySoloPacingIfChanged();
         _preferences.SetRpoPilotSpeechAudibleAlert(RpoPilotSpeechAudibleAlert);
         _preferences.SetPilotVoiceSettings(PilotVoiceEnabled, PilotVoiceVolume, PilotVoiceRadioFxEnabled, PilotVoiceSpeechRate);
         _preferences.SetEuroScopeMode(EuroScopeMode);
@@ -969,6 +990,24 @@ public partial class SettingsViewModel : ObservableObject
         _preferences.SetTakeControlKey(_takeControlKeyName);
         _preferences.SetAlwaysOnTopKey(_alwaysOnTopKeyName);
         _preferences.SetQuickBookmarkKey(_quickBookmarkKeyName);
+    }
+
+    // The slider shows the stored call-up rate as the nearest interval it offers, so writing the interval back on every
+    // Apply would snap an off-grid stored rate (e.g. 150%) to the slider's value. Write the pacing pair only when an edit
+    // since the last commit (or the window opening) changed it.
+    private void ApplySoloPacingIfChanged()
+    {
+        bool intervalEdited = SoloParkingInitialCallupIntervalSeconds != _appliedSoloParkingInitialCallupIntervalSeconds;
+        if (!intervalEdited && (SoloArrivalGeneratorRatePercent == _preferences.SoloArrivalGeneratorRatePercent))
+        {
+            return;
+        }
+
+        int parkingRate = intervalEdited
+            ? SoloPacing.ParkingInitialCallupIntervalSecondsToRate(SoloParkingInitialCallupIntervalSeconds)
+            : _preferences.SoloParkingInitialCallupRatePercent;
+        _preferences.SetSoloPacingRates(parkingRate, SoloArrivalGeneratorRatePercent);
+        _appliedSoloParkingInitialCallupIntervalSeconds = SoloParkingInitialCallupIntervalSeconds;
     }
 
     private void ApplySpeechAndWindows()
@@ -1774,6 +1813,8 @@ public partial class SettingsViewModel : ObservableObject
         SelectedVfrCommandsForIfrIndex = (int)defaults.VfrCommandsForIfr;
         SoloTrainingMode = defaults.SoloTrainingMode;
         SoloGoAroundProbabilityPercent = defaults.SoloGoAroundProbabilityPercent;
+        SoloParkingInitialCallupIntervalSeconds = SoloPacing.ParkingInitialCallupRateToIntervalSeconds(defaults.SoloParkingInitialCallupRatePercent);
+        SoloArrivalGeneratorRatePercent = defaults.SoloArrivalGeneratorRatePercent;
         RpoShowPilotSpeech = defaults.RpoShowPilotSpeech;
         RpoPilotSpeechAudibleAlert = defaults.RpoPilotSpeechAudibleAlert;
     }

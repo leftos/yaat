@@ -20,6 +20,10 @@ public partial class SettingsWindowSourceTests
         "IsChecked={Binding SoloTrainingMode}",
         "Value={Binding SoloGoAroundProbabilityPercent}",
         "Text={Binding SoloGoAroundProbabilityPercent, StringFormat='{}{0}%'}",
+        "Value={Binding SoloParkingInitialCallupIntervalSeconds}",
+        "Text={Binding SoloParkingInitialCallupIntervalLabel}",
+        "Value={Binding SoloArrivalGeneratorRatePercent}",
+        "Text={Binding SoloArrivalGeneratorRatePercent, StringFormat='{}{0}%'}",
         "IsChecked={Binding AutoAcceptEnabled}",
         "IsVisible={Binding AutoAcceptEnabled}",
         "Value={Binding AutoAcceptDelaySeconds}",
@@ -308,6 +312,21 @@ public partial class SettingsWindowSourceTests
 
         // Whisper model, LLM model, CUDA runtime, saved samples, Piper voice pack.
         Assert.Equal(5, Regex.Matches(speech, Regex.Escape("Text=\"Takes effect at once; Cancel doesn't undo it.\"")).Count);
+    }
+
+    /// <summary>
+    /// The session flyout's auto-accept is a checkbox and a 0-60 s delay, not a -1 sentinel, and its two per-position
+    /// toggles name the student's position type.
+    /// </summary>
+    [Fact]
+    public void TheSessionFlyout_HasNoMinusOneSentinel_AndBindsThePositionLabels()
+    {
+        string flyout = File.ReadAllText(Path.Combine(FindRepoRoot(), "src", "Yaat.Client", "Views", "CommandInputView.axaml"));
+
+        Assert.DoesNotContain("Minimum=\"-1\"", flyout);
+        Assert.Contains("IsChecked=\"{Binding SessionAutoAcceptEnabled}\"", flyout);
+        Assert.Contains("Content=\"{Binding SessionAutoClearedToLandLabel}\"", flyout);
+        Assert.Contains("Content=\"{Binding SessionAutoArrivalSpacingLabel}\"", flyout);
     }
 
     private static string Normalize(Match match) => $"{match.Groups[1].Value}={WhitespaceRegex().Replace(match.Groups[2].Value, " ")}";

@@ -73,9 +73,25 @@ public class SettingsViewModelResetSectionTests
                 vm.AutoAcceptDelaySeconds = 9;
                 vm.AutoCrossRunway = true;
                 vm.SelectedAutoDeleteIndex = 2;
+                vm.SoloParkingInitialCallupIntervalSeconds = 40;
+                vm.SoloArrivalGeneratorRatePercent = 35;
             },
-            vm => (vm.AutoAcceptDelaySeconds, vm.AutoCrossRunway, SettingsViewModel.IndexToAutoDeleteOverride(vm.SelectedAutoDeleteIndex)),
-            p => (p.AutoAcceptDelaySeconds, p.AutoCrossRunway, p.AutoDeleteOverride)
+            vm =>
+                (
+                    vm.AutoAcceptDelaySeconds,
+                    vm.AutoCrossRunway,
+                    SettingsViewModel.IndexToAutoDeleteOverride(vm.SelectedAutoDeleteIndex),
+                    SoloPacing.ParkingInitialCallupIntervalSecondsToRate(vm.SoloParkingInitialCallupIntervalSeconds),
+                    vm.SoloArrivalGeneratorRatePercent
+                ),
+            p =>
+                (
+                    p.AutoAcceptDelaySeconds,
+                    p.AutoCrossRunway,
+                    p.AutoDeleteOverride,
+                    p.SoloParkingInitialCallupRatePercent,
+                    p.SoloArrivalGeneratorRatePercent
+                )
         );
 
     [AvaloniaFact(Timeout = 60_000)]

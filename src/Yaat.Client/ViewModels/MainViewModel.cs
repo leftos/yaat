@@ -79,7 +79,20 @@ public partial class MainViewModel : ObservableObject
     {
         _studentPositionType = positionType;
         SessionAutoArrivalSpacingApplies = positionType is not ("APP" or "CTR");
+        OnPropertyChanged(nameof(SessionAutoClearedToLandLabel));
+        OnPropertyChanged(nameof(SessionAutoArrivalSpacingLabel));
     }
+
+    /// <summary>The flyout's auto cleared-to-land toggle, naming the student's position type: "Auto cleared-to-land (TWR)".</summary>
+    public string SessionAutoClearedToLandLabel => WithStudentPositionSuffix("Auto cleared-to-land");
+
+    /// <summary>The flyout's auto arrival spacing toggle, naming the student's position type: "Auto arrival spacing (TWR)".</summary>
+    public string SessionAutoArrivalSpacingLabel => WithStudentPositionSuffix("Auto arrival spacing");
+
+    // The room holds one flag per setting; the Settings defaults it came from are per position type (GND, TWR, APP,
+    // CTR), so the label says which one the room is working. Any other position type leaves the label bare.
+    private string WithStudentPositionSuffix(string label) =>
+        (_studentPositionType is "GND" or "TWR" or "APP" or "CTR") ? $"{label} ({_studentPositionType})" : label;
 
     public GroundViewModel Ground { get; }
     public RadarViewModel Radar { get; }
@@ -228,8 +241,13 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private string? _activeAutoDeleteMode;
 
+    /// <summary>Whether the room auto-accepts handoffs; off travels on the wire as a delay of -1 (<see cref="SessionAutoAcceptWire"/>).</summary>
     [ObservableProperty]
-    private int _sessionAutoAcceptDelaySeconds = -1;
+    private bool _sessionAutoAcceptEnabled;
+
+    /// <summary>The room's auto-accept delay (0-60 s), kept while auto-accept is off so turning it back on restores it.</summary>
+    [ObservableProperty]
+    private int _sessionAutoAcceptDelaySeconds = 5;
 
     [ObservableProperty]
     private int _sessionCommandRunDelayMinSeconds;
@@ -340,7 +358,8 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private int _sessionSoloParkingInitialCallupIntervalSeconds = 20;
 
-    public string SessionSoloParkingInitialCallupIntervalLabel => FormatParkingInitialCallupInterval(SessionSoloParkingInitialCallupIntervalSeconds);
+    public string SessionSoloParkingInitialCallupIntervalLabel =>
+        SoloPacing.FormatParkingInitialCallupInterval(SessionSoloParkingInitialCallupIntervalSeconds);
 
     [ObservableProperty]
     private int _sessionSoloArrivalGeneratorRatePercent = 100;
@@ -570,7 +589,7 @@ public partial class MainViewModel : ObservableObject
     private int _scenarioSetupParkingInitialCallupIntervalSeconds = 20;
 
     public string ScenarioSetupParkingInitialCallupIntervalLabel =>
-        FormatParkingInitialCallupInterval(ScenarioSetupParkingInitialCallupIntervalSeconds);
+        SoloPacing.FormatParkingInitialCallupInterval(ScenarioSetupParkingInitialCallupIntervalSeconds);
 
     [ObservableProperty]
     private int _scenarioSetupArrivalGeneratorRatePercent = 100;
@@ -3474,7 +3493,10 @@ public partial class MainViewModel : ObservableObject
         ActiveAutoDeleteMode = dto.EffectiveAutoDeleteMode;
         SessionAutoDeleteIndex = AutoDeleteModeToIndex(dto.AutoDeleteOverride);
         SessionDepartureAutoDeleteDistanceNm = dto.DepartureAutoDeleteDistanceNm is { } departureDistanceNm ? (decimal)departureDistanceNm : null;
-        SessionAutoAcceptDelaySeconds = dto.AutoAcceptDelaySeconds;
+        (SessionAutoAcceptEnabled, SessionAutoAcceptDelaySeconds) = SessionAutoAcceptWire.FromWire(
+            dto.AutoAcceptDelaySeconds,
+            SessionAutoAcceptDelaySeconds
+        );
         SessionCommandRunDelayMinSeconds = dto.CommandRunDelayMinSeconds;
         SessionCommandRunDelayMaxSeconds = dto.CommandRunDelayMaxSeconds;
         SessionAutoClearedToLand = dto.AutoClearedToLand;
@@ -3489,7 +3511,9 @@ public partial class MainViewModel : ObservableObject
         SessionValidateDctFixes = dto.ValidateDctFixes;
         SessionSoloTrainingMode = dto.SoloTrainingMode;
         SessionSoloParkingInitialCallupRatePercent = dto.SoloParkingInitialCallupRatePercent;
-        SessionSoloParkingInitialCallupIntervalSeconds = ParkingInitialCallupRateToIntervalSeconds(dto.SoloParkingInitialCallupRatePercent);
+        SessionSoloParkingInitialCallupIntervalSeconds = SoloPacing.ParkingInitialCallupRateToIntervalSeconds(
+            dto.SoloParkingInitialCallupRatePercent
+        );
         SessionSoloArrivalGeneratorRatePercent = dto.SoloArrivalGeneratorRatePercent;
         SessionSoloGoAroundProbabilityPercent = dto.SoloGoAroundProbabilityPercent;
         SessionHasSoloParkingInitialCallupSource = dto.HasSoloParkingInitialCallupSource;
@@ -3614,12 +3638,24 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
+    partial void OnSessionAutoAcceptEnabledChanged(bool value)
+    {
+        if (_isApplyingSessionSettings)
+        {
+            return;
+        }
+
+        _ = _connection.SetAutoAcceptDelayAsync(SessionAutoAcceptWire.ToWire(value, SessionAutoAcceptDelaySeconds));
+    }
+
     partial void OnSessionAutoAcceptDelaySecondsChanged(int value)
     {
-        if (!_isApplyingSessionSettings)
+        if (_isApplyingSessionSettings)
         {
-            _ = _connection.SetAutoAcceptDelayAsync(value);
+            return;
         }
+
+        _ = _connection.SetAutoAcceptDelayAsync(SessionAutoAcceptWire.ToWire(SessionAutoAcceptEnabled, value));
     }
 
     partial void OnSessionCommandRunDelayMinSecondsChanged(int value)
@@ -3785,14 +3821,14 @@ public partial class MainViewModel : ObservableObject
 
     partial void OnScenarioSetupParkingInitialCallupIntervalSecondsChanged(int value)
     {
-        var clamped = NormalizeParkingInitialCallupIntervalSeconds(value);
+        var clamped = SoloPacing.NormalizeParkingInitialCallupIntervalSeconds(value);
         if (clamped != value)
         {
             ScenarioSetupParkingInitialCallupIntervalSeconds = clamped;
             return;
         }
 
-        ScenarioSetupParkingInitialCallupRatePercent = ParkingInitialCallupIntervalSecondsToRate(clamped);
+        ScenarioSetupParkingInitialCallupRatePercent = SoloPacing.ParkingInitialCallupIntervalSecondsToRate(clamped);
         OnPropertyChanged(nameof(ScenarioSetupParkingInitialCallupIntervalLabel));
     }
 
@@ -3804,14 +3840,14 @@ public partial class MainViewModel : ObservableObject
             return;
         }
 
-        var clamped = NormalizeParkingInitialCallupIntervalSeconds(value);
+        var clamped = SoloPacing.NormalizeParkingInitialCallupIntervalSeconds(value);
         if (clamped != value)
         {
             SessionSoloParkingInitialCallupIntervalSeconds = clamped;
             return;
         }
 
-        _sessionSoloParkingInitialCallupRatePercent = ParkingInitialCallupIntervalSecondsToRate(clamped);
+        _sessionSoloParkingInitialCallupRatePercent = SoloPacing.ParkingInitialCallupIntervalSecondsToRate(clamped);
         OnPropertyChanged(nameof(SessionSoloParkingInitialCallupRatePercent));
         _ = _connection.SetSoloPacingRatesAsync(
             SessionSoloParkingInitialCallupRatePercent,
@@ -3889,37 +3925,6 @@ public partial class MainViewModel : ObservableObject
             SessionSoloArrivalGeneratorRatePercent,
             SessionSoloGoAroundProbabilityPercent
         );
-    }
-
-    private static int NormalizeParkingInitialCallupIntervalSeconds(int seconds) => seconds <= 0 ? 0 : Math.Clamp(seconds, 10, 120);
-
-    private static int ParkingInitialCallupRateToIntervalSeconds(int ratePercent)
-    {
-        int rate = Math.Clamp(ratePercent, 0, 200);
-        if (rate <= 0)
-        {
-            return 0;
-        }
-
-        int seconds = (int)(Math.Round((2000.0 / rate) / 10.0) * 10);
-        return NormalizeParkingInitialCallupIntervalSeconds(seconds);
-    }
-
-    private static int ParkingInitialCallupIntervalSecondsToRate(int seconds)
-    {
-        int interval = NormalizeParkingInitialCallupIntervalSeconds(seconds);
-        if (interval <= 0)
-        {
-            return 0;
-        }
-
-        return Math.Clamp((int)Math.Round(2000.0 / interval), 0, 200);
-    }
-
-    private static string FormatParkingInitialCallupInterval(int seconds)
-    {
-        int interval = NormalizeParkingInitialCallupIntervalSeconds(seconds);
-        return interval <= 0 ? "Paused" : $"Once per {interval} sec";
     }
 
     partial void OnSessionRpoShowPilotSpeechChanged(bool value)

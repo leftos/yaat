@@ -970,7 +970,7 @@ The room's current scenario keeps running while the new one loads, and is replac
 
 While any member's load is running, every client in the room — the loader's included — shows **Loading a scenario (by AB)…** in the status bar, and the terminal shows **AB is loading 'OAK Ground 7'…**. Load, Start Live Session, Unload, Restart and the timeline's rewind and skip controls are disabled until it ends; when it does, the status bar reads **Load by AB ended** unless another message has taken its place. Loading a recording holds the room the same way, without the panel. Anything that reaches the server during a load anyway is turned down with **The room is loading a scenario. Try again when it has loaded.**, or, for a second load, **A scenario is already loading in this room (started by AB). Wait for it to finish.**
 
-When a scenario has multiple difficulty levels, YAAT shows a **Scenario Setup** dialog before loading. In solo training, the same dialog can also show workload pacing sliders for scenarios that have parking spawns or arrival generators. See [Solo Training](#solo-training).
+When a scenario has multiple difficulty levels, YAAT shows a **Scenario Setup** dialog before loading. In solo training, the same dialog can also show workload pacing sliders for scenarios that have parking spawns or arrival generators. The sliders start from your **Settings › Scenario defaults › Solo training** values and apply to that load only; they do not change those defaults. A scenario loaded without the dialog uses the defaults as they are. See [Solo Training](#solo-training).
 
 Both API and local scenarios appear in the **Scenario > Load Recent Scenario** menu for quick reloading; entries loaded from a local file are marked with a **(Local)** prefix to distinguish them from vNAS catalog scenarios.
 
@@ -1909,12 +1909,14 @@ Your VATSIM CID, name, and controller rating also come from **VATSIM sign-in** w
 
 #### Scenario defaults
 
-These are your **default** preferences, applied when *you* load a scenario. To change the active setting for an already-running session (which affects every RPO in it), use the session-settings (⚙) flyout on the command bar instead.
+These are your **defaults** for new rooms, applied when *you* load a scenario. The room's live values, which affect every RPO in it, are in the session-settings (⚙) flyout on the command bar.
 
 | Setting | What it does | Default |
 |---------|--------------|---------|
 | **Solo training mode** | Aircraft make their own pilot transmissions, and typed natural-language ATC commands can be mapped to YAAT commands after normal parsing fails. See [Solo Training](#solo-training). | Off |
 | **Pilot go-around probability (default)** | Per-approach chance (0–100%) that AI aircraft in solo training spontaneously go around on final. Seeds new scenarios that have no saved override; also settable per-scenario. | 0% |
+| **Solo training → Parking call-up interval** | How often parked aircraft make their first ready-to-taxi call in solo training: **Paused**, or once per 10–120 seconds in 10-second steps. The Scenario Setup dialog starts from this value. | Once per 20 sec |
+| **Solo training → Arrival generator rate** | The share of generated arrivals that spawn in solo training, 0–100% in 5% steps. The Scenario Setup dialog starts from this value. | 100% |
 | **Auto-accept handoffs to unattended positions** | Handoffs to unattended positions are accepted automatically. See [Auto-Accept](#auto-accept). | On |
 | **Delay (seconds)** *(when auto-accept on)* | Handoffs are auto-accepted after this delay. 0 = immediate. | 5 |
 | **Command run delay — Min / Max (seconds)** | Commands take effect after a random delay in this range, simulating pilot reaction / FMC setup time. Set both equal for a fixed delay; set Max to 0 to disable. See [Command Run Delay](#command-run-delay). | 0 / 0 |
@@ -1935,6 +1937,8 @@ These are your **default** preferences, applied when *you* load a scenario. To c
 | **VFR commands for IFR aircraft** | How much of the VFR-only command set you can give an IFR aircraft without `CIFR` first. The aircraft stays IFR either way. | Enter final (EF) only |
 | **Show sim-initiated pilot transmissions as pilot speech (RPO mode)** | Renders auto-generated pilot reports (traffic in sight, holding short, going around, etc.) as green pilot speech in the spelled-out spoken form instead of orange Warning text. | Off |
 | **Audible alert on pilot transmissions** | Plays a short ding when a sim-initiated pilot transmission appears. Independent of the visual setting; does not fire on `AS`-prefix `SAY` commands you typed. | Off |
+
+**Room only: set in the session flyout** (the card at the bottom) lists the settings that have no default here, because they belong to the room and any RPO in it changes them from the command bar: [Live Traffic](#live-traffic) (SWIM on or off, the ceiling, the filters, and assuming live traffic) and [releases](#hold-for-release) (the hold-for-release rundown, on the **Releases** button beside the gear while a field is armed).
 
 #### Radar
 
@@ -2146,7 +2150,7 @@ The **Local Files** tab is not gated. Trainer authors and developers can load an
 
 #### Simulation Shortcuts
 
-Optional shortcuts in **Settings › Scenario defaults › Simulation Shortcuts** simplify tower operations for trainees. The values you set here are your **defaults**, applied when *you* load a scenario; they no longer change a session that's already running. To adjust these for the live session — which affects every RPO in it — use the session-settings (⚙) flyout on the command bar instead.
+Optional shortcuts in **Settings › Scenario defaults › Simulation Shortcuts** simplify tower operations for trainees. The values you set here are your **defaults** for new rooms, applied when *you* load a scenario; they do not change a session that's already running. To adjust these for the live session — which affects every RPO in it — use the session-settings (⚙) flyout on the command bar instead. The room has one auto cleared-to-land switch and one auto arrival spacing switch, loaded from your default for the student's position type, so the flyout labels them with it: **Auto cleared-to-land (TWR)**, **Auto arrival spacing (TWR)**. With no GND, TWR, APP or CTR student position the labels carry no suffix.
 
 - **Auto-clear aircraft to land** — Aircraft on final are automatically cleared to land without requiring a CLAND command. Configured per position type (GND, TWR, APP, CTR). Defaults: GND on, TWR off, APP on, CTR on — so only tower controllers must issue explicit landing clearances.
 - **Aircraft cross runways automatically** — Taxiing aircraft cross runways without stopping for a CROSS command. Explicit hold-short commands and destination runway hold-shorts still apply.
@@ -2165,7 +2169,7 @@ Optional shortcuts in **Settings › Scenario defaults › Simulation Shortcuts*
 
 #### Auto-Accept
 
-Handoffs to unattended positions can be automatically accepted after a configurable delay. Enable in **Settings › Scenario defaults › Auto-accept handoffs to unattended positions**.
+Handoffs to unattended positions can be automatically accepted after a configurable delay. Enable it by default for new rooms in **Settings › Scenario defaults › Auto-accept handoffs to unattended positions**. In a running room, the session-settings (⚙) flyout's **Auto-accept handoffs after** checkbox turns it on or off for everyone in the room, with the delay (0–60 seconds) in the box beside it; the box is greyed out while the checkbox is off and keeps its value for when you turn it back on.
 
 In **solo training mode** this is overridden so the session behaves as if you are the only controller working a live position: handoffs to **your own (student) position** are never auto-accepted — you accept them by hand, just as you would on the network — while handoffs between the automated background positions always auto-accept (never faster than 5 seconds, so you see each handoff you start sit pending before the receiving position takes it) so traffic keeps flowing even when you have auto-accept switched off.
 

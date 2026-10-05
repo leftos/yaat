@@ -138,7 +138,14 @@ public partial class MainViewModel
 
             _pendingScenarioSource = null;
             _pendingApiScenarioId = null;
-            await SendScenarioToServer(scenarioJson, apiId, 100, 100, _preferences.GetSoloGoAroundProbability(scenarioId));
+            (int defaultParkingRate, int defaultArrivalRate) = NoDialogLoadRates();
+            await SendScenarioToServer(
+                scenarioJson,
+                apiId,
+                defaultParkingRate,
+                defaultArrivalRate,
+                _preferences.GetSoloGoAroundProbability(scenarioId)
+            );
         }
         catch (Exception ex)
         {
@@ -250,7 +257,8 @@ public partial class MainViewModel
                 return;
             }
 
-            await SendScenarioToServer(json, apiId, 100, 100, goAroundProbability);
+            (int defaultParkingRate, int defaultArrivalRate) = NoDialogLoadRates();
+            await SendScenarioToServer(json, apiId, defaultParkingRate, defaultArrivalRate, goAroundProbability);
         }
         catch (Exception ex)
         {
@@ -275,7 +283,9 @@ public partial class MainViewModel
         ShowScenarioSetupArrivalGeneratorRate = setupPlan.ShowArrivalGeneratorRate;
         ShowScenarioSetupGoAroundProbability = setupPlan.ShowGoAroundProbability;
         ScenarioSetupParkingInitialCallupRatePercent = setupPlan.ParkingInitialCallupRatePercent;
-        ScenarioSetupParkingInitialCallupIntervalSeconds = ParkingInitialCallupRateToIntervalSeconds(setupPlan.ParkingInitialCallupRatePercent);
+        ScenarioSetupParkingInitialCallupIntervalSeconds = SoloPacing.ParkingInitialCallupRateToIntervalSeconds(
+            setupPlan.ParkingInitialCallupRatePercent
+        );
         ScenarioSetupArrivalGeneratorRatePercent = setupPlan.ArrivalGeneratorRatePercent;
         ScenarioSetupSoloGoAroundProbabilityPercent = setupPlan.GoAroundProbabilityPercent;
         _pendingScenarioJson = json;
@@ -315,31 +325,33 @@ public partial class MainViewModel
     }
 
     /// <summary>
-    /// The rates the dialog's load sends — the chosen values, or the neutral default for a control the dialog did not
-    /// offer — and whether the go-around choice is stored for the scenario. Saves the pacing pair when the dialog
-    /// offered the pacing controls, since a rate the user did not see must not overwrite their stored preference.
+    /// The rates the dialog's load sends — the chosen values, or the stored Settings default for a pacing control the
+    /// dialog did not offer (<see cref="SoloPacing.SelectLoadRates"/>) — and whether the go-around choice is stored for
+    /// the scenario. The pacing pair is for this load only: the dialog seeds it from the Settings defaults and never
+    /// writes it back.
     /// </summary>
     private (bool SaveGoAround, (int ParkingRate, int ArrivalRate, int GoAroundProbability) Rates) ResolveSetupRates()
     {
-        int parkingRate = ParkingInitialCallupIntervalSecondsToRate(ScenarioSetupParkingInitialCallupIntervalSeconds);
+        int parkingRate = SoloPacing.ParkingInitialCallupIntervalSecondsToRate(ScenarioSetupParkingInitialCallupIntervalSeconds);
         int arrivalRate = Math.Clamp(ScenarioSetupArrivalGeneratorRatePercent, 0, 100);
         int goAroundProbability = Math.Clamp(ScenarioSetupSoloGoAroundProbabilityPercent, 0, 100);
-        if (ShowScenarioSetupPacingControls)
-        {
-            _preferences.SetSoloPacingRates(
-                ShowScenarioSetupParkingInitialCallupRate ? parkingRate : _preferences.SoloParkingInitialCallupRatePercent,
-                ShowScenarioSetupArrivalGeneratorRate ? arrivalRate : _preferences.SoloArrivalGeneratorRatePercent
-            );
-        }
-
+        (int loadParkingRate, int loadArrivalRate) = SoloPacing.SelectLoadRates(
+            ShowScenarioSetupParkingInitialCallupRate,
+            ShowScenarioSetupArrivalGeneratorRate,
+            (parkingRate, arrivalRate),
+            SoloPacing.LoadDefaults(_preferences)
+        );
         return (
             ShowScenarioSetupPacingControls && ShowScenarioSetupGoAroundProbability,
-            (
-                ShowScenarioSetupParkingInitialCallupRate ? parkingRate : 100,
-                ShowScenarioSetupArrivalGeneratorRate ? arrivalRate : 100,
-                ShowScenarioSetupGoAroundProbability ? goAroundProbability : 0
-            )
+            (loadParkingRate, loadArrivalRate, ShowScenarioSetupGoAroundProbability ? goAroundProbability : 0)
         );
+    }
+
+    /// <summary>The pacing pair a load the setup dialog did not interrupt sends: the stored Settings defaults.</summary>
+    private (int ParkingRate, int ArrivalRate) NoDialogLoadRates()
+    {
+        (int ParkingInitialCallupRatePercent, int ArrivalGeneratorRatePercent) defaults = SoloPacing.LoadDefaults(_preferences);
+        return SoloPacing.SelectLoadRates(showParking: false, showArrival: false, chosen: defaults, defaults: defaults);
     }
 
     /// <summary>

@@ -2,6 +2,7 @@ using Avalonia.Headless.XUnit;
 using Xunit;
 using Yaat.Client.Services;
 using Yaat.Client.UI.Tests.Fakes;
+using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.ViewModels;
 
 namespace Yaat.Client.UI.Tests.ViewModels;
@@ -236,6 +237,106 @@ public class MainViewModelSessionSettingsTests
         vm.ClearScenarioState();
         Assert.True(vm.SessionAutoArrivalSpacingApplies);
     }
+
+    private const string ScenarioWithParkingAndArrivalGenerator = """
+        {
+          "aircraftGenerators": [
+            { "id": "G1", "runway": "30", "intervalTime": 300 }
+          ],
+          "aircraft": [
+            { "callsign": "A1", "startingConditions": { "type": "Parking", "parking": "A1" } }
+          ]
+        }
+        """;
+
+    /// <summary>
+    /// The setup dialog seeds its pacing sliders from the Settings defaults, but its choices are for this load only:
+    /// only Settings changes the stored defaults.
+    /// </summary>
+    [AvaloniaFact(Timeout = 60_000)]
+    public async Task ConfirmingTheSetupDialog_LeavesTheStoredPacingDefaultsAlone()
+    {
+        using var scope = new PreferencesFileScope();
+        var stored = new UserPreferences();
+        stored.SetSoloTrainingMode(true);
+        stored.SetSoloPacingRates(50, 35);
+        var vm = new MainViewModel(new FakeFilePickerService());
+
+        await vm.LoadScenarioFromJsonAsync(ScenarioWithParkingAndArrivalGenerator, "Pacing test");
+
+        Assert.True(vm.ShowScenarioSetup);
+        Assert.Equal(40, vm.ScenarioSetupParkingInitialCallupIntervalSeconds);
+        Assert.Equal(35, vm.ScenarioSetupArrivalGeneratorRatePercent);
+
+        vm.ScenarioSetupParkingInitialCallupIntervalSeconds = 100;
+        vm.ScenarioSetupArrivalGeneratorRatePercent = 80;
+        await vm.ConfirmScenarioSetupCommand.ExecuteAsync(null);
+
+        var reread = new UserPreferences();
+        Assert.Equal(50, reread.SoloParkingInitialCallupRatePercent);
+        Assert.Equal(35, reread.SoloArrivalGeneratorRatePercent);
+    }
+
+    [AvaloniaFact]
+    public void ApplySessionSettings_NegativeAutoAcceptDelay_TurnsAutoAcceptOff_AndKeepsThePreviousDelay()
+    {
+        var vm = new MainViewModel(new FakeFilePickerService());
+        vm.ApplySessionSettings(SessionSettingsWithAutoAcceptDelay(12));
+
+        vm.ApplySessionSettings(SessionSettingsWithAutoAcceptDelay(-1));
+
+        Assert.False(vm.SessionAutoAcceptEnabled);
+        Assert.Equal(12, vm.SessionAutoAcceptDelaySeconds);
+    }
+
+    [AvaloniaFact]
+    public void ApplySessionSettings_AutoAcceptDelay_TurnsAutoAcceptOn_WithThatDelay()
+    {
+        var vm = new MainViewModel(new FakeFilePickerService());
+        vm.ApplySessionSettings(SessionSettingsWithAutoAcceptDelay(-1));
+
+        vm.ApplySessionSettings(SessionSettingsWithAutoAcceptDelay(12));
+
+        Assert.True(vm.SessionAutoAcceptEnabled);
+        Assert.Equal(12, vm.SessionAutoAcceptDelaySeconds);
+    }
+
+    [AvaloniaTheory]
+    [InlineData("TWR", "Auto cleared-to-land (TWR)", "Auto arrival spacing (TWR)")]
+    [InlineData("GND", "Auto cleared-to-land (GND)", "Auto arrival spacing (GND)")]
+    [InlineData("DEL", "Auto cleared-to-land", "Auto arrival spacing")]
+    [InlineData(null, "Auto cleared-to-land", "Auto arrival spacing")]
+    public void FlyoutLabels_NameTheStudentPositionType(string? positionType, string clearedToLand, string arrivalSpacing)
+    {
+        var vm = new MainViewModel(new FakeFilePickerService());
+        vm.SetStudentPositionType("APP");
+        var raised = new List<string?>();
+        vm.PropertyChanged += (_, e) => raised.Add(e.PropertyName);
+
+        vm.SetStudentPositionType(positionType);
+
+        Assert.Equal(clearedToLand, vm.SessionAutoClearedToLandLabel);
+        Assert.Equal(arrivalSpacing, vm.SessionAutoArrivalSpacingLabel);
+        Assert.Contains(nameof(MainViewModel.SessionAutoClearedToLandLabel), raised);
+        Assert.Contains(nameof(MainViewModel.SessionAutoArrivalSpacingLabel), raised);
+    }
+
+    [AvaloniaFact]
+    public void FlyoutLabels_ForAnApproachStudent_NameApp_AndGreyArrivalSpacing()
+    {
+        var vm = new MainViewModel(new FakeFilePickerService());
+
+        vm.SetStudentPositionType("APP");
+
+        Assert.Equal("Auto cleared-to-land (APP)", vm.SessionAutoClearedToLandLabel);
+        Assert.False(vm.SessionAutoArrivalSpacingApplies);
+    }
+
+    private static SessionSettingsDto SessionSettingsWithAutoAcceptDelay(int delaySeconds) =>
+        SessionSettingsWithDepartureDistance(null) with
+        {
+            AutoAcceptDelaySeconds = delaySeconds,
+        };
 
     [AvaloniaFact]
     public void LiveTrafficAvailable_IsFalseUntilTheServerReportsTheGateOn()

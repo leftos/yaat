@@ -7,10 +7,14 @@
 - A range/bearing measurement's label moves clear of data blocks and aircraft, pushing auto-placed data blocks aside while every side is covered.
 - Settings is a sidebar of sections with links between related settings, a Reset section button on each, and OK, Apply and Cancel.
 - Settings › Speech has a Speed slider for the solo pilot voice, 0.75× to 1.5×; pilots now speak at 1.1× by default.
+- Settings › Scenario defaults sets the solo parking call-up interval and arrival generator rate for new rooms, and lists the settings only the room changes.
 
 ### Changed
 
 - View › Layout replaces Window Profiles and Copy View Settings: a layout saves the window arrangement and open Strips and vTDLS tabs; saved profiles carry over.
+- The session flyout's auto-accept is a checkbox with a 0–60 second delay, matching its Settings default.
+- The session flyout's auto cleared-to-land and arrival spacing switches name the student's position, such as "Auto cleared-to-land (TWR)".
+- The scenario setup dialog starts from your Settings solo pacing defaults without changing them, and a load without the dialog uses them too.
 
 ### Fixed
 

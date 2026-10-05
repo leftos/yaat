@@ -359,6 +359,12 @@ The CRC connection whose session a direct connection joins; the joiner reads the
 **Negotiated joiner**:
 A direct connection that also negotiated first (TowerCab 3D): it keeps its negotiate id as its connection token, so it can register for UDP entity updates, while its CID comes from its access token.
 
+## Client settings
+
+**Room-only setting**:
+A session setting with no default in Settings › Scenario defaults: it belongs to the room, and any RPO in it changes it only in the session flyout or on its own button (live traffic; releases). Scenario defaults lists them in its "Room only" card (USER_GUIDE.md "Scenario defaults").
+_Avoid_: flyout-only setting (releases have their own button, not the flyout)
+
 ## Tooling
 
 **Gate**:
