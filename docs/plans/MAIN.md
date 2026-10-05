@@ -29,7 +29,7 @@
 - [x] YAAT-232 Solo dev cheat so montage clips can use RPO-only commands (FOLLOWF for A11) · release vNext
 - [/] YAAT-7 Record the FOLLOW video montage (release cut and review reel) · release vNext
   - [x] YAAT-238 Re-script montage clip C3 on OAK runway 30 (no B738 on 28R) · release vNext
-  - [!] YAAT-239 Short edited montage sampler of the clips so far, for presentation feedback · release vNext
+  - [ ] YAAT-239 Short edited montage sampler of the clips so far, for presentation feedback · release vNext
   - [x] YAAT-240 Aviation review of the montage cards; visual follow should not use the radar wake minimum (C3) · release vNext
   - [!] YAAT-278 FOLLOW sizzle reel: add ground FOLLOW and give-way taxi clips · release vNext
 - [ ] YAAT-217 Pattern: apply a pending pattern-altitude override before the wrong-side join decides on a teardrop
@@ -71,9 +71,9 @@
 - [x] YAAT-291 Client surfaces redesign: Settings window shell (sidebar sections, OK/Apply/Cancel) · release vNext
 - [ ] YAAT-292 Client surfaces redesign: Settings search with aliases and cross-section links
 - [ ] YAAT-293 Client surfaces redesign: open Settings at a section (view menus, Ctrl+comma, status-bar links)
-- [ ] YAAT-294 Client surfaces redesign: reconcile Scenario defaults with the session flyout
+- [/] YAAT-294 Client surfaces redesign: reconcile Scenario defaults with the session flyout
 - [ ] YAAT-295 Client surfaces redesign: regroup the View menu and add pop-out hotkeys
-- [/] YAAT-296 Client surfaces redesign: merge Window Profiles and Copy View Settings into Layouts
+- [x] YAAT-296 Client surfaces redesign: merge Window Profiles and Copy View Settings into Layouts · release vNext
 - [ ] YAAT-297 Client surfaces redesign: one Import / Export hub with a .yaat-settings.zip bundle
 
 ## Tick-path unification
@@ -172,6 +172,9 @@
 - [ ] YAAT-212 A no-destination taxi stops with its nose in the junction it ends at
 - [ ] YAAT-313 Readback RPO form (callsign of the traffic) never reaches the instructor
 - [ ] YAAT-330 Pilot readback for REL: released for departure
+- [ ] YAAT-335 Untowered runway-spawn polish: VFR self-departure direction, HFR untowered note, release wording
+- [ ] YAAT-336 Immediate preset CTO for a departure held for release is dropped instead of waiting for the release
+- [ ] YAAT-337 Solo release auto-takeoff depends on the release request object surviving the jitter window
 
 ## Wave 3 — Ground routing, pathfinder and their docs
 
@@ -285,6 +288,7 @@
 - [ ] YAAT-287 Remove the phantom GuideCapture Fakes/FakeFilePickerService.cs line from architecture.md
 - [ ] YAAT-290 Run the tools/tests Python suite in CI
 - [ ] YAAT-323 Fix two stale yaat-server test comments (weather fixture, TickTimings cref)
+- [ ] YAAT-338 Fix stale MainViewModel line anchors and misplaced Client.Core files in the docs
 
 ## Singles
 
