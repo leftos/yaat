@@ -70,12 +70,13 @@
 - [/] YAAT-310 Merge feat/client-surfaces-redesign (#782)
 - [x] YAAT-291 Client surfaces redesign: Settings window shell (sidebar sections, OK/Apply/Cancel) · release vNext
 - [x] YAAT-292 Client surfaces redesign: Settings search with aliases and cross-section links · release vNext
-- [ ] YAAT-293 Client surfaces redesign: open Settings at a section (view menus, Ctrl+comma, status-bar links)
+- [/] YAAT-293 Client surfaces redesign: open Settings at a section (view menus, Ctrl+comma, status-bar links)
 - [x] YAAT-294 Client surfaces redesign: reconcile Scenario defaults with the session flyout · release vNext
 - [x] YAAT-295 Client surfaces redesign: regroup the View menu and add pop-out hotkeys · release vNext
 - [x] YAAT-296 Client surfaces redesign: merge Window Profiles and Copy View Settings into Layouts · release vNext
 - [/] YAAT-297 Client surfaces redesign: one Import / Export hub with a .yaat-settings.zip bundle
 - [ ] YAAT-340 Quick commands as an Import / Export hub item type
+- [ ] YAAT-344 Bundle import: reject a favorite set with no name instead of throwing in the planner
 
 ## Tick-path unification
 
@@ -112,21 +113,23 @@
 
 ## STT tuning
 
+- [/] YAAT-343 Rethink the speech pipeline greenfield with state-of-the-art STT
 - [/] YAAT-28 Close the STT rule gaps from the controller-voice ouroboros
 - [ ] YAAT-29 Spike: bake off local STT models on our corpus in Yaat.SpeechSandbox
 - [ ] YAAT-218 Map spoken 'follow <callsign>' on the ground to FOLLOWG by aircraft state
 - [ ] YAAT-219 Map 'follow <description>' to FOLLOW and 'follow X, cleared visual' to CVA FOLLOW
 - [ ] YAAT-225 Make the controller-voice ouroboros reproducible across runs of one seed
 - [ ] YAAT-226 RTIS type slot takes a stray word; LLM prompt renders optional rule words
+- [ ] YAAT-345 STT: "climb via … except maintain 220 knots" maps the speed as a CVIA top altitude
 
 ## Wave 1 — Ground realism and braking
 
+- [/] YAAT-30 Rollout retune follow-ups: separation intervals, exit completion, firm rates
+- [x] YAAT-32 Fold aircraft-length fallbacks into AircraftLength.ResolveFt; fix CWT labels · release vNext
 - [x] YAAT-309 Hold-short warning under FOLLOWG omits the taxiway name · release vNext
 - [x] YAAT-306 Ground stops snap to 0 kt instead of braking: FOLLOWG hold short, GIVEWAY · release vNext
 - [x] YAAT-311 Taxi speed drops ~10 kt in one second mid-route (H2 clip, KOAK F) · release vNext
-- [ ] YAAT-30 Rollout retune follow-ups: separation intervals, exit completion, firm rates
 - [ ] YAAT-31 LAHSO residuals: carry the limit past handoff, arc fit, ALD gate, CROSS release
-- [ ] YAAT-32 Fold aircraft-length fallbacks into AircraftLength.ResolveFt; fix CWT labels
 - [ ] YAAT-33 Scale MainGearTurnRadiusFt by type wheelbase
 - [ ] YAAT-34 Ground-speed realism: follow stop distance by weight class, static takeoffs
 - [ ] YAAT-35 Measure push overshoot against the taxiway polyline clamped at its ends
@@ -154,6 +157,7 @@
 - [ ] YAAT-325 GIVEWAY to traffic that is just starting to taxi releases at once
 - [ ] YAAT-328 HOLD issued mid runway crossing stops the aircraft dead on the runway
 - [ ] YAAT-334 TAXI during landing rollout throws a navigator teleport on the next tick
+- [ ] YAAT-348 CWT F length fallback overstates turboprops (AN26, DH8D, C130): pick by category
 
 ## Wave 2 — Ground command grammar and dispatch
 
@@ -362,6 +366,7 @@
 - [ ] YAAT-235 Solo Safety flags a lead landing behind a closed-traffic follower that left the runway long ago
 - [ ] YAAT-236 B738 rolls past the end of OAK 28R; a cleared follower then lands on the occupied runway
 - [ ] YAAT-277 Settings: Quick Bookmark hotkey button may not capture a key
+- [ ] YAAT-347 VFR FH with a cardinal direction: FH E / SE / W … = "proceed eastbound" → FH 090 / 135 / 270
 
 ## Backlog
 
@@ -393,3 +398,4 @@
 - [ ] YAAT-339 Client.UI.Tests: TestVnasData.NavigationDb null flake in AppToolsTests on CI
 - [ ] YAAT-341 Take control and quick bookmark keys work from pop-out windows
 - [ ] YAAT-342 MainWindowLifecycleTests pop-out close tests fail in some full UI test runs
+- [ ] YAAT-346 Flaky: ProcessRecordingBackendTests.KillRecorder depends on a 500 ms startup window
