@@ -702,14 +702,13 @@ public sealed class NavigationDatabase
     public double? FindNearestAirportElevation(LatLon position, double maxRangeNm = 100)
     {
         (int latBucket, int lonBucket) = AirportBucketKey(position.Lat, position.Lon);
-        // 1° lat ≈ 60nm; expand bucket radius to cover maxRangeNm with margin.
-        int radius = Math.Max(1, (int)Math.Ceiling(maxRangeNm / 60.0));
+        (int latRadius, int lonRadius) = BucketSearchRadii(position, maxRangeNm);
 
         double bestDist = double.MaxValue;
         double? bestElev = null;
-        for (int dLat = -radius; dLat <= radius; dLat++)
+        for (int dLat = -latRadius; dLat <= latRadius; dLat++)
         {
-            for (int dLon = -radius; dLon <= radius; dLon++)
+            for (int dLon = -lonRadius; dLon <= lonRadius; dLon++)
             {
                 if (
                     !_airportSpatialIndex.TryGetValue(
@@ -741,11 +740,11 @@ public sealed class NavigationDatabase
     public List<(string Id, LatLon Position)> FindAirportsWithin(LatLon position, double maxRangeNm)
     {
         (int latBucket, int lonBucket) = AirportBucketKey(position.Lat, position.Lon);
-        int radius = Math.Max(1, (int)Math.Ceiling(maxRangeNm / 60.0));
+        (int latRadius, int lonRadius) = BucketSearchRadii(position, maxRangeNm);
         var found = new List<(string Id, LatLon Position)>();
-        for (int dLat = -radius; dLat <= radius; dLat++)
+        for (int dLat = -latRadius; dLat <= latRadius; dLat++)
         {
-            for (int dLon = -radius; dLon <= radius; dLon++)
+            for (int dLon = -lonRadius; dLon <= lonRadius; dLon++)
             {
                 if (
                     !_airportSpatialIndex.TryGetValue(
@@ -785,13 +784,13 @@ public sealed class NavigationDatabase
     public (string Id, double Lat, double Lon)? FindNearestSizeableAirport(LatLon position, int minRunwayLengthFt, double maxRangeNm)
     {
         (int latBucket, int lonBucket) = AirportBucketKey(position.Lat, position.Lon);
-        int radius = Math.Max(1, (int)Math.Ceiling(maxRangeNm / 60.0));
+        (int latRadius, int lonRadius) = BucketSearchRadii(position, maxRangeNm);
 
         double bestDist = double.MaxValue;
         (string Id, double Lat, double Lon)? best = null;
-        for (int dLat = -radius; dLat <= radius; dLat++)
+        for (int dLat = -latRadius; dLat <= latRadius; dLat++)
         {
-            for (int dLon = -radius; dLon <= radius; dLon++)
+            for (int dLon = -lonRadius; dLon <= lonRadius; dLon++)
             {
                 if (
                     !_airportSpatialIndex.TryGetValue(
@@ -860,6 +859,22 @@ public sealed class NavigationDatabase
     }
 
     private static (int LatBucket, int LonBucket) AirportBucketKey(double lat, double lon) => ((int)Math.Floor(lat), (int)Math.Floor(lon));
+
+    /// <summary>
+    /// Bucket search radii for the 1°×1° airport grid. Latitude is a flat ~60 nm/°, but one degree of
+    /// longitude spans only 60·cos(lat) nm, so the longitude radius must grow toward the poles — otherwise
+    /// an airport within <paramref name="maxRangeNm"/> due east/west of the query falls outside the searched
+    /// buckets and is silently dropped. Sized at the highest-latitude row the search can reach (smallest
+    /// cos → widest longitude span) so coverage holds across the whole searched band.
+    /// </summary>
+    private static (int LatRadius, int LonRadius) BucketSearchRadii(LatLon position, double maxRangeNm)
+    {
+        int latRadius = Math.Max(1, (int)Math.Ceiling(maxRangeNm / 60.0));
+        double maxAbsLat = Math.Min(89.0, Math.Abs(position.Lat) + latRadius + 1);
+        double nmPerLonDeg = 60.0 * Math.Cos(maxAbsLat * Math.PI / 180.0);
+        int lonRadius = Math.Max(1, (int)Math.Ceiling(maxRangeNm / nmPerLonDeg));
+        return (latRadius, lonRadius);
+    }
 
     private void AddAirportToSpatialIndex(string id, double lat, double lon, double elevation)
     {
