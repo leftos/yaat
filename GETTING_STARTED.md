@@ -27,6 +27,8 @@ Launch YAAT the same way you launch any other application:
 
 YAAT opens to an empty main window — no server connection yet. That happens in Step 3.
 
+![YAAT's main window on first launch, before connecting to a server](docs/user-guide/img/main-window-empty.png)
+
 ### If you built from source
 
 Start the server and client together using the start script:
@@ -70,6 +72,11 @@ One field stays yours to set, under **Settings** (gear icon) → **Identity** ta
 ## Step 3: Connect and Create a Room
 
 1. **File > Connect** opens the connect dialog
+
+   ![The File menu open, with Connect at the top](docs/user-guide/img/menu-file.png)
+
+   ![The Connect dialog with the server URL field](docs/user-guide/img/connect-dialog.png)
+
 2. Enter the **server URL**:
    - `http://localhost:5000` if you're running `start.ps1`/`start.sh` on your own machine
    - The URL your instructor gave you (e.g., `https://yaat1.leftos.dev`) for a hosted server
@@ -77,15 +84,23 @@ One field stays yours to set, under **Settings** (gear icon) → **Identity** ta
 4. The **room list** appears. Either:
    - **Create** a new room (give it a name), or
    - **Join** an existing room that another instructor created
+
+   ![The room list after connecting, ready to create or join a room](docs/user-guide/img/main-window-connected-empty.png)
+
 5. You're now in a room, ready to load traffic
 
 ## Step 4: Load a Scenario
 
 1. **Scenario > Load Scenario...** opens the scenario browser
+
+   ![The Scenario menu open, with Load Scenario and the weather items](docs/user-guide/img/menu-scenario.png)
+
 2. Two tabs:
    - **ARTCC Scenarios** — training scenarios from the [vNAS](#glossary) data API for your ARTCC. Use the Airport filter to narrow results.
    - **Local Files** — browse for ATCTrainer-format JSON scenario files on your machine
 3. Select a scenario and click **Load** (or double-click)
+
+   ![The Load Scenario dialog with the ARTCC Scenarios tab](docs/user-guide/img/load-scenario-dialog.png)
 
 Aircraft spawn at their configured starting positions. The window title updates to show the room and scenario name.
 
@@ -107,6 +122,8 @@ You can also prefix any command with a callsign: `UAL123 FH 270`.
 
 The **terminal panel** (below the grid) shows command confirmations, errors, and aircraft responses.
 
+![An aircraft selected in the Aircraft List, its FH 270 confirmation in the terminal, and a second command typed in the command bar](docs/user-guide/img/first-command.png)
+
 ## Step 6: Explore the Views
 
 YAAT has three main views, accessible via tabs or pop-out windows (**View** menu):
@@ -115,6 +132,12 @@ YAAT has three main views, accessible via tabs or pop-out windows (**View** menu
 - **Ground View** — airport surface map for tower operations. Right-click aircraft or taxiway nodes for context menus (taxi routes, hold short, cross runway).
 - **Radar View** — STARS-style scope for approach/departure. Shows targets, video maps, and data blocks. Right-click for heading, altitude, and approach options.
 
+![The Aircraft List](docs/user-guide/img/aircraft-list.png)
+
+![The Ground View at Oakland](docs/user-guide/img/ground-view.png)
+
+![The Radar View](docs/user-guide/img/radar-view.png)
+
 ## Step 7: Load Weather (Optional)
 
 Weather affects aircraft performance — headwinds reduce ground speed, tailwinds increase it.
@@ -122,6 +145,8 @@ Weather affects aircraft performance — headwinds reduce ground speed, tailwind
 - **Scenario > Load Weather...** — browse ARTCC or local weather profiles
 - **Scenario > Load Live Weather** — fetch real-world METARs and winds aloft
 - **Scenario > New Weather...** — create a custom weather profile
+
+![The Load Weather dialog](docs/user-guide/img/load-weather-dialog.png)
 
 ## Helping Students Connect CRC
 

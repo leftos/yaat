@@ -1,3 +1,5 @@
+using Avalonia.Controls;
+using Avalonia.LogicalTree;
 using Avalonia.Threading;
 using Yaat.Client.ViewModels;
 
@@ -34,6 +36,25 @@ internal static class SceneActions
         await WaitUntilAsync(() => vm.IsInRoom, timeout, "room creation");
     }
 
+    // Opens the top-level menu whose header matches menuHeader (access-key
+    // underscores ignored, so "_File" and "File" both find the "_File" item)
+    // and waits until every visible item in its dropdown is laid out. The
+    // headless platform has no popup windows, so the dropdown opens in the
+    // window's overlay layer and CaptureRenderedFrame includes it.
+    public static async Task OpenMenuAsync(Window window, string menuHeader, TimeSpan timeout)
+    {
+        Menu menu =
+            window.GetLogicalDescendants().OfType<Menu>().FirstOrDefault()
+            ?? throw new InvalidOperationException($"{window.GetType().Name} has no Menu.");
+        string wanted = StripAccessKeys(menuHeader);
+        MenuItem item =
+            menu.Items.OfType<MenuItem>().FirstOrDefault(m => (m.Header is string header) && (StripAccessKeys(header) == wanted))
+            ?? throw new InvalidOperationException($"No top-level menu '{menuHeader}' in {window.GetType().Name}.");
+
+        item.Open();
+        await WaitUntilAsync(() => IsDropdownLaidOut(item), timeout, $"menu '{menuHeader}' to open");
+    }
+
     public static async Task LoadScenarioAsync(MainViewModel vm, string scenarioPath, TimeSpan timeout)
     {
         string json = await File.ReadAllTextAsync(scenarioPath);
@@ -41,4 +62,17 @@ internal static class SceneActions
         await vm.AutoLoadScenarioFromJsonAsync(json, displayName, displayName);
         await WaitUntilAsync(() => vm.HasScenario, timeout, "scenario load");
     }
+
+    private static bool IsDropdownLaidOut(MenuItem item)
+    {
+        if (!item.IsSubMenuOpen)
+        {
+            return false;
+        }
+
+        List<MenuItem> visibleItems = [.. item.Items.OfType<MenuItem>().Where(m => m.IsVisible)];
+        return (visibleItems.Count > 0) && visibleItems.All(m => (TopLevel.GetTopLevel(m) is not null) && m.IsArrangeValid && (m.Bounds.Width > 0));
+    }
+
+    private static string StripAccessKeys(string header) => header.Replace("_", string.Empty, StringComparison.Ordinal);
 }

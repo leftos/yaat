@@ -21,6 +21,7 @@
 | **Radar rendering** | `RadarCanvas.cs` (input/zoom) → `RadarRenderer.cs` (drawing) → `TargetRenderer.cs` (datablocks) → `VideoMapRenderer.cs` (maps) |
 | **Change where a radar or ground overlay label sits relative to datablocks** | `docs/radar-rendering.md` → `RadarCanvas.cs` → `GroundCanvas.cs` → `RadarDatablockLayout.ResolveBlockOffset` → `TargetRenderer.cs` / `GroundRenderer.cs` → `RangeBearingRenderer.cs` → `RblReadoutPlacement.cs` → `DatablockDeconfliction.cs` → `DatablockHitTestParityTests.cs` |
 | **Ground view rendering** | `GroundCanvas.cs` (input/hit-test) → `GroundRenderer.cs` (drawing, 3 layers) |
+| **Add or change a user-guide screenshot (GuideCapture scene)** | [Yaat.GuideCapture](#yaatguidecapture--cli-tool-toolsyaatguidecapture) below → `tools/Yaat.GuideCapture/Capture/SceneCatalog.cs` → `Capture/Scene.cs` → `Scenes/ScenarioSceneBase.cs` (connected-room scenes) or `Scenes/StandaloneWindowSceneBase.cs` (standalone dialogs) → `Scenes/FlightPlanEditorScene.cs` (child window) / `Scenes/FavoritesScenes.cs` (a control in a bare window) → `Capture/SceneActions.cs` (`OpenMenuAsync` for menu shots) → `USER_GUIDE.md` / `GETTING_STARTED.md` → `docs/user-guide/img/` |
 | **Change a Settings tab, the View menu, or an import/export flow** | [`plans/client-surfaces-redesign/inventory.md`](./plans/client-surfaces-redesign/inventory.md) (every setting, entry point and format) → `Views/SettingsWindow.axaml` → `SettingsWindow.axaml.cs` → `ViewModels/SettingsViewModel.cs` (`Save()`) → `Yaat.Client.Core/Services/UserPreferences.cs` (`SavedPrefs`) → `Views/MainWindow.axaml` (View menu) → `MainWindow.axaml.cs` (`RebuildStripsSubmenu`, `RebuildTdlsSubmenu`, window profiles) → `Views/FavoritesBarView.axaml.cs` (favorites import/export) → `Views/ColumnChooserWindow.axaml.cs` (grid layout) → `Views/CommandInputView.axaml` (gear flyout: the room's live session settings) |
 | **Change a pilot-voice setting (volume, radio effect, speed) or how the pilot voice is synthesized or played** | [`solo-training-pilot-speech.md`](./solo-training-pilot-speech.md) (Client-side TTS) → `Yaat.Client.Core/Services/UserPreferences.cs` (`PilotVoice*`, `SetPilotVoiceSettings`, `SavedPrefs`) → `ViewModels/SettingsViewModel.cs` (pilot-voice fields, load, `Save()`) → `Views/SettingsWindow.axaml` ("Solo pilot voice") → `ViewModels/MainViewModel.Aircraft.cs` (`OnPilotTransmissionReceived`) → `Services/PilotVoiceService.cs` (`PilotVoiceRequest`, `SherpaOnnxPilotVoiceSynthesizer.SpeakAsync`, `RadioAudioFx`) → `tests/Yaat.Client.Tests/PilotVoiceServiceTests.cs` |
 | **Command input UX** | `CommandInputController.cs` (parse pipeline) → `ArgumentSuggester.cs` (dropdown values) → `SignatureHelpState.cs` (inline hints) |
@@ -1894,10 +1895,11 @@ Server/InProcessServer.cs      # Port allocation (TcpListener trick) + ServerApp
 Capture/Scene.cs               # Abstract scene: BeforeWindowAsync, CreateWindow, AfterShowAsync, GetCaptureTarget for popout children
 Capture/Runner.cs              # Per-scene flow: setup → show → settle → capture PNG; Width/Height of 0 means "use the window's natural size"
 Capture/CaptureContext.cs      # Per-run state: ServerUrl, ServerServices (the in-process server's DI root), RepoRoot (walks up to yaat.slnx)
-Capture/SceneActions.cs        # WaitUntilAsync + WaitForConnectionAsync / CreateRoomAsync / LoadScenarioAsync helpers shared by scenarios
+Capture/SceneActions.cs        # WaitUntilAsync + WaitForConnectionAsync / CreateRoomAsync / LoadScenarioAsync helpers shared by scenarios; OpenMenuAsync opens a MainWindow top-level menu by header (the headless dropdown draws in the overlay layer, so the capture includes it)
 Capture/SceneCatalog.cs        # Static catalog of every scene
 Scenes/                        # ScenarioSceneBase (connect → room → load → tab) + per-scene subclasses
                                # MainWindow*Scene — empty / connected-empty / overview / popped-out
+                               # Getting Started: MenuFileScene / MenuScenarioScene (menu open) / ConnectDialogScene / FirstCommandScene (selected aircraft, terminal reply, typed command)
                                # AircraftListScene / GroundViewScene / RadarViewScene / FlightStripsScene
                                # LiveTrafficScene — RadarViewScene + Live Traffic on + four fake SWIM tracks upserted into LiveTrafficStore (dashed shadows, LIVE status bar)
                                # GroundViewPopoutScene / RadarViewPopoutScene
@@ -1905,7 +1907,6 @@ Scenes/                        # ScenarioSceneBase (connect → room → load �
                                # FavoritesBarScene / FavoritesPanelScene
                                # ArrivalGeneratorsEditorScene
                                # StandaloneWindowSceneBase + Settings/LoadScenario/LoadWeather/Weather/About
-Fakes/FakeFilePickerService.cs (not yet — MainWindow uses real AvaloniaFilePickerService against the headless Window which is fine)
 ```
 
 The OAK clearances scenario `docs/atctrainer-scenario-examples/01H06NVK7VN8BS7MCDXHKJZ7MQ.json` is the canonical fixture for every "scenario loaded" scene.

@@ -4,13 +4,18 @@ namespace Yaat.GuideCapture.Capture;
 
 internal static class SceneCatalog
 {
-    // Static catalog. Phase A starts with one proof-of-pipeline scene; Phase D
-    // populates the full list (~28 scenes — see plan).
+    // Every scene the harness captures, in capture order, grouped by the guide
+    // section that shows it. A scene's Name is its PNG file name.
     public static IReadOnlyList<Scene> All { get; } =
     [
         // Interface Overview
         new MainWindowEmptyScene(),
         new MainWindowConnectedEmptyScene(),
+        // Getting Started
+        new MenuFileScene(),
+        new ConnectDialogScene(),
+        new MenuScenarioScene(),
+        new FirstCommandScene(),
         new MainWindowWithScenarioScene(),
         // Views
         new AircraftListScene(),
