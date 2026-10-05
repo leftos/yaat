@@ -1752,6 +1752,21 @@ public sealed class LandingPhase : Phase
     }
 
     /// <summary>
+    /// One exit-candidate search's inputs: everything <see cref="TryFindCandidate"/> needs beyond the phase's own
+    /// state, bundled so the search takes one argument rather than seven positional ones.
+    /// </summary>
+    private readonly record struct ExitCandidateQuery
+    {
+        public required PhaseContext Ctx { get; init; }
+        public required LandingPlan Plan { get; init; }
+        public required string RwyDesignator { get; init; }
+        public required ExitPreference? SearchPref { get; init; }
+        public required ExitSide? SidePref { get; init; }
+        public required HashSet<int>? ExcludeHoldShortNodes { get; init; }
+        public required Func<double, double> BrakingLimitForTurnOffSpeed { get; init; }
+    }
+
+    /// <summary>
     /// Search the ground graph for the next exit ahead on <paramref name="rwyDesignator"/> that the aircraft can brake
     /// for under its current exit preference, falling back to the firm-braking search when default selection finds
     /// none. Returns null when no exit is reachable.
@@ -1779,12 +1794,34 @@ public sealed class LandingPhase : Phase
         HashSet<int>? excludeHoldShortNodes = (_activePreference?.Taxiway is null) ? ctx.OccupiedHoldShortNodes : null;
 
         double selectionLimit(double turnOffSpeed) => BrakingLimit(ctx, turnOffSpeed);
-        ResolvedExitInfo? found = TryFindCandidate(ctx, plan, rwyDesignator, searchPref, sidePref, excludeHoldShortNodes, selectionLimit);
+        ResolvedExitInfo? found = TryFindCandidate(
+            new ExitCandidateQuery
+            {
+                Ctx = ctx,
+                Plan = plan,
+                RwyDesignator = rwyDesignator,
+                SearchPref = searchPref,
+                SidePref = sidePref,
+                ExcludeHoldShortNodes = excludeHoldShortNodes,
+                BrakingLimitForTurnOffSpeed = selectionLimit,
+            }
+        );
 
         // Fall back to taxiway-only if inferred-side found nothing
         if ((found is null) && (searchPref != _activePreference))
         {
-            found = TryFindCandidate(ctx, plan, rwyDesignator, _activePreference, sidePref, excludeHoldShortNodes, selectionLimit);
+            found = TryFindCandidate(
+                new ExitCandidateQuery
+                {
+                    Ctx = ctx,
+                    Plan = plan,
+                    RwyDesignator = rwyDesignator,
+                    SearchPref = _activePreference,
+                    SidePref = sidePref,
+                    ExcludeHoldShortNodes = excludeHoldShortNodes,
+                    BrakingLimitForTurnOffSpeed = selectionLimit,
+                }
+            );
         }
 
         // A crew that cannot make any exit at its default-selection rates takes the next one it can make braking
@@ -1794,7 +1831,18 @@ public sealed class LandingPhase : Phase
         if ((found is null) && defaultSelection)
         {
             double firmCap = FirmBrakingCap(ctx.Category);
-            found = TryFindCandidate(ctx, plan, rwyDesignator, _activePreference, sidePref, excludeHoldShortNodes, _ => firmCap);
+            found = TryFindCandidate(
+                new ExitCandidateQuery
+                {
+                    Ctx = ctx,
+                    Plan = plan,
+                    RwyDesignator = rwyDesignator,
+                    SearchPref = _activePreference,
+                    SidePref = sidePref,
+                    ExcludeHoldShortNodes = excludeHoldShortNodes,
+                    BrakingLimitForTurnOffSpeed = _ => firmCap,
+                }
+            );
         }
 
         return found;
@@ -1802,7 +1850,7 @@ public sealed class LandingPhase : Phase
 
     /// <summary>
     /// Run the side-preferred lookahead search with a braking-reachability filter: a candidate whose turn-off speed
-    /// needs more than <paramref name="brakingLimitForTurnOffSpeed"/> gives for that turn-off speed, from the current
+    /// needs more than <see cref="ExitCandidateQuery.BrakingLimitForTurnOffSpeed"/> gives for that turn-off speed, from the current
     /// position, is skipped (the Skip verdict excludes the entire taxiway from the rest of this call). Without the
     /// filter the planner would return the first forward exit unconditionally — typically a 90° standard exit too
     /// close to brake for — so skipping unreachable candidates lets it commit to a reachable downstream exit (e.g. a
@@ -1810,16 +1858,15 @@ public sealed class LandingPhase : Phase
     /// <see cref="ResolvedExitInfo.SelectionDecelRate"/>. Returns null when no candidate (on-side or off-side
     /// fallback) is reachable from the current state.
     /// </summary>
-    private ResolvedExitInfo? TryFindCandidate(
-        PhaseContext ctx,
-        LandingPlan plan,
-        string rwyDesignator,
-        ExitPreference? searchPref,
-        ExitSide? sidePref,
-        HashSet<int>? excludeHoldShortNodes,
-        Func<double, double> brakingLimitForTurnOffSpeed
-    )
+    private ResolvedExitInfo? TryFindCandidate(ExitCandidateQuery query)
     {
+        PhaseContext ctx = query.Ctx;
+        LandingPlan plan = query.Plan;
+        string rwyDesignator = query.RwyDesignator;
+        ExitPreference? searchPref = query.SearchPref;
+        ExitSide? sidePref = query.SidePref;
+        HashSet<int>? excludeHoldShortNodes = query.ExcludeHoldShortNodes;
+        Func<double, double> brakingLimitForTurnOffSpeed = query.BrakingLimitForTurnOffSpeed;
         if (ctx.GroundLayout is null)
         {
             return null;

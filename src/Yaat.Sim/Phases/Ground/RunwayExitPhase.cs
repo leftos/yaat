@@ -121,6 +121,11 @@ public sealed class RunwayExitPhase : Phase
     // so the rebuilt exit route resumes the primitive the navigator was playing. Null for a phase that was never restored.
     private GroundNavigatorDto? _restoredNavigator;
 
+    // Why FromSnapshot rejected the stored exit path — a node id the current layout lacks, or a consecutive pair with no
+    // connecting edge. Held for the first tick's rebuild, which takes the centreline fallback and logs the reason with the
+    // callsign, which the restore itself does not have. Null for a phase whose path restored cleanly.
+    private string? _restorePathRejectedReason;
+
     // The aircraft's RequestedExit as it stood when the route was handed to the navigator. A late exit
     // change is "the controller issued something new since we committed", which is identity against this —
     // not against _lastResolvedPreference, which OnStart may have replaced with an inferred-side variant
@@ -263,6 +268,8 @@ public sealed class RunwayExitPhase : Phase
             return TickStopWithoutLayout(ctx);
         }
 
+        WarnIfRestorePathRejected(ctx);
+
         if (_state == ExitState.FollowingExitPath)
         {
             // A snapshot restore brings back the state, the waypoint nodes and the navigator, but the exit route is
@@ -279,9 +286,9 @@ public sealed class RunwayExitPhase : Phase
                 {
                     // Rebuild failed (layout gone, or an edge on the stored path no longer exists). Fall back to the
                     // centerline search rather than silently declaring the exit complete — same recovery the
-                    // build-time failure path takes. The navigator the phase was restored with belongs to the route that
-                    // could not be rebuilt: drop it, so a later exit build starts a fresh navigator and a later snapshot
-                    // does not carry it on.
+                    // build-time failure path takes. A rejected restored path was already logged and cleared at the
+                    // top of this tick; only the navigator the phase came back with is left to drop, so a later exit
+                    // build starts a fresh one and a later snapshot does not carry it on.
                     if (_restoredNavigator is { } staleNavigator)
                     {
                         Log.LogWarning(
@@ -291,9 +298,9 @@ public sealed class RunwayExitPhase : Phase
                             string.Join("→", _exitPath?.Select(node => node.Id) ?? []),
                             staleNavigator.TargetNodeId
                         );
-                        _restoredNavigator = null;
                     }
 
+                    _restoredNavigator = null;
                     _state = ExitState.RollingOnCenterline;
                     ClearCommittedExit();
                     return TickRolling(ctx);
@@ -339,6 +346,23 @@ public sealed class RunwayExitPhase : Phase
         _exitTaxiway = null;
         _exitPath = null;
         _backtrackPending = false;
+        _restorePathRejectedReason = null;
+    }
+
+    /// <summary>
+    /// Emit the restore-rejection warning once, on the first tick after a restore, whatever state the phase came back
+    /// in: a rejected stored path also lands a <c>RollingOnCenterline</c> phase that carries a restored hold-short, and
+    /// that state never enters the <c>FollowingExitPath</c> rebuild. Clears the reason so it is logged exactly once.
+    /// </summary>
+    private void WarnIfRestorePathRejected(PhaseContext ctx)
+    {
+        if (_restorePathRejectedReason is not { } reason)
+        {
+            return;
+        }
+
+        Log.LogWarning("[Exit] {Callsign}: restored exit path rejected — {Reason}; falling back to the centerline", ctx.Aircraft.Callsign, reason);
+        _restorePathRejectedReason = null;
     }
 
     /// <summary>
@@ -1432,6 +1456,35 @@ public sealed class RunwayExitPhase : Phase
             Navigator = _navigator?.ToSnapshot() ?? _restoredNavigator,
         };
 
+    /// <summary>
+    /// Rebuild a restored exit path from <paramref name="nodeIds"/>, requiring every id to resolve on
+    /// <paramref name="layout"/> and every consecutive pair to share an edge. Returns false with a human-readable
+    /// <paramref name="failure"/> when the stored chain is no longer drivable on this layout.
+    /// </summary>
+    private static bool TryRestoreExitPath(List<int> nodeIds, AirportGroundLayout layout, out List<GroundNode> path, out string? failure)
+    {
+        path = new List<GroundNode>(nodeIds.Count);
+        foreach (int id in nodeIds)
+        {
+            if (!layout.Nodes.TryGetValue(id, out GroundNode? node))
+            {
+                failure = $"node {id} is not on the current layout";
+                return false;
+            }
+
+            if ((path.Count > 0) && (FindEdgeBetween(path[^1], id) is null))
+            {
+                failure = $"nodes {path[^1].Id} and {id} are not joined by an edge";
+                return false;
+            }
+
+            path.Add(node);
+        }
+
+        failure = null;
+        return true;
+    }
+
     public static RunwayExitPhase FromSnapshot(RunwayExitPhaseDto dto, AirportGroundLayout? groundLayout)
     {
         var phase = new RunwayExitPhase
@@ -1462,17 +1515,21 @@ public sealed class RunwayExitPhase : Phase
             }
             if (dto.ExitWaypointNodeIds is not null)
             {
-                var path = new List<GroundNode>();
-                foreach (int id in dto.ExitWaypointNodeIds)
+                if (TryRestoreExitPath(dto.ExitWaypointNodeIds, groundLayout, out List<GroundNode> path, out string? failure))
                 {
-                    if (groundLayout.Nodes.TryGetValue(id, out GroundNode? n))
+                    if (path.Count > 0)
                     {
-                        path.Add(n);
+                        phase._exitPath = path;
                     }
                 }
-                if (path.Count > 0)
+                else
                 {
-                    phase._exitPath = path;
+                    // Node ids are assigned when the layout is built, so a snapshot taken against an older build can name
+                    // nodes that have moved or vanished, or nodes no longer joined by an edge. A path is only usable when
+                    // every id resolves and every consecutive pair shares an edge; otherwise leave it unset so the first
+                    // tick's rebuild fails and takes the centerline fallback, rather than following a truncated or broken
+                    // chain that the old drop-missing-and-keep-the-rest rebuild would have accepted.
+                    phase._restorePathRejectedReason = failure;
                 }
             }
             // Held for the first tick's route rebuild (StartExitNavigation), which needs the live layout and pose.
