@@ -241,11 +241,42 @@ public class SettingsBundleHardeningTests : IDisposable
         SettingsImportPlan favoritesPlan = SettingsImportPlanner.Plan(favorites, SettingsImportMode.Merge, target);
         favoritesPlan.Clashes[0].Choice = choice;
 
-        IReadOnlyList<SettingsImportResult> results = SettingsImportPlanner.ApplyAll([layoutsPlan, favoritesPlan], target);
+        IReadOnlyList<SettingsImportResult> results = SettingsImportPlanner.ApplyAll([layoutsPlan, favoritesPlan], target, _ => { });
 
         Assert.Equal([SettingsItemType.Favorites, SettingsItemType.Layouts], results.Select(r => r.ItemType));
         List<string> expected = (choice == ClashChoice.Overwrite) ? [existing.Id, "elsewhere"] : ["elsewhere"];
         Assert.Equal(expected, Assert.Single(target.LayoutList).LoadedFavoriteSetIds);
+    }
+
+    [Fact]
+    public void ApplyAll_ReportsEachPlanOnceAsItIsApplied_FavoritesBeforeLayouts()
+    {
+        InMemorySettingsImportTarget target = NewTarget();
+        FavoriteStore source = new(Path.Combine(_root, "source"));
+        source.CreateNamedSet("Tower");
+        SettingsImportPlan layoutsPlan = SettingsImportPlanner.Plan(
+            SettingsBundleItems.Layouts([new SavedLayout { Name = "GC" }]),
+            SettingsImportMode.Merge,
+            target
+        );
+        SettingsImportPlan macrosPlan = SettingsImportPlanner.Plan(
+            SettingsBundleItems.Macros([new SavedMacro { Name = "DEP", Expansion = "CTO" }]),
+            SettingsImportMode.Merge,
+            target
+        );
+        SettingsImportPlan favoritesPlan = SettingsImportPlanner.Plan(SettingsBundleItems.Favorites(source, []), SettingsImportMode.Merge, target);
+        var seen = new List<(SettingsImportResult Result, int LayoutsAtCallback)>();
+
+        IReadOnlyList<SettingsImportResult> results = SettingsImportPlanner.ApplyAll(
+            [layoutsPlan, macrosPlan, favoritesPlan],
+            target,
+            r => seen.Add((r, target.LayoutList.Count))
+        );
+
+        Assert.Equal([SettingsItemType.Favorites, SettingsItemType.Layouts, SettingsItemType.Macros], seen.Select(s => s.Result.ItemType));
+        Assert.Equal(results, seen.Select(s => s.Result));
+        // The favorites callback runs before the layouts plan is applied.
+        Assert.Equal([0, 1, 1], seen.Select(s => s.LayoutsAtCallback));
     }
 
     private InMemorySettingsImportTarget NewTarget() => new(new FavoriteStore(Path.Combine(_root, "target")));

@@ -210,12 +210,20 @@ public static class SettingsImportPlanner
     /// <summary>
     /// Carries out the plans of one import, at most one per item type: favorites first, so the layouts plan's loaded
     /// favorite set ids can follow the ids the favorites import gave (<see cref="RemapFavoriteSetIds"/>), then the rest in
-    /// the order given. Every rename is validated before anything is written.
+    /// the order given. Every rename is validated before anything is written. A plan that fails stops the import; the
+    /// plans applied before it stay applied, and <paramref name="onApplied"/> has already seen each of them.
     /// </summary>
+    /// <param name="plans">The plans, at most one per item type.</param>
+    /// <param name="target">Where the plans are applied.</param>
+    /// <param name="onApplied">Called with each plan's result once it is applied, before the next plan starts.</param>
     /// <returns>Each plan's result, in the order applied.</returns>
     /// <exception cref="ArgumentException">Two plans share an item type.</exception>
     /// <exception cref="InvalidOperationException">A rename does not validate; nothing is written.</exception>
-    public static IReadOnlyList<SettingsImportResult> ApplyAll(IReadOnlyList<SettingsImportPlan> plans, ISettingsImportTarget target)
+    public static IReadOnlyList<SettingsImportResult> ApplyAll(
+        IReadOnlyList<SettingsImportPlan> plans,
+        ISettingsImportTarget target,
+        Action<SettingsImportResult> onApplied
+    )
     {
         if (plans.GroupBy(p => p.ItemType).FirstOrDefault(g => g.Count() > 1) is { } duplicate)
         {
@@ -243,6 +251,7 @@ public static class SettingsImportPlanner
             }
 
             results.Add(result);
+            onApplied(result);
         }
 
         return results;

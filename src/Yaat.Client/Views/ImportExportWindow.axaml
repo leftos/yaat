@@ -1,0 +1,217 @@
+<Window
+  xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:vm="using:Yaat.Client.ViewModels"
+  x:Class="Yaat.Client.Views.ImportExportWindow"
+  x:DataType="vm:ImportExportViewModel"
+  Icon="avares://Yaat.Client/Resources/icon.png"
+  Title="Import / Export"
+  MinWidth="560"
+  MinHeight="420"
+  WindowStartupLocation="CenterOwner"
+  CanResize="True"
+>
+  <DockPanel Margin="12">
+    <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,8,0,0">
+      <Button Content="Close" x:Name="CloseButton" Width="80" />
+    </StackPanel>
+
+    <TabControl x:Name="Tabs" SelectedIndex="{Binding SelectedTabIndex}">
+      <TabItem Header="Export">
+        <DockPanel Margin="0,8,0,0">
+          <TextBlock
+            DockPanel.Dock="Top"
+            Text="Two or more items go into one .yaat-settings.zip. Exported alone, macros, verbs, favorites and the column layout keep their own file type, so older YAAT versions can import them."
+            TextWrapping="Wrap"
+            Foreground="{DynamicResource SubtleTextBrush}"
+            Margin="0,0,0,8"
+          />
+
+          <Grid DockPanel.Dock="Bottom" ColumnDefinitions="*,Auto" Margin="0,8,0,0">
+            <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
+              <TextBlock x:Name="ExportSummaryText" Text="{Binding ExportSummary}" Foreground="{DynamicResource SubtleTextBrush}" />
+              <TextBlock x:Name="ExportStatusText" Text="{Binding ExportStatus}" TextWrapping="Wrap" />
+            </StackPanel>
+            <Button Grid.Column="1" Content="Export…" x:Name="ExportButton" IsEnabled="{Binding CanExport}" Width="90" />
+          </Grid>
+
+          <Grid DockPanel.Dock="Top" ColumnDefinitions="32,180,*,180" Margin="0,0,0,4">
+            <TextBlock Grid.Column="1" Text="Item" FontWeight="SemiBold" />
+            <TextBlock Grid.Column="2" Text="What is in it" FontWeight="SemiBold" />
+            <TextBlock Grid.Column="3" Text="Exported as" FontWeight="SemiBold" />
+          </Grid>
+
+          <ScrollViewer>
+            <ItemsControl x:Name="ExportList" ItemsSource="{Binding ExportItems}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:ExportItemRow">
+                  <Border BorderBrush="{DynamicResource SystemControlForegroundBaseMediumBrush}" BorderThickness="0,1,0,0" Padding="0,4">
+                    <Grid ColumnDefinitions="32,180,*,180">
+                      <CheckBox Grid.Column="0" IsChecked="{Binding IsSelected}" VerticalAlignment="Center" />
+                      <TextBlock Grid.Column="1" Text="{Binding Title}" VerticalAlignment="Center" />
+                      <TextBlock
+                        Grid.Column="2"
+                        Text="{Binding Description}"
+                        Foreground="{DynamicResource SubtleTextBrush}"
+                        VerticalAlignment="Center"
+                      />
+                      <TextBlock Grid.Column="3" Text="{Binding ExportedAs}" FontFamily="Consolas,Menlo,monospace" VerticalAlignment="Center" />
+                    </Grid>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </ScrollViewer>
+        </DockPanel>
+      </TabItem>
+
+      <TabItem Header="Import">
+        <DockPanel Margin="0,8,0,0">
+          <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="12" Margin="0,0,0,8">
+            <TextBlock
+              x:Name="ImportFileNameText"
+              Text="{Binding ImportFileName}"
+              IsVisible="{Binding HasImportFile}"
+              FontWeight="SemiBold"
+              VerticalAlignment="Center"
+            />
+            <Button x:Name="ChooseFileButton" Content="{Binding ChooseFileLabel}" />
+          </StackPanel>
+
+          <TextBlock
+            DockPanel.Dock="Top"
+            x:Name="ImportErrorText"
+            Text="{Binding ImportError}"
+            IsVisible="{Binding HasImportError}"
+            Foreground="#FF6B6B"
+            TextWrapping="Wrap"
+            Margin="0,0,0,8"
+          />
+
+          <Grid DockPanel.Dock="Bottom" ColumnDefinitions="*,Auto" Margin="0,8,0,0">
+            <TextBlock
+              Grid.Column="0"
+              Text="Nothing changes until you press Import."
+              Foreground="{DynamicResource SubtleTextBrush}"
+              VerticalAlignment="Center"
+            />
+            <Button Grid.Column="1" Content="Import" x:Name="ImportButton" IsEnabled="{Binding CanImport}" Width="90" />
+          </Grid>
+
+          <ScrollViewer>
+            <StackPanel Spacing="12">
+              <StackPanel IsVisible="{Binding HasImportItems}">
+                <Grid ColumnDefinitions="32,200,*,120" Margin="0,0,0,4">
+                  <TextBlock Grid.Column="1" Text="In the file" FontWeight="SemiBold" />
+                  <TextBlock Grid.Column="2" Text="Clashes" FontWeight="SemiBold" />
+                  <TextBlock Grid.Column="3" Text="How" FontWeight="SemiBold" />
+                </Grid>
+                <ItemsControl x:Name="ImportList" ItemsSource="{Binding ImportItems}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:ImportItemRow">
+                      <Border
+                        BorderBrush="{DynamicResource SystemControlForegroundBaseMediumBrush}"
+                        BorderThickness="0,1,0,0"
+                        Padding="0,4"
+                        Opacity="{Binding RowOpacity}"
+                      >
+                        <StackPanel Spacing="2">
+                          <Grid ColumnDefinitions="32,200,*,120">
+                            <CheckBox
+                              Grid.Column="0"
+                              IsChecked="{Binding IsSelected}"
+                              IsEnabled="{Binding IsSelectable}"
+                              VerticalAlignment="Center"
+                            />
+                            <TextBlock Grid.Column="1" Text="{Binding Title}" VerticalAlignment="Center" />
+                            <TextBlock Grid.Column="2" Text="{Binding ClashSummary}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                            <ComboBox
+                              Grid.Column="3"
+                              ItemsSource="{Binding Modes}"
+                              SelectedItem="{Binding Mode}"
+                              IsEnabled="{Binding CanChooseMode}"
+                              IsVisible="{Binding IsSelectable}"
+                              HorizontalAlignment="Stretch"
+                            />
+                          </Grid>
+                          <TextBlock
+                            Text="{Binding Error}"
+                            IsVisible="{Binding HasError}"
+                            Foreground="#FF6B6B"
+                            TextWrapping="Wrap"
+                            Margin="32,0,0,0"
+                          />
+                        </StackPanel>
+                      </Border>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </StackPanel>
+
+              <ItemsControl x:Name="ClashSections" ItemsSource="{Binding ImportItems}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="vm:ImportItemRow">
+                    <StackPanel IsVisible="{Binding ShowClashes}" Spacing="4" Margin="0,0,0,8">
+                      <TextBlock Text="{Binding ClashHeading}" FontWeight="SemiBold" />
+                      <ItemsControl ItemsSource="{Binding Clashes}">
+                        <ItemsControl.ItemTemplate>
+                          <DataTemplate x:DataType="vm:ImportClashRow">
+                            <Border
+                              BorderBrush="{DynamicResource SystemControlForegroundBaseMediumBrush}"
+                              BorderThickness="0,0,0,1"
+                              Padding="8"
+                              Margin="0,0,0,4"
+                            >
+                              <StackPanel Spacing="4">
+                                <TextBlock Text="{Binding IncomingName}" FontWeight="SemiBold" />
+                                <TextBlock Text="{Binding ExistingDisplay}" Foreground="#DCDCAA" FontSize="12" />
+                                <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,0">
+                                  <TextBlock Text="Action:" VerticalAlignment="Center" Foreground="{DynamicResource SubtleTextBrush}" />
+                                  <ComboBox
+                                    ItemsSource="{x:Static vm:ImportClashRow.ChoiceOptions}"
+                                    SelectedItem="{Binding Choice}"
+                                    Width="130"
+                                    VerticalAlignment="Center"
+                                  />
+                                  <TextBox
+                                    Text="{Binding RenameTo}"
+                                    IsVisible="{Binding IsRenaming}"
+                                    PlaceholderText="New name"
+                                    Width="180"
+                                    VerticalAlignment="Center"
+                                  />
+                                  <TextBlock
+                                    Text="{Binding RenameError}"
+                                    IsVisible="{Binding HasRenameError}"
+                                    Foreground="#FF6B6B"
+                                    FontSize="11"
+                                    VerticalAlignment="Center"
+                                  />
+                                </StackPanel>
+                              </StackPanel>
+                            </Border>
+                          </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                      </ItemsControl>
+                    </StackPanel>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+
+              <StackPanel IsVisible="{Binding HasImportResults}" Spacing="4">
+                <TextBlock Text="Imported" FontWeight="SemiBold" />
+                <ItemsControl x:Name="ImportResultList" ItemsSource="{Binding ImportResults}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:ImportSummaryRow">
+                      <TextBlock Text="{Binding Text}" TextWrapping="Wrap" />
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </StackPanel>
+            </StackPanel>
+          </ScrollViewer>
+        </DockPanel>
+      </TabItem>
+    </TabControl>
+  </DockPanel>
+</Window>

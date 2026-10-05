@@ -71,7 +71,9 @@ public static class SettingsBundleItems
             JsonSerializer.SerializeToUtf8Bytes<List<SavedLayout>>([.. layouts], UserPreferences.JsonOptions)
         );
 
-    internal static List<SavedMacro> ReadMacros(SettingsBundleEntry entry)
+    /// <summary>Parses the entry as written by its exporter above.</summary>
+    /// <exception cref="InvalidDataException">The bytes do not parse; the message names the entry's file.</exception>
+    public static List<SavedMacro> ReadMacros(SettingsBundleEntry entry)
     {
         List<SavedMacro?> macros = Deserialize<List<SavedMacro?>>(entry);
         var checkedMacros = new List<SavedMacro>(macros.Count);
@@ -88,7 +90,9 @@ public static class SettingsBundleItems
         return checkedMacros;
     }
 
-    internal static List<SavedLayout> ReadLayouts(SettingsBundleEntry entry)
+    /// <summary>Parses the entry as written by its exporter above.</summary>
+    /// <exception cref="InvalidDataException">The bytes do not parse; the message names the entry's file.</exception>
+    public static List<SavedLayout> ReadLayouts(SettingsBundleEntry entry)
     {
         List<SavedLayout?> layouts = Deserialize<List<SavedLayout?>>(entry);
         var checkedLayouts = new List<SavedLayout>(layouts.Count);
@@ -116,9 +120,13 @@ public static class SettingsBundleItems
         return checkedLayouts;
     }
 
-    internal static SavedGridLayout ReadGridLayout(SettingsBundleEntry entry) => Deserialize<SavedGridLayout>(entry);
+    /// <summary>Parses the entry as written by its exporter above.</summary>
+    /// <exception cref="InvalidDataException">The bytes do not parse; the message names the entry's file.</exception>
+    public static SavedGridLayout ReadGridLayout(SettingsBundleEntry entry) => Deserialize<SavedGridLayout>(entry);
 
-    internal static CommandSchemeImport ReadVerbs(SettingsBundleEntry entry)
+    /// <summary>Parses the entry as written by its exporter above.</summary>
+    /// <exception cref="InvalidDataException">The bytes do not parse; the message names the entry's file.</exception>
+    public static CommandSchemeImport ReadVerbs(SettingsBundleEntry entry)
     {
         try
         {
@@ -130,7 +138,9 @@ public static class SettingsBundleItems
         }
     }
 
-    internal static JsonObject ReadPreferences(SettingsBundleEntry entry)
+    /// <summary>Parses the entry as written by its exporter above.</summary>
+    /// <exception cref="InvalidDataException">The bytes do not parse; the message names the entry's file.</exception>
+    public static JsonObject ReadPreferences(SettingsBundleEntry entry)
     {
         try
         {
