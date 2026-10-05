@@ -8,6 +8,10 @@
 - Settings is a sidebar of sections with links between related settings, a Reset section button on each, and OK, Apply and Cancel.
 - Settings › Speech has a Speed slider for the solo pilot voice, 0.75× to 1.5×; pilots now speak at 1.1× by default.
 
+### Changed
+
+- View › Layout replaces Window Profiles and Copy View Settings: a layout saves the window arrangement and open Strips and vTDLS tabs; saved profiles carry over.
+
 ### Fixed
 
 - A pilot told to follow or give way to taxiing traffic reads it back: "follow the traffic", "behind the traffic".

@@ -238,8 +238,8 @@ public partial class MainViewModel
 
     /// <summary>
     /// Brings the open extra views in line with the given entries: instances not listed are closed,
-    /// missing ones are opened and seeded, and survivors are left untouched so applying a window profile
-    /// doesn't reset a window the profile also has. An instance survives only when an entry has both its
+    /// missing ones are opened and seeded, and survivors are left untouched so applying a layout
+    /// doesn't reset a window the layout also has. An instance survives only when an entry has both its
     /// ordinal and its airport — a window whose airport changed is a different window, so it is closed and
     /// reopened on the new one. Persists the resulting set once, at the end.
     /// </summary>

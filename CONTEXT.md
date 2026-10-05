@@ -313,6 +313,10 @@ _Avoid_: scope alone (the router's **Scope** is a different thing)
 **Profile**:
 A YAAT Scope display file (STARS, ERAM or Mixed) that sets the datablock template, the altitude notation, the zoom bands and the toolbar; a pref set is the same shape with one user's values.
 
+**Layout**:
+A saved, named window arrangement in the desktop client (View › Layout): window geometries, the pop-out windows, extra Radar/Ground windows, Aircraft List columns, favorite sets and the open Strips/vTDLS tabs; never radar, ground or terminal view settings.
+_Avoid_: window profile (its old name); Profile (a YAAT Scope display file)
+
 **Zoom band**:
 A range interval in a profile (e.g. up to 30 NM, 30–120 NM, beyond) that sets defaults such as other controllers' block level, vector length and history count; a manual change pins the value until AUTO.
 

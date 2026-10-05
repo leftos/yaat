@@ -93,7 +93,7 @@ public class UserPreferencesFavoriteSetTests : IDisposable
     }
 
     [Fact]
-    public void LegacyMigration_MapsWindowProfileLoadedSetNamesToIds()
+    public void LegacyMigration_MapsLayoutLoadedSetNamesToIds()
     {
         InjectLegacyFavorites(
             """
@@ -106,20 +106,20 @@ public class UserPreferencesFavoriteSetTests : IDisposable
         );
 
         var prefs = new UserPreferences();
-        prefs.SaveWindowProfile(new SavedWindowProfile { Name = "FST-Profile", LoadedFavoriteSetNames = ["Profile Set", "Ghost"] });
+        prefs.SaveLayout(new SavedLayout { Name = "FST-Profile", LoadedFavoriteSetNames = ["Profile Set", "Ghost"] });
         var store = new FavoriteStore(_storeRoot);
         try
         {
             FavoriteLegacyMigration.Run(prefs, store);
 
-            SavedWindowProfile? migrated = new UserPreferences().GetWindowProfile("FST-Profile");
+            SavedLayout? migrated = new UserPreferences().GetLayout("FST-Profile");
             Assert.NotNull(migrated);
             Assert.Null(migrated.LoadedFavoriteSetNames);
             Assert.Equal([store.FindNamedSet("Profile Set")!.Id], migrated.LoadedFavoriteSetIds);
         }
         finally
         {
-            prefs.DeleteWindowProfile("FST-Profile");
+            prefs.DeleteLayout("FST-Profile");
             prefs.SetLoadedFavoriteSets([]);
         }
     }

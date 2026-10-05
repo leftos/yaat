@@ -8,17 +8,17 @@ using Yaat.Client.ViewModels;
 
 namespace Yaat.Client.Views;
 
-public enum CopySourceKind
+public enum LayoutSourceKind
 {
     Scenario,
-    WindowProfile,
+    Layout,
 }
 
 /// <summary>
 /// Immutable inputs the dialog needs to render the comparison. Built by MainWindow from the
 /// live view models so the dialog itself stays decoupled from <c>MainViewModel</c>.
 /// </summary>
-public sealed class CopyViewSettingsContext
+public sealed class ApplyLayoutContext
 {
     public required UserPreferences Preferences { get; init; }
     public required string CurrentScenarioId { get; init; }
@@ -26,19 +26,19 @@ public sealed class CopyViewSettingsContext
     public string? CurrentAirport { get; init; }
     public required SavedGroundSettings CurrentGround { get; init; }
     public required SavedRadarSettings CurrentRadar { get; init; }
-    public required SavedWindowProfile CurrentLayout { get; init; }
+    public required SavedLayout CurrentLayout { get; init; }
     public required Func<int, string> ResolveMapName { get; init; }
 }
 
 /// <summary>
-/// Modal picker that replaces the old "Copy View Settings From…" submenu. The user chooses a
-/// source — another scenario (per-scenario Ground/Radar view settings) or a saved window profile
-/// (window geometry, pop-out states, column layout) — sees a Current-vs-Source diff grouped into
-/// sections, and checks the sections to copy. Results are read back via <see cref="Confirmed"/>,
+/// Modal picker for applying part of a source to the current session. The user chooses a source —
+/// another scenario's views (per-scenario Ground/Radar view settings) or a saved layout (window
+/// geometry, every pop-out window, extra views, favorites, open tabs, column layout) — sees a
+/// Current-vs-Source diff grouped into sections, and checks the rows to apply. Results are read back via <see cref="Confirmed"/>,
 /// <see cref="SourceKind"/>, <see cref="SourceId"/>, and <see cref="SelectedKeys"/>; the actual
 /// apply happens in MainWindow, which has the view models and window orchestration.
 /// </summary>
-public partial class CopyViewSettingsDialog : Window
+public partial class ApplyLayoutDialog : Window
 {
     private const double MismatchNmThreshold = 10.0;
 
@@ -47,28 +47,28 @@ public partial class CopyViewSettingsDialog : Window
     private static readonly IBrush HeaderBrush = new SolidColorBrush(Color.Parse("#FF9AA0A6"));
     private static readonly IBrush InfoBrush = new SolidColorBrush(Color.Parse("#FF888888"));
 
-    private readonly CopyViewSettingsContext? _context;
+    private readonly ApplyLayoutContext? _context;
     private readonly List<(string Key, CheckBox Check)> _rows = [];
     private bool _suppress;
 
     public bool Confirmed { get; private set; }
-    public CopySourceKind SourceKind { get; private set; }
+    public LayoutSourceKind SourceKind { get; private set; }
     public string? SourceId { get; private set; }
     public IReadOnlyList<string> SelectedKeys { get; private set; } = [];
 
     // Parameterless ctor required for the Avalonia designer / XamlLoader. Not used at runtime.
-    public CopyViewSettingsDialog()
+    public ApplyLayoutDialog()
     {
         InitializeComponent();
     }
 
-    public CopyViewSettingsDialog(CopyViewSettingsContext context)
+    public ApplyLayoutDialog(ApplyLayoutContext context)
     {
         InitializeComponent();
         _context = context;
-        new WindowGeometryHelper(this, context.Preferences, "CopyViewSettings", 680, 620).Restore();
+        new WindowGeometryHelper(this, context.Preferences, "ApplyLayout", 680, 620).Restore();
 
-        HeaderText.Text = $"Copy into: {context.CurrentScenarioName}";
+        HeaderText.Text = $"Apply to: {context.CurrentScenarioName}";
 
         List<(string ScenarioId, string DisplayName)> scenarios = context.Preferences.GetSavedViewScenarioIds();
         scenarios.RemoveAll(s => s.ScenarioId == context.CurrentScenarioId);
@@ -82,23 +82,23 @@ public partial class CopyViewSettingsDialog : Window
             ScenarioCombo.SelectedIndex = 0;
         }
 
-        var profileNames = context.Preferences.WindowProfiles.Select(p => p.Name).ToList();
-        ProfileCombo.ItemsSource = profileNames;
-        bool hasProfiles = profileNames.Count > 0;
-        ProfileRadio.IsEnabled = hasProfiles;
-        ProfileCombo.IsEnabled = hasProfiles;
-        if (hasProfiles)
+        var layoutNames = context.Preferences.Layouts.Select(p => p.Name).ToList();
+        LayoutCombo.ItemsSource = layoutNames;
+        bool hasLayouts = layoutNames.Count > 0;
+        LayoutRadio.IsEnabled = hasLayouts;
+        LayoutCombo.IsEnabled = hasLayouts;
+        if (hasLayouts)
         {
-            ProfileCombo.SelectedIndex = 0;
+            LayoutCombo.SelectedIndex = 0;
         }
 
         ScenarioRadio.IsCheckedChanged += OnSourceRadioChanged;
-        ProfileRadio.IsCheckedChanged += OnSourceRadioChanged;
+        LayoutRadio.IsCheckedChanged += OnSourceRadioChanged;
         ScenarioCombo.SelectionChanged += OnScenarioComboChanged;
-        ProfileCombo.SelectionChanged += OnProfileComboChanged;
+        LayoutCombo.SelectionChanged += OnLayoutComboChanged;
         SelectAllButton.Click += (_, _) => SetAllChecks(true);
         SelectNoneButton.Click += (_, _) => SetAllChecks(false);
-        CopyButton.Click += OnCopyClick;
+        ApplyButton.Click += OnApplyClick;
         CancelButton.Click += (_, _) => Close();
 
         _suppress = true;
@@ -106,9 +106,9 @@ public partial class CopyViewSettingsDialog : Window
         {
             ScenarioRadio.IsChecked = true;
         }
-        else if (hasProfiles)
+        else if (hasLayouts)
         {
-            ProfileRadio.IsChecked = true;
+            LayoutRadio.IsChecked = true;
         }
 
         _suppress = false;
@@ -136,7 +136,7 @@ public partial class CopyViewSettingsDialog : Window
         RebuildRows();
     }
 
-    private void OnProfileComboChanged(object? sender, SelectionChangedEventArgs e)
+    private void OnLayoutComboChanged(object? sender, SelectionChangedEventArgs e)
     {
         if (_suppress)
         {
@@ -144,7 +144,7 @@ public partial class CopyViewSettingsDialog : Window
         }
 
         _suppress = true;
-        ProfileRadio.IsChecked = true;
+        LayoutRadio.IsChecked = true;
         _suppress = false;
         RebuildRows();
     }
@@ -164,19 +164,19 @@ public partial class CopyViewSettingsDialog : Window
         {
             BuildScenarioRows(scenario.Id);
         }
-        else if (ProfileRadio.IsChecked == true && ProfileCombo.SelectedItem is string profileName)
+        else if (LayoutRadio.IsChecked == true && LayoutCombo.SelectedItem is string layoutName)
         {
-            BuildProfileRows(profileName);
+            BuildLayoutRows(layoutName);
         }
         else
         {
-            AddInfo("Nothing to copy from yet. Save view settings in another scenario, or create a window profile first.");
+            AddInfo("Nothing to apply yet. Save view settings in another scenario, or save a layout first.");
         }
     }
 
     private void BuildScenarioRows(string sourceScenarioId)
     {
-        CopyViewSettingsContext context = _context!;
+        ApplyLayoutContext context = _context!;
         UserPreferences prefs = context.Preferences;
         SavedGroundSettings? srcGround = prefs.GetGroundSettings(sourceScenarioId);
         SavedRadarSettings? srcRadar = prefs.GetRadarSettings(sourceScenarioId);
@@ -259,33 +259,33 @@ public partial class CopyViewSettingsDialog : Window
         }
     }
 
-    private void BuildProfileRows(string profileName)
+    private void BuildLayoutRows(string layoutName)
     {
-        CopyViewSettingsContext context = _context!;
-        SavedWindowProfile? profile = context.Preferences.WindowProfiles.FirstOrDefault(p => p.Name == profileName);
-        if (profile is null)
+        ApplyLayoutContext context = _context!;
+        SavedLayout? layout = context.Preferences.Layouts.FirstOrDefault(p => p.Name == layoutName);
+        if (layout is null)
         {
-            AddInfo("    (profile not found)");
+            AddInfo("    (layout not found)");
             return;
         }
 
-        SavedWindowProfile current = context.CurrentLayout;
+        SavedLayout current = context.CurrentLayout;
 
         AddGroupHeader("Window geometry");
-        var keys = profile.WindowGeometries.Keys.OrderBy(FriendlyWindowName, StringComparer.OrdinalIgnoreCase).ToList();
+        var keys = layout.WindowGeometries.Keys.OrderBy(FriendlyWindowName, StringComparer.OrdinalIgnoreCase).ToList();
         if (keys.Count == 0)
         {
-            AddInfo("    (profile captured no window geometry)");
+            AddInfo("    (layout captured no window geometry)");
         }
 
         foreach (string? key in keys)
         {
-            SavedWindowGeometry sourceGeo = profile.WindowGeometries[key];
+            SavedWindowGeometry sourceGeo = layout.WindowGeometries[key];
             current.WindowGeometries.TryGetValue(key, out SavedWindowGeometry? currentGeo);
             AddRow(
                 new RowSpec
                 {
-                    Key = "geo:" + key,
+                    Key = ViewSettingsCopyCatalog.LayoutGeometryKeyPrefix + key,
                     Label = FriendlyWindowName(key),
                     CurrentText = FormatGeo(currentGeo),
                     SourceText = FormatGeo(sourceGeo),
@@ -294,47 +294,47 @@ public partial class CopyViewSettingsDialog : Window
             );
         }
 
-        AddGroupHeader("Layout");
-        AddRow(
-            new RowSpec
+        string? section = null;
+        foreach (LayoutCopyGroup group in ViewSettingsCopyCatalog.LayoutGroups)
+        {
+            if (group.Section != section)
             {
-                Key = "popouts",
-                Label = "Pop-out / dock states",
-                CurrentText = FormatPopouts(current),
-                SourceText = FormatPopouts(profile),
-                Differs = PopoutsDiffer(current, profile),
+                section = group.Section;
+                AddGroupHeader(section);
             }
-        );
-        AddRow(
-            new RowSpec
-            {
-                Key = "columns",
-                Label = "Aircraft-list column layout",
-                CurrentText = FormatGrid(current.DataGridLayout),
-                SourceText = FormatGrid(profile.DataGridLayout),
-                Differs = !GridEqual(current.DataGridLayout, profile.DataGridLayout),
-            }
-        );
+
+            AddRow(
+                new RowSpec
+                {
+                    Key = group.Key,
+                    Label = group.Label,
+                    CurrentText = group.Describe(current),
+                    SourceText = group.Describe(layout),
+                    Differs = !group.AreEqual(current, layout),
+                    Enabled = group.IsSaved(layout),
+                }
+            );
+        }
     }
 
-    private void OnCopyClick(object? sender, RoutedEventArgs e)
+    private void OnApplyClick(object? sender, RoutedEventArgs e)
     {
         var selected = _rows.Where(r => r.Check.IsChecked == true).Select(r => r.Key).ToList();
         if (selected.Count == 0)
         {
-            SetWarning("Select at least one item to copy.");
+            SetWarning("Select at least one item to apply.");
             return;
         }
 
         if (ScenarioRadio.IsChecked == true && ScenarioCombo.SelectedItem is ComboEntry scenario)
         {
-            SourceKind = CopySourceKind.Scenario;
+            SourceKind = LayoutSourceKind.Scenario;
             SourceId = scenario.Id;
         }
-        else if (ProfileRadio.IsChecked == true && ProfileCombo.SelectedItem is string profileName)
+        else if (LayoutRadio.IsChecked == true && LayoutCombo.SelectedItem is string layoutName)
         {
-            SourceKind = CopySourceKind.WindowProfile;
-            SourceId = profileName;
+            SourceKind = LayoutSourceKind.Layout;
+            SourceId = layoutName;
         }
         else
         {
@@ -349,7 +349,7 @@ public partial class CopyViewSettingsDialog : Window
 
     private bool ComputeAirportMismatch(string? sourceAirport, SavedGroundSettings? srcGround, SavedRadarSettings? srcRadar)
     {
-        CopyViewSettingsContext context = _context!;
+        ApplyLayoutContext context = _context!;
         string? currentAirport = context.CurrentAirport;
         if (!string.IsNullOrEmpty(currentAirport) && !string.IsNullOrEmpty(sourceAirport))
         {
@@ -373,7 +373,7 @@ public partial class CopyViewSettingsDialog : Window
 
     private string BuildMapsTooltip(SavedRadarSettings current, SavedRadarSettings source)
     {
-        CopyViewSettingsContext context = _context!;
+        ApplyLayoutContext context = _context!;
         string Names(SavedRadarSettings s) =>
             s.EnabledStarsIds.Count == 0 ? "(none)" : string.Join(", ", s.EnabledStarsIds.Select(context.ResolveMapName));
         return $"Current: {Names(current)}\nSource: {Names(source)}";
@@ -575,75 +575,6 @@ public partial class CopyViewSettingsDialog : Window
             && a.IsMinimized == b.IsMinimized
             && a.ScreenIndex == b.ScreenIndex
             && a.IsTopmost == b.IsTopmost;
-    }
-
-    private static string FormatPopouts(SavedWindowProfile p) =>
-        $"Term:{(p.IsTerminalPoppedOut ? "float" : "dock")} AC:{Pop(p.IsDataGridPoppedOut)} Gnd:{Pop(p.IsGroundViewPoppedOut)} Rdr:{Pop(p.IsRadarViewPoppedOut)}";
-
-    private static string Pop(bool poppedOut) => poppedOut ? "pop" : "dock";
-
-    private static bool PopoutsDiffer(SavedWindowProfile a, SavedWindowProfile b) =>
-        a.IsTerminalPoppedOut != b.IsTerminalPoppedOut
-        || a.IsDataGridPoppedOut != b.IsDataGridPoppedOut
-        || a.IsGroundViewPoppedOut != b.IsGroundViewPoppedOut
-        || a.IsRadarViewPoppedOut != b.IsRadarViewPoppedOut;
-
-    private static string FormatGrid(SavedGridLayout? layout)
-    {
-        if (layout is null)
-        {
-            return "default";
-        }
-
-        int columns = layout.ColumnOrder?.Count ?? 0;
-        int hidden = layout.HiddenColumns?.Count ?? 0;
-        return columns == 0 && hidden == 0 ? "custom" : $"{columns} cols, {hidden} hidden";
-    }
-
-    private static bool GridEqual(SavedGridLayout? a, SavedGridLayout? b)
-    {
-        if (a is null || b is null)
-        {
-            return a is null && b is null;
-        }
-
-        return SequenceEqual(a.ColumnOrder, b.ColumnOrder)
-            && SequenceEqual(a.HiddenColumns, b.HiddenColumns)
-            && a.SortColumn == b.SortColumn
-            && a.SortDirection == b.SortDirection
-            && WidthsEqual(a.ColumnWidths, b.ColumnWidths);
-    }
-
-    private static bool SequenceEqual(List<string>? a, List<string>? b)
-    {
-        List<string> listA = a ?? [];
-        List<string> listB = b ?? [];
-        return listA.SequenceEqual(listB);
-    }
-
-    private static bool WidthsEqual(Dictionary<string, double>? a, Dictionary<string, double>? b)
-    {
-        int countA = a?.Count ?? 0;
-        int countB = b?.Count ?? 0;
-        if (countA != countB)
-        {
-            return false;
-        }
-
-        if (a is null || b is null)
-        {
-            return true;
-        }
-
-        foreach ((string? key, double value) in a)
-        {
-            if (!b.TryGetValue(key, out double other) || Math.Abs(other - value) > 0.5)
-            {
-                return false;
-            }
-        }
-
-        return true;
     }
 
     private sealed record ComboEntry(string Id, string Display)

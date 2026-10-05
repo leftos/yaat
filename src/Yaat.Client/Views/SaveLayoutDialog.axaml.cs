@@ -5,21 +5,21 @@ using Yaat.Client.Services;
 namespace Yaat.Client.Views;
 
 /// <summary>
-/// Modal prompt that captures a profile name from the user. The list of
-/// existing profile names is passed in so the dialog can show an "overwrite"
+/// Modal prompt that captures a layout name from the user. The list of
+/// existing layout names is passed in so the dialog can show an "overwrite"
 /// warning before the user clicks Save.
 /// </summary>
-public partial class SaveWindowProfileDialog : Window
+public partial class SaveLayoutDialog : Window
 {
     private readonly HashSet<string> _existingNames;
 
     /// <summary>Set to the entered name on Save; null on Cancel.</summary>
-    public string? ProfileName { get; private set; }
+    public string? LayoutName { get; private set; }
 
-    public SaveWindowProfileDialog()
+    public SaveLayoutDialog()
         : this([], null) { }
 
-    public SaveWindowProfileDialog(IEnumerable<string> existingNames, string? initialName)
+    public SaveLayoutDialog(IEnumerable<string> existingNames, string? initialName)
     {
         InitializeComponent();
         AutomationGate.ApplyShowActivated(this);
@@ -57,7 +57,7 @@ public partial class SaveWindowProfileDialog : Window
         }
         if (_existingNames.Contains(trimmed))
         {
-            status.Text = $"A profile named \"{trimmed}\" already exists — saving will overwrite it.";
+            status.Text = $"A layout named \"{trimmed}\" already exists — saving will overwrite it.";
             status.IsVisible = true;
         }
         else
@@ -74,13 +74,13 @@ public partial class SaveWindowProfileDialog : Window
         {
             return;
         }
-        ProfileName = entered;
+        LayoutName = entered;
         Close();
     }
 
     private void OnCancelClick(object? sender, RoutedEventArgs e)
     {
-        ProfileName = null;
+        LayoutName = null;
         Close();
     }
 }

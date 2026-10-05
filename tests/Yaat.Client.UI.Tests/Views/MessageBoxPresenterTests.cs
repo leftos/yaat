@@ -47,12 +47,7 @@ public class MessageBoxPresenterTests : IDisposable
         owner.Activated += (_, _) => ownerActivations++;
         try
         {
-            Task<ButtonResult> pending = MessageBoxPresenter.ShowStandardAsync(
-                owner,
-                "Delete profile?",
-                "Delete window profile \"Two\"?",
-                ButtonEnum.YesNo
-            );
+            Task<ButtonResult> pending = MessageBoxPresenter.ShowStandardAsync(owner, "Delete profile?", "Delete layout \"Two\"?", ButtonEnum.YesNo);
             MsBoxWindow box = OpenBox(owner);
 
             Assert.False(box.ShowActivated);

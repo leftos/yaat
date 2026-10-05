@@ -35,8 +35,6 @@
           <MenuItem Header="_Leave Room" Command="{Binding LeaveRoomCommand}" />
         </MenuItem>
         <MenuItem Header="_View">
-          <MenuItem Header="_Reset Aircraft List Layout" Command="{Binding ResetGridLayoutCommand}" />
-          <Separator />
           <MenuItem Header="Pop Out Aircraft _List" ToggleType="CheckBox" IsChecked="{Binding IsDataGridPoppedOut, Mode=TwoWay}" />
           <MenuItem Header="Pop Out _Ground View" ToggleType="CheckBox" IsChecked="{Binding IsGroundViewPoppedOut, Mode=TwoWay}" />
           <MenuItem Header="New Gr_ound Window" x:Name="NewGroundWindowMenuItem" />
@@ -59,10 +57,10 @@
           <Separator />
           <MenuItem Header="Show _Timeline Bar" ToggleType="CheckBox" IsChecked="{Binding ShowTimelineBar, Mode=TwoWay}" />
           <Separator />
-          <MenuItem Header="Copy View _Settings..." x:Name="CopyViewSettingsMenuItem" IsEnabled="{Binding HasScenario}" />
-          <Separator />
-          <MenuItem Header="Window _Profiles" x:Name="WindowProfilesMenuItem">
-            <MenuItem Header="(No saved profiles)" IsEnabled="False" />
+          <!-- Layout submenu is populated from code-behind (PopulateLayoutMenu): the saved
+                     layouts, then the save / apply-from-scenario / manage / reset-columns items. -->
+          <MenuItem Header="_Layout" x:Name="LayoutMenuItem">
+            <MenuItem Header="(No saved layouts)" IsEnabled="False" />
           </MenuItem>
         </MenuItem>
         <MenuItem Header="_Scenario">

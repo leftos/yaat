@@ -5,7 +5,7 @@ using Yaat.Client.Services;
 
 namespace Yaat.Client.Views;
 
-public enum ManageWindowProfilesAction
+public enum ManageLayoutsAction
 {
     None,
     Apply,
@@ -14,28 +14,28 @@ public enum ManageWindowProfilesAction
 
 /// <summary>
 /// Lets the user inspect, rename, delete, apply, or update saved window
-/// profiles. Rename and Delete are handled inline against
+/// layouts. Rename and Delete are handled inline against
 /// <see cref="UserPreferences"/>; Apply and Update close the dialog with an
 /// <see cref="Action"/> value the caller (MainWindow) inspects to do the work
 /// that needs MainWindow-level orchestration (DataGrid layout, pop-out toggles).
 /// </summary>
-public partial class ManageWindowProfilesDialog : Window
+public partial class ManageLayoutsDialog : Window
 {
     private readonly UserPreferences _preferences;
     private readonly WindowGeometryHelper _geometryHelper;
 
-    public ManageWindowProfilesAction Action { get; private set; } = ManageWindowProfilesAction.None;
-    public string? SelectedProfileName { get; private set; }
+    public ManageLayoutsAction Action { get; private set; } = ManageLayoutsAction.None;
+    public string? SelectedLayoutName { get; private set; }
 
     // Parameterless ctor required for Avalonia designer / XamlLoader. Should not be used at runtime.
-    public ManageWindowProfilesDialog()
+    public ManageLayoutsDialog()
         : this(new UserPreferences()) { }
 
-    public ManageWindowProfilesDialog(UserPreferences preferences)
+    public ManageLayoutsDialog(UserPreferences preferences)
     {
         InitializeComponent();
         _preferences = preferences;
-        _geometryHelper = new WindowGeometryHelper(this, preferences, "ManageWindowProfiles", 500, 380);
+        _geometryHelper = new WindowGeometryHelper(this, preferences, "ManageLayouts", 500, 380);
         _geometryHelper.Restore();
 
         Button? apply = this.FindControl<Button>("ApplyButton");
@@ -43,7 +43,7 @@ public partial class ManageWindowProfilesDialog : Window
         Button? rename = this.FindControl<Button>("RenameButton");
         Button? delete = this.FindControl<Button>("DeleteButton");
         Button? close = this.FindControl<Button>("CloseButton");
-        ListBox? list = this.FindControl<ListBox>("ProfilesList");
+        ListBox? list = this.FindControl<ListBox>("LayoutsList");
 
         apply?.Click += OnApplyClick;
         update?.Click += OnUpdateClick;
@@ -57,17 +57,17 @@ public partial class ManageWindowProfilesDialog : Window
 
     private void Populate()
     {
-        ListBox? list = this.FindControl<ListBox>("ProfilesList");
+        ListBox? list = this.FindControl<ListBox>("LayoutsList");
         if (list is null)
         {
             return;
         }
-        list.ItemsSource = _preferences.WindowProfiles.Select(p => p.Name).ToList();
+        list.ItemsSource = _preferences.Layouts.Select(p => p.Name).ToList();
     }
 
     private string? GetSelectedName()
     {
-        ListBox? list = this.FindControl<ListBox>("ProfilesList");
+        ListBox? list = this.FindControl<ListBox>("LayoutsList");
         return list?.SelectedItem as string;
     }
 
@@ -92,11 +92,11 @@ public partial class ManageWindowProfilesDialog : Window
         string? name = GetSelectedName();
         if (name is null)
         {
-            SetStatus("Select a profile first.");
+            SetStatus("Select a layout first.");
             return;
         }
-        Action = ManageWindowProfilesAction.Apply;
-        SelectedProfileName = name;
+        Action = ManageLayoutsAction.Apply;
+        SelectedLayoutName = name;
         Close();
     }
 
@@ -105,11 +105,11 @@ public partial class ManageWindowProfilesDialog : Window
         string? name = GetSelectedName();
         if (name is null)
         {
-            SetStatus("Select a profile first.");
+            SetStatus("Select a layout first.");
             return;
         }
-        Action = ManageWindowProfilesAction.UpdateFromCurrent;
-        SelectedProfileName = name;
+        Action = ManageLayoutsAction.UpdateFromCurrent;
+        SelectedLayoutName = name;
         Close();
     }
 
@@ -118,24 +118,24 @@ public partial class ManageWindowProfilesDialog : Window
         string? oldName = GetSelectedName();
         if (oldName is null)
         {
-            SetStatus("Select a profile first.");
+            SetStatus("Select a layout first.");
             return;
         }
 
         IEnumerable<string> others = _preferences
-            .WindowProfiles.Where(p => !string.Equals(p.Name, oldName, StringComparison.OrdinalIgnoreCase))
+            .Layouts.Where(p => !string.Equals(p.Name, oldName, StringComparison.OrdinalIgnoreCase))
             .Select(p => p.Name);
-        var dlg = new SaveWindowProfileDialog(others, oldName) { Title = "Rename Window Profile" };
+        var dlg = new SaveLayoutDialog(others, oldName) { Title = "Rename Layout" };
         await DialogPresenter.ShowModalAsync(dlg, this);
 
-        if (dlg.ProfileName is null || string.Equals(dlg.ProfileName, oldName, StringComparison.OrdinalIgnoreCase))
+        if (dlg.LayoutName is null || string.Equals(dlg.LayoutName, oldName, StringComparison.OrdinalIgnoreCase))
         {
             return;
         }
 
-        if (!_preferences.RenameWindowProfile(oldName, dlg.ProfileName))
+        if (!_preferences.RenameLayout(oldName, dlg.LayoutName))
         {
-            SetStatus($"Could not rename to \"{dlg.ProfileName}\".");
+            SetStatus($"Could not rename to \"{dlg.LayoutName}\".");
             return;
         }
 
@@ -148,22 +148,17 @@ public partial class ManageWindowProfilesDialog : Window
         string? name = GetSelectedName();
         if (name is null)
         {
-            SetStatus("Select a profile first.");
+            SetStatus("Select a layout first.");
             return;
         }
 
-        ButtonResult result = await MessageBoxPresenter.ShowStandardAsync(
-            this,
-            "Delete profile?",
-            $"Delete window profile \"{name}\"?",
-            ButtonEnum.YesNo
-        );
+        ButtonResult result = await MessageBoxPresenter.ShowStandardAsync(this, "Delete layout?", $"Delete layout \"{name}\"?", ButtonEnum.YesNo);
         if (result != ButtonResult.Yes)
         {
             return;
         }
 
-        _preferences.DeleteWindowProfile(name);
+        _preferences.DeleteLayout(name);
         SetStatus(null);
         Populate();
     }

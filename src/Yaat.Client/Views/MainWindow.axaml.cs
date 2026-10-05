@@ -33,7 +33,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
     private static readonly ILogger Log = AppLog.CreateLogger("MainWindow");
 
     private readonly WindowGeometryHelper _geometryHelper;
-    private readonly WindowProfileService _windowProfileService;
+    private readonly LayoutService _layoutService;
     private TerminalWindow? _terminalWindow;
     private DataGridWindow? _dataGridWindow;
     private GroundViewWindow? _groundViewWindow;
@@ -116,7 +116,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
                 Avalonia.Threading.DispatcherPriority.Background
             );
 
-        _windowProfileService = new WindowProfileService(vm.Preferences);
+        _layoutService = new LayoutService(vm.Preferences);
 
         MenuItem? settingsItem = this.FindControl<MenuItem>("SettingsMenuItem");
         settingsItem?.Click += OnSettingsClick;
@@ -191,20 +191,17 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             recentWeatherItem.SubmenuOpened += OnRecentWeatherSubmenuOpened;
         }
 
-        MenuItem? copyViewItem = this.FindControl<MenuItem>("CopyViewSettingsMenuItem");
-        copyViewItem?.Click += OnCopyViewSettingsClick;
-
         MenuItem? newRadarWindowItem = this.FindControl<MenuItem>("NewRadarWindowMenuItem");
         newRadarWindowItem?.Click += OnNewRadarWindowClick;
 
         MenuItem? newGroundWindowItem = this.FindControl<MenuItem>("NewGroundWindowMenuItem");
         newGroundWindowItem?.Click += OnNewGroundWindowClick;
 
-        MenuItem? windowProfilesItem = this.FindControl<MenuItem>("WindowProfilesMenuItem");
-        if (windowProfilesItem is not null)
+        MenuItem? layoutItem = this.FindControl<MenuItem>("LayoutMenuItem");
+        if (layoutItem is not null)
         {
-            PopulateWindowProfilesMenu(windowProfilesItem, vm);
-            vm.Preferences.WindowProfilesChanged += () => PopulateWindowProfilesMenu(windowProfilesItem, vm);
+            PopulateLayoutMenu(layoutItem, vm);
+            vm.Preferences.LayoutsChanged += () => PopulateLayoutMenu(layoutItem, vm);
         }
 
         MenuItem? favoritesPanelItem = this.FindControl<MenuItem>("FavoritesPanelMenuItem");
@@ -1451,8 +1448,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         // Click). Showing a MenuFlyout from a leaf MenuItem inside an open
         // menu chain doesn't work in Avalonia — the parent menu loses focus
         // and dismisses, taking the flyout's anchor with it. The submenu
-        // pattern (also used by RecentScenariosMenuItem and
-        // CopyViewSettingsMenuItem) populates dynamically on SubmenuOpened.
+        // pattern (also used by RecentScenariosMenuItem) populates dynamically on SubmenuOpened.
         var newTabItem = new MenuItem { Header = "_New Strips Tab..." };
         // Pre-seed with one placeholder so Avalonia recognises this as a real
         // parent and shows the expand arrow before the user opens it.
@@ -2191,87 +2187,201 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         PopulateRecentScenarios(menu, vm);
     }
 
-    private void PopulateWindowProfilesMenu(MenuItem menu, MainViewModel vm)
+    /// <summary>
+    /// Fills the View → Layout submenu: one item per saved layout (click applies it), then the fixed items to save the
+    /// current arrangement, apply rows from another scenario's views or a saved layout, manage layouts and reset the
+    /// aircraft-list columns. Re-run on <see cref="UserPreferences.LayoutsChanged"/>.
+    /// </summary>
+    private void PopulateLayoutMenu(MenuItem menu, MainViewModel vm)
     {
         menu.Items.Clear();
 
-        var saveItem = new MenuItem { Header = "Save Current as Profile..." };
-        saveItem.Click += async (_, _) => await OnSaveCurrentWindowProfileAsync(vm);
-        menu.Items.Add(saveItem);
-
-        var manageItem = new MenuItem { Header = "Manage Profiles..." };
-        manageItem.Click += async (_, _) => await OnManageWindowProfilesAsync(vm);
-        menu.Items.Add(manageItem);
-
-        IReadOnlyList<SavedWindowProfile> profiles = vm.Preferences.WindowProfiles;
-        if (profiles.Count == 0)
+        IReadOnlyList<SavedLayout> layouts = vm.Preferences.Layouts;
+        if (layouts.Count == 0)
         {
-            menu.Items.Add(new Separator());
-            menu.Items.Add(new MenuItem { Header = "(No saved profiles)", IsEnabled = false });
-            return;
+            menu.Items.Add(new MenuItem { Header = "(No saved layouts)", IsEnabled = false });
         }
 
-        menu.Items.Add(new Separator());
-        foreach (SavedWindowProfile profile in profiles)
+        foreach (SavedLayout layout in layouts)
         {
-            var item = new MenuItem { Header = profile.Name, Tag = profile.Name };
+            var item = new MenuItem { Header = layout.Name, Tag = layout.Name };
             item.Click += async (_, e) =>
             {
                 if (e.Source is MenuItem clicked && clicked.Tag is string name)
                 {
-                    await ApplyWindowProfileByNameAsync(vm, name);
+                    await ApplyLayoutByNameAsync(vm, name);
                 }
             };
             menu.Items.Add(item);
         }
+
+        menu.Items.Add(new Separator());
+
+        var saveItem = new MenuItem { Header = "Save current as layout…" };
+        saveItem.Click += async (_, _) => await OnSaveCurrentLayoutAsync(vm);
+        menu.Items.Add(saveItem);
+
+        var fromScenarioItem = new MenuItem { Header = "From this scenario's views…" };
+        fromScenarioItem[!IsEnabledProperty] = new Avalonia.Data.Binding(nameof(MainViewModel.HasScenario));
+        fromScenarioItem.Click += async (_, _) => await OnApplyFromScenarioViewsAsync(vm);
+        menu.Items.Add(fromScenarioItem);
+
+        var manageItem = new MenuItem { Header = "Manage layouts…" };
+        manageItem.Click += async (_, _) => await OnManageLayoutsAsync(vm);
+        menu.Items.Add(manageItem);
+
+        menu.Items.Add(new MenuItem { Header = "Reset aircraft list columns", Command = vm.ResetGridLayoutCommand });
     }
 
-    private async System.Threading.Tasks.Task OnSaveCurrentWindowProfileAsync(MainViewModel vm)
+    private async System.Threading.Tasks.Task OnSaveCurrentLayoutAsync(MainViewModel vm)
     {
-        IEnumerable<string> existing = vm.Preferences.WindowProfiles.Select(p => p.Name);
-        var dlg = new SaveWindowProfileDialog(existing, null);
+        IEnumerable<string> existing = vm.Preferences.Layouts.Select(p => p.Name);
+        var dlg = new SaveLayoutDialog(existing, null);
         await DialogPresenter.ShowModalAsync(dlg, this);
 
-        if (string.IsNullOrWhiteSpace(dlg.ProfileName))
+        if (string.IsNullOrWhiteSpace(dlg.LayoutName))
         {
             return;
         }
 
-        SavedWindowProfile profile = _windowProfileService.CaptureCurrent(dlg.ProfileName, vm);
-        vm.Preferences.SaveWindowProfile(profile);
-        vm.StatusText = $"Saved window profile \"{profile.Name}\"";
+        SavedLayout layout = _layoutService.CaptureCurrent(dlg.LayoutName, vm);
+        vm.Preferences.SaveLayout(layout);
+        vm.StatusText = $"Saved layout \"{layout.Name}\"";
     }
 
-    private async System.Threading.Tasks.Task OnManageWindowProfilesAsync(MainViewModel vm)
+    private async System.Threading.Tasks.Task OnManageLayoutsAsync(MainViewModel vm)
     {
-        var dlg = new ManageWindowProfilesDialog(vm.Preferences);
+        var dlg = new ManageLayoutsDialog(vm.Preferences);
         await DialogPresenter.ShowModalAsync(dlg, this);
 
         switch (dlg.Action)
         {
-            case ManageWindowProfilesAction.Apply when dlg.SelectedProfileName is { } name:
-                await ApplyWindowProfileByNameAsync(vm, name);
+            case ManageLayoutsAction.Apply when dlg.SelectedLayoutName is { } name:
+                await ApplyLayoutByNameAsync(vm, name);
                 break;
-            case ManageWindowProfilesAction.UpdateFromCurrent when dlg.SelectedProfileName is { } name:
-                SavedWindowProfile refreshed = _windowProfileService.CaptureCurrent(name, vm);
-                vm.Preferences.SaveWindowProfile(refreshed);
-                vm.StatusText = $"Updated window profile \"{name}\" from current arrangement";
+            case ManageLayoutsAction.UpdateFromCurrent when dlg.SelectedLayoutName is { } name:
+                SavedLayout refreshed = _layoutService.CaptureCurrent(name, vm);
+                vm.Preferences.SaveLayout(refreshed);
+                vm.StatusText = $"Updated layout \"{name}\" from current arrangement";
                 break;
         }
     }
 
-    /// <summary>
-    /// Applies a profile's favorites-bar visibility and Favorites Panel open state. Null on either
-    /// field means the profile predates that state being captured, so the current state is kept.
-    /// </summary>
-    private static void ApplyFavoritesProfileState(MainViewModel vm, SavedWindowProfile profile)
+    private async System.Threading.Tasks.Task ApplyLayoutByNameAsync(MainViewModel vm, string name)
     {
-        if (profile.ShowFavoritesBar is { } showBar)
+        SavedLayout? layout = vm.Preferences.GetLayout(name);
+        if (layout is null)
+        {
+            vm.StatusText = $"Layout \"{name}\" not found";
+            return;
+        }
+
+        string notes = await ApplyLayoutAsync(vm, layout, ViewSettingsCopyCatalog.AllLayoutKeys(layout));
+        vm.StatusText = $"Applied layout \"{name}\"{notes}";
+    }
+
+    /// <summary>
+    /// Applies the selected rows of a layout — every row for a whole-layout apply, the checked ones from the apply
+    /// dialog. Row keys are <see cref="ViewSettingsCopyCatalog"/>'s; an unselected row leaves its state as it is.
+    /// </summary>
+    /// <returns>Status-line notes on the parts that could not take effect (deleted favorite sets, unavailable tabs), or empty.</returns>
+    private async System.Threading.Tasks.Task<string> ApplyLayoutAsync(MainViewModel vm, SavedLayout layout, IReadOnlySet<string> selected)
+    {
+        string prefix = ViewSettingsCopyCatalog.LayoutGeometryKeyPrefix;
+        var geometryKeys = new HashSet<string>(selected.Where(k => k.StartsWith(prefix, StringComparison.Ordinal)).Select(k => k[prefix.Length..]));
+        bool includeGrid = selected.Contains(ViewSettingsCopyCatalog.LayoutColumnsKey);
+
+        // Pre-stamp the per-window geometry and grid preferences, so any pop-out the apply opens reads them on construction.
+        _layoutService.StagePreferences(layout, geometryKeys, includeGrid);
+
+        string notes = selected.Contains(ViewSettingsCopyCatalog.LayoutFavoriteSetsKey) ? ApplyFavoriteSets(vm, layout) : "";
+
+        // Layout apply activates windows in a deliberate order — a concurrent
+        // group-raise (triggered by any of these activations) would scramble it.
+        WindowGroupRaiser.IsSuspended = true;
+        try
+        {
+            // Flip the pop-out toggles. The OnIs*PoppedOutChanged handlers on
+            // MainViewModel + OnViewModelPropertyChanged here will create or
+            // destroy the corresponding pop-out windows. New windows read the
+            // freshly-staged geometry preferences on construction.
+            ApplyPopoutFlags(vm, layout, selected);
+            ApplyFavoritesLayoutState(vm, layout, selected);
+            // Open/close the extra Radar/Ground windows the layout captured before the geometry push
+            // below, so each new window's helper is already in the ActiveHelpers registry by then.
+            ApplyExtraViews(vm, layout, selected);
+            if (selected.Contains(ViewSettingsCopyCatalog.LayoutOpenTabsKey))
+            {
+                IReadOnlyList<string> skippedTabs = await _layoutService.ApplyOpenTabsAsync(layout, vm);
+                if (skippedTabs.Count > 0)
+                {
+                    notes += $" ({skippedTabs.Count} tab(s) no longer available: {string.Join(", ", skippedTabs)})";
+                }
+            }
+
+            // Defer geometry push and grid-layout apply so any windows that were
+            // just opened by the toggle flips above have actually entered the
+            // ActiveHelpers registry. Without the Post, the helpers list still
+            // reflects pre-flip state.
+            await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+            {
+                foreach (WindowGeometryHelper helper in WindowGeometryHelper.GetActiveHelpers())
+                {
+                    if (
+                        geometryKeys.Contains(helper.WindowName)
+                        && layout.WindowGeometries.TryGetValue(helper.WindowName, out SavedWindowGeometry? geo)
+                    )
+                    {
+                        helper.ApplyGeometry(geo);
+                    }
+                }
+
+                if (includeGrid && layout.DataGridLayout is not null)
+                {
+                    ApplyGridLayoutToLiveGrids(vm);
+                }
+
+                ReclaimFocusAfterLayoutApply();
+            });
+        }
+        finally
+        {
+            WindowGroupRaiser.IsSuspended = false;
+        }
+
+        return notes;
+    }
+
+    /// <summary>
+    /// Loads exactly the favorite sets the layout captured. Ids whose set has since been deleted are skipped at compose
+    /// time; the returned note surfaces those so the user knows why part of the layout did not take effect. A layout
+    /// saved before favorite sets existed (null) leaves the loaded sets untouched.
+    /// </summary>
+    private static string ApplyFavoriteSets(MainViewModel vm, SavedLayout layout)
+    {
+        if (layout.LoadedFavoriteSetIds is not { } setIds)
+        {
+            return "";
+        }
+
+        vm.Preferences.SetLoadedFavoriteSets([.. setIds]);
+        int missingCount = setIds.Count(id => vm.FavoriteStore.GetSet(id) is null);
+        vm.RefreshDisplayFavorites();
+        return missingCount > 0 ? $" ({missingCount} favorite set(s) no longer exist)" : "";
+    }
+
+    /// <summary>
+    /// Applies a layout's favorites-bar visibility and Favorites Panel open state when selected. Null on either
+    /// field means the layout predates that state being captured, so the current state is kept.
+    /// </summary>
+    private static void ApplyFavoritesLayoutState(MainViewModel vm, SavedLayout layout, IReadOnlySet<string> selected)
+    {
+        if (selected.Contains(ViewSettingsCopyCatalog.LayoutFavoritesBarKey) && (layout.ShowFavoritesBar is { } showBar))
         {
             vm.ShowFavoritesBar = showBar;
         }
 
-        if (profile.IsFavoritesPanelOpen is not { } panelOpen)
+        if (!selected.Contains(ViewSettingsCopyCatalog.LayoutFavoritesPanelKey) || (layout.IsFavoritesPanelOpen is not { } panelOpen))
         {
             return;
         }
@@ -2287,98 +2397,69 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
     }
 
     /// <summary>
-    /// Flips the six pop-out view toggles a profile captures. The MainViewModel property-changed
+    /// Flips the selected ones of the six pop-out view toggles a layout captures. The MainViewModel property-changed
     /// handlers create or destroy the matching pop-out windows, so every apply path must route
-    /// through here or a profile silently leaves some of them open or closed.
+    /// through here or a layout silently leaves some of them open or closed.
     /// </summary>
-    private static void ApplyPopoutFlags(MainViewModel vm, SavedWindowProfile profile)
+    private static void ApplyPopoutFlags(MainViewModel vm, SavedLayout layout, IReadOnlySet<string> selected)
     {
-        vm.IsTerminalPoppedOut = profile.IsTerminalPoppedOut;
-        vm.IsDataGridPoppedOut = profile.IsDataGridPoppedOut;
-        vm.IsGroundViewPoppedOut = profile.IsGroundViewPoppedOut;
-        vm.IsRadarViewPoppedOut = profile.IsRadarViewPoppedOut;
-        vm.IsControllersPoppedOut = profile.IsControllersPoppedOut;
-        vm.IsMetarPoppedOut = profile.IsMetarPoppedOut;
-    }
-
-    private async System.Threading.Tasks.Task ApplyWindowProfileByNameAsync(MainViewModel vm, string name)
-    {
-        SavedWindowProfile? profile = vm.Preferences.GetWindowProfile(name);
-        if (profile is null)
+        if (selected.Contains(ViewSettingsCopyCatalog.LayoutTerminalKey))
         {
-            vm.StatusText = $"Window profile \"{name}\" not found";
-            return;
+            vm.IsTerminalPoppedOut = layout.IsTerminalPoppedOut;
         }
 
-        _windowProfileService.StagePreferences(profile);
-
-        // Load exactly the favorite sets the profile captured. Ids whose set has since been
-        // deleted are skipped at compose time; surface those so the user knows why part of the
-        // profile did not take effect. Null = pre-feature profile.
-        string? missingSetsNote = null;
-        if (profile.LoadedFavoriteSetIds is { } setIds)
+        if (selected.Contains(ViewSettingsCopyCatalog.LayoutAircraftListKey))
         {
-            vm.Preferences.SetLoadedFavoriteSets([.. setIds]);
-            int missingCount = setIds.Count(id => vm.FavoriteStore.GetSet(id) is null);
-            if (missingCount > 0)
-            {
-                missingSetsNote = $" ({missingCount} favorite set(s) no longer exist)";
-            }
-            vm.RefreshDisplayFavorites();
+            vm.IsDataGridPoppedOut = layout.IsDataGridPoppedOut;
         }
 
-        // Profile apply activates windows in a deliberate order — a concurrent
-        // group-raise (triggered by any of these activations) would scramble it.
-        WindowGroupRaiser.IsSuspended = true;
-        try
+        if (selected.Contains(ViewSettingsCopyCatalog.LayoutGroundKey))
         {
-            // Flip the pop-out toggles. The OnIs*PoppedOutChanged handlers on
-            // MainViewModel + OnViewModelPropertyChanged here will create or
-            // destroy the corresponding pop-out windows. New windows read the
-            // freshly-staged geometry preferences on construction.
-            ApplyPopoutFlags(vm, profile);
-            ApplyFavoritesProfileState(vm, profile);
-            // Open/close the extra Radar/Ground windows the profile captured before the geometry push
-            // below, so each new window's helper is already in the ActiveHelpers registry by then.
-            vm.ReconcileExtraViews(profile.ExtraRadarViews, profile.ExtraGroundViews);
-
-            // Defer geometry push and grid-layout apply so any windows that were
-            // just opened by the toggle flips above have actually entered the
-            // ActiveHelpers registry. Without the Post, the helpers list still
-            // reflects pre-flip state.
-            await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
-            {
-                foreach (WindowGeometryHelper helper in WindowGeometryHelper.GetActiveHelpers())
-                {
-                    if (profile.WindowGeometries.TryGetValue(helper.WindowName, out SavedWindowGeometry? geo))
-                    {
-                        helper.ApplyGeometry(geo);
-                    }
-                }
-
-                if (profile.DataGridLayout is not null)
-                {
-                    ApplyGridLayoutToLiveGrids(vm);
-                }
-
-                ReclaimFocusAfterProfileApply();
-            });
-        }
-        finally
-        {
-            WindowGroupRaiser.IsSuspended = false;
+            vm.IsGroundViewPoppedOut = layout.IsGroundViewPoppedOut;
         }
 
-        vm.StatusText = $"Applied window profile \"{name}\"{missingSetsNote}";
+        if (selected.Contains(ViewSettingsCopyCatalog.LayoutRadarKey))
+        {
+            vm.IsRadarViewPoppedOut = layout.IsRadarViewPoppedOut;
+        }
+
+        if (selected.Contains(ViewSettingsCopyCatalog.LayoutControllersKey))
+        {
+            vm.IsControllersPoppedOut = layout.IsControllersPoppedOut;
+        }
+
+        if (selected.Contains(ViewSettingsCopyCatalog.LayoutMetarKey))
+        {
+            vm.IsMetarPoppedOut = layout.IsMetarPoppedOut;
+        }
     }
 
     /// <summary>
-    /// Returns keyboard focus to the main window after a profile-apply sweep has
+    /// Opens and closes the extra Radar/Ground windows to match the layout, for each kind selected. An unselected kind
+    /// is passed back as it stands, so the reconcile leaves those windows untouched.
+    /// </summary>
+    private static void ApplyExtraViews(MainViewModel vm, SavedLayout layout, IReadOnlySet<string> selected)
+    {
+        bool radar = selected.Contains(ViewSettingsCopyCatalog.LayoutExtraRadarKey);
+        bool ground = selected.Contains(ViewSettingsCopyCatalog.LayoutExtraGroundKey);
+        if (!radar && !ground)
+        {
+            return;
+        }
+
+        vm.ReconcileExtraViews(
+            radar ? layout.ExtraRadarViews : [.. vm.ExtraRadarViews.Select(i => new SavedExtraView(i.Ordinal, i.AirportId))],
+            ground ? layout.ExtraGroundViews : [.. vm.ExtraGroundViews.Select(i => new SavedExtraView(i.Ordinal, i.AirportId))]
+        );
+    }
+
+    /// <summary>
+    /// Returns keyboard focus to the main window after a layout-apply sweep has
     /// activated each pop-out in turn, so focus ends where the user triggered the
-    /// apply while the pop-outs stay raised. Skipped when the profile itself put
+    /// apply while the pop-outs stay raised. Skipped when the layout itself put
     /// the main window in a minimized state, and in automation mode, which never activates a window.
     /// </summary>
-    private void ReclaimFocusAfterProfileApply()
+    private void ReclaimFocusAfterLayoutApply()
     {
         if (!AutomationGate.SuppressActivation && (WindowState != WindowState.Minimized))
         {
@@ -2484,22 +2565,14 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         }
     }
 
-    private async void OnCopyViewSettingsClick(object? sender, RoutedEventArgs e)
-    {
-        if (DataContext is MainViewModel vm)
-        {
-            await OnCopyViewSettingsAsync(vm);
-        }
-    }
-
-    private async System.Threading.Tasks.Task OnCopyViewSettingsAsync(MainViewModel vm)
+    private async System.Threading.Tasks.Task OnApplyFromScenarioViewsAsync(MainViewModel vm)
     {
         if (vm.ActiveScenarioId is null)
         {
             return;
         }
 
-        var context = new CopyViewSettingsContext
+        var context = new ApplyLayoutContext
         {
             Preferences = vm.Preferences,
             CurrentScenarioId = vm.ActiveScenarioId,
@@ -2507,29 +2580,32 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             CurrentAirport = vm.ActiveScenarioPrimaryAirportId,
             CurrentGround = vm.Ground.CaptureSettings(),
             CurrentRadar = vm.Radar.CaptureSettings(),
-            CurrentLayout = _windowProfileService.CaptureCurrent("(current)", vm),
+            CurrentLayout = _layoutService.CaptureCurrent("(current)", vm),
             ResolveMapName = vm.Radar.ResolveMapName,
         };
 
-        var dlg = new CopyViewSettingsDialog(context);
+        var dlg = new ApplyLayoutDialog(context);
         await DialogPresenter.ShowModalAsync(dlg, this);
         if (!dlg.Confirmed || dlg.SourceId is null)
         {
             return;
         }
 
-        if (dlg.SourceKind == CopySourceKind.Scenario)
+        if (dlg.SourceKind == LayoutSourceKind.Scenario)
         {
             ApplyScenarioViewCopy(vm, dlg.SourceId, dlg.SelectedKeys);
+            return;
         }
-        else
+
+        SavedLayout? layout = vm.Preferences.GetLayout(dlg.SourceId);
+        if (layout is null)
         {
-            SavedWindowProfile? profile = vm.Preferences.GetWindowProfile(dlg.SourceId);
-            if (profile is not null)
-            {
-                await ApplyWindowProfilePartialAsync(vm, profile, dlg.SelectedKeys);
-            }
+            vm.StatusText = $"Layout \"{dlg.SourceId}\" not found";
+            return;
         }
+
+        string notes = await ApplyLayoutAsync(vm, layout, new HashSet<string>(dlg.SelectedKeys));
+        vm.StatusText = $"Applied {dlg.SelectedKeys.Count} item(s) from layout \"{layout.Name}\"{notes}";
     }
 
     private static void ApplyScenarioViewCopy(MainViewModel vm, string sourceScenarioId, IReadOnlyList<string> selectedKeys)
@@ -2568,60 +2644,6 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         }
 
         vm.StatusText = $"Copied {selected.Count} view-setting group(s) from the selected scenario";
-    }
-
-    private async System.Threading.Tasks.Task ApplyWindowProfilePartialAsync(
-        MainViewModel vm,
-        SavedWindowProfile profile,
-        IReadOnlyList<string> selectedKeys
-    )
-    {
-        var selected = new HashSet<string>(selectedKeys);
-        var geometryKeys = new HashSet<string>(selected.Where(k => k.StartsWith("geo:", StringComparison.Ordinal)).Select(k => k["geo:".Length..]));
-        bool includeGrid = selected.Contains("columns");
-        bool includePopouts = selected.Contains("popouts");
-
-        _windowProfileService.StagePreferencesPartial(profile, geometryKeys, includeGrid);
-
-        // Same suspension rationale as ApplyWindowProfileByNameAsync: the toggle
-        // flips and the final focus reclaim all activate windows.
-        WindowGroupRaiser.IsSuspended = true;
-        try
-        {
-            if (includePopouts)
-            {
-                ApplyPopoutFlags(vm, profile);
-                ApplyFavoritesProfileState(vm, profile);
-                vm.ReconcileExtraViews(profile.ExtraRadarViews, profile.ExtraGroundViews);
-            }
-
-            await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
-            {
-                foreach (WindowGeometryHelper helper in WindowGeometryHelper.GetActiveHelpers())
-                {
-                    if (
-                        geometryKeys.Contains(helper.WindowName)
-                        && profile.WindowGeometries.TryGetValue(helper.WindowName, out SavedWindowGeometry? geo)
-                    )
-                    {
-                        helper.ApplyGeometry(geo);
-                    }
-                }
-
-                if (includeGrid && profile.DataGridLayout is not null)
-                {
-                    ApplyGridLayoutToLiveGrids(vm);
-                }
-
-                ReclaimFocusAfterProfileApply();
-            });
-        }
-        finally
-        {
-            WindowGroupRaiser.IsSuspended = false;
-        }
-
-        vm.StatusText = $"Copied layout from profile \"{profile.Name}\"";
     }
 
     private async void OnRecentScenarioClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)

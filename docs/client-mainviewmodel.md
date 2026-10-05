@@ -336,27 +336,11 @@ by `MainWindow` once the dynamic Strips/TDLS `TabItem`s are materialized — bec
 `SelectedIndex` binding doesn't propagate VM→TabControl when the VM value was set before the dynamic tabs existed
 (`MainWindow.axaml.cs:267`-`284`).
 
-**The favorites bar is not a tab.** `ShowFavoritesBar` (pref-backed, default on) and the derived
-`IsFavoritesBarDocked => ShowFavoritesBar && !IsTerminalPoppedOut` drive the bar in `MainWindow.axaml`; the copy
-inside `TerminalWindow.axaml` binds `ShowFavoritesBar` alone, since the bar follows the Terminal when it pops out.
-The pop-out Favorites Panel is a `FavoritesPanelWindow` singleton per `MainViewModel` (`ShowOrActivate` /
-`IsOpen` / `Close`); its open state persists as `UserPreferences.IsFavoritesPanelOpen` (restored at startup beside
-the other pop-outs, not written during shutdown) and both flags ride window profiles as nullable fields — null
-means "captured before the feature; leave as is", the same convention as `LoadedFavoriteSetIds`.
+**The favorites bar is not a tab.** `ShowFavoritesBar` (pref-backed, default on) and the derived `IsFavoritesBarDocked => ShowFavoritesBar && !IsTerminalPoppedOut` drive the bar in `MainWindow.axaml`; the copy inside `TerminalWindow.axaml` binds `ShowFavoritesBar` alone, since the bar follows the Terminal when it pops out. The pop-out Favorites Panel is a `FavoritesPanelWindow` singleton per `MainViewModel` (`ShowOrActivate` / `IsOpen` / `Close`); its open state persists as `UserPreferences.IsFavoritesPanelOpen` (restored at startup beside the other pop-outs, not written during shutdown) and both flags ride layouts (`SavedLayout`) as nullable fields — null means "captured before the feature; leave as is", the same convention as `LoadedFavoriteSetIds` and `OpenTabs`.
 
 ### Extra view instances (`New Radar Window` / `New Ground Window`)
 
-The docked Radar/Ground views and their pop-outs are the implicit instance #1 and keep today's `IsRadarViewPoppedOut` /
-`IsGroundViewPoppedOut` semantics. **View → New Radar Window / New Ground Window** adds an instance ≥ #2 with its **own**
-`RadarViewModel` / `GroundViewModel` (center, range, zoom, rotation, filters, DCB state, `DataBlockState`, shown routes),
-based on an airport the user picks first (`ExtraViewAirportDialog`: the ARTCC's airports from `ArtccAirportResolver` with the
-scenario primary preselected, or any nav-db airport by text — a second view has no scenario-inferred target), hosted by a
-`RadarViewWindow` / `GroundViewWindow` whose *window* DataContext stays `MainViewModel` (the inner view binds
-`Aircraft` / `GroundShownAirportId` through `$parent[Window]`) while the inner `RadarView` / `GroundView` gets the
-instance VM via `SetViewModel`. Geometry key `RadarView#n` / `GroundView#n` rides the ordinary `WindowGeometries` store,
-so window profiles capture it through the live-helper walk; the ordinal lists (`ExtraRadarViewOrdinals`, on prefs and on
-`SavedWindowProfile`) say which instances exist, and `ReconcileExtraViews` opens/closes to match without resetting
-survivors. Closing the window removes the instance (not under shutdown, so it restores next launch).
+The docked Radar/Ground views and their pop-outs are the implicit instance #1 and keep today's `IsRadarViewPoppedOut` / `IsGroundViewPoppedOut` semantics. **View → New Radar Window / New Ground Window** adds an instance ≥ #2 with its **own** `RadarViewModel` / `GroundViewModel` (center, range, zoom, rotation, filters, DCB state, `DataBlockState`, shown routes), based on an airport the user picks first (`ExtraViewAirportDialog`: the ARTCC's airports from `ArtccAirportResolver` with the scenario primary preselected, or any nav-db airport by text — a second view has no scenario-inferred target), hosted by a `RadarViewWindow` / `GroundViewWindow` whose *window* DataContext stays `MainViewModel` (the inner view binds `Aircraft` / `GroundShownAirportId` through `$parent[Window]`) while the inner `RadarView` / `GroundView` gets the instance VM via `SetViewModel`. Geometry key `RadarView#n` / `GroundView#n` rides the ordinary `WindowGeometries` store, so layouts capture it through the live-helper walk; the ordinal lists (`ExtraRadarViewOrdinals`, on prefs and on `SavedLayout`) say which instances exist, and `ReconcileExtraViews` opens/closes to match without resetting survivors. Closing the window removes the instance (not under shutdown, so it restores next launch).
 
 Invariants:
 
@@ -373,14 +357,14 @@ Invariants:
   copies `Layout` / `BackgroundImage` / `TowerCabMap` / centre / elevation by reference and follows the primary's
   `PropertyChanged`; the loaders are no-ops while `IsMirroring`); a different airport loads its own layout and tower-cab
   image (`SeedGroundAirport`, re-evaluated on every bootstrap). Never `Dispose()` a mirrored image. The
-  `SavedExtraView(Ordinal, AirportId)` records on prefs and profiles carry the airport; `ReconcileExtraViews` matches on
+  `SavedExtraView(Ordinal, AirportId)` records on prefs and layouts carry the airport; `ReconcileExtraViews` matches on
   both and reopens an instance whose airport changed.
 - **Fan-out sites loop `AllRadarViews` / `AllGroundViews`**: nav-db push, selection, weather, MVA hints, primary airport
   id/position, position display config, scenario bootstrap (ground extras get only `SetScenarioId`), recording load,
   `ClearScenarioState`, the coalesced shown-route refresh (one Background post for all instances), manifest replacement,
   aircraft deletion. **Primary-only by design**: the `.ff` / `.markers` / `.nomarkers` scope markers, `.rbl`
   (the `Measure` store is shared, so the line still renders everywhere), every `Ground.DomainLayout` reader (speech
-  context, taxiway/spot/parking name providers), Copy View Settings.
+  context, taxiway/spot/parking name providers), the Apply Layout dialog's scenario-views source.
 - Per-tick cost: nothing per-aircraft touches an instance; N instances add N coalesced refreshes per update burst and N
   canvases on the 10 Hz timer. `RefreshShownTaxiRoutes` short-circuits when nothing is shown.
 
@@ -440,8 +424,7 @@ the single choke point that attaches `WindowGroupRaiser`. Invariants the helper 
   `HWND_NOTOPMOST` + `SWP_NOACTIVATE` on Win32 — raises without stealing focus), ordered by `Window.SortWindowsByZOrder`, which **throws when any
   window's `PlatformImpl` is null** — hence the try/catch with an MRU-order fallback. `WindowGeometryHelper.OnWindowPropertyChanged` ignores
   `TopmostProperty` while `WindowGroupRaiser.IsRaising`, otherwise the pulse flickers the pinned-title marker and triggers a spurious auto-save.
-- **`WindowGroupRaiser.IsSuspended` must wrap the *entire* body** of `ApplyWindowProfileByNameAsync` / `ApplyWindowProfilePartialAsync`: the
-  pop-out flips, `Show()`s and the final `ReclaimFocusAfterProfileApply` activation would each trigger a competing raise mid-apply.
+- **`WindowGroupRaiser.IsSuspended` must wrap the *entire* body** of `ApplyLayoutAsync` (whole-layout and partial applies both go through it): the pop-out flips, `Show()`s and the final `ReclaimFocusAfterLayoutApply` activation would each trigger a competing raise mid-apply.
 - **Avalonia raises `Activated` before `IsActive` becomes `true`** — never read the activating window's `IsActive` inside the handler.
   Group-inactive detection is a posted (Background-priority) check that no tracked window is active.
 - **Headless caveats.** `Topmost` does not move headless z-order (assert via the internal `GroupRaised` event, not visually), `Deactivated`

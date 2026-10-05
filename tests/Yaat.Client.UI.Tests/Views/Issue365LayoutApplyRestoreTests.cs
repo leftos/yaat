@@ -8,13 +8,13 @@ using Yaat.Client.Views;
 namespace Yaat.Client.UI.Tests.Views;
 
 /// <summary>
-/// Regression tests for GitHub issue #365: applying a window profile to an already-open,
+/// Regression tests for GitHub issue #365: applying a layout to an already-open,
 /// currently-minimized pop-out window resized it but left it minimized and buried —
 /// <see cref="WindowGeometryHelper.ApplyGeometry"/> set <c>WindowState</c> without ever
-/// activating the window. Profiles also could not record minimized state, and capturing a
+/// activating the window. Layouts also could not record minimized state, and capturing a
 /// minimized-from-maximized window lost its maximized flag.
 /// </summary>
-public class Issue365ProfileApplyRestoreTests
+public class Issue365LayoutApplyRestoreTests
 {
     private static (Window Window, WindowGeometryHelper Helper) NewShownWindow(string windowName)
     {
@@ -162,10 +162,10 @@ public class Issue365ProfileApplyRestoreTests
         }
     }
 
-    // Applying a profile to a window that is ALREADY maximized never updated the helper's notion
+    // Applying a layout to a window that is ALREADY maximized never updated the helper's notion
     // of the window's normal geometry: the position/size writes land while WindowState is
-    // Maximized, so both change handlers skip them, and the profile's geometry is then discarded
-    // in favour of whatever was stored before. Reported on issue #408 — a profile placing a
+    // Maximized, so both change handlers skip them, and the layout's geometry is then discarded
+    // in favour of whatever was stored before. Reported on issue #408 — a layout placing a
     // maximized vStrips window at its work-area origin kept persisting the older frame instead.
     [AvaloniaFact]
     public void ApplyGeometry_OnMaximizedWindow_PersistsTheAppliedGeometry()

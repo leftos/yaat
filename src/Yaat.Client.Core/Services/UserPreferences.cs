@@ -75,6 +75,7 @@ public sealed class UserPreferences
     public UserPreferences()
     {
         _data = Load();
+        MigrateLegacyWindowProfiles(_data);
         _commandScheme = _data.CommandScheme is not null ? FromSaved(_data.CommandScheme) ?? CommandScheme.Default() : CommandScheme.Default();
         _macros = [.. _data.Macros.Select(m => new MacroDefinition { Name = m.Name, Expansion = m.Expansion })];
         HiddenTerminalKinds =
@@ -105,6 +106,37 @@ public sealed class UserPreferences
     /// kept. A file written before the field existed (≤ 0.13.1) reads as 0.
     /// </summary>
     private const int CurrentPreferencesVersion = 1;
+
+    /// <summary>
+    /// Renames saved window profiles to layouts: every entry under the old <c>windowProfiles</c> key moves into
+    /// <see cref="SavedPrefs.Layouts"/> unchanged (name, timestamps and every field), and the old key is nulled so the
+    /// next save drops it. A legacy entry whose name a layout already uses is dropped: the layout is the newer save.
+    /// The merged list is sorted by name, as <see cref="SaveLayout"/> keeps it.
+    /// </summary>
+    private static void MigrateLegacyWindowProfiles(SavedPrefs data)
+    {
+        if (data.LegacyWindowProfiles is not { } legacy)
+        {
+            return;
+        }
+
+        int moved = 0;
+        foreach (SavedLayout profile in legacy)
+        {
+            if (data.Layouts.Any(l => string.Equals(l.Name, profile.Name, StringComparison.OrdinalIgnoreCase)))
+            {
+                Log.LogWarning("Dropped saved window profile '{Name}': a layout with that name already exists", profile.Name);
+                continue;
+            }
+
+            data.Layouts.Add(profile);
+            moved++;
+        }
+
+        data.Layouts.Sort((a, b) => string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase));
+        data.LegacyWindowProfiles = null;
+        Log.LogInformation("Renamed {Count} saved window profile(s) to layouts", moved);
+    }
 
     /// <summary>
     /// Runs the one-time migrations a file below <see cref="CurrentPreferencesVersion"/> needs, then saves it at that
@@ -384,60 +416,60 @@ public sealed class UserPreferences
     }
 
     /// <summary>
-    /// User-managed window-layout profiles. Restored on demand via the
-    /// View → Window Profiles menu; the list is not auto-applied at startup.
+    /// User-managed saved window layouts. Restored on demand via the
+    /// View → Layout menu; the list is not auto-applied at startup.
     /// Ordered as the user last sorted them (by-name for now; insertion order otherwise).
     /// </summary>
-    public IReadOnlyList<SavedWindowProfile> WindowProfiles => _data.WindowProfiles;
+    public IReadOnlyList<SavedLayout> Layouts => _data.Layouts;
 
     /// <summary>
-    /// Adds a new profile, or replaces an existing one with the same name (case-insensitive).
+    /// Adds a new layout, or replaces an existing one with the same name (case-insensitive).
     /// Sorts by name afterwards so the menu order is stable.
     /// </summary>
-    public void SaveWindowProfile(SavedWindowProfile profile)
+    public void SaveLayout(SavedLayout layout)
     {
-        string name = profile.Name.Trim();
+        string name = layout.Name.Trim();
         if (string.IsNullOrEmpty(name))
         {
             return;
         }
 
-        profile.Name = name;
-        int existingIndex = _data.WindowProfiles.FindIndex(p => string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase));
+        layout.Name = name;
+        int existingIndex = _data.Layouts.FindIndex(p => string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase));
         if (existingIndex >= 0)
         {
             // Preserve CreatedUtc across overwrites; only bump ModifiedUtc.
-            profile.CreatedUtc = _data.WindowProfiles[existingIndex].CreatedUtc;
-            profile.ModifiedUtc = DateTime.UtcNow;
-            _data.WindowProfiles[existingIndex] = profile;
+            layout.CreatedUtc = _data.Layouts[existingIndex].CreatedUtc;
+            layout.ModifiedUtc = DateTime.UtcNow;
+            _data.Layouts[existingIndex] = layout;
         }
         else
         {
-            if (profile.CreatedUtc == default)
+            if (layout.CreatedUtc == default)
             {
-                profile.CreatedUtc = DateTime.UtcNow;
+                layout.CreatedUtc = DateTime.UtcNow;
             }
-            profile.ModifiedUtc = DateTime.UtcNow;
-            _data.WindowProfiles.Add(profile);
+            layout.ModifiedUtc = DateTime.UtcNow;
+            _data.Layouts.Add(layout);
         }
 
-        _data.WindowProfiles.Sort((a, b) => string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase));
+        _data.Layouts.Sort((a, b) => string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase));
         Save();
-        RaiseWindowProfilesChanged();
+        RaiseLayoutsChanged();
     }
 
-    public void DeleteWindowProfile(string name)
+    public void DeleteLayout(string name)
     {
-        int removed = _data.WindowProfiles.RemoveAll(p => string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase));
+        int removed = _data.Layouts.RemoveAll(p => string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase));
         if (removed > 0)
         {
             Save();
-            RaiseWindowProfilesChanged();
+            RaiseLayoutsChanged();
         }
     }
 
-    /// <summary>Returns true on rename, false when oldName not found or newName collides with another profile.</summary>
-    public bool RenameWindowProfile(string oldName, string newName)
+    /// <summary>Returns true on rename, false when oldName not found or newName collides with another layout.</summary>
+    public bool RenameLayout(string oldName, string newName)
     {
         string trimmed = newName.Trim();
         if (string.IsNullOrEmpty(trimmed))
@@ -445,7 +477,7 @@ public sealed class UserPreferences
             return false;
         }
 
-        SavedWindowProfile? existing = _data.WindowProfiles.FirstOrDefault(p => string.Equals(p.Name, oldName, StringComparison.OrdinalIgnoreCase));
+        SavedLayout? existing = _data.Layouts.FirstOrDefault(p => string.Equals(p.Name, oldName, StringComparison.OrdinalIgnoreCase));
         if (existing is null)
         {
             return false;
@@ -453,8 +485,8 @@ public sealed class UserPreferences
 
         if (!string.Equals(oldName, trimmed, StringComparison.OrdinalIgnoreCase))
         {
-            // Collision: a different profile already uses the target name.
-            bool collision = _data.WindowProfiles.Any(p => p != existing && string.Equals(p.Name, trimmed, StringComparison.OrdinalIgnoreCase));
+            // Collision: a different layout already uses the target name.
+            bool collision = _data.Layouts.Any(p => p != existing && string.Equals(p.Name, trimmed, StringComparison.OrdinalIgnoreCase));
             if (collision)
             {
                 return false;
@@ -463,20 +495,19 @@ public sealed class UserPreferences
 
         existing.Name = trimmed;
         existing.ModifiedUtc = DateTime.UtcNow;
-        _data.WindowProfiles.Sort((a, b) => string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase));
+        _data.Layouts.Sort((a, b) => string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase));
         Save();
-        RaiseWindowProfilesChanged();
+        RaiseLayoutsChanged();
         return true;
     }
 
-    public SavedWindowProfile? GetWindowProfile(string name) =>
-        _data.WindowProfiles.FirstOrDefault(p => string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase));
+    public SavedLayout? GetLayout(string name) => _data.Layouts.FirstOrDefault(p => string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase));
 
-    /// <summary>Raised after the WindowProfiles collection changes (add/delete/rename) so the View menu can re-populate.</summary>
-    public event Action? WindowProfilesChanged;
+    /// <summary>Raised after the Layouts collection changes (add/delete/rename) so the View menu can re-populate.</summary>
+    public event Action? LayoutsChanged;
 
     /// <summary>Called by the public mutators above after Save(). Lets MainWindow refresh its menu.</summary>
-    private void RaiseWindowProfilesChanged() => WindowProfilesChanged?.Invoke();
+    private void RaiseLayoutsChanged() => LayoutsChanged?.Invoke();
 
     /// <summary>Ids of the currently loaded named favorite sets, in load order (display order in the bar/panel).</summary>
     public IReadOnlyList<string> LoadedFavoriteSetIds => _data.LoadedFavoriteSetIds;
@@ -1460,19 +1491,19 @@ public sealed class UserPreferences
         Save();
     }
 
-    /// <summary>Rewrites every window profile's legacy loaded-set-names list into set ids (unknown names dropped).</summary>
-    internal void MigrateProfileLoadedSetNames(Func<string, string?> nameToId)
+    /// <summary>Rewrites every layout's legacy loaded-set-names list into set ids (unknown names dropped).</summary>
+    internal void MigrateLayoutLoadedSetNames(Func<string, string?> nameToId)
     {
         bool migrated = false;
-        foreach (SavedWindowProfile profile in _data.WindowProfiles)
+        foreach (SavedLayout layout in _data.Layouts)
         {
-            if (profile.LoadedFavoriteSetNames is not { } names)
+            if (layout.LoadedFavoriteSetNames is not { } names)
             {
                 continue;
             }
 
-            profile.LoadedFavoriteSetIds = [.. names.Select(nameToId).Where(id => id is not null).Cast<string>()];
-            profile.LoadedFavoriteSetNames = null;
+            layout.LoadedFavoriteSetIds = [.. names.Select(nameToId).Where(id => id is not null).Cast<string>()];
+            layout.LoadedFavoriteSetNames = null;
             migrated = true;
         }
 
@@ -1890,7 +1921,8 @@ public sealed class UserPreferences
             FavoriteVideoMapsByScenario = GetFieldOr<Dictionary<string, List<string>>>(obj, "favoriteVideoMapsByScenario", []),
             FavoriteMetarStationsByScenario = GetFieldOr<Dictionary<string, List<string>>>(obj, "favoriteMetarStationsByScenario", []),
             WindowGeometries = GetFieldOr<Dictionary<string, SavedWindowGeometry>>(obj, "windowGeometries", []),
-            WindowProfiles = GetFieldOr<List<SavedWindowProfile>>(obj, "windowProfiles", []),
+            Layouts = GetFieldOr<List<SavedLayout>>(obj, "layouts", []),
+            LegacyWindowProfiles = GetFieldOr<List<SavedLayout>?>(obj, "windowProfiles", null),
             ShowOnlyActiveAircraft = GetFieldOr(obj, "showOnlyActiveAircraft", false),
             LiveTrafficListFilter = GetFieldOr(obj, "liveTrafficListFilter", nameof(Models.LiveTrafficListFilter.All)),
             TerminalTimestampMode = GetFieldOr(obj, "terminalTimestampMode", nameof(Models.TerminalTimestampMode.WallClock)),
@@ -2188,7 +2220,13 @@ public sealed class UserPreferences
         public Dictionary<string, List<string>> FavoriteMetarStationsByScenario { get; set; } = [];
         public Dictionary<string, double> GroundRotationByAirport { get; set; } = [];
         public Dictionary<string, SavedWindowGeometry> WindowGeometries { get; set; } = [];
-        public List<SavedWindowProfile> WindowProfiles { get; set; } = [];
+        public List<SavedLayout> Layouts { get; set; } = [];
+
+        // Layouts were saved as window profiles under this key; kept deserializable only so the load-time rename
+        // (MigrateLegacyWindowProfiles) can move them into Layouts, nulled (and thus dropped from the file) afterwards.
+        [JsonPropertyName("windowProfiles")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public List<SavedLayout>? LegacyWindowProfiles { get; set; }
         public bool ShowOnlyActiveAircraft { get; set; }
         public bool ShowTimelineBar { get; set; }
         public bool DataGridAlternatingRowColor { get; set; } = true;
@@ -2456,10 +2494,10 @@ public sealed record SavedExtraView(int Ordinal, string AirportId);
 /// <summary>
 /// A named snapshot of the entire window arrangement (positions, sizes,
 /// pop-out / dock state, and DataGrid columns). Restored on demand from the
-/// View → Window Profiles menu so the user can switch quickly between layouts
+/// View → Layout menu so the user can switch quickly between layouts
 /// tuned for different roles (e.g. GC vs LC).
 /// </summary>
-public sealed class SavedWindowProfile
+public sealed class SavedLayout
 {
     public string Name { get; set; } = "";
     public DateTime CreatedUtc { get; set; }
@@ -2469,7 +2507,7 @@ public sealed class SavedWindowProfile
     /// Per-window outer geometry keyed by the same name <see cref="WindowGeometryHelper"/>
     /// uses (e.g. "Main", "GroundView", "VStripsView:KSFO_TWR"). Keys whose windows are
     /// not open at apply time get written into the per-window preferences so the next
-    /// time that window opens it picks up the profile's geometry.
+    /// time that window opens it picks up the layout's geometry.
     /// </summary>
     public Dictionary<string, SavedWindowGeometry> WindowGeometries { get; set; } = [];
 
@@ -2484,8 +2522,8 @@ public sealed class SavedWindowProfile
     /// <summary>
     /// The extra Radar View windows open at capture time (ordinals ≥ 2; the docked view is #1), each with
     /// the airport it was opened on; their geometries ride in <see cref="WindowGeometries"/> under the
-    /// matching "RadarView#n" keys. A profile captured before extra windows existed deserializes as empty,
-    /// and applying it closes any extras — a profile is the whole arrangement, not a partial overlay.
+    /// matching "RadarView#n" keys. A layout captured before extra windows existed deserializes as empty,
+    /// and applying it closes any extras — a layout is the whole arrangement, not a partial overlay.
     /// </summary>
     public List<SavedExtraView> ExtraRadarViews { get; set; } = [];
 
@@ -2497,29 +2535,46 @@ public sealed class SavedWindowProfile
     public SavedGridLayout? DataGridLayout { get; set; }
 
     /// <summary>
-    /// Ids of the named favorite sets loaded at capture time, in load order. Applying the profile
-    /// loads exactly these sets (ids without a matching set are skipped). Null on profiles captured
-    /// before favorite sets existed — applying such a profile leaves the loaded sets untouched.
+    /// Ids of the named favorite sets loaded at capture time, in load order. Applying the layout
+    /// loads exactly these sets (ids without a matching set are skipped). Null on layouts captured
+    /// before favorite sets existed — applying such a layout leaves the loaded sets untouched.
     /// </summary>
     public List<string>? LoadedFavoriteSetIds { get; set; }
 
     /// <summary>
-    /// Whether the favorites bar was shown at capture time. Null on profiles captured before the
-    /// bar became independently toggleable — applying such a profile leaves the current state
+    /// Whether the favorites bar was shown at capture time. Null on layouts captured before the
+    /// bar became independently toggleable — applying such a layout leaves the current state
     /// untouched (same convention as <see cref="LoadedFavoriteSetIds"/>).
     /// </summary>
     public bool? ShowFavoritesBar { get; set; }
 
     /// <summary>
-    /// Whether the pop-out Favorites Panel window was open at capture time. Null on profiles
-    /// captured before the panel's open state was captured — applying such a profile leaves the
+    /// Whether the pop-out Favorites Panel window was open at capture time. Null on layouts
+    /// captured before the panel's open state was captured — applying such a layout leaves the
     /// panel as it is (same convention as <see cref="LoadedFavoriteSetIds"/>).
     /// </summary>
     public bool? IsFavoritesPanelOpen { get; set; }
 
+    /// <summary>
+    /// The Strips and vTDLS tabs open at capture time beside the student's own. Null on layouts captured before
+    /// open tabs were saved — applying such a layout leaves the open tabs as they are (same convention as
+    /// <see cref="LoadedFavoriteSetIds"/>).
+    /// </summary>
+    public SavedOpenTabs? OpenTabs { get; set; }
+
     /// <summary>Pre-identity-model loaded-set names; converted to ids and nulled by the one-time migration.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public List<string>? LoadedFavoriteSetNames { get; set; }
+}
+
+/// <summary>
+/// The extra Strips and vTDLS tabs a layout opens, as facility ids in tab order. The student's own tab is always open
+/// and never listed; a facility listed twice under <see cref="Strips"/> is two views of it.
+/// </summary>
+public sealed class SavedOpenTabs
+{
+    public List<string> Strips { get; set; } = [];
+    public List<string> Tdls { get; set; } = [];
 }
 
 /// <summary>A live-session pick: the position to stand at, its display label, the airport to show, the ceiling and the traffic filter.</summary>

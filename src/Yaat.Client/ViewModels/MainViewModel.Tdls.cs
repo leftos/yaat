@@ -34,7 +34,7 @@ public partial class MainViewModel
         }
 
         // Existing entry? Just dock it back if it was popped out.
-        VTdlsDockEntryViewModel? existing = TdlsEntries.FirstOrDefault(e => e.Vm.FacilityId == facilityId);
+        VTdlsDockEntryViewModel? existing = FindTdlsEntry(facilityId);
         if (existing is not null)
         {
             existing.IsPoppedOut = false;
@@ -52,6 +52,12 @@ public partial class MainViewModel
         await vm.SwitchFacilityAsync(facilityId);
         await vm.RefreshAccessibleFacilitiesAsync();
     }
+
+    /// <summary>
+    /// The vTDLS tab showing <paramref name="facilityId"/>, the student's included, or null. vTDLS keeps one tab per
+    /// facility; this is the one match rule (ordinal) for that, shared by the open command and layout apply.
+    /// </summary>
+    public VTdlsDockEntryViewModel? FindTdlsEntry(string facilityId) => TdlsEntries.FirstOrDefault(e => e.Vm.FacilityId == facilityId);
 
     /// <summary>Applies a page-zoom percent to every open vTDLS tab. Used by the
     /// Settings live preview / apply / revert paths.</summary>

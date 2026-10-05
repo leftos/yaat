@@ -3,6 +3,7 @@ using Avalonia.Headless.XUnit;
 using Avalonia.LogicalTree;
 using Avalonia.Threading;
 using Xunit;
+using Yaat.Client.Services;
 using Yaat.Client.UI.Tests.Fakes;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views;
@@ -62,6 +63,51 @@ public class ViewMenuPopOutTests
 
         Assert.True(radarItem.IsEnabled);
         Assert.True(groundItem.IsEnabled);
+    }
+
+    [AvaloniaFact]
+    public void ViewMenu_LayoutSubmenu_ListsSavedLayoutsThenTheFixedItems()
+    {
+        (MainWindow? window, MainViewModel? vm) = BootMainWindow();
+        try
+        {
+            vm.Preferences.SaveLayout(new SavedLayout { Name = "VMT-Layout-B" });
+            vm.Preferences.SaveLayout(new SavedLayout { Name = "VMT-Layout-A" });
+            Dispatcher.UIThread.RunJobs();
+
+            MenuItem layout = ViewMenuItem(window, "_Layout");
+            List<object?> items = [.. layout.Items];
+            int separator = items.FindIndex(i => i is Separator);
+
+            // One item per saved layout (they re-populate when the list changes), in the saved order...
+            Assert.Equal(vm.Preferences.Layouts.Select(l => l.Name), items.Take(separator).Select(i => ((MenuItem)i!).Header as string));
+            Assert.Contains(items.Take(separator), i => i is MenuItem { Header: "VMT-Layout-A" });
+            Assert.Contains(items.Take(separator), i => i is MenuItem { Header: "VMT-Layout-B" });
+            // ...then the fixed items below the separator.
+            Assert.Equal(
+                ["Save current as layout…", "From this scenario's views…", "Manage layouts…", "Reset aircraft list columns"],
+                items.Skip(separator + 1).Select(i => ((MenuItem)i!).Header as string)
+            );
+        }
+        finally
+        {
+            vm.Preferences.DeleteLayout("VMT-Layout-A");
+            vm.Preferences.DeleteLayout("VMT-Layout-B");
+        }
+    }
+
+    [AvaloniaFact]
+    public void ViewMenu_LayoutSubmenu_ReplacesTheOldEntries()
+    {
+        (MainWindow? window, MainViewModel _) = BootMainWindow();
+
+        MenuItem view = window.GetLogicalDescendants().OfType<MenuItem>().Single(m => m.Header is "_View");
+        var headers = view.Items.OfType<MenuItem>().Select(m => m.Header as string).ToList();
+
+        // The Layout submenu replaced both entries, and its reset item replaced the top-level one.
+        Assert.DoesNotContain("Window _Profiles", headers);
+        Assert.DoesNotContain("Copy View _Settings...", headers);
+        Assert.DoesNotContain("_Reset Aircraft List Layout", headers);
     }
 
     [AvaloniaFact]

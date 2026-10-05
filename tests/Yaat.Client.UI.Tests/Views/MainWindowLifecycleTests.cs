@@ -327,11 +327,11 @@ public class MainWindowLifecycleTests
             vm.OpenExtraGroundView("KOAK");
             Dispatcher.UIThread.RunJobs();
 
-            SavedWindowProfile profile = new WindowProfileService(vm.Preferences).CaptureCurrent("extra-views", vm);
+            SavedLayout layout = new LayoutService(vm.Preferences).CaptureCurrent("extra-views", vm);
 
-            // Ordinal and base airport, so applying the profile reopens each window where it was.
-            Assert.Equal([new SavedExtraView(2, "KOAK")], profile.ExtraRadarViews);
-            Assert.Equal([new SavedExtraView(2, "KOAK"), new SavedExtraView(3, "KOAK")], profile.ExtraGroundViews);
+            // Ordinal and base airport, so applying the layout reopens each window where it was.
+            Assert.Equal([new SavedExtraView(2, "KOAK")], layout.ExtraRadarViews);
+            Assert.Equal([new SavedExtraView(2, "KOAK"), new SavedExtraView(3, "KOAK")], layout.ExtraGroundViews);
         }
         finally
         {
