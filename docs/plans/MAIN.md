@@ -70,13 +70,15 @@
 - [/] YAAT-310 Merge feat/client-surfaces-redesign (#782)
 - [x] YAAT-291 Client surfaces redesign: Settings window shell (sidebar sections, OK/Apply/Cancel) · release vNext
 - [x] YAAT-292 Client surfaces redesign: Settings search with aliases and cross-section links · release vNext
-- [/] YAAT-293 Client surfaces redesign: open Settings at a section (view menus, Ctrl+comma, status-bar links)
+- [x] YAAT-293 Client surfaces redesign: open Settings at a section (view menus, Ctrl+comma, status-bar links) · release vNext
 - [x] YAAT-294 Client surfaces redesign: reconcile Scenario defaults with the session flyout · release vNext
 - [x] YAAT-295 Client surfaces redesign: regroup the View menu and add pop-out hotkeys · release vNext
 - [x] YAAT-296 Client surfaces redesign: merge Window Profiles and Copy View Settings into Layouts · release vNext
 - [/] YAAT-297 Client surfaces redesign: one Import / Export hub with a .yaat-settings.zip bundle
 - [ ] YAAT-340 Quick commands as an Import / Export hub item type
 - [ ] YAAT-344 Bundle import: reject a favorite set with no name instead of throwing in the planner
+- [ ] YAAT-351 Replace the private BootMainWindow copies in two UI test classes with MainWindowHost
+- [ ] YAAT-352 Stop UI tests leaking preferences between tests (hidden windows flush stale prefs; two order-dependent flakes)
 
 ## Tick-path unification
 
@@ -113,12 +115,12 @@
 
 ## STT tuning
 
+- [x] YAAT-225 Make the controller-voice ouroboros reproducible across runs of one seed · release vNext
 - [/] YAAT-343 Rethink the speech pipeline greenfield with state-of-the-art STT
 - [/] YAAT-28 Close the STT rule gaps from the controller-voice ouroboros
 - [ ] YAAT-29 Spike: bake off local STT models on our corpus in Yaat.SpeechSandbox
 - [ ] YAAT-218 Map spoken 'follow <callsign>' on the ground to FOLLOWG by aircraft state
 - [ ] YAAT-219 Map 'follow <description>' to FOLLOW and 'follow X, cleared visual' to CVA FOLLOW
-- [ ] YAAT-225 Make the controller-voice ouroboros reproducible across runs of one seed
 - [ ] YAAT-226 RTIS type slot takes a stray word; LLM prompt renders optional rule words
 - [ ] YAAT-345 STT: "climb via … except maintain 220 knots" maps the speed as a CVIA top altitude
 
@@ -158,6 +160,7 @@
 - [ ] YAAT-328 HOLD issued mid runway crossing stops the aircraft dead on the runway
 - [ ] YAAT-334 TAXI during landing rollout throws a navigator teleport on the next tick
 - [ ] YAAT-348 CWT F length fallback overstates turboprops (AN26, DH8D, C130): pick by category
+- [ ] YAAT-353 Stop a landed aircraft re-accelerating on the exit route before the hold-bar stop (C172 OAK 28R H: +1 kt)
 
 ## Wave 2 — Ground command grammar and dispatch
 
@@ -294,9 +297,11 @@
 - [ ] YAAT-290 Run the tools/tests Python suite in CI
 - [ ] YAAT-323 Fix two stale yaat-server test comments (weather fixture, TickTimings cref)
 - [ ] YAAT-338 Fix stale MainViewModel line anchors and misplaced Client.Core files in the docs
+- [ ] YAAT-350 Correct three stale speech-pipeline comments and doc lines (LocalLlmService CUDA, ScenarioCallsignExtractor prompt, LM-Kit csproj note)
 
 ## Singles
 
+- [ ] YAAT-349 NavigationDatabase spatial grid: longitude search radius under-covers (misses in-range airports WNW/W, incl. KMIB/KMOT in CONUS)
 - [x] YAAT-145 Align approach-side follow spacing with wake-aware PatternSpacingNm · release vNext
 - [ ] YAAT-4 Airport sidecar ideas
 - [ ] YAAT-132 Table-drive AircraftChangeTracker.DetectChanges comparisons (yaat-server)
