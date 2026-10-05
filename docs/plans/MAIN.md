@@ -4,6 +4,7 @@
 
 ## Do first
 
+- [/] YAAT-373 Load Scenario: pick a single scenario file, not only a folder to index — High · Bug reports and feature requests
 - [/] YAAT-274 Redesign overwhelming client surfaces: Settings, import/export, View menu pop-outs — High · Client surfaces redesign
 - [/] YAAT-354 Add screenshots to Getting Started and the User Guide — High · Wave 9 — Docs and repo hygiene
 - [x] YAAT-228 release.yml drops the changelog output as 'may contain secret', leaving the draft's Changelog empty · release vNext — High · Singles
@@ -134,6 +135,7 @@
 - [ ] YAAT-219 Map 'follow <description>' to FOLLOW and 'follow X, cleared visual' to CVA FOLLOW
 - [ ] YAAT-226 RTIS type slot takes a stray word; LLM prompt renders optional rule words
 - [ ] YAAT-345 STT: "climb via … except maintain 220 knots" maps the speed as a CVIA top altitude
+- [ ] YAAT-377 AtcOuroborosTests fail in some full-suite orders (canonical mismatch on 'proceed direct altam')
 
 ## Wave 1 — Ground realism and braking
 
@@ -176,6 +178,8 @@
 - [ ] YAAT-365 Check RunwayExitPhase's exit-preference reference compares survive a restore
 - [ ] YAAT-367 EXP mid-exit raises the exit speed ceiling only after a restore (live and replay diverge)
 - [ ] YAAT-368 RunwayExitPhase: a re-issued EXIT snapshotted before the next tick restores as already committed (live and replay diverge)
+- [ ] YAAT-376 Uninstructed missed-exit exclusion keys on Path[0], not the walked centerline node
+- [ ] YAAT-378 LAHSO: query an EXIT instructed beyond the hold-short point at the readback
 
 ## Wave 2 — Ground command grammar and dispatch
 
@@ -316,6 +320,8 @@
 - [ ] YAAT-338 Fix stale MainViewModel line anchors and misplaced Client.Core files in the docs
 - [ ] YAAT-350 Correct three stale speech-pipeline comments and doc lines (LocalLlmService CUDA, ScenarioCallsignExtractor prompt, LM-Kit csproj note)
 - [ ] YAAT-371 Datablock flash phase follows process uptime (Environment.TickCount64): add a shared flash clock GuideCapture can pin
+- [ ] YAAT-374 Timeline rail draws every bookmark and finding tick at its left edge
+- [ ] YAAT-375 Timeline slider thumb jumps to 0 after a rewind instead of the playhead
 
 ## Singles
 
@@ -426,3 +432,4 @@
 - [ ] YAAT-369 Scenario load: status bar can end on 'Load by AB ended' instead of the load result (RoomLoadingChanged arrival-order race)
 - [ ] YAAT-370 LayoutInspector --exits prints double.MaxValue avg parking distance for a runway side with no exits
 - [ ] YAAT-372 ERAM conformance test flakes when the harness aircraft's random CID is 128
+- [ ] YAAT-379 Client-driver smoke test misses the record and app-tool tools
