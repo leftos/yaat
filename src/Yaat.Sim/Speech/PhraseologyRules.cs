@@ -127,6 +127,18 @@ public static class PhraseologyRules
             // normalizer that doesn't exist yet — out of scope for this rule set.
             new(["climb", "via", "sid"], "CVIA", ClimbVia),
             new(["climb", "via", "sid", "except", "maintain", "{alt}"], "CVIA {alt}", ClimbVia),
+            // Whisper dropped the SID word entirely ("climb via except maintain five thousand").
+            new(["climb", "via", "except", "maintain", "{alt}"], "CVIA {alt}", ClimbVia, SttOnly: true),
+            // Whisper garbles the SID word after "climb via" ("sid" heard as "sidd" / "si" /
+            // "sit", or any other stray word). The one-word capture is dropped from the output —
+            // bare CVIA uses the aircraft's already-filed SID. SttOnly so the pilot AI keeps
+            // reading back the literal "climb via sid" form. The literal "sid" rules win the
+            // equal-length tie on literal count; the "{sid} departure" rules consume more tokens
+            // and win on length when their SID validates. The {viaword} guard in PhraseologyMapper
+            // rejects a clearance keyword or numeric capture, and any capture followed by
+            // "departure", so the SID-name form keeps its procedure validation.
+            new(["climb", "via", "the?", "{viaword}"], "CVIA", ClimbVia, SttOnly: true),
+            new(["climb", "via", "the?", "{viaword}", "except", "maintain", "{alt}"], "CVIA {alt}", ClimbVia, SttOnly: true),
             // Climb via with explicit SID name (FAA 7110.65 §4-5: "CLIMB VIA (SID name and number)").
             // The SID name is dropped — bare CVIA uses the aircraft's already-filed SID, and we
             // don't model on-the-fly SID amendment as a canonical. SttOnly so the pilot AI keeps
@@ -177,6 +189,10 @@ public static class PhraseologyRules
             // (altitude) AT (specified speed) KNOTS"). The trailing "{speed} knots" literal
             // anchors the second "at" so it can't be confused with the first.
             new(["cross", "{fix}", "at", "and?", "maintain?", "{alt}", "at", "{speed}", "knots"], "CFIX {fix} AT {alt} {speed}", CrossFix),
+            // Whisper drops the second "at" ("... one four thousand two four zero knots"). The
+            // {speed} literal "knots" anchors the tail, so no second "at" is needed. SttOnly so
+            // the pilot AI keeps reading back the codified "... maintain {alt} at {speed}" form.
+            new(["cross", "{fix}", "at", "and?", "maintain?", "{alt}", "{speed}", "knots"], "CFIX {fix} AT {alt} {speed}", CrossFix, SttOnly: true),
             // FAA 7110.65 §5-6-6: "DEPART (fix) HEADING (degrees)" — departure-fix heading
             // assignment used for radar departures off published fixes.
             new(["depart", "{fix}", "heading", "{hdg}"], "DEPART {fix} {hdg}", DepartFix),
@@ -849,6 +865,10 @@ public static class PhraseologyRules
             new(["push", "back", "approved"], "PUSH", Pushback),
             new(["pushback", "onto", "{taxiway}", "approved"], "PUSH {taxiway}", Pushback),
             new(["push", "back", "onto", "{taxiway}", "approved"], "PUSH {taxiway}", Pushback),
+            // Whisper writes "onto" as two words. SttOnly twin of the plain onto-rule; the facing /
+            // face / tail variants keep their single-word "onto" spelling.
+            new(["pushback", "on", "to", "{taxiway}", "approved"], "PUSH {taxiway}", Pushback, SttOnly: true),
+            new(["push", "back", "on", "to", "{taxiway}", "approved"], "PUSH {taxiway}", Pushback, SttOnly: true),
             new(["pushback", "onto", "{taxiway}", "facing", "taxiway", "{facing}", "approved?"], "PUSH {taxiway} {facing}", Pushback),
             new(["push", "back", "onto", "{taxiway}", "facing", "taxiway", "{facing}", "approved?"], "PUSH {taxiway} {facing}", Pushback),
             // FACE synonyms: "facing" / "face" both map to PUSH FACE {cardinal}.

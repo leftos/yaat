@@ -17,6 +17,8 @@
 
 ### Fixed
 
+- Spoken "climb via SID except maintain" stays a climb-via when the SID word is misheard, instead of becoming a plain climb.
+- Speech understands "pushback on to", and a crossing altitude followed by a digit-by-digit speed ("one four thousand two four zero knots").
 - A pilot told to follow or give way to taxiing traffic reads it back: "follow the traffic", "behind the traffic".
 - A taxiing aircraft slowing for converging traffic brakes smoothly instead of losing 10 kt in an instant.
 - An aircraft following traffic on the ground brakes to a stop at a runway hold-short line instead of stopping dead.

@@ -368,6 +368,12 @@ A direct connection that also negotiated first (TowerCab 3D): it keeps its negot
 
 ## Tooling
 
+**Ouroboros** (controller-voice ouroboros):
+The speech sandbox's self-test (`--atc-ouroboros`): it synthesises controller transmissions from templates with a TTS voice, runs them through speech recognition and the phraseology mapper, and scores each case against the template's expected command (`tools/Yaat.SpeechSandbox/Corpus/atc-ouroboros-baseline.json`).
+
+**SttOnly rule**:
+A phraseology rule the speech mapper matches but `PhraseologyVerbalizer` never speaks: it covers how speech recognition writes a phrase (a misheard or split word), not how a pilot says it.
+
 **Gate**:
 `tools/gate.ps1` (a copy of the canonical `~/.claude/tools/gate/gate.ps1`, called as `pwsh tools/gate.ps1 -Log <log> -TimeoutSeconds <seconds> -Slot heavy|light -- <command...>` from PowerShell or Bash): runs one build or test command with its whole output in a log under `.tmp/`, the tail on screen and the command's own exit status, and kills it (exit 124) when it stalls, passes its ceiling on the load-adjusted clock, or reaches the backstop.
 

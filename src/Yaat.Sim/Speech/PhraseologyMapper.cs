@@ -116,6 +116,26 @@ public static class PhraseologyMapper
     };
 
     /// <summary>
+    /// Words that can never be the garbled SID word after "climb via": the clearance's own
+    /// keywords, the words that continue the same clearance, and the flight-level words. A
+    /// <c>{viaword}</c> capture landing on one of these is a mis-parse — the rule fails and the
+    /// LLM fallback gets the transcript. Numeric captures are rejected separately by
+    /// <see cref="IsDigitString"/>.
+    /// </summary>
+    private static readonly HashSet<string> ClimbViaWordStopWords = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "the",
+        "except",
+        "maintain",
+        "departure",
+        "and",
+        "to",
+        "flight",
+        "level",
+        "fl",
+    };
+
+    /// <summary>
     /// Map a transcript to a canonical YAAT command. Returns null when no rule matched any part
     /// of the transcript. Equivalent to <see cref="MapWithTrace"/> with the trace discarded —
     /// callers that need to display or persist per-stage diagnostics should call
@@ -595,6 +615,29 @@ public static class PhraseologyMapper
                         return false;
                     }
                     captures[name] = upper;
+                }
+            }
+
+            // Post-pass: the "climb via {viaword}" catch-all takes one arbitrary word to recover a
+            // garbled SID name. Reject it when that word is a clearance keyword or a numeric /
+            // flight-level token ("climb via except maintain ..." and "climb via one zero thousand"
+            // are not cab climb-via instructions), and when "departure" follows within two tokens —
+            // the SID-name form ("climb via the OSHEN one departure") keeps its procedure validation
+            // and falls through to the LLM when the spoken name is not a known SID.
+            if (captures.TryGetValue("viaword", out string? viaWord))
+            {
+                int next = start + consumed;
+                bool followedByDeparture =
+                    ((next < tokens.Count) && string.Equals(tokens[next], "departure", StringComparison.OrdinalIgnoreCase))
+                    || (((next + 1) < tokens.Count) && string.Equals(tokens[next + 1], "departure", StringComparison.OrdinalIgnoreCase));
+                if (ClimbViaWordStopWords.Contains(viaWord) || IsDigitString(viaWord) || followedByDeparture)
+                {
+                    Log.LogDebug(
+                        "[Speech] ClimbViaWord: \"{Raw}\" is a clearance keyword, number, or followed by \"departure\", rule rejected",
+                        viaWord
+                    );
+                    output = "";
+                    return false;
                 }
             }
 
