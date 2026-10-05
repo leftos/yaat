@@ -174,6 +174,8 @@
 - [ ] YAAT-353 Stop a landed aircraft re-accelerating on the exit route before the hold-bar stop (C172 OAK 28R H: +1 kt)
 - [ ] YAAT-364 C172 exiting OAK 28R at H stops with its tail 0.7 ft short of clearing the bar
 - [ ] YAAT-365 Check RunwayExitPhase's exit-preference reference compares survive a restore
+- [ ] YAAT-367 EXP mid-exit raises the exit speed ceiling only after a restore (live and replay diverge)
+- [ ] YAAT-368 RunwayExitPhase: a re-issued EXIT snapshotted before the next tick restores as already committed (live and replay diverge)
 
 ## Wave 2 — Ground command grammar and dispatch
 
@@ -420,3 +422,4 @@
 - [ ] YAAT-342 MainWindowLifecycleTests pop-out close tests fail in some full UI test runs
 - [ ] YAAT-346 Flaky: ProcessRecordingBackendTests.KillRecorder depends on a 500 ms startup window
 - [ ] YAAT-366 Fix the garbled solo readback of EXIT given on final ('exit when if able at on to W3')
+- [ ] YAAT-369 Scenario load: status bar can end on 'Load by AB ended' instead of the load result (RoomLoadingChanged arrival-order race)
