@@ -624,13 +624,15 @@ public sealed class SpeechRecognitionService(
         // If both mappers failed but we did extract a callsign, surface the partial result:
         // "N346G turn left hitting 310" lets the user manually correct "hitting" → "heading"
         // and press Enter, rather than losing the callsign context entirely.
+        bool isRawTextFallback = false;
         if (canonical is null && callsign is not null && !string.IsNullOrWhiteSpace(commandText))
         {
             canonical = commandText.Trim();
+            isRawTextFallback = true;
             Log.LogInformation("Both mappers failed; surfacing extracted callsign {Callsign} + raw command text", callsign);
         }
 
-        return (new TranscriptMapResult(commandText, canonical, callsign, usedLlmFallback), ruleTrace, llmTrace);
+        return (new TranscriptMapResult(commandText, canonical, callsign, usedLlmFallback, isRawTextFallback), ruleTrace, llmTrace);
     }
 
     /// <summary>
@@ -776,7 +778,8 @@ public sealed class SpeechRecognitionService(
 /// <param name="Canonical">Final canonical command, or null on total failure. Falls back to the raw <see cref="CommandText"/> when a callsign was extracted but no mapper matched.</param>
 /// <param name="Callsign">Extracted ICAO callsign (rule parser or LLM callsign resolver), or null if none recovered.</param>
 /// <param name="UsedLlmFallback">True when the rule mapper returned null and the LLM command mapper produced the final canonical.</param>
-internal sealed record TranscriptMapResult(string CommandText, string? Canonical, string? Callsign, bool UsedLlmFallback);
+/// <param name="IsRawTextFallback">True when both mappers failed and <see cref="Canonical"/> is the raw <see cref="CommandText"/> surfaced beside the extracted callsign.</param>
+internal sealed record TranscriptMapResult(string CommandText, string? Canonical, string? Callsign, bool UsedLlmFallback, bool IsRawTextFallback);
 
 /// <summary>Result bundle passed to <see cref="SpeechRecognitionService.CommandReady"/>.</summary>
 /// <param name="Transcript">Raw Whisper transcript (may be empty on failure).</param>

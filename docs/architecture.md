@@ -1874,7 +1874,8 @@ TtsSandboxView.axaml{,.cs}     # TTS tab: sherpa-onnx + Piper LibriTTS-R + tunab
 OuroborosRunner.cs             # --ouroboros: synthetic round-trip harness (canonical → readback → Piper TTS → STT pipeline → compare); PASS/FLAKY/FAIL per case + markdown report
 OuroborosCorpus.cs             # Corpus JSON schema for --ouroboros cases
 AtcOuroborosRunner.cs          # --atc-ouroboros: controller-voice ouroboros — SynthTemplates cases across every PhraseologyRules family, spoken with Piper, scored through EvalRunner, aggregated per family/template and diffed against Corpus/atc-ouroboros-baseline.json (--update-baseline); exit 3 on a per-family or totals regression
-AtcOuroborosResults.cs         # results.json / baseline schema (FamilyResult, TemplateResult, TotalsResult, AtcOuroborosResults) plus the pure aggregation, family diff and exit-code logic
+AtcOuroborosResults.cs         # results.json / baseline schema (FamilyResult, TemplateResult, TotalsResult, AtcOuroborosResults, the nested CommandRates) plus the pure aggregation, the rate-based family diff (one-case floor, totals over shared families) and exit-code logic
+CommandScoring.cs              # Per-clause command scoring: recognised / wrong-args / wrong-verb / inserted / rejected, order-insensitive over `,` clauses
 SynthTemplates.cs              # Controller-phraseology template catalog (SynthTemplate per rule family, Compound for multi-clause) and the verify-or-gap planner: renders, verifies through the rule mapper, samples only verified templates, records the rest as TemplateGap
 Corpus/atc-ouroboros-baseline.json # Committed --atc-ouroboros baseline the diff compares against
 PiperSynthesizer.cs            # sherpa-onnx Piper synthesis shared by the TTS tab and ouroboros

@@ -61,6 +61,9 @@ public enum EvalVerdict
 /// <param name="Synthetic">True for generator-produced (Piper) cases.</param>
 /// <param name="Template">The generator template key, or null for real recordings.</param>
 /// <param name="Trials">What each trial heard and mapped, in trial order.</param>
+/// <param name="Clauses">The command-level score of every trial, summed (<see cref="CommandScoring"/>).</param>
+/// <param name="CallsignsMatched">Trials whose extracted callsign matched the expected one; 0 when the case expects none.</param>
+/// <param name="CallsignsExpected">Trials scored against an expected callsign: the trial count, or 0 when the case expects none.</param>
 public sealed record EvalCaseResult(
     string CaseName,
     string ExpectedCanonical,
@@ -69,14 +72,18 @@ public sealed record EvalCaseResult(
     double? Wer,
     bool Synthetic,
     string? Template,
-    IReadOnlyList<EvalTrial> Trials
+    IReadOnlyList<EvalTrial> Trials,
+    ClauseScore Clauses,
+    int CallsignsMatched,
+    int CallsignsExpected
 );
 
 /// <summary>One trial of an eval case.</summary>
 /// <param name="Transcript">The raw STT transcript (empty when STT heard nothing).</param>
 /// <param name="MapperCanonical">The rule mapper's canonical, or null when no rule matched.</param>
 /// <param name="FinalCanonical">The canonical the full pipeline produced (rule mapper, then the LLM fallback), or null when nothing mapped.</param>
-public sealed record EvalTrial(string Transcript, string? MapperCanonical, string? FinalCanonical);
+/// <param name="RawTextFallback">True when both mappers failed and <paramref name="FinalCanonical"/> is the raw command text surfaced beside the callsign.</param>
+public sealed record EvalTrial(string Transcript, string? MapperCanonical, string? FinalCanonical, bool RawTextFallback);
 
 /// <summary>Everything one scoring pass produced.</summary>
 public sealed record EvalRunResult(IReadOnlyList<EvalCaseResult> Cases, int Skipped, string Summary, string ReportPath);
@@ -357,7 +364,10 @@ public static class EvalRunner
                 score.Wer,
                 expectation.Synthetic,
                 expectation.Template,
-                score.Trials
+                score.Trials,
+                score.Clauses,
+                score.CallsignsMatched,
+                score.CallsignsExpected
             );
             results.Add(result);
             (expectation.Synthetic ? synthTally : realTally).Add(result);
@@ -442,14 +452,36 @@ public static class EvalRunner
         string LastCallsign,
         long SttMsTotal,
         long TotalMs,
-        IReadOnlyList<EvalTrial> Trials
+        IReadOnlyList<EvalTrial> Trials,
+        ClauseScore Clauses,
+        int CallsignsMatched,
+        int CallsignsExpected
     );
+
+    /// <summary>
+    /// The command-level score of <paramref name="trials"/> against <paramref name="expectedCanonical"/>,
+    /// summed. A trial with no canonical (an empty transcript, nothing mapped) or a raw-text fallback
+    /// scores every gold clause as rejected.
+    /// </summary>
+    public static ClauseScore ScoreTrials(string expectedCanonical, IReadOnlyList<EvalTrial> trials) =>
+        trials.Aggregate(ClauseScore.Zero, (sum, t) => sum + CommandScoring.Score(expectedCanonical, t.FinalCanonical, t.RawTextFallback));
+
+    /// <summary>
+    /// The callsign tally of one case: every trial counts against <paramref name="expectedCallsign"/>,
+    /// and a trial that extracted none (null, such as an empty transcript) is a miss. A case with no
+    /// expected callsign is excluded: (0, 0).
+    /// </summary>
+    /// <param name="trialCallsigns">The callsign each trial extracted, in trial order; null when it extracted none.</param>
+    /// <param name="expectedCallsign">The labeled callsign, or null when the case expects none.</param>
+    public static (int Matched, int Expected) TallyCallsigns(IReadOnlyList<string?> trialCallsigns, string? expectedCallsign) =>
+        expectedCallsign is null ? (0, 0) : (trialCallsigns.Count(c => CallsignMatches(expectedCallsign, c)), trialCallsigns.Count);
 
     private static async Task<CaseScore> ScoreCaseAsync(EvalPipeline pipeline, EvalExpectation expectation, float[] samples, int trials)
     {
         var ctx = expectation.ToSpeechContext(pipeline.BiasingPrompt);
         var got = new List<string>();
         var trialRecords = new List<EvalTrial>();
+        var trialCallsigns = new List<string?>();
         int matches = 0;
         string lastTranscript = string.Empty;
         string lastCallsign = "<none>";
@@ -466,7 +498,8 @@ public static class EvalRunner
             if (string.IsNullOrWhiteSpace(transcript))
             {
                 got.Add("<empty transcript>");
-                trialRecords.Add(new EvalTrial(lastTranscript, null, null));
+                trialRecords.Add(new EvalTrial(lastTranscript, null, null, RawTextFallback: false));
+                trialCallsigns.Add(null);
                 continue;
             }
 
@@ -481,7 +514,8 @@ public static class EvalRunner
                 )
                 .ConfigureAwait(false);
             got.Add(mapped.Canonical ?? "<null>");
-            trialRecords.Add(new EvalTrial(transcript, ruleTrace.OutputCanonical, mapped.Canonical));
+            trialRecords.Add(new EvalTrial(transcript, ruleTrace.OutputCanonical, mapped.Canonical, mapped.IsRawTextFallback));
+            trialCallsigns.Add(mapped.Callsign);
             lastCallsign = mapped.Callsign ?? "<none>";
 
             if (CanonicalsMatch(expectation.Canonical, mapped.Canonical) && CallsignMatches(expectation.Callsign, mapped.Callsign))
@@ -504,7 +538,21 @@ public static class EvalRunner
             matches == trials ? EvalVerdict.Pass
             : matches == 0 ? EvalVerdict.Fail
             : EvalVerdict.Flaky;
-        return new CaseScore(got, matches, verdict, wer, lastTranscript, lastCallsign, sttMsTotal, sw.ElapsedMilliseconds, trialRecords);
+        (int callsignsMatched, int callsignsExpected) = TallyCallsigns(trialCallsigns, expectation.Callsign);
+        return new CaseScore(
+            got,
+            matches,
+            verdict,
+            wer,
+            lastTranscript,
+            lastCallsign,
+            sttMsTotal,
+            sw.ElapsedMilliseconds,
+            trialRecords,
+            ScoreTrials(expectation.Canonical, trialRecords),
+            callsignsMatched,
+            callsignsExpected
+        );
     }
 
     /// <summary>Per-source (real vs synthetic) verdict and WER accumulator.</summary>
