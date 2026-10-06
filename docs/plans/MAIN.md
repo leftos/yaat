@@ -5,6 +5,7 @@
 ## Do first
 
 - [x] YAAT-406 TAXI issued on C at KOAK starts its route on parallel taxiway D · release vNext — Urgent · Wave 2 — Ground command grammar and dispatch
+- [ ] YAAT-434 Linux CI fails three HoldInsideStoppingDistanceOfBarTests after the YAAT-406 landing · release vNext — Urgent · Wave 2 — Ground command grammar and dispatch
 - [x] YAAT-373 Load Scenario: pick a single scenario file, not only a folder to index · release vNext — High · Bug reports and feature requests
 - [x] YAAT-274 Redesign overwhelming client surfaces: Settings, import/export, View menu pop-outs · release vNext — High · Client surfaces redesign
 - [ ] YAAT-266 Tower Cab 3D joins a YAAT room without CRC and shows in Room Members · release vNext+1 — High · Wave 6 — Strips, TDLS, air-taxi and hub
