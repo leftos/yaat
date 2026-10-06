@@ -183,7 +183,7 @@
 - [ ] YAAT-410 Start-node hold aims the centre, not the nose; ILS/approach holds; firm taxi stop rate
 - [ ] YAAT-414 Navigator reads an aircraft in line but short of segment 0 as off-line and crawls at 5 kt
 - [ ] YAAT-421 Judge a hold short unmakeable at the firm stop rate, not the taxi rate
-- [/] YAAT-424 Keep a taxiway turn-about within the taxiway's width · release vNext
+- [x] YAAT-424 Keep a taxiway turn-about within the taxiway's width · release vNext
 - [ ] YAAT-432 Gate the jet turn-around refusal on design group, not the Jet category · release vNext
 - [ ] YAAT-435 Let a re-route's stop lie behind the aircraft by under 3 ft on segment 0
 - [ ] YAAT-438 Slow to pivot speed before a taxiway turn-about issued while rolling · release vNext
