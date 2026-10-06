@@ -51,6 +51,7 @@
   - [ ] YAAT-411 Serve each room's traffic as a VATSIM-datafeed-shaped JSON feed
   - [ ] YAAT-412 vTBFM: meter on the feed's clock (contributed PR)
   - [ ] YAAT-413 Integration and smoke test a YAAT-fed vTBFM, then write the setup steps
+- [ ] YAAT-419 Reel edit tool: virtual cursor overlay with click, double-click and drag cues · release vNext
 
 ## Client driver in the background (#474)
 
@@ -59,25 +60,19 @@
   - [x] YAAT-9 Client driver automation pipe: brief 4b, the wait_for tool · release vNext
   - [x] YAAT-10 Client driver automation pipe: brief 4c, the screenshot tool · release vNext
   - [x] YAAT-220 Share the pipe list_windows helper between launch_yaat and list_windows · release vNext
+- [ ] YAAT-418 Client driver: hover and drag over the automation pipe · release vNext
 
 ## Context-menu quick commands (#471)
 
-- [/] YAAT-12 Context-menu quick commands: per-situation lists with the icon strip · release vNext
+- [x] YAAT-12 Context-menu quick commands: per-situation lists with the icon strip · release vNext
   - [x] YAAT-13 Context-menu quick commands: brief 7d (header, footer, relative items) · release vNext
   - [x] YAAT-14 Context-menu quick commands: brief 7e (one tree on every surface) · release vNext
     - [ ] YAAT-312 Context menu: stale descriptions after the builder refactor
   - [x] YAAT-15 Context-menu quick commands step 3: per-situation lists with the icon strip · release vNext
   - [x] YAAT-400 Context-menu quick commands step 5: Quick Commands editor in Settings · release vNext
-- [/] YAAT-16 Merge feat/context-menu-quick-commands (#471, yaat-server#21) · release vNext
+- [x] YAAT-16 Merge feat/context-menu-quick-commands (#471, yaat-server#21) · release vNext
 - [x] YAAT-275 Ground right-click on a runway surface offers taxi to that runway (nearest hold short) · release vNext
 - [x] YAAT-224 Open the command and note flyouts through MenuPopups; drop the unreachable blank-input branches · release vNext
-- [ ] YAAT-229 Route the data-block field popups through MenuPopups.Open; wrap MenuPopups' summary line
-- [ ] YAAT-264 Context menus: no double separator before Track in the builder
-- [ ] YAAT-268 Context menus in an extra ground window at another airport use the primary view's layout
-- [ ] YAAT-273 DataGridContextMenuStateTests depend on test order for NavigationDatabase
-- [ ] YAAT-280 DataGridContextMenuStateTests fail when run alone (NavigationDatabase not initialized)
-- [ ] YAAT-281 Aircraft menus leave a hold-short route preview on other ground windows
-- [ ] YAAT-329 Add EFC and exit-hold commands, then their Holding quick-list entries
 
 ## Client surfaces redesign
 
@@ -185,6 +180,7 @@
 - [ ] YAAT-404 Split TaxiingPhase.OnTick under the 100-line limit
 - [ ] YAAT-410 Start-node hold aims the centre, not the nose; ILS/approach holds; firm taxi stop rate
 - [ ] YAAT-414 Navigator reads an aircraft in line but short of segment 0 as off-line and crawls at 5 kt
+- [ ] YAAT-421 Judge a hold short unmakeable at the firm stop rate, not the taxi rate
 
 ## Wave 2 — Ground command grammar and dispatch
 
@@ -333,9 +329,10 @@
 - [ ] YAAT-371 Datablock flash phase follows process uptime (Environment.TickCount64): add a shared flash clock GuideCapture can pin
 - [x] YAAT-374 Timeline rail draws every bookmark and finding tick at its left edge · release vNext
 - [x] YAAT-375 Timeline slider thumb jumps to 0 after a rewind instead of the playhead · release vNext
-- [/] YAAT-415 Split markdown lines of 500+ characters in yaat and yaat-server
+- [x] YAAT-415 Split markdown lines of 500+ characters in yaat and yaat-server · release vNext
 - [ ] YAAT-416 UserPreferencesTaxiRouteDisplayTests defaults test reads shared preferences (flaky)
 - [ ] YAAT-417 AppToolsTests automation pipe breaks under load (Pipe is broken)
+- [ ] YAAT-422 Fix doc drift: PostPhysics step count, JsonIgnore field list, stray User Guide item
 
 ## Singles
 
@@ -418,12 +415,19 @@
 - [ ] YAAT-198 Accept a Mode C Intruder ID in ERAM QN
 - [ ] YAAT-230 live-check -WithInput: File click sometimes counts 2 menu windows before the click
 - [ ] YAAT-199 Keep the PUSHF hint out of the spoken pilot refusal
+- [ ] YAAT-229 Route the data-block field popups through MenuPopups.Open; wrap MenuPopups' summary line
 - [ ] YAAT-200 Build the standalone airport GeoJSON editor
+- [ ] YAAT-264 Context menus: no double separator before Track in the builder
 - [ ] YAAT-201 Work the phraseology coverage backlog
+- [ ] YAAT-268 Context menus in an extra ground window at another airport use the primary view's layout
 - [ ] YAAT-202 BEHIND grammar extensions
+- [ ] YAAT-273 DataGridContextMenuStateTests depend on test order for NavigationDatabase
 - [ ] YAAT-203 Measure ApproachEvaluator separation at a common instant, not the current lead
+- [ ] YAAT-280 DataGridContextMenuStateTests fail when run alone (NavigationDatabase not initialized)
 - [ ] YAAT-214 Warn the RPO in the terminal when an amended flight plan has unresolvable route elements
+- [ ] YAAT-281 Aircraft menus leave a hold-short route preview on other ground windows
 - [ ] YAAT-237 Automation-mode client ignores a close request; bare error on a null click id; radar redraws while paused
+- [ ] YAAT-329 Add EFC and exit-hold commands, then their Holding quick-list entries
 - [ ] YAAT-258 Live traffic never sets a handoff to the track's own position
 - [ ] YAAT-260 Two follow comments cite the wrong AIM paragraph for no cutting in on final
 - [ ] YAAT-262 RBL readout nudges: avoid pinned blocks; two RadarCanvas tidy-ups
@@ -463,3 +467,4 @@
   - [ ] YAAT-394 Annotate every client-driver tool and check the annotations in the smoke test
 - [ ] YAAT-396 TAXI from a nose-in OAK gate is accepted but the aircraft never moves
 - [ ] YAAT-399 GuideCapture: default --out to this repo's docs/user-guide/img, not the current directory
+- [ ] YAAT-420 ProcessRecordingBackendTests KillRecorder test fails under load
