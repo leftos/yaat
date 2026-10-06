@@ -1067,7 +1067,13 @@ public class HoldShortAnnotatorTests(ITestOutputHelper output)
         HoldShortAnnotator.ComputeHoldShortPositions(layout, route, lengthFt);
 
         HoldShortPoint hold = Assert.Single(route.HoldShortPoints);
-        GroundNode expected = VirtualNode.OffsetBefore(layout, route, hold.NodeId, (lengthFt / 2.0) / GeoMath.FeetPerNm, stopAtRunwayHoldShort: true);
+        GroundNode expected = VirtualNode.OffsetBefore(
+            layout,
+            route,
+            hold.NodeId,
+            (lengthFt / 2.0) / GeoMath.FeetPerNm,
+            HoldShortStopKind.TaxiwayJustPastRunway
+        );
         Assert.Equal(expected.Position.Lat, hold.Latitude);
         Assert.Equal(expected.Position.Lon, hold.Longitude);
         Assert.DoesNotContain(route.Warnings, w => w.Contains("wingtip clearance", StringComparison.Ordinal));

@@ -115,18 +115,19 @@ public static class VirtualNode
     /// Walks route segments in reverse if the offset exceeds the immediate approach edge.
     /// Used for hold-short setbacks where the aircraft stops before reaching the node.
     ///
-    /// When <paramref name="stopAtRunwayHoldShort"/> is set, the walk clamps at a
-    /// <see cref="GroundNodeType.RunwayHoldShort"/> node rather than projecting past it: a taxiway
-    /// hold-short just beyond a runway crossing would otherwise set the stop point back onto the
-    /// runway the aircraft just crossed. Clamped, the aircraft holds at the runway hold-short line
-    /// (tail over the bars) instead of reversing onto the runway.
+    /// The two clamps the walk applies — at a runway hold-short line and at the route's virtual start — come from
+    /// <paramref name="stopKind"/>, which names the kind of bar the caller is placing a stop for; see
+    /// <see cref="HoldShortStopKind"/> for what each kind does and why.
     /// </summary>
-    public static GroundNode OffsetBefore(AirportGroundLayout layout, TaxiRoute route, int nodeId, double offsetNm, bool stopAtRunwayHoldShort)
+    public static GroundNode OffsetBefore(AirportGroundLayout layout, TaxiRoute route, int nodeId, double offsetNm, HoldShortStopKind stopKind)
     {
         if (!layout.Nodes.TryGetValue(nodeId, out GroundNode? node))
         {
             return Create(0, 0);
         }
+
+        bool stopAtRunwayHoldShort = stopKind is HoldShortStopKind.TaxiwayJustPastRunway;
+        bool clampToVirtualStart = stopKind is not HoldShortStopKind.Runway;
 
         double remaining = offsetNm;
         int currentId = nodeId;
@@ -150,7 +151,7 @@ public static class VirtualNode
                 continue;
             }
 
-            if (stopAtRunwayHoldShort && approachNode.Type == GroundNodeType.RunwayHoldShort && remaining > edgeLen)
+            if ((stopAtRunwayHoldShort) && (approachNode.Type == GroundNodeType.RunwayHoldShort) && (remaining > edgeLen))
             {
                 // Stopping farther back would land on the runway just crossed. Clamp at the
                 // runway hold-short line: the aircraft holds at the downstream taxiway line with
@@ -170,8 +171,9 @@ public static class VirtualNode
         }
 
         // The walk ran back to the route's virtual start (a free-space leg shorter than the offset): that is where the
-        // aircraft stands, so the stop is there. Projecting on behind it would put the stop behind the aircraft.
-        if (IsVirtualNode(currentNode))
+        // aircraft stands, so a taxiway stop goes there. Projecting on behind it would put the stop behind the aircraft.
+        // A runway stop instead falls through to the projection below, keeping its setback behind the aircraft.
+        if (clampToVirtualStart && IsVirtualNode(currentNode))
         {
             Log.LogDebug(
                 "[VirtualNode] OffsetBefore: node {NodeId} offset ran {RemainingNm:F4} nm past the route's virtual start",
@@ -183,7 +185,7 @@ public static class VirtualNode
 
         // Ran out of route edges — project remaining distance along last known bearing,
         // or fall back to the current node position.
-        if (remaining > 0 && !double.IsNaN(lastBearing))
+        if ((remaining > 0) && !double.IsNaN(lastBearing))
         {
             (double lat, double lon) = GeoMath.ProjectPointRaw(currentNode.Position.Lat, currentNode.Position.Lon, lastBearing, remaining);
             return Create(lat, lon);
@@ -343,4 +345,34 @@ public static class VirtualNode
 
         return null;
     }
+}
+
+/// <summary>
+/// What kind of hold-short bar a <see cref="VirtualNode.OffsetBefore"/> walk is placing a stop for. It names the two
+/// clamps the walk applies: at a <see cref="GroundNodeType.RunwayHoldShort"/> line, and at the route's virtual start.
+/// </summary>
+public enum HoldShortStopKind
+{
+    /// <summary>
+    /// A runway crossing, a destination runway, a <see cref="GroundNodeType.RunwayHoldShort"/> node or a spot bar: the
+    /// walk is clamped neither to a runway hold-short nor to the route's virtual start. Its half-fuselage setback is
+    /// kept projected on behind the aircraft even where the walk overruns the route's free-space start, because a stop
+    /// placed on the aircraft itself reads as zero distance ahead of it, and which side of zero that falls is rounding:
+    /// the taxi phase would read the line as made on one platform and lost on another.
+    /// </summary>
+    Runway,
+
+    /// <summary>
+    /// A taxiway bar: the walk clamps at the route's virtual start — a free-space leg shorter than the offset ends at
+    /// the leg's start, where the aircraft stands, so the stop goes there and the aircraft holds with its tail over the
+    /// bars, never projected on behind it — but not at a runway hold-short.
+    /// </summary>
+    Taxiway,
+
+    /// <summary>
+    /// A taxiway bar within a fuselage length past a runway the route crosses: the walk clamps both at the runway
+    /// hold-short line, since stopping farther back would land on the runway just crossed and hold the aircraft there
+    /// with its tail over the bars instead, and at the route's virtual start.
+    /// </summary>
+    TaxiwayJustPastRunway,
 }

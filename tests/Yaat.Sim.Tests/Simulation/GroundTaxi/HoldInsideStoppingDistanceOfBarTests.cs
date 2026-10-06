@@ -80,6 +80,9 @@ public class HoldInsideStoppingDistanceOfBarTests
     /// <summary>How far (ft) back toward the bar the nose may settle after the release (pose noise, not a reversal).</summary>
     private const double BackStepToleranceFt = 1.0;
 
+    /// <summary>The most (ft) the re-route's lost-line reading may differ from the nose's measured overrun of the hold line.</summary>
+    private const double LostLineToleranceFt = 1.0;
+
     /// <summary>A turn (deg) off the rest heading this large after the release is the aircraft turning back.</summary>
     private const double ReversalDeg = 90.0;
 
@@ -223,6 +226,83 @@ public class HoldInsideStoppingDistanceOfBarTests
     {
         _output = output;
         TestVnasData.EnsureInitialized();
+    }
+
+    /// <summary>
+    /// Re-routed with the B738's centre already past the 33 bar's set-back painted stop, on a route that starts with a free-space
+    /// leg shorter than the half-fuselage setback: the new route's painted stop stays where the centre stands with the nose at the
+    /// line, behind the aircraft by as much as the nose is over it, so the taxi phase reads the line as lost by that much. A stop
+    /// placed on the aircraft itself reads as zero, and which side of zero it falls is rounding.
+    /// </summary>
+    [Fact]
+    public void LineAlreadyLost_RunwayBar_ReRoutedStopStaysBehindTheAircraft()
+    {
+        var groundData = new TestAirportGroundData();
+        if (groundData.GetLayout("OAK") is null)
+        {
+            _output.WriteLine("SKIP: KOAK layout unavailable");
+            return;
+        }
+
+        SimLogBuilder.CreateForTest(_output).InitializeSimLog();
+        var engine = new SimulationEngine(groundData);
+        engine.LoadScenario(Scenario, 1, MagneticDeclination.EvaluationDateUtc);
+        AircraftState aircraft = Assert.IsType<AircraftState>(engine.FindAircraft(Callsign));
+        Assert.True(engine.SendCommand(Callsign, FirstTaxi).Success);
+        engine.TickOneSecond();
+        AirportGroundLayout layout = Assert.IsType<AirportGroundLayout>(aircraft.Ground.Layout);
+        TaxiRoute firstRoute = Assert.IsType<TaxiRoute>(aircraft.Ground.AssignedTaxiRoute);
+        (int barSegment, HoldShortPoint clearedBar) = BarAhead(firstRoute);
+        var rig = new ApproachRig(layout, firstRoute, barSegment, clearedBar, HoldLine.Through(firstRoute, barSegment));
+
+        double? nosePastFt = null;
+        double toStopOnNewRouteFt = double.NaN;
+        void BeforeSubTick()
+        {
+            if ((nosePastFt is not null) || (aircraft.Phases?.CurrentPhase is not TaxiingPhase) || (firstRoute.CurrentSegmentIndex > barSegment))
+            {
+                return;
+            }
+
+            if (!LineLostOffTheBarNode(Measure(aircraft, rig, AircraftCategory.Jet)))
+            {
+                return;
+            }
+
+            nosePastFt = rig.Line.NosePastFt(aircraft);
+            CommandResult reRoute = engine.SendCommand(Callsign, ReRoute);
+            Assert.True(reRoute.Success, $"{ReRoute} was rejected: {reRoute.Message}");
+            TaxiRoute route = Assert.IsType<TaxiRoute>(aircraft.Ground.AssignedTaxiRoute);
+            Assert.NotEqual(clearedBar.NodeId, route.Segments[0].FromNodeId);
+            Assert.True(
+                VirtualNode.IsVirtualNode(route.Segments[0].Edge.FromNode),
+                $"no longer a runway stop past a free-space start: segment 0 starts at layout node {route.Segments[0].FromNodeId}"
+            );
+            double firstLegFt = route.Segments[0].Edge.DistanceNm * GeoMath.FeetPerNm;
+            double halfLengthFt = AircraftLength.ResolveFt(Jet) / 2.0;
+            Assert.True(
+                firstLegFt < halfLengthFt,
+                $"no longer a runway stop past a free-space start: leg {firstLegFt:F1} ft, half-length {halfLengthFt:F1} ft"
+            );
+            (_, HoldShortPoint bar) = BarAhead(route);
+            toStopOnNewRouteFt = TaxiingPhase.AlongRouteDistanceToHoldShortFt(layout, route, aircraft.Position, bar);
+        }
+
+        for (int second = 0; (second < ApproachBudgetSeconds) && (nosePastFt is null); second++)
+        {
+            StepSecond(engine, BeforeSubTick, static () => { });
+        }
+
+        Assert.True(nosePastFt is not null, $"the {Jet} never met the lost-line condition approaching the runway {CrossedRunway} bar");
+        double overrunFt = nosePastFt.Value;
+        _output.WriteLine(
+            $"{ReRoute}: nose {overrunFt:F2} ft past the runway {CrossedRunway} hold line; new route's stop {toStopOnNewRouteFt:R} ft ahead"
+        );
+        Assert.True(overrunFt >= LostLineToleranceFt, $"the shape under test is a nose over the line; it was {overrunFt:F2} ft past");
+        Assert.True(
+            Math.Abs(toStopOnNewRouteFt + overrunFt) <= LostLineToleranceFt,
+            $"the re-routed stop reads {toStopOnNewRouteFt:R} ft ahead; the nose is {overrunFt:F2} ft over the line, so it lies that far behind"
+        );
     }
 
     /// <summary>What the aircraft is told on the sub-tick it is re-routed.</summary>

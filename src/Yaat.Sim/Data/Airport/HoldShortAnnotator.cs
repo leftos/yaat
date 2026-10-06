@@ -472,7 +472,7 @@ public static class HoldShortAnnotator
                 || HoldShortTarget.IsSpotTargetName(hs.TargetName)
             )
             {
-                GroundNode vn = VirtualNode.OffsetBefore(layout, route, hs.NodeId, runwayHalfLengthNm, stopAtRunwayHoldShort: false);
+                GroundNode vn = VirtualNode.OffsetBefore(layout, route, hs.NodeId, runwayHalfLengthNm, HoldShortStopKind.Runway);
                 hs.Latitude = vn.Position.Lat;
                 hs.Longitude = vn.Position.Lon;
                 continue;
@@ -489,7 +489,8 @@ public static class HoldShortAnnotator
             (int RunwayNodeId, double GapNm)? crossedRunway = FindCrossedRunwayHoldShort(layout, route, hs.NodeId, taxiwayOffsetNm);
             bool justPastRunway = crossedRunway is not null;
             double twyOffsetNm = justPastRunway ? runwayHalfLengthNm : taxiwayOffsetNm;
-            GroundNode twyVn = VirtualNode.OffsetBefore(layout, route, hs.NodeId, twyOffsetNm, stopAtRunwayHoldShort: justPastRunway);
+            HoldShortStopKind stopKind = justPastRunway ? HoldShortStopKind.TaxiwayJustPastRunway : HoldShortStopKind.Taxiway;
+            GroundNode twyVn = VirtualNode.OffsetBefore(layout, route, hs.NodeId, twyOffsetNm, stopKind);
             if (!justPastRunway)
             {
                 twyVn = ApplyWingtipClearanceFloor(layout, route, hs, aircraftLengthFt, twyVn);

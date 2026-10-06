@@ -87,7 +87,9 @@ Where no intersecting-taxiway marking is painted (the layout carries none), AIM 
   Runway bars share this: their half-length setback (65 ft for a B738) is longer than the 7–31 ft last segment at many OAK and SFO bars.
 - **The setback walks free-space legs too.** `VirtualNode.OffsetBefore` steps back through the route's own segments (`FindApproachNode` takes each segment's from-node, virtual or not), so a bar at the end of a free-space approach leg is set back along the leg exactly as along a graph edge.
 
-  A leg shorter than the setback ends the walk at the leg's virtual start, where the aircraft stands: the stop goes there, never projected on behind the aircraft (`HoldShortAnnotatorTests`, SFO B short of T).
+  For a **taxiway** bar, a leg shorter than the setback ends the walk at the leg's virtual start, where the aircraft stands: the stop goes there, never projected on behind the aircraft (`HoldShortAnnotatorTests`, SFO B short of T).
+
+  A **runway** bar (a crossing, a destination runway, a `RunwayHoldShort` node or a spot target) is never clamped there: its setback is projected on behind the aircraft by the real overrun. A stop placed on the aircraft reads as zero distance ahead, and which side of zero it falls on is rounding, so the taxi phase's lost-line check (`toStopFt < 0`) would read the line as made on one platform and lost on another (`HoldInsideStoppingDistanceOfBarTests.LineAlreadyLost_RunwayBar_ReRoutedStopStaysBehindTheAircraft`).
 - A stop that lands behind an aircraft already rolling (an `HS` armed mid-taxi) is unmakeable in the usual way (`TaxiingPhase.IsHoldShortUnmakeable`). A stopped aircraft (2 kt or less) cannot overrun a bar, so it never reads one as unmakeable: it reads the hold short back and holds where it stands.
 
 ## Placement is not selection

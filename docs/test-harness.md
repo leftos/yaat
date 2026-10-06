@@ -198,6 +198,19 @@ Every test project uses xunit.v3 on the Microsoft.Testing.Platform runner (`UseM
 row uses `dotnet run --project` (or the built `Yaat.Sim.Tests.exe` directly). `xunit.runner.json` is still honoured by v3 for
 parallelism settings; `showLiveOutput` there is the config-file equivalent of `--show-live-output on`.
 
+### Linux runs: CI investigation and cross-platform verification
+
+CI runs on `ubuntu-latest` (`.github/workflows/ci.yml`). A test can pass on Windows and fail there: floating-point results differ in the last bits between the platforms' runtimes, and a value that is zero on paper can land on either side of it (see the footgun below). Two ways to run the suite on Linux from this machine, both against the Windows Release build (the test assemblies are portable, so any .NET 10 runtime runs them):
+
+- **WSL** (Ubuntu, `dotnet-sdk-10.0` from Ubuntu's archive; install with `wsl -u root apt-get install -y dotnet-sdk-10.0`). The quick one: no image, starts in seconds. It reads the build over `/mnt/x`, which is fine for a filtered run.
+
+  `wsl -e bash -c "rm -rf /tmp/yaat-ci && mkdir -p /tmp/yaat-ci && cd /tmp && YAAT_APPDATA_DIR=/tmp/yaat-ci dotnet /mnt/x/<repo path>/tests/Yaat.Sim.Tests/bin/Release/net10.0/Yaat.Sim.Tests.dll --results-directory /tmp/yaat-ci/r --filter-class '*Name*'"`
+- **Docker** (`mcr.microsoft.com/dotnet/sdk:10.0`, the image family CI's runtime comes from). The closer match to CI's runtime patch level; use it to confirm a WSL result, or when WSL and CI disagree.
+
+  `docker run --rm -e YAAT_APPDATA_DIR=/tmp/appdata -v <bin dir>:/app:ro mcr.microsoft.com/dotnet/sdk:10.0 dotnet /app/Yaat.Sim.Tests.dll --results-directory /tmp/r --filter-method "*Name*"`
+
+Both set `YAAT_APPDATA_DIR` to a fresh directory, so NavData resolves to the committed `TestData/NavData.dat` as on CI rather than to a newer user cache (CIFP downloads, as on CI). Use either for a Linux-only CI red, and to check a change to numeric code with a zero or tie boundary (a stop distance, a sign test, a sort key that can tie) before it lands.
+
 ## The `xunit.runner.json` Content-copy gotcha
 
 `xunit.runner.json` only takes effect if it sits **next to the test DLL in `bin/`**. xUnit does not read it from the source tree. Each
@@ -532,6 +545,7 @@ Run it: `pwsh tools/gate.ps1 -Log .tmp/test.log -TimeoutSeconds 30 -Slot heavy -
   strictly more complete than production. Any oracle-vs-production diff is exactly where production's node-id-only pruning loses. Keep it
   in lock-step with `AutoRouter.cs`.
 - **Making `internal` members `public` for tests is fine.** No reflection, no `InternalsVisibleTo` hacks.
+- **A branch on `x < 0` where `x` is zero on paper depends on the platform.** Positions on Linux and Windows drift apart by a few ulps over a taxi, so a distance that is a quantity minus itself (a stop placed on the aircraft) comes out `-7e-15` on one and `+7e-15` on the other, and CI on Linux goes red where Windows stays green. Keep such a quantity clearly signed (place the stop by its real offset), never compare it with zero; reproduce with a Linux run ([Linux runs](#linux-runs-ci-investigation-and-cross-platform-verification)).
 - **Pilot transmissions land in different lists depending on the `PhaseContext` flags, and the engine drains them every second.**
   `PilotResponder.RouteSoloOrRpoTransmission` writes `PendingPilotTransmissions` (solo, student on frequency), `PendingPilotSpeech` (RPO
   with pilot speech shown) or `PendingWarnings` (RPO default — what a hand-built `PhaseContext` with the flags at their defaults gets).
