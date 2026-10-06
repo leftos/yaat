@@ -167,7 +167,13 @@ The rest are `HelicopterApproachPhase` (LAND @spot from off the airport: hold al
 
 `RES` at an armed runway bar is refused in `CommandDispatcher`, and `FOLLOWG` at a departure bar whose route is incomplete is refused (`LUAW`/`CTO` only).
 
-`FollowingPhase.CheckRunwayHoldShort` skips a bar of a runway the follower is already on (leaving is not crossing) and files the bar of the follower's own route destination as `DestinationRunway` (so `RES` there does not release it onto the runway, and the departure queue ranks it tier 0); every other bar stays `RunwayCrossing`.
+`FollowingPhase` drives its own follow route over the taxi graph through a `GroundNavigator` (the follower's route to the merge node, then the lead's path), gives way short of a merge its lead has not passed, and keeps the nose-to-tail gap along the path; [the navigator doc](ground/navigator.md#followg-driving-the-follow-route) has the detail. Its navigator treats every hold-short as cleared: the phase owns every runway-bar stop.
+
+`FollowingPhase.CheckRunwayHoldShort` skips a bar of a runway the follower is already on (leaving is not crossing), a bar of a runway it is exiting met moving away from that runway, and the bar a clearing route leaves by. It files the bar of the follower's own route destination as `DestinationRunway` (so `RES` there does not release it onto the runway, and the departure queue ranks it tier 0); every other bar stays `RunwayCrossing`.
+
+With no plan to join (no layout, the lead not yet on a taxiway, no taxi path to the lead's path, or the follower ahead of the lead) the follow holds in position inside the phase rather than steering at the lead. It never holds on a runway or inside its hold line: with no follow route there, it first drives a clearing route past the nearest hold-short bar of that runway ahead.
+
+When the lead is deleted or leaves the ground, the follow drops its follow route and, inside a runway's hold line, drives its clearing route until its tail and both wingtips are past the bar's hold line, then brakes to rest along that route (the navigator still steering it). Otherwise it brakes to a stop where it is. At rest it completes into a `HoldingInPositionPhase`, so the aircraft stays in a phase that accepts commands.
 
 **A stand is `AtParkingPhase`; anything else a ground movement stops on is `HoldingInPositionPhase`** — the same rule in four writers.
 

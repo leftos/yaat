@@ -268,8 +268,11 @@ public static class GroundConflictDetector
                 { Kind: HoldKind.HoldPosition } => " hold=HoldPosition",
                 _ => string.Empty,
             };
+            TaxiRoute? driven = FollowingPhase.DrivenRouteOf(ac);
             diagnosticLog?.Invoke(
-                $"[Classify] {ac.Callsign}: {state}{holdReason}, dir={dir?.ToString("F0") ?? "null"}, gs={ac.GroundSpeed:F1}, phase={ac.Phases?.CurrentPhase?.Name ?? "null"}, route={ac.Ground.AssignedTaxiRoute?.CurrentSegmentIndex.ToString() ?? "null"}/{ac.Ground.AssignedTaxiRoute?.Segments.Count.ToString() ?? "null"}"
+                $"[Classify] {ac.Callsign}: {state}{holdReason}, dir={dir?.ToString("F0") ?? "null"}, gs={ac.GroundSpeed:F1}, "
+                    + $"phase={ac.Phases?.CurrentPhase?.Name ?? "null"}, "
+                    + $"route={(driven is null ? "null/null" : $"{driven.CurrentSegmentIndex}/{driven.Segments.Count}")}"
             );
         }
 
@@ -485,7 +488,7 @@ public static class GroundConflictDetector
             return (MovementState.Pushing, pushHdg.Degrees);
         }
 
-        if (ac.Ground.AssignedTaxiRoute?.CurrentSegment is not null)
+        if (FollowingPhase.DrivenRouteOf(ac)?.CurrentSegment is not null)
         {
             return (MovementState.Taxiing, ac.TrueHeading.Degrees);
         }
@@ -515,8 +518,8 @@ public static class GroundConflictDetector
 
         if (layout is not null && stateA == MovementState.Taxiing && stateB == MovementState.Taxiing)
         {
-            TaxiRouteSegment? segA = a.Ground.AssignedTaxiRoute?.CurrentSegment;
-            TaxiRouteSegment? segB = b.Ground.AssignedTaxiRoute?.CurrentSegment;
+            TaxiRouteSegment? segA = FollowingPhase.DrivenRouteOf(a)?.CurrentSegment;
+            TaxiRouteSegment? segB = FollowingPhase.DrivenRouteOf(b)?.CurrentSegment;
             if (segA is not null && segB is not null)
             {
                 bool sameEdge =
@@ -529,8 +532,8 @@ public static class GroundConflictDetector
                 }
             }
 
-            TaxiRoute? routeA = a.Ground.AssignedTaxiRoute;
-            TaxiRoute? routeB = b.Ground.AssignedTaxiRoute;
+            TaxiRoute? routeA = FollowingPhase.DrivenRouteOf(a);
+            TaxiRoute? routeB = FollowingPhase.DrivenRouteOf(b);
             if (routeA is not null && routeB is not null && FindSharedUpcomingNode(routeA, routeB) is not null)
             {
                 return PairKind.Converging;
@@ -544,8 +547,10 @@ public static class GroundConflictDetector
 
     private static void ResolveSameEdgeTrailing(AircraftState a, AircraftState b, double distFt, Action<string>? diagnosticLog)
     {
-        TaxiRouteSegment segA = a.Ground.AssignedTaxiRoute!.CurrentSegment!;
-        TaxiRouteSegment segB = b.Ground.AssignedTaxiRoute!.CurrentSegment!;
+        if ((FollowingPhase.DrivenRouteOf(a)?.CurrentSegment is not { } segA) || (FollowingPhase.DrivenRouteOf(b)?.CurrentSegment is not { } segB))
+        {
+            return;
+        }
 
         // The two are nose-to-tail on one edge, so the one to cap is whichever has less progress along it
         // (AlongEdgeNm); ordering them any other way caps the aircraft in front.
@@ -583,8 +588,8 @@ public static class GroundConflictDetector
         // aircraft able to proceed instead of pinning both indefinitely.
         // Holder = aircraft with the higher remaining-segment count (more route
         // left to fly), since it has more reason to wait. Ties broken by callsign.
-        TaxiRoute? routeA = a.Ground.AssignedTaxiRoute;
-        TaxiRoute? routeB = b.Ground.AssignedTaxiRoute;
+        TaxiRoute? routeA = FollowingPhase.DrivenRouteOf(a);
+        TaxiRoute? routeB = FollowingPhase.DrivenRouteOf(b);
         int remA = routeA is null ? 0 : routeA.Segments.Count - routeA.CurrentSegmentIndex;
         int remB = routeB is null ? 0 : routeB.Segments.Count - routeB.CurrentSegmentIndex;
 
@@ -619,8 +624,10 @@ public static class GroundConflictDetector
     /// </summary>
     private static AircraftState? ResolveConvergence(AircraftState a, AircraftState b, AirportGroundLayout layout, Action<string>? diagnosticLog)
     {
-        TaxiRoute routeA = a.Ground.AssignedTaxiRoute!;
-        TaxiRoute routeB = b.Ground.AssignedTaxiRoute!;
+        if ((FollowingPhase.DrivenRouteOf(a) is not { } routeA) || (FollowingPhase.DrivenRouteOf(b) is not { } routeB))
+        {
+            return null;
+        }
 
         int? sharedNodeId = FindSharedUpcomingNode(routeA, routeB);
         if (sharedNodeId is null || !layout.Nodes.TryGetValue(sharedNodeId.Value, out GroundNode? node))
@@ -1188,7 +1195,7 @@ public static class GroundConflictDetector
     /// </summary>
     private static double? RouteLateralClearanceFt(AircraftState mover, AircraftState obstacle, double distFt)
     {
-        if (mover.Ground.AssignedTaxiRoute is not { } route)
+        if (FollowingPhase.DrivenRouteOf(mover) is not { } route)
         {
             return null;
         }
@@ -1986,7 +1993,7 @@ public static class GroundConflictDetector
     /// </summary>
     internal static bool TargetReachesMergeFirst(AircraftState held, AircraftState target)
     {
-        if (held.Ground.AssignedTaxiRoute is not { } heldRoute || target.Ground.AssignedTaxiRoute is not { } targetRoute)
+        if (FollowingPhase.DrivenRouteOf(held) is not { } heldRoute || FollowingPhase.DrivenRouteOf(target) is not { } targetRoute)
         {
             return false;
         }
@@ -2068,13 +2075,13 @@ public static class GroundConflictDetector
     /// </summary>
     internal static (int NodeId, double ToStopFt)? GiveWayStop(AircraftState held, AircraftState target, out string? noStopReason)
     {
-        if (held.Ground.AssignedTaxiRoute is not { } heldRoute)
+        if (FollowingPhase.DrivenRouteOf(held) is not { } heldRoute)
         {
             noStopReason = "no route of its own";
             return null;
         }
 
-        if (target.Ground.AssignedTaxiRoute is not { } targetRoute)
+        if (FollowingPhase.DrivenRouteOf(target) is not { } targetRoute)
         {
             noStopReason = "the traffic has no route";
             return null;
@@ -2313,8 +2320,8 @@ public static class GroundConflictDetector
 
     internal static bool ShareUpcomingNode(AircraftState subject, AircraftState reference)
     {
-        TaxiRoute? routeA = subject.Ground.AssignedTaxiRoute;
-        TaxiRoute? routeB = reference.Ground.AssignedTaxiRoute;
+        TaxiRoute? routeA = FollowingPhase.DrivenRouteOf(subject);
+        TaxiRoute? routeB = FollowingPhase.DrivenRouteOf(reference);
         if (routeA is null || routeB is null)
         {
             return false;
@@ -2431,7 +2438,7 @@ public static class GroundConflictDetector
     /// </summary>
     private static double ProjectionBearingDeg(AircraftState ac, double travelDirDeg)
     {
-        if (ac.Ground.AssignedTaxiRoute?.CurrentSegment is not { } segment)
+        if (FollowingPhase.DrivenRouteOf(ac)?.CurrentSegment is not { } segment)
         {
             return travelDirDeg;
         }

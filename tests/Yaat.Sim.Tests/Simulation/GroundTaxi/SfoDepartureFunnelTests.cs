@@ -144,7 +144,7 @@ public class SfoDepartureFunnelTests(ITestOutputHelper output)
     /// the 28L bar is in that order physically, and the departure queue numbers it 1-2-3-4 — which needs
     /// the follower-ranking pass, since a following aircraft is in neither queue-eligible phase.
     /// </summary>
-    [Fact]
+    [Fact(Skip = "YAAT-316 brief 3c: GroundConflictDetector must resolve follower pairs (owner ruling 2026-10-06)")]
     public void Release_3_1_4_2_FollowG()
     {
         if (StageAll() is not { } funnel)

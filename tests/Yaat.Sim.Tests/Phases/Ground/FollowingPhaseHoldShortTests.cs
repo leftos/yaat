@@ -213,7 +213,8 @@ public class FollowingPhaseHoldShortTests(ITestOutputHelper output)
                 TimeSinceLastLog = 0,
                 CrossingClearedRunways = ["1R"],
                 HasBeenOnClearedRunway = hasBeenOnIt,
-            }
+            },
+            null
         );
 
     private SfoGround? Build()

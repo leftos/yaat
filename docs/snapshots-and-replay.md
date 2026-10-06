@@ -75,6 +75,16 @@ A restore that kept no latch would let the stop go once the aircraft had slowed 
 
 `AircraftGroundOpsDto.TaxiEdgeTrail` follows the same pattern: the taxi edges a ground aircraft drove, oldest first (`TaxiTrailEdgeDto`: `NodeA`, `NodeB`, `LengthFt`), written only when the trail is not empty, and restored as an empty trail when absent. The aircraft's own `AircraftGroundOps.TaxiEdgeTrail` is `[JsonIgnore]`; this DTO field is its carrier.
 
+`FollowingPhaseDto` carries the `FOLLOWG` follow's graph state the same additive way, with no schema bump ([ground/navigator.md](ground/navigator.md) § FOLLOWG: driving the follow route):
+
+- `FollowRoute` (a `TaxiRouteDto`: the follower's route to the merge node, then the lead's path) and `MergeSegmentIndex` (the first segment on the lead's path), null and 0 before the follow planned one.
+- `LeadEdgeIntoMerge` (a `TaxiSegmentDto`, the lead's path edge into the merge, which the give-way stop keeps clear of with the edge out), written as the route's own segments are; null where the lead's path starts at the merge.
+- `GivingWay`, `Unjoinable` (the hold-for-good latch: a restored follow holds where the live one held rather than planning again) and `ExitingRunways` (the runways whose bars it passes on the way out).
+- `ClearingRoute` (a `TaxiRouteDto`) and `ClearingBarNodeId`, null when not clearing, and `ClearingAttemptedRunways`, written only when a clearing route has been tried.
+- `Navigator` (a `GroundNavigatorDto`), null with neither a follow route nor a clearing route.
+
+Absent fields restore as no route and no latch, and a follow restored with no follow route, or one the layout no longer resolves, plans afresh on its next tick. Whether a follower past its clearing bar is braking to rest along the clearing route is not carried: the first tick after a restore reads it again from the follower's position.
+
 **The run profile is not a field.** `SimulationEngine.RunProfile` (live / replay / test / soak — [tick-loop.md](tick-loop.md) § the engine's partial files) is host state: the host that drives the engine sets it, and it is never captured into or restored from a snapshot. Restoring a live snapshot into a replaying room must not make the room live.
 
 **An "on by default" scenario setting still defaults to `false` on the Sim side.** `SimScenarioState.AutoCrossRunway` and `AutoPullUpToParallel` are bare `bool`s (false), the `PhaseContext` fallback is `Scenario?.X ?? false`, and the `ScenarioSnapshotDto` field is the same.
@@ -136,7 +146,7 @@ Some state is intentionally runtime-only:
 
 If you see `[JsonIgnore]` on a field, also check that there's a separate carrier (like `LayoutAirportId`) that lets restore reattach.
 
-**A rebuilt route needs its cursor, not just its nodes.** Navigator-owning ground phases don't serialize their `TaxiRoute` — it is rebuilt from stored node ids against the live layout on the first tick after restore — so the rebuild has to be told *where along it* the aircraft was.
+**A rebuilt route needs its cursor, not just its nodes.** Most navigator-owning ground phases don't serialize their `TaxiRoute` — it is rebuilt from stored node ids against the live layout on the first tick after restore — so the rebuild has to be told *where along it* the aircraft was. `FollowingPhase` is the exception: its follow route and clearing route round-trip whole as `TaxiRouteDto`s, cursor included, and `FollowingPhase.FromSnapshot` rebuilds them over the layout `PhaseList` passes it.
 
 `RunwayExitPhase` is the sharp case: its segment 0 is a virtual approach leg [aircraft position → branch node] down the runway centerline, so rebuilding from segment 0 for an aircraft that has already turned off hands `GroundNavigator` a leg pointing *backward*, and the ~180° entry-alignment slow-turn taxis the reconstruction back onto the runway it just vacated (issue #309).
 
@@ -145,6 +155,8 @@ If you see `[JsonIgnore]` on a field, also check that there's a separate carrier
 **A general-purpose route may start with a virtual leg.** `AircraftGroundOps.AssignedTaxiRoute` *is* serialized (`TaxiRouteDto`), and `TaxiRoute.FromSnapshot` resolves every segment endpoint by node id against the layout. A ramp-lane reposition (`RampLaneReposition`, issue #396) puts a `VirtualNode` leg — aircraft position → lane node — at segment 0, and a virtual id is never in `layout.Nodes`, which would have nulled the whole route on rewind/replay.
 
 `TaxiSegmentDto` therefore carries optional `From/ToLatitude`/`Longitude`, filled only for virtual (negative-id) endpoints; restore rebuilds the virtual node from them and the synthetic edge via `VirtualNode.CreateSegment`.
+
+One pair writes and resolves a single segment: `TaxiRoute.ToSegmentSnapshot` and `TaxiRoute.ResolveSegment`. Every snapshot segment goes through them, a route's and `FollowingPhaseDto.LeadEdgeIntoMerge` alike; `ResolveSegment` takes the first of the from-node's edges to the to-node, pointed that way, so two nodes joined by more than one edge restore to the same edge everywhere.
 
 Old snapshots leave the fields null and resolve by id exactly as before — no schema bump, the same pattern as `HoldShortPointDto.Latitude/Longitude`. A destination-end cut (issue #400) is the other shape: a free-space leg between two *layout* nodes with no edge between them.
 
@@ -160,7 +172,9 @@ Old snapshots leave the fields null and resolve by id exactly as before — no s
 
 A mismatch drops the playback with a warning and builds the segment afresh from the aircraft's pose; a virtual (negative-id) from-node is not compared: its id hashes its position (`VirtualNode.IdFor`), but it sits at the aircraft's pose when the route was built (`RunwayExitPhase`'s approach leg), so a rebuild puts it somewhere else.
 
-A crossing also carries its slice segment and the pose that segment was set up at (`CrossingRunwayPhaseDto.CrossingRouteSegmentIndex`, `SegmentSetup*`), and a runway exit whose route cannot be rebuilt drops the navigator it was restored with. Snapshots written before the playback existed rebuild the primitive from the aircraft's pose, and such a reconstruction can trail the original on the same path.
+A crossing also carries its slice segment and the pose that segment was set up at (`CrossingRunwayPhaseDto.CrossingRouteSegmentIndex`, `SegmentSetup*`), and a runway exit whose route cannot be rebuilt drops the navigator it was restored with.
+
+A follow restores its navigator (`FollowingPhaseDto.Navigator`) only when its follow route or clearing route resolved, and the playback resumes at that route's first `SetupSegment` after the restore (`FollowGroundOnGraphTests`). Snapshots written before the playback existed rebuild the primitive from the aircraft's pose, and such a reconstruction can trail the original on the same path.
 
 ## Phase polymorphism
 

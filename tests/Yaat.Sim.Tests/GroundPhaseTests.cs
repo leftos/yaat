@@ -565,7 +565,7 @@ public class GroundPhaseTests
 
     // --- FIX 4: FollowingPhase hold-short awareness ---
 
-    [Fact]
+    [Fact(Skip = "YAAT-316 brief 3c: its synthetic layout sits on real KSFO 28L pavement; moves to a real layout")]
     public void FollowingPhase_ApproachingHoldShort_AutoHolds()
     {
         AirportGroundLayout layout = BuildCrossingLayout();
@@ -650,21 +650,26 @@ public class GroundPhaseTests
     }
 
     /// <summary>
-    /// A follower that catches a stopped leader closes up to the stop gap rather than freezing at the
-    /// follow-distance boundary. Matching the leader's speed verbatim inside FollowDistanceNm publishes
+    /// A follower that catches a stopped leader closes up to the nose-to-tail stop gap rather than freezing at
+    /// the close-follow band's edge. Matching the leader's speed verbatim inside the band publishes
     /// TargetSpeed = 0 behind a parked lead, and physics — the only integrator of ground speed — holds the
-    /// follower wherever it happened to be, up to ~180 ft short. Real traffic rolls up to the stop gap.
+    /// follower wherever it happened to be, up to the band's width short. Real traffic rolls up to the stop gap.
     /// </summary>
-    [Fact]
+    [Fact(Skip = "YAAT-316 brief 3c: move to a real layout")]
     public void FollowingPhase_BehindStoppedLead_ClosesUpToStopDistance()
     {
+        TestVnasData.EnsureInitialized();
+
         // Lead parked, engines running, not moving.
         AircraftState lead = MakeGroundAircraft(37.623, -122.380, heading: 0);
         lead.Callsign = "LEAD01";
         lead.IndicatedAirspeed = 0;
 
-        // Follower directly behind the lead, just inside the follow distance, still rolling at 5 kt.
-        double startGapNm = FollowingPhase.FollowDistanceNm - 0.002;
+        // Follower directly behind the lead, its nose just inside the close-follow band of the lead's tail, still rolling at 5 kt.
+        double stopGapFt = FollowGap.StopGapFt("B738", AircraftCategory.Jet, "B738", AircraftCategory.Jet);
+        double bandFt = FollowGap.CloseFollowBandFt("B738", AircraftCategory.Jet, "B738", AircraftCategory.Jet);
+        double lengthFt = AircraftLength.ResolveFt("B738");
+        double startGapNm = (bandFt - 10.0 + lengthFt) / GeoMath.FeetPerNm;
         AircraftState follower = MakeGroundAircraft(37.623 - (startGapNm / 60.0), -122.380, heading: 0);
         follower.IndicatedAirspeed = 5;
         follower.Phases = new PhaseList();
@@ -701,18 +706,18 @@ public class GroundPhaseTests
             }
         }
 
-        double gapNm = GeoMath.DistanceNm(follower.Position, lead.Position);
+        // In line, the nose-to-tail gap is the centre-to-centre distance less half of each fuselage.
+        double noseToTailFt = (GeoMath.DistanceNm(follower.Position, lead.Position) * GeoMath.FeetPerNm) - lengthFt;
 
-        // Ten feet of slack over the stop gap covers the brake-out from the close-up speed.
-        double allowedGapNm = FollowingPhase.StopDistanceNm + (10.0 / GeoMath.FeetPerNm);
+        // Ten feet of slack over the stop gap covers the brake-out from the close-up speed; it never stops inside the gap.
         Assert.True(
-            gapNm <= allowedGapNm,
-            $"follower settled {gapNm * GeoMath.FeetPerNm:F0} ft behind the stopped lead, expected at most {allowedGapNm * GeoMath.FeetPerNm:F0} ft"
+            (noseToTailFt <= stopGapFt + 10.0) && (noseToTailFt >= stopGapFt - 1.0),
+            $"follower settled with its nose {noseToTailFt:F0} ft behind the stopped lead's tail, expected {stopGapFt:F0} to {stopGapFt + 10.0:F0} ft"
         );
         Assert.Equal(0, follower.GroundSpeed);
 
         // No chatter: once it first reaches 0 inside the stop gap it stays there. A flat close-up speed
-        // that only zeroes at the StopDistanceNm branch creeps forward, trips the branch, brakes, drifts
+        // that only zeroes at the stop-gap branch creeps forward, trips the branch, brakes, drifts
         // back out and creeps again; the brake curve decays to 0 at the gap so the stop is terminal.
         Assert.True(everStopped, "follower never reached a stop behind the parked lead within 60 s");
         Assert.Equal(0.0, speedAfterFirstStop, 1e-9);

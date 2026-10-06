@@ -491,23 +491,27 @@ public sealed class TaxiRoute
         return null;
     }
 
+    /// <summary>
+    /// <paramref name="segment"/> as a snapshot segment: its end node ids and taxiway, and — for a free-space leg — the
+    /// positions of its virtual ends. <see cref="ResolveSegment"/> restores it.
+    /// </summary>
+    public static TaxiSegmentDto ToSegmentSnapshot(TaxiRouteSegment segment) =>
+        new()
+        {
+            FromNodeId = segment.FromNodeId,
+            ToNodeId = segment.ToNodeId,
+            TaxiwayName = segment.TaxiwayName,
+            IsFreeSpace = VirtualNode.IsVirtualEdge(segment.Edge.Edge),
+            FromLatitude = segment.FromNodeId < 0 ? segment.Edge.FromNode.Position.Lat : null,
+            FromLongitude = segment.FromNodeId < 0 ? segment.Edge.FromNode.Position.Lon : null,
+            ToLatitude = segment.ToNodeId < 0 ? segment.Edge.ToNode.Position.Lat : null,
+            ToLongitude = segment.ToNodeId < 0 ? segment.Edge.ToNode.Position.Lon : null,
+        };
+
     public TaxiRouteDto ToSnapshot() =>
         new()
         {
-            Segments =
-            [
-                .. Segments.Select(s => new TaxiSegmentDto
-                {
-                    FromNodeId = s.FromNodeId,
-                    ToNodeId = s.ToNodeId,
-                    TaxiwayName = s.TaxiwayName,
-                    IsFreeSpace = VirtualNode.IsVirtualEdge(s.Edge.Edge),
-                    FromLatitude = s.FromNodeId < 0 ? s.Edge.FromNode.Position.Lat : null,
-                    FromLongitude = s.FromNodeId < 0 ? s.Edge.FromNode.Position.Lon : null,
-                    ToLatitude = s.ToNodeId < 0 ? s.Edge.ToNode.Position.Lat : null,
-                    ToLongitude = s.ToNodeId < 0 ? s.Edge.ToNode.Position.Lon : null,
-                }),
-            ],
+            Segments = [.. Segments.Select(ToSegmentSnapshot)],
             CurrentSegmentIndex = CurrentSegmentIndex,
             HoldShortPoints =
             [
@@ -546,6 +550,32 @@ public sealed class TaxiRoute
         return latitude is { } lat && longitude is { } lon ? VirtualNode.Create(lat, lon) : null;
     }
 
+    /// <summary>
+    /// The snapshot segment <paramref name="seg"/> over <paramref name="layout"/>: the first of its from node's edges to its to
+    /// node, pointed that way — every snapshot segment resolves through this, so two nodes joined by more than one edge restore
+    /// to the same one everywhere — or, for a free-space leg (a ramp-lane cut), the virtual edge rebuilt from its ends. Null when
+    /// an end node or the edge is not in the layout.
+    /// </summary>
+    public static TaxiRouteSegment? ResolveSegment(AirportGroundLayout layout, TaxiSegmentDto seg)
+    {
+        GroundNode? fromNode = ResolveSnapshotNode(layout, seg.FromNodeId, seg.FromLatitude, seg.FromLongitude);
+        GroundNode? toNode = ResolveSnapshotNode(layout, seg.ToNodeId, seg.ToLatitude, seg.ToLongitude);
+        if ((fromNode is null) || (toNode is null))
+        {
+            return null;
+        }
+
+        if ((fromNode.Id < 0) || (toNode.Id < 0) || seg.IsFreeSpace)
+        {
+            return VirtualNode.CreateSegment(fromNode, toNode, seg.TaxiwayName ?? "");
+        }
+
+        IGroundEdge? edge = fromNode.Edges.FirstOrDefault(e => e.HasNode(seg.ToNodeId));
+        return edge is null
+            ? null
+            : new TaxiRouteSegment { TaxiwayName = seg.TaxiwayName ?? edge.TaxiwayName, Edge = edge.Directed(fromNode, toNode) };
+    }
+
     public static TaxiRoute? FromSnapshot(TaxiRouteDto dto, AirportGroundLayout? layout)
     {
         if (layout is null)
@@ -553,42 +583,18 @@ public sealed class TaxiRoute
             return null;
         }
 
-        var segments = new List<TaxiRouteSegment>();
+        List<TaxiRouteSegment> segments = [];
         foreach (TaxiSegmentDto seg in dto.Segments)
         {
-            GroundNode? fromNode = ResolveSnapshotNode(layout, seg.FromNodeId, seg.FromLatitude, seg.FromLongitude);
-            GroundNode? toNode = ResolveSnapshotNode(layout, seg.ToNodeId, seg.ToLatitude, seg.ToLongitude);
-            if (fromNode is null || toNode is null)
+            if (ResolveSegment(layout, seg) is not { } segment)
             {
                 return null;
             }
 
-            // A free-space leg (ramp-lane cut) has no layout edge; rebuild the virtual one from its endpoints.
-            if (fromNode.Id < 0 || toNode.Id < 0 || seg.IsFreeSpace)
-            {
-                segments.Add(VirtualNode.CreateSegment(fromNode, toNode, seg.TaxiwayName ?? ""));
-                continue;
-            }
-
-            IGroundEdge? edge = null;
-            foreach (IGroundEdge e in fromNode.Edges)
-            {
-                if (e.HasNode(seg.ToNodeId))
-                {
-                    edge = e;
-                    break;
-                }
-            }
-
-            if (edge is null)
-            {
-                return null;
-            }
-
-            segments.Add(new TaxiRouteSegment { TaxiwayName = seg.TaxiwayName ?? edge.TaxiwayName, Edge = edge.Directed(fromNode, toNode) });
+            segments.Add(segment);
         }
 
-        var holdShorts = new List<HoldShortPoint>();
+        List<HoldShortPoint> holdShorts = [];
         if (dto.HoldShortPoints is not null)
         {
             foreach (HoldShortPointDto hs in dto.HoldShortPoints)

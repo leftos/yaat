@@ -308,10 +308,32 @@ A scenario-scripted deferred command that would end an active pushback, or that 
 The straight taxi edges a ground aircraft has driven, oldest first, kept to about 3,000 ft and sampled once per sim-second, so consecutive edges need not meet (`AircraftGroundOps.TaxiEdgeTrail`, docs/tick-loop.md).
 
 **Lead's path**:
-What a `FOLLOWG` follower joins: its lead's taxi edge trail with the gaps filled, the edge the lead is on, and the lead's remaining assigned route (`FollowRoutePlanner`, docs/ground/navigator.md).
+What a `FOLLOWG` follower joins: its lead's taxi edge trail with the gaps filled, the edge the lead is on, and the lead's remaining route: its assigned route, or, for a lead that is itself a follower, its driven route while its follow is current, never its stale assigned route (`FollowRoutePlanner`, docs/ground/navigator.md).
 
 **Merge node**:
-The node of the lead's path a `FOLLOWG` follower's goal-set search reaches first, where it joins the lead's path (`FollowRoutePlan.Joinable`, docs/ground/navigator.md). A follower standing behind the lead on the edge the lead is on joins at that edge's start in the lead's direction, behind the follower, with no route to it.
+The node of the lead's path a `FOLLOWG` follower's goal-set search reaches first, where it joins the lead's path (`FollowRoutePlan.Joinable`, docs/ground/navigator.md); also called the merge point. A follower standing behind the lead on the edge the lead is on joins at that edge's start in the lead's direction, behind the follower, with no route to it.
+The lead's edge into the merge (`LeadEdgeIntoMerge`) is the lead's path edge that ends at it, which the give-way stop keeps clear of with the lead's first edge out.
+
+**Lead-in segment**:
+The edge a `FOLLOWG` follower (or a follower's clearing route) stands mid-way along, facing the node its route starts at, put in front of the route as its first segment so the aircraft drives on from where it stands (`FollowRoutePlanner.LeadInSegment`, docs/ground/navigator.md).
+_Avoid_: implied lead-in (an uncleared taxiway a TAXI to a stand drives), lead-in line (a stand's own approach line), lead's edge into the merge (that is the lead aircraft's edge, not the follower's)
+
+**Follow route**:
+The taxi route a `FOLLOWG` follower drives through its own navigator: its route to the merge node, then the lead's path from there (`FollowingPhase.FollowRoute`, docs/ground/navigator.md). It never replaces the follower's assigned route.
+_Avoid_: assigned route (the one `FOLLOWG` leaves in place, which the follower does not drive)
+
+**Clearing route**:
+The taxi route a `FOLLOWG` follower drives off a runway when it has no follow route while inside that runway's hold line, its lead gone or no plan to join: to the nearest of the runway's bars ahead and on past it, then braked along to rest once its tail and wingtips are past the hold line (`FollowingPhase.ClearingRoute`, docs/ground/navigator.md).
+
+**Driven route**:
+The taxi route an aircraft actually drives: a follower's follow route or clearing route while a follow is its current phase, else its assigned route (`FollowingPhase.DrivenRouteOf`). The ground conflict detector reads every aircraft's route through it.
+
+**Stop gap**:
+The nose-to-tail distance a `FOLLOWG` follower stops at behind its lead, keyed by both aircraft: about 100 ft behind a small or prop lead, 150 ft behind a large or 757-class jet, 250 ft behind a heavy or super, plus 100 ft for a small or helicopter follower behind a jet (`FollowGap.StopGapFt`, a judgement value).
+_Avoid_: follow distance (the gap is nose to tail along the path, not centre to centre)
+
+**Close-follow band**:
+The stop gap plus 150 ft: inside it, behind a lead moving away, a `FOLLOWG` follower is no slower than the lead, with a walking-pace floor to close up (`FollowGap.CloseFollowBandFt`).
 
 **Goal-set search**:
 One A* pass to whichever of several goal nodes is cheapest to reach, rather than one search per goal (`AutoRouter.RunToGoals`, `TaxiPathfinder.FindRouteToNearestGoal`, docs/ground/pathfinder.md).

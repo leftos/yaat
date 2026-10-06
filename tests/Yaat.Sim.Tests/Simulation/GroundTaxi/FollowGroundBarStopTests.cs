@@ -4,6 +4,7 @@ using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Faa;
+using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
@@ -243,8 +244,239 @@ public class FollowGroundBarStopTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// A follower rolling toward the bar off the taxiway centreline — steering straight at a lead that is off it — stops
-    /// with its nose at the hold line, not with its centre a half-length from the bar node and its nose past the line.
+    /// A follower told to follow far behind its lead — the lead already across runway 33 on C — taxis the taxiways to the lead's
+    /// path rather than cutting across the field at the lead: every second of the follow its centre stays within
+    /// <see cref="OnTaxiwayToleranceFt"/> of a taxi edge's centreline, and, holding no crossing of its own, it stops at the
+    /// runway 33 holding position on C with its nose never past the hold line.
+    /// </summary>
+    [Theory]
+    [InlineData(60)]
+    [InlineData(80)]
+    public void Following_FarBehindOnKoakC_StaysOnTheTaxiwaysAndStopsAtBar518(int followSecond)
+    {
+        if (KoakFollowClip.Load(output, Scenario) is not { } engine)
+        {
+            return;
+        }
+
+        AircraftState follower = engine.FindAircraft(KoakFollowClip.Follower)!;
+        AirportGroundLayout layout = Assert.IsType<AirportGroundLayout>(follower.Ground.Layout);
+        GroundNode bar = NearSideRunway33BarOnC(layout, follower.Position);
+        List<DirectionalEdge> edges = [.. layout.Nodes.Values.SelectMany(n => n.Edges).Distinct().Select(e => e.Directed(e.Nodes[0], e.Nodes[1]))];
+        (int Second, string Callsign, string Command)[] script =
+        [
+            (1, KoakFollowClip.Lead, "CAINH"),
+            (1, KoakFollowClip.Follower, "CAINH"),
+            (2, KoakFollowClip.Lead, "TAXI F C B CROSS 33 RWY 28R"),
+            (followSecond, KoakFollowClip.Follower, $"FOLLOWG {KoakFollowClip.Lead}"),
+        ];
+
+        double worstOffFt = 0.0;
+        int worstOffAt = -1;
+        double worstPastFt = double.NegativeInfinity;
+        int heldAt = KoakFollowClip.RunScript(
+            engine,
+            output,
+            script,
+            followSecond + HoldBudgetSeconds,
+            second =>
+            {
+                if (second <= followSecond)
+                {
+                    return false;
+                }
+
+                double offFt = GroundConflictDetector.TrackClearanceFt(NearbyEdges(edges, follower.Position), follower.Position);
+                double pastFt = NosePastHoldLineFt(follower, bar, ApproachBearingDeg(bar, follower.Position));
+                worstPastFt = Math.Max(
+                    worstPastFt,
+                    GeoMath.DistanceNm(follower.Position, bar.Position) * GeoMath.FeetPerNm <= ApproachReadFt ? pastFt : double.NegativeInfinity
+                );
+                if (offFt > worstOffFt)
+                {
+                    worstOffFt = offFt;
+                    worstOffAt = second;
+                }
+
+                output.WriteLine(
+                    $"t={second} {follower.Phases?.CurrentPhase?.Name} gs={follower.GroundSpeed:F1} offTaxiway={offFt:F1} nosePast={pastFt:F1}"
+                );
+                return follower.Phases?.CurrentPhase is HoldingShortPhase;
+            }
+        );
+
+        output.WriteLine($"held at t={heldAt} (bar node {bar.Id}); farthest off a taxi edge {worstOffFt:F1} ft at t={worstOffAt}");
+        Assert.True(worstOffFt <= OnTaxiwayToleranceFt, $"N738SP's centre was {worstOffFt:F1} ft off every taxi edge at t={worstOffAt}");
+        HoldingShortPhase hold = Assert.IsType<HoldingShortPhase>(follower.Phases?.CurrentPhase);
+        Assert.Equal(bar.Id, hold.HoldShort.NodeId);
+        Assert.True(worstPastFt <= 0.0, $"N738SP's nose went {worstPastFt:F1} ft past the runway 33 hold line (node {bar.Id})");
+    }
+
+    /// <summary>
+    /// A follower that occupied runway 33 in this follow and has exited it clear past bar 518 — 100 ft back on C, the bar behind
+    /// its tail — no longer passes that runway's bars as an exit: turned back toward its lead across the runway, it stops at
+    /// bar 518 with its nose at the hold line.
+    /// </summary>
+    [Fact]
+    public void Following_ReapproachingARunwayItExited_StopsAtItsBar()
+    {
+        // The follower stands 100 ft back from bar 518 facing away from the runway, as one that has just exited 33 there.
+        if (StartExitedRunway33(Scenario, followerBackFt: 100.0, followerHeadingOffDeg: 0.0) is not { } run)
+        {
+            return;
+        }
+
+        (SimulationEngine engine, AircraftState follower, GroundNode bar, double approachDeg) = run;
+        int heldAt = KoakFollowClip.RunScript(
+            engine,
+            output,
+            [],
+            HoldBudgetSeconds,
+            second =>
+            {
+                output.WriteLine(
+                    $"t={second} {follower.Phases?.CurrentPhase?.Name} gs={follower.GroundSpeed:F1} hdg={follower.TrueHeading.Degrees:F0} "
+                        + $"nosePast={NosePastHoldLineFt(follower, bar, approachDeg):F1}"
+                );
+                return (follower.Phases?.CurrentPhase is HoldingShortPhase) || (NosePastHoldLineFt(follower, bar, approachDeg) > 200.0);
+            }
+        );
+
+        output.WriteLine($"held at t={heldAt}");
+        HoldingShortPhase hold = Assert.IsType<HoldingShortPhase>(follower.Phases?.CurrentPhase);
+        Assert.Equal(bar.Id, hold.HoldShort.NodeId);
+        AssertNoseAtHoldLine(follower, bar, approachDeg);
+    }
+
+    /// <summary>
+    /// A B744 that exited runway 33 onto C and stopped with its tail still inside bar 518's hold line, its follow route then
+    /// leading back across 33 to its lead, stops at bar 518: a bar met heading toward the runway is a crossing, whichever runway
+    /// the follower is exiting (AIM 4-3-21.b). It never reaches the runway pavement.
+    /// </summary>
+    [Fact]
+    public void Following_LongAircraftTurnsBackBeforeClearingTheExitBar_StopsAtIt()
+    {
+        double halfLengthFt = AircraftLength.ResolveFt("B744") / 2.0;
+        if (StartExitedRunway33(WithFollowerType("B744"), followerBackFt: halfLengthFt - 30.0, followerHeadingOffDeg: 0.0) is not { } run)
+        {
+            return;
+        }
+
+        (SimulationEngine engine, AircraftState follower, GroundNode bar, _) = run;
+        AssertStopsAtBarOffRunway33(engine, follower, bar);
+    }
+
+    /// <summary>
+    /// A follower that exited runway 33 and stands on C 350 ft back from bar 518 square to C, the bar abeam it rather than behind
+    /// it, has cleared the runway by position — its tail farther from the centreline than any of 33's bars on its side — so the
+    /// runway is dropped from the ones it is exiting, and turning down C back across 33 to its lead it stops at bar 518.
+    /// </summary>
+    [Fact]
+    public void Following_ExitWhoseNearestBarIsBeside_DropsTheRunwayByPosition()
+    {
+        if (StartExitedRunway33(Scenario, followerBackFt: 350.0, followerHeadingOffDeg: 90.0) is not { } run)
+        {
+            return;
+        }
+
+        (SimulationEngine engine, AircraftState follower, GroundNode bar, _) = run;
+        AssertStopsAtBarOffRunway33(engine, follower, bar);
+    }
+
+    /// <summary>
+    /// Runs the clip until the follower holds short or reaches runway 33's pavement; asserts it held at <paramref name="bar"/>
+    /// off the pavement.
+    /// </summary>
+    private void AssertStopsAtBarOffRunway33(SimulationEngine engine, AircraftState follower, GroundNode bar)
+    {
+        string airportId = Assert.IsType<AirportGroundLayout>(follower.Ground.Layout).AirportId;
+        RunwayInfo runway33 = RunwayOccupancy.AirportRunways(airportId).First(r => r.Id.Overlaps(RunwayIdentifier.Parse("33")));
+        output.WriteLine($"runway {runway33.Id} at {airportId}");
+        int heldAt = KoakFollowClip.RunScript(
+            engine,
+            output,
+            [],
+            HoldBudgetSeconds,
+            second =>
+            {
+                output.WriteLine(
+                    $"t={second} {follower.Phases?.CurrentPhase?.Name} gs={follower.GroundSpeed:F1} hdg={follower.TrueHeading.Degrees:F0} "
+                        + $"toBar={GeoMath.DistanceNm(follower.Position, bar.Position) * GeoMath.FeetPerNm:F0}"
+                );
+                return (follower.Phases?.CurrentPhase is HoldingShortPhase) || RunwayOccupancy.IsOnPavement(follower, runway33);
+            }
+        );
+
+        output.WriteLine($"ended at t={heldAt}");
+        Assert.False(RunwayOccupancy.IsOnPavement(follower, runway33), $"{follower.Callsign} drove onto runway 33 with no crossing clearance");
+        HoldingShortPhase hold = Assert.IsType<HoldingShortPhase>(follower.Phases?.CurrentPhase);
+        Assert.Equal(bar.Id, hold.HoldShort.NodeId);
+    }
+
+    private sealed record ExitedRun(SimulationEngine Engine, AircraftState Follower, GroundNode Bar, double ApproachDeg);
+
+    /// <summary>
+    /// The H1 clip on <paramref name="scenarioJson"/> with its lead held on C 150 ft past runway 33's far-side bar on C and its
+    /// follower <paramref name="followerBackFt"/> back from bar 518 along C, heading <paramref name="followerHeadingOffDeg"/> off
+    /// the bearing away from the runway, put straight into a follow of the lead that remembers runway 33 as the one it is exiting.
+    /// </summary>
+    private ExitedRun? StartExitedRunway33(string scenarioJson, double followerBackFt, double followerHeadingOffDeg)
+    {
+        if (KoakFollowClip.Load(output, scenarioJson) is not { } engine)
+        {
+            return null;
+        }
+
+        AircraftState follower = engine.FindAircraft(KoakFollowClip.Follower)!;
+        AircraftState lead = engine.FindAircraft(KoakFollowClip.Lead)!;
+        AirportGroundLayout layout = Assert.IsType<AirportGroundLayout>(follower.Ground.Layout);
+        GroundNode bar = NearSideRunway33BarOnC(layout, follower.Position);
+        GroundNode farBar = TestLayoutNodes.RunwayHoldShortsOnTaxiway(layout, "33", "C").MaxBy(n => GeoMath.DistanceNm(bar.Position, n.Position))!;
+        double approachDeg = ApproachBearingDeg(bar, follower.Position);
+        double awayFromRunwayDeg = GeoMath.BearingTo(farBar.Position, bar.Position);
+
+        lead.Position = OffsetFt(farBar.Position, (awayFromRunwayDeg + 180.0) % 360.0, 150.0);
+        lead.TrueHeading = new TrueHeading((awayFromRunwayDeg + 180.0) % 360.0);
+        lead.Phases = new PhaseList();
+        lead.Phases.Add(new HoldingInPositionPhase());
+        lead.Phases.Start(CommandDispatcher.BuildMinimalContext(lead, layout));
+        follower.Position = OffsetFt(bar.Position, approachDeg, followerBackFt);
+        follower.TrueHeading = new TrueHeading((approachDeg + followerHeadingOffDeg) % 360.0);
+        var follow = FollowingPhase.FromSnapshot(
+            new FollowingPhaseDto
+            {
+                Status = (int)PhaseStatus.Pending,
+                ElapsedSeconds = 0,
+                Requirements = [],
+                TargetCallsign = KoakFollowClip.Lead,
+                TimeSinceLastLog = 0,
+                ExitingRunways = ["33"],
+            },
+            layout
+        );
+        follower.Phases = new PhaseList();
+        follower.Phases.Add(follow);
+        follower.Phases.Start(CommandDispatcher.BuildMinimalContext(follower, layout));
+        return new ExitedRun(engine, follower, bar, approachDeg);
+    }
+
+    /// <summary>
+    /// How far (ft) off a taxi edge's centreline a follower on the taxi graph may be: wide of a cut corner, never across the field.
+    /// </summary>
+    private const double OnTaxiwayToleranceFt = 25.0;
+
+    /// <summary>The edges with an end within 5,000 ft of <paramref name="at"/>, the only ones that can be the nearest.</summary>
+    private static List<DirectionalEdge> NearbyEdges(List<DirectionalEdge> edges, LatLon at) =>
+        [
+            .. edges.Where(e =>
+                (GeoMath.DistanceNm(at, e.FromNode.Position) * GeoMath.FeetPerNm < 5000.0)
+                || (GeoMath.DistanceNm(at, e.ToNode.Position) * GeoMath.FeetPerNm < 5000.0)
+            ),
+        ];
+
+    /// <summary>
+    /// A follower starting off the taxiway centreline, its stationary lead on C beyond the bar, rejoins the centreline on its
+    /// follow route and stops with its nose at the hold line, not with its centre a half-length from the bar node and its nose past it.
     /// </summary>
     [Fact]
     public void OffCentrelineApproach_NoseStopsAtTheHoldLine()
@@ -263,12 +495,15 @@ public class FollowGroundBarStopTests(ITestOutputHelper output)
         double towardRunwayDeg = (approachDeg + 180.0) % 360.0;
         double sideDeg = (approachDeg + 90.0) % 360.0;
 
-        // Both on one line parallel to C, CentrelineOffsetFt to the side of it: the follower 300 ft short of the bar, the
-        // stationary lead 150 ft beyond it, so the follower steering at the lead rolls the whole way off the centreline.
+        // Both CentrelineOffsetFt to the side of C: the follower 300 ft short of the bar, the lead stopped 150 ft beyond it, holding
+        // in position (not parked, so the follow has a taxi path to join), so the follower starts its follow off the centreline.
         follower.Position = OffsetFt(OffsetFt(bar.Position, approachDeg, 300.0), sideDeg, CentrelineOffsetFt);
         follower.TrueHeading = new TrueHeading(towardRunwayDeg);
         lead.Position = OffsetFt(OffsetFt(bar.Position, towardRunwayDeg, 150.0), sideDeg, CentrelineOffsetFt);
         lead.TrueHeading = new TrueHeading(towardRunwayDeg);
+        lead.Phases = new PhaseList();
+        lead.Phases.Add(new HoldingInPositionPhase());
+        lead.Phases.Start(CommandDispatcher.BuildMinimalContext(lead, layout));
 
         (int Second, string Callsign, string Command)[] script =
         [
@@ -293,7 +528,7 @@ public class FollowGroundBarStopTests(ITestOutputHelper output)
         HoldingShortPhase hold = Assert.IsType<HoldingShortPhase>(follower.Phases?.CurrentPhase);
         output.WriteLine($"held at t={heldAt}");
         Assert.Equal(bar.Id, hold.HoldShort.NodeId);
-        Assert.True(LateralOffsetFt(follower, bar, approachDeg) > CentrelineOffsetFt - 2.0, "precondition: the follower stopped off the centreline");
+        Assert.True(LateralOffsetFt(follower, bar, approachDeg) < CentrelineOffsetFt / 2.0, "the follower held off the centreline it started beside");
         AssertNoseAtHoldLine(follower, bar, approachDeg);
     }
 
@@ -374,6 +609,71 @@ public class FollowGroundBarStopTests(ITestOutputHelper output)
         Assert.Equal(bar.Id, hold.HoldShort.NodeId);
         AssertNoseAtHoldLine(follower, bar, ApproachBearingDeg(bar, follower.Position));
         Assert.Single(warnings);
+    }
+
+    /// <summary>
+    /// A follower closing on the runway 33 bar on C at the piston taxi speed, its nose 110 ft from the hold line — inside its
+    /// taxi-rate stopping distance, so only the max-effort rate makes the line — behind a lead stopped 150 ft past the bar,
+    /// whose gap cap is the lower one at first. It still brakes at the rate the bar needs, not the taxi rate the gap cap asks
+    /// for, and stops at the bar without the dead-stop backstop: it never loses more speed in a second than the max-effort rate
+    /// allows, and holds with its nose at the line.
+    /// </summary>
+    [Fact]
+    public void ClosingOnTheBarBehindASlowerLead_BrakesAtTheBarsRateAndStopsAtIt()
+    {
+        SimulationEngine? engine = KoakFollowClip.Load(output, Scenario);
+        if (engine is null)
+        {
+            return;
+        }
+
+        AircraftState follower = engine.FindAircraft(KoakFollowClip.Follower)!;
+        AircraftState lead = engine.FindAircraft(KoakFollowClip.Lead)!;
+        AirportGroundLayout layout = Assert.IsType<AirportGroundLayout>(follower.Ground.Layout);
+        GroundNode bar = NearSideRunway33BarOnC(layout, follower.Position);
+        double approachDeg = ApproachBearingDeg(bar, follower.Position);
+        double towardRunwayDeg = (approachDeg + 180.0) % 360.0;
+        double halfLengthFt = AircraftLength.ResolveFt(follower.AircraftType) / 2.0;
+        follower.Position = OffsetFt(bar.Position, approachDeg, 110.0 + halfLengthFt);
+        follower.TrueHeading = new TrueHeading(towardRunwayDeg);
+        lead.Position = OffsetFt(bar.Position, towardRunwayDeg, 150.0);
+        lead.TrueHeading = new TrueHeading(towardRunwayDeg);
+        lead.Phases = new PhaseList();
+        lead.Phases.Add(new HoldingInPositionPhase());
+        lead.Phases.Start(CommandDispatcher.BuildMinimalContext(lead, layout));
+        Assert.True(engine.SendCommand(KoakFollowClip.Follower, "CAINH").Success);
+        CommandResult follow = engine.SendCommand(KoakFollowClip.Follower, $"FOLLOWG {KoakFollowClip.Lead}");
+        Assert.True(follow.Success, follow.Message);
+        follower.IndicatedAirspeed = CategoryPerformance.TaxiSpeed(AircraftCategory.Piston);
+
+        List<(int Second, double SpeedKts)> speeds = [(0, follower.GroundSpeed)];
+        int heldAt = KoakFollowClip.RunScript(
+            engine,
+            output,
+            [],
+            HoldBudgetSeconds,
+            second =>
+            {
+                speeds.Add((second + 1, follower.GroundSpeed));
+                output.WriteLine(
+                    $"t={second} {follower.Phases?.CurrentPhase?.Name} gs={follower.GroundSpeed:F2} "
+                        + $"nosePast={NosePastHoldLineFt(follower, bar, approachDeg):F1}"
+                );
+                return (follower.Phases?.CurrentPhase is HoldingShortPhase) || (NosePastHoldLineFt(follower, bar, approachDeg) > 200.0);
+            }
+        );
+
+        output.WriteLine($"held at t={heldAt}");
+        HoldingShortPhase hold = Assert.IsType<HoldingShortPhase>(follower.Phases?.CurrentPhase);
+        Assert.Equal(bar.Id, hold.HoldShort.NodeId);
+        (double lossKts, int atSecond) = KoakFollowClip.LargestSpeedLossPerSecond(speeds);
+        double maxLossKts = CategoryPerformance.ExpediteExitDecelRate(AircraftCategory.Piston) * (1.0 + (1.0 / SimulationEngine.PhysicsSubTickRate));
+        Assert.True(
+            lossKts <= maxLossKts + 1e-6,
+            $"N738SP lost {lossKts:F2} kt in the second ending t={atSecond}, "
+                + $"more than the {maxLossKts:F2} kt/s max-effort rate: the backstop stopped it"
+        );
+        AssertNoseAtHoldLine(follower, bar, approachDeg);
     }
 
     private static LatLon OffsetFt(LatLon from, double bearingDeg, double feet) =>
@@ -468,13 +768,119 @@ public class FollowGroundBarStopTests(ITestOutputHelper output)
         );
     }
 
-    /// <summary>The H1 scenario with N738SP flying <paramref name="type"/> instead of a C172.</summary>
-    private static string WithFollowerType(string type)
+    /// <summary>
+    /// Two B738s in trail on C, heading for the runway 33 bar: the lead taxis to runway 28R and holds at the bar; the
+    /// follower, told to follow it, stops behind it with its nose at least the large-jet stop gap (150 ft) from the lead's
+    /// tail, and its nose never reaches the lead's tail at any second of the run.
+    /// </summary>
+    [Fact]
+    public void Following_GapIsNoseToTailAlongThePath()
     {
-        JsonNode scenario = Assert.IsAssignableFrom<JsonNode>(JsonNode.Parse(Scenario));
-        JsonNode follower = Assert.Single(scenario["aircraft"]!.AsArray(), a => (string?)a?["aircraftId"] == KoakFollowClip.Follower)!;
-        follower["aircraftType"] = type;
-        follower["flightplan"]!["aircraftType"] = type;
+        string scenarioJson = WithAircraftType(WithAircraftType(Scenario, KoakFollowClip.Lead, JetType), KoakFollowClip.Follower, JetType);
+        if (KoakFollowClip.Load(output, scenarioJson) is not { } engine)
+        {
+            return;
+        }
+
+        AircraftState follower = engine.FindAircraft(KoakFollowClip.Follower)!;
+        AircraftState lead = engine.FindAircraft(KoakFollowClip.Lead)!;
+        double stopGapFt = FollowGap.StopGapFt(JetType, AircraftCategory.Jet, JetType, AircraftCategory.Jet);
+        Assert.Equal(150.0, stopGapFt, 6);
+
+        // Both on C's centreline short of the bar, the lead 250 ft and the follower 750 ft back: the pair start in trail,
+        // the follower's nose well outside the close-follow band, so the run measures the follow and nothing else.
+        AirportGroundLayout layout = Assert.IsType<AirportGroundLayout>(follower.Ground.Layout);
+        GroundNode bar = NearSideRunway33BarOnC(layout, follower.Position);
+        double approachDeg = ApproachBearingDeg(bar, follower.Position);
+        var towardRunway = new TrueHeading((approachDeg + 180.0) % 360.0);
+        lead.Position = OffsetFt(bar.Position, approachDeg, 250.0);
+        lead.TrueHeading = towardRunway;
+        follower.Position = OffsetFt(bar.Position, approachDeg, 750.0);
+        follower.TrueHeading = towardRunway;
+
+        const int inTrailFollowSecond = 3;
+        (int Second, string Callsign, string Command)[] script =
+        [
+            (1, KoakFollowClip.Lead, "CAINH"),
+            (1, KoakFollowClip.Follower, "CAINH"),
+            (2, KoakFollowClip.Lead, "TAXI C B RWY 28R"),
+            (inTrailFollowSecond, KoakFollowClip.Follower, $"FOLLOWG {KoakFollowClip.Lead}"),
+        ];
+
+        double closestFt = double.PositiveInfinity;
+        int closestAt = -1;
+        int stoppedSince = -1;
+        int settledAt = KoakFollowClip.RunScript(
+            engine,
+            output,
+            script,
+            HoldBudgetSeconds,
+            second =>
+            {
+                double gapFt = SignedNoseToTailFt(follower, lead);
+                if ((second > inTrailFollowSecond) && (gapFt < closestFt))
+                {
+                    closestFt = gapFt;
+                    closestAt = second;
+                }
+
+                output.WriteLine(
+                    $"t={second} lead={lead.Phases?.CurrentPhase?.Name} follower={follower.Phases?.CurrentPhase?.Name} gs={follower.GroundSpeed:F1} "
+                        + $"noseToTail={gapFt:F1}"
+                );
+                bool settled = (lead.Phases?.CurrentPhase is HoldingShortPhase) && (follower.GroundSpeed < 0.05) && (second > inTrailFollowSecond);
+                stoppedSince = settled ? (stoppedSince < 0 ? second : stoppedSince) : -1;
+                return (stoppedSince > 0) && (second - stoppedSince >= NumberTwoSeconds);
+            }
+        );
+
+        Assert.True(settledAt > 0, $"the follower never stood behind the lead at the bar within {HoldBudgetSeconds}s");
+        double stoppedGapFt = SignedNoseToTailFt(follower, lead);
+        output.WriteLine($"settled at t={settledAt}: nose {stoppedGapFt:F1} ft from the lead's tail; closest {closestFt:F1} ft at t={closestAt}");
+        Assert.True(closestFt > 0.0, $"the follower's nose reached the lead's tail ({closestFt:F1} ft) at t={closestAt}");
+        Assert.True(
+            stoppedGapFt >= stopGapFt - NoseStopToleranceFt,
+            $"the follower stopped with its nose {stoppedGapFt:F1} ft from the lead's tail; expected at least {stopGapFt - NoseStopToleranceFt:F1} ft"
+        );
+        Assert.True(
+            stoppedGapFt <= stopGapFt + 10.0,
+            $"the follower stopped with its nose {stoppedGapFt:F1} ft from the lead's tail; expected no more than {stopGapFt + 10.0:F1} ft"
+        );
+    }
+
+    /// <summary>
+    /// How far (ft) the follower's nose — centre plus half its length along its heading — is from the lead's tail — centre less
+    /// half its length along its heading: positive while the tail is ahead of the nose along the line from the follower's
+    /// centre to the lead's, negative once the nose is past it.
+    /// </summary>
+    private static double SignedNoseToTailFt(AircraftState follower, AircraftState lead)
+    {
+        LatLon nose = GeoMath.ProjectPoint(
+            follower.Position,
+            follower.TrueHeading,
+            AircraftLength.ResolveFt(follower.AircraftType) / 2.0 / GeoMath.FeetPerNm
+        );
+        LatLon tail = GeoMath.ProjectPoint(
+            lead.Position,
+            new TrueHeading((lead.TrueHeading.Degrees + 180.0) % 360.0),
+            AircraftLength.ResolveFt(lead.AircraftType) / 2.0 / GeoMath.FeetPerNm
+        );
+        double distFt = GeoMath.DistanceNm(nose, tail) * GeoMath.FeetPerNm;
+        double towardLeadDeg = GeoMath.BearingTo(follower.Position, lead.Position);
+        double offRad = GeoMath.SignedBearingDifference(towardLeadDeg, GeoMath.BearingTo(nose, tail)) * Math.PI / 180.0;
+        return Math.Cos(offRad) >= 0.0 ? distFt : -distFt;
+    }
+
+    /// <summary>The H1 scenario with N738SP flying <paramref name="type"/> instead of a C172.</summary>
+    private static string WithFollowerType(string type) => WithAircraftType(Scenario, KoakFollowClip.Follower, type);
+
+    /// <summary><paramref name="scenarioJson"/> with <paramref name="callsign"/> flying <paramref name="type"/>.</summary>
+    private static string WithAircraftType(string scenarioJson, string callsign, string type)
+    {
+        JsonNode scenario = Assert.IsAssignableFrom<JsonNode>(JsonNode.Parse(scenarioJson));
+        JsonNode aircraft = Assert.Single(scenario["aircraft"]!.AsArray(), a => (string?)a?["aircraftId"] == callsign)!;
+        aircraft["aircraftType"] = type;
+        aircraft["flightplan"]!["aircraftType"] = type;
         return scenario.ToJsonString();
     }
 

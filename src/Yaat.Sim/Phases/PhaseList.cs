@@ -473,7 +473,7 @@ public sealed class PhaseList
             HoldingAfterExitPhaseDto d => HoldingAfterExitPhase.FromSnapshot(d),
             AtParkingPhaseDto d => AtParkingPhase.FromSnapshot(d),
             TaxiingPhaseDto d => TaxiingPhase.FromSnapshot(d),
-            FollowingPhaseDto d => FollowingPhase.FromSnapshot(d),
+            FollowingPhaseDto d => FollowingPhase.FromSnapshot(d, groundLayout),
             PushbackPhaseDto d => PushbackPhase.FromSnapshot(d),
             PushbackToSpotPhaseDto d => PushbackPhase.FromSnapshot(SpotPushbackAsMove(d, groundLayout)),
             RunwayExitPhaseDto d => RunwayExitPhase.FromSnapshot(d, groundLayout),

@@ -24,7 +24,7 @@ GeoJSON ─► TaxiwayGraphBuilder ─► [1] Fillet generator ─► filleted g
 
 **Runway hold-short bars** are seated at graph-build time, *before* the fillet generator — the constant perpendicular standoff from the runway centerline, angle-independent. See [`hold-short-placement.md`](./hold-short-placement.md) · `RunwayCrossingDetector`.
 
-**Ground follow (`FOLLOWG`)** is checked when issued: the follower must be able to join the lead's taxi path (its trail, the edge it is on, its remaining route) through the pathfinder's goal-set search, and must not stand ahead of the lead on it. See [`navigator.md`](./navigator.md#followg-joining-the-leads-taxi-path) · `FollowRoutePlanner`, `TaxiPathfinder.FindRouteToNearestGoal`.
+**Ground follow (`FOLLOWG`)** is checked when issued: the follower must be able to join the lead's taxi path (its trail, the edge it is on, its remaining route) through the pathfinder's goal-set search, and must not stand ahead of the lead on it. See [`navigator.md`](./navigator.md#followg-joining-the-leads-taxi-path) · `FollowRoutePlanner`, `TaxiPathfinder.FindRouteToNearestGoal`. `FollowingPhase` then drives that plan over the taxiways through its own navigator, giving way at the merge and stopping at runway bars it has no crossing for: [`navigator.md`](./navigator.md#followg-driving-the-follow-route).
 
 ## Decided ground-movement rules not built yet
 

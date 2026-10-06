@@ -713,6 +713,68 @@ public sealed class FollowingPhaseDto : PhaseDto
 
     /// <summary>The other end node id (<c>Nodes[1]</c>) of that taxi edge. See <see cref="TaxiEdgeNodeA"/>.</summary>
     public int? TaxiEdgeNodeB { get; init; }
+
+    /// <summary>
+    /// The follow route the follower drives (<c>FollowingPhase.FollowRoute</c>): its route to the merge node, then the lead's
+    /// path from there. Null before the follow planned one, and in snapshots written before the field existed; the restored
+    /// follow then plans on its next tick.
+    /// </summary>
+    public TaxiRouteDto? FollowRoute { get; init; }
+
+    /// <summary>
+    /// The index of <see cref="FollowRoute"/>'s first segment on the lead's path, the segment out of the merge node
+    /// (<c>FollowingPhase.MergeSegmentIndex</c>); the segments before it are the follower's own route to the merge. Zero with no
+    /// follow route.
+    /// </summary>
+    public int MergeSegmentIndex { get; init; }
+
+    /// <summary>
+    /// The lead's path edge into the merge node, in the lead's direction of travel — the edge the give-way stop keeps clear of
+    /// with the one out of the merge — written as <see cref="FollowRoute"/>'s own segments are, so a restore resolves the edge
+    /// the live follow held between two nodes joined by more than one. Null where the lead's path starts at the merge, with no
+    /// follow route, and in older snapshots.
+    /// </summary>
+    public TaxiSegmentDto? LeadEdgeIntoMerge { get; init; }
+
+    /// <summary>
+    /// Runways whose pavement the follower occupied during the follow and has not yet exited clear of, whose bars it passes on
+    /// the way out (<c>FollowingPhase</c>'s exiting runways). Empty in snapshots written before the field existed.
+    /// </summary>
+    public List<string> ExitingRunways { get; init; } = [];
+
+    /// <summary>
+    /// Whether the follower is giving way short of the merge (<c>FollowingPhase.IsGivingWay</c>), stopping short of the lead's
+    /// track there until the lead's tail is past the merge and the follow gap is open. False with no follow route.
+    /// </summary>
+    public bool GivingWay { get; init; }
+
+    /// <summary>
+    /// Whether the follow holds in position for good, planning no more (<c>FollowingPhase.IsUnjoinable</c>): no taxi path to
+    /// the lead's path, or the follower ahead of the lead. False in snapshots written before the field existed.
+    /// </summary>
+    public bool Unjoinable { get; init; }
+
+    /// <summary>
+    /// The clearing route the follower drives off a runway it has no follow route on (<c>FollowingPhase.ClearingRoute</c>): to
+    /// the nearest hold-short bar ahead and on past it. Null when not clearing, and in older snapshots.
+    /// </summary>
+    public TaxiRouteDto? ClearingRoute { get; init; }
+
+    /// <summary>The hold-short bar node the clearing route clears; null when not clearing.</summary>
+    public int? ClearingBarNodeId { get; init; }
+
+    /// <summary>
+    /// The runways a clearing route has been tried for since the follow last installed a follow route
+    /// (<c>FollowingPhase.ClearingAttemptedRunways</c>). Written only when one has; null in older snapshots.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<string>? ClearingAttemptedRunways { get; init; }
+
+    /// <summary>
+    /// The follow navigator's state, including the primitive it was playing and its progress (<see cref="GroundNavigatorDto.Playback"/>),
+    /// resumed at the restored follow's first segment set-up. Null with neither a follow route nor a clearing route.
+    /// </summary>
+    public GroundNavigatorDto? Navigator { get; init; }
 }
 
 /// <summary>

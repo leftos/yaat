@@ -648,7 +648,15 @@ In that menu, "Taxi here" routes to that runway end and offers the RWY (taxi ont
 
 When no taxi route reaches that path, the command is refused with *"unable, no taxi route to SWA123's route"*. When the aircraft already stands on SWA123's route ahead of it, where following would mean taxiing into it, it is refused with *"unable, ahead of SWA123 on its route — issue HOLD, GIVEWAY or TAXI first"*. The same check runs when the follow is armed at a runway hold-short.
 
-A leader still pushing back or parked on its stand, or not yet on a taxiway, has no path to check, so the follow is accepted.
+A leader still pushing back or parked on its stand, or not yet on a taxiway, has no path to check, so the follow is accepted; the follower holds in position until the leader taxis.
+
+Once following, the aircraft taxis along the taxiways, never across the grass. It takes the taxiways to the leader's path and, where it joins it ahead of the leader or before the leader has passed, stops short of the junction and gives way until the leader's tail is past; then it falls in behind and follows the leader's own taxiways, turning where the leader turned.
+
+It keeps a nose-to-tail gap behind the leader: about 100 ft behind a small or propeller aircraft, 150 ft behind a large jet, 250 ft behind a heavy, plus 100 ft for a small follower behind a jet. Its assigned taxi route stays in place but is not what it drives.
+
+It stops at every runway hold-short it has no crossing clearance of its own for: the leader's crossing does not carry over, so give it a `CROSS` (`FOLLOWG SWA123; CROSS 28R`). It never stops at a taxiway hold-short the leader was given; it stops behind the leader instead. Leaving a runway, it does not stop at that runway's hold-short on the way off.
+
+If the leader is deleted or departs, the follower never stops on a runway: on one, or inside its hold line, it taxis clear past the hold line, brakes to a stop on the taxiway, and holds in position; elsewhere it brakes to a stop where it is.
 
 **Draw taxi route mode:** Right-click a node or aircraft and select "Draw taxi route…" to enter draw mode. The aircraft's menu offers it on the Radar View and in the Aircraft List too: picking it there switches to the Ground View (or brings its window forward) and starts drawing on it.
 
@@ -1643,7 +1651,7 @@ UAL123: commands after HOLDP OAK 180 1M R will not execute until the hold is can
 
 The chain is still accepted — "after the hold, fly 090" is a perfectly good plan, and the heading fires when you end the hold. If you want something to happen *during* the hold, give it a trigger: `HOLDP OAK 180 1M R; LV 40 SPD 210` slows the aircraft passing 4,000 without ending the hold.
 
-The ground follow `FOLLOWG` is not in this club: it finishes naturally at the runway hold-short (or when the lead departs), so `FOLLOWG UAL123; CROSS 28R` — follow the traffic, then cross once you're at the bars — chains normally with no warning.
+The ground follow `FOLLOWG` is not in this club: it finishes naturally at a runway hold-short it has no crossing for (or, once the lead departs, when it has come to a stop clear of any runway), so `FOLLOWG UAL123; CROSS 28R` — follow the traffic, then cross once you're at the bars — chains normally with no warning.
 
 #### Commands that can't be chained
 

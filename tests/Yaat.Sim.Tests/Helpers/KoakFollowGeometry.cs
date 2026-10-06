@@ -139,13 +139,27 @@ internal static class KoakFollowGeometry
     internal static LatLon Between(LatLon a, LatLon b, double fraction) =>
         new(a.Lat + ((b.Lat - a.Lat) * fraction), a.Lon + ((b.Lon - a.Lon) * fraction));
 
-    /// <summary>An aircraft at the midpoint of a straight segment of <paramref name="lead"/>'s route, three segments or more ahead of it.</summary>
+    /// <summary>How far (ft) from every runway centreline a pose counts as clear of the runways' hold lines.</summary>
+    internal const double ClearOfRunwayFt = 500.0;
+
+    /// <summary>
+    /// An aircraft at the midpoint of a straight segment of <paramref name="lead"/>'s route, three segments or more ahead of it,
+    /// facing back along it, more than <see cref="ClearOfRunwayFt"/> from every runway centreline: clear of every runway's hold
+    /// lines, where a follow with no plan would drive a clearing route off the runway instead of holding.
+    /// </summary>
     internal static AircraftState SpawnOnRouteAhead(AircraftState lead, string callsign, string type)
     {
         TaxiRoute route = Assert.IsType<TaxiRoute>(lead.Ground.AssignedTaxiRoute);
+        List<RunwayInfo> runways = [.. RunwayOccupancy.AirportRunways(AirportId)];
+        Assert.NotEmpty(runways);
         TaxiRouteSegment ahead = route
             .Segments.Skip(route.CurrentSegmentIndex + 3)
-            .First(s => (s.Edge.Edge is GroundEdge) && !s.Edge.Edge.IsRunwayCenterline && (s.Edge.DistanceNm * GeoMath.FeetPerNm >= 100.0));
+            .First(s =>
+                (s.Edge.Edge is GroundEdge)
+                && !s.Edge.Edge.IsRunwayCenterline
+                && (s.Edge.DistanceNm * GeoMath.FeetPerNm >= 100.0)
+                && runways.All(r => ClearOf(r, Between(s.Edge.FromNode.Position, s.Edge.ToNode.Position, 0.5)))
+            );
         return Spawn(
             callsign,
             type,
@@ -153,6 +167,9 @@ internal static class KoakFollowGeometry
             Facing(ahead.Edge.ToNode, ahead.Edge.FromNode)
         );
     }
+
+    private static bool ClearOf(RunwayInfo runway, LatLon point) =>
+        GeoMath.DistanceToSegmentFt(point, new LatLon(runway.Lat1, runway.Lon1), new LatLon(runway.Lat2, runway.Lon2)) > ClearOfRunwayFt;
 
     /// <summary>A C172 at parking on a KOAK stand, in <see cref="AtParkingPhase"/>.</summary>
     internal static AircraftState SpawnAtStand(AirportGroundLayout layout, string callsign)
