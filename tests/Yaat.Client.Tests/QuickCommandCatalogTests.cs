@@ -10,16 +10,6 @@ namespace Yaat.Client.Tests;
 /// </summary>
 public class QuickCommandCatalogTests
 {
-    private static readonly string[] ExcludedPrefixes = ["point.", "spawn.", "relative.", "ground.relative-"];
-
-    private static readonly string[] ExcludedIds =
-    [
-        MenuIds.AircraftCommand,
-        MenuIds.AircraftNote,
-        MenuIds.FavoritesMenu,
-        MenuIds.LiveTrafficAssumeSelected,
-    ];
-
     [Fact]
     public void EveryDefaultListId_IsEligible()
     {
@@ -35,22 +25,39 @@ public class QuickCommandCatalogTests
         Assert.Empty(ineligible);
     }
 
-    [Fact]
-    public void NoExcludedPrefixOrId_IsEligible()
+    /// <summary>The ruled-out actions: a second aircraft, free text, the favorites submenu and the multi-selection assume.</summary>
+    [Theory]
+    [InlineData(MenuIds.RelativeFollow)]
+    [InlineData(MenuIds.RelativeReportInSight)]
+    [InlineData(MenuIds.AircraftCommand)]
+    [InlineData(MenuIds.AircraftNote)]
+    [InlineData(MenuIds.FavoritesMenu)]
+    [InlineData(MenuIds.LiveTrafficAssumeSelected)]
+    [InlineData(MenuIds.PointDirectTo)]
+    public void RuledOutAction_IsACatalogAction_ButNotEligible(string id)
     {
-        List<string> leaked =
-        [
-            .. QuickCommandCatalog
-                .Eligible.Select(item => item.Id)
-                .Where(id => ExcludedPrefixes.Any(prefix => id.StartsWith(prefix, StringComparison.Ordinal)) || ExcludedIds.Contains(id)),
-        ];
-
-        Assert.Empty(leaked);
-        Assert.All(ExcludedIds, id => Assert.False(QuickCommandCatalog.IsEligible(id)));
+        Assert.Equal(id, MenuCatalog.Get(id).Id);
+        Assert.False(QuickCommandCatalog.IsEligible(id));
+        Assert.Null(QuickCommandCatalog.Find(id));
     }
 
+    [Theory]
+    [InlineData(MenuIds.LiveTrafficAssume)]
+    [InlineData(MenuIds.LiveTrafficAssumeAndTrack)]
+    public void SingleAircraftAssume_IsEligible(string id) => Assert.True(QuickCommandCatalog.IsEligible(id));
+
     [Fact]
-    public void ExcludedIds_AreCatalogActions() => Assert.All(ExcludedIds, id => Assert.Equal(id, MenuCatalog.Get(id).Id));
+    public void AssumeSelected_IsTheOnlyLiveTrafficActionRuledOut()
+    {
+        List<string> ruledOut =
+        [
+            .. MenuCatalog
+                .All.Select(entry => entry.Id)
+                .Where(id => id.StartsWith("livetraffic.", StringComparison.Ordinal) && !QuickCommandCatalog.IsEligible(id)),
+        ];
+
+        Assert.Equal([MenuIds.LiveTrafficAssumeSelected], ruledOut);
+    }
 
     [Fact]
     public void EveryEligibleEntry_HasItsFamilyLabelAndGlyph()

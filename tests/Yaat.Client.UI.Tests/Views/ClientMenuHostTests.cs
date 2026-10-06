@@ -171,4 +171,82 @@ public class ClientMenuHostTests
             main.Preferences.SetVfrCommandsForIfr(savedMode);
         }
     }
+
+    /// <summary>A custom quick command is sent as typed input is: a macro it names goes out as its expansion.</summary>
+    [AvaloniaFact]
+    public void CustomQuickCommand_WithMacro_SendsTheExpansion()
+    {
+        using var scope = new PreferencesFileScope();
+        var main = new MainViewModel(new FakeFilePickerService());
+        main.Preferences.SetMacros([new MacroDefinition { Name = "WD", Expansion = "FH 270" }]);
+
+        Assert.Equal("FH 270", CustomQuickCommandSend(main, "!WD"));
+    }
+
+    /// <summary>A custom quick command is sent as typed input is: a verb typed under a renamed alias goes out canonical.</summary>
+    [AvaloniaFact]
+    public void CustomQuickCommand_WithRenamedAlias_SendsCanonical()
+    {
+        using var scope = new PreferencesFileScope();
+        var main = new MainViewModel(new FakeFilePickerService());
+        var scheme = CommandScheme.Default();
+        scheme.Patterns[CanonicalCommandType.FlyHeading].Aliases = ["TURNTO"];
+        main.Preferences.SetCommandScheme(scheme);
+
+        Assert.Equal("FH 270", CustomQuickCommandSend(main, "TURNTO 270"));
+    }
+
+    /// <summary>A custom quick command naming a macro that does not exist goes out as typed, so the server's rejection names it.</summary>
+    [AvaloniaFact]
+    public void CustomQuickCommand_WithUnknownMacro_SendsTheTextAsTyped()
+    {
+        using var scope = new PreferencesFileScope();
+        var main = new MainViewModel(new FakeFilePickerService());
+        main.Preferences.SetMacros([]);
+
+        Assert.Equal("!GONE", CustomQuickCommandSend(main, "!GONE"));
+    }
+
+    /// <summary>Each menu reads the macros as they are when it opens, so an edit between two menus reaches the second.</summary>
+    [AvaloniaFact]
+    public void CustomQuickCommand_MacroEditedBetweenMenus_SendsTheNewExpansion()
+    {
+        using var scope = new PreferencesFileScope();
+        var main = new MainViewModel(new FakeFilePickerService());
+        main.Preferences.SetMacros([new MacroDefinition { Name = "WD", Expansion = "FH 270" }]);
+        AircraftModel ac = AddCustomQuickCommand(main, "!WD");
+        Assert.Equal("FH 270", MenuSend(main, ac));
+
+        main.Preferences.SetMacros([new MacroDefinition { Name = "WD", Expansion = "FH 090" }]);
+
+        Assert.Equal("FH 090", MenuSend(main, ac));
+    }
+
+    // The command the client host's menu sends for a custom quick command holding text, as its menu item records it.
+    private static string? CustomQuickCommandSend(MainViewModel main, string text) => MenuSend(main, AddCustomQuickCommand(main, text));
+
+    // Stores a custom quick command holding text as the IFR-enroute list, and adds an aircraft in that situation.
+    private static AircraftModel AddCustomQuickCommand(MainViewModel main, string text)
+    {
+        main.Preferences.SetQuickCommandList(AircraftSituation.IfrEnroute, [new CustomQuickCommandEntry("Custom", text, null, MenuFlightRules.Both)]);
+        var ac = new AircraftModel
+        {
+            Callsign = "N123AB",
+            CurrentPhase = "",
+            IsOnGround = false,
+            FlightRules = "IFR",
+            Situation = AircraftSituation.IfrEnroute,
+        };
+        main.Aircraft.Add(ac);
+        return ac;
+    }
+
+    // Opens a fresh client-host menu on the aircraft and returns what its single quick command sends.
+    private static string? MenuSend(MainViewModel main, AircraftModel ac)
+    {
+        IMenuHost host = new ClientMenuHost(main, ac, new Border());
+        var context = new MenuContext(new MenuClick(ac.Callsign, null, null, []), host.Session);
+        MenuCatalogEntry entry = Assert.Single(QuickCommandResolver.Resolve(ac, context, _ => true).Text);
+        return MenuCommandText.GetCommand(Assert.IsType<MenuItem>(entry.Build(ac, context, host)));
+    }
 }

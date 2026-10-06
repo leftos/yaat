@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Collections.Specialized;
 using System.ComponentModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -27,7 +28,10 @@ public sealed record QuickCommandFlightRulesOption(MenuFlightRules? Rules, strin
     public override string ToString() => Caption;
 }
 
-/// <summary>A situation in the Quick Commands editor's list: its name, and whether its staged list differs from the default or needs fixing.</summary>
+/// <summary>
+/// A situation in the Quick Commands editor's list: its name, and whether its staged list differs from the default or
+/// needs fixing.
+/// </summary>
 public sealed partial class QuickCommandSituationRow(AircraftSituation situation, string name) : ObservableObject
 {
     public AircraftSituation Situation { get; } = situation;
@@ -53,8 +57,6 @@ public sealed partial class QuickCommandEntryRow : ObservableObject
     /// <summary>The family a custom row reports, so a list can group or colour it beside the catalog families.</summary>
     public const string CustomFamily = "custom";
 
-    private readonly MenuFlightRules? _catalogDefault;
-
     private QuickCommandEntryRow(
         QuickCommandEntryKind kind,
         string? catalogId,
@@ -70,7 +72,6 @@ public sealed partial class QuickCommandEntryRow : ObservableObject
         _selectedFlightRules = options.Single(o => o.Rules == flightRules);
         if (catalogId is not null)
         {
-            _catalogDefault = MenuCatalog.Get(catalogId).DefaultFlightRules;
             Family = QuickCommandCatalog.FamilyOf(catalogId);
             Glyph = QuickCommandGlyphs.For(catalogId);
         }
@@ -118,7 +119,11 @@ public sealed partial class QuickCommandEntryRow : ObservableObject
     [NotifyPropertyChangedFor(nameof(HasError))]
     private string? _validationMessage;
 
-    /// <summary>True when the row lands in the icon strip: it is one of the first <see cref="QuickCommandGlyphs.StripCapacity"/> glyph rows.</summary>
+    /// <summary>
+    /// True when the row lands in the icon strip of the unfiltered list: it is one of the list's first
+    /// <see cref="QuickCommandGlyphs.StripCapacity"/> glyph rows. On an aircraft's menu the flight-rules and applicability
+    /// filters drop entries first, so a later glyph row can move into the strip there.
+    /// </summary>
     [ObservableProperty]
     private bool _isInStrip;
 
@@ -143,7 +148,10 @@ public sealed partial class QuickCommandEntryRow : ObservableObject
             _ => throw new ArgumentException($"Unknown quick-command entry type {entry.GetType().Name}.", nameof(entry)),
         };
 
-    /// <summary>A row for the catalog action <paramref name="catalogId"/>, offered under <paramref name="flightRules"/> (null: its catalog rules).</summary>
+    /// <summary>
+    /// A row for the catalog action <paramref name="catalogId"/>, offered under <paramref name="flightRules"/> (null: its
+    /// catalog rules).
+    /// </summary>
     public static QuickCommandEntryRow ForCatalog(string catalogId, MenuFlightRules? flightRules)
     {
         MenuCatalogEntry entry = MenuCatalog.Get(catalogId);
@@ -155,15 +163,14 @@ public sealed partial class QuickCommandEntryRow : ObservableObject
     public static QuickCommandEntryRow BlankCustom() => new(QuickCommandEntryKind.Custom, null, "", CustomOptions, MenuFlightRules.Both);
 
     /// <summary>
-    /// The entry the row stores: a catalog row's flight rules are null when the choice is its catalog rules, and a custom
-    /// row's texts are trimmed, with a blank ground command stored as none.
+    /// The entry the row stores: a catalog row's flight rules are null for Default and the explicit choice otherwise, even
+    /// one equal to its catalog rules; a custom row's texts are trimmed, with a blank ground command stored as none.
     /// </summary>
     public QuickCommandEntry ToEntry()
     {
         if (CatalogId is not null)
         {
-            MenuFlightRules? rules = (SelectedFlightRules.Rules == _catalogDefault) ? null : SelectedFlightRules.Rules;
-            return new CatalogQuickCommandEntry(CatalogId, rules);
+            return new CatalogQuickCommandEntry(CatalogId, SelectedFlightRules.Rules);
         }
 
         string? ground = string.IsNullOrWhiteSpace(GroundCommandText) ? null : GroundCommandText.Trim();
@@ -196,6 +203,8 @@ public partial class SettingsViewModel
 {
     private readonly Dictionary<AircraftSituation, ObservableCollection<QuickCommandEntryRow>> _quickCommandLists = [];
 
+    private readonly ObservableCollection<QuickCommandCatalogItem> _availableQuickCommandCatalogEntries = [];
+
     /// <summary>Every classified situation, in the enum's order.</summary>
     public IReadOnlyList<QuickCommandSituationRow> QuickCommandSituations { get; } =
     [
@@ -208,26 +217,32 @@ public partial class SettingsViewModel
     /// <summary>The situation whose list <see cref="QuickCommandEntries"/> shows and the list operations edit.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(QuickCommandEntries))]
-    [NotifyPropertyChangedFor(nameof(AvailableQuickCommandCatalogEntries))]
     private QuickCommandSituationRow? _selectedQuickCommandSituation;
 
     /// <summary>The selected situation's staged list, in order; empty with no situation selected.</summary>
     public IReadOnlyList<QuickCommandEntryRow> QuickCommandEntries =>
         (SelectedQuickCommandSituation is { } selected) ? _quickCommandLists[selected.Situation] : [];
 
-    /// <summary>The catalog actions the selected situation's list can add: the eligible ones it does not hold yet.</summary>
-    public IReadOnlyList<QuickCommandCatalogItem> AvailableQuickCommandCatalogEntries =>
-        (SelectedQuickCommandSituation is { } selected) ? AvailableQuickCommandCatalogEntriesFor(selected.Situation) : [];
+    /// <summary>
+    /// The catalog actions the selected situation's list can add: the eligible ones it does not hold yet, in catalog order.
+    /// One collection for the window's life, refreshed when an entry is added or removed, a list is staged or reset, or the
+    /// selection changes; a row's label, command or flight-rules edit leaves it alone.
+    /// </summary>
+    public ReadOnlyObservableCollection<QuickCommandCatalogItem> AvailableQuickCommandCatalogEntries { get; }
 
     /// <summary>True while a custom row of any situation fails validation; OK and Apply stay disabled until it clears.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanApply))]
+    [NotifyCanExecuteChangedFor(nameof(ApplyCommand))]
     private bool _hasQuickCommandErrors;
 
     /// <summary>False while a key clash or an invalid quick command would be committed; OK and Apply bind to it.</summary>
     public bool CanApply => !HasKeybindClash && !HasQuickCommandErrors;
 
-    /// <summary>Why OK and Apply are disabled, for their tooltip: the key clash and the situations to fix. Null when they are enabled.</summary>
+    /// <summary>
+    /// Why OK and Apply are disabled, for their tooltip: the key clash and the situations to fix. Null when they are
+    /// enabled.
+    /// </summary>
     public string? ApplyBlockedSummary
     {
         get
@@ -263,6 +278,7 @@ public partial class SettingsViewModel
 
         AddQuickCommandRow(rows, QuickCommandEntryRow.ForCatalog(catalogId, null));
         RefreshQuickCommandSituation(selected.Situation);
+        RefreshAvailableQuickCommandCatalogEntries();
         return true;
     }
 
@@ -294,13 +310,20 @@ public partial class SettingsViewModel
             {
                 row.PropertyChanged -= OnQuickCommandRowChanged;
                 RefreshQuickCommandSituation(situation);
+                RefreshAvailableQuickCommandCatalogEntries();
                 return;
             }
         }
     }
 
-    /// <summary>Moves the selected situation's row at <paramref name="fromIndex"/> to <paramref name="toIndex"/>, the drag-and-drop reorder.</summary>
-    /// <exception cref="ArgumentOutOfRangeException">Either index is outside the list.</exception>
+    /// <summary>
+    /// Moves the selected situation's row at <paramref name="fromIndex"/> to the insert position <paramref name="toIndex"/>,
+    /// the drag-and-drop reorder: the row lands before the row at <paramref name="toIndex"/>, or last when it is the list's
+    /// count. The row's own position, and the one after it, leave the list as it is.
+    /// </summary>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="fromIndex"/> is outside the list, or <paramref name="toIndex"/> is outside 0 to the list's count.
+    /// </exception>
     public void MoveQuickCommandEntry(int fromIndex, int toIndex)
     {
         if (SelectedQuickCommandSituation is not { } selected)
@@ -312,13 +335,16 @@ public partial class SettingsViewModel
         ArgumentOutOfRangeException.ThrowIfNegative(fromIndex);
         ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(fromIndex, rows.Count);
         ArgumentOutOfRangeException.ThrowIfNegative(toIndex);
-        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(toIndex, rows.Count);
-        if (fromIndex == toIndex)
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(toIndex, rows.Count);
+
+        // Taking the row out shifts every later row up one, so a move down lands one before its insert position.
+        int finalIndex = (toIndex > fromIndex) ? toIndex - 1 : toIndex;
+        if (finalIndex == fromIndex)
         {
             return;
         }
 
-        rows.Move(fromIndex, toIndex);
+        rows.Move(fromIndex, finalIndex);
         RefreshQuickCommandSituation(selected.Situation);
     }
 
@@ -346,6 +372,8 @@ public partial class SettingsViewModel
 
     partial void OnKeybindClashSummaryChanged(string? value) => OnPropertyChanged(nameof(ApplyBlockedSummary));
 
+    partial void OnSelectedQuickCommandSituationChanged(QuickCommandSituationRow? value) => RefreshAvailableQuickCommandCatalogEntries();
+
     private void LoadQuickCommandLists()
     {
         foreach (AircraftSituation situation in QuickCommandSituationNames.Classified)
@@ -355,6 +383,7 @@ public partial class SettingsViewModel
         }
 
         SelectedQuickCommandSituation = QuickCommandSituations[0];
+        WatchMacroRows();
     }
 
     // Writes each situation whose staged list differs from the stored one; SetQuickCommandList drops a list equal to the default.
@@ -387,6 +416,7 @@ public partial class SettingsViewModel
         }
 
         RefreshQuickCommandSituation(situation);
+        RefreshAvailableQuickCommandCatalogEntries();
     }
 
     private void AddQuickCommandRow(ObservableCollection<QuickCommandEntryRow> rows, QuickCommandEntryRow row)
@@ -424,20 +454,36 @@ public partial class SettingsViewModel
         situationRow.HasErrors = rows.Any(r => r.HasError);
         HasQuickCommandErrors = QuickCommandSituations.Any(r => r.HasErrors);
         OnPropertyChanged(nameof(ApplyBlockedSummary));
-        if (SelectedQuickCommandSituation?.Situation == situation)
+    }
+
+    private void RefreshAvailableQuickCommandCatalogEntries()
+    {
+        IReadOnlyList<QuickCommandCatalogItem> available =
+            (SelectedQuickCommandSituation is { } selected) ? AvailableQuickCommandCatalogEntriesFor(selected.Situation) : [];
+        if (available.SequenceEqual(_availableQuickCommandCatalogEntries))
         {
-            OnPropertyChanged(nameof(AvailableQuickCommandCatalogEntries));
+            return;
+        }
+
+        _availableQuickCommandCatalogEntries.Clear();
+        foreach (QuickCommandCatalogItem item in available)
+        {
+            _availableQuickCommandCatalogEntries.Add(item);
         }
     }
 
-    // The strip takes the first StripCapacity glyph-bearing catalog rows, as QuickCommandGlyphs.Split decides at runtime.
+    // The strip takes the first StripCapacity glyph rows in list order, as QuickCommandGlyphs.Split does at runtime; by
+    // position, since a stored list may name the same action twice.
     private static void MarkQuickCommandStrip(IReadOnlyList<QuickCommandEntryRow> rows)
     {
-        List<MenuCatalogEntry> catalogEntries = [.. rows.Select(r => r.CatalogId).OfType<string>().Select(MenuCatalog.Get)];
-        HashSet<string> stripIds = [.. QuickCommandGlyphs.Split(catalogEntries).Strip.Select(item => item.Entry.Id)];
+        int stripRows = 0;
         foreach (QuickCommandEntryRow row in rows)
         {
-            row.IsInStrip = (row.CatalogId is { } id) && stripIds.Contains(id);
+            row.IsInStrip = (row.Glyph is not null) && (stripRows < QuickCommandGlyphs.StripCapacity);
+            if (row.IsInStrip)
+            {
+                stripRows++;
+            }
         }
     }
 
@@ -447,6 +493,70 @@ public partial class SettingsViewModel
         return (names.Count == 0) ? null : $"Quick commands to fix: {string.Join(", ", names)} (Quick commands)";
     }
 
+    // A custom row validates against the staged macros and verbs, so a change to either revalidates every custom row. The
+    // macro grid is watched here; a verb row's aliases are watched from LoadFromScheme, which builds the rows. A row the
+    // grid drops by Clear keeps its handler, which can only revalidate again.
+    private void WatchMacroRows()
+    {
+        MacroRows.CollectionChanged += OnMacroRowsChanged;
+        foreach (MacroRow row in MacroRows)
+        {
+            row.PropertyChanged += OnMacroRowChanged;
+        }
+    }
+
+    private void OnMacroRowsChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        foreach (MacroRow row in e.OldItems?.OfType<MacroRow>() ?? [])
+        {
+            row.PropertyChanged -= OnMacroRowChanged;
+        }
+
+        foreach (MacroRow row in e.NewItems?.OfType<MacroRow>() ?? [])
+        {
+            row.PropertyChanged += OnMacroRowChanged;
+        }
+
+        RevalidateQuickCommandRows();
+    }
+
+    private void OnMacroRowChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(MacroRow.Name) or nameof(MacroRow.Expansion))
+        {
+            RevalidateQuickCommandRows();
+        }
+    }
+
+    private void OnVerbMappingRowChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(VerbMappingRow.Aliases))
+        {
+            RevalidateQuickCommandRows();
+        }
+    }
+
+    /// <summary>Validates every situation's custom rows again, against the staged macros and verbs, after either changed.</summary>
+    private void RevalidateQuickCommandRows()
+    {
+        if (_quickCommandLists.Count == 0)
+        {
+            return;
+        }
+
+        CommandScheme scheme = BuildSchemeFromRows();
+        List<MacroDefinition> macros = StagedMacroDefinitions();
+        foreach ((AircraftSituation situation, ObservableCollection<QuickCommandEntryRow> rows) in _quickCommandLists)
+        {
+            foreach (QuickCommandEntryRow row in rows.Where(r => r.IsCustom))
+            {
+                row.ValidationMessage = QuickCommandRowProblem(row, scheme, macros);
+            }
+
+            RefreshQuickCommandSituation(situation);
+        }
+    }
+
     private void ValidateQuickCommandRow(QuickCommandEntryRow row)
     {
         if (!row.IsCustom)
@@ -454,10 +564,17 @@ public partial class SettingsViewModel
             return;
         }
 
-        row.ValidationMessage = QuickCommandRowProblem(row);
+        row.ValidationMessage = QuickCommandRowProblem(row, BuildSchemeFromRows(), StagedMacroDefinitions());
     }
 
-    private string? QuickCommandRowProblem(QuickCommandEntryRow row)
+    private List<MacroDefinition> StagedMacroDefinitions() =>
+        [
+            .. MacroRows
+                .Where(r => !string.IsNullOrWhiteSpace(r.Name) && !string.IsNullOrWhiteSpace(r.Expansion))
+                .Select(r => new MacroDefinition { Name = r.Name.Trim(), Expansion = r.Expansion.Trim() }),
+        ];
+
+    private static string? QuickCommandRowProblem(QuickCommandEntryRow row, CommandScheme scheme, IReadOnlyList<MacroDefinition> macros)
     {
         if (string.IsNullOrWhiteSpace(row.Label))
         {
@@ -469,13 +586,6 @@ public partial class SettingsViewModel
             return "Enter a command.";
         }
 
-        CommandScheme scheme = BuildSchemeFromRows();
-        List<MacroDefinition> macros =
-        [
-            .. MacroRows
-                .Where(r => !string.IsNullOrWhiteSpace(r.Name) && !string.IsNullOrWhiteSpace(r.Expansion))
-                .Select(r => new MacroDefinition { Name = r.Name.Trim(), Expansion = r.Expansion.Trim() }),
-        ];
         if (CommandProblem(row.CommandText, scheme, macros) is { } commandProblem)
         {
             return $"Command: {commandProblem}";
@@ -486,16 +596,7 @@ public partial class SettingsViewModel
             : null;
     }
 
-    // The Try-it-out parse: macro expansion, then CommandSchemeParser.ParseCompound against the staged verbs.
-    private static string? CommandProblem(string text, CommandScheme scheme, IReadOnlyList<MacroDefinition> macros)
-    {
-        string trimmed = text.Trim();
-        string? expanded = MacroExpander.TryExpand(trimmed, macros, out string? macroError);
-        if (macroError is not null)
-        {
-            return macroError;
-        }
-
-        return (CommandSchemeParser.ParseCompound(expanded ?? trimmed, scheme) is null) ? "Unrecognized command" : null;
-    }
+    // The preprocessing a click applies (macro expansion, then the canonical parse), against the staged macros and verbs.
+    private static string? CommandProblem(string text, CommandScheme scheme, IReadOnlyList<MacroDefinition> macros) =>
+        TypedCommandText.TryPrepare(text, macros, scheme, out _, out string? problem) ? null : problem;
 }

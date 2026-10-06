@@ -174,7 +174,8 @@ public class SettingsViewModelResetSectionTests
             vm =>
             {
                 vm.SelectedQuickCommandSituation = vm.QuickCommandSituations.Single(r => r.Situation == AircraftSituation.Final);
-                vm.MoveQuickCommandEntry(0, 1);
+                vm.MoveQuickCommandEntry(0, 2);
+                Assert.True(vm.SelectedQuickCommandSituation!.IsChanged);
                 vm.SelectedQuickCommandSituation = vm.QuickCommandSituations.Single(r => r.Situation == AircraftSituation.Taxiing);
                 vm.RemoveQuickCommandEntry(vm.QuickCommandEntries[0]);
             },

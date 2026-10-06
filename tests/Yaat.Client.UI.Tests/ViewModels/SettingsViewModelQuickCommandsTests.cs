@@ -4,6 +4,7 @@ using Yaat.Client.ContextMenus;
 using Yaat.Client.Services;
 using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.ViewModels;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Situation;
 
 namespace Yaat.Client.UI.Tests.ViewModels;
@@ -17,6 +18,22 @@ public class SettingsViewModelQuickCommandsTests
 {
     private const string ValidCommand = "FH 270";
 
+    /// <summary>Eleven glyph-bearing catalog actions, in list order.</summary>
+    private static readonly string[] GlyphIds =
+    [
+        MenuIds.TrackTrack,
+        MenuIds.TrackInitiateHandoff,
+        MenuIds.SquawkCode,
+        MenuIds.SimControlWarp,
+        MenuIds.SimControlDelete,
+        MenuIds.HeadingFly,
+        MenuIds.AltitudeMaintain,
+        MenuIds.SpeedAssign,
+        MenuIds.NavigationDirectTo,
+        MenuIds.ApproachCleared,
+        MenuIds.HoldPattern,
+    ];
+
     private static QuickCommandSituationRow Select(SettingsViewModel vm, AircraftSituation situation)
     {
         QuickCommandSituationRow row = vm.QuickCommandSituations.Single(r => r.Situation == situation);
@@ -28,6 +45,15 @@ public class SettingsViewModelQuickCommandsTests
         vm.QuickCommandEntries.Single(r => r.CatalogId == catalogId);
 
     private static List<QuickCommandEntry> Staged(SettingsViewModel vm) => [.. vm.QuickCommandEntries.Select(r => r.ToEntry())];
+
+    private static List<string?> Ids(SettingsViewModel vm) => [.. vm.QuickCommandEntries.Select(r => r.CatalogId)];
+
+    // Stores the catalog actions as the situation's list before the view model is built, so a test does not lean on the defaults.
+    private static void Store(AircraftSituation situation, params string[] catalogIds) =>
+        new UserPreferences().SetQuickCommandList(situation, [.. catalogIds.Select(id => new CatalogQuickCommandEntry(id, null))]);
+
+    private static QuickCommandFlightRulesOption Option(QuickCommandEntryRow row, MenuFlightRules? rules) =>
+        row.FlightRulesOptions.Single(o => o.Rules == rules);
 
     private static QuickCommandEntryRow AddValidCustom(SettingsViewModel vm, string label)
     {
@@ -56,53 +82,103 @@ public class SettingsViewModelQuickCommandsTests
         Assert.True(Select(vm, AircraftSituation.Taxiing).IsChanged);
         Assert.Equal(taxiing, Staged(vm));
         Assert.Equal([QuickCommandEntryKind.Catalog, QuickCommandEntryKind.Custom], vm.QuickCommandEntries.Select(r => r.Kind));
+        QuickCommandEntryRow hold = vm.QuickCommandEntries[0];
+        Assert.Equal(MenuCatalog.Get(MenuIds.GroundHoldPosition).Label, hold.Label);
+        Assert.Equal("ground", hold.Family);
+        Assert.Equal(QuickCommandGlyphs.For(MenuIds.GroundHoldPosition), hold.Glyph);
         Assert.Equal("West", vm.QuickCommandEntries[1].Label);
         Assert.Equal("HOLD", vm.QuickCommandEntries[1].GroundCommandText);
         Assert.Null(vm.QuickCommandEntries[1].ValidationMessage);
 
         Assert.False(Select(vm, AircraftSituation.Final).IsChanged);
         Assert.Equal(QuickCommandDefaults.For(AircraftSituation.Final), Staged(vm));
-        QuickCommandEntryRow land = CatalogRow(vm, MenuIds.TowerClearedToLand);
-        Assert.Equal(MenuCatalog.Get(MenuIds.TowerClearedToLand).Label, land.Label);
-        Assert.Equal("tower", land.Family);
-        Assert.Equal(QuickCommandGlyphs.For(MenuIds.TowerClearedToLand), land.Glyph);
     }
 
     [AvaloniaFact(Timeout = 60_000)]
-    public void AddRemoveMove_ChangeOnlyTheStagedList_AndIsChanged()
+    public void AddRemove_ChangeOnlyTheStagedList()
+    {
+        using var scope = new PreferencesFileScope();
+        Store(AircraftSituation.Final, MenuIds.TowerClearedToLand, MenuIds.TowerGoAround, MenuIds.TowerExitLeft);
+        List<QuickCommandEntry> stored = [.. new UserPreferences().GetQuickCommandList(AircraftSituation.Final)];
+        var vm = new SettingsViewModel();
+        Select(vm, AircraftSituation.Final);
+
+        Assert.True(vm.TryAddQuickCommandCatalogEntry(MenuIds.GroundHoldPosition));
+        Assert.Equal([MenuIds.TowerClearedToLand, MenuIds.TowerGoAround, MenuIds.TowerExitLeft, MenuIds.GroundHoldPosition], Ids(vm));
+        Assert.DoesNotContain(vm.AvailableQuickCommandCatalogEntries, item => item.Id == MenuIds.GroundHoldPosition);
+
+        vm.RemoveQuickCommandEntry(vm.QuickCommandEntries[0]);
+        Assert.Equal([MenuIds.TowerGoAround, MenuIds.TowerExitLeft, MenuIds.GroundHoldPosition], Ids(vm));
+        Assert.Contains(vm.AvailableQuickCommandCatalogEntries, item => item.Id == MenuIds.TowerClearedToLand);
+
+        Select(vm, AircraftSituation.Taxiing);
+        Select(vm, AircraftSituation.Final);
+        Assert.Equal([MenuIds.TowerGoAround, MenuIds.TowerExitLeft, MenuIds.GroundHoldPosition], Ids(vm));
+        Assert.Equal(stored, new UserPreferences().GetQuickCommandList(AircraftSituation.Final));
+    }
+
+    /// <summary>
+    /// A move takes an insert position, 0 to Count, as a drop "before row i" gives it: Count lands the row last, a move
+    /// down lands it before the original row i, and the row's own position (or the one after it) leaves the list alone.
+    /// </summary>
+    [AvaloniaFact(Timeout = 60_000)]
+    public void Move_TakesAnInsertPosition()
+    {
+        using var scope = new PreferencesFileScope();
+        const string a = MenuIds.TowerClearedToLand;
+        const string b = MenuIds.TowerGoAround;
+        const string c = MenuIds.TowerExitLeft;
+        Store(AircraftSituation.Final, a, b, c);
+        var vm = new SettingsViewModel();
+        Select(vm, AircraftSituation.Final);
+
+        vm.MoveQuickCommandEntry(0, vm.QuickCommandEntries.Count);
+        Assert.Equal([b, c, a], Ids(vm));
+
+        vm.MoveQuickCommandEntry(0, 2);
+        Assert.Equal([c, b, a], Ids(vm));
+
+        vm.MoveQuickCommandEntry(1, 1);
+        vm.MoveQuickCommandEntry(1, 2);
+        Assert.Equal([c, b, a], Ids(vm));
+
+        vm.MoveQuickCommandEntry(2, 0);
+        Assert.Equal([a, c, b], Ids(vm));
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => vm.MoveQuickCommandEntry(0, vm.QuickCommandEntries.Count + 1));
+        Assert.Throws<ArgumentOutOfRangeException>(() => vm.MoveQuickCommandEntry(vm.QuickCommandEntries.Count, 0));
+        Assert.Throws<ArgumentOutOfRangeException>(() => vm.MoveQuickCommandEntry(-1, 0));
+        Assert.Throws<ArgumentOutOfRangeException>(() => vm.MoveQuickCommandEntry(0, -1));
+    }
+
+    [AvaloniaFact(Timeout = 60_000)]
+    public void EditingTheDefaultList_SetsIsChanged_AndUndoingTheEditClearsIt()
     {
         using var scope = new PreferencesFileScope();
         var vm = new SettingsViewModel();
         QuickCommandSituationRow final = Select(vm, AircraftSituation.Final);
-
-        Assert.True(vm.TryAddQuickCommandCatalogEntry(MenuIds.GroundHoldPosition));
-        Assert.Equal(MenuIds.GroundHoldPosition, vm.QuickCommandEntries[^1].CatalogId);
-        Assert.True(final.IsChanged);
-        Assert.DoesNotContain(vm.AvailableQuickCommandCatalogEntries, item => item.Id == MenuIds.GroundHoldPosition);
-
-        vm.RemoveQuickCommandEntry(vm.QuickCommandEntries[^1]);
+        List<QuickCommandEntry> defaults = Staged(vm);
         Assert.False(final.IsChanged);
-        Assert.Contains(vm.AvailableQuickCommandCatalogEntries, item => item.Id == MenuIds.GroundHoldPosition);
 
-        vm.MoveQuickCommandEntry(0, 1);
-        Assert.Equal(MenuIds.TowerGoAround, vm.QuickCommandEntries[0].CatalogId);
+        vm.MoveQuickCommandEntry(0, 2);
         Assert.True(final.IsChanged);
-
-        Select(vm, AircraftSituation.Taxiing);
-        Select(vm, AircraftSituation.Final);
-        Assert.Equal(MenuIds.TowerGoAround, vm.QuickCommandEntries[0].CatalogId);
-        Assert.False(vm.QuickCommandSituations.Single(r => r.Situation == AircraftSituation.Taxiing).IsChanged);
-
         vm.MoveQuickCommandEntry(1, 0);
         Assert.False(final.IsChanged);
-        Assert.Equal(QuickCommandDefaults.For(AircraftSituation.Final), new UserPreferences().GetQuickCommandList(AircraftSituation.Final));
-        Assert.Throws<ArgumentOutOfRangeException>(() => vm.MoveQuickCommandEntry(0, vm.QuickCommandEntries.Count));
+
+        Assert.True(vm.TryAddQuickCommandCatalogEntry(vm.AvailableQuickCommandCatalogEntries[0].Id));
+        Assert.True(final.IsChanged);
+        vm.RemoveQuickCommandEntry(vm.QuickCommandEntries[^1]);
+        Assert.False(final.IsChanged);
+
+        Assert.Equal(defaults, Staged(vm));
+        Assert.Empty(new UserPreferences().QuickCommandOverrides);
     }
 
     [AvaloniaFact(Timeout = 60_000)]
     public void AddCatalogEntry_RefusesADuplicateOrAnIneligibleId()
     {
         using var scope = new PreferencesFileScope();
+        Store(AircraftSituation.Final, MenuIds.TowerClearedToLand, MenuIds.TowerGoAround);
         var vm = new SettingsViewModel();
         Select(vm, AircraftSituation.Final);
         int count = vm.QuickCommandEntries.Count;
@@ -116,35 +192,92 @@ public class SettingsViewModelQuickCommandsTests
         Assert.Equal(QuickCommandCatalog.Eligible.Count - count, vm.AvailableQuickCommandCatalogEntries.Count);
     }
 
+    /// <summary>
+    /// The available catalog actions are one collection the editor keeps: a row's label, command or flight-rules edit
+    /// leaves it alone, and an add takes the action out of it.
+    /// </summary>
     [AvaloniaFact(Timeout = 60_000)]
-    public void FlightRulesChoice_EqualToTheCatalogDefault_StoresNull()
+    public void AvailableCatalogEntries_ChangeOnlyWhenTheListDoes()
     {
         using var scope = new PreferencesFileScope();
+        Store(AircraftSituation.Taxiing, MenuIds.GroundHoldPosition);
         var vm = new SettingsViewModel();
-        QuickCommandSituationRow pattern = Select(vm, AircraftSituation.Pattern);
+        Select(vm, AircraftSituation.Taxiing);
+        QuickCommandEntryRow custom = AddValidCustom(vm, "West");
+        IReadOnlyList<QuickCommandCatalogItem> available = vm.AvailableQuickCommandCatalogEntries;
+        List<string?> raised = [];
+        vm.PropertyChanged += (_, e) => raised.Add(e.PropertyName);
+
+        custom.Label = "East";
+        custom.CommandText = "FH 090";
+        QuickCommandEntryRow hold = CatalogRow(vm, MenuIds.GroundHoldPosition);
+        hold.SelectedFlightRules = Option(hold, MenuFlightRules.IfrOnly);
+
+        Assert.DoesNotContain(nameof(SettingsViewModel.AvailableQuickCommandCatalogEntries), raised);
+        Assert.Same(available, vm.AvailableQuickCommandCatalogEntries);
+
+        string added = available[0].Id;
+        Assert.True(vm.TryAddQuickCommandCatalogEntry(added));
+        Assert.Same(available, vm.AvailableQuickCommandCatalogEntries);
+        Assert.DoesNotContain(available, item => item.Id == added);
+
+        Select(vm, AircraftSituation.Final);
+        Assert.Same(available, vm.AvailableQuickCommandCatalogEntries);
+        Assert.Equal(vm.AvailableQuickCommandCatalogEntriesFor(AircraftSituation.Final), available);
+    }
+
+    [AvaloniaFact(Timeout = 60_000)]
+    public void FlightRulesChoice_EqualToTheCatalogDefault_StoresTheExplicitChoice()
+    {
+        using var scope = new PreferencesFileScope();
+        Store(AircraftSituation.Pattern, MenuIds.PatternFollow, MenuIds.TowerClearedToLand);
+        MenuFlightRules catalogDefault = MenuCatalog.Get(MenuIds.PatternFollow).DefaultFlightRules;
+        var vm = new SettingsViewModel();
+        Select(vm, AircraftSituation.Pattern);
         QuickCommandEntryRow follow = CatalogRow(vm, MenuIds.PatternFollow);
         Assert.Null(follow.SelectedFlightRules.Rules);
 
-        follow.SelectedFlightRules = follow.FlightRulesOptions.Single(o => o.Rules == MenuFlightRules.VfrOnly);
+        follow.SelectedFlightRules = Option(follow, catalogDefault);
+        Assert.Equal(catalogDefault, Assert.IsType<CatalogQuickCommandEntry>(follow.ToEntry()).FlightRules);
+
+        follow.SelectedFlightRules = Option(follow, null);
         Assert.Null(Assert.IsType<CatalogQuickCommandEntry>(follow.ToEntry()).FlightRules);
-        Assert.False(pattern.IsChanged);
 
-        follow.SelectedFlightRules = follow.FlightRulesOptions.Single(o => o.Rules == MenuFlightRules.IfrOnly);
-        Assert.Equal(MenuFlightRules.IfrOnly, Assert.IsType<CatalogQuickCommandEntry>(follow.ToEntry()).FlightRules);
-        Assert.True(pattern.IsChanged);
-
+        follow.SelectedFlightRules = Option(follow, catalogDefault);
         vm.ApplyCommand.Execute(null);
 
         QuickCommandEntry stored = new UserPreferences()
             .GetQuickCommandList(AircraftSituation.Pattern)
             .Single(e => e is CatalogQuickCommandEntry { CatalogId: MenuIds.PatternFollow });
-        Assert.Equal(new CatalogQuickCommandEntry(MenuIds.PatternFollow, MenuFlightRules.IfrOnly), stored);
+        Assert.Equal(new CatalogQuickCommandEntry(MenuIds.PatternFollow, catalogDefault), stored);
+    }
+
+    [AvaloniaFact(Timeout = 60_000)]
+    public void ExplicitStoredChoice_SurvivesAnUnrelatedApply()
+    {
+        using var scope = new PreferencesFileScope();
+        List<QuickCommandEntry> pattern =
+        [
+            new CatalogQuickCommandEntry(MenuIds.PatternFollow, MenuCatalog.Get(MenuIds.PatternFollow).DefaultFlightRules),
+            new CatalogQuickCommandEntry(MenuIds.TowerClearedToLand, null),
+        ];
+        new UserPreferences().SetQuickCommandList(AircraftSituation.Pattern, pattern);
+        var vm = new SettingsViewModel();
+
+        vm.TerminalFontSize++;
+        vm.ApplyCommand.Execute(null);
+
+        Assert.Equal(pattern, new UserPreferences().GetQuickCommandList(AircraftSituation.Pattern));
+        var reopened = new SettingsViewModel();
+        Select(reopened, AircraftSituation.Pattern);
+        Assert.Equal(pattern[0], CatalogRow(reopened, MenuIds.PatternFollow).ToEntry());
     }
 
     [AvaloniaFact(Timeout = 60_000)]
     public void FlightRulesOptions_CaptionTheCatalogDefault_AndCustomRowsHaveNoDefault()
     {
         using var scope = new PreferencesFileScope();
+        Store(AircraftSituation.Pattern, MenuIds.PatternFollow, MenuIds.TowerClearedToLand);
         var vm = new SettingsViewModel();
         Select(vm, AircraftSituation.Pattern);
 
@@ -166,23 +299,40 @@ public class SettingsViewModelQuickCommandsTests
     public void StripFlag_MarksTheFirstTenGlyphEntries_InListOrder()
     {
         using var scope = new PreferencesFileScope();
+        Store(AircraftSituation.IfrEnroute, GlyphIds[..9]);
         var vm = new SettingsViewModel();
-        Select(vm, AircraftSituation.Pattern);
-        Assert.Equal(9, vm.QuickCommandEntries.Count(r => r.Glyph is not null));
+        Select(vm, AircraftSituation.IfrEnroute);
+        Assert.All(vm.QuickCommandEntries, r => Assert.NotNull(r.Glyph));
         AddValidCustom(vm, "Custom");
-        Assert.True(vm.TryAddQuickCommandCatalogEntry(MenuIds.HeadingFly));
-        Assert.True(vm.TryAddQuickCommandCatalogEntry(MenuIds.AltitudeMaintain));
+        Assert.True(vm.TryAddQuickCommandCatalogEntry(GlyphIds[9]));
+        Assert.True(vm.TryAddQuickCommandCatalogEntry(GlyphIds[10]));
 
-        Assert.True(CatalogRow(vm, MenuIds.HeadingFly).IsInStrip);
-        Assert.False(CatalogRow(vm, MenuIds.AltitudeMaintain).IsInStrip);
-        Assert.False(CatalogRow(vm, MenuIds.PatternFollow).IsInStrip);
+        Assert.True(CatalogRow(vm, GlyphIds[9]).IsInStrip);
+        Assert.False(CatalogRow(vm, GlyphIds[10]).IsInStrip);
         Assert.False(vm.QuickCommandEntries.Single(r => r.IsCustom).IsInStrip);
         Assert.Equal(QuickCommandGlyphs.StripCapacity, vm.QuickCommandEntries.Count(r => r.IsInStrip));
 
         vm.MoveQuickCommandEntry(vm.QuickCommandEntries.Count - 1, 0);
 
-        Assert.True(CatalogRow(vm, MenuIds.AltitudeMaintain).IsInStrip);
-        Assert.False(CatalogRow(vm, MenuIds.HeadingFly).IsInStrip);
+        Assert.True(CatalogRow(vm, GlyphIds[10]).IsInStrip);
+        Assert.False(CatalogRow(vm, GlyphIds[9]).IsInStrip);
+    }
+
+    /// <summary>
+    /// A stored list may name an action twice; the strip flag goes by position, so the second copy, past the tenth glyph
+    /// row, is not in it.
+    /// </summary>
+    [AvaloniaFact(Timeout = 60_000)]
+    public void StripFlag_GoesByPosition_WhenAnIdIsDuplicated()
+    {
+        using var scope = new PreferencesFileScope();
+        Store(AircraftSituation.IfrEnroute, [.. GlyphIds[..10], GlyphIds[0]]);
+        var vm = new SettingsViewModel();
+        Select(vm, AircraftSituation.IfrEnroute);
+        Assert.Equal(11, vm.QuickCommandEntries.Count);
+        Assert.All(vm.QuickCommandEntries, r => Assert.NotNull(r.Glyph));
+
+        Assert.Equal([.. Enumerable.Repeat(true, 10), false], vm.QuickCommandEntries.Select(r => r.IsInStrip));
     }
 
     [AvaloniaFact(Timeout = 60_000)]
@@ -222,6 +372,84 @@ public class SettingsViewModelQuickCommandsTests
     }
 
     [AvaloniaFact(Timeout = 60_000)]
+    public void CustomRow_BecomesValid_WhenItsMacroIsAdded()
+    {
+        using var scope = new PreferencesFileScope();
+        var vm = new SettingsViewModel();
+        Select(vm, AircraftSituation.Taxiing);
+        QuickCommandEntryRow row = AddValidCustom(vm, "West");
+        row.CommandText = "!WD";
+        Assert.Equal("Command: Unknown macro \"!WD\"", row.ValidationMessage);
+        Assert.False(vm.CanApply);
+
+        vm.AddMacroCommand.Execute(null);
+        vm.MacroRows[^1].Name = "WD";
+        vm.MacroRows[^1].Expansion = ValidCommand;
+
+        Assert.Null(row.ValidationMessage);
+        Assert.True(vm.CanApply);
+        Assert.Null(vm.ApplyBlockedSummary);
+    }
+
+    [AvaloniaFact(Timeout = 60_000)]
+    public void CustomRow_BecomesInvalid_WhenItsMacroIsRemoved()
+    {
+        using var scope = new PreferencesFileScope();
+        var prefs = new UserPreferences();
+        prefs.SetMacros([new MacroDefinition { Name = "WD", Expansion = ValidCommand }]);
+        prefs.SetQuickCommandList(AircraftSituation.Taxiing, [new CustomQuickCommandEntry("West", "!WD", null, MenuFlightRules.Both)]);
+        var vm = new SettingsViewModel();
+        Select(vm, AircraftSituation.Taxiing);
+        QuickCommandEntryRow row = Assert.Single(vm.QuickCommandEntries);
+        Assert.Null(row.ValidationMessage);
+        Assert.True(vm.CanApply);
+
+        vm.MacroRows[0].RemoveCommand.Execute(null);
+
+        Assert.Equal("Command: Unknown macro \"!WD\"", row.ValidationMessage);
+        Assert.False(vm.CanApply);
+        Assert.Equal("Quick commands to fix: Taxiing (Quick commands)", vm.ApplyBlockedSummary);
+    }
+
+    [AvaloniaFact(Timeout = 60_000)]
+    public void CustomRow_ValidationFlips_WhenAVerbAliasChanges()
+    {
+        using var scope = new PreferencesFileScope();
+        var vm = new SettingsViewModel();
+        Select(vm, AircraftSituation.Taxiing);
+        QuickCommandEntryRow row = AddValidCustom(vm, "West");
+        VerbMappingRow heading = vm.VerbMappings.Single(r => r.CommandType == CanonicalCommandType.FlyHeading);
+        string aliases = heading.Aliases;
+
+        heading.Aliases = "TURNTO";
+        Assert.Equal("Command: Unrecognized command", row.ValidationMessage);
+        Assert.False(vm.CanApply);
+
+        heading.Aliases = aliases;
+        Assert.Null(row.ValidationMessage);
+        Assert.True(vm.CanApply);
+    }
+
+    /// <summary>Resetting the verbs rebuilds their rows without an alias edit, so the reset itself revalidates the custom rows.</summary>
+    [AvaloniaFact(Timeout = 60_000)]
+    public void ResetCommandVerbs_RevalidatesCustomRows()
+    {
+        using var scope = new PreferencesFileScope();
+        var vm = new SettingsViewModel();
+        Select(vm, AircraftSituation.Taxiing);
+        QuickCommandEntryRow row = AddValidCustom(vm, "West");
+        vm.VerbMappings.Single(r => r.CommandType == CanonicalCommandType.FlyHeading).Aliases = "TURNTO";
+        row.CommandText = "TURNTO 270";
+        Assert.Null(row.ValidationMessage);
+
+        vm.SelectedSection = SettingsSectionId.CommandVerbs;
+        vm.ResetSectionCommand.Execute(null);
+
+        Assert.Equal("Command: Unrecognized command", row.ValidationMessage);
+        Assert.False(vm.CanApply);
+    }
+
+    [AvaloniaFact(Timeout = 60_000)]
     public void Apply_WritesTheChangedLists_AndLeavesAnUnchangedSituationUnstored()
     {
         using var scope = new PreferencesFileScope();
@@ -233,7 +461,7 @@ public class SettingsViewModelQuickCommandsTests
         vm.RemoveQuickCommandEntry(vm.QuickCommandEntries[0]);
         List<QuickCommandEntry> final = Staged(vm);
         Select(vm, AircraftSituation.AtParking);
-        vm.MoveQuickCommandEntry(0, 1);
+        vm.MoveQuickCommandEntry(0, 2);
         vm.MoveQuickCommandEntry(1, 0);
 
         vm.ApplyCommand.Execute(null);

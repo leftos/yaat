@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Avalonia.Controls;
 using Microsoft.Extensions.Logging;
 using Yaat.Client.ContextMenus;
@@ -8,6 +9,7 @@ using Yaat.Client.ViewModels;
 using Yaat.Sim;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Situation;
 
 namespace Yaat.Client.Views;
 
@@ -26,6 +28,9 @@ internal sealed class ClientMenuHost(MainViewModel main, AircraftModel? aircraft
 
     /// <summary>The most aircraft the Follow… and Give way to… submenus list.</summary>
     private const int MaxGroundTraffic = 12;
+
+    /// <summary>The custom quick-command texts already warned about, so each is logged once per session however many menus open.</summary>
+    private static readonly ConcurrentDictionary<string, bool> WarnedQuickCommandTexts = new(StringComparer.Ordinal);
 
     /// <summary>The route-nearest hold short per aircraft and runway, found once for the menu this host builds.</summary>
     private readonly Dictionary<(string Callsign, RunwayIdentifier Runway), int?> _nearestHoldShortByRunway = [];
@@ -372,7 +377,46 @@ internal sealed class ClientMenuHost(MainViewModel main, AircraftModel? aircraft
 
     /// <summary>The controller's session settings as <paramref name="main"/> holds them.</summary>
     internal static MenuSession SessionOf(MainViewModel main) =>
-        new(main.Preferences.UserInitials, main.SessionSoloTrainingMode, main.VfrCommandsForIfr, main.Preferences.GetQuickCommandList);
+        new(
+            main.Preferences.UserInitials,
+            main.SessionSoloTrainingMode,
+            main.VfrCommandsForIfr,
+            situation => QuickCommandListFor(main.Preferences, situation)
+        );
+
+    /// <summary>
+    /// <paramref name="situation"/>'s quick-command list with every custom entry's texts as typed input sends them
+    /// (<see cref="TypedCommandText.TryPrepare"/>: macros expanded, verbs canonical), read from the preferences at each
+    /// menu; catalog entries are unchanged.
+    /// </summary>
+    private static IReadOnlyList<QuickCommandEntry> QuickCommandListFor(UserPreferences preferences, AircraftSituation situation) =>
+        [
+            .. preferences
+                .GetQuickCommandList(situation)
+                .Select(entry => (entry is CustomQuickCommandEntry custom) ? Prepared(custom, preferences) : entry),
+        ];
+
+    private static CustomQuickCommandEntry Prepared(CustomQuickCommandEntry entry, UserPreferences preferences) =>
+        entry with
+        {
+            CommandText = PreparedText(entry.CommandText, preferences),
+            GroundCommandText = string.IsNullOrWhiteSpace(entry.GroundCommandText)
+                ? entry.GroundCommandText
+                : PreparedText(entry.GroundCommandText, preferences),
+        };
+
+    // A text that no longer expands or parses (a macro or verb renamed since the editor saved it) goes out as far as it
+    // got, so the server's rejection names it in the status line; the warning says why.
+    private static string PreparedText(string text, UserPreferences preferences)
+    {
+        bool ok = TypedCommandText.TryPrepare(text, preferences.Macros, preferences.CommandScheme, out string prepared, out string? problem);
+        if (!ok && WarnedQuickCommandTexts.TryAdd(text, true))
+        {
+            Log.LogWarning("Custom quick command '{Text}' will be sent as '{Sent}': {Problem}", text, prepared, problem);
+        }
+
+        return prepared;
+    }
 
     /// <summary>
     /// The room's control items for <paramref name="callsigns"/> as <see cref="MainViewModel.BuildRpoMenuItems"/> builds

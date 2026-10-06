@@ -2625,17 +2625,11 @@ public partial class MainViewModel : ObservableObject
         }
 
         // Expand macros first so callsign prefix resolution sees real commands
-        string commandText = text;
         string originalInput = text;
-        string? expandedCommand = MacroExpander.TryExpand(commandText, _preferences.Macros, out string? macroError);
-        if (macroError is not null)
+        if (!TypedCommandText.TryExpandMacros(text, _preferences.Macros, out string commandText, out string? macroError))
         {
             StatusText = macroError;
             return;
-        }
-        if (expandedCommand is not null)
-        {
-            commandText = expandedCommand;
         }
 
         // Try to resolve callsign prefix from the (possibly expanded) input

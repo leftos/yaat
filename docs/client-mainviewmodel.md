@@ -270,7 +270,7 @@ order:
    global), so it is **not** taken here.
 5. **Single-token select** — if the input is one token with no `,`/`;` and matches a callsign, just select that
    aircraft and return (no command sent).
-6. **Macro expand** — `MacroExpander.TryExpand` so callsign-prefix resolution sees real verbs.
+6. **Macro expand** — `TypedCommandText.TryExpandMacros` (over `MacroExpander`, shared with custom quick commands) so callsign-prefix resolution sees real verbs.
 7. **Callsign-prefix resolve** — `CallsignPrefixResolver.Resolve`; `Ambiguous` surfaces a status message and aborts;
    `Resolved` sets `target` + strips the prefix from `commandText`. A leading known command verb is never taken as a
    partial callsign (only an exact callsign match overrides), so a bare command whose verb merely appears inside live

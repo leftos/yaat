@@ -5,6 +5,7 @@ using Yaat.Client.ContextMenus;
 using Yaat.Client.Services;
 using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.ViewModels;
+using Yaat.Sim.Situation;
 
 namespace Yaat.Client.UI.Tests.ViewModels;
 
@@ -93,7 +94,44 @@ public class SettingsViewModelApplyTests
         Assert.Equal("Also used by Take control", Row(vm, "PopOutAircraftList").ClashMessage);
         Assert.Equal("Key clash: Take control and Pop out aircraft list (Keys)", vm.KeybindClashSummary);
         Assert.Null(Row(vm, "QuickBookmark").ClashMessage);
+        Assert.False(vm.CanApply);
+        Assert.False(vm.ApplyCommand.CanExecute(null));
+        Assert.Equal("Key clash: Take control and Pop out aircraft list (Keys)", vm.ApplyBlockedSummary);
         Assert.Equal(0, applied);
+    }
+
+    /// <summary>A key clash and an invalid quick command block Apply together, the summary names both, and Apply returns once both clear.</summary>
+    [AvaloniaFact(Timeout = 60_000)]
+    public void AClashAndAQuickCommandError_BothBlockApply_AndTheSummaryNamesBoth()
+    {
+        using var scope = new PreferencesFileScope();
+        var vm = new SettingsViewModel();
+        int canExecuteChanges = 0;
+        vm.ApplyCommand.CanExecuteChanged += (_, _) => canExecuteChanges++;
+
+        Capture(vm, "TakeControl", Key.L, KeyModifiers.Control | KeyModifiers.Shift);
+        vm.SelectedQuickCommandSituation = vm.QuickCommandSituations.Single(r => r.Situation == AircraftSituation.Taxiing);
+        vm.AddQuickCommandCustomEntry();
+
+        Assert.False(vm.CanApply);
+        Assert.False(vm.ApplyCommand.CanExecute(null));
+        Assert.Equal(
+            "Key clash: Take control and Pop out aircraft list (Keys)\nQuick commands to fix: Taxiing (Quick commands)",
+            vm.ApplyBlockedSummary
+        );
+
+        Capture(vm, "TakeControl", Key.Y, KeyModifiers.Control);
+        Assert.False(vm.ApplyCommand.CanExecute(null));
+        Assert.Equal("Quick commands to fix: Taxiing (Quick commands)", vm.ApplyBlockedSummary);
+
+        QuickCommandEntryRow row = vm.QuickCommandEntries[^1];
+        row.Label = "West";
+        row.CommandText = "FH 270";
+
+        Assert.True(vm.CanApply);
+        Assert.True(vm.ApplyCommand.CanExecute(null));
+        Assert.Null(vm.ApplyBlockedSummary);
+        Assert.True(canExecuteChanges >= 4, $"Apply's CanExecute should change with each blocking input; it changed {canExecuteChanges} times.");
     }
 
     [AvaloniaTheory(Timeout = 60_000)]
@@ -112,6 +150,28 @@ public class SettingsViewModelApplyTests
         Assert.Equal(message, Row(vm, "QuickBookmark").ClashMessage);
     }
 
+    /// <summary>The window's OK and Apply handlers call Execute directly, so Apply itself refuses while a quick command is invalid.</summary>
+    [AvaloniaFact(Timeout = 60_000)]
+    public void ExecutingApply_WithAQuickCommandError_PersistsNothing()
+    {
+        using var scope = new PreferencesFileScope();
+        int original = new UserPreferences().TerminalFontSize;
+        var vm = new SettingsViewModel();
+        int applied = 0;
+        vm.Applied += () => applied++;
+        vm.TerminalFontSize = original + 2;
+        vm.SelectedQuickCommandSituation = vm.QuickCommandSituations.Single(r => r.Situation == AircraftSituation.Taxiing);
+        vm.AddQuickCommandCustomEntry();
+        Assert.False(vm.CanApply);
+
+        vm.ApplyCommand.Execute(null);
+
+        var stored = new UserPreferences();
+        Assert.Equal(original, stored.TerminalFontSize);
+        Assert.Empty(stored.QuickCommandOverrides);
+        Assert.Equal(0, applied);
+    }
+
     [AvaloniaFact(Timeout = 60_000)]
     public void ResolvingTheClash_ReEnablesApply_AndClearsBothMessages()
     {
@@ -125,6 +185,9 @@ public class SettingsViewModelApplyTests
         Assert.False(vm.HasKeybindClash);
         Assert.Null(Row(vm, "TakeControl").ClashMessage);
         Assert.Null(Row(vm, "PopOutAircraftList").ClashMessage);
+        Assert.True(vm.CanApply);
+        Assert.True(vm.ApplyCommand.CanExecute(null));
+        Assert.Null(vm.ApplyBlockedSummary);
 
         vm.ApplyCommand.Execute(null);
 

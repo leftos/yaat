@@ -772,6 +772,7 @@ public partial class SettingsViewModel : ObservableObject
         AudioOutputDevices = outputDevices;
         GroupedVerbMappings = new DataGridCollectionView(VerbMappings);
         GroupedVerbMappings.GroupDescriptions.Add(new DataGridPathGroupDescription("Category"));
+        AvailableQuickCommandCatalogEntries = new(_availableQuickCommandCatalogEntries);
         LoadFromScheme(_preferences.CommandScheme);
         _userInitials = _preferences.UserInitials;
         _isAdminMode = _preferences.IsAdminMode;
@@ -993,9 +994,15 @@ public partial class SettingsViewModel : ObservableObject
     /// Commits every edit to the preferences without closing the window; callable as often as the user presses
     /// Apply. Raises <see cref="Applied"/> afterwards so the host refreshes the live views.
     /// </summary>
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanApply))]
     private void Apply()
     {
+        // The window's OK and Apply handlers call Execute, which does not consult CanExecute.
+        if (!CanApply)
+        {
+            return;
+        }
+
         // Every setter below saves; the deferral writes the preferences file once.
         using (_preferences.DeferSave())
         {
@@ -1218,6 +1225,7 @@ public partial class SettingsViewModel : ObservableObject
                 Example = BuildExample(def, pattern),
             };
 
+            row.PropertyChanged += OnVerbMappingRowChanged;
             VerbMappings.Add(row);
         }
     }
@@ -1546,6 +1554,7 @@ public partial class SettingsViewModel : ObservableObject
 
     /// <summary>True while two rows, or a row and a fixed chord, share a combo; OK and Apply stay disabled until it clears.</summary>
     [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(ApplyCommand))]
     private bool _hasKeybindClash;
 
     [RelayCommand]
@@ -2035,8 +2044,9 @@ public partial class SettingsViewModel : ObservableObject
     {
         LoadFromScheme(defaults.CommandScheme);
 
-        // Re-run the test input against the reset scheme
+        // Re-run the test input and the quick-command validation against the reset scheme
         OnTestCommandInputChanged(TestCommandInput);
+        RevalidateQuickCommandRows();
     }
 
     private void ResetMacros(UserPreferences defaults)
