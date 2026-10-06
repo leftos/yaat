@@ -35,6 +35,8 @@ YAAT verifies your identity through **VATSIM sign-in** — you no longer type yo
 
 One field stays yours to set, under **Tools > Settings**, in the **General** section — your operating **initials** (e.g., "JE", "AB"), suggested from your VATSIM name and shown in the terminal so other RPOs can see who issued each command.
 
+![The Settings window on its General section, with the initials field at the top and the section sidebar on the left](docs/user-guide/img/settings-window.png)
+
 Your **[ARTCC](#glossary)** is filled in automatically from your VATSIM/VATUSA profile when you sign in (US controllers from VATUSA, everyone else from their VATSIM subdivision) and updates on its own if you transfer facilities — there is no ARTCC field to enter.
 
 > **Who can connect:** YAAT1 admits you to **create rooms and load scenarios** if you hold a VATUSA mentor role or a VATSIM Instructor rating (I1/I2/I3) or higher.

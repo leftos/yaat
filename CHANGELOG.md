@@ -21,7 +21,7 @@
 - In solo radar sessions, IFR departures lined up at untowered fields ask for their release and wait in the Releases flyout until `REL` or `HFROFF`.
 - In solo training with a radar student, unscripted runway departures at towered fields, or VFR at untowered ones, depart unprompted; RPOs launch them manually.
 - Load Scenario's Local Files tab can load one scenario file directly and lists recent scenarios, marking moved or deleted files missing; Remove drops one.
-- Getting Started and the User Guide show screenshots of every step, including the terminal, timeline and bookmarks, taxi routes, a landing, and the vTDLS tab.
+- Getting Started and the User Guide show screenshots of every step, including the terminal, timeline, taxi routes, vTDLS, Settings, Import / Export, layouts and CRC's environment list.
 
 ### Changed
 

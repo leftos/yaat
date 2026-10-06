@@ -67,19 +67,47 @@ internal static class SceneActions
     // underscores ignored, so "_File" and "File" both find the "_File" item)
     // and waits until every visible item in its dropdown is laid out. The
     // headless platform has no popup windows, so the dropdown opens in the
-    // window's overlay layer and CaptureRenderedFrame includes it.
-    public static async Task OpenMenuAsync(Window window, string menuHeader, TimeSpan timeout)
+    // window's overlay layer and CaptureRenderedFrame includes it. Returns the
+    // opened item, so a scene can open one of its submenus next.
+    public static async Task<MenuItem> OpenMenuAsync(Window window, string menuHeader, TimeSpan timeout)
     {
         Menu menu =
             window.GetLogicalDescendants().OfType<Menu>().FirstOrDefault()
             ?? throw new InvalidOperationException($"{window.GetType().Name} has no Menu.");
-        string wanted = StripAccessKeys(menuHeader);
         MenuItem item =
-            menu.Items.OfType<MenuItem>().FirstOrDefault(m => (m.Header is string header) && (StripAccessKeys(header) == wanted))
-            ?? throw new InvalidOperationException($"No top-level menu '{menuHeader}' in {window.GetType().Name}.");
+            FindItem(menu.Items, menuHeader) ?? throw new InvalidOperationException($"No top-level menu '{menuHeader}' in {window.GetType().Name}.");
 
         item.Open();
         await WaitUntilAsync(() => IsDropdownLaidOut(item), timeout, $"menu '{menuHeader}' to open");
+        ArrangeDropdownHost(window);
+        return item;
+    }
+
+    // Opens the submenu whose header matches submenuHeader inside an open
+    // menu (OpenMenuAsync's result, or another submenu) and waits until its
+    // dropdown is laid out; it draws in the overlay layer like its parent.
+    // The submenu is placed from its item's window position, which is only
+    // right once the parent dropdown's host has been arranged.
+    public static async Task<MenuItem> OpenSubmenuAsync(MenuItem parent, string submenuHeader, TimeSpan timeout)
+    {
+        MenuItem item =
+            FindItem(parent.Items, submenuHeader)
+            ?? throw new InvalidOperationException($"No submenu '{submenuHeader}' under menu '{parent.Header}'.");
+        TopLevel top = TopLevel.GetTopLevel(parent) ?? throw new InvalidOperationException($"Menu '{parent.Header}' is not in a window.");
+
+        item.Open();
+        await WaitUntilAsync(() => IsDropdownLaidOut(item), timeout, $"submenu '{submenuHeader}' to open");
+        ArrangeDropdownHost(top);
+        return item;
+    }
+
+    // A dropdown's overlay host takes its position from the overlay layer's
+    // next arrange; until then it sits at the window's origin, and so does
+    // every window position measured inside it.
+    private static void ArrangeDropdownHost(TopLevel top)
+    {
+        top.UpdateLayout();
+        Dispatcher.UIThread.RunJobs();
     }
 
     // Opens the flyout attached to the window's button whose content is
@@ -125,6 +153,13 @@ internal static class SceneActions
         string displayName = Path.GetFileNameWithoutExtension(scenarioPath);
         await vm.AutoLoadScenarioFromJsonAsync(json, displayName, displayName);
         await WaitUntilAsync(() => vm.HasScenario, timeout, "scenario load");
+    }
+
+    // Access-key underscores are ignored, so "_File" and "File" both find the "_File" item.
+    private static MenuItem? FindItem(ItemCollection items, string header)
+    {
+        string wanted = StripAccessKeys(header);
+        return items.OfType<MenuItem>().FirstOrDefault(m => (m.Header is string itemHeader) && (StripAccessKeys(itemHeader) == wanted));
     }
 
     private static bool IsDropdownLaidOut(MenuItem item)

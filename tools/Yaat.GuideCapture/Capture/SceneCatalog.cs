@@ -6,8 +6,8 @@ internal static class SceneCatalog
 {
     // Every scene the harness captures, in capture order, grouped by the guide
     // section that shows it. A scene's Name is its PNG file name. The popout
-    // scenes run after every other main-window scene: the pop-out state they
-    // set is saved to preferences and restored by every later MainWindow,
+    // scene runs after every other main-window scene: the pop-out state it
+    // sets is saved to preferences and restored by every later MainWindow,
     // which would drop the Ground and Radar tabs from those shots.
     public static IReadOnlyList<Scene> All { get; } =
     [
@@ -33,6 +33,8 @@ internal static class SceneCatalog
         new FlightStripsScene(),
         new VtdlsTabScene(),
         new FlightPlanEditorScene(),
+        // Applying a Layout (adds a saved layout, deleted in AfterCapture)
+        new MenuViewLayoutsScene(),
         // Command Input > Favorite Commands
         new FavoritesBarScene(),
         new FavoritesPanelScene(),
@@ -49,15 +51,17 @@ internal static class SceneCatalog
         new JustLandedScene(),
         // Popouts
         new MainWindowPoppedOutScene(),
-        new GroundViewPopoutScene(),
-        new RadarViewPopoutScene(),
         // Standalone dialogs / windows
         new SettingsWindowScene(),
+        new SettingsRadarScene(),
+        new SettingsGroundScene(),
+        new SettingsQuickCommandsScene(),
+        new SettingsKeysScene(),
+        new ImportExportHubScene(),
         new LoadScenarioDialogScene(),
         new LoadWeatherDialogScene(),
         new WeatherEditorScene(),
         new ArrivalGeneratorsEditorScene(),
         new FileBugReportDialogScene(),
-        new AboutWindowScene(),
     ];
 }

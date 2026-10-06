@@ -1222,6 +1222,8 @@ A cruise speed filed as a Mach number or as classified shows in the SPD box in g
 
 ### Applying a Layout or Another Scenario's Views
 
+![The View menu open on its Layout submenu, listing a saved layout named Tower cab above Save current as layout…, From this scenario's views… (greyed out with no scenario loaded), Manage layouts… and Reset aircraft list columns](docs/user-guide/img/menu-view-layouts.png)
+
 Use **View > Layout > From this scenario's views…** to open the **Apply Layout** dialog, which copies settings into the current scenario from one of two sources: **Scenario views** (another scenario's Ground and Radar view settings, including selected video maps, range, PTL, brightness, labels, and filters) or a **Saved layout** (window geometry, every pop-out window, extra Radar/Ground windows, favorites, open Strips/vTDLS tabs, and the Aircraft List column layout).
 
 The dialog shows your current value next to the source value for each setting, grouped into sections, and highlights the ones that differ. Tick the sections you want (**All** / **None** tick every section) and choose **Apply Selected** — matching sections start unticked, so you only copy real changes. When the source scenario is at a different airport, the map-position rows are flagged, since copying them moves your view to that airport.
@@ -2059,6 +2061,9 @@ Once CRC is configured:
 
 1. Have the student restart CRC (it reads `DevEnvironments.json` on startup)
 2. In CRC's environment selector, the student chooses **YAAT1** (or the entry for your own server)
+
+   ![CRC's Connect to VATSIM dialog with the Environment list open and YAAT1 selected](docs/user-guide/img/crc-environment-selector.png)
+
 3. The student connects with their VATSIM credentials
 4. In YAAT, open **Room > Members...** and click **Pull** next to the student in the **CRC Lobby** to bring them into your room — they immediately start seeing your room's traffic
 
@@ -2239,7 +2244,7 @@ The command bar remembers your last 50 commands. Navigate with Up/Down arrows:
 
 ### Settings
 
-![Settings window, General section](docs/user-guide/img/settings-window.png)
+![The Settings window on its General section, with the section sidebar on the left](docs/user-guide/img/settings-window.png)
 
 Open **Settings** (via **Tools > Settings**, or **Ctrl+,** from any YAAT window) to configure YAAT. A sidebar on the left lists its sections in six groups: **General** (General, Appearance), **Session** (Scenario defaults), **Views** (Radar, Ground, Aircraft list, Strips and vTDLS, Terminal), **Input** (Command input, Command verbs, Macros, Quick commands, Keys), **Voice** (Speech, Audio devices) and **Advanced** (Server admin). Click a section to show its settings.
 
@@ -2271,6 +2276,8 @@ Blue links such as **Font sizes → Appearance** or **Always on top → General*
 While the window is open, the aircraft list, terminal and interface font sizes, the Strips and vTDLS zoom, the ground colors and brightness, and the radar tint colors preview in the open views, so you can see them before applying. Cancel puts them back. Everything else takes effect when you press Apply or OK.
 
 #### Importing and exporting settings
+
+![The Import / Export window on its Export tab with nothing ticked, listing the six items, what each holds and the file type each exports as](docs/user-guide/img/import-export-hub.png)
 
 The **Import / Export** window saves your settings to a file, to back them up or share them, and loads them from one. It covers six items: **Preferences** (every Settings section), **Macros**, **Command verbs**, **Favorites**, **Aircraft list columns** and **Layouts**.
 
@@ -2360,6 +2367,8 @@ These are your **defaults** for new rooms, applied when *you* load a scenario. T
 
 #### Radar
 
+![Settings on its Radar section, with the links to Appearance and General at the top and the Radar Display options below](docs/user-guide/img/settings-radar.png)
+
 Links at the top: **Font sizes → Appearance**, **Always on top → General**.
 
 **Radar Display**:
@@ -2411,6 +2420,8 @@ Links at the top: **Font sizes → Appearance**, **Always on top → General**.
 | **Selected Aircraft Color** | Symbol and datablock color for the currently selected aircraft. | `#FFFFFF` (white) |
 
 #### Ground
+
+![Settings on its Ground section, with the Ground Display options and the start of the Ground View colors](docs/user-guide/img/settings-ground.png)
 
 Links at the top: **Font sizes → Appearance**, **Speech bubbles → Radar**, **Scroll sensitivity → Radar**, **Always on top → General**.
 
@@ -2488,9 +2499,13 @@ The **CRC Aliases** folder above the grid (with **Browse…**) says where YAAT r
 
 #### Quick commands
 
+![Settings on its Quick commands section, with the situation list, the At parking menu preview and that situation's five commands](docs/user-guide/img/settings-quick-commands.png)
+
 Each situation's quick commands on the aircraft right-click menu: the situation list, a menu preview, the selected situation's commands (drag to reorder, flight rules per command, custom commands with their own label), **Add command…**, **Add custom**, **Reset this situation** and **Reset all**. **Reset section** does the same as Reset all. See [Changing the quick commands](#aircraft-right-click-menu) under the right-click menu for the details.
 
 #### Keys
+
+![Settings on its Keys section, listing the keybinds with a button per key showing its current combo](docs/user-guide/img/settings-keys.png)
 
 Links at the top: **Push-to-talk key → Speech**, **Always on top → General**.
 
