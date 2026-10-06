@@ -7,6 +7,7 @@ using Yaat.Client.Views;
 using Yaat.Client.Views.Ground;
 using Yaat.Client.Views.Radar;
 using Yaat.Client.Views.VStrips;
+using Yaat.Sim.Testing;
 
 namespace Yaat.Client.UI.Tests.Views;
 
@@ -198,6 +199,7 @@ public class MainWindowLifecycleTests
     public void ExtraRadarWindow_OpensWithInstanceVmAndMainViewModelContext()
     {
         (MainWindow? main, MainViewModel? vm) = BootMainWindow();
+        MarkNavDataReady(vm);
         try
         {
             vm.OpenExtraRadarView("KOAK");
@@ -212,7 +214,7 @@ public class MainWindowLifecycleTests
             Assert.IsType<MainViewModel>(entry.Value.DataContext);
             Assert.Same(instance.Vm, entry.Value.RadarVm);
             Assert.NotSame(vm.Radar, entry.Value.RadarVm);
-            Assert.Equal("Radar View #2 — KOAK", entry.Value.Title);
+            Assert.Equal("Radar View #2 — OAK", entry.Value.Title);
         }
         finally
         {
@@ -224,6 +226,7 @@ public class MainWindowLifecycleTests
     public void ExtraGroundWindow_OpensWithInstanceVmAndMainViewModelContext()
     {
         (MainWindow? main, MainViewModel? vm) = BootMainWindow();
+        MarkNavDataReady(vm);
         try
         {
             vm.OpenExtraGroundView("KOAK");
@@ -236,7 +239,7 @@ public class MainWindowLifecycleTests
             Assert.IsType<MainViewModel>(entry.Value.DataContext);
             Assert.Same(instance.Vm, entry.Value.GroundVm);
             Assert.NotSame(vm.Ground, entry.Value.GroundVm);
-            Assert.Equal("Ground View #2 — KOAK", entry.Value.Title);
+            Assert.Equal("Ground View #2 — OAK", entry.Value.Title);
         }
         finally
         {
@@ -320,6 +323,7 @@ public class MainWindowLifecycleTests
     public void CaptureCurrent_RecordsExtraViews()
     {
         (MainWindow _, MainViewModel? vm) = BootMainWindow();
+        MarkNavDataReady(vm);
         try
         {
             vm.OpenExtraRadarView("KOAK");
@@ -329,14 +333,24 @@ public class MainWindowLifecycleTests
 
             SavedLayout layout = new LayoutService(vm.Preferences).CaptureCurrent("extra-views", vm);
 
-            // Ordinal and base airport, so applying the layout reopens each window where it was.
-            Assert.Equal([new SavedExtraView(2, "KOAK")], layout.ExtraRadarViews);
-            Assert.Equal([new SavedExtraView(2, "KOAK"), new SavedExtraView(3, "KOAK")], layout.ExtraGroundViews);
+            // Ordinal and base airport in the FAA form ("KOAK" is stored as "OAK"), so applying the
+            // layout reopens each window where it was.
+            Assert.Equal([new SavedExtraView(2, "OAK")], layout.ExtraRadarViews);
+            Assert.Equal([new SavedExtraView(2, "OAK"), new SavedExtraView(3, "OAK")], layout.ExtraGroundViews);
         }
         finally
         {
             CloseAllExtraViews(vm);
         }
+    }
+
+    // The extra-view open path canonicalises the airport id to its FAA form ("KOAK" -> "OAK") once
+    // navdata is loaded, and the view model's own navdata initialization races the test body — pin it
+    // ready first so the id a test opens on is deterministically the id that gets stored and shown.
+    private static void MarkNavDataReady(MainViewModel vm)
+    {
+        TestVnasData.EnsureInitialized();
+        vm.MarkNavDbReady();
     }
 
     private static (MainWindow main, MainViewModel vm) BootMainWindow()
