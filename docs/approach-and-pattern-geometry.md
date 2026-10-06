@@ -789,7 +789,9 @@ Regression: `N342TFollowStraightInDownwindTests`.
 
 **Structural-overtake break-off + go-around** (`ShouldBreakOffFollowForSpacing`): a follower whose own Vref plus the gust additive exceeds the lead's indicated airspeed by more than `StructuralOvertakeMarginKts = 10` (`IsStructuralOvertake`; IAS against IAS, since both fly the same final into the same wind) can never open the gap by slowing — speed control alone is futile (e.g. a C210 told to follow a 56-kt C152).
 
-When that follower, on `BasePhase` or `FinalApproachPhase`, closes inside `FollowBreakOffGapNm = 0.8` nm of the still-airborne lead while the pair is still converging (`IsClosing`, range-rate < 0), it breaks off the follow and goes around — clearing the follow state and triggering a go-around with an "unable to maintain separation" transmission — rather than overflying the lead it was told to follow (AIM 4-3-3 NOTE 1; 0.8 nm sits above the same-runway 3,000 ft ≈ 0.5 nm Cat I minimum of 7110.65 §3-10-3).
+When that follower, on `BasePhase` or `FinalApproachPhase`, closes inside `FollowBreakOffGapNm = 0.8` nm of the still-airborne lead while the pair is still converging (`IsClosing`, range-rate < 0), it breaks off the follow and goes around, clearing the follow state and triggering a go-around with an "unable to maintain separation" transmission.
+
+It does this rather than overflying the lead it was told to follow (AIM 4-3-3 NOTE 1; 0.8 nm sits above the same-runway 3,000 ft ≈ 0.5 nm Cat I minimum of 7110.65 §3-10-3).
 
 The check runs *before* the speed block so it pre-empts the at-min-speed cancel above, which would only clear the follow without going around.
 
@@ -913,20 +915,21 @@ geometry, not trail spacing. `DownwindPhase` bounds the hold **spatially** with 
 **temporal** bound is the lead lifecycle (the lead lands, despawns, or is lost from sight). The two caps are
 complementary, not redundant.
 
-**Upwind/crosswind sequencing — remaining pattern path.** The downwind along-track hold does not transfer to the
-`UpwindPhase`/`CrosswindPhase` legs: the upwind leg's along-track runs *opposite* the downwind sequence axis (its
-heading is the runway heading, the reciprocal of downwind), so "further along upwind" means a *longer* path to
-landing, not a shorter one — a follower that is behind the lead on upwind is geometrically committed to a *shorter*
-downwind and would roll out on final *ahead* of the traffic it was told to follow. To sequence correctly on every
-leg, `RemainingPatternPathNm` (`AirborneFollowHelper`) computes the remaining circuit distance to the threshold
-(upwind → crosswind → downwind → base → final); it is monotone toward landing and *increases* when a leg is extended
-(a longer upwind lengthens the downwind; a wider crosswind lengthens the base; a longer downwind lengthens the
-final — the downwind term uses the aircraft's **actual** perpendicular offset so a widened pattern counts its longer
-base). A lead still joining the pattern (leg 0) is measured along its entry route, straight lines with no corner-cut credit, then the leg formula at the join: a `PatternEntryPhase` through its lead-in while `PTN-LEADIN` is still in its route, then its entry point, the joined leg read from the phase after the entry (`EntryJoinedLeg`; the entry's `Kind` only when none follows); a `MidfieldCrossingPhase` through the midfield point, then the teardrop fixes and `DownwindAbeam` when a `TeardropReentryPhase` is queued next; a `TeardropReentryPhase` through the fixes left in its route. A straight-in entrant has no pattern waypoints and is measured from the runway (`FinalRemainingNm`, the larger of the along-final and straight-line distances to the threshold). `ShouldHoldLegForRemainingPathSequencing` holds the current leg while `remaining(follower) < remaining(lead)
-+ desired`, so the follower extends its upwind/crosswind leg (chasing) until it is a full `desired` of remaining
-path behind — converging without ever having to overtake the lead on the shared leg, because the lead is
-simultaneously shrinking its own remaining. Gated (like every other follow path) by `IsLeadPatternFlowBehind` so a
-follower never extends a leg to fall in behind traffic that is actually behind it.
+**Upwind/crosswind sequencing — remaining pattern path.**
+
+The downwind along-track hold does not transfer to the `UpwindPhase`/`CrosswindPhase` legs: the upwind leg's along-track runs *opposite* the downwind sequence axis (its heading is the runway heading, the reciprocal of downwind), so "further along upwind" means a *longer* path to landing, not a shorter one — a follower that is behind the lead on upwind is geometrically committed to a *shorter* downwind and would roll out on final *ahead* of the traffic it was told to follow.
+
+To sequence correctly on every leg, `RemainingPatternPathNm` (`AirborneFollowHelper`) computes the remaining circuit distance to the threshold (upwind → crosswind → downwind → base → final); it is monotone toward landing and *increases* when a leg is extended (a longer upwind lengthens the downwind; a wider crosswind lengthens the base; a longer downwind lengthens the final — the downwind term uses the aircraft's **actual** perpendicular offset so a widened pattern counts its longer base).
+
+A lead still joining the pattern (leg 0) is measured along its entry route, straight lines with no corner-cut credit, then the leg formula at the join.
+
+A `PatternEntryPhase` is measured through its lead-in while `PTN-LEADIN` is still in its route, then its entry point, the joined leg read from the phase after the entry (`EntryJoinedLeg`; the entry's `Kind` only when none follows); a `MidfieldCrossingPhase` through the midfield point, then the teardrop fixes and `DownwindAbeam` when a `TeardropReentryPhase` is queued next; a `TeardropReentryPhase` through the fixes left in its route.
+
+A straight-in entrant has no pattern waypoints and is measured from the runway (`FinalRemainingNm`, the larger of the along-final and straight-line distances to the threshold).
+
+`ShouldHoldLegForRemainingPathSequencing` holds the current leg while `remaining(follower) < remaining(lead) + desired`, so the follower extends its upwind/crosswind leg (chasing) until it is a full `desired` of remaining path behind — converging without ever having to overtake the lead on the shared leg, because the lead is simultaneously shrinking its own remaining.
+
+Gated (like every other follow path) by `IsLeadPatternFlowBehind` so a follower never extends a leg to fall in behind traffic that is actually behind it.
 
 **A follower never self-turns to break the hold.** Once told to follow, an aircraft does not turn off its leg on
 its own — it keeps flying the current leg until it is genuinely sequenced behind (the hold clears and it turns
@@ -991,7 +994,9 @@ A VFR follower in a non-reentering go-around whose lead flies a circuit on its r
 
 A runwayless lead from a climb gets the ±60° cone, plus the downwind box when the follower's side is known (persistent MLT/MRT, else its traffic direction), answering the same before and after the climb hands to `UpwindPhase`; a runwayless lead queued for another runway re-sequences through `FollowOntoQueuedRunway`, as from the upwind.
 
-An accepted runwayless lead keeps the climb and arms a **pending pursuit** on it (`IPendingPursuitClimb.PursuesRunwaylessLeadAfterClimb`, snapshotted, disarmed by `ClearFollowState` and by a same-runway re-FOLLOW); when the climb hands over, `PhaseRunner` starts the free pursuit with the circuit's pattern return (`VfrFollowPhase.BuildFollowPatternReturn`, then `InstallVfrFollowPhase`); a turn crosswind armed during the takeoff roll (`TurnCrosswindArmed`) is dropped there, since FOLLOW, the later instruction, supersedes it (7110.65 §2-1-5).
+An accepted runwayless lead keeps the climb and arms a **pending pursuit** on it (`IPendingPursuitClimb.PursuesRunwaylessLeadAfterClimb`, snapshotted, disarmed by `ClearFollowState` and by a same-runway re-FOLLOW).
+
+When the climb hands over, `PhaseRunner` starts the free pursuit with the circuit's pattern return (`VfrFollowPhase.BuildFollowPatternReturn`, then `InstallVfrFollowPhase`). A turn crosswind armed during the takeoff roll (`TurnCrosswindArmed`) is dropped there, since FOLLOW, the later instruction, supersedes it (7110.65 §2-1-5).
 
 A pursuit that starts on the departure leg carries a **climb-out gate** (`VfrFollowPhase.ClimbOutGate`, `FollowClimbOutGate`): from the climb hand-over, from FOLLOW of a runwayless lead on the upwind, and from `InstallFollow` when the follower is on its upwind, an airborne closed-traffic climb or a go-around (with no circuit, the gate is the runway's own departure end, true heading and `ResolvePatternAltitudeFt − 300`).
 
@@ -999,7 +1004,9 @@ While it holds, the pursuit flies the upwind heading and the upwind's speed sche
 
 The turn point is past the departure end, as the figures' key 5 puts it, not AIM 4-3-2.c.1's "at least 1/2 mile beyond the departure end" for the departure leg: the figure is the operational turn rule, and the altitude half usually binds later. Both climbs run `CheckLeadLifecycle` while following, clearing only the follow; an IFR follower that loses its lead also gets "{cs} visual separation terminated — radar separation required".
 
-A closed-traffic climb onto a close parallel of its pattern runway (`DepartureRunway` set, same airport, `RunwayGeometry.AreCloseParallels`; depart 28R for 28L traffic) is leg 1 as well, ordered by along-track distance from the pattern runway's threshold (its transition upwind already flies on the pattern runway's frame), refused "Unable, on upwind for runway {pattern rwy}, …", and its climb-out gate is the farther of the two runways' departure ends along the pattern runway's heading (the end the transition upwind turns crosswind past, `PatternGeometry.ComputeTransition`, so the turn never crosses either runway's departure path; AIM §4-3-2.c.3, FIG 4-3-3 key 5), on the flown runway's heading, at the pattern runway's TPA − 300.
+A closed-traffic climb onto a close parallel of its pattern runway (`DepartureRunway` set, same airport, `RunwayGeometry.AreCloseParallels`; depart 28R for 28L traffic) is leg 1 as well, ordered by along-track distance from the pattern runway's threshold (its transition upwind already flies on the pattern runway's frame), and is refused "Unable, on upwind for runway {pattern rwy}, …".
+
+Its climb-out gate is the farther of the two runways' departure ends along the pattern runway's heading (the end the transition upwind turns crosswind past, `PatternGeometry.ComputeTransition`, so the turn never crosses either runway's departure path; AIM §4-3-2.c.3, FIG 4-3-3 key 5), on the flown runway's heading, at the pattern runway's TPA − 300.
 
 A closed-traffic climb onto a runway crossing its pattern runway (same airport, not a close parallel; depart 28R for 33 traffic) is a **pattern entrant** (leg 0) as follower and lead through the airborne `TakeoffPhase` and its transition `UpwindPhase` (`AirborneFollowHelper.IsCrossingTransitionClimb`), until `MidfieldCrossingPhase` hands it to the pattern runway's downwind.
 
@@ -1021,7 +1028,7 @@ From final it refuses ("Unable, on final for runway {rwy}, request vectors to fo
 
 An upwind or crosswind follower also accepts a lead inside the **downwind box** (`IsLeadInDownwindBox`): along the downwind line from the downwind turn point to 3 NM past the base turn point, between half the downwind offset and the offset plus 1.5 NM from the extended centerline on the circuit side, tracking within ±90° of the downwind heading — traffic it falls in behind by flying its normal circuit, with no 360 (AIM §4-3-5); a lead astern on the runway line stays refused.
 
-The three limits are judgement figures (aviation review 2026-09-30). Approach and pursuit followers do not take this path; they have their own guards, below.
+The three limits are judgement figures from the aviation review. Approach and pursuit followers do not take this path; they have their own guards, below.
 
 **Guards for a follower off the pattern legs** (`GroundOrElsewhereLeadRefusal`, `RunwaylessLeadConeRefusal`, after the pattern-leg path in `RouteFollow`).
 
@@ -1031,7 +1038,9 @@ An approach follower refuses every ground lead and keeps its approach: accepting
 
 A `FOLLOW` of the lead a pursuit is already flying is acknowledged and changes nothing (same phase, path, pattern return and turn-out), even when that lead has since drifted outside the cone.
 
-Otherwise an approach or pursuit follower refuses a runwayless lead outside the ±60° cone — "Unable, on approach for runway {rwy}, {T} is not ahead of us, request vectors" from an approach, "Unable, {T} is not ahead of us, request vectors" from a pursuit or an approach with no assigned runway — except that an approach follower also accepts a lead whose straight-line distance to its threshold is shorter than its own remaining path (`AirborneFollowHelper.FollowerRemainingPathNm`), which covers traffic ahead in sequence but behind the track during a course reversal (aviation review 2026-09-30).
+Otherwise an approach or pursuit follower refuses a runwayless lead outside the ±60° cone — "Unable, on approach for runway {rwy}, {T} is not ahead of us, request vectors" from an approach, "Unable, {T} is not ahead of us, request vectors" from a pursuit or an approach with no assigned runway.
+
+As an exception, an approach follower also accepts a lead whose straight-line distance to its threshold is shorter than its own remaining path (`AirborneFollowHelper.FollowerRemainingPathNm`), which covers traffic ahead in sequence but behind the track during a course reversal (aviation review).
 
 A refused `FOLLOWF` leaves traffic-in-sight as it was; only an accepted one marks it.
 
@@ -1043,9 +1052,11 @@ An unknown lead runway is never read as "same runway": the in-place retarget wou
 
 **A new lead during a pursuit** (`CommandDispatcher.PursuitNewLeadRoute`, after the same-lead acknowledgement and before the cone). A pursuit that left its circuit from base (`FollowPatternReturn.FromBase`), or one turning out, compares a new runway-bearing airborne lead on that circuit (`VfrFollowPhase.NewLeadCircuit`: the turn-out's circuit while turning out, else the from-base return).
 
-A lead landing another runway is refused first, "Unable, {T} is landing runway {rwy2}, request vectors" (7110.65 §7-4-3.c.2); a lead on a pattern entry other than a straight-in (`AirborneFollowHelper.IsStraightInEntry`: an entry that joins the final) is refused "Unable, {T} is not ahead of us, request vectors"; otherwise the lead is ahead when its `SequenceRemainingPathNm` is no longer than the follower's own path (`VfrFollowPhase.FollowerPathToThresholdNm`: the shortest path to the threshold from its final-frame position at its base turn radius), no tolerance, and is refused with the same not-ahead text when it is longer or infinite (no sequence leg).
+A lead landing another runway is refused first, "Unable, {T} is landing runway {rwy2}, request vectors" (7110.65 §7-4-3.c.2). A lead on a pattern entry other than a straight-in (`AirborneFollowHelper.IsStraightInEntry`: an entry that joins the final) is refused "Unable, {T} is not ahead of us, request vectors".
 
-An accepted lead is retargeted in place (`UpdateTarget`): the pattern return is kept, no downwind entry is built, and a running turn-out ends. A straight-in entrant is compared by path because it is already flying toward the final the follower joins, so falling in behind it takes only an extension or S-turns (AIM §4-3-3 NOTE 1, 7110.65 §3-8-1; aviation review 2026-09-30).
+Otherwise the lead is ahead when its `SequenceRemainingPathNm` is no longer than the follower's own path (`VfrFollowPhase.FollowerPathToThresholdNm`: the shortest path to the threshold from its final-frame position at its base turn radius), no tolerance, and is refused with the same not-ahead text when it is longer or infinite (no sequence leg).
+
+An accepted lead is retargeted in place (`UpdateTarget`): the pattern return is kept, no downwind entry is built, and a running turn-out ends. A straight-in entrant is compared by path because it is already flying toward the final the follower joins, so falling in behind it takes only an extension or S-turns (AIM §4-3-3 NOTE 1, 7110.65 §3-8-1; aviation review).
 
 A pursuit that did not leave from base keeps table H: a runway-bearing lead gets the downwind entry, a runwayless one the cone; ground leads keep the rule above.
 
@@ -1055,7 +1066,9 @@ A same-runway lead that passes the refusals, or a runwayless lead inside the con
 
 A procedure-turn or hold-in-lieu follower is measured by the straight line to its reversal fix plus the approach path from there (`FollowerRemainingPathNm`); a lead on one has no sequence leg.
 
-The published missed approach is not the approach: an `ApproachNavigationPhase` with `IsMissedApproach` has no sequence leg, an IFR follower on its own missed refuses "Unable, on the missed approach, request vectors" and a VFR one is re-sequenced with no landing clearance (§4-8-11.e, §4-8-9); a lead going around or on its missed is refused from an approach ("Unable, {T} is going around, request vectors"), and if it goes around during a kept-approach follow the follow ends, the approach continues and the RPO sees "{cs} follow of {T} ended — {T} went around".
+The published missed approach is not the approach: an `ApproachNavigationPhase` with `IsMissedApproach` has no sequence leg, an IFR follower on its own missed refuses "Unable, on the missed approach, request vectors" and a VFR one is re-sequenced with no landing clearance (§4-8-11.e, §4-8-9).
+
+A lead going around or on its missed is refused from an approach ("Unable, {T} is going around, request vectors"), and if it goes around during a kept-approach follow the follow ends, the approach continues and the RPO sees "{cs} follow of {T} ended — {T} went around".
 
 An IFR follower (`AirborneFollowHelper.IsIfrFollower`: a flight plan and not VFR) that loses sight of its lead outside a visual approach also gives the RPO "{cs} visual separation terminated — radar separation required". A repeat FOLLOW of the same lead is acknowledged unchanged while that lead still lands the follower's runway or has none.
 
@@ -1110,7 +1123,9 @@ The desired gap is the pattern spacing `DesiredDistanceForLeader` for a lead in 
 
 Once spaced, the follower points its nose at the lead while the lead is on a straight leg (the path to it within 15° of the lead's track) and through the lead's turns steers at a point on the path ahead, so it turns where the lead turned rather than cutting the corner (AIM §5-5-12.a.1 and §4-4-14.b: in trail).
 
-**Too close** (along-path gap short of desired by more than ~0.1 NM), it slows to its speed floor and flies a shallow S-turn excursion (AIM §4-3-5): 30° off the lead's track, 45° when short by more than 0.3 NM (turboprops and jets 30° only), to the pattern's outside, never toward the final or a parallel final (a side with a parallel centerline within the cap + 0.5 NM is closed; both closed means speed alone), capped at max(1.0 NM, 3 turn radii) off the lead's track (1.5 NM for turboprops and jets).
+**Too close** (along-path gap short of desired by more than ~0.1 NM), it slows to its speed floor and flies a shallow S-turn excursion (AIM §4-3-5): 30° off the lead's track, 45° when short by more than 0.3 NM (turboprops and jets 30° only).
+
+The excursion goes to the pattern's outside, never toward the final or a parallel final (a side with a parallel centerline within the cap + 0.5 NM is closed; both closed means speed alone), and is capped at max(1.0 NM, 3 turn radii) off the lead's track (1.5 NM for turboprops and jets).
 
 It ends at desired + 0.1 NM, the side latched in `FollowWidenState` (serialized), and the pilot says "S-turning for spacing behind the traffic" at most once a minute. While more than 0.3 NM off the path the target speed is capped at the lead's, so an ended excursion does not speed back in. At the cap without the gap it holds parallel at the floor and **extends** past the lead's base turn point, turning base once the gap (the lead's path from its base start plus the extension) is met.
 
@@ -1130,7 +1145,11 @@ The turn-out is that maneuver: an "extend downwind" (7110.65 §3-8-1) flown afte
 
 The S-turn's "no 360, no 90° turn-out" binds only the unannounced S-turn, not this announced turn-out. A later controller command (a 360 or 270, a re-sequence, a base turn) overrides it.
 
-- **Trigger**, checked each pursuit tick: the lead is airborne on base or final to a runway (final by phase or by geometry, `IsOnFinalByGeometry`, straight-in finals included) and the follower is on that runway's pattern side within `TurnOutRangeNm = 5` of its threshold; and either the follower is level or ahead by path (its shortest path to the threshold, a turn to final in the pattern direction at `BasePhase.TurnRadiusNm`, `ShortestPathToThresholdNm`, is no longer than the lead's remaining path), or the S-turn excursion has stalled alongside the lead (at the offset cap, more than `StallShortfallNm = 0.1` short of the gap, and the gap grew by less than `StallMinGrowthNm = 0.05` over `StallWindowSeconds = 20`, `ParallelHoldStalled`), or a base break-off requested it (`RequestTurnOut`).
+- **Trigger**, checked each pursuit tick: the lead is airborne on base or final to a runway (final by phase or by geometry, `IsOnFinalByGeometry`, straight-in finals included) and the follower is on that runway's pattern side within `TurnOutRangeNm = 5` of its threshold.
+
+  In addition, either the follower is level or ahead by path (its shortest path to the threshold, a turn to final in the pattern direction at `BasePhase.TurnRadiusNm`, `ShortestPathToThresholdNm`, is no longer than the lead's remaining path), or the S-turn excursion has stalled alongside the lead, or a base break-off requested it (`RequestTurnOut`).
+
+  The excursion has stalled when it is at the offset cap, more than `StallShortfallNm = 0.1` short of the gap, and the gap grew by less than `StallMinGrowthNm = 0.05` over `StallWindowSeconds = 20` (`ParallelHoldStalled`).
 
   A requested turn-out skips the 5 nm range (the range still gates the per-tick trigger) and is consumed before the base, pattern and final joins, so a break-off never flips straight into a join. The circuit it rejoins is the pursuit's own pattern return when that names the lead's runway, else the lead's runway in the lead's traffic direction (the runway default without one).
 - **One call** on the tick it starts: "turning downwind for spacing behind the traffic, request base turn." (`PilotResponder.BuildTurningDownwindForSpacing`, see [`pilot-phraseology.md`](pilot-phraseology.md)). It says "behind the traffic", not "the traffic is behind us", because the lead may still be behind or level when the follower turns.

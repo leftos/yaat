@@ -104,7 +104,9 @@ Driving YAAT never steals focus or jumps to the foreground while the user works:
 
 - **An automation endpoint inside the client, local only.** With `YAAT_AUTOMATION=1` (one switch; `launch_yaat` always sets it) the client (`src/Yaat.Client/Automation/`) hosts the named pipe `yaat-automation-<pid>`, restricted to the current user, with a discovery file per PID (`%TEMP%/yaat-automation/<pid>.json`), on Zafiro.Avalonia.Mcp's line-delimited `{id, method, params}` protocol with coded errors and recovery hints.
 
-  Its methods: `ping`, `list_windows`, `get_tree`, `click`, `click_point`, `send_keys`, `set_text`, `focus`, `screenshot` (`RenderTargetBitmap`), `wait_for`, `wait_until`, `queue_file_pick`, `list_app_tools`, `call_app_tool` and `get_sim_time` (`{simSeconds, isPaused, simRate}` from `IAutomationState`; `UNSUPPORTED_OPERATION` until the main window is up), all raised on the UI thread (`wait_until` reads the simulation through `IAutomationState`, `MainViewModelAutomationState` over the main view model, and runs its `then` actions off the UI thread).
+  Its methods: `ping`, `list_windows`, `get_tree`, `click`, `click_point`, `send_keys`, `set_text`, `focus`, `screenshot` (`RenderTargetBitmap`), `wait_for`, `wait_until`, `queue_file_pick`, `list_app_tools`, `call_app_tool` and `get_sim_time` (`{simSeconds, isPaused, simRate}` from `IAutomationState`; `UNSUPPORTED_OPERATION` until the main window is up), all raised on the UI thread.
+
+  Of these, `wait_until` reads the simulation through `IAutomationState`, `MainViewModelAutomationState` over the main view model, and runs its `then` actions off the UI thread.
 
   Selectors are Zafiro's CSS-like ones (`#Name`, a type name, `StackPanel > TextBox`), without its Roslyn `dc:` predicates (no Roslyn in the client).
 - **Client errors on every result.** Since protocol 1.3.0 (`Protocol/ProtocolVersion.cs`; 1.4.0 adds `get_sim_time` and the windows' `hwnd`). The client keeps its last 200 Error and Critical log entries in a ring with sequence numbers (`Yaat.Client.Core/Logging/RecentErrorLog.cs`, registered by `AppLog`).

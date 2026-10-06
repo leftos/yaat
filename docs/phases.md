@@ -153,7 +153,11 @@ Turn phases (`MakeTurnPhase`, `InitialClimbPhase`) also null `PreferredTurnDirec
 
 Files are under `Phases/Tower/`, `Phases/Ground/`, `Phases/Pattern/`, `Phases/Approach/`. Quick map:
 
-**Tower** — `LineUpPhase`, `LinedUpAndWaitingPhase`, `TakeoffPhase`, `RejectedTakeoffPhase` (reaction window → max-effort braking on the centerline → `HoldingInPositionPhase`; installed by `RejectedTakeoff.Install`, shared by the auto trigger in `TakeoffPhase.TickGroundRoll` and the CTOC mid-roll abort), `InitialClimbPhase`, `DepartureProcedurePhase` (charted heading/course SID legs — see below), `FinalApproachPhase`, `LandingPhase`, `RunwayHoldingPhase` (LAHSO), `GoAroundPhase`, `LowApproachPhase`, `TouchAndGoPhase`, `StopAndGoPhase`, `HelicopterTakeoffPhase`, `HelicopterApproachPhase` (LAND @spot from off the airport: hold altitude → 400 ft/nm descent to 500 ft AGL → 6° final onto the spot, hands off to `HelicopterLandingPhase` hovering at the air-taxi height; on-field LAND/ATXI use `AirTaxiPhase` instead), `HelicopterLandingPhase`, `VfrHoldPhase`, `MakeTurnPhase`, `STurnPhase`.
+**Tower** — `LineUpPhase`, `LinedUpAndWaitingPhase`, `TakeoffPhase`, `RejectedTakeoffPhase` (reaction window → max-effort braking on the centerline → `HoldingInPositionPhase`; installed by `RejectedTakeoff.Install`, shared by the auto trigger in `TakeoffPhase.TickGroundRoll` and the CTOC mid-roll abort), `InitialClimbPhase`, `DepartureProcedurePhase` (charted heading/course SID legs — see below).
+
+The Tower group also holds `FinalApproachPhase`, `LandingPhase`, `RunwayHoldingPhase` (LAHSO), `GoAroundPhase`, `LowApproachPhase`, `TouchAndGoPhase`, `StopAndGoPhase` and `HelicopterTakeoffPhase`.
+
+The rest are `HelicopterApproachPhase` (LAND @spot from off the airport: hold altitude → 400 ft/nm descent to 500 ft AGL → 6° final onto the spot, hands off to `HelicopterLandingPhase` hovering at the air-taxi height; on-field LAND/ATXI use `AirTaxiPhase` instead), `HelicopterLandingPhase`, `VfrHoldPhase`, `MakeTurnPhase`, `STurnPhase`.
 
 **Ground** — `TaxiingPhase`, `HoldingShortPhase`, `CrossingRunwayPhase`, `RunwayExitPhase`, `PushbackPhase`, `AirTaxiPhase`, `AtParkingPhase`, `FollowingPhase`, `HoldingInPositionPhase`, `HoldingAfterPushbackPhase`, `HoldingAfterExitPhase`. `RunwayExitPhase.CompleteExit` sets `AircraftGroundOps.AwaitingTaxiInCall`; `HoldingAfterExitPhase` and `HoldingInPositionPhase` make the arrival's taxi-in call from it (`Pilot/TaxiInRequest.cs`).
 
@@ -165,7 +169,9 @@ Files are under `Phases/Tower/`, `Phases/Ground/`, `Phases/Pattern/`, `Phases/Ap
 
 `FollowingPhase.CheckRunwayHoldShort` skips a bar of a runway the follower is already on (leaving is not crossing) and files the bar of the follower's own route destination as `DestinationRunway` (so `RES` there does not release it onto the runway, and the departure queue ranks it tier 0); every other bar stays `RunwayCrossing`.
 
-**A stand is `AtParkingPhase`; anything else a ground movement stops on is `HoldingInPositionPhase`** — the same rule in four writers: `GroundCommandHandler.AddAirTaxiTerminus` (`ATXI`/`LAND` to a helipad or parking vs a taxi spot), `TaxiingPhase.CompleteRoute` (`route.DestinationParking` vs a spot), `GroundCommandHandler.TryTaxi`'s zero-segment shortcut (the same discriminator, for a `TAXI` issued to an aircraft already standing on its destination), and `FlightCommandHandler.ApplyWarpGround` (`GroundNodeType.Parking or Helipad` vs everything else).
+**A stand is `AtParkingPhase`; anything else a ground movement stops on is `HoldingInPositionPhase`** — the same rule in four writers.
+
+They are `GroundCommandHandler.AddAirTaxiTerminus` (`ATXI`/`LAND` to a helipad or parking vs a taxi spot), `TaxiingPhase.CompleteRoute` (`route.DestinationParking` vs a spot), `GroundCommandHandler.TryTaxi`'s zero-segment shortcut (the same discriminator, for a `TAXI` issued to an aircraft already standing on its destination), and `FlightCommandHandler.ApplyWarpGround` (`GroundNodeType.Parking or Helipad` vs everything else).
 
 `GroundCommandHandler.InstallTugMove` applies it too for every `PUSH` form and `PUSHM`, with `HoldingAfterPushbackPhase` in place of `HoldingInPositionPhase` for a spot or node terminus — `TryPushback` and `TryPushbackMulti` take either of those two (or a running `PushbackPhase`, for a redirect) as a precondition, so an aircraft pushed onto a spot can be pushed again.
 
@@ -323,7 +329,11 @@ Skip any of these and old recordings will throw `InvalidOperationException` on r
   A phase that publishes conditionally is invisible as a mover the first tick after its speed settles, and a hold that pins only in `OnStart` lets a stale positive target push the aircraft forward (`RunwayHoldingPhase` re-publishes 0 per tick for exactly this reason). Roll phases (`TakeoffPhase`, `StopAndGoPhase`, `TouchAndGoPhase`, `RejectedTakeoffPhase`) are the exception: they write IAS directly with `TargetSpeed = null`.
 - **Re-inserting a phase re-runs its `OnStart`.** `PhaseList.AdvanceToNext`/`Start`/`SkipTo` always call `OnStart` when a phase becomes current — the only no-`OnStart` path is snapshot restore (`FromSnapshot` sets `CurrentIndex` directly).
 
-  **A phase whose maneuver lives in live objects the DTO does not carry must therefore rebuild them on its first tick after a restore**: `CrossingRunwayPhase` (`_initialized = false`) and `LineUpPhase` (`_needsRestoreRebuild`, one predicate that never reaches `Fault`: within a main-gear turn radius of the centreline and within `LineUpGeometry.AlignedMaxTurnDeg` of runway heading → complete; within the radius but still turning → the already-aligned rollout, so the nose swings on while rolling; otherwise re-plan from the restored pose with the same `PlanFromCurrentPose` `OnStart` runs; the restored `RollingMode` decides roll vs hold, and `TryUpgradeToRolling` accepts a `CTO` that lands in the one-tick window before the rebuild).
+  **A phase whose maneuver lives in live objects the DTO does not carry must therefore rebuild them on its first tick after a restore**: `CrossingRunwayPhase` (`_initialized = false`) and `LineUpPhase` (`_needsRestoreRebuild`).
+
+  `LineUpPhase`'s rebuild is one predicate that never reaches `Fault`: within a main-gear turn radius of the centreline and within `LineUpGeometry.AlignedMaxTurnDeg` of runway heading → complete; within the radius but still turning → the already-aligned rollout, so the nose swings on while rolling; otherwise re-plan from the restored pose with the same `PlanFromCurrentPose` `OnStart` runs.
+
+  The restored `RollingMode` decides roll vs hold, and `TryUpgradeToRolling` accepts a `CTO` that lands in the one-tick window before the rebuild.
 
   Without it, a restore landing on an active `LineUpPhase` parks the aircraft at 0 kt forever — `OnTick`'s `PathPlan is null` guard goes to `TickFaulted` every second (S2-OAK-4 bundle, N152SP); `LineUpPhaseRestoreTests` restores at every second of a real line-up and asserts each reaches `TakeoffPhase` / `LinedUpAndWaitingPhase`.
 

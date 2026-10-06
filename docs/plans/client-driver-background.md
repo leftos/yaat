@@ -140,7 +140,9 @@ Full report with citations to Avalonia 12.1.3 source and Microsoft Learn: [docs/
 
    It covered: the 8 MsBox `ShowWindowDialogAsync` message boxes (`FavoritesBarView` ~:703, 715, 748, `FavoritesEditorWindow` ~:279, 438, `ManageWindowProfilesDialog` ~:158, `MainWindow` ~:3045, 3063), which build their own activated modal window (brief 1 review).
 
-   Also the Win32 window-state path: Avalonia 12.1's `WindowImpl.WindowState` setter calls `ShowWindow(value, activate: value != Minimized)`, which sends `SW_RESTORE`/`SW_MAXIMIZE` and then `SetFocus` + `SetForegroundWindow` on a visible window (decompiled, brief 1 fix round), so `RestoreAndActivate`'s un-minimise and a profile apply's `WindowState` writes still activate in automation mode; keep windows out of minimised/maximised there, or apply the state with `SetWindowPlacement` and `SW_SHOWNOACTIVATE`.
+   Also the Win32 window-state path: Avalonia 12.1's `WindowImpl.WindowState` setter calls `ShowWindow(value, activate: value != Minimized)`, which sends `SW_RESTORE`/`SW_MAXIMIZE` and then `SetFocus` + `SetForegroundWindow` on a visible window (decompiled, brief 1 fix round), so `RestoreAndActivate`'s un-minimise and a profile apply's `WindowState` writes still activate in automation mode.
+
+   Keep windows out of minimised/maximised there, or apply the state with `SetWindowPlacement` and `SW_SHOWNOACTIVATE`.
 
    Proving: a UI test that a result-returning dialog in automation mode leaves the owner disabled, returns its value on close and never activates the owner.
 3. Pipe host skeleton: transport, discovery, protocol, node registry, selectors, tree, `list_windows`, `ping`. Proving: a headless UI test connects over the pipe and asserts `list_windows`, the tree and an ambiguous-selector error.
@@ -151,11 +153,17 @@ Full report with citations to Avalonia 12.1.3 source and Microsoft Learn: [docs/
 
    User: the MCP links `src/Yaat.Client/Automation/Protocol/*.cs` as source (no Avalonia `using` in that folder); the discovery file is `%TEMP%/yaat-automation/<pid>.json` with stale PIDs swept, an exception to the `YaatPaths` rule so the MCP finds a client whatever `YAAT_APPDATA_DIR` it runs with; Zafiro's `[dc.Prop=value]` attribute selector stays (reflection over `DataContext`), only the Roslyn `dc:` predicate goes.
 
-   **3a landed** (f78f1b67): the host starts only on Windows (`OperatingSystem.IsWindows() && AutomationMode.IsEnabled`, matching `Program`'s OverlayPopups gate), so the `PopupRoot` branch was deleted and `list_windows` reports the roots provider's windows, their owned windows and their overlay popups (found by `GetVisualDescendants().OfType<OverlayPopupHost>()`; Avalonia 12.1's `PopupOverlayLayer` has no public accessor) as `WindowInfo` records; an unknown method answers `INVALID_PARAM` with the registered methods as the hint, a missing `id`/`method` its own `INVALID_PARAM`, a handler exception `INTERNAL` (logged); the discovery sweep also removes reused-pid, unparsable and orphaned `.tmp` files; protocol version `1.0.0`.
+   **3a landed** (f78f1b67): the host starts only on Windows (`OperatingSystem.IsWindows() && AutomationMode.IsEnabled`, matching `Program`'s OverlayPopups gate), so the `PopupRoot` branch was deleted and `list_windows` reports the roots provider's windows, their owned windows and their overlay popups (found by `GetVisualDescendants().OfType<OverlayPopupHost>()`; Avalonia 12.1's `PopupOverlayLayer` has no public accessor) as `WindowInfo` records.
+
+   An unknown method answers `INVALID_PARAM` with the registered methods as the hint, a missing `id`/`method` its own `INVALID_PARAM`, a handler exception `INTERNAL` (logged). The discovery sweep also removes reused-pid, unparsable and orphaned `.tmp` files. Protocol version: `1.0.0`.
 
    Headless tests need no dispatcher pumping: an async `[AvaloniaFact]` awaiting the pipe works. Gap: deleting an unparsable discovery file has no test of its own.
 
-   **3b landed** (081879b0): `get_tree` (Visual/Logical, `depth`, a `nodeId` or `selector` root, always an array; overlay popups as their own roots, listed once in both kinds) and the selector parser/engine (Zafiro's grammar minus the Roslyn `dc:` predicate and with no `.class` form, which Zafiro never had; whitespace before `#`/`[`/`:` is a descendant step; bare `*`; unquoted attribute values; exact type or base-type match; `[dc.Prop=v]` only on an element that brings its own DataContext; unknown or misplaced pseudo-classes rejected with a position; a stale `#id` answers `STALE_NODE`); one role table and text reader (`Tree/ElementDescription`) serve both.
+   **3b landed** (081879b0): `get_tree` (Visual/Logical, `depth`, a `nodeId` or `selector` root, always an array; overlay popups as their own roots, listed once in both kinds) and the selector parser/engine.
+
+   The selector parser/engine is Zafiro's grammar minus the Roslyn `dc:` predicate and with no `.class` form, which Zafiro never had; whitespace before `#`/`[`/`:` is a descendant step; bare `*`; unquoted attribute values; exact type or base-type match; `[dc.Prop=v]` only on an element that brings its own DataContext; unknown or misplaced pseudo-classes rejected with a position; a stale `#id` answers `STALE_NODE`.
+
+   One role table and text reader (`Tree/ElementDescription`) serve both.
 
    Brief 4 extracts the test fixture `AutomationHostTests` and `AutomationTreeTests` share into `tests/Yaat.Client.UI.Tests/Helpers/AutomationHostFixture.cs` when its tests would make a third copy. Gap: a pseudo-class that takes no argument accepts and ignores one (`:enabled(x)`).
 4. Input, screenshot, `wait_for`: semantic click then synthetic pointer, window-relative `click_point`, routed key events plus text events, `set_text`, `focus`, `RenderTargetBitmap` at the real scale. Proving: typing into the command input runs autocomplete, a window shortcut fires, a radar `click_point` lands, a non-empty PNG. **Settled** (exploration 2026-10-01 @ 081879b0):
@@ -169,7 +177,9 @@ Full report with citations to Avalonia 12.1.3 source and Microsoft Learn: [docs/
    - Split **4a** input (`click`, `click_point`, `send_keys`, `set_text`, `focus`, the shared `AutomationHostFixture` extracted), **4b** `wait_for`, **4c** `screenshot`.
    - **4a landed** (941ba67c).
 
-     `click`'s meaningful action is Avalonia's own click through the public automation peers (user, after review): `ButtonAutomationPeer.Invoke` → `Button.PerformClick` → `OnClick` (flyout, `Click` event, then `Command`), `IToggleProvider.Toggle` for toggle buttons (three-state follows Avalonia), checked against the 12.1.0 source; the semantic ladder runs only for a plain left single click, focuses the target first, refuses a hidden or disabled element (`ELEMENT_DISABLED`, message `Element '<Type>' cannot take this input. <reason>`), and a ComboBoxItem pick closes the dropdown; the result field is `action`.
+     `click`'s meaningful action is Avalonia's own click through the public automation peers (user, after review): `ButtonAutomationPeer.Invoke` → `Button.PerformClick` → `OnClick` (flyout, `Click` event, then `Command`), `IToggleProvider.Toggle` for toggle buttons (three-state follows Avalonia), checked against the 12.1.0 source.
+
+     The semantic ladder runs only for a plain left single click, focuses the target first, refuses a hidden or disabled element (`ELEMENT_DISABLED`, message `Element '<Type>' cannot take this input. <reason>`), and a ComboBoxItem pick closes the dropdown. The result field is `action`.
 
      `send_keys`: a Shift-only prefix on a letter or digit types the shifted character (`+a` → `A`, `+1` → `!`, US layout), Ctrl/Alt prefixes are key events, control characters and unpaired surrogates fault at their position, a refused string moves no focus. `click_point` on a disabled (modal-owner) window and `set_text` on a read-only box answer `ELEMENT_DISABLED`.
 
@@ -183,12 +193,18 @@ Full report with citations to Avalonia 12.1.3 source and Microsoft Learn: [docs/
      Headless drawing returns an undecodable PNG, so the pixel tests live in `tests/Yaat.Client.UI.Render.Tests` (Skia headless, linking the UI-test fixture). Its overlay-popup test proves a window capture includes the overlay layer; the Win32 `OverlayPopups` switch itself is unprovable headless. Gap: only scale 1.0 is tested.
 5. Injected file picker and `queue_file_pick`'s pipe method. Proving: with the mode on, an open call returns the queued path, an empty queue fails at once, no `StorageProvider` call.
 
-   **Landed** (3549b1d6): a static, lock-guarded `FilePickQueue` of `FilePickAnswer` (a path or a cancel; static because the host starts after `MainWindow` is built, the `AutomationMode` precedent); `InjectedFilePickerService` takes one answer per call (a cancel is null, or `[]` from `OpenFilesAsync`) and throws `InvalidOperationException("No file pick queued: call queue_file_pick before opening a file dialog in automation mode.")` on an empty queue, which the client's unhandled-exception handler logs; `queue_file_pick` takes `{path}` or `{cancel: true}` (both, neither, a blank path, `cancel: false` or a wrong JSON type → `INVALID_PARAM`; no path validation) and returns `{queued}`, the length after the enqueue; `FilePickerFactory.Create(TopLevel)` is the only place the client builds `AvaloniaFilePickerService` (11 sites plus `SpeechDebugWindow`'s direct `StorageProvider` save), pinned by two source tests.
+   **Landed** (3549b1d6): a static, lock-guarded `FilePickQueue` of `FilePickAnswer` (a path or a cancel; static because the host starts after `MainWindow` is built, the `AutomationMode` precedent).
+
+   `InjectedFilePickerService` takes one answer per call (a cancel is null, or `[]` from `OpenFilesAsync`) and throws `InvalidOperationException("No file pick queued: call queue_file_pick before opening a file dialog in automation mode.")` on an empty queue, which the client's unhandled-exception handler logs.
+
+   `queue_file_pick` takes `{path}` or `{cancel: true}` (both, neither, a blank path, `cancel: false` or a wrong JSON type → `INVALID_PARAM`; no path validation) and returns `{queued}`, the length after the enqueue. `FilePickerFactory.Create(TopLevel)` is the only place the client builds `AvaloniaFilePickerService` (11 sites plus `SpeechDebugWindow`'s direct `StorageProvider` save), pinned by two source tests.
 
    Brief 6's MCP tool calls `queue_file_pick` before the action that opens the dialog.
 6. MCP routing, `launch_yaat`, docs (`docs/client-driver-mcp.md` and its four wrong lines, the Task Index row, the glossary terms "automation mode", "never-activated window", "injected picker"). Proving: `live-check.ps1 -Background` in pipe mode with zero foreground or cursor change. Split and rulings: the YAAT-8 comment of 2026-10-02.
 
-   **6a-1 landed** (635fb363): `Pipe/PipeClient` (one connection per pid, serialised requests, 30 s timeout; a cancel, a broken pipe, an unparsable or `null` answer or an answer to another request drops the connection and the next call reconnects; `DisposeAsync` waits for the request in flight and the gate is never disposed), `Pipe/PipeDirectory` (discovery file → cached client, a cached client whose process exited evicted by `TryRemove(KeyValuePair)` so a fresher one is never disposed; `ForgetAsync`), `PipeRemoteException.RemoteMessage`; `tests/Yaat.ClientDriver.Mcp.Tests` (14) against a real headless `AutomationHost`.
+   **6a-1 landed** (635fb363): `Pipe/PipeClient` (one connection per pid, serialised requests, 30 s timeout; a cancel, a broken pipe, an unparsable or `null` answer or an answer to another request drops the connection and the next call reconnects; `DisposeAsync` waits for the request in flight and the gate is never disposed).
+
+   It also landed `Pipe/PipeDirectory` (discovery file → cached client, a cached client whose process exited evicted by `TryRemove(KeyValuePair)` so a fresher one is never disposed; `ForgetAsync`) and `PipeRemoteException.RemoteMessage`. Its tests are `tests/Yaat.ClientDriver.Mcp.Tests` (14), against a real headless `AutomationHost`.
 
    6a-2's tools treat an `ObjectDisposedException` from a shared client (evicted or forgotten by another thread) as "fall back to UI Automation"; `DisposeAsync` can wait up to 30 s. Gap: the `null`-line and unparsable-line drops are untested (the real host cannot emit them; a stub pipe server would).
 
@@ -196,13 +212,23 @@ Full report with citations to Avalonia 12.1.3 source and Microsoft Learn: [docs/
 
    The test project builds on Linux and runs only on Windows (dd1d02d4, 3fdbbda6: MTP needs `IsTestingPlatformApplication` off as well as `IsTestProject`).
 
-   **6a-2b landed** (84b18ffe): `list_windows`, `dump_tree`, `find_elements`, `get_value` answer from the pipe for a pipe pid or id (no UIA merge; UIA fallback only when the cached client was evicted); rows keep the UIA shape with the Avalonia type name and window-relative DIPs from the new `NodeInfo.WindowBounds` (`TranslatePoint` into the top-level; overlay-popup windows use the same rule); `find_elements`: exact Avalonia type, name = Name or Text, automationId = AutomationId else x:Name, 50 levels deep, root excluded; `get_value` = the new `NodeInfo.Value` (a TextBox's own text, "" when empty) else Text else "has no readable text".
+   **6a-2b landed** (84b18ffe): `list_windows`, `dump_tree`, `find_elements`, `get_value` answer from the pipe for a pipe pid or id (no UIA merge; UIA fallback only when the cached client was evicted).
 
-   **6b landed** (92b47874; decisions in the YAAT-8 comment of 2026-10-02): `click`, `invoke` (as a plain left click), `click_point`, `set_text`, `send_keys`, `focus` route a pipe id to the client's method; results name the row and the semantic action (`clicked (<action>) on <row> (pipe)`); `click_point` gains `windowElementId` (a pipe window means window-relative DIPs, empty keeps screen pixels, a UIA id is refused); modifiers and `button` go to the pipe verbatim; `send_keys` with no element goes to `PipeDirectory.LastTargetPid`, the pid of the last successful pipe call, cleared when that pid is forgotten, evicted or its pipe found closed (a stale pid costs one failed call); `set_input_mode` always notes pipe-routed calls ignore it; `PipeCalls.SendForPidAsync` and `GetNodeAsync` added; `ResolveUia`'s refusal now names `screenshot`, the last UIA-only tool a pipe id reaches.
+   Rows keep the UIA shape with the Avalonia type name and window-relative DIPs from the new `NodeInfo.WindowBounds` (`TranslatePoint` into the top-level; overlay-popup windows use the same rule).
+
+   `find_elements`: exact Avalonia type, name = Name or Text, automationId = AutomationId else x:Name, 50 levels deep, root excluded. `get_value` = the new `NodeInfo.Value` (a TextBox's own text, "" when empty) else Text else "has no readable text".
+
+   **6b landed** (92b47874; decisions in the YAAT-8 comment of 2026-10-02): `click`, `invoke` (as a plain left click), `click_point`, `set_text`, `send_keys`, `focus` route a pipe id to the client's method. Results name the row and the semantic action (`clicked (<action>) on <row> (pipe)`).
+
+   `click_point` gains `windowElementId` (a pipe window means window-relative DIPs, empty keeps screen pixels, a UIA id is refused). Modifiers and `button` go to the pipe verbatim. `send_keys` with no element goes to `PipeDirectory.LastTargetPid`, the pid of the last successful pipe call, cleared when that pid is forgotten, evicted or its pipe found closed (a stale pid costs one failed call).
+
+   `set_input_mode` always notes pipe-routed calls ignore it. `PipeCalls.SendForPidAsync` and `GetNodeAsync` were added. `ResolveUia`'s refusal now names `screenshot`, the last UIA-only tool a pipe id reaches.
 
    **6c-1/2 landed** (fc44e946): `screenshot`, `wait_for` and `queue_file_pick` over the pipe; a UI Automation call clears the remembered pid.
 
-   **6c-3 landed** (ab09acb8): `launch_yaat` sets `YAAT_AUTOMATION=1` and waits for a ping and a non-empty pipe `list_windows`, the deadline (`waitSeconds` ≥ 1) linked into every pipe call; the pid is remembered only once a window answered; any failure kills the tree, forgets the pid in `ProcessTools` and `PipeDirectory` and keeps the appdata folder; a client that dies after the ping reports its exit code (a pipe `McpException` mid-launch is logged and polled past); the server refuses to kill its own pid.
+   **6c-3 landed** (ab09acb8): `launch_yaat` sets `YAAT_AUTOMATION=1` and waits for a ping and a non-empty pipe `list_windows`, the deadline (`waitSeconds` ≥ 1) linked into every pipe call.
+
+   The pid is remembered only once a window answered; any failure kills the tree, forgets the pid in `ProcessTools` and `PipeDirectory` and keeps the appdata folder; a client that dies after the ping reports its exit code (a pipe `McpException` mid-launch is logged and polled past); the server refuses to kill its own pid.
 
    `IProcessStarter` is the test seam. Next: 6d (`live-check.ps1` pipe mode — its row parser expects UIA's `| enabled=… |` where pipe rows say `| visible=… | active=…`, and `find_elements` must ask for `TextBox`, not `Edit`), 6e (docs), YAAT-220.
 

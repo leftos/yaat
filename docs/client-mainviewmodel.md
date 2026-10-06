@@ -222,11 +222,19 @@ Tests: `LoadOverlayViewModelTests` and `MainViewModelLoadOverlayTests` (`tests/Y
 
 ## Session-settings echo suppression
 
-`ApplySessionSettings` writes 24 `Session*` `[ObservableProperty]` fields from the 23 fields of `SessionSettingsDto`, and the session-settings flyout binds them: `SessionAutoDeleteIndex`, `SessionDepartureAutoDeleteDistanceNm` (a nullable `decimal` for its `NumericUpDown`, blank = off), `SessionAutoAcceptEnabled` + `SessionAutoAcceptDelaySeconds`, the two command-run-delay bounds, `SessionAutoClearedToLand`, `SessionAutoCrossRunway`, `SessionAutoPullUpToParallel`, `SessionAutoGoAroundOnOccupiedRunway`, `SessionAutoRejectTakeoffOnOccupiedRunway`, `SessionAutoArrivalSpacingOnOccupiedRunway`, `SessionLiveTrafficEnabled` + `SessionLiveTrafficCeilingFt` + `SessionLiveTrafficFilter` (see [live-traffic.md](live-traffic.md) "Client" for the status-bar indicator and the Aircraft List tri-state that hang off them), `SessionValidateDctFixes`, `SessionSoloTrainingMode`, the four solo-pacing fields (the parking call-up rate percent and the interval seconds the slider shows, the arrival generator rate, the go-around probability), the two `SessionHasSolo*Source` flags, and `SessionRpoShowPilotSpeech`.
+`ApplySessionSettings` writes 24 `Session*` `[ObservableProperty]` fields from the 23 fields of `SessionSettingsDto`, and the session-settings flyout binds them.
+
+They are `SessionAutoDeleteIndex`, `SessionDepartureAutoDeleteDistanceNm` (a nullable `decimal` for its `NumericUpDown`, blank = off), `SessionAutoAcceptEnabled` + `SessionAutoAcceptDelaySeconds`, the two command-run-delay bounds, `SessionAutoClearedToLand`, `SessionAutoCrossRunway`, `SessionAutoPullUpToParallel`, `SessionAutoGoAroundOnOccupiedRunway`, `SessionAutoRejectTakeoffOnOccupiedRunway` and `SessionAutoArrivalSpacingOnOccupiedRunway`.
+
+They also include `SessionLiveTrafficEnabled` + `SessionLiveTrafficCeilingFt` + `SessionLiveTrafficFilter` (see [live-traffic.md](live-traffic.md) "Client" for the status-bar indicator and the Aircraft List tri-state that hang off them), `SessionValidateDctFixes` and `SessionSoloTrainingMode`.
+
+Last come the four solo-pacing fields (the parking call-up rate percent and the interval seconds the slider shows, the arrival generator rate, the go-around probability), the two `SessionHasSolo*Source` flags, and `SessionRpoShowPilotSpeech`.
 
 Each has an `OnXxxChanged` partial, and the ones that re-send the new value to the server are what the guard protects. The problem: when the **server** broadcasts a settings change, applying it to the bound property would re-trigger `OnXxxChanged`, which would re-send it — a ping-pong.
 
-Properties the flyout binds that are never sent sit beside them, set or recomputed on the client: `SessionAutoClearedToLandLabel` and `SessionAutoArrivalSpacingLabel` ("Auto cleared-to-land (TWR)": the room holds one flag each, while the Settings defaults are per position type, so the suffix names the student's position type when it is GND, TWR, APP or CTR and is left off otherwise; `SetStudentPositionType` raises both), `SessionAutoArrivalSpacingApplies` (false for APP and CTR, which greys the arrival-spacing checkbox), `SessionSoloParkingInitialCallupIntervalLabel` and `SessionLiveTrafficFilterSummary`.
+Properties the flyout binds that are never sent sit beside them, set or recomputed on the client: `SessionAutoClearedToLandLabel` and `SessionAutoArrivalSpacingLabel` ("Auto cleared-to-land (TWR)": the room holds one flag each, while the Settings defaults are per position type).
+
+So the suffix names the student's position type when it is GND, TWR, APP or CTR and is left off otherwise, and `SetStudentPositionType` raises both. The others are `SessionAutoArrivalSpacingApplies` (false for APP and CTR, which greys the arrival-spacing checkbox), `SessionSoloParkingInitialCallupIntervalLabel` and `SessionLiveTrafficFilterSummary`.
 
 Auto-accept is two flyout controls over one wire value: the hub carries a single delay where any negative value means off.
 
@@ -358,7 +366,9 @@ The pop-out Favorites Panel is a `FavoritesPanelWindow` singleton per `MainViewM
 
 The docked Radar/Ground views and their pop-outs are the implicit instance #1 and keep today's `IsRadarViewPoppedOut` / `IsGroundViewPoppedOut` semantics.
 
-**View → New Radar Window / New Ground Window** adds an instance ≥ #2 with its **own** `RadarViewModel` / `GroundViewModel` (center, range, zoom, rotation, filters, DCB state, `DataBlockState`, shown routes), based on an airport the user picks first (`ExtraViewAirportDialog`: the ARTCC's airports from `ArtccAirportResolver` with the scenario primary preselected, or any nav-db airport by text — a second view has no scenario-inferred target), hosted by a `RadarViewWindow` / `GroundViewWindow` whose *window* DataContext stays `MainViewModel` (the inner view binds `Aircraft` / `GroundShownAirportId` through `$parent[Window]`) while the inner `RadarView` / `GroundView` gets the instance VM via `SetViewModel`.
+**View → New Radar Window / New Ground Window** adds an instance ≥ #2 with its **own** `RadarViewModel` / `GroundViewModel` (center, range, zoom, rotation, filters, DCB state, `DataBlockState`, shown routes), based on an airport the user picks first (`ExtraViewAirportDialog`: the ARTCC's airports from `ArtccAirportResolver` with the scenario primary preselected, or any nav-db airport by text — a second view has no scenario-inferred target).
+
+The instance is hosted by a `RadarViewWindow` / `GroundViewWindow` whose *window* DataContext stays `MainViewModel` (the inner view binds `Aircraft` / `GroundShownAirportId` through `$parent[Window]`) while the inner `RadarView` / `GroundView` gets the instance VM via `SetViewModel`.
 
 Geometry key `RadarView#n` / `GroundView#n` rides the ordinary `WindowGeometries` store, so layouts capture it through the live-helper walk; the ordinal lists (`ExtraRadarViewOrdinals`, on prefs and on `SavedLayout`) say which instances exist, and `ReconcileExtraViews` opens/closes to match without resetting survivors. Closing the window removes the instance (not under shutdown, so it restores next launch).
 

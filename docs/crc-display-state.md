@@ -169,7 +169,9 @@ transponder plus the subscribing facility's ERAM config. Precedence:
    `ReducedSeparation` inside single-sensor ASR coverage, else `CorrelatedBeacon`.
 4. **Uncorrelated** → `Mci` inside the MCI band (`EramConflictDetector.IsMciAltitudeEligible`: the floor below to 99,500 ft, inclusive), 1200 included; outside it `Vfr` for 1200, else `UncorrelatedBeacon` (CRC manual Table 1).
 
-Other target and track fields that follow ERAM rather than the raw state: a standby aircraft's ERAM **track** `Altitude` is null too while the track is `Normal` (a frozen or coasting track keeps its snapshot), so CRC draws `X`/`XXX`; the target's `GroundSpeed` is null at 0 kt (Field E shows speed only when it is nonzero); and `BlinkSpc` blinks for `CrcBroadcastService.EramSpcBlinkSeconds` (30 s) after a special code first appears, from the sim-side `AircraftTransponder.SpcStartedAt` latch (stamped by the `Transponders` spine step, cleared on any code change, snapshotted), with `AircraftChangeTracker.UpdateEramSpcBlinkState` re-sending a stationary target when the blink ends.
+Other target and track fields that follow ERAM rather than the raw state: a standby aircraft's ERAM **track** `Altitude` is null too while the track is `Normal` (a frozen or coasting track keeps its snapshot), so CRC draws `X`/`XXX`.
+
+The target's `GroundSpeed` is null at 0 kt (Field E shows speed only when it is nonzero), and `BlinkSpc` blinks for `CrcBroadcastService.EramSpcBlinkSeconds` (30 s) after a special code first appears, from the sim-side `AircraftTransponder.SpcStartedAt` latch (stamped by the `Transponders` spine step, cleared on any code change, snapshotted), with `AircraftChangeTracker.UpdateEramSpcBlinkState` re-sending a stationary target when the blink ends.
 
 ERAM Field B's interim altitude is `Eram.InterimAltitude` only; a STARS temporary altitude never falls into it. The track's `ReachedAssignedAltitude` is the sim-side latch `AircraftEramState.ReachedAssignedAltitude` (spine step `EramVerticalConformance`, see `docs/tick-loop.md`), never recomputed in `DtoConverter`, so a level aircraft that has left its reached altitude shows `-` or `+` rather than an arrow.
 
@@ -266,7 +268,9 @@ ASDE-X / SAID membership is not decided here: the Sim owns it, hysteresis includ
 
   Gating the surface displays on `IsUnsupported` alone made ghosted departures vanish from Tower Cab until the 100 ft AGL auto-resolve in `EvaluateStars` cleared the flag (#300). This matches the client-side rule in `MainViewModel.ShouldShowAircraft` / `GroundCanvas`.
 - **Tower Cab periodic resend** — CRC's tower cab has no coast or expiry, so an aircraft whose create CRC missed would never come back on its own (the suspected shape of #440). Every 10 s of sim time (`TowerCabResendIntervalSeconds`), and on a room's first broadcast or whenever sim time moves backwards (rewind, reload), `CrcRoomVisibilityState.TakeTowerCabResendDue` forces every tower-cab-visible aircraft into its cab's batch, unchanged or not. One clock per room; a paused room sends none.
-- **Tower Cab over UDP** — `CrcBroadcastService.AddTowerCabUpdates` splits the per-tick Tower Cab batch: a newly visible aircraft and the periodic resend go to the hub (CRC creates a Tower Cab aircraft only from a hub receive and drops a UDP update for one it has not seen), while a plain position change goes to each subscriber registered on UDP (`IUdpEntitySink.IsRegistered` on the client's **own** `ConnectionToken`, never a joined session's primary's) as a vNAS `EntityUpdate` (union tag 24, `UdpTowerCabAircraftDto.FromHub`; the hub DTO's string `VoiceType` cannot go on UDP).
+- **Tower Cab over UDP** — `CrcBroadcastService.AddTowerCabUpdates` splits the per-tick Tower Cab batch. A newly visible aircraft and the periodic resend go to the hub (CRC creates a Tower Cab aircraft only from a hub receive and drops a UDP update for one it has not seen).
+
+  A plain position change goes to each subscriber registered on UDP (`IUdpEntitySink.IsRegistered` on the client's **own** `ConnectionToken`, never a joined session's primary's) as a vNAS `EntityUpdate` (union tag 24, `UdpTowerCabAircraftDto.FromHub`; the hub DTO's string `VoiceType` cannot go on UDP).
 
   An unregistered subscriber, or a send that fails, gets the move on the hub. The broadcast runs once per wall second whatever the sim rate, so each aircraft sends at most one datagram a second. A registration silent for 45 s pauses (UDP sends fall back to the hub; ERAM history, UDP-only, stops) until its endpoint pings again; it is removed when its WebSocket closes or after 10 min of silence (`UdpEntityServer`).
 - `GetVisibleTowerCabAirports` / `EvaluateTowerCab` — **per-airport, like ASDE-X and SAID**, returning every cab within 20 nm whose configured ceiling the aircraft is at or below. Each entry carries *that airport's* field elevation, because `TowerCabAircraftDto.AltitudeAgl` is measured against the receiving cab's own surface.
@@ -291,15 +295,23 @@ Two helpers that wrap `PositionRegistry` mutations with the required broadcasts:
 
 ## STARS entries are recorded commands
 
-A STARS keyboard entry that changes sim or room state goes through `RoomEngine.RecordAndDispatch` as the typed verb's canonical text under the position's `AS {tcp}` prefix (`CrcClientState.DispatchCrc`), so it is a `RecordedCommand` a rewind or a bundle export re-applies: the track verbs, the F13 coordination entries (`DispatchCoordination` — the sender's single list is filled in so the text names it), and the console consolidation forms `C{receiving}{sending}[+]` / bare `C` (`CON` / `CON+` / `DECON`).
+A STARS keyboard entry that changes sim or room state goes through `RoomEngine.RecordAndDispatch` as the typed verb's canonical text under the position's `AS {tcp}` prefix (`CrcClientState.DispatchCrc`), so it is a `RecordedCommand` a rewind or a bundle export re-applies.
+
+Such entries are the track verbs, the F13 coordination entries (`DispatchCoordination` — the sender's single list is filled in so the text names it), and the console consolidation forms `C{receiving}{sending}[+]` / bare `C` (`CON` / `CON+` / `DECON`).
 
 A CRC client's position is synced onto its RPO connection the same way — `RoomEngine.SyncCrcPositionToRpo` issues that connection's own `AS {code}`. The router does not echo to the terminal, so the `[CRC] … consolidated` action line stays a `BroadcastStarsAction` of the handler.
 
-The CRC entries that write state no typed verb covers record a derived action instead, through `RoomEngine.ApplyAndRecord` (tick-path 3d-5b): a position's per-TCP shared display state (`UpdateStarsSharedTrackState` → `RecordedStarsSharedStateChange`), the flight-plan editor's clearance (`RecordedClearanceChange`), the flight-plan editor's hold annotation set / delete (`RecordedHoldAnnotationChange`), the ERAM keyboard entries QT / QH / HM / QQ / QR / QS / LF (`RecordedEramEntry`, one per aircraft, applied by the Sim's `EramEntryEngine`) and the CRR-group create / recolor / delete (`RecordedEramCrrGroup`, applied by `SimulationEngine.ApplyCrrGroup` — the group definitions are engine state, snapshotted, and the room re-pushes the whole `EramCrrGroups` topic from the engine's dirty flag; a delete is still the handler's own push, and a rewind or restart clears the labels the new engine no longer holds).
+The CRC entries that write state no typed verb covers record a derived action instead, through `RoomEngine.ApplyAndRecord` (tick-path 3d-5b). They are a position's per-TCP shared display state (`UpdateStarsSharedTrackState` → `RecordedStarsSharedStateChange`), the flight-plan editor's clearance (`RecordedClearanceChange`) and the flight-plan editor's hold annotation set / delete (`RecordedHoldAnnotationChange`).
+
+They also include the ERAM keyboard entries QT / QH / HM / QQ / QR / QS / LF (`RecordedEramEntry`, one per aircraft, applied by the Sim's `EramEntryEngine`) and the CRR-group create / recolor / delete (`RecordedEramCrrGroup`, applied by `SimulationEngine.ApplyCrrGroup`).
+
+The group definitions are engine state, snapshotted, and the room re-pushes the whole `EramCrrGroups` topic from the engine's dirty flag; a delete is still the handler's own push, and a rewind or restart clears the labels the new engine no longer holds.
 
 The handler keeps its wire parsing, validation and CRC feedback (`NOT YOUR TRACK`, `FORMAT`, `ALREADY TRACKED`, the FDB check) and calls `ApplyAndRecord` for the write, which applies through the router's one body and records only when it applied. Surface temp data (drawn areas, labels, presets) is facility furniture the `FacilityTempDataStore` persists across rooms and is deliberately not recorded.
 
-The vStrips *Request Strip* action (`RecordedStripRequest`: the own facility plus the strip id minted live) and the ASDE-X `UpdateAsdexSafetyLogicConfiguration` push (`RecordedAsdexSafetyLogicChange`: the facility plus the Sim-native `Yaat.Sim.Asdex.AsdexSafetyLogicConfig` that `DtoConverter.FromAsdexSafetyLogicConfigDto` projects the wire DTO to) record the same way; both apply through engine bodies (`StripRequests.PrintRequestedStrip`, `SimulationEngine.ApplyRecordedAsdexSafetyLogic`) because strips and the safety-logic configuration are engine state, and the handlers still publish their topics when fresh.
+The vStrips *Request Strip* action (`RecordedStripRequest`: the own facility plus the strip id minted live) and the ASDE-X `UpdateAsdexSafetyLogicConfiguration` push (`RecordedAsdexSafetyLogicChange`: the facility plus the Sim-native `Yaat.Sim.Asdex.AsdexSafetyLogicConfig` that `DtoConverter.FromAsdexSafetyLogicConfigDto` projects the wire DTO to) record the same way.
+
+Both apply through engine bodies (`StripRequests.PrintRequestedStrip`, `SimulationEngine.ApplyRecordedAsdexSafetyLogic`) because strips and the safety-logic configuration are engine state, and the handlers still publish their topics when fresh.
 
 The safety-logic configuration is scenario state — `SimScenarioState.AsdexSafetyLogicConfig`, carried by the Sim snapshot — so `CrcBroadcastService.BuildAsdexSafetyLogicConfiguration` and the Sim alert step `SimulationEngine.TickAsdexAlerts` both read the scenario's `AsdexSafetyLogicConfig` (the server as `room.ActiveScenario?.AsdexSafetyLogicConfig`), with `DtoConverter.ToAsdexSafetyLogicConfig` projecting it back to the MessagePack DTO.
 
@@ -338,7 +350,9 @@ See [flight-strips.md](flight-strips.md) for the full strip architecture.
 
 ## Adding fields to display state — the contract
 
-A field can differ by **viewer type**, not only by facility or sector: the FlightPlans topic is built per connection (`CrcBroadcastService.BuildClientPayloads` and `BuildInitialData` rebuild from `FlightPlanAircraft` for each subscriber), and `DtoConverter.ToFlightPlan(ac, time, isEramViewer)` gives an ERAM position (`CrcClientState.ActingEramSector` with a sector) the altitude in effect (`EramAltitudeFeet`, the second half of a passed fix-qualified altitude) in `ParsedAltitude.Altitude`, and every other position the first altitude.
+A field can differ by **viewer type**, not only by facility or sector: the FlightPlans topic is built per connection (`CrcBroadcastService.BuildClientPayloads` and `BuildInitialData` rebuild from `FlightPlanAircraft` for each subscriber).
+
+`DtoConverter.ToFlightPlan(ac, time, isEramViewer)` gives an ERAM position (`CrcClientState.ActingEramSector` with a sector) the altitude in effect (`EramAltitudeFeet`, the second half of a passed fix-qualified altitude) in `ParsedAltitude.Altitude`, and every other position the first altitude.
 
 CRC's STARS reads that field for its `R{alt}` requested-altitude fallback and the DF readout; ERAM Field B falls back to it after the interim, local interim and procedure altitudes. The `Altitude` text (`170/SJC/110`) is the same for every viewer.
 
@@ -359,7 +373,9 @@ Skip step 4 and you'll see the field update for clients that were subscribed whe
 
 CRC 2.17 (2026-06) added **SAAB SAID**, a surface-awareness display in the ASDE-X family. YAAT emulates it server-side only — real CRC clients render it; there is no YAAT instructor view (same posture as ASDE-X). SAID ≈ **ASDE-X minus alerts / safety-logic / hold-bars, plus a `HasFlightPlanData` track flag**, behind a `SaidVendor {UAvionix, Saab, Indra}` abstraction (only Saab implemented).
 
-Every site mirrors the ASDE-X stack: `Said*` state on `AircraftStarsState` (separate fields, not reused `Asdex*`); `SaidConfig`/`SaabSaidConfig` in `ArtccConfig.cs`; `SaidRoomState` (the one-shot terminate marker) + `SimulationEngine.ApplySaidMutation` (the recorded mutation body, engine-owned — `TrackEngine.SetSaidField` / `HandleSaidVerb`); `DtoConverter.ToSaid*`; `SaidTarget`/`SaidTrack` fingerprints; `CrcVisibilityTracker.EvaluateSaid` (a diff of the Sim's SAID membership set); `CrcClientState.Said.cs` (reuses the ASDE-X wire helpers).
+Every site mirrors the ASDE-X stack: `Said*` state on `AircraftStarsState` (separate fields, not reused `Asdex*`) and `SaidConfig`/`SaabSaidConfig` in `ArtccConfig.cs`.
+
+Then come `SaidRoomState` (the one-shot terminate marker) + `SimulationEngine.ApplySaidMutation` (the recorded mutation body, engine-owned — `TrackEngine.SetSaidField` / `HandleSaidVerb`); `DtoConverter.ToSaid*`; `SaidTarget`/`SaidTrack` fingerprints; `CrcVisibilityTracker.EvaluateSaid` (a diff of the Sim's SAID membership set); `CrcClientState.Said.cs` (reuses the ASDE-X wire helpers).
 
 `saidConfiguration` JSON is vendor-nested with **no range/ceiling**, so it reuses the ASDE-X defaults (15 nm / 1500 ft + 600 ft hysteresis, tower-centered). Topic categories serialize as **string names**, so the mid-enum vNAS `SaabSaid*` `TopicCategory` insertions don't shift yaat-server parsing — just add the four string cases.
 

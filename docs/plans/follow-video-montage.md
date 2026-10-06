@@ -10,7 +10,11 @@ A montage of FOLLOW situations recorded in the engine, in two cuts: a 60–90 s 
 - **On screen.** Command captions, the solo pilot's TTS, a rule + citation card opening each review clip (the rule, its AIM / 7110.65 grounding, what to watch for), and a live spacing readout.
 - **Spacing readout.** The client's own range/bearing line, `.rbl <FOLLOWER> <LEAD>` typed during the take.
 - **Timing.** Made after FOLLOW B6b-1 ships and before the release is cut; the release gate waits on it. Clip A1 surfaced the downwind sink, fixed before any clip was captured.
-- **Framing** (user 2026-10-01): the radar view itself is 1920×1080; the commands are overlaid on the video; the facility's video maps are on (KOAK: maps 590, 594 and 1); the scope is zoomed in on the action; data blocks are positioned so that every line of text is readable; 1-minute predicted track lines are on (PTL LNTH 1.0 and PTL ALL in the radar's SHIFT menu; `set_ptl` or `prepare_take` over the pipe); the scope frames at least 40 NM (KOAK-centred covers A1, A8 and C2) and `prepare_take` sets the whole framing in one call; SAY and pilot-speech bubbles are on, although solo mode normally suppresses them (`AircraftSpeechBubble.TryBuild`'s `soloMode` gate, `MainViewModel.Aircraft.cs` `MaybeAttachSpeechBubble`) — the committed dev switch `YAAT_DEV_SOLO_SPEECH_BUBBLES=1` turns them on, passed through `launch_yaat`'s `env`.
+- **Framing** (user 2026-10-01): the radar view itself is 1920×1080; the commands are overlaid on the video; the facility's video maps are on (KOAK: maps 590, 594 and 1); the scope is zoomed in on the action; data blocks are positioned so that every line of text is readable.
+
+  1-minute predicted track lines are on (PTL LNTH 1.0 and PTL ALL in the radar's SHIFT menu; `set_ptl` or `prepare_take` over the pipe); the scope frames at least 40 NM (KOAK-centred covers A1, A8 and C2) and `prepare_take` sets the whole framing in one call.
+
+  SAY and pilot-speech bubbles are on, although solo mode normally suppresses them (`AircraftSpeechBubble.TryBuild`'s `soloMode` gate, `MainViewModel.Aircraft.cs` `MaybeAttachSpeechBubble`) — the committed dev switch `YAAT_DEV_SOLO_SPEECH_BUBBLES=1` turns them on, passed through `launch_yaat`'s `env`.
 - **Conflict alerts.** Every clip script inhibits conflict alerts on its aircraft (`CAINH` on each, at the start), so an ERAM or STARS alert never draws over a follow (user 2026-10-01).
 
 ## Pipeline (mapped 2026-10-01)
@@ -72,7 +76,9 @@ One folder per clip under `tools/montage/follow/<id>/`: `scenario.json` (KOAK un
 Each is run headless and checked with `bug_bundle.py history` / `track --pair` until the situation forms and the expected text appears in the terminal log; a script that cannot reach its situation is reported, not forced. The first clip's archive is also loaded once in the client (Scenario → Load Recording) and played to its end before the rest are scripted: no soak test replays an archive, so this is the first proof that a scripted recording replays.
 - [ ] 4. **Capture.**
 
-  One pinned build; local server; client through the client-driver MCP at a 1920×1080 client area, framing seeded per scenario, solo mode and pilot voice on; Load Recording (the `load_recording` app tool), type `.rbl`, play at 1×; `record_start` on the client's pid (video and the client's audio in one MP4, cropped to the client area automatically), `record_mark` at each command, and a `wait_until` whose `then` ends with `stop_recording` to end the clip at the situation's end; the marks file's `clipSeconds` place the captions.
+  One pinned build; local server; client through the client-driver MCP at a 1920×1080 client area, framing seeded per scenario, solo mode and pilot voice on; Load Recording (the `load_recording` app tool), type `.rbl`, play at 1×.
+
+  `record_start` on the client's pid (video and the client's audio in one MP4, cropped to the client area automatically), `record_mark` at each command, and a `wait_until` whose `then` ends with `stop_recording` to end the clip at the situation's end; the marks file's `clipSeconds` place the captions.
 
   The client runs in automation mode (`launch_yaat`), so its window never takes the foreground. Measured on a never-activated window (WGC spike, YAAT-8): the yellow capture border never appears (`IsBorderRequired = false` takes effect for the unpackaged tool; never call `GraphicsCaptureAccess.RequestAccessAsync`, which can prompt).
 

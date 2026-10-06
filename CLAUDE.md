@@ -237,7 +237,9 @@ When invoking aviation-sim-expert, always include:
 
 - **Robust over expedient**: Always choose the most robust solution, not the simplest shortcut. When multiple approaches exist, prefer correctness and maintainability over expedience.
 - **Line width**: 150 chars (CSharpier configured accordingly; CSharpier formats `.cs` and `.axaml`)
-- **Style is a build gate**: `.editorconfig` is the language-conventions skill's canonical C# file plus this repo's ReSharper block; `Directory.Build.props` sets `EnforceCodeStyleInBuild` + `TreatWarningsAsErrors`, so a `warning`-level rule breaks the build: braces, file-scoped namespace matching the folder (IDE0130 skips types with a source-generated partial half — match the folder anyway), `var` only when the right-hand side names the type (`new T()`, a cast) and the explicit type everywhere else, expression bodies for single-line methods, primary constructors, collection expressions.
+- **Style is a build gate**: `.editorconfig` is the language-conventions skill's canonical C# file plus this repo's ReSharper block.
+
+  `Directory.Build.props` sets `EnforceCodeStyleInBuild` + `TreatWarningsAsErrors`, so a `warning`-level rule breaks the build: braces, file-scoped namespace matching the folder (IDE0130 skips types with a source-generated partial half — match the folder anyway), `var` only when the right-hand side names the type (`new T()`, a cast) and the explicit type everywhere else, expression bodies for single-line methods, primary constructors, collection expressions.
 
   CI additionally fails on any info-level style finding (`dotnet format style yaat.slnx --verify-no-changes --severity info`) and on `dotnet csharpier check .`. Tuple deconstruction (IDE0042) is off: a named tuple local keeps its name.
 - **Boolean expressions**: Parenthesize to disambiguate — `(a.X) || (b.Y >= c + d)` not `a.X || b.Y >= c + d`
@@ -270,7 +272,9 @@ When invoking aviation-sim-expert, always include:
 
   `BACKSTOP` (5 times the ceiling in wall time) with a low "machine free" figure means the machine was busy; re-run it once alone.
 
-  Each gate holds one slot of the kind `-Slot` names, from two machine-wide pools that never wait on each other: `(logical processors - 1) / 4` heavy slots (`heavy` in `%LOCALAPPDATA%\gate\slot-counts.json` overrides it, live) for a command that keeps many threads busy (a build, a `dotnet test` or `dotnet run` that builds first, `test-all.ps1`: every yaat gate call), and `(logical processors - 1) / 2` light slots (`light` in `%LOCALAPPDATA%\gate\slot-counts.json` overrides it, live) for one that keeps one or two threads busy (a `dotnet test --no-build` filtered to one class, a small script).
+  Each gate holds one slot of the kind `-Slot` names, from two machine-wide pools that never wait on each other. One pool has `(logical processors - 1) / 4` heavy slots (`heavy` in `%LOCALAPPDATA%\gate\slot-counts.json` overrides it, live) for a command that keeps many threads busy (a build, a `dotnet test` or `dotnet run` that builds first, `test-all.ps1`: every yaat gate call).
+
+  The other has `(logical processors - 1) / 2` light slots (`light` in `%LOCALAPPDATA%\gate\slot-counts.json` overrides it, live) for one that keeps one or two threads busy (a `dotnet test --no-build` filtered to one class, a small script).
 
   A waiting gate logs `gate: waiting for a heavy slot` (or `... light slot`). The gate runs the command at below-normal priority with every process it starts and lowers any MSBuild or compiler server still at normal priority, so a gated command needs no `nice`. Builds under the gate start their own MSBuild worker nodes (`MSBUILDDISABLENODEREUSE=1`), which die with the gate; the compiler server stays shared (a fresh compiler per build measured 2.9 times slower on a one-file Yaat.Sim change).
 - **Cross-repo verification**: When you'd otherwise run "the whole test suite" (after confirming targeted tests pass), run `pwsh tools/test-all.ps1` instead of bare `dotnet test`. It builds and tests both yaat and yaat-server.

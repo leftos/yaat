@@ -128,7 +128,9 @@ LandingPhase's job is to decelerate the aircraft to the speed needed for the com
 
 The pilot picks the first comfortable forward exit (AIM 4-3-21.1 "exit at the first available taxiway").
 
-"Comfortable" depends on the exit's class (aviation ruling, every category): a **high-speed** exit (turn-off speed at or above `HighSpeedExitSpeed`, angle ≤ 46°) qualifies if it needs at most `CategoryPerformance.ComfortableExitDecelRate` (jet 4.5 / turboprop 3.75 / piston 3.75 kt/s, ≈ autobrake 3); a **standard** 60–90° exit only if it needs at most the routine `RolloutDecelRate` (jet 3.6 / turboprop 3.0 / piston 2.5) — a crew rolls past a 90° exit it cannot make at routine braking for the next high-speed one (SFO 19L: H, not F1).
+"Comfortable" depends on the exit's class (aviation ruling, every category): a **high-speed** exit (turn-off speed at or above `HighSpeedExitSpeed`, angle ≤ 46°) qualifies if it needs at most `CategoryPerformance.ComfortableExitDecelRate` (jet 4.5 / turboprop 3.75 / piston 3.75 kt/s, ≈ autobrake 3).
+
+A **standard** 60–90° exit qualifies only if it needs at most the routine `RolloutDecelRate` (jet 3.6 / turboprop 3.0 / piston 2.5) — a crew rolls past a 90° exit it cannot make at routine braking for the next high-speed one (SFO 19L: H, not F1).
 
 When no exit qualifies, the landing searches once more at the category's firm rate (`CategoryPerformance.FirmBrakingRate`: jet 5.0 / turboprop 5.0 / piston 4.0 / helicopter 3.0 kt/s) and takes the earliest exit it can make that way (a CRJ9 on OAK 28R exits at C1 instead of stopping on the runway); only when even that fails does `RunwayExitPhase`'s "no exit found… braking to stop" path run.
 

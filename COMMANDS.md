@@ -1198,7 +1198,9 @@ All pattern entry commands (ELB, ERB, ELD, ERD, ELC, ERC, EF) accept an optional
 `EF` (enter final) joins the extended centerline where the aircraft can fly a stabilized straight-in:
 
 - For an aircraft roughly **aligned** with the runway, it flies a straight-in from its current position (a shallow cut-in onto final).
-- For a **diagonal** aircraft (heading outside the ~30° intercept envelope — 20° inside 2 nm, 45° helicopters; an airmanship analogy to 7110.65 §5-9-2 / TBL 5-9-1, not a VFR mandate) that has room for at least the category minimum final (jets/turboprops 2.0 nm, pistons 1.0 nm, helicopters 0.5 nm), the join is an **altitude-aware "make straight-in"**: the aircraft descends immediately on the diagonal cut-in toward the runway and joins final **as close to the threshold as it can** while still reaching the glideslope by the join — a shortcut.
+- For a **diagonal** aircraft (heading outside the ~30° intercept envelope — 20° inside 2 nm, 45° helicopters; an airmanship analogy to 7110.65 §5-9-2 / TBL 5-9-1, not a VFR mandate) that has room for at least the category minimum final (jets/turboprops 2.0 nm, pistons 1.0 nm, helicopters 0.5 nm), the join is an **altitude-aware "make straight-in"**.
+
+  The aircraft descends immediately on the diagonal cut-in toward the runway and joins final **as close to the threshold as it can** while still reaching the glideslope by the join — a shortcut.
 
   A lower aircraft (or one with a longer diagonal to descend on) shortcuts to the minimum final; a higher one — needing more descent room — joins a longer final. The join is **capped at the aircraft's along-track distance** so `EF` never routes the aircraft outbound / farther from the field.
 
@@ -1309,11 +1311,15 @@ Once a follower is **on final** behind the traffic and catches up to less than t
 
 Inside 5 nm it's committed to the approach: no lateral maneuvering, only the stabilized-approach speed and go-around logic. On downwind the follower instead extends the downwind (above), the usual pattern spacing tool. In all cases the follower only ever *slows* to maintain spacing — it never speeds up to chase a lead that is too far ahead (that's what extending the downwind is for).
 
-When the follower simply **cannot** sequence behind much-slower traffic — its own approach speed exceeds the lead's by more than 10 kt, so no amount of slowing will open the gap (e.g. a Cessna 210 told to follow a 56-kt Cessna 152) — and it is on base or final closing inside 0.8 nm of the still-airborne lead, it **breaks off the follow and goes around** ("unable to maintain separation, going around") rather than overtaking or cutting in front of the traffic it was told to follow (AIM §4-3-3 — never overtake/cut in front).
+Sometimes the follower simply **cannot** sequence behind much-slower traffic: its own approach speed exceeds the lead's by more than 10 kt, so no amount of slowing will open the gap (e.g. a Cessna 210 told to follow a 56-kt Cessna 152).
+
+When that is so and it is on base or final closing inside 0.8 nm of the still-airborne lead, it **breaks off the follow and goes around** ("unable to maintain separation, going around") rather than overtaking or cutting in front of the traffic it was told to follow (AIM §4-3-3 — never overtake/cut in front).
 
 It climbs out and re-enters the pattern; re-sequence it (or break it out) and re-issue `FOLLOW` as needed.
 
-A follower already **on base** that would roll out too close behind the traffic widens its base 30° away from the field, without a call, when that builds the spacing; when it would roll out level with or ahead of the traffic, or a widen cannot build the spacing, it turns out to the downwind heading, says "turning downwind for spacing behind the traffic, request base turn", and turns base again behind the traffic once it has passed (or holds the downwind heading for your `TB`/`ERB`/`ELB` if it runs out of room; too close to the final turn to turn out, it goes around instead).
+A follower already **on base** that would roll out too close behind the traffic widens its base 30° away from the field, without a call, when that builds the spacing.
+
+When it would roll out level with or ahead of the traffic, or a widen cannot build the spacing, it turns out to the downwind heading, says "turning downwind for spacing behind the traffic, request base turn", and turns base again behind the traffic once it has passed (or holds the downwind heading for your `TB`/`ERB`/`ELB` if it runs out of room; too close to the final turn to turn out, it goes around instead).
 
 A follower flying free behind traffic it has caught up with does the same.
 
@@ -1722,7 +1728,9 @@ Winged-aircraft holds (`HPPL`/`HPPR`, `HFIXL`/`HFIXR`) decelerate to holding spe
 
 Track operations control aircraft ownership, handoffs, and coordination.
 
-These commands use STARS-style [TCP](#glossary) codes (e.g., "2B" = subset 2, sector B), ERAM center codes (e.g., "C44" = center sector 44), ERAM→TRACON codes that name a neighboring terminal position by its single-character facility prefix plus TCP (e.g., "Q2B" = NorCal's Boulder sector — the prefix comes from the facility's vNAS `singleCharacterStarsId`), or interfacility codes that hand off to an adjacent terminal facility (e.g., "Δ3" = Fresno, "Δ31H" = Fresno's Chandler sector — entered with the tilde/delta key in CRC and resolved from the facility's STARS handoff IDs).
+These commands use STARS-style [TCP](#glossary) codes (e.g., "2B" = subset 2, sector B), ERAM center codes (e.g., "C44" = center sector 44), or ERAM→TRACON codes that name a neighboring terminal position by its single-character facility prefix plus TCP (e.g., "Q2B" = NorCal's Boulder sector — the prefix comes from the facility's vNAS `singleCharacterStarsId`).
+
+They also take interfacility codes that hand off to an adjacent terminal facility (e.g., "Δ3" = Fresno, "Δ31H" = Fresno's Chandler sector — entered with the tilde/delta key in CRC and resolved from the facility's STARS handoff IDs).
 
 #### Active Position
 

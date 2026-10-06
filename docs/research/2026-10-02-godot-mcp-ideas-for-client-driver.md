@@ -2,7 +2,11 @@
 
 Date: 2026-10-02.
 
-Sources: godot-mcp at `D:/godot-mcp` (`README.md`, `docs/TOOLS.md`, `docs/DECISIONS.md`, `docs/ARCHITECTURE.md`, `docs/csharp-runtime-tools.md`, `docs/plans/*.md`, `docs/research/2026-09-29-godot-mcp-survey.md`); yaat `docs/client-driver-mcp.md`, `docs/plans/client-driver-mcp-friction.md` (cited as friction #n), `docs/plans/client-driver-background.md`, `docs/plans/follow-video-montage.md`, `docs/crc-first-session.md`, `tools/montage/follow/README.md`, `docs/plans/HANDOFF.md`; Linear YAAT-114, 172, 173, 174, 220, 230, 237, 242, 245, 246; and the FOLLOW sampler's scratch scripts in `X:/dev/yaat.wt/montage-sampler/yaat/.tmp/sampler/` (`pipe.ps1`, `take.ps1`, `win.ps1`, `start-client.ps1`).
+Sources: godot-mcp at `D:/godot-mcp` (`README.md`, `docs/TOOLS.md`, `docs/DECISIONS.md`, `docs/ARCHITECTURE.md`, `docs/csharp-runtime-tools.md`, `docs/plans/*.md`, `docs/research/2026-09-29-godot-mcp-survey.md`).
+
+From yaat: `docs/client-driver-mcp.md`, `docs/plans/client-driver-mcp-friction.md` (cited as friction #n), `docs/plans/client-driver-background.md`, `docs/plans/follow-video-montage.md`, `docs/crc-first-session.md`, `tools/montage/follow/README.md`, `docs/plans/HANDOFF.md`.
+
+Also Linear YAAT-114, 172, 173, 174, 220, 230, 237, 242, 245, 246, and the FOLLOW sampler's scratch scripts in `X:/dev/yaat.wt/montage-sampler/yaat/.tmp/sampler/` (`pipe.ps1`, `take.ps1`, `win.ps1`, `start-client.ps1`).
 
 ## Summary
 

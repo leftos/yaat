@@ -238,7 +238,9 @@ trail). The annotation drives the client's "→{target} (auto)" ground datablock
 
 A controller **GIVEWAY** is not stopped where it stands when its route meets the traffic's.
 
-`GroundConflictDetector.GiveWayStop` finds the give-way point: the first node the two routes share ahead (`FindSharedUpcomingNode`, the same junction the GIVEWAY release checks), and along the held aircraft's route the first place where either its centre comes within `RequiredLateralClearanceFt` (both half-spans plus `GroundOutlineSweep.WingtipBufferFt`, category spans from `TugMovePlanner.WingspanFt` when the FAA database has no wingspan) of the traffic's route edges into and out of that node, or its nose (half a fuselage ahead, `AircraftLength.ResolveFt`) comes within the traffic's half-span plus `WingtipBufferFt` of them.
+`GroundConflictDetector.GiveWayStop` finds the give-way point from the first node the two routes share ahead (`FindSharedUpcomingNode`, the same junction the GIVEWAY release checks).
+
+The point is the first place along the held aircraft's route where either its centre comes within `RequiredLateralClearanceFt` (both half-spans plus `GroundOutlineSweep.WingtipBufferFt`, category spans from `TugMovePlanner.WingspanFt` when the FAA database has no wingspan) of the traffic's route edges into and out of that node, or its nose (half a fuselage ahead, `AircraftLength.ResolveFt`) comes within the traffic's half-span plus `WingtipBufferFt` of them.
 
 The nose rule is what holds a long type back: on the centre rule alone a B753's nose ends inside the crossing wingtip path. `TaxiingPhase.ApplyHeldSpeed` keeps the held aircraft taxiing toward the nearer of that point and the next node where a held arrival stops (an uncleared holding-position bar, or a cleared one whose painted stop is still ahead, measured to that painted stop; or the route's end).
 

@@ -45,10 +45,11 @@ per room. Each wall-clock tick (`RunTickLoop`, `:92`):
      the relative +15/−15 skips. The end-of-tape branch sets the paused state first, so that final tick's broadcast
      carries `IsPaused = true`. (Issue #209: previously elapsed only reached clients on pause/unpause/rewind/end.)
 3. After the loop budget check (`TickBudgetMs = 800`, logs a warning if exceeded, `:181`).
-4. **After the all-rooms loop**: `await DetectChangesAsync(allRooms, ct)` (`:138`) then `await BroadcastUpdates(allRooms)` (`:139`),
-   which fans out to training clients, admins, and CRC (`:242`). `DetectChangesAsync` takes each room's tick gate around that room's snapshot and diff, as a separate acquisition from `ProcessRoomSecond`'s (so the tick budget does not time it and a paused room still gets its detection pass): a hub-side `ChangeTracker.Remove`/`Clear`, which runs under the gate, can then never land mid-pass and have the pass re-add the removed aircraft (pin: `ChangeDetectionTests.DetectChangesPass_WhileTheRoomGateIsHeld_WaitsForIt`). The broadcast stays outside the gate. `DetectChangesAsync` also runs `AtpaEvaluator.EvaluateRoom`
-   per un-suppressed room — one `AtpaProcessor.Process` per wall-tick cached on `TrainingRoom.AtpaResults` for both the
-   CRC pass and the signature-guarded `AtpaResultsChanged` training push (`TrainingRoom.LastBroadcastAtpaSignature`).
+4. **After the all-rooms loop**: `await DetectChangesAsync(allRooms, ct)` (`:138`) then `await BroadcastUpdates(allRooms)` (`:139`), which fans out to training clients, admins, and CRC (`:242`).
+
+   `DetectChangesAsync` takes each room's tick gate around that room's snapshot and diff, as a separate acquisition from `ProcessRoomSecond`'s (so the tick budget does not time it and a paused room still gets its detection pass): a hub-side `ChangeTracker.Remove`/`Clear`, which runs under the gate, can then never land mid-pass and have the pass re-add the removed aircraft (pin: `ChangeDetectionTests.DetectChangesPass_WhileTheRoomGateIsHeld_WaitsForIt`).
+
+   The broadcast stays outside the gate. `DetectChangesAsync` also runs `AtpaEvaluator.EvaluateRoom` per un-suppressed room — one `AtpaProcessor.Process` per wall-tick cached on `TrainingRoom.AtpaResults` for both the CRC pass and the signature-guarded `AtpaResultsChanged` training push (`TrainingRoom.LastBroadcastAtpaSignature`).
 5. Every minute (`PausedRetirementSweepInterval`, `:34`) runs `ScenarioLifecycleService.RetirePausedRoomsAsync` (`:196`) to evict rooms left paused past the threshold, skipping a room whose scenario load holds its load flag until the next sweep.
 
 ### Cadence gotcha: double cadence
@@ -74,7 +75,9 @@ fallback — may block on the network. The layout path is built around that cons
 
   `PrefetchAsync` returns a `LayoutFetchOutcome` (`Loaded`, `LoadedFromStaleCopy` with the cached copy's last-changed time, `NoMap`, `Unreachable`, `Unparseable`); an `Unreachable` entry is retried by the next prefetch.
 
-  A refresh that ends `Unreachable` (a throw included) or `Unparseable` while a layout is held keeps that layout and its source GeoJSON, reporting it as `LoadedFromStaleCopy` with the held copy's fetch time and the failure as its `StaleReason` (so the load report counts it as a cached copy, and it refreshes on the next `CacheTtl` expiry like a disk stale copy) and logging "keeping the held layout" — the rule `ArtccConfigService` follows for a held config; a `NoMap` (vNAS answered 404, nothing on disk) still replaces it.
+  A refresh that ends `Unreachable` (a throw included) or `Unparseable` while a layout is held keeps that layout and its source GeoJSON, reporting it as `LoadedFromStaleCopy` with the held copy's fetch time and the failure as its `StaleReason` (so the load report counts it as a cached copy, and it refreshes on the next `CacheTtl` expiry like a disk stale copy) and logging "keeping the held layout".
+
+  This is the rule `ArtccConfigService` follows for a held config; a `NoMap` (vNAS answered 404, nothing on disk) still replaces it.
 
   A refetch whose GeoJSON is ordinal-equal to the cached copy keeps the already-parsed layout instance (rooms pin it; nothing mutates a layout) and is answered before the parse gate, renewing only the fetch time. A `GetLayout` miss still fetches blocking and logs a warning naming the airport and the thread ("was not prefetched" or "is still being prefetched").
 - `ArtccConfigService.EnsureLoadedAsync` shares one in-flight load per ARTCC (a second caller for a cold ARTCC waits for the config instead of returning before it exists) over a `ConcurrentDictionary`, and returns an `ArtccFetchOutcome` (`Loaded`, `LoadedFromStaleCopy` with `CachedCopyUtc` and a `StaleReason` — `Unreachable` or `RemovedFromVnas` for an HTTP 404 — `NotFound`, `Unreachable`, `Unparseable`, plus the neighbour centres left with no ERAM letter).
@@ -83,7 +86,9 @@ fallback — may block on the network. The layout path is built around that cons
 
   Only a cold ARTCC waits.
 
-  With a config held, the configs are stale-while-revalidate like the airport layouts: past `ConfigTtl` the call returns the last good outcome at once and starts one shared background refresh; a refresh that throws keeps the held config and lets the next call retry, one that ends `Unreachable` keeps the held config and is reused for `UnreachableRetryBackoff` (2 min, from the load's start) before the next call refreshes again (a cold ARTCC still retries at once), any other outcome is kept for `ConfigTtl`, and the held config is replaced only by a successful load.
+  With a config held, the configs are stale-while-revalidate like the airport layouts: past `ConfigTtl` the call returns the last good outcome at once and starts one shared background refresh.
+
+  A refresh that throws keeps the held config and lets the next call retry, one that ends `Unreachable` keeps the held config and is reused for `UnreachableRetryBackoff` (2 min, from the load's start) before the next call refreshes again (a cold ARTCC still retries at once), any other outcome is kept for `ConfigTtl`, and the held config is replaced only by a successful load.
 - Prepare fetches every airport the scenario JSON names (`ScenarioResourceManifest.AirportIds`: presets and VFR generator targets included) into the shared cache before the loader runs, so the loader's `GetLayout` calls are dictionary hits. `ScenarioLifecycleService.WarmAircraftGroundLayouts` then resolves, inside the commit and through the room's pin, every airport a loaded aircraft references (departure, destination, spawn — delayed aircraft included), so no tick pays a first read of them.
 - `NavigationDatabase.GetSid/GetStar/GetApproach` do not walk the supplementary prior-cycle CIFP chain for an airport whose
   current cycle lists no procedures of that kind (that chain models version drift; a procedure-less field would otherwise pay
@@ -224,11 +229,19 @@ spine's (`SpineOrder` in Yaat.Sim, [tick-loop.md](tick-loop.md)), and `RoomHost`
   the host), and records generator spawns *after* their autotrack so the recorded snapshot carries the
   owner; `BroadcastTerminalEntries` takes the spine's drain; `ProcessDelayedHandoffs`; `SyncLiveTraffic` runs
   `ShadowTrafficSync.Sync` last — the pre-physics mutator of the aircraft set (see [live-traffic.md](live-traffic.md)).
-- **Post-physics**: no ATC pass of its own (auto-accept, the point-out timeout, the two autotrack passes, the coordination timers and the tower lists are Yaat.Sim spine steps now, `SimulationEngine.TrackAutomation` / `SimulationEngine.Coordination.cs`, and the first three read the recorded `Attendance`), the consumers of the engine's detectors (`BroadcastConflictAlerts`, `BroadcastEramConflictAlerts`; the ASDE-X alert diff goes through `RoomHost.OnAsdexAlertsChanged` → `ICrcBroadcast.BroadcastAsdexAlertsAsync`, with no `TickProcessor` body), `ProcessSoloTrainingEvaluation`, the drain consumers (`BroadcastWarnings` / `Notifications` / `PilotSpeech` / `PilotReadbacks` / `PilotTransmissions`, `ProcessApproachScores`) — the strip auto-print, the deferred strip dispatch and the four TDLS steps are Sim steps (`SimulationEngine.Strips.cs` / `.Tdls.cs`); the room only pushes what the change trackers drained (`RoomHost.OnStripsChanged` / `OnTdlsChanged` → `StripBroadcaster` / `TdlsBroadcaster.BroadcastChanges`) — `HandleAutoDeleted` (reached through `RoomHost.OnAutoDeleted` with the aircraft `SimulationEngine.TickAutoDelete` removed; it tears down each callsign's assignment and change-tracker entry, then broadcasts the delete), and the rundown / live-traffic-status / timers "broadcast if changed" tail.
+- **Post-physics**: no ATC pass of its own (auto-accept, the point-out timeout, the two autotrack passes, the coordination timers and the tower lists are Yaat.Sim spine steps now, `SimulationEngine.TrackAutomation` / `SimulationEngine.Coordination.cs`, and the first three read the recorded `Attendance`).
+
+  It runs the consumers of the engine's detectors (`BroadcastConflictAlerts`, `BroadcastEramConflictAlerts`; the ASDE-X alert diff goes through `RoomHost.OnAsdexAlertsChanged` → `ICrcBroadcast.BroadcastAsdexAlertsAsync`, with no `TickProcessor` body) and `ProcessSoloTrainingEvaluation`.
+
+  Then come the drain consumers (`BroadcastWarnings` / `Notifications` / `PilotSpeech` / `PilotReadbacks` / `PilotTransmissions`, `ProcessApproachScores`), `HandleAutoDeleted` (reached through `RoomHost.OnAutoDeleted` with the aircraft `SimulationEngine.TickAutoDelete` removed; it tears down each callsign's assignment and change-tracker entry, then broadcasts the delete), and the rundown / live-traffic-status / timers "broadcast if changed" tail.
+
+  The strip auto-print, the deferred strip dispatch and the four TDLS steps are Sim steps (`SimulationEngine.Strips.cs` / `.Tdls.cs`); the room only pushes what the change trackers drained (`RoomHost.OnStripsChanged` / `OnTdlsChanged` → `StripBroadcaster` / `TdlsBroadcaster.BroadcastChanges`).
 
   (`SimulationEngine.TickDeferredAutoTrack` claims a departure only once it first appears on STARS — i.e. crosses the acquisition floor, `FieldElevationResolver.IsBelowDisplayFloor` — so a track is never owned before it is displayed; `TickFlightPlanCreatorAutoTrack` runs before it so an explicit VP/DA controller wins over scenario `AutoTrackAirportIds` for the aircraft they just filed for.)
 
-`TickAutoDelete` removes, each second: an aircraft whose queued `DEL` fired (`Ground.PendingAutoDelete`, which overrides `AutoDeleteExempt`); a landed aircraft stuck at a layout-less airport; a generated overflight past its exit radius (stamped `CompletionReason.Transited`); an airborne departure filed from the primary airport farther than the session's `DepartureAutoDeleteDistanceNm` from the airport reference point (stamped `Departed` unless already stamped, e.g. `HandedOff`); and whatever the effective `OnLanding`/`Parked` mode selects.
+`TickAutoDelete` removes, each second: an aircraft whose queued `DEL` fired (`Ground.PendingAutoDelete`, which overrides `AutoDeleteExempt`); a landed aircraft stuck at a layout-less airport; a generated overflight past its exit radius (stamped `CompletionReason.Transited`).
+
+It also removes an airborne departure filed from the primary airport farther than the session's `DepartureAutoDeleteDistanceNm` from the airport reference point (stamped `Departed` unless already stamped, e.g. `HandedOff`), and whatever the effective `OnLanding`/`Parked` mode selects.
 
 The departure distance is off by default (null) and is set with the hub's `SetDepartureAutoDeleteDistance` (1–500 nm). It applies in every arrival mode, `Never` included, and to tracked aircraft. It ignores `AutoDeleteExempt`, because spawn sets that on every ground-started aircraft.
 
@@ -323,7 +336,9 @@ and it does not auto-resume.
 
 **A room its creator never joined is closed, not left to the timer.** `TrainingHub.CreateRoom` registers the room first and then does the rest (`CompleteRoomCreationAsync`: the engine, the CRC lobby binding, the room-available notices, the terminal line). When anything there throws, it closes the room and rethrows the original exception, logging rather than throwing when the close itself fails.
 
-The close (`CloseOwnRoomAsync`) takes the caller out of the membership, unbinds every CRC client bound to the room, runs `ScenarioLifecycleService.CloseRoom` (reached through `RoomTickLoopService.CloseRoom`), which cancels the abandoned-room cleanup timer and runs the same `RemoveRoomState` teardown the abandoned-room and paused-room retirement use, and only then evicts any other connection that joined meanwhile (`RoomRetired` `The room could not be created.`) and takes the caller out of the group, so a failing group call cannot leave the room registered.
+The close (`CloseOwnRoomAsync`) takes the caller out of the membership, unbinds every CRC client bound to the room, runs `ScenarioLifecycleService.CloseRoom` (reached through `RoomTickLoopService.CloseRoom`), which cancels the abandoned-room cleanup timer and runs the same `RemoveRoomState` teardown the abandoned-room and paused-room retirement use.
+
+Only then does it evict any other connection that joined meanwhile (`RoomRetired` `The room could not be created.`) and take the caller out of the group, so a failing group call cannot leave the room registered.
 
 When the client's own `JoinRoom` right after a successful create throws, it calls the hub's `CloseRoom(roomId)`, which runs the same close (`RoomRetired` `The room's creator closed it.`) but only for the room's creator (`CreatorCid`), not while a scenario load holds the room, and not while another connection is a member. A `JoinRoom` that returns null found the room already gone, so there is nothing to close.
 

@@ -56,7 +56,9 @@ An **intersection departure** names its entry taxiway too (`28R@E #2`, from `Air
 
 All three are **server-computed** (`RunwayDepartureQueue` + `RunwayEntryPoint` in Yaat.Sim, wired through `AircraftStateDto.RunwayQueuePosition` / `RunwayQueueRunway` / `RunwayQueueIntersection`); the client only displays them — no client-side ranking or classification, mirroring the `SmartStatus` and taxi-route-reconstruction contracts.
 
-Line 2 is `cwt/type fix`; line 3 the altitude (airborne only); then the **beacon-code mismatch** slot (`DataBlockLayout.SquawkLine`, e.g. `1200 0301`) — gated by the radar's `RadarDatablockLayout.TryGetSquawkMismatch` and drawn by the shared `TargetRenderer.DrawSquawkMismatchLine` (reported solid, assigned dim-pulsing on the 500 ms cycle, animated by `MapCanvasBase`'s 10 Hz repaint), so the two views can never disagree on when or how a mismatch shows; then line 4 (hold / `→yield` / `SqStby` — mutually exclusive with the mismatch line because the gate returns false on Standby); then the amber note line.
+Line 2 is `cwt/type fix`; line 3 the altitude (airborne only); then the **beacon-code mismatch** slot (`DataBlockLayout.SquawkLine`, e.g. `1200 0301`). The slot is gated by the radar's `RadarDatablockLayout.TryGetSquawkMismatch` and drawn by the shared `TargetRenderer.DrawSquawkMismatchLine` (reported solid, assigned dim-pulsing on the 500 ms cycle, animated by `MapCanvasBase`'s 10 Hz repaint), so the two views can never disagree on when or how a mismatch shows.
+
+After it come line 4 (hold / `→yield` / `SqStby` — mutually exclusive with the mismatch line because the gate returns false on Standby) and then the amber note line.
 
 ### Session-persistent datablock state (`DataBlockViewState`)
 
@@ -257,7 +259,9 @@ The right button does two jobs — a **click** opens a context menu, a **drag** 
 
 Because of this, **`HandleRightClick` is the single place every ground right-click menu is decided**, and it is only ever called from the release path — never on press. It resolves, in order: cancel a half-placed measurement → finish a drawn route at a node → the **target list** → datablock → aircraft symbol → node → runway threshold (needs a selection) → snap to nearest node.
 
-The target list (`FindRightClickTargets`) gathers every aircraft whose datablock contains the point (topmost first), every aircraft within 28 px (by distance; one hit both ways is listed once, as a datablock hit), and — only while an aircraft is selected — every Parking/Spot/Helipad node within 10 px (by distance), except a stand within 28 px of the selected aircraft's own symbol (the stand it occupies is never a destination, so right-clicking the selected aircraft at its gate opens its menu directly).
+The target list (`FindRightClickTargets`) gathers every aircraft whose datablock contains the point (topmost first) and every aircraft within 28 px (by distance; one hit both ways is listed once, as a datablock hit).
+
+Only while an aircraft is selected, it also gathers every Parking/Spot/Helipad node within 10 px (by distance), except a stand within 28 px of the selected aircraft's own symbol (the stand it occupies is never a destination, so right-clicking the selected aircraft at its gate opens its menu directly).
 
 Two or more targets open the shared `Views/Map/RightClickPicker` at the click point, one entry per target (`Views/Map/RightClickTarget`: `"{callsign} ({type})"`, or the bare callsign; `"Parking {name}"`, `"Spot {name}"`, `"Helipad {name}"`, or `"<Type> #<id>"` unnamed); choosing one posts that target's own `AircraftRightClicked`/`NodeRightClicked` with the original point after the picker closes, so its normal menu opens.
 

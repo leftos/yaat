@@ -183,7 +183,9 @@ Warning messages appear when the simulator detects potential issues:
 
   The clearance still goes through — this is a mentor reminder. Not shown at airports whose vNAS config has ASDE-X safety logic (e.g. SFO).
 
-  A second `LUAW` on a runway that already has an aircraft holding in position warns at every airport (3-9-4.h: only with the local assist/monitor position staffed), and so does `CTO` issued while another aircraft holds in position on the runway without its own takeoff clearance (3-9-6 same-runway separation) or while a preceding arrival is not yet clear of the runway — rolling out, on a touch-and-go or stop-and-go, exiting along the centerline, or still airborne over it (3-9-6.b) — the cleared aircraft also stops behind that traffic instead of taxiing through it, continuing once the runway is clear.
+  A second `LUAW` on a runway that already has an aircraft holding in position warns at every airport (3-9-4.h: only with the local assist/monitor position staffed).
+
+  So does `CTO` issued while another aircraft holds in position on the runway without its own takeoff clearance (3-9-6 same-runway separation) or while a preceding arrival is not yet clear of the runway — rolling out, on a touch-and-go or stop-and-go, exiting along the centerline, or still airborne over it (3-9-6.b). In the `CTO` case the cleared aircraft also stops behind that traffic instead of taxiing through it, continuing once the runway is clear.
 
   Traffic you have frozen *on* the runway with `HOLDPOSITION` or `GIVEWAY` (for example mid-crossing) also counts as an occupied runway for both the landing-family and `CTO` advisories — a crossing still moving stays silent, since it will be clear by itself.
 
@@ -1344,7 +1346,11 @@ The editor has three tabs, one per generator kind. Each tab is a list of generat
 
 A stream of IFR arrivals placed on a runway's final approach course, spaced in trail.
 
-Details are grouped into Identity (id, and an editable runway box that suggests the airport's runways plus any already used by the loaded generators — you can also type a runway directly), Spawn rate (initial/max/interval distances, interval/start-offset/max time, randomize-interval toggle), Aircraft (engine type, weight category, randomize-weight toggle — checking **Randomize weight category** keeps the weight box active and uses it as the centre of a realistic mix bounded to nearby classes, so a Small/SmallPlus generator stays light and mixes in general-aviation traffic while a Large/Heavy one never spawns below the regional feed), and an optional AutoTrack block (position, handoff delay, scratchpad, cleared altitude) — applied to every arrival the generator spawns, so each one comes up owned by that position with the scratchpad set and hands off to the student after the delay, just like a scenario aircraft.
+Details are grouped into Identity (id, and an editable runway box that suggests the airport's runways plus any already used by the loaded generators — you can also type a runway directly), Spawn rate (initial/max/interval distances, interval/start-offset/max time, randomize-interval toggle), Aircraft (engine type, weight category, randomize-weight toggle), and an optional AutoTrack block (position, handoff delay, scratchpad, cleared altitude).
+
+Checking **Randomize weight category** keeps the weight box active and uses it as the centre of a realistic mix bounded to nearby classes, so a Small/SmallPlus generator stays light and mixes in general-aviation traffic while a Large/Heavy one never spawns below the regional feed.
+
+The AutoTrack block is applied to every arrival the generator spawns, so each one comes up owned by that position with the scratchpad set and hands off to the student after the delay, just like a scenario aircraft.
 
 #### VFR Arrivals
 
@@ -1826,7 +1832,13 @@ On servers that carry a live-traffic (FAA SWIM) feed, the session-settings (⚙)
 
   Aircraft on the ground and stale targets are skipped, and the terminal sums it up: `Assumed 7 of 10 live aircraft (2 on the ground, 1 stale)`. To take a hand-picked set instead, select the rows in the Aircraft List and right-click **Assume selected live traffic**. Each aircraft is assumed exactly as a typed `ASSUME` would, so `UNASSUME` and `DEL` work on them as usual — assume everything, then delete what you don't want.
 - **Altitude ceiling** — **Live Traffic Ceiling** next to the toggle caps which aircraft are mirrored (0 = automatic: the tower cab's visibility ceiling, 15,000 ft for a TRACON, the center's boundary for a center room).
-- **Traffic filters** — the picker's **Filters** tab (and, mid-session, **Live Traffic Filters...** in the session-settings ⚙ flyout) narrows which real aircraft the room shadows: **VFR only / IFR only / both** (a target with no flight plan counts as VFR when it squawks a VFR conspicuity code like 1200; one on a discrete code with no plan is *unknown* — often VFR flight following — and only appears under "both"); only aircraft whose **flight plan names one of a list of airports** (as departure, destination, or either — FAA and ICAO forms both match, and a toggle decides whether aircraft with no flight plan still appear); and **only within a radius** of an airport, fix, or fix-radial-distance (e.g. `OAK090010`), which *replaces* the room's normal lateral scope so you can watch a corner post or a satellite field the facility geometry wouldn't cover (the ceiling still applies).
+- **Traffic filters** — the picker's **Filters** tab (and, mid-session, **Live Traffic Filters...** in the session-settings ⚙ flyout) narrows which real aircraft the room shadows, in three ways.
+
+  The first is **VFR only / IFR only / both** (a target with no flight plan counts as VFR when it squawks a VFR conspicuity code like 1200; one on a discrete code with no plan is *unknown* — often VFR flight following — and only appears under "both").
+
+  The second keeps only aircraft whose **flight plan names one of a list of airports** (as departure, destination, or either — FAA and ICAO forms both match, and a toggle decides whether aircraft with no flight plan still appear).
+
+  The third keeps aircraft **only within a radius** of an airport, fix, or fix-radial-distance (e.g. `OAK090010`), which *replaces* the room's normal lateral scope so you can watch a corner post or a satellite field the facility geometry wouldn't cover (the ceiling still applies).
 
   Tightening a filter removes the now-excluded shadows at once; loosening one lets them reappear on their next update. Filter changes apply to every RPO in the room and are remembered with your last live-session choice.
 - **Aircraft List** — right-click the `LIVE · …` indicator in the status bar to choose whether the list shows everything, hides live traffic, or shows only live traffic; the choice is remembered.
@@ -2501,7 +2513,9 @@ The room has one auto cleared-to-land switch and one auto arrival spacing switch
 
 Handoffs to unattended positions can be automatically accepted after a configurable delay. Enable it by default for new rooms in **Settings › Scenario defaults › Auto-accept handoffs to unattended positions**. In a running room, the session-settings (⚙) flyout's **Auto-accept handoffs after** checkbox turns it on or off for everyone in the room, with the delay (0–60 seconds) in the box beside it; the box is greyed out while the checkbox is off and keeps its value for when you turn it back on.
 
-In **solo training mode** this is overridden so the session behaves as if you are the only controller working a live position: handoffs to **your own (student) position** are never auto-accepted — you accept them by hand, just as you would on the network — while handoffs between the automated background positions always auto-accept (never faster than 5 seconds, so you see each handoff you start sit pending before the receiving position takes it) so traffic keeps flowing even when you have auto-accept switched off.
+In **solo training mode** this is overridden so the session behaves as if you are the only controller working a live position: handoffs to **your own (student) position** are never auto-accepted — you accept them by hand, just as you would on the network.
+
+By contrast, handoffs between the automated background positions always auto-accept (never faster than 5 seconds, so you see each handoff you start sit pending before the receiving position takes it) so traffic keeps flowing even when you have auto-accept switched off.
 
 Auto-accept never takes a handoff of an aircraft that is on the ground, below 1,500 ft above its field, or on a coast track: ERAM may show such a track as CST, and a controller must coordinate verbally before accepting it (7110.65 §5-4-6.f.3). The handoff stays pending until the aircraft climbs into coverage, at any facility, so a departure handed off right after takeoff is accepted once it passes 1,500 ft above the field.
 

@@ -302,8 +302,12 @@ The steps, in display order, with their text verbatim (`{…}` is filled in; `Sc
 `Problems` texts:
 
 - `read`, failed: `The scenario JSON could not be read: {parser message}. The room keeps its current scenario.` Nothing is fetched and the room is untouched.
-- `artcc`, warning (a live session's step **fails** instead when the creator's ARTCC config is missing): `{ID}: not found on vNAS (HTTP 404). Positions in {ID} will not resolve.` · `{ID}: vNAS unreachable and nothing cached. Positions in {ID} will not resolve.` · `{ID}: vNAS unreachable; using the copy cached {yyyy-MM-dd HH:mm}Z.` · `{ID}: no longer on vNAS (HTTP 404); using the copy cached {yyyy-MM-dd HH:mm}Z.` · `{ID}: the configuration could not be read ({cause}). Positions in {ID} will not resolve.` · `{ID}: no ERAM letter for neighbouring center {NBR}; a handoff to {NBR} answers SECTOR NOT ADAPTED.` A stale copy with no timestamp reads `using the copy cached at an unknown time.`
-- `layouts`, warning: at any airport, `{APT}: vNAS unreachable; using the copy cached {yyyy-MM-dd HH:mm}Z.` · `{APT}: no longer on vNAS (HTTP 404); using the copy cached {yyyy-MM-dd HH:mm}Z.` · `{APT}: the ground map could not be read ({cause}).`; at a map-required airport only (`ScenarioResourceManifest.MapRequiredAirportIds`: the primary airport and each `Parking` or ground-spawn airport), `{APT}: no ground map on vNAS. Aircraft at {APT} cannot taxi or park.` · `{APT}: vNAS unreachable and nothing cached.` Any other airport with no map joins the `no map:` detail and keeps the step green.
+- `artcc`, warning (a live session's step **fails** instead when the creator's ARTCC config is missing): `{ID}: not found on vNAS (HTTP 404). Positions in {ID} will not resolve.` · `{ID}: vNAS unreachable and nothing cached. Positions in {ID} will not resolve.` · `{ID}: vNAS unreachable; using the copy cached {yyyy-MM-dd HH:mm}Z.`
+
+  The step can also read `{ID}: no longer on vNAS (HTTP 404); using the copy cached {yyyy-MM-dd HH:mm}Z.` · `{ID}: the configuration could not be read ({cause}). Positions in {ID} will not resolve.` · `{ID}: no ERAM letter for neighbouring center {NBR}; a handoff to {NBR} answers SECTOR NOT ADAPTED.` A stale copy with no timestamp reads `using the copy cached at an unknown time.`
+- `layouts`, warning: at any airport, `{APT}: vNAS unreachable; using the copy cached {yyyy-MM-dd HH:mm}Z.` · `{APT}: no longer on vNAS (HTTP 404); using the copy cached {yyyy-MM-dd HH:mm}Z.` · `{APT}: the ground map could not be read ({cause}).`
+
+  At a map-required airport only (`ScenarioResourceManifest.MapRequiredAirportIds`: the primary airport and each `Parking` or ground-spawn airport), `{APT}: no ground map on vNAS. Aircraft at {APT} cannot taxi or park.` · `{APT}: vNAS unreachable and nothing cached.` Any other airport with no map joins the `no map:` detail and keeps the step green.
 - `aircraft`, warning: each of the loader's `ScenarioLoadResult.Warnings` verbatim (for example `N123AB: No ground layout for SQL`).
 - `populate`, warning: `ATC position {id} not found in {artcc}; it won't appear in the controllers list` · `Student position {id} not found in {artcc}; strips, beacon banks and the STARS display settings are not set up.` · `Arrival generator {id} skipped: {reason}`, the reason one of `no primaryAirportId`, `no runway specified`, `runway {rwy} not found at {apt}`. These and the `aircraft` warnings are also the result's `Warnings` and reach the terminal as `Warning` lines.
 - `populate`, failed: `The room could not be set up: {message}. The previous scenario was already unloaded; load again.` · `The room was closed while the scenario loaded.` (the room was retired or force-closed during the fetches; it is not repopulated).
@@ -439,10 +443,11 @@ This split is the source of the most common wire bug — see the checklist below
 
 The 23 session-settings fields are duplicated across **four** DTOs and must move in lockstep: `LoadScenarioResult`, `RoomStateDto`, `ScenarioLoadedDto` and `SessionSettingsDto` (all in yaat-server `Dtos/TrainingDtos.cs`) — with the same set on the client side.
 
-The fields: `AutoDeleteOverride`, `EffectiveAutoDeleteMode`, `DepartureAutoDeleteDistanceNm`, `AutoAcceptDelaySeconds`, `AutoClearedToLand`, `AutoCrossRunway`, `AutoPullUpToParallel`, `AutoGoAroundOnOccupiedRunway`, `AutoRejectTakeoffOnOccupiedRunway`, `AutoArrivalSpacingOnOccupiedRunway`, `ValidateDctFixes`, `SoloTrainingMode`, `SoloParkingInitialCallupRatePercent`, `SoloArrivalGeneratorRatePercent`, `SoloGoAroundProbabilityPercent`, `HasSoloParkingInitialCallupSource`, `HasSoloArrivalGeneratorSource`, `RpoShowPilotSpeech`, `CommandRunDelayMinSeconds`, `CommandRunDelayMaxSeconds`, `LiveTrafficEnabled`, `LiveTrafficCeilingFt`, `LiveTrafficFilter`.
-The four DTOs feed three different paths — initial join (`RoomStateDto`), scenario load
-(`LoadScenarioResult` / `ScenarioLoadedDto`), and live update (`SessionSettingsDto`). Add a setting to fewer than all
-four and it silently drops on whichever path you missed.
+The fields: `AutoDeleteOverride`, `EffectiveAutoDeleteMode`, `DepartureAutoDeleteDistanceNm`, `AutoAcceptDelaySeconds`, `AutoClearedToLand`, `AutoCrossRunway`, `AutoPullUpToParallel`, `AutoGoAroundOnOccupiedRunway`, `AutoRejectTakeoffOnOccupiedRunway`, `AutoArrivalSpacingOnOccupiedRunway`, `ValidateDctFixes`, `SoloTrainingMode`.
+
+The rest are `SoloParkingInitialCallupRatePercent`, `SoloArrivalGeneratorRatePercent`, `SoloGoAroundProbabilityPercent`, `HasSoloParkingInitialCallupSource`, `HasSoloArrivalGeneratorSource`, `RpoShowPilotSpeech`, `CommandRunDelayMinSeconds`, `CommandRunDelayMaxSeconds`, `LiveTrafficEnabled`, `LiveTrafficCeilingFt`, `LiveTrafficFilter`.
+
+The four DTOs feed three different paths — initial join (`RoomStateDto`), scenario load (`LoadScenarioResult` / `ScenarioLoadedDto`), and live update (`SessionSettingsDto`). Add a setting to fewer than all four and it silently drops on whichever path you missed.
 
 There is a **fifth** place a session setting has to be listed: `RoomSessionSettings`
 (`yaat-server: …/Simulation/RoomSessionSettings.cs`), the room-level copy that survives a scenario restart or rewind.

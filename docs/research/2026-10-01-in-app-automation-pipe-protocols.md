@@ -90,7 +90,11 @@ The event bus hooks `PropertyChanged` on every visual of a window once, the firs
 
 ### AvaloniaMcp: 19 methods
 
-Dispatch table (A `src/AvaloniaMcp.Diagnostics/DiagnosticServer.cs:226-252`): `list_windows`, `get_visual_tree`, `get_logical_tree`, `find_control` (`name`/`typeName`/`text`, `maxResults` 20), `get_focused_element`, `get_control_properties` (`propertyNames`), `get_data_context` (`expandProperty`), `get_applied_styles`, `get_resources`, `get_binding_errors`, `click_control`, `set_property` (`propertyName`, `value` as string, converted for string/bool/int/double/float/enum/Thickness), `input_text` (`text`, `pressEnter`), `invoke_command` (`commandName` on the DataContext, `parameter` string), `take_screenshot` (`controlId?`, `windowIndex`), `wait_for_property` (`propertyName`, `expectedValue`, `timeoutMs` 30000, `pollIntervalMs` 500), `get_scroll_info`/`scroll` (same handler), `get_scrollable_items`, `ping`.
+Dispatch table (A `src/AvaloniaMcp.Diagnostics/DiagnosticServer.cs:226-252`): `list_windows`, `get_visual_tree`, `get_logical_tree`, `find_control` (`name`/`typeName`/`text`, `maxResults` 20), `get_focused_element`, `get_control_properties` (`propertyNames`), `get_data_context` (`expandProperty`), `get_applied_styles`, `get_resources`, `get_binding_errors`, `click_control`.
+
+It goes on with `set_property` (`propertyName`, `value` as string, converted for string/bool/int/double/float/enum/Thickness), `input_text` (`text`, `pressEnter`), `invoke_command` (`commandName` on the DataContext, `parameter` string), `take_screenshot` (`controlId?`, `windowIndex`).
+
+It ends with `wait_for_property` (`propertyName`, `expectedValue`, `timeoutMs` 30000, `pollIntervalMs` 500), `get_scroll_info`/`scroll` (same handler), `get_scrollable_items`, `ping`.
 
 Every control is addressed by `controlId`. There is no key-with-modifiers request and no event subscription. The survey's "`RaiseEvent(KeyEventArgs)`" for AvaloniaMcp is only the Enter key that `input_text` raises when `pressEnter` is set (A `src/AvaloniaMcp.Diagnostics/Handlers/InteractionHandler.cs:135-143`).
 
@@ -98,7 +102,9 @@ Every control is addressed by `controlId`. There is no key-with-modifiers reques
 
 ### Zafiro
 
-Grammar (Z `src/Zafiro.Avalonia.Mcp.Protocol/Selectors/SelectorParser.cs:6-32`): `selectorList := path ("," path)*`; `path := compound (combinator compound)*` with `>>` or whitespace = descendant and `>` = child; `compound := (Type | "*")? ("#" id)? filter*`; `#123` is a node id, `#Name` is `[Name=Name]`; `filter := "[" attr op value "]" | "[dc:'<C# predicate>']" | ":" pseudo("(" arg ")")?`; ops `=`, `*=`, `^=`, `$=`, all case-insensitive (Z `src/Zafiro.Avalonia.Mcp.AppHost/Selectors/SelectorEngine.cs:200-207`).
+Grammar (Z `src/Zafiro.Avalonia.Mcp.Protocol/Selectors/SelectorParser.cs:6-32`): `selectorList := path ("," path)*`; `path := compound (combinator compound)*` with `>>` or whitespace = descendant and `>` = child; `compound := (Type | "*")? ("#" id)? filter*`; `#123` is a node id, `#Name` is `[Name=Name]`.
+
+`filter := "[" attr op value "]" | "[dc:'<C# predicate>']" | ":" pseudo("(" arg ")")?`; ops `=`, `*=`, `^=`, `$=`, all case-insensitive (Z `src/Zafiro.Avalonia.Mcp.AppHost/Selectors/SelectorEngine.cs:200-207`).
 
 Examples from the parser: `Button:has-text("Sign in"):enabled`, `ListBoxItem[dc.Id=42]`, `ListBox >> ListBoxItem:nth(2)`, `*[role=button]:nth(0)`.
 
@@ -132,7 +138,9 @@ Both projects run every handler inside `Dispatcher.UIThread.InvokeAsync` and nev
 
 ### Zafiro `click`
 
-Semantic first (Z `src/Zafiro.Avalonia.Mcp.AppHost/Handlers/InputHandler.cs:40-185`): a `TextBlock` is redirected to its nearest Button/MenuItem/ListBoxItem/TabItem/ComboBoxItem/TreeViewItem ancestor (`:42-56`); a disabled element or a command whose `CanExecute` is false is refused (`:62-72`); `ToggleButton` flips `IsChecked` (`:74-78`); a `Button` runs its `Command`, else opens its `Flyout`, else raises `Button.ClickEvent` (`:80-96`); a `MenuItem` handles check/radio toggling, raises `MenuItem.ClickEvent` and closes the menu (`:98-105,235-265`); list, tab, tree and other `SelectingItemsControl` items are selected by setting `SelectedIndex`/`IsSelected` (`:109-168`).
+Semantic first (Z `src/Zafiro.Avalonia.Mcp.AppHost/Handlers/InputHandler.cs:40-185`): a `TextBlock` is redirected to its nearest Button/MenuItem/ListBoxItem/TabItem/ComboBoxItem/TreeViewItem ancestor (`:42-56`); a disabled element or a command whose `CanExecute` is false is refused (`:62-72`); `ToggleButton` flips `IsChecked` (`:74-78`).
+
+A `Button` runs its `Command`, else opens its `Flyout`, else raises `Button.ClickEvent` (`:80-96`); a `MenuItem` handles check/radio toggling, raises `MenuItem.ClickEvent` and closes the menu (`:98-105,235-265`); list, tab, tree and other `SelectingItemsControl` items are selected by setting `SelectedIndex`/`IsSelected` (`:109-168`).
 
 Only when none applies does it call `Focus()` and raise a synthetic `PointerPressedEventArgs`/`PointerReleasedEventArgs` pair at the control's **centre**, left button, no modifiers (`:170-177,208-233`), and it then reports `UNSUPPORTED_OPERATION` "the click result could not be verified" even though the events were raised. There is no way to click at a given point, with the right button, with modifiers, or twice.
 
@@ -159,7 +167,9 @@ Modifiers carried on the `KeyEventArgs` do work for handlers that read `e.KeyMod
 - **Pointer at a point, any button:** `PointerPressedEventArgs` takes a `clickCount` (AV `src/Avalonia.Base/Input/PointerEventArgs.cs#L172-L179`), and a right-button release on the source control raises `ContextRequested` through `Control.OnPointerReleased` (AV `src/Avalonia.Controls/Control.cs#L467-L478`).
 
   A synthetic right-click can therefore open a context menu; hit-testing to find the control under a point is the host's job. Pointer capture, hover and enter/leave do not happen, because the `MouseDevice` is bypassed.
-- **Raw injection through the input manager** (the Avalonia.Headless route, AV `src/Headless/Avalonia.Headless/HeadlessWindowImpl.cs#L302-L383`) needs private API on a real window: `IInputManager` and `RawKeyEventArgs` are `[PrivateApi]` (AV `src/Avalonia.Base/Input/IInputManager.cs#L11-L12`, `src/Avalonia.Base/Input/Raw/RawKeyEventArgs.cs#L11-L12`), the concrete `InputManager` is `internal` (AV `src/Avalonia.Base/Input/InputManager.cs#L11`), and `TopLevel.InputRoot` is `internal` (AV `src/Avalonia.Controls/TopLevel.cs#L140`).
+- **Raw injection through the input manager** (the Avalonia.Headless route, AV `src/Headless/Avalonia.Headless/HeadlessWindowImpl.cs#L302-L383`) needs private API on a real window.
+
+  `IInputManager` and `RawKeyEventArgs` are `[PrivateApi]` (AV `src/Avalonia.Base/Input/IInputManager.cs#L11-L12`, `src/Avalonia.Base/Input/Raw/RawKeyEventArgs.cs#L11-L12`), the concrete `InputManager` is `internal` (AV `src/Avalonia.Base/Input/InputManager.cs#L11`), and `TopLevel.InputRoot` is `internal` (AV `src/Avalonia.Controls/TopLevel.cs#L140`).
 
   Compiling against them takes `AvaloniaAccessUnstablePrivateApis=true`, which emits warning `AVA3001` (`buildTransitive/AvaloniaPrivateApis.targets` in the Avalonia 12.1.0 package), so under YAAT's warnings-as-errors it needs a justified `NoWarn`, and it breaks on Avalonia upgrades.
 - **Focus on an inactive window:** `WindowBase` sets the focus scope on activation and only flips `IsActive` on deactivation (AV `src/Avalonia.Controls/WindowBase.cs#L332-L354`), so focus inside an inactive window is kept. Whether `Focus()` from code makes Win32 activate the window was not checked; the paths above never need focus.

@@ -60,7 +60,9 @@ The reference point travels along the aircraft's own axis: the main gear cannot 
 
 Every facing is **true**; the handler converts the controller's magnetic cardinal first.
 
-**Output** (`TugPlan`): the moves with their simulated traces, the end pose, `Warnings` (what the plan could not avoid or the RPO may not have meant, as data: `TugFoulsTaxiwayWarning` — taxiway, the outline part reaching in deepest, peak penetration — and `TugLongPushWarning` — taxiway, tow distance rounded to 50 ft; empty when there is nothing to say), and `FacingJunctionFt` (for `PUSH <twy> <facing-twy>`, how far the facing taxiway's junction lies from where the push ends; null for every other push), with `FacingTaxiwayIsFar` true past `FarFacingJunctionFt` = 1,500 ft.
+**Output** (`TugPlan`): the moves with their simulated traces, the end pose and `Warnings` (what the plan could not avoid or the RPO may not have meant, as data: `TugFoulsTaxiwayWarning` — taxiway, the outline part reaching in deepest, peak penetration — and `TugLongPushWarning` — taxiway, tow distance rounded to 50 ft; empty when there is nothing to say).
+
+It also carries `FacingJunctionFt` (for `PUSH <twy> <facing-twy>`, how far the facing taxiway's junction lies from where the push ends; null for every other push), with `FacingTaxiwayIsFar` true past `FarFacingJunctionFt` = 1,500 ft.
 
 The handler turns these into the RPO-only readback notes (below). A refusal returns null with the message the controller sees.
 
@@ -85,9 +87,15 @@ SFO C9 `PUSHM $5A $5B` takes the fallback, since `PUSH $5B` comes no closer than
      The straight ends where a pivot onto the lane lands tangent on it: `R_c·tan(Δ/2)` short of the lane along the push line, `R_c` the roll-out radius (1.15 × routine) and Δ the pivot from the push travel onto the lane — one `R_c` for a square pivot.
 
      The lane is where the push ray first crosses a straight, non-ramp edge carrying one of the spot's own lane names, else the ray's intersection with the approach line. No T0 is built when the lane is closer than the lead or the pivot exceeds the 150° wander bound.
-   - A candidate is **dropped** when it breaks rule 1; a same-kind run without a turn wanders more than 150° from where it started (an extended straight or a multi-point path is exempt — its bound is the lane turn + 10° — so D2 → 5A's 152.9° lane can be reached in one capture; a loop; set so a stand push can pivot onto a lane in one capture — SFO F8 → 7A pivots 133°, E12 → 7B 123°); a move exceeds its budget; the last move ends more than 2° off the facing or 3 ft off the line; a move onto a stop point runs more than 3 ft past it (a push onto a staging point, 100 ft); for a lane goal, the final pull onto the lane swings the nose more than 5° past the lane heading before turning back (`MaxPullPastLineDeg`, the S-bend on the pull); or it fails the flown-path check.
+   - A candidate is **dropped** when it breaks rule 1, or when a same-kind run without a turn wanders more than 150° from where it started (an extended straight or a multi-point path is exempt — its bound is the lane turn + 10° — so D2 → 5A's 152.9° lane can be reached in one capture; a loop; set so a stand push can pivot onto a lane in one capture — SFO F8 → 7A pivots 133°, E12 → 7B 123°).
+
+     It is also dropped when a move exceeds its budget; the last move ends more than 2° off the facing or 3 ft off the line; a move onto a stop point runs more than 3 ft past it (a push onto a staging point, 100 ft); for a lane goal, the final pull onto the lane swings the nose more than 5° past the lane heading before turning back (`MaxPullPastLineDeg`, the S-bend on the pull); or it fails the flown-path check.
    - A candidate dropped only because its final line pull overshot the stop by at most `(1 + 1.15) × R` (2.15 routine radii: a 90° turn-in plus the roll-out, the most one line capture can need) is retried once with a straight of the kind before the reversal, 1.5 × overshoot + 10 ft, inserted before the reversal.
-   - Among the survivors: fewest reversals; then, for a plain tow with parked neighbours, every candidate whose least clearance to them, capped at `WingtipBufferFt` (25 ft), is within `TugPlanBuilder.ClearanceTieBandFt` = 5 ft [J] of the roomiest counts as tied (room beyond the buffer is surplus, so candidates that all keep it tie) (clearance never buys an extra reversal or move above the floor — a crew will not add a push-pull for wingtip margin at a stand built for a straight push), also in the plain-tow fallback pools; then shortest path, then template order — except that a lane goal ranks by path length plus 4 ft per foot of the largest lateral departure of the reference point, nose or tail from the stand's lead-in line before the reference point comes within one routine radius of the lane (so the push goes straight back toward the lane before it pivots), and a `TaxiwayLine` goal ranks by least total nose rotation (differences over 1°), then shortest path.
+   - Among the survivors: fewest reversals; then, for a plain tow with parked neighbours, every candidate whose least clearance to them, capped at `WingtipBufferFt` (25 ft), is within `TugPlanBuilder.ClearanceTieBandFt` = 5 ft [J] of the roomiest counts as tied (room beyond the buffer is surplus, so candidates that all keep it tie).
+
+     Clearance never buys an extra reversal or move above the floor — a crew will not add a push-pull for wingtip margin at a stand built for a straight push — and this tie also applies in the plain-tow fallback pools.
+
+     Then come shortest path, then template order. The exception is that a lane goal ranks by path length plus 4 ft per foot of the largest lateral departure of the reference point, nose or tail from the stand's lead-in line before the reference point comes within one routine radius of the lane (so the push goes straight back toward the lane before it pivots), and a `TaxiwayLine` goal ranks by least total nose rotation (differences over 1°), then shortest path.
 
      A refusal is reported only from candidates whose shape was sound — a candidate that was never a way to fly the move does not name the pavement it would have crossed.
    - Turns the planner invents (T3, line captures) always use the routine radius; `Tight` is only for an explicit `PUSH FACE` that rotates the nose more than 135°.
@@ -102,7 +110,9 @@ SFO C9 `PUSHM $5A $5B` takes the fallback, since `PUSH $5B` comes no closer than
    - **Across**: the push ray crosses a straight centreline edge of the taxiway at ≥ 45° within 2,000 ft → push straight back to it; the nose keeps the stand heading.
    - **Alongside**: otherwise, a straight edge running within 45° of the push direction whose nearest point is behind the aircraft and within 2,000 ft → push-off, then a push onto that edge's line.
 
-     The push ends at capture when that point already lies within 25 ft (`OnTaxiwayCorridorFt`, half an ADG-III taxiway's width; a judgement call) of any straight edge of the taxiway's extent — OAK gate 32 `PUSH TE` stops as soon as it is on TE, 8.7 ft off the piece beside the stand where TE bends; when the capture completes short of the taxiway it carries on along the line to the taxiway's nearest point (SFO B2 `PUSH M4`, issue #172: M4 runs 87 ft to the side of the push and starts 200 ft further back).
+     The push ends at capture when that point already lies within 25 ft (`OnTaxiwayCorridorFt`, half an ADG-III taxiway's width; a judgement call) of any straight edge of the taxiway's extent. OAK gate 32 `PUSH TE` stops as soon as it is on TE, 8.7 ft off the piece beside the stand where TE bends.
+
+     When the capture completes short of the taxiway it carries on along the line to the taxiway's nearest point (SFO B2 `PUSH M4`, issue #172: M4 runs 87 ft to the side of the push and starts 200 ft further back).
 
      Either way the aircraft ends **on** the taxiway with the nose along it.
    - Otherwise: `Unable, taxiway X is not behind the aircraft`.
@@ -122,17 +132,29 @@ SFO C9 `PUSHM $5A $5B` takes the fallback, since `PUSH $5B` comes no closer than
 
 **Plan-time sweep (faced goals only).**
 
-`TugRequest.ParkedNeighbours` — every `IsParkedOrHeld` aircraft within 400 ft of the start pose (`TugParkedNeighbours.Build` over `TugNeighbourCandidate`s — the server maps its `AircraftState`s, the client's preview its `AircraftModel`s, both through `GroundConflictDetector.IsParkedOrHeld`'s plain-input overload; `TugParkedNeighbours.RangeFt` = 400 ft is a search radius covering the 2,000 ft goal reach's neighbouring stands, not an aviation figure), excluding the subject and any neighbour already inside the 0.5 ft slack at the start (that one is `OverlapRefusal`'s own message) — is swept by `TugPlanBuilder.Judge` (`NeighbourRefusal`) against each candidate: every move from its own start pose together with the moves flown through before the first reversal, the same run the detector brakes for, with the same floor (`GroundOutlineSweep.FloorFt`: `max(0.5, min(WingtipBufferFt, clearance at start) − 0.5)`).
+`TugRequest.ParkedNeighbours` is every `IsParkedOrHeld` aircraft within 400 ft of the start pose, excluding the subject and any neighbour already inside the 0.5 ft slack at the start (that one is `OverlapRefusal`'s own message).
+
+It is built by `TugParkedNeighbours.Build` over `TugNeighbourCandidate`s — the server maps its `AircraftState`s, the client's preview its `AircraftModel`s, both through `GroundConflictDetector.IsParkedOrHeld`'s plain-input overload; `TugParkedNeighbours.RangeFt` = 400 ft is a search radius covering the 2,000 ft goal reach's neighbouring stands, not an aviation figure.
+
+`TugPlanBuilder.Judge` (`NeighbourRefusal`) sweeps it against each candidate: every move from its own start pose together with the moves flown through before the first reversal, the same run the detector brakes for, with the same floor (`GroundOutlineSweep.FloorFt`: `max(0.5, min(WingtipBufferFt, clearance at start) − 0.5)`).
 
 A fouling candidate takes `TugPathRefusal(ParkedNeighbour, "Unable, the move to spot 5A would swing into SKW3398 at D1")`, ordered after `MovementArea`; `Choose` picks the best clearing candidate, and with none the refusal is what the RPO sees. Only faced goals (`TugGoalShape.Faced`: spot, stand, node-with-facing, `PUSHM` chains of them) are swept — they are the ones with a choice of template.
 
 `Clear`/`StraightBackTo`/`TaxiwayLine`/`Facing` (a bare `PUSH`, `PUSH <twy>`) keep the detector's creep-and-stop below: a bare push has one shape, and stopping short of the neighbour with it shown as the yield target is the documented outcome (OAK 25/26).
 
-**When a neighbour dropped a candidate** (a faced goal off a stand, not a mid-push re-plan), the planner searches further before refusing, in pools tried in order and ranked by the usual keys: the **angled push-offs** (the first move a push turn of 15°, 30° or 45° with the tail away from the neighbour, `AngledPushOffsDeg`; it turns from the stand stop at full routine steer, where a real tug rolls straight a few feet first — at 45° a B738's nose tip swings ~35 ft sideways toward the terminal, and jet bridges and the terminal face are not in the layout, so that sweep is unchecked) and a longer straight push-off clear of it; the **extended straights** (the T0 straight lengthened in 20 ft steps up to 200 ft, turning the lane's way; each side stops at its first straight that swings past the lane turn + 10° or fails the path check); and only when none of those keeps the floor within that bound, the **multi-point paths** (`T5`: push straight until the reference point is past the lane's centreline, push turn toward the lane, pull forward, push adjust onto the lane, creep pull — three reversals).
+**When a neighbour dropped a candidate** (a faced goal off a stand, not a mid-push re-plan), the planner searches further before refusing, in pools tried in order and ranked by the usual keys.
+
+The first pool is the **angled push-offs** (the first move a push turn of 15°, 30° or 45° with the tail away from the neighbour, `AngledPushOffsDeg`; it turns from the stand stop at full routine steer, where a real tug rolls straight a few feet first — at 45° a B738's nose tip swings ~35 ft sideways toward the terminal, and jet bridges and the terminal face are not in the layout, so that sweep is unchecked) and a longer straight push-off clear of it.
+
+The second is the **extended straights** (the T0 straight lengthened in 20 ft steps up to 200 ft, turning the lane's way; each side stops at its first straight that swings past the lane turn + 10° or fails the path check).
+
+Only when none of those keeps the floor within that bound comes the third, the **multi-point paths** (`T5`: push straight until the reference point is past the lane's centreline, push turn toward the lane, pull forward, push adjust onto the lane, creep pull — three reversals).
 
 None of the extra pools is built when the half-fuselage push-off alone breaks the floor, since every one starts with it. The refusal is unchanged.
 
-Measured (SFO GC 28/01, `PUSH $5A` off D2 with an E75L at D1): the alley template's push leg swung to 23.4 ft against a 24.5 ft floor and the tow sat at 0 kt for 86 s; the planner pushes 100 ft further straight back before turning right onto T5A — 42.6 ft closest (on the push-off), one reversal, ~125 s. With a B738 parked on F6, a CRJ7 off F5 (start 35.5 ft, row gap 12.1 ft, floor 12.1 ft) is accepted on a straight-then-line plan, 4 moves and 1 reversal, passing the B738 at 12.6 ft — the row's own wingtip gap, never closer; a B738 off F5 is still refused (its slide overlaps F6, so the row anchor does not count and the floor stays 24.5 ft).
+Measured (SFO GC 28/01, `PUSH $5A` off D2 with an E75L at D1): the alley template's push leg swung to 23.4 ft against a 24.5 ft floor and the tow sat at 0 kt for 86 s; the planner pushes 100 ft further straight back before turning right onto T5A — 42.6 ft closest (on the push-off), ~125 s, one reversal.
+
+With a B738 parked on F6, a CRJ7 off F5 (start 35.5 ft, row gap 12.1 ft, floor 12.1 ft) is accepted on a straight-then-line plan, 4 moves and 1 reversal, passing the B738 at 12.6 ft — the row's own wingtip gap, never closer. A B738 off F5 is still refused (its slide overlaps F6, so the row anchor does not count and the floor stays 24.5 ft).
 
 No SFO stand-to-spot push with a neighbour needs `T5` (a sweep of 398 plans per type); it is pinned by a builder test. Planner and detector share one sweep body, `src/Yaat.Sim/GroundOutlineSweep.cs` (`Sweep`, `FloorFt`), so they cannot disagree.
 
@@ -206,7 +228,9 @@ A refusal names the leg and the pavement: `Unable, the move to spot 6A would put
 
 - **Movement.** Each sub-tick `TugKinematics.SteerTravel` turns the direction of travel by at most the distance physics is about to move the aircraft divided by the radius. On a push `Ground.PushbackTrueHeading` is the travel and `TrueHeading` its reciprocal, for the whole move, dwell included; on a pull `PushbackTrueHeading` is null and `TrueHeading` is the travel. Every reader keeps its "set ⇒ tail-first" assumption.
 
-  `Ground.TowbarTrueHeading` is the tug's pose for the ground view: the true heading from the nose gear out along the towbar to the tug, seeded on the fuselage axis at `OnStart`, re-pointed by every driven step from the bicycle model (`SteerTowbar`: steer `δ = atan(L·κ)` with `L` the FAA wheelbase, or the routine turn radius when the record has none, and `κ` the step's travel turn per foot; the tug sits at nose `+δ` on a pull and nose `−δ` on a push — pushing while the nose yaws right, the tug has swung to the aircraft's left), and nulled at `OnEnd` unless the move completed into a continuing one.
+  `Ground.TowbarTrueHeading` is the tug's pose for the ground view: the true heading from the nose gear out along the towbar to the tug.
+
+  It is seeded on the fuselage axis at `OnStart`, re-pointed by every driven step from the bicycle model (`SteerTowbar`: steer `δ = atan(L·κ)` with `L` the FAA wheelbase, or the routine turn radius when the record has none, and `κ` the step's travel turn per foot; the tug sits at nose `+δ` on a pull and nose `−δ` on a push — pushing while the nose yaws right, the tug has swung to the aircraft's left), and nulled at `OnEnd` unless the move completed into a continuing one.
 
   Nothing in the sim reads it; it crosses the hub as `TowbarTrueHeadingDeg` ([training-hub-contract.md](../training-hub-contract.md)) and `GroundRenderer` draws the tug from it ([ground-rendering.md](../ground-rendering.md)).
 - **Speed.** The tug holds `CategoryPerformance.PushbackSpeed` = 5 kt for every push and pull, through straights and turns alike, or `PushbackAlignSpeed` = 3 kt over the last `AlignCreepFt` = 30 ft of a `Creep` move (all judgement calls under ISO 20683's ≈5.4 kt ceiling; AC 00-65A §11.14 asks for no more than the walking team's pace).
@@ -236,7 +260,9 @@ A refusal names the leg and the pavement: `Unable, the move to spot 6A would put
   **`StartPose`** is where the move began (the live pose for a phase whose start was never recorded).
 - **Commands.**
 
-  `HOLD`/`RES` are allowed — a held tow brakes to rest at the towbar rate (about 5 s from 5 kt) along the headings the last driven tick left set, its progress still recorded, and stays a mover to the conflict detector until it is at rest; the completion check runs before the hold, so a hold that lands over the end of a move still completes it and the plan advances (the next move then holds in turn); `TAXI`, `TAXIAUTO`, `AIRTAXI`, `LAND`, `DEL` and `PUSHM` clear the phase and every move queued behind it (a redirect of an attached tug is ordinary; the new plan is made from the live pose, and a first move that reverses the last motion dwells first).
+  `HOLD`/`RES` are allowed. A held tow brakes to rest at the towbar rate (about 5 s from 5 kt) along the headings the last driven tick left set, its progress still recorded, and stays a mover to the conflict detector until it is at rest; the completion check runs before the hold, so a hold that lands over the end of a move still completes it and the plan advances (the next move then holds in turn).
+
+  `TAXI`, `TAXIAUTO`, `AIRTAXI`, `LAND`, `DEL` and `PUSHM` clear the phase and every move queued behind it (a redirect of an attached tug is ordinary; the new plan is made from the live pose, and a first move that reverses the last motion dwells first).
 
   A cleared move stops the aircraft where it stands — the speed hand-over above is for a move that completes, never for one the tug is taken off. A `PUSH` during a tow is only ever the facing amendment below.
   - **Scenario-scripted deferrals wait for the push.** A scenario's own timed command (a preset `WAIT n TAXI …`) must not take the tug off mid-push. `SimulationEngine.ProcessDeferredDispatches` holds an expired scripted deferral whose payload the phase would clear (`EndsPushback`, judged by `CanAcceptCommand`'s `ClearsThePhase`, so the phase owns the list of clearing verbs) until the current phase is no longer a `PushbackPhase` — completed, aborted or cancelled.
@@ -246,7 +272,9 @@ A refusal names the leg and the pavement: `Unable, the move to spot 6A would put
     Commands that never reach the gate (`SN`, squawk, strip ops) fire on time, and instructor-typed commands still interrupt the tow. The terminal shows "{command} held until pushback completes" when a hold starts, and the conditional list shows the held command as "in 0s". `SfoPushbackWaitHoldTests` pins it.
 - **Snapshot.**
 
-  `PushbackPhaseDto` carries the move (shape, kind, flags, line point, line travel, stop point, straight distance, facing, planned end), the progress (start, distance, captured, dwell elapsed), the amendment, `StartsAtStand`, `ContinuesIntoNextMove` and `ContinuesStandPushOff` — the last two additive, so a snapshot written before boundaries were flown through restores the first false, which is the behaviour that snapshot was recorded with, and one written before the priority was narrowed restores the second false, so only the push-off itself keeps its priority through `StartsAtStand`; no schema bump is owed for either.
+  `PushbackPhaseDto` carries the move (shape, kind, flags, line point, line travel, stop point, straight distance, facing, planned end), the progress (start, distance, captured, dwell elapsed), the amendment, `StartsAtStand`, `ContinuesIntoNextMove` and `ContinuesStandPushOff`.
+
+  The last two are additive, so a snapshot written before boundaries were flown through restores the first false, which is the behaviour that snapshot was recorded with, and one written before the priority was narrowed restores the second false, so only the push-off itself keeps its priority through `StartsAtStand`; no schema bump is owed for either.
 
   A snapshot written before tug moves existed restores through the nullable `Legacy*` fields as the equivalent move: target + heading → a line capture onto the target; heading only → a turn; neither → a straight push for the clearance still owed, finished on the first tick from the live pose.
 
@@ -430,7 +458,9 @@ A brief for pushback or tug-move work cites the rules above by section and quote
 
 **Rules under revision.**
 
-A brief touching one of these names the open issue and says which side of the change it assumes: the clamped-polyline overshoot (YAAT-35) and node goals judged by overshoot (YAAT-37), both under [Decided rules the code does not follow yet](#decided-rules-the-code-does-not-follow-yet); the Across/Alongside split at 45° (YAAT-41); the tug-versus-parked floor, tow speed by category and the type-blind tight steering angle (YAAT-38); the clear-plan swing guard (YAAT-176); the taxilane wingtip figure, cited as 0.05 × span + 10 ft here and quoted differently in `GroundOutlineSweep.cs` (YAAT-179).
+A brief touching one of these names the open issue and says which side of the change it assumes. The open issues are the clamped-polyline overshoot (YAAT-35) and node goals judged by overshoot (YAAT-37), both under [Decided rules the code does not follow yet](#decided-rules-the-code-does-not-follow-yet); the Across/Alongside split at 45° (YAAT-41).
+
+They also include the tug-versus-parked floor, tow speed by category and the type-blind tight steering angle (YAAT-38); the clear-plan swing guard (YAAT-176); the taxilane wingtip figure, cited as 0.05 × span + 10 ft here and quoted differently in `GroundOutlineSweep.cs` (YAAT-179).
 
 ## Designing a push shape
 

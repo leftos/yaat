@@ -184,7 +184,9 @@ A call from a taxiway by an aircraft whose filed destination is the field it is 
 
 **A delivery student gets a clearance request.**
 
-When the solo student works a clearance delivery position (callsign `…_DEL`) at the aircraft's airport and the SOP lets the aircraft call them (`PilotInitialContactEligibility.CanInitiateWithStudent`), the first call — at whichever point the plan reaches — goes to the student as a clearance request, even when an AI ground answers there: IFR "clearance, at gate F8, with information A, IFR to Los Angeles Airport."; VFR "clearance, at gate F8, with information A, VFR departure to the north, at 4500."
+When the solo student works a clearance delivery position (callsign `…_DEL`) at the aircraft's airport and the SOP lets the aircraft call them (`PilotInitialContactEligibility.CanInitiateWithStudent`), the first call — at whichever point the plan reaches — goes to the student as a clearance request, even when an AI ground answers there.
+
+IFR: "clearance, at gate F8, with information A, IFR to Los Angeles Airport."; VFR: "clearance, at gate F8, with information A, VFR departure to the north, at 4500."
 
 (a direction of flight, never the destination, and the filed cruise altitude, left out when none is filed).
 
@@ -196,7 +198,9 @@ A beacon code (`SQ <code>`, `RANDSQ`, `SQVFR`) answers it through `PilotRequestT
 
 In an RPO room nothing below departs on its own: a towered or VFR spawn holds lined up with no lined-up call and no "[Auto]" line, a spawn released through the spawn gate holds too (its release clock is never started in an RPO room), as does one released by `REL` (`ProcessReleasedGroundDepartures` clears its release clock), and each leaves on the RPO's `CTO` or its timed preset. In solo training:
 
-- **Towered field** (the loaded ARTCC config has a tower-cab facility — `Atct`, `AtctTracon` or `AtctRapcon` — for the runway's airport, `AiPositionResolver.IsTowered`, evaluated by the engine and passed in as `PhaseContext.IsRunwaySpawnFieldTowered`): after `LinedUpReadyDelaySeconds` (90 s) the engine clears it for takeoff (`SimulationEngine.ProcessRunwaySpawnAutoTakeoffs` → `AutoIssueTakeoffClearance`, terminal note "[Auto] Towered field — cleared for takeoff by the simulated tower"), scripted, so the airborne check-in follows.
+- **Towered field** (the loaded ARTCC config has a tower-cab facility — `Atct`, `AtctTracon` or `AtctRapcon` — for the runway's airport, `AiPositionResolver.IsTowered`, evaluated by the engine and passed in as `PhaseContext.IsRunwaySpawnFieldTowered`).
+
+  After `LinedUpReadyDelaySeconds` (90 s) the engine clears it for takeoff (`SimulationEngine.ProcessRunwaySpawnAutoTakeoffs` → `AutoIssueTakeoffClearance`, terminal note "[Auto] Towered field — cleared for takeoff by the simulated tower"), scripted, so the airborne check-in follows.
 - **Untowered field, VFR**: after the same 90 s it departs on its own, the same way ("[Auto] Untowered field — VFR departure on its own").
 - **Untowered field, IFR**: 5–10 s after lining up (5 s plus an FNV-1a draw on the callsign, `RunwaySpawnCall.ReleaseRequestDelaySeconds`) it asks the student for its release — "NorCal Approach, runway 25 at {airport's spoken name}, ready for departure, request release." (`RunwaySpawnCall.TryRequestRelease` → `PilotResponder.BuildReleaseRequest`) — holds for release (`Ground.HeldForRelease`, so it shows in the release rundown and `REL` finds it) and records a `Release` pending request.
 

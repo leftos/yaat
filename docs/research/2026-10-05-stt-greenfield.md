@@ -7,7 +7,9 @@ Date: 2026-10-05. Linear: YAAT-343 (Rethink the speech pipeline greenfield with 
 - The current pipeline fails mostly on **entities** (fix names, SID names, callsigns on short clips) and on **run-to-run noise** (two runs of one seed differed in 104 of 200 transcripts; measured afterwards, that noise was Piper synthesizing different audio in each process, not Whisper decoding, and the synthesized audio is now cached, YAAT-225).
 
   Both are addressable without a new model: the Whisper runtime YAAT uses (LM-Kit `SpeechToText`) exposes no temperature, fallback, beam, seed or token-probability control, and whisper.cpp's default temperature fallback re-samples at higher temperatures on uncertain audio, which is a documented source of non-deterministic output. VICE turns that fallback off.
-- **VICE**, the open-source TRACON trainer, ships a working design that YAAT can copy in approach (not in code: VICE is GPL-3.0, YAAT is MIT): ATC fine-tuned Whisper (base/small/medium, q5_0, 55-539 MB) on whisper.cpp with Vulkan, a per-PTT prompt built from the on-frequency aircraft's fixes, approaches, SIDs/STARs and callsigns in tail-priority order, temperature fallback off, and a local scored-template parser (Jaro-Winkler + Double Metaphone, beam search over segmentations, aircraft-state validation) that answers "say again" when unsure.
+- **VICE**, the open-source TRACON trainer, ships a working design that YAAT can copy in approach (not in code: VICE is GPL-3.0, YAAT is MIT).
+
+  It is ATC fine-tuned Whisper (base/small/medium, q5_0, 55-539 MB) on whisper.cpp with Vulkan, a per-PTT prompt built from the on-frequency aircraft's fixes, approaches, SIDs/STARs and callsigns in tail-priority order, temperature fallback off, and a local scored-template parser (Jaro-Winkler + Double Metaphone, beam search over segmentations, aircraft-state validation) that answers "say again" when unsure.
 
   VICE tried a cloud LLM for parsing and replaced it with that local parser.
 - The open-model frontier moved to **Conformer/transducer models** (NVIDIA Parakeet-TDT 0.6B v2/v3, CC-BY-4.0) and **Conformer+LLM decoders** (Canary-Qwen-2.5B, Qwen3-ASR). Parakeet runs on CPU through sherpa-onnx, which YAAT already references, and sherpa-onnx gained per-stream **hotword biasing for NeMo transducers** in February 2026. ATC fine-tunes of Parakeet-TDT exist (5.99 % WER on the same ATC test split where the larger Whisper-large-v3 ATC fine-tune reports 6.5 %).
@@ -58,7 +60,9 @@ Notes per family:
 
 Runtimes from .NET:
 
-- **sherpa-onnx** (`org.k2fsa.sherpa.onnx` on NuGet, 1.13.8 published 2026-09-10; YAAT pins 1.12.40): offline configs for NeMo transducers, Canary, Moonshine and Qwen3-ASR (with `Seed`, `Temperature`, `Hotwords` fields) in the C# wrapper ([`scripts/dotnet/OfflineModelConfig.cs`](https://github.com/k2-fsa/sherpa-onnx/blob/master/scripts/dotnet/OfflineModelConfig.cs), [`OfflineQwen3AsrModelConfig.cs`](https://github.com/k2-fsa/sherpa-onnx/blob/master/scripts/dotnet/OfflineQwen3AsrModelConfig.cs)).
+- **sherpa-onnx** (`org.k2fsa.sherpa.onnx` on NuGet, 1.13.8 published 2026-09-10; YAAT pins 1.12.40): offline configs for NeMo transducers, Canary, Moonshine and Qwen3-ASR (with `Seed`, `Temperature`, `Hotwords` fields) in the C# wrapper.
+
+  See [`scripts/dotnet/OfflineModelConfig.cs`](https://github.com/k2-fsa/sherpa-onnx/blob/master/scripts/dotnet/OfflineModelConfig.cs), [`OfflineQwen3AsrModelConfig.cs`](https://github.com/k2-fsa/sherpa-onnx/blob/master/scripts/dotnet/OfflineQwen3AsrModelConfig.cs).
 
   The NuGet runtimes are CPU builds; no CUDA package is published.
 - **Whisper.net** (1.9.1, 2026-06-01) exposes whisper.cpp's `WithTemperature`, `WithTemperatureInc`, `WithBeamSearchSamplingStrategy`, `WithProbabilities` and `WithPrompt`, but no grammar ([`WhisperProcessorBuilder.cs`](https://github.com/sandrohanea/whisper.net/blob/main/Whisper.net/WhisperProcessorBuilder.cs)).
@@ -71,7 +75,9 @@ Datasets and fine-tunes:
 - **ATCO2**: 4 h transcribed test data plus 5000+ h pseudo-transcribed ([Jzuluaga/atco2_corpus_1h](https://huggingface.co/datasets/Jzuluaga/atco2_corpus_1h)). **UWB-ATCC**: ~20 h, Czech airspace, 8 kHz, **CC BY-NC-SA 4.0** ([Jzuluaga/uwb_atcc](https://huggingface.co/datasets/Jzuluaga/uwb_atcc)). Both are European, ICAO phraseology; neither is FAA phraseology or US accents.
 - **jacktol/ATC-ASR-Dataset** (2025-05-28) combines UWB-ATCC and the ATCO2 1 h subset ([card](https://huggingface.co/datasets/jacktol/ATC-ASR-Dataset)).
 
-  On its test split: jacktol Whisper-medium.en fine-tune 15.08 % WER (YAAT's current default, now marked deprecated by its author) ([card](https://huggingface.co/jacktol/whisper-medium.en-fine-tuned-for-ATC)); jacktol Whisper-large-v3 fine-tune 6.5 % (2025-08-24, MIT) ([card](https://huggingface.co/jacktol/whisper-large-v3-finetuned-for-ATC)); **Parakeet-TDT-0.6B-v3 fine-tune 5.99 %** (2025-10-13, MIT) ([qenneth/parakeet-tdt-0.6b-v3-finetuned-for-ATC](https://huggingface.co/qenneth/parakeet-tdt-0.6b-v3-finetuned-for-ATC)).
+  On its test split: jacktol Whisper-medium.en fine-tune 15.08 % WER (YAAT's current default, now marked deprecated by its author) ([card](https://huggingface.co/jacktol/whisper-medium.en-fine-tuned-for-ATC)); jacktol Whisper-large-v3 fine-tune 6.5 % (2025-08-24, MIT) ([card](https://huggingface.co/jacktol/whisper-large-v3-finetuned-for-ATC)).
+
+  On the same split, **Parakeet-TDT-0.6B-v3 fine-tune 5.99 %** (2025-10-13, MIT) ([qenneth/parakeet-tdt-0.6b-v3-finetuned-for-ATC](https://huggingface.co/qenneth/parakeet-tdt-0.6b-v3-finetuned-for-ATC)).
 
   All three were trained on NC-SA data while declaring MIT.
 - **Whisper-ATC** (van Doorn et al., ICRAT 2024, TU Delft): 13.5 % WER on ATCO2, 1.17 % on ATCOSIM (random split), region-specific data improved real-world WER by up to 60 % ([paper](https://pure.tudelft.nl/ws/portalfiles/portal/218298256/ICRAT2024_paper_83.pdf); [jlvdoorn/WhisperATC](https://github.com/jlvdoorn/WhisperATC)).
@@ -80,13 +86,19 @@ Datasets and fine-tunes:
 
 Contextual biasing:
 
-- **Surveillance-list boosting** (ATCO2 project): boosting the n-grams of callsigns present at the utterance time gave up to +28.4 points callsign accuracy ([Nigmatulina et al., arXiv 2108.12156](https://ar5iv.labs.arxiv.org/html/2108.12156)); adding a text-side re-ranking against the list reached +53.7 points ([arXiv 2202.03725, ICASSP 2022](https://ar5iv.labs.arxiv.org/html/2202.03725)); a BERT model given the surveillance list multiplied callsign accuracy up to four times on noisy transcripts and degraded as the list grew, so lists should stay as short as the context allows ([Blatt et al., arXiv 2204.06309](https://ar5iv.labs.arxiv.org/html/2204.06309)).
+- **Surveillance-list boosting** (ATCO2 project): boosting the n-grams of callsigns present at the utterance time gave up to +28.4 points callsign accuracy ([Nigmatulina et al., arXiv 2108.12156](https://ar5iv.labs.arxiv.org/html/2108.12156)).
+
+  Adding a text-side re-ranking against the list reached +53.7 points ([arXiv 2202.03725, ICASSP 2022](https://ar5iv.labs.arxiv.org/html/2202.03725)); a BERT model given the surveillance list multiplied callsign accuracy up to four times on noisy transcripts and degraded as the list grew, so lists should stay as short as the context allows ([Blatt et al., arXiv 2204.06309](https://ar5iv.labs.arxiv.org/html/2204.06309)).
 - **Whisper initial prompt**: whisper.cpp keeps only the last ~223 tokens of the prompt, so the order of what goes in is the biasing policy (YAAT's own doc and VICE's code agree on this).
 - **whisper.cpp grammar (GBNF)**: merged in 2023; non-matching tokens are scaled down by `grammar_penalty` rather than masked, and parse failures fall back to unconstrained sampling ([PR 1229](https://github.com/ggerganov/whisper.cpp/pull/1229)). Users report worse output from small grammar mistakes (a missing leading space) ([discussion 2003](https://github.com/ggml-org/whisper.cpp/discussions/2003)). Not exposed by Whisper.net or LM-Kit.
-- **Transducer hotwords**: NeMo's GPU-PB phrase boosting works for CTC, RNN-T/TDT and Canary in greedy and beam decoding with 2-5 % speed cost and +8-10 points key-phrase F-score greedy, +17-23 beam ([TurboBias, arXiv 2508.07014](https://arxiv.org/html/2508.07014); [NeMo word boosting docs](https://docs.nvidia.com/nemo-framework/user-guide/25.11/nemotoolkit/asr/asr_customization/word_boosting.html)), and per-utterance boosting lists landed for transducers ([NeMo PR 15125](https://github.com/NVIDIA-NeMo/Speech/pull/15125)). sherpa-onnx added modified beam search with per-stream hotwords for NeMo transducers including Parakeet-TDT (PR 3077, merged 2026-02-05) ([PR](https://github.com/k2-fsa/sherpa-onnx/pull/3077); [hotwords docs](https://k2-fsa.github.io/sherpa/onnx/hotwords/index.html)); it needs a `bpe.vocab` exported from the NeMo tokenizer (the exporter now writes one).
+- **Transducer hotwords**: NeMo's GPU-PB phrase boosting works for CTC, RNN-T/TDT and Canary in greedy and beam decoding with 2-5 % speed cost and +8-10 points key-phrase F-score greedy, +17-23 beam ([TurboBias, arXiv 2508.07014](https://arxiv.org/html/2508.07014); [NeMo word boosting docs](https://docs.nvidia.com/nemo-framework/user-guide/25.11/nemotoolkit/asr/asr_customization/word_boosting.html)).
+
+  Per-utterance boosting lists landed for transducers ([NeMo PR 15125](https://github.com/NVIDIA-NeMo/Speech/pull/15125)). sherpa-onnx added modified beam search with per-stream hotwords for NeMo transducers including Parakeet-TDT (PR 3077, merged 2026-02-05) ([PR](https://github.com/k2-fsa/sherpa-onnx/pull/3077); [hotwords docs](https://k2-fsa.github.io/sherpa/onnx/hotwords/index.html)); it needs a `bpe.vocab` exported from the NeMo tokenizer (the exporter now writes one).
 
   The C API has `SherpaOnnxCreateOfflineStreamWithHotwords`; the C# `OfflineRecognizer` wrapper exposes only `CreateStream()` and a config-level `HotwordsFile`, so per-PTT hotwords from .NET need one P/Invoke ([`c-api.h`](https://github.com/k2-fsa/sherpa-onnx/blob/master/sherpa-onnx/c-api/c-api.h)).
-- **Phonetic entity resolution after ASR**: retrieve candidate entities by phonetic similarity (Double Metaphone, articulatory features) from a short context list, then replace or let an LLM decide; up to 30 % relative WER reduction on named entities when the list is filtered to similar-sounding candidates ([arXiv 2506.10779](https://arxiv.org/pdf/2506.10779)); denoising the candidate list before correction gave 28 % relative WER reduction ([DeRAGEC, ACL Findings 2025](https://aclanthology.org/2025.findings-acl.786.pdf)); N-best plus a phonetic hint reduces LLM over-correction ([Yamashita et al., Interspeech 2025](https://www.isca-archive.org/interspeech_2025/yamashita25_interspeech.html)).
+- **Phonetic entity resolution after ASR**: retrieve candidate entities by phonetic similarity (Double Metaphone, articulatory features) from a short context list, then replace or let an LLM decide; up to 30 % relative WER reduction on named entities when the list is filtered to similar-sounding candidates ([arXiv 2506.10779](https://arxiv.org/pdf/2506.10779)).
+
+  Denoising the candidate list before correction gave 28 % relative WER reduction ([DeRAGEC, ACL Findings 2025](https://aclanthology.org/2025.findings-acl.786.pdf)); N-best plus a phonetic hint reduces LLM over-correction ([Yamashita et al., Interspeech 2025](https://www.isca-archive.org/interspeech_2025/yamashita25_interspeech.html)).
 
 ## Findings: architecture options
 
@@ -102,7 +114,9 @@ Contextual biasing:
 
 ## Findings: evaluation
 
-- **Command-level metrics** (DLR, SESAR PJ.16-04 ontology): each command is one "word"; Levenshtein over the gold and extracted command lists gives Command Recognition Rate (matches / gold), Command Error Rate ((subs + ins) / gold) and Rejection Rate (deletions, including NO_CONCEPT / NO_CALLSIGN) / gold, plus the same three for callsigns alone ([Helmke et al., Interspeech 2021](https://elib.dlr.de/145465/1/Helmke_etal_INTERSPEECH2021_1-02-KeinWz.pdf); [SIDs 2021](https://www.sesarju.eu/sites/default/files/documents/sid/2021/papers/SIDs_2021_paper_2.pdf); ontology description updated 2025-07-04 at [elib.dlr.de/214852](https://elib.dlr.de/214852/)).
+- **Command-level metrics** (DLR, SESAR PJ.16-04 ontology): each command is one "word"; Levenshtein over the gold and extracted command lists gives Command Recognition Rate (matches / gold), Command Error Rate ((subs + ins) / gold) and Rejection Rate (deletions, including NO_CONCEPT / NO_CALLSIGN) / gold, plus the same three for callsigns alone.
+
+  Sources: [Helmke et al., Interspeech 2021](https://elib.dlr.de/145465/1/Helmke_etal_INTERSPEECH2021_1-02-KeinWz.pdf); [SIDs 2021](https://www.sesarju.eu/sites/default/files/documents/sid/2021/papers/SIDs_2021_paper_2.pdf); ontology description updated 2025-07-04 at [elib.dlr.de/214852](https://elib.dlr.de/214852/).
 
   A wrong command is worse than a rejected one, and the split makes that visible; YAAT's PASS/FAIL per case hides it.
 - **Entity metrics**: callsign WER / callsign accuracy ([Zuluaga-Gomez et al., Interspeech 2021](https://publications.idiap.ch/attachments/papers/2021/Juan_INTERSPEECH2021_2021.pdf)); the same idea extends to fix, runway, taxiway and SID slots.
@@ -166,7 +180,9 @@ VICE's limits for YAAT: TRACON scope only (no taxi routes, pushback, ground phra
 
 All three share one new **text-to-command stage** (below) and one **evaluation** (command-level metrics). They differ in the acoustic model.
 
-Shared text-to-command stage: per-PTT `SpeechContext` (on-frequency callsigns with spoken forms, each aircraft's fixes/route/SID/STAR/approach, airport runways, taxiways, parking spots) → normalisation → callsign candidates scored against on-frequency aircraft → scored template matching over YAAT's rule catalogue with a beam over segmentations → slot resolution of fixes/SIDs/taxiways/runways against the aircraft's own lists with one phonetic similarity function → state validation → output: canonical command with a confidence, a "say again" result, or nothing.
+Shared text-to-command stage: per-PTT `SpeechContext` (on-frequency callsigns with spoken forms, each aircraft's fixes/route/SID/STAR/approach, airport runways, taxiways, parking spots) → normalisation → callsign candidates scored against on-frequency aircraft → scored template matching over YAAT's rule catalogue with a beam over segmentations.
+
+The stage continues: slot resolution of fixes/SIDs/taxiways/runways against the aircraft's own lists with one phonetic similarity function → state validation → output: canonical command with a confidence, a "say again" result, or nothing.
 
 The rule catalogue (`PhraseologyRules`) stays the source of templates and of pilot readbacks. The LLM fallback becomes optional, scored against the same metrics.
 

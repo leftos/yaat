@@ -52,7 +52,9 @@ Authoritative interface definitions: `..\_ext\vatsim-vnas\messaging\` (sibling r
 
 ### ERAM Commands
 
-- [x] `ProcessEramMessage(ProcessEramMessageDto)` — QN and implied commands (handoff initiate/accept, data-block offset and leader, FDB/LDB toggle, VCI), QF (FP readout), QL (quick look), RD (route display), QU (route display / direct-to amendment), QT (start track, coast track), QX (drop track, surrender control, remove strip), QZ (assigned alt), QQ (interim / local-interim / procedure alt), QR (reported alt), QS (FDB heading, speed and free text), QH F (freeze), HM / QH (hold), CO (suppress / restore a conflict-alert pair), QP (point-out initiate / accept / minimise, DRI), QB (beacon code, equipment, voice type), AM, VP, DM, LA, LB, LC, LD, LE, LF.
+- [x] `ProcessEramMessage(ProcessEramMessageDto)` — QN and implied commands (handoff initiate/accept, data-block offset and leader, FDB/LDB toggle, VCI), QF (FP readout), QL (quick look), RD (route display), QU (route display / direct-to amendment), QT (start track, coast track), QX (drop track, surrender control, remove strip), QZ (assigned alt).
+
+  It also handles QQ (interim / local-interim / procedure alt), QR (reported alt), QS (FDB heading, speed and free text), QH F (freeze), HM / QH (hold), CO (suppress / restore a conflict-alert pair), QP (point-out initiate / accept / minimise, DRI), QB (beacon code, equipment, voice type), AM, VP, DM, LA, LB, LC, LD, LE, LF.
 
   Unknown verbs return `FORMAT`. The spec-derived command reference these are held to is [`eram/`](./eram/README.md).
 - [x] `SetEramSectorConfiguration(EramSectorConfigurationDto)` — per-sector storage + broadcast
@@ -76,7 +78,9 @@ Authoritative interface definitions: `..\_ext\vatsim-vnas\messaging\` (sibling r
 ### Messaging
 
 - [x] `SendRadioMessage(message)` — routes to YAAT terminal + CRC clients in room
-- [x] `SendPrivateMessage(to, message)` — an aircraft in the room (callsign only, case-insensitive): a `Chat` terminal entry on its callsign with the sender's position as its initials and the text verbatim (recorded; no pilot reaction, no CRC delivery); a controller position in the sender's room (case-insensitive, `CrcClientManager.FindPositionInRoom`): the YAAT terminal line + that CRC client under its own spelling (and its joined connections); anything else, no recipient, or a sender with no room: an error completion
+- [x] `SendPrivateMessage(to, message)` — an aircraft in the room (callsign only, case-insensitive): a `Chat` terminal entry on its callsign with the sender's position as its initials and the text verbatim (recorded; no pilot reaction, no CRC delivery).
+
+  A controller position in the sender's room (case-insensitive, `CrcClientManager.FindPositionInRoom`): the YAAT terminal line + that CRC client under its own spelling (and its joined connections). Anything else, no recipient, or a sender with no room: an error completion
 - [x] `SendAtcMessage(message)` — routes to YAAT terminal + CRC clients in room
 - [x] `SendBroadcastMessage(message)` — routes to YAAT terminal + CRC clients in room
 - [x] `SendVnasBroadcastMessage(message)` — routes to YAAT terminal + CRC clients in room

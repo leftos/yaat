@@ -405,11 +405,17 @@ If `Position` is non-finite or out of range (`|lat| > 90`, `|lon| > 180`), the W
     fly.
   - **An approach clearance still clears a retained target** (`ApproachCommandHandler`; 7110.65 §5-7-1.d / AIM 4-4-12.g), and the
     final-approach speed schedule overwrites whatever stands before touchdown.
-- **A `SpeedCeiling` is a one-way ratchet under a `ManagesSpeed` phase.** The floor/ceiling self-target drags IAS down to the ceiling,
-  the snap nulls `TargetSpeed`, and with the auto schedule suppressed nothing raises IAS again when the ceiling rises or is removed —
-  the aircraft holds the ceiling speed until the phase writes its own target. `FinalApproachPhase` writes none before its deceleration
-  stages, so whoever stamps a ceiling on an aircraft on a long final must also restore its speed (the generator stream's
-  `RestoreManagedSpeed`, `docs/scenario-loading-and-generation.md`). `RNS` closes it for itself: `FlightCommandHandler.ApplyResumeNormalSpeed` writes the scheduled final-approach speed back for an aircraft in `FinalApproachPhase` outside `ArrivalSpacingManager.SpeedRestoreGateNm` and more than `SpeedRestoreDeadbandKts` slow (AIM 4-4-12.f.1). When the aircraft is on that profile and either test fails, nothing is handed back — re-accelerating it a few miles before the phase slows it again is what §5-7-1's lead ("Avoid adjustments requiring alternate decreases and increases") and §5-7-1.a.3(e) rule out, and AIM 4-4-12.f scopes "resume normal speed" to before an approach clearance — and the instructor's answer says so: `Resume normal speed — already on its final approach speed profile, no change` instead of the plain `Resume normal speed` every other case gets (the pilot readback is the same either way; `ResumeNormalSpeedOnFinalTests`). Both restores are one-shot writes, and one write is enough under a lower regulatory cap (a Class B shelf's 200 kt, 91.117(c)): the restored target stays standing at the cap and the aircraft takes it up once the cap lifts (the 91.117 bullet above).
+- **A `SpeedCeiling` is a one-way ratchet under a `ManagesSpeed` phase.** The floor/ceiling self-target drags IAS down to the ceiling, the snap nulls `TargetSpeed`, and with the auto schedule suppressed nothing raises IAS again when the ceiling rises or is removed — the aircraft holds the ceiling speed until the phase writes its own target.
+
+  `FinalApproachPhase` writes none before its deceleration stages, so whoever stamps a ceiling on an aircraft on a long final must also restore its speed (the generator stream's `RestoreManagedSpeed`, `docs/scenario-loading-and-generation.md`).
+
+  `RNS` closes it for itself: `FlightCommandHandler.ApplyResumeNormalSpeed` writes the scheduled final-approach speed back for an aircraft in `FinalApproachPhase` outside `ArrivalSpacingManager.SpeedRestoreGateNm` and more than `SpeedRestoreDeadbandKts` slow (AIM 4-4-12.f.1).
+
+  When the aircraft is on that profile and either test fails, nothing is handed back, and the instructor's answer says so: `Resume normal speed — already on its final approach speed profile, no change` instead of the plain `Resume normal speed` every other case gets (the pilot readback is the same either way; `ResumeNormalSpeedOnFinalTests`).
+
+  Re-accelerating it a few miles before the phase slows it again is what §5-7-1's lead ("Avoid adjustments requiring alternate decreases and increases") and §5-7-1.a.3(e) rule out, and AIM 4-4-12.f scopes "resume normal speed" to before an approach clearance.
+
+  Both restores are one-shot writes, and one write is enough under a lower regulatory cap (a Class B shelf's 200 kt, 91.117(c)): the restored target stays standing at the cap and the aircraft takes it up once the cap lifts (the 91.117 bullet above).
 - **There are FOUR aircraft categories — Jet, Turboprop, Piston, Helicopter.** CLAUDE.md's summary lists only the first three; the Helicopter
   column is real and aviation-reviewed. Unknown ICAO types fall back to **Jet** (after the sibling-map attempt).
 - **Constants are NOT read from `CategoryPerformance` directly in production.** `AircraftPerformance.*` is the entry point: per-type profile with

@@ -169,21 +169,26 @@ separator hands a comma to the synthesiser mid-number.
 
 Grouped by trigger. All return `PilotSpeechText`; follow/traffic builders set `RpoTerminal`.
 
-- **Readbacks** — `BuildReadback(compound, aircraft)` (rule-driven, the bulk of readbacks); `BuildReadbackAsApplied` swaps in what the
-  handler applied — the effective `TAXI`, and a `PUSH`/`PUSHM`'s own sentence from `CommandResult.PilotReadback` (the RSP text less its RPO
-  notes; a queued push is verbalized from its parse in the same wording);
-  `BuildUnable` (rejected command, gated by `CommandDefinition.ProducesPilotUnable` — see the authoring rule below);
-  `BuildUnableAirspaceAltitude` (an assigned altitude that would enter un-cleared Class B/C — AIM §5-5-6.a.3
-  makes advising ATC the pilot's obligation, and the line names the altitude they *can* hold);
+- **Readbacks** — `BuildReadback(compound, aircraft)` (rule-driven, the bulk of readbacks). `BuildReadbackAsApplied` swaps in what the handler applied — the effective `TAXI`, and a `PUSH`/`PUSHM`'s own sentence from `CommandResult.PilotReadback` (the RSP text less its RPO notes; a queued push is verbalized from its parse in the same wording).
+
+  `BuildUnable` (rejected command, gated by `CommandDefinition.ProducesPilotUnable` — see the authoring rule below). `BuildUnableAirspaceAltitude` (an assigned altitude that would enter un-cleared Class B/C — AIM §5-5-6.a.3 makes advising ATC the pilot's obligation, and the line names the altitude they *can* hold).
+
   `BuildArmedFollowClause` (a `FOLLOWG` armed at a runway bar reads back `follow the traffic, hold short of runway 1R`: the follow form never names the leader, and the hold-short is read back per AIM 4-3-18a.9(c)).
-  `FOLLOWG` reads back `follow the traffic` and `GIVEWAY` `behind the traffic` (7110.65 §3-7-2.a FOLLOW / BEHIND (traffic)), built directly in `VerbalizeForReadback` (`BuildFollowGroundClause`, `BuildGiveWayClause`); their `RpoTerminal` names the traffic (`follow N2468K`, `behind UAL456`), never by type and with no position. As a condition prefix (`GIVEWAY UAL456 TAXI …`) GIVEWAY leads the readback: `behind the traffic, taxi to runway 1R via A A1` (`FormatCondition` / `FormatConditionTerminal` / `FormatConditionForRpo`).
-  `BuildReadback` assembles a third body beside Terminal and Tts from each clause's `TerminalForRpo`, with the same condition leads and joins, and sets `RpoTerminal` only when it differs from Terminal.
-  `WithBravoClearance` (solo: appends `, cleared into/through the bravo` to a readback that implies a Class B clearance — see airspace-database.md).
+
+  `FOLLOWG` reads back `follow the traffic` and `GIVEWAY` `behind the traffic` (7110.65 §3-7-2.a FOLLOW / BEHIND (traffic)), built directly in `VerbalizeForReadback` (`BuildFollowGroundClause`, `BuildGiveWayClause`); their `RpoTerminal` names the traffic (`follow N2468K`, `behind UAL456`), never by type and with no position.
+
+  As a condition prefix (`GIVEWAY UAL456 TAXI …`) GIVEWAY leads the readback: `behind the traffic, taxi to runway 1R via A A1` (`FormatCondition` / `FormatConditionTerminal` / `FormatConditionForRpo`).
+
+  `BuildReadback` assembles a third body beside Terminal and Tts from each clause's `TerminalForRpo`, with the same condition leads and joins, and sets `RpoTerminal` only when it differs from Terminal. `WithBravoClearance` (solo: appends `, cleared into/through the bravo` to a readback that implies a Class B clearance — see airspace-database.md).
 - **Airspace requests** — `BuildBravoClearanceRequest` (`request clearance into/through the bravo.`; into when the destination sits in that Class B at the surface — the controller's CLEARED THROUGH / TO ENTER split, 7110.65 §7-9-2.a; AIM §3-2-3.d.2).
 - **Initial contact / check-in** — `BuildAirborneCheckIn` → `BuildIfrAirborne` / `BuildVfrAirborne`; `BuildReadyToTaxi` (from a `ReadyToTaxiLocation`: stand, spot, taxiway, "pushed back from", hold short, or the ramp); `BuildClearanceRequest` (to a delivery student: IFR, or a VFR departure with direction and altitude); `BuildReleaseRequest` (an untowered runway spawn's release request to the radar controller); `BuildClosedTrafficRequest`; `BuildArrivalApproachRequest`.
 - **Position / pattern reports** — `BuildMidfieldDownwindReminder`, `BuildShortFinalReminder`,
   `BuildTurningLegReport`, `BuildMileFinalReport`, `BuildAtFixReport` (armed by `REPORT`).
-- **Tower / ground** — `BuildHoldingShortTaxi`, `BuildHoldingShortCrossing`, `BuildClearOfRunwayText`, `BuildTaxiInRequest` (the arrival's call to ground after the exit — "clear of runway 28R at W, taxi to gate 29", AIM 4-3-21.c; it and `BuildReadyToTaxi`'s "at gate F8" name a stand the same way (`StandNoun`): no noun for a name that reads as a word ("at kilo ramp", "taxi to signature"), "gate" for a gate name (`ArrivalParkingPicker.IsGateName`: F8, A13R, 29), "parking" otherwise, the terminal keeping the name as written and the TTS spelling it with `SpellDestinationName` — "gate foxtrot eight"; a ramp spot in `BuildReadyToTaxi` takes "spot" instead, its leading "SPOT" dropped), `BuildUnableToExit` ("unable W3.": an instructed exit the crew cannot make), `BuildUnableNoExitAhead` ("unable, no W3 ahead.": no connection of it ahead), `BuildUnableToExitRequestBackTaxi` (stopped on the runway with no exit ahead), `BuildGoingAround`, `BuildApproachingMinimumsNoLandingClearance`.
+- **Tower / ground** — `BuildHoldingShortTaxi`, `BuildHoldingShortCrossing`, `BuildClearOfRunwayText`, `BuildTaxiInRequest` (the arrival's call to ground after the exit — "clear of runway 28R at W, taxi to gate 29", AIM 4-3-21.c).
+
+  It and `BuildReadyToTaxi`'s "at gate F8" name a stand the same way (`StandNoun`): no noun for a name that reads as a word ("at kilo ramp", "taxi to signature"), "gate" for a gate name (`ArrivalParkingPicker.IsGateName`: F8, A13R, 29), "parking" otherwise, the terminal keeping the name as written and the TTS spelling it with `SpellDestinationName` — "gate foxtrot eight".
+
+  A ramp spot in `BuildReadyToTaxi` takes "spot" instead, its leading "SPOT" dropped. The group also holds `BuildUnableToExit` ("unable W3.": an instructed exit the crew cannot make), `BuildUnableNoExitAhead` ("unable, no W3 ahead.": no connection of it ahead), `BuildUnableToExitRequestBackTaxi` (stopped on the runway with no exit ahead), `BuildGoingAround`, `BuildApproachingMinimumsNoLandingClearance`.
 - **Visual acquisition** — `BuildTrafficInSight`, `BuildFieldInSight`, `BuildLostSightOfTraffic`,
   `BuildLostSightOfField`, `BuildLostSightOfTrafficFieldInSight` (traffic lost, field held — the §7-4-3.c.3
   separation handback), `BuildUnableVisualRequestVectors` (visual ended away from the runway — level-off +
@@ -197,10 +202,19 @@ Grouped by trigger. All return `PilotSpeechText`; follow/traffic builders set `R
   silently read back as "maintain route altitudes"; and `RenderPattern` joins tokens with spaces,
   so a pattern cannot carry the comma before an altitude clause. `MTRA` and `XMTR` have no choice
   either way: neither carries its designator, which lives in aircraft state.
-- **Follow / sequencing** (all `RpoTerminal`) — `BuildUnableToMaintainSeparation`, `BuildSequenceTightTurningBase`, `BuildSTurnsForSpacing` (also said, at most once a minute, when a free-pursuit follower starts an S-turn excursion for spacing: "S-turning for spacing behind the traffic", AIM §4-3-5), `BuildUnableToFollowExtendingDownwind` ("unable to follow the traffic, extending downwind, request base turn": a follower that could not build spacing 2 nm past the lead's base turn, or nearing the final, ends the follow and holds an extended downwind — AIM §5-5-12.a.2, it cannot keep its own separation), `BuildTurningDownwindForSpacing` (the one call of a follower level with or ahead of its lead on base or final, or stalled alongside it, or breaking off its own base for spacing, as it turns out to the downwind heading: Terminal "turning downwind for spacing behind the traffic, request base turn.", Tts "{callsign}, turning downwind for spacing behind the traffic, request base turn.", RpoTerminal "turning downwind for spacing behind {lead}, request base turn."; the maneuver first, then the request, AIM §4-3-5 — a pilot maneuvering for spacing advises the controller — and §4-3-4, no cutting in on final; "behind the traffic" because the lead may still be level or behind when the turn starts).
+- **Follow / sequencing** (all `RpoTerminal`) — `BuildUnableToMaintainSeparation`, `BuildSequenceTightTurningBase`, `BuildSTurnsForSpacing` (also said, at most once a minute, when a free-pursuit follower starts an S-turn excursion for spacing: "S-turning for spacing behind the traffic", AIM §4-3-5).
+
+  `BuildUnableToFollowExtendingDownwind` ("unable to follow the traffic, extending downwind, request base turn": a follower that could not build spacing 2 nm past the lead's base turn, or nearing the final, ends the follow and holds an extended downwind — AIM §5-5-12.a.2, it cannot keep its own separation).
+
+  `BuildTurningDownwindForSpacing` is the one call of a follower level with or ahead of its lead on base or final, or stalled alongside it, or breaking off its own base for spacing, as it turns out to the downwind heading: Terminal "turning downwind for spacing behind the traffic, request base turn.", Tts "{callsign}, turning downwind for spacing behind the traffic, request base turn.", RpoTerminal "turning downwind for spacing behind {lead}, request base turn."
+
+  The maneuver comes first, then the request, AIM §4-3-5 — a pilot maneuvering for spacing advises the controller — and §4-3-4, no cutting in on final; "behind the traffic" because the lead may still be level or behind when the turn starts.
 
   A widened base and a base break-off say nothing of their own. A follower never reports "unable to catch up": a lead that outpaces it is increasing separation. Its self-generated break-offs are loss of visual contact (`BuildLostSightOfTraffic`, AIM §5-5-12.a.2 / §4-4-14 NOTE), the extension limit above and the turn-out.
-  FOLLOW's refusals (`CommandDispatcher.DepartingLeadRefusal`, `FollowFromLegRefusal`, `TryRouteRunwaylessLead`, `LeadBoundElsewhereRefusal`, `FollowSequenceRefusal`) follow the reason-then-request rule: "Unable, {T} is departing, request vectors"; "Unable, on {base|final} for runway {rwy}, request vectors to follow {T}"; "Unable, on {upwind|crosswind|downwind|base|final|approach} for runway {rwy}, {T} is not ahead of us, request vectors"; "Unable, {T} is on the ground"; "Unable, {T} is inbound to {APT}, request vectors". Grounding is in `docs/approach-and-pattern-geometry.md`.
+
+  FOLLOW's refusals (`CommandDispatcher.DepartingLeadRefusal`, `FollowFromLegRefusal`, `TryRouteRunwaylessLead`, `LeadBoundElsewhereRefusal`, `FollowSequenceRefusal`) follow the reason-then-request rule: "Unable, {T} is departing, request vectors"; "Unable, on {base|final} for runway {rwy}, request vectors to follow {T}".
+
+  The others are "Unable, on {upwind|crosswind|downwind|base|final|approach} for runway {rwy}, {T} is not ahead of us, request vectors"; "Unable, {T} is on the ground"; "Unable, {T} is inbound to {APT}, request vectors". Grounding is in `docs/approach-and-pattern-geometry.md`.
 
 ## Number & identifier spelling
 

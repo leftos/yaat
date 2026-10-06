@@ -176,7 +176,9 @@ For what happens *inside* the dispatcher and each handler — the two switch sur
 
 **Flight-plan commands (VP / FP / DA / REMARKS) are the router's flight-plan arm, not the dispatcher's.**
 
-`FlightPlanNormalization` (Yaat.Sim) splits `C172/G` into `AircraftType` + `EquipmentSuffix`, canonicalizes departure/destination via `NavigationDatabase.TryResolveAirport` (an unknown identifier passes through), and treats a single-token route as destination-only (`VP C172 5500 MOD` → `Destination=KMOD`, `Departure=null`); the arm files through `SimulationEngine.AmendFlightPlan`, records the `RecordedAmendFlightPlan` the state travels in, and tags the filing identity as `FlightPlan.CreatedByOwner` (the STARS auto-track acquires the aircraft when it squawks its assigned code).
+`FlightPlanNormalization` (Yaat.Sim) splits `C172/G` into `AircraftType` + `EquipmentSuffix`, canonicalizes departure/destination via `NavigationDatabase.TryResolveAirport` (an unknown identifier passes through), and treats a single-token route as destination-only (`VP C172 5500 MOD` → `Destination=KMOD`, `Departure=null`).
+
+The arm files through `SimulationEngine.AmendFlightPlan`, records the `RecordedAmendFlightPlan` the state travels in, and tags the filing identity as `FlightPlan.CreatedByOwner` (the STARS auto-track acquires the aircraft when it squawks its assigned code).
 
 `DA` is create-only (`DUP NEW ID`).
 
@@ -282,9 +284,13 @@ A CRC client's position is synced onto its RPO connection as that connection's o
 
 **Compound concatenation.** Because these commands are single-command-parsed (not run through `ParseCompound`), a compound that *includes* one — `HO 3G; ACCEPT` — would otherwise swallow the `;`/`,` tail into the first command's argument.
 
-`CompoundPolicy.TrySplitSpecialCompound` (Yaat.Sim) detects this (parse succeeds, ≥2 commands, ≥1 is track/coordination/strip/TDLS, none is in the splitter's bail set — the rejection set plus `DEL`/`APT`, which have chain semantics) and produces the ordered `CompoundUnit`s; a result of exactly one unit equal to the input is not a split (`WAIT 1 AN 1 ✓` expands to two commands but is one dispatch unit — the aviation arm builds the `WAIT` block and the strip verb queues onto `PendingStripDispatches` when it fires), so the caller stays on the single-command path instead of re-routing the same text forever.
+`CompoundPolicy.TrySplitSpecialCompound` (Yaat.Sim) detects this (parse succeeds, ≥2 commands, ≥1 is track/coordination/strip/TDLS, none is in the splitter's bail set — the rejection set plus `DEL`/`APT`, which have chain semantics) and produces the ordered `CompoundUnit`s.
 
-A **free-text coordination message** (`CompoundPolicy.IsFreeTextSpecial`: `RDTXT`, and `RDH <list> <text>`) swallows every `;`/`,` after it — `RDTXT /1 HOLD, GO` is one message, not a message plus a `GO`, and wherever the message starts inside a chain (`HO 3G; RDTXT /1 HOLD, GO`, `SP1 ABC, RDTXT /1 HOLD, GO`) the message unit runs to the end of the line; the bail-set and non-compoundable scans see only the commands ahead of it, so a message word that happens to be a verb (`…, DEL`) is not a chained command.
+A result of exactly one unit equal to the input is not a split (`WAIT 1 AN 1 ✓` expands to two commands but is one dispatch unit — the aviation arm builds the `WAIT` block and the strip verb queues onto `PendingStripDispatches` when it fires), so the caller stays on the single-command path instead of re-routing the same text forever.
+
+A **free-text coordination message** (`CompoundPolicy.IsFreeTextSpecial`: `RDTXT`, and `RDH <list> <text>`) swallows every `;`/`,` after it — `RDTXT /1 HOLD, GO` is one message, not a message plus a `GO`, and wherever the message starts inside a chain (`HO 3G; RDTXT /1 HOLD, GO`, `SP1 ABC, RDTXT /1 HOLD, GO`) the message unit runs to the end of the line.
+
+The bail-set and non-compoundable scans see only the commands ahead of it, so a message word that happens to be a verb (`…, DEL`) is not a chained command.
 
 The scratchpad verbs are deliberately not free text (a STARS scratchpad is 3–4 alphanumerics, so `SP1 ABC, HO 3G` is a chain), nor are `AN` and the half-strip verbs (`AN 1 X; SQVFR` and the `HSA …; AN 3 RV` recording rewrite pin them as chains).
 
@@ -304,7 +310,9 @@ The walk runs over the `NormalizeSeparatorAliases` output — `THEN`→`;`, `AND
 
 `RD`, `RDH`, `RDR`, `RDACK`, `RDAUTO`, `RDDEL`, `RDPOS`, `RDTXT` — STARS coordination items between TCPs. Channels are loaded from the ARTCC config by `SimulationEngine.InitializeFromArtcc` into `SimScenarioState.CoordinationChannels` (snapshotted). The router's `Coordination` / `GlobalCoordination` arms run the static handler over the engine on every run kind; a new item's id is `{ListId}-{SequenceNumber}`, so a replay or reconstruction holds the same item as live.
 
-`SimulationEngine.TickCoordinationTimers` (post-physics) expires an acknowledged release `SimScenarioState.CoordinationAckExpirySeconds` (180 s) after the ack, flags the departure-expiration warning once `CoordinationExpiryWarningSeconds` (120 s) remain, and reverts a recalled item to Unsent after `CoordinationRecallLingerSeconds` (10 s) — the sender keeps the item with its text, and CRC draws an Unsent item only at its origin TCP (`docs/crc/stars.md` §Recalled), so no per-viewer split is needed; a later `RDH` re-sends it, `RDR` deletes it, and `RD` is refused while it stands; a `TRACK` removes the aircraft's items (`RemoveCoordinationOnRadarAcquisition`, from the Track arm).
+`SimulationEngine.TickCoordinationTimers` (post-physics) expires an acknowledged release `SimScenarioState.CoordinationAckExpirySeconds` (180 s) after the ack, flags the departure-expiration warning once `CoordinationExpiryWarningSeconds` (120 s) remain, and reverts a recalled item to Unsent after `CoordinationRecallLingerSeconds` (10 s).
+
+The sender keeps the item with its text, and CRC draws an Unsent item only at its origin TCP (`docs/crc/stars.md` §Recalled), so no per-viewer split is needed; a later `RDH` re-sends it, `RDR` deletes it, and `RD` is refused while it stands. A `TRACK` removes the aircraft's items (`RemoveCoordinationOnRadarAcquisition`, from the Track arm).
 
 Every mutation sets the engine's coordination dirty flag, drained as `IStateChangeConsumer.OnCoordinationChanged()` — the live room re-pushes the whole `StarsCoordination` topic.
 
@@ -328,7 +336,9 @@ Three things create a deferred dispatch:
 
 **A WAIT *after* a condition is NOT a deferred dispatch.** `TryDeferLeadingWait` only fires when the first block has no precondition.
 
-`<condition> WAIT n <cmd>` (e.g. `AT TTE WAIT 170 DM 110`, or the scenario-preset shape `CFIX TTE 140; AT TTE WAIT 170 DM 110`) instead becomes a single queued `CommandBlock` with the trigger *and* `IsWaitBlock`/`WaitRemainingSeconds`: `CommandParser.ParseBlock` merges the leading WAIT and its payload into one conditioned block, and `FlightPhysics.ApplyOrCountdownWait` holds the payload until the wait counts down *after* the trigger fires — so `DM 110` runs `n` seconds after the fix, not on it (issue #286).
+`<condition> WAIT n <cmd>` (e.g. `AT TTE WAIT 170 DM 110`, or the scenario-preset shape `CFIX TTE 140; AT TTE WAIT 170 DM 110`) instead becomes a single queued `CommandBlock` with the trigger *and* `IsWaitBlock`/`WaitRemainingSeconds`.
+
+`CommandParser.ParseBlock` merges the leading WAIT and its payload into one conditioned block, and `FlightPhysics.ApplyOrCountdownWait` holds the payload until the wait counts down *after* the trigger fires — so `DM 110` runs `n` seconds after the fix, not on it (issue #286).
 
 Blocks sequenced after it with `;` (a trailing `RNS`) are held behind the counting-down wait by `ApplyReadyConditionalBlocks`/`NotifyFixSequenced` so they run once it completes, honoring `;` sequencing even when a perpetual CFIX `Navigation` block keeps the queue pinned at index 0.
 

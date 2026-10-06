@@ -147,7 +147,9 @@ Beyond the ×10 multiplier, `SearchContext` compiles `AllowedCenterlineNames` �
 
 There is no soft fallback: a destination unreachable without taxiing along an uncleared runway fails. On a parking/spot destination, `GroundCommandHandler.TryTaxi` then retries with each single named taxiway dropped and keeps the shortest resolution, warning e.g. `[D dropped — no route via D reaches @GA1]` — the S1-OAK-7 `TAXI C D @GA1` case, where D leads away from GA1 and the old resolver satisfied the contradiction by back-taxiing the full length of 10L.
 
-Preference multipliers: `FewestTurns` ×5 on turn + transition; `Shortest` zeroes all non-distance terms; `Fastest` adds seconds to the nm scalar, priced the way the navigator flies the route: a straight at the category's taxi speed, a fillet along its local cornering-speed profile (`GroundArc.TraversalSeconds`), plus at each corner the speed dip down to the cornering speed and back (`SpeedDipSeconds` = Δv²/(2·v)·(1/a_decel + 1/a_accel)) and, for a straight-to-straight bend sharper than `GroundNavigator.EntryAlignmentThresholdDeg`, the nose-wheel pivot's sweep (turn/ω).
+Preference multipliers: `FewestTurns` ×5 on turn + transition; `Shortest` zeroes all non-distance terms.
+
+`Fastest` adds seconds to the nm scalar, priced the way the navigator flies the route: a straight at the category's taxi speed, a fillet along its local cornering-speed profile (`GroundArc.TraversalSeconds`), plus at each corner the speed dip down to the cornering speed and back (`SpeedDipSeconds` = Δv²/(2·v)·(1/a_decel + 1/a_accel)) and, for a straight-to-straight bend sharper than `GroundNavigator.EntryAlignmentThresholdDeg`, the nose-wheel pivot's sweep (turn/ω).
 
 Without the corner terms two free straights through a junction centre out-priced the painted fillet under Fastest. The Fastest term dominates and provides little heuristic guidance, so Fastest searches are slower but still correct.
 
@@ -163,7 +165,9 @@ The extension from the last named taxiway to a gate or spot is the exception: th
 
 `RouteMaterialiser.AnnotateHoldShorts` tags every `RunwayHoldShort` node with `RunwayCrossing` (or `ExplicitHoldShort` when the runway is in the command's `HS` list). Multi-runway bars (`28L/28R`) add one point with the full string.
 
-**A runway the controller cleared the aircraft to taxi *along*** (named as a path waypoint, collected into `clearedRunways` from `ctx.WaypointSequence`) is exempt — no hold-short is placed at its boundary, so the aircraft taxis straight onto and along it — **unless the same runway is also in the command's `HS` list**: the explicit hold-short overrides the straight-on entry and arms an `ExplicitHoldShort` bar at every entry-side boundary of that runway on the route (S1-OAK-7 `TAXI F 33 D C B RWY 28R HS 33` silently dropped the HS and rolled onto 15/33 unimpeded before this); a *different* runway the route merely crosses still pairs and annotates as before, and the destination runway (handled first) keeps its terminus stop.
+**A runway the controller cleared the aircraft to taxi *along*** (named as a path waypoint, collected into `clearedRunways` from `ctx.WaypointSequence`) is exempt — no hold-short is placed at its boundary, so the aircraft taxis straight onto and along it — **unless the same runway is also in the command's `HS` list**.
+
+Then the explicit hold-short overrides the straight-on entry and arms an `ExplicitHoldShort` bar at every entry-side boundary of that runway on the route (S1-OAK-7 `TAXI F 33 D C B RWY 28R HS 33` silently dropped the HS and rolled onto 15/33 unimpeded before this). A *different* runway the route merely crosses still pairs and annotates as before, and the destination runway (handled first) keeps its terminus stop.
 
 The materialiser also annotates `HS` targets that name a **taxiway** (not a runway): it scans the resolved segments and adds one `ExplicitHoldShort` at the first node adjacent to that taxiway.
 
@@ -195,7 +199,9 @@ node the aircraft is already standing on; it binds only while the aircraft is st
 
 A taxiway `HS` target can be more than a post-hoc annotation — it can also **steer** the route, but only as a fallback.
 
-`GroundCommandHandler.HoldShortTaxiwaysToFold` collects the taxiway-named `HS` targets the path doesn't already name; with a **destination** (runway / parking / spot), `TryTaxi`'s `ResolveRoute` first resolves the clearance **as cleared** and keeps that route when it honors every such target (`AsClearedRejectionReason` returns null): the destination is reached (a runway destination has its `DestinationRunway` stop; a parking/spot route is only non-null when reached), the target is bound (`RouteMaterialiser.FindBoundHoldShort` — the same predicate behind the "HS … not applied" warning), **and the route continues on a cleared taxiway past the bound bar** (`ContinuesOnClearedTaxiwayPast`, exact segment names — a `"C - E"` junction arc is the turn *off* the cleared taxiway, not travel along it).
+`GroundCommandHandler.HoldShortTaxiwaysToFold` collects the taxiway-named `HS` targets the path doesn't already name. With a **destination** (runway / parking / spot), `TryTaxi`'s `ResolveRoute` first resolves the clearance **as cleared** and keeps that route when it honors every such target (`AsClearedRejectionReason` returns null).
+
+It honors one when the destination is reached (a runway destination has its `DestinationRunway` stop; a parking/spot route is only non-null when reached), the target is bound (`RouteMaterialiser.FindBoundHoldShort` — the same predicate behind the "HS … not applied" warning), **and the route continues on a cleared taxiway past the bound bar** (`ContinuesOnClearedTaxiwayPast`, exact segment names — a `"C - E"` junction arc is the turn *off* the cleared taxiway, not travel along it).
 
 Only when the as-cleared route fails one of those does `AugmentPathWithHoldShortTaxiways` fold the targets' taxiways into the waypoint sequence and re-resolve.
 
@@ -305,11 +311,17 @@ The anchor is null when no hold-short for the runway sits on the taxiway — the
 
 `FindRunwayConnectorsOffTaxiway` collects, from every hold-short bar of the destination runway, the straight non-runway edges' taxiway names, keeping a name only when it is numbered (never a letter-only taxiway or RAMP — an unnamed letter taxiway is a deviation the controller must name; numbered stubs are free, the same policy the connector detour uses), is not the last taxiway, and is not already in the clearance.
 
-Each candidate is then walked from the bar along its own edges (fillet arcs count, so a `B - M1` tangent-cut node qualifies) until a node incident to the last taxiway is reached, capped at `RunwayConnectorStubMaxFt = TaxiPathfinder.AdjacentRunwayHoldShortMaxFt` (600 ft, issue #393's rule that a short run to the bar counts as being *at* the runway) and refusing to expand through another hold-short bar, a runway surface (centreline or `:link` edge), or a node carrying a straight edge of a third taxiway.
+Each candidate is then walked from the bar along its own edges (fillet arcs count, so a `B - M1` tangent-cut node qualifies) until a node incident to the last taxiway is reached, capped at `RunwayConnectorStubMaxFt = TaxiPathfinder.AdjacentRunwayHoldShortMaxFt` (600 ft, issue #393's rule that a short run to the bar counts as being *at* the runway).
+
+The walk refuses to expand through another hold-short bar, a runway surface (centreline or `:link` edge), or a node carrying a straight edge of a third taxiway.
 
 Candidates are ordered shortest stub first, name breaking ties.
 
-`TryRunwayConnectorFallback` re-runs `ResolveExplicit` with the candidate appended as the final waypoint — the ordinary `B M1 1L` path, so junction selection, the runway anchor and the honor-named-taxiway check all apply — accepts the first route whose `DestinationRunway` hold-short is *the bar the stub led to* (appending a taxiway authorises all of it, and a long one could otherwise route the long way to another bar of the same runway; the designator is checked too, because the hold-short node set is a substring match and `1L` also matches `11L`), and inserts `via M1 — B reaches 1L through M1` at the head of `route.Warnings` (on the route; the `with` copy gets its own `ResolutionAdvisories` list so a failed candidate's advisories never ride out on the accepted route).
+`TryRunwayConnectorFallback` re-runs `ResolveExplicit` with the candidate appended as the final waypoint — the ordinary `B M1 1L` path, so junction selection, the runway anchor and the honor-named-taxiway check all apply.
+
+It accepts the first route whose `DestinationRunway` hold-short is *the bar the stub led to* (appending a taxiway authorises all of it, and a long one could otherwise route the long way to another bar of the same runway; the designator is checked too, because the hold-short node set is a substring match and `1L` also matches `11L`).
+
+It then inserts `via M1 — B reaches 1L through M1` at the head of `route.Warnings` (on the route; the `with` copy gets its own `ResolutionAdvisories` list so a failed candidate's advisories never ride out on the accepted route).
 
 This is a tolerance for local practice, not a 7110.65 rule: §3-7-2.b tells the controller to issue the route and holding instructions explicitly, and the SFO ATCT SOP's own examples name the stub (`… Z, B1, A`) — the fold keeps a "…B, runway 1L" clearance flowing the way an SFO pilot flies it, while the echo tells the trainee which stub the aircraft took so the omission is visible.
 
@@ -319,9 +331,13 @@ The pilot's spoken readback stays the clearance as issued; only the controller's
 
 **Final transition into a parking/spot/helipad destination is reach-probed.** The geometric anchor for a parking destination (`ComputeLookaheadPenalty` against the parking node's position) is a coarse binary test — it clears any junction that has *some* toTaxiway edge pointing toward the parking, ignoring whether the aircraft can *admissibly* turn onto that edge from its arrival bearing.
 
-At an airport where the last taxiway meets the previous one at more than one junction and the parking hangs off a RAMP spur (SFO `TAXI B K A @F10`, issue #235), both junctions pass the coarse test, the tie breaks on distance-along-the-previous-taxiway, and the cheaper-to-reach junction can leave the aircraft facing *away* from the gate — after which the destination-aware terminus search can't reach it without a U-turn and the append-only extension loops the long way around (`D B K A Q1 B D A RAMP @F10`).
+At an airport where the last taxiway meets the previous one at more than one junction and the parking hangs off a RAMP spur (SFO `TAXI B K A @F10`, issue #235), both junctions pass the coarse test, the tie breaks on distance-along-the-previous-taxiway, and the cheaper-to-reach junction can leave the aircraft facing *away* from the gate.
 
-So — exactly as the runway case treats the runway hold-short as the de-facto next waypoint — the final transition into a parking/spot/helipad destination replaces the coarse penalty with a **destination-reach probe** (`ProbeParkingReachCost`): each junction candidate is scored by the realized cost of resolving the last taxiway to the destination from it (`LocalSearchToJunction` direct-to-dest, else `SelectBestParkingStop` walk+extend, capped at `ProbeStopCandidateCap = 4` stops), returning `TailUnresolvablePenaltyNm` when the destination is not reachable staying on the taxiway from that junction.
+After that the destination-aware terminus search can't reach it without a U-turn and the append-only extension loops the long way around (`D B K A Q1 B D A RAMP @F10`).
+
+So — exactly as the runway case treats the runway hold-short as the de-facto next waypoint — the final transition into a parking/spot/helipad destination replaces the coarse penalty with a **destination-reach probe** (`ProbeParkingReachCost`).
+
+Each junction candidate is scored by the realized cost of resolving the last taxiway to the destination from it (`LocalSearchToJunction` direct-to-dest, else `SelectBestParkingStop` walk+extend, capped at `ProbeStopCandidateCap = 4` stops), returning `TailUnresolvablePenaltyNm` when the destination is not reachable staying on the taxiway from that junction.
 
 The junction from which the gate is admissibly reachable wins (SFO node 46: probe cost ~0.04 nm vs the wrong junction's ~1.4 nm). Bounded to the top level (`enableLookahead`) so it never fires inside a `ProbeTailCost` recursion, and only for the final transition (no meaningful tail) — runway, node, and end-of-taxiway destinations keep the runway anchor / geometric heuristic.
 
@@ -375,7 +391,9 @@ The materialiser surfaces the inserted connector as an informative notification 
 
 **The bridge's landing node is ranked by pavement cost + a reversal charge, not by bridge length.** `PickDetourEntry` runs the bounded A\* once per candidate node on the far taxiway and scores each resulting bridge as `BridgePavementCost` + `ReversalAgainstPoseCost`.
 
-The pavement cost is the cost function's own view of the pavement the bridge threads — its length, a runway centreline ten times over (`RunwayCenterlineDistanceMultiplier`), and the `0.2 nm` `UnauthorizedTaxiwayFirstUseCostNm` for each unnamed letter taxiway it uses (first use only) — and *deliberately not* the turn budget, the per-transition charge or the per-crossing charge: those count junction geometry rather than route quality and outweigh thousands of feet of taxiing (with them, OAK `TAXI F 33 D C B RWY 28R` prices a 4,015 ft bridge down D and along 15/33 under the correct 2,810 ft ramp bridge, and the route that follows can no longer make the turn onto D).
+The pavement cost is the cost function's own view of the pavement the bridge threads — its length, a runway centreline ten times over (`RunwayCenterlineDistanceMultiplier`), and the `0.2 nm` `UnauthorizedTaxiwayFirstUseCostNm` for each unnamed letter taxiway it uses (first use only) — and *deliberately not* the turn budget, the per-transition charge or the per-crossing charge.
+
+Those count junction geometry rather than route quality and outweigh thousands of feet of taxiing (with them, OAK `TAXI F 33 D C B RWY 28R` prices a 4,015 ft bridge down D and along 15/33 under the correct 2,810 ft ramp bridge, and the route that follows can no longer make the turn onto D).
 
 The unauthorized term has to stay in: without it SFO's Y→A bridge takes taxiway H, which the controller never cleared, over the AY3 connector.
 
@@ -450,7 +468,9 @@ With no bias (single-taxiway with no known destination node) the score falls bac
 
 **5. Final named token — junction stop or terminus walk.**
 
-A **bare final taxiway** — no destination of any kind, no `>`/`<` turn hint on it, no hold-short bias, reached by transitioning from a preceding *taxiway* (not a runway token) — makes the route **hold at the transition junction** (`TerminateAtTransitionJunction`): the clearance gave no onward direction, so the aircraft stops where it meets the final taxiway (OAK `TAXI C D` holds at C/D, whether D extends one way or both ways from it) and a `holding at the C/D intersection — route ends at D, no destination given` advisory is copied onto the route's warnings for the TAXI echo.
+A **bare final taxiway** — no destination of any kind, no `>`/`<` turn hint on it, no hold-short bias, reached by transitioning from a preceding *taxiway* (not a runway token) — makes the route **hold at the transition junction** (`TerminateAtTransitionJunction`).
+
+The clearance gave no onward direction, so the aircraft stops where it meets the final taxiway (OAK `TAXI C D` holds at C/D, whether D extends one way or both ways from it) and a `holding at the C/D intersection — route ends at D, no destination given` advisory is copied onto the route's warnings for the TAXI echo.
 
 A preceding **runway** token is exempt — stopping at the runway/taxiway "junction" would end the route on the runway surface with no crossing bar (MIA `TAXI M1 RWY08R/26L L1`), so the final taxiway is walked clear of the runway as before.
 
@@ -525,7 +545,9 @@ It returns null for a stand without a heading. Its `no node on the route to {Des
 
 A `$spot` destination ends with the aircraft facing along the lane the spot node sits on, in or out, never across it — a cut that landed on the spot node (or a node short of it) from the side left SKW3396 on 5A at 45° across a 118/298 lane and SKW5564 on 7A/7B at 132°/118° across a 27/207 lane, with its nose over the neighbouring lead-in lane (#234's stop-nose-at-spot is a distance stop and freezes whatever heading the arc reached).
 
-So `TryPlanDestinationCut` accepts a landing target for a spot only when the tail's last edge is an edge of the spot's lane into the spot node and the tail runs at least `SpotAlignmentRunFt` — one fuselage length of the type, 100 ft minimum, so a widebody is never given a cut that joins the lane less than a fuselage short of its spot (`EntersSpotAlongItsLane`); `TryPlanResolvedRouteCut` never re-cuts a spot at all (its crossing always lands on the destination node), so a spot is never reached by a cut that lands on it; and the start cut `TryPlan` skips a landing node that is a spot with nothing left to taxi past it.
+So `TryPlanDestinationCut` accepts a landing target for a spot only when the tail's last edge is an edge of the spot's lane into the spot node and the tail runs at least `SpotAlignmentRunFt` — one fuselage length of the type, 100 ft minimum, so a widebody is never given a cut that joins the lane less than a fuselage short of its spot (`EntersSpotAlongItsLane`).
+
+`TryPlanResolvedRouteCut` never re-cuts a spot at all (its crossing always lands on the destination node), so a spot is never reached by a cut that lands on it; and the start cut `TryPlan` skips a landing node that is a spot with nothing left to taxi past it.
 
 Gates are unchanged — a stand is entered on its own heading.
 
@@ -545,7 +567,9 @@ What it is not: no graph mutation (no crossover edges — a layout refresh canno
 
 **A spot cleared from the ramp is a line-up to leave it** (#456).
 
-When a `TAXI … $spot` goes to an aircraft off the movement area (`RampLaneReposition.StartsOffMovementArea`: at parking, or its position is off the movement area — a pushed-back aircraft counts only by position), the clearance names nothing but the spot's own lane or its family, and the aircraft is not already on that lane between the spot and the movement area, `TryPlanSpotLineUp` re-plans the route so the aircraft arrives from the ramp side and stops nose on the mark facing out along the lane toward the movement-area taxiway it joins (SFO `TAXI T7A $7A` ends facing ~027° toward A).
+`TryPlanSpotLineUp` re-plans the route so the aircraft arrives from the ramp side and stops nose on the mark facing out along the lane toward the movement-area taxiway it joins (SFO `TAXI T7A $7A` ends facing ~027° toward A).
+
+It does so when a `TAXI … $spot` goes to an aircraft off the movement area (`RampLaneReposition.StartsOffMovementArea`: at parking, or its position is off the movement area — a pushed-back aircraft counts only by position), the clearance names nothing but the spot's own lane or its family, and the aircraft is not already on that lane between the spot and the movement area.
 
 The shape: a free-space RAMP crossing to an approach point 3 nose-wheel turn radii off the lane (`LineUpApproachRadii`), a straight run-in, one ~90° turn onto the lane on the ramp side of the spot, then a lined-up pull of at least half a fuselage held at `TaxiingPhase.SpotLineUpPullSpeedKts` (5 kt; `TaxiRoute.SpotLineUpPullFromSegment`, carried in the snapshot) until the 4 kt spot crawl takes over.
 
@@ -624,7 +648,9 @@ Guards, all required (the `[ApproachLeg]` debug line names the one that refused)
 - the route has segments;
 - the aircraft is more than `AirportGroundLayout.AtNodeToleranceFt` (15 ft) from the node — closer and it is standing on it;
 - the node is not a runway holding position and the route holds short nowhere at it. An aircraft holding short sits half a fuselage behind the bar node; driving up to the node would put the nose past the holding-position marking (AIM 2-3-5.a.1), and `TaxiingPhase.TryHoldAtRouteStartNode` needs the real node id;
-- the node lies within 90° of the route's departure bearing — a node behind the aircraft with the route continuing ahead means it has already driven past the start, and pure pursuit converges onto the line from where it is — but only while the line is within reach: the "past it" refusal (`PastStartRefusal`) needs the aircraft within `MaxOffLineRatio` (0.5, a ≤ 27° intercept) × the first segment's remaining length of that segment's line, or beyond the segment's end; an aircraft stopped well abeam a short lane's start gets the leg (#456);
+- the node lies within 90° of the route's departure bearing — a node behind the aircraft with the route continuing ahead means it has already driven past the start, and pure pursuit converges onto the line from where it is — but only while the line is within reach.
+
+  The "past it" refusal (`PastStartRefusal`) needs the aircraft within `MaxOffLineRatio` (0.5, a ≤ 27° intercept) × the first segment's remaining length of that segment's line, or beyond the segment's end; an aircraft stopped well abeam a short lane's start gets the leg (#456);
 - the drive is within `RampLaneReposition.MaxCrossingFt` (450) and crosses no runway centerline — a free-space leg is not obstacle-aware.
 
   One exception: when the node carries a runway-centerline edge and the aircraft is *on* that runway — within half the runway's width of the centerline and heading along it within 15° — it is rolling toward the exit (a `TAXI G …` issued on 28R after landing, 300 ft short of the exit fillet — the OAK `Issue213` fixture; 7110.65 §3-10-9 RUNWAY EXITING, AIM 4-3-21.a), the runway itself is the guide, and the leg is allowed up to that runway's length with the crossing check skipped.
@@ -643,7 +669,9 @@ Every `VirtualNode` id is a function of its position (FNV-1a over the 1e-7° cel
 - A* with a `PriorityQueue<PartialRoute, double>`, a `(nodeId, arrival-bearing-bucket, arrival-taxiway)`-keyed `bestGScore` map for state-aware duplicate pruning, and the `GeometricAdmissibility` hard gate on every edge. `IncrementalCost` prices each edge. Heuristic = straight-line nm. Cap: **`MaxExpansions = 200_000`** → `SearchExhausted` (SFO cross-field routes legitimately explore 100k+).
 - `startOverride` lets callers (detour, extension) seed the search with a prior `PartialRoute` so admissibility fires on the first expanded edge against the inherited heading — without it the first edge could U-turn.
 
-  For a **cold start** (no `startOverride`), `GeometricAdmissibility.IsAdmissible` still admits the first edge in *any* direction (its `LastEdge is null` bypass) and the turn-budget term is skipped, so `RouteCostFunction.IncrementalCost` applies a soft **first-hop heading bias** (`FirstHopHeadingBiasNmPerDeg`, turn-budget scale) toward `SearchContext.StartHeadingTrue` when the heading is known and no `>`/`<` turn hint governs the first taxiway — so a taxi doesn't begin with an unmotivated turn away from where the aircraft is facing.
+  For a **cold start** (no `startOverride`), `GeometricAdmissibility.IsAdmissible` still admits the first edge in *any* direction (its `LastEdge is null` bypass) and the turn-budget term is skipped.
+
+  So `RouteCostFunction.IncrementalCost` applies a soft **first-hop heading bias** (`FirstHopHeadingBiasNmPerDeg`, turn-budget scale) toward `SearchContext.StartHeadingTrue` when the heading is known and no `>`/`<` turn hint governs the first taxiway — so a taxi doesn't begin with an unmotivated turn away from where the aircraft is facing.
 
   It is finite, g-score-only (never in the heuristic), and applied equally to every first-edge candidate, so a genuinely-required reversal (the only route goes backward) still wins.
 - Zero-distance edges (`< NoOpEdgeThresholdNm ≈ 1.2 ft`) are no-ops: admitted unconditionally, and downstream propagates the prior arrival bearing through them rather than reading the edge's meaningless stored bearing (fillet emits these at co-located nodes).
@@ -678,7 +706,9 @@ Verify each against current code before relying on it — several are open work 
 
   Bearing: onward-edge admissibility depends on arrival bearing, so a cheaper dead-end arrival must not suppress the only admissible different-bearing arrival; node-id keying alone produced false `DestinationUnreachable` (e.g., every runway from OAK `S8B`) and sub-optimal routes.
 
-  Taxiway: `TaxiwayTransitionCostNm` is charged on the edge *after* an arrival, so two same-bearing arrivals on different taxiways have different onward costs and the cheaper one is not the cheaper way onward — at OAK's A/B junction (node 805) the A→B fillet arrives at B's bearing a hair cheaper than straight-B traffic and then pays the A→B transition; keyed without the taxiway it pruned the straight-B state and `TAXIAUTO 30` from the north field detoured around the east end of 10L/28R (D C A B) although D C B scored cheaper under the same cost function (`AutoRouterPruningTests`).
+  Taxiway: `TaxiwayTransitionCostNm` is charged on the edge *after* an arrival, so two same-bearing arrivals on different taxiways have different onward costs and the cheaper one is not the cheaper way onward.
+
+  At OAK's A/B junction (node 805) the A→B fillet arrives at B's bearing a hair cheaper than straight-B traffic and then pays the A→B transition; keyed without the taxiway it pruned the straight-B state and `TAXIAUTO 30` from the north field detoured around the east end of 10L/28R (D C A B) although D C B scored cheaper under the same cost function (`AutoRouterPruningTests`).
 
   The heuristic is bearing- and taxiway-independent, so A* optimality is preserved within the `(node, bucket, taxiway)` state space.
 
@@ -693,7 +723,9 @@ Verify each against current code before relying on it — several are open work 
 ## Input & configuration types
 
 - **`RoutePreference`** (enum: `FewestTurns`, `Shortest`, `Fastest`) — passed to `FindRoutes` to request a specific cost strategy; `null` = run all three and deduplicate.
-- **`ExplicitPathOptions`** (class) — holds optional hints for `ResolveExplicitPath`: `ExplicitHoldShorts` (`HoldShortTarget` values from the command's `HS` list — a runway id or taxiway name, optionally located with an `OnTaxiway` (`C@J`); taxiway names are folded into the waypoint sequence upstream by `GroundCommandHandler`, runway ids match `RunwayHoldShort` nodes only), `DestinationRunway`, `DestinationHintNode`, `DiagnosticLog` (callback for troubleshooting), `AirportId`, `PathTurnHints` (per-taxiway `>`/`<` turn hints, index-aligned with the taxiway sequence), `StartHeadingTrue` (the aircraft's true heading, used as the turn reference for a hint on the first taxiway).
+- **`ExplicitPathOptions`** (class) — holds optional hints for `ResolveExplicitPath`. `ExplicitHoldShorts` holds `HoldShortTarget` values from the command's `HS` list — a runway id or taxiway name, optionally located with an `OnTaxiway` (`C@J`); taxiway names are folded into the waypoint sequence upstream by `GroundCommandHandler`, runway ids match `RunwayHoldShort` nodes only.
+
+  The other hints are `DestinationRunway`, `DestinationHintNode`, `DiagnosticLog` (callback for troubleshooting), `AirportId`, `PathTurnHints` (per-taxiway `>`/`<` turn hints, index-aligned with the taxiway sequence), `StartHeadingTrue` (the aircraft's true heading, used as the turn reference for a hint on the first taxiway).
 - **`AircraftCategory`** (enum) — affects heading-delta limits and cost preferences. Resolved per aircraft via `AircraftCategorization.Categorize`.
 
 Both live in `src/Yaat.Sim/Data/Airport/ExplicitPathOptions.cs`.

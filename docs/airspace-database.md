@@ -258,7 +258,9 @@ Solo training only (RPO and Class C unchanged), `src/Yaat.Sim/Pilot/ImplicitBrav
   Gated on initial contact, not having been sent off frequency (`HasLeftStudentFrequency`), an empty transmission queue and no other open request. A climb into a shelf from below stays silent (issue #154).
 - **Implicit clearance.**
 
-  In solo a heading/turn, DCT, pattern entry, MLT/MRT or approach clearance is a Bravo clearance (7110.65 §7-9-2 NOTE 1 says otherwise for real ops; deliberate sim convenience) when: the pilot is waiting (open Bravo request or active Bravo hold, captured before dispatch in `ActionArms.Aviation`) and — for a heading/DCT — its level ray enters the waited-on Bravo within 300 s (pattern/approach grant unconditionally while waiting); or, not waiting, a heading/DCT ray enters an uncleared Bravo within 120 s; or a pattern entry/approach clearance is for an airport inside a Bravo.
+  In solo a heading/turn, DCT, pattern entry, MLT/MRT or approach clearance is a Bravo clearance (7110.65 §7-9-2 NOTE 1 says otherwise for real ops; deliberate sim convenience) when the pilot is waiting (open Bravo request or active Bravo hold, captured before dispatch in `ActionArms.Aviation`) and — for a heading/DCT — its level ray enters the waited-on Bravo within 300 s (pattern/approach grant unconditionally while waiting).
+
+  It is also one when, not waiting, a heading/DCT ray enters an uncleared Bravo within 120 s, or when a pattern entry/approach clearance is for an airport inside a Bravo.
 
   Only the immediately applied part of a compound grants (`AT …` and later `;` blocks do not). The readback gains `, cleared into the bravo` (`, cleared through the bravo` when the open request asked to go through). With `IsClearedIntoBravo` set, the boundary hold's gate is satisfied, so a vector no longer ends the orbit only for the next second to re-arm it.
 

@@ -160,7 +160,9 @@ The server's `PopulateRoom` (`ScenarioLifecycleService.PlaceLoadedAircraft`, run
 
 `ScenarioResourceManifest.FromJson(json)` (`src/Yaat.Sim/Scenarios/ScenarioResourceManifest.cs`) lists, without loading anything, what a scenario will fetch: `ArtccId`, the roster's `NeighbourArtccIds` (own ARTCC excluded), and the FAA-coded `AirportIds` the loader will ask `IAirportGroundData.GetLayout` for, primary airport first.
 
-It names the primary airport, each aircraft's `airportId`, departure and destination, the starting-condition airport chains (shared with the loader through `ScenarioLoader.LayoutAirportIds`, so the two cannot drift), a VFR arrival generator's `directTo` when it is an airport, and the airport a preset command carries once parsed with `CommandParser.ParseCompound` (`DEST`/`APT`, the approach clearances, join, straight-in, expect and visual approach, a military-route exit to an airport); a preset that fails to parse names nothing, so free text such as `SAY REQUEST VFR ON TOP` is never an airport.
+It names the primary airport, each aircraft's `airportId`, departure and destination, the starting-condition airport chains (shared with the loader through `ScenarioLoader.LayoutAirportIds`, so the two cannot drift), and a VFR arrival generator's `directTo` when it is an airport.
+
+It also names the airport a preset command carries once parsed with `CommandParser.ParseCompound` (`DEST`/`APT`, the approach clearances, join, straight-in, expect and visual approach, a military-route exit to an airport). A preset that fails to parse names nothing, so free text such as `SAY REQUEST VFR ON TOP` is never an airport.
 
 Unreadable JSON, including explicit `null` lists or fields, comes back as `ReadError` rather than an exception.
 
@@ -691,7 +693,9 @@ Weather is not exported.
 
 ## Server orchestration and the rewind-reload twin path
 
-There are two server entry points that build a scenario, and they share one load core: the private `LoadSeeded` (creates the engine over the pinned layouts, seeds all three world RNG streams — `Rng`, `ReactionDelayRng`, `ReleaseJitterRng` — like the standalone `SimulationEngine.LoadScenario`, runs `ScenarioLoader.Load`) and `PopulateRoom` (builds `SimScenarioState`, applies the room's session settings then the live load's pacing overrides, sets the ground layout, warms per-aircraft layouts, resolves track positions / coordination channels / strip bays / TDLS configs against the pinned ARTCC configs, spawns immediate aircraft (+ presets + auto-track), queues delayed aircraft, stamps deferred aircraft, queues triggers, initializes generators).
+There are two server entry points that build a scenario, and they share one load core: the private `LoadSeeded` and `PopulateRoom`. `LoadSeeded` creates the engine over the pinned layouts, seeds all three world RNG streams — `Rng`, `ReactionDelayRng`, `ReleaseJitterRng` — like the standalone `SimulationEngine.LoadScenario`, and runs `ScenarioLoader.Load`.
+
+`PopulateRoom` builds `SimScenarioState`, applies the room's session settings then the live load's pacing overrides, sets the ground layout, warms per-aircraft layouts, resolves track positions / coordination channels / strip bays / TDLS configs against the pinned ARTCC configs, spawns immediate aircraft (+ presets + auto-track), queues delayed aircraft, stamps deferred aircraft, queues triggers, initializes generators.
 
 `PopulateRoom` returns what the room could not set up (an ATC or student position that did not resolve, a skipped arrival generator); the live load reports those, a reload drops them.
 
