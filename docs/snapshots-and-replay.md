@@ -55,6 +55,10 @@ The table lists only the steps with a data *transform*; the authoritative full c
 
 No schema bump: nothing is given up in snapshot 0, whose hash yaat-server pins. The same additive, no-bump pattern covers `LandingPhaseDto.UnableBroadcast` and `OriginalPreferenceIsRequestedExit` (false when absent) and `RunwayExitPhaseDto.TurnOffDecelRate` (null when absent: the taxi rate older builds turned off at).
 
+`TaxiingPhaseDto.PassedStartBarNodeId` is another such field: the node of the uncleared runway bar the route starts on whose marking the nose is past, which the phase is stopping for at the firm rate ([ground/navigator.md](ground/navigator.md) § Stopping at an uncleared bar). It is null whenever no such stop is under way, and null on older snapshots, which never carried one; no schema bump.
+
+A restore that kept no latch would let the stop go once the aircraft had slowed too far from the node to find it again.
+
 **The run profile is not a field.** `SimulationEngine.RunProfile` (live / replay / test / soak — [tick-loop.md](tick-loop.md) § the engine's partial files) is host state: the host that drives the engine sets it, and it is never captured into or restored from a snapshot. Restoring a live snapshot into a replaying room must not make the room live.
 
 **An "on by default" scenario setting still defaults to `false` on the Sim side.** `SimScenarioState.AutoCrossRunway` and `AutoPullUpToParallel` are bare `bool`s (false), the `PhaseContext` fallback is `Scenario?.X ?? false`, and the `ScenarioSnapshotDto` field is the same.

@@ -1,15 +1,16 @@
 namespace Yaat.Sim.Phases.Ground;
 
 /// <summary>
-/// How an aircraft on the ground brakes to a stop at a point ahead of it, shared by its two users: a <c>FOLLOWG</c>
-/// follower stopping its nose at a runway hold line (<see cref="FollowingPhase"/>), and a taxiing aircraft told
-/// <c>GIVEWAY</c> stopping at its give-way point (<see cref="TaxiingPhase"/>).
+/// How an aircraft on the ground brakes to a stop at a point ahead of it, shared by its three uses: a <c>FOLLOWG</c>
+/// follower stopping its nose at a runway hold line (<see cref="FollowingPhase"/>), a taxiing aircraft told <c>GIVEWAY</c>
+/// stopping at its give-way point, and a taxiing aircraft stopping at the painted stop of an uncleared bar ahead (both
+/// <see cref="TaxiingPhase"/>).
 /// </summary>
 internal static class GroundStopBraking
 {
     internal const double FeetPerSecondPerKt = GeoMath.FeetPerNm / 3600.0;
 
-    /// <summary>How an aircraft stops at a point ahead: the follower at a runway bar, a GIVEWAY at its give-way point.</summary>
+    /// <summary>How an aircraft stops at a point ahead (<see cref="ChooseStopBraking"/>).</summary>
     internal enum StopBraking
     {
         /// <summary>The taxi brake rate stops it at the point.</summary>
@@ -19,16 +20,18 @@ internal static class GroundStopBraking
         MaxEffort,
 
         /// <summary>
-        /// Not even the max-effort rate does: brake at it. The follower stops dead short of the hold line as the last resort;
-        /// a GIVEWAY, with no marking to protect, stops where the max-effort rate takes it.
+        /// Not even the max-effort rate does, or the point is already behind the aircraft: brake at it. What follows is the
+        /// caller's: the follower, and a taxi short of an uncleared runway bar's marking, stop dead short of the hold line on
+        /// the last tick as the last resort; a GIVEWAY, a taxi at a taxiway bar, and a taxi whose nose is already past a
+        /// runway marking stop where the max-effort rate takes them.
         /// </summary>
         Backstop,
     }
 
     /// <summary>
     /// The gentlest braking that stops the aircraft at a point <paramref name="toStopFt"/> ahead (a follower's runway hold
-    /// line, a GIVEWAY's give-way point) from the current speed: the taxi brake rate when its stopping distance fits, the
-    /// max-effort rate when only that fits, else the backstop.
+    /// line, a GIVEWAY's give-way point, an uncleared bar's painted stop) from the current speed: the taxi brake rate when its
+    /// stopping distance fits, the max-effort rate when only that fits, else the backstop.
     /// </summary>
     internal static StopBraking ChooseStopBraking(PhaseContext ctx, double toStopFt)
     {
@@ -43,7 +46,8 @@ internal static class GroundStopBraking
             : StopBraking.Backstop;
     }
 
-    private static double StoppingDistanceFt(double speedKts, double decelKtsPerSec) =>
+    /// <summary>How far (ft) the aircraft rolls braking from <paramref name="speedKts"/> to a stop at <paramref name="decelKtsPerSec"/>.</summary>
+    internal static double StoppingDistanceFt(double speedKts, double decelKtsPerSec) =>
         (speedKts * speedKts) / (2.0 * decelKtsPerSec) * FeetPerSecondPerKt;
 
     /// <summary>How far (ft) the aircraft rolls this tick braking at its category's max-effort rate.</summary>
@@ -59,7 +63,8 @@ internal static class GroundStopBraking
     /// <summary>
     /// The speed on the braking curve at <paramref name="decelKtsPerSec"/> that reaches zero
     /// <see cref="GroundNavigator.SetBackStopMarginFt"/> short of a stop point <paramref name="toStopFt"/> ahead (a
-    /// follower's hold line, a GIVEWAY's give-way point) — the curve a taxiing aircraft is held to into a set-back stop.
+    /// follower's hold line, a GIVEWAY's give-way point, an uncleared bar's painted stop) — the curve a taxiing aircraft is
+    /// held to into a set-back stop.
     /// Physics brakes onto it at the published rate; the phase only publishes the speed. The curve is read where this
     /// tick's travel leaves the aircraft: read where it stands, the target trails the aircraft by a tick, and since the
     /// curve is flown at the full brake rate the speed that lag leaves over is never lost again — 8 ft past the stop from a

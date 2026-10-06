@@ -51,11 +51,13 @@ The braking curve planned at `TaxiDecelRate` executes at exactly that rate, with
 - **Pin the target, don't merely decrement `IndicatedAirspeed`**, or `FlightPhysics.UpdateSpeed` re-accelerates toward the speed the navigator just published, every sub-tick, and the "held" aircraft keeps rolling (issue #407: two held aircraft taxied through each other head-on). Behavioral pin: `GroundPhaseTests.GroundMotionPhase_WhenHeld_LeavesNoSpeedTarget`.
 - **Keep ticking the navigator**, or closed-form curve playback goes stale. During a curve, position is a pure function of one progress scalar (invariant I2), so a tick skipped while physics is still braking the aircraft forward leaves that scalar behind the aircraft — and the first un-held tick writes the aircraft *backwards* onto the stale pose.
 
-  Measured: a taxi held on the OAK `F - RAMP` fillet at 6 kt jumped 7.6 ft back on `RES`; a line-up held on its entry-alignment slow-turn jumped 13.7 ft back on `LUAW`. Both trip invariant I8 (`CheckNoTeleport`), which throws in tests and logs an error in the app, so before the fix this was a silent backward snap in production. Pins: `HoldOnCurveTests`, `HoldDuringLineUpTests.Hold_OnTheLineUpFillet_ThenLuaw_KeepsTheAircraftOnTheCurve`.
-
 A held phase must also report **nothing terminal**: no segment advance, no hold-short insertion, no spot stop, no route completion, no phase completion. `TaxiingPhase` and `LineUpPhase` both snap `IndicatedAirspeed` to 0 on an `ArrivedAtNode` that lands during a hold and defer the arrival itself to the first un-held tick, where the primitive reports it again.
 
+The one exception is a `TaxiingPhase` arriving still faster than 3 kt at an uncleared bar, which only an aircraft whose runway line was already lost does: it keeps braking at the firm rate instead of being stopped dead from that speed ([Stopping at an uncleared bar](#stopping-at-an-uncleared-bar)).
+
 Advancing the segment index while held would set up the next primitive and let the next held tick re-tick the finished one at `t = 1` and advance again; completing while held would start a stored takeoff clearance's line-up, or hand a held line-up to `TakeoffPhase`, with the controller having said hold. `CrossingRunwayPhase` is exempt from the staleness half only because it snaps `IndicatedAirspeed` to 0 on the same tick the hold appears, so its playback and the aircraft never diverge.
+
+A held `TaxiingPhase` near an uncleared bar does not stop where it is at the taxi rate alone: its pinned speed is capped by the braking the bar needs, after any node arrival, so a `HOLD` or `GIVEWAY` given inside the taxi-rate stopping distance still stops the nose at or behind the holding position marking ([Stopping at an uncleared bar](#stopping-at-an-uncleared-bar)).
 
 **Returns** a `NavigatorResult` (`GroundNavigator.cs:12`): `Navigating` (still moving toward the target) or `ArrivedAtNode` (the owning phase should advance `CurrentSegmentIndex`).
 
@@ -223,17 +225,17 @@ The incoming arrival threshold (`StraightArrivalThresholdNm`, defined at `556`) 
 The navigator never overspeeds into a future turn. `BuildSpeedConstraints` (`GroundNavigator.cs:988`) runs at every `SetupSegment`:
 
 1. Sets `_currentNodeRequiredSpeed` from `CornerSpeed(category, SingleCornerTurnAngle(...), legIn, legOut)` (0 for stops — uncleared hold-shorts and the last segment).
-2. Forward-walks remaining segments collecting `(pathDist, requiredSpeed, nodeId)` constraints: one constraint per sample of each future arc's **local cornering-speed profile**, corner speeds at each future node, and 0 at the first uncleared hold-short's **painted stop** (then stops).
+2. Forward-walks remaining segments collecting `(pathDist, requiredSpeed, nodeId)` constraints: one per sample of each future arc's **local cornering-speed profile**, one per future node's corner speed, and 0 at the first uncleared hold-short's **painted stop** (then stops).
 
-   The profile is `GroundArc.SpeedProfile(category)` — 17 evenly spaced parameter samples, each `SafeSpeedForRadiusKts` at the local radius of curvature: a lateral-acceleration cap `v = √(a_lat·r)`, `a_lat ≈ 0.13 g`, additionally capped by `CornerSpeedForAngle` and the yaw-rate coupling `ω·r`, floored at `SlowTurnSpeedKts`; `MaxSafeSpeedKts` is the same formula at the tightest point.
+   The arc profile is `GroundArc.SpeedProfile(category)`: 17 evenly spaced parameter samples, each `SafeSpeedForRadiusKts` at the local radius of curvature — a lateral-acceleration cap `v = √(a_lat·r)`, `a_lat ≈ 0.13 g`, additionally capped by `CornerSpeedForAngle` and the yaw-rate coupling `ω·r`, floored at `SlowTurnSpeedKts`. `MaxSafeSpeedKts` is the same formula at the tightest point.
 
-   The painted stop is the bar node's along-route distance minus `TaxiRoute.HoldShortSetbackNm` (the setback measured back along the route's chords) minus `SetBackStopMarginFt` = 2 ft, because a taxiway or runway stop can sit several segments before its bar node ([hold-short-placement.md](./hold-short-placement.md)).
+   Sampling the profile rather than pinning the arc's tightest speed at its entry matters for the distorted cubics the fillet generator emits at asymmetric junctions. A long gentle sweep with one tight stretch (SFO junction J133's B bend: 107 ft, 56°, 22 ft minimum radius) is braked for only where it is tight instead of being crawled at 3 kt end to end.
 
-   `TaxiingPhase.HoldToSetBackStopCurve` holds the speed target to that curve every tick before the navigator runs (the navigator publishes no speed on a node-arrival sub-tick, which over a run of short segments left the aircraft several knots above its curve), and the hold is taken within 3 ft of the stop at ≤ 3 kt by setting the speed to 0, never moving the aircraft, so at rest the nose is at or behind the bar; another aircraft already holding at that bar makes this one wait where it stops.
+   The stop's zero sits at the bar node's along-route distance minus `TaxiRoute.HoldShortSetbackNm` (the setback measured back along the route's chords) minus `SetBackStopMarginFt` = 2 ft, because a taxiway or runway stop can sit several segments before its bar node ([hold-short-placement.md](./hold-short-placement.md)).
 
-   After release, a taxiway bar's phase drives the remaining segments to the junction, while a runway bar at the route's end finishes the route at the stop and line-up plans from there.
+   For a set-back stop, `TaxiingPhase.TryHoldAtSetBackStop` caps the navigator's `MaxSpeedKts` to that curve every tick before the navigator runs, and `TaxiingPhase.CapAtUnclearedBar` caps the published target after it ([Stopping at an uncleared bar](#stopping-at-an-uncleared-bar)). The navigator publishes no speed on a node-arrival sub-tick, which over a run of short segments left the aircraft several knots above its curve.
 
-   Sampling the profile rather than pinning the arc's tightest speed at its entry matters for the distorted cubics the fillet generator emits at asymmetric junctions — a long gentle sweep with one tight stretch (SFO junction J133's B bend: 107 ft, 56°, 22 ft minimum radius) is braked for only where it is tight instead of being crawled at 3 kt end to end.
+   The hold is taken within 3 ft of the stop at ≤ 3 kt by setting the speed to 0, never moving the aircraft, so at rest the nose is at or behind the bar; another aircraft already holding at that bar makes this one wait where it stops. After release, a taxiway bar's phase drives the remaining segments to the junction, while a runway bar at the route's end finishes the route at the stop and line-up plans from there.
 3. Backward-propagates a kinematic decel curve (`v = sqrt(v_next² + 2·a·d)`) between adjacent constraints and into the current node's required speed — skipped when `SlowdownDecelRateKts` is set (below).
 
 `ComputeTargetSpeed` (`GroundNavigator.cs:956`) per-tick takes the min of: the brake curve from the current node's required speed, every future constraint (skipping a bar's stop once that bar is cleared; the route-end stop is never skipped), and a quadratic heading-error scaling (`speedFraction`, full speed at 0° error down to 3 % at ≥ 90°). A safety backstop in `TickStraight` caps target speed so the aircraft can't cover more than 80 % of remaining distance in one tick (overshoot prevention).
@@ -259,6 +261,40 @@ This only sets the straight-segment ceiling — the corner/arc/braking/conflict 
 **Decided, not built yet: the main-gear radius scales with the type's wheelbase.** A type's radius is to be `max(categoryValue, 0.466 × FaaAircraftRecord.WheelbaseFt)` (WheelbaseFt / tan 65°), the category value when the type has no wheelbase, upward only: A388 ≈50 ft, B77W ≈47, B744 ≈39, B763 ≈35, B738 stays 25.
 
 An A388 (wheelbase about 100 ft) cannot turn on 25 ft. Because it only raises the radius, `GeometricAdmissibility.MinSteerableArcRadiusFt` (the smallest category radius) is unchanged. It changes about a dozen call sites' signatures and every heavy's ground turns, so its replay desyncs are triaged apart from other ground retunes.
+
+### Stopping at an uncleared bar
+
+An uncleared bar's painted stop puts the centre at the stop and the nose at the holding position marking (AIM 2-3-5.a.1). `TaxiingPhase` caps the published speed for it beyond the navigator's own plan, because the navigator's plan alone can carry the nose over the marking, and because a re-route, `HOLD` or `GIVEWAY` can leave the aircraft inside its taxi-rate stopping distance of the stop.
+
+**The stop curve is led by a tick.** The navigator reads its braking curve where the aircraft stands at the start of the sub-tick, and physics then moves the aircraft a further `v·dt` before the next read. A target taken from that curve trails the aircraft by a tick, and flown at the full brake rate the speed that lag leaves over is never lost again: about `v·dt` past the stop, 8 ft from a piston's 20 kt.
+
+`GroundStopBraking.StopCurveKts` therefore reads the curve where this tick's travel leaves the aircraft, aiming `v·dt` short of the curve's zero point. Its zero is `SetBackStopMarginFt` (2 ft) short of the stop point it is given; the taxi-rate cap passes a stop on the bar's own segment 2 ft farther on, so the curve reaches zero at the navigator's own aim: the stop itself on the bar's own segment, 2 ft short of a set-back stop.
+
+**The cap** (`TaxiingPhase.BrakeForUnclearedBar`) runs after the navigator ticks, since the navigator republishes the brake rate every tick.
+
+It judges the first uncleared bar ahead by `GroundStopBraking.ChooseStopBraking` against the painted stop: the led taxi-rate curve when the taxi rate makes the stop; when only the firm rate (`CategoryPerformance.ExpediteExitDecelRate`) does, that rate published as `DesiredDecelRate` and the led curve at it; when not even the firm rate does, the firm rate and a zero target.
+
+An un-held tick applies it as `CapAtUnclearedBar`. A target physics already cleared on arrival at its goal (`FlightPhysics.ArriveAtGoal`) is capped from the current speed, never raised to the cap. A bar already called unmakeable (`HoldShortPoint.Unable`) keeps its moved stop, and a route-incomplete end keeps the navigator's routine braking; the cap skips both.
+
+**The hold contract near an uncleared bar.** A held aircraft's pinned speed (`HeldSpeedKts`: zero for `HOLD` and a `GIVEWAY` with no give-way point, the give-way curve otherwise) is capped by the same braking after any node arrival (`CapHeldSpeedAtUnclearedBar`). The braking therefore steps up in three stages: the taxi rate; the firm rate when only that makes the stop; and, for a runway bar whose line is not yet lost only, a last-resort dead stop.
+
+The dead stop is taken on the last tick before the nose would reach the marking even at the firm rate (the stop within one tick's max-effort travel plus `SetBackStopMarginFt` + 1 ft), held or not. It is logged as a warning: `[Taxi] {Callsign}: stopped dead short of {Target} at node {NodeId}, nose {ToStop:F1} ft from the holding position marking at {Speed:F1} kt: no brake rate made the line`.
+
+A taxiway bar never takes a dead stop: the firm rate brakes the aircraft toward its stop, and the hold is taken where it gets there (by `TryHoldAtSetBackStop` at a crawl for a set-back stop, by `ArriveAtNode` for a stop on the bar's own segment). The cap overrides a `GIVEWAY`'s rule that it never stops dead: a give-way point past an uncleared runway bar still stops the aircraft at the bar, dead on the last tick if nothing else makes the line.
+
+**A runway line already lost takes a firm stop, then the hold.** A re-route given with the nose already past an uncleared runway bar's marking cannot stop it short. The aircraft brakes at the firm rate as soon as it can, to keep off the runway's pavement, and is never stopped dead from taxi speed. An arrival at the bar's node still faster than 3 kt (`IsRollingOntoUnclearedBar`), held or not, waits while it brakes, so the hold is taken at a crawl.
+
+The overrun is warned once per phase: `[Taxi] {Callsign}: nose {PastFt:F0} ft past the hold line for {Target}, braking from {Speed:F1} kt` while it brakes toward a bar ahead, and `[Taxi] {Callsign}: nose {PastFt:F0} ft past the hold line for {Target}, stationary` for a hold taken standing still past the line (a set-back stop, or the start bar below).
+
+**The bar the route starts on.** A bar on the route's start node is no segment's to-node, so `ArriveAtNode` never sees it. `TaxiingPhase.PassedStartBar` finds the nose past an uncleared runway bar there when the aircraft heads within 45° of the first segment's departure bearing, its nose (the centre projected half the type's length ahead) is at or past the line through the node square to that bearing, and it is within 150 ft of the node plus its firm-rate stopping distance.
+
+The finding is latched on the bar's node (`PassedStartBarNodeId`, snapshotted on `TaxiingPhaseDto`), so the firm-rate stop it starts is never let go part-way as the aircraft slows and the stop carries it away from the node. Clearing the bar drops the latch, and taking the hold clears it.
+
+`TaxiingPhase.TryHoldPastStartBar` runs every tick ahead of the other start checks: while the latch holds, the aircraft brakes at the firm rate and takes the bar's hold once it is down to one sub-tick of that braking, on whichever segment it has reached.
+
+Running every tick lets an `HS` that re-arms the start bar later, and a phase restored from a snapshot, take the hold alike. A route that starts moving past the line warns `route starts on the uncleared hold-short of {Target} … stopping at the firm rate` on its first tick.
+
+With the nose short of the start bar, the start-node hold is `TryHoldAtRouteStartNode`'s: it caps the navigator to a braking curve that reaches zero 15 ft short of the node, and takes the hold within 150 ft of it at 3 kt or less ([hold-short-placement.md](./hold-short-placement.md)). `HoldInsideStoppingDistanceOfBarTests` pins the whole ladder at KOAK: the runway 33 bar on C, and the taxiway E and A bars.
 
 
 ## Per-tick walkthrough
@@ -416,6 +452,7 @@ Adding new navigator runtime state means deciding whether it must round-trip; mo
 | `src/Yaat.Sim/Phases/Ground/PathPrimitive.cs` | Immutable straight / Bézier / slow-turn primitives |
 | `src/Yaat.Sim/Phases/Ground/PathPrimitiveBuilder.cs` | Segment → primitive compilation (GroundArc Bézier → PathPrimitiveBezier) |
 | `src/Yaat.Sim/Phases/Ground/TaxiingPhase.cs` | Owns the navigator; route management, hold-short / crossing / clearance / parking |
+| `src/Yaat.Sim/Phases/Ground/GroundStopBraking.cs` | Stop-braking choice (taxi rate, firm rate, backstop) and the led stop curve, shared by `FOLLOWG`, `GIVEWAY` and the uncleared-bar cap |
 | `src/Yaat.Sim/Phases/Ground/RunwayExitPhase.cs` | Owns a navigator over the virtual exit route |
 | `src/Yaat.Sim/Phases/Ground/CrossingRunwayPhase.cs` | Owns a navigator over the crossing route |
 | `src/Yaat.Sim/Data/Airport/TaxiRoute.cs` | The route the navigator follows (segments, hold-shorts, index) |

@@ -236,19 +236,19 @@ trail). The annotation drives the client's "→{target} (auto)" ground datablock
 "Following" right-click wording, distinct from a controller GIVEWAY. The wire carries them on
 `AircraftStateDto.AutoYieldTarget`/`AutoYieldIsFollowing` (in the `TrainingDtoFingerprint` so the badge updates live).
 
-A controller **GIVEWAY** is not stopped where it stands when its route meets the traffic's.
+A controller **GIVEWAY** is not stopped where it stands when its route meets the traffic's. `GroundConflictDetector.GiveWayStop` finds the give-way point: the first node the two routes share ahead (`FindSharedUpcomingNode`, the same junction the GIVEWAY release checks), and along the held aircraft's route the first place where its centre or its nose comes too close to the traffic's route edges into and out of that node.
 
-`GroundConflictDetector.GiveWayStop` finds the give-way point from the first node the two routes share ahead (`FindSharedUpcomingNode`, the same junction the GIVEWAY release checks).
+The centre is too close within `RequiredLateralClearanceFt` (both half-spans plus `GroundOutlineSweep.WingtipBufferFt`, category spans from `TugMovePlanner.WingspanFt` when the FAA database has no wingspan). The nose (half a fuselage ahead, `AircraftLength.ResolveFt`) is too close within the traffic's half-span plus `WingtipBufferFt`. The nose rule is what holds a long type back: on the centre rule alone a B753's nose ends inside the crossing wingtip path.
 
-The point is the first place along the held aircraft's route where either its centre comes within `RequiredLateralClearanceFt` (both half-spans plus `GroundOutlineSweep.WingtipBufferFt`, category spans from `TugMovePlanner.WingspanFt` when the FAA database has no wingspan) of the traffic's route edges into and out of that node, or its nose (half a fuselage ahead, `AircraftLength.ResolveFt`) comes within the traffic's half-span plus `WingtipBufferFt` of them.
+`TaxiingPhase.HeldSpeedKts` keeps the held aircraft taxiing toward the nearer of that point and the next node where a held arrival stops (an uncleared holding-position bar, or a cleared one whose painted stop is still ahead, measured to that painted stop; or the route's end). A cleared bar already behind the nose is skipped and its node is a pass-through, so a GIVEWAY issued between a cleared runway bar's hold line and the runway carries the aircraft across.
 
-The nose rule is what holds a long type back: on the centre rule alone a B753's nose ends inside the crossing wingtip path. `TaxiingPhase.ApplyHeldSpeed` keeps the held aircraft taxiing toward the nearer of that point and the next node where a held arrival stops (an uncleared holding-position bar, or a cleared one whose painted stop is still ahead, measured to that painted stop; or the route's end).
+`CrossingRunwayPhase` ignores a GIVEWAY for the rest of a crossing (AIM 4-3-21.a/b: no stopping on the runway, clear only past the far marking), and the give-way applies once `TaxiingPhase` takes over beyond it. A HOLD mid-crossing still stops at once (YAAT-328) on the braking curve `GroundStopBraking.ChooseStopBraking` picks, the rule a follower uses at a runway bar: the taxi brake rate, and the firm rate when only that makes the point.
 
-A cleared bar already behind the nose is skipped and its node is a pass-through, so a GIVEWAY issued between a cleared runway bar's hold line and the runway carries the aircraft across; `CrossingRunwayPhase` ignores a GIVEWAY for the rest of a crossing (AIM 4-3-21.a/b: no stopping on the runway, clear only past the far marking), and the give-way applies once `TaxiingPhase` takes over beyond it.
+Unlike the follower at a bar, a GIVEWAY never stops dead for its give-way point: where not even the firm rate makes the point, or the aircraft is already inside the clearance, it brakes at the firm rate and stops where that takes it.
 
-A HOLD mid-crossing still stops at once (YAAT-328) on the braking curve `GroundStopBraking.ChooseStopBraking` picks, the rule a follower uses at a runway bar: the taxi brake rate, and the firm rate when only that makes the point.
+Near an uncleared runway bar the bar's cap overrides that: a GIVEWAY inside its stopping distance of the bar's painted stop takes the firm rate and, when not even that makes the line, the last-resort dead stop short of the marking ([ground/navigator.md](ground/navigator.md) § Stopping at an uncleared bar).
 
-Unlike the follower at a bar, a GIVEWAY never stops dead: where not even the firm rate makes the point, or the aircraft is already inside the clearance, it brakes at the firm rate and stops where that takes it. With no route on either side, or no shared node within the 1,500 ft look-ahead (`ConvergenceLookaheadFt`, which `FindSharedUpcomingNode` and the clearance walk both use), a GIVEWAY stops where it is, as HOLD does; the Debug log names which.
+With no route on either side, or no shared node within the 1,500 ft look-ahead (`ConvergenceLookaheadFt`, which `FindSharedUpcomingNode` and the clearance walk both use), a GIVEWAY stops where it is, as HOLD does; the Debug log names which.
 
 ---
 

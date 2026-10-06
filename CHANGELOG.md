@@ -44,6 +44,7 @@
 - A taxiing aircraft slowing for converging traffic brakes smoothly instead of losing 10 kt in an instant.
 - An aircraft following traffic on the ground brakes to a stop at a runway hold-short line instead of stopping dead.
 - An aircraft told to `GIVEWAY` taxis on and brakes to a stop just clear of the other aircraft's path, instead of stopping dead where it was.
+- An aircraft told to `HOLD`, `GIVEWAY` or `TAXI` close to a runway hold-short line brakes firmly and stops at it instead of rolling past.
 - The hold-short warning for an aircraft following traffic on the ground names the taxiway it is holding on.
 - A rewind or replay that resumes mid-turn on the ground carries on through the same turn instead of starting it again.
 - A takeoff or line-up clearance queued for an aircraft held for release, in a timed preset or a chain such as `TAXIAUTO 28R; CTO`, now waits for the release instead of being dropped.

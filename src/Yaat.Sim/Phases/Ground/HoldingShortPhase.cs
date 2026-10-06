@@ -216,11 +216,14 @@ public sealed class HoldingShortPhase(HoldShortPoint holdShort) : Phase
     /// (<c>HS 1R</c>), so that case is decided on the target name. A route-incomplete hold is short of a taxiway,
     /// never a runway.
     /// </summary>
-    public bool ProtectsARunway =>
-        _holdShort.Reason switch
+    public bool ProtectsARunway => ProtectsRunway(_holdShort);
+
+    /// <summary>Whether <paramref name="holdShort"/> protects a runway, by the classification <see cref="ProtectsARunway"/> gives its hold.</summary>
+    public static bool ProtectsRunway(HoldShortPoint holdShort) =>
+        holdShort.Reason switch
         {
             HoldShortReason.RouteIncomplete => false,
-            HoldShortReason.ExplicitHoldShort => IsRunwayTargetName(_holdShort.TargetName),
+            HoldShortReason.ExplicitHoldShort => IsRunwayTargetName(holdShort.TargetName),
             _ => true,
         };
 

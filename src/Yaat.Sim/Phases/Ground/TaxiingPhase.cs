@@ -53,6 +53,14 @@ public sealed class TaxiingPhase : Phase
     // nose at or behind the marking; only its speed is snapped, never its position.
     private const double SetBackStopTakeFt = GroundNavigator.SetBackStopMarginFt + 1.0;
 
+    // How far (deg) the aircraft's heading may be off the route's first segment for its nose to count as past the start
+    // node's bar: a start node the route turns away from projects the nose ahead of the line well short of it. 45° is a
+    // modelling threshold; no FAA document gives a figure.
+    private const double StartBarAlignedDeg = 45.0;
+
+    // Float slack (s) on the phase's elapsed time when telling its first tick from the rest.
+    private const double FirstTickSlackSeconds = 1e-9;
+
     private GroundNavigator _nav = new();
     private bool _initialized;
     private bool _startNodeHoldDone;
@@ -69,6 +77,16 @@ public sealed class TaxiingPhase : Phase
     // The GIVEWAY target the give-way stop was last logged for, so the log line appears once per give-way rather than
     // every held tick. Logging only: not snapshotted.
     private string? _loggedGiveWayTarget;
+
+    // Set once a nose past an uncleared runway bar's marking has been logged — the bar the route starts on, or one whose line
+    // was already lost when the route was given — so the warning appears once per phase rather than every braking tick.
+    // Logging only: not snapshotted.
+    private bool _loggedPastHoldLine;
+
+    // Node of the uncleared runway bar the route starts on whose marking the nose was found past (PassedStartBar): latched so
+    // the firm-rate stop it starts is never let go part-way as the aircraft slows and moves away from the node. Cleared when
+    // the hold is taken or the bar is cleared. Snapshotted.
+    private int? _passedStartBarNodeId;
 
     // Set when this phase completes to hand off to a still-moving CrossingRunwayPhase
     // (pre-cleared crossing), so OnEnd does not brake the aircraft to a stop. Transient —
@@ -186,8 +204,17 @@ public sealed class TaxiingPhase : Phase
         // A hold-short on the route's own start node: the aircraft was re-routed at or while
         // approaching the bar, so it must not enter the crossing until cleared. ArriveAtNode never
         // fires for that node — it is no segment's ToNodeId — so the stop has to be taken here,
-        // before the first segment, re-checked each tick until the hold binds or stops applying. So is a set-back stop.
-        if (!held && ((!_startNodeHoldDone && TryHoldAtRouteStartNode(ctx, route)) || TryHoldAtSetBackStop(ctx, route)))
+        // before the first segment, re-checked each tick until the hold binds or stops applying. So is a set-back stop. A nose
+        // already past the start bar's marking is checked every tick, whatever the start-node check decided, so an HS that
+        // re-arms the start bar later, and a phase restored from a snapshot, take that hold alike.
+        if (
+            !held
+            && (
+                TryHoldPastStartBar(ctx, route)
+                || ((_passedStartBarNodeId is null) && !_startNodeHoldDone && TryHoldAtRouteStartNode(ctx, route))
+                || TryHoldAtSetBackStop(ctx, route)
+            )
+        )
         {
             return true;
         }
@@ -221,8 +248,8 @@ public sealed class TaxiingPhase : Phase
             // keeps the speed it just published from staying live and physics accelerating toward it every
             // sub-tick (issue #407 — two "held" aircraft kept taxiing into a head-on); physics brakes toward
             // the pinned target at the ground decel rate. A GIVEWAY with a give-way point ahead pins it to the
-            // braking curve onto that point instead (ApplyHeldSpeed).
-            double heldSpeedKts = ApplyHeldSpeed(ctx, route);
+            // braking curve onto that point instead (HeldSpeedKts). An uncleared bar ahead caps it after any arrival.
+            double heldSpeedKts = HeldSpeedKts(ctx, route);
             ctx.Targets.TargetSpeed = heldSpeedKts;
 
             if (result == NavigatorResult.ArrivedAtNode)
@@ -238,26 +265,34 @@ public sealed class TaxiingPhase : Phase
                     {
                         return true;
                     }
-
-                    ctx.Targets.TargetSpeed = heldSpeedKts;
                 }
-                else
+                else if (!IsRollingOntoUnclearedBar(ctx, route))
                 {
                     // At an uncleared bar or the route's end and already braking: clean up the residual and leave the arrival
                     // itself to the first un-held tick. A hold must not be able to insert a HoldingShortPhase or
                     // complete the route — and so start a stored takeoff clearance's line-up — while the controller
-                    // has said hold.
+                    // has said hold. An aircraft whose runway line was already lost gets to the bar still rolling: it keeps
+                    // braking at the firm rate (CapHeldSpeedAtUnclearedBar) rather than being stopped dead from that speed.
                     ctx.Aircraft.IndicatedAirspeed = 0;
                 }
             }
 
+            ctx.Targets.TargetSpeed = CapHeldSpeedAtUnclearedBar(ctx, route, heldSpeedKts);
             return false;
         }
 
-        if (result == NavigatorResult.ArrivedAtNode)
+        if ((result == NavigatorResult.ArrivedAtNode) && !IsRollingOntoUnclearedBar(ctx, route))
         {
-            return ArriveAtNode(ctx, route);
+            bool done = ArriveAtNode(ctx, route);
+            if (!done)
+            {
+                CapAtUnclearedBar(ctx, route);
+            }
+
+            return done;
         }
+
+        CapAtUnclearedBar(ctx, route);
 
         // Update current taxiway name
         if (route.CurrentSegment is { } seg)
@@ -338,6 +373,7 @@ public sealed class TaxiingPhase : Phase
             PrevDistToTarget = _nav.PrevDistToTarget,
             Navigator = _nav.ToSnapshot(),
             UnableStopNodeId = _unableStopNodeId,
+            PassedStartBarNodeId = _passedStartBarNodeId,
         };
 
     public static TaxiingPhase FromSnapshot(TaxiingPhaseDto dto)
@@ -352,6 +388,7 @@ public sealed class TaxiingPhase : Phase
             _initialized = false,
             _timeSinceLastLog = dto.TimeSinceLastLog,
             _unableStopNodeId = dto.UnableStopNodeId,
+            _passedStartBarNodeId = dto.PassedStartBarNodeId,
             Status = (PhaseStatus)dto.Status,
             ElapsedSeconds = dto.ElapsedSeconds,
         };
@@ -614,15 +651,32 @@ public sealed class TaxiingPhase : Phase
             return false;
         }
 
+        WarnIfStationaryPastRunwayLine(ctx, bar, alongFt);
         TakeSetBackHold(ctx, route, bar, barSegmentIndex);
         return true;
     }
 
     /// <summary>
-    /// Holds the taxi to the braking curve that reaches zero <see cref="GroundNavigator.SetBackStopMarginFt"/> short of a
-    /// set-back stop <paramref name="alongFt"/> ahead. The navigator plans the same curve, but publishes no speed on the
-    /// sub-tick it arrives at a node, and a stop behind a run of short segments loses one braking sub-tick at each: enough
-    /// to carry the nose over the marking. Pinning the published target here, before the navigator ticks, covers those.
+    /// Warns once per phase (<see cref="WarnNosePastHoldLineStationary"/>) when a set-back hold is taken with the centre
+    /// <paramref name="alongFt"/> along the route from <paramref name="bar"/>'s painted stop already past it — the nose over the
+    /// holding position marking — and the bar protects a runway.
+    /// </summary>
+    private void WarnIfStationaryPastRunwayLine(PhaseContext ctx, HoldShortPoint bar, double alongFt)
+    {
+        if (_loggedPastHoldLine || (alongFt >= 0.0) || !HoldingShortPhase.ProtectsRunway(bar))
+        {
+            return;
+        }
+
+        _loggedPastHoldLine = true;
+        WarnNosePastHoldLineStationary(ctx, bar, -alongFt);
+    }
+
+    /// <summary>
+    /// Caps the navigator's speed at the braking curve that reaches zero <see cref="GroundNavigator.SetBackStopMarginFt"/>
+    /// short of a set-back stop <paramref name="alongFt"/> ahead. The navigator plans the same curve, but publishes no speed
+    /// on the sub-tick it arrives at a node, and a stop behind a run of short segments loses one braking sub-tick at each;
+    /// <see cref="CapAtUnclearedBar"/>, after the navigator ticks, pins the published target to the bar's curve on those.
     /// </summary>
     private void HoldToSetBackStopCurve(PhaseContext ctx, double alongFt)
     {
@@ -630,10 +684,6 @@ public sealed class TaxiingPhase : Phase
         double decelRate = _nav.DecelRateKts ?? CategoryPerformance.TaxiDecelRate(ctx.Category);
         double curveKts = Math.Sqrt(2.0 * decelRate * toZeroNm * 3600.0);
         _nav.MaxSpeedKts = Math.Min(_nav.MaxSpeedKts, curveKts);
-        if (ctx.Targets.TargetSpeed is { } published && (published > curveKts))
-        {
-            ctx.Targets.TargetSpeed = curveKts;
-        }
     }
 
     /// <summary>
@@ -732,20 +782,300 @@ public sealed class TaxiingPhase : Phase
     }
 
     /// <summary>
-    /// Applies the hold to a held aircraft after the navigator has ticked and returns the speed it is pinned to. HOLD, and a
-    /// GIVEWAY with no give-way point (<see cref="GroundConflictDetector.GiveWayStop"/> finds none), stop it where it is. A
-    /// GIVEWAY whose route meets the traffic's ahead keeps it taxiing on its route toward the give-way point — where its
-    /// centre, and its nose, first come within wingtip clearance of the traffic's track through the junction — or toward the
-    /// first stop short of it (<see cref="DistanceToNextHeldStopFt"/>: a hold-short's painted stop of any kind not yet
-    /// passed, or the route's end), whichever comes first, held to the braking curve that stops it there, so the
-    /// arrival has no speed left to drop: at the taxi brake rate; at the firm rate
-    /// (<see cref="CategoryPerformance.ExpediteExitDecelRate"/>), published as the brake rate, when only that makes the
-    /// point — the choice a follower makes at a runway bar (<see cref="GroundStopBraking.ChooseStopBraking"/>). Unlike the
-    /// follower, it never stops dead: when not even the firm rate makes the point, or it is already inside the clearance,
-    /// it brakes at the firm rate to a stop wherever that takes it. Writes the published brake rate and the once-per-target
-    /// log latch, which a hold that is no longer a GIVEWAY clears.
+    /// The speed a held aircraft is pinned to once the navigator has ticked and any node arrival is done: the hold's own
+    /// speed <paramref name="heldKts"/> (<see cref="HeldSpeedKts"/>), capped by the braking an uncleared bar ahead needs
+    /// (<see cref="BrakeForUnclearedBar"/>) — so a HOLD or GIVEWAY that leaves the aircraft inside its taxi-rate stopping
+    /// distance of the bar's painted stop never carries the nose over a runway holding position marking.
     /// </summary>
-    private double ApplyHeldSpeed(PhaseContext ctx, TaxiRoute route)
+    private double CapHeldSpeedAtUnclearedBar(PhaseContext ctx, TaxiRoute route, double heldKts) =>
+        BrakeForUnclearedBar(ctx, route) is { } barCapKts ? Math.Min(heldKts, barCapKts) : heldKts;
+
+    /// <summary>
+    /// The navigator has reached an uncleared bar the phase brakes for (<see cref="BrakeForUnclearedBar"/>) with the aircraft
+    /// still faster than <see cref="StartNodeHoldArmSpeedKts"/>: only an aircraft whose line was already lost when the route
+    /// was given gets there at speed. The arrival waits while it brakes at the firm rate, so the hold is taken at a crawl
+    /// rather than by stopping it dead from taxi speed.
+    /// </summary>
+    private bool IsRollingOntoUnclearedBar(PhaseContext ctx, TaxiRoute route) =>
+        (route.GetHoldShortAt(_nav.TargetNodeId) is { IsCleared: false, Unable: false, Reason: not HoldShortReason.RouteIncomplete })
+        && (ctx.Aircraft.IndicatedAirspeed > StartNodeHoldArmSpeedKts);
+
+    /// <summary>
+    /// Caps the published taxi target of an aircraft that is not held by the braking an uncleared bar ahead needs
+    /// (<see cref="BrakeForUnclearedBar"/>): on a routine approach the taxi-rate curve the navigator trails by a tick, and when
+    /// a TAXI re-route that drops a crossing clearance leaves the bar's painted stop inside the taxi-rate stopping distance,
+    /// the firm-rate braking that still makes the marking. A target the navigator left unset (physics clears it on arrival at
+    /// a goal) is capped from the current speed, never raised to the cap.
+    /// </summary>
+    private void CapAtUnclearedBar(PhaseContext ctx, TaxiRoute route)
+    {
+        if (BrakeForUnclearedBar(ctx, route) is { } barCapKts)
+        {
+            ctx.Targets.TargetSpeed = Math.Min(ctx.Targets.TargetSpeed ?? ctx.Aircraft.IndicatedAirspeed, barCapKts);
+        }
+    }
+
+    /// <summary>
+    /// The speed cap the first uncleared bar ahead sets on the aircraft's approach to the bar's painted stop (centre at the
+    /// stop, nose at the holding position marking, AIM 2-3-5.a.1), by the choice a follower makes at a runway bar
+    /// (<see cref="GroundStopBraking.ChooseStopBraking"/>) judged against the painted stop itself. Null when there is no such
+    /// bar. When the taxi rate makes the stop, returns the taxi-rate braking curve read where this tick's travel leaves the
+    /// aircraft (<see cref="GroundStopBraking.StopCurveKts"/>), reaching zero at the navigator's own aim — the stop on the
+    /// bar's segment, <see cref="GroundNavigator.SetBackStopMarginFt"/> short of a set-back one — less this tick's travel: the
+    /// navigator reads its curve where the aircraft stands, a tick behind it, so riding that curve alone would carry the nose
+    /// over a set-back marking. When only the firm rate (<see cref="CategoryPerformance.ExpediteExitDecelRate"/>) makes it,
+    /// publishes that as the brake rate and returns the braking curve at it, which reaches zero
+    /// <see cref="GroundNavigator.SetBackStopMarginFt"/> (2 ft) short of the stop. When not even the firm rate
+    /// makes it, publishes the firm rate and returns zero, and for a runway bar
+    /// (<see cref="HoldingShortPhase.ProtectsRunway"/>) takes the last resort (<see cref="StopAtRunwayBarLastResort"/>).
+    /// A taxiway bar is never stopped dead here: the firm rate brakes the aircraft toward its stop, and the hold is taken
+    /// where it gets there — by <see cref="TryHoldAtSetBackStop"/> at a crawl for a set-back stop, by
+    /// <see cref="ArriveAtNode"/> for a stop on the bar's own segment. Runs after the navigator ticks, since the navigator
+    /// republishes the brake rate every tick. A bar already called unmakeable (<see cref="HoldShortPoint.Unable"/>) is left
+    /// to its moved stop, and a route-incomplete end (<see cref="HoldShortReason.RouteIncomplete"/>) to the navigator's
+    /// routine braking. An uncleared runway bar on the route's start node whose marking the nose is already at or past
+    /// (<see cref="PassedStartBar"/>) comes first: the line is lost, so the aircraft stops as soon as the firm rate lets it,
+    /// to keep off the runway's pavement, never dead from taxi speed.
+    /// </summary>
+    private double? BrakeForUnclearedBar(PhaseContext ctx, TaxiRoute route)
+    {
+        if (PassedStartBar(ctx, route) is { } startBar)
+        {
+            BrakeFirmPastStartBar(ctx, route, startBar);
+            return 0.0;
+        }
+
+        if (
+            (ctx.GroundLayout is not { } layout)
+            || (
+                FirstUnclearedBarAhead(route)
+                is not { SegmentIndex: var barSegmentIndex, Bar: { Unable: false, Reason: not HoldShortReason.RouteIncomplete } bar }
+            )
+        )
+        {
+            return null;
+        }
+
+        double toStopFt = AlongRouteDistanceToHoldShortFt(layout, route, ctx.Aircraft.Position, bar);
+        GroundStopBraking.StopBraking braking = GroundStopBraking.ChooseStopBraking(ctx, toStopFt);
+        if (braking == GroundStopBraking.StopBraking.Routine)
+        {
+            double aimFt = route.StopLiesOnSegment(barSegmentIndex, bar) ? toStopFt + GroundNavigator.SetBackStopMarginFt : toStopFt;
+            return GroundStopBraking.StopCurveKts(ctx, aimFt, CategoryPerformance.TaxiDecelRate(ctx.Category));
+        }
+
+        double firmRate = CategoryPerformance.ExpediteExitDecelRate(ctx.Category);
+        ctx.Targets.DesiredDecelRate = firmRate;
+        if (braking == GroundStopBraking.StopBraking.MaxEffort)
+        {
+            return GroundStopBraking.StopCurveKts(ctx, toStopFt, firmRate);
+        }
+
+        if (HoldingShortPhase.ProtectsRunway(bar))
+        {
+            StopAtRunwayBarLastResort(ctx, bar, toStopFt);
+        }
+
+        return 0.0;
+    }
+
+    /// <summary>
+    /// The last resort at an uncleared runway bar that not even the firm rate stops the aircraft at, braking at the firm rate
+    /// already. With the nose short of the holding position marking, on the tick before the nose would reach it even braking at
+    /// the firm rate, the aircraft is stopped dead where it is, logged as a warning. With the nose already past the marking
+    /// (<paramref name="toStopFt"/> negative: the route was given with the line lost), the start-bar policy applies instead:
+    /// the firm rate stops the aircraft as soon as it can, never dead from taxi speed, and the hold is taken once it is down
+    /// to a crawl; the overrun is logged as a warning once.
+    /// </summary>
+    private void StopAtRunwayBarLastResort(PhaseContext ctx, HoldShortPoint bar, double toStopFt)
+    {
+        if (toStopFt < 0.0)
+        {
+            if (!_loggedPastHoldLine && (ctx.Aircraft.GroundSpeed > 0))
+            {
+                _loggedPastHoldLine = true;
+                WarnNosePastHoldLineBraking(ctx, bar, -toStopFt);
+            }
+
+            return;
+        }
+
+        if ((ctx.Aircraft.IndicatedAirspeed > 0) && (toStopFt <= (GroundStopBraking.MaxEffortBrakingTravelThisTickFt(ctx) + SetBackStopTakeFt)))
+        {
+            Log.LogWarning(
+                "[Taxi] {Callsign}: stopped dead short of {Target} at node {NodeId}, nose {ToStop:F1} ft from the holding position marking "
+                    + "at {Speed:F1} kt: no brake rate made the line",
+                ctx.Aircraft.Callsign,
+                bar.TargetName,
+                bar.NodeId,
+                toStopFt,
+                ctx.Aircraft.GroundSpeed
+            );
+            ctx.Aircraft.IndicatedAirspeed = 0;
+        }
+    }
+
+    /// <summary>
+    /// Warns that the aircraft's nose is <paramref name="pastFt"/> past the holding position marking of the uncleared runway bar
+    /// <paramref name="bar"/> while it is still braking.
+    /// </summary>
+    private static void WarnNosePastHoldLineBraking(PhaseContext ctx, HoldShortPoint bar, double pastFt) =>
+        Log.LogWarning(
+            "[Taxi] {Callsign}: nose {PastFt:F0} ft past the hold line for {Target}, braking from {Speed:F1} kt",
+            ctx.Aircraft.Callsign,
+            pastFt,
+            bar.TargetName,
+            ctx.Aircraft.GroundSpeed
+        );
+
+    /// <summary>
+    /// Warns that the aircraft's nose is <paramref name="pastFt"/> past the holding position marking of the uncleared runway bar
+    /// <paramref name="bar"/> with the aircraft standing still.
+    /// </summary>
+    private static void WarnNosePastHoldLineStationary(PhaseContext ctx, HoldShortPoint bar, double pastFt) =>
+        Log.LogWarning(
+            "[Taxi] {Callsign}: nose {PastFt:F0} ft past the hold line for {Target}, stationary",
+            ctx.Aircraft.Callsign,
+            pastFt,
+            bar.TargetName
+        );
+
+    /// <summary>
+    /// Brakes an aircraft whose nose is over the marking of the uncleared runway bar its route starts on at the firm rate
+    /// (<see cref="CategoryPerformance.ExpediteExitDecelRate"/>), published as the brake rate, and logs it
+    /// (<see cref="LogPassedStartBar"/>).
+    /// </summary>
+    private void BrakeFirmPastStartBar(PhaseContext ctx, TaxiRoute route, HoldShortPoint startBar)
+    {
+        ctx.Targets.DesiredDecelRate = CategoryPerformance.ExpediteExitDecelRate(ctx.Category);
+        LogPassedStartBar(ctx, route, startBar);
+    }
+
+    /// <summary>
+    /// Logs, once per phase, a nose over the marking of the uncleared runway bar the route starts on: the stationary warning
+    /// (<see cref="WarnNosePastHoldLineStationary"/>) when the aircraft is standing still; a warning when it was already over
+    /// and moving on the phase's first tick (a re-route given past the line); otherwise at debug level (an approach to the
+    /// start node that carried the nose onto the marking).
+    /// </summary>
+    private void LogPassedStartBar(PhaseContext ctx, TaxiRoute route, HoldShortPoint startBar)
+    {
+        if (_loggedPastHoldLine)
+        {
+            return;
+        }
+
+        _loggedPastHoldLine = true;
+        if (ctx.Aircraft.GroundSpeed <= 0)
+        {
+            TaxiRouteSegment first = route.Segments[0];
+            WarnNosePastHoldLineStationary(ctx, startBar, NosePastNodeFt(ctx.Aircraft, first.Edge.FromNode.Position, first.Edge.DepartureBearing));
+            return;
+        }
+
+        if (ElapsedSeconds <= (ctx.DeltaSeconds + FirstTickSlackSeconds))
+        {
+            Log.LogWarning(
+                "[Taxi] {Callsign}: route starts on the uncleared hold-short of {Target} at node {NodeId} with the nose already past its "
+                    + "marking at {Speed:F1} kt: stopping at the firm rate",
+                ctx.Aircraft.Callsign,
+                startBar.TargetName,
+                startBar.NodeId,
+                ctx.Aircraft.GroundSpeed
+            );
+            return;
+        }
+
+        Log.LogDebug(
+            "[Taxi] {Callsign}: nose over the marking of the start-node bar of {Target} at node {NodeId} at {Speed:F1} kt: stopping at the firm rate",
+            ctx.Aircraft.Callsign,
+            startBar.TargetName,
+            startBar.NodeId,
+            ctx.Aircraft.GroundSpeed
+        );
+    }
+
+    /// <summary>
+    /// The uncleared runway hold-short (<see cref="HoldingShortPhase.ProtectsRunway"/>) on the route's start node once the
+    /// aircraft has been found heading along the first segment (within <see cref="StartBarAlignedDeg"/> of its departure) with
+    /// its nose at or past the bar's marking — the line through the node square to that departure — no farther from the node
+    /// than <see cref="StartNodeHoldRadiusFt"/> plus its firm-rate stopping distance; null otherwise. A TAXI starts the route
+    /// on a bar's node only once the aircraft is that close to it, so the nose is often over already. The finding is latched
+    /// on the bar's node (<see cref="_passedStartBarNodeId"/>), so the firm-rate stop it starts is never let go part-way as
+    /// the aircraft slows and the stop carries it away from the node; the latch drops when the bar is cleared, and the hold
+    /// clears it when taken.
+    /// </summary>
+    private HoldShortPoint? PassedStartBar(PhaseContext ctx, TaxiRoute route)
+    {
+        if (
+            (route.Segments.Count == 0)
+            || (ctx.GroundLayout is not { } layout)
+            || (route.GetHoldShortAt(route.Segments[0].FromNodeId) is not { IsCleared: false } bar)
+            || !HoldingShortPhase.ProtectsRunway(bar)
+        )
+        {
+            _passedStartBarNodeId = null;
+            return null;
+        }
+
+        if (_passedStartBarNodeId == bar.NodeId)
+        {
+            return bar;
+        }
+
+        TaxiRouteSegment first = route.Segments[0];
+        if (!layout.Nodes.TryGetValue(first.FromNodeId, out GroundNode? node) || !IsNoseOverStartBar(ctx, node, first))
+        {
+            return null;
+        }
+
+        _passedStartBarNodeId = bar.NodeId;
+        return bar;
+    }
+
+    /// <summary>
+    /// Whether the aircraft is heading along <paramref name="first"/> (within <see cref="StartBarAlignedDeg"/> of its
+    /// departure) with its nose at or past the line through <paramref name="node"/> square to that departure, no farther from
+    /// the node than <see cref="StartNodeHoldRadiusFt"/> plus its firm-rate stopping distance.
+    /// </summary>
+    private static bool IsNoseOverStartBar(PhaseContext ctx, GroundNode node, TaxiRouteSegment first)
+    {
+        double firmStopFt = GroundStopBraking.StoppingDistanceFt(
+            ctx.Aircraft.IndicatedAirspeed,
+            CategoryPerformance.ExpediteExitDecelRate(ctx.Category)
+        );
+        bool nearNode = (GeoMath.DistanceNm(ctx.Aircraft.Position, node.Position) * GeoMath.FeetPerNm) <= (StartNodeHoldRadiusFt + firmStopFt);
+        bool aligned = GeoMath.AbsBearingDifference(ctx.Aircraft.TrueHeading.Degrees, first.Edge.DepartureBearing) < StartBarAlignedDeg;
+        return nearNode && aligned && (NosePastNodeFt(ctx.Aircraft, node.Position, first.Edge.DepartureBearing) >= 0.0);
+    }
+
+    /// <summary>
+    /// How far (ft) the aircraft's nose — its centre projected half its length ahead — is past the line through
+    /// <paramref name="node"/> square to <paramref name="departureBearingDeg"/>, measured along that bearing; negative when short.
+    /// </summary>
+    private static double NosePastNodeFt(AircraftState aircraft, LatLon node, double departureBearingDeg)
+    {
+        double halfLengthNm = AircraftLength.ResolveFt(aircraft.AircraftType) / 2.0 / GeoMath.FeetPerNm;
+        LatLon nose = GeoMath.ProjectPoint(aircraft.Position, aircraft.TrueHeading, halfLengthNm);
+        double distFt = GeoMath.DistanceNm(node, nose) * GeoMath.FeetPerNm;
+        double offRad = GeoMath.SignedBearingDifference(departureBearingDeg, GeoMath.BearingTo(node, nose)) * Math.PI / 180.0;
+        return distFt * Math.Cos(offRad);
+    }
+
+    /// <summary>
+    /// The speed a held aircraft is pinned to by the hold itself. HOLD, and a GIVEWAY with no give-way point
+    /// (<see cref="GroundConflictDetector.GiveWayStop"/> finds none), stop it where it is. A GIVEWAY whose route meets the
+    /// traffic's ahead keeps it taxiing on its route toward the give-way point — where its centre, and its nose, first come
+    /// within wingtip clearance of the traffic's track through the junction — or toward the first stop short of it
+    /// (<see cref="DistanceToNextHeldStopFt"/>: a hold-short's painted stop of any kind not yet passed, or the route's end),
+    /// whichever comes first, held to the braking curve that stops it there, so the arrival has no speed left to drop: at the
+    /// taxi brake rate; at the firm rate (<see cref="CategoryPerformance.ExpediteExitDecelRate"/>), published as the brake
+    /// rate, when only that makes the point — the choice a follower makes at a runway bar
+    /// (<see cref="GroundStopBraking.ChooseStopBraking"/>). Unlike the follower, it never stops dead for its give-way point:
+    /// when not even the firm rate makes the point, or it is already inside the clearance, it brakes at the firm rate to a stop
+    /// wherever that takes it — short of an uncleared bar, which <see cref="CapHeldSpeedAtUnclearedBar"/> still stops it at. Writes the
+    /// published brake rate and the once-per-target log latch, which a hold that is no longer a GIVEWAY clears.
+    /// </summary>
+    private double HeldSpeedKts(PhaseContext ctx, TaxiRoute route)
     {
         if (ctx.Aircraft.Ground.Hold is not { Kind: HoldKind.GiveWay, YieldTarget: { } yieldTarget })
         {
@@ -1136,7 +1466,8 @@ public sealed class TaxiingPhase : Phase
     /// on a sparse stretch whose nearest node is the bar); a single early check would let it sail
     /// through the bar and across the runway uncleared. While approaching, the navigator's speed is
     /// clamped to a braking curve that reaches ~0 just short of the bar; the hold itself is taken once
-    /// the aircraft is close and essentially stopped.
+    /// the aircraft is close and essentially stopped. Not run while the nose is past the bar's marking: that hold is
+    /// <see cref="TryHoldPastStartBar"/>'s.
     /// </summary>
     private bool TryHoldAtRouteStartNode(PhaseContext ctx, TaxiRoute route)
     {
@@ -1160,21 +1491,60 @@ public sealed class TaxiingPhase : Phase
             return false;
         }
 
-        double distFt = GeoMath.DistanceNm(ctx.Aircraft.Position, startNode.Position) * GeoMath.FeetPerNm;
-        if ((distFt > StartNodeHoldRadiusFt) || (ctx.Aircraft.IndicatedAirspeed > StartNodeHoldArmSpeedKts))
+        if (!IsReadyForStartNodeHold(ctx, startNode))
         {
-            // Still rolling toward the bar: cap the navigator to a braking curve that reaches
-            // zero just short of it (same form as the navigator's own hold-short braking), and
-            // check again next tick.
-            double stopDistNm = Math.Max(0.0, distFt - StartNodeHoldStopShortFt) / GeoMath.FeetPerNm;
-            double decelRate = _nav.DecelRateKts ?? CategoryPerformance.TaxiDecelRate(ctx.Category);
-            _nav.MaxSpeedKts = Math.Min(_nav.MaxSpeedKts, Math.Sqrt(2.0 * decelRate * stopDistNm * 3600.0));
             return false;
         }
 
         _startNodeHoldDone = true;
         TakeHoldShort(ctx, route, holdShort);
         return true;
+    }
+
+    /// <summary>
+    /// Take the hold of the uncleared runway bar the route starts on once the nose has been found past its marking
+    /// (<see cref="PassedStartBar"/>): the aircraft is braking at the firm rate (<see cref="BrakeForUnclearedBar"/>), and the
+    /// hold is taken once it is down to one sub-tick of that braking, wherever that leaves it — on whichever segment, since
+    /// the stop can carry it past a short first one. An aircraft already standing still there takes the hold at once.
+    /// Checked every tick, never only until <see cref="TryHoldAtRouteStartNode"/> has settled: an <c>HS</c> that re-arms the
+    /// start bar after that, and a phase restored from a snapshot (which does not carry that settlement), take the hold alike.
+    /// </summary>
+    private bool TryHoldPastStartBar(PhaseContext ctx, TaxiRoute route)
+    {
+        if (PassedStartBar(ctx, route) is not { } passedBar)
+        {
+            return false;
+        }
+
+        LogPassedStartBar(ctx, route, passedBar);
+        if (ctx.Aircraft.IndicatedAirspeed > (CategoryPerformance.ExpediteExitDecelRate(ctx.Category) * ctx.DeltaSeconds))
+        {
+            return false;
+        }
+
+        _startNodeHoldDone = true;
+        _passedStartBarNodeId = null;
+        TakeHoldShort(ctx, route, passedBar);
+        return true;
+    }
+
+    /// <summary>
+    /// Whether the start-node hold can be taken this tick: the aircraft is within <see cref="StartNodeHoldRadiusFt"/> of the
+    /// bar and down to a crawl. While it is still rolling toward the bar the navigator is capped to a braking curve that
+    /// reaches zero just short of it (same form as the navigator's own hold-short braking).
+    /// </summary>
+    private bool IsReadyForStartNodeHold(PhaseContext ctx, GroundNode startNode)
+    {
+        double distFt = GeoMath.DistanceNm(ctx.Aircraft.Position, startNode.Position) * GeoMath.FeetPerNm;
+        if ((distFt <= StartNodeHoldRadiusFt) && (ctx.Aircraft.IndicatedAirspeed <= StartNodeHoldArmSpeedKts))
+        {
+            return true;
+        }
+
+        double stopDistNm = Math.Max(0.0, distFt - StartNodeHoldStopShortFt) / GeoMath.FeetPerNm;
+        double decelRate = _nav.DecelRateKts ?? CategoryPerformance.TaxiDecelRate(ctx.Category);
+        _nav.MaxSpeedKts = Math.Min(_nav.MaxSpeedKts, Math.Sqrt(2.0 * decelRate * stopDistNm * 3600.0));
+        return false;
     }
 
     /// <summary>Stop on <paramref name="holdShort"/> (a bar no segment leads to) and queue the hold + resume phases.</summary>
