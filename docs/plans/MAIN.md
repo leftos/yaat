@@ -242,7 +242,10 @@
 - [ ] YAAT-251 A mid-tape recorded setting change never reaches the room's Session Settings or the clients
 - [ ] YAAT-252 Loading a recording resets the auto cleared-to-land flags from the preference, not the tape's session setting
 - [ ] YAAT-253 Recording load and t=0 rebuild dispatch scenario presets under the room's settings, not the tape's
-- [/] YAAT-426 Keep a queued command block's scripted flag across a snapshot restore · release vNext
+- [x] YAAT-426 Keep a queued command block's scripted flag across a snapshot restore · release vNext
+- [ ] YAAT-429 Navigation queued blocks (JRADO, JRADI, DEPART, airway intercept) are lost silently after a snapshot restore
+- [ ] YAAT-430 A restored or deferred AI-controller dispatch uses the student's facility hint, not the controller's
+- [ ] YAAT-431 Decide whether a split queued block keeps its original dispatch's scripted provenance
 
 ## Wave 5 — Command queue and dispatch architecture
 
