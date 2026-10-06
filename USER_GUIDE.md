@@ -285,7 +285,7 @@ Route drawing and heading mode start from the aircraft right-click menu.
 Right-click an aircraft on the [Radar View](#radar-view-1), the [Ground View](#ground-view-1) or the [Aircraft List](#aircraft-list-1) and the same menu opens on all three. It leads with a short list of **quick commands** for what the aircraft is doing right now, and keeps every other command one level down under **All Commands**. From the top:
 
 - The title (callsign and type), with **Release (HFR)** and **Check release window** under it when they apply, then **Command…** (a focused free-text command popup) and **Note…**.
-- The **icon strip**: up to ten icons in two rows of five, one per quick command that has an icon. Hover an icon to see the command's name and the text it sends (`Hold position — HOLD`). A click sends it, or opens its prompt; an icon with a small notch in its corner opens its choices (Maintain's altitudes, Cleared for takeoff's options). Choosing a command closes the menu.
+- The **icon strip**: up to ten icons in two rows of five, one per quick command that has an icon. A label row above the icons names the icon under the pointer with the text it sends (`Hold position — HOLD`), adds "›" when the icon opens choices, and reads "Quick commands" when none is pointed at; hovering an icon also shows a tooltip. A click sends it, or opens its prompt; an icon with a small notch in its corner opens its choices (Maintain's altitudes, Cleared for takeoff's options). Choosing a command closes the menu.
 - The remaining quick commands as text, below the strip.
 - **Track**, **Data Block**, **Squawk**, then the view's own items (the radar's **Display** and **Draw route**, the ground's **Display**; the Aircraft List has none), and **Favorite Commands**.
 - **All Commands**: every command for the aircraft — the traffic actions for a selected aircraft, the ground items, Heading, Altitude, Speed, Navigation, Hold, Approach, Procedures, Tower and Pattern (only Tower while the aircraft is on the ground or rolling on the runway), Preset taxi route, Draw taxi route…, Ask pilot to say…, Coordination, Edit flight plan, and last **Warp…** and **Release to live feed**.
@@ -476,14 +476,14 @@ Below that, a hold / squawk-standby / auto-yield status line and any instructor 
   The Radar View does the same for overlapping aircraft. A click on exactly one thing opens its menu directly, as before, and so does a right-click on the selected aircraft at its own stand.
 - **Anywhere on the ground** — the click snaps to the nearest node, so the menu appears even on an open stretch of taxiway with no node directly under the cursor.
 
-  *With an aircraft on the ground selected* it opens that aircraft's point menu, starting with "Taxi here": the one route found, or a submenu of up to 3 ("Taxi via T U W": the fewest-turns, shortest and fastest routes, duplicates dropped), routes that cross runways automatically appending crossing commands, each previewed on hover.
+  *With an aircraft on the ground selected* it opens that aircraft's point menu, which starts with an icon strip of the taxi items that apply (Taxi here, Taxi to a runway end, Push to, Custom taxi…) and then the text items, starting with "Taxi here": the one route found, or a submenu of up to 3 ("Taxi via T U W": the fewest-turns, shortest and fastest routes, duplicates dropped), routes that cross runways automatically appending crossing commands, each previewed on hover.
 
   Then come "Push to {spot}" (on a parking or spot node, when the selected aircraft is at a stand or resting after a push), "Custom taxi…" (a taxi command box pre-filled from the node) and "Warp here". Below them come "Measure from here", "Draw taxi route…" (from that node) and "Push route…" (same condition as Push to — start a multi-point tug move at that node).
 
   **"Warp here" on a gate or helipad parks the aircraft at that stand** — it comes to rest on the stand's heading, the Aircraft List names the stand, and the aircraft's menu switches to the *At Parking* items below, so you can push it back straight away. Warping anywhere else leaves it holding in position.
 
   An airborne aircraft selected gets the same point items as on the radar map ("Fly heading", "Direct to", "Hold at") instead of the taxi items. *With nothing selected* it carries only the [measuring](#measuring-distance-and-bearing) items.
-- **On a runway** — with a selected aircraft that can taxi, a right-click anywhere on a runway's surface (away from its hold-short bars and threshold marker) offers "Taxi to {end}" for each end of every runway under the click.
+- **On a runway** — with a selected aircraft that can taxi, a right-click anywhere on a runway's surface (away from its hold-short bars and threshold marker) opens the same icon strip and offers "Taxi to {end}" for each end of every runway under the click.
 
   Each end lists up to three hold shorts, named by their taxiway: the nearest one by taxi route ("At B (nearest)"), the one nearest where you clicked ("At E (near click)"), and the one at that end's threshold ("Full length (at W)"); one hold short that fits two of these shows once with both tags.
 
@@ -603,7 +603,7 @@ Once the front aircraft is told to line up and wait it leaves the line and the n
 
 **Runway-end click target:** When an aircraft is selected, a small amber dot appears at every runway threshold.
 
-Left-click (or right-click) a dot to open the point menu of the hold short nearest that runway end that the selected aircraft can reach, so you don't have to hunt for the right hold-short node: "Taxi here" routes to that runway end and offers the RWY (taxi onto the runway end), HS (hold short), and progressive crossing variants; "Custom taxi…" is pre-filled with `RWY {end} TAXI`; then "Warp here" and "Draw taxi route…" from that hold short.
+Left-click (or right-click) a dot to open the point menu, with the same icon strip, of the hold short nearest that runway end that the selected aircraft can reach, so you don't have to hunt for the right hold-short node: "Taxi here" routes to that runway end and offers the RWY (taxi onto the runway end), HS (hold short), and progressive crossing variants; "Custom taxi…" is pre-filled with `RWY {end} TAXI`; then "Warp here" and "Draw taxi route…" from that hold short.
 
 **Draw taxi route mode:** Right-click a node or aircraft and select "Draw taxi route…" to enter draw mode. The aircraft's menu offers it on the Radar View and in the Aircraft List too: picking it there switches to the Ground View (or brings its window forward) and starts drawing on it.
 

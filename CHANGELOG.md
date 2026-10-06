@@ -5,7 +5,8 @@
 ### Added
 
 - A range/bearing measurement's label moves clear of data blocks and aircraft, pushing auto-placed data blocks aside while every side is covered.
-- An aircraft's right-click menu leads with quick commands for its current situation, shown as an icon strip and text; the rest sit under All Commands.
+- An aircraft's right-click menu leads with situational quick commands, as icons named as you point at them and text; others sit under All Commands.
+- Right-clicking a taxi node, runway or threshold with an aircraft selected opens with quick-command icons for that point, such as Taxi here and Push to.
 - Quick commands show only what the aircraft can take: Cross names its runway and waits for the rollout to slow; Cancel takeoff stops at V1.
 - Settings → Input → Quick commands edits each situation's right-click quick commands: add, reorder by dragging, reset, and add custom commands with their own label.
 - Settings is a searchable sidebar of sections with links between related settings, a Reset section button on each, and OK, Apply and Cancel.

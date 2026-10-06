@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Maintain altitude picker</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#8ab4f8}a:hover{color:#aecbfa}
+</style>
+</helmet>
+<div style="width: 800px; height: 600px; box-sizing: border-box; padding: 40px; background: #14161a; font-family: 'IBM Plex Sans', sans-serif; color: #e8eaed; display: flex; gap: 48px; align-items: flex-start">
+
+<div style="width: 140px">
+<div style="font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: #c9ced6; margin-bottom: 8px">Today</div>
+<div style="background: #23262b; border: 1px solid #3a3f46; border-radius: 4px; font-family: 'IBM Plex Mono', monospace; font-size: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.5)">
+<div style="padding: 4px 10px; background: #2f4a6e">100</div>
+<div style="padding: 4px 10px">200</div>
+<div style="padding: 4px 10px">300</div>
+<div style="padding: 4px 10px">400</div>
+<div style="padding: 4px 10px">500</div>
+<div style="padding: 4px 10px">600</div>
+<div style="padding: 4px 10px">700</div>
+<div style="padding: 4px 10px">800</div>
+<div style="padding: 4px 10px">900</div>
+<div style="padding: 4px 10px">1000</div>
+<div style="padding: 4px 10px">1100</div>
+<div style="padding: 4px 10px; color: #a8adb4">… 170 rows to FL600</div>
+</div>
+<div style="font-size: 12px; color: #a8adb4; line-height: 1.45; margin-top: 10px">No title, nothing selected, opens at the field; a jet at 3,000 ft scrolls past 30 rows to reach its own altitude.</div>
+</div>
+
+<div style="width: 300px">
+<div style="font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: #c9ced6; margin-bottom: 8px">Proposed</div>
+<div style="background: #23262b; border: 1px solid #3a3f46; border-radius: 6px; font-size: 13px; box-shadow: 0 8px 24px rgba(0,0,0,0.5); padding-bottom: 6px">
+<div style="padding: 8px 12px; border-bottom: 1px solid #3a3f46">
+<div style="font-weight: 600">AAL204 · Maintain</div>
+<div style="font-size: 12px; color: #a8adb4">now 3,000 ft · assigned 3,000 · type to jump</div>
+</div>
+<div style="display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 8px; padding: 5px 12px; font-family: 'IBM Plex Mono', monospace"><span style="color: #7fd1b9">↑</span><span>5,000</span><span style="color: #a8adb4; font-size: 11px">CM 5000</span></div>
+<div style="display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 8px; padding: 5px 12px; font-family: 'IBM Plex Mono', monospace"><span style="color: #7fd1b9">↑</span><span>4,500</span><span style="color: #a8adb4; font-size: 11px">CM 4500</span></div>
+<div style="display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 8px; padding: 5px 12px; font-family: 'IBM Plex Mono', monospace"><span style="color: #7fd1b9">↑</span><span>4,000</span><span style="color: #a8adb4; font-size: 11px">CM 4000</span></div>
+<div style="display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 8px; padding: 5px 12px; font-family: 'IBM Plex Mono', monospace"><span style="color: #7fd1b9">↑</span><span>3,500</span><span style="color: #a8adb4; font-size: 11px">CM 3500</span></div>
+<div style="display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 8px; padding: 5px 12px; font-family: 'IBM Plex Mono', monospace; background: #2f4a6e; border-left: 3px solid #5b8def"><span>●</span><span style="font-weight: 500">3,000</span><span style="color: #c9ced6; font-size: 11px">now · assigned</span></div>
+<div style="display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 8px; padding: 5px 12px; font-family: 'IBM Plex Mono', monospace"><span style="color: #f2b880">↓</span><span>2,900</span><span style="color: #a8adb4; font-size: 11px">DM 2900</span></div>
+<div style="display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 8px; padding: 5px 12px; font-family: 'IBM Plex Mono', monospace"><span style="color: #f2b880">↓</span><span>2,800</span><span style="color: #a8adb4; font-size: 11px">DM 2800</span></div>
+<div style="display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 8px; padding: 5px 12px; font-family: 'IBM Plex Mono', monospace"><span style="color: #f2b880">↓</span><span>2,700</span><span style="color: #a8adb4; font-size: 11px">DM 2700</span></div>
+<div style="margin: 4px 12px; border-top: 1px dashed #e0a84a; padding-top: 3px; font-size: 11px; color: #e0a84a">MVA 2,600 here (sector 12)</div>
+<div style="display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 8px; padding: 5px 12px; font-family: 'IBM Plex Mono', monospace; color: #7d838b"><span>↓</span><span>2,500</span><span style="font-size: 11px">below MVA</span></div>
+<div style="display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 8px; padding: 5px 12px; font-family: 'IBM Plex Mono', monospace; color: #7d838b"><span>↓</span><span>2,400</span><span style="font-size: 11px">below MVA</span></div>
+</div>
+</div>
+
+<div style="width: 220px; font-size: 13px; color: #a8adb4; line-height: 1.5; margin-top: 26px">
+<div>Opens centred on the assigned altitude, else the current one rounded.</div>
+<div style="margin-top: 8px">Each row says whether it climbs or descends (the picker already sends CM above and DM below the current altitude).</div>
+<div style="margin-top: 8px">The list stops at the type's ceiling. The MVA line is an open choice for the owner.</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":800,"height":600}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

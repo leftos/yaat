@@ -384,7 +384,10 @@ _Avoid_: favorites (the Favorite Commands submenu is the user's own typed comman
 The aircraft menu's submenu holding every command for the aircraft in one fixed order, each shown by its catalog predicate alone; the quick commands are a filtered pick from it.
 
 **Icon strip**:
-The up to ten glyph buttons (two rows of five) at the top of an aircraft menu: the glyph-bearing quick commands in list order; the rest show as text below it.
+The up to ten glyph buttons (two rows of five) at the top of an aircraft menu: the glyph-bearing quick commands in list order; the rest show as text below it. A point menu opens with its own icon strip of the ground point items that apply.
+
+**Label row**:
+The line above an icon strip's icons that names the entry under the pointer (or keyboard focus) with the command it sends, or reads "Quick commands" when none is pointed at.
 
 **Quick-list visibility rule**:
 A rule that hides a quick command in its situation by the server's situation flags or `NextCrossingRunway` (Cross only when a runway lies next on the taxi route, Cancel takeoff clearance only before V1); quick list only, All Commands keeps the entry (`AircraftCommandApplicability.Shows*`, applied by `QuickCommandResolver`).
@@ -402,7 +405,7 @@ The surface that owns an aircraft menu (radar, ground, aircraft list) as a catal
 What a right-click gives an aircraft menu (`MenuClick`): the aircraft the menu commands, the previously selected aircraft that sends the relative items (null when it is the clicked one), the clicked point on a point click (`MenuPoint`: a map position, a taxi node, a runway end; null on an aircraft click), and the list's selected rows (`[]` on the canvases).
 
 **Point menu**:
-The menu a right-click on empty map (radar) or on a taxi node, runway threshold or runway surface (ground) opens for the selected aircraft: the shared `point.*` items its state allows (Fly heading, Direct to, Hold, Taxi here, Taxi to {end}, Push to, Custom taxi, Warp here), then the view's own point items (markers, Measure, FRD, Draw taxi route from the node).
+The menu a right-click on empty map (radar) or on a taxi node, runway threshold or runway surface (ground) opens for the selected aircraft: on the ground, an icon strip of the taxi items that apply, then the shared `point.*` items its state allows (Fly heading, Direct to, Hold, Taxi here, Taxi to {end}, Push to, Custom taxi, Warp here), then the view's own point items (markers, Measure, FRD, Draw taxi route from the node).
 
 **View section**:
 The few canvas-only items a view adds to the shared aircraft menu, which the builder places after Squawk and before Favorite Commands (the radar's Display and Draw route, the ground's Display; the aircraft list has none); they have no catalog entry and never sit on a quick-command list.

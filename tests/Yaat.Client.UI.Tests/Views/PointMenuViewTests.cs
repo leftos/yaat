@@ -5,6 +5,7 @@ using Avalonia.Headless.XUnit;
 using Avalonia.Interactivity;
 using Avalonia.LogicalTree;
 using Xunit;
+using Yaat.Client.ContextMenus;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Client.UI.Tests.Fakes;
@@ -57,6 +58,55 @@ public class PointMenuViewTests
 
         Assert.NotNull(menu);
         Assert.Equal(["Measure from here"], Labels(menu.Items));
+    }
+
+    [AvaloniaFact]
+    public void GroundNode_ParkedSelected_ShowsPointStripWithTaxiHere()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        GroundNodeDto start = OakNode("Spot", "I30");
+        (GroundView view, MainViewModel main) = GroundHarness(GroundAircraft(new LatLon(start.Latitude, start.Longitude)));
+        Show(Parent(view));
+
+        ContextMenu? menu = view.BuildNodePointMenu(main.Ground, OakNode("Spot", "1").Id, default);
+
+        Assert.NotNull(menu);
+        MenuItem strip = Assert.IsType<MenuItem>(menu.Items[0]);
+        Assert.True(QuickCommandStrip.IsStrip(strip));
+        Assert.Contains(MenuIds.PointTaxiHere, QuickCommandStrip.Buttons(strip).Select(b => (string)b.Tag!));
+        Assert.IsType<Avalonia.Controls.Separator>(menu.Items[1]);
+    }
+
+    [AvaloniaFact]
+    public void GroundNode_NothingSelected_ShowsNoStrip()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        (GroundView view, MainViewModel main) = GroundHarness(null);
+        Show(Parent(view));
+
+        ContextMenu? menu = view.BuildNodePointMenu(main.Ground, OakNode("Spot", "1").Id, default);
+
+        Assert.NotNull(menu);
+        Assert.DoesNotContain(menu.Items.OfType<MenuItem>(), QuickCommandStrip.IsStrip);
+    }
+
+    [AvaloniaFact]
+    public void GroundNode_StripHoldsOnlyPointItems()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        GroundNodeDto start = OakNode("Spot", "I30");
+        (GroundView view, MainViewModel main) = GroundHarness(GroundAircraft(new LatLon(start.Latitude, start.Longitude)));
+        Show(Parent(view));
+
+        ContextMenu? menu = view.BuildNodePointMenu(main.Ground, OakNode("Spot", "1").Id, default);
+
+        Assert.NotNull(menu);
+        MenuItem strip = Assert.Single(menu.Items.OfType<MenuItem>(), QuickCommandStrip.IsStrip);
+        List<string> tags = [.. QuickCommandStrip.Buttons(strip).Select(b => (string)b.Tag!)];
+        string[] pointIds = [MenuIds.PointTaxiHere, MenuIds.PointTaxiToRunway, MenuIds.PointPushTo, MenuIds.PointCustomTaxi];
+        Assert.All(tags, tag => Assert.Contains(tag, pointIds));
+        Assert.Contains(MenuIds.PointPushTo, tags);
+        Assert.Contains(MenuIds.PointCustomTaxi, tags);
     }
 
     [AvaloniaFact]

@@ -1,6 +1,7 @@
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Headless.XUnit;
+using Avalonia.Input;
 using Avalonia.Interactivity;
 using Xunit;
 using Yaat.Client.ContextMenus;
@@ -82,6 +83,24 @@ public class QuickCommandStripTests
     }
 
     [AvaloniaFact]
+    public void SubmenuButton_FlyoutClosesAndSuspendsItsTooltip_UntilTheFlyoutCloses()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        ContextMenu menu = OpenInWindow(Build(Fixture("taxiing"), Host()));
+        Button follow = QuickCommandStrip.Buttons(Strip(menu)).Single(b => (string)b.Tag! == MenuIds.GroundFollow);
+        ToolTip.SetIsOpen(follow, true);
+
+        follow.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+
+        Assert.False(ToolTip.GetIsOpen(follow));
+        Assert.False(ToolTip.GetServiceEnabled(follow));
+
+        SubmenuFlyout(follow).Hide();
+
+        Assert.True(ToolTip.GetServiceEnabled(follow));
+    }
+
+    [AvaloniaFact]
     public void SubmenuLeaf_SendsItsCommandAndClosesTheFlyoutAndTheMenu()
     {
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
@@ -123,10 +142,79 @@ public class QuickCommandStripTests
 
         MenuItem strip = Strip(Build(Fixture("final-ifr"), host));
 
-        var rows = (StackPanel)strip.Header!;
+        var rows = (StackPanel)((StackPanel)strip.Header!).Children[1];
         Assert.InRange(QuickCommandStrip.Buttons(strip).Count, 1, QuickCommandStrip.RowLength);
         Assert.False(rows.Children[1].IsVisible);
     }
+
+    [AvaloniaFact]
+    public void HoverLeaf_LabelNamesItAndItsCommand()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        MenuItem strip = Strip(Build(Fixture("taxiing"), Host()));
+        Button holdPosition = QuickCommandStrip.Buttons(strip).Single(b => (string)b.Tag! == MenuIds.GroundHoldPosition);
+
+        RaisePointer(holdPosition, InputElement.PointerEnteredEvent);
+
+        Assert.Equal((MenuCatalog.Get(MenuIds.GroundHoldPosition).Label, "HOLD"), QuickCommandStrip.Label(strip));
+    }
+
+    [AvaloniaFact]
+    public void HoverSubmenu_LabelEndsWithChevronAndSaysItOpensASubmenu()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        MenuItem strip = Strip(Build(Fixture("taxiing"), Host()));
+        Button follow = QuickCommandStrip.Buttons(strip).Single(b => (string)b.Tag! == MenuIds.GroundFollow);
+
+        RaisePointer(follow, InputElement.PointerEnteredEvent);
+
+        Assert.Equal(($"{MenuCatalog.Get(MenuIds.GroundFollow).Label} ›", "opens a submenu"), QuickCommandStrip.Label(strip));
+    }
+
+    [AvaloniaFact]
+    public void PointerLeavesStrip_LabelResetsToPrompt()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        MenuItem strip = Strip(Build(Fixture("taxiing"), Host()));
+        Assert.Equal(("Quick commands", "point at an icon"), QuickCommandStrip.Label(strip));
+        Button holdPosition = QuickCommandStrip.Buttons(strip).Single(b => (string)b.Tag! == MenuIds.GroundHoldPosition);
+        RaisePointer(holdPosition, InputElement.PointerEnteredEvent);
+
+        RaisePointer(strip, InputElement.PointerExitedEvent);
+
+        Assert.Equal(("Quick commands", "point at an icon"), QuickCommandStrip.Label(strip));
+    }
+
+    [AvaloniaFact]
+    public void FocusButton_LabelFollowsFocus()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        MenuItem strip = Strip(Build(Fixture("taxiing"), Host()));
+        IReadOnlyList<Button> buttons = QuickCommandStrip.Buttons(strip);
+        Button holdPosition = buttons.Single(b => (string)b.Tag! == MenuIds.GroundHoldPosition);
+        Button follow = buttons.Single(b => (string)b.Tag! == MenuIds.GroundFollow);
+
+        // Focus() on a button inside a context-menu popup returns false under the headless platform, so the focus
+        // change is raised as the focus manager raises it.
+        holdPosition.RaiseEvent(new FocusChangedEventArgs(InputElement.GotFocusEvent));
+        Assert.Equal((MenuCatalog.Get(MenuIds.GroundHoldPosition).Label, "HOLD"), QuickCommandStrip.Label(strip));
+        follow.RaiseEvent(new FocusChangedEventArgs(InputElement.GotFocusEvent));
+        Assert.Equal(($"{MenuCatalog.Get(MenuIds.GroundFollow).Label} ›", "opens a submenu"), QuickCommandStrip.Label(strip));
+    }
+
+    private static void RaisePointer(Control target, RoutedEvent routedEvent) =>
+        target.RaiseEvent(
+            new PointerEventArgs(
+                routedEvent,
+                target,
+                new Pointer(0, PointerType.Mouse, isPrimary: true),
+                rootVisual: null,
+                rootVisualPosition: default,
+                timestamp: 0,
+                properties: default,
+                modifiers: KeyModifiers.None
+            )
+        );
 
     private static RecordingMenuHost Host()
     {

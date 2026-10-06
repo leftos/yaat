@@ -1,3 +1,5 @@
+using Avalonia.Headless.XUnit;
+using Avalonia.Media;
 using Xunit;
 using Yaat.Client.ContextMenus;
 using Yaat.Sim.Situation;
@@ -61,4 +63,23 @@ public class QuickCommandDefaultsTests
         List<string> missing = [.. QuickCommandGlyphs.ById.Keys.Where(id => !CatalogIds.Contains(id))];
         Assert.Empty(missing);
     }
+
+    [AvaloniaFact]
+    public void EveryPointGlyph_ParsesAsGeometry()
+    {
+        foreach (QuickCommandGlyph glyph in QuickCommandGlyphs.PointById.Values)
+        {
+            Assert.NotNull(Geometry.Parse(glyph.PathData));
+        }
+    }
+
+    [Fact]
+    public void NoPointGlyphKey_IsAQuickCommandGlyphKey()
+    {
+        List<string> shared = [.. QuickCommandGlyphs.PointById.Keys.Where(QuickCommandGlyphs.ById.ContainsKey)];
+        Assert.Empty(shared);
+    }
+
+    [Fact]
+    public void ForPoint_ANonPointId_Throws() => Assert.Throws<ArgumentException>(() => QuickCommandGlyphs.ForPoint(MenuIds.GroundHoldPosition));
 }

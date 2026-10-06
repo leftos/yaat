@@ -14,7 +14,9 @@ namespace Yaat.Client.ContextMenus;
 /// own menu item, built through the entry's builder: a sending or prompting item is clicked through that item's own Click
 /// handler, and a submenu opens its items as a flyout under the button (the button shows a corner notch). Either way the
 /// menu closes once a command is chosen. The tooltip names the entry and, for an item that sends one fixed command, that
-/// command (<see cref="MenuCommandText"/>). Plain controls only, so it works on every view, the aircraft list included.
+/// command (<see cref="MenuCommandText"/>); a label row above the buttons says the same of the button under the pointer or
+/// keyboard focus, and prompts while the pointer is off the strip. Plain controls only, so it works on every view, the
+/// aircraft list included.
 /// </summary>
 public static class QuickCommandStrip
 {
@@ -28,6 +30,9 @@ public static class QuickCommandStrip
     private const double GlyphSize = 22;
     private const double Gap = 6;
     private const string NotchPath = "M6 0V6H0z";
+    private const string PromptTitle = "Quick commands";
+    private const string PromptDetail = "point at an icon";
+    private const string SubmenuDetail = "opens a submenu";
     private static readonly Color NotchColor = Color.Parse("#9AA3AD");
 
     /// <summary>
@@ -47,24 +52,53 @@ public static class QuickCommandStrip
         IMenuHost host
     )
     {
-        List<Control> buttons = [];
+        List<(QuickCommandStripItem Item, MenuItem Built)> built = [];
         foreach (QuickCommandStripItem item in items)
         {
-            if (item.Entry.Build(aircraft, context, host) is { } built)
+            if (item.Entry.Build(aircraft, context, host) is { } menuItem)
             {
-                buttons.Add(BuildButton(menu, item, built));
+                built.Add((item, menuItem));
             }
         }
 
+        return FromBuilt(menu, built);
+    }
+
+    /// <summary>
+    /// The strip over menu items already built, one button each, in order, or null when there are none. A button stands
+    /// for its item exactly as in <see cref="Build"/>; its tag is the strip item's catalog entry id, so two items of one
+    /// entry (a Taxi to runway per runway end) share it. Each item must be in no other menu. The caller bounds the count:
+    /// nothing here holds it to <see cref="QuickCommandGlyphs.StripCapacity"/>.
+    /// </summary>
+    /// <param name="menu">The menu the strip sits in, which a chosen command closes.</param>
+    /// <param name="built">Each button's entry and glyph, with the menu item it stands for.</param>
+    public static MenuItem? FromBuilt(ContextMenu menu, IReadOnlyList<(QuickCommandStripItem Item, MenuItem Built)> built)
+    {
+        var label = new StripLabel();
+        List<Control> buttons = [.. built.Select(pair => BuildButton(menu, pair.Item, pair.Built, label))];
         if (buttons.Count == 0)
         {
             return null;
         }
 
-        var strip = new MenuItem { Header = Rows(buttons), StaysOpenOnClick = true };
+        var strip = new MenuItem
+        {
+            Header = new StackPanel { Spacing = Gap, Children = { label.Panel, Rows(buttons) } },
+            StaysOpenOnClick = true,
+        };
         strip.Classes.Add(StripClass);
+        strip.PointerExited += (_, _) => label.ShowPrompt();
         return strip;
     }
+
+    /// <summary>
+    /// What the strip's label row reads now: the title (the entry under the pointer or focus, or the prompt) and the
+    /// detail under it (the command it sends, that it opens a submenu, the prompt's hint, or nothing).
+    /// </summary>
+    public static (string Title, string Detail) Label(MenuItem strip) =>
+        (strip.Header is StackPanel { Children: [StackPanel { Children: [TextBlock title, TextBlock detail] }, ..] })
+            ? (title.Text ?? "", detail.Text ?? "")
+            : ("", "");
 
     /// <summary>
     /// Lays <paramref name="cells"/> out as the strip does, in order: up to two rows of <see cref="RowLength"/>, the first
@@ -131,7 +165,9 @@ public static class QuickCommandStrip
 
     /// <summary>The strip's buttons, row one then row two; each button's <see cref="Control.Tag"/> is its catalog entry's id.</summary>
     public static IReadOnlyList<Button> Buttons(MenuItem strip) =>
-        strip.Header is StackPanel rows ? [.. rows.Children.OfType<StackPanel>().SelectMany(row => row.Children.OfType<Button>())] : [];
+        (strip.Header is StackPanel { Children: [_, StackPanel rows] })
+            ? [.. rows.Children.OfType<StackPanel>().SelectMany(row => row.Children.OfType<Button>())]
+            : [];
 
     /// <summary>The colour a glyph of <paramref name="family"/> is drawn in.</summary>
     public static Color FamilyColor(QuickCommandGlyphFamily family) =>
@@ -151,13 +187,21 @@ public static class QuickCommandStrip
     /// </summary>
     public static string Tooltip(MenuCatalogEntry entry, MenuItem built)
     {
-        string label = built.Header as string ?? entry.Label;
-        return ((built.Items.Count == 0) && (MenuCommandText.GetCommand(built) is { Length: > 0 } command)) ? $"{label} — {command}" : label;
+        string label = EntryLabel(entry, built);
+        return (FixedCommand(built) is { } command) ? $"{label} — {command}" : label;
     }
 
-    private static Button BuildButton(ContextMenu menu, QuickCommandStripItem item, MenuItem built)
+    private static string EntryLabel(MenuCatalogEntry entry, MenuItem built) => built.Header as string ?? entry.Label;
+
+    /// <summary>The one command <paramref name="built"/> sends, or null for a submenu or an item with no fixed command.</summary>
+    private static string? FixedCommand(MenuItem built) =>
+        ((built.Items.Count == 0) && (MenuCommandText.GetCommand(built) is { Length: > 0 } command)) ? command : null;
+
+    private static Button BuildButton(ContextMenu menu, QuickCommandStripItem item, MenuItem built, StripLabel label)
     {
         bool opensSubmenu = built.Items.Count > 0;
+        string title = opensSubmenu ? $"{EntryLabel(item.Entry, built)} ›" : EntryLabel(item.Entry, built);
+        string detail = opensSubmenu ? SubmenuDetail : FixedCommand(built) ?? "";
         var button = new Button
         {
             Content = GlyphCell(item.Glyph, opensSubmenu),
@@ -165,10 +209,11 @@ public static class QuickCommandStrip
             Tag = item.Entry.Id,
         };
         ToolTip.SetTip(button, Tooltip(item.Entry, built));
+        button.PointerEntered += (_, _) => label.Show(title, detail);
+        button.GotFocus += (_, _) => label.Show(title, detail);
         if (opensSubmenu)
         {
-            FlyoutBase.SetAttachedFlyout(button, SubmenuFlyout(menu, built));
-            button.Click += (_, _) => FlyoutBase.ShowAttachedFlyout(button);
+            AttachSubmenuFlyout(button, SubmenuFlyout(menu, built));
         }
         else
         {
@@ -180,6 +225,22 @@ public static class QuickCommandStrip
         }
 
         return button;
+    }
+
+    /// <summary>
+    /// Makes <paramref name="button"/> open <paramref name="flyout"/> on a click. While the flyout is open the button's
+    /// tooltip is closed and switched off, so it never covers the flyout; it comes back when the flyout closes.
+    /// </summary>
+    private static void AttachSubmenuFlyout(Button button, MenuFlyout flyout)
+    {
+        FlyoutBase.SetAttachedFlyout(button, flyout);
+        button.Click += (_, _) => FlyoutBase.ShowAttachedFlyout(button);
+        flyout.Opened += (_, _) =>
+        {
+            ToolTip.SetIsOpen(button, false);
+            ToolTip.SetServiceEnabled(button, false);
+        };
+        flyout.Closed += (_, _) => ToolTip.SetServiceEnabled(button, true);
     }
 
     /// <summary>
@@ -220,6 +281,60 @@ public static class QuickCommandStrip
         foreach (object? child in menuItem.Items)
         {
             CloseOnChoice(child, flyout, menu);
+        }
+    }
+
+    /// <summary>
+    /// The label row above the buttons: the entry under the pointer or keyboard focus on the first line, and on a dimmer
+    /// monospace second line the command it sends; the prompt while the pointer is off the strip. It is as wide as a
+    /// full row of buttons, trimming a longer text, so the menu keeps its size as the label changes.
+    /// </summary>
+    private sealed class StripLabel
+    {
+        private const double DimOpacity = 0.7;
+        private const string MonoFontKey = "MonoFont";
+
+        private readonly TextBlock _title = new()
+        {
+            FontSize = 14,
+            FontWeight = FontWeight.SemiBold,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+        };
+        private readonly TextBlock _detail = new()
+        {
+            FontSize = 12,
+            Opacity = DimOpacity,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+        };
+
+        public StripLabel()
+        {
+            _detail.Bind(TextBlock.FontFamilyProperty, _detail.GetResourceObservable(MonoFontKey));
+            Panel = new StackPanel
+            {
+                Width = (RowLength * CellSize) + ((RowLength - 1) * Gap),
+                MinHeight = 36,
+                HorizontalAlignment = HorizontalAlignment.Left,
+                VerticalAlignment = VerticalAlignment.Center,
+                Children = { _title, _detail },
+            };
+            ShowPrompt();
+        }
+
+        public StackPanel Panel { get; }
+
+        public void Show(string title, string detail)
+        {
+            _title.Text = title;
+            _title.Opacity = 1;
+            _detail.Text = detail;
+        }
+
+        public void ShowPrompt()
+        {
+            _title.Text = PromptTitle;
+            _title.Opacity = DimOpacity;
+            _detail.Text = PromptDetail;
         }
     }
 

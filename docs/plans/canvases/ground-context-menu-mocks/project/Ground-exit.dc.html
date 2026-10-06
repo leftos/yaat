@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Rollout exit picker</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#8ab4f8}a:hover{color:#aecbfa}
+</style>
+</helmet>
+<div style="width: 900px; height: 480px; box-sizing: border-box; padding: 40px; background: #14161a; font-family: 'IBM Plex Sans', sans-serif; color: #e8eaed; display: flex; gap: 0; align-items: flex-start">
+
+<div style="width: 300px; background: #23262b; border: 1px solid #3a3f46; border-radius: 6px; padding: 6px 0; font-size: 14px; box-shadow: 0 8px 24px rgba(0,0,0,0.5)">
+<div style="padding: 8px 14px 10px; border-bottom: 1px solid #3a3f46">
+<div style="font-weight: 600">SWA5286 · B738</div>
+<div style="font-size: 12px; color: #a8adb4">Landing roll · runway 30 · 78 kt</div>
+</div>
+<div style="padding: 8px 10px 10px; border-bottom: 1px solid #3a3f46">
+<div style="display: grid; grid-template-columns: repeat(5, 40px); gap: 4px">
+<div style="position: relative; width: 40px; height: 40px; border-radius: 4px; background: #2f4a6e; border: 1px solid #5b8def; box-sizing: border-box; display: flex; align-items: center; justify-content: center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#E8A33D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21V11a4 4 0 0 1 4-4h7 M16 3l4 4-4 4"></path></svg><svg width="8" height="8" viewBox="0 0 8 8" style="position: absolute; right: 3px; bottom: 3px"><path d="M8 0 L8 8 L0 8 Z" fill="#a8adb4"></path></svg></div>
+<div style="width: 40px; height: 40px; border-radius: 4px; background: #2b2f35; display: flex; align-items: center; justify-content: center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#E8A33D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 21V11a4 4 0 0 0-4-4H4 M8 3L4 7l4 4"></path></svg></div>
+<div style="width: 40px; height: 40px; border-radius: 4px; background: #2b2f35; display: flex; align-items: center; justify-content: center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#4FB8A8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20l4-1L19 8l-3-3L5 16z M14 7l3 3"></path></svg></div>
+</div>
+</div>
+<div style="padding: 7px 14px">Track ›</div>
+<div style="padding: 7px 14px; color: #a8adb4">All Commands ›</div>
+<div style="padding: 10px 14px 4px; font-size: 12px; color: #7d838b; line-height: 1.45">Today: Exit left (EL) and Exit right (ER) only; EXIT W2 has to be typed.</div>
+</div>
+
+<div style="width: 500px; background: #23262b; border: 1px solid #3a3f46; border-radius: 6px; padding: 6px 0 8px; font-size: 14px; box-shadow: 0 8px 24px rgba(0,0,0,0.5); margin-left: 2px; margin-top: 64px">
+<div style="padding: 6px 14px 4px; font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: #c9ced6">Exits ahead, right side</div>
+<div style="display: grid; grid-template-columns: minmax(0, 1fr) 90px 110px; gap: 10px; align-items: center; padding: 7px 14px; background: #2b2f35">
+<span><span style="font-weight: 600">W2</span> <span style="color: #a8adb4; font-size: 12px">· planned exit</span></span>
+<span style="font-variant-numeric: tabular-nums; text-align: right">~1,800 ft</span>
+<span style="color: #a8adb4; font-family: 'IBM Plex Mono', monospace; font-size: 12px; text-align: right">EXIT W2</span>
+</div>
+<div style="display: grid; grid-template-columns: minmax(0, 1fr) 90px 110px; gap: 10px; align-items: center; padding: 7px 14px">
+<span><span style="font-weight: 600">W3</span></span>
+<span style="font-variant-numeric: tabular-nums; text-align: right">~3,600 ft</span>
+<span style="color: #a8adb4; font-family: 'IBM Plex Mono', monospace; font-size: 12px; text-align: right">EXIT W3</span>
+</div>
+<div style="display: grid; grid-template-columns: minmax(0, 1fr) 90px 110px; gap: 10px; align-items: center; padding: 7px 14px">
+<span><span style="font-weight: 600">W4</span></span>
+<span style="font-variant-numeric: tabular-nums; text-align: right">~5,900 ft</span>
+<span style="color: #a8adb4; font-family: 'IBM Plex Mono', monospace; font-size: 12px; text-align: right">EXIT W4</span>
+</div>
+<div style="height: 1px; background: #3a3f46; margin: 6px 0"></div>
+<div style="display: grid; grid-template-columns: minmax(0, 1fr) 90px 110px; gap: 10px; align-items: center; padding: 7px 14px">
+<span>Exit right <span style="color: #a8adb4; font-size: 12px">· pilot's choice</span></span>
+<span></span>
+<span style="color: #a8adb4; font-family: 'IBM Plex Mono', monospace; font-size: 12px; text-align: right">ER</span>
+</div>
+<div style="padding: 8px 14px 2px; font-size: 12px; color: #7d838b">Only exits the aircraft can still make at its speed; one passed or too close to brake for is left out. Taxiway names and distances illustrative.</div>
+</div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":900,"height":480}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

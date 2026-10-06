@@ -29,6 +29,7 @@ public class PointMenuTests
     private const string Callsign = "AAL202";
     private const string Frd = "OAK090010";
     private const string Separator = "-";
+    private const string Strip = "[strip]";
 
     // --- Airborne -------------------------------------------------------------------------
 
@@ -147,7 +148,7 @@ public class PointMenuTests
         IReadOnlyList<MenuCommandChoice> taxi = client.GetTaxiChoices(Callsign, spot, null);
         MenuCommandChoice taxiChoice = Assert.Single(taxi);
         Assert.NotEqual("No route found", taxiChoice.Label);
-        Assert.Equal([taxiChoice.Label, "Push to 1", "Custom taxi…", Separator, "Warp here"], Labels(menu.Items));
+        Assert.Equal([Strip, Separator, taxiChoice.Label, "Push to 1", "Custom taxi…", Separator, "Warp here"], Labels(menu.Items));
         Assert.DoesNotContain(Labels(menu.Items), l => l.StartsWith("Fly heading", StringComparison.Ordinal));
 
         Click(Item(menu.Items, "Push to 1"));
@@ -255,7 +256,7 @@ public class PointMenuTests
 
         ContextMenu menu = Build(GroundAircraft(new LatLon(37.72, -122.22)), NodePoint(null), host, _ => []);
 
-        Assert.Equal(["Custom taxi…", Separator, "Warp here"], Labels(menu.Items));
+        Assert.Equal([Strip, Separator, "Custom taxi…", Separator, "Warp here"], Labels(menu.Items));
         Assert.Equal([(Callsign, TaxiNode.Id, (string?)null)], host.TaxiChoiceRequests);
     }
 
@@ -267,7 +268,7 @@ public class PointMenuTests
 
         ContextMenu menu = Build(GroundAircraft(new LatLon(37.72, -122.22)), NodePoint(null), host, _ => []);
 
-        Assert.Equal(["Taxi via B", "Custom taxi…", Separator, "Warp here"], Labels(menu.Items));
+        Assert.Equal([Strip, Separator, "Taxi via B", "Custom taxi…", Separator, "Warp here"], Labels(menu.Items));
         Click(Item(menu.Items, "Taxi via B"));
         Assert.Equal([(Callsign, "TAXI B", "AB")], host.Sent);
     }
@@ -281,7 +282,7 @@ public class PointMenuTests
 
         ContextMenu menu = Build(GroundAircraft(new LatLon(37.72, -122.22)), NodePoint(null), host, _ => []);
 
-        Assert.Equal(["Taxi here", "Custom taxi…", Separator, "Warp here"], Labels(menu.Items));
+        Assert.Equal([Strip, Separator, "Taxi here", "Custom taxi…", Separator, "Warp here"], Labels(menu.Items));
         Assert.Equal(["Taxi via A", "Taxi via B"], Labels(Item(menu.Items, "Taxi here").Items));
     }
 
@@ -296,6 +297,33 @@ public class PointMenuTests
         Assert.Equal([(TaxiNode.Id, (string?)"28R")], host.CustomTaxiSeedRequests);
         Assert.Equal([("TAXI  E", 5)], host.InputSeeds);
         Assert.Equal([(Callsign, "TAXI B E", "AB")], host.Sent);
+    }
+
+    [AvaloniaFact]
+    public void TaxiHere_NoRouteFound_ShowsTheRowButNoStripIcon()
+    {
+        var host = new RecordingMenuHost("");
+        host.TaxiChoices.Add(new MenuCommandChoice("No route found", null, null, []));
+
+        ContextMenu menu = Build(GroundAircraft(new LatLon(37.72, -122.22)), NodePoint(null), host, _ => []);
+
+        Assert.Equal([Strip, Separator, "No route found", "Custom taxi…", Separator, "Warp here"], Labels(menu.Items));
+        Assert.False(Item(menu.Items, "No route found").IsEnabled);
+        Assert.Equal([MenuIds.PointCustomTaxi], StripTags(menu));
+    }
+
+    [AvaloniaFact]
+    public void PointStrip_PushToButton_SendsPushToTheSpot()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        GroundNodeDto spot = OakNode("Spot", "1");
+        var host = new RecordingMenuHost("");
+        var point = new MenuPoint(new LatLon(spot.Latitude, spot.Longitude), spot, null, [], null);
+
+        ContextMenu menu = Build(GroundAircraft(SpotI30()), point, host, _ => []);
+        StripButton(menu, MenuIds.PointPushTo).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+
+        Assert.Equal([(Callsign, "PUSH $1", "AB")], host.Sent);
     }
 
     [AvaloniaFact]
@@ -331,6 +359,28 @@ public class PointMenuTests
         Assert.NotEmpty(Item(menu.Items, end1).Items);
         Assert.NotEmpty(Item(menu.Items, end2).Items);
         Assert.DoesNotContain(labels, l => (l is "Taxi here" or "Custom taxi…") || l.StartsWith("Push to", StringComparison.Ordinal));
+    }
+
+    [AvaloniaFact]
+    public void PointStrip_RunwaySurface_OneButtonPerEnd_EachOpensItsTargets()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        GroundRunwayDto runway = OakRunway("28R/10L");
+        AircraftModel ac = GroundAircraft(SpotI30());
+        using OakHostScope scope = OakHosts(ac);
+
+        ContextMenu menu = Build(ac, SurfacePoint(Midpoint(runway), runway.Name, null), scope.Host, _ => []);
+        menu.Open(scope.Window);
+
+        Assert.Equal([MenuIds.PointTaxiToRunway, MenuIds.PointTaxiToRunway], StripTags(menu));
+        Button end = QuickCommandStrip.Buttons(StripOf(menu))[0];
+        end.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+
+        MenuFlyout flyout = Assert.IsType<MenuFlyout>(FlyoutBase.GetAttachedFlyout(end));
+        Assert.True(flyout.IsOpen);
+        Assert.NotEmpty(flyout.Items.OfType<MenuItem>());
+        Assert.Empty(scope.Host.Sent);
+        menu.Close();
     }
 
     [AvaloniaFact]
@@ -714,6 +764,7 @@ public class PointMenuTests
                 i switch
                 {
                     Avalonia.Controls.Separator => Separator,
+                    MenuItem m when QuickCommandStrip.IsStrip(m) => Strip,
                     MenuItem m => m.Header as string ?? "",
                     _ => i?.GetType().Name ?? "null",
                 }
@@ -728,6 +779,13 @@ public class PointMenuTests
     }
 
     private static void Click(MenuItem item) => item.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+
+    /// <summary>The catalog ids the point menu's strip buttons stand for, in strip order.</summary>
+    private static List<string> StripTags(ContextMenu menu) => [.. QuickCommandStrip.Buttons(StripOf(menu)).Select(b => (string)b.Tag!)];
+
+    private static Button StripButton(ContextMenu menu, string id) => QuickCommandStrip.Buttons(StripOf(menu)).Single(b => (string)b.Tag! == id);
+
+    private static MenuItem StripOf(ContextMenu menu) => Assert.Single(menu.Items.OfType<MenuItem>(), QuickCommandStrip.IsStrip);
 
     private static TextBox FindTextBox(Control anchor)
     {

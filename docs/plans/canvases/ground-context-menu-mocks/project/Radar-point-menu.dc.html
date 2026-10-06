@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Radar point menu</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#8ab4f8}a:hover{color:#aecbfa}
+</style>
+</helmet>
+<div style="width: 820px; height: 600px; box-sizing: border-box; padding: 40px; background: #14161a; font-family: 'IBM Plex Sans', sans-serif; color: #e8eaed; display: flex; gap: 40px; align-items: flex-start">
+
+<div style="width: 280px">
+<div style="font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: #c9ced6; margin-bottom: 8px">Today</div>
+<div style="background: #23262b; border: 1px solid #3a3f46; border-radius: 6px; padding: 6px 0; font-size: 14px; box-shadow: 0 8px 24px rgba(0,0,0,0.5)">
+<div style="padding: 7px 14px">Fly heading 245</div>
+<div style="padding: 7px 14px">Direct to OAK245012</div>
+<div style="padding: 7px 14px">Append direct to OAK245012</div>
+<div style="padding: 7px 14px">Hold at OAK245012 (left)</div>
+<div style="padding: 7px 14px">Hold at OAK245012 (right)</div>
+<div style="height: 1px; background: #3a3f46; margin: 6px 0"></div>
+<div style="padding: 7px 14px">Warp here (OAK245012)</div>
+<div style="height: 1px; background: #3a3f46; margin: 6px 0"></div>
+<div style="padding: 7px 14px; color: #a8adb4; font-weight: 600">OAK245012</div>
+<div style="padding: 7px 14px">Copy FRD</div>
+<div style="padding: 7px 14px">Pin marker here</div>
+</div>
+<div style="font-size: 12px; color: #a8adb4; line-height: 1.45; margin-top: 10px">Nothing names the aircraft that will receive these; the selection may be minutes old.</div>
+</div>
+
+<div style="width: 340px">
+<div style="font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: #c9ced6; margin-bottom: 8px">Proposed</div>
+<div style="background: #23262b; border: 1px solid #3a3f46; border-radius: 6px; padding: 6px 0; font-size: 14px; box-shadow: 0 8px 24px rgba(0,0,0,0.5)">
+<div style="padding: 8px 14px 10px; border-bottom: 1px solid #3a3f46">
+<div style="font-weight: 600">AAL204 · B738 <span style="color: #a8adb4; font-weight: 400">→ this point</span></div>
+<div style="font-size: 12px; color: #a8adb4">OAK245012 · 9 nm, bearing 245 from the aircraft</div>
+</div>
+<div style="padding: 8px 10px 10px; border-bottom: 1px solid #3a3f46">
+<div style="height: 36px; padding: 0 4px; display: flex; flex-direction: column; justify-content: center">
+<div style="font-size: 14px; font-weight: 600">Fly heading 245</div>
+<div style="font-size: 12px; color: #a8adb4; font-family: 'IBM Plex Mono', monospace">FH 245 · left turn, 36°</div>
+</div>
+<div style="display: grid; grid-template-columns: repeat(5, 40px); gap: 6px; margin-top: 4px">
+<div style="width: 40px; height: 40px; border-radius: 4px; background: #2f4a6e; border: 1px solid #5b8def; box-sizing: border-box; display: flex; align-items: center; justify-content: center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#7AA7F0" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18 M12 7l3 8-3-2-3 2z"></path></svg></div>
+<div style="width: 40px; height: 40px; border-radius: 4px; background: #2b2f35; display: flex; align-items: center; justify-content: center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#7AA7F0" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21L16 8 M10 8h6v6 M19 3a2 2 0 1 0 0 4a2 2 0 1 0 0-4"></path></svg></div>
+<div style="width: 40px; height: 40px; border-radius: 4px; background: #2b2f35; display: flex; align-items: center; justify-content: center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#7AA7F0" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h8a6 6 0 0 1 0 12H8a6 6 0 0 1 0-12z M8 18l-2 3"></path></svg></div>
+<div style="width: 40px; height: 40px; border-radius: 4px; background: #2b2f35; display: flex; align-items: center; justify-content: center; transform: scaleX(-1)"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#7AA7F0" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h8a6 6 0 0 1 0 12H8a6 6 0 0 1 0-12z M8 18l-2 3"></path></svg></div>
+<div style="width: 40px; height: 40px; border-radius: 4px; background: #2b2f35; display: flex; align-items: center; justify-content: center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#AEB6C0" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L4 14h7l-1 8 9-12h-7z"></path></svg></div>
+</div>
+</div>
+<div style="padding: 7px 14px">Append direct to OAK245012</div>
+<div style="height: 1px; background: #3a3f46; margin: 6px 0"></div>
+<div style="padding: 7px 14px">Copy FRD</div>
+<div style="padding: 7px 14px">Pin marker here</div>
+<div style="padding: 7px 14px">Measure from here</div>
+<div style="padding: 7px 14px; color: #a8adb4">MVA 3,000 ft (sector 9)</div>
+</div>
+</div>
+
+<div style="width: 120px; font-size: 13px; color: #a8adb4; line-height: 1.5; margin-top: 26px">Icons: Fly heading, Direct to, Hold left, Hold right, Warp here, with YAAT-441's live label.</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":820,"height":600}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

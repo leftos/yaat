@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Push back to submenu</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#8ab4f8}a:hover{color:#aecbfa}
+</style>
+</helmet>
+<div style="width: 960px; height: 800px; box-sizing: border-box; padding: 40px; background: #14161a; font-family: 'IBM Plex Sans', sans-serif; color: #e8eaed; display: flex; gap: 0; align-items: flex-start">
+
+<div style="width: 300px; background: #23262b; border: 1px solid #3a3f46; border-radius: 6px; padding: 6px 0; font-size: 14px; box-shadow: 0 8px 24px rgba(0,0,0,0.5); margin-top: 60px">
+<div style="padding: 8px 14px 10px; border-bottom: 1px solid #3a3f46; margin-bottom: 6px">
+<div style="font-weight: 600">SWA1234 · B738</div>
+<div style="font-size: 12px; color: #a8adb4">Parked at gate 26 · heading 115°</div>
+</div>
+<div style="padding: 7px 14px; display: flex; justify-content: space-between"><span>Push back</span><span style="color: #a8adb4; font-family: 'IBM Plex Mono', monospace; font-size: 12px">PUSH</span></div>
+<div style="padding: 7px 14px; display: flex; justify-content: space-between; background: #2f4a6e"><span>Push back to…</span><span>›</span></div>
+<div style="padding: 7px 14px">Push route…</div>
+<div style="padding: 7px 14px">Draw taxi route…</div>
+<div style="height: 1px; background: #3a3f46; margin: 6px 0"></div>
+<div style="padding: 7px 14px">Hold position</div>
+<div style="padding: 7px 14px; color: #a8adb4">More…</div>
+</div>
+
+<div style="width: 520px; background: #23262b; border: 1px solid #3a3f46; border-radius: 6px; padding: 6px 0 8px; font-size: 14px; box-shadow: 0 8px 24px rgba(0,0,0,0.5); margin-left: 2px; margin-top: 100px">
+
+<div style="padding: 6px 14px 4px; font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: #c9ced6">Taxilanes behind the aircraft</div>
+<div style="display: grid; grid-template-columns: 28px minmax(0, 1fr) auto 96px; gap: 10px; align-items: center; padding: 7px 14px; background: #2b2f35">
+<span style="width: 22px; height: 22px; border-radius: 4px; background: #e0a84a; color: #1b1b1b; font-size: 11px; font-weight: 600; display: flex; align-items: center; justify-content: center">TL</span>
+<span><span style="font-weight: 600">TE</span> <span style="color: #a8adb4; font-size: 12px">· tail onto TE, alongside</span></span>
+<span style="color: #e8eaed; font-variant-numeric: tabular-nums">~250 ft</span>
+<span style="color: #a8adb4; font-family: 'IBM Plex Mono', monospace; font-size: 12px; text-align: right">PUSH TE ›</span>
+</div>
+<div style="display: grid; grid-template-columns: 28px minmax(0, 1fr) auto 96px; gap: 10px; align-items: center; padding: 7px 14px">
+<span style="width: 22px; height: 22px; border-radius: 4px; background: #e0a84a; color: #1b1b1b; font-size: 11px; font-weight: 600; display: flex; align-items: center; justify-content: center">TL</span>
+<span><span style="font-weight: 600">TC</span> <span style="color: #a8adb4; font-size: 12px">· across TE onto TC</span></span>
+<span style="color: #e8eaed; font-variant-numeric: tabular-nums">~545 ft</span>
+<span style="color: #a8adb4; font-family: 'IBM Plex Mono', monospace; font-size: 12px; text-align: right">PUSH TC ›</span>
+</div>
+
+<div style="height: 1px; background: #3a3f46; margin: 6px 0"></div>
+<div style="padding: 6px 14px 4px; font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: #c9ced6">Taxi spots</div>
+<div style="display: grid; grid-template-columns: 28px minmax(0, 1fr) auto 96px; gap: 10px; align-items: center; padding: 7px 14px">
+<span style="width: 22px; height: 22px; border-radius: 11px; background: #7fd1b9; color: #10241e; font-size: 11px; font-weight: 600; display: flex; align-items: center; justify-content: center">S</span>
+<span><span style="font-weight: 600">Spot E</span></span>
+<span style="font-variant-numeric: tabular-nums">~820 ft</span>
+<span style="color: #a8adb4; font-family: 'IBM Plex Mono', monospace; font-size: 12px; text-align: right">PUSH $E</span>
+</div>
+<div style="display: grid; grid-template-columns: 28px minmax(0, 1fr) auto 96px; gap: 10px; align-items: center; padding: 7px 14px">
+<span style="width: 22px; height: 22px; border-radius: 11px; background: #7fd1b9; color: #10241e; font-size: 11px; font-weight: 600; display: flex; align-items: center; justify-content: center">S</span>
+<span><span style="font-weight: 600">Spot C</span></span>
+<span style="font-variant-numeric: tabular-nums">~915 ft</span>
+<span style="color: #a8adb4; font-family: 'IBM Plex Mono', monospace; font-size: 12px; text-align: right">PUSH $C</span>
+</div>
+
+<div style="height: 1px; background: #3a3f46; margin: 6px 0"></div>
+<div style="padding: 6px 14px 4px; font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: #c9ced6">Parking stands nearby</div>
+<div style="display: grid; grid-template-columns: 28px minmax(0, 1fr) auto 96px; gap: 10px; align-items: center; padding: 7px 14px">
+<span style="width: 22px; height: 22px; border-radius: 4px; background: #2f62c9; color: #ffffff; font-size: 11px; font-weight: 600; display: flex; align-items: center; justify-content: center">P</span>
+<span><span style="font-weight: 600">Gate 27</span> <span style="color: #a8adb4; font-size: 12px">· next stand west</span></span>
+<span style="font-variant-numeric: tabular-nums">~140 ft</span>
+<span style="color: #a8adb4; font-family: 'IBM Plex Mono', monospace; font-size: 12px; text-align: right">PUSH @27</span>
+</div>
+<div style="display: grid; grid-template-columns: 28px minmax(0, 1fr) auto 96px; gap: 10px; align-items: center; padding: 7px 14px">
+<span style="width: 22px; height: 22px; border-radius: 4px; background: #2f62c9; color: #ffffff; font-size: 11px; font-weight: 600; display: flex; align-items: center; justify-content: center">P</span>
+<span><span style="font-weight: 600">Gate 25</span> <span style="color: #a8adb4; font-size: 12px">· next stand east</span></span>
+<span style="font-variant-numeric: tabular-nums">~210 ft</span>
+<span style="color: #a8adb4; font-family: 'IBM Plex Mono', monospace; font-size: 12px; text-align: right">PUSH @25</span>
+</div>
+<div style="display: grid; grid-template-columns: 28px minmax(0, 1fr) auto 96px; gap: 10px; align-items: center; padding: 7px 14px">
+<span style="width: 22px; height: 22px; border-radius: 4px; background: #2f62c9; color: #ffffff; font-size: 11px; font-weight: 600; display: flex; align-items: center; justify-content: center">P</span>
+<span><span style="font-weight: 600">Gate 29</span></span>
+<span style="font-variant-numeric: tabular-nums">~280 ft</span>
+<span style="color: #a8adb4; font-family: 'IBM Plex Mono', monospace; font-size: 12px; text-align: right">PUSH @29</span>
+</div>
+<div style="display: grid; grid-template-columns: 28px minmax(0, 1fr) auto 96px; gap: 10px; align-items: center; padding: 7px 14px">
+<span style="width: 22px; height: 22px; border-radius: 4px; background: #2f62c9; color: #ffffff; font-size: 11px; font-weight: 600; display: flex; align-items: center; justify-content: center">P</span>
+<span><span style="font-weight: 600">Gate 24</span></span>
+<span style="font-variant-numeric: tabular-nums">~300 ft</span>
+<span style="color: #a8adb4; font-family: 'IBM Plex Mono', monospace; font-size: 12px; text-align: right">PUSH @24</span>
+</div>
+<div style="display: grid; grid-template-columns: 28px minmax(0, 1fr) auto 96px; gap: 10px; align-items: center; padding: 7px 14px">
+<span style="width: 22px; height: 22px; border-radius: 4px; background: #2f62c9; color: #ffffff; font-size: 11px; font-weight: 600; display: flex; align-items: center; justify-content: center">P</span>
+<span><span style="font-weight: 600">Gate 23</span></span>
+<span style="font-variant-numeric: tabular-nums">~330 ft</span>
+<span style="color: #a8adb4; font-family: 'IBM Plex Mono', monospace; font-size: 12px; text-align: right">PUSH @23</span>
+</div>
+<div style="padding: 7px 14px 4px 52px; color: #a8adb4; display: flex; justify-content: space-between"><span>More stands (12, up to ~980 ft)</span><span>›</span></div>
+</div>
+
+<div style="margin-left: 24px; margin-top: 100px; width: 0"></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":960,"height":800}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

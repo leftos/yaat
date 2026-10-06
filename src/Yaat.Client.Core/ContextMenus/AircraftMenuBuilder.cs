@@ -112,28 +112,26 @@ public static class AircraftMenuBuilder
     ];
 
     /// <summary>
-    /// The menu for a point right-clicked with <paramref name="aircraft"/> selected: the point items by the aircraft's
+    /// The menu for a point right-clicked with <paramref name="aircraft"/> selected: the strip of the ground point items
+    /// that apply and a separator (<see cref="AddPointStrip"/>), then the point items by the aircraft's
     /// predicates — airborne, Fly heading, Direct to, Append direct to and the two holds; at a taxi node, Taxi here, Push
     /// to and Custom taxi…; on a runway surface, a Taxi to submenu per runway end — then Warp here after a separator,
-    /// then the view section after another. No header, Favorites, command tree, foot or RPO items.
+    /// then the view section after another. No header, Favorites, command tree, foot or RPO items. Both the strip and the
+    /// text items are built over one <see cref="PointMenuHostCache"/>, so the host answers each point question once.
     /// </summary>
     private static ContextMenu BuildPointMenu(
         IMenuAircraft aircraft,
         MenuContext context,
-        IMenuHost host,
+        IMenuHost realHost,
         Func<MenuContext, IReadOnlyList<Control>> viewSection
     )
     {
+        var host = new PointMenuHostCache(realHost);
         var menu = new ContextMenu();
+        AddPointStrip(menu, aircraft, context, host);
         foreach (string id in PointIds)
         {
-            if (id == MenuIds.PointTaxiToRunway)
-            {
-                SharedMenuGroups.AddTaxiToRunwayEnds(menu.Items, aircraft, context, host);
-                continue;
-            }
-
-            SharedMenuGroups.AddIfApplicable(menu.Items, id, aircraft, context, host);
+            AddPointItems(menu.Items, id, aircraft, context, host);
         }
 
         // Warp here is built into a scratch menu first, so its separator goes in only when it builds.
@@ -154,6 +152,47 @@ public static class AircraftMenuBuilder
         }
 
         return menu;
+    }
+
+    /// <summary>The ground point items the point menu's strip offers, in strip order.</summary>
+    private static readonly string[] PointStripIds = [MenuIds.PointTaxiHere, MenuIds.PointTaxiToRunway, MenuIds.PointPushTo, MenuIds.PointCustomTaxi];
+
+    /// <summary>
+    /// The point menu's icon strip and a separator under it: one button per ground point item that applies, built by
+    /// the same predicates and builders as the text items below (a Taxi to runway per runway end), each with its point
+    /// glyph (<see cref="QuickCommandGlyphs.ForPoint"/>). A disabled item (Taxi here's "No route found") gets no button;
+    /// its text row still shows. Nothing when none applies, so an airborne aircraft's point menu has no strip.
+    /// </summary>
+    private static void AddPointStrip(ContextMenu menu, IMenuAircraft aircraft, MenuContext context, IMenuHost host)
+    {
+        List<(QuickCommandStripItem Item, MenuItem Built)> built = [];
+        var scratch = new ContextMenu();
+        foreach (string id in PointStripIds)
+        {
+            AddPointItems(scratch.Items, id, aircraft, context, host);
+            var item = new QuickCommandStripItem(MenuCatalog.Get(id), QuickCommandGlyphs.ForPoint(id));
+            List<MenuItem> items = [.. scratch.Items.OfType<MenuItem>().Where(menuItem => menuItem.IsEnabled)];
+            scratch.Items.Clear();
+            built.AddRange(items.Select(menuItem => (item, menuItem)));
+        }
+
+        if (QuickCommandStrip.FromBuilt(menu, built) is { } strip)
+        {
+            menu.Items.Add(strip);
+            menu.Items.Add(new Separator());
+        }
+    }
+
+    /// <summary>The point item <paramref name="id"/> where its predicate allows it; Taxi to runway adds one item per runway end.</summary>
+    private static void AddPointItems(ItemCollection items, string id, IMenuAircraft aircraft, MenuContext context, IMenuHost host)
+    {
+        if (id == MenuIds.PointTaxiToRunway)
+        {
+            SharedMenuGroups.AddTaxiToRunwayEnds(items, aircraft, context, host);
+            return;
+        }
+
+        SharedMenuGroups.AddIfApplicable(items, id, aircraft, context, host);
     }
 
     /// <summary>

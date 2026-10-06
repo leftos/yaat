@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Hold short in route order</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#8ab4f8}a:hover{color:#aecbfa}
+</style>
+</helmet>
+<div style="width: 980px; height: 560px; box-sizing: border-box; padding: 40px; background: #14161a; font-family: 'IBM Plex Sans', sans-serif; color: #e8eaed; display: flex; gap: 40px; align-items: flex-start">
+
+<div style="width: 300px">
+<div style="font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: #c9ced6; margin-bottom: 8px">Today · alphabetical</div>
+<div style="background: #23262b; border: 1px solid #3a3f46; border-radius: 6px; padding: 6px 0; font-size: 14px; box-shadow: 0 8px 24px rgba(0,0,0,0.5)">
+<div style="padding: 5px 14px">Runway 12</div>
+<div style="padding: 5px 14px">Runway 30</div>
+<div style="padding: 5px 14px">Taxiway B</div>
+<div style="padding: 5px 14px; color: #f28b82">Taxiway S - RAMP</div>
+<div style="padding: 5px 14px">Taxiway S1</div>
+<div style="padding: 5px 14px; color: #f28b82">Taxiway T - B</div>
+<div style="padding: 5px 14px; color: #f28b82">Taxiway T - RAMP</div>
+<div style="padding: 5px 14px">Taxiway T - S at S</div>
+<div style="padding: 5px 14px">Taxiway T - S at T</div>
+<div style="padding: 5px 14px; color: #f28b82">Taxiway T - S1</div>
+<div style="padding: 5px 14px; color: #f28b82">Taxiway V - B</div>
+<div style="padding: 5px 14px">Taxiway W</div>
+<div style="padding: 5px 14px; color: #f28b82">Taxiway W - V</div>
+<div style="padding: 5px 14px; color: #f28b82">Taxiway W - W4</div>
+</div>
+<div style="font-size: 12px; color: #a8adb4; line-height: 1.45; margin-top: 10px">NKS743, TAXI S T V W4 RWY 30. Red rows are junction-arc names: "HS T - B" is refused, "No match for HS T - B in taxi route".</div>
+</div>
+
+<div style="width: 560px">
+<div style="font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: #c9ced6; margin-bottom: 8px">Proposed · along the route, nearest first</div>
+<div style="background: #23262b; border: 1px solid #3a3f46; border-radius: 6px; padding: 6px 0 8px; font-size: 14px; box-shadow: 0 8px 24px rgba(0,0,0,0.5)">
+<div style="padding: 6px 14px 8px; border-bottom: 1px solid #3a3f46; margin-bottom: 6px">
+<div style="font-weight: 600">Hold short of…</div>
+<div style="font-size: 12px; color: #a8adb4; font-family: 'IBM Plex Mono', monospace">route S T V W4 · RWY 30</div>
+</div>
+
+<div style="display: grid; grid-template-columns: 28px minmax(0, 1fr) 74px 104px; gap: 10px; align-items: center; padding: 7px 14px; background: #2b2f35">
+<span style="width: 22px; height: 22px; border-radius: 4px; background: #4FB8A8; color: #10241e; font-size: 11px; font-weight: 600; display: flex; align-items: center; justify-content: center">TW</span>
+<span><span style="font-weight: 600">S1</span> <span style="color: #a8adb4; font-size: 12px">· crossing on S</span></span>
+<span style="font-variant-numeric: tabular-nums; text-align: right">~150 ft</span>
+<span style="color: #a8adb4; font-family: 'IBM Plex Mono', monospace; font-size: 12px; text-align: right">HS S1</span>
+</div>
+<div style="display: grid; grid-template-columns: 28px minmax(0, 1fr) 74px 104px; gap: 10px; align-items: center; padding: 7px 14px">
+<span style="width: 22px; height: 22px; border-radius: 4px; background: #4FB8A8; color: #10241e; font-size: 11px; font-weight: 600; display: flex; align-items: center; justify-content: center">TW</span>
+<span><span style="font-weight: 600">S</span> <span style="color: #a8adb4; font-size: 12px">· before turning onto T</span></span>
+<span style="font-variant-numeric: tabular-nums; text-align: right">~400 ft</span>
+<span style="color: #a8adb4; font-family: 'IBM Plex Mono', monospace; font-size: 12px; text-align: right">HS S@T</span>
+</div>
+<div style="display: grid; grid-template-columns: 28px minmax(0, 1fr) 74px 104px; gap: 10px; align-items: center; padding: 7px 14px">
+<span style="width: 22px; height: 22px; border-radius: 4px; background: #4FB8A8; color: #10241e; font-size: 11px; font-weight: 600; display: flex; align-items: center; justify-content: center">TW</span>
+<span><span style="font-weight: 600">B</span> <span style="color: #a8adb4; font-size: 12px">· crossing on T</span></span>
+<span style="font-variant-numeric: tabular-nums; text-align: right">~900 ft</span>
+<span style="color: #a8adb4; font-family: 'IBM Plex Mono', monospace; font-size: 12px; text-align: right">HS B</span>
+</div>
+<div style="display: grid; grid-template-columns: 28px minmax(0, 1fr) 74px 104px; gap: 10px; align-items: center; padding: 7px 14px">
+<span style="width: 22px; height: 22px; border-radius: 4px; background: #4FB8A8; color: #10241e; font-size: 11px; font-weight: 600; display: flex; align-items: center; justify-content: center">TW</span>
+<span><span style="font-weight: 600">W</span> <span style="color: #a8adb4; font-size: 12px">· crossing on W4</span></span>
+<span style="font-variant-numeric: tabular-nums; text-align: right">~1,900 ft</span>
+<span style="color: #a8adb4; font-family: 'IBM Plex Mono', monospace; font-size: 12px; text-align: right">HS W</span>
+</div>
+<div style="height: 1px; background: #3a3f46; margin: 6px 0"></div>
+<div style="display: grid; grid-template-columns: 28px minmax(0, 1fr) 74px 104px; gap: 10px; align-items: center; padding: 7px 14px">
+<span style="width: 22px; height: 22px; border-radius: 4px; background: #E8A33D; color: #1b1b1b; font-size: 11px; font-weight: 600; display: flex; align-items: center; justify-content: center">RW</span>
+<span><span style="font-weight: 600">Runway 30</span> <span style="color: #a8adb4; font-size: 12px">· at W4, end of route</span></span>
+<span style="font-variant-numeric: tabular-nums; text-align: right">~2,300 ft</span>
+<span style="color: #a8adb4; font-family: 'IBM Plex Mono', monospace; font-size: 12px; text-align: right">HS 30</span>
+</div>
+<div style="padding: 8px 14px 2px; font-size: 12px; color: #7d838b">Hovering a row previews the route up to that bar. One row per runway, named by the end the route holds short of; junction-arc names never listed.</div>
+</div>
+<div style="font-size: 12px; color: #a8adb4; line-height: 1.45; margin-top: 10px">Distances and the S1 / B / W positions are illustrative for this KOAK route.</div>
+</div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":980,"height":560}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

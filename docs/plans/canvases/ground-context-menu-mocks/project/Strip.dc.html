@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Quick icons with live label</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#8ab4f8}a:hover{color:#aecbfa}
+</style>
+</helmet>
+<div style="width: 760px; height: 520px; box-sizing: border-box; padding: 40px; background: #14161a; font-family: 'IBM Plex Sans', sans-serif; color: #e8eaed; display: flex; gap: 40px; align-items: flex-start">
+
+<div style="width: 300px; background: #23262b; border: 1px solid #3a3f46; border-radius: 6px; padding: 6px 0; font-size: 14px; box-shadow: 0 8px 24px rgba(0,0,0,0.5)">
+<div style="padding: 8px 14px 10px; border-bottom: 1px solid #3a3f46">
+<div style="font-weight: 600">SWA1234 · B738</div>
+<div style="font-size: 12px; color: #a8adb4">Parked at gate 26</div>
+</div>
+
+<div onMouseLeave="{{clear}}" style="padding: 8px 10px 10px; border-bottom: 1px solid #3a3f46">
+<div style="height: 36px; padding: 0 4px; display: flex; flex-direction: column; justify-content: center">
+<div style="font-size: 14px; font-weight: 600; color: {{labelColor}}">{{label}}</div>
+<div style="font-size: 12px; color: #a8adb4; font-family: 'IBM Plex Mono', monospace">{{detail}}</div>
+</div>
+<div style="display: grid; grid-template-columns: repeat(5, 40px); gap: 4px; margin-top: 4px">
+<sc-for list="{{icons}}" as="icon" hint-placeholder-count="8">
+<button type="button" aria-label="{{icon.name}}" onMouseEnter="{{icon.hover}}" onFocus="{{icon.hover}}" style="{{icon.cellStyle}}">
+<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="{{icon.color}}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="{{icon.path}}"></path></svg>
+<sc-if value="{{icon.submenu}}" hint-placeholder-val="{{false}}">
+<svg width="8" height="8" viewBox="0 0 8 8" style="position: absolute; right: 3px; bottom: 3px"><path d="M8 0 L8 8 L0 8 Z" fill="#a8adb4"></path></svg>
+</sc-if>
+</button>
+</sc-for>
+</div>
+</div>
+
+<div style="padding: 7px 14px">Push back to…</div>
+<div style="padding: 7px 14px">Taxi to runway…</div>
+<div style="padding: 7px 14px; color: #a8adb4">More…</div>
+</div>
+
+<div style="width: 300px; font-size: 13px; color: #a8adb4; line-height: 1.5">
+<div style="font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: #c9ced6; margin-bottom: 8px">Try it in Play</div>
+<div>Move the pointer across the icons: the label above the row names the icon at once, with the command it sends. A corner notch marks an icon that opens a submenu.</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":760,"height":520}}'>
+class Component extends DCLogic {
+constructor(props) {
+super(props);
+this.state = { hovered: 1 };
+}
+renderVals() {
+const defs = [
+{ name: 'Push back', cmd: 'PUSH', color: '#e0a84a', path: 'M12 4v14 M6 12l6 6 6-6' },
+{ name: 'Push back to…', cmd: 'opens: taxilanes, spots, stands', color: '#e0a84a', submenu: true, path: 'M12 3v10 M8 9l4 4 4-4 M5 19h14' },
+{ name: 'Push route…', cmd: 'draw a tug path on the map', color: '#e0a84a', submenu: true, path: 'M5 19c0-6 4-6 7-9s3-6 7-6' },
+{ name: 'Draw taxi route…', cmd: 'draw a taxi route on the map', color: '#7fd1b9', submenu: true, path: 'M4 20l4-1 11-11-3-3L5 16z' },
+{ name: 'Hold position', cmd: 'HOLD', color: '#f28b82', path: 'M9 5v14 M15 5v14' },
+{ name: 'Resume', cmd: 'RES', color: '#7fd1b9', path: 'M8 5l11 7-11 7z' },
+{ name: 'Give way…', cmd: 'opens: aircraft to give way to', color: '#f28b82', submenu: true, path: 'M12 20L3 5h18z' },
+{ name: 'Follow…', cmd: 'opens: aircraft to follow', color: '#8ab4f8', submenu: true, path: 'M5 6l6 6-6 6 M12 6l6 6-6 6' }
+];
+const hovered = this.state.hovered;
+const icons = defs.map((d, i) => ({
+...d,
+submenu: !!d.submenu,
+hover: () => this.setState({ hovered: i }),
+cellStyle: 'position: relative; width: 40px; height: 40px; padding: 0; border-radius: 4px; display: flex; align-items: center; justify-content: center; cursor: pointer; border: 1px solid ' + (i === hovered ? '#5b8def' : 'transparent') + '; background: ' + (i === hovered ? '#2f4a6e' : '#2b2f35')
+}));
+const active = hovered === null ? null : defs[hovered];
+return {
+icons,
+clear: () => this.setState({ hovered: null }),
+label: active ? active.name + (active.submenu ? '  ›' : '') : 'Quick commands',
+detail: active ? active.cmd : 'point at an icon',
+labelColor: active ? '#e8eaed' : '#a8adb4'
+};
+}
+}
+</script>
+</body>
+</html>

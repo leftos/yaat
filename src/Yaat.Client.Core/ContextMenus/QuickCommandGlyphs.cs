@@ -98,6 +98,27 @@ public static class QuickCommandGlyphs
     public static QuickCommandGlyph? For(string catalogId) => ById.GetValueOrDefault(catalogId);
 
     /// <summary>
+    /// The glyphs of the ground point items the point menu's strip shows (Taxi here, Taxi to runway, Push to, Custom
+    /// taxi…), kept apart from <see cref="ById"/> because no quick-command list may hold a point item. Push to shares
+    /// Push back's glyph and Custom taxi… shares Draw taxi route…'s.
+    /// </summary>
+    public static IReadOnlyDictionary<string, QuickCommandGlyph> PointById { get; } =
+        new Dictionary<string, QuickCommandGlyph>(StringComparer.Ordinal)
+        {
+            [MenuIds.PointTaxiHere] = Ground("M12 21s-6-5.5-6-10.5a6 6 0 0 1 12 0c0 5-6 10.5-6 10.5z M12 8a2.5 2.5 0 1 0 0 5a2.5 2.5 0 1 0 0-5"),
+            [MenuIds.PointTaxiToRunway] = Ground("M19 3v18 M3 12h12 M11 8l4 4-4 4"),
+            [MenuIds.PointPushTo] = ById[MenuIds.GroundPushback],
+            [MenuIds.PointCustomTaxi] = ById[MenuIds.GroundDrawTaxiRoute],
+        };
+
+    /// <summary>The glyph of the ground point item <paramref name="pointId"/> (<see cref="PointById"/>).</summary>
+    /// <exception cref="ArgumentException">The id is not a ground point item.</exception>
+    public static QuickCommandGlyph ForPoint(string pointId) =>
+        PointById.TryGetValue(pointId, out QuickCommandGlyph? glyph)
+            ? glyph
+            : throw new ArgumentException($"'{pointId}' is not a ground point item with a strip glyph.", nameof(pointId));
+
+    /// <summary>
     /// Splits <paramref name="entries"/>, a resolved quick-command list in order, into the strip (the first
     /// <see cref="StripCapacity"/> glyph-bearing entries) and the text entries (every other one, in order). With no
     /// glyph-bearing entry the strip is empty.
