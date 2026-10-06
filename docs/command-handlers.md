@@ -450,10 +450,10 @@ Enum + registry + scheme + parser are covered in `architecture.md`. Inside the d
   form as text and tells the host to reprint the strip. `ChangeDestination` is in `IsPhaseTransparent`, so a parked or holding aircraft's plan can
   be edited without the phase refusing or clearing; the sim-side mutation reaches CRC via the flight-plan change tracker on the next tick.
 - **A queued `CommandBlock.ApplyAction` closure is NOT serialized — it is rehydrated on the next physics tick.**
-  `CommandBlock.FromSnapshot` (`CommandQueue.cs`) persists only `SourceCommandText`.
+  `CommandBlock.FromSnapshot` (`CommandQueue.cs`) persists `SourceCommandText` and `IsScenarioScripted` (whether the dispatch that built the block was a preset or AI controller rather than the student; for a block rebuilt by a supersede-split, the superseding dispatch's flag).
   `SimulationEngine.RehydrateRestoredQueueBlocks` (top of `TickPhysics`, shared by the standalone sim/replay and the live server, before
   `World.Tick` can fire the queue) re-parses that text, matches the block's sub-block by its serialized `Description` (longest suffix match),
-  and rebuilds `ParsedCommands` + `ApplyAction` via `CommandDispatcher.RehydrateRestoredBlock` with a fresh engine `DispatchContext`. A block
+  and rebuilds `ParsedCommands` + `ApplyAction` via `CommandDispatcher.RehydrateRestoredBlock` with a fresh engine `DispatchContext` carrying the block's `IsScenarioScripted`, so a restored scripted block fires as it did live. A block
   that cannot be recovered (text no longer parses / no description match) is **dropped with an RPO warning** rather than left to fire as a
   silent no-op. Rehydration does not recover `DescriptionPrefix`/`NaturalDescriptionPrefix` (cosmetic: a post-restore supersede-split loses
   the "At FIXIE: " label, not the trigger). Long-lived deferred behavior still belongs on the aircraft (as the `REPORT` armed flags do on

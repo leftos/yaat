@@ -259,7 +259,7 @@ Ground's own §2-1-17 transfer duty lands with the CA2 brain).
 
 A `CTO` preset (`DispatchSinglePreset` / `ProcessTimedPresets`) and, in solo rooms only, the automated-tower auto-CTO on a hold-for-release release or for a runway spawn under a radar (APP/CTR) student (`AutoIssueTakeoffClearance`, from `ProcessReleasedGroundDepartures` and `ProcessRunwaySpawnAutoTakeoffs`) flow through the same `DispatchCompound`, but pass `DispatchContext.IsScenarioScripted = true`, so they do **not** set `HasMadeInitialContact`.
 
-A runway-spawn CTO-preset departure (or a released held departure) handed to a non-tower student via auto-track therefore still makes its airborne check-in. The flag rides through deferral on `DeferredDispatch.IsScenarioScripted` (so a preset `WAIT … ; CTO` firing on the ground stays scripted); live and reaction-delay deferrals default to non-scripted. Live and replayed *controller* commands pass `IsScenarioScripted = false` and keep the suppression.
+A runway-spawn CTO-preset departure (or a released held departure) handed to a non-tower student via auto-track therefore still makes its airborne check-in. The flag rides through deferral on `DeferredDispatch.IsScenarioScripted` (so a preset `WAIT … ; CTO` firing on the ground stays scripted), and across a snapshot restore on a queued `CommandBlock.IsScenarioScripted` (so a preset queued behind a trigger and restored by a rewind still neither sets `HasMadeInitialContact` nor marks its speed controller-issued); live and reaction-delay deferrals default to non-scripted. Live and replayed *controller* commands pass `IsScenarioScripted = false` and keep the suppression.
 
 ## "Unable" routing on rejected commands
 

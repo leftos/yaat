@@ -161,7 +161,7 @@ public sealed partial class SimulationEngine
                     ScenarioElapsedSeconds = Scenario?.ElapsedSeconds ?? 0,
                     SessionStartUtc = Scenario?.SessionStartUtc ?? SimScenarioState.ProcessDayUtc,
                     PreserveConditionals = true,
-                    IsScenarioScripted = false,
+                    IsScenarioScripted = block.IsScenarioScripted,
                     FacilityHint = Scenario?.StudentPosition?.FacilityId,
                 };
 

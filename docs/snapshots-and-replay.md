@@ -89,8 +89,8 @@ Some state is intentionally runtime-only:
   An aircraft bound to a secondary airport therefore comes back on that airport's layout, so its on-final and distance-to-threshold verdicts are the same before and after a rewind (`SnapshotRoundTripTests`). This avoids embedding an entire taxiway graph per aircraft.
 - **`PendingObservations`** (pilot "watch for condition" state) — ephemeral, never restored.
 - **`CommandBlock.ApplyAction` / `CommandBlock.ParsedCommands`** — the queued-block closure and its parsed
-  commands are runtime-only; `SourceCommandText` is the durable carrier. `SimulationEngine.RehydrateRestoredQueueBlocks`
-  (top of `TickPhysics`, shared by both hosts) rebuilds them by re-parsing that text before the queue can fire, so a
+  commands are runtime-only; `SourceCommandText` is the durable carrier, with `IsScenarioScripted` (the creating dispatch was a preset or AI controller). `SimulationEngine.RehydrateRestoredQueueBlocks`
+  (top of `TickPhysics`, shared by both hosts) rebuilds them by re-parsing that text, under the block's scripted flag, before the queue can fire, so a
   queued instruction survives rewind/replay/restore instead of firing as a silent no-op. An unrecoverable block is
   dropped with an RPO warning. See [command-handlers.md](command-handlers.md).
 

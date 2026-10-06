@@ -300,6 +300,18 @@ public class CommandBlock
     public bool HasDeleteCommand { get; init; }
 
     /// <summary>
+    /// True when the dispatch that created this block was scenario-scripted — a preset or an AI position,
+    /// not the student (<see cref="Commands.DispatchContext.IsScenarioScripted"/>). Serialized because a
+    /// restored block's <see cref="ApplyAction"/> is rebuilt from a fresh <see cref="Commands.DispatchContext"/>:
+    /// without the flag a preset queued behind a trigger fires as if the instructor issued it, so e.g. the
+    /// speed assignment it carries is recorded as controller-issued. A block rebuilt by a split carries the
+    /// superseding dispatch's flag, not the replaced block's. Read only where a restored block is rehydrated —
+    /// a block with no <see cref="SourceCommandText"/> is never rehydrated, so it never reads it. Defaults
+    /// false, so an older snapshot restores as student-issued.
+    /// </summary>
+    public bool IsScenarioScripted { get; init; }
+
+    /// <summary>
     /// Set while this runway-entry block waits in the queue for its departure's release (<c>FlightPhysics.WaitsForRelease</c>),
     /// so the RPO's "waits for the release" notice and the wait/resume log lines each come once per block. Not serialized:
     /// it drives notices and logging only, and a restored block that is still held recomputes the wait from
@@ -328,6 +340,7 @@ public class CommandBlock
             HasTrackCommand = HasTrackCommand,
             TrackApplied = TrackApplied,
             HasDeleteCommand = HasDeleteCommand,
+            IsScenarioScripted = IsScenarioScripted,
         };
 
     public static CommandBlock FromSnapshot(CommandBlockDto dto) =>
@@ -351,6 +364,7 @@ public class CommandBlock
             HasTrackCommand = dto.HasTrackCommand,
             TrackApplied = dto.TrackApplied,
             HasDeleteCommand = dto.HasDeleteCommand,
+            IsScenarioScripted = dto.IsScenarioScripted,
             // ApplyAction is NOT restored here — this is a static context with no DispatchContext.
             // SimulationEngine.RehydrateRestoredQueueBlocks rebuilds it (and ParsedCommands) from
             // SourceCommandText on the next physics tick, before the queue can fire; track commands are

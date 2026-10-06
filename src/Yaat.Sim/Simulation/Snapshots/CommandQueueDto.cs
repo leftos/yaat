@@ -40,6 +40,12 @@ public sealed class CommandBlockDto
     // ParsedCommands is not: a restored queue would otherwise hold an invisible, uncancellable delete.
     // Defaults false so older snapshots deserialize as blocks with no pending delete.
     public bool HasDeleteCommand { get; init; }
+
+    // Whether the dispatch that created this queued block was scenario-scripted (a preset or an AI
+    // position, not the student). Serialized because the restored ApplyAction is rebuilt from a fresh
+    // DispatchContext: without the flag a preset queued behind a trigger fires as if the instructor
+    // issued it. Defaults false so older snapshots deserialize as not scripted.
+    public bool IsScenarioScripted { get; init; }
 }
 
 public sealed class TrackedCommandDto

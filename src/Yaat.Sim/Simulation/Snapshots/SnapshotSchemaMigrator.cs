@@ -199,6 +199,7 @@ public static class SnapshotSchemaMigrator
         //   call-up decision was still open and that still sits at its stand (current phase AtParking) would have made the
         //   stand call, so it maps to StandCall; the rest (an airborne arrival never decided) to None. The legacy field is
         //   nulled so a rewritten snapshot drops it. SpawnTaxiway stays null: the pre-snap position was never recorded.
+        // V33: Added CommandBlockDto.IsScenarioScripted. No bump — additive and optional, an older snapshot reads false.
         if (snapshot.SchemaVersion < 4)
         {
             foreach (AircraftSnapshotDto ac in snapshot.Aircraft)

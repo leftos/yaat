@@ -36,7 +36,7 @@ public class SplitBlockPreservationTests : IDisposable
     /// </summary>
     private static readonly Dictionary<string, string> SplitCoverage = new()
     {
-        // Re-derived by CreateBlock from (keptParsed, trigger, labels, sourceText):
+        // Re-derived by CreateBlock from (keptParsed, trigger, labels, sourceText, ctx):
         ["Trigger"] = "CreateBlock",
         ["Commands"] = "CreateBlock",
         ["Dimensions"] = "CreateBlock",
@@ -50,6 +50,7 @@ public class SplitBlockPreservationTests : IDisposable
         ["SourceCommandText"] = "CreateBlock",
         ["HasTrackCommand"] = "CreateBlock",
         ["HasDeleteCommand"] = "CreateBlock",
+        ["IsScenarioScripted"] = "CreateBlock",
         // Runtime state explicitly copied by SplitBlockNonConflicting:
         ["WaitRemainingSeconds"] = "copied",
         ["WaitRemainingDistanceNm"] = "copied",

@@ -3266,6 +3266,7 @@ public static class CommandDispatcher
             SourceCommandText = sourceCommandText,
             HasTrackCommand = hasTrackCommand,
             HasDeleteCommand = parsedCommands.Exists(c => c is DeleteCommand),
+            IsScenarioScripted = ctx.IsScenarioScripted,
         };
     }
 

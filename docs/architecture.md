@@ -1681,7 +1681,7 @@ SimulationEngine.cs            # Scenario load, tick orchestration, replay (Repl
                                # FastForwardTo — advance from current time; ReplayRange — between two timestamps;
                                # ReplayOneSecond/SubTick — stepping);
                                # CaptureSnapshot/RestoreFromSnapshot; reattaches GroundLayouts to delayed spawns on restore.
-                               # RehydrateRestoredQueueBlocks rebuilds restored blocks' ParsedCommands/ApplyAction from SourceCommandText
+                               # RehydrateRestoredQueueBlocks rebuilds restored blocks' ParsedCommands/ApplyAction from SourceCommandText under the block's IsScenarioScripted
                                # each TickPhysics (shared by both hosts) so queued commands survive rewind/replay/restore.
                                # ApplyPostDispatch is the single post-command hook both hosts call (see solo-training-pilot-speech.md).
                                # DeleteAircraft is the sim-side half of DEL (stamps CompletionReason.Dropped, clears a queued delayed
