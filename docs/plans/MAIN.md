@@ -60,7 +60,7 @@
   - [x] YAAT-9 Client driver automation pipe: brief 4b, the wait_for tool · release vNext
   - [x] YAAT-10 Client driver automation pipe: brief 4c, the screenshot tool · release vNext
   - [x] YAAT-220 Share the pipe list_windows helper between launch_yaat and list_windows · release vNext
-- [/] YAAT-418 Client driver: hover and drag over the automation pipe · release vNext
+- [x] YAAT-418 Client driver: hover and drag over the automation pipe · release vNext
 
 ## Context-menu quick commands (#471)
 
@@ -242,7 +242,7 @@
 - [ ] YAAT-251 A mid-tape recorded setting change never reaches the room's Session Settings or the clients
 - [ ] YAAT-252 Loading a recording resets the auto cleared-to-land flags from the preference, not the tape's session setting
 - [ ] YAAT-253 Recording load and t=0 rebuild dispatch scenario presets under the room's settings, not the tape's
-- [ ] YAAT-426 Keep a queued command block's scripted flag across a snapshot restore · release vNext
+- [/] YAAT-426 Keep a queued command block's scripted flag across a snapshot restore · release vNext
 
 ## Wave 5 — Command queue and dispatch architecture
 
@@ -281,6 +281,7 @@
 - [ ] YAAT-211 Split RadarCanvas.OnPointerPressed into one helper per ladder rung
 - [ ] YAAT-269 Route the ground canvas's data-block drag and reset through DataBlockViewState
 - [ ] YAAT-305 UI tests: AppLifetime.IsShuttingDown never resets after a MainWindow close
+- [x] YAAT-428 MainWindowLifecycleTests extra-view tests see OAK instead of KOAK on Linux CI · release vNext
 
 ## Wave 8 — Live traffic
 
