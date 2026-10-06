@@ -27,7 +27,7 @@
 - The session flyout's auto-accept is a checkbox with a 0–60 second delay, matching its Settings default.
 - The session flyout's auto cleared-to-land and arrival spacing switches name the student's position, such as "Auto cleared-to-land (TWR)".
 - The scenario setup dialog starts from your Settings solo pacing defaults without changing them, and a load without the dialog uses them too.
-- In RPO rooms, a departure released with `REL` or `HFROFF` no longer takes off by itself; the RPO's `CTO` or its scenario preset launches it.
+- In RPO rooms, a released departure with no scripted takeoff waits for the RPO's `CTO`; a takeoff preset held back by the hold fires as soon as it is released.
 - Piston aircraft brake at most 4.0 kt/s for an assigned exit and 4.5 with `EXP`, down from 5.0.
 - An assigned exit the pilot can't make gets "unable W3" instead of a readback, and isn't used that landing unless reassigned or once stopped.
 
