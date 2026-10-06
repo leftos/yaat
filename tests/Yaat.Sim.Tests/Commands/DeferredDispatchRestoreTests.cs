@@ -52,7 +52,7 @@ public sealed class DeferredDispatchRestoreTests
         // Precondition: the live payload has the WAIT gate stripped off, so this cannot pass vacuously.
         Assert.DoesNotContain(deferral.Payload.Blocks.SelectMany(b => b.Commands), c => c is WaitCommand);
 
-        var restored = DeferredDispatch.FromSnapshot(deferral.ToSnapshot());
+        var restored = DeferredDispatch.FromSnapshot(deferral.ToSnapshot(), null);
 
         Assert.NotNull(restored);
         Assert.Equal(deferral.RemainingSeconds, restored.RemainingSeconds);
@@ -78,11 +78,65 @@ public sealed class DeferredDispatchRestoreTests
 
         Assert.IsNotType<GiveWayCondition>(deferral.Payload.Blocks[0].Condition);
 
-        var restored = DeferredDispatch.FromSnapshot(deferral.ToSnapshot());
+        var restored = DeferredDispatch.FromSnapshot(deferral.ToSnapshot(), null);
 
         Assert.NotNull(restored);
         Assert.Equal(deferral.GiveWayTarget, restored.GiveWayTarget);
         Assert.IsNotType<GiveWayCondition>(restored.Payload.Blocks[0].Condition);
+    }
+
+    private static AircraftState MakeArrivalOnStar(string route)
+    {
+        AircraftState aircraft = MakeAirborneAircraft();
+        aircraft.FlightPlan.Route = route;
+        aircraft.Procedure.ActiveStarId = "BDEGA3";
+        aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = "SUNOL", Position = new LatLon(37.59, -121.80) });
+        aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = "CEDES", Position = new LatLon(37.6, -121.6) });
+        aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = "EDDYY", Position = new LatLon(37.6, -121.4) });
+        return aircraft;
+    }
+
+    /// <summary>
+    /// A WAIT-deferred route-relative <c>DCT</c> must restore so it fires to the same aircraft state it would have live.
+    ///
+    /// Live, the payload is parsed with the aircraft's filed route (ActionArms.Aviation threads it through), so
+    /// <c>DCT SUNOL</c> against a route of "SUNOL CEDES EDDYY" resolves to all three fixes. When the WAIT fires,
+    /// <c>ApplyDirectTo</c> sees <c>Fixes.Count &gt; 1</c>, skips <c>TryPreserveProcedure</c>, and clears the active STAR.
+    /// On restore, <c>DeferredDispatch.FromSnapshot</c> re-parses the stored text with NO route, so the payload resolves
+    /// to the single typed fix; the firing then takes the <c>Fixes.Count == 1</c> branch into <c>TryPreserveProcedure</c>,
+    /// which KEEPS the active STAR. The two paths diverge — a replay/determinism break on any timeline rewind or restore.
+    /// </summary>
+    [Fact]
+    public void RestoredWaitDeferral_WithRouteRelativeDirectTo_FiresToTheSameProcedureStateAsLive()
+    {
+        const string Route = "SUNOL CEDES EDDYY";
+        const string Command = "WAIT 60 DCT SUNOL";
+
+        // Live deferral: parse with the aircraft route exactly as the aviation arm does before dispatch.
+        AircraftState live = MakeArrivalOnStar(Route);
+        ParseResult<CompoundCommand> parsedLive = CommandParser.ParseCompound(Command, live.FlightPlan.Route);
+        Assert.True(parsedLive.IsSuccess, parsedLive.Reason);
+        CommandResult liveResult = CommandDispatcher.DispatchCompound(
+            parsedLive.Value!,
+            live,
+            TestDispatch.Context(Random.Shared, validateDctFixes: false)
+        );
+        Assert.True(liveResult.Success, liveResult.Message);
+        DeferredDispatch liveDeferral = Assert.Single(live.DeferredDispatches);
+
+        // Restore the deferral from its snapshot — the path AircraftState.FromSnapshot takes on a rewind / reconstruction.
+        var restored = DeferredDispatch.FromSnapshot(liveDeferral.ToSnapshot(), live.FlightPlan.Route);
+        Assert.NotNull(restored);
+
+        // Fire each payload against an identical fresh arrival and compare the resulting procedure state.
+        AircraftState afterLive = MakeArrivalOnStar(Route);
+        CommandDispatcher.DispatchCompound(liveDeferral.Payload, afterLive, TestDispatch.Context(Random.Shared, validateDctFixes: false));
+
+        AircraftState afterRestore = MakeArrivalOnStar(Route);
+        CommandDispatcher.DispatchCompound(restored!.Payload, afterRestore, TestDispatch.Context(Random.Shared, validateDctFixes: false));
+
+        Assert.Equal(afterLive.Procedure.ActiveStarId, afterRestore.Procedure.ActiveStarId);
+        Assert.Equal(afterLive.Targets.NavigationRoute.Select(f => f.Name), afterRestore.Targets.NavigationRoute.Select(f => f.Name));
     }
 
     /// <summary>
@@ -99,7 +153,7 @@ public sealed class DeferredDispatchRestoreTests
         var deferral = new DeferredDispatch(5.0, parsed.Value!) { SourceText = "FH 090", IsReactionDelay = true };
         aircraft.DeferredDispatches.Add(deferral);
 
-        var restored = DeferredDispatch.FromSnapshot(deferral.ToSnapshot());
+        var restored = DeferredDispatch.FromSnapshot(deferral.ToSnapshot(), null);
 
         Assert.NotNull(restored);
         Assert.True(restored.IsReactionDelay);
