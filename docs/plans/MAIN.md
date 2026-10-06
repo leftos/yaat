@@ -186,6 +186,7 @@
 - [/] YAAT-424 Keep a taxiway turn-about within the taxiway's width · release vNext
 - [ ] YAAT-432 Gate the jet turn-around refusal on design group, not the Jet category · release vNext
 - [ ] YAAT-435 Let a re-route's stop lie behind the aircraft by under 3 ft on segment 0
+- [ ] YAAT-438 Slow to pivot speed before a taxiway turn-about issued while rolling · release vNext
 
 ## Wave 2 — Ground command grammar and dispatch
 
@@ -209,7 +210,7 @@
 - [ ] YAAT-336 Immediate preset CTO for a departure held for release is dropped instead of waiting for the release
 - [ ] YAAT-337 Solo release auto-takeoff depends on the release request object surviving the jitter window
 - [ ] YAAT-427 Split GroundCommandHandler's TryTaxiCore and ResolveTaxiRouteFrom under the 100-line limit
-- [/] YAAT-433 Send the turn-about shape to the ground view instead of re-inferring it · release vNext
+- [x] YAAT-433 Send the turn-about shape to the ground view instead of re-inferring it · release vNext
 
 ## Wave 3 — Ground routing, pathfinder and their docs
 
@@ -481,3 +482,4 @@
 - [ ] YAAT-399 GuideCapture: default --out to this repo's docs/user-guide/img, not the current directory
 - [ ] YAAT-420 ProcessRecordingBackendTests KillRecorder test fails under load
 - [ ] YAAT-436 Draw the ground overlay for a ramp-only taxi route
+- [ ] YAAT-439 Aim a ramp or free-space reversal along the route when the next turn doubles back
