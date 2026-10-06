@@ -1,6 +1,7 @@
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
 using Xunit;
+using Yaat.Client.ContextMenus;
 using Yaat.Client.Services;
 using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.ViewModels;
@@ -219,6 +220,34 @@ public class SettingsViewModelApplyTests
             stored.PttKey,
         ];
         Assert.Equal(expected, actual);
+    }
+
+    [AvaloniaFact(Timeout = 60_000)]
+    public void Apply_WritesEveryQuickCommandList_AndANewPreferencesReadsThemBack()
+    {
+        using var scope = new PreferencesFileScope();
+        var vm = new SettingsViewModel();
+        foreach (QuickCommandSituationRow situation in vm.QuickCommandSituations)
+        {
+            vm.SelectedQuickCommandSituation = situation;
+            vm.AddQuickCommandCustomEntry();
+            vm.QuickCommandEntries[^1].Label = $"Heading for {situation.Name}";
+            vm.QuickCommandEntries[^1].CommandText = "FH 270";
+        }
+        Assert.False(vm.HasQuickCommandErrors);
+
+        vm.ApplyCommand.Execute(null);
+
+        var stored = new UserPreferences();
+        Assert.All(
+            vm.QuickCommandSituations,
+            situation =>
+                Assert.Equal(
+                    new CustomQuickCommandEntry($"Heading for {situation.Name}", "FH 270", null, MenuFlightRules.Both),
+                    stored.GetQuickCommandList(situation.Situation)[^1]
+                )
+        );
+        Assert.Equal(vm.QuickCommandSituations.Count, stored.QuickCommandOverrides.Count);
     }
 
     [AvaloniaFact(Timeout = 60_000)]

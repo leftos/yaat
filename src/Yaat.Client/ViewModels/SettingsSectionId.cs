@@ -14,6 +14,7 @@ public enum SettingsSectionId
     CommandInput,
     CommandVerbs,
     Macros,
+    QuickCommands,
     Keys,
     Speech,
     AudioDevices,

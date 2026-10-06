@@ -85,17 +85,17 @@
             x:Name="OkButton"
             Width="80"
             IsDefault="True"
-            IsEnabled="{Binding !HasKeybindClash}"
+            IsEnabled="{Binding CanApply}"
             ToolTip.ShowOnDisabled="True"
-            ToolTip.Tip="{Binding KeybindClashSummary}"
+            ToolTip.Tip="{Binding ApplyBlockedSummary}"
           />
           <Button
             Content="Apply"
             x:Name="ApplyButton"
             Width="80"
-            IsEnabled="{Binding !HasKeybindClash}"
+            IsEnabled="{Binding CanApply}"
             ToolTip.ShowOnDisabled="True"
-            ToolTip.Tip="{Binding KeybindClashSummary}"
+            ToolTip.Tip="{Binding ApplyBlockedSummary}"
           />
           <Button Content="Cancel" x:Name="CancelButton" Width="80" IsCancel="True" />
         </StackPanel>

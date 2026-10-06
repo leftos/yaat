@@ -32,6 +32,7 @@ public class SettingsWindowNavigationTests
         [SettingsSectionId.CommandInput] = typeof(CommandInputSection),
         [SettingsSectionId.CommandVerbs] = typeof(CommandVerbsSection),
         [SettingsSectionId.Macros] = typeof(MacrosSection),
+        [SettingsSectionId.QuickCommands] = typeof(QuickCommandsSection),
         [SettingsSectionId.Keys] = typeof(KeysSection),
         [SettingsSectionId.Speech] = typeof(SpeechSection),
         [SettingsSectionId.AudioDevices] = typeof(AudioDevicesSection),

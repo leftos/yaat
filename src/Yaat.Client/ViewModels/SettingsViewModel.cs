@@ -921,6 +921,7 @@ public partial class SettingsViewModel : ObservableObject
         _groundShowAllTaxiRoutes = _preferences.GroundShowAllTaxiRoutes;
         _crcAliasDirectory = _preferences.CrcAliasDirectory ?? "";
         LoadMacros();
+        LoadQuickCommandLists();
     }
 
     /// <summary>
@@ -1002,6 +1003,7 @@ public partial class SettingsViewModel : ObservableObject
             ApplySpeechAndWindows();
             ApplyColorsAndDisplay();
             SaveMacros();
+            ApplyQuickCommandLists();
             ApplyStagedFavoritesWrites();
             ApplyStagedLayouts();
         }
@@ -1862,6 +1864,7 @@ public partial class SettingsViewModel : ObservableObject
         [SettingsSectionId.CommandInput] = static (vm, defaults) => vm.ResetCommandInput(defaults),
         [SettingsSectionId.CommandVerbs] = static (vm, defaults) => vm.ResetCommandVerbs(defaults),
         [SettingsSectionId.Macros] = static (vm, defaults) => vm.ResetMacros(defaults),
+        [SettingsSectionId.QuickCommands] = static (vm, _) => vm.ResetAllQuickCommandSituations(),
         [SettingsSectionId.Keys] = static (vm, defaults) => vm.ResetKeys(defaults),
         [SettingsSectionId.Speech] = static (vm, defaults) => vm.ResetSpeech(defaults),
         [SettingsSectionId.AudioDevices] = static (vm, defaults) => vm.ResetAudioDevices(defaults),
@@ -1874,6 +1877,7 @@ public partial class SettingsViewModel : ObservableObject
         [SettingsSectionId.General] = "Puts Discord and the window settings back to their defaults. Initials are kept." + ResetPendingNote,
         [SettingsSectionId.CommandVerbs] = "Puts every command verb back to its default." + ResetPendingNote,
         [SettingsSectionId.Macros] = "Clears all macros and sets the CRC aliases folder back to auto-detect." + ResetPendingNote,
+        [SettingsSectionId.QuickCommands] = "Puts every situation's quick commands back to their defaults." + ResetPendingNote,
         [SettingsSectionId.Speech] =
             "Puts the speech settings back to their defaults. Downloaded models, the CUDA backend, the Piper voice pack and saved samples are kept."
             + ResetPendingNote,

@@ -22,6 +22,7 @@ public static class SettingsNavigation
         Section(SettingsSectionId.CommandInput, "Input", "Command input"),
         Section(SettingsSectionId.CommandVerbs, "Input", "Command verbs"),
         Section(SettingsSectionId.Macros, "Input", "Macros"),
+        Section(SettingsSectionId.QuickCommands, "Input", "Quick commands"),
         Section(SettingsSectionId.Keys, "Input", "Keys"),
         Header("Voice"),
         Section(SettingsSectionId.Speech, "Voice", "Speech"),

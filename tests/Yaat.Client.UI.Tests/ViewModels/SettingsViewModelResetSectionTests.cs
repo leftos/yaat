@@ -9,6 +9,7 @@ using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Situation;
 
 namespace Yaat.Client.UI.Tests.ViewModels;
 
@@ -164,6 +165,21 @@ public class SettingsViewModelResetSectionTests
             },
             vm => (vm.MacroRows.Count, vm.CrcAliasDirectory),
             p => (p.Macros.Count, p.CrcAliasDirectory ?? "")
+        );
+
+    [AvaloniaFact(Timeout = 60_000)]
+    public void QuickCommands_ResetsEveryList() =>
+        AssertResetsToDefault(
+            SettingsSectionId.QuickCommands,
+            vm =>
+            {
+                vm.SelectedQuickCommandSituation = vm.QuickCommandSituations.Single(r => r.Situation == AircraftSituation.Final);
+                vm.MoveQuickCommandEntry(0, 1);
+                vm.SelectedQuickCommandSituation = vm.QuickCommandSituations.Single(r => r.Situation == AircraftSituation.Taxiing);
+                vm.RemoveQuickCommandEntry(vm.QuickCommandEntries[0]);
+            },
+            vm => vm.QuickCommandSituations.Count(r => r.IsChanged),
+            p => p.QuickCommandOverrides.Count
         );
 
     [AvaloniaFact(Timeout = 60_000)]

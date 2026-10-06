@@ -190,6 +190,7 @@ public partial class SettingsWindow : Window
             [SettingsSectionId.CommandInput] = new CommandInputSection(),
             [SettingsSectionId.CommandVerbs] = _verbs,
             [SettingsSectionId.Macros] = _macros,
+            [SettingsSectionId.QuickCommands] = new QuickCommandsSection(),
             [SettingsSectionId.Keys] = new KeysSection(),
             [SettingsSectionId.Speech] = _speech,
             [SettingsSectionId.AudioDevices] = new AudioDevicesSection(),
