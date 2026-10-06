@@ -5,7 +5,7 @@
 ## Do first
 
 - [x] YAAT-406 TAXI issued on C at KOAK starts its route on parallel taxiway D · release vNext — Urgent · Wave 2 — Ground command grammar and dispatch
-- [ ] YAAT-434 Linux CI fails three HoldInsideStoppingDistanceOfBarTests after the YAAT-406 landing · release vNext — Urgent · Wave 2 — Ground command grammar and dispatch
+- [x] YAAT-434 Linux CI fails three HoldInsideStoppingDistanceOfBarTests after the YAAT-406 landing · release vNext — Urgent · Wave 2 — Ground command grammar and dispatch
 - [x] YAAT-373 Load Scenario: pick a single scenario file, not only a folder to index · release vNext — High · Bug reports and feature requests
 - [x] YAAT-274 Redesign overwhelming client surfaces: Settings, import/export, View menu pop-outs · release vNext — High · Client surfaces redesign
 - [ ] YAAT-266 Tower Cab 3D joins a YAAT room without CRC and shows in Room Members · release vNext+1 — High · Wave 6 — Strips, TDLS, air-taxi and hub
@@ -134,6 +134,7 @@
 
 ## Wave 1 — Ground realism and braking
 
+- [ ] YAAT-437 Aim a turn-about's reversal along the route when the next turn doubles back · release vNext
 - [/] YAAT-30 Rollout retune follow-ups: separation intervals, exit completion, firm rates
 - [x] YAAT-32 Fold aircraft-length fallbacks into AircraftLength.ResolveFt; fix CWT labels · release vNext
 - [x] YAAT-309 Hold-short warning under FOLLOWG omits the taxiway name · release vNext
@@ -182,8 +183,9 @@
 - [ ] YAAT-410 Start-node hold aims the centre, not the nose; ILS/approach holds; firm taxi stop rate
 - [ ] YAAT-414 Navigator reads an aircraft in line but short of segment 0 as off-line and crawls at 5 kt
 - [ ] YAAT-421 Judge a hold short unmakeable at the firm stop rate, not the taxi rate
-- [ ] YAAT-424 Keep a taxiway turn-about within the taxiway's width · release vNext
-- [ ] YAAT-432 Gate the jet turn-around refusal on design group, not the Jet category
+- [/] YAAT-424 Keep a taxiway turn-about within the taxiway's width · release vNext
+- [ ] YAAT-432 Gate the jet turn-around refusal on design group, not the Jet category · release vNext
+- [ ] YAAT-435 Let a re-route's stop lie behind the aircraft by under 3 ft on segment 0
 
 ## Wave 2 — Ground command grammar and dispatch
 
@@ -207,7 +209,7 @@
 - [ ] YAAT-336 Immediate preset CTO for a departure held for release is dropped instead of waiting for the release
 - [ ] YAAT-337 Solo release auto-takeoff depends on the release request object surviving the jitter window
 - [ ] YAAT-427 Split GroundCommandHandler's TryTaxiCore and ResolveTaxiRouteFrom under the 100-line limit
-- [ ] YAAT-433 Send the turn-about shape to the ground view instead of re-inferring it · release vNext
+- [/] YAAT-433 Send the turn-about shape to the ground view instead of re-inferring it · release vNext
 
 ## Wave 3 — Ground routing, pathfinder and their docs
 
@@ -478,3 +480,4 @@
 - [ ] YAAT-396 TAXI from a nose-in OAK gate is accepted but the aircraft never moves
 - [ ] YAAT-399 GuideCapture: default --out to this repo's docs/user-guide/img, not the current directory
 - [ ] YAAT-420 ProcessRecordingBackendTests KillRecorder test fails under load
+- [ ] YAAT-436 Draw the ground overlay for a ramp-only taxi route
