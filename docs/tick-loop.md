@@ -49,6 +49,7 @@ Physics ×4     sim TickPhysics(0.25)                                 (fixed cod
                    ├─ PreTick → PhaseRunner.Tick   (per aircraft)
                    └─ FlightPhysics.Update         (per aircraft, 8 steps)
 PostPhysics    SpineOrder.PostPhysics — the live server's 35-step order
+               ├─ sim TickTaxiEdgeTrails                              each moving ground aircraft's TaxiEdgeTrail: the taxi edges it drove, oldest dropped past ~3,000 ft; nothing recorded on a runway roll (line-up, takeoff, rejected takeoff, landing, touch-and-go, stop-and-go); emptied when airborne or warped
                ├─ sim TickLiveTrafficRunwayUse, TickTransponders
                ├─ sim TickAltitudeFixPassage                          an ERAM fix-qualified altitude (170/SJC/110) latches to its second altitude once the aircraft has closed within 10 nm of the fix (≤90° off track) and then has it >90° off; data only (Field B, QF), never flown
                ├─ sim TickEramVerticalConformance                     the ERAM vertical-conformance latch: AircraftEramState.ReachedAssignedAltitude sets inside the assigned band and clears only when the assignment changes, so CRC draws - or + instead of the climb/descent arrow once reached; paused while QT-coasted, frozen or without Mode C

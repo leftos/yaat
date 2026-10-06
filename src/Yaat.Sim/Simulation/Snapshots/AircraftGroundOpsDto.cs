@@ -20,6 +20,14 @@ public sealed class PresetTaxiStopDto
     public string? OnTaxiway { get; init; }
 }
 
+/// <summary>A <see cref="TaxiTrailEdge"/>: one straight taxi edge an aircraft drove, by its end node ids, with its length.</summary>
+public sealed class TaxiTrailEdgeDto
+{
+    public required int NodeA { get; init; }
+    public required int NodeB { get; init; }
+    public required double LengthFt { get; init; }
+}
+
 public sealed class AircraftGroundOpsDto
 {
     public string? LayoutAirportId { get; init; }
@@ -134,4 +142,12 @@ public sealed class AircraftGroundOpsDto
 
     /// <summary>Absolute-UTC end of the Call-For-Release window, or null.</summary>
     public DateTime? ReleaseWindowEndUtc { get; init; }
+
+    /// <summary>
+    /// The straight taxi edges the aircraft has driven, oldest first (<see cref="TaxiEdgeTrail"/>). Written only when the
+    /// trail is not empty, so a snapshot with no trail is byte-identical to one written before the field existed; absent
+    /// on read restores an empty trail.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<TaxiTrailEdgeDto>? TaxiEdgeTrail { get; init; }
 }

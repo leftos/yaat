@@ -36,6 +36,9 @@ public static class SpineOrder
 
     public static readonly ImmutableArray<SpineStep> PostPhysics =
     [
+        // First after physics, so every later step this second reads the trail with the edge physics just moved the
+        // aircraft onto. It reads and writes only the trail, which nothing else in the tick writes.
+        SpineStep.Sim(StepId.TaxiEdgeTrail, static (engine, _) => engine.TickTaxiEdgeTrails()),
         SpineStep.Sim(StepId.LiveTrafficRunwayUse, static (engine, _) => engine.TickLiveTrafficRunwayUse()),
         SpineStep.Sim(StepId.Transponders, static (engine, _) => engine.TickTransponders()),
         // After physics has moved the aircraft this second, so the ERAM altitude a fix-qualified plan shows follows the

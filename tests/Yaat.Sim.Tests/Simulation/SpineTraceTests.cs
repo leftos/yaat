@@ -27,6 +27,7 @@ public class SpineTraceTests
         new(StepId.Physics, 1),
         new(StepId.Physics, 2),
         new(StepId.Physics, 3),
+        new(StepId.TaxiEdgeTrail, 0),
         new(StepId.LiveTrafficRunwayUse, 0),
         new(StepId.Transponders, 0),
         new(StepId.AltitudeFixPassage, 0),

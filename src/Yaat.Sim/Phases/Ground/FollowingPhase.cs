@@ -41,9 +41,6 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
     /// <summary>How close (ft) to a bar's stop the hold is taken — the same window a taxiing aircraft takes a set-back stop in.</summary>
     private const double BarStopTakeFt = GroundNavigator.SetBackStopMarginFt + 1.0;
 
-    /// <summary>How far (ft) off a taxiway's centreline a moving follower still counts as on that taxiway.</summary>
-    private const double OnTaxiwayMaxOffsetFt = 50.0;
-
     private const double LogIntervalSeconds = 3.0;
 
     private readonly string _targetCallsign = targetCallsign;
@@ -584,8 +581,7 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
     /// A follow has no route to name the taxiway it is on, so a moving follower reads it from the straight taxiway edge it
     /// is rolling on — null off every taxiway or on an unnamed one — rather than carry a name from before, such as the
     /// taxiway a previous hold was on. The edge is looked for first where the follower last was
-    /// (<see cref="NearestTaxiEdgeAroundLast"/>), and the whole layout is scanned only when nothing there is within
-    /// <see cref="OnTaxiwayMaxOffsetFt"/>.
+    /// (<see cref="_taxiEdgeNodeIds"/>), through <see cref="TaxiEdgeLocator.EdgeUnder"/>.
     /// </summary>
     private void RefreshCurrentTaxiway(PhaseContext ctx)
     {
@@ -594,55 +590,9 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
             return;
         }
 
-        GroundEdge? onEdge = NearestTaxiEdgeAroundLast(ctx.GroundLayout, ctx.Aircraft.Position);
-        if (
-            (onEdge is null)
-            && (ctx.GroundLayout.FindNearestTaxiEdge(ctx.Aircraft.Position) is { } nearest)
-            && ((nearest.DistNm * GeoMath.FeetPerNm) <= OnTaxiwayMaxOffsetFt)
-        )
-        {
-            onEdge = nearest.Edge;
-        }
-
+        GroundEdge? onEdge = TaxiEdgeLocator.EdgeUnder(ctx.GroundLayout, ctx.Aircraft.Position, _taxiEdgeNodeIds);
         _taxiEdgeNodeIds = onEdge is null ? null : (onEdge.Nodes[0].Id, onEdge.Nodes[1].Id);
         ctx.Aircraft.Ground.CurrentTaxiway = onEdge?.TaxiwayName is { Length: > 0 } taxiway ? taxiway : null;
-    }
-
-    /// <summary>
-    /// The nearest straight taxi edge within <see cref="OnTaxiwayMaxOffsetFt"/> of <paramref name="position"/> among the edge
-    /// the follower was last on (<see cref="_taxiEdgeNodeIds"/>) and the edges meeting it at its two end nodes — the edges
-    /// <see cref="AirportGroundLayout.FindNearestTaxiEdge(LatLon)"/> considers (no fillet arc, runway centreline or ramp
-    /// connector), measured the way it measures them. Null with no last edge, or none of them that close.
-    /// </summary>
-    private GroundEdge? NearestTaxiEdgeAroundLast(AirportGroundLayout layout, LatLon position)
-    {
-        if (
-            (_taxiEdgeNodeIds is not { } ends)
-            || !layout.Nodes.TryGetValue(ends.NodeA, out GroundNode? nodeA)
-            || !layout.Nodes.TryGetValue(ends.NodeB, out GroundNode? nodeB)
-        )
-        {
-            return null;
-        }
-
-        GroundEdge? best = null;
-        double bestFt = OnTaxiwayMaxOffsetFt;
-        foreach (IGroundEdge edge in nodeA.Edges.Concat(nodeB.Edges))
-        {
-            if ((edge is not GroundEdge straight) || edge.IsRunwayCenterline || edge.IsRamp)
-            {
-                continue;
-            }
-
-            double distFt = GeoMath.DistanceToSegmentFt(position, straight.Nodes[0].Position, straight.Nodes[1].Position);
-            if ((distFt < bestFt) || ((best is null) && (distFt <= bestFt)))
-            {
-                best = straight;
-                bestFt = distFt;
-            }
-        }
-
-        return best;
     }
 
     /// <summary>Whether the bar protects a runway the crossing clearance that started this follow already cleared.</summary>

@@ -62,6 +62,15 @@ public class AircraftGroundOps
     public NavTickDiag? LastNavDiag { get; set; }
 
     /// <summary>
+    /// The straight taxi edges this aircraft has driven, oldest first, kept to about <see cref="Sim.TaxiEdgeTrail.CapFt"/>:
+    /// written once per sim-second for a moving ground aircraft not rolling along a runway, kept through a new taxi
+    /// clearance, and emptied by a warp and once it is airborne. Carried by <see cref="AircraftGroundOpsDto.TaxiEdgeTrail"/>, so it stays out of the
+    /// aircraft's own JSON.
+    /// </summary>
+    [JsonIgnore]
+    public TaxiEdgeTrail TaxiEdgeTrail { get; init; } = new();
+
+    /// <summary>
     /// Active hold directive (HOLDPOSITION or GIVEWAY) or null when the aircraft is
     /// free to move under its phase's normal control. Set by ground command handlers
     /// (TryHoldPosition / TryGiveWay) and cleared by RES, TAXI, auto-resume geometry
@@ -373,6 +382,7 @@ public class AircraftGroundOps
             AssignedTaxiRoute = AssignedTaxiRoute?.ToSnapshot(),
             ParkingSpot = ParkingSpot,
             CurrentTaxiway = CurrentTaxiway,
+            TaxiEdgeTrail = TaxiEdgeTrail.ToSnapshot(),
             IsHeld = Hold is not null,
             GiveWayTarget = Hold?.YieldTarget,
             AutoDeleteExempt = AutoDeleteExempt,
@@ -421,6 +431,7 @@ public class AircraftGroundOps
             AssignedTaxiRoute = dto.AssignedTaxiRoute is not null ? TaxiRoute.FromSnapshot(dto.AssignedTaxiRoute, layout) : null,
             ParkingSpot = dto.ParkingSpot,
             CurrentTaxiway = dto.CurrentTaxiway,
+            TaxiEdgeTrail = TaxiEdgeTrail.FromSnapshot(dto.TaxiEdgeTrail),
             Hold = HoldFromSnapshot(dto.IsHeld, dto.GiveWayTarget),
             AutoDeleteExempt = dto.AutoDeleteExempt,
             PendingAutoDelete = dto.PendingAutoDelete,

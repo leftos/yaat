@@ -1238,6 +1238,45 @@ public sealed partial class SimulationEngine
     }
 
     /// <summary>
+    /// Per-second, after physics: adds to each moving ground aircraft's <see cref="AircraftGroundOps.TaxiEdgeTrail"/> the
+    /// straight taxi edge it is on (<see cref="TaxiEdgeLocator.EdgeUnder"/>, looked for first around the trail's newest
+    /// edge), whatever its phase except a runway roll (<see cref="IsRunwayRoll"/>), and empties the trail of every airborne
+    /// aircraft. An aircraft with no ground layout, standing still, or rolling along a runway is left as it is. A spine step
+    /// (<see cref="Spine.StepId.TaxiEdgeTrail"/>) on every run kind.
+    /// </summary>
+    public void TickTaxiEdgeTrails()
+    {
+        foreach (AircraftState ac in World.GetSnapshot())
+        {
+            TaxiEdgeTrail trail = ac.Ground.TaxiEdgeTrail;
+            if (!ac.IsOnGround)
+            {
+                trail.Clear();
+                continue;
+            }
+
+            if ((ac.Ground.Layout is not { } layout) || (ac.GroundSpeed <= 0.0) || IsRunwayRoll(ac.Phases?.CurrentPhase))
+            {
+                continue;
+            }
+
+            (int NodeA, int NodeB)? lastEdge = trail.Newest is { } newest ? (newest.NodeA, newest.NodeB) : null;
+            if (TaxiEdgeLocator.EdgeUnder(layout, ac.Position, lastEdge) is { } edge)
+            {
+                trail.Record(edge);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Whether <paramref name="phase"/> rolls the aircraft along a runway — lining up, the takeoff roll and its rejection, the
+    /// landing rollout and the touch-and-go / stop-and-go roll — where it passes over the taxiways crossing the runway without
+    /// driving them. A runway crossing and a runway exit are taxiing, and are not runway rolls.
+    /// </summary>
+    private static bool IsRunwayRoll(Phase? phase) =>
+        phase is LineUpPhase or LinedUpAndWaitingPhase or TakeoffPhase or RejectedTakeoffPhase or LandingPhase or TouchAndGoPhase or StopAndGoPhase;
+
+    /// <summary>
     /// End-of-second sample of <see cref="AircraftState.PositionHistory"/>, the history-trail dots every display
     /// projects: one ring-buffer entry per aircraft every <see cref="AircraftState.PositionHistorySampleSeconds"/>,
     /// <see cref="AircraftState.PositionHistoryCapacity"/> deep. A spine step (<see cref="Spine.StepId.PositionHistory"/>)

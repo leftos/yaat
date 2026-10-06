@@ -205,7 +205,7 @@ Nothing is transmitted at assume. The `CommandResult` message summarises the see
   arrival approach; `Landing|OnSurface` → landing after threshold; not clear while `Landing|OnSurface|Crossing`. After
   liftoff the observer's `DepartedOnRunway` latch keeps it a `Departing` on the latched runway within 1 nm of the
   departure end, so the §3-9-6 / §3-10-3.a.2 landmarks are scored. Airborne separation already included shadows.
-- **Runway-use observer** (`SimulationEngine.TickLiveTrafficRunwayUse`, the first post-physics spine step, once per second on
+- **Runway-use observer** (`SimulationEngine.TickLiveTrafficRunwayUse`, a post-physics spine step right after `TickTaxiEdgeTrails`, once per second on
   every run kind): classifies each shadow against the primary airport, else its destination/departure
   airport. The edge airborne `Landing` → on the ground stamps `CompletionReason.Landed` and sets
   `LiveTraffic.LandedOnRunway`, which makes `Classify` read the rollout as `OnSurface` (geometry cannot tell an 80-kt

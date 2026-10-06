@@ -954,6 +954,7 @@ internal static class FlightCommandHandler
             aircraft.Phases = null;
         }
         aircraft.Ground.AssignedTaxiRoute = null;
+        aircraft.Ground.TaxiEdgeTrail.Clear();
         aircraft.Targets.TurnRateOverride = null;
         aircraft.Targets.HasExplicitTurnRate = false;
         aircraft.Position = new LatLon(cmd.Latitude, cmd.Longitude);
@@ -1042,6 +1043,7 @@ internal static class FlightCommandHandler
             aircraft.Phases = null;
         }
         aircraft.Ground.AssignedTaxiRoute = null;
+        aircraft.Ground.TaxiEdgeTrail.Clear();
         aircraft.Queue.Blocks.Clear();
         aircraft.Ground.Hold = null;
         aircraft.Targets.TurnRateOverride = null;

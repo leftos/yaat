@@ -19,6 +19,7 @@ public enum StepId
     Physics,
 
     // PostPhysics, in the live server's order
+    TaxiEdgeTrail,
     LiveTrafficRunwayUse,
     Transponders,
     AltitudeFixPassage,
