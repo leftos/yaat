@@ -3,7 +3,7 @@
 > Reference, not a plan: the unchecked rows are methods YAAT does not emulate and has no scheduled work for. A gap gets worked only when a specific bug report or feature request names it.
 
 Status of yaat-server's support for the CRC WebSocket hub protocol.
-Authoritative interface definitions: `..\vatsim-vnas\messaging\` (sibling repo)
+Authoritative interface definitions: `..\_ext\vatsim-vnas\messaging\` (sibling repo)
 
 > **vatsim-server-rs is read-only.** Its stubs don't mean a feature isn't needed — YAAT needs
 > full two-way interaction. Evaluate mutation-capable methods against vNAS messaging/data interfaces.

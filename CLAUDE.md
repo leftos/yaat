@@ -90,11 +90,10 @@ Project-reference direction: `Yaat.Client` → `Yaat.Client.Core` → `Yaat.Clie
 | Repo | Path | Purpose |
 |------|------|---------|
 | yaat-server | `..\yaat-server` | ASP.NET Core server, simulation engine, CRC protocol |
-| vzoa | `..\vzoa` | vZOA training files (auxiliary). Airport ground GeoJSONs are fetched from the vNAS data-api by `AirportLayoutDownloader`; do not read the sibling repo. |
-| vatsim-server-rs | `..\vatsim-server-rs` | CRC protocol reference (wire format, DTO ordering) — **read-only emulation**, use vNAS messaging-master for mutation-capable methods |
-| lc-trainer | `..\lc-trainer` | Previous WPF trainer (**NOT trusted** — needs expert review) |
-| vatsim-vnas | `..\vatsim-vnas` | vNAS source: common (GeoCalc), data (nav/scenarios), messaging (CRC DTOs — definitive reference) |
-| vedst | `..\vedst` | vEDST web client (`vFlightDataSystems/VATSIM_EDST_frontend`) — **read-only reference** for the hub methods, callbacks, DTO shapes and `/vnas` endpoints yaat-server serves it ([`docs/vedst.md`](docs/vedst.md)) |
+| vzoa | `..\_ext\vzoa` | vZOA training files (auxiliary). Airport ground GeoJSONs are fetched from the vNAS data-api by `AirportLayoutDownloader`; do not read the sibling repo. |
+| vatsim-server-rs | `..\_ext\csko\vatsim-server-rs` | CRC protocol reference (wire format, DTO ordering) — **read-only emulation**, use vNAS messaging-master for mutation-capable methods |
+| vatsim-vnas | `..\_ext\vatsim-vnas` | vNAS source: common (GeoCalc), data (nav/scenarios), messaging (CRC DTOs — definitive reference) |
+| vedst | `..\_ext\vFlightDataSystems\VATSIM_EDST_frontend` | vEDST web client (`vFlightDataSystems/VATSIM_EDST_frontend`) — **read-only reference** for the hub methods, callbacks, DTO shapes and `/vnas` endpoints yaat-server serves it ([`docs/vedst.md`](docs/vedst.md)) |
 
 **vNAS APIs:** Config: `https://configuration.vnas.vatsim.net/` | Data: `https://data-api.vnas.vatsim.net/api/artccs/{id}` | Airport ground map: `https://data-api.vnas.vatsim.net/api/training/airports/{FAA}/map` (used by `AirportLayoutDownloader`, cached at `%LOCALAPPDATA%/yaat/cache/airports/`)
 
@@ -106,7 +105,7 @@ Project-reference direction: `Yaat.Client` → `Yaat.Client.Core` → `Yaat.Clie
 - `docs/crc/` — CRC controller manual (STARS, Tower Cab, vStrips)
 - [`docs/eram/`](docs/eram/README.md) — ERAM command reference extracted from the FAA ERAM EDSM SRS: per-command formats, field checks, descriptors and our error texts, as YAML that yaat-server's `EramReferenceConformanceTests` enforces. Read it before touching `CrcClientState.Eram*.cs`
 - `docs/vnas-artcc-config-examples/` — Real ARTCC config JSONs (facility hierarchy, positions, coordination channels)
-- `..\crc-decompiled\CRC\` (sibling of the yaat repo root) — private git repo of the ILSpy-decompiled CRC (2.15 baseline + 2.17; re-decompile + commit on each CRC update). Key: `Vatsim.Nas.Crc.Ui.Displays.Stars.Elements/DisplayElementTracks.cs`, `…Stars.Consolidation/ConsolidationManager.cs`, `…Stars.Tracks/Track.cs`, `TrackOwnerExtensions.cs`
+- `..\_ext\vatsim-vnas\crc-decompiled\CRC\` (sibling of the yaat repo root) — private git repo of the ILSpy-decompiled CRC (2.15 baseline + 2.17; re-decompile + commit on each CRC update). Key: `Vatsim.Nas.Crc.Ui.Displays.Stars.Elements/DisplayElementTracks.cs`, `…Stars.Consolidation/ConsolidationManager.cs`, `…Stars.Tracks/Track.cs`, `TrackOwnerExtensions.cs`
 - On each CRC update, also regenerate the CRC wire-contract snapshot in yaat-server: `dotnet run --project tools/CrcWireDump` (reads the installed CRC's `Vatsim.Nas.Messaging.dll`/`Vatsim.Nas.Common.dll` metadata into `docs/crc-wire/messaging-contract.json`; `CrcWireContractTests` diffs every `Yaat.Server.Dtos` MessagePack layout against it). The end-to-end procedure — changelog source, decompiler pin, what to diff — is the `crc-update-check` skill (reference: yaat-server `docs/crc-update.md`).
 - [`scenario-validation.md`](docs/scenario-validation.md) — validating scenario preset commands (`VnasScenarioParseTests`); [`scenario-validation-known-failures.md`](docs/scenario-validation-known-failures.md) lists the failures that are *not* parser bugs (scenario typos, features we won't implement) — check it before chasing one
 - [`discord-integration.md`](docs/discord-integration.md) — Discord bot and GitHub Actions workflows; the desktop client's Rich Presence (`src/Yaat.Client/Services/Discord/`)

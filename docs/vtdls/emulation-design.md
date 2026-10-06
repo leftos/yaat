@@ -162,7 +162,7 @@ Committed at `dfd35cc8`. `docs/vtdls/` cached. Findings folded into the rest of 
 **Goal**: Find where the vNAS data-api exposes TDLS configuration, build a loader, integrate with the existing config-load path. This phase is *exploratory first, code second*: it's possible TDLS config lives inside the ARTCC config response, in which case the loader is just an enrichment of `ArtccConfigService`; if it's a separate endpoint, we add a `TdlsConfigDownloader` analogous to `AirportLayoutDownloader`.
 
 **1.0.1** ✅ `docs(tdls): probe vNAS data-api for TDLS config endpoint` (committed `65da3764`)
-- Findings in `docs/vtdls/README.md` under "Data-api integration". TL;DR: TDLS lives **inside** the existing `/api/artccs/{ID}` ARTCC config response on per-facility `tdlsConfiguration` nodes — no separate endpoint. Wire format matches `..\vatsim-vnas\data\Facilities\Tdls*.cs` exactly. ARTCC IDs must be uppercase.
+- Findings in `docs/vtdls/README.md` under "Data-api integration". TL;DR: TDLS lives **inside** the existing `/api/artccs/{ID}` ARTCC config response on per-facility `tdlsConfiguration` nodes — no separate endpoint. Wire format matches `..\_ext\vatsim-vnas\data\Facilities\Tdls*.cs` exactly. ARTCC IDs must be uppercase.
 
 **1.0.2** ✅ `add(tdls): TdlsConfig DTOs in ArtccConfig.cs + ZOA fixture` (TBD this commit)
 - Extends `src/Yaat.Sim/Data/Vnas/ArtccConfig.cs` with `TdlsConfig`, `TdlsSidConfig`, `TdlsSidTransitionConfig`, `TdlsClearanceValueConfig` classes; adds `[JsonPropertyName("tdlsConfiguration")] TdlsConfig? TdlsConfiguration` to `FacilityConfig`. Property naming follows the wire format (`InitialAlts`, not "Maintain" — UI does the rename).

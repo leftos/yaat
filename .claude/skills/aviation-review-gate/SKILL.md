@@ -121,7 +121,7 @@ defensible*, rank the evidence:
 | 1 | Measured reference artefact | the reporter's screenshot, a recording, a tick CSV |
 | 1 (on silence) | The emulation target's own documentation, where 7110.65 and the AIM say nothing | the vendored display manual stating the coast interval |
 | 2 | The emulated **server** reference | vNAS messaging-master / data-master |
-| 3 | Client-side observation | the decompiled CRC client at `..\crc-decompiled\CRC\` |
+| 3 | Client-side observation | the decompiled CRC client at `..\_ext\vatsim-vnas\crc-decompiled\CRC\` |
 | 4 | First-principles reasoning | the expert's a-priori argument |
 
 Higher beats lower on observable practice. On #312 the expert reasoned from
@@ -144,7 +144,7 @@ Two corollaries that travel with it:
 
 ### 3c. The CRC client is not the server we emulate
 
-The decompiled CRC at `..\crc-decompiled\CRC\` is the **client**. The vNAS
+The decompiled CRC at `..\_ext\vatsim-vnas\crc-decompiled\CRC\` is the **client**. The vNAS
 **server** YAAT emulates (messaging-master / data-master) is not decompiled and
 may enforce rules the client never gates. "The CRC client doesn't prevent X" is
 not evidence that the real server allows X.
