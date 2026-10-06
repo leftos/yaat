@@ -97,7 +97,7 @@ function Get-ScriptArgument {
 # words are every argv entry after this script's own file argument. A call that never names this script as its file
 # argument - an in-session `& script.ps1` call, an in-process call from another script, a caller whose own -File script
 # holds this path as one of its arguments - gets $args as it always did.
-function Get-RawWords {
+function Get-RawWord {
     param([object[]]$Fallback)
     $argv = [Environment]::GetCommandLineArgs()
     $at = Get-ScriptArgument -Argv $argv
@@ -111,6 +111,21 @@ function Get-RawWords {
         return @($argv | Select-Object -Skip ($at + 1))
     }
     return @($Fallback)
+}
+
+# A caller that splats an array holding one array, as `& $gate ... -- @cmd` does, hands one word of the call a list of
+# its own; the launcher passes it on the way a native call would, replacing every element that is itself a list, and not
+# a string, by its elements, recursively, and dropping a null as a native call drops it, so a whole command is never
+# joined into one program name. A string is one word and is never split.
+function Expand-Word {
+    param([object[]]$Words)
+    $flat = [System.Collections.Generic.List[object]]::new()
+    foreach ($word in $Words) {
+        if ($null -eq $word) { continue }
+        if ($word -is [string] -or $word -isnot [System.Collections.IEnumerable]) { $flat.Add($word); continue }
+        foreach ($item in (Expand-Word -Words @($word))) { $flat.Add($item) }
+    }
+    return $flat.ToArray()
 }
 
 # Reads the option at $At into $Options; returns how many words it took, or 0 having said why it could not. An option
@@ -350,6 +365,7 @@ function Invoke-StopTree {
 # The words of one call: -StopTree alone, or the options, the checks on them and the fallback; returns the exit status.
 function Invoke-Main {
     param([object[]]$Words)
+    $Words = @(Expand-Word -Words $Words)
     if ($Words.Count -gt 0 -and [string]$Words[0] -eq '-StopTree') { return Invoke-StopTree $Words }
     $parsed = Read-Argument $Words
     $problems = if ($parsed) { Get-InputProblem -Options $parsed.Options -Command $parsed.Command } else { @() }
@@ -363,7 +379,7 @@ function Invoke-Main {
 
 # The canonical gate when the machine has one: every word, -StopTree and the separator included, is handed to it in
 # this same process, so nothing about the call changes.
-$words = @(Get-RawWords -Fallback $args)
+$words = @(Get-RawWord -Fallback $args)
 if (Test-Path -LiteralPath $gatePath) {
     & $gatePath @words
     exit ([int]$LASTEXITCODE)
