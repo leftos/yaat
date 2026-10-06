@@ -74,6 +74,15 @@
 - [x] YAAT-16 Merge feat/context-menu-quick-commands (#471, yaat-server#21) · release vNext
 - [x] YAAT-275 Ground right-click on a runway surface offers taxi to that runway (nearest hold short) · release vNext
 - [x] YAAT-224 Open the command and note flyouts through MenuPopups; drop the unreachable blank-input branches · release vNext
+- [/] YAAT-440 Group, filter and distance-label the ground view's Push Back To submenu
+- [/] YAAT-441 Show a live label naming the quick-command icon under the pointer
+- [/] YAAT-442 Offer the quick-command icons when right-clicking a taxi node with a parked aircraft selected
+- [ ] YAAT-443 Review the ground and radar quick-action UX and propose changes
+- [ ] YAAT-445 Seed the context menu's heading pickers and warp popup with magnetic heading, not true
+- [ ] YAAT-446 Stop the Temporary altitude and Cruise popups throwing on FL or comma input
+- [ ] YAAT-447 Keep unspawned aircraft out of the Follow and Give way to lists
+- [ ] YAAT-448 Stop the Hold short submenu offering fillet names the server refuses
+- [ ] YAAT-449 Find why a grounded aircraft can end with no phase, and give it ground menus
 
 ## Client surfaces redesign
 
@@ -134,7 +143,7 @@
 
 ## Wave 1 — Ground realism and braking
 
-- [ ] YAAT-437 Aim a turn-about's reversal along the route when the next turn doubles back · release vNext
+- [/] YAAT-437 Aim a turn-about's reversal along the route when the next turn doubles back · release vNext
 - [/] YAAT-30 Rollout retune follow-ups: separation intervals, exit completion, firm rates
 - [x] YAAT-32 Fold aircraft-length fallbacks into AircraftLength.ResolveFt; fix CWT labels · release vNext
 - [x] YAAT-309 Hold-short warning under FOLLOWG omits the taxiway name · release vNext
@@ -483,3 +492,4 @@
 - [ ] YAAT-420 ProcessRecordingBackendTests KillRecorder test fails under load
 - [ ] YAAT-436 Draw the ground overlay for a ramp-only taxi route
 - [ ] YAAT-439 Aim a ramp or free-space reversal along the route when the next turn doubles back
+- [ ] YAAT-444 Stop drawing the far-end turn-about overlay during a re-aimed turn-about cut
