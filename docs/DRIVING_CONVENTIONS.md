@@ -105,7 +105,11 @@ Source: D:\yaat\tools\Yaat.ClientDriver.Mcp\Tools\ProcessTools.cs:41-68, 139-157
 ### Build before launch, and build before stopping on a restart
 <!-- rule: build-before-launch -->
 
-Every `launch_yaat` runs a prep first: it builds `src/Yaat.Client` when the client exe is missing or older than its sources (the newest tracked source time against the output, plus a stamp touched after each green build so a non-compile change does not rebuild every run), naming the build log in the result. A red build refuses the launch with the parsed compiler errors and the configuration built. A restart builds first, then stops, then launches, so a red build leaves the old client running. A missing assembly first shows as misleading startup errors, so under a red build those symptom lines are dropped and the result reports the cause. A running client holds its exe and DLLs, so a build into the same output folder fails with `MSB3027` as the server's own did; the prep refuses naming the running client's pid rather than failing inside MSBuild. A project can route the build through its own wrapper (its gate script).
+Every `launch_yaat` runs a prep first: it builds `src/Yaat.Client` when the client exe is missing or older than its sources (the newest tracked source time against the output, plus a stamp touched after each green build so a non-compile change does not rebuild every run), naming the build log in the result. A red build refuses the launch with the parsed compiler errors and the configuration built.
+
+A restart builds first, then stops, then launches, so a red build leaves the old client running. A missing assembly first shows as misleading startup errors, so under a red build those symptom lines are dropped and the result reports the cause.
+
+Building beside a running app is safe only when the app loaded its assemblies into memory. The desktop client does not: it holds its exe and DLLs, so a build into the same output folder fails with `MSB3027` as the server's own did, and the prep refuses naming the running client's pid rather than failing inside MSBuild. A project can route the build through its own wrapper (its gate script).
 Source: godot-mcp's decision record and changelog fixes. Seen: 0 here (seeded from godot-mcp).
 
 ### Show windows with WS_EX_NOACTIVATE and at the bottom of the Z order
