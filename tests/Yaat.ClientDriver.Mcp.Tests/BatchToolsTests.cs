@@ -428,7 +428,7 @@ public sealed class BatchToolsTests : AutomationHostFixture
         try
         {
             using var document = JsonDocument.Parse(stepsJson);
-            string result = await new BatchTools(directory).RunAsync(document.RootElement, Pid, deadline, callerToken);
+            string result = await new BatchTools(directory, RecordingFakes.NewSession()).RunAsync(document.RootElement, Pid, deadline, callerToken);
             return new Outcome(result, methods, arguments);
         }
         finally

@@ -28,6 +28,8 @@ param(
         'invoke',
         'click',
         'click_point',
+        'hover',
+        'drag',
         'set_text',
         'send_keys',
         'set_input_mode',

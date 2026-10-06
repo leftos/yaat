@@ -4,7 +4,9 @@ using System.Windows.Automation;
 using Microsoft.Extensions.Logging;
 using ModelContextProtocol;
 using ModelContextProtocol.Server;
+using Yaat.Client.Automation.Protocol;
 using Yaat.ClientDriver.Mcp.Pipe;
+using Yaat.ClientDriver.Mcp.Recording;
 using Rect = System.Windows.Rect;
 
 namespace Yaat.ClientDriver.Mcp.Tools;
@@ -18,9 +20,10 @@ namespace Yaat.ClientDriver.Mcp.Tools;
 /// </summary>
 /// <param name="registry">Shared element registry; ids come from the inspect tools.</param>
 /// <param name="pipes">Finds and caches the YAAT clients' automation pipes, and remembers the client last reached over one.</param>
+/// <param name="session">The server's one recording, whose action log every pipe click, hover and drag is written to while it runs.</param>
 /// <param name="logger">Server logger, writing to stderr.</param>
 [McpServerToolType]
-public sealed class InputTools(ElementRegistry registry, PipeDirectory pipes, ILogger<InputTools> logger)
+public sealed class InputTools(ElementRegistry registry, PipeDirectory pipes, RecordingSession session, ILogger<InputTools> logger)
 {
     private const string SendKeysSpecialCharacters = "+^%~(){}[]";
     private const string SwitchToReal = "switch to real input with set_input_mode real";
@@ -57,9 +60,10 @@ public sealed class InputTools(ElementRegistry registry, PipeDirectory pipes, IL
     {
         if (registry.Resolve(elementId) is PipeNodeRef node)
         {
-            return await PipeInput
+            PipeAction invoked = await PipeInput
                 .ClickAsync(pipes, new PipeElement(elementId, node), PipePointer.PlainLeft, "invoked", cancellationToken)
                 .ConfigureAwait(false);
+            return invoked.Text;
         }
 
         AutomationElement element = registry.ResolveUia(elementId);
@@ -89,7 +93,19 @@ public sealed class InputTools(ElementRegistry registry, PipeDirectory pipes, IL
         if (registry.Resolve(elementId) is PipeNodeRef node)
         {
             var pointer = new PipePointer(button, modifiers, doubleClick);
-            return await PipeInput.ClickAsync(pipes, new PipeElement(elementId, node), pointer, "clicked", cancellationToken).ConfigureAwait(false);
+            var target = new PipeElement(elementId, node);
+            string described = await PipeInput.DescribeAsync(pipes, target, cancellationToken).ConfigureAwait(false);
+            // Stamped after the describe round trip, so the logged instant is the click's own.
+            DateTime sentUtc = session.UtcNow;
+            PipeAction clicked = await PipeInput
+                .ClickDescribedAsync(pipes, target, pointer, new PipeClickWording("clicked", described), cancellationToken)
+                .ConfigureAwait(false);
+            return await LoggedAsync(
+                    clicked.Text,
+                    RecordedAction.Click(node.Pid, sentUtc, clicked.Site, button, pointer.ClickCount),
+                    cancellationToken
+                )
+                .ConfigureAwait(false);
         }
 
         AutomationElement element = registry.ResolveUia(elementId);
@@ -141,9 +157,87 @@ public sealed class InputTools(ElementRegistry registry, PipeDirectory pipes, IL
         }
 
         var pointer = new PipePointer(button, modifiers, doubleClick);
-        return await PipeInput
+        DateTime sentUtc = session.UtcNow;
+        PipeAction clicked = await PipeInput
             .ClickPointAsync(pipes, new PipeElement(windowElementId, window), x, y, pointer, cancellationToken)
             .ConfigureAwait(false);
+        return await LoggedAsync(clicked.Text, RecordedAction.Click(window.Pid, sentUtc, clicked.Site, button, pointer.ClickCount), cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    [McpServerTool]
+    [Description(
+        "Pipe only. Moves the mouse onto a point of a YAAT window and rests there durationMs, so hover effects fire as for a real mouse "
+            + "(PointerEntered, IsPointerOver, a menu item's route preview, a tooltip); the pointer stays there afterwards. With selector, "
+            + "the point is the centre of the one element it matches (the pipe's selector syntax: #Name, a type name, A > B, :nth(N)), "
+            + "searched across the client's windows; with selector empty, x and y are DIPs from the top-left of windowElementId's client "
+            + "area. Raw mouse input through the window's own input path: the real cursor never moves and the foreground never changes. "
+            + "While a recording of that client runs, the hover is logged to <clip>-actions.jsonl. The result names the element under the "
+            + "point and ends with (pipe)."
+    )]
+    public async Task<string> HoverAsync(
+        [Description(
+            "Element id of a window from a YAAT client's automation pipe (list_windows): the client to drive and the window x and y are in."
+        )]
+            string windowElementId,
+        [Description("Selector of the element to hover at the centre of; empty to hover at x, y.")] string selector,
+        [Description("Window X in DIPs from the client area's left edge; ignored when selector is given.")] int x,
+        [Description("Window Y in DIPs from the client area's top edge; ignored when selector is given.")] int y,
+        [Description("How long the pointer rests on the point before the call answers, 0–10000 ms.")] int durationMs,
+        CancellationToken cancellationToken
+    )
+    {
+        PipeNodeRef window = RequirePipeWindow(windowElementId, "hover");
+        DateTime sentUtc = session.UtcNow;
+        (string text, HoverResult result) = await PipeInput
+            .HoverAsync(pipes, new PipeElement(windowElementId, window), new PipeHover(selector, x, y, durationMs), cancellationToken)
+            .ConfigureAwait(false);
+        return await LoggedAsync(text, RecordedAction.Hover(window.Pid, sentUtc, result.Site, result.DurationMs), cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    [McpServerTool]
+    [Description(
+        "Pipe only. Drags with a mouse button held in a YAAT window: presses at (fromX, fromY), moves to (toX, toY) in steps equal "
+            + "moves 16 ms apart with the button held, rests holdMs, and releases there, so a control that captures the pointer on the "
+            + "press (a list's drag handle, a data block) gets every move and its drag threshold is passed as by a real mouse. Both points "
+            + "are DIPs from the top-left of windowElementId's client area and must be inside it. Raw mouse input through the window's own "
+            + "input path: the real cursor never moves and the foreground never changes. While a recording of that client runs, the drag "
+            + "is logged to <clip>-actions.jsonl. The result names the element pressed and ends with (pipe)."
+    )]
+    public async Task<string> DragAsync(
+        [Description("Element id of a window from a YAAT client's automation pipe (list_windows).")] string windowElementId,
+        [Description("Press X in DIPs from the client area's left edge.")] int fromX,
+        [Description("Press Y in DIPs from the client area's top edge.")] int fromY,
+        [Description("Release X in DIPs from the client area's left edge.")] int toX,
+        [Description("Release Y in DIPs from the client area's top edge.")] int toY,
+        [Description("The button held: left, right or middle.")] string button,
+        [Description("How many equal moves take the pointer from the press to the release, 1–100.")] int steps,
+        [Description("How long the button stays held at the release point before it is released, 0–10000 ms.")] int holdMs,
+        CancellationToken cancellationToken
+    )
+    {
+        PipeNodeRef window = RequirePipeWindow(windowElementId, "drag");
+        DateTime sentUtc = session.UtcNow;
+        var drag = new PipeDrag(fromX, fromY, toX, toY, button, steps, holdMs);
+        (string text, DragResult result) = await PipeInput
+            .DragAsync(pipes, new PipeElement(windowElementId, window), drag, cancellationToken)
+            .ConfigureAwait(false);
+        return await LoggedAsync(text, RecordedAction.Drag(window.Pid, sentUtc, result), cancellationToken).ConfigureAwait(false);
+    }
+
+    private PipeNodeRef RequirePipeWindow(string windowElementId, string tool) =>
+        (registry.Resolve(windowElementId) as PipeNodeRef)
+        ?? throw new McpException(
+            $"{tool} drives a YAAT client over its automation pipe only: windowElementId '{windowElementId}' must be a window from that "
+                + "client's list_windows"
+        );
+
+    /// <summary><paramref name="text"/>, after logging <paramref name="action"/>; a failed write is noted after the text.</summary>
+    private async Task<string> LoggedAsync(string text, RecordedAction action, CancellationToken ct)
+    {
+        string? problem = await session.LogActionAsync(action, ct).ConfigureAwait(false);
+        return (problem is null) ? text : $"{text}{Environment.NewLine}warning: {problem}";
     }
 
     [McpServerTool]

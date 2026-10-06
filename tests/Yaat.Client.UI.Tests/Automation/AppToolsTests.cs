@@ -133,7 +133,9 @@ public sealed class AppToolsTests : AutomationHostFixture
                 "clear_rbls()",
                 "connect(url:string)",
                 "create_room(artccId:string)",
+                "drag(window:string,fromX:double,fromY:double,toX:double,toY:double,button:string,steps:int,holdMs:int)",
                 "get_framing()",
+                "hover(window:string,selector:string,x:double,y:double,durationMs:int)",
                 "load_recording(path:string)",
                 "pause()",
                 "place_rbl(from:string,to:string)",
@@ -171,8 +173,8 @@ public sealed class AppToolsTests : AutomationHostFixture
     {
         JsonElement list = Result(await ListTools(ToolsOf(NewMain())));
 
-        // connect needs no server: it is how the agent gets one. set_cloaked acts on the client's own windows only.
-        string[] needNoRoom = ["connect", "set_cloaked"];
+        // connect needs no server: it is how the agent gets one. set_cloaked, hover and drag act on the client's own windows only.
+        string[] needNoRoom = ["connect", "set_cloaked", "hover", "drag"];
         foreach (JsonElement tool in list.EnumerateArray().Where(tool => !needNoRoom.Contains(tool.GetProperty("name").GetString())))
         {
             Assert.False(tool.GetProperty("available").GetBoolean(), tool.GetRawText());

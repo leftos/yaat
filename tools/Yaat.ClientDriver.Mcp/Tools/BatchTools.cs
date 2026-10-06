@@ -8,6 +8,7 @@ using ModelContextProtocol;
 using ModelContextProtocol.Server;
 using Yaat.Client.Automation.Protocol;
 using Yaat.ClientDriver.Mcp.Pipe;
+using Yaat.ClientDriver.Mcp.Recording;
 
 namespace Yaat.ClientDriver.Mcp.Tools;
 
@@ -17,8 +18,11 @@ namespace Yaat.ClientDriver.Mcp.Tools;
 /// elements by selector, never by element id: an id handed out before the batch is stale by the time a later step runs.
 /// </summary>
 /// <param name="pipes">Finds and caches the YAAT clients' automation pipes, and remembers the client last reached over one.</param>
+/// <param name="session">
+/// The server's one recording, whose action log every click, click_point, hover and drag step is written to while it runs.
+/// </param>
 [McpServerToolType]
-public sealed class BatchTools(PipeDirectory pipes)
+public sealed class BatchTools(PipeDirectory pipes, RecordingSession session)
 {
     /// <summary>How long a whole batch may run, in seconds, before its steps are cut short and it fails.</summary>
     public const int MaxBatchSeconds = 300;
@@ -45,7 +49,9 @@ public sealed class BatchTools(PipeDirectory pipes)
             + "\"no_errors\"} — fails when the client logged errors since the batch started or the previous no_errors step. Steps "
             + "address elements by selector: a step whose params carry nodeId or windowNodeId is refused. A screenshot step's PNG is "
             + "saved to the shots folder and its result carries the file's path, width and height instead of the image. The whole "
-            + "batch stops after 300 s. Returns a JSON result — {\"passed\": ..., \"steps\": [...], \"failedAt\": ...} — never an MCP "
+            + "batch stops after 300 s. While a recording of the client runs, every click, click_point, hover and drag step that "
+            + "passes is logged to <clip>-actions.jsonl at the instant it was sent; a step whose log write failed carries a "
+            + "\"warning\". Returns a JSON result — {\"passed\": ..., \"steps\": [...], \"failedAt\": ...} — never an MCP "
             + "error, so a failed step is read from the result. Goes to pid, or with pid 0 to the client the last pipe call reached."
     )]
     public Task<string> BatchDriveAsync(
@@ -70,7 +76,7 @@ public sealed class BatchTools(PipeDirectory pipes)
         var deadlineWatch = Stopwatch.StartNew();
         using var deadlineCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         deadlineCts.CancelAfter(deadline);
-        var run = new BatchRun(pipes, pid, deadline, deadlineCts, cancellationToken, deadlineWatch);
+        var run = new BatchRun(pipes, session, pid, new BatchDeadline(deadline, deadlineCts, cancellationToken, deadlineWatch));
         return await run.ExecuteAsync(parsed).ConfigureAwait(false);
     }
 
@@ -142,34 +148,86 @@ public sealed class BatchTools(PipeDirectory pipes)
             ? value.GetString() ?? string.Empty
             : string.Empty;
 
-    /// <summary>One step's outcome: which shape it was, whether it passed, and its pipe answer or its error.</summary>
-    private sealed record StepOutcome(string? Method, string? Assert, bool Ok, JsonElement? Result, string? Error)
-    {
-        public static StepOutcome Passed(string? method, string? assert, JsonElement result) => new(method, assert, true, result, null);
+    /// <summary>True for the pipe methods whose steps the action log records: the pointer input with a position.</summary>
+    private static bool IsPointerMethod(string method) =>
+        method is ProtocolMethods.Click or ProtocolMethods.ClickPoint or ProtocolMethods.Hover or ProtocolMethods.Drag;
 
-        public static StepOutcome Failed(string? method, string? assert, string error) => new(method, assert, false, null, error);
+    /// <summary>
+    /// The action log's record of a pointer step's answer, as the standalone tools log it: a click or click_point with the button
+    /// and click count its params asked for (the host's defaults, left and 1, when they name none), a hover or a drag as the
+    /// client reported it. Null when the answer carries no point.
+    /// </summary>
+    /// <exception cref="JsonException">The answer is not the method's result shape.</exception>
+    private static RecordedAction? PointerAction(string method, JsonElement? parameters, JsonElement answer, int pid, DateTime sentUtc) =>
+        method switch
+        {
+            ProtocolMethods.Click => ClickAction(pid, sentUtc, Read<ClickResult>(answer)?.Site, parameters),
+            ProtocolMethods.ClickPoint => ClickAction(pid, sentUtc, Read<ClickPointResult>(answer)?.Site, parameters),
+            ProtocolMethods.Hover => (Read<HoverResult>(answer) is { Site: not null } hover)
+                ? RecordedAction.Hover(pid, sentUtc, hover.Site, hover.DurationMs)
+                : null,
+            ProtocolMethods.Drag => (Read<DragResult>(answer) is { From: not null } drag) ? RecordedAction.Drag(pid, sentUtc, drag) : null,
+            _ => null,
+        };
+
+    private static RecordedAction? ClickAction(int pid, DateTime sentUtc, PointerSite? site, JsonElement? parameters)
+    {
+        if (site is null)
+        {
+            return null;
+        }
+
+        string button = (parameters is { } named) ? ReadText(named, "button") : string.Empty;
+        int clickCount = ((parameters is { } counted) ? ReadInt(counted, "clickCount") : null) ?? 1;
+        return RecordedAction.Click(pid, sentUtc, site, (button.Length > 0) ? button : "left", clickCount);
+    }
+
+    private static T? Read<T>(JsonElement answer) => ProtocolSerializer.Deserialize<T>(answer.GetRawText());
+
+    /// <summary>
+    /// One step's outcome: which shape it was, whether it passed, its pipe answer or its error, and what went wrong logging a
+    /// pointer step that passed to the recording's action log.
+    /// </summary>
+    private sealed record StepOutcome(string? Method, string? Assert, bool Ok, JsonElement? Result, string? Error, string? Warning)
+    {
+        public static StepOutcome Passed(string? method, string? assert, JsonElement result) => new(method, assert, true, result, null, null);
+
+        public static StepOutcome Failed(string? method, string? assert, string error) => new(method, assert, false, null, error, null);
     }
 
     /// <summary>
-    /// One batch's in-flight state: the step loop, the shape each step is dispatched to, and the JSON result it builds. The
-    /// deadline is one clock and one linked <see cref="CancellationTokenSource"/> for the whole batch: the stopwatch started
-    /// before the token was armed tells a step cut by the deadline from one the pipe client cut with its own timer, however
-    /// close the two land.
+    /// A batch's deadline: one clock and one linked <see cref="CancellationTokenSource"/> for the whole batch. The stopwatch
+    /// started before the token was armed tells a step cut by the deadline from one the pipe client cut with its own timer,
+    /// however close the two land.
+    /// </summary>
+    /// <param name="Limit">How long the whole batch may run.</param>
+    /// <param name="Cts">The batch's token source, cancelled at the deadline or by the caller.</param>
+    /// <param name="CallerToken">The caller's own token, told apart from the deadline so its cancel is never reported as one.</param>
+    /// <param name="Watch">The batch's clock, started before <paramref name="Cts"/> was armed.</param>
+    private sealed record BatchDeadline(TimeSpan Limit, CancellationTokenSource Cts, CancellationToken CallerToken, Stopwatch Watch)
+    {
+        /// <summary>The batch's token, cancelled at the deadline or by the caller.</summary>
+        public CancellationToken Token => Cts.Token;
+
+        /// <summary>The time the batch has left; zero or less once the deadline has passed.</summary>
+        public TimeSpan Remaining => Limit - Watch.Elapsed;
+
+        /// <summary>
+        /// True when the deadline cut the step, whether the deadline token fired or the step's own timer ran out at about the same
+        /// moment: the caller's cancel is never this batch's failure, and a step past the deadline is never reported as a pipe
+        /// timeout.
+        /// </summary>
+        public bool Reached => !CallerToken.IsCancellationRequested && (Cts.IsCancellationRequested || (Watch.Elapsed >= Limit));
+    }
+
+    /// <summary>
+    /// One batch's in-flight state: the step loop, the shape each step is dispatched to, and the JSON result it builds.
     /// </summary>
     /// <param name="pipes">The directory the pipe calls go through.</param>
+    /// <param name="session">The recording whose action log the batch's pointer steps are written to while it records the client.</param>
     /// <param name="pid">The client the batch drives.</param>
-    /// <param name="deadline">How long the whole batch may run.</param>
-    /// <param name="deadlineCts">The batch's token, cancelled at the deadline or by the caller.</param>
-    /// <param name="callerToken">The caller's own token, told apart from the deadline so its cancel is never reported as one.</param>
-    /// <param name="deadlineWatch">The batch's clock, started before <paramref name="deadlineCts"/> was armed.</param>
-    private sealed class BatchRun(
-        PipeDirectory pipes,
-        int pid,
-        TimeSpan deadline,
-        CancellationTokenSource deadlineCts,
-        CancellationToken callerToken,
-        Stopwatch deadlineWatch
-    )
+    /// <param name="deadline">The batch's deadline and the caller's own token.</param>
+    private sealed class BatchRun(PipeDirectory pipes, RecordingSession session, int pid, BatchDeadline deadline)
     {
         private int _errorsSeen;
         private int _errorsOmittedSeen;
@@ -218,7 +276,7 @@ public sealed class BatchTools(PipeDirectory pipes)
             string named = hasMethod ? method : assert;
             string? methodName = hasMethod ? named : null;
             string? assertName = hasMethod ? null : named;
-            TimeSpan remaining = deadline - deadlineWatch.Elapsed;
+            TimeSpan remaining = deadline.Remaining;
             if (remaining <= TimeSpan.Zero)
             {
                 return StepOutcome.Failed(methodName, assertName, DeadlineMessage());
@@ -236,6 +294,7 @@ public sealed class BatchTools(PipeDirectory pipes)
                 return StepOutcome.Failed(method, null, refusal);
             }
 
+            DateTime sentUtc = session.UtcNow;
             try
             {
                 JsonElement answer = await PipeCalls
@@ -245,12 +304,16 @@ public sealed class BatchTools(PipeDirectory pipes)
                         method,
                         parameters,
                         CutToRemaining(StepTimeoutFor(parameters), remaining),
-                        deadlineCts.Token
+                        deadline.Token
                     )
                     .ConfigureAwait(false);
-                return string.Equals(method, ProtocolMethods.Screenshot, StringComparison.Ordinal)
-                    ? ScreenshotOutcome(method, answer)
-                    : StepOutcome.Passed(method, null, answer);
+                if (string.Equals(method, ProtocolMethods.Screenshot, StringComparison.Ordinal))
+                {
+                    return ScreenshotOutcome(method, answer);
+                }
+
+                string? logProblem = await LogPointerStepAsync(method, parameters, answer, sentUtc).ConfigureAwait(false);
+                return StepOutcome.Passed(method, null, answer) with { Warning = logProblem };
             }
             catch (McpException) when (DeadlineReached())
             {
@@ -264,6 +327,34 @@ public sealed class BatchTools(PipeDirectory pipes)
             {
                 return StepOutcome.Failed(method, null, DeadlineMessage());
             }
+        }
+
+        /// <summary>
+        /// Logs a click, click_point, hover or drag step that passed to the action log of a recording of this client, stamped
+        /// with <paramref name="sentUtc"/>, the instant the step was sent; any other method logs nothing. Returns null, or what
+        /// went wrong logging it: the input already happened, so the step still passes. The caller's own token, not the
+        /// deadline's, bounds the log's wait, so a step that ran is logged even when the deadline falls just after it.
+        /// </summary>
+        private async Task<string?> LogPointerStepAsync(string method, JsonElement? parameters, JsonElement answer, DateTime sentUtc)
+        {
+            if (!IsPointerMethod(method))
+            {
+                return null;
+            }
+
+            RecordedAction? action;
+            try
+            {
+                action = PointerAction(method, parameters, answer, pid, sentUtc);
+            }
+            catch (JsonException ex)
+            {
+                return $"could not log the {method} step to the action log: its answer is not a {method} result ({ex.Message})";
+            }
+
+            return (action is null)
+                ? $"could not log the {method} step to the action log: its answer carries no point"
+                : await session.LogActionAsync(action, deadline.CallerToken).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -348,14 +439,7 @@ public sealed class BatchTools(PipeDirectory pipes)
             try
             {
                 JsonElement answer = await PipeCalls
-                    .SendForPidAsync<JsonElement>(
-                        pipes,
-                        pid,
-                        ProtocolMethods.WaitFor,
-                        parameters,
-                        CutToRemaining(request, remaining),
-                        deadlineCts.Token
-                    )
+                    .SendForPidAsync<JsonElement>(pipes, pid, ProtocolMethods.WaitFor, parameters, CutToRemaining(request, remaining), deadline.Token)
                     .ConfigureAwait(false);
                 return StepOutcome.Passed(null, "wait", answer);
             }
@@ -427,18 +511,17 @@ public sealed class BatchTools(PipeDirectory pipes)
                 step["error"] = error;
             }
 
+            if (outcome.Warning is { } warning)
+            {
+                step["warning"] = warning;
+            }
+
             return step;
         }
 
-        /// <summary>
-        /// True when the batch's deadline cut the step, whether the deadline token fired or the step's own timer ran out at
-        /// about the same moment: the caller's cancel is never this batch's failure, and a step past the deadline is never
-        /// reported as a pipe timeout.
-        /// </summary>
-        private bool DeadlineReached() =>
-            !callerToken.IsCancellationRequested && (deadlineCts.IsCancellationRequested || (deadlineWatch.Elapsed >= deadline));
+        private bool DeadlineReached() => deadline.Reached;
 
-        private string DeadlineMessage() => $"batch deadline of {deadline.TotalSeconds.ToString(CultureInfo.InvariantCulture)} s reached";
+        private string DeadlineMessage() => $"batch deadline of {deadline.Limit.TotalSeconds.ToString(CultureInfo.InvariantCulture)} s reached";
 
         private static TimeSpan CutToRemaining(TimeSpan request, TimeSpan remaining) => (request < remaining) ? request : remaining;
     }

@@ -93,6 +93,29 @@ public static class InputParams
     }
 
     /// <summary>
+    /// The whole number in <paramref name="name"/>, which is required and must be from <paramref name="min"/> to <paramref name="max"/>.
+    /// </summary>
+    public static (int Value, HandlerErrorResult? Error) ReadRequiredInt(JsonElement element, string name, int min, int max)
+    {
+        bool valid =
+            element.TryGetProperty(name, out JsonElement value)
+            && (value.ValueKind == JsonValueKind.Number)
+            && value.TryGetInt32(out int number)
+            && (number >= min)
+            && (number <= max);
+        return valid
+            ? (value.GetInt32(), null)
+            : (0, HandlerResult.InvalidParam(name, $"'{name}' is required and must be a whole number from {min} to {max}."));
+    }
+
+    /// <summary><c>button</c>, which is required: left, right or middle.</summary>
+    public static (MouseButton Button, HandlerErrorResult? Error) ReadRequiredButton(JsonElement element)
+    {
+        (string button, HandlerErrorResult? error) = ReadRequiredString(element, "button");
+        return (error is null) ? ParseButton(button) : (MouseButton.Left, error);
+    }
+
+    /// <summary>
     /// <c>button</c> (left, right or middle; default left), <c>modifiers</c> (default none) and <c>clickCount</c> (1 or 2;
     /// default 1).
     /// </summary>
@@ -119,7 +142,8 @@ public static class InputParams
             : (null, HandlerResult.InvalidParam("clickCount", "'clickCount' must be 1 (a click) or 2 (a double click)."));
     }
 
-    private static (MouseButton Button, HandlerErrorResult? Error) ParseButton(string? button) =>
+    /// <summary><paramref name="button"/> as a mouse button: left, right or middle in any case, and left when it is null.</summary>
+    public static (MouseButton Button, HandlerErrorResult? Error) ParseButton(string? button) =>
         button?.ToLowerInvariant() switch
         {
             null or "left" => (MouseButton.Left, null),

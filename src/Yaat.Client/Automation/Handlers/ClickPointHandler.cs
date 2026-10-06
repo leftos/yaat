@@ -1,7 +1,5 @@
 using System.Text.Json;
 using Avalonia;
-using Avalonia.Controls;
-using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Yaat.Client.Automation.Protocol;
@@ -17,7 +15,7 @@ namespace Yaat.Client.Automation.Handlers;
 /// window (one that owns an open modal dialog) is <c>ELEMENT_DISABLED</c>.
 /// Params as <c>click</c>: <c>button</c>, <c>modifiers</c>, <c>clickCount</c>.
 /// </summary>
-public sealed class ClickPointHandler(NodeRegistry registry, TargetResolver targets) : IRequestHandler
+public sealed class ClickPointHandler(NodeRegistry registry, PointerTargets pointers) : IRequestHandler
 {
     private sealed record ClickPointParams(ElementTarget Window, Point Point, PointerClick Click);
 
@@ -52,34 +50,14 @@ public sealed class ClickPointHandler(NodeRegistry registry, TargetResolver targ
 
     private object ClickAt(ClickPointParams parameters)
     {
-        if (!targets.TryResolve(parameters.Window, out Visual? visual, out HandlerErrorResult? error))
+        object resolved = pointers.InWindow(parameters.Window, parameters.Point);
+        if (resolved is not WindowPoint at)
         {
-            return error;
+            return resolved;
         }
 
-        if (visual is not TopLevel topLevel)
-        {
-            return HandlerResult.InvalidParam(
-                parameters.Window.ParamName,
-                $"'{parameters.Window.ParamName}' must name a window, not a {visual.GetType().Name}."
-            );
-        }
-
-        // A window owning an open modal dialog is disabled, and a real click on it would not reach its content.
-        if (!topLevel.IsEffectivelyEnabled)
-        {
-            return HandlerResult.ElementDisabled(registry.GetOrRegister(topLevel), topLevel.GetType().Name);
-        }
-
-        Point point = parameters.Point;
-        Size size = topLevel.ClientSize;
-        if ((point.X < 0) || (point.Y < 0) || (point.X >= size.Width) || (point.Y >= size.Height))
-        {
-            return HandlerResult.OutOfBounds(point.X, point.Y, size.Width, size.Height);
-        }
-
-        Interactive receiver = (topLevel.InputHitTest(point) as Interactive) ?? topLevel;
-        SyntheticPointer.Click(receiver, topLevel, point, parameters.Click);
-        return new ClickPointResult(registry.GetOrRegister(receiver), receiver.GetType().Name);
+        Interactive receiver = PointerTargets.ReceiverAt(at);
+        SyntheticPointer.Click(receiver, at.TopLevel, at.Point, parameters.Click);
+        return new ClickPointResult(registry.GetOrRegister(receiver), receiver.GetType().Name, pointers.Site(at));
     }
 }

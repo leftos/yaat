@@ -39,7 +39,10 @@ public sealed class AutomationDispatcher
         var targets = new TargetResolver(registry, selectors);
         Register(new TreeHandler(registry, targets, new NodeInfoBuilder(registry)));
         Register(new ClickHandler(registry, targets));
-        Register(new ClickPointHandler(registry, targets));
+        var pointers = new PointerTargets(registry, targets);
+        Register(new ClickPointHandler(registry, pointers));
+        Register(new HoverHandler(registry, pointers));
+        Register(new DragHandler(registry, pointers));
         Register(new SendKeysHandler(registry, targets));
         Register(new SetTextHandler(registry, targets));
         Register(new FocusHandler(registry, targets));

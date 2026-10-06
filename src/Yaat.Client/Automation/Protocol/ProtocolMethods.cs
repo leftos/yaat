@@ -9,9 +9,11 @@ public static class ProtocolMethods
     public const string CallAppTool = "call_app_tool";
     public const string Click = "click";
     public const string ClickPoint = "click_point";
+    public const string Drag = "drag";
     public const string Focus = "focus";
     public const string GetSimTime = "get_sim_time";
     public const string GetTree = "get_tree";
+    public const string Hover = "hover";
     public const string ListAppTools = "list_app_tools";
     public const string ListWindows = "list_windows";
     public const string Ping = "ping";

@@ -26,14 +26,22 @@ public sealed record RecordingRequest(RecordingTarget Target, string Ffmpeg, str
 /// <param name="RecorderLog">The recorder's stderr, <c>&lt;clip&gt;-recorder.log</c>.</param>
 /// <param name="FfmpegLog">ffmpeg's stderr, <c>&lt;clip&gt;-ffmpeg.log</c>.</param>
 /// <param name="Deadline">The file holding the instant the recorder stops, <c>&lt;mp4&gt;.deadline</c>.</param>
-public sealed record RecordingPaths(string Mp4, string Marks, string RecorderLog, string FfmpegLog, string Deadline)
+/// <param name="Actions">The input actions logged while it records, <c>&lt;clip&gt;-actions.jsonl</c> (see <see cref="ActionLog"/>).</param>
+public sealed record RecordingPaths(string Mp4, string Marks, string RecorderLog, string FfmpegLog, string Deadline, string Actions)
 {
     /// <summary>The files of the recording into <paramref name="mp4"/>.</summary>
     /// <param name="mp4">The clip's full path.</param>
     public static RecordingPaths For(string mp4)
     {
         string clip = Path.Combine(Path.GetDirectoryName(mp4) ?? string.Empty, Path.GetFileNameWithoutExtension(mp4));
-        return new RecordingPaths(mp4, clip + "-marks.json", clip + "-recorder.log", clip + "-ffmpeg.log", mp4 + ".deadline");
+        return new RecordingPaths(
+            mp4,
+            clip + "-marks.json",
+            clip + "-recorder.log",
+            clip + "-ffmpeg.log",
+            mp4 + ".deadline",
+            clip + "-actions.jsonl"
+        );
     }
 }
 
@@ -136,6 +144,9 @@ public sealed class RecordingSession(IRecordingBackend backend, TimeProvider clo
     private readonly SemaphoreSlim _gate = new(1, 1);
     private ActiveRecording? _active;
 
+    /// <summary>The last recording started, kept after it ends so an action stamped while it ran is still logged to it.</summary>
+    private ActiveRecording? _lastRecording;
+
     /// <summary>Set once the server is stopping; a start after it is refused, so no pipeline outlives the server.</summary>
     private bool _disposed;
 
@@ -149,6 +160,81 @@ public sealed class RecordingSession(IRecordingBackend backend, TimeProvider clo
     public Guid? RecordingId => Volatile.Read(ref _active)?.Id;
 
     private DateTime Now => clock.GetUtcNow().UtcDateTime;
+
+    /// <summary>The session's wall clock, which stamps an input action at its start for <see cref="LogActionAsync"/>.</summary>
+    public DateTime UtcNow => Now;
+
+    /// <summary>
+    /// Appends <paramref name="action"/> to the action log of the last recording started when that recording is of the action's
+    /// process and the action was stamped while it ran, from its launch to its stop; does nothing otherwise. The first action
+    /// logged writes the header, with the first frame's instant when the recorder has written it and the action's window scale.
+    /// It never waits on the gate a stop holds through the encode: the actions file has its recording's own lock. Returns null,
+    /// or what went wrong reading the recorder log or writing the file: the action already happened, so a failed write is
+    /// reported beside its result rather than failing it.
+    /// </summary>
+    public Task<string?> LogActionAsync(RecordedAction action, CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        ActiveRecording? recording = Volatile.Read(ref _lastRecording);
+        bool logged =
+            (recording is not null)
+            && (recording.Started.Target.Pid == action.Pid)
+            && (action.WallUtc >= recording.LaunchedUtc)
+            && ((recording.EndedUtc is not { } ended) || (action.WallUtc <= ended));
+        return Task.FromResult(logged ? WriteAction(recording!, action) : null);
+    }
+
+    private string? WriteAction(ActiveRecording active, RecordedAction action)
+    {
+        string path = active.Started.Paths.Actions;
+        lock (active.Sync)
+        {
+            try
+            {
+                active.StartedUtc ??= RecorderLog.FirstFrameUtc(RecorderLog.Read(active.Started.Paths.RecorderLog));
+                if (!active.ActionsStarted)
+                {
+                    ActionLog.WriteHeader(path, active.StartedUtc, active.Started.Frame.Fps, active.Started.Crop, action.Site.RenderScaling);
+                    active.ActionsStarted = true;
+                    active.ActionsHeaderHasStart = active.StartedUtc is not null;
+                }
+
+                double? clipSeconds = (active.StartedUtc is { } first) ? ActionLog.ClipSeconds(action.WallUtc, first) : null;
+                ActionLog.Append(path, action, clipSeconds);
+                return null;
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                logger.LogWarning(ex, "Could not log a {Kind} action to {Actions}", action.Kind, path);
+                return $"could not write the action log {path}: {ex.Message}";
+            }
+        }
+    }
+
+    /// <summary>
+    /// Writes the first frame's instant into an action log whose header went out before it was known, and fills the clip
+    /// seconds of the lines written before it; a failure is logged, since the recording has ended either way.
+    /// </summary>
+    private void FinishActions(ActiveRecording active)
+    {
+        lock (active.Sync)
+        {
+            if (!active.ActionsStarted || active.ActionsHeaderHasStart || (active.StartedUtc is not { } first))
+            {
+                return;
+            }
+
+            try
+            {
+                ActionLog.WriteStart(active.Started.Paths.Actions, first);
+                active.ActionsHeaderHasStart = true;
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException or InvalidDataException)
+            {
+                logger.LogWarning(ex, "Could not write the first frame's instant into the action log {Actions}", active.Started.Paths.Actions);
+            }
+        }
+    }
 
     /// <summary>The ffmpeg a new recording will use.</summary>
     /// <exception cref="McpException">A recording is already running, or ffmpeg is not on PATH.</exception>
@@ -204,6 +290,7 @@ public sealed class RecordingSession(IRecordingBackend backend, TimeProvider clo
                 new RecordingEncoding(encoder, request.Audio)
             );
             _active = await LaunchAsync(started, recorder, request.Ffmpeg, ct).ConfigureAwait(false);
+            Volatile.Write(ref _lastRecording, _active);
             return started;
         }
         finally
@@ -314,6 +401,7 @@ public sealed class RecordingSession(IRecordingBackend backend, TimeProvider clo
     private async Task EndAtShutdownAsync(ActiveRecording active)
     {
         string mp4 = active.Started.Paths.Mp4;
+        active.EndedUtc ??= Now;
         try
         {
             PipelineEnd ended;
@@ -359,6 +447,7 @@ public sealed class RecordingSession(IRecordingBackend backend, TimeProvider clo
             );
         }
 
+        active.EndedUtc ??= Now;
         int code = active.Process.ExitCode;
         logger.Log(
             (code == 0) ? LogLevel.Information : LogLevel.Warning,
@@ -375,6 +464,8 @@ public sealed class RecordingSession(IRecordingBackend backend, TimeProvider clo
         {
             logger.LogWarning(ex, "Could not finish the marks file {Marks} of the recording that ended on its own", started.Paths.Marks);
         }
+
+        FinishActions(active);
     }
 
     /// <summary>Writes the first frame's instant into the marks file, as a stop does, when no mark has read it yet.</summary>
@@ -463,7 +554,7 @@ public sealed class RecordingSession(IRecordingBackend backend, TimeProvider clo
         backend.WriteDeadline(paths.Deadline, Now + LongestRecording);
         string environment = string.Join(", ", commandLine.Environment.Select(variable => $"{variable.Key}={variable.Value}"));
         logger.LogInformation("record_start: {CommandLine} with {Environment}", commandLine.Text, environment);
-        var active = new ActiveRecording(started, backend.Start(commandLine));
+        var active = new ActiveRecording(started, backend.Start(commandLine), Now);
         try
         {
             await Task.Delay(StartCheckDelay, clock, ct).ConfigureAwait(false);
@@ -521,6 +612,7 @@ public sealed class RecordingSession(IRecordingBackend backend, TimeProvider clo
     private async Task<RecordingStopResult> StopCoreAsync(ActiveRecording active)
     {
         RecordingPaths paths = active.Started.Paths;
+        active.EndedUtc ??= Now;
         PipelineEnd ended;
         try
         {
@@ -533,6 +625,7 @@ public sealed class RecordingSession(IRecordingBackend backend, TimeProvider clo
 
         IReadOnlyList<string> log = RecorderLog.Read(paths.RecorderLog);
         FinishMarks(active, log);
+        FinishActions(active);
         RecorderEnd? end = RecorderLog.End(log);
         int? dropped = (end is null) ? null : Math.Max(0, (int)Math.Round(active.Started.Frame.Fps * end.Seconds) - end.Frames);
         return new RecordingStopResult(paths, File.Exists(paths.Mp4), end, dropped, ended.Problem, ended.Note);
@@ -691,9 +784,15 @@ public sealed class RecordingSession(IRecordingBackend backend, TimeProvider clo
     /// <summary>How a pipeline ended: what went wrong, and what is worth saying that is not a problem.</summary>
     private sealed record PipelineEnd(string? Problem, string? Note);
 
-    /// <summary>The running recording: what started, its pipeline, its marks, and the first frame's instant once known.</summary>
-    private sealed class ActiveRecording(RecordingStarted started, IRecordingProcess process)
+    /// <summary>
+    /// A recording: what started, its pipeline, its marks, when it launched and stopped, and the first frame's instant once
+    /// known. <see cref="Sync"/> guards the instants, read by actions logged off the gate, and the actions file.
+    /// </summary>
+    private sealed class ActiveRecording(RecordingStarted started, IRecordingProcess process, DateTime launchedUtc)
     {
+        private DateTime? _startedUtc;
+        private DateTime? _endedUtc;
+
         public RecordingStarted Started { get; } = started;
 
         public IRecordingProcess Process { get; } = process;
@@ -702,6 +801,53 @@ public sealed class RecordingSession(IRecordingBackend backend, TimeProvider clo
 
         public List<RecordingMark> Marks { get; } = [];
 
-        public DateTime? StartedUtc { get; set; }
+        /// <summary>Guards the first frame's and the stop's instants, and every write to the actions file.</summary>
+        public object Sync { get; } = new();
+
+        /// <summary>When the pipeline was launched; an action stamped before it is not this recording's.</summary>
+        public DateTime LaunchedUtc { get; } = launchedUtc;
+
+        public DateTime? StartedUtc
+        {
+            get
+            {
+                lock (Sync)
+                {
+                    return _startedUtc;
+                }
+            }
+            set
+            {
+                lock (Sync)
+                {
+                    _startedUtc = value;
+                }
+            }
+        }
+
+        /// <summary>When the recording was stopped, or noticed to have ended; an action stamped after it is not this recording's.</summary>
+        public DateTime? EndedUtc
+        {
+            get
+            {
+                lock (Sync)
+                {
+                    return _endedUtc;
+                }
+            }
+            set
+            {
+                lock (Sync)
+                {
+                    _endedUtc = value;
+                }
+            }
+        }
+
+        /// <summary>True once the action log's header is written, by the first action logged.</summary>
+        public bool ActionsStarted { get; set; }
+
+        /// <summary>True once the action log's header carries the first frame's instant.</summary>
+        public bool ActionsHeaderHasStart { get; set; }
     }
 }

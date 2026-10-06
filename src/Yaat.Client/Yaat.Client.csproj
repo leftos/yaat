@@ -93,6 +93,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Yaat.Client.Core\Yaat.Client.Core.csproj" />
+    <ProjectReference Include="..\Yaat.Client.InputSynthesis\Yaat.Client.InputSynthesis.csproj" />
     <ProjectReference Include="..\Yaat.Sim\Yaat.Sim.csproj" />
   </ItemGroup>
 </Project>

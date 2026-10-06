@@ -434,6 +434,65 @@ public sealed class InputToolsPipeTests : AutomationHostFixture
     }
 
     [AvaloniaFact]
+    public async Task Hover_PipeWindowDips_EntersTheElement()
+    {
+        using AutomationHost host = StartHost(() => Windows);
+        Border pad = Pad();
+        int entered = 0;
+        pad.PointerEntered += (_, _) => entered++;
+        ShowWindow("PipeWindow", Column(pad), null);
+        PipeDirectory directory = NewPipeDirectory();
+        try
+        {
+            Tools tools = NewTools(directory);
+            string windowId = IdOf(await tools.Inspect.ListWindowsAsync(Pid, CancellationToken.None));
+
+            string result = await tools.Input.HoverAsync(windowId, "", 30, 20, 0, CancellationToken.None);
+
+            Assert.Equal("hovered Border at window point (30,20) in 'PipeWindow' for 0 ms (pipe)", result);
+            Assert.Equal(1, entered);
+            Assert.True(pad.IsPointerOver);
+        }
+        finally
+        {
+            await directory.ForgetAsync(Pid);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task Drag_PipeWindowDips_MovesWithTheButtonHeld()
+    {
+        using AutomationHost host = StartHost(() => Windows);
+        Border pad = Pad();
+        List<Point> heldMoves = [];
+        pad.PointerPressed += (_, e) => e.Pointer.Capture(pad);
+        pad.PointerMoved += (_, e) =>
+        {
+            if (e.GetCurrentPoint(pad).Properties.IsLeftButtonPressed)
+            {
+                heldMoves.Add(e.GetPosition(pad));
+            }
+        };
+        ShowWindow("PipeWindow", Column(pad), null);
+        PipeDirectory directory = NewPipeDirectory();
+        try
+        {
+            Tools tools = NewTools(directory);
+            string windowId = IdOf(await tools.Inspect.ListWindowsAsync(Pid, CancellationToken.None));
+
+            string result = await tools.Input.DragAsync(windowId, 30, 20, 90, 20, "left", 2, 0, CancellationToken.None);
+
+            Assert.StartsWith("dragged left from window point (30,20) to (90,20) in 2 steps, held 0 ms, ", result, StringComparison.Ordinal);
+            Assert.EndsWith(" pressed on Border (pipe)", result, StringComparison.Ordinal);
+            Assert.Equal([new Point(60, 20), new Point(90, 20)], heldMoves);
+        }
+        finally
+        {
+            await directory.ForgetAsync(Pid);
+        }
+    }
+
+    [AvaloniaFact]
     public async Task ClickPoint_PipeOutOfBounds_Reports()
     {
         using AutomationHost host = StartHost(() => Windows);
@@ -488,7 +547,7 @@ public sealed class InputToolsPipeTests : AutomationHostFixture
     {
         var registry = new ElementRegistry(NullLogger<ElementRegistry>.Instance);
         string uiaId = registry.Register(AutomationElement.RootElement);
-        var input = new InputTools(registry, NewPipeDirectory(), NullLogger<InputTools>.Instance);
+        var input = new InputTools(registry, NewPipeDirectory(), RecordingFakes.NewSession(), NullLogger<InputTools>.Instance);
 
         McpException failure = await Assert.ThrowsAsync<McpException>(() =>
             input.ClickPointAsync(10, 10, CancellationToken.None, windowElementId: uiaId)
@@ -536,7 +595,7 @@ public sealed class InputToolsPipeTests : AutomationHostFixture
         var registry = new ElementRegistry(NullLogger<ElementRegistry>.Instance);
         return new Tools(
             new InspectTools(registry, directory, NullLogger<InspectTools>.Instance),
-            new InputTools(registry, directory, NullLogger<InputTools>.Instance)
+            new InputTools(registry, directory, RecordingFakes.NewSession(), NullLogger<InputTools>.Instance)
         );
     }
 

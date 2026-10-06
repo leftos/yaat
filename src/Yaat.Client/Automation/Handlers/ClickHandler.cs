@@ -69,7 +69,7 @@ public sealed class ClickHandler(NodeRegistry registry, TargetResolver targets) 
             return error;
         }
 
-        Visual clicked = InteractiveTargetOf(visual);
+        Visual clicked = InteractiveTargetOf((Visual)visual);
         int nodeId = registry.GetOrRegister(clicked);
         HandlerErrorResult? refusal = Refusal(clicked, nodeId);
         if (refusal is not null)
@@ -82,9 +82,16 @@ public sealed class ClickHandler(NodeRegistry registry, TargetResolver targets) 
             return HandlerResult.Unsupported(ProtocolMethods.Click, clicked.GetType().Name);
         }
 
+        // Read before the click acts: a menu item's action closes its menu and takes it out of the window.
+        if (PointerTargets.CentreOf(control) is not { } centre)
+        {
+            return HandlerResult.StaleNode(nodeId, $"Node {nodeId} is not in a window. Call get_tree or list_windows for fresh node ids.");
+        }
+
+        PointerSite site = PointerTargets.Site(registry, centre);
         if (!click.IsPlainLeftClick)
         {
-            return ClickWithPointer(control, click, nodeId);
+            return ClickWithPointer(control, click, centre, site, nodeId);
         }
 
         // A real click moves the focus before the control acts, so an edit committed on LostFocus commits first.
@@ -93,7 +100,7 @@ public sealed class ClickHandler(NodeRegistry registry, TargetResolver targets) 
             control.Focus();
         }
 
-        return RunMeaningfulAction(control, nodeId) ?? ClickWithPointer(control, click, nodeId);
+        return RunMeaningfulAction(control, nodeId, site) ?? ClickWithPointer(control, click, centre, site, nodeId);
     }
 
     /// <summary>The refusal for an element a real click could not reach: disabled, or not visible; null when it can be clicked.</summary>
@@ -116,12 +123,12 @@ public sealed class ClickHandler(NodeRegistry registry, TargetResolver targets) 
         visual is Button or MenuItem or ListBoxItem or TabItem or ComboBoxItem or TreeViewItem;
 
     /// <summary>The click's meaningful action as a <see cref="ClickResult"/> or an error, or null when the element has none.</summary>
-    private static object? RunMeaningfulAction(Control control, int nodeId) =>
+    private static object? RunMeaningfulAction(Control control, int nodeId, PointerSite site) =>
         control switch
         {
-            Button button => ClickButton(button, nodeId),
-            MenuItem menuItem => RunMenuItem(menuItem, nodeId),
-            _ => RunSelection(control, nodeId),
+            Button button => ClickButton(button, nodeId, site),
+            MenuItem menuItem => RunMenuItem(menuItem, nodeId, site),
+            _ => RunSelection(control, nodeId, site),
         };
 
     /// <summary>
@@ -130,7 +137,7 @@ public sealed class ClickHandler(NodeRegistry registry, TargetResolver targets) 
     /// toggles first, then the flyout opens or closes, the <c>Click</c> event is raised and, unless a handler marked it
     /// handled, the command runs). Null when the peer offers neither.
     /// </summary>
-    private static object? ClickButton(Button button, int nodeId)
+    private static object? ClickButton(Button button, int nodeId, PointerSite site)
     {
         if ((button.Command is { } command) && !command.CanExecute(button.CommandParameter))
         {
@@ -141,7 +148,7 @@ public sealed class ClickHandler(NodeRegistry registry, TargetResolver targets) 
         if (peer.GetProvider<IToggleProvider>() is { } toggle)
         {
             toggle.Toggle();
-            return new ClickResult(nodeId, ToggleAction);
+            return new ClickResult(nodeId, ToggleAction, site);
         }
 
         if (peer.GetProvider<IInvokeProvider>() is not { } invoke)
@@ -154,15 +161,15 @@ public sealed class ClickHandler(NodeRegistry registry, TargetResolver targets) 
             : (button.Command is not null) ? CommandAction
             : ClickEventAction;
         invoke.Invoke();
-        return new ClickResult(nodeId, action);
+        return new ClickResult(nodeId, action, site);
     }
 
-    private static object RunMenuItem(MenuItem menuItem, int nodeId)
+    private static object RunMenuItem(MenuItem menuItem, int nodeId, PointerSite site)
     {
         if (menuItem.HasSubMenu)
         {
             PressSubmenuParent(menuItem);
-            return new ClickResult(nodeId, MenuItemAction);
+            return new ClickResult(nodeId, MenuItemAction, site);
         }
 
         bool hasCommand = menuItem.Command is not null;
@@ -172,7 +179,7 @@ public sealed class ClickHandler(NodeRegistry registry, TargetResolver targets) 
             return HandlerResult.ElementDisabled(nodeId, menuItem.GetType().Name, "Its command did not execute.");
         }
 
-        return new ClickResult(nodeId, MenuItemAction);
+        return new ClickResult(nodeId, MenuItemAction, site);
     }
 
     /// <summary>
@@ -232,13 +239,13 @@ public sealed class ClickHandler(NodeRegistry registry, TargetResolver targets) 
     /// Selects an item container in its list, tab control, combo box (closing its dropdown) or tree; null when the control
     /// is not one. The selection is written with SetCurrentValue, so a OneWay binding on it survives.
     /// </summary>
-    private static ClickResult? RunSelection(Control control, int nodeId)
+    private static ClickResult? RunSelection(Control control, int nodeId, PointerSite site)
     {
         if (control is TreeViewItem treeViewItem)
         {
             // The tree view follows its containers' IsSelected through the routed IsSelectedChanged event.
             treeViewItem.SetCurrentValue(TreeViewItem.IsSelectedProperty, true);
-            return new ClickResult(nodeId, SelectAction);
+            return new ClickResult(nodeId, SelectAction, site);
         }
 
         SelectingItemsControl? host =
@@ -255,19 +262,12 @@ public sealed class ClickHandler(NodeRegistry registry, TargetResolver targets) 
             comboBox.SetCurrentValue(ComboBox.IsDropDownOpenProperty, false);
         }
 
-        return new ClickResult(nodeId, SelectAction);
+        return new ClickResult(nodeId, SelectAction, site);
     }
 
-    private static object ClickWithPointer(Control control, PointerClick click, int nodeId)
+    private static ClickResult ClickWithPointer(Control control, PointerClick click, WindowPoint centre, PointerSite site, int nodeId)
     {
-        if (TopLevel.GetTopLevel(control) is not { } topLevel)
-        {
-            return HandlerResult.StaleNode(nodeId, $"Node {nodeId} is not in a window. Call get_tree or list_windows for fresh node ids.");
-        }
-
-        var centre = new Point(control.Bounds.Width / 2, control.Bounds.Height / 2);
-        Point rootPosition = control.TranslatePoint(centre, topLevel) ?? centre;
-        SyntheticPointer.Click(control, topLevel, rootPosition, click);
-        return new ClickResult(nodeId, PointerAction);
+        SyntheticPointer.Click(control, centre.TopLevel, centre.Point, click);
+        return new ClickResult(nodeId, PointerAction, site);
     }
 }
