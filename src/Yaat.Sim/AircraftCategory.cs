@@ -914,7 +914,18 @@ public static class CategoryPerformance
     /// ramp-connector fillets. Helicopters are exempt — a wheeled ground pivot is a pedal turn, so it
     /// holds the full hover rate at any speed.
     /// </summary>
-    public static double GroundYawRateAtSpeed(AircraftCategory cat, double groundSpeedKts)
+    public static double GroundYawRateAtSpeed(AircraftCategory cat, double groundSpeedKts) =>
+        GroundYawRateOnRadius(cat, groundSpeedKts, MainGearTurnRadiusFt(cat));
+
+    /// <summary>
+    /// Ground yaw rate (deg/sec) achievable at groundspeed <paramref name="groundSpeedKts"/> while the main gear tracks a
+    /// turn of <paramref name="radiusFt"/>: ω = v/R, capped at the gear-limited <see cref="GroundTurnRate"/> ceiling.
+    /// <see cref="GroundYawRateAtSpeed"/> is this at the comfortable <see cref="MainGearTurnRadiusFt"/>; a turn about on a
+    /// taxiway steers tighter, at <see cref="TightTurnFloorRadiusFt"/>, and slower (<see cref="TurnAboutSpeedKts"/>), so
+    /// its yaw is limited on its own radius — on the comfortable one a piston at 1.65 kt would yaw at ~10.6 °/s, half what
+    /// an 8 ft arc needs. Helicopters hold the full pedal-turn rate at any speed.
+    /// </summary>
+    public static double GroundYawRateOnRadius(AircraftCategory cat, double groundSpeedKts, double radiusFt)
     {
         double ceiling = GroundTurnRate(cat);
         if (cat == AircraftCategory.Helicopter)
@@ -923,7 +934,7 @@ public static class CategoryPerformance
         }
 
         double vFtPerSec = groundSpeedKts * GeoMath.FeetPerNm / 3600.0;
-        double yawRateDegPerSec = (vFtPerSec / MainGearTurnRadiusFt(cat)) * (180.0 / Math.PI);
+        double yawRateDegPerSec = (vFtPerSec / radiusFt) * (180.0 / Math.PI);
         return Math.Min(ceiling, yawRateDegPerSec);
     }
 
@@ -980,13 +991,16 @@ public static class CategoryPerformance
     }
 
     /// <summary>
-    /// Tightest defensible main-gear turn radius (ft): the turn center radius — measured out to the inner
-    /// main gear — of a deliberate, brake-assisted, walking-pace pivot at a geometrically tight junction,
-    /// below the comfortable <see cref="MainGearTurnRadiusFt"/> but at or above the inner-main-gear radius
-    /// (tighter would pivot on a near-locked inner main gear). A jet floors at
-    /// ~15 ft (≈ B737-800 inner-main-gear radius); smaller categories scale down. Used to clamp the adaptive
-    /// corner-rounding radius when the available approach straight is shorter than the comfortable tangent
-    /// length (aviation-reviewed: Boeing FCTM tight-turn technique / judgmental oversteer, AC 150/5300-13B).
+    /// Tightest defensible main-gear turn radius (ft): the path radius of the main-gear axle midpoint — the radius
+    /// <see cref="GroundYawRateOnRadius"/> and the slow-turn playback use — of a deliberate, brake-assisted,
+    /// walking-pace pivot at a geometrically tight junction. Below the comfortable <see cref="MainGearTurnRadiusFt"/>, at
+    /// the edge of what the gear can roll through. A jet floors at 15 ft: on a B737-800 (wheelbase ~51 ft) that is ~74° of
+    /// nose-wheel steering, inside the 78° tiller limit, with the inner main gear ~5.6 ft from the turn centre and still
+    /// rolling. A piston's 8 ft matches a C172's brake-assisted pivot (POH minimum turning radius ≈ 9 ft turn centre to
+    /// axle). The turboprop's 12 ft is a judgement between the two. Category defaults; per-type values derive from FAA ACD
+    /// wheelbase and main-gear width. Used to clamp the adaptive corner-rounding radius when the available approach
+    /// straight is shorter than the comfortable tangent length (aviation-reviewed: Boeing FCTM tight-turn technique /
+    /// judgmental oversteer, AC 150/5300-13B).
     /// </summary>
     public static double TightTurnFloorRadiusFt(AircraftCategory cat)
     {
@@ -1023,6 +1037,19 @@ public static class CategoryPerformance
     /// floor, not the default.
     /// </summary>
     public const double SlowTurnSpeedKts = 3.0;
+
+    /// <summary>
+    /// Pivot speed (knots) of a turn about on a taxiway, steered at <paramref name="radiusFt"/>
+    /// (<see cref="TightTurnFloorRadiusFt"/>): the gear-limited <see cref="GroundTurnRate"/> held on that radius,
+    /// <c>v = ω·r</c> — a piston ~1.65 kt on 8 ft, a turboprop ~2.0 kt on 12 ft. Below
+    /// <see cref="SlowTurnSpeedKts"/> deliberately: at the 3 kt creep the tight radius would need more yaw than the gear
+    /// can give, and the turn would not stay on its arc.
+    /// </summary>
+    public static double TurnAboutSpeedKts(AircraftCategory cat, double radiusFt)
+    {
+        double omegaRadPerSec = GroundTurnRate(cat) * (Math.PI / 180.0);
+        return omegaRadPerSec * radiusFt * 3600.0 / GeoMath.FeetPerNm;
+    }
 
     /// <summary>Target speed (kts) when executing a taxiway turn of 90° or more.</summary>
     public static double TaxiCornerSpeed(AircraftCategory cat)

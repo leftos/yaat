@@ -44,9 +44,9 @@ public class N152spIfrCtoDeferralTests(ITestOutputHelper output)
 
     /// <summary>
     /// Recording second the deferral is judged at: airborne, still climbing below <see cref="IfrTurnAglFloor"/>.
-    /// Measured liftoff is t=813 and the 400 ft AGL crossing t=846, so this sits mid-way between them.
+    /// Measured liftoff is t=830 and the 400 ft AGL crossing t=862, so this sits mid-way between them.
     /// </summary>
-    private const int SampleSecond = 829;
+    private const int SampleSecond = 846;
 
     private static SessionRecording? LoadRecording() => RecordingLoader.Load(RecordingPath);
 
@@ -388,12 +388,10 @@ public class N152spIfrCtoDeferralTests(ITestOutputHelper output)
             return;
         }
 
-        // Replay past the recorded CTO MRC 020 action (t=768). The sampled second is re-picked whenever a
-        // timing change moves the departure along the recording, because it has to sit between liftoff and
-        // the 400 ft AGL floor: t=820 when takeoff-roll acceleration moved to physics, then t=880, t=848,
-        // and now t=829. With the one-tick overshoot backstop confined to stop/arc targets the taxi out is
-        // quicker again: N152SP lifts off at t=813 and passes the floor between t=845 (388 ft) and t=846
-        // (406 ft) (measured), so t=829 (196 ft AGL) sits mid-way between the two.
+        // Replay past the recorded CTO MRC 020 action (t=768). The sampled second has to sit between liftoff and
+        // the 400 ft AGL floor, so it is re-picked whenever a timing change moves the departure along the
+        // recording: N152SP lifts off at t=830 and reaches the floor at t=862 (400 ft) (measured), so t=846
+        // (202 ft AGL) sits mid-way between the two.
         engine.Replay(recording, SampleSecond);
 
         AircraftState? n152sp = engine.FindAircraft("N152SP");

@@ -17,7 +17,6 @@ namespace Yaat.Sim.Tests.Simulation.GroundTaxi;
 /// </summary>
 public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
 {
-    private const double MinLongEdgeFt = 1000.0;
     private const int TaxiTickSeconds = 20;
     private const double MaxTurnFromStartDeg = 30.0;
     private const double MinTaxiSpeedKts = 10.0;
@@ -43,7 +42,7 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
             return;
         }
 
-        (GroundNode tangentCut, GroundNode farEnd) = LongCEdgeWestOfH(layout);
+        (GroundNode tangentCut, GroundNode farEnd) = KoakTaxiwayC.LongEdgeWestOfH(layout);
 
         LatLon position = Along(tangentCut.Position, farEnd.Position, 0.35);
         AirportGroundLayout.NearestTaxiEdge? onEdge = layout.FindNearestTaxiEdge(position);
@@ -67,11 +66,26 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
     /// <summary>
     /// A C172 mid-C at KOAK, facing toward H, cleared to a taxiway that branches off C behind it. The route from the C node
     /// ahead would come straight back over the edge the aircraft stands on, so it turns about on C: segment 0 is the
-    /// free-space leg back to the edge's far node, and no segment drives that edge. Ticked through the turn about, it holds
-    /// no more than the slow-turn speed and ends facing the far node.
+    /// free-space leg back to the edge's far node, and no segment drives that edge. Ticked through the turn about and the
+    /// leg back to the far node, it pivots no faster than ω·r at its tight-turn radius, ends facing the far node, and its
+    /// centre stays within C's half-width of the centreline.
     /// </summary>
     [Fact]
-    public void TaxiOnC_DestinationBehind_TurnsAboutToTheFarNode()
+    public void TaxiOnC_DestinationBehind_TurnsAboutToTheFarNode() => TurnAboutOnC("C172", AircraftCategory.Piston);
+
+    /// <summary>
+    /// The same pose and clearance in a C208, a turboprop the FAA aircraft characteristics database puts in TDG 1A: it turns
+    /// about on C at its own tight-turn radius and pivot speed, its centre within its own TDG 1A half-width of the centreline.
+    /// </summary>
+    [Fact]
+    public void TaxiOnC_DestinationBehind_TurbopropTurnsAboutWithinTheTaxiway() => TurnAboutOnC("C208", AircraftCategory.Turboprop);
+
+    /// <summary>
+    /// A <paramref name="type"/> mid-C facing H cleared to the taxiway off C behind it, ticked through the turn about (speed
+    /// bound) and then through the leg back to the far node (peak centre offset from C's centreline), which must stay within
+    /// the half-width of a TDG 1A taxiway.
+    /// </summary>
+    private void TurnAboutOnC(string type, AircraftCategory category)
     {
         if (BuildOak() is not { } ground)
         {
@@ -79,13 +93,14 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
         }
 
         AirportGroundLayout layout = ground.Layout;
-        (GroundNode tangentCut, GroundNode farEnd) = LongCEdgeWestOfH(layout);
+        (GroundNode tangentCut, GroundNode farEnd) = KoakTaxiwayC.LongEdgeWestOfH(layout);
         IGroundEdge occupied = tangentCut.Edges.First(e => (e is GroundEdge) && (e.OtherNode(tangentCut) == farEnd));
-        AircraftState aircraft = SpawnMidCFacingH(ground, tangentCut, farEnd, "C172");
+        AircraftState aircraft = SpawnMidCFacingH(ground, tangentCut, farEnd, type);
+        Assert.Equal(category, AircraftCategorization.Categorize(type));
 
         string command = $"TAXI C {FirstTaxiwayOffCBeyond(farEnd, tangentCut)}";
         CommandResult result = ground.Engine.SendCommand(aircraft.Callsign, command);
-        output.WriteLine($"occupied C edge {tangentCut.Id}-{farEnd.Id}; {command}: {result.Success} — {result.Message}");
+        output.WriteLine($"{type}: occupied C edge {tangentCut.Id}-{farEnd.Id}; {command}: {result.Success} — {result.Message}");
         Assert.True(result.Success, $"'{command}' was refused: {result.Message}");
 
         TaxiRoute route = aircraft.Ground.AssignedTaxiRoute!;
@@ -96,24 +111,67 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
         Assert.DoesNotContain(route.Segments, s => ReferenceEquals(s.Edge.Edge, occupied));
 
         double maxTurnSpeedKts = 0.0;
+        double peakOffsetFt = 0.0;
         bool FacesFarEnd() =>
             GeoMath.AbsBearingDifference(aircraft.TrueHeading.Degrees, GeoMath.BearingTo(aircraft.Position, farEnd.Position)) <= MaxTurnFromStartDeg;
+        void TrackOffset() => peakOffsetFt = Math.Max(peakOffsetFt, CentreOffsetFt(aircraft.Position, tangentCut, farEnd));
         int facedAt = SfoGroundHarness.TickUntil(
             ground.Engine,
             FacesFarEnd,
             TurnAboutTickSeconds,
-            _ => maxTurnSpeedKts = FacesFarEnd() ? maxTurnSpeedKts : Math.Max(maxTurnSpeedKts, aircraft.GroundSpeed)
+            _ =>
+            {
+                maxTurnSpeedKts = FacesFarEnd() ? maxTurnSpeedKts : Math.Max(maxTurnSpeedKts, aircraft.GroundSpeed);
+                TrackOffset();
+            }
         );
-        output.WriteLine($"faced node {farEnd.Id} after {facedAt}s; max {maxTurnSpeedKts:F1} kt while turning");
-
+        output.WriteLine($"faced node {farEnd.Id} after {facedAt}s; max {maxTurnSpeedKts:F2} kt while turning, peak {peakOffsetFt:F1} ft off C");
         Assert.True(facedAt > 0, $"the aircraft did not face node {farEnd.Id} within {TurnAboutTickSeconds}s");
-        double maxAllowedKts = CategoryPerformance.SlowTurnSpeedKts + TurnSpeedOvershootKts;
+
+        int legDoneAt = SfoGroundHarness.TickUntil(ground.Engine, () => route.CurrentSegmentIndex > 0, TurnAboutLegTickSeconds, _ => TrackOffset());
+        output.WriteLine($"left the turn-about leg {legDoneAt}s later; peak {peakOffsetFt:F2} ft off C's centreline");
+        Assert.True(legDoneAt > 0, $"the aircraft did not finish the leg back to node {farEnd.Id} within {TurnAboutLegTickSeconds}s");
+
+        double pivotKts = PivotSpeedKts(category);
         Assert.True(
-            maxTurnSpeedKts <= maxAllowedKts,
-            $"the aircraft turned about at up to {maxTurnSpeedKts:F2} kt, above the {CategoryPerformance.SlowTurnSpeedKts:F0} kt slow-turn speed"
-                + $" plus {TurnSpeedOvershootKts:F1} kt"
+            maxTurnSpeedKts <= pivotKts + TurnSpeedOvershootKts,
+            $"the aircraft turned about at up to {maxTurnSpeedKts:F2} kt, above the {pivotKts:F2} kt pivot speed (ω·r at its "
+                + $"{CategoryPerformance.TightTurnFloorRadiusFt(category):F0} ft tight-turn radius) plus {TurnSpeedOvershootKts:F1} kt"
+        );
+        Assert.True(
+            peakOffsetFt <= (Tdg1AHalfWidthFt + CentreTrackingToleranceFt),
+            $"the aircraft's centre swung {peakOffsetFt:F2} ft off C's centreline turning about, beyond {Tdg1AHalfWidthFt:F1} ft, "
+                + $"{Tdg1AHalfWidthSource}, plus the {CentreTrackingToleranceFt:F1} ft tracking tolerance"
         );
     }
+
+    /// <summary>Half the 25 ft width of a TDG 1A taxiway (AC 150/5300-13B).</summary>
+    private const double Tdg1AHalfWidthFt = 12.5;
+
+    /// <summary>Where that width comes from, for the failure messages of the turn-about tests.</summary>
+    private const string Tdg1AHalfWidthSource = "the TDG 1A taxiway half-width (AC 150/5300-13B: 25 ft wide)";
+
+    /// <summary>
+    /// How far past the bound the centre may swing turning about on C: the half-foot the playback's settling onto the reversal
+    /// arc and the straight after it adds to the tight-turn radius (the C208, on 12 ft, peaks just past 12.5 ft).
+    /// </summary>
+    private const double CentreTrackingToleranceFt = 0.5;
+
+    /// <summary>
+    /// The speed a turn about on a taxiway pivots at: the gear-limited turn rate held on the category's tight-turn radius,
+    /// v = ω·r.
+    /// </summary>
+    private static double PivotSpeedKts(AircraftCategory category) =>
+        CategoryPerformance.GroundTurnRate(category)
+        * (Math.PI / 180.0)
+        * CategoryPerformance.TightTurnFloorRadiusFt(category)
+        * 3600.0
+        / GeoMath.FeetPerNm;
+
+    /// <summary>How far <paramref name="position"/> lies off the centreline through <paramref name="a"/> and <paramref name="b"/>.</summary>
+    private static double CentreOffsetFt(LatLon position, GroundNode a, GroundNode b) =>
+        Math.Abs(GeoMath.SignedCrossTrackDistanceNm(position, a.Position, new TrueHeading(GeoMath.BearingTo(a.Position, b.Position))))
+        * GeoMath.FeetPerNm;
 
     /// <summary>
     /// The same pose in a B738: a jet has no room to turn about on a taxiway, so where only the far-node route avoids
@@ -127,7 +185,7 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
             return;
         }
 
-        (GroundNode tangentCut, GroundNode farEnd) = LongCEdgeWestOfH(ground.Layout);
+        (GroundNode tangentCut, GroundNode farEnd) = KoakTaxiwayC.LongEdgeWestOfH(ground.Layout);
         AircraftState aircraft = SpawnMidCFacingH(ground, tangentCut, farEnd, "B738");
 
         string command = $"TAXI C {FirstTaxiwayOffCBeyond(farEnd, tangentCut)}";
@@ -155,7 +213,7 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
             return;
         }
 
-        (GroundNode tangentCut, GroundNode farEnd) = LongCEdgeWestOfH(ground.Layout);
+        (GroundNode tangentCut, GroundNode farEnd) = KoakTaxiwayC.LongEdgeWestOfH(ground.Layout);
         AircraftState aircraft = SpawnMidCFacingH(ground, tangentCut, farEnd, "B738");
         var angled = new TrueHeading(aircraft.TrueHeading.Degrees + AcrossEdgeDeg);
         aircraft.TrueHeading = angled;
@@ -188,7 +246,7 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
             return;
         }
 
-        (GroundNode tangentCut, GroundNode farEnd) = LongCEdgeWestOfH(ground.Layout);
+        (GroundNode tangentCut, GroundNode farEnd) = KoakTaxiwayC.LongEdgeWestOfH(ground.Layout);
         AircraftState aircraft = SpawnMidCFacingH(ground, tangentCut, farEnd, "C172");
 
         string command = $"TAXI C {FirstTaxiwayOffCBeyond(farEnd, tangentCut)}";
@@ -220,7 +278,7 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
             return;
         }
 
-        (GroundNode tangentCut, GroundNode farEnd) = LongCEdgeWestOfH(ground.Layout);
+        (GroundNode tangentCut, GroundNode farEnd) = KoakTaxiwayC.LongEdgeWestOfH(ground.Layout);
         AircraftState aircraft = SpawnMidCFacingH(ground, tangentCut, farEnd, "C172");
 
         string command = $"TAXI C {FirstTaxiwayOffCBeyond(farEnd, tangentCut)}";
@@ -253,7 +311,7 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
             return;
         }
 
-        (GroundNode tangentCut, GroundNode farEnd) = LongCEdgeWestOfH(ground.Layout);
+        (GroundNode tangentCut, GroundNode farEnd) = KoakTaxiwayC.LongEdgeWestOfH(ground.Layout);
         AircraftState aircraft = SpawnMidCFacingH(ground, tangentCut, farEnd, "C172");
 
         const string Command = "TAXI C B RWY 28R HS H";
@@ -280,7 +338,7 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
             return;
         }
 
-        (GroundNode tangentCut, GroundNode farEnd) = LongCEdgeWestOfH(ground.Layout);
+        (GroundNode tangentCut, GroundNode farEnd) = KoakTaxiwayC.LongEdgeWestOfH(ground.Layout);
         double alongDeg = GeoMath.BearingTo(farEnd.Position, tangentCut.Position);
         LatLon onCentreline = GeoMath.ProjectPoint(tangentCut.Position, new TrueHeading(alongDeg + 180.0), ShortOfNodeFt / GeoMath.FeetPerNm);
         LatLon position = GeoMath.ProjectPoint(onCentreline, new TrueHeading(alongDeg + 90.0), OffCentrelineFt / GeoMath.FeetPerNm);
@@ -316,7 +374,7 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
             return;
         }
 
-        (GroundNode tangentCut, GroundNode farEnd) = LongCEdgeWestOfH(ground.Layout);
+        (GroundNode tangentCut, GroundNode farEnd) = KoakTaxiwayC.LongEdgeWestOfH(ground.Layout);
         AircraftState aircraft = SpawnMidCFacingH(ground, tangentCut, farEnd, "B738");
 
         string command = $"TAXI C {FirstTaxiwayOffCBeyond(farEnd, tangentCut)}";
@@ -347,7 +405,7 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
             return;
         }
 
-        (GroundNode tangentCut, GroundNode farEnd) = LongCEdgeWestOfH(ground.Layout);
+        (GroundNode tangentCut, GroundNode farEnd) = KoakTaxiwayC.LongEdgeWestOfH(ground.Layout);
         IGroundEdge occupied = tangentCut.Edges.First(e => (e is GroundEdge) && (e.OtherNode(tangentCut) == farEnd));
         AircraftState aircraft = SpawnMidCFacingH(ground, tangentCut, farEnd, "C172");
 
@@ -366,6 +424,62 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
     }
 
     /// <summary>
+    /// The C172 on the drawn route to the C node behind it, ticked: it turns about on the painted C edge it stands on, which
+    /// its kept route drives backwards, and its centre stays within C's half-width of the centreline through the turn and
+    /// the leg back to the far node.
+    /// </summary>
+    [Fact]
+    public void DrawnRouteToTheNodeBehind_TurnsAboutWithinTheTaxiway()
+    {
+        if (BuildOak() is not { } ground)
+        {
+            return;
+        }
+
+        (GroundNode tangentCut, GroundNode farEnd) = KoakTaxiwayC.LongEdgeWestOfH(ground.Layout);
+        IGroundEdge occupied = tangentCut.Edges.First(e => (e is GroundEdge) && (e.OtherNode(tangentCut) == farEnd));
+        AircraftState aircraft = SpawnMidCFacingH(ground, tangentCut, farEnd, "C172");
+
+        string command = $"TAXI #{farEnd.Id}";
+        CommandResult result = ground.Engine.SendCommand(aircraft.Callsign, command);
+        Assert.True(result.Success, $"'{command}' was refused: {result.Message}");
+        TaxiRoute route = aircraft.Ground.AssignedTaxiRoute!;
+        SfoGroundHarness.DumpRoute(output, route);
+        Assert.True(ReferenceEquals(route.Segments[0].Edge.Edge, occupied), "segment 0 is not the occupied C edge driven backwards");
+
+        double peakOffsetFt = 0.0;
+        double maxTurnSpeedKts = 0.0;
+        bool FacesFarEnd() =>
+            GeoMath.AbsBearingDifference(aircraft.TrueHeading.Degrees, GeoMath.BearingTo(aircraft.Position, farEnd.Position)) <= MaxTurnFromStartDeg;
+        int legDoneAt = SfoGroundHarness.TickUntil(
+            ground.Engine,
+            () => (route.CurrentSegmentIndex > 0) || (aircraft.Ground.AssignedTaxiRoute is null),
+            TurnAboutLegTickSeconds,
+            _ =>
+            {
+                peakOffsetFt = Math.Max(peakOffsetFt, CentreOffsetFt(aircraft.Position, tangentCut, farEnd));
+                maxTurnSpeedKts = FacesFarEnd() ? maxTurnSpeedKts : Math.Max(maxTurnSpeedKts, aircraft.GroundSpeed);
+            }
+        );
+        output.WriteLine(
+            $"{command}: leg back to node {farEnd.Id} done after {legDoneAt}s; peak {peakOffsetFt:F1} ft off C, max {maxTurnSpeedKts:F2} kt while turning"
+        );
+
+        Assert.True(legDoneAt > 0, $"the aircraft did not finish the leg back to node {farEnd.Id} within {TurnAboutLegTickSeconds}s");
+        double pivotKts = PivotSpeedKts(AircraftCategory.Piston);
+        Assert.True(
+            maxTurnSpeedKts <= pivotKts + TurnSpeedOvershootKts,
+            $"the aircraft turned about at up to {maxTurnSpeedKts:F2} kt, above the {pivotKts:F2} kt pivot speed (ω·r at its "
+                + $"{CategoryPerformance.TightTurnFloorRadiusFt(AircraftCategory.Piston):F0} ft tight-turn radius) plus {TurnSpeedOvershootKts:F1} kt"
+        );
+        Assert.True(
+            peakOffsetFt <= (Tdg1AHalfWidthFt + CentreTrackingToleranceFt),
+            $"the aircraft's centre swung {peakOffsetFt:F2} ft off C's centreline turning about, beyond {Tdg1AHalfWidthFt:F1} ft, "
+                + $"{Tdg1AHalfWidthSource}, plus the {CentreTrackingToleranceFt:F1} ft tracking tolerance"
+        );
+    }
+
+    /// <summary>
     /// The same drawn route from the controller to a B738 lined up along C: the only route is the one from the node ahead,
     /// which turns the jet about where it stands, so it refuses for want of room to turn around.
     /// </summary>
@@ -377,7 +491,7 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
             return;
         }
 
-        (GroundNode tangentCut, GroundNode farEnd) = LongCEdgeWestOfH(ground.Layout);
+        (GroundNode tangentCut, GroundNode farEnd) = KoakTaxiwayC.LongEdgeWestOfH(ground.Layout);
         AircraftState aircraft = SpawnMidCFacingH(ground, tangentCut, farEnd, "B738");
 
         string command = $"TAXI #{farEnd.Id}";
@@ -1370,25 +1484,6 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
         GroundEdge? longest = layout.Edges.Where(e => e.MatchesTaxiway("B") && !e.IsRamp && !e.IsRunwayCenterline).MaxBy(e => e.DistanceNm);
         Assert.NotNull(longest);
         return longest;
-    }
-
-    /// <summary>
-    /// KOAK's long straight C edge west of H: its end at the C/H tangent cut, and its far end away from B.
-    /// </summary>
-    private (GroundNode TangentCut, GroundNode FarEnd) LongCEdgeWestOfH(AirportGroundLayout layout)
-    {
-        GroundNode? junctionCH = layout.FindIntersectionNode("C", "H");
-        GroundNode? junctionCB = layout.FindIntersectionNode("C", "B");
-        Assert.NotNull(junctionCH);
-        Assert.NotNull(junctionCB);
-
-        double awayFromB = (GeoMath.BearingTo(junctionCH.Position, junctionCB.Position) + 180.0) % 360.0;
-        GroundNode tangentCut = NextAlong(junctionCH, "C", awayFromB);
-        GroundNode farEnd = NextAlong(tangentCut, "C", GeoMath.BearingTo(junctionCH.Position, tangentCut.Position));
-        double edgeFt = GeoMath.DistanceNm(tangentCut.Position, farEnd.Position) * GeoMath.FeetPerNm;
-        output.WriteLine($"C/H {junctionCH.Id}, C/B {junctionCB.Id}, tangent cut {tangentCut.Id}, far end {farEnd.Id}, edge {edgeFt:F0} ft");
-        Assert.True(edgeFt > MinLongEdgeFt, $"C edge {tangentCut.Id}-{farEnd.Id} is {edgeFt:F0} ft, expected a long edge");
-        return (tangentCut, farEnd);
     }
 
     /// <summary>

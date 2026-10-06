@@ -235,6 +235,10 @@ A taxi route that opens by reversing the aircraft on the taxiway edge it stands 
 *In place* (`InPlace`): the route from the node ahead was kept, and its first segment drives the occupied edge backwards.
 _Avoid_: U-turn (a U-turn reverses over a junction's fillets, not along the taxiway)
 
+**Turn-about jog**:
+The short arc that opens a turn about on a taxiway, turned against the reversal's sense at the tight-turn radius (60° for an aircraft on the centreline), so that the reversal arc after it is centred on the centreline and the whole turn stays within about one radius either side of it (`PathPrimitiveBuilder.TurnAboutJogDeg`, docs/ground/navigator.md). A helicopter takes none.
+_Avoid_: S-turn, offset (the jog is a single arc, not a lateral shift)
+
 **Lined-up jet**:
 A jet whose heading is within 30° of its occupied taxiway edge, either way along it (`GroundCommandHandler.IsLinedUpWith`, a heuristic). A controller's TAXI that would need a turn about, in either shape, is refused: "Unable, no room to turn around on C, request a route ahead".
 

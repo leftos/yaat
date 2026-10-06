@@ -518,6 +518,24 @@ public sealed class GroundNavigatorPlaybackDto
     public required int NodeAimSegmentIndex { get; init; }
     public required int AimedPastThroughSegmentIndex { get; init; }
     public required bool EntryArcAimedAtNodeOffRealLeg { get; init; }
+
+    /// <summary>
+    /// The reversal arc of a turn about on a taxiway, waiting while <see cref="Primitive"/> — the jog that centres it on the
+    /// centreline — plays. Null when no jog is playing, and in snapshots written before the field existed. Not written while
+    /// null, so a snapshot with no jog playing — every snapshot 0 — serializes exactly as it did before the field existed
+    /// (yaat-server pins snapshot 0's hash).
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public SlowTurnPrimitiveDto? PendingTurnAboutArc { get; init; }
+
+    /// <summary>
+    /// True while the navigator is playing the reversal arc of a turn about on a taxiway (<see cref="Primitive"/>), whose
+    /// end-of-arc heading nudge is limited on that arc's own tight radius rather than the comfortable main-gear one. Absent
+    /// while no reversal plays and in snapshots written before the field existed, so a snapshot with no turn about
+    /// serializes exactly as it did before the field existed (yaat-server pins snapshot 0's hash).
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? TurnAboutReversalPlaying { get; init; }
 }
 
 /// <summary>A navigator path primitive (<c>PathPrimitive</c>), by shape.</summary>

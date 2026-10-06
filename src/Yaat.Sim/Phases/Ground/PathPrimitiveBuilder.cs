@@ -258,6 +258,52 @@ public static class PathPrimitiveBuilder
     private static double Normalise360(double degrees) => ((degrees % 360.0) + 360.0) % 360.0;
 
     /// <summary>
+    /// The sweep (deg) of the jog that opens a turn about centred on a taxiway's centreline: an arc of
+    /// <paramref name="radiusFt"/> turned AGAINST the reversal's sense, after which the reversal arc of the same radius,
+    /// turned in its own sense, has its centre on the centreline. The turn then spans about ±r across the line — the
+    /// aircraft offsets about r to one side and swings through the half turn to about r on the other — where a half
+    /// turn begun on the line ends a whole diameter off it.
+    ///
+    /// <para>
+    /// In the frame of the aircraft's forward direction along the line (lateral offset y₀ and heading φ both right
+    /// positive, σ = +1 for a right reversal, −1 for a left), the reversal's centre after a jog of θ sits
+    /// σ·(σy₀ − r·cos φ + 2r·cos(θ − σφ)) right of the line, so θ = σφ + acos((r·cos φ − σy₀) / 2r): 60° for an aircraft
+    /// on the line and along it. Clamped to [0, <see cref="MaxTurnAboutJogDeg"/>]; zero when the aircraft already stands
+    /// far enough to the side the reversal needs, where the reversal alone is the turn about. Pure.
+    /// </para>
+    /// </summary>
+    /// <param name="offsetRightFt">The aircraft's lateral offset from the centreline, right of its forward direction along the line positive.</param>
+    /// <param name="headingOffDeg">The aircraft's heading off that forward direction, right positive.</param>
+    /// <param name="radiusFt">The radius of both arcs.</param>
+    /// <param name="rightTurn">The reversal's sense; the jog turns the other way.</param>
+    public static double TurnAboutJogDeg(double offsetRightFt, double headingOffDeg, double radiusFt, bool rightTurn)
+    {
+        double sense = rightTurn ? 1.0 : -1.0;
+        double headingOffRad = headingOffDeg * Math.PI / 180.0;
+        double cosine = ((radiusFt * Math.Cos(headingOffRad)) - (sense * offsetRightFt)) / (2.0 * radiusFt);
+        double jogDeg = (sense * headingOffDeg) + (Math.Acos(Math.Clamp(cosine, -1.0, 1.0)) * 180.0 / Math.PI);
+        return Math.Clamp(jogDeg, 0.0, MaxTurnAboutJogDeg);
+    }
+
+    /// <summary>
+    /// The most a turn-about jog (<see cref="TurnAboutJogDeg"/>) sweeps: past a quarter turn the aircraft is no longer
+    /// stepping aside on the taxiway but turning across it, and the reversal after it would sweep past
+    /// <see cref="MaxAimSweepDeg"/>.
+    /// </summary>
+    public const double MaxTurnAboutJogDeg = 90.0;
+
+    /// <summary>
+    /// Where <paramref name="arc"/> ends: the point its centre's radial reaches after the sweep in the arc's own sense, and
+    /// the tangent heading there. Pure.
+    /// </summary>
+    public static (LatLon Position, double HeadingDeg) ExitPose(PathPrimitiveSlowTurn arc)
+    {
+        double endBearingDeg = Normalise360(arc.StartBearingFromCenterDeg + (arc.RightTurn ? arc.SweepDeg : -arc.SweepDeg));
+        LatLon position = GeoMath.ProjectPoint(new LatLon(arc.CenterLat, arc.CenterLon), new TrueHeading(endBearingDeg), arc.RadiusNm);
+        return (position, arc.ExitTangentBearingDeg);
+    }
+
+    /// <summary>
     /// Build a <see cref="PathPrimitiveSlowTurn"/> from entry pose + desired exit
     /// heading. The turn direction is the short-way rotation from
     /// <paramref name="fromHdgDeg"/> to <paramref name="toHdgDeg"/>; the arc

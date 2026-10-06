@@ -66,7 +66,7 @@
 - After a rewind, the timeline slider sits at the playhead instead of jumping back to the start.
 - A `WAIT` or `BEHIND` command holding a direct-to on the filed route does the same after a rewind as it did live, keeping or cancelling the STAR alike.
 - After a rewind, a scenario preset's queued command still fires as scripted, so it no longer counts as the student's instruction or first contact.
-- A `TAXI` to an aircraft standing on a taxiway starts its route on that taxiway, not a parallel one, and the ground view draws any turn around.
+- A `TAXI` on a taxiway starts on that taxiway, not a parallel one, turns around within its width, and the ground view draws the turn.
 
 ## v0.15.0-beta [2026/10/02]
 

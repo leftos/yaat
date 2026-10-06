@@ -627,6 +627,25 @@ public sealed class GroundNavigator
     private bool _entryArcAimedAtNodeOffRealLeg;
 
     /// <summary>
+    /// The reversal arc of a turn about on a taxiway (<see cref="BuildTaxiwayTurnAbout"/>), held while the jog that centres
+    /// it on the centreline plays, and swapped in when the jog completes. Null when no jog is playing. Round-trips through
+    /// the snapshot (<see cref="GroundNavigatorPlaybackDto.PendingTurnAboutArc"/>), so a restore mid-jog goes on into the
+    /// same reversal.
+    /// </summary>
+    private PathPrimitiveSlowTurn? _pendingTurnAboutArc;
+
+    /// <summary>
+    /// The primitive now playing is the reversal of a turn about on a taxiway (<see cref="BuildTaxiwayTurnAbout"/>), so the
+    /// yaw that re-acquires the next bearing as it completes is limited on its own tight radius
+    /// (<see cref="CategoryPerformance.GroundYawRateOnRadius"/>) rather than the comfortable main-gear one. False while the
+    /// jog that centres the reversal plays: the jog hands straight on to the reversal, which starts on the jog's own exit
+    /// tangent, with no nudge between the two. Round-trips through the snapshot
+    /// (<see cref="GroundNavigatorPlaybackDto.TurnAboutReversalPlaying"/>), so a restore that lands mid-reversal goes on to
+    /// the same nudge the run that was never interrupted would take.
+    /// </summary>
+    private bool _turnAboutReversalPlaying;
+
+    /// <summary>
     /// The primitive and playback state a snapshot carried (<see cref="FromSnapshot"/>), waiting for the owning phase's first
     /// <see cref="SetupSegment"/> to resume it (<see cref="TryResumeRestoredPlayback"/>). Dropped by that set-up whether it
     /// resumes or not, and by the first <see cref="Tick"/>, so it never reaches a later segment.
@@ -674,6 +693,8 @@ public sealed class GroundNavigator
         _aimedPastThroughSegmentIndex = -1;
         _nodeAimSegmentIndex = -1;
         _entryArcAimedAtNodeOffRealLeg = false;
+        _pendingTurnAboutArc = null;
+        _turnAboutReversalPlaying = false;
         _onAimedLineOverFillet = false;
         _aimedLineFilletFromNodeId = null;
 
@@ -765,6 +786,8 @@ public sealed class GroundNavigator
         _nodeAimSegmentIndex = saved.NodeAimSegmentIndex;
         _aimedPastThroughSegmentIndex = saved.AimedPastThroughSegmentIndex;
         _entryArcAimedAtNodeOffRealLeg = saved.EntryArcAimedAtNodeOffRealLeg;
+        _pendingTurnAboutArc = saved.PendingTurnAboutArc is { } pendingTurnAbout ? FromSlowTurnDto(pendingTurnAbout) : null;
+        _turnAboutReversalPlaying = saved.TurnAboutReversalPlaying == true;
         RestorePlaybackProgress(saved);
         BuildSpeedConstraints(route, ctx, isHoldShortCleared);
         Log.LogDebug(
@@ -897,6 +920,12 @@ public sealed class GroundNavigator
     /// the reversal the operator sees as part of the same loop. A sub-threshold entry is an ordinary corner: it
     /// keeps the bearing aim, whose exit the adaptive rounding radius already fits to the outgoing leg.
     /// </para>
+    ///
+    /// <para>
+    /// A reversal on a taxiway — free-space leg or painted edge alike — is built ahead of both as a turn about centred on
+    /// the centreline (<see cref="BuildTaxiwayTurnAbout"/>), at the tight-turn radius and its own pivot speed; the
+    /// comfortable-radius arcs above stay for reversals on ramps, aprons and stand lead-ins.
+    /// </para>
     /// </summary>
     private (PathPrimitiveSlowTurn Arc, string Aim, bool ReversalFlip) BuildEntryAlignmentArc(
         TaxiRoute route,
@@ -905,10 +934,15 @@ public sealed class GroundNavigator
         double headingDelta
     )
     {
+        if ((headingDelta >= ReversalEntryThresholdDeg) && (BuildTaxiwayTurnAbout(route, seg, ctx) is { } turnAbout))
+        {
+            return turnAbout;
+        }
+
         if (_segmentFromIsVirtual)
         {
             double freeSpaceRadiusFt = CategoryPerformance.MainGearTurnRadiusFt(ctx.Category);
-            if (FindAimNode(route, ctx, 2.0 * freeSpaceRadiusFt) is { } aimNode)
+            if (FindAimNode(route, ctx, ctx.Aircraft.Position, 2.0 * freeSpaceRadiusFt) is { } aimNode)
             {
                 PathPrimitiveSlowTurn? aimed = PathPrimitiveBuilder.SlowTurnToPoint(
                     fromLat: ctx.Aircraft.Position.Lat,
@@ -951,7 +985,10 @@ public sealed class GroundNavigator
 
         // A reversal is aimed at a node, in that chosen direction: its half turn cannot end ON the outgoing
         // centerline, only parallel to it a diameter away.
-        if (Math.Abs(dthetaDeg) >= ReversalEntryThresholdDeg && FindAimNode(route, ctx, 2.0 * roundingRadiusFt) is { } reversalAim)
+        if (
+            Math.Abs(dthetaDeg) >= ReversalEntryThresholdDeg
+            && FindAimNode(route, ctx, ctx.Aircraft.Position, 2.0 * roundingRadiusFt) is { } reversalAim
+        )
         {
             PathPrimitiveSlowTurn? aimedReversal = PathPrimitiveBuilder.SlowTurnToPointDirected(
                 fromLat: ctx.Aircraft.Position.Lat,
@@ -994,6 +1031,187 @@ public sealed class GroundNavigator
     }
 
     /// <summary>
+    /// A reversal on a taxiway (<see cref="TurnAboutTaxiwayEdge"/>), built as a turn about that stays inside the taxiway
+    /// (<see cref="SolveTaxiwayTurnAbout"/>), with the aim bookkeeping committed and the reversal parked in
+    /// <see cref="_pendingTurnAboutArc"/> while the jog plays. Returns the primitive to play first — the jog, or the
+    /// reversal alone when no jog is needed — or null, leaving the comfortable-radius aims to run.
+    /// </summary>
+    private (PathPrimitiveSlowTurn Arc, string Aim, bool ReversalFlip)? BuildTaxiwayTurnAbout(TaxiRoute route, TaxiRouteSegment seg, PhaseContext ctx)
+    {
+        if (SolveTaxiwayTurnAbout(route, seg, ctx) is not { } plan)
+        {
+            return null;
+        }
+
+        bool aimedPast = plan.AimSegmentIndex > route.CurrentSegmentIndex;
+        _alignmentRoute = route;
+        _nodeAimSegmentIndex = plan.AimSegmentIndex;
+        _aimedPastThroughSegmentIndex = aimedPast ? plan.AimSegmentIndex : -1;
+        _entryArcAimedAtNodeOffRealLeg = !_segmentFromIsVirtual;
+        _pendingTurnAboutArc = plan.Jog is null ? null : plan.Reversal;
+        _turnAboutReversalPlaying = plan.Jog is null;
+        Log.LogDebug(
+            "[Nav] {Callsign}: turn about on {Taxiway} edge {A}-{B}: r={R:F0}ft at {Speed:F2}kt, jog {Jog:F0}° then reversal {Sweep:F0}° {Sense}",
+            ctx.Aircraft.Callsign,
+            plan.Edge.TaxiwayName,
+            plan.Edge.Nodes[0].Id,
+            plan.Edge.Nodes[1].Id,
+            plan.Reversal.RadiusFt,
+            plan.Reversal.MaxSpeedKts,
+            plan.Jog?.SweepDeg ?? 0.0,
+            plan.Reversal.SweepDeg,
+            plan.Reversal.RightTurn ? "right" : "left"
+        );
+        return (plan.Jog ?? plan.Reversal, aimedPast ? "turn-about-ahead" : "turn-about", plan.ReversalFlip);
+    }
+
+    /// <summary>The arcs of a turn about on a taxiway (<see cref="SolveTaxiwayTurnAbout"/>) and what they were solved against.</summary>
+    private readonly record struct TaxiwayTurnAboutPlan(
+        GroundEdge Edge,
+        PathPrimitiveSlowTurn? Jog,
+        PathPrimitiveSlowTurn Reversal,
+        int AimSegmentIndex,
+        bool ReversalFlip
+    );
+
+    /// <summary>
+    /// Solve a reversal on a taxiway as a turn about that stays inside the taxiway: both arcs at
+    /// <see cref="CategoryPerformance.TightTurnFloorRadiusFt"/> and played at <see cref="CategoryPerformance.TurnAboutSpeedKts"/>,
+    /// a jog against the reversal's sense (<see cref="PathPrimitiveBuilder.TurnAboutJogDeg"/>) that puts the reversal's
+    /// turning circle on the centreline, then the reversal itself, aimed from the jog's exit at a route node a turning
+    /// diameter away (<see cref="FindAimNode"/>) in the direction the tie-break chose (<see cref="ShouldReverseAgainstShortWay"/>).
+    /// A half turn begun on the centreline ends a whole diameter off it — at the comfortable radius a C172 swung 30 ft off a
+    /// 25 ft-wide taxiway — where this one spans about one radius either side of it. A helicopter takes no jog: the
+    /// reversal arc alone.
+    ///
+    /// <para>
+    /// Null when the aircraft is not standing inside a taxiway edge it reverses over, no route node lies a turning diameter
+    /// from the jog's exit, or the reversal has no tangent through it. Reads navigator state; changes none.
+    /// </para>
+    /// </summary>
+    private TaxiwayTurnAboutPlan? SolveTaxiwayTurnAbout(TaxiRoute route, TaxiRouteSegment seg, PhaseContext ctx)
+    {
+        double radiusFt = CategoryPerformance.TightTurnFloorRadiusFt(ctx.Category);
+        if (TurnAboutTaxiwayEdge(seg, ctx, radiusFt) is not { } edge)
+        {
+            return null;
+        }
+
+        double dthetaDeg = GeoMath.SignedBearingDifference(ctx.Aircraft.TrueHeading.Degrees, seg.Edge.DepartureBearing);
+        bool reversalFlip = ShouldReverseAgainstShortWay(dthetaDeg, SignedTurnAfterEntry(route, seg));
+        bool rightTurn = (dthetaDeg > 0) != reversalFlip;
+
+        PathPrimitiveSlowTurn? jog =
+            (ctx.Category == AircraftCategory.Helicopter) ? null : BuildTurnAboutJog(edge, ctx, radiusFt, seg.FromNodeId, rightTurn);
+        (LatLon reversalFrom, double reversalFromHdgDeg) = jog is null
+            ? (ctx.Aircraft.Position, ctx.Aircraft.TrueHeading.Degrees)
+            : PathPrimitiveBuilder.ExitPose(jog);
+        if (FindAimNode(route, ctx, reversalFrom, 2.0 * radiusFt) is not { } aimNode)
+        {
+            return null;
+        }
+
+        PathPrimitiveSlowTurn? reversal = PathPrimitiveBuilder.SlowTurnToPointDirected(
+            fromLat: reversalFrom.Lat,
+            fromLon: reversalFrom.Lon,
+            fromHdgDeg: reversalFromHdgDeg,
+            radiusFt: radiusFt,
+            targetLat: aimNode.Lat,
+            targetLon: aimNode.Lon,
+            maxSpeedKts: CategoryPerformance.TurnAboutSpeedKts(ctx.Category, radiusFt),
+            toNodeId: seg.FromNodeId,
+            rightTurn: rightTurn
+        );
+
+        if (reversal is null)
+        {
+            Log.LogDebug(
+                "[Nav] {Callsign}: no turn about on {Taxiway} at r={R:F0}ft (jog {Jog:F0}°): the reversal has no tangent to its aim node",
+                ctx.Aircraft.Callsign,
+                edge.TaxiwayName,
+                radiusFt,
+                jog?.SweepDeg ?? 0.0
+            );
+            return null;
+        }
+
+        return new TaxiwayTurnAboutPlan(edge, jog, reversal, aimNode.SegmentIndex, reversalFlip);
+    }
+
+    /// <summary>
+    /// The jog that centres a turn about on <paramref name="edge"/>'s centreline (<see cref="PathPrimitiveBuilder.TurnAboutJogDeg"/>),
+    /// measured in the frame of the aircraft's forward direction along the edge, turned against the reversal's sense
+    /// (<paramref name="rightTurn"/>) at the turn about's pivot speed. Null when the aircraft already stands where the
+    /// reversal alone is centred.
+    /// </summary>
+    private static PathPrimitiveSlowTurn? BuildTurnAboutJog(GroundEdge edge, PhaseContext ctx, double radiusFt, int toNodeId, bool rightTurn)
+    {
+        double headingDeg = ctx.Aircraft.TrueHeading.Degrees;
+        double edgeBearingDeg = GeoMath.BearingTo(edge.Nodes[0].Position, edge.Nodes[1].Position);
+        double forwardDeg = (GeoMath.AbsBearingDifference(edgeBearingDeg, headingDeg) <= 90.0) ? edgeBearingDeg : edgeBearingDeg + 180.0;
+        double offsetRightFt =
+            GeoMath.SignedCrossTrackDistanceNm(ctx.Aircraft.Position, edge.Nodes[0].Position, new TrueHeading(forwardDeg)) * GeoMath.FeetPerNm;
+        double headingOffDeg = GeoMath.SignedBearingDifference(forwardDeg, headingDeg);
+        double jogDeg = PathPrimitiveBuilder.TurnAboutJogDeg(offsetRightFt, headingOffDeg, radiusFt, rightTurn);
+        if (jogDeg < MinTurnAboutJogDeg)
+        {
+            return null;
+        }
+
+        return PathPrimitiveBuilder.SlowTurnDirected(
+            fromLat: ctx.Aircraft.Position.Lat,
+            fromLon: ctx.Aircraft.Position.Lon,
+            fromHdgDeg: headingDeg,
+            toHdgDeg: headingDeg + (rightTurn ? -jogDeg : jogDeg),
+            radiusFt: radiusFt,
+            maxSpeedKts: CategoryPerformance.TurnAboutSpeedKts(ctx.Category, radiusFt),
+            toNodeId: toNodeId,
+            rightTurn: !rightTurn
+        );
+    }
+
+    /// <summary>A turn-about jog smaller than this (deg) is not flown: the reversal alone is already centred.</summary>
+    private const double MinTurnAboutJogDeg = 1.0;
+
+    /// <summary>
+    /// The taxiway edge a reversal turns about on: the straight edge the aircraft stands inside
+    /// (<see cref="AirportGroundLayout.FindOccupiedTaxiEdge"/>: within <see cref="AirportGroundLayout.OnTaxiEdgeMaxOffsetFt"/>
+    /// of its centreline, its foot strictly inside the edge) and more than <paramref name="radiusFt"/> from both its end
+    /// nodes, when the route reverses back over that same edge — a free-space leg running to one of its end nodes, or the
+    /// painted segment being the edge itself — and the edge is a turn-about taxiway (<see cref="IsTurnAboutTaxiway"/>).
+    ///
+    /// <para>
+    /// Null otherwise, and the comfortable-radius aims run: a mid-route reversal at a junction (the aircraft arrives at the
+    /// node, at a tangent point on the edge it is leaving, not inside the edge it reverses over, or inside that edge but
+    /// within <paramref name="radiusFt"/> of one of its end nodes, where the turn about would not fit before the node) keeps
+    /// rounding over the fillet at its corner speed, as do reversals on ramps, aprons, stand lead-ins and runways.
+    /// </para>
+    /// </summary>
+    private GroundEdge? TurnAboutTaxiwayEdge(TaxiRouteSegment seg, PhaseContext ctx, double radiusFt)
+    {
+        if ((ctx.GroundLayout is not { } layout) || (layout.FindOccupiedTaxiEdge(ctx.Aircraft.Position) is not { } edge))
+        {
+            return null;
+        }
+
+        bool reversesOverIt = _segmentFromIsVirtual ? edge.Nodes.Any(n => n.Id == seg.ToNodeId) : ReferenceEquals(seg.Edge.Edge, edge);
+        bool clearOfEnds = edge.Nodes.All(n => (GeoMath.DistanceNm(ctx.Aircraft.Position, n.Position) * GeoMath.FeetPerNm) > radiusFt);
+        return (reversesOverIt && clearOfEnds && IsTurnAboutTaxiway(edge, layout)) ? edge : null;
+    }
+
+    /// <summary>
+    /// Whether a turn about on <paramref name="edge"/> must stay inside its width: a named movement-area taxiway
+    /// (<see cref="MovementAreaClassification.IsMovementArea"/>: not apron, not a ramp taxilane), no ramp connector or runway
+    /// centreline, touching no parking or helipad node (no stand lead-in).
+    /// </summary>
+    public static bool IsTurnAboutTaxiway(GroundEdge edge, AirportGroundLayout layout) =>
+        !edge.IsRamp
+        && !edge.IsRunwayCenterline
+        && (edge.TaxiwayName.Length > 0)
+        && edge.Nodes.All(n => n.Type is not (GroundNodeType.Parking or GroundNodeType.Helipad))
+        && MovementAreaClassification.For(layout).IsMovementArea(edge.TaxiwayName);
+
+    /// <summary>
     /// The route node a free-space alignment arc aims at: walking forward from the current segment's own
     /// to-node, the first one at least <paramref name="minDistanceFt"/> — the turning circle's diameter — from
     /// the aircraft, with the index of the segment it ends.
@@ -1015,13 +1233,13 @@ public sealed class GroundNavigator
     /// where the arrival still happens normally.
     /// </para>
     /// </summary>
-    private static (int SegmentIndex, double Lat, double Lon)? FindAimNode(TaxiRoute route, PhaseContext ctx, double minDistanceFt)
+    private static (int SegmentIndex, double Lat, double Lon)? FindAimNode(TaxiRoute route, PhaseContext ctx, LatLon from, double minDistanceFt)
     {
         for (int i = route.CurrentSegmentIndex; i < route.Segments.Count; i++)
         {
             TaxiRouteSegment segment = route.Segments[i];
             GroundNode to = segment.Edge.ToNode;
-            double distFt = GeoMath.DistanceNm(ctx.Aircraft.Position, to.Position) * GeoMath.FeetPerNm;
+            double distFt = GeoMath.DistanceNm(from, to.Position) * GeoMath.FeetPerNm;
             if ((distFt >= minDistanceFt) || IsBarNode(route, ctx, segment.ToNodeId))
             {
                 return (i, to.Position.Lat, to.Position.Lon);
@@ -1338,6 +1556,11 @@ public sealed class GroundNavigator
             return NavigatorResult.ArrivedAtNode;
         }
 
+        if ((result == NavigatorResult.ArrivedAtNode) && TryEngagePendingTurnAbout(ctx))
+        {
+            return NavigatorResult.Navigating;
+        }
+
         // When the entry-alignment slow-turn finishes, swap in the deferred
         // segment primitive and continue navigating in the same tick. The
         // synthetic arrival is internal — the route's own segment counter
@@ -1349,6 +1572,27 @@ public sealed class GroundNavigator
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// A turn about's jog has finished: engage the reversal parked behind it (<see cref="_pendingTurnAboutArc"/>), which
+    /// starts on the jog's exit tangent, and report the jog's arrival as internal, as the entry-alignment swap does. False,
+    /// changing nothing, when no reversal is parked.
+    /// </summary>
+    private bool TryEngagePendingTurnAbout(PhaseContext ctx)
+    {
+        if (_pendingTurnAboutArc is not { } reversal)
+        {
+            return false;
+        }
+
+        _pendingTurnAboutArc = null;
+        _turnAboutReversalPlaying = true;
+        _currentPrimitive = reversal;
+        BeginPrimitive(reversal);
+        PrevDistToTarget = double.MaxValue;
+        Log.LogDebug("[Nav] {Callsign}: turn-about jog complete; engaging the {Sweep:F0}° reversal", ctx.Aircraft.Callsign, reversal.SweepDeg);
+        return true;
     }
 
     /// <summary>
@@ -1522,6 +1766,7 @@ public sealed class GroundNavigator
         _aimedPastThroughSegmentIndex = -1;
         _nodeAimSegmentIndex = -1;
         _entryArcAimedAtNodeOffRealLeg = false;
+        _pendingTurnAboutArc = null;
         _onAimedLineOverFillet = true;
         _aimedLineFilletFromNodeId = fillet.FromNodeId;
         _segmentFromNodeId = fillet.FromNodeId;
@@ -2063,11 +2308,18 @@ public sealed class GroundNavigator
 
         if (_arcRemainingSweepDeg <= 0.01)
         {
-            if (_nextSegmentBearing is { } nextBrg)
+            // A turn-about jog hands straight on to its reversal, which starts on the jog's own exit tangent, so no nudge
+            // plays between them. A completing turn-about reversal re-acquires the next bearing at the yaw its own tight
+            // radius gives (ω·r on that radius); every other slow turn keeps the comfortable main-gear rate.
+            if ((_pendingTurnAboutArc is null) && (_nextSegmentBearing is { } nextBrg))
             {
-                double maxTurnArc = CategoryPerformance.GroundYawRateAtSpeed(ctx.Category, ctx.Aircraft.GroundSpeed) * ctx.DeltaSeconds;
+                double yawRateDegPerSec = _turnAboutReversalPlaying
+                    ? CategoryPerformance.GroundYawRateOnRadius(ctx.Category, ctx.Aircraft.GroundSpeed, prim.RadiusFt)
+                    : CategoryPerformance.GroundYawRateAtSpeed(ctx.Category, ctx.Aircraft.GroundSpeed);
+                double maxTurnArc = yawRateDegPerSec * ctx.DeltaSeconds;
                 ctx.Aircraft.TrueHeading = GeoMath.TurnHeadingToward(ctx.Aircraft.TrueHeading, nextBrg, maxTurnArc);
             }
+            _turnAboutReversalPlaying = false;
             PrevDistToTarget = double.MaxValue;
             return NavigatorResult.ArrivedAtNode;
         }
@@ -2796,6 +3048,8 @@ public sealed class GroundNavigator
             NodeAimSegmentIndex = _nodeAimSegmentIndex,
             AimedPastThroughSegmentIndex = _aimedPastThroughSegmentIndex,
             EntryArcAimedAtNodeOffRealLeg = _entryArcAimedAtNodeOffRealLeg,
+            PendingTurnAboutArc = _pendingTurnAboutArc is null ? null : ToSlowTurnDto(_pendingTurnAboutArc),
+            TurnAboutReversalPlaying = _turnAboutReversalPlaying ? true : null,
         };
 
     private void RestorePlaybackProgress(GroundNavigatorPlaybackDto saved)
@@ -2841,21 +3095,41 @@ public sealed class GroundNavigator
                 EntryTangentBearingDeg = b.EntryTangentBearingDeg,
                 ExitTangentBearingDeg = b.ExitTangentBearingDeg,
             },
-            PathPrimitiveSlowTurn t => new SlowTurnPrimitiveDto
-            {
-                LengthFt = t.LengthFt,
-                ToNodeId = t.ToNodeId,
-                CenterLat = t.CenterLat,
-                CenterLon = t.CenterLon,
-                RadiusFt = t.RadiusFt,
-                StartBearingFromCenterDeg = t.StartBearingFromCenterDeg,
-                SweepDeg = t.SweepDeg,
-                RightTurn = t.RightTurn,
-                EntryTangentBearingDeg = t.EntryTangentBearingDeg,
-                ExitTangentBearingDeg = t.ExitTangentBearingDeg,
-                MaxSpeedKts = t.MaxSpeedKts,
-            },
+            PathPrimitiveSlowTurn t => ToSlowTurnDto(t),
             _ => throw new InvalidOperationException($"[Nav] snapshot: no DTO for path primitive {primitive.GetType().Name}"),
+        };
+
+    private static SlowTurnPrimitiveDto ToSlowTurnDto(PathPrimitiveSlowTurn t) =>
+        new()
+        {
+            LengthFt = t.LengthFt,
+            ToNodeId = t.ToNodeId,
+            CenterLat = t.CenterLat,
+            CenterLon = t.CenterLon,
+            RadiusFt = t.RadiusFt,
+            StartBearingFromCenterDeg = t.StartBearingFromCenterDeg,
+            SweepDeg = t.SweepDeg,
+            RightTurn = t.RightTurn,
+            EntryTangentBearingDeg = t.EntryTangentBearingDeg,
+            ExitTangentBearingDeg = t.ExitTangentBearingDeg,
+            MaxSpeedKts = t.MaxSpeedKts,
+        };
+
+    private static PathPrimitiveSlowTurn FromSlowTurnDto(SlowTurnPrimitiveDto t) =>
+        new()
+        {
+            Kind = PathPrimitiveKind.SlowTurn,
+            LengthFt = t.LengthFt,
+            ToNodeId = t.ToNodeId,
+            CenterLat = t.CenterLat,
+            CenterLon = t.CenterLon,
+            RadiusFt = t.RadiusFt,
+            StartBearingFromCenterDeg = t.StartBearingFromCenterDeg,
+            SweepDeg = t.SweepDeg,
+            RightTurn = t.RightTurn,
+            EntryTangentBearingDeg = t.EntryTangentBearingDeg,
+            ExitTangentBearingDeg = t.ExitTangentBearingDeg,
+            MaxSpeedKts = t.MaxSpeedKts,
         };
 
     private static PathPrimitive FromPrimitiveDto(PathPrimitiveDto dto) =>
@@ -2881,21 +3155,7 @@ public sealed class GroundNavigator
                 EntryTangentBearingDeg = b.EntryTangentBearingDeg,
                 ExitTangentBearingDeg = b.ExitTangentBearingDeg,
             },
-            SlowTurnPrimitiveDto t => new PathPrimitiveSlowTurn
-            {
-                Kind = PathPrimitiveKind.SlowTurn,
-                LengthFt = t.LengthFt,
-                ToNodeId = t.ToNodeId,
-                CenterLat = t.CenterLat,
-                CenterLon = t.CenterLon,
-                RadiusFt = t.RadiusFt,
-                StartBearingFromCenterDeg = t.StartBearingFromCenterDeg,
-                SweepDeg = t.SweepDeg,
-                RightTurn = t.RightTurn,
-                EntryTangentBearingDeg = t.EntryTangentBearingDeg,
-                ExitTangentBearingDeg = t.ExitTangentBearingDeg,
-                MaxSpeedKts = t.MaxSpeedKts,
-            },
+            SlowTurnPrimitiveDto t => FromSlowTurnDto(t),
             _ => throw new InvalidOperationException($"[Nav] snapshot restore: unknown path primitive DTO {dto.GetType().Name}"),
         };
 }

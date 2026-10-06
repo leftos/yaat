@@ -102,6 +102,147 @@ public class GroundNavigatorArcRestoreTests(ITestOutputHelper output)
     }
 
     /// <summary>
+    /// A C172 mid-way along KOAK's long C edge west of H, facing H, is cleared <c>TAXI C J</c>, which lies behind it: it turns
+    /// about on C, opening with the jog that centres the reversal on the centreline. A snapshot taken while the jog plays —
+    /// the reversal parked behind it — restored into a second engine, keeps the restored aircraft on the original's positions
+    /// every second, through the jog-to-reversal hand-off and the leg after it.
+    /// </summary>
+    [Fact]
+    public void TurnAbout_SurvivesSnapshotRoundTripMidJog()
+    {
+        var groundData = new TestAirportGroundData();
+        if ((NewEngine(groundData) is not { } engine) || (groundData.GetLayout(AirportId) is not { } layout))
+        {
+            output.WriteLine("SKIP: navdata or KOAK layout unavailable");
+            return;
+        }
+
+        (GroundNode towardH, GroundNode behind) = KoakTaxiwayC.LongEdgeWestOfH(layout);
+        AircraftState aircraft = Spawn(towardH, new TrueHeading(GeoMath.BearingTo(behind.Position, towardH.Position)), layout);
+        aircraft.AircraftType = TurnAboutType;
+        aircraft.Position = new LatLon(
+            towardH.Position.Lat + ((behind.Position.Lat - towardH.Position.Lat) * TurnAboutAlongFraction),
+            towardH.Position.Lon + ((behind.Position.Lon - towardH.Position.Lon) * TurnAboutAlongFraction)
+        );
+        aircraft.Ground.CurrentTaxiway = "C";
+        engine.World.AddAircraft(aircraft);
+        CommandResult taxi = engine.SendCommand(Callsign, "TAXI C J");
+        Assert.True(taxi.Success, taxi.Message);
+        Assert.Equal(behind.Id, Assert.IsType<TaxiRoute>(aircraft.Ground.AssignedTaxiRoute).Segments[0].ToNodeId);
+
+        StateSnapshotDto? midJog = null;
+        for (int second = 1; (second <= TurnBudgetSeconds) && (midJog is null); second++)
+        {
+            engine.TickOneSecond();
+            StateSnapshotDto snapshot = engine.CaptureSnapshot();
+            midJog = JogPlaying(snapshot) ? snapshot : null;
+        }
+
+        Assert.True(midJog is not null, $"the turn about's jog was never the current primitive within {TurnBudgetSeconds}s");
+        SimulationEngine restoredEngine = Assert.IsType<SimulationEngine>(NewEngine(groundData));
+        restoredEngine.RestoreFromSnapshot(RoundTrip(midJog));
+        AircraftState restored = Assert.IsType<AircraftState>(restoredEngine.FindAircraft(Callsign));
+
+        for (int second = 1; second <= SnapshotCompareSeconds; second++)
+        {
+            engine.TickOneSecond();
+            restoredEngine.TickOneSecond();
+            Assert.Equal(aircraft.Phases?.CurrentPhase?.Name, restored.Phases?.CurrentPhase?.Name);
+            Assert.Equal(aircraft.Position, restored.Position);
+        }
+
+        Assert.False(
+            JogPlaying(restoredEngine.CaptureSnapshot()),
+            $"the restored jog had not handed over to its reversal after {SnapshotCompareSeconds}s"
+        );
+        output.WriteLine($"after {SnapshotCompareSeconds}s: {aircraft.Phases?.CurrentPhase?.Name} at {aircraft.Position}");
+    }
+
+    /// <summary>
+    /// The same turn about, snapshotted after the jog has handed over to the reversal instead of while it plays: the restored
+    /// navigator resumes the reversal part-way round, with the flag that limits its end-of-arc heading nudge to the arc's own
+    /// radius carried across the round trip, and stays on the original's positions and heading through the end of the
+    /// reversal and the leg after it.
+    /// </summary>
+    [Fact]
+    public void TurnAbout_SurvivesSnapshotRoundTripMidReversal()
+    {
+        var groundData = new TestAirportGroundData();
+        if ((NewEngine(groundData) is not { } engine) || (groundData.GetLayout(AirportId) is not { } layout))
+        {
+            output.WriteLine("SKIP: navdata or KOAK layout unavailable");
+            return;
+        }
+
+        (GroundNode towardH, GroundNode behind) = KoakTaxiwayC.LongEdgeWestOfH(layout);
+        AircraftState aircraft = Spawn(towardH, new TrueHeading(GeoMath.BearingTo(behind.Position, towardH.Position)), layout);
+        aircraft.AircraftType = TurnAboutType;
+        aircraft.Position = new LatLon(
+            towardH.Position.Lat + ((behind.Position.Lat - towardH.Position.Lat) * TurnAboutAlongFraction),
+            towardH.Position.Lon + ((behind.Position.Lon - towardH.Position.Lon) * TurnAboutAlongFraction)
+        );
+        aircraft.Ground.CurrentTaxiway = "C";
+        engine.World.AddAircraft(aircraft);
+        CommandResult taxi = engine.SendCommand(Callsign, "TAXI C J");
+        Assert.True(taxi.Success, taxi.Message);
+        Assert.Equal(behind.Id, Assert.IsType<TaxiRoute>(aircraft.Ground.AssignedTaxiRoute).Segments[0].ToNodeId);
+
+        int handedOverAt = -1;
+        for (int second = 1; (second <= TurnBudgetSeconds) && (handedOverAt < 0); second++)
+        {
+            engine.TickOneSecond();
+            handedOverAt = JogPlaying(engine.CaptureSnapshot()) ? -1 : second;
+        }
+
+        Assert.True(handedOverAt > 0, $"the turn about's jog never handed over to its reversal within {TurnBudgetSeconds}s");
+        for (int second = 1; second <= MidReversalSeconds; second++)
+        {
+            engine.TickOneSecond();
+        }
+
+        StateSnapshotDto midReversal = RoundTrip(engine.CaptureSnapshot());
+        SimulationEngine restoredEngine = Assert.IsType<SimulationEngine>(NewEngine(groundData));
+        restoredEngine.RestoreFromSnapshot(midReversal);
+        AircraftState restored = Assert.IsType<AircraftState>(restoredEngine.FindAircraft(Callsign));
+        Assert.True(
+            ReversalPlaying(restoredEngine.CaptureSnapshot()),
+            "the restored navigator is not playing the reversal its snapshot was taken in"
+        );
+
+        for (int second = 1; second <= SnapshotCompareSeconds; second++)
+        {
+            engine.TickOneSecond();
+            restoredEngine.TickOneSecond();
+            Assert.Equal(aircraft.Phases?.CurrentPhase?.Name, restored.Phases?.CurrentPhase?.Name);
+            Assert.Equal(aircraft.Position, restored.Position);
+            Assert.Equal(aircraft.TrueHeading.Degrees, restored.TrueHeading.Degrees);
+        }
+
+        Assert.False(ReversalPlaying(restoredEngine.CaptureSnapshot()), $"the restored reversal was still playing after {SnapshotCompareSeconds}s");
+        output.WriteLine(
+            $"handed over at t={handedOverAt}s; after {SnapshotCompareSeconds}s: hdg={aircraft.TrueHeading.Degrees:F1} at {aircraft.Position}"
+        );
+    }
+
+    /// <summary>The type turned about on C: a piston, which a controller's turn about on a taxiway does not refuse.</summary>
+    private const string TurnAboutType = "C172";
+
+    /// <summary>How far along the C edge from the node toward H to the node behind the aircraft stands.</summary>
+    private const double TurnAboutAlongFraction = 0.35;
+
+    /// <summary>Seconds of the reversal to play before snapshotting it, so the snapshot lands part-way round it.</summary>
+    private const int MidReversalSeconds = 2;
+
+    /// <summary>Whether a navigator in <paramref name="snapshot"/> is playing a turn-about jog, its reversal parked behind it.</summary>
+    private static bool JogPlaying(StateSnapshotDto snapshot) =>
+        PlaybackObjects(JsonSerializer.SerializeToNode(snapshot, RecordingJsonOptions.Default)).Any(p => p["PendingTurnAboutArc"] is not null);
+
+    /// <summary>Whether a navigator in <paramref name="snapshot"/> is playing a turn about's reversal arc.</summary>
+    private static bool ReversalPlaying(StateSnapshotDto snapshot) =>
+        PlaybackObjects(JsonSerializer.SerializeToNode(snapshot, RecordingJsonOptions.Default))
+            .Any(p => (bool?)p["TurnAboutReversalPlaying"] == true);
+
+    /// <summary>
     /// The same mid-turn snapshot with the saved playback's from-node changed to one the taxi segment does not start at:
     /// the to-node still matches, but the playback was not saved on this segment, so the restore drops it with a
     /// "restored playback dropped" warning and sets the

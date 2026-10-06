@@ -489,4 +489,25 @@ public class PathPrimitiveBuilderTests
         Assert.True(Math.Abs(abeamFt) <= 0.1, $"the exit tangent misses the target by {abeamFt:F2} ft abeam");
         Assert.True(alongFt > 0, $"the target is {alongFt:F1} ft along the exit tangent — it must lie ahead");
     }
+
+    /// <summary>
+    /// The jog that centres a turn about on a line: 60° for an aircraft on the line and along it, nothing when it already
+    /// stands far enough to the reversal's side for the reversal alone to be centred, and no more than a quarter turn
+    /// however far off the line it is slewed.
+    /// </summary>
+    [Theory]
+    [InlineData(0.0, 0.0, true, 60.0)] // on the line, along it
+    [InlineData(2.0, 0.0, false, 0.0)] // 2r to the reversal's side: the reversal alone is centred
+    [InlineData(0.0, 90.0, true, 90.0)] // heading a quarter turn off the line: clamped
+    public void TurnAboutJogDeg_CentresTheReversalOnTheLine(double offsetRadii, double headingOffDeg, bool rightTurn, double expectDeg)
+    {
+        double jogDeg = PathPrimitiveBuilder.TurnAboutJogDeg(
+            offsetRightFt: offsetRadii * JetMainGearRadiusFt,
+            headingOffDeg: headingOffDeg,
+            radiusFt: JetMainGearRadiusFt,
+            rightTurn: rightTurn
+        );
+
+        Assert.Equal(expectDeg, jogDeg, 3);
+    }
 }

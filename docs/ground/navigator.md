@@ -40,7 +40,7 @@ The braking curve planned at `TaxiDecelRate` executes at exactly that rate, with
   Left in place after a fillet, physics turns the nose back toward the stale exit tangent every substep while pure pursuit nudges it out, the aircraft drifts off a straight that leaves the fillet a fraction of a degree off the tangent, and the orbit guard — which sees only the navigator's half of that tug-of-war — declares a full circle on an aircraft that never turned (OAK 30-departure scenario: a queued 5-kt crawl toward the W/W1 junction, `GroundNavigatorStraightHandoffTests`).
 
   Same family as the `RunwayExitPhase` handoff leak.
-- On straights: turns `ctx.Aircraft.TrueHeading` toward the steer bearing, bounded by the **speed-coupled** ground yaw rate (`CategoryPerformance.GroundYawRateAtSpeed` — `ω = v/R` at the tight main-gear turn radius, capped at the `GroundTurnRate` ceiling; full authority above ~3 kt, falling to ~0 at a standstill), and lets physics advance position.
+- On straights: turns `ctx.Aircraft.TrueHeading` toward the steer bearing, bounded by the **speed-coupled** ground yaw rate (`CategoryPerformance.GroundYawRateAtSpeed` — `ω = v/R` at the comfortable main-gear turn radius (`MainGearTurnRadiusFt`), capped at the `GroundTurnRate` ceiling; full authority above ~3 kt, falling to ~0 at a standstill), and lets physics advance position.
 
   This is why a near-stationary aircraft no longer pivots at the full ceiling. Arcs are already `v/R`-coupled by construction (the closed-form advance is `dAngle = v·dt/r`), and `GroundArc.MaxSafeSpeedKts` folds the same `ω·r` cap into the arc speed so a jet can't carry taxi speed through a tight fillet.
 - On Bézier arcs and slow-turns: writes `ctx.Aircraft.Position` and `ctx.Aircraft.TrueHeading` **directly** from closed-form curve state.
@@ -124,7 +124,7 @@ The class summary (`GroundNavigator.cs:39`) calls this "Design B closed-form pla
   For a wide sweeping fillet the apex is far tighter than the endpoint-connecting radius, so reinterpreting it as a single circle undershoots the corner's exit node (the OAK 28R→G corner: a 72 ft circle for endpoints 153 ft apart finished 56 ft short; a systemic scan found ~30–40 % of all OAK/SFO/FLL fillet traversals would undershoot >5 ft).
 
   Playing the real Bézier ends *exactly* on the to-node (its `P3`), so the next segment starts on-centerline instead of tripping the re-acquire speed gate into a crawl. The traversal-orientation (forward vs reversed) is baked into the stored curve at build time. Guarded by `GroundArcBezierPlaybackGuardTests` (every arc on OAK/SFO/FLL ends within 2 ft of its node).
-- **`PathPrimitiveSlowTurn`** — geometrically identical to an arc circle, but the radius is the aircraft's nose-wheel minimum and the speed cap is `SlowTurnSpeedKts` (≈ 3 kt). Used for entry-alignment tight turns and tight programmatic pivots. Kept as a true-circle primitive — it is synthesised programmatically, not derived from a painted `GroundArc`.
+- **`PathPrimitiveSlowTurn`** — geometrically identical to an arc circle, but the radius is the adaptive corner radius (the comfortable main-gear radius for a free-space aim, down to the tight-turn floor) and the speed cap is `SlowTurnSpeedKts` (≈ 3 kt), or `TurnAboutSpeedKts` for the arcs of a turn about on a taxiway ([below](#entry-alignment-threshold)). Used for entry-alignment tight turns and tight programmatic pivots. Kept as a true-circle primitive — it is synthesised programmatically, not derived from a painted `GroundArc`.
 
 **Invariant I2 (the reason arcs are closed-form):** during an arc primitive, *both* position and heading are pure functions of a single scalar — the aircraft's compass bearing from the arc centre (for Bézier: curve parameter `_bezierT`; for slow-turn: bearing `_arcBearingFromCenterDeg`). They advance together each tick and therefore **cannot drift apart**.
 
@@ -172,6 +172,8 @@ A **pre-turn blend** blends the steer bearing toward the next segment's departur
 
 When a new segment begins with the aircraft heading far off the segment's first tangent, `SetupSegment` (`GroundNavigator.cs:547`) builds a `PathPrimitiveSlowTurn` from the aircraft's current pose to the segment's start direction, stashes the real primitive in `_pendingSegmentPrimitive`, and plays the alignment arc first. The aircraft rolls forward at `SlowTurnSpeedKts` while rotating through real arc geometry — no in-place pivot, no heading snap.
 
+A turn about on a taxiway rolls slower, at its own pivot speed (below).
+
 One gate: **heading delta > `EntryAlignmentThresholdDeg` = 45°** (`GroundNavigator.cs:501`), lowered to 20° at an unfilleted straight→straight kink (issue #213). It fires regardless of segment length — a bend tighter than the main-gear turn radius cannot be tracked by pure pursuit at any allowed speed (the orbit radius `v/ω` exceeds the short-segment scale even at the slow-turn floor), so it must be rounded.
 
 Normal fillet-smoothed corners stay below the threshold by construction; only wrong-way starts, post-pushback U-turns, and mid-route corners where pure-pursuit diverges produce deltas this large.
@@ -198,6 +200,22 @@ A reversal onto a painted leg is therefore solved through `PathPrimitiveBuilder.
 
 Note the floor: an arc aimed at a node *behind* the aircraft must sweep **more** than a half turn to put its exit tangent through that node, approaching 180° only as the node recedes, and `AdaptiveCornerRadiusFt` clamps a 180° deflection to `TightTurnFloorRadiusFt`. SFO node 33 at ~81 ft off a 15 ft radius costs ~201°; that is geometry, not slack. Sub-threshold entries keep the bearing aim, whose exit the adaptive radius already fits to the outgoing leg.
 
+**A reversal on a taxiway is a turn about within the taxiway's width.** `BuildEntryAlignmentArc` tries `BuildTaxiwayTurnAbout` first for any entry at or past `ReversalEntryThresholdDeg`, ahead of the painted-leg aim above and the free-space aim below.
+
+`TurnAboutTaxiwayEdge` admits it only when the aircraft stands strictly inside a straight edge (`AirportGroundLayout.FindOccupiedTaxiEdge`: within `OnTaxiEdgeMaxOffsetFt` of its centreline with its foot inside the edge, so not at a node) and more than the turn radius from both of the edge's end nodes. The route must reverse back over that same edge: a free-space leg running to one of its end nodes, or the painted segment being the edge itself.
+
+The edge must also be a turn-about taxiway (`IsTurnAboutTaxiway`: a named movement-area taxiway, not a ramp connector or a runway centreline, touching no parking or helipad node). Otherwise the comfortable-radius aims run: a mid-route reversal at a junction, where the aircraft arrives at the node or at a tangent point short of it, keeps rounding the corner at its corner speed, as do reversals on ramps, aprons, stand lead-ins and runways (`TaxiwayTurnAboutJunctionTests`).
+
+`SolveTaxiwayTurnAbout` builds two arcs, both at `CategoryPerformance.TightTurnFloorRadiusFt` (8/12/15/8 ft piston/turboprop/jet/helicopter) and capped at `CategoryPerformance.TurnAboutSpeedKts`, ω·r: the gear-limited `GroundTurnRate` held on that radius (≈ 1.65/2.0/1.86/2.5 kt). That is below the 3 kt `SlowTurnSpeedKts` on purpose, since at 3 kt the tight radius would need more yaw than the gear gives.
+
+First a **jog** against the reversal's sense (`PathPrimitiveBuilder.TurnAboutJogDeg`: 60° for an aircraft on the centreline and along it, clamped to 0–90°, not flown under 1°) puts the reversal's turning circle on the centreline. Then the **reversal**, in the sense `ShouldReverseAgainstShortWay` chose, is solved through `SlowTurnToPointDirected` from the jog's exit pose (`PathPrimitiveBuilder.ExitPose`) to the node `FindAimNode` finds a turning diameter from that exit, not from the aircraft.
+
+The turn so spans about one radius either side of the centreline, where a half turn begun on the line ends a whole diameter off it (at the comfortable radius a C172 swung 30 ft off a 25 ft-wide taxiway). A helicopter takes no jog: the reversal alone. With no aim node a diameter from the jog's exit, or no tangent through it, the turn about is not built and the comfortable-radius aims run.
+
+The reversal waits in `_pendingTurnAboutArc` while the jog plays, and `TryEngagePendingTurnAbout` swaps it in on the jog's completion within the same tick, with no heading nudge between the two: the reversal starts on the jog's exit tangent. The aim bookkeeping and the re-anchored straight after it are the painted reversal's.
+
+Both survive a snapshot (`GroundNavigatorPlaybackDto.PendingTurnAboutArc`, `TurnAboutReversalPlaying`). Pins: `TaxiStartsOnOccupiedTaxiwayTests` (a C172 and a C208 mid-way along KOAK C keep their centre within the 12.5 ft TDG 1A half-width at no more than ω·r, on the free-space leg and on the painted edge driven backwards) and `GroundNavigatorArcRestoreTests` (a restore mid-jog and mid-reversal).
+
 **The aim node is the first one the arc cannot overshoot, and never past a bar.** Both node aims share `FindAimNode`, which walks forward from the current segment's own to-node to the first node at least a turning *diameter* (`2r`) from the aircraft.
 
 A node inside the turning circle has no tangent at all; a node just outside one is reached by an arc longer than the leg running to it, so the arc rolls out past the node and pure pursuit re-acquires a line already behind the aircraft. At SFO gate G10 the first leg is 21 ft and the arc 169°, and chasing that node cost another 84° of turn — aiming at the first node the arc cannot overshoot removes it.
@@ -222,7 +240,9 @@ The straight's line is then re-anchored at the arc exit (`_segmentFromLat/Lon` =
 
 **Adaptive rounding radius.** The entry-alignment slow-turn and the incoming tangent-rounding both use an *adaptive* radius (`GroundNavigator.AdaptiveCornerRadiusFt`, defined at `531`), not a fixed main-gear turn radius.
 
-When the approach or departure leg is shorter than the comfortable tangent length `T = r·tan(δ/2)` — two junctions closer than `T` apart, e.g. SFO M2 between the B and A crossings (~22 ft for a 118° turn that wants 41.6 ft) — the radius tightens toward a category **tight-turn floor** (`CategoryPerformance.TightTurnFloorRadiusFt`, 15 ft jet ≈ inner-main-gear radius) so the arc still **exits on the outgoing centerline**.
+When the approach or departure leg is shorter than the comfortable tangent length `T = r·tan(δ/2)` — two junctions closer than `T` apart, e.g. SFO M2 between the B and A crossings (~22 ft for a 118° turn that wants 41.6 ft) — the radius tightens toward a category **tight-turn floor** (`CategoryPerformance.TightTurnFloorRadiusFt`) so the arc still **exits on the outgoing centerline**.
+
+The floor is the path radius of the main-gear axle midpoint, not of the inner main gear: a jet's 15 ft is ~74° of nose-wheel steering on a B737-800, with the inner main gear ~5.6 ft from the turn centre.
 
 The incoming arrival threshold (`StraightArrivalThresholdNm`, defined at `556`) relaxes its `0.45·leg` cap to the whole leg only on such a tight leg, so the rounding can begin at the leg start. Without this, a fixed 25 ft arc off a 22 ft leg finishes ~26 ft wide, and pure-pursuit limit-cycles the corner on the short outgoing segment for ~45 s. This is judgmental oversteer (Boeing FCTM / AC 150/5300-13B): the nose may bulge wide of centerline mid-arc but rolls out aligned. Aviation-reviewed.
 
@@ -348,6 +368,8 @@ After the switch, if an alignment slow-turn just completed (`result == ArrivedAt
 3. Write `Position` and `TrueHeading` directly from the evaluated curve/bearing-from-centre (I2).
 4. Mirror heading into `Targets` (so physics doesn't fight the closed-form state) and set speed — `ComputeTargetSpeed` for Béziers (participates in the constraint system), the primitive's `MaxSpeedKts` cap for slow-turns (they do not).
 5. When complete (Bézier `_bezierT ≥ 1.0`, slow-turn remaining sweep ≤ 0.01°), nudge heading toward the next bearing and return `ArrivedAtNode`.
+
+   The slow-turn nudge is bounded by `CategoryPerformance.GroundYawRateOnRadius` on the arc's own radius only when the arc is a turn-about reversal (`_turnAboutReversalPlaying`), and by the comfortable main-gear rate (`GroundYawRateAtSpeed`) otherwise. A turn-about jog takes no nudge: it hands straight on to its reversal.
 
 ### Route advance in the owning phase
 

@@ -57,6 +57,8 @@ No schema bump: nothing is given up in snapshot 0, whose hash yaat-server pins. 
 
 `TaxiingPhaseDto.PassedStartBarNodeId` is another such field: the node of the uncleared runway bar the route starts on whose marking the nose is past, which the phase is stopping for at the firm rate ([ground/navigator.md](ground/navigator.md) § Stopping at an uncleared bar). It is null whenever no such stop is under way, and null on older snapshots, which never carried one; no schema bump.
 
+`GroundNavigatorPlaybackDto.PendingTurnAboutArc` and `TurnAboutReversalPlaying` follow the same pattern for a turn about on a taxiway ([ground/navigator.md](ground/navigator.md) § Entry-alignment threshold). `PendingTurnAboutArc` is the reversal arc parked while the jog that centres it plays, and `TurnAboutReversalPlaying` is true while that reversal plays, so its end-of-arc nudge keeps the arc's own radius. Both are written only when set and absent (null) otherwise; no schema bump.
+
 A restore that kept no latch would let the stop go once the aircraft had slowed too far from the node to find it again.
 
 **The run profile is not a field.** `SimulationEngine.RunProfile` (live / replay / test / soak — [tick-loop.md](tick-loop.md) § the engine's partial files) is host state: the host that drives the engine sets it, and it is never captured into or restored from a snapshot. Restoring a live snapshot into a replaying room must not make the room live.

@@ -432,7 +432,7 @@ Some exits between parallel runways hold only a few aircraft before the last one
 | Ground turn rate ceiling (deg/s) | 12 | 16 | 20 | 30 |
 | Taxi corner speed (kts) | 15 | 15 | 10 | 10 |
 
-`Ground turn rate` is now a **ceiling**, not a flat rate: achievable ground yaw is `ω = v/R` at the tight main-gear turn radius (`CategoryPerformance.GroundYawRateAtSpeed`), capped at the ceiling above the ~3 kt crossover. A taxiing aircraft can only slew its nose as fast as it rolls forward, so a near-stationary aircraft no longer pivots at the full rate (a 120° turn takes ~6 s piston / ~10 s jet, not ~2 s).
+`Ground turn rate` is now a **ceiling**, not a flat rate: achievable ground yaw is `ω = v/R` at the comfortable main-gear turn radius (`MainGearTurnRadiusFt`; `CategoryPerformance.GroundYawRateAtSpeed`), capped at the ceiling above the ~3 kt crossover. A taxiing aircraft can only slew its nose as fast as it rolls forward, so a near-stationary aircraft no longer pivots at the full rate (a 120° turn takes ~6 s piston / ~10 s jet, not ~2 s).
 
 Helicopters are exempt (a wheeled pedal-turn holds the hover rate). Tight fillets are additionally held at their curvature speed via `GroundArc.MaxSafeSpeedKts` (which folds in the same `ω·r` yaw-rate cap), so a jet no longer accelerates through a sharp ramp fillet at 20 kt / 0.84 g.
 
