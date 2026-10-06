@@ -63,6 +63,7 @@
 - In CRC's STARS display, a stopped aircraft's history trail now shrinks onto its target instead of freezing where it last moved.
 - The timeline rail draws bookmark and finding ticks at their times instead of all at its left edge.
 - After a rewind, the timeline slider sits at the playhead instead of jumping back to the start.
+- A `WAIT` or `BEHIND` command holding a direct-to on the filed route does the same after a rewind as it did live, keeping or cancelling the STAR alike.
 
 ## v0.15.0-beta [2026/10/02]
 

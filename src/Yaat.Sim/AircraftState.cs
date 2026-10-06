@@ -540,7 +540,7 @@ public class AircraftState
         {
             foreach (DeferredDispatchDto dd in dto.DeferredDispatches)
             {
-                var dispatch = DeferredDispatch.FromSnapshot(dd);
+                var dispatch = DeferredDispatch.FromSnapshot(dd, ac.FlightPlan.Route);
                 if (dispatch is not null)
                 {
                     ac.DeferredDispatches.Add(dispatch);

@@ -447,7 +447,7 @@ public class CommandRunDelayTests
         CompoundCommand payload = CommandParser.ParseCompound("FH 270").Value!;
         var deferral = new DeferredDispatch(5.0, payload) { SourceText = "FH 270", IsReactionDelay = true };
 
-        var restored = DeferredDispatch.FromSnapshot(deferral.ToSnapshot());
+        var restored = DeferredDispatch.FromSnapshot(deferral.ToSnapshot(), null);
 
         Assert.NotNull(restored);
         Assert.True(restored!.IsReactionDelay);

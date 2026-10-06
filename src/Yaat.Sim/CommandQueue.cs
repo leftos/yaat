@@ -496,14 +496,19 @@ public sealed class DeferredDispatch
             IsScenarioScripted = IsScenarioScripted,
         };
 
-    public static DeferredDispatch? FromSnapshot(DeferredDispatchDto dto)
+    public static DeferredDispatch? FromSnapshot(DeferredDispatchDto dto, string? aircraftRoute)
     {
         if (dto.SourceText is null)
         {
             return null;
         }
 
-        ParseResult<CompoundCommand> parseResult = Commands.CommandParser.ParseCompound(dto.SourceText);
+        // Re-parse with the aircraft's filed route so a route-relative DCT/ADCT/TLDCT payload resolves to the same
+        // fixes it did live (the aviation arm parses with the route via ActionArms.Aviation). Without it the payload
+        // resolves to only the typed fix, flipping ApplyDirectTo's single-fix TryPreserveProcedure branch on fire and
+        // diverging a rewind/reconstruction from the live session. Mirrors RehydrateRestoredBlock and
+        // ResolveTrackCommandsForBlock, which also reparse with the route.
+        ParseResult<CompoundCommand> parseResult = Commands.CommandParser.ParseCompound(dto.SourceText, aircraftRoute);
         if (!parseResult.IsSuccess)
         {
             return null;
