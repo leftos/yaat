@@ -55,7 +55,7 @@
   - [ ] YAAT-411 Serve each room's traffic as a VATSIM-datafeed-shaped JSON feed
   - [ ] YAAT-412 vTBFM: meter on the feed's clock (contributed PR)
   - [ ] YAAT-413 Integration and smoke test a YAAT-fed vTBFM, then write the setup steps
-- [ ] YAAT-419 Reel edit tool: virtual cursor overlay with click, double-click and drag cues · release vNext
+- [!] YAAT-419 Reel edit tool: virtual cursor overlay with click, double-click and drag cues · release vNext
 
 ## Client driver in the background (#474)
 
@@ -64,7 +64,7 @@
   - [x] YAAT-9 Client driver automation pipe: brief 4b, the wait_for tool · release vNext
   - [x] YAAT-10 Client driver automation pipe: brief 4c, the screenshot tool · release vNext
   - [x] YAAT-220 Share the pipe list_windows helper between launch_yaat and list_windows · release vNext
-- [ ] YAAT-418 Client driver: hover and drag over the automation pipe · release vNext
+- [/] YAAT-418 Client driver: hover and drag over the automation pipe · release vNext
 
 ## Context-menu quick commands (#471)
 
@@ -185,6 +185,7 @@
 - [ ] YAAT-410 Start-node hold aims the centre, not the nose; ILS/approach holds; firm taxi stop rate
 - [ ] YAAT-414 Navigator reads an aircraft in line but short of segment 0 as off-line and crawls at 5 kt
 - [ ] YAAT-421 Judge a hold short unmakeable at the firm stop rate, not the taxi rate
+- [ ] YAAT-424 Keep a taxiway turn-about within the taxiway's width · release vNext
 
 ## Wave 2 — Ground command grammar and dispatch
 
