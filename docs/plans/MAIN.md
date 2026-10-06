@@ -5,9 +5,13 @@
 ## Do first
 
 - [x] YAAT-373 Load Scenario: pick a single scenario file, not only a folder to index · release vNext — High · Bug reports and feature requests
-- [/] YAAT-274 Redesign overwhelming client surfaces: Settings, import/export, View menu pop-outs — High · Client surfaces redesign
+- [x] YAAT-274 Redesign overwhelming client surfaces: Settings, import/export, View menu pop-outs · release vNext — High · Client surfaces redesign
 - [/] YAAT-354 Add screenshots to Getting Started and the User Guide — High · Wave 9 — Docs and repo hygiene
 - [x] YAAT-228 release.yml drops the changelog output as 'may contain secret', leaving the draft's Changelog empty · release vNext — High · Singles
+
+## Follow on the taxi graph (feat/follow-on-graph)
+
+- [ ] YAAT-316 FOLLOWG follower cuts across the field off the taxiways and can bypass a runway hold line · release vNext
 
 ## Tower view (#829)
 
@@ -79,7 +83,7 @@
 
 ## Client surfaces redesign
 
-- [/] YAAT-310 Merge feat/client-surfaces-redesign (#782) · release vNext
+- [x] YAAT-310 Merge feat/client-surfaces-redesign (#782) · release vNext
 - [x] YAAT-291 Client surfaces redesign: Settings window shell (sidebar sections, OK/Apply/Cancel) · release vNext
 - [x] YAAT-292 Client surfaces redesign: Settings search with aliases and cross-section links · release vNext
 - [x] YAAT-293 Client surfaces redesign: open Settings at a section (view menus, Ctrl+comma, status-bar links) · release vNext
@@ -87,11 +91,6 @@
 - [x] YAAT-295 Client surfaces redesign: regroup the View menu and add pop-out hotkeys · release vNext
 - [x] YAAT-296 Client surfaces redesign: merge Window Profiles and Copy View Settings into Layouts · release vNext
 - [x] YAAT-297 Client surfaces redesign: one Import / Export hub with a .yaat-settings.zip bundle · release vNext
-- [ ] YAAT-340 Quick commands as an Import / Export hub item type
-- [ ] YAAT-344 Bundle import: reject a favorite set with no name instead of throwing in the planner
-- [ ] YAAT-351 Replace the private BootMainWindow copies in two UI test classes with MainWindowHost
-- [ ] YAAT-352 Stop UI tests leaking preferences between tests (hidden windows flush stale prefs; two order-dependent flakes)
-- [ ] YAAT-380 Settings: block other windows after OnOpened's layout work, not before
 - [x] YAAT-395 Import / Export: full-backup checkbox and clear Merge/Replace effects on import · release vNext
 
 ## Tick-path unification
@@ -167,8 +166,7 @@
 - [ ] YAAT-254 Visual follower behind a heavier lead lands beyond its touchdown point
 - [ ] YAAT-257 A follower whose lead has landed joins final instead of re-entering the pattern
 - [ ] YAAT-314 Ground paths that set taxi speed instead of braking to it (unmeasured sites)
-- [ ] YAAT-316 FOLLOWG follower cuts across the field off the taxiways and can bypass a runway hold line · release vNext
-- [ ] YAAT-318 HOLD or GIVEWAY near an uncleared runway bar rolls the nose past the hold line · release vNext
+- [/] YAAT-318 HOLD or GIVEWAY near an uncleared runway bar rolls the nose past the hold line · release vNext
 - [ ] YAAT-319 Clear-runway and line-up restarts a restored turn; HOLD mid-crossing snaps to 0 kt
 - [ ] YAAT-324 Ground conflict limit drops a runway-crossing aircraft's speed in one second instead of braking
 - [ ] YAAT-325 GIVEWAY to traffic that is just starting to taxi releases at once
@@ -265,10 +263,15 @@
 
 - [ ] YAAT-98 Extract one logging overlay-attach helper for code-built popups
 - [ ] YAAT-99 Add the ATPA in-trail line to EuroScope tags; required view-model ctor params
+- [ ] YAAT-340 Quick commands as an Import / Export hub item type
 - [ ] YAAT-100 Fix scenario-activation leftovers: Save-As JSON paths, dead assignment
+- [ ] YAAT-344 Bundle import: reject a favorite set with no name instead of throwing in the planner
 - [ ] YAAT-101 Nav-route overlay: tell active from latent restrictions; draw route-fix holds
+- [ ] YAAT-351 Replace the private BootMainWindow copies in two UI test classes with MainWindowHost
 - [ ] YAAT-102 Inspect Discord's SET_ACTIVITY response and add an AppLog capture seam
+- [ ] YAAT-352 Stop UI tests leaking preferences between tests (hidden windows flush stale prefs; two order-dependent flakes)
 - [ ] YAAT-103 Validate the radar Squawk input as four octal digits
+- [ ] YAAT-380 Settings: block other windows after OnOpened's layout work, not before
 - [ ] YAAT-104 Share one runway-ends helper between RunwayFlyout and Core
 - [ ] YAAT-105 Show the sim's Zulu clock on the Radar and Ground views, CRC-style
 - [ ] YAAT-210 Skip hidden datablocks in the ground view's hit test
