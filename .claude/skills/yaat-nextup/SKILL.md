@@ -11,11 +11,13 @@ The generic loop is the user-level `nextup` skill; this file supplies only what 
 
 - siblings: ../yaat-server
 - linear: yaat
-- The plan lives in Linear: every task is a Linear issue in team YAAT, per `~/.claude/docs/plan-operations.md`; `docs/plans/MAIN.md` is its generated snapshot, never edited by hand, and `docs/plans/README.md` says what each design folder holds. No release fences the slice: the project order below decides it.
+- The plan lives in Linear: every task is a Linear issue in team YAAT, per `~/.claude/docs/plan-operations.md`; `docs/plans/MAIN.md` is its generated snapshot, never edited by hand, and `docs/plans/README.md` says what each design folder holds.
 
-  The one release rule is for **user-reported bugs**: an issue reporting a defect that a person other than the owner hit (a Discord thread, a named reporter, an attached bug bundle or recording), whoever filed it, an agent included; a defect only an agent, a nightly review or an audit found does not count.
+  The open release fences the slice as the user-level CLAUDE.md's "An open release fences the work" says (`vNext+1` never counts); within the fence, the project order below decides. The only items pulled into the release without the owner asking are user submissions (next paragraph) and their blockers.
 
-  The Discord bot labels `/create-issue` reports `bug`; an unlabelled issue (agent-filed, Linear-synced) is judged from its body. **Triage** places each in `Bug reports and feature requests` and adds it to the open release, and no release is cut while one is open unless the user explicitly agreed to defer it (`prepare-release` Step 0d).
+  A **user submission** is a bug report or feature request from a person other than the owner: a defect they hit or a feature they asked for (a Discord thread, a named reporter, an attached bug bundle or recording), whoever filed it, an agent included. A defect or idea only an agent, a nightly review or an audit found does not count.
+
+  The Discord bot labels `/create-issue` reports `bug`; an unlabelled issue (agent-filed, Linear-synced) is judged from its body. **Triage** places each user submission in `Bug reports and feature requests` and adds it to the open release, and no release is cut while a user-reported bug is open unless the user explicitly agreed to defer it (`prepare-release` Step 0d).
 
   **An item that blocks one in the open release joins it too**: whenever an **add**, a **split** or a ruling makes an open issue wait on another (a sub-issue of a release item, a tool or fix the release item needs first), add the blocker to the open release and record the relation (`save_issue` with `blocks: ["<the release item>"]`), so the release's issue list shows everything it waits on.
 
