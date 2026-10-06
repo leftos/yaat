@@ -8,6 +8,7 @@ using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Testing;
+using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests;
 
@@ -19,9 +20,113 @@ public class GroundConflictDetectorTests
     /// wingspans and lengths out of them, and a class racing another one's initialization reads the
     /// default-fallback dimensions for one call and the loaded ones for the next.
     /// </summary>
-    public GroundConflictDetectorTests()
+    public GroundConflictDetectorTests(ITestOutputHelper output)
     {
         TestVnasData.EnsureInitialized();
+        _output = output;
+    }
+
+    private readonly ITestOutputHelper _output;
+
+    /// <summary>
+    /// A <c>FOLLOWG</c> follower on a crossing taxiway, short of a KOAK junction on B its lead has still to reach, stops giving
+    /// way where GIVEWAY stops it for the same pose: the follow overload, given the follower's route to the merge and the
+    /// lead's path edges into and out of it, returns the GIVEWAY overload's distance to the stop (both aircraft on their
+    /// assigned routes for that one).
+    /// </summary>
+    [Fact]
+    public void GiveWayStop_FollowerAtTheMerge_MatchesGiveWay()
+    {
+        if (KoakFollowGeometry.StartTaxiingLead(_output) is not { } run)
+        {
+            return;
+        }
+
+        TaxiRoute route = Assert.IsType<TaxiRoute>(run.Lead.Ground.AssignedTaxiRoute);
+        HashSet<int> routeNodes = [.. route.Segments.SelectMany(s => new[] { s.FromNodeId, s.ToNodeId })];
+        (int into, GroundNode junction, GroundNode far) = Enumerable
+            .Range(route.CurrentSegmentIndex + 1, route.Segments.Count - route.CurrentSegmentIndex - 2)
+            .Where(i => route.PrefixDistanceFt(i + 1) - route.PrefixDistanceFt(route.CurrentSegmentIndex) <= 1400.0)
+            .SelectMany(i =>
+                route
+                    .Segments[i]
+                    .Edge.ToNode.Edges.OfType<GroundEdge>()
+                    .Select(edge => (Into: i, Junction: route.Segments[i].Edge.ToNode, Edge: edge))
+            )
+            .Where(c =>
+                !c.Edge.IsRunwayCenterline
+                && !c.Edge.IsRamp
+                && !routeNodes.Contains(c.Edge.OtherNode(c.Junction).Id)
+                && (c.Edge.DistanceNm * FtPerNm >= 50.0)
+            )
+            .OrderByDescending(c => c.Edge.DistanceNm)
+            .Select(c => (c.Into, c.Junction, c.Edge.OtherNode(c.Junction)))
+            .First();
+        AircraftState follower = KoakFollowGeometry.Spawn("N2FOL", "C172", far.Position, KoakFollowGeometry.Facing(far, junction));
+        FollowRoutePlan.Joinable plan = Assert.IsType<FollowRoutePlan.Joinable>(FollowRoutePlanner.Plan(run.Layout, follower, run.Lead));
+        Assert.Equal(junction.Id, plan.MergeNode);
+        Assert.True(plan.MergeAheadOfLead);
+        Assert.Equal(route.Segments[into + 1].ToNodeId, plan.LeadPathFromMerge[0].ToNodeId);
+        DirectionalEdge intoMerge = Assert.IsType<DirectionalEdge>(plan.LeadEdgeIntoMerge);
+        Assert.Equal((route.Segments[into].FromNodeId, junction.Id), (intoMerge.FromNodeId, intoMerge.ToNodeId));
+        follower.Ground.AssignedTaxiRoute = plan.PathToMerge;
+
+        (int NodeId, double ToStopFt) giveWay = Assert.IsType<(int, double)>(GroundConflictDetector.GiveWayStop(follower, run.Lead, out string? why));
+        (int NodeId, double ToStopFt) follow = Assert.IsType<(int, double)>(
+            GroundConflictDetector.GiveWayStop(follower, plan.PathToMerge, [intoMerge, plan.LeadPathFromMerge[0]], run.Lead, out string? whyNot)
+        );
+        _output.WriteLine(
+            $"junction #{junction.Id} from #{far.Id}: GIVEWAY {giveWay.ToStopFt:F1} ft ({why}), follow {follow.ToStopFt:F1} ft ({whyNot})"
+        );
+
+        Assert.True(giveWay.ToStopFt > 0.0, "the follower is inside the lead's track already, so the comparison proves nothing");
+        Assert.Equal(junction.Id, follow.NodeId);
+        Assert.Equal(giveWay.ToStopFt, follow.ToStopFt, 0.5);
+    }
+
+    /// <summary>A follower with no segment left on its route to the merge has no give-way stop from the follow overload, and says why.</summary>
+    [Fact]
+    public void GiveWayStop_FollowerWithNoRouteLeft_NoStop()
+    {
+        if (KoakFollowGeometry.StartTaxiingLead(_output) is not { } run)
+        {
+            return;
+        }
+
+        TaxiRoute leadRoute = Assert.IsType<TaxiRoute>(run.Lead.Ground.AssignedTaxiRoute);
+        AircraftState follower = KoakFollowGeometry.Spawn(
+            "N2FOL",
+            "C172",
+            run.Chain[6].Position,
+            KoakFollowGeometry.Facing(run.Chain[6], run.Chain[5])
+        );
+        var empty = new TaxiRoute { Segments = [], HoldShortPoints = [] };
+
+        Assert.Null(GroundConflictDetector.GiveWayStop(follower, empty, [leadRoute.Segments[^1].Edge], run.Lead, out string? why));
+        Assert.Equal("no route left to the merge", why);
+    }
+
+    /// <summary>
+    /// A follower whose route reaches the merge only past the 1,500 ft look-ahead, the lead's track at the route's far end, has
+    /// no give-way stop from the follow overload, and says why.
+    /// </summary>
+    [Fact]
+    public void GiveWayStop_MergeBeyondTheLookAhead_NoStop()
+    {
+        if (KoakFollowGeometry.StartTaxiingLead(_output) is not { } run)
+        {
+            return;
+        }
+
+        TaxiRoute route = Assert.IsType<TaxiRoute>(run.Lead.Ground.AssignedTaxiRoute);
+        DirectionalEdge last = route.Segments[^1].Edge;
+        double straightFt = GeoMath.DistanceNm(run.Lead.Position, last.FromNode.Position) * FtPerNm;
+        _output.WriteLine($"route {route.ToSummary()}: {straightFt:F0} ft straight from the lead to its last segment");
+        Assert.True(straightFt >= 2500.0, $"the route's last segment is only {straightFt:F0} ft from the lead");
+        AircraftState follower = KoakFollowGeometry.Spawn("N2FOL", "C172", run.Lead.Position, run.Lead.TrueHeading);
+
+        Assert.Null(GroundConflictDetector.GiveWayStop(follower, route, [last], run.Lead, out string? why));
+        Assert.Equal("the merge is beyond the 1,500 ft look-ahead along its route", why);
     }
 
     private const double FtPerNm = 6076.12;

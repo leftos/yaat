@@ -563,7 +563,11 @@ public sealed class QuickCommandSimAcceptanceTests
         return (ground, aircraft);
     }
 
-    /// <summary>An SFO B738 cleared to taxi from spot 1, then following LEAD1, with LEAD2 parked nearby.</summary>
+    /// <summary>
+    /// An SFO B738 cleared to taxi from spot 3, then following LEAD1 at spot 1, with LEAD2 parked nearby. Spots 3 and 1 end one
+    /// M1 edge and LEAD1 faces east, away from spot 3, so the follower is behind it. The other way round, LEAD1 at spot 3 faces
+    /// spot 1: a follower there stands ahead of it, and FOLLOWG is refused.
+    /// </summary>
     private (SfoGround Ground, AircraftState Aircraft)? FollowingAtSfo()
     {
         if (SfoGroundHarness.Build(_output, autoCross: false) is not { } ground)
@@ -571,8 +575,8 @@ public sealed class QuickCommandSimAcceptanceTests
             return null;
         }
 
-        AircraftState aircraft = SfoGroundHarness.SpawnAtSpot(ground, Departure, "B738", "1");
-        SfoGroundHarness.SpawnAtSpot(ground, "LEAD1", "B738", "3");
+        AircraftState aircraft = SfoGroundHarness.SpawnAtSpot(ground, Departure, "B738", "3");
+        SfoGroundHarness.SpawnAtSpot(ground, "LEAD1", "B738", "1");
         SfoGroundHarness.SpawnAtSpot(ground, "LEAD2", "B738", "2");
         AssertAccepted(ground.Engine.SendCommand(Departure, "TAXI A L F 28L"), "TAXI A L F 28L");
         AssertAccepted(ground.Engine.SendCommand(Departure, "FOLLOWG LEAD1"), "FOLLOWG LEAD1");

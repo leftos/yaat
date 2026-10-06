@@ -311,7 +311,7 @@ The straight taxi edges a ground aircraft has driven, oldest first, kept to abou
 What a `FOLLOWG` follower joins: its lead's taxi edge trail with the gaps filled, the edge the lead is on, and the lead's remaining assigned route (`FollowRoutePlanner`, docs/ground/navigator.md).
 
 **Merge node**:
-The node of the lead's path a `FOLLOWG` follower's goal-set search reaches first, where it joins the lead's path (`FollowRoutePlan.Joinable`, docs/ground/navigator.md).
+The node of the lead's path a `FOLLOWG` follower's goal-set search reaches first, where it joins the lead's path (`FollowRoutePlan.Joinable`, docs/ground/navigator.md). A follower standing behind the lead on the edge the lead is on joins at that edge's start in the lead's direction, behind the follower, with no route to it.
 
 **Goal-set search**:
 One A* pass to whichever of several goal nodes is cheapest to reach, rather than one search per goal (`AutoRouter.RunToGoals`, `TaxiPathfinder.FindRouteToNearestGoal`, docs/ground/pathfinder.md).

@@ -132,8 +132,17 @@ When no departure-aligned onto-runway arc route resolves — a parallel-taxiway 
 
 1. The lead is in `PushbackPhase` or `AtParkingPhase`, or on no taxi edge → `WaitForLead`. There is no path to join yet, and the follow is accepted.
 2. The follower stands on the lead's edge nearer its far end than the lead is, or on an edge of the lead's route ahead of that edge → `FollowerAhead`. `FOLLOWG` answers "unable, ahead of {lead} on its route — issue HOLD, GIVEWAY or TAXI first".
-3. A goal-set search from the follower's `AirportGroundLayout.FindTaxiStartNode` to every node of the lead's path (`TaxiPathfinder.FindRouteToNearestGoal`; see [the pathfinder](./pathfinder.md#goal-set-search-autorouterruntogoals)) finds nothing, or there is no start node → `NoPath`. `FOLLOWG` answers "unable, no taxi route to {lead}'s route".
-4. Otherwise → `Joinable`. The merge node is the goal the search reached, and the plan carries the follower's route to it, the lead's path from it on, and whether the merge lies ahead of the lead (the far node of its current edge, or further along its route) rather than on its trail.
+3. The follower stands behind the lead on the edge the lead is on → `Joinable` at once, with no search. The merge node is that edge's start in the lead's direction (behind the follower), the route to it has no segments, and the merge is on the lead's trail side, not ahead of it.
+4. A goal-set search from the follower's `AirportGroundLayout.FindTaxiStartNode` to every node of the lead's path (`TaxiPathfinder.FindRouteToNearestGoal`; see [the pathfinder](./pathfinder.md#goal-set-search-autorouterruntogoals)) finds nothing, or there is no start node → `NoPath`. `FOLLOWG` answers "unable, no taxi route to {lead}'s route".
+5. Otherwise → `Joinable`. The merge node is the goal the search reached, and the plan carries the follower's route to it, the lead's path edge into it (`LeadEdgeIntoMerge`, null where the lead's path starts at the merge), the lead's path from it on, and whether the merge lies ahead of the lead (the far node of its current edge, or further along its route) rather than on its trail.
+
+**Measuring along the lead's path.** A `Joinable` plan gives the follower's gap to its lead along the taxi path rather than in a straight line:
+
+- `LocateOnPath` finds the first path edge that is the straight taxi edge under an aircraft (never a fillet arc) and how far along it the aircraft's centre projects (`PathPosition`). Where an edge repeats on the path, the earlier entry wins: it is the one a follower behind the lead reaches.
+- `PathOffsetFt` turns a `PathPosition` into a distance from the path's start.
+- `FollowerToMergeFt` is the follower's distance to the merge: minus its path offset once it stands on the lead's path from the merge (it is past the merge, as a follower that joined behind the lead on its edge is from the start); before that, the rest of its route to the merge. It is null with no route segment left and the follower on no path edge, where a straight distance back to the merge could read with the wrong sign.
+- `AlongPathGapFt` is the nose-to-tail gap: the follower's distance to the merge plus the lead's path offset, less half of each aircraft's length. It is null when either input is unknown; the caller then falls back to the straight-line nose-to-tail distance.
+- `LeadTailPastMerge` says whether the lead's tail, half its length behind its centre, has passed the merge node.
 
 ---
 

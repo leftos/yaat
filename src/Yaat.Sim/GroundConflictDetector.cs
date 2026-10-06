@@ -2092,6 +2092,67 @@ public static class GroundConflictDetector
             return null;
         }
 
+        if (StopShortOfTrackFt(held, heldRoute, nodeId, track, target) is not { } toStopFt)
+        {
+            noStopReason = "the junction is beyond the 1,500 ft look-ahead along its route";
+            return null;
+        }
+
+        noStopReason = null;
+        return (nodeId, toStopFt);
+    }
+
+    /// <summary>
+    /// Where a <c>FOLLOWG</c> follower <paramref name="held"/> stops giving way to its <paramref name="lead"/> short of the
+    /// merge, placed as the GIVEWAY overload above places its stop: how far (ft) it still has to taxi along
+    /// <paramref name="heldRoute"/>, its route to the merge, before its centre or nose comes inside the pair's clearance of
+    /// <paramref name="leadTrack"/>, the lead's path edges into and out of the merge node; with the merge node, where the
+    /// route ends. Zero when the centre or the nose is already that close.
+    ///
+    /// <para>
+    /// Null with no stop point, <paramref name="noStopReason"/> saying which: the route has no segment left to the merge; or
+    /// the merge lies beyond <see cref="ConvergenceLookaheadFt"/> along it. Null reason with a stop point.
+    /// </para>
+    /// </summary>
+    internal static (int NodeId, double ToStopFt)? GiveWayStop(
+        AircraftState held,
+        TaxiRoute heldRoute,
+        IReadOnlyList<DirectionalEdge> leadTrack,
+        AircraftState lead,
+        out string? noStopReason
+    )
+    {
+        if (heldRoute.IsComplete)
+        {
+            noStopReason = "no route left to the merge";
+            return null;
+        }
+
+        int mergeNodeId = heldRoute.Segments[^1].ToNodeId;
+        if (StopShortOfTrackFt(held, heldRoute, mergeNodeId, leadTrack, lead) is not { } toStopFt)
+        {
+            noStopReason = "the merge is beyond the 1,500 ft look-ahead along its route";
+            return null;
+        }
+
+        noStopReason = null;
+        return (mergeNodeId, toStopFt);
+    }
+
+    /// <summary>
+    /// How far (ft) <paramref name="held"/> taxis along <paramref name="heldRoute"/>, no further than
+    /// <paramref name="nodeId"/>, before it comes inside the room it leaves <paramref name="target"/>'s
+    /// <paramref name="track"/> (<see cref="GiveWayClearance"/>, sized from both aircraft); null when the walk ends on the
+    /// look-ahead short of the node (<see cref="DistanceToTrackClearanceFt"/>).
+    /// </summary>
+    private static double? StopShortOfTrackFt(
+        AircraftState held,
+        TaxiRoute heldRoute,
+        int nodeId,
+        IReadOnlyList<DirectionalEdge> track,
+        AircraftState target
+    )
+    {
         bool faaSpans = RequiredLateralClearanceFt(held, target) is not null;
         double heldHalfSpanFt = HalfSpanFt(held.AircraftType, faaSpans);
         double targetHalfSpanFt = HalfSpanFt(target.AircraftType, faaSpans);
@@ -2101,14 +2162,7 @@ public static class GroundConflictDetector
             targetHalfSpanFt + GroundOutlineSweep.WingtipBufferFt,
             AircraftLength.ResolveFt(held.AircraftType) / 2.0
         );
-        if (DistanceToTrackClearanceFt(held, heldRoute, nodeId, clearance) is not { } toStopFt)
-        {
-            noStopReason = "the junction is beyond the 1,500 ft look-ahead along its route";
-            return null;
-        }
-
-        noStopReason = null;
-        return (nodeId, toStopFt);
+        return DistanceToTrackClearanceFt(held, heldRoute, nodeId, clearance);
     }
 
     /// <summary>The route's edges into and out of <paramref name="nodeId"/>, from its current segment on; null when the node is not ahead.</summary>
@@ -2137,7 +2191,12 @@ public static class GroundConflictDetector
     /// <see cref="HalfLengthFt"/> ahead, as <see cref="FollowingPhase"/> projects a nose — at least
     /// <see cref="NoseRequiredFt"/> off it (the target's half-span plus the buffer).
     /// </summary>
-    private readonly record struct GiveWayClearance(List<DirectionalEdge> Track, double CentreRequiredFt, double NoseRequiredFt, double HalfLengthFt)
+    private readonly record struct GiveWayClearance(
+        IReadOnlyList<DirectionalEdge> Track,
+        double CentreRequiredFt,
+        double NoseRequiredFt,
+        double HalfLengthFt
+    )
     {
         /// <summary>Whether an aircraft centred at <paramref name="centre"/>, heading <paramref name="headingDeg"/>, is inside the room.</summary>
         internal bool IsInside(LatLon centre, double headingDeg) =>

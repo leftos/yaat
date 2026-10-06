@@ -2,6 +2,7 @@ using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Airport.Pathfinding;
+using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation;
@@ -41,6 +42,122 @@ public class FollowRoutePlannerTests(ITestOutputHelper output)
         Assert.False(plan.MergeAheadOfLead);
         Assert.Equal(plan.MergeNode, plan.LeadPathFromMerge[0].FromNodeId);
         Assert.Equal(plan.MergeNode, plan.PathToMerge.Segments[^1].ToNodeId);
+    }
+
+    /// <summary>
+    /// A follower mid-edge behind its lead on the lead's own edge — KOAK's longest straight B edge — both facing the same way,
+    /// joins on that edge with no path to the merge: the merge is the edge's start in the lead's direction, behind the lead,
+    /// and the lead's path from it starts with the shared edge — not the edge's far end past the lead, where the follower's
+    /// taxi would otherwise start.
+    /// </summary>
+    [Fact]
+    public void FollowerBehindLeadMidEdgeOnItsEdge_JoinsOnThatEdge()
+    {
+        if (KoakFollowGeometry.LoadLayout(output) is not { } layout)
+        {
+            return;
+        }
+
+        SameEdge s = FollowBehindOnLongestB(layout, followerFacesLead: true);
+
+        Assert.Equal(s.From.Id, s.Plan.MergeNode);
+        Assert.False(s.Plan.MergeAheadOfLead);
+        Assert.Equal((s.From.Id, s.To.Id), (s.Plan.LeadPathFromMerge[0].FromNodeId, s.Plan.LeadPathFromMerge[0].ToNodeId));
+        Assert.Empty(s.Plan.PathToMerge.Segments);
+        Assert.Equal(s.From.Id, s.Plan.LeadEdgeIntoMerge?.ToNodeId);
+    }
+
+    /// <summary>
+    /// A follower behind its lead on the lead's own edge but facing away from it joins as one facing it does: on that edge,
+    /// at its start, with no path to the merge. This is the pose the follow must turn about from before it falls in behind.
+    /// </summary>
+    [Fact]
+    public void FollowerBehindLeadOnItsEdgeFacingAway_JoinsOnThatEdge_TurnAboutPose()
+    {
+        if (KoakFollowGeometry.LoadLayout(output) is not { } layout)
+        {
+            return;
+        }
+
+        SameEdge s = FollowBehindOnLongestB(layout, followerFacesLead: false);
+
+        Assert.Equal(s.From.Id, s.Plan.MergeNode);
+        Assert.False(s.Plan.MergeAheadOfLead);
+        Assert.Equal((s.From.Id, s.To.Id), (s.Plan.LeadPathFromMerge[0].FromNodeId, s.Plan.LeadPathFromMerge[0].ToNodeId));
+        Assert.Empty(s.Plan.PathToMerge.Segments);
+    }
+
+    /// <summary>
+    /// A follower that joined behind its lead on the lead's edge is past the merge, the edge's start: its distance to the merge
+    /// is minus its way along the edge.
+    /// </summary>
+    [Fact]
+    public void FollowerToMerge_OnTheLeadsPath_IsMinusItsWayAlong()
+    {
+        if (KoakFollowGeometry.LoadLayout(output) is not { } layout)
+        {
+            return;
+        }
+
+        SameEdge s = FollowBehindOnLongestB(layout, followerFacesLead: true);
+        (LatLon at, TrueHeading heading) = PointAlong(s.Plan.LeadPathFromMerge, 200.0);
+        AircraftState probe = KoakFollowGeometry.Spawn("N2FOL", "C172", at, heading);
+
+        double? toMergeFt = FollowRoutePlanner.FollowerToMergeFt(layout, s.Plan, probe);
+
+        Assert.NotNull(toMergeFt);
+        Assert.Equal(-200.0, toMergeFt.Value, 0.5);
+    }
+
+    /// <summary>
+    /// A follower past the merge whose position the path lookup misses — here 60 ft off the shared edge's centreline — has no
+    /// distance to the merge, and so no along-path gap: never the straight distance back to the merge, which would read the
+    /// gap as if it were still short of it.
+    /// </summary>
+    [Fact]
+    public void FollowerToMerge_PastTheMergeOffThePath_IsNull()
+    {
+        if (KoakFollowGeometry.LoadLayout(output) is not { } layout)
+        {
+            return;
+        }
+
+        SameEdge s = FollowBehindOnLongestB(layout, followerFacesLead: true);
+        (LatLon at, TrueHeading heading) = PointAlong(s.Plan.LeadPathFromMerge, 200.0);
+        AircraftState probe = KoakFollowGeometry.Spawn("N2FOL", "C172", GeoMath.ProjectPoint(at, heading + 90.0, 60.0 / GeoMath.FeetPerNm), heading);
+
+        double? toMergeFt = FollowRoutePlanner.FollowerToMergeFt(layout, s.Plan, probe);
+        PathPosition? leadAt = FollowRoutePlanner.LocateOnPath(layout, s.Plan.LeadPathFromMerge, s.Lead);
+        output.WriteLine($"to merge {toMergeFt}, lead at {leadAt}");
+
+        Assert.Null(toMergeFt);
+        Assert.NotNull(leadAt);
+        Assert.Null(FollowRoutePlanner.AlongPathGapFt(toMergeFt, s.Plan.LeadPathFromMerge, leadAt, "C172", "B738"));
+    }
+
+    /// <summary>
+    /// A follower standing on a node of the lead's trail, facing the lead's way, is at the merge already: it joins there with no
+    /// path to the merge, behind the lead.
+    /// </summary>
+    [Fact]
+    public void FollowerOnATrailNode_JoinsThereWithNoPathToTheMerge()
+    {
+        if (KoakFollowGeometry.StartTaxiingLead(output) is not { } run)
+        {
+            return;
+        }
+
+        GroundNode node = run.Chain[3];
+        Assert.Contains(node.Id, TrailNodeIds(run.Lead));
+        AircraftState follower = KoakFollowGeometry.Spawn("N2FOL", "C172", node.Position, KoakFollowGeometry.Facing(node, run.Chain[2]));
+
+        FollowRoutePlan.Joinable plan = Assert.IsType<FollowRoutePlan.Joinable>(FollowRoutePlanner.Plan(run.Layout, follower, run.Lead));
+        output.WriteLine($"merge #{plan.MergeNode}; lead path {PathText(plan.LeadPathFromMerge)}; path to merge {plan.PathToMerge.ToSummary()}");
+
+        Assert.Equal(node.Id, plan.MergeNode);
+        Assert.False(plan.MergeAheadOfLead);
+        Assert.Equal(node.Id, plan.LeadPathFromMerge[0].FromNodeId);
+        Assert.Empty(plan.PathToMerge.Segments);
     }
 
     /// <summary>
@@ -385,6 +502,272 @@ public class FollowRoutePlannerTests(ITestOutputHelper output)
         );
 
         Assert.IsType<FollowRoutePlan.NoPath>(FollowRoutePlanner.Plan(split.Layout, follower, lead));
+    }
+
+    /// <summary>
+    /// The along-path gap from a follower at B <c>Chain[6]</c>, joining at <c>Chain[5]</c>, to a lead part way along the
+    /// <c>Chain[2]</c>→<c>Chain[1]</c> edge is the follower's straight leg to the merge, the B edges from the merge to the lead's
+    /// edge and the lead's way along it, less half of each aircraft's length.
+    /// </summary>
+    [Fact]
+    public void AlongPathGap_IsTheEdgesBetweenLessBothHalfLengths()
+    {
+        if (KoakFollowGeometry.LoadLayout(output) is not { } layout)
+        {
+            return;
+        }
+
+        BFollow b = FollowOnB(layout);
+        double edgesFt = Enumerable.Range(2, 3).Sum(i => KoakFollowGeometry.EdgeBetween(b.Chain[i + 1], b.Chain[i]).DistanceNm) * GeoMath.FeetPerNm;
+        double followerLegFt = GeoMath.DistanceNm(b.Chain[6].Position, b.Chain[5].Position) * GeoMath.FeetPerNm;
+        double expectedFt =
+            followerLegFt + edgesFt + b.LeadAlongFt - (AircraftLength.ResolveFt("C172") / 2.0) - (AircraftLength.ResolveFt("B738") / 2.0);
+
+        double? toMergeFt = FollowRoutePlanner.FollowerToMergeFt(layout, b.Plan, b.Follower);
+        PathPosition? leadAt = FollowRoutePlanner.LocateOnPath(layout, b.Plan.LeadPathFromMerge, b.Lead);
+        double? gapFt = FollowRoutePlanner.AlongPathGapFt(toMergeFt, b.Plan.LeadPathFromMerge, leadAt, "C172", "B738");
+        output.WriteLine($"to merge {toMergeFt:F1} ft, lead at {leadAt}, gap {gapFt:F1} ft, expected {expectedFt:F1} ft");
+
+        Assert.NotNull(gapFt);
+        Assert.Equal(expectedFt, gapFt.Value, 1.0);
+    }
+
+    /// <summary>A lead off the planned path has no along-path gap: the caller falls back to the straight-line distance.</summary>
+    [Fact]
+    public void AlongPathGap_LeadOffThePath_IsNull()
+    {
+        if (KoakFollowGeometry.LoadLayout(output) is not { } layout)
+        {
+            return;
+        }
+
+        BFollow b = FollowOnB(layout);
+        AircraftState away = KoakFollowGeometry.Spawn("N1LED", "B738", b.Follower.Position, b.Follower.TrueHeading);
+
+        PathPosition? leadAt = FollowRoutePlanner.LocateOnPath(layout, b.Plan.LeadPathFromMerge, away);
+
+        Assert.Null(leadAt);
+        Assert.Null(FollowRoutePlanner.AlongPathGapFt(0.0, b.Plan.LeadPathFromMerge, leadAt, "C172", "B738"));
+    }
+
+    /// <summary>
+    /// The lead has cleared the merge once its tail — half its length behind its centre, along its path — is past the merge
+    /// node: 2 ft short of that, not yet; 2 ft past it, cleared.
+    /// </summary>
+    [Fact]
+    public void LeadTailPastMerge_FlipsWhenTheTailPassesTheMerge()
+    {
+        if (KoakFollowGeometry.LoadLayout(output) is not { } layout)
+        {
+            return;
+        }
+
+        BFollow b = FollowOnB(layout);
+        double halfLengthFt = AircraftLength.ResolveFt("B738") / 2.0;
+        bool TailPast(double alongPathFt)
+        {
+            (LatLon at, TrueHeading heading) = PointAlong(b.Plan.LeadPathFromMerge, alongPathFt);
+            AircraftState probe = KoakFollowGeometry.Spawn("N1LED", "B738", at, heading);
+            PathPosition leadAt = Assert.IsType<PathPosition>(FollowRoutePlanner.LocateOnPath(layout, b.Plan.LeadPathFromMerge, probe));
+            Assert.Equal(alongPathFt, FollowRoutePlanner.PathOffsetFt(b.Plan.LeadPathFromMerge, leadAt), 0.5);
+            return FollowRoutePlanner.LeadTailPastMerge(b.Plan.LeadPathFromMerge, leadAt, "B738");
+        }
+
+        Assert.False(TailPast(halfLengthFt - 2.0));
+        Assert.True(TailPast(halfLengthFt + 2.0));
+    }
+
+    /// <summary>
+    /// A follower at B <c>Chain[6]</c>, joining the trail of a lead taxiing on B a few B edges on, has a route of several
+    /// segments to the merge: its distance to the merge is its straight leg to the first segment's end, then the rest of the
+    /// route's edges by their lengths.
+    /// </summary>
+    [Fact]
+    public void FollowerToMerge_AlongARouteOfSeveralSegments_IsItsEdgesSummed()
+    {
+        if (KoakFollowGeometry.StartTaxiingLead(output) is not { } run)
+        {
+            return;
+        }
+
+        FollowRoutePlan.Joinable plan = TrailJoinFromChain6(run);
+        List<TaxiRouteSegment> segments = plan.PathToMerge.Segments;
+        AircraftState follower = KoakFollowGeometry.Spawn(
+            "N2FOL",
+            "C172",
+            run.Chain[6].Position,
+            KoakFollowGeometry.Facing(run.Chain[6], run.Chain[5])
+        );
+        double expectedFt =
+            (GeoMath.DistanceNm(run.Chain[6].Position, segments[0].Edge.ToNode.Position) + segments.Skip(1).Sum(s => s.Edge.DistanceNm))
+            * GeoMath.FeetPerNm;
+
+        double? toMergeFt = FollowRoutePlanner.FollowerToMergeFt(run.Layout, plan, follower);
+
+        Assert.NotNull(toMergeFt);
+        Assert.Equal(expectedFt, toMergeFt.Value, 0.01);
+    }
+
+    /// <summary>
+    /// A follower part way along the second segment of its route to the merge, the route's index moved on to it, is measured
+    /// from there: its straight leg to that segment's end, then the segments after it.
+    /// </summary>
+    [Fact]
+    public void FollowerToMerge_OnALaterSegment_CountsOnlyTheRouteAhead()
+    {
+        if (KoakFollowGeometry.StartTaxiingLead(output) is not { } run)
+        {
+            return;
+        }
+
+        FollowRoutePlan.Joinable plan = TrailJoinFromChain6(run);
+        List<TaxiRouteSegment> segments = plan.PathToMerge.Segments;
+        plan.PathToMerge.CurrentSegmentIndex = 1;
+        TaxiRouteSegment second = segments[1];
+        AircraftState follower = KoakFollowGeometry.Spawn(
+            "N2FOL",
+            "C172",
+            KoakFollowGeometry.Between(second.Edge.FromNode.Position, second.Edge.ToNode.Position, 0.5),
+            KoakFollowGeometry.Facing(second.Edge.FromNode, second.Edge.ToNode)
+        );
+        double expectedFt =
+            (GeoMath.DistanceNm(follower.Position, second.Edge.ToNode.Position) + segments.Skip(2).Sum(s => s.Edge.DistanceNm)) * GeoMath.FeetPerNm;
+
+        double? toMergeFt = FollowRoutePlanner.FollowerToMergeFt(run.Layout, plan, follower);
+
+        Assert.NotNull(toMergeFt);
+        Assert.Equal(expectedFt, toMergeFt.Value, 0.01);
+    }
+
+    /// <summary>
+    /// The plan of a follower at B <c>Chain[6]</c> facing the runway, behind a lead taxiing on B, with three segments or more
+    /// to the merge.
+    /// </summary>
+    private FollowRoutePlan.Joinable TrailJoinFromChain6(KoakFollowGeometry.LeadRun run)
+    {
+        AircraftState follower = KoakFollowGeometry.Spawn(
+            "N2FOL",
+            "C172",
+            run.Chain[6].Position,
+            KoakFollowGeometry.Facing(run.Chain[6], run.Chain[5])
+        );
+        FollowRoutePlan.Joinable plan = Assert.IsType<FollowRoutePlan.Joinable>(FollowRoutePlanner.Plan(run.Layout, follower, run.Lead));
+        output.WriteLine(
+            $"merge #{plan.MergeNode}; path to merge {string.Join(" ", plan.PathToMerge.Segments.Select(s => $"#{s.FromNodeId}>#{s.ToNodeId}"))}"
+        );
+        Assert.True(plan.PathToMerge.Segments.Count >= 3, $"only {plan.PathToMerge.Segments.Count} segments to the merge");
+        return plan;
+    }
+
+    /// <summary>
+    /// KOAK's longest straight B edge, from its first node to its second, a B738 lead and a C172 follower on it, and the
+    /// follow's plan.
+    /// </summary>
+    private sealed record SameEdge(GroundNode From, GroundNode To, AircraftState Lead, FollowRoutePlan.Joinable Plan);
+
+    /// <summary>
+    /// A B738 lead 0.7 along KOAK's longest straight B edge, facing its second node, its trail the edge before and that edge;
+    /// and a C172 follower 0.3 along it, behind the lead, facing the lead or away from it.
+    /// </summary>
+    private SameEdge FollowBehindOnLongestB(AirportGroundLayout layout, bool followerFacesLead)
+    {
+        GroundEdge shared = layout
+            .Nodes.Values.SelectMany(n => n.Edges.OfType<GroundEdge>())
+            .Where(e => e.MatchesTaxiway("B") && !e.IsRunwayCenterline && !e.IsRamp)
+            .MaxBy(e => e.DistanceNm)!;
+        GroundNode from = shared.Nodes[0];
+        GroundNode to = shared.Nodes[1];
+        GroundEdge before = from.Edges.OfType<GroundEdge>().First(e => (e != shared) && !e.IsRunwayCenterline && !e.IsRamp);
+        output.WriteLine(
+            $"shared edge #{from.Id}>#{to.Id}, {shared.DistanceNm * GeoMath.FeetPerNm:F0} ft; trail edge before it {before.TaxiwayName}"
+        );
+        Assert.True(shared.DistanceNm * GeoMath.FeetPerNm >= 400.0, "KOAK's longest B edge is under 400 ft");
+        AircraftState lead = KoakFollowGeometry.Spawn(
+            "N1LED",
+            "B738",
+            KoakFollowGeometry.Between(from.Position, to.Position, 0.7),
+            KoakFollowGeometry.Facing(from, to)
+        );
+        lead.Ground.TaxiEdgeTrail.Record(before);
+        lead.Ground.TaxiEdgeTrail.Record(shared);
+        AircraftState follower = KoakFollowGeometry.Spawn(
+            "N2FOL",
+            "C172",
+            KoakFollowGeometry.Between(from.Position, to.Position, 0.3),
+            followerFacesLead ? KoakFollowGeometry.Facing(from, to) : KoakFollowGeometry.Facing(to, from)
+        );
+
+        FollowRoutePlan.Joinable plan = Assert.IsType<FollowRoutePlan.Joinable>(FollowRoutePlanner.Plan(layout, follower, lead));
+        output.WriteLine($"merge #{plan.MergeNode}; lead path {PathText(plan.LeadPathFromMerge)}; path to merge {plan.PathToMerge.ToSummary()}");
+        return new SameEdge(from, to, lead, plan);
+    }
+
+    /// <summary>
+    /// A follower at B <c>Chain[6]</c> facing the runway, and its lead's plan on B: the lead part way along
+    /// <c>Chain[2]</c>→<c>Chain[1]</c>.
+    /// </summary>
+    private sealed record BFollow(
+        List<GroundNode> Chain,
+        AircraftState Lead,
+        double LeadAlongFt,
+        AircraftState Follower,
+        FollowRoutePlan.Joinable Plan
+    );
+
+    /// <summary>
+    /// A B738 lead half way along the first straight piece of the B edge <c>Chain[2]</c>→<c>Chain[1]</c>, its trail the B edges
+    /// from <c>Chain[5]</c> to it, and a C172 follower at <c>Chain[6]</c> facing <c>Chain[5]</c>, where it joins.
+    /// </summary>
+    private BFollow FollowOnB(AirportGroundLayout layout)
+    {
+        List<GroundNode> chain = KoakFollowGeometry.BChain(layout);
+        GroundEdge leadEdge = KoakFollowGeometry.EdgeBetween(chain[2], chain[1]);
+        LatLon pieceEnd = TugMovePlanner.EdgePointsFrom(leadEdge, chain[2])[1];
+        double leadAlongFt = GeoMath.DistanceNm(chain[2].Position, pieceEnd) * GeoMath.FeetPerNm / 2.0;
+        var heading = new TrueHeading(GeoMath.BearingTo(chain[2].Position, pieceEnd));
+        AircraftState lead = KoakFollowGeometry.Spawn(
+            "N1LED",
+            "B738",
+            GeoMath.ProjectPoint(chain[2].Position, heading, leadAlongFt / GeoMath.FeetPerNm),
+            heading
+        );
+        for (int i = 5; i >= 2; i--)
+        {
+            lead.Ground.TaxiEdgeTrail.Record(KoakFollowGeometry.EdgeBetween(chain[i], chain[i - 1]));
+        }
+
+        AircraftState follower = KoakFollowGeometry.Spawn("N2FOL", "C172", chain[6].Position, KoakFollowGeometry.Facing(chain[6], chain[5]));
+        FollowRoutePlan.Joinable plan = Assert.IsType<FollowRoutePlan.Joinable>(FollowRoutePlanner.Plan(layout, follower, lead));
+        output.WriteLine($"merge #{plan.MergeNode}; lead path {PathText(plan.LeadPathFromMerge)}; path to merge {plan.PathToMerge.ToSummary()}");
+        Assert.Equal(chain[5].Id, plan.MergeNode);
+        Assert.Equal(chain[1].Id, plan.LeadPathFromMerge[^1].ToNodeId);
+        return new BFollow(chain, lead, leadAlongFt, follower, plan);
+    }
+
+    /// <summary>
+    /// The point <paramref name="alongFt"/> along <paramref name="path"/>'s straight edges from its start, and the way the path
+    /// runs there.
+    /// </summary>
+    private static (LatLon At, TrueHeading Heading) PointAlong(IReadOnlyList<DirectionalEdge> path, double alongFt)
+    {
+        double leftFt = alongFt;
+        foreach (DirectionalEdge edge in path)
+        {
+            List<LatLon> points = TugMovePlanner.EdgePointsFrom(Assert.IsType<GroundEdge>(edge.Edge), edge.FromNode);
+            for (int k = 1; k < points.Count; k++)
+            {
+                double pieceFt = GeoMath.DistanceNm(points[k - 1], points[k]) * GeoMath.FeetPerNm;
+                var heading = new TrueHeading(GeoMath.BearingTo(points[k - 1], points[k]));
+                if (leftFt <= pieceFt)
+                {
+                    return (GeoMath.ProjectPoint(points[k - 1], heading, leftFt / GeoMath.FeetPerNm), heading);
+                }
+
+                leftFt -= pieceFt;
+            }
+        }
+
+        throw new InvalidOperationException($"the path is shorter than {alongFt:F0} ft");
     }
 
     private static HashSet<int> TrailNodeIds(AircraftState aircraft) =>

@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Airport.Pathfinding;
+using Yaat.Sim.Data.Faa;
 
 namespace Yaat.Sim.Phases.Ground;
 
@@ -10,12 +11,27 @@ public abstract record FollowRoutePlan
     private FollowRoutePlan() { }
 
     /// <summary>The follower can join the lead's taxi path at <paramref name="MergeNode"/>.</summary>
-    /// <param name="MergeNode">The first node of the lead's path the follower's shortest taxi path reaches.</param>
-    /// <param name="PathToMerge">The follower's route to <paramref name="MergeNode"/>; no segments when it starts there.</param>
+    /// <param name="MergeNode">
+    /// The first node of the lead's path the follower's shortest taxi path reaches; for a follower behind the lead on the edge
+    /// the lead is on, that edge's start in the lead's direction, behind the follower.
+    /// </param>
+    /// <param name="PathToMerge">
+    /// The follower's route to <paramref name="MergeNode"/>; no segments when it starts there, or stands behind the lead on the
+    /// edge the lead is on.
+    /// </param>
+    /// <param name="LeadEdgeIntoMerge">
+    /// The lead's path edge into <paramref name="MergeNode"/>, in its direction of travel; null when the merge is where the
+    /// lead's path starts.
+    /// </param>
     /// <param name="LeadPathFromMerge">The lead's path from <paramref name="MergeNode"/> on, edge to edge, in the lead's direction of travel.</param>
     /// <param name="MergeAheadOfLead">The merge lies ahead of the lead, on the edge it is on or its remaining route.</param>
-    public sealed record Joinable(int MergeNode, TaxiRoute PathToMerge, IReadOnlyList<DirectionalEdge> LeadPathFromMerge, bool MergeAheadOfLead)
-        : FollowRoutePlan;
+    public sealed record Joinable(
+        int MergeNode,
+        TaxiRoute PathToMerge,
+        DirectionalEdge? LeadEdgeIntoMerge,
+        IReadOnlyList<DirectionalEdge> LeadPathFromMerge,
+        bool MergeAheadOfLead
+    ) : FollowRoutePlan;
 
     /// <summary>The follower stands on an edge of the lead's remaining route, ahead of the lead.</summary>
     public sealed record FollowerAhead : FollowRoutePlan;
@@ -27,11 +43,17 @@ public abstract record FollowRoutePlan
     public sealed record WaitForLead : FollowRoutePlan;
 }
 
+/// <summary>Where an aircraft stands on a path of directed edges (<see cref="FollowRoutePlanner.LocateOnPath"/>).</summary>
+/// <param name="EdgeIndex">The index of the path edge the aircraft is on.</param>
+/// <param name="AlongEdgeFt">How far along that edge, from its start in the path's direction, the aircraft's centre stands, feet.</param>
+public readonly record struct PathPosition(int EdgeIndex, double AlongEdgeFt);
+
 /// <summary>
 /// Plans how a <c>FOLLOWG</c> follower joins its lead's taxi path. The lead's path is its trail (the edges it has taxied,
 /// oldest first, gaps between non-adjacent samples filled with the shortest graph path the way the lead was going), the edge
 /// it is on, and its remaining assigned route — the route only when the lead is not itself following, since a follower's
-/// assigned route is stale. The follower joins at the merge point: the node of that path its shortest taxi path reaches first.
+/// assigned route is stale. The follower joins at the merge point: the node of that path its shortest taxi path reaches first,
+/// or — standing behind the lead on the edge the lead is on — that edge's start, with no path to it.
 /// </summary>
 public static class FollowRoutePlanner
 {
@@ -58,13 +80,32 @@ public static class FollowRoutePlanner
         }
 
         (DirectionalEdge current, IReadOnlyList<TaxiRouteSegment> routeAhead) = OnRoute(leadEdge, lead);
-        if (IsAheadOfLead(layout, follower, lead, current, routeAhead))
+        GroundEdge? followerEdge = EdgeUnder(layout, follower);
+        if (IsAheadOfLead(followerEdge, follower, lead, current, routeAhead))
         {
             Log.LogDebug("[FollowPlan] {Follower}: ahead of {Lead} on its path", follower.Callsign, lead.Callsign);
             return new FollowRoutePlan.FollowerAhead();
         }
 
         LeadPath path = BuildLeadPath(layout, lead, current, routeAhead);
+        if ((followerEdge is not null) && Joins(followerEdge, current.FromNodeId, current.ToNodeId))
+        {
+            Log.LogDebug(
+                "[FollowPlan] {Follower}: behind {Lead} on the edge it is on; joins at node {Merge}",
+                follower.Callsign,
+                lead.Callsign,
+                current.FromNodeId
+            );
+            int sharedIndex = path.AheadIndex - 1;
+            return new FollowRoutePlan.Joinable(
+                current.FromNodeId,
+                NoSegments(),
+                EdgeInto(path, sharedIndex),
+                [.. path.Edges.Skip(sharedIndex)],
+                false
+            );
+        }
+
         if (layout.FindTaxiStartNode(follower.Position, follower.TrueHeading) is not { } start)
         {
             return new FollowRoutePlan.NoPath();
@@ -87,7 +128,132 @@ public static class FollowRoutePlanner
             mergeAhead,
             toMerge.Route.Segments.Count
         );
-        return new FollowRoutePlan.Joinable(toMerge.GoalNodeId, toMerge.Route, [.. path.Edges.Skip(mergeIndex)], mergeAhead);
+        return new FollowRoutePlan.Joinable(
+            toMerge.GoalNodeId,
+            toMerge.Route,
+            EdgeInto(path, mergeIndex),
+            [.. path.Edges.Skip(mergeIndex)],
+            mergeAhead
+        );
+    }
+
+    /// <summary>The lead path's edge into node <paramref name="nodeIndex"/> (<see cref="LeadPath"/>); null at the path's start.</summary>
+    private static DirectionalEdge? EdgeInto(LeadPath path, int nodeIndex) => nodeIndex > 0 ? path.Edges[nodeIndex - 1] : null;
+
+    /// <summary>
+    /// Where <paramref name="aircraft"/> stands on <paramref name="path"/>: the first path edge that is the straight taxi edge
+    /// under it (<see cref="TaxiEdgeLocator.EdgeUnder"/>, hinted by its newest trail edge: the nearest straight taxi edge within
+    /// <see cref="TaxiEdgeLocator.OnTaxiwayMaxOffsetFt"/>, never a fillet arc), and how far along that edge its position
+    /// projects. Null when the aircraft is on no path edge the lookup picks.
+    /// </summary>
+    public static PathPosition? LocateOnPath(AirportGroundLayout layout, IReadOnlyList<DirectionalEdge> path, AircraftState aircraft)
+    {
+        if (EdgeUnder(layout, aircraft) is not { } edge)
+        {
+            return null;
+        }
+
+        // The first match is deliberate: where an edge repeats on the path, the earlier entry is the one a follower behind the lead reaches.
+        for (int i = 0; i < path.Count; i++)
+        {
+            if ((path[i].Edge is GroundEdge) && Joins(edge, path[i].FromNodeId, path[i].ToNodeId))
+            {
+                return new PathPosition(i, AlongEdgeFt(edge, path[i].FromNode, aircraft.Position));
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// How far along <paramref name="path"/> from its start <paramref name="at"/> lies, feet: the edges before its edge by
+    /// their lengths, then its way along that edge.
+    /// </summary>
+    public static double PathOffsetFt(IReadOnlyList<DirectionalEdge> path, PathPosition at) =>
+        (path.Take(at.EdgeIndex).Sum(edge => edge.DistanceNm) * GeoMath.FeetPerNm) + at.AlongEdgeFt;
+
+    /// <summary>
+    /// The follower's along-path distance to <paramref name="plan"/>'s merge node, feet. Once the follower stands on the lead's
+    /// path from the merge (<see cref="LocateOnPath"/>) — as it does from the start when it joined behind the lead on the lead's
+    /// edge — it is past the merge, and this is minus its <see cref="PathOffsetFt"/>. Before that, it is the rest of its route
+    /// to the merge: the segment in progress straight from the follower to that segment's end node, as
+    /// <see cref="TaxiingPhase.AlongRouteDistanceToHoldShortFt"/> measures it, then each later segment by its length. Null with
+    /// no segment left and the follower on no path edge the lookup picks: it may be past the merge, where the straight distance
+    /// back to the merge would read with the wrong sign, so the caller falls back to the straight-line gap.
+    /// </summary>
+    public static double? FollowerToMergeFt(AirportGroundLayout layout, FollowRoutePlan.Joinable plan, AircraftState follower)
+    {
+        if (LocateOnPath(layout, plan.LeadPathFromMerge, follower) is { } onPath)
+        {
+            return -PathOffsetFt(plan.LeadPathFromMerge, onPath);
+        }
+
+        TaxiRoute route = plan.PathToMerge;
+        int first = Math.Max(0, route.CurrentSegmentIndex);
+        if (first >= route.Segments.Count)
+        {
+            return null;
+        }
+
+        double inProgressFt = GeoMath.DistanceNm(follower.Position, route.Segments[first].Edge.ToNode.Position) * GeoMath.FeetPerNm;
+        return inProgressFt + route.TotalDistanceFt - route.PrefixDistanceFt(first + 1);
+    }
+
+    /// <summary>
+    /// The nose-to-tail gap from the follower to the lead along the lead's path, feet: <paramref name="followerToMergeFt"/>
+    /// (<see cref="FollowerToMergeFt"/>), plus the lead's <see cref="PathOffsetFt"/> from the merge, less half of each
+    /// aircraft's length (<see cref="AircraftLength.ResolveFt"/>). Null when the lead is not on the path
+    /// (<paramref name="lead"/> null) or the follower's distance to the merge is unknown (<paramref name="followerToMergeFt"/>
+    /// null); the caller then falls back to the straight-line nose-to-tail distance.
+    /// </summary>
+    public static double? AlongPathGapFt(
+        double? followerToMergeFt,
+        IReadOnlyList<DirectionalEdge> leadPathFromMerge,
+        PathPosition? lead,
+        string followerType,
+        string leadType
+    ) =>
+        (lead is { } at) && (followerToMergeFt is { } toMergeFt)
+            ? toMergeFt
+                + PathOffsetFt(leadPathFromMerge, at)
+                - (AircraftLength.ResolveFt(followerType) / 2.0)
+                - (AircraftLength.ResolveFt(leadType) / 2.0)
+            : null;
+
+    /// <summary>
+    /// Whether the lead's tail — half its length (<see cref="AircraftLength.ResolveFt"/>) behind its centre, along its path —
+    /// is past the merge node, where <paramref name="leadPathFromMerge"/> starts.
+    /// </summary>
+    public static bool LeadTailPastMerge(IReadOnlyList<DirectionalEdge> leadPathFromMerge, PathPosition lead, string leadType) =>
+        PathOffsetFt(leadPathFromMerge, lead) - (AircraftLength.ResolveFt(leadType) / 2.0) > 0.0;
+
+    /// <summary>
+    /// How far along <paramref name="edge"/>, driven from <paramref name="from"/>, <paramref name="position"/> projects, feet:
+    /// onto the piece of the edge's polyline nearest it, clamped to that piece.
+    /// </summary>
+    private static double AlongEdgeFt(GroundEdge edge, GroundNode from, LatLon position)
+    {
+        List<LatLon> points = TugMovePlanner.EdgePointsFrom(edge, from);
+        double walkedFt = 0.0;
+        double bestOffFt = double.PositiveInfinity;
+        double bestAlongFt = 0.0;
+        for (int k = 1; k < points.Count; k++)
+        {
+            double pieceFt = GeoMath.DistanceNm(points[k - 1], points[k]) * GeoMath.FeetPerNm;
+            var heading = new TrueHeading(GeoMath.BearingTo(points[k - 1], points[k]));
+            double alongFt = Math.Clamp(GeoMath.AlongTrackDistanceNm(position, points[k - 1], heading) * GeoMath.FeetPerNm, 0.0, pieceFt);
+            double offFt =
+                GeoMath.DistanceNm(position, GeoMath.ProjectPoint(points[k - 1], heading, alongFt / GeoMath.FeetPerNm)) * GeoMath.FeetPerNm;
+            if (offFt < bestOffFt)
+            {
+                bestOffFt = offFt;
+                bestAlongFt = walkedFt + alongFt;
+            }
+
+            walkedFt += pieceFt;
+        }
+
+        return bestAlongFt;
     }
 
     /// <summary>
@@ -167,14 +333,14 @@ public static class FollowRoutePlanner
     /// or on an edge of the lead's route ahead of it.
     /// </summary>
     private static bool IsAheadOfLead(
-        AirportGroundLayout layout,
+        GroundEdge? followerEdge,
         AircraftState follower,
         AircraftState lead,
         DirectionalEdge current,
         IReadOnlyList<TaxiRouteSegment> routeAhead
     )
     {
-        if (EdgeUnder(layout, follower) is not { } followerEdge)
+        if (followerEdge is null)
         {
             return false;
         }
@@ -187,6 +353,9 @@ public static class FollowRoutePlanner
 
         return routeAhead.Any(segment => Joins(followerEdge, segment.FromNodeId, segment.ToNodeId));
     }
+
+    /// <summary>A route with no segments: the follower is on the lead's path already.</summary>
+    private static TaxiRoute NoSegments() => new() { Segments = [], HoldShortPoints = [] };
 
     private static bool Joins(GroundEdge edge, int nodeA, int nodeB) =>
         ((edge.Nodes[0].Id == nodeA) && (edge.Nodes[1].Id == nodeB)) || ((edge.Nodes[0].Id == nodeB) && (edge.Nodes[1].Id == nodeA));

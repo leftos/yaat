@@ -250,6 +250,8 @@ Near an uncleared runway bar the bar's cap overrides that: a GIVEWAY inside its 
 
 With no route on either side, or no shared node within the 1,500 ft look-ahead (`ConvergenceLookaheadFt`, which `FindSharedUpcomingNode` and the clearance walk both use), a GIVEWAY stops where it is, as HOLD does; the Debug log names which.
 
+A `FOLLOWG` follower gives way to its lead short of the merge by the same clearance walk, through the overload `GiveWayStop(held, heldRoute, leadTrack, lead, out reason)`. It takes the follower's route to the merge and the lead's path edges into and out of the merge node instead of searching for a shared node: the merge is where that route ends (`heldRoute.Segments[^1].ToNodeId`). It returns no stop point when the route has no segment left, or when the merge lies beyond the look-ahead, the reason saying which.
+
 ---
 
 ## ATPA in-trail sequencing — `AtpaProcessor` + `AtpaVolumeGeometry`
