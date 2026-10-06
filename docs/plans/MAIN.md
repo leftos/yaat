@@ -12,11 +12,15 @@
 - [x] YAAT-354 Add screenshots to Getting Started and the User Guide · release vNext — High · Wave 9 — Docs and repo hygiene
 - [x] YAAT-228 release.yml drops the changelog output as 'may contain secret', leaving the draft's Changelog empty · release vNext — High · Singles
 
+## Active runways (feat/active-runways)
+
+- [ ] YAAT-461 Ask the mentor for the active runways on scenario load when the scenario leaves them unclear
+
 ## Precompute cache (feat/precompute-cache)
 
 - [ ] YAAT-440 Group, filter and distance-label the ground view's Push Back To submenu
 - [ ] YAAT-450 Investigate what else to precompute offline from vNAS, GeoJSON, FAA, CIFP and NavData data
-- [ ] YAAT-466 Replay and restore a recording against the airport layouts it bundles
+- [/] YAAT-466 Replay and restore a recording against the airport layouts it bundles
 
 ## Follow on the taxi graph (feat/follow-on-graph)
 
@@ -98,7 +102,6 @@
 - [ ] YAAT-458 Offer speed picker values from the aircraft's own type performance
 - [ ] YAAT-459 List Hold short bars along the route, nearest first, one row per runway
 - [ ] YAAT-460 Add Taxi to runway ▸ to the ground aircraft menu, with via and distance per entry point
-- [ ] YAAT-461 Ask the mentor for the active runways on scenario load when the scenario leaves them unclear
 - [ ] YAAT-462 Split the Follow and Give way lists into Moving and Parked, with type, state and distance
 - [ ] YAAT-463 Offer the named exits ahead on the landing roll
 - [ ] YAAT-464 Name the aircraft and its action in the ground point menu header; offer Push route only from tug-reachable points
@@ -216,6 +219,10 @@
 - [ ] YAAT-432 Gate the jet turn-around refusal on design group, not the Jet category · release vNext
 - [ ] YAAT-435 Let a re-route's stop lie behind the aircraft by under 3 ft on segment 0
 - [ ] YAAT-438 Slow to pivot speed before a taxiway turn-about issued while rolling · release vNext
+- [ ] YAAT-467 Lay a taxi turn from rest at a junction node so it finishes on the next centreline
+- [ ] YAAT-468 Stop at a hold-short bar the parser places at the aircraft's own start on a short leg
+- [ ] YAAT-469 Use one high-speed exit angle threshold for turn-off speed and exit search
+- [ ] YAAT-470 Split GroundNavigator.BuildEntryAlignmentArc and TickStraight under the size limits
 
 ## Wave 2 — Ground command grammar and dispatch
 
