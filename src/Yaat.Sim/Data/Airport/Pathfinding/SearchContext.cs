@@ -83,6 +83,24 @@ public sealed record SearchContext(
     public bool IsForbiddenMove(int fromId, int toId) => OneWayMode == OneWayMode.HardExclude && ForbiddenOneWayMoves.Contains((fromId, toId));
 
     /// <summary>
+    /// True when this search hard-excludes avoided taxiways (<see cref="AvoidTaxiwayMode.HardExclude"/>) or one-way wrong-way
+    /// moves (<see cref="Pathfinding.OneWayMode.HardExclude"/>) — the gates <see cref="RelaxHardGates"/> relaxes.
+    /// </summary>
+    public bool HasHardGates => (AvoidMode == AvoidTaxiwayMode.HardExclude) || (OneWayMode == OneWayMode.HardExclude);
+
+    /// <summary>
+    /// This context with its hard gates relaxed: avoided taxiways become a heavy soft penalty
+    /// (<see cref="AvoidTaxiwayMode.SoftPenalty"/>) and one-way wrong-way moves are permitted but warned
+    /// (<see cref="Pathfinding.OneWayMode.Warn"/>). Modes that are not hard are kept.
+    /// </summary>
+    public SearchContext RelaxHardGates() =>
+        this with
+        {
+            AvoidMode = AvoidMode == AvoidTaxiwayMode.HardExclude ? AvoidTaxiwayMode.SoftPenalty : AvoidMode,
+            OneWayMode = OneWayMode == OneWayMode.HardExclude ? OneWayMode.Warn : OneWayMode,
+        };
+
+    /// <summary>
     /// Directed pivot turns <c>(prev, apex, next)</c> a blocked turn forbids — the sharp straight pivot
     /// through a surviving intersection apex. Resolved from <see cref="NavigationDatabase.AirportSidecars"/>
     /// against <c>Layout</c>; empty when the airport has none. See <see cref="BlockedTurnResolver"/>.

@@ -4425,6 +4425,15 @@ public sealed class AirportGroundLayout
         return false;
     }
 
+    /// <summary>
+    /// The graph node a taxi from <paramref name="position"/>, facing <paramref name="heading"/>, starts at: the heading-aligned
+    /// endpoint of the nearest taxi edge (<see cref="FindNearestNodeForTaxi"/>, which handles post-pushback poses where the
+    /// aircraft rests between graph nodes — see issue #161), or the absolute nearest node when the position is genuinely
+    /// off-graph. Null when the layout has no node. TAXI and FOLLOWG both start here.
+    /// </summary>
+    public GroundNode? FindTaxiStartNode(LatLon position, TrueHeading heading) =>
+        FindNearestNodeForTaxi(position, heading) ?? FindNearestNode(position);
+
     // LatLon-shaped overloads of the find methods. Thin wrappers around the scalar forms above.
 
     public GroundNode? FindNearestNode(LatLon position) => FindNearestNode(position.Lat, position.Lon);

@@ -73,6 +73,8 @@ All six are written only when set and absent (null) otherwise; no schema bump.
 
 A restore that kept no latch would let the stop go once the aircraft had slowed too far from the node to find it again.
 
+`AircraftGroundOpsDto.TaxiEdgeTrail` follows the same pattern: the taxi edges a ground aircraft drove, oldest first (`TaxiTrailEdgeDto`: `NodeA`, `NodeB`, `LengthFt`), written only when the trail is not empty, and restored as an empty trail when absent. The aircraft's own `AircraftGroundOps.TaxiEdgeTrail` is `[JsonIgnore]`; this DTO field is its carrier.
+
 **The run profile is not a field.** `SimulationEngine.RunProfile` (live / replay / test / soak — [tick-loop.md](tick-loop.md) § the engine's partial files) is host state: the host that drives the engine sets it, and it is never captured into or restored from a snapshot. Restoring a live snapshot into a replaying room must not make the room live.
 
 **An "on by default" scenario setting still defaults to `false` on the Sim side.** `SimScenarioState.AutoCrossRunway` and `AutoPullUpToParallel` are bare `bool`s (false), the `PhaseContext` fallback is `Scenario?.X ?? false`, and the `ScenarioSnapshotDto` field is the same.

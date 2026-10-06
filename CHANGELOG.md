@@ -59,6 +59,7 @@
 - Taxiway turn-arounds depend on the aircraft's gear: types whose gear fits the taxiway turn tightly, while larger types, business jets included, answer "unable, no room to turn around".
 - A rolling aircraft turned around on a taxiway brakes to pivot speed first, stops short of runway hold lines, and says unable without room.
 - An aircraft exiting a runway onto a sharply angled taxiway turns off at corner speed instead of turning around on the taxiway.
+- `FOLLOWG` answers "unable" when no taxi route reaches the leader's path, or when the follower is already ahead of the leader on it.
 
 ### Fixed
 

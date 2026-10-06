@@ -1,5 +1,14 @@
 namespace Yaat.Sim.Data.Airport.Pathfinding;
 
+/// <summary>The goal node a goal-set search reached (<see cref="AutoRouter.RunToGoals"/>) and the route to it.</summary>
+/// <param name="GoalNodeId">The goal node reached: the end of the route's last segment, or the start when it has none.</param>
+/// <param name="Route">The route from the start node to <paramref name="GoalNodeId"/>; no segments when the start is that goal.</param>
+/// <param name="Cost">
+/// The search's own cost of the route — every <see cref="RouteCostFunction.IncrementalCost"/> term, not just its length; 0 when
+/// the start is the goal.
+/// </param>
+public sealed record GoalRoute(int GoalNodeId, TaxiRoute Route, double Cost);
+
 /// <summary>
 /// Auto-mode A* driver. Runs a flat best-first search over the full layout from start to
 /// destination, constrained by <see cref="SearchContext.AuthorizedTaxiways"/> (soft penalty)
@@ -130,30 +139,114 @@ public static class AutoRouter
             return (emptyRoute, null, 0.0);
         }
 
+        GoalSearch search = SearchToGoals(ctx, startNode, [destinationNode], startOverride, maxExpansions);
+        return (search.Route, search.Failure, search.Cost);
+    }
+
+    /// <summary>
+    /// A* from <see cref="SearchContext.StartNodeId"/> to whichever of <paramref name="goals"/> is cheapest to reach, in one
+    /// pass, under the edge filters and cost model of <paramref name="ctx"/>; the route is materialised against
+    /// <paramref name="ctx"/> re-targeted at the goal it reached. One pass only: the caller runs the avoidance passes
+    /// (<see cref="TaxiPathfinder.FindRouteToNearestGoal"/>).
+    /// </summary>
+    /// <param name="ctx">The search context; a node destination, which the search re-targets at the goal it reaches.</param>
+    /// <param name="goals">The goal nodes, at least one.</param>
+    /// <returns>The goal reached and the route to it — no segments when the start is a goal — or the failure.</returns>
+    /// <exception cref="InvalidOperationException">The materialised route does not end at the goal the search reached.</exception>
+    public static (GoalRoute? Route, PathfindingFailure? Failure) RunToGoals(SearchContext ctx, IReadOnlyList<GroundNode> goals)
+    {
+        if (!ctx.Layout.Nodes.TryGetValue(ctx.StartNodeId, out GroundNode? startNode))
+        {
+            return (
+                null,
+                new PathfindingFailure(FailureKind.StartNodeUnreachable, $"Start node {ctx.StartNodeId} not found in layout.", null, null, null)
+            );
+        }
+
+        if (goals.Any(goal => goal.Id == startNode.Id))
+        {
+            TaxiRoute here = RouteMaterialiser.Materialise([], MaterialiseContext(ctx, startNode.Id), []);
+            return (new GoalRoute(startNode.Id, here, 0.0), null);
+        }
+
+        GoalSearch search = SearchToGoals(ctx, startNode, goals, null, MaxExpansions);
+        if (search.Route is null)
+        {
+            return (null, search.Failure);
+        }
+
+        int reached = search.Route.Segments.Count > 0 ? search.Route.Segments[^1].ToNodeId : startNode.Id;
+        if (reached != search.GoalNodeId)
+        {
+            throw new InvalidOperationException(
+                $"Goal-set route from node {ctx.StartNodeId} ends at node {reached}, not at goal node {search.GoalNodeId} the search reached."
+            );
+        }
+
+        return (new GoalRoute(reached, search.Route, search.Cost), null);
+    }
+
+    /// <summary>
+    /// One search's outcome: the materialised route and the goal its unmaterialised path reached (null with no route), or the
+    /// failure; and the search cost of the route beyond the start override (0 with no route).
+    /// </summary>
+    private sealed record GoalSearch(TaxiRoute? Route, int? GoalNodeId, PathfindingFailure? Failure, double Cost);
+
+    /// <summary>
+    /// The context a path reaching <paramref name="goalNodeId"/> materialises against: <paramref name="ctx"/> re-targeted at
+    /// that goal when its destination is a node — a goal-set search reaches one of several; a single-goal node search already
+    /// targets it. Any other destination keeps its descriptor: a runway route truncates at its first lineup hold-short, which a
+    /// node target would override.
+    /// </summary>
+    private static SearchContext MaterialiseContext(SearchContext ctx, int goalNodeId) =>
+        ctx.Destination.Kind == DestinationKind.Node ? ctx with { Destination = ctx.Destination with { TargetNodeId = goalNodeId } } : ctx;
+
+    /// <summary>
+    /// A* from <paramref name="startNode"/> to the cheapest of <paramref name="goals"/>, materialised against
+    /// <paramref name="ctx"/> re-targeted at the goal reached (<see cref="MaterialiseContext"/>), with its search cost beyond
+    /// <paramref name="startOverride"/>. The same-side runway check runs on the materialised route, which
+    /// <see cref="RouteMaterialiser.Materialise"/> may have truncated.
+    /// </summary>
+    private static GoalSearch SearchToGoals(
+        SearchContext ctx,
+        GroundNode startNode,
+        IReadOnlyList<GroundNode> goals,
+        PartialRoute? startOverride,
+        int maxExpansions
+    )
+    {
         // A returned path may use an uncleared runway as a same-side shortcut (on at one exit, off
         // at the next) — not a crossing. That can only be judged on the whole path, and judging it
         // inside the A* would poison the (node, bearing-bucket) closed set with path-dependent dead
         // ends. So: run, validate, and on a violation re-run with that run's centerline edges banned
         // outright, so the next attempt finds the legal path instead of inheriting poisoned states.
         HashSet<(int, int)>? bannedMoves = null;
+        var goalSet = new GoalSet(goals);
         for (int attempt = 0; attempt < 3; attempt++)
         {
-            (TaxiRoute? Route, PathfindingFailure? Failure, double Cost) result = RunAstar(
+            (List<DirectionalEdge>? Edges, PathfindingFailure? Failure, double Cost) result = RunAstar(
                 ctx,
                 startNode,
-                destinationNode,
+                goalSet,
                 startOverride,
                 maxExpansions,
                 bannedMoves
             );
-            if (result.Route is null || !ctx.HasSameSideCenterlineRun([.. result.Route.Segments.Select(s => s.Edge)]))
+            if (result.Edges is null)
             {
-                return result;
+                return new GoalSearch(null, null, result.Failure, 0.0);
+            }
+
+            int goalNodeId = result.Edges.Count > 0 ? result.Edges[^1].ToNodeId : startNode.Id;
+            TaxiRoute route = RouteMaterialiser.Materialise(result.Edges, MaterialiseContext(ctx, goalNodeId), []);
+            if (!ctx.HasSameSideCenterlineRun([.. route.Segments.Select(s => s.Edge)]))
+            {
+                return new GoalSearch(route, goalNodeId, null, result.Cost);
             }
 
             bannedMoves ??= [];
             int bannedBefore = bannedMoves.Count;
-            foreach (TaxiRouteSegment seg in result.Route.Segments)
+            foreach (TaxiRouteSegment seg in route.Segments)
             {
                 if (seg.Edge.Edge.IsRunwayCenterline)
                 {
@@ -172,7 +265,8 @@ public static class AutoRouter
             }
         }
 
-        return (
+        return new GoalSearch(
+            null,
             null,
             new PathfindingFailure(
                 FailureKind.DestinationUnreachable,
@@ -185,10 +279,10 @@ public static class AutoRouter
         );
     }
 
-    private static (TaxiRoute? Route, PathfindingFailure? Failure, double Cost) RunAstar(
+    private static (List<DirectionalEdge>? Edges, PathfindingFailure? Failure, double Cost) RunAstar(
         SearchContext ctx,
         GroundNode startNode,
-        GroundNode destinationNode,
+        GoalSet goals,
         PartialRoute? startOverride,
         int maxExpansions,
         HashSet<(int From, int To)>? bannedMoves
@@ -212,14 +306,22 @@ public static class AutoRouter
         // expansion goes through GeometricAdmissibility against the prior heading. Otherwise
         // the search starts cold (admissibility skips the first edge).
         PartialRoute startRoute = startOverride ?? PartialRoute.StartAt(ctx.StartNodeId);
-        double startHeuristic = RouteCostFunction.Heuristic(startNode, destinationNode);
+        double startHeuristic = goals.Heuristic(startNode);
         bestGScore[GeometricAdmissibility.PruningStateKey(startRoute.HeadNodeId, startRoute.ArrivalBearing, startRoute.LastTaxiwayName)] =
             startRoute.AccumulatedCost;
         openSet.Enqueue(startRoute, startRoute.AccumulatedCost + startHeuristic);
 
-        ctx.DiagnosticLog?.Invoke(
-            $"[auto] start node={startRoute.HeadNodeId}  dest node={destinationNode.Id}  h0={startHeuristic:F3}  arrival={startRoute.ArrivalBearing:F1}  hasPrior={startRoute.LastEdge is not null}"
-        );
+        if (ctx.DiagnosticLog is { } startLog)
+        {
+            int node = startRoute.HeadNodeId;
+            int dest = goals.Nodes[0].Id;
+            int goalCount = goals.Nodes.Count;
+            double arrival = startRoute.ArrivalBearing;
+            bool hasPrior = startRoute.LastEdge is not null;
+            startLog(
+                $"[auto] start node={node}  dest node={dest} (of {goalCount})  h0={startHeuristic:F3}  arrival={arrival:F1}  hasPrior={hasPrior}"
+            );
+        }
 
         while (openSet.Count > 0)
         {
@@ -254,20 +356,20 @@ public static class AutoRouter
                 continue;
             }
 
-            ctx.DiagnosticLog?.Invoke(
-                $"[auto] pop f={current.AccumulatedCost + RouteCostFunction.Heuristic(ctx.Layout.Nodes[current.HeadNodeId], destinationNode):F3}  node={current.HeadNodeId}  depth={current.Depth}  cost={current.AccumulatedCost:F3}"
-            );
+            if (ctx.DiagnosticLog is { } popLog)
+            {
+                double f = current.AccumulatedCost + goals.Heuristic(ctx.Layout.Nodes[current.HeadNodeId]);
+                popLog($"[auto] pop f={f:F3}  node={current.HeadNodeId}  depth={current.Depth}  cost={current.AccumulatedCost:F3}");
+            }
 
             // Destination check.
-            if (IsAtDestination(current.HeadNodeId, destinationNode))
+            if (goals.Contains(current.HeadNodeId))
             {
                 int baseDepth = startOverride?.Depth ?? 0;
                 int newEdgeCount = current.Depth - baseDepth;
                 ctx.DiagnosticLog?.Invoke($"[auto] SUCCESS edges={newEdgeCount}  total_cost={current.AccumulatedCost:F3}  expansions={expansions}");
 
-                List<DirectionalEdge> edges = current.MaterialiseEdges(baseDepth);
-                TaxiRoute route = RouteMaterialiser.Materialise(edges, ctx, []);
-                return (route, null, current.AccumulatedCost - startRoute.AccumulatedCost);
+                return (current.MaterialiseEdges(baseDepth), null, current.AccumulatedCost - startRoute.AccumulatedCost);
             }
 
             // Track deepest viable partial route for SearchExhausted diagnostics.
@@ -389,7 +491,7 @@ public static class AutoRouter
                     VisitedNodeIds = current.VisitedNodeIds.Add(nextNode.Id),
                 };
 
-                double heuristic = RouteCostFunction.Heuristic(nextNode, destinationNode);
+                double heuristic = goals.Heuristic(nextNode);
                 double fScore = newGScore + heuristic;
 
                 // Encode depth as a tiny fractional tie-breaker. Subtracting (Depth * 1e-9) lowers
@@ -412,7 +514,9 @@ public static class AutoRouter
             null,
             new PathfindingFailure(
                 FailureKind.DestinationUnreachable,
-                $"No route found from node {ctx.StartNodeId} to destination (node {destinationNode.Id}) — graph may be disconnected.",
+                goals.Nodes.Count == 1
+                    ? $"No route found from node {ctx.StartNodeId} to destination (node {goals.Nodes[0].Id}) — graph may be disconnected."
+                    : $"No route found from node {ctx.StartNodeId} to any of {goals.Nodes.Count} goal nodes — graph may be disconnected.",
                 null,
                 null,
                 null
@@ -422,12 +526,41 @@ public static class AutoRouter
     }
 
     /// <summary>
-    /// True when <paramref name="nodeId"/> satisfies the destination for this search: an exact node-ID match against
-    /// <paramref name="destinationNode"/>. The destination is always a single node — a runway destination is resolved
-    /// to its full-length line-up hold-short before the search starts
-    /// (<see cref="RouteMaterialiser.FindFullLengthLineupHoldShort"/>).
+    /// The goal nodes of one search. Every goal is a node — a runway destination is resolved to its full-length line-up
+    /// hold-short before the search starts (<see cref="RouteMaterialiser.FindFullLengthLineupHoldShort"/>).
     /// </summary>
-    private static bool IsAtDestination(int nodeId, GroundNode destinationNode) => nodeId == destinationNode.Id;
+    private sealed class GoalSet(IReadOnlyList<GroundNode> nodes)
+    {
+        private readonly HashSet<int> _ids = [.. nodes.Select(node => node.Id)];
+
+        /// <summary>Heuristics already computed, by node id; only with more than one goal, where each costs a pass over them.</summary>
+        private readonly Dictionary<int, double>? _heuristics = nodes.Count > 1 ? [] : null;
+
+        public IReadOnlyList<GroundNode> Nodes => nodes;
+
+        /// <summary>True when <paramref name="nodeId"/> satisfies the destination: an exact node-id match against a goal.</summary>
+        public bool Contains(int nodeId) => _ids.Contains(nodeId);
+
+        /// <summary>
+        /// The A* heuristic toward the goal set: the least <see cref="RouteCostFunction.Heuristic"/> to any goal. It never
+        /// exceeds the heuristic to the optimal goal, which never exceeds the cost to reach it, so it stays admissible.
+        /// </summary>
+        public double Heuristic(GroundNode node)
+        {
+            if (_heuristics is null)
+            {
+                return RouteCostFunction.Heuristic(node, nodes[0]);
+            }
+
+            if (!_heuristics.TryGetValue(node.Id, out double best))
+            {
+                best = nodes.Min(goal => RouteCostFunction.Heuristic(node, goal));
+                _heuristics[node.Id] = best;
+            }
+
+            return best;
+        }
+    }
 
     /// <summary>
     /// Resolve the target <see cref="GroundNode"/> from the context.

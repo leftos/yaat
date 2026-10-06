@@ -7,6 +7,7 @@ using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
+using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests;
@@ -1263,6 +1264,85 @@ public class GroundCommandHandlerTests
         Assert.False(result.Success);
         Assert.Contains("cannot follow itself", result.Message!);
         Assert.IsType<AtParkingPhase>(ac.Phases!.CurrentPhase);
+    }
+
+    /// <summary>
+    /// KOAK: the lead taxis B toward 28R on <c>TAXI B W 30</c>; a follower standing on an edge of that route ahead of the lead
+    /// is told FOLLOWG and answers unable — it would have to taxi into the lead.
+    /// </summary>
+    [Fact]
+    public void FollowG_FollowerAheadOnLeadsRoute_IsUnable()
+    {
+        if (KoakFollowGeometry.StartTaxiingLead(TestContext.Current.TestOutputHelper!) is not { } run)
+        {
+            return;
+        }
+
+        AircraftState follower = KoakFollowGeometry.SpawnOnRouteAhead(run.Lead, "N2FOL", "C172");
+        follower.Ground.Layout = run.Layout;
+
+        CommandResult result = GroundCommandHandler.TryFollow(
+            follower,
+            new FollowGroundCommand(run.Lead.Callsign),
+            run.Layout,
+            run.Engine.FindAircraft
+        );
+
+        Assert.False(result.Success, result.Message);
+        Assert.Equal($"unable, ahead of {run.Lead.Callsign} on its route — issue HOLD, GIVEWAY or TAXI first", result.Message);
+    }
+
+    /// <summary>
+    /// KOAK: a follower holding short of 28R on B (a crossing bar, <c>TAXI B W 30</c> without auto-cross) is told FOLLOWG behind
+    /// a lead taxiing B toward that same bar: the follow is not armed — the follower is ahead of the lead on its route.
+    /// </summary>
+    [Fact]
+    public void FollowG_ArmedAtBar_FollowerAhead_IsUnable()
+    {
+        ITestOutputHelper output = TestContext.Current.TestOutputHelper!;
+        if (KoakFollowGeometry.NewEngine(output, autoCross: false) is not { } setup)
+        {
+            return;
+        }
+
+        (SimulationEngine engine, AirportGroundLayout layout) = setup;
+        List<GroundNode> chain = KoakFollowGeometry.BChain(layout);
+        AircraftState follower = KoakFollowGeometry.AddTaxiing(setup, "N2FOL", "C172", (chain[1], chain[0]), "TAXI B W 30");
+        for (int second = 0; (second < 120) && (follower.Phases?.CurrentPhase is not HoldingShortPhase); second++)
+        {
+            engine.TickOneSecond();
+        }
+
+        Assert.IsType<HoldingShortPhase>(follower.Phases?.CurrentPhase);
+        AircraftState lead = KoakFollowGeometry.AddTaxiing(setup, "N1LED", "C560", (chain[5], chain[4]), "TAXI B W 30");
+
+        CommandResult result = GroundCommandHandler.TryFollow(follower, new FollowGroundCommand(lead.Callsign), layout, engine.FindAircraft);
+
+        Assert.False(result.Success, result.Message);
+        Assert.Equal($"unable, ahead of {lead.Callsign} on its route — issue HOLD, GIVEWAY or TAXI first", result.Message);
+    }
+
+    /// <summary>KOAK: FOLLOWG behind a lead still parked on its stand is accepted — the follower waits for it to taxi.</summary>
+    [Fact]
+    public void FollowG_LeadOnStand_IsAccepted()
+    {
+        ITestOutputHelper output = TestContext.Current.TestOutputHelper!;
+        if (KoakFollowGeometry.NewEngine(output, autoCross: true) is not { } setup)
+        {
+            return;
+        }
+
+        (SimulationEngine engine, AirportGroundLayout layout) = setup;
+        AircraftState lead = KoakFollowGeometry.SpawnAtStand(layout, "N1LED");
+        engine.World.AddAircraft(lead);
+        List<GroundNode> chain = KoakFollowGeometry.BChain(layout);
+        AircraftState follower = KoakFollowGeometry.Spawn("N2FOL", "C172", chain[3].Position, KoakFollowGeometry.Facing(chain[3], chain[2]));
+        follower.Ground.Layout = layout;
+
+        CommandResult result = GroundCommandHandler.TryFollow(follower, new FollowGroundCommand(lead.Callsign), layout, engine.FindAircraft);
+
+        Assert.True(result.Success, result.Message);
+        Assert.IsType<FollowingPhase>(follower.Phases!.CurrentPhase);
     }
 
     // -------------------------------------------------------------------------

@@ -304,6 +304,18 @@ What `RunwayExitPhase` does with an aircraft stopped on the runway with no exit 
 **Pushback hold**:
 A scenario-scripted deferred command that would end an active pushback, or that the pushback would reject once one is held, waits until the pushback phase ends (`SimulationEngine.ProcessDeferredDispatches`, docs/ground/pushback.md).
 
+**Taxi edge trail**:
+The straight taxi edges a ground aircraft has driven, oldest first, kept to about 3,000 ft and sampled once per sim-second, so consecutive edges need not meet (`AircraftGroundOps.TaxiEdgeTrail`, docs/tick-loop.md).
+
+**Lead's path**:
+What a `FOLLOWG` follower joins: its lead's taxi edge trail with the gaps filled, the edge the lead is on, and the lead's remaining assigned route (`FollowRoutePlanner`, docs/ground/navigator.md).
+
+**Merge node**:
+The node of the lead's path a `FOLLOWG` follower's goal-set search reaches first, where it joins the lead's path (`FollowRoutePlan.Joinable`, docs/ground/navigator.md).
+
+**Goal-set search**:
+One A* pass to whichever of several goal nodes is cheapest to reach, rather than one search per goal (`AutoRouter.RunToGoals`, `TaxiPathfinder.FindRouteToNearestGoal`, docs/ground/pathfinder.md).
+
 ## Airborne following
 
 **Free pursuit**:

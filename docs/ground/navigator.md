@@ -1,6 +1,8 @@
 # Ground Navigator — Route-Following Design & Implementation
 
 > Read this before touching `src/Yaat.Sim/Phases/Ground/GroundNavigator.cs`, `PathPrimitive.cs`, `PathPrimitiveBuilder.cs`, or the route-following parts of `TaxiingPhase.cs` / `RunwayExitPhase.cs` / `CrossingRunwayPhase.cs`. The navigator is the per-tick controller that physically steers an aircraft along an already-resolved taxi route. It does not build routes (that is the [pathfinder](./pathfinder.md)) and it does not build arc geometry (that is the [fillet generator](./fillet-generator.md)).
+>
+> Read [FOLLOWG: joining the lead's taxi path](#followg-joining-the-leads-taxi-path) before touching `Phases/Ground/FollowRoutePlanner.cs`, the `FOLLOWG` joinability probe.
 
 ## Where it sits
 
@@ -109,6 +111,29 @@ Under a **rolling** clearance the phase completes at the fillet exit instead and
 The segment stays in the route regardless, so a `CTOC` reverting the aircraft out of rolling mode still has somewhere to brake.
 
 When no departure-aligned onto-runway arc route resolves — a parallel-taxiway or shallow-angle hold-short with no clean junction arc (issues #142, #193) — it falls back to the synthetic geometric pivot: `LineUpGeometry` produces a `LineUpPathPlan` consuming `PathPrimitiveSlowTurn` **geometry**, played back with its own `LineUpArcPlayback` integrator, not via `GroundNavigator`.
+
+### FOLLOWG: joining the lead's taxi path
+
+`FollowingPhase` owns no navigator: it steers straight at its lead and matches the lead's speed, stopping at runway bars on the way. Before `FOLLOWG` installs it, `GroundCommandHandler.RejectUnjoinableFollow` asks `FollowRoutePlanner.Plan(layout, follower, lead)` (`Phases/Ground/FollowRoutePlanner.cs`) whether the follower can get onto the lead's taxi path.
+
+`TryFollow` runs that probe, and so does `ArmFollowBehindRunwayHold` when the follow is armed at a runway bar; it is skipped when there is no layout or no lead lookup. `FollowingPhase` does not read the plan.
+
+**The lead's path** has three parts, oldest first:
+
+- **Its trail**, walked back from the newest `TaxiEdgeTrail` edge. Each trail edge is pointed toward the edge after it. Where two do not meet (1 Hz samples skip short edges), the shortest graph path fills the gap, searched forward the way the lead taxied it — from each end of the older edge to the newer one, keeping the cheaper — so a one-way lane the lead drove the right way is not excluded.
+
+  The walk stops at the first edge no graph path joins, and at the first step that would revisit an edge the walk already holds. That is where the lead reversed, as after a push out along a taxiway it then taxied back down, so the path never runs out and back over an edge.
+- **The edge it is on** (`TaxiEdgeLocator.EdgeUnder`, looking near the newest trail edge first), pointed the way it is going. On its route, the first remaining segment over that edge points it; off its route, the end nearer its heading does (`OrientByHeading`), which a turn in progress can swing past the edge's own direction.
+- **Its remaining assigned route** after that edge. Segments the lead has passed are dropped even when its segment index lags and still names one — held on its first segment through an entry-alignment turn, or sampled onto the next edge before it reaches the node. Only the segments after the one over its current edge lie ahead.
+
+  A segment that does not start where the path ends is reached by the shortest graph path. A lead that is itself following contributes no route: a follower's assigned route is stale.
+
+**The rules, in order:**
+
+1. The lead is in `PushbackPhase` or `AtParkingPhase`, or on no taxi edge → `WaitForLead`. There is no path to join yet, and the follow is accepted.
+2. The follower stands on the lead's edge nearer its far end than the lead is, or on an edge of the lead's route ahead of that edge → `FollowerAhead`. `FOLLOWG` answers "unable, ahead of {lead} on its route — issue HOLD, GIVEWAY or TAXI first".
+3. A goal-set search from the follower's `AirportGroundLayout.FindTaxiStartNode` to every node of the lead's path (`TaxiPathfinder.FindRouteToNearestGoal`; see [the pathfinder](./pathfinder.md#goal-set-search-autorouterruntogoals)) finds nothing, or there is no start node → `NoPath`. `FOLLOWG` answers "unable, no taxi route to {lead}'s route".
+4. Otherwise → `Joinable`. The merge node is the goal the search reached, and the plan carries the follower's route to it, the lead's path from it on, and whether the merge lies ahead of the lead (the far node of its current edge, or further along its route) rather than on its trail.
 
 ---
 
@@ -596,6 +621,8 @@ Adding new navigator runtime state means deciding whether it must round-trip; mo
 | `src/Yaat.Sim/Phases/Ground/GroundStopBraking.cs` | Stop-braking choice (taxi rate, firm rate, backstop) and the led stop curve, shared by `FOLLOWG`, `GIVEWAY` and the uncleared-bar cap |
 | `src/Yaat.Sim/Phases/Ground/RunwayExitPhase.cs` | Owns a navigator over the virtual exit route |
 | `src/Yaat.Sim/Phases/Ground/CrossingRunwayPhase.cs` | Owns a navigator over the crossing route |
+| `src/Yaat.Sim/Phases/Ground/FollowRoutePlanner.cs` | `FOLLOWG`'s joinability probe: the lead's path (trail, current edge, remaining route) and where the follower merges onto it |
+| `src/Yaat.Sim/Phases/Ground/FollowingPhase.cs` | The ground follow itself: steers at the lead, no navigator |
 | `src/Yaat.Sim/Data/Airport/TaxiRoute.cs` | The route the navigator follows (segments, hold-shorts, index) |
 | `src/Yaat.Sim/Data/Airport/AirportGroundLayout.cs` | `GroundArc` bezier fields, `DirectionalEdge` bearings, `MaxSafeSpeedKts` / `SafeSpeedForRadiusKts` / `SpeedProfile` / `TraversalSeconds` |
 | `src/Yaat.Sim/AircraftCategory.cs` | All category performance constants (taxi/turn/decel/nose-wheel/corner speeds) |

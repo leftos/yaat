@@ -199,12 +199,7 @@ public static class GroundCommandHandler
             foldTargets = [];
         }
 
-        // Find starting node. Prefer the heading-aligned endpoint of the
-        // nearest taxi edge (handles post-pushback poses where the aircraft
-        // rests between graph nodes — see issue #161); fall back to the
-        // absolute nearest node when the aircraft is genuinely off-graph.
-        GroundNode? startNode =
-            groundLayout.FindNearestNodeForTaxi(aircraft.Position, aircraft.TrueHeading) ?? groundLayout.FindNearestNode(aircraft.Position);
+        GroundNode? startNode = groundLayout.FindTaxiStartNode(aircraft.Position, aircraft.TrueHeading);
 
         if (startNode is null)
         {
@@ -5723,9 +5718,9 @@ public static class GroundCommandHandler
 
         // Validate the leader when a lookup is available (minimal harnesses pass null and skip,
         // same graceful contract as DispatchContext.FindAircraft's other consumers).
+        AircraftState? leader = findAircraft?.Invoke(follow.TargetCallsign);
         if (findAircraft is not null)
         {
-            AircraftState? leader = findAircraft(follow.TargetCallsign);
             if (leader is null)
             {
                 return new CommandResult(false, $"No aircraft {follow.TargetCallsign}");
@@ -5746,7 +5741,12 @@ public static class GroundCommandHandler
 
         if ((acceptance.IsAllowed) && (currentPhase is HoldingShortPhase runwayHold))
         {
-            return ArmFollowBehindRunwayHold(aircraft, runwayHold, follow.TargetCallsign);
+            return ArmFollowBehindRunwayHold(aircraft, runwayHold, follow, groundLayout, leader);
+        }
+
+        if (RejectUnjoinableFollow(aircraft, follow, groundLayout, leader) is { } unable)
+        {
+            return unable;
         }
 
         // Replace phases with FollowingPhase. Clear() marks the active phase as Skipped
@@ -5777,18 +5777,60 @@ public static class GroundCommandHandler
     /// runway is the departure runway, left by LUAW or CTO), so a follow armed behind it could never be released.
     /// Once the route has completed at the bar CROSS takes the aircraft across, and the follow arms.</para>
     /// </summary>
-    private static CommandResult ArmFollowBehindRunwayHold(AircraftState aircraft, HoldingShortPhase hold, string leader)
+    private static CommandResult ArmFollowBehindRunwayHold(
+        AircraftState aircraft,
+        HoldingShortPhase hold,
+        FollowGroundCommand follow,
+        AirportGroundLayout? groundLayout,
+        AircraftState? leaderAircraft
+    )
     {
         if ((hold.HoldShort.Reason == HoldShortReason.DestinationRunway) && !HasArrivedAtHoldShort(aircraft))
         {
             return new CommandResult(false, $"holding short of departure runway {hold.RunwayEndFacing(aircraft)}; issue LUAW or CTO");
         }
 
+        if (RejectUnjoinableFollow(aircraft, follow, groundLayout, leaderAircraft) is { } unable)
+        {
+            return unable;
+        }
+
+        string leader = follow.TargetCallsign;
         aircraft.Phases!.ReplaceUpcoming([new FollowingPhase(leader)]);
 
         string target = hold.RunwayEndFacing(aircraft);
         Log.LogDebug("[Follow] {Callsign}: follow {Leader} armed behind the hold short of {Target}", aircraft.Callsign, leader, target);
         return CommandDispatcher.Ok($"Follow {leader}, hold short of {target}");
+    }
+
+    /// <summary>
+    /// The FOLLOWG joinability probe (<see cref="FollowRoutePlanner.Plan"/>): unable when no taxi path reaches the lead's route,
+    /// or when the follower stands on the lead's remaining route ahead of it. Null — the follow goes ahead — when it can join or
+    /// must wait for the lead, and when there is no layout or no lead aircraft to probe with (minimal harnesses).
+    /// </summary>
+    private static CommandResult? RejectUnjoinableFollow(
+        AircraftState aircraft,
+        FollowGroundCommand follow,
+        AirportGroundLayout? groundLayout,
+        AircraftState? lead
+    )
+    {
+        if ((groundLayout is null) || (lead is null))
+        {
+            return null;
+        }
+
+        FollowRoutePlan plan = FollowRoutePlanner.Plan(groundLayout, aircraft, lead);
+        return plan switch
+        {
+            FollowRoutePlan.NoPath => new CommandResult(false, $"unable, no taxi route to {follow.TargetCallsign}'s route"),
+            FollowRoutePlan.FollowerAhead => new CommandResult(
+                false,
+                $"unable, ahead of {follow.TargetCallsign} on its route — issue HOLD, GIVEWAY or TAXI first"
+            ),
+            FollowRoutePlan.Joinable or FollowRoutePlan.WaitForLead => null,
+            _ => throw new InvalidOperationException($"FOLLOWG probe: unhandled follow plan {plan.GetType().Name}"),
+        };
     }
 
     /// <summary>

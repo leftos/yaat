@@ -6,7 +6,9 @@
 
 ## Architecture
 
-The **`TaxiPathfinder`** (`src/Yaat.Sim/Data/Airport/TaxiPathfinder.cs:10`) is a `public static class` with five static entry points: `ResolveExplicitPath`, `FindRoute`, `FindRunwayRoute`, `FindRoutes`, and `FindFullLengthLineupHoldShort`. All production callers invoke these directly. The implementation is unified — no dual-path selector, no variant adapter — and lives under `src/Yaat.Sim/Data/Airport/Pathfinding/`.
+The **`TaxiPathfinder`** (`src/Yaat.Sim/Data/Airport/TaxiPathfinder.cs:10`) is a `public static class` with nine static entry points: `ResolveExplicitPathDetailed`, `ResolveExplicitPath`, `FindRoute`, `FindRouteToNearestGoal`, `FindRampConfinedRoute`, `FindRunwayRoute`, `FindAdjacentRunwayRoute`, `FindRoutes`, and `FindFullLengthLineupHoldShort`. All production callers invoke these directly.
+
+The implementation is unified — no dual-path selector, no variant adapter — and lives under `src/Yaat.Sim/Data/Airport/Pathfinding/`.
 
 **Caveat for any agent working on the pathfinder:** membership-matched junction arcs, V-shaped taxiways, and tighter fillet arcs are *correct-but-different* geometry. When something breaks on the graph, **adapt the pathfinder — do not "fix" the graph** (membership junction arcs are legitimate turn-connectors).
 
@@ -17,7 +19,7 @@ The **`TaxiPathfinder`** (`src/Yaat.Sim/Data/Airport/TaxiPathfinder.cs:10`) is a
 A `TAXI`/`TAXIAUTO` command reaches the pathfinder through the command pipeline (see [`../command-pipeline.md`](../command-pipeline.md) for the full input → dispatch walk). The ground-specific tail:
 
 1. `GroundCommandHandler.TryTaxi` / `TryTaxiAuto` (`src/Yaat.Sim/Commands/GroundCommandHandler.cs:15`, `:291`) is the dispatch target. `TryTaxiAuto` just builds an empty-path `TaxiCommand` and calls `TryTaxi` — so `TAXIAUTO RWY`/`TAXIAUTO @PARKING` is "a TAXI with no named taxiways". There is no separate auto pathfinder entry.
-2. `TryTaxi` resolves the start node from `(position, heading)` — `groundLayout.FindNearestNodeForTaxi(...)` with `FindNearestNode` as the off-graph fallback. **The pathfinder's contract is strictly node-to-node**; mid-segment snapping happens here, upstream. `FindNearestNodeForTaxi` takes the first of:
+2. `TryTaxi` resolves the start node from `(position, heading)` with `AirportGroundLayout.FindTaxiStartNode`: `FindNearestNodeForTaxi(...)` with `FindNearestNode` as the off-graph fallback. `FOLLOWG`'s planner starts the follower's search from the same node. **The pathfinder's contract is strictly node-to-node**; mid-segment snapping happens here, upstream. `FindNearestNodeForTaxi` takes the first of:
    - at a parking or helipad node (within `AtNodeToleranceFt`, 15 ft): that node, or a non-parking neighbour co-located with it;
    - within 15 ft of no taxi node and on a straight taxi edge (`FindOccupiedTaxiEdge`: the nearest straight edge, within `OnTaxiEdgeMaxOffsetFt` (25 ft) of its centreline, the perpendicular falling inside it): the edge's endpoint ahead, or the nearer endpoint when the heading crosses the edge.
 
@@ -71,8 +73,10 @@ A `TAXI`/`TAXIAUTO` command reaches the pathfinder through the command pipeline 
 
 | Method | Signature | Purpose |
 |---|---|---|
+| `ResolveExplicitPathDetailed` | `(AirportGroundLayout, int fromNodeId, List<string> taxiwayNames, out PathfindingFailure? failure, ExplicitPathOptions, AircraftCategory, WakeClass)` | `ResolveExplicitPath` with the structured `PathfindingFailure` (kind, offending taxiway, message), so a handler can react to why the path failed. |
 | `ResolveExplicitPath` | `(AirportGroundLayout, int fromNodeId, List<string> taxiwayNames, out string? failReason, ExplicitPathOptions, AircraftCategory, WakeClass)` | Controller-named taxiway sequence (explicit mode) → `TaxiRoute` or failure message. Implemented via `SegmentExpander`. |
 | `FindRoute` | `(AirportGroundLayout, int fromNodeId, int toNodeId, AircraftCategory, WakeClass)` | Single best node→node route using FewestTurns preference; A* over full layout. |
+| `FindRouteToNearestGoal` | `(AirportGroundLayout, int fromNodeId, IReadOnlySet<int> goalNodeIds, AircraftCategory, WakeClass)` | The route to whichever goal node is cheapest to reach, in one A* pass (`AutoRouter.RunToGoals`), under `FindRoute`'s context, cost model and two avoidance passes. Returns a `GoalRoute` (goal reached, route, search `Cost`); null for an empty goal set, a start not in the layout, or no reachable goal. `FOLLOWG`'s merge search. See [Goal-set search](#goal-set-search-autorouterruntogoals). |
 | `FindRampConfinedRoute` | `(AirportGroundLayout, int fromNodeId, int toNodeId, AircraftCategory, WakeClass)` | Node→node route that stays inside the ramp: ramp taxilanes, RAMP and unnamed pavement, at most one implied one-way lane, never a runway holding position (`SegmentExpander.FindRampConfinedRoute`). Null when there is none. |
 | `FindRunwayRoute` | `(AirportGroundLayout, GroundNode startNode, string runwayId, AircraftCategory, WakeClass)` | Empty-path runway destination route (`TAXIAUTO 28L`). Tries full-length hold-short candidates in threshold order and returns the first route that reaches a real destination runway hold-short without traversing that runway surface. |
 | `FindAdjacentRunwayRoute` | `(AirportGroundLayout, GroundNode startNode, LatLon position, TrueHeading heading, string runwayId, AircraftCategory, WakeClass)` | Bare `TAXI 28L` (runway only, no taxiways): the aircraft must already be at that runway. Within `AtRunwayHoldShortRadiusFt` (100 ft, any side) of one of its bars → a zero-segment route with one `DestinationRunway` hold-short on that bar; else a straight, single-taxiway, ≤`AdjacentRunwayHoldShortMaxFt` (600 ft) run ahead to a bar; else null and `GroundCommandHandler` refuses the command (issue #393). |
@@ -82,9 +86,11 @@ A `TAXI`/`TAXIAUTO` command reaches the pathfinder through the command pipeline 
 So there are **two modes**, both reaching the same internal machinery:
 
 - **Explicit-path mode** — the controller named taxiways (`TAXI A E B B3`). `ResolveExplicitPath` → `SegmentExpander` stitches the declared sequence together and verifies drivability. Authorization is hard: named letter-only taxiways are a boundary.
-- **Auto-route mode** — no named path (`TAXIAUTO 28L`, `TAXI @D8`, mid-route reroute, parking extension). A bare `TAXI 28L` is **not** an auto-route: the parser promotes the lone runway to the destination, but `TryTaxi` only honours it via `FindAdjacentRunwayRoute` when the aircraft is already at that runway, and refuses it otherwise (issue #393 — an under-specified clearance must never taxi an aircraft across the airport on a guessed route).
+- **Auto-route mode** — no named path (`TAXIAUTO 28L`, `TAXI @D8`, mid-route reroute, parking extension, `FOLLOWG`'s merge onto the lead's path). A bare `TAXI 28L` is **not** an auto-route: the parser promotes the lone runway to the destination, but `TryTaxi` only honours it via `FindAdjacentRunwayRoute` when the aircraft is already at that runway, and refuses it otherwise (issue #393 — an under-specified clearance must never taxi an aircraft across the airport on a guessed route).
 
-  `FindRoute`/`FindRoutes` → `AutoRouter` A* chooses the taxiways too. Empty-path runway destinations use `FindRunwayRoute`: it evaluates runway hold-shorts in threshold order, materializes each as a runway destination, and prefers the first route that stops at a real near-side destination hold-short without traversing the destination runway surface. This prevents the full-length target choice from crossing the departure runway to a geometrically closer opposite-side hold-short.
+  `FindRoute`/`FindRoutes`/`FindRouteToNearestGoal` → `AutoRouter` A* chooses the taxiways too.
+
+  Empty-path runway destinations use `FindRunwayRoute`: it evaluates runway hold-shorts in threshold order, materializes each as a runway destination, and prefers the first route that stops at a real near-side destination hold-short without traversing the destination runway surface. This prevents the full-length target choice from crossing the departure runway to a geometrically closer opposite-side hold-short.
 
 After the route returns, `GroundCommandHandler` owns everything the pathfinder does **not**: dynamic hold-short stop positions (`HoldShortAnnotator.ComputeHoldShortPositions`), implicit first-crossing clearance, `TaxiRouteAutoCross`, `CROSS`-keyword pre-clearing, runway auto-detection, and phase handoff to `TaxiingPhase`. The pathfinder produces the *unauthorized-baseline* route; clearance flagging is downstream.
 
@@ -111,12 +117,14 @@ An ARTCC can mark taxiways an airport's **auto** routes should avoid via the `av
 
 `SearchContext.Compile` resolves the set for `Layout.AirportId` via `AirportSidecars.GetAvoidedTaxiways` and sets `AvoidMode = HardExclude` **only for auto routes** (empty waypoint sequence); an explicit named-taxiway path keeps `AvoidMode = Off`, so `SegmentExpander` and controller `TAXI` commands are never re-routed.
 
-`TaxiPathfinder.FindRoute`/`FindRoutes` run a **two pass** search via `RunWithAvoidance`:
+`TaxiPathfinder.FindRoute`/`FindRoutes`/`FindRouteToNearestGoal` run a **two pass** search via `RunWithAvoidance<T>`, which takes the search to run once per pass (`AutoRouter.Run` or `AutoRouter.RunToGoals`), so the single-goal and goal-set searches share one relax:
 
 1. **Pass 1 — hard exclude.** `AutoRouter.RunAstar` skips any edge whose `ResolveTaxiwayName` is in `ctx.AvoidedTaxiways` (the edge is never expanded — a reachability gate, not a cost). If a route is found, it is returned and the avoided taxiway is guaranteed unused.
-2. **Pass 2 — soft penalty (fallback).** Only when pass 1 finds no route, the search re-runs with `AvoidMode = SoftPenalty`: avoided edges are permitted but charged `RouteCostFunction.AvoidedTaxiwayFirstUseCostNm` (5.0 nm-equivalent, first-use only, finite). This keeps a destination reachable only through the avoided taxiway (e.g. a parking spot that hangs off it) resolvable while minimising the avoided mileage.
+2. **Pass 2 — soft penalty (fallback).** Only when pass 1 finds no route and the context has a hard gate (`SearchContext.HasHardGates`), the search re-runs on `SearchContext.RelaxHardGates()`, which turns `AvoidMode = HardExclude` into `SoftPenalty` and `OneWayMode = HardExclude` into `Warn` and keeps any mode that is not hard.
 
-Exclusion is by the **resolved** taxiway name: a junction arc that *continues along* the avoided taxiway is excluded, while one that merely *crosses* it (continuing another taxiway) is not. When the avoided set is empty or the airport is unconfigured, `AvoidMode = Off` and `RunWithAvoidance` is a single, unchanged search — no second pass, no added cost.
+   Under `SoftPenalty`, avoided edges are permitted but charged `RouteCostFunction.AvoidedTaxiwayFirstUseCostNm` (5.0 nm-equivalent, first-use only, finite). This keeps a destination reachable only through the avoided taxiway (e.g. a parking spot that hangs off it) resolvable while minimising the avoided mileage.
+
+Exclusion is by the **resolved** taxiway name: a junction arc that *continues along* the avoided taxiway is excluded, while one that merely *crosses* it (continuing another taxiway) is not. When the avoided set is empty or the airport is unconfigured, `AvoidMode = Off`; with no hard one-way gate either (`HasHardGates` false), `RunWithAvoidance` is a single, unchanged search — no second pass, no added cost.
 
 ### One-way taxiways (per-ARTCC)
 
@@ -709,7 +717,7 @@ Every `VirtualNode` id is a function of its position (FNV-1a over the 1e-7° cel
 
 ### Auto-route walkthrough (`AutoRouter.Run`)
 
-`AutoRouter.Run` (`src/Yaat.Sim/Data/Airport/Pathfinding/AutoRouter.cs:31`) is a flat A* over the whole layout, used by `FindRoute`/`FindRoutes`, the explicit-mode parking extension, the detour fallback, and node-ref routing.
+`AutoRouter.Run` (`src/Yaat.Sim/Data/Airport/Pathfinding/AutoRouter.cs:40`) is a flat A* over the whole layout, used by `FindRoute`/`FindRoutes`, the explicit-mode parking extension, the detour fallback, and node-ref routing.
 
 - Resolves the destination node (runway → `FindFullLengthLineupHoldShort`; parking/spot/node → the resolved id).
 - A* with a `PriorityQueue<PartialRoute, double>`, a `(nodeId, arrival-bearing-bucket, arrival-taxiway)`-keyed `bestGScore` map for state-aware duplicate pruning, and the `GeometricAdmissibility` hard gate on every edge. `IncrementalCost` prices each edge. Heuristic = straight-line nm. Cap: **`MaxExpansions = 200_000`** → `SearchExhausted` (SFO cross-field routes legitimately explore 100k+).
@@ -721,6 +729,18 @@ Every `VirtualNode` id is a function of its position (FNV-1a over the 1e-7° cel
 
   It is finite, g-score-only (never in the heuristic), and applied equally to every first-edge candidate, so a genuinely-required reversal (the only route goes backward) still wins.
 - Zero-distance edges (`< NoOpEdgeThresholdNm ≈ 1.2 ft`) are no-ops: admitted unconditionally, and downstream propagates the prior arrival bearing through them rather than reading the edge's meaningless stored bearing (fillet emits these at co-located nodes).
+
+### Goal-set search (`AutoRouter.RunToGoals`)
+
+`AutoRouter.RunToGoals(ctx, goals)` runs the same A* toward a set of goal nodes and stops at the first goal it pops, which is the cheapest to reach. It is one pass, not one search per goal.
+
+`TaxiPathfinder.FindRouteToNearestGoal` is its entry point: it drops ids not in the layout, orders the rest by id, compiles `FindRoute`'s node context against the first goal (a node context names one destination), and runs `RunToGoals` through `RunWithAvoidance<T>`. `FOLLOWG`'s planner uses it to find where a follower joins its lead's path (see [navigator.md](./navigator.md#followg-joining-the-leads-taxi-path)).
+
+- **Goals.** `GoalSet` holds the goal nodes; a node satisfies the destination on an exact id match. A start that is itself a goal returns at once: that goal, a zero-segment route, cost 0.
+- **Heuristic.** The least `RouteCostFunction.Heuristic` over the goals. It never exceeds the heuristic to the optimal goal, which never exceeds the cost of reaching it, so it stays admissible. With more than one goal it is memoised per node id, since each evaluation is a pass over the goals; a single goal computes it directly.
+- **Materialisation.** `RunAstar` returns the edge list, and `SearchToGoals` materialises it against the context re-targeted at the goal reached (`MaterialiseContext`: a node destination gets that goal as its `TargetNodeId`; any other destination keeps its descriptor, since a runway route truncates at its first lineup hold-short). The same-side runway-centerline check and its banned-move re-run (up to three attempts) run on the materialised route.
+- **One search for both.** `Run` (through `RunWithCost`) is `SearchToGoals` over a one-goal set, so a goal-set route to a goal matches `FindRoute`'s route to that goal edge for edge.
+- **Result.** A `GoalRoute(GoalNodeId, Route, Cost)`. `Cost` is the search's own cost of the route — every `IncrementalCost` term, not just its length. `RunToGoals` throws `InvalidOperationException` when the materialised route does not end at the goal the search reached.
 
 ---
 
@@ -782,14 +802,14 @@ Both live in `src/Yaat.Sim/Data/Airport/ExplicitPathOptions.cs`.
 
 | File | Role |
 |---|---|
-| `src/Yaat.Sim/Data/Airport/TaxiPathfinder.cs` | Entry point: static methods (`ResolveExplicitPath`, `FindRoute`, `FindRampConfinedRoute`, `FindRunwayRoute`, `FindAdjacentRunwayRoute`, `FindRoutes`, `FindFullLengthLineupHoldShort`) that compile `SearchContext` (category and wake class) and delegate to drivers. |
+| `src/Yaat.Sim/Data/Airport/TaxiPathfinder.cs` | Entry point: static methods (`ResolveExplicitPathDetailed`, `ResolveExplicitPath`, `FindRoute`, `FindRouteToNearestGoal`, `FindRampConfinedRoute`, `FindRunwayRoute`, `FindAdjacentRunwayRoute`, `FindRoutes`, `FindFullLengthLineupHoldShort`) that compile `SearchContext` (category and wake class) and delegate to drivers; `RunWithAvoidance<T>` is the two-pass relax `FindRoute`, `FindRoutes` and `FindRouteToNearestGoal` share. |
 | `src/Yaat.Sim/Data/Airport/ExplicitPathOptions.cs` | `RoutePreference` enum + `ExplicitPathOptions` input class. |
 | `src/Yaat.Sim/Data/Airport/Pathfinding/SegmentExpander.cs` | Explicit-mode driver: junction selection with look-ahead, variant resolution, mandatory-connector insertion. |
-| `src/Yaat.Sim/Data/Airport/Pathfinding/AutoRouter.cs` | Auto-mode A*: flat best-first search over the full layout. |
+| `src/Yaat.Sim/Data/Airport/Pathfinding/AutoRouter.cs` | Auto-mode A*: flat best-first search over the full layout, to one destination (`Run`, `RunWithCost`) or to the cheapest of a goal set (`RunToGoals` → `GoalRoute`). |
 | `src/Yaat.Sim/Data/Airport/Pathfinding/RouteCostFunction.cs` | Unified cost function + straight-line heuristic. |
 | `src/Yaat.Sim/Data/Airport/Pathfinding/GeometricAdmissibility.cs` | Heading-delta gate (`CategoryLimits`, `IsAdmissible`). |
 | `src/Yaat.Sim/Data/Airport/Pathfinding/RouteMaterialiser.cs` | Edges → `TaxiRoute`: hold-short annotation, truncation, warning generation. |
-| `src/Yaat.Sim/Data/Airport/Pathfinding/SearchContext.cs` | Compiled per-call context: start node, destination, authorized taxiways, category, wake class (which one-way constraints bind), preferences, diagnostics. |
+| `src/Yaat.Sim/Data/Airport/Pathfinding/SearchContext.cs` | Compiled per-call context: start node, destination, authorized taxiways, category, wake class (which one-way constraints bind), preferences, diagnostics; `HasHardGates` / `RelaxHardGates()` for the two-pass relax. |
 | `src/Yaat.Sim/Data/Airport/Pathfinding/PartialRoute.cs` | Immutable linked-list search state: head node, arrival bearing, cumulative cost, `VisitedNodeIds`. |
 | `src/Yaat.Sim/Data/Airport/Pathfinding/VisitedNodeSet.cs` | Per-route visited-node set: immutable sorted `int[]`, copy-on-`Add`, binary-search `Contains` (replaced `ImmutableHashSet<int>`, whose tree nodes were the search's dominant allocation). |
 | `src/Yaat.Sim/Data/Airport/Pathfinding/PathfindingFailure.cs` | Structured failure: `FailureKind` enum + human message. |

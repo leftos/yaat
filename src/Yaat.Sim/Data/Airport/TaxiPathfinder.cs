@@ -131,24 +131,43 @@ public static class TaxiPathfinder
         WakeTurbulenceData.WakeClass wakeClass
     )
     {
-        var ctx = SearchContext.Compile(
-            layout,
-            fromNodeId,
-            waypointSequence: [],
-            destinationRunway: null,
-            destinationParking: null,
-            destinationSpot: null,
-            destinationNodeId: toNodeId,
-            explicitHoldShorts: null,
-            category: category,
-            wakeClass: wakeClass,
-            preference: RoutePreference.FewestTurns,
-            diagnosticLog: null,
-            waypointTurnHints: null,
-            startHeadingTrue: null
-        );
+        SearchContext ctx = BuildNodeContext(layout, fromNodeId, toNodeId, RoutePreference.FewestTurns, null, category, wakeClass);
+        (TaxiRoute? route, PathfindingFailure? _) = RunWithAvoidance(ctx, c => AutoRouter.Run(c));
+        return route;
+    }
 
-        (TaxiRoute? route, PathfindingFailure? _) = RunWithAvoidance(ctx);
+    /// <summary>
+    /// The route from <paramref name="fromNodeId"/> to whichever of <paramref name="goalNodeIds"/> is cheapest to reach, found
+    /// in one A* pass (<see cref="AutoRouter.RunToGoals"/>) under the context, cost model and two avoidance passes of
+    /// <see cref="FindRoute"/>, and materialised as <see cref="FindRoute"/> would materialise a route to the goal it reached.
+    /// </summary>
+    /// <param name="layout">The airport ground layout.</param>
+    /// <param name="fromNodeId">The node the route starts at.</param>
+    /// <param name="goalNodeIds">The goal nodes; ids not in the layout are ignored.</param>
+    /// <param name="category">The aircraft's performance category, for geometric admissibility and costs.</param>
+    /// <param name="wakeClass">The aircraft's wake-turbulence class.</param>
+    /// <returns>
+    /// The goal reached and the route to it — no segments when the start is itself a goal — or null when the goal set is
+    /// empty, the start is not in the layout, or no goal is reachable.
+    /// </returns>
+    public static GoalRoute? FindRouteToNearestGoal(
+        AirportGroundLayout layout,
+        int fromNodeId,
+        IReadOnlySet<int> goalNodeIds,
+        AircraftCategory category,
+        WakeTurbulenceData.WakeClass wakeClass
+    )
+    {
+        List<GroundNode> goals = [.. goalNodeIds.Order().Where(layout.Nodes.ContainsKey).Select(id => layout.Nodes[id])];
+        if (goals.Count == 0)
+        {
+            return null;
+        }
+
+        // Compiled against goals[0] only because a node context names one destination: the goal-set search reads the goal
+        // list, and re-targets the context at the goal it reached before materialising the route.
+        SearchContext ctx = BuildNodeContext(layout, fromNodeId, goals[0].Id, RoutePreference.FewestTurns, null, category, wakeClass);
+        (GoalRoute? route, PathfindingFailure? _) = RunWithAvoidance(ctx, c => AutoRouter.RunToGoals(c, goals));
         return route;
     }
 
@@ -436,7 +455,7 @@ public static class TaxiPathfinder
         if (preference is not null)
         {
             SearchContext ctx = BuildNodeContext(layout, fromNodeId, toNodeId, preference.Value, authorizedTaxiways, category, wakeClass);
-            (TaxiRoute? route, PathfindingFailure? _) = RunWithAvoidance(ctx);
+            (TaxiRoute? route, PathfindingFailure? _) = RunWithAvoidance(ctx, c => AutoRouter.Run(c));
             return route is not null ? [route] : [];
         }
 
@@ -452,7 +471,7 @@ public static class TaxiPathfinder
             }
 
             SearchContext ctx = BuildNodeContext(layout, fromNodeId, toNodeId, pref, authorizedTaxiways, category, wakeClass);
-            (TaxiRoute? route, PathfindingFailure? _) = RunWithAvoidance(ctx);
+            (TaxiRoute? route, PathfindingFailure? _) = RunWithAvoidance(ctx, c => AutoRouter.Run(c));
 
             if (route is null)
             {
@@ -489,34 +508,22 @@ public static class TaxiPathfinder
     /// warned — so a destination reachable only through an avoided taxiway or against a one-way still
     /// resolves while deviating minimally. With neither hard gate active this is a single, unchanged search.
     /// </summary>
-    private static (TaxiRoute? Route, PathfindingFailure? Failure) RunWithAvoidance(SearchContext ctx)
+    /// <param name="ctx">The search context; its hard gates (<see cref="SearchContext.HasHardGates"/>) are pass 1's.</param>
+    /// <param name="run">The search to run once per pass: a single-goal or a goal-set A*.</param>
+    private static (T? Value, PathfindingFailure? Failure) RunWithAvoidance<T>(
+        SearchContext ctx,
+        Func<SearchContext, (T? Value, PathfindingFailure? Failure)> run
+    )
+        where T : class
     {
-        bool hardAvoid = ctx.AvoidMode == AvoidTaxiwayMode.HardExclude;
-        bool hardOneWay = ctx.OneWayMode == OneWayMode.HardExclude;
-        if (!hardAvoid && !hardOneWay)
-        {
-            return AutoRouter.Run(ctx);
-        }
-
-        (TaxiRoute? Route, PathfindingFailure? Failure) pass1 = AutoRouter.Run(ctx);
-        if (pass1.Route is not null)
+        (T? Value, PathfindingFailure? Failure) pass1 = run(ctx);
+        if ((pass1.Value is not null) || !ctx.HasHardGates)
         {
             return pass1;
         }
 
         ctx.DiagnosticLog?.Invoke("[avoid/one-way] pass 1 (hard-exclude) found no route; retrying with gates relaxed");
-        SearchContext relaxed = ctx;
-        if (hardAvoid)
-        {
-            relaxed = relaxed with { AvoidMode = AvoidTaxiwayMode.SoftPenalty };
-        }
-
-        if (hardOneWay)
-        {
-            relaxed = relaxed with { OneWayMode = OneWayMode.Warn };
-        }
-
-        return AutoRouter.Run(relaxed);
+        return run(ctx.RelaxHardGates());
     }
 
     private static SearchContext BuildNodeContext(

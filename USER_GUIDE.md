@@ -644,6 +644,12 @@ Left-click (or right-click) a dot to open the point menu, with the same icon str
 
 In that menu, "Taxi here" routes to that runway end and offers the RWY (taxi onto the runway end), HS (hold short), and progressive crossing variants; "Custom taxi…" is pre-filled with `RWY {end} TAXI`; then "Warp here" and "Draw taxi route…" from that hold short.
 
+**Following on the ground.** `FOLLOWG SWA123` is checked when you issue it: the aircraft must be able to join SWA123's taxi path, meaning the taxiways SWA123 has just driven, the one it is on, and the rest of its route.
+
+When no taxi route reaches that path, the command is refused with *"unable, no taxi route to SWA123's route"*. When the aircraft already stands on SWA123's route ahead of it, where following would mean taxiing into it, it is refused with *"unable, ahead of SWA123 on its route — issue HOLD, GIVEWAY or TAXI first"*. The same check runs when the follow is armed at a runway hold-short.
+
+A leader still pushing back or parked on its stand, or not yet on a taxiway, has no path to check, so the follow is accepted.
+
 **Draw taxi route mode:** Right-click a node or aircraft and select "Draw taxi route…" to enter draw mode. The aircraft's menu offers it on the Radar View and in the Aircraft List too: picking it there switches to the Ground View (or brings its window forward) and starts drawing on it.
 
 Click nodes to add waypoints — the route is computed via A* between consecutive waypoints. Hover shows a dashed preview. Right-click to finish. Backspace undoes the last waypoint, Escape cancels. The aircraft taxis **exactly the route you drew** — it commits the full path, so it won't substitute a parallel taxiway between your waypoints.

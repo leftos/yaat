@@ -24,6 +24,8 @@ GeoJSON ─► TaxiwayGraphBuilder ─► [1] Fillet generator ─► filleted g
 
 **Runway hold-short bars** are seated at graph-build time, *before* the fillet generator — the constant perpendicular standoff from the runway centerline, angle-independent. See [`hold-short-placement.md`](./hold-short-placement.md) · `RunwayCrossingDetector`.
 
+**Ground follow (`FOLLOWG`)** is checked when issued: the follower must be able to join the lead's taxi path (its trail, the edge it is on, its remaining route) through the pathfinder's goal-set search, and must not stand ahead of the lead on it. See [`navigator.md`](./navigator.md#followg-joining-the-leads-taxi-path) · `FollowRoutePlanner`, `TaxiPathfinder.FindRouteToNearestGoal`.
+
 ## Decided ground-movement rules not built yet
 
 - **Air taxi across runways (`ATXI`).** `AirTaxiPhase` flies direct from the ramp to the target and coordinates no runway crossing on the way, though an air taxi is a ground movement that needs an explicit clearance for every runway it crosses (AIM 4-3-18.a.5 via 4-3-17.b.3; 7110.65 §3-7-2.a.3, carried by §3-11-1.c's `VIA (route)` clause). The rule: keep the direct path, and at issue time warn the instructor naming each runway the direct path crosses.
