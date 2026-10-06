@@ -12,6 +12,12 @@
 - [x] YAAT-354 Add screenshots to Getting Started and the User Guide · release vNext — High · Wave 9 — Docs and repo hygiene
 - [x] YAAT-228 release.yml drops the changelog output as 'may contain secret', leaving the draft's Changelog empty · release vNext — High · Singles
 
+## Precompute cache (feat/precompute-cache)
+
+- [ ] YAAT-440 Group, filter and distance-label the ground view's Push Back To submenu
+- [ ] YAAT-450 Investigate what else to precompute offline from vNAS, GeoJSON, FAA, CIFP and NavData data
+- [ ] YAAT-466 Replay and restore a recording against the airport layouts it bundles
+
 ## Follow on the taxi graph (feat/follow-on-graph)
 
 - [/] YAAT-316 FOLLOWG follower cuts across the field off the taxiways and can bypass a runway hold line · release vNext
@@ -74,15 +80,29 @@
 - [x] YAAT-16 Merge feat/context-menu-quick-commands (#471, yaat-server#21) · release vNext
 - [x] YAAT-275 Ground right-click on a runway surface offers taxi to that runway (nearest hold short) · release vNext
 - [x] YAAT-224 Open the command and note flyouts through MenuPopups; drop the unreachable blank-input branches · release vNext
-- [/] YAAT-440 Group, filter and distance-label the ground view's Push Back To submenu
-- [/] YAAT-441 Show a live label naming the quick-command icon under the pointer
-- [/] YAAT-442 Offer the quick-command icons when right-clicking a taxi node with a parked aircraft selected
-- [ ] YAAT-443 Review the ground and radar quick-action UX and propose changes
+- [x] YAAT-441 Show a live label naming the quick-command icon under the pointer · release vNext
+- [x] YAAT-442 Offer the quick-command icons when right-clicking a taxi node with a parked aircraft selected · release vNext
+- [x] YAAT-443 Review the ground and radar quick-action UX and propose changes · release vNext
 - [ ] YAAT-445 Seed the context menu's heading pickers and warp popup with magnetic heading, not true
 - [ ] YAAT-446 Stop the Temporary altitude and Cruise popups throwing on FL or comma input
 - [ ] YAAT-447 Keep unspawned aircraft out of the Follow and Give way to lists
 - [ ] YAAT-448 Stop the Hold short submenu offering fillet names the server refuses
 - [ ] YAAT-449 Find why a grounded aircraft can end with no phase, and give it ground menus
+- [ ] YAAT-451 Group the cleared-approach picker by runway and name the smart default
+- [ ] YAAT-452 Put relative traffic actions on top of the radar menu and list nearby traffic for Report traffic
+- [ ] YAAT-453 Open the maintain-altitude picker at the aircraft's altitude, mark climb or descend, grey rows below the MVA
+- [ ] YAAT-454 Name the receiving aircraft in the radar point menu header and add its quick icons
+- [ ] YAAT-455 Show only the items that apply in the radar Track submenu
+- [ ] YAAT-456 Fix quick-command labels and give every quick command a glyph
+- [ ] YAAT-457 List Direct-to fixes from the aircraft's next fix on
+- [ ] YAAT-458 Offer speed picker values from the aircraft's own type performance
+- [ ] YAAT-459 List Hold short bars along the route, nearest first, one row per runway
+- [ ] YAAT-460 Add Taxi to runway ▸ to the ground aircraft menu, with via and distance per entry point
+- [ ] YAAT-461 Ask the mentor for the active runways on scenario load when the scenario leaves them unclear
+- [ ] YAAT-462 Split the Follow and Give way lists into Moving and Parked, with type, state and distance
+- [ ] YAAT-463 Offer the named exits ahead on the landing roll
+- [ ] YAAT-464 Name the aircraft and its action in the ground point menu header; offer Push route only from tug-reachable points
+- [ ] YAAT-465 Open every aircraft context menu with a one-line state header
 
 ## Client surfaces redesign
 
