@@ -1,6 +1,8 @@
 # Hold for Release (HFR / REL)
 
-**Read before touching** `HeldReleaseService`, `DepartureSpawnClassifier`, the hold-for-release gates in `CommandDispatcher` / `TaxiingPhase` / `SimulationEngine`, the `RundownDto` broadcast, `RunwaySpawnCall`'s release request, or any `HeldForRelease` / `ReleasedForDeparture` / `ReleasedAtSpawnGate` field. Companion to [`scenario-loading-and-generation.md`](scenario-loading-and-generation.md) (spawn pipelines), [`phases.md`](phases.md) (HoldingShortPhase), [`command-pipeline.md`](command-pipeline.md) (group-command routing), [`training-hub-contract.md`](training-hub-contract.md) (the broadcast), and [`solo-training-pilot-speech.md`](solo-training-pilot-speech.md) (the runway spawns' release request).
+**Read before touching** `HeldReleaseService`, `DepartureSpawnClassifier`, the hold-for-release gates in `CommandDispatcher` / `TaxiingPhase` / `SimulationEngine`, the `RundownDto` broadcast, `RunwaySpawnCall`'s release request, or any `HeldForRelease` / `ReleasedForDeparture` / `ReleasedAtSpawnGate` field.
+
+Companion to [`scenario-loading-and-generation.md`](scenario-loading-and-generation.md) (spawn pipelines), [`phases.md`](phases.md) (HoldingShortPhase), [`command-pipeline.md`](command-pipeline.md) (group-command routing), [`training-hub-contract.md`](training-hub-contract.md) (the broadcast), and [`solo-training-pilot-speech.md`](solo-training-pilot-speech.md) (the runway spawns' release request).
 
 GitHub issue: https://github.com/leftos/yaat/issues/168
 
@@ -66,7 +68,9 @@ it *on* the runway — both `LineUpAndWait` (→ `HoldingInPositionPhase`/LUAW, 
 
 1. **Command issuance** — `CommandDispatcher.TryApplyTowerCommand` rejects CTO/CTOPP/LUAW in the first block of a dispatch with `"{cs} is held for release at {dep} — REL {cs} first"`, so a CTO the RPO types while the departure is held is refused. A held departure's CTO/CTOPP/LUAW is never refused in two other cases; it waits instead and fires on the first tick after `REL` or `HFROFF` lifts the hold, in every room:
    - a **timed** preset whose first block carries CTO, CTOPP or LUAW and falls due while the departure is held is not dispatched: `SimulationEngine.ProcessTimedPresets` keeps it queued (`IsHeldUntilRelease`), with no warning, and every later-due preset for that aircraft waits behind it. On the release the held presets dispatch in fire-time order (a `LUAW` at +30 s before a `CTO` at +60 s; presets due the same second keep the queue's reverse order);
-   - a **chained or triggered** CTO/CTOPP/LUAW block (a timed preset `TAXIAUTO 28R; CTO`, the same chain typed, or `AT B CTO`) stays unapplied in the aircraft's command queue when its turn comes (`FlightPhysics.WaitsForRelease`, checked at the top of `FlightPhysics.ApplyBlock`), with its chain intact, and the terminal shows `SWA1234 CTO waits for the release` once: the aircraft taxis, stops at the bar, and takes off on that CTO once released. Triggered blocks queued behind it still fire ([command-chaining.md](command-chaining.md), "Abort on fire-time failure"). A new non-conditional command for the aircraft runs the usual dimension-aware queue clear, which can drop the waiting block with the queue-clear warning.
+   - a **chained or triggered** CTO/CTOPP/LUAW block (a timed preset `TAXIAUTO 28R; CTO`, the same chain typed, or `AT B CTO`) stays unapplied in the aircraft's command queue when its turn comes (`FlightPhysics.WaitsForRelease`, checked at the top of `FlightPhysics.ApplyBlock`), with its chain intact, and the terminal shows `SWA1234 CTO waits for the release` once: the aircraft taxis, stops at the bar, and takes off on that CTO once released.
+
+     Triggered blocks queued behind it still fire ([command-chaining.md](command-chaining.md), "Abort on fire-time failure"). A new non-conditional command for the aircraft runs the usual dimension-aware queue clear, which can drop the waiting block with the queue-clear warning.
 
    The three gates share one set of runway-entry commands, `HeldReleaseService.IsRunwayEntryCommand`.
 
@@ -75,7 +79,9 @@ it *on* the runway — both `LineUpAndWait` (→ `HoldingInPositionPhase`/LUAW, 
    stored departure clearance while `Ground.HeldForRelease`, catching the one path that isn't a fresh
    command issuance (a clearance issued before the airport was armed).
 
-**Why `HoldingShortPhase` and not LUAW:** a departure with no LUAW/CTO clearance already sits in the existing `HoldingShortPhase` indefinitely (it is gated on a `RunwayCrossing` requirement satisfied only by CROSS/LUAW/CTO). `HoldingInPositionPhase` / `LinedUpAndWaitingPhase` are the *on-runway* states. So withholding runway-entry clearance keeps a held departure off the runway with **no new hold phase**. The release auto-CTO (below) runs only once the hold is lifted, so it needs no gate of its own — those two reads are the whole gate.
+**Why `HoldingShortPhase` and not LUAW:** a departure with no LUAW/CTO clearance already sits in the existing `HoldingShortPhase` indefinitely (it is gated on a `RunwayCrossing` requirement satisfied only by CROSS/LUAW/CTO). `HoldingInPositionPhase` / `LinedUpAndWaitingPhase` are the *on-runway* states.
+
+So withholding runway-entry clearance keeps a held departure off the runway with **no new hold phase**. The release auto-CTO (below) runs only once the hold is lifted, so it needs no gate of its own — those two reads are the whole gate.
 
 ## Release flow
 
@@ -89,8 +95,18 @@ it *on* the runway — both `LineUpAndWait` (→ `HoldingInPositionPhase`/LUAW, 
 
 `ReleaseOne` acts by spawn state:
 
-- **Held runway/airborne spawn** — clear `DelayedSpawn.HeldForRelease`, set `Ground.ReleasedAtSpawnGate`, and set `SpawnAtSeconds = Elapsed + Rng(20..60)` so `ProcessDelayedSpawns` spawns it shortly after (it appears climbing, or lined up on its runway — never on the release tick). A runway spawn with no scripted takeoff then leaves as described under [Release requests from untowered runway spawns](#release-requests-from-untowered-runway-spawns): on its own in a solo room, on the RPO's `CTO` in an RPO room.
-- **Held ground departure** — `ReleaseHeldGroundDeparture`: clear `Ground.HeldForRelease`, set `ReleasedForDeparture = true` and `ReleasedAtSeconds`, and answer the aircraft's open `Release` pending request (`PilotRequestTracker.SatisfyOpenRequest`), if it made one, which also clears the frequency's awaiting-controller-response gate (`SimulationWorld.AcknowledgeControllerResponse`). A CTO waiting in the aircraft's queue or as a held timed preset fires on the next tick. What follows depends on the room. In an **RPO room** nothing departs on its own: `SimulationEngine.ProcessReleasedGroundDepartures` clears `ReleasedForDeparture` on the next tick, and the released departure waits for the RPO's `CTO` or its timed preset (which fires now that the hold is lifted). In a **solo room** `ProcessReleasedGroundDepartures` waits until the aircraft is at its **departure** runway — holding short of it, or lined up on it as a runway spawn with no scripted takeoff that asked for its release or was released through the spawn gate (`IsAtItsDepartureRunway`) — and a deterministic 5–20 s readback jitter has elapsed, then auto-issues `CTO` (`AutoIssueTakeoffClearance`, terminal note "[HFR] Released — cleared for takeoff"). A released departure that is already cleared for takeoff (its own waiting CTO fired) or airborne gets no auto-`CTO`: its `ReleasedForDeparture` is cleared instead. `HoldingShortPhase` accepts CTO as `ClearsPhase` → the normal line-up → takeoff → climb sequence runs. Any other released departure the controller lines up waits for the controller's own `CTO`. The jitter is FNV-1a over the callsign (`DeterministicHash`, no salt, no RNG state) so replays reproduce; the spawn jitter uses `World.Rng` (the deterministic `SerializableRandom`).
+- **Held runway/airborne spawn** — clear `DelayedSpawn.HeldForRelease`, set `Ground.ReleasedAtSpawnGate`, and set `SpawnAtSeconds = Elapsed + Rng(20..60)` so `ProcessDelayedSpawns` spawns it shortly after (it appears climbing, or lined up on its runway — never on the release tick).
+
+  A runway spawn with no scripted takeoff then leaves as described under [Release requests from untowered runway spawns](#release-requests-from-untowered-runway-spawns): on its own in a solo room, on the RPO's `CTO` in an RPO room.
+- **Held ground departure** — `ReleaseHeldGroundDeparture`: clear `Ground.HeldForRelease`, set `ReleasedForDeparture = true` and `ReleasedAtSeconds`, and answer the aircraft's open `Release` pending request (`PilotRequestTracker.SatisfyOpenRequest`), if it made one, which also clears the frequency's awaiting-controller-response gate (`SimulationWorld.AcknowledgeControllerResponse`).
+
+  A CTO waiting in the aircraft's queue or as a held timed preset fires on the next tick. What follows depends on the room. In an **RPO room** nothing departs on its own: `SimulationEngine.ProcessReleasedGroundDepartures` clears `ReleasedForDeparture` on the next tick, and the released departure waits for the RPO's `CTO` or its timed preset (which fires now that the hold is lifted).
+
+  In a **solo room** `ProcessReleasedGroundDepartures` waits until the aircraft is at its **departure** runway — holding short of it, or lined up on it as a runway spawn with no scripted takeoff that asked for its release or was released through the spawn gate (`IsAtItsDepartureRunway`) — and a deterministic 5–20 s readback jitter has elapsed, then auto-issues `CTO` (`AutoIssueTakeoffClearance`, terminal note "[HFR] Released — cleared for takeoff").
+
+  A released departure that is already cleared for takeoff (its own waiting CTO fired) or airborne gets no auto-`CTO`: its `ReleasedForDeparture` is cleared instead. `HoldingShortPhase` accepts CTO as `ClearsPhase` → the normal line-up → takeoff → climb sequence runs.
+
+  Any other released departure the controller lines up waits for the controller's own `CTO`. The jitter is FNV-1a over the callsign (`DeterministicHash`, no salt, no RNG state) so replays reproduce; the spawn jitter uses `World.Rng` (the deterministic `SerializableRandom`).
 
 In a solo room the two paths are uniform from the controller's view: *released → airborne shortly*. In an RPO room *released* means only that the hold is lifted; the RPO (or a preset) still launches the departure.
 
@@ -143,7 +159,9 @@ The armed-airports set + held departures are **dynamic per-room state**, broadca
 
 ## Snapshot / replay
 
-All hold-for-release state survives `GetSnapshot`/recording so a rewind reproduces the exact held set: `HeldDepartureAirports` and `ReleaseQueue` → `ScenarioSnapshotDto`; `DelayedSpawn.HeldForRelease` → `DelayedSpawnDto`; `Ground.HeldForRelease` / `ReleasedForDeparture` / `ReleasedAtSeconds` / `ReleasedAtSpawnGate` → `AircraftGroundOpsDto`; a runway spawn's open or answered `Release` request → `AircraftSnapshotDto.PendingPilotRequest`. All optional-with-defaults so older snapshots deserialize. Determinism holds because the spawn jitter uses `World.Rng` and the auto-CTO and release-request delays are pure callsign hashes.
+All hold-for-release state survives `GetSnapshot`/recording so a rewind reproduces the exact held set: `HeldDepartureAirports` and `ReleaseQueue` → `ScenarioSnapshotDto`; `DelayedSpawn.HeldForRelease` → `DelayedSpawnDto`; `Ground.HeldForRelease` / `ReleasedForDeparture` / `ReleasedAtSeconds` / `ReleasedAtSpawnGate` → `AircraftGroundOpsDto`; a runway spawn's open or answered `Release` request → `AircraftSnapshotDto.PendingPilotRequest`.
+
+All optional-with-defaults so older snapshots deserialize. Determinism holds because the spawn jitter uses `World.Rng` and the auto-CTO and release-request delays are pure callsign hashes.
 
 ## Aviation basis
 

@@ -28,7 +28,11 @@ Each `{roomId}.checkpoint.zip` contains:
 
 Restore applies the final snapshot directly (no replay-from-zero). Coordination channel in-flight items are included in the scenario snapshot DTO. So are the standing ASDE-X safety alerts (`SimScenarioState.ActiveAsdexAlerts`): they ride the Sim snapshot through a prepared restart, so the first tick after it diffs against the alerts the displays were showing instead of announcing them again (`SessionPersistenceTests.PreparedRestart_RestoresTheActiveAlerts`).
 
-The room is registered in `TrainingRoomManager` before any of its state exists, so `RestoreRoomFromArchiveAsync` runs the whole rebuild — engine creation, the resource pin (`ScenarioLifecycleService.PinArchivedResourcesAsync`: the archived configs, the layouts fetched now, and the scenario's ARTCC configs loaded into the live caches too, which the position registry and the CRC broadcasts read), `ReloadForRewindAsync`, the snapshot and room-state restores, `LeavePlayback`, the attendance sync and the returned summary — under the room's tick gate (`TrainingRoom.GuardAsync`, the same semaphore `RoomTickLoopService` takes per second). Without it the tick loop could advance a half-restored room between the awaits. `TrainingRoomManager.RoomRegistered` (raised outside the manager's lock) is how `SessionPersistenceTests` takes the gate at registration and asserts the restore cannot finish while it is held.
+The room is registered in `TrainingRoomManager` before any of its state exists, so `RestoreRoomFromArchiveAsync` runs the whole rebuild under the room's tick gate (`TrainingRoom.GuardAsync`, the same semaphore `RoomTickLoopService` takes per second).
+
+The rebuild is engine creation, the resource pin (`ScenarioLifecycleService.PinArchivedResourcesAsync`: the archived configs, the layouts fetched now, and the scenario's ARTCC configs loaded into the live caches too, which the position registry and the CRC broadcasts read), `ReloadForRewindAsync`, the snapshot and room-state restores, `LeavePlayback`, the attendance sync and the returned summary.
+
+Without it the tick loop could advance a half-restored room between the awaits. `TrainingRoomManager.RoomRegistered` (raised outside the manager's lock) is how `SessionPersistenceTests` takes the gate at registration and asserts the restore cannot finish while it is held.
 
 Restored rooms report **zero members** until someone reconnects. A room member is a SignalR connection, and
 `TrainingRoomManager.CreateRestoredRoom` deliberately does not repopulate `TrainingRoom.Members` — only `RestoredMemberCids`
@@ -73,7 +77,9 @@ Flags:
 
 Requires `ADMIN_PASSWORD` in the yaat repo `.env` for session save. If missing or the server is unreachable, deploy continues with a warning.
 
-The step ordering matters: the `POST /admin/prepare-restart` call (step 1) runs against the **currently-running container**, before `git pull` and the rebuild (step 3). A fix to the prepare-restart code path therefore only ships with the deploy and is exercised for the first time on the **next** deploy — the deploy that delivers the fix still runs the old binary's prepare-restart. To validate a prepare-restart fix in the same session, probe the new container directly once the deploy reports the server is back up: `Invoke-RestMethod -Uri "https://yaat1.leftos.dev/admin/prepare-restart?drainSeconds=5" -Headers @{'X-Yaat-Admin-Password'=$pw}`. Probing leaves `_prepareCompleted=true` on the server; clear it with `docker compose restart yaat-server`.
+The step ordering matters: the `POST /admin/prepare-restart` call (step 1) runs against the **currently-running container**, before `git pull` and the rebuild (step 3). A fix to the prepare-restart code path therefore only ships with the deploy and is exercised for the first time on the **next** deploy — the deploy that delivers the fix still runs the old binary's prepare-restart.
+
+To validate a prepare-restart fix in the same session, probe the new container directly once the deploy reports the server is back up: `Invoke-RestMethod -Uri "https://yaat1.leftos.dev/admin/prepare-restart?drainSeconds=5" -Headers @{'X-Yaat-Admin-Password'=$pw}`. Probing leaves `_prepareCompleted=true` on the server; clear it with `docker compose restart yaat-server`.
 
 ## Deploy notes
 

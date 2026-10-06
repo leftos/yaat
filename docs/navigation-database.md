@@ -155,7 +155,9 @@ prepend `K` when it is ≤3 chars, because the CIFP file is keyed by ICAO id.
 
 ### A bare id shared by an airport and a navaid is the navaid
 
-About 450 airport FAA ids are also CIFP navaid ids (`SAC`, `OAK`, `CCR`, `LKV`). `GetFixPosition` resolves such a bare id to the **navaid**, including for an airport whose only id is its FAA id (`AZN`, `HEY`, `HGT`, `TNV`); for those, the index build adds `K<id>` as the airport's name when that key is otherwise free (user ruling 2026-09-28), so `DCT KHEY` reaches Hanchey and `DCT HEY` the HANCHEY navaid. So `DCT CCR` flies to the CONCORD VOR and `DCT KCCR` to Buchanan Field; scenario spawns and paths written with a bare colliding id sit on the navaid (LKV is 20.5 nm from its field, SAC 4.97 nm).
+About 450 airport FAA ids are also CIFP navaid ids (`SAC`, `OAK`, `CCR`, `LKV`). `GetFixPosition` resolves such a bare id to the **navaid**, including for an airport whose only id is its FAA id (`AZN`, `HEY`, `HGT`, `TNV`); for those, the index build adds `K<id>` as the airport's name when that key is otherwise free (user ruling 2026-09-28), so `DCT KHEY` reaches Hanchey and `DCT HEY` the HANCHEY navaid.
+
+So `DCT CCR` flies to the CONCORD VOR and `DCT KCCR` to Buchanan Field; scenario spawns and paths written with a bare colliding id sit on the navaid (LKV is 20.5 nm from its field, SAC 4.97 nm).
 
 A caller that means the airport never uses `GetFixPosition`:
 
@@ -260,7 +262,9 @@ scans each CIFP file **once per process** (keyed by path + length + mtime) into 
 then seeks straight to them. Most airports are one contiguous block; ~180 in the FAA file are split in two, so an airport maps to a
 list of ranges. The whole-file parsers (`Parse`, `ParseRunwayThresholdElevations`, `ParseNavaids`) still stream the file.
 
-`ParseNavaids` reads the VHF/NDB records of section D and the terminal NDBs of section PN into `CifpNavaid` (position, name, type and the station declination from columns 75–79, `G`/`T` read as 0); the first record for an ident wins. `NavigationDatabase.GetStationDeclination(navaidId)` returns it (east positive), and `GetPublishedCourseDeclination(navaid, airport, fix)` is the one declination every published approach course converts with: station declination, then the airport's variation of record, then the modelled declination.
+`ParseNavaids` reads the VHF/NDB records of section D and the terminal NDBs of section PN into `CifpNavaid` (position, name, type and the station declination from columns 75–79, `G`/`T` read as 0); the first record for an ident wins.
+
+`NavigationDatabase.GetStationDeclination(navaidId)` returns it (east positive), and `GetPublishedCourseDeclination(navaid, airport, fix)` is the one declination every published approach course converts with: station declination, then the airport's variation of record, then the modelled declination.
 
 ## Route expansion (`RouteExpander`)
 

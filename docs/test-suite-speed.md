@@ -35,7 +35,9 @@ so class grouping never becomes the constraint.
 Decisions:
 - Snapshot-seek already exists as **hybrid replay** (`Replay(recording, 0)` → `RestoreFromSnapshot` → `ReplayOneSecond`; `docs/e2e-tdd-issue-debugging.md` §5b, 51 test files use it). Converting from-zero `Replay(recording, N)` tests to it is a per-test judgment (hybrid tests only the post-T slice and can false-pass a fix that alters the path before T), so no blanket conversion was done.
 - Stay on xunit.v3 **3.2.2** (not 4.0.0): Avalonia.Headless.XUnit 12.1.0 pins `xunit.v3.extensibility.core 3.2.2`.
-- **Stay on xunit.v3, not TUnit** (evaluated in a worktree; git history has the evaluation plan `tunit-migration.md` with the probe-by-probe findings): the scheduling prize measures 0.0s (both scheduling models hit the same 50.7s divisibility bound), and TUnit's source generator adds ~5s to every incremental build at 9,306 cases — a penalty that grows linearly with test count. The edit-run loop would go from ~5.6s to ~10.4s. If it is ever revisited: TUnit and xunit.v3 cannot coexist in one test process (Microsoft.Testing.Platform hosts one framework), so a project converts big-bang, and the swap must be verified by *test count* (`--list-tests` reconciled against the baseline), not by a green summary.
+- **Stay on xunit.v3, not TUnit** (evaluated in a worktree; git history has the evaluation plan `tunit-migration.md` with the probe-by-probe findings): the scheduling prize measures 0.0s (both scheduling models hit the same 50.7s divisibility bound), and TUnit's source generator adds ~5s to every incremental build at 9,306 cases — a penalty that grows linearly with test count.
+
+  The edit-run loop would go from ~5.6s to ~10.4s. If it is ever revisited: TUnit and xunit.v3 cannot coexist in one test process (Microsoft.Testing.Platform hosts one framework), so a project converts big-bang, and the swap must be verified by *test count* (`--list-tests` reconciled against the baseline), not by a green summary.
 
 ## Tasks
 

@@ -1,6 +1,8 @@
 # H1 — Ground follow through a turn and a runway hold short
 
-**Rule.** An aircraft told to follow taxiing traffic falls in behind it and taxis where the traffic taxis, at a taxi gap (YAAT taxis at normal taxi speed until it is within about 180 ft of the lead, matches the lead's speed from there, and stops about 90 ft behind a stopped lead), through every turn the traffic makes. The follow is not a runway crossing clearance: where the traffic was cleared across a runway, the follower stops at that runway's holding position and waits for its own `CROSS`, then crosses and picks the follow up again.
+**Rule.** An aircraft told to follow taxiing traffic falls in behind it and taxis where the traffic taxis, at a taxi gap (YAAT taxis at normal taxi speed until it is within about 180 ft of the lead, matches the lead's speed from there, and stops about 90 ft behind a stopped lead), through every turn the traffic makes.
+
+The follow is not a runway crossing clearance: where the traffic was cleared across a runway, the follower stops at that runway's holding position and waits for its own `CROSS`, then crosses and picks the follow up again.
 
 **Student position.** Oakland Ground (`OAK_GND`, GC1); the scenario's `studentPositionId` is the ground position, so the solo pilots call and answer Ground. Oakland Tower is in the `atc` list.
 

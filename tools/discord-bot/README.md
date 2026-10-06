@@ -106,7 +106,9 @@ npx wrangler secret put KOFI_VERIFICATION_TOKEN   # from https://ko-fi.com/manag
 pnpm run deploy
 ```
 
-Then, on Ko-fi: set the webhook URL to `https://yaat-discord-bot.<you>.workers.dev/kofi`, and under Discord settings attach **One-time Supporter** / **Monthly Supporter** to the matching rewards (drag the Ko-fi bot's role above both in Server Settings → Roles — Ko-fi assigns and removes the roles, the worker only renders the ledger). Re-register the slash commands so `/support-refresh` and `/support-forget <transaction_id>` exist; the latter drops a dashboard test event or a refund from the ledger. The cost lives in `wrangler.toml` (`MONTHLY_COST_USD`), as does the page the embed links to (`KOFI_PAGE_URL`). Commit `support-config.json`.
+Then, on Ko-fi: set the webhook URL to `https://yaat-discord-bot.<you>.workers.dev/kofi`, and under Discord settings attach **One-time Supporter** / **Monthly Supporter** to the matching rewards (drag the Ko-fi bot's role above both in Server Settings → Roles — Ko-fi assigns and removes the roles, the worker only renders the ledger).
+
+Re-register the slash commands so `/support-refresh` and `/support-forget <transaction_id>` exist; the latter drops a dashboard test event or a refund from the ledger. The cost lives in `wrangler.toml` (`MONTHLY_COST_USD`), as does the page the embed links to (`KOFI_PAGE_URL`). Commit `support-config.json`.
 
 ## Tests
 

@@ -60,7 +60,9 @@ No phase is a technical layer, and no phase leaves either repo broken: `Yaat.Sim
 
 ### Phase 1 — One tick spine
 
-**Shipped 2026-09-04 as tick step 3c** — the tick-path unification programme ([`docs/plans/tick-path/`](../tick-path/README.md), ADRs [0001](../../adr/0001-state-equivalence-is-the-tick-contract.md)-[0006](../../adr/0006-decompose-simulationengine-before-adding-to-it.md)) owns it now. Every host that advances a sim-second runs one spine of typed steps in live order; adding a step to one host and not another is a compile error; the tick oracle records predicted-vs-got per sub-commit; desyncing recordings are triaged by name (ADR 0004), never silenced. **Requirements:** DET-03, subsumed. Phases 2–7 wait on the rest of that programme (steer 2026-09-02, `MAIN.md` Current focus).
+**Shipped 2026-09-04 as tick step 3c** — the tick-path unification programme ([`docs/plans/tick-path/`](../tick-path/README.md), ADRs [0001](../../adr/0001-state-equivalence-is-the-tick-contract.md)-[0006](../../adr/0006-decompose-simulationengine-before-adding-to-it.md)) owns it now.
+
+Every host that advances a sim-second runs one spine of typed steps in live order; adding a step to one host and not another is a compile error; the tick oracle records predicted-vs-got per sub-commit; desyncing recordings are triaged by name (ADR 0004), never silenced. **Requirements:** DET-03, subsumed. Phases 2–7 wait on the rest of that programme (steer 2026-09-02, `MAIN.md` Current focus).
 
 ### Phase 2 — Per-position frequency state
 

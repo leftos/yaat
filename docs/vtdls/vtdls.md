@@ -40,7 +40,9 @@ If you are working a facility that does utilize TDLS, that facility appears in t
 
 *Selecting a facility*
 
-If you are working a facility that assumes responsibility for one or more TDLS facilities when consolidated top-down, those child facilities also appear in the selection menu. For example, ALB, BDL, BOS, and PVD all utilize TDLS. When working ZBW (the parent ARTCC), all four facilities appear in the selection menu. While unrealistic, the parent facility (in this example ZBW) can also be selected to view flight plans from all child TDLS facilities on one consolidated page. For more information, see the [Switching Facilities](#switching-facilities) section of the documentation.
+If you are working a facility that assumes responsibility for one or more TDLS facilities when consolidated top-down, those child facilities also appear in the selection menu. For example, ALB, BDL, BOS, and PVD all utilize TDLS. When working ZBW (the parent ARTCC), all four facilities appear in the selection menu.
+
+While unrealistic, the parent facility (in this example ZBW) can also be selected to view flight plans from all child TDLS facilities on one consolidated page. For more information, see the [Switching Facilities](#switching-facilities) section of the documentation.
 
 ## TDLS Window Layout
 
@@ -188,7 +190,9 @@ Selecting an aircraft ID from the PDC list reopens the flight plan window. Howev
 
 ### Switching Facilities
 
-If multiple TDLS facilities are being worked top-down, the displayed facility is switched by pressing `Esc` or clicking the facility ID on the top-left of the header to open the Facility Menu. A different facility can then be selected from the **Change Facility** menu. While unrealistic, a parent facility can also be selected to view flight plans from all unstaffed child TDLS facilities on one consolidated page. The available [key commands](#key-commands) can also be used to quickly cycle through facilities.
+If multiple TDLS facilities are being worked top-down, the displayed facility is switched by pressing `Esc` or clicking the facility ID on the top-left of the header to open the Facility Menu. A different facility can then be selected from the **Change Facility** menu.
+
+While unrealistic, a parent facility can also be selected to view flight plans from all unstaffed child TDLS facilities on one consolidated page. The available [key commands](#key-commands) can also be used to quickly cycle through facilities.
 
 > ℹ️ When viewing a parent facility, only flight plans for unstaffed child facilities are displayed. When a child facility is staffed, flight plans for that facility are hidden and the facility's ID appears in the facility menu under **Hidden Facilities**. This filter can be enabled or disabled in the facility menu.
 

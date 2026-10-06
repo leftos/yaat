@@ -24,7 +24,10 @@ line, `gate: <path> not found; running without slots or watchdog`, so a run with
 Like the gate, and for the same reason, the options are read by hand out of $args rather than declared in a param
 block: a declared block sends the bare -- of a caller's command through PowerShell's parameter binder, which reads it
 as a parameter name and stops. The command is every word after a --, or, when the caller's session ate the separator,
-every word from the first that is not one of the options.
+every word from the first that is not one of the options. A caller that starts this launcher with -File gives the
+binder a -name:value word to split in $args, where the process argv keeps it whole, so the words are read from the argv
+in that case, and a -name:value word the binder left as -name: and value is joined back into one word, the gate this
+launcher forwards to and the fallback's command both getting it whole.
 
 Usage: pwsh tools/gate.ps1 -Log <path> -TimeoutSeconds <n> -Slot heavy|light|critical [-StallSeconds <n>] [-Tail <n>]
            [-NoMarkers] -- <command> [args...]
@@ -66,11 +69,77 @@ function Test-WholeNumber {
     return [int]::TryParse($Value, $style, [cultureinfo]::InvariantCulture, [ref]$number) -and $number -gt 0
 }
 
-# Reads the option at $At into $Options; returns how many words it took, or 0 having said why it could not.
+# The argv index of this process's own script file, or -1 when the call names none: the entry right after a -File form,
+# or the first entry that is not one of pwsh's own switches when there is no -File. A -Command/-EncodedCommand call
+# names no script file at all, and a switch pwsh gives a value of its own (an execution policy, a working directory, a
+# configuration name) has that value skipped with it.
+function Get-ScriptArgument {
+    param([string[]]$Argv)
+    $command = '^[-/](c(o(m(m(a(nd?)?)?)?)?)?|e(n(c(o(d(e(d(c(o(m(m(a(nd?)?)?)?)?)?)?)?)?)?)?)?)?|ec)$'
+    $withValue = '^[-/](ex|executionpolicy|wd|workingdirectory|config|configurationname|settingsfile' +
+        '|o|of|outputformat|if|inputformat|w|windowstyle|custompipename)$'
+    $index = 1
+    while ($index -lt $Argv.Count) {
+        $word = [string]$Argv[$index]
+        if ($word -match '^[-/]f(i(le?)?)?$') {
+            if ($index + 1 -lt $Argv.Count) { return $index + 1 }
+            return -1
+        }
+        if ($word -match $command) { return -1 }
+        if ($word -notmatch '^[-/]') { return $index }
+        if ($word -match $withValue) { $index += 2 } else { $index++ }
+    }
+    return -1
+}
+
+# The words this call was given. A caller that starts this script with `pwsh -File` has PowerShell's binder split a
+# -name:value word of the call inside $args, so the process argv, which keeps every word whole, is read instead: the
+# words are every argv entry after this script's own file argument. A call that never names this script as its file
+# argument - an in-session `& script.ps1` call, an in-process call from another script, a caller whose own -File script
+# holds this path as one of its arguments - gets $args as it always did.
+function Get-RawWord {
+    param([object[]]$Fallback)
+    $argv = [Environment]::GetCommandLineArgs()
+    $at = Get-ScriptArgument -Argv $argv
+    if ($at -lt 0) { return @($Fallback) }
+    $full = $null
+    # An entry that is not a legal path resolves to nothing and is simply not this script's own file argument.
+    try { $full = [System.IO.Path]::GetFullPath([string]$argv[$at], [Environment]::CurrentDirectory) }
+    catch { $full = $null }
+    $mine = [System.IO.Path]::GetFullPath($PSCommandPath)
+    if ($full -and [string]::Equals($full, $mine, [System.StringComparison]::OrdinalIgnoreCase)) {
+        return @($argv | Select-Object -Skip ($at + 1))
+    }
+    return @($Fallback)
+}
+
+# A caller that splats an array holding one array, as `& $gate ... -- @cmd` does, hands one word of the call a list of
+# its own; the launcher passes it on the way a native call would, replacing every element that is itself a list, and not
+# a string, by its elements, recursively, and dropping a null as a native call drops it, so a whole command is never
+# joined into one program name. A string is one word and is never split.
+function Expand-Word {
+    param([object[]]$Words)
+    $flat = [System.Collections.Generic.List[object]]::new()
+    foreach ($word in $Words) {
+        if ($null -eq $word) { continue }
+        if ($word -is [string] -or $word -isnot [System.Collections.IEnumerable]) { $flat.Add($word); continue }
+        foreach ($item in (Expand-Word -Words @($word))) { $flat.Add($item) }
+    }
+    return $flat.ToArray()
+}
+
+# Reads the option at $At into $Options; returns how many words it took, or 0 having said why it could not. An option
+# written -Name:value, as one word from the raw argv, is read as that option and its value in that one word.
 function Read-Option {
     param([hashtable]$Options, [object[]]$Words, [int]$At)
     $word = [string]$Words[$At]
     $name = $word.Substring(1)
+    $value = $null
+    $colon = $name.IndexOf(':')
+    if ($colon -ge 0 -and $colon + 1 -lt $name.Length) {
+        $value = $name.Substring($colon + 1)
+        $name = $name.Substring(0, $colon)
+    }
     if ($name -eq 'NoMarkers') {
         $Options['NoMarkers'] = $true
         return 1
@@ -79,12 +148,37 @@ function Read-Option {
         Write-Gate "gate: cannot read the option $word"
         return 0
     }
+    if ($null -ne $value) {
+        $Options[$name] = $value
+        return 1
+    }
     if ($At + 1 -ge $Words.Count) {
         Write-Gate "gate: $word needs a value"
         return 0
     }
     $Options[$name] = [string]$Words[$At + 1]
     return 2
+}
+
+# Rejoins a word like `-p:` with the one after it, giving `-p:Foo=Bar`, because PowerShell itself splits a -name:value
+# word that follows a bare -- in a session's own call into -name: and value before the launcher ever sees it. A word of
+# fewer than three characters, one not starting with - or not ending with :, and a trailing one with nothing after it
+# are left as they are, and one join is made per pair so a joined word is not joined again.
+function Join-ColonWord {
+    param([object[]]$Words)
+    $joined = [System.Collections.Generic.List[string]]::new()
+    $index = 0
+    while ($index -lt $Words.Count) {
+        $word = [string]$Words[$index]
+        if ($word.Length -ge 3 -and $word.StartsWith('-') -and $word.EndsWith(':') -and $index + 1 -lt $Words.Count) {
+            $joined.Add($word + [string]$Words[$index + 1])
+            $index += 2
+            continue
+        }
+        $joined.Add($word)
+        $index++
+    }
+    return $joined.ToArray()
 }
 
 # Splits the words into this launcher's options and the command, exactly as gate.ps1 splits them; $null, having said
@@ -96,12 +190,12 @@ function Read-Argument {
     while ($read -lt $Words.Count) {
         $word = [string]$Words[$read]
         if ($word -eq '--') {
-            return @{ Options = $options; Command = @($Words | Select-Object -Skip ($read + 1)) }
+            return @{ Options = $options; Command = @(Join-ColonWord @($Words | Select-Object -Skip ($read + 1))) }
         }
         # A caller in its own session had the -- eaten by PowerShell's parser, so the command starts at the first word
         # that is not one of this launcher's options.
         if (-not $word.StartsWith('-')) {
-            return @{ Options = $options; Command = @($Words | Select-Object -Skip $read) }
+            return @{ Options = $options; Command = @(Join-ColonWord @($Words | Select-Object -Skip $read)) }
         }
         $taken = Read-Option -Options $options -Words $Words -At $read
         if ($taken -eq 0) { return $null }
@@ -271,6 +365,7 @@ function Invoke-StopTree {
 # The words of one call: -StopTree alone, or the options, the checks on them and the fallback; returns the exit status.
 function Invoke-Main {
     param([object[]]$Words)
+    $Words = @(Expand-Word -Words $Words)
     if ($Words.Count -gt 0 -and [string]$Words[0] -eq '-StopTree') { return Invoke-StopTree $Words }
     $parsed = Read-Argument $Words
     $problems = if ($parsed) { Get-InputProblem -Options $parsed.Options -Command $parsed.Command } else { @() }
@@ -284,8 +379,9 @@ function Invoke-Main {
 
 # The canonical gate when the machine has one: every word, -StopTree and the separator included, is handed to it in
 # this same process, so nothing about the call changes.
+$words = @(Get-RawWord -Fallback $args)
 if (Test-Path -LiteralPath $gatePath) {
-    & $gatePath @args
+    & $gatePath @words
     exit ([int]$LASTEXITCODE)
 }
-exit (Invoke-Main -Words $args)
+exit (Invoke-Main -Words $words)

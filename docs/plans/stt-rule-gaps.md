@@ -4,7 +4,9 @@ Work found by the controller-voice ouroboros (`--atc-ouroboros`; see "Tuning loo
 
 **Baseline** (`tools/Yaat.SpeechSandbox/Corpus/atc-ouroboros-baseline.json`):
 - Run: seed 20260928, 200 cases × 3 trials. STT was the Whisper-medium ATC fine-tune (`borisdiakur/whisper-finetuned-for-ATC-ggml`); the LLM was `gemma4:e4b`.
-- **Totals at batch 2 (the committed baseline): 157 PASS of 200, 0 gaps, 43 failing cases with their transcripts.** The first baseline (153 PASS, 76.5 %, mean WER 19.9 %, 7 gaps) is the table below. Two batch-2 runs of one seed differed in 104 of 200 transcripts because Piper synthesized different audio in each process; the synthesized audio is now cached (YAAT-225), so runs of one seed on one machine transcribe the same audio. Re-take the baseline once before reading a family's movement against it.
+- **Totals at batch 2 (the committed baseline): 157 PASS of 200, 0 gaps, 43 failing cases with their transcripts.** The first baseline (153 PASS, 76.5 %, mean WER 19.9 %, 7 gaps) is the table below.
+
+  Two batch-2 runs of one seed differed in 104 of 200 transcripts because Piper synthesized different audio in each process; the synthesized audio is now cached (YAAT-225), so runs of one seed on one machine transcribe the same audio. Re-take the baseline once before reading a family's movement against it.
 
 | Family | Cases | Pass rate |
 |---|---|---|
@@ -41,9 +43,17 @@ All seven are closed (batch 1): `KnownGaps` in `tests/Yaat.Client.Tests/AtcOurob
 
 ## Baseline failures, clustered by cause
 
-Batch 2 rulings (user, nextup decision round): the traffic-advisory rules absorb a stray "of" / "to" before the aircraft type, so "traffic off your left 4 miles of boeing" maps to `RTIS L 4 BOEING`; the ouroboros results record each failing case's Whisper transcript and mapper output, kept in the committed baseline, so a tuning wave starts from evidence. Batch 2 takes the Rule clusters the transcripts confirm (gate/parking "alfa", traffic-advisory type, approach names, hold direction, PTAC's "rnav"); IDENT, broadcast/helicopter, second-clause and the singles stay STT-led. Batch 2 landed the two clusters the transcripts confirmed: "alfa" is an input alias for A (a programmed fix spelled with an alias stays a fix), and every RTIS rule absorbs "of"/"to" before the type; approach names, hold direction and PTAC turned out to be mishears. Still open from its review: a stray "of"/"to" with no type after it becomes the type ("…four miles of" → `RTIS L 4 of`), as "…four miles" gives `RTIS L 4 miles`.
+Batch 2 rulings (user, nextup decision round): the traffic-advisory rules absorb a stray "of" / "to" before the aircraft type, so "traffic off your left 4 miles of boeing" maps to `RTIS L 4 BOEING`; the ouroboros results record each failing case's Whisper transcript and mapper output, kept in the committed baseline, so a tuning wave starts from evidence.
 
-Batch 3 (owner rulings in YAAT-28) took the rule-side clusters the committed baseline still fails; the baseline's per-template rows already pass `japp`, `eapp-ils`, `atxi`, `atxi-rwy`, `eld`, `hs-twy-at`, `dm-spd` and `spd-maintain`, so they are off this list. It added `SttOnly` "climb via <one word> [except maintain <alt>]" → `CVIA [alt]` (a guard in `PhraseologyMapper` rejects keywords, numbers, and a word followed by "departure", which keeps the named-SID validation), an "on to" twin of the plain pushback-onto rule, a crossing rule without the second "at", and stopped `AtcNumberParser` from adding bare digit words after "thousand" (teen and tens words still join). A speed after "climb via … except maintain" is still read as an altitude (YAAT-345). The whole pipeline is being rethought (YAAT-343, [`../research/2026-10-05-stt-greenfield.md`](../research/2026-10-05-stt-greenfield.md)); that proposal decides whether the clusters below are still worked as rule patches.
+Batch 2 takes the Rule clusters the transcripts confirm (gate/parking "alfa", traffic-advisory type, approach names, hold direction, PTAC's "rnav"); IDENT, broadcast/helicopter, second-clause and the singles stay STT-led.
+
+Batch 2 landed the two clusters the transcripts confirmed: "alfa" is an input alias for A (a programmed fix spelled with an alias stays a fix), and every RTIS rule absorbs "of"/"to" before the type; approach names, hold direction and PTAC turned out to be mishears. Still open from its review: a stray "of"/"to" with no type after it becomes the type ("…four miles of" → `RTIS L 4 of`), as "…four miles" gives `RTIS L 4 miles`.
+
+Batch 3 (owner rulings in YAAT-28) took the rule-side clusters the committed baseline still fails; the baseline's per-template rows already pass `japp`, `eapp-ils`, `atxi`, `atxi-rwy`, `eld`, `hs-twy-at`, `dm-spd` and `spd-maintain`, so they are off this list.
+
+It added `SttOnly` "climb via <one word> [except maintain <alt>]" → `CVIA [alt]` (a guard in `PhraseologyMapper` rejects keywords, numbers, and a word followed by "departure", which keeps the named-SID validation), an "on to" twin of the plain pushback-onto rule, a crossing rule without the second "at", and stopped `AtcNumberParser` from adding bare digit words after "thousand" (teen and tens words still join).
+
+A speed after "climb via … except maintain" is still read as an altitude (YAAT-345). The whole pipeline is being rethought (YAAT-343, [`../research/2026-10-05-stt-greenfield.md`](../research/2026-10-05-stt-greenfield.md)); that proposal decides whether the clusters below are still worked as rule patches.
 
 Case names are from the baseline run (`synth-20260928-NNN-<template>`). "STT" means Whisper produced the wrong words. "Rule" means the words were right, or close enough, and the mapper got them wrong.
 

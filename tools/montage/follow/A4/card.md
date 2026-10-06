@@ -1,6 +1,8 @@
 # A4 — Downwind follower behind a lead that extends, then turns base
 
-**Rule.** A VFR arrival on the downwind told to follow traffic ahead of it on the same downwind sequences on that traffic, not on its own fixed base-turn point. While the lead extends its downwind, the follower holds its own downwind behind it; once the lead turns base, the follower keeps extending until turning base would roll it out at least YAAT's pattern spacing (1 NM behind a piston; a trainer convention, not an FAA figure) behind the lead, then turns base and lands second. It never turns inside the traffic it was told to follow.
+**Rule.** A VFR arrival on the downwind told to follow traffic ahead of it on the same downwind sequences on that traffic, not on its own fixed base-turn point.
+
+While the lead extends its downwind, the follower holds its own downwind behind it; once the lead turns base, the follower keeps extending until turning base would roll it out at least YAAT's pattern spacing (1 NM behind a piston; a trainer convention, not an FAA figure) behind the lead, then turns base and lands second. It never turns inside the traffic it was told to follow.
 
 **Grounding.**
 

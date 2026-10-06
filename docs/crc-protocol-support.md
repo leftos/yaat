@@ -3,7 +3,7 @@
 > Reference, not a plan: the unchecked rows are methods YAAT does not emulate and has no scheduled work for. A gap gets worked only when a specific bug report or feature request names it.
 
 Status of yaat-server's support for the CRC WebSocket hub protocol.
-Authoritative interface definitions: `..\vatsim-vnas\messaging\` (sibling repo)
+Authoritative interface definitions: `..\_ext\vatsim-vnas\messaging\` (sibling repo)
 
 > **vatsim-server-rs is read-only.** Its stubs don't mean a feature isn't needed — YAAT needs
 > full two-way interaction. Evaluate mutation-capable methods against vNAS messaging/data interfaces.
@@ -52,7 +52,11 @@ Authoritative interface definitions: `..\vatsim-vnas\messaging\` (sibling repo)
 
 ### ERAM Commands
 
-- [x] `ProcessEramMessage(ProcessEramMessageDto)` — QN and implied commands (handoff initiate/accept, data-block offset and leader, FDB/LDB toggle, VCI), QF (FP readout), QL (quick look), RD (route display), QU (route display / direct-to amendment), QT (start track, coast track), QX (drop track, surrender control, remove strip), QZ (assigned alt), QQ (interim / local-interim / procedure alt), QR (reported alt), QS (FDB heading, speed and free text), QH F (freeze), HM / QH (hold), CO (suppress / restore a conflict-alert pair), QP (point-out initiate / accept / minimise, DRI), QB (beacon code, equipment, voice type), AM, VP, DM, LA, LB, LC, LD, LE, LF. Unknown verbs return `FORMAT`. The spec-derived command reference these are held to is [`eram/`](./eram/README.md).
+- [x] `ProcessEramMessage(ProcessEramMessageDto)` — QN and implied commands (handoff initiate/accept, data-block offset and leader, FDB/LDB toggle, VCI), QF (FP readout), QL (quick look), RD (route display), QU (route display / direct-to amendment), QT (start track, coast track), QX (drop track, surrender control, remove strip), QZ (assigned alt).
+
+  It also handles QQ (interim / local-interim / procedure alt), QR (reported alt), QS (FDB heading, speed and free text), QH F (freeze), HM / QH (hold), CO (suppress / restore a conflict-alert pair), QP (point-out initiate / accept / minimise, DRI), QB (beacon code, equipment, voice type), AM, VP, DM, LA, LB, LC, LD, LE, LF.
+
+  Unknown verbs return `FORMAT`. The spec-derived command reference these are held to is [`eram/`](./eram/README.md).
 - [x] `SetEramSectorConfiguration(EramSectorConfigurationDto)` — per-sector storage + broadcast
 - [x] `ToggleEramDwellLock(aircraftId)` — records an absolute `DWELL <facility> <sector> 1|0` for the calling sector (`AircraftEramState.SectorDisplays`)
 - [x] `ClearEramPointout(aircraftId, pointoutId)` — ownership-checked (receiving sector only) clear of both R-side and D-side flags on the matching `EramPointoutState`
@@ -74,7 +78,9 @@ Authoritative interface definitions: `..\vatsim-vnas\messaging\` (sibling repo)
 ### Messaging
 
 - [x] `SendRadioMessage(message)` — routes to YAAT terminal + CRC clients in room
-- [x] `SendPrivateMessage(to, message)` — an aircraft in the room (callsign only, case-insensitive): a `Chat` terminal entry on its callsign with the sender's position as its initials and the text verbatim (recorded; no pilot reaction, no CRC delivery); a controller position in the sender's room (case-insensitive, `CrcClientManager.FindPositionInRoom`): the YAAT terminal line + that CRC client under its own spelling (and its joined connections); anything else, no recipient, or a sender with no room: an error completion
+- [x] `SendPrivateMessage(to, message)` — an aircraft in the room (callsign only, case-insensitive): a `Chat` terminal entry on its callsign with the sender's position as its initials and the text verbatim (recorded; no pilot reaction, no CRC delivery).
+
+  A controller position in the sender's room (case-insensitive, `CrcClientManager.FindPositionInRoom`): the YAAT terminal line + that CRC client under its own spelling (and its joined connections). Anything else, no recipient, or a sender with no room: an error completion
 - [x] `SendAtcMessage(message)` — routes to YAAT terminal + CRC clients in room
 - [x] `SendBroadcastMessage(message)` — routes to YAAT terminal + CRC clients in room
 - [x] `SendVnasBroadcastMessage(message)` — routes to YAAT terminal + CRC clients in room
@@ -187,7 +193,9 @@ Authoritative interface definitions: `..\vatsim-vnas\messaging\` (sibling repo)
 
 - [x] `ReceiveTowerCabAircrafts(Topic, List<TowerCabAircraftDto>)` — per-tick broadcast + initial data; VoiceType from AircraftState
 - [x] `DeleteTowerCabAircrafts(Topic, List<string>)` — aircraft removal
-- [x] UDP `EntityUpdate` for `TowerCabAircraft` (union tag 24, topic `[10, airport, nil, nil]`, integer `VoiceType`) — a UDP-registered subscriber gets an aircraft's position changes over UDP, as vNAS sends them; new aircraft, the 10 s resend, deletes and the subscribe snapshot stay on the hub, and an unregistered subscriber or a failed send falls back to the hub. TowerCab 3D registers as a negotiated joiner (negotiate, then `?id=` plus `?access_token=`; [vatsim-auth.md](./vatsim-auth.md)), keyed by its own negotiate id
+- [x] UDP `EntityUpdate` for `TowerCabAircraft` (union tag 24, topic `[10, airport, nil, nil]`, integer `VoiceType`) — a UDP-registered subscriber gets an aircraft's position changes over UDP, as vNAS sends them; new aircraft, the 10 s resend, deletes and the subscribe snapshot stay on the hub, and an unregistered subscriber or a failed send falls back to the hub.
+
+  TowerCab 3D registers as a negotiated joiner (negotiate, then `?id=` plus `?access_token=`; [vatsim-auth.md](./vatsim-auth.md)), keyed by its own negotiate id
 
 ### Ground Targets
 

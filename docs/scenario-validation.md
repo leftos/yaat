@@ -1,6 +1,8 @@
 # Scenario Validation
 
-YAAT validates every vNAS training scenario offline so ARTCC training staff can catch typos, unsupported commands, stale procedure versions and inconsistent aircraft data before students hit them. There is no in-app validation surface: the client's batch window was removed once the CLI covered it, and a scenario *load* only reports the data problems `ScenarioLoader` finds while building the aircraft (missing parking, a SID/STAR resolved to a newer version) on `LoadScenarioResult.Warnings` — a separate channel from the validator below.
+YAAT validates every vNAS training scenario offline so ARTCC training staff can catch typos, unsupported commands, stale procedure versions and inconsistent aircraft data before students hit them.
+
+There is no in-app validation surface: the client's batch window was removed once the CLI covered it, and a scenario *load* only reports the data problems `ScenarioLoader` finds while building the aircraft (missing parking, a SID/STAR resolved to a newer version) on `LoadScenarioResult.Warnings` — a separate channel from the validator below.
 
 Three surfaces, all driven by `ScenarioValidator.Validate()` (`src/Yaat.Sim/Scenarios/ScenarioValidator.cs`):
 

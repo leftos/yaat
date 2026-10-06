@@ -64,7 +64,7 @@ The architecture/scope decisions in [`docs/vtdls/emulation-design.md`](./emulati
 
 **Path**: `root.facility` is a recursive `FacilityConfig` tree (root is the ARTCC, then `childFacilities` for TRACONs/ATCTs/etc.). Any node MAY carry a non-null `tdlsConfiguration` object; the ARTCC root typically doesn't, child ATCTs/ATCT-TRACONs do.
 
-**Wire shape** matches the vNAS source DTOs at `..\vatsim-vnas\data\Facilities\Tdls*.cs` exactly:
+**Wire shape** matches the vNAS source DTOs at `..\_ext\vatsim-vnas\data\Facilities\Tdls*.cs` exactly:
 
 ```jsonc
 "tdlsConfiguration": {

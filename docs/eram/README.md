@@ -10,7 +10,9 @@ The reference is extracted from the FAA's ERAM En Route Display System Managemen
 - the command format and routing table;
 - the flight data fields table used by `AM`.
 
-The document itself is not in the repo, and neither are the extraction scripts, since they run over its text. A controller on VATSIM shared it; the maintainer keeps it as `ERAM_EDSM_SRS_210.04_V1B2_SDR-088All_Commands.pdf`. To work from its text, run `pdftotext -layout <pdf> eram.txt` and split the result on form feeds (`\f`) into one file per page, reading it as latin-1. Page-file index = printed page number + 15. The validation table (C.8) runs from printed page 624 to 846, the field definitions (C.1) from 401 to 527, the command routing table (C.2) from 528 to 568, and the flight data fields table (C.9) from 847 to 864. Code and tests cite these files, never the source's page numbers.
+The document itself is not in the repo, and neither are the extraction scripts, since they run over its text. A controller on VATSIM shared it; the maintainer keeps it as `ERAM_EDSM_SRS_210.04_V1B2_SDR-088All_Commands.pdf`. To work from its text, run `pdftotext -layout <pdf> eram.txt` and split the result on form feeds (`\f`) into one file per page, reading it as latin-1.
+
+Page-file index = printed page number + 15. The validation table (C.8) runs from printed page 624 to 846, the field definitions (C.1) from 401 to 527, the command routing table (C.2) from 528 to 568, and the flight data fields table (C.9) from 847 to 864. Code and tests cite these files, never the source's page numbers.
 
 ## Files
 

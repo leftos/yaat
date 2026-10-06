@@ -1,6 +1,8 @@
 # C3 — C172 pursuing a B738 extends past the jet's base turn
 
-**Rule.** A Cessna told to follow a jet it has in sight takes on its own wake avoidance: under a visual follow the controller issues a wake turbulence caution, not a radar wake minimum. The Cessna keeps YAAT's pattern spacing behind a jet (3 NM along the jet's path, a trainer convention). When the jet turns base before the Cessna has that spacing, the Cessna does not turn base with it. It carries on past the jet's base turn point at its slowest safe speed, turns base once 3 NM behind, stays at or above the jet's approach path, and lands after the jet is clear of the runway.
+**Rule.** A Cessna told to follow a jet it has in sight takes on its own wake avoidance: under a visual follow the controller issues a wake turbulence caution, not a radar wake minimum. The Cessna keeps YAAT's pattern spacing behind a jet (3 NM along the jet's path, a trainer convention).
+
+When the jet turns base before the Cessna has that spacing, the Cessna does not turn base with it. It carries on past the jet's base turn point at its slowest safe speed, turns base once 3 NM behind, stays at or above the jet's approach path, and lands after the jet is clear of the runway.
 
 **Runway.** Both land on KOAK runway 30, the airliner runway. The KOAK layout (`tests/Yaat.Sim.Tests/TestData/oak.geojson`) gives runway 30 10,507 ft along its line, with a 114 ft displaced threshold on the 30 end, against the B738's `landingDistance` of 5,249 ft in `src/Yaat.Sim/Data/AircraftProfiles.json`. Runway 28R is only 5,445 ft in the same layout, so a B738 is never landed there.
 

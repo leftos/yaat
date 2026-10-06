@@ -4,11 +4,15 @@ This folder coordinates YAAT's pilot-AI self-training plan. Each milestone has i
 
 ## Context
 
-YAAT was originally built around an **instructor + student** topology. The student plays the controller (typing canonical RPO like `DM 5000, R 270`); an instructor plays every pilot via PTT — Whisper STT + `PhraseologyMapper` (~163 ATC phraseology rules) + `LocalLlmCommandMapper` fallback turn pilot phraseology into canonical commands. Aircraft "responses" are text in the terminal; there is no TTS, no autonomous pilot behavior, and no notion of an aircraft holding an instruction-aware mental model.
+YAAT was originally built around an **instructor + student** topology. The student plays the controller (typing canonical RPO like `DM 5000, R 270`); an instructor plays every pilot via PTT — Whisper STT + `PhraseologyMapper` (~163 ATC phraseology rules) + `LocalLlmCommandMapper` fallback turn pilot phraseology into canonical commands.
+
+Aircraft "responses" are text in the terminal; there is no TTS, no autonomous pilot behavior, and no notion of an aircraft holding an instruction-aware mental model.
 
 The user wants a **solo-student** topology: the student plays the controller, the simulator plays every pilot. An earlier plan (`docs/plans/pilot-ai-architecture.md`, written when the project was just starting) over-engineered this by introducing `Intent`, `Contingency`, `Expectation`, `FrequencyState`, `VerbalAction`, and `SpeedRestrictionStack` types that largely duplicate what the now-mature phase system already does. This plan supersedes it.
 
-**The right size for YAAT today**: the phase system *is* the pilot brain. 30+ phases already encode autonomous behaviors (runway exit selection, holding entry, ILS capture, pattern entry classification). `CommandDispatcher` already validates and accepts every maneuver, clearance, and ground op (231 canonical commands). `PhraseologyMapper` already converts ATC English → canonical. The work isn't to invent a new execution layer; it's to (a) **make the simulator talk back**, (b) **let the student speak real ATC instead of RPO shorthand**, and (c) **add a few autonomous pilot behaviors** that genuinely improve solo training (DA/MDA missed approach, "unable" rejections, ready-to-taxi check-in).
+**The right size for YAAT today**: the phase system *is* the pilot brain. 30+ phases already encode autonomous behaviors (runway exit selection, holding entry, ILS capture, pattern entry classification). `CommandDispatcher` already validates and accepts every maneuver, clearance, and ground op (231 canonical commands).
+
+`PhraseologyMapper` already converts ATC English → canonical. The work isn't to invent a new execution layer; it's to (a) **make the simulator talk back**, (b) **let the student speak real ATC instead of RPO shorthand**, and (c) **add a few autonomous pilot behaviors** that genuinely improve solo training (DA/MDA missed approach, "unable" rejections, ready-to-taxi check-in).
 
 ## Demo (the smallest compelling thing)
 
@@ -77,7 +81,9 @@ Goal: **the student can fly an aircraft from gate to handoff without a human in 
 
 **Key choice — pilot AI does not generate phases or build plans.** It dispatches canonical commands like the controller does, and the existing phase system handles the rest. This is the single biggest divergence from the old plan, which proposed a parallel `Intent → Plan → Phase` execution model.
 
-**Second key choice — pilot speech is inverted from the same `PhraseologyRules` that parse controller speech.** Real ATC convention is verbatim readback; the codebase already has the vocabulary as 163 input rules. Adding new readbacks happens by adding to `PhraseologyRules`, not by maintaining a parallel template table. Pilot-only utterances (spawn check-in, "going around" volunteered) live in `PilotResponder` directly — small set, no controller equivalent. Solo-training readbacks use `PilotPersonality.Varied` to shorten safe command families only when the frequency is busy.
+**Second key choice — pilot speech is inverted from the same `PhraseologyRules` that parse controller speech.** Real ATC convention is verbatim readback; the codebase already has the vocabulary as 163 input rules. Adding new readbacks happens by adding to `PhraseologyRules`, not by maintaining a parallel template table.
+
+Pilot-only utterances (spawn check-in, "going around" volunteered) live in `PilotResponder` directly — small set, no controller equivalent. Solo-training readbacks use `PilotPersonality.Varied` to shorten safe command families only when the frequency is busy.
 
 ## Milestone progress
 
@@ -177,7 +183,9 @@ Paused until we know they earn their keep: M12.7 (achievements), M11.7 (PIREPs),
 - **Pilot speech inverts `PhraseologyRules`** — single source of truth; one rule covers both controller-input parsing (M10.2) and pilot-readback generation (M10.1+).
 - **Missed approach uses warn-early-then-miss-at-DA pattern** (M10.5).
 - **First production ship was M10.1; M10.1.1 + M10.1.2 + M10.1.3 form the VFR-emphasis pull-forward** (decided 2026-05-02 — moved airborne-spawn out of M10.4 to land alongside ground-spawn).
-- **Towered-field pilot speech is no-clearance-driven, not phase-entry-driven** (decided 2026-05-02 during M10.1.3 planning). At Class D / Class C tower fields, pilots in closed traffic do **not** self-announce every leg at phase entry. They speak twice: (1) initial contact with intent (`"request closed traffic"`) on first phase activation, and (2) reminder transmissions at midfield-downwind or short-final **only if** tower hasn't cleared them yet. The existing `_midfieldBroadcastIssued` block in `DownwindPhase` already encodes the right trigger; M10.1.3 branches its output by mode. Position reports go in `OnTick` with a clearance gate; intent declarations go in `OnStart`. Output channel branches on `SoloTrainingMode`: delayed `PendingPilotTransmissions` (pilot SAY/audio) in solo mode, `PendingWarnings` (controller nag, existing behavior) in RPO mode.
+- **Towered-field pilot speech is no-clearance-driven, not phase-entry-driven** (decided 2026-05-02 during M10.1.3 planning). At Class D / Class C tower fields, pilots in closed traffic do **not** self-announce every leg at phase entry. They speak twice: (1) initial contact with intent (`"request closed traffic"`) on first phase activation, and (2) reminder transmissions at midfield-downwind or short-final **only if** tower hasn't cleared them yet.
+
+  The existing `_midfieldBroadcastIssued` block in `DownwindPhase` already encodes the right trigger; M10.1.3 branches its output by mode. Position reports go in `OnTick` with a clearance gate; intent declarations go in `OnStart`. Output channel branches on `SoloTrainingMode`: delayed `PendingPilotTransmissions` (pilot SAY/audio) in solo mode, `PendingWarnings` (controller nag, existing behavior) in RPO mode.
 - **Training pace controls live at scenario load** (M10.3.6). The existing difficulty overlay becomes a shared scenario setup modal. The parking initial call-up and arrival generator rate sliders appear only for scenarios with the matching workload source, apply per loaded session/scenario, and remember previous values only as the next defaults.
 - **`STBY` acknowledges but does not satisfy a pending pilot request** (M10.4). It can still satisfy two-way radio communication requirements such as the M10.1.5 Class C gate, but the pilot should follow up later if the underlying request has not been handled.
 - **M10.6 does not create ARTCC scenario content.** Training staff own official scenario design; YAAT documents how solo training works with existing ARTCC/local scenarios and what scenario authors can optionally include.

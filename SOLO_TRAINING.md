@@ -255,7 +255,11 @@ Most commands work the same in Solo Training and RPO mode, but a few matter more
 | Acknowledge without a maneuver | `STBY` / `ROGER` | No forced shortcut |
 | Use visual follow | structured `RTIS` first, then `FOLLOW` or `CVA ... FOLLOW` | forced traffic-in-sight shortcuts |
 
-The full syntax and behavior details live in [Command Reference: Solo Training Command Differences](COMMANDS.md#solo-training-command-differences), [Pattern Commands](COMMANDS.md#pattern-commands), and [Approach Control Commands](COMMANDS.md#approach-control-commands). Structured `RTIS` accepts the radar clock form or any of the three VFR descriptive forms (relative position, pattern leg, landmark); the altitude is optional and matching is tolerant, so a within-tolerance-but-imprecise call still counts with a low-severity coaching note. Structured `RFIS` is the solo-mode way to give field-position information for visual approaches; it records proof and lets the pilot acquire the field normally. Bare `RFIS` and `RFISF` stay RPO-only shortcuts. `CWT` is phase-transparent and records caution-wake-turbulence proof; when you use bare `CWT`, the report applies it only when there is exactly one current wake-advisory context for that aircraft.
+The full syntax and behavior details live in [Command Reference: Solo Training Command Differences](COMMANDS.md#solo-training-command-differences), [Pattern Commands](COMMANDS.md#pattern-commands), and [Approach Control Commands](COMMANDS.md#approach-control-commands).
+
+Structured `RTIS` accepts the radar clock form or any of the three VFR descriptive forms (relative position, pattern leg, landmark); the altitude is optional and matching is tolerant, so a within-tolerance-but-imprecise call still counts with a low-severity coaching note.
+
+Structured `RFIS` is the solo-mode way to give field-position information for visual approaches; it records proof and lets the pilot acquire the field normally. Bare `RFIS` and `RFISF` stay RPO-only shortcuts. `CWT` is phase-transparent and records caution-wake-turbulence proof; when you use bare `CWT`, the report applies it only when there is exactly one current wake-advisory context for that aircraft.
 
 ## Built-In Safeguards
 
@@ -285,7 +289,9 @@ The main window's rewind timeline bar also shows color-coded markers for finding
 
 The Session Report is not the same as CRC conflict alerts. CRC alerts remain controller-facing alerts. Session Report rows are coaching and debrief material generated from YAAT's scoring model.
 
-Current scoring covers IFR radar separation, Class B/C VFR-related separation where applicable, Class C outer-area IFR/VFR advisory service using YAAT's 20 NM training approximation, same-runway, reciprocal, intersecting-runway, converging-runway, and wake events, structured traffic-advisory proof, safety-alert proof, wake-advisory proof, field-in-sight proof, visual-follow states, and related runway/approach outcomes. VFR/VFR and other no-minima proximity cases can appear as Advisory / Visual findings rather than Separation findings. A VFR-on-top (OTP) aircraft is scored as a VFR party for separation and never receives an IFR-separation finding. ARTCC `WakeDirectives` custom data can adjust wake scoring for documented local waivers and facility wake-advisory directives without adding new student commands.
+Current scoring covers IFR radar separation, Class B/C VFR-related separation where applicable, Class C outer-area IFR/VFR advisory service using YAAT's 20 NM training approximation, same-runway, reciprocal, intersecting-runway, converging-runway, and wake events, structured traffic-advisory proof, safety-alert proof, wake-advisory proof, field-in-sight proof, visual-follow states, and related runway/approach outcomes.
+
+VFR/VFR and other no-minima proximity cases can appear as Advisory / Visual findings rather than Separation findings. A VFR-on-top (OTP) aircraft is scored as a VFR party for separation and never receives an IFR-separation finding. ARTCC `WakeDirectives` custom data can adjust wake scoring for documented local waivers and facility wake-advisory directives without adding new student commands.
 
 The report uses accepted solo-mode commands as evidence, which is why structured `RTIS`, `SAFAL`, and `RFIS` matter for scored advisory, safety-alert, and visual-approach proof. Advisory proof is only required for aircraft still in the student's service: they have made initial contact, have not been transferred away with `CT` or `FCA`, and are not owned by another student position when position ownership is available.
 

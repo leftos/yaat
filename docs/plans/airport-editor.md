@@ -2,7 +2,9 @@
 
 ## Context
 
-Airport ground layouts for YAAT are served by the vNAS training-airports API (`https://data-api.vnas.vatsim.net/api/training/airports/{FAA}/map`) and fetched on demand by `AirportLayoutDownloader` (cache: `%LOCALAPPDATA%/yaat/cache/airports/`). Layouts are currently edited in QGIS, which is cumbersome and not purpose-built for the ATCTrainer format. This plan creates a standalone Avalonia desktop app that understands the 5 feature types natively, provides full CRUD with vertex snapping, and can read/write both split per-layer files and combined GeoJSON.
+Airport ground layouts for YAAT are served by the vNAS training-airports API (`https://data-api.vnas.vatsim.net/api/training/airports/{FAA}/map`) and fetched on demand by `AirportLayoutDownloader` (cache: `%LOCALAPPDATA%/yaat/cache/airports/`).
+
+Layouts are currently edited in QGIS, which is cumbersome and not purpose-built for the ATCTrainer format. This plan creates a standalone Avalonia desktop app that understands the 5 feature types natively, provides full CRUD with vertex snapping, and can read/write both split per-layer files and combined GeoJSON.
 
 ## Data Format Summary
 

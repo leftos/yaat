@@ -1,6 +1,6 @@
 ---
 name: crc-update-check
-description: "Use when CRC (the vNAS client) has updated, when the user asks whether yaat / yaat-server need to change to keep up with a CRC version, when comparing the decompiled CRC reference at ..\\crc-decompiled against the installed client, or when a CRC version number (2.x.y) appears alongside 'update', 'changelog', 'decompile', or 'wire contract'."
+description: "Use when CRC (the vNAS client) has updated, when the user asks whether yaat / yaat-server need to change to keep up with a CRC version, when comparing the decompiled CRC reference at ..\\_ext\\vatsim-vnas\\crc-decompiled against the installed client, or when a CRC version number (2.x.y) appears alongside 'update', 'changelog', 'decompile', or 'wire contract'."
 ---
 
 # CRC update check
@@ -16,7 +16,7 @@ Run from the yaat-server repo root unless a step says otherwise. Run every `dotn
 ```bash
 curl -s https://crc.virtualnas.net/LatestVersion.json
 pwsh -NoProfile -Command '(Get-Item "$env:LOCALAPPDATA\CRC\Application\CRC.exe").VersionInfo.FileVersion'
-REF="$(git rev-parse --path-format=absolute --git-common-dir)/../../crc-decompiled/CRC"
+REF="$(git rev-parse --path-format=absolute --git-common-dir)/../../_ext/vatsim-vnas/crc-decompiled/CRC"
 git -C "$REF" log -1 --format=%s
 ```
 
@@ -81,7 +81,7 @@ foreach ($a in 'CRC.dll','Vatsim.Nas.Common.dll','Vatsim.Nas.Data.dll','Vatsim.N
 }
 ```
 
-with `$ref = Join-Path (git rev-parse --path-format=absolute --git-common-dir) '..\..\crc-decompiled\CRC'`
+with `$ref = Join-Path (git rev-parse --path-format=absolute --git-common-dir) '..\..\_ext\vatsim-vnas\crc-decompiled\CRC'`
 resolved from the yaat-server checkout before the loop. Then in `$REF`:
 
 ```bash

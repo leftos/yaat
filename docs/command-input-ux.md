@@ -1,6 +1,8 @@
 # Command Input UX
 
-> Read this before touching `CommandInputController`, `ArgumentSuggester`, `AddCommandSuggester`, `FixSuggester`, `SignatureHelpState`, `CommandInputParseResult`, `CallsignArgumentResolver`, `CommandInputView.axaml.cs`, or `MainViewModel.OnCommandText/CaretIndexChanged`. This is the **client-side, keystroke-to-dropdown** journey that runs *before* a command is sent. The server-bound journey (parse → dispatch → queue) is [command-pipeline.md](command-pipeline.md); per-domain handler effects are [command-handlers.md](command-handlers.md).
+> Read this before touching `CommandInputController`, `ArgumentSuggester`, `AddCommandSuggester`, `FixSuggester`, `SignatureHelpState`, `CommandInputParseResult`, `CallsignArgumentResolver`, `CommandInputView.axaml.cs`, or `MainViewModel.OnCommandText/CaretIndexChanged`.
+>
+> This is the **client-side, keystroke-to-dropdown** journey that runs *before* a command is sent. The server-bound journey (parse → dispatch → queue) is [command-pipeline.md](command-pipeline.md); per-domain handler effects are [command-handlers.md](command-handlers.md).
 
 ## Scope
 
@@ -31,7 +33,9 @@ It also performs **one** server-bound mutation: `CallsignArgumentResolver.TryRew
 
 ## The parse-once contract
 
-Both autocomplete and signature help consume the **same** `CommandInputParseResult`, produced once per keystroke or caret move by `CommandInputController.ParseCommandInput(text, caretIndex, scheme)` (`CommandInputController.cs:237`). There is no second parse for signature help — `UpdateSignatureHelp` (`CommandInputController.cs:207`) calls `ParseCommandInput` again, but it is the same static method over the same inputs, so the contract is "parse describes the token at the caret, both consumers read from it."
+Both autocomplete and signature help consume the **same** `CommandInputParseResult`, produced once per keystroke or caret move by `CommandInputController.ParseCommandInput(text, caretIndex, scheme)` (`CommandInputController.cs:237`).
+
+There is no second parse for signature help — `UpdateSignatureHelp` (`CommandInputController.cs:207`) calls `ParseCommandInput` again, but it is the same static method over the same inputs, so the contract is "parse describes the token at the caret, both consumers read from it."
 
 The result is an immutable record (`CommandInputParseResult.cs:9`). It is **positional with no per-field XML docs** — read this table before constructing or destructuring it:
 
@@ -78,7 +82,9 @@ A fragment may begin with a condition prefix: `LV <alt>`, `AT <fix/FRD>`, `AS <t
 
 `ONHO` is the **zero-arg** special case (`keywordHasArg = false` at `CommandInputController.cs:837`): the body starts right after the keyword + space, not after an argument.
 
-When the caret is still inside the condition argument (or the prefix itself), `ParseCommandInput` returns a **partial** result: `StrippedFragment` empty, `Verb`/`Definition` null, `VerbIndex == -1`, and `ActiveToken*` describing the contiguous non-space run under the caret (`FindActiveTokenBounds`, `CommandInputController.cs:509`). `UpdateSuggestions` then branches on `ConditionVerb`: `AT` → fix suggestions for the active token; `GIVEWAY`/`BEHIND` → callsign suggestions (`CommandInputController.cs:101`–`126`).
+When the caret is still inside the condition argument (or the prefix itself), `ParseCommandInput` returns a **partial** result: `StrippedFragment` empty, `Verb`/`Definition` null, `VerbIndex == -1`, and `ActiveToken*` describing the contiguous non-space run under the caret (`FindActiveTokenBounds`, `CommandInputController.cs:509`).
+
+`UpdateSuggestions` then branches on `ConditionVerb`: `AT` → fix suggestions for the active token; `GIVEWAY`/`BEHIND` → callsign suggestions (`CommandInputController.cs:101`–`126`).
 
 > **Three keyword tables must stay in sync.** `IsConditionKeyword` (line 752), `HasConditionPrefix` (line 764), and the `StripConditionPrefix` switch (lines 798–838) each enumerate the condition keywords independently. Adding a new condition keyword means editing all three.
 
@@ -88,7 +94,9 @@ When the caret is still inside the condition argument (or the prefix itself), `P
 
 1. **Suppression gate.** If `_pendingSuppressions > 0`, decrement, clear, hide, return. (See accept flow.)
 2. **History reset.** If navigating history, reset.
-3. **Chat-prefix gate.** `StartsWithChatPrefix(text)` (`CommandInputController.cs`) → clear, hide, return. A line whose first non-whitespace character is `'`, `/`, or `>` is broadcast chat, not a command (the same prefix set `MainViewModel.SendCommandAsync` routes to `SendChatAsync`). Without this gate a chat line containing a `,`/`;` — e.g. `/tell him, FH 270` — would have its trailing fragment parsed as a `FlyHeading` command and pop suggestions. `UpdateSignatureHelp` applies the same gate first.
+3. **Chat-prefix gate.** `StartsWithChatPrefix(text)` (`CommandInputController.cs`) → clear, hide, return. A line whose first non-whitespace character is `'`, `/`, or `>` is broadcast chat, not a command (the same prefix set `MainViewModel.SendCommandAsync` routes to `SendChatAsync`).
+
+   Without this gate a chat line containing a `,`/`;` — e.g. `/tell him, FH 270` — would have its trailing fragment parsed as a `FlyHeading` command and pop suggestions. `UpdateSignatureHelp` applies the same gate first.
 4. **Condition-argument branch.** Empty `StrippedFragment` → fix/callsign suggestions for the condition arg (above).
 5. **Flood-suppression setup.** `hasUserPartial = activePartial.Length > 0 || isInsertionPoint` (`CommandInputController.cs:144`). This suppresses the "flood of all options" case where the caret is dropped at offset 0 of a non-empty token with no typed prefix.
 6. **Macro (`!`).** Active token starts with `!` → `AddMacroSuggestions` (matches `Macros` by base name).
@@ -101,7 +109,9 @@ When the caret is still inside the condition argument (or the prefix itself), `P
 
 `MaxSuggestions = 10` (`CommandInputController.cs:11`) caps the list everywhere.
 
-**Auto-highlight.** After suggestions are (re)built, `AutoHighlightTopSuggestion` pre-selects index 0 — but **only when the user has typed a non-empty partial for the active token**. An empty insertion slot (`EXT ` with trailing space) stays unselected so Enter sends the bare command instead of auto-expanding to the first flooded option. This is what makes Enter (with the auto-expand preference on) equivalent to Tab+Enter without arrow-keying first; both `UpdateSuggestions` exit points (the condition-argument branch and the main chain) apply it.
+**Auto-highlight.** After suggestions are (re)built, `AutoHighlightTopSuggestion` pre-selects index 0 — but **only when the user has typed a non-empty partial for the active token**. An empty insertion slot (`EXT ` with trailing space) stays unselected so Enter sends the bare command instead of auto-expanding to the first flooded option.
+
+This is what makes Enter (with the auto-expand preference on) equivalent to Tab+Enter without arrow-keying first; both `UpdateSuggestions` exit points (the condition-argument branch and the main chain) apply it.
 
 `AddCommandVerbSuggestions` ranks candidates: 0 = exact alias, 1 = alias-prefix or `SyntaxPatterns` prefix (e.g. typing `T` matches `T{n}L`), 2 = label substring (`CommandInputController.cs:1037`–`1095`). Delayed/deferred aircraft only see spawn commands (`DelayedOnlyCommands`, line 1017). `IsCompleteSyntaxPattern` (line 693) suppresses the syntax-pattern match once the token already looks like a complete `T{digits}L/R`.
 
@@ -112,11 +122,19 @@ When the caret is still inside the condition argument (or the prefix itself), `P
 - It first checks `ArgMode` and bails if `None` or `ParameterIndex < 0` (`ArgumentSuggester.cs:34`–`42`). `ArgMode` is *derived* from the overloads + modifiers (`CommandDefinition.cs:27`), not hand-set.
 - `OverloadMatchesPrecedingArgs` (`ArgumentSuggester.cs:189`) ensures earlier **literal** parameters match what the user actually typed before an overload contributes a suggestion.
 - The parameter's `TypeHint` is matched by **substring**: `runway`, `fix name`, `approach ID`, `callsign`, `pattern leg` (`IsRunwayHint`/`IsFixHint`/`IsApproachHint`/`IsCallsignHint`/`IsPatternLegHint`, lines 299–322). Literals come from `param.IsLiteral`.
-- `CompoundModifiers` keywords are offered (`AddCompoundModifierSuggestions`, skipping non-repeatable modifiers already typed) once the modifier gate opens: from slot 0 for a command with any parameterless overload (`CROSS `, `CTO `, `CLAND `, `EL `), otherwise once every overload has `ParameterIndex >= RequiredBeforeModifiers` — its fixed parameter count, and at least 1, so a command whose only overload is a trailing repeatable (`TAXI`'s `route…`) keeps its first slot for the route alone. A trailing repeatable parameter keeps offering its own values past its declared index (`TAXI C D ` offers taxiways and the keywords; `CROSS 28R ` offers runways and `HS`). `OfferableModifiers` drops a `LeadingTokenOnly` modifier from the keyword list past parameter 0.
+- `CompoundModifiers` keywords are offered (`AddCompoundModifierSuggestions`, skipping non-repeatable modifiers already typed) once the modifier gate opens: from slot 0 for a command with any parameterless overload (`CROSS `, `CTO `, `CLAND `, `EL `), otherwise once every overload has `ParameterIndex >= RequiredBeforeModifiers` — its fixed parameter count, and at least 1, so a command whose only overload is a trailing repeatable (`TAXI`'s `route…`) keeps its first slot for the route alone.
+
+  A trailing repeatable parameter keeps offering its own values past its declared index (`TAXI C D ` offers taxiways and the keywords; `CROSS 28R ` offers runways and `HS`). `OfferableModifiers` drops a `LeadingTokenOnly` modifier from the keyword list past parameter 0.
 
 **Because this is metadata-driven, adding a normal command needs ZERO suggester code** — declare its `Overloads`, `CompoundModifiers`, `SyntaxPatterns`, and `TypeHint` strings in `CommandRegistry`, and the suggestions follow.
 
-**The self-contained sigils.** `TAXI`, `PUSH`, `TAXIAUTO` and `TAXIALL` declare `@` (parking/helipad stand) and `$` (taxi spot) as `CompoundModifier`s whose keyword and value are one token (`@NEW1`, `$S7`), so `FindActiveModifier` never opens an argument region for them. Before the overload hints, `TryAddSigilSuggestions` looks the partial's first character up in the definition's modifiers (`FindSigilModifier`): `@` offers `CommandInputController.StandNamesProvider` (Parking + Helipad nodes — exactly what the server's `@name` lookup `FindHelipadByName ?? FindParkingByName` accepts), `$` offers `SpotNamesProvider`, and the path claims the slot so `FixSuggester` never fills a sigil token with navdata fixes. Two guards: a sigil inside another modifier's argument region (`TAXI A HS @` is a hold-short target the server rejects) gets nothing, and a modifier marked `LeadingTokenOnly` (the sigils of `PUSH`, `TAXIAUTO` and `TAXIALL` — their parsers read a sigil off the first argument token only, and `ParsePushback` refuses one anywhere later) is offered at parameter 0 alone, by this path and by the keyword list. This set is deliberately narrower than ADD's `ParkingNamesProvider` (Parking + Helipad + Spot), because ADD's `@` resolves `FindParkingByName ?? FindSpotByName`.
+**The self-contained sigils.** `TAXI`, `PUSH`, `TAXIAUTO` and `TAXIALL` declare `@` (parking/helipad stand) and `$` (taxi spot) as `CompoundModifier`s whose keyword and value are one token (`@NEW1`, `$S7`), so `FindActiveModifier` never opens an argument region for them.
+
+Before the overload hints, `TryAddSigilSuggestions` looks the partial's first character up in the definition's modifiers (`FindSigilModifier`): `@` offers `CommandInputController.StandNamesProvider` (Parking + Helipad nodes — exactly what the server's `@name` lookup `FindHelipadByName ?? FindParkingByName` accepts), `$` offers `SpotNamesProvider`, and the path claims the slot so `FixSuggester` never fills a sigil token with navdata fixes.
+
+Two guards: a sigil inside another modifier's argument region (`TAXI A HS @` is a hold-short target the server rejects) gets nothing, and a modifier marked `LeadingTokenOnly` (the sigils of `PUSH`, `TAXIAUTO` and `TAXIALL` — their parsers read a sigil off the first argument token only, and `ParsePushback` refuses one anywhere later) is offered at parameter 0 alone, by this path and by the keyword list.
+
+This set is deliberately narrower than ADD's `ParkingNamesProvider` (Parking + Helipad + Spot), because ADD's `@` resolves `FindParkingByName ?? FindSpotByName`.
 
 **The one custom path inside `ArgumentSuggester`:** `CVA FOLLOW <callsign>`. The `ClearedVisualApproach` definition declares only a `runway` overload (`CommandRegistry.cs:1545`–`1551`); its `LEFT|RIGHT|FOLLOW <cs>` modifiers are a custom server-side parser, not registry metadata. So `ArgumentSuggester` special-cases it: if `ParameterIndex >= 1` and the previous typed arg is `FOLLOW`, it offers callsign suggestions and returns (`ArgumentSuggester.cs:63`–`77`).
 
@@ -189,7 +207,9 @@ What it does:
 - **Triggers.** `MainViewModel.OnCommandTextChanged` (`MainViewModel.cs:1592`) and `OnCommandCaretIndexChanged` (line 1603) call `UpdateSuggestions` + `UpdateSignatureHelp`. `OnCommandTextChanged` clamps the caret to the new length first; `OnCommandCaretIndexChanged` skips updates while history navigation is active.
 - **Injection points.** `_commandInput.Macros` is set from preferences; `NavDbReady` flips true when the nav database loads; `PrimaryAirportId` is set on scenario/timeline bootstrap and cleared on disconnect (`MainViewModel.Scenario.cs:484`, `585`).
 - **Key handling** (`CommandInputView.axaml.cs:91`): Tab accepts (auto-selecting index 0 if none selected); Enter auto-expands the highlighted suggestion (gated on `Preferences.AutoExpandSuggestionOnEnter` and `SelectedSuggestionIndex >= 0` — usually satisfied by the auto-highlight above) then sends; Up/Down select within the dropdown or navigate history when it's closed; Escape dismisses popups or clears the input; Alt+Up/Down cycles signature-help overloads.
-- **History recall is aircraft-filtered.** Each `CommandHistory` entry is a `CommandHistoryEntry(Callsign, Command)` — the callsign-less command text plus the aircraft it was sent to (empty for global/untargeted commands). The view passes `vm.GetRecallHistory()` (not the raw `CommandHistory`) to `NavigateHistory`: with an aircraft selected it returns only that aircraft's commands plus untargeted ones; with none selected it returns all. The controller's typed-prefix filter composes on top. `OnSelectedAircraftChanged` calls `ResetHistoryNavigation()` so a selection change doesn't leave the recall index pointing into the previously-filtered list. Persisted per scenario as `Dictionary<string, List<CommandHistoryEntry>>` in `UserPreferences`.
+- **History recall is aircraft-filtered.** Each `CommandHistory` entry is a `CommandHistoryEntry(Callsign, Command)` — the callsign-less command text plus the aircraft it was sent to (empty for global/untargeted commands). The view passes `vm.GetRecallHistory()` (not the raw `CommandHistory`) to `NavigateHistory`: with an aircraft selected it returns only that aircraft's commands plus untargeted ones; with none selected it returns all.
+
+  The controller's typed-prefix filter composes on top. `OnSelectedAircraftChanged` calls `ResetHistoryNavigation()` so a selection change doesn't leave the recall index pointing into the previously-filtered list. Persisted per scenario as `Dictionary<string, List<CommandHistoryEntry>>` in `UserPreferences`.
 - **Popup gating.** Two `CommandInputView` instances share one `MainViewModel`. The popup `IsOpen` is driven from code-behind, gated on `IsVisible` (`CommandInputView.axaml.cs:81`), so the hidden embedded instance never pops a dropdown at screen (0,0).
 
 ## How to add suggestions for a new command

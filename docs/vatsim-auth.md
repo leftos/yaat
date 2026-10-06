@@ -182,11 +182,19 @@ Each VATSIM client's registered redirect must equal the server URL that receives
 
 How vEDST uses its client, and the `VNAS_*` keys that enable it: [vedst-sign-in.md](vedst-sign-in.md).
 
-Copy `Caddyfile.example` to `Caddyfile` once (it reads `{$YAAT_DOMAIN}`, so it needs no per-domain edit). Deploy/update a target with `./update.sh <target>` (e.g. `./update.sh yaat1`), which runs every `docker compose` command with `--env-file .env.<target>` (no argument falls back to `.env`). By default it pulls the CI-built ghcr image with the `docker-compose.image.yml` overlay; self-hosters without ghcr access pass `--build` to build from source instead. For leftos deployments prefer the yaat repo's `deploy-to-droplet.ps1`, which builds the image in CI first.
+Copy `Caddyfile.example` to `Caddyfile` once (it reads `{$YAAT_DOMAIN}`, so it needs no per-domain edit). Deploy/update a target with `./update.sh <target>` (e.g. `./update.sh yaat1`), which runs every `docker compose` command with `--env-file .env.<target>` (no argument falls back to `.env`).
+
+By default it pulls the CI-built ghcr image with the `docker-compose.image.yml` overlay; self-hosters without ghcr access pass `--build` to build from source instead. For leftos deployments prefer the yaat repo's `deploy-to-droplet.ps1`, which builds the image in CI first.
 
 ## Local development
 
-`dotnet run` is Development (it binds `http://localhost:5130`), and `appsettings.Development.json` sets `RequireVatsimAuth=false`. In that mode the server exposes `/auth/dev`, and the desktop `VatsimAuthClient` (and the GuideCapture in-process host) mint a dev session (rating `I1`) without any VATSIM round-trip. **Under dev auth the ARTCC gate is off**: nobody logged in with VATSIM, so `CreateRoom` and `GetScenarioJsonById` accept any ARTCC (the hub checks `RequireVatsimAuth` before `ArtccAccessPolicy`, which itself stays fail-secure). Why the gate would bite: `VatsimAuthClient` passes `?artcc=` to `/auth/dev` only when it mints a session, a stored dev session is refreshed rather than re-minted for the refresh token's lifetime, and VATUSA 404s for CID 0000001, so a dev token minted without the ARTCC stays ARTCC-less forever. `GetMyPermittedArtccs` is untouched, so the Create Room ARTCC picker stays hidden for an ARTCC-less dev token and the client falls back to its preferred ARTCC (MAIN.md backlog). To test the real flow locally, register an `http://localhost:5130/auth/vatsim/callback` redirect on a dedicated dev VATSIM client and set `RequireVatsimAuth=true` + the `Vatsim:*` config.
+`dotnet run` is Development (it binds `http://localhost:5130`), and `appsettings.Development.json` sets `RequireVatsimAuth=false`. In that mode the server exposes `/auth/dev`, and the desktop `VatsimAuthClient` (and the GuideCapture in-process host) mint a dev session (rating `I1`) without any VATSIM round-trip.
+
+**Under dev auth the ARTCC gate is off**: nobody logged in with VATSIM, so `CreateRoom` and `GetScenarioJsonById` accept any ARTCC (the hub checks `RequireVatsimAuth` before `ArtccAccessPolicy`, which itself stays fail-secure).
+
+Why the gate would bite: `VatsimAuthClient` passes `?artcc=` to `/auth/dev` only when it mints a session, a stored dev session is refreshed rather than re-minted for the refresh token's lifetime, and VATUSA 404s for CID 0000001, so a dev token minted without the ARTCC stays ARTCC-less forever.
+
+`GetMyPermittedArtccs` is untouched, so the Create Room ARTCC picker stays hidden for an ARTCC-less dev token and the client falls back to its preferred ARTCC (MAIN.md backlog). To test the real flow locally, register an `http://localhost:5130/auth/vatsim/callback` redirect on a dedicated dev VATSIM client and set `RequireVatsimAuth=true` + the `Vatsim:*` config.
 
 ## vEDST sign-in (`/vnas`)
 
@@ -207,7 +215,11 @@ vEDST's sign-in (the `/vnas` endpoints, its VATSIM client, setup on a deployed o
 
 Every refusal is a bare 401 before the upgrade, logged as a warning that names the reason and the remote address and never a token. A direct connection or a joiner may call only the hub methods in `CrcClientState.DirectConnectionTargets` (`GetServerConfiguration` among them); `JoinSession` needs a CRC primary session with the same CID. An access token is checked once, at connect: its 60-minute expiry does not close an open socket, as on the training hub.
 
-TowerCab 3D (a third-party vNAS client) connects as a negotiated joiner over the JSON hub protocol: it lists its CID's CRC sessions with `GetSessions`, joins one with `JoinSession`, and subscribes to `TowerCabAircraft`. It signs in like a real vNAS client: its own VATSIM Connect client yields a VATSIM access token, which it sends as `/vnas/auth/refresh?vatsimToken=`. The refresh endpoint therefore accepts two kinds of token: a YAAT refresh token (vEDST) is validated as before and never forwarded anywhere, revoked or not; any other token that is not a YAAT access token is looked up at VATSIM's userinfo endpoint (`VatsimAuthService.FetchUserByAccessTokenAsync`), and a user with the `vatsim_details` scope gets a YAAT access token. Against a Development server with `RequireVatsimAuth` off, TowerCab signs in through `/vnas/auth/dev-login?cid=` instead. After `GetServerConfiguration` (`{"udpPort":6809}`) it registers its negotiate id on the UDP entity socket and receives Tower Cab positions there, as on vNAS; new aircraft, removals and the periodic full set still arrive over the hub. A TowerCab build that skips negotiate connects as a plain direct client and gets every position over the hub.
+TowerCab 3D (a third-party vNAS client) connects as a negotiated joiner over the JSON hub protocol: it lists its CID's CRC sessions with `GetSessions`, joins one with `JoinSession`, and subscribes to `TowerCabAircraft`. It signs in like a real vNAS client: its own VATSIM Connect client yields a VATSIM access token, which it sends as `/vnas/auth/refresh?vatsimToken=`.
+
+The refresh endpoint therefore accepts two kinds of token: a YAAT refresh token (vEDST) is validated as before and never forwarded anywhere, revoked or not; any other token that is not a YAAT access token is looked up at VATSIM's userinfo endpoint (`VatsimAuthService.FetchUserByAccessTokenAsync`), and a user with the `vatsim_details` scope gets a YAAT access token.
+
+Against a Development server with `RequireVatsimAuth` off, TowerCab signs in through `/vnas/auth/dev-login?cid=` instead. After `GetServerConfiguration` (`{"udpPort":6809}`) it registers its negotiate id on the UDP entity socket and receives Tower Cab positions there, as on vNAS; new aircraft, removals and the periodic full set still arrive over the hub. A TowerCab build that skips negotiate connects as a plain direct client and gets every position over the hub.
 
 ## Key files
 

@@ -4,7 +4,9 @@ What exists today, mapped from source for [the redesign](./README.md). Defaults 
 
 ## Settings window
 
-Files: `src/Yaat.Client/Views/SettingsWindow.axaml` (sidebar, section host and footer), `src/Yaat.Client/Views/Settings/*Section.axaml` (one per section; order in `SettingsNavigation.cs`), `SettingsWindow.axaml.cs` (geometry key `"Settings"`, 1040×720, minimum 880×600), `src/Yaat.Client/ViewModels/SettingsViewModel.cs` (~2,100 lines; `Apply()` writes every setting and can run repeatedly; `ResetSection` per section), `src/Yaat.Client/ViewModels/SettingsSectionId.cs`, `UserPreferences.cs` (`CreateDefaults`).
+Files: `src/Yaat.Client/Views/SettingsWindow.axaml` (sidebar, section host and footer), `src/Yaat.Client/Views/Settings/*Section.axaml` (one per section; order in `SettingsNavigation.cs`), `SettingsWindow.axaml.cs` (geometry key `"Settings"`, 1040×720, minimum 880×600).
+
+Also: `src/Yaat.Client/ViewModels/SettingsViewModel.cs` (~2,100 lines; `Apply()` writes every setting and can run repeatedly; `ResetSection` per section), `src/Yaat.Client/ViewModels/SettingsSectionId.cs`, `UserPreferences.cs` (`CreateDefaults`).
 
 A modal window with a sidebar of sixteen sections in six groups, a "Reset section" button on every section (pending until Apply or OK; disabled on the two link-only sections), and a footer OK, Apply and Cancel.
 
@@ -31,10 +33,14 @@ It is modal over every open YAAT window (`Views/OpenWindows.cs`): their input is
 | Audio devices | 2 | Input and output device |
 | Server admin | 2 | Server admin mode + password |
 
-**Persisted with no Settings UI** (changed elsewhere): Aircraft List column chooser (`ShowOnlyActiveAircraft`, alternating row color, `GridLayout`); View menu (timeline bar, favorites bar/panel, pop-out flags); favorites bar (`FavoritePanelColumns`); window profiles and geometries; radar/ground in-view toolbars (`RadarSettings`, `GroundSettings`, deconflict modes, layers, rotation, favorite video maps, METAR stations); terminal header (hidden kinds, timestamp mode); Connect window (saved servers); status-bar menu (live-traffic list filter); strips/vTDLS UI (split mode/ratio, vTDLS dark mode); automatic (recents, per-scenario history).
+**Persisted with no Settings UI** (changed elsewhere): Aircraft List column chooser (`ShowOnlyActiveAircraft`, alternating row color, `GridLayout`); View menu (timeline bar, favorites bar/panel, pop-out flags); favorites bar (`FavoritePanelColumns`); window profiles and geometries; radar/ground in-view toolbars (`RadarSettings`, `GroundSettings`, deconflict modes, layers, rotation, favorite video maps, METAR stations).
+
+Also persisted with no Settings UI: terminal header (hidden kinds, timestamp mode); Connect window (saved servers); status-bar menu (live-traffic list filter); strips/vTDLS UI (split mode/ratio, vTDLS dark mode); automatic (recents, per-scenario history).
 
 **Reachable outside the Settings window**
-- Gear flyout (`src/Yaat.Client/Views/CommandInputView.axaml` ~:216, "Session Settings", the room's live values for all RPOs): solo mode, go-around probability, solo parking call-up interval and arrival generator rate (same controls and ranges as their Settings defaults), auto-delete, departure distance, auto-accept (checkbox "Auto-accept handoffs after" + 0-60 s, as in Settings), command run delay, validate DCT, the auto behaviours, RPO pilot speech. The room holds one auto cleared-to-land and one auto arrival spacing flag, loaded from the Settings default for the student's position type and labelled with it ("Auto cleared-to-land (TWR)"); Settings keeps the per-position defaults (four and GND/TWR). Room only, with no Settings default (listed as such in Scenario defaults): live traffic (SWIM) with ceiling, filters and assume; Releases (its own button beside the gear).
+- Gear flyout (`src/Yaat.Client/Views/CommandInputView.axaml` ~:216, "Session Settings", the room's live values for all RPOs): solo mode, go-around probability, solo parking call-up interval and arrival generator rate (same controls and ranges as their Settings defaults), auto-delete, departure distance, auto-accept (checkbox "Auto-accept handoffs after" + 0-60 s, as in Settings), command run delay, validate DCT, the auto behaviours, RPO pilot speech.
+
+  The room holds one auto cleared-to-land and one auto arrival spacing flag, loaded from the Settings default for the student's position type and labelled with it ("Auto cleared-to-land (TWR)"); Settings keeps the per-position defaults (four and GND/TWR). Room only, with no Settings default (listed as such in Scenario defaults): live traffic (SWIM) with ceiling, filters and assume; Releases (its own button beside the gear).
 - Mic indicator menu (`MainWindow.axaml` ~:527): enable speech recognition (same setting as the Speech section), speech debugging.
 - Live-traffic status text menu: SWIM toggle and list-filter radios.
 - Always-on-top hotkey writes the same flag as the seven General › Windows checkboxes.
@@ -45,7 +51,11 @@ It is modal over every open YAAT window (`Views/OpenWindows.cs`): their input is
 
 All pickers go through `FilePickerFactory` / `IFilePickerService`.
 
-**Done by the hub (YAAT-297).** Every per-feature file flow below is replaced by the one Import / Export window (`ImportExportWindow`, `ImportExportViewModel`): the per-feature buttons open it with their item preselected, and Tools › Import / Export… and Settings › General › Import / Export… open it with nothing preselected. Merge or Replace is per item (Merge for macros, favorites and layouts; the other items only replace and show no mode choice), each item shows a line saying what the chosen mode does, clashes are listed with Skip, Overwrite or Rename, and single-item exports keep the extensions below. With "Back up all settings first" ticked (default on, remembered in the unbundled `backUpSettingsBeforeImport` preference), every import first writes all six items, as the hub's source holds them, to `backups/settings-backup-<yyyyMMdd-HHmmss>.yaat-settings.zip` in the YAAT data folder with no picker, and imports nothing if that fails. Imports opened inside Settings stage until Apply or OK (`SettingsViewModelImportTarget`); the others apply at once. The rows record the flows the hub replaced.
+**Done by the hub (YAAT-297).** Every per-feature file flow below is replaced by the one Import / Export window (`ImportExportWindow`, `ImportExportViewModel`): the per-feature buttons open it with their item preselected, and Tools › Import / Export… and Settings › General › Import / Export… open it with nothing preselected.
+
+Merge or Replace is per item (Merge for macros, favorites and layouts; the other items only replace and show no mode choice), each item shows a line saying what the chosen mode does, clashes are listed with Skip, Overwrite or Rename, and single-item exports keep the extensions below.
+
+With "Back up all settings first" ticked (default on, remembered in the unbundled `backUpSettingsBeforeImport` preference), every import first writes all six items, as the hub's source holds them, to `backups/settings-backup-<yyyyMMdd-HHmmss>.yaat-settings.zip` in the YAAT data folder with no picker, and imports nothing if that fails. Imports opened inside Settings stage until Apply or OK (`SettingsViewModelImportTarget`); the others apply at once. The rows record the flows the hub replaced.
 
 | Data | Trigger | Format | Merge or replace | When applied | Code |
 |---|---|---|---|---|---|
@@ -58,7 +68,9 @@ All pickers go through `FilePickerFactory` / `IFilePickerService`.
 
 Other file flows (not user configuration): recordings and bug bundles, export room as scenario, save weather, ASDE-X/SAID temp data, weather timeline and generator editors' Save As, speech samples.
 
-Inconsistencies of the per-feature flows, done by the hub (one Merge/Replace model with clash rows, one window and summary, one error line; the Settings-or-live split in when an import applies stays by entry point): four merge models; some imports wait for Apply or OK while others apply at once; three button placements (Settings section, code-built bar button with flyout, dialog pair), with only Settings showing an inline result; extensions differ (`.yaat-*.json`, `.yaat-*.zip`, bare `.json`); error handling differs (inline error, message box, log only, silent; macro export has no try/catch).
+Inconsistencies of the per-feature flows, done by the hub (one Merge/Replace model with clash rows, one window and summary, one error line; the Settings-or-live split in when an import applies stays by entry point): four merge models; some imports wait for Apply or OK while others apply at once; three button placements (Settings section, code-built bar button with flyout, dialog pair), with only Settings showing an inline result.
+
+Extensions differ (`.yaat-*.json`, `.yaat-*.zip`, bare `.json`); error handling differs (inline error, message box, log only, silent; macro export has no try/catch).
 
 ## View menu (`src/Yaat.Client/Views/MainWindow.axaml` ~:37-67)
 

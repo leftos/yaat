@@ -33,9 +33,13 @@ Building YAAT from source to contribute, or hosting your own server? That's cove
 
 YAAT verifies your identity through **VATSIM sign-in** — you no longer type your CID. When you connect to a server (Step 3), your browser opens to the VATSIM login page; after you authorize, YAAT receives your verified **CID, name, and controller rating** straight from VATSIM and remembers your sign-in between launches.
 
-One field stays yours to set, under **Tools > Settings**, in the **General** section — your operating **initials** (e.g., "JE", "AB"), suggested from your VATSIM name and shown in the terminal so other RPOs can see who issued each command. Your **[ARTCC](#glossary)** is filled in automatically from your VATSIM/VATUSA profile when you sign in (US controllers from VATUSA, everyone else from their VATSIM subdivision) and updates on its own if you transfer facilities — there is no ARTCC field to enter.
+One field stays yours to set, under **Tools > Settings**, in the **General** section — your operating **initials** (e.g., "JE", "AB"), suggested from your VATSIM name and shown in the terminal so other RPOs can see who issued each command.
 
-> **Who can connect:** YAAT1 admits you to **create rooms and load scenarios** if you hold a VATUSA mentor role or a VATSIM Instructor rating (I1/I2/I3) or higher. Any other signed-in VATSIM controller can connect as an **[RPO](#glossary)**: you wait on a "waiting for room assignment" screen until an instructor pulls you into a room, then work the position like any room member (but you can't create rooms or load/unload scenarios). Students being trained connect with [CRC](#glossary) and are unaffected.
+Your **[ARTCC](#glossary)** is filled in automatically from your VATSIM/VATUSA profile when you sign in (US controllers from VATUSA, everyone else from their VATSIM subdivision) and updates on its own if you transfer facilities — there is no ARTCC field to enter.
+
+> **Who can connect:** YAAT1 admits you to **create rooms and load scenarios** if you hold a VATUSA mentor role or a VATSIM Instructor rating (I1/I2/I3) or higher.
+>
+> Any other signed-in VATSIM controller can connect as an **[RPO](#glossary)**: you wait on a "waiting for room assignment" screen until an instructor pulls you into a room, then work the position like any room member (but you can't create rooms or load/unload scenarios). Students being trained connect with [CRC](#glossary) and are unaffected.
 
 ## Step 3: Connect and Create a Room
 

@@ -20,7 +20,7 @@ reach for this tool instead of writing throwaway C# or manual unzip scripts.
 
 **Triage summary (duration, ARTCC, aircraft at t=0):**
 ```bash
-python tools/bug_bundle.py info <bundle.zip> 2>&1 | tee .tmp/bb-info.log
+python tools/bug_bundle.py info <bundle.zip> > .tmp/bb-info.log 2>&1; tail -n 20 .tmp/bb-info.log
 ```
 
 **Dump snapshot nearest to a bug time:**
@@ -35,7 +35,7 @@ python tools/bug_bundle.py snapshot <bundle.zip> --at 182 --callsign UAL238 --ou
 
 **Timeline of recorded user actions:**
 ```bash
-python tools/bug_bundle.py actions <bundle.zip> 2>&1 | tee .tmp/bb-actions.log
+python tools/bug_bundle.py actions <bundle.zip> > .tmp/bb-actions.log 2>&1; tail -n 20 .tmp/bb-actions.log
 ```
 
 **Per-callsign chronological story (commands + phase / route / target / approach changes):**
@@ -59,7 +59,13 @@ python tools/bug_bundle.py commands <bundle.zip> --callsign N42416 --out .tmp/bb
 python tools/bug_bundle.py terminal-log <bundle.zip> --callsign N42416 --kind Response
 python tools/bug_bundle.py terminal-log <bundle.zip> --from 300 --to 420 --srt --offset 2.5 --out .tmp/captions.srt
 ```
-The terminal log is the room's broadcast stream — commands, responses, SAY, warnings, chat — each line carrying its sim-elapsed `t=` and a kind (`Command`, `Response`, `Error`, `Say`, `SayReadback`, `Warning`, `Strip`, `System`, `Chat`). `--callsign` / `--kind` are repeatable and case-insensitive; `--from/--to` filter by sim-elapsed second. `--json` dumps the filtered entries verbatim (the archive's field names), `--srt` prints SubRip captions (`--hold S` default 4.0, `--offset S`) for the FOLLOW montage. `--exclude-kind K` (repeatable) drops kinds. `--captions` is the video-caption preset: it drops `Command`, `Response` and `Strip` echoes and the `Solo Coach/Warning/Safety:` notices, skips a line whose text repeats one kept within the last 30 s, and with `--srt` times each cue by reading speed (words / 2.5 s, clamped to 1.5–6.0 s, cut by the next cue, never under 1.0 s; `--hold` is ignored). `info` reports whether the archive has one (`HasTerminalLog`); an archive recorded before the feature prints `no terminal log in …` and exits 1.
+The terminal log is the room's broadcast stream — commands, responses, SAY, warnings, chat — each line carrying its sim-elapsed `t=` and a kind (`Command`, `Response`, `Error`, `Say`, `SayReadback`, `Warning`, `Strip`, `System`, `Chat`). `--callsign` / `--kind` are repeatable and case-insensitive; `--from/--to` filter by sim-elapsed second.
+
+`--json` dumps the filtered entries verbatim (the archive's field names), `--srt` prints SubRip captions (`--hold S` default 4.0, `--offset S`) for the FOLLOW montage. `--exclude-kind K` (repeatable) drops kinds.
+
+`--captions` is the video-caption preset: it drops `Command`, `Response` and `Strip` echoes and the `Solo Coach/Warning/Safety:` notices, skips a line whose text repeats one kept within the last 30 s, and with `--srt` times each cue by reading speed (words / 2.5 s, clamped to 1.5–6.0 s, cut by the next cue, never under 1.0 s; `--hold` is ignored).
+
+`info` reports whether the archive has one (`HasTerminalLog`); an archive recorded before the feature prints `no terminal log in …` and exits 1.
 
 **Time-series of aircraft state, with selectable columns (`--fields`):**
 ```bash
@@ -70,18 +76,22 @@ python tools/bug_bundle.py track <bundle.zip> --callsigns BXR1960 --fields nav
 # pick exact columns, or a preset: default, nav, vert, pos, proc, full
 python tools/bug_bundle.py track <bundle.zip> --callsigns N42416 --fields phase,hdg,sid,nextfix,offnose
 ```
-`--fields` shapes only the text table; `--json` always emits every field. Reach for the `nav` preset on "turned the wrong way / didn't follow the SID/STAR" bugs: `offnose` is the bearing to the next nav fix minus true heading (negative = fix is left of the nose), `turn` is the commanded turn direction (L/R), and an empty `nextfix` means no route waypoint is loaded. Field keys: `phase, alt, vs, ias, hdg, mhdg, trk, bank, thdg, ahdg, turn, tgt_spd, aspd, aalt, talt, following, lat, lon, nextfix, offnose, sid, star, deprwy` (`mhdg`/`ahdg` are magnetic; `hdg`/`trk`/`thdg` are true).
+`--fields` shapes only the text table; `--json` always emits every field. Reach for the `nav` preset on "turned the wrong way / didn't follow the SID/STAR" bugs: `offnose` is the bearing to the next nav fix minus true heading (negative = fix is left of the nose), `turn` is the commanded turn direction (L/R), and an empty `nextfix` means no route waypoint is loaded.
+
+Field keys: `phase, alt, vs, ias, hdg, mhdg, trk, bank, thdg, ahdg, turn, tgt_spd, aspd, aalt, talt, following, lat, lon, nextfix, offnose, sid, star, deprwy` (`mhdg`/`ahdg` are magnetic; `hdg`/`trk`/`thdg` are true).
 
 **Did any two aircraft collide / taxi through each other? (all-pairs minimum-separation scan):**
 ```bash
-python tools/bug_bundle.py proximity <bundle.zip> 2>&1 | tee .tmp/bb-proximity.log
+python tools/bug_bundle.py proximity <bundle.zip> > .tmp/bb-proximity.log 2>&1; tail -n 20 .tmp/bb-proximity.log
 python tools/bug_bundle.py proximity <bundle.zip> --callsign DAL802 --start 850 --end 930
 ```
-Ranks every on-ground pair by closest approach in feet (interpolated between snapshots, so a fast transient pass-through can't hide between the ~5 s samples), with each aircraft's phase and speed at that moment. A genuine pass-through shows a near-zero minimum at the top; ~100 ft is normal queueing proximity. Run this before assuming a "drove through each other" report is real, and before hand-picking pairs for `track --pair`. `--airborne` includes airborne aircraft (gaps stay lateral-only — a departure climbing over ground traffic shows a small "gap"); `--max-gap-ft` filters; `--top N` (default 20).
+Ranks every on-ground pair by closest approach in feet (interpolated between snapshots, so a fast transient pass-through can't hide between the ~5 s samples), with each aircraft's phase and speed at that moment. A genuine pass-through shows a near-zero minimum at the top; ~100 ft is normal queueing proximity.
+
+Run this before assuming a "drove through each other" report is real, and before hand-picking pairs for `track --pair`. `--airborne` includes airborne aircraft (gaps stay lateral-only — a departure climbing over ground traffic shows a small "gap"); `--max-gap-ft` filters; `--top N` (default 20).
 
 **One-line summary of every aircraft in the scenario (callsign / type / dep-dest / start / presets):**
 ```bash
-python tools/bug_bundle.py scenario <bundle.zip> --show summary 2>&1 | tee .tmp/bb-scen-summary.log
+python tools/bug_bundle.py scenario <bundle.zip> --show summary > .tmp/bb-scen-summary.log 2>&1; tail -n 20 .tmp/bb-scen-summary.log
 ```
 
 **Preset commands for one or more aircraft:**
@@ -178,11 +188,23 @@ python tools/bug_bundle.py validate <bundle.zip>
 
 - `info` is the first thing to run; it tells you duration, aircraft involved, ARTCC, and whether logs are included.
 - For single-aircraft triage, `history --callsign X` is the second thing to run. It collapses 5+ targeted `snapshot --at` calls into one chronological view.
-- **A bundle's snapshots are reconstructions, not live captures — the embedded `yaat-server.log` is the live truth.** Export regenerates every snapshot by replaying the action log from t=0 through a temp room. When `history`/`track` disagree with the log for the same aircraft and `t=` (a phase the log still names is `null` in the snapshot; a command the log accepted has no effect in the snapshot), you have found a replay-fidelity defect — a recorded action the reconstruction applies differently from live — not a second live bug. Triage it as its own defect, and choose replay-test restore points before the divergence or after the two re-converge; never use the diverged window as the repro for the reported symptom. `history` tags server-recorded CRC/STARS echoes `CRC` (`Initials: CRC`, empty `ConnectionId`) — they are not instructor commands.
-- **Sim-elapsed time comes from `history` / `actions` / `snapshot --at`, never from log wall-clock timestamps.** The client and server logs carry human wall-clock times; replay and snapshots are indexed by sim-elapsed `t=`. A PAUSE/UNPAUSE or sim-rate change (common in instructor recordings) breaks any linear wall-clock→`t` mapping by the total paused time, which the log alone cannot show. For "replay to just before command C on aircraft X", read the `t=NNN CMD …` line from `history --callsign X` and replay to just under that.
+- **A bundle's snapshots are reconstructions, not live captures — the embedded `yaat-server.log` is the live truth.** Export regenerates every snapshot by replaying the action log from t=0 through a temp room.
+
+  When `history`/`track` disagree with the log for the same aircraft and `t=` (a phase the log still names is `null` in the snapshot; a command the log accepted has no effect in the snapshot), you have found a replay-fidelity defect — a recorded action the reconstruction applies differently from live — not a second live bug.
+
+  Triage it as its own defect, and choose replay-test restore points before the divergence or after the two re-converge; never use the diverged window as the repro for the reported symptom. `history` tags server-recorded CRC/STARS echoes `CRC` (`Initials: CRC`, empty `ConnectionId`) — they are not instructor commands.
+- **Sim-elapsed time comes from `history` / `actions` / `snapshot --at`, never from log wall-clock timestamps.** The client and server logs carry human wall-clock times; replay and snapshots are indexed by sim-elapsed `t=`.
+
+  A PAUSE/UNPAUSE or sim-rate change (common in instructor recordings) breaks any linear wall-clock→`t` mapping by the total paused time, which the log alone cannot show. For "replay to just before command C on aircraft X", read the `t=NNN CMD …` line from `history --callsign X` and replay to just under that.
 - `snapshot --at T` uses the same nearest-at-or-before-T rule as the C# `RecordingArchive.ReadSnapshotAt` — so `--at 60` returns the snapshot whose `ElapsedSeconds` is the largest value ≤ 60.
 - Live-traffic actions render with `LIVE` (sample: `via=<facility> utc=<observed>`), `LIVERM` (removal) and `LIVEST` (feed status) tags.
-- `history` event tags: `CMD` (action), `CRC` (a STARS/CRC echo the server recorded with `Initials: CRC` — not an instructor command), `PHASES` (chain installed/rebuilt), `PHASE+` (current phase advanced), `PHASE-` (chain cleared), `ROUTE` (NavigationRoute changed), `TGT` (assigned alt/spd/hdg changed), `APPR` (Approach state), `TRACK` (ownership), `RWY` (DestinationRunway), `SPAWN`/`DESPAWN`; the derived records a CRC handler wrote (not instructor commands): `SHARED` (per-TCP shared display state), `CLR` (clearance), `HOLD` (hold annotation), `ERAM` (an ERAM keyboard entry), `CRR` (CRR group), `STRIP` (a manual strip request with its baked id), `ASDXSL` (ASDE-X safety-logic config), `ATTEND` (the CRC positions attended from that second on — a recorded input, not a controller action), `AUTOTRK` (a CRC `.AUTOTRACK` delta — which position auto-tracks which airports from that second on; also a recorded input). Output is ASCII-only (no unicode arrows) so it survives Windows cp1252 stdout.
+- `history` event tags: `CMD` (action), `CRC` (a STARS/CRC echo the server recorded with `Initials: CRC` — not an instructor command), `PHASES` (chain installed/rebuilt), `PHASE+` (current phase advanced), `PHASE-` (chain cleared), `ROUTE` (NavigationRoute changed), `TGT` (assigned alt/spd/hdg changed), `APPR` (Approach state), `TRACK` (ownership), `RWY` (DestinationRunway), `SPAWN`/`DESPAWN`.
+
+  The derived records a CRC handler wrote (not instructor commands) carry these tags: `SHARED` (per-TCP shared display state), `CLR` (clearance), `HOLD` (hold annotation), `ERAM` (an ERAM keyboard entry), `CRR` (CRR group), `STRIP` (a manual strip request with its baked id), `ASDXSL` (ASDE-X safety-logic config).
+
+  The derived records also include `ATTEND` (the CRC positions attended from that second on — a recorded input, not a controller action) and `AUTOTRK` (a CRC `.AUTOTRACK` delta — which position auto-tracks which airports from that second on; also a recorded input).
+
+  Output is ASCII-only (no unicode arrows) so it survives Windows cp1252 stdout.
 - `install` upgrades the archive in place via `../yaat-server/tools/Yaat.RecordingUpgrader` (needs the sibling checkout + dotnet; prints `upgraded: … MIGRATED/up-to-date`), then validates it; a post-install validation warning usually means the bundle is truncated. A missing-upgrader warning means the bundle keeps its recorded schema and any retired canonicals — run the upgrader by hand before relying on strip-command replay.
 - Output goes to stdout by default (pipeable). Use `--out <path>` to write a file; `logs` always writes files and prints paths.
 - `scenario`, `weather`, `artcc-config`, and `layouts` always pretty-print the JSON they emit (indent=2). Falls back to raw text if the payload isn't valid JSON.

@@ -84,7 +84,9 @@ The trade-off: tests no longer warn when the bundled NavData serial is behind wh
 `python tools/refresh-navdata.py` is the signal for that — run it to move the pin (writes
 `TestData/NavData.dat` + `navdata-manifest.json`).
 
-The committed airport ground layouts (`TestData/<ID>.geojson`) are pinned the same way. `python tools/refresh-test-layouts.py` re-fetches each one from the vNAS training-airport map API (the endpoint `AirportLayoutDownloader` uses) and rewrites it with LF line endings. Files whose stem is not a plain 3–4 letter airport ID (`issue172-sfo`, `sfo-b1short`) are deliberate snapshots and are skipped, and an airport the API has no map for is kept as committed. `--check` reports what would change and exits 1 if anything would.
+The committed airport ground layouts (`TestData/<ID>.geojson`) are pinned the same way. `python tools/refresh-test-layouts.py` re-fetches each one from the vNAS training-airport map API (the endpoint `AirportLayoutDownloader` uses) and rewrites it with LF line endings.
+
+Files whose stem is not a plain 3–4 letter airport ID (`issue172-sfo`, `sfo-b1short`) are deliberate snapshots and are skipped, and an airport the API has no map for is kept as committed. `--check` reports what would change and exits 1 if anything would.
 
 **CIFP is required too, and downloads stay enabled on purpose.** `ModuleInit` throws if it cannot
 resolve one. Unlike NavData it needs no offline-first switch: `CifpPathResolver` already returns a
@@ -409,7 +411,11 @@ duplicate-arc/parallel-bypass removals — i.e. the generator produced clean out
 
 ### The heavy categories
 
-`[Trait("Category", "Nightly")]` (per-spot taxi-coverage grid sweeps, e.g. `TaxiCoverageOakGridTests` / `TaxiCoverageSfoGridTests`) and `[Trait("Category", "PathfinderGrid")]` (the state-aware-pruning necessity oracle sweep) are excluded from the default `test-all.ps1` run for speed, and `[Trait("Category", "Desktop")]` (`AutomationClientZOrderTests`, which launch the real client on the interactive desktop; Windows only, so never in the Linux CI) because it puts windows on the developer's screen. The default run passes `--filter-not-trait` for each of the three (untagged tests still run — a trait-inequality filter only drops explicitly tagged tests). Pass `pwsh tools/test-all.ps1 -Full` to include them (CI/nightly run Nightly and PathfinderGrid).
+`[Trait("Category", "Nightly")]` (per-spot taxi-coverage grid sweeps, e.g. `TaxiCoverageOakGridTests` / `TaxiCoverageSfoGridTests`) and `[Trait("Category", "PathfinderGrid")]` (the state-aware-pruning necessity oracle sweep) are excluded from the default `test-all.ps1` run for speed.
+
+`[Trait("Category", "Desktop")]` (`AutomationClientZOrderTests`, which launch the real client on the interactive desktop; Windows only, so never in the Linux CI) is excluded too, because it puts windows on the developer's screen.
+
+The default run passes `--filter-not-trait` for each of the three (untagged tests still run — a trait-inequality filter only drops explicitly tagged tests). Pass `pwsh tools/test-all.ps1 -Full` to include them (CI/nightly run Nightly and PathfinderGrid).
 
 ## Other fixtures
 
@@ -425,11 +431,19 @@ duplicate-arc/parallel-bypass removals — i.e. the generator produced clean out
 
 ## The 30-second timeout discipline
 
-Always run suites under a ceiling: `pwsh tools/gate.ps1 -Log .tmp/test.log -TimeoutSeconds 30 -Slot heavy -- dotnet test ...`. The gate counts the 30 s on a load-adjusted clock (wall time on an idle machine, slower while other agents load it; `CLAUDE.md` "Build after edits"), so a YAAT sim suite that passes it is almost always **stuck**, not merely slow: a broken graph topology or an infinite pathfinder loop, not a heavy computation (the heavy grid sweeps are gated behind the `Nightly`/`PathfinderGrid` traits and excluded by default). Treat a `STALLED` or `TIMED OUT` kill as a hung-test failure to diagnose, not a budget to raise; a `BACKSTOP` kill with a low "machine free" figure was a busy machine, so re-run it once alone.
+Always run suites under a ceiling: `pwsh tools/gate.ps1 -Log .tmp/test.log -TimeoutSeconds 30 -Slot heavy -- dotnet test ...`.
+
+The gate counts the 30 s on a load-adjusted clock (wall time on an idle machine, slower while other agents load it; `CLAUDE.md` "Build after edits"), so a YAAT sim suite that passes it is almost always **stuck**, not merely slow: a broken graph topology or an infinite pathfinder loop, not a heavy computation (the heavy grid sweeps are gated behind the `Nightly`/`PathfinderGrid` traits and excluded by default).
+
+Treat a `STALLED` or `TIMED OUT` kill as a hung-test failure to diagnose, not a budget to raise; a `BACKSTOP` kill with a low "machine free" figure was a busy machine, so re-run it once alone.
 
 ## Timing budgets measure thread CPU time
 
-A timing budget on synchronous, single-thread work measures the thread's CPU time with `Yaat.Sim.Diagnostics.ThreadCpuTime` (`Current()` deltas or `Measure(Action)`), not `Stopwatch`, so the test does not fail when unrelated load slows the machine down (the machine usually runs several agents at once). The failure message says "ms of thread CPU time". The test projects run server GC, whose collections run on their own threads and are not charged to the test thread, so a budget adds the `GC.GetTotalPauseDuration()` delta over the measured span to the thread CPU figure. On Windows the clock advances only at the scheduler tick (about 15.6 ms), so a budget under about 50 ms means nothing there. Work that hops threads (`await`, `Parallel`, `Task.Run`, native worker threads) cannot be measured this way: keep wall time for it, and for anything that really is about wall time (UI-thread blocking, debounce and settle windows, hang guards). Never substitute process CPU time, which counts the other tests running in parallel.
+A timing budget on synchronous, single-thread work measures the thread's CPU time with `Yaat.Sim.Diagnostics.ThreadCpuTime` (`Current()` deltas or `Measure(Action)`), not `Stopwatch`, so the test does not fail when unrelated load slows the machine down (the machine usually runs several agents at once).
+
+The failure message says "ms of thread CPU time". The test projects run server GC, whose collections run on their own threads and are not charged to the test thread, so a budget adds the `GC.GetTotalPauseDuration()` delta over the measured span to the thread CPU figure.
+
+On Windows the clock advances only at the scheduler tick (about 15.6 ms), so a budget under about 50 ms means nothing there. Work that hops threads (`await`, `Parallel`, `Task.Run`, native worker threads) cannot be measured this way: keep wall time for it, and for anything that really is about wall time (UI-thread blocking, debounce and settle windows, hang guards). Never substitute process CPU time, which counts the other tests running in parallel.
 
 **Loop budgets: event-bounded vs budget-bounded.** Most recording-replay tests are *event-bounded* — they tick until "reaches phase X" /
 "exits `LineUpPhase`" / "segment > N" and `break`; the `for (t <= 600)` bound is a failure timeout, not a cost. Trimming it saves nothing
@@ -482,7 +496,9 @@ Run it: `pwsh tools/gate.ps1 -Log .tmp/test.log -TimeoutSeconds 30 -Slot heavy -
 
 ## Footguns and pitfalls
 
-- **A pinned value must not carry the process's day.** `MagneticDeclination.EvaluationDateUtc` and `SimScenarioState.ProcessDayUtc` are the UTC day the test process started, and a session start goes into the snapshot (`SimScenarioState.SessionStartUtc`). A test that compares against a value pinned across runs (a hash, a golden) passes a fixed `DateTime` with `DateTimeKind.Utc` as the session start, or it breaks every day at 00:00Z. Tests comparing two loads made in one process may use `EvaluationDateUtc`.
+- **A pinned value must not carry the process's day.** `MagneticDeclination.EvaluationDateUtc` and `SimScenarioState.ProcessDayUtc` are the UTC day the test process started, and a session start goes into the snapshot (`SimScenarioState.SessionStartUtc`).
+
+  A test that compares against a value pinned across runs (a hash, a golden) passes a fixed `DateTime` with `DateTimeKind.Utc` as the session start, or it breaks every day at 00:00Z. Tests comparing two loads made in one process may use `EvaluationDateUtc`.
 - **Static-singleton race.** A class reading a `TestVnasData`-populated singleton (`AircraftProfileDatabase`, `AircraftSiblingMap`,
   `NavigationDatabase`, …) can race a class mid-init. Symptom: `Expected 98 / Actual 96.5` (default-fallback), passes alone, flakes in the
   suite. **Fix: `TestVnasData.EnsureInitialized()` in the class *constructor*.**

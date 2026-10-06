@@ -1,6 +1,10 @@
 # Test Map — where a behaviour is pinned, and where a new test belongs
 
-> The almanac of **classes of test**, keyed by subsystem the way [`architecture.md`](./architecture.md)'s Task Index is keyed. It answers two questions before you write a test: *is this behaviour already pinned somewhere?* and *which shape and folder does the new test take?* It is deliberately not a per-file listing (1,100+ test files, 8,000+ test methods — a listing rots on contact and is derivable with `rg`); each row names a shape, two to four representative files, what the shape pins, the harness it needs, and the placement rule. Harness mechanics (singleton races, `TestVnasData`, the `ModuleInit`s, the 30-second timeout) live in [`test-harness.md`](./test-harness.md); the replay-driven bug workflow in [`e2e-tdd-issue-debugging.md`](./e2e-tdd-issue-debugging.md).
+> The almanac of **classes of test**, keyed by subsystem the way [`architecture.md`](./architecture.md)'s Task Index is keyed. It answers two questions before you write a test: *is this behaviour already pinned somewhere?* and *which shape and folder does the new test take?*
+>
+> It is deliberately not a per-file listing (1,100+ test files, 8,000+ test methods — a listing rots on contact and is derivable with `rg`); each row names a shape, two to four representative files, what the shape pins, the harness it needs, and the placement rule.
+>
+> Harness mechanics (singleton races, `TestVnasData`, the `ModuleInit`s, the 30-second timeout) live in [`test-harness.md`](./test-harness.md); the replay-driven bug workflow in [`e2e-tdd-issue-debugging.md`](./e2e-tdd-issue-debugging.md).
 
 Counts below are approximate `[Fact]`/`[Theory]` totals at 2026-09-10 and exist only to show where the weight is.
 
@@ -21,11 +25,15 @@ Two DTO shapes are asserted from both sides of the wire on purpose (`RoomMembers
 The rule the tree actually follows (nothing documents it elsewhere):
 
 - **Needs a `SimulationEngine`** — `Replay(...)`, `RunSecond`, `SendCommand` across ticks, several aircraft, the action router → **`Simulation/`**. Flat there for bug pins (`IssueNNN*`, `S2Oak*`, `Oak*`/`Sfo*`/`Mia*`-prefixed, `*E2ETests`); a subfolder when a subsystem accumulated its own bare-engine `*StepTests` (`Simulation/{Actions,Asdex,Bookmarks,Coordination,Eram,Strips,TowerLists,Tdls,Oracle,Snapshots,GroundTaxi}/`).
-- **Hand-built `AircraftState` / `PhaseContext` / a parser call, no engine** → the **root** (physics, phases, parsers, weather, conflict detection, command handlers) — *unless* a subsystem folder already exists for it (`Commands/`, `Pathfinding/`, `Fillet/`, `Phases/`, `Pilot/`, `Speech/`, `Scenarios/`, `ControllerAi/`, `LiveTraffic/`, `Data/`, `Training/`, `Artcc/`, `Asdex/`, `Acceptance/`, `PathfinderGrid/`, `Soak/`). "Does a folder exist" is the signal, not file count: `Data/` has 9 files, weather and conflict detection have dozens at the root.
+- **Hand-built `AircraftState` / `PhaseContext` / a parser call, no engine** → the **root** (physics, phases, parsers, weather, conflict detection, command handlers) — *unless* a subsystem folder already exists for it (`Commands/`, `Pathfinding/`, `Fillet/`, `Phases/`, `Pilot/`, `Speech/`, `Scenarios/`, `ControllerAi/`, `LiveTraffic/`, `Data/`, `Training/`, `Artcc/`, `Asdex/`, `Acceptance/`, `PathfinderGrid/`, `Soak/`).
+
+  "Does a folder exist" is the signal, not file count: `Data/` has 9 files, weather and conflict detection have dozens at the root.
 - Issue-numbered and descriptive bug-pin names coexist at both root and `Simulation/`; the number is not what decides placement, the engine is. `IssueNNN` names are for a reported bug; a class that pins a rule gets a rule name.
 - Folder and namespace disagree in places (`Data/*` declares `Yaat.Sim.Tests`; `Phases/Tower/LandingPhaseCompletionStampTests` declares `Yaat.Sim.Tests.LandingPhaseTests`) — search by folder, not namespace.
 
-Heavy work is gated, not skipped: `[Trait("Category", "Nightly")]` (the per-spot taxi-coverage grids in `Simulation/GroundTaxi/TaxiCoverage{Oak,Sfo}GridTests`) and `[Trait("Category", "PathfinderGrid")]` (`PathfinderGrid/StateAwarePruningNecessityTests` **and** `Pathfinding/Req1MembershipArcSweepTests`) are excluded by `tools/test-all.ps1` unless `-Full`. `Acceptance/*` is not gated but runs in a `DisableParallelization` collection because it writes `TickRecorder` files. `ControllerAi/ControllerAiDeterminismTests` (900 sim-seconds) and `GroundBrainE2ETests` are the heaviest always-on tests.
+Heavy work is gated, not skipped: `[Trait("Category", "Nightly")]` (the per-spot taxi-coverage grids in `Simulation/GroundTaxi/TaxiCoverage{Oak,Sfo}GridTests`) and `[Trait("Category", "PathfinderGrid")]` (`PathfinderGrid/StateAwarePruningNecessityTests` **and** `Pathfinding/Req1MembershipArcSweepTests`) are excluded by `tools/test-all.ps1` unless `-Full`.
+
+`Acceptance/*` is not gated but runs in a `DisableParallelization` collection because it writes `TickRecorder` files. `ControllerAi/ControllerAiDeterminismTests` (900 sim-seconds) and `GroundBrainE2ETests` are the heaviest always-on tests.
 
 ## 3. The shapes
 
