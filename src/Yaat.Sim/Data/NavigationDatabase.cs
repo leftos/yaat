@@ -735,6 +735,44 @@ public sealed class NavigationDatabase
     }
 
     /// <summary>
+    /// Every airport whose reference point lies within <paramref name="maxRangeNm"/> of <paramref name="position"/>, in
+    /// ordinal identifier order. Walks the same 1°-bucket grid as <see cref="FindNearestAirportElevation"/>.
+    /// </summary>
+    public List<(string Id, LatLon Position)> FindAirportsWithin(LatLon position, double maxRangeNm)
+    {
+        (int latBucket, int lonBucket) = AirportBucketKey(position.Lat, position.Lon);
+        int radius = Math.Max(1, (int)Math.Ceiling(maxRangeNm / 60.0));
+        var found = new List<(string Id, LatLon Position)>();
+        for (int dLat = -radius; dLat <= radius; dLat++)
+        {
+            for (int dLon = -radius; dLon <= radius; dLon++)
+            {
+                if (
+                    !_airportSpatialIndex.TryGetValue(
+                        (latBucket + dLat, lonBucket + dLon),
+                        out List<(string Id, double Lat, double Lon, double Elevation)>? bucket
+                    )
+                )
+                {
+                    continue;
+                }
+
+                foreach ((string id, double lat, double lon, double _) in bucket)
+                {
+                    var airport = new LatLon(lat, lon);
+                    if (GeoMath.DistanceNm(position, airport) <= maxRangeNm)
+                    {
+                        found.Add((id, airport));
+                    }
+                }
+            }
+        }
+
+        found.Sort((a, b) => string.CompareOrdinal(a.Id, b.Id));
+        return found;
+    }
+
+    /// <summary>
     /// Returns the nearest airport to <paramref name="position"/> within
     /// <paramref name="maxRangeNm"/> whose longest runway is at least
     /// <paramref name="minRunwayLengthFt"/>, or <c>null</c> if none qualifies.

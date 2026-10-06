@@ -21,7 +21,7 @@ public partial class FavoritesPanelWindow : Window, IAlwaysOnTopToggle
         _geometryHelper.Restore();
     }
 
-    /// <summary>True while a panel window is open for this view model (window profiles capture this).</summary>
+    /// <summary>True while a panel window is open for this view model (layouts capture this).</summary>
     public static bool IsOpen(MainViewModel vm) => OpenWindows.TryGetValue(vm, out _);
 
     /// <summary>Closes the panel window for this view model, if one is open.</summary>

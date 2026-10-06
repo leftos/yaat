@@ -53,4 +53,42 @@ public class AircraftLengthTests
 
         Assert.Equal(80.0, AircraftLength.ResolveFt("ZZZZ"));
     }
+
+    /// <summary>
+    /// A type the FAA database lacks with a known CWT bucket: <c>SimplePushbackDistanceNm</c> takes its length
+    /// from <see cref="AircraftLength.ResolveFt"/> (the ruled CWT bucket length), not its own letter table.
+    /// </summary>
+    [Theory]
+    [InlineData("C5M", "B", 220.0)]
+    [InlineData("AN26", "F", 125.0)]
+    [InlineData("C295", "G", 100.0)]
+    public void SimplePushbackDistanceNm_UnknownType_UsesResolveFt(string type, string expectedCwt, double expectedLengthFt)
+    {
+        TestVnasData.EnsureInitialized();
+        Assert.Null(FaaAircraftDatabase.Get(type));
+        Assert.Equal(expectedCwt, WakeTurbulenceData.GetCwt(type));
+
+        Assert.Equal(expectedLengthFt / 6076.12, CategoryPerformance.SimplePushbackDistanceNm(type), 6);
+    }
+
+    /// <summary>An I-bucket light type the FAA database lacks floors at the prior 0.015 nm baseline.</summary>
+    [Fact]
+    public void SimplePushbackDistanceNm_UnknownLightType_FloorsAtBaseline()
+    {
+        TestVnasData.EnsureInitialized();
+        Assert.Null(FaaAircraftDatabase.Get("DA62"));
+        Assert.Equal("I", WakeTurbulenceData.GetCwt("DA62"));
+
+        Assert.Equal(0.015, CategoryPerformance.SimplePushbackDistanceNm("DA62"), 6);
+    }
+
+    /// <summary>A type the FAA database carries pushes back by its FAA length, not a CWT table row.</summary>
+    [Fact]
+    public void SimplePushbackDistanceNm_B738_UsesItsFaaLength()
+    {
+        TestVnasData.EnsureInitialized();
+        Assert.Equal(129.5, AircraftLength.ResolveFt("B738"));
+
+        Assert.Equal(129.5 / 6076.12, CategoryPerformance.SimplePushbackDistanceNm("B738"), 6);
+    }
 }

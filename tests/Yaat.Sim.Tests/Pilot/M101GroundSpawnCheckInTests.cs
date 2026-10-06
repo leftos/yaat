@@ -27,7 +27,8 @@ public class M101GroundSpawnCheckInTests
             TrueHeading = new TrueHeading(280),
             IsOnGround = true,
             FlightPlan = new AircraftFlightPlan { FlightRules = isVfr ? "VFR" : "IFR", HasFlightPlan = hasFlightPlan },
-            Ground = new AircraftGroundOps { ParkingSpot = parkingSpot },
+            // Armed as the loader arms a ground spawn with no presets; an unarmed aircraft (None) never calls.
+            Ground = new AircraftGroundOps { ParkingSpot = parkingSpot, InitialCallup = InitialCallupPlan.StandCall },
             Phases = new PhaseList(),
         };
         return ac;
@@ -217,11 +218,11 @@ public class M101GroundSpawnCheckInTests
     [Fact]
     public void AtParking_ScriptedDeparture_DoesNotFireCallupEvenAt100Rate()
     {
-        // Scenario author preset a TAXI command on this parking aircraft. The
+        // Scenario author preset a TAXI command that scripts this aircraft's ground sequence (plan None). The
         // autonomous ready-to-taxi call-up must stay silent so the scripted ground
         // sequence isn't stepped on.
         AircraftState ac = MakeAircraft();
-        ac.Ground.IsScriptedDeparture = true;
+        ac.Ground.InitialCallup = InitialCallupPlan.None;
         var phase = new AtParkingPhase();
         PhaseContext ctx = Ctx(ac, soloParkingInitialCallupRatePercent: 100);
 
@@ -287,6 +288,44 @@ public class M101GroundSpawnCheckInTests
         scenario.NextSoloParkingInitialCallupSlotSeconds = 10;
 
         Assert.True(TickParkingCallupWithScenario(ac, phase, scenario, 11, 11));
+    }
+
+    // --- AtParkingPhase: initial call-up plan (YAAT-308) ---
+
+    [Fact]
+    public void DefaultPlan_NeverCalls()
+    {
+        // An aircraft the loader did not arm keeps the default plan.
+        AircraftState ac = MakeAircraft();
+        ac.Ground = new AircraftGroundOps { ParkingSpot = "KILO RAMP" };
+        var phase = new AtParkingPhase();
+        PhaseContext ctx = Ctx(ac);
+
+        phase.OnStart(ctx);
+        TickElapsed(phase, ctx, 5.0);
+        TickElapsed(phase, ctx, 600.0);
+
+        Assert.Equal(InitialCallupPlan.None, ac.Ground.InitialCallup);
+        Assert.Empty(ac.PendingPilotTransmissions);
+        Assert.False(ac.HasMadeInitialContact);
+        Assert.True(ac.Ground.InitialCallupDecisionProcessed);
+    }
+
+    [Theory]
+    [InlineData(InitialCallupPlan.AfterPush)]
+    [InlineData(InitialCallupPlan.AfterTaxiArrival)]
+    public void DelayedPlans_DoNotCallFromTheStand(InitialCallupPlan plan)
+    {
+        AircraftState ac = MakeAircraft();
+        ac.Ground.InitialCallup = plan;
+        var phase = new AtParkingPhase();
+        PhaseContext ctx = Ctx(ac);
+
+        phase.OnStart(ctx);
+        TickElapsed(phase, ctx, 600.0);
+
+        Assert.Empty(ac.PendingPilotTransmissions);
+        Assert.False(ac.Ground.InitialCallupDecisionProcessed);
     }
 
     // --- HoldingShortPhase ---

@@ -3,7 +3,6 @@ using Microsoft.Extensions.Logging;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Scenarios;
-using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Simulation.Replay;
 
@@ -65,30 +64,7 @@ internal sealed class ReplayDriver(SimulationEngine engine)
         Arm(actions, targetSeconds);
     }
 
-    public void Range(int startSeconds, int targetSeconds, List<RecordedAction> actions, Action<RecordedAction>? actionApplier) =>
-        RangeCore(startSeconds, targetSeconds, actions, actionApplier, archiveForVerification: null, drifts: null);
-
-    public ReplayResult RangeWithVerification(
-        int startSeconds,
-        int targetSeconds,
-        List<RecordedAction> actions,
-        RecordingArchive archive,
-        Action<RecordedAction>? actionApplier
-    )
-    {
-        var drifts = new List<SnapshotDriftReport>();
-        RangeCore(startSeconds, targetSeconds, actions, actionApplier, archive, drifts);
-        return new ReplayResult(drifts);
-    }
-
-    private void RangeCore(
-        int startSeconds,
-        int targetSeconds,
-        List<RecordedAction> actions,
-        Action<RecordedAction>? actionApplier,
-        RecordingArchive? archiveForVerification,
-        List<SnapshotDriftReport>? drifts
-    )
+    public void Range(int startSeconds, int targetSeconds, List<RecordedAction> actions, Action<RecordedAction>? actionApplier)
     {
         if (startSeconds == 0)
         {
@@ -123,19 +99,6 @@ internal sealed class ReplayDriver(SimulationEngine engine)
 
         using (_engine.EnterReplay())
         {
-            var verifyByTimestamp = new Dictionary<int, int>();
-            if (archiveForVerification is not null && drifts is not null)
-            {
-                for (int i = 0; i < archiveForVerification.SnapshotTimestamps.Count; i++)
-                {
-                    int ts = (int)archiveForVerification.SnapshotTimestamps[i].ElapsedSeconds;
-                    if (ts > startSeconds && ts <= targetSeconds && !verifyByTimestamp.ContainsKey(ts))
-                    {
-                        verifyByTimestamp[ts] = i;
-                    }
-                }
-            }
-
             // A range replay walks the caller's list with its own pump, leaving the driver's stepping pump
             // untouched — the two are independent traversals of the log.
             var host = new ReplayHost(_engine, new RecordedActionPump(actions), actionApplier);
@@ -157,16 +120,6 @@ internal sealed class ReplayDriver(SimulationEngine engine)
             for (int t = startSeconds + 1; t <= targetSeconds; t++)
             {
                 _engine.RunSecond(host);
-
-                if (archiveForVerification is not null && drifts is not null && verifyByTimestamp.TryGetValue(t, out int snapIdx))
-                {
-                    StateSnapshotDto snap = archiveForVerification.ReadSnapshot(snapIdx);
-                    SnapshotDriftReport report = SnapshotDiff.Compare(t, snap, _engine.World.GetSnapshot());
-                    if (report.AircraftDrifts.Count > 0)
-                    {
-                        drifts.Add(report);
-                    }
-                }
             }
         }
     }

@@ -320,7 +320,7 @@ by four `UserPreferences` toggles synced via `RadarView.SyncAssignmentTint`:
   of the full block + marker.
 - **`SyncStudentLeaderDirection`** (default off) — places the block in the student's leader direction via
   `ResolveBlockOffset`/`LeaderDirectionOffset`; a manual drag offset always wins, and the data block's right-click
-  **Display > Reset to student position** clears the manual offset (`RadarCanvas.ResetDataBlockOffset`).
+  **Display > Reset datablock position** clears the manual offset (`RadarCanvas.ResetDataBlockOffset`).
 
 The projection is null when there is no student position, so the renderer falls back to its prior behavior.
 
@@ -607,7 +607,7 @@ This is distinct from the **automatic ATPA cone**: `StarsTrackDto.TpaType` (Key 
 
 ## ATPA cones
 
-The server's `AtpaResultsChanged` broadcast (see [training-hub-contract.md](training-hub-contract.md)) is projected the same way conflict alerts are: `MainViewModel.ApplyAtpaResults` visits every aircraft and sets `AircraftModel.AtpaLeadCallsign` / `AtpaAllowedSeparationNm` / `AtpaConeState` on the **trailing** aircraft only (absent → null / 0 / `Monitor`); `SeedAtpaResult` covers an aircraft added after the broadcast. These fields are never assigned in `FromDto`/`UpdateFromDto` and are distinct from the instructor's manual `TpaType`/`TpaSize` (the #189 footgun). Rendering is gated by the `ShowAtpa` preference (Settings → Radar, default off), plumbed like `ShowConflictAlerts`: `RadarView.SyncAssignmentTint` → `RadarCanvas` → `RadarRenderer` → `TargetRenderer.ShowAtpa`, no `RenderSnapshot` field.
+The server's `AtpaResultsChanged` broadcast (see [training-hub-contract.md](training-hub-contract.md)) is projected the same way conflict alerts are: `MainViewModel.ApplyAtpaResults` visits every aircraft and sets `AircraftModel.AtpaLeadCallsign` / `AtpaAllowedSeparationNm` / `AtpaConeState` on the **trailing** aircraft only (absent → null / 0 / `Monitor`); `SeedAtpaResult` covers an aircraft added after the broadcast. These fields are never assigned in `FromDto`/`UpdateFromDto` and are distinct from the instructor's manual `TpaType`/`TpaSize` (the #189 footgun). Rendering is gated by the `ShowAtpa` preference (Settings › Radar, default off), plumbed like `ShowConflictAlerts`: `RadarView.SyncAssignmentTint` → `RadarCanvas` → `RadarRenderer` → `TargetRenderer.ShowAtpa`, no `RenderSnapshot` field.
 
 - **Actual separation is computed per frame**, not carried on the wire — the broadcast is signature-guarded on pair / allowed separation / cone state, so a wire value would freeze. `RadarDatablockLayout.BuildAtpaLine` reads `GeoMath.DistanceNm` between the two models; `Compute` takes the resolved lead model (`TargetRenderer.ResolvePeer` on the draw path, `RadarCanvas` on the hit-test path) exactly as `BuildConflictLine` takes the conflict peer. The line is drawn only when the lead resolves; it carries the in-trail distance in tenths (`3.2`) after the owner/scratchpad line, steady (not flashing), coloured Monitor = block colour, Warning = yellow, Alert = `(255, 55, 0)` — CRC's `DisplayElementTracks` FDB line-3 rule.
 - **Cone geometry follows CRC's `DrawAtpaCone`**: vertex at the trailing aircraft, axis = true bearing to the lead (`GeoMath.BearingTo`; `ProjectPoint` takes true headings and the viewport applies rotation), length = `AtpaAllowedSeparationNm`, half-angle = the `TpaConeHalfAngleDegrees` preference (CRC uses ±2° for both), the allowed separation labelled at the midpoint in the state colour (Monitor = `TpaColor`).

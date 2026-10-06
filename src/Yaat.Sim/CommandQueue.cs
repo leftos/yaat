@@ -299,6 +299,14 @@ public class CommandBlock
     /// </summary>
     public bool HasDeleteCommand { get; init; }
 
+    /// <summary>
+    /// Set while this runway-entry block waits in the queue for its departure's release (<c>FlightPhysics.WaitsForRelease</c>),
+    /// so the RPO's "waits for the release" notice and the wait/resume log lines each come once per block. Not serialized:
+    /// it drives notices and logging only, and a restored block that is still held recomputes the wait from
+    /// <see cref="AircraftGroundOps.HeldForRelease"/> on its next scan (so a restore announces the wait once more).
+    /// </summary>
+    public bool WaitingForRelease { get; set; }
+
     public CommandBlockDto ToSnapshot() =>
         new()
         {

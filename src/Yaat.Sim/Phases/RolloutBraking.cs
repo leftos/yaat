@@ -10,13 +10,6 @@ namespace Yaat.Sim.Phases;
 public static class RolloutBraking
 {
     /// <summary>
-    /// Deceleration ceiling (kts/s) a pilot will use for an exit the controller named explicitly — firmer than
-    /// the comfortable rate used for the pilot's own default selection, but short of the max-effort
-    /// <see cref="CategoryPerformance.ExpediteExitDecelRate"/> reserved for <c>EXP</c>.
-    /// </summary>
-    public const double FirmBrakingRateKtsPerSec = 5.0;
-
-    /// <summary>
     /// Speed margin (kts) over an exit's turn-off speed that still counts as slow enough to take it. Absorbs
     /// discrete-tick overshoot so a candidate is not rejected over a fraction of a knot.
     /// </summary>
@@ -25,20 +18,32 @@ public static class RolloutBraking
     /// <summary>
     /// Deceleration (kts/s) needed to go from <paramref name="currentGroundSpeedKts"/> to
     /// <paramref name="targetSpeedKts"/> over <paramref name="distanceNm"/>, from v_f² = v_i² - 2·a·d.
-    /// A non-positive distance yields <see cref="FirmBrakingRateKtsPerSec"/> — there is no room left, so the
-    /// answer is "at least firm braking" rather than a division by zero.
+    /// A non-positive distance yields <paramref name="category"/>'s <see cref="CategoryPerformance.FirmBrakingRate"/> —
+    /// there is no room left, so the answer is "at least firm braking" rather than a division by zero.
     /// </summary>
-    public static double RequiredDecelKtsPerSec(double currentGroundSpeedKts, double targetSpeedKts, double distanceNm)
+    public static double RequiredDecelKtsPerSec(double currentGroundSpeedKts, double targetSpeedKts, double distanceNm, AircraftCategory category) =>
+        distanceNm <= 0
+            ? CategoryPerformance.FirmBrakingRate(category)
+            : DecelOverDistanceKtsPerSec(currentGroundSpeedKts, targetSpeedKts, distanceNm);
+
+    /// <summary>
+    /// Most the crew brakes for an exit the controller named: <see cref="CategoryPerformance.FirmBrakingRate"/>, or the
+    /// max-effort <see cref="CategoryPerformance.ExpediteExitDecelRate"/> when it was ordered without delay (<c>EXP</c>). The one
+    /// limit a named exit is judged by — at command time and on the tick, on the rollout and on a late re-target.
+    /// </summary>
+    public static double NamedExitBrakingLimit(AircraftCategory category, bool expedite) =>
+        expedite ? CategoryPerformance.ExpediteExitDecelRate(category) : CategoryPerformance.FirmBrakingRate(category);
+
+    /// <summary>
+    /// Deceleration (kts/s) that takes <paramref name="currentGroundSpeedKts"/> down to <paramref name="targetSpeedKts"/> — zero
+    /// for a stop — over a positive <paramref name="distanceNm"/>, from v_f² = v_i² - 2·a·d. Category-free: the caller owns
+    /// what a non-positive distance means (<see cref="RequiredDecelKtsPerSec"/> answers it with the firm rate).
+    /// </summary>
+    public static double DecelOverDistanceKtsPerSec(double currentGroundSpeedKts, double targetSpeedKts, double distanceNm)
     {
         double currentFps = currentGroundSpeedKts * GeoMath.FeetPerNm / 3600.0;
         double targetFps = targetSpeedKts * GeoMath.FeetPerNm / 3600.0;
         double distFt = distanceNm * GeoMath.FeetPerNm;
-
-        if (distFt <= 0)
-        {
-            return FirmBrakingRateKtsPerSec;
-        }
-
         double requiredDecelFps2 = ((currentFps * currentFps) - (targetFps * targetFps)) / (2.0 * distFt);
         return requiredDecelFps2 * 3600.0 / GeoMath.FeetPerNm;
     }

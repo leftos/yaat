@@ -246,8 +246,9 @@ public partial class VStripsView : UserControl
     /// <summary>Handles the Find keys (Ctrl+F / F3 / Shift+F3 / Esc); returns true if consumed.</summary>
     private bool HandleFindKeys(KeyEventArgs e)
     {
-        bool ctrl = e.KeyModifiers.HasFlag(KeyModifiers.Control);
-        bool shift = e.KeyModifiers.HasFlag(KeyModifiers.Shift);
+        // Exact modifiers: Ctrl+Shift+F is the favorites-bar window hotkey, not Find.
+        bool ctrl = e.KeyModifiers == KeyModifiers.Control;
+        bool shift = e.KeyModifiers == KeyModifiers.Shift;
 
         if (ctrl && (e.Key == Key.F))
         {
@@ -256,7 +257,7 @@ public partial class VStripsView : UserControl
             e.Handled = true;
             return true;
         }
-        if (e.Key == Key.F3)
+        if ((e.Key == Key.F3) && (shift || (e.KeyModifiers == KeyModifiers.None)))
         {
             if (shift)
             {

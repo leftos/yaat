@@ -321,7 +321,10 @@ public class LahsoRolloutTests(ITestOutputHelper output)
 
             // The invariant the rollout ceiling exists to hold: firm braking from here still stops the aircraft
             // before the point. One knot of slack absorbs the integrator's sub-tick lag.
-            double stoppableKts = RolloutBraking.MaxEntrySpeedKts(remainingFt / GeoMath.FeetPerNm, RolloutBraking.FirmBrakingRateKtsPerSec);
+            double stoppableKts = RolloutBraking.MaxEntrySpeedKts(
+                remainingFt / GeoMath.FeetPerNm,
+                CategoryPerformance.FirmBrakingRate(AircraftCategory.Jet)
+            );
             Assert.True(
                 s.GroundSpeedKts <= (stoppableKts + 1.0),
                 $"t+{s.Second}s: {s.GroundSpeedKts:F1} kt with {remainingFt:F0} ft from the nose to the hold-short point — "

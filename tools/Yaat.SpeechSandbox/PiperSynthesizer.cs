@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using NAudio.Wave;
 using SherpaOnnx;
 
@@ -17,9 +18,18 @@ public sealed class PiperSynthesizer : IDisposable
 {
     private const string DefaultVoiceRelative = ".tmp/voices/vits-piper-en_US-libritts_r-medium";
 
+    /// <summary>The VITS length scale the synthesizer is configured with; part of the synth-audio cache key.</summary>
+    public const float LengthScale = 1.0f;
+
     private readonly OfflineTts _tts;
     public string VoiceDir { get; }
     public int SampleRate => _tts.SampleRate;
+
+    /// <summary>
+    /// Stable identity of the loaded voice pack — the pack folder name plus the SHA-256 of its model
+    /// file, so a cache key changes the moment the pack is swapped or its model replaced.
+    /// </summary>
+    public string VoiceIdentity { get; }
 
     public PiperSynthesizer(string voiceDir)
     {
@@ -36,12 +46,17 @@ public sealed class PiperSynthesizer : IDisposable
             throw new FileNotFoundException($"tokens.txt missing in voice dir: {voiceDir}");
         }
         string dataDir = Path.Combine(voiceDir, "espeak-ng-data");
+        using (FileStream modelStream = File.OpenRead(onnxFile.FullName))
+        {
+            string modelHash = Convert.ToHexString(SHA256.HashData(modelStream)).ToLowerInvariant();
+            VoiceIdentity = $"{dirInfo.Name}:{modelHash}";
+        }
 
         var config = new OfflineTtsConfig();
         config.Model.Vits.Model = onnxFile.FullName;
         config.Model.Vits.Tokens = tokensPath;
         config.Model.Vits.DataDir = dataDir;
-        config.Model.Vits.LengthScale = 1.0f;
+        config.Model.Vits.LengthScale = LengthScale;
         config.Model.NumThreads = 2;
         config.Model.Provider = "cpu";
         config.Model.Debug = 0;

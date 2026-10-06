@@ -199,7 +199,7 @@ public sealed class LineUpPhase : Phase
     /// phase's mode and progress but not the maneuver itself — the plan, the graph route, the navigator and the
     /// arc playback are live objects — and <see cref="PhaseRunner"/> only calls <see cref="OnStart"/> on a
     /// Pending phase, so a restored Active phase has to rebuild itself on its own first tick, the way
-    /// <see cref="CrossingRunwayPhase"/> rebuilds its navigator from the restored taxi route.
+    /// <see cref="CrossingRunwayPhase"/> rebuilds its route slice from the restored taxi route.
     /// </summary>
     private bool _needsRestoreRebuild;
 

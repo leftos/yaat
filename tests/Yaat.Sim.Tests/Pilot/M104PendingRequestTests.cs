@@ -77,6 +77,40 @@ public sealed class M104PendingRequestTests
         Assert.Equal(PilotPendingRequestResponseState.Satisfied, ac.PendingPilotRequest!.ResponseState);
     }
 
+    // YAAT-308: FOLLOWG takes the aircraft off its stand (AtParkingPhase.CanAcceptCommand clears the phase),
+    // so the ready-to-taxi request it answers is satisfied — otherwise a taxiing aircraft re-announced
+    // "at parking … ready to taxi" every 120 s.
+    [Fact]
+    public void FollowGroundSatisfiesTaxiRequest()
+    {
+        AircraftState ac = NewAircraft();
+        PilotRequestTracker.RecordRequest(ac, PilotPendingRequestKind.Taxi, nowSeconds: 10, ReadyToTaxiLine, PilotRequestContext.None);
+        var compound = new CompoundCommand([new ParsedBlock(null, [new FollowGroundCommand("N999ZZ")])]);
+
+        PilotRequestTracker.ApplyControllerResponse(ac, compound, nowSeconds: 20);
+
+        Assert.Equal(PilotPendingRequestResponseState.Satisfied, ac.PendingPilotRequest!.ResponseState);
+    }
+
+    // YAAT-308: a ready-to-taxi follow-up is only voiced while the aircraft is stopped and waiting. An
+    // aircraft that has started taxiing must not re-announce the request.
+    [Fact]
+    public void TaxiFollowUp_NotRevoicedWhenAircraftNotAtParking()
+    {
+        AircraftState ac = NewAircraft();
+        ac.IsOnGround = true;
+        var phases = new PhaseList();
+        phases.Add(new TaxiingPhase());
+        phases.Start(MinimalPhaseContext(ac));
+        ac.Phases = phases;
+        PilotRequestTracker.RecordRequest(ac, PilotPendingRequestKind.Taxi, nowSeconds: 10, ReadyToTaxiLine, PilotRequestContext.None);
+
+        Assert.False(PilotRequestTracker.TryQueueFollowUp(ac, nowSeconds: 130));
+
+        Assert.Equal(PilotPendingRequestResponseState.Superseded, ac.PendingPilotRequest!.ResponseState);
+        Assert.Empty(ac.PendingPilotTransmissions);
+    }
+
     // A VFR pattern aircraft transmits "request closed traffic" (recorded by PatternEntryPhase as a
     // Landing request). Per 7110.65 3-10-11 the controller grants it with "LEFT/RIGHT CLOSED TRAFFIC
     // APPROVED" — YAAT's MLT/MRT. That grant must satisfy the request; otherwise the pilot re-announces
@@ -157,7 +191,7 @@ public sealed class M104PendingRequestTests
     {
         AircraftState ac = NewAircraft();
         ac.IsOnGround = true;
-        ac.Ground = new AircraftGroundOps { ParkingSpot = "KILO RAMP" };
+        ac.Ground = new AircraftGroundOps { ParkingSpot = "KILO RAMP", InitialCallup = InitialCallupPlan.StandCall };
         var phase = new AtParkingPhase();
         var ctx = new PhaseContext
         {
@@ -219,5 +253,15 @@ public sealed class M104PendingRequestTests
             OriginalScenarioJson = "{}",
             SoloTrainingMode = true,
             ElapsedSeconds = elapsedSeconds,
+        };
+
+    private static PhaseContext MinimalPhaseContext(AircraftState ac) =>
+        new()
+        {
+            Aircraft = ac,
+            Targets = ac.Targets,
+            Category = AircraftCategory.Jet,
+            DeltaSeconds = 1,
+            Logger = Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance,
         };
 }

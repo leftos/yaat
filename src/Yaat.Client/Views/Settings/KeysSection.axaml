@@ -1,0 +1,65 @@
+<UserControl
+  xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:vm="using:Yaat.Client.ViewModels"
+  x:Class="Yaat.Client.Views.Settings.KeysSection"
+  x:DataType="vm:SettingsViewModel"
+>
+  <ScrollViewer>
+    <StackPanel Margin="16,8,16,16" Spacing="12">
+      <WrapPanel Orientation="Horizontal">
+        <Button Classes="section-link" Content="Push-to-talk key → Speech" Tag="{x:Static vm:SettingsSectionId.Speech}" />
+        <Button Classes="section-link" Content="Always on top → General" Tag="{x:Static vm:SettingsSectionId.General}" />
+      </WrapPanel>
+      <Border Classes="card">
+        <StackPanel Spacing="12">
+          <TextBlock Text="Keybinds" FontWeight="SemiBold" />
+          <!-- One row per configurable key, from SettingsViewModel's keybind list. A combo another row or a fixed
+               chord (Ctrl+F8, Ctrl+M) already uses is kept and named here; OK and Apply stay disabled until it clears. -->
+          <ItemsControl ItemsSource="{Binding KeysSectionKeybindRows}">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate>
+                <StackPanel Spacing="16" />
+              </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:KeybindRow">
+                <StackPanel Spacing="4">
+                  <TextBlock Text="{Binding Label}" Foreground="{DynamicResource SubtleTextBrush}" />
+                  <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Button
+                      Classes="key-capture"
+                      Content="{Binding Display}"
+                      Width="160"
+                      HorizontalContentAlignment="Center"
+                      Command="{Binding StartCaptureCommand}"
+                    />
+                    <TextBlock
+                      Text="(click, then press a key combo)"
+                      Foreground="{DynamicResource SubtleTextBrush}"
+                      FontSize="11"
+                      VerticalAlignment="Center"
+                    />
+                  </StackPanel>
+                  <TextBlock
+                    Text="{Binding CaptureHint}"
+                    IsVisible="{Binding CaptureHint, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                    Foreground="Orange"
+                    FontSize="11"
+                  />
+                  <TextBlock
+                    Text="{Binding ClashMessage}"
+                    IsVisible="{Binding ClashMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                    Foreground="Orange"
+                    FontSize="11"
+                  />
+                  <TextBlock Text="{Binding Description}" TextWrapping="Wrap" Foreground="{DynamicResource SubtleTextBrush}" FontSize="11" />
+                </StackPanel>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
+      </Border>
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

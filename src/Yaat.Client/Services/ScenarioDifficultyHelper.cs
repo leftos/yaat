@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using Yaat.Sim.Commands;
+using Yaat.Sim;
+using Yaat.Sim.Scenarios;
 
 namespace Yaat.Client.Services;
 
@@ -120,6 +121,12 @@ public static class ScenarioDifficultyHelper
         return (root.ToJsonString(new JsonSerializerOptions { WriteIndented = false }), warnings);
     }
 
+    /// <summary>
+    /// Pre-load hint for the pacing slider: whether any aircraft may make an initial call. Counts a <c>Parking</c> spawn,
+    /// or a <c>Coordinates</c> / <c>FixOrFrd</c> spawn with no altitude and no speed, whose presets
+    /// <see cref="InitialCallupClassifier.ClassifyPresets"/> does not classify as <see cref="InitialCallupPlan.None"/>. The
+    /// server's post-load <c>HasParkingSpawns</c> stays authoritative.
+    /// </summary>
     public static bool HasParkingSpawns(string json)
     {
         var root = JsonNode.Parse(json);
@@ -131,50 +138,46 @@ public static class ScenarioDifficultyHelper
 
         foreach (JsonNode? ac in aircraft)
         {
-            string? startingType = ac?["startingConditions"]?["type"]?.GetValue<string>();
-            if (!string.Equals(startingType, "Parking", StringComparison.OrdinalIgnoreCase))
+            if ((ac is null) || !IsGroundSpawn(ac["startingConditions"]))
             {
                 continue;
             }
 
-            // Mirror ScenarioLoader.HasTaxiPreset: a parking aircraft with a preset TAXI
-            // command is scenario-scripted and not a call-up source.
-            if (HasTaxiPreset(ac?["presetCommands"]?.AsArray()))
-            {
-                continue;
-            }
-
-            return true;
-        }
-
-        return false;
-    }
-
-    private static bool HasTaxiPreset(JsonArray? presetCommands)
-    {
-        if (presetCommands is null)
-        {
-            return false;
-        }
-
-        foreach (JsonNode? preset in presetCommands)
-        {
-            string? command = preset?["command"]?.GetValue<string>();
-            if (string.IsNullOrWhiteSpace(command))
-            {
-                continue;
-            }
-
-            string trimmed = command.Trim();
-            int spaceIdx = trimmed.IndexOf(' ');
-            string verb = spaceIdx < 0 ? trimmed : trimmed[..spaceIdx];
-            if (CommandRegistry.IsAliasFor(CanonicalCommandType.Taxi, verb))
+            string callsign = ac["aircraftId"]?.GetValue<string>() ?? "";
+            if (InitialCallupClassifier.ClassifyPresets(callsign, PresetCommandsOf(ac)) != InitialCallupPlan.None)
             {
                 return true;
             }
         }
 
         return false;
+    }
+
+    /// <summary>A <c>Parking</c> spawn, or a <c>Coordinates</c> / <c>FixOrFrd</c> spawn with no altitude and no speed.</summary>
+    private static bool IsGroundSpawn(JsonNode? startingConditions)
+    {
+        string? startingType = startingConditions?["type"]?.GetValue<string>();
+        bool isParkingSpawn = string.Equals(startingType, "Parking", StringComparison.OrdinalIgnoreCase);
+        bool isCoordinateSpawn =
+            string.Equals(startingType, "Coordinates", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(startingType, "FixOrFrd", StringComparison.OrdinalIgnoreCase);
+        bool hasNoAltitudeOrSpeed = (startingConditions?["altitude"] is null) && (startingConditions?["speed"] is null);
+        return isParkingSpawn || (isCoordinateSpawn && hasNoAltitudeOrSpeed);
+    }
+
+    /// <summary>The aircraft's timed presets, each read from its <c>command</c> text alone; a preset with no command is skipped.</summary>
+    private static List<PresetCommand> PresetCommandsOf(JsonNode aircraft)
+    {
+        var presets = new List<PresetCommand>();
+        foreach (JsonNode? preset in aircraft["presetCommands"]?.AsArray() ?? [])
+        {
+            if (preset?["command"]?.GetValue<string>() is { } command)
+            {
+                presets.Add(new PresetCommand { Command = command });
+            }
+        }
+
+        return presets;
     }
 
     public static bool HasArrivalGenerators(string json)

@@ -119,6 +119,13 @@ public sealed class PhaseContext
     /// </summary>
     public string? StudentPositionType { get; init; }
 
+    /// <summary>
+    /// True when the aircraft is a <see cref="InitialCallupPlan.RunwayNoPreset"/> runway spawn whose call is still open and
+    /// the loaded ARTCC config has a tower cab at its runway's airport. Evaluated by the engine (which holds the config)
+    /// only for such aircraft; false for every other.
+    /// </summary>
+    public bool IsRunwaySpawnFieldTowered { get; init; }
+
     /// <summary>Student controller track owner, if the scenario selected a student TCP.</summary>
     public TrackOwner? StudentPosition { get; init; }
 

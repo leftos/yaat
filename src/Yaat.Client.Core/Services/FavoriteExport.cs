@@ -25,7 +25,11 @@ public sealed record FavoriteImportResult(
     int SetsUpdated,
     int MissingReferences,
     List<string> NewSetIdsToLoad
-);
+)
+{
+    /// <summary>For every named set the file carried, the id it was given in the store, keyed by its id in the file.</summary>
+    public IReadOnlyDictionary<string, string> SetIdMap { get; init; } = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+}
 
 /// <summary>
 /// Zip-based sharing of favorites. A set export is <c>[Name].yaat-favset.zip</c> holding
@@ -225,6 +229,7 @@ public static class FavoriteExport
         int setsUpdated = 0;
         int missing = 0;
         var newSetIdsToLoad = new List<string>();
+        var setIdMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         foreach (FavoriteSet incoming in sets)
         {
             missing += incoming.FavoriteIds.Count(id => store.GetFavorite(id) is null);
@@ -244,6 +249,11 @@ public static class FavoriteExport
                     break;
                 default:
                     (FavoriteSet? set, bool added) = store.UpsertImportedNamedSet(incoming);
+                    if (incoming.Id is not null)
+                    {
+                        setIdMap[incoming.Id] = set.Id;
+                    }
+
                     if (added)
                     {
                         setsAdded++;
@@ -260,7 +270,7 @@ public static class FavoriteExport
             }
         }
 
-        return new FavoriteImportResult(favoritesAdded, favoritesUpdated, setsAdded, setsUpdated, missing, newSetIdsToLoad);
+        return new FavoriteImportResult(favoritesAdded, favoritesUpdated, setsAdded, setsUpdated, missing, newSetIdsToLoad) { SetIdMap = setIdMap };
     }
 
     private static string FavoriteEntryName(FavoriteCommand favorite)

@@ -28,19 +28,19 @@ The class is split across partial files by concern. The split is purely organiza
 
 | File | Owns |
 |---|---|
-| `MainViewModel.cs` | Constructor + event subscriptions; `SendCommandAsync` pipeline; nav-data init (`InitializeNavDataAsync`); tab / pop-out index arithmetic (`IsTabVisible` / `FindNextVisibleTabIndex` / `EnsureSelectedTabVisible`); terminal-filter toggles + solo (`_isProgrammaticTerminalToggle`); session-settings echo guard (`_isApplyingSessionSettings`); `BuildSpeechContext`; speech-result handlers; `ApplySimState`; the `GridLayoutReset` / `RequestCommandInputFocus` / `TerminalFilterChanged` View-bridge events. |
+| `MainViewModel.cs` | Constructor + event subscriptions; `SendCommandAsync` pipeline; nav-data init (`InitializeNavDataAsync`); tab / pop-out index arithmetic (`IsTabVisible` / `FindNextVisibleTabIndex` / `EnsureSelectedTabVisible`); terminal-filter toggles + solo (`_isProgrammaticTerminalToggle`); session-settings echo guard (`_isApplyingSessionSettings`); `BuildSpeechContext`; speech-result handlers; `ApplySimState`; the `GridLayoutReset` / `RequestCommandInputFocus` / `TerminalFilterChanged` View-bridge events; `RequestSettings(SettingsSectionId? section)` → `SettingsRequested`, the one path every Settings opener takes (view right-click menus, the Open Settings key, status-bar links, the pilot-voice banner), handled by `MainWindow.ShowSettingsDialogAsync`; a null section (the Open Settings key, Ctrl+, by default) opens the window at General, and a request that reaches an open window from code brings it to the front (at the requested section, or the current one for null). Settings is modal over every window `Views/OpenWindows.cs` lists, pop-outs included, without touching `IsEnabled`: `SettingsWindow` blocks their pointer, key and text input with tunnel handlers and their tap gestures with class handlers, so the windows keep their look for the live preview and a press brings Settings forward; the Open Settings key therefore does nothing while Settings is open (it is not scoped to Settings itself). `ShowSettingsDialogAsync` records the focused element of the active window before opening and `RestoreFocusAfterSettings` puts focus back on close, falling back to the command input when that element is gone, hidden, disabled or in a menu (Tools › Settings… leaves focus on its menu item). `SettingsImported` / `NotifySettingsImported(itemTypes)`: an Import / Export hub opened outside Settings (Tools › Import / Export…, the favorites panel, the column chooser) applies at once and raises it; `MainWindow.OnSettingsImported` runs `ApplyCommittedSettings` and re-applies the grid layout to the live grids when it was imported. |
 | `MainViewModel.Rooms.cs` | Connect / disconnect / create-join-leave room; CRC lobby + room members; reconnect + server-restart banner; `ApplyRoomState` / `ClearRoomState` (which also seed and clear `RoomLoadingBy`); `JoinCreatedRoomAsync` (closes a room this client created but could not join); aircraft assignments + RPO control (`TakeControlAsync` / `GiveControlAsync` / `ReleaseControlAsync`); `PermittedArtccs` + `SelectedCreateArtccId` (the Create Room ARTCC picker, shown only with operator grants) and `SetActiveArtcc` — `UserPreferences.ArtccId` is "the ARTCC in effect": home at sign-in, the room's `CreatorArtccId` while in a room (adopted in `ApplyRoomState`, restored in `ClearRoomState`), which every ARTCC-scoped consumer (scenario picker, live session, weather, CRC aliases, web-client URLs) reads. |
 | `MainViewModel.Scenario.cs` | Scenario load / unload; difficulty + setup plan (`ScenarioSetupPlan`), parsed off the UI thread; **`ApplyScenarioBootstrap`** (the fan-out router); `ApplyScenarioResult` (loader path); `OnScenarioLoaded` (broadcast path); `ClearScenarioState`; the load overlay's feed and the room-loading gate (`OnScenarioLoadProgress`, `OnRoomLoadingChanged`, `SetRoomLoadingBy`, `ReportLoadFailure`; see **Scenario load overlay and the room-loading gate**); the Discord rich-presence publish (`RichPresence`, `StartRichPresence`, `RefreshRichPresence`). |
 | `LoadOverlayViewModel.cs` | The scenario-load overlay's state (`LoadOverlay`, owned by `MainViewModel`) and its `LoadStepViewModel` rows. Not a partial. |
 | `MainViewModel.Aircraft.cs` | SignalR aircraft handlers (`OnAircraftUpdated` / `OnAircraftSpawned` / `OnAircraftDeleted`); terminal-entry broadcast; speech-bubble attach; `OnPilotTransmissionReceived` → `PilotVoiceService`; `OnSimulationStateChanged`. |
 | `MainViewModel.Timeline.cs` | Rewind / recording / export-progress; the command-marker buffer (`_commandMarkerHistory` + `_commandMarkerLock`); timeline-marker poll (`RefreshTimelineMarkersAsync`); save/load recording injects/reads the `bookmarks.json` archive entry. |
 | `MainViewModel.Bookmarks.cs` | Shared timeline bookmarks — server-authoritative, synced across RPOs (GitHub issue #288): `Bookmarks` mirror collection; add / quick-add / rename / delete route through hub RPCs (`ServerConnection.Add/Rename/DeleteBookmarkAsync`); `ApplyBookmarks` reconciles from the `BookmarksChanged` broadcast / `RoomStateDto.Bookmarks` join seed; `BookmarkNamePromptRequested` event (view shows the name popup); `SnapshotBookmarks` for the recording-save `bookmarks.json` stitch. Cleared at session boundaries alongside `Aircraft.Clear()`. Also owns the client half of the `BM` verb (`TryHandleBookmarkLocallyAsync`): `BM LIST` prints to this client's terminal only and `BM GO/NEXT/PREV` drive `RewindToSeconds`, while add/rename/delete fall through to `MainViewModel.HandleBookmarkGlobalCommand` → `SendCommandAsync` → the server. |
-| `MainViewModel.PilotVoiceWarning.cs` | Solo missing-pilot-voice warning: `ShowPilotVoiceWarning` (banner), `ConfirmResumeAsync` (the once-per-session modal through the view's `PilotVoiceWarningPrompt` hook, called by `TogglePauseAsync`, typed `UNPAUSE` and `TogglePlayback`), `PilotVoiceSettingsRequested` (opens Settings on the Speech tab), `ResetPilotVoiceWarningSession` (scenario/recording load, room change; not a reconnect). |
+| `MainViewModel.PilotVoiceWarning.cs` | Solo missing-pilot-voice warning: `ShowPilotVoiceWarning` (banner), `ConfirmResumeAsync` (the once-per-session modal through the view's `PilotVoiceWarningPrompt` hook, called by `TogglePauseAsync`, typed `UNPAUSE` and `TogglePlayback`), the banner's Voice settings button (`RequestSettings(SettingsSectionId.Speech)`), `ResetPilotVoiceWarningSession` (scenario/recording load, room change; not a reconnect). |
 | `MainViewModel.Weather.cs` | Weather load / clear; `OnWeatherChanged`. |
 | `MainViewModel.LiveSession.cs` | Live-traffic sessions (no authored scenario): `IsLiveSession` (server-computed, mirrored from the three activation DTOs), the `LIVE` / `PAUSED` / `PLAYBACK` badge (`LiveSessionBadgeText` / `DescribeLiveSession`), `ShowGoLive` + `GoLiveCommand`, `StartLiveSessionAsync` (opens the load overlay titled `Live session`, applies the result through `ApplyScenarioResult`, then live weather), `CanStartLiveSession` (`CanLoadScenario` and a live-traffic feed, so it is off while a load runs). See [live-traffic.md](live-traffic.md) "Live sessions". |
 | `MainViewModel.Strips.cs` / `MainViewModel.Tdls.cs` | Multi-facility strips / vTDLS tabs: open/close per-facility entries, the `Subscribe*Entry` / `Unsubscribe*Entry` collection-changed plumbing, per-entry pop-out persistence. |
 | `MainViewModel.ViewInstances.cs` | Extra Radar/Ground windows (#434): `ExtraRadarViews` / `ExtraGroundViews` (`RadarViewInstance` / `GroundViewInstance`, ordinals ≥ 2), the `CreateRadarViewModel` / `CreateGroundViewModel` factories the primaries also use, `OpenExtra*View` / `CloseExtra*View` / `ReconcileExtraViews` (profiles), late seeding from the stashed scenario bootstrap / position config / airport position, and the `AllRadarViews` / `AllGroundViews` enumerators every fan-out site loops over. See **Extra view instances** below. |
-| `MainViewModel.CrcAliases.cs` | CRC alias support: the `CrcAliasStore` instance, `BuiltInDotCommands` (the reserved names YAAT's own dot commands own), `LoadCrcAliasesAsync` (startup + ARTCC change + Settings save), `TryHandleCrcAlias` / `RunCrcAlias`, and `BuildCrcAliasContext` (flight-plan fields for `$dep`/`$arr`/`$route`/`$fullroute`, read off `SelectedAircraft`). Client-only — nothing here reaches the server. |
+| `MainViewModel.CrcAliases.cs` | CRC alias support: the `CrcAliasStore` instance, `BuiltInDotCommands` (the reserved names YAAT's own dot commands own), `LoadCrcAliasesAsync` (startup + ARTCC change + Settings Apply), `TryHandleCrcAlias` / `RunCrcAlias`, and `BuildCrcAliasContext` (flight-plan fields for `$dep`/`$arr`/`$route`/`$fullroute`, read off `SelectedAircraft`). Client-only — nothing here reaches the server. |
 | `MainViewModel.Favorites.cs` | Quick-command favorites bar/panel. `DisplayFavorites` = scope-filtered base pool + every favorite of each loaded named set in load order (`ComposeDisplayFavorites`); mutators are container-aware (`FindFavoriteContainer` routes an edit to the base pool or the owning set); set load/unload + all-sets bundle import. The ctor subscribes `UserPreferences.FavoriteSetsChanged` → `Dispatcher.UIThread.Post(RefreshDisplayFavorites)` so Favorites Editor mutations reach the live bar. |
 | `MainViewModel.ArrivalGenerators.cs` | Live arrival-generator editing. |
 | `ScenarioBootstrap.cs` | The `ScenarioBootstrap` record — the common projection the three activation paths feed `ApplyScenarioBootstrap`. |
@@ -181,7 +181,7 @@ both `ApplyScenarioBootstrap` and `ApplyRecordingResult`. A rewind or skip (`Rew
 and leaves the published start time alone.
 
 `RefreshRichPresence` republishes from the current `ActiveScenario*` properties without touching the start time: the
-Settings window calls it on save (so the `DiscordRichPresenceEnabled` toggle takes effect at once), and
+Settings window calls it on each Apply (so the `DiscordRichPresenceEnabled` toggle takes effect at once), and
 `OnRoomMemberChanged` calls it when a scenario name arrives after a bootstrap that had none (until then the first line
 is the raw scenario id). `MainViewModel.RichPresence` is a settable `IRichPresencePublisher?` that `MainWindow` assigns;
 left null (a headless test host, unless the test assigns a fake) every call is a no-op.
@@ -212,28 +212,26 @@ Tests: `LoadOverlayViewModelTests` and `MainViewModelLoadOverlayTests` (`tests/Y
 
 ## Session-settings echo suppression
 
-The session-settings flyout binds 13 `[ObservableProperty]` fields (`SessionAutoDeleteIndex`, `SessionDepartureAutoDeleteDistanceNm` (a nullable `decimal` for its `NumericUpDown`, blank = off), `SessionAutoAcceptDelaySeconds`, `SessionAutoClearedToLand`, `SessionAutoCrossRunway`, `SessionValidateDctFixes`, `SessionSoloTrainingMode`, the three solo-pacing rates, the two `HasSolo*Source` flags, `SessionRpoShowPilotSpeech`, `SessionLiveTrafficEnabled` + `SessionLiveTrafficCeilingFt` — see [live-traffic.md](live-traffic.md) "Client" for the status-bar indicator and the Aircraft List tri-state that hang off them — …). Each has an `OnXxxChanged` partial that re-sends the new value to the server. The problem: when the **server** broadcasts a settings change, applying it to the bound property would re-trigger `OnXxxChanged`, which would re-send it — a ping-pong.
+`ApplySessionSettings` writes 24 `Session*` `[ObservableProperty]` fields from the 23 fields of `SessionSettingsDto`, and the session-settings flyout binds them: `SessionAutoDeleteIndex`, `SessionDepartureAutoDeleteDistanceNm` (a nullable `decimal` for its `NumericUpDown`, blank = off), `SessionAutoAcceptEnabled` + `SessionAutoAcceptDelaySeconds`, the two command-run-delay bounds, `SessionAutoClearedToLand`, `SessionAutoCrossRunway`, `SessionAutoPullUpToParallel`, `SessionAutoGoAroundOnOccupiedRunway`, `SessionAutoRejectTakeoffOnOccupiedRunway`, `SessionAutoArrivalSpacingOnOccupiedRunway`, `SessionLiveTrafficEnabled` + `SessionLiveTrafficCeilingFt` + `SessionLiveTrafficFilter` (see [live-traffic.md](live-traffic.md) "Client" for the status-bar indicator and the Aircraft List tri-state that hang off them), `SessionValidateDctFixes`, `SessionSoloTrainingMode`, the four solo-pacing fields (the parking call-up rate percent and the interval seconds the slider shows, the arrival generator rate, the go-around probability), the two `SessionHasSolo*Source` flags, and `SessionRpoShowPilotSpeech`. Each has an `OnXxxChanged` partial, and the ones that re-send the new value to the server are what the guard protects. The problem: when the **server** broadcasts a settings change, applying it to the bound property would re-trigger `OnXxxChanged`, which would re-send it — a ping-pong.
 
-The guard is `_isApplyingSessionSettings` (`MainViewModel.cs:2434`). `ApplySessionSettings(SessionSettingsDto)`
-(`MainViewModel.cs:2441`) sets it `true`, writes all 13 properties, then sets it `false`. Every `OnXxxChanged`
-handler early-returns while the flag is set (e.g. `OnSessionAutoCrossRunwayChanged`,
-`OnSessionSoloGoAroundProbabilityPercentChanged`), so the broadcast lands without echoing back.
+Properties the flyout binds that are never sent sit beside them, set or recomputed on the client: `SessionAutoClearedToLandLabel` and `SessionAutoArrivalSpacingLabel` ("Auto cleared-to-land (TWR)": the room holds one flag each, while the Settings defaults are per position type, so the suffix names the student's position type when it is GND, TWR, APP or CTR and is left off otherwise; `SetStudentPositionType` raises both), `SessionAutoArrivalSpacingApplies` (false for APP and CTR, which greys the arrival-spacing checkbox), `SessionSoloParkingInitialCallupIntervalLabel` and `SessionLiveTrafficFilterSummary`.
 
-Because the same 13 fields arrive under four different DTO shapes, there are **four adapters** that all build a
-`SessionSettingsDto` and call `ApplySessionSettings`:
+Auto-accept is two flyout controls over one wire value: the hub carries a single delay where any negative value means off. `SessionAutoAcceptWire` (`Yaat.Client.Core/Services/SessionAutoAcceptWire.cs`) maps between them: `ToWire(enabled, delay)` sends the delay or `-1`, and `FromWire(wireDelay, previousDelay)` turns a negative delay into Enabled false with the previous delay kept, so turning the checkbox back on restores it. Both `OnSessionAutoAcceptEnabledChanged` and `OnSessionAutoAcceptDelaySecondsChanged` send `ToWire` of the pair.
+
+The guard is `_isApplyingSessionSettings` (`MainViewModel.cs:3484`). `ApplySessionSettings(SessionSettingsDto)` (`MainViewModel.cs:3490`) sets it `true`, writes all 24 properties, then sets it `false`. Every sending `OnXxxChanged` handler early-returns while the flag is set (e.g. `OnSessionAutoCrossRunwayChanged`, `OnSessionSoloGoAroundProbabilityPercentChanged`), so the broadcast lands without echoing back.
+
+Because the same 23 DTO fields arrive under four different DTO shapes, there are **four adapters** that all build a `SessionSettingsDto` and call `ApplySessionSettings`:
 
 - `ApplySessionSettings(SessionSettingsDto)` — the base, used by the live `OnSessionSettingsChanged` broadcast.
-- `ApplySessionSettingsFromRoom(RoomStateDto)` (`Scenario`-adjacent in `MainViewModel.cs:2463`).
-- `ApplySessionSettingsFromScenarioLoaded(ScenarioLoadedDto)` (`MainViewModel.cs:2484`).
-- `ApplySessionSettingsFromLoadScenarioResult(LoadScenarioResultDto)` (`MainViewModel.cs:2505`).
+- `ApplySessionSettingsFromRoom(RoomStateDto)` (`MainViewModel.cs:3527`).
+- `ApplySessionSettingsFromScenarioLoaded(ScenarioLoadedDto)` (`MainViewModel.cs:3559`).
+- `ApplySessionSettingsFromLoadScenarioResult(LoadScenarioResultDto)` (`MainViewModel.cs:3590`).
 
 Add a session setting and **all four** adapters plus the `SessionSettingsDto` (client + server) and the four
 source DTOs must change in lockstep — see [training-hub-contract.md](training-hub-contract.md) for the cross-repo
 fan-out.
 
-Note the solo-pacing rates funnel through one server call, `SetSoloPacingRatesAsync(parking, arrival, goAround)`, not
-three separate setters — `OnSessionSoloPacingRateChanged` / `OnSessionSoloParkingInitialCallupIntervalSecondsChanged` /
-`OnSessionSoloGoAroundProbabilityPercentChanged` all clamp then call it.
+Note the solo-pacing rates funnel through one server call, `SetSoloPacingRatesAsync(parking, arrival, goAround)`, not three separate setters — `OnSessionSoloPacingRateChanged` / `OnSessionSoloParkingInitialCallupIntervalSecondsChanged` / `OnSessionSoloGoAroundProbabilityPercentChanged` all clamp then call it. The parking pace travels as a rate percent but every control shows an interval; the conversion, the "Paused" / "Once per N sec" label and the load-time defaults (`LoadDefaults`, what a load without the setup dialog sends) live in `Yaat.Client.Core/Services/SoloPacing.cs`, shared by the flyout, the scenario setup dialog and Settings › Scenario defaults. The setup dialog seeds its sliders from the stored defaults and never writes them back; only Settings changes them.
 
 The **terminal-filter solo** feature uses the identical guard pattern under a different flag,
 `_isProgrammaticTerminalToggle` (`MainViewModel.cs:821`): `ApplyVisibilityProgrammatic` sets it while flipping the
@@ -335,27 +333,11 @@ by `MainWindow` once the dynamic Strips/TDLS `TabItem`s are materialized — bec
 `SelectedIndex` binding doesn't propagate VM→TabControl when the VM value was set before the dynamic tabs existed
 (`MainWindow.axaml.cs:267`-`284`).
 
-**The favorites bar is not a tab.** `ShowFavoritesBar` (pref-backed, default on) and the derived
-`IsFavoritesBarDocked => ShowFavoritesBar && !IsTerminalPoppedOut` drive the bar in `MainWindow.axaml`; the copy
-inside `TerminalWindow.axaml` binds `ShowFavoritesBar` alone, since the bar follows the Terminal when it pops out.
-The pop-out Favorites Panel is a `FavoritesPanelWindow` singleton per `MainViewModel` (`ShowOrActivate` /
-`IsOpen` / `Close`); its open state persists as `UserPreferences.IsFavoritesPanelOpen` (restored at startup beside
-the other pop-outs, not written during shutdown) and both flags ride window profiles as nullable fields — null
-means "captured before the feature; leave as is", the same convention as `LoadedFavoriteSetIds`.
+**The favorites bar is not a tab.** `ShowFavoritesBar` (pref-backed, default on) and the derived `IsFavoritesBarDocked => ShowFavoritesBar && !IsTerminalPoppedOut` drive the bar in `MainWindow.axaml`; the copy inside `TerminalWindow.axaml` binds `ShowFavoritesBar` alone, since the bar follows the Terminal when it pops out. The pop-out Favorites Panel is a `FavoritesPanelWindow` singleton per `MainViewModel` (`ShowOrActivate` / `IsOpen` / `Close`); its open state persists as `UserPreferences.IsFavoritesPanelOpen` (restored at startup beside the other pop-outs, not written during shutdown) and both flags ride layouts (`SavedLayout`) as nullable fields — null means "captured before the feature; leave as is", the same convention as `LoadedFavoriteSetIds` and `OpenTabs`.
 
 ### Extra view instances (`New Radar Window` / `New Ground Window`)
 
-The docked Radar/Ground views and their pop-outs are the implicit instance #1 and keep today's `IsRadarViewPoppedOut` /
-`IsGroundViewPoppedOut` semantics. **View → New Radar Window / New Ground Window** adds an instance ≥ #2 with its **own**
-`RadarViewModel` / `GroundViewModel` (center, range, zoom, rotation, filters, DCB state, `DataBlockState`, shown routes),
-based on an airport the user picks first (`ExtraViewAirportDialog`: the ARTCC's airports from `ArtccAirportResolver` with the
-scenario primary preselected, or any nav-db airport by text — a second view has no scenario-inferred target), hosted by a
-`RadarViewWindow` / `GroundViewWindow` whose *window* DataContext stays `MainViewModel` (the inner view binds
-`Aircraft` / `GroundShownAirportId` through `$parent[Window]`) while the inner `RadarView` / `GroundView` gets the
-instance VM via `SetViewModel`. Geometry key `RadarView#n` / `GroundView#n` rides the ordinary `WindowGeometries` store,
-so window profiles capture it through the live-helper walk; the ordinal lists (`ExtraRadarViewOrdinals`, on prefs and on
-`SavedWindowProfile`) say which instances exist, and `ReconcileExtraViews` opens/closes to match without resetting
-survivors. Closing the window removes the instance (not under shutdown, so it restores next launch).
+The docked Radar/Ground views and their pop-outs are the implicit instance #1 and keep today's `IsRadarViewPoppedOut` / `IsGroundViewPoppedOut` semantics. **View → New Radar Window / New Ground Window** adds an instance ≥ #2 with its **own** `RadarViewModel` / `GroundViewModel` (center, range, zoom, rotation, filters, DCB state, `DataBlockState`, shown routes), based on an airport the user picks first (`ExtraViewAirportDialog`: the ARTCC's airports from `ArtccAirportResolver` with the scenario primary preselected, or any nav-db airport by text — a second view has no scenario-inferred target), hosted by a `RadarViewWindow` / `GroundViewWindow` whose *window* DataContext stays `MainViewModel` (the inner view binds `Aircraft` / `GroundShownAirportId` through `$parent[Window]`) while the inner `RadarView` / `GroundView` gets the instance VM via `SetViewModel`. Geometry key `RadarView#n` / `GroundView#n` rides the ordinary `WindowGeometries` store, so layouts capture it through the live-helper walk; the ordinal lists (`ExtraRadarViewOrdinals`, on prefs and on `SavedLayout`) say which instances exist, and `ReconcileExtraViews` opens/closes to match without resetting survivors. Closing the window removes the instance (not under shutdown, so it restores next launch).
 
 Invariants:
 
@@ -372,14 +354,14 @@ Invariants:
   copies `Layout` / `BackgroundImage` / `TowerCabMap` / centre / elevation by reference and follows the primary's
   `PropertyChanged`; the loaders are no-ops while `IsMirroring`); a different airport loads its own layout and tower-cab
   image (`SeedGroundAirport`, re-evaluated on every bootstrap). Never `Dispose()` a mirrored image. The
-  `SavedExtraView(Ordinal, AirportId)` records on prefs and profiles carry the airport; `ReconcileExtraViews` matches on
+  `SavedExtraView(Ordinal, AirportId)` records on prefs and layouts carry the airport; `ReconcileExtraViews` matches on
   both and reopens an instance whose airport changed.
 - **Fan-out sites loop `AllRadarViews` / `AllGroundViews`**: nav-db push, selection, weather, MVA hints, primary airport
   id/position, position display config, scenario bootstrap (ground extras get only `SetScenarioId`), recording load,
   `ClearScenarioState`, the coalesced shown-route refresh (one Background post for all instances), manifest replacement,
   aircraft deletion. **Primary-only by design**: the `.ff` / `.markers` / `.nomarkers` scope markers, `.rbl`
   (the `Measure` store is shared, so the line still renders everywhere), every `Ground.DomainLayout` reader (speech
-  context, taxiway/spot/parking name providers), Copy View Settings.
+  context, taxiway/spot/parking name providers), the Apply Layout dialog's scenario-views source.
 - Per-tick cost: nothing per-aircraft touches an instance; N instances add N coalesced refreshes per update burst and N
   canvases on the 10 Hz timer. `RefreshShownTaxiRoutes` short-circuits when nothing is shown.
 
@@ -439,8 +421,7 @@ the single choke point that attaches `WindowGroupRaiser`. Invariants the helper 
   `HWND_NOTOPMOST` + `SWP_NOACTIVATE` on Win32 — raises without stealing focus), ordered by `Window.SortWindowsByZOrder`, which **throws when any
   window's `PlatformImpl` is null** — hence the try/catch with an MRU-order fallback. `WindowGeometryHelper.OnWindowPropertyChanged` ignores
   `TopmostProperty` while `WindowGroupRaiser.IsRaising`, otherwise the pulse flickers the pinned-title marker and triggers a spurious auto-save.
-- **`WindowGroupRaiser.IsSuspended` must wrap the *entire* body** of `ApplyWindowProfileByNameAsync` / `ApplyWindowProfilePartialAsync`: the
-  pop-out flips, `Show()`s and the final `ReclaimFocusAfterProfileApply` activation would each trigger a competing raise mid-apply.
+- **`WindowGroupRaiser.IsSuspended` must wrap the *entire* body** of `ApplyLayoutAsync` (whole-layout and partial applies both go through it): the pop-out flips, `Show()`s and the final `ReclaimFocusAfterLayoutApply` activation would each trigger a competing raise mid-apply.
 - **Avalonia raises `Activated` before `IsActive` becomes `true`** — never read the activating window's `IsActive` inside the handler.
   Group-inactive detection is a posted (Background-priority) check that no tracked window is active.
 - **Headless caveats.** `Topmost` does not move headless z-order (assert via the internal `GroupRaised` event, not visually), `Deactivated`
@@ -537,11 +518,7 @@ wedging the UI thread (#347):
   into only the loader path silently breaks it for joiners and restart-restore rejoins. Add it to the
   `ScenarioBootstrap` record so all three paths carry it. `ApplyRecordingResult` writes the scenario identity without
   the router, so a consumer of "the active scenario changed" (the Discord presence publish) is wired there too.
-- **Session settings need the echo guard.** A new `Session*` `[ObservableProperty]` with an `OnXxxChanged` that
-  re-sends to the server must early-return on `_isApplyingSessionSettings`, and the field must be added to all four
-  `ApplySessionSettingsFrom*` adapters + `SessionSettingsDto`. Miss the guard and the value ping-pongs with the
-  server or the broadcast overwrites the user's local edit; miss an adapter and it drops on one of the
-  join/load/live paths. The terminal-filter toggles use the same pattern under `_isProgrammaticTerminalToggle`.
+- **Session settings need the echo guard.** A new `Session*` `[ObservableProperty]` with an `OnXxxChanged` that re-sends to the server must early-return on `_isApplyingSessionSettings`, and the field must be added to all four `ApplySessionSettingsFrom*` adapters + `SessionSettingsDto`. Miss the guard and the value ping-pongs with the server or the broadcast overwrites the user's local edit; miss an adapter and it drops on one of the join/load/live paths. A setting the flyout shows as two controls over one wire value (auto-accept: `SessionAutoAcceptEnabled` + `SessionAutoAcceptDelaySeconds` through `SessionAutoAcceptWire`) sends the pair from both handlers, each guarded. The terminal-filter toggles use the same pattern under `_isProgrammaticTerminalToggle`.
 - **`OnClosing` re-enters; `_isMainWindowClosing` must stay sticky.** Resetting it makes pop-out windows treat the
   cascade shutdown as a manual close and clobber persisted pop-out flags. `AppLifetime.MarkShuttingDown()` is the
   cross-window signal for shutdown paths that don't go through `MainWindow.OnClosing`.

@@ -45,7 +45,7 @@ public readonly record struct FontSizePrefs(
     int Interface
 );
 
-public sealed class UserPreferences
+public sealed partial class UserPreferences
 {
     private static readonly ILogger Log = AppLog.CreateLogger<UserPreferences>();
 
@@ -72,9 +72,13 @@ public sealed class UserPreferences
     private List<MacroDefinition> _macros;
     private readonly Dictionary<AircraftSituation, IReadOnlyList<QuickCommandEntry>> _quickCommandLists;
 
+    /// <summary>True for an instance from <see cref="CreateDefaults"/>, which never reads or writes the preferences file.</summary>
+    private readonly bool _isDefaults;
+
     public UserPreferences()
     {
         _data = Load();
+        MigrateLegacyWindowProfiles(_data);
         _commandScheme = _data.CommandScheme is not null ? FromSaved(_data.CommandScheme) ?? CommandScheme.Default() : CommandScheme.Default();
         _macros = [.. _data.Macros.Select(m => new MacroDefinition { Name = m.Name, Expansion = m.Expansion })];
         _quickCommandLists = LoadQuickCommandLists(_data.QuickCommandLists);
@@ -85,12 +89,59 @@ public sealed class UserPreferences
         MigratePreferences();
     }
 
+    private UserPreferences(SavedPrefs defaults)
+    {
+        _data = defaults;
+        _commandScheme = CommandScheme.Default();
+        _macros = [];
+        _quickCommandLists = [];
+        _isDefaults = true;
+    }
+
+    /// <summary>
+    /// The built-in defaults a preferences file starts from, read through the same getters as the user's own preferences.
+    /// The instance never reads or writes the preferences file: every setter throws instead of saving.
+    /// </summary>
+    /// <returns>A read-only instance holding the defaults of a fresh preferences file.</returns>
+    public static UserPreferences CreateDefaults() => new(new SavedPrefs());
+
     /// <summary>
     /// Version of the preferences file this build writes. It gates one-time preference migrations: a file below it is
     /// migrated once when loaded and saved back at this version, so a migrated value the user changes afterwards is
     /// kept. A file written before the field existed (≤ 0.13.1) reads as 0.
     /// </summary>
     private const int CurrentPreferencesVersion = 1;
+
+    /// <summary>
+    /// Renames saved window profiles to layouts: every entry under the old <c>windowProfiles</c> key moves into
+    /// <see cref="SavedPrefs.Layouts"/> unchanged (name, timestamps and every field), and the old key is nulled so the
+    /// next save drops it. A legacy entry whose name a layout already uses is dropped: the layout is the newer save.
+    /// The merged list is sorted by name, as <see cref="SaveLayout"/> keeps it.
+    /// </summary>
+    private static void MigrateLegacyWindowProfiles(SavedPrefs data)
+    {
+        if (data.LegacyWindowProfiles is not { } legacy)
+        {
+            return;
+        }
+
+        int moved = 0;
+        foreach (SavedLayout profile in legacy)
+        {
+            if (data.Layouts.Any(l => string.Equals(l.Name, profile.Name, StringComparison.OrdinalIgnoreCase)))
+            {
+                Log.LogWarning("Dropped saved window profile '{Name}': a layout with that name already exists", profile.Name);
+                continue;
+            }
+
+            data.Layouts.Add(profile);
+            moved++;
+        }
+
+        data.Layouts.Sort((a, b) => string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase));
+        data.LegacyWindowProfiles = null;
+        Log.LogInformation("Renamed {Count} saved window profile(s) to layouts", moved);
+    }
 
     /// <summary>
     /// Runs the one-time migrations a file below <see cref="CurrentPreferencesVersion"/> needs, then saves it at that
@@ -310,6 +361,16 @@ public sealed class UserPreferences
     public bool PilotVoiceEnabled => _data.PilotVoiceEnabled;
     public int PilotVoiceVolume => Math.Clamp(_data.PilotVoiceVolume, 0, 100);
     public bool PilotVoiceRadioFxEnabled => _data.PilotVoiceRadioFxEnabled;
+    public double PilotVoiceSpeechRate => Math.Clamp(_data.PilotVoiceSpeechRate, PilotVoiceSpeechRateMin, PilotVoiceSpeechRateMax);
+
+    /// <summary>Lowest selectable solo pilot voice speaking rate.</summary>
+    public const double PilotVoiceSpeechRateMin = 0.75;
+
+    /// <summary>Highest selectable solo pilot voice speaking rate.</summary>
+    public const double PilotVoiceSpeechRateMax = 1.5;
+
+    /// <summary>Shipped default solo pilot voice speaking rate; 1.0 is the voice's natural pace.</summary>
+    public const double PilotVoiceSpeechRateDefault = 1.1;
 
     public bool GetAutoClearedToLand(string? positionType)
     {
@@ -360,60 +421,60 @@ public sealed class UserPreferences
     }
 
     /// <summary>
-    /// User-managed window-layout profiles. Restored on demand via the
-    /// View → Window Profiles menu; the list is not auto-applied at startup.
+    /// User-managed saved window layouts. Restored on demand via the
+    /// View → Layout menu; the list is not auto-applied at startup.
     /// Ordered as the user last sorted them (by-name for now; insertion order otherwise).
     /// </summary>
-    public IReadOnlyList<SavedWindowProfile> WindowProfiles => _data.WindowProfiles;
+    public IReadOnlyList<SavedLayout> Layouts => _data.Layouts;
 
     /// <summary>
-    /// Adds a new profile, or replaces an existing one with the same name (case-insensitive).
+    /// Adds a new layout, or replaces an existing one with the same name (case-insensitive).
     /// Sorts by name afterwards so the menu order is stable.
     /// </summary>
-    public void SaveWindowProfile(SavedWindowProfile profile)
+    public void SaveLayout(SavedLayout layout)
     {
-        string name = profile.Name.Trim();
+        string name = layout.Name.Trim();
         if (string.IsNullOrEmpty(name))
         {
             return;
         }
 
-        profile.Name = name;
-        int existingIndex = _data.WindowProfiles.FindIndex(p => string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase));
+        layout.Name = name;
+        int existingIndex = _data.Layouts.FindIndex(p => string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase));
         if (existingIndex >= 0)
         {
             // Preserve CreatedUtc across overwrites; only bump ModifiedUtc.
-            profile.CreatedUtc = _data.WindowProfiles[existingIndex].CreatedUtc;
-            profile.ModifiedUtc = DateTime.UtcNow;
-            _data.WindowProfiles[existingIndex] = profile;
+            layout.CreatedUtc = _data.Layouts[existingIndex].CreatedUtc;
+            layout.ModifiedUtc = DateTime.UtcNow;
+            _data.Layouts[existingIndex] = layout;
         }
         else
         {
-            if (profile.CreatedUtc == default)
+            if (layout.CreatedUtc == default)
             {
-                profile.CreatedUtc = DateTime.UtcNow;
+                layout.CreatedUtc = DateTime.UtcNow;
             }
-            profile.ModifiedUtc = DateTime.UtcNow;
-            _data.WindowProfiles.Add(profile);
+            layout.ModifiedUtc = DateTime.UtcNow;
+            _data.Layouts.Add(layout);
         }
 
-        _data.WindowProfiles.Sort((a, b) => string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase));
+        _data.Layouts.Sort((a, b) => string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase));
         Save();
-        RaiseWindowProfilesChanged();
+        RaiseLayoutsChanged();
     }
 
-    public void DeleteWindowProfile(string name)
+    public void DeleteLayout(string name)
     {
-        int removed = _data.WindowProfiles.RemoveAll(p => string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase));
+        int removed = _data.Layouts.RemoveAll(p => string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase));
         if (removed > 0)
         {
             Save();
-            RaiseWindowProfilesChanged();
+            RaiseLayoutsChanged();
         }
     }
 
-    /// <summary>Returns true on rename, false when oldName not found or newName collides with another profile.</summary>
-    public bool RenameWindowProfile(string oldName, string newName)
+    /// <summary>Returns true on rename, false when oldName not found or newName collides with another layout.</summary>
+    public bool RenameLayout(string oldName, string newName)
     {
         string trimmed = newName.Trim();
         if (string.IsNullOrEmpty(trimmed))
@@ -421,7 +482,7 @@ public sealed class UserPreferences
             return false;
         }
 
-        SavedWindowProfile? existing = _data.WindowProfiles.FirstOrDefault(p => string.Equals(p.Name, oldName, StringComparison.OrdinalIgnoreCase));
+        SavedLayout? existing = _data.Layouts.FirstOrDefault(p => string.Equals(p.Name, oldName, StringComparison.OrdinalIgnoreCase));
         if (existing is null)
         {
             return false;
@@ -429,8 +490,8 @@ public sealed class UserPreferences
 
         if (!string.Equals(oldName, trimmed, StringComparison.OrdinalIgnoreCase))
         {
-            // Collision: a different profile already uses the target name.
-            bool collision = _data.WindowProfiles.Any(p => p != existing && string.Equals(p.Name, trimmed, StringComparison.OrdinalIgnoreCase));
+            // Collision: a different layout already uses the target name.
+            bool collision = _data.Layouts.Any(p => p != existing && string.Equals(p.Name, trimmed, StringComparison.OrdinalIgnoreCase));
             if (collision)
             {
                 return false;
@@ -439,20 +500,19 @@ public sealed class UserPreferences
 
         existing.Name = trimmed;
         existing.ModifiedUtc = DateTime.UtcNow;
-        _data.WindowProfiles.Sort((a, b) => string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase));
+        _data.Layouts.Sort((a, b) => string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase));
         Save();
-        RaiseWindowProfilesChanged();
+        RaiseLayoutsChanged();
         return true;
     }
 
-    public SavedWindowProfile? GetWindowProfile(string name) =>
-        _data.WindowProfiles.FirstOrDefault(p => string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase));
+    public SavedLayout? GetLayout(string name) => _data.Layouts.FirstOrDefault(p => string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase));
 
-    /// <summary>Raised after the WindowProfiles collection changes (add/delete/rename) so the View menu can re-populate.</summary>
-    public event Action? WindowProfilesChanged;
+    /// <summary>Raised after the Layouts collection changes (add/delete/rename) so the View menu can re-populate.</summary>
+    public event Action? LayoutsChanged;
 
     /// <summary>Called by the public mutators above after Save(). Lets MainWindow refresh its menu.</summary>
-    private void RaiseWindowProfilesChanged() => WindowProfilesChanged?.Invoke();
+    private void RaiseLayoutsChanged() => LayoutsChanged?.Invoke();
 
     /// <summary>Ids of the currently loaded named favorite sets, in load order (display order in the bar/panel).</summary>
     public IReadOnlyList<string> LoadedFavoriteSetIds => _data.LoadedFavoriteSetIds;
@@ -464,14 +524,28 @@ public sealed class UserPreferences
     public string TakeControlKey => _data.TakeControlKey;
     public string AlwaysOnTopKey => _data.AlwaysOnTopKey;
     public string QuickBookmarkKey => _data.QuickBookmarkKey;
+    public string PopOutAircraftListKey => _data.PopOutAircraftListKey;
+    public string PopOutGroundViewKey => _data.PopOutGroundViewKey;
+    public string PopOutRadarViewKey => _data.PopOutRadarViewKey;
+    public string PopOutTerminalKey => _data.PopOutTerminalKey;
+    public string PopOutControllersKey => _data.PopOutControllersKey;
+    public string PopOutMetarKey => _data.PopOutMetarKey;
+    public string FavoritesBarKey => _data.FavoritesBarKey;
+    public string OpenSettingsKey => _data.OpenSettingsKey;
 
     /// <summary>When true, activating any YAAT window raises all YAAT windows above other apps (CRC-style group raise).</summary>
     public bool RaiseWindowsTogether => _data.RaiseWindowsTogether;
 
+    /// <summary>When true, the Import / Export hub saves every setting to a backup before each import.</summary>
+    public bool BackUpSettingsBeforeImport => _data.BackUpSettingsBeforeImport;
+
     /// <summary>When true, the scenario being run is published to Discord as the user's rich-presence status.</summary>
     public bool DiscordRichPresenceEnabled => _data.DiscordRichPresenceEnabled;
 
-    /// <summary>When true, the favorites bar is shown (in the main window when the Terminal is docked, in the Terminal window when it is popped out).</summary>
+    /// <summary>
+    /// When true, the favorites bar is shown (in the main window when the Terminal is docked, in the Terminal window when it
+    /// is popped out).
+    /// </summary>
     public bool ShowFavoritesBar => _data.ShowFavoritesBar;
 
     /// <summary>When true, the pop-out Favorites Panel window was open at last shutdown and is reopened on the next launch.</summary>
@@ -573,7 +647,10 @@ public sealed class UserPreferences
     public int StripsZoomPercent => _data.StripsZoomPercent;
     public int TdlsZoomPercent => _data.TdlsZoomPercent;
 
-    /// <summary>Split layout of the student strips tab ("None" / "SideBySide" / "Stacked"); the enum lives in Yaat.Client so this stays a string.</summary>
+    /// <summary>
+    /// Split layout of the student strips tab ("None" / "SideBySide" / "Stacked"); the enum lives in Yaat.Client so this
+    /// stays a string.
+    /// </summary>
     public string VStripsSplitMode => _data.VStripsSplitMode;
 
     /// <summary>Fraction of the split axis the first strips pane occupies.</summary>
@@ -825,12 +902,19 @@ public sealed class UserPreferences
         Save();
     }
 
-    public void SetPilotVoiceSettings(bool enabled, int volume, bool radioFxEnabled)
+    public void SetPilotVoiceSettings(bool enabled, int volume, bool radioFxEnabled, double speechRate)
     {
         _data.PilotVoiceEnabled = enabled;
         _data.PilotVoiceVolume = Math.Clamp(volume, 0, 100);
         _data.PilotVoiceRadioFxEnabled = radioFxEnabled;
+        _data.PilotVoiceSpeechRate = RoundSpeechRateToTick(speechRate);
         Save();
+    }
+
+    private static double RoundSpeechRateToTick(double speechRate)
+    {
+        double clamped = Math.Clamp(speechRate, PilotVoiceSpeechRateMin, PilotVoiceSpeechRateMax);
+        return Math.Round(clamped * 20.0, MidpointRounding.AwayFromZero) / 20.0;
     }
 
     public void SetEuroScopeMode(bool enabled)
@@ -1015,20 +1099,66 @@ public sealed class UserPreferences
         Save();
     }
 
-    public void SetSpeechSettings(
-        bool enabled,
-        string whisperModelSize,
-        string llmModelPath,
-        int llmGpuLayers,
-        string pttKey,
-        bool autoFocusInputAfterSpeech
-    )
+    public void SetPopOutAircraftListKey(string key)
+    {
+        _data.PopOutAircraftListKey = key;
+        Save();
+    }
+
+    public void SetPopOutGroundViewKey(string key)
+    {
+        _data.PopOutGroundViewKey = key;
+        Save();
+    }
+
+    public void SetPopOutRadarViewKey(string key)
+    {
+        _data.PopOutRadarViewKey = key;
+        Save();
+    }
+
+    public void SetPopOutTerminalKey(string key)
+    {
+        _data.PopOutTerminalKey = key;
+        Save();
+    }
+
+    public void SetPopOutControllersKey(string key)
+    {
+        _data.PopOutControllersKey = key;
+        Save();
+    }
+
+    public void SetPopOutMetarKey(string key)
+    {
+        _data.PopOutMetarKey = key;
+        Save();
+    }
+
+    public void SetFavoritesBarKey(string key)
+    {
+        _data.FavoritesBarKey = key;
+        Save();
+    }
+
+    public void SetOpenSettingsKey(string key)
+    {
+        _data.OpenSettingsKey = key;
+        Save();
+    }
+
+    public void SetPttKey(string key)
+    {
+        _data.PttKey = key;
+        Save();
+    }
+
+    public void SetSpeechSettings(bool enabled, string whisperModelSize, string llmModelPath, int llmGpuLayers, bool autoFocusInputAfterSpeech)
     {
         _data.SpeechEnabled = enabled;
         _data.WhisperModelSize = whisperModelSize;
         _data.LlmModelPath = llmModelPath;
         _data.LlmGpuLayers = llmGpuLayers;
-        _data.PttKey = pttKey;
         _data.AutoFocusInputAfterSpeech = autoFocusInputAfterSpeech;
         Save();
     }
@@ -1174,6 +1304,17 @@ public sealed class UserPreferences
         }
 
         _data.RaiseWindowsTogether = enabled;
+        Save();
+    }
+
+    public void SetBackUpSettingsBeforeImport(bool enabled)
+    {
+        if (_data.BackUpSettingsBeforeImport == enabled)
+        {
+            return;
+        }
+
+        _data.BackUpSettingsBeforeImport = enabled;
         Save();
     }
 
@@ -1477,19 +1618,19 @@ public sealed class UserPreferences
         Save();
     }
 
-    /// <summary>Rewrites every window profile's legacy loaded-set-names list into set ids (unknown names dropped).</summary>
-    internal void MigrateProfileLoadedSetNames(Func<string, string?> nameToId)
+    /// <summary>Rewrites every layout's legacy loaded-set-names list into set ids (unknown names dropped).</summary>
+    internal void MigrateLayoutLoadedSetNames(Func<string, string?> nameToId)
     {
         bool migrated = false;
-        foreach (SavedWindowProfile profile in _data.WindowProfiles)
+        foreach (SavedLayout layout in _data.Layouts)
         {
-            if (profile.LoadedFavoriteSetNames is not { } names)
+            if (layout.LoadedFavoriteSetNames is not { } names)
             {
                 continue;
             }
 
-            profile.LoadedFavoriteSetIds = [.. names.Select(nameToId).Where(id => id is not null).Cast<string>()];
-            profile.LoadedFavoriteSetNames = null;
+            layout.LoadedFavoriteSetIds = [.. names.Select(nameToId).Where(id => id is not null).Cast<string>()];
+            layout.LoadedFavoriteSetNames = null;
             migrated = true;
         }
 
@@ -1550,6 +1691,12 @@ public sealed class UserPreferences
         {
             _data.RecentScenarios.RemoveRange(10, _data.RecentScenarios.Count - 10);
         }
+        Save();
+    }
+
+    public void RemoveRecentScenario(string key)
+    {
+        _data.RecentScenarios.RemoveAll(r => r.Key == key);
         Save();
     }
 
@@ -1907,7 +2054,8 @@ public sealed class UserPreferences
             FavoriteVideoMapsByScenario = GetFieldOr<Dictionary<string, List<string>>>(obj, "favoriteVideoMapsByScenario", []),
             FavoriteMetarStationsByScenario = GetFieldOr<Dictionary<string, List<string>>>(obj, "favoriteMetarStationsByScenario", []),
             WindowGeometries = GetFieldOr<Dictionary<string, SavedWindowGeometry>>(obj, "windowGeometries", []),
-            WindowProfiles = GetFieldOr<List<SavedWindowProfile>>(obj, "windowProfiles", []),
+            Layouts = GetFieldOr<List<SavedLayout>>(obj, "layouts", []),
+            LegacyWindowProfiles = GetFieldOr<List<SavedLayout>?>(obj, "windowProfiles", null),
             ShowOnlyActiveAircraft = GetFieldOr(obj, "showOnlyActiveAircraft", false),
             LiveTrafficListFilter = GetFieldOr(obj, "liveTrafficListFilter", nameof(Models.LiveTrafficListFilter.All)),
             TerminalTimestampMode = GetFieldOr(obj, "terminalTimestampMode", nameof(Models.TerminalTimestampMode.WallClock)),
@@ -1954,6 +2102,7 @@ public sealed class UserPreferences
             PilotVoiceEnabled = GetFieldOr(obj, "pilotVoiceEnabled", false),
             PilotVoiceVolume = GetFieldOr(obj, "pilotVoiceVolume", 80),
             PilotVoiceRadioFxEnabled = GetFieldOr(obj, "pilotVoiceRadioFxEnabled", true),
+            PilotVoiceSpeechRate = GetFieldOr(obj, "pilotVoiceSpeechRate", PilotVoiceSpeechRateDefault),
             LoadedFavoriteSetIds = GetFieldOr<List<string>>(obj, "loadedFavoriteSetIds", []),
             LegacyFavoriteCommands = GetFieldOr<List<LegacyFavoriteCommand>?>(obj, "favoriteCommands", null),
             LegacyFavoriteCommandSets = GetFieldOr<List<LegacyFavoriteCommandSet>?>(obj, "favoriteCommandSets", null),
@@ -1966,7 +2115,16 @@ public sealed class UserPreferences
             TakeControlKey = GetFieldOr(obj, "takeControlKey", "Ctrl+T"),
             AlwaysOnTopKey = GetFieldOr(obj, "alwaysOnTopKey", "Ctrl+Shift+T"),
             QuickBookmarkKey = GetFieldOr(obj, "quickBookmarkKey", "Ctrl+B"),
+            PopOutAircraftListKey = GetFieldOr(obj, "popOutAircraftListKey", "Ctrl+Shift+L"),
+            PopOutGroundViewKey = GetFieldOr(obj, "popOutGroundViewKey", "Ctrl+Shift+G"),
+            PopOutRadarViewKey = GetFieldOr(obj, "popOutRadarViewKey", "Ctrl+Shift+R"),
+            PopOutTerminalKey = GetFieldOr(obj, "popOutTerminalKey", "Ctrl+Shift+E"),
+            PopOutControllersKey = GetFieldOr(obj, "popOutControllersKey", "Ctrl+Shift+C"),
+            PopOutMetarKey = GetFieldOr(obj, "popOutMetarKey", "Ctrl+Shift+M"),
+            FavoritesBarKey = GetFieldOr(obj, "favoritesBarKey", "Ctrl+Shift+F"),
+            OpenSettingsKey = GetFieldOr(obj, "openSettingsKey", "Ctrl+OemComma"),
             RaiseWindowsTogether = GetFieldOr(obj, "raiseWindowsTogether", true),
+            BackUpSettingsBeforeImport = GetFieldOr(obj, "backUpSettingsBeforeImport", true),
             DiscordRichPresenceEnabled = GetFieldOr(obj, "discordRichPresenceEnabled", true),
             ShowFavoritesBar = GetFieldOr(obj, "showFavoritesBar", true),
             IsFavoritesPanelOpen = GetFieldOr(obj, "isFavoritesPanelOpen", false),
@@ -2118,8 +2276,58 @@ public sealed class UserPreferences
         }
     }
 
+    /// <summary>
+    /// Holds every save until the returned scope is disposed, then writes the file once if anything changed, so a
+    /// caller that sets many preferences in a row (the Settings window's Apply) writes the file once.
+    /// </summary>
+    public IDisposable DeferSave()
+    {
+        _saveDeferrals++;
+        return new SaveDeferral(this);
+    }
+
+    private int _saveDeferrals;
+    private bool _savePending;
+
+    private void EndSaveDeferral()
+    {
+        _saveDeferrals--;
+        if ((_saveDeferrals == 0) && _savePending)
+        {
+            _savePending = false;
+            Save();
+        }
+    }
+
+    private sealed class SaveDeferral(UserPreferences preferences) : IDisposable
+    {
+        private bool _disposed;
+
+        public void Dispose()
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            _disposed = true;
+            preferences.EndSaveDeferral();
+        }
+    }
+
     private void Save()
     {
+        if (_isDefaults)
+        {
+            throw new InvalidOperationException("UserPreferences: a defaults instance is read-only; change the user's own preferences instead.");
+        }
+
+        if (_saveDeferrals > 0)
+        {
+            _savePending = true;
+            return;
+        }
+
         Directory.CreateDirectory(ConfigDir);
 
         // Sync cached conversions back to _data before serializing
@@ -2229,7 +2437,13 @@ public sealed class UserPreferences
         public Dictionary<string, List<string>> FavoriteMetarStationsByScenario { get; set; } = [];
         public Dictionary<string, double> GroundRotationByAirport { get; set; } = [];
         public Dictionary<string, SavedWindowGeometry> WindowGeometries { get; set; } = [];
-        public List<SavedWindowProfile> WindowProfiles { get; set; } = [];
+        public List<SavedLayout> Layouts { get; set; } = [];
+
+        // Layouts were saved as window profiles under this key; kept deserializable only so the load-time rename
+        // (MigrateLegacyWindowProfiles) can move them into Layouts, nulled (and thus dropped from the file) afterwards.
+        [JsonPropertyName("windowProfiles")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public List<SavedLayout>? LegacyWindowProfiles { get; set; }
         public bool ShowOnlyActiveAircraft { get; set; }
         public bool ShowTimelineBar { get; set; }
         public bool DataGridAlternatingRowColor { get; set; } = true;
@@ -2296,6 +2510,7 @@ public sealed class UserPreferences
         public bool PilotVoiceEnabled { get; set; }
         public int PilotVoiceVolume { get; set; } = 80;
         public bool PilotVoiceRadioFxEnabled { get; set; } = true;
+        public double PilotVoiceSpeechRate { get; set; } = PilotVoiceSpeechRateDefault;
         public List<string> LoadedFavoriteSetIds { get; set; } = [];
 
         // Pre-identity-model favorites storage, kept deserializable only so the one-time
@@ -2319,7 +2534,16 @@ public sealed class UserPreferences
         public string TakeControlKey { get; set; } = "Ctrl+T";
         public string AlwaysOnTopKey { get; set; } = "Ctrl+Shift+T";
         public string QuickBookmarkKey { get; set; } = "Ctrl+B";
+        public string PopOutAircraftListKey { get; set; } = "Ctrl+Shift+L";
+        public string PopOutGroundViewKey { get; set; } = "Ctrl+Shift+G";
+        public string PopOutRadarViewKey { get; set; } = "Ctrl+Shift+R";
+        public string PopOutTerminalKey { get; set; } = "Ctrl+Shift+E";
+        public string PopOutControllersKey { get; set; } = "Ctrl+Shift+C";
+        public string PopOutMetarKey { get; set; } = "Ctrl+Shift+M";
+        public string FavoritesBarKey { get; set; } = "Ctrl+Shift+F";
+        public string OpenSettingsKey { get; set; } = "Ctrl+OemComma";
         public bool RaiseWindowsTogether { get; set; } = true;
+        public bool BackUpSettingsBeforeImport { get; set; } = true;
         public bool DiscordRichPresenceEnabled { get; set; } = true;
         public bool ShowFavoritesBar { get; set; } = true;
         public bool IsFavoritesPanelOpen { get; set; }
@@ -2500,10 +2724,10 @@ public sealed record SavedExtraView(int Ordinal, string AirportId);
 /// <summary>
 /// A named snapshot of the entire window arrangement (positions, sizes,
 /// pop-out / dock state, and DataGrid columns). Restored on demand from the
-/// View → Window Profiles menu so the user can switch quickly between layouts
+/// View → Layout menu so the user can switch quickly between layouts
 /// tuned for different roles (e.g. GC vs LC).
 /// </summary>
-public sealed class SavedWindowProfile
+public sealed class SavedLayout
 {
     public string Name { get; set; } = "";
     public DateTime CreatedUtc { get; set; }
@@ -2513,7 +2737,7 @@ public sealed class SavedWindowProfile
     /// Per-window outer geometry keyed by the same name <see cref="WindowGeometryHelper"/>
     /// uses (e.g. "Main", "GroundView", "VStripsView:KSFO_TWR"). Keys whose windows are
     /// not open at apply time get written into the per-window preferences so the next
-    /// time that window opens it picks up the profile's geometry.
+    /// time that window opens it picks up the layout's geometry.
     /// </summary>
     public Dictionary<string, SavedWindowGeometry> WindowGeometries { get; set; } = [];
 
@@ -2528,8 +2752,8 @@ public sealed class SavedWindowProfile
     /// <summary>
     /// The extra Radar View windows open at capture time (ordinals ≥ 2; the docked view is #1), each with
     /// the airport it was opened on; their geometries ride in <see cref="WindowGeometries"/> under the
-    /// matching "RadarView#n" keys. A profile captured before extra windows existed deserializes as empty,
-    /// and applying it closes any extras — a profile is the whole arrangement, not a partial overlay.
+    /// matching "RadarView#n" keys. A layout captured before extra windows existed deserializes as empty,
+    /// and applying it closes any extras — a layout is the whole arrangement, not a partial overlay.
     /// </summary>
     public List<SavedExtraView> ExtraRadarViews { get; set; } = [];
 
@@ -2541,29 +2765,46 @@ public sealed class SavedWindowProfile
     public SavedGridLayout? DataGridLayout { get; set; }
 
     /// <summary>
-    /// Ids of the named favorite sets loaded at capture time, in load order. Applying the profile
-    /// loads exactly these sets (ids without a matching set are skipped). Null on profiles captured
-    /// before favorite sets existed — applying such a profile leaves the loaded sets untouched.
+    /// Ids of the named favorite sets loaded at capture time, in load order. Applying the layout
+    /// loads exactly these sets (ids without a matching set are skipped). Null on layouts captured
+    /// before favorite sets existed — applying such a layout leaves the loaded sets untouched.
     /// </summary>
     public List<string>? LoadedFavoriteSetIds { get; set; }
 
     /// <summary>
-    /// Whether the favorites bar was shown at capture time. Null on profiles captured before the
-    /// bar became independently toggleable — applying such a profile leaves the current state
+    /// Whether the favorites bar was shown at capture time. Null on layouts captured before the
+    /// bar became independently toggleable — applying such a layout leaves the current state
     /// untouched (same convention as <see cref="LoadedFavoriteSetIds"/>).
     /// </summary>
     public bool? ShowFavoritesBar { get; set; }
 
     /// <summary>
-    /// Whether the pop-out Favorites Panel window was open at capture time. Null on profiles
-    /// captured before the panel's open state was captured — applying such a profile leaves the
+    /// Whether the pop-out Favorites Panel window was open at capture time. Null on layouts
+    /// captured before the panel's open state was captured — applying such a layout leaves the
     /// panel as it is (same convention as <see cref="LoadedFavoriteSetIds"/>).
     /// </summary>
     public bool? IsFavoritesPanelOpen { get; set; }
 
+    /// <summary>
+    /// The Strips and vTDLS tabs open at capture time beside the student's own. Null on layouts captured before
+    /// open tabs were saved — applying such a layout leaves the open tabs as they are (same convention as
+    /// <see cref="LoadedFavoriteSetIds"/>).
+    /// </summary>
+    public SavedOpenTabs? OpenTabs { get; set; }
+
     /// <summary>Pre-identity-model loaded-set names; converted to ids and nulled by the one-time migration.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public List<string>? LoadedFavoriteSetNames { get; set; }
+}
+
+/// <summary>
+/// The extra Strips and vTDLS tabs a layout opens, as facility ids in tab order. The student's own tab is always open
+/// and never listed; a facility listed twice under <see cref="Strips"/> is two views of it.
+/// </summary>
+public sealed class SavedOpenTabs
+{
+    public List<string> Strips { get; set; } = [];
+    public List<string> Tdls { get; set; } = [];
 }
 
 /// <summary>A live-session pick: the position to stand at, its display label, the airport to show, the ceiling and the traffic filter.</summary>

@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using Yaat.Sim.Commands;
@@ -8,6 +9,7 @@ using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
+using Yaat.Sim.Soak;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation;
@@ -125,6 +127,323 @@ public sealed class RunwayExitRestoreTests
     }
 
     /// <summary>
+    /// A restored mid-exit phase whose exit route cannot be rebuilt (its stored path has two nodes with no edge between
+    /// them) falls back to rolling on the centreline, and drops the navigator it was restored with: the snapshot taken after
+    /// its first tick is out of the exit-path state and no longer carries that navigator. The stale navigator is marked by a
+    /// brake rate no live exit sets (<see cref="StaleNavigatorDecelRateKts"/>), which a navigator kept from it would carry.
+    /// </summary>
+    [Fact]
+    public void FailedRebuild_FallsBackToTheCenterline_AndDropsTheRestoredNavigator()
+    {
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("OAK");
+        if (layout is null)
+        {
+            return;
+        }
+
+        (GroundNode Branch, GroundNode HoldShort, string Taxiway)? pair = FindExitPair(layout, "28R");
+        if (pair is null)
+        {
+            return;
+        }
+
+        (GroundNode? branch, GroundNode? holdShort, string? taxiway) = pair.Value;
+        GroundNode unconnected = layout
+            .Nodes.Values.Where(node => (node.Id != branch.Id) && branch.Edges.All(edge => edge.OtherNode(branch).Id != node.Id))
+            .OrderBy(node => node.Id)
+            .First();
+
+        var dto = new RunwayExitPhaseDto
+        {
+            Status = (int)PhaseStatus.Active,
+            ElapsedSeconds = 4.0,
+            ReachedExitNode = true,
+            ExitNodeId = holdShort.Id,
+            ExitTaxiway = taxiway,
+            RunwayId = "28R",
+            ExitSpeed = 25.0,
+            TimeSinceLastLog = 0.0,
+            RunwayHeadingDeg = 281.0,
+            ExitStateValue = (int)RunwayExitPhase.ExitState.FollowingExitPath,
+            ExitWaypointNodeIds = [branch.Id, unconnected.Id],
+            Navigator = new GroundNavigatorDto { TargetNodeId = holdShort.Id, DecelRateKts = StaleNavigatorDecelRateKts },
+        };
+
+        var phase = RunwayExitPhase.FromSnapshot(dto, layout);
+        var aircraft = new AircraftState
+        {
+            Callsign = "TEST1",
+            AircraftType = "B738",
+            Position = branch.Position,
+            TrueHeading = new TrueHeading(281.0),
+            Altitude = 9.0,
+            IndicatedAirspeed = 25.0,
+            IsOnGround = true,
+            FlightPlan = new AircraftFlightPlan { Destination = "OAK" },
+            Phases = new PhaseList(),
+        };
+        var ctx = new PhaseContext
+        {
+            Aircraft = aircraft,
+            Targets = aircraft.Targets,
+            Category = AircraftCategory.Jet,
+            DeltaSeconds = 1.0,
+            GroundLayout = layout,
+            FieldElevation = 9.0,
+            Logger = NullLogger.Instance,
+        };
+
+        phase.OnTick(ctx);
+
+        RunwayExitPhaseDto after = Assert.IsType<RunwayExitPhaseDto>(phase.ToSnapshot());
+        Assert.NotEqual((int)RunwayExitPhase.ExitState.FollowingExitPath, after.ExitStateValue);
+        Assert.NotEqual(StaleNavigatorDecelRateKts, after.Navigator?.DecelRateKts);
+    }
+
+    private const double StaleNavigatorDecelRateKts = 0.123;
+
+    /// <summary>Wires SimLog for this test and returns the tap capturing the Warning+ entries it emits.</summary>
+    private CapturingSimLogProvider CaptureLogs()
+    {
+        var tap = new CapturingSimLogProvider(LogLevel.Warning, capacity: 200);
+        SimLogBuilder.CreateForTest(_output).EnableCategory("RunwayExitPhase", LogLevel.Warning).CaptureInto(tap).InitializeSimLog();
+        return tap;
+    }
+
+    /// <summary>Asserts a <c>RunwayExitPhase</c> warning states the restored path was rejected for <paramref name="reasonFragment"/>.</summary>
+    private static void AssertRestoredPathRejected(IReadOnlyList<CapturedLogRecord> logs, string reasonFragment)
+    {
+        Assert.Contains(
+            logs,
+            r => (r.Category == "RunwayExitPhase") && r.Message.Contains($"restored exit path rejected — {reasonFragment}", StringComparison.Ordinal)
+        );
+    }
+
+    /// <summary>
+    /// A restored exit path that names a node the current layout no longer has must not be followed with that node
+    /// silently dropped. Node ids shift when the fixture is regenerated, so a stale snapshot can name a node that has
+    /// vanished; the two nodes that flanked it may still be joined by an edge, leaving a truncated path the rebuild
+    /// would accept. The whole chain is rejected and the phase takes the same centreline fallback the unbuildable
+    /// path takes.
+    /// </summary>
+    [Fact]
+    public void RestoredExitPath_WithAMissingNode_FallsBackToTheCenterline()
+    {
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("OAK");
+        if (layout is null)
+        {
+            return;
+        }
+
+        (GroundNode Branch, GroundNode HoldShort, string Taxiway)? pair = FindExitPair(layout, "28R");
+        if (pair is null)
+        {
+            return;
+        }
+
+        (GroundNode? branch, GroundNode? holdShort, string? taxiway) = pair.Value;
+        int missingId = layout.Nodes.Keys.Max() + 1000;
+        using CapturingSimLogProvider tap = CaptureLogs();
+
+        var dto = new RunwayExitPhaseDto
+        {
+            Status = (int)PhaseStatus.Active,
+            ElapsedSeconds = 4.0,
+            ReachedExitNode = true,
+            ExitNodeId = holdShort.Id,
+            ExitTaxiway = taxiway,
+            RunwayId = "28R",
+            ExitSpeed = 25.0,
+            TimeSinceLastLog = 0.0,
+            RunwayHeadingDeg = 281.0,
+            ExitStateValue = (int)RunwayExitPhase.ExitState.FollowingExitPath,
+            // The stored middle node is gone, but branch → hold-short is still a real edge: without the chain check
+            // the restored path silently becomes [branch, hold-short] and the exit is followed anyway.
+            ExitWaypointNodeIds = [branch.Id, missingId, holdShort.Id],
+            Navigator = new GroundNavigatorDto { TargetNodeId = holdShort.Id, DecelRateKts = StaleNavigatorDecelRateKts },
+        };
+
+        var phase = RunwayExitPhase.FromSnapshot(dto, layout);
+        var aircraft = new AircraftState
+        {
+            Callsign = "TEST1",
+            AircraftType = "B738",
+            Position = branch.Position,
+            TrueHeading = new TrueHeading(281.0),
+            Altitude = 9.0,
+            IndicatedAirspeed = 25.0,
+            IsOnGround = true,
+            FlightPlan = new AircraftFlightPlan { Destination = "OAK" },
+            Phases = new PhaseList(),
+        };
+        var ctx = new PhaseContext
+        {
+            Aircraft = aircraft,
+            Targets = aircraft.Targets,
+            Category = AircraftCategory.Jet,
+            DeltaSeconds = 1.0,
+            GroundLayout = layout,
+            FieldElevation = 9.0,
+            Logger = NullLogger.Instance,
+        };
+
+        phase.OnTick(ctx);
+
+        AssertRestoredPathRejected(tap.Drain(), $"node {missingId} is not on the current layout");
+
+        RunwayExitPhaseDto after = Assert.IsType<RunwayExitPhaseDto>(phase.ToSnapshot());
+        Assert.NotEqual((int)RunwayExitPhase.ExitState.FollowingExitPath, after.ExitStateValue);
+        Assert.NotEqual(StaleNavigatorDecelRateKts, after.Navigator?.DecelRateKts);
+    }
+
+    /// <summary>
+    /// A restored exit path whose ids all still exist but whose consecutive nodes are no longer joined by an edge —
+    /// the layout was regenerated and the ids moved — has to be rejected the same way. Following it would hand the
+    /// navigator a chain of nodes with no paved link between them.
+    /// </summary>
+    [Fact]
+    public void RestoredExitPath_WhoseNodesNoLongerConnect_FallsBackToTheCenterline()
+    {
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("OAK");
+        if (layout is null)
+        {
+            return;
+        }
+
+        (GroundNode Branch, GroundNode HoldShort, string Taxiway)? pair = FindExitPair(layout, "28R");
+        if (pair is null)
+        {
+            return;
+        }
+
+        (GroundNode? branch, GroundNode? holdShort, string? taxiway) = pair.Value;
+        GroundNode unconnected = layout
+            .Nodes.Values.Where(node => (node.Id != branch.Id) && branch.Edges.All(edge => edge.OtherNode(branch).Id != node.Id))
+            .OrderBy(node => node.Id)
+            .First();
+        using CapturingSimLogProvider tap = CaptureLogs();
+
+        var dto = new RunwayExitPhaseDto
+        {
+            Status = (int)PhaseStatus.Active,
+            ElapsedSeconds = 4.0,
+            ReachedExitNode = true,
+            ExitNodeId = holdShort.Id,
+            ExitTaxiway = taxiway,
+            RunwayId = "28R",
+            ExitSpeed = 25.0,
+            TimeSinceLastLog = 0.0,
+            RunwayHeadingDeg = 281.0,
+            ExitStateValue = (int)RunwayExitPhase.ExitState.FollowingExitPath,
+            ExitWaypointNodeIds = [branch.Id, unconnected.Id, holdShort.Id],
+            Navigator = new GroundNavigatorDto { TargetNodeId = holdShort.Id, DecelRateKts = StaleNavigatorDecelRateKts },
+        };
+
+        var phase = RunwayExitPhase.FromSnapshot(dto, layout);
+        var aircraft = new AircraftState
+        {
+            Callsign = "TEST1",
+            AircraftType = "B738",
+            Position = branch.Position,
+            TrueHeading = new TrueHeading(281.0),
+            Altitude = 9.0,
+            IndicatedAirspeed = 25.0,
+            IsOnGround = true,
+            FlightPlan = new AircraftFlightPlan { Destination = "OAK" },
+            Phases = new PhaseList(),
+        };
+        var ctx = new PhaseContext
+        {
+            Aircraft = aircraft,
+            Targets = aircraft.Targets,
+            Category = AircraftCategory.Jet,
+            DeltaSeconds = 1.0,
+            GroundLayout = layout,
+            FieldElevation = 9.0,
+            Logger = NullLogger.Instance,
+        };
+
+        phase.OnTick(ctx);
+
+        AssertRestoredPathRejected(tap.Drain(), $"nodes {branch.Id} and {unconnected.Id} are not joined by an edge");
+
+        RunwayExitPhaseDto after = Assert.IsType<RunwayExitPhaseDto>(phase.ToSnapshot());
+        Assert.NotEqual((int)RunwayExitPhase.ExitState.FollowingExitPath, after.ExitStateValue);
+        Assert.NotEqual(StaleNavigatorDecelRateKts, after.Navigator?.DecelRateKts);
+    }
+
+    /// <summary>
+    /// A snapshot restored in <c>RollingOnCenterline</c> carries its hold-short from <c>ExitNodeId</c> and never enters
+    /// the <c>FollowingExitPath</c> rebuild, so a rejected stored path there would otherwise be silent. The warning
+    /// still fires on the first tick, and the phase drops the unusable hold-short and falls back to the centerline.
+    /// </summary>
+    [Fact]
+    public void RestoredRollingOnCenterline_WithARejectedExitPath_StillWarns()
+    {
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("OAK");
+        if (layout is null)
+        {
+            return;
+        }
+
+        (GroundNode Branch, GroundNode HoldShort, string Taxiway)? pair = FindExitPair(layout, "28R");
+        if (pair is null)
+        {
+            return;
+        }
+
+        (GroundNode? branch, GroundNode? holdShort, string? taxiway) = pair.Value;
+        int missingId = layout.Nodes.Keys.Max() + 1000;
+        using CapturingSimLogProvider tap = CaptureLogs();
+
+        var dto = new RunwayExitPhaseDto
+        {
+            Status = (int)PhaseStatus.Active,
+            ElapsedSeconds = 4.0,
+            ReachedExitNode = false,
+            ExitNodeId = holdShort.Id,
+            ExitTaxiway = taxiway,
+            RunwayId = "28R",
+            ExitSpeed = 25.0,
+            TimeSinceLastLog = 0.0,
+            RunwayHeadingDeg = 281.0,
+            ExitStateValue = (int)RunwayExitPhase.ExitState.RollingOnCenterline,
+            ExitWaypointNodeIds = [branch.Id, missingId, holdShort.Id],
+        };
+
+        var phase = RunwayExitPhase.FromSnapshot(dto, layout);
+        var aircraft = new AircraftState
+        {
+            Callsign = "TEST1",
+            AircraftType = "B738",
+            Position = branch.Position,
+            TrueHeading = new TrueHeading(281.0),
+            Altitude = 9.0,
+            IndicatedAirspeed = 25.0,
+            IsOnGround = true,
+            FlightPlan = new AircraftFlightPlan { Destination = "OAK" },
+            Phases = new PhaseList(),
+        };
+        var ctx = new PhaseContext
+        {
+            Aircraft = aircraft,
+            Targets = aircraft.Targets,
+            Category = AircraftCategory.Jet,
+            DeltaSeconds = 1.0,
+            GroundLayout = layout,
+            FieldElevation = 9.0,
+            Logger = NullLogger.Instance,
+        };
+
+        phase.OnTick(ctx);
+
+        AssertRestoredPathRejected(tap.Drain(), $"node {missingId} is not on the current layout");
+
+        RunwayExitPhaseDto after = Assert.IsType<RunwayExitPhaseDto>(phase.ToSnapshot());
+        Assert.Equal((int)RunwayExitPhase.ExitState.RollingOnCenterline, after.ExitStateValue);
+    }
+
+    /// <summary>
     /// The restore path rebuilds the exit route from segment 0, so the navigator's own segment index says
     /// nothing about whether the aircraft was already turning. <c>TurnStarted</c> has to round-trip, or an
     /// aircraft restored mid-turn would reopen the window for a late exit change it can no longer honor.
@@ -167,6 +486,79 @@ public sealed class RunwayExitRestoreTests
 
         RunwayExitPhaseDto round = Assert.IsType<RunwayExitPhaseDto>(restored.ToSnapshot());
         Assert.True(round.TurnStarted);
+    }
+
+    /// <summary>
+    /// The turn-off brakes at the rate the rollout chose the exit with, which the phase captured at the hand-off and cannot
+    /// recompute — so it has to round-trip, or an aircraft restored mid-turn would finish the turn at the taxi rate.
+    /// </summary>
+    [Fact]
+    public void TurnOffDecelRate_SurvivesASnapshotRoundTrip()
+    {
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("OAK");
+        if (layout is null)
+        {
+            return;
+        }
+
+        (GroundNode Branch, GroundNode HoldShort, string Taxiway)? pair = FindExitPair(layout, "28R");
+        if (pair is null)
+        {
+            return;
+        }
+
+        (GroundNode? branch, GroundNode? holdShort, string? taxiway) = pair.Value;
+        double selectionRate = CategoryPerformance.ComfortableExitDecelRate(AircraftCategory.Turboprop);
+        var runwayHeading = new TrueHeading(281.0);
+
+        var dto = new RunwayExitPhaseDto
+        {
+            Status = (int)PhaseStatus.Active,
+            ElapsedSeconds = 4.0,
+            ReachedExitNode = true,
+            ExitNodeId = holdShort.Id,
+            ExitTaxiway = taxiway,
+            RunwayId = "28R",
+            ExitSpeed = 25.0,
+            TimeSinceLastLog = 0.0,
+            RunwayHeadingDeg = runwayHeading.Degrees,
+            ExitStateValue = (int)RunwayExitPhase.ExitState.FollowingExitPath,
+            TurnStarted = true,
+            TurnOffDecelRate = selectionRate,
+            ExitWaypointNodeIds = [branch.Id, holdShort.Id],
+        };
+
+        var restored = RunwayExitPhase.FromSnapshot(dto, layout);
+        RunwayExitPhaseDto round = Assert.IsType<RunwayExitPhaseDto>(restored.ToSnapshot());
+        Assert.Equal(selectionRate, round.TurnOffDecelRate);
+
+        // 50 ft short of the branch on the approach leg at 15 kt, under the taxi-rate stopping curve to the tail-clear point past
+        // the bar (planned from here on), so that stop does not set the target and the published rate is the turn-off rate.
+        var aircraft = new AircraftState
+        {
+            Callsign = "TEST3",
+            AircraftType = "DH8D",
+            Position = GeoMath.ProjectPoint(branch.Position, runwayHeading.ToReciprocal(), 50.0 / GeoMath.FeetPerNm),
+            TrueHeading = runwayHeading,
+            Altitude = 9.0,
+            IndicatedAirspeed = 15.0,
+            IsOnGround = true,
+            FlightPlan = new AircraftFlightPlan { Destination = "OAK" },
+            Phases = new PhaseList(),
+        };
+        var ctx = new PhaseContext
+        {
+            Aircraft = aircraft,
+            Targets = aircraft.Targets,
+            Category = AircraftCategory.Turboprop,
+            DeltaSeconds = 1.0,
+            GroundLayout = layout,
+            FieldElevation = 9.0,
+            Logger = NullLogger.Instance,
+        };
+
+        Assert.False(restored.OnTick(ctx));
+        Assert.Equal(selectionRate, ctx.Targets.DesiredDecelRate);
     }
 
     /// <summary>
@@ -399,10 +791,10 @@ public sealed class RunwayExitRestoreTests
         Assert.True(finalHeadingDrift < 5.0, $"restored aircraft never rejoined the live exit heading (off by {finalHeadingDrift:F0} deg)");
 
         // Position is checked for *growth*, not for an absolute bound. The backtrack signature is a gap that opens
-        // and keeps opening (64 ft → 374 ft over six seconds in the report); what remains after the fix is a fixed
-        // lag, because GroundNavigator is deliberately non-round-tripping — it does not persist Bézier progress, so
-        // a restore mid-fillet replays that arc from its start and stays a couple of seconds behind on the same
-        // path. Asserting a small absolute drift here would be asserting on that separate limitation.
+        // and keeps opening (64 ft → 374 ft over six seconds in the report). This test restores a hand-built DTO with
+        // no navigator, so the rebuilt route sets its segment up from the restored pose rather than resuming a saved
+        // primitive, and the reconstruction can trail the live aircraft by a fixed amount on the same path; the
+        // exact resume of a saved primitive is GroundNavigatorArcRestoreTests' subject.
         Assert.True(
             finalPosDriftFt <= firstPosDriftFt + 25.0,
             $"restored aircraft kept diverging from the live exit path ({firstPosDriftFt:F0} ft → {finalPosDriftFt:F0} ft)"

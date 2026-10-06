@@ -174,16 +174,20 @@ public static class PilotResponder
         // Per-block clause lists are joined internally with ", " (parallel commands within
         // a `,`-separated block); blocks themselves are joined with ", then " to mark the
         // `;` (sequential) boundary the controller dictated. Without "then", TTS reads
-        // sequential and parallel clauses identically. The terminal (compact) and spoken (TTS)
-        // bodies are assembled in lock-step from each clause's two independently-built forms.
+        // sequential and parallel clauses identically. The terminal (compact), spoken (TTS) and
+        // RPO (terminal + diagnostic) bodies are assembled in lock-step from each clause's
+        // independently-built forms.
         var blockTermTexts = new List<string>();
         var blockTtsTexts = new List<string>();
+        var blockRpoTexts = new List<string>();
         foreach (ParsedBlock block in compound.Blocks)
         {
             var termClauses = new List<string>();
             var ttsClauses = new List<string>();
+            var rpoClauses = new List<string>();
             string? termLead = FormatConditionTerminal(block.Condition);
             string? ttsLead = FormatCondition(block.Condition);
+            string? rpoLead = FormatConditionForRpo(block.Condition);
             foreach (ParsedCommand cmd in block.Commands)
             {
                 PilotSpeechText? clause;
@@ -204,14 +208,20 @@ public static class PilotResponder
 
                 termClauses.Add(termLead is null ? clause.Terminal : termLead + " " + clause.Terminal);
                 ttsClauses.Add(ttsLead is null ? clause.Tts : ttsLead + " " + clause.Tts);
+                // The RPO body mirrors the terminal body, clause for clause, but takes each clause's
+                // diagnostic form (TerminalForRpo) where it has one — the lead/target callsign in
+                // traffic & follow calls, which the solo student must not see.
+                rpoClauses.Add(rpoLead is null ? clause.TerminalForRpo : rpoLead + " " + clause.TerminalForRpo);
                 termLead = null; // condition is stated once per block
                 ttsLead = null;
+                rpoLead = null;
             }
 
             if (ttsClauses.Count > 0)
             {
                 blockTermTexts.Add(string.Join(", ", termClauses));
                 blockTtsTexts.Add(string.Join(", ", ttsClauses));
+                blockRpoTexts.Add(string.Join(", ", rpoClauses));
             }
         }
 
@@ -222,17 +232,22 @@ public static class PilotResponder
 
         string ttsBody = ApplyQuietFlavor(aircraft.Callsign, string.Join(", then ", blockTtsTexts), personality, activityLevel);
         string termBody = string.Join(", then ", blockTermTexts);
-        return FrameReadback(aircraft, termBody, ttsBody);
+        string rpoBody = string.Join(", then ", blockRpoTexts);
+        return FrameReadback(aircraft, termBody, ttsBody, rpoBody);
     }
 
     /// <summary>
-    /// Frames a readback into its two delivered forms: the terminal SAY message (compact body, no
-    /// callsign — the SAY column carries it) and the spoken TTS line (body + spelled callsign).
+    /// Frames a readback into its delivered forms: the terminal SAY message (compact body, no
+    /// callsign — the SAY column carries it), the spoken TTS line (body + spelled callsign), and the
+    /// RPO terminal body when a clause carries a diagnostic the solo student must not see.
     /// </summary>
-    private static PilotSpeechText FrameReadback(AircraftState aircraft, string terminalBody, string ttsBody)
+    private static PilotSpeechText FrameReadback(AircraftState aircraft, string terminalBody, string ttsBody, string rpoBody)
     {
         string spoken = SpokenOwnCallsign(aircraft);
-        return new PilotSpeechText(terminalBody, NormalizeForTts($"{ttsBody}, {spoken}."));
+        return new PilotSpeechText(terminalBody, NormalizeForTts($"{ttsBody}, {spoken}."))
+        {
+            RpoTerminal = string.Equals(rpoBody, terminalBody, StringComparison.Ordinal) ? null : rpoBody,
+        };
     }
 
     /// <summary>
@@ -383,8 +398,28 @@ public static class PilotResponder
                 follow,
                 armedHold.RunwayEndFacing(aircraft)
             ),
+            FollowGroundCommand follow => BuildFollowGroundClause(follow),
+            GiveWayCommand giveWay => BuildGiveWayClause(giveWay),
             _ => VerbalizeDual(cmd, personality, activityLevel),
         };
+
+    /// <summary>
+    /// A FOLLOWG away from a runway bar — from parking, mid-taxi or any hold that is not a runway bar —
+    /// drops or resumes the route to trail the named aircraft, so the readback is the bare taxi element
+    /// "follow the traffic" (§3-7-2.a "FOLLOW (traffic) (restrictions as necessary)"). Like every follow call the pilot
+    /// identifies the leader by position, never by callsign (docs/pilot-phraseology.md), so the target
+    /// survives only in the RPO form.
+    /// </summary>
+    private static PilotSpeechText BuildFollowGroundClause(FollowGroundCommand follow) =>
+        new("follow the traffic", "follow the traffic") { RpoTerminal = $"follow {follow.TargetCallsign}" };
+
+    /// <summary>
+    /// GIVEWAY is §3-7-2.a's "BEHIND (traffic)": yield to the traffic and trail it on the pilot's own
+    /// route. As with the follow calls, the spoken and solo-terminal forms say "the traffic"; the
+    /// target callsign is the RPO diagnostic only.
+    /// </summary>
+    private static PilotSpeechText BuildGiveWayClause(GiveWayCommand giveWay) =>
+        new("behind the traffic", "behind the traffic") { RpoTerminal = $"behind {giveWay.TargetCallsign}" };
 
     /// <summary>
     /// A FOLLOWG taken at a runway bar arms the follow and leaves the aircraft holding short, so the readback states
@@ -811,7 +846,10 @@ public static class PilotResponder
             return clause;
         }
 
-        return new PilotSpeechText($"{clause.Terminal}, without delay", $"{clause.Tts}, without delay");
+        return new PilotSpeechText($"{clause.Terminal}, without delay", $"{clause.Tts}, without delay")
+        {
+            RpoTerminal = clause.RpoTerminal is { } rpoTerminal ? rpoTerminal + ", without delay" : null,
+        };
     }
 
     private static PilotSpeechText BuildLandAndHoldShortClause(AircraftState aircraft, LandAndHoldShortCommand command)
@@ -827,7 +865,10 @@ public static class PilotResponder
         return new PilotSpeechText(
             $"{landingClause.Terminal}, hold short runway {holdShortTerm}",
             $"{landingClause.Tts}, hold short runway {holdShortTts}"
-        );
+        )
+        {
+            RpoTerminal = landingClause.RpoTerminal is { } rpoTerminal ? $"{rpoTerminal}, hold short runway {holdShortTerm}" : null,
+        };
     }
 
     /// <summary>
@@ -935,40 +976,150 @@ public static class PilotResponder
     /// </summary>
     public static PilotSpeechText BuildReadyToTaxi(AircraftState aircraft) => BuildReadyToTaxi(aircraft, "ground", "A");
 
-    public static PilotSpeechText BuildReadyToTaxi(AircraftState aircraft, string facilityCallName, string? atisLetter)
-    {
-        string location;
-        string locationSpoken;
-        if (aircraft.Ground.ParkingSpot is { Length: > 0 } spot)
-        {
-            string noun = SpotNoun(spot);
-            location = $"at {WithNoun(spot, noun)}";
-            locationSpoken = $"at {WithNoun(PhraseologyVerbalizer.SpellDestinationName(spot, noun), noun)}";
-        }
-        else
-        {
-            location = "at the ramp";
-            locationSpoken = "at the ramp";
-        }
+    public static PilotSpeechText BuildReadyToTaxi(AircraftState aircraft, string facilityCallName, string? atisLetter) =>
+        BuildReadyToTaxi(aircraft, facilityCallName, atisLetter, ReadyToTaxiLocation.ForStandCall(aircraft));
 
+    /// <summary>
+    /// A "ready to taxi" call from <paramref name="location"/>: <c>{facility}, {location}{info}{intent}, ready to taxi.</c>,
+    /// with the location "at gate F8", "at spot 9", "on taxiway K", "pushed back from gate F8" or "holding short of C at
+    /// T41W". An aircraft on a taxiway whose filed destination is the field it is at asks for parking instead:
+    /// <c>{facility}, on taxiway K{info}, request taxi to parking.</c> (AIM 4-2-3.a.1.c, 4-3-18.a.1, 4-3-18.d.1).
+    /// </summary>
+    public static PilotSpeechText BuildReadyToTaxi(AircraftState aircraft, string facilityCallName, string? atisLetter, ReadyToTaxiLocation location)
+    {
+        (string place, string placeSpoken) = DescribeReadyToTaxiLocation(location);
         string spoken = SpokenOwnCallsign(aircraft);
         string facility = CleanFacilityCallName(facilityCallName, "ground");
         string info = AtisInfoClause(atisLetter);
-        string intent = ReadyToTaxiIntentClause(aircraft);
-        return new PilotSpeechText(
-            $"{facility}, {location}{info}{intent}, ready to taxi.",
-            $"{facility}, {spoken} {locationSpoken}{info}{intent}, ready to taxi."
+        string tail = RequestsTaxiToParking(aircraft, location)
+            ? $"{info}, request taxi to parking."
+            : $"{info}{ReadyToTaxiIntentClause(aircraft)}, ready to taxi.";
+        return new PilotSpeechText($"{facility}, {place}{tail}", $"{facility}, {spoken} {placeSpoken}{tail}");
+    }
+
+    /// <summary>
+    /// True when a call from <paramref name="location"/> asks for taxi to parking rather than reporting ready to taxi: the
+    /// aircraft sits on a taxiway and its filed destination is the field it is at.
+    /// </summary>
+    public static bool RequestsTaxiToParking(AircraftState aircraft, ReadyToTaxiLocation location) =>
+        (location.Kind == ReadyToTaxiLocationKind.Taxiway)
+        && NavigationDatabase.AirportIdsMatch(aircraft.FlightPlan.Destination, PilotContactRoster.SurfaceAirportOf(aircraft));
+
+    /// <summary>
+    /// A departure's request to a delivery student from <paramref name="location"/> (AIM 5-2-6.h.2, 5-2-3.a, 4-2-3.a.1). IFR:
+    /// <c>{facility}, at gate F8, with information A, IFR to Los Angeles Airport.</c> — no aircraft type, no
+    /// "request clearance". VFR: <c>{facility}, at gate F8, with information A, VFR departure to the north, at 4500.</c>
+    /// naming <paramref name="vfrDirection"/> and the filed cruise altitude (left out when none is filed), never the destination.
+    /// </summary>
+    public static PilotSpeechText BuildClearanceRequest(
+        AircraftState aircraft,
+        string facilityCallName,
+        string? atisLetter,
+        ReadyToTaxiLocation location,
+        string? vfrDirection
+    )
+    {
+        (string place, string placeSpoken) = DescribeReadyToTaxiLocation(location);
+        string spoken = SpokenOwnCallsign(aircraft);
+        string facility = CleanFacilityCallName(facilityCallName, "clearance");
+        string info = AtisInfoClause(atisLetter);
+        (string intent, string intentSpoken) = aircraft.FlightPlan.IsVfr ? VfrDepartureClause(aircraft, vfrDirection) : IfrClearanceClause(aircraft);
+        return new PilotSpeechText($"{facility}, {place}{info}{intent}.", $"{facility}, {spoken}, {placeSpoken}{info}{intentSpoken}.");
+    }
+
+    private static (string Terminal, string Spoken) IfrClearanceClause(AircraftState aircraft)
+    {
+        string dest = aircraft.FlightPlan.Destination;
+        string clause = string.IsNullOrWhiteSpace(dest) ? ", IFR" : $", IFR to {PhraseologyVerbalizer.SpellAirportName(dest)}";
+        return (clause, clause);
+    }
+
+    private static (string Terminal, string Spoken) VfrDepartureClause(AircraftState aircraft, string? vfrDirection)
+    {
+        string direction = vfrDirection is { Length: > 0 } dir ? $" to the {dir}" : "";
+        if (aircraft.FlightPlan.Altitude.CruiseFeet is not { } cruise || (cruise <= 0))
+        {
+            return ($", VFR departure{direction}", $", VFR departure{direction}");
+        }
+
+        return (
+            $", VFR departure{direction}, at {PhraseologyVerbalizer.CompactAltitude(cruise)}",
+            $", VFR departure{direction}, at {PhraseologyVerbalizer.AltitudeWords(cruise)}"
         );
     }
 
     /// <summary>
-    /// The noun a pilot puts before a spot it names: none when the name reads as a word ("at kilo ramp",
-    /// "taxi to signature"), <c>gate</c> for a gate name, <c>parking</c> otherwise. The empty noun is safe for
-    /// <see cref="PhraseologyVerbalizer.SpellDestinationName(string, string)"/>, whose noun-skip only fires on a
-    /// non-empty match.
+    /// A runway spawn at an untowered field asking the radar controller for its departure release (7110.65 §4-3-4):
+    /// <c>{facility}, runway 25 at Auburn, ready for departure, request release.</c>
     /// </summary>
-    private static string SpotNoun(string name) =>
+    public static PilotSpeechText BuildReleaseRequest(AircraftState aircraft, string runwayId, string airportId, string facilityCallName)
+    {
+        string spoken = SpokenOwnCallsign(aircraft);
+        string facility = CleanFacilityCallName(facilityCallName, "approach");
+        string airport = PhraseologyVerbalizer.SpellAirportName(airportId);
+        return new PilotSpeechText(
+            $"{facility}, runway {PhraseologyVerbalizer.CompactRunway(runwayId)} at {airport}, ready for departure, request release.",
+            $"{facility}, {spoken}, runway {PhraseologyVerbalizer.SpellRunway(runwayId)} at {airport}, ready for departure, request release."
+        );
+    }
+
+    /// <summary>The location clause of a ready-to-taxi call, terminal and spoken.</summary>
+    private static (string Terminal, string Spoken) DescribeReadyToTaxiLocation(ReadyToTaxiLocation location)
+    {
+        switch (location.Kind)
+        {
+            case ReadyToTaxiLocationKind.Stand:
+            case ReadyToTaxiLocationKind.Spot:
+            case ReadyToTaxiLocationKind.PushedBackFrom:
+                string noun = SpotNoun(location);
+                string preposition = location.Kind == ReadyToTaxiLocationKind.PushedBackFrom ? "pushed back from" : "at";
+                string name = noun == "spot" ? DropLeadingSpotWord(location.Name) : location.Name;
+                return (
+                    $"{preposition} {WithNoun(name, noun)}",
+                    $"{preposition} {WithNoun(PhraseologyVerbalizer.SpellDestinationName(location.Name, noun), noun)}"
+                );
+            case ReadyToTaxiLocationKind.Taxiway:
+                return ($"on taxiway {location.Name}", $"on taxiway {PhraseologyVerbalizer.SpellTaxiway(location.Name)}");
+            case ReadyToTaxiLocationKind.HoldingShort:
+                string spokenTarget = CommandParser.IsRunwayArg(location.Name)
+                    ? PhraseologyVerbalizer.SpellRunway(location.Name)
+                    : PhraseologyVerbalizer.SpellTaxiway(location.Name);
+                return (
+                    $"holding short of {HoldShortTarget.Describe(location.Name)} at {location.Taxiway}",
+                    $"holding short of {spokenTarget} at {PhraseologyVerbalizer.SpellTaxiway(location.Taxiway)}"
+                );
+            default:
+                return ("at the ramp", "at the ramp");
+        }
+    }
+
+    /// <summary>
+    /// The noun a pilot puts before a place it names: <c>spot</c> for a ramp spot; for a stand none when the name reads
+    /// as a word ("at kilo ramp", "taxi to signature"), <c>gate</c> for a gate name, <c>parking</c> otherwise. The empty
+    /// noun is safe for <see cref="PhraseologyVerbalizer.SpellDestinationName(string, string)"/>, whose noun-skip only
+    /// fires on a non-empty match.
+    /// </summary>
+    private static string SpotNoun(ReadyToTaxiLocation location) => location.Kind == ReadyToTaxiLocationKind.Spot ? "spot" : StandNoun(location.Name);
+
+    /// <summary>The noun before a stand's name: none for a name that reads as a word, <c>gate</c> for a gate, else <c>parking</c>.</summary>
+    private static string StandNoun(string name) =>
         PhraseologyVerbalizer.ContainsPronounceableWord(name) ? "" : (ArrivalParkingPicker.IsGateName(name) ? "gate" : "parking");
+
+    /// <summary>
+    /// A spot name without a leading "SPOT" that would repeat the noun ("SPOT7" → "7"), as
+    /// <see cref="PhraseologyVerbalizer.SpellDestinationName(string, string)"/> drops it when spoken; a name that is
+    /// only the word keeps it.
+    /// </summary>
+    private static string DropLeadingSpotWord(string name)
+    {
+        string trimmed = name.Trim();
+        if ((trimmed.Length > 4) && trimmed.StartsWith("SPOT", StringComparison.OrdinalIgnoreCase) && !char.IsLetter(trimmed[4]))
+        {
+            return trimmed[4..].TrimStart(' ', '-');
+        }
+
+        return trimmed;
+    }
 
     /// <summary>A name with its noun in front when it has one (<c>gate F8</c>, <c>parking GA13</c>, <c>KILO RAMP</c>).</summary>
     private static string WithNoun(string name, string noun) => noun.Length > 0 ? $"{noun} {name}" : name;
@@ -1686,7 +1837,7 @@ public static class PilotResponder
         string runwaySpoken = runwayId is { Length: > 0 } ? $"runway {PhraseologyVerbalizer.SpellRunway(runwayId)}" : "the runway";
         string at = taxiway is { Length: > 0 } ? $" at {taxiway}" : "";
         string atSpoken = taxiway is { Length: > 0 } ? $" at {PhraseologyVerbalizer.SpellTaxiway(taxiway)}" : "";
-        string noun = SpotNoun(parking);
+        string noun = StandNoun(parking);
         string destination = WithNoun(parking, noun);
         string destinationSpoken = WithNoun(PhraseologyVerbalizer.SpellDestinationName(parking, noun), noun);
         return new PilotSpeechText(
@@ -1754,10 +1905,25 @@ public static class PilotResponder
         };
     }
 
+    /// <summary>
+    /// Pilot report that it cannot make the exit at <paramref name="taxiway"/> the controller named (P/CG UNABLE): the
+    /// rollout gave the exit up rather than brake harder than its firm rate for it.
+    /// </summary>
     public static PilotSpeechText BuildUnableToExit(AircraftState aircraft, string taxiway)
     {
         string spoken = SpokenOwnCallsign(aircraft);
-        return new PilotSpeechText($"negative on the exit at {taxiway}.", $"{spoken}, negative on the exit at {taxiway}.");
+        return new PilotSpeechText($"unable {taxiway}.", $"{spoken}, unable {PhraseologyVerbalizer.SpellTaxiway(taxiway)}.");
+    }
+
+    /// <summary>
+    /// Pilot report that the exit at <paramref name="taxiway"/> the controller named is not ahead of it on this runway — rolled
+    /// past, or a taxiway that never touches the runway. The terminal line is the one <see cref="BuildUnable"/> makes of the
+    /// controller-facing "Unable, no {taxiway} ahead"; the spoken form spells the taxiway (AIM 4-2-7).
+    /// </summary>
+    public static PilotSpeechText BuildUnableNoExitAhead(AircraftState aircraft, string taxiway)
+    {
+        string spoken = SpokenOwnCallsign(aircraft);
+        return new PilotSpeechText($"unable, no {taxiway} ahead.", $"{spoken}, unable, no {PhraseologyVerbalizer.SpellTaxiway(taxiway)} ahead.");
     }
 
     /// <summary>
@@ -2376,7 +2542,8 @@ public static class PilotResponder
             null => null,
             AtFixCondition fix => $"at {PhraseologyVerbalizer.SpellFix(fix.FixName)},",
             LevelCondition level => $"at {PhraseologyVerbalizer.AltitudeWords(level.Altitude)},",
-            _ => null, // GiveWayCondition and other condition kinds have their own dispatch path.
+            GiveWayCondition => "behind the traffic,",
+            _ => null, // other condition kinds have their own dispatch path.
         };
 
     /// <summary>Compact terminal form of the block-condition lead-in ("at SUNOL," / "at 5000,").</summary>
@@ -2386,6 +2553,14 @@ public static class PilotResponder
             null => null,
             AtFixCondition fix => $"at {PhraseologyVerbalizer.FixDisplayText(fix.FixName)},",
             LevelCondition level => $"at {PhraseologyVerbalizer.CompactAltitude(level.Altitude)},",
+            GiveWayCondition => "behind the traffic,",
             _ => null,
         };
+
+    /// <summary>
+    /// Lead-in for the RPO terminal body: the terminal lead for every condition except GIVEWAY, whose
+    /// diagnostic form names the traffic the pilot must yield to ("behind UAL456,").
+    /// </summary>
+    internal static string? FormatConditionForRpo(BlockCondition? condition) =>
+        condition is GiveWayCondition giveWay ? $"behind {giveWay.TargetCallsign}," : FormatConditionTerminal(condition);
 }

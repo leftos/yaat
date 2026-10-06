@@ -232,7 +232,7 @@ public partial class GroundView : UserControl
             }
         }
 
-        if (e.Key == Key.D && PlatformHelper.HasActionModifier(e.KeyModifiers) && _canvas is not null)
+        if ((e.Key == Key.D) && (e.KeyModifiers == (PlatformHelper.IsMacOS ? KeyModifiers.Meta : KeyModifiers.Control)) && (_canvas is not null))
         {
             _canvas.ShowDebugInfo = !_canvas.ShowDebugInfo;
             e.Handled = true;
@@ -391,10 +391,36 @@ public partial class GroundView : UserControl
 
     private void OnNodeRightClicked(int nodeId, Point screenPos)
     {
-        if ((DataContext is GroundViewModel vm) && (BuildNodePointMenu(vm, nodeId, screenPos) is { } menu))
+        if (BuildNodeContextMenu(nodeId, screenPos) is { } menu)
         {
             ShowContextMenu(menu);
         }
+    }
+
+    /// <summary>
+    /// The right-click menu at a ground node (an empty-space click resolves to the nearest one): the node point menu
+    /// (<see cref="BuildNodePointMenu"/>), ending with "Settings for this view…"; null without a ground view model or the
+    /// node, or when the menu would be empty.
+    /// </summary>
+    internal ContextMenu? BuildNodeContextMenu(int nodeId, Point screenPos)
+    {
+        if ((DataContext is not GroundViewModel vm) || (vm.GetNode(nodeId) is null))
+        {
+            return null;
+        }
+
+        return WithViewSettings(BuildNodePointMenu(vm, nodeId, screenPos));
+    }
+
+    /// <summary>
+    /// <paramref name="menu"/> (a new one when null) ending with "Settings for this view…", which opens Settings at Ground;
+    /// null when it is still empty, as it is without a main view model to ask.
+    /// </summary>
+    private ContextMenu? WithViewSettings(ContextMenu? menu)
+    {
+        menu ??= new ContextMenu();
+        ViewSettingsMenu.Append(menu, FindMainViewModel(), SettingsSectionId.Ground);
+        return (menu.Items.Count > 0) ? menu : null;
     }
 
     /// <summary>
@@ -539,7 +565,18 @@ public partial class GroundView : UserControl
             vm.SelectedAircraft = ac;
         }
 
-        ShowContextMenu(BuildAircraftContextMenu(vm, ac, prevSelected, callsign));
+        ShowContextMenu(BuildAircraftRightClickMenu(vm, ac, prevSelected, callsign));
+    }
+
+    /// <summary>
+    /// The menu a right-click on an aircraft opens: the aircraft menu (<see cref="BuildAircraftContextMenu"/>), ending with
+    /// "Settings for this view…".
+    /// </summary>
+    internal ContextMenu BuildAircraftRightClickMenu(GroundViewModel vm, AircraftModel? ac, AircraftModel? prevSelected, string callsign)
+    {
+        ContextMenu menu = BuildAircraftContextMenu(vm, ac, prevSelected, callsign);
+        ViewSettingsMenu.Append(menu, FindMainViewModel(), SettingsSectionId.Ground);
+        return menu;
     }
 
     /// <summary>
@@ -615,8 +652,10 @@ public partial class GroundView : UserControl
 
     private void OnRunwayThresholdClicked(string runwayEnd, Point screenPos)
     {
+        // A threshold click is a left-click: it opens a menu only when there is a point menu, never one of Settings alone.
         if ((DataContext is GroundViewModel vm) && (BuildRunwayThresholdMenu(vm, runwayEnd) is { } menu))
         {
+            ViewSettingsMenu.Append(menu, FindMainViewModel(), SettingsSectionId.Ground);
             ShowContextMenu(menu);
         }
     }
@@ -673,7 +712,7 @@ public partial class GroundView : UserControl
         }
 
         (double lat, double lon) = _canvas.Viewport.ScreenToLatLon((float)screenPos.X, (float)screenPos.Y);
-        if (BuildRunwaySurfaceMenu(vm, runways, new LatLon(lat, lon), _canvas.FindNearestNode(screenPos), screenPos) is { } menu)
+        if (WithViewSettings(BuildRunwaySurfaceMenu(vm, runways, new LatLon(lat, lon), _canvas.FindNearestNode(screenPos), screenPos)) is { } menu)
         {
             ShowContextMenu(menu);
         }

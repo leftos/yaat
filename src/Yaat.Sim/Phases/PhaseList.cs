@@ -252,6 +252,16 @@ public sealed class PhaseList
     /// </summary>
     public ResolvedExitInfo? ResolvedExit { get; set; }
 
+    /// <summary>
+    /// Taxiways the crew has told the controller it is unable to exit at on this landing (P/CG UNABLE: the controller may already
+    /// be acting on it; 7110.65 3-10-9.a, AIM 4-3-21.a). Shared by <c>LandingPhase</c> and <c>RunwayExitPhase</c>, so every exit
+    /// search on the landing skips them while the aircraft is rolling — the rollout's, the straight-line fallback's and the runway
+    /// exit's own re-searches after the hand-off — until a new instruction names one again. Once stopped on the runway the aircraft
+    /// may taxi forward to a given-up taxiway ahead like any other exit (the "unable" was about rollout speed). Cleared when a landing
+    /// starts and when the runway exit completes (<c>RunwayExitPhase.CompleteExit</c>). Compared without regard to case.
+    /// </summary>
+    public HashSet<string> GivenUpExitTaxiways { get; } = new(StringComparer.OrdinalIgnoreCase);
+
     public int CurrentIndex { get; private set; }
 
     /// <summary>
@@ -424,10 +434,19 @@ public sealed class PhaseList
             ActiveApproach = dto.ActiveApproach is not null ? ApproachClearance.FromSnapshot(dto.ActiveApproach) : null,
             LahsoHoldShort = dto.LahsoHoldShort is not null ? LahsoTarget.FromSnapshot(dto.LahsoHoldShort) : null,
         };
+        if (dto.GivenUpExitTaxiways is not null)
+        {
+            list.GivenUpExitTaxiways.UnionWith(dto.GivenUpExitTaxiways);
+        }
 
         foreach (PhaseDto phaseDto in dto.Phases)
         {
             Phase phase = RestorePhase(phaseDto, groundLayout);
+            if (phase is LandingPhase landing)
+            {
+                landing.ShareRequestedExit(list.RequestedExit);
+            }
+
             list.Add(phase);
         }
 
@@ -555,7 +574,8 @@ public sealed class PhaseList
             RequestedExitTaxiway = RequestedExit?.Taxiway,
             ActiveApproach = ActiveApproach?.ToSnapshot(),
             LahsoHoldShort = LahsoHoldShort?.ToSnapshot(),
+            GivenUpExitTaxiways = (GivenUpExitTaxiways.Count > 0) ? [.. GivenUpExitTaxiways.Order(StringComparer.OrdinalIgnoreCase)] : null,
             CurrentIndex = CurrentIndex,
-            Phases = [.. Phases.Select(p => p.ToSnapshot())],
+            Phases = [.. Phases.Select(p => p is LandingPhase landing ? landing.ToSnapshot(RequestedExit) : p.ToSnapshot())],
         };
 }

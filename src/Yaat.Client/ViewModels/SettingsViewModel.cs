@@ -90,6 +90,96 @@ public partial class MacroRow : ObservableObject
     }
 }
 
+/// <summary>What a configurable key is for, which decides the combos it accepts and the Settings section that resets it.</summary>
+public enum KeybindKind
+{
+    /// <summary>Fires from any YAAT working window, so a bare key would swallow typing: it needs Ctrl or Alt, or is F1–F24.</summary>
+    WindowHotkey,
+
+    /// <summary>Read by the command input only; a bare key is fine.</summary>
+    CommandInputKey,
+
+    /// <summary>The global hold-to-talk key; a bare key or a lone modifier is fine.</summary>
+    PushToTalk,
+}
+
+/// <summary>
+/// One configurable key: its id, the action name Settings shows (and names in a clash), what it does, the other words a
+/// Settings search finds it by, what it is for, and how it is read from and written to <see cref="UserPreferences"/>. Its
+/// default is what <see cref="Read"/> returns on <see cref="UserPreferences.CreateDefaults"/>.
+/// </summary>
+public sealed record KeybindDescriptor(
+    string Id,
+    string Name,
+    string Help,
+    IReadOnlyList<string> SearchWords,
+    KeybindKind Kind,
+    Func<UserPreferences, string> Read,
+    Action<UserPreferences, string> Write
+)
+{
+    /// <summary>The label its row shows in Settings.</summary>
+    public string Label => $"{Name} key:";
+
+    /// <summary>True for every key the Keys section lists; push-to-talk shows in the Speech section instead.</summary>
+    public bool InKeysSection => Kind != KeybindKind.PushToTalk;
+}
+
+/// <summary>A configurable key's row in Settings: the combo being edited, what its capture button shows, and its clash.</summary>
+public sealed partial class KeybindRow : ObservableObject
+{
+    public const string CapturePrompt = "Press a key combo...";
+
+    private string _combo;
+
+    public KeybindRow(KeybindDescriptor descriptor, string combo, string defaultCombo, Action<KeybindRow> startCapture)
+    {
+        Descriptor = descriptor;
+        _combo = combo;
+        _display = SettingsViewModel.KeyComboToDisplay(combo);
+        Description = $"{descriptor.Help} Default: {SettingsViewModel.KeyComboToDisplay(defaultCombo)}";
+        StartCaptureCommand = new RelayCommand(() => startCapture(this));
+    }
+
+    public KeybindDescriptor Descriptor { get; }
+    public string Id => Descriptor.Id;
+    public string Name => Descriptor.Name;
+    public KeybindKind Kind => Descriptor.Kind;
+    public string Label => Descriptor.Label;
+    public string Description { get; }
+    public IRelayCommand StartCaptureCommand { get; }
+
+    /// <summary>The combo in <see cref="UserPreferences"/> form (<c>"Ctrl+Shift+L"</c>), written on Apply.</summary>
+    public string Combo => _combo;
+
+    /// <summary>What the capture button shows: the combo for display, or the prompt while capturing.</summary>
+    [ObservableProperty]
+    private string _display;
+
+    /// <summary>"Also used by …" while another row or a fixed chord has the same combo; null otherwise.</summary>
+    [ObservableProperty]
+    private string? _clashMessage;
+
+    /// <summary>Why the last key pressed during a capture was refused; null otherwise.</summary>
+    [ObservableProperty]
+    private string? _captureHint;
+
+    public void SetCombo(string combo)
+    {
+        SetProperty(ref _combo, combo, nameof(Combo));
+        Display = SettingsViewModel.KeyComboToDisplay(combo);
+        CaptureHint = null;
+    }
+
+    public void ShowCapturePrompt() => Display = CapturePrompt;
+
+    public void EndCapture()
+    {
+        Display = SettingsViewModel.KeyComboToDisplay(_combo);
+        CaptureHint = null;
+    }
+}
+
 public partial class SettingsViewModel : ObservableObject
 {
     private static readonly ILogger Log = AppLog.CreateLogger<SettingsViewModel>();
@@ -98,10 +188,19 @@ public partial class SettingsViewModel : ObservableObject
     private readonly SpeechSampleStore? _speechSampleStore;
 
     /// <summary>
-    /// The telemetry opt-in as it was when the window opened, so Save only touches the store (clearing
-    /// anything queued) when the user actually changed it.
+    /// The telemetry opt-in as of the last commit (or the window opening), so Apply only touches the store
+    /// (clearing anything queued) when the user actually changed it since.
     /// </summary>
-    private readonly bool _loadedSpeechTelemetryEnabled;
+    private bool _appliedSpeechTelemetryEnabled;
+
+    /// <summary>The parking call-up interval as of the last commit (or the window opening), so Apply writes it only when edited.</summary>
+    private int _appliedSoloParkingInitialCallupIntervalSeconds;
+
+    /// <summary>Each window's always-on-top setting as of the last commit (or the window opening), keyed by window name.</summary>
+    private readonly Dictionary<string, bool> _appliedTopmost;
+
+    /// <summary>Fired after each commit (Apply or OK), once every edit is in the preferences.</summary>
+    public event Action? Applied;
 
     /// <summary>
     /// Fired when any visual/display property changes (colors, brightness, tints, font size).
@@ -125,18 +224,6 @@ public partial class SettingsViewModel : ObservableObject
 
     [ObservableProperty]
     private bool _testCommandIsError;
-
-    [ObservableProperty]
-    private string _verbImportNote = "";
-
-    [ObservableProperty]
-    private bool _verbImportIsError;
-
-    [ObservableProperty]
-    private string _macroImportNote = "";
-
-    [ObservableProperty]
-    private bool _macroImportIsError;
 
     [ObservableProperty]
     private bool _isAdminMode;
@@ -259,6 +346,18 @@ public partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     private int _soloGoAroundProbabilityPercent;
 
+    /// <summary>Default parking call-up interval for new rooms: 0 (paused) or 10-120 s; stored as a rate percent.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(SoloParkingInitialCallupIntervalLabel))]
+    private int _soloParkingInitialCallupIntervalSeconds;
+
+    /// <summary>"Paused" or "Once per N sec", as the session flyout shows the interval.</summary>
+    public string SoloParkingInitialCallupIntervalLabel => SoloPacing.FormatParkingInitialCallupInterval(SoloParkingInitialCallupIntervalSeconds);
+
+    /// <summary>Default arrival generator rate for new rooms, 0-100%.</summary>
+    [ObservableProperty]
+    private int _soloArrivalGeneratorRatePercent;
+
     [ObservableProperty]
     private bool _rpoShowPilotSpeech;
 
@@ -275,19 +374,7 @@ public partial class SettingsViewModel : ObservableObject
     private bool _pilotVoiceRadioFxEnabled = true;
 
     [ObservableProperty]
-    private string _aircraftSelectKeyDisplay = "Numpad +";
-
-    [ObservableProperty]
-    private string _focusInputKeyDisplay = "~";
-
-    [ObservableProperty]
-    private string _takeControlKeyDisplay = "Ctrl + T";
-
-    [ObservableProperty]
-    private string _alwaysOnTopKeyDisplay = "Ctrl + Shift + T";
-
-    [ObservableProperty]
-    private string _quickBookmarkKeyDisplay = "Ctrl + B";
+    private double _pilotVoiceSpeechRate = UserPreferences.PilotVoiceSpeechRateDefault;
 
     [ObservableProperty]
     private bool _raiseWindowsTogether;
@@ -514,8 +601,11 @@ public partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     private int _speechSampleCacheMaxMb = 50;
 
-    [ObservableProperty]
-    private string _pttKeyDisplay = "Right Ctrl";
+    /// <summary>The push-to-talk row's button text, for the Speech section's capture button.</summary>
+    public string PttKeyDisplay => PttRow.Display;
+
+    /// <summary>The push-to-talk row's clash, shown under the Speech section's capture button.</summary>
+    public string? PttKeyClashMessage => PttRow.ClashMessage;
 
     [ObservableProperty]
     private string _audioInputDevice = "";
@@ -556,13 +646,7 @@ public partial class SettingsViewModel : ObservableObject
         OnPropertyChanged(nameof(SelectedAudioOutputDeviceDisplay));
     }
 
-    private string _aircraftSelectKeyName = "Add";
-    private string _focusInputKeyName = "OemTilde";
-    private string _takeControlKeyName = "Ctrl+T";
-    private string _alwaysOnTopKeyName = "Ctrl+Shift+T";
-    private string _quickBookmarkKeyName = "Ctrl+B";
-    private string _pttKeyName = "RightCtrl";
-    private string? _captureTarget;
+    private KeybindRow? _captureRow;
 
     /// <summary>
     /// LM-Kit STT model catalog, built at runtime from <see cref="LMKit.Model.ModelCard.GetPredefinedModelCards"/>.
@@ -730,21 +814,33 @@ public partial class SettingsViewModel : ObservableObject
         _selectedVfrCommandsForIfrIndex = (int)_preferences.VfrCommandsForIfr;
         _soloTrainingMode = _preferences.SoloTrainingMode;
         _soloGoAroundProbabilityPercent = _preferences.SoloGoAroundProbabilityPercent;
+        _soloParkingInitialCallupIntervalSeconds = SoloPacing.ParkingInitialCallupRateToIntervalSeconds(
+            _preferences.SoloParkingInitialCallupRatePercent
+        );
+        _appliedSoloParkingInitialCallupIntervalSeconds = _soloParkingInitialCallupIntervalSeconds;
+        _soloArrivalGeneratorRatePercent = _preferences.SoloArrivalGeneratorRatePercent;
         _rpoShowPilotSpeech = _preferences.RpoShowPilotSpeech;
         _rpoPilotSpeechAudibleAlert = _preferences.RpoPilotSpeechAudibleAlert;
         _pilotVoiceEnabled = _preferences.PilotVoiceEnabled;
         _pilotVoiceVolume = _preferences.PilotVoiceVolume;
         _pilotVoiceRadioFxEnabled = _preferences.PilotVoiceRadioFxEnabled;
-        _aircraftSelectKeyName = _preferences.AircraftSelectKey;
-        _aircraftSelectKeyDisplay = KeyComboToDisplay(_aircraftSelectKeyName);
-        _focusInputKeyName = _preferences.FocusInputKey;
-        _focusInputKeyDisplay = KeyComboToDisplay(_focusInputKeyName);
-        _takeControlKeyName = _preferences.TakeControlKey;
-        _takeControlKeyDisplay = KeyComboToDisplay(_takeControlKeyName);
-        _alwaysOnTopKeyName = _preferences.AlwaysOnTopKey;
-        _alwaysOnTopKeyDisplay = KeyComboToDisplay(_alwaysOnTopKeyName);
-        _quickBookmarkKeyName = _preferences.QuickBookmarkKey;
-        _quickBookmarkKeyDisplay = KeyComboToDisplay(_quickBookmarkKeyName);
+        _pilotVoiceSpeechRate = _preferences.PilotVoiceSpeechRate;
+        var keyDefaults = UserPreferences.CreateDefaults();
+        KeybindRows = [.. KeybindDescriptors.Select(d => new KeybindRow(d, d.Read(_preferences), d.Read(keyDefaults), StartKeyCaptureFor))];
+        KeysSectionKeybindRows = [.. KeybindRows.Where(r => r.Descriptor.InKeysSection)];
+        PttRow = KeybindRows.Single(r => r.Kind == KeybindKind.PushToTalk);
+        PttRow.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(KeybindRow.Display))
+            {
+                OnPropertyChanged(nameof(PttKeyDisplay));
+            }
+            else if (e.PropertyName == nameof(KeybindRow.ClashMessage))
+            {
+                OnPropertyChanged(nameof(PttKeyClashMessage));
+            }
+        };
+        RecomputeKeybindClashes();
         _speechEnabled = _preferences.SpeechEnabled;
         _whisperModelSize = _preferences.WhisperModelSize;
         _llmModelPath = _preferences.LlmModelPath;
@@ -753,10 +849,8 @@ public partial class SettingsViewModel : ObservableObject
         _speechSampleCaptureEnabled = _preferences.SpeechSampleCaptureEnabled;
         _speechSampleCacheMaxMb = _preferences.SpeechSampleCacheMaxMb;
         _speechTelemetryEnabled = _preferences.SpeechTelemetryEnabled;
-        _loadedSpeechTelemetryEnabled = _preferences.SpeechTelemetryEnabled;
+        _appliedSpeechTelemetryEnabled = _preferences.SpeechTelemetryEnabled;
 
-        _pttKeyName = _preferences.PttKey;
-        _pttKeyDisplay = KeyComboToDisplay(_pttKeyName);
         _audioInputDevice = _preferences.AudioInputDevice;
         _audioOutputDevice = _preferences.AudioOutputDevice;
         _raiseWindowsTogether = _preferences.RaiseWindowsTogether;
@@ -768,6 +862,16 @@ public partial class SettingsViewModel : ObservableObject
         _terminalTopmost = _preferences.TerminalWindowGeometry?.IsTopmost ?? false;
         _vStripsTopmost = _preferences.GetWindowGeometry("VStripsView")?.IsTopmost ?? false;
         _favoritesPanelTopmost = _preferences.GetWindowGeometry("FavoritesPanel")?.IsTopmost ?? false;
+        _appliedTopmost = new Dictionary<string, bool>(StringComparer.Ordinal)
+        {
+            ["Main"] = _mainWindowTopmost,
+            ["GroundView"] = _groundViewTopmost,
+            ["RadarView"] = _radarViewTopmost,
+            ["DataGrid"] = _dataGridTopmost,
+            ["Terminal"] = _terminalTopmost,
+            ["VStripsView"] = _vStripsTopmost,
+            ["FavoritesPanel"] = _favoritesPanelTopmost,
+        };
         _assignmentTintEnabled = _preferences.AssignmentTintEnabled;
         _assignmentTintColor = _preferences.AssignmentTintColor;
         _unassignedTintEnabled = _preferences.UnassignedTintEnabled;
@@ -884,8 +988,28 @@ public partial class SettingsViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// Commits every edit to the preferences without closing the window; callable as often as the user presses
+    /// Apply. Raises <see cref="Applied"/> afterwards so the host refreshes the live views.
+    /// </summary>
     [RelayCommand]
-    private void Save()
+    private void Apply()
+    {
+        // Every setter below saves; the deferral writes the preferences file once.
+        using (_preferences.DeferSave())
+        {
+            ApplyCommandsAndScenarioDefaults();
+            ApplySpeechAndWindows();
+            ApplyColorsAndDisplay();
+            SaveMacros();
+            ApplyStagedFavoritesWrites();
+            ApplyStagedLayouts();
+        }
+
+        Applied?.Invoke();
+    }
+
+    private void ApplyCommandsAndScenarioDefaults()
     {
         CommandScheme scheme = BuildSchemeFromRows();
         _preferences.SetCommandScheme(scheme);
@@ -899,8 +1023,9 @@ public partial class SettingsViewModel : ObservableObject
         _preferences.SetRpoShowPilotSpeech(RpoShowPilotSpeech);
         _preferences.SetSoloTrainingMode(SoloTrainingMode);
         _preferences.SetSoloGoAroundProbabilityGlobal(SoloGoAroundProbabilityPercent);
+        ApplySoloPacingIfChanged();
         _preferences.SetRpoPilotSpeechAudibleAlert(RpoPilotSpeechAudibleAlert);
-        _preferences.SetPilotVoiceSettings(PilotVoiceEnabled, PilotVoiceVolume, PilotVoiceRadioFxEnabled);
+        _preferences.SetPilotVoiceSettings(PilotVoiceEnabled, PilotVoiceVolume, PilotVoiceRadioFxEnabled, PilotVoiceSpeechRate);
         _preferences.SetEuroScopeMode(EuroScopeMode);
         _preferences.SetFlashNoLandingClearance(FlashNoLandingClearance);
         _preferences.SetShowConflictAlerts(ShowConflictAlerts);
@@ -931,15 +1056,43 @@ public partial class SettingsViewModel : ObservableObject
             AutoArrivalSpacingOnOccupiedRunwayTwr
         );
         _preferences.SetVfrCommandsForIfr((VfrCommandsForIfr)SelectedVfrCommandsForIfrIndex);
-        _preferences.SetAircraftSelectKey(_aircraftSelectKeyName);
-        _preferences.SetFocusInputKey(_focusInputKeyName);
-        _preferences.SetTakeControlKey(_takeControlKeyName);
-        _preferences.SetAlwaysOnTopKey(_alwaysOnTopKeyName);
-        _preferences.SetQuickBookmarkKey(_quickBookmarkKeyName);
-        _preferences.SetSpeechSettings(SpeechEnabled, WhisperModelSize, LlmModelPath, LlmGpuLayers, _pttKeyName, AutoFocusInputAfterSpeech);
+        foreach (KeybindRow row in KeybindRows)
+        {
+            row.Descriptor.Write(_preferences, row.Combo);
+        }
+    }
+
+    // The slider shows the stored call-up rate as the nearest interval it offers, so writing the interval back on every
+    // Apply would snap an off-grid stored rate (e.g. 150%) to the slider's value. Write the pacing pair only when an edit
+    // since the last commit (or the window opening) changed it; an imported rate is written exactly unless the slider moved after it.
+    private void ApplySoloPacingIfChanged()
+    {
+        int parkingRate = StagedSoloParkingInitialCallupRatePercent();
+        if (
+            (parkingRate == _preferences.SoloParkingInitialCallupRatePercent)
+            && (SoloArrivalGeneratorRatePercent == _preferences.SoloArrivalGeneratorRatePercent)
+        )
+        {
+            return;
+        }
+
+        _preferences.SetSoloPacingRates(parkingRate, SoloArrivalGeneratorRatePercent);
+        _appliedSoloParkingInitialCallupIntervalSeconds = SoloParkingInitialCallupIntervalSeconds;
+        _importedSoloParkingInitialCallupRatePercent = null;
+    }
+
+    // The parking call-up rate Apply writes: the slider's interval as a rate once edited, else the imported or stored rate.
+    private int StagedSoloParkingInitialCallupRatePercent() =>
+        SoloParkingInitialCallupIntervalSeconds != _appliedSoloParkingInitialCallupIntervalSeconds
+            ? SoloPacing.ParkingInitialCallupIntervalSecondsToRate(SoloParkingInitialCallupIntervalSeconds)
+            : _importedSoloParkingInitialCallupRatePercent ?? _preferences.SoloParkingInitialCallupRatePercent;
+
+    private void ApplySpeechAndWindows()
+    {
+        _preferences.SetSpeechSettings(SpeechEnabled, WhisperModelSize, LlmModelPath, LlmGpuLayers, AutoFocusInputAfterSpeech);
         // Before the sample settings: enabling telemetry there forces capture on, and writing capture
         // first would briefly store it off.
-        if (SpeechTelemetryEnabled != _loadedSpeechTelemetryEnabled)
+        if (SpeechTelemetryEnabled != _appliedSpeechTelemetryEnabled)
         {
             _preferences.SetSpeechTelemetryEnabled(SpeechTelemetryEnabled);
             _preferences.SetSpeechTelemetryPromptShown(true);
@@ -948,52 +1101,52 @@ public partial class SettingsViewModel : ObservableObject
                 // Anything still queued would go out on the next connect, which the user just declined.
                 _speechSampleStore?.ClearPendingUploads();
             }
+
+            _appliedSpeechTelemetryEnabled = SpeechTelemetryEnabled;
         }
         _preferences.SetSpeechSampleSettings(SpeechSampleCaptureEnabled, SpeechSampleCacheMaxMb);
         _preferences.SetAudioSettings(AudioInputDevice, AudioOutputDevice);
         _preferences.SetRaiseWindowsTogether(RaiseWindowsTogether);
         _preferences.SetDiscordRichPresenceEnabled(DiscordRichPresenceEnabled);
-        _preferences.SetWindowTopmost("Main", MainWindowTopmost);
-        _preferences.SetWindowTopmost("GroundView", GroundViewTopmost);
-        _preferences.SetWindowTopmost("RadarView", RadarViewTopmost);
         // Extra Radar/Ground windows (RadarView#2, GroundView#3, …) follow their view's single
-        // always-on-top setting, the same way the per-facility Strips windows do below.
-        var extraRadarKeys = new List<string>(_preferences.GetWindowGeometryKeysStartingWith(ViewInstanceOrdinals.RadarPrefix));
-        foreach (string key in extraRadarKeys)
+        // always-on-top setting, the same way the per-facility Strips windows do.
+        ApplyTopmostIfChanged("Main", MainWindowTopmost, followerPrefix: null);
+        ApplyTopmostIfChanged("GroundView", GroundViewTopmost, ViewInstanceOrdinals.GroundPrefix);
+        ApplyTopmostIfChanged("RadarView", RadarViewTopmost, ViewInstanceOrdinals.RadarPrefix);
+        ApplyTopmostIfChanged("DataGrid", DataGridTopmost, followerPrefix: null);
+        ApplyTopmostIfChanged("Terminal", TerminalTopmost, followerPrefix: null);
+        ApplyTopmostIfChanged("VStripsView", VStripsTopmost, "VStripsView:");
+        ApplyTopmostIfChanged("FavoritesPanel", FavoritesPanelTopmost, followerPrefix: null);
+    }
+
+    // Writes a window's always-on-top setting only when it differs from the last commit: every write re-raises
+    // WindowTopmostChanged, which re-pins each open window of that name.
+    private void ApplyTopmostIfChanged(string windowName, bool isTopmost, string? followerPrefix)
+    {
+        if (_appliedTopmost.TryGetValue(windowName, out bool applied) && (applied == isTopmost))
         {
-            _preferences.SetWindowTopmost(key, RadarViewTopmost);
+            return;
         }
-        var extraGroundKeys = new List<string>(_preferences.GetWindowGeometryKeysStartingWith(ViewInstanceOrdinals.GroundPrefix));
-        foreach (string key in extraGroundKeys)
+
+        _preferences.SetWindowTopmost(windowName, isTopmost);
+        if (followerPrefix is not null)
         {
-            _preferences.SetWindowTopmost(key, GroundViewTopmost);
+            var followerKeys = new List<string>(_preferences.GetWindowGeometryKeysStartingWith(followerPrefix));
+            foreach (string key in followerKeys)
+            {
+                _preferences.SetWindowTopmost(key, isTopmost);
+            }
         }
-        _preferences.SetWindowTopmost("DataGrid", DataGridTopmost);
-        _preferences.SetWindowTopmost("Terminal", TerminalTopmost);
-        _preferences.SetWindowTopmost("VStripsView", VStripsTopmost);
-        var perFacilityStripsKeys = new List<string>(_preferences.GetWindowGeometryKeysStartingWith("VStripsView:"));
-        foreach (string key in perFacilityStripsKeys)
-        {
-            _preferences.SetWindowTopmost(key, VStripsTopmost);
-        }
-        _preferences.SetWindowTopmost("FavoritesPanel", FavoritesPanelTopmost);
+
+        _appliedTopmost[windowName] = isTopmost;
+    }
+
+    private void ApplyColorsAndDisplay()
+    {
         _preferences.SetAssignmentTint(AssignmentTintEnabled, AssignmentTintColor);
         _preferences.SetUnassignedTint(UnassignedTintEnabled, UnassignedTintColor);
         _preferences.SetSelectedColor(SelectedColor);
-        _preferences.SetGroundColors(
-            new GroundColorScheme(
-                GroundBackgroundColor,
-                GroundTaxiwayColor,
-                GroundTaxiLabelColor,
-                GroundRampEdgeColor,
-                GroundHoldShortColor,
-                GroundRunwayFillColor,
-                GroundRunwayOutlineColor,
-                GroundAircraftColor,
-                GroundDatablockTextColor,
-                GroundBrightness
-            )
-        );
+        _preferences.SetGroundColors(GetCurrentGroundColors());
         _preferences.SetTerminalColors(
             new TerminalColorScheme(
                 TerminalCommandColor,
@@ -1035,55 +1188,6 @@ public partial class SettingsViewModel : ObservableObject
         _preferences.SetGroundHideDataBlocksByDefault(GroundHideDataBlocksByDefault);
         _preferences.SetGroundTaxiRouteDisplay(GroundShowTaxiRouteOnHover, GroundShowAllTaxiRoutes);
         _preferences.SetCrcAliasDirectory(CrcAliasDirectory);
-        SaveMacros();
-        Saved = true;
-    }
-
-    public bool Saved { get; private set; }
-
-    [RelayCommand]
-    private void ResetCommandsToDefaults()
-    {
-        LoadFromScheme(CommandScheme.Default());
-
-        // Re-run the test input against the reset scheme
-        OnTestCommandInputChanged(TestCommandInput);
-    }
-
-    /// <summary>
-    /// Applies an imported command-verb file to the verb grid.
-    ///
-    /// Only the commands the file listed are touched; every other row keeps the verbs the user has now. Nothing
-    /// is written to preferences here — the edit lives in the grid until the user saves, exactly like a macro import.
-    /// </summary>
-    /// <param name="import">The parsed file, including any command names this build does not know.</param>
-    public void ImportVerbs(CommandSchemeImport import)
-    {
-        int applied = 0;
-
-        foreach ((CanonicalCommandType type, List<string>? aliases) in import.Verbs)
-        {
-            VerbMappingRow? row = VerbMappings.FirstOrDefault(r => r.CommandType == type);
-            if (row is null)
-            {
-                continue;
-            }
-
-            row.Aliases = string.Join(", ", aliases);
-            applied++;
-        }
-
-        // Re-run the test input against the imported scheme
-        OnTestCommandInputChanged(TestCommandInput);
-
-        string note = $"Imported {applied} verb mapping(s).";
-        if (import.UnknownCommands.Count > 0)
-        {
-            note += $" Skipped unknown command(s): {string.Join(", ", import.UnknownCommands)}.";
-        }
-
-        VerbImportNote = note;
-        VerbImportIsError = false;
     }
 
     /// <summary>Builds the full command scheme currently shown in the verb grid, for export to a shareable file.</summary>
@@ -1154,79 +1258,12 @@ public partial class SettingsViewModel : ObservableObject
     [RelayCommand]
     private void AddMacro() => MacroRows.Add(new MacroRow { RemoveAction = r => MacroRows.Remove(r) });
 
-    [RelayCommand]
-    private void ClearAllMacros() => MacroRows.Clear();
-
-    public void ImportMacros(MacroImportResult result)
-    {
-        var existingBaseNames = new HashSet<string>(MacroRows.Select(r => MacroDefinition.ExtractBaseName(r.Name)), StringComparer.OrdinalIgnoreCase);
-
-        // Add non-conflicting macros
-        foreach (SavedMacro m in result.NewMacros)
-        {
-            string baseName = MacroDefinition.ExtractBaseName(m.Name);
-            if (!existingBaseNames.Contains(baseName))
-            {
-                MacroRows.Add(
-                    new MacroRow
-                    {
-                        Name = m.Name,
-                        Expansion = m.Expansion,
-                        RemoveAction = r => MacroRows.Remove(r),
-                    }
-                );
-                existingBaseNames.Add(baseName);
-            }
-        }
-
-        // Apply conflict resolutions
-        foreach (MacroConflictResolution conflict in result.Conflicts)
-        {
-            switch (conflict.Resolution)
-            {
-                case ConflictResolution.Overwrite:
-                {
-                    string importBaseName = MacroDefinition.ExtractBaseName(conflict.Macro.Name);
-                    MacroRow existing = MacroRows.First(r =>
-                        string.Equals(MacroDefinition.ExtractBaseName(r.Name), importBaseName, StringComparison.OrdinalIgnoreCase)
-                    );
-                    existing.Name = conflict.Macro.Name;
-                    existing.Expansion = conflict.Macro.Expansion;
-                    break;
-                }
-
-                case ConflictResolution.Skip:
-                    break;
-
-                case ConflictResolution.Rename:
-                {
-                    string renamedName = conflict.RenamedName!;
-                    // Preserve parameter declarations from original name if the rename is just a base name
-                    string[] originalTokens = conflict.Macro.Name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-                    if (originalTokens.Length > 1 && !renamedName.Contains(' '))
-                    {
-                        renamedName = renamedName + " " + string.Join(" ", originalTokens.Skip(1));
-                    }
-
-                    MacroRows.Add(
-                        new MacroRow
-                        {
-                            Name = renamedName,
-                            Expansion = conflict.Macro.Expansion,
-                            RemoveAction = r => MacroRows.Remove(r),
-                        }
-                    );
-                    break;
-                }
-            }
-        }
-    }
-
-    public List<SavedMacro> ExportMacros(IEnumerable<MacroRow>? rows = null)
+    /// <summary>The macros the grid shows, trimmed, without the rows lacking a name or an expansion.</summary>
+    public List<SavedMacro> ExportMacros()
     {
         return
         [
-            .. (rows ?? MacroRows)
+            .. MacroRows
                 .Where(r => !string.IsNullOrWhiteSpace(r.Name) && !string.IsNullOrWhiteSpace(r.Expansion))
                 .Select(r => new SavedMacro { Name = r.Name.Trim(), Expansion = r.Expansion.Trim() }),
         ];
@@ -1359,7 +1396,7 @@ public partial class SettingsViewModel : ObservableObject
             _ => 0,
         };
 
-    private static string IndexToAutoDeleteOverride(int index) =>
+    public static string IndexToAutoDeleteOverride(int index) =>
         index switch
         {
             1 => "Never",
@@ -1368,132 +1405,292 @@ public partial class SettingsViewModel : ObservableObject
             _ => "",
         };
 
-    [RelayCommand]
-    private void StartKeyCapture() => StartKeyCaptureFor("AircraftSelect");
+    private static string[] PopOutSearchWords => ["popout", "pop-out", "window", "dock"];
+
+    /// <summary>
+    /// Every configurable key, in the order the Keys section lists them. A new key is one entry here plus its
+    /// <see cref="UserPreferences"/> field; capture, cancel, reset, Apply, load, the clash check and the Settings search
+    /// catalog all read this list.
+    /// </summary>
+    public static IReadOnlyList<KeybindDescriptor> KeybindDescriptors { get; } =
+    [
+        new(
+            "AircraftSelect",
+            "Aircraft select",
+            "Pressing this key in the command input selects the aircraft matching the typed callsign without sending a command.",
+            [],
+            KeybindKind.CommandInputKey,
+            p => p.AircraftSelectKey,
+            (p, k) => p.SetAircraftSelectKey(k)
+        ),
+        new(
+            "FocusInput",
+            "Focus command input",
+            "Pressing this key from anywhere in the app puts focus on the command input.",
+            [],
+            KeybindKind.CommandInputKey,
+            p => p.FocusInputKey,
+            (p, k) => p.SetFocusInputKey(k)
+        ),
+        new(
+            "TakeControl",
+            "Take control",
+            "Pressing this key combo assigns the selected aircraft to yourself (RPO take control).",
+            [],
+            KeybindKind.WindowHotkey,
+            p => p.TakeControlKey,
+            (p, k) => p.SetTakeControlKey(k)
+        ),
+        new(
+            "AlwaysOnTop",
+            "Always on top",
+            "Pressing this key combo toggles always-on-top for the focused pop-out window.",
+            ["topmost", "pin"],
+            KeybindKind.WindowHotkey,
+            p => p.AlwaysOnTopKey,
+            (p, k) => p.SetAlwaysOnTopKey(k)
+        ),
+        new(
+            "QuickBookmark",
+            "Quick bookmark",
+            "Pressing this key combo drops an unnamed bookmark on the timeline at the current position.",
+            [],
+            KeybindKind.WindowHotkey,
+            p => p.QuickBookmarkKey,
+            (p, k) => p.SetQuickBookmarkKey(k)
+        ),
+        new(
+            "PopOutAircraftList",
+            "Pop out aircraft list",
+            "Pops the aircraft list out into its own window, or docks it back, from any YAAT window.",
+            PopOutSearchWords,
+            KeybindKind.WindowHotkey,
+            p => p.PopOutAircraftListKey,
+            (p, k) => p.SetPopOutAircraftListKey(k)
+        ),
+        new(
+            "PopOutGroundView",
+            "Pop out ground view",
+            "Pops the ground view out into its own window, or docks it back, from any YAAT window.",
+            PopOutSearchWords,
+            KeybindKind.WindowHotkey,
+            p => p.PopOutGroundViewKey,
+            (p, k) => p.SetPopOutGroundViewKey(k)
+        ),
+        new(
+            "PopOutRadarView",
+            "Pop out radar view",
+            "Pops the radar view out into its own window, or docks it back, from any YAAT window.",
+            PopOutSearchWords,
+            KeybindKind.WindowHotkey,
+            p => p.PopOutRadarViewKey,
+            (p, k) => p.SetPopOutRadarViewKey(k)
+        ),
+        new(
+            "PopOutTerminal",
+            "Pop out terminal",
+            "Pops the terminal out into its own window, or docks it back, from any YAAT window.",
+            PopOutSearchWords,
+            KeybindKind.WindowHotkey,
+            p => p.PopOutTerminalKey,
+            (p, k) => p.SetPopOutTerminalKey(k)
+        ),
+        new(
+            "PopOutControllers",
+            "Pop out controllers",
+            "Pops the controllers list out into its own window, or docks it back, from any YAAT window.",
+            PopOutSearchWords,
+            KeybindKind.WindowHotkey,
+            p => p.PopOutControllersKey,
+            (p, k) => p.SetPopOutControllersKey(k)
+        ),
+        new(
+            "PopOutMetar",
+            "Pop out METAR",
+            "Pops the METAR list out into its own window, or docks it back, from any YAAT window.",
+            PopOutSearchWords,
+            KeybindKind.WindowHotkey,
+            p => p.PopOutMetarKey,
+            (p, k) => p.SetPopOutMetarKey(k)
+        ),
+        new(
+            "FavoritesBar",
+            "Favorites bar",
+            "Shows or hides the favorites bar, from any YAAT window.",
+            ["favorites", "favourites"],
+            KeybindKind.WindowHotkey,
+            p => p.FavoritesBarKey,
+            (p, k) => p.SetFavoritesBarKey(k)
+        ),
+        new(
+            "OpenSettings",
+            "Open Settings",
+            "Opens this Settings window, from any YAAT working window.",
+            ["preferences", "options"],
+            KeybindKind.WindowHotkey,
+            p => p.OpenSettingsKey,
+            (p, k) => p.SetOpenSettingsKey(k)
+        ),
+        new("Ptt", "Push-to-talk", "Hold this key to talk.", ["PTT"], KeybindKind.PushToTalk, p => p.PttKey, (p, k) => p.SetPttKey(k)),
+    ];
+
+    /// <summary>Every configurable key's row, push-to-talk included.</summary>
+    public IReadOnlyList<KeybindRow> KeybindRows { get; }
+
+    /// <summary>The rows the Keys section lists: every key but push-to-talk, which the Speech section shows.</summary>
+    public IReadOnlyList<KeybindRow> KeysSectionKeybindRows { get; }
+
+    private KeybindRow PttRow { get; }
+
+    /// <summary>True while two rows, or a row and a fixed chord, share a combo; OK and Apply stay disabled until it clears.</summary>
+    [ObservableProperty]
+    private bool _hasKeybindClash;
 
     [RelayCommand]
-    private void StartFocusInputKeyCapture() => StartKeyCaptureFor("FocusInput");
+    private void StartPttKeyCapture() => StartKeyCaptureFor(PttRow);
 
-    [RelayCommand]
-    private void StartTakeControlKeyCapture() => StartKeyCaptureFor("TakeControl");
-
-    [RelayCommand]
-    private void StartAlwaysOnTopKeyCapture() => StartKeyCaptureFor("AlwaysOnTop");
-
-    [RelayCommand]
-    private void StartQuickBookmarkKeyCapture() => StartKeyCaptureFor("QuickBookmark");
-
-    [RelayCommand]
-    private void StartPttKeyCapture() => StartKeyCaptureFor("Ptt");
-
-    private void StartKeyCaptureFor(string target)
+    private void StartKeyCaptureFor(KeybindRow row)
     {
-        _captureTarget = target;
+        CancelKeyCapture();
+        _captureRow = row;
         IsCapturingKey = true;
-        switch (target)
-        {
-            case "AircraftSelect":
-                AircraftSelectKeyDisplay = "Press a key combo...";
-                break;
-            case "FocusInput":
-                FocusInputKeyDisplay = "Press a key combo...";
-                break;
-            case "TakeControl":
-                TakeControlKeyDisplay = "Press a key combo...";
-                break;
-            case "AlwaysOnTop":
-                AlwaysOnTopKeyDisplay = "Press a key combo...";
-                break;
-            case "QuickBookmark":
-                QuickBookmarkKeyDisplay = "Press a key combo...";
-                break;
-            case "Ptt":
-                PttKeyDisplay = "Press a key combo...";
-                break;
-        }
+        row.ShowCapturePrompt();
     }
 
+    /// <summary>Shown under a window-hotkey row when a key without Ctrl or Alt is pressed during its capture.</summary>
+    public const string NeedsModifierHint = "Add Ctrl or Alt, or use an F-key";
+
     public void CaptureKey(Key key, KeyModifiers modifiers)
+    {
+        if (!IsCapturingKey || (_captureRow is null))
+        {
+            return;
+        }
+
+        KeybindRow row = _captureRow;
+        switch (ClassifyCapture(row.Kind, key, modifiers))
+        {
+            case CaptureOutcome.Ignore:
+                return;
+            case CaptureOutcome.Cancel:
+                CancelKeyCapture();
+                return;
+            case CaptureOutcome.NeedsModifier:
+                row.CaptureHint = NeedsModifierHint;
+                return;
+            case CaptureOutcome.Accept:
+                break;
+        }
+
+        // A modifier-only PTT key is stored as the raw key name with no modifier prefix so
+        // the combo round-trips cleanly through Enum.TryParse<Key> in KeyNameToDisplay.
+        row.SetCombo(KeybindHelper.IsModifierOnlyKey(key) ? key.ToString() : BuildKeyCombo(key, modifiers));
+        IsCapturingKey = false;
+        _captureRow = null;
+        RecomputeKeybindClashes();
+    }
+
+    public void CancelKeyCapture()
     {
         if (!IsCapturingKey)
         {
             return;
         }
 
-        // Modifier-only keys (RightCtrl, LeftShift, etc.) are normally rejected, but PTT is commonly
-        // bound to a bare modifier — so accept it when the capture target is Ptt.
-        bool isModifierOnly =
-            key is Key.LeftShift or Key.RightShift or Key.LeftCtrl or Key.RightCtrl or Key.LeftAlt or Key.RightAlt or Key.LWin or Key.RWin;
-        if (isModifierOnly && _captureTarget != "Ptt")
-        {
-            return;
-        }
-
-        // For PTT modifier-only capture, store just the raw key name with no modifier prefix so
-        // the combo round-trips cleanly through Enum.TryParse<Key> in KeyNameToDisplay.
-        string combo = isModifierOnly ? key.ToString() : BuildKeyCombo(key, modifiers);
-        switch (_captureTarget)
-        {
-            case "AircraftSelect":
-                _aircraftSelectKeyName = combo;
-                AircraftSelectKeyDisplay = KeyComboToDisplay(combo);
-                break;
-            case "FocusInput":
-                _focusInputKeyName = combo;
-                FocusInputKeyDisplay = KeyComboToDisplay(combo);
-                break;
-            case "TakeControl":
-                _takeControlKeyName = combo;
-                TakeControlKeyDisplay = KeyComboToDisplay(combo);
-                break;
-            case "AlwaysOnTop":
-                _alwaysOnTopKeyName = combo;
-                AlwaysOnTopKeyDisplay = KeyComboToDisplay(combo);
-                break;
-            case "QuickBookmark":
-                _quickBookmarkKeyName = combo;
-                QuickBookmarkKeyDisplay = KeyComboToDisplay(combo);
-                break;
-            case "Ptt":
-                _pttKeyName = combo;
-                PttKeyDisplay = KeyComboToDisplay(combo);
-                break;
-        }
-
+        _captureRow?.EndCapture();
         IsCapturingKey = false;
-        _captureTarget = null;
+        _captureRow = null;
     }
 
-    public void CancelKeyCapture()
+    private enum CaptureOutcome
     {
-        if (IsCapturingKey)
-        {
-            switch (_captureTarget)
-            {
-                case "AircraftSelect":
-                    AircraftSelectKeyDisplay = KeyComboToDisplay(_aircraftSelectKeyName);
-                    break;
-                case "FocusInput":
-                    FocusInputKeyDisplay = KeyComboToDisplay(_focusInputKeyName);
-                    break;
-                case "TakeControl":
-                    TakeControlKeyDisplay = KeyComboToDisplay(_takeControlKeyName);
-                    break;
-                case "AlwaysOnTop":
-                    AlwaysOnTopKeyDisplay = KeyComboToDisplay(_alwaysOnTopKeyName);
-                    break;
-                case "QuickBookmark":
-                    QuickBookmarkKeyDisplay = KeyComboToDisplay(_quickBookmarkKeyName);
-                    break;
-                case "Ptt":
-                    PttKeyDisplay = KeyComboToDisplay(_pttKeyName);
-                    break;
-            }
-
-            IsCapturingKey = false;
-            _captureTarget = null;
-        }
+        Accept,
+        Ignore,
+        Cancel,
+        NeedsModifier,
     }
+
+    /// <summary>What a key pressed during a capture does to a row of this kind.</summary>
+    private static CaptureOutcome ClassifyCapture(KeybindKind kind, Key key, KeyModifiers modifiers)
+    {
+        // A lone modifier (RightCtrl, LeftShift, etc.) waits for the real key, except for PTT, which is commonly bound to one.
+        if (KeybindHelper.IsModifierOnlyKey(key))
+        {
+            return (kind == KeybindKind.PushToTalk) ? CaptureOutcome.Accept : CaptureOutcome.Ignore;
+        }
+
+        if (kind != KeybindKind.WindowHotkey)
+        {
+            return CaptureOutcome.Accept;
+        }
+
+        // A window hotkey fires from every YAAT window, so a bare key would eat that key wherever the user types.
+        // A bare Escape cannot be a binding there, so it backs out of the capture, as clicking away does.
+        if ((key == Key.Escape) && (modifiers == KeyModifiers.None))
+        {
+            return CaptureOutcome.Cancel;
+        }
+
+        bool hasCtrlOrAlt = modifiers.HasFlag(KeyModifiers.Control) || modifiers.HasFlag(KeyModifiers.Alt);
+        return (hasCtrlOrAlt || IsFunctionKey(key)) ? CaptureOutcome.Accept : CaptureOutcome.NeedsModifier;
+    }
+
+    private static bool IsFunctionKey(Key key) => (key >= Key.F1) && (key <= Key.F24);
+
+    // Each row names every other row and fixed chord that shares its combo, so both sides of a clash show it.
+    private void RecomputeKeybindClashes()
+    {
+        foreach (KeybindRow row in KeybindRows)
+        {
+            List<string> others =
+            [
+                .. KeybindRows.Where(o => !ReferenceEquals(o, row) && SameChord(o.Combo, row.Combo)).Select(o => o.Name),
+                .. WindowHotkeys.FixedChords.Where(f => SameChord(f.Chord, row.Combo)).Select(f => f.Name),
+            ];
+            row.ClashMessage = (others.Count == 0) ? null : $"Also used by {string.Join(", ", others)}";
+        }
+
+        HasKeybindClash = KeybindRows.Any(r => r.ClashMessage is not null);
+        KeybindClashSummary = BuildClashSummary();
+    }
+
+    /// <summary>
+    /// Why OK and Apply are disabled, for their tooltip: the clashing rows grouped by the Settings section that shows
+    /// them, then any fixed chord they take, e.g. "Key clash: Take control and Pop out controllers (Keys)". Null with no clash.
+    /// </summary>
+    [ObservableProperty]
+    private string? _keybindClashSummary;
+
+    private string? BuildClashSummary()
+    {
+        List<string> groups =
+        [
+            .. KeybindRows
+                .Where(r => r.ClashMessage is not null)
+                .GroupBy(SectionName)
+                .Select(section => $"{JoinNames([.. section.Select(r => r.Name)])} ({section.Key})"),
+        ];
+        List<string> fixedNames = [.. WindowHotkeys.FixedChords.Where(f => KeybindRows.Any(r => SameChord(f.Chord, r.Combo))).Select(f => f.Name)];
+        if (fixedNames.Count > 0)
+        {
+            groups.Add($"{JoinNames(fixedNames)} (fixed)");
+        }
+
+        return (groups.Count == 0) ? null : $"Key clash: {JoinNames(groups)}";
+    }
+
+    private static string SectionName(KeybindRow row) => (row.Kind == KeybindKind.PushToTalk) ? "Speech" : "Keys";
+
+    private static string JoinNames(IReadOnlyList<string> names) =>
+        (names.Count == 1) ? names[0] : $"{string.Join(", ", names.Take(names.Count - 1))} and {names[^1]}";
+
+    private static bool SameChord(string a, string b) =>
+        (
+            KeybindHelper.ParseKeybind(a, out Key keyA, out KeyModifiers modifiersA)
+            && KeybindHelper.ParseKeybind(b, out Key keyB, out KeyModifiers modifiersB)
+        )
+            ? (keyA == keyB) && (modifiersA == modifiersB)
+            : string.Equals(a, b, StringComparison.Ordinal);
 
     internal static string KeyNameToDisplay(string keyName)
     {
@@ -1559,7 +1756,7 @@ public partial class SettingsViewModel : ObservableObject
         return string.Join("+", parts);
     }
 
-    internal static string KeyComboToDisplay(string combo)
+    public static string KeyComboToDisplay(string combo)
     {
         string[] parts = combo.Split('+');
         var display = new List<string>();
@@ -1646,36 +1843,247 @@ public partial class SettingsViewModel : ObservableObject
     [RelayCommand]
     private void DeleteSelectedLlmModel() => SelectedLlmLmKitModel?.Delete();
 
-    [RelayCommand]
-    private void ResetAllColors()
+    // ---------- Reset section ----------
+
+    private const string ResetPendingNote = " Apply or OK keeps the change; Cancel discards it.";
+
+    /// <summary>What Reset section does for each section that has settings of its own; link-only sections are absent.</summary>
+    private static readonly IReadOnlyDictionary<SettingsSectionId, Action<SettingsViewModel, UserPreferences>> SectionResets = new Dictionary<
+        SettingsSectionId,
+        Action<SettingsViewModel, UserPreferences>
+    >
     {
-        GroundColorScheme d = GroundColorScheme.Default;
-        GroundBackgroundColor = d.Background;
-        GroundTaxiwayColor = d.Taxiway;
-        GroundTaxiLabelColor = d.TaxiLabel;
-        GroundRampEdgeColor = d.RampEdge;
-        GroundHoldShortColor = d.HoldShort;
-        GroundRunwayFillColor = d.RunwayFill;
-        GroundRunwayOutlineColor = d.RunwayOutline;
-        GroundAircraftColor = d.Aircraft;
-        GroundDatablockTextColor = d.DatablockText;
-        GroundBrightness = d.Brightness;
-        AssignmentTintEnabled = false;
-        AssignmentTintColor = "#00FF00";
-        UnassignedTintEnabled = false;
-        UnassignedTintColor = "#888888";
-        SelectedColor = "#FFFFFF";
-        TerminalColorScheme t = TerminalColorScheme.Default;
-        TerminalCommandColor = t.Command;
-        TerminalResponseColor = t.Response;
-        TerminalSystemColor = t.System;
-        TerminalSayColor = t.Say;
-        TerminalPilotSpeechColor = t.PilotSpeech;
-        TerminalWarningColor = t.Warning;
-        TerminalErrorColor = t.Error;
-        TerminalChatColor = t.Chat;
-        TerminalTdlsColor = t.Tdls;
-        TerminalStripColor = t.Strip;
+        [SettingsSectionId.General] = static (vm, defaults) => vm.ResetGeneral(defaults),
+        [SettingsSectionId.Appearance] = static (vm, defaults) => vm.ResetAppearance(defaults),
+        [SettingsSectionId.ScenarioDefaults] = static (vm, defaults) => vm.ResetScenarioDefaults(defaults),
+        [SettingsSectionId.Radar] = static (vm, defaults) => vm.ResetRadar(defaults),
+        [SettingsSectionId.Ground] = static (vm, defaults) => vm.ResetGround(defaults),
+        [SettingsSectionId.Terminal] = static (vm, defaults) => vm.ResetTerminal(defaults),
+        [SettingsSectionId.CommandInput] = static (vm, defaults) => vm.ResetCommandInput(defaults),
+        [SettingsSectionId.CommandVerbs] = static (vm, defaults) => vm.ResetCommandVerbs(defaults),
+        [SettingsSectionId.Macros] = static (vm, defaults) => vm.ResetMacros(defaults),
+        [SettingsSectionId.Keys] = static (vm, defaults) => vm.ResetKeys(defaults),
+        [SettingsSectionId.Speech] = static (vm, defaults) => vm.ResetSpeech(defaults),
+        [SettingsSectionId.AudioDevices] = static (vm, defaults) => vm.ResetAudioDevices(defaults),
+        [SettingsSectionId.ServerAdmin] = static (vm, defaults) => vm.ResetServerAdmin(defaults),
+    };
+
+    /// <summary>Reset section's tooltip where the section resets less, or other than, every setting it shows.</summary>
+    private static readonly IReadOnlyDictionary<SettingsSectionId, string> ResetToolTips = new Dictionary<SettingsSectionId, string>
+    {
+        [SettingsSectionId.General] = "Puts Discord and the window settings back to their defaults. Initials are kept." + ResetPendingNote,
+        [SettingsSectionId.CommandVerbs] = "Puts every command verb back to its default." + ResetPendingNote,
+        [SettingsSectionId.Macros] = "Clears all macros and sets the CRC aliases folder back to auto-detect." + ResetPendingNote,
+        [SettingsSectionId.Speech] =
+            "Puts the speech settings back to their defaults. Downloaded models, the CUDA backend, the Piper voice pack and saved samples are kept."
+            + ResetPendingNote,
+    };
+
+    /// <summary>The section the window shows; Reset section acts on it.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ResetSectionToolTip))]
+    [NotifyCanExecuteChangedFor(nameof(ResetSectionCommand))]
+    private SettingsSectionId _selectedSection;
+
+    /// <summary>What Reset section will do to <see cref="SelectedSection"/>, shown as the button's tooltip.</summary>
+    public string ResetSectionToolTip =>
+        ResetToolTips.TryGetValue(SelectedSection, out string? toolTip) ? toolTip
+        : CanResetSection() ? "Puts every setting in this section back to its default." + ResetPendingNote
+        : "This section has no settings of its own to reset.";
+
+    private bool CanResetSection() => SectionResets.ContainsKey(SelectedSection);
+
+    /// <summary>
+    /// Puts every setting <see cref="SelectedSection"/> shows back to the default a fresh preferences file holds. The
+    /// reset is a pending edit like any other: Apply or OK commits it, Cancel discards it.
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanResetSection))]
+    private void ResetSection() => SectionResets[SelectedSection](this, UserPreferences.CreateDefaults());
+
+    // The user's initials are their identity, not a preference, so General keeps them.
+    private void ResetGeneral(UserPreferences defaults)
+    {
+        DiscordRichPresenceEnabled = defaults.DiscordRichPresenceEnabled;
+        RaiseWindowsTogether = defaults.RaiseWindowsTogether;
+        MainWindowTopmost = defaults.MainWindowGeometry?.IsTopmost ?? false;
+        GroundViewTopmost = defaults.GroundViewWindowGeometry?.IsTopmost ?? false;
+        RadarViewTopmost = defaults.RadarViewWindowGeometry?.IsTopmost ?? false;
+        DataGridTopmost = defaults.DataGridWindowGeometry?.IsTopmost ?? false;
+        TerminalTopmost = defaults.TerminalWindowGeometry?.IsTopmost ?? false;
+        VStripsTopmost = defaults.GetWindowGeometry("VStripsView")?.IsTopmost ?? false;
+        FavoritesPanelTopmost = defaults.GetWindowGeometry("FavoritesPanel")?.IsTopmost ?? false;
+    }
+
+    private void ResetAppearance(UserPreferences defaults)
+    {
+        DataGridFontSize = defaults.DataGridFontSize;
+        RadarDatablockFontSize = defaults.RadarDatablockFontSize;
+        RadarFlyoutFontSize = defaults.RadarFlyoutFontSize;
+        GroundDatablockFontSize = defaults.GroundDatablockFontSize;
+        GroundLabelFontSize = defaults.GroundLabelFontSize;
+        TerminalFontSize = defaults.TerminalFontSize;
+        InterfaceFontSize = defaults.InterfaceFontSize;
+        StripsZoomPercent = defaults.StripsZoomPercent;
+        TdlsZoomPercent = defaults.TdlsZoomPercent;
+        SelectedRendererModeIndex = (int)defaults.RendererMode;
+    }
+
+    private void ResetScenarioDefaults(UserPreferences defaults)
+    {
+        AutoAcceptEnabled = defaults.AutoAcceptEnabled;
+        AutoAcceptDelaySeconds = defaults.AutoAcceptDelaySeconds;
+        CommandRunDelayMinSeconds = defaults.CommandRunDelayMinSeconds;
+        CommandRunDelayMaxSeconds = defaults.CommandRunDelayMaxSeconds;
+        SelectedAutoDeleteIndex = AutoDeleteOverrideToIndex(defaults.AutoDeleteOverride);
+        DepartureAutoDeleteDistanceNm = defaults.DepartureAutoDeleteDistanceNm is { } distanceNm ? (decimal)distanceNm : null;
+        ValidateDctFixes = defaults.ValidateDctFixes;
+        AutoClearedToLandGnd = defaults.AutoClearedToLandGnd;
+        AutoClearedToLandTwr = defaults.AutoClearedToLandTwr;
+        AutoClearedToLandApp = defaults.AutoClearedToLandApp;
+        AutoClearedToLandCtr = defaults.AutoClearedToLandCtr;
+        AutoCrossRunway = defaults.AutoCrossRunway;
+        AutoPullUpToParallel = defaults.AutoPullUpToParallel;
+        AutoGoAroundOnOccupiedRunway = defaults.AutoGoAroundOnOccupiedRunway;
+        AutoRejectTakeoffOnOccupiedRunway = defaults.AutoRejectTakeoffOnOccupiedRunway;
+        AutoArrivalSpacingOnOccupiedRunwayGnd = defaults.AutoArrivalSpacingOnOccupiedRunwayGnd;
+        AutoArrivalSpacingOnOccupiedRunwayTwr = defaults.AutoArrivalSpacingOnOccupiedRunwayTwr;
+        SelectedVfrCommandsForIfrIndex = (int)defaults.VfrCommandsForIfr;
+        SoloTrainingMode = defaults.SoloTrainingMode;
+        SoloGoAroundProbabilityPercent = defaults.SoloGoAroundProbabilityPercent;
+        SoloParkingInitialCallupIntervalSeconds = SoloPacing.ParkingInitialCallupRateToIntervalSeconds(defaults.SoloParkingInitialCallupRatePercent);
+        SoloArrivalGeneratorRatePercent = defaults.SoloArrivalGeneratorRatePercent;
+        RpoShowPilotSpeech = defaults.RpoShowPilotSpeech;
+        RpoPilotSpeechAudibleAlert = defaults.RpoPilotSpeechAudibleAlert;
+    }
+
+    private void ResetRadar(UserPreferences defaults)
+    {
+        EuroScopeMode = defaults.EuroScopeMode;
+        FlashNoLandingClearance = defaults.FlashNoLandingClearance;
+        ShowConflictAlerts = defaults.ShowConflictAlerts;
+        ShowTypeMismatchHints = defaults.ShowTypeMismatchHints;
+        ShowAtpa = defaults.ShowAtpa;
+        ShowSpeechBubbles = defaults.ShowSpeechBubbles;
+        MvaHintDefaultApp = defaults.MvaHintDefaultApp;
+        MvaHintDefaultCtr = defaults.MvaHintDefaultCtr;
+        MvaHintDefaultGnd = defaults.MvaHintDefaultGnd;
+        MvaHintDefaultTwr = defaults.MvaHintDefaultTwr;
+        SpeechBubbleDurationMultiplier = defaults.SpeechBubbleDurationMultiplier;
+        ShowWarningSpeechBubbles = defaults.ShowWarningSpeechBubbles;
+        SpeechBubblesStayUntilClicked = defaults.SpeechBubblesStayUntilClicked;
+        AlwaysShowGroundBubblesOnRadar = defaults.AlwaysShowGroundBubblesOnRadar;
+        SyncStudentDatablockColors = defaults.SyncStudentDatablockColors;
+        MarkStudentLimitedDatablocks = defaults.MarkStudentLimitedDatablocks;
+        CollapseStudentDatablocks = defaults.CollapseStudentDatablocks;
+        SyncStudentLeaderDirection = defaults.SyncStudentLeaderDirection;
+        TpaConeHalfAngleDegrees = defaults.TpaConeHalfAngleDegrees;
+        ScrollSensitivityPercent = defaults.ScrollSensitivity * 100.0;
+        AssignmentTintEnabled = defaults.AssignmentTintEnabled;
+        AssignmentTintColor = defaults.AssignmentTintColor;
+        UnassignedTintEnabled = defaults.UnassignedTintEnabled;
+        UnassignedTintColor = defaults.UnassignedTintColor;
+        SelectedColor = defaults.SelectedColor;
+    }
+
+    private void ResetGround(UserPreferences defaults)
+    {
+        GroundColorScheme colors = defaults.GroundColors;
+        GroundBackgroundColor = colors.Background;
+        GroundTaxiwayColor = colors.Taxiway;
+        GroundTaxiLabelColor = colors.TaxiLabel;
+        GroundRampEdgeColor = colors.RampEdge;
+        GroundHoldShortColor = colors.HoldShort;
+        GroundRunwayFillColor = colors.RunwayFill;
+        GroundRunwayOutlineColor = colors.RunwayOutline;
+        GroundAircraftColor = colors.Aircraft;
+        GroundDatablockTextColor = colors.DatablockText;
+        GroundBrightness = colors.Brightness;
+        GroundSatelliteImageBrightness = defaults.GroundSatelliteImageBrightness;
+        GroundVideoMapOverlayBrightness = defaults.GroundVideoMapOverlayBrightness;
+        GroundYaatLayoutBrightness = defaults.GroundYaatLayoutBrightness;
+        GroundHideDataBlocksByDefault = defaults.GroundHideDataBlocksByDefault;
+        GroundShowTaxiRouteOnHover = defaults.GroundShowTaxiRouteOnHover;
+        GroundShowAllTaxiRoutes = defaults.GroundShowAllTaxiRoutes;
+    }
+
+    private void ResetTerminal(UserPreferences defaults)
+    {
+        TerminalColorScheme colors = defaults.TerminalColors;
+        TerminalCommandColor = colors.Command;
+        TerminalResponseColor = colors.Response;
+        TerminalSystemColor = colors.System;
+        TerminalSayColor = colors.Say;
+        TerminalPilotSpeechColor = colors.PilotSpeech;
+        TerminalWarningColor = colors.Warning;
+        TerminalErrorColor = colors.Error;
+        TerminalChatColor = colors.Chat;
+        TerminalTdlsColor = colors.Tdls;
+        TerminalStripColor = colors.Strip;
+    }
+
+    private void ResetCommandInput(UserPreferences defaults)
+    {
+        AutoExpandSuggestionOnEnter = defaults.AutoExpandSuggestionOnEnter;
+        SelectedSignatureHelpPlacementIndex = defaults.SignatureHelpPlacement == "Below" ? 1 : 0;
+    }
+
+    private void ResetCommandVerbs(UserPreferences defaults)
+    {
+        LoadFromScheme(defaults.CommandScheme);
+
+        // Re-run the test input against the reset scheme
+        OnTestCommandInputChanged(TestCommandInput);
+    }
+
+    private void ResetMacros(UserPreferences defaults)
+    {
+        MacroRows.Clear();
+        CrcAliasDirectory = defaults.CrcAliasDirectory ?? "";
+    }
+
+    private void ResetKeys(UserPreferences defaults)
+    {
+        CancelKeyCapture();
+        foreach (KeybindRow row in KeysSectionKeybindRows)
+        {
+            row.SetCombo(row.Descriptor.Read(defaults));
+        }
+
+        RecomputeKeybindClashes();
+    }
+
+    // Settings only: downloaded models, the CUDA backend, the Piper voice pack and saved samples stay as they are.
+    private void ResetSpeech(UserPreferences defaults)
+    {
+        CancelKeyCapture();
+        SpeechEnabled = defaults.SpeechEnabled;
+        AutoFocusInputAfterSpeech = defaults.AutoFocusInputAfterSpeech;
+        WhisperModelSize = defaults.WhisperModelSize;
+        SelectedWhisperLmKitModel = LmKitModelCatalog.FindById(WhisperLmKitModels, WhisperModelSize);
+        LlmModelPath = defaults.LlmModelPath;
+        SelectedLlmLmKitModel = LmKitModelCatalog.FindById(LlmLmKitModels, LlmModelPath);
+        LlmGpuLayers = defaults.LlmGpuLayers;
+        PttRow.SetCombo(defaults.PttKey);
+        RecomputeKeybindClashes();
+        // Before capture: turning telemetry on would tick capture with it.
+        SpeechTelemetryEnabled = defaults.SpeechTelemetryEnabled;
+        SpeechSampleCaptureEnabled = defaults.SpeechSampleCaptureEnabled;
+        SpeechSampleCacheMaxMb = defaults.SpeechSampleCacheMaxMb;
+        PilotVoiceEnabled = defaults.PilotVoiceEnabled;
+        PilotVoiceVolume = defaults.PilotVoiceVolume;
+        PilotVoiceRadioFxEnabled = defaults.PilotVoiceRadioFxEnabled;
+    }
+
+    private void ResetAudioDevices(UserPreferences defaults)
+    {
+        AudioInputDevice = defaults.AudioInputDevice;
+        AudioOutputDevice = defaults.AudioOutputDevice;
+    }
+
+    private void ResetServerAdmin(UserPreferences defaults)
+    {
+        IsAdminMode = defaults.IsAdminMode;
+        AdminPassword = defaults.AdminPassword;
     }
 
     /// <summary>

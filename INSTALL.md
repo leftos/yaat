@@ -3,9 +3,9 @@
 There are two ways to install YAAT. Most users want the first option.
 
 - **[Install a prebuilt release](#install-a-prebuilt-release)** — download an installer or portable archive. No terminal, no Git, no .NET SDK. Takes a couple of minutes.
-- **[Building from source](#building-from-source)** — clone the repositories and build locally. Use this if you want to host a YAAT server, run against a nightly build, or contribute code changes.
+- **[Building from source](#building-from-source)** — clone the repositories and build locally. This is for contributors and for hosting your own YAAT server.
 
-If you're joining a training session hosted by an instructor, the prebuilt release is all you need.
+VATSIM controllers and students train on the public YAAT server, **YAAT1**, so the prebuilt release is all you need.
 
 ## Install a prebuilt release
 
@@ -47,11 +47,11 @@ On some distros you'll also need `libfontconfig1` and `libfreetype6` for text re
 
 ### Step 3: Connect and run a scenario
 
-YAAT opens to an empty main window. Head to **[Getting Started](GETTING_STARTED.md)** to configure your identity, connect to a server, create a room, and load your first scenario.
+YAAT opens to an empty main window. Head to **[Getting Started](GETTING_STARTED.md)** to sign in, connect to YAAT1, create a room, and load your first scenario.
 
 ### NVIDIA GPU acceleration (Windows, optional)
 
-The installer ships with CPU and Vulkan backends out of the box — that's enough for YAAT's speech recognition and LLM features. If you have an NVIDIA card and want CUDA 13 acceleration, open **Settings → Speech → Acceleration** and click **Download CUDA 13 runtime**. YAAT fetches ~534 MB of CUDA libraries into `%LOCALAPPDATA%\yaat\backends\cuda13\` and activates them on the next launch. You can uninstall them from the same screen to reclaim the disk space.
+The installer ships with CPU and Vulkan backends out of the box — that's enough for YAAT's speech recognition and LLM features. If you have an NVIDIA card and want CUDA 13 acceleration, open **Settings › Speech › Acceleration** and click **Download CUDA 13 runtime**. YAAT fetches ~534 MB of CUDA libraries into `%LOCALAPPDATA%\yaat\backends\cuda13\` and activates them on the next launch. You can uninstall them from the same screen to reclaim the disk space.
 
 This is opt-in because the CUDA runtime would have added ~1.5 GB to the base installer; most users don't need it.
 
@@ -336,8 +336,8 @@ The installer is not code-signed (signing certificates are expensive and YAAT is
 
 ### Client can't connect to server
 
-- If you're self-hosting, make sure the server is running and you see log output from it
-- The client connects to `http://localhost:5000` by default when launched without arguments. To point at a different server, either pass `--autoconnect http://<server>:<port>` on the command line, or enter the URL in **File → Connect** after launch
+- **File → Connect** selects **YAAT1** (`https://yaat1.leftos.dev`) on first launch. If it was changed, pick YAAT1 again from the server list.
+- Self-hosting: make sure your server is running and logging, then enter its URL in **File → Connect**, or pass `--autoconnect http://<server>:<port>` on the command line. A source build launched without arguments (`dotnet run --project src/Yaat.Client`) connects to `http://localhost:5000`.
 
 ### Client crashes or shows no text on Linux
 

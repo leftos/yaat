@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Pilot;
 using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Phases.Ground;
@@ -37,7 +38,46 @@ public sealed class HoldingAfterPushbackPhase : Phase
     public override bool OnTick(PhaseContext ctx)
     {
         ctx.Aircraft.IndicatedAirspeed = 0;
+
+        AircraftGroundOps ground = ctx.Aircraft.Ground;
+        if (
+            (ground.InitialCallup == InitialCallupPlan.AfterPush)
+            && !ground.InitialCallupDecisionProcessed
+            && (ElapsedSeconds >= InitialCallupCall.PostPushSetupDelaySeconds(ctx.Category))
+        )
+        {
+            InitialCallupCall.TryMake(ctx, AfterPushLocation(ground));
+        }
+
         return false;
+    }
+
+    /// <summary>
+    /// What the after-push call names: the spot the tow ended on ("at spot 5"), else the stand the push left ("pushed back
+    /// from gate F8"), else the ramp.
+    /// </summary>
+    private static ReadyToTaxiLocation AfterPushLocation(AircraftGroundOps ground)
+    {
+        if (ground.PushEndSpot is { Length: > 0 } spot)
+        {
+            return ReadyToTaxiLocation.Spot(spot);
+        }
+
+        return ground.PushedBackFrom is { Length: > 0 } stand ? ReadyToTaxiLocation.PushedBackFrom(stand) : ReadyToTaxiLocation.Ramp;
+    }
+
+    /// <summary>
+    /// Leaving the post-push hold uncalled (a controller's TAXI before the call) ends the after-push call: wherever the
+    /// aircraft goes next starts no new one. A further tow carries it over itself (<c>GroundCommandHandler.InstallTugMove</c>).
+    /// </summary>
+    public override void OnEnd(PhaseContext ctx, PhaseStatus endStatus)
+    {
+        AircraftGroundOps ground = ctx.Aircraft.Ground;
+        if ((ground.InitialCallup == InitialCallupPlan.AfterPush) && !ground.InitialCallupDecisionProcessed)
+        {
+            Log.LogDebug("[PostPush] {Callsign}: left the post-push hold with its after-push call unmade; plan dropped", ctx.Aircraft.Callsign);
+            ground.InitialCallup = InitialCallupPlan.None;
+        }
     }
 
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)

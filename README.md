@@ -1,8 +1,8 @@
 # YAAT
 
-Yet Another ATC Trainer — an instructor/RPO desktop client for air traffic control training. Connects to a [yaat-server](https://github.com/leftos/yaat-server) instance that simulates aircraft and feeds them to [CRC](https://vnas.vatsim.net/crc) (the VATSIM radar client) via its native SignalR+MessagePack protocol.
+Yet Another ATC Trainer — an instructor/RPO desktop client for VATSIM air traffic control training. It connects to the public YAAT server, **YAAT1**, which simulates the aircraft and feeds them to [CRC](https://vnas.vatsim.net/crc) (the VATSIM radar client).
 
-Instructors and RPOs use YAAT to create training rooms, load scenarios, issue ATC commands, control weather, and manage simulated traffic while students work the scopes in CRC.
+Instructors and RPOs use YAAT to create training rooms, load scenarios, issue ATC commands, control weather, and manage simulated traffic while students work the scopes in CRC. YAAT1 is open to VATSIM controllers and students: install the client and connect, with no server to set up.
 
 ## Features
 
@@ -30,21 +30,21 @@ Pre-built installers and portable archives are published on the [Releases page](
 
 macOS builds require macOS 14 (Sonoma) or newer. Pick the package matching your Mac — the installer refuses the wrong architecture.
 
-Flight strips are also available in any browser at `/vstrips/` on the YAAT server (no install — just open the URL).
+Flight strips are also available in any browser at [yaat1.leftos.dev/vstrips/](https://yaat1.leftos.dev/vstrips/) (no install — just open the URL).
 
 **Just want to point CRC at YAAT?** The standalone [`yaat-crc-config`](tools/yaat-crc-config/README.md) tool (~200 KB single binary, no install) adds the YAAT environments to CRC's `DevEnvironments.json` for students who only want to observe a YAAT session. Download it from the [`crc-config-v*` releases](https://github.com/leftos/yaat/releases?q=crc-config-v).
 
-Installers keep themselves up to date automatically. Portable archives unzip to a folder containing the executable and its native dependencies — drop the folder on a USB stick or locked-down machine and run it from there. They don't auto-update; grab the next release when you want it. On Linux the AppImage runs without install, so it doubles as the portable form. Either launcher can connect to a hosted YAAT server (ask your instructor for the URL) or a local server you run yourself.
+Installers keep themselves up to date automatically. Portable archives unzip to a folder containing the executable and its native dependencies — drop the folder on a USB stick or locked-down machine and run it from there. They don't auto-update; grab the next release when you want it. On Linux the AppImage runs without install, so it doubles as the portable form. Either one connects to YAAT1, which is selected on first launch.
 
-**NVIDIA GPU acceleration** (Windows): the installer ships with Vulkan/CPU support out of the box. Users with an NVIDIA card can opt in to CUDA 13 from Settings → Speech → Acceleration — YAAT downloads the runtime on demand (~534 MB) so the base installer stays small.
+**NVIDIA GPU acceleration** (Windows): the installer ships with Vulkan/CPU support out of the box. Users with an NVIDIA card can opt in to CUDA 13 from Settings › Speech › Acceleration — YAAT downloads the runtime on demand (~534 MB) so the base installer stays small.
 
-See the [Installation Guide](INSTALL.md) for step-by-step instructions. If you want to run a server yourself, build from source, or contribute changes, the same guide covers [Building from source](INSTALL.md#building-from-source).
+See the [Installation Guide](INSTALL.md) for step-by-step instructions. Contributors and anyone hosting their own server: the same guide covers [Building from source](INSTALL.md#building-from-source).
 
 ## Documentation
 
 | Document | Audience | Content |
 |----------|----------|---------|
-| **[Installation Guide](INSTALL.md)** | New users | Download the installer, or build from source if you want to host a server or develop locally |
+| **[Installation Guide](INSTALL.md)** | New users | Download and install YAAT (building from source is for contributors and self-hosting) |
 | **[Getting Started](GETTING_STARTED.md)** | First-time users | First connection, identity setup, loading your first scenario |
 | **[User Guide](USER_GUIDE.md)** | Active users | Interface, views, scenarios, weather, settings, and workflows |
 | **[Solo Training Guide](SOLO_TRAINING.md)** | Student controllers | Single-student workflow, pilot readbacks, workload pacing, Session Report, and solo-mode command differences |

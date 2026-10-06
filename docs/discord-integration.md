@@ -106,7 +106,7 @@ surrogate pair) because Discord rejects a longer one outright and the rejection 
 response, which the client does not inspect.
 
 **User control.** `UserPreferences.DiscordRichPresenceEnabled` (JSON key `discordRichPresenceEnabled`, default `true`),
-the **Discord** checkbox on Settings → Identity. It takes effect on Settings save via `MainViewModel.RefreshRichPresence`.
+the **Discord** checkbox on Settings › General. It takes effect on each Settings Apply (Apply or OK) via `MainViewModel.RefreshRichPresence`.
 The publish points in the scenario lifecycle are described in
 [client-mainviewmodel.md](client-mainviewmodel.md#scenario-activation--three-paths-one-router).
 

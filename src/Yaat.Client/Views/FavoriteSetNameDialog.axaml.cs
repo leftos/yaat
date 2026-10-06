@@ -4,7 +4,7 @@ using Avalonia.Interactivity;
 namespace Yaat.Client.Views;
 
 /// <summary>
-/// Modal prompt that captures a favorite-set name. Unlike window profiles, set names must be
+/// Modal prompt that captures a favorite-set name. Unlike layouts, set names must be
 /// unique (no overwrite-on-collision), so Save is disabled while the entered name collides
 /// with an existing set.
 /// </summary>

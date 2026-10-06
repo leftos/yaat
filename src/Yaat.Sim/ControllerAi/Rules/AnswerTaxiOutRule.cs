@@ -46,5 +46,10 @@ public sealed class AnswerTaxiOutRule : IDecisionRule
     public static bool Applies(AircraftState aircraft) =>
         aircraft.IsOnGround
         && aircraft.PendingPilotRequest is { IsOpen: true, Kind: PilotPendingRequestKind.Taxi, ParkingName: null }
-        && aircraft.Phases?.CurrentPhase is AtParkingPhase or HoldingAfterPushbackPhase;
+        && aircraft.Phases?.CurrentPhase
+            is AtParkingPhase
+                or HoldingAfterPushbackPhase
+                // A spawn's preset taxi ends at a spot or a taxiway bar, and its delayed call opens the request there.
+                or HoldingInPositionPhase
+                or HoldingShortPhase { ProtectsARunway: false };
 }

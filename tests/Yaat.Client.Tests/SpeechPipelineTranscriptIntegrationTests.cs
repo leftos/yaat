@@ -131,6 +131,38 @@ public sealed class SpeechPipelineTranscriptIntegrationTests
     }
 
     /// <summary>
+    /// The raw-text fallback (both mappers failed, a callsign was found) is flagged so a scorer
+    /// can tell surfaced text from an executed command; a rule-mapped transcript is not flagged.
+    /// </summary>
+    [Fact]
+    public async Task Only_The_Raw_Text_Fallback_Is_Flagged_As_One()
+    {
+        SpeechContext ctx = BuildContext(["N346G"], EmptyRunways, EmptyDestinations);
+        TranscriptMapResult fallback = await SpeechRecognitionService.MapTranscriptAsync(
+            "november three four six golf turn left hitting tree one zero",
+            ctx,
+            _ruleMapper,
+            llmMapper: null,
+            callsignResolver: null,
+            CancellationToken.None
+        );
+        TranscriptMapResult mapped = await SpeechRecognitionService.MapTranscriptAsync(
+            "november three four six golf turn left heading three one zero",
+            ctx,
+            _ruleMapper,
+            llmMapper: null,
+            callsignResolver: null,
+            CancellationToken.None
+        );
+
+        Assert.True(fallback.IsRawTextFallback);
+        Assert.Equal(fallback.CommandText.Trim(), fallback.Canonical);
+        Assert.Equal("N346G", fallback.Callsign);
+        Assert.Equal("TL 310", mapped.Canonical);
+        Assert.False(mapped.IsRawTextFallback);
+    }
+
+    /// <summary>
     /// Regression for the first debug log the user reported: rule-path command mapping succeeds
     /// ("CM 2000") but Whisper mistranscribed "niner" as "diner" so <see cref="CallsignParser"/>
     /// can't recover the callsign. The <see cref="LocalLlmCallsignResolver"/> is expected to

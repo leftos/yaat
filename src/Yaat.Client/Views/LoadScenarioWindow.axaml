@@ -57,6 +57,22 @@
       <!-- Local Files tab -->
       <TabItem Header="Local Files" x:Name="LocalTab">
         <DockPanel Margin="0,8,0,0">
+          <!-- pick a single file + recent scenarios -->
+          <StackPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+            <Button Content="Load File…" x:Name="LoadFileButton" HorizontalAlignment="Left" />
+            <TextBlock Text="Recent" Margin="0,8,0,4" FontWeight="SemiBold" />
+            <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,8">
+              <ListBox Grid.Column="0" x:Name="RecentScenarioList" MaxHeight="120" SelectionMode="Single">
+                <ListBox.ItemTemplate>
+                  <DataTemplate x:DataType="views:RecentScenarioItem">
+                    <TextBlock Text="{Binding DisplayName}" Opacity="{Binding Opacity}" />
+                  </DataTemplate>
+                </ListBox.ItemTemplate>
+              </ListBox>
+              <Button Grid.Column="1" Content="Remove" x:Name="RemoveRecentButton" Margin="8,0,0,0" VerticalAlignment="Top" IsEnabled="False" />
+            </Grid>
+          </StackPanel>
+
           <!-- folder picker + filters -->
           <Grid DockPanel.Dock="Top" RowDefinitions="Auto,Auto" Margin="0,0,0,8">
             <Grid Grid.Row="0" ColumnDefinitions="*,Auto">

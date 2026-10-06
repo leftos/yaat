@@ -5,7 +5,11 @@ using Velopack;
 using Yaat.Client;
 using Yaat.GuideCapture.Capture;
 #if HAS_YAAT_SERVER
+using Microsoft.Extensions.DependencyInjection;
+using Yaat.Client.Tdls.Views.VTdls;
+using Yaat.Client.ViewModels;
 using Yaat.GuideCapture.Server;
+using Yaat.Server.Simulation;
 #endif
 
 namespace Yaat.GuideCapture;
@@ -22,6 +26,9 @@ namespace Yaat.GuideCapture;
 // Run from the repo root so the default --out resolves correctly.
 public static class Program
 {
+    // The RNG seed every capture's scenario load uses; any fixed value works.
+    private const int CaptureRngSeed = 1;
+
     private static int _velopackInitialized;
 
     [STAThread]
@@ -58,6 +65,20 @@ public static class Program
         Console.WriteLine("Starting in-process yaat-server ...");
         await server.StartAsync();
         Console.WriteLine($"  Server listening on {server.Url}");
+
+        // Pin every wall clock a capture shows (the server's stamp on broadcast
+        // terminal lines, the client's on its own system lines and default
+        // METARs, the strips METAR bar's default report, the vTDLS footer
+        // clock) so the captures are identical run to run. The tick loop keeps
+        // the real clock.
+        server.Services.GetRequiredService<TerminalClock>().Time = FixedTimeProvider.CaptureInstant;
+        // Every scenario load starts its session at the same instant with the
+        // same RNG seed, so strip times, generated CIDs and the rest of a
+        // load's random draws repeat run to run.
+        server.Services.GetRequiredService<ScenarioSeedSource>().Pin(FixedTimeProvider.CaptureInstant.GetUtcNow().UtcDateTime, CaptureRngSeed);
+        MainViewModel.WallClock = FixedTimeProvider.CaptureInstant;
+        VStripsViewModel.WallClock = FixedTimeProvider.CaptureInstant;
+        VTdlsView.WallClock = FixedTimeProvider.CaptureInstant;
 
         using var session = HeadlessUnitTestSession.StartNew(typeof(Program));
         var ctx = new CaptureContext { ServerUrl = server.Url, ServerServices = server.Services };

@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Radar;
 using Yaat.Client.Views.VStrips;
@@ -25,6 +26,12 @@ namespace Yaat.Client.Views;
 /// <see cref="IAlwaysOnTopToggle"/>.</item>
 /// <item><b>Toggle DCB</b> — Ctrl+F8 shows/hides the radar Display Control Bar, mirroring CRC's
 /// <c>StarsSpecialKey.Dcb</c>. Fixed binding, scoped to YAAT working windows.</item>
+/// <item><b>Panel toggles</b> — the pop-out keys (aircraft list, ground, radar, terminal, controllers, METAR)
+/// and the favorites-bar key flip their flag on the <see cref="MainViewModel"/>, the same flag the View menu's
+/// checkable item binds. Scoped to YAAT working windows.</item>
+/// <item><b>Open Settings</b> — Ctrl+, by default asks the <see cref="MainViewModel"/> for Settings with no section of its
+/// own: an open Settings window comes to the front on the section it is on, and a closed one opens at General. Scoped to
+/// YAAT working windows, so it does nothing inside Settings itself.</item>
 /// </list>
 ///
 /// These are in-app shortcuts (they only fire while a YAAT window has focus), deliberately unlike the
@@ -33,6 +40,35 @@ namespace Yaat.Client.Views;
 /// </summary>
 internal static class WindowHotkeys
 {
+    private const string DcbChord = "Ctrl+F8";
+    private const string MeasureChord = "Ctrl+M";
+
+    /// <summary>
+    /// The chords bound in code rather than in Settings (here, and Find in the Strips and vTDLS views and the ground
+    /// view's debug overlay), by the action name Settings shows when a configured key would take one of them.
+    /// </summary>
+    internal static readonly IReadOnlyList<(string Name, string Chord)> FixedChords =
+    [
+        ("Toggle DCB", DcbChord),
+        ("Measure tool", MeasureChord),
+        ("Strips and vTDLS find", "Ctrl+F"),
+        ("Ground view debug overlay", "Ctrl+D"),
+    ];
+
+    // Each configurable key scoped to YAAT working windows and what it does to the main view model: the panel keys flip the
+    // flag the View menu binds, and the Open Settings key asks for Settings with no section of its own.
+    private static readonly (Func<UserPreferences, string> Keybind, Action<MainViewModel> Action)[] ScopedKeyActions =
+    [
+        (p => p.PopOutAircraftListKey, vm => vm.IsDataGridPoppedOut = !vm.IsDataGridPoppedOut),
+        (p => p.PopOutGroundViewKey, vm => vm.IsGroundViewPoppedOut = !vm.IsGroundViewPoppedOut),
+        (p => p.PopOutRadarViewKey, vm => vm.IsRadarViewPoppedOut = !vm.IsRadarViewPoppedOut),
+        (p => p.PopOutTerminalKey, vm => vm.IsTerminalPoppedOut = !vm.IsTerminalPoppedOut),
+        (p => p.PopOutControllersKey, vm => vm.IsControllersPoppedOut = !vm.IsControllersPoppedOut),
+        (p => p.PopOutMetarKey, vm => vm.IsMetarPoppedOut = !vm.IsMetarPoppedOut),
+        (p => p.FavoritesBarKey, vm => vm.ShowFavoritesBar = !vm.ShowFavoritesBar),
+        (p => p.OpenSettingsKey, vm => vm.RequestSettings(section: null)),
+    ];
+
     private static bool _registered;
 
     /// <summary>
@@ -82,7 +118,7 @@ internal static class WindowHotkeys
 
         // Ctrl+F8 toggles the radar Display Control Bar (DCB), mirroring CRC's StarsSpecialKey.Dcb.
         // Fixed (non-configurable) binding; the focus-input scope guard keeps it off modal dialogs.
-        if (IsFocusInputScope(window) && (e.Key == Key.F8) && (e.KeyModifiers == KeyModifiers.Control))
+        if (IsFocusInputScope(window) && Matches(DcbChord, e))
         {
             // An extra Radar window toggles its own DCB; everywhere else the hotkey means the docked view.
             RadarViewModel radar = window is RadarViewWindow { RadarVm: { } instanceVm } ? instanceVm : vm.Radar;
@@ -93,10 +129,29 @@ internal static class WindowHotkeys
 
         // Ctrl+M arms the distance measuring tool. Fixed binding, and deliberately global: the tool is
         // shared by the radar and ground views, so it arms wherever the instructor clicks next.
-        if (IsFocusInputScope(window) && (e.Key == Key.M) && (e.KeyModifiers == KeyModifiers.Control))
+        if (IsFocusInputScope(window) && Matches(MeasureChord, e))
         {
             vm.Measure.Arm();
             e.Handled = true;
+            return;
+        }
+
+        if (IsFocusInputScope(window))
+        {
+            RunScopedKeyAction(vm, e);
+        }
+    }
+
+    private static void RunScopedKeyAction(MainViewModel vm, KeyEventArgs e)
+    {
+        foreach ((Func<UserPreferences, string> keybind, Action<MainViewModel> action) in ScopedKeyActions)
+        {
+            if (Matches(keybind(vm.Preferences), e))
+            {
+                action(vm);
+                e.Handled = true;
+                return;
+            }
         }
     }
 

@@ -45,11 +45,16 @@ public static class GroundSpawnSnap
     /// <see cref="AircraftState.Latitude"/>, <see cref="AircraftState.Longitude"/>,
     /// and <see cref="AircraftState.TrueHeading"/> when applied.
     /// </summary>
-    public static void Apply(AircraftState aircraft, AirportGroundLayout layout)
+    /// <returns>
+    /// The nearest taxi edge found, with its distance measured from the pose before any snap moves the aircraft — also
+    /// when it lies beyond <see cref="MaxSnapDistanceFt"/> and the pose is left unchanged. Null when the aircraft is
+    /// airborne or no taxi edge was found.
+    /// </returns>
+    public static AirportGroundLayout.NearestTaxiEdge? Apply(AircraftState aircraft, AirportGroundLayout layout)
     {
         if (!aircraft.IsOnGround)
         {
-            return;
+            return null;
         }
 
         AirportGroundLayout.NearestTaxiEdge? nearest = layout.FindNearestTaxiEdge(aircraft.Position);
@@ -61,7 +66,7 @@ public static class GroundSpawnSnap
                 aircraft.Position.Lat,
                 aircraft.Position.Lon
             );
-            return;
+            return null;
         }
 
         AirportGroundLayout.NearestTaxiEdge result = nearest.Value;
@@ -77,7 +82,7 @@ public static class GroundSpawnSnap
                 result.Edge.TaxiwayName,
                 MaxSnapDistanceFt
             );
-            return;
+            return result;
         }
 
         // Pick the edge direction whose bearing is closer to the aircraft's
@@ -108,5 +113,73 @@ public static class GroundSpawnSnap
         aircraft.Position = new LatLon(result.FootLat, result.FootLon);
         aircraft.TrueHeading = new TrueHeading(chosenBearing);
         aircraft.TrueTrack = aircraft.TrueHeading;
+        return result;
+    }
+
+    /// <summary>
+    /// The movement-area taxiway a ground spawn sits on, or null. It sits on one when <paramref name="nearest"/> (the
+    /// taxi edge <see cref="Apply"/> found, measured from <paramref name="preSnapPosition"/>) is within
+    /// <see cref="RampLaneReposition.CurrentLaneMaxFt"/> and names a movement-area taxiway, and no parking node and no
+    /// ramp edge is nearer than it: a stand within the lane width of a taxiway is at the stand, not on the taxiway. A
+    /// ramp taxilane is never nearer, since it would have been <paramref name="nearest"/> itself.
+    /// </summary>
+    public static string? SpawnTaxiwayAt(AirportGroundLayout layout, LatLon preSnapPosition, AirportGroundLayout.NearestTaxiEdge nearest)
+    {
+        string name = nearest.Edge.TaxiwayName;
+        double taxiwayFt = nearest.DistNm * GeoMath.FeetPerNm;
+        if ((taxiwayFt > RampLaneReposition.CurrentLaneMaxFt) || (name.Length == 0) || !MovementAreaClassification.For(layout).IsMovementArea(name))
+        {
+            return null;
+        }
+
+        double standFt = NearestStandFt(layout, preSnapPosition);
+        double rampFt = NearestRampEdgeFt(layout, preSnapPosition);
+        if ((standFt < taxiwayFt) || (rampFt < taxiwayFt))
+        {
+            Log.LogDebug(
+                "[GroundSnap] spawn at ({Lat:F6},{Lon:F6}) is not on {Taxiway} ({TaxiwayFt:F0} ft): stand {StandFt:F0} ft, ramp {RampFt:F0} ft",
+                preSnapPosition.Lat,
+                preSnapPosition.Lon,
+                name,
+                taxiwayFt,
+                standFt,
+                rampFt
+            );
+            return null;
+        }
+
+        return name;
+    }
+
+    private static double NearestStandFt(AirportGroundLayout layout, LatLon position)
+    {
+        double best = double.MaxValue;
+        foreach (GroundNode node in layout.Nodes.Values)
+        {
+            if (node.Type is GroundNodeType.Parking or GroundNodeType.Helipad)
+            {
+                best = Math.Min(best, GeoMath.DistanceNm(position, node.Position) * GeoMath.FeetPerNm);
+            }
+        }
+
+        return best;
+    }
+
+    /// <summary>
+    /// The nearest straight <c>RAMP</c> edge (the apron connectors <see cref="AirportGroundLayout.FindNearestTaxiEdge(LatLon)"/>
+    /// skips).
+    /// </summary>
+    private static double NearestRampEdgeFt(AirportGroundLayout layout, LatLon position)
+    {
+        double best = double.MaxValue;
+        foreach (GroundEdge edge in layout.Edges)
+        {
+            if (edge.IsRamp)
+            {
+                best = Math.Min(best, GeoMath.DistanceToSegmentFt(position, edge.Nodes[0].Position, edge.Nodes[1].Position));
+            }
+        }
+
+        return best;
     }
 }

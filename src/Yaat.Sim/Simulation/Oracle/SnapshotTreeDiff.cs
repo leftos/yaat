@@ -10,9 +10,9 @@ public sealed record SnapshotDivergence(string Path, string Left, string Right);
 
 /// <summary>
 /// Structural comparator between two <see cref="StateSnapshotDto"/> captures, producing one
-/// <see cref="SnapshotDivergence"/> per differing leaf. This is the oracle's measuring instrument: it answers
-/// "where exactly do these two runs disagree", where <see cref="Replay.SnapshotDiff"/> answers the narrower
-/// "has this replay drifted from its recording" over nine aircraft fields with tolerances.
+/// <see cref="SnapshotDivergence"/> per differing leaf. This is the oracle's measuring instrument: run on a second the
+/// per-second state hash flags as differing, it answers "where exactly do these two runs disagree" with the full
+/// leaf-by-leaf tree walk.
 ///
 /// The comparison runs over <see cref="JsonNode"/> trees serialized with <see cref="RecordingJsonOptions.Default"/>
 /// rather than over reflection. That options instance is the one recordings already use and sets no naming policy,

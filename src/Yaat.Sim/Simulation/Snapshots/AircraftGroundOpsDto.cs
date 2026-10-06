@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using Yaat.Sim.Data.Airport;
 
 namespace Yaat.Sim.Simulation.Snapshots;
@@ -9,6 +10,14 @@ public sealed class TugRowAnchorDto
     public required double Longitude { get; init; }
     public required double NoseTrueDeg { get; init; }
     public required PushbackLegKind FirstKind { get; init; }
+}
+
+/// <summary>A <see cref="PresetTaxiStop"/>: the stop a spawn's timed TAXI preset ends at.</summary>
+public sealed class PresetTaxiStopDto
+{
+    public required PresetTaxiStopKind Kind { get; init; }
+    public required string Name { get; init; }
+    public string? OnTaxiway { get; init; }
 }
 
 public sealed class AircraftGroundOpsDto
@@ -57,7 +66,36 @@ public sealed class AircraftGroundOpsDto
     public double? TowbarTrueHeadingDeg { get; init; }
     public required bool HasAnnouncedReady { get; init; }
     public bool InitialCallupDecisionProcessed { get; init; }
-    public bool IsScriptedDeparture { get; init; }
+
+    /// <summary>
+    /// The aircraft's initial call-up plan. Settable so <see cref="SnapshotSchemaMigrator"/> can derive it for a snapshot
+    /// written before V33 from <see cref="LegacyIsScriptedDeparture"/> and <see cref="InitialCallupDecisionProcessed"/>.
+    /// </summary>
+    public InitialCallupPlan InitialCallup { get; set; }
+
+    /// <summary>The movement-area taxiway a coordinate ground spawn sits on, or null.</summary>
+    public string? SpawnTaxiway { get; init; }
+
+    /// <summary>The stand the aircraft's push started from, or null when it has not been pushed off a stand.</summary>
+    public string? PushedBackFrom { get; init; }
+
+    /// <summary>The spot the aircraft's last push ended on, or null when it did not end on a spot.</summary>
+    public string? PushEndSpot { get; init; }
+
+    /// <summary>The stop the spawn's timed TAXI preset ends at, for an after-taxi-arrival call; null otherwise.</summary>
+    public PresetTaxiStopDto? PresetTaxiStop { get; init; }
+
+    /// <summary>The cardinal a VFR departure names in its request to a delivery student, or null before it asks.</summary>
+    public string? VfrDepartureDirection { get; init; }
+
+    /// <summary>
+    /// Before V33: the aircraft had a TAXI preset and so never made the stand call. Read only by
+    /// <see cref="SnapshotSchemaMigrator"/> to derive <see cref="InitialCallup"/>, which then nulls it so a rewritten
+    /// snapshot drops it; never written.
+    /// </summary>
+    [JsonPropertyName("IsScriptedDeparture")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? LegacyIsScriptedDeparture { get; set; }
 
     /// <summary>True while a landed aircraft still owes ground its taxi-in call.</summary>
     public bool AwaitingTaxiInCall { get; init; }
@@ -87,6 +125,9 @@ public sealed class AircraftGroundOpsDto
 
     /// <summary>Scenario-elapsed seconds at which the departure was released (drives the auto-CTO jitter).</summary>
     public double ReleasedAtSeconds { get; init; }
+
+    /// <summary>True when a held runway spawn was released through the hold-for-release spawn gate before it spawned.</summary>
+    public bool ReleasedAtSpawnGate { get; init; }
 
     /// <summary>Absolute-UTC start of the Call-For-Release window, or null. Alert-only (GitHub issue #230).</summary>
     public DateTime? ReleaseWindowStartUtc { get; init; }

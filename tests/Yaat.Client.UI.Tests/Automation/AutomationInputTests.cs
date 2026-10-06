@@ -204,14 +204,7 @@ public sealed class AutomationInputTests : AutomationHostFixture
         var vm = new MainViewModel(new FakeFilePickerService());
         UserPreferences prefs = vm.Preferences;
         string savedPtt = prefs.PttKey;
-        prefs.SetSpeechSettings(
-            prefs.SpeechEnabled,
-            prefs.WhisperModelSize,
-            prefs.LlmModelPath,
-            prefs.LlmGpuLayers,
-            "F9",
-            prefs.AutoFocusInputAfterSpeech
-        );
+        prefs.SetPttKey("F9");
         try
         {
             var box = new TextBox { Name = "Box" };
@@ -230,14 +223,7 @@ public sealed class AutomationInputTests : AutomationHostFixture
         }
         finally
         {
-            prefs.SetSpeechSettings(
-                prefs.SpeechEnabled,
-                prefs.WhisperModelSize,
-                prefs.LlmModelPath,
-                prefs.LlmGpuLayers,
-                savedPtt,
-                prefs.AutoFocusInputAfterSpeech
-            );
+            prefs.SetPttKey(savedPtt);
         }
     }
 

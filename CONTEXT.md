@@ -78,6 +78,13 @@ What a scenario JSON will make the server fetch — its ARTCC, the roster's neig
 **Map-required airport**:
 An airport in the resource manifest whose full ground map the load needs: the primary airport, and each airport an aircraft parks at or spawns on the ground at. A missing map there is a load warning; elsewhere it is not.
 
+**Preset**:
+A command the scenario gives one aircraft (`presetCommands`), dispatched at load or at its `timeOffset`, and scripted rather than spoken by the student: it does not count as the student's contact with the pilot.
+
+**Runway spawn**:
+An aircraft the scenario starts lined up on a runway (`OnRunway`), as opposed to a ground spawn at a stand or on a taxiway.
+_Avoid_: runway departure (any departure ends up on a runway), on-runway aircraft
+
 **Prepare / commit**:
 The two halves of a scenario load. Prepare reads the manifest, fetches the resources and builds the aircraft without touching the room or holding its tick gate; commit swaps the prepared scenario into the room under the gate, CPU only.
 
@@ -135,6 +142,14 @@ difference is reported, never hidden by dropping the record.
 _Avoid_: determinism (determinism is the same-seed, same-world property of the simulation itself)
 
 ## Ground movement
+
+**Given-up exit**:
+A taxiway a landing aircraft has said "unable" to: it is skipped by every exit search while the aircraft rolls, for the rest of that landing, until an accepted `EXIT` names it again; once stopped on the runway the aircraft may still taxi to it (`PhaseList.GivenUpExitTaxiways`, docs/landing-and-runway-exit.md).
+_Avoid_: missed exit (an exit passed without an instruction is not given up)
+
+**Initial call-up**:
+The first call a spawned aircraft makes on its own to get moving: a ground spawn's "ready to taxi" (or its clearance request to a delivery student), or an untowered runway spawn's release request to a radar student. Whether and when an aircraft makes it is decided once, at scenario load, as its `InitialCallupPlan` (`InitialCallupClassifier`, docs/solo-training-pilot-speech.md); an aircraft the loader did not arm never makes one.
+_Avoid_: check-in (a check-in is the call on a frequency change), initial contact (an airborne check-in still follows a release request)
 
 **Spot line-up**:
 The route a `TAXI … $spot` from the ramp is re-planned into: across the apron, a ~90° turn onto the spot's lane on the ramp side, and a slow pull onto the mark facing the movement-area taxiway the lane joins (`RampLaneReposition.TryPlanSpotLineUp`, docs/ground/pathfinder.md).
@@ -313,6 +328,10 @@ _Avoid_: scope alone (the router's **Scope** is a different thing)
 **Profile**:
 A YAAT Scope display file (STARS, ERAM or Mixed) that sets the datablock template, the altitude notation, the zoom bands and the toolbar; a pref set is the same shape with one user's values.
 
+**Layout**:
+A saved, named window arrangement in the desktop client (View › Layout): window geometries, the pop-out windows, extra Radar/Ground windows, Aircraft List columns, favorite sets and the open Strips/vTDLS tabs; never radar, ground or terminal view settings.
+_Avoid_: window profile (its old name); Profile (a YAAT Scope display file)
+
 **Zoom band**:
 A range interval in a profile (e.g. up to 30 NM, 30–120 NM, beyond) that sets defaults such as other controllers' block level, vector length and history count; a manual change pins the value until AUTO.
 
@@ -386,10 +405,29 @@ The CRC connection whose session a direct connection joins; the joiner reads the
 **Negotiated joiner**:
 A direct connection that also negotiated first (TowerCab 3D): it keeps its negotiate id as its connection token, so it can register for UDP entity updates, while its CID comes from its access token.
 
+## Client settings
+
+**Room-only setting**:
+A session setting with no default in Settings › Scenario defaults: it belongs to the room, and any RPO in it changes it only in the session flyout or on its own button (live traffic; releases). Scenario defaults lists them in its "Room only" card (USER_GUIDE.md "Scenario defaults").
+_Avoid_: flyout-only setting (releases have their own button, not the flyout)
+
+**Settings bundle**:
+A `.yaat-settings.zip` holding a `manifest.json` and one file per item type (preferences, macros, command verbs, favorites, grid layout, layouts), each in its single-item format; the Import / Export hub reads and writes it. Preferences travel only by an allowlist of Settings-section keys, each validated on import.
+_Avoid_: settings backup, profile (a layout is not a bundle)
+
+**Import clash**:
+An incoming named entry (a macro, a favorite set, a layout) that matches an existing one under Merge, resolved per entry by Skip, Overwrite or Rename.
+
 ## Tooling
 
 **Golden (menu golden)**:
 A committed text snapshot of an aircraft right-click menu for one view and one situation fixture (`tests/Yaat.Client.UI.Tests/Goldens/menu/{radar,ground,list}/<fixture>.txt`, written by `MenuTreeSnapshot`); `MenuGoldenTests` fails when a menu differs from its golden, and `YAAT_MENU_GOLDEN_REGENERATE=1` rewrites them.
+
+**Ouroboros** (controller-voice ouroboros):
+The speech sandbox's self-test (`--atc-ouroboros`): it synthesises controller transmissions from templates with a TTS voice, runs them through speech recognition and the phraseology mapper, and scores each case against the template's expected command (`tools/Yaat.SpeechSandbox/Corpus/atc-ouroboros-baseline.json`).
+
+**SttOnly rule**:
+A phraseology rule the speech mapper matches but `PhraseologyVerbalizer` never speaks: it covers how speech recognition writes a phrase (a misheard or split word), not how a pilot says it.
 
 **Gate**:
 `tools/gate.ps1` (a copy of the canonical `~/.claude/tools/gate/gate.ps1`, called as `pwsh tools/gate.ps1 -Log <log> -TimeoutSeconds <seconds> -Slot heavy|light -- <command...>` from PowerShell or Bash): runs one build or test command with its whole output in a log under `.tmp/`, the tail on screen and the command's own exit status, and kills it (exit 124) when it stalls, passes its ceiling on the load-adjusted clock, or reaches the backstop.

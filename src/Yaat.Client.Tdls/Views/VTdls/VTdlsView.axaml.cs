@@ -26,6 +26,12 @@ public partial class VTdlsView : UserControl
 {
     private static readonly ILogger Log = SimLog.CreateLogger("VTdlsView");
 
+    /// <summary>
+    /// The wall clock behind the footer's Zulu clock. <see cref="TimeProvider.System"/> in the apps; the user-guide
+    /// screenshot harness pins it so its captures come out identical run to run.
+    /// </summary>
+    public static TimeProvider WallClock { get; set; } = TimeProvider.System;
+
     private DispatcherTimer? _clockTimer;
 
     // Shared in-view Find (Ctrl+F). Snapshot = DCL then PDC items; scrollTo brings the
@@ -120,8 +126,9 @@ public partial class VTdlsView : UserControl
     /// <summary>Handles the Find keys (Ctrl+F / F3 / Shift+F3 / Esc); returns true if consumed.</summary>
     private bool HandleFindKeys(KeyEventArgs e)
     {
-        bool ctrl = e.KeyModifiers.HasFlag(KeyModifiers.Control);
-        bool shift = e.KeyModifiers.HasFlag(KeyModifiers.Shift);
+        // Exact modifiers: Ctrl+Shift+F is the favorites-bar window hotkey, not Find.
+        bool ctrl = e.KeyModifiers == KeyModifiers.Control;
+        bool shift = e.KeyModifiers == KeyModifiers.Shift;
 
         if (ctrl && (e.Key == Key.F))
         {
@@ -130,7 +137,7 @@ public partial class VTdlsView : UserControl
             e.Handled = true;
             return true;
         }
-        if (e.Key == Key.F3)
+        if ((e.Key == Key.F3) && (shift || (e.KeyModifiers == KeyModifiers.None)))
         {
             if (shift)
             {
@@ -227,7 +234,7 @@ public partial class VTdlsView : UserControl
         // Upstream renders only one clock (footer, HH:MM). We render seconds too
         // so the controller can verify the page is live; the format still fits
         // the same footer slot.
-        DateTime now = DateTime.UtcNow;
+        DateTime now = WallClock.GetUtcNow().UtcDateTime;
         FooterZuluClock.Text = now.ToString(@"HH\:mm\:ss", System.Globalization.CultureInfo.InvariantCulture);
     }
 

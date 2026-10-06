@@ -1,5 +1,8 @@
+using Microsoft.Extensions.Logging;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
+using Yaat.Sim.Pilot;
 
 namespace Yaat.Sim.Simulation;
 
@@ -36,13 +39,22 @@ public sealed record HeldReleaseResult(bool Success, string Message)
 }
 
 /// <summary>
-/// Pure state mutator for hold-for-release: arm/disarm an airport, release a departure, and build the
-/// per-airport rundown. All hold-for-release state lives in <see cref="SimScenarioState"/> and on
-/// <see cref="AircraftGroundOps"/>; this service is the only writer. The server owns broadcasting the
-/// resulting rundown.
+/// Hold for release: arms and disarms an airport, releases a departure, and builds the per-airport rundown. Releasing a
+/// held ground departure clears its hold, starts its automatic-takeoff clock, and answers the release request a runway
+/// spawn asked the controller for, acknowledging it on the frequency. Hold-for-release state lives in
+/// <see cref="SimScenarioState"/> and on <see cref="AircraftGroundOps"/>; the server owns broadcasting the resulting rundown.
 /// </summary>
 public static class HeldReleaseService
 {
+    private static readonly ILogger Log = SimLog.CreateLogger("HeldReleaseService");
+
+    /// <summary>
+    /// A command that puts a departure onto its runway (CTO, CTOPP, LUAW): the set a hold for release withholds until the
+    /// departure is released.
+    /// </summary>
+    public static bool IsRunwayEntryCommand(ParsedCommand command) =>
+        command is ClearedForTakeoffCommand or ClearedTakeoffPresentCommand or LineUpAndWaitCommand;
+
     /// <summary>Minimum delay (s) from release to a held runway/airborne spawn appearing airborne.</summary>
     public const double MinSpawnReleaseDelaySeconds = 20.0;
 
@@ -96,9 +108,7 @@ public static class HeldReleaseService
         {
             if (ac.Ground.HeldForRelease && AirportMatches(DepartureAirportOf(ac), normalized))
             {
-                ac.Ground.HeldForRelease = false;
-                ac.Ground.ReleasedForDeparture = true;
-                ac.Ground.ReleasedAtSeconds = scenario.ElapsedSeconds;
+                ReleaseHeldGroundDeparture(world, ac, scenario.ElapsedSeconds);
                 released++;
             }
         }
@@ -219,9 +229,7 @@ public static class HeldReleaseService
                 return new HeldReleaseResult(false, $"{held.Callsign} is no longer held");
             }
 
-            ac.Ground.HeldForRelease = false;
-            ac.Ground.ReleasedForDeparture = true;
-            ac.Ground.ReleasedAtSeconds = scenario.ElapsedSeconds;
+            ReleaseHeldGroundDeparture(world, ac, scenario.ElapsedSeconds);
             return new HeldReleaseResult(true, $"{held.Callsign} released");
         }
 
@@ -234,12 +242,35 @@ public static class HeldReleaseService
         }
 
         entry.HeldForRelease = false;
+        // Released through the spawn gate, the departure already has its release: a runway spawn must not ask for it again,
+        // and departs as one that asked and got REL.
+        entry.Aircraft.State.Ground.ReleasedAtSpawnGate = true;
         int jitter =
             bakedJitter
             ?? rng?.Next((int)MinSpawnReleaseDelaySeconds, (int)MaxSpawnReleaseDelaySeconds + 1)
             ?? throw new InvalidOperationException("ReleaseOneCore requires either a baked jitter or an RNG to sample.");
         entry.SpawnAtSeconds = (int)scenario.ElapsedSeconds + jitter;
         return new HeldReleaseResult(true, $"{held.Callsign} released") { SpawnJitterSeconds = jitter };
+    }
+
+    /// <summary>
+    /// Releases a held ground departure (<c>REL</c>, or <c>HFROFF</c> at its field): clears the hold, starts the
+    /// auto-takeoff clock, and answers the open <see cref="PilotPendingRequestKind.Release"/> request of a runway spawn that
+    /// asked for its release, so it stops following up, the awaiting-controller-response gate clears, and it departs on the
+    /// line-up-and-wait auto-clearance.
+    /// </summary>
+    private static void ReleaseHeldGroundDeparture(SimulationWorld world, AircraftState aircraft, double elapsedSeconds)
+    {
+        aircraft.Ground.HeldForRelease = false;
+        aircraft.Ground.ReleasedForDeparture = true;
+        aircraft.Ground.ReleasedAtSeconds = elapsedSeconds;
+        if (!PilotRequestTracker.SatisfyOpenRequest(aircraft, PilotPendingRequestKind.Release))
+        {
+            return;
+        }
+
+        world.AcknowledgeControllerResponse(aircraft.Callsign);
+        Log.LogDebug("The release answered the release request of {Callsign}; the frequency gate is cleared", aircraft.Callsign);
     }
 
     /// <summary>
@@ -324,6 +355,7 @@ public static class HeldReleaseService
             AtParkingPhase => "At gate (held)",
             PushbackPhase => "Pushing back (held)",
             HoldingAfterPushbackPhase => "Pushed back (held)",
+            LinedUpAndWaitingPhase => "Lined up (held)",
             _ => "Held",
         };
 

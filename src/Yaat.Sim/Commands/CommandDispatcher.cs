@@ -43,6 +43,13 @@ public record CommandResult(
     /// without the callsign; null when the readback comes from the command.
     /// </summary>
     public PilotSpeechText? PilotReadback { get; init; }
+
+    /// <summary>
+    /// The pilot's "unable" for a refusal, when the handler builds one — an exit the crew cannot make on the rollout says
+    /// <see cref="Pilot.PilotResponder.BuildUnableToExit"/> — in place of the generic <see cref="Pilot.PilotResponder.BuildUnable"/>
+    /// over <see cref="Message"/>; null when the generic form applies.
+    /// </summary>
+    public PilotSpeechText? PilotUnable { get; init; }
 }
 
 public static class CommandDispatcher
@@ -2278,7 +2285,7 @@ public static class CommandDispatcher
 
         // Hold-for-release runway-entry gate: a held departure may not enter the runway (LUAW) or
         // take off (CTO/CTOPP) until released. It stays holding short. Cleared by REL/CTOA.
-        if (aircraft.Ground.HeldForRelease && command is ClearedForTakeoffCommand or ClearedTakeoffPresentCommand or LineUpAndWaitCommand)
+        if (aircraft.Ground.HeldForRelease && HeldReleaseService.IsRunwayEntryCommand(command))
         {
             return new CommandResult(
                 false,
@@ -3404,6 +3411,7 @@ public static class CommandDispatcher
         rebuilt.WaitRemainingSeconds = block.WaitRemainingSeconds;
         rebuilt.WaitRemainingDistanceNm = block.WaitRemainingDistanceNm;
         rebuilt.TrackApplied = block.TrackApplied;
+        rebuilt.WaitingForRelease = block.WaitingForRelease;
         rebuilt.IsApplied = block.IsApplied;
         rebuilt.TriggerMet = block.TriggerMet;
         rebuilt.TriggerCrossingObserved = block.TriggerCrossingObserved;

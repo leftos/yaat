@@ -1,0 +1,122 @@
+<UserControl
+  xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:vm="using:Yaat.Client.ViewModels"
+  x:Class="Yaat.Client.Views.Settings.TerminalSection"
+  x:DataType="vm:SettingsViewModel"
+>
+  <UserControl.Resources>
+    <vm:HexColorConverter x:Key="HexColorConverter" />
+  </UserControl.Resources>
+  <ScrollViewer>
+    <StackPanel Margin="16,8,16,16" Spacing="12">
+      <WrapPanel Orientation="Horizontal">
+        <Button Classes="section-link" Content="Font size → Appearance" Tag="{x:Static vm:SettingsSectionId.Appearance}" />
+        <Button Classes="section-link" Content="Always on top → General" Tag="{x:Static vm:SettingsSectionId.General}" />
+      </WrapPanel>
+      <Border Classes="card">
+        <StackPanel Spacing="12">
+          <TextBlock Text="Terminal Channels" FontWeight="SemiBold" />
+          <StackPanel Spacing="4">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <TextBlock Text="Command:" Foreground="{DynamicResource SubtleTextBrush}" VerticalAlignment="Center" Width="160" />
+              <ColorPicker
+                Color="{Binding TerminalCommandColor, Converter={StaticResource HexColorConverter}}"
+                IsAlphaEnabled="False"
+                Width="200"
+                HorizontalAlignment="Left"
+              />
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <TextBlock Text="Response:" Foreground="{DynamicResource SubtleTextBrush}" VerticalAlignment="Center" Width="160" />
+              <ColorPicker
+                Color="{Binding TerminalResponseColor, Converter={StaticResource HexColorConverter}}"
+                IsAlphaEnabled="False"
+                Width="200"
+                HorizontalAlignment="Left"
+              />
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <TextBlock Text="System:" Foreground="{DynamicResource SubtleTextBrush}" VerticalAlignment="Center" Width="160" />
+              <ColorPicker
+                Color="{Binding TerminalSystemColor, Converter={StaticResource HexColorConverter}}"
+                IsAlphaEnabled="False"
+                Width="200"
+                HorizontalAlignment="Left"
+              />
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <TextBlock Text="SAY (controller):" Foreground="{DynamicResource SubtleTextBrush}" VerticalAlignment="Center" Width="160" />
+              <ColorPicker
+                Color="{Binding TerminalSayColor, Converter={StaticResource HexColorConverter}}"
+                IsAlphaEnabled="False"
+                Width="200"
+                HorizontalAlignment="Left"
+              />
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <TextBlock Text="Pilot Speech:" Foreground="{DynamicResource SubtleTextBrush}" VerticalAlignment="Center" Width="160" />
+              <ColorPicker
+                Color="{Binding TerminalPilotSpeechColor, Converter={StaticResource HexColorConverter}}"
+                IsAlphaEnabled="False"
+                Width="200"
+                HorizontalAlignment="Left"
+              />
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <TextBlock Text="Warning:" Foreground="{DynamicResource SubtleTextBrush}" VerticalAlignment="Center" Width="160" />
+              <ColorPicker
+                Color="{Binding TerminalWarningColor, Converter={StaticResource HexColorConverter}}"
+                IsAlphaEnabled="False"
+                Width="200"
+                HorizontalAlignment="Left"
+              />
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <TextBlock Text="Error:" Foreground="{DynamicResource SubtleTextBrush}" VerticalAlignment="Center" Width="160" />
+              <ColorPicker
+                Color="{Binding TerminalErrorColor, Converter={StaticResource HexColorConverter}}"
+                IsAlphaEnabled="False"
+                Width="200"
+                HorizontalAlignment="Left"
+              />
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <TextBlock Text="Chat:" Foreground="{DynamicResource SubtleTextBrush}" VerticalAlignment="Center" Width="160" />
+              <ColorPicker
+                Color="{Binding TerminalChatColor, Converter={StaticResource HexColorConverter}}"
+                IsAlphaEnabled="False"
+                Width="200"
+                HorizontalAlignment="Left"
+              />
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <TextBlock Text="vTDLS (PDC):" Foreground="{DynamicResource SubtleTextBrush}" VerticalAlignment="Center" Width="160" />
+              <ColorPicker
+                Color="{Binding TerminalTdlsColor, Converter={StaticResource HexColorConverter}}"
+                IsAlphaEnabled="False"
+                Width="200"
+                HorizontalAlignment="Left"
+              />
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <TextBlock Text="Flight strips:" Foreground="{DynamicResource SubtleTextBrush}" VerticalAlignment="Center" Width="160" />
+              <ColorPicker
+                Color="{Binding TerminalStripColor, Converter={StaticResource HexColorConverter}}"
+                IsAlphaEnabled="False"
+                Width="200"
+                HorizontalAlignment="Left"
+              />
+            </StackPanel>
+            <TextBlock
+              Text="Foreground colors per terminal channel. Pilot Speech is sim-initiated transmissions in RPO mode; SAY is controller-issued SAY-class verbs; vTDLS is the ACARS-style PDC delivery line; Flight strips is strip-command echoes and feedback. Applied settings take effect in the live terminal immediately."
+              TextWrapping="Wrap"
+              Foreground="{DynamicResource SubtleTextBrush}"
+              FontSize="11"
+            />
+          </StackPanel>
+        </StackPanel>
+      </Border>
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

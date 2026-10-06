@@ -68,7 +68,9 @@ public partial class TerminalPanelView : UserControl
             _rewindMenuItem.Click += OnRewindToMomentClick;
             var clearItem = new MenuItem { Header = "Clear" };
             clearItem.Click += (_, _) => vm.TerminalEntries.Clear();
-            TerminalEditor.ContextMenu = new ContextMenu { Items = { _rewindMenuItem, new Separator(), clearItem } };
+            var menu = new ContextMenu { Items = { _rewindMenuItem, new Separator(), clearItem } };
+            ViewSettingsMenu.Append(menu, vm, SettingsSectionId.Terminal);
+            TerminalEditor.ContextMenu = menu;
 
             // Tunnel runs before the ContextMenu's own bubbling open handler, so the entry under
             // the pointer is resolved (and the Rewind item's state refreshed) before the menu shows.

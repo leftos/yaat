@@ -35,34 +35,69 @@
           <MenuItem Header="_Leave Room" Command="{Binding LeaveRoomCommand}" />
         </MenuItem>
         <MenuItem Header="_View">
-          <MenuItem Header="_Reset Aircraft List Layout" Command="{Binding ResetGridLayoutCommand}" />
-          <Separator />
-          <MenuItem Header="Pop Out Aircraft _List" ToggleType="CheckBox" IsChecked="{Binding IsDataGridPoppedOut, Mode=TwoWay}" />
-          <MenuItem Header="Pop Out _Ground View" ToggleType="CheckBox" IsChecked="{Binding IsGroundViewPoppedOut, Mode=TwoWay}" />
-          <MenuItem Header="New Gr_ound Window" x:Name="NewGroundWindowMenuItem" />
-          <MenuItem Header="Pop Out _Radar View" ToggleType="CheckBox" IsChecked="{Binding IsRadarViewPoppedOut, Mode=TwoWay}" />
-          <MenuItem Header="New Radar _Window" x:Name="NewRadarWindowMenuItem" />
-          <MenuItem Header="Pop Out _Controllers" ToggleType="CheckBox" IsChecked="{Binding IsControllersPoppedOut, Mode=TwoWay}" />
-          <MenuItem Header="Pop Out _METAR" ToggleType="CheckBox" IsChecked="{Binding IsMetarPoppedOut, Mode=TwoWay}" />
-          <MenuItem Header="Pop Out T_erminal" ToggleType="CheckBox" IsChecked="{Binding IsTerminalPoppedOut, Mode=TwoWay}" />
-          <MenuItem Header="Show Fa_vorites Bar" ToggleType="CheckBox" IsChecked="{Binding ShowFavoritesBar, Mode=TwoWay}" />
-          <MenuItem Header="Open _Favorites Panel..." x:Name="FavoritesPanelMenuItem" />
-          <!-- Strips submenu is populated from code-behind to mirror
+          <!-- Each pop-out and bar item shows its hotkey as InputGesture text, set by ApplyKeybinds in code-behind.
+               Display only: WindowHotkeys dispatches the key from every working window, so no HotKey here. -->
+          <MenuItem Header="_Windows">
+            <MenuItem Header="Pop out" IsEnabled="False" />
+            <MenuItem
+              Header="_Aircraft list"
+              x:Name="PopOutAircraftListMenuItem"
+              ToggleType="CheckBox"
+              IsChecked="{Binding IsDataGridPoppedOut, Mode=TwoWay}"
+            />
+            <MenuItem
+              Header="_Ground view"
+              x:Name="PopOutGroundViewMenuItem"
+              ToggleType="CheckBox"
+              IsChecked="{Binding IsGroundViewPoppedOut, Mode=TwoWay}"
+            />
+            <MenuItem
+              Header="_Radar view"
+              x:Name="PopOutRadarViewMenuItem"
+              ToggleType="CheckBox"
+              IsChecked="{Binding IsRadarViewPoppedOut, Mode=TwoWay}"
+            />
+            <MenuItem
+              Header="T_erminal"
+              x:Name="PopOutTerminalMenuItem"
+              ToggleType="CheckBox"
+              IsChecked="{Binding IsTerminalPoppedOut, Mode=TwoWay}"
+            />
+            <MenuItem
+              Header="_Controllers"
+              x:Name="PopOutControllersMenuItem"
+              ToggleType="CheckBox"
+              IsChecked="{Binding IsControllersPoppedOut, Mode=TwoWay}"
+            />
+            <MenuItem Header="_METAR" x:Name="PopOutMetarMenuItem" ToggleType="CheckBox" IsChecked="{Binding IsMetarPoppedOut, Mode=TwoWay}" />
+            <Separator />
+            <MenuItem Header="New gr_ound window…" x:Name="NewGroundWindowMenuItem" />
+            <MenuItem Header="New radar _window…" x:Name="NewRadarWindowMenuItem" />
+            <Separator />
+            <!-- Strips submenu is populated from code-behind to mirror
                      MainViewModel.StripsEntries. Each entry gets a checkable
                      'Pop Out Strips (X)' item; non-student entries also get a
                      'Close Strips (X)' item. 'New Strips Tab…' appends a new
                      tab for an accessible facility. -->
-          <MenuItem Header="_Strips" x:Name="StripsSubmenu" IsEnabled="{Binding IsInRoom}" />
-          <!-- vTDLS submenu — populated by RebuildTdlsSubmenu in
+            <MenuItem Header="_Strips" x:Name="StripsSubmenu" IsEnabled="{Binding IsInRoom}" />
+            <!-- vTDLS submenu — populated by RebuildTdlsSubmenu in
                      code-behind, mirroring the Strips submenu shape. -->
-          <MenuItem Header="v_TDLS" x:Name="TdlsSubmenu" IsEnabled="{Binding IsInRoom}" />
-          <Separator />
-          <MenuItem Header="Show _Timeline Bar" ToggleType="CheckBox" IsChecked="{Binding ShowTimelineBar, Mode=TwoWay}" />
-          <Separator />
-          <MenuItem Header="Copy View _Settings..." x:Name="CopyViewSettingsMenuItem" IsEnabled="{Binding HasScenario}" />
-          <Separator />
-          <MenuItem Header="Window _Profiles" x:Name="WindowProfilesMenuItem">
-            <MenuItem Header="(No saved profiles)" IsEnabled="False" />
+            <MenuItem Header="v_TDLS" x:Name="TdlsSubmenu" IsEnabled="{Binding IsInRoom}" />
+          </MenuItem>
+          <MenuItem Header="_Bars">
+            <MenuItem
+              Header="Fa_vorites bar"
+              x:Name="FavoritesBarMenuItem"
+              ToggleType="CheckBox"
+              IsChecked="{Binding ShowFavoritesBar, Mode=TwoWay}"
+            />
+            <MenuItem Header="_Favorites panel…" x:Name="FavoritesPanelMenuItem" />
+            <MenuItem Header="_Timeline bar" ToggleType="CheckBox" IsChecked="{Binding ShowTimelineBar, Mode=TwoWay}" />
+          </MenuItem>
+          <!-- Layout submenu is populated from code-behind (PopulateLayoutMenu): the saved
+                     layouts, then the save / apply-from-scenario / manage / reset-columns items. -->
+          <MenuItem Header="_Layout" x:Name="LayoutMenuItem">
+            <MenuItem Header="(No saved layouts)" IsEnabled="False" />
           </MenuItem>
         </MenuItem>
         <MenuItem Header="_Scenario">
@@ -125,6 +160,7 @@
         </MenuItem>
         <MenuItem Header="_Tools">
           <MenuItem Header="_Settings" x:Name="SettingsMenuItem" />
+          <MenuItem Header="_Import / Export..." x:Name="ImportExportMenuItem" />
           <Separator />
           <MenuItem
             Header="Open Strips in _Browser"
@@ -281,6 +317,12 @@
                   <views:TimelineMarkerCanvas MaxTime="{Binding $parent[ItemsControl].DataContext.TimelineMaximum}" />
                 </ItemsPanelTemplate>
               </ItemsControl.ItemsPanel>
+              <!-- The canvas arranges the item containers, so each container carries its item's time. -->
+              <ItemsControl.ItemContainerTheme>
+                <ControlTheme TargetType="ContentPresenter" x:DataType="vm:TimelineBookmarkVm">
+                  <Setter Property="views:TimelineMarkerCanvas.Time" Value="{Binding TimeSeconds}" />
+                </ControlTheme>
+              </ItemsControl.ItemContainerTheme>
               <ItemsControl.ItemTemplate>
                 <DataTemplate DataType="vm:TimelineBookmarkVm" x:DataType="vm:TimelineBookmarkVm">
                   <Border
@@ -291,7 +333,6 @@
                     Cursor="Hand"
                     VerticalAlignment="Bottom"
                     Tag="{Binding TimeSeconds}"
-                    views:TimelineMarkerCanvas.Time="{Binding TimeSeconds}"
                   >
                     <Border.ContextMenu>
                       <ContextMenu>
@@ -309,6 +350,12 @@
                   <views:TimelineMarkerCanvas MaxTime="{Binding $parent[ItemsControl].DataContext.TimelineMaximum}" />
                 </ItemsPanelTemplate>
               </ItemsControl.ItemsPanel>
+              <!-- The canvas arranges the item containers, so each container carries its item's time. -->
+              <ItemsControl.ItemContainerTheme>
+                <ControlTheme TargetType="ContentPresenter" x:DataType="vm:TimelineMarkerVm">
+                  <Setter Property="views:TimelineMarkerCanvas.Time" Value="{Binding TimeSeconds}" />
+                </ControlTheme>
+              </ItemsControl.ItemContainerTheme>
               <ItemsControl.ItemTemplate>
                 <DataTemplate DataType="vm:TimelineMarkerVm" x:DataType="vm:TimelineMarkerVm">
                   <Border
@@ -319,7 +366,6 @@
                     Cursor="Hand"
                     VerticalAlignment="Bottom"
                     Tag="{Binding TimeSeconds}"
-                    views:TimelineMarkerCanvas.Time="{Binding TimeSeconds}"
                   />
                 </DataTemplate>
               </ItemsControl.ItemTemplate>
@@ -529,6 +575,7 @@
                 <MenuItem x:Name="MicMenuEnableItem" Header="Enable speech recognition" ToggleType="CheckBox" IsChecked="{Binding IsSpeechEnabled}" />
                 <Separator />
                 <MenuItem x:Name="MicMenuDebugItem" Header="Show speech recognition debugging..." />
+                <MenuItem x:Name="MicMenuSpeechSettingsItem" Header="Speech settings…" />
               </MenuFlyout>
             </TextBlock.ContextFlyout>
           </TextBlock>
@@ -550,12 +597,14 @@
                 <MenuItem Header="Enable speech recognition" ToggleType="CheckBox" IsChecked="{Binding IsSpeechEnabled}" />
                 <Separator />
                 <MenuItem x:Name="MicOffMenuDebugItem" Header="Show speech recognition debugging..." />
+                <MenuItem x:Name="MicOffMenuSpeechSettingsItem" Header="Speech settings…" />
               </MenuFlyout>
             </TextBlock.ContextFlyout>
           </TextBlock>
 
           <!-- Live-traffic feed health for the room, shown only while the session toggle is on. Right-click
-                     carries the toggle and the aircraft-list filter (all / hide live / only live). -->
+                     carries the toggle, the aircraft-list filter (all / hide live / only live) and a link to the
+                     session flyout's live-traffic settings. -->
           <TextBlock
             Grid.Column="2"
             x:Name="LiveTrafficStatusText"
@@ -587,6 +636,8 @@
                   GroupName="LiveTrafficListFilter"
                   IsChecked="{Binding LiveTrafficListOnlyLive}"
                 />
+                <Separator IsVisible="{Binding LiveTrafficAvailable}" />
+                <MenuItem x:Name="LiveTrafficSessionMenuItem" Header="Live traffic…" IsVisible="{Binding LiveTrafficAvailable}" />
               </MenuFlyout>
             </TextBlock.ContextFlyout>
           </TextBlock>

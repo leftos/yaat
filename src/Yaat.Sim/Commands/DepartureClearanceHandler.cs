@@ -23,8 +23,8 @@ internal static class DepartureClearanceHandler
 {
     /// <summary>
     /// When CTO bundles an explicit climb-to altitude, mirror it onto
-    /// <see cref="ControlTargets.AssignedAltitude"/> so the datablock, SALT,
-    /// and SnapshotDiff observe a single source of truth from issuance —
+    /// <see cref="ControlTargets.AssignedAltitude"/> so the datablock and SALT
+    /// observe a single source of truth from issuance —
     /// matching the CM/DM/FA pattern. Bare LUAW (without takeoff) does not
     /// authorize the climb yet, so leave the field alone in that case.
     /// </summary>

@@ -10,6 +10,12 @@ public enum PilotPendingRequestKind
     Landing,
     Approach,
     AirspaceEntry,
+
+    /// <summary>A departure's request to a delivery student for its IFR clearance or VFR departure instructions.</summary>
+    Clearance,
+
+    /// <summary>A runway spawn at an untowered field asking the radar student for its departure release.</summary>
+    Release,
 }
 
 public enum PilotPendingRequestResponseState

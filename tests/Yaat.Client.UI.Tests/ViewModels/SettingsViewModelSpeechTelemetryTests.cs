@@ -1,6 +1,7 @@
 using Avalonia.Headless.XUnit;
 using Xunit;
 using Yaat.Client.Services;
+using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.ViewModels;
 
 namespace Yaat.Client.UI.Tests.ViewModels;
@@ -34,7 +35,7 @@ public class SettingsViewModelSpeechTelemetryTests
 
             Assert.True(vm.SpeechSampleCaptureEnabled, "ticking telemetry ticks local capture with it");
 
-            vm.SaveCommand.Execute(null);
+            vm.ApplyCommand.Execute(null);
 
             var saved = new UserPreferences();
             Assert.True(saved.SpeechTelemetryEnabled);
@@ -71,7 +72,7 @@ public class SettingsViewModelSpeechTelemetryTests
             var vm = new SettingsViewModel();
             Assert.False(vm.SpeechTelemetryEnabled);
 
-            vm.SaveCommand.Execute(null);
+            vm.ApplyCommand.Execute(null);
 
             var saved = new UserPreferences();
             Assert.False(saved.SpeechTelemetryEnabled);
@@ -85,5 +86,23 @@ public class SettingsViewModelSpeechTelemetryTests
             restore.SetSpeechTelemetryPromptShown(promptShown);
             restore.SetSpeechEnabled(speechEnabled);
         }
+    }
+
+    [AvaloniaFact(Timeout = 60_000)]
+    public void ApplyingTelemetryOnThenOff_InOneWindow_LeavesItOff()
+    {
+        using var scope = new PreferencesFileScope();
+        var seed = new UserPreferences();
+        seed.SetSpeechTelemetryEnabled(false);
+        seed.SetSpeechTelemetryPromptShown(false);
+
+        var vm = new SettingsViewModel { SpeechTelemetryEnabled = true };
+        vm.ApplyCommand.Execute(null);
+        Assert.True(new UserPreferences().SpeechTelemetryEnabled);
+
+        vm.SpeechTelemetryEnabled = false;
+        vm.ApplyCommand.Execute(null);
+
+        Assert.False(new UserPreferences().SpeechTelemetryEnabled, "the second Apply compares against the first, not against the value at open");
     }
 }

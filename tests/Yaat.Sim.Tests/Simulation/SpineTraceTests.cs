@@ -162,7 +162,7 @@ public class SpineTraceTests
     private static string Serialize(SimulationEngine engine) => JsonSerializer.Serialize(engine.CaptureSnapshot(), RecordingJsonOptions.Default);
 
     /// <summary>One airborne aircraft in a hand-built scenario: enough for every step to have something to iterate.</summary>
-    private static SimulationEngine BuildEngine()
+    internal static SimulationEngine BuildEngine()
     {
         var aircraft = new AircraftState
         {

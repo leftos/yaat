@@ -174,6 +174,10 @@ public sealed class LandingPhase : Phase
     private readonly HashSet<int> _unableBranchPoints = [];
     private bool _unableBroadcast;
 
+    // Restored from a snapshot: the live run's _originalPreference was the very instance PhaseList.RequestedExit held, so
+    // the restore shares that instance again (ShareRequestedExit). False on a phase built live.
+    private bool _restoredOriginalIsRequestedExit;
+
     /// <summary>The currently committed candidate exit chosen by the rollout planner. Null before resolution.</summary>
     public ResolvedExitInfo? CandidateExit => _candidateExit;
 
@@ -194,7 +198,20 @@ public sealed class LandingPhase : Phase
 
     public override string Name => "Landing";
 
-    public override PhaseDto ToSnapshot()
+    /// <summary>
+    /// The snapshot as taken outside a <see cref="PhaseList"/>, which cannot say whether the exit preference this phase
+    /// remembers is the list's <see cref="PhaseList.RequestedExit"/>: restored, the phase treats the list's preference as a
+    /// new instruction. <see cref="PhaseList.ToSnapshot"/> uses <see cref="ToSnapshot(ExitPreference?)"/>.
+    /// </summary>
+    public override PhaseDto ToSnapshot() => ToSnapshot(requestedExit: null);
+
+    /// <summary>
+    /// The snapshot, recording whether the user's exit preference this phase remembers (<c>_originalPreference</c>) is the
+    /// very instance <paramref name="requestedExit"/> — the owning list's <see cref="PhaseList.RequestedExit"/> — is: the
+    /// rollout tells a new exit instruction from the one it already acted on by reference, so a re-issued identical
+    /// <c>EXIT</c> not yet seen by a tick must restore as new, as it is live.
+    /// </summary>
+    internal LandingPhaseDto ToSnapshot(ExitPreference? requestedExit)
     {
         // Geometry survives even in the window where a pre-constants snapshot has been restored but not yet
         // ticked: writing zeros there would make the next restore hand OnTick a null plan, which the phase
@@ -226,6 +243,8 @@ public sealed class LandingPhase : Phase
             OriginalPreferenceSide = (int?)_originalPreference?.Side,
             OriginalPreferenceTaxiway = _originalPreference?.Taxiway,
             ExitResolutionEnabled = _exitResolutionEnabled,
+            UnableBroadcast = _unableBroadcast,
+            OriginalPreferenceIsRequestedExit = (_originalPreference is not null) && ReferenceEquals(_originalPreference, requestedExit),
             StoppedForLahso = StoppedForLahso,
             CurrentStateValue = (int)CurrentState,
             TouchdownLat = _touchdownLat,
@@ -347,6 +366,8 @@ public sealed class LandingPhase : Phase
         phase._lahsoHoldShortDistNm = dto.LahsoHoldShortDistNm;
         phase._hasLahso = dto.HasLahso;
         phase._exitResolutionEnabled = dto.ExitResolutionEnabled;
+        phase._unableBroadcast = dto.UnableBroadcast;
+        phase._restoredOriginalIsRequestedExit = dto.OriginalPreferenceIsRequestedExit;
         phase.StoppedForLahso = dto.StoppedForLahso;
         phase.CurrentState = (State)dto.CurrentStateValue;
         phase._touchdownLat = dto.TouchdownLat;
@@ -456,6 +477,9 @@ public sealed class LandingPhase : Phase
             _hasLahso = true;
             _lahsoHoldShortDistNm = lahso.DistFromThresholdNm;
         }
+
+        // A new landing starts with nothing given up: a taxiway the crew refused belongs to the landing it was refused on.
+        ctx.Aircraft.Phases?.GivenUpExitTaxiways.Clear();
 
         _originalPreference = ctx.Aircraft.Phases?.RequestedExit;
         _activePreference = _originalPreference;
@@ -877,11 +901,9 @@ public sealed class LandingPhase : Phase
         ExitPreference? currentPref = ctx.Aircraft.Phases?.RequestedExit;
         if (currentPref != _originalPreference)
         {
-            _originalPreference = currentPref;
-            _activePreference = currentPref;
+            TakeNewExitInstruction(ctx.Aircraft, currentPref);
             _candidateExit = null;
             _forcedNoExitUntilAlongNm = null;
-            _exitResolutionEnabled = currentPref is not null;
         }
 
         // LAHSO: the landing roll has to end short of the hold-short point — exit before it, or stop at it
@@ -897,7 +919,7 @@ public sealed class LandingPhase : Phase
                 plan.RunwayHeading
             );
             double distToHoldShort = _lahsoHoldShortDistNm - alongFromThreshold;
-            lahsoStopDistNm = distToHoldShort - LahsoSetbackNm(ctx);
+            lahsoStopDistNm = distToHoldShort - LahsoSetbackNm(ctx.Aircraft);
 
             if (lahsoStopDistNm <= 0)
             {
@@ -1074,7 +1096,12 @@ public sealed class LandingPhase : Phase
 
         if ((distToBranch > 0) && (ctx.Aircraft.IndicatedAirspeed > candidate.TurnOffSpeed))
         {
-            double requiredDecel = RolloutBraking.RequiredDecelKtsPerSec(ctx.Aircraft.GroundSpeed, candidate.TurnOffSpeed, distToBranch);
+            double requiredDecel = RolloutBraking.RequiredDecelKtsPerSec(
+                ctx.Aircraft.GroundSpeed,
+                candidate.TurnOffSpeed,
+                distToBranch,
+                ctx.Category
+            );
             double brakingLimit = CommittedExitBrakingLimit(ctx, candidate);
 
             if (requiredDecel <= brakingLimit)
@@ -1105,7 +1132,12 @@ public sealed class LandingPhase : Phase
                 // aircraft stays fast longer and arrives at coast near the exit.
                 if (effectiveDist > 0)
                 {
-                    double requiredDecelToCoast = RolloutBraking.RequiredDecelKtsPerSec(ctx.Aircraft.GroundSpeed, coastSpeed, effectiveDist);
+                    double requiredDecelToCoast = RolloutBraking.RequiredDecelKtsPerSec(
+                        ctx.Aircraft.GroundSpeed,
+                        coastSpeed,
+                        effectiveDist,
+                        ctx.Category
+                    );
                     if ((requiredDecelToCoast > 0) && (requiredDecelToCoast < decelRateOverride))
                     {
                         decelRateOverride = Math.Max(requiredDecelToCoast, MinSoftBrakingRateKtsPerSec);
@@ -1165,7 +1197,7 @@ public sealed class LandingPhase : Phase
         // place max-effort braking belongs, and the category rate caps what the aircraft can actually do.
         double maxRate = CategoryPerformance.ExpediteExitDecelRate(ctx.Category);
         ctx.Targets.TargetSpeed = 0;
-        ctx.Targets.DesiredDecelRate = distToHoldShortNm <= 0 ? maxRate : Math.Min(RolloutBraking.FirmBrakingRateKtsPerSec, maxRate);
+        ctx.Targets.DesiredDecelRate = distToHoldShortNm <= 0 ? maxRate : CategoryPerformance.FirmBrakingRate(ctx.Category);
 
         if (ctx.Aircraft.IndicatedAirspeed > 0.5)
         {
@@ -1208,7 +1240,7 @@ public sealed class LandingPhase : Phase
         double maxRate = CategoryPerformance.ExpediteExitDecelRate(ctx.Category);
         double planningRate = Math.Min(plan.DefaultDecel, maxRate);
         double cappedSpeed = Math.Min(targetSpeed, RolloutBraking.MaxEntrySpeedKts(stopDistNm, planningRate));
-        double requiredDecel = RolloutBraking.RequiredDecelKtsPerSec(ctx.Aircraft.GroundSpeed, 0, stopDistNm);
+        double requiredDecel = RolloutBraking.RequiredDecelKtsPerSec(ctx.Aircraft.GroundSpeed, 0, stopDistNm, ctx.Category);
         double cappedRate = Math.Min(Math.Max(decelRateOverride, requiredDecel), maxRate);
         return (cappedSpeed, cappedRate);
     }
@@ -1278,27 +1310,67 @@ public sealed class LandingPhase : Phase
         ExitPreference? userPref = ctx.Aircraft.Phases?.RequestedExit;
         if (userPref != _originalPreference)
         {
-            _originalPreference = userPref;
-            _activePreference = userPref;
-            _exitResolutionEnabled = userPref is not null;
+            TakeNewExitInstruction(ctx.Aircraft, userPref);
         }
         else
         {
-            // Preserve the user's side if one was originally set (EL/ER), drop
-            // only the specific taxiway. We intentionally do NOT overwrite
-            // `Phases.RequestedExit` — that's the user's intent and should remain
-            // visible for diagnostics; relaxation is a LandingPhase-internal
-            // concern tracked in `_activePreference`.
-            ExitSide? keepSide = _originalPreference?.Side;
-            _activePreference = keepSide is not null ? new ExitPreference { Side = keepSide } : null;
-            _originalPreference = _activePreference;
-            _exitResolutionEnabled = false;
+            RelaxPreferenceToSide();
         }
 
         // Back to rollout to look for the next exit
         CurrentState = State.Rollout;
         return TickRollout(ctx, plan);
     }
+
+    /// <summary>
+    /// Takes <paramref name="instruction"/> as the controller's new exit instruction: the preference the rollout resolves and
+    /// judges by, with its "unable" yet to be said; a taxiway it names is no longer given up, so a new instruction for an exit
+    /// the crew refused is judged afresh.
+    /// </summary>
+    private void TakeNewExitInstruction(AircraftState aircraft, ExitPreference? instruction)
+    {
+        _originalPreference = instruction;
+        _activePreference = instruction;
+        _exitResolutionEnabled = instruction is not null;
+        _unableBroadcast = false;
+        if (instruction?.Taxiway is { } taxiway)
+        {
+            aircraft.Phases?.GivenUpExitTaxiways.Remove(taxiway);
+        }
+    }
+
+    /// <summary>
+    /// Drops the taxiway from the preference the rollout resolves by, keeping the controller's side (<c>EL</c>/<c>ER</c>) if one
+    /// was set. <c>Phases.RequestedExit</c> is deliberately not overwritten — that is the user's intent and stays visible for
+    /// diagnostics; relaxation is a LandingPhase-internal concern tracked in <c>_activePreference</c>. <c>_originalPreference</c>
+    /// stays the user's preference too, so TickRollout's change detection does not read the relaxation as a new instruction
+    /// and restore the exit just given up.
+    /// </summary>
+    private void RelaxPreferenceToSide()
+    {
+        ExitSide? keepSide = _originalPreference?.Side;
+        _activePreference = keepSide is not null ? new ExitPreference { Side = keepSide } : null;
+        _exitResolutionEnabled = false;
+    }
+
+    /// <summary>
+    /// Gives up <paramref name="taxiway"/>, the exit the controller named, for the rest of this landing: the crew has told the
+    /// controller it is unable (P/CG UNABLE — the controller may already be acting on it; 7110.65 3-10-9.a, AIM 4-3-21.a), so
+    /// every later exit search skips the taxiway and the preference relaxes to the controller's side. The set is the phase
+    /// list's (<see cref="PhaseList.GivenUpExitTaxiways"/>), shared with <see cref="Ground.RunwayExitPhase"/>, so the exit's own
+    /// searches after the hand-off skip it too. A later bare <c>EXP</c> does not revive it; only a new instruction naming it does
+    /// (<see cref="TakeNewExitInstruction"/>), judged afresh by <see cref="EvaluateAndApplyNamedExitInstruction"/>. The taxiway,
+    /// not a branch node, is what is given up: a bar is reached from several centerline nodes (OAK 30's W3 from 87, 714, 715 and
+    /// 716), so excluding one branch would let the next search re-find the exit at the next node.
+    /// </summary>
+    private void GiveUpNamedExit(AircraftState aircraft, string taxiway)
+    {
+        aircraft.Phases?.GivenUpExitTaxiways.Add(taxiway);
+        RelaxPreferenceToSide();
+    }
+
+    /// <summary>True when the crew has given <paramref name="taxiway"/> up on this landing (<see cref="GiveUpNamedExit"/>).</summary>
+    private static bool IsGivenUp(AircraftState aircraft, string taxiway) => aircraft.Phases?.GivenUpExitTaxiways.Contains(taxiway) is true;
 
     private bool TickFullStop(PhaseContext ctx, LandingPlan plan)
     {
@@ -1367,7 +1439,9 @@ public sealed class LandingPhase : Phase
         double distToBranchNm = GeoMath.AlongTrackDistanceNm(candidate.BranchPointNode.Position, ctx.Aircraft.Position, plan.RunwayHeading);
         double brakingDistNm = distToBranchNm - (ForcedLandingProfile.ExitBrakingMarginFt / GeoMath.FeetPerNm);
         bool alreadySlow = ctx.Aircraft.IndicatedAirspeed <= targetSpeed;
-        double requiredDecel = alreadySlow ? 0 : RolloutBraking.RequiredDecelKtsPerSec(ctx.Aircraft.GroundSpeed, targetSpeed, brakingDistNm);
+        double requiredDecel = alreadySlow
+            ? 0
+            : RolloutBraking.RequiredDecelKtsPerSec(ctx.Aircraft.GroundSpeed, targetSpeed, brakingDistNm, ctx.Category);
 
         if (!alreadySlow && ((brakingDistNm <= 0) || (requiredDecel > ForcedLandingProfile.RolloutMaxDecelKtsPerSec)))
         {
@@ -1429,8 +1503,10 @@ public sealed class LandingPhase : Phase
 
         double toStopShortFt = toEndFt - ForcedLandingProfile.RunwayEndStopMarginFt;
         double stopShortDecel =
-            toStopShortFt > 0 ? RolloutBraking.RequiredDecelKtsPerSec(groundSpeedKts, 0, toStopShortFt / GeoMath.FeetPerNm) : double.PositiveInfinity;
-        double stopAtEndDecel = RolloutBraking.RequiredDecelKtsPerSec(groundSpeedKts, 0, toEndFt / GeoMath.FeetPerNm);
+            toStopShortFt > 0
+                ? RolloutBraking.DecelOverDistanceKtsPerSec(groundSpeedKts, 0, toStopShortFt / GeoMath.FeetPerNm)
+                : double.PositiveInfinity;
+        double stopAtEndDecel = RolloutBraking.DecelOverDistanceKtsPerSec(groundSpeedKts, 0, toEndFt / GeoMath.FeetPerNm);
         return Math.Min(
             Math.Max(stopShortDecel, ForcedLandingProfile.RolloutMinDecelKtsPerSec),
             Math.Max(ForcedLandingProfile.RunwayEndStopMaxDecelKtsPerSec, stopAtEndDecel)
@@ -1464,6 +1540,11 @@ public sealed class LandingPhase : Phase
             excludeHoldShortNodes: ctx.OccupiedHoldShortNodes,
             filter: candidate =>
             {
+                if (IsGivenUp(ctx.Aircraft, candidate.Taxiway))
+                {
+                    return AirportGroundLayout.CandidateVerdict.Skip;
+                }
+
                 GroundNode branch = candidate.Path[0];
                 double distNm = GeoMath.AlongTrackDistanceNm(branch.Position, ctx.Aircraft.Position, plan.RunwayHeading);
                 double turnOff = CategoryPerformance.ExitTurnOffSpeed(ctx.Category, candidate.ExitAngle);
@@ -1620,20 +1701,169 @@ public sealed class LandingPhase : Phase
             _candidateExit.TurnOffSpeed
         );
 
-        if ((_originalPreference?.Taxiway is not null) && !_unableBroadcast)
+        ReportUnableToExit(ctx, missedTaxiway);
+        _unableBranchPoints.Add(_candidateExit.BranchPointNode.Id);
+
+        // The exit the controller named is given up with the call, not just its branch node: the bar is reached from other
+        // centerline nodes ahead, and the forced (CLANDF) rollout, which never passes through TickUnable, would otherwise keep
+        // resolving the named taxiway at each of them.
+        if (string.Equals(missedTaxiway, _originalPreference?.Taxiway, StringComparison.OrdinalIgnoreCase))
         {
-            Pilot.PilotResponder.RouteSoloOrRpoTransmission(
-                ctx.Aircraft,
-                ctx.SoloTrainingMode,
-                ctx.RpoShowPilotSpeech,
-                ctx.StudentPositionType,
-                Pilot.PilotResponder.BuildUnableToExit(ctx.Aircraft, missedTaxiway),
-                Pilot.PilotResponder.SoloPositionsTower
-            );
-            _unableBroadcast = true;
+            GiveUpNamedExit(ctx.Aircraft, missedTaxiway);
+        }
+    }
+
+    /// <summary>
+    /// Tells the controller the crew cannot make <paramref name="taxiway"/> — once per exit the controller named: the flag
+    /// clears whenever a new exit instruction is accepted, and survives a snapshot. Exits the rollout chose on its own are
+    /// given up silently.
+    /// </summary>
+    private void ReportUnableToExit(PhaseContext ctx, string taxiway)
+    {
+        if ((_originalPreference?.Taxiway is null) || _unableBroadcast)
+        {
+            return;
         }
 
-        _unableBranchPoints.Add(_candidateExit.BranchPointNode.Id);
+        Pilot.PilotResponder.RouteSoloOrRpoTransmission(
+            ctx.Aircraft,
+            ctx.SoloTrainingMode,
+            ctx.RpoShowPilotSpeech,
+            ctx.StudentPositionType,
+            Pilot.PilotResponder.BuildUnableToExit(ctx.Aircraft, taxiway),
+            Pilot.PilotResponder.SoloPositionsTower
+        );
+        _unableBroadcast = true;
+    }
+
+    /// <summary>
+    /// Whether an exit instruction naming a taxiway (<c>EL</c>/<c>ER</c>/<c>EXIT</c>, with or without <c>EXP</c>) can be
+    /// accepted on the rollout, and if not, what the pilot says. It asks the rollout's own named-exit search
+    /// (<see cref="FindWithInferredSide"/> over <see cref="TryFindCandidate"/>), a taxiway the crew has given up included —
+    /// a new instruction is judged afresh: the inferred side first for a taxiway-only instruction, connections at or behind
+    /// the aircraft skipped, slow enough by indicated airspeed or makeable at <see cref="RolloutBraking.NamedExitBrakingLimit"/>
+    /// (firm, or max-effort under <paramref name="expedite"/>). Refused with the crew's "unable" when the named exit is ahead
+    /// but past that limit or past a LAHSO hold-short point — and when it is the exit the aircraft is already braking for, that
+    /// refusal gives it up (<see cref="RefuseNamedExit"/>) — and as no such exit ahead when no connection of the taxiway is ahead on
+    /// a runway with hold-short data. Allowed before touchdown, on a forced (<c>CLANDF</c>) rollout, with no layout, and on a runway
+    /// without hold-short data, where the straight-line fallback resolves the exit. The refusal is applied here, not only reported:
+    /// the caller's own state (the standing preference) is left as it was.
+    /// </summary>
+    public ExitInstructionVerdict EvaluateAndApplyNamedExitInstruction(AircraftState aircraft, ExitPreference preference, bool expedite)
+    {
+        if (
+            (preference.Taxiway is not { } taxiway)
+            || (CurrentState != State.Rollout)
+            || (_plan is not { } plan)
+            || (aircraft.Phases is not { ForceLanding: false, AssignedRunway: { } runway })
+            || (aircraft.Ground.Layout is not { } layout)
+        )
+        {
+            return new ExitInstructionVerdict(true, null);
+        }
+
+        AircraftCategory category = AircraftCategorization.Categorize(aircraft.AircraftType);
+        double limit = RolloutBraking.NamedExitBrakingLimit(category, expedite);
+        var query = new ExitCandidateQuery
+        {
+            Aircraft = aircraft,
+            Category = category,
+            Layout = layout,
+            Plan = plan,
+            RwyDesignator = runway.Designator,
+            SearchPref = preference,
+            SidePref = preference.Side ?? _inferredSide,
+            ExcludeHoldShortNodes = null,
+            BrakingLimitForTurnOffSpeed = _ => limit,
+            IncludeGivenUp = true,
+            IgnoreLahso = false,
+        };
+        return FindWithInferredSide(query) is not null ? new ExitInstructionVerdict(true, null) : RefuseNamedExit(aircraft, query, taxiway);
+    }
+
+    /// <summary>
+    /// The refusal for <paramref name="taxiway"/>, whose <paramref name="query"/> found nothing at the named limit: the crew's
+    /// "unable" when a connection is ahead past that limit or past a LAHSO hold-short point (the connection is there, the crew
+    /// cannot use it), "no {taxiway} ahead" when none is ahead on a runway with hold-short data, and allowed on a runway without
+    /// (the straight-line fallback resolves the exit). An "unable" for the exit the aircraft is already braking for is the crew's
+    /// one call for it: the exit is given up here (<see cref="GiveUpNamedExit"/>), the call recorded as made and the candidate
+    /// dropped, so the next tick resolves a later exit without a second call at the branch. A command is replayed on the same tick
+    /// it was issued, so the give-up is as deterministic as the tick's own.
+    /// </summary>
+    private ExitInstructionVerdict RefuseNamedExit(AircraftState aircraft, ExitCandidateQuery query, string taxiway)
+    {
+        ExitCandidateQuery anyConnectionAhead = query with { BrakingLimitForTurnOffSpeed = _ => double.PositiveInfinity, IgnoreLahso = true };
+        if (FindWithInferredSide(anyConnectionAhead) is { } unreachable)
+        {
+            if (_exitResolutionEnabled && string.Equals(unreachable.TaxiwayName, _originalPreference?.Taxiway, StringComparison.OrdinalIgnoreCase))
+            {
+                GiveUpNamedExit(aircraft, unreachable.TaxiwayName);
+                _unableBroadcast = true;
+                _candidateExit = null;
+            }
+
+            Pilot.PilotSpeechText unable = Pilot.PilotResponder.BuildUnableToExit(aircraft, unreachable.TaxiwayName);
+            return new ExitInstructionVerdict(false, unable.Terminal) { PilotUnable = unable };
+        }
+
+        if (query.Layout.GetRunwayHoldShortNodes(query.RwyDesignator).Count == 0)
+        {
+            return new ExitInstructionVerdict(true, null);
+        }
+
+        Pilot.PilotSpeechText noExit = Pilot.PilotResponder.BuildUnableNoExitAhead(aircraft, taxiway);
+        return new ExitInstructionVerdict(false, $"Unable, no {taxiway} ahead") { PilotUnable = noExit };
+    }
+
+    /// <summary>Where an exit connection stands for the rollout's reachability test (<see cref="JudgeExitReach"/>).</summary>
+    private enum ExitReach
+    {
+        AtOrBehind,
+        Reachable,
+        BeyondLimit,
+    }
+
+    /// <summary>
+    /// The one reachability test every exit search on the rollout applies, named or not, at command time and on the tick: a
+    /// connection whose <paramref name="branch"/> is at or behind the aircraft is passed; otherwise it is reachable when the
+    /// indicated airspeed is already within <see cref="RolloutBraking.TurnOffSpeedToleranceKts"/> of
+    /// <paramref name="turnOffSpeed"/>, or when the ground speed needs no more than <paramref name="brakingLimit"/> to come
+    /// down to it by the branch.
+    /// </summary>
+    private static ExitReach JudgeExitReach(
+        AircraftState aircraft,
+        AircraftCategory category,
+        TrueHeading runwayHeading,
+        GroundNode branch,
+        (double TurnOffSpeed, double BrakingLimit) target
+    )
+    {
+        double distToBranch = GeoMath.AlongTrackDistanceNm(branch.Position, aircraft.Position, runwayHeading);
+        if (distToBranch <= 0)
+        {
+            return ExitReach.AtOrBehind;
+        }
+
+        bool alreadySlowEnough = aircraft.IndicatedAirspeed <= target.TurnOffSpeed + RolloutBraking.TurnOffSpeedToleranceKts;
+        bool reachable =
+            alreadySlowEnough
+            || (RolloutBraking.RequiredDecelKtsPerSec(aircraft.GroundSpeed, target.TurnOffSpeed, distToBranch, category) <= target.BrakingLimit);
+        return reachable ? ExitReach.Reachable : ExitReach.BeyondLimit;
+    }
+
+    /// <summary>
+    /// After a snapshot restore, makes the user's preference this phase remembers (<c>_originalPreference</c>) the very
+    /// instance <see cref="PhaseList.RequestedExit"/> holds when the snapshot says they were one instance in the live run
+    /// (<see cref="LandingPhaseDto.OriginalPreferenceIsRequestedExit"/>): the rollout detects a new exit instruction by
+    /// reference, so two restored copies would read as a new one and re-enable an exit already given up, while an equal
+    /// but separate instruction (re-issued, not yet ticked) must stay new.
+    /// </summary>
+    internal void ShareRequestedExit(ExitPreference? requestedExit)
+    {
+        if (_restoredOriginalIsRequestedExit && (requestedExit is not null))
+        {
+            _originalPreference = requestedExit;
+        }
     }
 
     /// <summary>
@@ -1649,9 +1879,9 @@ public sealed class LandingPhase : Phase
     /// <see cref="AircraftLength.ResolveFt"/> length — the same resolver <see cref="Ground.RunwayExitPhase"/> uses for its
     /// tail-clearance offset. Resolved once and cached — the type does not change mid-landing.
     /// </summary>
-    private double NoseOffsetNm(PhaseContext ctx)
+    private double NoseOffsetNm(AircraftState aircraft)
     {
-        _noseOffsetNm ??= AircraftLength.ResolveFt(ctx.Aircraft.AircraftType) / 2.0 / GeoMath.FeetPerNm;
+        _noseOffsetNm ??= AircraftLength.ResolveFt(aircraft.AircraftType) / 2.0 / GeoMath.FeetPerNm;
         return _noseOffsetNm.Value;
     }
 
@@ -1659,21 +1889,21 @@ public sealed class LandingPhase : Phase
     /// Distance short of the LAHSO hold-short point the aircraft's centroid has to stop at for the nose to stay
     /// clear of the marking: the tick margin plus the nose offset.
     /// </summary>
-    private double LahsoSetbackNm(PhaseContext ctx) => LahsoStopMarginNm + NoseOffsetNm(ctx);
+    private double LahsoSetbackNm(AircraftState aircraft) => LahsoStopMarginNm + NoseOffsetNm(aircraft);
 
     /// <summary>
     /// True when an aircraft turning off at <paramref name="branchNode"/> leaves the runway before the LAHSO
     /// hold-short point — the branch point sits at or before the stop target, setback included. Only meaningful
     /// while <see cref="_hasLahso"/> is set.
     /// </summary>
-    private bool BranchFitsInsideLahso(PhaseContext ctx, GroundNode branchNode, LandingPlan plan)
+    private bool BranchFitsInsideLahso(AircraftState aircraft, GroundNode branchNode, LandingPlan plan)
     {
         double branchFromThreshold = GeoMath.AlongTrackDistanceNm(
             branchNode.Position,
             new LatLon(plan.ThresholdLat, plan.ThresholdLon),
             plan.RunwayHeading
         );
-        return branchFromThreshold <= (_lahsoHoldShortDistNm - LahsoSetbackNm(ctx));
+        return branchFromThreshold <= (_lahsoHoldShortDistNm - LahsoSetbackNm(aircraft));
     }
 
     private void ResolveNextCandidate(PhaseContext ctx, LandingPlan plan)
@@ -1691,7 +1921,8 @@ public sealed class LandingPhase : Phase
             ctx.Aircraft.Position.Lon,
             plan.RunwayHeading,
             _activePreference,
-            rwyDesignator
+            rwyDesignator,
+            excludeTaxiways: ctx.Aircraft.Phases?.GivenUpExitTaxiways
         );
 
         if (result is null)
@@ -1699,7 +1930,7 @@ public sealed class LandingPhase : Phase
             return;
         }
 
-        if (_hasLahso && !BranchFitsInsideLahso(ctx, result.Value.Node, plan))
+        if (_hasLahso && !BranchFitsInsideLahso(ctx.Aircraft, result.Value.Node, plan))
         {
             Log.LogDebug(
                 "[Landing] {Callsign}: fallback exit {Taxiway} is past the LAHSO hold-short point",
@@ -1730,12 +1961,12 @@ public sealed class LandingPhase : Phase
     /// </summary>
     private bool TryResolveGraphCandidate(PhaseContext ctx, LandingPlan plan)
     {
-        if ((ctx.GroundLayout is null) || (ctx.Aircraft.Phases?.AssignedRunway?.Designator is not { } rwyDesignator))
+        if ((ctx.GroundLayout is not { } layout) || (ctx.Aircraft.Phases?.AssignedRunway?.Designator is not { } rwyDesignator))
         {
             return false;
         }
 
-        if (FindGraphCandidate(ctx, plan, rwyDesignator) is not { } resolved)
+        if (FindGraphCandidate(ctx, layout, plan, rwyDesignator) is not { } resolved)
         {
             return false;
         }
@@ -1752,25 +1983,41 @@ public sealed class LandingPhase : Phase
     }
 
     /// <summary>
+    /// One exit-candidate search's inputs: everything <see cref="TryFindCandidate"/> needs beyond the phase's own
+    /// state, bundled so the search takes one argument rather than seven positional ones.
+    /// </summary>
+    private readonly record struct ExitCandidateQuery
+    {
+        public required AircraftState Aircraft { get; init; }
+        public required AircraftCategory Category { get; init; }
+        public required AirportGroundLayout Layout { get; init; }
+        public required LandingPlan Plan { get; init; }
+        public required string RwyDesignator { get; init; }
+        public required ExitPreference? SearchPref { get; init; }
+        public required ExitSide? SidePref { get; init; }
+        public required HashSet<int>? ExcludeHoldShortNodes { get; init; }
+        public required Func<double, double> BrakingLimitForTurnOffSpeed { get; init; }
+
+        /// <summary>
+        /// True to judge a taxiway the crew has given up as any other — a new instruction naming it is judged afresh; false
+        /// skips every given-up taxiway, as the rollout's own searches do.
+        /// </summary>
+        public required bool IncludeGivenUp { get; init; }
+
+        /// <summary>
+        /// True to judge a connection past a LAHSO hold-short point as any other — the refusal asks whether the named taxiway has
+        /// a connection ahead at all; false skips it, as every search for an exit to take does.
+        /// </summary>
+        public required bool IgnoreLahso { get; init; }
+    }
+
+    /// <summary>
     /// Search the ground graph for the next exit ahead on <paramref name="rwyDesignator"/> that the aircraft can brake
     /// for under its current exit preference, falling back to the firm-braking search when default selection finds
     /// none. Returns null when no exit is reachable.
     /// </summary>
-    private ResolvedExitInfo? FindGraphCandidate(PhaseContext ctx, LandingPlan plan, string rwyDesignator)
+    private ResolvedExitInfo? FindGraphCandidate(PhaseContext ctx, AirportGroundLayout layout, LandingPlan plan, string rwyDesignator)
     {
-        ExitPreference? searchPref = _activePreference;
-
-        // Try inferred side first for taxiway-only preferences
-        if ((_activePreference is { Taxiway: not null, Side: null }) && (_inferredSide is not null))
-        {
-            searchPref = new ExitPreference { Taxiway = _activePreference.Taxiway, Side = _inferredSide.Value };
-        }
-
-        // Effective side preference (explicit beats inferred). Used to decide
-        // whether to defer an off-side candidate while looking forward for an
-        // on-side option further down the runway.
-        ExitSide? sidePref = _activePreference?.Side ?? _inferredSide;
-
         // Pass occupancy info to the planner only for default selection (no
         // explicit taxiway). When the controller named a specific exit, the
         // pilot brakes for it regardless and RunwayExitPhase deals with any
@@ -1778,14 +2025,23 @@ public sealed class LandingPhase : Phase
         // planner can do better by routing around known-occupied exits.
         HashSet<int>? excludeHoldShortNodes = (_activePreference?.Taxiway is null) ? ctx.OccupiedHoldShortNodes : null;
 
-        double selectionLimit(double turnOffSpeed) => BrakingLimit(ctx, turnOffSpeed);
-        ResolvedExitInfo? found = TryFindCandidate(ctx, plan, rwyDesignator, searchPref, sidePref, excludeHoldShortNodes, selectionLimit);
-
-        // Fall back to taxiway-only if inferred-side found nothing
-        if ((found is null) && (searchPref != _activePreference))
+        // The side preference (explicit beats inferred) decides whether to defer an off-side candidate while looking
+        // forward for an on-side option further down the runway.
+        var query = new ExitCandidateQuery
         {
-            found = TryFindCandidate(ctx, plan, rwyDesignator, _activePreference, sidePref, excludeHoldShortNodes, selectionLimit);
-        }
+            Aircraft = ctx.Aircraft,
+            Category = ctx.Category,
+            Layout = layout,
+            Plan = plan,
+            RwyDesignator = rwyDesignator,
+            SearchPref = _activePreference,
+            SidePref = _activePreference?.Side ?? _inferredSide,
+            ExcludeHoldShortNodes = excludeHoldShortNodes,
+            BrakingLimitForTurnOffSpeed = turnOffSpeed => BrakingLimit(ctx, turnOffSpeed),
+            IncludeGivenUp = false,
+            IgnoreLahso = false,
+        };
+        ResolvedExitInfo? found = FindWithInferredSide(query);
 
         // A crew that cannot make any exit at its default-selection rates takes the next one it can make braking
         // firmly rather than rolling to the runway end and stopping on it. Instructed and expedited exits already
@@ -1793,100 +2049,124 @@ public sealed class LandingPhase : Phase
         bool defaultSelection = !_exitResolutionEnabled && !ctx.Aircraft.Ground.IsExpeditingExit;
         if ((found is null) && defaultSelection)
         {
-            double firmCap = FirmBrakingCap(ctx.Category);
-            found = TryFindCandidate(ctx, plan, rwyDesignator, _activePreference, sidePref, excludeHoldShortNodes, _ => firmCap);
+            double firmRate = CategoryPerformance.FirmBrakingRate(ctx.Category);
+            found = TryFindCandidate(query with { BrakingLimitForTurnOffSpeed = _ => firmRate });
+        }
+
+        if ((found is null) && GiveUpUnreachableNamedExit(ctx, query))
+        {
+            // The named exit is given up and the preference relaxed to the controller's side: resolve again under it, as
+            // the rollout would on its next tick, so the aircraft brakes for the next exit it can make from this tick on.
+            return FindGraphCandidate(ctx, layout, plan, rwyDesignator);
         }
 
         return found;
     }
 
     /// <summary>
+    /// <see cref="TryFindCandidate"/> for <paramref name="query"/>, trying a taxiway-only preference on the inferred exit
+    /// side first and on any side after: the side the crew expects to turn off on is the one it judges a named exit by.
+    /// </summary>
+    private ResolvedExitInfo? FindWithInferredSide(ExitCandidateQuery query)
+    {
+        if ((query.SearchPref is { Taxiway: { } taxiway, Side: null }) && (_inferredSide is { } inferred))
+        {
+            ResolvedExitInfo? onInferredSide = TryFindCandidate(
+                query with
+                {
+                    SearchPref = new ExitPreference { Taxiway = taxiway, Side = inferred },
+                }
+            );
+            if (onInferredSide is not null)
+            {
+                return onInferredSide;
+            }
+        }
+
+        return TryFindCandidate(query);
+    }
+
+    /// <summary>
+    /// Makes the call and gives the exit up when the exit the controller named (<c>ER</c>/<c>EL</c>/<c>EXIT</c> with a
+    /// taxiway) is still ahead but past <see cref="RolloutBraking.NamedExitBrakingLimit"/> — firm, or max-effort under
+    /// <c>EXP</c> — returning true; false when no named exit is in force or none is ahead. <paramref name="query"/> is the
+    /// search that just failed at that limit, rerun here with no limit. The crew tells the controller it is unable on the tick
+    /// this first finds it (<see cref="ReportUnableToExit"/>) and gives the taxiway up (<see cref="GiveUpNamedExit"/>): the
+    /// preference relaxes to the controller's side and the caller resolves again under it, so the rollout brakes for the next
+    /// exit it can make and never for the one refused, and the missed-exit path (<see cref="MarkExitUnable"/>) has nothing
+    /// left to call at the branch. Without this the straight-line fallback would hand back the same exit as a one-node path
+    /// with no braking check. Every category gives an exit up this way (7110.65 3-10-9.a: exit instructions are "if able").
+    /// A forced (<c>CLANDF</c>) rollout judges its own candidate and is left out.
+    /// </summary>
+    private bool GiveUpUnreachableNamedExit(PhaseContext ctx, ExitCandidateQuery query)
+    {
+        bool forced = ctx.Aircraft.Phases?.ForceLanding == true;
+        if (forced || !_exitResolutionEnabled || (_activePreference?.Taxiway is null))
+        {
+            return false;
+        }
+
+        ResolvedExitInfo? named = FindWithInferredSide(
+            query with
+            {
+                ExcludeHoldShortNodes = null,
+                BrakingLimitForTurnOffSpeed = _ => double.PositiveInfinity,
+            }
+        );
+        if (named is null)
+        {
+            return false;
+        }
+
+        Log.LogDebug(
+            "[Landing] {Callsign}: instructed exit {Taxiway} needs more than {Limit:F1} kt/s; giving it up",
+            ctx.Aircraft.Callsign,
+            named.TaxiwayName,
+            RolloutBraking.NamedExitBrakingLimit(ctx.Category, ctx.Aircraft.Ground.IsExpeditingExit)
+        );
+        ReportUnableToExit(ctx, named.TaxiwayName);
+        GiveUpNamedExit(ctx.Aircraft, named.TaxiwayName);
+        return true;
+    }
+
+    /// <summary>
     /// Run the side-preferred lookahead search with a braking-reachability filter: a candidate whose turn-off speed
-    /// needs more than <paramref name="brakingLimitForTurnOffSpeed"/> gives for that turn-off speed, from the current
+    /// needs more than <see cref="ExitCandidateQuery.BrakingLimitForTurnOffSpeed"/> gives for that turn-off speed, from the current
     /// position, is skipped (the Skip verdict excludes the entire taxiway from the rest of this call). Without the
     /// filter the planner would return the first forward exit unconditionally — typically a 90° standard exit too
     /// close to brake for — so skipping unreachable candidates lets it commit to a reachable downstream exit (e.g. a
     /// high-speed at ~30°) and brake for that. The chosen exit carries the limit that admitted it as its
     /// <see cref="ResolvedExitInfo.SelectionDecelRate"/>. Returns null when no candidate (on-side or off-side
     /// fallback) is reachable from the current state.
+    /// A connection at or behind the aircraft (the centerline walk looks up to ~30 ft back) is skipped with its taxiway, then
+    /// the search runs again with that connection's hold-short excluded, so a later connection of the same taxiway ahead is
+    /// still judged — at most <see cref="MaxPassedConnectionSearches"/> runs.
     /// </summary>
-    private ResolvedExitInfo? TryFindCandidate(
-        PhaseContext ctx,
-        LandingPlan plan,
-        string rwyDesignator,
-        ExitPreference? searchPref,
-        ExitSide? sidePref,
-        HashSet<int>? excludeHoldShortNodes,
-        Func<double, double> brakingLimitForTurnOffSpeed
-    )
+    private ResolvedExitInfo? TryFindCandidate(ExitCandidateQuery query)
     {
-        if (ctx.GroundLayout is null)
+        HashSet<int>? excludeHoldShortNodes = query.ExcludeHoldShortNodes;
+        AirportGroundLayout.CenterlineExitResult? found = null;
+        for (int run = 1; run <= MaxPassedConnectionSearches; run++)
         {
-            return null;
-        }
-
-        AirportGroundLayout.CenterlineExitResult? found = ctx.GroundLayout.FindOnSidePreferredExit(
-            ctx.Aircraft.Position.Lat,
-            ctx.Aircraft.Position.Lon,
-            plan.RunwayHeading,
-            rwyDesignator,
-            searchPref,
-            sidePref,
-            excludeBranchPoints: _unableBranchPoints.Count > 0 ? [.. _unableBranchPoints] : null,
-            excludeHoldShortNodes: excludeHoldShortNodes,
-            filter: candidate =>
+            List<int> passedHoldShorts = [];
+            found = query.Layout.FindOnSidePreferredExit(
+                query.Aircraft.Position.Lat,
+                query.Aircraft.Position.Lon,
+                query.Plan.RunwayHeading,
+                query.RwyDesignator,
+                query.SearchPref,
+                query.SidePref,
+                excludeBranchPoints: _unableBranchPoints.Count > 0 ? [.. _unableBranchPoints] : null,
+                excludeHoldShortNodes: excludeHoldShortNodes,
+                filter: candidate => JudgeCandidate(query, candidate, passedHoldShorts)
+            );
+            if (passedHoldShorts.Count == 0)
             {
-                double turnOffSpeed = CategoryPerformance.ExitTurnOffSpeed(ctx.Category, candidate.ExitAngle);
-                GroundNode branchNode = candidate.Path[0];
-                double distToBranch = GeoMath.AlongTrackDistanceNm(branchNode.Position, ctx.Aircraft.Position, plan.RunwayHeading);
-
-                // Branch is at or behind the aircraft — try the next centerline.
-                // Skip the entire taxiway so we don't keep finding the same one
-                // via the BFS cluster expansion.
-                if (distToBranch <= 0)
-                {
-                    return AirportGroundLayout.CandidateVerdict.Skip;
-                }
-
-                // Under a LAHSO clearance an exit past the hold-short point is no use, however reachable it is:
-                // the aircraft has to be stopped short of the point. Skipped like an unreachable candidate, so
-                // the search moves on and the stop at the point remains the fallback.
-                if (_hasLahso && !BranchFitsInsideLahso(ctx, branchNode, plan))
-                {
-                    Log.LogDebug(
-                        "[Landing] {Callsign}: skipping exit {Taxiway} — branch point is past the LAHSO hold-short point at {HoldShort:F2}nm",
-                        ctx.Aircraft.Callsign,
-                        candidate.Taxiway,
-                        _lahsoHoldShortDistNm
-                    );
-                    return AirportGroundLayout.CandidateVerdict.Skip;
-                }
-
-                bool alreadySlowEnough = ctx.Aircraft.IndicatedAirspeed <= turnOffSpeed + RolloutBraking.TurnOffSpeedToleranceKts;
-                double brakingLimit = brakingLimitForTurnOffSpeed(turnOffSpeed);
-                bool reachable =
-                    alreadySlowEnough
-                    || (RolloutBraking.RequiredDecelKtsPerSec(ctx.Aircraft.GroundSpeed, turnOffSpeed, distToBranch) <= brakingLimit);
-
-                if (!reachable)
-                {
-                    Log.LogDebug(
-                        "[Landing] {Callsign}: skipping exit {Taxiway} (angle={Angle:F0}, turnOff={Speed:F0}kts, dist={Dist:F3}nm) — "
-                            + "required decel exceeds the {Limit:F2}kt/s limit at gs={Gs:F1}kts",
-                        ctx.Aircraft.Callsign,
-                        candidate.Taxiway,
-                        candidate.ExitAngle,
-                        turnOffSpeed,
-                        distToBranch,
-                        brakingLimit,
-                        ctx.Aircraft.GroundSpeed
-                    );
-                    return AirportGroundLayout.CandidateVerdict.Skip;
-                }
-
-                return AirportGroundLayout.CandidateVerdict.Accept;
+                break;
             }
-        );
+
+            excludeHoldShortNodes = [.. excludeHoldShortNodes ?? [], .. passedHoldShorts];
+        }
 
         if (found is null)
         {
@@ -1894,7 +2174,7 @@ public sealed class LandingPhase : Phase
         }
 
         GroundNode branch = found.Value.Path[0];
-        double turnOff = CategoryPerformance.ExitTurnOffSpeed(ctx.Category, found.Value.ExitAngle);
+        double turnOff = CategoryPerformance.ExitTurnOffSpeed(query.Category, found.Value.ExitAngle);
         return new ResolvedExitInfo
         {
             HoldShortNode = found.Value.HoldShort,
@@ -1902,16 +2182,84 @@ public sealed class LandingPhase : Phase
             TurnOffSpeed = turnOff,
             Path = found.Value.Path,
             BranchPointNode = branch,
-            SelectionDecelRate = brakingLimitForTurnOffSpeed(turnOff),
+            SelectionDecelRate = query.BrakingLimitForTurnOffSpeed(turnOff),
         };
+    }
+
+    /// <summary>
+    /// Most runs <see cref="TryFindCandidate"/> makes while it keeps meeting connections at or behind the aircraft. The
+    /// centerline walk looks only ~30 ft back, so one or two runs (a taxiway crossing the runway has a bar on each side)
+    /// clear them all.
+    /// </summary>
+    private const int MaxPassedConnectionSearches = 4;
+
+    /// <summary>
+    /// <see cref="TryFindCandidate"/>'s verdict on one <paramref name="candidate"/>: skipped when its taxiway is one the crew
+    /// has given up (unless the query judges afresh), when its branch is at or behind the aircraft (its hold-short added to
+    /// <paramref name="passedHoldShorts"/>), when it lies past a LAHSO hold-short point, or when <see cref="JudgeExitReach"/>
+    /// finds it beyond the query's braking limit for its turn-off speed.
+    /// </summary>
+    private AirportGroundLayout.CandidateVerdict JudgeCandidate(
+        ExitCandidateQuery query,
+        AirportGroundLayout.CenterlineExitResult candidate,
+        List<int> passedHoldShorts
+    )
+    {
+        if (!query.IncludeGivenUp && IsGivenUp(query.Aircraft, candidate.Taxiway))
+        {
+            return AirportGroundLayout.CandidateVerdict.Skip;
+        }
+
+        AircraftState aircraft = query.Aircraft;
+        GroundNode branchNode = candidate.Path[0];
+        double turnOffSpeed = CategoryPerformance.ExitTurnOffSpeed(query.Category, candidate.ExitAngle);
+        double brakingLimit = query.BrakingLimitForTurnOffSpeed(turnOffSpeed);
+        ExitReach reach = JudgeExitReach(aircraft, query.Category, query.Plan.RunwayHeading, branchNode, (turnOffSpeed, brakingLimit));
+
+        if (reach == ExitReach.AtOrBehind)
+        {
+            passedHoldShorts.Add(candidate.HoldShort.Id);
+            return AirportGroundLayout.CandidateVerdict.Skip;
+        }
+
+        // Under a LAHSO clearance an exit past the hold-short point is no use, however reachable it is: the aircraft has
+        // to be stopped short of the point. Skipped like an unreachable candidate, so the search moves on and the stop at
+        // the point remains the fallback.
+        if (_hasLahso && !query.IgnoreLahso && !BranchFitsInsideLahso(aircraft, branchNode, query.Plan))
+        {
+            Log.LogDebug(
+                "[Landing] {Callsign}: skipping exit {Taxiway} — branch point is past the LAHSO hold-short point at {HoldShort:F2}nm",
+                aircraft.Callsign,
+                candidate.Taxiway,
+                _lahsoHoldShortDistNm
+            );
+            return AirportGroundLayout.CandidateVerdict.Skip;
+        }
+
+        if (reach == ExitReach.BeyondLimit)
+        {
+            Log.LogDebug(
+                "[Landing] {Callsign}: skipping exit {Taxiway} (angle={Angle:F0}, turnOff={Speed:F0}kts) — "
+                    + "required decel exceeds the {Limit:F2}kt/s limit at gs={Gs:F1}kts",
+                aircraft.Callsign,
+                candidate.Taxiway,
+                candidate.ExitAngle,
+                turnOffSpeed,
+                brakingLimit,
+                aircraft.GroundSpeed
+            );
+            return AirportGroundLayout.CandidateVerdict.Skip;
+        }
+
+        return AirportGroundLayout.CandidateVerdict.Accept;
     }
 
     /// <summary>
     /// Most the rollout brakes to make the committed <paramref name="candidate"/>: the max-effort rate under
     /// <c>EXP</c>; otherwise the rate that selected it plus <see cref="CommittedExitDecelToleranceKtsPerSec"/>, never
-    /// above <see cref="FirmBrakingCap"/>. An exit the firm-braking fallback chose, and one restored without its
-    /// selection rate, get the firm cap. Past this ceiling the rollout gives the exit up rather than brake harder
-    /// than the crew accepted when choosing it.
+    /// above <see cref="CategoryPerformance.FirmBrakingRate"/>. An exit the firm-braking fallback chose, and one restored
+    /// without its selection rate, get the firm rate. Past this ceiling the rollout gives the exit up rather than brake
+    /// harder than the crew accepted when choosing it.
     /// </summary>
     private static double CommittedExitBrakingLimit(PhaseContext ctx, ResolvedExitInfo candidate)
     {
@@ -1920,36 +2268,27 @@ public sealed class LandingPhase : Phase
             return CategoryPerformance.ExpediteExitDecelRate(ctx.Category);
         }
 
-        double firmCap = FirmBrakingCap(ctx.Category);
-        return candidate.SelectionDecelRate is { } selectionRate ? Math.Min(selectionRate + CommittedExitDecelToleranceKtsPerSec, firmCap) : firmCap;
+        double firmRate = CategoryPerformance.FirmBrakingRate(ctx.Category);
+        return candidate.SelectionDecelRate is { } selectionRate
+            ? Math.Min(selectionRate + CommittedExitDecelToleranceKtsPerSec, firmRate)
+            : firmRate;
     }
 
     /// <summary>
-    /// The firm braking rate, capped at the category's max-effort <see cref="CategoryPerformance.ExpediteExitDecelRate"/>
-    /// so the firm-braking fallback never brakes harder than an expedited exit would.
-    /// </summary>
-    private static double FirmBrakingCap(AircraftCategory category) =>
-        Math.Min(RolloutBraking.FirmBrakingRateKtsPerSec, CategoryPerformance.ExpediteExitDecelRate(category));
-
-    /// <summary>
     /// Max deceleration the pilot will accept to select an exit with <paramref name="turnOffSpeed"/> — the
-    /// exit-reachability filter (which exits qualify). Expedited exits (<c>EXP</c>) brake at the max-effort rate so
-    /// the earliest reachable exit qualifies; an instructed exit (<c>ER</c>/<c>EL</c>/<c>EXIT</c>) at the firm rate.
-    /// Default selection depends on the exit's class (aviation ruling 2026-09-25): a pilot brakes a little harder to
-    /// make a high-speed exit (turn-off speed at or above <see cref="CategoryPerformance.HighSpeedExitSpeed"/>) than a
-    /// standard one, so a high-speed exit qualifies at the comfortable-exit rate and a standard exit only at the
-    /// routine rollout rate.
+    /// exit-reachability filter (which exits qualify). An instructed exit (<c>ER</c>/<c>EL</c>/<c>EXIT</c>) and an expedited
+    /// one (<c>EXP</c>) are judged at <see cref="RolloutBraking.NamedExitBrakingLimit"/>: the firm rate, or the max-effort
+    /// rate without delay, so the earliest reachable exit qualifies. Default selection depends on the exit's class (aviation
+    /// ruling 2026-09-25): a pilot brakes a little harder to make a high-speed exit (turn-off speed at or above
+    /// <see cref="CategoryPerformance.HighSpeedExitSpeed"/>) than a standard one, so a high-speed exit qualifies at the
+    /// comfortable-exit rate and a standard exit only at the routine rollout rate.
     /// </summary>
     private double BrakingLimit(PhaseContext ctx, double turnOffSpeed)
     {
-        if (ctx.Aircraft.Ground.IsExpeditingExit)
+        bool expedite = ctx.Aircraft.Ground.IsExpeditingExit;
+        if (expedite || _exitResolutionEnabled)
         {
-            return CategoryPerformance.ExpediteExitDecelRate(ctx.Category);
-        }
-
-        if (_exitResolutionEnabled)
-        {
-            return RolloutBraking.FirmBrakingRateKtsPerSec;
+            return RolloutBraking.NamedExitBrakingLimit(ctx.Category, expedite);
         }
 
         bool highSpeedExit = turnOffSpeed >= CategoryPerformance.HighSpeedExitSpeed(ctx.Category);

@@ -1,0 +1,158 @@
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Headless;
+using Avalonia.Headless.XUnit;
+using Avalonia.Input;
+using Avalonia.Threading;
+using Avalonia.VisualTree;
+using Xunit;
+using Yaat.Client.UI.Tests.Helpers;
+using Yaat.Client.ViewModels;
+using Yaat.Client.Views;
+
+namespace Yaat.Client.UI.Tests.Views;
+
+/// <summary>
+/// Clicking a key-capture button in Settings and pressing a key combo stores the combo and ends the
+/// capture, for every key-capture button, the Quick bookmark key included. While a capture runs, the keys
+/// the window's OK and Cancel buttons answer to are captured instead; outside a capture they work as usual.
+/// A combo another action already uses disables OK and Apply until the clash is gone.
+/// </summary>
+public class SettingsKeyCaptureTests
+{
+    [AvaloniaFact(Timeout = 60_000)]
+    public void QuickBookmarkKeyButton_CapturesTheComboAndEndsCapture()
+    {
+        using var scope = new PreferencesFileScope();
+        var window = new SettingsWindow();
+        window.ShowAndRunLayout();
+
+        try
+        {
+            ClickKeyCaptureButton(window, "QuickBookmark");
+            Assert.True(window.ViewModel.IsCapturingKey);
+
+            window.DispatchKey(Key.L, RawInputModifiers.Control | RawInputModifiers.Alt);
+
+            Assert.Equal("Ctrl + Alt + L", Row(window, "QuickBookmark").Display);
+            Assert.False(window.ViewModel.IsCapturingKey);
+        }
+        finally
+        {
+            window.Close();
+            Dispatcher.UIThread.RunJobs();
+        }
+    }
+
+    // The aircraft-select key works inside the command input, so it takes a bare key, Enter and Escape included.
+    [AvaloniaTheory(Timeout = 60_000)]
+    [InlineData(Key.Enter, true, true, 0)]
+    [InlineData(Key.Escape, true, true, 0)]
+    [InlineData(Key.Space, true, true, 0)]
+    [InlineData(Key.Escape, false, false, 0)]
+    [InlineData(Key.Enter, false, false, 1)]
+    public void OkAndCancelKeys_AreCapturedWhileCapturing_AndCloseTheWindowOtherwise(Key key, bool capturing, bool staysOpen, int applies)
+    {
+        using var scope = new PreferencesFileScope();
+        var window = new SettingsWindow();
+        int applied = 0;
+        window.ViewModel.Applied += () => applied++;
+        window.ShowAndRunLayout();
+
+        try
+        {
+            if (capturing)
+            {
+                ClickKeyCaptureButton(window, "AircraftSelect");
+                Assert.True(window.ViewModel.IsCapturingKey);
+            }
+
+            window.DispatchKey(key);
+
+            Assert.Equal(staysOpen, window.IsVisible);
+            Assert.Equal(applies, applied);
+            if (capturing)
+            {
+                Assert.Equal(SettingsViewModel.KeyComboToDisplay(key.ToString()), Row(window, "AircraftSelect").Display);
+                Assert.False(window.ViewModel.IsCapturingKey);
+            }
+        }
+        finally
+        {
+            window.Close();
+            Dispatcher.UIThread.RunJobs();
+        }
+    }
+
+    [AvaloniaFact(Timeout = 60_000)]
+    public void AClashingCombo_DisablesOkAndApply_AndShowsTheClashUntilResolved()
+    {
+        using var scope = new PreferencesFileScope();
+        var window = new SettingsWindow();
+        window.ShowAndRunLayout();
+
+        try
+        {
+            Button ok = window.GetVisualDescendants().OfType<Button>().Single(b => b.Name == "OkButton");
+            Button apply = window.GetVisualDescendants().OfType<Button>().Single(b => b.Name == "ApplyButton");
+            Assert.True(ok.IsEnabled);
+            Assert.True(apply.IsEnabled);
+
+            ClickKeyCaptureButton(window, "QuickBookmark");
+            window.DispatchKey(Key.T, RawInputModifiers.Control);
+            window.UpdateLayout();
+            Dispatcher.UIThread.RunJobs();
+
+            Assert.False(ok.IsEnabled);
+            Assert.False(apply.IsEnabled);
+            // The disabled buttons say why.
+            Assert.All(
+                [ok, apply],
+                b =>
+                {
+                    Assert.True(ToolTip.GetShowOnDisabled(b));
+                    Assert.Equal("Key clash: Take control and Quick bookmark (Keys)", ToolTip.GetTip(b));
+                }
+            );
+            Assert.Contains(
+                window.GetVisualDescendants().OfType<TextBlock>(),
+                t => (t.Text == "Also used by Take control") && t.IsEffectivelyVisible
+            );
+
+            ClickKeyCaptureButton(window, "QuickBookmark");
+            window.DispatchKey(Key.L, RawInputModifiers.Control | RawInputModifiers.Alt);
+            Dispatcher.UIThread.RunJobs();
+
+            Assert.True(ok.IsEnabled);
+            Assert.True(apply.IsEnabled);
+        }
+        finally
+        {
+            window.Close();
+            Dispatcher.UIThread.RunJobs();
+        }
+    }
+
+    private static KeybindRow Row(SettingsWindow window, string id) => window.ViewModel.KeybindRows.Single(r => r.Id == id);
+
+    private static void ClickKeyCaptureButton(SettingsWindow window, string rowId)
+    {
+        window.SelectSection(SettingsSectionId.Keys);
+        Dispatcher.UIThread.RunJobs();
+        window.UpdateLayout();
+        Dispatcher.UIThread.RunJobs();
+
+        Button button = window
+            .GetVisualDescendants()
+            .OfType<Button>()
+            .Single(b => b.Classes.Contains("key-capture") && (b.DataContext is KeybindRow row) && (row.Id == rowId));
+        button.BringIntoView();
+        window.UpdateLayout();
+        Dispatcher.UIThread.RunJobs();
+
+        Point center = button.TranslatePoint(new Point(button.Bounds.Width / 2, button.Bounds.Height / 2), window)!.Value;
+        window.MouseDown(center, MouseButton.Left);
+        window.MouseUp(center, MouseButton.Left);
+        Dispatcher.UIThread.RunJobs();
+    }
+}

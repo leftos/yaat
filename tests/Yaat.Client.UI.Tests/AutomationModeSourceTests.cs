@@ -27,7 +27,7 @@ public partial class AutomationModeSourceTests
     [
         "src/Yaat.Client.Core/Views/WindowActivationExtensions.cs::RestoreAndActivate",
         "src/Yaat.Client.Core/Views/WindowGeometryHelper.cs::ApplyGeometryToWindow",
-        "src/Yaat.Client/Views/MainWindow.axaml.cs::ReclaimFocusAfterProfileApply",
+        "src/Yaat.Client/Views/MainWindow.axaml.cs::ReclaimFocusAfterLayoutApply",
         "src/Yaat.Client/Views/MainWindow.axaml.cs::FocusActiveCommandInput",
         "src/Yaat.Client/Views/TerminalWindow.axaml.cs::FocusCommandInput",
     ];

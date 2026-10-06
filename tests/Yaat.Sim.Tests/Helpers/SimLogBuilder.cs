@@ -1,6 +1,7 @@
 using MartinCostello.Logging.XUnit;
 using Microsoft.Extensions.Logging;
 using Xunit;
+using Yaat.Sim.Soak;
 
 namespace Yaat.Sim.Tests.Helpers;
 
@@ -14,10 +15,21 @@ public sealed class SimLogBuilder
     private readonly ITestOutputHelper _output;
     private readonly Dictionary<string, LogLevel> _categories = [];
     private LogLevel _defaultLevel = LogLevel.Warning;
+    private CapturingSimLogProvider? _capture;
 
     private SimLogBuilder(ITestOutputHelper output) => _output = output;
 
     public static SimLogBuilder CreateForTest(ITestOutputHelper output) => new(output);
+
+    /// <summary>
+    /// Also fan the configured logs into <paramref name="capture"/>, so a test can assert on the text of an entry —
+    /// the xUnit output helper can only display them.
+    /// </summary>
+    public SimLogBuilder CaptureInto(CapturingSimLogProvider capture)
+    {
+        _capture = capture;
+        return this;
+    }
 
     /// <summary>
     /// Set the default minimum log level for categories not explicitly enabled.
@@ -47,10 +59,16 @@ public sealed class SimLogBuilder
     {
         LogLevel defaultLevel = _defaultLevel;
         var categories = new Dictionary<string, LogLevel>(_categories);
+        CapturingSimLogProvider? capture = _capture;
 
         return LoggerFactory.Create(builder =>
         {
             builder.AddXUnit(_output);
+            if (capture is not null)
+            {
+                builder.AddProvider(capture);
+            }
+
             builder.SetMinimumLevel(LogLevel.Trace);
             builder.AddFilter(
                 (category, level) =>

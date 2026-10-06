@@ -44,10 +44,11 @@ public sealed partial class SimulationEngine
     /// <summary>
     /// Opt-in per-step timing. Null in production so the spine pays one null check per step; attach a dictionary
     /// and every spine step records into it under its <see cref="Spine.StepId"/> name, plus the three segment
-    /// rollups <c>PrePhysics</c> / <c>Physics</c> / <c>PostPhysics</c> and the physics internals
-    /// (<c>Physics.WorldTick</c>, …). Keyed bucket → (count, total ms). Cleared at the start of each
-    /// <see cref="Replay"/>. The soak runner's <c>--timings</c> and the reconstruction benchmark attach one; call
-    /// <see cref="DumpTickTimings"/> to format. Not thread-safe — one engine, one dictionary.
+    /// rollups <c>PrePhysics</c> / <c>PostPhysics</c> / <c>EndOfSecond</c>, one <c>Physics</c> bucket per physics
+    /// sub-tick, and the physics internals (<c>Physics.WorldTick</c>, …). Keyed bucket → (count, total ms). Cleared
+    /// at the start of each <see cref="Replay"/>. The soak runner's <c>--timings</c> and the reconstruction
+    /// benchmark attach one; call <see cref="DumpTickTimings"/> to format. Not thread-safe — one engine, one
+    /// dictionary.
     /// </summary>
     public Dictionary<string, (int Count, double Ms)>? TickTimings { get; set; }
 
@@ -81,21 +82,6 @@ public sealed partial class SimulationEngine
     /// </summary>
     public void ReplayRange(int startSeconds, int targetSeconds, List<RecordedAction> actions, Action<RecordedAction>? actionApplier = null) =>
         _replay.Range(startSeconds, targetSeconds, actions, actionApplier);
-
-    /// <summary>
-    /// Replay variant that compares engine state against snapshots in the supplied
-    /// <paramref name="archive"/> at every snapshot timestamp the range covers.
-    /// Returns a <see cref="ReplayResult"/> listing the per-snapshot drifts. Empty
-    /// drifts list ⇒ every checked snapshot matched within tolerance. Useful for
-    /// pinpointing the first tick where replay diverges from a recorded session.
-    /// </summary>
-    public ReplayResult ReplayRangeWithVerification(
-        int startSeconds,
-        int targetSeconds,
-        List<RecordedAction> actions,
-        RecordingArchive archive,
-        Action<RecordedAction>? actionApplier = null
-    ) => _replay.RangeWithVerification(startSeconds, targetSeconds, actions, archive, actionApplier);
 
     /// <summary>
     /// Formats <see cref="TickTimings"/> for diagnostic output. Sorted by total time desc.

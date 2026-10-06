@@ -37,7 +37,7 @@ public sealed class LegacyFavoriteCommandSet
 /// sets embedding favorites by value, loaded-set names) into the file-per-entity
 /// <see cref="FavoriteStore"/>. The base pool partitions by each favorite's scope into the
 /// Global / Airport / Scenario container (order preserved); named sets become Named containers;
-/// loaded-set names and window-profile references map to set ids. Runs only when the store's
+/// loaded-set names and layout references map to set ids. Runs only when the store's
 /// directories did not exist yet, then drops the legacy fields from preferences.json.
 /// </summary>
 public static class FavoriteLegacyMigration
@@ -89,7 +89,7 @@ public static class FavoriteLegacyMigration
         preferences.SetLoadedFavoriteSets([
             .. legacy.LoadedSetNames.Select(name => nameToId.GetValueOrDefault(name)).Where(id => id is not null).Cast<string>(),
         ]);
-        preferences.MigrateProfileLoadedSetNames(name => nameToId.GetValueOrDefault(name));
+        preferences.MigrateLayoutLoadedSetNames(name => nameToId.GetValueOrDefault(name));
         preferences.ClearLegacyFavorites();
         Log.LogInformation("Migrated {Favorites} favorite(s) and {Sets} named set(s) into the favorites store", migratedFavorites, nameToId.Count);
     }

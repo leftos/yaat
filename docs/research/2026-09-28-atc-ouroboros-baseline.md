@@ -47,7 +47,7 @@ The run took about 5 minutes. STT averaged about 294 ms per trial; clean transmi
 
 ## Findings
 
-- **Deterministic on this setup.** No case was FLAKY across 3 trials. With a fixed seed, the baseline diff therefore reflects pipeline changes rather than GPU noise, at least on this machine and model pair.
+- **Deterministic within a run.** No case was FLAKY across 3 trials, but the trials re-transcribe one WAV, so they cannot show cross-run variance. Later runs of the same seed differed in 104 of 200 transcripts because Piper synthesizes different audio in each process (YAAT-225, fixed by caching the synthesized audio).
 - **About a third of the failures are mapping failures.** 15 of the 47 FAILs had a transcript WER of 15 % or less: Whisper heard the transmission nearly right, and the rules or the LLM produced the wrong canonical. Clear examples:
   - "taxi … to gate G alfa five" is left verbatim instead of `@GA5`.
   - Traffic advisories lose the aircraft type (`RTIS NR 4 of`).

@@ -53,5 +53,6 @@ public sealed class AnswerTaxiInRule : IDecisionRule
     public static bool Applies(AircraftState aircraft) =>
         aircraft.IsOnGround
         && aircraft.PendingPilotRequest is { IsOpen: true, Kind: PilotPendingRequestKind.Taxi, ParkingName: not null }
-        && aircraft.Phases?.CurrentPhase is HoldingAfterExitPhase or HoldingInPositionPhase;
+        // A taxiway spawn bound for its own field asks for parking from where it spawned (AtParkingPhase).
+        && aircraft.Phases?.CurrentPhase is HoldingAfterExitPhase or HoldingInPositionPhase or AtParkingPhase;
 }

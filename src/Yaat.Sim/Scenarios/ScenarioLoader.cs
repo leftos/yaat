@@ -140,9 +140,14 @@ public static class ScenarioLoader
             Generators = scenario.AircraftGenerators,
             VfrArrivalGenerators = scenario.VfrArrivalGenerators,
             OverflightGenerators = scenario.OverflightGenerators,
-            HasParkingSpawns = scenario.Aircraft.Any(ac =>
-                string.Equals(ac.StartingConditions.Type, "Parking", StringComparison.OrdinalIgnoreCase) && !HasTaxiPreset(ac.PresetCommands)
-            ),
+            // The pacing slider's gate: any loaded aircraft that may make a paced initial call (a runway spawn's calls are not paced).
+            HasParkingSpawns = immediate
+                .Concat(delayed)
+                .Concat(deferred)
+                .Any(loaded =>
+                    loaded.State.Ground.InitialCallup
+                        is not (InitialCallupPlan.None or InitialCallupPlan.RunwaySayOnly or InitialCallupPlan.RunwayNoPreset)
+                ),
             // Overflights are deliberately excluded: they are not an arrival source, so they neither surface
             // the solo arrival-rate slider nor get scaled by it.
             HasArrivalGenerators = (scenario.AircraftGenerators.Count > 0) || (scenario.VfrArrivalGenerators.Count > 0),
@@ -522,11 +527,10 @@ public static class ScenarioLoader
             state.Phases = phases;
 
             // Resolve the ground layout from the same airport used for field elevation (airportId,
-            // then departure/destination), mirror the Parking path: exempt from Parked auto-delete
-            // and flag scripted-departure when a TAXI preset drives the ground sequence.
+            // then departure/destination), mirror the Parking path: exempt from Parked auto-delete.
+            // The initial call-up plan waits for the snap below, which says whether it sits on a taxiway.
             state.Ground.Layout = !string.IsNullOrEmpty(groundAirportId) ? groundData?.GetLayout(groundAirportId) : null;
             state.Ground.AutoDeleteExempt = true;
-            state.Ground.IsScriptedDeparture = HasTaxiPreset(ac.PresetCommands);
         }
         else
         {
@@ -576,9 +580,9 @@ public static class ScenarioLoader
         // on-edge, aligned pose. Runs AFTER heading derivation so the
         // scenario's intended heading is used as the "which edge direction"
         // tiebreaker.
-        if (state.IsOnGround && state.Ground.Layout is not null)
+        if (onGround)
         {
-            GroundSpawnSnap.Apply(state, state.Ground.Layout);
+            ArmCoordinateGroundSpawn(state, ac);
         }
 
         return new LoadedAircraft
@@ -627,6 +631,13 @@ public static class ScenarioLoader
         state.IsOnGround = init.IsOnGround;
         state.Phases = init.Phases;
         state.Ground.Layout = groundData?.GetLayout(airportId);
+        state.Ground.InitialCallup = InitialCallupClassifier
+            .Classify(
+                ac.AircraftId,
+                ac.PresetCommands,
+                new InitialCallupSpawn(IsRunwaySpawn: true, HasTaxiGraph: state.Ground.Layout is { Nodes.Count: > 0 })
+            )
+            .Plan;
 
         return new LoadedAircraft
         {
@@ -757,7 +768,13 @@ public static class ScenarioLoader
         // The stand the aircraft occupies, canonical-cased from the graph node — the same datum the
         // PUSH/TAXI/LAND writers store, so the Info column names the stand from the first broadcast.
         state.Ground.ParkingSpot = node.Name;
-        state.Ground.IsScriptedDeparture = HasTaxiPreset(ac.PresetCommands);
+        InitialCallupDecision callup = InitialCallupClassifier.Classify(
+            ac.AircraftId,
+            ac.PresetCommands,
+            new InitialCallupSpawn(IsRunwaySpawn: false, HasTaxiGraph: (layout.Nodes.Count > 0))
+        );
+        state.Ground.InitialCallup = callup.Plan;
+        state.Ground.PresetTaxiStop = callup.TaxiStop;
 
         return new LoadedAircraft
         {
@@ -769,31 +786,24 @@ public static class ScenarioLoader
     }
 
     /// <summary>
-    /// True when any preset command on this aircraft is a TAXI command. Scenario authors
-    /// who script TAXI on a parking aircraft are taking over the ground sequence — the
-    /// autonomous solo-training ready-to-taxi call-up should not fire on top of it, and
-    /// the aircraft should not count toward the "has parking call-up source" gate that
-    /// shows the pacing slider.
+    /// Snaps a <c>Coordinates</c> / <c>FixOrFrd</c> ground spawn onto its taxi graph and sets its initial call-up plan. The
+    /// movement-area taxiway it sits on, judged from where it was before the snap (<see cref="GroundSpawnSnap.SpawnTaxiwayAt"/>),
+    /// is recorded as <see cref="AircraftGroundOps.SpawnTaxiway"/>.
     /// </summary>
-    public static bool HasTaxiPreset(IEnumerable<PresetCommand> presets)
+    private static void ArmCoordinateGroundSpawn(AircraftState state, ScenarioAircraft ac)
     {
-        foreach (PresetCommand preset in presets)
-        {
-            if (string.IsNullOrWhiteSpace(preset.Command))
-            {
-                continue;
-            }
-
-            ReadOnlySpan<char> firstToken = preset.Command.AsSpan().Trim();
-            int spaceIdx = firstToken.IndexOf(' ');
-            string verb = (spaceIdx < 0 ? firstToken : firstToken[..spaceIdx]).ToString();
-            if (CommandRegistry.IsAliasFor(CanonicalCommandType.Taxi, verb))
-            {
-                return true;
-            }
-        }
-
-        return false;
+        AirportGroundLayout? layout = state.Ground.Layout;
+        LatLon preSnapPosition = state.Position;
+        AirportGroundLayout.NearestTaxiEdge? nearest = layout is not null ? GroundSpawnSnap.Apply(state, layout) : null;
+        state.Ground.SpawnTaxiway =
+            (layout is not null) && (nearest is { } edge) ? GroundSpawnSnap.SpawnTaxiwayAt(layout, preSnapPosition, edge) : null;
+        InitialCallupDecision callup = InitialCallupClassifier.Classify(
+            ac.AircraftId,
+            ac.PresetCommands,
+            new InitialCallupSpawn(IsRunwaySpawn: false, HasTaxiGraph: (layout is not null) && (layout.Nodes.Count > 0))
+        );
+        state.Ground.InitialCallup = callup.Plan;
+        state.Ground.PresetTaxiStop = callup.TaxiStop;
     }
 
     private static LoadedAircraft BuildDeferredAircraft(ScenarioAircraft ac, string? primaryAirportId, string? primaryApproach, string reason)

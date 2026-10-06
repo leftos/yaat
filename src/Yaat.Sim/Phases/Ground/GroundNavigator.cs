@@ -244,13 +244,26 @@ public sealed class GroundNavigator
     public double RouteEndSpeedKts { get; set; }
 
     /// <summary>
-    /// Deceleration rate (kts/s) used by the braking curve and backward-propagated
-    /// speed constraints. Null = the category taxi decel rate (normal taxi/exit).
-    /// <see cref="RunwayExitPhase"/> raises it to
-    /// <see cref="CategoryPerformance.ExpediteExitDecelRate"/> for an expedited
-    /// exit so the aircraft brakes firmly to the hold-short stop after the turn-off.
+    /// Deceleration rate (kts/s) for the whole route: the braking curve to every corner, arc and stop, and the rate published
+    /// to physics. Null = the category taxi decel rate (normal taxi/exit). <see cref="RunwayExitPhase"/> sets it to
+    /// <see cref="CategoryPerformance.ExpediteExitDecelRate"/> for an expedited (<c>EXP</c>) exit, so the aircraft brakes at
+    /// max effort through the turn-off and to the hold-short stop, and leaves it null otherwise.
     /// </summary>
     public double? DecelRateKts { get; set; }
+
+    /// <summary>
+    /// Deceleration rate (kts/s) for the route's in-route slowdowns — corner and arc speeds — when set; null leaves them at
+    /// <see cref="DecelRateKts"/>'s rate. Stops — the route end, and every bar ahead not cleared — are planned each on its own
+    /// braking curve at <see cref="DecelRateKts"/>'s rate (the category taxi rate when null), and that rate is published
+    /// whenever a stop's curve sets the target, so a softer or firmer slowdown rate never moves a stop. A bar's stop is dropped
+    /// once the bar is cleared; the route-end stop never is. <see cref="RunwayExitPhase"/> sets it on the turn-off to the rate the
+    /// rollout chose the exit with. Not serialized: the owning phase re-applies it before every tick and segment set-up.
+    /// </summary>
+    public double? SlowdownDecelRateKts { get; set; }
+
+    // Set by ComputeTargetSpeed when a stop's braking curve set the target while SlowdownDecelRateKts applies, so
+    // PublishSpeed publishes the stop rate rather than the slowdown rate. Reset at the start of every tick.
+    private bool _stopCurveBinds;
 
     public void SetTargetNodeId(int nodeId) => TargetNodeId = nodeId;
 
@@ -470,12 +483,13 @@ public sealed class GroundNavigator
 
     /// <summary>
     /// Speed constraints from future segments, each as a tuple of:
-    /// (path distance from current target, required speed at that point, node id).
+    /// (path distance from current target, required speed at that point, node id, whether it is the stop for a bar).
     /// Computed during <see cref="SetupSegment"/> via forward-walk + backward-
     /// propagation, mirroring V1's approach but populated directly from
-    /// <see cref="TaxiRouteSegment"/> iteration.
+    /// <see cref="TaxiRouteSegment"/> iteration. A bar stop is dropped once its bar is cleared; every other constraint,
+    /// the route-end stop included, always applies.
     /// </summary>
-    private readonly List<(double PathDistNm, double RequiredSpeedKts, int NodeId)> _speedConstraints = [];
+    private readonly List<(double PathDistNm, double RequiredSpeedKts, int NodeId, bool IsBarStop)> _speedConstraints = [];
 
     /// <summary>
     /// Heading-misalignment threshold (deg) above which a new segment gets a
@@ -612,10 +626,29 @@ public sealed class GroundNavigator
     /// </summary>
     private bool _entryArcAimedAtNodeOffRealLeg;
 
+    /// <summary>
+    /// The primitive and playback state a snapshot carried (<see cref="FromSnapshot"/>), waiting for the owning phase's first
+    /// <see cref="SetupSegment"/> to resume it (<see cref="TryResumeRestoredPlayback"/>). Dropped by that set-up whether it
+    /// resumes or not, and by the first <see cref="Tick"/>, so it never reaches a later segment.
+    /// </summary>
+    private GroundNavigatorPlaybackDto? _restoredPlayback;
+
+    /// <summary>
+    /// The from-node of the segment the current primitive plays (the segment last set up, or the fillet an aimed line is laid
+    /// over), snapshotted with the playback so a resume can check both ends.
+    /// </summary>
+    private int _segmentFromNodeId;
+
     public void SetupSegment(TaxiRoute route, PhaseContext ctx, Func<int, bool> isHoldShortCleared)
     {
         TaxiRouteSegment? seg = route.CurrentSegment;
         if (seg is null)
+        {
+            return;
+        }
+
+        _segmentFromNodeId = seg.FromNodeId;
+        if (TryResumeRestoredPlayback(route, seg, ctx, isHoldShortCleared))
         {
             return;
         }
@@ -693,6 +726,56 @@ public sealed class GroundNavigator
 
         BuildSpeedConstraints(route, ctx, isHoldShortCleared);
         LogSegmentSetup(route, seg, ctx);
+    }
+
+    /// <summary>
+    /// Resume the primitive a snapshot was taken in the middle of, when <paramref name="seg"/> is the segment it was playing:
+    /// the primitive itself, its playback progress and arc-entry blend, the line anchor and the entry-alignment bookkeeping,
+    /// all as the snapshot held them, so the restored aircraft goes on along the same curve as the run that was never
+    /// interrupted. Rebuilding instead would start a different curve: an entry-alignment turn is solved from the pose the
+    /// aircraft had when it began, which it no longer has. The speed plan is rebuilt from the route, as for any set-up.
+    /// Returns false, leaving the ordinary set-up to run, when no playback was restored or the segment is not the one it
+    /// was saved on (its to-node is not the saved target, or its from-node is not the saved one).
+    /// </summary>
+    private bool TryResumeRestoredPlayback(TaxiRoute route, TaxiRouteSegment seg, PhaseContext ctx, Func<int, bool> isHoldShortCleared)
+    {
+        if (_restoredPlayback is not { } saved)
+        {
+            return false;
+        }
+
+        _restoredPlayback = null;
+        if (!WasPlaybackSavedOnSegment(seg, saved))
+        {
+            Log.LogWarning(
+                "[Nav] {Callsign}: restored playback dropped — saved on segment {SavedFrom}→{SavedTo}, set-up is for {From}→{To}",
+                ctx.Aircraft.Callsign,
+                saved.FromNodeId,
+                TargetNodeId,
+                seg.FromNodeId,
+                seg.ToNodeId
+            );
+            return false;
+        }
+
+        _currentPrimitive = FromPrimitiveDto(saved.Primitive);
+        _pendingSegmentPrimitive = saved.HasPendingSegmentPrimitive ? PathPrimitiveBuilder.FromSegment(seg) : null;
+        _segmentFromIsVirtual = (seg.FromNodeId < 0) && VirtualNode.IsVirtualEdge(seg.Edge.Edge);
+        _alignmentRoute = saved.AimedAtRouteNode ? route : null;
+        _nodeAimSegmentIndex = saved.NodeAimSegmentIndex;
+        _aimedPastThroughSegmentIndex = saved.AimedPastThroughSegmentIndex;
+        _entryArcAimedAtNodeOffRealLeg = saved.EntryArcAimedAtNodeOffRealLeg;
+        RestorePlaybackProgress(saved);
+        BuildSpeedConstraints(route, ctx, isHoldShortCleared);
+        Log.LogDebug(
+            "[Nav] seg={SegIdx}/{Total}: resumed the restored {Kind} toward node {NodeId} (pendingSeg={Pending})",
+            route.CurrentSegmentIndex,
+            route.Segments.Count,
+            _currentPrimitive.Kind,
+            TargetNodeId,
+            _pendingSegmentPrimitive is not null
+        );
+        return true;
     }
 
     /// <summary>
@@ -1094,7 +1177,7 @@ public sealed class GroundNavigator
     /// Set a Bézier primitive's playback progress from where the aircraft actually stands, on the primitive's
     /// first tick. A curve whose playback restarted at <c>t = 0</c> wrote the aircraft back onto its start
     /// point on that tick — a rewind of the whole distance already covered whenever the primitive is rebuilt
-    /// mid-curve (a snapshot restore: <c>ToSnapshot</c> does not persist curve progress, so
+    /// mid-curve (a snapshot written before the navigator carried its playback state, so
     /// <c>TaxiingPhase</c> rebuilds the primitive from the route's segment index). Standing within
     /// <see cref="AirportGroundLayout.AtNodeToleranceFt"/> of the curve's start point is the normal entry,
     /// which starts at <c>t = 0</c> with the residual cross-track as the entry offset.
@@ -1238,7 +1321,9 @@ public sealed class GroundNavigator
 
     public NavigatorResult Tick(PhaseContext ctx, bool isLastSegment, Func<int, bool> isHoldShortCleared)
     {
+        _restoredPlayback = null;
         double headingBeforeDeg = ctx.Aircraft.TrueHeading.Degrees;
+        _stopCurveBinds = false;
 
         NavigatorResult result = _currentPrimitive switch
         {
@@ -1439,6 +1524,7 @@ public sealed class GroundNavigator
         _entryArcAimedAtNodeOffRealLeg = false;
         _onAimedLineOverFillet = true;
         _aimedLineFilletFromNodeId = fillet.FromNodeId;
+        _segmentFromNodeId = fillet.FromNodeId;
         PrevDistToTarget = double.MaxValue;
         _cumulativeTurnSinceAdvanceDeg = 0.0;
         ReleaseHeadingHold(ctx, straight);
@@ -1992,21 +2078,11 @@ public sealed class GroundNavigator
     private double ComputeTargetSpeed(PhaseContext ctx, double distToEndpointNm, Func<int, bool> isHoldShortCleared)
     {
         double decelRate = DecelRateKts ?? CategoryPerformance.TaxiDecelRate(ctx.Category);
-
-        // Brake curve from the current node's required speed.
-        double brakingLimit = Math.Sqrt(_currentNodeRequiredSpeed * _currentNodeRequiredSpeed + 2.0 * decelRate * distToEndpointNm * 3600.0);
-
-        // Apply each future constraint.
-        foreach ((double pathDist, double reqSpeed, int nodeId) in _speedConstraints)
-        {
-            if (reqSpeed == 0 && isHoldShortCleared(nodeId))
-            {
-                continue;
-            }
-            double totalDist = Math.Max(0.0, distToEndpointNm + pathDist);
-            double limit = Math.Sqrt(reqSpeed * reqSpeed + 2.0 * decelRate * totalDist * 3600.0);
-            brakingLimit = Math.Min(brakingLimit, limit);
-        }
+        bool stopCurveBinds = false;
+        double brakingLimit = SlowdownDecelRateKts is { } slowdownRate
+            ? SplitRateBrakingLimit(distToEndpointNm, isHoldShortCleared, (decelRate, slowdownRate), out stopCurveBinds)
+            : SingleRateBrakingLimit(distToEndpointNm, isHoldShortCleared, decelRate);
+        decelRate = SlowdownDecelRateKts ?? decelRate;
 
         // Quadratic scaling by heading error so the aircraft slows during
         // large re-alignments. On a Bézier this is ~1 (we write the exact
@@ -2032,12 +2108,74 @@ public sealed class GroundNavigator
         double arcCap = BezierArcCapKts(decelRate);
         target = Math.Min(target, arcCap);
 
+        // The stop rate is published only while the stop's curve is what sets the target.
+        _stopCurveBinds = stopCurveBinds && (brakingLimit <= target);
+
         if (Log.IsEnabled(LogLevel.Debug))
         {
             LogSpeedCaps(ctx, distToEndpointNm, target, headingCap, angleDiff, speedFraction, brakingLimit, connectorCap, arcCap);
         }
 
         return target;
+    }
+
+    /// <summary>
+    /// The braking-curve ceiling (kts) at <paramref name="decelRate"/> to the current node's required speed and every future
+    /// constraint, which <see cref="BuildSpeedConstraints"/> back-propagated at the same rate.
+    /// </summary>
+    private double SingleRateBrakingLimit(double distToEndpointNm, Func<int, bool> isHoldShortCleared, double decelRate)
+    {
+        double brakingLimit = Math.Sqrt(_currentNodeRequiredSpeed * _currentNodeRequiredSpeed + 2.0 * decelRate * distToEndpointNm * 3600.0);
+
+        foreach ((double pathDist, double reqSpeed, int nodeId, bool isBarStop) in _speedConstraints)
+        {
+            if (isBarStop && isHoldShortCleared(nodeId))
+            {
+                continue;
+            }
+            double totalDist = Math.Max(0.0, distToEndpointNm + pathDist);
+            double limit = Math.Sqrt(reqSpeed * reqSpeed + 2.0 * decelRate * totalDist * 3600.0);
+            brakingLimit = Math.Min(brakingLimit, limit);
+        }
+
+        return brakingLimit;
+    }
+
+    /// <summary>
+    /// The braking-curve ceiling (kts) with <see cref="SlowdownDecelRateKts"/> set: each stop (a zero required speed) on its own
+    /// curve at <paramref name="rates"/>' stop rate and each slowdown on its own curve at its slowdown rate.
+    /// <see cref="BuildSpeedConstraints"/> skips its back-propagation in this mode, so every constraint keeps its own speed and
+    /// the minimum over the individual curves is the plan. <paramref name="stopBinds"/> says whether a stop's curve set it.
+    /// </summary>
+    private double SplitRateBrakingLimit(
+        double distToEndpointNm,
+        Func<int, bool> isHoldShortCleared,
+        (double Stop, double Slowdown) rates,
+        out bool stopBinds
+    )
+    {
+        double CurveKts(double reqSpeed, double distNm) =>
+            Math.Sqrt(reqSpeed * reqSpeed + 2.0 * (reqSpeed == 0 ? rates.Stop : rates.Slowdown) * Math.Max(0.0, distNm) * 3600.0);
+
+        double brakingLimit = CurveKts(_currentNodeRequiredSpeed, distToEndpointNm);
+        stopBinds = _currentNodeRequiredSpeed == 0;
+
+        foreach ((double pathDist, double reqSpeed, int nodeId, bool isBarStop) in _speedConstraints)
+        {
+            if (isBarStop && isHoldShortCleared(nodeId))
+            {
+                continue;
+            }
+
+            double limit = CurveKts(reqSpeed, distToEndpointNm + pathDist);
+            if (limit < brakingLimit)
+            {
+                brakingLimit = limit;
+                stopBinds = reqSpeed == 0;
+            }
+        }
+
+        return brakingLimit;
     }
 
     /// <summary>
@@ -2282,7 +2420,7 @@ public sealed class GroundNavigator
             && !route.StopLiesOnSegment(route.CurrentSegmentIndex, bar)
         )
         {
-            _speedConstraints.Add((-StopDistanceBeforeNodeNm(route, route.CurrentSegmentIndex, bar), 0, TargetNodeId));
+            _speedConstraints.Add((-StopDistanceBeforeNodeNm(route, route.CurrentSegmentIndex, bar), 0, TargetNodeId, true));
         }
     }
 
@@ -2296,7 +2434,7 @@ public sealed class GroundNavigator
     {
         int nodeId = route.Segments[barSegmentIndex].ToNodeId;
         double beforeNodeNm = route.GetHoldShortAt(nodeId) is { } bar ? StopDistanceBeforeNodeNm(route, barSegmentIndex, bar) : 0.0;
-        _speedConstraints.Add((nodeDistNm - beforeNodeNm, 0, nodeId));
+        _speedConstraints.Add((nodeDistNm - beforeNodeNm, 0, nodeId, true));
         _speedConstraints.Sort((a, b) => a.PathDistNm.CompareTo(b.PathDistNm));
     }
 
@@ -2387,7 +2525,9 @@ public sealed class GroundNavigator
                 {
                     if (sample.SpeedKts < MaxSpeedKts)
                     {
-                        _speedConstraints.Add((arcStartDist + (sample.LengthFt / GeoMath.FeetPerNm), sample.SpeedKts, futureSeg.Edge.FromNodeId));
+                        _speedConstraints.Add(
+                            (arcStartDist + (sample.LengthFt / GeoMath.FeetPerNm), sample.SpeedKts, futureSeg.Edge.FromNodeId, false)
+                        );
                     }
                 }
             }
@@ -2412,28 +2552,35 @@ public sealed class GroundNavigator
 
             if (reqSpeed < MaxSpeedKts)
             {
-                _speedConstraints.Add((cumulativeDistNm, reqSpeed, futureSeg.ToNodeId));
+                _speedConstraints.Add((cumulativeDistNm, reqSpeed, futureSeg.ToNodeId, false));
             }
+        }
+
+        // With a separate slowdown rate each constraint keeps its own speed: SplitRateBrakingLimit plans every one on its own
+        // curve at its own rate, which is what back-propagating at one rate would otherwise compute.
+        if (SlowdownDecelRateKts is not null)
+        {
+            return;
         }
 
         // Backward propagation: apply kinematic decel between adjacent constraints.
         double decelRate = DecelRateKts ?? CategoryPerformance.TaxiDecelRate(ctx.Category);
         for (int i = _speedConstraints.Count - 2; i >= 0; i--)
         {
-            (double dist, double speed, int nodeId) = _speedConstraints[i];
-            (double nextDist, double nextSpeed, int _) = _speedConstraints[i + 1];
+            (double dist, double speed, int nodeId, bool isBarStop) = _speedConstraints[i];
+            (double nextDist, double nextSpeed, int _, bool _) = _speedConstraints[i + 1];
             double legDist = nextDist - dist;
             double backProp = Math.Sqrt(nextSpeed * nextSpeed + 2.0 * decelRate * legDist * 3600.0);
             if (backProp < speed)
             {
-                _speedConstraints[i] = (dist, backProp, nodeId);
+                _speedConstraints[i] = (dist, backProp, nodeId, isBarStop);
             }
         }
 
         // Propagate the first future constraint back into the current node's required speed.
         if (_speedConstraints.Count > 0)
         {
-            (double firstDist, double firstSpeed, int _) = _speedConstraints[0];
+            (double firstDist, double firstSpeed, int _, bool _) = _speedConstraints[0];
             double backProp = Math.Sqrt(firstSpeed * firstSpeed + 2.0 * decelRate * Math.Max(0.0, firstDist) * 3600.0);
             if (backProp < _currentNodeRequiredSpeed)
             {
@@ -2469,7 +2616,7 @@ public sealed class GroundNavigator
     {
         if (_currentPrimitive is PathPrimitiveBezier)
         {
-            return BezierArcCapKts(DecelRateKts ?? CategoryPerformance.TaxiDecelRate(ctx.Category));
+            return BezierArcCapKts(SlowdownDecelRateKts ?? DecelRateKts ?? CategoryPerformance.TaxiDecelRate(ctx.Category));
         }
 
         return _currentPrimitive is PathPrimitiveSlowTurn slowTurn ? slowTurn.MaxSpeedKts : double.MaxValue;
@@ -2495,7 +2642,7 @@ public sealed class GroundNavigator
     private void PublishSpeed(PhaseContext ctx, double targetKts)
     {
         ctx.Targets.TargetSpeed = ClampBySpeedLimit(ctx, targetKts);
-        ctx.Targets.DesiredDecelRate = DecelRateKts;
+        ctx.Targets.DesiredDecelRate = ((SlowdownDecelRateKts is { } slowdownRate) && !_stopCurveBinds) ? slowdownRate : DecelRateKts;
     }
 
     /// <summary>
@@ -2577,12 +2724,10 @@ public sealed class GroundNavigator
     }
 
     // ---- Snapshot ----
-    // Non-round-tripping: ToSnapshot writes the minimum state needed for
-    // diagnostic continuity; FromSnapshot returns an instance that re-runs
-    // SetupSegment on its next call. A mid-arc snapshot/restore resumes from
-    // where the plan puts the aircraft geometrically, not from an exact arc
-    // progress point. Acceptable because arc segments are 2-3 seconds and
-    // mid-arc saves are rare.
+    // The snapshot carries the active primitive and its playback state (GroundNavigatorDto.Playback). FromSnapshot holds it
+    // back, and the owning phase's first SetupSegment after the restore resumes it (TryResumeRestoredPlayback) instead of
+    // building a new primitive from the aircraft's pose, so a restore mid-curve goes on along the same curve. The speed plan
+    // is rebuilt from the route by that set-up, as for any other.
 
     public GroundNavigatorDto ToSnapshot() =>
         new()
@@ -2599,6 +2744,8 @@ public sealed class GroundNavigator
             NextSegmentBearing = _nextSegmentBearing,
             OnAimedLineOverFillet = _onAimedLineOverFillet,
             AimedLineFilletFromNodeId = _aimedLineFilletFromNodeId,
+            // A restored navigator not yet set up still holds the playback it was restored with.
+            Playback = _currentPrimitive is { } primitive ? CapturePlayback(primitive) : _restoredPlayback,
         };
 
     public static GroundNavigator FromSnapshot(GroundNavigatorDto dto) =>
@@ -2616,5 +2763,139 @@ public sealed class GroundNavigator
             _nextSegmentBearing = dto.NextSegmentBearing,
             _onAimedLineOverFillet = dto.OnAimedLineOverFillet,
             _aimedLineFilletFromNodeId = dto.AimedLineFilletFromNodeId,
+            _restoredPlayback = dto.Playback,
+        };
+
+    /// <summary>
+    /// Whether <paramref name="seg"/> is the segment <paramref name="saved"/> was captured on: its to-node is the saved
+    /// target, and its from-node is the saved one. A virtual from-node (negative id) is not compared: its id is a hash of its
+    /// position (<c>VirtualNode.IdFor</c>), but it sits at the aircraft's pose when the route is built (the approach
+    /// leg <see cref="RunwayExitPhase"/> builds from where the aircraft stands), so a rebuild puts it elsewhere.
+    /// </summary>
+    private bool WasPlaybackSavedOnSegment(TaxiRouteSegment seg, GroundNavigatorPlaybackDto saved) =>
+        (seg.ToNodeId == TargetNodeId) && ((saved.FromNodeId < 0) || (seg.FromNodeId < 0) || (seg.FromNodeId == saved.FromNodeId));
+
+    private GroundNavigatorPlaybackDto CapturePlayback(PathPrimitive primitive) =>
+        new()
+        {
+            Primitive = ToPrimitiveDto(primitive),
+            FromNodeId = _segmentFromNodeId,
+            HasPendingSegmentPrimitive = _pendingSegmentPrimitive is not null,
+            ArcBearingFromCenterDeg = _arcBearingFromCenterDeg,
+            ArcRemainingSweepDeg = _arcRemainingSweepDeg,
+            BezierT = _bezierT,
+            BezierTraveledFt = _bezierTraveledFt,
+            BezierLeadInRemainingFt = _bezierLeadInRemainingFt,
+            ArcEntryOffsetLatDeg = _arcEntryOffsetLatDeg,
+            ArcEntryOffsetLonDeg = _arcEntryOffsetLonDeg,
+            ArcEntryTravelledFt = _arcEntryTravelledFt,
+            ArcEntryBlendFt = _arcEntryBlendFt,
+            ArcEntryPending = _arcEntryPending,
+            CumulativeTurnSinceAdvanceDeg = _cumulativeTurnSinceAdvanceDeg,
+            AimedAtRouteNode = _alignmentRoute is not null,
+            NodeAimSegmentIndex = _nodeAimSegmentIndex,
+            AimedPastThroughSegmentIndex = _aimedPastThroughSegmentIndex,
+            EntryArcAimedAtNodeOffRealLeg = _entryArcAimedAtNodeOffRealLeg,
+        };
+
+    private void RestorePlaybackProgress(GroundNavigatorPlaybackDto saved)
+    {
+        _arcBearingFromCenterDeg = saved.ArcBearingFromCenterDeg;
+        _arcRemainingSweepDeg = saved.ArcRemainingSweepDeg;
+        _bezierT = saved.BezierT;
+        _bezierTraveledFt = saved.BezierTraveledFt;
+        _bezierLeadInRemainingFt = saved.BezierLeadInRemainingFt;
+        _arcEntryOffsetLatDeg = saved.ArcEntryOffsetLatDeg;
+        _arcEntryOffsetLonDeg = saved.ArcEntryOffsetLonDeg;
+        _arcEntryTravelledFt = saved.ArcEntryTravelledFt;
+        _arcEntryBlendFt = saved.ArcEntryBlendFt;
+        _arcEntryPending = saved.ArcEntryPending;
+        _cumulativeTurnSinceAdvanceDeg = saved.CumulativeTurnSinceAdvanceDeg;
+    }
+
+    private static PathPrimitiveDto ToPrimitiveDto(PathPrimitive primitive) =>
+        primitive switch
+        {
+            PathPrimitiveStraight s => new StraightPrimitiveDto
+            {
+                LengthFt = s.LengthFt,
+                ToNodeId = s.ToNodeId,
+                FromLat = s.FromLat,
+                FromLon = s.FromLon,
+                ToLat = s.ToLat,
+                ToLon = s.ToLon,
+                BearingDeg = s.BearingDeg,
+            },
+            PathPrimitiveBezier b => new BezierPrimitiveDto
+            {
+                LengthFt = b.LengthFt,
+                ToNodeId = b.ToNodeId,
+                P0Lat = b.Curve.P0Lat,
+                P0Lon = b.Curve.P0Lon,
+                P1Lat = b.Curve.P1Lat,
+                P1Lon = b.Curve.P1Lon,
+                P2Lat = b.Curve.P2Lat,
+                P2Lon = b.Curve.P2Lon,
+                P3Lat = b.Curve.P3Lat,
+                P3Lon = b.Curve.P3Lon,
+                EntryTangentBearingDeg = b.EntryTangentBearingDeg,
+                ExitTangentBearingDeg = b.ExitTangentBearingDeg,
+            },
+            PathPrimitiveSlowTurn t => new SlowTurnPrimitiveDto
+            {
+                LengthFt = t.LengthFt,
+                ToNodeId = t.ToNodeId,
+                CenterLat = t.CenterLat,
+                CenterLon = t.CenterLon,
+                RadiusFt = t.RadiusFt,
+                StartBearingFromCenterDeg = t.StartBearingFromCenterDeg,
+                SweepDeg = t.SweepDeg,
+                RightTurn = t.RightTurn,
+                EntryTangentBearingDeg = t.EntryTangentBearingDeg,
+                ExitTangentBearingDeg = t.ExitTangentBearingDeg,
+                MaxSpeedKts = t.MaxSpeedKts,
+            },
+            _ => throw new InvalidOperationException($"[Nav] snapshot: no DTO for path primitive {primitive.GetType().Name}"),
+        };
+
+    private static PathPrimitive FromPrimitiveDto(PathPrimitiveDto dto) =>
+        dto switch
+        {
+            StraightPrimitiveDto s => new PathPrimitiveStraight
+            {
+                Kind = PathPrimitiveKind.Straight,
+                LengthFt = s.LengthFt,
+                ToNodeId = s.ToNodeId,
+                FromLat = s.FromLat,
+                FromLon = s.FromLon,
+                ToLat = s.ToLat,
+                ToLon = s.ToLon,
+                BearingDeg = s.BearingDeg,
+            },
+            BezierPrimitiveDto b => new PathPrimitiveBezier
+            {
+                Kind = PathPrimitiveKind.Bezier,
+                LengthFt = b.LengthFt,
+                ToNodeId = b.ToNodeId,
+                Curve = new CubicBezier(b.P0Lat, b.P0Lon, b.P1Lat, b.P1Lon, b.P2Lat, b.P2Lon, b.P3Lat, b.P3Lon),
+                EntryTangentBearingDeg = b.EntryTangentBearingDeg,
+                ExitTangentBearingDeg = b.ExitTangentBearingDeg,
+            },
+            SlowTurnPrimitiveDto t => new PathPrimitiveSlowTurn
+            {
+                Kind = PathPrimitiveKind.SlowTurn,
+                LengthFt = t.LengthFt,
+                ToNodeId = t.ToNodeId,
+                CenterLat = t.CenterLat,
+                CenterLon = t.CenterLon,
+                RadiusFt = t.RadiusFt,
+                StartBearingFromCenterDeg = t.StartBearingFromCenterDeg,
+                SweepDeg = t.SweepDeg,
+                RightTurn = t.RightTurn,
+                EntryTangentBearingDeg = t.EntryTangentBearingDeg,
+                ExitTangentBearingDeg = t.ExitTangentBearingDeg,
+                MaxSpeedKts = t.MaxSpeedKts,
+            },
+            _ => throw new InvalidOperationException($"[Nav] snapshot restore: unknown path primitive DTO {dto.GetType().Name}"),
         };
 }

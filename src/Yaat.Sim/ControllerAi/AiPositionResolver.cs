@@ -181,6 +181,12 @@ public static class AiPositionResolver
         return (underscore > 0) && NavigationDatabase.AirportIdsMatch(callsign[..underscore], airportId);
     }
 
+    /// <summary>
+    /// True when the ARTCC config has a tower-cab facility (ATCT, ATCT/TRACON or ATCT/RAPCON) for the airport: a towered
+    /// field.
+    /// </summary>
+    public static bool IsTowered(ArtccConfigRoot config, string airportId) => FindCabFacility(config.Facility, airportId) is not null;
+
     private static bool IsTowerCab(FacilityConfig facility) => facility.Type is "Atct" or "AtctTracon" or "AtctRapcon";
 
     private static List<AiPositionConfig> Sort(IEnumerable<AiPositionConfig> positions) =>

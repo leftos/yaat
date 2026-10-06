@@ -1,10 +1,10 @@
 # FOLLOW montage clips
 
-One folder per clip id from [`docs/plans/follow-video-montage.md`](../../../docs/plans/follow-video-montage.md) — the release cut (A1, A4, A8, A11, C1, C2, C3, E1, E2, G6) and the review reel. Each folder holds:
+One folder per clip id from [`docs/plans/follow-video-montage.md`](../../../docs/plans/follow-video-montage.md) — the release cut (A1, A4, A8, A11, C1, C2, C3, E1, E2, G6, then the ground clips H1, H2) and the review reel. Each folder holds:
 
 | File | What it is |
 |---|---|
-| `scenario.json` | ATCTrainer-format scenario — the spawns only. Both aircraft are airborne, away from the pattern, with the KOAK tower position as the scenario's student position so the solo pilots answer that radio |
+| `scenario.json` | ATCTrainer-format scenario — the spawns only. In the airborne clips both aircraft are airborne, away from the pattern, with the KOAK tower position as the scenario's student position so the solo pilots answer that radio. The ground clips (H) spawn at KOAK north-field parking or on a taxiway, with Oakland Ground (GC1) as the student position |
 | `script.txt` | The timed instructor commands that bring the scenario into the situation, `t=<sec> <CALLSIGN> <command>` with `#` comments |
 | `card.md` | The rule, its AIM / 7110.65 grounding, and what to watch for |
 
@@ -27,7 +27,7 @@ pwsh tools/gate.ps1 -Log .tmp/montage/<ID>-run.log -TimeoutSeconds 900 -Slot hea
 - `--script` sends each line through the instructor's command path once sim-second `t` has ticked; every verdict prints to `stderr` (`script t=… -> accepted` / `refused`), and refused lines are counted in `report.json` as `ScriptRefused`.
 - `--solo` turns solo training on so the pilots read back and call in, and the recording replays with their voices. It is what makes the terminal log carry pilot lines.
 - `--snapshot-interval 1` writes one snapshot per sim-second, which is what `bug_bundle.py track` needs for a per-second trajectory.
-- `--sim-hours` is the sim-time budget and must exceed the last `t=` in `script.txt`. `0.15` = 540 s; a clip whose follower lands later states its own budget in its card (C1 0.17, C2 0.23, C3 0.2, G6 0.17).
+- `--sim-hours` is the sim-time budget and must exceed the last `t=` in `script.txt`. `0.15` = 540 s; a clip whose follower lands later states its own budget in its card (C1 0.17, C2 0.23, C3 0.2, G6 0.17); the ground clips H1 and H2 record with 0.1 (360 s).
 - **Choose each clip's runway by length before scripting it.** Check the runway against every type in the clip: a jet never lands KOAK 28R (5,458 ft); airliners use 30 at OAK.
 - The run exits 0 when the budget completes; exit 2 is a tick exception or a script line that threw.
 
@@ -73,6 +73,6 @@ Kept consistent across clips so the reel reads as one session.
 
 | Callsign | Type | Role |
 |---|---|---|
-| `N738SP` | C172 | VFR pattern follower (the aircraft told to follow) |
-| `N52417` | C172 | VFR lead, straight-in / pattern traffic ahead |
+| `N738SP` | C172 | VFR pattern follower (the aircraft told to follow); on the ground, the aircraft told to follow (H1) or to give way (H2) |
+| `N52417` | C172 | VFR lead, straight-in / pattern traffic ahead; on the ground, the taxiing lead (H1) or the crossing traffic (H2) |
 | `SWA2471` | B738 | VFR jet lead (C3), landing runway 30 |

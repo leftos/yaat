@@ -234,7 +234,24 @@ public partial class DataGridView : UserControl
             return;
         }
 
-        grid.ContextMenu = BuildAircraftMenu(vm, grid, resolved.Clicked, resolved.Previous, [resolved.Clicked]);
+        grid.ContextMenu = BuildRowContextMenu(vm, grid, resolved.Clicked, resolved.Previous, [resolved.Clicked]);
+    }
+
+    /// <summary>
+    /// The menu a request on an aircraft row opens: the aircraft menu (<see cref="BuildAircraftMenu"/>), ending with
+    /// "Settings for this view…", which opens Settings at the aircraft list.
+    /// </summary>
+    internal static ContextMenu BuildRowContextMenu(
+        MainViewModel vm,
+        Control flyoutTarget,
+        AircraftModel ac,
+        AircraftModel? previousSelection,
+        IReadOnlyList<AircraftModel> selection
+    )
+    {
+        ContextMenu menu = BuildAircraftMenu(vm, flyoutTarget, ac, previousSelection, selection);
+        ViewSettingsMenu.Append(menu, vm, SettingsSectionId.AircraftList);
+        return menu;
     }
 
     /// <summary>

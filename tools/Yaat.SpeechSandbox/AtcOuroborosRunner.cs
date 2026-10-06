@@ -12,7 +12,7 @@ namespace Yaat.SpeechSandbox;
 /// tuning change shows its improvements and regressions per family.
 ///
 /// Run with <c>--atc-ouroboros [--cases N] [--seed S] [--trials N] [--out-dir D] [--baseline &lt;json&gt;]
-/// [--update-baseline] [--voice &lt;dir&gt;]</c>. Default paths resolve against the repo root (main
+/// [--update-baseline] [--voice &lt;dir&gt;] [--no-synth-cache]</c>. Default paths resolve against the repo root (main
 /// checkout or worktree; the working directory when none is found); paths passed as arguments are
 /// used as given. Regressions are judged per rule family and on the totals; per-template rows are
 /// information only. Writes <c>corpus/</c>, <c>eval/</c>, <c>results.json</c> and
@@ -38,7 +38,16 @@ public static class AtcOuroborosRunner
         "atc-ouroboros-baseline.json"
     );
 
-    private sealed record Options(int Cases, int Seed, int Trials, string OutDir, string BaselinePath, bool UpdateBaseline, string? VoiceDir);
+    private sealed record Options(
+        int Cases,
+        int Seed,
+        int Trials,
+        string OutDir,
+        string BaselinePath,
+        bool UpdateBaseline,
+        string? VoiceDir,
+        bool UseSynthCache
+    );
 
     public static async Task<int> RunAsync(string[] args)
     {
@@ -46,7 +55,7 @@ public static class AtcOuroborosRunner
         if (options is null)
         {
             Console.Error.WriteLine(
-                "Usage: Yaat.SpeechSandbox --atc-ouroboros [--cases N] [--seed S] [--trials N] [--out-dir D] [--baseline <json>] [--update-baseline] [--voice <dir>]"
+                "Usage: Yaat.SpeechSandbox --atc-ouroboros [--cases N] [--seed S] [--trials N] [--out-dir D] [--baseline <json>] [--update-baseline] [--voice <dir>] [--no-synth-cache]"
             );
             return AtcOuroborosAnalysis.ExitSetupError;
         }
@@ -69,9 +78,12 @@ public static class AtcOuroborosRunner
         Directory.CreateDirectory(options.OutDir);
         string corpusDir = Path.Combine(options.OutDir, "corpus");
         SynthCorpusResult generated = await SynthCorpusGenerator
-            .GenerateAsync(new SynthCorpusOptions(corpusDir, options.Cases, options.Seed, voiceDir))
+            .GenerateAsync(new SynthCorpusOptions(corpusDir, options.Cases, options.Seed, voiceDir, options.UseSynthCache))
             .ConfigureAwait(false);
-        Console.WriteLine($"Generated {generated.Written.Count} cases ({generated.Gaps.Count} gaps) into {Path.GetFullPath(corpusDir)}");
+        int fromCache = generated.Written.Count(c => c.CacheHit);
+        Console.WriteLine(
+            $"Generated {generated.Written.Count} cases ({generated.Gaps.Count} gaps, {fromCache} from cache) into {Path.GetFullPath(corpusDir)}"
+        );
         Console.WriteLine();
 
         EvalRunResult scored = await EvalRunner
@@ -127,6 +139,13 @@ public static class AtcOuroborosRunner
                 Console.Error.WriteLine($"FATAL: baseline {options.BaselinePath} is empty or not a results document.");
                 return AtcOuroborosAnalysis.ExitSetupError;
             }
+            if ((baseline.Totals.Commands is null) || baseline.Families.Any(f => f.Commands is null))
+            {
+                Console.Error.WriteLine(
+                    $"FATAL: baseline {options.BaselinePath} predates command-level scoring (no \"commands\" rates) — regenerate it with --update-baseline."
+                );
+                return AtcOuroborosAnalysis.ExitSetupError;
+            }
             diff = AtcOuroborosAnalysis.Compare(baseline, results);
             baselineNote = $"Compared with `{options.BaselinePath}`.";
         }
@@ -154,6 +173,7 @@ public static class AtcOuroborosRunner
         string baselinePath = DefaultBaselinePath;
         bool updateBaseline = false;
         string? voiceDir = null;
+        bool useSynthCache = true;
         for (int i = 0; i < args.Length; i++)
         {
             bool hasValue = i + 1 < args.Length;
@@ -175,20 +195,34 @@ public static class AtcOuroborosRunner
                 case "--update-baseline":
                     updateBaseline = true;
                     break;
+                case "--no-synth-cache":
+                    useSynthCache = false;
+                    break;
                 default:
                     Console.Error.WriteLine($"FATAL: unrecognised or malformed argument '{args[i]}'");
                     return null;
             }
         }
         outDir ??= Path.Combine(DefaultsRoot, ".tmp", $"atc-ouroboros-{DateTime.Now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture)}");
-        return new Options(cases, seed, trials, outDir, baselinePath, updateBaseline, voiceDir);
+        return new Options(cases, seed, trials, outDir, baselinePath, updateBaseline, voiceDir, useSynthCache);
     }
 
     private static bool TryParsePositive(string text, out int value) => int.TryParse(text, CultureInfo.InvariantCulture, out value) && value > 0;
 
-    private static string TotalsLine(AtcOuroborosResults r) =>
-        $"Totals: {r.Totals.Cases} cases — {r.Totals.Pass} PASS, {r.Totals.Flaky} FLAKY, {r.Totals.Fail} FAIL "
-        + $"(pass rate {r.Totals.PassRate.ToString("P1", CultureInfo.InvariantCulture)}, mean WER {FormatWer(r.Totals.MeanWer)}), {r.Gaps.Count} gaps";
+    private static string TotalsLine(AtcOuroborosResults r)
+    {
+        CommandRates c = r.Totals.Commands;
+        return $"Totals: {r.Totals.Cases} cases, {c.GoldClauses} gold clauses — recognised {FormatRate(c.RecognitionRate)}, "
+            + $"wrong {FormatRate(c.ErrorRate)}, rejected {FormatRate(c.RejectionRate)}, callsign {FormatRate(c.CallsignAccuracy)}; "
+            + $"{r.Totals.Pass} PASS, {r.Totals.Flaky} FLAKY, {r.Totals.Fail} FAIL "
+            + $"(pass rate {FormatRate(r.Totals.PassRate)}, mean WER {FormatWer(r.Totals.MeanWer)}), {r.Gaps.Count} gaps";
+    }
+
+    /// <summary>The Clauses, Recognised, Wrong, Rejected and Callsign cells of a report row.</summary>
+    private static string RateCells(CommandRates c) =>
+        $"{c.GoldClauses} | {FormatRate(c.RecognitionRate)} | {FormatRate(c.ErrorRate)} | {FormatRate(c.RejectionRate)} | {FormatRate(c.CallsignAccuracy)}";
+
+    private static string FormatPoints(double tolerance) => (tolerance * 100).ToString("0.0", CultureInfo.InvariantCulture) + " points";
 
     private static string FormatWer(double? wer) => wer is null ? "n/a" : wer.Value.ToString("P1", CultureInfo.InvariantCulture);
 
@@ -206,23 +240,31 @@ public static class AtcOuroborosRunner
         report.AppendLine();
         report.AppendLine($"**{TotalsLine(results)}**");
         report.AppendLine();
-        report.AppendLine("## Per rule family (worst pass rate first) — compared with the baseline");
+        report.AppendLine("## Per rule family (worst recognition first) — compared with the baseline");
         report.AppendLine();
-        report.AppendLine("| Family | Cases | Pass | Flaky | Fail | Pass rate | Mean WER |");
-        report.AppendLine("|---|---|---|---|---|---|---|");
+        report.AppendLine(
+            "Each gold clause of each trial is recognised, wrong (wrong arguments, wrong verb, or an inserted clause) or rejected. "
+                + $"A family regresses when its recognition rate falls by more than {FormatPoints(AtcOuroborosAnalysis.RecognitionTolerance)} "
+                + $"or its error rate rises by more than {FormatPoints(AtcOuroborosAnalysis.ErrorTolerance)}, and by at least one case "
+                + "(one clause wrong on every trial of one case); the totals, pooled over the families present in both runs, gate the same way. "
+                + "PASS / FLAKY / FAIL are information only."
+        );
+        report.AppendLine();
+        report.AppendLine("| Family | Cases | Clauses | Recognised | Wrong | Rejected | Callsign | Pass / Flaky / Fail | Mean WER |");
+        report.AppendLine("|---|---|---|---|---|---|---|---|---|");
         foreach (FamilyResult f in results.Families)
         {
-            report.AppendLine($"| {f.Family} | {f.Cases} | {f.Pass} | {f.Flaky} | {f.Fail} | {FormatRate(f.PassRate)} | {FormatWer(f.MeanWer)} |");
+            report.AppendLine($"| {f.Family} | {f.Cases} | {RateCells(f.Commands)} | {f.Pass} / {f.Flaky} / {f.Fail} | {FormatWer(f.MeanWer)} |");
         }
         report.AppendLine();
-        report.AppendLine("## Per template (worst pass rate first) — information only");
+        report.AppendLine("## Per template (worst recognition first) — information only");
         report.AppendLine();
-        report.AppendLine("| Template | Family | Cases | Pass | Flaky | Fail | Pass rate | Mean WER |");
-        report.AppendLine("|---|---|---|---|---|---|---|---|");
+        report.AppendLine("| Template | Family | Cases | Clauses | Recognised | Wrong | Rejected | Callsign | Pass / Flaky / Fail | Mean WER |");
+        report.AppendLine("|---|---|---|---|---|---|---|---|---|---|");
         foreach (TemplateResult t in results.Templates)
         {
             report.AppendLine(
-                $"| {t.Template} | {t.Family} | {t.Cases} | {t.Pass} | {t.Flaky} | {t.Fail} | {FormatRate(t.PassRate)} | {FormatWer(t.MeanWer)} |"
+                $"| {t.Template} | {t.Family} | {t.Cases} | {RateCells(t.Commands)} | {t.Pass} / {t.Flaky} / {t.Fail} | {FormatWer(t.MeanWer)} |"
             );
         }
         report.AppendLine();
@@ -260,15 +302,18 @@ public static class AtcOuroborosRunner
             report.AppendLine($"- `{gap}` verified in the baseline and is a gap now");
         }
         report.AppendLine();
-        report.AppendLine("| Family | Change | Baseline | Now |");
+        report.AppendLine("| Family | Change | Recognised (baseline → now) | Wrong (baseline → now) |");
         report.AppendLine("|---|---|---|---|");
         foreach (FamilyDiff f in diff.Families)
         {
-            report.AppendLine($"| {f.Family} | {Arrow(f.Kind)} | {FormatRate(f.BaselinePassRate)} | {FormatRate(f.CurrentPassRate)} |");
+            report.AppendLine(
+                $"| {f.Family} | {Arrow(f.Kind)} | {FormatRate(f.BaselineRecognitionRate)} → {FormatRate(f.CurrentRecognitionRate)} "
+                    + $"| {FormatRate(f.BaselineErrorRate)} → {FormatRate(f.CurrentErrorRate)} |"
+            );
         }
     }
 
-    private static string FormatRate(double? rate) => rate is null ? "—" : rate.Value.ToString("P0", CultureInfo.InvariantCulture);
+    private static string FormatRate(double? rate) => rate is null ? "—" : rate.Value.ToString("P1", CultureInfo.InvariantCulture);
 
     private static string Arrow(DiffKind kind) =>
         kind switch

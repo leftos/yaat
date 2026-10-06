@@ -42,7 +42,7 @@ internal static class ModuleInit
             prefsPath,
             """
             {
-              "userInitials": "1M",
+              "userInitials": "AB",
               "artccId": "ZOA",
               "assignmentTintEnabled": true,
               "assignmentTintColor": "#0080FF"

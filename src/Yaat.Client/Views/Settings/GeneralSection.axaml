@@ -1,0 +1,105 @@
+<UserControl
+  xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:vm="using:Yaat.Client.ViewModels"
+  x:Class="Yaat.Client.Views.Settings.GeneralSection"
+  x:DataType="vm:SettingsViewModel"
+>
+  <ScrollViewer>
+    <StackPanel Margin="16,8,16,16" Spacing="12">
+      <Border Classes="card">
+        <StackPanel Spacing="12">
+          <TextBlock
+            Text="Your identity and CID come from VATSIM sign-in when you connect."
+            TextWrapping="Wrap"
+            Foreground="{DynamicResource SubtleTextBrush}"
+            FontSize="11"
+          />
+          <StackPanel Spacing="4">
+            <TextBlock Text="Initials (2 letters):" Foreground="{DynamicResource SubtleTextBrush}" />
+            <TextBox Text="{Binding UserInitials}" MaxLength="2" PlaceholderText="e.g. AB" Width="80" HorizontalAlignment="Left" />
+            <TextBlock
+              Text="Shown in the terminal panel so other RPOs can see who issued each command."
+              TextWrapping="Wrap"
+              Foreground="{DynamicResource SubtleTextBrush}"
+              FontSize="11"
+            />
+          </StackPanel>
+          <StackPanel Spacing="4">
+            <TextBlock Text="ARTCC:" Foreground="{DynamicResource SubtleTextBrush}" />
+            <TextBlock
+              Text="Set automatically from your VATSIM/VATUSA profile when you sign in."
+              TextWrapping="Wrap"
+              Foreground="{DynamicResource SubtleTextBrush}"
+              FontSize="11"
+            />
+          </StackPanel>
+        </StackPanel>
+      </Border>
+      <Border Classes="card">
+        <StackPanel Spacing="12">
+          <TextBlock Text="Settings Files" FontWeight="SemiBold" />
+          <StackPanel Spacing="4">
+            <Button Content="Import / Export..." x:Name="ImportExportButton" HorizontalAlignment="Left" />
+            <TextBlock
+              Text="Save your preferences, macros, command verbs, favorites and layouts to a file to back them up or share them, or load them from one. Imports land in this window: nothing changes until you press OK or Apply, and Cancel drops them."
+              TextWrapping="Wrap"
+              Foreground="{DynamicResource SubtleTextBrush}"
+              FontSize="11"
+            />
+          </StackPanel>
+        </StackPanel>
+      </Border>
+      <Border Classes="card">
+        <StackPanel Spacing="12">
+          <TextBlock Text="Discord" FontWeight="SemiBold" />
+          <StackPanel Spacing="4">
+            <CheckBox
+              Content="Show the scenario I'm running as my Discord status"
+              IsChecked="{Binding DiscordRichPresenceEnabled}"
+              ToolTip.Tip="Uses Discord Rich Presence on this computer. Shows the scenario name, ARTCC and airport — never the room or other people."
+            />
+            <TextBlock
+              Text="Your Discord profile shows the scenario name, your ARTCC and the airport while a scenario is loaded, and nothing when one isn't."
+              TextWrapping="Wrap"
+              Foreground="{DynamicResource SubtleTextBrush}"
+              FontSize="11"
+            />
+          </StackPanel>
+        </StackPanel>
+      </Border>
+      <Border Classes="card">
+        <StackPanel Spacing="12">
+          <TextBlock Text="Windows" FontWeight="SemiBold" />
+          <StackPanel Spacing="4">
+            <CheckBox Content="Bring all windows to front together" IsChecked="{Binding RaiseWindowsTogether}" />
+            <TextBlock
+              Text="Clicking any YAAT window raises all YAAT windows above other apps, like CRC. Minimized windows stay minimized."
+              TextWrapping="Wrap"
+              Foreground="{DynamicResource SubtleTextBrush}"
+              FontSize="11"
+              Margin="0,0,0,8"
+            />
+            <TextBlock Text="Always on Top" FontWeight="SemiBold" Margin="0,0,0,2" />
+            <TextBlock
+              Text="Pin pop-out windows above all other windows. You can also toggle this with the Always on Top keybind while a window is focused."
+              TextWrapping="Wrap"
+              Foreground="{DynamicResource SubtleTextBrush}"
+              FontSize="11"
+              Margin="0,0,0,4"
+            />
+            <WrapPanel Orientation="Horizontal" Margin="12,0,0,0">
+              <CheckBox Content="Main Window" IsChecked="{Binding MainWindowTopmost}" Margin="0,0,16,4" />
+              <CheckBox Content="Ground View" IsChecked="{Binding GroundViewTopmost}" Margin="0,0,16,4" />
+              <CheckBox Content="Radar View" IsChecked="{Binding RadarViewTopmost}" Margin="0,0,16,4" />
+              <CheckBox Content="Aircraft List" IsChecked="{Binding DataGridTopmost}" Margin="0,0,16,4" />
+              <CheckBox Content="Terminal" IsChecked="{Binding TerminalTopmost}" Margin="0,0,16,4" />
+              <CheckBox Content="Flight Strips" IsChecked="{Binding VStripsTopmost}" Margin="0,0,16,4" />
+              <CheckBox Content="Favorites" IsChecked="{Binding FavoritesPanelTopmost}" Margin="0,0,16,4" />
+            </WrapPanel>
+          </StackPanel>
+        </StackPanel>
+      </Border>
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

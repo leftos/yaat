@@ -66,7 +66,7 @@ public class MainViewModelPilotVoiceWarningTests
     {
         var vm = new MainViewModel(new FakeFilePickerService());
         Dispatcher.UIThread.RunJobs();
-        vm.Preferences.SetPilotVoiceSettings(false, 80, true);
+        vm.Preferences.SetPilotVoiceSettings(false, 80, true, 1.1);
         vm.ApplyRoomState(PausedRoom(solo));
         Dispatcher.UIThread.RunJobs();
         vm.PilotVoiceWarningPrompt = prompt.Show;
@@ -204,7 +204,7 @@ public class MainViewModelPilotVoiceWarningTests
         var prompt = new PromptStub(PilotVoiceWarningChoice.StartAnyway);
         var vm = new MainViewModel(new FakeFilePickerService());
         Dispatcher.UIThread.RunJobs();
-        vm.Preferences.SetPilotVoiceSettings(false, 80, true);
+        vm.Preferences.SetPilotVoiceSettings(false, 80, true, 1.1);
         vm.PilotVoiceWarningPrompt = prompt.Show;
         Assert.False(vm.NoPilotVoiceInSolo); // not in a room
 
@@ -227,13 +227,13 @@ public class MainViewModelPilotVoiceWarningTests
     {
         var prompt = new PromptStub(PilotVoiceWarningChoice.OpenVoiceSettings);
         MainViewModel vm = JoinedViewModel(solo: true, prompt);
-        int settingsRequests = 0;
-        vm.PilotVoiceSettingsRequested += () => settingsRequests++;
+        List<SettingsSectionId?> settingsRequests = [];
+        vm.SettingsRequested += settingsRequests.Add;
 
         await vm.TogglePauseCommand.ExecuteAsync(null);
 
         Assert.Equal(1, prompt.Shown);
-        Assert.Equal(1, settingsRequests);
+        Assert.Equal([SettingsSectionId.Speech], settingsRequests);
         Assert.Equal(Sentinel, vm.StatusText);
     }
 
@@ -242,12 +242,12 @@ public class MainViewModelPilotVoiceWarningTests
     {
         var prompt = new PromptStub(PilotVoiceWarningChoice.StartAnyway);
         MainViewModel vm = JoinedViewModel(solo: true, prompt);
-        int settingsRequests = 0;
-        vm.PilotVoiceSettingsRequested += () => settingsRequests++;
+        List<SettingsSectionId?> settingsRequests = [];
+        vm.SettingsRequested += settingsRequests.Add;
 
         vm.OpenPilotVoiceSettingsCommand.Execute(null);
 
-        Assert.Equal(1, settingsRequests);
+        Assert.Equal([SettingsSectionId.Speech], settingsRequests);
         Assert.Equal(0, prompt.Shown);
         Assert.Equal(Sentinel, vm.StatusText);
         Assert.True(vm.IsPaused);

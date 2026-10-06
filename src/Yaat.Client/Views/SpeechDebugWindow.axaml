@@ -103,7 +103,7 @@
             x:Name="SettingsButton"
             Content="Settings…"
             Margin="0,0,8,0"
-            ToolTip.Tip="Open the Speech tab in Settings to toggle capture and adjust the MB cap."
+            ToolTip.Tip="Open the Speech section in Settings to toggle capture and adjust the MB cap."
           />
           <Button Grid.Column="2" Content="Clear history" Command="{Binding ClearHistoryCommand}" />
         </Grid>

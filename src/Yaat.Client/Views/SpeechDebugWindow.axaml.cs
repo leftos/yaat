@@ -23,9 +23,6 @@ public partial class SpeechDebugWindow : Window
     private static readonly ILogger Log = AppLog.CreateLogger<SpeechDebugWindow>();
 
     private readonly SpeechDebugViewModel? _viewModel;
-    private readonly UserPreferences? _preferences;
-    private readonly SpeechSampleStore? _sampleStore;
-    private readonly AudioCaptureService? _audioCapture;
     private WaveOutEvent? _waveOut;
     private WaveFileReader? _waveReader;
 
@@ -35,18 +32,9 @@ public partial class SpeechDebugWindow : Window
         WireCommonButtons();
     }
 
-    public SpeechDebugWindow(
-        SpeechRecognitionService service,
-        SpeechSampleStore sampleStore,
-        UserPreferences preferences,
-        AudioCaptureService? audioCapture = null
-    )
+    public SpeechDebugWindow(SpeechRecognitionService service, SpeechSampleStore sampleStore, UserPreferences preferences)
         : this()
     {
-        _preferences = preferences;
-        _sampleStore = sampleStore;
-        _audioCapture = audioCapture;
-
         _viewModel = new SpeechDebugViewModel(service, sampleStore, preferences);
         DataContext = _viewModel;
 
@@ -71,15 +59,13 @@ public partial class SpeechDebugWindow : Window
         exportSelectedBtn?.Click += OnExportSelectedClick;
     }
 
-    private void OnSettingsClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-    {
-        if (_preferences is null)
-        {
-            return;
-        }
-        var dialog = new SettingsWindow(_preferences, _audioCapture, _sampleStore);
-        dialog.Show();
-    }
+    /// <summary>
+    /// Raised by the Settings button. The window that opened Speech Debug shows Settings on its Speech
+    /// section, so the live preview and the refresh after Apply run as they do from Tools › Settings.
+    /// </summary>
+    public event Action? SettingsRequested;
+
+    private void OnSettingsClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e) => SettingsRequested?.Invoke();
 
     public void OnPlayClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {

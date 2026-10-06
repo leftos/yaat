@@ -22,7 +22,7 @@ public sealed class SnapshotSchemaException(int snapshotVersion, int requiredVer
 /// </summary>
 public static class SnapshotSchemaMigrator
 {
-    public const int CurrentSchemaVersion = 32;
+    public const int CurrentSchemaVersion = 33;
 
     /// <summary>
     /// Migrates a snapshot to <see cref="CurrentSchemaVersion"/> in place.
@@ -194,6 +194,11 @@ public static class SnapshotSchemaMigrator
         //   values name no sector, so they are skipped on read and every sector restores at CRC's defaults (no dwell lock,
         //   the default leader, no halo). The step exists so the version names the reinterpretation.
         // V32: Added ScenarioSnapshotDto.SoloRpoCommandsAllowed. No bump — additive and optional, an older snapshot reads false.
+        // V32→V33: AircraftGroundOpsDto.IsScriptedDeparture replaced by InitialCallup (the initial call-up plan the loader
+        //   sets) and SpawnTaxiway added. A scripted departure never called, so it maps to None; any other aircraft whose
+        //   call-up decision was still open and that still sits at its stand (current phase AtParking) would have made the
+        //   stand call, so it maps to StandCall; the rest (an airborne arrival never decided) to None. The legacy field is
+        //   nulled so a rewritten snapshot drops it. SpawnTaxiway stays null: the pre-snap position was never recorded.
         if (snapshot.SchemaVersion < 4)
         {
             foreach (AircraftSnapshotDto ac in snapshot.Aircraft)
@@ -218,6 +223,36 @@ public static class SnapshotSchemaMigrator
             }
         }
 
+        if (snapshot.SchemaVersion < 33)
+        {
+            foreach (AircraftSnapshotDto ac in snapshot.Aircraft)
+            {
+                // A legacy snapshot can carry a null Ground (the lenient resolver permits it); nothing to derive then.
+                if (ac.Ground is { } ground)
+                {
+                    ground.InitialCallup = LegacyInitialCallup(ground, IsAtParking(ac.Phases));
+                    ground.LegacyIsScriptedDeparture = null;
+                }
+            }
+        }
+
         snapshot.SchemaVersion = CurrentSchemaVersion;
+    }
+
+    private static InitialCallupPlan LegacyInitialCallup(AircraftGroundOpsDto ground, bool atParking)
+    {
+        bool decisionOpen = (ground.LegacyIsScriptedDeparture != true) && !ground.InitialCallupDecisionProcessed;
+        return (decisionOpen && atParking) ? InitialCallupPlan.StandCall : InitialCallupPlan.None;
+    }
+
+    /// <summary>Whether the aircraft's current phase is <see cref="AtParkingPhaseDto"/>; a legacy snapshot may carry no phase list.</summary>
+    private static bool IsAtParking(PhaseListDto? phases)
+    {
+        if (phases?.Phases is not { } list)
+        {
+            return false;
+        }
+
+        return (phases.CurrentIndex >= 0) && (phases.CurrentIndex < list.Count) && (list[phases.CurrentIndex] is AtParkingPhaseDto);
     }
 }

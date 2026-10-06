@@ -1,0 +1,58 @@
+<UserControl
+  xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:vm="using:Yaat.Client.ViewModels"
+  x:Class="Yaat.Client.Views.Settings.CommandVerbsSection"
+  x:DataType="vm:SettingsViewModel"
+>
+  <DockPanel Margin="12">
+    <!-- Try it out -->
+    <StackPanel DockPanel.Dock="Bottom" Spacing="4" Margin="0,12,0,0">
+      <TextBlock Text="Try it out:" Foreground="{DynamicResource SubtleTextBrush}" />
+      <TextBox x:Name="TryItOutBox" Text="{Binding TestCommandInput}" PlaceholderText="Type a command to test (e.g., FH 270, H270, T30L)" />
+      <TextBlock
+        Text="{Binding TestCommandResult}"
+        IsVisible="{Binding TestCommandResult, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+        FontFamily="{StaticResource MonoFont}"
+        Classes.error="{Binding TestCommandIsError}"
+      >
+        <TextBlock.Styles>
+          <Style Selector="TextBlock">
+            <Setter Property="Foreground" Value="#4EC9B0" />
+          </Style>
+          <Style Selector="TextBlock.error">
+            <Setter Property="Foreground" Value="#F44747" />
+          </Style>
+        </TextBlock.Styles>
+      </TextBlock>
+    </StackPanel>
+
+    <!-- Import/export of the verb scheme (docked after "Try it out", so it renders above it) -->
+    <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Spacing="8" Margin="0,8,0,0">
+      <Button Content="Import..." x:Name="ImportVerbsButton" />
+      <Button Content="Export..." x:Name="ExportVerbsButton" />
+    </StackPanel>
+
+    <!-- Verb mapping table -->
+    <DataGrid
+      ItemsSource="{Binding GroupedVerbMappings}"
+      AutoGenerateColumns="False"
+      GridLinesVisibility="Horizontal"
+      CanUserResizeColumns="False"
+      CanUserSortColumns="False"
+      SelectionMode="Single"
+      HeadersVisibility="Column"
+    >
+      <DataGrid.Styles>
+        <Style Selector="DataGridRowGroupHeader">
+          <Setter Property="IsItemCountVisible" Value="False" />
+        </Style>
+      </DataGrid.Styles>
+      <DataGrid.Columns>
+        <DataGridTextColumn x:DataType="vm:VerbMappingRow" Header="Command" Binding="{Binding CommandName}" IsReadOnly="True" Width="150" />
+        <DataGridTextColumn x:DataType="vm:VerbMappingRow" Header="Verb(s)" Binding="{Binding Aliases}" Width="160" />
+        <DataGridTextColumn x:DataType="vm:VerbMappingRow" Header="Example" Binding="{Binding Example}" IsReadOnly="True" Width="*" />
+      </DataGrid.Columns>
+    </DataGrid>
+  </DockPanel>
+</UserControl>

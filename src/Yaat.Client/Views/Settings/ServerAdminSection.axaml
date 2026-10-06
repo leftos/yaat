@@ -1,0 +1,33 @@
+<UserControl
+  xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:vm="using:Yaat.Client.ViewModels"
+  x:Class="Yaat.Client.Views.Settings.ServerAdminSection"
+  x:DataType="vm:SettingsViewModel"
+>
+  <ScrollViewer>
+    <StackPanel Margin="16,8,16,16" Spacing="12">
+      <Border Classes="card">
+        <StackPanel Spacing="12">
+          <CheckBox Content="Server Admin Mode" IsChecked="{Binding IsAdminMode}" />
+          <StackPanel Spacing="4" IsVisible="{Binding IsAdminMode}">
+            <TextBlock Text="Admin Password:" Foreground="{DynamicResource SubtleTextBrush}" />
+            <TextBox
+              Text="{Binding AdminPassword}"
+              PasswordChar="*"
+              PlaceholderText="Enter server admin password"
+              Width="300"
+              HorizontalAlignment="Left"
+            />
+          </StackPanel>
+          <TextBlock
+            TextWrapping="Wrap"
+            Foreground="{DynamicResource SubtleTextBrush}"
+            FontSize="11"
+            Text="Admin mode allows you to see all scenarios running on the server, filter the aircraft list by scenario, and manage aircraft across all scenarios."
+          />
+        </StackPanel>
+      </Border>
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

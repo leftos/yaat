@@ -8,9 +8,6 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.VisualTree;
 using Microsoft.Extensions.Logging;
-using MsBox.Avalonia.Dto;
-using MsBox.Avalonia.Enums;
-using MsBox.Avalonia.Models;
 using Yaat.Client.Logging;
 using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
@@ -28,14 +25,6 @@ public partial class FavoritesBarView : UserControl
         FavoriteCommandCategory.Vehicle,
         FavoriteCommandCategory.Airport,
     ];
-
-    private static readonly FilePickerFilter FavoritesZipType = new("YAAT Favorites", ["*.yaat-favset.zip", "*.yaat-favlibrary.zip"]);
-
-    private static readonly FilePickerFilter SetZipType = new("YAAT Favorite Set", ["*.yaat-favset.zip"]);
-
-    private static readonly FilePickerFilter LibraryZipType = new("YAAT Favorites Library", ["*.yaat-favlibrary.zip"]);
-
-    private static readonly FilePickerFilter JsonFileType = new("JSON Files", ["*.json"]);
 
     private static readonly ILogger Log = AppLog.CreateLogger<FavoritesBarView>();
 
@@ -542,6 +531,7 @@ public partial class FavoritesBarView : UserControl
     {
         var btn = new Button
         {
+            Name = "FavoritesImportButton",
             Content = "Import",
             Margin = new Thickness(8, 0, 0, 0),
             Padding = new Thickness(8, 2),
@@ -549,7 +539,7 @@ public partial class FavoritesBarView : UserControl
         };
 
         ToolTip.SetTip(btn, "Import favorites from a shared file");
-        btn.Click += OnImportFavoritesClick;
+        btn.Click += (_, _) => OpenImportExport(ImportExportTab.Import);
         return btn;
     }
 
@@ -557,6 +547,7 @@ public partial class FavoritesBarView : UserControl
     {
         var btn = new Button
         {
+            Name = "FavoritesExportButton",
             Content = "Export",
             Margin = new Thickness(8, 0, 0, 0),
             Padding = new Thickness(8, 2),
@@ -564,207 +555,26 @@ public partial class FavoritesBarView : UserControl
         };
 
         ToolTip.SetTip(btn, "Export favorites to a file to share");
-        btn.Click += OnExportClick;
+        btn.Click += (_, _) => OpenImportExport(ImportExportTab.Export);
         return btn;
     }
 
-    private void OnExportClick(object? sender, RoutedEventArgs e)
+    // Opens the Import / Export hub with favorites ticked; an import applies at once and the live views follow it.
+    private async void OpenImportExport(ImportExportTab initialTab)
     {
-        if (sender is not Button btn || DataContext is not MainViewModel vm)
-        {
-            return;
-        }
-
-        var flyout = new MenuFlyout();
-        foreach (FavoriteSet set in vm.FavoriteStore.OrderedSets)
-        {
-            string setId = set.Id;
-            string displayName = set.DisplayName;
-            var item = new MenuItem { Header = $"Set: {displayName}" };
-            item.Click += (_, _) => _ = ExportSetAsync(vm, setId, displayName);
-            flyout.Items.Add(item);
-        }
-
-        flyout.Items.Add(new Separator());
-        var libraryItem = new MenuItem { Header = "Everything (library)" };
-        libraryItem.Click += (_, _) => _ = ExportLibraryAsync(vm);
-        flyout.Items.Add(libraryItem);
-
-        flyout.ShowAt(btn);
-    }
-
-    private async Task ExportSetAsync(MainViewModel vm, string setId, string displayName)
-    {
-        if (TopLevel.GetTopLevel(this) is not Window owner)
-        {
-            return;
-        }
-
-        IFilePickerService picker = FilePickerFactory.Create(owner);
-        string? path = await picker.SaveFileAsync(
-            new SaveFileOptions(
-                Title: "Export Favorite Set",
-                SuggestedFileName: $"{FavoriteStore.SanitizeFileName(displayName, "set")}{FavoriteExport.SetExportExtension}",
-                Filters: [SetZipType],
-                DefaultExtension: "yaat-favset.zip"
-            )
-        );
-
-        if (path is null)
+        if ((DataContext is not MainViewModel vm) || (TopLevel.GetTopLevel(this) is not Window owner))
         {
             return;
         }
 
         try
         {
-            await using FileStream stream = File.Create(path);
-            vm.ExportFavoriteSet(setId, stream);
+            await ImportExportWindow.ShowLiveAsync(owner, vm, new HashSet<SettingsItemType> { SettingsItemType.Favorites }, initialTab);
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        catch (Exception ex)
         {
-            Log.LogWarning(ex, "Favorite set export failed to write {Path}", path);
+            Log.LogError(ex, "The favorites bar's Import / Export failed");
         }
-    }
-
-    /// <summary>Runs the library save picker and writes the zip. Returns false when the picker was cancelled or the write failed.</summary>
-    private async Task<bool> ExportLibraryAsync(MainViewModel vm)
-    {
-        if (TopLevel.GetTopLevel(this) is not Window owner)
-        {
-            return false;
-        }
-
-        IFilePickerService picker = FilePickerFactory.Create(owner);
-        string? path = await picker.SaveFileAsync(
-            new SaveFileOptions(
-                Title: "Export Favorites Library",
-                SuggestedFileName: $"favorites{FavoriteExport.LibraryExportExtension}",
-                Filters: [LibraryZipType],
-                DefaultExtension: "yaat-favlibrary.zip"
-            )
-        );
-
-        if (path is null)
-        {
-            return false;
-        }
-
-        try
-        {
-            await using FileStream stream = File.Create(path);
-            vm.ExportFavoriteLibrary(stream);
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            Log.LogWarning(ex, "Favorites library export failed to write {Path}", path);
-            return false;
-        }
-
-        return true;
-    }
-
-    private async void OnImportFavoritesClick(object? sender, RoutedEventArgs e)
-    {
-        if (DataContext is not MainViewModel vm || TopLevel.GetTopLevel(this) is not Window owner)
-        {
-            return;
-        }
-
-        IFilePickerService picker = FilePickerFactory.Create(owner);
-        string? path = await picker.OpenFileAsync(new OpenFileOptions("Import Favorites", [FavoritesZipType, JsonFileType]));
-        if (path is null)
-        {
-            return;
-        }
-
-        if (await AskImportModeAsync(vm, owner) is not { } mode)
-        {
-            return;
-        }
-
-        FavoriteImportResult? result;
-        try
-        {
-            await using FileStream stream = File.OpenRead(path);
-            result = vm.ImportFavoritesFile(Path.GetFileName(path), stream, mode);
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            Log.LogWarning(ex, "Favorites import failed to read {Path}", path);
-            return;
-        }
-
-        if (result is null)
-        {
-            Log.LogWarning("Favorites import did not recognize {Path} as a favorites zip or entity json", path);
-            await MessageBoxPresenter.ShowStandardAsync(
-                owner,
-                "Import Favorites",
-                "The selected file is not a recognized favorites export.",
-                ButtonEnum.Ok
-            );
-            return;
-        }
-
-        string summary =
-            (mode == FavoriteImportMode.Replace ? "Replaced your favorites. " : "")
-            + $"Imported {result.FavoritesAdded} new favorite(s), updated {result.FavoritesUpdated}; "
-            + $"added {result.SetsAdded} set(s), merged into {result.SetsUpdated}.";
-        if (result.MissingReferences > 0)
-        {
-            summary += $" {result.MissingReferences} referenced favorite(s) were missing from the file and were skipped.";
-        }
-        await MessageBoxPresenter.ShowStandardAsync(owner, "Import Favorites", summary, ButtonEnum.Ok);
-    }
-
-    private const string AddToExistingChoice = "Add to existing";
-    private const string SaveThenReplaceChoice = "Save Current As..., then Replace All";
-    private const string ReplaceAllChoice = "Replace All";
-
-    /// <summary>
-    /// Asks how the import should land: merged into the current favorites, or replacing them —
-    /// optionally saving the current library to a zip first. Returns null when the user cancels,
-    /// closes the box, or backs out of the save picker, in which case nothing is imported.
-    /// </summary>
-    private async Task<FavoriteImportMode?> AskImportModeAsync(MainViewModel vm, Window owner)
-    {
-        string message =
-            "Add the imported favorites alongside your current ones, or replace everything? "
-            + $"Replace all deletes all {vm.FavoriteStore.AllFavorites.Count} favorite(s) and {vm.FavoriteStore.OrderedSets.Count} set(s) first.";
-        string choice = await MessageBoxPresenter.ShowCustomAsync(
-            owner,
-            new MessageBoxCustomParams
-            {
-                ButtonDefinitions =
-                [
-                    new ButtonDefinition { Name = AddToExistingChoice },
-                    new ButtonDefinition { Name = SaveThenReplaceChoice },
-                    new ButtonDefinition { Name = ReplaceAllChoice },
-                    new ButtonDefinition { Name = "Cancel", IsCancel = true },
-                ],
-                ContentTitle = "Import Favorites",
-                ContentMessage = message,
-                WindowStartupLocation = WindowStartupLocation.CenterOwner,
-            }
-        );
-        if (string.Equals(choice, AddToExistingChoice, StringComparison.Ordinal))
-        {
-            return FavoriteImportMode.Merge;
-        }
-
-        if (string.Equals(choice, ReplaceAllChoice, StringComparison.Ordinal))
-        {
-            return FavoriteImportMode.Replace;
-        }
-
-        if (!string.Equals(choice, SaveThenReplaceChoice, StringComparison.Ordinal))
-        {
-            return null;
-        }
-
-        // The backup is the whole point of this branch: a cancelled picker or a failed write
-        // must leave the existing favorites in place, so the import is abandoned with them.
-        return await ExportLibraryAsync(vm) ? FavoriteImportMode.Replace : null;
     }
 
     private void OnFavoritePointerPressed(object? sender, PointerPressedEventArgs e)

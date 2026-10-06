@@ -88,7 +88,18 @@ public partial class RadarView
             vm.SelectedAircraft = ac;
         }
 
-        ShowContextMenu(BuildAircraftContextMenu(vm, ac, prevSelected, callsign));
+        ShowContextMenu(BuildAircraftRightClickMenu(vm, ac, prevSelected, callsign));
+    }
+
+    /// <summary>
+    /// The menu a right-click on an aircraft opens: the aircraft menu (<see cref="BuildAircraftContextMenu"/>), ending with
+    /// "Settings for this view…".
+    /// </summary>
+    internal ContextMenu BuildAircraftRightClickMenu(RadarViewModel vm, AircraftModel? ac, AircraftModel? prevSelected, string callsign)
+    {
+        ContextMenu menu = BuildAircraftContextMenu(vm, ac, prevSelected, callsign);
+        ViewSettingsMenu.Append(menu, FindMainViewModel(), SettingsSectionId.Radar);
+        return menu;
     }
 
     /// <summary>
@@ -170,10 +181,26 @@ public partial class RadarView
 
     private void OnMapRightClicked(double lat, double lon, Point screenPos)
     {
-        if (DataContext is RadarViewModel vm)
+        if (BuildMapContextMenu(lat, lon, screenPos) is { } menu)
         {
-            ShowContextMenu(BuildMapPointMenu(vm, new LatLon(lat, lon), screenPos));
+            ShowContextMenu(menu);
         }
+    }
+
+    /// <summary>
+    /// The map's right-click menu at a point: the map point menu (<see cref="BuildMapPointMenu"/>), ending with "Settings
+    /// for this view…"; null without a radar view model.
+    /// </summary>
+    internal ContextMenu? BuildMapContextMenu(double lat, double lon, Point screenPos)
+    {
+        if (DataContext is not RadarViewModel vm)
+        {
+            return null;
+        }
+
+        ContextMenu menu = BuildMapPointMenu(vm, new LatLon(lat, lon), screenPos);
+        ViewSettingsMenu.Append(menu, FindMainViewModel(), SettingsSectionId.Radar);
+        return menu;
     }
 
     /// <summary>

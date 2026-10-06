@@ -4,6 +4,7 @@ using System.Reflection;
 using Avalonia;
 using LMKit.Hardware.Gpu;
 using LMKit.Model;
+using Yaat.Client.Logging;
 using Yaat.Client.Services;
 using Yaat.Sim.Speech;
 
@@ -62,28 +63,38 @@ public static class Program
 
         if (args.Length > 0)
         {
-            switch (args[0])
+            // Console modes log through AppLog, which also wires SimLog, so cache warnings and the
+            // sherpa STT engine's diagnostics reach a file instead of the NullLogger default.
+            AppLog.Initialize("yaat-speech-sandbox.log");
+            try
             {
-                case "--pipeline":
-                    return RunPipelineMode(args[1..]).GetAwaiter().GetResult();
-                case "--lmkit-stt":
-                    return RunLmKitSttMode(args[1..]);
-                case "--lmkit-models":
-                    return RunLmKitModelsMode();
-                case "--lmkit-gpus":
-                    return RunLmKitGpusMode();
-                case "--yaat-catalog":
-                    return RunYaatCatalogMode();
-                case "--llm-probe":
-                    return RunLlmProbeMode(args[1..]).GetAwaiter().GetResult();
-                case "--ouroboros":
-                    return OuroborosRunner.RunAsync(args[1..]).GetAwaiter().GetResult();
-                case "--eval":
-                    return EvalRunner.RunAsync(args[1..]).GetAwaiter().GetResult();
-                case "--synth-corpus":
-                    return SynthCorpusGenerator.RunAsync(args[1..]).GetAwaiter().GetResult();
-                case "--atc-ouroboros":
-                    return AtcOuroborosRunner.RunAsync(args[1..]).GetAwaiter().GetResult();
+                switch (args[0])
+                {
+                    case "--pipeline":
+                        return RunPipelineMode(args[1..]).GetAwaiter().GetResult();
+                    case "--lmkit-stt":
+                        return RunLmKitSttMode(args[1..]);
+                    case "--lmkit-models":
+                        return RunLmKitModelsMode();
+                    case "--lmkit-gpus":
+                        return RunLmKitGpusMode();
+                    case "--yaat-catalog":
+                        return RunYaatCatalogMode();
+                    case "--llm-probe":
+                        return RunLlmProbeMode(args[1..]).GetAwaiter().GetResult();
+                    case "--ouroboros":
+                        return OuroborosRunner.RunAsync(args[1..]).GetAwaiter().GetResult();
+                    case "--eval":
+                        return EvalRunner.RunAsync(args[1..]).GetAwaiter().GetResult();
+                    case "--synth-corpus":
+                        return SynthCorpusGenerator.RunAsync(args[1..]).GetAwaiter().GetResult();
+                    case "--atc-ouroboros":
+                        return AtcOuroborosRunner.RunAsync(args[1..]).GetAwaiter().GetResult();
+                }
+            }
+            finally
+            {
+                AppLog.Flush();
             }
         }
 

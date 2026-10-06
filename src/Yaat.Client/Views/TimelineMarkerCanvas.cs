@@ -33,12 +33,12 @@ public sealed class TimelineMarkerCanvas : Panel
 
     // Slider thumb is ~10 px wide; the track inset roughly matches. We don't have a direct
     // handle on it from XAML so use a sensible default and let the slider absorb the rest.
-    private const double EdgeInsetPx = 8.0;
+    public const double EdgeInsetPx = 8.0;
 
     static TimelineMarkerCanvas()
     {
         AffectsArrange<TimelineMarkerCanvas>(MaxTimeProperty);
-        AffectsArrange<TimelineMarkerCanvas>(TimeProperty);
+        AffectsParentArrange<TimelineMarkerCanvas>(TimeProperty);
     }
 
     protected override Size MeasureOverride(Size availableSize)

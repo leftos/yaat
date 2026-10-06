@@ -29,13 +29,120 @@ public sealed class RadarCopyGroup
 }
 
 /// <summary>
-/// Single source of truth for how per-scenario Ground/Radar view settings are grouped when
-/// copying from one scenario to another. Used by both <c>CopyViewSettingsDialog</c> (to render
-/// the comparison rows) and the apply step in <c>MainWindow</c> (to merge the selected sections
-/// into the current settings), so the groupings can never drift apart.
+/// One selectable row of a saved layout in the apply dialog: a pop-out window, the extra views, favorites, open tabs or
+/// the aircraft-list columns. <see cref="IsSaved"/> is false when the layout predates the state being captured (a null
+/// field), which leaves nothing to apply. Applying a row is <c>MainWindow</c>'s, keyed by <see cref="Key"/>.
+/// </summary>
+public sealed class LayoutCopyGroup
+{
+    public required string Key { get; init; }
+    public required string Section { get; init; }
+    public required string Label { get; init; }
+    public required Func<SavedLayout, string> Describe { get; init; }
+    public required Func<SavedLayout, SavedLayout, bool> AreEqual { get; init; }
+    public Func<SavedLayout, bool> IsSaved { get; init; } = _ => true;
+}
+
+/// <summary>
+/// Single source of truth for how per-scenario Ground/Radar view settings and saved layouts are grouped when applied
+/// from a source. Used by both <c>ApplyLayoutDialog</c> (to render the comparison rows) and the apply step in
+/// <c>MainWindow</c> (to merge the selected sections into the current settings), so the groupings can never drift apart.
 /// </summary>
 public static class ViewSettingsCopyCatalog
 {
+    /// <summary>A layout's window-geometry rows are keyed by this prefix plus the window name.</summary>
+    public const string LayoutGeometryKeyPrefix = "geo:";
+
+    public const string LayoutTerminalKey = "layout.terminal";
+    public const string LayoutAircraftListKey = "layout.aircraftList";
+    public const string LayoutGroundKey = "layout.ground";
+    public const string LayoutRadarKey = "layout.radar";
+    public const string LayoutControllersKey = "layout.controllers";
+    public const string LayoutMetarKey = "layout.metar";
+    public const string LayoutExtraRadarKey = "layout.extraRadar";
+    public const string LayoutExtraGroundKey = "layout.extraGround";
+    public const string LayoutFavoriteSetsKey = "layout.favoriteSets";
+    public const string LayoutFavoritesBarKey = "layout.favoritesBar";
+    public const string LayoutFavoritesPanelKey = "layout.favoritesPanel";
+    public const string LayoutOpenTabsKey = "layout.openTabs";
+    public const string LayoutColumnsKey = "layout.columns";
+
+    private const string NotSaved = "not saved";
+
+    public static IReadOnlyList<LayoutCopyGroup> LayoutGroups { get; } =
+    [
+        PopOutGroup(LayoutTerminalKey, "Terminal", l => l.IsTerminalPoppedOut),
+        PopOutGroup(LayoutAircraftListKey, "Aircraft list", l => l.IsDataGridPoppedOut),
+        PopOutGroup(LayoutGroundKey, "Ground view", l => l.IsGroundViewPoppedOut),
+        PopOutGroup(LayoutRadarKey, "Radar view", l => l.IsRadarViewPoppedOut),
+        PopOutGroup(LayoutControllersKey, "Controllers", l => l.IsControllersPoppedOut),
+        PopOutGroup(LayoutMetarKey, "METAR", l => l.IsMetarPoppedOut),
+        new LayoutCopyGroup
+        {
+            Key = LayoutExtraRadarKey,
+            Section = "Extra windows",
+            Label = "Extra radar windows",
+            Describe = l => FormatExtraViews(l.ExtraRadarViews),
+            AreEqual = (a, b) => a.ExtraRadarViews.SequenceEqual(b.ExtraRadarViews),
+        },
+        new LayoutCopyGroup
+        {
+            Key = LayoutExtraGroundKey,
+            Section = "Extra windows",
+            Label = "Extra ground windows",
+            Describe = l => FormatExtraViews(l.ExtraGroundViews),
+            AreEqual = (a, b) => a.ExtraGroundViews.SequenceEqual(b.ExtraGroundViews),
+        },
+        new LayoutCopyGroup
+        {
+            Key = LayoutFavoriteSetsKey,
+            Section = "Favorites",
+            Label = "Loaded favorite sets",
+            Describe = l => l.LoadedFavoriteSetIds is { } ids ? $"{ids.Count} set{Plural(ids.Count)}" : NotSaved,
+            AreEqual = (a, b) => SequenceEqual(a.LoadedFavoriteSetIds, b.LoadedFavoriteSetIds),
+            IsSaved = l => l.LoadedFavoriteSetIds is not null,
+        },
+        new LayoutCopyGroup
+        {
+            Key = LayoutFavoritesBarKey,
+            Section = "Favorites",
+            Label = "Favorites bar",
+            Describe = l => l.ShowFavoritesBar is { } shown ? (shown ? "shown" : "hidden") : NotSaved,
+            AreEqual = (a, b) => a.ShowFavoritesBar == b.ShowFavoritesBar,
+            IsSaved = l => l.ShowFavoritesBar is not null,
+        },
+        new LayoutCopyGroup
+        {
+            Key = LayoutFavoritesPanelKey,
+            Section = "Favorites",
+            Label = "Favorites panel",
+            Describe = l => l.IsFavoritesPanelOpen is { } open ? (open ? "open" : "closed") : NotSaved,
+            AreEqual = (a, b) => a.IsFavoritesPanelOpen == b.IsFavoritesPanelOpen,
+            IsSaved = l => l.IsFavoritesPanelOpen is not null,
+        },
+        new LayoutCopyGroup
+        {
+            Key = LayoutOpenTabsKey,
+            Section = "Tabs",
+            Label = "Strips / vTDLS tabs",
+            Describe = l => l.OpenTabs is { } tabs ? FormatOpenTabs(tabs) : NotSaved,
+            AreEqual = (a, b) => OpenTabsEqual(a.OpenTabs, b.OpenTabs),
+            IsSaved = l => l.OpenTabs is not null,
+        },
+        new LayoutCopyGroup
+        {
+            Key = LayoutColumnsKey,
+            Section = "Aircraft list",
+            Label = "Column layout",
+            Describe = l => FormatGrid(l.DataGridLayout),
+            AreEqual = (a, b) => GridEqual(a.DataGridLayout, b.DataGridLayout),
+        },
+    ];
+
+    /// <summary>Every row key a whole-layout apply selects: each <see cref="LayoutGroups"/> row and each saved window geometry.</summary>
+    public static HashSet<string> AllLayoutKeys(SavedLayout layout) =>
+        [.. LayoutGroups.Select(g => g.Key), .. layout.WindowGeometries.Keys.Select(k => LayoutGeometryKeyPrefix + k)];
+
     /// <summary>Position group keys carry an airport-aware label and the cross-airport warning.</summary>
     public const string GroundPositionKey = "ground.position";
 
@@ -228,6 +335,103 @@ public static class ViewSettingsCopyCatalog
         foreach ((string? key, int value) in a)
         {
             if (!b.TryGetValue(key, out int other) || other != value)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static LayoutCopyGroup PopOutGroup(string key, string label, Func<SavedLayout, bool> poppedOut) =>
+        new()
+        {
+            Key = key,
+            Section = "Pop-out windows",
+            Label = label,
+            Describe = l => poppedOut(l) ? "popped out" : "docked",
+            AreEqual = (a, b) => poppedOut(a) == poppedOut(b),
+        };
+
+    private static string FormatExtraViews(List<SavedExtraView> views) =>
+        views.Count == 0 ? "none" : string.Join(", ", views.Select(v => $"#{v.Ordinal} {v.AirportId}"));
+
+    private static string FormatOpenTabs(SavedOpenTabs tabs)
+    {
+        if ((tabs.Strips.Count == 0) && (tabs.Tdls.Count == 0))
+        {
+            return "none";
+        }
+
+        List<string> parts = [];
+        if (tabs.Strips.Count > 0)
+        {
+            parts.Add($"Strips: {string.Join(", ", tabs.Strips)}");
+        }
+
+        if (tabs.Tdls.Count > 0)
+        {
+            parts.Add($"vTDLS: {string.Join(", ", tabs.Tdls)}");
+        }
+
+        return string.Join(" · ", parts);
+    }
+
+    private static bool OpenTabsEqual(SavedOpenTabs? a, SavedOpenTabs? b)
+    {
+        if (a is null || b is null)
+        {
+            return a is null && b is null;
+        }
+
+        return SequenceEqual(a.Strips, b.Strips) && SequenceEqual(a.Tdls, b.Tdls);
+    }
+
+    private static string FormatGrid(SavedGridLayout? layout)
+    {
+        if (layout is null)
+        {
+            return "default";
+        }
+
+        int columns = layout.ColumnOrder?.Count ?? 0;
+        int hidden = layout.HiddenColumns?.Count ?? 0;
+        return ((columns == 0) && (hidden == 0)) ? "custom" : $"{columns} cols, {hidden} hidden";
+    }
+
+    private static bool GridEqual(SavedGridLayout? a, SavedGridLayout? b)
+    {
+        if (a is null || b is null)
+        {
+            return a is null && b is null;
+        }
+
+        return SequenceEqual(a.ColumnOrder, b.ColumnOrder)
+            && SequenceEqual(a.HiddenColumns, b.HiddenColumns)
+            && (a.SortColumn == b.SortColumn)
+            && (a.SortDirection == b.SortDirection)
+            && WidthsEqual(a.ColumnWidths, b.ColumnWidths);
+    }
+
+    private static bool SequenceEqual(List<string>? a, List<string>? b) => (a ?? []).SequenceEqual(b ?? []);
+
+    private static bool WidthsEqual(Dictionary<string, double>? a, Dictionary<string, double>? b)
+    {
+        int countA = a?.Count ?? 0;
+        int countB = b?.Count ?? 0;
+        if (countA != countB)
+        {
+            return false;
+        }
+
+        if (a is null || b is null)
+        {
+            return true;
+        }
+
+        foreach ((string? key, double value) in a)
+        {
+            if (!b.TryGetValue(key, out double other) || Math.Abs(other - value) > 0.5)
             {
                 return false;
             }
