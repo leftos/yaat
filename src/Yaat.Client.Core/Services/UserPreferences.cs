@@ -1202,20 +1202,6 @@ public sealed partial class UserPreferences
         Save();
     }
 
-    /// <summary>Removes <paramref name="situation"/>'s stored quick-command list, so it takes the default again, and saves.</summary>
-    public void ResetQuickCommandList(AircraftSituation situation)
-    {
-        _quickCommandLists.Remove(situation);
-        Save();
-    }
-
-    /// <summary>Removes every stored quick-command list, so every situation takes its default again, and saves.</summary>
-    public void ResetAllQuickCommandLists()
-    {
-        _quickCommandLists.Clear();
-        Save();
-    }
-
     /// <summary>
     /// Persists the opt-in speech-sample capture toggle and its on-disk size cap (in MB). When
     /// capture is on, the speech pipeline writes every push-to-talk recording + pipeline trace

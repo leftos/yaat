@@ -10,7 +10,7 @@ namespace Yaat.Client.Tests;
 
 /// <summary>
 /// Pins the stored quick-command lists in <see cref="UserPreferences"/>: only changed situations are saved, a list equal
-/// to the default is not stored, reset one and reset all, and what a load cannot read is dropped without losing the rest.
+/// to the default is not stored, and what a load cannot read is dropped without losing the rest.
 /// Tests share the per-process preferences.json (ModuleInit redirects it to a temp folder; this assembly runs its test
 /// classes one at a time), and each test resets every stored list when it ends.
 /// </summary>
@@ -26,13 +26,13 @@ public class QuickCommandStorageTests : IDisposable
         new CustomQuickCommandEntry("Say heading", "SH", null, MenuFlightRules.Both),
     ];
 
-    public void Dispose() => new UserPreferences().ResetAllQuickCommandLists();
+    public void Dispose() => ClearStoredQuickCommandLists();
 
     [Fact]
     public void UnchangedSituations_AreAbsentFromTheSavedJson()
     {
+        ClearStoredQuickCommandLists();
         var prefs = new UserPreferences();
-        prefs.ResetAllQuickCommandLists();
 
         prefs.SetQuickCommandList(AircraftSituation.Taxiing, TaxiingList);
 
@@ -62,35 +62,6 @@ public class QuickCommandStorageTests : IDisposable
         Assert.Empty(prefs.QuickCommandOverrides);
         Assert.Empty(StoredSituationNames());
         Assert.Equal(QuickCommandDefaults.For(AircraftSituation.Taxiing), new UserPreferences().GetQuickCommandList(AircraftSituation.Taxiing));
-    }
-
-    [Fact]
-    public void ResetOne_RemovesOnlyThatSituation()
-    {
-        var prefs = new UserPreferences();
-        prefs.SetQuickCommandList(AircraftSituation.Taxiing, TaxiingList);
-        prefs.SetQuickCommandList(AircraftSituation.Final, [new CatalogQuickCommandEntry(MenuIds.TowerGoAround, null)]);
-
-        prefs.ResetQuickCommandList(AircraftSituation.Taxiing);
-
-        var reloaded = new UserPreferences();
-        Assert.Equal(QuickCommandDefaults.For(AircraftSituation.Taxiing), reloaded.GetQuickCommandList(AircraftSituation.Taxiing));
-        Assert.Equal([new CatalogQuickCommandEntry(MenuIds.TowerGoAround, null)], reloaded.GetQuickCommandList(AircraftSituation.Final));
-        Assert.Equal(["Final"], StoredSituationNames());
-    }
-
-    [Fact]
-    public void ResetAll_RemovesEveryStoredSituation()
-    {
-        var prefs = new UserPreferences();
-        prefs.SetQuickCommandList(AircraftSituation.Taxiing, TaxiingList);
-        prefs.SetQuickCommandList(AircraftSituation.Final, [new CatalogQuickCommandEntry(MenuIds.TowerGoAround, null)]);
-        Assert.Equal(["Taxiing", "Final"], StoredSituationNames());
-
-        prefs.ResetAllQuickCommandLists();
-
-        Assert.Empty(new UserPreferences().QuickCommandOverrides);
-        Assert.Empty(StoredSituationNames());
     }
 
     [Fact]
@@ -196,6 +167,20 @@ public class QuickCommandStorageTests : IDisposable
 
         Assert.Equal(QuickCommandDefaults.For(AircraftSituation.Taxiing), prefs.GetQuickCommandList(AircraftSituation.Taxiing));
         Assert.Empty(prefs.QuickCommandOverrides);
+    }
+
+    /// <summary>
+    /// Stores every situation's default list, which removes each stored override, leaving the shared preferences.json with
+    /// no quick-command list. <see cref="UserPreferences.SetQuickCommandList"/> throws for
+    /// <see cref="AircraftSituation.Unknown"/>, which has no list, so that situation is skipped.
+    /// </summary>
+    private static void ClearStoredQuickCommandLists()
+    {
+        var prefs = new UserPreferences();
+        foreach (AircraftSituation situation in QuickCommandDefaults.Lists.Keys)
+        {
+            prefs.SetQuickCommandList(situation, QuickCommandDefaults.For(situation));
+        }
     }
 
     /// <summary>The situation names the saved preferences.json stores a quick-command list for.</summary>
