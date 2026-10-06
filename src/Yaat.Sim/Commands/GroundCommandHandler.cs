@@ -71,6 +71,13 @@ public static class GroundCommandHandler
     private const double HeldShortLegReversalDeg = 150.0;
 
     /// <summary>
+    /// A jet heading within this of its taxiway edge's direction is lined up along it and does not turn about there. A
+    /// heuristic: a jet angled further across its edge is probably on wider pavement or a fillet; a 150° turn still needs
+    /// about 93% of a 180's pavement.
+    /// </summary>
+    private const double JetTurnAboutAlignmentDeg = 30.0;
+
+    /// <summary>
     /// A controller-typed or scenario-preset <c>TAXI</c>. A bare runway destination with no taxiways named
     /// (<c>TAXI 1L</c>) is honoured only when the aircraft is already at that runway's hold-short — see
     /// <see cref="TaxiPathfinder.FindAdjacentRunwayRoute"/>; <see cref="TryTaxiAuto"/> is the explicit auto-route.
@@ -80,19 +87,27 @@ public static class GroundCommandHandler
         TaxiCommand taxi,
         AirportGroundLayout? groundLayout,
         bool autoCrossRunway = false
-    ) => TryTaxi(aircraft, taxi, groundLayout, autoCrossRunway, listAircraft: null);
+    ) => TryTaxi(aircraft, taxi, groundLayout, new TaxiDispatch(autoCrossRunway, IsScenarioScripted: false, ListAircraft: null));
 
     /// <summary>
     /// A <c>TAXI</c> dispatched with the world's aircraft in view: a spot line-up from the ramp
     /// (<see cref="RampLaneReposition.TryPlanSpotLineUp"/>) is planned clear of every other aircraft on the ground.
     /// </summary>
-    internal static CommandResult TryTaxi(
-        AircraftState aircraft,
-        TaxiCommand taxi,
-        AirportGroundLayout? groundLayout,
-        bool autoCrossRunway,
-        Func<IReadOnlyList<AircraftState>>? listAircraft
-    ) => TryTaxiCore(aircraft, taxi, groundLayout, new TaxiCoreOptions(autoCrossRunway, IsTaxiAuto: false, listAircraft));
+    internal static CommandResult TryTaxi(AircraftState aircraft, TaxiCommand taxi, AirportGroundLayout? groundLayout, TaxiDispatch dispatch) =>
+        TryTaxiCore(
+            aircraft,
+            taxi,
+            groundLayout,
+            new TaxiCoreOptions(dispatch.AutoCrossRunway, IsTaxiAuto: false, dispatch.IsScenarioScripted, dispatch.ListAircraft)
+        );
+
+    /// <summary>How a <c>TAXI</c> reached the handler.</summary>
+    /// <param name="AutoCrossRunway">The scenario pre-clears runway crossings.</param>
+    /// <param name="IsScenarioScripted">
+    /// No controller issued it: a scenario preset or an AI controller (<see cref="DispatchContext.IsScenarioScripted"/>).
+    /// </param>
+    /// <param name="ListAircraft">Every aircraft in the world, or null when the caller has no world.</param>
+    internal sealed record TaxiDispatch(bool AutoCrossRunway, bool IsScenarioScripted, Func<IReadOnlyList<AircraftState>>? ListAircraft);
 
     /// <summary>The dispatch-level switches a TAXI or TAXIAUTO resolves under.</summary>
     /// <param name="AutoCrossRunway">The scenario pre-clears runway crossings.</param>
@@ -101,8 +116,21 @@ public static class GroundCommandHandler
     /// afar, a bare gate or spot destination is not confined to the ramp, and the readback carries no advisory about
     /// taxiways the route drives that no clearance named.
     /// </param>
+    /// <param name="IsScenarioScripted">No controller issued it: a scenario preset or an AI controller.</param>
     /// <param name="ListAircraft">Every aircraft in the world, or null when the caller has no world.</param>
-    private sealed record TaxiCoreOptions(bool AutoCrossRunway, bool IsTaxiAuto, Func<IReadOnlyList<AircraftState>>? ListAircraft);
+    private sealed record TaxiCoreOptions(
+        bool AutoCrossRunway,
+        bool IsTaxiAuto,
+        bool IsScenarioScripted,
+        Func<IReadOnlyList<AircraftState>>? ListAircraft
+    )
+    {
+        /// <summary>
+        /// A controller issued the clearance and hears the readback, so a jet may refuse it as "unable" and wait for
+        /// another. A preset, an AI controller or TAXIAUTO has no one to re-issue it, so the jet takes the route it has.
+        /// </summary>
+        public bool ControllerIssued => !IsTaxiAuto && !IsScenarioScripted;
+    }
 
     /// <summary>What the TAXI readback needs beyond the route, the layout and the clearance.</summary>
     /// <param name="OccupiedTaxiway">The taxiway the aircraft occupies, counted as named.</param>
@@ -152,7 +180,6 @@ public static class GroundCommandHandler
         // pilot's readback is built from this minus the dropped lane — not from the internally folded /
         // prepended working copy — so the solo student hears "unable M4, taxi via M1 …" and nothing else.
         TaxiCommand asCleared = taxi;
-        TaxiCommand? effectiveCommand = null;
 
         // A $spot inside the path is a via — the route has to pass through that spot's node on its way to the
         // destination. The resolver already understands a #nodeId token, so the via is rewritten into one here,
@@ -185,31 +212,6 @@ public static class GroundCommandHandler
         GroundNode? startNode =
             groundLayout.FindNearestNodeForTaxi(aircraft.Position, aircraft.TrueHeading) ?? groundLayout.FindNearestNode(aircraft.Position);
 
-        // Anchor the start node to the first cleared taxiway when the aircraft is sitting on a node
-        // of it. The heading-biased FindNearestNodeForTaxi can land on an adjacent parallel taxiway
-        // after a directional pushback (the aircraft's heading aligns with the neighbour's edge, not
-        // its own taxiway's), which then makes the named first taxiway "unreachable" — WJA1521 pushed
-        // onto M4 but the start node resolved onto the parallel M5, so "TAXI M4 M2 ..." was rejected.
-        // Only overrides when the on-taxiway node is at least as close as the heuristic's pick.
-        if (
-            startNode is not null
-            && taxi.Path.Count > 0
-            && !taxi.Path[0].StartsWith('#')
-            && !startNode.Edges.Any(e => e.MatchesTaxiway(taxi.Path[0]))
-            && groundLayout.FindNearestNodeOnTaxiway(aircraft.Position, taxi.Path[0], maxDistFt: 100.0) is { } onFirstCleared
-            && GeoMath.DistanceNm(aircraft.Position, onFirstCleared.Position) <= GeoMath.DistanceNm(aircraft.Position, startNode.Position)
-        )
-        {
-            Log.LogDebug(
-                "[TryTaxi] {Callsign}: start node {Old} is not on cleared {Twy}; anchoring to nearer on-taxiway node {New}",
-                aircraft.Callsign,
-                startNode.Id,
-                taxi.Path[0],
-                onFirstCleared.Id
-            );
-            startNode = onFirstCleared;
-        }
-
         if (startNode is null)
         {
             Log.LogWarning(
@@ -221,299 +223,31 @@ public static class GroundCommandHandler
             return new CommandResult(false, "Cannot find position on taxiway graph");
         }
 
-        // A drawn route's leading nodes go stale while the controller is drawing — see the helper.
-        taxi = TrimPassedNodeRefPrefix(aircraft, startNode, taxi);
-        if ((taxi.Path.Count == 0) && (taxi.DestinationRunway is null) && (taxi.DestinationParking is null) && (taxi.DestinationSpot is null))
-        {
-            return new CommandResult(false, $"{aircraft.Callsign} has already taxied past the whole route");
-        }
-
-        // Where the cleared path starts: the candidates ResolveFromBestStart tries (see the resolution below
-        // ResolveRoute). The taxiway held short of is no candidate when the aircraft already stands on the first
-        // cleared taxiway: holding short of K on B, "TAXI B T" continues along B across K.
-        bool standsOnFirstCleared = (taxi.Path.Count > 0) && startNode.Edges.Any(e => e.MatchesTaxiway(taxi.Path[0]));
-        TaxiCommand? heldShortPrepend =
-            (!standsOnFirstCleared && (HeldShortTaxiway(aircraft) is { } heldShortTwy))
-                ? PrependTaxiwayJoiningPath(groundLayout, taxi, heldShortTwy)
-                : null;
-        string? occupiedTaxiway = OccupiedTaxiway(aircraft, startNode, groundLayout);
-        TaxiCommand? currentTaxiwayPrepend = CurrentTaxiwayPrepend(groundLayout, occupiedTaxiway, taxi);
-
-        Log.LogDebug(
-            "[TryTaxi] {Callsign}: nearest node {NodeId} ({NodeType}) at ({NLat:F6}, {NLon:F6}), dist={Dist:F4}nm, path=[{Path}], "
-                + "destRwy={Rwy}, destParking={Pkg}, destSpot={Spot}",
-            aircraft.Callsign,
-            startNode.Id,
-            startNode.Type,
-            startNode.Position.Lat,
-            startNode.Position.Lon,
-            GeoMath.DistanceNm(aircraft.Position, startNode.Position),
-            string.Join(" ", taxi.Path),
-            taxi.DestinationRunway ?? "(none)",
-            taxi.DestinationParking ?? "(none)",
-            taxi.DestinationSpot ?? "(none)"
-        );
-
         AircraftCategory category = AircraftCategorization.Categorize(aircraft.AircraftType);
         WakeTurbulenceData.WakeClass wakeClass = WakeTurbulenceData.WakeClassForType(aircraft.AircraftType, category);
         double aircraftLengthFt = AircraftLength.ResolveFt(aircraft.AircraftType);
 
-        // A plain TAXI naming no taxiway, only a gate or spot, from inside the ramp stays inside it (7110.65 §3-7-2: the
-        // route on the movement area is the controller's to issue). TAXIAUTO is the unrestricted auto-route.
-        bool confineToRamp =
-            !options.IsTaxiAuto
-            && (asCleared.Path.Count == 0)
-            && ((taxi.DestinationParking is not null) || (taxi.DestinationSpot is not null))
-            && RampLaneReposition.StartsOffMovementArea(
-                groundLayout,
-                aircraft.Position,
-                aircraft.Phases?.CurrentPhase is AtParkingPhase,
-                aircraft.AircraftType
-            );
-
-        double startHeadingTrueDeg = aircraft.TrueHeading.Degrees;
-        TaxiRoute? ResolveDirect(TaxiCommand command, out PathfindingFailure? routeFailure)
+        var inputs = new TaxiResolveInputs
         {
-            if (confineToRamp && (command.Path.Count == 0))
-            {
-                return ResolveRampConfinedRoute(
-                    groundLayout,
-                    startNode,
-                    command,
-                    new RampConfinedInputs(
-                        aircraft,
-                        new SpotLineUpInputs(category, wakeClass, aircraftLengthFt, asCleared.Path, options.ListAircraft)
-                    ),
-                    out routeFailure
-                );
-            }
-
-            if (command.DestinationParking is not null || command.DestinationSpot is not null)
-            {
-                return ResolveParkingRoute(
-                    groundLayout,
-                    startNode,
-                    command,
-                    out routeFailure,
-                    category,
-                    wakeClass,
-                    startHeadingTrueDeg,
-                    occupiedTaxiway
-                );
-            }
-
-            if ((command.Path.Count == 0) && (command.DestinationRunway is not null))
-            {
-                TaxiRoute? adjacent = ResolveAdjacentRunwayRoute(
-                    groundLayout,
-                    startNode,
-                    aircraft,
-                    command.DestinationRunway,
-                    out string? adjacentReason
-                );
-                // TAXIAUTO at the bar has nothing to route either — the full-length auto-route would
-                // otherwise return an empty fallback with no destination hold-short to hold at.
-                if (!options.IsTaxiAuto || (adjacent is { Segments.Count: 0 }))
-                {
-                    routeFailure = adjacent is null ? DestinationFailure(adjacentReason ?? $"No route to runway {command.DestinationRunway}") : null;
-                    return adjacent;
-                }
-            }
-
-            return ResolveStandardRoute(
-                groundLayout,
-                startNode,
-                command,
-                out routeFailure,
-                category,
-                wakeClass,
-                startHeadingTrueDeg,
-                occupiedTaxiway
-            );
+            Aircraft = aircraft,
+            Layout = groundLayout,
+            AsCleared = asCleared,
+            FoldTargets = foldTargets,
+            Options = options,
+            Category = category,
+            WakeClass = wakeClass,
+            AircraftLengthFt = aircraftLengthFt,
+            FailureLogLevel = LogLevel.Warning,
+        };
+        TaxiResolution resolved = ResolveTaxiRouteFromStart(inputs, taxi, startNode);
+        if (resolved.Route is not { } route)
+        {
+            return resolved.Refusal ?? throw new InvalidOperationException("a taxi resolution carries neither a route nor a refusal");
         }
 
-        // As-cleared first: the route the named taxiways produce on their own wins when it honors every
-        // hold-short hint en route (see AsClearedRejectionReason). Only then is the hint's taxiway folded
-        // into the path — the OAK "TAXI D C HS E RWY 28R" shape, where E is the way to the runway.
-        TaxiRoute? ResolveRoute(TaxiCommand command, out PathfindingFailure? routeFailure)
-        {
-            if (foldTargets.Count == 0)
-            {
-                return ResolveDirect(command, out routeFailure);
-            }
-
-            TaxiRoute? asClearedRoute = ResolveDirect(command, out routeFailure);
-            string? rejection = asClearedRoute is null
-                ? routeFailure?.HumanMessage ?? "no route"
-                : AsClearedRejectionReason(asClearedRoute, command, foldTargets);
-            if (rejection is null)
-            {
-                return asClearedRoute;
-            }
-
-            Log.LogDebug(
-                "[TryTaxi] {Callsign}: as-cleared route ({Segs} segments) does not honor the hold-short hint — {Reason}; folding [{Twys}] into the path",
-                aircraft.Callsign,
-                asClearedRoute?.Segments.Count ?? 0,
-                rejection,
-                string.Join(" ", foldTargets.Select(t => t.OnTaxiway ?? t.Target))
-            );
-            return ResolveDirect(AugmentPathWithHoldShortTaxiways(command, foldTargets), out routeFailure);
-        }
-
-        StartResolution start = ResolveFromBestStart(aircraft.Callsign, taxi, heldShortPrepend, currentTaxiwayPrepend, ResolveRoute);
-        taxi = start.Command;
-        TaxiRoute? route = start.Route;
-        PathfindingFailure? failure = start.Failure;
-        string? failReason = failure?.HumanMessage;
-
-        // A route kept inside the ramp either resolved or is refused as it stands: every recovery below would have the
-        // aircraft drive taxiways the clearance never named.
-        if (confineToRamp && (route is null))
-        {
-            Log.LogInformation("[TryTaxi] {Callsign}: refused — {Reason}", aircraft.Callsign, failReason ?? "no route inside the ramp");
-            return new CommandResult(false, failReason ?? RampConfinedRefusal(taxi, FindTaxiDestinationNode(groundLayout, taxi)));
-        }
-
-        // A parallel ramp lane the map does not connect (SFO M3 → M4): the pilot cuts across the apron onto it
-        // and taxis the clearance as issued — from a gate or mid-lane. Only for sibling numbered lanes over
-        // open apron; see RampLaneReposition.
-        GroundNode? destinationNode = FindTaxiDestinationNode(groundLayout, taxi);
-        if (route is null && failure is not null && !AirportGroundLayout.HasRunwayCenterlineEdge(startNode))
-        {
-            RampLaneRepositionPlan? plan = RampLaneReposition.TryPlan(
-                groundLayout,
-                new RampLaneRepositionRequest
-                {
-                    Position = aircraft.Position,
-                    Heading = aircraft.TrueHeading,
-                    CurrentTaxiway = aircraft.Ground.CurrentTaxiway,
-                    Path = taxi.Path,
-                    Options = new ExplicitPathOptions
-                    {
-                        OccupiedTaxiway = occupiedTaxiway,
-                        ExplicitHoldShorts = taxi.HoldShorts,
-                        DestinationRunway = taxi.DestinationRunway,
-                        DestinationHintNode = destinationNode,
-                        PathTurnHints = taxi.PathTurnHints,
-                    },
-                    Category = category,
-                    WakeClass = wakeClass,
-                },
-                failure
-            );
-            if (plan is not null)
-            {
-                route = plan.Route;
-                failure = null;
-                failReason = null;
-            }
-        }
-
-        // The mirror image at the far end (OAK "TAXI V T TE @22"): the clearance resolves along its lanes but the
-        // last lane's ramp end does not join the stand's lane, so the pilot taxis it to the point nearest the stand
-        // and cuts across the apron onto the stand's lane. Only for sibling ramp lanes over open apron.
-        if (
-            route is null
-            && failure is { Kind: FailureKind.DestinationUnreachable, InfeasibleTaxiway: null }
-            && destinationNode is { } cutDestination
-        )
-        {
-            RampLaneDestinationCutPlan? cut = RampLaneReposition.TryPlanDestinationCut(
-                groundLayout,
-                new RampLaneDestinationCutRequest
-                {
-                    StartNodeId = startNode.Id,
-                    Path = taxi.Path,
-                    Destination = cutDestination,
-                    Options = new ExplicitPathOptions
-                    {
-                        OccupiedTaxiway = occupiedTaxiway,
-                        ExplicitHoldShorts = taxi.HoldShorts,
-                        DestinationRunway = taxi.DestinationRunway,
-                        PathTurnHints = taxi.PathTurnHints,
-                        StartHeadingTrue = startHeadingTrueDeg,
-                    },
-                    Category = category,
-                    WakeClass = wakeClass,
-                    AircraftLengthFt = aircraftLengthFt,
-                }
-            );
-            if (cut is not null)
-            {
-                route = cut.Route;
-                failure = null;
-                failReason = null;
-            }
-        }
-
-        // A route that resolved but only reaches the stand the long way round (SFO "TAXI $5A" from gate D2: 998 ft
-        // down T5, out to Alpha and back up T5A for a 529 ft move) is flown as the apron cut instead. The two
-        // blocks above only fire when the graph fails; this one improves a success, and only when the crossing is
-        // drivable and materially shorter.
-        if ((route is not null) && (destinationNode is { } resolvedDestination))
-        {
-            RampLaneDestinationCutPlan? improved = RampLaneReposition.TryPlanResolvedRouteCut(
-                groundLayout,
-                route,
-                resolvedDestination,
-                aircraftLengthFt
-            );
-            if (improved is not null)
-            {
-                route = improved.Route;
-            }
-        }
-
-        // Two recoveries for a clearance that names pavement the aircraft cannot use as issued. Each drops
-        // exactly one cleared taxiway, re-resolves, and records the as-applied command for the readback.
-        if (route is null && startNode.Type == GroundNodeType.Parking)
-        {
-            DroppedTaxiwayRoute? leadOut = TryDropGateLeadOut(aircraft, groundLayout, taxi, failure, cmd => ResolveRoute(cmd, out _));
-            if (leadOut is not null)
-            {
-                effectiveCommand = WithoutPathToken(asCleared, leadOut.DroppedName);
-                taxi = leadOut.Command;
-                route = leadOut.Route;
-                failure = null;
-                failReason = null;
-            }
-        }
-
-        if (route is null)
-        {
-            DroppedTaxiwayRoute? via = TryDropContradictoryVia(aircraft, taxi, cmd => ResolveRoute(cmd, out _));
-            if (via is not null)
-            {
-                effectiveCommand = WithoutPathToken(asCleared, via.DroppedName);
-                taxi = via.Command;
-                route = via.Route;
-                failReason = null;
-            }
-        }
-
-        // Last, a clearance whose taxiways do not join up: hold short of the taxiway the route needs, or refuse naming it.
-        var startLink = new StartLinkInputs(aircraft.Callsign, groundLayout, startNode, taxi, occupiedTaxiway, category, wakeClass);
-        MissingTaxiwayFallback fallback = ApplyMissingTaxiwayFallbacks(startLink, route, cmd => ResolveRoute(cmd, out _));
-        route = fallback.Held ?? route;
-        if (route is null)
-        {
-            Log.LogWarning("[TryTaxi] {Callsign}: route resolution failed — {Reason}", aircraft.Callsign, failReason ?? "no matching taxiways");
-            return new CommandResult(false, UnresolvedTaxiMessage(fallback.Refusal, failReason, taxi));
-        }
-
-        // A route held short of a missing taxiway never reaches the spot, so there is nothing to line up on.
-        route = ApplySpotLineUp(
-            aircraft,
-            groundLayout,
-            route,
-            fallback.Held is null ? destinationNode : null,
-            new SpotLineUpInputs(category, wakeClass, aircraftLengthFt, asCleared.Path, options.ListAircraft)
-        );
-
-        // The resolver starts from the nearest graph node, which after a pushback onto open apron can be a
-        // hundred feet from the aircraft. Drive it there rather than letting the navigator snap onto segment 0.
-        route = TaxiApproachLeg.Prepend(groundLayout, aircraft.Position, aircraft.TrueHeading, route);
+        taxi = resolved.Command;
+        TaxiCommand? effectiveCommand = resolved.EffectiveCommand;
+        string? occupiedTaxiway = resolved.OccupiedTaxiway;
 
         // Compute dynamic hold-short positions based on aircraft fuselage length
         HoldShortAnnotator.ComputeHoldShortPositions(groundLayout, route, aircraftLengthFt);
@@ -746,12 +480,7 @@ public static class GroundCommandHandler
         }
         else
         {
-            msg = BuildTaxiReadback(
-                route,
-                groundLayout,
-                taxi,
-                new TaxiReadbackInputs(occupiedTaxiway, fallback.Held is not null, !options.IsTaxiAuto)
-            );
+            msg = BuildTaxiReadback(route, groundLayout, taxi, new TaxiReadbackInputs(occupiedTaxiway, resolved.EndsShort, !options.IsTaxiAuto));
         }
 
         if (route.Warnings.Count > 0)
@@ -767,6 +496,659 @@ public static class GroundCommandHandler
         return CommandDispatcher.Ok(msg) with
         {
             EffectiveCommand = effectiveCommand,
+        };
+    }
+
+    /// <summary>What a TAXI clearance resolves from, beyond the working command and the start node.</summary>
+    private sealed record TaxiResolveInputs
+    {
+        /// <summary>The aircraft cleared.</summary>
+        public required AircraftState Aircraft { get; init; }
+
+        /// <summary>The airport it is on.</summary>
+        public required AirportGroundLayout Layout { get; init; }
+
+        /// <summary>The clearance as the controller worded it.</summary>
+        public required TaxiCommand AsCleared { get; init; }
+
+        /// <summary>Hold-short taxiways still to fold into the path when the as-cleared route cannot honor them.</summary>
+        public required List<HoldShortTarget> FoldTargets { get; init; }
+
+        /// <summary>The dispatch-level switches.</summary>
+        public required TaxiCoreOptions Options { get; init; }
+
+        /// <summary>The aircraft's performance category.</summary>
+        public required AircraftCategory Category { get; init; }
+
+        /// <summary>Its wake-turbulence class.</summary>
+        public required WakeTurbulenceData.WakeClass WakeClass { get; init; }
+
+        /// <summary>Its fuselage length, feet.</summary>
+        public required double AircraftLengthFt { get; init; }
+
+        /// <summary>The level a failed resolution logs at: Debug for a second attempt whose failure the first one reports.</summary>
+        public required LogLevel FailureLogLevel { get; init; }
+    }
+
+    /// <summary>A TAXI clearance resolved from one start node: the route with its approach leg, or the refusal.</summary>
+    private sealed record TaxiResolution
+    {
+        /// <summary>The route, or null when refused.</summary>
+        public required TaxiRoute? Route { get; init; }
+
+        /// <summary>The working command the route resolved from.</summary>
+        public required TaxiCommand Command { get; init; }
+
+        /// <summary>The as-applied command when a cleared taxiway was dropped, else null.</summary>
+        public required TaxiCommand? EffectiveCommand { get; init; }
+
+        /// <summary>The taxiway the aircraft occupies, counted as named.</summary>
+        public required string? OccupiedTaxiway { get; init; }
+
+        /// <summary>The route ends short of its destination (held short of a missing taxiway).</summary>
+        public required bool EndsShort { get; init; }
+
+        /// <summary>The refusal, or null when a route resolved.</summary>
+        public required CommandResult? Refusal { get; init; }
+
+        public static TaxiResolution Refused(TaxiCommand command, CommandResult refusal) =>
+            new()
+            {
+                Route = null,
+                Command = command,
+                EffectiveCommand = null,
+                OccupiedTaxiway = null,
+                EndsShort = false,
+                Refusal = refusal,
+            };
+    }
+
+    /// <summary>
+    /// Resolves the clearance from <paramref name="startNode"/>, route-aware when the aircraft stands mid-way along a
+    /// straight taxi edge (<see cref="AirportGroundLayout.FindMidEdgeTaxiStart"/>) and the start is one of that edge's
+    /// endpoints: the endpoint ahead, or the nearer one when the heading crosses the edge. When the route from there drives
+    /// back over the edge the aircraft is on (<see cref="DrivesOccupiedEdge"/>), or no route resolves from there, the
+    /// clearance is re-planned from the edge's other endpoint, and that route wins when it resolves and does not drive the
+    /// edge: the aircraft turns about on the taxiway. A jet lined up along the edge (<see cref="IsLinedUpWith"/>) does not
+    /// turn about on a controller's clearance: where that route would win it refuses for want of room to turn around,
+    /// whether the endpoint ahead resolved a route or none. A clearance no controller issued
+    /// (<see cref="TaxiCoreOptions.ControllerIssued"/>) is never refused that way: the jet keeps the route from the
+    /// endpoint ahead, and turns about only when that resolved none. Otherwise the endpoint ahead wins, with its route or
+    /// its refusal. A route kept from the endpoint ahead whose first segment drives straight back over the edge turns the
+    /// aircraft about where it stands: the lined-up jet on a controller's clearance refuses it, and every other route
+    /// reports it (<see cref="TaxiRoute.StartsWithTurnAbout"/>), as the route from the other endpoint does when it opens
+    /// with the leg back to that endpoint. The attempts log their failures at Debug and a refusal is logged once.
+    /// </summary>
+    private static TaxiResolution ResolveTaxiRouteFromStart(TaxiResolveInputs inputs, TaxiCommand taxi, GroundNode startNode)
+    {
+        if (MidEdgeEndingAt(inputs, startNode) is not { } occupied)
+        {
+            return ResolveTaxiRouteFrom(inputs, taxi, startNode);
+        }
+
+        TaxiResolution resolved = ResolveFromEitherEnd(inputs with { FailureLogLevel = LogLevel.Debug }, taxi, startNode, occupied);
+        if (resolved.Refusal is { } refusal)
+        {
+            Log.Log(inputs.FailureLogLevel, "[TryTaxi] {Callsign}: refused — {Reason}", inputs.Aircraft.Callsign, refusal.Message);
+        }
+
+        return resolved;
+    }
+
+    /// <summary>
+    /// The route-aware start of <see cref="ResolveTaxiRouteFromStart"/> for an aircraft mid-way along
+    /// <paramref name="occupied"/>, one of whose ends is <paramref name="startNode"/>.
+    /// </summary>
+    private static TaxiResolution ResolveFromEitherEnd(TaxiResolveInputs inputs, TaxiCommand taxi, GroundNode startNode, GroundEdge occupied)
+    {
+        TaxiResolution fromStart = ResolveTaxiRouteFrom(inputs, taxi, startNode);
+        if ((fromStart.Route is not null) && !DrivesOccupiedEdge(fromStart.Route, occupied))
+        {
+            return fromStart;
+        }
+
+        GroundNode otherEnd = occupied.OtherNode(startNode);
+        TurnAboutVerdict verdict = TurnAboutVerdictFor(inputs, occupied);
+        if ((verdict == TurnAboutVerdict.KeepRouteAhead) && (fromStart.Route is not null))
+        {
+            return KeepRouteAhead(inputs, taxi, fromStart, occupied, otherEnd);
+        }
+
+        TaxiResolution fromOtherEnd = ResolveTaxiRouteFrom(inputs, taxi, otherEnd);
+        TaxiRoute? turned = RouteAvoiding(fromOtherEnd, occupied);
+        Log.LogDebug(
+            "[TryTaxi] {Callsign}: on {Taxiway} edge {First}-{Second}, the route from node {Start} is refused ({Refused}) or drives back over "
+                + "the edge; from node {Other} it avoids it ({Avoids}); turn about {Verdict}",
+            inputs.Aircraft.Callsign,
+            occupied.TaxiwayName,
+            occupied.Nodes[0].Id,
+            occupied.Nodes[1].Id,
+            startNode.Id,
+            fromStart.Route is null,
+            otherEnd.Id,
+            turned is not null,
+            verdict
+        );
+        if (turned is null)
+        {
+            return KeepRouteAhead(inputs, taxi, fromStart, occupied, otherEnd);
+        }
+
+        if (verdict == TurnAboutVerdict.Refuse)
+        {
+            return NoRoomToTurnAround(inputs.Aircraft, taxi, occupied.TaxiwayName);
+        }
+
+        ReportTurnAbout(inputs.Aircraft, turned, occupied, otherEnd);
+        return fromOtherEnd;
+    }
+
+    /// <summary>What a turn about on the taxiway the aircraft stands mid-way along is open to, by aircraft and clearance.</summary>
+    private enum TurnAboutVerdict
+    {
+        /// <summary>The aircraft turns about wherever the route needs it to.</summary>
+        TurnAbout,
+
+        /// <summary>
+        /// A jet lined up along the taxiway, on a clearance no controller issued: it keeps the route from the endpoint ahead
+        /// when one resolved, and turns about only when none did.
+        /// </summary>
+        KeepRouteAhead,
+
+        /// <summary>A jet lined up along the taxiway, on a controller's clearance: it refuses any turn about, for want of room.</summary>
+        Refuse,
+    }
+
+    /// <summary>
+    /// The <see cref="TurnAboutVerdict"/> for the aircraft and clearance of <paramref name="inputs"/> on <paramref name="occupied"/>.
+    /// </summary>
+    private static TurnAboutVerdict TurnAboutVerdictFor(TaxiResolveInputs inputs, GroundEdge occupied)
+    {
+        if (!IsJetLinedUpWith(inputs.Category, inputs.Aircraft.TrueHeading, occupied))
+        {
+            return TurnAboutVerdict.TurnAbout;
+        }
+
+        return inputs.Options.ControllerIssued ? TurnAboutVerdict.Refuse : TurnAboutVerdict.KeepRouteAhead;
+    }
+
+    /// <summary>
+    /// True for a jet whose <paramref name="heading"/> lines it up along <paramref name="edge"/> (<see cref="IsLinedUpWith"/>):
+    /// on a controller's clearance it refuses to turn about on that edge, and on one no controller issued it keeps the route
+    /// from the edge's end ahead whenever one resolved, turning about only when none did.
+    /// </summary>
+    public static bool IsJetLinedUpWith(AircraftCategory category, TrueHeading heading, GroundEdge edge) =>
+        (category == AircraftCategory.Jet) && IsLinedUpWith(heading, edge);
+
+    /// <summary>The route <paramref name="resolution"/> resolved, when it does not drive <paramref name="occupied"/>; null otherwise.</summary>
+    private static TaxiRoute? RouteAvoiding(TaxiResolution resolution, GroundEdge occupied) =>
+        (resolution.Route is { } route) && !DrivesOccupiedEdge(route, occupied) ? route : null;
+
+    /// <summary>
+    /// The resolution from the endpoint ahead, kept: its refusal, or its route. When that route's first segment drives
+    /// straight back over <paramref name="occupied"/> to <paramref name="otherEnd"/>, the aircraft turns about where it
+    /// stands, so a lined-up jet on a controller's clearance refuses it (<see cref="TurnAboutVerdict.Refuse"/>) and any
+    /// other route reports the turn about.
+    /// </summary>
+    private static TaxiResolution KeepRouteAhead(
+        TaxiResolveInputs inputs,
+        TaxiCommand taxi,
+        TaxiResolution fromStart,
+        GroundEdge occupied,
+        GroundNode otherEnd
+    )
+    {
+        if ((fromStart.Route is not { } ahead) || !TurnsAboutToward(ahead, occupied, otherEnd))
+        {
+            return fromStart;
+        }
+
+        if (TurnAboutVerdictFor(inputs, occupied) == TurnAboutVerdict.Refuse)
+        {
+            return NoRoomToTurnAround(inputs.Aircraft, taxi, occupied.TaxiwayName);
+        }
+
+        ReportTurnAbout(inputs.Aircraft, ahead, occupied, otherEnd);
+        return fromStart;
+    }
+
+    /// <summary>
+    /// Marks <paramref name="route"/> as turning the aircraft about (<see cref="TaxiRoute.StartsWithTurnAbout"/>) when it
+    /// really opens with the turn back to <paramref name="otherEnd"/> (<see cref="TurnsAboutToward"/>); otherwise leaves it
+    /// unmarked and logs why at Debug.
+    /// </summary>
+    private static void ReportTurnAbout(AircraftState aircraft, TaxiRoute route, GroundEdge occupied, GroundNode otherEnd)
+    {
+        if (TurnsAboutToward(route, occupied, otherEnd))
+        {
+            route.StartsWithTurnAbout = true;
+            return;
+        }
+
+        Log.LogDebug(
+            "[TryTaxi] {Callsign}: the route opens with {First}, neither the leg back to node {Other} nor the {Taxiway} edge back to it; "
+                + "no turn about reported",
+            aircraft.Callsign,
+            route.Segments.Count > 0 ? $"segment {route.Segments[0].FromNodeId}->{route.Segments[0].ToNodeId}" : "no segment",
+            otherEnd.Id,
+            occupied.TaxiwayName
+        );
+    }
+
+    /// <summary>
+    /// True when <paramref name="route"/>'s first segment turns the aircraft about toward <paramref name="otherEnd"/>, the
+    /// end of <paramref name="occupied"/> behind it: the free-space leg back to that node (<see cref="TaxiApproachLeg"/>),
+    /// or the occupied edge itself driven back to it from the node ahead.
+    /// </summary>
+    private static bool TurnsAboutToward(TaxiRoute route, GroundEdge occupied, GroundNode otherEnd) =>
+        (route.Segments is [{ } first, ..])
+        && (first.ToNodeId == otherEnd.Id)
+        && (VirtualNode.IsVirtualEdge(first.Edge.Edge) || ReferenceEquals(first.Edge.Edge, occupied));
+
+    /// <summary>The refusal, terminal and spoken, of a jet asked to turn about on <paramref name="taxiway"/>.</summary>
+    private static TaxiResolution NoRoomToTurnAround(AircraftState aircraft, TaxiCommand taxi, string taxiway) =>
+        TaxiResolution.Refused(
+            taxi,
+            new CommandResult(false, NoRoomToTurnAroundReason(taxiway))
+            {
+                PilotUnable = PilotResponder.BuildUnableNoRoomToTurnAround(aircraft, taxiway),
+            }
+        );
+
+    /// <summary>
+    /// True when <paramref name="heading"/> is within <see cref="JetTurnAboutAlignmentDeg"/> of <paramref name="edge"/>'s
+    /// direction, either way along it: an aircraft on the edge with that heading is lined up along the taxiway.
+    /// </summary>
+    private static bool IsLinedUpWith(TrueHeading heading, GroundEdge edge)
+    {
+        double offDeg = GeoMath.AbsBearingDifference(heading.Degrees, GeoMath.BearingTo(edge.Nodes[0].Position, edge.Nodes[1].Position));
+        return Math.Min(offDeg, 180.0 - offDeg) <= JetTurnAboutAlignmentDeg;
+    }
+
+    /// <summary>The refusal a jet gives when the only route that avoids reversing over its taxiway needs it to turn about there.</summary>
+    public static string NoRoomToTurnAroundReason(string taxiway) => $"Unable, no room to turn around on {taxiway}, request a route ahead";
+
+    /// <summary>
+    /// The straight taxi edge the aircraft stands mid-way along (<see cref="AirportGroundLayout.FindMidEdgeTaxiStart"/>)
+    /// when <paramref name="startNode"/> is one of its ends, so the other end is worth planning from; null otherwise.
+    /// </summary>
+    private static GroundEdge? MidEdgeEndingAt(TaxiResolveInputs inputs, GroundNode startNode) =>
+        (inputs.Layout.FindMidEdgeTaxiStart(inputs.Aircraft.Position) is { } occupied)
+        && ((occupied.Nodes[0] == startNode) || (occupied.Nodes[1] == startNode))
+            ? occupied
+            : null;
+
+    /// <summary>
+    /// True when <paramref name="route"/> drives <paramref name="edge"/>, the edge the aircraft stands on, before it first
+    /// leaves that edge's end nodes: the approach portion of the route. A later pass over the edge, after the route has
+    /// gone elsewhere, is not a reversal past the aircraft.
+    /// </summary>
+    public static bool DrivesOccupiedEdge(TaxiRoute route, GroundEdge edge)
+    {
+        foreach (TaxiRouteSegment segment in route.Segments)
+        {
+            if (ReferenceEquals(segment.Edge.Edge, edge))
+            {
+                return true;
+            }
+
+            if ((segment.ToNodeId != edge.Nodes[0].Id) && (segment.ToNodeId != edge.Nodes[1].Id))
+            {
+                return false;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Resolves the clearance from one start node through the approach leg: anchoring to the first cleared taxiway, where
+    /// the cleared path starts, the ramp-lane cuts, the dropped-taxiway recoveries, the missing-taxiway fallbacks and the
+    /// spot line-up. Reads the aircraft and the layout; changes neither.
+    /// </summary>
+    private static TaxiResolution ResolveTaxiRouteFrom(TaxiResolveInputs inputs, TaxiCommand taxi, GroundNode startNode)
+    {
+        AircraftState aircraft = inputs.Aircraft;
+        AirportGroundLayout groundLayout = inputs.Layout;
+        TaxiCommand asCleared = inputs.AsCleared;
+        List<HoldShortTarget> foldTargets = inputs.FoldTargets;
+        TaxiCoreOptions options = inputs.Options;
+        AircraftCategory category = inputs.Category;
+        WakeTurbulenceData.WakeClass wakeClass = inputs.WakeClass;
+        double aircraftLengthFt = inputs.AircraftLengthFt;
+        TaxiCommand? effectiveCommand = null;
+
+        // Anchor the start node to the first cleared taxiway when the aircraft is sitting on a node
+        // of it. The heading-biased FindNearestNodeForTaxi can land on an adjacent parallel taxiway
+        // after a directional pushback (the aircraft's heading aligns with the neighbour's edge, not
+        // its own taxiway's), which then makes the named first taxiway "unreachable" — WJA1521 pushed
+        // onto M4 but the start node resolved onto the parallel M5, so "TAXI M4 M2 ..." was rejected.
+        // Only overrides when the on-taxiway node is at least as close as the heuristic's pick.
+        if (
+            (taxi.Path.Count > 0)
+            && !taxi.Path[0].StartsWith('#')
+            && !startNode.Edges.Any(e => e.MatchesTaxiway(taxi.Path[0]))
+            && groundLayout.FindNearestNodeOnTaxiway(aircraft.Position, taxi.Path[0], maxDistFt: 100.0) is { } onFirstCleared
+            && GeoMath.DistanceNm(aircraft.Position, onFirstCleared.Position) <= GeoMath.DistanceNm(aircraft.Position, startNode.Position)
+        )
+        {
+            Log.LogDebug(
+                "[TryTaxi] {Callsign}: start node {Old} is not on cleared {Twy}; anchoring to nearer on-taxiway node {New}",
+                aircraft.Callsign,
+                startNode.Id,
+                taxi.Path[0],
+                onFirstCleared.Id
+            );
+            startNode = onFirstCleared;
+        }
+
+        // A drawn route's leading nodes go stale while the controller is drawing — see the helper.
+        taxi = TrimPassedNodeRefPrefix(aircraft, startNode, taxi);
+        if ((taxi.Path.Count == 0) && (taxi.DestinationRunway is null) && (taxi.DestinationParking is null) && (taxi.DestinationSpot is null))
+        {
+            return TaxiResolution.Refused(taxi, new CommandResult(false, $"{aircraft.Callsign} has already taxied past the whole route"));
+        }
+
+        // Where the cleared path starts: the candidates ResolveFromBestStart tries (see the resolution below
+        // ResolveRoute). The taxiway held short of is no candidate when the aircraft already stands on the first
+        // cleared taxiway: holding short of K on B, "TAXI B T" continues along B across K.
+        bool standsOnFirstCleared = (taxi.Path.Count > 0) && startNode.Edges.Any(e => e.MatchesTaxiway(taxi.Path[0]));
+        TaxiCommand? heldShortPrepend =
+            (!standsOnFirstCleared && (HeldShortTaxiway(aircraft) is { } heldShortTwy))
+                ? PrependTaxiwayJoiningPath(groundLayout, taxi, heldShortTwy)
+                : null;
+        string? occupiedTaxiway = OccupiedTaxiway(aircraft, startNode, groundLayout);
+        TaxiCommand? currentTaxiwayPrepend = CurrentTaxiwayPrepend(groundLayout, occupiedTaxiway, taxi);
+
+        Log.LogDebug(
+            "[TryTaxi] {Callsign}: nearest node {NodeId} ({NodeType}) at ({NLat:F6}, {NLon:F6}), dist={Dist:F4}nm, path=[{Path}], "
+                + "destRwy={Rwy}, destParking={Pkg}, destSpot={Spot}",
+            aircraft.Callsign,
+            startNode.Id,
+            startNode.Type,
+            startNode.Position.Lat,
+            startNode.Position.Lon,
+            GeoMath.DistanceNm(aircraft.Position, startNode.Position),
+            string.Join(" ", taxi.Path),
+            taxi.DestinationRunway ?? "(none)",
+            taxi.DestinationParking ?? "(none)",
+            taxi.DestinationSpot ?? "(none)"
+        );
+
+        // A plain TAXI naming no taxiway, only a gate or spot, from inside the ramp stays inside it (7110.65 §3-7-2: the
+        // route on the movement area is the controller's to issue). TAXIAUTO is the unrestricted auto-route.
+        bool confineToRamp =
+            !options.IsTaxiAuto
+            && (asCleared.Path.Count == 0)
+            && ((taxi.DestinationParking is not null) || (taxi.DestinationSpot is not null))
+            && RampLaneReposition.StartsOffMovementArea(
+                groundLayout,
+                aircraft.Position,
+                aircraft.Phases?.CurrentPhase is AtParkingPhase,
+                aircraft.AircraftType
+            );
+
+        double startHeadingTrueDeg = aircraft.TrueHeading.Degrees;
+        TaxiRoute? ResolveDirect(TaxiCommand command, out PathfindingFailure? routeFailure)
+        {
+            if (confineToRamp && (command.Path.Count == 0))
+            {
+                return ResolveRampConfinedRoute(
+                    groundLayout,
+                    startNode,
+                    command,
+                    new RampConfinedInputs(
+                        aircraft,
+                        new SpotLineUpInputs(category, wakeClass, aircraftLengthFt, asCleared.Path, options.ListAircraft)
+                    ),
+                    out routeFailure
+                );
+            }
+
+            if (command.DestinationParking is not null || command.DestinationSpot is not null)
+            {
+                return ResolveParkingRoute(
+                    groundLayout,
+                    startNode,
+                    command,
+                    out routeFailure,
+                    category,
+                    wakeClass,
+                    startHeadingTrueDeg,
+                    occupiedTaxiway
+                );
+            }
+
+            if ((command.Path.Count == 0) && (command.DestinationRunway is not null))
+            {
+                TaxiRoute? adjacent = ResolveAdjacentRunwayRoute(
+                    groundLayout,
+                    startNode,
+                    aircraft,
+                    command.DestinationRunway,
+                    out string? adjacentReason
+                );
+                // TAXIAUTO at the bar has nothing to route either — the full-length auto-route would
+                // otherwise return an empty fallback with no destination hold-short to hold at.
+                if (!options.IsTaxiAuto || (adjacent is { Segments.Count: 0 }))
+                {
+                    routeFailure = adjacent is null ? DestinationFailure(adjacentReason ?? $"No route to runway {command.DestinationRunway}") : null;
+                    return adjacent;
+                }
+            }
+
+            return ResolveStandardRoute(
+                groundLayout,
+                startNode,
+                command,
+                out routeFailure,
+                category,
+                wakeClass,
+                startHeadingTrueDeg,
+                occupiedTaxiway
+            );
+        }
+
+        // As-cleared first: the route the named taxiways produce on their own wins when it honors every
+        // hold-short hint en route (see AsClearedRejectionReason). Only then is the hint's taxiway folded
+        // into the path — the OAK "TAXI D C HS E RWY 28R" shape, where E is the way to the runway.
+        TaxiRoute? ResolveRoute(TaxiCommand command, out PathfindingFailure? routeFailure)
+        {
+            if (foldTargets.Count == 0)
+            {
+                return ResolveDirect(command, out routeFailure);
+            }
+
+            TaxiRoute? asClearedRoute = ResolveDirect(command, out routeFailure);
+            string? rejection = asClearedRoute is null
+                ? routeFailure?.HumanMessage ?? "no route"
+                : AsClearedRejectionReason(asClearedRoute, command, foldTargets);
+            if (rejection is null)
+            {
+                return asClearedRoute;
+            }
+
+            Log.LogDebug(
+                "[TryTaxi] {Callsign}: as-cleared route ({Segs} segments) does not honor the hold-short hint — {Reason}; "
+                    + "folding [{Twys}] into the path",
+                aircraft.Callsign,
+                asClearedRoute?.Segments.Count ?? 0,
+                rejection,
+                string.Join(" ", foldTargets.Select(t => t.OnTaxiway ?? t.Target))
+            );
+            return ResolveDirect(AugmentPathWithHoldShortTaxiways(command, foldTargets), out routeFailure);
+        }
+
+        StartResolution start = ResolveFromBestStart(aircraft.Callsign, taxi, heldShortPrepend, currentTaxiwayPrepend, ResolveRoute);
+        taxi = start.Command;
+        TaxiRoute? route = start.Route;
+        PathfindingFailure? failure = start.Failure;
+        string? failReason = failure?.HumanMessage;
+
+        // A route kept inside the ramp either resolved or is refused as it stands: every recovery below would have the
+        // aircraft drive taxiways the clearance never named.
+        if (confineToRamp && (route is null))
+        {
+            Log.Log(inputs.FailureLogLevel, "[TryTaxi] {Callsign}: refused — {Reason}", aircraft.Callsign, failReason ?? "no route inside the ramp");
+            return TaxiResolution.Refused(
+                taxi,
+                new CommandResult(false, failReason ?? RampConfinedRefusal(taxi, FindTaxiDestinationNode(groundLayout, taxi)))
+            );
+        }
+
+        // A parallel ramp lane the map does not connect (SFO M3 → M4): the pilot cuts across the apron onto it
+        // and taxis the clearance as issued — from a gate or mid-lane. Only for sibling numbered lanes over
+        // open apron; see RampLaneReposition.
+        GroundNode? destinationNode = FindTaxiDestinationNode(groundLayout, taxi);
+        if (route is null && failure is not null && !AirportGroundLayout.HasRunwayCenterlineEdge(startNode))
+        {
+            RampLaneRepositionPlan? plan = RampLaneReposition.TryPlan(
+                groundLayout,
+                new RampLaneRepositionRequest
+                {
+                    Position = aircraft.Position,
+                    Heading = aircraft.TrueHeading,
+                    CurrentTaxiway = aircraft.Ground.CurrentTaxiway,
+                    Path = taxi.Path,
+                    Options = new ExplicitPathOptions
+                    {
+                        OccupiedTaxiway = occupiedTaxiway,
+                        ExplicitHoldShorts = taxi.HoldShorts,
+                        DestinationRunway = taxi.DestinationRunway,
+                        DestinationHintNode = destinationNode,
+                        PathTurnHints = taxi.PathTurnHints,
+                    },
+                    Category = category,
+                    WakeClass = wakeClass,
+                },
+                failure
+            );
+            if (plan is not null)
+            {
+                route = plan.Route;
+                failure = null;
+                failReason = null;
+            }
+        }
+
+        // The mirror image at the far end (OAK "TAXI V T TE @22"): the clearance resolves along its lanes but the
+        // last lane's ramp end does not join the stand's lane, so the pilot taxis it to the point nearest the stand
+        // and cuts across the apron onto the stand's lane. Only for sibling ramp lanes over open apron.
+        if (
+            route is null
+            && failure is { Kind: FailureKind.DestinationUnreachable, InfeasibleTaxiway: null }
+            && destinationNode is { } cutDestination
+        )
+        {
+            RampLaneDestinationCutPlan? cut = RampLaneReposition.TryPlanDestinationCut(
+                groundLayout,
+                new RampLaneDestinationCutRequest
+                {
+                    StartNodeId = startNode.Id,
+                    Path = taxi.Path,
+                    Destination = cutDestination,
+                    Options = new ExplicitPathOptions
+                    {
+                        OccupiedTaxiway = occupiedTaxiway,
+                        ExplicitHoldShorts = taxi.HoldShorts,
+                        DestinationRunway = taxi.DestinationRunway,
+                        PathTurnHints = taxi.PathTurnHints,
+                        StartHeadingTrue = startHeadingTrueDeg,
+                    },
+                    Category = category,
+                    WakeClass = wakeClass,
+                    AircraftLengthFt = aircraftLengthFt,
+                }
+            );
+            if (cut is not null)
+            {
+                route = cut.Route;
+                failure = null;
+                failReason = null;
+            }
+        }
+
+        // A route that resolved but only reaches the stand the long way round (SFO "TAXI $5A" from gate D2: 998 ft
+        // down T5, out to Alpha and back up T5A for a 529 ft move) is flown as the apron cut instead. The two
+        // blocks above only fire when the graph fails; this one improves a success, and only when the crossing is
+        // drivable and materially shorter.
+        if ((route is not null) && (destinationNode is { } resolvedDestination))
+        {
+            RampLaneDestinationCutPlan? improved = RampLaneReposition.TryPlanResolvedRouteCut(
+                groundLayout,
+                route,
+                resolvedDestination,
+                aircraftLengthFt
+            );
+            if (improved is not null)
+            {
+                route = improved.Route;
+            }
+        }
+
+        // Two recoveries for a clearance that names pavement the aircraft cannot use as issued. Each drops
+        // exactly one cleared taxiway, re-resolves, and records the as-applied command for the readback.
+        if (route is null && startNode.Type == GroundNodeType.Parking)
+        {
+            DroppedTaxiwayRoute? leadOut = TryDropGateLeadOut(aircraft, groundLayout, taxi, failure, cmd => ResolveRoute(cmd, out _));
+            if (leadOut is not null)
+            {
+                effectiveCommand = WithoutPathToken(asCleared, leadOut.DroppedName);
+                taxi = leadOut.Command;
+                route = leadOut.Route;
+                failure = null;
+                failReason = null;
+            }
+        }
+
+        if (route is null)
+        {
+            DroppedTaxiwayRoute? via = TryDropContradictoryVia(aircraft, taxi, cmd => ResolveRoute(cmd, out _));
+            if (via is not null)
+            {
+                effectiveCommand = WithoutPathToken(asCleared, via.DroppedName);
+                taxi = via.Command;
+                route = via.Route;
+                failReason = null;
+            }
+        }
+
+        // Last, a clearance whose taxiways do not join up: hold short of the taxiway the route needs, or refuse naming it.
+        var startLink = new StartLinkInputs(aircraft.Callsign, groundLayout, startNode, taxi, occupiedTaxiway, category, wakeClass);
+        MissingTaxiwayFallback fallback = ApplyMissingTaxiwayFallbacks(startLink, route, cmd => ResolveRoute(cmd, out _));
+        route = fallback.Held ?? route;
+        if (route is null)
+        {
+            Log.Log(
+                inputs.FailureLogLevel,
+                "[TryTaxi] {Callsign}: route resolution failed — {Reason}",
+                aircraft.Callsign,
+                failReason ?? "no matching taxiways"
+            );
+            return TaxiResolution.Refused(taxi, new CommandResult(false, UnresolvedTaxiMessage(fallback.Refusal, failReason, taxi)));
+        }
+
+        // A route held short of a missing taxiway never reaches the spot, so there is nothing to line up on.
+        route = ApplySpotLineUp(
+            aircraft,
+            groundLayout,
+            route,
+            fallback.Held is null ? destinationNode : null,
+            new SpotLineUpInputs(category, wakeClass, aircraftLengthFt, asCleared.Path, options.ListAircraft)
+        );
+
+        // The resolver starts from the nearest graph node, which after a pushback onto open apron can be a
+        // hundred feet from the aircraft. Drive it there rather than letting the navigator snap onto segment 0.
+        route = TaxiApproachLeg.Prepend(groundLayout, aircraft.Position, aircraft.TrueHeading, route);
+
+        return new TaxiResolution
+        {
+            Route = route,
+            Command = taxi,
+            EffectiveCommand = effectiveCommand,
+            OccupiedTaxiway = occupiedTaxiway,
+            EndsShort = fallback.Held is not null,
+            Refusal = null,
         };
     }
 
@@ -1127,7 +1509,7 @@ public static class GroundCommandHandler
 
     /// <summary>
     /// A <c>TAXIAUTO</c> dispatched with the world's aircraft in view, as the matching
-    /// <see cref="TryTaxi(AircraftState, TaxiCommand, AirportGroundLayout?, bool, Func{IReadOnlyList{AircraftState}}?)"/>.
+    /// <see cref="TryTaxi(AircraftState, TaxiCommand, AirportGroundLayout?, TaxiDispatch)"/>.
     /// </summary>
     internal static CommandResult TryTaxiAuto(
         AircraftState aircraft,
@@ -1158,7 +1540,12 @@ public static class GroundCommandHandler
             DestinationSpot: autoTaxi.DestinationSpot
         );
 
-        return TryTaxiCore(aircraft, taxi, groundLayout, new TaxiCoreOptions(autoCrossRunway, IsTaxiAuto: true, listAircraft));
+        return TryTaxiCore(
+            aircraft,
+            taxi,
+            groundLayout,
+            new TaxiCoreOptions(autoCrossRunway, IsTaxiAuto: true, IsScenarioScripted: false, listAircraft)
+        );
     }
 
     /// <summary>
@@ -1519,13 +1906,40 @@ public static class GroundCommandHandler
     /// </summary>
     private static string? OccupiedTaxiway(AircraftState aircraft, GroundNode startNode, AirportGroundLayout groundLayout)
     {
+        bool onStand = (startNode.Type is GroundNodeType.Parking) || (aircraft.Ground.ParkingSpot is not null);
+        if (!onStand && (MidEdgeMovementTaxiway(aircraft, groundLayout) is { } midEdgeTaxiway))
+        {
+            return midEdgeTaxiway;
+        }
+
         if ((aircraft.Ground.CurrentTaxiway is { Length: > 0 } currentTwy) && startNode.Edges.Any(e => e.MatchesTaxiway(currentTwy)))
         {
             return currentTwy;
         }
 
-        bool onStand = (startNode.Type is GroundNodeType.Parking) || (aircraft.Ground.ParkingSpot is not null);
-        if (onStand || (groundLayout.FindNearestTaxiEdge(aircraft.Position) is not { } nearest))
+        return onStand ? null : NearestMovementTaxiway(aircraft, groundLayout);
+    }
+
+    /// <summary>
+    /// The taxiway of the straight taxi edge the aircraft stands mid-way along (<see cref="AirportGroundLayout.FindMidEdgeTaxiStart"/>),
+    /// whatever a stale current taxiway says: the start node is an end of the edge and can lie on the stale one too (SFO:
+    /// on F, its far end on E). Null when it stands mid-way along none, the edge is unnamed, or it is a ramp taxilane, which
+    /// is no movement-area taxiway.
+    /// </summary>
+    private static string? MidEdgeMovementTaxiway(AircraftState aircraft, AirportGroundLayout groundLayout) =>
+        (groundLayout.FindMidEdgeTaxiStart(aircraft.Position) is { TaxiwayName.Length: > 0 } midEdge)
+        && MovementAreaClassification.For(groundLayout).IsMovementArea(midEdge.TaxiwayName)
+            ? midEdge.TaxiwayName
+            : null;
+
+    /// <summary>
+    /// The movement-area taxiway whose line the aircraft's position projects onto within
+    /// <see cref="RampLaneReposition.CurrentLaneMaxFt"/> (the ground code's nearest taxi edge), or null: none is that close,
+    /// its name is blank, or it is a ramp taxilane.
+    /// </summary>
+    private static string? NearestMovementTaxiway(AircraftState aircraft, AirportGroundLayout groundLayout)
+    {
+        if (groundLayout.FindNearestTaxiEdge(aircraft.Position) is not { } nearest)
         {
             return null;
         }
@@ -3579,7 +3993,8 @@ public static class GroundCommandHandler
         double nose = aircraft.TrueHeading.Degrees;
         double leastSwing = groundLayout.GetEdgeBearingForTaxiway(exitNode, taxiway, nose) ?? nose;
         Log.LogDebug(
-            "[Pushback] {Callsign}: {FTwy} leaves {PTwy} at node {NodeId} naming neither direction ({Leads}); guessing the least swing from nose {Nose:F1} → {Facing:F1}",
+            "[Pushback] {Callsign}: {FTwy} leaves {PTwy} at node {NodeId} naming neither direction ({Leads}); "
+                + "guessing the least swing from nose {Nose:F1} → {Facing:F1}",
             aircraft.Callsign,
             push.FacingTaxiway,
             taxiway,

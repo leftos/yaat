@@ -196,8 +196,17 @@ Follow               -> ShowAllTaxiRoutes && HasActiveTaxiRoute
 - `AircraftModel.Position` — live lat/lon.
 - `AircraftModel.AssignedRunway` — the runway the taxi route holds short of (departures). The formatted `TaxiRoute` string lists only taxiways taxied *along*, never the held-short runway, so this is the only channel for it.
 - `AircraftModel.TaxiDestination` — the `@parking` / `$spot` the route ends at (`""` otherwise), from `DtoConverter.TaxiDestinationLabel`. The taxiway string cannot say where a ramp cut is headed, so this is the only channel for it.
+- `AircraftModel.TaxiTurnAboutPending` — the route starts with a turn about on the taxiway the aircraft stood on, not yet flown (`AircraftGroundOps.TaxiTurnAboutPending`). The taxiway string cannot say which end of the occupied edge the route starts from, so this is the only channel for it.
 
-Whenever a route must be drawn, `GroundViewModel.ResolveRemainingRoute(ac)` **reconstructs the geometry locally**: it parses the taxiway-name string, finds the aircraft's nearest ground node, trims the sequence to start at `CurrentTaxiway`, and re-runs `TaxiPathfinder.ResolveExplicitPath` against the client's cached `AirportGroundLayout` (`_domainLayout`).
+Whenever a route must be drawn, `GroundViewModel.ResolveRemainingRoute(ac)` **reconstructs the geometry locally**: it parses the taxiway-name string, picks the start node, trims the sequence to start at `CurrentTaxiway`, and re-runs `TaxiPathfinder.ResolveExplicitPath` against the client's cached `AirportGroundLayout` (`_domainLayout`).
+
+The start node is the server's: `AirportGroundLayout.FindNearestNodeForTaxi(position, heading)`, else `FindNearestNode` — on a straight taxi edge or fillet arc the aircraft stands mid-way along, the end ahead of it, so the overlay starts on the taxiway the aircraft is on and not on a nearer parallel one (see [ground/pathfinder.md](ground/pathfinder.md#where-it-sits--entry-points)).
+
+**A turn about is drawn only while the server reports one.** The server may plan the route of an aircraft mid-way along a straight edge from the edge's far end, turning it about on the taxiway; `AircraftModel.TaxiTurnAboutPending` is true until that first leg is flown.
+
+Only while it is set does `TurnAboutRoute` redraw from the edge's other end, and only when the aircraft is still mid-edge, the start node is one of the edge's ends, and the route from it resolves none or drives back over the edge (`GroundCommandHandler.DrivesOccupiedEdge`).
+
+The overlay never decides a turn about itself: with the flag clear (no turn about planned, or its leg already flown) it draws the route from the start node. A turned-about route starts behind the aircraft by design, so it skips the reversal check below.
 
 It passes `AssignedRunway` (when set) as `ExplicitPathOptions.DestinationRunway` so the reconstruction **truncates at the runway hold-short** — the same hint the server used to build the route.
 
@@ -207,7 +216,7 @@ When that resolution fails, it hands the structured failure to `RampLaneRepositi
 
 The destination-end twin (OAK `TAXI V T TE @22`, issue #400) needs `TaxiDestination`: with the stand as `DestinationHintNode` the rebuilt route either fails or — from the aircraft's own end of the lane — "reaches" the stand only by doubling back down the lane, so a route that starts more than 135° off the nose is replaced by `RampLaneReposition.TryPlanDestinationCut`'s free-space leg when one plans.
 
-A route rebuilt from the aircraft's nearest graph node also gets the server's **approach leg** re-applied (`TaxiApproachLeg.Prepend` with the live position — the drive from where the aircraft stands onto that first node, see [ground/pathfinder.md](ground/pathfinder.md#approach-leg--a-free-space-drive-from-where-the-aircraft-stands-to-the-routes-first-node-taxiapproachleg)), so during the ~15 s after a plain `PUSH` the overlay starts at the aircraft, not 100 ft away at the ramp node.
+A route rebuilt from the start node also gets the server's **approach leg** re-applied (`TaxiApproachLeg.Prepend` with the live position — the drive from where the aircraft stands onto that first node, see [ground/pathfinder.md](ground/pathfinder.md#approach-leg--a-free-space-drive-from-where-the-aircraft-stands-to-the-routes-first-node-taxiapproachleg)), so during the ~15 s after a plain `PUSH` the overlay starts at the aircraft, not 100 ft away at the ramp node.
 
 `DrawRoute` resolves each segment's endpoints through `GroundRenderer.TryResolveRouteSegmentEndpoints`, which falls back to the segment's own node positions for ids the layout does not hold — free-space legs (the approach leg, the #396/#400 cuts) draw as straights between their endpoints.
 
@@ -219,6 +228,7 @@ A route rebuilt from the aircraft's nearest graph node also gets the server's **
 - `Heading` — passed as `ExplicitPathOptions.StartHeadingTrue`, as the server resolves the clearance. For a route that is one taxiway with no runway, stand or spot (`TAXI S HS B`), it is the only clue to which way along the taxiway the route runs; without it the walk takes the cheaper first edge and can draw the taxiway backwards (issue #475).
 - `TaxiDestination` — changes on re-clearance to another stand along the same lanes (the taxiway string alone would not).
 - `AssignedRunway` — changes on re-clearance; drives the hold-short truncation above.
+- `TaxiTurnAboutPending` — set by a clearance that turns the aircraft about, and clears when its leg is flown with nothing else on the DTO changing; drives the turn-about redraw above.
 
 Consequences to respect when changing this area:
 

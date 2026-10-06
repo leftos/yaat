@@ -1025,22 +1025,37 @@ public sealed class AirportGroundLayout
     /// <summary>
     /// Result of a nearest-taxi-edge lookup.
     /// </summary>
-    /// <param name="Edge">The straight <see cref="GroundEdge"/> nearest to the query point.</param>
-    /// <param name="DistNm">Perpendicular distance from the query point to the foot-of-perpendicular on the edge (clamped to endpoints).</param>
-    /// <param name="FootLat">Latitude of the foot-of-perpendicular.</param>
-    /// <param name="FootLon">Longitude of the foot-of-perpendicular.</param>
-    /// <param name="AlongNm">Distance from <c>Edge.Nodes[0]</c> to the foot along the edge direction.</param>
-    public readonly record struct NearestTaxiEdge(GroundEdge Edge, double DistNm, double FootLat, double FootLon, double AlongNm);
+    public readonly record struct NearestTaxiEdge
+    {
+        /// <summary>The straight <see cref="GroundEdge"/> nearest to the query point.</summary>
+        public required GroundEdge Edge { get; init; }
+
+        /// <summary>Perpendicular distance from the query point to the foot-of-perpendicular on the edge (clamped to endpoints).</summary>
+        public required double DistNm { get; init; }
+
+        /// <summary>Latitude of the foot-of-perpendicular.</summary>
+        public required double FootLat { get; init; }
+
+        /// <summary>Longitude of the foot-of-perpendicular.</summary>
+        public required double FootLon { get; init; }
+
+        /// <summary>Distance from <c>Edge.Nodes[0]</c> to the foot along the edge direction.</summary>
+        public required double AlongNm { get; init; }
+
+        /// <summary>True when the perpendicular foot fell outside the edge and was clamped to an end node.</summary>
+        public required bool Clamped { get; init; }
+    }
 
     /// <summary>
-    /// Find the nearest straight taxi edge to a query point. Filters out:
+    /// Find the nearest straight taxi edge to a query point: straight edges only; arcs are
+    /// <see cref="FindOccupiedFilletArc"/>'s. Filters out:
     /// <list type="bullet">
-    /// <item><see cref="GroundArc"/> (fillet curves at junctions — aircraft can't sit mid-arc)</item>
+    /// <item><see cref="GroundArc"/> (fillet curves at junctions)</item>
     /// <item>runway-centerline edges (<see cref="IGroundEdge.IsRunwayCenterline"/>)</item>
     /// <item>ramp connector edges (<see cref="IGroundEdge.IsRamp"/>)</item>
     /// </list>
     /// Used by the ground-spawn snap to realign off-graph ground-coord aircraft
-    /// onto a taxi surface before the first tick fires.
+    /// onto a taxi surface before the first tick fires, and by <see cref="FindOccupiedTaxiEdge"/>.
     /// </summary>
     public NearestTaxiEdge? FindNearestTaxiEdge(double lat, double lon)
     {
@@ -1049,6 +1064,7 @@ public sealed class AirportGroundLayout
         double bestFootLat = 0;
         double bestFootLon = 0;
         double bestAlongNm = 0;
+        bool bestClamped = false;
 
         var seen = new HashSet<IGroundEdge>();
         foreach (GroundNode node in Nodes.Values)
@@ -1068,7 +1084,7 @@ public sealed class AirportGroundLayout
                     continue;
                 }
 
-                (double footLat, double footLon, double alongNm, bool _) = GeoMath.FootOfPerpendicular(
+                (double footLat, double footLon, double alongNm, bool clamped) = GeoMath.FootOfPerpendicular(
                     lat,
                     lon,
                     straight.Nodes[0].Position.Lat,
@@ -1084,11 +1100,22 @@ public sealed class AirportGroundLayout
                     bestFootLat = footLat;
                     bestFootLon = footLon;
                     bestAlongNm = alongNm;
+                    bestClamped = clamped;
                 }
             }
         }
 
-        return bestEdge is null ? null : new NearestTaxiEdge(bestEdge, bestDistNm, bestFootLat, bestFootLon, bestAlongNm);
+        return bestEdge is null
+            ? null
+            : new NearestTaxiEdge
+            {
+                Edge = bestEdge,
+                DistNm = bestDistNm,
+                FootLat = bestFootLat,
+                FootLon = bestFootLon,
+                AlongNm = bestAlongNm,
+                Clamped = bestClamped,
+            };
     }
 
     /// <summary>
@@ -1102,7 +1129,8 @@ public sealed class AirportGroundLayout
     /// <see cref="FindNearestNode(LatLon)"/> — which returns the absolute
     /// nearest node and can land on the wrong branch when an aircraft rests
     /// between graph nodes after a directional pushback (issue #161) — this
-    /// returns the nearest node within <paramref name="maxDistFt"/> that has
+    /// returns, for an aircraft neither at a parking node nor on a taxi edge
+    /// (both below), the nearest node within <paramref name="maxDistFt"/> that has
     /// at least one non-RAMP, non-runway-centerline outbound edge whose
     /// bearing is within 90° of the aircraft's <paramref name="heading"/>.
     /// <para>
@@ -1121,33 +1149,79 @@ public sealed class AirportGroundLayout
     /// the route continues along — the existing-edge test admits the same
     /// node <see cref="FindNearestNode(LatLon)"/> would have picked.
     /// </para>
+    /// <para>
+    /// An aircraft away from every node but on a straight taxi edge
+    /// (<see cref="FindOccupiedTaxiEdge"/>) starts at that edge's endpoint ahead,
+    /// so a long edge never hands the start to a nearer node on a parallel
+    /// taxiway. That branch applies neither <paramref name="maxDistFt"/> nor the
+    /// heading-aligned-edge test: the endpoint is on the taxiway the aircraft is
+    /// on, however far along it. An aircraft on no straight edge but on a fillet
+    /// arc (<see cref="FindOccupiedFilletArc"/>), past the end of the edge it
+    /// came off, starts at the arc's end ahead, never the node it entered by.
+    /// </para>
     /// </summary>
     public GroundNode? FindNearestNodeForTaxi(LatLon position, TrueHeading heading, double maxDistFt = 100.0)
     {
-        double maxDistNm = maxDistFt / GeoMath.FeetPerNm;
-
         // Below this distance the candidate node and the aircraft are
         // effectively co-located — bearing-to-node is undefined and the
         // existing HoldingShortPhase / AtParkingPhase behaviour (start at the
         // node the aircraft is sitting at) must be preserved.
         double atNodeNm = AtNodeToleranceFt / GeoMath.FeetPerNm;
 
-        GroundNode? best = null;
-        double bestDistNm = double.MaxValue;
+        if (FindAtParkingStart(position, atNodeNm) is { } parkingStart)
+        {
+            return parkingStart;
+        }
 
-        // Fast path: if the aircraft is essentially at a Parking/Helipad node,
-        // prefer it as the startNode UNLESS it has a co-located non-parking
-        // neighbor (a fillet phase-d-shorten endpoint at near-zero distance).
-        // The co-located neighbor is the natural exit point — using it lets
-        // the route skip the degenerate near-zero parking-exit edge while
-        // still keeping the route's first segment anchored at the aircraft's
-        // actual position. When no co-located neighbor exists (e.g. SFO 42-4
-        // where the only edge from 1047 is a 42 ft RAMP to 2718), use the
-        // parking node directly so the route's first segment IS the
-        // parking-exit RAMP — otherwise the resolver picks a fillet vertex
-        // 90+ ft away, leaving the aircraft off-line from segment 0 and
-        // unable to converge under the short-route speed cap (slow-creep
-        // spin observed at SFO 42-4 → 10L).
+        // On a taxiway's pavement, away from every node: start on that taxiway, at the end of the edge or fillet ahead.
+        // The nearest node can sit on a parallel taxiway (issue #880: KOAK C/D, KSFO B/A) or behind the aircraft.
+        if (!HasTaxiNodeWithin(position, atNodeNm))
+        {
+            if (FindOccupiedTaxiEdge(position) is { } occupied)
+            {
+                return TaxiEdgeEndpointAhead(position, heading, occupied);
+            }
+
+            if (FindOccupiedFilletArc(position) is { } arc)
+            {
+                return FilletArcEndAhead(position, heading, arc);
+            }
+        }
+
+        return FindNearestAlignedNode(position, heading, maxDistFt / GeoMath.FeetPerNm, atNodeNm);
+    }
+
+    /// <summary>
+    /// The straight taxi edge an aircraft stands mid-way along when <see cref="FindNearestNodeForTaxi"/> starts its taxi
+    /// at that edge's endpoint ahead: at no parking node, within <see cref="AtNodeToleranceFt"/> of no taxi node, and on
+    /// the edge (<see cref="FindOccupiedTaxiEdge"/>). Null otherwise.
+    /// </summary>
+    public GroundEdge? FindMidEdgeTaxiStart(LatLon position)
+    {
+        double atNodeNm = AtNodeToleranceFt / GeoMath.FeetPerNm;
+        if ((FindAtParkingStart(position, atNodeNm) is not null) || HasTaxiNodeWithin(position, atNodeNm))
+        {
+            return null;
+        }
+
+        return FindOccupiedTaxiEdge(position);
+    }
+
+    /// <summary>
+    /// The start node for an aircraft essentially at a Parking/Helipad node (within <paramref name="atNodeNm"/>), or null
+    /// when it is at none.
+    /// <para>
+    /// The parking node is the start UNLESS it has a co-located non-parking neighbor (a fillet phase-d-shorten endpoint at
+    /// near-zero distance). The co-located neighbor is the natural exit point — using it lets the route skip the
+    /// degenerate near-zero parking-exit edge while still keeping the route's first segment anchored at the aircraft's
+    /// actual position. When no co-located neighbor exists (e.g. SFO 42-4 where the only edge from 1047 is a 42 ft RAMP
+    /// to 2718), the parking node itself is the start so the route's first segment IS the parking-exit RAMP — otherwise
+    /// the resolver picks a fillet vertex 90+ ft away, leaving the aircraft off-line from segment 0 and unable to
+    /// converge under the short-route speed cap (slow-creep spin observed at SFO 42-4 → 10L).
+    /// </para>
+    /// </summary>
+    private GroundNode? FindAtParkingStart(LatLon position, double atNodeNm)
+    {
         foreach (GroundNode parkingNode in Nodes.Values)
         {
             if (parkingNode.Type is not (GroundNodeType.Parking or GroundNodeType.Helipad))
@@ -1159,23 +1233,40 @@ public sealed class AirportGroundLayout
                 continue;
             }
 
-            GroundNode? colocatedNeighbor = null;
-            foreach (IGroundEdge edge in parkingNode.Edges)
-            {
-                GroundNode other = edge.OtherNode(parkingNode);
-                if (other.Type is GroundNodeType.Parking or GroundNodeType.Helipad)
-                {
-                    continue;
-                }
-                if (GeoMath.DistanceNm(parkingNode.Position, other.Position) <= atNodeNm)
-                {
-                    colocatedNeighbor = other;
-                    break;
-                }
-            }
-
-            return colocatedNeighbor ?? parkingNode;
+            return FindColocatedNonParkingNeighbor(parkingNode, atNodeNm) ?? parkingNode;
         }
+
+        return null;
+    }
+
+    /// <summary>The first non-parking neighbor of <paramref name="parkingNode"/> within <paramref name="atNodeNm"/> of it, or null.</summary>
+    private static GroundNode? FindColocatedNonParkingNeighbor(GroundNode parkingNode, double atNodeNm)
+    {
+        foreach (IGroundEdge edge in parkingNode.Edges)
+        {
+            GroundNode other = edge.OtherNode(parkingNode);
+            if (other.Type is GroundNodeType.Parking or GroundNodeType.Helipad)
+            {
+                continue;
+            }
+            if (GeoMath.DistanceNm(parkingNode.Position, other.Position) <= atNodeNm)
+            {
+                return other;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// The nearest non-parking node within <paramref name="maxDistNm"/> that is not behind the aircraft (unless within
+    /// <paramref name="atNodeNm"/> of it) and has a taxi edge aligned with <paramref name="heading"/>
+    /// (<see cref="HasHeadingAlignedTaxiEdge"/>), or null.
+    /// </summary>
+    private GroundNode? FindNearestAlignedNode(LatLon position, TrueHeading heading, double maxDistNm, double atNodeNm)
+    {
+        GroundNode? best = null;
+        double bestDistNm = double.MaxValue;
 
         foreach (GroundNode node in Nodes.Values)
         {
@@ -1213,6 +1304,181 @@ public sealed class AirportGroundLayout
 
         return best;
     }
+
+    /// <summary>
+    /// Lateral distance from a straight taxi edge's centreline within which an aircraft is on that taxiway (half a TDG 3/4
+    /// taxiway's 50 ft width).
+    /// </summary>
+    public const double OnTaxiEdgeMaxOffsetFt = 25.0;
+
+    /// <summary>
+    /// True when a non-parking node an aircraft can leave lies within <paramref name="withinNm"/> of
+    /// <paramref name="position"/>.
+    /// </summary>
+    private bool HasTaxiNodeWithin(LatLon position, double withinNm)
+    {
+        foreach (GroundNode node in Nodes.Values)
+        {
+            if ((node.Type is GroundNodeType.Parking or GroundNodeType.Helipad) || (node.Edges.Count == 0))
+            {
+                continue;
+            }
+            if (GeoMath.DistanceNm(position, node.Position) <= withinNm)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// The endpoint of <paramref name="edge"/>, the straight taxi edge <paramref name="position"/> lies on, ahead of
+    /// <paramref name="heading"/> (<see cref="IsNodeAhead"/>); when both or neither endpoint is ahead (a heading across the
+    /// edge), the nearer one.
+    /// </summary>
+    private static GroundNode TaxiEdgeEndpointAhead(LatLon position, TrueHeading heading, GroundEdge edge)
+    {
+        GroundNode first = edge.Nodes[0];
+        GroundNode second = edge.Nodes[1];
+        bool firstAhead = IsNodeAhead(position, heading, first);
+        bool secondAhead = IsNodeAhead(position, heading, second);
+        GroundNode endpoint;
+        if (firstAhead != secondAhead)
+        {
+            endpoint = firstAhead ? first : second;
+        }
+        else
+        {
+            endpoint = (GeoMath.DistanceNm(position, first.Position) <= GeoMath.DistanceNm(position, second.Position)) ? first : second;
+        }
+
+        Log.LogDebug(
+            "[TaxiStart] on {Taxiway} edge {First}-{Second}, away from every node: the taxi starts at its endpoint ahead, node {NodeId}",
+            edge.TaxiwayName,
+            first.Id,
+            second.Id,
+            endpoint.Id
+        );
+        return endpoint;
+    }
+
+    /// <summary>
+    /// The straight taxi edge an aircraft at <paramref name="position"/> is on: the nearest one
+    /// (<see cref="FindNearestTaxiEdge(LatLon)"/>), when it lies within <see cref="OnTaxiEdgeMaxOffsetFt"/> of the position
+    /// and the perpendicular from the position falls strictly inside it. Null otherwise: a position past an edge's end
+    /// (into a fillet arc, or beside a runway junction) is not on that edge, however close its end node.
+    /// </summary>
+    public GroundEdge? FindOccupiedTaxiEdge(LatLon position)
+    {
+        if (FindNearestTaxiEdge(position) is not { } nearest)
+        {
+            return null;
+        }
+
+        bool onEdge = !nearest.Clamped && ((nearest.DistNm * GeoMath.FeetPerNm) <= OnTaxiEdgeMaxOffsetFt);
+        return onEdge ? nearest.Edge : null;
+    }
+
+    /// <summary>Refinement passes <see cref="CubicBezier.ClosestT(LatLon, int)"/> runs for the on-fillet test.</summary>
+    private const int FilletClosestIterations = 24;
+
+    /// <summary>
+    /// The fillet arc an aircraft at <paramref name="position"/> is on: the nearest taxi arc (no ramp connector, no runway
+    /// centreline) whose curve passes within <see cref="OnTaxiEdgeMaxOffsetFt"/> of the position, the nearest point of the
+    /// curve lying strictly between its end nodes. Null when there is none.
+    /// </summary>
+    private GroundArc? FindOccupiedFilletArc(LatLon position)
+    {
+        double maxOffsetNm = OnTaxiEdgeMaxOffsetFt / GeoMath.FeetPerNm;
+        GroundArc? best = null;
+        double bestDistNm = double.MaxValue;
+        var seen = new HashSet<IGroundEdge>();
+        foreach (GroundNode node in Nodes.Values)
+        {
+            foreach (IGroundEdge edge in node.Edges)
+            {
+                if (
+                    seen.Add(edge)
+                    && (TryGetTaxiArc(edge) is { } arc)
+                    && (OnArcDistanceNm(position, arc, maxOffsetNm) is { } distNm)
+                    && (distNm < bestDistNm)
+                )
+                {
+                    best = arc;
+                    bestDistNm = distNm;
+                }
+            }
+        }
+
+        return best;
+    }
+
+    /// <summary><paramref name="edge"/> as a taxi fillet arc (no ramp connector, no runway centreline), or null.</summary>
+    private static GroundArc? TryGetTaxiArc(IGroundEdge edge) => ((edge is GroundArc arc) && !arc.IsRamp && !arc.IsRunwayCenterline) ? arc : null;
+
+    /// <summary>
+    /// Distance from <paramref name="position"/> to <paramref name="arc"/>'s curve when it is within
+    /// <paramref name="maxOffsetNm"/> and the nearest point lies strictly inside the arc (<see cref="DistanceInsideArcNm"/>),
+    /// else null.
+    /// </summary>
+    private static double? OnArcDistanceNm(LatLon position, GroundArc arc, double maxOffsetNm)
+    {
+        // Every point of the curve lies within its own length of an end node.
+        if (GeoMath.DistanceNm(position, arc.Nodes[0].Position) > (arc.DistanceNm + maxOffsetNm))
+        {
+            return null;
+        }
+
+        return (DistanceInsideArcNm(position, arc) is { } distNm) && (distNm <= maxOffsetNm) ? distNm : null;
+    }
+
+    /// <summary>
+    /// Distance from <paramref name="position"/> to the nearest point of <paramref name="arc"/>'s curve, or null when that
+    /// point is one of the curve's ends: the position lies past the arc, not beside it.
+    /// </summary>
+    private static double? DistanceInsideArcNm(LatLon position, GroundArc arc)
+    {
+        const double endTolerance = 1e-3;
+        CubicBezier curve = arc.ToBezier();
+        double t = curve.ClosestT(position, FilletClosestIterations);
+        if ((t <= endTolerance) || (t >= (1.0 - endTolerance)))
+        {
+            return null;
+        }
+
+        (double lat, double lon) = curve.Evaluate(t);
+        return GeoMath.DistanceNm(position, new LatLon(lat, lon));
+    }
+
+    /// <summary>
+    /// The end node of <paramref name="arc"/>, the fillet <paramref name="position"/> lies on, whose bearing from the
+    /// position is nearest <paramref name="heading"/>: the end the aircraft is driving toward, never the one it entered by.
+    /// </summary>
+    private static GroundNode FilletArcEndAhead(LatLon position, TrueHeading heading, GroundArc arc)
+    {
+        GroundNode first = arc.Nodes[0];
+        GroundNode second = arc.Nodes[1];
+        double firstOffDeg = GeoMath.AbsBearingDifference(GeoMath.BearingTo(position, first.Position), heading.Degrees);
+        double secondOffDeg = GeoMath.AbsBearingDifference(GeoMath.BearingTo(position, second.Position), heading.Degrees);
+        GroundNode endpoint = (firstOffDeg <= secondOffDeg) ? first : second;
+
+        Log.LogDebug(
+            "[TaxiStart] on fillet {Taxiway} {First}-{Second}, away from every node: the taxi starts at its end ahead, node {NodeId}",
+            arc.TaxiwayName,
+            first.Id,
+            second.Id,
+            endpoint.Id
+        );
+        return endpoint;
+    }
+
+    /// <summary>
+    /// True when <paramref name="node"/> lies less than 90° off <paramref name="heading"/> as seen from
+    /// <paramref name="position"/>.
+    /// </summary>
+    private static bool IsNodeAhead(LatLon position, TrueHeading heading, GroundNode node) =>
+        GeoMath.AbsBearingDifference(GeoMath.BearingTo(position, node.Position), heading.Degrees) < 90.0;
 
     /// <summary>
     /// Returns true when <paramref name="node"/> has at least one outbound

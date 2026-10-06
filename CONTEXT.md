@@ -226,6 +226,16 @@ The outline an aircraft of the pushing type would occupy parked on an empty neig
 The straight a taxi flies in place of a fillet's curve when a node-aimed entry-alignment arc rolls out pointing at the fillet's far node from off the curve: from where the aircraft stands straight to that node (`GroundNavigator.InstallAimedLineOverFillet`, docs/ground/navigator.md). It survives a snapshot (`GroundNavigatorDto.OnAimedLineOverFillet`).
 _Avoid_: lead-in (a lead-in is the along-tangent shortfall before a curve the aircraft is flying)
 
+**Mid-edge start**:
+Where a TAXI issued to an aircraft standing on a straight taxiway edge begins: the route is planned from both ends of the occupied edge and the one that does not drive back over it is kept, the end ahead winning ties; an aircraft on a fillet arc starts at the arc's end ahead (docs/ground/pathfinder.md).
+
+**Turn-about in place**:
+A taxi route whose first leg reverses the aircraft on the taxiway where it stands, because its only route lies behind it (`TaxiRoute.StartsWithTurnAbout`; while unflown, `TaxiTurnAboutPending` on the training hub, which the ground view's overlay draws). Pistons, helicopters, turboprops, scripted taxis and jets angled across their edge make it; a lined-up jet refuses it.
+_Avoid_: U-turn (a U-turn reverses over a junction's fillets, not along the taxiway)
+
+**Lined-up jet**:
+A jet whose heading is within 30° of its occupied taxiway edge, either way along it (`GroundCommandHandler.IsLinedUpWith`, a heuristic). A controller's TAXI that would need a turn-about in place is refused: "Unable, no room to turn around on C, request a route ahead".
+
 **Holding distance**:
 How far from a runway's centerline its holding position markings sit: the map's `holdShortDistance`, else the width-based default (`RunwayCrossingDetector.HoldShortDistanceForWidth`). An aircraft is clear of the runway only with its tail past a bar at this distance.
 

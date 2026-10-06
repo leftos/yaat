@@ -17,10 +17,13 @@ namespace Yaat.Sim.Tests.Simulation;
 /// </summary>
 public class SfoTaxiCurrentTaxiwayPrependTests(ITestOutputHelper output)
 {
-    /// <summary>THY9WC at bundle t=180..195: pushed off G10 onto B, nosed 225°, stationary.</summary>
+    /// <summary>
+    /// THY9WC where it stood at bundle t=180..195, pushed off G10 onto B and stationary, but nosed 027° along B toward
+    /// the route: the bundle's 225° lines it up along B facing away from A, where a jet refuses to turn about.
+    /// </summary>
     private static readonly (LatLon Position, TrueHeading Heading) Thy9wcPose = (
         new LatLon(37.620185907173685, -122.39339233256204),
-        new TrueHeading(225.07996254948034)
+        new TrueHeading(27.0)
     );
 
     /// <summary>SKW3398 at bundle t=530: taxiing north-west on B towards K, nosed 298°.</summary>
@@ -90,7 +93,7 @@ public class SfoTaxiCurrentTaxiwayPrependTests(ITestOutputHelper output)
             return;
         }
 
-        AircraftState aircraft = HoldShortOfKOnB(ground);
+        AircraftState aircraft = HoldShortOfKOnB(ground, "E75L");
 
         CommandResult toD1 = ground.Engine.SendCommand("SKW3398", "TAXI A @D1");
         output.WriteLine($"TAXI A @D1: {toD1.Success} — {toD1.Message}");
@@ -120,7 +123,7 @@ public class SfoTaxiCurrentTaxiwayPrependTests(ITestOutputHelper output)
             return;
         }
 
-        AircraftState aircraft = HoldShortOfKOnB(ground);
+        AircraftState aircraft = HoldShortOfKOnB(ground, "E75L");
 
         CommandResult result = ground.Engine.SendCommand("SKW3398", "TAXI A");
         output.WriteLine($"TAXI A: {result.Success} — {result.Message}");
@@ -135,18 +138,19 @@ public class SfoTaxiCurrentTaxiwayPrependTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// Holding short of K on B, <c>TAXI B T</c> continues along B across K: the aircraft already stands on the first
-    /// cleared taxiway, so the taxiway it holds short of is not put in front of the path.
+    /// A turboprop holding short of K on B, <c>TAXI B T</c>: T lies behind it, so it turns about on B toward T. The
+    /// aircraft already stands on the first cleared taxiway, so the taxiway it holds short of is not put in front of the
+    /// path.
     /// </summary>
     [Fact]
-    public void Taxi_BT_AfterHoldingShortOfK_ContinuesAlongB()
+    public void Taxi_BT_AfterHoldingShortOfK_TurbopropTurnsAboutOnB()
     {
         if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
         {
             return;
         }
 
-        AircraftState aircraft = HoldShortOfKOnB(ground);
+        AircraftState aircraft = HoldShortOfKOnB(ground, "DH8D");
 
         CommandResult result = ground.Engine.SendCommand("SKW3398", "TAXI B T");
         output.WriteLine($"TAXI B T: {result.Success} — {result.Message}");
@@ -158,6 +162,52 @@ public class SfoTaxiCurrentTaxiwayPrependTests(ITestOutputHelper output)
         Assert.Equal("B", StraightTaxiwayLegs(route)[0]);
         Assert.DoesNotContain(route.Segments, s => s.Edge.Edge.MatchesTaxiway("K"));
     }
+
+    /// <summary>
+    /// The E75L holding short of K on B, lined up along B with T behind it: <c>TAXI B T</c> needs a turn about on B, which a
+    /// jet refuses.
+    /// </summary>
+    [Fact]
+    public void Taxi_BT_AfterHoldingShortOfK_JetRefusesToTurnAboutOnB()
+    {
+        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        {
+            return;
+        }
+
+        HoldShortOfKOnB(ground, "E75L");
+
+        CommandResult result = ground.Engine.SendCommand("SKW3398", "TAXI B T");
+        output.WriteLine($"TAXI B T: {result.Success} — {result.Message}");
+        Assert.False(result.Success, result.Message);
+        Assert.Equal(GroundCommandHandler.NoRoomToTurnAroundReason("B"), result.Message);
+    }
+
+    /// <summary>
+    /// THY9WC at the bundle's own heading, 225°, lined up along B facing away from the route: the re-issued
+    /// <c>TAXI A F 28L HS 1L</c> needs a turn about on B, which a jet refuses.
+    /// </summary>
+    [Fact]
+    public void Taxi_ReissuedAF28L_AtTheBundleHeading_JetRefusesToTurnAboutOnB()
+    {
+        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        {
+            return;
+        }
+
+        (LatLon Position, TrueHeading Heading) bundlePose = (Thy9wcPose.Position, new TrueHeading(Thy9wcBundleHeadingDeg));
+        AircraftState aircraft = SpawnOffGraph(ground, "THY9WC", "B789", bundlePose, new HoldingAfterPushbackPhase());
+        aircraft.Ground.ParkingSpot = "G10";
+        aircraft.Ground.CurrentTaxiway = "B";
+
+        CommandResult result = ground.Engine.SendCommand("THY9WC", "TAXI A F 28L HS 1L");
+        output.WriteLine($"TAXI A F 28L HS 1L: {result.Success} — {result.Message}");
+        Assert.False(result.Success, result.Message);
+        Assert.Equal(GroundCommandHandler.NoRoomToTurnAroundReason("B"), result.Message);
+    }
+
+    /// <summary>THY9WC's heading in the bundle at t=180..195, nosed down B away from the route.</summary>
+    private const double Thy9wcBundleHeadingDeg = 225.07996254948034;
 
     /// <summary>
     /// Holding short of K on B, <c>TAXI Q</c>: K meets Q only across 28L/10R, so turning onto K would cross a runway
@@ -172,7 +222,7 @@ public class SfoTaxiCurrentTaxiwayPrependTests(ITestOutputHelper output)
             return;
         }
 
-        AircraftState aircraft = HoldShortOfKOnB(ground);
+        AircraftState aircraft = HoldShortOfKOnB(ground, "E75L");
 
         CommandResult result = ground.Engine.SendCommand("SKW3398", "TAXI Q");
         output.WriteLine($"TAXI Q: {result.Success} — {result.Message}");
@@ -221,7 +271,7 @@ public class SfoTaxiCurrentTaxiwayPrependTests(ITestOutputHelper output)
         Assert.DoesNotContain(route.HoldShortPoints, h => h.Reason is HoldShortReason.RunwayCrossing or HoldShortReason.DestinationRunway);
     }
 
-    /// <summary>THY9WC's re-issued <c>TAXI A F 28L HS 1L</c> bridges B → B1 onto A; B is where it stands, not a deviation.</summary>
+    /// <summary>THY9WC's re-issued <c>TAXI A F 28L HS 1L</c> bridges B → B4 onto A; B is where it stands, not a deviation.</summary>
     [Fact]
     public void Taxi_ReissuedAF28L_OnB_HasNoNoteForB()
     {
@@ -384,10 +434,10 @@ public class SfoTaxiCurrentTaxiwayPrependTests(ITestOutputHelper output)
     private static int CrossingsOf(TaxiRoute route, string runway) =>
         route.HoldShortPoints.Where(h => SfoGroundHarness.HoldShortMatches(h, runway)).Select(h => h.NodeId).Distinct().Count();
 
-    /// <summary>SKW3398 spawned on B, cleared <c>TAXI B K HS K</c> and ticked until it holds short of K.</summary>
-    private AircraftState HoldShortOfKOnB(SfoGround ground)
+    /// <summary>SKW3398, a <paramref name="type"/>, spawned on B, cleared <c>TAXI B K HS K</c> and ticked until it holds short of K.</summary>
+    private AircraftState HoldShortOfKOnB(SfoGround ground, string type)
     {
-        AircraftState aircraft = SpawnOffGraph(ground, "SKW3398", "E75L", Skw3398OnBPose, new HoldingInPositionPhase());
+        AircraftState aircraft = SpawnOffGraph(ground, "SKW3398", type, Skw3398OnBPose, new HoldingInPositionPhase());
         aircraft.Ground.CurrentTaxiway = "B";
 
         CommandResult toK = ground.Engine.SendCommand("SKW3398", "TAXI B K HS K");

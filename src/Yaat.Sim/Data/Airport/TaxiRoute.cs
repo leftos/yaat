@@ -41,6 +41,20 @@ public sealed class TaxiRoute
     /// </summary>
     public int? SpotLineUpPullFromSegment { get; init; }
 
+    /// <summary>
+    /// True when the clearance turns the aircraft about on the taxiway it stood mid-way along, toward that edge's node
+    /// behind it, in either of two shapes: the route was planned from that node and segment 0 is the free-space leg back to
+    /// it (<see cref="TaxiApproachLeg"/>), or the route from the edge's node ahead was kept and segment 0 reverses in place
+    /// over the occupied edge to it. Set by the TAXI handler on the route it assigns; false on every other route.
+    /// </summary>
+    public bool StartsWithTurnAbout { get; set; }
+
+    /// <summary>
+    /// True while the aircraft has yet to finish the turn about this route starts with (<see cref="StartsWithTurnAbout"/>):
+    /// it is still on segment 0. False once that segment is done, and on every route without one.
+    /// </summary>
+    public bool TurnAboutPending => StartsWithTurnAbout && (CurrentSegmentIndex == 0) && (Segments.Count > 0);
+
     public double TotalDistanceNm => Segments.Sum(s => s.Edge.DistanceNm);
 
     /// <summary>The whole route's length in feet — the unit every ground-distance rule in the taxi stack is written in.</summary>
@@ -162,6 +176,7 @@ public sealed class TaxiRoute
                     Warnings = Warnings,
                     ImpliedLanes = ImpliedLanes,
                     SpotLineUpPullFromSegment = SpotLineUpPullFromSegment <= i ? SpotLineUpPullFromSegment : null,
+                    StartsWithTurnAbout = StartsWithTurnAbout,
                 };
             }
         }
@@ -501,6 +516,7 @@ public sealed class TaxiRoute
             DestinationParking = DestinationParking,
             DestinationSpot = DestinationSpot,
             SpotLineUpPullFromSegment = SpotLineUpPullFromSegment,
+            StartsWithTurnAbout = StartsWithTurnAbout,
         };
 
     /// <summary>
@@ -589,6 +605,7 @@ public sealed class TaxiRoute
             DestinationParking = dto.DestinationParking,
             DestinationSpot = dto.DestinationSpot,
             SpotLineUpPullFromSegment = dto.SpotLineUpPullFromSegment,
+            StartsWithTurnAbout = dto.StartsWithTurnAbout,
         };
     }
 }

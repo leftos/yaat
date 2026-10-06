@@ -1180,6 +1180,9 @@ public record AircraftDto(
     bool IsGhostOverlay = false,
     bool HasActiveTaxiRoute = false,
     string TaxiDestination = "",
+    // True while the assigned taxi route starts with a turn about on the taxiway the aircraft stood on and the
+    // aircraft has not finished that leg. The ground overlay draws a turn about only while this is set.
+    bool TaxiTurnAboutPending = false,
     // Hold-state mirror of AircraftGroundOps.Hold. HoldKind is null/empty when free
     // to move, "HoldPosition" for unconditional HOLD, "GiveWay" for a controller
     // GIVEWAY relationship (HoldYieldTarget carries the callsign in that case).

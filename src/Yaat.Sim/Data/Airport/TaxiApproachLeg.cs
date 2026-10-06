@@ -15,6 +15,10 @@ namespace Yaat.Sim.Data.Airport;
 /// <see cref="VirtualNode"/> segment named RAMP, exactly as <see cref="RampLaneReposition"/> builds its cut, so
 /// the navigator, hold-short annotation, snapshots and the client overlay need nothing special and the
 /// clearance readback is unchanged.</para>
+///
+/// <para>A free-space leg is bounded by <see cref="RampLaneReposition.MaxCrossingFt"/>, except where it runs along the
+/// straight taxiway the aircraft is on to one of that edge's nodes: an aircraft stopped mid-way along a long taxiway edge
+/// follows the centreline it is on, so the leg there carries no length bound.</para>
 /// </summary>
 public static class TaxiApproachLeg
 {
@@ -63,7 +67,9 @@ public static class TaxiApproachLeg
     /// centerline — a free-space leg follows no painted line and is not obstacle-aware. A roll ALONG the
     /// runway the aircraft is ON (<see cref="AlongRunwayBoundFt"/>) is the exception: it is bounded by that
     /// runway's own length instead, and the centerline rule does not apply because the aircraft is not crossing
-    /// a runway, it is on one, with the centerline as its guide.</item>
+    /// a runway, it is on one, with the centerline as its guide. A leg along the taxiway the aircraft is ON
+    /// (<see cref="OccupiedTaxiEdgeLeadingTo"/>) is the other: it follows that taxiway's painted centreline to the
+    /// start node, so the length bound is waived, while the runway-centerline rule still applies.</item>
     /// </list>
     /// </summary>
     public static TaxiRoute Prepend(AirportGroundLayout layout, LatLon position, TrueHeading heading, TaxiRoute route)
@@ -114,7 +120,12 @@ public static class TaxiApproachLeg
             return "the route starts at a holding position";
         }
 
-        if (PastStartRefusal(position, route, from) is { } pastStart)
+        // An aircraft mid-way along a straight taxi edge has passed neither end of it, so a route leaving an end of that edge
+        // by another edge is driven to, however sharply it turns there. A route running along the edge itself is the
+        // past-the-start case: the aircraft is already on its first segment, and pure pursuit closes onto it.
+        GroundEdge? occupied = OccupiedTaxiEdgeLeadingTo(layout, position, from);
+        bool leavesOccupiedEdgeEnd = (occupied is not null) && !ReferenceEquals(route.Segments[0].Edge.Edge, occupied);
+        if (!leavesOccupiedEdgeEnd && (PastStartRefusal(position, route, from) is { } pastStart))
         {
             return pastStart;
         }
@@ -124,12 +135,59 @@ public static class TaxiApproachLeg
             return distFt > runwayLengthFt ? $"the roll along the runway is {distFt:F0} ft, beyond the runway's own {runwayLengthFt:F0} ft" : null;
         }
 
-        if (distFt > RampLaneReposition.MaxCrossingFt)
+        if (FreeSpaceBoundRefusal(occupied, from, distFt) is { } beyondBound)
+        {
+            return beyondBound;
+        }
+
+        return layout.RunwayCenterlineBetween(position, from.Position) ? "a runway centerline lies between" : null;
+    }
+
+    /// <summary>
+    /// The refusal for a drive beyond <see cref="RampLaneReposition.MaxCrossingFt"/>, or null when the drive is inside
+    /// that bound or runs along <paramref name="occupied"/>, the taxiway edge the aircraft is on that leads to
+    /// <paramref name="from"/> (<see cref="OccupiedTaxiEdgeLeadingTo"/>), which waives it.
+    /// </summary>
+    private static string? FreeSpaceBoundRefusal(GroundEdge? occupied, GroundNode from, double distFt)
+    {
+        if (distFt <= RampLaneReposition.MaxCrossingFt)
+        {
+            return null;
+        }
+
+        if (occupied is null)
         {
             return $"the drive is {distFt:F0} ft, beyond the {RampLaneReposition.MaxCrossingFt:F0} ft free-space bound";
         }
 
-        return layout.RunwayCenterlineBetween(position, from.Position) ? "a runway centerline lies between" : null;
+        Log.LogDebug(
+            "[ApproachLeg] {DistFt:F0} ft leg past the {BoundFt:F0} ft bound runs along {Taxiway} edge {First}-{Second} to its node {NodeId}",
+            distFt,
+            RampLaneReposition.MaxCrossingFt,
+            occupied.TaxiwayName,
+            occupied.Nodes[0].Id,
+            occupied.Nodes[1].Id,
+            from.Id
+        );
+        return null;
+    }
+
+    /// <summary>
+    /// The straight taxi edge the aircraft is on (<see cref="AirportGroundLayout.FindOccupiedTaxiEdge"/>) when
+    /// <paramref name="from"/> is one of that edge's endpoints, else null. The leg to <paramref name="from"/> then follows
+    /// the painted centreline the aircraft is already on, however long the edge (issue #880: an aircraft mid-B at SFO,
+    /// 600 ft from the next node). The endpoint is usually the one ahead; it is the one behind when the route from the
+    /// node ahead would reverse back over this edge, and the aircraft turns about on the taxiway instead.
+    /// </summary>
+    private static GroundEdge? OccupiedTaxiEdgeLeadingTo(AirportGroundLayout layout, LatLon position, GroundNode from)
+    {
+        if (layout.FindOccupiedTaxiEdge(position) is not { } occupied)
+        {
+            return null;
+        }
+
+        bool endsAtFrom = (occupied.Nodes[0] == from) || (occupied.Nodes[1] == from);
+        return endsAtFrom ? occupied : null;
     }
 
     /// <summary>

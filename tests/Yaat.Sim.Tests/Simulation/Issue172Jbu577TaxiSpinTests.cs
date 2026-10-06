@@ -8,7 +8,8 @@ namespace Yaat.Sim.Tests.Simulation;
 
 /// <summary>
 /// Issue #172 sub-case (JBU577 taxi spin). After landing at SFO, JBU577 was given
-/// <c>TAXI G B HS B</c> (t=444) + <c>CROSS</c> (t=447) to cross RWY 01L/19R on taxiway G and hold
+/// <c>TAXI G B HS B</c> (t=444, replayed here at <see cref="TaxiGBSeconds"/>, before it passes the H/G junction) +
+/// <c>CROSS</c> (t=447) to cross RWY 01L/19R on taxiway G and hold
 /// short of B just beyond. On G the nodes run NW: 867 (runway far-side hold-short) -> 1398 (B's join,
 /// ~74 ft NW) -> 155 (G/B junction). 867->1398 is shorter than the aircraft, so it cannot be both fully
 /// clear of the runway and short of B.
@@ -67,6 +68,7 @@ public class Issue172Jbu577TaxiSpinTests(ITestOutputHelper output)
         }
 
         engine.Replay(recording, 0);
+        engine.ArmReplay(ActionsWithTaxiGBMovedEarlier(recording));
 
         // Stop replaying before TAXI B M1 Y @B5 (t=514) extends the route — assert only the
         // TAXI G B HS B crossing + hold-short-of-B behavior. Beyond the window, tick physics
@@ -194,6 +196,30 @@ public class Issue172Jbu577TaxiSpinTests(ITestOutputHelper output)
             $"JBU577 settled facing {lastHeading:F0}° — holding short of B should keep it facing ~the crossing direction "
                 + $"({crossingHeading:F0}° NW), not reversed back toward the runway."
         );
+    }
+
+    /// <summary>
+    /// When JBU577 is given <c>TAXI G B HS B</c>: turned off the runway onto H (RunwayExitPhase), about 330 ft short of
+    /// the H/G junction (node 1675), which it passes at t≈417, so the route turns onto G ahead of it. The recording gives
+    /// it at t=444, by when the re-simulated rollout has carried the aircraft past the junction, lined up along H with G
+    /// behind it, where a jet refuses to turn about.
+    /// </summary>
+    public const int TaxiGBSeconds = 410;
+
+    /// <summary>
+    /// The recording's actions with JBU577's <c>TAXI G B HS B</c> moved from t=444 to <see cref="TaxiGBSeconds"/>, for
+    /// <see cref="SimulationEngine.ArmReplay"/>; the recording itself, shared through the loader's cache, is untouched.
+    /// </summary>
+    public static List<RecordedAction> ActionsWithTaxiGBMovedEarlier(SessionRecording recording)
+    {
+        List<RecordedAction> actions = [.. recording.Actions];
+        int index = actions.FindIndex(a => a is RecordedCommand { Callsign: "JBU577", Command: "TAXI G B HS B" });
+        Assert.True(index >= 0, "the recording has no TAXI G B HS B for JBU577");
+        var taxi = (RecordedCommand)actions[index];
+        actions.RemoveAt(index);
+        int insertAt = actions.FindIndex(a => a.ElapsedSeconds > TaxiGBSeconds);
+        actions.Insert(insertAt < 0 ? actions.Count : insertAt, taxi with { ElapsedSeconds = TaxiGBSeconds });
+        return actions;
     }
 
     /// <summary>

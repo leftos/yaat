@@ -492,8 +492,15 @@ public sealed class TaxiingPhase : Phase
     }
 
     /// <summary>
-    /// True when <paramref name="holdShort"/> is closer than the distance the aircraft needs to brake to a
-    /// stop: the painted bar cannot be made and the aircraft will come to rest past it whatever it does.
+    /// Ground speed (kts) at or below which this phase counts an aircraft as stopped. A stopped aircraft cannot overrun a
+    /// bar, so it never reads one back as unmakeable.
+    /// </summary>
+    private const double StoppedGroundSpeedKts = 2.0;
+
+    /// <summary>
+    /// True when the aircraft is moving faster than <see cref="StoppedGroundSpeedKts"/> and <paramref name="holdShort"/> is
+    /// closer than the distance it needs to brake to a stop: the painted bar cannot be made and the aircraft will come to
+    /// rest past it whatever it does. A stopped aircraft whose stop point is already behind it holds where it stands.
     /// </summary>
     /// <param name="layout">Ground layout the route is resolved on.</param>
     /// <param name="route">The route being taxied.</param>
@@ -507,7 +514,11 @@ public sealed class TaxiingPhase : Phase
         AircraftState aircraft,
         AircraftCategory category,
         HoldShortPoint holdShort
-    ) => AlongRouteDistanceToHoldShortFt(layout, route, aircraft.Position, holdShort) < HoldShortBrakingDistanceFt(aircraft.GroundSpeed, category);
+    ) =>
+        (aircraft.GroundSpeed > StoppedGroundSpeedKts)
+        && (
+            AlongRouteDistanceToHoldShortFt(layout, route, aircraft.Position, holdShort) < HoldShortBrakingDistanceFt(aircraft.GroundSpeed, category)
+        );
 
     /// <summary>
     /// Re-aims the segment in progress at a bar armed after its profile was built, and — when that bar is

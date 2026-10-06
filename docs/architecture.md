@@ -152,6 +152,10 @@ The Task Index above tells you *which files*; these docs explain *how each subsy
 
     `Simulation/GroundTaxi/TaxiApproachLegTests.cs` (`TaxiApproachLeg.Prepend` unit cover: the four refusal shapes plus the along-runway-roll case). `VirtualNodeTests.cs` (position-hashed virtual-node ids: same position → same id, a foot apart → a different one, cross-process determinism).
 
+    `Simulation/GroundTaxi/TaxiStartsOnOccupiedTaxiwayTests.cs` (a TAXI to an aircraft mid-way along a straight taxi edge starts on that taxiway, at KOAK C and KSFO B, and one in a fillet arc starts at the arc's end ahead).
+
+    Its route-aware-start cases: a route behind turns a C172 about to the far node with `TaxiTurnAboutPending` set until that leg is flown; a lined-up B738 refuses "no room to turn around" while one angled 45° across turns about; a scripted TAXI is never refused, also across a mid-push snapshot restore.
+
     `Phases/CrossingRunwayTailClearTests.cs` (the tail-clearance leg past a runway crossing follows the aircraft's own route rather than the graph's straightest continuation, and the phase hands the route back at the right segment; a type missing from the FAA database clears by half its CWT fallback length).
 
     `Phases/ClearRunwayPhaseFallbackLengthTests.cs` (`CLRWY`'s pull-forward past the hold bar uses the same CWT fallback length for an unknown type). `Simulation/GroundTaxi/SfoVideoRoutePinTests.cs` (the SFO ground-controller routes from the ZOA familiarization video and SOP — 28/1, 28/28, 19/10, 19/19, 10/10, supers — resolve with exactly the hold-shorts each clearance implies; start points by gate/spot/bar/junction name).
@@ -300,7 +304,9 @@ The Task Index above tells you *which files*; these docs explain *how each subsy
     An en-route IFR aircraft keeps its remaining route, a vectored one is flagged off-route, a shadow's filed route is trimmed to the fixes ahead or flagged untrimmed; a descend/climb-via or an assigned altitude/speed round-trips as a preset command through the real parser. A shadow's heading and IAS come from its air vector, not ground track/speed; the loader-reload round trip lands every aircraft within 20 ft and 1° of heading
 - **Client tests**: `tests/Yaat.Client.Tests/` — view model logic, command input
   - **Hub JSON contract**: `HubJsonContractTests.cs` (every Core-owned `ServerConnection` return type resolves through `YaatHubJsonContext`; the `ScenarioLoadProgress` payload DTOs do too, and the server's load shapes — `Steps`, `LoadingBy` — deserialize into the client records)
-  - **Ground overlay**: `GroundViewModelApproachLegOverlayTests.cs` (the client reconstructs the server's free-space approach leg so the drawn route starts at the aircraft, not the route's first graph node). `Views/GroundRendererRouteDrawTests.cs` (a route segment's screen endpoints fall back to its own node references when a virtual-node endpoint isn't in the layout's node table).
+  - **Ground overlay**: `GroundViewModelApproachLegOverlayTests.cs` (the client reconstructs the server's free-space approach leg so the drawn route starts at the aircraft, not the route's first graph node).
+
+    `GroundViewModelMidEdgeStartOverlayTests.cs` (an aircraft mid-way along KOAK C draws its route starting on C, and draws a turn about to the far C node only while `TaxiTurnAboutPending` is set). `Views/GroundRendererRouteDrawTests.cs` (a route segment's screen endpoints fall back to its own node references when a virtual-node endpoint isn't in the layout's node table).
 
     `GroundRendererTugTests.cs` (renders `DrawAircraft` to an offscreen bitmap: the tug body paints only when `AircraftModel.TowbarHeading` is set, lands on the towbar side of the nose axis, and is skipped once it would render under `GroundRenderer.MinTugPx`). `AircraftModelTowbarHeadingTests.cs` (`AircraftModel.TowbarHeading` follows `AircraftDto.TowbarTrueHeadingDeg` on both `FromDto` and `UpdateFromDto`, including back to null when the tug detaches)
   - **Cruise speed display**: `AircraftModelCruiseSpeedDisplayTests.cs` (a Mach or classified plan shows M/SC in the summary and cruise display, a knots plan keeps its suffix, no speed shows the altitude alone, the editor SPD box is empty with the Mach as placeholder for a Mach plan, `FromDto`/`UpdateFromDto` carry both fields)

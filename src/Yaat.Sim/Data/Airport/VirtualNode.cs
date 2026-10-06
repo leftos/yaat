@@ -96,6 +96,9 @@ public static class VirtualNode
     /// <summary>True for an edge made by <see cref="CreateEdge"/> — a free-space leg the layout never held.</summary>
     public static bool IsVirtualEdge(IGroundEdge edge) => string.Equals(edge.Origin, EdgeOrigin, StringComparison.Ordinal);
 
+    /// <summary>True for a node <see cref="Create"/> made, outside the layout graph: its id is negative.</summary>
+    public static bool IsVirtualNode(GroundNode node) => node.Id < 0;
+
     /// <summary>
     /// Create a <see cref="TaxiRouteSegment"/> from <paramref name="fromNode"/> to
     /// <paramref name="toNode"/> with a virtual edge. The segment carries full node references
@@ -132,8 +135,7 @@ public static class VirtualNode
 
         while (remaining > 0)
         {
-            int approachId = FindApproachNodeId(route, currentId);
-            if (approachId < 0 || !layout.Nodes.TryGetValue(approachId, out GroundNode? approachNode))
+            if (FindApproachNode(route, currentId) is not { } approachNode)
             {
                 break;
             }
@@ -143,7 +145,7 @@ public static class VirtualNode
 
             if (edgeLen < 1e-9)
             {
-                currentId = approachId;
+                currentId = approachNode.Id;
                 currentNode = approachNode;
                 continue;
             }
@@ -163,8 +165,20 @@ public static class VirtualNode
             }
 
             remaining -= edgeLen;
-            currentId = approachId;
+            currentId = approachNode.Id;
             currentNode = approachNode;
+        }
+
+        // The walk ran back to the route's virtual start (a free-space leg shorter than the offset): that is where the
+        // aircraft stands, so the stop is there. Projecting on behind it would put the stop behind the aircraft.
+        if (IsVirtualNode(currentNode))
+        {
+            Log.LogDebug(
+                "[VirtualNode] OffsetBefore: node {NodeId} offset ran {RemainingNm:F4} nm past the route's virtual start",
+                nodeId,
+                remaining
+            );
+            return Create(currentNode.Position.Lat, currentNode.Position.Lon);
         }
 
         // Ran out of route edges — project remaining distance along last known bearing,
@@ -313,16 +327,20 @@ public static class VirtualNode
         return bestSameTaxiway ?? bestAny;
     }
 
-    private static int FindApproachNodeId(TaxiRoute route, int nodeId)
+    /// <summary>
+    /// The node the route reaches <paramref name="nodeId"/> from, taken from the route's own segment rather than
+    /// <see cref="AirportGroundLayout.Nodes"/>: a free-space approach leg or a ramp-lane cut starts at a virtual node the layout never holds.
+    /// </summary>
+    private static GroundNode? FindApproachNode(TaxiRoute route, int nodeId)
     {
         foreach (TaxiRouteSegment seg in route.Segments)
         {
             if (seg.ToNodeId == nodeId)
             {
-                return seg.FromNodeId;
+                return seg.Edge.FromNode;
             }
         }
 
-        return -1;
+        return null;
     }
 }

@@ -33,6 +33,7 @@
 - In RPO rooms, a released departure with no scripted takeoff waits for the RPO's `CTO`; a takeoff preset held back by the hold fires as soon as it is released.
 - Piston aircraft brake at most 4.0 kt/s for an assigned exit and 4.5 with `EXP`, down from 5.0.
 - An assigned exit the pilot can't make gets "unable W3" instead of a readback, and isn't used that landing unless reassigned or once stopped.
+- A jet lined up on a taxiway answers "unable, no room to turn around" to a `TAXI` whose route lies behind it.
 
 ### Fixed
 
@@ -65,6 +66,7 @@
 - After a rewind, the timeline slider sits at the playhead instead of jumping back to the start.
 - A `WAIT` or `BEHIND` command holding a direct-to on the filed route does the same after a rewind as it did live, keeping or cancelling the STAR alike.
 - After a rewind, a scenario preset's queued command still fires as scripted, so it no longer counts as the student's instruction or first contact.
+- A `TAXI` to an aircraft standing on a taxiway starts its route on that taxiway, not a parallel one, and the ground view draws any turn around.
 
 ## v0.15.0-beta [2026/10/02]
 

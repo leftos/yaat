@@ -46,7 +46,7 @@ public class Issue172Jbu577TailOverRunwayTests(ITestOutputHelper output)
             return;
         }
 
-        engine.Replay(recording, 443);
+        engine.Replay(recording, Issue172Jbu577TaxiSpinTests.TaxiGBSeconds);
         AircraftState? jbu = engine.FindAircraft("JBU577");
         Assert.NotNull(jbu);
 
@@ -92,6 +92,7 @@ public class Issue172Jbu577TailOverRunwayTests(ITestOutputHelper output)
         };
 
         engine.Replay(recording, 0);
+        engine.ArmReplay(Issue172Jbu577TaxiSpinTests.ActionsWithTaxiGBMovedEarlier(recording));
 
         // Recorded commands replay only up to t=513 (TAXI B M1 Y @B5 at t=514 would extend the
         // route past B). Beyond the window, tick physics only (bounded) so the crossing completes

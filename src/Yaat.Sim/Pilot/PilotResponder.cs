@@ -1927,6 +1927,20 @@ public static class PilotResponder
     }
 
     /// <summary>
+    /// A jet's refusal of a taxi clearance that would have it turn about on <paramref name="taxiway"/>. The terminal line is
+    /// the one <see cref="BuildUnable"/> makes of the controller-facing
+    /// <see cref="Commands.GroundCommandHandler.NoRoomToTurnAroundReason"/>; the spoken form spells the taxiway (AIM 4-2-7).
+    /// </summary>
+    public static PilotSpeechText BuildUnableNoRoomToTurnAround(AircraftState aircraft, string taxiway)
+    {
+        string spoken = SpokenOwnCallsign(aircraft);
+        return new PilotSpeechText(
+            $"unable, no room to turn around on {taxiway}, request a route ahead.",
+            $"{spoken}, unable, no room to turn around on {PhraseologyVerbalizer.SpellTaxiway(taxiway)}, request a route ahead."
+        );
+    }
+
+    /// <summary>
     /// Pilot report of an aircraft stopped on the runway with no exit ahead: it cannot turn around on the runway without
     /// ATC approval (AIM 4-3-21.a), so it asks for a back-taxi to <paramref name="exitBehind"/>, the nearest exit behind
     /// it, or says only that it cannot exit when there is none.

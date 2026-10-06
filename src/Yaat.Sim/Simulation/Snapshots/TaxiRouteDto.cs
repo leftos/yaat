@@ -22,6 +22,12 @@ public sealed class TaxiRouteDto
     /// Null on every other route and on older snapshots, which never held a line-up — additive, no schema bump.
     /// </summary>
     public int? SpotLineUpPullFromSegment { get; init; }
+
+    /// <summary>
+    /// The route starts with a turn about on the taxiway the aircraft stood on (<c>TaxiRoute.StartsWithTurnAbout</c>).
+    /// False on every other route and on older snapshots, which never marked one — additive, no schema bump.
+    /// </summary>
+    public bool StartsWithTurnAbout { get; init; }
 }
 
 public sealed class TaxiSegmentDto

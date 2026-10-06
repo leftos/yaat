@@ -41,6 +41,12 @@ public class AircraftGroundOps
     private string? _layoutAirportId;
 
     public TaxiRoute? AssignedTaxiRoute { get; set; }
+
+    /// <summary>
+    /// True while the assigned taxi route starts with a turn about on the taxiway the aircraft stood on and the aircraft
+    /// has not finished that leg (<see cref="TaxiRoute.TurnAboutPending"/>); false otherwise, including with no route.
+    /// </summary>
+    public bool TaxiTurnAboutPending => AssignedTaxiRoute is { TurnAboutPending: true };
     public string? ParkingSpot { get; set; }
     public string? CurrentTaxiway { get; set; }
     public NavTickDiag? LastNavDiag { get; set; }

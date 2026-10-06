@@ -85,7 +85,10 @@ Where no intersecting-taxiway marking is painted (the layout carries none), AIM 
   Every runtime consumer measures the **along-route** distance to the painted stop (`TaxiRoute.HoldShortSetbackNm` and `StopLiesOnSegment` — the segment the stop lies closest to, so a stop just before a bend counts as set back — and `AlongRouteDistanceToHoldShortFt`), never the distance to the bar node: the navigator brakes for it and the taxi phase takes the hold there (see [navigator.md](./navigator.md)).
 
   Runway bars share this: their half-length setback (65 ft for a B738) is longer than the 7–31 ft last segment at many OAK and SFO bars.
-- A stop that lands behind an aircraft already rolling (an `HS` armed mid-taxi) is unmakeable in the usual way (`TaxiingPhase.IsHoldShortUnmakeable`).
+- **The setback walks free-space legs too.** `VirtualNode.OffsetBefore` steps back through the route's own segments (`FindApproachNode` takes each segment's from-node, virtual or not), so a bar at the end of a free-space approach leg is set back along the leg exactly as along a graph edge.
+
+  A leg shorter than the setback ends the walk at the leg's virtual start, where the aircraft stands: the stop goes there, never projected on behind the aircraft (`HoldShortAnnotatorTests`, SFO B short of T).
+- A stop that lands behind an aircraft already rolling (an `HS` armed mid-taxi) is unmakeable in the usual way (`TaxiingPhase.IsHoldShortUnmakeable`). A stopped aircraft (2 kt or less) cannot overrun a bar, so it never reads one as unmakeable: it reads the hold short back and holds where it stands.
 
 ## Placement is not selection
 
@@ -152,7 +155,7 @@ is actually covered.
 
 Without it the segment in progress keeps the junction node as its target and the bar binds only at `ArriveAtNode`, so SKW5416 (CRJ7, 28 kt) told `HS T` on SFO's B stopped 78 ft from T's centreline with its nose in the intersection (GC 28/01 bundle).
 
-**Feasibility.** `IsHoldShortUnmakeable` compares `AlongRouteDistanceToHoldShortFt` (the remainder of the current segment plus whole segments to the bar's node, less the bar's setback) with `HoldShortBrakingDistanceFt` = v²/2a at `CategoryPerformance.TaxiDecelRate`.
+**Feasibility.** `IsHoldShortUnmakeable` compares `AlongRouteDistanceToHoldShortFt` (the remainder of the current segment plus whole segments to the bar's node, less the bar's setback) with `HoldShortBrakingDistanceFt` = v²/2a at `CategoryPerformance.TaxiDecelRate`. It applies only above `StoppedGroundSpeedKts` (2 kt): a stopped aircraft whose stop is already behind it holds where it stands.
 
 No reaction time is added: at the jet rate (5 kt/s) v²/2a from 28 kt (132 ft) already equals a 1 s reaction plus a 0.42 g stop; a piston at 2 kt/s over-reads by ~74 ft from 20 kt, which is conservative. No FAA document gives a taxi stopping distance, so both are judgement calls. The in-progress leg is measured straight to its node (the navigator publishes no arc remainder), which reads short on a fillet — also conservative.
 

@@ -461,6 +461,177 @@ public class HoldShortAnnotatorTests(ITestOutputHelper output)
         return GeoMath.ProjectPoint(centre, new TrueHeading(bearing), (lengthFt / 2.0) / GeoMath.FeetPerNm);
     }
 
+    /// <summary>
+    /// SFO taxiway B, westbound toward T: node 138 behind, 1391 the first node on B with an edge on T (where <c>HS T</c>
+    /// binds), 137 next.
+    /// </summary>
+    private const int SfoBBehindNodeId = 138;
+
+    private const int SfoBAtTNodeId = 1391;
+    private const int SfoBNextNodeId = 137;
+
+    /// <summary>How far short of node 1391 on B the aircraft stands: inside the approach leg's 450 ft free-space bound.</summary>
+    private const double ShortOfBarNodeFt = 300.0;
+
+    /// <summary>How far short of node 1391 on B an aircraft stands inside a B738's 159.5 ft taxiway setback.</summary>
+    private const double InsideTheSetbackFt = 100.0;
+
+    /// <summary>The pose <paramref name="shortOfNodeFt"/> short of node 1391 on SFO's B, westbound, facing the node.</summary>
+    private static (LatLon Position, TrueHeading Heading) OnBShortOfT(AirportGroundLayout layout, double shortOfNodeFt)
+    {
+        GroundNode behind = layout.Nodes[SfoBBehindNodeId];
+        GroundNode barNode = layout.Nodes[SfoBAtTNodeId];
+        LatLon position = GeoMath.ProjectPoint(
+            barNode.Position,
+            new TrueHeading(GeoMath.BearingTo(barNode.Position, behind.Position)),
+            shortOfNodeFt / GeoMath.FeetPerNm
+        );
+        return (position, new TrueHeading(GeoMath.BearingTo(position, barNode.Position)));
+    }
+
+    /// <summary>
+    /// A B738 route from <paramref name="shortOfNodeFt"/> short of node 1391 on SFO's B: the free-space approach leg to
+    /// 1391, then B on to 137, with <c>HS T</c> bound at 1391 and its stop computed.
+    /// </summary>
+    private static (TaxiRoute Route, LatLon Position, HoldShortPoint Bar) ApproachLegOnBToT(AirportGroundLayout layout, double shortOfNodeFt)
+    {
+        GroundNode barNode = layout.Nodes[SfoBAtTNodeId];
+        GroundNode next = layout.Nodes[SfoBNextNodeId];
+        IGroundEdge? onward = barNode.Edges.FirstOrDefault(e => e.OtherNode(barNode).Id == SfoBNextNodeId);
+        Assert.NotNull(onward);
+
+        (LatLon position, TrueHeading heading) = OnBShortOfT(layout, shortOfNodeFt);
+        var graphRoute = new TaxiRoute
+        {
+            Segments = [new TaxiRouteSegment { TaxiwayName = onward.TaxiwayName, Edge = onward.Directed(barNode, next) }],
+            HoldShortPoints = [],
+        };
+
+        TaxiRoute route = TaxiApproachLeg.Prepend(layout, position, heading, graphRoute);
+        Assert.True(route.Segments[0].FromNodeId < 0, $"no free-space leg: the route starts at layout node {route.Segments[0].FromNodeId}");
+        Assert.Equal(SfoBAtTNodeId, route.Segments[0].ToNodeId);
+
+        var bar = new HoldShortPoint
+        {
+            NodeId = SfoBAtTNodeId,
+            Reason = HoldShortReason.ExplicitHoldShort,
+            TargetName = "T",
+        };
+        route.HoldShortPoints.Add(bar);
+        HoldShortAnnotator.ComputeHoldShortPositions(layout, route, LengthFt("B738"));
+        return (route, position, bar);
+    }
+
+    /// <summary>
+    /// A taxiway hold-short whose node ends the route's free-space approach leg is set back along that leg, exactly as it
+    /// is along a graph edge. An aircraft standing on B 300 ft short of node 1391 gets a 300 ft RAMP leg to it, and
+    /// <c>HS T</c> binds 1391: the stop must sit a fuselage plus 30 ft back from the node, not on it — on the node the
+    /// aircraft's nose is in the B/T junction and a bar inside the braking distance reads as makeable.
+    /// </summary>
+    [Fact]
+    public void TaxiwayHoldShort_AtTheEndOfAFreeSpaceLeg_SetsBackAlongTheLeg()
+    {
+        SfoGround? built = SfoGroundHarness.Build(output, autoCross: true);
+        if (built is null)
+        {
+            return;
+        }
+
+        AirportGroundLayout layout = built.Value.Layout;
+        GroundNode barNode = layout.Nodes[SfoBAtTNodeId];
+        (TaxiRoute route, LatLon position, HoldShortPoint bar) = ApproachLegOnBToT(layout, ShortOfBarNodeFt);
+        double lengthFt = LengthFt("B738");
+
+        double stopToNodeFt = GeoMath.DistanceNm(new LatLon(bar.Latitude!.Value, bar.Longitude!.Value), barNode.Position) * GeoMath.FeetPerNm;
+        double alongFt = TaxiingPhase.AlongRouteDistanceToHoldShortFt(layout, route, position, bar);
+        output.WriteLine(
+            $"leg {route.Segments[0].Edge.DistanceNm * GeoMath.FeetPerNm:F0} ft; stop {stopToNodeFt:F1} ft back; along-route {alongFt:F1} ft"
+        );
+
+        Assert.True(
+            stopToNodeFt >= lengthFt + 30.0 - 1.0,
+            $"HS T stop is {stopToNodeFt:F1} ft back from node {SfoBAtTNodeId}; a B738 taxiway setback is {lengthFt + 30.0:F1} ft"
+        );
+        Assert.True(
+            alongFt <= ShortOfBarNodeFt - (lengthFt + 30.0) + 1.0,
+            $"along-route distance to the stop reads {alongFt:F1} ft from {ShortOfBarNodeFt:F0} ft short of the node"
+        );
+    }
+
+    /// <summary>
+    /// A free-space leg shorter than the setback: an aircraft on B 100 ft short of node 1391 has less leg ahead of it than
+    /// a B738's 159.5 ft taxiway setback, so the walk runs back to the leg's start. The stop is where the aircraft stands,
+    /// never projected on behind it, where the aircraft would already be past its own stop.
+    /// </summary>
+    [Fact]
+    public void TaxiwayHoldShort_LegShorterThanSetback_StopsAtTheLegStart()
+    {
+        SfoGround? built = SfoGroundHarness.Build(output, autoCross: true);
+        if (built is null)
+        {
+            return;
+        }
+
+        (TaxiRoute route, LatLon position, HoldShortPoint bar) = ApproachLegOnBToT(built.Value.Layout, InsideTheSetbackFt);
+
+        double stopToAircraftFt = GeoMath.DistanceNm(new LatLon(bar.Latitude!.Value, bar.Longitude!.Value), position) * GeoMath.FeetPerNm;
+        output.WriteLine($"leg {route.Segments[0].Edge.DistanceNm * GeoMath.FeetPerNm:F0} ft; stop {stopToAircraftFt:F1} ft from the aircraft");
+        Assert.True(
+            stopToAircraftFt <= 1.0,
+            $"HS T stop is {stopToAircraftFt:F1} ft from the aircraft standing {InsideTheSetbackFt:F0} ft short of node {SfoBAtTNodeId}"
+        );
+    }
+
+    /// <summary>
+    /// A stopped aircraft cannot overrun a bar. Standing on B 100 ft short of node 1391, inside a B738's taxiway setback,
+    /// at 0 kt, it is cleared <c>TAXI B T</c> and then told <c>HS T</c>: it reads back the hold short and holds where it
+    /// is, rather than answering "unable" for a stop it is already standing at.
+    /// </summary>
+    [Fact]
+    public void StoppedAircraftInsideTheSetback_ReadsBackHoldShort()
+    {
+        if (SfoGroundHarness.Build(output, autoCross: true) is not { } ground)
+        {
+            return;
+        }
+
+        (LatLon position, TrueHeading heading) = OnBShortOfT(ground.Layout, InsideTheSetbackFt);
+        AircraftState aircraft = SfoGroundHarness.SpawnAt(
+            ground,
+            "SKW5416",
+            "B738",
+            (VirtualNode.Create(position.Lat, position.Lon), heading),
+            new HoldingInPositionPhase()
+        );
+        aircraft.Ground.CurrentTaxiway = "B";
+
+        CommandResult taxi = ground.Engine.SendCommand(aircraft.Callsign, "TAXI B T");
+        Assert.True(taxi.Success, $"'TAXI B T' was refused: {taxi.Message}");
+        CommandResult hold = ground.Engine.SendCommand(aircraft.Callsign, "HS T");
+        SfoGroundHarness.DumpRoute(output, aircraft.Ground.AssignedTaxiRoute!);
+        output.WriteLine($"GS {aircraft.GroundSpeed:F1} kt; HS T: {hold.Success} — {hold.Message}");
+
+        Assert.True(hold.Success, $"'HS T' was refused: {hold.Message}");
+        Assert.DoesNotContain("unable", hold.Message ?? "", StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Hold short of T", hold.Message ?? "", StringComparison.Ordinal);
+
+        // Holding where it stands: ten seconds on, it has crept no closer to the bar's node.
+        GroundNode barNode = ground.Layout.Nodes[SfoBAtTNodeId];
+        double startToNodeFt = GeoMath.DistanceNm(aircraft.Position, barNode.Position) * GeoMath.FeetPerNm;
+        SfoGroundHarness.TickUntil(ground.Engine, () => false, HoldTickSeconds, null);
+        double endToNodeFt = GeoMath.DistanceNm(aircraft.Position, barNode.Position) * GeoMath.FeetPerNm;
+        output.WriteLine(
+            $"after {HoldTickSeconds}s: {endToNodeFt:F1} ft from node {SfoBAtTNodeId} (was {startToNodeFt:F1}), GS {aircraft.GroundSpeed:F1} kt"
+        );
+        Assert.True(
+            endToNodeFt >= startToNodeFt - 1.0,
+            $"the aircraft moved {startToNodeFt - endToNodeFt:F1} ft toward node {SfoBAtTNodeId} after reading back HS T"
+        );
+    }
+
+    /// <summary>How long the stopped aircraft is ticked after its hold-short readback.</summary>
+    private const int HoldTickSeconds = 10;
+
     private (SfoGround Ground, AircraftState Aircraft, HoldShortPoint Bar)? HoldShortOfTOnB(string callsign, string type)
     {
         SfoGround? built = SfoGroundHarness.Build(output, autoCross: true);

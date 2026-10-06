@@ -17,7 +17,33 @@ The **`TaxiPathfinder`** (`src/Yaat.Sim/Data/Airport/TaxiPathfinder.cs:10`) is a
 A `TAXI`/`TAXIAUTO` command reaches the pathfinder through the command pipeline (see [`../command-pipeline.md`](../command-pipeline.md) for the full input → dispatch walk). The ground-specific tail:
 
 1. `GroundCommandHandler.TryTaxi` / `TryTaxiAuto` (`src/Yaat.Sim/Commands/GroundCommandHandler.cs:15`, `:291`) is the dispatch target. `TryTaxiAuto` just builds an empty-path `TaxiCommand` and calls `TryTaxi` — so `TAXIAUTO RWY`/`TAXIAUTO @PARKING` is "a TAXI with no named taxiways". There is no separate auto pathfinder entry.
-2. `TryTaxi` resolves the start node from `(position, heading)` — `groundLayout.FindNearestNodeForTaxi(...)` (heading-aligned endpoint of the nearest edge) with `FindNearestNode` as the off-graph fallback (`GroundCommandHandler.cs:38`). **The pathfinder's contract is strictly node-to-node**; mid-segment snapping happens here, upstream.
+2. `TryTaxi` resolves the start node from `(position, heading)` — `groundLayout.FindNearestNodeForTaxi(...)` with `FindNearestNode` as the off-graph fallback. **The pathfinder's contract is strictly node-to-node**; mid-segment snapping happens here, upstream. `FindNearestNodeForTaxi` takes the first of:
+   - at a parking or helipad node (within `AtNodeToleranceFt`, 15 ft): that node, or a non-parking neighbour co-located with it;
+   - within 15 ft of no taxi node and on a straight taxi edge (`FindOccupiedTaxiEdge`: the nearest straight edge, within `OnTaxiEdgeMaxOffsetFt` (25 ft) of its centreline, the perpendicular falling inside it): the edge's endpoint ahead, or the nearer endpoint when the heading crosses the edge.
+
+     No distance bound applies, so the start is on the taxiway the aircraft is on however long the edge, and a nearer node on a parallel taxiway (KOAK C/D, KSFO B/A) never takes it;
+   - within 15 ft of no taxi node, on no straight edge but on a fillet arc (past a straight edge's end): the arc's end node nearest the heading, never the node it entered the arc by;
+   - otherwise the nearest node within 100 ft that is not behind the aircraft and has a taxi edge aligned with the heading.
+
+   **The start on an occupied edge is route-aware.** When the aircraft stands mid-way along a straight taxi edge (`AirportGroundLayout.FindMidEdgeTaxiStart`) and the start is one of that edge's ends, `GroundCommandHandler.ResolveTaxiRouteFromStart` resolves the whole clearance (steps 3 and 4 below, `ResolveTaxiRouteFrom`) from either end (`ResolveFromEitherEnd`). The route from the endpoint ahead stands unless it resolves nothing or drives back over the occupied edge before it first leaves the edge's end nodes (`DrivesOccupiedEdge`).
+
+   In either case the clearance is re-planned from the far end, and that route wins only when it resolves and does not drive the edge. The endpoint ahead wins every tie: when the far end is no better, the aircraft keeps the route ahead, even one that runs back over its edge.
+
+   That route's segment 0 is the occupied edge driven backwards from the node ahead, so the aircraft reverses where it stands. That is a turn-about in place like the far-end leg: the route is flagged `StartsWithTurnAbout`, and a controller's TAXI to a lined-up jet gets the turn-around refusal below instead (see [the approach leg](#approach-leg--a-free-space-drive-from-where-the-aircraft-stands-to-the-routes-first-node-taxiapproachleg)).
+
+   A far-end route that wins **turns the aircraft about in place**: its segment 0 is the approach leg back along the edge to the far node, `TaxiRoute.StartsWithTurnAbout` is set (snapshotted), and `TaxiRoute.TurnAboutPending` / `AircraftGroundOps.TaxiTurnAboutPending` read true until segment 0 is flown. Pistons, helicopters and turboprops turn about this way, and so does a jet angled more than 30° across the edge.
+
+   **A jet lined up along the edge refuses a controller's clearance that would turn it about.** Lined up is within `JetTurnAboutAlignmentDeg` (30°) of the edge's direction, either way along it (`GroundCommandHandler.IsLinedUpWith`).
+
+   Where the far-end route would win, the jet answers `Unable, no room to turn around on <taxiway>, request a route ahead` (`NoRoomToTurnAroundReason`, spoken through `PilotResponder.BuildUnableNoRoomToTurnAround` as `CommandResult.PilotUnable`) and its state is untouched.
+
+   It refuses this way whether the route from the endpoint ahead reversed over the edge or resolved nothing; when neither end resolves a route, it gives the first attempt's own refusal. A 737/A320 needs about 75–80 ft of pavement to turn 180°, more than its 50 ft design taxiway, so the pilot asks for a route ahead (AIM 4-3-18.b).
+
+   The 30° is a heuristic, not a physical limit: a jet angled further across its edge is probably on wider pavement or a fillet, and a 150° turn still needs about 93% of a 180's pavement.
+
+   **A clearance no controller issued is never refused that way** (`TaxiCoreOptions.ControllerIssued` is false for `TAXIAUTO` and for a scenario preset or AI controller, `DispatchContext.IsScenarioScripted`): no one is there to re-issue it. A lined-up jet keeps the route from the endpoint ahead, and takes the far-end route, turning about, only when the endpoint ahead resolves nothing, so no unattended aircraft is left stuck.
+
+   Both attempts log their failures at Debug, so a first-attempt failure the re-plan recovers never reaches Warning; a refusal is logged once, at Warning.
 3. `TryTaxi` picks where the named path starts (`GroundCommandHandler.ResolveFromBestStart`, #455/#457). It tries three starts in order and takes the first that resolves:
    1. **The held-short taxiway.** An aircraft in `HoldingShortPhase` for an explicit taxiway target X (`HeldShortTaxiway`; runway-shaped and `$spot` targets excluded) starts on X, unless the start node already lies on the first cleared taxiway.
 
@@ -26,6 +52,8 @@ A `TAXI`/`TAXIAUTO` command reaches the pathfinder through the command pipeline 
    3. **The current taxiway prepended** (`aircraft.Ground.CurrentTaxiway`), as a fallback. This applies only when the start node lies on it, the path doesn't already begin with it, and it shares a direct junction with the first cleared taxiway (`SharesDirectJunction`). When the two meet only across a runway it is left to the runway-crossing bridge, so the crossing still needs an explicit clearance.
 
    A failure reported to the controller is always the as-cleared one. When the as-cleared route bridges along the taxiway the aircraft occupies to reach the first cleared taxiway, that taxiway is exempt from the "taxiing via X — not in the route issued" note for those leading segments. The occupied taxiway reaches `RouteMaterialiser` as `ExplicitPathOptions.OccupiedTaxiway`, set only when the start node lies on it.
+
+   Mid-way along a straight taxi edge the aircraft occupies that edge's taxiway, whatever a stale `CurrentTaxiway` says (`OccupiedTaxiway`; SFO: on F, its current taxiway still E).
 4. `TryTaxi` branches on destination kind into `ResolveParkingRoute` (`@parking`/`$spot`) or `ResolveStandardRoute` (runway / implicit endpoint), and computes the aircraft category via `AircraftCategorization.Categorize` and its wake class via `WakeTurbulenceData.WakeClassForType` (the wake class selects which one-way constraints bind, see [One-way taxiways](#one-way-taxiways-per-artcc)).
 
    A plain `TAXI` naming only a gate or spot from inside the ramp takes neither branch; it goes to the ramp-confined route instead (see [A bare TAXI to a gate or spot from the ramp stays in the ramp](#a-bare-taxi-to-a-gate-or-spot-from-the-ramp-stays-in-the-ramp)).
@@ -650,14 +678,20 @@ Guards, all required (the `[ApproachLeg]` debug line names the one that refused)
 - the node is not a runway holding position and the route holds short nowhere at it. An aircraft holding short sits half a fuselage behind the bar node; driving up to the node would put the nose past the holding-position marking (AIM 2-3-5.a.1), and `TaxiingPhase.TryHoldAtRouteStartNode` needs the real node id;
 - the node lies within 90° of the route's departure bearing — a node behind the aircraft with the route continuing ahead means it has already driven past the start, and pure pursuit converges onto the line from where it is — but only while the line is within reach.
 
-  The "past it" refusal (`PastStartRefusal`) needs the aircraft within `MaxOffLineRatio` (0.5, a ≤ 27° intercept) × the first segment's remaining length of that segment's line, or beyond the segment's end; an aircraft stopped well abeam a short lane's start gets the leg (#456);
+  The "past it" refusal (`PastStartRefusal`) needs the aircraft within `MaxOffLineRatio` (0.5, a ≤ 27° intercept) × the first segment's remaining length of that segment's line, or beyond the segment's end; an aircraft stopped well abeam a short lane's start gets the leg (#456).
+
+  An aircraft mid-way along a straight taxi edge has passed neither of its ends, so a route that leaves one of them by another edge gets the leg however sharply it turns there. A route whose segment 0 runs along that edge itself is the past-the-start case: the aircraft is already on segment 0 and pure pursuit closes onto it from where it stands.
+
+  When that segment 0 runs back over the edge (a kept route ahead that reverses, above), `[ApproachLeg]` logs the node as past it, `0 ft abeam the line` for an aircraft on the centreline, and the navigator turns the aircraft about in place onto segment 0;
 - the drive is within `RampLaneReposition.MaxCrossingFt` (450) and crosses no runway centerline — a free-space leg is not obstacle-aware.
 
-  One exception: when the node carries a runway-centerline edge and the aircraft is *on* that runway — within half the runway's width of the centerline and heading along it within 15° — it is rolling toward the exit (a `TAXI G …` issued on 28R after landing, 300 ft short of the exit fillet — the OAK `Issue213` fixture; 7110.65 §3-10-9 RUNWAY EXITING, AIM 4-3-21.a), the runway itself is the guide, and the leg is allowed up to that runway's length with the crossing check skipped.
+  The bound is waived for a leg to an end node of the straight taxi edge the aircraft is on (`OccupiedTaxiEdgeLeadingTo`): the leg follows that taxiway's painted centreline, however long the edge (an aircraft mid-B at SFO, 600 ft from the next node). The runway-centerline check still applies.
+
+  Another exception: when the node carries a runway-centerline edge and the aircraft is *on* that runway — within half the runway's width of the centerline and heading along it within 15° — it is rolling toward the exit (a `TAXI G …` issued on 28R after landing, 300 ft short of the exit fillet — the OAK `Issue213` fixture; 7110.65 §3-10-9 RUNWAY EXITING, AIM 4-3-21.a), the runway itself is the guide, and the leg is allowed up to that runway's length with the crossing check skipped.
 
   A bearing-only test was rejected in review: at long range it admits an aircraft hundreds of feet abeam on a parallel taxiway and would lay a leg across a holding-position marking (AIM 4-3-18.a.5). Before this exception the first `TickBezier` wrote the aircraft 314 ft onto the fillet start.
 
-The mid-edge re-clearance (start node = the heading-aligned endpoint ahead, first segment straight) passes the guards and gets a leg collinear with the edge — the same line pure pursuit drove before, no visible change.
+A mid-edge re-clearance starts at an end of the edge the aircraft is on (see [Where it sits & entry points](#where-it-sits--entry-points)). From the endpoint ahead, with a straight first segment, it passes the guards and gets a leg collinear with the edge — the same line pure pursuit drove before. From the far end it gets the turn-about leg back along the edge to the far node, which `TaxiRoute.StartsWithTurnAbout` marks.
 
 Every `VirtualNode` id is a function of its position (FNV-1a over the 1e-7° cell), so same-seed runs and a snapshot restore serialise the same route; the counter it replaced made the determinism suite diverge the moment a leg appeared in a snapshot. How the navigator flies the leg (arc aimed at the node, line re-anchored at the arc exit) is in [`./navigator.md`](./navigator.md#entry-alignment-threshold).
 

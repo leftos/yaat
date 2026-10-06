@@ -370,18 +370,19 @@ public class SfoT1SouthRampOneWayTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// A super (A388) pushed off B2 onto M5, then <c>TAXI A</c>: M2 is closed to supers both ways and M1 is two-way for
-    /// them, so the start leg leaves on M1, with the <c>M1 not in clearance</c> advisory, never on M2.
+    /// A super (A388) at stand B2, cleared <c>TAXI A</c>: M2 is closed to supers both ways and M1 is two-way for them, so
+    /// the route leaves the ramp along M5 and on M1, with the <c>M1 not in clearance</c> advisory, never on M2.
     /// </summary>
     [Fact]
-    public void PushedOffB2_TaxiA_A388_LeavesOnM1()
+    public void FromStandB2_TaxiA_A388_LeavesOnM1()
     {
-        if (PushOffB2("A388") is not { } pushed)
+        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
         {
             return;
         }
 
-        (CommandResult result, TaxiRoute route) = Taxi(pushed, "TAXI A");
+        AircraftState aircraft = SfoGroundHarness.SpawnParked(ground, "WJA1509", "A388", "B2");
+        (CommandResult result, TaxiRoute route) = Taxi((ground, aircraft, ground.Layout), "TAXI A");
 
         Assert.True(DrivesStraight(route, "M1"), "the super must leave the ramp on M1");
         Assert.False(DrivesStraight(route, "M2"), "the super must not use M2");
@@ -389,6 +390,24 @@ public class SfoT1SouthRampOneWayTests(ITestOutputHelper output)
         Assert.DoesNotContain(route.HoldShortPoints, h => h.Reason == HoldShortReason.RouteIncomplete);
         Assert.Contains(M1NotInClearance, route.Warnings);
         Assert.Contains("M1", result.Message);
+    }
+
+    /// <summary>
+    /// The super pushed off B2 onto M5 and lined up along it, then <c>TAXI A</c>: the route ahead needs a turn about on M5,
+    /// which a jet refuses.
+    /// </summary>
+    [Fact]
+    public void PushedOffB2_TaxiA_A388_RefusesToTurnAboutOnM5()
+    {
+        if (PushOffB2("A388") is not { } pushed)
+        {
+            return;
+        }
+
+        CommandResult result = pushed.Ground.Engine.SendCommand(pushed.Aircraft.Callsign, "TAXI A");
+        output.WriteLine($"TAXI A: {result.Success} — {result.Message}");
+        Assert.False(result.Success, result.Message);
+        Assert.Equal(GroundCommandHandler.NoRoomToTurnAroundReason("M5"), result.Message);
     }
 
     /// <summary>

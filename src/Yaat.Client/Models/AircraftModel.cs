@@ -823,6 +823,14 @@ public partial class AircraftModel : ObservableObject, IMenuAircraft
     private string _taxiDestination = "";
 
     /// <summary>
+    /// True while the simulation's taxi route starts with a turn about on the taxiway the aircraft stood on and the
+    /// aircraft has not finished that leg. The ground overlay draws a turn about only while this is set; it never
+    /// decides one itself.
+    /// </summary>
+    [ObservableProperty]
+    private bool _taxiTurnAboutPending;
+
+    /// <summary>
     /// Kind of active hold: <c>"HoldPosition"</c> for unconditional stop, <c>"GiveWay"</c>
     /// for a controller-issued GIVEWAY relationship, or null when free to move. Mirrored
     /// from <c>AircraftGroundOps.Hold</c> on the server. Drives the ground datablock
@@ -1209,6 +1217,7 @@ public partial class AircraftModel : ObservableObject, IMenuAircraft
             TaxiRoute = dto.TaxiRoute,
             HasActiveTaxiRoute = dto.HasActiveTaxiRoute,
             TaxiDestination = dto.TaxiDestination,
+            TaxiTurnAboutPending = dto.TaxiTurnAboutPending,
             HoldKind = dto.HoldKind,
             HoldYieldTarget = dto.HoldYieldTarget,
             AutoYieldTarget = dto.AutoYieldTarget,
@@ -1335,6 +1344,7 @@ public partial class AircraftModel : ObservableObject, IMenuAircraft
         TaxiRoute = dto.TaxiRoute;
         HasActiveTaxiRoute = dto.HasActiveTaxiRoute;
         TaxiDestination = dto.TaxiDestination;
+        TaxiTurnAboutPending = dto.TaxiTurnAboutPending;
         HoldKind = dto.HoldKind;
         HoldYieldTarget = dto.HoldYieldTarget;
         AutoYieldTarget = dto.AutoYieldTarget;

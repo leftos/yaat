@@ -1606,6 +1606,20 @@ public class PilotResponderTests
     }
 
     /// <summary>
+    /// A jet's refusal to turn about on a taxiway: the terminal line is what <see cref="PilotResponder.BuildUnable"/> makes of
+    /// the controller-facing reason, and the spoken form spells the taxiway, so text-to-speech says "charlie", not "C".
+    /// </summary>
+    [Fact]
+    public void BuildUnableNoRoomToTurnAround_KeepsTheTerminalLine_AndSpellsTheTaxiway()
+    {
+        AircraftState ac = MakeAircraft("N123AB");
+        PilotSpeechText result = PilotResponder.BuildUnableNoRoomToTurnAround(ac, "C");
+
+        Assert.Equal(PilotResponder.BuildUnable(ac, GroundCommandHandler.NoRoomToTurnAroundReason("C")).Terminal, result.Terminal);
+        Assert.EndsWith(", unable, no room to turn around on charlie, request a route ahead.", result.Tts, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// Rejection reasons are authored as controller-facing text, where "Unable — reason" is natural
     /// typography. The leading-token strip has to treat en/em dashes like the ASCII hyphen it already
     /// handles, or the dash survives into the transmission: "unable, — already turning off at G".

@@ -441,12 +441,13 @@ public class SfoSpotLaneAlignmentTests(ITestOutputHelper output)
 
     /// <summary>
     /// An aircraft that turned off A onto T7A and stopped between the junction and spot 7A is past its line-up point:
-    /// <c>TAXI T7A $7A</c> takes it on to the spot, never round past it to come back up the lane.
+    /// <c>TAXI T7A $7A</c> takes it on to the spot, never round past it to come back up the lane. Turned back toward A, a
+    /// jet lined up along T7A refuses to turn about (pinned by the sibling test), so that case is flown by a turboprop.
     /// </summary>
     [Theory]
-    [InlineData(0.0)]
-    [InlineData(180.0)]
-    public void TaxiT7aToSpot7A_OnT7aBetweenAAndTheSpot_DoesNotLineUp(double turnedFromIntoRampDeg)
+    [InlineData(0.0, "CRJ7")]
+    [InlineData(180.0, "DH8D")]
+    public void TaxiT7aToSpot7A_OnT7aBetweenAAndTheSpot_DoesNotLineUp(double turnedFromIntoRampDeg, string type)
     {
         SfoGround? built = SfoGroundHarness.Build(output, autoCross: true);
         if (built is null)
@@ -455,6 +456,42 @@ public class SfoSpotLaneAlignmentTests(ITestOutputHelper output)
         }
 
         SfoGround ground = built.Value;
+        AircraftState aircraft = SpawnOnT7aBetweenAAndTheSpot(ground, type, turnedFromIntoRampDeg);
+        TaxiRoute route = AssignTaxi(ground, aircraft, "TAXI T7A $7A");
+        Assert.Null(route.SpotLineUpPullFromSegment);
+    }
+
+    /// <summary>
+    /// The CRJ7 stopped on T7A between A and spot 7A, turned back toward A and lined up along the lane: the only route to
+    /// the spot turns it about where it stands, so the controller's <c>TAXI T7A $7A</c> is refused for want of room to
+    /// turn around, and no route is assigned.
+    /// </summary>
+    [Fact]
+    public void TaxiT7aToSpot7A_OnT7aBetweenAAndTheSpot_JetFacingARefusesToTurnAround()
+    {
+        SfoGround? built = SfoGroundHarness.Build(output, autoCross: true);
+        if (built is null)
+        {
+            return;
+        }
+
+        SfoGround ground = built.Value;
+        AircraftState aircraft = SpawnOnT7aBetweenAAndTheSpot(ground, "CRJ7", 180.0);
+        CommandResult result = ground.Engine.SendCommand(aircraft.Callsign, "TAXI T7A $7A");
+        output.WriteLine($"TAXI T7A $7A: {result.Success} — {result.Message}");
+
+        Assert.False(result.Success, $"'TAXI T7A $7A' was accepted: {result.Message}");
+        Assert.Equal(GroundCommandHandler.NoRoomToTurnAroundReason("T7A"), result.Message);
+        Assert.NotNull(result.PilotUnable);
+        Assert.Null(aircraft.Ground.AssignedTaxiRoute);
+    }
+
+    /// <summary>
+    /// A stopped <paramref name="type"/> 60% of the way down T7A from its junction with A toward spot 7A, its heading
+    /// <paramref name="turnedFromIntoRampDeg"/> off the bearing into the ramp.
+    /// </summary>
+    private AircraftState SpawnOnT7aBetweenAAndTheSpot(SfoGround ground, string type, double turnedFromIntoRampDeg)
+    {
         GroundNode? spot7A = ground.Layout.FindSpotNodeByName("7A");
         Assert.True(spot7A is not null, "SFO layout has no spot named '7A'");
         GroundNode junction = LaneJunctionWithA(ground.Layout, "T7A");
@@ -465,15 +502,13 @@ public class SfoSpotLaneAlignmentTests(ITestOutputHelper output)
             $"{betweenFt:F0} ft down T7A from the junction, nearest edge {ground.Layout.FindNearestTaxiEdge(position)?.Edge.TaxiwayName}"
         );
 
-        AircraftState aircraft = SpawnOffGraph(
+        return SpawnOffGraph(
             ground,
             "SKW11",
-            "CRJ7",
+            type,
             (position, new TrueHeading((intoRampDeg + turnedFromIntoRampDeg) % 360.0)),
             new HoldingInPositionPhase()
         );
-        TaxiRoute route = AssignTaxi(ground, aircraft, "TAXI T7A $7A");
-        Assert.Null(route.SpotLineUpPullFromSegment);
     }
 
     /// <summary>

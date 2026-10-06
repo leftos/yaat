@@ -204,15 +204,23 @@ public class TaxiApproachLegTests(ITestOutputHelper output)
         Assert.Equal("Taxi via U W RWY 30 [taxiing via T — not in the route issued]", result.Message);
     }
 
-    /// <summary>An SFO aircraft on F, 40 ft short of the F/A junction (node 54, the start node), nosed 298° towards it.</summary>
+    /// <summary>
+    /// An SFO aircraft on F, 40 ft short of the F/A junction (node 54, ahead), nosed 298° towards it: mid-way along F
+    /// edge 54–1597, whose far end 1597 lies on E.
+    /// </summary>
     private static readonly LatLon SfoOnFShortOfA = new(37.61906270023921, -122.38060898289163);
 
     private const double SfoOnFShortOfAHeadingDeg = 297.9;
 
+    /// <summary>SFO's F/A junction: its F edge runs to node 1597, where F meets E.</summary>
+    private const int SfoFAJunctionNodeId = 54;
+
+    private const int SfoFAtENodeId = 1597;
+
     /// <summary>
-    /// A stale current taxiway that names the very taxiway the route bridges along: an SFO aircraft on F, cleared
-    /// <c>TAXI B</c>, bridges F → E → B, and its current taxiway still reads E although the start node does not lie on
-    /// E. It is not on E, so the note for E stays.
+    /// A stale current taxiway that names the very taxiway the route bridges along: an SFO aircraft standing at the F/A
+    /// junction (node 54), nosed down F towards E, cleared <c>TAXI B</c>, bridges F → E → B, and its current taxiway still
+    /// reads E although the start node does not lie on E. It is not on E, so the note for E stays.
     /// </summary>
     [Fact]
     public void BridgesAlongE_StaleCurrentTaxiwayE_KeepsNoteForE()
@@ -222,7 +230,9 @@ public class TaxiApproachLegTests(ITestOutputHelper output)
             return;
         }
 
-        AircraftState aircraft = MakeAircraft(ground.Layout, SfoOnFShortOfA, SfoOnFShortOfAHeadingDeg);
+        GroundNode junction = ground.Layout.Nodes[SfoFAJunctionNodeId];
+        double downFDeg = GeoMath.BearingTo(junction.Position, ground.Layout.Nodes[SfoFAtENodeId].Position);
+        AircraftState aircraft = MakeAircraft(ground.Layout, junction.Position, downFDeg);
         aircraft.Ground.CurrentTaxiway = "E";
         GroundNode? start = ground.Layout.FindNearestNodeForTaxi(aircraft.Position, aircraft.TrueHeading);
         Assert.NotNull(start);
@@ -238,6 +248,54 @@ public class TaxiApproachLegTests(ITestOutputHelper output)
 
         Assert.Equal("F E B", aircraft.Ground.AssignedTaxiRoute?.FormatTaxiwaySequence());
         Assert.Contains("taxiing via E — not in the route issued", result.Message);
+    }
+
+    /// <summary>
+    /// A C172 on F 40 ft short of node 54, nosed away from E, cleared <c>TAXI B</c>: the route from node 54 ahead would
+    /// drive back along F past the aircraft to reach E, so the taxi starts at F's far end, node 1597 on E. The aircraft
+    /// turns about and taxis E then B. It occupies F, not its stale current taxiway E, so E is noted as not issued.
+    /// </summary>
+    [Fact]
+    public void StaleE_OnF_RouteBehind_StartsAtFarEndOnE()
+    {
+        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        {
+            return;
+        }
+
+        CommandResult result = TaxiBFromFShortOfA(ground.Layout, "C172", out AircraftState aircraft);
+        Assert.True(result.Success, $"TryTaxi failed: {result.Message}");
+
+        Assert.Equal("E B", aircraft.Ground.AssignedTaxiRoute?.FormatTaxiwaySequence());
+        Assert.Equal("Taxi via B [taxiing via E — not in the route issued]", result.Message);
+    }
+
+    /// <summary>The same pose in a B738: a jet has no room to turn about on F, so it refuses and its state is untouched.</summary>
+    [Fact]
+    public void StaleE_OnF_RouteBehind_JetRefusesToTurnAround()
+    {
+        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        {
+            return;
+        }
+
+        CommandResult result = TaxiBFromFShortOfA(ground.Layout, "B738", out AircraftState aircraft);
+
+        Assert.False(result.Success, $"TryTaxi was accepted: {result.Message}");
+        Assert.Equal("Unable, no room to turn around on F, request a route ahead", result.Message);
+        Assert.Null(aircraft.Ground.AssignedTaxiRoute);
+        Assert.IsType<HoldingAfterPushbackPhase>(aircraft.Phases?.CurrentPhase);
+    }
+
+    /// <summary>A <paramref name="type"/> on F short of node 54, its current taxiway a stale E, cleared <c>TAXI B</c>.</summary>
+    private CommandResult TaxiBFromFShortOfA(AirportGroundLayout layout, string type, out AircraftState aircraft)
+    {
+        aircraft = MakeAircraft(layout, SfoOnFShortOfA, SfoOnFShortOfAHeadingDeg);
+        aircraft.AircraftType = type;
+        aircraft.Ground.CurrentTaxiway = "E";
+        CommandResult result = GroundCommandHandler.TryTaxi(aircraft, new TaxiCommand(Path: ["B"], HoldShorts: [], DestinationRunway: null), layout);
+        output.WriteLine($"{type}: {result.Success} — {result.Message}");
+        return result;
     }
 
     /// <summary>An aircraft standing on the start node has nothing to bridge.</summary>

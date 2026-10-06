@@ -1057,7 +1057,8 @@ public partial class GroundViewModel : ObservableObject
             IEnumerable<string> crossParts = crossingHoldShorts.Take(i + 1).Select(c => $"CROSS {c.RwyName}");
             (string RwyName, HoldShortPoint Hs) holdEntry = crossingHoldShorts[i + 1];
             string label =
-                $"For Departure {destRunway}, CROSS {string.Join(" ", crossingHoldShorts.Take(i + 1).Select(c => c.RwyName))}, HS {holdEntry.RwyName}";
+                $"For Departure {destRunway}, CROSS {string.Join(" ", crossingHoldShorts.Take(i + 1).Select(c => c.RwyName))}, "
+                + $"HS {holdEntry.RwyName}";
             string cmd = $"TAXI {taxiways}{spotSuffix} HS {holdEntry.RwyName} RWY {destRunway}, {string.Join(", ", crossParts)}";
             results.Add((label, cmd, route.TruncateAt(holdEntry.Hs.NodeId)));
         }
@@ -1613,19 +1614,49 @@ public partial class GroundViewModel : ObservableObject
 
     internal TaxiRoute? ResolveRemainingRoute(AircraftModel ac)
     {
-        if (_domainLayout is null)
+        if ((_domainLayout is not { } layout) || (RemainingRouteRequestFor(layout, ac) is not { } request))
         {
             return null;
         }
 
+        // The server's start: on the taxiway the aircraft is on (the endpoint ahead of a straight edge or fillet arc it
+        // stands mid-way along), else the heading-aligned node, else the nearest node.
+        GroundNode? start = layout.FindNearestNodeForTaxi(ac.Position, ac.Heading) ?? layout.FindNearestNode(ac.Position);
+        return (start is null) ? null : ResolveRemainingRouteFrom(ac, request, start);
+    }
+
+    /// <summary>
+    /// <see cref="ResolveRemainingRoute"/> from the server's start node: the route from <paramref name="start"/>, or from
+    /// the other end of the edge the aircraft stands on when the simulation reports a turn about (<see cref="TurnAboutRoute"/>),
+    /// recovered when it resolves none.
+    /// </summary>
+    private TaxiRoute? ResolveRemainingRouteFrom(AircraftModel ac, RemainingRouteRequest request, GroundNode start)
+    {
+        TaxiRoute? route = request.ResolveFrom(start, out PathfindingFailure? failure);
+
+        // The simulation reports a turn about it planned on the taxiway the aircraft stands on; the overlay draws one only then.
+        (GroundNode Start, TaxiRoute Route)? turnAbout = TurnAboutRoute(ac, start, route, from => request.ResolveFrom(from, out _));
+        if (turnAbout is { } turned)
+        {
+            (start, route, failure) = (turned.Start, turned.Route, null);
+        }
+
+        if ((route is not null) && (ResolvedRemainingRoute(ac, request, route, turnAbout is not null) is { } resolved))
+        {
+            return resolved;
+        }
+
+        return RecoveredRemainingRoute(ac, request, start, route, failure);
+    }
+
+    /// <summary>
+    /// What <see cref="ResolveRemainingRoute"/> rebuilds an aircraft's route from: the clearance's taxiways from the one
+    /// it is on, the destination and the pathfinder options the server used. Null when the clearance names no taxiway.
+    /// </summary>
+    private static RemainingRouteRequest? RemainingRouteRequestFor(AirportGroundLayout layout, AircraftModel ac)
+    {
         List<string> routeTaxiways = ParseRouteTaxiways(ac.TaxiRoute);
         if (routeTaxiways.Count == 0)
-        {
-            return null;
-        }
-
-        int? nodeId = GetAircraftNearestNodeId(ac);
-        if (nodeId is null)
         {
             return null;
         }
@@ -1645,99 +1676,146 @@ public partial class GroundViewModel : ObservableObject
         // The DTO taxiway string omits the held-short runway; AssignedRunway carries it, and is set
         // by the taxi clearance only when the route ends at a runway (empty for taxi-to-parking).
         // A parking / spot destination arrives separately so the reconstruction ends at the stand.
-        GroundNode? destination = FindTaxiDestinationNode(_domainLayout, ac.TaxiDestination);
-        var options = new ExplicitPathOptions
+        GroundNode? destination = FindTaxiDestinationNode(layout, ac.TaxiDestination);
+        return new RemainingRouteRequest
         {
-            OccupiedTaxiway = null,
-            DestinationRunway = string.IsNullOrEmpty(ac.AssignedRunway) ? null : ac.AssignedRunway,
-            DestinationHintNode = destination,
-            StartHeadingTrue = ac.Heading.Degrees,
+            Layout = layout,
+            RouteTaxiways = routeTaxiways,
+            Destination = destination,
+            Options = new ExplicitPathOptions
+            {
+                OccupiedTaxiway = null,
+                DestinationRunway = string.IsNullOrEmpty(ac.AssignedRunway) ? null : ac.AssignedRunway,
+                DestinationHintNode = destination,
+                StartHeadingTrue = ac.Heading.Degrees,
+            },
+            Category = CategoryFor(ac),
+            WakeClass = WakeClassFor(ac),
         };
-        AircraftCategory category = CategoryFor(ac);
-        WakeTurbulenceData.WakeClass wakeClass = WakeClassFor(ac);
-        TaxiRoute? route = TaxiPathfinder.ResolveExplicitPathDetailed(
-            _domainLayout,
-            nodeId.Value,
-            routeTaxiways,
-            out PathfindingFailure? failure,
-            options,
-            category,
-            wakeClass
-        );
-        // The server replaces a route that reaches the stand only the long way round (SFO $5A: down T5, out to Alpha,
-        // back up T5A) with a drive across the apron that rolls in on the stand heading, so the overlay has to make the
-        // same substitution or it draws a detour the aircraft is not flying.
-        double aircraftLengthFt = AircraftLength.ResolveFt(ac.AircraftType);
-        RampLaneDestinationCutPlan? improved =
-            (route is not null) && (destination is not null)
-                ? RampLaneReposition.TryPlanResolvedRouteCut(_domainLayout, route, destination, aircraftLengthFt)
-                : null;
+    }
 
+    /// <summary>
+    /// The overlay for a <paramref name="route"/> that resolved from the start (or from the other end, when
+    /// <paramref name="turnedAbout"/>): its spot line-up, else the route itself unless it starts with a reversal the
+    /// recoveries in <see cref="RecoveredRemainingRoute"/> replace. A turn about starts behind the aircraft by design, so it
+    /// is no reversal to replace. Null when the route starts with a reversal.
+    /// </summary>
+    private TaxiRoute? ResolvedRemainingRoute(AircraftModel ac, RemainingRouteRequest request, TaxiRoute route, bool turnedAbout)
+    {
         // The server lines a spot cleared from the ramp up to leave it before anything else looks at the route's
         // shape, and a line-up's resolved route typically starts back up the lane behind the aircraft — so it comes
         // ahead of the reversal check, exactly as the server applies it.
-        if (
-            (route is not null)
-            && (destination is not null)
-            && (TryClientSpotLineUp(ac, improved?.Route ?? route, destination, ParseRouteTaxiways(ac.TaxiRoute), category) is { } lineUp)
-        )
+        if (SpotLineUp(ac, request, route, out TaxiRoute improved) is { } lineUp)
         {
             return lineUp;
         }
 
-        if ((route is not null) && !StartsWithReversal(route, ac.Heading))
+        return (turnedAbout || !StartsWithReversal(route, ac.Heading)) ? WithApproachLeg(improved, ac.Position, ac.Heading) : null;
+    }
+
+    /// <summary>
+    /// The server's spot line-up of <paramref name="route"/>, or null when the destination is no spot or the plan
+    /// declines. <paramref name="improved"/> is the route the overlay draws otherwise: <paramref name="route"/>, or the
+    /// server's cut across the apron to the stand when it has one.
+    /// </summary>
+    private TaxiRoute? SpotLineUp(AircraftModel ac, RemainingRouteRequest request, TaxiRoute route, out TaxiRoute improved)
+    {
+        improved = route;
+        if (request.Destination is not { } destination)
         {
-            return WithApproachLeg(improved?.Route ?? route, ac.Position, ac.Heading);
+            return null;
         }
 
+        // The server replaces a route that reaches the stand only the long way round (SFO $5A: down T5, out to Alpha,
+        // back up T5A) with a drive across the apron that rolls in on the stand heading, so the overlay has to make the
+        // same substitution or it draws a detour the aircraft is not flying.
+        double aircraftLengthFt = AircraftLength.ResolveFt(ac.AircraftType);
+        improved = RampLaneReposition.TryPlanResolvedRouteCut(request.Layout, route, destination, aircraftLengthFt)?.Route ?? route;
+        return TryClientSpotLineUp(ac, improved, destination, ParseRouteTaxiways(ac.TaxiRoute), request.Category);
+    }
+
+    /// <summary>
+    /// The overlay when the route from <paramref name="start"/> resolved none, or starts with a reversal: the server's
+    /// ramp-lane cut at either end, else the route as resolved.
+    /// </summary>
+    private TaxiRoute? RecoveredRemainingRoute(
+        AircraftModel ac,
+        RemainingRouteRequest request,
+        GroundNode start,
+        TaxiRoute? route,
+        PathfindingFailure? failure
+    )
+    {
         // While the pilot cuts across a ramp onto a parallel lane the map does not connect (SFO M3 → M4),
         // the nearest graph node is still on the old lane and the named route does not resolve from it.
         // Reconstruct the same free-space leg the server planned so the overlay follows the crossing.
-        if (failure is not null)
+        if ((failure is not null) && (RampLaneReposition.TryPlan(request.Layout, request.RepositionFor(ac), failure) is { } plan))
         {
-            RampLaneRepositionPlan? plan = RampLaneReposition.TryPlan(
-                _domainLayout,
-                new RampLaneRepositionRequest
-                {
-                    Position = ac.Position,
-                    Heading = ac.Heading,
-                    CurrentTaxiway = ac.CurrentTaxiway,
-                    Path = routeTaxiways,
-                    Options = options,
-                    Category = category,
-                    WakeClass = wakeClass,
-                },
-                failure
-            );
-            if (plan is not null)
-            {
-                return plan.Route;
-            }
+            return plan.Route;
         }
 
         // The destination-end twin (OAK TE → TC for @22): the cleared lane's ramp end does not join the stand's
         // lane, so the server planned a cut from the lane across the apron. From the aircraft's own end of the
         // lane the graph may still "reach" the stand only by doubling back down the lane — a route no pilot
         // taxis — so a rebuilt route that starts with a reversal is replaced by the cut when one exists.
-        if (destination is null)
+        if (
+            (request.Destination is { } destination)
+            && (RampLaneReposition.TryPlanDestinationCut(request.Layout, request.DestinationCutFor(ac, start, destination)) is { } cut)
+        )
         {
-            return WithApproachLeg(route, ac.Position, ac.Heading);
+            return cut.Route;
         }
 
-        RampLaneDestinationCutPlan? cut = RampLaneReposition.TryPlanDestinationCut(
-            _domainLayout,
-            new RampLaneDestinationCutRequest
+        return WithApproachLeg(route, ac.Position, ac.Heading);
+    }
+
+    /// <summary>
+    /// What <see cref="ResolveRemainingRoute"/> rebuilds a route from: the clearance's taxiways from the one the aircraft
+    /// is on, its destination node (a stand or spot) and the pathfinder options, category and wake class the server used.
+    /// </summary>
+    private sealed record RemainingRouteRequest
+    {
+        public required AirportGroundLayout Layout { get; init; }
+
+        public required List<string> RouteTaxiways { get; init; }
+
+        public required GroundNode? Destination { get; init; }
+
+        public required ExplicitPathOptions Options { get; init; }
+
+        public required AircraftCategory Category { get; init; }
+
+        public required WakeTurbulenceData.WakeClass WakeClass { get; init; }
+
+        /// <summary>The clearance resolved from <paramref name="from"/>, or null with the pathfinder's failure.</summary>
+        public TaxiRoute? ResolveFrom(GroundNode from, out PathfindingFailure? failure) =>
+            TaxiPathfinder.ResolveExplicitPathDetailed(Layout, from.Id, RouteTaxiways, out failure, Options, Category, WakeClass);
+
+        /// <summary>The server's ramp-lane reposition request for <paramref name="ac"/>.</summary>
+        public RampLaneRepositionRequest RepositionFor(AircraftModel ac) =>
+            new()
             {
-                StartNodeId = nodeId.Value,
-                Path = routeTaxiways,
+                Position = ac.Position,
+                Heading = ac.Heading,
+                CurrentTaxiway = ac.CurrentTaxiway,
+                Path = RouteTaxiways,
+                Options = Options,
+                Category = Category,
+                WakeClass = WakeClass,
+            };
+
+        /// <summary>The server's destination-end cut request for <paramref name="ac"/> from <paramref name="start"/>.</summary>
+        public RampLaneDestinationCutRequest DestinationCutFor(AircraftModel ac, GroundNode start, GroundNode destination) =>
+            new()
+            {
+                StartNodeId = start.Id,
+                Path = RouteTaxiways,
                 Destination = destination,
-                Options = options,
-                Category = category,
-                WakeClass = wakeClass,
+                Options = Options,
+                Category = Category,
+                WakeClass = WakeClass,
                 AircraftLengthFt = AircraftLength.ResolveFt(ac.AircraftType),
-            }
-        );
-        return cut is not null ? cut.Route : WithApproachLeg(route, ac.Position, ac.Heading);
+            };
     }
 
     /// <summary>
@@ -1796,6 +1874,81 @@ public partial class GroundViewModel : ObservableObject
     /// </summary>
     private TaxiRoute? WithApproachLeg(TaxiRoute? route, LatLon position, TrueHeading heading) =>
         ((_domainLayout is null) || (route is null)) ? route : TaxiApproachLeg.Prepend(_domainLayout, position, heading, route);
+
+    /// <summary>
+    /// The turn about the simulation reports pending (<see cref="AircraftModel.TaxiTurnAboutPending"/>) for an aircraft
+    /// mid-way along a straight taxi edge (<see cref="AirportGroundLayout.FindMidEdgeTaxiStart"/>), drawn in the shape the
+    /// simulation flies it. The overlay never decides a turn about itself; it picks the shape the way the TAXI handler did.
+    /// The route from the other end of the edge from <paramref name="start"/> (<see cref="FarEndRoute"/>) when it resolves
+    /// and does not drive back over the edge, else the route from <paramref name="start"/>, which reverses in place over the
+    /// edge, is kept. Null when no turn about is pending, the aircraft is not mid-edge, <paramref name="start"/> is not one
+    /// of the edge's ends, the route from <paramref name="start"/> already leaves the edge
+    /// (<see cref="GroundCommandHandler.DrivesOccupiedEdge"/>) because the aircraft has turned to face that end, or neither
+    /// end resolves a route.
+    /// </summary>
+    private (GroundNode Start, TaxiRoute Route)? TurnAboutRoute(
+        AircraftModel ac,
+        GroundNode start,
+        TaxiRoute? fromStart,
+        Func<GroundNode, TaxiRoute?> resolve
+    )
+    {
+        if (PendingTurnAboutEdge(ac, start) is not { } occupied)
+        {
+            return null;
+        }
+
+        if ((fromStart is not null) && !GroundCommandHandler.DrivesOccupiedEdge(fromStart, occupied))
+        {
+            return null;
+        }
+
+        GroundNode otherEnd = occupied.OtherNode(start);
+        if (FarEndRoute(ac, fromStart, occupied, otherEnd, resolve) is { } fromOtherEnd)
+        {
+            return (otherEnd, fromOtherEnd);
+        }
+
+        return (fromStart is null) ? null : (start, fromStart);
+    }
+
+    /// <summary>
+    /// The route from <paramref name="otherEnd"/> the simulation turned the aircraft about to, or null when it kept the
+    /// route from the end ahead: a lined-up jet (<see cref="GroundCommandHandler.IsJetLinedUpWith"/>) with a turn about
+    /// pending was cleared by no controller, so it keeps any route from the end ahead; otherwise the route from
+    /// <paramref name="otherEnd"/> wins when it resolves and does not drive back over <paramref name="occupied"/>.
+    /// </summary>
+    private static TaxiRoute? FarEndRoute(
+        AircraftModel ac,
+        TaxiRoute? fromStart,
+        GroundEdge occupied,
+        GroundNode otherEnd,
+        Func<GroundNode, TaxiRoute?> resolve
+    )
+    {
+        if (
+            (fromStart is not null) && GroundCommandHandler.IsJetLinedUpWith(AircraftCategorization.Categorize(ac.AircraftType), ac.Heading, occupied)
+        )
+        {
+            return null;
+        }
+
+        return (resolve(otherEnd) is { } fromOtherEnd) && !GroundCommandHandler.DrivesOccupiedEdge(fromOtherEnd, occupied) ? fromOtherEnd : null;
+    }
+
+    /// <summary>
+    /// The straight taxi edge the aircraft stands mid-way along (<see cref="AirportGroundLayout.FindMidEdgeTaxiStart"/>)
+    /// while the simulation reports a turn about pending and <paramref name="start"/> is one of the edge's ends; null otherwise.
+    /// </summary>
+    private GroundEdge? PendingTurnAboutEdge(AircraftModel ac, GroundNode start)
+    {
+        if (!ac.TaxiTurnAboutPending || (_domainLayout?.FindMidEdgeTaxiStart(ac.Position) is not { } occupied))
+        {
+            return null;
+        }
+
+        return ((occupied.Nodes[0] == start) || (occupied.Nodes[1] == start)) ? occupied : null;
+    }
 
     /// <summary>A rebuilt route whose first leg leaves more than <see cref="ReversalDeg"/> off the aircraft's nose doubles back on itself.</summary>
     private static bool StartsWithReversal(TaxiRoute route, TrueHeading heading) =>

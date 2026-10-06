@@ -59,6 +59,7 @@ public class Issue172Jbu577ClearRunwayTests(ITestOutputHelper output)
         const int WindowEnd = 513;
         const int PhysicsOnlyEnd = WindowEnd + 60;
         engine.Replay(recording, 0);
+        engine.ArmReplay(Issue172Jbu577TaxiSpinTests.ActionsWithTaxiGBMovedEarlier(recording));
         AircraftState? jbu = null;
         for (int t = 1; t <= PhysicsOnlyEnd; t++)
         {
