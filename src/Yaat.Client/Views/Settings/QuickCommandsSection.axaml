@@ -2,8 +2,227 @@
   xmlns="https://github.com/avaloniaui"
   xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
   xmlns:vm="using:Yaat.Client.ViewModels"
+  xmlns:cm="using:Yaat.Client.ContextMenus"
+  xmlns:local="using:Yaat.Client.Views.Settings"
   x:Class="Yaat.Client.Views.Settings.QuickCommandsSection"
   x:DataType="vm:SettingsViewModel"
 >
-  <TextBlock Margin="12" TextWrapping="Wrap" Text="Each situation's quick commands." />
+  <UserControl.Resources>
+    <SolidColorBrush x:Key="QuickCommandWarningBrush" Color="#E8A33D" />
+    <SolidColorBrush x:Key="QuickCommandAccentBrush" Color="#7AA7F0" />
+    <SolidColorBrush x:Key="QuickCommandRowBorderBrush" Color="#2A3340" />
+  </UserControl.Resources>
+  <DockPanel Margin="12">
+    <TextBlock
+      DockPanel.Dock="Top"
+      TextWrapping="Wrap"
+      Foreground="{DynamicResource SubtleTextBrush}"
+      FontSize="11"
+      Margin="0,0,0,8"
+      Text="The commands an aircraft's right-click menu offers first, situation by situation. The first ten commands with an icon form the icon strip at the top of the menu; the rest list as text below it. Drag a row by its handle to reorder it."
+    />
+
+    <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Spacing="8" Margin="0,8,0,0">
+      <Button Content="Add command…" x:Name="AddQuickCommandButton">
+        <Button.Flyout>
+          <Flyout Placement="TopEdgeAlignedLeft">
+            <DockPanel Width="340" Height="380">
+              <TextBox
+                DockPanel.Dock="Top"
+                x:Name="AddQuickCommandSearch"
+                Text="{Binding QuickCommandCatalogSearch}"
+                PlaceholderText="Search commands"
+                Margin="0,0,0,6"
+              />
+              <Button
+                DockPanel.Dock="Bottom"
+                Content="Add"
+                Command="{Binding AddQuickCommandCatalogEntryCommand}"
+                HorizontalAlignment="Right"
+                Margin="0,6,0,0"
+              />
+              <ListBox
+                x:Name="AddQuickCommandList"
+                ItemsSource="{Binding QuickCommandCatalogOffer}"
+                SelectedItem="{Binding SelectedQuickCommandCatalogItem}"
+              >
+                <ListBox.DataTemplates>
+                  <DataTemplate DataType="vm:QuickCommandFamilyHeader">
+                    <TextBlock Text="{Binding Title}" FontWeight="SemiBold" Foreground="{DynamicResource SubtleTextBrush}" />
+                  </DataTemplate>
+                  <DataTemplate DataType="cm:QuickCommandCatalogItem">
+                    <StackPanel Orientation="Horizontal" Spacing="6" Margin="8,0,0,0">
+                      <ContentControl
+                        Width="24"
+                        Height="24"
+                        Content="{Binding Glyph, Converter={x:Static local:QuickCommandsSection.GlyphIconConverter}}"
+                      />
+                      <TextBlock Text="{Binding Label}" VerticalAlignment="Center" />
+                    </StackPanel>
+                  </DataTemplate>
+                </ListBox.DataTemplates>
+              </ListBox>
+            </DockPanel>
+          </Flyout>
+        </Button.Flyout>
+      </Button>
+      <Button Content="Add custom" Command="{Binding AddQuickCommandCustomEntryCommand}" />
+      <Button Content="Reset this situation" Command="{Binding ResetSelectedQuickCommandSituationCommand}" />
+      <Button Content="Reset all" Command="{Binding ResetAllQuickCommandSituationsCommand}" />
+    </StackPanel>
+
+    <!-- Situations: a dot marks a list changed from its default, a warning one with a custom command to fix -->
+    <DockPanel DockPanel.Dock="Left" Width="190">
+      <TextBlock DockPanel.Dock="Top" Text="Situations" FontWeight="SemiBold" Margin="0,0,0,4" />
+      <ListBox x:Name="SituationList" ItemsSource="{Binding QuickCommandSituations}" SelectedItem="{Binding SelectedQuickCommandSituation}">
+        <ListBox.ItemTemplate>
+          <DataTemplate x:DataType="vm:QuickCommandSituationRow">
+            <DockPanel>
+              <TextBlock
+                DockPanel.Dock="Right"
+                Text="⚠"
+                Foreground="{StaticResource QuickCommandWarningBrush}"
+                Margin="4,0,0,0"
+                IsVisible="{Binding HasErrors}"
+                ToolTip.Tip="A custom command here needs fixing"
+              />
+              <TextBlock
+                DockPanel.Dock="Right"
+                Text="●"
+                Foreground="{StaticResource QuickCommandAccentBrush}"
+                Margin="4,0,0,0"
+                IsVisible="{Binding IsChanged}"
+                ToolTip.Tip="Changed from the default"
+              />
+              <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+            </DockPanel>
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+    </DockPanel>
+
+    <DockPanel Margin="12,0,0,0">
+      <!-- The menu as the selected situation would draw it -->
+      <StackPanel DockPanel.Dock="Top" Spacing="4" Margin="0,0,0,8">
+        <TextBlock Text="Menu preview" FontWeight="SemiBold" />
+        <TextBlock
+          TextWrapping="Wrap"
+          FontSize="11"
+          Foreground="{DynamicResource SubtleTextBrush}"
+          Text="Every command is shown, whether or not it applies to a given aircraft."
+        />
+        <DockPanel>
+          <Border
+            x:Name="PreviewStripHost"
+            DockPanel.Dock="Left"
+            VerticalAlignment="Top"
+            Padding="6"
+            CornerRadius="4"
+            Background="#1B2129"
+            Margin="0,0,8,0"
+          />
+          <WrapPanel x:Name="PreviewTextEntries" VerticalAlignment="Top" />
+        </DockPanel>
+      </StackPanel>
+
+      <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+        <Panel>
+          <ItemsControl x:Name="EntryList">
+            <ItemsControl.DataTemplates>
+              <DataTemplate DataType="local:QuickCommandStripDivider">
+                <StackPanel Classes="strip-divider" Spacing="2" Margin="0,4">
+                  <Border Height="2" Background="{StaticResource QuickCommandWarningBrush}" />
+                  <TextBlock
+                    FontSize="11"
+                    Foreground="{DynamicResource SubtleTextBrush}"
+                    Text="The icon strip ends here; the entries below show as text."
+                  />
+                </StackPanel>
+              </DataTemplate>
+              <DataTemplate DataType="vm:QuickCommandEntryRow">
+                <Border Padding="2,4" BorderBrush="{StaticResource QuickCommandRowBorderBrush}" BorderThickness="0,0,0,1">
+                  <Grid ColumnDefinitions="Auto,30,*,170,Auto" RowDefinitions="Auto,Auto,Auto">
+                    <Border
+                      Grid.RowSpan="3"
+                      Classes="drag-handle"
+                      Background="Transparent"
+                      Width="20"
+                      Cursor="SizeNorthSouth"
+                      ToolTip.Tip="Drag to reorder"
+                    >
+                      <TextBlock Text="≡" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{DynamicResource SubtleTextBrush}" />
+                    </Border>
+                    <ContentControl
+                      Grid.Column="1"
+                      Width="24"
+                      Height="24"
+                      VerticalAlignment="Center"
+                      Content="{Binding Glyph, Converter={x:Static local:QuickCommandsSection.GlyphIconConverter}}"
+                    />
+                    <TextBlock
+                      Grid.Column="2"
+                      Classes="label-text"
+                      Text="{Binding Label}"
+                      IsVisible="{Binding !IsCustom}"
+                      VerticalAlignment="Center"
+                      TextTrimming="CharacterEllipsis"
+                    />
+                    <TextBox Grid.Column="2" Classes="label-editor" Text="{Binding Label}" IsVisible="{Binding IsCustom}" PlaceholderText="Label" />
+                    <ComboBox
+                      Grid.Column="3"
+                      Classes="flight-rules"
+                      Margin="6,0"
+                      HorizontalAlignment="Stretch"
+                      VerticalAlignment="Center"
+                      ItemsSource="{Binding FlightRulesOptions}"
+                      SelectedItem="{Binding SelectedFlightRules}"
+                      ToolTip.Tip="Flight rules the command is offered to"
+                    >
+                      <ComboBox.ItemTemplate>
+                        <DataTemplate x:DataType="vm:QuickCommandFlightRulesOption">
+                          <TextBlock Text="{Binding Caption}" />
+                        </DataTemplate>
+                      </ComboBox.ItemTemplate>
+                    </ComboBox>
+                    <Button
+                      Grid.Column="4"
+                      Content="X"
+                      Padding="4,0"
+                      FontSize="11"
+                      VerticalAlignment="Center"
+                      ToolTip.Tip="Remove"
+                      Command="{Binding $parent[UserControl].((vm:SettingsViewModel)DataContext).RemoveQuickCommandEntryCommand}"
+                      CommandParameter="{Binding}"
+                    />
+                    <StackPanel Grid.Row="1" Grid.Column="2" Grid.ColumnSpan="2" Spacing="4" Margin="0,4,6,0" IsVisible="{Binding IsCustom}">
+                      <TextBox Classes="command-editor" Text="{Binding CommandText}" PlaceholderText="Command, e.g. FH 270" />
+                      <TextBox
+                        Classes="ground-command-editor"
+                        Text="{Binding GroundCommandText}"
+                        PlaceholderText="Ground command (optional; sent while the aircraft is on the ground)"
+                      />
+                    </StackPanel>
+                    <TextBlock
+                      Grid.Row="2"
+                      Grid.Column="2"
+                      Grid.ColumnSpan="3"
+                      Classes="row-warning"
+                      Margin="0,4,0,0"
+                      TextWrapping="Wrap"
+                      Foreground="{StaticResource QuickCommandWarningBrush}"
+                      IsVisible="{Binding HasError}"
+                      Text="{Binding ValidationMessage, StringFormat='⚠ {0}'}"
+                    />
+                  </Grid>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.DataTemplates>
+          </ItemsControl>
+          <Canvas IsHitTestVisible="False">
+            <Border x:Name="DropIndicator" Height="2" Background="{StaticResource QuickCommandAccentBrush}" IsVisible="False" />
+          </Canvas>
+        </Panel>
+      </ScrollViewer>
+    </DockPanel>
+  </DockPanel>
 </UserControl>

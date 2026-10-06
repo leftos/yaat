@@ -47,33 +47,84 @@ public static class QuickCommandStrip
         IMenuHost host
     )
     {
-        var first = new StackPanel { Orientation = Orientation.Horizontal, Spacing = Gap };
-        var second = new StackPanel { Orientation = Orientation.Horizontal, Spacing = Gap };
+        List<Control> buttons = [];
         foreach (QuickCommandStripItem item in items)
         {
-            if (item.Entry.Build(aircraft, context, host) is not { } built)
+            if (item.Entry.Build(aircraft, context, host) is { } built)
             {
-                continue;
+                buttons.Add(BuildButton(menu, item, built));
             }
-
-            StackPanel row = (first.Children.Count < RowLength) ? first : second;
-            row.Children.Add(BuildButton(menu, item, built));
         }
 
-        if (first.Children.Count == 0)
+        if (buttons.Count == 0)
         {
             return null;
         }
 
-        second.IsVisible = second.Children.Count > 0;
-        var strip = new MenuItem
-        {
-            Header = new StackPanel { Spacing = Gap, Children = { first, second } },
-            StaysOpenOnClick = true,
-        };
+        var strip = new MenuItem { Header = Rows(buttons), StaysOpenOnClick = true };
         strip.Classes.Add(StripClass);
         return strip;
     }
+
+    /// <summary>
+    /// Lays <paramref name="cells"/> out as the strip does, in order: up to two rows of <see cref="RowLength"/>, the first
+    /// row filled first and an empty second row hidden. The menu's strip and the Settings preview both lay out through it.
+    /// </summary>
+    public static StackPanel Rows(IReadOnlyList<Control> cells)
+    {
+        var first = new StackPanel { Orientation = Orientation.Horizontal, Spacing = Gap };
+        var second = new StackPanel { Orientation = Orientation.Horizontal, Spacing = Gap };
+        foreach (Control cell in cells)
+        {
+            StackPanel row = (first.Children.Count < RowLength) ? first : second;
+            row.Children.Add(cell);
+        }
+
+        second.IsVisible = second.Children.Count > 0;
+        return new StackPanel { Spacing = Gap, Children = { first, second } };
+    }
+
+    /// <summary>
+    /// The square a strip button shows: <paramref name="glyph"/> centred, with the corner notch when the button opens a
+    /// submenu. The menu's buttons and the Settings preview both draw their glyphs through it.
+    /// </summary>
+    public static Grid GlyphCell(QuickCommandGlyph glyph, bool opensSubmenu)
+    {
+        var cell = new Grid { Width = CellSize, Height = CellSize };
+        cell.Children.Add(GlyphIcon(glyph));
+        if (opensSubmenu)
+        {
+            cell.Children.Add(Notch());
+        }
+
+        return cell;
+    }
+
+    /// <summary>The glyph's stroke path on its 24 px view box, scaled to the strip's glyph size and drawn in its family's colour.</summary>
+    public static Viewbox GlyphIcon(QuickCommandGlyph glyph) =>
+        new()
+        {
+            Width = GlyphSize,
+            Height = GlyphSize,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+            Child = new Canvas
+            {
+                Width = 24,
+                Height = 24,
+                Children =
+                {
+                    new Path
+                    {
+                        Data = Geometry.Parse(glyph.PathData),
+                        Stroke = new SolidColorBrush(FamilyColor(glyph.Family)),
+                        StrokeThickness = 1.75,
+                        StrokeLineCap = PenLineCap.Round,
+                        StrokeJoin = PenLineJoin.Round,
+                    },
+                },
+            },
+        };
 
     /// <summary>Whether <paramref name="item"/> is a quick-command strip.</summary>
     public static bool IsStrip(MenuItem item) => item.Classes.Contains(StripClass);
@@ -107,16 +158,9 @@ public static class QuickCommandStrip
     private static Button BuildButton(ContextMenu menu, QuickCommandStripItem item, MenuItem built)
     {
         bool opensSubmenu = built.Items.Count > 0;
-        var cell = new Grid { Width = CellSize, Height = CellSize };
-        cell.Children.Add(Glyph(item.Glyph));
-        if (opensSubmenu)
-        {
-            cell.Children.Add(Notch());
-        }
-
         var button = new Button
         {
-            Content = cell,
+            Content = GlyphCell(item.Glyph, opensSubmenu),
             Padding = new Thickness(0),
             Tag = item.Entry.Id,
         };
@@ -178,32 +222,6 @@ public static class QuickCommandStrip
             CloseOnChoice(child, flyout, menu);
         }
     }
-
-    /// <summary>The glyph's stroke path on its 24 px view box, scaled to the cell and drawn in its family's colour.</summary>
-    private static Viewbox Glyph(QuickCommandGlyph glyph) =>
-        new()
-        {
-            Width = GlyphSize,
-            Height = GlyphSize,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Center,
-            Child = new Canvas
-            {
-                Width = 24,
-                Height = 24,
-                Children =
-                {
-                    new Path
-                    {
-                        Data = Geometry.Parse(glyph.PathData),
-                        Stroke = new SolidColorBrush(FamilyColor(glyph.Family)),
-                        StrokeThickness = 1.75,
-                        StrokeLineCap = PenLineCap.Round,
-                        StrokeJoin = PenLineJoin.Round,
-                    },
-                },
-            },
-        };
 
     /// <summary>The corner notch that marks a button opening a submenu.</summary>
     private static Path Notch() =>

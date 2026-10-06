@@ -28,6 +28,10 @@ public sealed record QuickCommandFlightRulesOption(MenuFlightRules? Rules, strin
     public override string ToString() => Caption;
 }
 
+/// <summary>A family heading in the Quick Commands add-command list; it adds nothing when selected.</summary>
+/// <param name="Title">The family as the heading shows it, e.g. "Tower" or "Sim control".</param>
+public sealed record QuickCommandFamilyHeader(string Title);
+
 /// <summary>
 /// A situation in the Quick Commands editor's list: its name, and whether its staged list differs from the default or
 /// needs fixing.
@@ -95,7 +99,7 @@ public sealed partial class QuickCommandEntryRow : ObservableObject
     public QuickCommandGlyph? Glyph { get; }
 
     /// <summary>
-    /// The flight-rules choices: a catalog row's start with Default (its catalog rules), then IFR and VFR, IFR only and VFR
+    /// The flight-rules choices: a catalog row's start with Default (its catalog rules), then Both, IFR only and VFR
     /// only; a custom row's are the last three.
     /// </summary>
     public IReadOnlyList<QuickCommandFlightRulesOption> FlightRulesOptions { get; }
@@ -188,7 +192,7 @@ public sealed partial class QuickCommandEntryRow : ObservableObject
     private static string Caption(MenuFlightRules rules) =>
         rules switch
         {
-            MenuFlightRules.Both => "IFR and VFR",
+            MenuFlightRules.Both => "Both",
             MenuFlightRules.IfrOnly => "IFR only",
             MenuFlightRules.VfrOnly => "VFR only",
             _ => throw new ArgumentOutOfRangeException(nameof(rules), rules, "Unknown flight rules."),
@@ -229,6 +233,31 @@ public partial class SettingsViewModel
     /// selection changes; a row's label, command or flight-rules edit leaves it alone.
     /// </summary>
     public ReadOnlyObservableCollection<QuickCommandCatalogItem> AvailableQuickCommandCatalogEntries { get; }
+
+    private readonly ObservableCollection<object> _quickCommandCatalogOffer = [];
+
+    // The id of the catalog action last chosen in the add-command list, kept while a refill or the search hides it.
+    private string? _chosenQuickCommandCatalogId;
+
+    private bool _refillingQuickCommandCatalogOffer;
+
+    /// <summary>The add-command list's search text; it narrows <see cref="QuickCommandCatalogOffer"/> by label or family.</summary>
+    [ObservableProperty]
+    private string _quickCommandCatalogSearch = "";
+
+    /// <summary>
+    /// The add-command list: <see cref="AvailableQuickCommandCatalogEntries"/> that match the search, grouped by family in
+    /// catalog order, each group led by a <see cref="QuickCommandFamilyHeader"/>. Refilled whenever either changes.
+    /// </summary>
+    public IReadOnlyList<object> QuickCommandCatalogOffer => _quickCommandCatalogOffer;
+
+    /// <summary>
+    /// The add-command list's selection: a <see cref="QuickCommandCatalogItem"/>, or a family header chosen by keyboard,
+    /// which adds nothing. A chosen action stays selected across refills and searches that keep it on offer.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(AddQuickCommandCatalogEntryCommand))]
+    private object? _selectedQuickCommandCatalogItem;
 
     /// <summary>True while a custom row of any situation fails validation; OK and Apply stay disabled until it clears.</summary>
     [ObservableProperty]
@@ -282,8 +311,74 @@ public partial class SettingsViewModel
         return true;
     }
 
-    [RelayCommand]
-    private void AddQuickCommandCatalogEntry(string catalogId) => TryAddQuickCommandCatalogEntry(catalogId);
+    /// <summary>Appends the selected catalog action (<see cref="SelectedQuickCommandCatalogItem"/>) and clears the selection.</summary>
+    [RelayCommand(CanExecute = nameof(CanAddQuickCommandCatalogEntry))]
+    private void AddQuickCommandCatalogEntry()
+    {
+        if (SelectedQuickCommandCatalogItem is not QuickCommandCatalogItem item)
+        {
+            return;
+        }
+
+        _chosenQuickCommandCatalogId = null;
+        SelectedQuickCommandCatalogItem = null;
+        TryAddQuickCommandCatalogEntry(item.Id);
+    }
+
+    private bool CanAddQuickCommandCatalogEntry() => SelectedQuickCommandCatalogItem is QuickCommandCatalogItem;
+
+    partial void OnQuickCommandCatalogSearchChanged(string value) => RefillQuickCommandCatalogOffer();
+
+    partial void OnSelectedQuickCommandCatalogItemChanged(object? value)
+    {
+        if (!_refillingQuickCommandCatalogOffer)
+        {
+            _chosenQuickCommandCatalogId = (value as QuickCommandCatalogItem)?.Id;
+        }
+    }
+
+    // Clearing the list makes a bound list box drop its selection, so the chosen id is put back by hand once it is refilled.
+    private void RefillQuickCommandCatalogOffer()
+    {
+        string filter = QuickCommandCatalogSearch.Trim();
+        QuickCommandCatalogItem? keep = null;
+        _refillingQuickCommandCatalogOffer = true;
+        try
+        {
+            _quickCommandCatalogOffer.Clear();
+            foreach (
+                IGrouping<string, QuickCommandCatalogItem> family in _availableQuickCommandCatalogEntries
+                    .Where(i => MatchesCatalogSearch(i, filter))
+                    .GroupBy(i => i.Family)
+            )
+            {
+                _quickCommandCatalogOffer.Add(new QuickCommandFamilyHeader(FamilyTitle(family.Key)));
+                foreach (QuickCommandCatalogItem item in family)
+                {
+                    _quickCommandCatalogOffer.Add(item);
+                    keep = (item.Id == _chosenQuickCommandCatalogId) ? item : keep;
+                }
+            }
+
+            SelectedQuickCommandCatalogItem = keep;
+        }
+        finally
+        {
+            _refillingQuickCommandCatalogOffer = false;
+        }
+    }
+
+    private static bool MatchesCatalogSearch(QuickCommandCatalogItem item, string filter) =>
+        (filter.Length == 0)
+        || item.Label.Contains(filter, StringComparison.OrdinalIgnoreCase)
+        || item.Family.Contains(filter, StringComparison.OrdinalIgnoreCase);
+
+    // "sim-control" reads "Sim control".
+    private static string FamilyTitle(string family)
+    {
+        string spaced = family.Replace('-', ' ');
+        return (spaced.Length == 0) ? spaced : char.ToUpperInvariant(spaced[0]) + spaced[1..];
+    }
 
     /// <summary>Appends a blank custom row to the selected situation's list; it blocks Apply until it has a label and a command.</summary>
     [RelayCommand]
@@ -470,6 +565,8 @@ public partial class SettingsViewModel
         {
             _availableQuickCommandCatalogEntries.Add(item);
         }
+
+        RefillQuickCommandCatalogOffer();
     }
 
     // The strip takes the first StripCapacity glyph rows in list order, as QuickCommandGlyphs.Split does at runtime; by

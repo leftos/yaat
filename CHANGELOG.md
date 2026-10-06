@@ -7,6 +7,7 @@
 - A range/bearing measurement's label moves clear of data blocks and aircraft, pushing auto-placed data blocks aside while every side is covered.
 - An aircraft's right-click menu leads with quick commands for its current situation, shown as an icon strip and text; the rest sit under All Commands.
 - Quick commands show only what the aircraft can take: Cross names its runway and waits for the rollout to slow; Cancel takeoff stops at V1.
+- Settings → Input → Quick commands edits each situation's right-click quick commands: add, reorder by dragging, reset, and add custom commands with their own label.
 - Settings is a searchable sidebar of sections with links between related settings, a Reset section button on each, and OK, Apply and Cancel.
 - Ctrl+Shift+L, G, R, E, C and M pop out or dock each view, and Ctrl+Shift+F toggles the favorites bar, from any YAAT window.
 - Settings › Keys warns when two actions share a key and blocks OK until one changes.

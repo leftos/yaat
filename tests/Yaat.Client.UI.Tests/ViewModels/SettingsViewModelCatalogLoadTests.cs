@@ -38,7 +38,8 @@ public class SettingsViewModelCatalogLoadTests
         Assert.NotNull(vm);
         Assert.True(
             elapsed.Elapsed < UiThreadBudget,
-            $"SettingsViewModel construction took {elapsed.Elapsed.TotalSeconds:F1}s on the UI thread; it must not resolve LM-Kit model metadata inline."
+            $"SettingsViewModel construction took {elapsed.Elapsed.TotalSeconds:F1}s on the UI thread; "
+                + "it must not resolve LM-Kit model metadata inline."
         );
     }
 

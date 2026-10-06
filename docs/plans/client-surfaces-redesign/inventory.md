@@ -6,7 +6,11 @@ What exists today, mapped from source for [the redesign](./README.md). Defaults 
 
 Files: `src/Yaat.Client/Views/SettingsWindow.axaml` (sidebar, section host and footer), `src/Yaat.Client/Views/Settings/*Section.axaml` (one per section; order in `SettingsNavigation.cs`), `SettingsWindow.axaml.cs` (geometry key `"Settings"`, 1040×720, minimum 880×600), `src/Yaat.Client/ViewModels/SettingsViewModel.cs` (~2,100 lines; `Apply()` writes every setting and can run repeatedly; `ResetSection` per section), `src/Yaat.Client/ViewModels/SettingsSectionId.cs`, `UserPreferences.cs` (`CreateDefaults`).
 
-A modal window with a sidebar of fifteen sections in six groups, a "Reset section" button on every section (pending until Apply or OK; disabled on the two link-only sections), and a footer OK, Apply and Cancel. Opened from Tools → Settings and the Open Settings key (Ctrl+,; General), from the Radar, Ground, Aircraft list and Terminal right-click menus ("Settings for this view…", at that view's section), and on Speech from the mic status menus ("Speech settings…"), the Speech Debug window and the pilot-voice banner, all through `MainViewModel.RequestSettings`; a request while it is open brings the open window to the front at that section. It is modal over every open YAAT window (`Views/OpenWindows.cs`): their input is blocked without disabling them, and focus returns to where it was on close.
+A modal window with a sidebar of sixteen sections in six groups, a "Reset section" button on every section (pending until Apply or OK; disabled on the two link-only sections), and a footer OK, Apply and Cancel.
+
+Opened from Tools → Settings and the Open Settings key (Ctrl+,; General), from the Radar, Ground, Aircraft list and Terminal right-click menus ("Settings for this view…", at that view's section), and on Speech from the mic status menus ("Speech settings…"), the Speech Debug window and the pilot-voice banner, all through `MainViewModel.RequestSettings`; a request while it is open brings the open window to the front at that section.
+
+It is modal over every open YAAT window (`Views/OpenWindows.cs`): their input is blocked without disabling them, and focus returns to where it was on close.
 
 | Section | Controls | Contents |
 |---|---|---|
@@ -21,6 +25,7 @@ A modal window with a sidebar of fifteen sections in six groups, a "Reset sectio
 | Command input | 2 | Signature help placement, auto-expand suggestion |
 | Command verbs | verb grid + 3 | Per-command verb aliases (`CommandScheme`, only non-default aliases stored), "Try it out", Import…, Export… (open the hub with Command verbs ticked); Reset section restores the default verbs |
 | Macros | grid + 6 | CRC aliases folder + Browse, macro grid (`Macros`), Add, Import…, Export…, Export Selected… (the last three open the Import / Export hub with Macros ticked; done by YAAT-297); Reset section clears every macro and the folder |
+| Quick commands | situation list + entry list + 4 | Each situation's right-click quick commands (`UserPreferences.SetQuickCommandList`, only situations changed from `QuickCommandDefaults` stored): a menu preview, rows reordered by dragging, flight rules per row, custom rows (label, command, ground command) validated as typed commands; Add command… (catalog flyout with search), Add custom, Reset this situation, Reset all; Reset section does Reset all. No import or export yet |
 | Keys | 5 | Hotkeys (aircraft select, focus input, take control, always on top, quick bookmark) |
 | Speech | 12 + actions | STT on, auto-focus after speech, Whisper model, LLM model + GPU layers, PTT key, telemetry, sample capture + cache size, pilot voice on, volume, radio FX; download/delete/CUDA/voice-pack/delete-samples buttons, which act at once and are labelled as not undone by Cancel |
 | Audio devices | 2 | Input and output device |

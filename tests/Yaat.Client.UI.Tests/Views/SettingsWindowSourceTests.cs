@@ -427,8 +427,11 @@ public partial class SettingsWindowSourceTests
     }
 
     // Bindings that are not a setting a user edits: display-only text and progress, the cells of a table (bound to its
-    // rows, not the view model), and anything inside an item template.
+    // rows, not the view model), anything inside an item template, and a flyout's content, which is not on screen for the
+    // search to light up until its button opens it (the button itself is catalogued).
     private static readonly HashSet<string> PlumbingElements = new(StringComparer.Ordinal) { "TextBlock", "ProgressBar", "DataGridTextColumn" };
+
+    private static readonly HashSet<string> PlumbingContainers = new(StringComparer.Ordinal) { "DataTemplate", "Flyout" };
 
     // Visibility, enabled and expanded toggles, the item sources of combo boxes and tables, and style classes.
     private static readonly HashSet<string> PlumbingAttributes = new(StringComparer.Ordinal)
@@ -441,7 +444,7 @@ public partial class SettingsWindowSourceTests
     };
 
     private static bool IsBindingPlumbing(XElement element) =>
-        PlumbingElements.Contains(element.Name.LocalName) || element.AncestorsAndSelf().Any(e => e.Name.LocalName == "DataTemplate");
+        PlumbingElements.Contains(element.Name.LocalName) || element.AncestorsAndSelf().Any(e => PlumbingContainers.Contains(e.Name.LocalName));
 
     // A key-capture button's content shows the bound key; its command is the binding the catalog keys it by.
     private static bool IsPlumbingAttribute(XElement element, XAttribute attribute) =>

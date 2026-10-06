@@ -74,6 +74,20 @@ public class SettingsSearchTests
         Assert.Equal(SettingsNavigation.Items, result.NavItems());
     }
 
+    [Theory]
+    [InlineData("quick commands")]
+    [InlineData("context menu")]
+    [InlineData("right-click")]
+    [InlineData("icon strip")]
+    [InlineData("menu commands")]
+    public void SettingsSearch_QuickCommands_FindsTheSection(string query)
+    {
+        SettingsSearchResult result = Search(query);
+
+        Assert.True(result.CountFor(SettingsSectionId.QuickCommands) > 0);
+        Assert.Contains(result.NavItems(), item => item.Id == SettingsSectionId.QuickCommands);
+    }
+
     private static SettingsSearchResult Search(string query) => SettingsSearch.Run(query, SettingsSearchCatalog.Entries);
 
     private static SettingsSearchEntry Entry(SettingsSectionId section, string bindingPath) =>

@@ -19,6 +19,7 @@ public static class SettingsSearchCatalog
     private static readonly string[] Delay = ["delay"];
     private static readonly string[] Verb = ["verb", "alias"];
     private static readonly string[] Macro = ["macro"];
+    private static readonly string[] QuickCommand = ["quick commands", "context menu", "right-click", "icon strip", "menu commands"];
     private static readonly string[] None = [];
 
     private const string AlwaysOnTop = "Always on Top";
@@ -60,6 +61,7 @@ public static class SettingsSearchCatalog
         Link(SettingsSectionId.StripsAndTdls, "Always on top → General", SettingsSectionId.General, OnTop),
         .. Terminal(),
         .. Input(),
+        .. QuickCommands(),
         .. Keys(),
         .. Speech(),
         .. Voice(),
@@ -229,6 +231,16 @@ public static class SettingsSearchCatalog
             Setting(SettingsSectionId.Macros, "ImportMacrosButton", "Import...", Macro),
             Setting(SettingsSectionId.Macros, "ExportMacrosButton", "Export...", Macro),
             Setting(SettingsSectionId.Macros, "ExportSelectedMacrosButton", "Export Selected...", Macro),
+        ];
+
+    // The situation list and the section's own buttons; its templated situation and entry rows are not searched one by one.
+    private static IEnumerable<SettingsSearchEntry> QuickCommands() =>
+        [
+            Setting(SettingsSectionId.QuickCommands, "SelectedQuickCommandSituation", "Situations", QuickCommand),
+            Setting(SettingsSectionId.QuickCommands, "AddQuickCommandButton", "Add command…", QuickCommand),
+            Setting(SettingsSectionId.QuickCommands, "AddQuickCommandCustomEntryCommand", "Add custom", QuickCommand),
+            Setting(SettingsSectionId.QuickCommands, "ResetSelectedQuickCommandSituationCommand", "Reset this situation", QuickCommand),
+            Setting(SettingsSectionId.QuickCommands, "ResetAllQuickCommandSituationsCommand", "Reset all", QuickCommand),
         ];
 
     private static IEnumerable<SettingsSearchEntry> Keys() =>

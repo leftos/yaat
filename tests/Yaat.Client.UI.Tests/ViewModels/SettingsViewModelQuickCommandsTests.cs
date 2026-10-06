@@ -282,10 +282,10 @@ public class SettingsViewModelQuickCommandsTests
         Select(vm, AircraftSituation.Pattern);
 
         Assert.Equal(
-            ["Default (VFR only)", "IFR and VFR", "IFR only", "VFR only"],
+            ["Default (VFR only)", "Both", "IFR only", "VFR only"],
             CatalogRow(vm, MenuIds.PatternFollow).FlightRulesOptions.Select(o => o.Caption)
         );
-        Assert.Equal("Default (IFR and VFR)", CatalogRow(vm, MenuIds.TowerClearedToLand).FlightRulesOptions[0].Caption);
+        Assert.Equal("Default (Both)", CatalogRow(vm, MenuIds.TowerClearedToLand).FlightRulesOptions[0].Caption);
 
         vm.AddQuickCommandCustomEntry();
         QuickCommandEntryRow custom = vm.QuickCommandEntries[^1];
@@ -488,6 +488,109 @@ public class SettingsViewModelQuickCommandsTests
         vm.RemoveQuickCommandEntry(vm.QuickCommandEntries[0]);
 
         Assert.Empty(new UserPreferences().QuickCommandOverrides);
+    }
+
+    private static List<string> OfferIds(SettingsViewModel vm) =>
+        [.. vm.QuickCommandCatalogOffer.OfType<QuickCommandCatalogItem>().Select(i => i.Id)];
+
+    [AvaloniaFact(Timeout = 60_000)]
+    public void CatalogOffer_GroupsByFamily_AndKeepsTheSelectionAcrossRefills()
+    {
+        using var scope = new PreferencesFileScope();
+        Store(AircraftSituation.Taxiing, MenuIds.GroundHoldPosition, MenuIds.GroundResumeTaxi);
+        var vm = new SettingsViewModel();
+        Select(vm, AircraftSituation.Taxiing);
+
+        // One heading per family, each followed only by that family's actions, all of the available actions offered.
+        List<object> offer = [.. vm.QuickCommandCatalogOffer];
+        Assert.IsType<QuickCommandFamilyHeader>(offer[0]);
+        Assert.Equal(
+            vm.AvailableQuickCommandCatalogEntries.Select(i => i.Family).Distinct().Count(),
+            offer.OfType<QuickCommandFamilyHeader>().Count()
+        );
+        string? family = null;
+        foreach (object entry in offer)
+        {
+            family = (entry is QuickCommandCatalogItem item) ? (family ?? item.Family) : null;
+            Assert.True((entry is QuickCommandFamilyHeader) || (((QuickCommandCatalogItem)entry).Family == family));
+        }
+
+        Assert.Equal(vm.AvailableQuickCommandCatalogEntries.Select(i => i.Id).Order(), OfferIds(vm).Order());
+        Assert.Contains(offer.OfType<QuickCommandFamilyHeader>(), h => h.Title == "Tower");
+
+        QuickCommandCatalogItem chosen = vm.QuickCommandCatalogOffer.OfType<QuickCommandCatalogItem>().ElementAt(3);
+        vm.SelectedQuickCommandCatalogItem = chosen;
+
+        // Removing an entry puts it back on offer, and adding another takes that one off: two refills.
+        vm.RemoveQuickCommandEntry(vm.QuickCommandEntries[0]);
+        Assert.Contains(MenuIds.GroundHoldPosition, OfferIds(vm));
+        string other = OfferIds(vm).First(id => id != chosen.Id);
+        Assert.True(vm.TryAddQuickCommandCatalogEntry(other));
+        Assert.DoesNotContain(other, OfferIds(vm));
+
+        Assert.Equal(chosen.Id, Assert.IsType<QuickCommandCatalogItem>(vm.SelectedQuickCommandCatalogItem).Id);
+    }
+
+    [AvaloniaFact(Timeout = 60_000)]
+    public void CatalogSearch_NarrowsTheOffer_AndClearingItRestoresTheSelection()
+    {
+        using var scope = new PreferencesFileScope();
+        Store(AircraftSituation.Taxiing, MenuIds.GroundHoldPosition);
+        var vm = new SettingsViewModel();
+        Select(vm, AircraftSituation.Taxiing);
+        const string Query = "squawk";
+        QuickCommandCatalogItem chosen = vm
+            .QuickCommandCatalogOffer.OfType<QuickCommandCatalogItem>()
+            .First(i =>
+                !i.Label.Contains(Query, StringComparison.OrdinalIgnoreCase) && !i.Family.Contains(Query, StringComparison.OrdinalIgnoreCase)
+            );
+        vm.SelectedQuickCommandCatalogItem = chosen;
+        int everything = OfferIds(vm).Count;
+
+        vm.QuickCommandCatalogSearch = "  SQUAWK ";
+        List<QuickCommandCatalogItem> narrowed = [.. vm.QuickCommandCatalogOffer.OfType<QuickCommandCatalogItem>()];
+        Assert.NotEmpty(narrowed);
+        Assert.True(narrowed.Count < everything);
+        Assert.All(
+            narrowed,
+            i =>
+                Assert.True(
+                    i.Label.Contains(Query, StringComparison.OrdinalIgnoreCase) || i.Family.Contains(Query, StringComparison.OrdinalIgnoreCase)
+                )
+        );
+        Assert.Null(vm.SelectedQuickCommandCatalogItem);
+        Assert.False(vm.AddQuickCommandCatalogEntryCommand.CanExecute(null));
+
+        vm.QuickCommandCatalogSearch = "";
+        Assert.Equal(everything, OfferIds(vm).Count);
+        Assert.Equal(chosen.Id, Assert.IsType<QuickCommandCatalogItem>(vm.SelectedQuickCommandCatalogItem).Id);
+
+        // A search that keeps the chosen action on offer keeps it selected.
+        vm.QuickCommandCatalogSearch = chosen.Family;
+        Assert.Equal(chosen.Id, Assert.IsType<QuickCommandCatalogItem>(vm.SelectedQuickCommandCatalogItem).Id);
+    }
+
+    [AvaloniaFact(Timeout = 60_000)]
+    public void AddCatalogEntryCommand_AddsTheSelection_AndOnlyACatalogActionEnablesIt()
+    {
+        using var scope = new PreferencesFileScope();
+        Store(AircraftSituation.Taxiing, MenuIds.GroundHoldPosition);
+        var vm = new SettingsViewModel();
+        Select(vm, AircraftSituation.Taxiing);
+        Assert.False(vm.AddQuickCommandCatalogEntryCommand.CanExecute(null));
+
+        vm.SelectedQuickCommandCatalogItem = vm.QuickCommandCatalogOffer.OfType<QuickCommandFamilyHeader>().First();
+        Assert.False(vm.AddQuickCommandCatalogEntryCommand.CanExecute(null));
+
+        QuickCommandCatalogItem chosen = vm.QuickCommandCatalogOffer.OfType<QuickCommandCatalogItem>().ElementAt(2);
+        vm.SelectedQuickCommandCatalogItem = chosen;
+        Assert.True(vm.AddQuickCommandCatalogEntryCommand.CanExecute(null));
+        vm.AddQuickCommandCatalogEntryCommand.Execute(null);
+
+        Assert.Equal([MenuIds.GroundHoldPosition, chosen.Id], Ids(vm));
+        Assert.Null(vm.SelectedQuickCommandCatalogItem);
+        Assert.DoesNotContain(chosen.Id, OfferIds(vm));
+        Assert.False(vm.AddQuickCommandCatalogEntryCommand.CanExecute(null));
     }
 
     [AvaloniaFact(Timeout = 60_000)]

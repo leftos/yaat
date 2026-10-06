@@ -296,6 +296,16 @@ An aircraft YAAT cannot place in a situation shows no quick commands; use All Co
 - **Assign speed** and **Reduce to final approach speed** hide inside the final approach fix.
 - **Give way to…** needs a taxi route; **Climb via SID** and **Descend via STAR** need an assigned or filed procedure.
 
+**Changing the quick commands.** Open **Settings › Quick commands** (in the Input group) to change any situation's list. Pick a situation on the left: a blue ● marks one you changed from its default, an amber ⚠ one with a custom command to fix. **Menu preview** shows the selected list as the menu lays it out, the first ten commands with an icon as the strip and the rest as text, every command included whether or not it applies to a given aircraft.
+
+Each row has a **≡** handle: drag it to move the row, or press Escape to cancel the drag. A line after the tenth row with an icon marks where the icon strip ends; the rows below it show as text. The flight-rules box sets which aircraft get the command: **Default** (the command's own rule, named in brackets), **Both**, **IFR only** or **VFR only**. **X** removes the row.
+
+**Add command…** opens a searchable list of commands grouped by family, leaving out those already in the list; select one and press **Add** or Enter, or double-click it. **Add custom** adds your own entry: a label, a command such as `FH 270`, and optionally a ground command, sent instead while the aircraft is on the ground.
+
+A custom command is sent as if you typed it, with your macros and command verbs, so editing a macro later changes what the entry does. While a custom entry has no label or a command YAAT cannot read, a ⚠ under it says why, and **Apply** and **OK** stay disabled.
+
+**Reset this situation** puts the selected situation back to its default list and **Reset all** puts every situation back; **Reset section** at the bottom of Settings does the same as Reset all. Every change, resets included, waits for **Apply** or **OK**, and **Cancel** discards it. Only the situations you changed are saved, so the ones you never touched pick up improved defaults in later versions.
+
 ### Aircraft List
 
 ![Aircraft List with the OAK scenario's 18 aircraft](docs/user-guide/img/aircraft-list.png)
@@ -1935,7 +1945,11 @@ The command bar remembers your last 50 commands. Navigate with Up/Down arrows:
 
 ![Settings window, General section](docs/user-guide/img/settings-window.png)
 
-Open **Settings** (via **Tools > Settings**, or **Ctrl+,** from any YAAT window) to configure YAAT. A sidebar on the left lists its sections in six groups: **General** (General, Appearance), **Session** (Scenario defaults), **Views** (Radar, Ground, Aircraft list, Strips and vTDLS, Terminal), **Input** (Command input, Command verbs, Macros, Keys), **Voice** (Speech, Audio devices) and **Advanced** (Server admin). Click a section to show its settings. **Tools > Settings** and **Ctrl+,** open on General. The last item of every Radar, Ground, Aircraft list and Terminal right-click menu, aircraft menus included, **Settings for this view…**, opens on that view's section. **Speech settings…** in the mic status menu, the **Voice settings** button on the pilot-voice banner and the **Settings…** button in the Speech Debug window open on Speech. **Live traffic…** in the live-traffic status menu opens the session-settings (⚙) flyout, since live traffic is set per room.
+Open **Settings** (via **Tools > Settings**, or **Ctrl+,** from any YAAT window) to configure YAAT. A sidebar on the left lists its sections in six groups: **General** (General, Appearance), **Session** (Scenario defaults), **Views** (Radar, Ground, Aircraft list, Strips and vTDLS, Terminal), **Input** (Command input, Command verbs, Macros, Quick commands, Keys), **Voice** (Speech, Audio devices) and **Advanced** (Server admin). Click a section to show its settings.
+
+**Tools > Settings** and **Ctrl+,** open on General. The last item of every Radar, Ground, Aircraft list and Terminal right-click menu, aircraft menus included, **Settings for this view…**, opens on that view's section.
+
+**Speech settings…** in the mic status menu, the **Voice settings** button on the pilot-voice banner and the **Settings…** button in the Speech Debug window open on Speech. **Live traffic…** in the live-traffic status menu opens the session-settings (⚙) flyout, since live traffic is set per room.
 
 Settings is modal over every YAAT window, pop-outs included. While it is open the other windows keep their normal look, so the live preview shows true colours, but they ignore clicks, keys and gestures, and clicking one brings Settings to the front. The windows Settings opens itself (Import / Export, file pickers, confirmations) work as usual. When Settings closes, keyboard focus goes back to where it was before Settings opened, or to the command input when that place is gone or was a menu.
 
@@ -1946,7 +1960,11 @@ The buttons along the bottom:
 - **OK** saves your changes and closes the window. It is the default button, so Enter presses it.
 - **Apply** saves your changes and leaves the window open.
 - **Cancel** (or Escape, or closing the window) discards every change you have not applied. Changes you applied stay.
-- **Reset section** (bottom-left) puts every setting in the section you are viewing back to its default. The reset is an ordinary change: Apply or OK saves it, Cancel discards it. Its tooltip says what it covers where that differs: General keeps your initials, Command verbs puts every command's verbs back to the built-in ones, Macros clears every macro and sets the CRC aliases folder back to auto-detect, and Speech keeps downloaded models, the CUDA runtime, the Piper voice pack and saved samples. Aircraft list and Strips and vTDLS have no settings of their own, so the button is greyed out there.
+- **Reset section** (bottom-left) puts every setting in the section you are viewing back to its default. The reset is an ordinary change: Apply or OK saves it, Cancel discards it.
+
+  Its tooltip says what it covers where that differs: General keeps your initials, Command verbs puts every command's verbs back to the built-in ones, Macros clears every macro and sets the CRC aliases folder back to auto-detect, Quick commands puts every situation's quick commands back to their defaults, and Speech keeps downloaded models, the CUDA runtime, the Piper voice pack and saved samples.
+
+  Aircraft list and Strips and vTDLS have no settings of their own, so the button is greyed out there.
 
 A few Speech actions happen the moment you click them and are not undone by Cancel: downloading or deleting a Whisper or LLM model, downloading or uninstalling the CUDA runtime, **Delete all saved samples**, and downloading or deleting the Piper voice pack. Each is labelled *Takes effect at once; Cancel doesn't undo it.* An import made from inside Settings, by contrast, waits for Apply or OK like any other change (see [Importing and exporting settings](#importing-and-exporting-settings)).
 
@@ -2157,6 +2175,10 @@ An editable grid mapping each command to the verb(s) you type for it, so you can
 #### Macros
 
 Define reusable `!NAME` command shortcuts — an editable grid of **Name / Expansion / Preview** plus **Add Macro**, **Import…**, **Export…**, **Export Selected…** (enabled once rows are selected; all three open the [Import / Export](#importing-and-exporting-settings) window with Macros ticked), and per-row delete. The **CRC Aliases** folder above the grid (with **Browse…**) says where YAAT reads your CRC alias files; leave it blank to find the installed CRC on its own (see [CRC aliases](#crc-aliases)). **Reset section** removes every macro and sets the folder back to auto-detect. See the full [Macros](#macros) section for syntax and worked examples.
+
+#### Quick commands
+
+Each situation's quick commands on the aircraft right-click menu: the situation list, a menu preview, the selected situation's commands (drag to reorder, flight rules per command, custom commands with their own label), **Add command…**, **Add custom**, **Reset this situation** and **Reset all**. **Reset section** does the same as Reset all. See [Changing the quick commands](#aircraft-right-click-menu) under the right-click menu for the details.
 
 #### Keys
 
