@@ -1,20 +1,36 @@
 # godot-mcp ideas for the YAAT/CRC client driver
 
-Date: 2026-10-02. Sources: godot-mcp at `D:/godot-mcp` (`README.md`, `docs/TOOLS.md`, `docs/DECISIONS.md`, `docs/ARCHITECTURE.md`, `docs/csharp-runtime-tools.md`, `docs/plans/*.md`, `docs/research/2026-09-29-godot-mcp-survey.md`); yaat `docs/client-driver-mcp.md`, `docs/plans/client-driver-mcp-friction.md` (cited as friction #n), `docs/plans/client-driver-background.md`, `docs/plans/follow-video-montage.md`, `docs/crc-first-session.md`, `tools/montage/follow/README.md`, `docs/plans/HANDOFF.md`; Linear YAAT-114, 172, 173, 174, 220, 230, 237, 242, 245, 246; and the FOLLOW sampler's scratch scripts in `X:/dev/yaat.wt/montage-sampler/yaat/.tmp/sampler/` (`pipe.ps1`, `take.ps1`, `win.ps1`, `start-client.ps1`).
+Date: 2026-10-02.
+
+Sources: godot-mcp at `D:/godot-mcp` (`README.md`, `docs/TOOLS.md`, `docs/DECISIONS.md`, `docs/ARCHITECTURE.md`, `docs/csharp-runtime-tools.md`, `docs/plans/*.md`, `docs/research/2026-09-29-godot-mcp-survey.md`); yaat `docs/client-driver-mcp.md`, `docs/plans/client-driver-mcp-friction.md` (cited as friction #n), `docs/plans/client-driver-background.md`, `docs/plans/follow-video-montage.md`, `docs/crc-first-session.md`, `tools/montage/follow/README.md`, `docs/plans/HANDOFF.md`; Linear YAAT-114, 172, 173, 174, 220, 230, 237, 242, 245, 246; and the FOLLOW sampler's scratch scripts in `X:/dev/yaat.wt/montage-sampler/yaat/.tmp/sampler/` (`pipe.ps1`, `take.ps1`, `win.ps1`, `start-client.ps1`).
 
 ## Summary
 
-The strongest evidence comes from the FOLLOW montage sampler (YAAT-239). Its agent did not use the MCP for the capture. It wrote four scripts around the automation pipe instead. `pipe.ps1` is a batch runner with hard-coded `sleep` steps. `take.ps1` records for a guessed `-Seconds` and starts WGC video and process audio by hand. `win.ps1` moves the window, reads its frame and client rectangles, and posts wheel notches. `start-client.ps1` launches with environment variables that `launch_yaat` cannot pass, then sleeps 14 s. godot-mcp already has a tool for each of these jobs: `batch_drive`, `record_mark` with a real-time recording design, `wait_for`, launch profiles, and game tools. The ranking puts the montage capture loop first, then UI-path bug repro (errors on every result, a state digest, window and modal reporting). CRC's OpenGL scopes can take only the pixel-level ideas: recording, baselines and change waits. Its WPF chrome takes the UIA ones.
+The strongest evidence comes from the FOLLOW montage sampler (YAAT-239). Its agent did not use the MCP for the capture. It wrote four scripts around the automation pipe instead. `pipe.ps1` is a batch runner with hard-coded `sleep` steps. `take.ps1` records for a guessed `-Seconds` and starts WGC video and process audio by hand. `win.ps1` moves the window, reads its frame and client rectangles, and posts wheel notches.
+
+`start-client.ps1` launches with environment variables that `launch_yaat` cannot pass, then sleeps 14 s. godot-mcp already has a tool for each of these jobs: `batch_drive`, `record_mark` with a real-time recording design, `wait_for`, launch profiles, and game tools.
+
+The ranking puts the montage capture loop first, then UI-path bug repro (errors on every result, a state digest, window and modal reporting). CRC's OpenGL scopes can take only the pixel-level ideas: recording, baselines and change waits. Its WPF chrome takes the UIA ones.
 
 Sizes are rough: **S** is MCP-only or one small pipe method (about 200 lines or fewer). **M** is a pipe method plus an MCP tool and tests (about 200–600 lines). **L** is a new helper process or subsystem.
 
-Not borrowed: frame stepping at render-frame granularity (sim ticks run on the server, and client frames carry no meaning); gamepads; the headless scene tools; the `cs_*` reflection tools and `run_csharp`. App-defined tools (idea 4) give the same reach without arbitrary code in the client. Quiet mode and the hidden desktop are also left out: the never-activated window already does that job for YAAT, and CRC cannot be launched that way. Random `stress_input` and `capture_input` replay are left out too, because the sim's own recordings already replay an action log.
+Not borrowed: frame stepping at render-frame granularity (sim ticks run on the server, and client frames carry no meaning); gamepads; the headless scene tools; the `cs_*` reflection tools and `run_csharp`. App-defined tools (idea 4) give the same reach without arbitrary code in the client.
+
+Quiet mode and the hidden desktop are also left out: the never-activated window already does that job for YAAT, and CRC cannot be launched that way. Random `stress_input` and `capture_input` replay are left out too, because the sim's own recordings already replay an action log.
 
 ## 1. Real-time recording owned by the driver (`record_start` / `record_mark` / `record_stop`)
 
-- **godot-mcp:** `docs/plans/realtime-recording.md` (GMCP-6, every question ruled). `record_mark start`/`stop` works on any session. A helper exe (`godot-mcp-capture.exe`, a port of the user's `WgcCapture`) captures the window by the HWND that the bridge's hello reports, so no title search is needed. It crops to the client area from `DWMWA_EXTENDED_FRAME_BOUNDS` against `ClientToScreen`, records the game process's audio through WASAPI process loopback, and pipes into ffmpeg (NVENC, then libx264, then h264_mf). It writes Matroska while recording and remuxes to MP4 at stop. It refuses up front, with the fix, for a minimised window, a missing ffmpeg, or a recording already running. It warns when the measured fps falls below 90% of the target. The shipped Movie Maker route (`TOOLS.md` "Recording", `record_mark`) adds marks cut into clips and `dropIdle`.
-- **YAAT problem:** the montage capture is step 4 of `follow-video-montage.md`, and the sampler's `take.ps1` does it by hand. It finds the window by `-Title "Radar View"`, runs two captures started with `Start-Process`, and stamps wall-clock marks into `<clip>-marks.json`. It uses a fixed `-Seconds` and a `Start-Sleep 60` for a mid-take screenshot. Its crop offset comes from `win.ps1 info` (`crop=1200:700:1:31` in `client-driver-mcp.md` "Recording a demo"). Captions must be aligned to the audio because live playback shifts pilot lines by 1–2 s (montage plan step 4, YAAT-83). Marks stamped with the sim time as well as the wall time would make that alignment mechanical.
-- **Mapping:** feasible for both apps. WGC captures a GPU-drawn window that is covered or never activated, which the WGC spike measured for YAAT, and it should work for CRC's OpenGL windows too (unmeasured for CRC). The pipe's `list_windows` can return each window's HWND; for CRC, UIA's `NativeWindowHandle` gives it. The crop is the `win.ps1 info` arithmetic moved into the server. Audio comes from `--audio-pid`, the client pid (pilot TTS). Each mark records `{wallUtc, simSeconds}`, with `simSeconds` read from the view model over the pipe. `record_stop` returns the clip path, its duration and a contact sheet (the skill's `-Sheet`). Together with idea 3, "stop the take when the follower lands" becomes one call.
+- **godot-mcp:** `docs/plans/realtime-recording.md` (GMCP-6, every question ruled). `record_mark start`/`stop` works on any session. A helper exe (`godot-mcp-capture.exe`, a port of the user's `WgcCapture`) captures the window by the HWND that the bridge's hello reports, so no title search is needed.
+
+  It crops to the client area from `DWMWA_EXTENDED_FRAME_BOUNDS` against `ClientToScreen`, records the game process's audio through WASAPI process loopback, and pipes into ffmpeg (NVENC, then libx264, then h264_mf).
+
+  It writes Matroska while recording and remuxes to MP4 at stop. It refuses up front, with the fix, for a minimised window, a missing ffmpeg, or a recording already running. It warns when the measured fps falls below 90% of the target. The shipped Movie Maker route (`TOOLS.md` "Recording", `record_mark`) adds marks cut into clips and `dropIdle`.
+- **YAAT problem:** the montage capture is step 4 of `follow-video-montage.md`, and the sampler's `take.ps1` does it by hand. It finds the window by `-Title "Radar View"`, runs two captures started with `Start-Process`, and stamps wall-clock marks into `<clip>-marks.json`. It uses a fixed `-Seconds` and a `Start-Sleep 60` for a mid-take screenshot.
+
+  Its crop offset comes from `win.ps1 info` (`crop=1200:700:1:31` in `client-driver-mcp.md` "Recording a demo"). Captions must be aligned to the audio because live playback shifts pilot lines by 1–2 s (montage plan step 4, YAAT-83). Marks stamped with the sim time as well as the wall time would make that alignment mechanical.
+- **Mapping:** feasible for both apps. WGC captures a GPU-drawn window that is covered or never activated, which the WGC spike measured for YAAT, and it should work for CRC's OpenGL windows too (unmeasured for CRC). The pipe's `list_windows` can return each window's HWND; for CRC, UIA's `NativeWindowHandle` gives it. The crop is the `win.ps1 info` arithmetic moved into the server.
+
+  Audio comes from `--audio-pid`, the client pid (pilot TTS). Each mark records `{wallUtc, simSeconds}`, with `simSeconds` read from the view model over the pipe. `record_stop` returns the clip path, its duration and a contact sheet (the skill's `-Sheet`). Together with idea 3, "stop the take when the follower lands" becomes one call.
 - **Size:** L if `WgcCapture` (1,355 lines) is ported into the repo. M if the MCP shells out to the skill's `WgcCapture.exe` when it is present. godot-mcp rejected that shortcut because its server is public. `leftos/yaat` is public too (`gh repo view`), so the shortcut would be a stopgap only.
 - **Linear:** not covered. YAAT-246 covers only the stop condition.
 
@@ -28,7 +44,9 @@ Not borrowed: frame stepping at render-frame granularity (sim ticks run on the s
 
 ## 3. Sim-state waits with godot's extras: `then`, a screenshot at the met moment, sim-time waits
 
-- **godot-mcp:** `wait_for` (`TOOLS.md` "wait_for", decisions 11 and 22). A timeout is a result (`{met: false, last}`), not an error. `options.screenshot` captures the frame the condition held on. `{gameMs}`/`{frames}` wait on the game's own clock, so a pause is never a `timeoutMs`. `options.call` runs a method where the count starts. `step-until-render.md` §3.1 adds `options.then {call, timeScale}`, which acts in the frame the condition is met, with no round trip. `{uiChanged: true}` waits for an unnamed UI change and reports what appeared and disappeared.
+- **godot-mcp:** `wait_for` (`TOOLS.md` "wait_for", decisions 11 and 22). A timeout is a result (`{met: false, last}`), not an error. `options.screenshot` captures the frame the condition held on. `{gameMs}`/`{frames}` wait on the game's own clock, so a pause is never a `timeoutMs`.
+
+  `options.call` runs a method where the count starts. `step-until-render.md` §3.1 adds `options.then {call, timeScale}`, which acts in the frame the condition is met, with no round trip. `{uiChanged: true}` waits for an unnamed UI change and reports what appeared and disappeared.
 - **YAAT problem:** YAAT-246 asks for a sim-state `wait_until` so that a take stops when the follower lands. Friction #17 (recurring in the A1 session) is that hitting a given sim second depends on tool-call latency. The sampler's `Start-Sleep 60` before its `A1-t60` screenshot is the same gap.
 - **Mapping:** needs a pipe method with view-model access (`MainViewModel.Aircraft`, `ScenarioElapsedSeconds`, `IsPaused`, `TerminalEntries`), which is what YAAT-246 already specifies. The godot extras to fold in:
   - `{simSeconds: n}` as a condition, measured on the sim clock and not the wall clock.
@@ -43,7 +61,9 @@ Not borrowed: frame stepping at render-frame granularity (sim ticks run on the s
 
 ## 4. App-defined tools: the client marks its own automation commands
 
-- **godot-mcp:** `list_game_tools` / `call_game_tool` (`TOOLS.md`, decision 26). The game marks methods with its own `[GodotMcpTool("what it does")]` attribute, matched by name in any namespace, with parameter descriptions from `[Description]`. The server exposes two fixed tools, never one dynamic MCP tool per game tool, because an agent's `tools:` line never sees a tool added later. Arguments are an object keyed by parameter name and checked against a JSON Schema before the call. Each listed tool carries `available: false` with its reason when it cannot run. A `Task` result is awaited.
+- **godot-mcp:** `list_game_tools` / `call_game_tool` (`TOOLS.md`, decision 26). The game marks methods with its own `[GodotMcpTool("what it does")]` attribute, matched by name in any namespace, with parameter descriptions from `[Description]`.
+
+  The server exposes two fixed tools, never one dynamic MCP tool per game tool, because an agent's `tools:` line never sees a tool added later. Arguments are an object keyed by parameter name and checked against a JSON Schema before the call. Each listed tool carries `available: false` with its reason when it cannot run. A `Task` result is awaited.
 - **YAAT problem:** framing a take needs view-model actions that UIA and pixels reach badly. The sampler zooms by posting wheel notches (`win.ps1 wheel`), there is no pan tool (friction #25), and the radar view is set by hand. The montage Framing decisions also need these settings, and each is a menu path or a typed command today:
   - video maps 590/594/1;
   - 1-minute RBL lines;
@@ -66,7 +86,9 @@ Not borrowed: frame stepping at render-frame granularity (sim ticks run on the s
 
 - **godot-mcp:** decision 10's error feed and `TOOLS.md` "Rules every tool shares". Every runtime result carries `errors` (file, line, stack) raised while the call ran. The key is absent when there were none. `get_errors(since)` reads warnings too, by sequence cursor. `multi-process-drives.md` part E adds `errorsElsewhere` for errors that the other sessions of a batch raised.
 - **YAAT problem:** `client-driver-mcp.md` says that a button which "does nothing" usually logged `Unhandled UI-thread exception (recovered)`, and the advice is to run `tail_yaat_log` first. In the ERAM session, File > Connect looked like a no-op until `tail_yaat_log` showed the window (friction, 2026-09-27 recurrences). A UI-path repro that misses a swallowed exception reaches the wrong conclusion.
-- **Mapping:** needs a pipe change. The host keeps a ring of `AppLog` warnings, errors and the unhandled-exception handler's entries, each with a sequence number. Every pipe response carries the entries logged since the request started, and a `get_errors(since)` method returns the rest. A no-client-change fallback is for the MCP to read `yaat-client.log` from a remembered byte offset after each call. yaat-server's log (`server.log` in the sampler) could ride the same way once the server is a process session (idea 7). Not applicable to CRC, whose log is not ours. CRC's `%LOCALAPPDATA%\CRC` logs could still be tailed if useful (unmeasured).
+- **Mapping:** needs a pipe change. The host keeps a ring of `AppLog` warnings, errors and the unhandled-exception handler's entries, each with a sequence number. Every pipe response carries the entries logged since the request started, and a `get_errors(since)` method returns the rest.
+
+  A no-client-change fallback is for the MCP to read `yaat-client.log` from a remembered byte offset after each call. yaat-server's log (`server.log` in the sampler) could ride the same way once the server is a process session (idea 7). Not applicable to CRC, whose log is not ours. CRC's `%LOCALAPPDATA%\CRC` logs could still be tailed if useful (unmeasured).
 - **Size:** S to M.
 - **Linear:** not covered.
 
@@ -74,13 +96,17 @@ Not borrowed: frame stepping at render-frame granularity (sim ticks run on the s
 
 - **godot-mcp:** `get_game_state` and `diff_snapshots` (`TOOLS.md`, decision 27, `plans/state-digest.md`). Opted-in nodes return what a player reads off the screen, in one frame, and `keys` filters dotted paths. With `keep`, the read is held flattened per leaf, so `diff_snapshots {beforeId}` after an action names each changed value. `snapshot_subtree` does the same for a UI subtree.
 - **YAAT problem:** UI-path repro and montage checks read state off screenshots. The sampler had to `get_tree` the Solo Training Mode checkbox to learn whether solo was on (`start-client.ps1`), which is YAAT-247's fault. The montage plan's client replay check compared the radar with `bug_bundle.py track --pair` at six sample times by eye.
-- **Mapping:** needs view-model access through a pipe method. It returns `{simSeconds, paused, simRate, playback {mode, position, end}, solo, connected, room, aircraft: [{callsign, type, phase, altitude, groundSpeed, onGround, queue}], rblLines, openWindows}`, with `keys` to trim it. `keep` and `diff` live in the MCP. YAAT-246's conditions read the same digest, so build them once. For CRC, a UIA subtree snapshot and diff (names, values, enabled flags) is feasible for its WPF windows and blind to the scopes.
+- **Mapping:** needs view-model access through a pipe method. It returns `{simSeconds, paused, simRate, playback {mode, position, end}, solo, connected, room, aircraft: [{callsign, type, phase, altitude, groundSpeed, onGround, queue}], rblLines, openWindows}`, with `keys` to trim it.
+
+  `keep` and `diff` live in the MCP. YAAT-246's conditions read the same digest, so build them once. For CRC, a UIA subtree snapshot and diff (names, values, enabled flags) is feasible for its WPF windows and blind to the scopes.
 - **Size:** M (S once YAAT-246's view-model access exists).
 - **Linear:** not covered as a tool. YAAT-246 needs the same access.
 
 ## 7. Launch profiles and process sessions (yaat-server, CRC, the client's env)
 
-- **godot-mcp:** project profiles (`godot-mcp.json`, `TOOLS.md` "Project profiles") with strict parsing and named presets (`scene`, `userArgs`, `engineArgs`, `resolution`, `session`, `description`). `multi-process-drives.md` part B adds `run_process`: a non-game process declared in the profile (`command`, `cwd`, `env`, `ready: {output: regex, timeoutMs}`). It starts in a job with `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`, so `dotnet run`'s child dies with it. It lists in `list_sessions` and stops by name. Part C adds `wait_for {output: regex}` on a session's captured lines.
+- **godot-mcp:** project profiles (`godot-mcp.json`, `TOOLS.md` "Project profiles") with strict parsing and named presets (`scene`, `userArgs`, `engineArgs`, `resolution`, `session`, `description`). `multi-process-drives.md` part B adds `run_process`: a non-game process declared in the profile (`command`, `cwd`, `env`, `ready: {output: regex, timeoutMs}`).
+
+  It starts in a job with `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`, so `dotnet run`'s child dies with it. It lists in `list_sessions` and stops by name. Part C adds `wait_for {output: regex}` on a session's captured lines.
 - **YAAT problem:** `launch_yaat` takes only `appDataDir`, `exePath` and `waitSeconds`. The sampler therefore launched by hand to pass `YAAT_DEV_SOLO_SPEECH_BUBBLES=1` and `--autoconnect`, then slept 14 s (`start-client.ps1`). The voice pack (93 MB) has to be copied into the scratch app-data folder (montage step 4). Seeded `preferences.json` frames a take (montage plan "Framing"). Other gaps:
   - The server on `:5130` is started and tracked by hand (`server.pid`).
   - CRC has no launcher (friction #7, recurring).
@@ -96,9 +122,13 @@ Not borrowed: frame stepping at render-frame granularity (sim ticks run on the s
 
 ## 8. Input results report what the input opened and closed
 
-- **godot-mcp:** `wait_for {uiChanged: true}` (`TOOLS.md`) compares the visible Controls, the focus owner and the top popup with a baseline that the first gesture takes. It returns `{appeared, disappeared, focus, popup}`. `plans/click-signals.md` goes further: each input result lists the signals the press fired (`fired`, `listenedOn`, `leftTree`) and warns when a press reached a disabled or paused control. Input results already name the control the press landed on (`pressedOn`, `releasedOn`) and the exact point aimed at (`aimedAt`).
+- **godot-mcp:** `wait_for {uiChanged: true}` (`TOOLS.md`) compares the visible Controls, the focus owner and the top popup with a baseline that the first gesture takes. It returns `{appeared, disappeared, focus, popup}`.
+
+  `plans/click-signals.md` goes further: each input result lists the signals the press fired (`fired`, `listenedOn`, `leftTree`) and warns when a press reached a disabled or paused control. Input results already name the control the press landed on (`pressedOn`, `releasedOn`) and the exact point aimed at (`aimedAt`).
 - **YAAT/CRC problem:** a modal that an action opens goes unreported. Two Save Profile confirms stacked up unseen (friction #11, #12). `list_windows` misses owned windows: CRC's STARS window and FPE (#1), and YAAT's Connect to Server, Load Recording and Save Recording windows (#1 recurrences). A screenshot leaves out open dialogs (#13). `click` echoes the post-click rectangle, which reads like a failure (#15).
-- **Mapping:** feasible for both. Over the pipe, the client diffs its `list_windows` (owned windows and overlay popups included) and the focused element across the click, inside one request. Over UIA, the MCP diffs the process's top-level and owned windows (`find_elements controlType=Window`) before and after. Each result gains `opened: [...]`, `closed: [...]`, `modal?` and `aimedAt` (the point actually clicked). Avalonia's routed `Click`/`Command` could later play godot's `fired` role, naming the command a click ran. The pipe's click result already names its semantic `action`.
+- **Mapping:** feasible for both. Over the pipe, the client diffs its `list_windows` (owned windows and overlay popups included) and the focused element across the click, inside one request. Over UIA, the MCP diffs the process's top-level and owned windows (`find_elements controlType=Window`) before and after.
+
+  Each result gains `opened: [...]`, `closed: [...]`, `modal?` and `aimedAt` (the point actually clicked). Avalonia's routed `Click`/`Command` could later play godot's `fired` role, naming the command a click ran. The pipe's click result already names its semantic `action`.
 - **Size:** S over the pipe, S to M over UIA.
 - **Linear:** partly covered. YAAT-173 lists "modals opened by an action go unreported" and the owned-window miss. The shape of godot's `uiChanged` result and `aimedAt` is the borrowable part.
 
@@ -139,7 +169,9 @@ Not borrowed: frame stepping at render-frame granularity (sim ticks run on the s
 
 ## 13. Arguments checked by name, refusals that carry the fix, and a hang probe
 
-- **godot-mcp:** `TOOLS.md` "Rules every tool shares". An unknown argument is refused with the list of arguments the tool takes, a wrongly typed one with its expected type, and a missing one by name. A node path that is not found names the deepest node that exists and its children. A text target that misses lists near misses. When a request times out, `HangProbe` (`ARCHITECTURE.md` Wire) pings with 2 s to answer. If the ping is silent, it reports the process's CPU, thread count, main-thread wait reason and last stderr lines.
+- **godot-mcp:** `TOOLS.md` "Rules every tool shares". An unknown argument is refused with the list of arguments the tool takes, a wrongly typed one with its expected type, and a missing one by name. A node path that is not found names the deepest node that exists and its children.
+
+  A text target that misses lists near misses. When a request times out, `HangProbe` (`ARCHITECTURE.md` Wire) pings with 2 s to answer. If the ping is silent, it reports the process's CPU, thread count, main-thread wait reason and last stderr lines.
 - **YAAT/CRC problem:**
   - Friction #4: the bare "An error occurred invoking 'find_elements'", twice, mid-tree-change.
   - YAAT-237: a null `elementId` returns a bare error.

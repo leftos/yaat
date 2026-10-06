@@ -7,7 +7,9 @@ How decisions get made in YAAT, how releases happen, and what to expect from the
 YAAT is two repositories:
 
 - **[yaat](https://github.com/leftos/yaat)** (public, MIT) — the desktop client (`Yaat.Client`), the shared simulation library (`Yaat.Sim`), tests, and tooling.
-- **[yaat-server](https://github.com/leftos/yaat-server)** (private) — the ASP.NET Core server. It implements a backend-protocol emulation compatible with vNAS-style infrastructure, and after the planned vNAS integration it will also carry the pipes through which YAAT talks to the real vNAS servers. The repo is kept private to make it non-trivial for bad actors to study and abuse those communication layers — both vNAS itself and YAAT are hobby projects, and that's the threat-model lens. The substantive part of the codebase — the simulation logic — lives in the public `Yaat.Sim` library, and there is no plan to close-source the public repo.
+- **[yaat-server](https://github.com/leftos/yaat-server)** (private) — the ASP.NET Core server. It implements a backend-protocol emulation compatible with vNAS-style infrastructure, and after the planned vNAS integration it will also carry the pipes through which YAAT talks to the real vNAS servers.
+
+  The repo is kept private to make it non-trivial for bad actors to study and abuse those communication layers — both vNAS itself and YAAT are hobby projects, and that's the threat-model lens. The substantive part of the codebase — the simulation logic — lives in the public `Yaat.Sim` library, and there is no plan to close-source the public repo.
 
 The maintainer set for both repositories is the same (see [MAINTAINERS.md](MAINTAINERS.md)).
 

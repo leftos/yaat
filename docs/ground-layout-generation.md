@@ -826,7 +826,9 @@ The ~980 OAK / ~1909 SFO tangent-misaligned warnings were caused by two validato
 
 **Severity**: High (navigation quality)
 
-**Description**: The runway exit pathfinder uses BFS (`FindAdjacentHoldShort`) to find taxiway paths from the centerline. At fillet intersections, the original intersection node is replaced by two tangent nodes connected by an arc. However, Phase D preserves a straight shortcut edge from the original intersection location to one of the tangent nodes (for shape-point protection). The BFS picks the straight shortcut and never enters the arc, resulting in poor path quality (72ft cross-track deviation on OAK 28R exit G).
+**Description**: The runway exit pathfinder uses BFS (`FindAdjacentHoldShort`) to find taxiway paths from the centerline. At fillet intersections, the original intersection node is replaced by two tangent nodes connected by an arc.
+
+However, Phase D preserves a straight shortcut edge from the original intersection location to one of the tangent nodes (for shape-point protection). The BFS picks the straight shortcut and never enters the arc, resulting in poor path quality (72ft cross-track deviation on OAK 28R exit G).
 
 **Example**: OAK node 359 (G/RWY28R intersection) has edges:
 - To node 1288 via G (straight, 0.0152nm) — matches "G" filter ✓

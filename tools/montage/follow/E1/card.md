@@ -1,6 +1,10 @@
 # E1 — Base follower slightly too close widens its base
 
-**Rule.** A VFR arrival on a right base told to follow traffic on a straight-in final projects where it would roll out on final against where the lead will be then. When it is behind the lead but would roll out short of YAAT's pattern spacing (1 NM behind a piston; a trainer convention, not an FAA figure), it widens its base: it turns 30° off the base heading, away from the field and out along the final, holds that heading until the projected gap is met, then turns back onto the base heading and rolls out at least the spacing behind the lead. It keeps the base leg throughout. YAAT makes no call for a widen this small: AIM 4-3-5 lets the controller 'anticipate minor maneuvering such as shallow “S” turns', though it also asks pilots to advise of maneuvering turns 'if at all possible'.
+**Rule.** A VFR arrival on a right base told to follow traffic on a straight-in final projects where it would roll out on final against where the lead will be then.
+
+When it is behind the lead but would roll out short of YAAT's pattern spacing (1 NM behind a piston; a trainer convention, not an FAA figure), it widens its base: it turns 30° off the base heading, away from the field and out along the final, holds that heading until the projected gap is met, then turns back onto the base heading and rolls out at least the spacing behind the lead.
+
+It keeps the base leg throughout. YAAT makes no call for a widen this small: AIM 4-3-5 lets the controller 'anticipate minor maneuvering such as shallow “S” turns', though it also asks pilots to advise of maneuvering turns 'if at all possible'.
 
 **Grounding.**
 

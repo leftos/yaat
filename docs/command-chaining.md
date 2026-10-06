@@ -22,9 +22,15 @@ block fails after it was accepted. Read this before changing `FlightPhysics.Upda
   *triggered* blocks fire (per-tick scan plus the event paths `NotifyFixSequenced`,
   `NotifyGroundEntityReached`, and the `NotifyPhaseAdvanced` head-block hook). Untriggered
   `;`-blocks wait for the phase to end.
-- **C — idle phase** (`Phase.IsIdleAwaitingCommands`: AtParking, HoldingAfterPushback, HoldingAfterExit, HoldingInPosition, HoldingShort, LinedUpAndWaiting). These phases never complete on their own, so `AdvanceQueueWhileIdle` additionally applies *untriggered* blocks in strict `;` order (issue #407). A block stays queued when the idle phase rejects one of its non-transparent commands that comes before the block's first phase-clearing command. The commands after that one apply against the phase it installs, so `PUSH; TAXIAUTO 30, HS B` taxis after the push although HoldingAfterPushback rejects a bare `HS` (issue #475). A later command whose own apply fails takes the [fire-time abort](#abort-on-fire-time-failure); the installed phase's `CanAcceptCommand` is not consulted for it, as on a direct dispatch, which gates only a block's first command.
+- **C — idle phase** (`Phase.IsIdleAwaitingCommands`: AtParking, HoldingAfterPushback, HoldingAfterExit, HoldingInPosition, HoldingShort, LinedUpAndWaiting). These phases never complete on their own, so `AdvanceQueueWhileIdle` additionally applies *untriggered* blocks in strict `;` order (issue #407). A block stays queued when the idle phase rejects one of its non-transparent commands that comes before the block's first phase-clearing command.
 
-**Decided, not built yet: a block holds only behind an unfired predecessor of its own dispatch.** The queue has one cursor today, so a block a fresh compound preserves and the compound's own chain share one list and whichever comes first can hold the other: preserved-first lets a pre-armed `AT 1000 CM 5000` fire but makes `TAXI D; SQ 1234` wait behind an unmet `AT 5000 CM 7000` until 5,000 ft. The rule scopes "hold behind an unfired predecessor" to blocks of the same dispatch, keyed by `CommandBlock.SourceCommandText` (the per-dispatch key `DiscardChainRemainder` already groups by), at all three advancement sites: `ApplyReadyConditionalBlocks` records the blocker's text and continues past it instead of stopping, `AdvanceQueueWhileIdle`'s `frontierBroken` is per dispatch, and regime A's cursor in `UpdateCommandQueue` becomes a frontier per chain. Both counter-cases (the pre-armed block and the chain behind it) are pinned by tests.
+  The commands after that one apply against the phase it installs, so `PUSH; TAXIAUTO 30, HS B` taxis after the push although HoldingAfterPushback rejects a bare `HS` (issue #475). A later command whose own apply fails takes the [fire-time abort](#abort-on-fire-time-failure); the installed phase's `CanAcceptCommand` is not consulted for it, as on a direct dispatch, which gates only a block's first command.
+
+**Decided, not built yet: a block holds only behind an unfired predecessor of its own dispatch.** The queue has one cursor today, so a block a fresh compound preserves and the compound's own chain share one list and whichever comes first can hold the other: preserved-first lets a pre-armed `AT 1000 CM 5000` fire but makes `TAXI D; SQ 1234` wait behind an unmet `AT 5000 CM 7000` until 5,000 ft.
+
+The rule scopes "hold behind an unfired predecessor" to blocks of the same dispatch, keyed by `CommandBlock.SourceCommandText` (the per-dispatch key `DiscardChainRemainder` already groups by), at all three advancement sites: `ApplyReadyConditionalBlocks` records the blocker's text and continues past it instead of stopping, `AdvanceQueueWhileIdle`'s `frontierBroken` is per dispatch, and regime A's cursor in `UpdateCommandQueue` becomes a frontier per chain.
+
+Both counter-cases (the pre-armed block and the chain behind it) are pinned by tests.
 
 ## Completion per command category
 
@@ -81,7 +87,11 @@ not-yet-applied block with the same `SourceCommandText` (the per-dispatch groupi
 queued by *other* dispatches survive), marks the failed block's commands complete so the queue
 advances past it, and one warning names both the failure and the discarded commands.
 
-One block is not a fire-time failure: a CTO, CTOPP or LUAW block for a departure under a hold for release (`Ground.HeldForRelease`). `FlightPhysics.ApplyBlock` leaves it unapplied with its chain intact (`WaitsForRelease`) and returns `BlockApplyOutcome.Deferred`, not `Failed`: nothing is discarded. At the triggered sites (`ApplyReadyConditionalBlocks`, the idle scan's triggered branch, the fix and ground-node Notify loops) a deferred block is skipped like an unmet trigger, so triggered blocks behind it still fire; an untriggered deferred block stops the idle scan as an unfinished regime-C block does. The first time a block waits, the terminal shows `{callsign} {block} waits for the release`. It fires once `REL` or `HFROFF` lifts the hold ([hold-for-release.md](hold-for-release.md), "Runway-entry gate").
+One block is not a fire-time failure: a CTO, CTOPP or LUAW block for a departure under a hold for release (`Ground.HeldForRelease`). `FlightPhysics.ApplyBlock` leaves it unapplied with its chain intact (`WaitsForRelease`) and returns `BlockApplyOutcome.Deferred`, not `Failed`: nothing is discarded.
+
+At the triggered sites (`ApplyReadyConditionalBlocks`, the idle scan's triggered branch, the fix and ground-node Notify loops) a deferred block is skipped like an unmet trigger, so triggered blocks behind it still fire; an untriggered deferred block stops the idle scan as an unfinished regime-C block does.
+
+The first time a block waits, the terminal shows `{callsign} {block} waits for the release`. It fires once `REL` or `HFROFF` lifts the hold ([hold-for-release.md](hold-for-release.md), "Runway-entry gate").
 
 Ownership: `FlightPhysics.ApplyBlock` owns the abort for every apply path (all three regimes, both
 Notify event paths, `NotifyPhaseAdvanced`); `SimulationEngine.ProcessTriggeredTrackBlocks` invokes

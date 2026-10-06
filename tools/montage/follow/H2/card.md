@@ -1,6 +1,8 @@
 # H2 — Give way to traffic crossing ahead on the taxiway
 
-**Rule.** A taxi clearance with no hold-short instruction lets an aircraft cross every taxiway on its route, so when two taxi routes cross, the ground controller sequences them. Told to give way (`GIVEWAY`, the controller's "behind the traffic" or "hold for the traffic"), the aircraft taxis on to the crossing and stops with its wingtips clear of the traffic's taxiway, lets the named traffic cross ahead of it, and continues on its own clearance once the traffic is past the crossing, with no further call from the controller.
+**Rule.** A taxi clearance with no hold-short instruction lets an aircraft cross every taxiway on its route, so when two taxi routes cross, the ground controller sequences them.
+
+Told to give way (`GIVEWAY`, the controller's "behind the traffic" or "hold for the traffic"), the aircraft taxis on to the crossing and stops with its wingtips clear of the traffic's taxiway, lets the named traffic cross ahead of it, and continues on its own clearance once the traffic is past the crossing, with no further call from the controller.
 
 **Student position.** Oakland Ground (`OAK_GND`, GC1); the scenario's `studentPositionId` is the ground position, so the solo pilots call and answer Ground. Oakland Tower is in the `atc` list.
 

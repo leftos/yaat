@@ -99,7 +99,13 @@ These conventions are baked into the item shape and must be preserved:
   an overridden non-leaf reports the override receiver as its `Owner` (via the ancestor-override climb in `ResolveOwner`), in
   agreement with the receiver's `Children`.
 
-**Same position, `TrackOwner.MatchesPosition`.** Two owners are the same position when their callsigns match, unless both carry a `FacilityId` and the facilities differ (a same-named position at another facility is someone else); a side with no facility still matches on callsign. Otherwise they match on facility + subset + sector. Ownership checks in both repos use it; yaat-server's `CrcClientState.MatchesPosition` only wraps it with logging. A position's owner carries its config facility (a tower TCP carries its TRACON's). **Twin positions:** a vNAS config can list one callsign under two facilities (ZOA lists `OAK_TWR` and 40+ other tower callsigns under both NCT and O90). They are different positions; a lookup by callsign alone (`AS`, a handoff to a callsign) prefers the twin in the entering controller's or student's facility, else the first in the config (user ruling 2026-09-28). The AI staffing recognises the student's position by callsign plus facility (`TrackOwner.IsSamePositionByCallsign`, which skips the shared-TCP match so a ground student does not suspend the AI tower). A recorded CRC command from a position outside the student's facility is written `AS <callsign>@<tcp>` (e.g. `AS OAK_TWR@1O`), a code `RoomEngine.SelectionCodeFor` checks resolves to that position both with no hint and under the student's facility, so replay picks the right twin; codes for the student facility's positions are unchanged.
+**Same position, `TrackOwner.MatchesPosition`.** Two owners are the same position when their callsigns match, unless both carry a `FacilityId` and the facilities differ (a same-named position at another facility is someone else); a side with no facility still matches on callsign. Otherwise they match on facility + subset + sector.
+
+Ownership checks in both repos use it; yaat-server's `CrcClientState.MatchesPosition` only wraps it with logging. A position's owner carries its config facility (a tower TCP carries its TRACON's). **Twin positions:** a vNAS config can list one callsign under two facilities (ZOA lists `OAK_TWR` and 40+ other tower callsigns under both NCT and O90).
+
+They are different positions; a lookup by callsign alone (`AS`, a handoff to a callsign) prefers the twin in the entering controller's or student's facility, else the first in the config (user ruling 2026-09-28). The AI staffing recognises the student's position by callsign plus facility (`TrackOwner.IsSamePositionByCallsign`, which skips the shared-TCP match so a ground student does not suspend the AI tower).
+
+A recorded CRC command from a position outside the student's facility is written `AS <callsign>@<tcp>` (e.g. `AS OAK_TWR@1O`), a code `RoomEngine.SelectionCodeFor` checks resolves to that position both with no hint and under the student's facility, so replay picks the right twin; codes for the student facility's positions are unchanged.
 
 `GetConsolidationOwner` is the single-TCP version used by handoff redirection and auto-accept suppression. It builds the `byId`
 index and defers to the same `ResolveOwner` walk the item build uses, so the two can never disagree.
@@ -279,7 +285,9 @@ sets it true locally): `TrackEngine.AcceptIncomingPointout` (from `HandleAcknowl
 `SharedState[recipient.Id].IsRecentlyAcceptedIncomingPointout = true` on accept, and `TrackEngine.ClearDismissedIncomingPointout` drops the
 stale accepted pointout on the true→false slew flip.
 
-**An unanswered pointout is withdrawn, never accepted.** `TickPointoutTimeout` (a sim spine step) withdraws a pointout still pending after `PointoutNoActionSeconds` (30 s) and advises the initiator to coordinate verbally, because 7110.65 §5-4-7.a.1 says that when the receiver takes no action the controllers revert to verbal procedures: non-response must never become approval. The withdrawal applies everywhere, with no carve-out for the a.1.(b) terminal case. Real STARS never times a pointout out, so this display divergence is deliberate: the timeout exists to clear the flashing pending indicator, and withdrawing (rather than accepting) is what keeps it faithful to §5-4-7.
+**An unanswered pointout is withdrawn, never accepted.** `TickPointoutTimeout` (a sim spine step) withdraws a pointout still pending after `PointoutNoActionSeconds` (30 s) and advises the initiator to coordinate verbally, because 7110.65 §5-4-7.a.1 says that when the receiver takes no action the controllers revert to verbal procedures: non-response must never become approval.
+
+The withdrawal applies everywhere, with no carve-out for the a.1.(b) terminal case. Real STARS never times a pointout out, so this display divergence is deliberate: the timeout exists to clear the flashing pending indicator, and withdrawing (rather than accepting) is what keeps it faithful to §5-4-7.
 
 ### ERAM pointouts — `AircraftEramState.Pointouts`
 

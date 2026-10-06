@@ -232,7 +232,9 @@ Taxiway segments that may only be taxied in one direction. Each constraint is an
 
 Each waypoint is snapped to the nearest graph node; consecutive waypoints that are directly connected forbid that one edge, while two endpoints on the same taxiway have the whole span between them filled by a taxiway-restricted search. Consecutive waypoints **need not share a taxiway**, so the same construct expresses one-way transitions and forbidden turns across a junction; a path of N points traces a curve.
 
-**Wake-class exemptions.** The pathfinder resolves the constraints per wake class: an aircraft whose class (from its type) is in `exemptWakeClasses` is not bound by that entry. A search with no aircraft behind it (the runway-exit walk, LayoutInspector, client-side route fallbacks) resolves them as `Large`. Two entries over the same span combine: a `"reverse"` entry sets the one-way direction for most traffic, and a `"block": "both"` entry exempting every class but one closes the span to that one class. SFO's Terminal 1 south ramp uses both patterns:
+**Wake-class exemptions.** The pathfinder resolves the constraints per wake class: an aircraft whose class (from its type) is in `exemptWakeClasses` is not bound by that entry. A search with no aircraft behind it (the runway-exit walk, LayoutInspector, client-side route fallbacks) resolves them as `Large`.
+
+Two entries over the same span combine: a `"reverse"` entry sets the one-way direction for most traffic, and a `"block": "both"` entry exempting every class but one closes the span to that one class. SFO's Terminal 1 south ramp uses both patterns:
 
 ```json
 "oneWayEdges": [

@@ -1,14 +1,20 @@
 # vEDST sign-in
 
-vEDST (the web ERAM client, [`vFlightDataSystems/VATSIM_EDST_frontend`](https://github.com/vFlightDataSystems/VATSIM_EDST_frontend)) signs in to a yaat server as if the server were vNAS: yaat-server serves vNAS-shaped endpoints under `/vnas` (`src/Yaat.Server/Auth/VnasCompatEndpoints.cs` in yaat-server) and answers them with YAAT-signed tokens. This page is the setup, step by step. The server's own VATSIM sign-in and token model are in [vatsim-auth.md](vatsim-auth.md), the VATSIM Connect clients registered for each server are in its [registered-clients table](vatsim-auth.md#multi-domain-docker-deployment), and the rest of the vEDST integration (JSON hub protocol, joined sessions) is in [vedst.md](vedst.md).
+vEDST (the web ERAM client, [`vFlightDataSystems/VATSIM_EDST_frontend`](https://github.com/vFlightDataSystems/VATSIM_EDST_frontend)) signs in to a yaat server as if the server were vNAS: yaat-server serves vNAS-shaped endpoints under `/vnas` (`src/Yaat.Server/Auth/VnasCompatEndpoints.cs` in yaat-server) and answers them with YAAT-signed tokens.
+
+This page is the setup, step by step. The server's own VATSIM sign-in and token model are in [vatsim-auth.md](vatsim-auth.md), the VATSIM Connect clients registered for each server are in its [registered-clients table](vatsim-auth.md#multi-domain-docker-deployment), and the rest of the vEDST integration (JSON hub protocol, joined sessions) is in [vedst.md](vedst.md).
 
 ## How it works
 
 1. vEDST loads its configuration from `VITE_VNAS_CONFIG_URL`, the server's `/vnas/configuration`. It lists one environment, `YAAT`, whose `apiBaseUrl` is `<server>/vnas` and whose `clientHubUrl` is `<server>/hubs/client`; `<server>` is `Yaat:Vnas:PublicBaseUrl`, or the request's own scheme and host when that is blank.
 2. **Login with VATSIM** builds the VATSIM authorize URL in the browser. The host is hard-coded, `https://auth.vatsim.net/oauth/authorize` (upstream `src/login/Login.tsx:15`), with `client_id` = `VITE_VATSIM_CLIENT_ID`, `redirect_uri` = `<VITE_DOMAIN>/login` and `scope=vatsim_details`, and no PKCE and no `state`. With `VITE_DOMAIN=<server>/vnas` the redirect is the server's `/vnas/login`, the redirect registered on the server's vEDST client.
 3. VATSIM sends the browser to `<server>/vnas/login?code=…`, which answers 302 to `Yaat:Vnas:LoginReturnUrl` carrying the code and nothing else. No request parameter can change the target.
-4. vEDST's `/login` page, back on its own origin, redeems the code at `<server>/vnas/auth/login?code&redirectUrl&clientId`, a cross-origin fetch with credentials, so its origin must be in `Yaat:Vnas:AllowedOrigins`. The server requires `clientId` to equal `Yaat:Vnas:ClientId` and `redirectUrl` to equal `<server>/vnas/login`, exchanges the code with the vEDST client's id and secret, applies VATUSA, and answers `{nasToken, vatsimToken}`: a YAAT access token, and a YAAT refresh token that lives `Yaat:Vnas:RefreshTokenLifetimeHours` (default 24). vEDST keeps `vatsimToken` in localStorage under `vatsim-token`.
-5. vEDST trades the refresh token at `<server>/vnas/auth/refresh?vatsimToken=…` for an access token (plain text; the refresh token is not rotated), opens the CRC hub socket at `clientHubUrl` directly (`skipNegotiation`) with that token as `?access_token=`, and joins the CRC session of the same CID (`GetSessions` → `JoinSession`). The socket takes the token's CID and no room of its own; a missing or invalid token gets HTTP 401 before the upgrade, and the token is never logged. How the hub decides which sockets to accept is in [vatsim-auth.md](vatsim-auth.md#crc-hub-socket-direct-and-joined-clients).
+4. vEDST's `/login` page, back on its own origin, redeems the code at `<server>/vnas/auth/login?code&redirectUrl&clientId`, a cross-origin fetch with credentials, so its origin must be in `Yaat:Vnas:AllowedOrigins`.
+
+   The server requires `clientId` to equal `Yaat:Vnas:ClientId` and `redirectUrl` to equal `<server>/vnas/login`, exchanges the code with the vEDST client's id and secret, applies VATUSA, and answers `{nasToken, vatsimToken}`: a YAAT access token, and a YAAT refresh token that lives `Yaat:Vnas:RefreshTokenLifetimeHours` (default 24). vEDST keeps `vatsimToken` in localStorage under `vatsim-token`.
+5. vEDST trades the refresh token at `<server>/vnas/auth/refresh?vatsimToken=…` for an access token (plain text; the refresh token is not rotated), opens the CRC hub socket at `clientHubUrl` directly (`skipNegotiation`) with that token as `?access_token=`, and joins the CRC session of the same CID (`GetSessions` → `JoinSession`).
+
+   The socket takes the token's CID and no room of its own; a missing or invalid token gets HTTP 401 before the upgrade, and the token is never logged. How the hub decides which sockets to accept is in [vatsim-auth.md](vatsim-auth.md#crc-hub-socket-direct-and-joined-clients).
 
 `LoginReturnUrl` is one value per server, so every vEDST user of a server returns to the same URL: a server set up for `http://localhost:3000/login` serves developers running vEDST locally, and a hosted vEDST needs a server whose `LoginReturnUrl` is its own `/login`.
 
@@ -16,7 +22,9 @@ The other endpoints: `/vnas/artccs/{id}` and `/vnas/airports/{id}` pass through 
 
 ## Enable vEDST sign-in on a deployed server (server owner)
 
-1. **Register a VATSIM Connect client for vEDST**, separate from the server's own (`Yaat:Vatsim`), with the redirect URL `https://<YAAT_DOMAIN>/vnas/login`. It must be a **confidential** client with a secret, not one marked "Public client" in the VATSIM dashboard: vEDST sends no PKCE verifier, so the code exchange is authenticated by the secret alone, and the server treats vEDST sign-in as unconfigured while `Yaat:Vnas:ClientSecret` is blank (`VnasOptions.IsConfigured`, yaat-server `YaatOptions.cs:159-160`). yaat1 uses client 1985 ("yaat1 vedst"). Add a new client to the [registered-clients table](vatsim-auth.md#multi-domain-docker-deployment).
+1. **Register a VATSIM Connect client for vEDST**, separate from the server's own (`Yaat:Vatsim`), with the redirect URL `https://<YAAT_DOMAIN>/vnas/login`.
+
+   It must be a **confidential** client with a secret, not one marked "Public client" in the VATSIM dashboard: vEDST sends no PKCE verifier, so the code exchange is authenticated by the secret alone, and the server treats vEDST sign-in as unconfigured while `Yaat:Vnas:ClientSecret` is blank (`VnasOptions.IsConfigured`, yaat-server `YaatOptions.cs:159-160`). yaat1 uses client 1985 ("yaat1 vedst"). Add a new client to the [registered-clients table](vatsim-auth.md#multi-domain-docker-deployment).
 2. **Add the vEDST keys to the target's env file on the droplet**, `/home/yaat/yaat-server/.env.<target>` (the target's `RemoteEnvFile` in the yaat repo's `deploy-targets.ps1`; `.env.yaat1` for yaat1):
    ```dotenv
    VNAS_VATSIM_CLIENT_ID=1985

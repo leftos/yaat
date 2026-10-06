@@ -220,7 +220,9 @@ client flag is `IsNonMentor`; see [`vatsim-auth.md`](vatsim-auth.md) for the lob
 - `UnloadScenarioAircraft`, `ConfirmUnloadScenario` and `CloseRoom` throw `HubException` `The room is loading a scenario. Try again when it has loaded.`; `RestartScenario` (`CommandResultDto`), `RewindTo`, `RewindFromSnapshot` and `LoadRecording` (`RewindResultDto`) return their failure DTO with the same text. Each checks before it waits on the tick gate and again inside it, since a call can wait on the gate while a load commits.
 - `SendCommand` still reaches the scenario the room is running; the load's commit discards that scenario, commands and all.
 
-A load that fails returns `Success = false` with the failed step's problem as its first warning (the texts are in **Scenario load progress** below: an unreadable JSON leaves the room running what it had, a failure after the unload leaves it empty), and sends no `ScenarioLoaded`. `RoomStateDto.LoadingBy` carries the initials of whoever holds the flag (null otherwise), so a joiner sees a load is running. Once the scenario is read, the room group gets the terminal line `{initials} is loading '{name}'…`, sent directly and not recorded in the outgoing scenario's terminal log. A recording load that fails after it cleared the room leaves the room empty and sends the group `ScenarioUnloaded`.
+A load that fails returns `Success = false` with the failed step's problem as its first warning (the texts are in **Scenario load progress** below: an unreadable JSON leaves the room running what it had, a failure after the unload leaves it empty), and sends no `ScenarioLoaded`. `RoomStateDto.LoadingBy` carries the initials of whoever holds the flag (null otherwise), so a joiner sees a load is running.
+
+Once the scenario is read, the room group gets the terminal line `{initials} is loading '{name}'…`, sent directly and not recorded in the outgoing scenario's terminal log. A recording load that fails after it cleared the room leaves the room empty and sends the group `ScenarioUnloaded`.
 
 ## Server → client broadcast catalog
 
@@ -281,7 +283,9 @@ payload DTO → the `ServerConnection` C# event it re-raises:
 - `ScenarioLoadProgressDto(LoadId, Sequence, ScenarioName, IsComplete, Steps)`: `LoadId` is a new `Guid` ("N" format) per load; `Sequence` goes up by one at every change of the table, item counts included; `ScenarioName` is empty until the `read` step finishes.
 - `LoadStepDto(Id, Label, State, Detail, Problems)`: `State` is one of `pending`, `running`, `done`, `warning` (finished, and something it needed is missing: the load went on without it, `Problems` says what), `failed` (the load stopped here) or `notNeeded` (nothing to do).
 - A finished step is never reopened. Once a step fails or the load ends, the table is complete: one last event with `IsComplete = true` goes out and nothing follows it. `LoadScenarioResult.Steps` is that same table, so the RPC result alone is enough to render the finished overlay. An unexpected exception fails the step the load had reached (the running one, else the next pending one) with `The load failed: {message}.`, then completes the table.
-- A load refused before it started (not in a room, the load flag held elsewhere) sends no events and returns an empty `Steps`. A recording load, and the paths no client watches (`RoomEngine.LoadScenarioAsync` / `LoadScenarioSeededAsync` / `StartLiveSessionAsync`, restore, rewind), report to `ScenarioLoadReporter.None()`, which sends nothing; the unwatched scenario loads still return their table in `Steps`. On the server `LoadScenarioResult.Steps` and `RoomStateDto.LoadingBy` are positional members; the client declares them as `init` properties (`LoadScenarioResultDto.Steps` defaults to empty, `RoomStateDto.LoadingBy` to null).
+- A load refused before it started (not in a room, the load flag held elsewhere) sends no events and returns an empty `Steps`. A recording load, and the paths no client watches (`RoomEngine.LoadScenarioAsync` / `LoadScenarioSeededAsync` / `StartLiveSessionAsync`, restore, rewind), report to `ScenarioLoadReporter.None()`, which sends nothing; the unwatched scenario loads still return their table in `Steps`.
+
+  On the server `LoadScenarioResult.Steps` and `RoomStateDto.LoadingBy` are positional members; the client declares them as `init` properties (`LoadScenarioResultDto.Steps` defaults to empty, `RoomStateDto.LoadingBy` to null).
 
 The steps, in display order, with their text verbatim (`{…}` is filled in; `ScenarioLoadSteps` holds every string):
 
@@ -380,7 +384,9 @@ SignalR's `JsonHubProtocol` calls `JsonSerializer.Serialize<object>(...)` on eve
 metadata throws `JsonSerializerIsReflectionDisabled` **at first use, with no compile error**. The desktop client falls
 through to reflection and works fine — so a forgotten registration is invisible until someone runs the browser client.
 
-`HubJsonContractTests` (`tests/Yaat.Client.Tests`) closes part of that gap: it reflects over every public `Task<T>` method on `ServerConnection` (each one an `InvokeAsync<T>` wrapper) and fails the build when a Core-owned return type is missing from `YaatHubJsonContext`. It covers **Core return types only** — broadcast (`.On<T>`) payloads, method arguments, and the Strips/Tdls contexts aren't reflectable from the method surface and stay unguarded, apart from the `ScenarioLoadProgress` payload: named facts pin `ScenarioLoadProgressDto` and `LoadStepDto` in the context and deserialize the server's load shapes (`Steps`, `LoadingBy`) into the client records.
+`HubJsonContractTests` (`tests/Yaat.Client.Tests`) closes part of that gap: it reflects over every public `Task<T>` method on `ServerConnection` (each one an `InvokeAsync<T>` wrapper) and fails the build when a Core-owned return type is missing from `YaatHubJsonContext`.
+
+It covers **Core return types only** — broadcast (`.On<T>`) payloads, method arguments, and the Strips/Tdls contexts aren't reflectable from the method surface and stay unguarded, apart from the `ScenarioLoadProgress` payload: named facts pin `ScenarioLoadProgressDto` and `LoadStepDto` in the context and deserialize the server's load shapes (`Steps`, `LoadingBy`) into the client records.
 
 The fix is a `[JsonSerializable]` registration in one of **three** source-generated contexts, inserted at the head of the
 resolver chain in the `AddJsonProtocol` callback inside `ServerConnection.ConnectAsync` (`ServerConnection.cs:103`-`106`),
@@ -431,7 +437,9 @@ This split is the source of the most common wire bug — see the checklist below
 
 ## Session-settings fan-out
 
-The 23 session-settings fields are duplicated across **four** DTOs and must move in lockstep: `LoadScenarioResult`, `RoomStateDto`, `ScenarioLoadedDto` and `SessionSettingsDto` (all in yaat-server `Dtos/TrainingDtos.cs`) — with the same set on the client side. The fields: `AutoDeleteOverride`, `EffectiveAutoDeleteMode`, `DepartureAutoDeleteDistanceNm`, `AutoAcceptDelaySeconds`, `AutoClearedToLand`, `AutoCrossRunway`, `AutoPullUpToParallel`, `AutoGoAroundOnOccupiedRunway`, `AutoRejectTakeoffOnOccupiedRunway`, `AutoArrivalSpacingOnOccupiedRunway`, `ValidateDctFixes`, `SoloTrainingMode`, `SoloParkingInitialCallupRatePercent`, `SoloArrivalGeneratorRatePercent`, `SoloGoAroundProbabilityPercent`, `HasSoloParkingInitialCallupSource`, `HasSoloArrivalGeneratorSource`, `RpoShowPilotSpeech`, `CommandRunDelayMinSeconds`, `CommandRunDelayMaxSeconds`, `LiveTrafficEnabled`, `LiveTrafficCeilingFt`, `LiveTrafficFilter`.
+The 23 session-settings fields are duplicated across **four** DTOs and must move in lockstep: `LoadScenarioResult`, `RoomStateDto`, `ScenarioLoadedDto` and `SessionSettingsDto` (all in yaat-server `Dtos/TrainingDtos.cs`) — with the same set on the client side.
+
+The fields: `AutoDeleteOverride`, `EffectiveAutoDeleteMode`, `DepartureAutoDeleteDistanceNm`, `AutoAcceptDelaySeconds`, `AutoClearedToLand`, `AutoCrossRunway`, `AutoPullUpToParallel`, `AutoGoAroundOnOccupiedRunway`, `AutoRejectTakeoffOnOccupiedRunway`, `AutoArrivalSpacingOnOccupiedRunway`, `ValidateDctFixes`, `SoloTrainingMode`, `SoloParkingInitialCallupRatePercent`, `SoloArrivalGeneratorRatePercent`, `SoloGoAroundProbabilityPercent`, `HasSoloParkingInitialCallupSource`, `HasSoloArrivalGeneratorSource`, `RpoShowPilotSpeech`, `CommandRunDelayMinSeconds`, `CommandRunDelayMaxSeconds`, `LiveTrafficEnabled`, `LiveTrafficCeilingFt`, `LiveTrafficFilter`.
 The four DTOs feed three different paths — initial join (`RoomStateDto`), scenario load
 (`LoadScenarioResult` / `ScenarioLoadedDto`), and live update (`SessionSettingsDto`). Add a setting to fewer than all
 four and it silently drops on whichever path you missed.
@@ -455,7 +463,9 @@ event), not the stream itself. Copying the `InvokeAsync<T>` wrapper pattern for 
 This is the canonical version of the add-a-field flow. [server-rooms-and-hub.md](server-rooms-and-hub.md) links here
 rather than restating it.
 
-**Decided shape, not converted yet:** `AircraftStateDto` becomes `required` init properties server-side and `AircraftDto` plain init properties client-side, replacing the defaulted positional constructor parameters (about 100 on the server DTO, against the no-optional-parameters rule). The defaults buy nothing: there is one production construction site (`DtoConverter.cs`), and System.Text.Json fills a missing constructor parameter either way. Until the pair is converted, step 1 below still adds a defaulted parameter; the conversion rewrites this checklist.
+**Decided shape, not converted yet:** `AircraftStateDto` becomes `required` init properties server-side and `AircraftDto` plain init properties client-side, replacing the defaulted positional constructor parameters (about 100 on the server DTO, against the no-optional-parameters rule).
+
+The defaults buy nothing: there is one production construction site (`DtoConverter.cs`), and System.Text.Json fills a missing constructor parameter either way. Until the pair is converted, step 1 below still adds a defaulted parameter; the conversion rewrites this checklist.
 
 1. **Add to `AircraftStateDto`** (`../yaat-server/.../Dtos/TrainingDtos.cs:3`) — a new constructor param with a default
    so older positional call sites still compile.
@@ -497,7 +507,9 @@ extend the resolver to depend on a new input, fingerprint that input too.
 
 - `GroundSpeed` is a computed property (airborne: a function of IAS, wind, altitude, and heading; on the ground: IAS) and is
   fingerprinted, so `IndicatedAirspeed`, `Mach`, `WindDirection`, and `WindSpeed` co-vary with it — none needs its own field.
-- `Situation` (`Yaat.Sim.Situation.AircraftSituation`, a number on the wire, `Unknown = 0`, members append-only) is `SituationClassifier.Classify(ac)`: the aircraft's situation for the context-menu quick commands, from its phase type (a 360/270 or S-turns takes the phase it resumes), live-traffic flag, flight rules and inbound predicates. Several of its inputs (track against the destination bearing, distance) are not fingerprinted, so the situation itself is (`TrainingDtoFingerprint.Situation`): a change of situation alone rebroadcasts the aircraft. The client carries it as `AircraftModel.Situation`.
+- `Situation` (`Yaat.Sim.Situation.AircraftSituation`, a number on the wire, `Unknown = 0`, members append-only) is `SituationClassifier.Classify(ac)`: the aircraft's situation for the context-menu quick commands, from its phase type (a 360/270 or S-turns takes the phase it resumes), live-traffic flag, flight rules and inbound predicates.
+
+  Several of its inputs (track against the destination bearing, distance) are not fingerprinted, so the situation itself is (`TrainingDtoFingerprint.Situation`): a change of situation alone rebroadcasts the aircraft. The client carries it as `AircraftModel.Situation`.
 - `SmartStatus` / `SmartStatusSeverity` derive entirely from fingerprinted `AircraftState` inputs (`AircraftStatusView.FromState`
   → `AircraftStatusDescriber.Describe`); the only non-`ac` inputs (`IsDelayed`, `IsAutoClearedToLand`) are broadcast parameters
   `CaptureTrainingDto` cannot see, and they only matter for moving aircraft. No signature threading is needed.

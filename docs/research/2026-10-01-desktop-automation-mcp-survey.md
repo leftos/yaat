@@ -90,7 +90,9 @@ Projects found but not examined in depth: [locomorange/uiautomation-mcp](https:/
 
 ### Platform APIs referenced
 - `Window.ShowActivated` exists in Avalonia (`src/Avalonia.Controls/Window.cs:152-153`, default `true`), as does `ShowInTaskbar`.
-- Windows Graphics Capture (WGC): `GraphicsCaptureSession.IsBorderRequired` exists, but disabling the yellow border needs consent through `GraphicsCaptureAccess.RequestAccessAsync(Borderless)` and the `graphicsCaptureWithoutBorder` capability ([MS Learn](https://learn.microsoft.com/en-us/uwp/api/windows.graphics.capture.graphicscapturesession.isborderrequired)). On 24H2, frames arrive only when content changes ([Composition-Win32-Samples #142](https://github.com/microsoft/Windows.UI.Composition-Win32-Samples/issues/142)), so the encoder must not use frame arrival as its clock.
+- Windows Graphics Capture (WGC): `GraphicsCaptureSession.IsBorderRequired` exists, but disabling the yellow border needs consent through `GraphicsCaptureAccess.RequestAccessAsync(Borderless)` and the `graphicsCaptureWithoutBorder` capability ([MS Learn](https://learn.microsoft.com/en-us/uwp/api/windows.graphics.capture.graphicscapturesession.isborderrequired)).
+
+  On 24H2, frames arrive only when content changes ([Composition-Win32-Samples #142](https://github.com/microsoft/Windows.UI.Composition-Win32-Samples/issues/142)), so the encoder must not use frame arrival as its clock.
 - Per-process audio: `ActivateAudioInterfaceAsync` with `AUDIOCLIENT_ACTIVATION_TYPE_PROCESS_LOOPBACK` captures "only audio from the specified process, and its children" ([ApplicationLoopback sample](https://learn.microsoft.com/en-us/samples/microsoft/windows-classic-samples/applicationloopbackaudio-sample/)).
 
 ## 3. What the survey shows
@@ -101,16 +103,22 @@ Projects found but not examined in depth: [locomorange/uiautomation-mcp](https:/
 
 ## 4. Ideas worth borrowing, ranked for "no focus stealing, no visible window, real-time 1080p radar video with app audio"
 
-**Rank 1: in-app offscreen radar renderer feeding the recorder directly.** Video and screenshots never touch the window. YAAT's radar already renders with SkiaSharp from a snapshot on a separate thread ("two-thread snapshot split", `docs/radar-rendering.md`). The client could keep a second `SKSurface` at a fixed 1920x1080, independent of window size and visibility, draw the same snapshot into it on a 30/60 Hz clock, and pipe BGRA frames to ffmpeg (stdin or a named pipe). For audio, either tap the client's own TTS/audio output in process, or capture the client PID with process-loopback WASAPI. The window can then be minimized, hidden or never shown. This is the only option where the output resolution does not depend on the window. Cost: only the radar is recorded, not surrounding chrome or popups, unless those are composed in too. Not measured: the cost of rendering at 1080p30.
+**Rank 1: in-app offscreen radar renderer feeding the recorder directly.** Video and screenshots never touch the window. YAAT's radar already renders with SkiaSharp from a snapshot on a separate thread ("two-thread snapshot split", `docs/radar-rendering.md`). The client could keep a second `SKSurface` at a fixed 1920x1080, independent of window size and visibility, draw the same snapshot into it on a 30/60 Hz clock, and pipe BGRA frames to ffmpeg (stdin or a named pipe).
+
+For audio, either tap the client's own TTS/audio output in process, or capture the client PID with process-loopback WASAPI. The window can then be minimized, hidden or never shown. This is the only option where the output resolution does not depend on the window. Cost: only the radar is recorded, not surrounding chrome or popups, unless those are composed in too. Not measured: the cost of rendering at 1080p30.
 
 **Rank 2: an in-app automation endpoint (AvaloniaMcp / Zafiro pattern) that replaces UIA for input.** A named pipe in `Yaat.Client` started by a builder extension, with a discovery file per PID and all work marshalled to `Dispatcher.UIThread`. Input options:
 - (a) Semantic: `ICommand.Execute`, setting `TextBox.Text`, or calling `MainViewModel` methods directly. This is the most robust.
 - (b) Synthetic routed events: `PointerPressed`/`PointerReleased` and `KeyEventArgs` via `RaiseEvent` (Zafiro `InputHandler.cs:209-233`).
 - (c) Untested idea: feed `RawPointerEventArgs`/`RawKeyEventArgs` into the window's input pipeline, the way `Avalonia.Headless` does, so hit-testing and focus logic behave as with real input.
 
-Screenshots use `RenderTargetBitmap`, whose docs require a window attached and visible but not foreground, and which renders in software. Not checked: how it handles the radar's custom Skia draw operation. Show the window with `ShowActivated=false` behind other windows or on a second monitor, and it never needs activation. Worth copying from Zafiro: selectors, `wait_for`, event subscriptions, structured error codes, and popup-root-aware screenshots. This approach removes the focus problem for driving the app and for still screenshots. It does not solve video by itself.
+Screenshots use `RenderTargetBitmap`, whose docs require a window attached and visible but not foreground, and which renders in software. Not checked: how it handles the radar's custom Skia draw operation. Show the window with `ShowActivated=false` behind other windows or on a second monitor, and it never needs activation.
 
-**Rank 3: Avalonia.Headless with Skia, plus the VNC option, as a separate launch mode.** No HWND exists at all. Frames come from `CaptureRenderedFrame()` and input from `KeyPress`/`MouseDown`, which run through the real input manager. A human can watch over `StartWithHeadlessVncPlatform`. Drawbacks: we would pump the render clock for real-time video; Win32-specific features (UIA, real windows that CRC-comparison tooling expects) disappear; RTB/headless rendering is software. Zafiro itself warns its headless "screenshot is best-effort". It suits deterministic guide captures (compare `tools/Yaat.GuideCapture`) more than live recording.
+Worth copying from Zafiro: selectors, `wait_for`, event subscriptions, structured error codes, and popup-root-aware screenshots. This approach removes the focus problem for driving the app and for still screenshots. It does not solve video by itself.
+
+**Rank 3: Avalonia.Headless with Skia, plus the VNC option, as a separate launch mode.** No HWND exists at all. Frames come from `CaptureRenderedFrame()` and input from `KeyPress`/`MouseDown`, which run through the real input manager. A human can watch over `StartWithHeadlessVncPlatform`.
+
+Drawbacks: we would pump the render clock for real-time video; Win32-specific features (UIA, real windows that CRC-comparison tooling expects) disappear; RTB/headless rendering is software. Zafiro itself warns its headless "screenshot is best-effort". It suits deterministic guide captures (compare `tools/Yaat.GuideCapture`) more than live recording.
 
 **Rank 4: keep the out-of-process UIA driver but adopt DCU's techniques**, for the CRC side or anything we do not own:
 - UIA patterns (`Invoke`, `Value`, `Toggle`) before any coordinate input, and never `SetForegroundWindow`.

@@ -16,23 +16,31 @@ The version lives in `Directory.Build.props` at the yaat repo root (`<Version>`)
 
 Portable archives bundle the single-file exe plus sibling native DLLs (libSkiaSharp, HarfBuzz, LM-Kit) and run without install or auto-update.
 
-The portable is always the `*-Portable.zip` that `vpk pack` emits next to the installer, never a renamed bare `dotnet publish` single-file exe. `PublishSingleFile` embeds only the managed assemblies; the natives stay as sibling files in the publish folder, so a lone exe crashes at startup with `DllNotFoundException: libSkiaSharp`. Velopack packs the whole publish folder, which is why its zip works. A true single-file portable would need `-p:IncludeNativeLibrariesForSelfExtract=true -p:IncludeAllContentForSelfExtract=true` (self-extracts to a temp folder on first run); without those flags, do not ship a bare exe.
+The portable is always the `*-Portable.zip` that `vpk pack` emits next to the installer, never a renamed bare `dotnet publish` single-file exe. `PublishSingleFile` embeds only the managed assemblies; the natives stay as sibling files in the publish folder, so a lone exe crashes at startup with `DllNotFoundException: libSkiaSharp`.
+
+Velopack packs the whole publish folder, which is why its zip works. A true single-file portable would need `-p:IncludeNativeLibrariesForSelfExtract=true -p:IncludeAllContentForSelfExtract=true` (self-extracts to a temp folder on first run); without those flags, do not ship a bare exe.
 
 ## macOS architectures and update channels
 
 Apple Silicon and Intel ship as two separate packages rather than one universal bundle: `PublishSingleFile` embeds the managed payload in the apphost, so the two publishes cannot be `lipo`'d together without giving up single-file.
 
-Velopack resolves updates **by channel**, and its docs require one channel per os/arch — otherwise the updater will eventually hand an Intel package to an Apple Silicon client. So `vpk pack` is passed `--channel osx-arm64` / `--channel osx-x64`, which also puts the channel into every filename it emits (`YaatClient-osx-arm64-Setup.pkg`, `releases.osx-arm64.json`, …). It is additionally passed `--runtime <rid>`, which records the architecture as `.pkg` metadata so the macOS Installer refuses the wrong package — without it Rosetta would silently run the Intel build on Apple Silicon.
+Velopack resolves updates **by channel**, and its docs require one channel per os/arch — otherwise the updater will eventually hand an Intel package to an Apple Silicon client. So `vpk pack` is passed `--channel osx-arm64` / `--channel osx-x64`, which also puts the channel into every filename it emits (`YaatClient-osx-arm64-Setup.pkg`, `releases.osx-arm64.json`, …).
+
+It is additionally passed `--runtime <rid>`, which records the architecture as `.pkg` metadata so the macOS Installer refuses the wrong package — without it Rosetta would silently run the Intel build on Apple Silicon.
 
 `UpdateService` needs no channel argument: constructed with `channel: null`, Velopack looks for updates in whatever channel the *installed* release was packed with.
 
-**The `osx` → `osx-arm64` supersede.** Before the split, arm64 shipped on Velopack's default `osx` channel, and those installs fetch `releases.osx.json` by exact filename. `release-macos.yml` therefore publishes copies of the arm64 index under the old names (`releases.osx.json`, `assets.osx.json`, `RELEASES-osx`) alongside the new ones. An old client finds the copy, updates once, and thereafter carries the `osx-arm64` channel and follows it. Intel never had an `osx` install, so it needs no equivalent. These three copies can be deleted once the arm64 install base has moved off the old channel.
+**The `osx` → `osx-arm64` supersede.** Before the split, arm64 shipped on Velopack's default `osx` channel, and those installs fetch `releases.osx.json` by exact filename. `release-macos.yml` therefore publishes copies of the arm64 index under the old names (`releases.osx.json`, `assets.osx.json`, `RELEASES-osx`) alongside the new ones.
+
+An old client finds the copy, updates once, and thereafter carries the `osx-arm64` channel and follows it. Intel never had an `osx` install, so it needs no equivalent. These three copies can be deleted once the arm64 install base has moved off the old channel.
 
 ## macOS Intel validation
 
 `release-macos.yml`'s `smoke-intel` job gates the release on a real x86_64 machine (`macos-15-intel` — the last Intel image GitHub offers, available until August 2027). It verifies that every native the x64 publish ships carries an `x86_64` slice, then runs a Whisper transcription through `Yaat.SpeechSandbox --lmkit-stt` to prove LM-Kit's native backend actually loads and runs on an Intel CPU.
 
-Two LM-Kit dylibs are deliberately exempt from the slice check. LM-Kit publishes its macOS natives from a RID-agnostic `runtimes/osx/` folder, so `LM-Kit.ggml.backend.metal.dylib` (arm64-only) and `LM-Kit.onnxruntime.dylib` (arm64-only) are copied into the x64 output too. Neither is loaded on Intel: Metal is skipped in favour of the CPU backend, and LM-Kit's ONNX runtime only serves ONNX models while YAAT loads GGUF exclusively. Any *other* dylib missing an `x86_64` slice fails the release rather than shipping a build that aborts at its first `dlopen`.
+Two LM-Kit dylibs are deliberately exempt from the slice check. LM-Kit publishes its macOS natives from a RID-agnostic `runtimes/osx/` folder, so `LM-Kit.ggml.backend.metal.dylib` (arm64-only) and `LM-Kit.onnxruntime.dylib` (arm64-only) are copied into the x64 output too.
+
+Neither is loaded on Intel: Metal is skipped in favour of the CPU backend, and LM-Kit's ONNX runtime only serves ONNX models while YAAT loads GGUF exclusively. Any *other* dylib missing an `x86_64` slice fails the release rather than shipping a build that aborts at its first `dlopen`.
 
 ## Code signing and notarization (macOS)
 
@@ -58,7 +66,9 @@ secrets is a one-time task documented in [`macos-code-signing.md`](macos-code-si
 
 `UpdateService` checks GitHub Releases via Velopack's `GithubSource` and surfaces an update notification bar in `MainWindow`. The auto-updater fetches the `RELEASES*`, `*.json`, and `*-full.nupkg` assets by exact filename, so `release.yml` copies those metadata files into the release **without renaming** — only the user-facing installer/portable filenames get the `-{version}-` suffix.
 
-The check runs automatically five seconds after startup and stays silent unless an update exists. **Help → Check for Updates…** runs the same check on demand and reports every outcome in a message box, because a user who asks the question expects an answer: it offers the download when an update is found, confirms the build is current when it isn't, points at the releases page when Velopack has no install to update (portable or run from source), and shows the failure reason otherwise. `UpdateService.CheckForUpdateAsync` returns an `UpdateCheckResult` carrying an `UpdateCheckOutcome` to keep those four cases distinguishable — they used to collapse into a single `null`.
+The check runs automatically five seconds after startup and stays silent unless an update exists. **Help → Check for Updates…** runs the same check on demand and reports every outcome in a message box, because a user who asks the question expects an answer: it offers the download when an update is found, confirms the build is current when it isn't, points at the releases page when Velopack has no install to update (portable or run from source), and shows the failure reason otherwise.
+
+`UpdateService.CheckForUpdateAsync` returns an `UpdateCheckResult` carrying an `UpdateCheckOutcome` to keep those four cases distinguishable — they used to collapse into a single `null`.
 
 ## CRC install-time configuration
 
@@ -76,7 +86,9 @@ Triggered on `push` of a `v*` tag. Jobs run in dependency order:
 
 ### Workflow authoring notes
 
-- `windows-latest` `run:` steps default to **pwsh**, where `"$VPK_VERSION"` is an undefined PowerShell variable that expands to an empty string rather than the env var. Reference env vars as `$env:VPK_VERSION` (or `${{ env.VPK_VERSION }}`, or set `shell: bash`); the Linux/macOS steps use the bash `"$VPK_VERSION"` form. The failure mode is silent: `dotnet tool install -g vpk --version ""` installs the latest vpk and the only symptom is a `Velopack library version is lower than vpk version` warning in the pack log.
+- `windows-latest` `run:` steps default to **pwsh**, where `"$VPK_VERSION"` is an undefined PowerShell variable that expands to an empty string rather than the env var. Reference env vars as `$env:VPK_VERSION` (or `${{ env.VPK_VERSION }}`, or set `shell: bash`); the Linux/macOS steps use the bash `"$VPK_VERSION"` form.
+
+  The failure mode is silent: `dotnet tool install -g vpk --version ""` installs the latest vpk and the only symptom is a `Velopack library version is lower than vpk version` warning in the pack log.
 - Release text travels between jobs and into the release action as files, never as a job or step output: the runner silently drops a job output it takes for a credential (`Skip output '…' since it may contain secret.`), and `password=` followed by any non-space character is enough, so a changelog bullet quoting a `?password=` query empties the value.
 - The `vpk` pin (`VPK_VERSION`) lives in **two** workflow files, `release.yml` and `release-macos.yml`, and must stay equal to the `Velopack` package version in the client csproj. When bumping either, grep every workflow for the env name and check each consumer's shell.
 
@@ -117,7 +129,9 @@ git push origin v{version}
 
 ### Troubleshooting: the tag push started no workflow
 
-- **Signature:** `gh api "repos/leftos/yaat/actions/runs?head_sha=<sha>"` still reports `total_count: 0` well after the push. Two known causes: a GitHub Actions outage drops the push event outright (it is not queued, and recovery does not replay it), and GitHub occasionally coalesces a simultaneous branch push and tag push into one delivered `push` webhook, in which case only the `main`-triggered CI workflow fires. The second cause is why `/prepare-release` pushes `main` and the tag as two separate commands.
+- **Signature:** `gh api "repos/leftos/yaat/actions/runs?head_sha=<sha>"` still reports `total_count: 0` well after the push.
+
+  Two known causes: a GitHub Actions outage drops the push event outright (it is not queued, and recovery does not replay it), and GitHub occasionally coalesces a simultaneous branch push and tag push into one delivered `push` webhook, in which case only the `main`-triggered CI workflow fires. The second cause is why `/prepare-release` pushes `main` and the tag as two separate commands.
 - **Recovery:** delete and re-push the tag to generate a fresh tag-push event; both `release.yml` and `release-macos.yml` then fire normally. There is no rerun path for a run that was never created.
 
   ```bash

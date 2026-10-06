@@ -1,6 +1,8 @@
 # C2 — Pursuit too close behind a pattern-bound lead S-turns for spacing
 
-**Rule.** A VFR aircraft told to follow traffic that is bound for the pattern, but has no runway yet, pursues it at YAAT's pattern spacing (1.0 NM behind a Cessna, a trainer convention), measured along the lead's path. Told to follow from closer than that, it does not slow alone and close up nose to tail: it makes a shallow S-turn to the pattern side at its slowest safe speed, tells the tower "S-turning for spacing behind the traffic.", and once the gap is built turns back to fly nose-on to the lead in trail.
+**Rule.** A VFR aircraft told to follow traffic that is bound for the pattern, but has no runway yet, pursues it at YAAT's pattern spacing (1.0 NM behind a Cessna, a trainer convention), measured along the lead's path.
+
+Told to follow from closer than that, it does not slow alone and close up nose to tail: it makes a shallow S-turn to the pattern side at its slowest safe speed, tells the tower "S-turning for spacing behind the traffic.", and once the gap is built turns back to fly nose-on to the lead in trail.
 
 **Grounding.**
 
