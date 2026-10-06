@@ -14,6 +14,7 @@
 ## Follow on the taxi graph (feat/follow-on-graph)
 
 - [/] YAAT-316 FOLLOWG follower cuts across the field off the taxiways and can bypass a runway hold line · release vNext
+- [ ] YAAT-407 Merge feat/follow-on-graph (#881) · release vNext
 
 ## Bug reports and feature requests
 
@@ -47,6 +48,9 @@
 - [ ] YAAT-284 FOLLOW gets no pilot readback in solo; late 'traffic in sight' in clip C2
 - [ ] YAAT-288 Find what gave an automation-mode client the keyboard foreground for 3.5 s (YAAT-282 leftover)
 - [ ] YAAT-403 Support for vTBFM
+  - [ ] YAAT-411 Serve each room's traffic as a VATSIM-datafeed-shaped JSON feed
+  - [ ] YAAT-412 vTBFM: meter on the feed's clock (contributed PR)
+  - [ ] YAAT-413 Integration and smoke test a YAAT-fed vTBFM, then write the setup steps
 
 ## Client driver in the background (#474)
 
@@ -63,7 +67,7 @@
   - [x] YAAT-14 Context-menu quick commands: brief 7e (one tree on every surface) · release vNext
     - [ ] YAAT-312 Context menu: stale descriptions after the builder refactor
   - [x] YAAT-15 Context-menu quick commands step 3: per-situation lists with the icon strip · release vNext
-  - [/] YAAT-400 Context-menu quick commands step 5: Quick Commands editor in Settings · release vNext
+  - [x] YAAT-400 Context-menu quick commands step 5: Quick Commands editor in Settings · release vNext
 - [/] YAAT-16 Merge feat/context-menu-quick-commands (#471, yaat-server#21) · release vNext
 - [x] YAAT-275 Ground right-click on a runway surface offers taxi to that runway (nearest hold short) · release vNext
 - [x] YAAT-224 Open the command and note flyouts through MenuPopups; drop the unreachable blank-input branches · release vNext
@@ -179,6 +183,8 @@
 - [ ] YAAT-401 HS mid-taxi: judge 'unable' against the firm braking rate, and brake firm on an unable overrun
 - [ ] YAAT-402 Count an aircraft past a runway hold line as fouling that runway
 - [ ] YAAT-404 Split TaxiingPhase.OnTick under the 100-line limit
+- [ ] YAAT-410 Start-node hold aims the centre, not the nose; ILS/approach holds; firm taxi stop rate
+- [ ] YAAT-414 Navigator reads an aircraft in line but short of segment 0 as off-line and crawls at 5 kt
 
 ## Wave 2 — Ground command grammar and dispatch
 
@@ -220,6 +226,8 @@
 - [ ] YAAT-73 Fix TAXI-after-PUSH route opening geometry (177° entry-align turn)
 - [ ] YAAT-74 Fix #454/#461 review findings: stand roll-in, heading, TAXI cost, connector
 - [ ] YAAT-75 Rewrite the Legacy Fillet Arc Generator section; rehome the collinear rule
+- [ ] YAAT-408 Taxiway hold short binds at a fillet tangent cut and stops ~75 ft early
+- [ ] YAAT-409 HS of a taxiway behind the aircraft folds the route back (C A C H at KOAK)
 
 ## Wave 4 — Replay, rewind and stuck-taxi repros
 
@@ -325,6 +333,9 @@
 - [ ] YAAT-371 Datablock flash phase follows process uptime (Environment.TickCount64): add a shared flash clock GuideCapture can pin
 - [x] YAAT-374 Timeline rail draws every bookmark and finding tick at its left edge · release vNext
 - [x] YAAT-375 Timeline slider thumb jumps to 0 after a rewind instead of the playhead · release vNext
+- [/] YAAT-415 Split markdown lines of 500+ characters in yaat and yaat-server
+- [ ] YAAT-416 UserPreferencesTaxiRouteDisplayTests defaults test reads shared preferences (flaky)
+- [ ] YAAT-417 AppToolsTests automation pipe breaks under load (Pipe is broken)
 
 ## Singles
 
