@@ -53,6 +53,9 @@ public partial class GroundViewModel : ObservableObject
 {
     private readonly ILogger _log = AppLog.CreateLogger<GroundViewModel>();
 
+    /// <summary>The aircraft, shape and target of every turn about already warned of as aimed at a node the layout lacks.</summary>
+    private readonly HashSet<(string Callsign, TaxiTurnAboutShape Shape, int? Target)> _warnedTurnAboutTargets = [];
+
     private readonly ServerConnection _connection;
     private readonly Func<string, string, string, Task> _sendCommand;
     private readonly Action<AircraftModel?>? _onSelectionChanged;
@@ -1627,21 +1630,14 @@ public partial class GroundViewModel : ObservableObject
 
     /// <summary>
     /// <see cref="ResolveRemainingRoute"/> from the server's start node: the route from <paramref name="start"/>, or from
-    /// the other end of the edge the aircraft stands on when the simulation reports a turn about (<see cref="TurnAboutRoute"/>),
-    /// recovered when it resolves none.
+    /// the node the simulation's turn about turns the aircraft toward (<see cref="TurnAboutStart"/>), recovered when it
+    /// resolves none.
     /// </summary>
     private TaxiRoute? ResolveRemainingRouteFrom(AircraftModel ac, RemainingRouteRequest request, GroundNode start)
     {
+        (start, bool turnedAbout) = TurnAboutStart(ac, start);
         TaxiRoute? route = request.ResolveFrom(start, out PathfindingFailure? failure);
-
-        // The simulation reports a turn about it planned on the taxiway the aircraft stands on; the overlay draws one only then.
-        (GroundNode Start, TaxiRoute Route)? turnAbout = TurnAboutRoute(ac, start, route, from => request.ResolveFrom(from, out _));
-        if (turnAbout is { } turned)
-        {
-            (start, route, failure) = (turned.Start, turned.Route, null);
-        }
-
-        if ((route is not null) && (ResolvedRemainingRoute(ac, request, route, turnAbout is not null) is { } resolved))
+        if ((route is not null) && (ResolvedRemainingRoute(ac, request, route, turnedAbout) is { } resolved))
         {
             return resolved;
         }
@@ -1876,78 +1872,57 @@ public partial class GroundViewModel : ObservableObject
         ((_domainLayout is null) || (route is null)) ? route : TaxiApproachLeg.Prepend(_domainLayout, position, heading, route);
 
     /// <summary>
-    /// The turn about the simulation reports pending (<see cref="AircraftModel.TaxiTurnAboutPending"/>) for an aircraft
-    /// mid-way along a straight taxi edge (<see cref="AirportGroundLayout.FindMidEdgeTaxiStart"/>), drawn in the shape the
-    /// simulation flies it. The overlay never decides a turn about itself; it picks the shape the way the TAXI handler did.
-    /// The route from the other end of the edge from <paramref name="start"/> (<see cref="FarEndRoute"/>) when it resolves
-    /// and does not drive back over the edge, else the route from <paramref name="start"/>, which reverses in place over the
-    /// edge, is kept. Null when no turn about is pending, the aircraft is not mid-edge, <paramref name="start"/> is not one
-    /// of the edge's ends, the route from <paramref name="start"/> already leaves the edge
-    /// (<see cref="GroundCommandHandler.DrivesOccupiedEdge"/>) because the aircraft has turned to face that end, or neither
-    /// end resolves a route.
+    /// Where the overlay resolves the route from, and whether that route opens with the turn about the simulation sent
+    /// (<see cref="AircraftModel.TaxiTurnAboutShape"/>), which starts behind the aircraft by design. The overlay draws
+    /// exactly the shape it is sent and reads neither shape off the heading: both are placed by the sent target node
+    /// (<see cref="AircraftModel.TaxiTurnAboutTargetNodeId"/>) and the straight edge the aircraft stands mid-way along
+    /// (<see cref="AirportGroundLayout.FindMidEdgeTaxiStart"/>), which ends at that target while the turn about is still
+    /// ahead of it. <see cref="TaxiTurnAboutShape.FromFarEnd"/> resolves from the target;
+    /// <see cref="TaxiTurnAboutShape.InPlace"/> resolves from that edge's other end, the node ahead whose route reverses
+    /// over the edge. Otherwise, with no turn about sent, or once the aircraft is off that edge, it resolves from
+    /// <paramref name="start"/> with no turn about. That edge check passes on any straight edge ending at the target,
+    /// segment 0's included; the simulation stops sending the shape once the aircraft has passed the target. A target the
+    /// layout lacks is warned of once per callsign and value, then logged at Debug.
     /// </summary>
-    private (GroundNode Start, TaxiRoute Route)? TurnAboutRoute(
-        AircraftModel ac,
-        GroundNode start,
-        TaxiRoute? fromStart,
-        Func<GroundNode, TaxiRoute?> resolve
-    )
+    private (GroundNode Start, bool TurnedAbout) TurnAboutStart(AircraftModel ac, GroundNode start)
     {
-        if (PendingTurnAboutEdge(ac, start) is not { } occupied)
+        if ((ac.TaxiTurnAboutShape == TaxiTurnAboutShape.None) || (_domainLayout is not { } layout))
         {
-            return null;
+            return (start, false);
         }
 
-        if ((fromStart is not null) && !GroundCommandHandler.DrivesOccupiedEdge(fromStart, occupied))
+        if ((ac.TaxiTurnAboutTargetNodeId is not { } targetId) || (layout.Nodes.GetValueOrDefault(targetId) is not { } target))
         {
-            return null;
+            LogTurnAboutTargetMissing(ac, layout, start);
+            return (start, false);
         }
 
-        GroundNode otherEnd = occupied.OtherNode(start);
-        if (FarEndRoute(ac, fromStart, occupied, otherEnd, resolve) is { } fromOtherEnd)
+        if ((layout.FindMidEdgeTaxiStart(ac.Position) is not { } occupied) || !occupied.Nodes.Contains(target))
         {
-            return (otherEnd, fromOtherEnd);
+            return (start, false);
         }
 
-        return (fromStart is null) ? null : (start, fromStart);
+        return (ac.TaxiTurnAboutShape == TaxiTurnAboutShape.FromFarEnd) ? (target, true) : (occupied.OtherNode(target), true);
     }
 
     /// <summary>
-    /// The route from <paramref name="otherEnd"/> the simulation turned the aircraft about to, or null when it kept the
-    /// route from the end ahead: a lined-up jet (<see cref="GroundCommandHandler.IsJetLinedUpWith"/>) with a turn about
-    /// pending was cleared by no controller, so it keeps any route from the end ahead; otherwise the route from
-    /// <paramref name="otherEnd"/> wins when it resolves and does not drive back over <paramref name="occupied"/>.
+    /// Logs a turn about sent toward a node the layout lacks: a warning the first time for the aircraft and the sent shape
+    /// and target, at Debug on every later draw of it.
     /// </summary>
-    private static TaxiRoute? FarEndRoute(
-        AircraftModel ac,
-        TaxiRoute? fromStart,
-        GroundEdge occupied,
-        GroundNode otherEnd,
-        Func<GroundNode, TaxiRoute?> resolve
-    )
+    private void LogTurnAboutTargetMissing(AircraftModel ac, AirportGroundLayout layout, GroundNode start)
     {
-        if (
-            (fromStart is not null) && GroundCommandHandler.IsJetLinedUpWith(AircraftCategorization.Categorize(ac.AircraftType), ac.Heading, occupied)
-        )
-        {
-            return null;
-        }
-
-        return (resolve(otherEnd) is { } fromOtherEnd) && !GroundCommandHandler.DrivesOccupiedEdge(fromOtherEnd, occupied) ? fromOtherEnd : null;
-    }
-
-    /// <summary>
-    /// The straight taxi edge the aircraft stands mid-way along (<see cref="AirportGroundLayout.FindMidEdgeTaxiStart"/>)
-    /// while the simulation reports a turn about pending and <paramref name="start"/> is one of the edge's ends; null otherwise.
-    /// </summary>
-    private GroundEdge? PendingTurnAboutEdge(AircraftModel ac, GroundNode start)
-    {
-        if (!ac.TaxiTurnAboutPending || (_domainLayout?.FindMidEdgeTaxiStart(ac.Position) is not { } occupied))
-        {
-            return null;
-        }
-
-        return ((occupied.Nodes[0] == start) || (occupied.Nodes[1] == start)) ? occupied : null;
+        LogLevel level = _warnedTurnAboutTargets.Add((ac.Callsign, ac.TaxiTurnAboutShape, ac.TaxiTurnAboutTargetNodeId))
+            ? LogLevel.Warning
+            : LogLevel.Debug;
+        _log.Log(
+            level,
+            "{Callsign}: turn about {Shape} toward node {Target}, which the {Airport} layout lacks; drawing the route from node {Start}",
+            ac.Callsign,
+            ac.TaxiTurnAboutShape,
+            ac.TaxiTurnAboutTargetNodeId,
+            layout.AirportId,
+            start.Id
+        );
     }
 
     /// <summary>A rebuilt route whose first leg leaves more than <see cref="ReversalDeg"/> off the aircraft's nose doubles back on itself.</summary>

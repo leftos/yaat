@@ -1180,9 +1180,12 @@ public record AircraftDto(
     bool IsGhostOverlay = false,
     bool HasActiveTaxiRoute = false,
     string TaxiDestination = "",
-    // True while the assigned taxi route starts with a turn about on the taxiway the aircraft stood on and the
-    // aircraft has not finished that leg. The ground overlay draws a turn about only while this is set.
-    bool TaxiTurnAboutPending = false,
+    // The shape of the turn about the assigned taxi route starts with on the taxiway the aircraft stood on, while the
+    // aircraft has not finished that leg: the Yaat.Sim TaxiTurnAboutShape name ("FromFarEnd" or "InPlace"), null when none
+    // is pending. TaxiTurnAboutTargetNodeId is the far node it turns the aircraft toward, null when none is pending.
+    // The ground overlay draws exactly this shape from this node.
+    string? TaxiTurnAboutShape = null,
+    int? TaxiTurnAboutTargetNodeId = null,
     // Hold-state mirror of AircraftGroundOps.Hold. HoldKind is null/empty when free
     // to move, "HoldPosition" for unconditional HOLD, "GiveWay" for a controller
     // GIVEWAY relationship (HoldYieldTarget carries the callsign in that case).

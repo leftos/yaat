@@ -42,18 +42,29 @@ public sealed class TaxiRoute
     public int? SpotLineUpPullFromSegment { get; init; }
 
     /// <summary>
-    /// True when the clearance turns the aircraft about on the taxiway it stood mid-way along, toward that edge's node
-    /// behind it, in either of two shapes: the route was planned from that node and segment 0 is the free-space leg back to
-    /// it (<see cref="TaxiApproachLeg"/>), or the route from the edge's node ahead was kept and segment 0 reverses in place
-    /// over the occupied edge to it. Set by the TAXI handler on the route it assigns; false on every other route.
+    /// How the clearance turns the aircraft about on the taxiway it stood mid-way along, toward that edge's node behind it
+    /// (<see cref="TurnAboutTargetNodeId"/>). Set by the TAXI handler on the route it assigns, and cleared to
+    /// <see cref="TaxiTurnAboutShape.None"/> by <see cref="Phases.Ground.TaxiingPhase"/> once a
+    /// <see cref="TaxiTurnAboutShape.FromFarEnd"/> turn about with no leg back to its target (segment 0 starts on the
+    /// target) reaches that target; <see cref="TaxiTurnAboutShape.None"/> on every other route.
     /// </summary>
-    public bool StartsWithTurnAbout { get; set; }
+    public TaxiTurnAboutShape TurnAboutShape { get; set; }
 
     /// <summary>
-    /// True while the aircraft has yet to finish the turn about this route starts with (<see cref="StartsWithTurnAbout"/>):
-    /// it is still on segment 0. False once that segment is done, and on every route without one.
+    /// The far node of the edge the aircraft stood mid-way along, which the turn about (<see cref="TurnAboutShape"/>) turns
+    /// it toward, for either shape; null on a route without a turn about. Set by the TAXI handler with the shape, and
+    /// cleared to null with it by <see cref="Phases.Ground.TaxiingPhase"/> when a no-leg far-end turn about reaches it.
     /// </summary>
-    public bool TurnAboutPending => StartsWithTurnAbout && (CurrentSegmentIndex == 0) && (Segments.Count > 0);
+    public int? TurnAboutTargetNodeId { get; set; }
+
+    /// <summary>
+    /// The shape of the turn about this route starts with (<see cref="TurnAboutShape"/>) while the aircraft has yet to finish
+    /// it: it is still on segment 0, and the shape has not been cleared at its target (a far-end turn about with no leg back
+    /// ends when the aircraft reaches the target, still on segment 0). <see cref="TaxiTurnAboutShape.None"/> once either
+    /// happens, and on every route without one.
+    /// </summary>
+    public TaxiTurnAboutShape PendingTurnAboutShape =>
+        ((CurrentSegmentIndex == 0) && (Segments.Count > 0)) ? TurnAboutShape : TaxiTurnAboutShape.None;
 
     public double TotalDistanceNm => Segments.Sum(s => s.Edge.DistanceNm);
 
@@ -176,7 +187,8 @@ public sealed class TaxiRoute
                     Warnings = Warnings,
                     ImpliedLanes = ImpliedLanes,
                     SpotLineUpPullFromSegment = SpotLineUpPullFromSegment <= i ? SpotLineUpPullFromSegment : null,
-                    StartsWithTurnAbout = StartsWithTurnAbout,
+                    TurnAboutShape = TurnAboutShape,
+                    TurnAboutTargetNodeId = TurnAboutTargetNodeId,
                 };
             }
         }
@@ -516,7 +528,8 @@ public sealed class TaxiRoute
             DestinationParking = DestinationParking,
             DestinationSpot = DestinationSpot,
             SpotLineUpPullFromSegment = SpotLineUpPullFromSegment,
-            StartsWithTurnAbout = StartsWithTurnAbout,
+            TurnAboutShape = TurnAboutShape,
+            TurnAboutTargetNodeId = TurnAboutTargetNodeId,
         };
 
     /// <summary>
@@ -605,7 +618,8 @@ public sealed class TaxiRoute
             DestinationParking = dto.DestinationParking,
             DestinationSpot = dto.DestinationSpot,
             SpotLineUpPullFromSegment = dto.SpotLineUpPullFromSegment,
-            StartsWithTurnAbout = dto.StartsWithTurnAbout,
+            TurnAboutShape = dto.TurnAboutShape,
+            TurnAboutTargetNodeId = dto.TurnAboutTargetNodeId,
         };
     }
 }

@@ -24,10 +24,17 @@ public sealed class TaxiRouteDto
     public int? SpotLineUpPullFromSegment { get; init; }
 
     /// <summary>
-    /// The route starts with a turn about on the taxiway the aircraft stood on (<c>TaxiRoute.StartsWithTurnAbout</c>).
-    /// False on every other route and on older snapshots, which never marked one — additive, no schema bump.
+    /// How the route turns the aircraft about on the taxiway it stood on (<c>TaxiRoute.TurnAboutShape</c>).
+    /// <see cref="TaxiTurnAboutShape.None"/> on every other route and on older snapshots, including one that carries the
+    /// earlier <c>StartsWithTurnAbout</c> flag, which is not read — additive, no schema bump.
     /// </summary>
-    public bool StartsWithTurnAbout { get; init; }
+    public TaxiTurnAboutShape TurnAboutShape { get; init; }
+
+    /// <summary>
+    /// The node the turn about turns the aircraft toward (<c>TaxiRoute.TurnAboutTargetNodeId</c>). Null on a route without
+    /// a turn about and on older snapshots.
+    /// </summary>
+    public int? TurnAboutTargetNodeId { get; init; }
 }
 
 public sealed class TaxiSegmentDto

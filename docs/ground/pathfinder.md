@@ -29,9 +29,11 @@ A `TAXI`/`TAXIAUTO` command reaches the pathfinder through the command pipeline 
 
    In either case the clearance is re-planned from the far end, and that route wins only when it resolves and does not drive the edge. The endpoint ahead wins every tie: when the far end is no better, the aircraft keeps the route ahead, even one that runs back over its edge.
 
-   That route's segment 0 is the occupied edge driven backwards from the node ahead, so the aircraft reverses where it stands. That is a turn-about in place like the far-end leg: the route is flagged `StartsWithTurnAbout`, and a controller's TAXI to a lined-up jet gets the turn-around refusal below instead (see [the approach leg](#approach-leg--a-free-space-drive-from-where-the-aircraft-stands-to-the-routes-first-node-taxiapproachleg)).
+   That route's segment 0 is the occupied edge driven backwards from the node ahead, so the aircraft reverses where it stands: a **turn about in place** (`KeepRouteAhead` reports `TaxiTurnAboutShape.InPlace`). A controller's TAXI to a lined-up jet gets the turn-around refusal below instead (see [the approach leg](#approach-leg--a-free-space-drive-from-where-the-aircraft-stands-to-the-routes-first-node-taxiapproachleg)).
 
-   A far-end route that wins **turns the aircraft about in place**: its segment 0 is the approach leg back along the edge to the far node, `TaxiRoute.StartsWithTurnAbout` is set (snapshotted), and `TaxiRoute.TurnAboutPending` / `AircraftGroundOps.TaxiTurnAboutPending` read true until segment 0 is flown. Pistons, helicopters and turboprops turn about this way, and so does a jet angled more than 30° across the edge.
+   A far-end route that wins always **turns the aircraft about from the far end** (`TaxiTurnAboutShape.FromFarEnd`), whether or not it opens with the approach leg back along the edge to the far node: a route that holds short at the far node, one with a runway centreline between, and a scripted lined-up jet's route when the node ahead resolved none report it too. Pistons, helicopters and turboprops turn about this way, and so does a jet angled more than 30° across the edge.
+
+   Either shape is reported by `ReportTurnAbout`, which sets `TaxiRoute.TurnAboutShape` and `TaxiRoute.TurnAboutTargetNodeId` (the occupied edge's far node; both snapshotted). `TaxiRoute.PendingTurnAboutShape` / `AircraftGroundOps.TaxiTurnAboutShape` read the shape, and `AircraftGroundOps.TaxiTurnAboutTargetNodeId` the node, until segment 0 is flown; then `TaxiTurnAboutShape.None` and null. A far-end route with no leg back (segment 0 starts at the target) ends sooner: `TaxiingPhase.EndTurnAboutAtItsTarget` clears both fields once the aircraft has turned about and reached the target (centre past the line through the target square to segment 0, heading within `StartBarAlignedDeg` of it), since it stays on segment 0 past the target. The clear is snapshotted with the fields.
 
    **A jet lined up along the edge refuses a controller's clearance that would turn it about.** Lined up is within `JetTurnAboutAlignmentDeg` (30°) of the edge's direction, either way along it (`GroundCommandHandler.IsLinedUpWith`).
 
@@ -691,7 +693,9 @@ Guards, all required (the `[ApproachLeg]` debug line names the one that refused)
 
   A bearing-only test was rejected in review: at long range it admits an aircraft hundreds of feet abeam on a parallel taxiway and would lay a leg across a holding-position marking (AIM 4-3-18.a.5). Before this exception the first `TickBezier` wrote the aircraft 314 ft onto the fillet start.
 
-A mid-edge re-clearance starts at an end of the edge the aircraft is on (see [Where it sits & entry points](#where-it-sits--entry-points)). From the endpoint ahead, with a straight first segment, it passes the guards and gets a leg collinear with the edge — the same line pure pursuit drove before. From the far end it gets the turn-about leg back along the edge to the far node, which `TaxiRoute.StartsWithTurnAbout` marks.
+A mid-edge re-clearance starts at an end of the edge the aircraft is on (see [Where it sits & entry points](#where-it-sits--entry-points)). From the endpoint ahead, with a straight first segment, it passes the guards and gets a leg collinear with the edge — the same line pure pursuit drove before.
+
+From the far end it gets the turn-about leg back along the edge to the far node, and the route reports a turn about from the far end (`TaxiRoute.TurnAboutShape` = `FromFarEnd`), as it does when the guards give it no leg.
 
 Every `VirtualNode` id is a function of its position (FNV-1a over the 1e-7° cell), so same-seed runs and a snapshot restore serialise the same route; the counter it replaced made the determinism suite diverge the moment a leg appeared in a snapshot. How the navigator flies the leg (arc aimed at the node, line re-anchored at the arc exit) is in [`./navigator.md`](./navigator.md#entry-alignment-threshold).
 

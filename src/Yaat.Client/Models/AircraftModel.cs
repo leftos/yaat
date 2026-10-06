@@ -1,7 +1,9 @@
 using System.Collections;
 using System.Reflection;
 using CommunityToolkit.Mvvm.ComponentModel;
+using Microsoft.Extensions.Logging;
 using Yaat.Client.ContextMenus;
+using Yaat.Client.Logging;
 using Yaat.Client.Services;
 using Yaat.Sim;
 using Yaat.Sim.Commands;
@@ -14,6 +16,11 @@ namespace Yaat.Client.Models;
 
 public partial class AircraftModel : ObservableObject, IMenuAircraft
 {
+    private static readonly ILogger Log = AppLog.CreateLogger("AircraftModel");
+
+    /// <summary>Every unknown turn-about shape name this aircraft has already been warned of.</summary>
+    private readonly HashSet<string> _warnedTurnAboutShapes = [];
+
     [ObservableProperty]
     private string _callsign = "";
 
@@ -823,12 +830,19 @@ public partial class AircraftModel : ObservableObject, IMenuAircraft
     private string _taxiDestination = "";
 
     /// <summary>
-    /// True while the simulation's taxi route starts with a turn about on the taxiway the aircraft stood on and the
-    /// aircraft has not finished that leg. The ground overlay draws a turn about only while this is set; it never
-    /// decides one itself.
+    /// The shape of the turn about the simulation's taxi route starts with on the taxiway the aircraft stood on, while the
+    /// aircraft has not finished that leg; <see cref="TaxiTurnAboutShape.None"/> otherwise. The ground overlay draws exactly
+    /// this shape; it never decides one itself.
     /// </summary>
     [ObservableProperty]
-    private bool _taxiTurnAboutPending;
+    private TaxiTurnAboutShape _taxiTurnAboutShape;
+
+    /// <summary>
+    /// The node the pending turn about (<see cref="TaxiTurnAboutShape"/>) turns the aircraft toward: the far end of the
+    /// edge it stood mid-way along. Null when no turn about is pending.
+    /// </summary>
+    [ObservableProperty]
+    private int? _taxiTurnAboutTargetNodeId;
 
     /// <summary>
     /// Kind of active hold: <c>"HoldPosition"</c> for unconditional stop, <c>"GiveWay"</c>
@@ -1156,6 +1170,28 @@ public partial class AircraftModel : ObservableObject, IMenuAircraft
 
     private static string FormatMinSec(int seconds) => $"{seconds / 60}:{seconds % 60:D2}";
 
+    /// <summary>
+    /// The turn-about shape the server sends by name (<see cref="AircraftDto.TaxiTurnAboutShape"/>): null or empty is
+    /// <see cref="TaxiTurnAboutShape.None"/>, and a name this client does not know is treated as none: warned of the first
+    /// time this aircraft sends it, logged at Debug on every later update carrying it.
+    /// </summary>
+    private TaxiTurnAboutShape ParseTaxiTurnAboutShape(string? wire)
+    {
+        if (string.IsNullOrEmpty(wire))
+        {
+            return TaxiTurnAboutShape.None;
+        }
+
+        if (Enum.TryParse(wire, ignoreCase: false, out TaxiTurnAboutShape shape) && Enum.IsDefined(shape))
+        {
+            return shape;
+        }
+
+        LogLevel level = _warnedTurnAboutShapes.Add(wire) ? LogLevel.Warning : LogLevel.Debug;
+        Log.Log(level, "{Callsign}: unknown taxi turn-about shape '{Shape}' from the server; drawing no turn about", Callsign, wire);
+        return TaxiTurnAboutShape.None;
+    }
+
     public static AircraftModel FromDto(AircraftDto dto, Func<AircraftModel, double?>? computeDistance = null)
     {
         var model = new AircraftModel
@@ -1217,7 +1253,7 @@ public partial class AircraftModel : ObservableObject, IMenuAircraft
             TaxiRoute = dto.TaxiRoute,
             HasActiveTaxiRoute = dto.HasActiveTaxiRoute,
             TaxiDestination = dto.TaxiDestination,
-            TaxiTurnAboutPending = dto.TaxiTurnAboutPending,
+            TaxiTurnAboutTargetNodeId = dto.TaxiTurnAboutTargetNodeId,
             HoldKind = dto.HoldKind,
             HoldYieldTarget = dto.HoldYieldTarget,
             AutoYieldTarget = dto.AutoYieldTarget,
@@ -1282,6 +1318,7 @@ public partial class AircraftModel : ObservableObject, IMenuAircraft
         model.Situation = dto.Situation;
         model.SituationFlags = dto.SituationFlags;
         model.NextCrossingRunway = dto.NextCrossingRunway;
+        model.TaxiTurnAboutShape = model.ParseTaxiTurnAboutShape(dto.TaxiTurnAboutShape);
         return model;
     }
 
@@ -1344,7 +1381,8 @@ public partial class AircraftModel : ObservableObject, IMenuAircraft
         TaxiRoute = dto.TaxiRoute;
         HasActiveTaxiRoute = dto.HasActiveTaxiRoute;
         TaxiDestination = dto.TaxiDestination;
-        TaxiTurnAboutPending = dto.TaxiTurnAboutPending;
+        TaxiTurnAboutShape = ParseTaxiTurnAboutShape(dto.TaxiTurnAboutShape);
+        TaxiTurnAboutTargetNodeId = dto.TaxiTurnAboutTargetNodeId;
         HoldKind = dto.HoldKind;
         HoldYieldTarget = dto.HoldYieldTarget;
         AutoYieldTarget = dto.AutoYieldTarget;

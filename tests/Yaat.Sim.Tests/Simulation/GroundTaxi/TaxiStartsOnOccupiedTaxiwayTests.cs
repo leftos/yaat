@@ -197,13 +197,15 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
         TaxiRoute route = aircraft.Ground.AssignedTaxiRoute!;
         Assert.Equal(farEnd.Id, route.Segments[0].ToNodeId);
 
-        Assert.True(aircraft.Ground.TaxiTurnAboutPending, "the turn about is not pending right after the clearance");
+        Assert.Equal(TaxiTurnAboutShape.FromFarEnd, aircraft.Ground.TaxiTurnAboutShape);
+        Assert.Equal(farEnd.Id, aircraft.Ground.TaxiTurnAboutTargetNodeId);
 
         int legDoneAt = SfoGroundHarness.TickUntil(ground.Engine, () => route.CurrentSegmentIndex > 0, TurnAboutLegTickSeconds, null);
         output.WriteLine($"left the turn-about leg after {legDoneAt}s");
 
         Assert.True(legDoneAt > 0, $"the aircraft did not finish the leg back to node {farEnd.Id} within {TurnAboutLegTickSeconds}s");
-        Assert.False(aircraft.Ground.TaxiTurnAboutPending, "the turn about is still pending after its leg completed");
+        Assert.Equal(TaxiTurnAboutShape.None, aircraft.Ground.TaxiTurnAboutShape);
+        Assert.Null(aircraft.Ground.TaxiTurnAboutTargetNodeId);
     }
 
     /// <summary>
@@ -224,20 +226,22 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
         string command = $"TAXI C {FirstTaxiwayOffCBeyond(farEnd, tangentCut)}";
         CommandResult result = ground.Engine.SendCommand(aircraft.Callsign, command);
         Assert.True(result.Success, $"'{command}' was refused: {result.Message}");
-        Assert.True(aircraft.Ground.TaxiTurnAboutPending, "the turn about is not pending right after the clearance");
+        Assert.Equal(TaxiTurnAboutShape.FromFarEnd, aircraft.Ground.TaxiTurnAboutShape);
 
         StateSnapshotDto snapshot = ground.Engine.CaptureSnapshot();
         SfoGround restored = BuildOak()!.Value;
         restored.Engine.RestoreFromSnapshot(snapshot);
         AircraftState restoredAircraft = Assert.IsType<AircraftState>(restored.Engine.FindAircraft(aircraft.Callsign));
-        Assert.True(restoredAircraft.Ground.TaxiTurnAboutPending, "the turn about is not pending after the snapshot is restored");
+        Assert.Equal(TaxiTurnAboutShape.FromFarEnd, restoredAircraft.Ground.TaxiTurnAboutShape);
+        Assert.Equal(farEnd.Id, restoredAircraft.Ground.TaxiTurnAboutTargetNodeId);
 
         TaxiRoute route = restoredAircraft.Ground.AssignedTaxiRoute!;
         int legDoneAt = SfoGroundHarness.TickUntil(restored.Engine, () => route.CurrentSegmentIndex > 0, TurnAboutLegTickSeconds, null);
         output.WriteLine($"restored: left the turn-about leg after {legDoneAt}s");
 
         Assert.True(legDoneAt > 0, $"the restored aircraft did not finish the leg back to node {farEnd.Id} within {TurnAboutLegTickSeconds}s");
-        Assert.False(restoredAircraft.Ground.TaxiTurnAboutPending, "the turn about is still pending after the restored leg completed");
+        Assert.Equal(TaxiTurnAboutShape.None, restoredAircraft.Ground.TaxiTurnAboutShape);
+        Assert.Null(restoredAircraft.Ground.TaxiTurnAboutTargetNodeId);
     }
 
     /// <summary>A C172 mid-C facing H, cleared along C ahead of it: the clearance turns nothing about, so nothing is pending.</summary>
@@ -257,7 +261,8 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
         Assert.True(result.Success, $"'{Command}' was refused: {result.Message}");
         Assert.NotEqual(farEnd.Id, aircraft.Ground.AssignedTaxiRoute!.Segments[0].ToNodeId);
 
-        Assert.False(aircraft.Ground.TaxiTurnAboutPending, "a clearance along C ahead reports a turn about");
+        Assert.Equal(TaxiTurnAboutShape.None, aircraft.Ground.TaxiTurnAboutShape);
+        Assert.Null(aircraft.Ground.TaxiTurnAboutTargetNodeId);
     }
 
     /// <summary>How long the leg back to the far C node may take, turn included.</summary>
@@ -325,7 +330,8 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
         TaxiRoute route = aircraft.Ground.AssignedTaxiRoute!;
         SfoGroundHarness.DumpRoute(output, route);
         Assert.Equal(tangentCut.Id, route.Segments[0].FromNodeId);
-        Assert.True(route.StartsWithTurnAbout, "the kept route drives back over C from the node ahead, yet reports no turn about");
+        Assert.Equal(TaxiTurnAboutShape.InPlace, route.TurnAboutShape);
+        Assert.Equal(farEnd.Id, route.TurnAboutTargetNodeId);
     }
 
     /// <summary>
@@ -355,7 +361,8 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
         TaxiRouteSegment first = route.Segments[0];
         Assert.True(ReferenceEquals(first.Edge.Edge, occupied), $"segment 0 is the {first.TaxiwayName} edge {first.FromNodeId}->{first.ToNodeId}");
         Assert.Equal(farEnd.Id, first.ToNodeId);
-        Assert.True(route.StartsWithTurnAbout, "the route drives back over C from the node ahead, yet reports no turn about");
+        Assert.Equal(TaxiTurnAboutShape.InPlace, route.TurnAboutShape);
+        Assert.Equal(farEnd.Id, route.TurnAboutTargetNodeId);
     }
 
     /// <summary>
@@ -387,45 +394,390 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
 
     /// <summary>
     /// A C172 mid-way along a straight KOAK taxi edge whose end behind it is a runway holding position, facing the other
-    /// end, cleared along a route drawn through that holding position: the route from the holding position wins, but no
-    /// approach leg is driven up to a holding position, so that route opens with no leg back to it and reports no turn
-    /// about.
+    /// end, cleared along a route drawn through that holding position: the route from the holding position wins, and no
+    /// approach leg is driven up to a holding position, so that route opens with no leg back to it. The aircraft still turns
+    /// about toward the holding position, and the route reports it from the far end, with that node as its target.
     /// </summary>
     [Fact]
-    public void DrawnRouteBackThroughARunwayHoldShort_NoLegToIt_ReportsNoTurnAbout()
+    public void DrawnRouteBackThroughARunwayHoldShort_NoLegToIt_ReportsTheTurnAboutFromTheFarEnd()
     {
         if (BuildOak() is not { } ground)
         {
             return;
         }
 
+        (AircraftState aircraft, GroundNode holdShort) = TaxiBackThroughARunwayHoldShort(ground);
+
+        TaxiRoute route = aircraft.Ground.AssignedTaxiRoute!;
+        Assert.Equal(holdShort.Id, route.Segments[0].FromNodeId);
+        Assert.Equal(TaxiTurnAboutShape.FromFarEnd, route.TurnAboutShape);
+        Assert.Equal(holdShort.Id, route.TurnAboutTargetNodeId);
+    }
+
+    /// <summary>
+    /// The C172 cleared back through the runway holding position behind it, ticked: the route opens on the holding position
+    /// with no leg back to it, so segment 0 runs on past it. The turn about is pending until the aircraft reaches the holding
+    /// position, and no longer once it is past it, though still on segment 0.
+    /// </summary>
+    [Fact]
+    public void NoLegFarEndRoute_PastTheTarget_TurnAboutNoLongerPending()
+    {
+        if (BuildOak() is not { } ground)
+        {
+            return;
+        }
+
+        (AircraftState aircraft, GroundNode holdShort) = TaxiBackThroughARunwayHoldShort(ground);
+        TaxiRoute route = aircraft.Ground.AssignedTaxiRoute!;
+        Assert.Equal(TaxiTurnAboutShape.FromFarEnd, aircraft.Ground.TaxiTurnAboutShape);
+
+        List<(int Second, TaxiTurnAboutShape Shape)> shortOfTarget = [];
+        int pastAt = SfoGroundHarness.TickUntil(
+            ground.Engine,
+            () => PastTheTargetOnSegment0(aircraft, route, holdShort),
+            PastTheTargetTickSeconds,
+            second =>
+            {
+                if (AlongPastTargetFt(aircraft, route, holdShort) < 0.0)
+                {
+                    shortOfTarget.Add((second, aircraft.Ground.TaxiTurnAboutShape));
+                }
+            }
+        );
+        output.WriteLine($"{AlongPastTargetFt(aircraft, route, holdShort):F0} ft past node {holdShort.Id} on segment 0 after {pastAt}s");
+
+        Assert.True(
+            pastAt > 0,
+            $"the aircraft was not {PastTargetFt:F0} ft past node {holdShort.Id} on segment 0 within {PastTheTargetTickSeconds}s"
+        );
+        Assert.NotEmpty(shortOfTarget);
+        Assert.All(shortOfTarget, s => Assert.Equal(TaxiTurnAboutShape.FromFarEnd, s.Shape));
+        Assert.Equal(TaxiTurnAboutShape.None, aircraft.Ground.TaxiTurnAboutShape);
+        Assert.Null(aircraft.Ground.TaxiTurnAboutTargetNodeId);
+    }
+
+    /// <summary>
+    /// The same C172 snapshotted and restored into a fresh engine: a snapshot taken right after the clearance restores the
+    /// turn about from the far end as pending, and one taken once the aircraft is past the holding position restores it as
+    /// no longer pending.
+    /// </summary>
+    [Fact]
+    public void NoLegFarEndRoute_PastTheTarget_SnapshotRestore_StaysNotPending()
+    {
+        if (BuildOak() is not { } ground)
+        {
+            return;
+        }
+
+        (AircraftState aircraft, GroundNode holdShort) = TaxiBackThroughARunwayHoldShort(ground);
+        TaxiRoute route = aircraft.Ground.AssignedTaxiRoute!;
+
+        AircraftState beforeTarget = RestoreIntoAFreshEngine(ground.Engine.CaptureSnapshot(), aircraft.Callsign);
+        Assert.Equal(TaxiTurnAboutShape.FromFarEnd, beforeTarget.Ground.TaxiTurnAboutShape);
+        Assert.Equal(holdShort.Id, beforeTarget.Ground.TaxiTurnAboutTargetNodeId);
+
+        int pastAt = SfoGroundHarness.TickUntil(
+            ground.Engine,
+            () => PastTheTargetOnSegment0(aircraft, route, holdShort),
+            PastTheTargetTickSeconds,
+            null
+        );
+        Assert.True(
+            pastAt > 0,
+            $"the aircraft was not {PastTargetFt:F0} ft past node {holdShort.Id} on segment 0 within {PastTheTargetTickSeconds}s"
+        );
+
+        AircraftState pastTarget = RestoreIntoAFreshEngine(ground.Engine.CaptureSnapshot(), aircraft.Callsign);
+        Assert.Equal(0, pastTarget.Ground.AssignedTaxiRoute!.CurrentSegmentIndex);
+        Assert.Equal(TaxiTurnAboutShape.None, pastTarget.Ground.TaxiTurnAboutShape);
+        Assert.Null(pastTarget.Ground.TaxiTurnAboutTargetNodeId);
+    }
+
+    /// <summary>
+    /// A C172 half-way along a long KOAK stub to a runway holding position, on the taxiway side and facing away from it,
+    /// cleared along a route drawn back through the holding position across the runway: the route opens on that bar with no
+    /// leg back to it. The aircraft turns about and holds at the bar, and the turn about is no longer pending while it holds
+    /// there, nor once a <c>CROSS</c> has taken it across the runway past the holding position.
+    /// </summary>
+    [Fact]
+    public void NoLegFarEndRoute_HeldAtTheTargetBar_TurnAboutNoLongerPending()
+    {
+        if (BuildOak() is not { } ground)
+        {
+            return;
+        }
+
+        (AircraftState aircraft, GroundNode holdShort) = TaxiBackAcrossARunway(ground);
+        TaxiRoute route = aircraft.Ground.AssignedTaxiRoute!;
+        Assert.True(route.GetHoldShortAt(holdShort.Id) is { IsCleared: false }, $"no uncleared hold short at node {holdShort.Id}");
+
+        int heldAt = TickUntilHeldAt(ground, aircraft, route, holdShort);
+        Assert.True(heldAt > 0, $"the aircraft did not hold short at node {holdShort.Id} within {PastTheTargetTickSeconds}s");
+        Assert.Equal(TaxiTurnAboutShape.None, aircraft.Ground.TaxiTurnAboutShape);
+        Assert.Null(aircraft.Ground.TaxiTurnAboutTargetNodeId);
+
+        SendAndLog(ground, aircraft, $"CROSS {BarRunway(holdShort)}");
+        AssertNotPendingOncePast(ground, aircraft, route, holdShort);
+    }
+
+    /// <summary>
+    /// The same C172 on the long stub, cleared across the runway (<c>CROSS</c>) before it moves: it turns about and crosses
+    /// past the holding position without stopping there, and the turn about is no longer pending once it is past it.
+    /// </summary>
+    [Fact]
+    public void NoLegFarEndRoute_BarClearedUpFront_PastTheTarget_TurnAboutNoLongerPending()
+    {
+        if (BuildOak() is not { } ground)
+        {
+            return;
+        }
+
+        (AircraftState aircraft, GroundNode holdShort) = TaxiBackAcrossARunway(ground);
+        TaxiRoute route = aircraft.Ground.AssignedTaxiRoute!;
+        SendAndLog(ground, aircraft, $"CROSS {BarRunway(holdShort)}");
+        Assert.True(route.GetHoldShortAt(holdShort.Id) is { IsCleared: true }, $"no cleared hold short at node {holdShort.Id}");
+        Assert.Equal(TaxiTurnAboutShape.FromFarEnd, aircraft.Ground.TaxiTurnAboutShape);
+
+        int pastAt = SfoGroundHarness.TickUntil(
+            ground.Engine,
+            () => AlongPastTargetFt(aircraft, route, holdShort) >= PastTargetFt,
+            PastTheTargetTickSeconds,
+            null
+        );
+        output.WriteLine(
+            $"past node {holdShort.Id} after {pastAt}s, phase {aircraft.Phases?.CurrentPhase?.Name}, segment {route.CurrentSegmentIndex}"
+        );
+
+        Assert.True(pastAt > 0, $"the aircraft was not {PastTargetFt:F0} ft past node {holdShort.Id} within {PastTheTargetTickSeconds}s");
+        Assert.Equal(TaxiTurnAboutShape.None, aircraft.Ground.TaxiTurnAboutShape);
+        Assert.Null(aircraft.Ground.TaxiTurnAboutTargetNodeId);
+    }
+
+    /// <summary>
+    /// Stubs from this long put the aircraft half-way along them beyond the start-node hold radius (150 ft), so it turns
+    /// about before it can take the hold.
+    /// </summary>
+    private const double MinTurnAboutStubFt = 400.0;
+
+    /// <summary>Ticks until the aircraft holds short and logs where it holds; the second it held, or -1.</summary>
+    private int TickUntilHeldAt(SfoGround ground, AircraftState aircraft, TaxiRoute route, GroundNode holdShort)
+    {
+        int heldAt = SfoGroundHarness.TickUntil(
+            ground.Engine,
+            () => aircraft.Phases?.CurrentPhase is HoldingShortPhase,
+            PastTheTargetTickSeconds,
+            null
+        );
+        output.WriteLine(
+            $"held after {heldAt}s on segment {route.CurrentSegmentIndex}, "
+                + $"{AlongPastTargetFt(aircraft, route, holdShort):F0} ft past node {holdShort.Id}, heading "
+                + $"{GeoMath.AbsBearingDifference(aircraft.TrueHeading.Degrees, route.Segments[0].Edge.DepartureBearing):F0} deg off segment 0"
+        );
+        return heldAt;
+    }
+
+    /// <summary>
+    /// A C172 half-way along the first KOAK stub to a runway holding position whose taxiway crosses that runway
+    /// (<see cref="FirstStubToARunwayCrossing"/>), facing away from the holding position, cleared along a route drawn back
+    /// through it to the far side's holding position: the aircraft and the near holding position. Asserts the route opens
+    /// on that holding position with a turn about from the far end.
+    /// </summary>
+    private (AircraftState Aircraft, GroundNode HoldShort) TaxiBackAcrossARunway(SfoGround ground)
+    {
+        (GroundNode ahead, GroundNode holdShort, GroundEdge stub, GroundNode farSide) =
+            FirstStubToARunwayCrossing(ground.Layout)
+            ?? throw new InvalidOperationException(
+                $"no straight KOAK taxi edge of {MinTurnAboutStubFt:F0} ft or more ends at a holding position its taxiway crosses"
+            );
+        AircraftState aircraft = TaxiBackThrough(ground, (ahead, holdShort, stub), farSide);
+        TaxiRoute route = aircraft.Ground.AssignedTaxiRoute!;
+        Assert.Equal(holdShort.Id, route.Segments[0].FromNodeId);
+        Assert.Equal(TaxiTurnAboutShape.FromFarEnd, aircraft.Ground.TaxiTurnAboutShape);
+        return (aircraft, holdShort);
+    }
+
+    /// <summary>
+    /// The first straight KOAK taxi edge (by its lower node id) of at least <see cref="MinTurnAboutStubFt"/> from a taxi node
+    /// to a runway holding position whose taxiway goes on across that runway to its far-side holding position
+    /// (<see cref="FarSideBar"/>), half-way along which the aircraft stands mid-edge; null when there is none.
+    /// </summary>
+    private static (GroundNode Ahead, GroundNode HoldShort, GroundEdge Stub, GroundNode FarSide)? FirstStubToARunwayCrossing(
+        AirportGroundLayout layout
+    )
+    {
+        IEnumerable<GroundEdge> taxiEdges = layout
+            .Edges.Where(e => !e.IsRamp && !e.IsRunwayCenterline && (e.TaxiwayName.Length > 0))
+            .Where(e => (e.DistanceNm * GeoMath.FeetPerNm) >= MinTurnAboutStubFt)
+            .OrderBy(e => Math.Min(e.Nodes[0].Id, e.Nodes[1].Id));
+        foreach (GroundEdge edge in taxiEdges)
+        {
+            GroundNode[] holds = [.. edge.Nodes.Where(n => (n.Type == GroundNodeType.RunwayHoldShort) && (n.RunwayId is not null))];
+            if (holds.Length != 1)
+            {
+                continue;
+            }
+
+            GroundNode ahead = edge.OtherNode(holds[0]);
+            bool midEdge = layout.FindMidEdgeTaxiStart(Along(holds[0].Position, ahead.Position, 0.5)) == edge;
+            if (midEdge && (FarSideBar(holds[0], edge) is { } farSide))
+            {
+                return (ahead, holds[0], edge, farSide);
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>How many nodes the walk across a runway visits looking for the far side's holding position.</summary>
+    private const int MaxCrossingWalkNodes = 8;
+
+    /// <summary>
+    /// The holding position for the same runway reached by walking on from <paramref name="hold"/> away from
+    /// <paramref name="stub"/>, taking the straightest edge at each node; null when the walk meets none within
+    /// <see cref="MaxCrossingWalkNodes"/> nodes.
+    /// </summary>
+    private static GroundNode? FarSideBar(GroundNode hold, IGroundEdge stub)
+    {
+        GroundNode node = hold;
+        IGroundEdge from = stub;
+        double bearingDeg = GeoMath.BearingTo(stub.OtherNode(hold).Position, hold.Position);
+        for (int i = 0; i < MaxCrossingWalkNodes; i++)
+        {
+            GroundNode at = node;
+            double inDeg = bearingDeg;
+            IGroundEdge? next = at
+                .Edges.Where(e => e != from)
+                .MinBy(e => GeoMath.AbsBearingDifference(e.Directed(at, e.OtherNode(at)).DepartureBearing, inDeg));
+            if (next is null)
+            {
+                return null;
+            }
+
+            GroundNode to = next.OtherNode(at);
+            if ((to.Type == GroundNodeType.RunwayHoldShort) && Equals(to.RunwayId, hold.RunwayId))
+            {
+                return to;
+            }
+
+            bearingDeg = next.Directed(at, to).ArrivalBearing;
+            from = next;
+            node = to;
+        }
+
+        return null;
+    }
+
+    /// <summary>The first designator of the runway <paramref name="holdShort"/> holds short of.</summary>
+    private static string BarRunway(GroundNode holdShort) =>
+        holdShort.RunwayId is { } runway ? runway.End1 : throw new InvalidOperationException($"node {holdShort.Id} holds short of no runway");
+
+    /// <summary>Sends <paramref name="command"/> to the aircraft, logs the outcome and asserts it was accepted.</summary>
+    private void SendAndLog(SfoGround ground, AircraftState aircraft, string command)
+    {
+        CommandResult result = ground.Engine.SendCommand(aircraft.Callsign, command);
+        output.WriteLine($"{command}: {result.Success} — {result.Message}; phase {aircraft.Phases?.CurrentPhase?.Name}");
+        Assert.True(result.Success, $"'{command}' was refused: {result.Message}");
+    }
+
+    /// <summary>
+    /// Ticks until the aircraft is <see cref="PastTargetFt"/> past <paramref name="target"/> along <paramref name="route"/>'s
+    /// segment 0, asserting it gets there and that no turn about is pending on any second along the way.
+    /// </summary>
+    private void AssertNotPendingOncePast(SfoGround ground, AircraftState aircraft, TaxiRoute route, GroundNode target)
+    {
+        List<(int Second, string? Phase)> pending = [];
+        int pastAt = SfoGroundHarness.TickUntil(
+            ground.Engine,
+            () => AlongPastTargetFt(aircraft, route, target) >= PastTargetFt,
+            PastTheTargetTickSeconds,
+            second =>
+            {
+                if (aircraft.Ground.TaxiTurnAboutShape != TaxiTurnAboutShape.None)
+                {
+                    pending.Add((second, aircraft.Phases?.CurrentPhase?.Name));
+                }
+            }
+        );
+        output.WriteLine($"past node {target.Id} after {pastAt}s, phase {aircraft.Phases?.CurrentPhase?.Name}, segment {route.CurrentSegmentIndex}");
+
+        Assert.True(pastAt > 0, $"the aircraft was not {PastTargetFt:F0} ft past node {target.Id} within {PastTheTargetTickSeconds}s");
+        Assert.True(pending.Count == 0, $"the turn about was pending at {string.Join(", ", pending.Select(p => $"{p.Second}s ({p.Phase})"))}");
+    }
+
+    /// <summary>How far past the target, along segment 0, the aircraft must be to count as past it.</summary>
+    private const double PastTargetFt = 20.0;
+
+    /// <summary>How long the turn about and the roll past the holding position may take.</summary>
+    private const int PastTheTargetTickSeconds = 180;
+
+    /// <summary>
+    /// A C172 half-way along the first KOAK stub to a runway holding position (<see cref="FirstStubToARunwayHoldShort"/>),
+    /// facing away from it, cleared along a route drawn back through the holding position to the node beyond it: the
+    /// aircraft and the holding position.
+    /// </summary>
+    private (AircraftState Aircraft, GroundNode HoldShort) TaxiBackThroughARunwayHoldShort(SfoGround ground)
+    {
         (GroundNode ahead, GroundNode holdShort, GroundEdge stub) =
             FirstStubToARunwayHoldShort(ground.Layout)
             ?? throw new InvalidOperationException("no straight KOAK taxi edge ends at a runway holding position");
+        GroundNode beyond = holdShort.Edges.First(e => !ReferenceEquals(e, stub)).OtherNode(holdShort);
+        return (TaxiBackThrough(ground, (ahead, holdShort, stub), beyond), holdShort);
+    }
+
+    /// <summary>
+    /// A C172 half-way along <paramref name="stub"/>'s edge, facing its node ahead, cleared along a route drawn back through
+    /// its holding position to <paramref name="to"/>.
+    /// </summary>
+    private AircraftState TaxiBackThrough(SfoGround ground, (GroundNode Ahead, GroundNode HoldShort, GroundEdge Edge) stub, GroundNode to)
+    {
+        (GroundNode ahead, GroundNode holdShort, GroundEdge edge) = stub;
         LatLon position = Along(holdShort.Position, ahead.Position, 0.5);
         AircraftState aircraft = MakeAircraft(
             ground.Layout,
             position,
             GeoMath.BearingTo(holdShort.Position, ahead.Position),
             "OAK",
-            stub.TaxiwayName
+            edge.TaxiwayName
         );
         aircraft.AircraftType = "C172";
         ground.Engine.World.AddAircraft(aircraft);
-        GroundNode beyond = holdShort.Edges.First(e => !ReferenceEquals(e, stub)).OtherNode(holdShort);
 
-        string command = $"TAXI #{holdShort.Id} #{beyond.Id}";
+        string command = $"TAXI #{holdShort.Id} #{to.Id}";
         CommandResult result = ground.Engine.SendCommand(aircraft.Callsign, command);
         output.WriteLine(
-            $"{stub.TaxiwayName} edge {ahead.Id}-{holdShort.Id}, holding position for {holdShort.RunwayId}; "
-                + $"{command}: {result.Success} — {result.Message}"
+            $"{edge.TaxiwayName} edge {ahead.Id}-{holdShort.Id} ({edge.DistanceNm * GeoMath.FeetPerNm:F0} ft), holding position for "
+                + $"{holdShort.RunwayId}; {command}: {result.Success} — {result.Message}"
         );
         Assert.True(result.Success, $"'{command}' was refused: {result.Message}");
+        SfoGroundHarness.DumpRoute(output, aircraft.Ground.AssignedTaxiRoute!);
+        return aircraft;
+    }
 
-        TaxiRoute route = aircraft.Ground.AssignedTaxiRoute!;
-        SfoGroundHarness.DumpRoute(output, route);
-        Assert.Equal(holdShort.Id, route.Segments[0].FromNodeId);
-        Assert.False(route.StartsWithTurnAbout, "a route with no leg back to the far node reports a turn about");
+    /// <summary>
+    /// How far (ft) the aircraft's centre is past <paramref name="target"/> along the departure of <paramref name="route"/>'s
+    /// segment 0, measured along that bearing; negative when short of the line through the node square to it.
+    /// </summary>
+    private static double AlongPastTargetFt(AircraftState aircraft, TaxiRoute route, GroundNode target)
+    {
+        double bearingDeg = route.Segments[0].Edge.DepartureBearing;
+        double distFt = GeoMath.DistanceNm(target.Position, aircraft.Position) * GeoMath.FeetPerNm;
+        double offRad = GeoMath.SignedBearingDifference(bearingDeg, GeoMath.BearingTo(target.Position, aircraft.Position)) * Math.PI / 180.0;
+        return distFt * Math.Cos(offRad);
+    }
+
+    /// <summary>
+    /// Whether the aircraft is still on segment 0 of <paramref name="route"/> and <see cref="PastTargetFt"/> past
+    /// <paramref name="target"/>.
+    /// </summary>
+    private static bool PastTheTargetOnSegment0(AircraftState aircraft, TaxiRoute route, GroundNode target) =>
+        (route.CurrentSegmentIndex == 0) && (AlongPastTargetFt(aircraft, route, target) >= PastTargetFt);
+
+    /// <summary>The aircraft <paramref name="callsign"/> from <paramref name="snapshot"/>, restored into a fresh KOAK engine.</summary>
+    private AircraftState RestoreIntoAFreshEngine(StateSnapshotDto snapshot, string callsign)
+    {
+        SfoGround restored = BuildOak()!.Value;
+        restored.Engine.RestoreFromSnapshot(snapshot);
+        return Assert.IsType<AircraftState>(restored.Engine.FindAircraft(callsign));
     }
 
     /// <summary>
@@ -490,6 +842,25 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
 
         Assert.True(result.Success, $"the scripted 'TAXI @{M2Gate}' was refused: {result.Message}");
         Assert.Equal(spawned.Behind.Id, spawned.Aircraft.Ground.AssignedTaxiRoute!.Segments[0].ToNodeId);
+    }
+
+    /// <summary>
+    /// The scripted B738 lined up along M2 whose node ahead resolves no route to <c>@B26</c>: it takes the route from the
+    /// node behind, so it reports the turn about from the far end with that node as the target, though it is lined up.
+    /// </summary>
+    [Fact]
+    public void TaxiToGateOnM2_RefusedFromTheNodeAhead_ScriptedJetReportsTheTurnAboutFromTheFarEnd()
+    {
+        if (SpawnOnM2("B738") is not { } spawned)
+        {
+            return;
+        }
+
+        CommandResult result = TaxiOnM2(spawned, $"TAXI @{M2Gate}", isScenarioScripted: true);
+
+        Assert.True(result.Success, $"the scripted 'TAXI @{M2Gate}' was refused: {result.Message}");
+        Assert.Equal(TaxiTurnAboutShape.FromFarEnd, spawned.Aircraft.Ground.TaxiTurnAboutShape);
+        Assert.Equal(spawned.Behind.Id, spawned.Aircraft.Ground.TaxiTurnAboutTargetNodeId);
     }
 
     /// <summary>
@@ -564,7 +935,8 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
 
         Assert.Equal(M2NodeBehind, live.Segments[0].ToNodeId);
         Assert.Equal(live.Segments.Select(s => s.ToNodeId), restored.Segments.Select(s => s.ToNodeId));
-        Assert.Equal(live.StartsWithTurnAbout, restored.StartsWithTurnAbout);
+        Assert.Equal(live.TurnAboutShape, restored.TurnAboutShape);
+        Assert.Equal(live.TurnAboutTargetNodeId, restored.TurnAboutTargetNodeId);
     }
 
     /// <summary>How far along M2 from <see cref="M2NodeBehind"/> to <see cref="M2NodeAhead"/> the aircraft held after a push stands.</summary>

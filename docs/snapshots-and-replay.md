@@ -136,7 +136,7 @@ Old snapshots leave the fields null and resolve by id exactly as before — no s
 
 `TaxiRouteDto` also carries `DestinationParking` / `DestinationSpot` (nullable, additive) so a restored taxi-to-parking still installs `AtParkingPhase` at the end of the route.
 
-`TaxiRouteDto.StartsWithTurnAbout` (a bool, additive, no schema bump) keeps `TaxiRoute.StartsWithTurnAbout` across a restore, so a route that turns the aircraft about on its taxiway still reports the turn about pending (`AircraftGroundOps.TaxiTurnAboutPending`) while segment 0 is unflown. Older snapshots read it false.
+`TaxiRouteDto.TurnAboutShape` and `TurnAboutTargetNodeId` (additive, no schema bump) keep `TaxiRoute.TurnAboutShape` and `TurnAboutTargetNodeId` across a restore, so a route that turns the aircraft about on its taxiway still reports the pending shape and its target node (`AircraftGroundOps.TaxiTurnAboutShape` / `TaxiTurnAboutTargetNodeId`) while segment 0 is unflown, and a far-end route with no leg back that cleared both at its target restores cleared. Older snapshots read them as `TaxiTurnAboutShape.None` and null.
 
 `GroundNavigator` round-trips the primitive it is playing: `GroundNavigatorDto.Playback` carries the primitive (straight, Bézier or slow turn), its playback progress, the arc-entry blend, the entry-alignment bookkeeping and the from-node of the segment it was captured on.
 

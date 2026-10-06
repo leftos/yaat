@@ -43,10 +43,20 @@ public class AircraftGroundOps
     public TaxiRoute? AssignedTaxiRoute { get; set; }
 
     /// <summary>
-    /// True while the assigned taxi route starts with a turn about on the taxiway the aircraft stood on and the aircraft
-    /// has not finished that leg (<see cref="TaxiRoute.TurnAboutPending"/>); false otherwise, including with no route.
+    /// The shape of the turn about the assigned taxi route starts with on the taxiway the aircraft stood on, while the
+    /// aircraft is still on segment 0 and has not reached the turn about's target on a route with no leg back to it
+    /// (<see cref="TaxiRoute.PendingTurnAboutShape"/>); <see cref="TaxiTurnAboutShape.None"/> otherwise, including with no
+    /// route.
     /// </summary>
-    public bool TaxiTurnAboutPending => AssignedTaxiRoute is { TurnAboutPending: true };
+    public TaxiTurnAboutShape TaxiTurnAboutShape => AssignedTaxiRoute?.PendingTurnAboutShape ?? TaxiTurnAboutShape.None;
+
+    /// <summary>
+    /// The node the pending turn about (<see cref="TaxiTurnAboutShape"/>) turns the aircraft toward
+    /// (<see cref="TaxiRoute.TurnAboutTargetNodeId"/>); null when no turn about is pending.
+    /// </summary>
+    public int? TaxiTurnAboutTargetNodeId =>
+        ((AssignedTaxiRoute is { } route) && (route.PendingTurnAboutShape != TaxiTurnAboutShape.None)) ? route.TurnAboutTargetNodeId : null;
+
     public string? ParkingSpot { get; set; }
     public string? CurrentTaxiway { get; set; }
     public NavTickDiag? LastNavDiag { get; set; }

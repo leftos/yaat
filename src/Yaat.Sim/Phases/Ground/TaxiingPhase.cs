@@ -54,8 +54,9 @@ public sealed class TaxiingPhase : Phase
     private const double SetBackStopTakeFt = GroundNavigator.SetBackStopMarginFt + 1.0;
 
     // How far (deg) the aircraft's heading may be off the route's first segment for its nose to count as past the start
-    // node's bar: a start node the route turns away from projects the nose ahead of the line well short of it. 45° is a
-    // modelling threshold; no FAA document gives a figure.
+    // node's bar: a start node the route turns away from projects the nose ahead of the line well short of it. It also gates
+    // the turn-about-done check (EndTurnAboutAtItsTarget), separating an aircraft lined up with segment 0 from one whose centre
+    // is past the line through the target at any other heading. 45° is a modelling threshold; no FAA document gives a figure.
     private const double StartBarAlignedDeg = 45.0;
 
     // Float slack (s) on the phase's elapsed time when telling its first tick from the rest.
@@ -160,6 +161,8 @@ public sealed class TaxiingPhase : Phase
             _nav.RouteEndSpeedKts = RouteEndSpeedKts(ctx, route);
             SetupCurrentSegment(ctx, route);
         }
+
+        EndTurnAboutAtItsTarget(ctx, route);
 
         // A controller-commanded taxi speed replaces the category default outright (slower or
         // faster); it is mutually exclusive with expedite, so at most one branch is in effect.
@@ -1067,9 +1070,58 @@ public sealed class TaxiingPhase : Phase
     {
         double halfLengthNm = AircraftLength.ResolveFt(aircraft.AircraftType) / 2.0 / GeoMath.FeetPerNm;
         LatLon nose = GeoMath.ProjectPoint(aircraft.Position, aircraft.TrueHeading, halfLengthNm);
-        double distFt = GeoMath.DistanceNm(node, nose) * GeoMath.FeetPerNm;
-        double offRad = GeoMath.SignedBearingDifference(departureBearingDeg, GeoMath.BearingTo(node, nose)) * Math.PI / 180.0;
+        return PastNodeLineFt(nose, node, departureBearingDeg);
+    }
+
+    /// <summary>
+    /// How far (ft) <paramref name="point"/> is past the line through <paramref name="node"/> square to
+    /// <paramref name="departureBearingDeg"/>, measured along that bearing; negative when short.
+    /// </summary>
+    private static double PastNodeLineFt(LatLon point, LatLon node, double departureBearingDeg)
+    {
+        double distFt = GeoMath.DistanceNm(node, point) * GeoMath.FeetPerNm;
+        double offRad = GeoMath.SignedBearingDifference(departureBearingDeg, GeoMath.BearingTo(node, point)) * Math.PI / 180.0;
         return distFt * Math.Cos(offRad);
+    }
+
+    /// <summary>
+    /// Ends a turn about from the far end (<see cref="TaxiTurnAboutShape.FromFarEnd"/>) whose route has no leg back to its
+    /// target — segment 0 starts on <see cref="TaxiRoute.TurnAboutTargetNodeId"/> and runs on past it — once the aircraft has
+    /// reached the target: heading along segment 0 (within <see cref="StartBarAlignedDeg"/> of its departure) with its centre
+    /// at or past the line through the target square to that departure. No segment arrival marks that node, and the aircraft
+    /// stays on segment 0 past it, so the route would otherwise report the turn about pending behind an aircraft that has made
+    /// it. Clears the turn about on the route, which its snapshot carries; any other route keeps it until segment 0 is done.
+    /// Where segment 0 leaves the target within <see cref="StartBarAlignedDeg"/> of the way back up the edge the aircraft
+    /// stood on (an acute junction), the aircraft is not turned about to join it, and this ends the turn about as soon as
+    /// the aircraft is lined up with segment 0.
+    /// </summary>
+    private static void EndTurnAboutAtItsTarget(PhaseContext ctx, TaxiRoute route)
+    {
+        if (
+            (route.TurnAboutShape != TaxiTurnAboutShape.FromFarEnd)
+            || (route.CurrentSegmentIndex != 0)
+            || (route.CurrentSegment is not { } first)
+            || (route.TurnAboutTargetNodeId != first.FromNodeId)
+        )
+        {
+            return;
+        }
+
+        // Guard: no KOAK pose in the tests puts the centre past the line before the aircraft is lined up with segment 0.
+        double departureDeg = first.Edge.DepartureBearing;
+        bool aligned = GeoMath.AbsBearingDifference(ctx.Aircraft.TrueHeading.Degrees, departureDeg) < StartBarAlignedDeg;
+        if (!aligned || (PastNodeLineFt(ctx.Aircraft.Position, first.Edge.FromNode.Position, departureDeg) < 0.0))
+        {
+            return;
+        }
+
+        route.TurnAboutShape = TaxiTurnAboutShape.None;
+        route.TurnAboutTargetNodeId = null;
+        Log.LogDebug(
+            "[Taxi] {Callsign}: turned about and reached node {NodeId} on segment 0, turn about done",
+            ctx.Aircraft.Callsign,
+            first.FromNodeId
+        );
     }
 
     /// <summary>

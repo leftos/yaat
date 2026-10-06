@@ -576,8 +576,10 @@ public static class GroundCommandHandler
     /// endpoint ahead, and turns about only when that resolved none. Otherwise the endpoint ahead wins, with its route or
     /// its refusal. A route kept from the endpoint ahead whose first segment drives straight back over the edge turns the
     /// aircraft about where it stands: the lined-up jet on a controller's clearance refuses it, and every other route
-    /// reports it (<see cref="TaxiRoute.StartsWithTurnAbout"/>), as the route from the other endpoint does when it opens
-    /// with the leg back to that endpoint. The attempts log their failures at Debug and a refusal is logged once.
+    /// reports it (<see cref="TaxiTurnAboutShape.InPlace"/>). A route from the other endpoint that wins always reports its
+    /// turn about toward that endpoint (<see cref="TaxiTurnAboutShape.FromFarEnd"/>), whether or not it opens with the
+    /// free-space leg back to it. Both carry that endpoint as the target (<see cref="TaxiRoute.TurnAboutTargetNodeId"/>).
+    /// The attempts log their failures at Debug and a refusal is logged once.
     /// </summary>
     private static TaxiResolution ResolveTaxiRouteFromStart(TaxiResolveInputs inputs, TaxiCommand taxi, GroundNode startNode)
     {
@@ -639,7 +641,7 @@ public static class GroundCommandHandler
             return NoRoomToTurnAround(inputs.Aircraft, taxi, occupied.TaxiwayName);
         }
 
-        ReportTurnAbout(inputs.Aircraft, turned, occupied, otherEnd);
+        ReportTurnAbout(inputs.Aircraft, turned, occupied, otherEnd, TaxiTurnAboutShape.FromFarEnd);
         return fromOtherEnd;
     }
 
@@ -677,7 +679,7 @@ public static class GroundCommandHandler
     /// on a controller's clearance it refuses to turn about on that edge, and on one no controller issued it keeps the route
     /// from the edge's end ahead whenever one resolved, turning about only when none did.
     /// </summary>
-    public static bool IsJetLinedUpWith(AircraftCategory category, TrueHeading heading, GroundEdge edge) =>
+    private static bool IsJetLinedUpWith(AircraftCategory category, TrueHeading heading, GroundEdge edge) =>
         (category == AircraftCategory.Jet) && IsLinedUpWith(heading, edge);
 
     /// <summary>The route <paramref name="resolution"/> resolved, when it does not drive <paramref name="occupied"/>; null otherwise.</summary>
@@ -688,7 +690,7 @@ public static class GroundCommandHandler
     /// The resolution from the endpoint ahead, kept: its refusal, or its route. When that route's first segment drives
     /// straight back over <paramref name="occupied"/> to <paramref name="otherEnd"/>, the aircraft turns about where it
     /// stands, so a lined-up jet on a controller's clearance refuses it (<see cref="TurnAboutVerdict.Refuse"/>) and any
-    /// other route reports the turn about.
+    /// other route reports the turn about in place (<see cref="TaxiTurnAboutShape.InPlace"/>).
     /// </summary>
     private static TaxiResolution KeepRouteAhead(
         TaxiResolveInputs inputs,
@@ -708,30 +710,26 @@ public static class GroundCommandHandler
             return NoRoomToTurnAround(inputs.Aircraft, taxi, occupied.TaxiwayName);
         }
 
-        ReportTurnAbout(inputs.Aircraft, ahead, occupied, otherEnd);
+        ReportTurnAbout(inputs.Aircraft, ahead, occupied, otherEnd, TaxiTurnAboutShape.InPlace);
         return fromStart;
     }
 
     /// <summary>
-    /// Marks <paramref name="route"/> as turning the aircraft about (<see cref="TaxiRoute.StartsWithTurnAbout"/>) when it
-    /// really opens with the turn back to <paramref name="otherEnd"/> (<see cref="TurnsAboutToward"/>); otherwise leaves it
-    /// unmarked and logs why at Debug.
+    /// Marks <paramref name="route"/> as turning the aircraft about in <paramref name="shape"/> toward
+    /// <paramref name="otherEnd"/>, the end of <paramref name="occupied"/> behind it (<see cref="TaxiRoute.TurnAboutShape"/>,
+    /// <see cref="TaxiRoute.TurnAboutTargetNodeId"/>), and logs it at Debug.
     /// </summary>
-    private static void ReportTurnAbout(AircraftState aircraft, TaxiRoute route, GroundEdge occupied, GroundNode otherEnd)
+    private static void ReportTurnAbout(AircraftState aircraft, TaxiRoute route, GroundEdge occupied, GroundNode otherEnd, TaxiTurnAboutShape shape)
     {
-        if (TurnsAboutToward(route, occupied, otherEnd))
-        {
-            route.StartsWithTurnAbout = true;
-            return;
-        }
-
+        route.TurnAboutShape = shape;
+        route.TurnAboutTargetNodeId = otherEnd.Id;
         Log.LogDebug(
-            "[TryTaxi] {Callsign}: the route opens with {First}, neither the leg back to node {Other} nor the {Taxiway} edge back to it; "
-                + "no turn about reported",
+            "[TryTaxi] {Callsign}: turns about {Shape} on {Taxiway} toward node {Other}; the route opens with {First}",
             aircraft.Callsign,
-            route.Segments.Count > 0 ? $"segment {route.Segments[0].FromNodeId}->{route.Segments[0].ToNodeId}" : "no segment",
+            shape,
+            occupied.TaxiwayName,
             otherEnd.Id,
-            occupied.TaxiwayName
+            route.Segments.Count > 0 ? $"segment {route.Segments[0].FromNodeId}->{route.Segments[0].ToNodeId}" : "no segment"
         );
     }
 
@@ -783,7 +781,7 @@ public static class GroundCommandHandler
     /// leaves that edge's end nodes: the approach portion of the route. A later pass over the edge, after the route has
     /// gone elsewhere, is not a reversal past the aircraft.
     /// </summary>
-    public static bool DrivesOccupiedEdge(TaxiRoute route, GroundEdge edge)
+    private static bool DrivesOccupiedEdge(TaxiRoute route, GroundEdge edge)
     {
         foreach (TaxiRouteSegment segment in route.Segments)
         {

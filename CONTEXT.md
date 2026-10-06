@@ -229,12 +229,14 @@ _Avoid_: lead-in (a lead-in is the along-tangent shortfall before a curve the ai
 **Mid-edge start**:
 Where a TAXI issued to an aircraft standing on a straight taxiway edge begins: the route is planned from both ends of the occupied edge and the one that does not drive back over it is kept, the end ahead winning ties; an aircraft on a fillet arc starts at the arc's end ahead (docs/ground/pathfinder.md).
 
-**Turn-about in place**:
-A taxi route whose first leg reverses the aircraft on the taxiway where it stands, because its only route lies behind it (`TaxiRoute.StartsWithTurnAbout`; while unflown, `TaxiTurnAboutPending` on the training hub, which the ground view's overlay draws). Pistons, helicopters, turboprops, scripted taxis and jets angled across their edge make it; a lined-up jet refuses it.
+**Turn about (from the far end / in place)**:
+A taxi route that opens by reversing the aircraft on the taxiway edge it stands mid-way along, toward that edge's far node (`TaxiRoute.TurnAboutShape` / `TurnAboutTargetNodeId`; while unflown, `TaxiTurnAboutShape` / `TaxiTurnAboutTargetNodeId` on the training hub, which the ground view's overlay draws as sent). Pistons, helicopters, turboprops, scripted taxis and jets angled across their edge make it; a lined-up jet refuses it on a controller's clearance.
+*From the far end* (`FromFarEnd`): the route re-planned from the far node won, with or without a free-space leg back to that node.
+*In place* (`InPlace`): the route from the node ahead was kept, and its first segment drives the occupied edge backwards.
 _Avoid_: U-turn (a U-turn reverses over a junction's fillets, not along the taxiway)
 
 **Lined-up jet**:
-A jet whose heading is within 30° of its occupied taxiway edge, either way along it (`GroundCommandHandler.IsLinedUpWith`, a heuristic). A controller's TAXI that would need a turn-about in place is refused: "Unable, no room to turn around on C, request a route ahead".
+A jet whose heading is within 30° of its occupied taxiway edge, either way along it (`GroundCommandHandler.IsLinedUpWith`, a heuristic). A controller's TAXI that would need a turn about, in either shape, is refused: "Unable, no room to turn around on C, request a route ahead".
 
 **Holding distance**:
 How far from a runway's centerline its holding position markings sit: the map's `holdShortDistance`, else the width-based default (`RunwayCrossingDetector.HoldShortDistanceForWidth`). An aircraft is clear of the runway only with its tail past a bar at this distance.

@@ -182,9 +182,11 @@ Entry alignment is the **safety net** for the pure-pursuit divergence at low spe
 
 The aircraft is turning around, both sides reach the same tangent, and at exactly 180° the short way is a floating-point coin flip.
 
-Two TAXI starts for an aircraft mid-way along a straight taxi edge produce one by design: a **turn about in place on segment 0** ([pathfinder.md](./pathfinder.md#where-it-sits--entry-points), route-aware start). A route planned from the edge's far end (`TaxiRoute.StartsWithTurnAbout`) opens with the free-space leg back along the edge to that node.
+Two TAXI starts for an aircraft mid-way along a straight taxi edge produce one by design: a **turn about on segment 0** ([pathfinder.md](./pathfinder.md#where-it-sits--entry-points), route-aware start), in one of two shapes (`TaxiRoute.TurnAboutShape`). A route planned from the edge's far end (`TaxiTurnAboutShape.FromFarEnd`) opens with the free-space leg back along the edge to that node when the approach-leg guards allow one. Without the leg, `TaxiingPhase` ends the turn about once the aircraft reaches that node, since segment 0 then runs on past it.
 
-A route kept from the node ahead although it runs back over the edge opens with the edge itself, driven backwards; that is the route a lined-up jet keeps on a scripted TAXI (a controller's TAXI to it is refused), and any other aircraft keeps when the far end is no better; the route is flagged `StartsWithTurnAbout`. `TaxiApproachLeg` adds no leg to it, and its debug line `[ApproachLeg] no leg to node … the aircraft is past it, 0 ft abeam the line …` means this turn about in place, not a missing approach leg: the aircraft turns about where it stands, not at the junction ahead.
+A route kept from the node ahead although it runs back over the edge (`TaxiTurnAboutShape.InPlace`) opens with the edge itself, driven backwards; that is the route a lined-up jet keeps on a scripted TAXI (a controller's TAXI to it is refused), and any other aircraft keeps when the far end is no better.
+
+`TaxiApproachLeg` adds no leg to that in-place route, and its debug line `[ApproachLeg] no leg to node … the aircraft is past it, 0 ft abeam the line …` means this turn about in place, not a missing approach leg: the aircraft turns about where it stands, not at the junction ahead.
 
 `ShouldReverseAgainstShortWay` therefore sweeps the arc **against** its short way when the route's next turn (`SignedTurnAfterEntry`: a fillet segment's own sweep, else the bend onto the next segment's departure bearing) runs the same sense *and* `2·|Δ| + |next| > 360` — the point where turning the other way and unwinding costs less than letting the two compound.
 

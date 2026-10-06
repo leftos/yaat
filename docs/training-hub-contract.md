@@ -533,9 +533,13 @@ extend the resolver to depend on a new input, fingerprint that input too.
   A cleared bar of the runway the aircraft is on (rolling out, exiting or clearing it) does not count as an uncrossed runway. It reads the unfingerprinted taxi route, so it has its own fingerprint slot (`TrainingDtoFingerprint.NextCrossingRunway`).
 
   The client carries it as `AircraftModel.NextCrossingRunway` / `IMenuAircraft.NextCrossingRunway`, from which the quick list's Cross entry takes its runway.
-- `TaxiTurnAboutPending` (a bool, `false` by default) is `AircraftGroundOps.TaxiTurnAboutPending`: true while the assigned taxi route starts with a turn about in place on the taxiway the aircraft stood on (`TaxiRoute.StartsWithTurnAbout`) and the aircraft is still on that first segment.
+- `TaxiTurnAboutShape` (a string, `null` by default) is `AircraftGroundOps.TaxiTurnAboutShape` by name: `"FromFarEnd"` or `"InPlace"` while the assigned taxi route starts with a turn about on the taxiway the aircraft stood on (`TaxiRoute.TurnAboutShape`) and the aircraft is still on that first segment, null when none is pending. A far-end route with no leg back stops sending it once the aircraft has turned about and reached the target, though it is still on segment 0.
 
-  It flips false when the turn-about leg completes with nothing else on the DTO changing (the `TaxiRoute` string is the same), so it has its own fingerprint slot (`TrainingDtoFingerprint.TaxiTurnAboutPending`). The client carries it as `AircraftModel.TaxiTurnAboutPending`; the ground overlay draws a turn about only while it is set ([ground-rendering.md](ground-rendering.md)).
+  `TaxiTurnAboutTargetNodeId` (an int, `null` by default) is `AircraftGroundOps.TaxiTurnAboutTargetNodeId`: the occupied edge's far node the turn about turns the aircraft toward (`TaxiRoute.TurnAboutTargetNodeId`), null when none is pending.
+
+  Both go null when the turn-about leg completes with nothing else on the DTO changing (the `TaxiRoute` string is the same), so each has its own fingerprint slot (`TrainingDtoFingerprint.TaxiTurnAboutShape`, `TaxiTurnAboutTargetNodeId`).
+
+  The client parses the name into `AircraftModel.TaxiTurnAboutShape` (an unknown name logs a warning and reads as `None`) and carries `AircraftModel.TaxiTurnAboutTargetNodeId`; the ground overlay draws exactly the sent shape from the sent node ([ground-rendering.md](ground-rendering.md)).
 - `SmartStatus` / `SmartStatusSeverity` derive entirely from fingerprinted `AircraftState` inputs (`AircraftStatusView.FromState`
   → `AircraftStatusDescriber.Describe`); the only non-`ac` inputs (`IsDelayed`, `IsAutoClearedToLand`) are broadcast parameters
   `CaptureTrainingDto` cannot see, and they only matter for moving aircraft. No signature threading is needed.
