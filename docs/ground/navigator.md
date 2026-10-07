@@ -206,17 +206,29 @@ Note the floor: an arc aimed at a node *behind* the aircraft must sweep **more**
 
 The edge must also be a turn-about taxiway (`IsTurnAboutTaxiway`: a named movement-area taxiway, not a ramp connector or a runway centreline, touching no parking or helipad node). Otherwise the comfortable-radius aims run: a mid-route reversal at a junction, where the aircraft arrives at the node or at a tangent point short of it, keeps rounding the corner at its corner speed, as do reversals on ramps, aprons, stand lead-ins and runways (`TaxiwayTurnAboutJunctionTests`).
 
-`SolveTaxiwayTurnAbout` builds two arcs, both at `CategoryPerformance.TightTurnFloorRadiusFt` (8/12/15/8 ft piston/turboprop/jet/helicopter) and capped at `CategoryPerformance.TurnAboutSpeedKts`, ω·r: the gear-limited `GroundTurnRate` held on that radius (≈ 1.65/2.0/1.86/2.5 kt). That is below the 3 kt `SlowTurnSpeedKts` on purpose, since at 3 kt the tight radius would need more yaw than the gear gives.
+`SolveTaxiwayTurnAbout` builds two arcs (one when the reversal is re-aimed past the bend, below), both at `CategoryPerformance.TightTurnFloorRadiusFt` (8/12/15/8 ft piston/turboprop/jet/helicopter) and capped at `CategoryPerformance.TurnAboutSpeedKts`, ω·r: the gear-limited `GroundTurnRate` held on that radius (≈ 1.65/2.0/1.86/2.5 kt). That is below the 3 kt `SlowTurnSpeedKts` on purpose, since at 3 kt the tight radius would need more yaw than the gear gives.
 
-First a **jog** against the reversal's sense (`PathPrimitiveBuilder.TurnAboutJogDeg`: 60° for an aircraft on the centreline and along it, clamped to 0–90°, not flown under 1°) puts the reversal's turning circle on the centreline. Then the **reversal**, in the sense `ShouldReverseAgainstShortWay` chose, is solved through `SlowTurnToPointDirected` from the jog's exit pose (`PathPrimitiveBuilder.ExitPose`) to the node `FindAimNode` finds a turning diameter from that exit, not from the aircraft.
+First a **jog** against the reversal's sense (`PathPrimitiveBuilder.TurnAboutJogDeg`: 60° for an aircraft on the centreline and along it, clamped to 0–90°, not flown under 1°) puts the reversal's turning circle on the centreline.
 
-The turn so spans about one radius either side of the centreline, where a half turn begun on the line ends a whole diameter off it (at the comfortable radius a C172 swung 30 ft off a 25 ft-wide taxiway). A helicopter takes no jog: the reversal alone. With no aim node a diameter from the jog's exit, or no tangent through it, the turn about is not built and the comfortable-radius aims run.
+Then the **reversal**, in the sense `ShouldReverseAgainstShortWay` chose, is played from the jog's exit pose (`PathPrimitiveBuilder.ExitPose`) through `PathPrimitiveBuilder.SlowTurnDirected` to the edge's own bearing toward the node the route reverses to (`BuildRolledOutTurnAbout`, `ReversedEdgeBearingDeg`). It is not aimed at that node: an arc aimed at the node from a radius off the centreline crossed the centreline and had to be turned back.
 
-The reversal waits in `_pendingTurnAboutArc` while the jog plays, and `TryEngagePendingTurnAbout` swaps it in on the jog's completion within the same tick, with no heading nudge between the two: the reversal starts on the jog's exit tangent. The aim bookkeeping and the re-anchored straight after it are the painted reversal's.
+The turn about is built only when `FindAimNode` finds a node a turning diameter from the jog's exit, not from the aircraft, and the reversal from that exit has a tangent through it (`ReversalReachesAimNode`). Otherwise the comfortable-radius aims run. That node is also where `ReAimPastTheBend` looks for a bend the reversal may cut instead, with no jog ([After a turn about on a taxiway](#after-a-turn-about-on-a-taxiway)).
 
-Both survive a snapshot (`GroundNavigatorPlaybackDto.PendingTurnAboutArc`, `TurnAboutReversalPlaying`). Pins: `TaxiStartsOnOccupiedTaxiwayTests` (a C172 and a C208 mid-way along KOAK C keep their centre within the 12.5 ft TDG 1A half-width at no more than ω·r, on the free-space leg and on the painted edge driven backwards) and `GroundNavigatorArcRestoreTests` (a restore mid-jog and mid-reversal).
+The turn so spans about one radius either side of the centreline and ends a radius off it, parallel, where a half turn begun on the line ends a whole diameter off it (at the comfortable radius a C172 swung 30 ft off a 25 ft-wide taxiway). A helicopter takes no jog: the reversal alone, which ends a diameter off.
 
-**The aim node is the first one the arc cannot overshoot, and never past a bar.** Both node aims share `FindAimNode`, which walks forward from the current segment's own to-node to the first node at least a turning *diameter* (`2r`) from the aircraft.
+The reversal waits in `_pendingTurnAboutArc` while the jog plays, and `TryEngagePendingTurnAbout` swaps it in on the jog's completion within the same tick, with no heading nudge between the two: the reversal starts on the jog's exit tangent. A reversal re-aimed past the bend carries the painted reversal's aim bookkeeping and re-anchored straight.
+
+A reversal rolled out on the edge's bearing carries no aim bookkeeping; it is marked `_turnAboutReversalOnEdgeBearing` instead.
+
+On its completion `TryLayTurnAboutRollOutLine` lays the straight after it: held on the roll-out bearing to abeam the node (the offset line), or laid on the centreline square to a stop (the square stop line), both [below](#after-a-turn-about-on-a-taxiway). Otherwise the straight re-centres as after any reversal: a free-space leg is re-anchored on the live position (`ReanchorFreeSpaceLine`), and the painted edge driven backwards keeps its own line.
+
+All of it survives a snapshot (`GroundNavigatorPlaybackDto.PendingTurnAboutArc`, `TurnAboutReversalPlaying`, `TurnAboutRollsOutAlongEdge`, `TurnAboutReversalOnEdgeBearing`, `TurnAboutRollOutOffsetFt`, `TurnAboutSquareStopLine`).
+
+Pins: `TaxiStartsOnOccupiedTaxiwayTests` (a C172 and a C208 mid-way along KOAK C keep their centre within the 12.5 ft TDG 1A half-width at no more than ω·r, on the free-space leg and on the painted edge driven backwards) and `GroundNavigatorArcRestoreTests` (a restore mid-jog and mid-reversal).
+
+`TaxiwayTurnAboutAimTests` pins the rest: N152SP's turn about on KOAK D rolls out on D's bearing, holds it to abeam node 366 and turns onto H tangent to H's centreline; a C208, a straight longer than six radii and a type with no FAA record re-centre; a C172 at a real acute branch is re-aimed past the junction, and not when it holds short there; the stops at a bar; and restores mid-reversal, on the held straight, mid node turn and on the square stop line.
+
+**The aim node is the first one the arc cannot overshoot, and never past a bar.** Every node aim shares `FindAimNode`, which walks forward from the to-node of the segment it is given (the current segment, or the leg out of the bend a turn about is re-aimed past) to the first node at least a turning *diameter* (`2r`) from the point it is given: the aircraft, or a turn about's jog exit.
 
 A node inside the turning circle has no tangent at all; a node just outside one is reached by an arc longer than the leg running to it, so the arc rolls out past the node and pure pursuit re-acquires a line already behind the aircraft. At SFO gate G10 the first leg is 21 ft and the arc 169°, and chasing that node cost another 84° of turn — aiming at the first node the arc cannot overshoot removes it.
 
@@ -238,13 +250,53 @@ That is the Dubins arc-then-tangent-line, at the comfortable main-gear turn radi
 
 The straight's line is then re-anchored at the arc exit (`_segmentFromLat/Lon` = the live position, also on a snapshot restore, where the virtual node is rebuilt at its *original* position), so the straight runs exactly onto the node and the fillet that follows starts on-centerline. Aiming at the bearing alone left the arc exit ~30 ft abeam the line and the fillet's closed-form playback then wrote the aircraft onto its start point — the OAK gate-15 "rotated in place, then snapped to T" report.
 
-**Adaptive rounding radius.** The entry-alignment slow-turn and the incoming tangent-rounding both use an *adaptive* radius (`GroundNavigator.AdaptiveCornerRadiusFt`, defined at `531`), not a fixed main-gear turn radius.
+**Adaptive rounding radius.** The entry-alignment slow-turn and the incoming tangent-rounding both use an *adaptive* radius (`GroundNavigator.AdaptiveCornerRadiusFt`), not a fixed main-gear turn radius.
 
 When the approach or departure leg is shorter than the comfortable tangent length `T = r·tan(δ/2)` — two junctions closer than `T` apart, e.g. SFO M2 between the B and A crossings (~22 ft for a 118° turn that wants 41.6 ft) — the radius tightens toward a category **tight-turn floor** (`CategoryPerformance.TightTurnFloorRadiusFt`) so the arc still **exits on the outgoing centerline**.
 
 The floor is the path radius of the main-gear axle midpoint, not of the inner main gear: a jet's 15 ft is ~74° of nose-wheel steering on a B737-800, with the inner main gear ~5.6 ft from the turn centre.
 
-The incoming arrival threshold (`StraightArrivalThresholdNm`, defined at `556`) relaxes its `0.45·leg` cap to the whole leg only on such a tight leg, so the rounding can begin at the leg start. Without this, a fixed 25 ft arc off a 22 ft leg finishes ~26 ft wide, and pure-pursuit limit-cycles the corner on the short outgoing segment for ~45 s. This is judgmental oversteer (Boeing FCTM / AC 150/5300-13B): the nose may bulge wide of centerline mid-arc but rolls out aligned. Aviation-reviewed.
+The incoming arrival threshold (`StraightArrivalThresholdNm`) relaxes its `0.45·leg` cap to the whole leg only on such a tight leg, so the rounding can begin at the leg start. Without this, a fixed 25 ft arc off a 22 ft leg finishes ~26 ft wide, and pure-pursuit limit-cycles the corner on the short outgoing segment for ~45 s. This is judgmental oversteer (Boeing FCTM / AC 150/5300-13B): the nose may bulge wide of centerline mid-arc but rolls out aligned. Aviation-reviewed.
+
+A node turn laid from a turn about's offset line replaces both: its arrival point and its radius are fitted to the offset ([After a turn about on a taxiway](#after-a-turn-about-on-a-taxiway)).
+
+### After a turn about on a taxiway
+
+**Re-aim past the bend.** Before rolling a reversal out on the edge's bearing, `SolveTaxiwayTurnAbout` tries `ReAimPastTheBend` at the node `FindAimNode` found a turning diameter from the jog's exit. `ReAimBoundFt` admits it only when a leg follows that node and the node is no bar (`IsBarNode`): a cut past a bar would drive through the hold short without arriving at it.
+
+The bend there must also run against the reversal's sense and be sharper than `ReAimMinBendDeg` = 90°, or the route would turn about to the node only to turn most of the way back. The type must have an FAA main-gear width (`FaaAircraftDatabase`). The bound is `TurnAboutTaxiwayHalfWidthFt` (12.5 ft, half a TDG 1A taxiway, since the layout carries no design group) less half that width, and must be positive.
+
+The re-aimed reversal is solved through `SlowTurnToPointDirected` from the aircraft's own pose, with no jog, to the first node on the leg out of the bend at least 2r from the aircraft (`FindAimNode` from that leg, still stopped at a bar). It is kept only when every sample, 1 ft apart (`CutSampleSpacingFt`), of the arc and of the straight from its exit to that node lies within the bound of the turn-about edge's centreline or an outgoing leg's (`PavedCentrelines`, `CutStaysOnPavement`).
+
+A cut that leaves those strips crosses the unpaved wedge between the two taxiways, and a curved outgoing leg is not checked, so it refuses the re-aim. A kept re-aim commits the painted reversal's aim bookkeeping (aim `turn-about-reaimed`), and `TryRetireLegsTheArcAimedPast` retires the legs it was aimed past on completion. At KOAK D the cut onto H leaves the C172's 8.3 ft bound, so N152SP turns about on D.
+
+**The offset line** (also the roll-out hold). A reversal rolled out on the edge's bearing ends off the centreline on the side opposite its own sense. `HoldsRollOutBearing` decides when the plan is built whether the straight after it holds that bearing to abeam the node (`_turnAboutRollsOutAlongEdge`) instead of steering out to the centreline only to turn back in at the node.
+
+It holds only when the route then turns more than `EntryAlignmentThresholdDeg` (45°) to that side onto a straight edge, the node is no bar, and the type has an FAA main-gear width.
+
+`RollOutHoldFits` adds two more: the offset (a radius, a diameter for a helicopter) plus half the main-gear width stays within 12.5 ft of the centreline, and the straight from the reversal's exit to abeam the node is no longer than `RollOutHoldMaxRadii` = 6 turning radii. Over a longer straight the pilot re-centres first. The bar and missing-gear-width refusals are logged, and so is the fit check's result.
+
+On the reversal's completion `TryLayTurnAboutRollOutLine` lays the straight from the aircraft along its exit bearing, with the target moved to the point abeam the node, and records the offset there in `_turnAboutRollOutOffsetFt`. An aircraft already past abeam the node re-centres instead. The reversal takes no end-of-arc nudge: the bearing it rolled out on is the one it keeps.
+
+**The arrival threshold on the offset line.** With a sharp corner ahead, `OffsetLineArrivalThresholdNm` replaces the plain tangent length R·tan(δ/2) with R·tan(δ/2) − d·cot δ (d the offset, δ the turn), clamped to the final-node floor and the held line's length. That lays the node turn tangent to both the offset line and the outgoing centreline.
+
+The plain tangent length leaves the arc d·cos δ off the outgoing centreline, inside it for a bend under 90° and across it for one over 90°: N152SP, 8 ft inside a 104° bend onto H at KOAK, ended 2 ft across H's line and was steered 15° past H's bearing to get back.
+
+**The node-turn radius from the offset line.** A sub-tick of travel overruns the tangent point by up to several feet, and an arc of the planned radius begun late crosses the outgoing centreline (N152SP: 5 ft off H). `SetupSegment` therefore keeps the offset into the node turn, and `OffsetLineNodeTurnRadiusFt` fits its radius from where the aircraft stands.
+
+The fit is r = T' / tan(δ/2), with T' = d·cot δ + a and a how far the node still lies ahead along the held line, clamped between `TightTurnFloorRadiusFt` and the planned adaptive radius. That turn takes no end-of-arc nudge either, which would turn it off the centreline it exits on. The offset ends when the node turn completes (`CompleteEntryAlignment`, before any leg retirement sets up a later segment), or at the next segment set-up when no alignment turn is needed.
+
+**The square stop line.** When the straight after a rolled-out reversal ends in a stop (`_currentNodeRequiredSpeed` ≤ 0: an uncleared hold short, or the route's end), `TryLayTurnAboutRollOutLine` lays it on the segment's own centreline through the stop, from abeam the aircraft (`LayStraightSquareToStop`).
+
+The aircraft re-acquires the centreline and stops on it square to the bar, not on the chord from the off-centre roll-out. A stop not ahead on that line leaves the straight re-centred as after any other reversal.
+
+On that line (`_turnAboutSquareStopLine`), `TickStraight` steers in the last look-ahead window at a point along the line past the stop, not at the stop, so a residual offset re-acquiring the centreline does not become the heading the aircraft stops on.
+
+**A hold short reached on the held straight.** `OverrideTargetPosition` takes the `PhaseContext` because it re-lays a held straight: when a stop is aimed at while the offset line is held (an offset set, no primitive pending, a straight playing), it drops the offset and lays the straight on the edge's centreline through the stop, from abeam the offset line's start, with the square-stop steering.
+
+A stop not ahead on that line still drops the offset and leaves the line as it is; both outcomes are logged.
+
+Its callers are `TaxiingPhase.AimAtPaintedBar` (at segment set-up, on a target change, and on `NotifyHoldShortsChanged`'s re-aim) and `CrossingRunwayPhase`. A node turn laid from the offset line keeps the offset when its own segment's bar is aimed at: that bar lies on a straight that does not follow a turn about.
 
 ### Speed: corner-speed limits and backward-propagated braking
 
@@ -335,7 +387,7 @@ With the nose short of the start bar, the start-node hold is `TryHoldAtRouteStar
 4. Otherwise install the real primitive.
 5. `BuildSpeedConstraints` (`GroundNavigator.cs:424` calls it; defined at `988`) — speed profile for this and all downstream segments.
 
-`TaxiingPhase.SetupCurrentSegment` (`TaxiingPhase.cs:190`) then overrides the target lat/lon with a hold-short offset position when the to-node carries an uncleared hold-short (so the aircraft stops at the painted bar, not the intersection node).
+`TaxiingPhase.SetupCurrentSegment` then overrides the target lat/lon with a hold-short offset position when the to-node carries an uncleared hold-short (`AimAtPaintedBar` → `GroundNavigator.OverrideTargetPosition`), so the aircraft stops at the painted bar, not the intersection node.
 
 ### `Tick` — dispatch on primitive kind
 
@@ -369,7 +421,9 @@ After the switch, if an alignment slow-turn just completed (`result == ArrivedAt
 4. Mirror heading into `Targets` (so physics doesn't fight the closed-form state) and set speed — `ComputeTargetSpeed` for Béziers (participates in the constraint system), the primitive's `MaxSpeedKts` cap for slow-turns (they do not).
 5. When complete (Bézier `_bezierT ≥ 1.0`, slow-turn remaining sweep ≤ 0.01°), nudge heading toward the next bearing and return `ArrivedAtNode`.
 
-   The slow-turn nudge is bounded by `CategoryPerformance.GroundYawRateOnRadius` on the arc's own radius only when the arc is a turn-about reversal (`_turnAboutReversalPlaying`), and by the comfortable main-gear rate (`GroundYawRateAtSpeed`) otherwise. A turn-about jog takes no nudge: it hands straight on to its reversal.
+   The slow-turn nudge is bounded by `CategoryPerformance.GroundYawRateOnRadius` on the arc's own radius only when the arc is a turn-about reversal (`_turnAboutReversalPlaying`), and by the comfortable main-gear rate (`GroundYawRateAtSpeed`) otherwise.
+
+   `TakesEndOfArcNudge` gives no nudge at all to three slow turns. A turn-about jog hands straight on to its reversal (a turn-about arc pending). A reversal whose straight holds its roll-out bearing (`_turnAboutRollsOutAlongEdge`) keeps that bearing. The node turn laid from a turn about's offset line (`_turnAboutRollOutOffsetFt` set) exits on the outgoing centreline, which the nudge would turn it off.
 
 ### Route advance in the owning phase
 
@@ -413,7 +467,7 @@ Both ends of the connector must be a turn, so a single corner or a from-rest spo
 
 `EntryAlignmentThresholdDeg = 45.0` (`GroundNavigator.cs:501`). The entry-alignment slow-turn is the catch-all for any misaligned segment start (post-pushback U-turns, mid-route corners where convergence might diverge). It fires at any segment start with a heading delta over the threshold, independent of route position — there is no route-entry gate.
 
-A second threshold sits above it: past `ReversalEntryThresholdDeg = 135.0` the entry is a reversal rather than a corner, and it is turned the way that unwinds into the route's next turn and aimed at a node rather than a bearing (see **Entry-alignment threshold** above).
+A second threshold sits above it: past `ReversalEntryThresholdDeg = 135.0` the entry is a reversal rather than a corner, and it is turned the way that unwinds into the route's next turn and aimed at a node rather than a bearing; a turn about on a taxiway is instead re-aimed past the bend or rolled out on the edge's own bearing (see **Entry-alignment threshold** above).
 
 ### Orbit guard (two-layer defense)
 

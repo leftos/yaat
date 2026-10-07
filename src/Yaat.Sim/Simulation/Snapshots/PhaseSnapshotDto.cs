@@ -536,6 +536,39 @@ public sealed class GroundNavigatorPlaybackDto
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public bool? TurnAboutReversalPlaying { get; init; }
+
+    /// <summary>
+    /// True while the jog of a turn about on a taxiway, and then its reversal, plays toward a node where the route then
+    /// turns to the side the reversal ends on, so the straight after it holds the taxiway's bearing to abeam that node
+    /// rather than steering back onto the centreline first. Absent (null) when unset.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? TurnAboutRollsOutAlongEdge { get; init; }
+
+    /// <summary>
+    /// How far (ft) the straight a turn about holds on its roll-out bearing runs inside the coming turn, off the segment's
+    /// centreline, kept through the node turn that straight ends in: on the straight it places the arrival point that lays
+    /// the node turn tangent to the outgoing centreline, through the node turn it keeps the end-of-arc nudge off. Absent
+    /// (null) when unset.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? TurnAboutRollOutOffsetFt { get; init; }
+
+    /// <summary>
+    /// True while the jog of a turn about on a taxiway, and then its reversal, plays a reversal rolled out on the taxiway
+    /// edge's own bearing rather than re-aimed past the bend, so a straight after it that ends in a stop is laid on the
+    /// centreline through the stop. Absent (null) when unset.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? TurnAboutReversalOnEdgeBearing { get; init; }
+
+    /// <summary>
+    /// True while the straight after a turn about is laid on the centreline through a stop, from abeam where the aircraft
+    /// rolled out off it, and steered in its last look-ahead window along the line past the stop rather than at the stop
+    /// itself, so the aircraft stops square to the bar. Absent (null) when unset.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? TurnAboutSquareStopLine { get; init; }
 }
 
 /// <summary>A navigator path primitive (<c>PathPrimitive</c>), by shape.</summary>

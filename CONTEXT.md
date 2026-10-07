@@ -236,8 +236,18 @@ A taxi route that opens by reversing the aircraft on the taxiway edge it stands 
 _Avoid_: U-turn (a U-turn reverses over a junction's fillets, not along the taxiway)
 
 **Turn-about jog**:
-The short arc that opens a turn about on a taxiway, turned against the reversal's sense at the tight-turn radius (60° for an aircraft on the centreline), so that the reversal arc after it is centred on the centreline and the whole turn stays within about one radius either side of it (`PathPrimitiveBuilder.TurnAboutJogDeg`, docs/ground/navigator.md). A helicopter takes none.
+The short arc that opens a turn about on a taxiway, turned against the reversal's sense at the tight-turn radius (60° for an aircraft on the centreline), so that the reversal arc after it is centred on the centreline and the whole turn stays within about one radius either side of it (`PathPrimitiveBuilder.TurnAboutJogDeg`, docs/ground/navigator.md). A helicopter takes none, and nor does a reversal re-aimed past the bend.
 _Avoid_: S-turn, offset (the jog is a single arc, not a lateral shift)
+
+**Offset line** (also *roll-out hold*):
+The straight after a turn about's reversal, held on the taxiway edge's bearing the reversal rolled out on, a turning radius off the centreline (a diameter for a helicopter) on the inside of the turn the route makes at the node, to abeam that node, instead of steering back out to the centreline first.
+`GroundNavigator.HoldsRollOutBearing` decides it and `TryLayTurnAboutRollOutLine` lays it (docs/ground/navigator.md). Among its conditions: a straight of at most six turning radii, no bar at the node, and the main gear inside a TDG 1A half-width. The node turn from it is fitted to the offset so it exits on the outgoing centreline.
+
+**Re-aim past the bend**:
+A turn about's reversal aimed, with no jog, at a node on the leg out of the bend at its aim node, instead of turning about to that node, when the bend runs back against the reversal by more than 90° and the cut keeps the main gear within a TDG 1A taxiway half-width of the two taxiways' centrelines (`GroundNavigator.ReAimPastTheBend`, docs/ground/navigator.md). Never past a bar.
+
+**Square stop line**:
+The straight after a turn about laid on the taxiway's centreline through a stop, from abeam the aircraft or from abeam the offset line's start when a hold short is issued on that line, and steered in its last look-ahead window at a point past the stop, so the aircraft stops on the centreline square to the bar (`GroundNavigator.LayStraightSquareToStop`, docs/ground/navigator.md).
 
 **Lined-up jet**:
 A jet whose heading is within 30° of its occupied taxiway edge, either way along it (`GroundCommandHandler.IsLinedUpWith`, a heuristic). A controller's TAXI that would need a turn about, in either shape, is refused: "Unable, no room to turn around on C, request a route ahead".

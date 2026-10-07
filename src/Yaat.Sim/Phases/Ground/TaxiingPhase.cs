@@ -239,7 +239,7 @@ public sealed class TaxiingPhase : Phase
         NavigatorResult result = _nav.Tick(ctx, isLastSegment, nodeId => IsHoldShortCleared(route, nodeId));
         if (_nav.TargetNodeId != targetBeforeTick)
         {
-            AimAtPaintedBar(route);
+            AimAtPaintedBar(ctx, route);
         }
 
         if (held)
@@ -550,7 +550,7 @@ public sealed class TaxiingPhase : Phase
                 _unableStopNodeId = bar.NodeId;
             }
 
-            AimAtPaintedBar(route);
+            AimAtPaintedBar(ctx, route);
         }
 
         _nav.RefreshSpeedConstraints(route, ctx, nodeId => IsHoldShortCleared(route, nodeId));
@@ -605,7 +605,7 @@ public sealed class TaxiingPhase : Phase
         }
 
         _nav.SetupSegment(route, ctx, nodeId => IsHoldShortCleared(route, nodeId));
-        AimAtPaintedBar(route);
+        AimAtPaintedBar(ctx, route);
         _initialized = true;
     }
 
@@ -617,14 +617,14 @@ public sealed class TaxiingPhase : Phase
     /// Only a bar whose stop lies on the current segment is aimed at: a stop set back past the segment's start is behind
     /// the aircraft, and <see cref="TryHoldAtSetBackStop"/> takes that hold on an earlier segment.
     /// </summary>
-    private void AimAtPaintedBar(TaxiRoute route)
+    private void AimAtPaintedBar(PhaseContext ctx, TaxiRoute route)
     {
         if (
             route.GetHoldShortAt(_nav.TargetNodeId) is { IsCleared: false, Latitude: { } barLat, Longitude: { } barLon } bar
             && StopLiesOnCurrentSegment(route, bar)
         )
         {
-            _nav.OverrideTargetPosition(barLat, barLon);
+            _nav.OverrideTargetPosition(ctx, barLat, barLon);
         }
     }
 

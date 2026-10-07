@@ -57,7 +57,15 @@ No schema bump: nothing is given up in snapshot 0, whose hash yaat-server pins. 
 
 `TaxiingPhaseDto.PassedStartBarNodeId` is another such field: the node of the uncleared runway bar the route starts on whose marking the nose is past, which the phase is stopping for at the firm rate ([ground/navigator.md](ground/navigator.md) § Stopping at an uncleared bar). It is null whenever no such stop is under way, and null on older snapshots, which never carried one; no schema bump.
 
-`GroundNavigatorPlaybackDto.PendingTurnAboutArc` and `TurnAboutReversalPlaying` follow the same pattern for a turn about on a taxiway ([ground/navigator.md](ground/navigator.md) § Entry-alignment threshold). `PendingTurnAboutArc` is the reversal arc parked while the jog that centres it plays, and `TurnAboutReversalPlaying` is true while that reversal plays, so its end-of-arc nudge keeps the arc's own radius. Both are written only when set and absent (null) otherwise; no schema bump.
+`GroundNavigatorPlaybackDto.PendingTurnAboutArc` and `TurnAboutReversalPlaying` follow the same pattern for a turn about on a taxiway ([ground/navigator.md](ground/navigator.md) § Entry-alignment threshold). `PendingTurnAboutArc` is the reversal arc parked while the jog that centres it plays, and `TurnAboutReversalPlaying` is true while that reversal plays, so its end-of-arc nudge keeps the arc's own radius.
+
+Four more carry what the straight after the turn about is laid as ([ground/navigator.md](ground/navigator.md#after-a-turn-about-on-a-taxiway) § After a turn about on a taxiway). `TurnAboutReversalOnEdgeBearing` is true while the jog and reversal of a turn about rolled out on the edge's own bearing play, so a straight after it that ends in a stop is laid on the centreline through the stop.
+
+`TurnAboutRollsOutAlongEdge` is true over the same span when that straight holds the roll-out bearing to abeam the node instead.
+
+`TurnAboutRollOutOffsetFt` is how far that held straight runs off the centreline inside the coming turn, kept through the node turn it ends in: it sets the straight's arrival point and keeps the node turn's end-of-arc nudge off. `TurnAboutSquareStopLine` is true while the straight is laid on the centreline through a stop and steered past the stop in its last look-ahead window.
+
+All six are written only when set and absent (null) otherwise; no schema bump.
 
 A restore that kept no latch would let the stop go once the aircraft had slowed too far from the node to find it again.
 

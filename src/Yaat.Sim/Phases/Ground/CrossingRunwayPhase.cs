@@ -529,7 +529,7 @@ public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, st
 
         if (route.GetHoldShortAt(_targetNodeId) is { IsCleared: false, Latitude: { } lat, Longitude: { } lon })
         {
-            _navigator.OverrideTargetPosition(lat, lon);
+            _navigator.OverrideTargetPosition(ctx, lat, lon);
         }
     }
 
