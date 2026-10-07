@@ -1,3 +1,4 @@
+using System.Globalization;
 using Avalonia.Controls;
 using Avalonia.Media;
 
@@ -83,12 +84,12 @@ public static class SharedMenuGroups
     }
 
     /// <summary>
-    /// The header every aircraft menu opens with: the bold, disabled title — the callsign and the type the aircraft
-    /// filed (<see cref="IMenuAircraft.DisplayAircraftType"/>), or the bare callsign with no aircraft model or no type —
-    /// then the rows under the title, the route summary (<see cref="RouteSummaryItem"/>) and the hold status
-    /// (<see cref="HoldStatusItem"/>) the aircraft's own state raises, then the release items every view offers where
-    /// they apply (Release (HFR) while the aircraft is held for release, then Check release window while it has a
-    /// call-for-release window), then a separator, the free-text Command… and Note… (which ask the host for its
+    /// The header every aircraft menu opens with: the bold, disabled title — the callsign and the type the aircraft filed
+    /// (<see cref="IMenuAircraft.DisplayAircraftType"/>), or the bare callsign with no aircraft model or no type — then
+    /// the state line (<see cref="StateLineItem"/>) and the rows under it, the route summary (<see cref="RouteSummaryItem"/>)
+    /// and the hold status (<see cref="HoldStatusItem"/>) the aircraft's own state raises, then the release items every
+    /// view offers where they apply (Release (HFR) while the aircraft is held for release, then Check release window while
+    /// it has a call-for-release window), then a separator, the free-text Command… and Note… (which ask the host for its
     /// flyouts), and a separator.
     /// </summary>
     public static void AddHeader(ItemCollection items, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
@@ -101,6 +102,7 @@ public static class SharedMenuGroups
                 FontWeight = FontWeight.Bold,
             }
         );
+        TryAdd(items, StateLineItem(aircraft));
         TryAdd(items, RouteSummaryItem(aircraft));
         TryAdd(items, HoldStatusItem(aircraft));
 
@@ -116,6 +118,99 @@ public static class SharedMenuGroups
     /// <summary>The header title: <c>{callsign} — {type}</c>, or the bare callsign when there is no aircraft model or no type.</summary>
     private static string HeaderTitle(IMenuAircraft? aircraft, string callsign) =>
         ((aircraft is null) || string.IsNullOrWhiteSpace(aircraft.DisplayAircraftType)) ? callsign : $"{callsign} — {aircraft.DisplayAircraftType}";
+
+    /// <summary>
+    /// The header's one-line state row: what the aircraft is doing now, as segments joined with <c> · </c>. A landing
+    /// roll shows <c>Landing · runway 28R · 62 kt</c>, another ground aircraft <c>Taxiing · S/RAMP · KSAN</c> (the
+    /// taxiway else the parking spot, then the ground airport), an airborne one
+    /// <c>Approach · 3,000 ft · 180 kt · KOAK rwy 30</c>. Each segment is left out when it has no value, and a numeric
+    /// segment whose rounded value is zero counts as none. The row is a disabled, dimmed label. Null without an aircraft
+    /// or when no segment is left.
+    /// </summary>
+    private static MenuItem? StateLineItem(IMenuAircraft? aircraft)
+    {
+        if (aircraft is null)
+        {
+            return null;
+        }
+
+        List<string> segments = aircraft.IsOnGround ? GroundStateSegments(aircraft) : AirborneStateSegments(aircraft);
+        if (segments.Count == 0)
+        {
+            return null;
+        }
+
+        return new MenuItem
+        {
+            Header = string.Join(" · ", segments),
+            IsEnabled = false,
+            FontSize = 11,
+            Opacity = 0.8,
+        };
+    }
+
+    /// <summary>
+    /// The state line's segments for an aircraft on the ground: a landing roll (fixed-wing <c>Landing</c> or helicopter
+    /// <c>Landing-H</c>), else the ground-movement state.
+    /// </summary>
+    private static List<string> GroundStateSegments(IMenuAircraft aircraft)
+    {
+        var segments = new List<string>();
+        AddSegment(segments, PhaseDisplayNames.For(aircraft.CurrentPhase));
+
+        if (aircraft.CurrentPhase is "Landing" or "Landing-H")
+        {
+            AddSegment(segments, string.IsNullOrEmpty(aircraft.AssignedRunway) ? "" : $"runway {aircraft.AssignedRunway}");
+            AddSegment(segments, FormatSpeed(aircraft.GroundSpeedKnots));
+            return segments;
+        }
+
+        string place = !string.IsNullOrEmpty(aircraft.CurrentTaxiway) ? aircraft.CurrentTaxiway : aircraft.ParkingSpot;
+        AddSegment(segments, place);
+        AddSegment(segments, aircraft.GroundAirportId ?? "");
+        return segments;
+    }
+
+    /// <summary>The state line's segments for an airborne aircraft: the phase, altitude, speed and the assigned runway with its airport.</summary>
+    private static List<string> AirborneStateSegments(IMenuAircraft aircraft)
+    {
+        var segments = new List<string>();
+        AddSegment(segments, PhaseDisplayNames.For(aircraft.CurrentPhase));
+        AddSegment(segments, FormatAltitude(aircraft.AltitudeFeet));
+        AddSegment(segments, FormatSpeed(aircraft.IndicatedAirspeedKnots));
+
+        if (!string.IsNullOrEmpty(aircraft.AssignedRunway))
+        {
+            bool departing = aircraft.CurrentPhase is "Takeoff" or "Takeoff-H" or "InitialClimb" or "DepartureProcedure";
+            string airport = departing ? aircraft.Departure : aircraft.Destination;
+            AddSegment(segments, string.IsNullOrEmpty(airport) ? $"rwy {aircraft.AssignedRunway}" : $"{airport} rwy {aircraft.AssignedRunway}");
+        }
+
+        return segments;
+    }
+
+    /// <summary>Adds <paramref name="segment"/> to <paramref name="segments"/> unless it is null or empty.</summary>
+    private static void AddSegment(List<string> segments, string segment)
+    {
+        if (!string.IsNullOrEmpty(segment))
+        {
+            segments.Add(segment);
+        }
+    }
+
+    /// <summary>The altitude segment, <c>3,000 ft</c>, rounded to the nearest 100 ft, or empty for an altitude that rounds to zero.</summary>
+    private static string FormatAltitude(double feet)
+    {
+        long rounded = (long)Math.Round(feet / 100.0, MidpointRounding.AwayFromZero) * 100;
+        return rounded == 0 ? "" : rounded.ToString("N0", CultureInfo.InvariantCulture) + " ft";
+    }
+
+    /// <summary>The speed segment, <c>180 kt</c>, rounded to whole knots, or empty for a speed that rounds to zero.</summary>
+    private static string FormatSpeed(double knots)
+    {
+        long rounded = (long)Math.Round(knots, MidpointRounding.AwayFromZero);
+        return rounded == 0 ? "" : rounded.ToString("N0", CultureInfo.InvariantCulture) + " kt";
+    }
 
     /// <summary>
     /// The header's route summary row: the aircraft's route fix names from the fix it is navigating to on, joined with

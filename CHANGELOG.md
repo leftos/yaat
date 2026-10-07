@@ -4,6 +4,7 @@
 
 ### Added
 
+- Every aircraft right-click menu shows a state line under its title: phase, altitude, speed and runway, or taxiway and airport on the ground.
 - A range/bearing measurement's label moves clear of data blocks and aircraft, pushing auto-placed data blocks aside while every side is covered.
 - An aircraft's right-click menu leads with situational quick commands, as icons named as you point at them and text; others sit under All Commands.
 - Right-clicking a taxi node, runway or threshold with an aircraft selected opens with quick-command icons for that point, such as Taxi here and Push to.

@@ -1,5 +1,6 @@
 # list live-traffic-assumable
 UAL401 — B738 [disabled]
+11,000 ft · 250 kt [disabled]
 ---
 Command…
 Note…

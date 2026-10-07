@@ -1,5 +1,6 @@
 # list rollout-exit
 SWA107 — B738 [disabled]
+Landing · runway 30 · 60 kt [disabled]
 ---
 Command…
 Note…

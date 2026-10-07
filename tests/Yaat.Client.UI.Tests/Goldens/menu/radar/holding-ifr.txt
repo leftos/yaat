@@ -1,5 +1,6 @@
 # radar holding-ifr
 AAL205 — B738 [disabled]
+Holding · 5,000 ft · 180 kt · KOAK rwy 30 [disabled]
 ---
 Command…
 Note…

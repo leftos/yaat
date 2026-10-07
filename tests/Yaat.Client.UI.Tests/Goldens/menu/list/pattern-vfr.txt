@@ -1,5 +1,6 @@
 # list pattern-vfr
 N307AB — C172 [disabled]
+Downwind · 1,000 ft · 90 kt · KOAK rwy 28R [disabled]
 ---
 Command…
 Note…

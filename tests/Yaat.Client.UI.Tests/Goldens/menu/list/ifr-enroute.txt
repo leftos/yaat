@@ -1,5 +1,6 @@
 # list ifr-enroute
 AAL202 — B738 [disabled]
+33,000 ft · 280 kt [disabled]
 ---
 Command…
 Note…

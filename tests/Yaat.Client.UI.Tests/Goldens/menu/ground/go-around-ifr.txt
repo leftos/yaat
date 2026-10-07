@@ -1,5 +1,6 @@
 # ground go-around-ifr
 AAL208 — B738 [disabled]
+Go around · 1,000 ft · 180 kt · KOAK rwy 30 [disabled]
 ---
 Command…
 Note…

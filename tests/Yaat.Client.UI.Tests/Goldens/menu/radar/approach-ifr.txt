@@ -1,5 +1,6 @@
 # radar approach-ifr
 AAL204 — B738 [disabled]
+Approach · 3,000 ft · 180 kt · KOAK rwy 30 [disabled]
 ---
 Command…
 Note…

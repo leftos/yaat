@@ -284,7 +284,11 @@ Route drawing and heading mode start from the aircraft right-click menu.
 
 Right-click an aircraft on the [Radar View](#radar-view-1), the [Ground View](#ground-view-1) or the [Aircraft List](#aircraft-list-1) and the same menu opens on all three. It leads with a short list of **quick commands** for what the aircraft is doing right now, and keeps every other command one level down under **All Commands**. From the top:
 
-- The title (callsign and type), with **Release (HFR)** and **Check release window** under it when they apply, then **Command…** (a focused free-text command popup) and **Note…**.
+- The title (callsign and type), then the dimmed state line, the route summary and hold status rows when they apply, **Release (HFR)** and **Check release window** when they apply, then **Command…** (a focused free-text command popup) and **Note…**.
+
+  The **state line** says what the aircraft is doing right now. Airborne it reads phase, altitude (to the nearest 100 ft), speed and runway, the airport being the departure airport while taking off or departing and the destination otherwise: `Approach · 3,000 ft · 180 kt · KOAK rwy 30`.
+
+  On the ground it reads phase, taxiway (else parking spot) and airport, `Taxiing · C · KOAK`, and on a landing roll phase, runway and ground speed, `Landing · runway 28R · 62 kt`. A part with no value is left out, and an aircraft with nothing to show has no state line.
 - The **icon strip**: up to ten icons in two rows of five, one per quick command that has an icon. A label row above the icons names the icon under the pointer with the text it sends (`Hold position — HOLD`), adds "›" when the icon opens choices, and reads "Quick commands" when none is pointed at; hovering an icon also shows a tooltip. A click sends it, or opens its prompt; an icon with a small notch in its corner opens its choices (Maintain's altitudes, Cleared for takeoff's options). Choosing a command closes the menu.
 - The remaining quick commands as text, below the strip.
 - **Track**, **Data Block**, **Squawk**, then the view's own items (the radar's **Display** and **Draw route**, the ground's **Display**; the Aircraft List has none), and **Favorite Commands**.
@@ -735,7 +739,7 @@ A simplified [STARS](#glossary)-style radar display showing aircraft targets, vi
 **Right-click context menus:**
 - **On an aircraft**: the same [aircraft menu](#aircraft-right-click-menu) the [Ground View](#ground-view-1) and the [Aircraft List](#aircraft-list-1) show — only **Display** and **Draw route** are the radar's own.
 
-  Under the title come Command… and Note…, then the quick commands and icon strip for the aircraft's situation, Track, Data Block, Squawk, Display and Draw route, Favorite Commands, and **All Commands**.
+  Under the title and its header rows come Command… and Note…, then the quick commands and icon strip for the aircraft's situation, Track, Data Block, Squawk, Display and Draw route, Favorite Commands, and **All Commands**.
 
   All Commands holds the ground items for an aircraft on the ground (Push back, Hold position, Hold short of…, Follow…, Give way to…, Cross — see the Ground View) and the groups Heading, Altitude, Speed, Navigation, Hold, Approach, Procedures, Tower and Pattern in that order (only Tower while the aircraft is on the ground or rolling on the runway).
 
@@ -891,7 +895,7 @@ A **note** is a freetext reminder you can pin to a specific aircraft — "watch 
 Set or edit a note any of these ways:
 
 - **Command bar**: type `NOTE Watch wake` to set, or a bare `NOTE` to clear.
-- **Right-click** the aircraft on the radar, the ground view or the Aircraft List → **Note…**, just under the title (opens a text-entry popup).
+- **Right-click** the aircraft on the radar, the ground view or the Aircraft List → **Note…**, just under **Command…** in the menu's header (opens a text-entry popup).
 - **EuroScope tag**: click the amber note line (when one is already set).
 
 ##### ATPA cones and in-trail distance
@@ -1290,7 +1294,7 @@ Model the departure-release coordination a TRACON provides to satellite towered 
 Release them in any of these ways:
 
 - `REL <airport>` (or `CTOA <airport>`) — release the next pending departure at that field.
-- `REL <callsign>` — release a specific aircraft (also available as a one-click **Release (HFR)** item under the title of the aircraft's right-click menu on the radar, ground view and aircraft list).
+- `REL <callsign>` — release a specific aircraft (also available as a one-click **Release (HFR)** item in the header of the aircraft's right-click menu, below the title, the state line and the route and hold rows, on the radar, ground view and aircraft list).
 - `REL <airport> <minutes>` — release the field's whole held queue, auto-spaced by that many minutes (e.g. `REL SJC 2`).
 - `HFROFF <airport>` — disarm the field; anything still held is auto-released.
 

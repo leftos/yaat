@@ -1886,6 +1886,12 @@ public class MenuCatalogCommandTests
 
         public bool IsOnGround { get; init; }
 
+        public string CurrentTaxiway { get; init; } = "";
+
+        public string ParkingSpot { get; init; } = "";
+
+        public string? GroundAirportId { get; init; }
+
         public LatLon Position { get; init; }
 
         public string? LastReportedTrafficCallsign { get; init; }

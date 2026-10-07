@@ -1,5 +1,6 @@
 # list vfr-arrival-inbound
 N303AB — C172 [disabled]
+3,500 ft · 110 kt [disabled]
 ---
 Command…
 Note…

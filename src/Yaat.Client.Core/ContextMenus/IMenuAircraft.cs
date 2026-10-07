@@ -34,6 +34,15 @@ public interface IMenuAircraft
     /// <summary>True while the aircraft is on the surface rather than airborne.</summary>
     bool IsOnGround { get; }
 
+    /// <summary>The taxiway the aircraft is on, empty when none.</summary>
+    string CurrentTaxiway { get; }
+
+    /// <summary>The parking spot the aircraft is at, empty when none.</summary>
+    string ParkingSpot { get; }
+
+    /// <summary>The airport of the ground layout the aircraft is on, null when none.</summary>
+    string? GroundAirportId { get; }
+
     /// <summary>The aircraft's position, which a point menu's Fly heading measures the bearing to the point from.</summary>
     LatLon Position { get; }
 

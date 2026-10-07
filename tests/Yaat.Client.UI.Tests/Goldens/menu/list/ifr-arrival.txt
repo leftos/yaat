@@ -1,5 +1,6 @@
 # list ifr-arrival
 AAL203 — B738 [disabled]
+16,000 ft · 280 kt [disabled]
 ---
 Command…
 Note…

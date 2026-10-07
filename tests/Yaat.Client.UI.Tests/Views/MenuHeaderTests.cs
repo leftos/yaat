@@ -22,9 +22,9 @@ namespace Yaat.Client.UI.Tests.Views;
 
 /// <summary>
 /// The header every aircraft menu opens with (<see cref="SharedMenuGroups.AddHeader"/>): the bold title naming the
-/// callsign and the filed type, the route summary and hold status rows under it, the release items (Release (HFR) and
-/// Check release window) where they apply, then the free-text Command… and Note…, which ask the host to open its
-/// command and note flyouts.
+/// callsign and the filed type, the one-line state row under it, the route summary and hold status rows below that, the
+/// release items (Release (HFR) and Check release window) where they apply, then the free-text Command… and Note…, which
+/// ask the host to open its command and note flyouts.
 /// </summary>
 public class MenuHeaderTests
 {
@@ -74,15 +74,129 @@ public class MenuHeaderTests
         Assert.Equal(Callsign, title.Header as string);
     }
 
+    // --- The state line, directly under the title ---------------------------------------------
+
     [AvaloniaFact]
-    public void Header_IsTitleRowSeparatorCommandNoteSeparator()
+    public void StateLine_Airborne_NamesThePhaseAltitudeSpeedAirportAndRunway()
+    {
+        AircraftModel ac = AirborneAircraft("ApproachNav", 2960, 180.4);
+        ac.Destination = "KOAK";
+        ac.AssignedRunway = "30";
+
+        Assert.Equal("Approach · 3,000 ft · 180 kt · KOAK rwy 30", StateLine(ac));
+    }
+
+    [AvaloniaFact]
+    public void StateLine_AirborneWithNoAirport_NamesOnlyTheRunway()
+    {
+        AircraftModel ac = AirborneAircraft("FinalApproach", 1500, 140);
+        ac.AssignedRunway = "30";
+
+        Assert.Equal("Final · 1,500 ft · 140 kt · rwy 30", StateLine(ac));
+    }
+
+    [AvaloniaFact]
+    public void StateLine_AirborneWithDestinationAndNoRunway_LeavesOutTheAirportSegment()
+    {
+        AircraftModel ac = AirborneAircraft("Downwind", 1500, 90);
+        ac.Destination = "KOAK";
+
+        Assert.Equal("Downwind · 1,500 ft · 90 kt", StateLine(ac));
+    }
+
+    [AvaloniaTheory]
+    [InlineData("Takeoff", "Takeoff")]
+    [InlineData("Takeoff-H", "Takeoff")]
+    [InlineData("InitialClimb", "Departure")]
+    [InlineData("DepartureProcedure", "Departure")]
+    public void StateLine_AirborneDeparting_UsesTheDepartureAirport(string phase, string display)
+    {
+        AircraftModel ac = AirborneAircraft(phase, 3000, 180);
+        ac.Departure = "KOAK";
+        ac.Destination = "KLAX";
+        ac.AssignedRunway = "30";
+
+        Assert.Equal($"{display} · 3,000 ft · 180 kt · KOAK rwy 30", StateLine(ac));
+    }
+
+    [AvaloniaFact]
+    public void StateLine_Ground_NamesThePhaseSpotAndGroundAirport()
+    {
+        AircraftModel ac = GroundAircraft("Holding After Pushback");
+        ac.ParkingSpot = "S/RAMP";
+        ac.GroundAirportId = "KSAN";
+
+        Assert.Equal("Holding after push · S/RAMP · KSAN", StateLine(ac));
+    }
+
+    [AvaloniaFact]
+    public void StateLine_GroundWithTaxiwayAndSpot_PrefersTheTaxiway()
+    {
+        AircraftModel ac = GroundAircraft("Taxiing");
+        ac.CurrentTaxiway = "W3";
+        ac.ParkingSpot = "25";
+        ac.GroundAirportId = "KOAK";
+
+        Assert.Equal("Taxiing · W3 · KOAK", StateLine(ac));
+    }
+
+    [AvaloniaFact]
+    public void StateLine_LandingRoll_NamesTheRunwayAndGroundSpeed()
+    {
+        AircraftModel ac = GroundAircraft("Landing");
+        ac.AssignedRunway = "28R";
+        ac.GroundSpeed = 62;
+
+        Assert.Equal("Landing · runway 28R · 62 kt", StateLine(ac));
+    }
+
+    [AvaloniaFact]
+    public void StateLine_HelicopterLandingRoll_NamesTheRunwayAndGroundSpeed()
+    {
+        AircraftModel ac = GroundAircraft("Landing-H");
+        ac.AssignedRunway = "28R";
+        ac.GroundSpeed = 40;
+
+        Assert.Equal("Landing · runway 28R · 40 kt", StateLine(ac));
+    }
+
+    [AvaloniaFact]
+    public void StateLine_AirborneZeroSpeed_LeavesOutTheSpeedSegment()
+    {
+        AircraftModel ac = AirborneAircraft("", 16000, 0);
+
+        Assert.Equal("16,000 ft", StateLine(ac));
+    }
+
+    [AvaloniaFact]
+    public void StateLine_AircraftWithNothingToShow_HasNoRow()
+    {
+        AircraftModel ac = AirborneAircraft("", 0, 0);
+
+        Assert.Null(StateRow(ac));
+    }
+
+    [AvaloniaFact]
+    public void StateLine_SitsDirectlyUnderTheTitle()
+    {
+        AircraftModel ac = GroundAircraft("Taxiing");
+        ac.CurrentTaxiway = "W3";
+        ac.GroundAirportId = "KOAK";
+
+        List<string> items = [.. Header(ac, new RecordingMenuHost("")).Select(Describe)];
+
+        Assert.Equal(["SWA104 — B738", "Taxiing · W3 · KOAK", "---", "Command…"], items[..4]);
+    }
+
+    [AvaloniaFact]
+    public void Header_IsTitleStateHeldSeparatorCommandNoteSeparator()
     {
         AircraftModel ac = Jet();
         ac.HoldKind = "HoldPosition";
 
         List<string> items = [.. Header(ac, new RecordingMenuHost("")).Select(Describe)];
 
-        Assert.Equal(["SWA104 — B738", "Held: position", "---", "Command…", "Note…", "---"], items);
+        Assert.Equal(["SWA104 — B738", "Taxiing", "Held: position", "---", "Command…", "Note…", "---"], items);
     }
 
     [AvaloniaFact]
@@ -282,7 +396,7 @@ public class MenuHeaderTests
     {
         List<string> items = TopLevel(view, "taxiing", out ContextMenu _);
 
-        Assert.Equal(["SWA104 — B738", "---", "Command…", "Note…", "---"], items[..5]);
+        Assert.Equal(["SWA104 — B738", "Taxiing", "---", "Command…", "Note…", "---"], items[..6]);
         AssertFavoritesBeforeAllCommands(items);
     }
 
@@ -327,15 +441,19 @@ public class MenuHeaderTests
     public void Header_HeldForRelease_ShowsReleaseUnderTitle_OnEveryView()
     {
         Assert.Equal(
-            ["SWA108 — B738", "Release (HFR)", "---", "Command…", "Note…", "---"],
-            TopLevel(MenuView.Ground, "held-for-release", out _)[..6]
+            ["SWA108 — B738", "Taxiing", "Release (HFR)", "---", "Command…", "Note…", "---"],
+            TopLevel(MenuView.Ground, "held-for-release", out _)[..7]
         );
-        Assert.Equal(["SWA108 — B738", "Release (HFR)", "---", "Command…", "Note…", "---"], TopLevel(MenuView.List, "held-for-release", out _)[..6]);
+        Assert.Equal(
+            ["SWA108 — B738", "Taxiing", "Release (HFR)", "---", "Command…", "Note…", "---"],
+            TopLevel(MenuView.List, "held-for-release", out _)[..7]
+        );
 
         List<string> radar = TopLevel(MenuView.Radar, "held-for-release", out _);
         Assert.Equal("SWA108 — B738", radar[0]);
-        Assert.Equal("Release (HFR)", radar[1]);
-        Assert.Equal("---", radar[2]);
+        Assert.Equal("Taxiing", radar[1]);
+        Assert.Equal("Release (HFR)", radar[2]);
+        Assert.Equal("---", radar[3]);
         Assert.Single(radar, i => i == "Release (HFR)");
     }
 
@@ -343,15 +461,19 @@ public class MenuHeaderTests
     public void Header_CfrWindow_ShowsCheckReleaseWindowUnderTitle_OnEveryView()
     {
         Assert.Equal(
-            ["SWA109 — B738", "Check release window", "---", "Command…", "Note…", "---"],
-            TopLevel(MenuView.Ground, "cfr-window", out _)[..6]
+            ["SWA109 — B738", "Taxiing", "Check release window", "---", "Command…", "Note…", "---"],
+            TopLevel(MenuView.Ground, "cfr-window", out _)[..7]
         );
-        Assert.Equal(["SWA109 — B738", "Check release window", "---", "Command…", "Note…", "---"], TopLevel(MenuView.List, "cfr-window", out _)[..6]);
+        Assert.Equal(
+            ["SWA109 — B738", "Taxiing", "Check release window", "---", "Command…", "Note…", "---"],
+            TopLevel(MenuView.List, "cfr-window", out _)[..7]
+        );
 
         List<string> radar = TopLevel(MenuView.Radar, "cfr-window", out _);
         Assert.Equal("SWA109 — B738", radar[0]);
-        Assert.Equal("Check release window", radar[1]);
-        Assert.Equal("---", radar[2]);
+        Assert.Equal("Taxiing", radar[1]);
+        Assert.Equal("Check release window", radar[2]);
+        Assert.Equal("---", radar[3]);
         Assert.Single(radar, i => i == "Check release window");
     }
 
@@ -364,7 +486,7 @@ public class MenuHeaderTests
 
         List<string> items = [.. Header(ac, new RecordingMenuHost("")).Select(Describe)];
 
-        Assert.Equal(["SWA104 — B738", "Release (HFR)", "Check release window", "---", "Command…", "Note…", "---"], items);
+        Assert.Equal(["SWA104 — B738", "Taxiing", "Release (HFR)", "Check release window", "---", "Command…", "Note…", "---"], items);
     }
 
     [AvaloniaFact]
@@ -383,7 +505,7 @@ public class MenuHeaderTests
         {
             List<string> items = TopLevel(view, "cfr-window", out ContextMenu menu);
 
-            Assert.Equal(["SWA109 — B738", "Check release window"], items[..2]);
+            Assert.Equal(["SWA109 — B738", "Taxiing", "Check release window"], items[..3]);
             Assert.Single(items, i => i == "Check release window");
             Assert.Equal(1, CountOccurrences(MenuTreeSnapshot.Render(menu), "Check release window"));
         }
@@ -426,39 +548,41 @@ public class MenuHeaderTests
         ContextMenu menu = MenuHostHarness.BuildRadarMenu(main, ac, null);
         List<string> items = [.. menu.Items.Select(Describe)];
 
-        Assert.Equal(["SWA108 — B738", "Held: position", "Release (HFR)", "---"], items[..4]);
+        Assert.Equal(["SWA108 — B738", "Taxiing", "Held: position", "Release (HFR)", "---"], items[..5]);
     }
 
     // --- The route summary and hold status rows, on every view ---------------------------------
 
     [AvaloniaFact]
-    public void Header_RouteSummary_UnderTheTitle_OnEveryView()
+    public void Header_RouteSummary_UnderTheStateLine_OnEveryView()
     {
         foreach (MenuView view in new[] { MenuView.Radar, MenuView.Ground, MenuView.List })
         {
             List<string> items = TopLevel(view, "ifr-enroute", ac => ac.NavigationRoute = ["OAK", "SUNOL", "MOD"], out _);
 
             Assert.Equal("AAL202 — B738", items[0]);
-            Assert.Equal("OAK SUNOL MOD", items[1]);
-            Assert.Equal("---", items[2]);
+            Assert.Equal("33,000 ft · 280 kt", items[1]);
+            Assert.Equal("OAK SUNOL MOD", items[2]);
+            Assert.Equal("---", items[3]);
         }
     }
 
     [AvaloniaFact]
-    public void Header_HoldStatus_UnderTheTitle_OnEveryView()
+    public void Header_HoldStatus_UnderTheStateLine_OnEveryView()
     {
         foreach (MenuView view in new[] { MenuView.Radar, MenuView.Ground, MenuView.List })
         {
             List<string> items = TopLevel(view, "ifr-enroute", ac => ac.HoldKind = "HoldPosition", out _);
 
             Assert.Equal("AAL202 — B738", items[0]);
-            Assert.Equal("Held: position", items[1]);
-            Assert.Equal("---", items[2]);
+            Assert.Equal("33,000 ft · 280 kt", items[1]);
+            Assert.Equal("Held: position", items[2]);
+            Assert.Equal("---", items[3]);
         }
     }
 
     [AvaloniaFact]
-    public void Header_TitleThenRouteSummaryThenHoldStatus_OnEveryView()
+    public void Header_TitleThenStateThenRouteSummaryThenHoldStatus_OnEveryView()
     {
         foreach (MenuView view in new[] { MenuView.Radar, MenuView.Ground, MenuView.List })
         {
@@ -473,7 +597,7 @@ public class MenuHeaderTests
                 out _
             );
 
-            Assert.Equal(["AAL202 — B738", "OAK SUNOL MOD", "Held: position", "---"], items[..4]);
+            Assert.Equal(["AAL202 — B738", "33,000 ft · 280 kt", "OAK SUNOL MOD", "Held: position", "---"], items[..5]);
         }
     }
 
@@ -530,6 +654,39 @@ public class MenuHeaderTests
             IsOnGround = true,
             CurrentPhase = "Taxiing",
         };
+
+    /// <summary>An airborne IFR B738 with the given raw phase, altitude and indicated airspeed.</summary>
+    private static AircraftModel AirborneAircraft(string phase, double altitude, double speed) =>
+        new()
+        {
+            Callsign = Callsign,
+            AircraftType = "B738",
+            FlightRules = "IFR",
+            IsOnGround = false,
+            CurrentPhase = phase,
+            Altitude = altitude,
+            IndicatedAirspeed = speed,
+        };
+
+    /// <summary>An on-ground IFR B738 in the given raw phase.</summary>
+    private static AircraftModel GroundAircraft(string phase) =>
+        new()
+        {
+            Callsign = Callsign,
+            AircraftType = "B738",
+            FlightRules = "IFR",
+            IsOnGround = true,
+            CurrentPhase = phase,
+        };
+
+    /// <summary>The header's state row text, or null when the header has none.</summary>
+    private static string? StateRow(AircraftModel ac)
+    {
+        ItemCollection items = Header(ac, new RecordingMenuHost(""));
+        return ((items.Count > 1) && (items[1] is MenuItem { IsEnabled: false } row)) ? row.Header as string : null;
+    }
+
+    private static string StateLine(AircraftModel ac) => StateRow(ac) ?? throw new InvalidOperationException("The header has no state row.");
 
     private static ItemCollection Header(AircraftModel? ac, IMenuHost host)
     {
