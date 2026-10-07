@@ -14,12 +14,13 @@
 
 ## Active runways (feat/active-runways)
 
-- [ ] YAAT-461 Ask the mentor for the active runways on scenario load when the scenario leaves them unclear
+- [/] YAAT-461 Ask the mentor for the active runways on scenario load when the scenario leaves them unclear
+- [ ] YAAT-482 Merge feat/active-runways (#959)
 
 ## Precompute cache (feat/precompute-cache)
 
 - [ ] YAAT-440 Group, filter and distance-label the ground view's Push Back To submenu
-- [ ] YAAT-450 Investigate what else to precompute offline from vNAS, GeoJSON, FAA, CIFP and NavData data
+- [/] YAAT-450 Investigate what else to precompute offline from vNAS, GeoJSON, FAA, CIFP and NavData data
 - [x] YAAT-466 Replay and restore a recording against the airport layouts it bundles · release vNext
 - [ ] YAAT-475 Merge feat/precompute-cache (#951)
 
@@ -228,7 +229,8 @@
 - [ ] YAAT-471 Stop on the taxiway centreline at a node-only hold short issued after a turn about
 - [/] YAAT-477 Keep taxi speed through an early arrival at a node joining two collinear segments · release vNext
 - [x] YAAT-480 Judge taildraggers and wide-track twins fairly in the taxiway turn-about gear fit · release vNext
-- [ ] YAAT-481 Order in-trail aircraft by progress along the edge during a runway crossing · release vNext
+- [x] YAAT-481 Order in-trail aircraft by progress along the edge during a runway crossing · release vNext
+- [ ] YAAT-483 Keep a runway-crossing aircraft moving behind in-trail traffic, or hold it at the near line
 
 ## Wave 2 — Ground command grammar and dispatch
 
