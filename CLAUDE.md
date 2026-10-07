@@ -180,7 +180,7 @@ Subsystem references — open the matching doc *before* exploring, searching, or
 
   Tug moves (`PUSH`/`PUSHM`, every category): accel 0.3, brake 1.0 — towbar rates published by `PushbackPhase` as `DesiredAccelRate`/`DesiredDecelRate`; judgement calls under AC 00-65A §11.17, which gives no figure. The tug holds 5 kt (`PushbackSpeed`) through turns, the main gear commanded at 5·cos(steer) (B738 routine radius 3.5 kt, tight 1.9 kt); the 3 kt align creep covers only the last 30 ft of a creep move (`PushbackPhase.AlignCreepFt`).
 
-  Turn about on a taxiway: radius `TightTurnFloorRadiusFt` (8/12/15/8 ft piston/turboprop/jet/helicopter, the main-gear axle-midpoint path radius), speed ω·r (≈1.65/2.0/1.86/2.5 kt).
+  Turn about on a taxiway: the type's radius R = max(MGW/2, 0.466 × wheelbase) from the FAA record (`TurnAboutFit`, the main-gear axle-midpoint path radius), speed ω·R; a type without those figures uses `TightTurnFloorRadiusFt` (8/12/15/8 ft piston/turboprop/jet/helicopter, ≈1.65/2.0/1.86/2.5 kt). A controller's turn about is refused unless the type's gear fits its TDG taxiway's half-width.
 - Takeoff roll (`GroundRollProfile`, kts/s idle → steady over the spool): Jet 1.0 → 5.0 over 5 s, TP 0.8 → 4.0 over 4 s, Piston 0.5 → 2.7 over 3 s. The jet steady rate matches a full-rated B738 (145 kt in ~31 s / ~3,560 ft); a C172 rolls ~1,120 ft to Vr 60 (POH 960).
 
 **Local FAA references — DO NOT web-search:**

@@ -42,6 +42,7 @@ public sealed class GroundPhaseConvention
             "GroundStopBraking.cs",
             "PathPrimitive.cs",
             "PathPrimitiveBuilder.cs",
+            "TurnAboutFit.cs",
         };
 
         var violations = new List<string>();

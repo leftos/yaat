@@ -566,7 +566,11 @@ Any other taxiway the route drives that you didn't clear is flagged: `[taxiing v
 
 When the ramp alone doesn't reach the spot or gate, the TAXI is refused with `Unable, need a route to spot 1. To auto-route it: TAXIAUTO $1` — name the taxiways, or use `TAXIAUTO` to let the aircraft find its own way. From the movement area, the same `TAXI` auto-routes and flags every taxiway it drives that you didn't name. `TAXIAUTO` is never confined to the ramp and flags nothing.
 
-**Starting from the middle of a taxiway.** A `TAXI` to an aircraft standing on a taxiway starts on that taxiway, heading whichever way its route goes. When the route lies behind it, a light aircraft, helicopter or turboprop turns around where it stands, and the ground view draws the turn. A jet lined up along the taxiway has no room for that, and answers *"Unable, no room to turn around on C, request a route ahead"*: give it a route that continues ahead. A jet already angled across the taxiway turns as the others do. Scenario taxis and `TAXIAUTO` are never refused.
+**Starting from the middle of a taxiway.** A `TAXI` to an aircraft standing on a taxiway starts on that taxiway, heading whichever way its route goes. When the route lies behind it, an aircraft whose gear fits the taxiway's width turns around where it stands, and the ground view draws the turn: small props such as a C172 or C208 do.
+
+Larger types, business jets and regional turboprops included, have no room for that whichever way they face, and answer *"Unable, no room to turn around on C, request a route ahead"*: give them a route that continues ahead.
+
+Scenario taxis and `TAXIAUTO` are never refused: an aircraft that cannot turn around takes the route ahead instead, and turns around only when there is none.
 
 **One-way ramp lanes and supers.** Some airports' one-way lanes apply by wake class: at SFO's Terminal 1 south ramp, aircraft enter on M1 and leave on M2, but a super uses M1 both ways and never M2. Routes the aircraft chooses follow these rules; a clearance you give that names a lane against its direction is flown as cleared, with a `Taxiing M2 against one-way direction` warning.
 

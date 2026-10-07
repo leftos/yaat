@@ -347,9 +347,11 @@ pattern-geometry, ground, and landing docs; this doc owns the airborne kinematic
 
 The ground-turn constants the navigator steers with ([ground/navigator.md](ground/navigator.md)) are `GroundTurnRate`, the gear-limited yaw ceiling (12/16/20/30 °/s jet/turboprop/piston/helicopter), and two radii.
 
-`MainGearTurnRadiusFt` is the comfortable one and `TightTurnFloorRadiusFt` (15/12/8/8 ft) the tightest, both the path radius of the main-gear axle midpoint, not of the inner main gear: a jet's 15 ft is ~74° of nose-wheel steering on a B737-800, its inner main gear ~5.6 ft from the turn centre.
+`MainGearTurnRadiusFt` is the comfortable one and `TightTurnFloorRadiusFt` (15/12/8/8 ft) the tightest a corner rounds to, both the path radius of the main-gear axle midpoint, not of the inner main gear: a jet's 15 ft is ~74° of nose-wheel steering on a B737-800, its inner main gear ~5.6 ft from the turn centre.
 
-`GroundYawRateOnRadius(cat, groundSpeedKts, radiusFt)` is the yaw a ground turn on a given radius can hold, ω = v/R capped at `GroundTurnRate` (a helicopter holds the full rate at any speed); `GroundYawRateAtSpeed` is it on `MainGearTurnRadiusFt`. `TurnAboutSpeedKts(cat, radiusFt)` is the inverse, v = ω·r, the pivot speed of a turn about on a taxiway at `TightTurnFloorRadiusFt`: ≈ 1.86/2.0/1.65/2.5 kt jet/turboprop/piston/helicopter.
+`GroundYawRateOnRadius(cat, groundSpeedKts, radiusFt)` is the yaw a ground turn on a given radius can hold, ω = v/R capped at `GroundTurnRate` (a helicopter holds the full rate at any speed); `GroundYawRateAtSpeed` is it on `MainGearTurnRadiusFt`.
+
+`TurnAboutSpeedKts(cat, radiusFt)` is the inverse, v = ω·r, the pivot speed of a turn about on a taxiway at the type's turn-about radius (`TurnAboutFit`: max(MGW/2, 0.466 × wheelbase) from the FAA record, see [ground/navigator.md](ground/navigator.md#entry-alignment-threshold)). For a type without those figures that radius is `TightTurnFloorRadiusFt`, at ≈ 1.86/2.0/1.65/2.5 kt jet/turboprop/piston/helicopter.
 
 ## The command-queue half (`UpdateCommandQueue`) — summary only
 

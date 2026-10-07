@@ -163,6 +163,11 @@ public class SfoSpotLaneAlignmentTests(ITestOutputHelper output)
         AssertRestingOnSpotFacing(aircraft, spot5A, "T5A", LaneJunctionWithA(ground.Layout, "T5A"), AlignmentToleranceDeg);
     }
 
+    /// <summary>
+    /// SKW2, 115 ft off T7A and angled 47° across it, cleared <c>TAXI T7A $7A</c>: it reaches the spot and comes to rest
+    /// along T7A. The route turns it about on the taxiway it stands on, so it is flown by a C208, whose gear fits a turn
+    /// about; a regional jet there refuses for want of room to turn around.
+    /// </summary>
     [Fact]
     public void TaxiT7aToSpot7A_FromOffLane_EndsAlongT7A()
     {
@@ -183,7 +188,7 @@ public class SfoSpotLaneAlignmentTests(ITestOutputHelper output)
         AircraftState aircraft = SpawnOffGraph(
             ground,
             "SKW2",
-            "CRJ2",
+            "C208",
             (offLane, new TrueHeading((laneBearing + 47.0) % 360.0)),
             new HoldingInPositionPhase()
         );
@@ -442,11 +447,12 @@ public class SfoSpotLaneAlignmentTests(ITestOutputHelper output)
     /// <summary>
     /// An aircraft that turned off A onto T7A and stopped between the junction and spot 7A is past its line-up point:
     /// <c>TAXI T7A $7A</c> takes it on to the spot, never round past it to come back up the lane. Turned back toward A, a
-    /// jet lined up along T7A refuses to turn about (pinned by the sibling test), so that case is flown by a turboprop.
+    /// jet lined up along T7A refuses to turn about (pinned by the sibling test), so that case is flown by a C208, a
+    /// turboprop whose gear fits a turn about.
     /// </summary>
     [Theory]
     [InlineData(0.0, "CRJ7")]
-    [InlineData(180.0, "DH8D")]
+    [InlineData(180.0, "C208")]
     public void TaxiT7aToSpot7A_OnT7aBetweenAAndTheSpot_DoesNotLineUp(double turnedFromIntoRampDeg, string type)
     {
         SfoGround? built = SfoGroundHarness.Build(output, autoCross: true);

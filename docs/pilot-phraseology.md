@@ -160,11 +160,11 @@ not always, which is how *"unable, — already turning off at G"* reached the fr
 
 A handler that has the pilot's own words for a refusal sets `CommandResult.PilotUnable`, and `SimulationEngine` speaks that instead of `BuildUnable(message)`. The runway-exit refusals do (`ExitInstructionVerdict.PilotUnable`: `BuildUnableToExit`, `BuildUnableNoExitAhead`), so the spoken form spells the taxiway (AIM 4-2-7) while the terminal line matches what `BuildUnable` would have made of the message.
 
-So does a jet's refusal of a TAXI that would turn it about on the taxiway it is lined up along ([ground/pathfinder.md](ground/pathfinder.md#where-it-sits--entry-points)): the message is `Unable, no room to turn around on B, request a route ahead` (`GroundCommandHandler.NoRoomToTurnAroundReason`).
+So does the refusal of a TAXI that would turn an aircraft about on its taxiway when the type's gear does not fit (`TurnAboutFit`, [ground/pathfinder.md](ground/pathfinder.md#where-it-sits--entry-points)): the message is `Unable, no room to turn around on B, request a route ahead` (`GroundCommandHandler.NoRoomToTurnAroundReason`).
 
 `BuildUnableNoRoomToTurnAround` gives the terminal line *unable, no room to turn around on B, request a route ahead.* and speaks *…, unable, no room to turn around on bravo, request a route ahead.*, the taxiway spelled by `PhraseologyVerbalizer.SpellTaxiway`.
 
-The grounding is AIM 4-3-18.b: taxi clearances and instructions are predicated on known physical airport conditions, and the pilot in command is the final authority on the aircraft's operation, so a crew that cannot turn a jet about on its taxiway declines and asks for a route ahead.
+The grounding is AIM 4-3-18.b: taxi clearances and instructions are predicated on known physical airport conditions, and the pilot in command is the final authority on the aircraft's operation, so a crew that cannot turn its aircraft about on its taxiway declines and asks for a route ahead.
 
 That strip covers the **leading** token and the string's **edges** only. An *interior* dash survives into TTS, so
 `"Already at 1,400 — nothing to expedite"` is spoken with the dash intact. Write two clauses joined by a comma
@@ -196,7 +196,7 @@ Grouped by trigger. All return `PilotSpeechText`; follow/traffic builders set `R
 
   A ramp spot in `BuildReadyToTaxi` takes "spot" instead, its leading "SPOT" dropped.
 
-  The group also holds `BuildUnableToExit` ("unable W3.": an instructed exit the crew cannot make), `BuildUnableNoExitAhead` ("unable, no W3 ahead.": no connection of it ahead), `BuildUnableToExitRequestBackTaxi` (stopped on the runway with no exit ahead), `BuildUnableNoRoomToTurnAround` ("unable, no room to turn around on B, request a route ahead.": a lined-up jet refusing a TAXI that would turn it about), `BuildGoingAround`, `BuildApproachingMinimumsNoLandingClearance`.
+  The group also holds `BuildUnableToExit` ("unable W3.": an instructed exit the crew cannot make), `BuildUnableNoExitAhead` ("unable, no W3 ahead.": no connection of it ahead), `BuildUnableToExitRequestBackTaxi` (stopped on the runway with no exit ahead), `BuildUnableNoRoomToTurnAround` ("unable, no room to turn around on B, request a route ahead.": a type whose gear does not fit refusing a TAXI that would turn it about), `BuildGoingAround`, `BuildApproachingMinimumsNoLandingClearance`.
 - **Visual acquisition** — `BuildTrafficInSight`, `BuildFieldInSight`, `BuildLostSightOfTraffic`,
   `BuildLostSightOfField`, `BuildLostSightOfTrafficFieldInSight` (traffic lost, field held — the §7-4-3.c.3
   separation handback), `BuildUnableVisualRequestVectors` (visual ended away from the runway — level-off +

@@ -186,7 +186,7 @@ The aircraft is turning around, both sides reach the same tangent, and at exactl
 
 Two TAXI starts for an aircraft mid-way along a straight taxi edge produce one by design: a **turn about on segment 0** ([pathfinder.md](./pathfinder.md#where-it-sits--entry-points), route-aware start), in one of two shapes (`TaxiRoute.TurnAboutShape`). A route planned from the edge's far end (`TaxiTurnAboutShape.FromFarEnd`) opens with the free-space leg back along the edge to that node when the approach-leg guards allow one. Without the leg, `TaxiingPhase` ends the turn about once the aircraft reaches that node, since segment 0 then runs on past it.
 
-A route kept from the node ahead although it runs back over the edge (`TaxiTurnAboutShape.InPlace`) opens with the edge itself, driven backwards; that is the route a lined-up jet keeps on a scripted TAXI (a controller's TAXI to it is refused), and any other aircraft keeps when the far end is no better.
+A route kept from the node ahead although it runs back over the edge (`TaxiTurnAboutShape.InPlace`) opens with the edge itself, driven backwards; any aircraft keeps it when the far end is no better. A type whose gear does not fit a turn about (`TurnAboutFit`) takes it only as the last resort: a controller's TAXI to it is refused, and a scripted TAXI or `TAXIAUTO` takes the route ahead instead, turning about (in place included) only when the route ahead resolves nothing.
 
 `TaxiApproachLeg` adds no leg to that in-place route, and its debug line `[ApproachLeg] no leg to node … the aircraft is past it, 0 ft abeam the line …` means this turn about in place, not a missing approach leg: the aircraft turns about where it stands, not at the junction ahead.
 
@@ -206,7 +206,11 @@ Note the floor: an arc aimed at a node *behind* the aircraft must sweep **more**
 
 The edge must also be a turn-about taxiway (`IsTurnAboutTaxiway`: a named movement-area taxiway, not a ramp connector or a runway centreline, touching no parking or helipad node). Otherwise the comfortable-radius aims run: a mid-route reversal at a junction, where the aircraft arrives at the node or at a tangent point short of it, keeps rounding the corner at its corner speed, as do reversals on ramps, aprons, stand lead-ins and runways (`TaxiwayTurnAboutJunctionTests`).
 
-`SolveTaxiwayTurnAbout` builds two arcs (one when the reversal is re-aimed past the bend, below), both at `CategoryPerformance.TightTurnFloorRadiusFt` (8/12/15/8 ft piston/turboprop/jet/helicopter) and capped at `CategoryPerformance.TurnAboutSpeedKts`, ω·r: the gear-limited `GroundTurnRate` held on that radius (≈ 1.65/2.0/1.86/2.5 kt). That is below the 3 kt `SlowTurnSpeedKts` on purpose, since at 3 kt the tight radius would need more yaw than the gear gives.
+`SolveTaxiwayTurnAbout` builds two arcs (one when the reversal is re-aimed past the bend, below), both at the type's turn-about radius from `TurnAboutFit.Evaluate`, the function the taxi gate refuses a controller's turn about with ([pathfinder.md](./pathfinder.md#where-it-sits--entry-points)), so the turn drawn and the fit decided share one geometry.
+
+That radius is R = max(MGW/2, 0.466 × wheelbase) from the type's FAA record (a C172 4.2 ft, a C208 5.85 ft), or `CategoryPerformance.TightTurnFloorRadiusFt` (8/12/15/8 ft piston/turboprop/jet/helicopter) when the record lacks either figure or the type has none. Both arcs are capped at `CategoryPerformance.TurnAboutSpeedKts`, ω·R: the gear-limited `GroundTurnRate` held on that radius.
+
+For a type that fits, that is well below the 3 kt `SlowTurnSpeedKts`, on purpose: at 3 kt the tight radius would need more yaw than the gear gives. A type that does not fit turns about only on a scripted clearance whose route ahead resolved nothing, on its own larger radius.
 
 First a **jog** against the reversal's sense (`PathPrimitiveBuilder.TurnAboutJogDeg`: 60° for an aircraft on the centreline and along it, clamped to 0–90°, not flown under 1°) puts the reversal's turning circle on the centreline.
 
@@ -224,9 +228,13 @@ On its completion `TryLayTurnAboutRollOutLine` lays the straight after it: held 
 
 All of it survives a snapshot (`GroundNavigatorPlaybackDto.PendingTurnAboutArc`, `TurnAboutReversalPlaying`, `TurnAboutRollsOutAlongEdge`, `TurnAboutReversalOnEdgeBearing`, `TurnAboutRollOutOffsetFt`, `TurnAboutSquareStopLine`).
 
-Pins: `TaxiStartsOnOccupiedTaxiwayTests` (a C172 and a C208 mid-way along KOAK C keep their centre within the 12.5 ft TDG 1A half-width at no more than ω·r, on the free-space leg and on the painted edge driven backwards) and `GroundNavigatorArcRestoreTests` (a restore mid-jog and mid-reversal).
+Pins: `TaxiStartsOnOccupiedTaxiwayTests` (a C172 and a C208 mid-way along KOAK C keep their centre within the 12.5 ft TDG 1A half-width at no more than ω·R on their own turn-about radius, on the free-space leg and on the painted edge driven backwards), `TurnAboutFitTests` (the fit, radius and half-width over real FAA records and the fallbacks) and `GroundNavigatorArcRestoreTests` (a restore mid-jog and mid-reversal).
 
-`TaxiwayTurnAboutAimTests` pins the rest: N152SP's turn about on KOAK D rolls out on D's bearing, holds it to abeam node 366 and turns onto H tangent to H's centreline; a C208, a straight longer than six radii and a type with no FAA record re-centre; a C172 at a real acute branch is re-aimed past the junction, and not when it holds short there; the stops at a bar; and restores mid-reversal, on the held straight, mid node turn and on the square stop line.
+`TaxiwayTurnAboutAimTests` pins the rest: N152SP's turn about on KOAK D rolls out on D's bearing; started 13 ft nearer node 366, so the straight after it is under six of the C172's radii, it holds that bearing to abeam the node and turns onto H tangent to H's centreline; further along D and as a type with no FAA record it re-centres.
+
+It also pins a C172 at a real acute branch re-aimed past the junction, and not when it holds short there; the stops at a bar; and restores mid-reversal, on the held straight, mid node turn and on the square stop line.
+
+Six of N152SP's pins are skipped until YAAT-438 slows a rolling turn about to pivot speed first (on the C172's own 4.2 ft radius it rolls in at ~20 kt against an arc planned at pivot speed): the held roll-out bearing to abeam the node, the restores mid-reversal, on the held straight and mid node turn, the node turn that drops the roll-out offset when it retires the legs, and the hold short issued on the held straight that stops square to the bar.
 
 **The aim node is the first one the arc cannot overshoot, and never past a bar.** Every node aim shares `FindAimNode`, which walks forward from the to-node of the segment it is given (the current segment, or the leg out of the bend a turn about is re-aimed past) to the first node at least a turning *diameter* (`2r`) from the point it is given: the aircraft, or a turn about's jog exit.
 
@@ -264,7 +272,9 @@ A node turn laid from a turn about's offset line replaces both: its arrival poin
 
 **Re-aim past the bend.** Before rolling a reversal out on the edge's bearing, `SolveTaxiwayTurnAbout` tries `ReAimPastTheBend` at the node `FindAimNode` found a turning diameter from the jog's exit. `ReAimBoundFt` admits it only when a leg follows that node and the node is no bar (`IsBarNode`): a cut past a bar would drive through the hold short without arriving at it.
 
-The bend there must also run against the reversal's sense and be sharper than `ReAimMinBendDeg` = 90°, or the route would turn about to the node only to turn most of the way back. The type must have an FAA main-gear width (`FaaAircraftDatabase`). The bound is `TurnAboutTaxiwayHalfWidthFt` (12.5 ft, half a TDG 1A taxiway, since the layout carries no design group) less half that width, and must be positive.
+The bend there must also run against the reversal's sense and be sharper than `ReAimMinBendDeg` = 90°, or the route would turn about to the node only to turn most of the way back.
+
+The type must have an FAA main-gear width (`FaaAircraftDatabase`). The bound is the type's taxiway half-width (`TurnAboutFitResult.HalfWidthFt`: the layout carries no design group, so the check assumes a taxiway of the type's own, and 12.5 ft, half a TDG 1A taxiway, for a type with no FAA record) less half that width, and must be positive.
 
 The re-aimed reversal is solved through `SlowTurnToPointDirected` from the aircraft's own pose, with no jog, to the first node on the leg out of the bend at least 2r from the aircraft (`FindAimNode` from that leg, still stopped at a bar). It is kept only when every sample, 1 ft apart (`CutSampleSpacingFt`), of the arc and of the straight from its exit to that node lies within the bound of the turn-about edge's centreline or an outgoing leg's (`PavedCentrelines`, `CutStaysOnPavement`).
 
@@ -274,7 +284,9 @@ A cut that leaves those strips crosses the unpaved wedge between the two taxiway
 
 It holds only when the route then turns more than `EntryAlignmentThresholdDeg` (45°) to that side onto a straight edge, the node is no bar, and the type has an FAA main-gear width.
 
-`RollOutHoldFits` adds two more: the offset (a radius, a diameter for a helicopter) plus half the main-gear width stays within 12.5 ft of the centreline, and the straight from the reversal's exit to abeam the node is no longer than `RollOutHoldMaxRadii` = 6 turning radii. Over a longer straight the pilot re-centres first. The bar and missing-gear-width refusals are logged, and so is the fit check's result.
+`RollOutHoldFits` adds two more: the offset (a radius, a diameter for a helicopter) plus half the main-gear width stays within the type's taxiway half-width of the centreline (the same `TurnAboutFitResult.HalfWidthFt`), and the straight from the reversal's exit to abeam the node is no longer than `RollOutHoldMaxRadii` = 6 turning radii (25 ft on the C172's 4.2 ft radius).
+
+Over a longer straight the pilot re-centres first. The bar and missing-gear-width refusals are logged, and so is the fit check's result.
 
 On the reversal's completion `TryLayTurnAboutRollOutLine` lays the straight from the aircraft along its exit bearing, with the target moved to the point abeam the node, and records the offset there in `_turnAboutRollOutOffsetFt`. An aircraft already past abeam the node re-centres instead. The reversal takes no end-of-arc nudge: the bearing it rolled out on is the one it keeps.
 
@@ -336,7 +348,9 @@ Taxi max speed is `TaxiSpeed(category)`, multiplied by `TaxiExpediteMultiplier =
 
 This only sets the straight-segment ceiling — the corner/arc/braking/conflict caps above still win. These are the realism constraints: turn rate bounds heading change per tick, and entry-alignment radius floors at the main-gear turn radius so the navigator never asks for a physically impossible turn.
 
-**Decided, not built yet: the main-gear radius scales with the type's wheelbase.** A type's radius is to be `max(categoryValue, 0.466 × FaaAircraftRecord.WheelbaseFt)` (WheelbaseFt / tan 65°), the category value when the type has no wheelbase, upward only: A388 ≈50 ft, B77W ≈47, B744 ≈39, B763 ≈35, B738 stays 25.
+**The turn about on a taxiway already turns on the type's own radius; the other ground turns do not yet.** The turn about uses R = max(MGW/2, 0.466 × wheelbase) (`TurnAboutFit`, [above](#entry-alignment-threshold)), which can fall below the category value (a C172's 4.2 ft against 8).
+
+Decided, not built yet: every other ground turn's main-gear radius is to be `max(categoryValue, 0.466 × FaaAircraftRecord.WheelbaseFt)` (WheelbaseFt / tan 65°), the category value when the type has no wheelbase, upward only: A388 ≈50 ft, B77W ≈47, B744 ≈39, B763 ≈35, B738 stays 25.
 
 An A388 (wheelbase about 100 ft) cannot turn on 25 ft. Because it only raises the radius, `GeometricAdmissibility.MinSteerableArcRadiusFt` (the smallest category radius) is unchanged. It changes about a dozen call sites' signatures and every heavy's ground turns, so its replay desyncs are triaged apart from other ground retunes.
 
@@ -531,6 +545,7 @@ Adding new navigator runtime state means deciding whether it must round-trip; mo
 | File | Role |
 |---|---|
 | `src/Yaat.Sim/Phases/Ground/GroundNavigator.cs` | The navigator itself — setup, tick dispatch, steering, speed, orbit detection |
+| `src/Yaat.Sim/Phases/Ground/TurnAboutFit.cs` | A type's gear fit for a turn about on a taxiway, its turn-about radius and its taxiway half-width, shared with the taxi gate |
 | `src/Yaat.Sim/Phases/Ground/PathPrimitive.cs` | Immutable straight / Bézier / slow-turn primitives |
 | `src/Yaat.Sim/Phases/Ground/PathPrimitiveBuilder.cs` | Segment → primitive compilation (GroundArc Bézier → PathPrimitiveBezier) |
 | `src/Yaat.Sim/Phases/Ground/TaxiingPhase.cs` | Owns the navigator; route management, hold-short / crossing / clearance / parking |

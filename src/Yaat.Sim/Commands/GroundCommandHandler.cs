@@ -71,13 +71,6 @@ public static class GroundCommandHandler
     private const double HeldShortLegReversalDeg = 150.0;
 
     /// <summary>
-    /// A jet heading within this of its taxiway edge's direction is lined up along it and does not turn about there. A
-    /// heuristic: a jet angled further across its edge is probably on wider pavement or a fillet; a 150° turn still needs
-    /// about 93% of a 180's pavement.
-    /// </summary>
-    private const double JetTurnAboutAlignmentDeg = 30.0;
-
-    /// <summary>
     /// A controller-typed or scenario-preset <c>TAXI</c>. A bare runway destination with no taxiways named
     /// (<c>TAXI 1L</c>) is honoured only when the aircraft is already at that runway's hold-short — see
     /// <see cref="TaxiPathfinder.FindAdjacentRunwayRoute"/>; <see cref="TryTaxiAuto"/> is the explicit auto-route.
@@ -126,8 +119,9 @@ public static class GroundCommandHandler
     )
     {
         /// <summary>
-        /// A controller issued the clearance and hears the readback, so a jet may refuse it as "unable" and wait for
-        /// another. A preset, an AI controller or TAXIAUTO has no one to re-issue it, so the jet takes the route it has.
+        /// A controller issued the clearance and hears the readback, so a type with no room to turn about may refuse it as
+        /// "unable" and wait for another. A preset, an AI controller or TAXIAUTO has no one to re-issue it, so the aircraft
+        /// takes the route it has.
         /// </summary>
         public bool ControllerIssued => !IsTaxiAuto && !IsScenarioScripted;
     }
@@ -569,16 +563,17 @@ public static class GroundCommandHandler
     /// endpoints: the endpoint ahead, or the nearer one when the heading crosses the edge. When the route from there drives
     /// back over the edge the aircraft is on (<see cref="DrivesOccupiedEdge"/>), or no route resolves from there, the
     /// clearance is re-planned from the edge's other endpoint, and that route wins when it resolves and does not drive the
-    /// edge: the aircraft turns about on the taxiway. A jet lined up along the edge (<see cref="IsLinedUpWith"/>) does not
-    /// turn about on a controller's clearance: where that route would win it refuses for want of room to turn around,
-    /// whether the endpoint ahead resolved a route or none. A clearance no controller issued
-    /// (<see cref="TaxiCoreOptions.ControllerIssued"/>) is never refused that way: the jet keeps the route from the
-    /// endpoint ahead, and turns about only when that resolved none. Otherwise the endpoint ahead wins, with its route or
-    /// its refusal. A route kept from the endpoint ahead whose first segment drives straight back over the edge turns the
-    /// aircraft about where it stands: the lined-up jet on a controller's clearance refuses it, and every other route
-    /// reports it (<see cref="TaxiTurnAboutShape.InPlace"/>). A route from the other endpoint that wins always reports its
-    /// turn about toward that endpoint (<see cref="TaxiTurnAboutShape.FromFarEnd"/>), whether or not it opens with the
-    /// free-space leg back to it. Both carry that endpoint as the target (<see cref="TaxiRoute.TurnAboutTargetNodeId"/>).
+    /// edge: the aircraft turns about on the taxiway. A type whose gear does not fit a turn about on a taxiway of its design
+    /// group (<see cref="TurnAboutFit"/>), at any heading, does not turn about on a controller's clearance: where that route
+    /// would win it refuses for want of room to turn around, whether the endpoint ahead resolved a route or none. A
+    /// clearance no controller issued (<see cref="TaxiCoreOptions.ControllerIssued"/>) is never refused that way: the type
+    /// keeps the route from the endpoint ahead, and turns about only when that resolved none. Otherwise the endpoint ahead
+    /// wins, with its route or its refusal. A route kept from the endpoint ahead whose first segment drives straight back
+    /// over the edge turns the aircraft about where it stands: a type that does not fit refuses it on a controller's
+    /// clearance, and every other route reports it (<see cref="TaxiTurnAboutShape.InPlace"/>). A route from the other
+    /// endpoint that wins always reports its turn about toward that endpoint (<see cref="TaxiTurnAboutShape.FromFarEnd"/>),
+    /// whether or not it opens with the free-space leg back to it. Both carry that endpoint as the target
+    /// (<see cref="TaxiRoute.TurnAboutTargetNodeId"/>).
     /// The attempts log their failures at Debug and a refusal is logged once.
     /// </summary>
     private static TaxiResolution ResolveTaxiRouteFromStart(TaxiResolveInputs inputs, TaxiCommand taxi, GroundNode startNode)
@@ -610,7 +605,7 @@ public static class GroundCommandHandler
         }
 
         GroundNode otherEnd = occupied.OtherNode(startNode);
-        TurnAboutVerdict verdict = TurnAboutVerdictFor(inputs, occupied);
+        TurnAboutVerdict verdict = TurnAboutVerdictFor(inputs);
         if ((verdict == TurnAboutVerdict.KeepRouteAhead) && (fromStart.Route is not null))
         {
             return KeepRouteAhead(inputs, taxi, fromStart, occupied, otherEnd);
@@ -652,35 +647,29 @@ public static class GroundCommandHandler
         TurnAbout,
 
         /// <summary>
-        /// A jet lined up along the taxiway, on a clearance no controller issued: it keeps the route from the endpoint ahead
-        /// when one resolved, and turns about only when none did.
+        /// A type whose gear does not fit a turn about, on a clearance no controller issued: it keeps the route from the
+        /// endpoint ahead when one resolved, and turns about only when none did.
         /// </summary>
         KeepRouteAhead,
 
-        /// <summary>A jet lined up along the taxiway, on a controller's clearance: it refuses any turn about, for want of room.</summary>
+        /// <summary>A type whose gear does not fit a turn about, on a controller's clearance: it refuses any turn about, for want of room.</summary>
         Refuse,
     }
 
     /// <summary>
-    /// The <see cref="TurnAboutVerdict"/> for the aircraft and clearance of <paramref name="inputs"/> on <paramref name="occupied"/>.
+    /// The <see cref="TurnAboutVerdict"/> for the aircraft and clearance of <paramref name="inputs"/>: by whether the type's
+    /// gear fits a turn about on a taxiway of its design group (<see cref="TurnAboutFit"/>) and who issued the clearance,
+    /// whatever the aircraft's heading.
     /// </summary>
-    private static TurnAboutVerdict TurnAboutVerdictFor(TaxiResolveInputs inputs, GroundEdge occupied)
+    private static TurnAboutVerdict TurnAboutVerdictFor(TaxiResolveInputs inputs)
     {
-        if (!IsJetLinedUpWith(inputs.Category, inputs.Aircraft.TrueHeading, occupied))
+        if (TurnAboutFit.Evaluate(inputs.Aircraft.AircraftType, inputs.Category).Fits)
         {
             return TurnAboutVerdict.TurnAbout;
         }
 
         return inputs.Options.ControllerIssued ? TurnAboutVerdict.Refuse : TurnAboutVerdict.KeepRouteAhead;
     }
-
-    /// <summary>
-    /// True for a jet whose <paramref name="heading"/> lines it up along <paramref name="edge"/> (<see cref="IsLinedUpWith"/>):
-    /// on a controller's clearance it refuses to turn about on that edge, and on one no controller issued it keeps the route
-    /// from the edge's end ahead whenever one resolved, turning about only when none did.
-    /// </summary>
-    private static bool IsJetLinedUpWith(AircraftCategory category, TrueHeading heading, GroundEdge edge) =>
-        (category == AircraftCategory.Jet) && IsLinedUpWith(heading, edge);
 
     /// <summary>The route <paramref name="resolution"/> resolved, when it does not drive <paramref name="occupied"/>; null otherwise.</summary>
     private static TaxiRoute? RouteAvoiding(TaxiResolution resolution, GroundEdge occupied) =>
@@ -689,7 +678,7 @@ public static class GroundCommandHandler
     /// <summary>
     /// The resolution from the endpoint ahead, kept: its refusal, or its route. When that route's first segment drives
     /// straight back over <paramref name="occupied"/> to <paramref name="otherEnd"/>, the aircraft turns about where it
-    /// stands, so a lined-up jet on a controller's clearance refuses it (<see cref="TurnAboutVerdict.Refuse"/>) and any
+    /// stands, so a type that does not fit on a controller's clearance refuses it (<see cref="TurnAboutVerdict.Refuse"/>) and any
     /// other route reports the turn about in place (<see cref="TaxiTurnAboutShape.InPlace"/>).
     /// </summary>
     private static TaxiResolution KeepRouteAhead(
@@ -705,7 +694,7 @@ public static class GroundCommandHandler
             return fromStart;
         }
 
-        if (TurnAboutVerdictFor(inputs, occupied) == TurnAboutVerdict.Refuse)
+        if (TurnAboutVerdictFor(inputs) == TurnAboutVerdict.Refuse)
         {
             return NoRoomToTurnAround(inputs.Aircraft, taxi, occupied.TaxiwayName);
         }
@@ -743,7 +732,7 @@ public static class GroundCommandHandler
         && (first.ToNodeId == otherEnd.Id)
         && (VirtualNode.IsVirtualEdge(first.Edge.Edge) || ReferenceEquals(first.Edge.Edge, occupied));
 
-    /// <summary>The refusal, terminal and spoken, of a jet asked to turn about on <paramref name="taxiway"/>.</summary>
+    /// <summary>The refusal, terminal and spoken, of a type whose gear does not fit, asked to turn about on <paramref name="taxiway"/>.</summary>
     private static TaxiResolution NoRoomToTurnAround(AircraftState aircraft, TaxiCommand taxi, string taxiway) =>
         TaxiResolution.Refused(
             taxi,
@@ -754,16 +743,9 @@ public static class GroundCommandHandler
         );
 
     /// <summary>
-    /// True when <paramref name="heading"/> is within <see cref="JetTurnAboutAlignmentDeg"/> of <paramref name="edge"/>'s
-    /// direction, either way along it: an aircraft on the edge with that heading is lined up along the taxiway.
+    /// The refusal a type whose gear does not fit a turn about gives when the only route that avoids reversing over its
+    /// taxiway needs it to turn about there.
     /// </summary>
-    private static bool IsLinedUpWith(TrueHeading heading, GroundEdge edge)
-    {
-        double offDeg = GeoMath.AbsBearingDifference(heading.Degrees, GeoMath.BearingTo(edge.Nodes[0].Position, edge.Nodes[1].Position));
-        return Math.Min(offDeg, 180.0 - offDeg) <= JetTurnAboutAlignmentDeg;
-    }
-
-    /// <summary>The refusal a jet gives when the only route that avoids reversing over its taxiway needs it to turn about there.</summary>
     public static string NoRoomToTurnAroundReason(string taxiway) => $"Unable, no room to turn around on {taxiway}, request a route ahead";
 
     /// <summary>

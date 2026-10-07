@@ -35,7 +35,7 @@
 - In RPO rooms, a released departure with no scripted takeoff waits for the RPO's `CTO`; a takeoff preset held back by the hold fires as soon as it is released.
 - Piston aircraft brake at most 4.0 kt/s for an assigned exit and 4.5 with `EXP`, down from 5.0.
 - An assigned exit the pilot can't make gets "unable W3" instead of a readback, and isn't used that landing unless reassigned or once stopped.
-- A jet lined up on a taxiway answers "unable, no room to turn around" to a `TAXI` whose route lies behind it.
+- Taxiway turn-arounds depend on the aircraft's gear: types whose gear fits the taxiway turn tightly, while larger types, business jets included, answer "unable, no room to turn around".
 
 ### Fixed
 

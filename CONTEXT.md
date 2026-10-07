@@ -230,27 +230,32 @@ _Avoid_: lead-in (a lead-in is the along-tangent shortfall before a curve the ai
 Where a TAXI issued to an aircraft standing on a straight taxiway edge begins: the route is planned from both ends of the occupied edge and the one that does not drive back over it is kept, the end ahead winning ties; an aircraft on a fillet arc starts at the arc's end ahead (docs/ground/pathfinder.md).
 
 **Turn about (from the far end / in place)**:
-A taxi route that opens by reversing the aircraft on the taxiway edge it stands mid-way along, toward that edge's far node (`TaxiRoute.TurnAboutShape` / `TurnAboutTargetNodeId`; while unflown, `TaxiTurnAboutShape` / `TaxiTurnAboutTargetNodeId` on the training hub, which the ground view's overlay draws as sent). Pistons, helicopters, turboprops, scripted taxis and jets angled across their edge make it; a lined-up jet refuses it on a controller's clearance.
+A taxi route that opens by reversing the aircraft on the taxiway edge it stands mid-way along, toward that edge's far node (`TaxiRoute.TurnAboutShape` / `TurnAboutTargetNodeId`; while unflown, `TaxiTurnAboutShape` / `TaxiTurnAboutTargetNodeId` on the training hub, which the ground view's overlay draws as sent). A type whose gear fits makes it on any clearance; one that does not refuses it on a controller's clearance, and on a scripted one makes it only when no route ahead resolves.
 *From the far end* (`FromFarEnd`): the route re-planned from the far node won, with or without a free-space leg back to that node.
 *In place* (`InPlace`): the route from the node ahead was kept, and its first segment drives the occupied edge backwards.
 _Avoid_: U-turn (a U-turn reverses over a junction's fillets, not along the taxiway)
 
 **Turn-about jog**:
-The short arc that opens a turn about on a taxiway, turned against the reversal's sense at the tight-turn radius (60° for an aircraft on the centreline), so that the reversal arc after it is centred on the centreline and the whole turn stays within about one radius either side of it (`PathPrimitiveBuilder.TurnAboutJogDeg`, docs/ground/navigator.md). A helicopter takes none, and nor does a reversal re-aimed past the bend.
+The short arc that opens a turn about on a taxiway, turned against the reversal's sense at the type's turn-about radius (60° for an aircraft on the centreline), so that the reversal arc after it is centred on the centreline and the whole turn stays within about one radius either side of it (`PathPrimitiveBuilder.TurnAboutJogDeg`, docs/ground/navigator.md). A helicopter takes none, and nor does a reversal re-aimed past the bend.
 _Avoid_: S-turn, offset (the jog is a single arc, not a lateral shift)
 
 **Offset line** (also *roll-out hold*):
 The straight after a turn about's reversal, held on the taxiway edge's bearing the reversal rolled out on, a turning radius off the centreline (a diameter for a helicopter) on the inside of the turn the route makes at the node, to abeam that node, instead of steering back out to the centreline first.
-`GroundNavigator.HoldsRollOutBearing` decides it and `TryLayTurnAboutRollOutLine` lays it (docs/ground/navigator.md). Among its conditions: a straight of at most six turning radii, no bar at the node, and the main gear inside a TDG 1A half-width. The node turn from it is fitted to the offset so it exits on the outgoing centreline.
+`GroundNavigator.HoldsRollOutBearing` decides it and `TryLayTurnAboutRollOutLine` lays it (docs/ground/navigator.md). Among its conditions: a straight of at most six turning radii, no bar at the node, and the main gear inside the type's TDG half-width. The node turn from it is fitted to the offset so it exits on the outgoing centreline.
 
 **Re-aim past the bend**:
-A turn about's reversal aimed, with no jog, at a node on the leg out of the bend at its aim node, instead of turning about to that node, when the bend runs back against the reversal by more than 90° and the cut keeps the main gear within a TDG 1A taxiway half-width of the two taxiways' centrelines (`GroundNavigator.ReAimPastTheBend`, docs/ground/navigator.md). Never past a bar.
+A turn about's reversal aimed, with no jog, at a node on the leg out of the bend at its aim node, instead of turning about to that node, when the bend runs back against the reversal by more than 90° and the cut keeps the main gear within the type's TDG half-width of the two taxiways' centrelines (`GroundNavigator.ReAimPastTheBend`, docs/ground/navigator.md). Never past a bar.
 
 **Square stop line**:
 The straight after a turn about laid on the taxiway's centreline through a stop, from abeam the aircraft or from abeam the offset line's start when a hold short is issued on that line, and steered in its last look-ahead window at a point past the stop, so the aircraft stops on the centreline square to the bar (`GroundNavigator.LayStraightSquareToStop`, docs/ground/navigator.md).
 
-**Lined-up jet**:
-A jet whose heading is within 30° of its occupied taxiway edge, either way along it (`GroundCommandHandler.IsLinedUpWith`, a heuristic). A controller's TAXI that would need a turn about, in either shape, is refused: "Unable, no room to turn around on C, request a route ahead".
+**Taxiway design group (TDG)**:
+The FAA's grouping of aircraft by main-gear width and cockpit-to-main-gear distance (1A, 1B, 2A, 2B, 3–6), read from the FAA aircraft characteristics database; AC 150/5300-13B Table 4-2 sets each group's taxiway width, of which half (12.5 ft for 1A/1B, 17.5 for 2A/2B, 25 for 3/4, 37.5 for 5/6) is the pavement a turn about is checked against. The ground layout carries no TDG, so a taxiway is assumed to be of the aircraft's own group.
+
+**Gear fit** (for a turn about):
+Whether a type has room to turn about on a taxiway of its own TDG (`TurnAboutFit.Evaluate`, docs/ground/pathfinder.md): its pivot radius is R = max(MGW/2, 0.466 × wheelbase), MGW the main-gear width, and it fits when its outer main tyre (R + MGW/2) and its nose gear (√(R² + wheelbase²)) both stay within its TDG half-width. With either figure missing only a TDG 1A non-jet fits; a type with no record fits only as a piston or helicopter.
+A type that does not fit refuses a controller's TAXI that would need a turn about, in either shape, at any heading: "Unable, no room to turn around on C, request a route ahead". A C172 or C208 fits; a C25A, AT76, B738, DH8D or CRJ2 does not.
+_Avoid_: lined-up jet (neither the heading nor the category decides it)
 
 **Holding distance**:
 How far from a runway's centerline its holding position markings sit: the map's `holdShortDistance`, else the width-based default (`RunwayCrossingDetector.HoldShortDistanceForWidth`). An aircraft is clear of the runway only with its tail past a bar at this distance.

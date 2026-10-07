@@ -582,10 +582,8 @@ Run it: `pwsh tools/gate.ps1 -Log .tmp/test.log -TimeoutSeconds 30 -Slot heavy -
   committed full-precision snapshot via `Helpers/PinnedSfoGroundData.cs`, and build gate-coverage routes from taxiway **names**
   (`FindIntersectionNode`, `TaxiPathfinder.FindRoute`), not hardcoded node IDs. The `ActionRouter` logs a rejected replayed command at
   Debug (category `ActionRouter`) and, when the record says live accepted it, a `replay-fidelity` warning.
-- **A recording whose student TAXI turned a lined-up jet about on its taxiway now diverges.** A controller-issued TAXI whose only route
-  lies behind a jet lined up along its taxiway is refused ("no room to turn around", see
-  [ground/pathfinder.md](ground/pathfinder.md#where-it-sits--entry-points)), so a recording made when the jet turned about replays a
-  rejected command and the jet stays put until a later command moves it. Re-pose the test rather than loosen the gate: give the TAXI before the jet passes the junction
-  its route turns at, as the `Issue172Jbu577*` tests do (`Issue172Jbu577TaxiSpinTests.ActionsWithTaxiGBMovedEarlier` moves JBU577's
-  `TAXI G B HS B` from t=444 to t=410, before the H/G junction, and `SimulationEngine.ArmReplay` replays the edited list), or use a
-  turboprop or piston, which still turns about. A scripted TAXI (preset, AI controller, `TAXIAUTO`) is never refused this way.
+- **A recording whose student TAXI turned an aircraft about on its taxiway diverges when the type's gear does not fit.**
+
+  A controller-issued TAXI whose only route lies behind an aircraft whose gear does not fit a turn about on its taxiway (`TurnAboutFit`, at any heading: a B738, CRJ2, C25A, DH8D or AT76, for example) is refused ("no room to turn around", see [ground/pathfinder.md](ground/pathfinder.md#where-it-sits--entry-points)), so a recording made when it turned about replays a rejected command and the aircraft stays put until a later command moves it.
+
+  Re-pose the test rather than loosen the gate: give the TAXI before the aircraft passes the junction its route turns at, as the `Issue172Jbu577*` tests do (`Issue172Jbu577TaxiSpinTests.ActionsWithTaxiGBMovedEarlier` moves JBU577's `TAXI G B HS B` from t=444 to t=410, before the H/G junction, and `SimulationEngine.ArmReplay` replays the edited list), or use a type whose gear fits (a C172 or C208). A scripted TAXI (preset, AI controller, `TAXIAUTO`) is never refused this way.

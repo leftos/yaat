@@ -67,7 +67,7 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
     /// A C172 mid-C at KOAK, facing toward H, cleared to a taxiway that branches off C behind it. The route from the C node
     /// ahead would come straight back over the edge the aircraft stands on, so it turns about on C: segment 0 is the
     /// free-space leg back to the edge's far node, and no segment drives that edge. Ticked through the turn about and the
-    /// leg back to the far node, it pivots no faster than ω·r at its tight-turn radius, ends facing the far node, and its
+    /// leg back to the far node, it pivots no faster than ω·r at its turn-about radius, ends facing the far node, and its
     /// centre stays within C's half-width of the centreline.
     /// </summary>
     [Fact]
@@ -75,7 +75,7 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
 
     /// <summary>
     /// The same pose and clearance in a C208, a turboprop the FAA aircraft characteristics database puts in TDG 1A: it turns
-    /// about on C at its own tight-turn radius and pivot speed, its centre within its own TDG 1A half-width of the centreline.
+    /// about on C at its own turn-about radius and pivot speed, its centre within its own TDG 1A half-width of the centreline.
     /// </summary>
     [Fact]
     public void TaxiOnC_DestinationBehind_TurbopropTurnsAboutWithinTheTaxiway() => TurnAboutOnC("C208", AircraftCategory.Turboprop);
@@ -132,11 +132,11 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
         output.WriteLine($"left the turn-about leg {legDoneAt}s later; peak {peakOffsetFt:F2} ft off C's centreline");
         Assert.True(legDoneAt > 0, $"the aircraft did not finish the leg back to node {farEnd.Id} within {TurnAboutLegTickSeconds}s");
 
-        double pivotKts = PivotSpeedKts(category);
+        double pivotKts = PivotSpeedKts(type, category);
         Assert.True(
             maxTurnSpeedKts <= pivotKts + TurnSpeedOvershootKts,
             $"the aircraft turned about at up to {maxTurnSpeedKts:F2} kt, above the {pivotKts:F2} kt pivot speed (ω·r at its "
-                + $"{CategoryPerformance.TightTurnFloorRadiusFt(category):F0} ft tight-turn radius) plus {TurnSpeedOvershootKts:F1} kt"
+                + $"{TurnAboutFit.Evaluate(type, category).RadiusFt:F1} ft turn-about radius) plus {TurnSpeedOvershootKts:F1} kt"
         );
         Assert.True(
             peakOffsetFt <= (Tdg1AHalfWidthFt + CentreTrackingToleranceFt),
@@ -153,18 +153,18 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
 
     /// <summary>
     /// How far past the bound the centre may swing turning about on C: the half-foot the playback's settling onto the reversal
-    /// arc and the straight after it adds to the tight-turn radius (the C208, on 12 ft, peaks just past 12.5 ft).
+    /// arc and the straight after it adds to the turn-about radius.
     /// </summary>
     private const double CentreTrackingToleranceFt = 0.5;
 
     /// <summary>
-    /// The speed a turn about on a taxiway pivots at: the gear-limited turn rate held on the category's tight-turn radius,
-    /// v = ω·r.
+    /// The speed a turn about on a taxiway pivots at: the gear-limited turn rate held on the type's turn-about radius
+    /// (<see cref="TurnAboutFit"/>), v = ω·r.
     /// </summary>
-    private static double PivotSpeedKts(AircraftCategory category) =>
+    private static double PivotSpeedKts(string type, AircraftCategory category) =>
         CategoryPerformance.GroundTurnRate(category)
         * (Math.PI / 180.0)
-        * CategoryPerformance.TightTurnFloorRadiusFt(category)
+        * TurnAboutFit.Evaluate(type, category).RadiusFt
         * 3600.0
         / GeoMath.FeetPerNm;
 
@@ -202,11 +202,11 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// The same B738 angled 45° across C: it is not lined up along the taxiway, so it is not refused and takes the route
-    /// from the far node, turning about as any other category would.
+    /// The same B738 angled 45° across C: its gear does not fit a turn about on a TDG 3 taxiway at any angle (turning from
+    /// off the edge saves little of a full 180's room), so it refuses the controller's TAXI as when lined up.
     /// </summary>
     [Fact]
-    public void TaxiOnC_DestinationBehind_JetAngledAcrossCIsNotRefused()
+    public void TaxiOnC_DestinationBehind_JetAngledAcrossCRefusesToTurnAround()
     {
         if (BuildOak() is not { } ground)
         {
@@ -215,9 +215,7 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
 
         (GroundNode tangentCut, GroundNode farEnd) = KoakTaxiwayC.LongEdgeWestOfH(ground.Layout);
         AircraftState aircraft = SpawnMidCFacingH(ground, tangentCut, farEnd, "B738");
-        var angled = new TrueHeading(aircraft.TrueHeading.Degrees + AcrossEdgeDeg);
-        aircraft.TrueHeading = angled;
-        aircraft.TrueTrack = angled;
+        TrueHeading angled = AngleAcrossC(aircraft);
 
         string command = $"TAXI C {FirstTaxiwayOffCBeyond(farEnd, tangentCut)}";
         ParseResult<ParsedCommand> parsed = CommandParser.Parse(command);
@@ -225,13 +223,98 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
         CommandResult result = GroundCommandHandler.TryTaxi(aircraft, Assert.IsType<TaxiCommand>(parsed.Value), ground.Layout);
         output.WriteLine($"{command} at heading {angled.Degrees:F0}: {result.Success} — {result.Message}");
 
-        Assert.True(result.Success, $"'{command}' was refused: {result.Message}");
-        TaxiRoute route = aircraft.Ground.AssignedTaxiRoute!;
-        SfoGroundHarness.DumpRoute(output, route);
-        Assert.Equal(farEnd.Id, route.Segments[0].ToNodeId);
+        Assert.False(result.Success, $"'{command}' was accepted: {result.Message}");
+        Assert.Equal(GroundCommandHandler.NoRoomToTurnAroundReason("C"), result.Message);
+        Assert.NotNull(result.PilotUnable);
+        Assert.Null(aircraft.Ground.AssignedTaxiRoute);
     }
 
-    /// <summary>How far the angled jet's heading is turned off C: past the alignment within which a jet refuses to turn about.</summary>
+    /// <summary>
+    /// The angled B738 given the same TAXI by a scenario preset: no controller is there to re-issue it, so it is not
+    /// refused, and since its gear does not fit a turn about it keeps the route from the C node ahead rather than taking
+    /// the one from the far node. That route opens by driving straight back over the C edge it stands on, so it turns
+    /// about where it stands and reports it in place, toward the far node, as the lined-up preset does.
+    /// </summary>
+    [Fact]
+    public void TaxiOnC_DestinationBehind_ScriptedJetAngledAcrossCKeepsTheRouteAheadAndTurnsAboutInPlace()
+    {
+        if (BuildOak() is not { } ground)
+        {
+            return;
+        }
+
+        (GroundNode tangentCut, GroundNode farEnd) = KoakTaxiwayC.LongEdgeWestOfH(ground.Layout);
+        AircraftState aircraft = SpawnMidCFacingH(ground, tangentCut, farEnd, "B738");
+        TrueHeading angled = AngleAcrossC(aircraft);
+
+        string command = $"TAXI C {FirstTaxiwayOffCBeyond(farEnd, tangentCut)}";
+        ParseResult<ParsedCommand> parsed = CommandParser.Parse(command);
+        Assert.True(parsed.IsSuccess, parsed.Reason);
+        DispatchContext scripted = ground.Engine.BuildDispatchContext(aircraft, isScenarioScripted: true, facilityHint: null);
+        CommandResult result = CommandDispatcher.Dispatch(Assert.IsType<TaxiCommand>(parsed.Value), aircraft, scripted);
+        output.WriteLine($"scripted {command} at heading {angled.Degrees:F0}: {result.Success} — {result.Message}");
+
+        Assert.True(result.Success, $"the scripted '{command}' was refused: {result.Message}");
+        TaxiRoute route = aircraft.Ground.AssignedTaxiRoute!;
+        SfoGroundHarness.DumpRoute(output, route);
+        Assert.Equal(tangentCut.Id, route.Segments[0].FromNodeId);
+        Assert.False(VirtualNode.IsVirtualEdge(route.Segments[0].Edge.Edge), "segment 0 is the far-end route's free-space leg back");
+        Assert.NotEqual(TaxiTurnAboutShape.FromFarEnd, route.TurnAboutShape);
+        Assert.Equal(TaxiTurnAboutShape.InPlace, route.TurnAboutShape);
+        Assert.Equal(farEnd.Id, route.TurnAboutTargetNodeId);
+    }
+
+    /// <summary>
+    /// The pose of the lined-up B738 in other types, from the controller: a type whose gear fits a turn about on its own
+    /// TDG taxiway (a C208, TDG 1A) turns about toward the far node; one whose gear does not (a C25A, TDG 2A, nose gear
+    /// 19.6 ft out against 17.5 ft; an AT76, TDG 1B but a 35 ft wheelbase) refuses for want of room to turn around.
+    /// </summary>
+    [Theory]
+    [InlineData("C208", true)]
+    [InlineData("C25A", false)]
+    [InlineData("AT76", false)]
+    public void TaxiOnC_DestinationBehind_LinedUpTypeTurnsAboutOnlyWhenItsGearFits(string type, bool turnsAbout)
+    {
+        if (BuildOak() is not { } ground)
+        {
+            return;
+        }
+
+        (GroundNode tangentCut, GroundNode farEnd) = KoakTaxiwayC.LongEdgeWestOfH(ground.Layout);
+        AircraftState aircraft = SpawnMidCFacingH(ground, tangentCut, farEnd, type);
+
+        string command = $"TAXI C {FirstTaxiwayOffCBeyond(farEnd, tangentCut)}";
+        ParseResult<ParsedCommand> parsed = CommandParser.Parse(command);
+        Assert.True(parsed.IsSuccess, parsed.Reason);
+        CommandResult result = GroundCommandHandler.TryTaxi(aircraft, Assert.IsType<TaxiCommand>(parsed.Value), ground.Layout);
+        output.WriteLine($"{type} {command}: {result.Success} — {result.Message}");
+
+        if (turnsAbout)
+        {
+            Assert.True(result.Success, $"'{command}' was refused: {result.Message}");
+            TaxiRoute route = aircraft.Ground.AssignedTaxiRoute!;
+            SfoGroundHarness.DumpRoute(output, route);
+            Assert.Equal(farEnd.Id, route.Segments[0].ToNodeId);
+            Assert.Equal(TaxiTurnAboutShape.FromFarEnd, route.TurnAboutShape);
+        }
+        else
+        {
+            Assert.False(result.Success, $"'{command}' was accepted: {result.Message}");
+            Assert.Equal(GroundCommandHandler.NoRoomToTurnAroundReason("C"), result.Message);
+            Assert.Null(aircraft.Ground.AssignedTaxiRoute);
+        }
+    }
+
+    /// <summary>Turns <paramref name="aircraft"/>'s heading and track <see cref="AcrossEdgeDeg"/> across C, and returns the new heading.</summary>
+    private static TrueHeading AngleAcrossC(AircraftState aircraft)
+    {
+        var angled = new TrueHeading(aircraft.TrueHeading.Degrees + AcrossEdgeDeg);
+        aircraft.TrueHeading = angled;
+        aircraft.TrueTrack = angled;
+        return angled;
+    }
+
+    /// <summary>How far the angled jet's heading is turned off C: well off the taxiway's line, still short of across it.</summary>
     private const double AcrossEdgeDeg = 45.0;
 
     /// <summary>
@@ -462,15 +545,16 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
             }
         );
         output.WriteLine(
-            $"{command}: leg back to node {farEnd.Id} done after {legDoneAt}s; peak {peakOffsetFt:F1} ft off C, max {maxTurnSpeedKts:F2} kt while turning"
+            $"{command}: leg back to node {farEnd.Id} done after {legDoneAt}s; "
+                + $"peak {peakOffsetFt:F1} ft off C, max {maxTurnSpeedKts:F2} kt while turning"
         );
 
         Assert.True(legDoneAt > 0, $"the aircraft did not finish the leg back to node {farEnd.Id} within {TurnAboutLegTickSeconds}s");
-        double pivotKts = PivotSpeedKts(AircraftCategory.Piston);
+        double pivotKts = PivotSpeedKts("C172", AircraftCategory.Piston);
         Assert.True(
             maxTurnSpeedKts <= pivotKts + TurnSpeedOvershootKts,
             $"the aircraft turned about at up to {maxTurnSpeedKts:F2} kt, above the {pivotKts:F2} kt pivot speed (ω·r at its "
-                + $"{CategoryPerformance.TightTurnFloorRadiusFt(AircraftCategory.Piston):F0} ft tight-turn radius) plus {TurnSpeedOvershootKts:F1} kt"
+                + $"{TurnAboutFit.Evaluate("C172", AircraftCategory.Piston).RadiusFt:F1} ft turn-about radius) plus {TurnSpeedOvershootKts:F1} kt"
         );
         Assert.True(
             peakOffsetFt <= (Tdg1AHalfWidthFt + CentreTrackingToleranceFt),

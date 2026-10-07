@@ -138,9 +138,9 @@ public class SfoTaxiCurrentTaxiwayPrependTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// A turboprop holding short of K on B, <c>TAXI B T</c>: T lies behind it, so it turns about on B toward T. The
-    /// aircraft already stands on the first cleared taxiway, so the taxiway it holds short of is not put in front of the
-    /// path.
+    /// A turboprop whose gear fits a turn about (a C208) holding short of K on B, <c>TAXI B T</c>: T lies behind it, so it
+    /// turns about on B toward T. The aircraft already stands on the first cleared taxiway, so the taxiway it holds short of
+    /// is not put in front of the path.
     /// </summary>
     [Fact]
     public void Taxi_BT_AfterHoldingShortOfK_TurbopropTurnsAboutOnB()
@@ -150,7 +150,7 @@ public class SfoTaxiCurrentTaxiwayPrependTests(ITestOutputHelper output)
             return;
         }
 
-        AircraftState aircraft = HoldShortOfKOnB(ground, "DH8D");
+        AircraftState aircraft = HoldShortOfKOnB(ground, "C208");
 
         CommandResult result = ground.Engine.SendCommand("SKW3398", "TAXI B T");
         output.WriteLine($"TAXI B T: {result.Success} — {result.Message}");

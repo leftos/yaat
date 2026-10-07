@@ -921,9 +921,10 @@ public static class CategoryPerformance
     /// Ground yaw rate (deg/sec) achievable at groundspeed <paramref name="groundSpeedKts"/> while the main gear tracks a
     /// turn of <paramref name="radiusFt"/>: ω = v/R, capped at the gear-limited <see cref="GroundTurnRate"/> ceiling.
     /// <see cref="GroundYawRateAtSpeed"/> is this at the comfortable <see cref="MainGearTurnRadiusFt"/>; a turn about on a
-    /// taxiway steers tighter, at <see cref="TightTurnFloorRadiusFt"/>, and slower (<see cref="TurnAboutSpeedKts"/>), so
-    /// its yaw is limited on its own radius — on the comfortable one a piston at 1.65 kt would yaw at ~10.6 °/s, half what
-    /// an 8 ft arc needs. Helicopters hold the full pedal-turn rate at any speed.
+    /// taxiway steers tighter, at the type's turn-about radius (<c>TurnAboutFit</c>), and slower
+    /// (<see cref="TurnAboutSpeedKts"/>), so its yaw is limited on its own radius — on the comfortable one a C172 at its
+    /// 0.87 kt pivot speed would yaw at a fraction of what its 4.2 ft arc needs. Helicopters hold the full pedal-turn rate
+    /// at any speed.
     /// </summary>
     public static double GroundYawRateOnRadius(AircraftCategory cat, double groundSpeedKts, double radiusFt)
     {
@@ -997,8 +998,9 @@ public static class CategoryPerformance
     /// the edge of what the gear can roll through. A jet floors at 15 ft: on a B737-800 (wheelbase ~51 ft) that is ~74° of
     /// nose-wheel steering, inside the 78° tiller limit, with the inner main gear ~5.6 ft from the turn centre and still
     /// rolling. A piston's 8 ft matches a C172's brake-assisted pivot (POH minimum turning radius ≈ 9 ft turn centre to
-    /// axle). The turboprop's 12 ft is a judgement between the two. Category defaults; per-type values derive from FAA ACD
-    /// wheelbase and main-gear width. Used to clamp the adaptive corner-rounding radius when the available approach
+    /// axle). The turboprop's 12 ft is a judgement between the two. A turn about on a taxiway takes its radius per type
+    /// from FAA ACD wheelbase and main-gear width (<c>TurnAboutFit</c>), this category value only as the fallback for a
+    /// type the database cannot describe. Used to clamp the adaptive corner-rounding radius when the available approach
     /// straight is shorter than the comfortable tangent length (aviation-reviewed: Boeing FCTM tight-turn technique /
     /// judgmental oversteer, AC 150/5300-13B).
     /// </summary>
@@ -1039,9 +1041,9 @@ public static class CategoryPerformance
     public const double SlowTurnSpeedKts = 3.0;
 
     /// <summary>
-    /// Pivot speed (knots) of a turn about on a taxiway, steered at <paramref name="radiusFt"/>
-    /// (<see cref="TightTurnFloorRadiusFt"/>): the gear-limited <see cref="GroundTurnRate"/> held on that radius,
-    /// <c>v = ω·r</c> — a piston ~1.65 kt on 8 ft, a turboprop ~2.0 kt on 12 ft. Below
+    /// Pivot speed (knots) of a turn about on a taxiway, steered at <paramref name="radiusFt"/> (the type's turn-about
+    /// radius, <c>TurnAboutFit</c>): the gear-limited <see cref="GroundTurnRate"/> held on that radius, <c>v = ω·r</c> — a
+    /// C172 ~0.87 kt on 4.2 ft. Below
     /// <see cref="SlowTurnSpeedKts"/> deliberately: at the 3 kt creep the tight radius would need more yaw than the gear
     /// can give, and the turn would not stay on its arc.
     /// </summary>

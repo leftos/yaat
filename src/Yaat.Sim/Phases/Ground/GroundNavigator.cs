@@ -1319,8 +1319,8 @@ public sealed class GroundNavigator
     }
 
     /// <summary>
-    /// Solve a reversal on a taxiway as a turn about that stays inside the taxiway: both arcs at
-    /// <see cref="CategoryPerformance.TightTurnFloorRadiusFt"/> and played at <see cref="CategoryPerformance.TurnAboutSpeedKts"/>,
+    /// Solve a reversal on a taxiway as a turn about that stays inside the taxiway: both arcs at the type's turn-about radius
+    /// (<see cref="TurnAboutFit"/>) and played at <see cref="CategoryPerformance.TurnAboutSpeedKts"/> on it,
     /// a jog against the reversal's sense (<see cref="PathPrimitiveBuilder.TurnAboutJogDeg"/>) that puts the reversal's
     /// turning circle on the centreline, then the reversal itself, in the direction the tie-break chose
     /// (<see cref="ShouldReverseAgainstShortWay"/>), rolled out on the edge's own bearing back toward the node the route
@@ -1343,7 +1343,7 @@ public sealed class GroundNavigator
     /// </summary>
     private TaxiwayTurnAboutPlan? SolveTaxiwayTurnAbout(TaxiRoute route, TaxiRouteSegment seg, PhaseContext ctx)
     {
-        double radiusFt = CategoryPerformance.TightTurnFloorRadiusFt(ctx.Category);
+        double radiusFt = TurnAboutFitOf(ctx).RadiusFt;
         if (TurnAboutTaxiwayEdge(seg, ctx, radiusFt) is not { } edge)
         {
             return null;
@@ -1466,7 +1466,7 @@ public sealed class GroundNavigator
     /// centreline on the side opposite its own sense (a radius off after the jog, a diameter after a helicopter's lone
     /// arc), so this is only when the route then turns more than <see cref="EntryAlignmentThresholdDeg"/> to that side
     /// onto a straight edge, the aircraft already on the inside of the turn; when the main gear at that offset stays
-    /// within <see cref="TurnAboutTaxiwayHalfWidthFt"/> of the centreline; and when the straight is no longer than
+    /// within the type's taxiway half-width (<see cref="TurnAboutFitResult.HalfWidthFt"/>) of the centreline; and when the straight is no longer than
     /// <see cref="RollOutHoldMaxRadii"/> turning radii. An aircraft type with no FAA main-gear width never holds it.
     /// </summary>
     private static bool HoldsRollOutBearing(
@@ -1509,9 +1509,10 @@ public sealed class GroundNavigator
     }
 
     /// <summary>
-    /// Whether the main gear of a <paramref name="gearWidthFt"/>-wide type stays within <see cref="TurnAboutTaxiwayHalfWidthFt"/>
-    /// of the centreline at the offset a rolled-out <paramref name="reversal"/> ends at, and the straight from its end to
-    /// abeam <paramref name="seg"/>'s to-node is no longer than <see cref="RollOutHoldMaxRadii"/> turning radii.
+    /// Whether the main gear of a <paramref name="gearWidthFt"/>-wide type stays within its taxiway half-width
+    /// (<see cref="TurnAboutFitResult.HalfWidthFt"/>) of the centreline at the offset a rolled-out <paramref name="reversal"/>
+    /// ends at, and the straight from its end to abeam <paramref name="seg"/>'s to-node is no longer than
+    /// <see cref="RollOutHoldMaxRadii"/> turning radii.
     /// </summary>
     private static bool RollOutHoldFits(PhaseContext ctx, TaxiRouteSegment seg, PathPrimitiveSlowTurn reversal, double gearWidthFt)
     {
@@ -1519,7 +1520,7 @@ public sealed class GroundNavigator
         var bearing = new TrueHeading(reversal.ExitTangentBearingDeg);
         double straightFt =
             GeoMath.AlongTrackDistanceNm(seg.Edge.ToNode.Position, PathPrimitiveBuilder.ExitPose(reversal).Position, bearing) * GeoMath.FeetPerNm;
-        bool gearFits = (offsetFt + (gearWidthFt / 2.0)) <= TurnAboutTaxiwayHalfWidthFt;
+        bool gearFits = (offsetFt + (gearWidthFt / 2.0)) <= TurnAboutFitOf(ctx).HalfWidthFt;
         bool shortEnough = straightFt <= (RollOutHoldMaxRadii * reversal.RadiusFt);
         Log.LogDebug(
             "[Nav] {Callsign}: turn about ends {Offset:F0} ft inside the turn at node {Node}, {Straight:F0} ft short of it: "
@@ -1576,7 +1577,7 @@ public sealed class GroundNavigator
         }
 
         int outgoingIndex = bendSegmentIndex + 1;
-        double radiusFt = CategoryPerformance.TightTurnFloorRadiusFt(ctx.Category);
+        double radiusFt = TurnAboutFitOf(ctx).RadiusFt;
         if (FindAimNode(route, ctx, outgoingIndex, ctx.Aircraft.Position, 2.0 * radiusFt) is not { } aim)
         {
             return null;
@@ -1618,11 +1619,12 @@ public sealed class GroundNavigator
 
     /// <summary>
     /// The bound (ft) a cut past the bend at segment <paramref name="bendSegmentIndex"/>'s to-node must stay within of a
-    /// centreline: <see cref="TurnAboutTaxiwayHalfWidthFt"/> less half the main-gear width. Null, and no re-aim, when no
-    /// leg follows the bend, the bend node is a bar (a cut past it would drive through the hold-short without arriving at
-    /// it), the bend does not run against the reversal's sense (<paramref name="rightTurn"/>) or is no sharper than
-    /// <see cref="ReAimMinBendDeg"/> — the route would otherwise turn about to the node only to turn most of the way
-    /// back — the type has no FAA main-gear width, or its main gear is wider than the taxiway.
+    /// centreline (<see cref="ReAimCutBoundFt"/>): the type's taxiway half-width less the further of its main and nose gear's
+    /// reach outside the path. Null, and no re-aim, when no leg follows the bend, the bend node is a bar (a cut past it
+    /// would drive through the hold-short without arriving at it), the bend does not run against the reversal's sense
+    /// (<paramref name="rightTurn"/>) or is no sharper than <see cref="ReAimMinBendDeg"/> — the route would otherwise turn
+    /// about to the node only to turn most of the way back — the type has no FAA main-gear width or wheelbase, or its gear
+    /// reaches past the taxiway's half-width.
     /// </summary>
     private static double? ReAimBoundFt(TaxiRoute route, PhaseContext ctx, int bendSegmentIndex, bool rightTurn)
     {
@@ -1653,7 +1655,13 @@ public sealed class GroundNavigator
             return null;
         }
 
-        double boundFt = TurnAboutTaxiwayHalfWidthFt - (gearWidthFt / 2.0);
+        if (FaaAircraftDatabase.Get(ctx.Aircraft.AircraftType)?.WheelbaseFt is not { } wheelbaseFt)
+        {
+            Log.LogDebug("[Nav] {Callsign}: no re-aim: no FAA wheelbase for {Type}", ctx.Aircraft.Callsign, ctx.Aircraft.AircraftType);
+            return null;
+        }
+
+        double boundFt = ReAimCutBoundFt(TurnAboutFitOf(ctx), gearWidthFt, wheelbaseFt);
         Log.LogDebug(
             "[Nav] {Callsign}: bend {Bend:F0}° at node {Node} against the reversal; cut bound {Bound:F1} ft",
             ctx.Aircraft.Callsign,
@@ -1663,11 +1671,23 @@ public sealed class GroundNavigator
         );
         if (boundFt <= 0.0)
         {
-            Log.LogDebug("[Nav] {Callsign}: no re-aim: main gear wider than the TDG 1A half-width", ctx.Aircraft.Callsign);
+            Log.LogDebug("[Nav] {Callsign}: no re-aim: gear reaches past the type's taxiway half-width", ctx.Aircraft.Callsign);
             return null;
         }
 
         return boundFt;
+    }
+
+    /// <summary>
+    /// How far (ft) the path of the main-gear midpoint on a re-aimed cut may stray from a centreline for a type with
+    /// <paramref name="fit"/>, a main gear <paramref name="gearWidthFt"/> wide and <paramref name="wheelbaseFt"/> of
+    /// wheelbase: its taxiway half-width less how far its gear reaches outside that path — half the main-gear width, or,
+    /// when it is further, the nose gear's reach outside a turn of the type's radius R, √(R² + WB²) − R.
+    /// </summary>
+    public static double ReAimCutBoundFt(TurnAboutFitResult fit, double gearWidthFt, double wheelbaseFt)
+    {
+        double noseOutsideFt = Math.Sqrt((fit.RadiusFt * fit.RadiusFt) + (wheelbaseFt * wheelbaseFt)) - fit.RadiusFt;
+        return fit.HalfWidthFt - Math.Max(gearWidthFt / 2.0, noseOutsideFt);
     }
 
     /// <summary>
@@ -1701,8 +1721,8 @@ public sealed class GroundNavigator
     /// <summary>
     /// Whether every sample of <paramref name="arc"/> and of the straight from its exit to <paramref name="aimNode"/> lies
     /// within <paramref name="boundFt"/> of one of <paramref name="centrelines"/>. The samples are the aircraft's reference
-    /// point, and the bound already takes off half the main-gear width: on a TDG 1A taxiway the main gear, not the nose
-    /// wheel, is what tracks wide of the centreline in a turn.
+    /// point, and the bound already takes off the further of the main gear's and the nose gear's reach outside that path
+    /// (<see cref="ReAimCutBoundFt"/>).
     /// </summary>
     private static bool CutStaysOnPavement(PathPrimitiveSlowTurn arc, LatLon aimNode, List<(LatLon A, LatLon B)> centrelines, double boundFt) =>
         CutSamples(arc, aimNode).All(p => centrelines.Any(l => GeoMath.DistanceToSegmentFt(p, l.A, l.B) <= boundFt));
@@ -1734,10 +1754,11 @@ public sealed class GroundNavigator
     }
 
     /// <summary>
-    /// Half the 25 ft width of a TDG 1A taxiway (AC 150/5300-13B Table 4-2). The layout carries no taxiway design group, so a
-    /// turn about's pavement checks are made against the narrowest taxiway.
+    /// The turn-about fit of the aircraft's type (<see cref="TurnAboutFit"/>): the radius its turn about is drawn on and the
+    /// half-width its pavement checks use, the same geometry the taxi gate decided on. The layout carries no taxiway design
+    /// group, so the checks assume a taxiway of the type's own group.
     /// </summary>
-    private const double TurnAboutTaxiwayHalfWidthFt = 12.5;
+    private static TurnAboutFitResult TurnAboutFitOf(PhaseContext ctx) => TurnAboutFit.Evaluate(ctx.Aircraft.AircraftType, ctx.Category);
 
     /// <summary>A bend (deg) at the turn about's aim node sharper than this, against the reversal's sense, may be cut instead.</summary>
     private const double ReAimMinBendDeg = 90.0;
