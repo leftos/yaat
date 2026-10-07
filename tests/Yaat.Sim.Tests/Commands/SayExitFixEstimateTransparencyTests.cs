@@ -46,7 +46,7 @@ public class SayExitFixEstimateTransparencyTests
     public void SayExitFixEstimate_DoesNotWipeTheQueue()
     {
         AircraftState ac = Airborne();
-        Dispatch("AT 5000 SPD 180", ac);
+        Dispatch("AT 5000 SPD 150", ac);
         Assert.True(StillQueued(ac, CanonicalCommandType.Speed), "setup: the queued speed should be waiting behind its AT trigger");
 
         Dispatch("SAYEXIT", ac);
