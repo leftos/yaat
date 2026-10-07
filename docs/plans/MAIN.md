@@ -93,7 +93,7 @@
 - [ ] YAAT-447 Keep unspawned aircraft out of the Follow and Give way to lists
 - [ ] YAAT-448 Stop the Hold short submenu offering fillet names the server refuses
 - [ ] YAAT-449 Find why a grounded aircraft can end with no phase, and give it ground menus
-- [/] YAAT-451 Group the cleared-approach picker by runway and name the smart default
+- [x] YAAT-451 Group the cleared-approach picker by runway and name the smart default · release vNext
 - [ ] YAAT-452 Put relative traffic actions on top of the radar menu and list nearby traffic for Report traffic
 - [ ] YAAT-453 Open the maintain-altitude picker at the aircraft's altitude, mark climb or descend, grey rows below the MVA
 - [ ] YAAT-454 Name the receiving aircraft in the radar point menu header and add its quick icons
