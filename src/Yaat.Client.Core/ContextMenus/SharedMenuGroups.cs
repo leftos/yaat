@@ -412,9 +412,9 @@ public static class SharedMenuGroups
     }
 
     /// <summary>
-    /// The Approach submenu: the approach clearances, the visual approach (with its "(other)" runway picker beside a
-    /// default runway), the in-sight requests, then the Report when… submenu. The header names the active approach,
-    /// else the expected one.
+    /// The Approach submenu: the approach clearances (each with its "(other)" grouped picker beside a default approach),
+    /// the visual approach (with its "(other)" runway picker beside a default runway), the in-sight requests, then the
+    /// Report when… submenu. The header names the active approach, else the expected one.
     /// </summary>
     public static MenuItem Approach(IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
     {
@@ -425,14 +425,12 @@ public static class SharedMenuGroups
             _ => "Approach",
         };
         var menu = new MenuItem { Header = header };
-        TryAdd(menu.Items, TryLeaf(MenuIds.ApproachCleared, aircraft, context, host));
-        TryAdd(menu.Items, TryLeaf(MenuIds.ApproachJoin, aircraft, context, host));
-        TryAdd(menu.Items, TryLeaf(MenuIds.ApproachClearedStraightIn, aircraft, context, host));
-        TryAdd(menu.Items, TryLeaf(MenuIds.ApproachJoinStraightIn, aircraft, context, host));
-        TryAdd(menu.Items, TryLeaf(MenuIds.ApproachClearedForce, aircraft, context, host));
-        TryAdd(menu.Items, TryLeaf(MenuIds.ApproachJoinForce, aircraft, context, host));
-        TryAdd(menu.Items, TryLeaf(MenuIds.ApproachJoinFinalCourse, aircraft, context, host));
-        TryAdd(menu.Items, TryLeaf(MenuIds.ApproachExpect, aircraft, context, host));
+        foreach (string id in MenuCatalog.ApproachPickerIds)
+        {
+            TryAdd(menu.Items, TryLeaf(id, aircraft, context, host));
+            AddCompanion(menu.Items, MenuCatalog.BuildApproachOther(id, aircraft, context, host));
+        }
+
         TryAdd(menu.Items, TryLeaf(MenuIds.ApproachClearedVisual, aircraft, context, host));
         AddCompanion(menu.Items, MenuCatalog.BuildClearedVisualOther(aircraft, context, host));
 

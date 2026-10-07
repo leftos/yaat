@@ -63,14 +63,14 @@ All Commands
     Hold at fix (left)… picker:input
     Hold at fix (right)… picker:input
   Approach
-    Cleared approach picker:list [H06LZ, H06RZ, H07LZ, H07RZ, H24LZ, H24RZ, H25LZ, H25RZ, I06L, I06R, I07L, I07R, I24L, I24R, I25L, I25R, L06L, L06R, L07L, L07R, L24L, L24R, L25L, L25R, R06LY, R06RY, R07LY, R07RY, R24LY, R24RY, R25LY, R25RY]
-    Join approach picker:list [H06LZ, H06RZ, H07LZ, H07RZ, H24LZ, H24RZ, H25LZ, H25RZ, I06L, I06R, I07L, I07R, I24L, I24R, I25L, I25R, L06L, L06R, L07L, L07R, L24L, L24R, L25L, L25R, R06LY, R06RY, R07LY, R07RY, R24LY, R24RY, R25LY, R25RY]
-    Cleared straight-in picker:list [H06LZ, H06RZ, H07LZ, H07RZ, H24LZ, H24RZ, H25LZ, H25RZ, I06L, I06R, I07L, I07R, I24L, I24R, I25L, I25R, L06L, L06R, L07L, L07R, L24L, L24R, L25L, L25R, R06LY, R06RY, R07LY, R07RY, R24LY, R24RY, R25LY, R25RY]
-    Join straight-in picker:list [H06LZ, H06RZ, H07LZ, H07RZ, H24LZ, H24RZ, H25LZ, H25RZ, I06L, I06R, I07L, I07R, I24L, I24R, I25L, I25R, L06L, L06R, L07L, L07R, L24L, L24R, L25L, L25R, R06LY, R06RY, R07LY, R07RY, R24LY, R24RY, R25LY, R25RY]
-    Cleared approach (force) picker:list [H06LZ, H06RZ, H07LZ, H07RZ, H24LZ, H24RZ, H25LZ, H25RZ, I06L, I06R, I07L, I07R, I24L, I24R, I25L, I25R, L06L, L06R, L07L, L07R, L24L, L24R, L25L, L25R, R06LY, R06RY, R07LY, R07RY, R24LY, R24RY, R25LY, R25RY]
-    Join approach (force) picker:list [H06LZ, H06RZ, H07LZ, H07RZ, H24LZ, H24RZ, H25LZ, H25RZ, I06L, I06R, I07L, I07R, I24L, I24R, I25L, I25R, L06L, L06R, L07L, L07R, L24L, L24R, L25L, L25R, R06LY, R06RY, R07LY, R07RY, R24LY, R24RY, R25LY, R25RY]
-    Join final approach course picker:list [H06LZ, H06RZ, H07LZ, H07RZ, H24LZ, H24RZ, H25LZ, H25RZ, I06L, I06R, I07L, I07R, I24L, I24R, I25L, I25R, L06L, L06R, L07L, L07R, L24L, L24R, L25L, L25R, R06LY, R06RY, R07LY, R07RY, R24LY, R24RY, R25LY, R25RY]
-    Expect approach picker:list [H06LZ, H06RZ, H07LZ, H07RZ, H24LZ, H24RZ, H25LZ, H25RZ, I06L, I06R, I07L, I07R, I24L, I24R, I25L, I25R, L06L, L06R, L07L, L07R, L24L, L24R, L25L, L25R, R06LY, R06RY, R07LY, R07RY, R24LY, R24RY, R25LY, R25RY]
+    Cleared approach picker:grouped [6L, 6R, 7L, 7R, 24L, 24R, 25L, 25R]
+    Join approach picker:grouped [6L, 6R, 7L, 7R, 24L, 24R, 25L, 25R]
+    Cleared straight-in picker:grouped [6L, 6R, 7L, 7R, 24L, 24R, 25L, 25R]
+    Join straight-in picker:grouped [6L, 6R, 7L, 7R, 24L, 24R, 25L, 25R]
+    Cleared approach (force) picker:grouped [6L, 6R, 7L, 7R, 24L, 24R, 25L, 25R]
+    Join approach (force) picker:grouped [6L, 6R, 7L, 7R, 24L, 24R, 25L, 25R]
+    Join final approach course picker:grouped [6L, 6R, 7L, 7R, 24L, 24R, 25L, 25R]
+    Expect approach picker:grouped [6L, 6R, 7L, 7R, 24L, 24R, 25L, 25R]
     Cleared visual approach… picker:list [6L, 6R, 7L, 7R, 24L, 24R, 25L, 25R]
     ---
     Report field in sight

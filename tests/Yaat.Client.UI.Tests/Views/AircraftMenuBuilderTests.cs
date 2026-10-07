@@ -180,6 +180,48 @@ public class AircraftMenuBuilderTests
         Assert.Contains(Label(MenuIds.SpawnNow), items);
     }
 
+    [AvaloniaFact]
+    public void QuickList_TextApproachEntryWithADefault_HasItsOtherPickerDirectlyUnderItsLeaf()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        AircraftModel ac = Fixture("ifr-arrival");
+        ac.AssignedRunway = "30";
+
+        List<string> items = Sequence(Build(ac, new RecordingMenuHost(""), _ => []));
+
+        int leaf = items.IndexOf("Expect ILS 30");
+        Assert.True(leaf >= 0, string.Join(" | ", items));
+        Assert.Equal("Expect approach (other)…", items[leaf + 1]);
+    }
+
+    [AvaloniaFact]
+    public void QuickList_ApproachEntryWithoutADefault_IsTheGroupedPickerAlone()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        AircraftModel ac = Fixture("ifr-arrival");
+        ac.AssignedRunway = "";
+
+        ContextMenu menu = Build(ac, new RecordingMenuHost(""), _ => []);
+
+        MenuItem expect = menu.Items.OfType<MenuItem>().Single(item => (item.Header as string) == Label(MenuIds.ApproachExpect));
+        Assert.Equal(MenuPickerDescriptor.Grouped, Assert.IsType<MenuPickerDescriptor>(expect.Tag).Kind);
+        Assert.DoesNotContain("Expect approach (other)…", Sequence(menu));
+    }
+
+    [AvaloniaFact]
+    public void QuickList_StripApproachEntryWithADefault_HasItsOtherPickerFirstUnderTheStrip()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+
+        ContextMenu menu = Build(Fixture("approach-ifr"), new RecordingMenuHost(""), _ => []);
+
+        MenuItem strip = Assert.Single(menu.Items.OfType<MenuItem>(), QuickCommandStrip.IsStrip);
+        Assert.Contains(MenuIds.ApproachCleared, QuickCommandStrip.Buttons(strip).Select(button => (string)button.Tag!));
+        int at = menu.Items.IndexOf(strip);
+        Assert.Equal("Cleared approach (other)…", (menu.Items[at + 1] as MenuItem)?.Header as string);
+        Assert.Single(Sequence(menu), header => header == "Cleared approach (other)…");
+    }
+
     private static ContextMenu Build(AircraftModel ac, RecordingMenuHost host, Func<MenuContext, IReadOnlyList<Control>> section) =>
         AircraftMenuBuilder.Build(ac, new MenuClick(ac.Callsign, null, null, []), host, section);
 

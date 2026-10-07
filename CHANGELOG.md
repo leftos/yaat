@@ -27,6 +27,7 @@
 
 ### Changed
 
+- Approach menus offer the expected approach, or the assigned runway's ILS, in one click, and list the rest grouped by runway and type.
 - The View menu groups its items into Windows, Bars and Layout submenus, each item showing its hotkey.
 - View › Layout replaces Window Profiles and Copy View Settings: a layout saves the window arrangement and open Strips and vTDLS tabs; saved profiles carry over.
 - The session flyout's auto-accept is a checkbox with a 0–60 second delay, matching its Settings default.

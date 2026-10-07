@@ -637,26 +637,379 @@ public class MenuCatalogCommandTests
         Assert.Equal([(Callsign, "CAPP I28R", Initials)], host.Sent);
     }
 
+    /// <summary>KOAK's runways with approaches, each labelled with its approaches' short kinds, in runway order.</summary>
+    private static readonly string[] KoakApproachRunways =
+    [
+        "10L · RNAV",
+        "10R · RNAV, VOR",
+        "12 · ILS, LOC, RNAV Y, RNP Z",
+        "28L · RNAV Y, RNP Z",
+        "28R · ILS, LOC, RNAV Y, RNP Z",
+        "30 · ILS, LOC, RNAV Y, RNP Z",
+    ];
+
     [AvaloniaFact]
-    public void Approach_DestinationWithApproaches_UsesListTierSeededWithTheFirst()
+    public void Approach_NoExpectedNoAssigned_OffersEveryRunwayAsATopLevelSubmenu()
     {
         TestVnasData.EnsureInitialized();
-        string[] ids = [.. NavigationDatabase.Instance.GetApproaches(ApproachAirport).Select(a => a.ApproachId)];
-        Assert.Contains(ApproachId, ids);
-        var host = new RecordingMenuHost(ApproachId);
+        var host = new RecordingMenuHost("");
         var aircraft = new FakeMenuAircraft { Destination = ApproachAirport };
 
-        Click(
-            AssertPicker(
-                MenuCatalog.Get(MenuIds.ApproachCleared).Build(aircraft, Context(), host),
-                "Cleared approach",
-                MenuPickerDescriptor.List,
-                ids
-            )
+        MenuItem item = AssertPicker(
+            MenuCatalog.Get(MenuIds.ApproachCleared).Build(aircraft, Context(), host),
+            "Cleared approach",
+            MenuPickerDescriptor.Grouped,
+            ["10L, 10R, 12, 28L, 28R, 30"]
         );
 
-        Assert.Equal<object?>(ids[0], Assert.Single(host.ListPopups).Selected);
+        Assert.Equal(KoakApproachRunways, item.Items.Select(Describe));
+        MenuItem runway28L = item.Items.OfType<MenuItem>().Single(i => i.Header as string == "28L · RNAV Y, RNP Z");
+        Assert.Equal(
+            ["RNAV [disabled]", "RNAV (GPS) Y RWY 28L — CAPP R28LY", "RNP [disabled]", "RNAV (RNP) Z RWY 28L — CAPP H28LZ"],
+            Outline(runway28L)
+        );
+        Assert.Null(MenuCatalog.BuildApproachOther(MenuIds.ApproachCleared, aircraft, Context(), host));
+
+        Click(runway28L.Items.OfType<MenuItem>().Single(i => i.Header?.ToString() == "RNAV (RNP) Z RWY 28L — CAPP H28LZ"));
+        Assert.Equal([(Callsign, "CAPP H28LZ", Initials)], host.Sent);
+    }
+
+    [AvaloniaFact]
+    public void Approach_ExpectedApproach_IsTheDefaultOverTheAssignedRunwaysIls()
+    {
+        TestVnasData.EnsureInitialized();
+        var host = new RecordingMenuHost("");
+        var aircraft = new FakeMenuAircraft
+        {
+            Destination = ApproachAirport,
+            AssignedRunway = "30",
+            ExpectedApproach = "r28ry",
+        };
+
+        MenuItem? item = MenuCatalog.Get(MenuIds.ApproachCleared).Build(aircraft, Context(), host);
+
+        Assert.NotNull(item);
+        Assert.Equal("Cleared RNAV Y 28R", item.Header as string);
+        Assert.Empty(item.Items);
+        Click(item);
+        Assert.Equal([(Callsign, "CAPP R28RY", Initials)], host.Sent);
+    }
+
+    [AvaloniaFact]
+    public void Approach_AssignedRunwayWithIls_DefaultsToItsIls()
+    {
+        TestVnasData.EnsureInitialized();
+        var host = new RecordingMenuHost("");
+        var aircraft = new FakeMenuAircraft { Destination = ApproachAirport, AssignedRunway = "28R" };
+
+        MenuItem? item = MenuCatalog.Get(MenuIds.ApproachCleared).Build(aircraft, Context(), host);
+
+        Assert.NotNull(item);
+        Assert.Equal("Cleared ILS 28R", item.Header as string);
+        Click(item);
         Assert.Equal([(Callsign, "CAPP I28R", Initials)], host.Sent);
+    }
+
+    /// <summary>KOAK runway 28L has no ILS; its first published approach by kind is the RNAV (GPS) Y, though H28LZ sorts first by id.</summary>
+    [AvaloniaFact]
+    public void Approach_AssignedRunwayWithoutIls_DefaultsToItsFirstPublishedApproachByKind()
+    {
+        TestVnasData.EnsureInitialized();
+        Assert.DoesNotContain(NavigationDatabase.Instance.GetApproaches(ApproachAirport), a => (a.Runway == "28L") && (a.TypeCode == 'I'));
+        var host = new RecordingMenuHost("");
+        var aircraft = new FakeMenuAircraft { Destination = ApproachAirport, AssignedRunway = "28L" };
+
+        MenuItem? item = MenuCatalog.Get(MenuIds.ApproachCleared).Build(aircraft, Context(), host);
+
+        Assert.NotNull(item);
+        Assert.Equal("Cleared RNAV Y 28L", item.Header as string);
+        Click(item);
+        Assert.Equal([(Callsign, "CAPP R28LY", Initials)], host.Sent);
+    }
+
+    [AvaloniaTheory]
+    [InlineData(MenuIds.ApproachCleared, "Cleared ILS 30", "CAPP I30", "Cleared approach (other)…")]
+    [InlineData(MenuIds.ApproachJoin, "Join ILS 30", "JAPP I30", "Join approach (other)…")]
+    [InlineData(MenuIds.ApproachClearedStraightIn, "Cleared straight-in ILS 30", "CAPPSI I30", "Cleared straight-in (other)…")]
+    [InlineData(MenuIds.ApproachJoinStraightIn, "Join straight-in ILS 30", "JAPPSI I30", "Join straight-in (other)…")]
+    [InlineData(MenuIds.ApproachClearedForce, "Cleared ILS 30 (force)", "CAPPF I30", "Cleared approach (force) (other)…")]
+    [InlineData(MenuIds.ApproachJoinForce, "Join ILS 30 (force)", "JAPPF I30", "Join approach (force) (other)…")]
+    [InlineData(MenuIds.ApproachJoinFinalCourse, "Join final course ILS 30", "JFAC I30", "Join final approach course (other)…")]
+    [InlineData(MenuIds.ApproachExpect, "Expect ILS 30", "EAPP I30", "Expect approach (other)…")]
+    public void Approach_WithADefault_LeafNamesItAndTheOtherPickerFollows(string id, string leaf, string command, string other)
+    {
+        TestVnasData.EnsureInitialized();
+        var host = new RecordingMenuHost("");
+        var aircraft = new FakeMenuAircraft { Destination = ApproachAirport, AssignedRunway = "30" };
+
+        MenuItem? item = MenuCatalog.Get(id).Build(aircraft, Context(), host);
+
+        Assert.NotNull(item);
+        Assert.Equal(leaf, item.Header as string);
+        Assert.Equal(command, MenuCommandText.GetCommand(item));
+        Click(item);
+        Assert.Equal([(Callsign, command, Initials)], host.Sent);
+        AssertPicker(MenuCatalog.BuildApproachOther(id, aircraft, Context(), host), other, MenuPickerDescriptor.Grouped, Koak30Groups);
+    }
+
+    /// <summary>The grouped picker's descriptor for a KOAK aircraft assigned runway 30.</summary>
+    private static readonly string[] Koak30Groups = ["Runway 30 · assigned: I30, L30, R30-Y, H30-Z", "Other runways: 10L, 10R, 12, 28L, 28R"];
+
+    [AvaloniaFact]
+    public void Approach_RnpDefault_LeafNamesItRnav()
+    {
+        TestVnasData.EnsureInitialized();
+        var host = new RecordingMenuHost("");
+        var aircraft = new FakeMenuAircraft { Destination = ApproachAirport, ExpectedApproach = "H28LZ" };
+
+        MenuItem? leaf = MenuCatalog.Get(MenuIds.ApproachCleared).Build(aircraft, Context(), host);
+        MenuItem? other = MenuCatalog.BuildApproachOther(MenuIds.ApproachCleared, aircraft, Context(), host);
+
+        Assert.Equal("Cleared RNAV Z 28L", leaf?.Header as string);
+        Assert.NotNull(other);
+        Assert.Contains("RNP [disabled]", Outline(other));
+        Assert.Contains("RNAV (RNP) Z RWY 28L · expected — CAPP H28LZ", Outline(other));
+        Assert.Contains("28R · ILS, LOC, RNAV Y, RNP Z", other.Items.Select(DescribeRow));
+    }
+
+    [AvaloniaFact]
+    public void Approach_ExpectedApproachInShorthand_ResolvesToTheDestinationsApproach()
+    {
+        TestVnasData.EnsureInitialized();
+        var host = new RecordingMenuHost("");
+        var aircraft = new FakeMenuAircraft { Destination = ApproachAirport, ExpectedApproach = "R28L" };
+
+        MenuItem? leaf = MenuCatalog.Get(MenuIds.ApproachCleared).Build(aircraft, Context(), host);
+        MenuItem? other = MenuCatalog.BuildApproachOther(MenuIds.ApproachCleared, aircraft, Context(), host);
+
+        Assert.Equal("Cleared RNAV Y 28L", leaf?.Header as string);
+        Assert.NotNull(other);
+        Assert.Contains("RNAV (GPS) Y RWY 28L · expected — CAPP R28LY", Outline(other));
+    }
+
+    [AvaloniaFact]
+    public void Approach_ExpectedApproachNotTheDestinations_FallsThroughToTheAssignedRunway()
+    {
+        TestVnasData.EnsureInitialized();
+        Assert.DoesNotContain(NavigationDatabase.Instance.GetApproaches(ApproachAirport), a => a.ApproachId == "I33");
+        var host = new RecordingMenuHost("");
+        var aircraft = new FakeMenuAircraft
+        {
+            Destination = ApproachAirport,
+            AssignedRunway = "28R",
+            ExpectedApproach = "I33",
+        };
+
+        MenuItem? leaf = MenuCatalog.Get(MenuIds.ApproachCleared).Build(aircraft, Context(), host);
+        MenuItem? other = MenuCatalog.BuildApproachOther(MenuIds.ApproachCleared, aircraft, Context(), host);
+
+        Assert.Equal("Cleared ILS 28R", leaf?.Header as string);
+        Assert.NotNull(other);
+        Assert.DoesNotContain(Outline(other), line => line.Contains("expected", StringComparison.Ordinal));
+    }
+
+    /// <summary>KOAK runway 33 has no approach: with no expected approach there is no default, and every runway is a top-level submenu.</summary>
+    [AvaloniaFact]
+    public void Approach_AssignedRunwayWithoutApproaches_HasNoDefaultAndEveryRunwayAtTheTop()
+    {
+        TestVnasData.EnsureInitialized();
+        Assert.DoesNotContain(NavigationDatabase.Instance.GetApproaches(ApproachAirport), a => a.Runway == "33");
+        var host = new RecordingMenuHost("");
+        var aircraft = new FakeMenuAircraft { Destination = ApproachAirport, AssignedRunway = "33" };
+
+        MenuItem item = AssertPicker(
+            MenuCatalog.Get(MenuIds.ApproachCleared).Build(aircraft, Context(), host),
+            "Cleared approach",
+            MenuPickerDescriptor.Grouped,
+            ["10L, 10R, 12, 28L, 28R, 30"]
+        );
+
+        Assert.Equal(KoakApproachRunways, item.Items.Select(Describe));
+        Assert.Null(MenuCatalog.BuildApproachOther(MenuIds.ApproachCleared, aircraft, Context(), host));
+    }
+
+    [AvaloniaFact]
+    public void ApproachOther_AssignedRunwayWithoutApproaches_ListsEveryRunwayAtTheTop()
+    {
+        TestVnasData.EnsureInitialized();
+        var host = new RecordingMenuHost("");
+        var aircraft = new FakeMenuAircraft
+        {
+            Destination = ApproachAirport,
+            AssignedRunway = "33",
+            ExpectedApproach = "I30",
+        };
+
+        MenuItem? leaf = MenuCatalog.Get(MenuIds.ApproachCleared).Build(aircraft, Context(), host);
+        MenuItem other = AssertPicker(
+            MenuCatalog.BuildApproachOther(MenuIds.ApproachCleared, aircraft, Context(), host),
+            "Cleared approach (other)…",
+            MenuPickerDescriptor.Grouped,
+            ["10L, 10R, 12, 28L, 28R, 30"]
+        );
+
+        Assert.Equal("Cleared ILS 30", leaf?.Header as string);
+        Assert.Equal(KoakApproachRunways, other.Items.Select(Describe));
+    }
+
+    /// <summary>KLVK has approaches to runway 25R only: its default runway's group stands alone, with no "Other runways".</summary>
+    [AvaloniaFact]
+    public void ApproachOther_SingleRunwayAirport_HasNoOtherRunways()
+    {
+        TestVnasData.EnsureInitialized();
+        Assert.All(NavigationDatabase.Instance.GetApproaches("KLVK"), a => Assert.Equal("25R", a.Runway));
+        var host = new RecordingMenuHost("");
+        var aircraft = new FakeMenuAircraft { Destination = "KLVK", AssignedRunway = "25R" };
+
+        MenuItem other = AssertPicker(
+            MenuCatalog.BuildApproachOther(MenuIds.ApproachCleared, aircraft, Context(), host),
+            "Cleared approach (other)…",
+            MenuPickerDescriptor.Grouped,
+            ["Runway 25R · assigned: I25R, L25R, R25R"]
+        );
+
+        Assert.Equal(
+            [
+                "Runway 25R · assigned [disabled]",
+                "ILS [disabled]",
+                "ILS RWY 25R — CAPP I25R",
+                "LOC [disabled]",
+                "LOC RWY 25R — CAPP L25R",
+                "RNAV [disabled]",
+                "RNAV (GPS) RWY 25R — CAPP R25R",
+            ],
+            Outline(other)
+        );
+    }
+
+    /// <summary>Approaches that name no runway sit last, in a Circling submenu, titled by their id prefix and variant.</summary>
+    [AvaloniaTheory]
+    [InlineData("KVNY", "Circling · LDA-C, VOR-A, VOR-B", "LDA-C — CAPP LDA-C")]
+    [InlineData("KAVX", "Circling · VOR-A, VOR/DME-B", "VOR/DME-B — CAPP VDM-B")]
+    [InlineData("KAAS", "Circling · VOR/DME-A", "VOR/DME-A — CAPP VDM-A")]
+    [InlineData("KMFR", "Circling · RNAV-D, LOC BC-B, VOR/DME-C", "LOC BC-B — CAPP LBC-B")]
+    public void Approach_CirclingApproaches_SitLastInACirclingSubmenu(string airport, string label, string row)
+    {
+        TestVnasData.EnsureInitialized();
+        var host = new RecordingMenuHost("");
+        var aircraft = new FakeMenuAircraft { Destination = airport };
+
+        MenuItem? item = MenuCatalog.Get(MenuIds.ApproachCleared).Build(aircraft, Context(), host);
+
+        Assert.NotNull(item);
+        MenuItem circling = Assert.IsType<MenuItem>(item.Items[^1]);
+        Assert.Equal(label, circling.Header as string);
+        Assert.Contains(row, Outline(circling));
+        Assert.EndsWith("Circling", Assert.IsType<MenuPickerDescriptor>(item.Tag).Items[0], StringComparison.Ordinal);
+    }
+
+    /// <summary>A circling approach id splits into its kind, its full published kind and its variant letter.</summary>
+    [Theory]
+    [InlineData("RNVA", "RNAV", "RNAV (GPS)", "A")]
+    [InlineData("GPS-A", "GPS", "GPS", "A")]
+    [InlineData("VDM-B", "VOR/DME", "VOR/DME", "B")]
+    public void CirclingApproach_KindFullKindAndVariant_FromItsId(string id, string kind, string fullKind, string variant) =>
+        Assert.Equal((kind, fullKind, variant), ApproachPickerBuilder.DescribeCirclingApproach(id));
+
+    [AvaloniaFact]
+    public void ApproachOther_GroupsTheAssignedRunwayByKindThenTheOtherRunways()
+    {
+        TestVnasData.EnsureInitialized();
+        var host = new RecordingMenuHost("");
+        var aircraft = new FakeMenuAircraft
+        {
+            Destination = ApproachAirport,
+            AssignedRunway = "30",
+            ExpectedApproach = "I30",
+        };
+
+        MenuItem? other = MenuCatalog.BuildApproachOther(MenuIds.ApproachJoin, aircraft, Context(), host);
+
+        Assert.NotNull(other);
+        Assert.Equal(
+            [
+                "Runway 30 · assigned [disabled]",
+                "ILS [disabled]",
+                "ILS RWY 30 · expected — JAPP I30",
+                "LOC [disabled]",
+                "LOC RWY 30 — JAPP L30",
+                "RNAV [disabled]",
+                "RNAV (GPS) Y RWY 30 — JAPP R30-Y",
+                "RNP [disabled]",
+                "RNAV (RNP) Z RWY 30 — JAPP H30-Z",
+                "---",
+                "Other runways [disabled]",
+                .. KoakApproachRunways[..^1],
+            ],
+            other.Items.Select(DescribeRow)
+        );
+
+        Click(other.Items.OfType<MenuItem>().Single(i => i.Header?.ToString() == "RNAV (RNP) Z RWY 30 — JAPP H30-Z"));
+        Assert.Equal([(Callsign, "JAPP H30-Z", Initials)], host.Sent);
+    }
+
+    [AvaloniaFact]
+    public void ApproachOther_AssignedRunwaysIlsDefault_CarriesNoExpectedBadge()
+    {
+        TestVnasData.EnsureInitialized();
+        var host = new RecordingMenuHost("");
+        var aircraft = new FakeMenuAircraft { Destination = ApproachAirport, AssignedRunway = "30" };
+
+        MenuItem? other = MenuCatalog.BuildApproachOther(MenuIds.ApproachCleared, aircraft, Context(), host);
+
+        Assert.NotNull(other);
+        Assert.Contains("ILS RWY 30 — CAPP I30", other.Items.Select(DescribeRow));
+        Assert.DoesNotContain(Outline(other), line => line.Contains("expected", StringComparison.Ordinal));
+    }
+
+    [AvaloniaFact]
+    public void ApproachOther_DefaultRunwayFromTheExpectedApproach_IsNotMarkedAssigned()
+    {
+        TestVnasData.EnsureInitialized();
+        var host = new RecordingMenuHost("");
+        var aircraft = new FakeMenuAircraft { Destination = ApproachAirport, ExpectedApproach = "I12" };
+
+        MenuItem? leaf = MenuCatalog.Get(MenuIds.ApproachCleared).Build(aircraft, Context(), host);
+        MenuItem? other = MenuCatalog.BuildApproachOther(MenuIds.ApproachCleared, aircraft, Context(), host);
+
+        Assert.Equal("Cleared ILS 12", leaf?.Header as string);
+        Assert.NotNull(other);
+        Assert.Equal("Runway 12 [disabled]", DescribeRow(other.Items[0]));
+        Assert.Equal("ILS RWY 12 · expected — CAPP I12", DescribeRow(other.Items[2]));
+        Assert.Contains("28R · ILS, LOC, RNAV Y, RNP Z", other.Items.Select(DescribeRow));
+        Assert.DoesNotContain("12 · ILS, LOC, RNAV Y, RNP Z", other.Items.Select(DescribeRow));
+    }
+
+    [AvaloniaFact]
+    public void ApproachGroup_PutsEachPickersOtherCompanionAfterItsDefaultLeaf()
+    {
+        TestVnasData.EnsureInitialized();
+        var host = new RecordingMenuHost("");
+        var aircraft = new FakeMenuAircraft { Destination = ApproachAirport, AssignedRunway = "30" };
+
+        MenuItem approach = SharedMenuGroups.Approach(aircraft, Context(), host);
+
+        Assert.Equal(
+            [
+                "Cleared ILS 30",
+                "Cleared approach (other)…",
+                "Join ILS 30",
+                "Join approach (other)…",
+                "Cleared straight-in ILS 30",
+                "Cleared straight-in (other)…",
+                "Join straight-in ILS 30",
+                "Join straight-in (other)…",
+                "Cleared ILS 30 (force)",
+                "Cleared approach (force) (other)…",
+                "Join ILS 30 (force)",
+                "Join approach (force) (other)…",
+                "Join final course ILS 30",
+                "Join final approach course (other)…",
+                "Expect ILS 30",
+                "Expect approach (other)…",
+            ],
+            approach.Items.Select(Describe).Take(16)
+        );
     }
 
     [AvaloniaFact]
@@ -1865,6 +2218,35 @@ public class MenuCatalogCommandTests
             MenuItem menuItem => menuItem.Header as string ?? "",
             _ => item?.GetType().Name ?? "null",
         };
+
+    /// <summary>
+    /// An item as the menu golden prints it: its header text (a picker row's header names its approach and command),
+    /// followed by <c>[disabled]</c> on a section or kind header; "---" for a separator.
+    /// </summary>
+    private static string DescribeRow(object? item) =>
+        item switch
+        {
+            Separator => "---",
+            MenuItem { IsEnabled: false } header => $"{header.Header} [disabled]",
+            MenuItem menuItem => menuItem.Header?.ToString() ?? "",
+            _ => item?.GetType().Name ?? "null",
+        };
+
+    /// <summary>Every item under <paramref name="item"/>, as <see cref="DescribeRow"/> prints it, depth first.</summary>
+    private static List<string> Outline(MenuItem item)
+    {
+        List<string> lines = [];
+        foreach (object? child in item.Items)
+        {
+            lines.Add(DescribeRow(child));
+            if (child is MenuItem { Items.Count: > 0 } submenu)
+            {
+                lines.AddRange(Outline(submenu));
+            }
+        }
+
+        return lines;
+    }
 
     /// <summary>
     /// A minimal <see cref="IMenuAircraft"/>: never live traffic, with the warp seed values, the assignments the flight

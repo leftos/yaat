@@ -11,9 +11,10 @@ namespace Yaat.Client.ContextMenus;
 /// Every context-menu action the catalog knows, one <see cref="MenuCatalogEntry"/> per <see cref="MenuIds"/>
 /// identifier. A leaf's builder sends its command text through <see cref="IMenuHost.SendAsync"/>; an input leaf
 /// opens the host's input popup and formats the submitted text into the command; a list or filtered-list picker opens
-/// the host's list popup over values the catalog computes (headings, altitudes, speeds, fixes, approaches, runways,
-/// STARs, airways) and formats the pick into the command, choosing its form from the data present when the menu is
-/// built; a host leaf asks the host for the item itself, for the entries that open a host surface or act on the
+/// the host's list popup over values the catalog computes (headings, altitudes, speeds, fixes, runways, STARs, airways)
+/// and formats the pick into the command, choosing its form from the data present when the menu is built; an approach
+/// picker is a leaf naming the default approach with a grouped "(other)" submenu beside it, else the grouped submenu
+/// alone (<see cref="ApproachPickerBuilder"/>); a host leaf asks the host for the item itself, for the entries that open a host surface or act on the
 /// surface — the warp popup, the flight-plan editor, route and push-route drawing, and the ground's hold-short,
 /// follow, give-way, push-back-to and preset-taxi submenus over the choices the host answers (the pushback faces are
 /// flat items of a companion helper, <see cref="BuildPushbackFaces"/>), and so is the delayed spawn's Change spawn
@@ -31,7 +32,23 @@ namespace Yaat.Client.ContextMenus;
 /// </summary>
 public static class MenuCatalog
 {
-    /// <summary>Every catalog entry, in menu order within each group.</summary>
+    /// <summary>
+    /// The approach picker entries, in Approach submenu order. Each one offers its "(other)" companion
+    /// (<see cref="BuildApproachOther"/>) beside a default approach, in the Approach submenu and in the quick list.
+    /// </summary>
+    internal static IReadOnlyList<string> ApproachPickerIds { get; } =
+    [
+        MenuIds.ApproachCleared,
+        MenuIds.ApproachJoin,
+        MenuIds.ApproachClearedStraightIn,
+        MenuIds.ApproachJoinStraightIn,
+        MenuIds.ApproachClearedForce,
+        MenuIds.ApproachJoinForce,
+        MenuIds.ApproachJoinFinalCourse,
+        MenuIds.ApproachExpect,
+    ];
+
+    /// <summary>Every catalog entry, in menu order within each group; reads <see cref="ApproachPickerIds"/>, declared first.</summary>
     public static IReadOnlyList<MenuCatalogEntry> All { get; } =
     [
         new(
@@ -119,14 +136,7 @@ public static class MenuCatalog
         Leaf(MenuIds.HoldPresentRight, "Hold present position (right)", "HPPR", Always),
         FixPicker(MenuIds.HoldFixLeft, "Hold at fix (left)…", "HFIXL", Always, NoRouteFixes),
         FixPicker(MenuIds.HoldFixRight, "Hold at fix (right)…", "HFIXR", Always, NoRouteFixes),
-        ApproachPicker(MenuIds.ApproachCleared, "Cleared approach", "CAPP"),
-        ApproachPicker(MenuIds.ApproachJoin, "Join approach", "JAPP"),
-        ApproachPicker(MenuIds.ApproachClearedStraightIn, "Cleared straight-in", "CAPPSI"),
-        ApproachPicker(MenuIds.ApproachJoinStraightIn, "Join straight-in", "JAPPSI"),
-        ApproachPicker(MenuIds.ApproachClearedForce, "Cleared approach (force)", "CAPPF"),
-        ApproachPicker(MenuIds.ApproachJoinForce, "Join approach (force)", "JAPPF"),
-        ApproachPicker(MenuIds.ApproachJoinFinalCourse, "Join final approach course", "JFAC"),
-        ApproachPicker(MenuIds.ApproachExpect, "Expect approach", "EAPP"),
+        .. ApproachPickerIds.Select(ApproachPicker),
         Picker(MenuIds.ApproachClearedVisual, ClearedVisualLabel, BuildClearedVisual),
         Leaf(MenuIds.ApproachReportFieldInSight, "Report field in sight", "RFIS", Always),
         InputLeaf(
@@ -493,7 +503,7 @@ public static class MenuCatalog
     private const int HeadingStep = 5;
 
     /// <summary>The trailing ellipsis a picker label carries while it opens a popup that is not the plain route-fix list.</summary>
-    private const string Ellipsis = "…";
+    internal const string Ellipsis = "…";
 
     private static readonly Dictionary<string, MenuCatalogEntry> ById = All.ToDictionary(e => e.Id, StringComparer.Ordinal);
 
@@ -931,7 +941,7 @@ public static class MenuCatalog
     private static MenuCatalogEntry Picker(string id, string label, Func<string, IMenuAircraft?, MenuContext, IMenuHost, MenuItem?> build) =>
         new(id, label, MenuFlightRules.Both, Always, (aircraft, context, host) => build(label, aircraft, context, host));
 
-    private static MenuItem BuildInput(
+    internal static MenuItem BuildInput(
         string label,
         string placeholder,
         BlankInput blank,
@@ -1473,27 +1483,37 @@ public static class MenuCatalog
         return item;
     }
 
-    /// <summary>An approach picker that sends <paramref name="command"/> with the picked or typed approach id.</summary>
-    private static MenuCatalogEntry ApproachPicker(string id, string label, string command) =>
-        new(id, label, MenuFlightRules.Both, Always, (ac, context, host) => BuildApproachPicker(label, command, ac, context, host));
-
-    /// <summary>
-    /// The approach picker's form, by the data present when the menu is built: a list of the destination's approaches
-    /// with the first highlighted, else free text under the label with an ellipsis.
-    /// </summary>
-    private static MenuItem BuildApproachPicker(string label, string command, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
+    /// <summary>An approach picker entry (<see cref="ApproachSpec"/>), built by <see cref="ApproachPickerBuilder.Build"/>.</summary>
+    private static MenuCatalogEntry ApproachPicker(string id)
     {
-        List<object> ids = [.. DestinationApproaches(aircraft).Select(approach => (object)approach.ApproachId)];
-        if (ids.Count > 0)
-        {
-            return BuildList(label, ids, ids[0], picked => Send($"{command} {picked}", context, host), host);
-        }
-
-        return BuildInput($"{label}{Ellipsis}", "Approach ID", BlankInput.Closes, input => $"{command} {input}", context, host);
+        ApproachPickerSpec spec = ApproachSpec(id);
+        return new(id, spec.Label, MenuFlightRules.Both, Always, (ac, context, host) => ApproachPickerBuilder.Build(spec, ac, context, host));
     }
 
+    /// <summary>The approach picker of each approach entry: its label, its command and its default-approach leaf label.</summary>
+    private static ApproachPickerSpec ApproachSpec(string id) =>
+        id switch
+        {
+            MenuIds.ApproachCleared => new("Cleared approach", "CAPP", name => $"Cleared {name}"),
+            MenuIds.ApproachJoin => new("Join approach", "JAPP", name => $"Join {name}"),
+            MenuIds.ApproachClearedStraightIn => new("Cleared straight-in", "CAPPSI", name => $"Cleared straight-in {name}"),
+            MenuIds.ApproachJoinStraightIn => new("Join straight-in", "JAPPSI", name => $"Join straight-in {name}"),
+            MenuIds.ApproachClearedForce => new("Cleared approach (force)", "CAPPF", name => $"Cleared {name} (force)"),
+            MenuIds.ApproachJoinForce => new("Join approach (force)", "JAPPF", name => $"Join {name} (force)"),
+            MenuIds.ApproachJoinFinalCourse => new("Join final approach course", "JFAC", name => $"Join final course {name}"),
+            MenuIds.ApproachExpect => new("Expect approach", "EAPP", name => $"Expect {name}"),
+            _ => throw new ArgumentOutOfRangeException(nameof(id), id, "Not an approach picker entry."),
+        };
+
+    /// <summary>
+    /// An approach entry's companion, which shares its id: the grouped picker labelled "(other)", offered beside a
+    /// default approach; null without a default (<see cref="ApproachPickerBuilder.BuildOther"/>).
+    /// </summary>
+    internal static MenuItem? BuildApproachOther(string id, IMenuAircraft? aircraft, MenuContext context, IMenuHost host) =>
+        ApproachPickerBuilder.BuildOther(ApproachSpec(id), aircraft, context, host);
+
     /// <summary>The destination's published approaches; none without an aircraft or a destination.</summary>
-    private static IReadOnlyList<CifpApproachProcedure> DestinationApproaches(IMenuAircraft? aircraft) =>
+    internal static IReadOnlyList<CifpApproachProcedure> DestinationApproaches(IMenuAircraft? aircraft) =>
         aircraft is { Destination.Length: > 0 } ? NavigationDatabase.Instance.GetApproaches(aircraft.Destination) : [];
 
     /// <summary>The destination's runway designators, which the visual-approach picker lists; none without a destination.</summary>
@@ -1504,7 +1524,7 @@ public static class MenuCatalog
     /// The runway a visual approach defaults to: the assigned runway, else the runway of the active approach, else
     /// that of the expected one, looked up among the destination's approaches; null when none applies.
     /// </summary>
-    private static string? SmartVisualRunway(IMenuAircraft? aircraft)
+    internal static string? SmartVisualRunway(IMenuAircraft? aircraft)
     {
         if (aircraft is null)
         {

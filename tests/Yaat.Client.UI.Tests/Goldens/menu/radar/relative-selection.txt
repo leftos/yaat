@@ -92,14 +92,22 @@ All Commands
     Hold at fix (left)… picker:input
     Hold at fix (right)… picker:input
   Approach
-    Cleared approach picker:list [H12-Z, H28LZ, H28RZ, H30-Z, I12, I28R, I30, L12, L28R, L30, R10L, R10R, R12-Y, R28LY, R28RY, R30-Y, S10R]
-    Join approach picker:list [H12-Z, H28LZ, H28RZ, H30-Z, I12, I28R, I30, L12, L28R, L30, R10L, R10R, R12-Y, R28LY, R28RY, R30-Y, S10R]
-    Cleared straight-in picker:list [H12-Z, H28LZ, H28RZ, H30-Z, I12, I28R, I30, L12, L28R, L30, R10L, R10R, R12-Y, R28LY, R28RY, R30-Y, S10R]
-    Join straight-in picker:list [H12-Z, H28LZ, H28RZ, H30-Z, I12, I28R, I30, L12, L28R, L30, R10L, R10R, R12-Y, R28LY, R28RY, R30-Y, S10R]
-    Cleared approach (force) picker:list [H12-Z, H28LZ, H28RZ, H30-Z, I12, I28R, I30, L12, L28R, L30, R10L, R10R, R12-Y, R28LY, R28RY, R30-Y, S10R]
-    Join approach (force) picker:list [H12-Z, H28LZ, H28RZ, H30-Z, I12, I28R, I30, L12, L28R, L30, R10L, R10R, R12-Y, R28LY, R28RY, R30-Y, S10R]
-    Join final approach course picker:list [H12-Z, H28LZ, H28RZ, H30-Z, I12, I28R, I30, L12, L28R, L30, R10L, R10R, R12-Y, R28LY, R28RY, R30-Y, S10R]
-    Expect approach picker:list [H12-Z, H28LZ, H28RZ, H30-Z, I12, I28R, I30, L12, L28R, L30, R10L, R10R, R12-Y, R28LY, R28RY, R30-Y, S10R]
+    Cleared ILS 30
+    Cleared approach (other)… picker:grouped [Runway 30 · assigned: I30, L30, R30-Y, H30-Z | Other runways: 10L, 10R, 12, 28L, 28R]
+    Join ILS 30
+    Join approach (other)… picker:grouped [Runway 30 · assigned: I30, L30, R30-Y, H30-Z | Other runways: 10L, 10R, 12, 28L, 28R]
+    Cleared straight-in ILS 30
+    Cleared straight-in (other)… picker:grouped [Runway 30 · assigned: I30, L30, R30-Y, H30-Z | Other runways: 10L, 10R, 12, 28L, 28R]
+    Join straight-in ILS 30
+    Join straight-in (other)… picker:grouped [Runway 30 · assigned: I30, L30, R30-Y, H30-Z | Other runways: 10L, 10R, 12, 28L, 28R]
+    Cleared ILS 30 (force)
+    Cleared approach (force) (other)… picker:grouped [Runway 30 · assigned: I30, L30, R30-Y, H30-Z | Other runways: 10L, 10R, 12, 28L, 28R]
+    Join ILS 30 (force)
+    Join approach (force) (other)… picker:grouped [Runway 30 · assigned: I30, L30, R30-Y, H30-Z | Other runways: 10L, 10R, 12, 28L, 28R]
+    Join final course ILS 30
+    Join final approach course (other)… picker:grouped [Runway 30 · assigned: I30, L30, R30-Y, H30-Z | Other runways: 10L, 10R, 12, 28L, 28R]
+    Expect ILS 30
+    Expect approach (other)… picker:grouped [Runway 30 · assigned: I30, L30, R30-Y, H30-Z | Other runways: 10L, 10R, 12, 28L, 28R]
     Cleared visual approach 30
     Cleared visual approach (other)… picker:list [10L, 10R, 12, 15, 28L, 28R, 30, 33]
     ---

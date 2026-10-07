@@ -26,6 +26,9 @@ public static class QuickCommandStrip
     /// <summary>How many buttons a row holds.</summary>
     public const int RowLength = 5;
 
+    /// <summary>The resource key of the monospace font a command text is drawn in.</summary>
+    internal const string MonoFontKey = "MonoFont";
+
     private const double CellSize = 40;
     private const double GlyphSize = 22;
     private const double Gap = 6;
@@ -292,7 +295,6 @@ public static class QuickCommandStrip
     private sealed class StripLabel
     {
         private const double DimOpacity = 0.7;
-        private const string MonoFontKey = "MonoFont";
 
         private readonly TextBlock _title = new()
         {

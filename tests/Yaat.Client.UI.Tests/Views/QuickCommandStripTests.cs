@@ -120,6 +120,44 @@ public class QuickCommandStripTests
     }
 
     [AvaloniaFact]
+    public void ApproachButton_WithoutADefault_OpensTheGroupedPickerAsAFlyout()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        RecordingMenuHost host = Host();
+        AircraftModel ac = Fixture("approach-ifr");
+        ac.AssignedRunway = "";
+        ContextMenu menu = OpenInWindow(Build(ac, host));
+        Button approach = QuickCommandStrip.Buttons(Strip(menu)).Single(b => (string)b.Tag! == MenuIds.ApproachCleared);
+
+        approach.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+
+        MenuFlyout flyout = SubmenuFlyout(approach);
+        Assert.True(flyout.IsOpen);
+        Assert.Empty(host.Sent);
+        Assert.Equal(MenuCatalog.Get(MenuIds.ApproachCleared).Label, ToolTip.GetTip(approach));
+        MenuItem runway = flyout.Items.OfType<MenuItem>().Single(item => item.Header as string == "28R · ILS, LOC, RNAV Y, RNP Z");
+        MenuItem ils = runway.Items.OfType<MenuItem>().First(item => item.IsEnabled);
+
+        ils.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+
+        Assert.Equal("CAPP I28R", Assert.Single(host.Sent).Command);
+        Assert.False(flyout.IsOpen);
+        Assert.False(menu.IsOpen);
+    }
+
+    [AvaloniaFact]
+    public void ApproachButton_WithADefault_SendsTheDefaultApproach()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        RecordingMenuHost host = Host();
+        Button approach = QuickCommandStrip
+            .Buttons(Strip(Build(Fixture("approach-ifr"), host)))
+            .Single(b => (string)b.Tag! == MenuIds.ApproachCleared);
+
+        Assert.Equal("Cleared ILS 30 — CAPP I30", ToolTip.GetTip(approach));
+    }
+
+    [AvaloniaFact]
     public void LeafButton_SendsItsCommandAndClosesTheMenu()
     {
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
