@@ -221,7 +221,7 @@ For those legacy recordings, the live host's playback pump (`LiveRoomHost.ApplyP
 
 `MissingLayoutAirportIds` lists the FAA codes the room had pinned with no map (empty in archives written before it), so a load pins them with none instead of falling through to the live map.
 
-`LayoutFormatVersion` is `RecordingArchive.CurrentLayoutFormatVersion` when written (null in older archives), and a server load reads bundled layouts only in that format. A layout in format 1 carries its runway coordinates, edge shapes (value tuples, so the layout serializer `RecordingArchive.LayoutJsonOptions` includes fields) and the runway-end turnoff, no-turnoff and threshold-displacement maps.
+`LayoutFormatVersion` is `RecordingArchive.CurrentLayoutFormatVersion` when written (null in older archives), and a server load reads bundled layouts only in that format. A layout in format 1 carries its runway coordinates, edge shapes (value tuples, so `GroundLayoutSerializer.Options` includes fields) and the runway-end turnoff, no-turnoff and threshold-displacement maps.
 
 Each arc's construction angles (`GroundArc.EdgeBearingAtNode0Deg` / `EdgeBearingAtNode1Deg` / `TurnAngleDeg`) are serialized, not rebuilt, so a read-back layout gives the parsed one's corner speeds and route costs bit for bit. On read (`RecordingArchive.ReadLayoutEntry`), every edge is re-linked to the layout's own node objects and the adjacency lists are rebuilt (`RecordingArchiveTests.ReadLayout_OfARealLayout_RoutesAndTurnsAsTheParsedOne`).
 

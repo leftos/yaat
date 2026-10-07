@@ -69,5 +69,184 @@
     <Content Include="Speech\Data\aircraft-types.tsv">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+    <Content Include="Data\PrecomputeCache\*.json.br">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
+
+  <!--
+    The two source sets the precompute cache is keyed on: a change to either makes the entries computed from it stale.
+    Both are globs, so a new source file joins the right set without an edit here. The layout set is every source under
+    Data\Airport except the exclusions below; the push-target set is that set plus the two types the push payload is
+    serialized through, so it is a superset by construction and its hash moves whenever the layout hash does.
+  -->
+  <ItemGroup>
+    <!--
+      Route-pathfinder and navigator-facing helpers that no layout-build source (GeoJsonParser, the fillet generator)
+      and no tug-planner source (TugMovePlanner, TugPathCheck, TugTaxiwayClearance, MovementAreaClassification) reaches:
+      rg on each type name across the files that stay in finds no reference from them. Keeping a file in costs a needless
+      invalidation, excluding one that IS reached would bake a stale entry, so a doubtful file stays in. Precompute\ is
+      excluded here because the layout set never holds the cache's own types.
+    -->
+    <PrecomputeLayoutExclude Include="Data\Airport\Precompute\**\*.cs" />
+    <PrecomputeLayoutExclude Include="Data\Airport\AdwResolver.cs" />
+    <PrecomputeLayoutExclude Include="Data\Airport\AirportLayoutDownloader.cs" />
+    <PrecomputeLayoutExclude Include="Data\Airport\ExitCapacityResolver.cs" />
+    <PrecomputeLayoutExclude Include="Data\Airport\GroundSpawnSnap.cs" />
+    <PrecomputeLayoutExclude Include="Data\Airport\IAirportGroundData.cs" />
+    <PrecomputeLayoutExclude Include="Data\Airport\LandingThreshold.cs" />
+    <PrecomputeLayoutExclude Include="Data\Airport\RunwayCrossingEnd.cs" />
+    <PrecomputeLayoutExclude Include="Data\Airport\RunwayEntryPoint.cs" />
+    <PrecomputeLayoutExclude Include="Data\Airport\RunwayIntersectionCalculator.cs" />
+    <PrecomputeLayoutExclude Include="Data\Airport\TaxiRouteAutoCross.cs" />
+    <PrecomputeLayoutSource Include="Data\Airport\**\*.cs" Exclude="@(PrecomputeLayoutExclude)" />
+    <PrecomputeLayoutSource Include="GeoMath.cs" />
+    <PrecomputePushTargetSource Include="@(PrecomputeLayoutSource)" />
+    <PrecomputePushTargetSource Include="Data\Airport\Precompute\PrecomputeEntry.cs" />
+    <PrecomputePushTargetSource Include="Data\Airport\Precompute\PushTargetEntry.cs" />
+  </ItemGroup>
+
+  <!--
+    PrecomputeSourceHashes.g.cs carries a SHA-256 per source set, so a stored precompute entry is recognised as stale.
+    GetFileHash hashes each file; the WritePrecomputeSourceHashes inline task then sorts the project-relative paths
+    (forward slashes, ordinal), concatenates the lowercase per-file hashes with no separator, and SHA-256s that ASCII
+    string. The combination cannot be done with built-in tasks alone: WriteLinesToFile terminates every line with the
+    platform newline, so a concatenation hashed through a temp file would differ between Windows and Linux.
+  -->
+  <UsingTask
+    TaskName="WritePrecomputeSourceHashes"
+    TaskFactory="RoslynCodeTaskFactory"
+    AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.Core.dll"
+  >
+    <ParameterGroup>
+      <LayoutHashes ParameterType="Microsoft.Build.Framework.ITaskItem[]" Required="true" />
+      <PushTargetHashes ParameterType="Microsoft.Build.Framework.ITaskItem[]" Required="true" />
+      <OutputPath ParameterType="System.String" Required="true" />
+    </ParameterGroup>
+    <Task>
+      <Using Namespace="System" />
+      <Using Namespace="System.IO" />
+      <Using Namespace="System.Security.Cryptography" />
+      <Using Namespace="System.Text" />
+      <Using Namespace="Microsoft.Build.Framework" />
+      <Code Type="Fragment" Language="cs">
+        ITaskItem[][] sets = new ITaskItem[][] { LayoutHashes, PushTargetHashes };
+        string[] setHashes = new string[sets.Length];
+        string[] setFileLists = new string[sets.Length];
+        for (int s = 0; s != sets.Length; s++)
+        {
+          ITaskItem[] files = sets[s];
+          string[] paths = new string[files.Length];
+          string[] hashes = new string[files.Length];
+          for (int i = 0; i != files.Length; i++)
+          {
+            paths[i] = files[i].ItemSpec.Replace('\\', '/');
+            hashes[i] = files[i].GetMetadata("FileHash").ToLowerInvariant();
+          }
+
+          Array.Sort(paths, hashes, StringComparer.Ordinal);
+
+          StringBuilder concatenated = new StringBuilder();
+          foreach (string hash in hashes)
+          {
+            concatenated.Append(hash);
+          }
+
+          using (SHA256 sha = SHA256.Create())
+          {
+            byte[] concatenatedHash = sha.ComputeHash(Encoding.ASCII.GetBytes(concatenated.ToString()));
+            setHashes[s] = BitConverter.ToString(concatenatedHash).Replace("-", "").ToLowerInvariant();
+          }
+
+          StringBuilder fileList = new StringBuilder();
+          fileList.Append("    [\n");
+          foreach (string path in paths)
+          {
+            fileList.Append("        \"").Append(path).Append("\",\n");
+          }
+
+          fileList.Append("    ]");
+          setFileLists[s] = fileList.ToString();
+        }
+
+        StringBuilder source = new StringBuilder();
+        source.Append("// &lt;auto-generated /&gt;\n");
+        source.Append("// Generated by the GeneratePrecomputeSourceHashes target in Yaat.Sim.csproj. Do not edit.\n");
+        source.Append("\n");
+        source.Append("namespace Yaat.Sim.Data.Airport.Precompute;\n");
+        source.Append("\n");
+        source.Append("public static class PrecomputeSourceHashes\n");
+        source.Append("{\n");
+        source.Append("    public const string Layout = \"").Append(setHashes[0]).Append("\";\n");
+        source.Append("    public const string PushTargets = \"").Append(setHashes[1]).Append("\";\n");
+        source.Append("\n");
+        source.Append("    public static readonly string[] LayoutFiles =\n").Append(setFileLists[0]).Append(";\n");
+        source.Append("\n");
+        source.Append("    public static readonly string[] PushTargetFiles =\n").Append(setFileLists[1]).Append(";\n");
+        source.Append("}\n");
+
+        string generated = source.ToString();
+        if (!File.Exists(OutputPath) || File.ReadAllText(OutputPath) != generated)
+        {
+          Directory.CreateDirectory(Path.GetDirectoryName(OutputPath));
+          File.WriteAllText(OutputPath, generated, new UTF8Encoding(false));
+        }
+      </Code>
+    </Task>
+  </UsingTask>
+
+  <!--
+    The input-set cache, the CoreCompileInputs.cache pattern: MSBuild's Hash task over the full input list (the push
+    set, a superset of the layout set) written to a file with WriteOnlyWhenDifferent. File mtimes alone cannot see a
+    deletion or a rename that keeps the old timestamp — the file simply leaves the generation target's Inputs and that
+    target is skipped, leaving a stale hash and a file list naming a file that is gone — so the generation target's
+    Inputs also name this cache file, which moves whenever the set of paths moves. The Hash task hashes item specs and
+    ignores metadata, which is exactly the set of paths rather than their contents, and IgnoreCase is off so a
+    case-only rename counts as a change too.
+  -->
+  <Target Name="WritePrecomputeSourceHashInputs" BeforeTargets="GeneratePrecomputeSourceHashes">
+    <Hash ItemsToHash="@(PrecomputePushTargetSource)" IgnoreCase="false">
+      <Output TaskParameter="HashResult" PropertyName="_PrecomputeInputsHash" />
+    </Hash>
+    <WriteLinesToFile
+      File="$(MSBuildProjectDirectory)\$(IntermediateOutputPath)PrecomputeSourceHashes.inputs.cache"
+      Lines="$(_PrecomputeInputsHash)"
+      Overwrite="true"
+      WriteOnlyWhenDifferent="true"
+    />
+  </Target>
+
+  <Target
+    Name="GeneratePrecomputeSourceHashes"
+    BeforeTargets="CoreCompile"
+    Inputs="$(MSBuildProjectFullPath);@(PrecomputeLayoutSource);@(PrecomputePushTargetSource);$(IntermediateOutputPath)PrecomputeSourceHashes.inputs.cache"
+    Outputs="$(IntermediateOutputPath)PrecomputeSourceHashes.stamp;$(IntermediateOutputPath)PrecomputeSourceHashes.g.cs"
+  >
+    <GetFileHash Files="@(PrecomputeLayoutSource)" Algorithm="SHA256" HashEncoding="hex">
+      <Output TaskParameter="Items" ItemName="_PrecomputeLayoutHashes" />
+    </GetFileHash>
+    <GetFileHash Files="@(PrecomputePushTargetSource)" Algorithm="SHA256" HashEncoding="hex">
+      <Output TaskParameter="Items" ItemName="_PrecomputePushTargetHashes" />
+    </GetFileHash>
+    <WritePrecomputeSourceHashes
+      LayoutHashes="@(_PrecomputeLayoutHashes)"
+      PushTargetHashes="@(_PrecomputePushTargetHashes)"
+      OutputPath="$(MSBuildProjectDirectory)\$(IntermediateOutputPath)PrecomputeSourceHashes.g.cs"
+    />
+    <Touch Files="$(MSBuildProjectDirectory)\$(IntermediateOutputPath)PrecomputeSourceHashes.stamp" AlwaysCreate="true" />
+  </Target>
+
+  <!--
+    The compile item and the FileWrites entries live in their own target, which has no Inputs/Outputs and so runs on
+    every build: they must be registered even when the generation target is skipped as up to date, and after a
+    `dotnet clean` deletes the generated files the next build has to regenerate them.
+  -->
+  <Target Name="AddPrecomputeSourceHashesToCompile" BeforeTargets="CoreCompile" DependsOnTargets="GeneratePrecomputeSourceHashes">
+    <ItemGroup>
+      <Compile Include="$(IntermediateOutputPath)PrecomputeSourceHashes.g.cs" />
+      <FileWrites Include="$(IntermediateOutputPath)PrecomputeSourceHashes.g.cs" />
+      <FileWrites Include="$(IntermediateOutputPath)PrecomputeSourceHashes.stamp" />
+      <FileWrites Include="$(IntermediateOutputPath)PrecomputeSourceHashes.inputs.cache" />
+    </ItemGroup>
+  </Target>
 </Project>

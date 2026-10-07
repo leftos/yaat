@@ -223,12 +223,6 @@ public sealed class RecordingArchive : IDisposable
     /// </summary>
     public const int CurrentLayoutFormatVersion = 1;
 
-    /// <summary>
-    /// The serializer options of a bundled layout: the recording options plus fields, since a layout's coordinates are
-    /// value tuples, whose items are fields.
-    /// </summary>
-    public static JsonSerializerOptions LayoutJsonOptions { get; } = new(RecordingJsonOptions.Default) { IncludeFields = true };
-
     /// <summary>The entry a ground layout is stored under, by the airport ID it was written with.</summary>
     public static string LayoutEntryName(string airportId) => $"layouts/{airportId}.json.br";
 
@@ -242,34 +236,13 @@ public sealed class RecordingArchive : IDisposable
 
     /// <summary>
     /// Reads the ground layout <see cref="RecordingArchiveWriter.WriteLayoutEntry"/> stored in <paramref name="zip"/> under
-    /// <paramref name="airportId"/> (the ID it was written with) and rebuilds what serialization leaves out: the node
-    /// adjacency lists, over edges re-linked to the layout's own nodes.
+    /// <paramref name="airportId"/> (the ID it was written with), rebuilding what serialization leaves out.
     /// </summary>
     public static AirportGroundLayout ReadLayoutEntry(ZipArchive zip, string airportId)
     {
-        AirportGroundLayout layout =
-            DeserializeBrotliEntry<AirportGroundLayout>(zip, LayoutEntryName(airportId), LayoutJsonOptions)
-            ?? throw new InvalidOperationException($"Failed to deserialize layout for {airportId}.");
-        RelinkEdgeNodes(layout);
-        layout.RebuildAdjacencyLists();
-        return layout;
-    }
-
-    /// <summary>
-    /// The serializer writes each edge's end nodes in full, so a read edge holds copies of them; points every edge at the
-    /// layout's own node objects, whose adjacency lists the pathfinder and the arc taxiway-name resolution walk.
-    /// </summary>
-    private static void RelinkEdgeNodes(AirportGroundLayout layout)
-    {
-        foreach (IGroundEdge edge in layout.AllEdges)
-        {
-            for (int i = 0; i < edge.Nodes.Length; i++)
-            {
-                edge.Nodes[i] = layout.Nodes.TryGetValue(edge.Nodes[i].Id, out GroundNode? node)
-                    ? node
-                    : throw new InvalidOperationException($"Layout {layout.AirportId} has an edge to node {edge.Nodes[i].Id}, which it lacks.");
-            }
-        }
+        using Stream entryStream = OpenEntry(zip, LayoutEntryName(airportId));
+        using var brotli = new BrotliStream(entryStream, CompressionMode.Decompress);
+        return GroundLayoutSerializer.Deserialize(brotli, airportId);
     }
 
     /// <summary>

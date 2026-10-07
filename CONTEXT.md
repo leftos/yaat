@@ -571,6 +571,15 @@ _Avoid_: settings backup, profile (a layout is not a bundle)
 **At-risk tests**:
 The tests outside a sim-behaviour brief's file list that pin the behaviour it changes; the brief names each with a ruling (update the expectation, keep it green unedited, or stop and report), as the `yaat-nextup` profile's Brief shape says.
 
+**Precompute cache**:
+Per-airport results computed offline from static inputs and shipped with YAAT (`src/Yaat.Sim/Data/PrecomputeCache/{FAA}.json.br`): the parsed ground layout and the per-stand push targets. An entry is used only when its key matches the current inputs; otherwise the server computes it.
+
+**Algorithm hash**:
+The part of a precompute cache key that names the code that produced an entry: a hash of the source files that feed the computation, generated at build time (`PrecomputeSourceHashes`). The layout and push-target halves have separate hashes, so a tug-planner change invalidates only push targets.
+
+**Design-group entry**:
+One push-target set per stand per airplane design group (ADG I-VI), planned with the group's largest footprint; an aircraft reads the entry for its own group.
+
 **Golden (menu golden)**:
 A committed text snapshot of an aircraft right-click menu for one view and one situation fixture (`tests/Yaat.Client.UI.Tests/Goldens/menu/{radar,ground,list}/<fixture>.txt`, written by `MenuTreeSnapshot`); `MenuGoldenTests` fails when a menu differs from its golden, and `YAAT_MENU_GOLDEN_REGENERATE=1` rewrites them.
 

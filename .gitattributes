@@ -7,3 +7,6 @@
 # Recording test bundles are committed as regular Git objects (not Git LFS).
 # Mark them binary so they are never EOL-normalized or shown as text diffs.
 tests/Yaat.Sim.Tests/TestData/*.zip binary
+
+# Precompute cache files are Brotli-compressed binary; `* text=auto eol=lf` must not touch them.
+src/Yaat.Sim/Data/PrecomputeCache/*.json.br binary

@@ -105,11 +105,8 @@ public sealed class RecordingArchiveWriter(Stream output) : ILayoutBundleWriter,
     /// Writes <paramref name="layout"/> into <paramref name="zip"/> under its airport ID, as a recording archive stores it;
     /// <see cref="RecordingArchive.ReadLayoutEntry"/> reads it back. The caller lists the ID in its manifest.
     /// </summary>
-    public static void WriteLayoutEntry(ZipArchive zip, AirportGroundLayout layout)
-    {
-        byte[] jsonBytes = JsonSerializer.SerializeToUtf8Bytes(layout, RecordingArchive.LayoutJsonOptions);
-        WriteBrotliEntry(zip, RecordingArchive.LayoutEntryName(layout.AirportId), jsonBytes);
-    }
+    public static void WriteLayoutEntry(ZipArchive zip, AirportGroundLayout layout) =>
+        WriteBrotliEntry(zip, RecordingArchive.LayoutEntryName(layout.AirportId), GroundLayoutSerializer.Serialize(layout));
 
     /// <summary>
     /// Writes an airport's source GeoJSON into <paramref name="zip"/> under <paramref name="airportId"/>, as a recording
