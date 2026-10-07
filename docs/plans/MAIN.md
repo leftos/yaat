@@ -166,7 +166,7 @@
 
 ## Wave 1 — Ground realism and braking
 
-- [/] YAAT-437 Aim a turn-about's reversal along the route when the next turn doubles back · release vNext
+- [x] YAAT-437 Aim a turn-about's reversal along the route when the next turn doubles back · release vNext
 - [/] YAAT-30 Rollout retune follow-ups: separation intervals, exit completion, firm rates
 - [x] YAAT-32 Fold aircraft-length fallbacks into AircraftLength.ResolveFt; fix CWT labels · release vNext
 - [x] YAAT-309 Hold-short warning under FOLLOWG omits the taxiway name · release vNext
