@@ -162,7 +162,7 @@ Three rules now hold it:
 
 ### Pure-pursuit steering on straights
 
-`TickStraight` (`GroundNavigator.cs:586`) does **not** steer at the target node directly. It steers toward a look-ahead point projected forward along the *segment line* from the aircraft's foot-of-perpendicular. This makes convergence onto the line first-class: an aircraft that spawned slightly off a taxiway, or got nudged by a prior corner, re-acquires the line rather than cutting diagonally across terrain.
+`GroundNavigator.TickStraight` does **not** steer at the target node directly. It steers toward a look-ahead point projected forward along the *segment line* from the aircraft's foot-of-perpendicular. This makes convergence onto the line first-class: an aircraft that spawned slightly off a taxiway, or got nudged by a prior corner, re-acquires the line rather than cutting diagonally across terrain.
 
 Look-ahead distance is `max(2 × speed × dt, 1.5 × cross-track offset)` clamped to `[LookAheadFloorFt(category), LookAheadCapFt = 50]`, where the floor is the category's main-gear turn radius (`CategoryPerformance.MainGearTurnRadiusFt`: 25 ft jet / 18 turboprop / 15 piston / 10 helicopter).
 
@@ -170,13 +170,15 @@ Pure pursuit commands curvature `2·sin α / L`; a look-ahead shorter than the g
 
 A **pre-turn blend** blends the steer bearing toward the next segment's departure bearing over the last ≈ 50 ft of a straight, scaled by turn angle — full blend at ≤ 30°, ramping linearly to zero by 90° (`1 - (turnAngle-30)/60`), so sharp turns get little or no blend (those are handled by entry alignment instead).
 
+**Re-acquire speed.** While the aircraft is more than `ReacquireOffsetFt` (4 ft) from the segment's line, `TickStraight` holds it to `ReacquireSpeedKts` (5 kt) so it converges before speeding up; this is what the from-rest stand-exit pivot, which finishes off the outgoing centreline, relies on. The offset is measured against the segment's **unclamped** line (`OffsetFromSegmentLineFt`), not the clamped foot of perpendicular: an early arrival at a node (the loose `NodeArrivalThresholdNm` window, ~91 ft) where the next segment continues on the same line leaves the aircraft on that line, only short of its start, and the clamped measure read that as up to ~90 ft off and dropped a 20 kt taxi to a crawl. The look-ahead above still scales with the clamped offset, which short of a segment's start only stretches it along the same line (bounded by `LookAheadCapFt`). An early arrival at a gentle bend still reads `d·sin δ` off the next line and slows; that case is tracked separately.
+
 ### Entry-alignment threshold
 
-When a new segment begins with the aircraft heading far off the segment's first tangent, `SetupSegment` (`GroundNavigator.cs:547`) builds a `PathPrimitiveSlowTurn` from the aircraft's current pose to the segment's start direction, stashes the real primitive in `_pendingSegmentPrimitive`, and plays the alignment arc first. The aircraft rolls forward at `SlowTurnSpeedKts` while rotating through real arc geometry — no in-place pivot, no heading snap.
+When a new segment begins with the aircraft heading far off the segment's first tangent, `GroundNavigator.SetupSegment` builds a `PathPrimitiveSlowTurn` from the aircraft's current pose to the segment's start direction, stashes the real primitive in `_pendingSegmentPrimitive`, and plays the alignment arc first. The aircraft rolls forward at `SlowTurnSpeedKts` while rotating through real arc geometry — no in-place pivot, no heading snap.
 
 A turn about on a taxiway rolls slower, at its own pivot speed (below).
 
-One gate: **heading delta > `EntryAlignmentThresholdDeg` = 45°** (`GroundNavigator.cs:501`), lowered to 20° at an unfilleted straight→straight kink (issue #213). It fires regardless of segment length — a bend tighter than the main-gear turn radius cannot be tracked by pure pursuit at any allowed speed (the orbit radius `v/ω` exceeds the short-segment scale even at the slow-turn floor), so it must be rounded.
+One gate: **heading delta > `GroundNavigator.EntryAlignmentThresholdDeg` = 45°**, lowered to 20° at an unfilleted straight→straight kink (issue #213). It fires regardless of segment length — a bend tighter than the main-gear turn radius cannot be tracked by pure pursuit at any allowed speed (the orbit radius `v/ω` exceeds the short-segment scale even at the slow-turn floor), so it must be rounded.
 
 Normal fillet-smoothed corners stay below the threshold by construction; only wrong-way starts, post-pushback U-turns, and mid-route corners where pure-pursuit diverges produce deltas this large.
 
@@ -483,7 +485,7 @@ Both ends of the connector must be a turn, so a single corner or a from-rest spo
 
 ### Entry alignment fires at any segment start (threshold 45°)
 
-`EntryAlignmentThresholdDeg = 45.0` (`GroundNavigator.cs:501`). The entry-alignment slow-turn is the catch-all for any misaligned segment start (post-pushback U-turns, mid-route corners where convergence might diverge). It fires at any segment start with a heading delta over the threshold, independent of route position — there is no route-entry gate.
+`GroundNavigator.EntryAlignmentThresholdDeg = 45.0`. The entry-alignment slow-turn is the catch-all for any misaligned segment start (post-pushback U-turns, mid-route corners where convergence might diverge). It fires at any segment start with a heading delta over the threshold, independent of route position — there is no route-entry gate.
 
 A second threshold sits above it: past `ReversalEntryThresholdDeg = 135.0` the entry is a reversal rather than a corner, and it is turned the way that unwinds into the route's next turn and aimed at a node rather than a bearing; a turn about on a taxiway is instead re-aimed past the bend or rolled out on the edge's own bearing (see **Entry-alignment threshold** above).
 

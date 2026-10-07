@@ -1118,9 +1118,19 @@ public class HoldInsideStoppingDistanceOfBarTests
         var losses = new LossTracker();
         bool rewound = false;
         int subTicksSinceReRoute = 0;
+        bool latchChecked = false;
         void BeforeSubTick()
         {
-            reRouted ??= TryReRoute(engine, aircraft, approachRig, c);
+            if (reRouted is null)
+            {
+                reRouted = TryReRoute(engine, aircraft, approachRig, c);
+            }
+            else if (reRouted.OnCrossing && !latchChecked)
+            {
+                latchChecked = true;
+                AssertLatchedOnStartBar(aircraft, clearedBar.NodeId);
+            }
+
             losses.Before(aircraft);
         }
 
@@ -1246,20 +1256,42 @@ public class HoldInsideStoppingDistanceOfBarTests
     private sealed record ApproachRig(AirportGroundLayout Layout, TaxiRoute FirstRoute, int BarSegment, HoldShortPoint ClearedBar, HoldLine Line);
 
     /// <summary>The re-route: where the aircraft stood when it was given, the hold line on the new route, and whether it starts on the bar.</summary>
-    private sealed record ReRouted(Approach AtOrder, HoldLine Line, bool StartsAtBar, double NosePastAtOrderFt);
+    private sealed record ReRouted(Approach AtOrder, HoldLine Line, bool StartsAtBar, double NosePastAtOrderFt, bool OnCrossing);
+
+    /// <summary>
+    /// Asserts the taxi phase a re-route on the crossing installed has, one sub-tick on, latched the firm-rate stop on the
+    /// start bar it found the nose past.
+    /// </summary>
+    private static void AssertLatchedOnStartBar(AircraftState aircraft, int barNodeId)
+    {
+        TaxiingPhase taxiing = Assert.IsType<TaxiingPhase>(aircraft.Phases?.CurrentPhase);
+        var dto = (TaxiingPhaseDto)taxiing.ToSnapshot();
+        Assert.Equal(barNodeId, dto.PassedStartBarNodeId);
+    }
 
     /// <summary>
     /// On the sub-tick <paramref name="c"/>'s condition first holds, re-routes the aircraft without the crossing and gives it
-    /// the case's order; null on every other sub-tick.
+    /// the case's order; null on every other sub-tick. Once the first route has moved one segment past the bar, onto the
+    /// crossing, only a sample with the centre at or past the bar's node, the route still starting there, may trigger: at
+    /// taxi speed that window can be narrower than one sub-tick on the bar's own segment. The runway-crossing phase may
+    /// already be running on that sample; the re-route replaces it with a taxi phase.
     /// </summary>
     private ReRouted? TryReRoute(SimulationEngine engine, AircraftState aircraft, ApproachRig rig, Case c)
     {
-        if ((aircraft.Phases?.CurrentPhase is not TaxiingPhase) || (rig.FirstRoute.CurrentSegmentIndex > rig.BarSegment))
+        int segment = rig.FirstRoute.CurrentSegmentIndex;
+        bool onCrossing = segment == (rig.BarSegment + 1);
+        bool canReRoute = (aircraft.Phases?.CurrentPhase is TaxiingPhase) || (onCrossing && (aircraft.Phases?.CurrentPhase is CrossingRunwayPhase));
+        if (!canReRoute || (segment > rig.BarSegment + 1))
         {
             return null;
         }
 
         Approach approach = Measure(aircraft, rig, c.Category);
+        if (onCrossing && !CentrePastBarNode(approach))
+        {
+            return null;
+        }
+
         if ((c.Order == Order.GiveWayToCrossingTraffic) && !IsCrossingTrafficReady(engine, aircraft, approach))
         {
             return null;
@@ -1275,8 +1307,14 @@ public class HoldInsideStoppingDistanceOfBarTests
             aircraft.IndicatedAirspeed = reRouteKts;
         }
 
+        string sampledPhase = aircraft.Phases?.CurrentPhase?.Name ?? "(none)";
         CommandResult reRoute = engine.SendCommand(Callsign, ReRoute);
         Assert.True(reRoute.Success, $"{ReRoute} was rejected: {reRoute.Message}");
+        if (onCrossing)
+        {
+            Assert.IsType<TaxiingPhase>(aircraft.Phases?.CurrentPhase);
+        }
+
         TaxiRoute route = Assert.IsType<TaxiRoute>(aircraft.Ground.AssignedTaxiRoute);
         bool startsAtBar = route.Segments[0].FromNodeId == rig.ClearedBar.NodeId;
         HoldLine line;
@@ -1300,9 +1338,10 @@ public class HoldInsideStoppingDistanceOfBarTests
         double nosePastFt = rig.Line.NosePastFt(aircraft);
         _output.WriteLine(
             $"{ReRoute} + {c.Order} at {aircraft.GroundSpeed:F1} kt, {approach.ToStopFt:F1} ft from the painted stop (taxi-rate stop "
-                + $"{approach.TaxiStopFt:F1} ft, firm-rate stop {approach.FirmStopFt:F1} ft, nose {nosePastFt:F1} ft past the line), {where}"
+                + $"{approach.TaxiStopFt:F1} ft, firm-rate stop {approach.FirmStopFt:F1} ft, nose {nosePastFt:F1} ft past the line), {where}, "
+                + $"phase {sampledPhase} -> {aircraft.Phases?.CurrentPhase?.Name}"
         );
-        return new ReRouted(approach, line, startsAtBar, nosePastFt);
+        return new ReRouted(approach, line, startsAtBar, nosePastFt, onCrossing);
     }
 
     private static Approach Measure(AircraftState aircraft, ApproachRig rig, AircraftCategory category)

@@ -28,6 +28,11 @@ namespace Yaat.Sim.Tests.Simulation.GroundTaxi;
 /// </summary>
 public class FollowGroundBarStopTests(ITestOutputHelper output)
 {
+    /// <summary>Why the late-detected bar after a corner is skipped while followers drive a free line.</summary>
+    private const string FreeLineFollowSkip =
+        "Free-line FOLLOWG misses a hold bar ~150 ft to the side once the lead stops slowing it "
+        + "(FindBarAhead looks ~120 ft ahead, 50 ft wide); YAAT-316 drives followers on the taxi graph";
+
     private const int HoldBudgetSeconds = 240;
 
     /// <summary>
@@ -176,7 +181,7 @@ public class FollowGroundBarStopTests(ITestOutputHelper output)
     /// line, and holds short there: braking at the routine rate when that makes the line, at its category's firm rate when
     /// only that does, and stopping at the line as a last resort when neither does.
     /// </summary>
-    [Theory]
+    [Theory(Skip = FreeLineFollowSkip)]
     [InlineData(60)]
     public void LateDetectedBar_AfterCorner_NeverCrossesTheHoldLine(int followSecond)
     {

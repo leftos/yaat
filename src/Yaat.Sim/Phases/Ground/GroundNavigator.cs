@@ -92,7 +92,7 @@ public sealed class GroundNavigator
     private static readonly ILogger Log = SimLog.CreateLogger("GroundNavigator");
 
     /// <summary>Standard arrival threshold in nautical miles (~91 ft).</summary>
-    private const double NodeArrivalThresholdNm = 0.015;
+    public const double NodeArrivalThresholdNm = 0.015;
 
     /// <summary>Tight arrival threshold used on the last segment and before arcs (~1.8 ft).</summary>
     private const double FinalNodeArrivalThresholdNm = 0.0003;
@@ -178,7 +178,7 @@ public sealed class GroundNavigator
     /// <see cref="ReacquireSpeedKts"/> before accelerating. See the
     /// establish-straight gate in <see cref="TickStraight"/>.
     /// </summary>
-    private const double ReacquireOffsetFt = 4.0;
+    public const double ReacquireOffsetFt = 4.0;
 
     /// <summary>
     /// Speed cap (knots) while re-acquiring the centerline from a cross-track
@@ -188,7 +188,7 @@ public sealed class GroundNavigator
     /// exit on-line (offset ≈ 0), so this never fires for them; it governs the
     /// from-rest spot-exit pivot, which has no incoming leg to round tangent.
     /// </summary>
-    private const double ReacquireSpeedKts = 5.0;
+    public const double ReacquireSpeedKts = 5.0;
 
     /// <summary>
     /// Maximum total straight-run length (feet) between two bracketing turns for that run to count as a
@@ -2588,6 +2588,22 @@ public sealed class GroundNavigator
         return Math.Clamp(tangentFt / GeoMath.FeetPerNm, FinalNodeArrivalThresholdNm, Math.Max(FinalNodeArrivalThresholdNm, edgeLengthNm));
     }
 
+    /// <summary>
+    /// Perpendicular distance (ft) from <paramref name="position"/> to the infinite line through the current segment's
+    /// from-point and target, read by the establish-straight gate. Zero for a zero-length segment, which has no line.
+    /// </summary>
+    private double OffsetFromSegmentLineFt(LatLon position, double edgeLengthNm)
+    {
+        if (edgeLengthNm < 1e-9)
+        {
+            return 0.0;
+        }
+
+        var segmentFrom = new LatLon(_segmentFromLat, _segmentFromLon);
+        var segmentHeading = new TrueHeading(GeoMath.BearingTo(segmentFrom, new LatLon(TargetLat, TargetLon)));
+        return Math.Abs(GeoMath.SignedCrossTrackDistanceNm(position, segmentFrom, segmentHeading)) * GeoMath.FeetPerNm;
+    }
+
     private NavigatorResult TickStraight(PhaseContext ctx, PathPrimitiveStraight prim, bool isLastSegment, Func<int, bool> isHoldShortCleared)
     {
         double distNm = GeoMath.DistanceNm(ctx.Aircraft.Position, new LatLon(TargetLat, TargetLon));
@@ -2718,6 +2734,9 @@ public sealed class GroundNavigator
             // the line. Reaching toward a point ~1.5× the offset ahead bounds
             // the re-acquisition steer angle (atan(offset / lookAhead)) and
             // converges asymptotically. No effect once on-line (offset ≈ 0).
+            // The clamped-foot offset is kept here, not the line offset: short of
+            // the segment's start it only stretches the look-ahead along the same
+            // line, and LookAheadCapFt (50 ft) bounds that.
             double speedFtPerSec = ctx.Aircraft.IndicatedAirspeed * GeoMath.FeetPerNm / 3600.0;
             double lookAheadFt = Math.Clamp(
                 Math.Max(2.0 * speedFtPerSec * ctx.DeltaSeconds, 1.5 * crossTrackOffsetFt),
@@ -2788,7 +2807,12 @@ public sealed class GroundNavigator
         // corners exit on-line (offset ≈ 0) so this is a no-op there; it bites
         // the from-rest spot-exit pivot, which has no incoming leg to round
         // tangent and so unavoidably finishes off the outgoing centerline.
-        if (crossTrackOffsetFt > ReacquireOffsetFt)
+        // The offset is measured from the segment's unclamped line, not the
+        // clamped foot: an early arrival at a node where the next segment
+        // continues on the same line leaves the aircraft on that line, only
+        // short of its start, which is not "off" it.
+        double lineOffsetFt = OffsetFromSegmentLineFt(ctx.Aircraft.Position, edgeLengthNm);
+        if (lineOffsetFt > ReacquireOffsetFt)
         {
             targetSpeed = Math.Min(targetSpeed, ReacquireSpeedKts);
         }
@@ -2829,7 +2853,8 @@ public sealed class GroundNavigator
             double segBearingDeg = GeoMath.BearingTo(new LatLon(_segmentFromLat, _segmentFromLon), new LatLon(TargetLat, TargetLon));
             Log.LogDebug(
                 "[Nav] TickStraight cs={Callsign} seg→{Target} pos=({Lat:F6},{Lon:F6}) hdg={Hdg:F1} steer={Steer:F1} hdgErr={HdgErr:F1} "
-                    + "distFt={DistFt:F1} edgeFt={EdgeFt:F1} segBrg={SegBrg:F1} ias={Ias:F1} tgt={Tgt:F1} xTrkFt={XTrk:F1} extLimit={ExtLimit} "
+                    + "distFt={DistFt:F1} edgeFt={EdgeFt:F1} segBrg={SegBrg:F1} ias={Ias:F1} tgt={Tgt:F1} xTrkFt={XTrk:F1} lineOffFt={LineOff:F1} "
+                    + "extLimit={ExtLimit} "
                     + "thrArrNm={ThrArr:F4} preTurnBlend={Preturn} stalledThr={Stalled} nextBrg={NextBrg}",
                 ctx.Aircraft.Callsign,
                 TargetNodeId,
@@ -2844,6 +2869,7 @@ public sealed class GroundNavigator
                 ctx.Aircraft.IndicatedAirspeed,
                 targetSpeed,
                 crossTrackOffsetFt,
+                lineOffsetFt,
                 ctx.Aircraft.Ground.SpeedLimit?.ToString("F1") ?? "(none)",
                 arrivalThresholdNm,
                 _nextSegmentBearing.HasValue,
