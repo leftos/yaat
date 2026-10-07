@@ -96,7 +96,7 @@
 - [x] YAAT-451 Group the cleared-approach picker by runway and name the smart default · release vNext
 - [ ] YAAT-452 Put relative traffic actions on top of the radar menu and list nearby traffic for Report traffic
 - [ ] YAAT-453 Open the maintain-altitude picker at the aircraft's altitude, mark climb or descend, grey rows below the MVA
-- [ ] YAAT-454 Name the receiving aircraft in the radar point menu header and add its quick icons
+- [x] YAAT-454 Name the receiving aircraft in the radar point menu header and add its quick icons · release vNext
 - [ ] YAAT-455 Show only the items that apply in the radar Track submenu
 - [ ] YAAT-456 Fix quick-command labels and give every quick command a glyph
 - [ ] YAAT-457 List Direct-to fixes from the aircraft's next fix on
@@ -105,7 +105,7 @@
 - [ ] YAAT-460 Add Taxi to runway ▸ to the ground aircraft menu, with via and distance per entry point
 - [ ] YAAT-462 Split the Follow and Give way lists into Moving and Parked, with type, state and distance
 - [ ] YAAT-463 Offer the named exits ahead on the landing roll
-- [ ] YAAT-464 Name the aircraft and its action in the ground point menu header; offer Push route only from tug-reachable points
+- [x] YAAT-464 Name the aircraft and its action in the ground point menu header; offer Push route only from tug-reachable points · release vNext
 - [x] YAAT-465 Open every aircraft context menu with a one-line state header · release vNext
 - [ ] YAAT-478 Resolve a shorthand expected approach before picking the visual approach's default runway
 
@@ -226,8 +226,8 @@
 - [ ] YAAT-469 Use one high-speed exit angle threshold for turn-off speed and exit search
 - [ ] YAAT-470 Split GroundNavigator.BuildEntryAlignmentArc and TickStraight under the size limits
 - [ ] YAAT-471 Stop on the taxiway centreline at a node-only hold short issued after a turn about
-- [ ] YAAT-477 Keep taxi speed through an early arrival at a node joining two collinear segments · release vNext
-- [ ] YAAT-480 Judge taildraggers and wide-track twins fairly in the taxiway turn-about gear fit · release vNext
+- [/] YAAT-477 Keep taxi speed through an early arrival at a node joining two collinear segments · release vNext
+- [/] YAAT-480 Judge taildraggers and wide-track twins fairly in the taxiway turn-about gear fit · release vNext
 
 ## Wave 2 — Ground command grammar and dispatch
 
