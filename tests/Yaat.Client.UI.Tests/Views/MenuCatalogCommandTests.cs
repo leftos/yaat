@@ -565,7 +565,12 @@ public class MenuCatalogCommandTests
     [InlineData(MenuIds.NavigationAppendDirectTo, "Append direct to", "ADCT")]
     public void DirectTo_FilteredListWithRouteFixesFirst_ElseRouteFixList_ElseInput(string id, string label, string command)
     {
-        var routed = new FakeMenuAircraft { NavigatingTo = "ECA", RouteFixes = [Fix, "ECA"] };
+        var routed = new FakeMenuAircraft
+        {
+            NavigatingTo = Fix,
+            NavigationRoute = [Fix, "ECA"],
+            RouteFixes = [Fix, "ECA"],
+        };
 
         var filteredHost = new RecordingMenuHost(Fix) { FixNames = ["ECA", "OAK", Fix] };
         Click(AssertPicker(MenuCatalog.Get(id).Build(routed, Context(), filteredHost), $"{label}…", MenuPickerDescriptor.FilteredList, [Fix, "ECA"]));
@@ -613,7 +618,9 @@ public class MenuCatalogCommandTests
         Assert.Equal("Navigation", idle.Header as string);
         Assert.Equal(["Direct to…"], idle.Items.Select(Describe));
         Assert.Equal("Navigation (→ SUNOL)", navigating.Header as string);
-        Assert.Equal(["Direct to…", "Append direct to…"], navigating.Items.Select(Describe));
+
+        // Direct to lists SUNOL alone, so it is a one-item list rather than a free-text input: the list branch drops the ellipsis.
+        Assert.Equal(["Direct to", "Append direct to…"], navigating.Items.Select(Describe));
     }
 
     [AvaloniaFact]
@@ -2314,7 +2321,7 @@ public class MenuCatalogCommandTests
 
         public string NavigatingTo { get; init; } = "";
 
-        public IReadOnlyList<string> NavigationRoute => [];
+        public IReadOnlyList<string> NavigationRoute { get; init; } = [];
 
         public MagneticHeading? AssignedHeading { get; init; }
 

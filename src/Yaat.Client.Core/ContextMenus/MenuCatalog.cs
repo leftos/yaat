@@ -130,7 +130,7 @@ public static class MenuCatalog
         InputLeaf(MenuIds.SpeedCustom, "Speed…", "Speed (knots)", BlankInput.Closes, input => $"SPD {int.Parse(input)}"),
         Leaf(MenuIds.SpeedNormal, "Resume normal speed", "RNS", Always),
         Picker(MenuIds.SpeedFinalApproach, "FAS", BuildFinalApproachSpeed),
-        FixPicker(MenuIds.NavigationDirectTo, "Direct to…", "DCT", Always, RouteFixes),
+        FixPicker(MenuIds.NavigationDirectTo, "Direct to…", "DCT", Always, DirectToFixes),
         FixPicker(MenuIds.NavigationAppendDirectTo, "Append direct to…", "ADCT", IsNavigatingToFix, RouteFixes),
         Leaf(MenuIds.HoldPresentLeft, "Hold present position (left)", "HPPL", Always),
         Leaf(MenuIds.HoldPresentRight, "Hold present position (right)", "HPPR", Always),
@@ -1225,6 +1225,111 @@ public static class MenuCatalog
 
     /// <summary>The aircraft's route fixes, which the navigation pickers offer first; none without an aircraft.</summary>
     private static Func<IMenuAircraft?, IReadOnlyList<string>> RouteFixes => ac => ac?.RouteFixNames() ?? [];
+
+    /// <summary>
+    /// The Direct-to picker's fix list: the aircraft's route from the fix it is navigating to on. Without a navigating-to
+    /// fix the list is the whole route (<see cref="IMenuAircraft.RouteFixNames"/>); otherwise it is the navigation route
+    /// from that fix on, then the filed route's fixes after the last of them, then the destination — each fix once, in
+    /// order, ignoring case, and with the departure airport never listed.
+    /// </summary>
+    private static Func<IMenuAircraft?, IReadOnlyList<string>> DirectToFixes => ac => ac is null ? [] : DirectToFixNames(ac);
+
+    /// <summary>The fix names <see cref="DirectToFixes"/> offers <paramref name="aircraft"/>, in list order and without duplicates.</summary>
+    private static IReadOnlyList<string> DirectToFixNames(IMenuAircraft aircraft)
+    {
+        if (string.IsNullOrEmpty(aircraft.NavigatingTo))
+        {
+            return aircraft.RouteFixNames();
+        }
+
+        var fixes = new List<string>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        void TryAdd(string fix)
+        {
+            if (!string.IsNullOrWhiteSpace(fix) && seen.Add(fix))
+            {
+                fixes.Add(fix);
+            }
+        }
+
+        AddNavRouteFromNext(aircraft.NavigationRoute, aircraft.NavigatingTo, TryAdd);
+        AddFiledRouteAfter(aircraft, aircraft.NavigationRoute, TryAdd);
+        TryAdd(aircraft.Destination);
+        return fixes;
+    }
+
+    /// <summary>
+    /// Adds the navigation route from the first entry equal to <paramref name="navigatingTo"/> on, or that fix alone
+    /// when the route does not carry it.
+    /// </summary>
+    private static void AddNavRouteFromNext(IReadOnlyList<string> navRoute, string navigatingTo, Action<string> tryAdd)
+    {
+        int start = IndexOfFix(navRoute, navigatingTo);
+        if (start < 0)
+        {
+            tryAdd(navigatingTo);
+            return;
+        }
+
+        for (int i = start; i < navRoute.Count; i++)
+        {
+            tryAdd(navRoute[i]);
+        }
+    }
+
+    /// <summary>
+    /// Adds the filed route's fixes after the last of the aircraft's navigation route — or after the fix it is
+    /// navigating to when the route is empty — or nothing when the filed route does not carry that fix.
+    /// </summary>
+    private static void AddFiledRouteAfter(IMenuAircraft aircraft, IReadOnlyList<string> navRoute, Action<string> tryAdd)
+    {
+        if (string.IsNullOrWhiteSpace(aircraft.Route))
+        {
+            return;
+        }
+
+        string last = navRoute.Count > 0 ? navRoute[^1] : aircraft.NavigatingTo;
+        IReadOnlyList<string> expanded = NavigationDatabase.Instance.ExpandRoute(aircraft.Route);
+        int lastIndex = LastIndexOfFix(expanded, last);
+        if (lastIndex < 0)
+        {
+            return;
+        }
+
+        for (int i = lastIndex + 1; i < expanded.Count; i++)
+        {
+            tryAdd(expanded[i]);
+        }
+    }
+
+    /// <summary>The index of the first entry of <paramref name="fixes"/> equal to <paramref name="fix"/> ignoring case, or -1.</summary>
+    private static int IndexOfFix(IReadOnlyList<string> fixes, string fix)
+    {
+        for (int i = 0; i < fixes.Count; i++)
+        {
+            if (string.Equals(fixes[i], fix, StringComparison.OrdinalIgnoreCase))
+            {
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
+    /// <summary>The index of the last entry of <paramref name="fixes"/> equal to <paramref name="fix"/> ignoring case, or -1.</summary>
+    private static int LastIndexOfFix(IReadOnlyList<string> fixes, string fix)
+    {
+        for (int i = fixes.Count - 1; i >= 0; i--)
+        {
+            if (string.Equals(fixes[i], fix, StringComparison.OrdinalIgnoreCase))
+            {
+                return i;
+            }
+        }
+
+        return -1;
+    }
 
     /// <summary>No route fixes: the hold pickers offer every fix alike.</summary>
     private static Func<IMenuAircraft?, IReadOnlyList<string>> NoRouteFixes => _ => [];

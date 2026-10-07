@@ -757,6 +757,8 @@ A simplified [STARS](#glossary)-style radar display showing aircraft targets, vi
 
   Approach offers per-runway visual-approach clearance with a smart default to the aircraft's assigned runway / active or expected approach runway.
 
+  **Direct to…** for an aircraft navigating to a fix lists its route from that fix on: the fixes it is navigating through, then the filed route's fixes after them, then the destination, each once. An aircraft not navigating to a fix gets the free-text input instead.
+
   Procedures offers a Join STAR picker (smart-defaults to a filed STAR detected in the route) and Join radial outbound/inbound (pick fix → enter bearing). Tower runway-aware items (Cleared to land, Touch and go, Cleared for the option, Go around, etc.) show the assigned runway in their label.
 
   The Tower and Pattern submenus list only the commands valid for the aircraft's current state — departure clearances (Line up and wait, Cleared for takeoff) for aircraft on the ground, landing/option clearances while on approach or in the pattern, and runway exits after touchdown; the VFR-only items (touch-and-go, stop-and-go, low approach, the option, and pattern maneuvers) are hidden for IFR aircraft, and the submenu is dropped entirely when nothing applies.

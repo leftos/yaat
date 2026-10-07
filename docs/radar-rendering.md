@@ -531,6 +531,7 @@ of thousands of entries:
 All in `Yaat.Client.Core/ContextMenus/MenuCatalog.cs` unless named:
 
 - `RouteFixes` — `IMenuAircraft.RouteFixNames()`: CIFP fixes in the filed route plus the active DCT queue (`NavigationRoute`), deduped.
+- `DirectToFixNames` — the Direct to… list for an aircraft with a navigating-to fix: `NavigationRoute` from that fix on (`AddNavRouteFromNext`), then the filed route's fixes after the last occurrence of the nav route's last fix (`AddFiledRouteAfter`), then the destination; each once, ignoring case, keeping the nav route's spelling, the departure airport never listed. With no navigating-to fix the item stays the free-text `Direct to…` input. Tests: `Yaat.Client.UI.Tests/Views/MenuCatalogDirectToTests.cs`.
 - `FiledAirways` — airway IDs found in the filed route.
 - `DestinationStars` — STARs for the aircraft's destination airport; `RunwayDesignators.ForAirport` (`Yaat.Client.Core/ContextMenus/`) — its runway ends in display form, sorted by `RunwayDesignatorComparer`.
 
