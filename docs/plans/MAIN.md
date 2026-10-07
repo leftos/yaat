@@ -398,6 +398,7 @@
 - [ ] YAAT-422 Fix doc drift: PostPhysics step count, JsonIgnore field list, stray User Guide item
 - [ ] YAAT-425 GuideCapture runs raise a Windows Firewall prompt: bind its in-process server's listeners to loopback
 - [ ] YAAT-472 Cut the context every yaat session and subagent loads: CLAUDE.md and the architecture index
+- [!] YAAT-491 Adopt the user-level predictive-CI toolkit in yaat
 
 ## Singles
 
