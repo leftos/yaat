@@ -6,7 +6,7 @@
 
 - [x] YAAT-406 TAXI issued on C at KOAK starts its route on parallel taxiway D · release vNext — Urgent · Wave 2 — Ground command grammar and dispatch
 - [x] YAAT-434 Linux CI fails three HoldInsideStoppingDistanceOfBarTests after the YAAT-406 landing · release vNext — Urgent · Wave 2 — Ground command grammar and dispatch
-- [ ] YAAT-487 Command handlers: a lone read-only SAYEXIT wipes the entire pending queue (omitted from the broad IsPhaseTransparent list, None dimension trips the clear-everything fast path) · release vNext — Urgent · Wave 5 — Command queue and dispatch architecture
+- [x] YAAT-487 Command handlers: a lone read-only SAYEXIT wipes the entire pending queue (omitted from the broad IsPhaseTransparent list, None dimension trips the clear-everything fast path) · release vNext — Urgent · Wave 5 — Command queue and dispatch architecture
 - [x] YAAT-373 Load Scenario: pick a single scenario file, not only a folder to index · release vNext — High · Bug reports and feature requests
 - [x] YAAT-274 Redesign overwhelming client surfaces: Settings, import/export, View menu pop-outs · release vNext — High · Client surfaces redesign
 - [ ] YAAT-266 Tower Cab 3D joins a YAAT room without CRC and shows in Room Members · release vNext+1 — High · Wave 6 — Strips, TDLS, air-taxi and hub
@@ -102,7 +102,7 @@
 - [ ] YAAT-455 Show only the items that apply in the radar Track submenu
 - [ ] YAAT-456 Fix quick-command labels and give every quick command a glyph
 - [x] YAAT-457 List Direct-to fixes from the aircraft's next fix on · release vNext
-- [ ] YAAT-458 Offer speed picker values from the aircraft's own type performance
+- [x] YAAT-458 Offer speed picker values from the aircraft's own type performance · release vNext
 - [ ] YAAT-459 List Hold short bars along the route, nearest first, one row per runway
 - [ ] YAAT-460 Add Taxi to runway ▸ to the ground aircraft menu, with via and distance per entry point
 - [ ] YAAT-462 Split the Follow and Give way lists into Moving and Parked, with type, state and distance
@@ -234,6 +234,7 @@
 - [ ] YAAT-483 Keep a runway-crossing aircraft moving behind in-trail traffic, or hold it at the near line
 - [ ] YAAT-485 Keep taxi speed through an early arrival at a gentle unrounded bend
 - [ ] YAAT-486 Fill NavTickDiag.PathDeviationFt, which is always written as zero
+- [ ] YAAT-490 Add A388 and DH8D performance profiles so the speed picker offers their real speeds
 
 ## Wave 2 — Ground command grammar and dispatch
 
@@ -279,6 +280,8 @@
 - [ ] YAAT-75 Rewrite the Legacy Fillet Arc Generator section; rehome the collinear rule
 - [ ] YAAT-408 Taxiway hold short binds at a fillet tangent cut and stops ~75 ft early
 - [ ] YAAT-409 HS of a taxiway behind the aircraft folds the route back (C A C H at KOAK)
+- [ ] YAAT-488 Guard the navigator's mid-curve entry against an offset the arc left cannot absorb
+- [ ] YAAT-489 Record a driving aircraft's trail edge from its route, not a sub-foot fillet tie
 
 ## Wave 4 — Replay, rewind and stuck-taxi repros
 
