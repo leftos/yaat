@@ -17,6 +17,17 @@ namespace Yaat.Sim.Tests.Helpers;
 internal readonly record struct SfoGround(SimulationEngine Engine, AirportGroundLayout Layout);
 
 /// <summary>
+/// SFO's taxiway-F crossing of the runway a clearance to 28L crosses, every node resolved by name through the
+/// layout (never by id).
+/// </summary>
+/// <param name="ApproachBar">The hold-short bar on the side the crossing is entered from.</param>
+/// <param name="FarBar">The hold-short bar on the far side of the runway.</param>
+/// <param name="EnteredNode">The node where the taxiway enters the crossing, past <paramref name="ApproachBar"/>.</param>
+/// <param name="BeyondNode">The next node on the taxiway past <paramref name="EnteredNode"/>.</param>
+/// <param name="ApproachNode">The node on the taxiway the crossing is approached from, one trail short of the approach bar.</param>
+internal sealed record SfoCrossing(GroundNode ApproachBar, GroundNode FarBar, GroundNode EnteredNode, GroundNode BeyondNode, GroundNode ApproachNode);
+
+/// <summary>
 /// Shared scaffolding for scripted SFO ground tests: engine construction, spawning an aircraft at a
 /// named layout feature (parking, spot, runway hold-short, taxiway junction), ticking to a
 /// condition, and asserting the hold-short list a resolved <see cref="TaxiRoute"/> carries.
@@ -344,6 +355,99 @@ internal static class SfoGroundHarness
         }
 
         throw new InvalidOperationException($"SFO has no runway with end '{designator}'");
+    }
+
+    /// <summary>The destination runway <see cref="ResolveSfoCrossing"/>'s crossing is on the way to.</summary>
+    private const string CrossingDestinationRunway = "28L";
+
+    /// <summary>The runway crossed on <see cref="CrossingTaxiway"/> on the way to <see cref="CrossingDestinationRunway"/>.</summary>
+    internal const string CrossingRunway = "01L/19R";
+
+    /// <summary>An end designator of <see cref="CrossingRunway"/>, for the hold-short lookup by name.</summary>
+    private const string CrossingRunwayEnd = "19R";
+
+    /// <summary>The taxiway the crossing sits on.</summary>
+    internal const string CrossingTaxiway = "F";
+
+    /// <summary>The trail a pair approaching <see cref="CrossingRunway"/> starts in, feet.</summary>
+    internal const double CrossingTrailFt = 150.0;
+
+    /// <summary>How many nodes the approach walk steps back along <see cref="CrossingTaxiway"/> before giving up.</summary>
+    private const int MaxApproachWalkNodes = 30;
+
+    /// <summary>
+    /// Resolves <see cref="SfoCrossing"/> from the committed SFO layout, failing on every node it cannot find. The
+    /// approach side is the one the <see cref="CrossingDestinationRunway"/> clearance comes from — a taxi to 28L
+    /// crosses <see cref="CrossingRunway"/> heading toward it, so the bar farther from the 28L end is the bar the
+    /// aircraft crosses away from.
+    /// </summary>
+    internal static SfoCrossing ResolveSfoCrossing(AirportGroundLayout layout)
+    {
+        List<GroundNode> bars = TestLayoutNodes.RunwayHoldShortsOnTaxiway(layout, CrossingRunwayEnd, CrossingTaxiway);
+        Assert.True(
+            bars.Count == 2,
+            $"expected the two {CrossingTaxiway} hold-short bars either side of {CrossingRunway} at SFO, found {bars.Count}"
+        );
+
+        RunwayInfo destination = Runway(CrossingDestinationRunway);
+        LatLon destinationEnd = destination.Id.End1.Contains(CrossingDestinationRunway, StringComparison.Ordinal)
+            ? new LatLon(destination.Lat1, destination.Lon1)
+            : new LatLon(destination.Lat2, destination.Lon2);
+        GroundNode approachBar = bars.MaxBy(b => GeoMath.DistanceNm(b.Position, destinationEnd))!;
+        GroundNode farBar = bars.MinBy(b => GeoMath.DistanceNm(b.Position, destinationEnd))!;
+
+        List<GroundNode> barNeighbours = TaxiwayNeighbours(approachBar, CrossingTaxiway);
+        Assert.True(
+            barNeighbours.Count == 2,
+            $"the {CrossingTaxiway} hold-short bar of {CrossingRunway} has {barNeighbours.Count} {CrossingTaxiway} edges, expected 2"
+        );
+        GroundNode enteredNode = barNeighbours.MinBy(n => GeoMath.DistanceNm(n.Position, farBar.Position))!;
+        GroundNode approachNode = barNeighbours.MaxBy(n => GeoMath.DistanceNm(n.Position, farBar.Position))!;
+
+        List<GroundNode> enteredNeighbours = TaxiwayNeighbours(enteredNode, CrossingTaxiway);
+        Assert.True(
+            enteredNeighbours.Count == 2,
+            $"the node where {CrossingTaxiway} enters {CrossingRunway} has {enteredNeighbours.Count} {CrossingTaxiway} edges, expected 2"
+        );
+        GroundNode? beyondNode = enteredNeighbours.FirstOrDefault(n => !ReferenceEquals(n, approachBar));
+        Assert.True(beyondNode is not null, $"the node where {CrossingTaxiway} enters {CrossingRunway} has no {CrossingTaxiway} edge past it");
+
+        return new SfoCrossing(approachBar, farBar, enteredNode, beyondNode, WalkBackToTrail(approachBar, approachNode));
+    }
+
+    /// <summary>
+    /// <paramref name="node"/>'s neighbours along <paramref name="taxiway"/>: one per edge whose own name is that
+    /// taxiway, so the junction arcs named after two taxiways — the fillets where it meets the runway — do not count
+    /// as extra neighbours.
+    /// </summary>
+    private static List<GroundNode> TaxiwayNeighbours(GroundNode node, string taxiway) =>
+        [.. node.Edges.Where(e => string.Equals(e.TaxiwayName, taxiway, StringComparison.OrdinalIgnoreCase)).Select(e => e.OtherNode(node))];
+
+    /// <summary>
+    /// <paramref name="node"/> walked back along the taxiway away from <paramref name="toward"/> until it clears
+    /// <paramref name="toward"/> by <see cref="CrossingTrailFt"/>: a pair in trail from there starts with its leader
+    /// still short of the bar rather than past it.
+    /// </summary>
+    private static GroundNode WalkBackToTrail(GroundNode toward, GroundNode node)
+    {
+        GroundNode previous = toward;
+        for (int step = 0; step < MaxApproachWalkNodes; step++)
+        {
+            if (GeoMath.DistanceNm(node.Position, toward.Position) * GeoMath.FeetPerNm > CrossingTrailFt)
+            {
+                return node;
+            }
+
+            List<GroundNode> back = [.. TaxiwayNeighbours(node, CrossingTaxiway).Where(n => !ReferenceEquals(n, previous))];
+            Assert.True(back.Count == 1, $"node {node.Id} has {back.Count} {CrossingTaxiway} edges along it, expected 1");
+            previous = node;
+            node = back[0];
+        }
+
+        Assert.Fail(
+            $"taxiway {CrossingTaxiway} does not clear the {CrossingRunway} bar by {CrossingTrailFt:F0} ft within {MaxApproachWalkNodes} nodes"
+        );
+        return node;
     }
 
     private static string FormatExpected(IReadOnlyList<(string Target, HoldShortReason Reason, bool Cleared)> expected)

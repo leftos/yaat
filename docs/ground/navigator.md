@@ -73,6 +73,8 @@ The navigator is one stage in a chain owned by `TaxiingPhase`. It is **not** res
 
   The ½-fuselage tail-clearance past the far-side node follows the **route's own next segments** (a straight is cut at the exact distance with a virtual node; an arc is taken whole), and on completion the crossing phase writes `route.CurrentSegmentIndex` to the segment the aircraft is actually on.
 
+  Until then the route's current segment stays on the crossing's entry segment for the whole crossing, even once the aircraft is past that segment's end node. Anything that reads `AssignedTaxiRoute.CurrentSegment` during a crossing must allow for that; `GroundConflictDetector` orders an in-trail pair by along-edge progress for this reason.
+
   It used to extend straight along the entry taxiway's graph continuation and hand the route back one segment past the exit, so a route that turned right after the crossing resumed on a fillet 60 ft behind the aircraft (the SFO G → B case the no-teleport guard caught).
 - Route end with a parking destination → `AtParkingPhase`; otherwise `HoldingInPositionPhase`.
 - **Nose-at-spot terminal stop** (`TryStopNoseAtSpot`, run before the navigator each tick): a route to a parking **spot** (`DestinationSpot`) stops with the aircraft's nose at the spot marking — the centroid rests a half-fuselage-length **short** of the spot node — not centered on it.

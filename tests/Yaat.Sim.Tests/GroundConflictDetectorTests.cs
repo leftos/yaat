@@ -190,16 +190,20 @@ public class GroundConflictDetectorTests
     private const double InsideStopRingMarginFt = 5.0;
 
     /// <summary>
-    /// The separation at which the detector pins this pair to a stop: the two half-lengths plus
+    /// The separation at which the detector pins a pair to a stop: the two half-lengths plus
     /// <see cref="GroundConflictDetector.StopBufferFt"/>, floored at
     /// <see cref="GroundConflictDetector.DefaultStopDistanceFt"/> — the same arithmetic the detector's
-    /// <c>GetSeparation</c> does, over the same FAA dimensions, rather than a copied number that drifts.
+    /// <c>GetSeparation</c> does, over the same FAA dimensions, rather than a copied number that drifts. Shared with
+    /// the crossing tests, which hold their pair to it too.
     /// </summary>
-    private static double ParkedNeighborStopRingFt =>
+    internal static double StopRingFt(string leaderType, string followerType) =>
         Math.Max(
             GroundConflictDetector.DefaultStopDistanceFt,
-            ((LengthFt("B738") + LengthFt(ParkedNeighborMoverType)) / 2) + GroundConflictDetector.StopBufferFt
+            ((LengthFt(leaderType) + LengthFt(followerType)) / 2) + GroundConflictDetector.StopBufferFt
         );
+
+    /// <summary>The stop ring of this class's parked-neighbour pair.</summary>
+    private static double ParkedNeighborStopRingFt => StopRingFt("B738", ParkedNeighborMoverType);
 
     /// <summary>The FAA fuselage length of an aircraft type, in feet.</summary>
     /// <param name="type">ICAO type designator.</param>
@@ -642,6 +646,228 @@ public class GroundConflictDetectorTests
         Assert.True(trailer.Ground.AutoYieldIsFollowing); // in-trail follow, not converging give-way
         Assert.Null(leader.Ground.AutoYieldTarget);
     }
+
+    /// <summary>The aircraft type the crossing pair is built from.</summary>
+    private const string CrossingAircraftType = "E75L";
+
+    /// <summary>How far past the crossing's entry segment end the crossing leader sits.</summary>
+    private const double CrossingLeaderPastEntryEndFt = 120.0;
+
+    /// <summary>How far short of the entry segment's end node the crossing follower sits, on that segment's own line.</summary>
+    private const double FollowerShortOfEntryEndFt = 30.0;
+
+    /// <summary>
+    /// Two <see cref="CrossingAircraftType"/>s crossing SFO's <see cref="SfoGroundHarness.CrossingRunway"/> in trail
+    /// on <see cref="SfoGroundHarness.CrossingTaxiway"/>, both with their route position held on the crossing's entry
+    /// segment (the crossing phase's contract): the follower <see cref="FollowerShortOfEntryEndFt"/> ft short of that
+    /// segment's end node, the leader <see cref="CrossingLeaderPastEntryEndFt"/> ft past it, both on the segment's own
+    /// line. The follower must trail and the leader must go uncapped: ordering the pair by straight-line distance to the
+    /// segment's end node — which grows again once an aircraft is past it — makes the leader read as the trailing
+    /// aircraft, and the detector then caps the leader for the aircraft running up behind it.
+    /// </summary>
+    [Fact]
+    public void CrossingInTrail_LeaderPastTheEntryEnd_FollowerTrailsAndLeaderGoesFree()
+    {
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("SFO");
+        if (layout is null)
+        {
+            return;
+        }
+
+        SfoCrossing crossing = SfoGroundHarness.ResolveSfoCrossing(layout);
+        const string LeaderCallsign = "LEAD";
+        const string FollowerCallsign = "TRAIL";
+
+        AircraftState leader = MakeCrossingInTrailAircraft(LeaderCallsign, crossing, CrossingLeaderPastEntryEndFt, groundSpeedKts: 20.0);
+        AircraftState follower = MakeCrossingInTrailAircraft(FollowerCallsign, crossing, -FollowerShortOfEntryEndFt, groundSpeedKts: 10.0);
+
+        GroundConflictDetector.ApplySpeedLimits([leader, follower], layout);
+
+        Assert.True(
+            leader.Ground.SpeedLimit is null,
+            $"the leader {CrossingLeaderPastEntryEndFt:F0} ft past the crossing's entry segment end was capped at {leader.Ground.SpeedLimit} kt"
+        );
+        Assert.NotNull(follower.Ground.SpeedLimit);
+        Assert.Equal(LeaderCallsign, follower.Ground.AutoYieldTarget);
+        Assert.True(follower.Ground.AutoYieldIsFollowing);
+        Assert.Null(leader.Ground.AutoYieldTarget);
+    }
+
+    /// <summary>
+    /// A <see cref="CrossingAircraftType"/> on the crossing's entry segment line — the taxiway run from
+    /// <paramref name="crossing"/>'s approach bar into the crossing — placed <paramref name="alongEntryEndFt"/> ft
+    /// along that line from the entry segment's end node (negative = short of it), rolling at
+    /// <paramref name="groundSpeedKts"/>, in a <see cref="SfoGroundHarness.CrossingRunway"/> crossing whose route
+    /// position is held on the entry segment.
+    /// </summary>
+    private static AircraftState MakeCrossingInTrailAircraft(string callsign, SfoCrossing crossing, double alongEntryEndFt, double groundSpeedKts)
+    {
+        var heading = new TrueHeading(GeoMath.BearingTo(crossing.ApproachBar.Position, crossing.EnteredNode.Position));
+        TrueHeading project = alongEntryEndFt >= 0 ? heading : new TrueHeading(heading.Degrees + 180.0);
+        LatLon position = GeoMath.ProjectPoint(crossing.EnteredNode.Position, project, Math.Abs(alongEntryEndFt) / FtPerNm);
+        AircraftState ac = MakeAircraft(
+            callsign,
+            position,
+            heading: heading.Degrees,
+            gs: groundSpeedKts,
+            taxiRoute: MakeRoute(MakeGeoSeg(crossing.ApproachBar, crossing.EnteredNode), MakeGeoSeg(crossing.EnteredNode, crossing.BeyondNode)),
+            phase: new CrossingRunwayPhase(crossing.ApproachBar.Id, crossing.FarBar.Id, SfoGroundHarness.CrossingRunway)
+        );
+        ac.AircraftType = CrossingAircraftType;
+        return ac;
+    }
+
+    /// <summary>
+    /// A fillet the in-trail ordering is exercised on must turn more than this, so its leader can sit past the 90°
+    /// point where a tangent projection stops growing.
+    /// </summary>
+    private const double MinArcSweepDeg = 100.0;
+
+    /// <summary>How far round the fillet the leader is placed: past 90°, where projecting onto the start tangent is already shrinking.</summary>
+    private const double LeaderTurnDeg = 110.0;
+
+    /// <summary>How far round the fillet the follower is placed: short of 90°, where that projection is still growing.</summary>
+    private const double FollowerTurnDeg = 80.0;
+
+    /// <summary>Sweep left out past the leader's turn, so it is placed on the arc and not past its far node.</summary>
+    private const double ArcEndMarginDeg = 4.0;
+
+    /// <summary>Bisection steps placing an aircraft by the arc's turn; 60 halves the curve parameter past double precision.</summary>
+    private const int ArcSearchIterations = 60;
+
+    /// <summary>
+    /// <see cref="GroundConflictDetector"/>'s pair search range, in feet: two aircraft farther apart than this are
+    /// never paired, so a fillet longer than it could host a pair the detector does not see and leave this test
+    /// asserting nothing.
+    /// </summary>
+    private const double DetectorInteractionRangeFt = GroundConflictDetector.SearchRangeNm * FtPerNm;
+
+    /// <summary>
+    /// Two B738s in trail on one fillet arc that turns more than 90°, the leader past the 90° point and the follower
+    /// short of it: the leader must go uncapped and the follower must yield to it. The trailer is whoever has less
+    /// progress along the shared edge, so that progress has to keep growing all the way round an arc, and this pins
+    /// the line it is measured along: measured along the edge's departure tangent — the tangent at the from-node only
+    /// — it stops growing at 90° of sweep and falls away after, so on a 118° fillet the leader 110° round reads 0.94 R
+    /// against the follower 80° round's 0.985 R and the leader is capped for the aircraft running up behind it.
+    ///
+    /// <para>The distance-to-the-end-node metric the crossing case above replaced happened to order a fillet correctly;
+    /// the departure tangent is what this case pins.</para>
+    /// </summary>
+    [Fact]
+    public void ArcInTrail_LeaderPastNinetyDegreesOfTurn_FollowerTrailsAndLeaderGoesFree()
+    {
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("SFO");
+        if (layout is null)
+        {
+            return;
+        }
+
+        (GroundArc arc, CubicBezier curve, double sweepDeg) = FindLongestTurn(layout);
+        double leaderDeg = Math.Min(LeaderTurnDeg, sweepDeg - ArcEndMarginDeg);
+        double followerDeg = Math.Min(FollowerTurnDeg, leaderDeg - 1.0);
+        Assert.True(
+            (followerDeg < 90.0) && (leaderDeg > 90.0),
+            $"the {sweepDeg:F0}° fillet cannot host a follower short of 90° and a leader past it ({followerDeg:F0}°/{leaderDeg:F0}°)"
+        );
+
+        DirectionalEdge directed = arc.Directed(arc.Nodes[0], arc.Nodes[1]);
+        (LatLon leaderPosition, TrueHeading leaderHeading) = PointAfterTurn(curve, leaderDeg);
+        (LatLon followerPosition, TrueHeading followerHeading) = PointAfterTurn(curve, followerDeg);
+        const string LeaderCallsign = "ARCL";
+        const string FollowerCallsign = "ARCT";
+
+        AircraftState leader = MakeAircraft(
+            LeaderCallsign,
+            leaderPosition,
+            heading: leaderHeading.Degrees,
+            gs: 20.0,
+            taxiRoute: ArcRoute(arc, directed),
+            phase: new TaxiingPhase()
+        );
+        AircraftState follower = MakeAircraft(
+            FollowerCallsign,
+            followerPosition,
+            heading: followerHeading.Degrees,
+            gs: 10.0,
+            taxiRoute: ArcRoute(arc, directed),
+            phase: new TaxiingPhase()
+        );
+
+        GroundConflictDetector.ApplySpeedLimits([leader, follower], layout);
+
+        Assert.True(
+            leader.Ground.SpeedLimit is null,
+            $"the leader {leaderDeg:F0}° round a {sweepDeg:F0}° fillet was capped at {leader.Ground.SpeedLimit} kt"
+        );
+        Assert.NotNull(follower.Ground.SpeedLimit);
+        Assert.Equal(LeaderCallsign, follower.Ground.AutoYieldTarget);
+        Assert.True(follower.Ground.AutoYieldIsFollowing);
+        Assert.Null(leader.Ground.AutoYieldTarget);
+    }
+
+    /// <summary>
+    /// The fillet arc with the widest turn on <paramref name="layout"/> — a non-ramp taxiway arc, short enough that
+    /// two aircraft on it fall inside <see cref="DetectorInteractionRangeFt"/> — with the Bézier it is played as and
+    /// that turn in degrees. Fails when the layout carries nothing turning more than <see cref="MinArcSweepDeg"/>.
+    /// </summary>
+    private static (GroundArc Arc, CubicBezier Curve, double SweepDeg) FindLongestTurn(AirportGroundLayout layout)
+    {
+        var turns = new List<(GroundArc Arc, CubicBezier Curve, double SweepDeg)>();
+        foreach (GroundArc arc in layout.Arcs)
+        {
+            if (arc.IsRamp || arc.IsRunwayCenterline || (arc.DistanceNm * FtPerNm >= DetectorInteractionRangeFt))
+            {
+                continue;
+            }
+
+            CubicBezier curve = arc.ToBezier();
+            double sweepDeg = Math.Abs(GeoMath.SignedBearingDifference(curve.TangentBearing(0.0), curve.TangentBearing(1.0)));
+            turns.Add((arc, curve, sweepDeg));
+        }
+
+        if (turns.Count == 0)
+        {
+            Assert.Fail($"the SFO layout carries no taxiway fillet arc within the detector's {DetectorInteractionRangeFt:F0} ft interaction range");
+        }
+
+        (GroundArc Arc, CubicBezier Curve, double SweepDeg) best = turns.MaxBy(t => t.SweepDeg);
+        Assert.True(
+            best.SweepDeg > MinArcSweepDeg,
+            $"the widest turn available is {best.SweepDeg:F1}°, under the {MinArcSweepDeg:F0}° this test needs"
+        );
+        return best;
+    }
+
+    /// <summary>
+    /// The point on <paramref name="curve"/> where its tangent has turned <paramref name="turnDeg"/> degrees from the
+    /// curve's start, with the tangent bearing there.
+    /// </summary>
+    private static (LatLon Position, TrueHeading Heading) PointAfterTurn(CubicBezier curve, double turnDeg)
+    {
+        double startBearingDeg = curve.TangentBearing(0.0);
+        double lo = 0.0;
+        double hi = 1.0;
+        for (int i = 0; i < ArcSearchIterations; i++)
+        {
+            double mid = (lo + hi) / 2.0;
+            if (Math.Abs(GeoMath.SignedBearingDifference(startBearingDeg, curve.TangentBearing(mid))) < turnDeg)
+            {
+                lo = mid;
+            }
+            else
+            {
+                hi = mid;
+            }
+        }
+
+        double t = (lo + hi) / 2.0;
+        (double lat, double lon) = curve.Evaluate(t);
+        return (new LatLon(lat, lon), new TrueHeading(curve.TangentBearing(t)));
+    }
+
+    /// <summary>A fresh one-segment route over <paramref name="directed"/>, so the two aircraft do not share one route object.</summary>
+    private static TaxiRoute ArcRoute(GroundArc arc, DirectionalEdge directed) =>
+        MakeRoute(new TaxiRouteSegment { TaxiwayName = arc.TaxiwayName, Edge = directed });
 
     [Fact]
     public void NoConflict_ClearsStaleAutoYieldTarget()
@@ -2128,7 +2354,10 @@ public class GroundConflictDetectorTests
     /// <summary>The reciprocal of <see cref="ParallelTrackDeg"/> — the track of the aircraft coming the other way on the neighbouring lane.</summary>
     private const double ParallelReciprocalTrackDeg = 298.0;
 
-    /// <summary>Lateral separation of the two lanes in the measured field pass: inside the two-B738 trail ring (254 ft) and the 300 ft head-on ring.</summary>
+    /// <summary>
+    /// Lateral separation of the two lanes in the measured field pass: inside the two-B738 trail ring (254 ft) and
+    /// the 300 ft head-on ring.
+    /// </summary>
     private const double ParallelLateralFt = 238.0;
 
     /// <summary>Along-track offset between the two aircraft in the field pass — they are nearly abeam.</summary>
@@ -2149,7 +2378,10 @@ public class GroundConflictDetectorTests
     /// <summary>Nose wander of the leading aircraft in the route-segment test: inside its lane, but more than the pair's margin can spare.</summary>
     private const double NoseWanderDeg = 5.0;
 
-    /// <summary>Lateral offset of the two B738 lanes in the nose-wander test: above their 142.4 ft requirement by less than the wander drifts.</summary>
+    /// <summary>
+    /// Lateral offset of the two B738 lanes in the nose-wander test: above their 142.4 ft requirement by less than
+    /// the wander drifts.
+    /// </summary>
     private const double NoseWanderLateralFt = 155.0;
 
     /// <summary>Along-track offset of the converging pair, which puts the two 89.4 ft apart — inside the 100 ft stop distance.</summary>

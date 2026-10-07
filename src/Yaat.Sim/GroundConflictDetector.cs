@@ -106,7 +106,7 @@ public static class GroundConflictDetector
     // Unrestricted taxi speed assumed for the farther aircraft's arrival ETA, so an aircraft already
     // capped by this rule does not feed its reduced speed back in and oscillate.
     private const double ConvergenceNominalTaxiSpeedKts = 12.0;
-    private const double SearchRangeNm = 0.3;
+    internal const double SearchRangeNm = 0.3;
 
     // A head-on requires near-anti-parallel headings. Oblique crossings (e.g. an
     // aircraft exiting a runway toward its hold-short passing one taxiing to the
@@ -338,7 +338,7 @@ public static class GroundConflictDetector
                         break;
 
                     case PairKind.SameEdgeTrailing:
-                        ResolveSameEdgeTrailing(a, b, distFt, layout!, diagnosticLog);
+                        ResolveSameEdgeTrailing(a, b, distFt, diagnosticLog);
                         break;
 
                     case PairKind.SameEdgeHeadOn:
@@ -542,25 +542,21 @@ public static class GroundConflictDetector
 
     // --- Conflict resolution ---
 
-    private static void ResolveSameEdgeTrailing(
-        AircraftState a,
-        AircraftState b,
-        double distFt,
-        AirportGroundLayout layout,
-        Action<string>? diagnosticLog
-    )
+    private static void ResolveSameEdgeTrailing(AircraftState a, AircraftState b, double distFt, Action<string>? diagnosticLog)
     {
         TaxiRouteSegment segA = a.Ground.AssignedTaxiRoute!.CurrentSegment!;
         TaxiRouteSegment segB = b.Ground.AssignedTaxiRoute!.CurrentSegment!;
 
-        double distAToTarget = DistToSegTarget(a, segA, layout);
-        double distBToTarget = DistToSegTarget(b, segB, layout);
+        // The two are nose-to-tail on one edge, so the one to cap is whichever has less progress along it
+        // (AlongEdgeNm); ordering them any other way caps the aircraft in front.
+        double alongA = AlongEdgeNm(a, segA);
+        double alongB = AlongEdgeNm(b, segB);
 
         diagnosticLog?.Invoke(
-            $"  [SameEdgeTrailing] edge={segA.FromNodeId}→{segA.ToNodeId}: {a.Callsign} d2t={distAToTarget:F4}nm, {b.Callsign} d2t={distBToTarget:F4}nm"
+            $"  [SameEdgeTrailing] edge={segA.FromNodeId}→{segA.ToNodeId}: {a.Callsign} along={alongA:F4}nm, {b.Callsign} along={alongB:F4}nm"
         );
 
-        if (distAToTarget > distBToTarget)
+        if (alongA < alongB)
         {
             ApplyTrailLimit(a, b, distFt);
             a.Ground.AutoYieldTarget = b.Callsign;
@@ -1922,14 +1918,27 @@ public static class GroundConflictDetector
         return string.CompareOrdinal(a.Callsign, b.Callsign) >= 0 ? a : b;
     }
 
-    private static double DistToSegTarget(AircraftState ac, TaxiRouteSegment seg, AirportGroundLayout layout)
+    /// <summary>
+    /// Signed distance (nm) of <paramref name="ac"/> along <paramref name="seg"/> from its from-node — negative
+    /// behind that node, positive past it, so farther along the shared edge is always a larger value, however far past
+    /// the edge's end node the aircraft has gone.
+    ///
+    /// <para>Measured along the <b>chord</b> from the segment's from-node to its to-node, not along the edge's
+    /// <see cref="DirectionalEdge.DepartureBearing"/>: on a fillet arc that bearing is the tangent at the from-node,
+    /// so a projection onto it stops growing once the arc has turned 90° and falls away after — a leader 110° round a
+    /// 118° fillet reads 0.94 R against a follower 80° round it at 0.985 R, the very inversion this ordering exists to
+    /// fix. Signed progress along the chord rises monotonically all the way round a circular arc of under 180° of
+    /// sweep, which is the property that orders an in-trail pair on a fillet.</para>
+    ///
+    /// <para>There is no degenerate-chord fallback because a segment's two nodes cannot coincide on a real layout:
+    /// the parser drops a connector that lands on a taxiway vertex and the fillet generator clamps a cut arm clear of
+    /// the 5 ft coincidence threshold, so no segment is ever shorter than that.</para>
+    /// </summary>
+    private static double AlongEdgeNm(AircraftState ac, TaxiRouteSegment seg)
     {
-        if (layout.Nodes.TryGetValue(seg.ToNodeId, out GroundNode? node))
-        {
-            return GeoMath.DistanceNm(ac.Position, node.Position);
-        }
-
-        return seg.Edge.DistanceNm;
+        LatLon from = seg.Edge.FromNode.Position;
+        LatLon to = seg.Edge.ToNode.Position;
+        return GeoMath.AlongTrackDistanceNm(ac.Position, from, new TrueHeading(GeoMath.BearingTo(from, to)));
     }
 
     internal static int? FindSharedUpcomingNode(TaxiRoute routeA, TaxiRoute routeB)
