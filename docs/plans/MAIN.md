@@ -20,7 +20,8 @@
 
 - [ ] YAAT-440 Group, filter and distance-label the ground view's Push Back To submenu
 - [ ] YAAT-450 Investigate what else to precompute offline from vNAS, GeoJSON, FAA, CIFP and NavData data
-- [/] YAAT-466 Replay and restore a recording against the airport layouts it bundles
+- [x] YAAT-466 Replay and restore a recording against the airport layouts it bundles · release vNext
+- [ ] YAAT-475 Merge feat/precompute-cache (#951)
 
 ## Follow on the taxi graph (feat/follow-on-graph)
 
