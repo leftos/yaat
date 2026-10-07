@@ -105,7 +105,7 @@
 - [ ] YAAT-462 Split the Follow and Give way lists into Moving and Parked, with type, state and distance
 - [ ] YAAT-463 Offer the named exits ahead on the landing roll
 - [ ] YAAT-464 Name the aircraft and its action in the ground point menu header; offer Push route only from tug-reachable points
-- [ ] YAAT-465 Open every aircraft context menu with a one-line state header
+- [x] YAAT-465 Open every aircraft context menu with a one-line state header · release vNext
 
 ## Client surfaces redesign
 
@@ -223,6 +223,7 @@
 - [ ] YAAT-468 Stop at a hold-short bar the parser places at the aircraft's own start on a short leg
 - [ ] YAAT-469 Use one high-speed exit angle threshold for turn-off speed and exit search
 - [ ] YAAT-470 Split GroundNavigator.BuildEntryAlignmentArc and TickStraight under the size limits
+- [ ] YAAT-471 Stop on the taxiway centreline at a node-only hold short issued after a turn about
 
 ## Wave 2 — Ground command grammar and dispatch
 
@@ -383,6 +384,7 @@
 - [ ] YAAT-417 AppToolsTests automation pipe breaks under load (Pipe is broken)
 - [ ] YAAT-422 Fix doc drift: PostPhysics step count, JsonIgnore field list, stray User Guide item
 - [ ] YAAT-425 GuideCapture runs raise a Windows Firewall prompt: bind its in-process server's listeners to loopback
+- [ ] YAAT-472 Cut the context every yaat session and subagent loads: CLAUDE.md and the architecture index
 
 ## Singles
 
@@ -520,3 +522,5 @@
 - [ ] YAAT-436 Draw the ground overlay for a ramp-only taxi route
 - [ ] YAAT-439 Aim a ramp or free-space reversal along the route when the next turn doubles back
 - [ ] YAAT-444 Stop drawing the far-end turn-about overlay during a re-aimed turn-about cut
+- [ ] YAAT-473 Read a room's pinned layouts and missing maps from one snapshot when bundling
+- [ ] YAAT-474 Read a recording's bundled layout by airport id ignoring case
