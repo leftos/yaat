@@ -43,6 +43,24 @@ public sealed partial class SimulationEngine
         };
     }
 
+    /// <summary>
+    /// Rebuilds the room's active runways from a snapshot's airport → token lists. The tokens were valid when the
+    /// snapshot was written, so they are read with no navigation-database check; a null list, a null entry or a token
+    /// that does not parse drops that airport and is logged, so a corrupt snapshot neither throws nor restores a bad
+    /// runway silently.
+    /// </summary>
+    private ActiveRunways RestoreActiveRunways(Dictionary<string, List<string>?>? byAirport)
+    {
+        var warnings = new List<string>();
+        ActiveRunways runways = ActiveRunwayListParser.FromTokenLists(byAirport, "Snapshot active runways", warnings);
+        foreach (string warning in warnings)
+        {
+            Logger.LogWarning("{Warning}", warning);
+        }
+
+        return runways;
+    }
+
     public void RestoreFromSnapshot(StateSnapshotDto snapshot)
     {
         SnapshotSchemaMigrator.Migrate(snapshot);
@@ -139,6 +157,7 @@ public sealed partial class SimulationEngine
             Scenario.ClientAutoDeleteOverride = scenarioDto.ClientAutoDeleteOverride;
             Scenario.DepartureAutoDeleteDistanceNm = scenarioDto.DepartureAutoDeleteDistanceNm;
             Scenario.HasOngoingTrafficSource = scenarioDto.HasOngoingTrafficSource;
+            Scenario.ActiveRunways = RestoreActiveRunways(scenarioDto.ActiveRunways);
             Scenario.StudentPosition = scenarioDto.StudentPosition is not null ? TrackOwner.FromSnapshot(scenarioDto.StudentPosition) : null;
             Scenario.StudentTcp = scenarioDto.StudentTcp is not null ? Tcp.FromSnapshot(scenarioDto.StudentTcp) : null;
             World.StudentTcp = Scenario.StudentTcp;

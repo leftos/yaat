@@ -12,6 +12,7 @@ ARTCCs/
       visual.json
     Airports/
       oak.json
+    Scenarios/
     InitialContactTransfers/
       zoa-initial-contact-transfers.json
     WakeDirectives/
@@ -467,6 +468,36 @@ When a procedure resolves from a fragment, the instructor sees an advisory namin
   than "400". None of that is knowable from the chart.
 - Lines that aren't valid CIFP records (the `#` provenance header, blanks) are ignored by the parser.
 - Restart YAAT to pick up edits.
+
+---
+
+## Scenarios
+
+Per-scenario settings that ride beside the scenario JSON instead of inside it. The file name without `.json` is the scenario id — the scenario JSON's own `id` field, so `01H06NVK7VN8BS7MCDXHKJZ7MQ.json` belongs to the scenario whose `id` is `01H06NVK7VN8BS7MCDXHKJZ7MQ`. A scenario that names no `id` is identified by a hash of its JSON instead, which no author can predict, so it cannot have a sidecar. This is authored data committed by pull request, never written by the app.
+
+`ScenarioSidecarLoader` reads every ARTCC's `Scenarios/*.json`. It checks only the file and its token grammar, not the runway ends against the navigation database.
+
+```json
+{
+  "activeRunways": {
+    "OAK": ["D28L", "A28R", "30"]
+  }
+}
+```
+
+### `activeRunways`
+
+Runway ends the room starts with, per airport. Each key is an airport id — FAA (`OAK`) or ICAO (`KOAK`), any case; they all name the same airport. Each entry is one token:
+
+- a bare designator (`30`) — used for both departures and arrivals;
+- a `D` prefix (`D28L`) — departures only;
+- an `A` prefix (`A28R`) — arrivals only.
+
+Each list element is exactly one token, so `["28L 28R"]` is one bad entry, not two good ones. Tokens are case-insensitive, and a single-digit designator is normalized to the two-digit form the navigation database uses (`1L` → `01L`). An empty list clears the airport.
+
+Anything this loader cannot read is skipped with a warning naming the file, and the rest of the file — and every other file — still loads: a file that does not parse, a null list, a null entry, a token that does not parse, an airport named twice in one file, or two files whose names differ only in case.
+
+Top-level properties YAAT does not recognize are ignored, so the file can carry settings a newer build understands without an older one refusing the scenario. Restart YAAT to pick up edits to a scenario sidecar.
 
 ---
 

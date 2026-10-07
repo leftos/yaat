@@ -78,6 +78,12 @@ What a scenario JSON will make the server fetch — its ARTCC, the roster's neig
 **Map-required airport**:
 An airport in the resource manifest whose full ground map the load needs: the primary airport, and each airport an aircraft parks at or spawns on the ground at. A missing map there is a load warning; elsewhere it is not.
 
+**Active runways**:
+The runway ends a room is using, per airport, each for departures, arrivals or both (`ActiveRunways`): room state, not the controller AI's single runway-in-use guess.
+
+**Scenario sidecar**:
+An authored per-scenario JSON file, `Data/ARTCCs/{ARTCC}/Scenarios/{scenario id}.json`, carrying settings the vNAS scenario lacks (its active runways); unlike the per-airport ground sidecar.
+
 **Preset**:
 A command the scenario gives one aircraft (`presetCommands`), dispatched at load or at its `timeOffset`, and scripted rather than spoken by the student: it does not count as the student's contact with the pilot.
 

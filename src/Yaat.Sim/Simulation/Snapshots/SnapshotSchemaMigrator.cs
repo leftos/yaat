@@ -200,6 +200,8 @@ public static class SnapshotSchemaMigrator
         //   stand call, so it maps to StandCall; the rest (an airborne arrival never decided) to None. The legacy field is
         //   nulled so a rewritten snapshot drops it. SpawnTaxiway stays null: the pre-snap position was never recorded.
         // V33: Added CommandBlockDto.IsScenarioScripted. No bump — additive and optional, an older snapshot reads false.
+        // V33: Added ScenarioSnapshotDto.ActiveRunways. No bump — additive and optional, and the field is left out of the
+        //   JSON while the room has named no runways, so an older snapshot reads no runways and an empty room writes none.
         if (snapshot.SchemaVersion < 4)
         {
             foreach (AircraftSnapshotDto ac in snapshot.Aircraft)

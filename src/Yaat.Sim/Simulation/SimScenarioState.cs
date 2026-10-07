@@ -332,6 +332,20 @@ public sealed class SimScenarioState
 
     private static bool IsUnsetAutoDeleteMode(string? mode) => string.IsNullOrEmpty(mode) || mode.Equals("None", StringComparison.OrdinalIgnoreCase);
 
+    // Volatile, and replaced whole rather than edited in place, so a reader on another thread takes one instance.
+    private volatile ActiveRunways _activeRunways = ActiveRunways.Empty;
+
+    /// <summary>
+    /// The room's active runways: an ordered list of runway ends and their use per airport, from the instructor's
+    /// runway list. Empty until something sets them; captured in snapshots (no field while empty) and read back on
+    /// restore.
+    /// </summary>
+    public ActiveRunways ActiveRunways
+    {
+        get => _activeRunways;
+        set => _activeRunways = value;
+    }
+
     // Simulation control
     public bool IsPaused { get; set; } = true;
     public double SimRate { get; set; } = 1.0;
@@ -684,6 +698,7 @@ public sealed class SimScenarioState
                     ]
                     : null,
             SuppressedLiveTraffic = SuppressedLiveTraffic.Count > 0 ? [.. SuppressedLiveTraffic.Order(StringComparer.Ordinal)] : null,
+            ActiveRunways = SnapshotActiveRunways(),
             DisconnectCoasts = SnapshotDisconnectCoasts(),
         };
 
@@ -720,5 +735,20 @@ public sealed class SimScenarioState
                 ],
             }),
         ];
+    }
+
+    /// <summary>
+    /// The room's active runways as airport → token list, or null when the room has named none. Tokens come from
+    /// <see cref="ActiveRunway.ToToken"/>, so a snapshot and the scenario sidecar share one spelling.
+    /// </summary>
+    private Dictionary<string, List<string>?>? SnapshotActiveRunways()
+    {
+        var byAirport = new Dictionary<string, List<string>?>(StringComparer.Ordinal);
+        foreach (string airport in ActiveRunways.Airports)
+        {
+            byAirport[airport] = [.. ActiveRunways.For(airport).Select(r => r.ToToken())];
+        }
+
+        return byAirport.Count > 0 ? byAirport : null;
     }
 }

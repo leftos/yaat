@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using Yaat.Sim.Asdex;
 using Yaat.Sim.Simulation.Coast;
 
@@ -158,6 +159,12 @@ public sealed class ScenarioSnapshotDto
     // The live-traffic callsigns the instructor hid with DEL, ordinal-sorted. Optional: null in snapshots that predate
     // it and whenever nothing is hidden, which is also what the scenario state then holds.
     public List<string>? SuppressedLiveTraffic { get; init; }
+
+    // The room's active runways, airport → token list (e.g. "OAK" → ["D28L","A28R","30"]), each list in the order the
+    // room named it. Left out of the JSON while the room has named none (unlike this DTO's other nullable members,
+    // which are written as null), so a snapshot without active runways stays byte-identical.
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Dictionary<string, List<string>?>? ActiveRunways { get; init; }
 }
 
 /// <summary>Snapshot of one standing <c>AsdexSafetyAlert</c>: the detector rebuilds an identical record from the
