@@ -77,6 +77,7 @@
 - A `WAIT` or `BEHIND` command holding a direct-to on the filed route does the same after a rewind as it did live, keeping or cancelling the STAR alike.
 - After a rewind, a scenario preset's queued command still fires as scripted, so it no longer counts as the student's instruction or first contact.
 - A `TAXI` on a taxiway starts on that taxiway, not a parallel one, turns around within its width, and the ground view draws the turn.
+- Asking an aircraft `SAYEXIT` no longer cancels the commands queued for it, such as a pending `AT 5000 SPD 180`.
 
 ## v0.15.0-beta [2026/10/02]
 
