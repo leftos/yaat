@@ -250,7 +250,7 @@ public static class WindInterpolator
     /// <summary>
     /// ISA speed of sound at the given altitude in knots.
     /// </summary>
-    internal static double SpeedOfSoundKts(double altitudeFt)
+    public static double SpeedOfSoundKts(double altitudeFt)
     {
         (double tempK, double _) = GetAtmosphere(altitudeFt);
         return Math.Sqrt(Gamma * RGas * tempK) * MsToKt;

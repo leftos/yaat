@@ -1469,45 +1469,204 @@ public static class MenuCatalog
         return items;
     }
 
-    /// <summary>The Assign speed picker, highlighting the assigned speed rounded to ten knots, or the middle of the list.</summary>
+    /// <summary>The altitude at and above which the picker lists Mach rows (7110.65 5-7-1.g).</summary>
+    private const double MachRowFloorFeet = 24000;
+
+    /// <summary>The owner's clamp on the picker's Mach rows: 0.60 at the lowest and 0.92 at the highest.</summary>
+    private const double MachRowMinimum = 0.60;
+
+    private const double MachRowMaximum = 0.92;
+
+    /// <summary>The picker's first row, above every speed: normal speed.</summary>
+    private const string ResumeNormalSpeedRow = "Resume normal speed";
+
+    /// <summary>The picker's second row, above every speed: the final approach speed the filed type flies.</summary>
+    private const string FinalApproachSpeedRow = "Final approach speed";
+
+    /// <summary>The Assign speed picker, highlighting the assigned speed rounded to ten knots, or the middle knots row.</summary>
     private static MenuItem BuildAssignSpeed(string label, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
     {
         List<object> speeds = SpeedValues(aircraft);
         double? assigned = aircraft?.AssignedSpeed;
-        int seed = assigned is > 0 ? (int)(Math.Round(assigned.Value / 10.0) * 10) : (int)speeds[speeds.Count / 2];
-        return BuildList(label, speeds, seed, picked => Send($"SPD {picked}", context, host), host);
+        object? seed = assigned is > 0 ? (int)(Math.Round(assigned.Value / 10.0) * 10) : MiddleKnots(speeds);
+        return BuildList(label, speeds, seed, picked => Send(SpeedCommand(picked), context, host), host);
     }
 
     /// <summary>
-    /// The speeds the Assign speed picker lists, in tens: from the filed type's approach speed to its climb speed at the
-    /// aircraft's altitude, widened to at least 50 kt and never below 40 kt; 150-350 kt when no type is filed.
+    /// The middle knots row, which seeds the picker when no speed is assigned, or null when the caps leave no knots rows,
+    /// which the host reads as nothing to highlight. The leading and Mach rows are not counted.
+    /// </summary>
+    private static object? MiddleKnots(List<object> speeds)
+    {
+        List<object> knots = [.. speeds.Where(speed => speed is int)];
+        return knots.Count > 0 ? knots[knots.Count / 2] : null;
+    }
+
+    /// <summary>The command a picked row sends: its own for a labelled row (<c>MACH .78</c>, <c>RNS</c>, <c>RFAS</c>), else <c>SPD 250</c>.</summary>
+    private static string SpeedCommand(object picked) => picked is MenuLabeledCommand row ? row.Command : $"SPD {picked}";
+
+    /// <summary>
+    /// The rows the Assign speed picker lists. Every list leads with Resume normal speed (<c>RNS</c>) and Final approach
+    /// speed (<c>RFAS</c>). A filed type then adds every tenth knot from its approach speed rounded up through its knots
+    /// ceiling — the highest of its cruise, climb and descent speeds at the aircraft's altitude and the profile's
+    /// FL150/FL240 climb and FL100 descent knots, plus 20 kt (10 for a piston), floored to ten, capped at 250 below
+    /// 10,000 ft unless the type waives the limit — then, at or above FL240, the Mach rows its profile spans. Without a
+    /// filed type the knots stay 150-350.
     /// </summary>
     private static List<object> SpeedValues(IMenuAircraft? aircraft)
     {
+        var speeds = new List<object>
+        {
+            new MenuLabeledCommand(ResumeNormalSpeedRow, "RNS"),
+            new MenuLabeledCommand(FinalApproachSpeedRowLabel(aircraft), "RFAS"),
+        };
         if (aircraft is null || string.IsNullOrEmpty(aircraft.FiledAircraftType))
         {
-            return SpeedRange(150, 350);
+            speeds.AddRange(SpeedRange(150, 350));
+            return speeds;
         }
 
         string type = aircraft.FiledAircraftType;
         AircraftCategory category = AircraftCategorization.Categorize(type);
-        double approach = AircraftPerformance.ApproachSpeed(type, category);
-        double climb = AircraftPerformance.ClimbSpeed(type, category, Math.Max(aircraft.AltitudeFeet, 0));
-
-        int min = (int)(Math.Floor(approach / 10.0) * 10);
-        int max = (int)(Math.Ceiling(climb / 10.0) * 10);
-        if (min < 40)
+        double altitude = Math.Max(aircraft.AltitudeFeet, 0);
+        int ceiling = KnotsCeiling(type, category, altitude);
+        IReadOnlyList<double> machs = MachValues(type, category, altitude, ceiling);
+        if (machs.Count > 0)
         {
-            min = 40;
+            ceiling = Math.Min(ceiling, FloorToTen(WindInterpolator.MachToIas(machs[^1], altitude)));
         }
 
-        if (max - min < 50)
+        int floor = (int)(Math.Ceiling(AircraftPerformance.ApproachSpeed(type, category) / 10.0) * 10);
+        speeds.AddRange(SpeedRange(floor, ceiling));
+        foreach (double mach in machs)
         {
-            min = Math.Max(40, min - 20);
-            max += 20;
+            speeds.Add(MachRow(mach));
         }
 
-        return SpeedRange(min, max);
+        return speeds;
+    }
+
+    /// <summary>The final-approach-speed row's label: the filed type's approach speed rounded to the knot, else the bare label.</summary>
+    private static string FinalApproachSpeedRowLabel(IMenuAircraft? aircraft)
+    {
+        if (aircraft is null || string.IsNullOrEmpty(aircraft.FiledAircraftType))
+        {
+            return FinalApproachSpeedRow;
+        }
+
+        AircraftCategory category = AircraftCategorization.Categorize(aircraft.FiledAircraftType);
+        int knots = (int)Math.Round(AircraftPerformance.ApproachSpeed(aircraft.FiledAircraftType, category), MidpointRounding.AwayFromZero);
+        return $"{FinalApproachSpeedRow} ({knots})";
+    }
+
+    /// <summary>A Mach row, listed <c>M.78</c> and sent as <c>MACH .78</c>.</summary>
+    private static MenuLabeledCommand MachRow(double mach)
+    {
+        int hundredths = (int)Math.Round(mach * 100, MidpointRounding.AwayFromZero);
+        return new MenuLabeledCommand($"M.{hundredths:00}", $"MACH .{hundredths:00}");
+    }
+
+    /// <summary>
+    /// The picker's knots ceiling (kt): the highest of the type's cruise, climb and descent speeds at the altitude and the
+    /// resolved profile's own FL150/FL240 climb and FL100 descent knots, plus the category's margin, floored to ten.
+    /// Below 10,000 ft the 250 kt limit of 14 CFR 91.117 caps it unless the type waives the limit.
+    /// </summary>
+    private static int KnotsCeiling(string type, AircraftCategory category, double altitude)
+    {
+        double highest = Math.Max(
+            AircraftPerformance.DefaultSpeed(type, category, altitude, null),
+            Math.Max(AircraftPerformance.ClimbSpeed(type, category, altitude), AircraftPerformance.DescentSpeed(type, category, altitude))
+        );
+
+        if (AircraftProfileDatabase.Get(type) is { } profile)
+        {
+            highest = Math.Max(highest, Math.Max(profile.ClimbSpeedFl150, Math.Max(profile.ClimbSpeedFl240, profile.DescentSpeedFl100)));
+        }
+
+        int ceiling = FloorToTen(highest + (category == AircraftCategory.Piston ? 10 : 20));
+        return ((altitude < 10000) && !AircraftPerformance.IsSpeedLimitWaived(type)) ? Math.Min(ceiling, 250) : ceiling;
+    }
+
+    /// <summary>
+    /// The picker's Mach rows, each a hundredth of a Mach: only at or above FL240, and only for a type the resolved
+    /// profile gives a Mach value (turboprops and pistons list knots only) — a jet whose type has none runs the jet
+    /// category baseline instead. Spanned are the profile's final climb and initial descent speeds, its cruise speed when
+    /// that is itself a Mach number, and the cruise Mach its TAS cruise speed gives at the cruise altitude; the rows run
+    /// from the lowest less 0.04 through the highest plus 0.01, on the hundredth, clamped to 0.60-0.92, and a row whose
+    /// IAS at the altitude exceeds the knots ceiling is dropped.
+    /// </summary>
+    private static IReadOnlyList<double> MachValues(string type, AircraftCategory category, double altitude, int knotsCeiling)
+    {
+        if (altitude < MachRowFloorFeet)
+        {
+            return [];
+        }
+
+        AircraftProfile? profile = AircraftProfileDatabase.Get(type);
+        if (profile is null || !HasMachValue(profile))
+        {
+            if (category != AircraftCategory.Jet)
+            {
+                return [];
+            }
+
+            profile = CategoryPerformance.BaselineProfile(category);
+        }
+
+        var spanned = new List<double>();
+        AddMachValue(spanned, profile.ClimbSpeedFinal);
+        AddMachValue(spanned, profile.DescentSpeedInitial);
+        AddMachValue(spanned, profile.CruiseSpeed);
+        if (profile.CruiseSpeed >= 1.0)
+        {
+            spanned.Add(profile.CruiseSpeed / WindInterpolator.SpeedOfSoundKts(profile.CruiseAltitude));
+        }
+
+        double low = Math.Max(Math.Round((spanned.Min() - 0.04) * 100, MidpointRounding.AwayFromZero) / 100, MachRowMinimum);
+        double high = Math.Min(Math.Round((spanned.Max() + 0.01) * 100, MidpointRounding.AwayFromZero) / 100, MachRowMaximum);
+        var rows = new List<double>();
+        for (
+            int hundredths = (int)Math.Round(low * 100, MidpointRounding.AwayFromZero);
+            hundredths <= (int)Math.Round(high * 100, MidpointRounding.AwayFromZero);
+            hundredths++
+        )
+        {
+            double mach = hundredths / 100.0;
+            if (WindInterpolator.MachToIas(mach, altitude) <= knotsCeiling)
+            {
+                rows.Add(mach);
+            }
+        }
+
+        return rows;
+    }
+
+    /// <summary>Whether the profile carries any Mach value, which is what earns a type Mach rows.</summary>
+    private static bool HasMachValue(AircraftProfile profile) =>
+        IsMachValue(profile.ClimbSpeedFinal) || IsMachValue(profile.DescentSpeedInitial) || IsMachValue(profile.CruiseSpeed);
+
+    private static bool IsMachValue(double value) => (value > 0) && (value < 1.0);
+
+    /// <summary>Adds <paramref name="value"/> to the spanned Mach values when it is itself a Mach number.</summary>
+    private static void AddMachValue(List<double> spanned, double value)
+    {
+        if (IsMachValue(value))
+        {
+            spanned.Add(value);
+        }
+    }
+
+    /// <summary>The value floored to the previous ten, which the picker's knots floor and ceiling round to.</summary>
+    private static int FloorToTen(double value) => (int)(Math.Floor(value / 10.0) * 10);
+
+    /// <summary>
+    /// A row of the Assign speed picker that carries its own command text: a Mach row (<c>M.78</c>, sent <c>MACH .78</c>)
+    /// or one of the two fixed rows every list leads with (<c>RNS</c>, <c>RFAS</c>). Its own type so the pick tells a
+    /// labelled row from a knots row, which <see cref="MenuLabeledValue"/> unwraps to an int.
+    /// </summary>
+    private sealed record MenuLabeledCommand(string Label, string Command)
+    {
+        public override string ToString() => Label;
     }
 
     private static List<object> SpeedRange(int min, int max)

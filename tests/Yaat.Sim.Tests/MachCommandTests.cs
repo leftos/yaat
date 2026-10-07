@@ -67,6 +67,13 @@ public class MachCommandTests
     }
 
     [Fact]
+    public void SpeedOfSound_AtFL350_Is576Kts()
+    {
+        double sos = WindInterpolator.SpeedOfSoundKts(35000);
+        Assert.InRange(sos, 575, 578);
+    }
+
+    [Fact]
     public void SpeedOfSound_AboveTropopause_IsConstant()
     {
         double sos36 = WindInterpolator.SpeedOfSoundKts(36089);

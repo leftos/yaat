@@ -476,50 +476,6 @@ public class MenuCatalogCommandTests
         Assert.Equal(["5", "10", "15", "20", "30", "45", "60", "90"], popup.Items);
     }
 
-    [AvaloniaFact]
-    public void AssignSpeed_FiledJet_ListsFromApproachSpeedToClimbSpeedInTens()
-    {
-        const double altitude = 10000;
-        TestVnasData.EnsureInitialized();
-        AircraftCategory category = AircraftCategorization.Categorize("B738");
-        int approachFloor = (int)(Math.Floor(AircraftPerformance.ApproachSpeed("B738", category) / 10.0) * 10);
-        int climbCeiling = (int)(Math.Ceiling(AircraftPerformance.ClimbSpeed("B738", category, altitude) / 10.0) * 10);
-        Assert.True(climbCeiling - approachFloor >= 50, "the B738 span needs no widening");
-
-        IReadOnlyList<string> items = AssignSpeedItems(new FakeMenuAircraft { FiledAircraftType = "B738", AltitudeFeet = altitude });
-
-        Assert.Equal($"{approachFloor}", items[0]);
-        Assert.Equal($"{climbCeiling}", items[^1]);
-    }
-
-    [AvaloniaFact]
-    public void AssignSpeed_FiledPiston_WidensANarrowSpanBy20EachWay_NeverBelow40()
-    {
-        const double altitude = 3000;
-        TestVnasData.EnsureInitialized();
-        AircraftCategory category = AircraftCategorization.Categorize("C172");
-        int approachFloor = (int)(Math.Floor(AircraftPerformance.ApproachSpeed("C172", category) / 10.0) * 10);
-        int climbCeiling = (int)(Math.Ceiling(AircraftPerformance.ClimbSpeed("C172", category, altitude) / 10.0) * 10);
-        string span = $"approach floor {approachFloor} kt, climb ceiling {climbCeiling} kt";
-        Assert.True(climbCeiling - Math.Max(40, approachFloor) < 50, $"the C172 span is narrow enough to widen ({span})");
-        Assert.True(approachFloor - 20 <= 40, $"the widened C172 floor reaches the 40 kt limit ({span})");
-
-        IReadOnlyList<string> items = AssignSpeedItems(new FakeMenuAircraft { FiledAircraftType = "C172", AltitudeFeet = altitude });
-
-        Assert.Equal("40", items[0]);
-        Assert.Equal($"{climbCeiling + 20}", items[^1]);
-    }
-
-    /// <summary>The texts the Assign speed popup lists for <paramref name="aircraft"/>.</summary>
-    private static IReadOnlyList<string> AssignSpeedItems(FakeMenuAircraft aircraft)
-    {
-        var host = new RecordingMenuHost("");
-        MenuItem? item = MenuCatalog.Get(MenuIds.SpeedAssign).Build(aircraft, Context(), host);
-        Assert.NotNull(item);
-        Click(item);
-        return Assert.Single(host.ListPopups).Items;
-    }
-
     [AvaloniaTheory]
     [InlineData(35000.0, "Altitude (→ FL350)")]
     [InlineData(5000.0, "Altitude (→ 5000)")]
