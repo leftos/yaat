@@ -227,7 +227,8 @@
 - [ ] YAAT-470 Split GroundNavigator.BuildEntryAlignmentArc and TickStraight under the size limits
 - [ ] YAAT-471 Stop on the taxiway centreline at a node-only hold short issued after a turn about
 - [/] YAAT-477 Keep taxi speed through an early arrival at a node joining two collinear segments · release vNext
-- [/] YAAT-480 Judge taildraggers and wide-track twins fairly in the taxiway turn-about gear fit · release vNext
+- [x] YAAT-480 Judge taildraggers and wide-track twins fairly in the taxiway turn-about gear fit · release vNext
+- [ ] YAAT-481 Order in-trail aircraft by progress along the edge during a runway crossing · release vNext
 
 ## Wave 2 — Ground command grammar and dispatch
 
