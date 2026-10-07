@@ -1,5 +1,5 @@
 # radar holding-short
-SWA105 — B738 [disabled]
+SWA105 · B738 [disabled]
 Holding short 30/12 [disabled]
 ---
 Command…

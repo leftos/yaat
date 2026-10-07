@@ -45,6 +45,8 @@ public static class QuickCommandGlyphs
 
     private const string Turn360Path = "M20 12a8 8 0 1 1-3-6.2 M20 4v5h-5";
 
+    private const string RacetrackPath = "M8 6h8a6 6 0 0 1 0 12H8a6 6 0 0 1 0-12z";
+
     /// <summary>Every glyph-bearing catalog action's glyph; an action with no glyph is absent.</summary>
     public static IReadOnlyDictionary<string, QuickCommandGlyph> ById { get; } =
         new Dictionary<string, QuickCommandGlyph>(StringComparer.Ordinal)
@@ -74,7 +76,7 @@ public static class QuickCommandGlyphs
             [MenuIds.SpeedAssign] = Flight(SpeedPath),
             [MenuIds.SpeedFinalApproach] = Flight(SpeedPath),
             [MenuIds.NavigationDirectTo] = Flight("M3 21L16 8 M10 8h6v6 M19 3a2 2 0 1 0 0 4a2 2 0 1 0 0-4"),
-            [MenuIds.HoldPattern] = Flight("M8 6h8a6 6 0 0 1 0 12H8a6 6 0 0 1 0-12z M8 18l-2 3"),
+            [MenuIds.HoldPattern] = Flight(RacetrackPath + " M8 18l-2 3"),
             [MenuIds.ApproachCleared] = Flight("M3 12L21 5 M3 12L21 19 M3 12h18"),
             [MenuIds.ApproachClearedVisual] = Flight("M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z M12 9a3 3 0 1 0 0 6a3 3 0 1 0 0-6"),
             [MenuIds.PatternEnterLeftDownwind] = Pattern(EnterDownwindPath),
@@ -98,9 +100,11 @@ public static class QuickCommandGlyphs
     public static QuickCommandGlyph? For(string catalogId) => ById.GetValueOrDefault(catalogId);
 
     /// <summary>
-    /// The glyphs of the ground point items the point menu's strip shows (Taxi here, Taxi to runway, Push to, Custom
-    /// taxi…), kept apart from <see cref="ById"/> because no quick-command list may hold a point item. Push to shares
-    /// Push back's glyph and Custom taxi… shares Draw taxi route…'s.
+    /// The glyphs of the point items the point menu's strip shows — the ground ones (Taxi here, Taxi to runway, Push to,
+    /// Custom taxi…) and the radar ones (Fly heading, Direct to, Hold left, Hold right, Warp here) — kept apart from
+    /// <see cref="ById"/> because no quick-command list may hold a point item. Push to shares Push back's glyph, Custom
+    /// taxi… Draw taxi route…'s, Fly heading, Direct to and Warp here the aircraft menu's own; the two holds draw the hold
+    /// pattern's racetrack with an arrow on its top leg showing the direction of the turns.
     /// </summary>
     public static IReadOnlyDictionary<string, QuickCommandGlyph> PointById { get; } =
         new Dictionary<string, QuickCommandGlyph>(StringComparer.Ordinal)
@@ -109,14 +113,19 @@ public static class QuickCommandGlyphs
             [MenuIds.PointTaxiToRunway] = Ground("M19 3v18 M3 12h12 M11 8l4 4-4 4"),
             [MenuIds.PointPushTo] = ById[MenuIds.GroundPushback],
             [MenuIds.PointCustomTaxi] = ById[MenuIds.GroundDrawTaxiRoute],
+            [MenuIds.PointFlyHeading] = ById[MenuIds.HeadingFly],
+            [MenuIds.PointDirectTo] = ById[MenuIds.NavigationDirectTo],
+            [MenuIds.PointHoldLeft] = Flight(RacetrackPath + " M14 3l-3 3 3 3"),
+            [MenuIds.PointHoldRight] = Flight(RacetrackPath + " M10 3l3 3-3 3"),
+            [MenuIds.PointWarpHere] = ById[MenuIds.SimControlWarp],
         };
 
-    /// <summary>The glyph of the ground point item <paramref name="pointId"/> (<see cref="PointById"/>).</summary>
-    /// <exception cref="ArgumentException">The id is not a ground point item.</exception>
+    /// <summary>The point item <paramref name="pointId"/>'s glyph (<see cref="PointById"/>).</summary>
+    /// <exception cref="ArgumentException">The id is not a point item with a strip glyph.</exception>
     public static QuickCommandGlyph ForPoint(string pointId) =>
         PointById.TryGetValue(pointId, out QuickCommandGlyph? glyph)
             ? glyph
-            : throw new ArgumentException($"'{pointId}' is not a ground point item with a strip glyph.", nameof(pointId));
+            : throw new ArgumentException($"'{pointId}' is not a point item with a strip glyph.", nameof(pointId));
 
     /// <summary>
     /// Splits <paramref name="entries"/>, a resolved quick-command list in order, into the strip (the first

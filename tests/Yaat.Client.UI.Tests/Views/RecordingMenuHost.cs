@@ -116,6 +116,21 @@ internal sealed class RecordingMenuHost(string input) : IMenuHost
         return CustomTaxiSeed;
     }
 
+    /// <summary>The taxiways every node is answered with, whatever the node; none by default.</summary>
+    public List<string> NodeTaxiways { get; } = [];
+
+    public IReadOnlyList<string> GetNodeTaxiwayNames(GroundNodeDto node) => NodeTaxiways;
+
+    /// <summary>The taxiway every hold-short node is answered with, whatever the node; null by default.</summary>
+    public string? HoldShortTaxiway { get; init; }
+
+    public string? GetHoldShortTaxiwayName(GroundNodeDto node) => HoldShortTaxiway;
+
+    /// <summary>Whether the tug reaches every node, whatever the callsign and node; true by default.</summary>
+    public bool TugReaches { get; init; } = true;
+
+    public bool CanTugReach(string callsign, GroundNodeDto node) => TugReaches;
+
     public void ShowListPopup(IReadOnlyList<object> items, object? selected, Func<object, Task> onPick)
     {
         ListPopups.Add(([.. items.Select(i => i.ToString() ?? "")], selected));

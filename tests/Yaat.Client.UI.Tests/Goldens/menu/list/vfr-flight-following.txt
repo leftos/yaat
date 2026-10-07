@@ -1,5 +1,5 @@
 # list vfr-flight-following
-N302AB — C172 [disabled]
+N302AB · C172 [disabled]
 5,500 ft · 110 kt [disabled]
 ---
 Command…

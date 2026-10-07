@@ -16,6 +16,7 @@ using Yaat.Client.Views.Radar;
 using Yaat.Sim;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Mva;
 using Yaat.Sim.Situation;
 
 namespace Yaat.Client.UI.Tests.Views;
@@ -42,8 +43,51 @@ public class PointMenuViewTests
 
         Assert.NotNull(menu);
         List<string> labels = Labels(menu.Items);
-        Assert.StartsWith("Fly heading ", labels[0]);
+        Assert.Equal([$"{Callsign} · B738 → spot 1", Separator], labels[..2]);
+        Assert.StartsWith("Fly heading ", labels[2]);
         Assert.DoesNotContain("Draw taxi route…", labels);
+    }
+
+    // --- Push route gate --------------------------------------------------------------------
+
+    [AvaloniaFact]
+    public void GroundNode_TugReachable_OffersPushRouteAndPushTo()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        (GroundView view, MainViewModel main) = GroundHarness(ParkedAtStand25());
+        Show(Parent(view));
+
+        ContextMenu? menu = view.BuildNodePointMenu(main.Ground, OakNode("Spot", ReachableSpot).Id, default);
+
+        Assert.NotNull(menu);
+        List<string> labels = Labels(menu.Items);
+        Assert.Contains("Push route…", labels);
+        Assert.Contains($"Push to {ReachableSpot}", labels);
+        Assert.Contains(MenuIds.PointPushTo, StripTags(menu));
+    }
+
+    // The tug planner refuses a move over 2,000 ft, so the named spot farthest from the aircraft is out of reach: neither
+    // Push route… nor Push to is offered there, as text or as an icon.
+    [AvaloniaFact]
+    public void GroundNode_TugUnreachable_OffersNeitherPushRouteNorPushTo()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        AircraftModel ac = ParkedAtStand25();
+        (GroundView view, MainViewModel main) = GroundHarness(ac);
+        Show(Parent(view));
+        GroundNodeDto far = MenuGoldenFixtures
+            .OakLayoutForClient.Nodes.Where(n => (n.Type == "Spot") && !string.IsNullOrEmpty(n.Name))
+            .MaxBy(n => FeetFrom(ac, n))!;
+        Assert.True(FeetFrom(ac, far) > 2000);
+
+        ContextMenu? menu = view.BuildNodePointMenu(main.Ground, far.Id, default);
+
+        Assert.NotNull(menu);
+        List<string> labels = Labels(menu.Items);
+        Assert.Contains("Draw taxi route…", labels);
+        Assert.DoesNotContain("Push route…", labels);
+        Assert.DoesNotContain($"Push to {far.Name}", labels);
+        Assert.DoesNotContain(MenuIds.PointPushTo, StripTags(menu));
     }
 
     [AvaloniaFact]
@@ -71,10 +115,12 @@ public class PointMenuViewTests
         ContextMenu? menu = view.BuildNodePointMenu(main.Ground, OakNode("Spot", "1").Id, default);
 
         Assert.NotNull(menu);
-        MenuItem strip = Assert.IsType<MenuItem>(menu.Items[0]);
+        Assert.Equal($"{Callsign} · B738 → spot 1", Assert.IsType<MenuItem>(menu.Items[0]).Header);
+        Assert.IsType<Avalonia.Controls.Separator>(menu.Items[1]);
+        MenuItem strip = Assert.IsType<MenuItem>(menu.Items[2]);
         Assert.True(QuickCommandStrip.IsStrip(strip));
         Assert.Contains(MenuIds.PointTaxiHere, QuickCommandStrip.Buttons(strip).Select(b => (string)b.Tag!));
-        Assert.IsType<Avalonia.Controls.Separator>(menu.Items[1]);
+        Assert.IsType<Avalonia.Controls.Separator>(menu.Items[3]);
     }
 
     [AvaloniaFact]
@@ -94,11 +140,10 @@ public class PointMenuViewTests
     public void GroundNode_StripHoldsOnlyPointItems()
     {
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
-        GroundNodeDto start = OakNode("Spot", "I30");
-        (GroundView view, MainViewModel main) = GroundHarness(GroundAircraft(new LatLon(start.Latitude, start.Longitude)));
+        (GroundView view, MainViewModel main) = GroundHarness(ParkedAtStand25());
         Show(Parent(view));
 
-        ContextMenu? menu = view.BuildNodePointMenu(main.Ground, OakNode("Spot", "1").Id, default);
+        ContextMenu? menu = view.BuildNodePointMenu(main.Ground, OakNode("Spot", ReachableSpot).Id, default);
 
         Assert.NotNull(menu);
         MenuItem strip = Assert.Single(menu.Items.OfType<MenuItem>(), QuickCommandStrip.IsStrip);
@@ -115,18 +160,42 @@ public class PointMenuViewTests
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
         var main = new MainViewModel(new FakeFilePickerService());
         main.Ground.SetLayoutForTesting(MenuGoldenFixtures.OakLayoutForClient);
-        GroundNodeDto start = OakNode("Spot", "I30");
-        AircraftModel ac = GroundAircraft(new LatLon(start.Latitude, start.Longitude));
+        AircraftModel ac = ParkedAtStand25();
         main.Aircraft.Clear();
         main.Aircraft.Add(ac);
         main.Ground.SelectedAircraft = ac;
         var view = new GroundView { DataContext = main.Ground };
 
-        ContextMenu? menu = view.BuildNodePointMenu(main.Ground, OakNode("Spot", "1").Id, default);
+        ContextMenu? menu = view.BuildNodePointMenu(main.Ground, OakNode("Spot", ReachableSpot).Id, default);
 
         Assert.NotNull(menu);
         Assert.Equal(["Draw taxi route…", "Push route…"], Labels(menu.Items));
     }
+
+    /// <summary>
+    /// A KOAK spot a tug reaches from stand 25 (about 1,000 ft). Spot 1, nearer some stands, sits on taxiway U, where the
+    /// planner refuses to leave an aircraft.
+    /// </summary>
+    internal const string ReachableSpot = "E";
+
+    /// <summary>A parked aircraft at KOAK stand 25, at the stand's heading: <see cref="ReachableSpot"/> is within a tug's reach.</summary>
+    internal static AircraftModel ParkedAtStand25()
+    {
+        GroundNodeDto stand = OakNode("Parking", "25");
+        AircraftModel ac = GroundAircraft(new LatLon(stand.Latitude, stand.Longitude));
+        ac.Heading = new TrueHeading(stand.Heading!.Value);
+        Assert.InRange(FeetFrom(ac, OakNode("Spot", ReachableSpot)), 150, 2000);
+        return ac;
+    }
+
+    private static double FeetFrom(AircraftModel ac, GroundNodeDto node) =>
+        GeoMath.DistanceNm(ac.Position, new LatLon(node.Latitude, node.Longitude)) * GeoMath.FeetPerNm;
+
+    /// <summary>The catalog ids of the menu's strip buttons, in strip order; none without a strip.</summary>
+    private static List<string> StripTags(ContextMenu menu) =>
+        menu.Items.OfType<MenuItem>().FirstOrDefault(QuickCommandStrip.IsStrip) is { } strip
+            ? [.. QuickCommandStrip.Buttons(strip).Select(b => (string)b.Tag!)]
+            : [];
 
     // --- Runway threshold -------------------------------------------------------------------
 
@@ -206,8 +275,75 @@ public class PointMenuViewTests
         ContextMenu menu = view.BuildMapPointMenu(main.Radar, new LatLon(37.60, -121.90), default);
 
         List<string> labels = Labels(menu.Items);
-        Assert.StartsWith("Fly heading ", labels[0]);
+        Assert.Equal($"{Callsign} · B738 → this point", labels[0]);
+        Assert.EndsWith(" from the aircraft", labels[1]);
+        Assert.Equal(Separator, labels[2]);
+        Assert.Contains(labels, l => l.StartsWith("Fly heading ", StringComparison.Ordinal));
         Assert.StartsWith("MVA", labels[^1]);
+    }
+
+    // The header's second row names the point by its FRD, so the radar section leaves out its own FRD row.
+    [AvaloniaFact]
+    public void Map_SelectedWithFrd_HeaderCarriesTheFrdAndTheSectionDropsItsRow()
+    {
+        (RadarView view, MainViewModel main) = RadarHarness();
+        main.Radar.SetFixes([("OAK", 37.7213, -122.2208)]);
+        AircraftModel ac = Airborne(new LatLon(37.50, -121.70));
+        main.Aircraft.Add(ac);
+        main.Radar.SelectedAircraft = ac;
+        var position = new LatLon(37.80, -122.20);
+        string frd = FrdResolver.ToFrd(position.Lat, position.Lon, main.Radar.Fixes!)!;
+
+        ContextMenu menu = view.BuildMapPointMenu(main.Radar, position, default);
+
+        List<string> labels = Labels(menu.Items);
+        Assert.StartsWith($"{frd} · ", labels[1]);
+        Assert.DoesNotContain(frd, labels);
+        Assert.Contains("Copy FRD", labels);
+    }
+
+    [AvaloniaFact]
+    public void Map_NothingSelectedWithFrd_KeepsTheFrdRow()
+    {
+        (RadarView view, MainViewModel main) = RadarHarness();
+        main.Radar.SetFixes([("OAK", 37.7213, -122.2208)]);
+        var position = new LatLon(37.80, -122.20);
+        string frd = FrdResolver.ToFrd(position.Lat, position.Lon, main.Radar.Fixes!)!;
+
+        ContextMenu menu = view.BuildMapPointMenu(main.Radar, position, default);
+
+        List<string> labels = Labels(menu.Items);
+        Assert.Equal([frd, "Copy FRD"], labels[..2]);
+    }
+
+    // --- MVA row ------------------------------------------------------------------------------
+
+    [AvaloniaFact]
+    public void Map_MvaRow_NamesTheFloorAndSector()
+    {
+        (RadarView view, MainViewModel main) = RadarHarness();
+        var koak = new LatLon(37.7213, -122.2208);
+        MvaSector sector = MvaDatabase.Default.FindSector(koak)!;
+        Assert.Equal(2000, sector.FloorFtMsl);
+
+        ContextMenu menu = view.BuildMapPointMenu(main.Radar, koak, default);
+
+        MenuItem row = Assert.IsType<MenuItem>(menu.Items[^1]);
+        Assert.Equal($"MVA 2,000 ft (sector {sector.Sector})", row.Header);
+        Assert.False(row.IsEnabled);
+        Assert.Equal(0.8, row.Opacity);
+    }
+
+    [AvaloniaFact]
+    public void Map_NoMvaData_HasNoMvaRow()
+    {
+        (RadarView view, MainViewModel main) = RadarHarness();
+        var midAtlantic = new LatLon(40.0, -70.0);
+        Assert.Null(MvaDatabase.Default.FindSector(midAtlantic));
+
+        ContextMenu menu = view.BuildMapPointMenu(main.Radar, midAtlantic, default);
+
+        Assert.DoesNotContain(Labels(menu.Items), l => l.StartsWith("MVA", StringComparison.Ordinal));
     }
 
     [AvaloniaFact]
@@ -243,7 +379,10 @@ public class PointMenuViewTests
         Assert.All(labels[..^1], label => Assert.True((label == Separator) || label.StartsWith("Measure", StringComparison.Ordinal), label));
     }
 
-    /// <summary>A ground view over the main view model's primary ground view model with the OAK layout, parented to a host carrying the main view model.</summary>
+    /// <summary>
+    /// A ground view over the main view model's primary ground view model with the OAK layout, parented to a host carrying
+    /// the main view model.
+    /// </summary>
     private static (GroundView View, MainViewModel Main) GroundHarness(AircraftModel? selected)
     {
         var main = new MainViewModel(new FakeFilePickerService());

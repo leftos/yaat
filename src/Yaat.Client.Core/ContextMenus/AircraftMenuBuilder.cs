@@ -1,4 +1,5 @@
 using Avalonia.Controls;
+using Yaat.Sim;
 
 namespace Yaat.Client.ContextMenus;
 
@@ -112,12 +113,16 @@ public static class AircraftMenuBuilder
     ];
 
     /// <summary>
-    /// The menu for a point right-clicked with <paramref name="aircraft"/> selected: the strip of the ground point items
-    /// that apply and a separator (<see cref="AddPointStrip"/>), then the point items by the aircraft's
-    /// predicates — airborne, Fly heading, Direct to, Append direct to and the two holds; at a taxi node, Taxi here, Push
-    /// to and Custom taxi…; on a runway surface, a Taxi to submenu per runway end — then Warp here after a separator,
-    /// then the view section after another. No header, Favorites, command tree, foot or RPO items. Both the strip and the
-    /// text items are built over one <see cref="PointMenuHostCache"/>, so the host answers each point question once.
+    /// The menu for a point right-clicked with <paramref name="aircraft"/> selected: the point header
+    /// (<see cref="SharedMenuGroups.AddPointHeader"/>), the strip of the point items that apply and a separator
+    /// (<see cref="AddPointStrip"/>), then the point items by the aircraft's predicates, then the view section after a
+    /// separator. On a radar point with an airborne aircraft (<see cref="OffersRadarIcons"/>) the strip holds Fly heading,
+    /// Direct to, the two holds and Warp here, and the text items are Fly heading, with its turn row under it
+    /// (<see cref="AddFlyHeadingTurn"/>), and Append direct to. Otherwise the strip holds the ground point items and the
+    /// text items are: airborne, Fly heading, Direct to, Append direct to and the two holds; at a taxi node, Taxi here,
+    /// Push to and Custom taxi…; on a runway surface, a Taxi to submenu per runway end — then Warp here after a separator.
+    /// No Favorites, command tree, foot or RPO items. The header, the strip and the text items are built over one
+    /// <see cref="PointMenuHostCache"/>, so the host answers each point question once.
     /// </summary>
     private static ContextMenu BuildPointMenu(
         IMenuAircraft aircraft,
@@ -128,20 +133,17 @@ public static class AircraftMenuBuilder
     {
         var host = new PointMenuHostCache(realHost);
         var menu = new ContextMenu();
-        AddPointStrip(menu, aircraft, context, host);
-        foreach (string id in PointIds)
+        MenuPoint point = context.Click.Point ?? throw new ArgumentException("The point menu needs a point click.", nameof(context));
+        SharedMenuGroups.AddPointHeader(menu.Items, aircraft, point, context, host);
+        if (OffersRadarIcons(aircraft, point))
         {
-            AddPointItems(menu.Items, id, aircraft, context, host);
+            AddPointStrip(menu, RadarPointStripIds, aircraft, context, host);
+            AddRadarPointItems(menu.Items, aircraft, point, context, host);
         }
-
-        // Warp here is built into a scratch menu first, so its separator goes in only when it builds.
-        var scratch = new ContextMenu();
-        if (SharedMenuGroups.AddIfApplicable(scratch.Items, MenuIds.PointWarpHere, aircraft, context, host))
+        else
         {
-            List<Control> warp = [.. scratch.Items.OfType<Control>()];
-            scratch.Items.Clear();
-            SharedMenuGroups.AddBlockSeparator(menu.Items);
-            SharedMenuGroups.AddRange(menu.Items, warp);
+            AddPointStrip(menu, PointStripIds, aircraft, context, host);
+            AddGroundPointItems(menu.Items, aircraft, context, host);
         }
 
         IReadOnlyList<Control> section = viewSection(context);
@@ -154,20 +156,87 @@ public static class AircraftMenuBuilder
         return menu;
     }
 
+    /// <summary>Whether the point menu offers the radar icons: a radar point clicked with an airborne aircraft that can be commanded.</summary>
+    private static bool OffersRadarIcons(IMenuAircraft aircraft, MenuPoint point) =>
+        SharedMenuGroups.IsRadarPoint(point) && AircraftCommandApplicability.IsAirborneControllable(aircraft);
+
+    /// <summary>The point items in <see cref="PointIds"/> order, then Warp here after a separator when it builds.</summary>
+    private static void AddGroundPointItems(ItemCollection items, IMenuAircraft aircraft, MenuContext context, IMenuHost host)
+    {
+        foreach (string id in PointIds)
+        {
+            AddPointItems(items, id, aircraft, context, host);
+        }
+
+        // Warp here is built into a scratch menu first, so its separator goes in only when it builds.
+        var scratch = new ContextMenu();
+        if (SharedMenuGroups.AddIfApplicable(scratch.Items, MenuIds.PointWarpHere, aircraft, context, host))
+        {
+            List<Control> warp = [.. scratch.Items.OfType<Control>()];
+            scratch.Items.Clear();
+            SharedMenuGroups.AddBlockSeparator(items);
+            SharedMenuGroups.AddRange(items, warp);
+        }
+    }
+
+    /// <summary>
+    /// The radar point menu's text items, the ones its icons do not repeat: Fly heading with its turn row under it, then
+    /// Append direct to, each where its predicate allows it.
+    /// </summary>
+    private static void AddRadarPointItems(ItemCollection items, IMenuAircraft aircraft, MenuPoint point, MenuContext context, IMenuHost host)
+    {
+        if (SharedMenuGroups.AddIfApplicable(items, MenuIds.PointFlyHeading, aircraft, context, host))
+        {
+            AddFlyHeadingTurn(items, aircraft, point);
+        }
+
+        SharedMenuGroups.AddIfApplicable(items, MenuIds.PointAppendDirectTo, aircraft, context, host);
+    }
+
+    /// <summary>
+    /// The dimmed row under the radar point menu's Fly heading: <c>FH {hdg} · {left|right} turn, {n}°</c>, the heading
+    /// the row sends and the shorter turn to it from the aircraft's current heading (made magnetic at its position), in
+    /// whole degrees. Nothing when that turn is under 1°.
+    /// </summary>
+    private static void AddFlyHeadingTurn(ItemCollection items, IMenuAircraft aircraft, MenuPoint point)
+    {
+        var heading = new MagneticHeading(MenuCatalog.PointFlyHeading(aircraft, point));
+        MagneticHeading current = new TrueHeading(aircraft.HeadingDegrees).ToMagnetic(MagneticDeclination.GetDeclination(aircraft.Position));
+        double turn = current.SignedAngleTo(heading);
+        if (Math.Abs(turn) < 1.0)
+        {
+            return;
+        }
+
+        int degrees = (int)Math.Round(Math.Abs(turn), MidpointRounding.AwayFromZero);
+        string direction = (turn < 0) ? "left" : "right";
+        items.Add(SharedMenuGroups.DetailRow($"FH {heading.ToDisplayString()} · {direction} turn, {degrees}°"));
+    }
+
     /// <summary>The ground point items the point menu's strip offers, in strip order.</summary>
     private static readonly string[] PointStripIds = [MenuIds.PointTaxiHere, MenuIds.PointTaxiToRunway, MenuIds.PointPushTo, MenuIds.PointCustomTaxi];
 
+    /// <summary>The point items the radar point menu's strip offers an airborne aircraft, in strip order.</summary>
+    private static readonly string[] RadarPointStripIds =
+    [
+        MenuIds.PointFlyHeading,
+        MenuIds.PointDirectTo,
+        MenuIds.PointHoldLeft,
+        MenuIds.PointHoldRight,
+        MenuIds.PointWarpHere,
+    ];
+
     /// <summary>
-    /// The point menu's icon strip and a separator under it: one button per ground point item that applies, built by
-    /// the same predicates and builders as the text items below (a Taxi to runway per runway end), each with its point
+    /// The point menu's icon strip and a separator under it: one button per item of <paramref name="ids"/> that applies,
+    /// built by the same predicates and builders as the text items (a Taxi to runway per runway end), each with its point
     /// glyph (<see cref="QuickCommandGlyphs.ForPoint"/>). A disabled item (Taxi here's "No route found") gets no button;
-    /// its text row still shows. Nothing when none applies, so an airborne aircraft's point menu has no strip.
+    /// its text row still shows. Nothing when none applies.
     /// </summary>
-    private static void AddPointStrip(ContextMenu menu, IMenuAircraft aircraft, MenuContext context, IMenuHost host)
+    private static void AddPointStrip(ContextMenu menu, string[] ids, IMenuAircraft aircraft, MenuContext context, IMenuHost host)
     {
         List<(QuickCommandStripItem Item, MenuItem Built)> built = [];
         var scratch = new ContextMenu();
-        foreach (string id in PointStripIds)
+        foreach (string id in ids)
         {
             AddPointItems(scratch.Items, id, aircraft, context, host);
             var item = new QuickCommandStripItem(MenuCatalog.Get(id), QuickCommandGlyphs.ForPoint(id));

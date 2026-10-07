@@ -99,7 +99,7 @@ public class ContextMenuBuilderSeamTests
 
         AssertSequence(
             menu,
-            "AAL123 — B738",
+            "AAL123 · B738",
             "Departure",
             "---",
             "Command…",
@@ -149,7 +149,7 @@ public class ContextMenuBuilderSeamTests
 
         AssertSequence(
             menu,
-            "SWA9 — B738",
+            "SWA9 · B738",
             "Departure",
             "---",
             "Command…",
@@ -284,7 +284,7 @@ public class ContextMenuBuilderSeamTests
 
         AssertSequence(
             menu,
-            "UAL100 — B738",
+            "UAL100 · B738",
             "At parking",
             "---",
             "Command…",
@@ -323,7 +323,7 @@ public class ContextMenuBuilderSeamTests
 
         AssertSequence(
             menu,
-            "UAL100 — B738",
+            "UAL100 · B738",
             "Line up and wait",
             "---",
             "Command…",
@@ -372,7 +372,7 @@ public class ContextMenuBuilderSeamTests
 
         AssertSequence(
             menu,
-            "UAL9 — B738",
+            "UAL9 · B738",
             "Departure",
             "---",
             "Command…",

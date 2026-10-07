@@ -1,5 +1,5 @@
 # radar taxiing
-SWA104 — B738 [disabled]
+SWA104 · B738 [disabled]
 Taxiing [disabled]
 ---
 Command…

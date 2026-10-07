@@ -1,5 +1,5 @@
 # radar vfr-departing
-N304AB — C172 [disabled]
+N304AB · C172 [disabled]
 Pattern exit · 1,500 ft · 90 kt · KOAK rwy 28R [disabled]
 ---
 Command…

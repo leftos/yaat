@@ -1,5 +1,5 @@
 # radar delayed-spawn
-AAL501 — B738 [disabled]
+AAL501 · B738 [disabled]
 16,000 ft [disabled]
 ---
 Command…

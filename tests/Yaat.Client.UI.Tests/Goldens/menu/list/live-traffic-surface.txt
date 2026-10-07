@@ -1,5 +1,5 @@
 # list live-traffic-surface
-UAL402 — B738 [disabled]
+UAL402 · B738 [disabled]
 ---
 Command…
 Note…

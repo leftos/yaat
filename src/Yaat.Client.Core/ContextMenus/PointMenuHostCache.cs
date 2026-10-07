@@ -19,6 +19,7 @@ internal sealed class PointMenuHostCache(IMenuHost inner) : IMenuHost
         IReadOnlyList<RunwayHoldShortTarget>
     > _holdShortTargets = [];
     private readonly Dictionary<(int NodeId, string? RunwayEnd), MenuTextSeed> _customTaxiSeeds = [];
+    private readonly Dictionary<(string Callsign, int NodeId), bool> _tugReach = [];
 
     public MenuSession Session => inner.Session;
 
@@ -58,6 +59,22 @@ internal sealed class PointMenuHostCache(IMenuHost inner) : IMenuHost
         }
 
         return seed;
+    }
+
+    public IReadOnlyList<string> GetNodeTaxiwayNames(GroundNodeDto node) => inner.GetNodeTaxiwayNames(node);
+
+    public string? GetHoldShortTaxiwayName(GroundNodeDto node) => inner.GetHoldShortTaxiwayName(node);
+
+    public bool CanTugReach(string callsign, GroundNodeDto node)
+    {
+        (string, int) key = (callsign, node.Id);
+        if (!_tugReach.TryGetValue(key, out bool reaches))
+        {
+            reaches = inner.CanTugReach(callsign, node);
+            _tugReach[key] = reaches;
+        }
+
+        return reaches;
     }
 
     public Task SendAsync(string callsign, string command, string initials) => inner.SendAsync(callsign, command, initials);

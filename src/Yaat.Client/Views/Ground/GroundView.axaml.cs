@@ -426,8 +426,9 @@ public partial class GroundView : UserControl
     /// <summary>
     /// The menu a right-click on taxi node <paramref name="nodeId"/> shows, built without opening it. With an aircraft
     /// selected, the shared point menu at the node (<see cref="BuildPointMenu"/>) carries the aircraft's point items, then
-    /// the ground's node section: the measuring items, then Draw taxi route… and Push route… from the node; with nothing
-    /// selected, the measuring items alone. Null when the node is not in the layout or there is nothing to show.
+    /// the ground's node section: the measuring items, then Draw taxi route… from the node and Push route… when the tug
+    /// planner finds a move there (<see cref="GroundViewModel.CanPushRouteTo"/>); with nothing selected, the measuring
+    /// items alone. Null when the node is not in the layout or there is nothing to show.
     /// </summary>
     internal ContextMenu? BuildNodePointMenu(GroundViewModel vm, int nodeId, Point screenPos)
     {
@@ -446,8 +447,8 @@ public partial class GroundView : UserControl
 
         AddDrawTaxiRouteFrom(section, vm, selected, nodeId);
 
-        // Same gate as the aircraft context menu's pushback items.
-        if (AircraftCommandApplicability.CanPushBack(selected))
+        // The aircraft context menu's pushback gate, and a tug move the planner finds to this node.
+        if (AircraftCommandApplicability.CanPushBack(selected) && vm.CanPushRouteTo(selected, nodeId))
         {
             section.Add(
                 CreateMenuItem(

@@ -235,6 +235,15 @@ internal sealed class ClientMenuHost(MainViewModel main, AircraftModel? aircraft
         return (names.Count > 0) ? new MenuTextSeed($"{taxiPrefix} {names[0]}", taxiPrefix.Length) : new MenuTextSeed(taxiPrefix, taxiPrefix.Length);
     }
 
+    /// <summary>The taxiways at <paramref name="node"/> in the primary ground view model's layout.</summary>
+    public IReadOnlyList<string> GetNodeTaxiwayNames(GroundNodeDto node) => main.Ground.GetNodeTaxiwayNames(node.Id);
+
+    /// <summary>The taxiway the hold-short <paramref name="node"/> sits on in the primary ground view model's layout.</summary>
+    public string? GetHoldShortTaxiwayName(GroundNodeDto node) => main.Ground.GetHoldShortTaxiwayName(node.Id);
+
+    /// <summary>The primary ground view model's tug planner check (<see cref="GroundViewModel.CanPushRouteTo"/>).</summary>
+    public bool CanTugReach(string callsign, GroundNodeDto node) => (FindAircraft(callsign) is { } ac) && main.Ground.CanPushRouteTo(ac, node.Id);
+
     public void ShowListPopup(IReadOnlyList<object> items, object? selected, Func<object, Task> onPick) =>
         MenuPopups.ShowList(anchor, items, selected, onPick);
 

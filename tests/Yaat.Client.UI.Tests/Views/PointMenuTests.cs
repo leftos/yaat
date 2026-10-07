@@ -33,6 +33,8 @@ public class PointMenuTests
 
     // --- Airborne -------------------------------------------------------------------------
 
+    // The icons carry Fly heading, Direct to, the two holds and Warp here; the text rows keep only Fly heading (with its
+    // turn row) and Append direct to.
     [AvaloniaFact]
     public async Task AirbornePoint_OffersHeadingDirectHoldWarp()
     {
@@ -44,28 +46,34 @@ public class PointMenuTests
 
         int heading = ExpectedMagneticHeading(ac.Position, point.Position);
         string fly = $"Fly heading {new MagneticHeading(heading).ToDisplayString()}";
+        List<string> body = Labels(Body(menu));
+        Assert.Equal([Strip, Separator, fly], body[..3]);
+        Assert.StartsWith($"FH {new MagneticHeading(heading).ToDisplayString()} · ", body[3]);
+        Assert.Equal([$"Append direct to {Frd}"], body[4..]);
         Assert.Equal(
-            [fly, $"Direct to {Frd}", $"Append direct to {Frd}", $"Hold at {Frd} (left)", $"Hold at {Frd} (right)", Separator, $"Warp here ({Frd})"],
-            Labels(menu.Items)
+            [MenuIds.PointFlyHeading, MenuIds.PointDirectTo, MenuIds.PointHoldLeft, MenuIds.PointHoldRight, MenuIds.PointWarpHere],
+            StripTags(menu)
         );
 
-        foreach (MenuItem item in menu.Items.OfType<MenuItem>().Take(5))
+        foreach (string id in (string[])[MenuIds.PointFlyHeading, MenuIds.PointDirectTo, MenuIds.PointHoldLeft, MenuIds.PointHoldRight])
         {
-            Click(item);
+            StripButton(menu, id).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         }
+
+        Click(Item(menu.Items, $"Append direct to {Frd}"));
 
         Assert.Equal(
             [
                 (Callsign, $"FH {heading}", "AB"),
                 (Callsign, $"DCT {Frd}", "AB"),
-                (Callsign, $"ADCT {Frd}", "AB"),
                 (Callsign, $"HFIXL {Frd}", "AB"),
                 (Callsign, $"HFIXR {Frd}", "AB"),
+                (Callsign, $"ADCT {Frd}", "AB"),
             ],
             host.Sent
         );
 
-        Click(Item(menu.Items, $"Warp here ({Frd})"));
+        StripButton(menu, MenuIds.PointWarpHere).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         Assert.Equal([(Callsign, Frd, 120, 33000, 280)], host.WarpPopups);
         Func<string, int, int, int, Task>? submit = host.WarpSubmit;
         Assert.NotNull(submit);
@@ -85,9 +93,8 @@ public class PointMenuTests
 
         ContextMenu menu = Build(ac, point, host, _ => []);
 
-        List<string> labels = Labels(menu.Items);
-        Assert.Contains($"Direct to {Frd}", labels);
-        Assert.DoesNotContain($"Append direct to {Frd}", labels);
+        Assert.Contains(MenuIds.PointDirectTo, StripTags(menu));
+        Assert.DoesNotContain($"Append direct to {Frd}", Labels(menu.Items));
     }
 
     // The bearing from KOAK to a point due true north is 000 true; the item flies it as a magnetic heading at the
@@ -119,8 +126,190 @@ public class PointMenuTests
 
         ContextMenu menu = Build(ac, point, host, _ => []);
 
-        string label = Assert.Single(Labels(menu.Items));
-        Assert.StartsWith("Fly heading ", label);
+        List<string> body = Labels(Body(menu));
+        Assert.Equal([Strip, Separator], body[..2]);
+        Assert.StartsWith("Fly heading ", body[2]);
+        Assert.StartsWith("FH ", body[3]);
+        Assert.Equal(4, body.Count);
+        Assert.Equal([MenuIds.PointFlyHeading], StripTags(menu));
+    }
+
+    // A ground aircraft gets no radar icons, so Warp here stays a text row on the radar point menu.
+    [AvaloniaFact]
+    public void RadarPoint_GroundAircraft_KeepsWarpHereAsText()
+    {
+        var point = new MenuPoint(new LatLon(37.6000, -121.9000), null, null, [], null);
+        var host = new RecordingMenuHost("") { PointDescription = Frd };
+
+        ContextMenu menu = Build(GroundAircraft(new LatLon(37.72, -122.22)), point, host, _ => []);
+
+        Assert.Equal([$"Warp here ({Frd})"], Labels(Body(menu)));
+        Assert.DoesNotContain(menu.Items.OfType<MenuItem>(), QuickCommandStrip.IsStrip);
+    }
+
+    // --- Fly heading turn row ---------------------------------------------------------------
+
+    [AvaloniaFact]
+    public void FlyHeadingTurnRow_NamesALeftTurn()
+    {
+        (ContextMenu menu, int heading) = FlyHeadingMenu(currentOffsetDeg: 36);
+
+        MenuItem row = Assert.IsType<MenuItem>(menu.Items[menu.Items.IndexOf(Item(menu.Items, FlyLabel(heading))) + 1]);
+        Assert.Equal($"FH {heading:D3} · left turn, 36°", row.Header);
+        Assert.False(row.IsEnabled);
+        Assert.Equal(0.8, row.Opacity);
+    }
+
+    [AvaloniaFact]
+    public void FlyHeadingTurnRow_NamesARightTurn()
+    {
+        (ContextMenu menu, int heading) = FlyHeadingMenu(currentOffsetDeg: -20);
+
+        Assert.Contains($"FH {heading:D3} · right turn, 20°", Labels(menu.Items));
+    }
+
+    [AvaloniaFact]
+    public void FlyHeadingTurnRow_NoneUnderOneDegree()
+    {
+        (ContextMenu menu, _) = FlyHeadingMenu(currentOffsetDeg: 0.4);
+
+        Assert.DoesNotContain(Labels(menu.Items), l => l.StartsWith("FH ", StringComparison.Ordinal));
+    }
+
+    // --- Header ------------------------------------------------------------------------------
+
+    [AvaloniaFact]
+    public void Header_RadarPoint_NamesTheAircraftThePointAndItsFrdDistanceBearing()
+    {
+        var koak = new LatLon(37.7213, -122.2208);
+        AircraftModel ac = Airborne(koak);
+        var point = new MenuPoint(new LatLon(koak.Lat + 0.15, koak.Lon), null, null, [], null);
+
+        ContextMenu menu = Build(ac, point, new RecordingMenuHost("") { PointDescription = Frd }, _ => []);
+
+        MenuItem title = Assert.IsType<MenuItem>(menu.Items[0]);
+        Assert.Equal($"{Callsign} · B738 → this point", title.Header);
+        Assert.False(title.IsEnabled);
+        Assert.Equal(Avalonia.Media.FontWeight.Bold, title.FontWeight);
+        MenuItem detail = Assert.IsType<MenuItem>(menu.Items[1]);
+        Assert.Equal($"{Frd} · 9 nm, bearing {NorthBearing(koak)} from the aircraft", detail.Header);
+        Assert.False(detail.IsEnabled);
+        Assert.IsType<Avalonia.Controls.Separator>(menu.Items[2]);
+    }
+
+    [AvaloniaFact]
+    public void Header_RadarPointUnderOneMile_ShowsTenths()
+    {
+        var koak = new LatLon(37.7213, -122.2208);
+        var point = new MenuPoint(new LatLon(koak.Lat + 0.005, koak.Lon), null, null, [], null);
+
+        ContextMenu menu = Build(Airborne(koak), point, new RecordingMenuHost("") { PointDescription = Frd }, _ => []);
+
+        Assert.Equal($"{Frd} · 0.3 nm, bearing {NorthBearing(koak)} from the aircraft", Labels(menu.Items)[1]);
+    }
+
+    [AvaloniaFact]
+    public void Header_RadarPointWithoutFrd_ShowsDistanceAndBearingAlone()
+    {
+        var koak = new LatLon(37.7213, -122.2208);
+        var point = new MenuPoint(new LatLon(koak.Lat + 0.15, koak.Lon), null, null, [], null);
+
+        ContextMenu menu = Build(Airborne(koak), point, new RecordingMenuHost(""), _ => []);
+
+        Assert.Equal($"9 nm, bearing {NorthBearing(koak)} from the aircraft", Labels(menu.Items)[1]);
+    }
+
+    [AvaloniaFact]
+    public void Header_HoldShortClick_NamesRunwayAndTaxiway()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        GroundNode holdShort = MenuGoldenFixtures.HoldShort30AtW3(MenuGoldenFixtures.OakDomainLayout);
+        GroundNodeDto node = MenuGoldenFixtures.OakLayoutForClient.Nodes.Single(n => n.Id == holdShort.Id);
+        AircraftModel ac = GroundAircraft(SpotI30());
+        using OakHostScope scope = OakHosts(ac);
+
+        ContextMenu menu = Build(ac, new MenuPoint(new LatLon(node.Latitude, node.Longitude), node, "30", [], null), scope.Host, _ => []);
+
+        Assert.Equal([$"{Callsign} · B738 → HS 30 at W3", Separator], Labels(menu.Items)[..2]);
+    }
+
+    [AvaloniaFact]
+    public void Header_ParkingNode_NamesTheStand()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        GroundNodeDto stand = MenuGoldenFixtures.OakLayoutForClient.Nodes.First(n => (n.Type == "Parking") && !string.IsNullOrEmpty(n.Name));
+        AircraftModel ac = GroundAircraft(SpotI30());
+        using OakHostScope scope = OakHosts(ac);
+
+        ContextMenu menu = Build(ac, new MenuPoint(new LatLon(stand.Latitude, stand.Longitude), stand, null, [], null), scope.Host, _ => []);
+
+        Assert.Equal($"{Callsign} · B738 → parking {stand.Name}", Labels(menu.Items)[0]);
+    }
+
+    [AvaloniaFact]
+    public void Header_SpotNode_NamesTheSpot()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        GroundNodeDto spot = OakNode("Spot", "1");
+        AircraftModel ac = GroundAircraft(SpotI30());
+        using OakHostScope scope = OakHosts(ac);
+
+        ContextMenu menu = Build(ac, new MenuPoint(new LatLon(spot.Latitude, spot.Longitude), spot, null, [], null), scope.Host, _ => []);
+
+        Assert.Equal($"{Callsign} · B738 → spot 1", Labels(menu.Items)[0]);
+    }
+
+    // KOAK's V/W/W4 intersection, where straight edges meet; the fillet tangent node beside it on W4, where straight W4
+    // edges meet the W–W4 fillet arcs; and a T node where the T–RAMP fillet arc starts. Each names every taxiway once,
+    // an arc's names separately, never the arc's joined "W - W4", and never the ramp.
+    [AvaloniaFact]
+    public void Header_TaxiwayNodes_NameEachTaxiwayOnce_FilletArcsSplit()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        AirportGroundLayout domain = MenuGoldenFixtures.OakDomainLayout;
+        GroundNode intersection = domain.Nodes.Values.First(n =>
+            (n.Type == GroundNodeType.TaxiwayIntersection) && TaxiwaysAre(n, ["V", "W", "W4"], [])
+        );
+        GroundNode tangent = domain.Nodes.Values.First(n => TaxiwaysAre(n, ["W4"], ["W", "W4"]));
+        GroundNode rampArc = domain.Nodes.Values.First(n => TaxiwaysAre(n, ["T", "RAMP"], ["T", "RAMP"]));
+        AircraftModel ac = GroundAircraft(SpotI30());
+        using OakHostScope scope = OakHosts(ac);
+
+        Assert.Equal($"{Callsign} · B738 → V / W / W4", Title(intersection));
+        Assert.Equal($"{Callsign} · B738 → W / W4", Title(tangent));
+        Assert.Equal($"{Callsign} · B738 → T", Title(rampArc));
+
+        string Title(GroundNode node)
+        {
+            GroundNodeDto dto = MenuGoldenFixtures.OakLayoutForClient.Nodes.Single(n => n.Id == node.Id);
+            var point = new MenuPoint(new LatLon(dto.Latitude, dto.Longitude), dto, null, [], null);
+            return Labels(Build(ac, point, scope.Host, _ => []).Items)[0];
+        }
+    }
+
+    /// <summary>
+    /// Whether the straight edges at <paramref name="node"/> carry exactly <paramref name="straight"/> and its arcs exactly
+    /// <paramref name="arcs"/>.
+    /// </summary>
+    private static bool TaxiwaysAre(GroundNode node, string[] straight, string[] arcs) =>
+        StraightTaxiways(node).SetEquals(straight) && node.Edges.OfType<GroundArc>().SelectMany(a => a.TaxiwayNames).ToHashSet().SetEquals(arcs);
+
+    /// <summary>The taxiway names of the straight (non-arc) edges at <paramref name="node"/>.</summary>
+    private static HashSet<string> StraightTaxiways(GroundNode node) => [.. node.Edges.Where(e => e is not GroundArc).Select(e => e.TaxiwayName)];
+
+    [AvaloniaFact]
+    public void Header_RunwaySurface_NamesTheRunwaysFirstEnd()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        GroundRunwayDto runway = OakRunway("28R/10L");
+        string end = RunwayIdentifier.ToDisplayDesignator(RunwayIdentifier.Parse(runway.Name).End1);
+        Assert.Contains(end, (string[])["28R", "10L"]);
+        AircraftModel ac = GroundAircraft(SpotI30());
+        using OakHostScope scope = OakHosts(ac);
+
+        ContextMenu menu = Build(ac, SurfacePoint(Midpoint(runway), runway.Name, null), scope.Host, _ => []);
+
+        Assert.Equal([$"{Callsign} · B738 → runway {end}", Separator], Labels(menu.Items)[..2]);
     }
 
     // --- Ground ---------------------------------------------------------------------------
@@ -129,9 +318,8 @@ public class PointMenuTests
     public void GroundNode_OffersTaxiHerePushToCustomTaxiWarpG()
     {
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
-        GroundNodeDto start = OakNode("Spot", "I30");
-        GroundNodeDto spot = OakNode("Spot", "1");
-        AircraftModel ac = GroundAircraft(new LatLon(start.Latitude, start.Longitude));
+        GroundNodeDto spot = OakNode("Spot", PointMenuViewTests.ReachableSpot);
+        AircraftModel ac = PointMenuViewTests.ParkedAtStand25();
         var main = new MainViewModel(new FakeFilePickerService());
         main.Aircraft.Clear();
         main.Aircraft.Add(ac);
@@ -148,17 +336,17 @@ public class PointMenuTests
         IReadOnlyList<MenuCommandChoice> taxi = client.GetTaxiChoices(Callsign, spot, null);
         MenuCommandChoice taxiChoice = Assert.Single(taxi);
         Assert.NotEqual("No route found", taxiChoice.Label);
-        Assert.Equal([Strip, Separator, taxiChoice.Label, "Push to 1", "Custom taxi…", Separator, "Warp here"], Labels(menu.Items));
+        Assert.Equal([Strip, Separator, taxiChoice.Label, "Push to E", "Custom taxi…", Separator, "Warp here"], Labels(Body(menu)));
         Assert.DoesNotContain(Labels(menu.Items), l => l.StartsWith("Fly heading", StringComparison.Ordinal));
 
-        Click(Item(menu.Items, "Push to 1"));
+        Click(Item(menu.Items, "Push to E"));
         Click(Item(menu.Items, "Warp here"));
-        Assert.Equal([(Callsign, "PUSH $1", "AB"), (Callsign, $"WARPG #{spot.Id}", "AB")], host.Sent);
+        Assert.Equal([(Callsign, "PUSH $E", "AB"), (Callsign, $"WARPG #{spot.Id}", "AB")], host.Sent);
 
         Click(Item(menu.Items, "Custom taxi…"));
         HeadlessWindowExtensions.PumpDispatcher();
         TextBox input = FindTextBox(anchor);
-        Assert.Equal("TAXI  $1", input.Text);
+        Assert.Equal("TAXI  $E", input.Text);
         Assert.Equal(5, input.CaretIndex);
     }
 
@@ -256,7 +444,7 @@ public class PointMenuTests
 
         ContextMenu menu = Build(GroundAircraft(new LatLon(37.72, -122.22)), NodePoint(null), host, _ => []);
 
-        Assert.Equal([Strip, Separator, "Custom taxi…", Separator, "Warp here"], Labels(menu.Items));
+        Assert.Equal([Strip, Separator, "Custom taxi…", Separator, "Warp here"], Labels(Body(menu)));
         Assert.Equal([(Callsign, TaxiNode.Id, (string?)null)], host.TaxiChoiceRequests);
     }
 
@@ -268,7 +456,7 @@ public class PointMenuTests
 
         ContextMenu menu = Build(GroundAircraft(new LatLon(37.72, -122.22)), NodePoint(null), host, _ => []);
 
-        Assert.Equal([Strip, Separator, "Taxi via B", "Custom taxi…", Separator, "Warp here"], Labels(menu.Items));
+        Assert.Equal([Strip, Separator, "Taxi via B", "Custom taxi…", Separator, "Warp here"], Labels(Body(menu)));
         Click(Item(menu.Items, "Taxi via B"));
         Assert.Equal([(Callsign, "TAXI B", "AB")], host.Sent);
     }
@@ -282,7 +470,7 @@ public class PointMenuTests
 
         ContextMenu menu = Build(GroundAircraft(new LatLon(37.72, -122.22)), NodePoint(null), host, _ => []);
 
-        Assert.Equal([Strip, Separator, "Taxi here", "Custom taxi…", Separator, "Warp here"], Labels(menu.Items));
+        Assert.Equal([Strip, Separator, "Taxi here", "Custom taxi…", Separator, "Warp here"], Labels(Body(menu)));
         Assert.Equal(["Taxi via A", "Taxi via B"], Labels(Item(menu.Items, "Taxi here").Items));
     }
 
@@ -307,7 +495,7 @@ public class PointMenuTests
 
         ContextMenu menu = Build(GroundAircraft(new LatLon(37.72, -122.22)), NodePoint(null), host, _ => []);
 
-        Assert.Equal([Strip, Separator, "No route found", "Custom taxi…", Separator, "Warp here"], Labels(menu.Items));
+        Assert.Equal([Strip, Separator, "No route found", "Custom taxi…", Separator, "Warp here"], Labels(Body(menu)));
         Assert.False(Item(menu.Items, "No route found").IsEnabled);
         Assert.Equal([MenuIds.PointCustomTaxi], StripTags(menu));
     }
@@ -584,6 +772,35 @@ public class PointMenuTests
         return heading <= 0 ? 360 : heading;
     }
 
+    /// <summary>
+    /// The point menu at a radar point due north of KOAK with an airborne aircraft there whose current heading is
+    /// <paramref name="currentOffsetDeg"/> right of (negative: left of) the heading Fly heading sends, and that heading.
+    /// </summary>
+    private static (ContextMenu Menu, int Heading) FlyHeadingMenu(double currentOffsetDeg)
+    {
+        var koak = new LatLon(37.7213, -122.2208);
+        AircraftModel ac = Airborne(koak);
+        var point = new MenuPoint(new LatLon(koak.Lat + 0.15, koak.Lon), null, null, [], null);
+        int heading = ExpectedMagneticHeading(ac.Position, point.Position);
+        ac.Heading = new MagneticHeading(heading + currentOffsetDeg).ToTrue(MagneticDeclination.GetDeclination(koak));
+        return (Build(ac, point, new RecordingMenuHost(""), _ => []), heading);
+    }
+
+    private static string FlyLabel(int heading) => $"Fly heading {new MagneticHeading(heading).ToDisplayString()}";
+
+    /// <summary>True north from <paramref name="from"/> as a magnetic bearing at its variation, three digits.</summary>
+    private static string NorthBearing(LatLon from) => new TrueHeading(0).ToMagnetic(MagneticDeclination.GetDeclination(from)).ToDisplayString();
+
+    /// <summary>The point menu's items after its header: the title, the radar detail row when there is one, and the separator.</summary>
+    private static List<object?> Body(ContextMenu menu)
+    {
+        List<object?> items = [.. menu.Items];
+        int separator = items.FindIndex(i => i is Avalonia.Controls.Separator);
+        Assert.InRange(separator, 1, 2);
+        Assert.False(Assert.IsType<MenuItem>(items[0]).IsEnabled);
+        return items[(separator + 1)..];
+    }
+
     /// <summary>An unnamed taxiway intersection, the node the recording-host Taxi here tests click; its choices are the host's.</summary>
     private static GroundNodeDto TaxiNode { get; } = new(7, 37.7210, -122.2200, "TaxiwayIntersection", null, null, null);
 
@@ -638,6 +855,7 @@ public class PointMenuTests
     /// </summary>
     private sealed class OakHostScope : IDisposable
     {
+        public required MainViewModel Main { get; init; }
         public required ClientMenuHost Client { get; init; }
         public required SendCapturingHost Host { get; init; }
         public required Window Window { get; init; }
@@ -661,6 +879,7 @@ public class PointMenuTests
         var client = new ClientMenuHost(main, ac, anchor);
         return new OakHostScope
         {
+            Main = main,
             Client = client,
             Host = new SendCapturingHost(client, "AB"),
             Window = window,

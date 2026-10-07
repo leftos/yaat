@@ -1,5 +1,5 @@
 # list pattern-ifr
-AAL206 — B738 [disabled]
+AAL206 · B738 [disabled]
 Downwind · 1,500 ft · 180 kt · KOAK rwy 30 [disabled]
 ---
 Command…

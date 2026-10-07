@@ -1041,21 +1041,23 @@ public static class MenuCatalog
     private static bool AtNodePushable(IMenuAircraft? aircraft, MenuContext context) =>
         (context.Click.Point?.Node is { Type: "Parking" or "Spot", Name: not null }) && AircraftCommandApplicability.CanPushBack(aircraft);
 
-    /// <summary>
-    /// Fly heading to the point: the true bearing from the aircraft to it, made magnetic with the variation at the
-    /// aircraft's position and rounded to five degrees, a zero or negative one flown as 360.
-    /// </summary>
+    /// <summary>Fly heading to the point (<see cref="PointFlyHeading"/>).</summary>
     private static MenuItem BuildPointFlyHeading(IMenuAircraft aircraft, MenuPoint point, MenuContext context, IMenuHost host)
+    {
+        int heading = PointFlyHeading(aircraft, point);
+        return BuildSend($"Fly heading {new MagneticHeading(heading).ToDisplayString()}", $"FH {heading}", context, host);
+    }
+
+    /// <summary>
+    /// The heading the point menu's Fly heading sends: the true bearing from the aircraft to the point, made magnetic with
+    /// the variation at the aircraft's position and rounded to five degrees, a zero or negative one flown as 360.
+    /// </summary>
+    internal static int PointFlyHeading(IMenuAircraft aircraft, MenuPoint point)
     {
         double trueBearing = GeoMath.BearingTo(aircraft.Position, point.Position);
         double magnetic = new TrueHeading(trueBearing).ToMagnetic(MagneticDeclination.GetDeclination(aircraft.Position)).Degrees;
         int heading = (int)(Math.Round(magnetic / HeadingStep) * HeadingStep);
-        if (heading <= 0)
-        {
-            heading = 360;
-        }
-
-        return BuildSend($"Fly heading {new MagneticHeading(heading).ToDisplayString()}", $"FH {heading}", context, host);
+        return (heading <= 0) ? 360 : heading;
     }
 
     /// <summary>An item naming the point by the host's fix-radial-distance and sending <paramref name="verb"/> with it; null without one.</summary>
@@ -1133,9 +1135,12 @@ public static class MenuCatalog
         return (endItem.Items.Count > 0) ? endItem : null;
     }
 
-    /// <summary>Push to the clicked named spot (<c>PUSH $SPOT</c>) or stand (<c>PUSH @STAND</c>).</summary>
+    /// <summary>
+    /// Push to the clicked named spot (<c>PUSH $SPOT</c>) or stand (<c>PUSH @STAND</c>); null when the tug cannot reach it
+    /// (<see cref="IMenuHost.CanTugReach"/>).
+    /// </summary>
     private static MenuItem? BuildPointPushTo(IMenuAircraft aircraft, MenuPoint point, MenuContext context, IMenuHost host) =>
-        point.Node is { Type: "Parking" or "Spot", Name: { } name } node
+        (point.Node is { Type: "Parking" or "Spot", Name: { } name } node) && host.CanTugReach(context.Callsign, node)
             ? BuildSend($"Push to {name}", $"PUSH {((node.Type == "Spot") ? '$' : '@')}{name}", context, host)
             : null;
 

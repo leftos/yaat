@@ -1,5 +1,5 @@
 # ground go-around-vfr
-N309AB — C172 [disabled]
+N309AB · C172 [disabled]
 Go around · 600 ft · 90 kt · KOAK rwy 28R [disabled]
 ---
 Command…

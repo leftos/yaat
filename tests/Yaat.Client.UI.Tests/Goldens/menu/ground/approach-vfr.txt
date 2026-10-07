@@ -1,5 +1,5 @@
 # ground approach-vfr
-N305AB — C172 [disabled]
+N305AB · C172 [disabled]
 Approach · 2,500 ft · 90 kt · KOAK rwy 28R [disabled]
 ---
 Command…

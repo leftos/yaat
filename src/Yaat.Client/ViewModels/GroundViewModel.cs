@@ -878,6 +878,11 @@ public partial class GroundViewModel : ObservableObject
 
     public GroundNodeDto? GetNode(int nodeId) => Layout?.Nodes.Find(n => n.Id == nodeId);
 
+    /// <summary>
+    /// The taxiways meeting at <paramref name="nodeId"/>, each once, in edge order: a straight edge's name, and each name
+    /// a fillet arc joins (never the arc's joined <c>"W - W4"</c>), leaving out runway centerlines and the ramp. Empty
+    /// when the node is not in the layout.
+    /// </summary>
     public List<string> GetNodeTaxiwayNames(int nodeId)
     {
         if (_domainLayout is null || !_domainLayout.Nodes.TryGetValue(nodeId, out GroundNode? node))
@@ -886,16 +891,28 @@ public partial class GroundViewModel : ObservableObject
         }
 
         var names = new List<string>();
-        foreach (IGroundEdge edge in node.Edges)
+        foreach (IGroundEdge edge in node.Edges.Where(e => !e.IsRunwayCenterline))
         {
-            if (!edge.IsRunwayCenterline && !edge.IsRamp && !names.Contains(edge.TaxiwayName))
+            string[] edgeNames = (edge is GroundArc arc) ? arc.TaxiwayNames : [edge.TaxiwayName];
+            foreach (string name in edgeNames)
             {
-                names.Add(edge.TaxiwayName);
+                if (IsTaxiwayName(name) && !names.Contains(name))
+                {
+                    names.Add(name);
+                }
             }
         }
 
         return names;
     }
+
+    /// <summary>
+    /// Whether an edge or arc name is a taxiway's: not the ramp and not a runway centerline (the rule
+    /// <see cref="IGroundEdge.IsRunwayCenterline"/> applies to a straight edge, here to each name a fillet arc joins).
+    /// </summary>
+    private static bool IsTaxiwayName(string name) =>
+        !string.Equals(name, "RAMP", StringComparison.OrdinalIgnoreCase)
+        && !(name.StartsWith("RWY", StringComparison.OrdinalIgnoreCase) && !name.Contains(":link"));
 
     // --- Command methods ---
 
@@ -2751,23 +2768,59 @@ public partial class GroundViewModel : ObservableObject
             return;
         }
 
-        (List<TugGoal>? goals, double? finalFacingTrueDeg, string? goalRefusal) = ResolvePushPreviewGoals(_domainLayout, _drawAircraft, targets);
+        (PushRoutePreview, PushRouteRefusal) = PlanPushMove(_domainLayout, _drawAircraft, targets);
+    }
+
+    /// <summary>
+    /// Whether the tug planner finds a move for <paramref name="aircraft"/> from where it stands to node
+    /// <paramref name="nodeId"/> as the one target — the plan Push route… would preview after a click there. False when
+    /// the node is not in the layout, the plan is refused, or the planner throws (logged).
+    /// </summary>
+    public bool CanPushRouteTo(AircraftModel aircraft, int nodeId)
+    {
+        if ((_domainLayout is null) || !_domainLayout.Nodes.TryGetValue(nodeId, out GroundNode? node))
+        {
+            return false;
+        }
+
+        try
+        {
+            return PlanPushMove(_domainLayout, aircraft, [PushTargetFor(node, null)]).Plan is not null;
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(
+                ex,
+                "Push route gate: planning a tug move for {Callsign} to node {NodeId} threw, so Push route… is not offered",
+                aircraft.Callsign,
+                nodeId
+            );
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Plans a tug move for <paramref name="aircraft"/> through <paramref name="targets"/>: resolves their goals
+    /// (<see cref="ResolvePushPreviewGoals"/>), then plans from where the aircraft stands (<see cref="PlanPushPreview"/>).
+    /// </summary>
+    /// <returns>The plan and no refusal, or no plan and the refusal.</returns>
+    private (TugPlan? Plan, string? Refusal) PlanPushMove(AirportGroundLayout layout, AircraftModel aircraft, List<PushDestination> targets)
+    {
+        (List<TugGoal>? goals, double? finalFacingTrueDeg, string? goalRefusal) = ResolvePushPreviewGoals(layout, aircraft, targets);
         if (goals is null)
         {
-            PushRoutePreview = null;
-            PushRouteRefusal = goalRefusal;
-            return;
+            return (null, goalRefusal);
         }
 
         // The neighbours are chosen by the same body the simulation plans the executed move with, from the aircraft
         // the server's world holds, so a push the server would refuse for a neighbour shows that refusal here.
-        TugNeighbourCandidate subject = TugCandidateOf(_drawAircraft);
+        TugNeighbourCandidate subject = TugCandidateOf(aircraft);
         List<TugNeighbourCandidate> others = ServerWorldCandidates();
         var request = new TugRequest
         {
-            Start = new TugPose(_drawAircraft.Position, _drawAircraft.Heading.Degrees),
-            StartsAtStand = _drawAircraft.CurrentPhase == "At Parking",
-            AircraftType = _drawAircraft.AircraftType,
+            Start = new TugPose(aircraft.Position, aircraft.Heading.Degrees),
+            StartsAtStand = aircraft.CurrentPhase == "At Parking",
+            AircraftType = aircraft.AircraftType,
             Goals = goals,
             ParkedNeighbours = TugParkedNeighbours.Build(subject, others),
             FinalFacingTrueDeg = finalFacingTrueDeg,
@@ -2775,7 +2828,7 @@ public partial class GroundViewModel : ObservableObject
             Forced = false,
         };
 
-        (PushRoutePreview, PushRouteRefusal) = PlanPushPreview(_domainLayout, request, subject, others);
+        return PlanPushPreview(layout, request, subject, others);
     }
 
     /// <summary>

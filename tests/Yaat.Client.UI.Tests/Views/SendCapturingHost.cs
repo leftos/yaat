@@ -39,6 +39,12 @@ internal sealed class SendCapturingHost(IMenuHost inner, string sessionInitials)
 
     public MenuTextSeed GetCustomTaxiSeed(GroundNodeDto node, string? runwayEnd) => inner.GetCustomTaxiSeed(node, runwayEnd);
 
+    public IReadOnlyList<string> GetNodeTaxiwayNames(GroundNodeDto node) => inner.GetNodeTaxiwayNames(node);
+
+    public string? GetHoldShortTaxiwayName(GroundNodeDto node) => inner.GetHoldShortTaxiwayName(node);
+
+    public bool CanTugReach(string callsign, GroundNodeDto node) => inner.CanTugReach(callsign, node);
+
     public void ShowListPopup(IReadOnlyList<object> items, object? selected, Func<object, Task> onPick) =>
         inner.ShowListPopup(items, selected, onPick);
 

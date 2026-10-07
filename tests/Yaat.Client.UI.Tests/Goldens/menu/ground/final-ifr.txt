@@ -1,5 +1,5 @@
 # ground final-ifr
-AAL207 — B738 [disabled]
+AAL207 · B738 [disabled]
 Final · 1,500 ft · 180 kt · KOAK rwy 30 [disabled]
 ---
 Command…

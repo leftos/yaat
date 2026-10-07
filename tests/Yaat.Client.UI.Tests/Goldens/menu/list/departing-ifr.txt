@@ -1,5 +1,5 @@
 # list departing-ifr
-AAL201 — B738 [disabled]
+AAL201 · B738 [disabled]
 Departure · 3,000 ft · 180 kt · KLAX rwy 30 [disabled]
 ---
 Command…

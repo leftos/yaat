@@ -60,6 +60,24 @@ public interface IMenuHost
     MenuTextSeed GetCustomTaxiSeed(GroundNodeDto node, string? runwayEnd);
 
     /// <summary>
+    /// The taxiways meeting at <paramref name="node"/>, each once, leaving out runway centerlines and the ramp, which the
+    /// point menu's title names a taxi node by; empty when the node is not in the surface's ground layout.
+    /// </summary>
+    IReadOnlyList<string> GetNodeTaxiwayNames(GroundNodeDto node);
+
+    /// <summary>
+    /// The taxiway the hold-short <paramref name="node"/> sits on, which the point menu's title names a hold short by;
+    /// null when the node is not in the surface's ground layout or no named taxiway leads to it.
+    /// </summary>
+    string? GetHoldShortTaxiwayName(GroundNodeDto node);
+
+    /// <summary>
+    /// Whether the tug planner finds a move for <paramref name="callsign"/> from where it stands to
+    /// <paramref name="node"/>, which the point menu's Push to needs; false when the aircraft or the node is not found.
+    /// </summary>
+    bool CanTugReach(string callsign, GroundNodeDto node);
+
+    /// <summary>
     /// Opens the surface's list popup over <paramref name="items"/>, with <paramref name="selected"/> (or the item
     /// closest to it) highlighted when it is not null, and hands the picked item to <paramref name="onPick"/>.
     /// </summary>

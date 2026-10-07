@@ -1,5 +1,5 @@
 # radar holding-on-ground
-SWA103 — B738 [disabled]
+SWA103 · B738 [disabled]
 Holding in position [disabled]
 ---
 Command…

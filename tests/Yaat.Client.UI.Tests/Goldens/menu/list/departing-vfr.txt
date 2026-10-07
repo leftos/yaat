@@ -1,5 +1,5 @@
 # list departing-vfr
-N301AB — C172 [disabled]
+N301AB · C172 [disabled]
 Departure · 1,500 ft · 90 kt · KOAK rwy 28R [disabled]
 ---
 Command…

@@ -1,6 +1,9 @@
 using System.Globalization;
 using Avalonia.Controls;
 using Avalonia.Media;
+using Yaat.Client.Services;
+using Yaat.Sim;
+using Yaat.Sim.Data.Airport;
 
 namespace Yaat.Client.ContextMenus;
 
@@ -115,9 +118,123 @@ public static class SharedMenuGroups
         items.Add(new Separator());
     }
 
-    /// <summary>The header title: <c>{callsign} — {type}</c>, or the bare callsign when there is no aircraft model or no type.</summary>
+    /// <summary>The header title: <c>{callsign} · {type}</c>, or the bare callsign when there is no aircraft model or no type.</summary>
     private static string HeaderTitle(IMenuAircraft? aircraft, string callsign) =>
-        ((aircraft is null) || string.IsNullOrWhiteSpace(aircraft.DisplayAircraftType)) ? callsign : $"{callsign} — {aircraft.DisplayAircraftType}";
+        ((aircraft is null) || string.IsNullOrWhiteSpace(aircraft.DisplayAircraftType)) ? callsign : $"{callsign} · {aircraft.DisplayAircraftType}";
+
+    /// <summary>
+    /// The header a point menu opens with: the bold, disabled title <c>{callsign} · {type} → {place}</c>
+    /// (<see cref="PointPlace"/>), then on a radar point (<see cref="IsRadarPoint"/>) a dimmed row naming the point from the
+    /// aircraft (<see cref="RadarPointDetail"/>), then a separator.
+    /// </summary>
+    public static void AddPointHeader(ItemCollection items, IMenuAircraft aircraft, MenuPoint point, MenuContext context, IMenuHost host)
+    {
+        items.Add(
+            new MenuItem
+            {
+                Header = $"{HeaderTitle(aircraft, context.Callsign)} → {PointPlace(point, host)}",
+                IsEnabled = false,
+                FontWeight = FontWeight.Bold,
+            }
+        );
+        if (IsRadarPoint(point))
+        {
+            items.Add(DetailRow(RadarPointDetail(aircraft, point, host)));
+        }
+
+        items.Add(new Separator());
+    }
+
+    /// <summary>Whether <paramref name="point"/> is a radar map point: no taxi node and no runway surface under it.</summary>
+    public static bool IsRadarPoint(MenuPoint point) => (point.Node is null) && (point.SurfaceRunways.Count == 0);
+
+    /// <summary>
+    /// Whether the point menu's header names <paramref name="point"/> by its fix-radial-distance: a radar point the host
+    /// can describe.
+    /// </summary>
+    public static bool PointHeaderShowsFrd(MenuPoint point, IMenuHost host) =>
+        IsRadarPoint(point) && (host.DescribePoint(point.Position) is not null);
+
+    /// <summary>A disabled, dimmed label row under a header or an item.</summary>
+    public static MenuItem DetailRow(string header) =>
+        new()
+        {
+            Header = header,
+            IsEnabled = false,
+            FontSize = 11,
+            Opacity = 0.8,
+        };
+
+    /// <summary>
+    /// What the point menu's title says the click lands on: at a taxi node, <see cref="NodePlace"/>; on a runway surface,
+    /// <c>runway {designator}</c> for the first runway's first end; anywhere else <c>this point</c>.
+    /// </summary>
+    private static string PointPlace(MenuPoint point, IMenuHost host)
+    {
+        if (point.Node is { } node)
+        {
+            return NodePlace(node, point.RunwayEnd, host);
+        }
+
+        if (point.SurfaceRunways.Count > 0)
+        {
+            return $"runway {RunwayIdentifier.ToDisplayDesignator(RunwayIdentifier.Parse(point.SurfaceRunways[0]).End1)}";
+        }
+
+        return ThisPoint;
+    }
+
+    private const string ThisPoint = "this point";
+
+    /// <summary>
+    /// A taxi node's place: a hold-short node a threshold click resolved to, <c>HS {runway} at {taxiway}</c> (or
+    /// <c>HS {runway}</c> when the node sits on no named taxiway); a named stand, <c>parking {name}</c>; a named spot,
+    /// <c>spot {name}</c>; any other node, the taxiways meeting at it, ordinal-sorted and joined with <c> / </c>, or
+    /// <c>this point</c> when none does.
+    /// </summary>
+    private static string NodePlace(GroundNodeDto node, string? runwayEnd, IMenuHost host)
+    {
+        if ((node.Type == "RunwayHoldShort") && (runwayEnd is not null))
+        {
+            string runway = RunwayIdentifier.ToDisplayDesignator(runwayEnd);
+            return host.GetHoldShortTaxiwayName(node) is { Length: > 0 } taxiway ? $"HS {runway} at {taxiway}" : $"HS {runway}";
+        }
+
+        switch (node)
+        {
+            case { Type: "Parking", Name: { Length: > 0 } stand }:
+                return $"parking {stand}";
+            case { Type: "Spot", Name: { Length: > 0 } spot }:
+                return $"spot {spot}";
+        }
+
+        List<string> taxiways = [.. host.GetNodeTaxiwayNames(node).Order(StringComparer.Ordinal)];
+        return (taxiways.Count > 0) ? string.Join(" / ", taxiways) : ThisPoint;
+    }
+
+    /// <summary>
+    /// The radar point menu's second header row: <c>{FRD} · {d} nm, bearing {brg} from the aircraft</c>, or without the
+    /// FRD when the host cannot name the point. The distance is great-circle, whole nm, one decimal under 1 nm; the
+    /// bearing is magnetic, at the variation of the aircraft's position, as three digits.
+    /// </summary>
+    private static string RadarPointDetail(IMenuAircraft aircraft, MenuPoint point, IMenuHost host)
+    {
+        double distanceNm = GeoMath.DistanceNm(aircraft.Position, point.Position);
+        MagneticHeading bearing = new TrueHeading(GeoMath.BearingTo(aircraft.Position, point.Position)).ToMagnetic(
+            MagneticDeclination.GetDeclination(aircraft.Position)
+        );
+        string fromAircraft = $"{FormatDistanceNm(distanceNm)} nm, bearing {bearing.ToDisplayString()} from the aircraft";
+        return host.DescribePoint(point.Position) is { } frd ? $"{frd} · {fromAircraft}" : fromAircraft;
+    }
+
+    /// <summary>A distance in nm as the radar point header shows it: one decimal while it rounds under 1 nm, else whole nm.</summary>
+    private static string FormatDistanceNm(double distanceNm)
+    {
+        double tenths = Math.Round(distanceNm, 1, MidpointRounding.AwayFromZero);
+        return (tenths < 1.0)
+            ? tenths.ToString("0.0", CultureInfo.InvariantCulture)
+            : Math.Round(distanceNm, MidpointRounding.AwayFromZero).ToString("0", CultureInfo.InvariantCulture);
+    }
 
     /// <summary>
     /// The header's one-line state row: what the aircraft is doing now, as segments joined with <c> · </c>. A landing

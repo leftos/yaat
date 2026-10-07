@@ -1,3 +1,4 @@
+using System.Globalization;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -206,15 +207,15 @@ public partial class RadarView
     /// <summary>
     /// The menu a right-click on empty map at <paramref name="position"/> shows, built without opening it. With an
     /// aircraft selected, the shared point menu (<see cref="AircraftMenuBuilder"/> with the clicked position) carries the
-    /// aircraft's point items, then the radar's point section (<see cref="BuildMapPointSection"/>); with nothing selected,
-    /// or without a main view model (logged), the point section alone.
+    /// aircraft's point header and items, then the radar's point section (<see cref="BuildMapPointSection"/>), without
+    /// its FRD row when the header already names the point by it; with nothing selected, or without a main view model
+    /// (logged), the point section alone.
     /// </summary>
     internal ContextMenu BuildMapPointMenu(RadarViewModel vm, LatLon position, Point screenPos)
     {
-        List<Control> section = BuildMapPointSection(vm, position, screenPos);
         if (vm.SelectedAircraft is not { } selected)
         {
-            return MenuOf(section);
+            return MenuOf(BuildMapPointSection(vm, position, screenPos, withFrdRow: true));
         }
 
         if (FindMainViewModel() is not { } main)
@@ -223,55 +224,67 @@ public partial class RadarView
                 "Map right-click with {Callsign} selected: the radar view has no main view model, so only the map items open",
                 selected.Callsign
             );
-            return MenuOf(section);
+            return MenuOf(BuildMapPointSection(vm, position, screenPos, withFrdRow: true));
         }
 
         var host = new ClientMenuHost(main, selected, Canvas);
-        var click = new MenuClick(selected.Callsign, null, new MenuPoint(position, null, null, [], null), []);
+        var point = new MenuPoint(position, null, null, [], null);
+        List<Control> section = BuildMapPointSection(vm, position, screenPos, withFrdRow: !SharedMenuGroups.PointHeaderShowsFrd(point, host));
+        var click = new MenuClick(selected.Callsign, null, point, []);
         return AircraftMenuBuilder.Build(selected, click, host, _ => section);
     }
 
     /// <summary>
-    /// The radar's point section for a map right-click at <paramref name="position"/>: the point's FRD row, Copy FRD
-    /// and the scope-marker pins when the fixes name the point, the measuring tool's items, then the charted MVA there.
+    /// The radar's point section for a map right-click at <paramref name="position"/>: the point's FRD row (when
+    /// <paramref name="withFrdRow"/>), Copy FRD and the scope-marker pins when the fixes name the point, the measuring
+    /// tool's items, then the charted MVA there (<see cref="MvaRow"/>), left out where no MVA sector covers the point.
     /// </summary>
-    private List<Control> BuildMapPointSection(RadarViewModel vm, LatLon position, Point screenPos)
+    private List<Control> BuildMapPointSection(RadarViewModel vm, LatLon position, Point screenPos, bool withFrdRow)
     {
         List<Control> items = [];
         string? frdString = (vm.Fixes is { } fixes) ? FrdResolver.ToFrd(position.Lat, position.Lon, fixes) : null;
         if (frdString is not null)
         {
-            AddFrdItems(items, vm, position, frdString);
+            AddFrdItems(items, vm, position, frdString, withFrdRow);
         }
 
         AddMeasureMenuItems(items, vm, RblEndpoint.AtPoint(position, frdString ?? ""), screenPos);
 
         // MVA at the clicked point (FAA-charted; only the loaded facility's coverage, null elsewhere).
-        MvaSector? mvaSector = MvaDatabase.Default.FindSector(position);
-        items.Add(
-            new MenuItem
-            {
-                Header = mvaSector is null ? "MVA: no data here" : $"MVA {mvaSector.FloorFtMsl} ft ({mvaSector.Sector})",
-                IsEnabled = false,
-            }
-        );
+        if (MvaDatabase.Default.FindSector(position) is { } mvaSector)
+        {
+            items.Add(SharedMenuGroups.DetailRow(MvaRow(mvaSector)));
+        }
+
         return items;
     }
 
-    /// <summary>
-    /// The point's <paramref name="frd"/> as a bold row, Copy FRD, then the scope-marker pins (CRC ".ff"/".marker"): pin
-    /// one here, remove the one near the click, clear them all; then a separator.
-    /// </summary>
-    private void AddFrdItems(List<Control> items, RadarViewModel vm, LatLon position, string frd)
+    /// <summary>The MVA row's text: <c>MVA 3,000 ft (sector 9)</c>, or <c>MVA 3,000 ft</c> for a sector with no name.</summary>
+    private static string MvaRow(MvaSector sector)
     {
-        items.Add(
-            new MenuItem
-            {
-                Header = frd,
-                IsEnabled = false,
-                FontWeight = Avalonia.Media.FontWeight.Bold,
-            }
-        );
+        string floor = sector.FloorFtMsl.ToString("N0", CultureInfo.InvariantCulture);
+        return string.IsNullOrWhiteSpace(sector.Sector) ? $"MVA {floor} ft" : $"MVA {floor} ft (sector {sector.Sector})";
+    }
+
+    /// <summary>
+    /// The point's <paramref name="frd"/> as a bold row (when <paramref name="withFrdRow"/>), Copy FRD, then the
+    /// scope-marker pins (CRC ".ff"/".marker"): pin one here, remove the one near the click, clear them all; then a
+    /// separator.
+    /// </summary>
+    private void AddFrdItems(List<Control> items, RadarViewModel vm, LatLon position, string frd, bool withFrdRow)
+    {
+        if (withFrdRow)
+        {
+            items.Add(
+                new MenuItem
+                {
+                    Header = frd,
+                    IsEnabled = false,
+                    FontWeight = Avalonia.Media.FontWeight.Bold,
+                }
+            );
+        }
+
         items.Add(
             CreateMenuItem(
                 "Copy FRD",

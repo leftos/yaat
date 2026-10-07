@@ -39,7 +39,7 @@ public class MenuHeaderTests
 
         MenuItem title = Assert.IsType<MenuItem>(Header(ac, new RecordingMenuHost(""))[0]);
 
-        Assert.Equal("SWA104 — B739", title.Header as string);
+        Assert.Equal("SWA104 · B739", title.Header as string);
         Assert.False(title.IsEnabled);
         Assert.Equal(FontWeight.Bold, title.FontWeight);
     }
@@ -49,7 +49,7 @@ public class MenuHeaderTests
     {
         MenuItem title = Assert.IsType<MenuItem>(Header(Jet(), new RecordingMenuHost(""))[0]);
 
-        Assert.Equal("SWA104 — B738", title.Header as string);
+        Assert.Equal("SWA104 · B738", title.Header as string);
     }
 
     [AvaloniaFact]
@@ -185,7 +185,7 @@ public class MenuHeaderTests
 
         List<string> items = [.. Header(ac, new RecordingMenuHost("")).Select(Describe)];
 
-        Assert.Equal(["SWA104 — B738", "Taxiing · W3 · KOAK", "---", "Command…"], items[..4]);
+        Assert.Equal(["SWA104 · B738", "Taxiing · W3 · KOAK", "---", "Command…"], items[..4]);
     }
 
     [AvaloniaFact]
@@ -196,7 +196,7 @@ public class MenuHeaderTests
 
         List<string> items = [.. Header(ac, new RecordingMenuHost("")).Select(Describe)];
 
-        Assert.Equal(["SWA104 — B738", "Taxiing", "Held: position", "---", "Command…", "Note…", "---"], items);
+        Assert.Equal(["SWA104 · B738", "Taxiing", "Held: position", "---", "Command…", "Note…", "---"], items);
     }
 
     [AvaloniaFact]
@@ -396,7 +396,7 @@ public class MenuHeaderTests
     {
         List<string> items = TopLevel(view, "taxiing", out ContextMenu _);
 
-        Assert.Equal(["SWA104 — B738", "Taxiing", "---", "Command…", "Note…", "---"], items[..6]);
+        Assert.Equal(["SWA104 · B738", "Taxiing", "---", "Command…", "Note…", "---"], items[..6]);
         AssertFavoritesBeforeAllCommands(items);
     }
 
@@ -413,7 +413,7 @@ public class MenuHeaderTests
     {
         List<string> items = TopLevel(MenuView.Radar, "ifr-enroute", out ContextMenu _);
 
-        Assert.Equal("AAL202 — B738", items[0]);
+        Assert.Equal("AAL202 · B738", items[0]);
         int command = items.IndexOf("Command…");
         Assert.True(command > 1, "Command… should follow the title, any radar rows and a separator.");
         Assert.Equal("---", items[command - 1]);
@@ -441,16 +441,16 @@ public class MenuHeaderTests
     public void Header_HeldForRelease_ShowsReleaseUnderTitle_OnEveryView()
     {
         Assert.Equal(
-            ["SWA108 — B738", "Taxiing", "Release (HFR)", "---", "Command…", "Note…", "---"],
+            ["SWA108 · B738", "Taxiing", "Release (HFR)", "---", "Command…", "Note…", "---"],
             TopLevel(MenuView.Ground, "held-for-release", out _)[..7]
         );
         Assert.Equal(
-            ["SWA108 — B738", "Taxiing", "Release (HFR)", "---", "Command…", "Note…", "---"],
+            ["SWA108 · B738", "Taxiing", "Release (HFR)", "---", "Command…", "Note…", "---"],
             TopLevel(MenuView.List, "held-for-release", out _)[..7]
         );
 
         List<string> radar = TopLevel(MenuView.Radar, "held-for-release", out _);
-        Assert.Equal("SWA108 — B738", radar[0]);
+        Assert.Equal("SWA108 · B738", radar[0]);
         Assert.Equal("Taxiing", radar[1]);
         Assert.Equal("Release (HFR)", radar[2]);
         Assert.Equal("---", radar[3]);
@@ -461,16 +461,16 @@ public class MenuHeaderTests
     public void Header_CfrWindow_ShowsCheckReleaseWindowUnderTitle_OnEveryView()
     {
         Assert.Equal(
-            ["SWA109 — B738", "Taxiing", "Check release window", "---", "Command…", "Note…", "---"],
+            ["SWA109 · B738", "Taxiing", "Check release window", "---", "Command…", "Note…", "---"],
             TopLevel(MenuView.Ground, "cfr-window", out _)[..7]
         );
         Assert.Equal(
-            ["SWA109 — B738", "Taxiing", "Check release window", "---", "Command…", "Note…", "---"],
+            ["SWA109 · B738", "Taxiing", "Check release window", "---", "Command…", "Note…", "---"],
             TopLevel(MenuView.List, "cfr-window", out _)[..7]
         );
 
         List<string> radar = TopLevel(MenuView.Radar, "cfr-window", out _);
-        Assert.Equal("SWA109 — B738", radar[0]);
+        Assert.Equal("SWA109 · B738", radar[0]);
         Assert.Equal("Taxiing", radar[1]);
         Assert.Equal("Check release window", radar[2]);
         Assert.Equal("---", radar[3]);
@@ -486,7 +486,7 @@ public class MenuHeaderTests
 
         List<string> items = [.. Header(ac, new RecordingMenuHost("")).Select(Describe)];
 
-        Assert.Equal(["SWA104 — B738", "Taxiing", "Release (HFR)", "Check release window", "---", "Command…", "Note…", "---"], items);
+        Assert.Equal(["SWA104 · B738", "Taxiing", "Release (HFR)", "Check release window", "---", "Command…", "Note…", "---"], items);
     }
 
     [AvaloniaFact]
@@ -505,7 +505,7 @@ public class MenuHeaderTests
         {
             List<string> items = TopLevel(view, "cfr-window", out ContextMenu menu);
 
-            Assert.Equal(["SWA109 — B738", "Taxiing", "Check release window"], items[..3]);
+            Assert.Equal(["SWA109 · B738", "Taxiing", "Check release window"], items[..3]);
             Assert.Single(items, i => i == "Check release window");
             Assert.Equal(1, CountOccurrences(MenuTreeSnapshot.Render(menu), "Check release window"));
         }
@@ -548,7 +548,7 @@ public class MenuHeaderTests
         ContextMenu menu = MenuHostHarness.BuildRadarMenu(main, ac, null);
         List<string> items = [.. menu.Items.Select(Describe)];
 
-        Assert.Equal(["SWA108 — B738", "Taxiing", "Held: position", "Release (HFR)", "---"], items[..5]);
+        Assert.Equal(["SWA108 · B738", "Taxiing", "Held: position", "Release (HFR)", "---"], items[..5]);
     }
 
     // --- The route summary and hold status rows, on every view ---------------------------------
@@ -560,7 +560,7 @@ public class MenuHeaderTests
         {
             List<string> items = TopLevel(view, "ifr-enroute", ac => ac.NavigationRoute = ["OAK", "SUNOL", "MOD"], out _);
 
-            Assert.Equal("AAL202 — B738", items[0]);
+            Assert.Equal("AAL202 · B738", items[0]);
             Assert.Equal("33,000 ft · 280 kt", items[1]);
             Assert.Equal("OAK SUNOL MOD", items[2]);
             Assert.Equal("---", items[3]);
@@ -574,7 +574,7 @@ public class MenuHeaderTests
         {
             List<string> items = TopLevel(view, "ifr-enroute", ac => ac.HoldKind = "HoldPosition", out _);
 
-            Assert.Equal("AAL202 — B738", items[0]);
+            Assert.Equal("AAL202 · B738", items[0]);
             Assert.Equal("33,000 ft · 280 kt", items[1]);
             Assert.Equal("Held: position", items[2]);
             Assert.Equal("---", items[3]);
@@ -597,7 +597,7 @@ public class MenuHeaderTests
                 out _
             );
 
-            Assert.Equal(["AAL202 — B738", "33,000 ft · 280 kt", "OAK SUNOL MOD", "Held: position", "---"], items[..5]);
+            Assert.Equal(["AAL202 · B738", "33,000 ft · 280 kt", "OAK SUNOL MOD", "Held: position", "---"], items[..5]);
         }
     }
 
