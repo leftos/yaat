@@ -246,7 +246,7 @@ public sealed class RunwayInUseState(Func<string?, FacilityOps?> knowledge)
     {
         string key = CacheKey(airportId);
         SurfaceWind? wind = RunwayInUseResolver.SampleWind(context.Weather);
-        bool wet = IsWet(context.Weather);
+        bool wet = FacilityRunwayKnowledge.IsWet(context.Weather);
         if (_decisions.TryGetValue(key, out Held? held) && !WindMoved(held.Wind, wind) && (held.Wet == wet))
         {
             return held.Decision;
@@ -307,8 +307,6 @@ public sealed class RunwayInUseState(Func<string?, FacilityOps?> knowledge)
         return veered || (Math.Abs(before.EffectiveSpeedKt - now.EffectiveSpeedKt) >= RechooseSpeedKt);
     }
 
-    private static bool IsWet(WeatherProfile? weather) => !string.IsNullOrWhiteSpace(weather?.Precipitation);
-
     private RunwayUseDecision? Resolve(string airportId, AiTickContext context, string positionId, SurfaceWind? wind, bool wet)
     {
         SimScenarioState scenario = context.Scenario;
@@ -350,24 +348,23 @@ public sealed class RunwayInUseState(Func<string?, FacilityOps?> knowledge)
             return fixedConfiguration;
         }
 
-        if (
-            ops is not null
-            && FacilityRunwaySelector.Select(ops, airportId, wind, partner => PartnerConfiguration(partner, context, positionId), runways, date)
-                is { } known
-        )
+        (RunwayUseDecision? known, string? conflict) = FacilityRunwayKnowledge.Select(
+            ops,
+            new FacilityRunwayQuery(airportId, context.Weather, partner => PartnerConfiguration(partner, context, positionId), runways, date)
+        );
+        if (known is not null)
         {
-            (RunwayUseDecision? usable, string? removed) = RunwayUsabilityGate.Apply(known, wind, wet, runways, date);
-            if (usable is not null)
-            {
-                return usable;
-            }
+            return known;
+        }
 
+        if (conflict is not null)
+        {
             context.Anomalies.Record(
                 AiAnomalyKind.KnowledgeConflict,
                 positionId,
                 airportId,
                 context.ElapsedSeconds,
-                $"{ops.FacilityId} knowledge chose {known.ConfigurationName} but {removed}; the generic rule decides"
+                $"{conflict}; the generic rule decides"
             );
         }
 
@@ -397,4 +394,57 @@ public sealed class RunwayInUseState(Func<string?, FacilityOps?> knowledge)
         (airportId.Length == 4) && airportId.StartsWith('K') ? airportId[1..].ToUpperInvariant() : airportId.ToUpperInvariant();
 
     private sealed record Held(RunwayUseDecision? Decision, SurfaceWind? Wind, bool Wet);
+}
+
+/// <summary>
+/// What one airport's facility knowledge is consulted with: the weather in force, the partner airport's configuration
+/// when one is asked for, the airport's runways, and the model date headings are converted at.
+/// </summary>
+public sealed record FacilityRunwayQuery(
+    string AirportId,
+    WeatherProfile? Weather,
+    Func<string, string?> PartnerConfiguration,
+    IReadOnlyList<RunwayInfo> Runways,
+    DateTime MagneticModelDateUtc
+);
+
+/// <summary>
+/// The facility's own runway configuration for one airport: what <see cref="FacilityRunwaySelector"/> picks from
+/// <see cref="FacilityOps"/> knowledge, pruned by <see cref="RunwayUsabilityGate"/>. One place the knowledge layer is
+/// consulted, so a controller brain's runway-in-use decision and a loaded scenario's implied default cannot drift.
+/// </summary>
+public static class FacilityRunwayKnowledge
+{
+    /// <summary>
+    /// The configuration <paramref name="ops"/> selects for <paramref name="query"/>'s airport, with its unusable
+    /// departure runways pruned: the decision, or the conflict that left none usable for the caller to file.
+    /// </summary>
+    public static (RunwayUseDecision? Decision, string? Conflict) Select(FacilityOps? ops, FacilityRunwayQuery query)
+    {
+        if (ops is null)
+        {
+            return (null, null);
+        }
+
+        SurfaceWind? wind = RunwayInUseResolver.SampleWind(query.Weather);
+        if (
+            FacilityRunwaySelector.Select(ops, query.AirportId, wind, query.PartnerConfiguration, query.Runways, query.MagneticModelDateUtc)
+            is not { } known
+        )
+        {
+            return (null, null);
+        }
+
+        (RunwayUseDecision? usable, string? removed) = RunwayUsabilityGate.Apply(
+            known,
+            wind,
+            IsWet(query.Weather),
+            query.Runways,
+            query.MagneticModelDateUtc
+        );
+        return usable is not null ? (usable, null) : (null, $"{ops.FacilityId} knowledge chose {known.ConfigurationName} but {removed}");
+    }
+
+    /// <summary>True when precipitation is reported, which tightens the usability gate's tailwind limit.</summary>
+    internal static bool IsWet(WeatherProfile? weather) => !string.IsNullOrWhiteSpace(weather?.Precipitation);
 }

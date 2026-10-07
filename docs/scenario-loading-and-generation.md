@@ -132,14 +132,14 @@ aircraft a controller owns.
 
 ## Load pipeline and the immediate / delayed / deferred split
 
-`ScenarioLoader.Load(json, groundData, rng)` (`src/Yaat.Sim/Scenarios/ScenarioLoader.cs:49`) deserializes the JSON, then for
+`ScenarioLoader.Load(json, groundData, rng, magneticModelDateUtc)` (`src/Yaat.Sim/Scenarios/ScenarioLoader.cs:84`) deserializes the JSON, then for
 each `ScenarioAircraft` calls `LoadAircraft`, which returns a `LoadedAircraft` (or `null` when the spawn is malformed and
 unrecoverable, e.g. `Coordinates` with no coordinates). Each `LoadedAircraft` routes into one of three buckets by the
-load-time triage at `ScenarioLoader.cs:71`:
+load-time triage at `ScenarioLoader.cs:114`:
 
 - **Deferred** (`DeferralReason is not null`) — the spawn *could not be positioned* (missing/unknown runway, missing ground data,
   parking spot not found). The aircraft still gets a `CreateBaseState` (so it shows in lists) but no position/phase; it is built
-  by `BuildDeferredAircraft` (`:550`). The server never auto-spawns these — they sit in `ScenarioLoadResult.DeferredAircraft` as broadcast-only entries (`ScenarioLifecycleService.BuildLoadedAircraftDtos`).
+  by `BuildDeferredAircraft` (`:809`). The server never auto-spawns these — they sit in `ScenarioLoadResult.DeferredAircraft` as broadcast-only entries (`ScenarioLifecycleService.BuildLoadedAircraftDtos`).
 - **Delayed** (`SpawnDelaySeconds > 0`) — positioned correctly but held in `DelayedQueue` until its delay elapses.
 - **Immediate** (everything else) — added to the world and its presets dispatched at load.
 
@@ -155,6 +155,12 @@ entry, so `ResolveStripBayAssignments` joins ULID → callsign at load. Both loa
 bay instead of the printer queue (see [`flight-strips.md`](flight-strips.md)).
 
 The server's `PopulateRoom` (`ScenarioLifecycleService.PlaceLoadedAircraft`, run by a load's commit and by every reload) iterates the three buckets: immediate aircraft are added to the world and `DispatchPresetCommands` runs synchronously; delayed aircraft are queued; deferred aircraft only have their `ScenarioId` stamped and are reported in the manifest. `SimulationEngine.LoadScenario` (`SimulationEngine.cs:378`) is the standalone (test/replay) equivalent.
+
+### Implied active runways
+
+`ImpliedActiveRunways.For(result, weather, magneticModelDateUtc)` (`src/Yaat.Sim/Simulation/ImpliedActiveRunways.cs`) reads a `ScenarioLoadResult` as `Load` returned it, before any preset command is dispatched, and names the runway ends the scenario implies per airport. An airport any immediate or delayed spawn names gets exactly the ends its spawns use (spawns win whole: an `OnRunway` spawn departs its end, an `OnFinal` spawn arrives on one), and the arrival generators add theirs; deferred aircraft imply nothing, since they have no phases. Generator runways are resolved against the primary airport only.
+
+Only the primary airport, and only when nothing implies an end there, falls back to facility knowledge (`FacilityRunwayKnowledge.Select`, pruned by `RunwayUsabilityGate`) and then to the generic runway-in-use rule for the weather in force; a load has no session configuration or partner decision to consult. `ImpliedActiveRunways.RoomDefault(implied)` keeps only the airports whose implied ends name every runway there (either end counts): with no scenario sidecar, the guess otherwise only pre-fills the mentor's prompt.
 
 ### The resource manifest
 
