@@ -1632,6 +1632,7 @@ public static class CommandDescriber
                 or CanonicalCommandType.SayAltitude
                 or CanonicalCommandType.SayHeading
                 or CanonicalCommandType.SayPosition
+                or CanonicalCommandType.SayExitFixEstimate
                 // Strip operations are host-owned bookkeeping (yaat-server's strip state) with no
                 // effect on the aircraft; every phase must let them through to the strip queue. Keep this
                 // in step with TrackEngine.IsStripCommand — a missing member sends a preset "WAIT 30 STRIP
