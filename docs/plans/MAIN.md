@@ -218,7 +218,7 @@
 - [ ] YAAT-414 Navigator reads an aircraft in line but short of segment 0 as off-line and crawls at 5 kt
 - [ ] YAAT-421 Judge a hold short unmakeable at the firm stop rate, not the taxi rate
 - [x] YAAT-424 Keep a taxiway turn-about within the taxiway's width · release vNext
-- [/] YAAT-432 Gate the jet turn-around refusal on design group, not the Jet category · release vNext
+- [x] YAAT-432 Gate the jet turn-around refusal on design group, not the Jet category · release vNext
 - [ ] YAAT-435 Let a re-route's stop lie behind the aircraft by under 3 ft on segment 0
 - [ ] YAAT-438 Slow to pivot speed before a taxiway turn-about issued while rolling · release vNext
 - [ ] YAAT-467 Lay a taxi turn from rest at a junction node so it finishes on the next centreline
