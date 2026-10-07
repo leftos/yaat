@@ -39,6 +39,8 @@ A `TAXI`/`TAXIAUTO` command reaches the pathfinder through the command pipeline 
 
    The fit is the type's gear fit, `TurnAboutFit.Evaluate`, from its FAA aircraft characteristics record (`FaaAircraftDatabase`): the pivot radius (the main-gear axle midpoint's path at the 65° nose-wheel steering limit, or half the main-gear width MGW when that is larger) is R = max(MGW/2, 0.466 × wheelbase), and the type fits when its outer main tyre (R + MGW/2) and its nose gear (√(R² + wheelbase²)) both stay within half the width of a taxiway of its own taxiway design group.
 
+   Two non-jet cases come first. A wheelbase of 0.9 of the type's length or more is an unusable FAA row (`BrokenRowWheelbaseRatio`), judged by category. A wheelbase of 0.48 to 0.9 of its length is a taildragger (`TaildraggerWheelbaseRatio`; the record marks no tailwheel, and a taildragger's wheelbase runs main gear to tailwheel): it pivots on a braked main wheel, R = MGW/2, and fits when its tail-swing radius √(wheelbase² + (MGW/2)²) plus MGW is within the taxiway's full width. A row correction (BT36's main-gear width) comes from `AircraftProfileOverrides.json` (`mainGearWidthFt`, applied by `FaaAircraftDatabase.ApplyOverrides`).
+
    Those half-widths are AC 150/5300-13B Table 4-2's: 12.5 ft for TDG 1A/1B, 17.5 for 2A/2B, 25 for 3/4, 37.5 for 5/6. A record with a TDG but no main-gear width or wheelbase fits only as a TDG 1A type that is not a jet; a type with no record, or with a TDG outside the table, fits only as a piston or helicopter.
 
    A C172 and a C208 fit (the C208 pivots on its inner main wheel: R 5.85 ft, outer tyre 11.7 ft, nose 9.7 ft, inside 12.5 ft). A C25A (nose 19.6 ft against TDG 2A's 17.5), an AT76 (TDG 1B but a 35 ft wheelbase), a B738, a DH8D and a CRJ2 do not.

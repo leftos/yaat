@@ -208,7 +208,9 @@ The edge must also be a turn-about taxiway (`IsTurnAboutTaxiway`: a named moveme
 
 `SolveTaxiwayTurnAbout` builds two arcs (one when the reversal is re-aimed past the bend, below), both at the type's turn-about radius from `TurnAboutFit.Evaluate`, the function the taxi gate refuses a controller's turn about with ([pathfinder.md](./pathfinder.md#where-it-sits--entry-points)), so the turn drawn and the fit decided share one geometry.
 
-That radius is R = max(MGW/2, 0.466 × wheelbase) from the type's FAA record (a C172 4.2 ft, a C208 5.85 ft), or `CategoryPerformance.TightTurnFloorRadiusFt` (8/12/15/8 ft piston/turboprop/jet/helicopter) when the record lacks either figure or the type has none. Both arcs are capped at `CategoryPerformance.TurnAboutSpeedKts`, ω·R: the gear-limited `GroundTurnRate` held on that radius.
+That radius is R = max(MGW/2, 0.466 × wheelbase) from the type's FAA record (a C172 4.2 ft, a C208 5.85 ft; MGW/2 for a taildragger, which pivots on a braked main wheel), or `CategoryPerformance.TightTurnFloorRadiusFt` (8/12/15/8 ft piston/turboprop/jet/helicopter) when the record lacks either figure or the type has none. Both arcs are capped at `CategoryPerformance.TurnAboutSpeedKts`, ω·R: the gear-limited `GroundTurnRate` held on that radius.
+
+A taildragger's turn is drawn centred on R = MGW/2 like any other, a known simplification: its fit assumes the pilot first moves the pivot wheel (rₜ − MGW)/2 off the centreline so the tail swing (rₜ = √(wheelbase² + (MGW/2)²), about 17 ft for a PA18) uses the full width, so in the centred drawing the unmodelled tail would cross the taxiway edge by rₜ − half-width.
 
 For a type that fits, that is well below the 3 kt `SlowTurnSpeedKts`, on purpose: at 3 kt the tight radius would need more yaw than the gear gives. A type that does not fit turns about only on a scripted clearance whose route ahead resolved nothing, on its own larger radius.
 

@@ -1621,7 +1621,7 @@ aircraft-display-names-source.meta # Provenance sidecar: model + prompt hash + I
 
 # Data/Faa/
 FaaAircraftRecord.cs           # Full FAA ACD row: wingspan, length, tail height, gear geometry, MTOW, classifications
-FaaAircraftDatabase.cs         # Static lookup: Get(aircraftType) → FaaAircraftRecord?; used for physical dimensions
+FaaAircraftDatabase.cs         # Static lookup: Get(aircraftType) → FaaAircraftRecord?; used for physical dimensions; ApplyOverrides(overrides) applies the `mainGearWidthFt` row corrections from AircraftProfileOverrides.json
 AircraftLength.cs              # ResolveFt(type): the one aircraft-length resolver — FAA length, else CwtFallbackLengthFt (the CWT-bucket table) for types the database lacks
 FaaAircraftDataService.cs      # Downloads FAA ACD xlsx, parses all columns, caches per AIRAC cycle
 

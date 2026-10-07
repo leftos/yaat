@@ -22,5 +22,10 @@
     "landingSpeed": 82,
     "patternSpeed": 120,
     "holdingSpeed": 160
+  },
+  {
+    "typeCode": "BT36",
+    "note": "Main-gear width corrected from the FAA ACD's anomalous 12.8 ft to the BE36's 9.6 ft, the same landing gear. Source: FAA ACD BE36 row.",
+    "mainGearWidthFt": 9.6
   }
 ]

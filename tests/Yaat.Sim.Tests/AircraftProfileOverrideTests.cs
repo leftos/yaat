@@ -1,5 +1,7 @@
+using System.Text.Json;
 using Xunit;
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.Faa;
 
 namespace Yaat.Sim.Tests;
 
@@ -102,6 +104,106 @@ public sealed class AircraftProfileOverrideTests
     public void IsOverridden_StripsTypePrefix() =>
         // A wake/equipment prefix on the type must still resolve the override set.
         Assert.True(AircraftProfileDatabase.IsOverridden("H/SF50", nameof(AircraftProfile.ClimbSpeedInitial)));
+
+    // --- ACD data corrections (main-gear width) ---
+
+    [Fact]
+    public void Bt36_MainGearWidth_IsCorrectedThroughTheOverrideLayer()
+    {
+        // The BT36's ACD main-gear width (12.8 ft) is anomalous against the BE36's 9.6 ft on the same gear. The
+        // override corrects the ACD record the turn-about gear fit reads, not the performance profile.
+        FaaAircraftRecord? bt36 = FaaAircraftDatabase.Get("BT36");
+        Assert.NotNull(bt36);
+        Assert.Equal(9.6, bt36.MainGearWidthFt);
+    }
+
+    [Fact]
+    public void TypeWithoutAGearOverride_KeepsItsAcdMainGearWidth()
+    {
+        // C172 carries no gear override, so its ACD figure passes through untouched.
+        FaaAircraftRecord? c172 = FaaAircraftDatabase.Get("C172");
+        Assert.NotNull(c172);
+        Assert.Equal(8.4, c172.MainGearWidthFt);
+    }
+
+    [Fact]
+    public void GearOnlyOverride_LeavesTheProfileToItsSiblingFallback()
+    {
+        // The BT36's only override is the gear width, an ACD-data correction, so it must not gain a profile entry of
+        // its own: Get still falls back to its sibling (C210), as it did before the override existed.
+        Assert.Equal("C210", AircraftProfileDatabase.Get("BT36")?.TypeCode);
+        Assert.False(AircraftProfileDatabase.IsOverridden("BT36", nameof(AircraftProfile.ClimbSpeedInitial)));
+        Assert.Equal(9.6, FaaAircraftDatabase.Get("BT36")!.MainGearWidthFt);
+    }
+
+    // --- ACD data corrections: order independence, rejection, restore ---
+
+    [Fact]
+    public void ApplyOverrides_ThenInitialize_ReappliesTheStoredCorrection()
+    {
+        // ApplyOverrides first, then a reload of the same records: the correction is re-applied on load either way.
+        FaaAircraftDatabase.ApplyOverrides(ShippedOverrides());
+        FaaAircraftDatabase.Initialize(BundledRecords());
+
+        Assert.Equal(9.6, FaaAircraftDatabase.Get("BT36")!.MainGearWidthFt);
+    }
+
+    [Fact]
+    public void ApplyOverrides_UnknownType_LeavesEveryRecordUnchanged()
+    {
+        int countBefore = FaaAircraftDatabase.Count;
+        double? bt36Before = FaaAircraftDatabase.Get("BT36")?.MainGearWidthFt;
+
+        try
+        {
+            FaaAircraftDatabase.ApplyOverrides([new AircraftProfileOverride { TypeCode = "ZZZZ", MainGearWidthFt = 5.0 }]);
+
+            Assert.Equal(countBefore, FaaAircraftDatabase.Count);
+            Assert.Null(FaaAircraftDatabase.Get("ZZZZ"));
+            Assert.Equal(bt36Before, FaaAircraftDatabase.Get("BT36")?.MainGearWidthFt);
+        }
+        finally
+        {
+            RestoreAcdState();
+        }
+    }
+
+    [Fact]
+    public void ApplyOverrides_BlankTypeCode_DoesNotThrow()
+    {
+        try
+        {
+            Exception? thrown = Record.Exception(() =>
+                FaaAircraftDatabase.ApplyOverrides([new AircraftProfileOverride { TypeCode = "   ", MainGearWidthFt = 5.0 }])
+            );
+
+            Assert.Null(thrown);
+        }
+        finally
+        {
+            RestoreAcdState();
+        }
+    }
+
+    /// <summary>Re-apply the shipped overrides then re-load the bundled ACD records, restoring the shared statics a test mutated.</summary>
+    private static void RestoreAcdState()
+    {
+        FaaAircraftDatabase.ApplyOverrides(ShippedOverrides());
+        FaaAircraftDatabase.Initialize(BundledRecords());
+    }
+
+    private static IReadOnlyList<AircraftProfileOverride> ShippedOverrides() =>
+        AircraftProfileDatabase.LoadOverridesFromFile(Path.Combine(AppContext.BaseDirectory, "Data", "AircraftProfileOverrides.json"));
+
+    private static Dictionary<string, FaaAircraftRecord> BundledRecords()
+    {
+        string path = Path.Combine(AppContext.BaseDirectory, "TestData", "FaaAcd.json");
+        string json = File.ReadAllText(path);
+        return JsonSerializer.Deserialize<Dictionary<string, FaaAircraftRecord>>(
+                json,
+                new JsonSerializerOptions { PropertyNameCaseInsensitive = true }
+            ) ?? throw new InvalidOperationException($"Failed to deserialize {path}");
+    }
 
     // --- ApplyTo partial merge (pure unit) ---
 

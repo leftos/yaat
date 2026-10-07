@@ -13,6 +13,9 @@ namespace Yaat.Sim.Data;
 /// returns them verbatim, bypassing the runtime <see cref="EurocontrolProfileCorrectionAdapter"/>
 /// rescaling. This is required for cases like the SF50, whose real ~170 kt initial climb would
 /// otherwise be capped to ~122 kt (FAA ACD Vref 87 × the jet climb-speed multiplier).
+///
+/// <see cref="MainGearWidthFt"/> is the exception: it corrects the FAA ACD record, applied by
+/// <see cref="Yaat.Sim.Data.Faa.FaaAircraftDatabase.ApplyOverrides"/>, not the performance profile.
 /// </summary>
 public sealed record AircraftProfileOverride
 {
@@ -22,6 +25,13 @@ public sealed record AircraftProfileOverride
     /// <summary>Free-text note explaining the correction and its source. Not used at runtime.</summary>
     [JsonPropertyName("note")]
     public string Note { get; init; } = "";
+
+    /// <summary>
+    /// Correction to the FAA ACD main-gear width (ft). Consumed by the aircraft data layer rather than the performance
+    /// profile — the ACD figure is what the turn-about gear fit reads. Not merged by <see cref="ApplyTo"/>.
+    /// </summary>
+    [JsonPropertyName("mainGearWidthFt")]
+    public double? MainGearWidthFt { get; init; }
 
     [JsonPropertyName("isProp")]
     public bool? IsProp { get; init; }
@@ -181,7 +191,10 @@ public sealed record AircraftProfileOverride
         return (merged, fields);
     }
 
-    /// <summary>Overload for a base field that is itself optional: an override wins, else the base's own value (null included) passes through.</summary>
+    /// <summary>
+    /// Overload for a base field that is itself optional: an override wins, else the base's own value (null included)
+    /// passes through.
+    /// </summary>
     private static double? Resolve(double? overrideValue, double? baseValue, string fieldName, HashSet<string> overridden)
     {
         if (overrideValue is { } v)

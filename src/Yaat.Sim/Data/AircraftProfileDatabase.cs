@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
+using Yaat.Sim.Data.Faa;
 
 namespace Yaat.Sim.Data;
 
@@ -27,6 +28,10 @@ public static class AircraftProfileDatabase
     /// type that has neither (e.g. the SF50) — and the resulting effective profile is stored so
     /// <see cref="Get"/> works unchanged. Overridden field names are recorded for
     /// <see cref="IsOverridden"/> so the correction adapter can treat them as authoritative.
+    ///
+    /// An override may also correct FAA ACD data rather than the profile (the main-gear width); those corrections are
+    /// applied to <see cref="FaaAircraftDatabase"/> in the same pass, so the ACD record the turn-about gear fit reads
+    /// carries them.
     ///
     /// Requires <see cref="AircraftSiblingMap"/> and <see cref="AircraftCategorization"/> to be
     /// initialized first (sibling resolution and category-baseline synthesis depend on them).
@@ -60,13 +65,22 @@ public static class AircraftProfileDatabase
                 baseProfile = CategoryPerformance.BaselineProfile(AircraftCategorization.Categorize(type)) with { TypeCode = type };
             }
 
-            (AircraftProfile? merged, IReadOnlySet<string>? fields) = ov.ApplyTo(baseProfile);
+            (AircraftProfile merged, IReadOnlySet<string> fields) = ov.ApplyTo(baseProfile);
+            if (fields.Count == 0)
+            {
+                // A data-only override (e.g. the main-gear width): it corrects the FAA ACD record in
+                // FaaAircraftDatabase, so it must not fabricate a profile entry — the type keeps whatever profile
+                // (its own or its sibling's) the layers above give it.
+                continue;
+            }
+
             lookup[type] = merged;
             overriddenFields[type] = fields;
         }
 
         _lookup = lookup;
         _overriddenFields = overriddenFields;
+        FaaAircraftDatabase.ApplyOverrides(overrides);
         ClearSiblingFallbackWarnings();
         Log.LogInformation("Loaded {Count} aircraft profiles ({OverrideCount} with overrides)", _lookup.Count, overriddenFields.Count);
     }

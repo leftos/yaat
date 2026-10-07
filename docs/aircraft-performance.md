@@ -97,6 +97,8 @@ All fields are nullable. The full set mirrors `AircraftProfile`:
 
 `isProp`, `isHelo`, `isHeavy`, `isSpeedLimitWaived`, `airborneAccelRate`, `airborneDecelRate`, `groundAccelRate`, `takeoffDistance`, `rotateSpeed`.
 
+One field corrects the FAA aircraft characteristics record instead of the profile: `mainGearWidthFt` replaces the record's main-gear width (BT36's 12.8 ft is the BE36's 9.6). `AircraftProfileDatabase.Initialize` hands the overrides to `FaaAircraftDatabase.ApplyOverrides`, which keeps the corrections and applies them again on every `FaaAircraftDatabase.Initialize`, so either load order keeps them. An override with a blank type, a width of zero or less, or a type with no FAA record of its own is logged and not applied. `ApplyTo` ignores the field, and an override that sets nothing else adds no profile entry (the type keeps its sibling fallback).
+
 The climb and cruise fields are `climbSpeedInitial`, `climbSpeedFl150`, `climbSpeedFl240`, `climbSpeedFinal`, `climbRateInitial`, `climbRateFl150`, `climbRateFl240`, `climbRateFinal`, `cruiseSpeed`, `cruiseAltitude`, `ceiling`.
 
 The descent, landing and remaining fields are `descentSpeedInitial`, `descentSpeedFl100`, `initialApproachSpeed`, `descentRateInitial`, `descentRateFl100`, `descentRateApproach`, `finalApproachSpeed`, `landingSpeed`, `landingDistance`, `patternSpeed`, `holdingSpeed`, `length`, `standardTurnRateOverride`.

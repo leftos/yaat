@@ -254,6 +254,7 @@ The FAA's grouping of aircraft by main-gear width and cockpit-to-main-gear dista
 
 **Gear fit** (for a turn about):
 Whether a type has room to turn about on a taxiway of its own TDG (`TurnAboutFit.Evaluate`, docs/ground/pathfinder.md): its pivot radius is R = max(MGW/2, 0.466 × wheelbase), MGW the main-gear width, and it fits when its outer main tyre (R + MGW/2) and its nose gear (√(R² + wheelbase²)) both stay within its TDG half-width. With either figure missing only a TDG 1A non-jet fits; a type with no record fits only as a piston or helicopter.
+A non-jet whose wheelbase is 0.48 to 0.9 of its length is a taildragger (the FAA record marks no tailwheel; its wheelbase runs main gear to tailwheel): it pivots on a braked main wheel, R = MGW/2, and fits when its tail-swing radius √(wheelbase² + (MGW/2)²) plus MGW is within its taxiway's width. A non-jet whose wheelbase is 0.9 of its length or more has an unusable record and is judged by its category. A PA18, C120 or C140 fits; a C180, DHC2 or wide-track twin (PA31, C402) does not.
 A type that does not fit refuses a controller's TAXI that would need a turn about, in either shape, at any heading: "Unable, no room to turn around on C, request a route ahead". A C172 or C208 fits; a C25A, AT76, B738, DH8D or CRJ2 does not.
 _Avoid_: lined-up jet (neither the heading nor the category decides it)
 
