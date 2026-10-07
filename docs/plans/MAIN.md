@@ -93,7 +93,7 @@
 - [ ] YAAT-447 Keep unspawned aircraft out of the Follow and Give way to lists
 - [ ] YAAT-448 Stop the Hold short submenu offering fillet names the server refuses
 - [ ] YAAT-449 Find why a grounded aircraft can end with no phase, and give it ground menus
-- [ ] YAAT-451 Group the cleared-approach picker by runway and name the smart default
+- [/] YAAT-451 Group the cleared-approach picker by runway and name the smart default
 - [ ] YAAT-452 Put relative traffic actions on top of the radar menu and list nearby traffic for Report traffic
 - [ ] YAAT-453 Open the maintain-altitude picker at the aircraft's altitude, mark climb or descend, grey rows below the MVA
 - [ ] YAAT-454 Name the receiving aircraft in the radar point menu header and add its quick icons
@@ -107,6 +107,7 @@
 - [ ] YAAT-463 Offer the named exits ahead on the landing roll
 - [ ] YAAT-464 Name the aircraft and its action in the ground point menu header; offer Push route only from tug-reachable points
 - [x] YAAT-465 Open every aircraft context menu with a one-line state header · release vNext
+- [ ] YAAT-478 Resolve a shorthand expected approach before picking the visual approach's default runway
 
 ## Client surfaces redesign
 
@@ -217,7 +218,7 @@
 - [ ] YAAT-414 Navigator reads an aircraft in line but short of segment 0 as off-line and crawls at 5 kt
 - [ ] YAAT-421 Judge a hold short unmakeable at the firm stop rate, not the taxi rate
 - [x] YAAT-424 Keep a taxiway turn-about within the taxiway's width · release vNext
-- [ ] YAAT-432 Gate the jet turn-around refusal on design group, not the Jet category · release vNext
+- [/] YAAT-432 Gate the jet turn-around refusal on design group, not the Jet category · release vNext
 - [ ] YAAT-435 Let a re-route's stop lie behind the aircraft by under 3 ft on segment 0
 - [ ] YAAT-438 Slow to pivot speed before a taxiway turn-about issued while rolling · release vNext
 - [ ] YAAT-467 Lay a taxi turn from rest at a junction node so it finishes on the next centreline
@@ -225,6 +226,8 @@
 - [ ] YAAT-469 Use one high-speed exit angle threshold for turn-off speed and exit search
 - [ ] YAAT-470 Split GroundNavigator.BuildEntryAlignmentArc and TickStraight under the size limits
 - [ ] YAAT-471 Stop on the taxiway centreline at a node-only hold short issued after a turn about
+- [ ] YAAT-477 Keep taxi speed through an early arrival at a node joining two collinear segments · release vNext
+- [ ] YAAT-480 Judge taildraggers and wide-track twins fairly in the taxiway turn-about gear fit · release vNext
 
 ## Wave 2 — Ground command grammar and dispatch
 
@@ -461,6 +464,8 @@
 - [x] YAAT-277 Settings: Quick Bookmark hotkey button may not capture a key · release vNext
 - [ ] YAAT-347 VFR FH with a cardinal direction: FH E / SE / W … = "proceed eastbound" → FH 090 / 135 / 270
 - [x] YAAT-423 Command pipeline: restored WAIT/BEHIND deferral re-parses DCT without the filed route — live vs replay diverge (STAR cleared vs preserved) · release vNext
+- [ ] YAAT-476 Read each CIFP approach's type from its route type, and fix the approach type names and readback
+- [ ] YAAT-479 Load CIFP approaches for airports whose ident is a three-character FAA LID
 
 ## Backlog
 
