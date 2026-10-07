@@ -336,6 +336,11 @@ def cmd_info(args: argparse.Namespace) -> int:
         lines.append(f"  HasTerminalLog:      {m.get('HasTerminalLog', False)}")
         lines.append(f"  Layouts ({len(layouts)}):         {', '.join(layouts) if layouts else '(none)'}")
         lines.append(f"  Airport GeoJSON ({len(airport_geojsons)}): {', '.join(airport_geojsons) if airport_geojsons else '(none)'}")
+        if "LayoutFormatVersion" in m:
+            lines.append(f"  LayoutFormatVersion: {m.get('LayoutFormatVersion')}")
+        missing_layouts = m.get("MissingLayoutAirportIds")
+        if missing_layouts is not None:
+            lines.append(f"  Missing-map airports ({len(missing_layouts)}): {', '.join(missing_layouts) if missing_layouts else '(none)'}")
         lines.append(f"  Logs ({len(logs)}):            {', '.join(logs) if logs else '(none)'}")
         if callsign_err:
             lines.append(f"  Aircraft at t=0:     <error: {callsign_err}>")

@@ -268,6 +268,41 @@ public class RecordingArchiveTests
     }
 
     [Fact]
+    public void WriteMissingLayoutAirportIds_RoundTripsThroughTheManifest()
+    {
+        using var ms = new MemoryStream();
+        using (var writer = new RecordingArchiveWriter(ms))
+        {
+            writer.WriteScenario("{}");
+            writer.WriteActions([]);
+            writer.WriteMissingLayoutAirportIds(["SFO", "SQL"]);
+            writer.Finish(new RecordingMetadata { RngSeed = 42, TotalElapsedSeconds = 0 });
+        }
+
+        ms.Position = 0;
+        using var archive = RecordingArchive.Open(ms);
+        Assert.Equal(["SFO", "SQL"], archive.Manifest.MissingLayoutAirportIds);
+    }
+
+    [Fact]
+    public void OldBundleManifest_WithoutMissingLayoutAirportIds_DeserializesAsEmpty()
+    {
+        string oldStyleManifest = """
+            {
+              "Version": 4,
+              "RngSeed": 42,
+              "TotalElapsedSeconds": 0,
+              "ActionCount": 0,
+              "HasWeather": false,
+              "Snapshots": []
+            }
+            """;
+        RecordingManifest? manifest = JsonSerializer.Deserialize<RecordingManifest>(oldStyleManifest, RecordingJsonOptions.Default);
+        Assert.NotNull(manifest);
+        Assert.Empty(manifest!.MissingLayoutAirportIds);
+    }
+
+    [Fact]
     public void NoWeather_ReturnsNull()
     {
         var recording = new SessionRecording
@@ -388,6 +423,123 @@ public class RecordingArchiveTests
         Assert.Equal("KOAK", restored.AirportId);
         Assert.Single(restored.Runways);
         Assert.Equal("10R/28L", restored.Runways[0].Name);
+    }
+
+    /// <summary>
+    /// A real layout read back from an archive behaves as the parsed one it was written from: the pathfinder finds the same
+    /// routes between a fixed set of parking spots and runway hold-shorts, every node has the same adjacency, and every
+    /// arc carries, bit for bit, the turn geometry that corner speeds and route costs read, and every runway end its
+    /// turnoff side, no-turnoff taxiways and threshold displacement, looked up by its designator in either case.
+    /// </summary>
+    [Theory]
+    [InlineData("OAK", "oak.geojson")]
+    [InlineData("SFO", "sfo.geojson")]
+    public void ReadLayout_OfARealLayout_RoutesAndTurnsAsTheParsedOne(string airportId, string geoJsonFile)
+    {
+        AirportGroundLayout parsed = GeoJsonParser.Parse(airportId, File.ReadAllText(Path.Combine("TestData", geoJsonFile)), null);
+        AirportGroundLayout restored = WriteAndReadLayout(parsed);
+
+        List<string> parsedRunwayEnds = RunwayEndKeys(parsed, end => end);
+        Assert.Equal(parsedRunwayEnds, RunwayEndKeys(restored, end => end));
+        Assert.Equal(parsedRunwayEnds, RunwayEndKeys(restored, end => end.ToLowerInvariant()));
+        Assert.Contains(
+            parsed.Runways,
+            r =>
+                r.EndDesignators.Any(e =>
+                    (r.TurnoffForEnd(e) is not null) || (r.NoTurnoffForEnd(e).Count > 0) || (r.ThresholdDisplacementForEnd(e) != 0)
+                )
+        );
+
+        Assert.Equal(parsed.Nodes.Keys.Order(), restored.Nodes.Keys.Order());
+        Assert.Equal(parsed.Runways.Select(r => r.Coordinates), restored.Runways.Select(r => r.Coordinates));
+        Assert.Equal(parsed.Edges.Select(e => e.IntermediatePoints), restored.Edges.Select(e => e.IntermediatePoints));
+        foreach (GroundNode node in parsed.Nodes.Values)
+        {
+            Assert.Equal(EdgeKeys(node.Edges), EdgeKeys(restored.Nodes[node.Id].Edges));
+        }
+
+        var restoredArcs = restored.Arcs.ToDictionary(a => (a.Nodes[0].Id, a.Nodes[1].Id));
+        Assert.Equal(parsed.Arcs.Count, restoredArcs.Count);
+        Assert.Contains(parsed.Arcs, a => a.TurnAngleDeg > 1.0);
+        foreach (GroundArc arc in parsed.Arcs)
+        {
+            GroundArc read = restoredArcs[(arc.Nodes[0].Id, arc.Nodes[1].Id)];
+            Assert.Equal(arc.TurnAngleDeg, read.TurnAngleDeg);
+            Assert.Equal(arc.EdgeBearingAtNode0Deg, read.EdgeBearingAtNode0Deg);
+            Assert.Equal(arc.EdgeBearingAtNode1Deg, read.EdgeBearingAtNode1Deg);
+        }
+
+        List<GroundNode> parking =
+        [
+            .. parsed.Nodes.Values.Where(n => n.Type == GroundNodeType.Parking).OrderBy(n => n.Id).Where((_, i) => i % 15 == 0),
+        ];
+        List<GroundNode> holdShorts =
+        [
+            .. parsed.Nodes.Values.Where(n => n.Type == GroundNodeType.RunwayHoldShort).OrderBy(n => n.Id).Where((_, i) => i % 10 == 0),
+        ];
+        Assert.True(parking.Count >= 4, $"{parking.Count} parking spots sampled");
+        Assert.True(holdShorts.Count >= 4, $"{holdShorts.Count} hold-shorts sampled");
+        int routed = 0;
+        foreach (GroundNode from in parking)
+        {
+            foreach (GroundNode to in holdShorts)
+            {
+                List<string>? expected = RouteKeys(parsed, from.Id, to.Id);
+                Assert.Equal(expected, RouteKeys(restored, from.Id, to.Id));
+                routed += expected is null ? 0 : 1;
+            }
+        }
+
+        Assert.True(routed > 0, "no sampled pair routed");
+    }
+
+    private static AirportGroundLayout WriteAndReadLayout(AirportGroundLayout layout)
+    {
+        using var ms = new MemoryStream();
+        using (var writer = new RecordingArchiveWriter(ms))
+        {
+            writer.WriteScenario("{}");
+            writer.WriteActions([]);
+            writer.WriteLayout(layout);
+            writer.Finish(
+                new RecordingMetadata
+                {
+                    RngSeed = 42,
+                    TotalElapsedSeconds = 0,
+                    ScenarioName = "test",
+                    ScenarioId = "test-1",
+                    ArtccId = "ZOA",
+                }
+            );
+        }
+
+        ms.Position = 0;
+        using var archive = RecordingArchive.Open(ms);
+        return archive.ReadLayout(layout.AirportId);
+    }
+
+    // Each runway end as "<runway> <end> | <turnoff side> | <no-turnoff taxiways> | <threshold displacement ft> | <landing threshold>",
+    // its per-end data looked up by the designator as spell(end) writes it.
+    private static List<string> RunwayEndKeys(AirportGroundLayout layout, Func<string, string> spell) =>
+        [.. layout.Runways.SelectMany(r => r.EndDesignators.Select(end => RunwayEndKey(r, end, spell(end))))];
+
+    private static string RunwayEndKey(GroundRunway runway, string end, string lookup) =>
+        string.Join(
+            " | ",
+            $"{runway.Name} {end}",
+            runway.TurnoffForEnd(lookup),
+            string.Join(",", runway.NoTurnoffForEnd(lookup)),
+            $"{runway.ThresholdDisplacementForEnd(lookup):R}",
+            runway.LandingThresholdForEnd(end)
+        );
+
+    private static List<string> EdgeKeys(IEnumerable<IGroundEdge> edges) =>
+        [.. edges.Select(e => $"{e.GetType().Name} {e.TaxiwayName} {e.Nodes[0].Id}-{e.Nodes[1].Id} {e.DistanceNm:R}")];
+
+    private static List<string>? RouteKeys(AirportGroundLayout layout, int fromNodeId, int toNodeId)
+    {
+        TaxiRoute? route = TaxiPathfinder.FindRoute(layout, fromNodeId, toNodeId, AircraftCategory.Jet, WakeTurbulenceData.WakeClass.Large);
+        return route is null ? null : [.. route.Segments.Select(s => $"{s.FromNodeId}>{s.ToNodeId} {s.TaxiwayName}")];
     }
 
     [Fact]

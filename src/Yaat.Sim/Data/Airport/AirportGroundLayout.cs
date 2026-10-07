@@ -256,9 +256,11 @@ public sealed class GroundArc : IGroundEdge
     /// </summary>
     public required double MinRadiusOfCurvatureFt { get; set; }
 
-    // --- Fillet construction parameters (non-serialized) ---
+    // --- Fillet construction parameters ---
     // Stored so that later passes (e.g., MergeCoincidentNodes) can recompute P1/P2
     // from the new node positions instead of translating stale control points.
+    // Serialized, so a layout read back from an archive gives the corner speeds and
+    // route costs of the parsed one bit for bit.
 
     /// <summary>
     /// Bearing (degrees true) from Nodes[0] toward the fillet intersection center.
@@ -266,21 +268,18 @@ public sealed class GroundArc : IGroundEdge
     /// from the simple reverse of the outbound edge bearing when the tangent point
     /// was placed past shape-point nodes during the taxiway walk.
     /// </summary>
-    [JsonIgnore]
     public double EdgeBearingAtNode0Deg { get; set; }
 
     /// <summary>
     /// Bearing (degrees true) from Nodes[1] toward the fillet intersection center.
     /// This is the direction P2 was projected along during construction.
     /// </summary>
-    [JsonIgnore]
     public double EdgeBearingAtNode1Deg { get; set; }
 
     /// <summary>
     /// Turn angle (degrees) between the two edges that this arc bridges.
     /// Used with kappa = (4/3) * tan(sweep/4) to compute control point depth.
     /// </summary>
-    [JsonIgnore]
     public double TurnAngleDeg { get; set; }
 
     public required double DistanceNm { get; set; }
@@ -655,8 +654,12 @@ public sealed class GroundRunway
     /// regardless of which direction the aircraft lands. Empty when no turnoff is authored. Keyed by the
     /// zero-pad-normalized designator; read it via <see cref="TurnoffForEnd"/>, never the raw map.
     /// </summary>
-    public IReadOnlyDictionary<string, ExitSide> TurnoffByEnd { private get; init; } =
-        new Dictionary<string, ExitSide>(StringComparer.OrdinalIgnoreCase);
+    [JsonInclude]
+    public IReadOnlyDictionary<string, ExitSide> TurnoffByEnd
+    {
+        private get;
+        init => field = new Dictionary<string, ExitSide>(value, StringComparer.OrdinalIgnoreCase);
+    } = new Dictionary<string, ExitSide>(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>Author-specified pattern altitude in feet AGL above field elevation. Null when unset.</summary>
     public double? PatternAltitudeAglFt { get; init; }
@@ -669,8 +672,12 @@ public sealed class GroundRunway
     /// Empty for ends without restrictions. Keyed by the zero-pad-normalized designator; read it
     /// via <see cref="NoTurnoffForEnd"/>, never the raw map.
     /// </summary>
-    public IReadOnlyDictionary<string, IReadOnlyList<string>> NoTurnoffByEnd { private get; init; } =
-        new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase);
+    [JsonInclude]
+    public IReadOnlyDictionary<string, IReadOnlyList<string>> NoTurnoffByEnd
+    {
+        private get;
+        init => field = new Dictionary<string, IReadOnlyList<string>>(value, StringComparer.OrdinalIgnoreCase);
+    } = new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
     /// Author-specified displaced-threshold distance in feet per landing-end designator (vNAS map
@@ -678,8 +685,12 @@ public sealed class GroundRunway
     /// zero-pad-normalized designator; read it via <see cref="ThresholdDisplacementForEnd"/>, never
     /// the raw map.
     /// </summary>
-    public IReadOnlyDictionary<string, double> ThresholdDisplacementFtByEnd { private get; init; } =
-        new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+    [JsonInclude]
+    public IReadOnlyDictionary<string, double> ThresholdDisplacementFtByEnd
+    {
+        private get;
+        init => field = new Dictionary<string, double>(value, StringComparer.OrdinalIgnoreCase);
+    } = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>True when either end of this runway is <paramref name="designator"/> (zero-pad-normalized, so "9" matches "09").</summary>
     public bool MatchesEnd(string designator) => Id.Contains(designator);

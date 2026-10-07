@@ -10,12 +10,13 @@ namespace Yaat.Sim.Simulation;
 /// to individual ZIP entries one at a time, keeping memory usage at O(world-state)
 /// rather than O(snapshots * world-state).
 /// </summary>
-public sealed class RecordingArchiveWriter(Stream output) : IDisposable
+public sealed class RecordingArchiveWriter(Stream output) : ILayoutBundleWriter, IDisposable
 {
     private readonly ZipArchive _zip = new(output, ZipArchiveMode.Create, leaveOpen: true);
     private readonly List<SnapshotIndexEntry> _snapshotIndex = [];
     private readonly List<string> _layoutAirportIds = [];
     private readonly List<string> _airportGeoJsonIds = [];
+    private readonly List<string> _missingLayoutAirportIds = [];
     private readonly HashSet<string> _airportGeoJsonIdSet = new(StringComparer.OrdinalIgnoreCase);
     private bool _finished;
     private int _actionCount;
@@ -97,9 +98,26 @@ public sealed class RecordingArchiveWriter(Stream output) : IDisposable
     public void WriteLayout(AirportGroundLayout layout)
     {
         _layoutAirportIds.Add(layout.AirportId);
-        byte[] jsonBytes = JsonSerializer.SerializeToUtf8Bytes(layout, RecordingJsonOptions.Default);
-        WriteBrotliEntry($"layouts/{layout.AirportId}.json.br", jsonBytes);
+        WriteLayoutEntry(_zip, layout);
     }
+
+    /// <summary>
+    /// Writes <paramref name="layout"/> into <paramref name="zip"/> under its airport ID, as a recording archive stores it;
+    /// <see cref="RecordingArchive.ReadLayoutEntry"/> reads it back. The caller lists the ID in its manifest.
+    /// </summary>
+    public static void WriteLayoutEntry(ZipArchive zip, AirportGroundLayout layout)
+    {
+        byte[] jsonBytes = JsonSerializer.SerializeToUtf8Bytes(layout, RecordingArchive.LayoutJsonOptions);
+        WriteBrotliEntry(zip, RecordingArchive.LayoutEntryName(layout.AirportId), jsonBytes);
+    }
+
+    /// <summary>
+    /// Writes an airport's source GeoJSON into <paramref name="zip"/> under <paramref name="airportId"/>, as a recording
+    /// archive stores it; <see cref="RecordingArchive.ReadAirportGeoJsonEntry"/> reads it back. The caller lists the ID in its
+    /// manifest.
+    /// </summary>
+    public static void WriteAirportGeoJsonEntry(ZipArchive zip, string airportId, string geoJson) =>
+        WriteBrotliEntry(zip, RecordingArchive.AirportGeoJsonEntryName(airportId), System.Text.Encoding.UTF8.GetBytes(geoJson));
 
     public void WriteAirportGeoJson(string airportId, string geoJson)
     {
@@ -119,8 +137,11 @@ public sealed class RecordingArchiveWriter(Stream output) : IDisposable
         }
 
         _airportGeoJsonIds.Add(airportId);
-        WriteBrotliEntry($"airport-geojson/{airportId}.geojson.br", geoJson);
+        WriteAirportGeoJsonEntry(_zip, airportId, geoJson);
     }
+
+    /// <summary>Records the airports (by FAA code) the room had pinned with no map, so that a load pins them with none.</summary>
+    public void WriteMissingLayoutAirportIds(IEnumerable<string> faaCodes) => _missingLayoutAirportIds.AddRange(faaCodes);
 
     /// <summary>
     /// Write an arbitrary entry to the archive (e.g., log files from bug report bundles).
@@ -167,6 +188,8 @@ public sealed class RecordingArchiveWriter(Stream output) : IDisposable
             Snapshots = _snapshotIndex,
             LayoutAirportIds = _layoutAirportIds.Count > 0 ? _layoutAirportIds : null,
             AirportGeoJsonIds = _airportGeoJsonIds.Count > 0 ? _airportGeoJsonIds : null,
+            LayoutFormatVersion = RecordingArchive.CurrentLayoutFormatVersion,
+            MissingLayoutAirportIds = _missingLayoutAirportIds,
         };
 
         byte[] manifestJson = JsonSerializer.SerializeToUtf8Bytes(manifest, RecordingJsonOptions.Default);
@@ -231,10 +254,12 @@ public sealed class RecordingArchiveWriter(Stream output) : IDisposable
         WriteBrotliEntry(entryName, bytes);
     }
 
-    private void WriteBrotliEntry(string entryName, byte[] utf8Bytes)
+    private void WriteBrotliEntry(string entryName, byte[] utf8Bytes) => WriteBrotliEntry(_zip, entryName, utf8Bytes);
+
+    private static void WriteBrotliEntry(ZipArchive zip, string entryName, byte[] utf8Bytes)
     {
         // ZIP-level compression is Store; we handle compression ourselves with Brotli
-        ZipArchiveEntry entry = _zip.CreateEntry(entryName, CompressionLevel.NoCompression);
+        ZipArchiveEntry entry = zip.CreateEntry(entryName, CompressionLevel.NoCompression);
         using Stream entryStream = entry.Open();
         using var brotli = new BrotliStream(entryStream, CompressionLevel.Optimal);
         brotli.Write(utf8Bytes);

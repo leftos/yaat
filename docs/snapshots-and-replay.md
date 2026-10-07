@@ -147,7 +147,7 @@ Some state is intentionally runtime-only:
 
 If you see `[JsonIgnore]` on a field, also check that there's a separate carrier (like `LayoutAirportId`) that lets restore reattach.
 
-**A rebuilt route needs its cursor, not just its nodes.** Most navigator-owning ground phases don't serialize their `TaxiRoute` — it is rebuilt from stored node ids against the live layout on the first tick after restore — so the rebuild has to be told *where along it* the aircraft was. `FollowingPhase` is the exception: its follow route and clearing route round-trip whole as `TaxiRouteDto`s, cursor included, and `FollowingPhase.FromSnapshot` rebuilds them over the layout `PhaseList` passes it.
+**A rebuilt route needs its cursor, not just its nodes.** Most navigator-owning ground phases don't serialize their `TaxiRoute` — it is rebuilt from stored node ids against the engine's layout (on a server archive load or session restore, the layout the archive bundles) on the first tick after restore — so the rebuild has to be told *where along it* the aircraft was. `FollowingPhase` is the exception: its follow route and clearing route round-trip whole as `TaxiRouteDto`s, cursor included, and `FollowingPhase.FromSnapshot` rebuilds them over the layout `PhaseList` passes it.
 
 `RunwayExitPhase` is the sharp case: its segment 0 is a virtual approach leg [aircraft position → branch node] down the runway centerline, so rebuilding from segment 0 for an aircraft that has already turned off hands `GroundNavigator` a leg pointing *backward*, and the ~180° entry-alignment slow-turn taxis the reconstruction back onto the runway it just vacated (issue #309).
 
@@ -195,14 +195,15 @@ A recording is a ZIP with this layout:
 manifest.json                # Version, RngSeed, SessionStartUtc, InitialActiveRunways, ActionCount, HasWeather,
                              # HasArtccConfig, HasTerminalLog, ArtccId, ScenarioId/Name,
                              # ClientVersion, ClientBuildKind, ServerVersion,
-                             # Snapshots[], LayoutAirportIds[], AirportGeoJsonIds[]
+                             # Snapshots[], LayoutAirportIds[], AirportGeoJsonIds[],
+                             # LayoutFormatVersion, MissingLayoutAirportIds[]
 scenario.json.br             # Brotli-compressed scenario JSON
 actions.json.br              # Brotli-compressed RecordedAction[]
 terminal-log.json.br         # Brotli-compressed RecordedTerminalEntry[] (optional; HasTerminalLog)
 snapshots/NNN.json.br        # one per snapshot index
-layouts/{AirportId}.json.br  # deduplicated ground layouts (optional; a server export writes the room's pinned layouts)
+layouts/{AirportId}.json.br  # ground layouts (optional; a server export or soak run writes every airport the room pinned)
 airport-geojson/{AirportId}.geojson.br
-                             # original airport GeoJSON sources (optional)
+                             # the source GeoJSON each bundled layout was parsed from (optional)
 weather.json                 # plain JSON (optional; gated by HasWeather)
 artcc-config.json.br         # ARTCC config JSON (optional; HasArtccConfig; the room's pinned config of the scenario's ARTCC)
 bookmarks.json               # plain JSON (optional; user-authored timeline bookmarks)
@@ -215,6 +216,14 @@ The server appends to `SimScenarioState.TerminalLog` inside `TrainingBroadcastSe
 On load, the client repopulates its terminal from it (via the `GetTerminalLog` hub method) so every terminal line is a replay-scrub target — right-click a line → `RewindToSeconds(entry.ElapsedSeconds)`. Absent in recordings written before this feature (`HasTerminalLog` false → the reader returns an empty log).
 
 For those legacy recordings, the live host's playback pump (`LiveRoomHost.ApplyPlaybackActionsThrough`) still echoes each replayed command/chat into the otherwise-empty terminal during forward playback; when a terminal log is present that echo is suppressed (guarded on `TerminalLog.Count == 0`) so it does not duplicate the repopulated lines.
+
+**`layouts/` and `airport-geojson/`** hold every airport the room had pinned (`TrainingRoom.ResourcePin`), whether or not an aircraft referenced it, each under the layout's own `AirportId` (`LayoutAirportIds`, `AirportGeoJsonIds`; null when there is none). A server export and a soak run write them through `RecordingLayoutBundler.WritePinnedLayouts` over `ILayoutBundleWriter`, the path a room checkpoint uses too; a room with no pin bundles none.
+
+`MissingLayoutAirportIds` lists the FAA codes the room had pinned with no map (empty in archives written before it), so a load pins them with none instead of falling through to the live map.
+
+`LayoutFormatVersion` is `RecordingArchive.CurrentLayoutFormatVersion` when written (null in older archives), and a server load reads bundled layouts only in that format. A layout in format 1 carries its runway coordinates, edge shapes (value tuples, so the layout serializer `RecordingArchive.LayoutJsonOptions` includes fields) and the runway-end turnoff, no-turnoff and threshold-displacement maps.
+
+Each arc's construction angles (`GroundArc.EdgeBearingAtNode0Deg` / `EdgeBearingAtNode1Deg` / `TurnAngleDeg`) are serialized, not rebuilt, so a read-back layout gives the parsed one's corner speeds and route costs bit for bit. On read (`RecordingArchive.ReadLayoutEntry`), every edge is re-linked to the layout's own node objects and the adjacency lists are rebuilt (`RecordingArchiveTests.ReadLayout_OfARealLayout_RoutesAndTurnsAsTheParsedOne`).
 
 **Version fields** (`ClientVersion`, `ClientBuildKind`, `ServerVersion`) are stamped at export time for bug-report triage. `ClientVersion`/`ClientBuildKind` are sent by the exporting client (`BuildInfo.Version` / `BuildInfo.BuildKind`) and describe the user's build; `ServerVersion` is `SimBuildInfo.Version` — the Yaat.Sim assembly that actually ran the session on the server (Yaat.Server carries no independent version).
 
@@ -410,7 +419,9 @@ stable pseudonym (`A0`..`B9`, whole-word matched so CIDs embedded in beacon code
   Weather advances in the sim on both; a recorded weather change also tears the live METAR re-issuer down (`ApplyRecordedWeatherChange`), and the live host rebuilds it on return to live (`EnsureLiveMetarIssuer`).
 - **A server rewind reads the room's resource pin, not the live vNAS caches.** Every reload of a room's scenario — restart, rewind, rewind-from-snapshot, session restore, the export reconstruction — rebuilds the loader and engine on the ARTCC configs and airport layouts the room's load used (`TrainingRoom.ResourcePin`), so an edit on vNAS between the load and the rewind cannot make the rewind diverge from the live run; a correction reaches the room at its next scenario load.
 
-  A recording load replaces the pin with the resources its own scenario names, fetched when it loads, and the v1 recording migration (`RecordingManager.MigrateToV2Async`, run by `tools/Yaat.RecordingUpgrader`) replays a v1 recording on its own scenario's resources, never the calling room's. See [server-rooms-and-hub.md](server-rooms-and-hub.md#the-resource-pin).
+  A recording load replaces the pin with the resources its own scenario names. A server archive load pins the layouts and missing-map airports the archive bundles (`BundledAirportLayouts.FromRecording`) and fetches only the airports it lacks or holds in another layout format, logging each once, so a vNAS map change since the recording cannot renumber the graph under its snapshots. A session restore does the same from its checkpoint; a `SessionRecording` load fetches every layout.
+
+  The v1 recording migration (`RecordingManager.MigrateToV2Async`, run by `tools/Yaat.RecordingUpgrader`) replays a v1 recording on its own scenario's resources, never the calling room's. See [server-rooms-and-hub.md](server-rooms-and-hub.md#the-resource-pin).
 - **`Ground.Layout` doesn't round-trip.** Only the `LayoutAirportId` does. If a restore is missing a layout, that airport's GeoJSON wasn't loaded — fix the loader, don't add the layout to the DTO.
 - **Don't add `[JsonIgnore]` and call it done.** If state matters across a session, it should serialize. CRC display state in particular must be wired through `ToSnapshot`/`FromSnapshot` — don't defer with "runtime-only" (see [crc-display-state.md](crc-display-state.md) and the `feedback_serialize_display_state` memory).
 - **Build a diagnostic, don't grep.** When investigating "X diverges from Y over time," a `ReplayOneSecond()` loop comparing each second the archive has a snapshot for with `SnapshotTreeDiff` (§ Finding the first divergence) finds the first divergent snapshot in one pass. Five targeted `snapshot --at` calls is a sign you should be writing a diff iterator instead.

@@ -89,7 +89,9 @@ fallback — may block on the network. The layout path is built around that cons
   With a config held, the configs are stale-while-revalidate like the airport layouts: past `ConfigTtl` the call returns the last good outcome at once and starts one shared background refresh.
 
   A refresh that throws keeps the held config and lets the next call retry, one that ends `Unreachable` keeps the held config and is reused for `UnreachableRetryBackoff` (2 min, from the load's start) before the next call refreshes again (a cold ARTCC still retries at once), any other outcome is kept for `ConfigTtl`, and the held config is replaced only by a successful load.
-- Prepare fetches every airport the scenario JSON names (`ScenarioResourceManifest.AirportIds`: presets and VFR generator targets included) into the shared cache before the loader runs, so the loader's `GetLayout` calls are dictionary hits. `ScenarioLifecycleService.WarmAircraftGroundLayouts` then resolves, inside the commit and through the room's pin, every airport a loaded aircraft references (departure, destination, spawn — delayed aircraft included), so no tick pays a first read of them.
+- Prepare fetches every airport the scenario JSON names (`ScenarioResourceManifest.AirportIds`: presets and VFR generator targets included) into the shared cache before the loader runs, so the loader's `GetLayout` calls are dictionary hits. A recording or checkpoint load skips each airport its archive settles (a bundled layout or a missing-map airport), which it pins from the archive instead.
+
+  `ScenarioLifecycleService.WarmAircraftGroundLayouts` then resolves, inside the commit and through the room's pin, every airport a loaded aircraft references (departure, destination, spawn — delayed aircraft included), so no tick pays a first read of them.
 - `NavigationDatabase.GetSid/GetStar/GetApproach` do not walk the supplementary prior-cycle CIFP chain for an airport whose
   current cycle lists no procedures of that kind (that chain models version drift; a procedure-less field would otherwise pay
   a burst of full file scans per probed route token). The chain still walks when no current cycle is loaded.
@@ -106,7 +108,9 @@ A scenario load is two halves (`Simulation/ScenarioLifecycleService.cs`), compos
 
   Then it fetches the manifest's ARTCC configs (`ArtccConfigService.EnsureLoadedAsync`) and airport layouts (`AirportGroundDataService.PrefetchAsync`) concurrently, the two groups at once and every item within a group at once; the GeoJSON parses of one load go one airport at a time through a per-load `SemaphoreSlim` parse gate, since they are CPU work on the thread pool the tick loop also runs on, while the downloads overlap.
 
-  Once the layouts are in it pins them, warms the CIFP SID/STAR/approach tables of the manifest's airports and runs `ScenarioLoader.Load` on a fresh `SimulationEngine`, while the ARTCC configs may still be arriving (the loader reads layouts and navdata, no config). It returns a `PreparedScenario`: the engine and loader result, the seed and session start, the room's resource pin (below), the fetch outcomes and the step reporter.
+  Once the layouts are in it pins them (`PinnedAirportGroundData.FromBundle` with `BundledAirportLayouts.None`, since a scenario load has no archive), warms the CIFP SID/STAR/approach tables of the manifest's airports and runs `ScenarioLoader.Load` on a fresh `SimulationEngine`, while the ARTCC configs may still be arriving (the loader reads layouts and navdata, no config).
+
+  It returns a `PreparedScenario`: the engine and loader result, the seed and session start, the room's resource pin (below), the fetch outcomes and the step reporter.
 - **Commit** (`CommitPreparedScenario`) runs under the room's tick gate and is CPU only.
 
   It first checks the room is still the registered room of its id; one retired or force-closed during the prepare is left alone and the load fails with `The room was closed while the scenario loaded.` Otherwise it unloads the current scenario, stores the pin on the room, runs `PopulateRoom` (positions, beacon banks, strip bays, TDLS and coordination from the pinned configs), records the seeded session settings, sends the CRC broadcasts, re-applies the room's weather and builds the result.
@@ -137,20 +141,38 @@ A room's **resource pin** (`Simulation/RoomResourcePin.cs`, `TrainingRoom.Resour
 
 Layouts live in a `PinnedAirportGroundData` over the live service, keyed by FAA code (`KOAK` and `OAK` share one entry) and read from the live cache once per entry (`AirportGroundDataService.GetLayoutAndSource`), so a layout and its GeoJSON never come from different map versions.
 
+A pin seeded from an archive (`PinnedAirportGroundData.FromBundle`, given the `BundledAirportLayouts` a recording or checkpoint holds) starts with the bundled layouts, each paired with its bundled GeoJSON (a null source when the archive has none), and with the archive's missing-map airports pinned with no layout; only the scenario's other airports are read from the live service.
+
+An archive whose `LayoutFormatVersion` is not `RecordingArchive.CurrentLayoutFormatVersion` has its layouts left unread, and those airports are pinned live; its missing-map airports are kept.
+
+Seeding logs at Information, once per airport: a scenario airport the archive does not bundle (`not bundled in the recording`/`checkpoint`), one whose bundled layout is in an older or newer layout format, and a bundled airport whose live map the service already holds and which differs from the bundled source, is gone, or failed to fetch (`replaying the recorded layout; ...`).
+
+The comparison reads only an entry the live cache already holds and never fetches one. A load from no archive logs none of these.
+
 An airport first named after the load falls through to the live service once and joins the pin; a config miss does not. A vNAS refresh swaps the live cache's entry for a new object and the pin keeps the old one, so a vNAS correction reaches the room at its next scenario load.
 
 Readers of the pin:
 
-- `ReloadForRewind` / `ReloadForRewindAsync`: warm restart, rewind, rewind-from-snapshot, session restore and the export reconstruction (`RoomEngine.CreateTempReplayEngine`, handed the live room's pin) rebuild the loader and engine on the pin and never wait on vNAS. A room with no pin (restored from a checkpoint that saved no ARTCC config) first loads the scenario's configs and layouts into the live caches, then pins those and logs it.
-- The ground-layout hub endpoint (`RoomEngine.GetAirportGroundLayout`), `ExportRoomAsScenario`, the recording export's ARTCC config and layout bundle, the headless soak room's bundle (`HeadlessRoom.GroundData`) and the checkpoint's configs. Every other runtime `ArtccConfigService` reader (CRC handlers, position lookups, the facility tree) stays on the live caches.
+- `ReloadForRewind` / `ReloadForRewindAsync`: warm restart, rewind, rewind-from-snapshot, session restore and the export reconstruction (`RoomEngine.CreateTempReplayEngine`, handed the live room's pin) rebuild the loader and engine on the pin and never wait on vNAS. A room with no pin (restored from a checkpoint that saved no ARTCC config and no layouts) first loads the scenario's configs and layouts into the live caches, then pins those and logs it.
+- The ground-layout hub endpoint (`RoomEngine.GetAirportGroundLayout`), `ExportRoomAsScenario`, the recording export's ARTCC config and layout bundle, the headless soak room's bundle (`HeadlessRoom.GroundData`) and the checkpoint's configs and layouts. Every other runtime `ArtccConfigService` reader (CRC handlers, position lookups, the facility tree) stays on the live caches.
+
+The two archive kinds bundle the pin's airports through one writer path, `RecordingLayoutBundler.WritePinnedLayouts` over `ILayoutBundleWriter` (`RecordingArchiveWriter`, `RoomCheckpointArchiveWriter`): every pinned layout, referenced by an aircraft or not, its source GeoJSON, and the FAA codes pinned with no map. A room with no pin bundles no layouts, and the recording export logs it.
 
 **Recording loads** (`RoomEngine.LoadRecordingGuardedAsync` / `LoadRecordingArchiveGuardedAsync`) are the one path besides a scenario load that replaces the pin. They claim the load flag, fetch their scenario's resources off the tick gate (`ScenarioLifecycleService.PrepareResourcesAsync`, no progress events), then under the gate check the room is still registered, clear it, set the new pin and reload (`ReloadRecording`); the `RecordingLoaded` broadcast goes out before the flag is released.
 
 A commit that throws after the clear leaves the room empty the way an unload does (`ClearRoomScenarioState`, then `ResyncEngineStateAsync`), and the hub sends `ScenarioUnloaded`. The v1 recording migration (`RecordingManager.MigrateToV2Async`, run by `tools/Yaat.RecordingUpgrader`) replays a v1 recording on its own scenario's freshly fetched resources, never the calling room's pin.
 
-**Checkpoints.** A planned-restart checkpoint saves every pinned config (`artcc-configs.json.br`, checkpoint version 2).
+An archive load (`LoadRecordingArchiveGuardedAsync`, and the unguarded `LoadRecordingArchiveAsync`) reads the archive's bundled layouts first, before the prepare and off the gate (`BundledAirportLayouts.FromRecording`, each airport by the manifest's own ID spelling), and hands them to `PrepareResourcesAsync`.
 
-Restore warms the live ARTCC caches (the position registry and the CRC broadcasts read them there), refetches the layouts and pins the archived configs, filling any manifest ARTCC the archive lacks from the live cache (`RoomResourcePin.FromArchive`; a version 1 checkpoint saved the scenario's own config alone), before `ReloadForRewindAsync`. See [session-persistence.md](session-persistence.md).
+The layout prefetch skips the airports the archive settles, and the pin is seeded from them (`FromBundle`), so the replay runs on the graph its snapshots were taken on even after vNAS changes a map.
+
+A `SessionRecording` load (`LoadRecordingGuardedAsync`) carries no layouts and pins the live ones (`BundledAirportLayouts.None`).
+
+**Checkpoints.** A planned-restart checkpoint saves every pinned config (`artcc-configs.json.br`, version 2 on) and every pinned airport (`layouts/`, `airport-geojson/` and the manifest's `MissingLayoutAirportIds`, checkpoint version 3).
+
+Restore warms the live ARTCC caches (the position registry and the CRC broadcasts read them there), pins the archived configs, filling any manifest ARTCC the archive lacks from the live cache (`RoomResourcePin.FromArchive`; a version 1 checkpoint saved the scenario's own config alone), and seeds the layouts from the archive (`RoomCheckpointArchive.ReadAirportLayouts`, then `FromBundle`), fetching only the airports it lacks, before `ReloadForRewindAsync`.
+
+A version 2 checkpoint saved no layouts and restores on the live ones, with an Information line saying so. See [session-persistence.md](session-persistence.md).
 
 **Active runways.** The room carries the mentor's answer per scenario (`TrainingRoom.FindCarriedActiveRunways` / `CarryActiveRunways`, keyed by the normalized scenario id): the load prompt's answer or the last live `ARWY` (`RoomHost.OnActiveRunwaysChanged`; a replayed `ARWY` is not carried). An entry is an answer, so `NONE` is an empty list and an unanswered scenario has none. A load of the scenario already carried keeps its entry, any other load or an unload drops it.
 

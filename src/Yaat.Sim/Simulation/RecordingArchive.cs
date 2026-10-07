@@ -218,16 +218,65 @@ public sealed class RecordingArchive : IDisposable
     // --- Layout reading ---
 
     /// <summary>
+    /// The format bundled layouts are written in, recorded in the manifest. Format 1 carries the runway coordinates and edge
+    /// shapes (tuples, written as fields) and the runway-end dictionaries; a layout without it lacks them.
+    /// </summary>
+    public const int CurrentLayoutFormatVersion = 1;
+
+    /// <summary>
+    /// The serializer options of a bundled layout: the recording options plus fields, since a layout's coordinates are
+    /// value tuples, whose items are fields.
+    /// </summary>
+    public static JsonSerializerOptions LayoutJsonOptions { get; } = new(RecordingJsonOptions.Default) { IncludeFields = true };
+
+    /// <summary>The entry a ground layout is stored under, by the airport ID it was written with.</summary>
+    public static string LayoutEntryName(string airportId) => $"layouts/{airportId}.json.br";
+
+    /// <summary>The entry an airport's source GeoJSON is stored under, by the airport ID it was written with.</summary>
+    public static string AirportGeoJsonEntryName(string airportId) => $"airport-geojson/{airportId}.geojson.br";
+
+    /// <summary>
     /// Read a ground layout stored in the archive by airport ID.
     /// </summary>
-    public AirportGroundLayout ReadLayout(string airportId)
+    public AirportGroundLayout ReadLayout(string airportId) => ReadLayoutEntry(_zip, airportId);
+
+    /// <summary>
+    /// Reads the ground layout <see cref="RecordingArchiveWriter.WriteLayoutEntry"/> stored in <paramref name="zip"/> under
+    /// <paramref name="airportId"/> (the ID it was written with) and rebuilds what serialization leaves out: the node
+    /// adjacency lists, over edges re-linked to the layout's own nodes.
+    /// </summary>
+    public static AirportGroundLayout ReadLayoutEntry(ZipArchive zip, string airportId)
     {
         AirportGroundLayout layout =
-            DeserializeBrotliEntry<AirportGroundLayout>($"layouts/{airportId}.json.br")
+            DeserializeBrotliEntry<AirportGroundLayout>(zip, LayoutEntryName(airportId), LayoutJsonOptions)
             ?? throw new InvalidOperationException($"Failed to deserialize layout for {airportId}.");
+        RelinkEdgeNodes(layout);
         layout.RebuildAdjacencyLists();
         return layout;
     }
+
+    /// <summary>
+    /// The serializer writes each edge's end nodes in full, so a read edge holds copies of them; points every edge at the
+    /// layout's own node objects, whose adjacency lists the pathfinder and the arc taxiway-name resolution walk.
+    /// </summary>
+    private static void RelinkEdgeNodes(AirportGroundLayout layout)
+    {
+        foreach (IGroundEdge edge in layout.AllEdges)
+        {
+            for (int i = 0; i < edge.Nodes.Length; i++)
+            {
+                edge.Nodes[i] = layout.Nodes.TryGetValue(edge.Nodes[i].Id, out GroundNode? node)
+                    ? node
+                    : throw new InvalidOperationException($"Layout {layout.AirportId} has an edge to node {edge.Nodes[i].Id}, which it lacks.");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Reads the source GeoJSON <see cref="RecordingArchiveWriter.WriteAirportGeoJsonEntry"/> stored in
+    /// <paramref name="zip"/> under <paramref name="airportId"/> (the ID it was written with).
+    /// </summary>
+    public static string ReadAirportGeoJsonEntry(ZipArchive zip, string airportId) => ReadBrotliEntry(zip, AirportGeoJsonEntryName(airportId));
 
     /// <summary>
     /// Read all ground layouts declared in the manifest.
@@ -256,7 +305,7 @@ public sealed class RecordingArchive : IDisposable
         }
 
         string? declaredId = ids.FirstOrDefault(id => id.Equals(airportId, StringComparison.OrdinalIgnoreCase));
-        return declaredId is null ? null : ReadBrotliEntry($"airport-geojson/{declaredId}.geojson.br");
+        return declaredId is null ? null : ReadAirportGeoJsonEntry(_zip, declaredId);
     }
 
     public Dictionary<string, string> ReadAllAirportGeoJsons()
@@ -269,7 +318,7 @@ public sealed class RecordingArchive : IDisposable
 
         foreach (string airportId in Manifest.AirportGeoJsonIds)
         {
-            geoJsons[airportId] = ReadBrotliEntry($"airport-geojson/{airportId}.geojson.br");
+            geoJsons[airportId] = ReadAirportGeoJsonEntry(_zip, airportId);
         }
 
         return geoJsons;
@@ -633,22 +682,27 @@ public sealed class RecordingArchive : IDisposable
         return false;
     }
 
-    private T? DeserializeBrotliEntry<T>(string entryName)
+    private T? DeserializeBrotliEntry<T>(string entryName) => DeserializeBrotliEntry<T>(_zip, entryName, RecordingJsonOptions.Default);
+
+    private string ReadBrotliEntry(string entryName) => ReadBrotliEntry(_zip, entryName);
+
+    private static T? DeserializeBrotliEntry<T>(ZipArchive zip, string entryName, JsonSerializerOptions options)
     {
-        ZipArchiveEntry entry = _zip.GetEntry(entryName) ?? throw new InvalidOperationException($"Recording archive missing entry: {entryName}");
-        using Stream entryStream = entry.Open();
+        using Stream entryStream = OpenEntry(zip, entryName);
         using var brotli = new BrotliStream(entryStream, CompressionMode.Decompress);
-        return JsonSerializer.Deserialize<T>(brotli, RecordingJsonOptions.Default);
+        return JsonSerializer.Deserialize<T>(brotli, options);
     }
 
-    private string ReadBrotliEntry(string entryName)
+    private static string ReadBrotliEntry(ZipArchive zip, string entryName)
     {
-        ZipArchiveEntry entry = _zip.GetEntry(entryName) ?? throw new InvalidOperationException($"Recording archive missing entry: {entryName}");
-        using Stream entryStream = entry.Open();
+        using Stream entryStream = OpenEntry(zip, entryName);
         using var brotli = new BrotliStream(entryStream, CompressionMode.Decompress);
         using var reader = new StreamReader(brotli);
         return reader.ReadToEnd();
     }
+
+    private static Stream OpenEntry(ZipArchive zip, string entryName) =>
+        (zip.GetEntry(entryName) ?? throw new InvalidOperationException($"Archive missing entry: {entryName}")).Open();
 
     private static string ReadUtf8Entry(ZipArchiveEntry entry)
     {

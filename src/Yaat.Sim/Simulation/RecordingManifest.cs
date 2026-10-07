@@ -88,7 +88,7 @@ public sealed class RecordingManifest
 
     /// <summary>
     /// Airport IDs whose ground layouts are stored as separate entries in the archive.
-    /// Present in v4+ archives. Null or empty for v3.
+    /// Null in v3 archives, and in a v4 archive whose session had no ground layout to bundle.
     /// </summary>
     public List<string>? LayoutAirportIds { get; init; }
 
@@ -97,6 +97,19 @@ public sealed class RecordingManifest
     /// Null or empty for archives written before source GeoJSON bundling.
     /// </summary>
     public List<string>? AirportGeoJsonIds { get; init; }
+
+    /// <summary>
+    /// The format the bundled layouts were written in (<see cref="RecordingArchive.CurrentLayoutFormatVersion"/> when
+    /// written). Null in archives written before layouts carried their runway geometry, edge shapes and runway-end data,
+    /// whose layouts read back without them.
+    /// </summary>
+    public int? LayoutFormatVersion { get; init; }
+
+    /// <summary>
+    /// The FAA codes of the airports the recording's room had pinned with no map, which a load pins with none; empty in
+    /// archives written before it was recorded.
+    /// </summary>
+    public List<string> MissingLayoutAirportIds { get; init; } = [];
 }
 
 /// <summary>

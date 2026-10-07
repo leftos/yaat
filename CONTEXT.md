@@ -69,8 +69,17 @@ Measured in sim-seconds.
 A second connection to the CRC hub (such as vEDST) that attaches to a session another client (CRC) started, via `JoinSession`. It sees that session's position, room and active state but holds no position of its own, so it never counts toward attendance.
 
 **Resource pin**:
-The airport layouts and ARTCC configs a room's scenario load used, held on the room so a restart, rewind, export or session restore rebuilds the simulation from the same data rather than the live vNAS caches. It is replaced only by the next scenario or recording load, and cleared by an unload.
+The airport layouts and ARTCC configs a room's scenario load used, held on the room so a restart, rewind, export or session restore rebuilds the simulation from the same data rather than the live vNAS caches. It is replaced only by the next scenario or recording load, and cleared by an unload. A recording archive load or a session restore seeds it from the archive's bundled layouts and missing-map airports, and reads only the airports the archive lacks from the live caches.
 _Avoid_: snapshot (that is the simulation state, not its reference data)
+
+**Bundled layout**:
+An airport's parsed ground layout, with the source GeoJSON it was parsed from, written into a recording archive or a room checkpoint (`layouts/`, `airport-geojson/`, keyed by the layout's own airport ID). Every airport the room pinned is bundled, whether or not an aircraft referenced it, so a replay or restore runs on the graph its snapshots were taken on.
+
+**Missing-map airport**:
+An airport the room pinned with no ground map (vNAS had none for it, or its map could not be fetched or parsed), listed by FAA code in an archive's `MissingLayoutAirportIds` so a load pins it with no map too instead of fetching one live.
+
+**Layout format version**:
+The format an archive's bundled layouts were written in (`LayoutFormatVersion`, `RecordingArchive.CurrentLayoutFormatVersion`). A load reads bundled layouts only in the current format; in an older or newer one, or none recorded, those airports are pinned from the live layouts, while its missing-map airports are still kept.
 
 **Resource manifest**:
 What a scenario JSON will make the server fetch — its ARTCC, the roster's neighbouring ARTCCs and every airport it names — read without loading anything (`ScenarioResourceManifest`).

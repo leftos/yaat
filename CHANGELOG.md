@@ -71,6 +71,7 @@
 - An aircraft told to `FOLLOWG` taxies the taxiways behind its leader, squaring off corners too tight for it, and stops at runway hold-short lines.
 - A `FOLLOWG` aircraft that loses its leader takes up its own route, or holds and says it lost the traffic; one stopped over a runway says so.
 - A leader that turns back toward its `FOLLOWG` follower slows to keep clear of it instead of driving into it.
+- A replayed recording or restored session uses the airport maps it was saved with, even after vNAS changes them.
 - A landed aircraft turning off onto its exit keeps the braking it used on the rollout, instead of braking hard for the turn.
 - Aircraft types missing from the FAA database push back, stop at gates and yield on the ramp using their wake category's length, not a fixed guess.
 - Spoken "climb via SID except maintain" stays a climb-via when the SID word is misheard, instead of becoming a plain climb.
