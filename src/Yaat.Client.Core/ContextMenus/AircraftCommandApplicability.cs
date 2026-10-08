@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using Yaat.Sim;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Situation;
@@ -699,4 +700,35 @@ public static class AircraftCommandApplicability
         phase.StartsWith("LevelBelow", StringComparison.Ordinal)
         || phase.StartsWith("HoldOutside", StringComparison.Ordinal)
         || phase.StartsWith("AR anchor ", StringComparison.Ordinal);
+
+    // --- Track state ---
+
+    /// <summary>
+    /// True while a position owns the aircraft's track, whether it is named by its callsign or ID
+    /// (<see cref="IMenuAircraft.Owner"/>) or by a sector code it resolves to (<see cref="IMenuAircraft.OwnerSectorCode"/>);
+    /// either one alone is enough. It offers the handoff, point out and drop items either way, as it does for a track
+    /// mirrored from a live feed.
+    /// </summary>
+    public static bool IsOwned(IMenuAircraft? ac) => (!string.IsNullOrEmpty(ac?.Owner)) || (!string.IsNullOrEmpty(ac?.OwnerSectorCode));
+
+    /// <summary>
+    /// True while a track handoff is in progress, whether it names its peer (<see cref="IMenuAircraft.HandoffPeer"/>) or
+    /// only the peer's sector (<see cref="IMenuAircraft.HandoffPeerSectorCode"/>), as a handoff to an unstaffed sector does.
+    /// </summary>
+    public static bool HasHandoffInProgress(IMenuAircraft? ac) =>
+        (!string.IsNullOrEmpty(ac?.HandoffPeer)) || (!string.IsNullOrEmpty(ac?.HandoffPeerSectorCode));
+
+    /// <summary>
+    /// True while a pointout awaits an answer (<see cref="IMenuAircraft.PointoutStatus"/>,
+    /// <see cref="StarsPointoutStatus.Pending"/>); an accepted or rejected pointout counts as none.
+    /// </summary>
+    public static bool HasPendingPointout(IMenuAircraft? ac) =>
+        string.Equals(ac?.PointoutStatus, nameof(StarsPointoutStatus.Pending), StringComparison.Ordinal);
+
+    /// <summary>
+    /// True when no track state applies — no owner, no handoff in progress and no pending pointout — which offers the
+    /// single Initiate Track item. A missing aircraft carries no state and counts as untracked, so the submenu always
+    /// holds at least one item.
+    /// </summary>
+    public static bool IsUntracked(IMenuAircraft? ac) => !IsOwned(ac) && !HasHandoffInProgress(ac) && !HasPendingPointout(ac);
 }

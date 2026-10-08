@@ -157,6 +157,24 @@ public interface IMenuAircraft
     /// </summary>
     AircraftSituation Situation { get; }
 
+    /// <summary>The callsign or ID of the position that owns the aircraft's track; null or empty when it names none.</summary>
+    string? Owner { get; }
+
+    /// <summary>The sector code of the position that owns the aircraft's track; null or empty when none resolves.</summary>
+    string? OwnerSectorCode { get; }
+
+    /// <summary>The callsign or ID of the position a track handoff is in progress to; null or empty for an unstaffed sector.</summary>
+    string? HandoffPeer { get; }
+
+    /// <summary>The handoff peer's sector code, which carries the handoff when the peer names no callsign; null or empty otherwise.</summary>
+    string? HandoffPeerSectorCode { get; }
+
+    /// <summary>
+    /// The pointout's status (<c>Pending</c>, <c>Accepted</c>, <c>Rejected</c>); null when the aircraft has none. Only
+    /// <c>Pending</c> leaves the pointout unanswered.
+    /// </summary>
+    string? PointoutStatus { get; }
+
     /// <summary>The server-computed situation flags (the stored AircraftSituationState.Flags), sent beside Situation.</summary>
     SituationFlags SituationFlags { get; }
 

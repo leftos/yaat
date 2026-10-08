@@ -19,7 +19,7 @@ public class QuickCommandResolverTests
     private static readonly string[] GlyphIds =
     [
         MenuIds.TrackTrack,
-        MenuIds.TrackInitiateHandoff,
+        MenuIds.ApproachReportTrafficInSight,
         MenuIds.SquawkCode,
         MenuIds.SimControlWarp,
         MenuIds.SimControlDelete,

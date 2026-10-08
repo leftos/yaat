@@ -298,6 +298,8 @@ Right-click an aircraft on the [Radar View](#radar-view-1), the [Ground View](#g
 
   Where the minimum vectoring altitude is charted, an "MVA 5,000 here (sector SCK_M)" line sits in the list and the rows below it are greyed "below MVA", but they can still be picked. Type an altitude the way commands take one (`35`, `350`, `FL350`) to jump to it, use the arrow keys, Page Up / Page Down and Home / End to move, and Enter to send.
 - **Track**, **Data Block**, **Squawk**, then the view's own items (the radar's **Display** and **Draw route**, the ground's **Display**; the Aircraft List has none), and **Favorite Commands**.
+
+  **Track** lists only what the track's own state calls for, the same items on every view: an untracked aircraft gets **Initiate Track**; an aircraft being tracked gets **Initiate handoff…**, **Point out…** and **Drop track**; a handoff in progress gets **Accept handoff** and **Cancel handoff**; and a pointout awaiting an answer gets **Acknowledge pointout**. States that overlap show both groups, separated.
 - **All Commands**: every command for the aircraft — the traffic actions for a selected aircraft, the ground items, Heading, Altitude, Speed, Navigation, Hold, Approach, Procedures, Tower and Pattern (only Tower while the aircraft is on the ground or rolling on the runway), Preset taxi route, Draw taxi route…, Ask pilot to say…, Coordination, Edit flight plan, and last **Warp…** and **Release to live feed**.
 - **Delete** and the RPO assignment items.
 

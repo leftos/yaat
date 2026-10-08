@@ -5,15 +5,7 @@ Command…
 Note…
 ---
 Track
-  Track
-  Drop track
-  ---
-  Accept handoff
-  Initiate handoff… picker:input
-  Cancel handoff
-  ---
-  Point out… picker:input
-  Acknowledge pointout
+  Initiate Track
 Data Block
   Scratchpad… picker:input
   Temporary altitude… picker:input

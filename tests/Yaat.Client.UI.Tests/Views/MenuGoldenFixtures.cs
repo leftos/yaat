@@ -58,6 +58,7 @@ internal static class MenuGoldenFixtures
         [
             .. GroundFixtures(layout),
             .. AirborneIfrFixtures(),
+            .. TrackStateFixtures(),
             .. AirborneVfrFixtures(),
             .. LiveTrafficFixtures(layout),
             DelayedSpawn(),
@@ -254,6 +255,27 @@ internal static class MenuGoldenFixtures
             Destination = "KOAK",
             Route = "LANDO J6 AVE RGOOD EMZOH4",
         };
+
+    /// <summary>
+    /// The track states the Track submenu filters on: an owned track, an owned track with a handoff in progress and an
+    /// owned track with a pointout pending, each an otherwise plain enroute B738. Untracked is every other fixture.
+    /// </summary>
+    private static List<MenuFixture> TrackStateFixtures() =>
+        [
+            new("track-owned", TrackState("AAL211", owner: "NCT", handoffPeer: null, pointoutStatus: null), null),
+            new("track-handoff", TrackState("AAL212", owner: "NCT", handoffPeer: "OAK_3", pointoutStatus: null), null),
+            new("track-pointout", TrackState("AAL213", owner: "NCT", handoffPeer: null, pointoutStatus: "Pending"), null),
+        ];
+
+    /// <summary>An enroute B738 carrying the track state the fixture pins.</summary>
+    private static AircraftModel TrackState(string callsign, string? owner, string? handoffPeer, string? pointoutStatus)
+    {
+        AircraftModel ac = AirborneJet(callsign, "", AircraftSituation.IfrEnroute, new LatLon(37.5000, -121.7000), 33000);
+        ac.OwnerSectorCode = owner;
+        ac.HandoffPeer = handoffPeer;
+        ac.PointoutStatus = pointoutStatus;
+        return ac;
+    }
 
     private static List<MenuFixture> AirborneVfrFixtures() =>
         [

@@ -9,15 +9,7 @@ strip: [heading.fly, altitude.maintain, navigation.direct-to, speed.assign, hold
 Cross fix… picker:list [SUNOL, ALTAM, KLAX, KOAK]
 ---
 Track
-  Track
-  Drop track
-  ---
-  Accept handoff
-  Initiate handoff… picker:input
-  Cancel handoff
-  ---
-  Point out… picker:input
-  Acknowledge pointout
+  Initiate Track
 Data Block
   Scratchpad… picker:input
   Temporary altitude… picker:input

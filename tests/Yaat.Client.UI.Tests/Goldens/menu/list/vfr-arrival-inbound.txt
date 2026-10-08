@@ -13,15 +13,7 @@ N-mile final… picker:input
 At fix… picker:input
 ---
 Track
-  Track
-  Drop track
-  ---
-  Accept handoff
-  Initiate handoff… picker:input
-  Cancel handoff
-  ---
-  Point out… picker:input
-  Acknowledge pointout
+  Initiate Track
 Data Block
   Scratchpad… picker:input
   Temporary altitude… picker:input

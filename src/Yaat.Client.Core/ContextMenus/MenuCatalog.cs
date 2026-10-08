@@ -72,13 +72,25 @@ public static class MenuCatalog
             (_, context, host) => BuildAssumeAndTrack(context, host)
         ),
         Leaf(MenuIds.LiveTrafficUnassume, "Release to live feed", "UNASSUME", (ac, _) => AircraftCommandApplicability.CanUnassume(ac)),
-        Leaf(MenuIds.TrackTrack, "Track", "TRACK", Always),
-        Leaf(MenuIds.TrackDrop, "Drop track", "DROP", Always),
-        Leaf(MenuIds.TrackAcceptHandoff, "Accept handoff", "ACCEPT", Always),
-        InputLeaf(MenuIds.TrackInitiateHandoff, "Initiate handoff…", "Position ID", BlankInput.Closes, input => $"HO {input}"),
-        Leaf(MenuIds.TrackCancelHandoff, "Cancel handoff", "CANCEL", Always),
-        InputLeaf(MenuIds.TrackPointOut, "Point out…", "Position ID", BlankInput.Closes, input => $"PO {input}"),
-        Leaf(MenuIds.TrackAcknowledgePointout, "Acknowledge pointout", "OK", Always),
+        Leaf(MenuIds.TrackTrack, "Initiate Track", "TRACK", (ac, _) => AircraftCommandApplicability.IsUntracked(ac)),
+        Leaf(MenuIds.TrackDrop, "Drop track", "DROP", (ac, _) => AircraftCommandApplicability.IsOwned(ac)),
+        Leaf(MenuIds.TrackAcceptHandoff, "Accept handoff", "ACCEPT", (ac, _) => AircraftCommandApplicability.HasHandoffInProgress(ac)),
+        new(
+            MenuIds.TrackInitiateHandoff,
+            "Initiate handoff…",
+            MenuFlightRules.Both,
+            (ac, _) => AircraftCommandApplicability.IsOwned(ac),
+            (_, context, host) => BuildInput("Initiate handoff…", "Position ID", BlankInput.Closes, input => $"HO {input}", context, host)
+        ),
+        Leaf(MenuIds.TrackCancelHandoff, "Cancel handoff", "CANCEL", (ac, _) => AircraftCommandApplicability.HasHandoffInProgress(ac)),
+        new(
+            MenuIds.TrackPointOut,
+            "Point out…",
+            MenuFlightRules.Both,
+            (ac, _) => AircraftCommandApplicability.IsOwned(ac),
+            (_, context, host) => BuildInput("Point out…", "Position ID", BlankInput.Closes, input => $"PO {input}", context, host)
+        ),
+        Leaf(MenuIds.TrackAcknowledgePointout, "Acknowledge pointout", "OK", (ac, _) => AircraftCommandApplicability.HasPendingPointout(ac)),
         InputLeaf(MenuIds.SquawkCode, "Squawk…", "Code (0000-7777)", BlankInput.Closes, input => $"SQ {int.Parse(input)}"),
         Leaf(MenuIds.SquawkRandom, "Squawk random", "RANDSQ", Always),
         Leaf(MenuIds.SquawkVfr, "Squawk VFR", "SQVFR", Always),

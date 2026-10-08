@@ -8,15 +8,7 @@ Note…
 strip: [tower.cleared-to-land, tower.cleared-option, tower.touch-and-go, pattern.extend, pattern.short-approach, pattern.left-360, pattern.right-360, pattern.turn-base, tower.go-around]
 ---
 Track
-  Track
-  Drop track
-  ---
-  Accept handoff
-  Initiate handoff… picker:input
-  Cancel handoff
-  ---
-  Point out… picker:input
-  Acknowledge pointout
+  Initiate Track
 Data Block
   Scratchpad… picker:input
   Temporary altitude… picker:input

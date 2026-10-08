@@ -30,6 +30,7 @@
 
 ### Changed
 
+- The Track submenu lists only what the track's state allows: Initiate Track, or handoff, point out and drop, Accept and Cancel, Acknowledge.
 - Approach menus offer the expected approach, or the assigned runway's ILS, in one click, and list the rest grouped by runway and type.
 - Assign speed lists the aircraft type's own speed range, Mach numbers at FL240 and above, and Resume normal speed and Final approach speed.
 - Maintain opens at the aircraft's altitude, marks climbs and descents, ends at its type's ceiling, greys altitudes below the MVA and jumps to typed altitudes.

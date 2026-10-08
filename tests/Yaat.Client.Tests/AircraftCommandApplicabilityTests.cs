@@ -813,4 +813,95 @@ public class AircraftCommandApplicabilityTests
         Assert.False(AircraftCommandApplicability.ShowsSpeedAdjustment(null));
         Assert.False(AircraftCommandApplicability.ShowsRunwayExit(null));
     }
+
+    // --- Track state ---
+
+    /// <summary>The Track submenu's entries, in the order the submenu groups them.</summary>
+    private static readonly string[] TrackIds =
+    [
+        MenuIds.TrackTrack,
+        MenuIds.TrackInitiateHandoff,
+        MenuIds.TrackPointOut,
+        MenuIds.TrackDrop,
+        MenuIds.TrackAcceptHandoff,
+        MenuIds.TrackCancelHandoff,
+        MenuIds.TrackAcknowledgePointout,
+    ];
+
+    private static MenuContext TrackMenuContext() =>
+        new(new MenuClick("TST123", null, null, []), new MenuSession("XX", false, VfrCommandsForIfr.None, QuickCommandDefaults.For));
+
+    /// <summary>The Track entries the catalog offers for <paramref name="ac"/>, in <see cref="TrackIds"/> order.</summary>
+    private static string[] ShownTrackIds(AircraftModel? ac)
+    {
+        MenuContext context = TrackMenuContext();
+        return [.. TrackIds.Where(id => MenuCatalog.Get(id).IsApplicable(ac, context))];
+    }
+
+    /// <summary>An airborne enroute aircraft carrying the track state the theory hands it.</summary>
+    private static AircraftModel TrackState(
+        string? owner,
+        string? ownerSectorCode,
+        string? handoffPeer,
+        string? handoffPeerSectorCode,
+        string? pointoutStatus
+    ) =>
+        new()
+        {
+            Callsign = "TST123",
+            FlightRules = "IFR",
+            CurrentPhase = "",
+            Situation = AircraftSituation.IfrEnroute,
+            IsOnGround = false,
+            Owner = owner,
+            OwnerSectorCode = ownerSectorCode,
+            HandoffPeer = handoffPeer,
+            HandoffPeerSectorCode = handoffPeerSectorCode,
+            PointoutStatus = pointoutStatus,
+        };
+
+    public static TheoryData<string?, string?, string?, string?, string?, string[]> TrackStates() =>
+        new()
+        {
+            { null, null, null, null, null, [MenuIds.TrackTrack] },
+            { null, "", null, null, null, [MenuIds.TrackTrack] },
+            { "NCT", null, null, null, null, [MenuIds.TrackInitiateHandoff, MenuIds.TrackPointOut, MenuIds.TrackDrop] },
+            { null, "NCT", null, null, null, [MenuIds.TrackInitiateHandoff, MenuIds.TrackPointOut, MenuIds.TrackDrop] },
+            { null, null, "OAK_3", null, null, [MenuIds.TrackAcceptHandoff, MenuIds.TrackCancelHandoff] },
+            { null, null, "", "2B", null, [MenuIds.TrackAcceptHandoff, MenuIds.TrackCancelHandoff] },
+            { null, null, null, null, "Pending", [MenuIds.TrackAcknowledgePointout] },
+            {
+                "NCT",
+                null,
+                "",
+                "2B",
+                null,
+                [MenuIds.TrackInitiateHandoff, MenuIds.TrackPointOut, MenuIds.TrackDrop, MenuIds.TrackAcceptHandoff, MenuIds.TrackCancelHandoff]
+            },
+            {
+                "NCT",
+                null,
+                null,
+                null,
+                "Pending",
+                [MenuIds.TrackInitiateHandoff, MenuIds.TrackPointOut, MenuIds.TrackDrop, MenuIds.TrackAcknowledgePointout]
+            },
+            { null, null, null, null, "Accepted", [MenuIds.TrackTrack] },
+            { null, null, null, null, "Rejected", [MenuIds.TrackTrack] },
+        };
+
+    [Theory]
+    [MemberData(nameof(TrackStates))]
+    public void TrackItems_ShowTheGroupsThatApply(
+        string? owner,
+        string? ownerSectorCode,
+        string? handoffPeer,
+        string? handoffPeerSectorCode,
+        string? pointoutStatus,
+        string[] expected
+    ) => Assert.Equal(expected, ShownTrackIds(TrackState(owner, ownerSectorCode, handoffPeer, handoffPeerSectorCode, pointoutStatus)));
+
+    /// <summary>A null aircraft carries no state, so it is untracked and gets the one item that always applies.</summary>
+    [Fact]
+    public void TrackItems_NullAircraft_ShowOnlyInitiateTrack() => Assert.Equal([MenuIds.TrackTrack], ShownTrackIds(null));
 }

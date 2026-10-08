@@ -2619,6 +2619,16 @@ public class MenuCatalogCommandTests
 
         public string? ExpectedApproach { get; init; }
 
+        public string? Owner { get; init; }
+
+        public string? OwnerSectorCode { get; init; }
+
+        public string? HandoffPeer { get; init; }
+
+        public string? HandoffPeerSectorCode { get; init; }
+
+        public string? PointoutStatus { get; init; }
+
         public AircraftSituation Situation { get; init; }
 
         public SituationFlags SituationFlags { get; init; }

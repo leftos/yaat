@@ -19,21 +19,32 @@ namespace Yaat.Client.ContextMenus;
 /// </summary>
 public static class SharedMenuGroups
 {
-    /// <summary>The Track submenu: track and drop, then the handoff and pointout items.</summary>
+    /// <summary>
+    /// The Track submenu: each track state's group of items, an untracked track's single Initiate Track, a separator
+    /// between the groups that show and none where they do not. Overlapping states show the union of their groups.
+    /// </summary>
     public static MenuItem Track(IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
     {
         var menu = new MenuItem { Header = "Track" };
-        TryAdd(menu.Items, TryLeaf(MenuIds.TrackTrack, aircraft, context, host));
-        TryAdd(menu.Items, TryLeaf(MenuIds.TrackDrop, aircraft, context, host));
-        menu.Items.Add(new Separator());
-        TryAdd(menu.Items, TryLeaf(MenuIds.TrackAcceptHandoff, aircraft, context, host));
-        TryAdd(menu.Items, TryLeaf(MenuIds.TrackInitiateHandoff, aircraft, context, host));
-        TryAdd(menu.Items, TryLeaf(MenuIds.TrackCancelHandoff, aircraft, context, host));
-        menu.Items.Add(new Separator());
-        TryAdd(menu.Items, TryLeaf(MenuIds.TrackPointOut, aircraft, context, host));
-        TryAdd(menu.Items, TryLeaf(MenuIds.TrackAcknowledgePointout, aircraft, context, host));
+        foreach (string[] group in TrackGroups)
+        {
+            AddBlockIfAnyApplies(menu.Items, group, aircraft, context, host);
+        }
+
         return menu;
     }
+
+    /// <summary>
+    /// The Track submenu's groups in order: the untracked item, then the owned track's handoff, point out and drop, then
+    /// the handoff in progress's accept and cancel, then the pending pointout's acknowledge.
+    /// </summary>
+    private static readonly string[][] TrackGroups =
+    [
+        [MenuIds.TrackTrack],
+        [MenuIds.TrackInitiateHandoff, MenuIds.TrackPointOut, MenuIds.TrackDrop],
+        [MenuIds.TrackAcceptHandoff, MenuIds.TrackCancelHandoff],
+        [MenuIds.TrackAcknowledgePointout],
+    ];
 
     /// <summary>The Squawk submenu: the code items, then Ident.</summary>
     public static MenuItem Squawk(IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
@@ -741,6 +752,43 @@ public static class SharedMenuGroups
 
         items.Add(item);
         return true;
+    }
+
+    /// <summary>
+    /// Adds the items of <paramref name="ids"/> that apply to <paramref name="aircraft"/>, after a separator when
+    /// <paramref name="items"/> already holds one, and nothing at all when none of them applies.
+    /// </summary>
+    private static void AddBlockIfAnyApplies(
+        ItemCollection items,
+        IReadOnlyList<string> ids,
+        IMenuAircraft? aircraft,
+        MenuContext context,
+        IMenuHost host
+    )
+    {
+        List<MenuItem> applies = [];
+        foreach (string id in ids)
+        {
+            if (IsApplicable(id, aircraft, context) && (TryLeaf(id, aircraft, context, host) is { } item))
+            {
+                applies.Add(item);
+            }
+        }
+
+        if (applies.Count == 0)
+        {
+            return;
+        }
+
+        if (items.Count > 0)
+        {
+            items.Add(new Separator());
+        }
+
+        foreach (MenuItem item in applies)
+        {
+            items.Add(item);
+        }
     }
 
     /// <summary>

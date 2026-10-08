@@ -9,15 +9,7 @@ strip: [approach.report-traffic-in-sight, heading.fly, altitude.maintain, naviga
 Expect approach picker:grouped [10L, 10R, 12, 28L, 28R, 30]
 ---
 Track
-  Track
-  Drop track
-  ---
-  Accept handoff
-  Initiate handoff… picker:input
-  Cancel handoff
-  ---
-  Point out… picker:input
-  Acknowledge pointout
+  Initiate Track
 Data Block
   Scratchpad… picker:input
   Temporary altitude… picker:input

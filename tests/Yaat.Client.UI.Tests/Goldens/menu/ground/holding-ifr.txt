@@ -10,15 +10,7 @@ Cleared approach (other)… picker:grouped [Runway 30 · assigned: I30, L30, R30
 Enter straight-in final 30
 ---
 Track
-  Track
-  Drop track
-  ---
-  Accept handoff
-  Initiate handoff… picker:input
-  Cancel handoff
-  ---
-  Point out… picker:input
-  Acknowledge pointout
+  Initiate Track
 Data Block
   Scratchpad… picker:input
   Temporary altitude… picker:input
