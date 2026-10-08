@@ -61,6 +61,8 @@
 - A rolling aircraft turned around on a taxiway brakes to pivot speed first, stops short of runway hold lines, and says unable without room.
 - An aircraft exiting a runway onto a sharply angled taxiway turns off at corner speed instead of turning around on the taxiway.
 - `FOLLOWG` answers "unable" when no taxi route reaches the leader's path, or when the follower is already ahead of the leader on it.
+- `PUSH` and `PUSHF` can tow an aircraft stopped at a hold bar back off it, and refuse a push that moves it deeper toward the runway.
+- Stands that aircraft leave by taxiing out, such as KOAK's GA ramp and KSFO's cargo stands, no longer offer push targets.
 
 ### Fixed
 

@@ -785,29 +785,166 @@ public class TugMovePlannerTests
 
     /// <summary>
     /// SFO taxiway F reaches a runway holding position about 100 ft from its junction with AF. A B738 standing on F 30 ft
-    /// past the bar, nose toward the runway, pushed straight back onto AF crosses the bar: still refused for the holding
-    /// position, whatever the overshoot rule says about AF.
+    /// past the bar, nose toward the runway, is towed straight back onto AF: it leaves the runway safety area, never
+    /// moving deeper into it, so the move is planned.
     /// </summary>
     [Fact]
-    public void StraightBackOntoTaxiway_AcrossARunwayHoldingPosition_Refused()
+    public void PastTheBar_TowedBackOntoTaxiway_Planned()
     {
         if (LoadSfo() is not { } layout)
         {
             return;
         }
 
+        (GroundNode hold, GroundNode junction, double towardRunwayDeg) = FHoldNearestAf(layout);
+        TugPose start = PastTheBar(hold, towardRunwayDeg);
+
+        TugPlan plan = PlanOrFail(layout, OffStand(start, TugGoal.StraightBackTo(junction, "AF")));
+
+        Assert.True(
+            FeetBetween(plan.End.Position, hold.Position) > FeetBetween(start.Position, hold.Position),
+            "the tow ends farther from the holding position than it started"
+        );
+    }
+
+    /// <summary>
+    /// The same B738 30 ft past F's bar cannot be towed 15 ft deeper toward the runway, even forced (<c>PUSHF</c>): its
+    /// start already lies over the bar's edges, and it stays off the runway, so only the runway safety area's depth refuses
+    /// the move.
+    /// </summary>
+    [Fact]
+    public void PastTheBar_TowedDeeperTowardTheRunway_Refused()
+    {
+        if (LoadSfo() is not { } layout)
+        {
+            return;
+        }
+
+        (GroundNode hold, _, double towardRunwayDeg) = FHoldNearestAf(layout);
+        TugPose start = PastTheBar(hold, towardRunwayDeg);
+        LatLon deeper = GeoMath.ProjectPoint(start.Position, new TrueHeading(towardRunwayDeg), 15.0 / GeoMath.FeetPerNm);
+
+        string refusal = Refusal(
+            layout,
+            OffStand(start, TugGoal.AtNode(VirtualNode.Create(deeper.Lat, deeper.Lon), facingTrueDeg: null)) with
+            {
+                Forced = true,
+            }
+        );
+
+        Assert.Contains("moves deeper toward runway 01L/19R", refusal, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A B738 on F 100 ft behind the F/AF junction, its footprint over none of the bar's edges, towed forced (<c>PUSHF</c>)
+    /// up F onto the holding position: the tow comes to lie across the bar's edges, so it is refused.
+    /// </summary>
+    [Fact]
+    public void ShortOfTheBar_TowedAcrossIt_Refused()
+    {
+        if (LoadSfo() is not { } layout)
+        {
+            return;
+        }
+
+        (GroundNode hold, GroundNode junction, double towardRunwayDeg) = FHoldNearestAf(layout);
+        LatLon behind = GeoMath.ProjectPoint(junction.Position, new TrueHeading(towardRunwayDeg).ToReciprocal(), 100.0 / GeoMath.FeetPerNm);
+        var onto = TugGoal.AtNode(VirtualNode.Create(hold.Position.Lat, hold.Position.Lon), facingTrueDeg: null);
+
+        string refusal = Refusal(layout, OffStand(new TugPose(behind, towardRunwayDeg), onto) with { Forced = true });
+
+        Assert.Contains("reaches a runway holding position", refusal, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A request planned on a layout needs that airport's movement-area classification: both entry points, the planner and
+    /// the plan builder, throw for a request without one or with another airport's.
+    /// </summary>
+    [Fact]
+    public void RequestWithoutItsAirportsMovementArea_Throws()
+    {
+        if ((LoadSfo() is not { } sfo) || (LoadOak() is not { } oak))
+        {
+            return;
+        }
+
+        TugRequest bare = StandStart(Parking(sfo, "D15"), TugGoal.Spot(Spot(sfo, "6A")));
+        TugRequest oakArea = bare with { MovementArea = MovementAreaClassification.For(oak) };
+
+        Assert.Throws<ArgumentException>(() => new TugPlanBuilder(sfo, bare));
+        Assert.Throws<ArgumentException>(() => TugMovePlanner.Plan(sfo, bare, out _));
+        Assert.Throws<ArgumentException>(() => new TugPlanBuilder(sfo, oakArea));
+        Assert.Throws<ArgumentException>(() => TugMovePlanner.Plan(sfo, oakArea, out _));
+    }
+
+    /// <summary>
+    /// A B738 stopped with its nose on SFO taxiway F's runway holding position nearest the F/AF junction is towed straight
+    /// back onto AF, away from the runway: a tug back from a hold bar is a real operation, so the move is planned.
+    /// </summary>
+    [Fact]
+    public void AtAHoldBar_TowedBackAwayFromTheRunway_Planned()
+    {
+        if (LoadSfo() is not { } layout)
+        {
+            return;
+        }
+
+        (GroundNode hold, GroundNode junction, double towardRunwayDeg) = FHoldNearestAf(layout);
+        TugPose start = NoseOnTheBar(hold, towardRunwayDeg);
+
+        TugPlan plan = PlanOrFail(layout, OffStand(start, TugGoal.StraightBackTo(junction, "AF")));
+
+        AssertKinds(plan, PushbackLegKind.Push);
+        Assert.True(
+            FeetBetween(plan.End.Position, hold.Position) > FeetBetween(start.Position, hold.Position),
+            "the tow ends farther from the holding position than it started"
+        );
+    }
+
+    /// <summary>
+    /// The same B738 stopped with its nose on F's holding position cannot be towed deeper toward the runway, even forced
+    /// (<c>PUSHF</c>): the aircraft may leave the runway safety area but never move further into it.
+    /// </summary>
+    [Fact]
+    public void AtAHoldBar_TowedDeeperTowardTheRunway_Refused()
+    {
+        if (LoadSfo() is not { } layout)
+        {
+            return;
+        }
+
+        (GroundNode hold, _, double towardRunwayDeg) = FHoldNearestAf(layout);
+        TugPose start = NoseOnTheBar(hold, towardRunwayDeg);
+        LatLon deeper = GeoMath.ProjectPoint(hold.Position, new TrueHeading(towardRunwayDeg), 15.0 / GeoMath.FeetPerNm);
+        var goal = TugGoal.AtNode(VirtualNode.Create(deeper.Lat, deeper.Lon), facingTrueDeg: null);
+
+        string refusal = Refusal(layout, OffStand(start, goal) with { Forced = true });
+
+        Assert.Contains("moves deeper toward runway 01L/19R", refusal, StringComparison.Ordinal);
+    }
+
+    /// <summary>SFO taxiway F's runway holding position nearest its junction with AF, that junction, and the bearing from it to the bar.</summary>
+    private (GroundNode Hold, GroundNode Junction, double TowardRunwayDeg) FHoldNearestAf(AirportGroundLayout layout)
+    {
         List<GroundNode> holds = [.. layout.Nodes.Values.Where(n => (n.Type == GroundNodeType.RunwayHoldShort) && HasStraightEdge(n, "F"))];
         List<GroundNode> junctions = [.. layout.Nodes.Values.Where(n => HasStraightEdge(n, "F") && HasStraightEdge(n, "AF"))];
         (GroundNode hold, GroundNode junction, double apartFt) = holds
             .SelectMany(h => junctions.Select(j => (Hold: h, Junction: j, ApartFt: FeetBetween(h.Position, j.Position))))
             .MinBy(p => p.ApartFt);
         _output.WriteLine($"F's holding position #{hold.Id} lies {apartFt:F0} ft from the F/AF junction #{junction.Id}");
-        double towardRunwayDeg = GeoMath.BearingTo(junction.Position, hold.Position);
-        LatLon start = GeoMath.ProjectPoint(hold.Position, new TrueHeading(towardRunwayDeg), 30.0 / GeoMath.FeetPerNm);
+        return (hold, junction, GeoMath.BearingTo(junction.Position, hold.Position));
+    }
 
-        string refusal = Refusal(layout, OffStand(new TugPose(start, towardRunwayDeg), TugGoal.StraightBackTo(junction, "AF")));
+    /// <summary>A B738 facing the runway with its centre 30 ft past the holding position.</summary>
+    private static TugPose PastTheBar(GroundNode hold, double towardRunwayDeg) =>
+        new(GeoMath.ProjectPoint(hold.Position, new TrueHeading(towardRunwayDeg), 30.0 / GeoMath.FeetPerNm), towardRunwayDeg);
 
-        Assert.Equal("Unable, the move to taxiway AF reaches a runway holding position", refusal);
+    /// <summary>A B738 facing the runway with its nose on the holding position: its centre half a length short of it.</summary>
+    private static TugPose NoseOnTheBar(GroundNode hold, double towardRunwayDeg)
+    {
+        double halfLengthFt = AircraftFootprint.FromType(Narrowbody).LengthFt / 2.0;
+        LatLon centre = GeoMath.ProjectPoint(hold.Position, new TrueHeading(towardRunwayDeg).ToReciprocal(), halfLengthFt / GeoMath.FeetPerNm);
+        return new TugPose(centre, towardRunwayDeg);
     }
 
     private static bool HasStraightEdge(GroundNode node, string taxiway) => node.Edges.OfType<GroundEdge>().Any(e => e.MatchesTaxiway(taxiway));
@@ -1055,7 +1192,7 @@ public class TugMovePlannerTests
         double laneTurnDeg = new TrueHeading(request.Start.NoseTrueDeg).SignedAngleTo(new TrueHeading(facingDeg));
         double floorFt = GroundOutlineSweep.FloorFt(StartClearanceFt(request, neighbour));
 
-        List<TugCandidate> kept = new TugPlanBuilder(layout, request).AcceptableMultiPointPaths();
+        List<TugCandidate> kept = new TugPlanBuilder(layout, WithMovementArea(layout, request)).AcceptableMultiPointPaths();
 
         _output.WriteLine($"{kept.Count} multi-point paths kept; lane turn {laneTurnDeg:F1}°, floor {floorFt:F1} ft");
         Assert.NotEmpty(kept);
@@ -1472,7 +1609,10 @@ public class TugMovePlannerTests
         SimLog.InitializeForTest(factory);
         TugPlan? plan = TugMovePlanner.Plan(
             layout,
-            StandStart(f8, MarkedPoint(late, "marked point 1"), MarkedPoint(early, "marked point 2"), TugGoal.Spot(Spot(layout, "7B"))),
+            WithMovementArea(
+                layout,
+                StandStart(f8, MarkedPoint(late, "marked point 1"), MarkedPoint(early, "marked point 2"), TugGoal.Spot(Spot(layout, "7B")))
+            ),
             out string refusal
         );
         _output.WriteLine($"plan {(plan is null ? "refused" : "accepted")}: '{refusal}'");
@@ -1510,7 +1650,7 @@ public class TugMovePlannerTests
         SimLog.InitializeForTest(factory);
         TugPlan? plan = TugMovePlanner.Plan(
             layout,
-            StandStart(c9, TugGoal.Spot(fiveA), MarkedPoint(point, "the marked point"), TugGoal.Spot(Spot(layout, "5B"))),
+            WithMovementArea(layout, StandStart(c9, TugGoal.Spot(fiveA), MarkedPoint(point, "the marked point"), TugGoal.Spot(Spot(layout, "5B")))),
             out string refusal
         );
         Assert.True(plan is not null, $"the plan was refused: {refusal}");
@@ -1693,7 +1833,7 @@ public class TugMovePlannerTests
 
     private static IEnumerable<GroundEdge> MovementAreaEdges(AirportGroundLayout layout, string taxiway)
     {
-        var pavement = new TugPavementClassifier(layout);
+        var pavement = new TugPavementClassifier(layout, MovementAreaClassification.For(layout));
         return layout.AllEdges.OfType<GroundEdge>().Where(e => e.MatchesTaxiway(taxiway) && (pavement.MovementAreaName(e) is not null));
     }
 
@@ -1717,6 +1857,7 @@ public class TugMovePlannerTests
             Start = new TugPose(stand.Position, stand.TrueHeading!.Value.Degrees),
             StartsAtStand = true,
             Footprint = AircraftFootprint.FromType(aircraftType),
+            MovementArea = null,
             Goals = goals,
             ParkedNeighbours = [],
             FinalFacingTrueDeg = null,
@@ -1731,6 +1872,7 @@ public class TugMovePlannerTests
             Start = start,
             StartsAtStand = false,
             Footprint = AircraftFootprint.FromType(Narrowbody),
+            MovementArea = null,
             Goals = [goal],
             ParkedNeighbours = [],
             FinalFacingTrueDeg = null,
@@ -1738,8 +1880,16 @@ public class TugMovePlannerTests
             Forced = false,
         };
 
+    /// <summary>The request with the layout's movement-area classification, as a live command builds it.</summary>
+    private static TugRequest WithMovementArea(AirportGroundLayout layout, TugRequest request) =>
+        request with
+        {
+            MovementArea = MovementAreaClassification.For(layout),
+        };
+
     private TugPlan PlanOrFail(AirportGroundLayout layout, TugRequest request)
     {
+        request = WithMovementArea(layout, request);
         var watch = Stopwatch.StartNew();
         TugPlan? plan = TugMovePlanner.Plan(layout, request, out string refusal);
         double firstMs = watch.Elapsed.TotalMilliseconds;
@@ -1754,6 +1904,7 @@ public class TugMovePlannerTests
 
     private string Refusal(AirportGroundLayout layout, TugRequest request)
     {
+        request = WithMovementArea(layout, request);
         TugPlan? plan = TugMovePlanner.Plan(layout, request, out string refusal);
         _output.WriteLine($"refusal: {refusal}");
         if (plan is not null)

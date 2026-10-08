@@ -198,6 +198,7 @@ public class PushTaxiwayFacingJunctionTests(ITestOutputHelper output)
             Start = new TugPose(stand.Position, stand.TrueHeading!.Value.Degrees),
             StartsAtStand = true,
             Footprint = AircraftFootprint.FromType(AircraftType),
+            MovementArea = MovementAreaClassification.For(layout),
             Goals = [TugGoal.TaxiwayLine(exit, "A", facingDeg) with { FacingTaxiwayName = "F1" }],
             ParkedNeighbours = [],
             FinalFacingTrueDeg = null,

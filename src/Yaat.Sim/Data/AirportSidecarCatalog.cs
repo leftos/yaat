@@ -26,6 +26,9 @@ public sealed class AirportSidecarCatalog
     private readonly Dictionary<string, List<ExitCapacityRule>> _exitCapacityByAirport = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, HashSet<string>> _movementAreaByAirport = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, HashSet<string>> _nonMovementByAirport = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, Dictionary<string, StandDeparture>> _standDeparturesByAirport = new(StringComparer.OrdinalIgnoreCase);
+
+    private static readonly IReadOnlyDictionary<string, StandDeparture> NoStandDepartures = new Dictionary<string, StandDeparture>();
 
     public AirportSidecarCatalog(IEnumerable<AirportSidecar> airports)
     {
@@ -47,7 +50,43 @@ public sealed class AirportSidecarCatalog
             MergeExitCapacity(key, airport.ExitCapacity);
             MergeNames(_movementAreaByAirport, key, airport.MovementAreaTaxiways);
             MergeNames(_nonMovementByAirport, key, airport.NonMovementTaxilanes);
+            MergeStandDepartures(key, airport.StandDepartureOverrides);
         }
+    }
+
+    private void MergeStandDepartures(string key, IReadOnlyDictionary<string, StandDeparture> overrides)
+    {
+        if (overrides.Count == 0)
+        {
+            return;
+        }
+
+        if (!_standDeparturesByAirport.TryGetValue(key, out Dictionary<string, StandDeparture>? byStand))
+        {
+            byStand = new Dictionary<string, StandDeparture>(StringComparer.OrdinalIgnoreCase);
+            _standDeparturesByAirport[key] = byStand;
+        }
+
+        // Last file wins on a per-stand clash.
+        foreach ((string stand, StandDeparture departure) in overrides)
+        {
+            byStand[stand] = departure;
+        }
+    }
+
+    /// <summary>
+    /// The airport sidecar's stand-departure overrides, stand name (case-insensitive) to departure. Never null — returns
+    /// an empty map when the airport overrides none. Read by <see cref="StandDepartures.StandDepartureOf"/>.
+    /// </summary>
+    public IReadOnlyDictionary<string, StandDeparture> GetStandDepartureOverrides(string airportId)
+    {
+        if (string.IsNullOrWhiteSpace(airportId))
+        {
+            return NoStandDepartures;
+        }
+
+        string key = NavigationDatabase.NormalizeAirport(airportId);
+        return _standDeparturesByAirport.TryGetValue(key, out Dictionary<string, StandDeparture>? byStand) ? byStand : NoStandDepartures;
     }
 
     private static void MergeNames(Dictionary<string, HashSet<string>> byAirport, string key, IReadOnlyList<string> names)

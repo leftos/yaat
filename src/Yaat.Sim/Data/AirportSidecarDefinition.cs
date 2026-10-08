@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 
 namespace Yaat.Sim.Data;
@@ -170,6 +171,10 @@ internal sealed class AirportSidecarFile
 
     [JsonPropertyName("nonMovementTaxilanes")]
     public List<PavementClassEntry> NonMovementTaxilanes { get; set; } = [];
+
+    /// <summary>Stand name to <c>"PushBack"</c> or <c>"TaxiOut"</c>, overriding the stand's geometric departure.</summary>
+    [JsonPropertyName("standDeparture")]
+    public Dictionary<string, string?> StandDeparture { get; set; } = [];
 }
 
 /// <summary>
@@ -192,4 +197,11 @@ public sealed record AirportSidecar(string AirportId)
 
     /// <summary>Upper-cased taxiway names forced to non-movement ramp taxilanes, overriding the inferred classification.</summary>
     public IReadOnlyList<string> NonMovementTaxilanes { get; init; } = [];
+
+    /// <summary>
+    /// Stand name (case-insensitive) to its departure, overriding the geometric one the layout stores
+    /// (<see cref="StandDepartures.StandDepartureOf"/>); applies to every stand of that name.
+    /// </summary>
+    public IReadOnlyDictionary<string, StandDeparture> StandDepartureOverrides { get; init; } =
+        new Dictionary<string, StandDeparture>(StringComparer.OrdinalIgnoreCase);
 }

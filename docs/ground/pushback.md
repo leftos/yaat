@@ -8,7 +8,7 @@ Core code:
 |---|---|---|
 | `TugKinematics`, `TugMove`, `TugPose`, `TugMoveProgress` | `src/Yaat.Sim/Data/Airport/TugKinematics.cs` | The motion body: pure, deterministic, no aircraft state. Used by the planner to simulate and by the phase to steer. |
 | `TugMovePlanner`, `TugGoal`, `TugRequest`, `TugPlan`, `TugAmendment` | `src/Yaat.Sim/Data/Airport/TugMovePlanner.cs` | Turns goals into a chain of moves, simulates every candidate, drops the unflyable or unsafe ones, keeps the best. |
-| `TugPathCheck` | `src/Yaat.Sim/Data/Airport/TugPathCheck.cs` | The flown-path check: runways, holding positions, then the overshoot past the goal taxiway (taxiway goals) or movement-area pavement the move was not sent to (other goals). |
+| `TugPathCheck` | `src/Yaat.Sim/Data/Airport/TugPathCheck.cs` | The flown-path check: runways, holding positions, the hold band, then the overshoot past the goal taxiway (taxiway goals) or movement-area pavement the move was not sent to (other goals). |
 | `TugTaxiwayClearance`, `AirplaneDesignGroups` | `src/Yaat.Sim/Data/Airport/TugTaxiwayClearance.cs`, `AirplaneDesignGroup.cs` | The alley clearance: how far a candidate's outline reaches into the movement-area taxiways' object-free areas, and each taxiway's design group. |
 | `PushbackPhase` | `src/Yaat.Sim/Phases/Ground/PushbackPhase.cs` | Flies one `TugMove`. `FlightPhysics.UpdatePosition` displaces the aircraft along `Ground.PushbackTrueHeading` (tail-first) when that field is set, along the nose otherwise. |
 | `GroundCommandHandler.TryPushback` / `TryPushbackMulti` / `TryAmendPushback` / `InstallTugMove` | `src/Yaat.Sim/Commands/GroundCommandHandler.cs` | Resolves the command's targets to goals, plans, installs one phase per move plus the terminus phase. |
@@ -200,7 +200,10 @@ An alley push is ramp traffic; the object-free area is the zone either side of a
 Every candidate's samples are checked, about every 5 ft, in a flat frame about the plan's start. Edges are taken as chords. The first rule broken wins, in this order:
 
 - **Runway.** The footprint rectangle (fuselage length × wingspan about the reference point, oriented by the nose) comes within the runway's half-width of its centreline.
-- **Holding position.** A footprint side crosses any edge that touches a `RunwayHoldShort` node.
+- **Holding position.** A footprint side crosses any edge that touches a `RunwayHoldShort` node, unless the first sample's footprint already lies over that same edge (a side crosses it, or an end of it lies inside): an aircraft stopped at or past a hold bar may be towed back off it.
+- **Hold band.** The footprint never moves deeper into a runway's safety area (AIM 2-3-5.a.1). A sample is refused when the footprint corner nearest a runway's centreline lies nearer it than both that runway's nearest hold-short node and the first sample's own nearest corner. An aircraft already inside the band, stopped at or past a hold bar, may therefore be towed back out of it (live `PUSH` / `PUSHF`), never further in.
+
+  A hold-short node nearer its runway's centreline than half the runway's width lies on the runway and is ignored; a runway with no hold-short node has no band.
 - **Taxiway overshoot** (a push onto a taxiway X: a `TaxiwayLine` or `StraightBackTo` goal). The aircraft's centre (the reference point), measured at every sample including the end pose, goes more than half the wingspan (`TugPathCheck.MaxTaxiwayOvershootFt`) past X's centreline on the side away from where the tow started. X's centreline is its straight edges only, and each sample is measured against the X edge nearest it. A tow that starts on X's centreline counts an overshoot either way.
 
   Refusal: `Unable, the move to taxiway Y would take the aircraft 76 ft past taxiway Y` (SFO C8 `PUSH Y FACE S`, B739). Sweeping over other movement-area taxiways on the way is **not** refused for these goals. A push onto a taxiway cannot be expected to stay clear of the connectors that meet it: at SFO D7, A and F1 meet at right angles.
@@ -220,7 +223,21 @@ Every candidate's samples are checked, about every 5 ft, in a flat frame about t
   Measured over every stand→spot pair within 600 ft at IAH, OAK and SFO (345 forced `/PULL` B738 moves): 177 refused with the lead and 177 without. Only SFO B25 → spot 1 is refused by the lead alone (taxiway Y), and SFO G10 → spot 11 is refused only without it, because the lead changes which move the plan settles on.
 - **A marked point** (`~lat/lon`) has no arriving exemption: its whole end footprint — the fuselage-length by wingspan rectangle — must clear every movement-area edge, including one behind the stand, not only its reference point.
 
-A refusal names the leg and the pavement: `Unable, the move to spot 6A would put the aircraft on taxiway A`, `Unable, the move to spot 6B reaches a runway holding position` (a hint on one: `Unable, spot 5A is on a runway holding position`), `Unable, … on runway 10L - 28R`.
+A refusal names the leg and the pavement: `Unable, the move to spot 6A would put the aircraft on taxiway A`, `Unable, the move to spot 6B reaches a runway holding position` (a hint on one: `Unable, spot 5A is on a runway holding position`), `Unable, … on runway 10L - 28R`. A hold-band refusal reads `Unable, the move to spot 6B moves deeper toward runway 01L/19R`; the `reaches a runway holding position` text is kept for hold-edge crossings.
+
+## The push-target cache — `PushTargetPlanner`
+
+The precompute cache ([CONTEXT.md](../../CONTEXT.md) *Precompute cache*) stores, per airport, the bare `PUSH <twy>` and `PUSH $spot` targets each stand can reach, per airplane design group, from `src/Yaat.Sim/Data/Airport/Precompute/PushTargetPlanner.cs`.
+
+- **Same planner, no aircraft.** Each target is planned by `TugMovePlanner` exactly as a live push off the stand would be, with no other aircraft about and the movement-area classification built from the airport's sidecars; the targets are the ones within `TugMovePlanner.MaxGoalDistanceFt` that it accepts. Targets sort by kind (taxilane, taxiway, spot), then path length, then name.
+- **Design-group envelopes.** A group is planned with a synthetic footprint (`ADG-I` to `ADG-VI`) from `DesignGroupEnvelopes`: the greatest length, span, wheelbase and main gear width over the group's fixed-wing FAA records (`AirplaneDesignGroups.OfRecord`), each dimension taken separately, shipped as `Data/PrecomputeCache/design-group-envelopes.json` with the record that set each.
+
+  The span is capped at the group's ceiling (`AirplaneDesignGroups.MaxWingspanFt`). The wheelbase maximum leaves out a taildragger (a non-jet whose wheelbase is at least `TurnAboutFit.TaildraggerWheelbaseRatio` of its length) and any broken row (at or over `TurnAboutFit.BrokenRowWheelbaseRatio`); group I's wheelbase comes from the LJ40. A group with no record giving a length and a span has no envelope and no targets.
+- **Cap.** A target whose path is longer than 3 times the envelope's length (floor 600 ft, `PushTargetPlanner.PathCapFt`) is a tow-out, not a push, and is dropped.
+- **Stand departure.** A stand whose `StandDepartures.StandDepartureOf` is `TaxiOut` gets an empty target list for every group. The layout build classifies each parking node from the foot of the perpendicular from the stand onto the edge its parking connector joins: a foot less than 90° off the stand's heading is `TaxiOut`, a foot within 1 ft of the stand or exactly broadside is `PushBack`.
+
+  The airport sidecar's `standDeparture` overrides it by stand name (KOAK GA1, GA2, GA4, GA7-GA12, HELI2; KSFO CG2-CG4).
+- **Staleness.** The entry's key carries the push-target algorithm hash and `AirportSidecarHash`, so an edit to the planner, the tug files or the airport's sidecar recomputes the push half only.
 
 ## Flying one move — `PushbackPhase`
 

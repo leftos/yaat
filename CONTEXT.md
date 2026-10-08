@@ -231,6 +231,13 @@ _Avoid_: onto (both end on the taxiway)
 The movement-area taxiway a spot's lane joins, which a push or line-up onto the spot faces by default (`AirportGroundLayout.TryGetSpotOutboundTaxiway`); a `PUSH $spot` names it in its RPO note.
 _Avoid_: exit taxiway (an exit leaves a runway)
 
+**StandDeparture**:
+Whether a stand is left by a push back or by taxiing out (`PushBack` / `TaxiOut`). The layout build stores the geometric answer on each parking node, and an airport sidecar's `standDeparture` map overrides it by stand name; `StandDepartures.StandDepartureOf` is the one place it is read.
+
+**Taxi-out stand**:
+A stand whose aircraft park facing their way out, so they leave under their own power and get no precomputed push targets: its lead-in edge runs out within 90° of the stand's heading, or the sidecar says `TaxiOut`.
+_Avoid_: power-out stand (a power-back is a different thing)
+
 **Straight-then-line**:
 The preferred shape of a push off a stand onto a spot: straight back along the stand's lead-in line, a pivot onto the spot's lane timed to land tangent on it, then the pull forward onto the mark (the planner's T0 candidate, docs/ground/pushback.md).
 _Avoid_: three-point turn (that turns the nose first, then reverses onto the line)
@@ -575,10 +582,13 @@ The tests outside a sim-behaviour brief's file list that pin the behaviour it ch
 Per-airport results computed offline from static inputs and shipped with YAAT (`src/Yaat.Sim/Data/PrecomputeCache/{FAA}.json.br`): the parsed ground layout and the per-stand push targets. An entry is used only when its key matches the current inputs; otherwise the server computes it.
 
 **Algorithm hash**:
-The part of a precompute cache key that names the code that produced an entry: a hash of the source files that feed the computation, generated at build time (`PrecomputeSourceHashes`). The layout and push-target halves have separate hashes, so a tug-planner change invalidates only push targets.
+The part of a precompute cache key that names the code that produced an entry: a hash of the source files that feed the computation, generated at build time (`PrecomputeSourceHashes`). The layout and push-target halves have separate hashes, so a change to the push-target planner alone, or to an airport's sidecars, invalidates only push targets; the tug planner's files are in both.
 
 **Design-group entry**:
-One push-target set per stand per airplane design group (ADG I-VI), planned with the group's largest footprint; an aircraft reads the entry for its own group.
+One push-target set per stand per airplane design group (ADG I-VI), planned with the group's envelope; an aircraft reads the entry for its own group.
+
+**Design-group envelope**:
+A synthetic footprint (`ADG-I` to `ADG-VI`) for one airplane design group: the greatest length, wingspan (capped at the group's ceiling), wheelbase and main gear width over the group's fixed-wing FAA records, each taken separately (`DesignGroupEnvelopes`).
 
 **Golden (menu golden)**:
 A committed text snapshot of an aircraft right-click menu for one view and one situation fixture (`tests/Yaat.Client.UI.Tests/Goldens/menu/{radar,ground,list}/<fixture>.txt`, written by `MenuTreeSnapshot`); `MenuGoldenTests` fails when a menu differs from its golden, and `YAAT_MENU_GOLDEN_REGENERATE=1` rewrites them.

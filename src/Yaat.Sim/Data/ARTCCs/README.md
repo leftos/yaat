@@ -401,6 +401,23 @@ Use these only for a one-off exception checked against the real airport: anythin
 
 Names are upper-cased and de-duplicated; a blank name is skipped with a warning. A name in both lists is movement area.
 
+### `standDeparture`
+
+Whether a stand is left by a push back or by taxiing out, overriding the answer the layout build derives from the stand's geometry (a stand whose way out to its taxiway lies within 90° of its heading is a taxi-out stand). A taxi-out stand gets no precomputed push targets.
+
+```json
+"standDeparture": {
+  "GA1": "TaxiOut",
+  "CG2": "PushBack"
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `standDeparture.<stand>` | string | No | The key is the stand's name, matched case-insensitively and applied to every stand of that name. The value is `"PushBack"` or `"TaxiOut"`, case-insensitive |
+
+A blank stand name or another value is skipped with a warning at load. A name that matches no stand on the airport's layout, or several, warns when the push targets are computed. Editing this section stales the airport's push-target cache entry. Worked examples: [`ZOA/Airports/oak.json`](ZOA/Airports/oak.json), [`ZOA/Airports/sfo.json`](ZOA/Airports/sfo.json).
+
 ---
 
 ## Procedures

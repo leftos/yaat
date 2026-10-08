@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using Microsoft.Extensions.Logging;
 
 namespace Yaat.Sim.Data.Airport;
@@ -56,6 +57,11 @@ public sealed class TugPathCheck
     private static readonly ILogger Log = SimLog.CreateLogger("TugPathCheck");
     private const double DegToRad = Math.PI / 180.0;
 
+    /// <summary>No pavement exempt: the end footprint of a marked point clears all of it.</summary>
+    private static readonly HashSet<string> NoExemptNames = [];
+
+    private static readonly ConditionalWeakTable<AirportGroundLayout, List<GeoHoldBand>> HoldBands = [];
+
     private readonly TugPavementClassifier _pavement;
     private readonly LatLon _origin;
     private readonly double _eastFtPerDeg;
@@ -68,12 +74,12 @@ public sealed class TugPathCheck
     /// <summary>Every runway holding position in the layout, in the local frame.</summary>
     private readonly List<Pt> _holdShorts;
 
-    /// <summary>No pavement exempt: the end footprint of a marked point clears all of it.</summary>
-    private static readonly HashSet<string> NoExemptNames = [];
+    /// <summary>Each runway's centreline and nearest hold-short distance, in the local frame (<see cref="HoldDistanceRefusal"/>).</summary>
+    private readonly List<RunwayHoldBand> _holdBands;
 
-    internal TugPathCheck(AirportGroundLayout layout, AircraftFootprint footprint, LatLon planStart)
+    internal TugPathCheck(AirportGroundLayout layout, MovementAreaClassification movementArea, AircraftFootprint footprint, LatLon planStart)
     {
-        _pavement = new TugPavementClassifier(layout);
+        _pavement = new TugPavementClassifier(layout, movementArea);
         _origin = planStart;
         _eastFtPerDeg = 60.0 * GeoMath.FeetPerNm * Math.Cos(planStart.Lat * DegToRad);
         _halfLengthFt = footprint.LengthFt / 2.0;
@@ -82,6 +88,7 @@ public sealed class TugPathCheck
         _runways = [.. layout.Runways.SelectMany(RunwaySegments)];
         _edges = [.. layout.AllEdges.Select(EdgeSegmentOf)];
         _holdShorts = [.. layout.Nodes.Values.Where(n => n.Type == GroundNodeType.RunwayHoldShort).Select(n => Local(n.Position))];
+        _holdBands = [.. HoldBandsOf(layout).Select(b => new RunwayHoldBand(b.Name, b.HoldFt, [.. b.Pieces.Select(p => (Local(p.A), Local(p.B)))]))];
     }
 
     /// <summary>
@@ -130,7 +137,8 @@ public sealed class TugPathCheck
         }
 
         Box box = FootprintBox(poses);
-        TugPathRefusal? runwayOrHold = RunwayRefusal(poses, box, subject) ?? HoldingPositionRefusal(poses, box, subject);
+        TugPathRefusal? runwayOrHold =
+            RunwayRefusal(poses, box, subject) ?? HoldingPositionRefusal(poses, box, subject) ?? HoldDistanceRefusal(poses, box, subject);
         if (forced)
         {
             return runwayOrHold;
@@ -372,9 +380,16 @@ public sealed class TugPathCheck
         return null;
     }
 
+    /// <summary>
+    /// No flown sample's footprint lies across an edge touching a runway holding position, unless the first sample's
+    /// footprint already lies over that same edge (a side crosses it, or an end of it lies inside): an aircraft stopped at
+    /// or past a hold bar may be towed back off it, and <see cref="HoldDistanceRefusal"/> keeps it from being towed further in.
+    /// </summary>
     private TugPathRefusal? HoldingPositionRefusal(List<LocalPose> poses, Box box, string subject)
     {
-        var holdEdges = _edges.Where(e => e.TouchesHoldShort && box.Overlaps(e.A, e.B)).ToList();
+        LocalPose start = poses[0];
+        (Pt A, Pt B)[] startSides = FootprintSides(start);
+        var holdEdges = _edges.Where(e => e.TouchesHoldShort && box.Overlaps(e.A, e.B) && !LiesOver(start, startSides, e)).ToList();
         foreach (LocalPose pose in poses)
         {
             foreach ((Pt A, Pt B) side in FootprintSides(pose))
@@ -387,6 +402,168 @@ public sealed class TugPathCheck
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// The footprint never moves deeper into a runway's safety area (AIM 2-3-5.a.1: the hold line marks the edge of the
+    /// runway safety area, and no part of the aircraft may extend past it). A flown sample is refused when the footprint
+    /// corner nearest a runway's centreline lies nearer it than both that runway's nearest hold-short node does
+    /// (<see cref="HoldBandsOf"/>) and the first sample's own nearest corner does. An aircraft already inside the band,
+    /// stopped at or past a hold bar, may be towed back out of it; it may never be towed further in.
+    /// </summary>
+    private TugPathRefusal? HoldDistanceRefusal(List<LocalPose> poses, Box box, string subject)
+    {
+        foreach (RunwayHoldBand band in _holdBands)
+        {
+            Box padded = box.Padded(band.HoldFt);
+            List<(Pt A, Pt B)> near = [.. band.Pieces.Where(p => padded.Overlaps(p.A, p.B))];
+            if (near.Count == 0)
+            {
+                continue;
+            }
+
+            double limitFt = Math.Min(band.HoldFt, NearestCornerFt(poses[0], near));
+            if (poses.Any(pose => NearestCornerFt(pose, near) < limitFt))
+            {
+                return new TugPathRefusal(TugPathSeverity.HoldingPosition, $"Unable, {subject} moves deeper toward runway {band.Name}", null);
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Whether the pose's footprint lies over the edge: one of its <paramref name="sides"/> crosses it, or an end of it
+    /// lies inside.
+    /// </summary>
+    private bool LiesOver(LocalPose pose, (Pt A, Pt B)[] sides, EdgeSegment edge) =>
+        sides.Any(side => Crosses(side.A, side.B, edge.A, edge.B)) || Inside(pose, edge.A) || Inside(pose, edge.B);
+
+    /// <summary>Whether <paramref name="point"/> lies inside the pose's footprint, its outline included.</summary>
+    private bool Inside(LocalPose pose, Pt point)
+    {
+        Pt offset = point - pose.Position;
+        double aheadFt = (offset.X * Math.Sin(pose.NoseRad)) + (offset.Y * Math.Cos(pose.NoseRad));
+        double rightFt = (offset.X * Math.Cos(pose.NoseRad)) - (offset.Y * Math.Sin(pose.NoseRad));
+        return (Math.Abs(aheadFt) <= _halfLengthFt) && (Math.Abs(rightFt) <= _halfSpanFt);
+    }
+
+    /// <summary>How far the footprint corner nearest the centreline <paramref name="pieces"/> lies from them, feet.</summary>
+    private double NearestCornerFt(LocalPose pose, List<(Pt A, Pt B)> pieces) =>
+        FootprintSides(pose).Min(side => pieces.Min(p => PointToSegmentFt(side.A, p.A, p.B)));
+
+    /// <summary>
+    /// Each runway's centreline pieces (its runway-centreline edges, grouped by name) and the distance of its nearest
+    /// hold-short node from them, feet. A <see cref="GroundNodeType.RunwayHoldShort"/> node counts for the runway its
+    /// <see cref="GroundNode.RunwayId"/> names, or, when it names none, for the runway whose centreline it lies nearest; a
+    /// node nearer its runway's centreline than half the runway's width lies on the runway and is ignored. A runway with no
+    /// hold-short node is left out. Built once per layout.
+    /// </summary>
+    private static List<GeoHoldBand> HoldBandsOf(AirportGroundLayout layout) => HoldBands.GetValue(layout, BuildHoldBands);
+
+    private static List<GeoHoldBand> BuildHoldBands(AirportGroundLayout layout)
+    {
+        List<HoldBandRunway> runways =
+        [
+            .. layout
+                .Edges.Where(e => e.IsRunwayCenterline)
+                .GroupBy(e => e.TaxiwayName, StringComparer.OrdinalIgnoreCase)
+                .Select(g => HoldBandRunwayOf(layout, g.Key, [.. g.SelectMany(e => Chords(TugMovePlanner.EdgePointsFrom(e, e.Nodes[0])))])),
+        ];
+        if (runways.Count == 0)
+        {
+            return [];
+        }
+
+        var nearestByRunway = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+        foreach (GroundNode hold in layout.Nodes.Values.Where(n => n.Type == GroundNodeType.RunwayHoldShort))
+        {
+            if (ProtectedRunway(hold, runways) is not { } protectedRunway)
+            {
+                Log.LogWarning("Hold-short node {Id} names runway {Runway}, which has no centreline edges; no hold band", hold.Id, hold.RunwayId);
+                continue;
+            }
+
+            (HoldBandRunway runway, double holdFt) = protectedRunway;
+            if (holdFt < runway.HalfWidthFt)
+            {
+                Log.LogDebug(
+                    "Hold-short node {Id} lies {HoldFt:F1} ft from the {Runway} centreline, inside its {HalfWidthFt:F1} ft half-width; ignored",
+                    hold.Id,
+                    holdFt,
+                    runway.Name,
+                    runway.HalfWidthFt
+                );
+                continue;
+            }
+
+            nearestByRunway[runway.Name] = nearestByRunway.TryGetValue(runway.Name, out double held) ? Math.Min(held, holdFt) : holdFt;
+        }
+
+        return
+        [
+            .. runways
+                .Where(r => nearestByRunway.ContainsKey(r.Name))
+                .Select(r => new GeoHoldBand(r.Id.ToString(), nearestByRunway[r.Name], r.Pieces)),
+        ];
+    }
+
+    /// <summary>
+    /// A runway's centreline group named <paramref name="name"/> (<c>RWY</c> and the runway's identifier), with its
+    /// identifier and half its width, from the layout runway of that identifier; a group with no such runway gets no
+    /// half-width, so none of its holds is ignored.
+    /// </summary>
+    private static HoldBandRunway HoldBandRunwayOf(AirportGroundLayout layout, string name, List<(LatLon A, LatLon B)> pieces)
+    {
+        var id = RunwayIdentifier.Parse(name["RWY".Length..]);
+        if (layout.Runways.FirstOrDefault(r => r.Id.Equals(id)) is not { } runway)
+        {
+            Log.LogWarning(
+                "{Airport}: runway centreline {Name} has no runway of that identifier; none of its holds is ignored",
+                layout.AirportId,
+                name
+            );
+            return new HoldBandRunway(name, id, 0.0, pieces);
+        }
+
+        return new HoldBandRunway(name, id, runway.WidthFt / 2.0, pieces);
+    }
+
+    /// <summary>
+    /// The runway <paramref name="hold"/> protects and its distance from that runway's centreline, feet: the runway its
+    /// <see cref="GroundNode.RunwayId"/> names, else the runway whose centreline it lies nearest. Null when it names a
+    /// runway with no centreline edges.
+    /// </summary>
+    private static (HoldBandRunway Runway, double HoldFt)? ProtectedRunway(GroundNode hold, List<HoldBandRunway> runways)
+    {
+        (HoldBandRunway Runway, double HoldFt)? nearest = null;
+        foreach (HoldBandRunway runway in runways)
+        {
+            if ((hold.RunwayId is { } named) && !runway.Id.Equals(named))
+            {
+                continue;
+            }
+
+            double holdFt = runway.Pieces.Min(p => FlatDistanceFt(hold.Position, p.A, p.B));
+            if ((nearest is not { } held) || (holdFt < held.HoldFt))
+            {
+                nearest = (runway, holdFt);
+            }
+        }
+
+        return nearest;
+    }
+
+    private static IEnumerable<(LatLon A, LatLon B)> Chords(List<LatLon> points) => points.Zip(points.Skip(1));
+
+    /// <summary>The distance from <paramref name="p"/> to the segment, feet, in a flat frame around <paramref name="a"/>.</summary>
+    private static double FlatDistanceFt(LatLon p, LatLon a, LatLon b)
+    {
+        double northFtPerDeg = 60.0 * GeoMath.FeetPerNm;
+        double eastFtPerDeg = northFtPerDeg * Math.Cos(a.Lat * DegToRad);
+        var local = new Pt((p.Lon - a.Lon) * eastFtPerDeg, (p.Lat - a.Lat) * northFtPerDeg);
+        var end = new Pt((b.Lon - a.Lon) * eastFtPerDeg, (b.Lat - a.Lat) * northFtPerDeg);
+        return PointToSegmentFt(local, default, end);
     }
 
     /// <summary>
@@ -910,6 +1087,15 @@ public sealed class TugPathCheck
     }
 
     private sealed record RunwaySegment(string Name, double HalfWidthFt, Pt A, Pt B);
+
+    /// <summary>A runway's display identifier, its centreline chords and its nearest hold-short distance, feet, in geographic coordinates.</summary>
+    private sealed record GeoHoldBand(string Name, double HoldFt, List<(LatLon A, LatLon B)> Pieces);
+
+    /// <summary>A runway's centreline group: its edge name, identifier, half its width, feet, and its chords.</summary>
+    private sealed record HoldBandRunway(string Name, RunwayIdentifier Id, double HalfWidthFt, List<(LatLon A, LatLon B)> Pieces);
+
+    /// <summary>A runway's name, its centreline chords in the local frame and its nearest hold-short distance, feet.</summary>
+    private sealed record RunwayHoldBand(string Name, double HoldFt, List<(Pt A, Pt B)> Pieces);
 
     /// <summary>An edge as its chord in the local frame.</summary>
     private sealed record EdgeSegment(IGroundEdge Edge, Pt A, Pt B, bool TouchesHoldShort);

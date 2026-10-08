@@ -1,5 +1,6 @@
 using Xunit;
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.Airport;
 
 namespace Yaat.Sim.Tests;
 
@@ -359,6 +360,38 @@ public class AirportSidecarLoaderTests
         string warning = Assert.Single(result.Warnings);
         Assert.Contains("oneWayEdges[0]", warning);
         Assert.Contains("exempts every wake class", warning);
+    }
+
+    /// <summary>A <c>standDeparture</c> entry with a blank stand name, and one with a value other than the two, each warn and are skipped.</summary>
+    [Fact]
+    public void LoadAll_StandDepartureBlankNameAndBadValue_WarnAndSkip()
+    {
+        string tempDir = Path.Combine(Path.GetTempPath(), "sidecar-" + Guid.NewGuid());
+        string categoryDir = Path.Combine(tempDir, "ZTEST", "Airports");
+        Directory.CreateDirectory(categoryDir);
+        try
+        {
+            File.WriteAllText(
+                Path.Combine(categoryDir, "oak.json"),
+                """{ "airportId": "KOAK", "standDeparture": { " ": "TaxiOut", "GA3": "Sideways", "GA4": " taxiout " } }"""
+            );
+
+            AirportSidecarLoadResult result = AirportSidecarLoader.LoadAll(tempDir);
+
+            AirportSidecar oak = Assert.Single(result.Airports);
+            Assert.Equal(StandDeparture.TaxiOut, Assert.Single(oak.StandDepartureOverrides, kv => kv.Key == "GA4").Value);
+            Assert.Single(oak.StandDepartureOverrides);
+            Assert.Equal(2, result.Warnings.Count);
+            Assert.Contains(result.Warnings, w => w.Contains("blank stand name", StringComparison.Ordinal));
+            Assert.Contains(
+                result.Warnings,
+                w => w.Contains("standDeparture[GA3]", StringComparison.Ordinal) && w.Contains("'Sideways'", StringComparison.Ordinal)
+            );
+        }
+        finally
+        {
+            Directory.Delete(tempDir, recursive: true);
+        }
     }
 
     /// <summary>Loads a KSFO sidecar whose only section is one <c>oneWayEdges</c> entry.</summary>

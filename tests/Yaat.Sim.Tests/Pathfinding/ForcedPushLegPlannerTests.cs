@@ -354,7 +354,7 @@ public class ForcedPushLegPlannerTests(ITestOutputHelper output)
 
     private static GroundEdge NearestMovementAreaEdge(AirportGroundLayout layout, string taxiway, LatLon near)
     {
-        var pavement = new TugPavementClassifier(layout);
+        var pavement = new TugPavementClassifier(layout, MovementAreaClassification.For(layout));
         return layout
             .AllEdges.OfType<GroundEdge>()
             .Where(e => e.MatchesTaxiway(taxiway) && (pavement.MovementAreaName(e) is not null))
@@ -375,9 +375,16 @@ public class ForcedPushLegPlannerTests(ITestOutputHelper output)
 
     private static LatLon Midpoint(LatLon a, LatLon b) => new((a.Lat + b.Lat) / 2.0, (a.Lon + b.Lon) / 2.0);
 
+    /// <summary>The request with the layout's movement-area classification, as a live command builds it.</summary>
+    private static TugRequest WithMovementArea(AirportGroundLayout layout, TugRequest request) =>
+        request with
+        {
+            MovementArea = MovementAreaClassification.For(layout),
+        };
+
     private TugPlan PlanOrFail(AirportGroundLayout layout, TugRequest request)
     {
-        TugPlan? plan = TugMovePlanner.Plan(layout, request, out string refusal);
+        TugPlan? plan = TugMovePlanner.Plan(layout, WithMovementArea(layout, request), out string refusal);
         Assert.True(plan is not null, $"refused: {refusal}");
         output.WriteLine(Describe(plan));
         return plan;
@@ -385,7 +392,7 @@ public class ForcedPushLegPlannerTests(ITestOutputHelper output)
 
     private string Refusal(AirportGroundLayout layout, TugRequest request)
     {
-        TugPlan? plan = TugMovePlanner.Plan(layout, request, out string refusal);
+        TugPlan? plan = TugMovePlanner.Plan(layout, WithMovementArea(layout, request), out string refusal);
         Assert.True(plan is null, $"planned: {(plan is null ? "" : Describe(plan))}");
         output.WriteLine($"refused: {refusal}");
         return refusal;
@@ -400,6 +407,7 @@ public class ForcedPushLegPlannerTests(ITestOutputHelper output)
             Start = new TugPose(stand.Position, stand.TrueHeading!.Value.Degrees),
             StartsAtStand = true,
             Footprint = AircraftFootprint.FromType(Narrowbody),
+            MovementArea = null,
             Goals = [goal],
             ParkedNeighbours = [],
             FinalFacingTrueDeg = null,
@@ -413,6 +421,7 @@ public class ForcedPushLegPlannerTests(ITestOutputHelper output)
             Start = start,
             StartsAtStand = false,
             Footprint = AircraftFootprint.FromType(Narrowbody),
+            MovementArea = null,
             Goals = [goal],
             ParkedNeighbours = [],
             FinalFacingTrueDeg = null,

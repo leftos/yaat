@@ -219,7 +219,9 @@ public sealed class RecordingArchive : IDisposable
 
     /// <summary>
     /// The format bundled layouts are written in, recorded in the manifest. Format 1 carries the runway coordinates and edge
-    /// shapes (tuples, written as fields) and the runway-end dictionaries; a layout without it lacks them.
+    /// shapes (tuples, written as fields) and the runway-end dictionaries; a layout without it lacks them. A format-1
+    /// layout written before parking nodes carried <see cref="Data.Airport.GroundNode.StandDeparture"/> lacks that field,
+    /// and its stands read as <see cref="Data.Airport.StandDeparture.PushBack"/>.
     /// </summary>
     public const int CurrentLayoutFormatVersion = 1;
 

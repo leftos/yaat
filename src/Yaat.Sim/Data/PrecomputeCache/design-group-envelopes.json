@@ -1,0 +1,92 @@
+[
+  {
+    "group": "I",
+    "envelopeCode": "ADG-I",
+    "lengthFt": 63.8,
+    "wingspanFt": 49,
+    "wheelbaseFt": 25,
+    "mainGearWidthFt": 19.8,
+    "category": "Jet",
+    "sources": {
+      "lengthFt": "F15",
+      "wingspanFt": "L29B",
+      "wheelbaseFt": "LJ40",
+      "mainGearWidthFt": "C425"
+    }
+  },
+  {
+    "group": "II",
+    "envelopeCode": "ADG-II",
+    "lengthFt": 106.6,
+    "wingspanFt": 79,
+    "wheelbaseFt": 49.3,
+    "mainGearWidthFt": 23.8,
+    "category": "Jet",
+    "sources": {
+      "lengthFt": "CRJ7",
+      "wingspanFt": "DC3T",
+      "wheelbaseFt": "CRJ7",
+      "mainGearWidthFt": "SF34"
+    }
+  },
+  {
+    "group": "III",
+    "envelopeCode": "ADG-III",
+    "lengthFt": 153.2,
+    "wingspanFt": 118,
+    "wheelbaseFt": 77.2,
+    "mainGearWidthFt": 34,
+    "category": "Jet",
+    "sources": {
+      "lengthFt": "B722",
+      "wingspanFt": "P8",
+      "wheelbaseFt": "MD90",
+      "mainGearWidthFt": "P3"
+    }
+  },
+  {
+    "group": "IV",
+    "envelopeCode": "ADG-IV",
+    "lengthFt": 202.2,
+    "wingspanFt": 170.5,
+    "wheelbaseFt": 85.8,
+    "mainGearWidthFt": 43.2,
+    "category": "Jet",
+    "sources": {
+      "lengthFt": "MD11",
+      "wingspanFt": "MD11",
+      "wheelbaseFt": "B764",
+      "mainGearWidthFt": "DC10"
+    }
+  },
+  {
+    "group": "V",
+    "envelopeCode": "ADG-V",
+    "lengthFt": 247.2,
+    "wingspanFt": 213,
+    "wheelbaseFt": 107.9,
+    "mainGearWidthFt": 47.4,
+    "category": "Jet",
+    "sources": {
+      "lengthFt": "A346",
+      "wingspanFt": "BLCF",
+      "wheelbaseFt": "A346",
+      "mainGearWidthFt": "B2"
+    }
+  },
+  {
+    "group": "VI",
+    "envelopeCode": "ADG-VI",
+    "lengthFt": 251.8,
+    "wingspanFt": 261.7,
+    "wheelbaseFt": 106.1,
+    "mainGearWidthFt": 47,
+    "category": "Jet",
+    "sources": {
+      "lengthFt": "B779",
+      "wingspanFt": "A388",
+      "wheelbaseFt": "B779",
+      "mainGearWidthFt": "A388"
+    }
+  }
+]

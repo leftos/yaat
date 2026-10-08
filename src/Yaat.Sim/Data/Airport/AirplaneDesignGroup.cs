@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
 using Microsoft.Extensions.Logging;
+using Yaat.Sim.Data.Faa;
 
 namespace Yaat.Sim.Data.Airport;
 
@@ -53,7 +54,7 @@ public static class AirplaneDesignGroups
 
     private static readonly ConditionalWeakTable<AirportGroundLayout, ConditionalWeakTable<MovementAreaClassification, LayoutTaxiways>> Cache = [];
 
-    /// <summary>The largest wingspan the group admits, feet (AC 150/5300-13B Table 1-2).</summary>
+    /// <summary>The group's span ceiling, feet: its spans lie under it (AC 150/5300-13B Table 1-2).</summary>
     /// <param name="group">The design group.</param>
     /// <returns>The span ceiling, feet.</returns>
     public static double MaxWingspanFt(AirplaneDesignGroup group) =>
@@ -67,6 +68,82 @@ public static class AirplaneDesignGroups
             AirplaneDesignGroup.VI => 262.0,
             _ => throw new ArgumentOutOfRangeException(nameof(group), group, "Unknown Airplane Design Group"),
         };
+
+    /// <summary>Parses a roman design group, <c>I</c> to <c>VI</c>, ordinal and ignoring case; anything else is false.</summary>
+    /// <param name="text">The text, as an FAA record's ADG column carries it.</param>
+    /// <param name="group">The group parsed, or <see langword="default"/> when the text is not one.</param>
+    /// <returns>True when the text names a group.</returns>
+    public static bool TryParseRoman(string? text, out AirplaneDesignGroup group)
+    {
+        foreach (AirplaneDesignGroup candidate in Enum.GetValues<AirplaneDesignGroup>())
+        {
+            if (string.Equals(text, candidate.ToString(), StringComparison.OrdinalIgnoreCase))
+            {
+                group = candidate;
+                return true;
+            }
+        }
+
+        group = default;
+        return false;
+    }
+
+    /// <summary>
+    /// The smallest group whose span ceiling (<see cref="MaxWingspanFt"/>) lies above <paramref name="spanFt"/>: AC
+    /// 150/5300-13B Table 1-2 bounds each group's span exclusively (group I is under 49 ft, group II 49 ft to under 79 ft).
+    /// A span at or past group VI's ceiling also returns VI, which the caller warns about.
+    /// </summary>
+    /// <param name="spanFt">The wingspan, feet.</param>
+    /// <returns>The group.</returns>
+    public static AirplaneDesignGroup SmallestCoveringSpan(double spanFt)
+    {
+        foreach (AirplaneDesignGroup group in Enum.GetValues<AirplaneDesignGroup>())
+        {
+            if (spanFt < MaxWingspanFt(group))
+            {
+                return group;
+            }
+        }
+
+        return AirplaneDesignGroup.VI;
+    }
+
+    /// <summary>
+    /// The design group of an FAA record: its roman ADG; else, when the ADG is blank, the smallest group covering its span
+    /// (<see cref="SmallestCoveringSpan"/>); else, for any other ADG value, the same fallback with a warning. The span is
+    /// the with-winglets figure, else the without-winglets one. Null when the ADG is not a group and the record has no span.
+    /// </summary>
+    /// <param name="record">The FAA record.</param>
+    /// <param name="warning">Why the group was not the record's own ADG and is worth a warning, or null.</param>
+    /// <returns>The group, or null when the record gives neither a group nor a span.</returns>
+    public static AirplaneDesignGroup? OfRecord(FaaAircraftRecord record, out string? warning)
+    {
+        warning = null;
+        if (TryParseRoman(record.Adg, out AirplaneDesignGroup parsed))
+        {
+            return parsed;
+        }
+
+        if ((record.WingspanFtWithWinglets ?? record.WingspanFtWithoutWinglets) is not { } spanFt)
+        {
+            warning = string.IsNullOrWhiteSpace(record.Adg)
+                ? $"{record.IcaoCode}: ADG is blank and the record has no wingspan; it has no design group"
+                : $"ADG '{record.Adg}' on {record.IcaoCode} is not I-VI and it has no span; it has no design group";
+            return null;
+        }
+
+        AirplaneDesignGroup group = SmallestCoveringSpan(spanFt);
+        if (!string.IsNullOrWhiteSpace(record.Adg))
+        {
+            warning = $"ADG '{record.Adg}' on {record.IcaoCode} is not I-VI; using group {group} from its {spanFt} ft span";
+        }
+        else if (spanFt >= MaxWingspanFt(AirplaneDesignGroup.VI))
+        {
+            warning = $"{record.IcaoCode} has no ADG and its {spanFt} ft span exceeds group VI's ceiling; using group VI";
+        }
+
+        return group;
+    }
 
     /// <summary>
     /// The taxiway centreline-to-object separation for the group, feet: half the taxiway object-free area, the
@@ -144,11 +221,11 @@ public static class AirplaneDesignGroups
     /// ADG I. Cached per layout and movement-area classification.
     /// </summary>
     /// <param name="layout">The airport's ground layout.</param>
+    /// <param name="classification">The movement-area classification that says which taxiways are parallels.</param>
     /// <param name="taxiway">The taxiway's name.</param>
     /// <returns>The taxiway's design group.</returns>
-    public static AirplaneDesignGroup ForTaxiway(AirportGroundLayout layout, string taxiway)
+    public static AirplaneDesignGroup ForTaxiway(AirportGroundLayout layout, MovementAreaClassification classification, string taxiway)
     {
-        var classification = MovementAreaClassification.For(layout);
         LayoutTaxiways taxiways = Cache.GetOrCreateValue(layout).GetValue(classification, c => new LayoutTaxiways(layout, c));
         return taxiways.GroupByName.GetOrAdd(taxiway, name => Derive(layout, taxiways, name));
     }

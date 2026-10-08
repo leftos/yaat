@@ -3611,6 +3611,7 @@ public partial class GroundViewModel : ObservableObject
             Start = new TugPose(aircraft.Position, aircraft.Heading.Degrees),
             StartsAtStand = aircraft.CurrentPhase == "At Parking",
             Footprint = AircraftFootprint.FromType(aircraft.AircraftType),
+            MovementArea = MovementAreaClassification.For(layout),
             Goals = goals,
             ParkedNeighbours = TugParkedNeighbours.Build(subject, others),
             FinalFacingTrueDeg = finalFacingTrueDeg,

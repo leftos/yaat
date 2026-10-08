@@ -49,10 +49,116 @@ public class PrecomputeSourceHashesTests
     }
 
     [Fact]
+    public void PushSetContains_GroundOutline_GroundOutlineSweep_AircraftLength_AircraftCategory_DesignGroupJson()
+    {
+        string[] sharedWithLayout =
+        [
+            "GroundOutline.cs",
+            "GroundOutlineSweep.cs",
+            "Data/Faa/AircraftLength.cs",
+            "AircraftCategory.cs",
+            "TrueHeading.cs",
+            "Data/AirportSidecarCatalog.cs",
+            "Data/AirportSidecarDefinition.cs",
+            "Data/AirportSidecarLoader.cs",
+            "Data/Airport/TugMovePlanner.cs",
+        ];
+        string[] pushOnly =
+        [
+            "Data/PrecomputeCache/design-group-envelopes.json",
+            "Data/Airport/Precompute/PushTargetPlanner.cs",
+            "Data/Airport/Precompute/DesignGroupEnvelopes.cs",
+            "Data/Airport/Precompute/PushMoveEntry.cs",
+            "Data/Airport/Precompute/AirportSidecarHash.cs",
+        ];
+
+        Assert.All(sharedWithLayout.Concat(pushOnly), path => Assert.Contains(path, PrecomputeSourceHashes.PushTargetFiles));
+        Assert.All(pushOnly, path => Assert.DoesNotContain(path, PrecomputeSourceHashes.LayoutFiles));
+        Assert.DoesNotContain("Data/Airport/Precompute/PrecomputeStore.cs", PrecomputeSourceHashes.PushTargetFiles);
+        Assert.DoesNotContain("Data/Airport/Precompute/PrecomputeKey.cs", PrecomputeSourceHashes.PushTargetFiles);
+    }
+
+    /// <summary>
+    /// Every type a push-only file declares (a file in the push set and not the layout set) and no layout file declares is
+    /// absent from every layout file's text, so a layout source never reaches code whose edit stales only the push half.
+    /// </summary>
+    [Fact]
+    public void NoLayoutFileReferencesAPushOnlyType()
+    {
+        string simRoot = SimRoot();
+        string[] layout = PrecomputeSourceHashes.LayoutFiles;
+        string[] pushOnly =
+        [
+            .. PrecomputeSourceHashes.PushTargetFiles.Except(layout).Where(relative => relative.EndsWith(".cs", StringComparison.Ordinal)),
+        ];
+        string[] layoutTypes =
+        [
+            .. layout.SelectMany(relative => DeclaredTypesWithModifier(Path.Combine(simRoot, relative))).Distinct(StringComparer.Ordinal),
+        ];
+        string[] pushOnlyTypes =
+        [
+            .. pushOnly
+                .SelectMany(relative => DeclaredTypesWithModifier(Path.Combine(simRoot, relative)))
+                .Where(type => !layoutTypes.Contains(type, StringComparer.Ordinal))
+                .Distinct(StringComparer.Ordinal),
+        ];
+
+        Assert.Contains("PushTargetPlanner", pushOnlyTypes);
+        foreach (string relative in layout)
+        {
+            string text = File.ReadAllText(Path.Combine(simRoot, relative));
+            foreach (string type in pushOnlyTypes)
+            {
+                Assert.False(Regex.IsMatch(text, $@"\b{Regex.Escape(type)}\b"), $"{relative} names {type}, which only a push-only file declares.");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Every Yaat.Sim type <c>PushTargetPlanner.cs</c> names is declared in a push-set file, so the payload depends on
+    /// nothing outside the hashed set. <c>SimLog</c> is the one exception: logging writes nothing into the payload.
+    /// </summary>
+    [Fact]
+    public void EveryTypePushTargetPlannerNames_IsDeclaredInAPushSetFile()
+    {
+        string simRoot = SimRoot();
+        string planner = string.Join(
+            '\n',
+            File.ReadAllLines(Path.Combine(simRoot, "Data", "Airport", "Precompute", "PushTargetPlanner.cs"))
+                .Where(line => !line.StartsWith("using ", StringComparison.Ordinal) && !line.StartsWith("namespace ", StringComparison.Ordinal))
+        );
+        string[] simTypes =
+        [
+            .. typeof(PushTargetPlanner)
+                .Assembly.GetTypes()
+                .Select(type => type.Name.Split('`')[0])
+                .Where(name => Regex.IsMatch(name, "^[A-Za-z_][A-Za-z0-9_]*$") && (name != "SimLog"))
+                .Distinct(StringComparer.Ordinal),
+        ];
+        HashSet<string> pushDeclared =
+        [
+            .. PrecomputeSourceHashes
+                .PushTargetFiles.Where(relative => relative.EndsWith(".cs", StringComparison.Ordinal))
+                .SelectMany(relative => DeclaredTypesWithModifier(Path.Combine(simRoot, relative))),
+        ];
+        // Log-template placeholders such as {Airport} name no type.
+        string code = Regex.Replace(planner, @"\{[A-Za-z]+(?::[^}]*)?\}", "");
+        string[] named = [.. simTypes.Where(type => Regex.IsMatch(code, $@"\b{Regex.Escape(type)}\b"))];
+
+        Assert.Contains("TugMovePlanner", named);
+        Assert.Contains("AirportSidecarCatalog", named);
+        Assert.All(named, type => Assert.True(pushDeclared.Contains(type), $"PushTargetPlanner.cs names {type}, which no push-set file declares"));
+    }
+
+    /// <summary>
+    /// The layout set's exclusions are checked; the push set holds every source under <c>Data/Airport</c> outside
+    /// <c>Precompute/</c>, so it excludes none there.
+    /// </summary>
+    [Fact]
     public void NoHashedFileReferencesAnExcludedType()
     {
         string simRoot = SimRoot();
-        string[] hashed = PrecomputeSourceHashes.PushTargetFiles;
+        string[] hashed = PrecomputeSourceHashes.LayoutFiles;
         string airportRoot = Path.Combine(simRoot, "Data", "Airport");
 
         string[] onDisk =
@@ -103,6 +209,19 @@ public class PrecomputeSourceHashesTests
     private static IEnumerable<string> DeclaredTypes(string filePath) =>
         Regex
             .Matches(File.ReadAllText(filePath), @"(?:class|record|struct|interface|enum)\s+([A-Za-z_][A-Za-z0-9_]*)")
+            .Select(match => match.Groups[1].Value);
+
+    /// <summary>
+    /// Type declarations with an access modifier, so a doc-comment phrase such as "a record in" is not taken for a type
+    /// named <c>in</c>.
+    /// </summary>
+    private static IEnumerable<string> DeclaredTypesWithModifier(string filePath) =>
+        Regex
+            .Matches(
+                File.ReadAllText(filePath),
+                @"\b(?:public|internal|private|protected|file)\s+(?:(?:static|sealed|abstract|readonly|partial|ref)\s+)*"
+                    + @"(?:class|record|struct|interface|enum)(?:\s+(?:class|struct))?\s+([A-Za-z_][A-Za-z0-9_]*)"
+            )
             .Select(match => match.Groups[1].Value);
 
     private static void AssertSha256(string hash)

@@ -63,12 +63,14 @@ public sealed class MovementAreaClassification
     private readonly IReadOnlySet<string> _forcedNonMovement;
 
     private MovementAreaClassification(
+        string airportId,
         Dictionary<string, MovementAreaRule> ruleByName,
         Dictionary<string, GroundNode> gateByLane,
         IReadOnlySet<string> forcedMovementArea,
         IReadOnlySet<string> forcedNonMovement
     )
     {
+        AirportId = airportId;
         _ruleByName = ruleByName;
         _gateByLane = gateByLane;
         _forcedMovementArea = forcedMovementArea;
@@ -113,8 +115,11 @@ public sealed class MovementAreaClassification
             Log.LogDebug("{Airport}: {Name} is decided by rule {Rule} ({RuleName})", layout.AirportId, name, (int)rule, rule);
         }
 
-        return new MovementAreaClassification(ruleByName, gateByLane, forcedMovementArea, forcedNonMovement);
+        return new MovementAreaClassification(layout.AirportId, ruleByName, gateByLane, forcedMovementArea, forcedNonMovement);
     }
+
+    /// <summary>The airport of the layout this classification was built from.</summary>
+    public string AirportId { get; }
 
     /// <summary>
     /// A non-movement ramp taxilane. A sidecar list wins (a name in both lists is movement area); otherwise the derived

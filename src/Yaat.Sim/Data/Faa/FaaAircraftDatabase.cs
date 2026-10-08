@@ -19,6 +19,9 @@ public static class FaaAircraftDatabase
 
     public static int Count => _lookup.Count;
 
+    /// <summary>The loaded records by ICAO designator, the override layer's corrections applied.</summary>
+    public static IReadOnlyDictionary<string, FaaAircraftRecord> Records => _lookup;
+
     public static void Initialize(Dictionary<string, FaaAircraftRecord> lookup)
     {
         _lookup = new Dictionary<string, FaaAircraftRecord>(lookup, StringComparer.OrdinalIgnoreCase);

@@ -1,0 +1,80 @@
+{
+  "StandName": "26",
+  "DesignGroup": "IV",
+  "Targets": [
+    {
+      "Kind": "Taxilane",
+      "Name": "TE",
+      "Note": "alongside",
+      "Command": "PUSH TE",
+      "Facings": [
+        80.5,
+        260.5
+      ],
+      "PathLengthFt": 257,
+      "Moves": [
+        {
+          "Kind": "Push",
+          "Shape": "Straight",
+          "Tight": false,
+          "Creep": false,
+          "DwellBefore": false,
+          "PointLatitude": 0,
+          "PointLongitude": 0,
+          "LineTravelTrueDeg": 0,
+          "StopAtLatitude": null,
+          "StopAtLongitude": null,
+          "StraightDistanceFt": 101.1,
+          "FacingTrueDeg": 0,
+          "PlannedEndLatitude": 37.7101871,
+          "PlannedEndLongitude": -122.2126857
+        },
+        {
+          "Kind": "Push",
+          "Shape": "ViaLine",
+          "Tight": false,
+          "Creep": false,
+          "DwellBefore": false,
+          "PointLatitude": 37.7104001,
+          "PointLongitude": -122.212859,
+          "LineTravelTrueDeg": 260.46,
+          "StopAtLatitude": null,
+          "StopAtLongitude": null,
+          "StraightDistanceFt": 0,
+          "FacingTrueDeg": 0,
+          "PlannedEndLatitude": 37.7103615,
+          "PlannedEndLongitude": -122.2131442
+        }
+      ]
+    },
+    {
+      "Kind": "Taxilane",
+      "Name": "TC",
+      "Note": "across",
+      "Command": "PUSH TC",
+      "Facings": [
+        15,
+        195
+      ],
+      "PathLengthFt": 546,
+      "Moves": [
+        {
+          "Kind": "Push",
+          "Shape": "Straight",
+          "Tight": false,
+          "Creep": false,
+          "DwellBefore": false,
+          "PointLatitude": 0,
+          "PointLongitude": 0,
+          "LineTravelTrueDeg": 0,
+          "StopAtLatitude": null,
+          "StopAtLongitude": null,
+          "StraightDistanceFt": 545.26,
+          "FacingTrueDeg": 0,
+          "PlannedEndLatitude": 37.7107018,
+          "PlannedEndLongitude": -122.214081
+        }
+      ]
+    }
+  ]
+}

@@ -158,6 +158,7 @@ public class PushmHintE2ETests(ITestOutputHelper output)
             Start = new TugPose(ac.Position, ac.TrueHeading.Degrees),
             StartsAtStand = true,
             Footprint = AircraftFootprint.FromType(AircraftType),
+            MovementArea = MovementAreaClassification.For(layout),
             Goals = goals,
             ParkedNeighbours = [],
             FinalFacingTrueDeg = null,

@@ -92,8 +92,37 @@ public static class AirportSidecarLoader
                 ExitCapacity = ParseExitCapacity(file, filePath, result),
                 MovementAreaTaxiways = ParsePavementClassNames(file.MovementAreaTaxiways, "movementAreaTaxiways", filePath, result),
                 NonMovementTaxilanes = ParsePavementClassNames(file.NonMovementTaxilanes, "nonMovementTaxilanes", filePath, result),
+                StandDepartureOverrides = ParseStandDepartures(file, filePath, result),
             }
         );
+    }
+
+    /// <summary>
+    /// The <c>standDeparture</c> section: stand name, trimmed, to <c>PushBack</c> or <c>TaxiOut</c> (case-insensitive). A
+    /// blank name or another value is warned and skipped.
+    /// </summary>
+    private static Dictionary<string, StandDeparture> ParseStandDepartures(AirportSidecarFile file, string filePath, AirportSidecarLoadResult result)
+    {
+        var overrides = new Dictionary<string, StandDeparture>(StringComparer.OrdinalIgnoreCase);
+        foreach ((string stand, string? value) in file.StandDeparture)
+        {
+            if (string.IsNullOrWhiteSpace(stand))
+            {
+                result.Warnings.Add($"{filePath}: standDeparture has a blank stand name, skipping");
+                continue;
+            }
+
+            string? name = Enum.GetNames<StandDeparture>().FirstOrDefault(n => string.Equals(n, value?.Trim(), StringComparison.OrdinalIgnoreCase));
+            if (name is null)
+            {
+                result.Warnings.Add($"{filePath}: standDeparture[{stand}] must be 'PushBack' or 'TaxiOut', got '{value}', skipping");
+                continue;
+            }
+
+            overrides[stand.Trim()] = Enum.Parse<StandDeparture>(name);
+        }
+
+        return overrides;
     }
 
     /// <summary>Trimmed, upper-cased, de-duplicated names from one pavement-class list; a blank name is warned and skipped.</summary>

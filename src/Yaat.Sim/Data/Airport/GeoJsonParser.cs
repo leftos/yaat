@@ -279,7 +279,11 @@ public static class GeoJsonParser
             layout.Nodes[id] = node;
             parkingNodes.Add(node);
 
-            ConnectParkingToTaxiway(node, layout);
+            GroundEdge? joined = ConnectParkingToTaxiway(node, layout);
+            LatLon? foot = joined is null
+                ? null
+                : GeoMath.FootOfPerpendicular(node.Position, joined.Nodes[0].Position, joined.Nodes[1].Position).Foot;
+            node.StandDeparture = StandDepartures.Classify(node, foot);
         }
 
         // Step 6b: Create helipad nodes and connect to nearest taxiway (larger radius)
@@ -324,7 +328,7 @@ public static class GeoJsonParser
         return layout;
     }
 
-    private static void ConnectParkingToTaxiway(GroundNode parking, AirportGroundLayout layout) =>
+    private static GroundEdge? ConnectParkingToTaxiway(GroundNode parking, AirportGroundLayout layout) =>
         ConnectToNearestTaxiway(parking, layout, ParkingConnectMaxNm);
 
     private static void ConnectGateGroupsToAnchors(IReadOnlyList<GroundNode> parkingNodes, AirportGroundLayout layout)
@@ -528,13 +532,18 @@ public static class GeoJsonParser
         return count;
     }
 
-    private static void ConnectToNearestTaxiway(GroundNode node, AirportGroundLayout layout, double maxDistNm)
+    /// <summary>
+    /// Joins <paramref name="node"/> to the nearest vertex of the taxiway edge nearest it by perpendicular distance, with a
+    /// <c>RAMP</c> connector.
+    /// </summary>
+    /// <returns>The taxiway edge the connector joined, or null when no connector was added.</returns>
+    private static GroundEdge? ConnectToNearestTaxiway(GroundNode node, AirportGroundLayout layout, double maxDistNm)
     {
         ConnectorTarget? target = FindNearestConnectorTarget(node, layout);
 
         if (target is null || target.Value.DistanceNm > maxDistNm)
         {
-            return;
+            return null;
         }
 
         // Attach to the perpendicular-nearest taxiway EDGE's nearest existing vertex — no edge
@@ -559,7 +568,7 @@ public static class GeoJsonParser
                 node.Id,
                 endpoint.Id
             );
-            return;
+            return null;
         }
 
         layout.Edges.Add(
@@ -572,6 +581,7 @@ public static class GeoJsonParser
             }
         );
         // Node adjacency lists are wired up in Step 7 — don't add here to avoid duplicates.
+        return edge;
     }
 
     private static ConnectorTarget? FindNearestConnectorTarget(GroundNode node, AirportGroundLayout layout)

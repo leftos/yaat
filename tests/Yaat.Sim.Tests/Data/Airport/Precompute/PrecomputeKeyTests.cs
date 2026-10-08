@@ -5,9 +5,9 @@ namespace Yaat.Sim.Tests.Data.Airport.Precompute;
 
 /// <summary>
 /// The staleness of a <see cref="PrecomputeKey"/>: each of the four layout inputs (GeoJSON hash, navdata serial,
-/// layout format version, layout source hash) breaks both matches when it moves, and a push-target source change
-/// breaks only the push half. One test per layout clause, so dropping any clause of
-/// <see cref="PrecomputeKey.LayoutMatches"/> fails a test.
+/// layout format version, layout source hash) breaks both matches when it moves, and a push-target source change or an
+/// airport sidecar change breaks only the push half. One test per clause, so dropping any clause of
+/// <see cref="PrecomputeKey.LayoutMatches"/> or <see cref="PrecomputeKey.PushTargetsMatch"/> fails a test.
 /// </summary>
 public class PrecomputeKeyTests
 {
@@ -15,17 +15,28 @@ public class PrecomputeKeyTests
     public void PushOnlyChange_KeepsLayoutMatch()
     {
         PrecomputeKey stored = Stored();
-        PrecomputeKey current = Key("md5", 7, 1, "layout", "other");
+        PrecomputeKey current = Stored() with { PushTargetSourceHash = "other" };
 
         Assert.True(current.LayoutMatches(stored));
         Assert.False(current.PushTargetsMatch(stored));
     }
 
     [Fact]
+    public void SidecarChange_BreaksPushHalfOnly()
+    {
+        PrecomputeKey stored = Stored();
+        PrecomputeKey current = Stored() with { PushSidecarHash = "other" };
+
+        Assert.True(current.LayoutMatches(stored));
+        Assert.False(current.PushTargetsMatch(stored));
+        Assert.True(Stored().PushTargetsMatch(stored));
+    }
+
+    [Fact]
     public void GeoJsonChange_BreaksBothMatches()
     {
         PrecomputeKey stored = Stored();
-        PrecomputeKey current = Key("other", 7, 1, "layout", "push");
+        PrecomputeKey current = Stored() with { GeoJsonMd5 = "other" };
 
         Assert.False(current.LayoutMatches(stored));
         Assert.False(current.PushTargetsMatch(stored));
@@ -35,7 +46,7 @@ public class PrecomputeKeyTests
     public void NavDataSerialChange_BreaksBothMatches()
     {
         PrecomputeKey stored = Stored();
-        PrecomputeKey current = Key("md5", 8, 1, "layout", "push");
+        PrecomputeKey current = Stored() with { NavDataSerial = 8 };
 
         Assert.False(current.LayoutMatches(stored));
         Assert.False(current.PushTargetsMatch(stored));
@@ -45,7 +56,7 @@ public class PrecomputeKeyTests
     public void LayoutFormatVersionChange_BreaksBothMatches()
     {
         PrecomputeKey stored = Stored();
-        PrecomputeKey current = Key("md5", 7, 2, "layout", "push");
+        PrecomputeKey current = Stored() with { LayoutFormatVersion = 2 };
 
         Assert.False(current.LayoutMatches(stored));
         Assert.False(current.PushTargetsMatch(stored));
@@ -55,19 +66,20 @@ public class PrecomputeKeyTests
     public void LayoutSourceChange_BreaksBothMatches()
     {
         PrecomputeKey stored = Stored();
-        PrecomputeKey current = Key("md5", 7, 1, "other", "push");
+        PrecomputeKey current = Stored() with { LayoutSourceHash = "other" };
 
         Assert.False(current.LayoutMatches(stored));
         Assert.False(current.PushTargetsMatch(stored));
     }
 
-    private static PrecomputeKey Stored() => Key("md5", 7, 1, "layout", "push");
-
-    private static PrecomputeKey Key(
-        string geoJsonMd5,
-        long navDataSerial,
-        int layoutFormatVersion,
-        string layoutSourceHash,
-        string pushTargetSourceHash
-    ) => new(geoJsonMd5, navDataSerial, layoutFormatVersion, layoutSourceHash, pushTargetSourceHash);
+    private static PrecomputeKey Stored() =>
+        new()
+        {
+            GeoJsonMd5 = "md5",
+            NavDataSerial = 7,
+            LayoutFormatVersion = 1,
+            LayoutSourceHash = "layout",
+            PushTargetSourceHash = "push",
+            PushSidecarHash = "sidecar",
+        };
 }

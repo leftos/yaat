@@ -675,7 +675,7 @@ public class GroundViewModelPushRouteTests
         {
             ForcedKind = PushbackLegKind.Pull,
         };
-        Assert.Null(TugMovePlanner.Plan(layout, RequestFor(ac, [goal]), out string simRefusal));
+        Assert.Null(TugMovePlanner.Plan(layout, RequestFor(layout, ac, [goal]), out string simRefusal));
         Assert.Equal("Unable, the marked point cannot be reached by a pull", simRefusal);
         Assert.Null(vm.PushRoutePreview);
         Assert.Equal(simRefusal, vm.PushRouteRefusal);
@@ -765,7 +765,7 @@ public class GroundViewModelPushRouteTests
         {
             StandOrSpotGoal single = GroundCommandHandler.ResolveStandOrSpotGoal(ac.Position, null, null, targets[0], layout);
             Assert.Null(single.Refusal);
-            return PlanForRequest(layout, RequestFor(ac, [single.Goal!]) with { FinalFacingTrueDeg = single.FinalFacingTrueDeg });
+            return PlanForRequest(layout, RequestFor(layout, ac, [single.Goal!]) with { FinalFacingTrueDeg = single.FinalFacingTrueDeg });
         }
 
         return PlanForGoals(layout, ac, [.. targets.Select(t => GroundCommandHandler.ResolveTugGoal(layout, t.Token)!)]);
@@ -782,7 +782,7 @@ public class GroundViewModelPushRouteTests
 
     // What the sim would plan for the same aircraft and goals, with no parked neighbours.
     private static TugPlan? PlanForGoals(AirportGroundLayout layout, AircraftModel ac, List<TugGoal> goals) =>
-        PlanForRequest(layout, RequestFor(ac, goals));
+        PlanForRequest(layout, RequestFor(layout, ac, goals));
 
     private static TugPlan? PlanForRequest(AirportGroundLayout layout, TugRequest request)
     {
@@ -796,12 +796,13 @@ public class GroundViewModelPushRouteTests
     private static string PositionToken(LatLon point) =>
         string.Create(System.Globalization.CultureInfo.InvariantCulture, $"~{Math.Round(point.Lat, 6):F6}/{Math.Round(point.Lon, 6):F6}");
 
-    private static TugRequest RequestFor(AircraftModel ac, List<TugGoal> goals) =>
+    private static TugRequest RequestFor(AirportGroundLayout layout, AircraftModel ac, List<TugGoal> goals) =>
         new()
         {
             Start = new TugPose(ac.Position, ac.Heading.Degrees),
             StartsAtStand = ac.CurrentPhase == "At Parking",
             Footprint = AircraftFootprint.FromType(ac.AircraftType),
+            MovementArea = MovementAreaClassification.For(layout),
             Goals = goals,
             ParkedNeighbours = [],
             FinalFacingTrueDeg = null,

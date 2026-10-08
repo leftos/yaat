@@ -73,5 +73,10 @@
       "maxAircraftAboveCwt": 1,
       "cwtThreshold": "G"
     }
-  ]
+  ],
+  "standDeparture": {
+    "CG2": "TaxiOut",
+    "CG3": "TaxiOut",
+    "CG4": "TaxiOut"
+  }
 }

@@ -34,10 +34,11 @@ public class TugAlleyClearanceTests(ITestOutputHelper output)
         }
 
         SimLogBuilder.CreateForTest(output).EnableCategory("AirplaneDesignGroups", LogLevel.Debug).InitializeSimLog();
-        AirplaneDesignGroup group = AirplaneDesignGroups.ForTaxiway(layout, "A");
+        var movementArea = MovementAreaClassification.For(layout);
+        AirplaneDesignGroup group = AirplaneDesignGroups.ForTaxiway(layout, movementArea, "A");
 
         output.WriteLine(
-            $"SFO widest runway {layout.Runways.Max(r => r.WidthFt):F0} ft; taxiway A ADG {group}; taxiway D ADG {AirplaneDesignGroups.ForTaxiway(layout, "D")}"
+            $"SFO widest runway {layout.Runways.Max(r => r.WidthFt):F0} ft; taxiway A ADG {group}; taxiway D ADG {AirplaneDesignGroups.ForTaxiway(layout, movementArea, "D")}"
         );
         Assert.Equal(AirplaneDesignGroup.IV, group);
         Assert.Equal(129.5, AirplaneDesignGroups.TaxiwayObjectFreeHalfWidthFt(group));
@@ -137,7 +138,7 @@ public class TugAlleyClearanceTests(ITestOutputHelper output)
         GroundNode exit = layout.FindExitByTaxiway(d7.Position, "A") ?? throw new InvalidOperationException("no A exit off D7");
         double facingDeg =
             layout.GetEdgeBearingForTaxiway(exit, "A", d7.TrueHeading!.Value.Degrees) ?? throw new InvalidOperationException("no A edge");
-        TugRequest request = StandStart(d7, Narrowbody, TugGoal.TaxiwayLine(exit, "A", facingDeg) with { FacingTaxiwayName = "F1" });
+        TugRequest request = StandStart(layout, d7, Narrowbody, TugGoal.TaxiwayLine(exit, "A", facingDeg) with { FacingTaxiwayName = "F1" });
 
         TugPlan? plan = TugMovePlanner.Plan(layout, request, out string refusal);
 
@@ -153,7 +154,7 @@ public class TugAlleyClearanceTests(ITestOutputHelper output)
         SimLogBuilder.CreateForTest(output).EnableCategory("TugMovePlanner", LogLevel.Debug).InitializeSimLog();
         GroundNode stand = layout.FindParkingByName(gate) ?? throw new InvalidOperationException($"no gate {gate}");
         GroundNode node = layout.FindSpotNodeByName(spot) ?? throw new InvalidOperationException($"no spot {spot}");
-        TugPlan? plan = TugMovePlanner.Plan(layout, StandStart(stand, aircraftType, TugGoal.Spot(node)), out string refusal);
+        TugPlan? plan = TugMovePlanner.Plan(layout, StandStart(layout, stand, aircraftType, TugGoal.Spot(node)), out string refusal);
         Assert.True(plan is not null, $"{gate} → {spot} was refused: {refusal}");
         output.WriteLine(
             $"{gate} → {spot} ({aircraftType}): {string.Join(", ", plan.Moves.Select(m => $"{m.Move.Kind} {m.Move.Shape} {m.PathLengthFt:F0} ft"))}"
@@ -161,12 +162,13 @@ public class TugAlleyClearanceTests(ITestOutputHelper output)
         return plan;
     }
 
-    internal static TugRequest StandStart(GroundNode stand, string aircraftType, TugGoal goal) =>
+    internal static TugRequest StandStart(AirportGroundLayout layout, GroundNode stand, string aircraftType, TugGoal goal) =>
         new()
         {
             Start = new TugPose(stand.Position, stand.TrueHeading!.Value.Degrees),
             StartsAtStand = true,
             Footprint = AircraftFootprint.FromType(aircraftType),
+            MovementArea = MovementAreaClassification.For(layout),
             Goals = [goal],
             ParkedNeighbours = [],
             FinalFacingTrueDeg = null,
@@ -264,7 +266,7 @@ public class TugAlleyClearanceTimingTests(ITestOutputHelper output)
         SimLogBuilder.CreateForTest(output).InitializeSimLog();
         GroundNode stand = layout.FindParkingByName("F8") ?? throw new InvalidOperationException("no gate F8");
         GroundNode spot = layout.FindSpotNodeByName("7A") ?? throw new InvalidOperationException("no spot 7A");
-        TugRequest request = TugAlleyClearanceTests.StandStart(stand, TugAlleyClearanceTests.Regional, TugGoal.Spot(spot));
+        TugRequest request = TugAlleyClearanceTests.StandStart(layout, stand, TugAlleyClearanceTests.Regional, TugGoal.Spot(spot));
 
         TimeSpan coldStart = ThreadCpuTime.Current();
         TugPlan? cold = TugMovePlanner.Plan(layout, request, out string coldRefusal);

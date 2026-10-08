@@ -18,5 +18,17 @@
       "path": "W V T",
       "tags": ["arr", "30"]
     }
-  ]
+  ],
+  "standDeparture": {
+    "GA1": "TaxiOut",
+    "GA2": "TaxiOut",
+    "GA4": "TaxiOut",
+    "GA7": "TaxiOut",
+    "GA8": "TaxiOut",
+    "GA9": "TaxiOut",
+    "GA10": "TaxiOut",
+    "GA11": "TaxiOut",
+    "GA12": "TaxiOut",
+    "HELI2": "TaxiOut"
+  }
 }

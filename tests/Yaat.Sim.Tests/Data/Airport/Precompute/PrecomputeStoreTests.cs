@@ -18,6 +18,8 @@ public class PrecomputeStoreTests
 {
     private const string GeoJsonMd5 = "5d41402abc4b2a76b9719d911017c592";
 
+    private const string SidecarHash = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+
     public PrecomputeStoreTests()
     {
         TestVnasData.EnsureInitialized();
@@ -27,7 +29,7 @@ public class PrecomputeStoreTests
     public void RoundTrip_RealKoakLayout()
     {
         AirportGroundLayout layout = RealKoakLayout();
-        var key = PrecomputeKey.Current(GeoJsonMd5, 12_345);
+        var key = PrecomputeKey.Current(GeoJsonMd5, 12_345, SidecarHash);
         var entry = new PrecomputeEntry(layout.AirportId, key, layout, []);
         string root = NewRoot();
 
@@ -54,6 +56,38 @@ public class PrecomputeStoreTests
     }
 
     /// <summary>
+    /// Gate 26's computed push targets read back through <see cref="PrecomputeStore.TryRead"/> serialise to the same JSON
+    /// as the ones written (the list fields compare by reference, so the records themselves are not compared).
+    /// </summary>
+    [Fact]
+    public void RoundTrip_ComputedGate26PushTargets()
+    {
+        AirportGroundLayout layout = RealKoakLayout();
+        IReadOnlyList<PushTargetEntry> targets = PushTargetPlanner.ComputeStands(
+            layout,
+            DesignGroupEnvelopes.LoadShipped(),
+            PushTargetPlannerTests.Sidecars.Value,
+            new HashSet<string>(StringComparer.Ordinal) { "26" }
+        );
+        Assert.Contains(targets, e => e.Targets.Count > 0);
+        var entry = new PrecomputeEntry(layout.AirportId, PrecomputeKey.Current(GeoJsonMd5, 12_345, SidecarHash), layout, targets);
+        string root = NewRoot();
+
+        try
+        {
+            var store = new PrecomputeStore(root);
+            store.Write(entry);
+
+            Assert.True(store.TryRead(layout.AirportId, out PrecomputeEntry? read));
+            Assert.Equal(PushTargetPlannerTests.Json(targets), PushTargetPlannerTests.Json(read.PushTargets));
+        }
+        finally
+        {
+            DeleteRoot(root);
+        }
+    }
+
+    /// <summary>
     /// Two independent parses rather than two references to the harness's cached layout, so this also catches bytes
     /// that vary between parses of the same GeoJSON.
     /// </summary>
@@ -62,7 +96,7 @@ public class PrecomputeStoreTests
     {
         AirportGroundLayout first = ParseKoakLayout();
         AirportGroundLayout second = ParseKoakLayout();
-        var key = PrecomputeKey.Current(GeoJsonMd5, 12_345);
+        var key = PrecomputeKey.Current(GeoJsonMd5, 12_345, SidecarHash);
         string firstRoot = NewRoot();
         string secondRoot = NewRoot();
 
@@ -90,8 +124,8 @@ public class PrecomputeStoreTests
     public void Write_ShuffledTargets_IsByteIdentical()
     {
         AirportGroundLayout layout = RealKoakLayout();
-        var key = PrecomputeKey.Current(GeoJsonMd5, 12_345);
-        PushTargetEntry[] targets = [new("A1", "II"), new("A1", "I"), new("B2", "III")];
+        var key = PrecomputeKey.Current(GeoJsonMd5, 12_345, SidecarHash);
+        PushTargetEntry[] targets = [new("A1", "II", []), new("A1", "I", []), new("B2", "III", [])];
         var first = new PrecomputeEntry(layout.AirportId, key, layout, [.. targets]);
         var second = new PrecomputeEntry(layout.AirportId, key, layout, [targets[2], targets[1], targets[0]]);
         string firstRoot = NewRoot();
@@ -165,7 +199,7 @@ public class PrecomputeStoreTests
             Directory.CreateDirectory(root);
             var store = new PrecomputeStore(root);
             string path = store.PathFor(layout.AirportId);
-            var key = PrecomputeKey.Current(GeoJsonMd5, 12_345);
+            var key = PrecomputeKey.Current(GeoJsonMd5, 12_345, SidecarHash);
             var document = new JsonObject
             {
                 ["AirportId"] = layout.AirportId,
@@ -201,7 +235,7 @@ public class PrecomputeStoreTests
     public void Write_AirportIdMismatch_Throws()
     {
         AirportGroundLayout layout = RealKoakLayout();
-        var entry = new PrecomputeEntry("KSFO", PrecomputeKey.Current(GeoJsonMd5, 12_345), layout, []);
+        var entry = new PrecomputeEntry("KSFO", PrecomputeKey.Current(GeoJsonMd5, 12_345, SidecarHash), layout, []);
         var store = new PrecomputeStore(NewRoot());
 
         ArgumentException ex = Assert.Throws<ArgumentException>(() => store.Write(entry));

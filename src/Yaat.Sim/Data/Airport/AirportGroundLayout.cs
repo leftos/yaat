@@ -32,6 +32,15 @@ public sealed class GroundNode
     public TrueHeading? TrueHeading { get; init; }
 
     /// <summary>
+    /// Whether the stand is pushed back or taxied out of, by its geometry alone (<see cref="StandDepartures.Classify"/>).
+    /// Only set for Parking nodes, by the layout build; null on a parking node only in a layout serialised before this
+    /// field existed, which reads as <see cref="Airport.StandDeparture.PushBack"/>. Read through
+    /// <see cref="StandDepartures.StandDepartureOf"/>, which applies the airport sidecar's override.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public StandDeparture? StandDeparture { get; set; }
+
+    /// <summary>
     /// Runway ID that this hold-short node protects. Only set for RunwayHoldShort nodes.
     /// </summary>
     public RunwayIdentifier? RunwayId { get; set; }

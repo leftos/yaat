@@ -72,13 +72,14 @@
     <Content Include="Data\PrecomputeCache\*.json.br">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+    <Content Include="Data\PrecomputeCache\design-group-envelopes.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <!--
     The two source sets the precompute cache is keyed on: a change to either makes the entries computed from it stale.
     Both are globs, so a new source file joins the right set without an edit here. The layout set is every source under
-    Data\Airport except the exclusions below; the push-target set is that set plus the two types the push payload is
-    serialized through, so it is a superset by construction and its hash moves whenever the layout hash does.
+    Data\Airport except the exclusions below, plus the sources outside it that those name; the push-target set is built
+    on its own below and holds every layout source too, so its hash moves whenever the layout hash does.
   -->
   <ItemGroup>
     <!--
@@ -89,9 +90,7 @@
       excluded here because the layout set never holds the cache's own types.
     -->
     <PrecomputeLayoutExclude Include="Data\Airport\Precompute\**\*.cs" />
-    <PrecomputeLayoutExclude Include="Data\Airport\AdwResolver.cs" />
     <PrecomputeLayoutExclude Include="Data\Airport\AirportLayoutDownloader.cs" />
-    <PrecomputeLayoutExclude Include="Data\Airport\ExitCapacityResolver.cs" />
     <PrecomputeLayoutExclude Include="Data\Airport\GroundSpawnSnap.cs" />
     <PrecomputeLayoutExclude Include="Data\Airport\IAirportGroundData.cs" />
     <PrecomputeLayoutExclude Include="Data\Airport\LandingThreshold.cs" />
@@ -101,9 +100,39 @@
     <PrecomputeLayoutExclude Include="Data\Airport\TaxiRouteAutoCross.cs" />
     <PrecomputeLayoutSource Include="Data\Airport\**\*.cs" Exclude="@(PrecomputeLayoutExclude)" />
     <PrecomputeLayoutSource Include="GeoMath.cs" />
-    <PrecomputePushTargetSource Include="@(PrecomputeLayoutSource)" />
+    <!-- Named by layout sources (the footprint, design-group and ramp-lane code), so an edit to them stales the layout too. -->
+    <PrecomputeLayoutSource Include="GroundOutline.cs" />
+    <PrecomputeLayoutSource Include="GroundOutlineSweep.cs" />
+    <PrecomputeLayoutSource Include="Data\Faa\AircraftLength.cs" />
+    <PrecomputeLayoutSource Include="AircraftCategory.cs" />
+    <!-- Named by layout sources too (node headings, the sidecar data the pathfinder and classifier read). -->
+    <PrecomputeLayoutSource Include="TrueHeading.cs" />
+    <PrecomputeLayoutSource Include="Data\AirportSidecarCatalog.cs" />
+    <PrecomputeLayoutSource Include="Data\AirportSidecarDefinition.cs" />
+    <PrecomputeLayoutSource Include="Data\AirportSidecarLoader.cs" />
+    <!--
+      The push-target set is built on its own: every source under Data\Airport (the tug planner and everything it can
+      reach there) except the cache's own types, plus the cache types the push payload is computed and serialized
+      through, the representatives file, and the geometry and aircraft-dimension sources outside Data\Airport the planner
+      calls.
+    -->
+    <PrecomputePushTargetSource Include="Data\Airport\**\*.cs" Exclude="Data\Airport\Precompute\**\*.cs" />
     <PrecomputePushTargetSource Include="Data\Airport\Precompute\PrecomputeEntry.cs" />
     <PrecomputePushTargetSource Include="Data\Airport\Precompute\PushTargetEntry.cs" />
+    <PrecomputePushTargetSource Include="Data\Airport\Precompute\PushMoveEntry.cs" />
+    <PrecomputePushTargetSource Include="Data\Airport\Precompute\DesignGroupEnvelopes.cs" />
+    <PrecomputePushTargetSource Include="Data\Airport\Precompute\PushTargetPlanner.cs" />
+    <PrecomputePushTargetSource Include="Data\Airport\Precompute\AirportSidecarHash.cs" />
+    <PrecomputePushTargetSource Include="GeoMath.cs" />
+    <PrecomputePushTargetSource Include="GroundOutline.cs" />
+    <PrecomputePushTargetSource Include="GroundOutlineSweep.cs" />
+    <PrecomputePushTargetSource Include="Data\Faa\AircraftLength.cs" />
+    <PrecomputePushTargetSource Include="AircraftCategory.cs" />
+    <PrecomputePushTargetSource Include="TrueHeading.cs" />
+    <PrecomputePushTargetSource Include="Data\AirportSidecarCatalog.cs" />
+    <PrecomputePushTargetSource Include="Data\AirportSidecarDefinition.cs" />
+    <PrecomputePushTargetSource Include="Data\AirportSidecarLoader.cs" />
+    <PrecomputePushTargetSource Include="Data\PrecomputeCache\design-group-envelopes.json" />
   </ItemGroup>
 
   <!--

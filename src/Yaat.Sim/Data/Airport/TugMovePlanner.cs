@@ -263,6 +263,13 @@ public sealed record TugRequest
     public required AircraftFootprint Footprint { get; init; }
 
     /// <summary>
+    /// The movement-area classification the flown-path check, the alley clearance and the taxiway design groups read: a
+    /// live command builds it from the current navigation database's sidecars (<see cref="MovementAreaClassification.For"/>),
+    /// the precompute cache from the sidecars its key hashes. Null only when the move is planned without a layout.
+    /// </summary>
+    public required MovementAreaClassification? MovementArea { get; init; }
+
+    /// <summary>
     /// The targets, in order; at least one. The last is the only arrival. Every one before it is a pass-through hint: the
     /// reference point passes within half the wingspan of it, in order, and keeps moving (<see cref="TugPlanBuilder"/>).
     /// </summary>
@@ -572,8 +579,8 @@ public static class TugMovePlanner
     /// <returns>The plan, or null when <paramref name="refusal"/> says why not.</returns>
     /// <exception cref="ArgumentException">
     /// The request has no goals; carries a final facing while its last goal is a <see cref="TugGoalKind.Clear"/> or
-    /// <see cref="TugGoalKind.StraightBackTo"/> goal, which has no facing to override; or has no layout for a goal
-    /// that needs one.
+    /// <see cref="TugGoalKind.StraightBackTo"/> goal, which has no facing to override; has no layout for a goal
+    /// that needs one; or has a layout but no <see cref="TugRequest.MovementArea"/>, or one built for another airport.
     /// </exception>
     public static TugPlan? Plan(AirportGroundLayout? layout, TugRequest request, out string refusal)
     {
@@ -1425,6 +1432,9 @@ internal sealed class TugPlanBuilder
     private readonly AirportGroundLayout? _layout;
     private readonly TugRequest _request;
 
+    /// <summary>The layout's movement-area classification, non-null whenever <see cref="_layout"/> is.</summary>
+    private readonly MovementAreaClassification _movementArea;
+
     /// <summary>The half-fuselage straight push every plan off a stand starts with (rule 1).</summary>
     private readonly TugMove _standPushOff;
 
@@ -1492,14 +1502,43 @@ internal sealed class TugPlanBuilder
     /// </summary>
     private readonly Dictionary<TugCandidate, double> _leadInDepartureByCandidate = [];
 
+    /// <exception cref="ArgumentException">
+    /// <paramref name="layout"/> is given but the request has no <see cref="TugRequest.MovementArea"/>, or one built for
+    /// another airport.
+    /// </exception>
     internal TugPlanBuilder(AirportGroundLayout? layout, TugRequest request)
     {
+        if (layout is not null)
+        {
+            if (request.MovementArea is not { } area)
+            {
+                throw new ArgumentException(
+                    $"A tug request planned on the {layout.AirportId} layout needs its MovementArea; build it with MovementAreaClassification.For or Build",
+                    nameof(request)
+                );
+            }
+
+            if (!string.Equals(area.AirportId, layout.AirportId, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new ArgumentException(
+                    $"A tug request planned on the {layout.AirportId} layout carries the MovementArea of {area.AirportId}; build it for {layout.AirportId}",
+                    nameof(request)
+                );
+            }
+
+            _movementArea = area;
+        }
+        else
+        {
+            _movementArea = null!;
+        }
+
         _layout = layout;
         _request = request;
         _standPushOff = TugMove.Straight(PushbackLegKind.Push, request.Footprint.LengthFt / 2.0);
         _end = request.Start;
         _lastKind = request.PreviousKind;
-        _pathCheck = layout is null ? null : new TugPathCheck(layout, request.Footprint, request.Start.Position);
+        _pathCheck = layout is null ? null : new TugPathCheck(layout, _movementArea, request.Footprint, request.Start.Position);
         _standBehindNames = StandBehindNames(_pathCheck, request);
     }
 
@@ -2204,7 +2243,7 @@ internal sealed class TugPlanBuilder
     /// </summary>
     private void PrepareKeep(ResolvedTugGoal goal, bool offStand)
     {
-        _clearance ??= new TugTaxiwayClearance(_layout!, _request.Footprint);
+        _clearance ??= new TugTaxiwayClearance(_layout!, _movementArea, _request.Footprint);
         _excludedTaxiways = new HashSet<string>(goal.ExemptNames, StringComparer.OrdinalIgnoreCase);
         _excludedTaxiways.UnionWith(_clearance.TaxiwaysFouledAt(_end));
         _emptyStands ??= new TugEmptyStands(_layout!, _request);

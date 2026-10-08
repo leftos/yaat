@@ -1194,12 +1194,13 @@ public static class RampLaneReposition
 
     /// <summary>The nearest straight taxi edge to <paramref name="position"/> is apron or a ramp taxilane, not movement area.</summary>
     private static bool IsOffMovementArea(AirportGroundLayout layout, LatLon position) =>
-        (layout.FindNearestTaxiEdge(position) is { } edge) && (new TugPavementClassifier(layout).MovementAreaName(edge.Edge) is null);
+        (layout.FindNearestTaxiEdge(position) is { } edge)
+        && (new TugPavementClassifier(layout, MovementAreaClassification.For(layout)).MovementAreaName(edge.Edge) is null);
 
     /// <summary>Some straight movement-area edge lies within <paramref name="rangeFt"/> of <paramref name="position"/>.</summary>
     private static bool IsNearMovementArea(AirportGroundLayout layout, LatLon position, double rangeFt)
     {
-        var pavement = new TugPavementClassifier(layout);
+        var pavement = new TugPavementClassifier(layout, MovementAreaClassification.For(layout));
         foreach (IGroundEdge edge in layout.AllEdges)
         {
             if (
@@ -1620,7 +1621,7 @@ public static class RampLaneReposition
         }
 
         string lane = names[0];
-        var pavement = new TugPavementClassifier(layout);
+        var pavement = new TugPavementClassifier(layout, MovementAreaClassification.For(layout));
         var walks = laneEdges.Select(e => (Edge: e, Walk: WalkLane(spot, e, lane, pavement))).ToList();
         var exits = walks.Where(w => w.Walk.ReachesMovementArea).ToList();
         if (exits.Count != 1)

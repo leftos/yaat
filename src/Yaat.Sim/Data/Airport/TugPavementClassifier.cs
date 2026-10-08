@@ -3,7 +3,8 @@ namespace Yaat.Sim.Data.Airport;
 /// <summary>
 /// Classifies the pavement a tug move would cross. The movement-area verdict per taxiway name is the layout's
 /// <see cref="MovementAreaClassification"/>, the one the ramp-lane cut reads, so the push planner and the taxi router
-/// agree; it is computed once per layout because a move tests every edge on the field.
+/// agree. The caller passes the classification in: a tug plan its request's, every other caller the current navigation
+/// database's (<see cref="MovementAreaClassification.For"/>).
 /// </summary>
 internal sealed class TugPavementClassifier
 {
@@ -19,10 +20,10 @@ internal sealed class TugPavementClassifier
     private readonly AirportGroundLayout _layout;
     private readonly MovementAreaClassification _movementArea;
 
-    internal TugPavementClassifier(AirportGroundLayout layout)
+    internal TugPavementClassifier(AirportGroundLayout layout, MovementAreaClassification movementArea)
     {
         _layout = layout;
-        _movementArea = MovementAreaClassification.For(layout);
+        _movementArea = movementArea;
     }
 
     /// <summary>The name of the runway the leg crosses, or null when it crosses none.</summary>

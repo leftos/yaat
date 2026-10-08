@@ -59,9 +59,8 @@ internal sealed class TugTaxiwayClearance
     private readonly LayoutZones _zones;
     private readonly GroundOutlineSize _size;
 
-    internal TugTaxiwayClearance(AirportGroundLayout layout, AircraftFootprint footprint)
+    internal TugTaxiwayClearance(AirportGroundLayout layout, MovementAreaClassification classification, AircraftFootprint footprint)
     {
-        var classification = MovementAreaClassification.For(layout);
         _zones = Cache.GetOrCreateValue(layout).GetValue(classification, c => new LayoutZones(layout, c));
         _size = GroundOutlineSize.Of(footprint, towedNoseFirst: false);
     }
@@ -269,12 +268,14 @@ internal sealed class TugTaxiwayClearance
     private sealed class LayoutZones
     {
         private readonly AirportGroundLayout _layout;
+        private readonly MovementAreaClassification _classification;
         private readonly ConcurrentDictionary<string, double> _halfWidthByName = new(StringComparer.OrdinalIgnoreCase);
         private readonly ConcurrentDictionary<Piece, List<Piece>> _clippedByPiece = new();
 
         internal LayoutZones(AirportGroundLayout layout, MovementAreaClassification classification)
         {
             _layout = layout;
+            _classification = classification;
             Frame = AirplaneDesignGroups.LayoutFrame(layout);
             GroundOutlineFrame frame = Frame;
             Pieces =
@@ -298,7 +299,7 @@ internal sealed class TugTaxiwayClearance
         internal double HalfWidthFt(string taxiway) =>
             _halfWidthByName.GetOrAdd(
                 taxiway,
-                name => AirplaneDesignGroups.TaxiwayObjectFreeHalfWidthFt(AirplaneDesignGroups.ForTaxiway(_layout, name))
+                name => AirplaneDesignGroups.TaxiwayObjectFreeHalfWidthFt(AirplaneDesignGroups.ForTaxiway(_layout, _classification, name))
             );
 
         /// <summary>
