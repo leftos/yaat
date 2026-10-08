@@ -60,6 +60,21 @@ public static partial class ActiveRunwayListParser
     }
 
     /// <summary>
+    /// Reads an <c>ARWY</c> runway text: a lone <c>NONE</c> (any case) is the empty list, <c>NONE</c> beside any runway is
+    /// refused, and anything else reads as <see cref="Parse"/> does.
+    /// </summary>
+    public static ActiveRunwayParseResult ParseWithNone(string airportId, string text, NavigationDatabase navDb)
+    {
+        string[] tokens = text.Split(Separators, StringSplitOptions.RemoveEmptyEntries);
+        if (tokens.Contains("NONE", StringComparer.OrdinalIgnoreCase))
+        {
+            return tokens.Length == 1 ? ActiveRunwayParseResult.Success([]) : ActiveRunwayParseResult.Failed("NONE must be the only runway");
+        }
+
+        return Parse(airportId, text, navDb);
+    }
+
+    /// <summary>
     /// The inverse of <see cref="FromTokenLists"/>: every airport naming at least one end, keyed by its id, each end as
     /// its token (<see cref="ActiveRunway.ToToken"/>) in listed order. Empty when <paramref name="runways"/> names none.
     /// </summary>

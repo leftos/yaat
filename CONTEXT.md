@@ -82,7 +82,10 @@ An airport in the resource manifest whose full ground map the load needs: the pr
 The runway ends a room is using, per airport, each for departures, arrivals or both (`ActiveRunways`): room state, not the controller AI's single runway-in-use guess.
 
 **Carried answer** (of the active runways):
-The mentor's answer to the load prompt, or the last live `ARWY`, kept on the room per scenario (an answer of `NONE` is an empty list). A load of the same scenario and a restart start on it; a rewind starts on what the session started on (`InitialActiveRunways`) instead.
+The mentor's answer to the load prompt, or the last live `ARWY`, kept on the room per scenario (an answer of `NONE` is an empty list). A load of the same scenario starts on it; a restart starts on the list in use, and a rewind on what the session started on (`InitialActiveRunways`).
+
+**Carrier** (of the active runways):
+The room's store of carried answers, one per normalized scenario id (`TrainingRoom.FindCarriedActiveRunways` / `CarryActiveRunways`); only a load reads it.
 
 **Scenario sidecar**:
 An authored per-scenario JSON file, `Data/ARTCCs/{ARTCC}/Scenarios/{scenario id}.json`, carrying settings the vNAS scenario lacks (its active runways); unlike the per-airport ground sidecar.

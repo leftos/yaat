@@ -27,6 +27,7 @@
 - In solo training with a radar student, unscripted runway departures at towered fields, or VFR at untowered ones, depart unprompted; RPOs launch them manually.
 - Load Scenario's Local Files tab can load one scenario file directly and lists recent scenarios, marking moved or deleted files missing; Remove drops one.
 - `ARWY OAK 28L 28R` sets an airport's active runways for the room (`D`/`A` prefixes for departures or arrivals only); `ARWY OAK` shows them, `ARWY OAK NONE` clears them.
+- Loading a scenario in an RPO room asks the mentor for its active runways, one row per airport, pre-filled with the scenario's guess; a restart keeps them.
 - Getting Started and the User Guide show screenshots of every step, including the terminal, timeline, taxi routes, vTDLS, Settings, Import / Export, layouts and CRC's environment list.
 
 ### Changed

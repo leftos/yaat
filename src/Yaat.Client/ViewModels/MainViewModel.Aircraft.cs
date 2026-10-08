@@ -341,10 +341,15 @@ public partial class MainViewModel
     /// suppressed, so no <see cref="OnAircraftDeleted"/> ever arrives for the abandoned run's
     /// aircraft, and <see cref="OnAircraftUpdated"/> only adds or updates — left alone, every aircraft
     /// that did not survive the restart stays on the scope frozen where it was. The server therefore
-    /// sends its post-restart manifest and we replace the list wholesale, the same way a rewind does.
+    /// sends its post-restart manifest and we replace the list wholesale, the same way a rewind does. The
+    /// restart keeps the room's active runways and never asks for them; the payload's list replaces ours.
     /// </summary>
-    internal void OnScenarioRestarted(List<AircraftDto> manifest) =>
-        Avalonia.Threading.Dispatcher.UIThread.Post(() => ApplyScenarioRestart(manifest));
+    internal void OnScenarioRestarted(ScenarioRestartedDto restarted) =>
+        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        {
+            ApplyScenarioRestart(restarted.Aircraft);
+            ApplyActiveRunways(restarted.ActiveRunways);
+        });
 
     /// <summary>
     /// Replaces the aircraft list with <paramref name="manifest"/>. Split out of

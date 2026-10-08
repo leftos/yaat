@@ -137,6 +137,7 @@ public class MainViewModelRichPresenceTests
                     new RewindResultDto(
                         Success: true,
                         Error: null,
+                        ActiveRunways: [],
                         Aircraft: [],
                         ScenarioId: "scenario-7",
                         ScenarioName: "OAK Ground 7",

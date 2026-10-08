@@ -43,6 +43,39 @@ public sealed class ActiveRunwayListParserTests
         Assert.Equal(expectedError, result.Error);
     }
 
+    [Theory]
+    [InlineData("NONE")]
+    [InlineData(" none\r\n")]
+    [InlineData("NONE,")]
+    public void ParseWithNone_LoneNone_IsAnEmptyList(string text)
+    {
+        ActiveRunwayParseResult result = ActiveRunwayListParser.ParseWithNone("OAK", text, NavDb());
+
+        Assert.True(result.IsSuccess, result.Error);
+        Assert.Empty(result.Runways);
+    }
+
+    [Theory]
+    [InlineData("NONE,28R")]
+    [InlineData("28R\nNONE")]
+    [InlineData("none 28R")]
+    public void ParseWithNone_NoneBesideARunway_IsRefused(string text)
+    {
+        ActiveRunwayParseResult result = ActiveRunwayListParser.ParseWithNone("OAK", text, NavDb());
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("NONE must be the only runway", result.Error);
+    }
+
+    [Fact]
+    public void ParseWithNone_WithoutNone_ReadsAsParse()
+    {
+        ActiveRunwayParseResult result = ActiveRunwayListParser.ParseWithNone("OAK", "D28L,\nA28R", NavDb());
+
+        Assert.True(result.IsSuccess, result.Error);
+        Assert.Equal(["D28L", "A28R"], result.Runways.Select(r => r.ToToken()));
+    }
+
     private static NavigationDatabase NavDb() =>
         TestVnasData.NavigationDb ?? throw new InvalidOperationException("Navigation database not initialized.");
 }

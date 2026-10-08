@@ -103,6 +103,31 @@ public class HubJsonContractTests
         Assert.Equal(["30"], room.ActiveRunways["OAK"]);
     }
 
+    // The scenario-loaded broadcast, the rewind and recording-load result and the restart broadcast each carry the room's
+    // active runways, in the server's wire shape.
+    [Fact]
+    public void ActiveRunwaysCarriers_DeserializeIntoClientRecords()
+    {
+        const string loadedJson =
+            """{"ScenarioId":"s-1","ScenarioName":"OAK","PrimaryAirportId":"OAK","IsPaused":true,"SimRate":1,"AllAircraft":[],"""
+            + """ "ActiveRunways":{"OAK":["D28L","A28R"]}}""";
+        const string rewindJson = """{"Success":true,"Error":null,"ActiveRunways":{"OAK":["30"]},"Aircraft":[]}""";
+        const string restartedJson = """{"Aircraft":[],"ActiveRunways":{"SFO":["28R"],"OAK":[]}}""";
+
+        ScenarioLoadedDto? loaded = JsonSerializer.Deserialize(loadedJson, YaatHubJsonContext.Default.ScenarioLoadedDto);
+        RewindResultDto? rewind = JsonSerializer.Deserialize(rewindJson, YaatHubJsonContext.Default.RewindResultDto);
+        ScenarioRestartedDto? restarted = JsonSerializer.Deserialize(restartedJson, YaatHubJsonContext.Default.ScenarioRestartedDto);
+
+        Assert.NotNull(loaded);
+        Assert.Equal(["D28L", "A28R"], loaded.ActiveRunways["OAK"]);
+        Assert.NotNull(rewind);
+        Assert.Equal(["30"], rewind.ActiveRunways["OAK"]);
+        Assert.NotNull(restarted);
+        Assert.Empty(restarted.Aircraft);
+        Assert.Equal(["28R"], restarted.ActiveRunways["SFO"]);
+        Assert.Empty(restarted.ActiveRunways["OAK"]);
+    }
+
     [Fact]
     public void ServerLoadShapes_DeserializeIntoClientRecords()
     {

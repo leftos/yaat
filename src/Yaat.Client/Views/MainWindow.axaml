@@ -890,6 +890,51 @@
       </StackPanel>
     </Border>
 
+    <!-- Active runways prompt overlay (the loading mentor's answer, sent as ARWY per airport) -->
+    <Border
+      IsVisible="{Binding ShowActiveRunwaysPrompt}"
+      Background="#CC000000"
+      HorizontalAlignment="Center"
+      VerticalAlignment="Center"
+      CornerRadius="8"
+      Padding="24"
+      MinWidth="380"
+      MaxWidth="560"
+    >
+      <StackPanel Spacing="12">
+        <TextBlock Text="Active runways" FontSize="16" FontWeight="Bold" Foreground="White" />
+        <TextBlock
+          Text="Which runways are active? Separate with commas, spaces or new lines. D28L = departures only, A28R = arrivals only."
+          TextWrapping="Wrap"
+          Foreground="LightGray"
+        />
+        <ItemsControl ItemsSource="{Binding ActiveRunwaysPromptRows}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:ActiveRunwaysRow">
+              <StackPanel Spacing="4" Margin="0,0,0,8">
+                <Grid ColumnDefinitions="56,*" ColumnSpacing="10">
+                  <TextBlock Grid.Column="0" Text="{Binding Airport}" Foreground="White" FontWeight="Bold" VerticalAlignment="Center" />
+                  <TextBox Grid.Column="1" Text="{Binding Text}" AcceptsReturn="True" TextWrapping="Wrap" />
+                </Grid>
+                <TextBlock Text="{Binding Error}" IsVisible="{Binding HasError}" Foreground="#FF8080" TextWrapping="Wrap" Margin="66,0,0,0" />
+              </StackPanel>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+        <ItemsControl ItemsSource="{Binding ActiveRunwaysPromptNotes}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="x:String">
+              <TextBlock Text="{Binding}" Foreground="LightGray" FontSize="11" TextWrapping="Wrap" />
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+        <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+          <Button Content="OK" Command="{Binding ConfirmActiveRunwaysPromptCommand}" />
+          <Button Content="Cancel" Command="{Binding CancelActiveRunwaysPromptCommand}" />
+        </StackPanel>
+      </StackPanel>
+    </Border>
+
     <!-- Room list overlay -->
     <Border
       IsVisible="{Binding ShowRoomList}"

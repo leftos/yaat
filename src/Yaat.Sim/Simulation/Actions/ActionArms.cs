@@ -543,12 +543,13 @@ internal static class ActionArms
 
         if (arwy.RunwayText.Length > 0)
         {
-            if (!TryReadActiveRunwayList(airport, arwy.RunwayText, navDb, out IReadOnlyList<ActiveRunway> runways, out string? error))
+            ActiveRunwayParseResult parsed = ActiveRunwayListParser.ParseWithNone(airport, arwy.RunwayText, navDb);
+            if (!parsed.IsSuccess)
             {
-                return new CommandResult(false, error);
+                return new CommandResult(false, parsed.Error);
             }
 
-            scenario.ActiveRunways = scenario.ActiveRunways.With(airport, runways);
+            scenario.ActiveRunways = scenario.ActiveRunways.With(airport, parsed.Runways);
             ctx.Host.OnActiveRunwaysChanged();
         }
 
@@ -590,30 +591,6 @@ internal static class ActionArms
 
         airport = normalized;
         return true;
-    }
-
-    /// <summary>The list an <c>ARWY</c> runway text names: empty for a lone <c>NONE</c>, else the parsed ends.</summary>
-    private static bool TryReadActiveRunwayList(
-        string airport,
-        string text,
-        NavigationDatabase navDb,
-        out IReadOnlyList<ActiveRunway> runways,
-        [NotNullWhen(false)] out string? error
-    )
-    {
-        runways = [];
-        error = null;
-        string[] tokens = text.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        if (tokens.Contains("NONE", StringComparer.OrdinalIgnoreCase))
-        {
-            error = tokens.Length == 1 ? null : "NONE must be the only runway";
-            return error is null;
-        }
-
-        ActiveRunwayParseResult parsed = ActiveRunwayListParser.Parse(airport, text, navDb);
-        runways = parsed.Runways;
-        error = parsed.Error;
-        return parsed.IsSuccess;
     }
 
     private static string DescribeActiveRunways(string airport, IReadOnlyList<ActiveRunway> runways) =>

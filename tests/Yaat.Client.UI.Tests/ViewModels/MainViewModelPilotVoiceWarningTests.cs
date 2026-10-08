@@ -175,7 +175,16 @@ public class MainViewModelPilotVoiceWarningTests
         Assert.Equal(1, prompt.Shown);
 
         vm.OnScenarioLoaded(
-            new ScenarioLoadedDto("scenario-8", "OAK Ground 8", null, IsPaused: true, SimRate: 1, AllAircraft: [], SoloTrainingMode: true)
+            new ScenarioLoadedDto(
+                "scenario-8",
+                "OAK Ground 8",
+                null,
+                IsPaused: true,
+                SimRate: 1,
+                AllAircraft: [],
+                ActiveRunways: [],
+                SoloTrainingMode: true
+            )
         );
         Dispatcher.UIThread.RunJobs();
         await vm.TogglePauseCommand.ExecuteAsync(null);

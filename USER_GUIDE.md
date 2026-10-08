@@ -1300,6 +1300,14 @@ When a scenario has multiple difficulty levels, YAAT shows a **Scenario Setup** 
 
 Both API and local scenarios appear in the **Scenario > Load Recent Scenario** menu for quick reloading; entries loaded from a local file are marked with a **(Local)** prefix to distinguish them from vNAS catalog scenarios.
 
+#### Choosing the active runways
+
+When you load a scenario as a mentor in a training room and the scenario does not say which runways are in use, YAAT asks you once the load finishes. The **Active runways** prompt has one row per airport, filled in with YAAT's guess from the scenario's traffic and the weather.
+
+Type the runways separated by commas, spaces or new lines: `D28L` is departures only, `A28R` arrivals only, and a bare `30` is both. Leave a row empty to make every runway at that airport active, or type `NONE` for none. Notes under the rows name any airport where the guess has no departure end or no arrival end. A row YAAT cannot read shows why under it, and nothing is sent until you fix it.
+
+**OK** sets each airport as an `ARWY` command would, and the server's replies appear in the terminal. **Cancel** keeps the room's current runways and prints a reminder to set them later with `ARWY`. Solo training, live sessions, other members, joining a room and restarting never ask; a restart keeps the runways in use.
+
 ### Restarting a Scenario
 
 **Scenario > Restart Scenario** re-runs the loaded scenario from the beginning with freshly generated traffic — useful for retrying a situation you didn't like the outcome of. All aircraft are cleared, the clock returns to zero, and the session's command history, terminal log, and bookmarks are discarded.

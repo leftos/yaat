@@ -139,13 +139,13 @@ then flips `_commandInput.NavDbReady = true` and pushes elevation lookups into `
 ## Scenario activation — three paths, one router
 
 A scenario becomes active through **three** distinct entry points, and they all **must** funnel through
-`ApplyScenarioBootstrap` (`MainViewModel.Scenario.cs:544`):
+`ApplyScenarioBootstrap` (`MainViewModel.Scenario.cs:782`):
 
 | Path | Trigger | Entry method | Carries |
 |---|---|---|---|
-| **Loader** | This client invoked `LoadScenario` | `ApplyScenarioResult(LoadScenarioResultDto)` (`Scenario.cs:460`) | full `AllAircraft`, sim state, session settings; also pushes **this RPO's** preferences to the server |
-| **Broadcast** | Another client loaded a scenario | `OnScenarioLoaded(ScenarioLoadedDto)` (`Scenario.cs:499`) | same fields; does **not** push preferences (only the loading RPO does) |
-| **Join / reconnect** | `JoinRoom` returned a room with a scenario | `ApplyRoomState(RoomStateDto)` (`Rooms.cs:789`) | snapshot incl. `ElapsedSeconds`/`IsPlayback`/`TapeEnd` |
+| **Loader** | This client invoked `LoadScenario` | `ApplyScenarioResult(LoadScenarioResultDto)` (`Scenario.cs:688`) | full `AllAircraft`, sim state, session settings, active runways and the active-runways prompt; also pushes **this RPO's** preferences to the server |
+| **Broadcast** | Another client loaded a scenario | `OnScenarioLoaded(ScenarioLoadedDto)` (`Scenario.cs:731`) | same fields and active runways; does **not** push preferences (only the loading RPO does) and never prompts |
+| **Join / reconnect** | `JoinRoom` returned a room with a scenario | `ApplyRoomState(RoomStateDto)` (`Rooms.cs:823`) | snapshot incl. `ElapsedSeconds`/`IsPlayback`/`TapeEnd` and active runways |
 
 `ScenarioBootstrap` (`ScenarioBootstrap.cs`) is a small record that exists precisely so the three differently-named
 DTOs project into one shape (`ScenarioId`, `ScenarioName`, `PrimaryAirportId`, `PositionDisplayConfig`,
@@ -188,9 +188,21 @@ Settings window calls it on each Apply (so the `DiscordRichPresenceEnabled` togg
 is the raw scenario id). `MainViewModel.RichPresence` is a settable `IRichPresencePublisher?` that `MainWindow` assigns;
 left null (a headless test host, unless the test assigns a fake) every call is a no-op.
 
-`ClearScenarioState` (`Scenario.cs:747`) is the symmetric teardown: it nulls the active-scenario properties, clears the
-published Discord presence, clears `Aircraft`, clears the ground layout / video maps / shown paths, and resets session
-settings to a neutral `SessionSettingsDto`.
+`ClearScenarioState` (`Scenario.cs:985`) is the symmetric teardown: it nulls the active-scenario properties, clears the published Discord presence, clears the active runways and closes their prompt, clears `Aircraft`, clears the ground layout / video maps / shown paths, and resets session settings to a neutral `SessionSettingsDto`.
+
+### Active runways and the load prompt
+
+`MainViewModel.ActiveRunways.cs` holds the client's copy of the room's active runways, `RoomActiveRunways` (airport → the ends' tokens as the server spells them, `30` / `D28L` / `A28R`). Whichever payload carrying it arrives last wins, so their order does not matter; `ClearScenarioState` empties it.
+
+It is server-authoritative and replaced wholesale by every payload that carries it: the load result (`ApplyLoadResultActiveRunways`, from `ApplyScenarioResult`), `OnScenarioLoaded`, `ApplyRoomState`, `ApplyRecordingResult` and `ApplyRewindResult` (`RewindResultDto.ActiveRunways`; the rewinder's own result, applied on the UI thread), `OnActiveRunwaysChanged` and `OnScenarioRestarted` (`ScenarioRestartedDto.ActiveRunways`).
+
+The same file holds the prompt the loading mentor answers. It opens only from the loader's own result when `ActiveRunwaysPromptNeeded` is set, the client is a mentor (`!IsNonMentor`) and the load result's `IsLiveSession` is false; a restart, a join and another member's load never open it.
+
+It is an overlay in `MainWindow.axaml` (`ShowActiveRunwaysPrompt`) with one `ActiveRunwaysRow` per airport (the primary first, then each airport the prefill names), pre-filled from `ActiveRunwaysPrefill`, and `ActiveRunwaysPromptNotes` naming the airports whose guess implies no departure or no arrival end.
+
+OK checks every row with `ActiveRunwaysEditor.ToCommand` (`ActiveRunwaysEditor.cs`, returning an `ActiveRunwaysAnswer`, `ActiveRunwaysAnswer.cs`; it reads the text with `ActiveRunwayListParser.ParseWithNone`, the reader `ARWY` itself uses, so commas, tabs and new lines count as spaces when looking for `NONE`; an empty row sets every end of every runway the navigation data knows there, `NONE` alone clears) and sends nothing if a row fails. Otherwise it sends one `ARWY {FAA} {tokens}` per airport through `SendCommandAsync`, not added to command history. An accepted row leaves the prompt and a refused one stays with the server's message.
+
+Cancel sends nothing and prints `Active runways not set; use ARWY or Scenario › Active Runways…`. The prompt also closes on `ClearScenarioState` and on another load (`OnScenarioLoaded`, `ApplyRecordingResult`); an `ActiveRunwaysChanged` leaves it open. Once the prompt closes or reopens while an answer is still sending (an unload, leaving the room, another load), the remaining rows are not sent. `ActiveRunwaysRow` (`ActiveRunwaysRow.cs`) and `ActiveRunwaysEditor` are public so an editor window can reuse the text round trip.
 
 ## Scenario load overlay and the room-loading gate
 

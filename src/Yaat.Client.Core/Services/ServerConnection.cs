@@ -48,9 +48,10 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
     /// A room member restarted the scenario. Carries the room's post-restart aircraft manifest — live
     /// aircraft plus re-queued delayed spawns — because the restart tears the world down with
     /// broadcasts suppressed, so no <see cref="AircraftDeleted"/> arrives for the abandoned run's
-    /// aircraft. Handlers must replace their aircraft list wholesale rather than merge.
+    /// aircraft. Handlers must replace their aircraft list wholesale rather than merge. Also carries the
+    /// active runways the restart kept, which replace the client's copy.
     /// </summary>
-    public event Action<List<AircraftDto>>? ScenarioRestarted;
+    public event Action<ScenarioRestartedDto>? ScenarioRestarted;
 
     /// <summary>
     /// Another room member rewound the timeline. Carries the post-rewind manifest for the same reason
@@ -187,7 +188,7 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
 
         _connection.On<AircraftDto>("AircraftSpawned", dto => AircraftSpawned?.Invoke(dto));
 
-        _connection.On<List<AircraftDto>>("ScenarioRestarted", manifest => ScenarioRestarted?.Invoke(manifest));
+        _connection.On<ScenarioRestartedDto>("ScenarioRestarted", restarted => ScenarioRestarted?.Invoke(restarted));
 
         _connection.On<List<AircraftDto>>("ScenarioRewound", manifest => ScenarioRewound?.Invoke(manifest));
 
@@ -1617,6 +1618,8 @@ public record ScenarioLoadedDto(
     bool IsPaused,
     int SimRate,
     List<AircraftDto> AllAircraft,
+    // The room's active runways as loaded, by airport (tokens as ActiveRunway.ToToken()); replaces the client's copy.
+    Dictionary<string, List<string>> ActiveRunways,
     PositionDisplayConfigDto? PositionDisplayConfig = null,
     bool IsStudentTowerPosition = true,
     string? StudentPositionType = null,
@@ -1988,9 +1991,14 @@ public record AircraftDebriefDto(
 
 public record TimelineInfoDto(double ElapsedSeconds, double TapeEnd, bool IsPlayback, bool IsAvailable);
 
+/// <summary>
+/// A rewind's or a recording load's result (and, for a recording load, another member's <c>RecordingLoaded</c>
+/// broadcast). <see cref="ActiveRunways"/> is the room's list after it, by airport; empty on a failure.
+/// </summary>
 public record RewindResultDto(
     bool Success,
     string? Error,
+    Dictionary<string, List<string>> ActiveRunways,
     List<AircraftDto>? Aircraft = null,
     string? ScenarioId = null,
     string? ScenarioName = null,
@@ -2003,6 +2011,12 @@ public record RewindResultDto(
     bool IsPlayback = false,
     double TapeEnd = 0
 );
+
+/// <summary>
+/// The room's <c>ScenarioRestarted</c> broadcast: the post-restart aircraft manifest, which replaces the aircraft list
+/// wholesale, and the active runways the restart kept, by airport.
+/// </summary>
+public record ScenarioRestartedDto(List<AircraftDto> Aircraft, Dictionary<string, List<string>> ActiveRunways);
 
 public record AssignableMemberDto(string ConnectionId, string Initials);
 

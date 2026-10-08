@@ -79,6 +79,7 @@ public class MainViewModelRecordingBootstrapParityTests
             new RewindResultDto(
                 Success: true,
                 Error: null,
+                ActiveRunways: [],
                 Aircraft: aircraft,
                 ScenarioId: ScenarioId,
                 ScenarioName: ScenarioName,
@@ -109,6 +110,7 @@ public class MainViewModelRecordingBootstrapParityTests
             new RewindResultDto(
                 Success: true,
                 Error: null,
+                ActiveRunways: [],
                 Aircraft: [],
                 ScenarioId: ScenarioId,
                 ScenarioName: ScenarioName,

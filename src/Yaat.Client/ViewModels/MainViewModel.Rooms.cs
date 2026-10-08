@@ -894,6 +894,9 @@ public partial class MainViewModel
         // Seed the hold-for-release rundown so a joining/reconnecting client shows existing holds.
         ApplyRundown(state.Rundown);
 
+        // The room's active runways replace whatever the previous room left; a joiner is never asked for them.
+        ApplyActiveRunways(state.ActiveRunways);
+
         // Seed active timers so a joining/reconnecting client shows the existing timers panel.
         ApplyTimers(state.Timers);
 

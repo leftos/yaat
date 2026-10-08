@@ -1776,6 +1776,7 @@ public partial class MainViewModel : ObservableObject
         _connection.WeatherChanged += OnWeatherChanged;
         _connection.ArrivalGeneratorsChanged += OnArrivalGeneratorsChanged;
         _connection.HeldDeparturesChanged += OnHeldDeparturesChanged;
+        _connection.ActiveRunwaysChanged += OnActiveRunwaysChanged;
         _connection.TimersChanged += OnTimersChanged;
         _connection.BookmarksChanged += OnBookmarksChanged;
         _connection.ConflictAlertsChanged += OnConflictAlertsChanged;

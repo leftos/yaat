@@ -711,6 +711,7 @@ public partial class MainViewModel
         IsLiveSession = result.IsLiveSession;
         ApplySimState(result.IsPaused, result.SimRate, 0, false, 0);
         ApplySessionSettingsFromLoadScenarioResult(result);
+        ApplyLoadResultActiveRunways(result);
 
         _ = SendAutoAcceptDelay();
         _ = SendCommandRunDelay();
@@ -757,6 +758,9 @@ public partial class MainViewModel
             StashScenarioGeneratorsAndPositions(dto.AircraftGenerators, dto.VfrArrivalGenerators, dto.OverflightGenerators, dto.Positions);
             IsLiveSession = dto.IsLiveSession;
             ApplySimState(dto.IsPaused, dto.SimRate, 0, false, 0);
+            ApplyActiveRunways(dto.ActiveRunways);
+            // Another member's load replaces the scenario this client's prompt was asking about.
+            CloseActiveRunwaysPrompt();
 
             // Apply session settings from the server (set by the loading RPO).
             // Do NOT send our preferences — only the loading RPO applies theirs.
@@ -984,6 +988,7 @@ public partial class MainViewModel
         ActiveScenarioName = null;
         ActiveScenarioPrimaryAirportId = null;
         IsLiveSession = false;
+        ClearActiveRunways();
         // Nothing is running, so nothing is shown. Every way out of a scenario reaches here: unload,
         // leaving the room, disconnecting, being kicked, and a rejoin that failed.
         RichPresence?.Clear();

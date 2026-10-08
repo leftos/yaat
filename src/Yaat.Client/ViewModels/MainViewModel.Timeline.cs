@@ -121,24 +121,7 @@ public partial class MainViewModel
             }
 
             string rewound = $"Rewound to {FormatTime(targetSeconds)}";
-            await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
-            {
-                Aircraft.Clear();
-                if (result.Aircraft is not null)
-                {
-                    foreach (AircraftDto dto in result.Aircraft)
-                    {
-                        var model = Models.AircraftModel.FromDto(dto, ComputeDistance);
-                        ApplyAutoClearedToLand(model);
-                        Aircraft.Add(model);
-                    }
-                }
-
-                ScenarioElapsedSeconds = targetSeconds;
-                OnPropertyChanged(nameof(ElapsedTimeDisplay));
-                OnPropertyChanged(nameof(TimelineMaximum));
-                StatusText = rewound;
-            });
+            await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() => ApplyRewindResult(result, targetSeconds, rewound));
             return new RewindOutcome(true, rewound);
         }
         catch (Exception ex)
@@ -148,6 +131,31 @@ public partial class MainViewModel
             StatusText = error;
             return new RewindOutcome(false, error);
         }
+    }
+
+    /// <summary>
+    /// The rewinder's own successful result, on the UI thread: the rewound aircraft replace the list, the clock moves to
+    /// <paramref name="targetSeconds"/>, the result's active runways replace the room's and the status line reads
+    /// <paramref name="status"/>.
+    /// </summary>
+    public void ApplyRewindResult(RewindResultDto result, double targetSeconds, string status)
+    {
+        Aircraft.Clear();
+        if (result.Aircraft is not null)
+        {
+            foreach (AircraftDto dto in result.Aircraft)
+            {
+                var model = Models.AircraftModel.FromDto(dto, ComputeDistance);
+                ApplyAutoClearedToLand(model);
+                Aircraft.Add(model);
+            }
+        }
+
+        ScenarioElapsedSeconds = targetSeconds;
+        ApplyActiveRunways(result.ActiveRunways);
+        OnPropertyChanged(nameof(ElapsedTimeDisplay));
+        OnPropertyChanged(nameof(TimelineMaximum));
+        StatusText = status;
     }
 
     [RelayCommand]
@@ -748,6 +756,9 @@ public partial class MainViewModel
         Radar.SetPrimaryAirportId(result.PrimaryAirportId);
         SetRadarAirportPosition(result.PrimaryAirportId);
         ApplySimState(result.IsPaused, result.SimRate, result.ElapsedSeconds, result.IsPlayback, result.TapeEnd);
+        // A recording replaces the scenario, so a prompt asking about the one before it closes.
+        ApplyActiveRunways(result.ActiveRunways);
+        CloseActiveRunwaysPrompt();
 
         if (!string.IsNullOrEmpty(result.PrimaryAirportId))
         {
