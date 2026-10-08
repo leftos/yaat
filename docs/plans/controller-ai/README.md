@@ -42,6 +42,12 @@ python tools/bug_bundle.py history episodes/ep00/recording.zip --callsign N152SP
 
 Re-running the same seed reproduces the run byte-for-byte.
 
+## Coaching sessions (mentor in the loop)
+
+Beyond soak-testing, the brains are tuned the way a student is trained: an interactive session in which the AI works the student's position and the owner mentors it. The AI issues every instruction through RPO commands only, exactly as a solo student would, and each command carries a **decision trace**: why that was the number-one task at that moment (the candidates the brain ranked and why this one won), and the specific choices inside it (why that taxi route, that pattern entry, that sequence).
+
+The session is paced or stepped so the mentor can read each explanation before the next instruction fires. The mentor's notes come back in chat; each becomes a rule or knowledge change, checked by re-running the same seed to the same moment. The trace explains only what the rules know: a gap in the rules shows as a thin reason, which is itself a finding.
+
 ## Architecture
 
 ```
