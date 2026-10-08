@@ -646,15 +646,43 @@ public class FollowGroundAtRunwayBarTests(ITestOutputHelper output)
     [Fact]
     public void Following_LeadReroutedBehindTheFollower_NeverReversesOnItsOwnEdge()
     {
-        if (StageRolling(onFillet: false) is not { } rolling)
+        if (StageRolling(onFillet: false) is { } rolling)
         {
-            return;
+            AssertNeverReversesOnItsOwnEdge(rolling.Ground, rolling.Follower, rolling.Leader, rolling.Route, RerouteBehindTheFollower);
         }
+    }
 
-        (SfoGround ground, AircraftState follower, AircraftState leader, _, TaxiRoute route) = rolling;
+    /// <summary>
+    /// A follower partway round the F1-F fillet arc on its follow route whose leader is re-routed along F1 behind it: the
+    /// re-plan's route starts at the arc's far end and runs straight back round the arc, the way the follower came. A route the
+    /// follow would install from its start, leaving back across the heading, is never adopted: it never turns about on the arc
+    /// it is rolling round, and its follow route never drives the arc back.
+    /// </summary>
+    [Fact]
+    public void Following_LeadReroutedBehindTheFollowerMidFillet_NeverReversesOnTheArc()
+    {
+        if (StageRolling(onFillet: true) is { } rolling)
+        {
+            AssertNeverReversesOnItsOwnEdge(rolling.Ground, rolling.Follower, rolling.Leader, rolling.Route, RerouteThroughTheFollower);
+        }
+    }
+
+    /// <summary>
+    /// Re-routes <paramref name="leader"/> with <paramref name="reroute"/> while <paramref name="follower"/> rolls on
+    /// <paramref name="route"/>'s current segment, then ticks it: while it moves on that incoming edge its heading stays within
+    /// 90° of the edge's bearing, its follow route never drives the edge back, and it ends at rest or on a route ahead of it.
+    /// </summary>
+    private void AssertNeverReversesOnItsOwnEdge(
+        SfoGround ground,
+        AircraftState follower,
+        AircraftState leader,
+        TaxiRoute route,
+        Action<SfoGround, AircraftState, AircraftState> reroute
+    )
+    {
         DirectionalEdge incoming = route.Segments[route.CurrentSegmentIndex].Edge;
         double incomingDeg = incoming.ArrivalBearing;
-        RerouteBehindTheFollower(ground, leader, follower);
+        reroute(ground, leader, follower);
         double worstDeg = 0.0;
         for (int second = 1; second <= HeldSeconds; second++)
         {
@@ -865,11 +893,147 @@ public class FollowGroundAtRunwayBarTests(ITestOutputHelper output)
         Assert.DoesNotContain("BrakingLostRoute", json, StringComparison.OrdinalIgnoreCase);
     }
 
+    /// <summary>
+    /// The brake rate a follower braking along a lost route uses onto the route's end: the firm rate
+    /// (<see cref="CategoryPerformance.ExpediteExitDecelRate"/>) when the end lies inside its stopping distance at the taxi rate,
+    /// else none (the taxi rate). No real layout puts a lost route's end inside the stop (a KOAK or SFO follower keeps planning
+    /// ahead), so the choice is pinned as the pure function the brake uses.
+    /// </summary>
+    [Theory]
+    [InlineData(AircraftCategory.Jet, 20.0, 50.0, true)]
+    [InlineData(AircraftCategory.Jet, 20.0, 80.0, false)]
+    [InlineData(AircraftCategory.Jet, 5.0, 50.0, false)]
+    [InlineData(AircraftCategory.Piston, 20.0, 100.0, true)]
+    [InlineData(AircraftCategory.Piston, 20.0, 200.0, false)]
+    [InlineData(AircraftCategory.Turboprop, 15.0, 0.0, true)]
+    public void LostRouteEndDecelRate_EndInsideTheTaxiStop_IsTheFirmRate(AircraftCategory category, double speedKts, double toEndFt, bool firm)
+    {
+        double taxiStopFt = speedKts * speedKts / (2.0 * CategoryPerformance.TaxiDecelRate(category)) * (GeoMath.FeetPerNm / 3600.0);
+        output.WriteLine($"{category} at {speedKts} kt stops in {taxiStopFt:F0} ft at the taxi rate; route end {toEndFt} ft ahead");
+        double? rate = FollowingPhase.LostRouteEndDecelRate(category, speedKts, toEndFt);
+        Assert.Equal(firm ? CategoryPerformance.ExpediteExitDecelRate(category) : null, rate);
+    }
+
+    /// <summary>
+    /// A crossed bar ahead of a follower braking along its lost route is one it crosses only when the route reaches it
+    /// (<see cref="FollowingPhase.BarsOnRestOfRoute"/>): at SFO, a route along G toward 1L that turns onto B at the G/B junction,
+    /// short of 1L's bar on G, does not cross that bar, and a route on along G to the bar does. Pinned on the routes rather than
+    /// end to end: on KOAK and SFO no turn-off lies close enough to a bar for a follower's taxi-rate stop to reach the line.
+    /// </summary>
+    [Fact]
+    public void BarsOnRestOfRoute_RouteTurningOffShortOfTheBar_DoesNotCrossIt()
+    {
+        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        {
+            return;
+        }
+
+        AirportGroundLayout layout = ground.Layout;
+        List<GroundNode> bars = TestLayoutNodes.RunwayHoldShortsOnTaxiway(layout, "1L", "G");
+        GroundNode junction = layout
+            .Nodes.Values.Where(n => StraightNeighboursOn(n, "G").Any() && StraightNeighboursOn(n, "B").Any())
+            .MinBy(n => bars.Min(bar => GeoMath.DistanceNm(bar.Position, n.Position)))!;
+        GroundNode bar = bars.MinBy(b => GeoMath.DistanceNm(b.Position, junction.Position))!;
+        GroundNode gBack = StraightNeighboursOn(junction, "G").MaxBy(n => GeoMath.DistanceNm(n.Position, bar.Position))!;
+        GroundNode bSide = StraightNeighboursOn(junction, "B").OrderBy(n => n.Id).First();
+        WakeTurbulenceData.WakeClass wake = WakeTurbulenceData.WakeClassForType(Type, AircraftCategory.Jet);
+        TaxiRoute turnOff = Assert.IsType<TaxiRoute>(TaxiPathfinder.FindRoute(layout, gBack.Id, bSide.Id, AircraftCategory.Jet, wake));
+        TaxiRoute onToTheBar = Assert.IsType<TaxiRoute>(TaxiPathfinder.FindRoute(layout, gBack.Id, bar.Id, AircraftCategory.Jet, wake));
+        double barFt = GeoMath.DistanceNm(junction.Position, bar.Position) * GeoMath.FeetPerNm;
+        output.WriteLine($"G/B junction #{junction.Id}, 1L bar #{bar.Id} {barFt:F0} ft on");
+        output.WriteLine($"turn-off {turnOff.ToSummary()}, on to the bar {onToTheBar.ToSummary()}");
+
+        Assert.Empty(FollowingPhase.BarsOnRestOfRoute(turnOff, [bar]));
+        Assert.Equal([bar.Id], FollowingPhase.BarsOnRestOfRoute(onToTheBar, [bar]).Select(b => b.Id));
+    }
+
+    /// <summary>The nodes at the far end of <paramref name="node"/>'s straight edges on <paramref name="taxiway"/>.</summary>
+    private static IEnumerable<GroundNode> StraightNeighboursOn(GroundNode node, string taxiway) =>
+        node.Edges.OfType<GroundEdge>().Where(e => e.MatchesTaxiway(taxiway)).Select(e => e.OtherNode(node));
+
+    /// <summary>How far (deg) a ground heading may turn in one physics sub-tick, with margin, at taxi speeds.</summary>
+    private const double SubTickTurnMarginDeg = 5.0;
+
+    /// <summary>
+    /// A follower crossing 1R up F1 behind a held leader re-plans at each node arrival. At the F1/L junction a re-plan joins the
+    /// leader's path sooner along L, leaving the junction back across the follower's heading; a route installed from its start
+    /// is adopted only when its first edge leaves within 90° of the heading, so the follower keeps the route it is driving
+    /// rather than swerve onto L. Stepped a physics sub-tick at a time, so each adoption is judged against the heading the
+    /// follower had just before it.
+    /// </summary>
+    [Fact]
+    public void Following_ReplanAtAJunction_NeverAdoptsARouteLeavingBackAcrossItsHeading()
+    {
+        if (Stage(TaxiToOneRightBar, "1R") is not { } staged)
+        {
+            return;
+        }
+
+        (SfoGround ground, AircraftState follower, AircraftState leader) = staged;
+        AssertSent(ground, Leader, "HOLD");
+        AssertSent(ground, Follower, $"FOLLOWG {Leader}");
+        AssertSent(ground, Follower, "CROSS 1R");
+        SimulationEngine engine = ground.Engine;
+        using var tap = new CapturingSimLogProvider(LogLevel.Debug, capacity: 500);
+        SimLogBuilder.CreateForTest(output).EnableCategory("FollowingPhase", LogLevel.Debug).CaptureInto(tap).InitializeSimLog();
+        TaxiRoute? previous = null;
+        int adoptions = 0;
+        bool roundTheFillet = false;
+        for (int second = 1; second <= CrossBudgetSeconds; second++)
+        {
+            engine.BeginSecond();
+            engine.OpenSecond(engine.BareHost);
+            engine.RunPrePhysics(engine.BareHost);
+            for (int sub = 0; sub < SimulationEngine.PhysicsSubTickRate; sub++)
+            {
+                double headingBefore = follower.TrueHeading.Degrees;
+                engine.RunPhysicsSubTick(1.0 / SimulationEngine.PhysicsSubTickRate, sub);
+                TaxiRoute? route = (follower.Phases?.CurrentPhase as FollowingPhase)?.FollowRoute;
+                if ((route is not null) && (previous is not null) && !ReferenceEquals(route, previous))
+                {
+                    adoptions++;
+                    double departsDeg = route.Segments[0].Edge.DepartureBearing;
+                    double offDeg = Math.Abs(GeoMath.SignedBearingDifference(headingBefore, departsDeg));
+                    Assert.True(
+                        offDeg <= 90.0 + SubTickTurnMarginDeg,
+                        $"t={second} sub-tick {sub}: adopted {route.ToSummary()} whose first edge leaves at {departsDeg:F0}°, {offDeg:F0}° off "
+                            + $"the heading {headingBefore:F0}°"
+                    );
+                }
+
+                previous = route ?? previous;
+                roundTheFillet |= IsRollingOn(ground.Layout, follower, onFillet: true);
+            }
+
+            engine.RunPostPhysics(engine.BareHost);
+            engine.RunEndOfSecond(engine.BareHost);
+            LogFollow(second, follower, leader);
+            if (roundTheFillet)
+            {
+                break;
+            }
+        }
+
+        output.WriteLine($"{adoptions} follow routes adopted after the first");
+        Assert.True(roundTheFillet, "the follower never rolled round the F1-F fillet it was following on");
+        Assert.True(
+            tap.Drain().Any(r => r.Message.Contains("keeping the route", StringComparison.Ordinal)),
+            "no re-plan at a junction offered a route leaving back across the heading, so the guard was never reached"
+        );
+        Assert.Equal(0, tap.DroppedCount);
+    }
+
     /// <summary>How far (ft) off a lost follow route's centreline a follower braking along it may stand.</summary>
     private const double LostRouteOffsetFt = 2.0;
 
     /// <summary>The slowest a follower is rolling (kts) when its route is lost, so it is still braking a tick later.</summary>
     private const double LostRouteMinSpeedKts = 8.0;
+
+    /// <summary>
+    /// How far round a fillet arc, as a fraction of its length from both ends, a follower must be at a second's end to stand partway
+    /// round it: a short arc is crossed in about a second at taxi speed, so a second's end lands in its middle fifth.
+    /// </summary>
+    private const double FilletStageFraction = 0.2;
 
     /// <summary>How far (ft) from both ends of a straight edge a follower must be to stand on the edge itself, not a node.</summary>
     private const double StraightMarginFt = 10.0;
@@ -932,7 +1096,7 @@ public class FollowGroundAtRunwayBarTests(ITestOutputHelper output)
     /// <summary>
     /// Whether <paramref name="follower"/> rolls at <see cref="LostRouteMinSpeedKts"/> or more on its follow route short of the
     /// merge, inside no runway's hold line, <see cref="StraightMarginFt"/> or more from both ends of a straight edge, or with
-    /// <paramref name="onFillet"/> a quarter or more of the way round a fillet arc from both its ends.
+    /// <paramref name="onFillet"/> <see cref="FilletStageFraction"/> or more of the way round a fillet arc from both its ends.
     /// </summary>
     private static bool IsRollingOn(AirportGroundLayout layout, AircraftState follower, bool onFillet)
     {
@@ -951,7 +1115,7 @@ public class FollowGroundAtRunwayBarTests(ITestOutputHelper output)
         double toFt = GeoMath.DistanceNm(follower.Position, edge.ToNode.Position) * GeoMath.FeetPerNm;
         double edgeFt = edge.DistanceNm * GeoMath.FeetPerNm;
         return onFillet
-            ? (edge.Edge is GroundArc) && (Math.Min(fromFt, toFt) >= edgeFt / 4.0)
+            ? (edge.Edge is GroundArc) && (Math.Min(fromFt, toFt) >= edgeFt * FilletStageFraction)
             : (edge.Edge is GroundEdge) && (Math.Min(fromFt, toFt) >= StraightMarginFt);
     }
 
@@ -983,7 +1147,8 @@ public class FollowGroundAtRunwayBarTests(ITestOutputHelper output)
 
     /// <summary>
     /// Clears <paramref name="leader"/> on the first re-route along F1 it accepts that leaves <paramref name="follower"/> nothing to
-    /// join: a re-plan of the follow finds it ahead of the leader on its new route, or no taxi path to it.
+    /// join: a re-plan of the follow finds it ahead of the leader on its new route, no taxi path to it, or only a route whose
+    /// first edge leaves back across the follower's heading, which the follow does not adopt after a lead re-route.
     /// </summary>
     private void RerouteThroughTheFollower(SfoGround ground, AircraftState leader, AircraftState follower)
     {
@@ -996,13 +1161,25 @@ public class FollowGroundAtRunwayBarTests(ITestOutputHelper output)
                 $"{Leader} <- '{taxi}' -> success={result.Success} msg={result.Message} route={leader.Ground.AssignedTaxiRoute?.ToSummary()} "
                     + $"replan={plan.GetType().Name}"
             );
-            if (result.Success && (plan is FollowRoutePlan.FollowerAhead or FollowRoutePlan.NoPath))
+            if (result.Success && ((plan is FollowRoutePlan.FollowerAhead or FollowRoutePlan.NoPath) || LeavesBackAcrossHeading(plan, follower)))
             {
                 return;
             }
         }
 
         Assert.Fail($"none of [{string.Join(", ", taxis)}] left {Follower} nothing to join on {Leader}'s new route");
+    }
+
+    /// <summary>Whether <paramref name="plan"/> is a joinable route whose first edge leaves back across the follower's heading.</summary>
+    private static bool LeavesBackAcrossHeading(FollowRoutePlan plan, AircraftState follower)
+    {
+        if (plan is not FollowRoutePlan.Joinable joinable)
+        {
+            return false;
+        }
+
+        DirectionalEdge? first = joinable.PathToMerge.Segments.FirstOrDefault()?.Edge ?? joinable.LeadPathFromMerge.FirstOrDefault();
+        return (first is { } edge) && !FollowRoutePlanner.DepartsAhead(follower, edge);
     }
 
     /// <summary>One line of the follower's follow state and the leader's phase and speed.</summary>

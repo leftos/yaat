@@ -1993,6 +1993,56 @@ public static class PilotResponder
     }
 
     /// <summary>
+    /// Pilot transmission when its clearing route ran out before its tail was past the hold line: the aircraft is holding short
+    /// of <paramref name="nextRunway"/> while still not clear of <paramref name="clearedRunway"/>. Both are a single runway end
+    /// as the hold-short texts name them — the end nearest the aircraft
+    /// (<see cref="Yaat.Sim.Data.Airport.RunwayCrossingEnd.Nearest"/>) — spoken spelled and terminal compacted as those texts do.
+    /// </summary>
+    public static PilotSpeechText BuildHoldingShortNotClear(AircraftState aircraft, string nextRunway, string clearedRunway)
+    {
+        string spoken = SpokenOwnCallsign(aircraft);
+        string next = PhraseologyVerbalizer.CompactRunway(nextRunway);
+        string cleared = PhraseologyVerbalizer.CompactRunway(clearedRunway);
+        string nextSpoken = PhraseologyVerbalizer.SpellRunway(nextRunway);
+        string clearedSpoken = PhraseologyVerbalizer.SpellRunway(clearedRunway);
+        return new PilotSpeechText(
+            $"Holding short of runway {next}, not clear of runway {cleared}",
+            $"{spoken}, holding short of runway {nextSpoken}, not clear of {clearedSpoken}."
+        );
+    }
+
+    /// <summary>
+    /// Pilot transmission when its clearing route ran out before its tail was past the hold line and no runway lies ahead of
+    /// it: the aircraft is holding in position while still not clear of <paramref name="clearedRunway"/>, a single runway end as
+    /// the hold-short texts name them — the end nearest the aircraft
+    /// (<see cref="Yaat.Sim.Data.Airport.RunwayCrossingEnd.Nearest"/>) — spoken spelled and terminal compacted as those texts do.
+    /// </summary>
+    public static PilotSpeechText BuildHoldingPositionNotClear(AircraftState aircraft, string clearedRunway)
+    {
+        string spoken = SpokenOwnCallsign(aircraft);
+        string cleared = PhraseologyVerbalizer.CompactRunway(clearedRunway);
+        string clearedSpoken = PhraseologyVerbalizer.SpellRunway(clearedRunway);
+        return new PilotSpeechText($"Holding position, not clear of runway {cleared}", $"{spoken}, holding position, not clear of {clearedSpoken}.");
+    }
+
+    /// <summary>
+    /// Pilot transmission when the lead is lost with no legal way back onto the follower's assigned route: it holds in position
+    /// and asks for taxi instructions. Spoken and solo terminal forms say "traffic"; the RPO terminal names the lead as a
+    /// diagnostic.
+    /// </summary>
+    public static PilotSpeechText BuildLostTrafficHolding(AircraftState aircraft, string leadCallsign)
+    {
+        string spoken = SpokenOwnCallsign(aircraft);
+        return new PilotSpeechText(
+            "Lost sight of traffic, holding position, request taxi instructions",
+            $"{spoken}, lost the traffic, holding, request taxi."
+        )
+        {
+            RpoTerminal = $"Lost sight of {leadCallsign}, holding position, request taxi instructions",
+        };
+    }
+
+    /// <summary>
     /// Pilot advisory when a following aircraft has extended its current pattern leg
     /// (<paramref name="legWord"/> = "upwind", "crosswind", or "downwind") to the maximum
     /// follow-extension distance and still cannot turn without cutting off the traffic it was told

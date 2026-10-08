@@ -763,6 +763,30 @@ public sealed class FollowingPhaseDto : PhaseDto
     public bool? BrakingLostRoute { get; init; }
 
     /// <summary>
+    /// Whether this follow has said the clearing-route run-out call, holding short of the runway ahead and not clear of the one
+    /// behind: true once said, null otherwise. Not written while null, so a snapshot of a follow that has said nothing
+    /// serializes exactly as it did before the field existed; null in snapshots written before it.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? SaidHeldShortNotClear { get; init; }
+
+    /// <summary>
+    /// Whether this follow has said that it lost the traffic and is holding in position, asking for taxi instructions: true once
+    /// said, null otherwise. Not written while null, so a snapshot of a follow that has said nothing serializes exactly as it did
+    /// before the field existed; null in snapshots written before it.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? SaidLostTraffic { get; init; }
+
+    /// <summary>
+    /// Whether this follow has said that it cannot follow at all, with no taxi route onto its traffic's path: true once said,
+    /// null otherwise. Not written while null, so a snapshot of a follow that has said nothing serializes exactly as it did
+    /// before the field existed; null in snapshots written before it.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? SaidUnableNoRoute { get; init; }
+
+    /// <summary>
     /// The clearing route the follower drives off a runway it has no follow route on (<c>FollowingPhase.ClearingRoute</c>): to
     /// the nearest hold-short bar ahead and on past it. Null when not clearing, and in older snapshots.
     /// </summary>

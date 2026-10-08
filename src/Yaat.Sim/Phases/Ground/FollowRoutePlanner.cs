@@ -467,9 +467,11 @@ public static class FollowRoutePlanner
 
     /// <summary>
     /// The auto route from where <paramref name="aircraft"/> stands (<see cref="StartOf"/>, without the ahead check, as a
-    /// re-plan starts) to the cheapest of <paramref name="goals"/>, led in by its lead-in segment. Like a re-plan's route it never
-    /// starts back the way the aircraft came (the forbidden first move), so it never turns the aircraft about. Null with no
-    /// start node or no route.
+    /// re-plan starts) to the cheapest of <paramref name="goals"/>, led in by its lead-in segment. It never drives back along the
+    /// move it arrived on: never back along its lead-in, or with none, along its newest trail edge (<see cref="BackMove"/>), or
+    /// with no trail, along the edge it stands on where that edge's far end lies behind it (<see cref="BackAlongEdgeUnder"/>).
+    /// Anything else the graph offers, a loop round to a goal behind it included, is left to the router. Null with no start node
+    /// or no route.
     /// </summary>
     internal static RouteFromHere? RouteOnto(AirportGroundLayout layout, AircraftState aircraft, IReadOnlySet<int> goals)
     {
@@ -478,7 +480,9 @@ public static class FollowRoutePlanner
             return null;
         }
 
-        (int From, int To)? forbidden = ForbiddenFirstMove(routeStart, new PlanStart(false, BackMove(layout, aircraft)));
+        (int From, int To)? forbidden = routeStart.LeadIn is { } into
+            ? (into.ToNodeId, into.FromNodeId)
+            : (BackMove(layout, aircraft) ?? BackAlongEdgeUnder(layout, aircraft, routeStart.Node));
         if (TaxiClass.Of(aircraft).FindRoute(layout, routeStart.Node.Id, goals, forbidden) is not { } found)
         {
             return null;
@@ -488,9 +492,26 @@ public static class FollowRoutePlanner
         return new RouteFromHere(segments, found.GoalNodeId);
     }
 
+    /// <summary>
+    /// The move from <paramref name="start"/> back along the straight edge <paramref name="aircraft"/> stands on, toward the end
+    /// behind it; null when it stands on no edge that ends at <paramref name="start"/>, or when that move does not leave back
+    /// across the heading (<see cref="LiesAhead"/>), which forbids nothing the aircraft is doing.
+    /// </summary>
+    private static (int From, int To)? BackAlongEdgeUnder(AirportGroundLayout layout, AircraftState aircraft, GroundNode start) =>
+        ((EdgeUnder(layout, aircraft) is { } edge) && edge.Nodes.Any(n => n.Id == start.Id) && !LiesAhead(aircraft, edge.OtherNode(start)))
+            ? (start.Id, edge.OtherNode(start).Id)
+            : null;
+
     /// <summary>Whether <paramref name="node"/> lies ahead of <paramref name="aircraft"/>: its bearing within 90° of the heading.</summary>
     internal static bool LiesAhead(AircraftState aircraft, GroundNode node) =>
         Math.Abs(GeoMath.SignedBearingDifference(aircraft.TrueHeading.Degrees, GeoMath.BearingTo(aircraft.Position, node.Position))) <= 90.0;
+
+    /// <summary>
+    /// Whether <paramref name="edge"/> leaves its from-node within 90° of <paramref name="aircraft"/>'s heading: a route starting on
+    /// it does not turn the aircraft back across its heading.
+    /// </summary>
+    internal static bool DepartsAhead(AircraftState aircraft, DirectionalEdge edge) =>
+        Math.Abs(GeoMath.SignedBearingDifference(aircraft.TrueHeading.Degrees, edge.DepartureBearing)) <= 90.0;
 
     /// <summary>The trail's start node for <see cref="StartNode"/>; null when the trail gives none.</summary>
     private static GroundNode? TrailStartNode(AirportGroundLayout layout, AircraftState aircraft, bool requireAhead)

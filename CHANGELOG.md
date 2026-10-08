@@ -68,6 +68,7 @@
 - Aircraft crossing a runway in trail no longer pile up on it: the leader keeps going and only the aircraft behind it slows.
 - An aircraft turning about on a taxiway rolls out along the centreline toward its next turn instead of pirouetting when that turn doubles back.
 - An aircraft told to `FOLLOWG` taxies along the taxiways behind its leader instead of cutting across the field, and stops at runway hold-short lines.
+- A `FOLLOWG` aircraft that loses its leader takes up its own route, or holds and says it lost the traffic; one stopped over a runway says so.
 - A landed aircraft turning off onto its exit keeps the braking it used on the rollout, instead of braking hard for the turn.
 - Aircraft types missing from the FAA database push back, stop at gates and yield on the ramp using their wake category's length, not a fixed guess.
 - Spoken "climb via SID except maintain" stays a climb-via when the SID word is misheard, instead of becoming a plain climb.

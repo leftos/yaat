@@ -1665,6 +1665,42 @@ public class PilotResponderTests
     }
 
     [Fact]
+    public void BuildHoldingShortNotClear_TerminalCompactsAndTtsSpells()
+    {
+        AircraftState ac = MakeAircraft("N294MG");
+        PilotSpeechText result = PilotResponder.BuildHoldingShortNotClear(ac, "28R", "10L");
+
+        Assert.Equal("Holding short of runway 28R, not clear of runway 10L", result.Terminal);
+        Assert.Equal(result.Terminal, result.TerminalForRpo);
+        Assert.EndsWith("holding short of runway two eight right, not clear of one zero left.", result.Tts, StringComparison.Ordinal);
+        Assert.Contains("november two nine four mike golf", result.Tts, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void BuildHoldingPositionNotClear_TerminalCompactsAndTtsSpells()
+    {
+        AircraftState ac = MakeAircraft("N294MG");
+        PilotSpeechText result = PilotResponder.BuildHoldingPositionNotClear(ac, "10L");
+
+        Assert.Equal("Holding position, not clear of runway 10L", result.Terminal);
+        Assert.Equal(result.Terminal, result.TerminalForRpo);
+        Assert.EndsWith("holding position, not clear of one zero left.", result.Tts, StringComparison.Ordinal);
+        Assert.Contains("november two nine four mike golf", result.Tts, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void BuildLostTrafficHolding_RpoTerminalNamesLead_TtsDoesNot()
+    {
+        AircraftState pilot = MakeAircraft("N294MG");
+        PilotSpeechText result = PilotResponder.BuildLostTrafficHolding(pilot, "N10194");
+
+        Assert.Equal("Lost sight of traffic, holding position, request taxi instructions", result.Terminal);
+        Assert.Equal("Lost sight of N10194, holding position, request taxi instructions", result.TerminalForRpo);
+        Assert.EndsWith(", lost the traffic, holding, request taxi.", result.Tts, StringComparison.Ordinal);
+        Assert.DoesNotContain("november one zero one nine four", result.Tts, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void BuildFollowExtendingUnableToTurn_RpoTerminalNamesTarget_TtsDoesNot()
     {
         AircraftState ac = MakeAircraft("N294MG");

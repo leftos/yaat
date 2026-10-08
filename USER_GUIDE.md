@@ -658,6 +658,8 @@ It stops at every runway hold-short it has no crossing clearance of its own for:
 
 If the leader is deleted or departs, the follower never stops on a runway: on one, or inside its hold line, it taxis clear past the hold line, brakes to a stop on the taxiway, and holds in position; elsewhere it brakes to a stop where it is.
 
+If the way back onto its assigned route would enter a runway, or the clearing route runs out with its tail still over the runway it was leaving, it holds in position and says so once: "Lost sight of traffic, holding position, request taxi instructions" (the RPO terminal names the leader), or "Holding short of runway 28R, not clear of runway 28L" when another runway lies ahead, else "Holding position, not clear of runway 28L". It says nothing when it has no assigned route left to lose. Give it a new `TAXI`, `CLRWY` or `FOLLOWG` to move it on.
+
 **Draw taxi route mode:** Right-click a node or aircraft and select "Draw taxi route…" to enter draw mode. The aircraft's menu offers it on the Radar View and in the Aircraft List too: picking it there switches to the Ground View (or brings its window forward) and starts drawing on it.
 
 Click nodes to add waypoints — the route is computed via A* between consecutive waypoints. Hover shows a dashed preview. Right-click to finish. Backspace undoes the last waypoint, Escape cancels. The aircraft taxis **exactly the route you drew** — it commits the full path, so it won't substitute a parallel taxiway between your waypoints.
