@@ -140,13 +140,7 @@ public static class MenuCatalog
         .. ApproachPickerIds.Select(ApproachPicker),
         Picker(MenuIds.ApproachClearedVisual, ClearedVisualLabel, BuildClearedVisual),
         Leaf(MenuIds.ApproachReportFieldInSight, "Report field in sight", "RFIS", Always),
-        InputLeaf(
-            MenuIds.ApproachReportTrafficInSight,
-            "Report traffic in sight…",
-            "Target callsign (optional)",
-            BlankInput.Submits,
-            FormatTrafficInSight
-        ),
+        Picker(MenuIds.ApproachReportTrafficInSight, "Report traffic in sight…", BuildReportTrafficInSight),
         Leaf(MenuIds.ApproachReportBase, "Turning base", "REPORT BASE", Always),
         Leaf(MenuIds.ApproachReportFinal, "Turning final", "REPORT FINAL", Always),
         Leaf(MenuIds.ApproachReportCrosswind, "Turning crosswind", "REPORT CROSSWIND", Always),
@@ -267,28 +261,22 @@ public static class MenuCatalog
             "Selected aircraft: report in sight",
             "RTIS",
             RelativeTraffic.OffersAirborneRelative,
-            (sender, clicked) => $"{sender}: report {clicked} in sight"
+            _ => "Report in sight"
         ),
-        Relative(
-            MenuIds.RelativeFollow,
-            "Selected aircraft: follow traffic",
-            "FOLLOW",
-            RelativeTraffic.OffersAirborneFollow,
-            (sender, clicked) => $"{sender}: follow {clicked}"
-        ),
+        Relative(MenuIds.RelativeFollow, "Selected aircraft: follow traffic", "FOLLOW", RelativeTraffic.OffersAirborneFollow, _ => "Follow"),
         Relative(
             MenuIds.GroundRelativeGiveWay,
             "Selected aircraft: give way to",
             "GW",
             RelativeTraffic.OffersGroundRelative,
-            (sender, clicked) => $"{sender}: give way to {clicked}"
+            clicked => $"Give way to {clicked}"
         ),
         Relative(
             MenuIds.GroundRelativeFollow,
             "Selected aircraft: follow",
             "FOLLOWG",
             RelativeTraffic.OffersGroundRelative,
-            (sender, clicked) => $"{sender}: follow {clicked}"
+            clicked => $"Follow {clicked}"
         ),
         Leaf(MenuIds.SpawnNow, "Spawn now", "SPAWN", Always),
         HostLeaf(
@@ -672,20 +660,20 @@ public static class MenuCatalog
     }
 
     /// <summary>
-    /// A relative item, offered while <paramref name="isApplicable"/> holds: sent as the previous selection with the
-    /// right-clicked callsign after <paramref name="verb"/>, labelled by <paramref name="label"/> with the selected
-    /// aircraft's callsign and the right-clicked one.
+    /// A relative item of the For section, offered while <paramref name="isApplicable"/> holds: sent as the previous
+    /// selection with the right-clicked callsign after <paramref name="verb"/>, labelled by <paramref name="label"/> from
+    /// the right-clicked callsign.
     /// </summary>
     private static MenuCatalogEntry Relative(
         string id,
         string entryLabel,
         string verb,
         Func<IMenuAircraft?, MenuContext, bool> isApplicable,
-        Func<string, string, string> label
+        Func<string, string> label
     ) => new(id, entryLabel, MenuFlightRules.Both, isApplicable, (_, context, host) => BuildRelative(verb, label, context, host));
 
     /// <summary>The relative item for the context's previous selection, or null when there is none.</summary>
-    private static MenuItem? BuildRelative(string verb, Func<string, string, string> label, MenuContext context, IMenuHost host)
+    private static MenuItem? BuildRelative(string verb, Func<string, string> label, MenuContext context, IMenuHost host)
     {
         if (context.PreviousSelection is not { } selected)
         {
@@ -693,7 +681,7 @@ public static class MenuCatalog
         }
 
         string sender = selected.Callsign;
-        var item = new MenuItem { Header = label(sender, context.Callsign) };
+        var item = new MenuItem { Header = label(context.Callsign) };
         item.Click += async (_, _) => await host.SendAsync(sender, $"{verb} {context.Callsign}", context.Initials);
         return item;
     }
@@ -1420,6 +1408,75 @@ public static class MenuCatalog
         return heading <= 0 ? 360 : heading;
     }
 
+    /// <summary>The Report traffic in sight… free-text box's placeholder, for a target callsign or none.</summary>
+    private const string TrafficInSightPlaceholder = "Target callsign (optional)";
+
+    /// <summary>
+    /// The Report traffic in sight… picker: with airborne traffic near the aircraft (<see cref="IMenuHost.GetNearbyTraffic"/>),
+    /// a titled list of it (<see cref="TrafficInSightList"/>), each row sending <c>RTIS {callsign}</c>, then Any traffic
+    /// sending a bare <c>RTIS</c> and Other callsign… opening the free-text box; with none, the free-text box alone. The
+    /// box sends <c>RTIS {input}</c>, or a bare <c>RTIS</c> when left blank.
+    /// </summary>
+    private static MenuItem BuildReportTrafficInSight(string label, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
+    {
+        IReadOnlyList<MenuTrafficRow> traffic = host.GetNearbyTraffic(context.Callsign);
+        if (traffic.Count == 0)
+        {
+            return BuildInput(label, TrafficInSightPlaceholder, BlankInput.Submits, FormatTrafficInSight, context, host);
+        }
+
+        MenuRichList list = TrafficInSightList(context.Callsign, traffic);
+        var item = new MenuItem
+        {
+            Header = label,
+            Tag = new MenuPickerDescriptor(MenuPickerDescriptor.RichList, [.. list.Rows.Select(row => row.Label)]),
+        };
+        item.Click += (_, _) => host.ShowRichListPopup(list, row => PickTrafficInSight(row, context, host));
+        return item;
+    }
+
+    /// <summary>Sends a traffic row's or Any traffic's command, or opens the free-text box for Other callsign….</summary>
+    private static void PickTrafficInSight(MenuRichRow row, MenuContext context, IMenuHost host)
+    {
+        if (row.Kind == MenuRichRowKind.Prompt)
+        {
+            host.ShowInputPopup(TrafficInSightPlaceholder, BlankInput.Submits, "", 0, input => Send(FormatTrafficInSight(input), context, host));
+        }
+        else if (row.Command is { } command)
+        {
+            _ = Send(command, context, host);
+        }
+    }
+
+    /// <summary>
+    /// The Nearest traffic list for <paramref name="callsign"/>: one row per aircraft of <paramref name="traffic"/> in its
+    /// order, <c>{callsign} · {type}</c> with its clock position, whole nm and altitude difference as columns, then a rule,
+    /// <c>Any traffic (no target)</c> and <c>Other callsign…</c>. Opens on the first row.
+    /// </summary>
+    private static MenuRichList TrafficInSightList(string callsign, IReadOnlyList<MenuTrafficRow> traffic)
+    {
+        List<MenuRichRow> rows =
+        [
+            .. traffic.Select(row => new MenuRichRow(
+                "",
+                string.IsNullOrWhiteSpace(row.AircraftType) ? row.Callsign : $"{row.Callsign} · {row.AircraftType}",
+                "",
+                MenuRichRowKind.Traffic,
+                $"RTIS {row.Callsign}",
+                null,
+                [
+                    $"{row.ClockPosition} o'clock",
+                    $"{RelativeGeometry.WholeNm(row.DistanceNm)} nm",
+                    RelativeGeometry.AltitudeDeltaColumn(row.AltitudeDeltaFeet),
+                ]
+            )),
+            new MenuRichRow("", "---", "", MenuRichRowKind.Separator, null, null, []),
+            new MenuRichRow("", "Any traffic (no target)", "RTIS", MenuRichRowKind.Action, "RTIS", null, []),
+            new MenuRichRow("", "Other callsign…", "", MenuRichRowKind.Prompt, null, null, []),
+        ];
+        return new MenuRichList("Nearest traffic", $"{callsign} · report traffic in sight", rows, 0);
+    }
+
     /// <summary>The highest altitude the Maintain picker lists, and its cap for a type without a profile.</summary>
     private const int MaintainCapFeet = 60000;
 
@@ -1537,7 +1594,7 @@ public static class MenuCatalog
         int lineIndex = altitudes.FindIndex(altitude => altitude < sector.FloorFtMsl);
         lineIndex = (lineIndex < 0) ? altitudes.Count : lineIndex;
         string floor = sector.FloorFtMsl.ToString("N0", CultureInfo.InvariantCulture);
-        rows.Insert(lineIndex, new MenuRichRow("", $"MVA {floor} here (sector {sector.Sector})", "", MenuRichRowKind.MvaLine, null, null));
+        rows.Insert(lineIndex, new MenuRichRow("", $"MVA {floor} here (sector {sector.Sector})", "", MenuRichRowKind.MvaLine, null, null, []));
         return (selected >= lineIndex) ? selected + 1 : selected;
     }
 
@@ -1602,10 +1659,10 @@ public static class MenuCatalog
         if (altitude < mvaFloor)
         {
             string hint = (mark.Length > 0) ? $"{mark} · below MVA" : "below MVA";
-            return new MenuRichRow(glyph, label, hint, MenuRichRowKind.BelowMva, command, altitude);
+            return new MenuRichRow(glyph, label, hint, MenuRichRowKind.BelowMva, command, altitude, []);
         }
 
-        return new MenuRichRow(glyph, label, (mark.Length > 0) ? mark : command, kind, command, altitude);
+        return new MenuRichRow(glyph, label, (mark.Length > 0) ? mark : command, kind, command, altitude, []);
     }
 
     /// <summary>A row's glyph and, for the ● and ◆ rows, the mark its hint names; the ↑ and ↓ rows have none.</summary>

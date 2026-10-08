@@ -73,6 +73,8 @@ internal sealed class SendCapturingHost(IMenuHost inner, string sessionInitials)
 
     public IReadOnlyList<string> GetGroundTrafficCallsigns(string callsign) => inner.GetGroundTrafficCallsigns(callsign);
 
+    public IReadOnlyList<MenuTrafficRow> GetNearbyTraffic(string callsign) => inner.GetNearbyTraffic(callsign);
+
     public IReadOnlyList<MenuCommandChoice> GetHoldShortChoices(string callsign) => inner.GetHoldShortChoices(callsign);
 
     public void SetRoutePreview(TaxiRoute? route) => inner.SetRoutePreview(route);

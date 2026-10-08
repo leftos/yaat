@@ -171,8 +171,10 @@ public class GroundSubmenuCharacterizationTests
         List<string> headers = Headers(CommandTree(built.Menu));
         Assert.DoesNotContain("Follow…", headers);
         Assert.DoesNotContain("Give way to…", headers);
-        Assert.Contains("SWA602: follow SWA104", headers);
-        Assert.Contains("SWA602: give way to SWA104", headers);
+        List<string> top = Headers(built.Menu.Items);
+        Assert.Contains("For SWA602 (selected)", top);
+        Assert.Contains("Follow SWA104", top);
+        Assert.Contains("Give way to SWA104", top);
     }
 
     [AvaloniaFact]

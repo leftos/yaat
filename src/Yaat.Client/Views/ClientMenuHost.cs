@@ -30,6 +30,9 @@ internal sealed class ClientMenuHost(MainViewModel main, AircraftModel? aircraft
     /// <summary>The most aircraft the Follow… and Give way to… submenus list.</summary>
     private const int MaxGroundTraffic = 12;
 
+    /// <summary>The most aircraft the Report traffic in sight… list offers.</summary>
+    private const int MaxNearbyTraffic = 5;
+
     /// <summary>The custom quick-command texts already warned about, so each is logged once per session however many menus open.</summary>
     private static readonly ConcurrentDictionary<string, bool> WarnedQuickCommandTexts = new(StringComparer.Ordinal);
 
@@ -348,6 +351,28 @@ internal sealed class ClientMenuHost(MainViewModel main, AircraftModel? aircraft
                 .OrderBy(other => GeoMath.DistanceNm(ac.Position.Lat, ac.Position.Lon, other.Position.Lat, other.Position.Lon))
                 .Take(MaxGroundTraffic)
                 .Select(other => other.Callsign),
+        ];
+    }
+
+    /// <summary>
+    /// The other airborne aircraft in the main view model's list, nearest <paramref name="callsign"/> first and at most
+    /// <see cref="MaxNearbyTraffic"/>, leaving out delayed spawns and live-traffic shadows; empty when
+    /// <paramref name="callsign"/> is not in the list.
+    /// </summary>
+    public IReadOnlyList<MenuTrafficRow> GetNearbyTraffic(string callsign)
+    {
+        if (FindAircraft(callsign) is not { } ac)
+        {
+            return [];
+        }
+
+        return
+        [
+            .. main
+                .Aircraft.Where(other => (other.Callsign != callsign) && !other.IsOnGround && !other.IsDelayed && !other.IsLiveTraffic)
+                .Select(other => RelativeGeometry.TrafficRow(ac, other))
+                .OrderBy(row => row.DistanceNm)
+                .Take(MaxNearbyTraffic),
         ];
     }
 

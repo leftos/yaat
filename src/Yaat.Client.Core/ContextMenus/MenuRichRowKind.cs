@@ -23,4 +23,16 @@ public enum MenuRichRowKind
 
     /// <summary>The minimum vectoring altitude line between the rows, which cannot be picked.</summary>
     MvaLine,
+
+    /// <summary>Another aircraft, unmarked, its clock position, distance and altitude difference in the row's columns.</summary>
+    Traffic,
+
+    /// <summary>An unmarked row that sends its command, its hint naming it.</summary>
+    Action,
+
+    /// <summary>A rule between groups of rows, which cannot be picked.</summary>
+    Separator,
+
+    /// <summary>An unmarked row that sends nothing itself: picking it opens a text box, and the catalog sends what is typed.</summary>
+    Prompt,
 }

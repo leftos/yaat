@@ -46,8 +46,11 @@ internal static class MenuPopups
     private static readonly IBrush RichNowBorderBrush = new SolidColorBrush(Color.Parse("#5b8def"));
     private static readonly IBrush RichMvaForeground = new SolidColorBrush(Color.Parse("#e0a84a"));
 
-    /// <summary>The rich list's width, as the mock draws it.</summary>
+    /// <summary>The rich list's width, as the mock draws it: its floor when its columns need less room.</summary>
     private const double RichListWidth = 300;
+
+    /// <summary>The most the rich list grows to fit its columns.</summary>
+    private const double RichListMaxWidth = 420;
 
     /// <summary>How many rows PageUp and PageDown move the rich list's selection.</summary>
     private const int RichListPageRows = 10;
@@ -363,9 +366,10 @@ internal static class MenuPopups
     }
 
     /// <summary>
-    /// Opens the titled picker of <paramref name="list"/>'s rows: the title and subtitle over a 300 px list of marked
-    /// rows, opening with the selected row centred. Clicking a row that has a command closes the picker and hands the row
-    /// to <paramref name="onPick"/>; the MVA line takes no click. Typing jumps to the nearest row
+    /// Opens the titled picker of <paramref name="list"/>'s rows: the title and subtitle over a list of marked rows at
+    /// least <see cref="RichListWidth"/> wide and grown to fit its columns, opening with the selected row centred.
+    /// Clicking a row that can be picked (<see cref="MenuRichRow.IsPickable"/>) closes the picker and hands the row to
+    /// <paramref name="onPick"/>; the MVA line and a rule take no click. Typing jumps to the nearest row with a value
     /// (<see cref="MenuTypeAhead"/>) and centres it, Backspace edits what was typed, Up and Down move the selection,
     /// Enter picks the selected row and Escape closes the picker.
     /// </summary>
@@ -387,7 +391,13 @@ internal static class MenuPopups
         }
 
         var picker = new RichListPicker(popup, listBox, list, onPick);
-        var root = new StackPanel { Width = RichListWidth, Children = { RichListHeader(list), RichHairline(), listBox } };
+        var root = new StackPanel
+        {
+            MinWidth = RichListWidth,
+            MaxWidth = RichListMaxWidth,
+            Children = { RichListHeader(list), RichHairline(), listBox },
+        };
+        Grid.SetIsSharedSizeScope(listBox, true);
         popup.Child = PickerBorder(root, new Thickness(0, 0, 0, 6));
         popup.Child.AddHandler(InputElement.KeyDownEvent, picker.OnKeyDown, RoutingStrategies.Tunnel);
         popup.Child.AddHandler(InputElement.TextInputEvent, picker.OnTextInput, RoutingStrategies.Tunnel);
@@ -506,31 +516,50 @@ internal static class MenuPopups
 
     private static Border RichHairline() => new() { Height = 1, Background = PickerBorderBrush };
 
-    /// <summary>A row of the rich list: the MVA line as a disabled dashed rule, every other row as its mark, value and hint.</summary>
+    /// <summary>
+    /// A row of the rich list: the MVA line as a disabled dashed rule, a separator as a disabled hairline, every other row
+    /// as its mark, value, columns and hint.
+    /// </summary>
     private static ListBoxItem RichRowItem(MenuRichRow row) =>
-        (row.Kind == MenuRichRowKind.MvaLine)
-            ? new ListBoxItem
-            {
-                IsEnabled = false,
-                Focusable = false,
-                Padding = new Thickness(0),
-                MinHeight = 0,
-                Content = MvaLine(row),
-            }
-            : new ListBoxItem
+        row.Kind switch
+        {
+            MenuRichRowKind.MvaLine => UnpickableRichItem(MvaLine(row)),
+            MenuRichRowKind.Separator => UnpickableRichItem(
+                new Border
+                {
+                    Height = 1,
+                    Margin = new Thickness(12, 4),
+                    Background = PickerBorderBrush,
+                }
+            ),
+            _ => new ListBoxItem
             {
                 Padding = new Thickness(0),
                 MinHeight = 0,
                 Content = RichRowContent(row),
-            };
+            },
+        };
+
+    private static ListBoxItem UnpickableRichItem(Control content) =>
+        new()
+        {
+            IsEnabled = false,
+            Focusable = false,
+            Padding = new Thickness(0),
+            MinHeight = 0,
+            Content = content,
+        };
 
     /// <summary>
-    /// A marked row: a 22 px glyph column, the value, and the hint right-aligned in 11 px. The ● row has a blue-tinted
-    /// fill, a 3 px left border and a medium-weight value; a row below the MVA is greyed throughout.
+    /// A marked row: a 22 px glyph column, the value, its columns (a traffic row's clock position, distance and altitude
+    /// difference) each right-aligned in its own width-shared column, and the hint right-aligned in 11 px. A traffic row
+    /// has no glyph, so its value starts in the first column. The ● row has a blue-tinted fill, a 3 px left border and a
+    /// medium-weight value; a row below the MVA is greyed throughout.
     /// </summary>
     private static Border RichRowContent(MenuRichRow row)
     {
         bool now = row.Kind is MenuRichRowKind.Now or MenuRichRowKind.NowAssigned;
+        bool traffic = row.Kind == MenuRichRowKind.Traffic;
         var glyph = new TextBlock { Text = row.Glyph, Foreground = RichGlyphForeground(row.Kind) };
         var label = new TextBlock { Text = row.Label, FontWeight = now ? FontWeight.Medium : FontWeight.Normal };
         if (row.Kind == MenuRichRowKind.BelowMva)
@@ -546,9 +575,32 @@ internal static class MenuPopups
             VerticalAlignment = VerticalAlignment.Center,
             Foreground = RichHintBrush(row.Kind),
         };
-        Grid.SetColumn(label, 1);
-        Grid.SetColumn(hint, 2);
-        var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("22,*,Auto"), Children = { glyph, label, hint } };
+        var grid = new Grid { ColumnDefinitions = new ColumnDefinitions(traffic ? "*" : "22,*") };
+        if (!traffic)
+        {
+            Grid.SetColumn(label, 1);
+            grid.Children.Add(glyph);
+        }
+
+        grid.Children.Add(label);
+        for (int i = 0; i < row.Columns.Count; i++)
+        {
+            var cell = new TextBlock
+            {
+                Text = row.Columns[i],
+                FontSize = 12,
+                Margin = new Thickness(10, 0, 0, 0),
+                HorizontalAlignment = HorizontalAlignment.Right,
+                VerticalAlignment = VerticalAlignment.Center,
+            };
+            grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto) { SharedSizeGroup = $"MenuRichColumn{i}" });
+            Grid.SetColumn(cell, grid.ColumnDefinitions.Count - 1);
+            grid.Children.Add(cell);
+        }
+
+        grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
+        Grid.SetColumn(hint, grid.ColumnDefinitions.Count - 1);
+        grid.Children.Add(hint);
         return now ? NowRowBorder(grid) : new Border { Padding = new Thickness(12, 4), Child = grid };
     }
 
@@ -624,7 +676,7 @@ internal static class MenuPopups
 
         public void OnSelectionChanged()
         {
-            if (!_ignoreSelection && (SelectedRow() is { Command: not null } row))
+            if (!_ignoreSelection && (SelectedRow() is { IsPickable: true } row))
             {
                 Pick(row);
             }
@@ -667,7 +719,7 @@ internal static class MenuPopups
                         return;
                     }
 
-                    SelectIfAny(ValueRowNear(navigation.Start, navigation.Step));
+                    SelectIfAny(PickableRowNear(navigation.Start, navigation.Step));
                     break;
             }
 
@@ -680,7 +732,7 @@ internal static class MenuPopups
 
         private void PickSelected()
         {
-            if (SelectedRow() is { Command: not null } row)
+            if (SelectedRow() is { IsPickable: true } row)
             {
                 Pick(row);
             }
@@ -721,10 +773,10 @@ internal static class MenuPopups
         }
 
         /// <summary>
-        /// The row typing could land on nearest <paramref name="start"/> (clamped to the list), searched first in
-        /// <paramref name="step"/>'s direction, so the MVA line is stepped over; null when the list has no such row.
+        /// The row the controller can pick nearest <paramref name="start"/> (clamped to the list), searched first in
+        /// <paramref name="step"/>'s direction, so the MVA line and a rule are stepped over; null when the list has no such row.
         /// </summary>
-        private int? ValueRowNear(int start, int step)
+        private int? PickableRowNear(int start, int step)
         {
             if (list.Rows.Count == 0)
             {
@@ -732,14 +784,14 @@ internal static class MenuPopups
             }
 
             int clamped = Math.Clamp(start, 0, list.Rows.Count - 1);
-            return ValueRowFrom(clamped, step) ?? ValueRowFrom(clamped, -step);
+            return PickableRowFrom(clamped, step) ?? PickableRowFrom(clamped, -step);
         }
 
-        private int? ValueRowFrom(int start, int step)
+        private int? PickableRowFrom(int start, int step)
         {
             for (int i = start; (i >= 0) && (i < list.Rows.Count); i += step)
             {
-                if (list.Rows[i].Value is not null)
+                if (list.Rows[i].IsPickable)
                 {
                     return i;
                 }

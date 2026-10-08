@@ -169,10 +169,6 @@ public class DataGridContextMenuStateTests
     /// <summary>The whole top-level sequence as text: a separator is "---", an item its header.</summary>
     private static List<string> Sequence(ContextMenu menu) => Sequence(menu.Items);
 
-    /// <summary>The All Commands submenu's sequence as text, where the relative items live.</summary>
-    private static List<string> CommandSequence(ContextMenu menu) =>
-        Sequence(menu.Items.OfType<MenuItem>().Single(m => (m.Header as string) == AircraftMenuBuilder.AllCommandsHeader).Items);
-
     private static List<string> Sequence(ItemCollection menuItems)
     {
         var items = new List<string>(menuItems.Count);
@@ -215,10 +211,10 @@ public class DataGridContextMenuStateTests
 
         ContextMenu menu = DataGridView.BuildAircraftMenu(main, new DataGrid(), clicked, selected, [clicked]);
 
-        List<string> sequence = CommandSequence(menu);
-        Assert.Contains("↪ AAL602:", sequence);
-        Assert.Contains("AAL602: report AAL601 in sight", sequence);
-        Assert.Contains("AAL602: follow AAL601", sequence);
+        List<string> sequence = Sequence(menu);
+        Assert.Contains("For AAL602 (selected)", sequence);
+        Assert.Contains("Report in sight", sequence);
+        Assert.Contains("Follow", sequence);
     }
 
     [AvaloniaFact]
@@ -231,7 +227,7 @@ public class DataGridContextMenuStateTests
         (AircraftModel resolved, AircraftModel? previous) = DataGridView.ResolveRightClick(clicked, clicked);
         ContextMenu menu = DataGridView.BuildAircraftMenu(main, new DataGrid(), resolved, previous, [resolved]);
 
-        Assert.DoesNotContain(CommandSequence(menu), item => item.StartsWith('↪'));
+        Assert.DoesNotContain(Sequence(menu), item => item.EndsWith(" (selected)", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -294,11 +290,11 @@ public class DataGridContextMenuStateTests
 
         ContextMenu menu = DataGridView.BuildAircraftMenu(main, new DataGrid(), clicked, selected, [clicked]);
 
-        List<string> sequence = CommandSequence(menu);
-        Assert.Contains("↪ SWA602:", sequence);
-        Assert.Contains("SWA602: give way to SWA104", sequence);
-        Assert.Contains("SWA602: follow SWA104", sequence);
-        Assert.DoesNotContain(sequence, item => item.Contains("report SWA104 in sight", StringComparison.Ordinal));
+        List<string> sequence = Sequence(menu);
+        Assert.Contains("For SWA602 (selected)", sequence);
+        Assert.Contains("Give way to SWA104", sequence);
+        Assert.Contains("Follow SWA104", sequence);
+        Assert.DoesNotContain("Report in sight", sequence);
     }
 
     // --- The real list: the headless mouse device on a hosted DataGridView ---
@@ -396,9 +392,9 @@ public class DataGridContextMenuStateTests
 
             Assert.Equal("AAL602", main.SelectedAircraft?.Callsign);
             Assert.NotNull(grid.ContextMenu);
-            List<string> sequence = CommandSequence(grid.ContextMenu);
-            Assert.Contains("↪ AAL602:", sequence);
-            Assert.Contains("AAL602: report AAL601 in sight", sequence);
+            List<string> sequence = Sequence(grid.ContextMenu);
+            Assert.Contains("For AAL602 (selected)", sequence);
+            Assert.Contains("Report in sight", sequence);
         }
         finally
         {
@@ -439,7 +435,7 @@ public class DataGridContextMenuStateTests
 
             Assert.Equal("AAL601", main.SelectedAircraft?.Callsign);
             Assert.NotNull(grid.ContextMenu);
-            Assert.DoesNotContain(CommandSequence(grid.ContextMenu), item => item.StartsWith('↪'));
+            Assert.DoesNotContain(Sequence(grid.ContextMenu), item => item.EndsWith(" (selected)", StringComparison.Ordinal));
         }
         finally
         {
@@ -465,7 +461,7 @@ public class DataGridContextMenuStateTests
             Assert.NotNull(grid.ContextMenu);
             List<string> sequence = Sequence(grid.ContextMenu);
             Assert.Contains(sequence, item => item.Contains("AAL602", StringComparison.Ordinal));
-            Assert.DoesNotContain(CommandSequence(grid.ContextMenu), item => item.StartsWith('↪'));
+            Assert.DoesNotContain(Sequence(grid.ContextMenu), item => item.EndsWith(" (selected)", StringComparison.Ordinal));
         }
         finally
         {

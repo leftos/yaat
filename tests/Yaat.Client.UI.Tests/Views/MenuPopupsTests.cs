@@ -507,15 +507,15 @@ public class MenuPopupsTests
             string label = altitude.ToString("N0", System.Globalization.CultureInfo.InvariantCulture);
             MenuRichRow row = altitude switch
             {
-                3000 => new MenuRichRow("●", label, "now", MenuRichRowKind.Now, "CM 3000", altitude),
-                > 3000 => new MenuRichRow("↑", label, $"CM {altitude}", MenuRichRowKind.Climb, $"CM {altitude}", altitude),
-                >= 2600 => new MenuRichRow("↓", label, $"DM {altitude}", MenuRichRowKind.Descend, $"DM {altitude}", altitude),
-                _ => new MenuRichRow("↓", label, "below MVA", MenuRichRowKind.BelowMva, $"DM {altitude}", altitude),
+                3000 => new MenuRichRow("●", label, "now", MenuRichRowKind.Now, "CM 3000", altitude, []),
+                > 3000 => new MenuRichRow("↑", label, $"CM {altitude}", MenuRichRowKind.Climb, $"CM {altitude}", altitude, []),
+                >= 2600 => new MenuRichRow("↓", label, $"DM {altitude}", MenuRichRowKind.Descend, $"DM {altitude}", altitude, []),
+                _ => new MenuRichRow("↓", label, "below MVA", MenuRichRowKind.BelowMva, $"DM {altitude}", altitude, []),
             };
             rows.Add(row);
         }
 
-        rows.Insert(SampleMvaLineIndex, new MenuRichRow("", "MVA 2,600 here (sector 12)", "", MenuRichRowKind.MvaLine, null, null));
+        rows.Insert(SampleMvaLineIndex, new MenuRichRow("", "MVA 2,600 here (sector 12)", "", MenuRichRowKind.MvaLine, null, null, []));
         return new MenuRichList("N123AB · Maintain", "now 3,000 · type to jump", rows, SampleSelectedIndex);
     }
 

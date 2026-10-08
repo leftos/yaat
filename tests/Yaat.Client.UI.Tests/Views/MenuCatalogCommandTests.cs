@@ -496,11 +496,11 @@ public class MenuCatalogCommandTests
         MenuRichList apart = OpenMaintain(new FakeMenuAircraft { AltitudeFeet = 3000, AssignedAltitude = 5000 }, new RecordingMenuHost(""));
         MenuRichList same = OpenMaintain(new FakeMenuAircraft { AltitudeFeet = 3000, AssignedAltitude = 3000 }, new RecordingMenuHost(""));
 
-        Assert.Equal(new MenuRichRow("●", "3,000", "now", MenuRichRowKind.Now, "CM 3000", 3000), Row(apart, "3,000"));
-        Assert.Equal(new MenuRichRow("◆", "5,000", "assigned", MenuRichRowKind.Assigned, "CM 5000", 5000), Row(apart, "5,000"));
-        Assert.Equal(new MenuRichRow("↑", "4,000", "CM 4000", MenuRichRowKind.Climb, "CM 4000", 4000), Row(apart, "4,000"));
-        Assert.Equal(new MenuRichRow("↓", "2,000", "DM 2000", MenuRichRowKind.Descend, "DM 2000", 2000), Row(apart, "2,000"));
-        Assert.Equal(new MenuRichRow("●", "3,000", "now · assigned", MenuRichRowKind.NowAssigned, "CM 3000", 3000), Row(same, "3,000"));
+        Assert.Equal(new MenuRichRow("●", "3,000", "now", MenuRichRowKind.Now, "CM 3000", 3000, []), Row(apart, "3,000"));
+        Assert.Equal(new MenuRichRow("◆", "5,000", "assigned", MenuRichRowKind.Assigned, "CM 5000", 5000, []), Row(apart, "5,000"));
+        Assert.Equal(new MenuRichRow("↑", "4,000", "CM 4000", MenuRichRowKind.Climb, "CM 4000", 4000, []), Row(apart, "4,000"));
+        Assert.Equal(new MenuRichRow("↓", "2,000", "DM 2000", MenuRichRowKind.Descend, "DM 2000", 2000, []), Row(apart, "2,000"));
+        Assert.Equal(new MenuRichRow("●", "3,000", "now · assigned", MenuRichRowKind.NowAssigned, "CM 3000", 3000, []), Row(same, "3,000"));
         Assert.DoesNotContain(same.Rows, row => row.Kind is MenuRichRowKind.Assigned or MenuRichRowKind.Now);
     }
 
@@ -561,20 +561,20 @@ public class MenuCatalogCommandTests
         var host = new RecordingMenuHost("2,500") { Mva = ("12", 2600) };
         MenuRichList popup = OpenMaintain(new FakeMenuAircraft { AltitudeFeet = 3000 }, host);
 
-        Assert.Equal(new MenuRichRow("↓", "2,500", "below MVA", MenuRichRowKind.BelowMva, "DM 2500", 2500), Row(popup, "2,500"));
-        Assert.Equal(new MenuRichRow("↓", "2,600", "DM 2600", MenuRichRowKind.Descend, "DM 2600", 2600), Row(popup, "2,600"));
+        Assert.Equal(new MenuRichRow("↓", "2,500", "below MVA", MenuRichRowKind.BelowMva, "DM 2500", 2500, []), Row(popup, "2,500"));
+        Assert.Equal(new MenuRichRow("↓", "2,600", "DM 2600", MenuRichRowKind.Descend, "DM 2600", 2600, []), Row(popup, "2,600"));
         Assert.All(popup.Rows.Where(row => row.Value < 2600), row => Assert.Equal(MenuRichRowKind.BelowMva, row.Kind));
         Assert.Equal([(Callsign, "DM 2500", Initials)], host.Sent);
 
         var lowHost = new RecordingMenuHost("") { Mva = ("12", 2600) };
         MenuRichList apart = OpenMaintain(new FakeMenuAircraft { AltitudeFeet = 2000, AssignedAltitude = 1500 }, lowHost);
-        Assert.Equal(new MenuRichRow("●", "2,000", "now · below MVA", MenuRichRowKind.BelowMva, "DM 2000", 2000), Row(apart, "2,000"));
-        Assert.Equal(new MenuRichRow("◆", "1,500", "assigned · below MVA", MenuRichRowKind.BelowMva, "DM 1500", 1500), Row(apart, "1,500"));
+        Assert.Equal(new MenuRichRow("●", "2,000", "now · below MVA", MenuRichRowKind.BelowMva, "DM 2000", 2000, []), Row(apart, "2,000"));
+        Assert.Equal(new MenuRichRow("◆", "1,500", "assigned · below MVA", MenuRichRowKind.BelowMva, "DM 1500", 1500, []), Row(apart, "1,500"));
         Assert.Equal("1,500", apart.Rows[apart.SelectedIndex].Label);
 
         var sameHost = new RecordingMenuHost("") { Mva = ("12", 2600) };
         MenuRichList same = OpenMaintain(new FakeMenuAircraft { AltitudeFeet = 2000, AssignedAltitude = 2000 }, sameHost);
-        Assert.Equal(new MenuRichRow("●", "2,000", "now · assigned · below MVA", MenuRichRowKind.BelowMva, "CM 2000", 2000), Row(same, "2,000"));
+        Assert.Equal(new MenuRichRow("●", "2,000", "now · assigned · below MVA", MenuRichRowKind.BelowMva, "CM 2000", 2000, []), Row(same, "2,000"));
     }
 
     [AvaloniaFact]
@@ -583,7 +583,7 @@ public class MenuCatalogCommandTests
         MenuRichList popup = OpenMaintain(new FakeMenuAircraft { AltitudeFeet = 3000, AssignedAltitude = 12300 }, new RecordingMenuHost(""));
 
         MenuRichRow assigned = Row(popup, "12,300");
-        Assert.Equal(new MenuRichRow("◆", "12,300", "assigned", MenuRichRowKind.Assigned, "CM 12300", 12300), assigned);
+        Assert.Equal(new MenuRichRow("◆", "12,300", "assigned", MenuRichRowKind.Assigned, "CM 12300", 12300, []), assigned);
         int index = popup.Rows.ToList().IndexOf(assigned);
         Assert.Equal(index, popup.SelectedIndex);
         Assert.Equal("12,500", popup.Rows[index - 1].Label);
@@ -606,7 +606,7 @@ public class MenuCatalogCommandTests
 
         MenuRichList popup = OpenMaintain(aircraft, new RecordingMenuHost(""));
 
-        Assert.Equal(new MenuRichRow("◆", "FL250", "assigned", MenuRichRowKind.Assigned, "CM 25000", 25000), popup.Rows[0]);
+        Assert.Equal(new MenuRichRow("◆", "FL250", "assigned", MenuRichRowKind.Assigned, "CM 25000", 25000, []), popup.Rows[0]);
         Assert.Equal(0, popup.SelectedIndex);
         Assert.Equal((int)(Math.Floor(ceiling.Value / 500) * 500), popup.Rows[1].Value);
     }
@@ -1215,6 +1215,98 @@ public class MenuCatalogCommandTests
     }
 
     [AvaloniaFact]
+    public void ReportTrafficInSight_NoNearbyTraffic_KeepsInputBox()
+    {
+        var host = new RecordingMenuHost("AAL12");
+        MenuItem? item = MenuCatalog.Get(MenuIds.ApproachReportTrafficInSight).Build(null, Context(), host);
+
+        Click(AssertPicker(item, "Report traffic in sight…", MenuPickerDescriptor.Input, []));
+
+        Assert.Empty(host.RichListPopups);
+        Assert.Equal([(Callsign, "RTIS AAL12", Initials)], host.Sent);
+    }
+
+    [AvaloniaFact]
+    public void ReportTrafficInSight_ListsNearestTrafficThenAnyAndOther()
+    {
+        RecordingMenuHost host = TrafficHost("", null);
+        MenuItem? item = MenuCatalog.Get(MenuIds.ApproachReportTrafficInSight).Build(null, Context(), host);
+
+        Click(
+            AssertPicker(
+                item,
+                "Report traffic in sight…",
+                MenuPickerDescriptor.RichList,
+                ["AAL601 · B738", "N302AB", "---", "Any traffic (no target)", "Other callsign…"]
+            )
+        );
+
+        MenuRichList list = Assert.Single(host.RichListPopups);
+        Assert.Equal("Nearest traffic", list.Title);
+        Assert.Equal(0, list.SelectedIndex);
+        Assert.Equal(
+            new MenuRichRow("", "AAL601 · B738", "", MenuRichRowKind.Traffic, "RTIS AAL601", null, ["2 o'clock", "4 nm", "1,500 below"]),
+            list.Rows[0]
+        );
+        Assert.Equal(["2 o'clock", "4 nm", "1,500 below"], list.Rows[0].Columns);
+        Assert.Equal(["11 o'clock", "7 nm", "same altitude"], list.Rows[1].Columns);
+        Assert.Equal(
+            [MenuRichRowKind.Traffic, MenuRichRowKind.Traffic, MenuRichRowKind.Separator, MenuRichRowKind.Action, MenuRichRowKind.Prompt],
+            list.Rows.Select(row => row.Kind)
+        );
+        Assert.Equal([true, true, false, true, true], list.Rows.Select(row => row.IsPickable));
+        Assert.Empty(host.Sent);
+    }
+
+    [AvaloniaFact]
+    public void ReportTrafficInSight_RowSendsRtisCallsign()
+    {
+        RecordingMenuHost host = TrafficHost("N302AB", null);
+
+        Click(MenuCatalog.Get(MenuIds.ApproachReportTrafficInSight).Build(null, Context(), host)!);
+
+        Assert.Equal([(Callsign, "RTIS N302AB", Initials)], host.Sent);
+    }
+
+    [AvaloniaFact]
+    public void ReportTrafficInSight_AnyTrafficSendsBareRtis()
+    {
+        RecordingMenuHost host = TrafficHost("Any traffic (no target)", null);
+
+        Click(MenuCatalog.Get(MenuIds.ApproachReportTrafficInSight).Build(null, Context(), host)!);
+
+        Assert.Equal([(Callsign, "RTIS", Initials)], host.Sent);
+    }
+
+    [AvaloniaFact]
+    public void ReportTrafficInSight_OtherCallsignOpensInput()
+    {
+        RecordingMenuHost typed = TrafficHost("Other callsign…", "UAL5");
+        Click(MenuCatalog.Get(MenuIds.ApproachReportTrafficInSight).Build(null, Context(), typed)!);
+
+        Assert.Equal(["Target callsign (optional)"], typed.InputPlaceholders);
+        Assert.Equal(BlankInput.Submits, typed.LastBlankInput);
+        Assert.Equal([(Callsign, "RTIS UAL5", Initials)], typed.Sent);
+
+        RecordingMenuHost blank = TrafficHost("Other callsign…", "");
+        Click(MenuCatalog.Get(MenuIds.ApproachReportTrafficInSight).Build(null, Context(), blank)!);
+
+        Assert.Equal([(Callsign, "RTIS", Initials)], blank.Sent);
+    }
+
+    /// <summary>
+    /// A host answering two aircraft of nearby traffic, picking the rich-list row <paramref name="pick"/> and typing
+    /// <paramref name="typed"/>.
+    /// </summary>
+    private static RecordingMenuHost TrafficHost(string pick, string? typed)
+    {
+        var host = new RecordingMenuHost(pick) { InputAnswer = typed };
+        host.NearbyTraffic.Add(new MenuTrafficRow("AAL601", "B738", 4.2, 2, -1500));
+        host.NearbyTraffic.Add(new MenuTrafficRow("N302AB", "", 6.5, 11, 0));
+        return host;
+    }
+
+    [AvaloniaFact]
     public void Squawk_AsksWithBlankCloses()
     {
         var host = new RecordingMenuHost(PositionOrCode);
@@ -1630,15 +1722,18 @@ public class MenuCatalogCommandTests
         var host = new RecordingMenuHost("");
         var menu = new ContextMenu();
 
-        SharedMenuGroups.AddRelative(menu.Items, OnGround("Taxiing", "IFR", ""), context, host);
+        SharedMenuGroups.AddForSection(menu.Items, OnGround("Taxiing", "IFR", ""), context, host);
 
-        Assert.Equal([$"↪ {Selected}:", $"{Selected}: give way to {Callsign}", $"{Selected}: follow {Callsign}", "---"], menu.Items.Select(Describe));
+        Assert.Equal(
+            [$"For {Selected} (selected)", $"Follow {Callsign}", $"Give way to {Callsign}", "---", $"For {Callsign}"],
+            menu.Items.Select(Describe)
+        );
         foreach (MenuItem item in menu.Items.OfType<MenuItem>().Where(i => i.IsEnabled))
         {
             Click(item);
         }
 
-        Assert.Equal([(Selected, $"GW {Callsign}", Initials), (Selected, $"FOLLOWG {Callsign}", Initials)], host.Sent);
+        Assert.Equal([(Selected, $"FOLLOWG {Callsign}", Initials), (Selected, $"GW {Callsign}", Initials)], host.Sent);
     }
 
     [AvaloniaFact]
@@ -1651,7 +1746,7 @@ public class MenuCatalogCommandTests
             MenuContext context = TestMenuContext.Create(Callsign, Initials, selected, false, VfrCommandsForIfr.None);
             var menu = new ContextMenu();
 
-            SharedMenuGroups.AddRelative(menu.Items, OnGround("Taxiing", "IFR", ""), context, new RecordingMenuHost(""));
+            SharedMenuGroups.AddForSection(menu.Items, OnGround("Taxiing", "IFR", ""), context, new RecordingMenuHost(""));
 
             Assert.Empty(menu.Items);
         }
@@ -1660,20 +1755,23 @@ public class MenuCatalogCommandTests
     [AvaloniaFact]
     public void AirborneRelative_SendsAsTheSelectedAircraft()
     {
-        var selected = new AircraftModel
-        {
-            Callsign = Selected,
-            IsOnGround = false,
-            LastReportedTrafficCallsign = Callsign,
-        };
+        AircraftModel selected = AirborneSelected();
+        selected.LastReportedTrafficCallsign = Callsign;
         MenuContext context = TestMenuContext.Create(Callsign, Initials, selected, false, VfrCommandsForIfr.None);
         var host = new RecordingMenuHost("");
         var menu = new ContextMenu();
 
-        SharedMenuGroups.AddRelative(menu.Items, new AircraftModel { Callsign = Callsign, IsOnGround = false }, context, host);
+        SharedMenuGroups.AddForSection(menu.Items, AirborneClicked(), context, host);
 
         Assert.Equal(
-            [$"↪ {Selected}:", $"{Selected}: report {Callsign} in sight", $"{Selected}: follow {Callsign}", "---"],
+            [
+                $"For {Selected} (selected)",
+                $"{Callsign} is at its 2 o'clock, 4 nm, 1,500 ft below",
+                "Report in sight",
+                "Follow",
+                "---",
+                $"For {Callsign}",
+            ],
             menu.Items.Select(Describe)
         );
         foreach (MenuItem item in menu.Items.OfType<MenuItem>().Where(i => i.IsEnabled))
@@ -1687,17 +1785,43 @@ public class MenuCatalogCommandTests
     [AvaloniaFact]
     public void AirborneRelative_FollowOnlyAfterTrafficReportedInSight()
     {
-        var selected = new AircraftModel { Callsign = Selected, IsOnGround = false };
-        MenuContext context = TestMenuContext.Create(Callsign, Initials, selected, false, VfrCommandsForIfr.None);
+        MenuContext context = TestMenuContext.Create(Callsign, Initials, AirborneSelected(), false, VfrCommandsForIfr.None);
         var menu = new ContextMenu();
 
-        SharedMenuGroups.AddRelative(menu.Items, new AircraftModel { Callsign = Callsign, IsOnGround = false }, context, new RecordingMenuHost(""));
+        SharedMenuGroups.AddForSection(menu.Items, AirborneClicked(), context, new RecordingMenuHost(""));
 
-        Assert.Equal([$"↪ {Selected}:", $"{Selected}: report {Callsign} in sight", "---"], menu.Items.Select(Describe));
+        Assert.Equal(
+            [$"For {Selected} (selected)", $"{Callsign} is at its 2 o'clock, 4 nm, 1,500 ft below", "Report in sight", "---", $"For {Callsign}"],
+            menu.Items.Select(Describe)
+        );
     }
 
+    /// <summary>The selected aircraft of the airborne For-section tests: at 3,000 ft, heading 030 true.</summary>
+    private static AircraftModel AirborneSelected() =>
+        new()
+        {
+            Callsign = Selected,
+            IsOnGround = false,
+            Position = new LatLon(37.0, -122.0),
+            Heading = new TrueHeading(30),
+            Altitude = 3000,
+        };
+
+    /// <summary>
+    /// The right-clicked aircraft of the airborne For-section tests: 4 nm due east of the selected one (its 2 o'clock),
+    /// at 1,500 ft.
+    /// </summary>
+    private static AircraftModel AirborneClicked() =>
+        new()
+        {
+            Callsign = Callsign,
+            IsOnGround = false,
+            Position = new LatLon(37.0, -122.0 + (4.0 / (60 * Math.Cos(37.0 * Math.PI / 180)))),
+            Altitude = 1500,
+        };
+
     [AvaloniaFact]
-    public void Relative_MixedPair_AddsNothing()
+    public void Relative_MixedPair_HasNoForSection()
     {
         (AircraftModel Selected, AircraftModel Clicked)[] pairs =
         [
@@ -1709,7 +1833,7 @@ public class MenuCatalogCommandTests
             MenuContext context = TestMenuContext.Create(Callsign, Initials, selected, false, VfrCommandsForIfr.None);
             var menu = new ContextMenu();
 
-            SharedMenuGroups.AddRelative(menu.Items, clicked, context, new RecordingMenuHost(""));
+            SharedMenuGroups.AddForSection(menu.Items, clicked, context, new RecordingMenuHost(""));
 
             Assert.Empty(menu.Items);
         }

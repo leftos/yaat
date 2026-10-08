@@ -1,5 +1,6 @@
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
+using Avalonia.Interactivity;
 using Xunit;
 using Yaat.Client.ContextMenus;
 using Yaat.Client.Models;
@@ -221,6 +222,95 @@ public class AircraftMenuBuilderTests
         Assert.Equal("Cleared approach (other)…", (menu.Items[at + 1] as MenuItem)?.Header as string);
         Assert.Single(Sequence(menu), header => header == "Cleared approach (other)…");
     }
+
+    [AvaloniaFact]
+    public void RadarMenu_WithOtherSelected_ForSectionSitsUnderHeader()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        MenuFixture fixture = RelativeFixture();
+
+        List<string> items = Sequence(BuildWithSelection(fixture, new RecordingMenuHost("")));
+
+        int note = items.IndexOf(Label(MenuIds.AircraftNote));
+        Assert.Equal(
+            ["---", "For AAL602 (selected)", "AAL601 is at its 12 o'clock, 6 nm, 1,500 ft below", "Report in sight", "Follow", "---", "For AAL601"],
+            items[(note + 1)..(note + 8)]
+        );
+    }
+
+    [AvaloniaFact]
+    public void RadarMenu_ForSectionSendsAsTheSelectedAircraft()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        MenuFixture fixture = RelativeFixture();
+        var host = new RecordingMenuHost("");
+
+        ContextMenu menu = BuildWithSelection(fixture, host);
+        foreach (string header in (string[])["Report in sight", "Follow"])
+        {
+            menu.Items.OfType<MenuItem>().Single(item => (item.Header as string) == header).RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+        }
+
+        Assert.Equal([("AAL602", "RTIS AAL601", "AB"), ("AAL602", "FOLLOW AAL601", "AB")], host.Sent);
+    }
+
+    [AvaloniaFact]
+    public void RadarMenu_FollowOnlyAfterReportedInSight()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        MenuFixture fixture = RelativeFixture();
+        fixture.Selected!.LastReportedTrafficCallsign = null;
+
+        List<string> items = Sequence(BuildWithSelection(fixture, new RecordingMenuHost("")));
+
+        Assert.Contains("Report in sight", items);
+        Assert.DoesNotContain("Follow", items);
+    }
+
+    [AvaloniaFact]
+    public void RadarMenu_AllCommandsHoldsNoRelativeItemsForAirbornePair()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        MenuFixture fixture = RelativeFixture();
+
+        List<string> all = Sequence(AllCommandsItem(BuildWithSelection(fixture, new RecordingMenuHost(""))));
+
+        Assert.DoesNotContain(all, item => item.Contains("AAL602", StringComparison.Ordinal));
+        Assert.DoesNotContain("Report in sight", all);
+        Assert.DoesNotContain("Follow", all);
+    }
+
+    [AvaloniaFact]
+    public void RadarMenu_MixedPair_HasNoForSection()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        MenuFixture fixture = RelativeFixture();
+        fixture.Selected!.IsOnGround = true;
+
+        List<string> items = Sequence(BuildWithSelection(fixture, new RecordingMenuHost("")));
+
+        Assert.DoesNotContain(items, item => item.StartsWith("For ", StringComparison.Ordinal));
+    }
+
+    [AvaloniaFact]
+    public void ListMenu_NoPreviousSelection_HasNoForSection()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        MenuFixture fixture = RelativeFixture();
+
+        List<string> items = Sequence(Build(fixture.Aircraft, new RecordingMenuHost(""), _ => []));
+
+        Assert.DoesNotContain(items, item => item.StartsWith("For ", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// The radar relative-selection fixture: AAL601 right-clicked with AAL602 selected, both airborne, AAL602 having
+    /// reported AAL601 in sight.
+    /// </summary>
+    private static MenuFixture RelativeFixture() => MenuGoldenFixtures.For(MenuView.Radar).Single(f => f.Name == "relative-selection");
+
+    private static ContextMenu BuildWithSelection(MenuFixture fixture, RecordingMenuHost host) =>
+        AircraftMenuBuilder.Build(fixture.Aircraft, new MenuClick(fixture.Aircraft.Callsign, fixture.Selected, null, []), host, _ => []);
 
     private static ContextMenu Build(AircraftModel ac, RecordingMenuHost host, Func<MenuContext, IReadOnlyList<Control>> section) =>
         AircraftMenuBuilder.Build(ac, new MenuClick(ac.Callsign, null, null, []), host, section);

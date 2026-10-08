@@ -5,6 +5,11 @@ Holding short 30/12 [disabled]
 Command…
 Note…
 ---
+For SWA602 (selected) [disabled]
+Follow SWA601
+Give way to SWA601
+---
+For SWA601 [disabled]
 strip: [ground.cross-runway]
 ---
 Track
@@ -33,10 +38,6 @@ Squawk
 Favorite Commands
   (no items) [disabled]
 All Commands
-  ↪ SWA602: [disabled]
-  SWA602: give way to SWA601
-  SWA602: follow SWA601
-  ---
   Cross 30
   Tower
     Line up and wait 30

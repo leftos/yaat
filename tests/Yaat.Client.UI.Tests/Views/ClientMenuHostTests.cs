@@ -12,6 +12,7 @@ using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views;
 using Yaat.Client.Views.Radar;
+using Yaat.Sim;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Situation;
@@ -32,6 +33,49 @@ public class ClientMenuHostTests
 
         Assert.StartsWith("Command error:", main.StatusText);
     }
+
+    [AvaloniaFact]
+    public void GetNearbyTraffic_NearestFirst_ExcludesSelfDelayedAndShadows()
+    {
+        var main = new MainViewModel(new FakeFilePickerService());
+        var at = new LatLon(37.5, -122.0);
+        AircraftModel self = Airborne("N302AB", at, 3000);
+        main.Aircraft.Add(self);
+        // Added farthest first, so the order must come from the distance, not the list.
+        foreach (int i in Enumerable.Range(1, 7).Reverse())
+        {
+            main.Aircraft.Add(Airborne($"AAL{i}", new LatLon(at.Lat + (i * 0.01), at.Lon), 3000 + (i * 100)));
+        }
+
+        AircraftModel delayed = Airborne("DLY1", new LatLon(at.Lat + 0.001, at.Lon), 3000);
+        delayed.Status = "Delayed (5:00)";
+        AircraftModel shadow = Airborne("SHD1", new LatLon(at.Lat + 0.002, at.Lon), 3000);
+        shadow.IsLiveTraffic = true;
+        AircraftModel onGround = Airborne("GND1", new LatLon(at.Lat + 0.003, at.Lon), 0);
+        onGround.IsOnGround = true;
+        main.Aircraft.Add(delayed);
+        main.Aircraft.Add(shadow);
+        main.Aircraft.Add(onGround);
+        var host = new ClientMenuHost(main, self, new Border());
+
+        IReadOnlyList<MenuTrafficRow> rows = host.GetNearbyTraffic("N302AB");
+
+        Assert.Equal(["AAL1", "AAL2", "AAL3", "AAL4", "AAL5"], rows.Select(row => row.Callsign));
+        Assert.Equal(new MenuTrafficRow("AAL1", "B738", rows[0].DistanceNm, 12, 100), rows[0]);
+        Assert.Equal(1, RelativeGeometry.WholeNm(rows[0].DistanceNm));
+        Assert.Empty(host.GetNearbyTraffic("NOPE"));
+    }
+
+    private static AircraftModel Airborne(string callsign, LatLon position, double altitude) =>
+        new()
+        {
+            Callsign = callsign,
+            AircraftType = "B738",
+            IsOnGround = false,
+            Position = position,
+            Heading = new TrueHeading(0),
+            Altitude = altitude,
+        };
 
     /// <summary>
     /// On the radar, the host's list picker opens the shared menu popup on the radar canvas's overlay, seeded with the

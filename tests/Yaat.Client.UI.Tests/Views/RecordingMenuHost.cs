@@ -155,7 +155,7 @@ internal sealed class RecordingMenuHost(string input) : IMenuHost
         RichListPopups.Add(list);
         if (input.Length > 0)
         {
-            onPick(list.Rows.First(row => row.Label == input));
+            onPick(list.Rows.First(row => (row.IsPickable) && (row.Label == input)));
         }
     }
 
@@ -209,6 +209,11 @@ internal sealed class RecordingMenuHost(string input) : IMenuHost
     public List<TaxiRoute?> RoutePreviews { get; } = [];
 
     public IReadOnlyList<string> GetGroundTrafficCallsigns(string callsign) => GroundTraffic;
+
+    /// <summary>The airborne traffic the Report traffic in sight… list offers, whatever the callsign asked about; none by default.</summary>
+    public List<MenuTrafficRow> NearbyTraffic { get; } = [];
+
+    public IReadOnlyList<MenuTrafficRow> GetNearbyTraffic(string callsign) => NearbyTraffic;
 
     public IReadOnlyList<MenuCommandChoice> GetHoldShortChoices(string callsign) => HoldShortChoices;
 

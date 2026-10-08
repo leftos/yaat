@@ -432,6 +432,12 @@ The few canvas-only items a view adds to the shared aircraft menu, which the bui
 **Menu session**:
 The session settings an aircraft menu's predicates read (`MenuSession`): the user's initials, solo training mode and the VFR-commands-for-IFR mode.
 
+**For section**:
+The block at the top of an aircraft's menu, under its header, while another aircraft is selected: `For {selected} (selected)`, a line saying where the clicked aircraft is from the selected one, and the items sent as the selected aircraft (Report in sight and Follow in the air, Follow and Give way to on the ground), then `For {clicked}` over the clicked aircraft's own items (`SharedMenuGroups.AddForSection`).
+
+**Traffic row**:
+One other aircraft as a menu's traffic list shows it, seen from the aircraft the menu commands (`MenuTrafficRow`): its callsign and type, distance, clock position and altitude difference.
+
 ## CRC hub connections
 
 **Direct connection**:

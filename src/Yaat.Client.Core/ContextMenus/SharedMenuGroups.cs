@@ -12,7 +12,7 @@ namespace Yaat.Client.ContextMenus;
 /// pilot, coordination, data block, favorites, the menu foot (warp, release to live feed, delete), and the flight groups
 /// heading, altitude, speed, navigation, hold, approach, procedures, tower and pattern — assembled from
 /// <see cref="MenuCatalog"/> entries. Every surface offers the input pickers — handoff, point out, squawk code, custom
-/// say. The relative items (<see cref="AddRelative"/>) are a group of their own. Whether a group is offered at all stays with the
+/// say. The For section (<see cref="AddForSection"/>) is a group of its own. Whether a group is offered at all stays with the
 /// caller. A group whose items are canvas-only in nature — the Display submenu — takes the surface's prebuilt items
 /// instead of the entries: the surface builds them with <see cref="CanvasMenuItems"/> from its own canvas state and only
 /// the placing stays here.
@@ -744,16 +744,18 @@ public static class SharedMenuGroups
     }
 
     /// <summary>
-    /// The relative items while another aircraft is selected (<see cref="MenuContext.PreviousSelection"/>): a bold
-    /// header naming the selected aircraft, the pair that applies — report in sight, then follow once the selected
-    /// aircraft has reported the right-clicked one in sight, for an airborne pair
-    /// (<see cref="RelativeTraffic.OffersAirborneRelative"/>); give way, then follow, for a ground pair
-    /// (<see cref="RelativeTraffic.OffersGroundRelative"/>) — and a trailing separator. Adds nothing when there is no
-    /// previous selection or neither pair applies, so a mixed pair gets no header either.
+    /// The For section, which opens the clicked aircraft's menu under the header while another aircraft is selected
+    /// (<see cref="MenuContext.PreviousSelection"/>): the bold label <c>For {selected} (selected)</c>, then for an airborne
+    /// pair (<see cref="RelativeTraffic.OffersAirborneRelative"/>) the dimmed line saying where the clicked aircraft is
+    /// from the selected one (<see cref="RelativeGeometry.Describe(IMenuAircraft, IMenuAircraft)"/>), Report in sight, and
+    /// Follow once the selected aircraft has reported the clicked one in sight; for a ground pair
+    /// (<see cref="RelativeTraffic.OffersGroundRelative"/>) Follow and Give way to. Each item sends as the selected
+    /// aircraft and shows its quick-command glyph. Then a separator and the bold label <c>For {clicked}</c> over the
+    /// clicked aircraft's own items. Adds nothing when there is no previous selection or neither pair applies.
     /// </summary>
-    public static void AddRelative(ItemCollection items, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
+    public static void AddForSection(ItemCollection items, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
     {
-        if (context.PreviousSelection is not { } selected)
+        if ((context.PreviousSelection is not { } selected) || (aircraft is null))
         {
             return;
         }
@@ -764,27 +766,56 @@ public static class SharedMenuGroups
             return;
         }
 
-        items.Add(
-            new MenuItem
-            {
-                Header = $"↪ {selected.Callsign}:",
-                IsEnabled = false,
-                FontWeight = FontWeight.Bold,
-            }
-        );
+        items.Add(SectionLabel($"For {selected.Callsign} (selected)"));
         if (airborne)
         {
-            TryAdd(items, TryLeaf(MenuIds.RelativeReportInSight, aircraft, context, host));
-            AddIfApplicable(items, MenuIds.RelativeFollow, aircraft, context, host);
+            items.Add(DetailRow(RelativeGeometry.Describe(selected, aircraft)));
+            AddForItem(items, MenuIds.RelativeReportInSight, aircraft, context, host);
+            AddForItem(items, MenuIds.RelativeFollow, aircraft, context, host);
         }
         else
         {
-            TryAdd(items, TryLeaf(MenuIds.GroundRelativeGiveWay, aircraft, context, host));
-            TryAdd(items, TryLeaf(MenuIds.GroundRelativeFollow, aircraft, context, host));
+            AddForItem(items, MenuIds.GroundRelativeFollow, aircraft, context, host);
+            AddForItem(items, MenuIds.GroundRelativeGiveWay, aircraft, context, host);
         }
 
         items.Add(new Separator());
+        items.Add(SectionLabel($"For {context.Callsign}"));
     }
+
+    /// <summary>The quick-command glyph each For-section item shows, by its catalog id.</summary>
+    private static readonly Dictionary<string, string> ForSectionGlyphIds = new(StringComparer.Ordinal)
+    {
+        [MenuIds.RelativeReportInSight] = MenuIds.ApproachReportTrafficInSight,
+        [MenuIds.RelativeFollow] = MenuIds.GroundFollow,
+        [MenuIds.GroundRelativeFollow] = MenuIds.GroundFollow,
+        [MenuIds.GroundRelativeGiveWay] = MenuIds.GroundGiveWay,
+    };
+
+    /// <summary>Adds a For-section item where its predicate allows it, with its glyph as the item's icon.</summary>
+    private static void AddForItem(ItemCollection items, string id, IMenuAircraft aircraft, MenuContext context, IMenuHost host)
+    {
+        if (!IsApplicable(id, aircraft, context) || (TryLeaf(id, aircraft, context, host) is not { } item))
+        {
+            return;
+        }
+
+        if (QuickCommandGlyphs.For(ForSectionGlyphIds[id]) is { } glyph)
+        {
+            item.Icon = QuickCommandStrip.GlyphIcon(glyph);
+        }
+
+        items.Add(item);
+    }
+
+    /// <summary>A bold, disabled label naming the aircraft the items under it command.</summary>
+    private static MenuItem SectionLabel(string header) =>
+        new()
+        {
+            Header = header,
+            IsEnabled = false,
+            FontWeight = FontWeight.Bold,
+        };
 
     /// <summary>
     /// The delayed-spawn items <see cref="AircraftMenuBuilder"/> places on every view, in order: Spawn now, the Change

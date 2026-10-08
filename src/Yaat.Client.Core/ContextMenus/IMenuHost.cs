@@ -92,7 +92,8 @@ public interface IMenuHost
 
     /// <summary>
     /// Opens the surface's titled picker of <paramref name="list"/>'s rows, with its selected row centred, and hands the
-    /// row the controller picks to <paramref name="onPick"/>; a row without a command is never handed over.
+    /// row the controller picks to <paramref name="onPick"/>; a row that cannot be picked (<see cref="MenuRichRow.IsPickable"/>)
+    /// is never handed over.
     /// </summary>
     void ShowRichListPopup(MenuRichList list, Action<MenuRichRow> onPick);
 
@@ -138,6 +139,13 @@ public interface IMenuHost
     /// <paramref name="callsign"/> first, which the Follow… and Give way to… submenus list; empty when there are none.
     /// </summary>
     IReadOnlyList<string> GetGroundTrafficCallsigns(string callsign);
+
+    /// <summary>
+    /// The other airborne aircraft nearest <paramref name="callsign"/>, nearest first and capped by the host, each as seen
+    /// from it (<see cref="RelativeGeometry.TrafficRow"/>), which the Report traffic in sight… list offers; never a delayed
+    /// spawn or a live-traffic shadow. Empty when there are none or <paramref name="callsign"/> is not found.
+    /// </summary>
+    IReadOnlyList<MenuTrafficRow> GetNearbyTraffic(string callsign);
 
     /// <summary>
     /// The Hold short of… choices for <paramref name="callsign"/>'s taxi route: each target's text, its finished

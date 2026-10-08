@@ -165,7 +165,7 @@ public class ContextMenuBuilderSeamTests
         );
         Assert.Equal(["Coordination"], AllCommandsSequence(menu));
         // A surface shadow is not assumable, so it gets neither the assume items nor any relative-traffic block.
-        Assert.DoesNotContain(Sequence(menu), item => item.StartsWith('↪'));
+        Assert.DoesNotContain(Sequence(menu), item => item.EndsWith(" (selected)", StringComparison.Ordinal));
     }
 
     /// <summary>A surface live-traffic shadow: on the ground, so it is never assumable and its menu stays read-only.</summary>
@@ -425,11 +425,12 @@ public class ContextMenuBuilderSeamTests
 
         ContextMenu menu = view.BuildAircraftContextMenu(main.Radar, clicked, selected, clicked.Callsign);
 
-        List<string> sequence = AllCommandsSequence(menu);
-        Assert.Contains("↪ SWA602:", sequence);
-        Assert.Contains("SWA602: give way to SWA104", sequence);
-        Assert.Contains("SWA602: follow SWA104", sequence);
-        Assert.DoesNotContain(sequence, item => item.Contains("report SWA104 in sight", StringComparison.Ordinal));
+        List<string> sequence = Sequence(menu);
+        Assert.Contains("For SWA602 (selected)", sequence);
+        Assert.Contains("Give way to SWA104", sequence);
+        Assert.Contains("Follow SWA104", sequence);
+        Assert.DoesNotContain("Report in sight", sequence);
+        AssertForSectionIcons(menu, "Give way to SWA104", "Follow SWA104");
     }
 
     [AvaloniaFact]
@@ -444,10 +445,21 @@ public class ContextMenuBuilderSeamTests
 
         ContextMenu menu = view.BuildAircraftContextMenu(ground, clicked, selected, clicked.Callsign);
 
-        List<string> sequence = AllCommandsSequence(menu);
-        Assert.Contains("↪ AAL602:", sequence);
-        Assert.Contains("AAL602: report AAL601 in sight", sequence);
-        Assert.Contains("AAL602: follow AAL601", sequence);
-        Assert.DoesNotContain(sequence, item => item.Contains("give way", StringComparison.Ordinal));
+        List<string> sequence = Sequence(menu);
+        Assert.Contains("For AAL602 (selected)", sequence);
+        Assert.Contains("Report in sight", sequence);
+        Assert.Contains("Follow", sequence);
+        Assert.DoesNotContain(sequence, item => item.Contains("Give way to", StringComparison.Ordinal));
+        AssertForSectionIcons(menu, "Report in sight", "Follow");
+    }
+
+    /// <summary>Asserts each named top-level item carries the quick-command glyph it was built with.</summary>
+    private static void AssertForSectionIcons(ContextMenu menu, params string[] headers)
+    {
+        foreach (string header in headers)
+        {
+            MenuItem item = menu.Items.OfType<MenuItem>().Single(m => (m.Header as string) == header);
+            Assert.NotNull(item.Icon);
+        }
     }
 }

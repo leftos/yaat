@@ -22,9 +22,10 @@ public static class AircraftMenuBuilder
     /// then Delete;
     /// </item>
     /// <item>
-    /// any other aircraft: the quick commands its situation resolves to (<see cref="QuickCommandResolver"/>; the icon
-    /// strip, then the text entries), Track, Data Block, Squawk, the view section, Favorites, All Commands (the full
-    /// command tree, <see cref="AddAllCommands"/>), then Delete;
+    /// any other aircraft: the For section while another aircraft is selected (<see cref="SharedMenuGroups.AddForSection"/>),
+    /// the quick commands its situation resolves to (<see cref="QuickCommandResolver"/>; the icon strip, then the text
+    /// entries), Track, Data Block, Squawk, the view section, Favorites, All Commands (the full command tree,
+    /// <see cref="AddAllCommands"/>), then Delete;
     /// </item>
     /// </list>
     /// then "Assume selected live traffic (N)" and the RPO items for the click's selection, else for the clicked aircraft.
@@ -71,6 +72,7 @@ public static class AircraftMenuBuilder
         }
         else
         {
+            SharedMenuGroups.AddForSection(menu.Items, aircraft, context, host);
             AddQuickCommands(menu, aircraft, context, host);
             AddTopLevelGroups(menu.Items, aircraft, context, host, viewSection(context));
         }
@@ -360,10 +362,10 @@ public static class AircraftMenuBuilder
     }
 
     /// <summary>
-    /// The full command tree under All Commands: an assumable shadow's assume items, the relative items, the
-    /// ground-movement block, the flight and tower groups in one fixed order (<see cref="AddFlightGroups"/>), Preset taxi
-    /// route, Draw taxi route… (which starts on the primary ground view, the host showing it first), Ask pilot,
-    /// Coordination, Edit flight plan, then the sim-control items (Warp…, Release to live feed) after a separator.
+    /// The full command tree under All Commands: an assumable shadow's assume items, the ground-movement block, the
+    /// flight and tower groups in one fixed order (<see cref="AddFlightGroups"/>), Preset taxi route, Draw taxi route…
+    /// (which starts on the primary ground view, the host showing it first), Ask pilot, Coordination, Edit flight plan,
+    /// then the sim-control items (Warp…, Release to live feed) after a separator.
     /// </summary>
     private static void AddAllCommands(ItemCollection items, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
     {
@@ -374,7 +376,6 @@ public static class AircraftMenuBuilder
             items.Add(new Separator());
         }
 
-        SharedMenuGroups.AddRelative(items, aircraft, context, host);
         AddGroundMovement(items, aircraft, context, host);
         AddFlightGroups(items, aircraft, context, host);
         SharedMenuGroups.AddIfApplicable(items, MenuIds.GroundTaxiPreset, aircraft, context, host);
