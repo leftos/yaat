@@ -171,6 +171,8 @@ A **taxiway-only** exit (`EXIT D`) issued after an explicit side (`EL`/`ER`) inh
 
 The taxiway name is a hard constraint and the side a soft preference: if the named taxiway exists only on the other side, the on-/off-side fallback in `FindAdjacentHoldShort`/`FindOnSidePreferredExit` still takes it (never fails to exit). A later command carrying its own explicit side (`EL D`) still overrides. The merge lives in `GroundCommandHandler.TryExitCommand`.
 
+An exit with no side on KOAK 28R (`EXIT J`) prefers the right (back) turn-off onto J, because 28R's preferred exit side is right: a left exit leaves the aircraft boxed in between the parallel runways, while the parking is on the right.
+
 - Compute distance to the exit
 - Subtract a braking buffer: the distance RunwayExitPhase needs to brake from coast speed to the exit's turn-off speed (using the default decel rate)
 - Plan decel to reach coast speed at that buffer point — not at the exit itself

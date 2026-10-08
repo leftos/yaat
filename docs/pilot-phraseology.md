@@ -164,6 +164,10 @@ So does the refusal of a TAXI that would turn an aircraft about on its taxiway w
 
 `BuildUnableNoRoomToTurnAround` gives the terminal line *unable, no room to turn around on B, request a route ahead.* and speaks *…, unable, no room to turn around on bravo, request a route ahead.*, the taxiway spelled by `PhraseologyVerbalizer.SpellTaxiway`.
 
+The same phrase is said, unprompted and once, by an aircraft still rolling when a TAXI turns it about on its taxiway with no room to do so: no room short of a runway holding position ahead even at the firm brake rate, an overrun of the node ahead with no straight edge beyond it that has room, a turn about at the node ahead that would leave its pavement with no straight edge beyond it that has room, or no route node a turning diameter from any turn about it could fly. It stops, holds and says it on the stop's first tick (`GroundNavigator.HoldUnableToTurnAbout`, [ground/navigator.md](ground/navigator.md)).
+
+That call goes through `RouteSoloOrRpoTransmission` like any unsolicited pilot call: queued for a GND or TWR student in solo training, otherwise a terminal warning, or pilot speech when the RPO shows it.
+
 The grounding is AIM 4-3-18.b: taxi clearances and instructions are predicated on known physical airport conditions, and the pilot in command is the final authority on the aircraft's operation, so a crew that cannot turn its aircraft about on its taxiway declines and asks for a route ahead.
 
 That strip covers the **leading** token and the string's **edges** only. An *interior* dash survives into TTS, so

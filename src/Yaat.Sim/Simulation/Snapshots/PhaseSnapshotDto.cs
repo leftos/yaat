@@ -569,6 +569,64 @@ public sealed class GroundNavigatorPlaybackDto
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public bool? TurnAboutSquareStopLine { get; init; }
+
+    /// <summary>
+    /// The brake leg a rolling aircraft flies, heading held straight, down to its pivot speed before the turn about
+    /// <see cref="Primitive"/> begins. Absent (null) when no brake leg is under way, so a snapshot without one serializes
+    /// exactly as it did before the field existed.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public TurnAboutBrakeDto? TurnAboutBrake { get; init; }
+
+    /// <summary>
+    /// The stop a rolling aircraft with no room to turn about on its taxiway brakes to, heading held straight, and holds at.
+    /// Absent (null) when the aircraft is not so held.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public TurnAboutHoldDto? TurnAboutHold { get; init; }
+}
+
+/// <summary>
+/// A rolling aircraft's stop when it has no room to turn about on its taxiway (<see cref="GroundNavigatorPlaybackDto.TurnAboutHold"/>).
+/// </summary>
+public sealed class TurnAboutHoldDto
+{
+    /// <summary>Latitude of the point the aircraft comes to rest at.</summary>
+    public required double StopLat { get; init; }
+
+    /// <summary>Longitude of that point.</summary>
+    public required double StopLon { get; init; }
+
+    /// <summary>The heading (deg true) held straight while stopping.</summary>
+    public required double BearingDeg { get; init; }
+
+    /// <summary>The brake rate (kts/s).</summary>
+    public required double DecelRateKts { get; init; }
+
+    /// <summary>The taxiway it has no room to turn about on, named in its unable.</summary>
+    public required string Taxiway { get; init; }
+
+    /// <summary>Whether it has said its unable, on the stop's first tick.</summary>
+    public required bool UnableSaid { get; init; }
+}
+
+/// <summary>A rolling aircraft's brake leg before its turn about on a taxiway (<see cref="GroundNavigatorPlaybackDto.TurnAboutBrake"/>).</summary>
+public sealed class TurnAboutBrakeDto
+{
+    /// <summary>Latitude of the point the turn about was solved from, where the aircraft reaches its pivot speed.</summary>
+    public required double EndLat { get; init; }
+
+    /// <summary>Longitude of that point.</summary>
+    public required double EndLon { get; init; }
+
+    /// <summary>The heading (deg true) held straight while braking.</summary>
+    public required double BearingDeg { get; init; }
+
+    /// <summary>The turn about's pivot speed (kts).</summary>
+    public required double PivotKts { get; init; }
+
+    /// <summary>The brake rate (kts/s).</summary>
+    public required double DecelRateKts { get; init; }
 }
 
 /// <summary>A navigator path primitive (<c>PathPrimitive</c>), by shape.</summary>

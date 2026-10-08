@@ -47,6 +47,8 @@
 - Piston aircraft brake at most 4.0 kt/s for an assigned exit and 4.5 with `EXP`, down from 5.0.
 - An assigned exit the pilot can't make gets "unable W3" instead of a readback, and isn't used that landing unless reassigned or once stopped.
 - Taxiway turn-arounds depend on the aircraft's gear: types whose gear fits the taxiway turn tightly, while larger types, business jets included, answer "unable, no room to turn around".
+- A rolling aircraft turned around on a taxiway brakes to pivot speed first, stops short of runway hold lines, and says unable without room.
+- An aircraft exiting a runway onto a sharply angled taxiway turns off at corner speed instead of turning around on the taxiway.
 
 ### Fixed
 

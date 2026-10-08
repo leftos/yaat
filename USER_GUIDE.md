@@ -578,6 +578,8 @@ When the ramp alone doesn't reach the spot or gate, the TAXI is refused with `Un
 
 Larger types, business jets and regional turboprops included, have no room for that whichever way they face, and answer *"Unable, no room to turn around on C, request a route ahead"*: give them a route that continues ahead.
 
+An aircraft that is already rolling when the new route turns it around first brakes to pivot speed, and never past a runway hold line: it stops short of the line and turns there. When it has no room to turn on the pavement or to stop first, it stops, holds and gives the same *unable* call once.
+
 Scenario taxis and `TAXIAUTO` are never refused: an aircraft that cannot turn around takes the route ahead instead, and turns around only when there is none.
 
 **One-way ramp lanes and supers.** Some airports' one-way lanes apply by wake class: at SFO's Terminal 1 south ramp, aircraft enter on M1 and leave on M2, but a super uses M1 both ways and never M2. Routes the aircraft chooses follow these rules; a clearance you give that names a lane against its direction is flown as cleared, with a `Taxiing M2 against one-way direction` warning.

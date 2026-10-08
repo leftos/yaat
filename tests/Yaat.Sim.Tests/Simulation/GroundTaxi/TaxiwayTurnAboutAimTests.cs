@@ -99,25 +99,65 @@ public class TaxiwayTurnAboutAimTests(ITestOutputHelper output)
     private const double PreTurnBlendFt = 50.0;
 
     /// <summary>
-    /// How far (ft) N152SP is moved on along D before its TAXI so the straight after its reversal exceeds six turning radii
-    /// (25 ft on the C172's 4.2 ft turn-about radius): from 37 ft short of abeam node 366 to about 57 ft.
+    /// How far (ft) N152SP is moved on along D before its TAXI so the straight after its reversal exceeds the roll-out
+    /// hold's cap (39 ft for the C172 into the turn onto H) and re-centres on the node.
     /// </summary>
     private const double CapShiftAlongDFt = 20.0;
 
     /// <summary>
     /// How far (ft) N152SP is moved on along D before its TAXI, negative being back toward node 366, so the straight after
-    /// its reversal is under six of the C172's turning radii (25 ft) and holds the roll-out bearing: from 37 ft short of
-    /// abeam node 366 to 24 ft, the aircraft still clear of the node's at-node tolerance.
+    /// its reversal is within the roll-out hold's cap (39 ft for the C172 into the turn onto H) and holds the roll-out
+    /// bearing, the aircraft still clear of the node's at-node tolerance.
     /// </summary>
     private const double HeldStraightShiftAlongDFt = -13.0;
 
-    /// <summary>Why the N152SP replays that need a tracked turn about on the C172's own radius are skipped.</summary>
-    private const string Yaat438Skip =
-        "YAAT-438: a rolling turn-about on the type's own radius runs at ~20 kt against an arc planned at pivot speed; "
-        + "unskip when 438 brakes to pivot speed first";
+    /// <summary>
+    /// N152SP's speed (kts) after its TAXI for the pins on the held straight, lowered from the recording's 20 kt: faster, the
+    /// brake leg to pivot speed carries it past the scenario, its straight then over the roll-out hold's cap.
+    /// </summary>
+    private const double HeldStraightTaxiSpeedKts = 6.0;
 
-    /// <summary>Six turning radii (<c>GroundNavigator.RollOutHoldMaxRadii</c>): the longest straight that holds the roll-out bearing.</summary>
-    private const double RollOutHoldMaxRadii = 6.0;
+    /// <summary>
+    /// N152SP's speed (kts) after its TAXI further along D, lowered from the recording's 20 kt: faster, the firm-rate brake
+    /// leg carries it so far past the scenario that its straight re-centres too gently to see.
+    /// </summary>
+    private const double CapTaxiSpeedKts = 15.0;
+
+    /// <summary>
+    /// N152SP's speed (kts) after its TAXI flown as a type with no FAA record, lowered from the recording's 20 kt: faster, the
+    /// brake leg finds no room before the node ahead and it turns about there, where the re-aim is never weighed.
+    /// </summary>
+    private const double NoFaaRecordTaxiSpeedKts = 17.0;
+
+    /// <summary>The C172's brake rate (kts/s) into its turn about from <see cref="HeldStraightTaxiSpeedKts"/>: the taxi rate.</summary>
+    private static readonly double HeldStraightBrakeRateKtsPerSec = CategoryPerformance.TaxiDecelRate(AircraftCategory.Piston);
+
+    /// <summary>The C172's brake rate (kts/s) into its turn about from <see cref="CapTaxiSpeedKts"/>: the firm rate.</summary>
+    private static readonly double CapBrakeRateKtsPerSec = CategoryPerformance.ExpediteExitDecelRate(AircraftCategory.Piston);
+
+    /// <summary>
+    /// The brake rate (kts/s) into the turn about from <see cref="NoFaaRecordTaxiSpeedKts"/>, flown as a piston type with no
+    /// FAA record: the firm rate.
+    /// </summary>
+    private static readonly double NoFaaRecordBrakeRateKtsPerSec = CategoryPerformance.ExpediteExitDecelRate(AircraftCategory.Piston);
+
+    /// <summary>D's reversed bearing (deg true) on the route N152SP's recorded TAXI resolves to: back along D toward node 366.</summary>
+    private const double RecordedReversedBearingDeg = 312.4;
+
+    /// <summary>How near (deg) <see cref="RecordedReversedBearingDeg"/> the resolved route's reversed bearing must be: its rounding.</summary>
+    private const double RecordedBearingToleranceDeg = 0.05;
+
+    /// <summary>The navigator's debug line when a rolling aircraft brakes to its pivot speed before its turn about.</summary>
+    private const string BrakeLegLine = "; brakes ";
+
+    /// <summary>The navigator's debug line when a rolling aircraft rolls on to the node ahead to turn about at it.</summary>
+    internal const string RollOnToTheNodeLine = "rolls on to it at";
+
+    /// <summary>The navigator's debug line when a rolling aircraft rolls on past the node ahead to turn about on the edge beyond.</summary>
+    internal const string RollPastTheNodeLine = "past it onto";
+
+    /// <summary>The navigator's debug line when it weighs holding the roll-out bearing against the hold's cap.</summary>
+    private const string HoldWeighedLine = "(hold up to ";
 
     /// <summary>A held-short aircraft stops within this (ft) of the bar's node.</summary>
     private const double StopShortOfNodeMaxFt = 60.0;
@@ -191,10 +231,12 @@ public class TaxiwayTurnAboutAimTests(ITestOutputHelper output)
     [Fact]
     public void N152sp_TurnAboutOnD_RollsOutOnDsBearing()
     {
-        if (ReplayN152spTurnAbout(null, HeldStraightShiftAlongDFt, null) is not { } run)
+        if (ReplayN152spTurnAbout(null, HeldStraightShiftAlongDFt, HeldStraightTaxiSpeedKts, null) is not { } run)
         {
             return;
         }
+
+        AssertRollingPlan(Assert.IsType<RollingTurnAboutPlan>(run.Plan), HeldStraightBrakeRateKtsPerSec, holds: true);
 
         double rollOutDeg = run.Track.PeakHeadingDeg;
         double reversalYawDeg = run.Track.AbsYawFromDeg(run.Track.JogEndIndex);
@@ -218,17 +260,19 @@ public class TaxiwayTurnAboutAimTests(ITestOutputHelper output)
 
     /// <summary>
     /// N152SP's reversal, from <see cref="HeldStraightShiftAlongDFt"/> along D, ends a turning radius off D on the inside of
-    /// the turn onto H, 24 ft short of abeam node 366 — under six turning radii — and its gear fits a TDG 1A taxiway at
+    /// the turn onto H, short of abeam node 366 by less than the roll-out hold's cap, and its gear fits a TDG 1A taxiway at
     /// that offset: it holds D's reversed bearing to abeam the node instead of steering back out to the centreline only to
     /// turn in again at the node.
     /// </summary>
-    [Fact(Skip = Yaat438Skip)]
+    [Fact]
     public void N152sp_TurnAboutOnD_HoldsTheRollOutBearingToAbeamTheNode()
     {
-        if (ReplayN152spTurnAbout(null, HeldStraightShiftAlongDFt, null) is not { } run)
+        if (ReplayN152spTurnAbout(null, HeldStraightShiftAlongDFt, HeldStraightTaxiSpeedKts, null) is not { } run)
         {
             return;
         }
+
+        AssertRollingPlan(Assert.IsType<RollingTurnAboutPlan>(run.Plan), HeldStraightBrakeRateKtsPerSec, holds: true);
 
         List<(double ShortFt, double OffDeg)> held =
         [
@@ -256,10 +300,12 @@ public class TaxiwayTurnAboutAimTests(ITestOutputHelper output)
     [Fact]
     public void N152sp_TurnAboutOnD_TurnsOntoHTangentToItsCentreline()
     {
-        if (ReplayN152spTurnAbout(null, HeldStraightShiftAlongDFt, null) is not { } run)
+        if (ReplayN152spTurnAbout(null, HeldStraightShiftAlongDFt, HeldStraightTaxiSpeedKts, null) is not { } run)
         {
             return;
         }
+
+        AssertRollingPlan(Assert.IsType<RollingTurnAboutPlan>(run.Plan), HeldStraightBrakeRateKtsPerSec, holds: true);
 
         int establishedIndex = run.Poses.Count - 1;
         int establishedOnSegment = run.Route.CurrentSegmentIndex;
@@ -314,24 +360,23 @@ public class TaxiwayTurnAboutAimTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// N152SP moved <see cref="CapShiftAlongDFt"/> on along D before its TAXI: its reversal now ends more than six turning
-    /// radii short of abeam node 366, so the straight after it re-centres on the node instead of holding the offset, and
-    /// the navigator says why.
+    /// N152SP moved <see cref="CapShiftAlongDFt"/> on along D before its TAXI: its reversal now ends further short of abeam
+    /// node 366 than the roll-out hold's cap, so the straight after it re-centres on the node instead of holding the offset,
+    /// and the navigator says why.
     /// </summary>
     [Fact]
     public void N152spFurtherAlongD_TurnAboutOnD_ReCentresOverALongStraight()
     {
         var capture = DebugLogCapture.Install(StraightTooLongToHold, "short enough");
-        if (ReplayN152spTurnAbout(null, CapShiftAlongDFt, capture) is not { } run)
+        if (ReplayN152spTurnAbout(null, CapShiftAlongDFt, CapTaxiSpeedKts, capture) is not { } run)
         {
             return;
         }
 
+        AssertRollingPlan(Assert.IsType<RollingTurnAboutPlan>(run.Plan), CapBrakeRateKtsPerSec, holds: false);
         output.WriteLine(string.Join(Environment.NewLine, capture.Lines));
-        string type = run.Aircraft.AircraftType;
-        double radiusFt = TurnAboutFit.Evaluate(type, AircraftCategorization.Categorize(type)).RadiusFt;
         double straightFt = AlongToJunctionFt(run.Poses[run.Track.JogEndIndex].Position, run.Junction, run.ReversedBearingDeg);
-        output.WriteLine($"reversal began {straightFt:F0} ft short of abeam node {run.Junction.Id}; cap {RollOutHoldMaxRadii * radiusFt:F0} ft");
+        output.WriteLine($"reversal began {straightFt:F0} ft short of abeam node {run.Junction.Id}");
         Assert.Contains(capture.Lines, l => l.Contains(StraightTooLongToHold, StringComparison.Ordinal));
         AssertReCentres(run);
     }
@@ -348,10 +393,14 @@ public class TaxiwayTurnAboutAimTests(ITestOutputHelper output)
         string type = PistonTypeWithoutFaaRecord();
         output.WriteLine($"type {type}: category {AircraftCategorization.Categorize(type)}, FAA record {FaaAircraftDatabase.Get(type) is not null}");
         var capture = DebugLogCapture.Install(NoReAimWithoutGearWidth, NoHoldWithoutGearWidth, "re-aim");
-        if (ReplayN152spTurnAbout(type, 0.0, capture) is not { } run)
+        if (ReplayN152spTurnAbout(type, 0.0, NoFaaRecordTaxiSpeedKts, capture) is not { } run)
         {
             return;
         }
+
+        RollingTurnAboutPlan plan = Assert.IsType<RollingTurnAboutPlan>(run.Plan);
+        AssertRollingPlan(plan, NoFaaRecordBrakeRateKtsPerSec, holds: null);
+        Assert.Contains(BrakeLegLine, plan.BrakeLine ?? "", StringComparison.Ordinal);
 
         output.WriteLine(string.Join(Environment.NewLine, capture.Lines));
         Assert.Contains(capture.Lines, l => l.Contains(NoReAimWithoutGearWidth, StringComparison.Ordinal));
@@ -378,16 +427,23 @@ public class TaxiwayTurnAboutAimTests(ITestOutputHelper output)
     /// restored aircraft stays on the original's positions and heading through the reversal, the held straight and the
     /// turn onto H.
     /// </summary>
-    [Fact(Skip = Yaat438Skip)]
+    [Fact]
     public void N152sp_TurnAbout_SurvivesSnapshotRoundTripMidReversal() =>
         AssertSnapshotRoundTrip(s => ReversalPlaying(s) && RollsOutAlongEdge(s), "mid-reversal with the roll-out hold set");
+
+    /// <summary>
+    /// N152SP restored from a snapshot taken while it brakes to its pivot speed ahead of its turn about: the restored brake
+    /// leg ends at the same pose, so it turns about along the same curve as the run that was never interrupted.
+    /// </summary>
+    [Fact]
+    public void N152sp_TurnAbout_SurvivesSnapshotRoundTripMidBrake() => AssertSnapshotRoundTrip(Braking, "mid-brake");
 
     /// <summary>
     /// N152SP snapshotted on the held straight after its reversal, short of abeam node 366: the snapshot carries the
     /// offset the straight is held at, and the restored aircraft keeps holding the roll-out bearing to abeam the node, on
     /// the original's positions and heading.
     /// </summary>
-    [Fact(Skip = Yaat438Skip)]
+    [Fact]
     public void N152sp_TurnAbout_SurvivesSnapshotRoundTripOnTheHeldStraight()
     {
         bool seenHold = false;
@@ -409,7 +465,7 @@ public class TaxiwayTurnAboutAimTests(ITestOutputHelper output)
     /// with the roll-out offset still set, which only that node turn carries): the restored aircraft stays on the
     /// original's positions and heading through the rest of the turn and along H.
     /// </summary>
-    [Fact(Skip = Yaat438Skip)]
+    [Fact]
     public void N152sp_TurnAbout_SurvivesSnapshotRoundTripMidNodeTurnFromTheOffsetLine() =>
         AssertSnapshotRoundTrip(
             s => OnSegment(s, 1) && (RollOutOffsetFt(s) > 0.0) && PlaysSlowTurn(s),
@@ -430,7 +486,7 @@ public class TaxiwayTurnAboutAimTests(ITestOutputHelper output)
     /// ends on, onto a straight edge.
     /// </para>
     /// </summary>
-    [Fact(Skip = Yaat438Skip)]
+    [Fact]
     public void N152sp_NodeTurnAimedPastItsLeg_DropsTheRollOutOffsetWhenItRetiresTheLegs()
     {
         if (StartRestoredN152spTaxi() is not { } live)
@@ -483,10 +539,10 @@ public class TaxiwayTurnAboutAimTests(ITestOutputHelper output)
     /// The same N152SP turn about on D: from the TAXI until established on H, at every sample, both main-gear edges stay
     /// inside the paved envelope of D, H and their fillet.
     /// </summary>
-    [Fact(Skip = "YAAT-438: the turn-about plays at ~19 kt; the brake leg to pivot speed makes this pass")]
+    [Fact]
     public void N152sp_TurnAboutOnD_GearStaysOnPavement()
     {
-        if (ReplayN152spTurnAbout(null, 0.0, null) is not { } run)
+        if (ReplayN152spTurnAbout(null, 0.0, null, null) is not { } run)
         {
             return;
         }
@@ -653,7 +709,7 @@ public class TaxiwayTurnAboutAimTests(ITestOutputHelper output)
     /// <summary>
     /// N152SP's turn about on D with a hold short at node 366, put on the route as the parser's <c>HS</c> would and the taxi
     /// phase started again on it from rest (the replay carries it into the turn about at its taxi speed, too fast to stop at
-    /// the node: YAAT-438): the straight after the reversal ends in a stop, so it re-centres rather than holding D's
+    /// the node): the straight after the reversal ends in a stop, so it re-centres rather than holding D's
     /// bearing to abeam the node, laid on D's centreline through the stop: the aircraft stops within
     /// <see cref="OnCentrelineFt"/> of D's centreline and within <see cref="StopSquareMaxDeg"/> of D's bearing. A stop
     /// beside the bar would leave the turn from rest onto H to start a radius inside it.
@@ -769,7 +825,7 @@ public class TaxiwayTurnAboutAimTests(ITestOutputHelper output)
                 TargetName = outgoing.TaxiwayName,
             }
         );
-        // From rest: at the replay's taxi speed the turn about cannot stop at the node (YAAT-438).
+        // From rest: at the replay's taxi speed the turn about cannot stop at the node.
         aircraft.IndicatedAirspeed = 0.0;
         RestartTaxiOnRoute(aircraft, layout);
         poses.Add((aircraft.Position, aircraft.TrueHeading.Degrees));
@@ -882,13 +938,13 @@ public class TaxiwayTurnAboutAimTests(ITestOutputHelper output)
     public void N152spBarAtTheEndOfHsFirstLeg_NodeTurnFromTheOffsetLine_LaysNoSquareStopLine()
     {
         var capture = DebugLogCapture.Install(NodeTurnFromTheOffsetLine);
-        if (StartN152spReplay(null, HeldStraightShiftAlongDFt, capture) is not { } started)
+        if (StartN152spRolling(null, HeldStraightShiftAlongDFt, HeldStraightTaxiSpeedKts, capture) is not { } started)
         {
             return;
         }
 
-        (SimulationEngine engine, AircraftState aircraft) = started;
-        TaxiRoute route = ReplayUntilNewRoute(engine, aircraft);
+        (SimulationEngine engine, AircraftState aircraft, TaxiRoute route, RollingTurnAboutPlan plan) = started;
+        AssertRollingPlan(plan, HeldStraightBrakeRateKtsPerSec, holds: true);
         TaxiRouteSegment outgoing = route.Segments[1];
         GroundNode barNode = outgoing.Edge.ToNode;
         route.HoldShortPoints.Add(
@@ -925,7 +981,7 @@ public class TaxiwayTurnAboutAimTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// N152SP's turn about on D from rest, the straight after its reversal laid on D's reversed bearing a turning radius
+    /// N152SP's turn about on D after braking to its pivot speed, the straight after its reversal laid on D's reversed bearing a turning radius
     /// inside the turn onto H, given a hold short at node 366 (a bar painted on the node) while it holds that straight, as
     /// the <c>HS</c> amendment re-aims a taxi under way: the stop re-centres the straight on D's centreline instead of
     /// aiming at the bar from the offset line, so N152SP stops within <see cref="OnCentrelineFt"/> of D's centreline and
@@ -934,27 +990,24 @@ public class TaxiwayTurnAboutAimTests(ITestOutputHelper output)
     /// <para>
     /// The bar on the node stands in for the real route to this re-lay: a taxiway <c>HS H</c> puts the stop the aircraft's
     /// length plus 30 ft back from node 366 (<c>HoldShortAnnotator.cs:452,493</c>), behind the start of a held straight
-    /// capped at six turning radii (25 ft for the C172), so it takes the set-back stop path instead. The real route here is
+    /// capped at 39 ft for the C172 into the turn onto H, so it takes the set-back stop path instead. The real route here is
     /// a runway-style bar set back half the aircraft's length, re-armed after a pre-cleared crossing.
     /// </para>
     /// </summary>
-    [Fact(Skip = Yaat438Skip)]
+    [Fact]
     public void N152spHoldShortIssuedOnTheHeldStraight_TurnAboutOnD_StopsSquareToTheBar()
     {
         var capture = DebugLogCapture.Install(HoldingTheRollOutBearing);
-        if (StartN152spReplay(null, HeldStraightShiftAlongDFt, capture) is not { } started)
+        if (StartN152spRolling(null, HeldStraightShiftAlongDFt, HeldStraightTaxiSpeedKts, capture) is not { } started)
         {
             return;
         }
 
-        (SimulationEngine engine, AircraftState aircraft) = started;
+        (SimulationEngine engine, AircraftState aircraft, TaxiRoute route, RollingTurnAboutPlan plan) = started;
+        AssertRollingPlan(plan, HeldStraightBrakeRateKtsPerSec, holds: true);
         AirportGroundLayout layout = aircraft.Ground.Layout ?? throw new InvalidOperationException("N152SP has no ground layout");
         List<(LatLon Position, double HeadingDeg)> poses = [(aircraft.Position, aircraft.TrueHeading.Degrees)];
-        TaxiRoute route = ReplayUntilNewRoute(engine, aircraft);
         GroundNode junction = route.Segments[0].Edge.ToNode;
-        // From rest: at the replay's taxi speed the turn about cannot stop at the node (YAAT-438).
-        aircraft.IndicatedAirspeed = 0.0;
-        RestartTaxiOnRoute(aircraft, layout);
         for (int sub = 0; (sub < MaxReplaySubTicks) && (capture.Lines.Count == 0); sub++)
         {
             engine.ReplayOneSubTick();
@@ -1142,27 +1195,83 @@ public class TaxiwayTurnAboutAimTests(ITestOutputHelper output)
     {
         /// <summary>The bearing along D toward the junction: the way the turn about faces once reversed.</summary>
         public double ReversedBearingDeg => GeoMath.BearingTo(D.OtherNode(Junction).Position, Junction.Position);
+
+        /// <summary>What the navigator planned at the lowered taxi speed (<see cref="StartN152spRolling"/>); null at the recorded speed.</summary>
+        public required RollingTurnAboutPlan? Plan { get; init; }
+    }
+
+    /// <summary>
+    /// What N152SP's navigator planned for its turn about when its taxi started again at the lowered speed
+    /// (<see cref="StartN152spRolling"/>), read from its debug lines.
+    /// </summary>
+    /// <param name="BrakeRateKtsPerSec">The brake leg's rate (kts/s); null when no rate was logged (not rolling faster than its pivot speed).</param>
+    /// <param name="StraightFt">The straight (ft) from the reversal's end to abeam the node; null when the roll-out hold was not weighed.</param>
+    /// <param name="HoldCapFt">The longest straight (ft) the roll-out hold allows; null when the hold was not weighed.</param>
+    /// <param name="BrakeLine">The brake, roll-on or roll-past line that accepted the turn about; null when none was logged.</param>
+    private sealed record RollingTurnAboutPlan(double? BrakeRateKtsPerSec, double? StraightFt, double? HoldCapFt, string? BrakeLine)
+    {
+        /// <summary>
+        /// The plan in <paramref name="planning"/>'s lines: the rate of the brake or roll-on line that accepted the turn about,
+        /// and the last roll-out hold weighed before it, the one for the accepted turn about.
+        /// </summary>
+        public static RollingTurnAboutPlan From(DebugLogCapture planning)
+        {
+            IReadOnlyDictionary<string, object?>? hold = null;
+            for (int i = 0; i < planning.Lines.Count; i++)
+            {
+                IReadOnlyDictionary<string, object?> values = planning.Values[i];
+                if (planning.Lines[i].Contains(HoldWeighedLine, StringComparison.Ordinal))
+                {
+                    hold = values;
+                }
+                else if (values.TryGetValue("Rate", out object? rate) && (rate is double rateKtsPerSec))
+                {
+                    return new RollingTurnAboutPlan(rateKtsPerSec, ValueOf(hold, "Straight"), ValueOf(hold, "Max"), planning.Lines[i]);
+                }
+            }
+
+            return new RollingTurnAboutPlan(null, ValueOf(hold, "Straight"), ValueOf(hold, "Max"), null);
+        }
+
+        private static double? ValueOf(IReadOnlyDictionary<string, object?>? hold, string key) =>
+            ((hold is not null) && hold.TryGetValue(key, out object? value) && (value is double number)) ? number : null;
     }
 
     /// <summary>
     /// Replay N152SP to just before its TAXI, its type replaced by <paramref name="aircraftType"/> when that is not null and
     /// moved <paramref name="shiftAlongHeadingFt"/> on along its heading, then sub-tick by sub-tick until it is established
     /// on the segment after the turn about, sampling every pose. <paramref name="capture"/>, when not null, is the log the
-    /// replay runs under in place of the test output. Null when the recording is not available.
+    /// replay runs under in place of the test output. When <paramref name="taxiSpeedKts"/> is not null, the taxi is started
+    /// again at that speed (<see cref="StartN152spRolling"/>). Null when the recording is not available.
     /// </summary>
-    private N152spRun? ReplayN152spTurnAbout(string? aircraftType, double shiftAlongHeadingFt, DebugLogCapture? capture)
+    private N152spRun? ReplayN152spTurnAbout(string? aircraftType, double shiftAlongHeadingFt, double? taxiSpeedKts, DebugLogCapture? capture)
     {
-        if (StartN152spReplay(aircraftType, shiftAlongHeadingFt, capture) is not { } started)
+        SimulationEngine engine;
+        AircraftState aircraft;
+        TaxiRoute? route = null;
+        RollingTurnAboutPlan? plan = null;
+        if (taxiSpeedKts is { } speedKts)
+        {
+            if (StartN152spRolling(aircraftType, shiftAlongHeadingFt, speedKts, capture) is not { } rolling)
+            {
+                return null;
+            }
+
+            (engine, aircraft, route, plan) = rolling;
+        }
+        else if (StartN152spReplay(aircraftType, shiftAlongHeadingFt, capture) is { } started)
+        {
+            (engine, aircraft) = started;
+        }
+        else
         {
             return null;
         }
 
-        (SimulationEngine engine, AircraftState aircraft) = started;
         AirportGroundLayout layout = aircraft.Ground.Layout ?? throw new InvalidOperationException("N152SP has no ground layout");
         var track = new YawTrack(aircraft.TrueHeading.Degrees);
         List<(LatLon Position, double HeadingDeg)> poses = [(aircraft.Position, aircraft.TrueHeading.Degrees)];
         TaxiRoute? before = aircraft.Ground.AssignedTaxiRoute;
-        TaxiRoute? route = null;
         for (int sub = 0; (sub < MaxReplaySubTicks) && ((route is null) || !EstablishedOnOrPast(aircraft, route, 1)); sub++)
         {
             engine.ReplayOneSubTick();
@@ -1175,7 +1284,10 @@ public class TaxiwayTurnAboutAimTests(ITestOutputHelper output)
         SfoGroundHarness.DumpRoute(output, route);
         Assert.True(EstablishedOnOrPast(aircraft, route, 1), $"N152SP was not established on {route.Segments[1].TaxiwayName} in time");
         GroundNode junction = route.Segments[0].Edge.ToNode;
-        return new N152spRun(engine, aircraft, route, layout, track, poses, junction, route.Segments[1], OccupiedEdgeTo(layout, poses, junction));
+        return new N152spRun(engine, aircraft, route, layout, track, poses, junction, route.Segments[1], OccupiedEdgeTo(layout, poses, junction))
+        {
+            Plan = plan,
+        };
     }
 
     /// <summary>
@@ -1219,6 +1331,78 @@ public class TaxiwayTurnAboutAimTests(ITestOutputHelper output)
     }
 
     /// <summary>
+    /// The N152SP replay (<see cref="StartN152spReplay"/>) carried through its TAXI until the route resolves, the route
+    /// checked to be the recorded one (D's reversed bearing <see cref="RecordedReversedBearingDeg"/>), then slowed to the
+    /// start's taxi speed with the taxi phase started again on that route, so its navigator plans the turn about's brake
+    /// leg at the lowered speed. Slowing it before the TAXI would move it less in the second before, and the TAXI would
+    /// resolve another route. Returns what the navigator planned (<see cref="RollingTurnAboutPlan"/>); null when the
+    /// recording is not available.
+    /// </summary>
+    private (SimulationEngine Engine, AircraftState Aircraft, TaxiRoute Route, RollingTurnAboutPlan Plan)? StartN152spRolling(
+        string? aircraftType,
+        double shiftAlongHeadingFt,
+        double taxiSpeedKts,
+        DebugLogCapture? capture
+    )
+    {
+        if (StartN152spReplay(aircraftType, shiftAlongHeadingFt, capture) is not { } started)
+        {
+            return null;
+        }
+
+        (SimulationEngine engine, AircraftState aircraft) = started;
+        AirportGroundLayout layout = aircraft.Ground.Layout ?? throw new InvalidOperationException("N152SP has no ground layout");
+        TaxiRoute route = ReplayUntilNewRoute(engine, aircraft);
+        GroundNode junction = route.Segments[0].Edge.ToNode;
+        GroundEdge d = OccupiedEdgeTo(layout, [(aircraft.Position, aircraft.TrueHeading.Degrees)], junction);
+        double reversedDeg = GeoMath.BearingTo(d.OtherNode(junction).Position, junction.Position);
+        Assert.True(
+            GeoMath.AbsBearingDifference(reversedDeg, RecordedReversedBearingDeg) <= RecordedBearingToleranceDeg,
+            $"the TAXI resolved a route reversing D on {reversedDeg:F1}°, not the recorded {RecordedReversedBearingDeg:F1}°"
+        );
+
+        var planning = new DebugLogCapture([BrakeLegLine, RollOnToTheNodeLine, RollPastTheNodeLine, HoldWeighedLine]);
+        DebugLogCapture.InstallAll(capture is null ? [planning] : [planning, capture]);
+        aircraft.IndicatedAirspeed = taxiSpeedKts;
+        RestartTaxiOnRoute(aircraft, layout);
+        if (capture is null)
+        {
+            SimLogBuilder.CreateForTest(output).EnableCategory("GroundNavigator", LogLevel.Debug).InitializeSimLog();
+        }
+        else
+        {
+            DebugLogCapture.InstallAll(capture);
+        }
+
+        output.WriteLine(string.Join(Environment.NewLine, planning.Lines));
+        return (engine, aircraft, route, RollingTurnAboutPlan.From(planning));
+    }
+
+    /// <summary>
+    /// Assert N152SP's navigator braked at <paramref name="rateKtsPerSec"/> before its turn about and weighed the roll-out
+    /// hold with the straight after the reversal within the hold's cap when <paramref name="holds"/> is true, over it when
+    /// false; null when the hold is refused before it is weighed (a type with no FAA record).
+    /// </summary>
+    private void AssertRollingPlan(RollingTurnAboutPlan plan, double rateKtsPerSec, bool? holds)
+    {
+        output.WriteLine($"brake {plan.BrakeRateKtsPerSec:F1} kt/s; straight {plan.StraightFt:F1} ft, hold cap {plan.HoldCapFt:F1} ft");
+        Assert.Equal(rateKtsPerSec, plan.BrakeRateKtsPerSec);
+        if (holds is not { } expectHold)
+        {
+            Assert.True(plan.StraightFt is null, $"the roll-out hold was weighed ({plan.StraightFt:F1} ft straight)");
+            return;
+        }
+
+        double straightFt = Assert.NotNull(plan.StraightFt);
+        double capFt = Assert.NotNull(plan.HoldCapFt);
+        Assert.True(
+            (straightFt <= capFt) == expectHold,
+            $"the straight after the reversal is {straightFt:F1} ft against the hold's {capFt:F1} ft cap; "
+                + $"expected {(expectHold ? "within" : "over")} it"
+        );
+    }
+
+    /// <summary>
     /// Restore N152SP into a live engine through the second of its TAXI (<see cref="StartRestoredN152spTaxi"/>), then tick
     /// it second by second until <paramref name="capture"/> picks a snapshot; round-trip that snapshot into a second engine
     /// and tick both for <see cref="SnapshotCompareSeconds"/> seconds: the restored N152SP stays on the live one's positions
@@ -1251,22 +1435,17 @@ public class TaxiwayTurnAboutAimTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// Replay N152SP through the second of its TAXI and restore that state into a live engine; null when the recording is
-    /// not available.
+    /// Replay N152SP through its TAXI, slowed to <see cref="HeldStraightTaxiSpeedKts"/> (<see cref="StartN152spRolling"/>),
+    /// and restore that state into a live engine; null when the recording is not available.
     /// </summary>
     private (SimulationEngine Engine, AircraftState Aircraft)? StartRestoredN152spTaxi()
     {
-        if (StartN152spReplay(null, HeldStraightShiftAlongDFt, null) is not { } started)
+        if (StartN152spRolling(null, HeldStraightShiftAlongDFt, HeldStraightTaxiSpeedKts, null) is not { } started)
         {
             return null;
         }
 
-        for (int sub = 0; sub < SimulationEngine.PhysicsSubTickRate; sub++)
-        {
-            started.Engine.ReplayOneSubTick();
-        }
-
-        Assert.NotNull(started.Aircraft.Ground.AssignedTaxiRoute);
+        AssertRollingPlan(started.Plan, HeldStraightBrakeRateKtsPerSec, holds: true);
         var engine = new SimulationEngine(new TestAirportGroundData()) { Scenario = started.Engine.Scenario };
         engine.RestoreFromSnapshot(RoundTrip(started.Engine.CaptureSnapshot()));
         return (engine, Assert.IsType<AircraftState>(engine.FindAircraft(N152sp)));
@@ -1297,6 +1476,10 @@ public class TaxiwayTurnAboutAimTests(ITestOutputHelper output)
     /// <summary>Whether a navigator in <paramref name="snapshot"/> is set to hold its turn about's roll-out bearing.</summary>
     private static bool RollsOutAlongEdge(StateSnapshotDto snapshot) =>
         Playbacks(snapshot).Any(p => (bool?)p[nameof(GroundNavigatorPlaybackDto.TurnAboutRollsOutAlongEdge)] == true);
+
+    /// <summary>Whether a navigator in <paramref name="snapshot"/> is flying a rolling turn about's brake leg.</summary>
+    private static bool Braking(StateSnapshotDto snapshot) =>
+        Playbacks(snapshot).Any(p => p[nameof(GroundNavigatorPlaybackDto.TurnAboutBrake)] is not null);
 
     /// <summary>Whether a navigator in <paramref name="snapshot"/> is playing a turn about's reversal arc.</summary>
     private static bool ReversalPlaying(StateSnapshotDto snapshot) =>
@@ -1662,25 +1845,42 @@ public class TaxiwayTurnAboutAimTests(ITestOutputHelper output)
 internal sealed class DebugLogCapture(string[] fragments) : ILoggerProvider, ILogger
 {
     private readonly List<string> _lines = [];
+    private readonly List<IReadOnlyDictionary<string, object?>> _values = [];
 
     public IReadOnlyList<string> Lines => _lines;
+
+    /// <summary>The named values each of <see cref="Lines"/> was formatted from, in the same order.</summary>
+    public IReadOnlyList<IReadOnlyDictionary<string, object?>> Values => _values;
 
     /// <summary>Installs a fresh capture of the lines containing any of <paramref name="fragments"/> as the SimLog factory.</summary>
     public static DebugLogCapture Install(params string[] fragments)
     {
         var capture = new DebugLogCapture(fragments);
-        SimLog.InitializeForTest(LoggerFactory.Create(builder => builder.AddProvider(capture).SetMinimumLevel(LogLevel.Debug)));
+        InstallAll(capture);
         return capture;
     }
 
-    public ILogger CreateLogger(string categoryName) => this;
+    /// <summary>Installs <paramref name="captures"/> together as the SimLog factory, each keeping the lines its own fragments match.</summary>
+    public static void InstallAll(params DebugLogCapture[] captures) =>
+        SimLog.InitializeForTest(
+            LoggerFactory.Create(builder =>
+            {
+                foreach (DebugLogCapture capture in captures)
+                {
+                    builder.AddProvider(capture);
+                }
 
-    public IDisposable? BeginScope<TState>(TState state)
-        where TState : notnull => null;
+                builder.SetMinimumLevel(LogLevel.Debug);
+            })
+        );
+
+    ILogger ILoggerProvider.CreateLogger(string categoryName) => this;
+
+    IDisposable? ILogger.BeginScope<TState>(TState state) => null;
 
     public bool IsEnabled(LogLevel logLevel) => logLevel >= LogLevel.Debug;
 
-    public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+    void ILogger.Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
     {
         if (!IsEnabled(logLevel))
         {
@@ -1691,6 +1891,7 @@ internal sealed class DebugLogCapture(string[] fragments) : ILoggerProvider, ILo
         if (fragments.Any(f => line.Contains(f, StringComparison.Ordinal)))
         {
             _lines.Add(line);
+            _values.Add((state is IEnumerable<KeyValuePair<string, object?>> pairs) ? pairs.ToDictionary(p => p.Key, p => p.Value) : []);
         }
     }
 

@@ -7,6 +7,7 @@ using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation;
@@ -46,7 +47,7 @@ public class OakAllExitsTests(ITestOutputHelper output)
     [InlineData("W5")]
     public void OAK30_B738_ExitsSmoothly(string? exitTaxiway)
     {
-        ExitResult? result = RunExitTest("OAK", "30", "B738", 130, 1.0, exitTaxiway, Rwy30ExitsThresholdOrder);
+        ExitResult? result = RunExitTest("OAK", "30", "B738", 130, 1.0, exitTaxiway, Rwy30ExitsThresholdOrder, onExitTick: null);
         if (result is null)
         {
             return;
@@ -71,7 +72,7 @@ public class OakAllExitsTests(ITestOutputHelper output)
     [InlineData("C1")]
     public void OAK28R_C172_ExitsSmoothly(string? exitTaxiway)
     {
-        ExitResult? result = RunExitTest("OAK", "28R", "C172", 70, 0.5, exitTaxiway, Rwy28RExitsThresholdOrder);
+        ExitResult? result = RunExitTest("OAK", "28R", "C172", 70, 0.5, exitTaxiway, Rwy28RExitsThresholdOrder, onExitTick: null);
         if (result is null)
         {
             return;
@@ -80,6 +81,54 @@ public class OakAllExitsTests(ITestOutputHelper output)
         string label = exitTaxiway ?? "default";
         LogResult(label, exitTaxiway, result);
         AssertSmoothExit(result, label);
+    }
+
+    /// <summary>
+    /// The C172's <c>EXIT J</c> off OAK 28R turns 143° right off the runway onto J at node 377 (J crosses 28R at
+    /// 38.6°), past <c>GroundNavigator.ReversalEntryThresholdDeg</c>. That is a corner to round at the junction, not a
+    /// turn about on J: the aircraft is still on the runway centreline there, a few feet off J's centreline, and the 25 ft
+    /// occupied-edge band would otherwise read it as standing inside J. This pins that no turn about — brake, jog, hold
+    /// or reversal — is ever planned on the way off.
+    /// </summary>
+    [Fact]
+    public void OAK28R_C172_ExitJ_TurnsOffAtTheJunctionNotATurnAboutOnJ()
+    {
+        ExitResult? result = RunExitTest("OAK", "28R", "C172", 70, 0.5, "J", Rwy28RExitsThresholdOrder, AssertNoTaxiwayTurnAbout);
+        if (result is null)
+        {
+            return;
+        }
+
+        Assert.Equal("J", result.FinalTaxiway);
+    }
+
+    /// <summary>Fails when the exit phase's navigator has planned or is playing a turn about on the exit taxiway.</summary>
+    private static void AssertNoTaxiwayTurnAbout(AircraftState aircraft, int t)
+    {
+        if (aircraft.Phases?.CurrentPhase is not RunwayExitPhase exitPhase)
+        {
+            return;
+        }
+
+        GroundNavigatorPlaybackDto? playback = ((RunwayExitPhaseDto)exitPhase.ToSnapshot()).Navigator?.Playback;
+        if (playback is null)
+        {
+            return;
+        }
+
+        string? flag =
+            (playback.TurnAboutHold is not null) ? "hold"
+            : (playback.TurnAboutBrake is not null) ? "brake"
+            : (playback.PendingTurnAboutArc is not null) ? "pending arc"
+            : (playback.TurnAboutReversalPlaying == true) ? "reversal playing"
+            : null;
+        if (flag is not null)
+        {
+            Assert.Fail(
+                $"t={t}s: turning about on J at the runway junction ({flag}=true) at {aircraft.GroundSpeed:F1} kt, "
+                    + $"heading {aircraft.TrueHeading.Degrees:F1}°"
+            );
+        }
     }
 
     private void LogResult(string label, string? requested, ExitResult result)
@@ -114,7 +163,8 @@ public class OakAllExitsTests(ITestOutputHelper output)
         double touchdownSpeed,
         double finalDistNm,
         string? exitTaxiway,
-        string[] thresholdOrder
+        string[] thresholdOrder,
+        Action<AircraftState, int>? onExitTick
     )
     {
         SimulationEngine? engine = BuildEngine();
@@ -207,6 +257,11 @@ public class OakAllExitsTests(ITestOutputHelper output)
                 if (aircraft.Ground.LastNavDiag is { } diag)
                 {
                     deviationSamples.Add((t, diag.PathDeviationFt));
+                }
+
+                if (phase == "Runway Exit")
+                {
+                    onExitTick?.Invoke(aircraft, t);
                 }
             }
 
