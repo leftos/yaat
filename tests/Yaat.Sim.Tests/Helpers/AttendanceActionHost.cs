@@ -17,6 +17,8 @@ public sealed class AttendanceActionHost : IActionHost
 
     public int WeatherChanges { get; private set; }
 
+    public int ActiveRunwaysChanges { get; private set; }
+
     public List<string> SpawnedCallsigns { get; } = [];
 
     public List<string> DeletedCallsigns { get; } = [];
@@ -104,6 +106,8 @@ public sealed class AttendanceActionHost : IActionHost
     public void OnTimersChanged() { }
 
     public void OnHeldDeparturesChanged() { }
+
+    public void OnActiveRunwaysChanged() => ActiveRunwaysChanges++;
 
     public void OnWeatherChanged() => WeatherChanges++;
 }

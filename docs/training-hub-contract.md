@@ -244,6 +244,7 @@ payload DTO → the `ServerConnection` C# event it re-raises:
 | `WeatherChanged` | `WeatherChangedDto` | `WeatherChanged` |
 | `ArrivalGeneratorsChanged` | `ArrivalGeneratorsChangedDto` | `ArrivalGeneratorsChanged` |
 | `HeldDeparturesChanged` | `HeldDeparturesChangedDto` (carries `RundownDto`) | `HeldDeparturesChanged` |
+| `ActiveRunwaysChanged` | `ActiveRunwaysChangedDto(ByAirport)` — airport → the ends' tokens (`30`, `D28L`, `A28R`) | `ActiveRunwaysChanged` — sent when a live `ARWY` sets or clears an airport's list, and whenever the list differs from the last one sent: each tick beside the timers (a played-back `ARWY`), and at the landing of a scenario load, restart, rewind or recording load. Seeded on join via `RoomStateDto.ActiveRunways` |
 | `TimersChanged` | `TimersChangedDto` | `TimersChanged` |
 | `BookmarksChanged` | `BookmarksChangedDto` (full shared-bookmark list) | `BookmarksChanged` — also seeded on join via `RoomStateDto.Bookmarks` |
 | `LiveTrafficStatusChanged` | `LiveTrafficStatusDto` (feed configured / connected, last-message age, tracks in the room scope) | `LiveTrafficStatusChanged` — also seeded on join via `RoomStateDto.LiveTrafficStatus`; immediate on feed/count change, throttled to 5 s for age churn (`ShadowTrafficSync.BroadcastStatusIfChanged`) |
@@ -286,6 +287,8 @@ payload DTO → the `ServerConnection` C# event it re-raises:
 - A load refused before it started (not in a room, the load flag held elsewhere) sends no events and returns an empty `Steps`. A recording load, and the paths no client watches (`RoomEngine.LoadScenarioAsync` / `LoadScenarioSeededAsync` / `StartLiveSessionAsync`, restore, rewind), report to `ScenarioLoadReporter.None()`, which sends nothing; the unwatched scenario loads still return their table in `Steps`.
 
   On the server `LoadScenarioResult.Steps` and `RoomStateDto.LoadingBy` are positional members; the client declares them as `init` properties (`LoadScenarioResultDto.Steps` defaults to empty, `RoomStateDto.LoadingBy` to null).
+
+  `LoadScenarioResult` carries the room's active runways as loaded (`ActiveRunways`), the implied guess that pre-fills the mentor's prompt (`ActiveRunwaysPrefill`) and `ActiveRunwaysPromptNeeded`, true only in an RPO room whose scenario has no sidecar and no carried answer. All three, and `RoomStateDto.ActiveRunways`, are required members on the server and on the client.
 
 The steps, in display order, with their text verbatim (`{…}` is filled in; `ScenarioLoadSteps` holds every string):
 

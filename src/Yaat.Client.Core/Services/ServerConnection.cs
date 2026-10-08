@@ -88,6 +88,7 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
     public event Action<WeatherChangedDto>? WeatherChanged;
     public event Action<ArrivalGeneratorsChangedDto>? ArrivalGeneratorsChanged;
     public event Action<HeldDeparturesChangedDto>? HeldDeparturesChanged;
+    public event Action<ActiveRunwaysChangedDto>? ActiveRunwaysChanged;
     public event Action<TimersChangedDto>? TimersChanged;
     public event Action<BookmarksChangedDto>? BookmarksChanged;
     public event Action<ConflictAlertsChangedDto>? ConflictAlertsChanged;
@@ -231,6 +232,7 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
 
         _connection.On<ArrivalGeneratorsChangedDto>("ArrivalGeneratorsChanged", dto => ArrivalGeneratorsChanged?.Invoke(dto));
         _connection.On<HeldDeparturesChangedDto>("HeldDeparturesChanged", dto => HeldDeparturesChanged?.Invoke(dto));
+        _connection.On<ActiveRunwaysChangedDto>("ActiveRunwaysChanged", dto => ActiveRunwaysChanged?.Invoke(dto));
         _connection.On<TimersChangedDto>("TimersChanged", dto => TimersChanged?.Invoke(dto));
         _connection.On<BookmarksChangedDto>("BookmarksChanged", dto => BookmarksChanged?.Invoke(dto));
         _connection.On<ConflictAlertsChangedDto>("ConflictAlertsChanged", dto => ConflictAlertsChanged?.Invoke(dto));
@@ -1348,6 +1350,12 @@ public record LoadScenarioResultDto(
     string? PrimaryAirportId,
     List<string> Warnings,
     List<AircraftDto> AllAircraft,
+    // The room's active runways as loaded, by airport (tokens as ActiveRunway.ToToken()).
+    Dictionary<string, List<string>> ActiveRunways,
+    // The implied guess that pre-fills the active-runways prompt, by airport.
+    Dictionary<string, List<string>> ActiveRunwaysPrefill,
+    // True only in an RPO room whose scenario has no sidecar and no answer carried for it: the mentor is asked.
+    bool ActiveRunwaysPromptNeeded,
     string? WeatherName = null,
     PositionDisplayConfigDto? PositionDisplayConfig = null,
     string? AutoDeleteOverride = null,
@@ -1473,6 +1481,8 @@ public record RoomStateDto(
     List<Yaat.Sim.Scenarios.VfrArrivalGeneratorConfig>? VfrArrivalGenerators,
     List<Yaat.Sim.Scenarios.OverflightGeneratorConfig>? OverflightGenerators,
     List<ScenarioPositionDto>? Positions,
+    // The room's active runways, by airport (tokens as ActiveRunway.ToToken()).
+    Dictionary<string, List<string>> ActiveRunways,
     PositionDisplayConfigDto? PositionDisplayConfig = null,
     double ElapsedSeconds = 0,
     bool IsPlayback = false,
@@ -1657,6 +1667,9 @@ public record RundownDto(List<string> ArmedAirports, List<HeldDepartureDto> Held
 
 /// <summary>Pushed whenever the hold-for-release state changes (arm/disarm/release).</summary>
 public record HeldDeparturesChangedDto(RundownDto Rundown);
+
+/// <summary>Pushed whenever an <c>ARWY</c> sets or clears an airport's active runways: every airport's list of end tokens.</summary>
+public record ActiveRunwaysChangedDto(Dictionary<string, List<string>> ByAirport);
 
 /// <summary>One active TIMER countdown for the timers panel. Callsign is null for a global
 /// (instructor) timer, or the aircraft the expiry SAY is attributed to.</summary>

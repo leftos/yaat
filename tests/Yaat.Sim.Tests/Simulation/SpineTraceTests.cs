@@ -64,7 +64,7 @@ public class SpineTraceTests
         new(StepId.DisconnectCoastExpiry, 0),
         new(StepId.RundownBroadcast, 0),
         new(StepId.LiveTrafficStatusBroadcast, 0),
-        new(StepId.TimersBroadcast, 0),
+        new(StepId.PerSecondBroadcasts, 0),
         new(StepId.PositionHistory, 0),
         new(StepId.WeatherAdvance, 0),
         new(StepId.MetarIssuance, 0),

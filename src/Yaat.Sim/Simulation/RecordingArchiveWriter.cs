@@ -160,6 +160,7 @@ public sealed class RecordingArchiveWriter(Stream output) : IDisposable
             RecordedAtUtc = metadata.RecordedAtUtc,
             RecordedBy = metadata.RecordedBy,
             SessionStartUtc = metadata.SessionStartUtc,
+            InitialActiveRunways = metadata.InitialActiveRunways,
             ClientVersion = metadata.ClientVersion,
             ClientBuildKind = metadata.ClientBuildKind,
             ServerVersion = metadata.ServerVersion,
@@ -208,6 +209,7 @@ public sealed class RecordingArchiveWriter(Stream output) : IDisposable
                     ArtccId = recording.ArtccId,
                     RecordedAtUtc = recording.RecordedAtUtc,
                     RecordedBy = recording.RecordedBy,
+                    InitialActiveRunways = recording.InitialActiveRunways,
                 }
             );
         }

@@ -29,6 +29,17 @@ public sealed class ScenarioSidecarLoaderTests
     }
 
     [Fact]
+    public void LoadAll_ShippedArtccs_HasNoWarnings()
+    {
+        string shipped = Path.Combine(AppContext.BaseDirectory, "Data", "ARTCCs");
+        Assert.True(Directory.Exists(shipped), $"{shipped} is missing from the test output");
+
+        ScenarioSidecarLoadResult result = ScenarioSidecarLoader.LoadAll(shipped);
+
+        Assert.Empty(result.Warnings);
+    }
+
+    [Fact]
     public void Find_MatchesIdCaseInsensitively()
     {
         string root = NewRoot();
@@ -235,6 +246,41 @@ public sealed class ScenarioSidecarLoaderTests
         {
             Directory.Delete(root, recursive: true);
         }
+    }
+
+    [Fact]
+    public void Warnings_AreSplitByTheArtccTheyCameFrom()
+    {
+        string root = NewRoot();
+        WriteSidecar(root, "ZOA", "broken.json", """{ "activeRunways": """);
+        WriteSidecar(root, "ZLA", "bad-token.json", """{ "activeRunways": { "LAX": ["99X"] } }""");
+
+        try
+        {
+            ScenarioSidecarLoadResult result = ScenarioSidecarLoader.LoadAll(root);
+
+            Assert.Equal(2, result.Warnings.Count);
+            Assert.Contains("broken.json", Assert.Single(result.WarningsFor("zoa")), StringComparison.Ordinal);
+            Assert.Contains("bad-token.json", Assert.Single(result.WarningsOutside("zoa")), StringComparison.Ordinal);
+            Assert.Contains("bad-token.json", Assert.Single(result.WarningsFor("ZLA")), StringComparison.Ordinal);
+            Assert.Empty(result.WarningsFor("ZNY"));
+            Assert.Equal(2, result.WarningsOutside("ZNY").Count);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void MissingArtccsDirectory_WarnsOutsideEveryArtcc()
+    {
+        string root = NewRoot();
+
+        ScenarioSidecarLoadResult result = ScenarioSidecarLoader.LoadAll(root);
+
+        Assert.Empty(result.WarningsFor("ZOA"));
+        Assert.Contains("ARTCCs directory not found", Assert.Single(result.WarningsOutside("ZOA")), StringComparison.Ordinal);
     }
 
     private static string NewRoot() => Path.Combine(Path.GetTempPath(), "yaat-scenario-sidecar-tests", Guid.NewGuid().ToString("N"));

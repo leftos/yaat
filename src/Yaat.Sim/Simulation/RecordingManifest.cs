@@ -57,6 +57,13 @@ public sealed class RecordingManifest
     public DateTime ResolveSessionStartUtc() => SessionStartUtc ?? RecordedAtUtc?.Date ?? SimScenarioState.ProcessDayUtc;
 
     /// <summary>
+    /// The active runways the recorded session started on (<see cref="SimScenarioState.InitialActiveRunways"/>), airport →
+    /// token list, empty when it started on none. Null for archives written before it was captured: a load of one works
+    /// the start value out again.
+    /// </summary>
+    public Dictionary<string, List<string>?>? InitialActiveRunways { get; init; }
+
+    /// <summary>
     /// Version of the YAAT client (Yaat.Client) that produced this recording, e.g. "0.7.20-beta".
     /// Null for recordings exported before client/server versions were captured, or for recordings
     /// migrated from legacy formats. Lets triage tell whether the user's client predated a fix.
@@ -119,6 +126,9 @@ public sealed record RecordingMetadata
 
     /// <summary>The instant the session clock was anchored to (<see cref="SimScenarioState.SessionStartUtc"/>); every writer sets it.</summary>
     public DateTime? SessionStartUtc { get; init; }
+
+    /// <summary>The active runways the session started on (<see cref="RecordingManifest.InitialActiveRunways"/>); every writer sets it.</summary>
+    public Dictionary<string, List<string>?>? InitialActiveRunways { get; init; }
 
     public string? ClientVersion { get; init; }
     public string? ClientBuildKind { get; init; }

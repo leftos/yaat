@@ -19,7 +19,9 @@ namespace Yaat.Sim.Simulation.Actions;
 /// <see cref="SimulationEngine.CrrGroups"/> / <see cref="SimScenarioState.AsdexSafetyLogicConfig"/> /
 /// the <c>Asdex*</c> and <c>Said*</c> fields of
 /// <see cref="AircraftStarsState"/> — all but the bookmarks snapshotted, the timeline metadata a rewind carries over
-/// verbatim instead, so every run kind carries them), their mutation bodies are the engine's, and what those bodies
+/// verbatim instead, so every run kind carries them), and so are the room's active runways
+/// (<see cref="SimScenarioState.ActiveRunways"/>, snapshotted, whose <c>ARWY</c> set or clear reaches the host through
+/// <see cref="OnActiveRunwaysChanged"/>); their mutation bodies are the engine's, and what those bodies
 /// touched reaches the host through
 /// <see cref="IStateChangeConsumer.OnStripsChanged"/>, <see cref="IStateChangeConsumer.OnTdlsChanged"/>,
 /// <see cref="IStateChangeConsumer.OnCoordinationChanged"/>, <see cref="IStateChangeConsumer.OnBookmarksChanged"/>,
@@ -74,6 +76,9 @@ public interface IActionHost : IStateChangeConsumer
 
     /// <summary><c>HFR</c> / <c>HFROFF</c> / <c>REL</c> changed the held-departure picture.</summary>
     void OnHeldDeparturesChanged();
+
+    /// <summary>An <c>ARWY</c> set or cleared an airport's active runways (never the bare show form or a refusal).</summary>
+    void OnActiveRunwaysChanged();
 
     /// <summary>A recorded weather load or clear was applied: <c>World.Weather</c> and the scenario's timeline changed.</summary>
     void OnWeatherChanged();

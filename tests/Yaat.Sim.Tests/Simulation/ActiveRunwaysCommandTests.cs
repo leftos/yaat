@@ -211,6 +211,26 @@ public class ActiveRunwaysCommandTests
     }
 
     [Fact]
+    public void Arwy_Set_CallsOnActiveRunwaysChanged_ShowDoesNot()
+    {
+        SimulationEngine engine = BuildEngine("OAK");
+        var host = new AttendanceActionHost();
+        CommandResult Issue(string command) => engine.Actions.Issue(new ActionInput("", command, "conn-1", "XX", Baked: null), host).Result;
+
+        Assert.True(Issue("ARWY OAK 28L 28R").Success);
+        Assert.Equal(1, host.ActiveRunwaysChanges);
+
+        Assert.True(Issue("ARWY OAK").Success);
+        Assert.Equal(1, host.ActiveRunwaysChanges);
+
+        Assert.False(Issue("ARWY OAK 99").Success);
+        Assert.Equal(1, host.ActiveRunwaysChanges);
+
+        Assert.True(Issue("ARWY OAK NONE").Success);
+        Assert.Equal(2, host.ActiveRunwaysChanges);
+    }
+
+    [Fact]
     public void Arwy_ReplacesNotAppends()
     {
         SimulationEngine engine = BuildEngine("OAK");

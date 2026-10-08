@@ -23,13 +23,30 @@ public sealed class ScenarioSidecarLoadResult
 {
     private readonly Dictionary<(string ArtccId, string ScenarioId), ScenarioSidecar> _byKey = [];
     private readonly Dictionary<(string ArtccId, string ScenarioId), string> _sourceByKey = [];
-    private readonly List<string> _warnings = [];
+    private readonly List<(string? ArtccId, string Message)> _warnings = [];
 
     /// <summary>
     /// What could not be loaded, in the order the loader met it. Every entry names the file it came from; an entry
     /// about one airport also names the airport. A caller surfaces these however it surfaces load problems.
     /// </summary>
-    public IReadOnlyList<string> Warnings => _warnings;
+    public IReadOnlyList<string> Warnings => [.. _warnings.Select(w => w.Message)];
+
+    /// <summary>The warnings from <paramref name="artccId"/>'s own sidecars (matched case-insensitively), in load order.</summary>
+    public IReadOnlyList<string> WarningsFor(string artccId)
+    {
+        string artcc = NormalizeArtcc(artccId);
+        return [.. _warnings.Where(w => w.ArtccId == artcc).Select(w => w.Message)];
+    }
+
+    /// <summary>
+    /// Every other warning, in load order: those from other ARTCCs' sidecars, and those that belong to no ARTCC (a
+    /// missing ARTCCs directory).
+    /// </summary>
+    public IReadOnlyList<string> WarningsOutside(string artccId)
+    {
+        string artcc = NormalizeArtcc(artccId);
+        return [.. _warnings.Where(w => w.ArtccId != artcc).Select(w => w.Message)];
+    }
 
     /// <summary>The sidecar for a scenario, or null when that ARTCC has no <c>Scenarios/{scenarioId}.json</c> for it.</summary>
     public ScenarioSidecar? Find(string artccId, string scenarioId)
@@ -38,7 +55,8 @@ public sealed class ScenarioSidecarLoadResult
         return _byKey.TryGetValue(key, out ScenarioSidecar? sidecar) ? sidecar : null;
     }
 
-    internal void Warn(string message) => _warnings.Add(message);
+    /// <summary>Records a warning from <paramref name="artccId"/>'s sidecars, or from none when it is null.</summary>
+    internal void Warn(string? artccId, string message) => _warnings.Add((artccId is null ? null : NormalizeArtcc(artccId), message));
 
     internal void Add(string artccId, string filePath, ScenarioSidecar sidecar)
     {
@@ -46,7 +64,7 @@ public sealed class ScenarioSidecarLoadResult
         (string ArtccId, string ScenarioId) key = (NormalizeArtcc(artccId), ScenarioIdentity.Normalize(scenarioId));
         if (_sourceByKey.TryGetValue(key, out string? existing))
         {
-            Warn($"{filePath}: scenario id {scenarioId} is already loaded from {existing}; skipping");
+            Warn(artccId, $"{filePath}: scenario id {scenarioId} is already loaded from {existing}; skipping");
             return;
         }
 
@@ -73,7 +91,7 @@ public static class ScenarioSidecarLoader
         var result = new ScenarioSidecarLoadResult();
         if (!Directory.Exists(artccsBaseDir))
         {
-            result.Warn($"{artccsBaseDir}: ARTCCs directory not found; no scenario sidecars loaded");
+            result.Warn(null, $"{artccsBaseDir}: ARTCCs directory not found; no scenario sidecars loaded");
             return result;
         }
 
@@ -104,13 +122,13 @@ public static class ScenarioSidecarLoader
         }
         catch (Exception ex)
         {
-            result.Warn($"{filePath}: could not be read or parsed: {ex.Message}");
+            result.Warn(artccId, $"{filePath}: could not be read or parsed: {ex.Message}");
             return;
         }
 
         if (sidecarFile is null)
         {
-            result.Warn($"{filePath}: deserialized to null; skipping");
+            result.Warn(artccId, $"{filePath}: deserialized to null; skipping");
             return;
         }
 
@@ -118,7 +136,7 @@ public static class ScenarioSidecarLoader
         ActiveRunways runways = ActiveRunwayListParser.FromTokenLists(sidecarFile.ActiveRunways, filePath, warnings);
         foreach (string warning in warnings)
         {
-            result.Warn(warning);
+            result.Warn(artccId, warning);
         }
 
         result.Add(artccId, filePath, new ScenarioSidecar { ActiveRunways = runways });

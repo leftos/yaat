@@ -346,6 +346,14 @@ public sealed class SimScenarioState
         set => _activeRunways = value;
     }
 
+    /// <summary>
+    /// The active runways the scenario's load started the room on (a carried answer, the sidecar or the implied guess),
+    /// kept for the session like <see cref="RngSeed"/>: every reload but a restart starts from it instead of working the
+    /// value out again from the weather or the sidecar on disk. Recordings and checkpoints carry it in their manifests;
+    /// snapshots do not, since the reload that precedes every snapshot restore sets it.
+    /// </summary>
+    public ActiveRunways InitialActiveRunways { get; set; } = ActiveRunways.Empty;
+
     // Simulation control
     public bool IsPaused { get; set; } = true;
     public double SimRate { get; set; } = 1.0;
@@ -698,7 +706,7 @@ public sealed class SimScenarioState
                     ]
                     : null,
             SuppressedLiveTraffic = SuppressedLiveTraffic.Count > 0 ? [.. SuppressedLiveTraffic.Order(StringComparer.Ordinal)] : null,
-            ActiveRunways = SnapshotActiveRunways(),
+            ActiveRunways = SnapshotRunways(),
             DisconnectCoasts = SnapshotDisconnectCoasts(),
         };
 
@@ -738,17 +746,12 @@ public sealed class SimScenarioState
     }
 
     /// <summary>
-    /// The room's active runways as airport → token list, or null when the room has named none. Tokens come from
+    /// <see cref="ActiveRunways"/> as airport → token list, or null when it names none. Tokens come from
     /// <see cref="ActiveRunway.ToToken"/>, so a snapshot and the scenario sidecar share one spelling.
     /// </summary>
-    private Dictionary<string, List<string>?>? SnapshotActiveRunways()
+    private Dictionary<string, List<string>?>? SnapshotRunways()
     {
-        var byAirport = new Dictionary<string, List<string>?>(StringComparer.Ordinal);
-        foreach (string airport in ActiveRunways.Airports)
-        {
-            byAirport[airport] = [.. ActiveRunways.For(airport).Select(r => r.ToToken())];
-        }
-
+        Dictionary<string, List<string>?> byAirport = ActiveRunwayListParser.ToTokenLists(ActiveRunways);
         return byAirport.Count > 0 ? byAirport : null;
     }
 }

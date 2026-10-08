@@ -28,7 +28,7 @@ public interface IHostSteps
 
     void RundownBroadcast();
     void LiveTrafficStatusBroadcast();
-    void TimersBroadcast();
+    void PerSecondBroadcasts();
 
     // --- EndOfSecond ---
 

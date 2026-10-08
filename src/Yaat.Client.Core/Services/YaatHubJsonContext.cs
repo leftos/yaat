@@ -54,6 +54,7 @@ namespace Yaat.Client.Services;
 [JsonSerializable(typeof(WeatherChangedDto))]
 [JsonSerializable(typeof(ArrivalGeneratorsChangedDto))]
 [JsonSerializable(typeof(HeldDeparturesChangedDto))]
+[JsonSerializable(typeof(ActiveRunwaysChangedDto))]
 [JsonSerializable(typeof(RundownDto))]
 [JsonSerializable(typeof(HeldDepartureDto))]
 [JsonSerializable(typeof(PositionDisplayConfigDto))]

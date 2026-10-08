@@ -31,7 +31,8 @@ public class MainViewModelRoomMembersTests
             AircraftGenerators: [],
             VfrArrivalGenerators: [],
             OverflightGenerators: [],
-            Positions: []
+            Positions: [],
+            ActiveRunways: []
         );
 
     private static RoomMemberDto Member(string initials, string kind, string connectionId) =>

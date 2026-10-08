@@ -55,6 +55,7 @@ public class MainViewModelPilotVoiceWarningTests
             VfrArrivalGenerators: [],
             OverflightGenerators: [],
             Positions: [],
+            ActiveRunways: [],
             SoloTrainingMode: solo
         );
 

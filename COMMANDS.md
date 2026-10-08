@@ -1995,7 +1995,7 @@ In solo training with a radar (approach or center) student, an IFR departure tha
 
 ### Active Runways (ARWY)
 
-Sets the room's active runways at an airport: the runway ends in use, each for departures, arrivals or both. A global command like `HFR`: the airport rides in the argument, no aircraft selection is needed, and it needs a loaded scenario. It is recorded and replays with the recording.
+Sets the room's active runways at an airport: the runway ends in use, each for departures, arrivals or both. A global command like `HFR`: the airport rides in the argument, no aircraft selection is needed, and it needs a loaded scenario. It is recorded and replays with the recording. The room keeps the last list set (or cleared) as its answer for the scenario, and a restart or a reload of the same scenario starts on it; a rewind starts on the list the session began with.
 
 | Command | Effect |
 |---------|--------|

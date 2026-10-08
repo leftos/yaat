@@ -17,7 +17,7 @@ Each `{roomId}.checkpoint.zip` contains:
 
 | Entry | Purpose |
 |-------|---------|
-| `manifest.json` | Room id, creator, members (CID), elapsed time, schema version, `SessionStartUtc` (the session clock's anchor; a checkpoint written before it was captured restores with `SavedAtUtc.Date` — a midnight-anchored clock, so PDC/strip times on that one restored room read from midnight until it reloads) |
+| `manifest.json` | Room id, creator, members (CID), elapsed time, schema version, `SessionStartUtc` (the session clock's anchor; a checkpoint written before it was captured restores with `SavedAtUtc.Date` — a midnight-anchored clock, so PDC/strip times on that one restored room read from midnight until it reloads), `CarriedActiveRunways` (the room's active-runways answer for the scenario: airport → token list, an empty list for `NONE`, null or absent when not answered) and `InitialActiveRunways` (what the session started on, same shape; absent in an older checkpoint, where the restore works the start value out again) |
 | `scenario.json.br` | Original scenario JSON |
 | `actions.json.br` | Full `ActionLog` (rewind/export) |
 | `terminal-log.json.br` | `TerminalLog` (omitted when empty) |
@@ -31,6 +31,8 @@ Restore applies the final snapshot directly (no replay-from-zero). Coordination 
 The room is registered in `TrainingRoomManager` before any of its state exists, so `RestoreRoomFromArchiveAsync` runs the whole rebuild under the room's tick gate (`TrainingRoom.GuardAsync`, the same semaphore `RoomTickLoopService` takes per second).
 
 The rebuild is engine creation, the resource pin (`ScenarioLifecycleService.PinArchivedResourcesAsync`: the archived configs, the layouts fetched now, and the scenario's ARTCC configs loaded into the live caches too, which the position registry and the CRC broadcasts read), `ReloadForRewindAsync`, the snapshot and room-state restores, `LeavePlayback`, the attendance sync and the returned summary.
+
+The reload is `ReloadKind.CheckpointRestore`, started on the manifest's `InitialActiveRunways` with the scenario's sidecar looked up afresh (`ScenarioLifecycleService.FindScenarioSidecar`). After the snapshot restore, the manifest's `CarriedActiveRunways` goes back into the room's carrier, so a restart (and only a restart) starts on the answer even after a rewind to before it was given; the snapshot's own list is the current value, not the answer.
 
 Without it the tick loop could advance a half-restored room between the awaits. `TrainingRoomManager.RoomRegistered` (raised outside the manager's lock) is how `SessionPersistenceTests` takes the gate at registration and asserts the restore cannot finish while it is held.
 

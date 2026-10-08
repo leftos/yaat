@@ -58,7 +58,7 @@ internal sealed class ReplayHost : ISimulationHost
 
     public void LiveTrafficStatusBroadcast() => _bare.LiveTrafficStatusBroadcast();
 
-    public void TimersBroadcast() => _bare.TimersBroadcast();
+    public void PerSecondBroadcasts() => _bare.PerSecondBroadcasts();
 
     public void IssueMetars() => _bare.IssueMetars();
 
@@ -141,6 +141,8 @@ internal sealed class ReplayHost : ISimulationHost
     public void OnConsolidationChanged() => _bare.OnConsolidationChanged();
 
     public void OnHeldDeparturesChanged() => _bare.OnHeldDeparturesChanged();
+
+    public void OnActiveRunwaysChanged() => _bare.OnActiveRunwaysChanged();
 
     public void OnWeatherChanged() => _bare.OnWeatherChanged();
 

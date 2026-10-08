@@ -104,7 +104,7 @@ public static class SpineOrder
         SpineStep.Sim(StepId.DisconnectCoastExpiry, static (engine, host) => engine.TickDisconnectCoastExpiry(host)),
         SpineStep.Host(StepId.RundownBroadcast, static host => host.RundownBroadcast()),
         SpineStep.Host(StepId.LiveTrafficStatusBroadcast, static host => host.LiveTrafficStatusBroadcast()),
-        SpineStep.Host(StepId.TimersBroadcast, static host => host.TimersBroadcast()),
+        SpineStep.Host(StepId.PerSecondBroadcasts, static host => host.PerSecondBroadcasts()),
     ];
 
     public static readonly ImmutableArray<SpineStep> EndOfSecond =

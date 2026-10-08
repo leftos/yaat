@@ -30,7 +30,7 @@ internal sealed class BareHost(SimulationEngine engine) : ISimulationHost
 
     public void LiveTrafficStatusBroadcast() { }
 
-    public void TimersBroadcast() { }
+    public void PerSecondBroadcasts() { }
 
     public void IssueMetars() { }
 
@@ -161,6 +161,8 @@ internal sealed class BareHost(SimulationEngine engine) : ISimulationHost
     public void OnConsolidationChanged() { }
 
     public void OnHeldDeparturesChanged() { }
+
+    public void OnActiveRunwaysChanged() { }
 
     public void OnWeatherChanged() { }
 

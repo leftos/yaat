@@ -56,7 +56,7 @@ public enum StepId
     DisconnectCoastExpiry,
     RundownBroadcast,
     LiveTrafficStatusBroadcast,
-    TimersBroadcast,
+    PerSecondBroadcasts,
 
     // EndOfSecond
     PositionHistory,

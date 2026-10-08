@@ -152,6 +152,14 @@ A commit that throws after the clear leaves the room empty the way an unload doe
 
 Restore warms the live ARTCC caches (the position registry and the CRC broadcasts read them there), refetches the layouts and pins the archived configs, filling any manifest ARTCC the archive lacks from the live cache (`RoomResourcePin.FromArchive`; a version 1 checkpoint saved the scenario's own config alone), before `ReloadForRewindAsync`. See [session-persistence.md](session-persistence.md).
 
+**Active runways.** The room carries the mentor's answer per scenario (`TrainingRoom.FindCarriedActiveRunways` / `CarryActiveRunways`, keyed by the normalized scenario id): the load prompt's answer or the last live `ARWY` (`RoomHost.OnActiveRunwaysChanged`; a replayed `ARWY` is not carried). An entry is an answer, so `NONE` is an empty list and an unanswered scenario has none. A load of the scenario already carried keeps its entry, any other load or an unload drops it.
+
+`SimScenarioState.InitialActiveRunways` is what the session started on, kept like the RNG seed. `ScenarioLifecycleService.Reload` seeds the runways by `ReloadKind`: `Restart` reads the carried answer first, as a load does; `Rewind`, `RecordingLoad` and `CheckpointRestore` start on the `InitialActiveRunways` the `ReloadStart` carries (`ReloadStart(RngSeed, SessionStartUtc, InitialActiveRunways)`, `ReloadStart.Of(scenario)` for a live one). With neither (no answer, or a recording or checkpoint that stored no start value) the scenario's sidecar seeds them, else `ImpliedActiveRunways.RoomDefault`.
+
+The sidecar is looked up per load (`PrepareResourcesAsync` returns it in `PreparedResources.Sidecar`; a session restore uses `FindScenarioSidecar`) and kept on `TrainingRoom.ActiveScenarioSidecar` for the reloads and the export reconstruction. A load reports only its own ARTCC's sidecar warnings (`ScenarioSidecarLoadResult.WarningsFor`); every other ARTCC's (`WarningsOutside`) are logged once per process.
+
+`TickProcessor.BroadcastActiveRunwaysIfChanged` compares the room's list with `TrainingRoom.LastBroadcastActiveRunways` and sends `ActiveRunwaysChanged` on change; it runs in the per-second `PerSecondBroadcasts` step and after a load, restart, rewind or recording load lands.
+
 ## `RoomEngine` — the per-room facade (`Simulation/RoomEngine.cs`)
 
 One `RoomEngine` per room. It **owns** its `TrainingRoom` (`Room`, `:66`) and `RecordingManager` (`Recording`, `:64`,
@@ -161,7 +169,7 @@ set by `RoomEngineFactory` right after construction) and exposes `World` (`:67`,
 `ScenarioLifecycleService`, the broadcasters, and the ARTCC/ground data services. Per-room state lives on the
 `TrainingRoom`, never on the singletons.
 
-`BeginRoomScope()` opens a logging scope tagged with the room id so every log line within a hub call carries `[roomId]`. `CreateTempReplayEngine(scenario, pin)` builds a throwaway engine on a synthetic room with `IsBroadcastSuppressed = true` for snapshot generation / replay, so it never leaks state to real clients; the synthetic room runs on the resource pin it is handed (the exporting room's, or the one a migrated recording's own prepare fetched).
+`BeginRoomScope()` opens a logging scope tagged with the room id so every log line within a hub call carries `[roomId]`. `CreateTempReplayEngine(scenario, start, pin, sidecar)` builds a throwaway engine on a synthetic room with `IsBroadcastSuppressed = true` for snapshot generation / replay, so it never leaks state to real clients; the synthetic room runs on the resource pin it is handed (the exporting room's, or the one a migrated recording's own prepare fetched), and starts from the `ReloadStart` and sidecar it is handed.
 
 ### `SendCommandAsync` — policy, the router, the echo
 

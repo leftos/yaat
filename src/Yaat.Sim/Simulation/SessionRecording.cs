@@ -66,6 +66,13 @@ public sealed class SessionRecording
     /// record date.
     /// </summary>
     public DateTime? SessionStartUtc { get; init; }
+
+    /// <summary>
+    /// The active runways the recorded session started on (<see cref="SimScenarioState.InitialActiveRunways"/>), airport →
+    /// token list. Null for recordings written before it was captured: a load of one works the start value out again.
+    /// </summary>
+    public Dictionary<string, List<string>?>? InitialActiveRunways { get; init; }
+
     public string? RecordedBy { get; init; }
 
     /// <summary>

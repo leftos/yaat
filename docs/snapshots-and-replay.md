@@ -59,6 +59,8 @@ No schema bump: nothing is given up in snapshot 0, whose hash yaat-server pins. 
 
 `ScenarioSnapshotDto.ActiveRunways` (the room's active runway ends per airport, as `ActiveRunwayListParser` tokens: `28L` both, `D28L` departures, `A28R` arrivals) is the one nullable member of that DTO left out while empty; its other nullable members are written as null. A snapshot with no active runways stays byte-identical, and an older one restores none; no schema bump. Restore goes through `ActiveRunwayListParser.FromTokenLists`, which logs and drops a malformed token instead of failing the load.
 
+The snapshot holds the current list, not the starting one. The starting list (`SimScenarioState.InitialActiveRunways`) rides the recording manifest (`RecordingManifest.InitialActiveRunways`, airport → token list, `SessionRecording.InitialActiveRunways` for a legacy recording) and the room checkpoint manifest, and is read back with `ActiveRunwayListParser.ReadStored`; a rewind, export reconstruction, recording load or checkpoint restore reloads on it, so a rewind to before an `ARWY` shows the list the session began with. An archive that stored none (null) has the start value worked out again from the sidecar or the implied guess.
+
 `GroundNavigatorPlaybackDto.PendingTurnAboutArc` and `TurnAboutReversalPlaying` follow the same pattern for a turn about on a taxiway ([ground/navigator.md](ground/navigator.md) § Entry-alignment threshold). `PendingTurnAboutArc` is the reversal arc parked while the jog that centres it plays, and `TurnAboutReversalPlaying` is true while that reversal plays, so its end-of-arc nudge keeps the arc's own radius.
 
 Four more carry what the straight after the turn about is laid as ([ground/navigator.md](ground/navigator.md#after-a-turn-about-on-a-taxiway) § After a turn about on a taxiway). `TurnAboutReversalOnEdgeBearing` is true while the jog and reversal of a turn about rolled out on the edge's own bearing play, so a straight after it that ends in a stop is laid on the centreline through the stop.
@@ -173,7 +175,7 @@ When a phase is superseded, **retain its DTO + `JsonDerivedType`**: the class th
 A recording is a ZIP with this layout:
 
 ```
-manifest.json                # Version, RngSeed, SessionStartUtc, ActionCount, HasWeather,
+manifest.json                # Version, RngSeed, SessionStartUtc, InitialActiveRunways, ActionCount, HasWeather,
                              # HasArtccConfig, HasTerminalLog, ArtccId, ScenarioId/Name,
                              # ClientVersion, ClientBuildKind, ServerVersion,
                              # Snapshots[], LayoutAirportIds[], AirportGeoJsonIds[]
@@ -321,7 +323,7 @@ stable pseudonym (`A0`..`B9`, whole-word matched so CIDs embedded in beacon code
 
   So `RecordingManager.RewindAsync` and snapshot generation (`RoomEngine.CreateTempReplayEngine` → `RecordingManager.GenerateSnapshotsViaServerTick`) drive reconstruction via `RecordingManager.ReconstructViaServerTick` — the spine under a `ReconstructionHost`, which fills every room-owned step the live host fills and re-applies the recorded log around each second.
 
-  The temp room reloads via `ScenarioLifecycleService.ReloadForRewind` (the sync sibling of `ReloadForRewindAsync`) on the exporting room's resource pin, so `StudentPosition`/`AtcPositions`/auto-track conditions resolve against the configs the live run used.
+  The temp room reloads via `ScenarioLifecycleService.ReloadForRewind` (the sync sibling of `ReloadForRewindAsync`) on the exporting room's resource pin, from `ReloadStart.Of(scenario)` (seed, session start, starting active runways) and the room's scenario sidecar, so `StudentPosition`/`AtcPositions`/auto-track conditions resolve against the configs the live run used.
 
   Using the old bare Sim-only replay here was issue #188: rewind reverted ownership to the start-of-file auto-track owner and re-queued every aircraft's delayed handoff to the student, and generated snapshots captured `Track.Owner = null`. Reconstruction runs with `IsBroadcastSuppressed = true`; the strip/TDLS broadcasters honor that flag so reconstruction doesn't spam phantom strips/PDCs.
 - **A command the router never records can never diverge a tape being played back.** A rewind leaves the room paused *and* in playback with the whole action log intact; the first command that `RoomEngine.IssueLive` sees while `IsPlaybackMode` is true cuts the tape at the current second (`RecordingManager.TakeControl` → `ActionLog.RemoveAll(a => a.ElapsedSeconds > current)`) and returns the room to its own run kind.

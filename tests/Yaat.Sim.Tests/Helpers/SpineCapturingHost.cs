@@ -130,7 +130,7 @@ public sealed class SpineCapturingHost(ISimulationHost inner) : ISimulationHost
 
     public void LiveTrafficStatusBroadcast() => _inner.LiveTrafficStatusBroadcast();
 
-    public void TimersBroadcast() => _inner.TimersBroadcast();
+    public void PerSecondBroadcasts() => _inner.PerSecondBroadcasts();
 
     public void IssueMetars() => _inner.IssueMetars();
 
@@ -230,6 +230,8 @@ public sealed class SpineCapturingHost(ISimulationHost inner) : ISimulationHost
     public void OnConsolidationChanged() => _inner.OnConsolidationChanged();
 
     public void OnHeldDeparturesChanged() => _inner.OnHeldDeparturesChanged();
+
+    public void OnActiveRunwaysChanged() => _inner.OnActiveRunwaysChanged();
 
     public void OnWeatherChanged() => _inner.OnWeatherChanged();
 

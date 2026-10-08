@@ -46,6 +46,7 @@ public class MainViewModelRichPresenceTests
             VfrArrivalGenerators: [],
             OverflightGenerators: [],
             Positions: [],
+            ActiveRunways: [],
             ElapsedSeconds: elapsedSeconds
         );
 
@@ -66,6 +67,7 @@ public class MainViewModelRichPresenceTests
             VfrArrivalGenerators: [],
             OverflightGenerators: [],
             Positions: [],
+            ActiveRunways: [],
             ElapsedSeconds: 0
         );
 

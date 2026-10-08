@@ -1,5 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Text.RegularExpressions;
+using Microsoft.Extensions.Logging;
 using Yaat.Sim.Data;
 
 namespace Yaat.Sim.Simulation;
@@ -59,6 +60,21 @@ public static partial class ActiveRunwayListParser
     }
 
     /// <summary>
+    /// The inverse of <see cref="FromTokenLists"/>: every airport naming at least one end, keyed by its id, each end as
+    /// its token (<see cref="ActiveRunway.ToToken"/>) in listed order. Empty when <paramref name="runways"/> names none.
+    /// </summary>
+    public static Dictionary<string, List<string>?> ToTokenLists(ActiveRunways runways)
+    {
+        var byAirport = new Dictionary<string, List<string>?>(StringComparer.Ordinal);
+        foreach (string airport in runways.Airports)
+        {
+            byAirport[airport] = [.. runways.For(airport).Select(runway => runway.ToToken())];
+        }
+
+        return byAirport;
+    }
+
+    /// <summary>
     /// Builds the active runways from a token list per airport — the shape a scenario sidecar and a snapshot both carry
     /// — with no navigation-database check, because the ends were valid wherever the tokens were written. Every airport
     /// is read on its own: a null list, a null entry or a token that does not parse drops <em>that</em> airport and adds
@@ -95,6 +111,28 @@ public static partial class ActiveRunwayListParser
             {
                 runways = runways.With(airport, parsed);
             }
+        }
+
+        return runways;
+    }
+
+    /// <summary>
+    /// The starting active runways a recording or checkpoint manifest stored, airport → token list; null when it stored
+    /// none. A token that does not read drops its airport (<see cref="FromTokenLists"/>) and is logged against
+    /// <paramref name="source"/>.
+    /// </summary>
+    public static ActiveRunways? ReadStored(Dictionary<string, List<string>?>? byAirport, string source, ILogger logger)
+    {
+        if (byAirport is null)
+        {
+            return null;
+        }
+
+        var warnings = new List<string>();
+        ActiveRunways runways = FromTokenLists(byAirport, source, warnings);
+        foreach (string warning in warnings)
+        {
+            logger.LogWarning("{Warning}", warning);
         }
 
         return runways;

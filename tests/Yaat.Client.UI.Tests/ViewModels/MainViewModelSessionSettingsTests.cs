@@ -129,6 +129,9 @@ public class MainViewModelSessionSettingsTests
                 PrimaryAirportId: "SFO",
                 Warnings: [],
                 AllAircraft: [],
+                ActiveRunways: [],
+                ActiveRunwaysPrefill: [],
+                ActiveRunwaysPromptNeeded: false,
                 AutoDeleteOverride: null,
                 EffectiveAutoDeleteMode: "Parked",
                 AutoAcceptDelaySeconds: 5,
@@ -185,6 +188,9 @@ public class MainViewModelSessionSettingsTests
                 PrimaryAirportId: "OAK",
                 Warnings: [],
                 AllAircraft: [],
+                ActiveRunways: [],
+                ActiveRunwaysPrefill: [],
+                ActiveRunwaysPromptNeeded: false,
                 DepartureAutoDeleteDistanceNm: 45
             )
         );

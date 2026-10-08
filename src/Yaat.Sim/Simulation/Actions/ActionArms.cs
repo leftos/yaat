@@ -549,6 +549,7 @@ internal static class ActionArms
             }
 
             scenario.ActiveRunways = scenario.ActiveRunways.With(airport, runways);
+            ctx.Host.OnActiveRunwaysChanged();
         }
 
         return new CommandResult(true, DescribeActiveRunways(airport, scenario.ActiveRunways.For(airport)));

@@ -497,7 +497,9 @@ Each list element is exactly one token, so `["28L 28R"]` is one bad entry, not t
 
 Anything this loader cannot read is skipped with a warning naming the file, and the rest of the file — and every other file — still loads: a file that does not parse, a null list, a null entry, a token that does not parse, an airport named twice in one file, or two files whose names differ only in case.
 
-Top-level properties YAAT does not recognize are ignored, so the file can carry settings a newer build understands without an older one refusing the scenario. Restart YAAT to pick up edits to a scenario sidecar.
+A room takes the sidecar's list as its starting runways unless it already carries an answer for that scenario (the mentor's answer to the load prompt, or a later `ARWY`), which a load of the same scenario and a restart start on instead; a rewind starts on what the session started on. A scenario with a sidecar is never prompted for its active runways. A load reports only the warnings from its own ARTCC's sidecars; those of other ARTCCs go to the server log.
+
+Top-level properties YAAT does not recognize are ignored, so the file can carry settings a newer build understands without an older one refusing the scenario. The server reads the sidecar files again at each scenario load, so an edit applies from the next load.
 
 ---
 

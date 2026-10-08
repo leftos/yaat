@@ -81,6 +81,9 @@ An airport in the resource manifest whose full ground map the load needs: the pr
 **Active runways**:
 The runway ends a room is using, per airport, each for departures, arrivals or both (`ActiveRunways`): room state, not the controller AI's single runway-in-use guess.
 
+**Carried answer** (of the active runways):
+The mentor's answer to the load prompt, or the last live `ARWY`, kept on the room per scenario (an answer of `NONE` is an empty list). A load of the same scenario and a restart start on it; a rewind starts on what the session started on (`InitialActiveRunways`) instead.
+
 **Scenario sidecar**:
 An authored per-scenario JSON file, `Data/ARTCCs/{ARTCC}/Scenarios/{scenario id}.json`, carrying settings the vNAS scenario lacks (its active runways); unlike the per-airport ground sidecar.
 
