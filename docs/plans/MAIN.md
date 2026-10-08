@@ -4,68 +4,35 @@
 
 ## Do first
 
-- [x] YAAT-406 TAXI issued on C at KOAK starts its route on parallel taxiway D · release vNext — Urgent · Wave 2 — Ground command grammar and dispatch
-- [x] YAAT-434 Linux CI fails three HoldInsideStoppingDistanceOfBarTests after the YAAT-406 landing · release vNext — Urgent · Wave 2 — Ground command grammar and dispatch
-- [x] YAAT-487 Command handlers: a lone read-only SAYEXIT wipes the entire pending queue (omitted from the broad IsPhaseTransparent list, None dimension trips the clear-everything fast path) · release vNext — Urgent · Wave 5 — Command queue and dispatch architecture
-- [ ] YAAT-519 Parallelise the precompute generator across stands — High · Precompute cache (feat/precompute-cache)
-- [x] YAAT-373 Load Scenario: pick a single scenario file, not only a folder to index · release vNext — High · Bug reports and feature requests
-- [x] YAAT-274 Redesign overwhelming client surfaces: Settings, import/export, View menu pop-outs · release vNext — High · Client surfaces redesign
 - [ ] YAAT-266 Tower Cab 3D joins a YAAT room without CRC and shows in Room Members · release vNext+1 — High · Wave 6 — Strips, TDLS, air-taxi and hub
-- [x] YAAT-354 Add screenshots to Getting Started and the User Guide · release vNext — High · Wave 9 — Docs and repo hygiene
-- [x] YAAT-228 release.yml drops the changelog output as 'may contain secret', leaving the draft's Changelog empty · release vNext — High · Singles
 
 ## Active runways (feat/active-runways)
 
-- [x] YAAT-461 Ask the mentor for the active runways on scenario load when the scenario leaves them unclear · release vNext
 - [ ] YAAT-482 Merge feat/active-runways (#959)
 - [ ] YAAT-516 Fold the Hold short and ground traffic menu row views into one rich-row template
 
 ## Precompute cache (feat/precompute-cache)
 
+- [ ] YAAT-495 Precompute cache brief C: maintainer tool (compute, --check, --refresh-representatives)
+- [/] YAAT-494 Precompute cache brief B3: live swept-path check on menu open
 - [ ] YAAT-440 Group, filter and distance-label the ground view's Push Back To submenu
-- [x] YAAT-450 Investigate what else to precompute offline from vNAS, GeoJSON, FAA, CIFP and NavData data · release vNext
-  - [ ] YAAT-494 Precompute cache brief B3: live swept-path check on menu open
-  - [ ] YAAT-495 Precompute cache brief C: maintainer tool (compute, --check, --refresh-representatives)
-  - [x] YAAT-496 Precompute cache brief B2: per-stand, per-design-group push targets · release vNext
-- [x] YAAT-466 Replay and restore a recording against the airport layouts it bundles · release vNext
 - [ ] YAAT-475 Merge feat/precompute-cache (#951)
 - [ ] YAAT-497 Split the tug planner's shared pieces out of the precompute layout source set
-- [x] YAAT-499 Make every push-back decision read the stand's StandDeparture · release vNext
 - [ ] YAAT-511 Refuse TAXI for a jet or turboprop at a push-back stand without a push
 - [ ] YAAT-520 KOAK stands: North Field taxi-out by area, South Field remotes pushback
 
 ## Follow on the taxi graph (feat/follow-on-graph)
 
 - [/] YAAT-316 FOLLOWG follower cuts across the field off the taxiways and can bypass a runway hold line · release vNext
-  - [x] YAAT-498 Red-first tests for FOLLOWG's re-plan reversal guard and on-route crossed-bar check · release vNext
 - [ ] YAAT-407 Merge feat/follow-on-graph (#881) · release vNext
 - [ ] YAAT-507 FOLLOWG clearing route stops one node before the next runway's hold bar
 - [ ] YAAT-508 FOLLOWG clearing check ignores traffic crossing at a junction
 
 ## Bug reports and feature requests
 
-- [x] YAAT-300 Pilot voice speech rate setting, default 1.1x · release vNext
-- [x] YAAT-285 Record demos fully in the background: no visible window, no audio to the speakers · release vNext
-- [x] YAAT-289 WindowRecorder: refuse a hidden window cleanly instead of crashing · release vNext
-- [x] YAAT-282 Automation-mode client came to the foreground during the sampler run · release vNext
-- [x] YAAT-283 Montage capture pipeline: launch_yaat env, load_recording room, PTL wording, caption filter · release vNext
-- [x] YAAT-286 vEDST sign-in: enable it on yaat1 and fix the connect docs · release vNext
-- [x] YAAT-248 Client driver records a window: start, mark and stop, with sim-time marks and the client's audio · release vNext
-- [x] YAAT-250 Client-defined automation tools; client log errors on every pipe result · release vNext
 - [/] YAAT-279 Sizzle reel: the release's new and reworked UI and UX · release vNext
-- [x] YAAT-242 Deconflict the RBL readout from data blocks so it stays readable · release vNext
-- [x] YAAT-259 Pilots no longer report 'the traffic's on the ground, breaking off the follow' · release vNext
-- [x] YAAT-244 Aircraft owned by a TCP flash a pending handoff to that same TCP · release vNext
-- [x] YAAT-246 Client-driver wait_until on sim state, so a capture stops when the follower lands · release vNext
-- [x] YAAT-243 Say 'make straight-in', not 'make straight-in approach' · release vNext
-- [x] YAAT-249 Client driver batch_drive: steps, waits and assertions in one call · release vNext
-- [x] YAAT-245 Automation-mode client came to the foreground on its own during a capture · release vNext
-- [x] YAAT-247 Replayed solo recording loads with solo off and speaks only the opening check-ins · release vNext
-- [x] YAAT-232 Solo dev cheat so montage clips can use RPO-only commands (FOLLOWF for A11) · release vNext
 - [/] YAAT-7 Record the FOLLOW video montage (release cut and review reel) · release vNext
-  - [x] YAAT-238 Re-script montage clip C3 on OAK runway 30 (no B738 on 28R) · release vNext
   - [ ] YAAT-239 Short edited montage sampler of the clips so far, for presentation feedback · release vNext
-  - [x] YAAT-240 Aviation review of the montage cards; visual follow should not use the radar wake minimum (C3) · release vNext
   - [ ] YAAT-278 FOLLOW sizzle reel: add ground FOLLOW and give-way taxi clips · release vNext
 - [ ] YAAT-217 Pattern: apply a pending pattern-altitude override before the wrong-side join decides on a teardrop
 - [ ] YAAT-256 batch_drive: save a wait_until step's screenshot and fit its wait inside the batch ceiling
@@ -77,82 +44,31 @@
   - [ ] YAAT-411 Serve each room's traffic as a VATSIM-datafeed-shaped JSON feed
   - [ ] YAAT-412 vTBFM: meter on the feed's clock (contributed PR)
   - [ ] YAAT-413 Integration and smoke test a YAAT-fed vTBFM, then write the setup steps
-- [x] YAAT-419 Reel edit tool: virtual cursor overlay with click, double-click and drag cues · release vNext
-
-## Client driver in the background (#474)
-
-- [x] YAAT-11 Merge feat/client-driver-background (#474) · release vNext
-- [x] YAAT-8 Drive YAAT.Client without stealing focus (automation pipe) · release vNext
-  - [x] YAAT-9 Client driver automation pipe: brief 4b, the wait_for tool · release vNext
-  - [x] YAAT-10 Client driver automation pipe: brief 4c, the screenshot tool · release vNext
-  - [x] YAAT-220 Share the pipe list_windows helper between launch_yaat and list_windows · release vNext
-- [x] YAAT-418 Client driver: hover and drag over the automation pipe · release vNext
 
 ## Context-menu quick commands (#471)
 
-- [x] YAAT-12 Context-menu quick commands: per-situation lists with the icon strip · release vNext
-  - [x] YAAT-13 Context-menu quick commands: brief 7d (header, footer, relative items) · release vNext
-  - [x] YAAT-14 Context-menu quick commands: brief 7e (one tree on every surface) · release vNext
-    - [ ] YAAT-312 Context menu: stale descriptions after the builder refactor
-  - [x] YAAT-15 Context-menu quick commands step 3: per-situation lists with the icon strip · release vNext
-  - [x] YAAT-400 Context-menu quick commands step 5: Quick Commands editor in Settings · release vNext
-- [x] YAAT-16 Merge feat/context-menu-quick-commands (#471, yaat-server#21) · release vNext
-- [x] YAAT-275 Ground right-click on a runway surface offers taxi to that runway (nearest hold short) · release vNext
-- [x] YAAT-224 Open the command and note flyouts through MenuPopups; drop the unreachable blank-input branches · release vNext
-- [x] YAAT-441 Show a live label naming the quick-command icon under the pointer · release vNext
-- [x] YAAT-442 Offer the quick-command icons when right-clicking a taxi node with a parked aircraft selected · release vNext
-- [x] YAAT-443 Review the ground and radar quick-action UX and propose changes · release vNext
+- [ ] YAAT-312 Context menu: stale descriptions after the builder refactor
 - [ ] YAAT-445 Seed the context menu's heading pickers and warp popup with magnetic heading, not true
 - [ ] YAAT-446 Stop the Temporary altitude and Cruise popups throwing on FL or comma input
-- [x] YAAT-447 Keep unspawned aircraft out of the Follow and Give way to lists · release vNext
 - [ ] YAAT-448 Stop the Hold short submenu offering fillet names the server refuses
 - [ ] YAAT-449 Find why a grounded aircraft can end with no phase, and give it ground menus
-- [x] YAAT-451 Group the cleared-approach picker by runway and name the smart default · release vNext
-- [x] YAAT-452 Put relative traffic actions on top of the radar menu and list nearby traffic for Report traffic · release vNext
-- [x] YAAT-453 Open the maintain-altitude picker at the aircraft's altitude, mark climb or descend, grey rows below the MVA · release vNext
-- [x] YAAT-454 Name the receiving aircraft in the radar point menu header and add its quick icons · release vNext
-- [x] YAAT-455 Show only the items that apply in the radar Track submenu · release vNext
-- [ ] YAAT-456 Fix quick-command labels and give every quick command a glyph
-- [x] YAAT-457 List Direct-to fixes from the aircraft's next fix on · release vNext
-- [x] YAAT-458 Offer speed picker values from the aircraft's own type performance · release vNext
-- [x] YAAT-459 List Hold short bars along the route, nearest first, one row per runway · release vNext
 - [ ] YAAT-460 Add Taxi to runway ▸ to the ground aircraft menu, with via and distance per entry point
-- [x] YAAT-462 Split the Follow and Give way lists into Moving and Parked, with type, state and distance · release vNext
 - [/] YAAT-463 Offer the named exits ahead on the landing roll
-- [x] YAAT-464 Name the aircraft and its action in the ground point menu header; offer Push route only from tug-reachable points · release vNext
-- [x] YAAT-465 Open every aircraft context menu with a one-line state header · release vNext
 - [ ] YAAT-478 Resolve a shorthand expected approach before picking the visual approach's default runway
 - [ ] YAAT-503 Context-menu For section is offered for a delayed-spawn selection
 - [ ] YAAT-517 Hold short of… destination-runway row sends a no-op HS
 - [ ] YAAT-521 Pattern-entry runway flyout: rotated glyphs, active runways first, landable first
 - [ ] YAAT-522 Cleared for takeoff flyout: VFR pattern exits, turn direct a fix, initial altitude; IFR heading
-
-## Client surfaces redesign
-
-- [x] YAAT-310 Merge feat/client-surfaces-redesign (#782) · release vNext
-- [x] YAAT-291 Client surfaces redesign: Settings window shell (sidebar sections, OK/Apply/Cancel) · release vNext
-- [x] YAAT-292 Client surfaces redesign: Settings search with aliases and cross-section links · release vNext
-- [x] YAAT-293 Client surfaces redesign: open Settings at a section (view menus, Ctrl+comma, status-bar links) · release vNext
-- [x] YAAT-294 Client surfaces redesign: reconcile Scenario defaults with the session flyout · release vNext
-- [x] YAAT-295 Client surfaces redesign: regroup the View menu and add pop-out hotkeys · release vNext
-- [x] YAAT-296 Client surfaces redesign: merge Window Profiles and Copy View Settings into Layouts · release vNext
-- [x] YAAT-297 Client surfaces redesign: one Import / Export hub with a .yaat-settings.zip bundle · release vNext
-- [x] YAAT-395 Import / Export: full-backup checkbox and clear Merge/Replace effects on import · release vNext
+- [ ] YAAT-524 Cleared for takeoff menu's "360 overhead" sends CTO 360, a heading
 
 ## Tick-path unification
 
-- [x] YAAT-17 Tick-path unification: finish step 4 relocation, then step 5 · release vNext
 - [ ] YAAT-209 Move the ERAM coverage-loss coast state machine into the Sim
 - [ ] YAAT-216 HandoffUnacceptedRule: keep the anomaly for low handoffs to human-attended positions
 - [ ] YAAT-272 Shadow spawns run AfterAircraftSpawned on replay only (PDC queue, strip print)
 - [ ] YAAT-320 Retire the tick-path plan folder now every step has shipped
 - [ ] YAAT-321 Anchor routine METAR issuance to the session clock, not the load-time clock
 - [ ] YAAT-322 Pin a spawn due at second t on the sub-tick replay path
-
-## Coast D (feat/coast-d)
-
-- [x] YAAT-223 Tick-path coast D: the server's disconnect-coast wiring reads the Sim facets · release vNext
-- [x] YAAT-241 Merge feat/coast-d (#712, yaat-server#22) · release vNext
 
 ## Say again
 
@@ -175,7 +91,6 @@
 
 ## STT tuning
 
-- [x] YAAT-225 Make the controller-voice ouroboros reproducible across runs of one seed · release vNext
 - [/] YAAT-343 Rethink the speech pipeline greenfield with state-of-the-art STT
 - [/] YAAT-28 Close the STT rule gaps from the controller-voice ouroboros
 - [ ] YAAT-29 Spike: bake off local STT models on our corpus in Yaat.SpeechSandbox
@@ -187,12 +102,7 @@
 
 ## Wave 1 — Ground realism and braking
 
-- [x] YAAT-437 Aim a turn-about's reversal along the route when the next turn doubles back · release vNext
 - [/] YAAT-30 Rollout retune follow-ups: separation intervals, exit completion, firm rates
-- [x] YAAT-32 Fold aircraft-length fallbacks into AircraftLength.ResolveFt; fix CWT labels · release vNext
-- [x] YAAT-309 Hold-short warning under FOLLOWG omits the taxiway name · release vNext
-- [x] YAAT-306 Ground stops snap to 0 kt instead of braking: FOLLOWG hold short, GIVEWAY · release vNext
-- [x] YAAT-311 Taxi speed drops ~10 kt in one second mid-route (H2 clip, KOAK F) · release vNext
 - [ ] YAAT-31 LAHSO residuals: carry the limit past handoff, arc fit, ALD gate, CROSS release
 - [ ] YAAT-33 Scale MainGearTurnRadiusFt by type wheelbase
 - [ ] YAAT-34 Ground-speed realism: follow stop distance by weight class, static takeoffs
@@ -203,7 +113,6 @@
 - [ ] YAAT-39 Push-rethink leftovers: wingtip allowance comments, turning-tow yield test, perf
 - [ ] YAAT-40 Stop spot line-up from past the spot looping behind the spot (SKW5564)
 - [ ] YAAT-41 Bare PUSH T7A from SFO F8 should line up on T7A, not end across the lane
-- [x] YAAT-42 Add position history to the STARS track fingerprint (yaat-server) · release vNext
 - [ ] YAAT-43 A cleared first taxiway must be driven, or the TAXI refused (SFO M4 M1)
 - [ ] YAAT-44 Confine TryTaxiCore's zero-segment re-route to the ramp
 - [ ] YAAT-45 Count a 28L arrival exiting north onto T in SFO's exit capacity
@@ -214,7 +123,6 @@
 - [ ] YAAT-254 Visual follower behind a heavier lead lands beyond its touchdown point
 - [ ] YAAT-257 A follower whose lead has landed joins final instead of re-entering the pattern
 - [ ] YAAT-314 Ground paths that set taxi speed instead of braking to it (unmeasured sites)
-- [x] YAAT-318 HOLD or GIVEWAY near an uncleared runway bar rolls the nose past the hold line · release vNext
 - [ ] YAAT-319 Clear-runway and line-up restarts a restored turn; HOLD mid-crossing snaps to 0 kt
 - [ ] YAAT-324 Ground conflict limit drops a runway-crossing aircraft's speed in one second instead of braking
 - [ ] YAAT-325 GIVEWAY to traffic that is just starting to taxi releases at once
@@ -236,19 +144,13 @@
 - [ ] YAAT-410 Start-node hold aims the centre, not the nose; ILS/approach holds; firm taxi stop rate
 - [ ] YAAT-414 Navigator reads an aircraft in line but short of segment 0 as off-line and crawls at 5 kt
 - [ ] YAAT-421 Judge a hold short unmakeable at the firm stop rate, not the taxi rate
-- [x] YAAT-424 Keep a taxiway turn-about within the taxiway's width · release vNext
-- [x] YAAT-432 Gate the jet turn-around refusal on design group, not the Jet category · release vNext
 - [ ] YAAT-435 Let a re-route's stop lie behind the aircraft by under 3 ft on segment 0
-- [x] YAAT-438 Slow to pivot speed before a taxiway turn-about issued while rolling · release vNext
 - [ ] YAAT-509 Turn about from rest short of a runway bar ignores the bar clearance
 - [ ] YAAT-467 Lay a taxi turn from rest at a junction node so it finishes on the next centreline
 - [ ] YAAT-468 Stop at a hold-short bar the parser places at the aircraft's own start on a short leg
 - [ ] YAAT-469 Use one high-speed exit angle threshold for turn-off speed and exit search
 - [ ] YAAT-470 Split GroundNavigator.BuildEntryAlignmentArc and TickStraight under the size limits
 - [ ] YAAT-471 Stop on the taxiway centreline at a node-only hold short issued after a turn about
-- [x] YAAT-477 Keep taxi speed through an early arrival at a node joining two collinear segments · release vNext
-- [x] YAAT-480 Judge taildraggers and wide-track twins fairly in the taxiway turn-about gear fit · release vNext
-- [x] YAAT-481 Order in-trail aircraft by progress along the edge during a runway crossing · release vNext
 - [ ] YAAT-483 Keep a runway-crossing aircraft moving behind in-trail traffic, or hold it at the near line
 - [ ] YAAT-485 Keep taxi speed through an early arrival at a gentle unrounded bend
 - [ ] YAAT-486 Fill NavTickDiag.PathDeviationFt, which is always written as zero
@@ -258,9 +160,6 @@
 
 ## Wave 2 — Ground command grammar and dispatch
 
-- [x] YAAT-308 Solo ready-to-taxi call-up fires for aircraft taxiing, following or arrived · release vNext
-  - [x] YAAT-317 Inventory every ZOA scenario spawn and settle each kind's initial pilot call · release vNext
-- [x] YAAT-307 FOLLOWG and GIVEWAY get no pilot readback · release vNext
 - [ ] YAAT-50 Armed FOLLOWG leftovers: RES at bars, follow readbacks, repeat crossings
 - [ ] YAAT-51 Offer standalone TAXI modifiers at slot 1; test cross-command alias collisions
 - [ ] YAAT-52 Keep the line-up yaw rate when a command fires mid resumed rollout
@@ -278,7 +177,6 @@
 - [ ] YAAT-336 Immediate preset CTO for a departure held for release is dropped instead of waiting for the release
 - [ ] YAAT-337 Solo release auto-takeoff depends on the release request object surviving the jitter window
 - [ ] YAAT-427 Split GroundCommandHandler's TryTaxiCore and ResolveTaxiRouteFrom under the 100-line limit
-- [x] YAAT-433 Send the turn-about shape to the ground view instead of re-inferring it · release vNext
 
 ## Wave 3 — Ground routing, pathfinder and their docs
 
@@ -318,7 +216,6 @@
 - [ ] YAAT-251 A mid-tape recorded setting change never reaches the room's Session Settings or the clients
 - [ ] YAAT-252 Loading a recording resets the auto cleared-to-land flags from the preference, not the tape's session setting
 - [ ] YAAT-253 Recording load and t=0 rebuild dispatch scenario presets under the room's settings, not the tape's
-- [x] YAAT-426 Keep a queued command block's scripted flag across a snapshot restore · release vNext
 - [ ] YAAT-429 Navigation queued blocks (JRADO, JRADI, DEPART, airway intercept) are lost silently after a snapshot restore
 - [ ] YAAT-430 A restored or deferred AI-controller dispatch uses the student's facility hint, not the controller's
 - [ ] YAAT-431 Decide whether a split queued block keeps its original dispatch's scripted provenance
@@ -360,7 +257,6 @@
 - [ ] YAAT-211 Split RadarCanvas.OnPointerPressed into one helper per ladder rung
 - [ ] YAAT-269 Route the ground canvas's data-block drag and reset through DataBlockViewState
 - [ ] YAAT-305 UI tests: AppLifetime.IsShuttingDown never resets after a MainWindow close
-- [x] YAAT-428 MainWindowLifecycleTests extra-view tests see OAK instead of KOAK on Linux CI · release vNext
 
 ## Wave 8 — Live traffic
 
@@ -371,10 +267,6 @@
 
 ## Wave 9 — Docs and repo hygiene
 
-- [x] YAAT-356 Fix the GuideCapture flight-strips scene: its strips tab lookup no longer matches · release vNext
-- [x] YAAT-357 Make GuideCapture images identical run to run (fixed clock for terminal timestamps) · release vNext
-- [x] YAAT-287 Remove the phantom GuideCapture Fakes/FakeFilePickerService.cs line from architecture.md · release vNext
-- [x] YAAT-276 Correct the gear flyout's field count in client-mainviewmodel.md · release vNext
 - [ ] YAAT-110 Replace stale MainViewModel line numbers in docs/command-input-ux.md
 - [ ] YAAT-111 Code hygiene from the ERAM session: long lines, sync-over-async, optional params
 - [ ] YAAT-112 Move developer docs from the repo root into docs/
@@ -399,7 +291,6 @@
 - [ ] YAAT-131 Fix dead doc paths rigcheck found
 - [ ] YAAT-204 Rework the triage-open-issues skill for the Linear plan
 - [ ] YAAT-206 Add the Agent Mail lease guard to yaat-server's prek hooks
-- [x] YAAT-213 Isolate UserPreferences writes between UI tests · release vNext
 - [ ] YAAT-222 land-bot-pr: name the real merge contrast and add the landing family's shared rules
 - [ ] YAAT-227 Fix the two broken vEDST doc links (architecture.md, CLAUDE.md)
 - [ ] YAAT-265 Re-measure the bare dotnet test ceilings and the test-loop baseline on a quiet machine
@@ -410,22 +301,18 @@
 - [ ] YAAT-338 Fix stale MainViewModel line anchors and misplaced Client.Core files in the docs
 - [ ] YAAT-350 Correct three stale speech-pipeline comments and doc lines (LocalLlmService CUDA, ScenarioCallsignExtractor prompt, LM-Kit csproj note)
 - [ ] YAAT-371 Datablock flash phase follows process uptime (Environment.TickCount64): add a shared flash clock GuideCapture can pin
-- [x] YAAT-374 Timeline rail draws every bookmark and finding tick at its left edge · release vNext
-- [x] YAAT-375 Timeline slider thumb jumps to 0 after a rewind instead of the playhead · release vNext
-- [x] YAAT-415 Split markdown lines of 500+ characters in yaat and yaat-server · release vNext
 - [ ] YAAT-416 UserPreferencesTaxiRouteDisplayTests defaults test reads shared preferences (flaky)
 - [ ] YAAT-417 AppToolsTests automation pipe breaks under load (Pipe is broken)
 - [ ] YAAT-422 Fix doc drift: PostPhysics step count, JsonIgnore field list, stray User Guide item
 - [ ] YAAT-425 GuideCapture runs raise a Windows Firewall prompt: bind its in-process server's listeners to loopback
 - [ ] YAAT-472 Cut the context every yaat session and subagent loads: CLAUDE.md and the architecture index
-- [!] YAAT-491 Adopt the user-level predictive-CI toolkit in yaat
-- [x] YAAT-500 Document what ARTCC staff can customise (sidecars, GeoJSON, data admin) and sync it to Discord · release vNext
+- [ ] YAAT-491 Adopt the user-level predictive-CI toolkit in yaat
 - [ ] YAAT-515 Stop the commit hook's style pass marking [ObservableProperty] fields readonly
+- [ ] YAAT-526 Update yaat's skills and docs for land going straight to Done (no Landed state)
 
 ## Singles
 
 - [ ] YAAT-349 NavigationDatabase spatial grid: longitude search radius under-covers (misses in-range airports WNW/W, incl. KMIB/KMOT in CONUS)
-- [x] YAAT-145 Align approach-side follow spacing with wake-aware PatternSpacingNm · release vNext
 - [ ] YAAT-4 Airport sidecar ideas
 - [ ] YAAT-132 Table-drive AircraftChangeTracker.DetectChanges comparisons (yaat-server)
 - [ ] YAAT-133 Fly direct to the destination after the last route fix, then hold
@@ -493,9 +380,7 @@
 - [ ] YAAT-233 FOLLOW: base-turn hold releases then breaks off; 28L pattern altitude 609 ft
 - [ ] YAAT-235 Solo Safety flags a lead landing behind a closed-traffic follower that left the runway long ago
 - [ ] YAAT-236 B738 rolls past the end of OAK 28R; a cleared follower then lands on the occupied runway
-- [x] YAAT-277 Settings: Quick Bookmark hotkey button may not capture a key · release vNext
 - [ ] YAAT-347 VFR FH with a cardinal direction: FH E / SE / W … = "proceed eastbound" → FH 090 / 135 / 270
-- [x] YAAT-423 Command pipeline: restored WAIT/BEHIND deferral re-parses DCT without the filed route — live vs replay diverge (STAR cleared vs preserved) · release vNext
 - [ ] YAAT-476 Read each CIFP approach's type from its route type, and fix the approach type names and readback
 - [ ] YAAT-479 Load CIFP approaches for airports whose ident is a three-character FAA LID
 
@@ -508,11 +393,9 @@
 - [ ] YAAT-199 Keep the PUSHF hint out of the spoken pilot refusal
 - [ ] YAAT-229 Route the data-block field popups through MenuPopups.Open; wrap MenuPopups' summary line
 - [ ] YAAT-200 Build the standalone airport GeoJSON editor
-- [x] YAAT-264 Context menus: no double separator before Track in the builder · release vNext
 - [ ] YAAT-201 Work the phraseology coverage backlog
 - [ ] YAAT-268 Context menus in an extra ground window at another airport use the primary view's layout
 - [ ] YAAT-202 BEHIND grammar extensions
-- [x] YAAT-273 DataGridContextMenuStateTests depend on test order for NavigationDatabase · release vNext
 - [ ] YAAT-203 Measure ApproachEvaluator separation at a common instant, not the current lead
 - [ ] YAAT-214 Warn the RPO in the terminal when an amended flight plan has unresolvable route elements
 - [ ] YAAT-281 Aircraft menus leave a hold-short route preview on other ground windows
@@ -523,7 +406,6 @@
 - [ ] YAAT-262 RBL readout nudges: avoid pinned blocks; two RadarCanvas tidy-ups
 - [ ] YAAT-263 Solo toggle: a failed SetSoloTrainingMode send is silent
 - [ ] YAAT-298 Server admin settings are stored but nothing reads them: wire them up or remove them
-- [x] YAAT-301 Flaky on Linux CI: CenterRadarOnFix tests see no navigation database · release vNext
 - [ ] YAAT-302 Client driver: prepare_take selects the Radar View tab
 - [ ] YAAT-303 Client driver: launch_yaat refuses an audio output device name that matches nothing
 - [ ] YAAT-304 Client driver: wait_until landed reports coarse, late sim times
@@ -572,3 +454,5 @@
 - [ ] YAAT-506 Make the tug timing and automation-pipe tests load-independent
 - [ ] YAAT-512 Pilot calls raised at command dispatch never reach a solo student's radio
 - [ ] YAAT-518 TG with a runway touches down on the pattern runway instead
+- [ ] YAAT-523 Remove GroundConflictDetector.IsClearOf, which has no production caller
+- [ ] YAAT-525 FOLLOWG then CROSS on an aircraft with no taxi route drops the CROSS but reports success
