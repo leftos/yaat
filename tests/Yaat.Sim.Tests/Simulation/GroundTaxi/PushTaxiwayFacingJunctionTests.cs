@@ -197,7 +197,7 @@ public class PushTaxiwayFacingJunctionTests(ITestOutputHelper output)
         {
             Start = new TugPose(stand.Position, stand.TrueHeading!.Value.Degrees),
             StartsAtStand = true,
-            AircraftType = AircraftType,
+            Footprint = AircraftFootprint.FromType(AircraftType),
             Goals = [TugGoal.TaxiwayLine(exit, "A", facingDeg) with { FacingTaxiwayName = "F1" }],
             ParkedNeighbours = [],
             FinalFacingTrueDeg = null,
@@ -249,7 +249,7 @@ public class PushTaxiwayFacingJunctionTests(ITestOutputHelper output)
     }
 
     /// <summary>A B738's routine tug turn radius, feet: its wheelbase.</summary>
-    private static double RoutineRadiusFt => TugKinematics.TurnRadiusFt(AircraftType, tight: false);
+    private static double RoutineRadiusFt => TugKinematics.TurnRadiusFt(AircraftFootprint.FromType(AircraftType), tight: false);
 
     /// <summary>The A/F1 junction nearest the gate's A exit: the node carrying both taxiways' straight edges.</summary>
     private static GroundNode Junction(AirportGroundLayout layout, GroundNode gate)

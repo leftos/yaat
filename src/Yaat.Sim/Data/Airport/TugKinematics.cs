@@ -1,5 +1,4 @@
 using Microsoft.Extensions.Logging;
-using Yaat.Sim.Data.Faa;
 
 namespace Yaat.Sim.Data.Airport;
 
@@ -285,14 +284,12 @@ public static class TugKinematics
     /// (≈0.41 × wheelbase). A type with no FAA record or no wheelbase falls back by category — Jet 50 ft,
     /// Turboprop 30 ft, Piston 7 ft, Helicopter 10 ft — before the tight factor. Never below 1 ft.
     /// </summary>
-    /// <param name="aircraftType">ICAO type designator, prefixes and suffixes allowed.</param>
+    /// <param name="footprint">The aircraft's dimensions; its wheelbase, else its category, sets the radius.</param>
     /// <param name="tight">Use the tight steering angle.</param>
     /// <returns>The turn radius, feet.</returns>
-    public static double TurnRadiusFt(string aircraftType, bool tight)
+    public static double TurnRadiusFt(AircraftFootprint footprint, bool tight)
     {
-        double? wheelbaseFt = FaaAircraftDatabase.Get(aircraftType)?.WheelbaseFt;
-        double routineFt =
-            (wheelbaseFt is { } wheelbase && (wheelbase > 0.0)) ? wheelbase : FallbackRadiusFt(AircraftCategorization.Categorize(aircraftType));
+        double routineFt = (footprint.WheelbaseFt is { } wheelbase && (wheelbase > 0.0)) ? wheelbase : FallbackRadiusFt(footprint.Category);
         double radiusFt = tight ? routineFt / Math.Tan(TightSteeringAngleDeg * DegToRad) : routineFt;
         return Math.Max(MinRadiusFt, radiusFt);
     }
@@ -388,10 +385,10 @@ public static class TugKinematics
     /// </summary>
     /// <param name="start">The pose before the first move.</param>
     /// <param name="moves">The moves, in order.</param>
-    /// <param name="aircraftType">ICAO type designator; sets the turn radius.</param>
+    /// <param name="footprint">The aircraft's dimensions; they set the turn radius.</param>
     /// <param name="stepFt">The step length, feet; must be positive.</param>
     /// <returns>One trace per move, and the end pose.</returns>
-    public static TugSimulation Simulate(TugPose start, IReadOnlyList<TugMove> moves, string aircraftType, double stepFt)
+    public static TugSimulation Simulate(TugPose start, IReadOnlyList<TugMove> moves, AircraftFootprint footprint, double stepFt)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(stepFt);
         var traces = new List<TugMoveTrace>(moves.Count);
@@ -399,7 +396,7 @@ public static class TugKinematics
         bool flyable = true;
         foreach (TugMove move in moves)
         {
-            TugMoveTrace trace = flyable ? SimulateMove(pose, move, aircraftType, stepFt) : SkippedTrace(pose, move);
+            TugMoveTrace trace = flyable ? SimulateMove(pose, move, footprint, stepFt) : SkippedTrace(pose, move);
             traces.Add(trace);
             pose = trace.End;
             flyable = trace.Completed;
@@ -412,9 +409,9 @@ public static class TugKinematics
     internal static double FlipForKind(double headingTrueDeg, PushbackLegKind kind) =>
         new TrueHeading(kind == PushbackLegKind.Push ? headingTrueDeg + 180.0 : headingTrueDeg).Degrees;
 
-    private static TugMoveTrace SimulateMove(TugPose start, TugMove move, string aircraftType, double stepFt)
+    private static TugMoveTrace SimulateMove(TugPose start, TugMove move, AircraftFootprint footprint, double stepFt)
     {
-        double radiusFt = TurnRadiusFt(aircraftType, move.Tight);
+        double radiusFt = TurnRadiusFt(footprint, move.Tight);
         double budgetFt = TravelBudgetFt(start, move, radiusFt);
         var progress = TugMoveProgress.Begin(start, move);
         TugPose pose = start;

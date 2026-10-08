@@ -364,7 +364,9 @@ public sealed class PushbackPhase : Phase
                     StraightDistanceFt = Math.Max(0.0, Move.StraightDistanceFt - _progress.DistanceFt),
                 }
                 : Move;
-        IReadOnlyList<TugMoveTrace> traces = TugKinematics.Simulate(pose, [move, .. continuation], aircraftType, TugMovePlanner.StepFt).Moves;
+        IReadOnlyList<TugMoveTrace> traces = TugKinematics
+            .Simulate(pose, [move, .. continuation], AircraftFootprint.FromType(aircraftType), TugMovePlanner.StepFt)
+            .Moves;
         var samples = new List<TugPose>();
         foreach (TugMoveTrace trace in traces)
         {
@@ -644,10 +646,11 @@ public sealed class PushbackPhase : Phase
     {
         AircraftState aircraft = ctx.Aircraft;
         PublishTugRates(ctx);
-        double radiusFt = TugKinematics.TurnRadiusFt(aircraft.AircraftType, Move.Tight);
+        var footprint = AircraftFootprint.FromType(aircraft.AircraftType);
+        double radiusFt = TugKinematics.TurnRadiusFt(footprint, Move.Tight);
         double probeStepFt = StepFt(ctx, MoveSpeedKts(ctx, pose, steerDeg: 0.0));
         double probeTurnDeg = TravelTurnDeg(pose, TugKinematics.SteerTravel(pose, Move, _progress, radiusFt, probeStepFt));
-        double speedKts = MoveSpeedKts(ctx, pose, SteerDeg(aircraft.AircraftType, probeTurnDeg, probeStepFt));
+        double speedKts = MoveSpeedKts(ctx, pose, SteerDeg(footprint, probeTurnDeg, probeStepFt));
         double stepFt = StepFt(ctx, speedKts);
         double travelDeg = TugKinematics.SteerTravel(pose, Move, _progress, radiusFt, stepFt);
         ctx.Targets.TargetSpeed = speedKts;
@@ -664,7 +667,7 @@ public sealed class PushbackPhase : Phase
             aircraft.TrueHeading = travel;
         }
 
-        SteerTowbar(aircraft, travelTurnDeg, stepFt);
+        SteerTowbar(aircraft, footprint, travelTurnDeg, stepFt);
     }
 
     /// <summary>
@@ -686,16 +689,17 @@ public sealed class PushbackPhase : Phase
     /// move the aircraft nor straighten the tug.</para>
     /// </summary>
     /// <param name="aircraft">The aircraft under tow, with this tick's nose heading already set.</param>
+    /// <param name="footprint">The towed aircraft's dimensions, for its wheelbase.</param>
     /// <param name="travelTurnDeg">How far the step turned the direction of travel, degrees, positive clockwise.</param>
     /// <param name="stepFt">The step's length, feet.</param>
-    private void SteerTowbar(AircraftState aircraft, double travelTurnDeg, double stepFt)
+    private void SteerTowbar(AircraftState aircraft, AircraftFootprint footprint, double travelTurnDeg, double stepFt)
     {
         if (stepFt <= 0.0)
         {
             return;
         }
 
-        double steerDeg = SteerDeg(aircraft.AircraftType, travelTurnDeg, stepFt);
+        double steerDeg = SteerDeg(footprint, travelTurnDeg, stepFt);
         double towbarSide = Move.Kind == PushbackLegKind.Push ? -1.0 : 1.0;
         aircraft.Ground.TowbarTrueHeading = new TrueHeading(aircraft.TrueHeading.Degrees + (towbarSide * steerDeg));
     }
@@ -705,20 +709,19 @@ public sealed class PushbackPhase : Phase
     /// clockwise: <c>δ = atan(L·κ)</c> on the bicycle model <see cref="SteerTowbar"/> describes. Zero for a step of no
     /// length.
     /// </summary>
-    /// <param name="aircraftType">The towed type, for its wheelbase.</param>
+    /// <param name="footprint">The towed aircraft's dimensions, for its wheelbase.</param>
     /// <param name="travelTurnDeg">How far the step turns the direction of travel, degrees, positive clockwise.</param>
     /// <param name="stepFt">The step's length, feet.</param>
     /// <returns>The steer angle, degrees.</returns>
-    private static double SteerDeg(string aircraftType, double travelTurnDeg, double stepFt)
+    private static double SteerDeg(AircraftFootprint footprint, double travelTurnDeg, double stepFt)
     {
         if (stepFt <= 0.0)
         {
             return 0.0;
         }
 
-        double? recordedWheelbaseFt = FaaAircraftDatabase.Get(aircraftType)?.WheelbaseFt;
         double wheelbaseFt =
-            (recordedWheelbaseFt is { } recorded && (recorded > 0.0)) ? recorded : TugKinematics.TurnRadiusFt(aircraftType, tight: false);
+            (footprint.WheelbaseFt is { } recorded && (recorded > 0.0)) ? recorded : TugKinematics.TurnRadiusFt(footprint, tight: false);
         double curvaturePerFt = (travelTurnDeg / RadToDeg) / stepFt;
         return Math.Atan(wheelbaseFt * curvaturePerFt) * RadToDeg;
     }
@@ -834,11 +837,11 @@ public sealed class PushbackPhase : Phase
     /// </summary>
     private void ResolvePending(AircraftState aircraft, TugPose pose)
     {
-        string type = aircraft.AircraftType;
+        var footprint = AircraftFootprint.FromType(aircraft.AircraftType);
         if (_pendingPushedFrom is { } pushedFrom)
         {
             double pushedFt = IsUnset(pushedFrom) ? 0.0 : FeetBetween(pushedFrom, pose.Position);
-            _move = TugMove.Straight(Move.Kind, Math.Max(0.0, TugMovePlanner.SimplePushbackFt(type) - pushedFt));
+            _move = TugMove.Straight(Move.Kind, Math.Max(0.0, TugMovePlanner.SimplePushbackFt(footprint) - pushedFt));
             _pendingPushedFrom = null;
         }
 
@@ -848,7 +851,7 @@ public sealed class PushbackPhase : Phase
         _runPathCache.Invalidate();
         if (Move.Shape is TugMoveShape.Straight or TugMoveShape.TurnTo)
         {
-            _plannedEnd = TugKinematics.Simulate(pose, [Move], type, TugMovePlanner.StepFt).End.Position;
+            _plannedEnd = TugKinematics.Simulate(pose, [Move], footprint, TugMovePlanner.StepFt).End.Position;
         }
 
         _progressPending = false;

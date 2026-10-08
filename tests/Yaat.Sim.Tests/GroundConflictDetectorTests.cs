@@ -1355,7 +1355,7 @@ public class GroundConflictDetectorTests
         pusher.Phases.Add(
             new PushbackPhase
             {
-                Move = TugMove.Straight(PushbackLegKind.Push, TugMovePlanner.SimplePushbackFt(pusher.AircraftType)),
+                Move = TugMove.Straight(PushbackLegKind.Push, TugMovePlanner.SimplePushbackFt(AircraftFootprint.FromType(pusher.AircraftType))),
                 PlannedEnd = GeoMath.ProjectPoint(
                     standPosition,
                     new TrueHeading(180),
@@ -1408,7 +1408,7 @@ public class GroundConflictDetectorTests
         TrueHeading pushHeading = aircraft.Ground.PushbackTrueHeading ?? aircraft.TrueHeading.ToReciprocal();
         return new PushbackPhase
         {
-            Move = TugMove.Straight(PushbackLegKind.Push, TugMovePlanner.SimplePushbackFt(aircraft.AircraftType)),
+            Move = TugMove.Straight(PushbackLegKind.Push, TugMovePlanner.SimplePushbackFt(AircraftFootprint.FromType(aircraft.AircraftType))),
             PlannedEnd = GeoMath.ProjectPoint(aircraft.Position, pushHeading, CategoryPerformance.SimplePushbackDistanceNm(aircraft.AircraftType)),
             StartsAtStand = true,
             ContinuesIntoNextMove = false,

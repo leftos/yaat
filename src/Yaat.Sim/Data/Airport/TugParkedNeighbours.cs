@@ -98,6 +98,7 @@ public static class TugParkedNeighbours
     /// <returns>The neighbours to plan around.</returns>
     public static IReadOnlyList<TugParkedNeighbour> Build(TugNeighbourCandidate aircraft, IEnumerable<TugNeighbourCandidate> others)
     {
+        var aircraftFootprint = AircraftFootprint.FromType(aircraft.AircraftType);
         var near = new List<TugParkedNeighbour>();
         foreach (TugNeighbourCandidate other in others)
         {
@@ -114,7 +115,8 @@ public static class TugParkedNeighbours
             // A neighbour the aircraft already touches where it stands is no candidate's to avoid — every candidate
             // fouls it at its first sample — and FindStartOverlap refuses the move naming both aircraft. Planning
             // around it would answer that placement error with the wrong message.
-            if (ClearanceFt(aircraft, aTowedNoseFirst: false, other) < GroundOutlineSweep.OutlineClearanceSlackFt)
+            var otherFootprint = AircraftFootprint.FromType(other.AircraftType);
+            if (ClearanceFt(aircraft, aircraftFootprint, aTowedNoseFirst: false, other, otherFootprint) < GroundOutlineSweep.OutlineClearanceSlackFt)
             {
                 continue;
             }
@@ -125,7 +127,7 @@ public static class TugParkedNeighbours
                     Callsign = other.Callsign,
                     Position = other.Position,
                     TrueHeadingDeg = other.TrueHeadingDeg,
-                    AircraftType = other.AircraftType,
+                    Footprint = otherFootprint,
                     StandName = other.StandName,
                 }
             );
@@ -146,6 +148,7 @@ public static class TugParkedNeighbours
     public static TugStartOverlap? FindStartOverlap(TugNeighbourCandidate aircraft, TugPlan plan, IEnumerable<TugNeighbourCandidate> others)
     {
         bool towedNoseFirst = (plan.Moves.Count > 0) && (plan.Moves[0].Move.Kind == PushbackLegKind.Pull);
+        var aircraftFootprint = AircraftFootprint.FromType(aircraft.AircraftType);
         foreach (TugNeighbourCandidate other in others)
         {
             if (!IsParkedOrHeldOther(aircraft, other))
@@ -153,7 +156,7 @@ public static class TugParkedNeighbours
                 continue;
             }
 
-            double clearanceFt = ClearanceFt(aircraft, towedNoseFirst, other);
+            double clearanceFt = ClearanceFt(aircraft, aircraftFootprint, towedNoseFirst, other, AircraftFootprint.FromType(other.AircraftType));
             if (clearanceFt < GroundOutlineSweep.OutlineClearanceSlackFt)
             {
                 return new TugStartOverlap(aircraft.Callsign, other.Callsign, clearanceFt, towedNoseFirst);
@@ -172,12 +175,18 @@ public static class TugParkedNeighbours
         !string.Equals(other.Callsign, aircraft.Callsign, StringComparison.OrdinalIgnoreCase)
         && GroundConflictDetector.IsParkedOrHeld(other.IsImmobile, other.PhaseName, other.GroundSpeedKts, other.TargetSpeedKts);
 
-    private static double ClearanceFt(TugNeighbourCandidate a, bool aTowedNoseFirst, TugNeighbourCandidate b) =>
+    private static double ClearanceFt(
+        TugNeighbourCandidate a,
+        AircraftFootprint aFootprint,
+        bool aTowedNoseFirst,
+        TugNeighbourCandidate b,
+        AircraftFootprint bFootprint
+    ) =>
         GroundOutline.ClearanceBetween(
             new TugPose(a.Position, a.TrueHeadingDeg),
-            a.AircraftType,
+            aFootprint,
             aTowedNoseFirst,
             new TugPose(b.Position, b.TrueHeadingDeg),
-            b.AircraftType
+            bFootprint
         );
 }

@@ -35,7 +35,9 @@ public class PushTaxiwayTailFacingTests
 
         Assert.True(result.Success, $"{command} failed: {result.Message}");
         List<TugMove> moves = [.. ac.Phases!.Phases.OfType<PushbackPhase>().Select(p => p.Move)];
-        double facingTrue = TugKinematics.Simulate(new TugPose(ac.Position, ac.TrueHeading.Degrees), moves, ac.AircraftType, 1.0).End.NoseTrueDeg;
+        double facingTrue = TugKinematics
+            .Simulate(new TugPose(ac.Position, ac.TrueHeading.Degrees), moves, AircraftFootprint.FromType(ac.AircraftType), 1.0)
+            .End.NoseTrueDeg;
         double hintTrue = MagneticDeclination.MagneticToTrue(hintMagneticDeg, layout.FindParkingByName("C8")!.Position);
         double offDeg = GeoMath.AbsBearingDifference(facingTrue, hintTrue);
         Assert.True(offDeg < 90.0, $"{command} faces {facingTrue:000}, {offDeg:F0}° from the hint ({hintTrue:F0} true)");
@@ -67,7 +69,7 @@ public class PushTaxiwayTailFacingTests
             message[Prefix.Length..message.IndexOf(" ft past", StringComparison.Ordinal)],
             CultureInfo.InvariantCulture
         );
-        double halfSpanFt = TugPathCheck.MaxTaxiwayOvershootFt("B739");
+        double halfSpanFt = TugPathCheck.MaxTaxiwayOvershootFt(AircraftFootprint.FromType("B739"));
         Assert.True(overshootFt > halfSpanFt, $"the premise: the {overshootFt} ft overshoot is over the B739's {halfSpanFt:F1} ft half-span");
     }
 

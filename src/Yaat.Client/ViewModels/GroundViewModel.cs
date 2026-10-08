@@ -3610,7 +3610,7 @@ public partial class GroundViewModel : ObservableObject
         {
             Start = new TugPose(aircraft.Position, aircraft.Heading.Degrees),
             StartsAtStand = aircraft.CurrentPhase == "At Parking",
-            AircraftType = aircraft.AircraftType,
+            Footprint = AircraftFootprint.FromType(aircraft.AircraftType),
             Goals = goals,
             ParkedNeighbours = TugParkedNeighbours.Build(subject, others),
             FinalFacingTrueDeg = finalFacingTrueDeg,

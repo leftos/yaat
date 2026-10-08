@@ -972,7 +972,7 @@ public static class RampLaneReposition
             FindLegObstacle(
                 layout,
                 request.Callsign,
-                TugMovePlanner.WingspanFt(request.AircraftType) / 2.0,
+                AircraftFootprint.ResolveWingspanFt(request.AircraftType) / 2.0,
                 request.OtherGroundAircraft,
                 from,
                 target.Position
@@ -1189,7 +1189,7 @@ public static class RampLaneReposition
             return true;
         }
 
-        return IsOffMovementArea(layout, position) && !IsNearMovementArea(layout, position, TugMovePlanner.WingspanFt(aircraftType) / 2.0);
+        return IsOffMovementArea(layout, position) && !IsNearMovementArea(layout, position, AircraftFootprint.ResolveWingspanFt(aircraftType) / 2.0);
     }
 
     /// <summary>The nearest straight taxi edge to <paramref name="position"/> is apron or a ramp taxilane, not movement area.</summary>
@@ -1258,7 +1258,7 @@ public static class RampLaneReposition
         }
 
         HashSet<string> family = LaneFamily(layout, ends.Lane);
-        double halfSpanFt = TugMovePlanner.WingspanFt(request.AircraftType) / 2.0;
+        double halfSpanFt = AircraftFootprint.ResolveWingspanFt(request.AircraftType) / 2.0;
         if (LineUpRefusal(request, ends, family, halfSpanFt) is { } refusal)
         {
             Log.LogDebug("[SpotLineUp] {Callsign} to {Spot}: {Refusal}; keeping the route as resolved", request.Callsign, spot.Name, refusal);
@@ -1472,7 +1472,7 @@ public static class RampLaneReposition
                 continue;
             }
 
-            double clearFt = ownHalfSpanFt + (TugMovePlanner.WingspanFt(other.AircraftType) / 2.0) + GroundOutlineSweep.WingtipBufferFt;
+            double clearFt = ownHalfSpanFt + (AircraftFootprint.ResolveWingspanFt(other.AircraftType) / 2.0) + GroundOutlineSweep.WingtipBufferFt;
             if (LegCloses(from, to, other.Position, clearFt))
             {
                 return other.Callsign;

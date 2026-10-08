@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests;
@@ -85,8 +86,8 @@ public class GroundOutlineTests
     [Fact]
     public void SizeOf_AddsTheTugLeadOnlyOnAPull_AndReachCoversIt()
     {
-        var parked = GroundOutlineSize.Of("B738", towedNoseFirst: false);
-        var pulled = GroundOutlineSize.Of("B738", towedNoseFirst: true);
+        var parked = GroundOutlineSize.Of(AircraftFootprint.FromType("B738"), towedNoseFirst: false);
+        var pulled = GroundOutlineSize.Of(AircraftFootprint.FromType("B738"), towedNoseFirst: true);
 
         Assert.Equal(0.0, parked.NoseLeadFt);
         Assert.Equal(GroundOutline.TugLeadFt, pulled.NoseLeadFt);

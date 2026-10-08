@@ -130,7 +130,9 @@ public class TugMoveParkedNeighbourTests(ITestOutputHelper output)
     private static PushbackPhase StraightPull((LatLon Position, double NoseTrueDeg) start, double distanceFt)
     {
         var move = TugMove.Straight(PushbackLegKind.Pull, distanceFt);
-        LatLon end = TugKinematics.Simulate(new TugPose(start.Position, start.NoseTrueDeg), [move], Narrowbody, 1.0).End.Position;
+        LatLon end = TugKinematics
+            .Simulate(new TugPose(start.Position, start.NoseTrueDeg), [move], AircraftFootprint.FromType(Narrowbody), 1.0)
+            .End.Position;
         return new PushbackPhase
         {
             Move = move,
@@ -208,12 +210,17 @@ public class TugMoveParkedNeighbourTests(ITestOutputHelper output)
     private static double PlannedPathClosestFt(AircraftState mover, AircraftState parked)
     {
         var moves = mover.Phases!.Phases.OfType<PushbackPhase>().Where(p => p.Status != PhaseStatus.Completed).Select(p => p.Move).ToList();
-        TugSimulation simulation = TugKinematics.Simulate(new TugPose(mover.Position, mover.TrueHeading.Degrees), moves, mover.AircraftType, 1.0);
+        TugSimulation simulation = TugKinematics.Simulate(
+            new TugPose(mover.Position, mover.TrueHeading.Degrees),
+            moves,
+            AircraftFootprint.FromType(mover.AircraftType),
+            1.0
+        );
         var frame = new GroundOutlineFrame(mover.Position);
         var parkedOutline = GroundOutline.At(
             frame.ToLocal(parked.Position),
             parked.TrueHeading.Degrees,
-            GroundOutlineSize.Of(parked.AircraftType, false)
+            GroundOutlineSize.Of(AircraftFootprint.FromType(parked.AircraftType), false)
         );
         return simulation
             .Moves.SelectMany(trace =>
@@ -222,7 +229,10 @@ public class TugMoveParkedNeighbourTests(ITestOutputHelper output)
                         GroundOutline.At(
                             frame.ToLocal(pose.Position),
                             pose.NoseTrueDeg,
-                            GroundOutlineSize.Of(mover.AircraftType, towedNoseFirst: trace.Move.Kind == PushbackLegKind.Pull)
+                            GroundOutlineSize.Of(
+                                AircraftFootprint.FromType(mover.AircraftType),
+                                towedNoseFirst: trace.Move.Kind == PushbackLegKind.Pull
+                            )
                         ),
                         parkedOutline
                     )
@@ -369,7 +379,7 @@ public class TugMoveParkedNeighbourTests(ITestOutputHelper output)
         (SimulationEngine? engine, AirportGroundLayout? layout) = built;
 
         AircraftState pusher = SpawnOnStand(engine, layout, Mover, "D15");
-        double abeamFt = GroundOutlineSize.Of(Narrowbody, towedNoseFirst: false).WingspanFt + StartingGapFt;
+        double abeamFt = GroundOutlineSize.Of(AircraftFootprint.FromType(Narrowbody), towedNoseFirst: false).WingspanFt + StartingGapFt;
         LatLon abeam = Offset(pusher.Position, pusher.TrueHeading.Degrees, aheadFt: 0.0, rightFt: abeamFt);
         AircraftState parked = Spawn(engine, layout, Parked, (abeam, pusher.TrueHeading.Degrees), new AtParkingPhase());
         double startClearanceFt = GroundOutline.ClearanceBetween(pusher, aTowedNoseFirst: false, parked);
@@ -398,14 +408,16 @@ public class TugMoveParkedNeighbourTests(ITestOutputHelper output)
     /// A half-span less <see cref="StartingGapFt"/> abeam: each aircraft's wing reaches <see cref="StartingGapFt"/>
     /// past the other's fuselage, so the two outlines cross and the clearance is a clean zero.
     /// </summary>
-    private static double CrossedWingsAbeamFt => (GroundOutlineSize.Of(Narrowbody, towedNoseFirst: false).WingspanFt / 2.0) - StartingGapFt;
+    private static double CrossedWingsAbeamFt =>
+        (GroundOutlineSize.Of(AircraftFootprint.FromType(Narrowbody), towedNoseFirst: false).WingspanFt / 2.0) - StartingGapFt;
 
     /// <summary>
     /// A full span less <see cref="StartingGapFt"/> abeam: the wingtips overlap by that much with the two wing
     /// segments collinear, which the clearance measures as a few ten-billionths of a foot rather than zero — contact
     /// inside <see cref="GroundOutlineSweep.OutlineClearanceSlackFt"/> all the same.
     /// </summary>
-    private static double CollinearWingtipsAbeamFt => GroundOutlineSize.Of(Narrowbody, towedNoseFirst: false).WingspanFt - StartingGapFt;
+    private static double CollinearWingtipsAbeamFt =>
+        GroundOutlineSize.Of(AircraftFootprint.FromType(Narrowbody), towedNoseFirst: false).WingspanFt - StartingGapFt;
 
     /// <summary>
     /// A B738 on SFO gate D15 with a second B738 parked <paramref name="abeamFt"/> abeam — the abeam arithmetic of
@@ -512,7 +524,7 @@ public class TugMoveParkedNeighbourTests(ITestOutputHelper output)
     {
         GroundNode spot = layout.FindSpotNodeByName("6A") ?? throw new InvalidOperationException("SFO has no spot 6A");
         Assert.True(layout.TryGetSpotOutboundHeading(spot, out double noseDeg), "spot 6A has no nose-out heading");
-        (LatLon stop, LatLon staging) = TugMovePlanner.SpotStopGeometry(spot, noseDeg, Narrowbody);
+        (LatLon stop, LatLon staging) = TugMovePlanner.SpotStopGeometry(spot, noseDeg, AircraftFootprint.FromType(Narrowbody));
         return (staging, stop, noseDeg);
     }
 

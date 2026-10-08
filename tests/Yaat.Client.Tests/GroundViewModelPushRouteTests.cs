@@ -801,7 +801,7 @@ public class GroundViewModelPushRouteTests
         {
             Start = new TugPose(ac.Position, ac.Heading.Degrees),
             StartsAtStand = ac.CurrentPhase == "At Parking",
-            AircraftType = ac.AircraftType,
+            Footprint = AircraftFootprint.FromType(ac.AircraftType),
             Goals = goals,
             ParkedNeighbours = [],
             FinalFacingTrueDeg = null,

@@ -1,5 +1,4 @@
 using Yaat.Sim.Data.Airport;
-using Yaat.Sim.Data.Faa;
 
 namespace Yaat.Sim;
 
@@ -52,14 +51,13 @@ internal readonly record struct GroundOutlineFrame
 internal readonly record struct GroundOutlineSize(double LengthFt, double WingspanFt, double NoseLeadFt)
 {
     /// <summary>
-    /// The size of <paramref name="aircraftType"/> from the FAA record, with the fallbacks <see cref="TugMovePlanner"/>
-    /// uses when the record has no length or wingspan.
+    /// The outline size of an aircraft with <paramref name="footprint"/>'s length and wingspan.
     /// </summary>
-    /// <param name="aircraftType">ICAO type designator.</param>
+    /// <param name="footprint">The aircraft's dimensions.</param>
     /// <param name="towedNoseFirst">The aircraft is on a pull, so the tug and towbar lead its nose.</param>
     /// <returns>The outline size.</returns>
-    public static GroundOutlineSize Of(string aircraftType, bool towedNoseFirst) =>
-        new(AircraftLength.ResolveFt(aircraftType), TugMovePlanner.WingspanFt(aircraftType), towedNoseFirst ? GroundOutline.TugLeadFt : 0.0);
+    public static GroundOutlineSize Of(AircraftFootprint footprint, bool towedNoseFirst) =>
+        new(footprint.LengthFt, footprint.WingspanFt, towedNoseFirst ? GroundOutline.TugLeadFt : 0.0);
 
     /// <summary>
     /// The farthest any part of the outline lies from the reference point, feet: the nose (with the tug), a wingtip, or a
@@ -166,28 +164,28 @@ internal readonly record struct GroundOutline(OutlineSegment Fuselage, OutlineSe
     public static double ClearanceBetween(AircraftState a, bool aTowedNoseFirst, AircraftState b) =>
         ClearanceBetween(
             new TugPose(a.Position, a.TrueHeading.Degrees),
-            a.AircraftType,
+            AircraftFootprint.FromType(a.AircraftType),
             aTowedNoseFirst,
             new TugPose(b.Position, b.TrueHeading.Degrees),
-            b.AircraftType
+            AircraftFootprint.FromType(b.AircraftType)
         );
 
     /// <summary>
-    /// How close two aircraft's outlines come where they stand, feet, from their poses and types alone; zero when
+    /// How close two aircraft's outlines come where they stand, feet, from their poses and dimensions alone; zero when
     /// they touch or overlap. The frame is centred on <paramref name="a"/>, so the pair may sit anywhere on the field.
     /// </summary>
     /// <param name="a">One aircraft's pose; its position is the frame's origin.</param>
-    /// <param name="aType">That aircraft's ICAO type designator.</param>
+    /// <param name="aFootprint">That aircraft's dimensions.</param>
     /// <param name="aTowedNoseFirst">That aircraft is on a pull, so a tug and towbar lead its nose.</param>
     /// <param name="b">The other aircraft's pose.</param>
-    /// <param name="bType">The other aircraft's ICAO type designator.</param>
+    /// <param name="bFootprint">The other aircraft's dimensions.</param>
     /// <returns>The clearance between the two outlines, feet.</returns>
-    public static double ClearanceBetween(TugPose a, string aType, bool aTowedNoseFirst, TugPose b, string bType)
+    public static double ClearanceBetween(TugPose a, AircraftFootprint aFootprint, bool aTowedNoseFirst, TugPose b, AircraftFootprint bFootprint)
     {
         var frame = new GroundOutlineFrame(a.Position);
         return Clearance(
-            At(frame.ToLocal(a.Position), a.NoseTrueDeg, GroundOutlineSize.Of(aType, aTowedNoseFirst)),
-            At(frame.ToLocal(b.Position), b.NoseTrueDeg, GroundOutlineSize.Of(bType, towedNoseFirst: false))
+            At(frame.ToLocal(a.Position), a.NoseTrueDeg, GroundOutlineSize.Of(aFootprint, aTowedNoseFirst)),
+            At(frame.ToLocal(b.Position), b.NoseTrueDeg, GroundOutlineSize.Of(bFootprint, towedNoseFirst: false))
         );
     }
 

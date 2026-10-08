@@ -602,7 +602,9 @@ public class GroundCommandHandlerTests
     private static void AssertTugMoveEndsFacing(AircraftState ac, double expectedTrueDeg)
     {
         List<TugMove> moves = [.. ac.Phases!.Phases.OfType<PushbackPhase>().Select(p => p.Move)];
-        TugPose end = TugKinematics.Simulate(new TugPose(ac.Position, ac.TrueHeading.Degrees), moves, ac.AircraftType, 1.0).End;
+        TugPose end = TugKinematics
+            .Simulate(new TugPose(ac.Position, ac.TrueHeading.Degrees), moves, AircraftFootprint.FromType(ac.AircraftType), 1.0)
+            .End;
         double offDeg = GeoMath.AbsBearingDifference(end.NoseTrueDeg, expectedTrueDeg);
         Assert.True(offDeg < 2.0, $"the tug move ends facing {end.NoseTrueDeg:F1}° true, {offDeg:F1}° off {expectedTrueDeg:F1}°");
     }

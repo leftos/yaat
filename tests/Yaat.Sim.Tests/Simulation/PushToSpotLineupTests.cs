@@ -237,7 +237,7 @@ public class PushToSpotLineupTests(ITestOutputHelper output)
         }
 
         Assert.True(layout.TryGetSpotOutboundHeading(spot, out double outboundDeg), "spot 7A has no outbound heading");
-        (LatLon stop, LatLon _) = TugMovePlanner.SpotStopGeometry(spot, outboundDeg, "CRJ2");
+        (LatLon stop, LatLon _) = TugMovePlanner.SpotStopGeometry(spot, outboundDeg, AircraftFootprint.FromType("CRJ2"));
         double offStopFt = GeoMath.DistanceNm(twin.Position, stop) * GeoMath.FeetPerNm;
         double offNoseDeg = new TrueHeading(outboundDeg).AbsAngleTo(twin.TrueHeading);
         output.WriteLine($"restored creep ended {offStopFt:F2} ft off the stop point, nose {offNoseDeg:F2}° off nose-out");

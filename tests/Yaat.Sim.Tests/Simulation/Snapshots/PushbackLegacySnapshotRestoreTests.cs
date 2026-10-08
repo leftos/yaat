@@ -235,7 +235,7 @@ public class PushbackLegacySnapshotRestoreTests(ITestOutputHelper output)
         GroundNode node = layout.FindSpotNodeByName(AlleySpot) ?? throw new InvalidOperationException($"the SFO layout has no spot '{AlleySpot}'");
         Assert.True(layout.TryGetSpotOutboundHeading(node, out double outDeg), $"spot {AlleySpot} has no nose-out heading");
         int heading = (int)Math.Round(outDeg);
-        (LatLon stop, LatLon staging) = TugMovePlanner.SpotStopGeometry(node, heading, AircraftType);
+        (LatLon stop, LatLon staging) = TugMovePlanner.SpotStopGeometry(node, heading, AircraftFootprint.FromType(AircraftType));
         LatLon runUp = GeoMath.ProjectPoint(staging, new TrueHeading(heading), RunUpFt / GeoMath.FeetPerNm);
         return new SpotLine(node, heading, stop, staging, new TugPose(runUp, heading));
     }

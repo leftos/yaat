@@ -193,7 +193,9 @@ public class PushbackPullLegTests(ITestOutputHelper output)
         double lineDeg = noseDeg + LineOffsetDeg;
         LatLon linePoint = GeoMath.ProjectPoint(start.Position, new TrueHeading(noseDeg), LineOffsetFt / GeoMath.FeetPerNm);
         var move = TugMove.ViaLine(PushbackLegKind.Pull, linePoint, lineDeg, stopAt: null);
-        LatLon planned = TugKinematics.Simulate(new TugPose(start.Position, noseDeg), [move], AircraftType, 1.0).End.Position;
+        LatLon planned = TugKinematics
+            .Simulate(new TugPose(start.Position, noseDeg), [move], AircraftFootprint.FromType(AircraftType), 1.0)
+            .End.Position;
         var phase = new PushbackPhase
         {
             Move = move,
@@ -202,7 +204,7 @@ public class PushbackPullLegTests(ITestOutputHelper output)
             ContinuesStandPushOff = false,
         };
         AircraftState ac = SfoGroundHarness.SpawnAt(ground, "PUL4", AircraftType, (start, new TrueHeading(noseDeg)), phase);
-        double radiusFt = TugKinematics.TurnRadiusFt(AircraftType, tight: false);
+        double radiusFt = TugKinematics.TurnRadiusFt(AircraftFootprint.FromType(AircraftType), tight: false);
 
         LatLon previousPosition = ac.Position;
         TrueHeading previousNose = ac.TrueHeading;

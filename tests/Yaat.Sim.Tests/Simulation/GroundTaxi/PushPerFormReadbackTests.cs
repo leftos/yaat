@@ -362,7 +362,7 @@ public class PushPerFormReadbackTests(ITestOutputHelper output)
 
         GroundNode spot = ground.Layout.FindSpotNodeByName("7A") ?? throw new InvalidOperationException("SFO spot 7A missing");
         Assert.True(ground.Layout.TryGetSpotOutboundHeading(spot, out double outbound));
-        LatLon stop = TugMovePlanner.SpotStopGeometry(spot, outbound, Narrowbody).Stop;
+        LatLon stop = TugMovePlanner.SpotStopGeometry(spot, outbound, AircraftFootprint.FromType(Narrowbody)).Stop;
         var facing = new MagneticHeading(MagneticDeclination.TrueToMagnetic(outbound, stop));
         string command = string.Create(
             System.Globalization.CultureInfo.InvariantCulture,
@@ -393,7 +393,7 @@ public class PushPerFormReadbackTests(ITestOutputHelper output)
 
         GroundNode spot = ground.Layout.FindSpotNodeByName("7A") ?? throw new InvalidOperationException("SFO spot 7A missing");
         Assert.True(ground.Layout.TryGetSpotOutboundHeading(spot, out double outbound));
-        LatLon rest = TugMovePlanner.SpotStopGeometry(spot, outbound, Narrowbody).Stop;
+        LatLon rest = TugMovePlanner.SpotStopGeometry(spot, outbound, AircraftFootprint.FromType(Narrowbody)).Stop;
         string command = string.Create(System.Globalization.CultureInfo.InvariantCulture, $"PUSHM ~{rest.Lat:F6}/{rest.Lon:F6}/090 $7B");
         AircraftState aircraft = SfoGroundHarness.SpawnParked(ground, "UAL462", Narrowbody, "F8");
 

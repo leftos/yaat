@@ -34,37 +34,43 @@ public readonly record struct TugRowAnchor(TugPose TowStartPose, PushbackLegKind
 
 /// <summary>
 /// The row clearances (<see cref="GroundOutlineSweep.RowClearanceFt"/>) measured so far, by row anchor and neighbour:
-/// each is a pure function of the anchor, the two types and the neighbour's pose, so it is measured once and reused
+/// each is a pure function of the anchor, the two footprints and the neighbour's pose, so it is measured once and reused
 /// for as long as those stay the same, and measured again when any of them changes. Never snapshotted — a restored
 /// tow measures it again and gets the same figure.
 /// </summary>
 internal sealed class TugRowClearances
 {
-    private readonly record struct Measured(string MoverType, TugPose NeighbourPose, string NeighbourType, double? RowClearanceFt);
+    private readonly record struct Measured(AircraftFootprint Mover, TugPose NeighbourPose, AircraftFootprint Neighbour, double? RowClearanceFt);
 
     private readonly Dictionary<(TugRowAnchor Anchor, string Neighbour), Measured> _measured = [];
 
     /// <summary>The row clearance against one neighbour, measured once for these inputs (<see cref="GroundOutlineSweep.RowClearanceFt"/>).</summary>
     /// <param name="anchor">Where the tow began and its first move's kind.</param>
-    /// <param name="moverType">The towed aircraft's ICAO type designator.</param>
+    /// <param name="mover">The towed aircraft's dimensions.</param>
     /// <param name="neighbourCallsign">The neighbour's callsign, which keys it.</param>
     /// <param name="neighbourPose">Where the neighbour stands, with its nose.</param>
-    /// <param name="neighbourType">The neighbour's ICAO type designator.</param>
+    /// <param name="neighbour">The neighbour's dimensions.</param>
     /// <returns>The row clearance, feet, or null when it does not count.</returns>
-    internal double? RowClearanceFt(TugRowAnchor anchor, string moverType, string neighbourCallsign, TugPose neighbourPose, string neighbourType)
+    internal double? RowClearanceFt(
+        TugRowAnchor anchor,
+        AircraftFootprint mover,
+        string neighbourCallsign,
+        TugPose neighbourPose,
+        AircraftFootprint neighbour
+    )
     {
         if (
             _measured.TryGetValue((anchor, neighbourCallsign), out Measured measured)
-            && (measured.MoverType == moverType)
+            && (measured.Mover == mover)
             && (measured.NeighbourPose == neighbourPose)
-            && (measured.NeighbourType == neighbourType)
+            && (measured.Neighbour == neighbour)
         )
         {
             return measured.RowClearanceFt;
         }
 
-        double? rowFt = GroundOutlineSweep.RowClearanceFt(anchor, moverType, neighbourPose, neighbourType);
-        _measured[(anchor, neighbourCallsign)] = new Measured(moverType, neighbourPose, neighbourType, rowFt);
+        double? rowFt = GroundOutlineSweep.RowClearanceFt(anchor, mover, neighbourPose, neighbour);
+        _measured[(anchor, neighbourCallsign)] = new Measured(mover, neighbourPose, neighbour, rowFt);
         return rowFt;
     }
 
@@ -258,18 +264,18 @@ internal static class GroundOutlineSweep
     /// out for that move from the same anchor.
     /// </summary>
     /// <param name="rowAnchor">Where the tow began and its first move's kind.</param>
-    /// <param name="moverType">The towed aircraft's ICAO type designator.</param>
+    /// <param name="mover">The towed aircraft's dimensions.</param>
     /// <param name="neighbourPose">Where the neighbour stands, with its nose.</param>
-    /// <param name="neighbourType">The neighbour's ICAO type designator.</param>
+    /// <param name="neighbour">The neighbour's dimensions.</param>
     /// <returns>The floor, feet.</returns>
-    internal static double TowStartFloorFt(TugRowAnchor rowAnchor, string moverType, TugPose neighbourPose, string neighbourType)
+    internal static double TowStartFloorFt(TugRowAnchor rowAnchor, AircraftFootprint mover, TugPose neighbourPose, AircraftFootprint neighbour)
     {
         var frame = new GroundOutlineFrame(rowAnchor.TowStartPose.Position);
-        var moverSize = GroundOutlineSize.Of(moverType, towedNoseFirst: rowAnchor.FirstKind == PushbackLegKind.Pull);
-        var neighbourSize = GroundOutlineSize.Of(neighbourType, towedNoseFirst: false);
+        var moverSize = GroundOutlineSize.Of(mover, towedNoseFirst: rowAnchor.FirstKind == PushbackLegKind.Pull);
+        var neighbourSize = GroundOutlineSize.Of(neighbour, towedNoseFirst: false);
         var neighbourOutline = GroundOutline.At(frame.ToLocal(neighbourPose.Position), neighbourPose.NoseTrueDeg, neighbourSize);
         double startFt = ClearanceAt(rowAnchor.TowStartPose, frame, moverSize, neighbourOutline);
-        return AnchoredFloorFt(startFt, RowClearanceFt(rowAnchor, moverType, neighbourPose, neighbourType));
+        return AnchoredFloorFt(startFt, RowClearanceFt(rowAnchor, mover, neighbourPose, neighbour));
     }
 
     /// <summary>
@@ -285,11 +291,11 @@ internal static class GroundOutlineSweep
     /// (<see cref="TugRowClearances"/>).
     /// </summary>
     /// <param name="anchor">Where the tow began and its first move's kind.</param>
-    /// <param name="moverType">The towed aircraft's ICAO type designator.</param>
+    /// <param name="mover">The towed aircraft's dimensions.</param>
     /// <param name="neighbourPose">Where the neighbour stands, with its nose.</param>
-    /// <param name="neighbourType">The neighbour's ICAO type designator.</param>
+    /// <param name="neighbour">The neighbour's dimensions.</param>
     /// <returns>The row clearance, feet, or null when it does not count.</returns>
-    internal static double? RowClearanceFt(TugRowAnchor anchor, string moverType, TugPose neighbourPose, string neighbourType)
+    internal static double? RowClearanceFt(TugRowAnchor anchor, AircraftFootprint mover, TugPose neighbourPose, AircraftFootprint neighbour)
     {
         TugPose start = anchor.TowStartPose;
         if (new TrueHeading(start.NoseTrueDeg).AbsAngleTo(new TrueHeading(neighbourPose.NoseTrueDeg)) > RowAnchorNoseToleranceDeg)
@@ -298,8 +304,8 @@ internal static class GroundOutlineSweep
         }
 
         var frame = new GroundOutlineFrame(start.Position);
-        var moverSize = GroundOutlineSize.Of(moverType, towedNoseFirst: false);
-        var neighbourSize = GroundOutlineSize.Of(neighbourType, towedNoseFirst: false);
+        var moverSize = GroundOutlineSize.Of(mover, towedNoseFirst: false);
+        var neighbourSize = GroundOutlineSize.Of(neighbour, towedNoseFirst: false);
         OutlinePoint neighbourCentre = frame.ToLocal(neighbourPose.Position);
         var neighbourOutline = GroundOutline.At(neighbourCentre, neighbourPose.NoseTrueDeg, neighbourSize);
         double slideRad = (anchor.FirstKind == PushbackLegKind.Push ? start.NoseTrueDeg + 180.0 : start.NoseTrueDeg) * Math.PI / 180.0;

@@ -693,7 +693,7 @@ public sealed class SituationClassifierTests
             "AtParking" => new AtParkingPhase(),
             "Pushback" => new PushbackPhase
             {
-                Move = TugMove.Straight(PushbackLegKind.Push, TugMovePlanner.SimplePushbackFt("B738")),
+                Move = TugMove.Straight(PushbackLegKind.Push, TugMovePlanner.SimplePushbackFt(AircraftFootprint.FromType("B738"))),
                 PlannedEnd = AirportPosition("OAK"),
                 StartsAtStand = true,
                 ContinuesIntoNextMove = false,

@@ -121,14 +121,19 @@ public class GroundPhaseTests
 
     /// <summary>A plain pushback: a straight push of the type's simple pushback distance, off no stand.</summary>
     private static PushbackPhase SimplePush(AircraftState aircraft) =>
-        PushOf(aircraft, TugMove.Straight(PushbackLegKind.Push, TugMovePlanner.SimplePushbackFt(aircraft.AircraftType)));
+        PushOf(aircraft, TugMove.Straight(PushbackLegKind.Push, TugMovePlanner.SimplePushbackFt(AircraftFootprint.FromType(aircraft.AircraftType))));
 
     private static PushbackPhase PushOf(AircraftState aircraft, TugMove move) =>
         new()
         {
             Move = move,
             PlannedEnd = TugKinematics
-                .Simulate(new TugPose(aircraft.Position, aircraft.TrueHeading.Degrees), [move], aircraft.AircraftType, 1.0)
+                .Simulate(
+                    new TugPose(aircraft.Position, aircraft.TrueHeading.Degrees),
+                    [move],
+                    AircraftFootprint.FromType(aircraft.AircraftType),
+                    1.0
+                )
                 .End.Position,
             ContinuesIntoNextMove = false,
             ContinuesStandPushOff = false,
@@ -154,7 +159,12 @@ public class GroundPhaseTests
         {
             Move = move,
             PlannedEnd = TugKinematics
-                .Simulate(new TugPose(aircraft.Position, aircraft.TrueHeading.Degrees), [move], aircraft.AircraftType, 1.0)
+                .Simulate(
+                    new TugPose(aircraft.Position, aircraft.TrueHeading.Degrees),
+                    [move],
+                    AircraftFootprint.FromType(aircraft.AircraftType),
+                    1.0
+                )
                 .End.Position,
             ContinuesIntoNextMove = false,
             ContinuesStandPushOff = continuesStandPushOff,
@@ -176,7 +186,12 @@ public class GroundPhaseTests
         {
             Move = move,
             PlannedEnd = TugKinematics
-                .Simulate(new TugPose(aircraft.Position, aircraft.TrueHeading.Degrees), [move], aircraft.AircraftType, 1.0)
+                .Simulate(
+                    new TugPose(aircraft.Position, aircraft.TrueHeading.Degrees),
+                    [move],
+                    AircraftFootprint.FromType(aircraft.AircraftType),
+                    1.0
+                )
                 .End.Position,
             ContinuesIntoNextMove = continuesIntoNextMove,
             ContinuesStandPushOff = false,
@@ -364,7 +379,7 @@ public class GroundPhaseTests
         // those feet belong to the move: once the distance is covered the move is over, and the phase has to hand
         // over instead of sitting on a finished move until RES lifts the hold.
         AircraftState aircraft = MakeGroundAircraft(heading: 0);
-        var move = TugMove.Straight(PushbackLegKind.Push, TugMovePlanner.SimplePushbackFt(aircraft.AircraftType));
+        var move = TugMove.Straight(PushbackLegKind.Push, TugMovePlanner.SimplePushbackFt(AircraftFootprint.FromType(aircraft.AircraftType)));
         (PushbackPhase? phase, PhaseContext? ctx) = StartPush(aircraft, move);
 
         LatLon start = aircraft.Position;
@@ -866,7 +881,7 @@ public class GroundPhaseTests
     {
         AircraftState aircraft = MakeGroundAircraft(heading: 0);
         (PushbackPhase? phase, PhaseContext? ctx) = StartPush(aircraft, TugMove.TurnTo(PushbackLegKind.Push, 90));
-        double radiusFt = TugKinematics.TurnRadiusFt(aircraft.AircraftType, tight: false);
+        double radiusFt = TugKinematics.TurnRadiusFt(AircraftFootprint.FromType(aircraft.AircraftType), tight: false);
 
         (bool Completed, List<PushTick> Ticks) run = RunPush(aircraft, phase, ctx, 300);
 
@@ -905,7 +920,7 @@ public class GroundPhaseTests
     {
         AircraftState aircraft = MakeGroundAircraft(heading: 0);
         (PushbackPhase? phase, PhaseContext? ctx) = StartPush(aircraft, TugMove.TurnTo(PushbackLegKind.Push, 90));
-        double radiusFt = TugKinematics.TurnRadiusFt(aircraft.AircraftType, tight: false);
+        double radiusFt = TugKinematics.TurnRadiusFt(AircraftFootprint.FromType(aircraft.AircraftType), tight: false);
         double expectedDeg = Math.Atan(WheelbaseFt(aircraft.AircraftType) / radiusFt) * (180.0 / Math.PI);
 
         (bool Completed, List<PushTick> Ticks) run = RunPush(aircraft, phase, ctx, 300);
@@ -925,7 +940,7 @@ public class GroundPhaseTests
     {
         AircraftState aircraft = MakeGroundAircraft(heading: 0);
         (PushbackPhase? phase, PhaseContext? ctx) = StartPush(aircraft, TugMove.TurnTo(PushbackLegKind.Pull, 90));
-        double radiusFt = TugKinematics.TurnRadiusFt(aircraft.AircraftType, tight: false);
+        double radiusFt = TugKinematics.TurnRadiusFt(AircraftFootprint.FromType(aircraft.AircraftType), tight: false);
         double expectedDeg = Math.Atan(WheelbaseFt(aircraft.AircraftType) / radiusFt) * (180.0 / Math.PI);
 
         (bool Completed, List<PushTick> Ticks) run = RunPush(aircraft, phase, ctx, 300);
@@ -1009,7 +1024,7 @@ public class GroundPhaseTests
         AircraftState aircraft = MakeGroundAircraft(lat: 37.620, lon: -122.380, heading: 90);
         LatLon target = GeoMath.ProjectPoint(aircraft.Position, new TrueHeading(225), 400.0 / GeoMath.FeetPerNm);
         (PushbackPhase? phase, PhaseContext? ctx) = StartPush(aircraft, TugMove.ToPoint(PushbackLegKind.Push, target));
-        double radiusFt = TugKinematics.TurnRadiusFt(aircraft.AircraftType, tight: false);
+        double radiusFt = TugKinematics.TurnRadiusFt(AircraftFootprint.FromType(aircraft.AircraftType), tight: false);
 
         (bool Completed, List<PushTick> Ticks) run = RunPush(aircraft, phase, ctx, 600);
 
@@ -1027,7 +1042,9 @@ public class GroundPhaseTests
         double routine = TurnPerFoot(TugMove.TurnTo(PushbackLegKind.Push, 180));
         double tight = TurnPerFoot(TugMove.TurnTo(PushbackLegKind.Push, 180) with { Tight = true });
 
-        double expected = TugKinematics.TurnRadiusFt("B738", tight: false) / TugKinematics.TurnRadiusFt("B738", tight: true);
+        double expected =
+            TugKinematics.TurnRadiusFt(AircraftFootprint.FromType("B738"), tight: false)
+            / TugKinematics.TurnRadiusFt(AircraftFootprint.FromType("B738"), tight: true);
         Assert.True(tight > routine * 1.5, $"tight {tight:F4} rad/ft vs routine {routine:F4} rad/ft");
         Assert.InRange(tight / routine, expected * 0.9, expected * 1.1);
     }
@@ -1269,7 +1286,7 @@ public class GroundPhaseTests
         (bool Completed, List<PushTick> Ticks) run = RunPush(aircraft, phase, ctx, 5);
 
         Assert.True(run.Ticks.Sum(t => t.MovedFt) > 1.0, "the aircraft did not move");
-        double radiusFt = TugKinematics.TurnRadiusFt(aircraft.AircraftType, tight: true);
+        double radiusFt = TugKinematics.TurnRadiusFt(AircraftFootprint.FromType(aircraft.AircraftType), tight: true);
         Assert.All(run.Ticks, t => AssertWithinCurvature(t, radiusFt));
     }
 
@@ -1332,7 +1349,7 @@ public class GroundPhaseTests
         var phase = new PushbackPhase
         {
             Move = move,
-            PlannedEnd = TugKinematics.Simulate(standPose, [move], aircraft.AircraftType, 1.0).End.Position,
+            PlannedEnd = TugKinematics.Simulate(standPose, [move], AircraftFootprint.FromType(aircraft.AircraftType), 1.0).End.Position,
             StartsAtStand = true,
             ContinuesIntoNextMove = false,
             ContinuesStandPushOff = false,

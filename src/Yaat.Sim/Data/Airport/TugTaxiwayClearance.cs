@@ -59,11 +59,11 @@ internal sealed class TugTaxiwayClearance
     private readonly LayoutZones _zones;
     private readonly GroundOutlineSize _size;
 
-    internal TugTaxiwayClearance(AirportGroundLayout layout, string aircraftType)
+    internal TugTaxiwayClearance(AirportGroundLayout layout, AircraftFootprint footprint)
     {
         var classification = MovementAreaClassification.For(layout);
         _zones = Cache.GetOrCreateValue(layout).GetValue(classification, c => new LayoutZones(layout, c));
-        _size = GroundOutlineSize.Of(aircraftType, towedNoseFirst: false);
+        _size = GroundOutlineSize.Of(footprint, towedNoseFirst: false);
     }
 
     /// <summary>The movement-area taxiways whose object-free area the outline already reaches into at <paramref name="pose"/>.</summary>

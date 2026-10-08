@@ -166,7 +166,7 @@ public class TugAlleyClearanceTests(ITestOutputHelper output)
         {
             Start = new TugPose(stand.Position, stand.TrueHeading!.Value.Degrees),
             StartsAtStand = true,
-            AircraftType = aircraftType,
+            Footprint = AircraftFootprint.FromType(aircraftType),
             Goals = [goal],
             ParkedNeighbours = [],
             FinalFacingTrueDeg = null,
@@ -192,7 +192,7 @@ public class TugAlleyClearanceTests(ITestOutputHelper output)
             layout.Arcs.Where(a => (a.TaxiwayNames.Length == 1) && a.MatchesTaxiway(taxiway)).Select(a => (a.Nodes[0].Position, a.Nodes[1].Position))
         );
         double halfLengthNm = AircraftLength.ResolveFt(aircraftType) / 2.0 / GeoMath.FeetPerNm;
-        double halfSpanNm = TugMovePlanner.WingspanFt(aircraftType) / 2.0 / GeoMath.FeetPerNm;
+        double halfSpanNm = AircraftFootprint.ResolveWingspanFt(aircraftType) / 2.0 / GeoMath.FeetPerNm;
         double best = double.PositiveInfinity;
         foreach (TugPose pose in plan.Moves.SelectMany(m => m.Samples))
         {

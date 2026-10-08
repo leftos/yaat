@@ -131,7 +131,7 @@ public class Issue475StaggeredStandPushTests(ITestOutputHelper output)
         var nose = new TrueHeading(pushing.NoseTrueDeg);
         double lateralFt = Math.Abs(GeoMath.SignedCrossTrackDistanceNm(staggered.Position, pushing.Position, nose) * GeoMath.FeetPerNm);
         double behindFt = -GeoMath.AlongTrackDistanceNm(staggered.Position, pushing.Position, nose) * GeoMath.FeetPerNm;
-        double rowGapFt = lateralFt - GroundOutlineSize.Of(Narrowbody, towedNoseFirst: false).WingspanFt;
+        double rowGapFt = lateralFt - GroundOutlineSize.Of(AircraftFootprint.FromType(Narrowbody), towedNoseFirst: false).WingspanFt;
         double startFt = GroundOutline.ClearanceBetween(pusher, aTowedNoseFirst: false, neighbour);
         double noseDiffDeg = Math.Abs(nose.SignedAngleTo(new TrueHeading(staggered.NoseTrueDeg)));
         output.WriteLine(
@@ -367,7 +367,12 @@ public class Issue475StaggeredStandPushTests(ITestOutputHelper output)
             $"cold: row {cold.RowClearanceFt:F3} ft, floor {cold.FloorFt:F3} ft; warm: row {warm.RowClearanceFt:F3} ft, floor {warm.FloorFt:F3} ft"
         );
 
-        double? pureRowFt = GroundOutlineSweep.RowClearanceFt(anchor, Narrowbody, StandPose(layout, StaggeredStand), Narrowbody);
+        double? pureRowFt = GroundOutlineSweep.RowClearanceFt(
+            anchor,
+            AircraftFootprint.FromType(Narrowbody),
+            StandPose(layout, StaggeredStand),
+            AircraftFootprint.FromType(Narrowbody)
+        );
         Assert.NotNull(cold.RowClearanceFt);
         Assert.Equal(pureRowFt, cold.RowClearanceFt);
         Assert.Equal(cold, warm);
@@ -392,11 +397,16 @@ public class Issue475StaggeredStandPushTests(ITestOutputHelper output)
         var nose = new TrueHeading(mover.NoseTrueDeg);
         double lateralFt = Math.Abs(GeoMath.SignedCrossTrackDistanceNm(staggered.Position, mover.Position, nose) * GeoMath.FeetPerNm);
         double behindFt = -GeoMath.AlongTrackDistanceNm(staggered.Position, mover.Position, nose) * GeoMath.FeetPerNm;
-        double reachesFt = 2.0 * GroundOutlineSize.Of(Narrowbody, towedNoseFirst: false).ReachFt;
-        double rowGapFt = lateralFt - GroundOutlineSize.Of(Narrowbody, towedNoseFirst: false).WingspanFt;
+        double reachesFt = 2.0 * GroundOutlineSize.Of(AircraftFootprint.FromType(Narrowbody), towedNoseFirst: false).ReachFt;
+        double rowGapFt = lateralFt - GroundOutlineSize.Of(AircraftFootprint.FromType(Narrowbody), towedNoseFirst: false).WingspanFt;
         double noseDiffDeg = Math.Abs(nose.SignedAngleTo(new TrueHeading(staggered.NoseTrueDeg)));
 
-        double? rowFt = GroundOutlineSweep.RowClearanceFt(new TugRowAnchor(mover, PushbackLegKind.Push), Narrowbody, staggered, Narrowbody);
+        double? rowFt = GroundOutlineSweep.RowClearanceFt(
+            new TugRowAnchor(mover, PushbackLegKind.Push),
+            AircraftFootprint.FromType(Narrowbody),
+            staggered,
+            AircraftFootprint.FromType(Narrowbody)
+        );
         output.WriteLine(
             $"{DeepStaggeredStand} sits {lateralFt:F1} ft beside {DeepRowStand}'s axis and {behindFt:F1} ft behind it (reaches {reachesFt:F1} ft), "
                 + $"noses {noseDiffDeg:F1}° apart; row gap {rowGapFt:F1} ft, row clearance {rowFt?.ToString("F1") ?? "none"} ft"

@@ -865,12 +865,19 @@ public static class CategoryPerformance
     /// fallback. A B738 (~129.5 ft) pushes ~129.5 ft; an A388 (~240 ft) pushes
     /// ~240 ft.
     /// </summary>
-    public static double SimplePushbackDistanceNm(string aircraftType)
+    public static double SimplePushbackDistanceNm(string aircraftType) => SimplePushbackDistanceNm(AircraftLength.ResolveFt(aircraftType));
+
+    /// <summary>
+    /// Distance (nm) for a simple pushback of an aircraft <paramref name="lengthFt"/> long: its length, floored at the
+    /// 0.015 nm (~91 ft) baseline.
+    /// </summary>
+    /// <param name="lengthFt">The fuselage length, feet.</param>
+    /// <returns>The distance, nm.</returns>
+    public static double SimplePushbackDistanceNm(double lengthFt)
     {
         const double FtPerNm = 6076.12;
         const double BaselineNm = 0.015;
 
-        double lengthFt = AircraftLength.ResolveFt(aircraftType);
         return Math.Max(BaselineNm, lengthFt / FtPerNm);
     }
 

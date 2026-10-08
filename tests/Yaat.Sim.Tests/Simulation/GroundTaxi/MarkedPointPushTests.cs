@@ -156,7 +156,7 @@ public class MarkedPointPushTests(ITestOutputHelper output)
     {
         GroundNode sixB = layout.FindSpotNodeByName("6B") ?? throw new InvalidOperationException("SFO spot 6B missing");
         Assert.True(layout.TryGetSpotOutboundHeading(sixB, out double outbound));
-        LatLon stop = TugMovePlanner.SpotStopGeometry(sixB, outbound, Narrowbody).Stop;
+        LatLon stop = TugMovePlanner.SpotStopGeometry(sixB, outbound, AircraftFootprint.FromType(Narrowbody)).Stop;
         var facing = new MagneticHeading(MagneticDeclination.TrueToMagnetic(outbound, stop));
         string command = string.Create(CultureInfo.InvariantCulture, $"PUSHM $6A ~{stop.Lat:F6}/{stop.Lon:F6}/{facing.ToDisplayString()}");
         return (command, new TugPose(stop, outbound));

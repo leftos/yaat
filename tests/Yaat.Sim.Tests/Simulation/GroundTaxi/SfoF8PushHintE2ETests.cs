@@ -297,7 +297,7 @@ public class SfoF8PushHintE2ETests(ITestOutputHelper output)
         {
             Start = new TugPose(ac.Position, ac.TrueHeading.Degrees),
             StartsAtStand = true,
-            AircraftType = AircraftType,
+            Footprint = AircraftFootprint.FromType(AircraftType),
             Goals = [TugGoal.Spot(Spot(layout, spotName))],
             ParkedNeighbours = [],
             FinalFacingTrueDeg = null,
@@ -712,7 +712,12 @@ public class SfoF8PushHintE2ETests(ITestOutputHelper output)
         AircraftState pusher = SfoGroundHarness.SpawnParked(ground, PusherCallsign, pusherType, "F5");
         var standPose = new TugPose(pusher.Position, pusher.TrueHeading.Degrees);
         var parkedPose = new TugPose(parked.Position, parked.TrueHeading.Degrees);
-        double floorFt = GroundOutlineSweep.TowStartFloorFt(new TugRowAnchor(standPose, PushbackLegKind.Push), pusherType, parkedPose, ParkedType);
+        double floorFt = GroundOutlineSweep.TowStartFloorFt(
+            new TugRowAnchor(standPose, PushbackLegKind.Push),
+            AircraftFootprint.FromType(pusherType),
+            parkedPose,
+            AircraftFootprint.FromType(ParkedType)
+        );
         double rowGapFt = RowGapFt(standPose, pusherType, parkedPose, ParkedType);
         double startFt = GroundOutline.ClearanceBetween(pusher, false, parked);
         IReadOnlyList<TugParkedNeighbour> neighbours = TugParkedNeighbours.Build(
@@ -767,8 +772,8 @@ public class SfoF8PushHintE2ETests(ITestOutputHelper output)
             Math.Abs(GeoMath.SignedCrossTrackDistanceNm(neighbour.Position, mover.Position, new TrueHeading(mover.NoseTrueDeg))) * GeoMath.FeetPerNm;
         double halfSpansFt =
             (
-                GroundOutlineSize.Of(moverType, towedNoseFirst: false).WingspanFt
-                + GroundOutlineSize.Of(neighbourType, towedNoseFirst: false).WingspanFt
+                GroundOutlineSize.Of(AircraftFootprint.FromType(moverType), towedNoseFirst: false).WingspanFt
+                + GroundOutlineSize.Of(AircraftFootprint.FromType(neighbourType), towedNoseFirst: false).WingspanFt
             ) / 2.0;
         return lateralFt - halfSpansFt;
     }
@@ -839,7 +844,7 @@ public class SfoF8PushHintE2ETests(ITestOutputHelper output)
         {
             Start = standPose,
             StartsAtStand = true,
-            AircraftType = pusherType,
+            Footprint = AircraftFootprint.FromType(pusherType),
             Goals = [TugGoal.Spot(Spot(layout, spotName))],
             ParkedNeighbours = neighbours,
             FinalFacingTrueDeg = null,
@@ -1056,12 +1061,12 @@ public class SfoF8PushHintE2ETests(ITestOutputHelper output)
         string obstacleLabel
     )
     {
-        var obstacleSize = GroundOutlineSize.Of(obstacleType, towedNoseFirst: false);
+        var obstacleSize = GroundOutlineSize.Of(AircraftFootprint.FromType(obstacleType), towedNoseFirst: false);
         OutlinePoint obstacleCentre = frame.ToLocal(obstaclePosition);
         var obstacle = GroundOutline.At(obstacleCentre, obstacleNoseDeg, obstacleSize);
         OutlinePoint[] hull = FootprintHull(obstacle);
-        var moverPushing = GroundOutlineSize.Of(moverType, towedNoseFirst: false);
-        var moverPulling = GroundOutlineSize.Of(moverType, towedNoseFirst: true);
+        var moverPushing = GroundOutlineSize.Of(AircraftFootprint.FromType(moverType), towedNoseFirst: false);
+        var moverPulling = GroundOutlineSize.Of(AircraftFootprint.FromType(moverType), towedNoseFirst: true);
         double windowFt = StandMeasureWindowFt + moverPulling.ReachFt + obstacleSize.ReachFt;
         double closestFt = double.MaxValue;
         double depthFt = 0.0;
@@ -1285,7 +1290,11 @@ public class SfoF8PushHintE2ETests(ITestOutputHelper output)
         double closestFt = double.MaxValue;
         foreach (FlownPose pose in path)
         {
-            var outline = GroundOutline.At(frame.ToLocal(pose.Position), pose.NoseDeg, GroundOutlineSize.Of(moverType, pose.TowedNoseFirst));
+            var outline = GroundOutline.At(
+                frame.ToLocal(pose.Position),
+                pose.NoseDeg,
+                GroundOutlineSize.Of(AircraftFootprint.FromType(moverType), pose.TowedNoseFirst)
+            );
             foreach (OutlineSegment segment in new[] { outline.Fuselage, outline.Wing, outline.Tailplane })
             {
                 for (int step = 0; step <= TaxiwaySamplesPerSegment; step++)

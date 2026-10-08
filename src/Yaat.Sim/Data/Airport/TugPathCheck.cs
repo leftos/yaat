@@ -1,5 +1,4 @@
 using Microsoft.Extensions.Logging;
-using Yaat.Sim.Data.Faa;
 
 namespace Yaat.Sim.Data.Airport;
 
@@ -72,14 +71,14 @@ public sealed class TugPathCheck
     /// <summary>No pavement exempt: the end footprint of a marked point clears all of it.</summary>
     private static readonly HashSet<string> NoExemptNames = [];
 
-    internal TugPathCheck(AirportGroundLayout layout, string aircraftType, LatLon planStart)
+    internal TugPathCheck(AirportGroundLayout layout, AircraftFootprint footprint, LatLon planStart)
     {
         _pavement = new TugPavementClassifier(layout);
         _origin = planStart;
         _eastFtPerDeg = 60.0 * GeoMath.FeetPerNm * Math.Cos(planStart.Lat * DegToRad);
-        _halfLengthFt = AircraftLength.ResolveFt(aircraftType) / 2.0;
-        _halfSpanFt = TugMovePlanner.WingspanFt(aircraftType) / 2.0;
-        _maxOvershootFt = MaxTaxiwayOvershootFt(aircraftType);
+        _halfLengthFt = footprint.LengthFt / 2.0;
+        _halfSpanFt = footprint.WingspanFt / 2.0;
+        _maxOvershootFt = MaxTaxiwayOvershootFt(footprint);
         _runways = [.. layout.Runways.SelectMany(RunwaySegments)];
         _edges = [.. layout.AllEdges.Select(EdgeSegmentOf)];
         _holdShorts = [.. layout.Nodes.Values.Where(n => n.Type == GroundNodeType.RunwayHoldShort).Select(n => Local(n.Position))];
@@ -88,15 +87,15 @@ public sealed class TugPathCheck
     /// <summary>
     /// How far past the centreline of the taxiway a push is sent onto, on the side away from where the tow started, the
     /// aircraft's centre (the reference point) may reach, feet: half the wingspan
-    /// (<see cref="TugMovePlanner.WingspanFt"/>, which falls back by category when the type has none). A push onto a
+    /// (<see cref="AircraftFootprint.WingspanFt"/>, which falls back by category when the type has none). A push onto a
     /// taxiway sweeps over the taxiways that meet it — at SFO D7, A and F1 meet at right angles, so lining up on A there
     /// lies across F1 — so it is judged by not going too far past its own taxiway, not by the pavement it crosses.
     /// Known limit: half a span at the centre can put the main gear past the edge of a narrow taxiway; the layout
     /// carries no pavement polygons to check the gear against.
     /// </summary>
-    /// <param name="aircraftType">ICAO type designator.</param>
+    /// <param name="footprint">The aircraft's dimensions.</param>
     /// <returns>The bound, feet.</returns>
-    public static double MaxTaxiwayOvershootFt(string aircraftType) => TugMovePlanner.WingspanFt(aircraftType) / 2.0;
+    public static double MaxTaxiwayOvershootFt(AircraftFootprint footprint) => footprint.WingspanFt / 2.0;
 
     /// <summary>
     /// The first rule the path breaks — runway, then holding position, then, for a push onto <paramref name="goalTaxiway"/>,

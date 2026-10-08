@@ -3465,7 +3465,7 @@ public static class GroundCommandHandler
         {
             Start = start,
             StartsAtStand = atStand,
-            AircraftType = aircraft.AircraftType,
+            Footprint = AircraftFootprint.FromType(aircraft.AircraftType),
             Goals = [target.Goal],
             ParkedNeighbours = ParkedNeighboursNear(aircraft, listAircraft),
             FinalFacingTrueDeg = target.FinalFacingTrueDeg,
@@ -4324,7 +4324,7 @@ public static class GroundCommandHandler
         {
             Start = amendment.StandStart,
             StartsAtStand = true,
-            AircraftType = aircraft.AircraftType,
+            Footprint = AircraftFootprint.FromType(aircraft.AircraftType),
             Goals = [amended.Goal],
             ParkedNeighbours = ParkedNeighboursNear(aircraft, listAircraft),
             FinalFacingTrueDeg = amended.FinalFacingTrueDeg,
@@ -4457,7 +4457,7 @@ public static class GroundCommandHandler
         {
             Start = PoseOf(aircraft),
             StartsAtStand = atStand,
-            AircraftType = aircraft.AircraftType,
+            Footprint = AircraftFootprint.FromType(aircraft.AircraftType),
             Goals = goals,
             ParkedNeighbours = ParkedNeighboursNear(aircraft, listAircraft),
             FinalFacingTrueDeg = finalFacingTrueDeg,

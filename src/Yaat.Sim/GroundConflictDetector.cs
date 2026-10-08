@@ -2034,14 +2034,16 @@ public static class GroundConflictDetector
     /// <returns>What the sweep found.</returns>
     internal static GroundOutlineSweepResult TugMoveSweep(AircraftState mover, PushbackPhase tugMove, AircraftState obstacle)
     {
+        var moverFootprint = AircraftFootprint.FromType(mover.AircraftType);
+        var obstacleFootprint = AircraftFootprint.FromType(obstacle.AircraftType);
         IReadOnlyList<(TugPose Pose, double AlongFt)> path = tugMove.RemainingPath(mover, TugRunContinuation(mover));
         double? rowFt = mover.Ground.TowRowAnchor is { } anchor
             ? mover.Ground.TowRowClearances.RowClearanceFt(
                 anchor,
-                mover.AircraftType,
+                moverFootprint,
                 obstacle.Callsign,
                 new TugPose(obstacle.Position, obstacle.TrueHeading.Degrees),
-                obstacle.AircraftType
+                obstacleFootprint
             )
             : null;
         return GroundOutlineSweep.Sweep(
@@ -2049,10 +2051,10 @@ public static class GroundConflictDetector
             tugMove.StartPose(mover),
             rowFt,
             new GroundOutlineFrame(mover.Position),
-            GroundOutlineSize.Of(mover.AircraftType, towedNoseFirst: tugMove.Kind == PushbackLegKind.Pull),
+            GroundOutlineSize.Of(moverFootprint, towedNoseFirst: tugMove.Kind == PushbackLegKind.Pull),
             obstacle.Position,
             obstacle.TrueHeading.Degrees,
-            GroundOutlineSize.Of(obstacle.AircraftType, towedNoseFirst: false)
+            GroundOutlineSize.Of(obstacleFootprint, towedNoseFirst: false)
         );
     }
 
@@ -2625,7 +2627,7 @@ public static class GroundConflictDetector
     /// <see cref="ComputeClosingLimit"/> lets the target pass a held aircraft with); the nose — the centre projected half the
     /// held aircraft's length ahead (<see cref="AircraftLength.ResolveFt"/>) — keeps the target's half-span plus the buffer,
     /// so a long type stops farther back than its centre alone needs. Spans are the category spans of
-    /// <see cref="TugMovePlanner.WingspanFt"/> when the FAA database lacks either aircraft's. Zero when the centre or the
+    /// <see cref="AircraftFootprint.ResolveWingspanFt"/> when the FAA database lacks either aircraft's. Zero when the centre or the
     /// nose is already that close.
     ///
     /// <para>
@@ -2777,10 +2779,10 @@ public static class GroundConflictDetector
     /// <summary>
     /// Half the wingspan (ft) of <paramref name="aircraftType"/>: the FAA database's when it carries both aircraft's spans
     /// (<paramref name="faaSpans"/>, as <see cref="RequiredLateralClearanceFt"/> requires), the category span of
-    /// <see cref="TugMovePlanner.WingspanFt"/> otherwise.
+    /// <see cref="AircraftFootprint.ResolveWingspanFt"/> otherwise.
     /// </summary>
     private static double HalfSpanFt(string aircraftType, bool faaSpans) =>
-        (faaSpans ? FaaAircraftDatabase.Get(aircraftType)!.WingspanFt!.Value : TugMovePlanner.WingspanFt(aircraftType)) / 2;
+        (faaSpans ? FaaAircraftDatabase.Get(aircraftType)!.WingspanFt!.Value : AircraftFootprint.ResolveWingspanFt(aircraftType)) / 2;
 
     /// <summary>
     /// How far (ft) <paramref name="aircraft"/>'s centre taxis along <paramref name="route"/> before its centre or its nose

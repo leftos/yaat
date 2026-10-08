@@ -748,7 +748,7 @@ public class SfoPushRouteE2ETests(ITestOutputHelper output)
     /// </summary>
     private void AssertTugMotion(MoveRun run)
     {
-        double tightRadiusFt = TugKinematics.TurnRadiusFt(AircraftType, tight: true);
+        double tightRadiusFt = TugKinematics.TurnRadiusFt(AircraftFootprint.FromType(AircraftType), tight: true);
         IReadOnlyList<Sample> samples = run.Samples;
         for (int i = 1; i < samples.Count; i++)
         {
@@ -935,7 +935,7 @@ public class SfoPushRouteE2ETests(ITestOutputHelper output)
         {
             Start = new TugPose(ac.Position, ac.TrueHeading.Degrees),
             StartsAtStand = false,
-            AircraftType = ac.AircraftType,
+            Footprint = AircraftFootprint.FromType(ac.AircraftType),
             Goals = [TugGoal.Spot(Spot(layout, AlleySpot)), TugGoal.Spot(Spot(layout, EndSpot))],
             ParkedNeighbours = [],
             FinalFacingTrueDeg = null,

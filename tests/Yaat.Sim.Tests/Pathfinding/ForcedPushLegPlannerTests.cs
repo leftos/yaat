@@ -349,7 +349,7 @@ public class ForcedPushLegPlannerTests(ITestOutputHelper output)
     private static TugPose SpotStopPose(AirportGroundLayout layout, GroundNode spot)
     {
         Assert.True(layout.TryGetSpotOutboundHeading(spot, out double outbound), $"spot {spot.Name} has no outbound heading");
-        return new TugPose(TugMovePlanner.SpotStopGeometry(spot, outbound, Narrowbody).Stop, outbound);
+        return new TugPose(TugMovePlanner.SpotStopGeometry(spot, outbound, AircraftFootprint.FromType(Narrowbody)).Stop, outbound);
     }
 
     private static GroundEdge NearestMovementAreaEdge(AirportGroundLayout layout, string taxiway, LatLon near)
@@ -399,7 +399,7 @@ public class ForcedPushLegPlannerTests(ITestOutputHelper output)
         {
             Start = new TugPose(stand.Position, stand.TrueHeading!.Value.Degrees),
             StartsAtStand = true,
-            AircraftType = Narrowbody,
+            Footprint = AircraftFootprint.FromType(Narrowbody),
             Goals = [goal],
             ParkedNeighbours = [],
             FinalFacingTrueDeg = null,
@@ -412,7 +412,7 @@ public class ForcedPushLegPlannerTests(ITestOutputHelper output)
         {
             Start = start,
             StartsAtStand = false,
-            AircraftType = Narrowbody,
+            Footprint = AircraftFootprint.FromType(Narrowbody),
             Goals = [goal],
             ParkedNeighbours = [],
             FinalFacingTrueDeg = null,
