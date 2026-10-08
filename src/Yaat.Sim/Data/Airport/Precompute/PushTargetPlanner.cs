@@ -43,15 +43,19 @@ public static class PushTargetPlanner
     /// <param name="layout">The airport's ground layout.</param>
     /// <param name="designGroupEnvelopes">The envelope per design group.</param>
     /// <param name="sidecars">The airport sidecars the movement-area classification is built from.</param>
+    /// <param name="maxDegreeOfParallelism">
+    /// How many stands to plan at once; 1 plans them one after another. The output is identical for every value.
+    /// </param>
     /// <returns>One entry per stand and design group, targets refused by the planner or over the length cap left out.</returns>
     public static IReadOnlyList<PushTargetEntry> Compute(
         AirportGroundLayout layout,
         DesignGroupEnvelopes designGroupEnvelopes,
-        AirportSidecarCatalog sidecars
+        AirportSidecarCatalog sidecars,
+        int maxDegreeOfParallelism
     )
     {
         ArgumentNullException.ThrowIfNull(layout);
-        return ComputeFor(layout, designGroupEnvelopes, sidecars, Stands(layout));
+        return ComputeFor(layout, designGroupEnvelopes, sidecars, Stands(layout), maxDegreeOfParallelism);
     }
 
     /// <summary>
@@ -62,17 +66,27 @@ public static class PushTargetPlanner
     /// <param name="designGroupEnvelopes">The envelope per design group.</param>
     /// <param name="sidecars">The airport sidecars the movement-area classification is built from.</param>
     /// <param name="standNames">The stands to compute.</param>
+    /// <param name="maxDegreeOfParallelism">
+    /// How many stands to plan at once; 1 plans them one after another. The output is identical for every value.
+    /// </param>
     /// <returns>One entry per named stand and design group, sorted as <see cref="Compute"/> sorts them.</returns>
     public static IReadOnlyList<PushTargetEntry> ComputeStands(
         AirportGroundLayout layout,
         DesignGroupEnvelopes designGroupEnvelopes,
         AirportSidecarCatalog sidecars,
-        IReadOnlySet<string> standNames
+        IReadOnlySet<string> standNames,
+        int maxDegreeOfParallelism
     )
     {
         ArgumentNullException.ThrowIfNull(layout);
         ArgumentNullException.ThrowIfNull(standNames);
-        return ComputeFor(layout, designGroupEnvelopes, sidecars, [.. Stands(layout).Where(n => standNames.Contains(n.Name!))]);
+        return ComputeFor(
+            layout,
+            designGroupEnvelopes,
+            sidecars,
+            [.. Stands(layout).Where(n => standNames.Contains(n.Name!))],
+            maxDegreeOfParallelism
+        );
     }
 
     /// <summary>
@@ -102,28 +116,39 @@ public static class PushTargetPlanner
         AirportGroundLayout layout,
         DesignGroupEnvelopes designGroupEnvelopes,
         AirportSidecarCatalog sidecars,
-        List<GroundNode> stands
+        List<GroundNode> stands,
+        int maxDegreeOfParallelism
     )
     {
         ArgumentNullException.ThrowIfNull(designGroupEnvelopes);
         ArgumentNullException.ThrowIfNull(sidecars);
+        ArgumentOutOfRangeException.ThrowIfLessThan(maxDegreeOfParallelism, 1);
 
         var classification = MovementAreaClassification.Build(layout, sidecars);
         StandDepartures.WarnAboutOverrides(layout, sidecars);
-        var entries = new List<PushTargetEntry>();
-        foreach (GroundNode stand in stands)
+        var perStand = new List<PushTargetEntry>[stands.Count];
+        Parallel.ForEach(
+            stands,
+            new ParallelOptions { MaxDegreeOfParallelism = maxDegreeOfParallelism },
+            (stand, _, index) => perStand[(int)index] = PlanStand(stand)
+        );
+
+        return [.. perStand.SelectMany(e => e).OrderBy(e => e.StandName, StringComparer.Ordinal).ThenBy(e => e.DesignGroup, StringComparer.Ordinal)];
+
+        List<PushTargetEntry> PlanStand(GroundNode stand)
         {
+            var entries = new List<PushTargetEntry>();
             if (stand.TrueHeading is not { } heading)
             {
                 Log.LogDebug("Stand {Name} at {Airport} has no heading; no push targets", stand.Name, layout.AirportId);
-                continue;
+                return entries;
             }
 
             if (StandDepartures.StandDepartureOf(layout, stand, sidecars) == StandDeparture.TaxiOut)
             {
                 Log.LogDebug("Stand {Name} at {Airport} is a taxi-out stand; no push targets", stand.Name, layout.AirportId);
                 entries.AddRange(designGroupEnvelopes.Envelopes.Select(e => new PushTargetEntry(stand.Name!, e.Group, [])));
-                continue;
+                return entries;
             }
 
             List<StandCandidate> candidates = [.. TaxiwayCandidates(layout, classification, stand), .. SpotCandidates(layout, stand)];
@@ -141,9 +166,9 @@ public static class PushTargetPlanner
                 List<PrecomputedPushTarget> planned = [.. candidates.Select(c => Plan(context, c)).OfType<PrecomputedPushTarget>()];
                 entries.Add(new PushTargetEntry(stand.Name!, envelope.Group, Capped(Sorted(planned), context)));
             }
-        }
 
-        return [.. entries.OrderBy(e => e.StandName, StringComparer.Ordinal).ThenBy(e => e.DesignGroup, StringComparer.Ordinal)];
+            return entries;
+        }
     }
 
     /// <summary>

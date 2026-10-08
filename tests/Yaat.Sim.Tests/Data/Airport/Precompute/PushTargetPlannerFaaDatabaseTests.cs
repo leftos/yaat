@@ -38,7 +38,8 @@ public class PushTargetPlannerFaaDatabaseTests
                 layout,
                 envelopes,
                 PushTargetPlannerTests.Sidecars.Value,
-                Gate26
+                Gate26,
+                1
             );
             FaaAircraftDatabase.Initialize([]);
             Assert.False(FaaAircraftDatabase.IsInitialized);
@@ -46,7 +47,8 @@ public class PushTargetPlannerFaaDatabaseTests
                 layout,
                 envelopes,
                 PushTargetPlannerTests.Sidecars.Value,
-                Gate26
+                Gate26,
+                1
             );
 
             Assert.Equal(PushTargetPlannerTests.Json(withDatabase), PushTargetPlannerTests.Json(withoutDatabase));

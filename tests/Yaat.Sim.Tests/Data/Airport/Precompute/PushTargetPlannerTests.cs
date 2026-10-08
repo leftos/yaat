@@ -52,7 +52,7 @@ public class PushTargetPlannerTests
     });
 
     private static readonly Lazy<IReadOnlyList<PushTargetEntry>> OakEntries = new(() =>
-        PushTargetPlanner.ComputeStands(Oak(), DesignGroupEnvelopes.LoadShipped(), Sidecars.Value, SampleStands.Value)
+        PushTargetPlanner.ComputeStands(Oak(), DesignGroupEnvelopes.LoadShipped(), Sidecars.Value, SampleStands.Value, 1)
     );
 
     private static readonly IReadOnlySet<string> Gate26 = new HashSet<string>(StringComparer.Ordinal) { "26" };
@@ -136,7 +136,8 @@ public class PushTargetPlannerTests
             layout,
             DesignGroupEnvelopes.LoadShipped(),
             Sidecars.Value,
-            SampleStands.Value
+            SampleStands.Value,
+            1
         );
         string firstRoot = NewRoot();
         string secondRoot = NewRoot();
@@ -156,6 +157,67 @@ public class PushTargetPlannerTests
             DeleteRoot(firstRoot);
             DeleteRoot(secondRoot);
         }
+    }
+
+    /// <summary>
+    /// The parallel planner writes byte-identical store output to the sequential one: the same targets for every stand,
+    /// whatever the degree of parallelism and whatever order the stands finish in. The stand set is the eight named
+    /// parking nodes nearest the airport's reference gate, so a run is cheap and yet wide enough for the stands to
+    /// overlap. Two parallel runs, because a race need not show on every one.
+    /// </summary>
+    [Theory]
+    [InlineData("KOAK")]
+    [InlineData("KSFO")]
+    public void Parallel_MatchesSequential_ByteForByte(string airport)
+    {
+        AirportGroundLayout layout = airport == "KOAK" ? Oak() : Sfo();
+        GroundNode reference = Stand(layout, airport == "KOAK" ? "26" : "D5");
+        IReadOnlySet<string> stands = NearestStandNames(layout, reference, 8);
+        var envelopes = DesignGroupEnvelopes.LoadShipped();
+        IReadOnlyList<PushTargetEntry> sequential = PushTargetPlanner.ComputeStands(layout, envelopes, Sidecars.Value, stands, 1);
+        var key = PrecomputeKey.Current(GeoJsonMd5, 12_345, AirportSidecarHash.For(ArtccsDir, airport));
+        string sequentialRoot = NewRoot();
+        string[] parallelRoots = [NewRoot(), NewRoot()];
+
+        try
+        {
+            var sequentialStore = new PrecomputeStore(sequentialRoot);
+            sequentialStore.Write(new PrecomputeEntry(layout.AirportId, key, layout, sequential));
+            byte[] expected = File.ReadAllBytes(sequentialStore.PathFor(layout.AirportId));
+
+            foreach (string root in parallelRoots)
+            {
+                IReadOnlyList<PushTargetEntry> parallel = PushTargetPlanner.ComputeStands(
+                    layout,
+                    envelopes,
+                    Sidecars.Value,
+                    stands,
+                    Environment.ProcessorCount
+                );
+                var store = new PrecomputeStore(root);
+                store.Write(new PrecomputeEntry(layout.AirportId, key, layout, parallel));
+                Assert.Equal(expected, File.ReadAllBytes(store.PathFor(layout.AirportId)));
+            }
+        }
+        finally
+        {
+            DeleteRoot(sequentialRoot);
+            foreach (string root in parallelRoots)
+            {
+                DeleteRoot(root);
+            }
+        }
+    }
+
+    /// <summary>A degree of parallelism below one is a caller error, refused before any planning.</summary>
+    [Fact]
+    public void MaxDegreeOfParallelism_BelowOne_Throws()
+    {
+        AirportGroundLayout layout = Oak();
+        var envelopes = DesignGroupEnvelopes.LoadShipped();
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => PushTargetPlanner.ComputeStands(layout, envelopes, Sidecars.Value, Gate26, 0));
+        Assert.Throws<ArgumentOutOfRangeException>(() => PushTargetPlanner.Compute(layout, envelopes, Sidecars.Value, 0));
     }
 
     /// <summary>
@@ -246,7 +308,8 @@ public class PushTargetPlannerTests
             Oak(),
             DesignGroupEnvelopes.LoadShipped(),
             old1PushBack,
-            new HashSet<string>(StringComparer.Ordinal) { "OLD1" }
+            new HashSet<string>(StringComparer.Ordinal) { "OLD1" },
+            1
         );
 
         Assert.Equal(PushTargetKind.Taxilane, Assert.Single(Entry("26", "IV").Targets, t => t.Name == "TE").Kind);
@@ -277,7 +340,8 @@ public class PushTargetPlannerTests
             sfo,
             envelopes,
             passed,
-            new HashSet<string>(StringComparer.Ordinal) { "D5" }
+            new HashSet<string>(StringComparer.Ordinal) { "D5" },
+            1
         );
 
         bool differs = false;
@@ -430,7 +494,8 @@ public class PushTargetPlannerTests
             sfo,
             envelopes,
             Sidecars.Value,
-            new HashSet<string>(StringComparer.Ordinal) { "2-2B" }
+            new HashSet<string>(StringComparer.Ordinal) { "2-2B" },
+            1
         );
 
         Assert.Equal(envelopes.Envelopes.Select(e => e.Group), entries.Select(e => e.DesignGroup));
@@ -449,7 +514,7 @@ public class PushTargetPlannerTests
         AirportGroundLayout headingless = GroundLayoutSerializer.Deserialize(stream, layout.AirportId);
         Assert.Null(headingless.Nodes[gate.Id].TrueHeading);
 
-        Assert.Empty(PushTargetPlanner.ComputeStands(headingless, DesignGroupEnvelopes.LoadShipped(), Sidecars.Value, Gate26));
+        Assert.Empty(PushTargetPlanner.ComputeStands(headingless, DesignGroupEnvelopes.LoadShipped(), Sidecars.Value, Gate26, 1));
         Assert.NotEmpty(Entry("26", "IV").Targets);
     }
 
@@ -468,7 +533,8 @@ public class PushTargetPlannerTests
             layout,
             DesignGroupEnvelopes.LoadShipped(),
             Sidecars.Value,
-            new HashSet<string>(StringComparer.Ordinal) { "GA20" }
+            new HashSet<string>(StringComparer.Ordinal) { "GA20" },
+            1
         );
 
         Assert.Equal(StandDeparture.TaxiOut, ga20.StandDeparture);
@@ -509,7 +575,7 @@ public class PushTargetPlannerTests
 
         Assert.Equal(StandDeparture.TaxiOut, StandDepartures.StandDepartureOf(layout, Stand(layout, "26"), flipped));
         Assert.Equal(StandDeparture.PushBack, StandDepartures.StandDepartureOf(layout, layout.Nodes[Ga20NodeId], flipped));
-        IReadOnlyList<PushTargetEntry> gate26 = PushTargetPlanner.ComputeStands(layout, DesignGroupEnvelopes.LoadShipped(), flipped, Gate26);
+        IReadOnlyList<PushTargetEntry> gate26 = PushTargetPlanner.ComputeStands(layout, DesignGroupEnvelopes.LoadShipped(), flipped, Gate26, 1);
         Assert.NotEmpty(gate26);
         Assert.All(gate26, e => Assert.Empty(e.Targets));
         Assert.NotEmpty(Entry("26", "IV").Targets);
@@ -539,6 +605,16 @@ public class PushTargetPlannerTests
 
     private static GroundNode Stand(AirportGroundLayout layout, string name) =>
         layout.Nodes.Values.Where(n => (n.Type == GroundNodeType.Parking) && (n.Name == name)).OrderBy(n => n.Id).First();
+
+    /// <summary>The <paramref name="count"/> named parking nodes nearest <paramref name="reference"/>, nearest first then by node id.</summary>
+    private static IReadOnlySet<string> NearestStandNames(AirportGroundLayout layout, GroundNode reference, int count) =>
+        layout
+            .Nodes.Values.Where(n => (n.Type == GroundNodeType.Parking) && (n.Name is not null))
+            .OrderBy(n => GeoMath.DistanceNm(reference.Position, n.Position))
+            .ThenBy(n => n.Id)
+            .Take(count)
+            .Select(n => n.Name!)
+            .ToHashSet(StringComparer.Ordinal);
 
     private static TugPose StartOf(GroundNode stand) => new(stand.Position, stand.TrueHeading!.Value.Degrees);
 
