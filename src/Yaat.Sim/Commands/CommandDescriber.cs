@@ -1245,7 +1245,7 @@ public static class CommandDescriber
             ExitRightCommand er => (er.Taxiway is not null ? $"Exit right at {er.Taxiway}" : "Exit right") + (er.Expedite ? ", without delay" : ""),
             ExitTaxiwayCommand et => $"Exit at {et.Taxiway}" + (et.Expedite ? ", without delay" : ""),
             TaxiAllCommand taxiAll => FormatTaxiAllNatural(taxiAll),
-            BreakConflictCommand => "Break conflict",
+            BreakConflictCommand => $"Ignore ground conflicts ({GroundCommandHandler.BreakDurationSeconds:F0} s)",
             ClearRunwayCommand => "Continue forward, clear of the runway, then hold",
             GoCommand => "Begin takeoff roll",
             SayCommand say => say.Text,

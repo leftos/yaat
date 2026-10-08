@@ -142,11 +142,11 @@ public static class MenuCatalog
         HeadingList(MenuIds.HeadingTurnRight, "Turn right", "TR"),
         RelativeTurnList(MenuIds.HeadingTurnLeftDegrees, "Turn left (degrees)", "LT"),
         RelativeTurnList(MenuIds.HeadingTurnRightDegrees, "Turn right (degrees)", "RT"),
-        Picker(MenuIds.AltitudeMaintain, "Maintain", BuildMaintainAltitude),
+        Picker(MenuIds.AltitudeMaintain, "Maintain altitude", BuildMaintainAltitude),
         Picker(MenuIds.SpeedAssign, "Assign speed", BuildAssignSpeed),
         InputLeaf(MenuIds.SpeedCustom, "Speed…", "Speed (knots)", BlankInput.Closes, input => $"SPD {int.Parse(input)}"),
         Leaf(MenuIds.SpeedNormal, "Resume normal speed", "RNS", Always),
-        Picker(MenuIds.SpeedFinalApproach, "FAS", BuildFinalApproachSpeed),
+        Picker(MenuIds.SpeedFinalApproach, "Reduce to final approach speed", BuildFinalApproachSpeed),
         FixPicker(MenuIds.NavigationDirectTo, "Direct to…", "DCT", Always, DirectToFixes),
         FixPicker(MenuIds.NavigationAppendDirectTo, "Append direct to…", "ADCT", IsNavigatingToFix, RouteFixes),
         Leaf(MenuIds.HoldPresentLeft, "Hold present position (left)", "HPPL", Always),
@@ -161,7 +161,7 @@ public static class MenuCatalog
         Leaf(MenuIds.ApproachReportFinal, "Turning final", "REPORT FINAL", Always),
         Leaf(MenuIds.ApproachReportCrosswind, "Turning crosswind", "REPORT CROSSWIND", Always),
         Leaf(MenuIds.ApproachReportDownwind, "Turning downwind", "REPORT DOWNWIND", Always),
-        InputLeaf(MenuIds.ApproachReportNMileFinal, "N-mile final…", "Distance (NM)", BlankInput.Closes, input => $"REPORT {input} FINAL"),
+        InputLeaf(MenuIds.ApproachReportNMileFinal, "At N-mile final…", "Distance (NM)", BlankInput.Closes, input => $"REPORT {input} FINAL"),
         InputLeaf(MenuIds.ApproachReportAtFix, "At fix…", "Fix name", BlankInput.Closes, input => $"REPORT {input}"),
         Leaf(MenuIds.ApproachReportOffBase, "Base", "REPORT OFF BASE", Always),
         Leaf(MenuIds.ApproachReportOffFinal, "Final", "REPORT OFF FINAL", Always),
@@ -251,7 +251,7 @@ public static class MenuCatalog
             (ac, _) => AircraftCommandApplicability.CanCrossRunway(ac),
             BuildCrossRunway
         ),
-        Leaf(MenuIds.GroundBreakConflict, "Break conflict", "BREAK", (ac, _) => AircraftCommandApplicability.CanBreakConflict(ac)),
+        Leaf(MenuIds.GroundBreakConflict, "Ignore ground conflicts (15 s)", "BREAK", (ac, _) => AircraftCommandApplicability.CanBreakConflict(ac)),
         HostLeaf(MenuIds.GroundHoldShort, "Hold short of…", (ac, _) => AircraftCommandApplicability.CanHoldShort(ac), BuildHoldShort),
         HostLeaf(
             MenuIds.GroundFollow,
@@ -375,24 +375,24 @@ public static class MenuCatalog
         ),
         new(
             MenuIds.PatternFollow,
-            "Follow…",
+            "Follow traffic…",
             MenuFlightRules.VfrOnly,
             CanFollowTraffic,
-            (_, context, host) => BuildInput("Follow…", "Traffic callsign (optional)", BlankInput.Submits, FormatFollow, context, host)
+            (_, context, host) => BuildInput("Follow traffic…", "Traffic callsign (optional)", BlankInput.Submits, FormatFollow, context, host)
         ),
         new(
             MenuIds.NavigationOnCourse,
-            "On course",
+            "Proceed on course",
             MenuFlightRules.Both,
             (ac, _) => AircraftCommandApplicability.IsAirborneControllable(ac),
-            (_, context, host) => BuildSend("On course", "OC", context, host)
+            (_, context, host) => BuildSend("Proceed on course", "OC", context, host)
         ),
         new(
             MenuIds.HoldPattern,
-            "Hold…",
+            "Hold at fix…",
             MenuFlightRules.IfrOnly,
             (ac, _) => AircraftCommandApplicability.IsAirborneControllable(ac),
-            (_, context, host) => BuildInput("Hold…", HoldPatternPlaceholder, BlankInput.Closes, input => $"HOLDP {input}", context, host)
+            (_, context, host) => BuildInput("Hold at fix…", HoldPatternPlaceholder, BlankInput.Closes, input => $"HOLDP {input}", context, host)
         ),
     ];
 
@@ -431,7 +431,7 @@ public static class MenuCatalog
             MenuIds.PatternEnterRightDownwind => ("Enter right downwind", "ERD"),
             MenuIds.PatternEnterLeftBase => ("Enter left base", "ELB"),
             MenuIds.PatternEnterRightBase => ("Enter right base", "ERB"),
-            MenuIds.PatternEnterFinal => ("Enter straight-in final", "EF"),
+            MenuIds.PatternEnterFinal => ("Make straight-in", "EF"),
             _ => throw new ArgumentException($"'{id}' is not a pattern-entry menu id", nameof(id)),
         };
 
@@ -2047,8 +2047,13 @@ public static class MenuCatalog
     private static MenuItem BuildFinalApproachSpeed(string label, IMenuAircraft? aircraft, MenuContext context, IMenuHost host) =>
         BuildSend(FinalApproachSpeedLabel(label, aircraft), "RFAS", context, host);
 
-    /// <summary>The final-approach-speed label: "FAS - 140 kt" with the filed type's approach speed, else the bare label.</summary>
-    private static string FinalApproachSpeedLabel(string label, IMenuAircraft? aircraft)
+    /// <summary>
+    /// The final-approach-speed label: "Reduce to final approach speed - 140 kt" with the filed type's approach speed, else
+    /// the bare label. The radar speed flyout's item reads the same, so the two cannot drift.
+    /// </summary>
+    /// <param name="label">The entry's catalog label (<see cref="MenuIds.SpeedFinalApproach"/>).</param>
+    /// <param name="aircraft">The aircraft whose filed type gives the speed, or null for none.</param>
+    public static string FinalApproachSpeedLabel(string label, IMenuAircraft? aircraft)
     {
         if (aircraft is null || string.IsNullOrEmpty(aircraft.FiledAircraftType))
         {

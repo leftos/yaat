@@ -362,7 +362,7 @@ public class GroundSubmenuCharacterizationTests
     {
         Built built = BuildMenu(TaxiingOnW3(), prevSelected: null, Candidate());
 
-        string[] covered = ["Hold position", "Hold short of…", "Follow…", "Give way to…", "Break conflict"];
+        string[] covered = ["Hold position", "Hold short of…", "Follow…", "Give way to…", "Ignore ground conflicts (15 s)"];
         List<string> present = [.. Headers(CommandTree(built.Menu)).Where(covered.Contains)];
 
         Assert.Equal(covered, present);

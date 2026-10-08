@@ -80,7 +80,7 @@ public class GroundMovementMenuTests
         "Hold short of…",
         "Follow…",
         "Give way to…",
-        "Break conflict",
+        "Ignore ground conflicts (15 s)",
         "Resume taxi",
         "Preset taxi route",
         "Draw taxi route…",
@@ -252,7 +252,7 @@ public class GroundMovementMenuTests
             "Hold position",
             "Follow…",
             "Give way to…",
-            "Break conflict",
+            "Ignore ground conflicts (15 s)",
             "Draw taxi route…"
         );
     }

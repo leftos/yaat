@@ -289,23 +289,31 @@ public static class QuickCommandStrip
 
     /// <summary>
     /// The label row above the buttons: the entry under the pointer or keyboard focus on the first line, and on a dimmer
-    /// monospace second line the command it sends; the prompt while the pointer is off the strip. It is as wide as a
-    /// full row of buttons, trimming a longer text, so the menu keeps its size as the label changes.
+    /// monospace line under it the command it sends; the prompt while the pointer is off the strip. It is as wide as a
+    /// full row of buttons: a longer title wraps onto a second line (and is trimmed only past it), a longer command is
+    /// trimmed, and the row always keeps room for two title lines, so the menu keeps its size as the label changes.
     /// </summary>
     private sealed class StripLabel
     {
         private const double DimOpacity = 0.7;
+        private const int TitleMaxLines = 2;
+        private const double TitleLineHeight = 18;
+        private const double DetailLineHeight = 16;
 
         private readonly TextBlock _title = new()
         {
             FontSize = 14,
             FontWeight = FontWeight.SemiBold,
+            LineHeight = TitleLineHeight,
+            TextWrapping = TextWrapping.Wrap,
+            MaxLines = TitleMaxLines,
             TextTrimming = TextTrimming.CharacterEllipsis,
         };
         private readonly TextBlock _detail = new()
         {
             FontSize = 12,
             Opacity = DimOpacity,
+            LineHeight = DetailLineHeight,
             TextTrimming = TextTrimming.CharacterEllipsis,
         };
 
@@ -315,7 +323,7 @@ public static class QuickCommandStrip
             Panel = new StackPanel
             {
                 Width = (RowLength * CellSize) + ((RowLength - 1) * Gap),
-                MinHeight = 36,
+                MinHeight = (TitleMaxLines * TitleLineHeight) + DetailLineHeight,
                 HorizontalAlignment = HorizontalAlignment.Left,
                 VerticalAlignment = VerticalAlignment.Center,
                 Children = { _title, _detail },

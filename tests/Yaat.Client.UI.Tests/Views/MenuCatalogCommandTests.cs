@@ -432,7 +432,7 @@ public class MenuCatalogCommandTests
         MenuItem? item = MenuCatalog.Get(MenuIds.AltitudeMaintain).Build(new FakeMenuAircraft { AltitudeFeet = altitude }, Context(), host);
 
         Assert.NotNull(item);
-        Assert.Equal("Maintain", item.Header as string);
+        Assert.Equal("Maintain altitude", item.Header as string);
         Click(item);
 
         MenuRichList popup = Assert.Single(host.RichListPopups);
@@ -695,8 +695,24 @@ public class MenuCatalogCommandTests
         MenuItem? typed = MenuCatalog.Get(MenuIds.SpeedFinalApproach).Build(new FakeMenuAircraft { FiledAircraftType = "B738" }, Context(), host);
         MenuItem? untyped = MenuCatalog.Get(MenuIds.SpeedFinalApproach).Build(new FakeMenuAircraft(), Context(), host);
 
-        Assert.Equal($"FAS - {fas:F0} kt", typed?.Header as string);
-        Assert.Equal("FAS", untyped?.Header as string);
+        Assert.Equal($"Reduce to final approach speed - {fas:F0} kt", typed?.Header as string);
+        Assert.Equal("Reduce to final approach speed", untyped?.Header as string);
+    }
+
+    [AvaloniaTheory]
+    [InlineData(MenuIds.GroundBreakConflict, "Ignore ground conflicts (15 s)", "Ignore ground conflicts (15 s)")]
+    [InlineData(MenuIds.AltitudeMaintain, "Maintain altitude", "Maintain altitude")]
+    [InlineData(MenuIds.HoldPattern, "Hold at fix…", "Hold at fix…")]
+    [InlineData(MenuIds.PatternEnterFinal, "Make straight-in", "Make straight-in…")]
+    [InlineData(MenuIds.PatternFollow, "Follow traffic…", "Follow traffic…")]
+    [InlineData(MenuIds.SpeedFinalApproach, "Reduce to final approach speed", "Reduce to final approach speed")]
+    [InlineData(MenuIds.ApproachReportNMileFinal, "At N-mile final…", "At N-mile final…")]
+    [InlineData(MenuIds.ApproachReportAtFix, "At fix…", "At fix…")]
+    [InlineData(MenuIds.NavigationOnCourse, "Proceed on course", "Proceed on course")]
+    public void RenamedEntry_LabelAndHeader_ReadAsItsCommand(string id, string label, string header)
+    {
+        Assert.Equal(label, MenuCatalog.Get(id).Label);
+        Assert.Equal(header, MenuCatalog.Get(id).Build(null, Context(), new RecordingMenuHost(""))?.Header as string);
     }
 
     [AvaloniaTheory]
@@ -1376,7 +1392,7 @@ public class MenuCatalogCommandTests
         MenuItem stop = Assert.IsType<MenuItem>(reportWhen.Items[^1]);
 
         Assert.Equal(
-            ["Turning base", "Turning final", "Turning crosswind", "Turning downwind", "N-mile final…", "At fix…", "---", "Stop reporting"],
+            ["Turning base", "Turning final", "Turning crosswind", "Turning downwind", "At N-mile final…", "At fix…", "---", "Stop reporting"],
             reportWhen.Items.Select(Describe)
         );
         Assert.Equal(["Base", "Final", "Crosswind", "Downwind", "---", "All reports"], stop.Items.Select(Describe));
@@ -2372,7 +2388,7 @@ public class MenuCatalogCommandTests
         Assert.Equal([(Callsign, "TB", Initials)], host.Sent);
         // Under the default setting an IFR aircraft keeps only the straight-in final entry: no circuit legs, no maneuvers.
         Assert.NotNull(enterFinalOnly);
-        Assert.Equal(["Enter straight-in final…"], enterFinalOnly.Items.Select(Describe));
+        Assert.Equal(["Make straight-in…"], enterFinalOnly.Items.Select(Describe));
         Assert.Null(none);
     }
 
@@ -2446,7 +2462,7 @@ public class MenuCatalogCommandTests
 
         MenuItem? item = MenuCatalog.Get(MenuIds.PatternEnterFinal).Build(aircraft, Context(), host);
         Assert.NotNull(item);
-        Assert.Equal("Enter straight-in final 9L", item.Header as string);
+        Assert.Equal("Make straight-in 9L", item.Header as string);
         Assert.Null(item.Tag);
         Click(item);
 

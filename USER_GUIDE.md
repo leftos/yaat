@@ -289,12 +289,12 @@ Right-click an aircraft on the [Radar View](#radar-view-1), the [Ground View](#g
   The **state line** says what the aircraft is doing right now. Airborne it reads phase, altitude (to the nearest 100 ft), speed and runway, the airport being the departure airport while taking off or departing and the destination otherwise: `Approach · 3,000 ft · 180 kt · KOAK rwy 30`.
 
   On the ground it reads phase, taxiway (else parking spot) and airport, `Taxiing · C · KOAK`, and on a landing roll phase, runway and ground speed, `Landing · runway 28R · 62 kt`. A part with no value is left out, and an aircraft with nothing to show has no state line.
-- The **icon strip**: up to ten icons in two rows of five, one per quick command that has an icon. A label row above the icons names the icon under the pointer with the text it sends (`Hold position — HOLD`), adds "›" when the icon opens choices, and reads "Quick commands" when none is pointed at; hovering an icon also shows a tooltip. A click sends it, or opens its prompt; an icon with a small notch in its corner opens its choices (Cleared for takeoff's options). Choosing a command closes the menu.
+- The **icon strip**: up to ten icons in two rows of five, one per quick command that has an icon. A label row above the icons names the icon under the pointer, wrapping a long name onto a second line, with the text it sends (`Hold position — HOLD`), adds "›" when the icon opens choices, and reads "Quick commands" when none is pointed at; hovering an icon also shows a tooltip. A click sends it, or opens its prompt; an icon with a small notch in its corner opens its choices (Cleared for takeoff's options). Choosing a command closes the menu.
 - The remaining quick commands as text, below the strip.
 
   The approach commands (**Cleared approach**, **Join approach**, **Expect approach** and their straight-in, forced and final-course variants) name their likely approach for one click: the expected approach, else the assigned runway's ILS, else its first published approach (`Cleared ILS 30` sends `CAPP I30`). **Cleared approach (other)…** under it lists every approach grouped by runway: the assigned runway first (else the runway of the active or expected approach), by kind (ILS, LOC, RNAV, RNP), each row showing the command it sends, then **Other runways**, one submenu per runway. With no expected approach and no assigned runway, the command opens that runway list directly.
 
-  **Maintain** opens a picker titled with the callsign, its subtitle giving the current and assigned altitudes. The list runs from the aircraft type's ceiling down, opening centred on the assigned altitude, else the current one. Each row is marked ↑ (sends a climb) or ↓ (sends a descent); ● marks the current altitude and ◆ the assigned one, and clicking ● sends the verb toward the assignment.
+  **Maintain altitude** opens a picker titled with the callsign, its subtitle giving the current and assigned altitudes. The list runs from the aircraft type's ceiling down, opening centred on the assigned altitude, else the current one. Each row is marked ↑ (sends a climb) or ↓ (sends a descent); ● marks the current altitude and ◆ the assigned one, and clicking ● sends the verb toward the assignment.
 
   Where the minimum vectoring altitude is charted, an "MVA 5,000 here (sector SCK_M)" line sits in the list and the rows below it are greyed "below MVA", but they can still be picked. Type an altitude the way commands take one (`35`, `350`, `FL350`) to jump to it, use the arrow keys, Page Up / Page Down and Home / End to move, and Enter to send.
 - **Track**, **Data Block**, **Squawk**, then the view's own items (the radar's **Display** and **Draw route**, the ground's **Display**; the Aircraft List has none), and **Favorite Commands**.
@@ -310,22 +310,22 @@ Right-click an aircraft on the [Radar View](#radar-view-1), the [Ground View](#g
 | At parking | Push back, Preset taxi route, Draw taxi route…, Push back to…, Check release window |
 | Pushing back | Hold position, Push route… |
 | Holding on the ground | Resume taxi, Draw taxi route…, Follow…, Give way to…, Cross {runway} |
-| Taxiing | Hold position, Hold short of…, Cross {runway}, Follow…, Give way to…, Break conflict, Cleared for takeoff, Cancel takeoff clearance |
+| Taxiing | Hold position, Hold short of…, Cross {runway}, Follow…, Give way to…, Ignore ground conflicts (15 s), Cleared for takeoff, Cancel takeoff clearance |
 | Holding short | Cleared for takeoff, Line up and wait (at the departure runway); Cross {runway}, Resume taxi (at any other) |
 | Lined up | Cleared for takeoff, Cancel takeoff clearance, Draw taxi route… |
-| Departing | Fly heading, Maintain, Climb via SID (IFR), Direct to…, Assign speed |
-| IFR enroute | Fly heading, Maintain, Direct to…, Assign speed, Hold…, Cross fix |
-| IFR arrival | Descend via STAR (IFR), Maintain, Assign speed, Fly heading, Direct to…, Expect approach, Hold… |
-| VFR flight following | Report traffic in sight…, Fly heading, Maintain, Direct to…, Expect approach |
-| Approach | Cleared approach, Maintain, Assign speed, Report field in sight, Cleared visual (IFR), Cleared to land |
-| Holding | Cleared approach (IFR), Direct to…, Maintain; for VFR, Enter left / right downwind, Enter left / right base, Enter final |
-| Pattern | Cleared to land, Cleared for the option, Touch and go, Follow…, Extend pattern leg, Make short approach, Make left / right 360, Turn base, Go around |
+| Departing | Fly heading, Maintain altitude, Climb via SID (IFR), Direct to…, Assign speed |
+| IFR enroute | Fly heading, Maintain altitude, Direct to…, Assign speed, Hold at fix…, Cross fix |
+| IFR arrival | Descend via STAR (IFR), Maintain altitude, Assign speed, Fly heading, Direct to…, Expect approach, Hold at fix… |
+| VFR flight following | Report traffic in sight…, Fly heading, Maintain altitude, Direct to…, Expect approach |
+| Approach | Cleared approach, Maintain altitude, Assign speed, Report field in sight, Cleared visual (IFR), Cleared to land |
+| Holding | Cleared approach (IFR), Direct to…, Maintain altitude; for VFR, Enter left / right downwind, Enter left / right base, Make straight-in |
+| Pattern | Cleared to land, Cleared for the option, Touch and go, Follow traffic…, Extend pattern leg, Make short approach, Make left / right 360, Turn base, Go around |
 | Final | Cleared to land, Go around, Cancel landing clearance, Reduce to final approach speed |
 | Rollout / exit | Exit left, Exit right, Cross {runway}, Draw taxi route… |
-| Go-around or missed approach | Fly heading, Maintain, Cleared approach (IFR); for VFR, Enter left / right downwind |
+| Go-around or missed approach | Fly heading, Maintain altitude, Cleared approach (IFR); for VFR, Enter left / right downwind |
 | Live traffic | Assume control, Assume and track |
-| VFR arrival | Enter left / right downwind, Enter left / right base, Enter final, Report N-mile final…, Report at fix…, Cleared to land, Follow… |
-| VFR departure | Fly heading, On course, Maintain, Report at fix…, Make left / right closed traffic |
+| VFR arrival | Enter left / right downwind, Enter left / right base, Make straight-in, At N-mile final…, At fix…, Cleared to land, Follow traffic… |
+| VFR departure | Fly heading, Proceed on course, Maintain altitude, At fix…, Make left / right closed traffic |
 
 An aircraft YAAT cannot place in a situation shows no quick commands; use All Commands. IFR-only and VFR-only commands follow the aircraft's flight rules, and the **VFR commands for IFR aircraft** setting lets the VFR ones through for IFR aircraft as it does in All Commands.
 
@@ -959,7 +959,7 @@ Empty assigned fields show their identifier (`ASP`, `AHDG`, `(---)`) so the clic
 | **Owner** initials (or `--` if no RPO assigned) | **Left-click**: take RPO control (assign aircraft to yourself). **Right-click**: opens the RPO assignment menu — Take control / Give up control / Give control to *(submenu of other RPOs in the room)* / Unassign. |
 | **Destination** field | Enters **draw-route** mode — left-click waypoints on the map; right-click the last waypoint to confirm, Esc to cancel. |
 | Current or assigned **altitude** field | Altitude flyout (FL010..FL400 in 1000-ft steps). Opens scrolled to the current altitude with a roughly ±5,000 ft window visible; the rest is reachable by scrolling. Selection dispatches `CM` or `DM` based on whether the picked FL is above or below the aircraft. |
-| Current or assigned **speed** / `ASP` | Speed flyout (80..350 kt + Resume Normal Speed + **FAS** at the bottom, labelled with the aircraft-specific final approach speed). Opens scrolled to the current speed with a ±60 kt window visible. Dispatches `SPD`, `RNS`, or `RFAS`. |
+| Current or assigned **speed** / `ASP` | Speed flyout (80..350 kt + Resume Normal Speed + **Reduce to final approach speed** at the bottom, labelled with the aircraft-specific speed, e.g. `Reduce to final approach speed - 144 kt`). Opens scrolled to the current speed with a ±60 kt window visible. Dispatches `SPD`, `RNS`, or `RFAS`. |
 | **AHDG** field | Enters **heading mode** — see below. |
 | Assigned **runway** field | Runway flyout listing every runway end at the aircraft's departure (if on ground) or destination (if airborne) airport, sorted numerically. Dispatches `RWY <designator>`. Includes a Clear option. |
 | **Scratchpad 1/2** (`.XXX` / `+XXX`) | Text-entry popup with the current value pre-filled, plus EuroScope-convention preset chips (CLEA / NOTC / ST-UP / PUSH / TAXI / DEPA). Enter submits, Esc cancels. |

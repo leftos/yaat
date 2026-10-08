@@ -16,7 +16,7 @@ The aircraft right-click menus on the radar, ground and aircraft-list views. Thi
 - **Inapplicable entries are hidden, not disabled.** An issued clearance hides itself and shows its cancel entry instead.
 - **The icon strip** shows the glyph-bearing entries of the one per-situation list: the first ten in list order, two rows of five, the first row filled first and an empty second row hidden; every other entry, a glyph-bearing one past the tenth included, is a text entry below it. A list left with no glyph-bearing entry has no strip.
 
-  A button stands for its entry's own menu item: a sending or prompting item is clicked through, and a submenu (Cleared for takeoff ▸) opens as a flyout under the button, marked by a corner notch; choosing a command closes the menu. A label row above the icons names the entry under the pointer (or keyboard focus) with the command it sends, says so when the entry opens a submenu ("›"), and reads "Quick commands" / "point at an icon" when nothing on the strip is pointed at.
+  A button stands for its entry's own menu item: a sending or prompting item is clicked through, and a submenu (Cleared for takeoff ▸) opens as a flyout under the button, marked by a corner notch; choosing a command closes the menu. A label row above the icons names the entry under the pointer (or keyboard focus), wrapping a long name onto a second line (an ellipsis only past two), with the command it sends, says so when the entry opens a submenu ("›"), and reads "Quick commands" / "point at an icon" when nothing on the strip is pointed at.
 
   The tooltip names the entry and, for one that sends a fixed command, that command (`Hold position — HOLD`); it closes, and stays suppressed, while a strip icon's submenu flyout is open. Glyphs are coloured by family (tower, ground, flight, pattern, scope and sim); a left/right pair shares one glyph, and so do Cancel landing clearance and Cancel takeoff clearance, which no situation offers together.
 - **The point menu** (a map, taxi-node, runway-threshold or runway-surface right-click with an aircraft selected) opens with the bold title `{callsign} · {type} → {place}`. The place is `HS 30 at W3` at the hold short a threshold click resolves to (`HS 30` when no named taxiway leads to it), `parking {name}`, `spot {name}`, the taxiways meeting at any other node in ordinal order (`B / C`), `runway 28R` on a runway surface, and `this point` on the radar map or at a node no taxiway names.
@@ -51,22 +51,22 @@ The default list of each situation, most frequent first (`QuickCommandDefaults`)
 | At parking | Push back, Preset taxi route ▸, Draw taxi route…, Push back to…, Check release window |
 | Pushing back | Hold position, Push route… |
 | Holding on ground | Resume taxi, Draw taxi route…, Follow…, Give way to…, Cross |
-| Taxiing | Hold position, Hold short of…, Cross, Follow…, Give way to…, Break conflict, Cleared for takeoff ▸, Cancel takeoff clearance |
+| Taxiing | Hold position, Hold short of…, Cross, Follow…, Give way to…, Ignore ground conflicts (15 s), Cleared for takeoff ▸, Cancel takeoff clearance |
 | Holding short | Cleared for takeoff ▸, Line up and wait, Cross, Resume taxi |
 | Lined up | Cleared for takeoff ▸, Cancel takeoff clearance, Draw taxi route… |
-| Departing | Fly heading ▸, Maintain, Climb via SID *(IFR)*, Direct to…, Assign speed ▸ |
-| IFR enroute | Fly heading ▸, Maintain, Direct to…, Assign speed ▸, Hold…, Cross fix |
-| IFR arrival | Descend via STAR *(IFR)*, Maintain, Assign speed ▸, Fly heading ▸, Direct to…, Expect approach ▸, Hold… |
-| VFR flight following | Report traffic in sight…, Fly heading ▸, Maintain, Direct to…, Expect approach ▸ |
-| Approach | Cleared approach ▸, Maintain, Assign speed ▸, Report field in sight, Cleared visual *(IFR)*, Cleared to land |
-| Holding | Cleared approach ▸ *(IFR)*, Direct to…, Maintain, then *(VFR)* Enter left / right downwind, Enter left / right base, Enter final |
-| Pattern | Cleared to land, Cleared for the option, Touch and go, Follow…, Extend pattern leg, Make short approach, Make left / right 360, Turn base, Go around |
+| Departing | Fly heading ▸, Maintain altitude, Climb via SID *(IFR)*, Direct to…, Assign speed ▸ |
+| IFR enroute | Fly heading ▸, Maintain altitude, Direct to…, Assign speed ▸, Hold at fix…, Cross fix |
+| IFR arrival | Descend via STAR *(IFR)*, Maintain altitude, Assign speed ▸, Fly heading ▸, Direct to…, Expect approach ▸, Hold at fix… |
+| VFR flight following | Report traffic in sight…, Fly heading ▸, Maintain altitude, Direct to…, Expect approach ▸ |
+| Approach | Cleared approach ▸, Maintain altitude, Assign speed ▸, Report field in sight, Cleared visual *(IFR)*, Cleared to land |
+| Holding | Cleared approach ▸ *(IFR)*, Direct to…, Maintain altitude, then *(VFR)* Enter left / right downwind, Enter left / right base, Make straight-in |
+| Pattern | Cleared to land, Cleared for the option, Touch and go, Follow traffic…, Extend pattern leg, Make short approach, Make left / right 360, Turn base, Go around |
 | Final | Cleared to land, Go around, Cancel landing clearance, Reduce to final approach speed |
 | Rollout / exit | Exit left, Exit right, Cross, Draw taxi route… |
-| Go-around | Fly heading ▸, Maintain, Cleared approach ▸ *(IFR)*, *(VFR)* Enter left / right downwind |
+| Go-around | Fly heading ▸, Maintain altitude, Cleared approach ▸ *(IFR)*, *(VFR)* Enter left / right downwind |
 | Live traffic | Assume control, Assume and track |
-| VFR arrival, inbound | Enter left / right downwind, Enter left / right base, Enter final, Report N-mile final…, Report at fix…, Cleared to land, Follow… |
-| VFR departure | Fly heading ▸, On course, Maintain, Report at fix…, Make left / right closed traffic |
+| VFR arrival, inbound | Enter left / right downwind, Enter left / right base, Make straight-in, At N-mile final…, At fix…, Cleared to land, Follow traffic… |
+| VFR departure | Fly heading ▸, Proceed on course, Maintain altitude, At fix…, Make left / right closed traffic |
 
 Holding is also the situation of a VFR hold and an airspace-boundary hold, which is why its IFR entries are followed by VFR-tagged pattern entries. Exit hold and Expect further clearance time have no sim command yet, so the Holding list leaves them out.
 

@@ -5,8 +5,7 @@ Pushback [disabled]
 Command…
 Note…
 ---
-strip: [ground.hold-position]
-Push route…
+strip: [ground.hold-position, ground.push-route]
 ---
 Track
   Initiate Track

@@ -33,7 +33,7 @@ Favorite Commands
   (no items) [disabled]
 All Commands
   Hold position
-  Break conflict
+  Ignore ground conflicts (15 s)
   Tower
     Line up and wait 30
     Cleared for takeoff 30

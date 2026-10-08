@@ -5,38 +5,7 @@ At parking [disabled]
 Command…
 Note…
 ---
-strip: [ground.pushback, ground.taxi-preset, ground.draw-taxi-route]
-Push back to…
-  24
-  26
-  23
-  27
-  22
-  29
-  21
-  30
-  20
-  31
-  6
-  4
-  32
-  8
-  8B
-  E
-  8A
-  C
-  10
-  3
-  3A
-  12
-  5
-  14
-  7A
-  7
-  9
-  17
-  9A
-  1
+strip: [ground.pushback, ground.taxi-preset, ground.draw-taxi-route, ground.pushback-to]
 ---
 Track
   Initiate Track

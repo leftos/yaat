@@ -6,7 +6,7 @@
 
 - Every aircraft right-click menu shows a state line under its title: phase, altitude, speed and runway, or taxiway and airport on the ground.
 - A range/bearing measurement's label moves clear of data blocks and aircraft, pushing auto-placed data blocks aside while every side is covered.
-- An aircraft's right-click menu leads with situational quick commands, as icons named as you point at them and text; others sit under All Commands.
+- An aircraft's right-click menu leads with situational quick commands, each an icon named in full as you point at it, then text; others sit under All Commands.
 - Right-clicking a taxiway, runway or the radar map with an aircraft selected leads with icons, such as Taxi here, Push to or Hold left.
 - The point menu's title names the aircraft and the place, "UAL238 · B738 → HS 30 at W3", and the radar adds its distance and bearing.
 - The radar point menu's Fly heading shows which way and how far the aircraft turns, such as "FH 270 · left turn, 40°".
@@ -31,6 +31,7 @@
 ### Changed
 
 - The Track submenu lists only what the track's state allows: Initiate Track, or handoff, point out and drop, Accept and Cancel, Acknowledge.
+- `BREAK` echoes "Ignore ground conflicts (15 s)" in the terminal, matching its quick command.
 - Approach menus offer the expected approach, or the assigned runway's ILS, in one click, and list the rest grouped by runway and type.
 - Assign speed lists the aircraft type's own speed range, Mach numbers at FL240 and above, and Resume normal speed and Final approach speed.
 - Maintain opens at the aircraft's altitude, marks climbs and descents, ends at its type's ceiling, greys altitudes below the MVA and jumps to typed altitudes.

@@ -2190,6 +2190,7 @@ public class GroundCommandHandlerTests
         CommandResult result = GroundCommandHandler.TryBreakConflict(ac);
 
         Assert.True(result.Success);
+        Assert.Equal("Ignore ground conflicts (15 s)", result.Message);
         Assert.Equal(15.0, ac.Ground.ConflictBreakRemainingSeconds, precision: 9);
     }
 
@@ -2265,6 +2266,7 @@ public class GroundCommandHandlerTests
         ParseResult<ParsedCommand> cmd = CommandParser.Parse("BREAK");
 
         Assert.IsType<BreakConflictCommand>(cmd.Value);
+        Assert.Equal("Ignore ground conflicts (15 s)", CommandDescriber.DescribeNatural(cmd.Value));
     }
 
     [Fact]

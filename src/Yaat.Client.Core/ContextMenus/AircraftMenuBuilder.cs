@@ -418,9 +418,9 @@ public static class AircraftMenuBuilder
 
     /// <summary>
     /// The ground-movement block, each item by its predicate: Push back, the face items, Push back to…, Push route…, Hold
-    /// position, Hold short of…, Follow…, Give way to…, Break conflict, Resume taxi, then Cross. A submenu with nothing to
-    /// list (no other ground traffic, no stand, no hold-short target) is left out. Push route… starts its tug move on
-    /// the primary ground view, which the host shows first.
+    /// position, Hold short of…, Follow…, Give way to…, Ignore ground conflicts (15 s), Resume taxi, then Cross. A submenu
+    /// with nothing to list (no other ground traffic, no stand, no hold-short target) is left out. Push route… starts its
+    /// tug move on the primary ground view, which the host shows first.
     /// </summary>
     private static void AddGroundMovement(ItemCollection items, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
     {

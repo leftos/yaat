@@ -28,9 +28,14 @@ public sealed record QuickCommandGlyph(string PathData, QuickCommandGlyphFamily 
 /// The icon each glyph-bearing catalog action shows in a quick-command menu's strip, from the approved icon set, and the
 /// rule that splits a resolved quick-command list into the strip and the text entries below it: the first
 /// <see cref="StripCapacity"/> glyph-bearing entries in list order form the strip (two rows of five), and every other
-/// entry, a glyph-bearing one past the tenth included, is a text entry. An action pair the icon set draws as one glyph
-/// (left and right downwind, left and right 360) shares it, and so do Cancel landing clearance and Cancel takeoff, which
-/// no situation offers together.
+/// entry, a glyph-bearing one past the tenth included, is a text entry. Every default quick command has a glyph. An action
+/// pair the icon set draws as one glyph (left and right 360, left and right closed traffic) shares it, and so do Cancel
+/// landing clearance and Cancel takeoff, which no situation offers together. A pattern entry draws the traffic pattern for
+/// a runway landing west as a rounded rectangle, an arrowhead in the middle of its runway edge pointing west, with an
+/// arrow ending just short of the point of entry: a 45° arrow onto mid-downwind, an arrow along the base leg (the east
+/// side) toward the runway, or one along the extended runway line from the east. Left traffic has the runway on the top
+/// edge and right traffic on the bottom, so left and right entries mirror top to bottom; the straight-in final draws the
+/// left-traffic pattern, the default side when no runway is known.
 /// </summary>
 public static class QuickCommandGlyphs
 {
@@ -41,11 +46,27 @@ public static class QuickCommandGlyphs
 
     private const string SpeedPath = "M4 17a8 8 0 1 1 16 0 M12 17l4-5";
 
-    private const string EnterDownwindPath = "M6 20V6h12v14 M2 3l4 3";
+    private const string PatternRectPath = "M3.5 9h12a2 2 0 0 1 2 2v2a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2v-2a2 2 0 0 1 2 -2z";
+
+    private const string LeftTrafficPatternPath = PatternRectPath + " M11 7.4 L9.4 9 L11 10.6";
+
+    private const string RightTrafficPatternPath = PatternRectPath + " M11 13.4 L9.4 15 L11 16.6";
+
+    private const string EnterLeftDownwindPath = LeftTrafficPatternPath + " M6.35 20.65 L10.15 16.85 M10.15 16.85 h-3 M10.15 16.85 v3";
+
+    private const string EnterRightDownwindPath = RightTrafficPatternPath + " M6.35 3.35 L10.15 7.15 M10.15 7.15 h-3 M10.15 7.15 v-3";
+
+    private const string EnterLeftBasePath = LeftTrafficPatternPath + " M17.5 23 V16.6 M17.5 16.6 l-2.2 2.2 M17.5 16.6 l2.2 2.2";
+
+    private const string EnterRightBasePath = RightTrafficPatternPath + " M17.5 1 V7.4 M17.5 7.4 l-2.2 -2.2 M17.5 7.4 l2.2 -2.2";
+
+    private const string EnterFinalPath = LeftTrafficPatternPath + " M23.5 9 H19.1 M19.1 9 l2.2 -2.2 M19.1 9 l2.2 2.2";
 
     private const string Turn360Path = "M20 12a8 8 0 1 1-3-6.2 M20 4v5h-5";
 
     private const string RacetrackPath = "M8 6h8a6 6 0 0 1 0 12H8a6 6 0 0 1 0-12z";
+
+    private const string ClosedTrafficPath = "M7 4h10a4 4 0 0 1 4 4v8a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4V8a4 4 0 0 1 4-4z M7 12h10 M13 1l-3 3 3 3";
 
     /// <summary>Every glyph-bearing catalog action's glyph; an action with no glyph is absent.</summary>
     public static IReadOnlyDictionary<string, QuickCommandGlyph> ById { get; } =
@@ -61,7 +82,15 @@ public static class QuickCommandGlyphs
             [MenuIds.TowerExitLeft] = Tower("M15 21V11a4 4 0 0 0-4-4H4 M8 3L4 7l4 4"),
             [MenuIds.TowerExitRight] = Tower("M9 21V11a4 4 0 0 1 4-4h7 M16 3l4 4-4 4"),
             [MenuIds.ApproachReportTrafficInSight] = Tower("M12 3v4 M12 17v4 M3 12h4 M17 12h4 M12 8a4 4 0 1 0 0 8a4 4 0 1 0 0-8"),
+            [MenuIds.ApproachReportFieldInSight] = Tower("M12 2v3 M2 13h3 M19 13h3 M7 21l3-12h4l3 12 M12 12v2 M12 17v2"),
+            [MenuIds.ApproachReportNMileFinal] = Tower("M7 21l3-10h4l3 10 M12 14v1.5 M12 18v1.5 M8.5 7a5 5 0 0 1 7 0 M5.5 4a9 9 0 0 1 13 0"),
+            [MenuIds.ApproachReportAtFix] = Tower("M12 10l6 11H6z M8.5 7a5 5 0 0 1 7 0 M5.5 4a9 9 0 0 1 13 0"),
             [MenuIds.GroundPushback] = Ground("M12 3v12 M8 11l4 4 4-4 M6 20h12"),
+            [MenuIds.GroundPushbackTo] = Ground("M12 3v8 M9 8l3 3 3-3 M12 13a4 4 0 1 0 0 8a4 4 0 1 0 0-8"),
+            [MenuIds.GroundPushRoute] = Ground(
+                "M7 3v5.5 M7 8.5a1.5 1.5 0 1 0 0 3a1.5 1.5 0 1 0 0-3 M8.3 10.8l6.4 3.4"
+                    + " M16 13.5a1.5 1.5 0 1 0 0 3a1.5 1.5 0 1 0 0-3 M16 16.5V21 M13 18l3 3 3-3"
+            ),
             [MenuIds.GroundTaxiPreset] = Ground("M4 21v-5a4 4 0 0 1 4-4h8a4 4 0 0 0 4-4V4 M17 7l3-3 3 3"),
             [MenuIds.GroundDrawTaxiRoute] = Ground("M4 20l4-1L19 8l-3-3L5 16z M14 7l3 3"),
             [MenuIds.GroundHoldPosition] = Ground("M8 3h8l5 5v8l-5 5H8l-5-5V8z M9 12h6"),
@@ -79,8 +108,22 @@ public static class QuickCommandGlyphs
             [MenuIds.HoldPattern] = Flight(RacetrackPath + " M8 18l-2 3"),
             [MenuIds.ApproachCleared] = Flight("M3 12L21 5 M3 12L21 19 M3 12h18"),
             [MenuIds.ApproachClearedVisual] = Flight("M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z M12 9a3 3 0 1 0 0 6a3 3 0 1 0 0-6"),
-            [MenuIds.PatternEnterLeftDownwind] = Pattern(EnterDownwindPath),
-            [MenuIds.PatternEnterRightDownwind] = Pattern(EnterDownwindPath),
+            [MenuIds.ApproachExpect] = Flight(
+                "M3 12l4.5-1.75 M10.2 9.2l4.5-1.75 M17.4 6.4L21 5 M3 12l4.5 1.75 M10.2 14.8l4.5 1.75 M17.4 17.6L21 19"
+                    + " M3 12h4.5 M10.2 12h4.5 M17.4 12H21"
+            ),
+            [MenuIds.ProceduresClimbViaSid] = Flight("M3 20h5v-5h5v-5h5V5 M15 8l3-3 3 3"),
+            [MenuIds.ProceduresDescendViaStar] = Flight("M3 4h5v5h5v5h5v5 M15 16l3 3 3-3"),
+            [MenuIds.ProceduresCrossFix] = Flight("M12 7l5 9H7z M2 12h19 M18 9l3 3-3 3"),
+            [MenuIds.NavigationOnCourse] = Flight("M3 21c0-6 3-9 9-9h9 M18 9l3 3-3 3"),
+            [MenuIds.PatternEnterLeftDownwind] = Pattern(EnterLeftDownwindPath),
+            [MenuIds.PatternEnterRightDownwind] = Pattern(EnterRightDownwindPath),
+            [MenuIds.PatternEnterLeftBase] = Pattern(EnterLeftBasePath),
+            [MenuIds.PatternEnterRightBase] = Pattern(EnterRightBasePath),
+            [MenuIds.PatternEnterFinal] = Pattern(EnterFinalPath),
+            [MenuIds.PatternFollow] = Pattern("M4 17l5-5-5-5 M17 9a3 3 0 1 0 0 6a3 3 0 1 0 0-6"),
+            [MenuIds.PatternMakeLeftTraffic] = Pattern(ClosedTrafficPath),
+            [MenuIds.PatternMakeRightTraffic] = Pattern(ClosedTrafficPath),
             [MenuIds.PatternExtend] = Pattern("M3 8v8 M3 12h16 M15 8l4 4-4 4"),
             [MenuIds.PatternTurnBase] = Pattern("M4 4h10a6 6 0 0 1 6 6v10 M16 16l4 4 4-4"),
             [MenuIds.PatternLeft360] = Pattern(Turn360Path),
@@ -91,6 +134,7 @@ public static class QuickCommandGlyphs
             [MenuIds.TrackInitiateHandoff] = ScopeAndSim("M14 4h6v16h-6 M3 12h12 M11 8l4 4-4 4"),
             [MenuIds.SquawkCode] = ScopeAndSim("M3 7h18v10H3z M7 12h2 M11 12h2 M15 12h2"),
             [MenuIds.LiveTrafficAssume] = ScopeAndSim("M12 3v10 M8 9l4 4 4-4 M4 17v4h16v-4"),
+            [MenuIds.LiveTrafficAssumeAndTrack] = ScopeAndSim("M4 9V4h5 M15 4h5v5 M20 15v5h-5 M9 20H4v-5 M12 7v8 M9 12l3 3 3-3"),
             [MenuIds.CoordinationCheckReleaseWindow] = ScopeAndSim("M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18 M12 7v5l3 3"),
             [MenuIds.SimControlWarp] = ScopeAndSim("M13 2L4 14h7l-1 8 9-12h-7z"),
             [MenuIds.SimControlDelete] = ScopeAndSim("M4 7h16 M9 7V4h6v3 M6 7l1 13h10l1-13"),

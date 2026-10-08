@@ -6394,7 +6394,7 @@ public static class GroundCommandHandler
         aircraft.Ground.ConflictBreakRemainingSeconds = BreakDurationSeconds;
         aircraft.Ground.SpeedLimit = null;
         Log.LogInformation("[Break] {Callsign}: ignoring ground conflicts for {Duration}s", aircraft.Callsign, BreakDurationSeconds);
-        return CommandDispatcher.Ok("Break conflict");
+        return CommandDispatcher.Ok($"Ignore ground conflicts ({BreakDurationSeconds:F0} s)");
     }
 
     /// <summary>

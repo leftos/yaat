@@ -4,6 +4,7 @@ using Avalonia.Interactivity;
 using Xunit;
 using Yaat.Client.ContextMenus;
 using Yaat.Client.Models;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Situation;
 
@@ -188,11 +189,11 @@ public class AircraftMenuBuilderTests
         AircraftModel ac = Fixture("ifr-arrival");
         ac.AssignedRunway = "30";
 
-        List<string> items = Sequence(Build(ac, new RecordingMenuHost(""), _ => []));
+        List<string> items = Sequence(Build(ac, JoinApproachHost(), _ => []));
 
-        int leaf = items.IndexOf("Expect ILS 30");
+        int leaf = items.IndexOf("Join ILS 30");
         Assert.True(leaf >= 0, string.Join(" | ", items));
-        Assert.Equal("Expect approach (other)…", items[leaf + 1]);
+        Assert.Equal("Join approach (other)…", items[leaf + 1]);
     }
 
     [AvaloniaFact]
@@ -201,12 +202,13 @@ public class AircraftMenuBuilderTests
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
         AircraftModel ac = Fixture("ifr-arrival");
         ac.AssignedRunway = "";
+        Assert.Null(QuickCommandGlyphs.For(MenuIds.ApproachJoin));
 
-        ContextMenu menu = Build(ac, new RecordingMenuHost(""), _ => []);
+        ContextMenu menu = Build(ac, JoinApproachHost(), _ => []);
 
-        MenuItem expect = menu.Items.OfType<MenuItem>().Single(item => (item.Header as string) == Label(MenuIds.ApproachExpect));
-        Assert.Equal(MenuPickerDescriptor.Grouped, Assert.IsType<MenuPickerDescriptor>(expect.Tag).Kind);
-        Assert.DoesNotContain("Expect approach (other)…", Sequence(menu));
+        MenuItem join = menu.Items.OfType<MenuItem>().Single(item => (item.Header as string) == Label(MenuIds.ApproachJoin));
+        Assert.Equal(MenuPickerDescriptor.Grouped, Assert.IsType<MenuPickerDescriptor>(join.Tag).Kind);
+        Assert.DoesNotContain("Join approach (other)…", Sequence(menu));
     }
 
     [AvaloniaFact]
@@ -343,4 +345,14 @@ public class AircraftMenuBuilderTests
             Assert.True((at >= 0) && (at < coordination), $"'{label}' is not above Coordination in: {string.Join(" | ", items)}");
         }
     }
+
+    /// <summary>
+    /// A host whose quick list is Join approach alone: an approach picker with no glyph, so it lists as a text entry
+    /// below the strip in every situation.
+    /// </summary>
+    private static RecordingMenuHost JoinApproachHost() =>
+        new("")
+        {
+            Session = new MenuSession("AB", false, VfrCommandsForIfr.EnterFinalOnly, _ => [new CatalogQuickCommandEntry(MenuIds.ApproachJoin, null)]),
+        };
 }

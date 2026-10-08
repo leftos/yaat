@@ -1,8 +1,10 @@
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Media;
 using Xunit;
 using Yaat.Client.ContextMenus;
 using Yaat.Client.Models;
@@ -238,6 +240,32 @@ public class QuickCommandStripTests
         Assert.Equal((MenuCatalog.Get(MenuIds.GroundHoldPosition).Label, "HOLD"), QuickCommandStrip.Label(strip));
         follow.RaiseEvent(new FocusChangedEventArgs(InputElement.GotFocusEvent));
         Assert.Equal(($"{MenuCatalog.Get(MenuIds.GroundFollow).Label} ›", "opens a submenu"), QuickCommandStrip.Label(strip));
+    }
+
+    [AvaloniaFact]
+    public void HoverFinalApproachSpeed_LabelWrapsOntoTwoLinesAndKeepsTheRowHeight()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        AircraftModel ac = Fixture("final-ifr");
+        ac.FiledAircraftType = "B738";
+        MenuItem strip = Strip(Build(ac, Host()));
+        var labelRow = (StackPanel)((StackPanel)strip.Header!).Children[0];
+        var title = (TextBlock)labelRow.Children[0];
+        labelRow.Measure(new Size(labelRow.Width, double.PositiveInfinity));
+        double promptHeight = labelRow.DesiredSize.Height;
+        Button fas = QuickCommandStrip.Buttons(strip).Single(b => (string)b.Tag! == MenuIds.SpeedFinalApproach);
+
+        RaisePointer(fas, InputElement.PointerEnteredEvent);
+        labelRow.Measure(new Size(labelRow.Width, double.PositiveInfinity));
+
+        Assert.Matches(@"^Reduce to final approach speed - \d+ kt$", title.Text);
+        Assert.Equal(TextWrapping.Wrap, title.TextWrapping);
+        // The headless platform measures every glyph at a stub width far wider than the real font's, so this pins the
+        // wrap to two lines, not where the real font breaks the text.
+        Assert.Equal(2, title.MaxLines);
+        Assert.Equal(2, title.TextLayout.TextLines.Count);
+        Assert.True(title.TextLayout.TextLines[^1].HasCollapsed);
+        Assert.Equal(promptHeight, labelRow.DesiredSize.Height);
     }
 
     private static void RaisePointer(Control target, RoutedEvent routedEvent) =>

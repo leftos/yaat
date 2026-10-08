@@ -1,8 +1,8 @@
 using Avalonia.Controls;
 using Avalonia.Media;
+using Yaat.Client.ContextMenus;
 using Yaat.Client.Models;
 using Yaat.Client.ViewModels;
-using Yaat.Sim;
 
 namespace Yaat.Client.Views.Radar.Flyouts;
 
@@ -74,9 +74,7 @@ internal static class SpeedFlyout
 
     internal static MenuItem BuildFasItem(AircraftModel aircraft, RadarViewModel radarVm, string initials)
     {
-        AircraftCategory category = AircraftCategorization.Categorize(aircraft.FiledAircraftType);
-        double fas = AircraftPerformance.ApproachSpeed(aircraft.FiledAircraftType, category);
-        string header = fas > 0 ? $"FAS - {fas:F0} kt" : "FAS";
+        string header = MenuCatalog.FinalApproachSpeedLabel(MenuCatalog.Get(MenuIds.SpeedFinalApproach).Label, aircraft);
 
         var item = new MenuItem { Header = header };
         item.Click += async (_, _) => await radarVm.ReduceFinalApproachSpeedAsync(aircraft.Callsign, initials);
