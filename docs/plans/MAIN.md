@@ -17,6 +17,7 @@
 
 - [/] YAAT-461 Ask the mentor for the active runways on scenario load when the scenario leaves them unclear
 - [ ] YAAT-482 Merge feat/active-runways (#959)
+- [ ] YAAT-516 Fold the Hold short and ground traffic menu row views into one rich-row template
 
 ## Precompute cache (feat/precompute-cache)
 
@@ -28,13 +29,13 @@
 - [x] YAAT-466 Replay and restore a recording against the airport layouts it bundles · release vNext
 - [ ] YAAT-475 Merge feat/precompute-cache (#951)
 - [ ] YAAT-497 Split the tug planner's shared pieces out of the precompute layout source set
-- [/] YAAT-499 Make every push-back decision read the stand's StandDeparture
+- [x] YAAT-499 Make every push-back decision read the stand's StandDeparture · release vNext
 - [ ] YAAT-511 Refuse TAXI for a jet or turboprop at a push-back stand without a push
 
 ## Follow on the taxi graph (feat/follow-on-graph)
 
 - [/] YAAT-316 FOLLOWG follower cuts across the field off the taxiways and can bypass a runway hold line · release vNext
-  - [/] YAAT-498 Red-first tests for FOLLOWG's re-plan reversal guard and on-route crossed-bar check · release vNext
+  - [x] YAAT-498 Red-first tests for FOLLOWG's re-plan reversal guard and on-route crossed-bar check · release vNext
 - [ ] YAAT-407 Merge feat/follow-on-graph (#881) · release vNext
 - [ ] YAAT-507 FOLLOWG clearing route stops one node before the next runway's hold bar
 - [ ] YAAT-508 FOLLOWG clearing check ignores traffic crossing at a junction
@@ -108,7 +109,7 @@
 - [x] YAAT-452 Put relative traffic actions on top of the radar menu and list nearby traffic for Report traffic · release vNext
 - [x] YAAT-453 Open the maintain-altitude picker at the aircraft's altitude, mark climb or descend, grey rows below the MVA · release vNext
 - [x] YAAT-454 Name the receiving aircraft in the radar point menu header and add its quick icons · release vNext
-- [ ] YAAT-455 Show only the items that apply in the radar Track submenu
+- [x] YAAT-455 Show only the items that apply in the radar Track submenu · release vNext
 - [ ] YAAT-456 Fix quick-command labels and give every quick command a glyph
 - [x] YAAT-457 List Direct-to fixes from the aircraft's next fix on · release vNext
 - [x] YAAT-458 Offer speed picker values from the aircraft's own type performance · release vNext
@@ -165,6 +166,7 @@
   - [ ] YAAT-327 Soak-test solo training: detect idle pilots, missing check-ins and broken call/response sequences
 - [ ] YAAT-26 Pilot AI solo training Wave 2: M11.2 pilot-initiated requests
 - [ ] YAAT-27 Typed command arguments: audit the remaining argument slots (step 2)
+- [ ] YAAT-514 Controller-AI coaching sessions: decision trace per command, stepped pacing, mentor feedback loop
 
 ## STT tuning
 
@@ -232,7 +234,7 @@
 - [x] YAAT-424 Keep a taxiway turn-about within the taxiway's width · release vNext
 - [x] YAAT-432 Gate the jet turn-around refusal on design group, not the Jet category · release vNext
 - [ ] YAAT-435 Let a re-route's stop lie behind the aircraft by under 3 ft on segment 0
-- [/] YAAT-438 Slow to pivot speed before a taxiway turn-about issued while rolling · release vNext
+- [x] YAAT-438 Slow to pivot speed before a taxiway turn-about issued while rolling · release vNext
 - [ ] YAAT-509 Turn about from rest short of a runway bar ignores the bar clearance
 - [ ] YAAT-467 Lay a taxi turn from rest at a junction node so it finishes on the next centreline
 - [ ] YAAT-468 Stop at a hold-short bar the parser places at the aircraft's own start on a short leg
@@ -413,6 +415,7 @@
 - [ ] YAAT-472 Cut the context every yaat session and subagent loads: CLAUDE.md and the architecture index
 - [!] YAAT-491 Adopt the user-level predictive-CI toolkit in yaat
 - [x] YAAT-500 Document what ARTCC staff can customise (sidecars, GeoJSON, data admin) and sync it to Discord · release vNext
+- [ ] YAAT-515 Stop the commit hook's style pass marking [ObservableProperty] fields readonly
 
 ## Singles
 
