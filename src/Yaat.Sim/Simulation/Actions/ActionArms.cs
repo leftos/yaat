@@ -1,4 +1,6 @@
+using System.Diagnostics.CodeAnalysis;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Pilot;
 
@@ -514,6 +516,109 @@ internal static class ActionArms
         HeldReleaseResult disarmed = HeldReleaseService.Disarm(scenario, ctx.Engine.World, ((DisarmHoldForReleaseCommand)ctx.Parsed!).Airport);
         return HeldDeparturesChanged(ctx, disarmed);
     }
+
+    /// <summary>
+    /// <c>ARWY</c>. Replaces one airport's active-runway list whole (<c>NONE</c> clears it), or with no runways only
+    /// answers it. The airport is the one named, else the scenario's primary; the runways are checked against the
+    /// navigation data here, at fire time, and any refusal leaves the room's runways as they were.
+    /// </summary>
+    public static CommandResult ActiveRunways(ArmContext ctx)
+    {
+        if (ctx.Engine.Scenario is not { } scenario)
+        {
+            return ActionRefusals.NoScenario();
+        }
+
+        var arwy = (ActiveRunwaysCommand)ctx.Parsed!;
+        if ((arwy.AirportId is null) && (arwy.RunwayText.Length == 0))
+        {
+            return new CommandResult(false, "ARWY requires an airport or runways");
+        }
+
+        NavigationDatabase navDb = NavigationDatabase.Instance;
+        if (!TryResolveActiveRunwayAirport(arwy.AirportId ?? scenario.PrimaryAirportId, navDb, out string? airport, out string? airportError))
+        {
+            return new CommandResult(false, airportError);
+        }
+
+        if (arwy.RunwayText.Length > 0)
+        {
+            if (!TryReadActiveRunwayList(airport, arwy.RunwayText, navDb, out IReadOnlyList<ActiveRunway> runways, out string? error))
+            {
+                return new CommandResult(false, error);
+            }
+
+            scenario.ActiveRunways = scenario.ActiveRunways.With(airport, runways);
+        }
+
+        return new CommandResult(true, DescribeActiveRunways(airport, scenario.ActiveRunways.For(airport)));
+    }
+
+    /// <summary>
+    /// The FAA id an <c>ARWY</c> acts on — the airport named, else the scenario's primary — or the refusal: no airport
+    /// to fall back on, a token that is not an airport id at all, or one the navigation data does not know.
+    /// </summary>
+    private static bool TryResolveActiveRunwayAirport(
+        string? named,
+        NavigationDatabase navDb,
+        [NotNullWhen(true)] out string? airport,
+        [NotNullWhen(false)] out string? error
+    )
+    {
+        airport = null;
+        error = null;
+        if (string.IsNullOrWhiteSpace(named))
+        {
+            error = "No primary airport; name one: ARWY {airport} {runways}";
+            return false;
+        }
+
+        string typed = named.Trim().ToUpperInvariant();
+        if (!typed.All(char.IsAsciiLetterOrDigit))
+        {
+            error = $"Not an airport: {typed}";
+            return false;
+        }
+
+        string normalized = NavigationDatabase.NormalizeAirport(typed);
+        if (navDb.GetAirportElevation(normalized) is null)
+        {
+            error = $"Unknown airport {typed}";
+            return false;
+        }
+
+        airport = normalized;
+        return true;
+    }
+
+    /// <summary>The list an <c>ARWY</c> runway text names: empty for a lone <c>NONE</c>, else the parsed ends.</summary>
+    private static bool TryReadActiveRunwayList(
+        string airport,
+        string text,
+        NavigationDatabase navDb,
+        out IReadOnlyList<ActiveRunway> runways,
+        [NotNullWhen(false)] out string? error
+    )
+    {
+        runways = [];
+        error = null;
+        string[] tokens = text.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (tokens.Contains("NONE", StringComparer.OrdinalIgnoreCase))
+        {
+            error = tokens.Length == 1 ? null : "NONE must be the only runway";
+            return error is null;
+        }
+
+        ActiveRunwayParseResult parsed = ActiveRunwayListParser.Parse(airport, text, navDb);
+        runways = parsed.Runways;
+        error = parsed.Error;
+        return parsed.IsSuccess;
+    }
+
+    private static string DescribeActiveRunways(string airport, IReadOnlyList<ActiveRunway> runways) =>
+        runways.Count == 0
+            ? $"No active runways at {airport}"
+            : $"Active runways at {airport}: {string.Join(' ', runways.Select(runway => runway.ToToken()))}";
 
     /// <summary>
     /// <c>REL</c>. A fresh release draws its airborne spawn jitter from the live-only jitter RNG and bakes it; a

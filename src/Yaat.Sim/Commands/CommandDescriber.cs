@@ -194,6 +194,7 @@ public static class CommandDescriber
             HoldForReleaseCommand => CanonicalCommandType.HoldForRelease,
             DisarmHoldForReleaseCommand => CanonicalCommandType.DisarmHoldForRelease,
             ReleaseDepartureCommand => CanonicalCommandType.ReleaseDeparture,
+            ActiveRunwaysCommand => CanonicalCommandType.ActiveRunways,
             CfrDepartureCommand => CanonicalCommandType.Cfr,
             AddAircraftCommand => CanonicalCommandType.Add,
             AssignRunwayCommand => CanonicalCommandType.AssignRunway,
@@ -934,6 +935,7 @@ public static class CommandDescriber
             HoldForReleaseCommand cmd => $"HFR {cmd.Airport}",
             DisarmHoldForReleaseCommand cmd => $"HFROFF {cmd.Airport}",
             ReleaseDepartureCommand cmd => cmd.IntervalSeconds is int iv ? $"REL {cmd.Target} {iv}" : $"REL {cmd.Target}",
+            ActiveRunwaysCommand cmd => FormatActiveRunwaysCanonical(cmd),
             CfrDepartureCommand cfr => cfr.Action switch
             {
                 CfrAction.Clear => "CFR OFF",
@@ -993,6 +995,20 @@ public static class CommandDescriber
             BookmarkAction.Prev => "BM PREV",
             _ => throw new InvalidOperationException($"Unhandled BookmarkAction: {bookmark.Action}"),
         };
+
+    private static string FormatActiveRunwaysCanonical(ActiveRunwaysCommand cmd) =>
+        string.Join(' ', new[] { "ARWY", cmd.AirportId, cmd.RunwayText }.Where(part => !string.IsNullOrEmpty(part)));
+
+    private static string DescribeActiveRunways(ActiveRunwaysCommand cmd)
+    {
+        string airport = cmd.AirportId ?? "the primary airport";
+        return cmd.RunwayText switch
+        {
+            "" => $"Show active runways at {airport}",
+            "NONE" => $"Clear active runways at {airport}",
+            _ => $"Active runways at {airport}: {cmd.RunwayText}",
+        };
+    }
 
     private static string FormatTimerCanonical(TimerCommand timer)
     {
@@ -1404,6 +1420,7 @@ public static class CommandDescriber
             SpawnDelayCommand cmd => $"Set spawn delay to {cmd.Seconds} s",
             HoldForReleaseCommand cmd => $"Hold for release: {cmd.Airport}",
             DisarmHoldForReleaseCommand cmd => $"Disarm hold for release: {cmd.Airport}",
+            ActiveRunwaysCommand cmd => DescribeActiveRunways(cmd),
             ReleaseDepartureCommand cmd => cmd.IntervalSeconds is not null
                 ? $"Release {cmd.Target} departures, spaced"
                 : $"Release departure {cmd.Target}",

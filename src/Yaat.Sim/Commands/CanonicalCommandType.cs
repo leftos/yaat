@@ -120,6 +120,9 @@ public enum CanonicalCommandType
     DisarmHoldForRelease,
     ReleaseDeparture,
 
+    // Active runways (room state, airport-scoped)
+    ActiveRunways,
+
     // Call For Release release-time window (aircraft-scoped, alert-only)
     Cfr,
 

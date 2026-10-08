@@ -29,6 +29,7 @@ public class ClassifyCommandCompletenessTests(ITestOutputHelper output)
         "AcknowledgeCommand",
         "AcknowledgeConflictAlertCommand",
         "AcknowledgePilotContactCommand",
+        "ActiveRunwaysCommand",
         "AddAircraftCommand",
         "AirTaxiCommand",
         "AsdexEditCommand",

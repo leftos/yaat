@@ -46,6 +46,7 @@ public static class CompoundPolicy
                 or TaxiAllCommand
                 or HoldForReleaseCommand
                 or DisarmHoldForReleaseCommand
+                or ActiveRunwaysCommand
                 or ReleaseDepartureCommand
                 or CfrDepartureCommand
                 or TimerCommand

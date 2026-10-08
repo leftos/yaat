@@ -80,6 +80,9 @@ public enum RecordedCommandKind
     DisarmHoldForRelease,
     ReleaseDeparture,
 
+    /// <summary>ARWY — replace, clear or show one airport's active runways.</summary>
+    ActiveRunways,
+
     /// <summary>TAXIALL — every aircraft at parking taxis to the named runway.</summary>
     TaxiAll,
 
@@ -177,6 +180,7 @@ public static class RecordedCommandClassifier
             RecordedCommandKind.HoldForRelease => ActionScope.Global,
             RecordedCommandKind.DisarmHoldForRelease => ActionScope.Global,
             RecordedCommandKind.ReleaseDeparture => ActionScope.Global,
+            RecordedCommandKind.ActiveRunways => ActionScope.Global,
             RecordedCommandKind.TaxiAll => ActionScope.Global,
             RecordedCommandKind.TdlsOps => ActionScope.Global,
             RecordedCommandKind.Tdls => ActionScope.Aircraft,
@@ -223,6 +227,7 @@ public static class RecordedCommandClassifier
             HoldForReleaseCommand => RecordedCommandKind.HoldForRelease,
             DisarmHoldForReleaseCommand => RecordedCommandKind.DisarmHoldForRelease,
             ReleaseDepartureCommand => RecordedCommandKind.ReleaseDeparture,
+            ActiveRunwaysCommand => RecordedCommandKind.ActiveRunways,
             TaxiAllCommand => RecordedCommandKind.TaxiAll,
             AsdexEnableAllAlertsCommand => RecordedCommandKind.AsdexEnableAllAlerts,
             AddAircraftCommand => RecordedCommandKind.AddAircraft,

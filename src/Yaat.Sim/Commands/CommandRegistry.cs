@@ -1136,6 +1136,23 @@ public static class CommandRegistry
                 [O(null, [R("airport", "airport ID")], "Disarm hold-for-release (auto-releases anything still held)")]
             ),
             Cmd(
+                ActiveRunways,
+                "Active Runways",
+                "Sim Control",
+                CommandDimension.None,
+                true,
+                ["ARWY"],
+                [
+                    O(
+                        null,
+                        [Opt("airport", "airport ID (default: primary)"), Rep("runway", "runway end; D/A prefix for departures/arrivals only")],
+                        "Replace an airport's active runways"
+                    ),
+                    O("Show", [R("airport", "airport ID")], "Show an airport's active runways"),
+                    O("Clear", [Opt("airport", "airport ID (default: primary)"), L("NONE")], "Clear an airport's active runways"),
+                ]
+            ),
+            Cmd(
                 ReleaseDeparture,
                 "Release Departure",
                 "Sim Control",

@@ -56,6 +56,7 @@ Complete reference for all YAAT commands. For a quick introduction to issuing co
   - [Consolidation](#consolidation-1)
   - [Delayed Aircraft Commands](#delayed-aircraft-commands)
   - [Hold for Release (HFR / REL)](#hold-for-release-hfr--rel)
+  - [Active Runways (ARWY)](#active-runways-arwy)
   - [Timer (TIMER / TMR)](#timer-timer--tmr)
   - [Bookmarks (BM)](#bookmarks-bm)
   - [Add Aircraft (ADD)](#add-aircraft-add)
@@ -705,6 +706,7 @@ These mutate ASDE-X display state only; they never change the underlying scenari
 | Disarm hold for release | `HFROFF SJC` | — | Auto-releases anything still held (global) |
 | Release departure | `REL SJC` | `CTOA` | `REL N123` releases a specific aircraft; `REL SJC 2` releases the field's queue 2 min apart (global) |
 | Call for release | `CFR 1830` | — | Marks the selected departure released with a −2/+1 min CFR window; alerts the instructor if it departs outside it. `CFR` = immediate release; `CFR OFF` clears; `CFR CHECK` prints the window status |
+| Active runways | `ARWY OAK 28L 28R` | — | Replaces an airport's active runways (`28L,28R` too); airport omitted = the primary airport. `D28L` departures only, `A28R` arrivals only, `30` both. `ARWY OAK` shows the list; `ARWY OAK NONE` clears it (global) |
 | Wait (seconds) | `WAIT 30` | — | — |
 | Wait (distance) | `WAITD 4` | — | `WAIT 4NM` and `DELAY 4NM` mean `WAITD 4` |
 | Timer | `TIMER 5:00 text` | `TMR` | Countdown reminder; on expiry posts a green SAY (`text`, or `timer expired`). Global, or prefix a callsign. `TIMER CANCEL <id\|ALL>` cancels |
@@ -1990,6 +1992,25 @@ Released departures don't pop airborne instantly — a held runway/airborne depa
 In any room, a timed `CTO`, `CTOPP` or `LUAW` preset that comes due while the departure is held waits, and fires on the tick after `REL` or `HFROFF`. The **Releases** flyout on the command bar shows the live rundown of what's held at each armed field with click-to-release buttons; a held departure also gets a one-click **Release (HFR)** item under the title of its right-click menu (radar / ground / list).
 
 In solo training with a radar (approach or center) student, an IFR departure that starts lined up at an untowered field asks for its release ("ready for departure, request release") without any `HFR`: it shows in the **Releases** flyout as "Lined up (held)", and `REL <callsign>`, `REL <airport>` or `HFROFF` (at an armed field) answers the request and auto-clears it for takeoff after the same short delay.
+
+### Active Runways (ARWY)
+
+Sets the room's active runways at an airport: the runway ends in use, each for departures, arrivals or both. A global command like `HFR`: the airport rides in the argument, no aircraft selection is needed, and it needs a loaded scenario. It is recorded and replays with the recording.
+
+| Command | Effect |
+|---------|--------|
+| `ARWY <airport> <runway>…` | Replace the airport's active runways with the listed ends (`ARWY OAK 28L 28R`). Separate them with spaces or commas (`ARWY OAK 28L,28R`). The list replaces the old one whole; other airports are untouched. |
+| `ARWY <runway>…` | The same for the scenario's primary airport (`ARWY 28L 28R`). |
+| `ARWY <airport>` | Show the airport's active runways without changing them. |
+| `ARWY <airport> NONE` | Clear the airport's list; the room has no active runways there until set again. `ARWY NONE` clears the primary airport's. |
+
+A runway token is a bare end (`30`, used for both departures and arrivals), or one prefixed `D` for departures only (`D28L`) or `A` for arrivals only (`A28R`). The airport is its FAA id; the ICAO form (`KOAK`) is accepted too. Tokens are case-insensitive.
+
+The reply names the airport and lists its ends upper-cased in the order given, designators zero-padded: `Active runways at SFO: D01R A28R 28L`, or `No active runways at OAK` for an empty list.
+
+A refusal leaves the list as it was. An end the airport does not have is refused (`Unknown runway 01 at OAK`), as is a token that is not a runway (`Not a runway: 99`), an end listed twice, `NONE` beside other runways, an airport the navigation data does not know (`Unknown airport XYZQ`), and an omitted airport when the scenario has no primary airport (`No primary airport; name one: ARWY {airport} {runways}`). `ARWY` cannot be chained with other commands.
+
+The first token is taken as the airport exactly when it does not read as a runway token (an optional `D`/`A`, one or two digits, an optional `L`/`C`/`R`) and is not `NONE`. So an airport whose FAA id has that shape, such as `A39` or `D25`, cannot be named as the airport: `ARWY D25 …` reads `D25` as runway 25 for departures at the primary airport, and `ARWY A39 …` is refused as `Not a runway: A39`.
 
 ### Call for Release (CFR)
 

@@ -104,6 +104,7 @@ public static class ArmTable
             Sim(RecordedCommandKind.HoldForRelease, ActionArms.HoldForRelease),
             Sim(RecordedCommandKind.DisarmHoldForRelease, ActionArms.DisarmHoldForRelease),
             Sim(RecordedCommandKind.ReleaseDeparture, ActionArms.ReleaseDeparture),
+            Sim(RecordedCommandKind.ActiveRunways, ActionArms.ActiveRunways),
             Sim(RecordedCommandKind.Cfr, ActionArms.Cfr),
             Sim(RecordedCommandKind.Timer, ActionArms.Timer),
             Sim(RecordedCommandKind.Consolidate, ActionArms.Consolidate),

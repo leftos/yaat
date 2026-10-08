@@ -8,6 +8,7 @@
 | Task | Key files (in order of relevance) |
 |------|----------------------------------|
 | **Add a new command** | `CommandRegistry.cs` → `CommandScheme.cs` → `CommandSchemeParser.cs` → `CommandDispatcher.cs` → appropriate `*CommandHandler.cs` (+ `VfrCommandPolicy.cs` if it is a VFR-only verb) |
+| **Add a global typed command like HFR or ARWY** | [`command-pipeline.md`](command-pipeline.md) (One routing table) → `Commands/CanonicalCommandType.cs` → `CommandRegistry.cs` → `CommandParser.cs` (the parse; `ParseCommandList` if its argument may hold commas) → `CommandSchemeParser.cs` → `CompoundPolicy.cs` → `ParsedCommand.cs` (the record) → `Simulation/Actions/ActionArm.cs` (`ArmTable`) / `ActionArms.cs` (the body) → `Simulation/RecordedCommandClassifier.cs` (kind, `ActionScope.Global`) → `CommandDescriber.cs` → `docs/command-cheatsheet.json` → `COMMANDS.md`; tests `ClassifyCommandCompletenessTests.cs`, `ActiveRunwaysCommandParserTests.cs`, `Simulation/ActiveRunwaysCommandTests.cs`, yaat-server `tests/Yaat.Server.Tests/ActiveRunwaysCommandRoutingTests.cs` |
 | **Add a new phase** | `Phase.cs` (base) → new phase class → `PhaseList.cs` (registration) → `PhaseRunner.cs` (lifecycle) → `PhaseSnapshotDto.cs` (serialization) → `CommandDispatcher.cs` (acceptance) |
 | **Altitude commands** | `AltitudeResolver.cs`, `FlightCommandHandler.cs`, `FlightPhysics.cs` (UpdateAltitude), `ControlTargets.cs` |
 | **Speed commands** | `FlightCommandHandler.cs`, `FlightPhysics.cs` (UpdateSpeed/UpdateSpeedPlanning), `ControlTargets.cs`, `AircraftPerformance.cs` |
@@ -1851,6 +1852,7 @@ ImpliedActiveRunways.cs        # The runway ends a loaded scenario implies (For:
                                # facility knowledge pruned by the usability gate, then the generic rule), and RoomDefault: only airports whose ends name every runway.
 ActiveRunwayListParser.cs      # The one runway-list grammar (command, sidecar, snapshot, prompt): tokens split on commas, spaces or newlines; `30` both, `D28L`
                                # departures, `A28R` arrivals; ends 01-36 with optional L/R/C. Parse checks ends against navdata; FromTokenLists (sidecar, snapshot) warns and drops.
+                               # Separators is public: CommandParser.ParseActiveRunways splits ARWY's airport from its runway tokens on them.
 SimScenarioState.cs            # Per-scenario runtime state: queues, settings, ATC positions, coordination, ArtccConfig (loaded from bundle on replay), LiveTrafficFilter (carried from room settings),
                                # SessionStartUtc (the pinned instant t=0 is anchored to: the room clock for a live load or restart, the recorded instant for a replay, ProcessDayUtc — the unclamped process day — where no clock exists; snapshotted + in the recording manifest) + SimTimeUtc (start + elapsed) + MagneticModelDateUtc (derived: the start's UTC day),
                                # AiStaffedPositions (published by the AI host; never snapshotted) + PilotContacts (memoized PilotContactRoster) + IsAiStaffed,
@@ -1969,7 +1971,8 @@ ActionArms.cs                  # The Sim bodies: Aviation (ParseCompound → Rea
                                # scratchpad rules + RemoveCoordinationOnRadarAcquisition, INHCA drops the aircraft's active conflicts, ASDE-X TERM and a recorded CRC terminate → OnAsdexTrackTerminated / OnSaidTrackTerminated, a ghost's
                                # DROP lifts the overlay (OnGhostOverlayRemoved) or removes the phantom (OnAircraftDeleted)), GlobalTrack (ACCEPTALL/HOALL via
                                # TrackEngine.DispatchGlobal), GhostTrack (a created phantom is handed to OnAircraftSpawned), Reposition, SquawkAll, HFR/HFROFF/REL (baked jitter else ReleaseJitterRng), Cfr (baked clock else now),
-                               # Timer, TaxiAll, AddAircraft (SimulationEngine.AddAircraft; bakes the spawned aircraft onto a fresh record),
+                               # ActiveRunways (ARWY: replaces, clears or shows the named or primary airport's SimScenarioState.ActiveRunways; a refusal
+                               # changes nothing), Timer, TaxiAll, AddAircraft (SimulationEngine.AddAircraft; bakes the spawned aircraft onto a fresh record),
                                # Consolidate/Deconsolidate (SimulationEngine.Consolidate / Deconsolidate; OnConsolidationChanged),
                                # Coordination/GlobalCoordination (CoordinationCommandHandler.Handle / HandleGlobal over the engine — Sim arms)
 IActionHost.cs                 # The action-path view of a host, part of ISimulationHost and IStateChangeConsumer: no Apply* slot is left — every

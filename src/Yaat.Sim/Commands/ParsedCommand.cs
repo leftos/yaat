@@ -1343,6 +1343,14 @@ public record HoldForReleaseCommand(string Airport) : ParsedCommand;
 public record DisarmHoldForReleaseCommand(string Airport) : ParsedCommand;
 
 /// <summary>
+/// Set, clear or show an airport's active runways (<c>ARWY [airport] {runway}…</c>). <paramref name="AirportId"/> is
+/// null when the instructor named none (the scenario's primary airport). <paramref name="RunwayText"/> is the runway
+/// tokens, upper-cased and space-separated (<c>D28L A28R 30</c>): empty for the show form, <c>NONE</c> to clear. The
+/// tokens are checked against the navigation data when the command fires, not here.
+/// </summary>
+public record ActiveRunwaysCommand(string? AirportId, string RunwayText) : ParsedCommand;
+
+/// <summary>
 /// Release a held departure (<c>REL</c> / <c>CTOA</c>). <paramref name="Target"/> is an airport
 /// (release the next pending there, or the whole queue when <paramref name="IntervalSeconds"/> is
 /// set) or a specific callsign. Disambiguated against the held set at routing time.

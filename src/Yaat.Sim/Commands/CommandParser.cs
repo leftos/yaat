@@ -499,12 +499,14 @@ public static class CommandParser
 
     private static List<ParsedCommand>? ParseCommandList(string input, string? aircraftRoute, TextWriter? debugLog = null)
     {
-        // SAY, TIMER and BM consume their entire remainder as literal text — don't split on comma
+        // SAY, TIMER and BM consume their entire remainder as literal text, and ARWY's runway list may be
+        // comma-separated — don't split on comma
         string trimmedInput = input.TrimStart();
         if (
             StartsWithRegisteredAlias(trimmedInput, Say)
             || StartsWithRegisteredAlias(trimmedInput, CanonicalCommandType.Timer)
             || StartsWithRegisteredAlias(trimmedInput, CanonicalCommandType.Bookmark)
+            || StartsWithRegisteredAlias(trimmedInput, CanonicalCommandType.ActiveRunways)
         )
         {
             PR cmd = Parse(input.Trim(), aircraftRoute);
@@ -847,6 +849,7 @@ public static class CommandParser
             DisarmHoldForRelease when arg is { Length: > 0 } => PR.Ok(new DisarmHoldForReleaseCommand(arg.Trim().ToUpperInvariant())),
             DisarmHoldForRelease => PR.Fail("HFROFF requires an airport"),
             ReleaseDeparture => ParseRelease(arg),
+            CanonicalCommandType.ActiveRunways => ParseActiveRunways(arg),
             Cfr => ParseCfr(arg),
             Add when arg is not null => PR.Ok(new AddAircraftCommand(arg)),
             // Tower
@@ -1217,6 +1220,7 @@ public static class CommandParser
                 or HoldForRelease
                 or DisarmHoldForRelease
                 or ReleaseDeparture
+                or CanonicalCommandType.ActiveRunways
                 or Cfr
                 or CanonicalCommandType.Timer
                 or Taxi
@@ -2929,6 +2933,43 @@ public static class CommandParser
         }
 
         return PR.Fail("REL syntax: REL <airport|callsign> [interval-minutes]");
+    }
+
+    /// <summary>
+    /// <c>ARWY [airport] {runway}…</c>: splits the airport from the runway tokens and nothing more — it never fails, so
+    /// every malformed ARWY reaches the global arm, which answers it in its own words. The first token is the airport
+    /// exactly when it is neither runway-shaped nor <c>NONE</c>; a bare airport is the show form (empty text), and no
+    /// tokens at all is an airport-less, runway-less command the arm refuses.
+    /// </summary>
+    private static PR ParseActiveRunways(string? arg)
+    {
+        string[] tokens = (arg ?? "").ToUpperInvariant().Split(ActiveRunwayListParser.Separators, StringSplitOptions.RemoveEmptyEntries);
+        bool namesAirport = (tokens.Length > 0) && (!IsActiveRunwayToken(tokens[0])) && (tokens[0] != "NONE");
+        string? airport = namesAirport ? tokens[0] : null;
+        string[] runways = namesAirport ? tokens[1..] : tokens;
+        return PR.Ok(new ActiveRunwaysCommand(airport, string.Join(' ', runways)));
+    }
+
+    /// <summary>
+    /// An upper-cased token's runway shape: an optional <c>D</c>/<c>A</c>, one or two digits, an optional L/C/R. This is
+    /// broader than <see cref="ActiveRunwayListParser"/>'s own pattern (which accepts only 1–36) on purpose: the
+    /// airport/runway split needs only the shape, and the list parser judges the number when the command fires, so
+    /// <c>ARWY OAK 99</c> is refused as <c>Not a runway: 99</c> rather than taking 99 as an airport.
+    /// </summary>
+    private static bool IsActiveRunwayToken(string token)
+    {
+        ReadOnlySpan<char> rest = token;
+        if ((rest.Length > 0) && (rest[0] is 'D' or 'A'))
+        {
+            rest = rest[1..];
+        }
+
+        if ((rest.Length > 0) && (rest[^1] is 'L' or 'C' or 'R'))
+        {
+            rest = rest[..^1];
+        }
+
+        return (rest.Length is 1 or 2) && (char.IsAsciiDigit(rest[0])) && (char.IsAsciiDigit(rest[^1]));
     }
 
     /// <summary>

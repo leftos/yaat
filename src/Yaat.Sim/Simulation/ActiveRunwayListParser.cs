@@ -22,7 +22,8 @@ public sealed record ActiveRunwayParseResult(IReadOnlyList<ActiveRunway> Runways
 /// </summary>
 public static partial class ActiveRunwayListParser
 {
-    private static readonly char[] Separators = [' ', '\t', '\r', '\n', ','];
+    /// <summary>The characters that separate runway tokens: space, tab, comma, carriage return and line feed.</summary>
+    public static readonly char[] Separators = [' ', '\t', '\r', '\n', ','];
 
     /// <summary>
     /// Reads <paramref name="text"/> — tokens separated by any mix of commas, spaces, tabs and newlines — for the

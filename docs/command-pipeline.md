@@ -110,6 +110,7 @@ log and the router ignores it from a record.
 | `Note` | `NOTE` | Aircraft | Sim: `aircraft.Note` | Text |
 | `Timer` | `TIMER` | Callsign | Sim: `TimerCommandApplier.Apply` | Text |
 | `HoldForRelease` / `DisarmHoldForRelease` / `ReleaseDeparture` | `HFR` / `HFROFF` / `REL` | Global | Sim: `HeldReleaseService.Arm` / `Disarm` / `Release` | Text |
+| `ActiveRunways` | `ARWY` | Global | Sim: `ActionArms.ActiveRunways` (replaces `SimScenarioState.ActiveRunways` for one airport, or only answers it) | Text |
 | `TaxiAll` | `TAXIALL` | Global | Sim: `SimulationEngine.TaxiAll` | Text |
 | `Tdls` | `TDLSQ` / `TDLSS` / `TDLSW` / `TDLSDUMP` | Aircraft | Sim: `TdlsCommandHandler.Handle` | Text |
 | `TdlsOps` | `TDLSOPS` | Global | Sim: `SimulationEngine.ApplyTdlsOpConfig` | Text |
@@ -360,7 +361,7 @@ Scripted commands that never reach the gate (`SN`, squawk, strip ops) fire on ti
 
   Commands carrying explicit timing (leading `WAIT`/`WAITD`/`BEHIND`) are not additionally reaction-delayed.
 
-  **Instructor verbs are never delayed:** a compound containing *any* command whose `CommandRegistry` category is `"Sim Control"` (`FHN`/`CMN`/`SPDN`/`WARP`/`WARPG`/`TRATE`, a chained `DEL`/`NODEL`, and the rest of that category — `ASSUME`/`UNASSUME`, `TIMER`, `BM`, `SPAWN`/`SPAWNDELAY`, `CFR`/`HFR`/`REL`) dispatches immediately as a whole (`FHN 270; SPD 210` included) — the instructor sets the state, no pilot is in the loop.
+  **Instructor verbs are never delayed:** a compound containing *any* command whose `CommandRegistry` category is `"Sim Control"` (`FHN`/`CMN`/`SPDN`/`WARP`/`WARPG`/`TRATE`, a chained `DEL`/`NODEL`, and the rest of that category — `ASSUME`/`UNASSUME`, `TIMER`, `BM`, `SPAWN`/`SPAWNDELAY`, `CFR`/`HFR`/`REL`, `ARWY`) dispatches immediately as a whole (`FHN 270; SPD 210` included) — the instructor sets the state, no pilot is in the loop.
 
   The category is therefore a sim-timing decision, not just a menu grouping: `CommandRunDelayTests.SimControlCategory_MembershipIsPinned` fails when a verb joins or leaves it, so the change is made deliberately. A compound carrying an `UnsupportedCommand` (a mistyped `MLS 99`, `PS abc`) is also dispatched at once so `DispatchCompound` refuses it immediately instead of after a "Pilot complying in Ns" acknowledgement (it has no canonical type, so the check runs before the category lookup).
 

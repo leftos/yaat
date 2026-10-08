@@ -585,12 +585,14 @@ public static class CommandSchemeParser
     private static string? ParseCommandList(string remaining, CommandScheme scheme, out ParseFailure? failure)
     {
         failure = null;
-        // SAY, TIMER and BM consume their entire remainder as literal text — don't split on comma
+        // SAY, TIMER and BM consume their entire remainder as literal text, and ARWY's runway list may be
+        // comma-separated — don't split on comma
         string trimmedRemaining = remaining.TrimStart();
         if (
             StartsWithSchemeAlias(trimmedRemaining, scheme, CanonicalCommandType.Say)
             || StartsWithSchemeAlias(trimmedRemaining, scheme, CanonicalCommandType.Timer)
             || StartsWithSchemeAlias(trimmedRemaining, scheme, CanonicalCommandType.Bookmark)
+            || StartsWithSchemeAlias(trimmedRemaining, scheme, CanonicalCommandType.ActiveRunways)
         )
         {
             ParsedInput? parsed = Parse(remaining.Trim(), scheme, out failure);

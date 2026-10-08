@@ -296,6 +296,7 @@ public class CommandRunDelayTests
         // so adding one here is a sim-timing decision, not a menu-grouping one — update this list deliberately.
         CanonicalCommandType[] expected =
         [
+            CanonicalCommandType.ActiveRunways,
             CanonicalCommandType.Add,
             CanonicalCommandType.Assume,
             CanonicalCommandType.Bookmark,
