@@ -21,7 +21,7 @@
 ## Precompute cache (feat/precompute-cache)
 
 - [ ] YAAT-440 Group, filter and distance-label the ground view's Push Back To submenu
-- [/] YAAT-450 Investigate what else to precompute offline from vNAS, GeoJSON, FAA, CIFP and NavData data
+- [x] YAAT-450 Investigate what else to precompute offline from vNAS, GeoJSON, FAA, CIFP and NavData data · release vNext
 - [x] YAAT-466 Replay and restore a recording against the airport layouts it bundles · release vNext
 - [ ] YAAT-475 Merge feat/precompute-cache (#951)
 
@@ -97,7 +97,7 @@
 - [ ] YAAT-449 Find why a grounded aircraft can end with no phase, and give it ground menus
 - [x] YAAT-451 Group the cleared-approach picker by runway and name the smart default · release vNext
 - [ ] YAAT-452 Put relative traffic actions on top of the radar menu and list nearby traffic for Report traffic
-- [ ] YAAT-453 Open the maintain-altitude picker at the aircraft's altitude, mark climb or descend, grey rows below the MVA
+- [/] YAAT-453 Open the maintain-altitude picker at the aircraft's altitude, mark climb or descend, grey rows below the MVA
 - [x] YAAT-454 Name the receiving aircraft in the radar point menu header and add its quick icons · release vNext
 - [ ] YAAT-455 Show only the items that apply in the radar Track submenu
 - [ ] YAAT-456 Fix quick-command labels and give every quick command a glyph
@@ -541,3 +541,5 @@
 - [ ] YAAT-473 Read a room's pinned layouts and missing maps from one snapshot when bundling
 - [ ] YAAT-474 Read a recording's bundled layout by airport id ignoring case
 - [ ] YAAT-484 Make two client-driver MCP timing tests pass under machine load
+- [ ] YAAT-492 Send HFR, HFROFF, REL and CFR with no aircraft selected; answer a global verb's parse error, not Aircraft '' not found
+- [ ] YAAT-493 Flaky UI test: QuickCommandsSection_DragReordersARow fails once in a full run
