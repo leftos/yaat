@@ -1,6 +1,7 @@
 using Xunit;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Phases;
 
 namespace Yaat.Sim.Tests;
 
@@ -362,7 +363,10 @@ public class AirportSidecarLoaderTests
         Assert.Contains("exempts every wake class", warning);
     }
 
-    /// <summary>A <c>standDeparture</c> entry with a blank stand name, and one with a value other than the two, each warn and are skipped.</summary>
+    /// <summary>
+    /// A <c>standDeparture</c> entry with a blank stand name, and one with a value no stand departure names, each warn and
+    /// are skipped.
+    /// </summary>
     [Fact]
     public void LoadAll_StandDepartureBlankNameAndBadValue_WarnAndSkip()
     {
@@ -387,6 +391,80 @@ public class AirportSidecarLoaderTests
                 result.Warnings,
                 w => w.Contains("standDeparture[GA3]", StringComparison.Ordinal) && w.Contains("'Sideways'", StringComparison.Ordinal)
             );
+        }
+        finally
+        {
+            Directory.Delete(tempDir, recursive: true);
+        }
+    }
+
+    /// <summary>A <c>standDeparture</c> entry naming <c>Either</c> loads with no warning.</summary>
+    [Fact]
+    public void LoadAll_StandDepartureEither_Loads()
+    {
+        AirportSidecarLoadResult result = LoadOakSidecar("""{ "airportId": "KOAK", "standDeparture": { "MTN1": "either" } }""");
+
+        AirportSidecar oak = Assert.Single(result.Airports);
+        Assert.Equal(StandDeparture.Either, Assert.Single(oak.StandDepartureOverrides, kv => kv.Key == "MTN1").Value);
+        Assert.Empty(result.Warnings);
+    }
+
+    /// <summary>
+    /// The <c>standDepartureAreas</c> rules load in file order with the runway end zero-pad-normalized; a rule missing its
+    /// runway, with a side other than left/right, or with a departure no <see cref="StandDeparture"/> names, warns and is
+    /// skipped.
+    /// </summary>
+    [Fact]
+    public void LoadAll_StandDepartureAreas_ParsesAndSkipsBadEntries()
+    {
+        AirportSidecarLoadResult result = LoadOakSidecar(
+            """
+            {
+              "airportId": "KOAK",
+              "standDepartureAreas": [
+                { "side": "left", "departure": "TaxiOut" },
+                { "runway": "28R", "side": "up", "departure": "TaxiOut" },
+                { "runway": "28R", "side": "right", "departure": "Sideways" },
+                { "runway": "28r", "side": " Right ", "departure": "either", "notes": "North Field" },
+                { "runway": "9", "side": "left", "departure": "PushBack" }
+              ]
+            }
+            """
+        );
+
+        AirportSidecar oak = Assert.Single(result.Airports);
+        Assert.Equal(
+            [
+                new StandDepartureArea("28R", ExitSide.Right, StandDeparture.Either, "North Field"),
+                new StandDepartureArea("09", ExitSide.Left, StandDeparture.PushBack, null),
+            ],
+            oak.StandDepartureAreas
+        );
+        Assert.Equal(3, result.Warnings.Count);
+        Assert.Contains(result.Warnings, w => w.Contains("standDepartureAreas[0] missing runway", StringComparison.Ordinal));
+        Assert.Contains(
+            result.Warnings,
+            w => w.Contains("standDepartureAreas[1]", StringComparison.Ordinal) && w.Contains("'up'", StringComparison.Ordinal)
+        );
+        Assert.Contains(
+            result.Warnings,
+            w =>
+                w.Contains("standDepartureAreas[2]", StringComparison.Ordinal)
+                && w.Contains("'Sideways'", StringComparison.Ordinal)
+                && w.Contains("'Either'", StringComparison.Ordinal)
+        );
+    }
+
+    /// <summary>Loads one KOAK sidecar file with the given content.</summary>
+    private static AirportSidecarLoadResult LoadOakSidecar(string json)
+    {
+        string tempDir = Path.Combine(Path.GetTempPath(), "sidecar-" + Guid.NewGuid());
+        string categoryDir = Path.Combine(tempDir, "ZTEST", "Airports");
+        Directory.CreateDirectory(categoryDir);
+        try
+        {
+            File.WriteAllText(Path.Combine(categoryDir, "oak.json"), json);
+            return AirportSidecarLoader.LoadAll(tempDir);
         }
         finally
         {

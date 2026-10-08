@@ -129,6 +129,7 @@ public class QuickCommandResolverTests
     [Theory]
     [InlineData(StandDeparture.TaxiOut, false)]
     [InlineData(StandDeparture.PushBack, true)]
+    [InlineData(StandDeparture.Either, true)]
     public void AtParking_PushEntries_FollowTheStandDeparture(StandDeparture standDeparture, bool kept)
     {
         var parked = new AircraftModel

@@ -6,10 +6,12 @@ namespace Yaat.Sim.Commands;
 
 /// <summary>
 /// How an aircraft parked on a stand leaves it: the departure of the stand its <see cref="AircraftGroundOps.ParkingSpot"/>
-/// names, while it is at that stand (<see cref="AtParkingPhase"/>). A parking stand reads
-/// <see cref="StandDepartures.StandDepartureOf"/> (the layout's geometric answer, overridden by the airport sidecar); a
-/// helipad is always <see cref="StandDeparture.TaxiOut"/>. The client's menus hide the push entries for a taxi-out stand,
-/// and a live push off one carries an RPO note.
+/// names, while it is at that stand (<see cref="AtParkingPhase"/>): <see cref="StandDeparture.PushBack"/>,
+/// <see cref="StandDeparture.TaxiOut"/> or <see cref="StandDeparture.Either"/>. A parking stand reads
+/// <see cref="StandDepartures.StandDepartureOf"/> (the layout's geometric answer, overridden by the airport sidecar's area
+/// rules and per-name entries); a helipad is always <see cref="StandDeparture.TaxiOut"/>. The client's menus hide the push
+/// entries for a taxi-out stand, and a live push off one carries an RPO note; an either stand shows them and a push off it
+/// carries none.
 /// </summary>
 public static class ParkedStandDeparture
 {
@@ -30,7 +32,7 @@ public static class ParkedStandDeparture
     /// </summary>
     /// <param name="aircraft">The aircraft.</param>
     /// <param name="layout">The airport layout the aircraft is on, or null when it has none.</param>
-    /// <param name="sidecars">The airport sidecars a stand's override is read from.</param>
+    /// <param name="sidecars">The airport sidecars a stand's overrides and area rules are read from.</param>
     /// <returns>The departure of the stand the aircraft is parked on, or null.</returns>
     public static StandDeparture? Of(AircraftState aircraft, AirportGroundLayout? layout, AirportSidecarCatalog sidecars)
     {

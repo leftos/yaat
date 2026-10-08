@@ -289,8 +289,10 @@ public class PushTargetPlannerTests
     /// <summary>
     /// KOAK's sidecar names no movement-area or non-movement lanes, so both verdicts are the derived ones. TE is the terminal
     /// taxilane behind gate 26 (non-movement); F is the movement-area taxiway beside stand OLD1, and the shortest push from
-    /// OLD1 for group IV (354 ft), so it survives the length cap. Both were looked up once with the classifier. OLD1's
-    /// geometry reads as a taxi-out stand, so the catalog passed here overrides it to push-back.
+    /// OLD1 for group IV (354 ft), so it survives the length cap. Both were looked up once with the classifier. OLD1 is
+    /// already push-back by its geometry and the catalog passed here has no area rule, so its push-back override changes
+    /// nothing today; it stays as a guard that keeps the test on its target kinds whatever OLD1's geometry or the shipped
+    /// rules say.
     /// </summary>
     [Fact]
     public void Kind_FollowsMovementArea()
@@ -540,6 +542,58 @@ public class PushTargetPlannerTests
         Assert.Equal(StandDeparture.TaxiOut, ga20.StandDeparture);
         Assert.Equal(StandDeparture.TaxiOut, StandDepartures.StandDepartureOf(layout, ga20, Sidecars.Value));
         Assert.Equal(DesignGroupEnvelopes.LoadShipped().Envelopes.Select(e => e.Group), entries.Select(e => e.DesignGroup));
+        Assert.All(entries, e => Assert.Empty(e.Targets));
+    }
+
+    /// <summary>
+    /// MTN1 is an either stand with the shipped sidecars: its targets are planned exactly as they are when it is named a
+    /// push-back stand, and at least one group has some. The two match only while KOAK's shipped sidecar names no
+    /// movement-area or non-movement lanes; once it names one, the push-back comparison catalog must carry it too.
+    /// </summary>
+    [Fact]
+    public void Planner_EitherStand_PlansPushTargets()
+    {
+        AirportGroundLayout layout = Oak();
+        var mtn1 = new HashSet<string>(StringComparer.Ordinal) { "MTN1" };
+        var pushBack = new AirportSidecarCatalog([
+            new AirportSidecar("KOAK")
+            {
+                StandDepartureOverrides = new Dictionary<string, StandDeparture>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ["MTN1"] = StandDeparture.PushBack,
+                },
+            },
+        ]);
+
+        IReadOnlyList<PushTargetEntry> either = PushTargetPlanner.ComputeStands(layout, DesignGroupEnvelopes.LoadShipped(), Sidecars.Value, mtn1, 1);
+        IReadOnlyList<PushTargetEntry> pushed = PushTargetPlanner.ComputeStands(layout, DesignGroupEnvelopes.LoadShipped(), pushBack, mtn1, 1);
+
+        Assert.Equal(StandDeparture.Either, StandDepartures.StandDepartureOf(layout, Stand(layout, "MTN1"), Sidecars.Value));
+        Assert.Contains(either, e => e.Targets.Count > 0);
+        Assert.Equal(Json(pushed), Json(either));
+    }
+
+    /// <summary>
+    /// OLD1 reads push-back by its geometry, but the shipped sidecar's North Field area rule makes it a taxi-out stand, so
+    /// it gets an empty target list for every group.
+    /// </summary>
+    [Fact]
+    public void Planner_AreaTaxiOutStand_HasEmptyTargets()
+    {
+        AirportGroundLayout layout = Oak();
+        GroundNode old1 = Stand(layout, "OLD1");
+
+        IReadOnlyList<PushTargetEntry> entries = PushTargetPlanner.ComputeStands(
+            layout,
+            DesignGroupEnvelopes.LoadShipped(),
+            Sidecars.Value,
+            new HashSet<string>(StringComparer.Ordinal) { "OLD1" },
+            1
+        );
+
+        Assert.Equal(StandDeparture.PushBack, old1.StandDeparture);
+        Assert.Equal(StandDeparture.TaxiOut, StandDepartures.StandDepartureOf(layout, old1, Sidecars.Value));
+        Assert.NotEmpty(entries);
         Assert.All(entries, e => Assert.Empty(e.Targets));
     }
 

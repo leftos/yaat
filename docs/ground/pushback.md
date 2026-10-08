@@ -237,11 +237,14 @@ The precompute cache ([CONTEXT.md](../../CONTEXT.md) *Precompute cache*) stores,
 - **Cap.** A target whose path is longer than 3 times the envelope's length (floor 600 ft, `PushTargetPlanner.PathCapFt`) is a tow-out, not a push, and is dropped.
 - **Stand departure.** A stand whose `StandDepartures.StandDepartureOf` is `TaxiOut` gets an empty target list for every group. The layout build classifies each parking node from the foot of the perpendicular from the stand onto the edge its parking connector joins: a foot less than 90° off the stand's heading is `TaxiOut`, a foot within 1 ft of the stand or exactly broadside is `PushBack`.
 
-  The airport sidecar's `standDeparture` overrides it by stand name (KOAK GA1, GA2, GA4, GA7-GA12, HELI2; KSFO CG2-CG4).
+  The airport sidecar overrides it in two ways, read in this order by `StandDepartureOf`: `standDeparture` by stand name (KOAK MTN1-MTN8, MTN1A, MTN2A and MTN6A are `Either`; S8B, S5A, S5B, S7, RON9, RON10, PT1 and PT2 are `PushBack`; KSFO CG2-CG4), then the first matching `standDepartureAreas` rule, a runway end and a side of its extended centerline (KOAK: right of 28R is `TaxiOut`, the whole North Field).
+  Each rule is applied at read time, never at layout build, so the layout and its snapshots do not change.
+
+  `Either` means a tug push and a normal taxi-out are both normal there: the stand gets push targets, a push off it carries no taxi-out note, the client keeps the push entries, and the pilot AI still answers ready-to-taxi with TAXIAUTO.
 
   An aircraft parked on a stand reads it through `ParkedStandDeparture.Of` (`src/Yaat.Sim/Commands/ParkedStandDeparture.cs`, outside the hashed `Data/Airport/` tree): while the aircraft is in `AtParkingPhase`, the parking stand its `Ground.ParkingSpot` names reads `StandDepartureOf`, a helipad is always `TaxiOut`, and a ramp spot, an unknown name or a missing layout is null; in any other phase it is null.
 
-  Two readers use it besides this cache. The training hub sends it as `AircraftStateDto.StandDeparture`, and the client's `CanPushBack` hides every push entry (Push back, Push back, face, Push back to…, Push route…, the point menu's Push to, the quick list) at a taxi-out stand. `PUSH` and `PUSHM` off a taxi-out stand are still made, live or as a scenario preset, and their readback carries the RPO note `(<stand> is a taxi-out stand)` (below).
+  Two readers use it besides this cache. The training hub sends it as `AircraftStateDto.StandDeparture`, and the client's `CanPushBack` hides every push entry (Push back, Push back, face, Push back to…, Push route…, the point menu's Push to, the quick list) at a `TaxiOut` stand and shows them at `PushBack` and `Either`. `PUSH` and `PUSHM` off a taxi-out stand are still made, live or as a scenario preset, and their readback carries the RPO note `(<stand> is a taxi-out stand)` (below).
 - **Staleness.** The entry's key carries the push-target algorithm hash and `AirportSidecarHash`, so an edit to the planner, the tug files or the airport's sidecar recomputes the push half only.
 
 ## Flying one move — `PushbackPhase`

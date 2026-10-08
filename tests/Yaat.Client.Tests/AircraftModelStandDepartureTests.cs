@@ -40,6 +40,17 @@ public class AircraftModelStandDepartureTests
         Assert.Null(model.StandDeparture);
     }
 
+    [Fact]
+    public void Parse_Either_ReachesTheModel_WithNoWarning()
+    {
+        var model = AircraftModel.FromDto(Dto("Either"));
+        var log = new LevelCapturingLogger();
+
+        Assert.Equal(StandDeparture.Either, model.StandDeparture);
+        Assert.Equal(StandDeparture.Either, model.ParseStandDeparture("Either", log));
+        Assert.Empty(log.Levels);
+    }
+
     [Theory]
     [InlineData("Sideways")]
     [InlineData("taxiout")]

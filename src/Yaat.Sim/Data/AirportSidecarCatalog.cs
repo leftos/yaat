@@ -27,6 +27,7 @@ public sealed class AirportSidecarCatalog
     private readonly Dictionary<string, HashSet<string>> _movementAreaByAirport = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, HashSet<string>> _nonMovementByAirport = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, Dictionary<string, StandDeparture>> _standDeparturesByAirport = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, List<StandDepartureArea>> _standDepartureAreasByAirport = new(StringComparer.OrdinalIgnoreCase);
 
     private static readonly IReadOnlyDictionary<string, StandDeparture> NoStandDepartures = new Dictionary<string, StandDeparture>();
 
@@ -51,7 +52,40 @@ public sealed class AirportSidecarCatalog
             MergeNames(_movementAreaByAirport, key, airport.MovementAreaTaxiways);
             MergeNames(_nonMovementByAirport, key, airport.NonMovementTaxilanes);
             MergeStandDepartures(key, airport.StandDepartureOverrides);
+            MergeStandDepartureAreas(key, airport.StandDepartureAreas);
         }
+    }
+
+    private void MergeStandDepartureAreas(string key, IReadOnlyList<StandDepartureArea> areas)
+    {
+        if (areas.Count == 0)
+        {
+            return;
+        }
+
+        if (!_standDepartureAreasByAirport.TryGetValue(key, out List<StandDepartureArea>? list))
+        {
+            list = [];
+            _standDepartureAreasByAirport[key] = list;
+        }
+
+        // Files concatenate in load order, so the first matching rule across them wins.
+        list.AddRange(areas);
+    }
+
+    /// <summary>
+    /// The airport sidecar's stand-departure area rules in load order, the first matching rule winning. Never null —
+    /// returns an empty list when the airport has none. Read by <see cref="StandDepartures.StandDepartureOf"/>.
+    /// </summary>
+    public IReadOnlyList<StandDepartureArea> GetStandDepartureAreas(string airportId)
+    {
+        if (string.IsNullOrWhiteSpace(airportId))
+        {
+            return [];
+        }
+
+        string key = NavigationDatabase.NormalizeAirport(airportId);
+        return _standDepartureAreasByAirport.TryGetValue(key, out List<StandDepartureArea>? list) ? list : [];
     }
 
     private void MergeStandDepartures(string key, IReadOnlyDictionary<string, StandDeparture> overrides)

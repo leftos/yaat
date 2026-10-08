@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Sim.Commands;
 using Yaat.Sim.ControllerAi;
 using Yaat.Sim.ControllerAi.Rules;
 using Yaat.Sim.Data.Airport;
@@ -93,6 +94,45 @@ public class GroundRulesTests
         Assert.False(aircraft.PendingPilotRequest!.IsOpen);
         rule.Evaluate(probe.Scope([aircraft], now + AiPacing.ThinkMaxSeconds + 20));
         Assert.Single(probe.Sink.Issued);
+    }
+
+    /// <summary>
+    /// The Ground brain answers a ready-to-taxi call from an either stand (KOAK MTN1) with a taxi-out, never a push: the
+    /// stand's departure does not steer it.
+    /// </summary>
+    [Fact]
+    public void GroundBrain_ParkedEitherStand_AnswersWithTaxiAuto()
+    {
+        if (_zoa is null)
+        {
+            return;
+        }
+
+        AiPositionConfig ground = TestAiPositions.OakGround(_zoa);
+        SimulationEngine engine = AiTestFixture.Load(
+            AiTestFixture.ParkedAtOak.Replace("\"parking\": \"SIG1\"", "\"parking\": \"MTN1\""),
+            _zoa,
+            7,
+            [ground]
+        );
+        engine.World.Weather = new WeatherProfile { WindLayers = [new WindLayer { Direction = 300, Speed = 12 }] };
+        AircraftState aircraft = AiTestFixture.TickUntil(
+            engine,
+            AiTestFixture.Callsign,
+            ac => ac.PendingPilotRequest is { IsOpen: true, Kind: PilotPendingRequestKind.Taxi },
+            15
+        );
+        Assert.Equal(StandDeparture.Either, ParkedStandDeparture.Of(aircraft, aircraft.Ground.Layout));
+        var probe = new RuleProbe(engine, ground);
+        var rule = new AnswerTaxiOutRule();
+        double now = engine.Scenario!.ElapsedSeconds;
+
+        rule.Evaluate(probe.Scope([aircraft], now));
+        rule.Evaluate(probe.Scope([aircraft], now + AiPacing.ThinkMaxSeconds));
+
+        AiCommandRequest request = Assert.Single(probe.Sink.Issued);
+        Assert.StartsWith("TAXIAUTO ", request.Canonical, StringComparison.Ordinal);
+        Assert.Equal("answer-taxi-out", request.Intent.Rule);
     }
 
     [Fact]

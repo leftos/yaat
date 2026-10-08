@@ -310,8 +310,9 @@ public static class AircraftCommandApplicability
     /// live-traffic shadows, which are never assumable, out; an assumable (airborne) shadow reaches the phase test
     /// below and is refused there, having no ground phase. An aircraft parked on a taxi-out stand
     /// (<see cref="IMenuAircraft.StandDeparture"/>) gets no item: its stand is left under its own power, so every push
-    /// entry is hidden, though the sim still accepts a typed <c>PUSH</c> there. After a completed push the aircraft is
-    /// off its stand, so the stand's departure no longer gates it.
+    /// entry is hidden, though the sim still accepts a typed <c>PUSH</c> there. A push-back stand and an either stand (pushed
+    /// off or taxied out of alike) get every item. After a completed push the aircraft is off its stand, so the stand's
+    /// departure no longer gates it.
     /// </summary>
     public static bool CanPushBack(IMenuAircraft? ac)
     {

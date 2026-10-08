@@ -1343,8 +1343,9 @@ public record AircraftDto(
     // when none is makeable, null when there is no list. Kept name-for-name in sync with the server's AircraftStateDto; the
     // Exit left / Exit right flyouts offer one row per exit on that side.
     IReadOnlyList<ExitAheadDto>? ExitsAhead = null,
-    // How the aircraft leaves the stand it is parked on, "PushBack" or "TaxiOut"; null when it is not at a stand. Kept
-    // name-for-name in sync with the server's AircraftStateDto; the menus hide the push entries for a taxi-out stand.
+    // How the aircraft leaves the stand it is parked on, "PushBack", "TaxiOut" or "Either"; null when it is not at a
+    // stand. Kept name-for-name in sync with the server's AircraftStateDto; the menus hide the push entries for a
+    // taxi-out stand only.
     string? StandDeparture = null
 );
 

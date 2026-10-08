@@ -33,6 +33,7 @@
 - Scenario › Active Runways… lets anyone in the room see and change the active runways, one row per airport.
 - Each room serves its traffic as a VATSIM-style datafeed for tools like vTBFM; Tools › Copy traffic feed URL copies its address.
 - Getting Started and the User Guide show screenshots of every step, including the terminal, timeline, taxi routes, vTDLS, Settings, Import / Export, layouts and CRC's environment list.
+- Airport sidecars can set the stand departure for every stand on one side of a runway (`standDepartureAreas`), and a stand can be `Either`.
 
 ### Changed
 
@@ -62,7 +63,8 @@
 - An aircraft exiting a runway onto a sharply angled taxiway turns off at corner speed instead of turning around on the taxiway.
 - `FOLLOWG` answers "unable" when no taxi route reaches the leader's path, or when the follower is already ahead of the leader on it.
 - `PUSH` and `PUSHF` can tow an aircraft stopped at a hold bar back off it, and refuse a push that moves it deeper toward the runway.
-- Menus offer no Push back or push targets at taxi-out stands, such as KOAK's GA ramp; a typed `PUSH` there still works, with an RPO note.
+- Menus offer no Push back or push targets at taxi-out stands, such as all of KOAK's North Field; a typed `PUSH` there still works, with an RPO note.
+- KOAK's South Field remote stands push back, and its MTN stands offer both a push and a normal taxi-out.
 
 ### Fixed
 

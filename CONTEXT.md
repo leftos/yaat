@@ -232,7 +232,14 @@ The movement-area taxiway a spot's lane joins, which a push or line-up onto the 
 _Avoid_: exit taxiway (an exit leaves a runway)
 
 **StandDeparture**:
-Whether a stand is left by a push back or by taxiing out (`PushBack` / `TaxiOut`). The layout build stores the geometric answer on each parking node, and an airport sidecar's `standDeparture` map overrides it by stand name; `StandDepartures.StandDepartureOf` is the one place it is read.
+Whether a stand is left by a push back, by taxiing out, or either (`PushBack` / `TaxiOut` / `Either`). The layout build stores the geometric answer on each parking node; an airport sidecar's `standDeparture` map overrides it by stand name and its `standDepartureAreas` rules by runway side; `StandDepartures.StandDepartureOf` is the one place it is read.
+
+**Either stand**:
+A stand where a tug push and a normal taxi-out are both normal (`StandDeparture.Either`): it gets precomputed push targets, a push off it carries no taxi-out RPO note, the client keeps the push entries, and the pilot AI still answers ready-to-taxi with TAXIAUTO.
+_Avoid_: taxi-out stand (that one hides the push entries)
+
+**Stand-departure area rule**:
+A sidecar `standDepartureAreas` entry that classifies every stand on one side (left or right of the nose) of a runway end's extended centerline through its landing threshold, the first matching rule winning; a per-name `standDeparture` beats it and the layout's geometry yields to it (KOAK: right of 28R is the North Field, `TaxiOut`).
 
 **Taxi-out stand**:
 A stand whose aircraft park facing their way out, so they leave under their own power and get no precomputed push targets: its lead-in edge runs out within 90° of the stand's heading, or the sidecar says `TaxiOut`.

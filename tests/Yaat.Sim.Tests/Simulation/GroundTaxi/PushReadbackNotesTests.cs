@@ -157,6 +157,33 @@ public partial class PushReadbackNotesTests(ITestOutputHelper output)
         Assert.DoesNotContain("taxi-out stand", sfo.Readback);
     }
 
+    /// <summary>KOAK MTN1 is an either stand: a push off it is normal, so its readback carries no stand note.</summary>
+    [Fact]
+    public void Push_OffEitherStand_CarriesNoTaxiOutNote()
+    {
+        if (PushAtStand(BuildOak, "MTN1", "C172", "PUSH") is not { } pushed)
+        {
+            return;
+        }
+
+        Assert.DoesNotContain("taxi-out stand", pushed.Readback);
+    }
+
+    /// <summary>
+    /// KOAK OLD1 reads push-back by its geometry, but the North Field area rule makes it a taxi-out stand, so a push off it
+    /// carries the stand note.
+    /// </summary>
+    [Fact]
+    public void Push_OffNorthFieldStand_CarriesTaxiOutNote()
+    {
+        if (PushAtStand(BuildOak, "OLD1", "C172", "PUSH") is not { } pushed)
+        {
+            return;
+        }
+
+        Assert.Contains("(OLD1 is a taxi-out stand)", pushed.Readback);
+    }
+
     /// <summary>
     /// Parks <paramref name="type"/> on <paramref name="stand"/> of the built airport, its parking spot set as a scenario
     /// spawn sets it, sends <paramref name="command"/> (which must be accepted), and returns its readback and the pilot's.

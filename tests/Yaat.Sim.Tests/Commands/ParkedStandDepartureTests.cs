@@ -33,6 +33,11 @@ public class ParkedStandDepartureTests
     public void SfoF8_AtParking_IsPushBack() =>
         Assert.Equal(StandDeparture.PushBack, ParkedStandDeparture.Of(Parked("F8", new AtParkingPhase()), PushTargetPlannerTests.Sfo(), Sidecars));
 
+    /// <summary>KOAK MTN1 is pushed off or taxied out of alike: the shipped sidecar's answer reaches the parked aircraft as is.</summary>
+    [Fact]
+    public void ParkedStandDeparture_EitherStand_IsEither() =>
+        Assert.Equal(StandDeparture.Either, ParkedStandDeparture.Of(Parked("MTN1", new AtParkingPhase()), Oak(), Sidecars));
+
     /// <summary>The stand name matches as the layout's lookup does, whatever its case.</summary>
     [Fact]
     public void Ga20_NamedInLowerCase_IsTaxiOut() =>

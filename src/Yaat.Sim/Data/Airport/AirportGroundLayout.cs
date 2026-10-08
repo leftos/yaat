@@ -32,10 +32,11 @@ public sealed class GroundNode
     public TrueHeading? TrueHeading { get; init; }
 
     /// <summary>
-    /// Whether the stand is pushed back or taxied out of, by its geometry alone (<see cref="StandDepartures.Classify"/>).
-    /// Only set for Parking nodes, by the layout build; null on a parking node only in a layout serialised before this
-    /// field existed, which reads as <see cref="Airport.StandDeparture.PushBack"/>. Read through
-    /// <see cref="StandDepartures.StandDepartureOf"/>, which applies the airport sidecar's override.
+    /// Whether the stand is pushed back or taxied out of, by its geometry alone (<see cref="StandDepartures.Classify"/>),
+    /// so never <see cref="Airport.StandDeparture.Either"/>. Only set for Parking nodes, by the layout build; null on a
+    /// parking node only in a layout serialised before this field existed, which reads as
+    /// <see cref="Airport.StandDeparture.PushBack"/>. Read through <see cref="StandDepartures.StandDepartureOf"/>, which
+    /// applies the airport sidecar's per-name overrides and area rules, and may answer any of the three.
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public StandDeparture? StandDeparture { get; set; }

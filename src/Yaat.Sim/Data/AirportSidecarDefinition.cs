@@ -132,6 +132,37 @@ public sealed class ExitDirectionEntry
 public sealed record ExitDirectionOverride(string Runway, ExitSide Side, string? Notes);
 
 /// <summary>
+/// One stand-departure area rule, as an entry of the unified per-airport sidecar's <c>standDepartureAreas</c> list
+/// (<see cref="AirportSidecarFile"/>): every stand on one side of a runway end's extended centerline departs the named
+/// way. Left of one end is right of the reciprocal, so a rule may name either end of the runway.
+/// </summary>
+public sealed class StandDepartureAreaEntry
+{
+    /// <summary>Runway end whose nose the side is taken from, e.g. <c>"28R"</c>.</summary>
+    [JsonPropertyName("runway")]
+    public string? Runway { get; set; }
+
+    /// <summary>Side of the runway end's extended centerline, relative to its nose on landing: <c>"left"</c> or <c>"right"</c>.</summary>
+    [JsonPropertyName("side")]
+    public string? Side { get; set; }
+
+    /// <summary>The departure of every stand on that side: <c>"PushBack"</c>, <c>"TaxiOut"</c> or <c>"Either"</c>.</summary>
+    [JsonPropertyName("departure")]
+    public string? Departure { get; set; }
+
+    /// <summary>Facility rationale (the area's name, SOP reference). Informational only.</summary>
+    [JsonPropertyName("notes")]
+    public string? Notes { get; set; }
+}
+
+/// <summary>
+/// One airport's validated stand-departure area rule, produced by <see cref="AirportSidecarLoader"/> from a
+/// <see cref="StandDepartureAreaEntry"/>. The runway designator is zero-pad-normalized so it matches
+/// <see cref="Yaat.Sim.Data.Airport.RunwayIdentifier"/> lookups. Read by <see cref="StandDepartures.StandDepartureOf"/>.
+/// </summary>
+public sealed record StandDepartureArea(string Runway, ExitSide Side, StandDeparture Departure, string? Notes);
+
+/// <summary>
 /// On-disk shape of a unified per-airport ground sidecar: one airport per JSON file under
 /// <c>Data/ARTCCs/{ARTCC}/Airports/{airport}.json</c>. Consolidates the per-airport ground-routing
 /// overrides (avoided taxiways, preset taxi routes, implicit connectors) that were previously split
@@ -172,9 +203,16 @@ internal sealed class AirportSidecarFile
     [JsonPropertyName("nonMovementTaxilanes")]
     public List<PavementClassEntry> NonMovementTaxilanes { get; set; } = [];
 
-    /// <summary>Stand name to <c>"PushBack"</c> or <c>"TaxiOut"</c>, overriding the stand's geometric departure.</summary>
+    /// <summary>
+    /// Stand name to <c>"PushBack"</c>, <c>"TaxiOut"</c> or <c>"Either"</c>, overriding the stand's area rule and its
+    /// geometric departure.
+    /// </summary>
     [JsonPropertyName("standDeparture")]
     public Dictionary<string, string?> StandDeparture { get; set; } = [];
+
+    /// <summary>Area rules giving every stand on one side of a runway end's centerline a departure, first match wins.</summary>
+    [JsonPropertyName("standDepartureAreas")]
+    public List<StandDepartureAreaEntry> StandDepartureAreas { get; set; } = [];
 }
 
 /// <summary>
@@ -199,9 +237,16 @@ public sealed record AirportSidecar(string AirportId)
     public IReadOnlyList<string> NonMovementTaxilanes { get; init; } = [];
 
     /// <summary>
-    /// Stand name (case-insensitive) to its departure, overriding the geometric one the layout stores
-    /// (<see cref="StandDepartures.StandDepartureOf"/>); applies to every stand of that name.
+    /// Stand name (case-insensitive) to its departure — <see cref="StandDeparture.PushBack"/>,
+    /// <see cref="StandDeparture.TaxiOut"/> or <see cref="StandDeparture.Either"/> — overriding the area rules and the
+    /// geometric answer the layout stores (<see cref="StandDepartures.StandDepartureOf"/>); applies to every stand of that name.
     /// </summary>
     public IReadOnlyDictionary<string, StandDeparture> StandDepartureOverrides { get; init; } =
         new Dictionary<string, StandDeparture>(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Area rules in file order, each giving every stand on one side of a runway end's extended centerline a departure;
+    /// the first matching rule wins, below a per-name override (<see cref="StandDepartures.StandDepartureOf"/>).
+    /// </summary>
+    public IReadOnlyList<StandDepartureArea> StandDepartureAreas { get; init; } = [];
 }

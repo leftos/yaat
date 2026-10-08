@@ -2,6 +2,7 @@ using Xunit;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Airport.Pathfinding;
+using Yaat.Sim.Phases;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests;
@@ -119,6 +120,23 @@ public class AirportSidecarCatalogTests
         Assert.Empty(AirportSidecarCatalog.Empty.GetAvoidedTaxiways(""));
         Assert.Empty(AirportSidecarCatalog.Empty.GetTaxiRoutes("KOAK"));
         Assert.Empty(AirportSidecarCatalog.Empty.GetOneWayConstraints("KOAK"));
+    }
+
+    /// <summary>Stand-departure area rules from several files for one airport concatenate in load order, by ICAO and FAA alike.</summary>
+    [Fact]
+    public void GetStandDepartureAreas_ConcatenatesFilesInLoadOrder()
+    {
+        var first = new StandDepartureArea("28R", ExitSide.Right, StandDeparture.TaxiOut, "North Field");
+        var second = new StandDepartureArea("10R", ExitSide.Right, StandDeparture.Either, null);
+        var catalog = new AirportSidecarCatalog([
+            new AirportSidecar("KOAK") { StandDepartureAreas = [first] },
+            new AirportSidecar("OAK") { StandDepartureAreas = [second] },
+        ]);
+
+        Assert.Equal([first, second], catalog.GetStandDepartureAreas("KOAK"));
+        Assert.Equal([first, second], catalog.GetStandDepartureAreas("oak"));
+        Assert.Empty(catalog.GetStandDepartureAreas("KSFO"));
+        Assert.Empty(catalog.GetStandDepartureAreas(""));
     }
 
     [Fact]

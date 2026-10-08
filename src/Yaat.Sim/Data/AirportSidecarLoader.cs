@@ -93,13 +93,24 @@ public static class AirportSidecarLoader
                 MovementAreaTaxiways = ParsePavementClassNames(file.MovementAreaTaxiways, "movementAreaTaxiways", filePath, result),
                 NonMovementTaxilanes = ParsePavementClassNames(file.NonMovementTaxilanes, "nonMovementTaxilanes", filePath, result),
                 StandDepartureOverrides = ParseStandDepartures(file, filePath, result),
+                StandDepartureAreas = ParseStandDepartureAreas(file, filePath, result),
             }
         );
     }
 
+    /// <summary>The stand-departure names a sidecar may give, quoted, for a warning.</summary>
+    private static string StandDepartureNames => string.Join(", ", Enum.GetNames<StandDeparture>().Select(n => $"'{n}'"));
+
+    /// <summary>The stand departure <paramref name="value"/> names, trimmed and case-insensitive, or null when it names none.</summary>
+    private static StandDeparture? ParseStandDepartureName(string? value)
+    {
+        string? name = Enum.GetNames<StandDeparture>().FirstOrDefault(n => string.Equals(n, value?.Trim(), StringComparison.OrdinalIgnoreCase));
+        return name is null ? null : Enum.Parse<StandDeparture>(name);
+    }
+
     /// <summary>
-    /// The <c>standDeparture</c> section: stand name, trimmed, to <c>PushBack</c> or <c>TaxiOut</c> (case-insensitive). A
-    /// blank name or another value is warned and skipped.
+    /// The <c>standDeparture</c> section: stand name, trimmed, to <c>PushBack</c>, <c>TaxiOut</c> or <c>Either</c>
+    /// (case-insensitive). A blank name or another value is warned and skipped.
     /// </summary>
     private static Dictionary<string, StandDeparture> ParseStandDepartures(AirportSidecarFile file, string filePath, AirportSidecarLoadResult result)
     {
@@ -112,17 +123,61 @@ public static class AirportSidecarLoader
                 continue;
             }
 
-            string? name = Enum.GetNames<StandDeparture>().FirstOrDefault(n => string.Equals(n, value?.Trim(), StringComparison.OrdinalIgnoreCase));
-            if (name is null)
+            if (ParseStandDepartureName(value) is not { } departure)
             {
-                result.Warnings.Add($"{filePath}: standDeparture[{stand}] must be 'PushBack' or 'TaxiOut', got '{value}', skipping");
+                result.Warnings.Add($"{filePath}: standDeparture[{stand}] must be one of {StandDepartureNames}, got '{value}', skipping");
                 continue;
             }
 
-            overrides[stand.Trim()] = Enum.Parse<StandDeparture>(name);
+            overrides[stand.Trim()] = departure;
         }
 
         return overrides;
+    }
+
+    /// <summary>
+    /// The <c>standDepartureAreas</c> section, in file order: each rule's runway end zero-pad-normalized, its side
+    /// <c>left</c> or <c>right</c> and its departure a <see cref="StandDeparture"/> name (both case-insensitive). A rule
+    /// missing its runway, or with another side or departure, is warned and skipped.
+    /// </summary>
+    private static List<StandDepartureArea> ParseStandDepartureAreas(AirportSidecarFile file, string filePath, AirportSidecarLoadResult result)
+    {
+        var areas = new List<StandDepartureArea>();
+        for (int i = 0; i < file.StandDepartureAreas.Count; i++)
+        {
+            StandDepartureAreaEntry entry = file.StandDepartureAreas[i];
+            string location = $"{filePath}: standDepartureAreas[{i}]";
+            if (string.IsNullOrWhiteSpace(entry.Runway))
+            {
+                result.Warnings.Add($"{location} missing runway, skipping");
+                continue;
+            }
+
+            ExitSide? side = entry.Side?.Trim().ToLowerInvariant() switch
+            {
+                "left" => ExitSide.Left,
+                "right" => ExitSide.Right,
+                _ => null,
+            };
+            if (side is null)
+            {
+                result.Warnings.Add($"{location} ({entry.Runway}): side must be 'left' or 'right', got '{entry.Side}', skipping");
+                continue;
+            }
+
+            if (ParseStandDepartureName(entry.Departure) is not { } departure)
+            {
+                result.Warnings.Add(
+                    $"{location} ({entry.Runway}): departure must be one of {StandDepartureNames}, got '{entry.Departure}', skipping"
+                );
+                continue;
+            }
+
+            string runway = RunwayIdentifier.NormalizeDesignator(entry.Runway.Trim().ToUpperInvariant());
+            areas.Add(new StandDepartureArea(runway, side.Value, departure, entry.Notes));
+        }
+
+        return areas;
     }
 
     /// <summary>Trimmed, upper-cased, de-duplicated names from one pavement-class list; a blank name is warned and skipped.</summary>

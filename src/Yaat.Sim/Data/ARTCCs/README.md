@@ -403,20 +403,30 @@ Names are upper-cased and de-duplicated; a blank name is skipped with a warning.
 
 ### `standDeparture`
 
-Whether a stand is left by a push back or by taxiing out, overriding the answer the layout build derives from the stand's geometry (a stand whose way out to its taxiway lies within 90° of its heading is a taxi-out stand). A taxi-out stand gets no precomputed push targets.
+Whether a stand is left by a push back, by taxiing out, or either way, overriding the answer the layout build derives from the stand's geometry (a stand whose way out to its taxiway lies within 90° of its heading is a taxi-out stand). A taxi-out stand gets no precomputed push targets; an `Either` stand gets them, since a tug push and a normal taxi-out are both normal there.
 
 ```json
 "standDeparture": {
   "GA1": "TaxiOut",
-  "CG2": "PushBack"
-}
+  "CG2": "PushBack",
+  "MTN1": "Either"
+},
+"standDepartureAreas": [
+  { "runway": "28R", "side": "right", "departure": "TaxiOut", "notes": "North Field" }
+]
 ```
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `standDeparture.<stand>` | string | No | The key is the stand's name, matched case-insensitively and applied to every stand of that name. The value is `"PushBack"` or `"TaxiOut"`, case-insensitive |
+| `standDeparture.<stand>` | string | No | The key is the stand's name, matched case-insensitively and applied to every stand of that name. The value is `"PushBack"`, `"TaxiOut"` or `"Either"`, case-insensitive |
+| `standDepartureAreas[].runway` | string | Yes | Runway end whose extended centerline divides the airport, e.g. `"28R"`. Zero-pad-normalized at load |
+| `standDepartureAreas[].side` | string | Yes | `"left"` or `"right"` of that end's nose, on the infinite centerline through the landing threshold. A stand exactly on the line matches neither side |
+| `standDepartureAreas[].departure` | string | Yes | `"PushBack"`, `"TaxiOut"` or `"Either"` |
+| `standDepartureAreas[].notes` | string | No | Facility rationale. Informational only |
 
-A blank stand name or another value is skipped with a warning at load. A name that matches no stand on the airport's layout, or several, warns when the push targets are computed. Editing this section stales the airport's push-target cache entry. Worked examples: [`ZOA/Airports/oak.json`](ZOA/Airports/oak.json), [`ZOA/Airports/sfo.json`](ZOA/Airports/sfo.json).
+Precedence is the per-name `standDeparture`, then the first matching area rule (files concatenate in load order), then the layout's geometry. A rule is applied when the answer is read, never at layout build.
+
+A blank stand name, a bad area entry or another value is skipped with a warning at load. A name that matches no stand on the airport's layout, or several, and an area rule naming no runway end on the layout, warn when the push targets are computed. Editing either section stales the airport's push-target cache entry. Worked example: [`ZOA/Airports/oak.json`](ZOA/Airports/oak.json) (North Field as an area, the MTN stands `Either`), and [`ZOA/Airports/sfo.json`](ZOA/Airports/sfo.json).
 
 ---
 

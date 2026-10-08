@@ -19,16 +19,33 @@
       "tags": ["arr", "30"]
     }
   ],
+  "standDepartureAreas": [
+    {
+      "runway": "28R",
+      "side": "right",
+      "departure": "TaxiOut",
+      "notes": "North Field"
+    }
+  ],
   "standDeparture": {
-    "GA1": "TaxiOut",
-    "GA2": "TaxiOut",
-    "GA4": "TaxiOut",
-    "GA7": "TaxiOut",
-    "GA8": "TaxiOut",
-    "GA9": "TaxiOut",
-    "GA10": "TaxiOut",
-    "GA11": "TaxiOut",
-    "GA12": "TaxiOut",
-    "HELI2": "TaxiOut"
+    "MTN1": "Either",
+    "MTN2": "Either",
+    "MTN3": "Either",
+    "MTN4": "Either",
+    "MTN5": "Either",
+    "MTN6": "Either",
+    "MTN7": "Either",
+    "MTN8": "Either",
+    "MTN1A": "Either",
+    "MTN2A": "Either",
+    "MTN6A": "Either",
+    "S8B": "PushBack",
+    "S5A": "PushBack",
+    "S5B": "PushBack",
+    "S7": "PushBack",
+    "RON9": "PushBack",
+    "RON10": "PushBack",
+    "PT1": "PushBack",
+    "PT2": "PushBack"
   }
 }

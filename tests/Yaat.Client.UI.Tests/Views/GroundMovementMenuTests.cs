@@ -363,6 +363,10 @@ public class GroundMovementMenuTests
         Assert.True(AircraftCommandApplicability.CanPushBack(GroundAircraft("UAL100", "At Parking", held: false, StandDeparture.PushBack)));
 
     [Fact]
+    public void CanPushBack_EitherStand_IsTrue() =>
+        Assert.True(AircraftCommandApplicability.CanPushBack(GroundAircraft("UAL100", "At Parking", held: false, StandDeparture.Either)));
+
+    [Fact]
     public void CanPushBack_AfterACompletedPushback_IgnoresTheStand() =>
         Assert.True(
             AircraftCommandApplicability.CanPushBack(GroundAircraft("UAL100", "Holding After Pushback", held: false, StandDeparture.TaxiOut))
