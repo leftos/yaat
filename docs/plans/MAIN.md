@@ -27,10 +27,12 @@
   - [/] YAAT-496 Precompute cache brief B2: per-stand, per-design-group push targets
 - [x] YAAT-466 Replay and restore a recording against the airport layouts it bundles · release vNext
 - [ ] YAAT-475 Merge feat/precompute-cache (#951)
+- [ ] YAAT-497 Split the tug planner's shared pieces out of the precompute layout source set
 
 ## Follow on the taxi graph (feat/follow-on-graph)
 
 - [/] YAAT-316 FOLLOWG follower cuts across the field off the taxiways and can bypass a runway hold line · release vNext
+  - [ ] YAAT-498 Red-first tests for FOLLOWG's re-plan reversal guard and on-route crossed-bar check · release vNext
 - [ ] YAAT-407 Merge feat/follow-on-graph (#881) · release vNext
 
 ## Bug reports and feature requests
