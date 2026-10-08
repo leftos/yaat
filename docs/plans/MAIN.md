@@ -24,17 +24,20 @@
 - [x] YAAT-450 Investigate what else to precompute offline from vNAS, GeoJSON, FAA, CIFP and NavData data · release vNext
   - [ ] YAAT-494 Precompute cache brief B3: live swept-path check on menu open
   - [ ] YAAT-495 Precompute cache brief C: maintainer tool (compute, --check, --refresh-representatives)
-  - [/] YAAT-496 Precompute cache brief B2: per-stand, per-design-group push targets
+  - [x] YAAT-496 Precompute cache brief B2: per-stand, per-design-group push targets · release vNext
 - [x] YAAT-466 Replay and restore a recording against the airport layouts it bundles · release vNext
 - [ ] YAAT-475 Merge feat/precompute-cache (#951)
 - [ ] YAAT-497 Split the tug planner's shared pieces out of the precompute layout source set
-- [ ] YAAT-499 Make every push-back decision read the stand's StandDeparture
+- [/] YAAT-499 Make every push-back decision read the stand's StandDeparture
+- [ ] YAAT-511 Refuse TAXI for a jet or turboprop at a push-back stand without a push
 
 ## Follow on the taxi graph (feat/follow-on-graph)
 
 - [/] YAAT-316 FOLLOWG follower cuts across the field off the taxiways and can bypass a runway hold line · release vNext
-  - [ ] YAAT-498 Red-first tests for FOLLOWG's re-plan reversal guard and on-route crossed-bar check · release vNext
+  - [/] YAAT-498 Red-first tests for FOLLOWG's re-plan reversal guard and on-route crossed-bar check · release vNext
 - [ ] YAAT-407 Merge feat/follow-on-graph (#881) · release vNext
+- [ ] YAAT-507 FOLLOWG clearing route stops one node before the next runway's hold bar
+- [ ] YAAT-508 FOLLOWG clearing check ignores traffic crossing at a junction
 
 ## Bug reports and feature requests
 
@@ -98,7 +101,7 @@
 - [x] YAAT-443 Review the ground and radar quick-action UX and propose changes · release vNext
 - [ ] YAAT-445 Seed the context menu's heading pickers and warp popup with magnetic heading, not true
 - [ ] YAAT-446 Stop the Temporary altitude and Cruise popups throwing on FL or comma input
-- [/] YAAT-447 Keep unspawned aircraft out of the Follow and Give way to lists
+- [x] YAAT-447 Keep unspawned aircraft out of the Follow and Give way to lists · release vNext
 - [ ] YAAT-448 Stop the Hold short submenu offering fillet names the server refuses
 - [ ] YAAT-449 Find why a grounded aircraft can end with no phase, and give it ground menus
 - [x] YAAT-451 Group the cleared-approach picker by runway and name the smart default · release vNext
@@ -111,7 +114,7 @@
 - [x] YAAT-458 Offer speed picker values from the aircraft's own type performance · release vNext
 - [ ] YAAT-459 List Hold short bars along the route, nearest first, one row per runway
 - [ ] YAAT-460 Add Taxi to runway ▸ to the ground aircraft menu, with via and distance per entry point
-- [/] YAAT-462 Split the Follow and Give way lists into Moving and Parked, with type, state and distance
+- [x] YAAT-462 Split the Follow and Give way lists into Moving and Parked, with type, state and distance · release vNext
 - [ ] YAAT-463 Offer the named exits ahead on the landing roll
 - [x] YAAT-464 Name the aircraft and its action in the ground point menu header; offer Push route only from tug-reachable points · release vNext
 - [x] YAAT-465 Open every aircraft context menu with a one-line state header · release vNext
@@ -230,6 +233,7 @@
 - [x] YAAT-432 Gate the jet turn-around refusal on design group, not the Jet category · release vNext
 - [ ] YAAT-435 Let a re-route's stop lie behind the aircraft by under 3 ft on segment 0
 - [/] YAAT-438 Slow to pivot speed before a taxiway turn-about issued while rolling · release vNext
+- [ ] YAAT-509 Turn about from rest short of a runway bar ignores the bar clearance
 - [ ] YAAT-467 Lay a taxi turn from rest at a junction node so it finishes on the next centreline
 - [ ] YAAT-468 Stop at a hold-short bar the parser places at the aircraft's own start on a short leg
 - [ ] YAAT-469 Use one high-speed exit angle threshold for turn-off speed and exit search
@@ -242,6 +246,8 @@
 - [ ] YAAT-485 Keep taxi speed through an early arrival at a gentle unrounded bend
 - [ ] YAAT-486 Fill NavTickDiag.PathDeviationFt, which is always written as zero
 - [ ] YAAT-490 Add A388 and DH8D performance profiles so the speed picker offers their real speeds
+- [ ] YAAT-510 Rolling re-route back through a bar it faces away from falls back to the wide turn-about arc
+- [ ] YAAT-513 Fly the acute runway turn-off onto J along its fillet, and bound exit-test turn rate
 
 ## Wave 2 — Ground command grammar and dispatch
 
@@ -556,3 +562,4 @@
 - [ ] YAAT-504 Make the N152SP full-replay test catch a missing IFR 400 ft turn floor
 - [ ] YAAT-505 Make LaunchYaatTests' timing waits load-independent
 - [ ] YAAT-506 Make the tug timing and automation-pipe tests load-independent
+- [ ] YAAT-512 Pilot calls raised at command dispatch never reach a solo student's radio
