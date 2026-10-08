@@ -841,6 +841,40 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
 
             MarkDirty();
         }
+
+        if ((change.Property == DataBlockStateProperty) && (_watchedDataBlockState is not null))
+        {
+            WatchDataBlockState(State);
+        }
+    }
+
+    /// <summary>The datablock state whose highlight changes repaint this canvas while it is in the visual tree.</summary>
+    private GroundDataBlockViewState? _watchedDataBlockState;
+
+    /// <summary>The datablock state whose highlight changes repaint this canvas now, or null while detached. Test seam.</summary>
+    internal GroundDataBlockViewState? WatchedDataBlockState => _watchedDataBlockState;
+
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+        WatchDataBlockState(State);
+    }
+
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        WatchDataBlockState(null);
+        base.OnDetachedFromVisualTree(e);
+    }
+
+    /// <summary>
+    /// Repaints on <paramref name="state"/>'s highlight changes (a context-menu traffic row hovered) instead of the previous
+    /// state's.
+    /// </summary>
+    private void WatchDataBlockState(GroundDataBlockViewState? state)
+    {
+        _watchedDataBlockState?.HighlightsChanged -= MarkDirty;
+        _watchedDataBlockState = state;
+        _watchedDataBlockState?.HighlightsChanged += MarkDirty;
     }
 
     private sealed record RenderSnapshot(

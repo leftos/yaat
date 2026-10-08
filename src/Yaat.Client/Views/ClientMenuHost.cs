@@ -27,9 +27,6 @@ internal sealed class ClientMenuHost(MainViewModel main, AircraftModel? aircraft
 {
     private static readonly ILogger Log = AppLog.CreateLogger("ClientMenuHost");
 
-    /// <summary>The most aircraft the Follow… and Give way to… submenus list.</summary>
-    private const int MaxGroundTraffic = 12;
-
     /// <summary>The most aircraft the Report traffic in sight… list offers.</summary>
     private const int MaxNearbyTraffic = 5;
 
@@ -334,10 +331,10 @@ internal sealed class ClientMenuHost(MainViewModel main, AircraftModel? aircraft
     }
 
     /// <summary>
-    /// The other on-ground aircraft in the main view model's list, nearest <paramref name="callsign"/> first and at most
-    /// <see cref="MaxGroundTraffic"/>; empty when <paramref name="callsign"/> is not in the list.
+    /// The other on-ground aircraft in the main view model's list, nearest <paramref name="callsign"/> first, leaving out
+    /// delayed spawns; empty when <paramref name="callsign"/> is not in the list.
     /// </summary>
-    public IReadOnlyList<string> GetGroundTrafficCallsigns(string callsign)
+    public IReadOnlyList<MenuGroundTrafficRow> GetGroundTrafficRows(string callsign)
     {
         if (FindAircraft(callsign) is not { } ac)
         {
@@ -347,11 +344,42 @@ internal sealed class ClientMenuHost(MainViewModel main, AircraftModel? aircraft
         return
         [
             .. main
-                .Aircraft.Where(other => (other.Callsign != callsign) && other.IsOnGround)
-                .OrderBy(other => GeoMath.DistanceNm(ac.Position.Lat, ac.Position.Lon, other.Position.Lat, other.Position.Lon))
-                .Take(MaxGroundTraffic)
-                .Select(other => other.Callsign),
+                .Aircraft.Where(other => (other.Callsign != callsign) && other.IsOnGround && !other.IsDelayed)
+                .Select(other => RelativeGeometry.GroundTrafficRow(ac, other))
+                .OrderBy(row => row.DistanceFeet),
         ];
+    }
+
+    /// <summary>
+    /// Whether the layout node nearest <paramref name="otherCallsign"/> is a node of the route the primary ground view
+    /// model reconstructs for what <paramref name="callsign"/> has left to taxi (<see cref="GroundViewModel.ResolveRemainingRoute"/>).
+    /// </summary>
+    public bool IsOnTaxiRoute(string callsign, string otherCallsign)
+    {
+        if ((FindAircraft(callsign) is not { } ac) || (FindAircraft(otherCallsign) is not { } other))
+        {
+            return false;
+        }
+
+        GroundViewModel ground = main.Ground;
+        if ((ground.ResolveRemainingRoute(ac) is not { } route) || (ground.GetAircraftNearestNodeId(other) is not { } nodeId))
+        {
+            return false;
+        }
+
+        return route.Segments.Any(segment => (segment.FromNodeId == nodeId) || (segment.ToNodeId == nodeId));
+    }
+
+    /// <summary>
+    /// Highlights <paramref name="callsign"/> on every ground view (<see cref="DataBlockViewState.SetMenuHighlight"/>), or
+    /// clears it with null.
+    /// </summary>
+    public void HighlightAircraft(string? callsign)
+    {
+        foreach (GroundViewModel ground in main.AllGroundViews)
+        {
+            ground.DataBlockState.SetMenuHighlight(callsign);
+        }
     }
 
     /// <summary>

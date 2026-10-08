@@ -110,7 +110,11 @@ internal sealed class PointMenuHostCache(IMenuHost inner) : IMenuHost
 
     public void OpenFlightPlanEditor(string callsign) => inner.OpenFlightPlanEditor(callsign);
 
-    public IReadOnlyList<string> GetGroundTrafficCallsigns(string callsign) => inner.GetGroundTrafficCallsigns(callsign);
+    public IReadOnlyList<MenuGroundTrafficRow> GetGroundTrafficRows(string callsign) => inner.GetGroundTrafficRows(callsign);
+
+    public bool IsOnTaxiRoute(string callsign, string otherCallsign) => inner.IsOnTaxiRoute(callsign, otherCallsign);
+
+    public void HighlightAircraft(string? callsign) => inner.HighlightAircraft(callsign);
 
     public IReadOnlyList<MenuTrafficRow> GetNearbyTraffic(string callsign) => inner.GetNearbyTraffic(callsign);
 

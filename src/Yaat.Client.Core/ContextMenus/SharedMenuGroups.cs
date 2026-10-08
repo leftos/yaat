@@ -749,9 +749,12 @@ public static class SharedMenuGroups
     /// pair (<see cref="RelativeTraffic.OffersAirborneRelative"/>) the dimmed line saying where the clicked aircraft is
     /// from the selected one (<see cref="RelativeGeometry.Describe(IMenuAircraft, IMenuAircraft)"/>), Report in sight, and
     /// Follow once the selected aircraft has reported the clicked one in sight; for a ground pair
-    /// (<see cref="RelativeTraffic.OffersGroundRelative"/>) Follow and Give way to. Each item sends as the selected
-    /// aircraft and shows its quick-command glyph. Then a separator and the bold label <c>For {clicked}</c> over the
-    /// clicked aircraft's own items. Adds nothing when there is no previous selection or neither pair applies.
+    /// (<see cref="RelativeTraffic.OffersGroundRelative"/>) the dimmed line saying what the clicked aircraft is doing,
+    /// where, how far ahead or behind and whether it is on the selected one's taxi route
+    /// (<see cref="RelativeGeometry.DescribeGround"/>, <see cref="IMenuHost.IsOnTaxiRoute"/>), Follow and Give way to.
+    /// Each item sends as the selected aircraft and shows its quick-command glyph. Then a separator and the bold label
+    /// <c>For {clicked}</c> over the clicked aircraft's own items. Adds nothing when there is no previous selection or
+    /// neither pair applies.
     /// </summary>
     public static void AddForSection(ItemCollection items, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
     {
@@ -775,6 +778,7 @@ public static class SharedMenuGroups
         }
         else
         {
+            items.Add(DetailRow(RelativeGeometry.DescribeGround(selected, aircraft, host.IsOnTaxiRoute(selected.Callsign, aircraft.Callsign))));
             AddForItem(items, MenuIds.GroundRelativeFollow, aircraft, context, host);
             AddForItem(items, MenuIds.GroundRelativeGiveWay, aircraft, context, host);
         }
@@ -808,8 +812,8 @@ public static class SharedMenuGroups
         items.Add(item);
     }
 
-    /// <summary>A bold, disabled label naming the aircraft the items under it command.</summary>
-    private static MenuItem SectionLabel(string header) =>
+    /// <summary>A bold, disabled label naming what the items under it are: the aircraft they command, or a traffic list's section.</summary>
+    internal static MenuItem SectionLabel(string header) =>
         new()
         {
             Header = header,

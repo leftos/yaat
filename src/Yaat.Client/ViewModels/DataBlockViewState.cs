@@ -59,10 +59,43 @@ public class DataBlockViewState
         }
     }
 
+    /// <summary>The callsign the context menu's traffic row under the pointer added to <see cref="HighlightedCallsigns"/>, if it added one.</summary>
+    private string? _menuHighlight;
+
+    /// <summary>Raised when <see cref="SetMenuHighlight"/> changes the highlights, so the canvas showing them repaints.</summary>
+    public event Action? HighlightsChanged;
+
+    /// <summary>
+    /// Highlights <paramref name="callsign"/> for the context menu's traffic row under the pointer, removing the highlight
+    /// the menu added before; null only removes it. A callsign already highlighted (a middle-click) is left as it is, and
+    /// keeps its highlight when the menu's moves on or clears.
+    /// </summary>
+    public void SetMenuHighlight(string? callsign)
+    {
+        bool changed = false;
+        if (_menuHighlight is { } previous)
+        {
+            changed = HighlightedCallsigns.Remove(previous);
+            _menuHighlight = null;
+        }
+
+        if ((callsign is not null) && HighlightedCallsigns.Add(callsign))
+        {
+            _menuHighlight = callsign;
+            changed = true;
+        }
+
+        if (changed)
+        {
+            HighlightsChanged?.Invoke();
+        }
+    }
+
     public virtual void Clear()
     {
         ManualOffsets.Clear();
         HighlightedCallsigns.Clear();
+        _menuHighlight = null;
         DataBlockZOrder.Clear();
         _nextZOrder = 1;
     }

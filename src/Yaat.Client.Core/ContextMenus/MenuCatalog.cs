@@ -1,6 +1,10 @@
 using System.Globalization;
+using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Controls.Templates;
 using Avalonia.Input;
+using Avalonia.Layout;
 using Yaat.Sim;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
@@ -241,13 +245,13 @@ public static class MenuCatalog
             MenuIds.GroundFollow,
             "Follow…",
             AircraftCommandApplicability.CanFollowBehind,
-            (label, _, context, host) => BuildGroundTraffic(label, "FOLLOWG", context, host)
+            (label, _, context, host) => BuildGroundTraffic(label, "FOLLOWG", includeSurfaceShadows: true, context, host)
         ),
         HostLeaf(
             MenuIds.GroundGiveWay,
             "Give way to…",
             AircraftCommandApplicability.CanGiveWayTo,
-            (label, _, context, host) => BuildGroundTraffic(label, "GW", context, host)
+            (label, _, context, host) => BuildGroundTraffic(label, "GW", includeSurfaceShadows: false, context, host)
         ),
         HostLeaf(
             MenuIds.GroundTaxiPreset,
@@ -774,25 +778,136 @@ public static class MenuCatalog
         return item;
     }
 
+    /// <summary>How many aircraft each section of the Follow… and Give way to… submenus lists before its More flyout.</summary>
+    private const int GroundTrafficRowsPerSection = 4;
+
     /// <summary>
-    /// The Follow… or Give way to… submenu: one item per aircraft of the host's nearest ground traffic, sending
-    /// <paramref name="verb"/> with its callsign. Null when there is no other aircraft on the ground.
+    /// The Follow… or Give way to… submenu over the host's ground traffic (<see cref="IMenuHost.GetGroundTrafficRows"/>),
+    /// leaving out surface shadows unless <paramref name="includeSurfaceShadows"/>: a Moving section, then a Parked or
+    /// holding section (<see cref="MenuGroundTrafficRow.IsMoving"/>), each in the host's nearest-first order
+    /// (<see cref="AddGroundTrafficSection"/>). Every row sends <paramref name="verb"/> with its callsign and highlights its
+    /// aircraft while the pointer is on it. Null when no aircraft is left to list.
     /// </summary>
-    private static MenuItem? BuildGroundTraffic(string label, string verb, MenuContext context, IMenuHost host)
+    private static MenuItem? BuildGroundTraffic(string label, string verb, bool includeSurfaceShadows, MenuContext context, IMenuHost host)
     {
-        IReadOnlyList<string> traffic = host.GetGroundTrafficCallsigns(context.Callsign);
+        List<MenuGroundTrafficRow> traffic =
+        [
+            .. host.GetGroundTrafficRows(context.Callsign).Where(row => includeSurfaceShadows || !row.IsSurfaceShadow),
+        ];
         if (traffic.Count == 0)
         {
             return null;
         }
 
         var menu = new MenuItem { Header = label };
-        foreach (string other in traffic)
+        var sender = new GroundTrafficRowSender(verb, context, host);
+        AddGroundTrafficSection(menu.Items, "Moving", [.. traffic.Where(row => row.IsMoving)], sender);
+        AddGroundTrafficSection(menu.Items, "Parked or holding", [.. traffic.Where(row => !row.IsMoving)], sender);
+        return menu;
+    }
+
+    /// <summary>
+    /// One section of a ground traffic submenu: its bold <paramref name="title"/>, the first
+    /// <see cref="GroundTrafficRowsPerSection"/> of <paramref name="rows"/>, then <c>More ({n}, up to ~{d} ft)</c>, a flyout
+    /// over the rest. Adds nothing for no rows.
+    /// </summary>
+    private static void AddGroundTrafficSection(ItemCollection items, string title, List<MenuGroundTrafficRow> rows, GroundTrafficRowSender sender)
+    {
+        if (rows.Count == 0)
         {
-            menu.Items.Add(BuildSend(other, $"{verb} {other}", context, host));
+            return;
         }
 
-        return menu;
+        items.Add(SharedMenuGroups.SectionLabel(title));
+        foreach (MenuGroundTrafficRow row in rows.Take(GroundTrafficRowsPerSection))
+        {
+            items.Add(sender.Row(row));
+        }
+
+        List<MenuGroundTrafficRow> rest = [.. rows.Skip(GroundTrafficRowsPerSection)];
+        if (rest.Count == 0)
+        {
+            return;
+        }
+
+        var more = new MenuItem { Header = $"More ({rest.Count}, up to ~{RelativeGeometry.FeetText(rest.Max(row => row.DistanceFeet))})" };
+        foreach (MenuGroundTrafficRow row in rest)
+        {
+            more.Items.Add(sender.Row(row));
+        }
+
+        items.Add(more);
+    }
+
+    /// <summary>What a ground traffic row shows: callsign and type, state, distance, and the command it sends.</summary>
+    private sealed record GroundTrafficRowHeader(string Name, string State, string Distance, string Command)
+    {
+        /// <summary>The row as one line of text: <c>SWA1182 · B737 · pushing back · gate 24 · ~450 ft — FOLLOWG SWA1182</c>.</summary>
+        public override string ToString() => $"{Name} · {State} · {Distance} — {Command}";
+    }
+
+    /// <summary>Builds a ground traffic submenu's rows: each sends the verb with its callsign and highlights its aircraft on hover.</summary>
+    private sealed class GroundTrafficRowSender(string verb, MenuContext context, IMenuHost host)
+    {
+        public MenuItem Row(MenuGroundTrafficRow row)
+        {
+            string command = $"{verb} {row.Callsign}";
+            string name = (row.AircraftType.Length > 0) ? $"{row.Callsign} · {row.AircraftType}" : row.Callsign;
+            var header = new GroundTrafficRowHeader(name, row.State, $"~{RelativeGeometry.FeetText(row.DistanceFeet)}", command);
+            MenuItem item = BuildSend(header.ToString(), command, context, host);
+            item.Header = header;
+            item.HeaderTemplate = new FuncDataTemplate<GroundTrafficRowHeader>((rowHeader, _) => GroundTrafficRowView(rowHeader));
+            AutomationProperties.SetName(item, header.ToString());
+            item.PointerEntered += (_, _) => host.HighlightAircraft(row.Callsign);
+            return item;
+        }
+    }
+
+    /// <summary>
+    /// A ground traffic row's view: the callsign and type over the dimmed state, then the distance, then the command
+    /// right-aligned in the dimmed monospace font.
+    /// </summary>
+    private static Grid GroundTrafficRowView(GroundTrafficRowHeader row)
+    {
+        var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto,Auto") };
+        var name = new StackPanel
+        {
+            VerticalAlignment = VerticalAlignment.Center,
+            Children =
+            {
+                new TextBlock { Text = row.Name },
+                new TextBlock
+                {
+                    Text = row.State,
+                    FontSize = 11,
+                    Opacity = 0.8,
+                },
+            },
+        };
+        grid.Children.Add(name);
+
+        var distance = new TextBlock
+        {
+            Text = row.Distance,
+            Margin = new Thickness(16, 0, 0, 0),
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        Grid.SetColumn(distance, 1);
+        grid.Children.Add(distance);
+
+        var command = new TextBlock
+        {
+            Text = row.Command,
+            FontSize = 12,
+            Opacity = 0.7,
+            Margin = new Thickness(16, 0, 0, 0),
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        command.Bind(TextBlock.FontFamilyProperty, command.GetResourceObservable(QuickCommandStrip.MonoFontKey));
+        Grid.SetColumn(command, 2);
+        grid.Children.Add(command);
+        return grid;
     }
 
     /// <summary>

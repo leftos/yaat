@@ -84,24 +84,35 @@ public class GroundSubmenuGroupTests
     {
         string[] traffic = ["SWA200", "AAL1", "DAL300"];
         var host = new RecordingMenuHost("");
-        host.GroundTraffic.AddRange(traffic);
+        host.GroundTraffic.AddRange(traffic.Select(RecordingMenuHost.ParkedRow));
 
         ContextMenu menu = BuildTaxiGroups(host);
         Assert.Equal(["Follow…", "Give way to…"], HeadersWhere(menu, IsTaxiGroup));
 
         MenuItem follow = Item(CommandTree(menu), "Follow…");
         MenuItem giveWay = Item(CommandTree(menu), "Give way to…");
-        Assert.Equal(traffic, Headers(follow.Items));
-        Assert.Equal(traffic, Headers(giveWay.Items));
+        Assert.Equal(
+            ["Parked or holding", .. traffic.Select(cs => $"{cs} · B738 · at parking · gate 1 · ~600 ft — FOLLOWG {cs}")],
+            follow.Items.OfType<MenuItem>().Select(item => item.Header?.ToString())
+        );
+        Assert.Equal(
+            ["Parked or holding", .. traffic.Select(cs => $"{cs} · B738 · at parking · gate 1 · ~600 ft — GW {cs}")],
+            giveWay.Items.OfType<MenuItem>().Select(item => item.Header?.ToString())
+        );
+
+        RaisePointerEntered(FollowRow(follow, traffic[0]));
+        Assert.Equal(["SWA200"], host.Highlights);
 
         foreach (string other in traffic)
         {
-            Click(Item(follow.Items, other));
+            Click(follow.Items.OfType<MenuItem>().First(item => item.Header?.ToString()?.StartsWith($"{other} ·", StringComparison.Ordinal) == true));
         }
 
         foreach (string other in traffic)
         {
-            Click(Item(giveWay.Items, other));
+            Click(
+                giveWay.Items.OfType<MenuItem>().First(item => item.Header?.ToString()?.StartsWith($"{other} ·", StringComparison.Ordinal) == true)
+            );
         }
 
         Assert.Equal(
@@ -241,6 +252,10 @@ public class GroundSubmenuGroupTests
     }
 
     private static void Click(MenuItem item) => item.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+
+    /// <summary>The traffic row in <paramref name="menu"/> whose one-line header starts with <paramref name="callsign"/>.</summary>
+    private static MenuItem FollowRow(MenuItem menu, string callsign) =>
+        menu.Items.OfType<MenuItem>().First(item => item.Header?.ToString()?.StartsWith($"{callsign} ·", StringComparison.Ordinal) == true);
 
     /// <summary>
     /// Raises a pointer enter on <paramref name="item"/> with a real <see cref="PointerEventArgs"/>, which the typed

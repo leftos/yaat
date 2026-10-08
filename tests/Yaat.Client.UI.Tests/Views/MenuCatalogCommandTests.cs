@@ -1725,7 +1725,14 @@ public class MenuCatalogCommandTests
         SharedMenuGroups.AddForSection(menu.Items, OnGround("Taxiing", "IFR", ""), context, host);
 
         Assert.Equal(
-            [$"For {Selected} (selected)", $"Follow {Callsign}", $"Give way to {Callsign}", "---", $"For {Callsign}"],
+            [
+                $"For {Selected} (selected)",
+                $"{Callsign} is taxiing, 0 ft ahead",
+                $"Follow {Callsign}",
+                $"Give way to {Callsign}",
+                "---",
+                $"For {Callsign}",
+            ],
             menu.Items.Select(Describe)
         );
         foreach (MenuItem item in menu.Items.OfType<MenuItem>().Where(i => i.IsEnabled))

@@ -6,6 +6,7 @@ Command…
 Note…
 ---
 For SWA602 (selected) [disabled]
+SWA601 is holding short of 30, 50 ft ahead [disabled]
 Follow SWA601
 Give way to SWA601
 ---

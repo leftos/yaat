@@ -436,7 +436,7 @@ The session settings an aircraft menu's predicates read (`MenuSession`): the use
 The block at the top of an aircraft's menu, under its header, while another aircraft is selected: `For {selected} (selected)`, a line saying where the clicked aircraft is from the selected one, and the items sent as the selected aircraft (Report in sight and Follow in the air, Follow and Give way to on the ground), then `For {clicked}` over the clicked aircraft's own items (`SharedMenuGroups.AddForSection`).
 
 **Traffic row**:
-One other aircraft as a menu's traffic list shows it, seen from the aircraft the menu commands (`MenuTrafficRow`): its callsign and type, distance, clock position and altitude difference.
+One other aircraft as a menu's traffic list shows it, seen from the aircraft the menu commands: in the air a `MenuTrafficRow` (callsign and type, distance, clock position, altitude difference), on the ground a `MenuGroundTrafficRow` (callsign, type, distance in feet, state such as `taxiing on W · ahead`).
 
 ## CRC hub connections
 

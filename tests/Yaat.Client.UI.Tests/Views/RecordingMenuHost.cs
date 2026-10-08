@@ -201,14 +201,26 @@ internal sealed class RecordingMenuHost(string input) : IMenuHost
     }
 
     /// <summary>The ground traffic the follow and give-way submenus list, whatever the callsign asked about.</summary>
-    public List<string> GroundTraffic { get; } = [];
+    public List<MenuGroundTrafficRow> GroundTraffic { get; } = [];
+
+    /// <summary>Every highlight the menu asked for, in order, null for a clear.</summary>
+    public List<string?> Highlights { get; } = [];
+
+    /// <summary>The host answers that no aircraft asked about stands on the other's taxi route.</summary>
+    public bool IsOnTaxiRoute(string callsign, string otherCallsign) => false;
+
+    public void HighlightAircraft(string? callsign) => Highlights.Add(callsign);
+
+    /// <summary>A parked B738 ground traffic row for <paramref name="callsign"/>, which the follow and give-way submenus list.</summary>
+    public static MenuGroundTrafficRow ParkedRow(string callsign) =>
+        new(callsign, "B738", 600, "at parking · gate 1") { IsMoving = false, IsSurfaceShadow = false };
 
     /// <summary>The hold-short choices the Hold short of… submenu lists, whatever the callsign asked about.</summary>
     public List<MenuCommandChoice> HoldShortChoices { get; } = [];
 
     public List<TaxiRoute?> RoutePreviews { get; } = [];
 
-    public IReadOnlyList<string> GetGroundTrafficCallsigns(string callsign) => GroundTraffic;
+    public IReadOnlyList<MenuGroundTrafficRow> GetGroundTrafficRows(string callsign) => GroundTraffic;
 
     /// <summary>The airborne traffic the Report traffic in sight… list offers, whatever the callsign asked about; none by default.</summary>
     public List<MenuTrafficRow> NearbyTraffic { get; } = [];

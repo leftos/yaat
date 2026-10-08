@@ -34,6 +34,7 @@
 - Assign speed lists the aircraft type's own speed range, Mach numbers at FL240 and above, and Resume normal speed and Final approach speed.
 - Maintain opens at the aircraft's altitude, marks climbs and descents, ends at its type's ceiling, greys altitudes below the MVA and jumps to typed altitudes.
 - Right-clicking another aircraft puts the selected aircraft's traffic actions, such as Report in sight and Follow, in a For section at the top.
+- Ground Follow… and Give way to… list traffic with type, state and distance, grouped Moving and Parked, highlighting the aircraft you point at.
 - Direct to… lists the aircraft's route from the fix it is navigating to on, then the rest of its filed route and its destination.
 - A taxi node's right-click offers Push route… and Push to only when a tug can move the aircraft there.
 - The radar map's right-click shows the MVA as a dimmed "MVA 2,000 ft (sector 9)" line, and no line outside charted coverage.

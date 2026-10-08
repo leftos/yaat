@@ -135,10 +135,23 @@ public interface IMenuHost
     void OpenFlightPlanEditor(string callsign);
 
     /// <summary>
-    /// The callsigns of a capped number of the other aircraft on the ground (the host sets the cap), nearest to
-    /// <paramref name="callsign"/> first, which the Follow… and Give way to… submenus list; empty when there are none.
+    /// Every other aircraft on the ground in the sim, nearest to <paramref name="callsign"/> first, each as seen from it
+    /// (<see cref="RelativeGeometry.GroundTrafficRow"/>), which the Follow… and Give way to… submenus list; never a delayed
+    /// spawn. Empty when there are none or <paramref name="callsign"/> is not found.
     /// </summary>
-    IReadOnlyList<string> GetGroundTrafficCallsigns(string callsign);
+    IReadOnlyList<MenuGroundTrafficRow> GetGroundTrafficRows(string callsign);
+
+    /// <summary>
+    /// Whether <paramref name="otherCallsign"/> stands on the taxi route <paramref name="callsign"/> still has ahead of it,
+    /// which the ground For line names (<c>on SWA602's route</c>); false when either is not found or there is no route.
+    /// </summary>
+    bool IsOnTaxiRoute(string callsign, string otherCallsign);
+
+    /// <summary>
+    /// Highlights <paramref name="callsign"/> on the ground view while a traffic row under the pointer names it, replacing
+    /// the aircraft highlighted before; null clears it. A highlight the controller set by hand stays.
+    /// </summary>
+    void HighlightAircraft(string? callsign);
 
     /// <summary>
     /// The other airborne aircraft nearest <paramref name="callsign"/>, nearest first and capped by the host, each as seen

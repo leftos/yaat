@@ -43,20 +43,105 @@ public class GroundSubmenuCharacterizationTests
     // --- At Parking: Follow… and the pushback items -----------------------------------------
 
     [AvaloniaFact]
-    public void GroundMenu_AtParking_FollowListsNearestGroundTrafficCappedAtTwelve()
+    public void GroundMenu_AtParking_FollowListsMovingThenParked_FourEachThenMore()
     {
         LatLon at = PositionOf(PushbackFaceNode);
         AircraftModel target = GroundAircraft("SWA100", "At Parking", at);
         AircraftModel[] others =
         [
-            .. Enumerable.Range(1, 14).Select(i => GroundAircraft($"SWA{i:000}", "Taxiing", new LatLon(at.Lat + (i * 0.001), at.Lon))),
+            .. Enumerable.Range(1, 6).Select(i => GroundAircraft($"SWA{i:000}", "Taxiing", new LatLon(at.Lat + (i * 0.001), at.Lon))),
+            GroundAircraft("PRK1", "At Parking", new LatLon(at.Lat - 0.0005, at.Lon)),
+            GroundAircraft("PRK2", "At Parking", new LatLon(at.Lat - 0.0015, at.Lon)),
         ];
 
         Built built = BuildMenu(target, prevSelected: null, others);
 
-        List<string> follow = Children(built.Menu, "Follow…");
-        Assert.Equal(12, follow.Count);
-        Assert.Equal(Enumerable.Range(1, 12).Select(i => $"SWA{i:000}"), follow);
+        ItemCollection follow = Item(CommandTree(built.Menu), "Follow…").Items;
+        List<string> labels = Headers(follow);
+        Assert.Equal(3, labels.Count);
+        Assert.Equal("Moving", labels[0]);
+        Assert.StartsWith("More (2, up to ~2,", labels[1]);
+        Assert.Equal("Parked or holding", labels[2]);
+        Assert.Equal(["SWA001", "SWA002", "SWA003", "SWA004", "PRK1", "PRK2"], RowCallsigns(follow));
+        Assert.Equal(["SWA005", "SWA006"], RowCallsigns(Item(follow, labels[1]).Items));
+        Assert.Equal(
+            ["Moving", "SWA001", "SWA002", "SWA003", "SWA004", labels[1], "Parked or holding", "PRK1", "PRK2"],
+            follow.OfType<MenuItem>().Select(item => (item.Header is string header) ? header : CallsignOf(item))
+        );
+    }
+
+    [AvaloniaFact]
+    public void GroundMenu_FollowRowsCarryTypeStateAndDistance()
+    {
+        LatLon at = PositionOf(PushbackFaceNode);
+        AircraftModel target = GroundAircraft(ParkedCallsign, "At Parking", at);
+        AircraftModel taxiing = GroundAircraft("SWA5286", "Taxiing", new LatLon(at.Lat + 0.003, at.Lon));
+        taxiing.CurrentTaxiway = "W";
+        taxiing.FiledAircraftType = "B738/L";
+        AircraftModel parked = GroundAircraft("VTE3202", "At Parking", new LatLon(at.Lat - 0.0016, at.Lon));
+        parked.AircraftType = "E145";
+        parked.ParkingSpot = "1";
+
+        Built built = BuildMenu(target, prevSelected: null, taxiing, parked);
+
+        Assert.Equal(
+            [
+                "Moving",
+                "SWA5286 · B738 · taxiing on W · ahead · ~1,100 ft — FOLLOWG SWA5286",
+                "Parked or holding",
+                "VTE3202 · E145 · at parking · gate 1 · ~600 ft — FOLLOWG VTE3202",
+            ],
+            Item(CommandTree(built.Menu), "Follow…").Items.OfType<MenuItem>().Select(item => item.Header?.ToString())
+        );
+    }
+
+    [AvaloniaFact]
+    public void GroundMenu_FollowHover_HighlightsTheAircraft_AndClosingTheMenuClearsIt()
+    {
+        Built built = BuildMenu(ParkedAircraft(), prevSelected: null, Candidate());
+        var window = new Window();
+        window.Show();
+        built.Menu.Open(window);
+
+        RaisePointer(Row(built.Menu, "Follow…", CandidateCallsign), InputElement.PointerEnteredEvent);
+        Assert.Equal([CandidateCallsign], built.Vm.DataBlockState.HighlightedCallsigns);
+
+        built.Menu.Close();
+        window.Close();
+        Assert.Empty(built.Vm.DataBlockState.HighlightedCallsigns);
+    }
+
+    [AvaloniaFact]
+    public void GroundMenu_GiveWay_OmitsSurfaceShadows()
+    {
+        AircraftModel shadow = GroundAircraft(
+            "SHD1",
+            "Taxiing",
+            new LatLon(PositionOf(PushbackFaceNode).Lat + 0.001, PositionOf(PushbackFaceNode).Lon)
+        );
+        shadow.IsLiveTraffic = true;
+
+        Built built = BuildMenu(TaxiingOnW3(), prevSelected: null, shadow, Candidate());
+
+        Assert.Equal(["SHD1", CandidateCallsign], RowCallsigns(Item(CommandTree(built.Menu), "Follow…").Items).Order(StringComparer.Ordinal));
+        Assert.Equal([CandidateCallsign], RowCallsigns(Item(CommandTree(built.Menu), "Give way to…").Items));
+    }
+
+    [AvaloniaFact]
+    public void GroundMenu_RelativeSelection_ForLineSaysWhereTheClickedAircraftIsOnTheSelectedRoute()
+    {
+        GroundNodeDto holdShort = HoldShort30AtW3;
+        AircraftModel clicked = GroundAircraft("SWA601", $"Holding Short {holdShort.RunwayId}", PositionOf(holdShort));
+        clicked.CurrentTaxiway = "W3";
+
+        AircraftModel selected = TaxiingOnW3();
+
+        Built built = BuildMenu(clicked, prevSelected: selected, selected);
+
+        List<string> top = Headers(built.Menu.Items);
+        int label = top.IndexOf("For SWA104 (selected)");
+        Assert.True(label >= 0);
+        Assert.Matches(@"^SWA601 is holding short of 30 at W3, [\d,]+ ft (ahead|behind) on SWA104's route$", top[label + 1]);
     }
 
     [AvaloniaFact]
@@ -64,7 +149,7 @@ public class GroundSubmenuCharacterizationTests
     {
         Built built = BuildMenu(ParkedAircraft(), prevSelected: null, Candidate());
 
-        Click(Child(built.Menu, "Follow…", CandidateCallsign));
+        Click(Row(built.Menu, "Follow…", CandidateCallsign));
 
         Assert.Equal([(ParkedCallsign, $"FOLLOWG {CandidateCallsign}", Initials)], built.Sent);
     }
@@ -131,7 +216,7 @@ public class GroundSubmenuCharacterizationTests
     {
         Built built = BuildMenu(TaxiingOnW3(), prevSelected: null, Candidate());
 
-        Click(Child(built.Menu, "Give way to…", CandidateCallsign));
+        Click(Row(built.Menu, "Give way to…", CandidateCallsign));
 
         Assert.Equal([(TaxiingCallsign, $"GW {CandidateCallsign}", Initials)], built.Sent);
     }
@@ -188,7 +273,7 @@ public class GroundSubmenuCharacterizationTests
 
         Built built = BuildMenu(target, prevSelected: null, self, airborne, Candidate());
 
-        Assert.Equal([CandidateCallsign], Children(built.Menu, "Follow…"));
+        Assert.Equal([CandidateCallsign], RowCallsigns(Item(CommandTree(built.Menu), "Follow…").Items));
     }
 
     [AvaloniaFact]
@@ -344,15 +429,17 @@ public class GroundSubmenuCharacterizationTests
     {
         get
         {
-            GroundNodeDto holdShort = Oak.Nodes.First(n =>
-                (n.Type == "RunwayHoldShort") && (n.RunwayId is { } rwy) && rwy.Contains("30") && LinkNamesOf(n.Id).Contains("W3")
-            );
+            GroundNodeDto holdShort = HoldShort30AtW3;
             return Oak
                 .Edges.Where(e => (e.TaxiwayName == "W3") && ((e.FromNodeId == holdShort.Id) || (e.ToNodeId == holdShort.Id)))
                 .Select(e => NodeById((e.FromNodeId == holdShort.Id) ? e.ToNodeId : e.FromNodeId))
                 .Single(n => !LinkNamesOf(n.Id).Any(name => name.Contains("RWY", StringComparison.OrdinalIgnoreCase)));
         }
     }
+
+    /// <summary>Runway 30's hold-short on W3, where the route W3 to runway 30 ends.</summary>
+    private static GroundNodeDto HoldShort30AtW3 =>
+        Oak.Nodes.First(n => (n.Type == "RunwayHoldShort") && (n.RunwayId is { } rwy) && rwy.Contains("30") && LinkNamesOf(n.Id).Contains("W3"));
 
     /// <summary>The only intersection on both taxiway T and taxiway U, where the sidecar's "TERMINAL to 30" route begins.</summary>
     private static GroundNodeDto PresetTaxiNode =>
@@ -410,6 +497,23 @@ public class GroundSubmenuCharacterizationTests
 
     private static MenuItem Child(ContextMenu menu, string submenuHeader, string childHeader) =>
         Item(Item(CommandTree(menu), submenuHeader).Items, childHeader);
+
+    /// <summary>The callsigns of the traffic rows in <paramref name="items"/>, in order, leaving out section labels and More.</summary>
+    private static List<string> RowCallsigns(ItemCollection items) =>
+        [.. items.OfType<MenuItem>().Where(m => m.Header is not string).Select(CallsignOf)];
+
+    /// <summary>A traffic row's callsign, the first word of its one-line header.</summary>
+    private static string CallsignOf(MenuItem row) => row.Header!.ToString()!.Split(' ')[0];
+
+    /// <summary>The traffic row for <paramref name="callsign"/> in <paramref name="submenuHeader"/>'s list under All Commands.</summary>
+    private static MenuItem Row(ContextMenu menu, string submenuHeader, string callsign)
+    {
+        MenuItem? row = Item(CommandTree(menu), submenuHeader)
+            .Items.OfType<MenuItem>()
+            .FirstOrDefault(m => (m.Header is not string) && (CallsignOf(m) == callsign));
+        Assert.NotNull(row);
+        return row;
+    }
 
     private static MenuItem Item(ItemCollection items, string header)
     {

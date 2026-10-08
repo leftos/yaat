@@ -62,6 +62,30 @@ public class MapCanvasTimerLifecycleTests
         Assert.Null(canvas.WatchedDataBlockState);
     }
 
+    // The ground canvas subscribes its highlight state the same way, so a dock-back never leaves an abandoned canvas
+    // listening to a view-model state.
+    [AvaloniaFact]
+    public void GroundCanvas_DataBlockStateSubscription_FollowsAttachBindingAndDetach()
+    {
+        var canvas = new GroundCanvas();
+        Assert.Null(canvas.WatchedDataBlockState);
+
+        var window = new Window { Content = canvas };
+        window.Show();
+        Dispatcher.UIThread.RunJobs();
+        GroundDataBlockViewState? local = canvas.WatchedDataBlockState;
+        Assert.NotNull(local);
+
+        var vmState = new GroundDataBlockViewState();
+        canvas.DataBlockState = vmState;
+        Assert.Same(vmState, canvas.WatchedDataBlockState);
+
+        window.Content = null;
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Null(canvas.WatchedDataBlockState);
+    }
+
     [AvaloniaFact]
     public void GroundCanvas_RepaintTimer_StopsOnDetach()
     {

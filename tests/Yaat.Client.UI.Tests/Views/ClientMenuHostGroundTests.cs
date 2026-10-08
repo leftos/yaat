@@ -29,7 +29,7 @@ public class ClientMenuHostGroundTests
     // --- Ground traffic, hold short and route preview ----------------------------------------
 
     [AvaloniaFact]
-    public void GetGroundTrafficCallsigns_ExcludesSelfAndAirborne_NearestFirst_CappedAtTwelve()
+    public void GetGroundTrafficRows_ExcludesSelfAndAirborne_NearestFirst_Uncapped()
     {
         var at = new LatLon(37.72, -122.22);
         AircraftModel target = GroundAircraft(Callsign, "Taxiing", at);
@@ -44,7 +44,108 @@ public class ClientMenuHostGroundTests
         MainViewModel main = MainWith(target, [self, airborne, .. traffic]);
         var host = new ClientMenuHost(main, target, new Border());
 
-        Assert.Equal(Enumerable.Range(1, 12).Select(i => $"SWA{i:000}"), host.GetGroundTrafficCallsigns(Callsign));
+        Assert.Equal(Enumerable.Range(1, 14).Select(i => $"SWA{i:000}"), host.GetGroundTrafficRows(Callsign).Select(row => row.Callsign));
+    }
+
+    /// <summary>
+    /// YAAT-447: delayed spawns parked nearer than a real aircraft pushing back are not in the sim yet, so the list leaves
+    /// them out and the pushing-back aircraft is not cut.
+    /// </summary>
+    [AvaloniaFact]
+    public void GetGroundTrafficRows_ExcludesDelayedSpawns()
+    {
+        var at = new LatLon(37.72, -122.22);
+        AircraftModel target = GroundAircraft(Callsign, "Taxiing", at);
+        AircraftModel[] delayed = [.. Enumerable.Range(1, 12).Select(i => DelayedSpawn($"DLY{i:00}", new LatLon(at.Lat + (i * 0.0001), at.Lon)))];
+        AircraftModel pushingBack = GroundAircraft("SWA1182", "Pushback", new LatLon(at.Lat + 0.002, at.Lon));
+        MainViewModel main = MainWith(target, [.. delayed, pushingBack]);
+        var host = new ClientMenuHost(main, target, new Border());
+
+        Assert.Equal(["SWA1182"], host.GetGroundTrafficRows(Callsign).Select(row => row.Callsign));
+    }
+
+    [AvaloniaFact]
+    public void GetGroundTrafficRows_SplitsMovingFromParkedByPhaseAndSpeed()
+    {
+        var at = new LatLon(37.72, -122.22);
+        AircraftModel target = GroundAircraft(Callsign, "Taxiing", at);
+        AircraftModel pushingBack = GroundAircraft("PSH1", "Pushback", new LatLon(at.Lat + 0.001, at.Lon));
+        AircraftModel taxiing = GroundAircraft("TXI1", "Taxiing", new LatLon(at.Lat + 0.002, at.Lon));
+        AircraftModel rolling = GroundAircraft("ROL1", "Runway Exit", new LatLon(at.Lat + 0.003, at.Lon));
+        rolling.GroundSpeed = 12;
+        AircraftModel parked = GroundAircraft("PRK1", "At Parking", new LatLon(at.Lat + 0.004, at.Lon));
+        AircraftModel creeping = GroundAircraft("HLD1", "Holding In Position", new LatLon(at.Lat + 0.005, at.Lon));
+        creeping.GroundSpeed = 1;
+        MainViewModel main = MainWith(target, [creeping, parked, rolling, taxiing, pushingBack]);
+        var host = new ClientMenuHost(main, target, new Border());
+
+        Assert.Equal(
+            [("PSH1", true), ("TXI1", true), ("ROL1", true), ("PRK1", false), ("HLD1", false)],
+            host.GetGroundTrafficRows(Callsign).Select(row => (row.Callsign, row.IsMoving))
+        );
+    }
+
+    [AvaloniaFact]
+    public void GetGroundTrafficRows_FlagsSurfaceShadows()
+    {
+        var at = new LatLon(37.72, -122.22);
+        AircraftModel target = GroundAircraft(Callsign, "Taxiing", at);
+        AircraftModel shadow = GroundAircraft("SHD1", "Taxiing", new LatLon(at.Lat + 0.001, at.Lon));
+        shadow.IsLiveTraffic = true;
+        AircraftModel inSim = GroundAircraft(OtherCallsign, "Taxiing", new LatLon(at.Lat + 0.002, at.Lon));
+        MainViewModel main = MainWith(target, [shadow, inSim]);
+        var host = new ClientMenuHost(main, target, new Border());
+
+        Assert.Equal(
+            [("SHD1", true), (OtherCallsign, false)],
+            host.GetGroundTrafficRows(Callsign).Select(row => (row.Callsign, row.IsSurfaceShadow))
+        );
+    }
+
+    [AvaloniaFact]
+    public void IsOnTaxiRoute_TheHoldShortAheadIsOnTheRoute_AStandIsNot()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        AircraftModel target = TaxiingOnW3();
+        AircraftModel holding = GroundAircraft(OtherCallsign, $"Holding Short {Runway30HoldShortNode.RunwayId}", PositionOf(Runway30HoldShortNode));
+        AircraftModel parked = GroundAircraft("SWA300", "At Parking", PositionOf(PushbackFaceNode));
+        MainViewModel main = OakMain(target, [holding, parked]);
+        var host = new ClientMenuHost(main, target, new Border());
+
+        Assert.True(host.IsOnTaxiRoute(Callsign, OtherCallsign));
+        Assert.False(host.IsOnTaxiRoute(Callsign, "SWA300"));
+        Assert.False(host.IsOnTaxiRoute(OtherCallsign, Callsign));
+        Assert.False(host.IsOnTaxiRoute("NOPE", OtherCallsign));
+    }
+
+    [AvaloniaFact]
+    public void HighlightAircraft_SetsReplacesAndClears_KeepingAHandHighlight()
+    {
+        var main = new MainViewModel(new FakeFilePickerService());
+        var host = new ClientMenuHost(main, null, new Border());
+        GroundDataBlockViewState state = main.Ground.DataBlockState;
+        state.ToggleHighlight("KEEP1");
+        int changes = 0;
+        state.HighlightsChanged += () => changes++;
+
+        host.HighlightAircraft("SWA1");
+        Assert.Equal(["KEEP1", "SWA1"], state.HighlightedCallsigns.Order());
+        host.HighlightAircraft("SWA2");
+        Assert.Equal(["KEEP1", "SWA2"], state.HighlightedCallsigns.Order());
+        host.HighlightAircraft("KEEP1");
+        Assert.Equal(["KEEP1"], state.HighlightedCallsigns.Order());
+        host.HighlightAircraft(null);
+        Assert.Equal(["KEEP1"], state.HighlightedCallsigns.Order());
+
+        // Four calls, three changes: the clear removes nothing (the menu never set KEEP1 as its own highlight), so it raises no event.
+        Assert.Equal(3, changes);
+    }
+
+    private static AircraftModel DelayedSpawn(string callsign, LatLon position)
+    {
+        AircraftModel ac = GroundAircraft(callsign, "At Parking", position);
+        ac.Status = "Delayed (40:21)";
+        return ac;
     }
 
     [AvaloniaFact]
@@ -53,7 +154,7 @@ public class ClientMenuHostGroundTests
         var main = new MainViewModel(new FakeFilePickerService());
         var host = new ClientMenuHost(main, null, new Border());
 
-        Assert.Empty(host.GetGroundTrafficCallsigns(Callsign));
+        Assert.Empty(host.GetGroundTrafficRows(Callsign));
         Assert.Empty(host.GetHoldShortChoices(Callsign));
         Assert.Empty(host.GetPushbackFaceChoices(Callsign));
         Assert.Empty(host.GetPushbackToChoices(Callsign));
@@ -325,8 +426,10 @@ public class ClientMenuHostGroundTests
         string[] groundItems = ["Hold short of…", "Follow…", "Give way to…"];
         Assert.Equal(groundItems, Headers(CommandTree(menu)).Where(groundItems.Contains));
         Assert.Equal(["Runway 12", "Runway 30"], Headers(Item(CommandTree(menu), "Hold short of…").Items));
-        Assert.Equal([OtherCallsign], Headers(Item(CommandTree(menu), "Follow…").Items));
-        Assert.Equal([OtherCallsign], Headers(Item(CommandTree(menu), "Give way to…").Items));
+        MenuItem followRow = TrafficRow(Item(CommandTree(menu), "Follow…").Items, OtherCallsign);
+        MenuItem giveWayRow = TrafficRow(Item(CommandTree(menu), "Give way to…").Items, OtherCallsign);
+        Assert.Equal(["Moving"], Headers(Item(CommandTree(menu), "Follow…").Items));
+        Assert.Equal(["Moving"], Headers(Item(CommandTree(menu), "Give way to…").Items));
 
         MenuItem holdShort30 = Item(Item(CommandTree(menu), "Hold short of…").Items, "Runway 30");
         RaisePointerEntered(holdShort30);
@@ -334,11 +437,15 @@ public class ClientMenuHostGroundTests
         Assert.Equal(SegmentsOf(main.Ground.FindHoldShortPreviewRoute(target, "30")!), SegmentsOf(main.Ground.PreviewRoute));
 
         Click(holdShort30);
-        Click(Item(Item(CommandTree(menu), "Follow…").Items, OtherCallsign));
-        Click(Item(Item(CommandTree(menu), "Give way to…").Items, OtherCallsign));
+        Click(followRow);
+        Click(giveWayRow);
 
         Assert.Equal([(Callsign, "HS 30", "AB"), (Callsign, $"FOLLOWG {OtherCallsign}", "AB"), (Callsign, $"GW {OtherCallsign}", "AB")], host.Sent);
     }
+
+    /// <summary>The traffic row in <paramref name="items"/> whose one-line header starts with <paramref name="callsign"/>.</summary>
+    private static MenuItem TrafficRow(ItemCollection items, string callsign) =>
+        items.OfType<MenuItem>().Single(item => item.Header?.ToString()?.StartsWith($"{callsign} ·", StringComparison.Ordinal) == true);
 
     // --- Fixtures ---------------------------------------------------------------------------
 

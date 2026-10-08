@@ -66,6 +66,21 @@ public class ClientMenuHostTests
         Assert.Empty(host.GetNearbyTraffic("NOPE"));
     }
 
+    [AvaloniaFact]
+    public void GetNearbyTraffic_TypeDropsTheEquipmentSuffix()
+    {
+        var main = new MainViewModel(new FakeFilePickerService());
+        var at = new LatLon(37.5, -122.0);
+        AircraftModel self = Airborne("N302AB", at, 3000);
+        AircraftModel heavy = Airborne("AFR84", new LatLon(at.Lat + 0.01, at.Lon), 4000);
+        heavy.FiledAircraftType = "B77W/L";
+        main.Aircraft.Add(self);
+        main.Aircraft.Add(heavy);
+        var host = new ClientMenuHost(main, self, new Border());
+
+        Assert.Equal("B77W", Assert.Single(host.GetNearbyTraffic("N302AB")).AircraftType);
+    }
+
     private static AircraftModel Airborne(string callsign, LatLon position, double altitude) =>
         new()
         {

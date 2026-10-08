@@ -257,7 +257,7 @@ public class QuickCommandStripTests
     private static RecordingMenuHost Host()
     {
         var host = new RecordingMenuHost("");
-        host.GroundTraffic.Add("SWA602");
+        host.GroundTraffic.Add(RecordingMenuHost.ParkedRow("SWA602"));
         host.HoldShortChoices.Add(new MenuCommandChoice("B", "HS B", null, []));
         return host;
     }
@@ -287,7 +287,7 @@ public class QuickCommandStripTests
     /// <summary>The first menu item, depth first, that opens nothing: a command.</summary>
     private static MenuItem FirstLeaf(IEnumerable<object?> items)
     {
-        foreach (MenuItem item in items.OfType<MenuItem>())
+        foreach (MenuItem item in items.OfType<MenuItem>().Where(item => item.IsEnabled))
         {
             return (item.Items.Count == 0) ? item : FirstLeaf(item.Items);
         }
