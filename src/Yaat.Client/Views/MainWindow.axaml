@@ -150,6 +150,7 @@
           <MenuItem Header="_New Weather..." x:Name="NewWeatherMenuItem" IsEnabled="{Binding IsInRoom}" />
           <MenuItem Header="Ed_it Weather..." x:Name="EditWeatherMenuItem" />
           <MenuItem Header="Edit Aircraft _Generators..." x:Name="EditArrivalGeneratorsMenuItem" />
+          <MenuItem Header="Active _Runways…" x:Name="ActiveRunwaysMenuItem" />
           <Separator />
           <MenuItem Header="_Session Report" x:Name="SessionReportMenuItem" IsEnabled="{Binding IsInRoom}" />
           <Separator />

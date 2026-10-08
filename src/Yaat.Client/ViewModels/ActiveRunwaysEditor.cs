@@ -97,6 +97,23 @@ public static class ActiveRunwaysEditor
             : new ActiveRunwaysAnswer(Arwy(airport, parsed.Runways.Select(runway => runway.ToToken())), null);
     }
 
+    /// <summary>
+    /// Reads every row with <see cref="ToCommand"/> and records its refusal on the row: each row's answer, or <c>null</c>
+    /// when a row does not read and nothing is to be sent.
+    /// </summary>
+    public static List<(ActiveRunwaysRow Row, string? Command)>? ReadRows(IReadOnlyList<ActiveRunwaysRow> rows, NavigationDatabase? navDb)
+    {
+        var answers = new List<(ActiveRunwaysRow Row, string? Command)>(rows.Count);
+        foreach (ActiveRunwaysRow row in rows)
+        {
+            ActiveRunwaysAnswer answer = ToCommand(row.Airport, row.Text, navDb);
+            row.Error = answer.Error;
+            answers.Add((row, answer.Command));
+        }
+
+        return answers.Any(answer => answer.Row.HasError) ? null : answers;
+    }
+
     /// <summary>OK is refused only when every row is empty and an airport has no runway data to fill its row with.</summary>
     public static bool CanConfirm(IReadOnlyCollection<ActiveRunwaysRow> rows, NavigationDatabase? navDb) =>
         (rows.Count > 0) && (rows.Any(row => !string.IsNullOrWhiteSpace(row.Text)) || rows.All(row => EveryEnd(row.Airport, navDb).Count > 0));

@@ -68,7 +68,7 @@ The YAAT window has three areas:
 2. **Terminal panel** (bottom) — scrolling log of commands, responses, warnings, and errors
 3. **Command bar** (bottom edge) — where you type commands
 
-The menu bar provides access to File (connect/disconnect), Scenario (load/unload/weather), Room (members/students), View (pop-out windows), and Settings.
+The menu bar provides access to File (connect/disconnect), Scenario (load/unload/weather/active runways), Room (members/students), View (pop-out windows), and Settings.
 
 #### Planned server maintenance
 
@@ -1307,6 +1307,14 @@ When you load a scenario as a mentor in a training room and the scenario does no
 Type the runways separated by commas, spaces or new lines: `D28L` is departures only, `A28R` arrivals only, and a bare `30` is both. Leave a row empty to make every runway at that airport active, or type `NONE` for none. Notes under the rows name any airport where the guess has no departure end or no arrival end. A row YAAT cannot read shows why under it, and nothing is sent until you fix it.
 
 **OK** sets each airport as an `ARWY` command would, and the server's replies appear in the terminal. **Cancel** keeps the room's current runways and prints a reminder to set them later with `ARWY`. Solo training, live sessions, other members, joining a room and restarting never ask; a restart keeps the runways in use.
+
+#### Changing the active runways mid-session
+
+**Scenario › Active Runways…** opens a window with the room's current runways, one row per airport, in any room that has a scenario loaded — solo and live sessions included, and for any member, not only the mentor who loaded it. Type the runways the way the prompt takes them, and **Apply** sends one `ARWY` per airport whose text you changed, with the server's replies in the terminal. The window stays open so you can set several airports in a row, and a row the text cannot be read for shows why under it and sends nothing.
+
+The window follows the room's list as anyone changes it: a row you have not typed in updates itself, and a row you are part-way through keeps what you typed until you apply it. Leave a row empty for every runway, or type `NONE` to make none of that airport's runways active. Aircraft already assigned a runway are not retargeted; the change sets the runways in use for what comes next.
+
+The window closes when the scenario does — an unload, leaving the room — or when another scenario or a recording replaces it.
 
 ### Restarting a Scenario
 

@@ -83,15 +83,8 @@ public partial class MainViewModel
     internal async Task SubmitActiveRunwaysPromptAsync(NavigationDatabase? navDb, Func<string, Task<CommandResultDto>> send)
     {
         int generation = _activeRunwaysPromptGeneration;
-        List<(ActiveRunwaysRow Row, string? Command)> answers = [];
-        foreach (ActiveRunwaysRow row in ActiveRunwaysPromptRows)
-        {
-            ActiveRunwaysAnswer answer = ActiveRunwaysEditor.ToCommand(row.Airport, row.Text, navDb);
-            row.Error = answer.Error;
-            answers.Add((row, answer.Command));
-        }
-
-        if (answers.Any(answer => answer.Row.HasError))
+        List<(ActiveRunwaysRow Row, string? Command)>? answers = ActiveRunwaysEditor.ReadRows(ActiveRunwaysPromptRows, navDb);
+        if (answers is null)
         {
             return;
         }

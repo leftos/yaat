@@ -43,6 +43,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
     private MetarWindow? _metarWindow;
     private WeatherTimelineEditorWindow? _weatherEditorWindow;
     private ArrivalGeneratorsEditorWindow? _arrivalGeneratorsEditorWindow;
+    private ActiveRunwaysWindow? _activeRunwaysWindow;
 
     // Test hooks — read-only views of the subordinate windows the MainWindow creates
     // in response to IsDataGridPoppedOut / IsGroundViewPoppedOut / IsRadarViewPoppedOut
@@ -176,6 +177,20 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
                 if (e.PropertyName == nameof(MainViewModel.HasScenario))
                 {
                     editArrivalGeneratorsItem.IsEnabled = vm.HasScenario;
+                }
+            };
+        }
+
+        MenuItem? activeRunwaysItem = this.FindControl<MenuItem>("ActiveRunwaysMenuItem");
+        if (activeRunwaysItem is not null)
+        {
+            activeRunwaysItem.Click += OnActiveRunwaysClick;
+            activeRunwaysItem.IsEnabled = vm.HasScenario;
+            vm.PropertyChanged += (_, e) =>
+            {
+                if (e.PropertyName == nameof(MainViewModel.HasScenario))
+                {
+                    activeRunwaysItem.IsEnabled = vm.HasScenario;
                 }
             };
         }
@@ -3490,6 +3505,28 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         );
         _arrivalGeneratorsEditorWindow.Closing += (_, _) => _arrivalGeneratorsEditorWindow = null;
         _arrivalGeneratorsEditorWindow.Show();
+    }
+
+    private void OnActiveRunwaysClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (DataContext is not MainViewModel vm || !vm.HasScenario)
+        {
+            return;
+        }
+
+        if (_activeRunwaysWindow is not null)
+        {
+            _activeRunwaysWindow.RestoreAndActivate();
+            return;
+        }
+
+        _activeRunwaysWindow = new ActiveRunwaysWindow(
+            new ActiveRunwaysWindowViewModel(vm),
+            vm.Preferences,
+            command => vm.Connection.SendCommandAsync("", command, vm.Preferences.UserInitials)
+        );
+        _activeRunwaysWindow.Closing += (_, _) => _activeRunwaysWindow = null;
+        _activeRunwaysWindow.Show();
     }
 
     private Key _takeControlKey = Key.T;
