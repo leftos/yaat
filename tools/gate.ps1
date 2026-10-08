@@ -1,4 +1,5 @@
 #requires -Version 7
+
 <#
 .SYNOPSIS
 The gate a repo runs: it hands every word to the user-level gate when the machine has one, and otherwise runs the

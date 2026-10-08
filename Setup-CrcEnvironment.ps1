@@ -1,4 +1,5 @@
 #Requires -Version 5.1
+
 <#
 .SYNOPSIS
     Adds YAAT environments to CRC's DevEnvironments.json.
