@@ -325,7 +325,11 @@ public class DataBlockStatePersistenceTests
         return window;
     }
 
-    private static GroundViewModel NewGroundVm() => new(new ServerConnection(), (_, _, _) => Task.CompletedTask, preferences: new UserPreferences());
+    private static GroundViewModel NewGroundVm() =>
+        new(new ServerConnection(), (_, _, _) => Task.CompletedTask, preferences: new UserPreferences())
+        {
+            RoomActiveRunways = () => new Dictionary<string, IReadOnlyList<string>>(),
+        };
 
     private static (GroundCanvas Canvas, Window Window) BindGroundView(GroundViewModel vm, AircraftModel ac)
     {

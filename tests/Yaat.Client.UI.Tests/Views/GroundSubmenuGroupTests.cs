@@ -1,3 +1,4 @@
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
@@ -57,26 +58,90 @@ public class GroundSubmenuGroupTests
     }
 
     [AvaloniaFact]
-    public void HoldShort_OnlyAChoiceWithAPreviewSetsTheRoutePreview()
+    public void HoldShort_RouteLineThenOneRowPerBar_EachShowsItsBarPreviewsItsRouteAndSendsItsCommand()
     {
-        var route = new TaxiRoute { Segments = [], HoldShortPoints = [] };
-        var host = new RecordingMenuHost("");
-        host.HoldShortChoices.Add(new MenuCommandChoice("Runway 12", "HS 12", null, []));
-        host.HoldShortChoices.Add(new MenuCommandChoice("Runway 30", "HS 30", route, []));
+        var toS1 = new TaxiRoute { Segments = [], HoldShortPoints = [] };
+        var toRunway = new TaxiRoute { Segments = [], HoldShortPoints = [] };
+        var host = new RecordingMenuHost("") { HoldShortRouteLine = "route S T V W4 · RWY 30" };
+        host.HoldShortChoices.Add(
+            new HoldShortChoice(new HoldShortRowLabel(HoldShortChoice.TaxiwayBadge, "S1", "crossing on S", 1500), "HS S1@S", toS1)
+        );
+        host.HoldShortChoices.Add(
+            new HoldShortChoice(new HoldShortRowLabel(HoldShortChoice.RunwayBadge, "Runway 30", "at W4, end of route", 5300), "HS 30", toRunway)
+        );
 
         ContextMenu menu = BuildTaxiGroups(host);
         MenuItem holdShort = Item(CommandTree(menu), "Hold short of…");
-        Assert.Equal(["Runway 12", "Runway 30"], Headers(holdShort.Items));
 
-        RaisePointerEntered(Item(holdShort.Items, "Runway 12"));
-        Assert.Empty(host.RoutePreviews);
+        MenuItem line = Assert.IsType<MenuItem>(holdShort.Items[0]);
+        Assert.Equal("route S T V W4 · RWY 30", line.Header);
+        Assert.False(line.IsEnabled);
+        Assert.IsType<Separator>(holdShort.Items[1]);
+        List<MenuItem> rows = HoldShortRows(holdShort);
+        Assert.Equal(
+            ["TW S1 · crossing on S · ~1,500 ft — HS S1@S", "RW Runway 30 · at W4, end of route · ~5,300 ft — HS 30"],
+            rows.Select(AutomationProperties.GetName)
+        );
+        Assert.Equal(["TW", "S1", " · crossing on S", "~1,500 ft", "HS S1@S"], RowTexts(rows[0]));
+        Assert.Equal(["RW", "Runway 30", " · at W4, end of route", "~5,300 ft", "HS 30"], RowTexts(rows[1]));
 
-        RaisePointerEntered(Item(holdShort.Items, "Runway 30"));
-        Assert.Equal([route], host.RoutePreviews);
+        RaisePointerEntered(rows[1]);
+        RaisePointerEntered(rows[0]);
+        Assert.Equal([toRunway, toS1], host.RoutePreviews);
 
-        Click(Item(holdShort.Items, "Runway 12"));
-        Click(Item(holdShort.Items, "Runway 30"));
-        Assert.Equal([(Callsign, "HS 12", Initials), (Callsign, "HS 30", Initials)], host.Sent);
+        Click(rows[0]);
+        Click(rows[1]);
+        Assert.Equal([(Callsign, "HS S1@S", Initials), (Callsign, "HS 30", Initials)], host.Sent);
+    }
+
+    [AvaloniaFact]
+    public void HoldShort_NoRouteLine_ListsOnlyTheRows()
+    {
+        var host = new RecordingMenuHost("");
+        host.HoldShortChoices.Add(
+            new HoldShortChoice(
+                new HoldShortRowLabel(HoldShortChoice.TaxiwayBadge, "B", "crossing on T", 300),
+                "HS B",
+                new TaxiRoute { Segments = [], HoldShortPoints = [] }
+            )
+        );
+
+        MenuItem holdShort = Item(CommandTree(BuildTaxiGroups(host)), "Hold short of…");
+
+        MenuItem row = Assert.IsType<MenuItem>(Assert.Single(holdShort.Items));
+        Assert.Equal("TW B · crossing on T · ~300 ft — HS B", AutomationProperties.GetName(row));
+    }
+
+    /// <summary>The Hold short of… submenu's rows: every item but the route line.</summary>
+    private static List<MenuItem> HoldShortRows(MenuItem holdShort) => [.. holdShort.Items.OfType<MenuItem>().Where(m => m.Header is not string)];
+
+    /// <summary>The texts <paramref name="row"/>'s header template shows, in layout order.</summary>
+    private static List<string> RowTexts(MenuItem row)
+    {
+        Control view = row.HeaderTemplate!.Build(row.Header)!;
+        List<string> texts = [];
+        CollectTexts(view, texts);
+        return texts;
+    }
+
+    private static void CollectTexts(Control control, List<string> texts)
+    {
+        switch (control)
+        {
+            case TextBlock text:
+                texts.Add(text.Text ?? "");
+                break;
+            case Border { Child: { } child }:
+                CollectTexts(child, texts);
+                break;
+            case Panel panel:
+                foreach (Control child in panel.Children)
+                {
+                    CollectTexts(child, texts);
+                }
+
+                break;
+        }
     }
 
     [AvaloniaFact]

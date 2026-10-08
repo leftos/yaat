@@ -20,7 +20,10 @@ public class GroundViewModelClearLayoutTests
     [Fact]
     public void ClearLayout_DropsBackgroundImage_WithoutDisposingIt()
     {
-        var vm = new GroundViewModel(new ServerConnection(), sendCommand: (_, _, _) => Task.CompletedTask);
+        var vm = new GroundViewModel(new ServerConnection(), sendCommand: (_, _, _) => Task.CompletedTask)
+        {
+            RoomActiveRunways = () => new Dictionary<string, IReadOnlyList<string>>(),
+        };
 
         using var bitmap = new SKBitmap(4, 4);
         var image = SKImage.FromBitmap(bitmap);

@@ -9,6 +9,7 @@ using Xunit;
 using Yaat.Client.ContextMenus;
 using Yaat.Client.Models;
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.Airport;
 
 namespace Yaat.Client.UI.Tests.Views;
 
@@ -286,7 +287,13 @@ public class QuickCommandStripTests
     {
         var host = new RecordingMenuHost("");
         host.GroundTraffic.Add(RecordingMenuHost.ParkedRow("SWA602"));
-        host.HoldShortChoices.Add(new MenuCommandChoice("B", "HS B", null, []));
+        host.HoldShortChoices.Add(
+            new HoldShortChoice(
+                new HoldShortRowLabel(HoldShortChoice.TaxiwayBadge, "B", "crossing on T", 300),
+                "HS B",
+                new TaxiRoute { Segments = [], HoldShortPoints = [] }
+            )
+        );
         return host;
     }
 

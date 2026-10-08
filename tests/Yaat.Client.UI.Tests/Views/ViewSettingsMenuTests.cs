@@ -43,7 +43,10 @@ public class ViewSettingsMenuTests
     public void GroundMenu_EndsWithSettingsForThisView_OpeningGround()
     {
         var mainVm = new MainViewModel(new FakeFilePickerService());
-        var groundVm = new GroundViewModel(new ServerConnection(), sendCommand: (_, _, _) => Task.CompletedTask);
+        var groundVm = new GroundViewModel(new ServerConnection(), sendCommand: (_, _, _) => Task.CompletedTask)
+        {
+            RoomActiveRunways = () => new Dictionary<string, IReadOnlyList<string>>(),
+        };
         groundVm.SetLayoutForTesting(
             new GroundLayoutDto("TST", [new GroundNodeDto(1, Lat, Lon, "TaxiwayIntersection", null, null, null)], [], null, null, null)
         );

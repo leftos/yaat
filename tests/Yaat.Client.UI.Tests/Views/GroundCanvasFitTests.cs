@@ -128,7 +128,10 @@ public class GroundCanvasFitTests
         const string scenarioId = "scenario-fresh-autofit";
 
         var prefs = new UserPreferences();
-        var vm = new GroundViewModel(new ServerConnection(), (_, _, _) => Task.CompletedTask, preferences: prefs);
+        var vm = new GroundViewModel(new ServerConnection(), (_, _, _) => Task.CompletedTask, preferences: prefs)
+        {
+            RoomActiveRunways = () => new Dictionary<string, IReadOnlyList<string>>(),
+        };
 
         (GroundCanvas? canvas, Window? window) = BindCanvasToViewModel(vm);
 
@@ -170,7 +173,10 @@ public class GroundCanvasFitTests
             }
         );
 
-        var vm = new GroundViewModel(new ServerConnection(), (_, _, _) => Task.CompletedTask, preferences: prefs);
+        var vm = new GroundViewModel(new ServerConnection(), (_, _, _) => Task.CompletedTask, preferences: prefs)
+        {
+            RoomActiveRunways = () => new Dictionary<string, IReadOnlyList<string>>(),
+        };
         (GroundCanvas? canvas, Window? window) = BindCanvasToViewModel(vm);
 
         vm.SetScenarioId("scenario-1");

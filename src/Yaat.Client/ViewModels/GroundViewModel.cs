@@ -14,6 +14,7 @@ using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Airport.Pathfinding;
 using Yaat.Sim.Data.Faa;
+using Yaat.Sim.Simulation;
 
 namespace Yaat.Client.ViewModels;
 
@@ -354,6 +355,12 @@ public partial class GroundViewModel : ObservableObject
             DeconflictMode = preferences.GroundDeconflictMode;
         }
     }
+
+    /// <summary>
+    /// The room's active runways, read when the Hold short of… rows are built: each airport naming at least one end,
+    /// keyed by FAA id, its ends as the server spells them (<c>30</c>, <c>D28L</c>, <c>A28R</c>).
+    /// </summary>
+    public required Func<IReadOnlyDictionary<string, IReadOnlyList<string>>> RoomActiveRunways { get; init; }
 
     public void SetElevationLookup(Func<string, double?> lookup) => _getAirportElevation = lookup;
 
@@ -1266,112 +1273,330 @@ public partial class GroundViewModel : ObservableObject
         )
             is not null;
 
-    public List<(string DisplayName, string Target)> GetHoldShortTargets(AircraftModel ac)
+    /// <summary>
+    /// The Hold short of… rows for <paramref name="ac"/>'s remaining route: one per bar the route passes, nearest first,
+    /// each sending the <c>HS</c> that arms that bar and previewing the route up to it. A taxiway the route meets on more
+    /// than one of its taxiways gets one located row per crossing (<c>X@A</c>, <c>X@B</c>), since a bare <c>HS X</c> only
+    /// ever binds the first; a runway gets one row, for its first bar, named by <see cref="RunwayRowName"/>. A junction
+    /// arc's joined name ("X - Y") is never a row, and a bar at the aircraft's own position (0 ft once rounded) is not
+    /// listed. The node the route starts at is a bar like any other: an aircraft short of a holding position starts
+    /// there with no free-space leg (<see cref="TaxiApproachLeg"/>), so every distance is measured from the aircraft
+    /// (<see cref="RouteStart"/>). Empty when no layout is loaded or the route does not resolve.
+    /// </summary>
+    public IReadOnlyList<HoldShortChoice> GetHoldShortTargets(AircraftModel ac)
     {
-        if (_domainLayout is null)
+        if ((_domainLayout is not { } layout) || (ResolveRemainingRoute(ac) is not { Segments.Count: > 0 } route))
         {
             return [];
         }
 
-        // Resolve the actual remaining path from the aircraft's position
-        TaxiRoute? route = ResolveRemainingRoute(ac);
-        if (route is null || route.Segments.Count == 0)
+        var routeTaxiways = new HashSet<string>(ParseRouteTaxiways(ac.TaxiRoute), StringComparer.OrdinalIgnoreCase);
+        (double OffsetFt, int FirstPosition) start = RouteStart(route, ac.Position);
+        HashSet<string> activeEnds = ActiveRunwayEnds(layout.AirportId);
+        List<(int Position, HoldShortChoice Row)> rows = [];
+        foreach (
+            (string Target, string Badge, string Name) rowTarget in HoldShortRowTargets(layout, route, routeTaxiways, start.FirstPosition, activeEnds)
+        )
         {
-            return [];
-        }
-
-        List<string> routeTaxiways = ParseRouteTaxiways(ac.TaxiRoute);
-        var routeSet = new HashSet<string>(routeTaxiways, StringComparer.OrdinalIgnoreCase);
-
-        // Per target: the distinct route taxiways it is crossed ON, in route order. A target the
-        // route meets on more than one taxiway gets one LOCATED menu entry per crossing
-        // (`X@A`, `X@B`) — a bare `HS X` can only ever bind the first — while a single crossing
-        // keeps the bare form. Crossings on the SAME taxiway cannot be told apart by the located
-        // syntax either, so they collapse into one entry like before.
-        var runwayCrossings = new Dictionary<string, List<string?>>(StringComparer.OrdinalIgnoreCase);
-        var taxiwayCrossings = new Dictionary<string, List<string?>>(StringComparer.OrdinalIgnoreCase);
-
-        static void Record(Dictionary<string, List<string?>> map, string target, string? location)
-        {
-            if (!map.TryGetValue(target, out List<string?>? locations))
+            if (HoldShortRow(layout, route, start, rowTarget) is { } row)
             {
-                locations = [];
-                map[target] = locations;
-            }
-
-            if (!locations.Contains(location, StringComparer.OrdinalIgnoreCase))
-            {
-                locations.Add(location);
+                rows.Add(row);
             }
         }
 
-        void ScanNode(int nodeId, string? location)
-        {
-            if (!_domainLayout.Nodes.TryGetValue(nodeId, out GroundNode? node))
-            {
-                return;
-            }
-
-            if (node.Type == GroundNodeType.RunwayHoldShort && node.RunwayId is { } rwyId)
-            {
-                Record(runwayCrossings, rwyId.End1, location);
-                if (!string.Equals(rwyId.End1, rwyId.End2, StringComparison.OrdinalIgnoreCase))
-                {
-                    Record(runwayCrossings, rwyId.End2, location);
-                }
-            }
-
-            foreach (IGroundEdge adj in node.Edges)
-            {
-                string name = adj.TaxiwayName;
-                if (routeSet.Contains(name) || adj.IsRunwayCenterline || adj.IsRamp)
-                {
-                    continue;
-                }
-
-                // A junction arc's joined name can lead with the target itself ("X - A") — a
-                // location equal to the target is meaningless, record the crossing as unlocated.
-                Record(taxiwayCrossings, name, string.Equals(location, name, StringComparison.OrdinalIgnoreCase) ? null : location);
-            }
-        }
-
-        ScanNode(route.Segments[0].FromNodeId, ArrivingTaxiway(route.Segments[0]));
-        foreach (TaxiRouteSegment seg in route.Segments)
-        {
-            ScanNode(seg.ToNodeId, ArrivingTaxiway(seg));
-        }
-
-        var results = new List<(string DisplayName, string Target)>();
-        AppendEntries(results, runwayCrossings, target => $"Runway {RunwayIdentifier.ToDisplayDesignator(target)}");
-        AppendEntries(results, taxiwayCrossings, target => $"Taxiway {target}");
-        return results;
+        return
+        [
+            .. rows.OrderBy(r => r.Position)
+                .ThenBy(r => (r.Row.Label.Badge == HoldShortChoice.RunwayBadge) ? 0 : 1)
+                .ThenBy(r => r.Row.Label.Name, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(r => r.Row.Command, StringComparer.OrdinalIgnoreCase)
+                .Select(r => r.Row),
+        ];
     }
 
     /// <summary>
-    /// One menu entry per target: bare when the route meets it on a single taxiway, located
-    /// (<c>target@taxiway</c>, "… at J") once per distinct crossing taxiway otherwise.
+    /// Where the aircraft at <paramref name="position"/> stands relative to the node <paramref name="route"/> starts at:
+    /// the distance to add to the route's own to measure from the aircraft, and the first route position
+    /// (<see cref="RouteNodeId"/>) a bar can be at.
+    /// <list type="bullet">
+    /// <item>A route opening with the free-space leg from the aircraft (<see cref="WithApproachLeg"/>) already carries
+    /// its length, and its virtual start is the aircraft itself: no offset, from position 1.</item>
+    /// <item>An aircraft past the start node along segment 0 (the projection <see cref="TaxiApproachLeg"/> calls past the
+    /// start; a turn about's route runs back over the aircraft) has that stretch behind it, and the server never binds the
+    /// start node: less the stretch, from position 1.</item>
+    /// <item>An aircraft standing on the start node (within <see cref="AirportGroundLayout.AtNodeToleranceFt"/>) is at its
+    /// bar already: the distance to it, from position 1.</item>
+    /// <item>Otherwise the aircraft is short of the start node, which is a bar like any other (an edge ending at a
+    /// holding position gets no free-space leg): the great-circle distance to it, from position 0.</item>
+    /// </list>
     /// </summary>
-    private static void AppendEntries(
-        List<(string DisplayName, string Target)> results,
-        Dictionary<string, List<string?>> crossings,
-        Func<string, string> displayName
+    private static (double OffsetFt, int FirstPosition) RouteStart(TaxiRoute route, LatLon position)
+    {
+        DirectionalEdge first = route.Segments[0].Edge;
+        if (VirtualNode.IsVirtualNode(first.FromNode))
+        {
+            return (0, 1);
+        }
+
+        double pastStartFt =
+            GeoMath.AlongTrackDistanceNm(position, first.FromNode.Position, new TrueHeading(first.DepartureBearing)) * GeoMath.FeetPerNm;
+        if (pastStartFt > 0)
+        {
+            return (-pastStartFt, 1);
+        }
+
+        double toStartFt = GeoMath.DistanceNm(position, first.FromNode.Position) * GeoMath.FeetPerNm;
+        return (toStartFt, (toStartFt <= AirportGroundLayout.AtNodeToleranceFt) ? 1 : 0);
+    }
+
+    /// <summary>
+    /// The node at <paramref name="position"/> along <paramref name="route"/>: 0 is the node it starts at, and
+    /// <c>p</c> the end of segment <c>p − 1</c>.
+    /// </summary>
+    private static int RouteNodeId(TaxiRoute route, int position) =>
+        (position == 0) ? route.Segments[0].FromNodeId : route.Segments[position - 1].ToNodeId;
+
+    /// <summary>
+    /// The route taxiway the node at <paramref name="position"/> lies on: the one the route arrives by, and for the start
+    /// node the one it leaves by. Null when that segment names none.
+    /// </summary>
+    private static string? RouteTaxiwayAt(TaxiRoute route, int position) => ArrivingTaxiway(route.Segments[Math.Max(position - 1, 0)]);
+
+    /// <summary>
+    /// The line heading the Hold short of… rows: <c>route S T V W4 · RWY 30</c>, without the runway part when the
+    /// clearance names none; null when the aircraft has no taxi route.
+    /// </summary>
+    public static string? HoldShortRouteLine(AircraftModel ac)
+    {
+        List<string> taxiways = ParseRouteTaxiways(ac.TaxiRoute);
+        if (taxiways.Count == 0)
+        {
+            return null;
+        }
+
+        string line = $"route {string.Join(' ', taxiways)}";
+        return string.IsNullOrEmpty(ac.AssignedRunway) ? line : $"{line} · RWY {RunwayIdentifier.ToDisplayDesignator(ac.AssignedRunway)}";
+    }
+
+    /// <summary>
+    /// The <c>HS</c> target of every row <paramref name="route"/> offers, with its badge and name: one per runway whose
+    /// bar it passes, then the taxiways it meets off its own (<paramref name="routeTaxiways"/>), bare when met on one
+    /// route taxiway and located once per route taxiway otherwise. The walk starts at <paramref name="firstPosition"/>
+    /// (<see cref="RouteStart"/>); runway rows are named from <paramref name="activeEnds"/>.
+    /// </summary>
+    private List<(string Target, string Badge, string Name)> HoldShortRowTargets(
+        AirportGroundLayout layout,
+        TaxiRoute route,
+        HashSet<string> routeTaxiways,
+        int firstPosition,
+        HashSet<string> activeEnds
     )
     {
-        foreach ((string? target, List<string?>? locations) in crossings.OrderBy(kv => kv.Key, StringComparer.OrdinalIgnoreCase))
+        List<(string Target, string Badge, string Name)> targets = [];
+        var runways = new HashSet<RunwayIdentifier>();
+        var crossings = new Dictionary<string, List<string?>>(StringComparer.OrdinalIgnoreCase);
+        for (int position = firstPosition; position <= route.Segments.Count; position++)
         {
-            var located = locations.OfType<string>().ToList();
-            if (located.Count > 1)
+            if (!layout.Nodes.TryGetValue(RouteNodeId(route, position), out GroundNode? node))
             {
-                foreach (string? location in located)
-                {
-                    results.Add(($"{displayName(target)} at {location}", $"{target}@{location}"));
-                }
+                continue;
             }
-            else
+
+            if ((node.Type == GroundNodeType.RunwayHoldShort) && (node.RunwayId is { } runway) && runways.Add(runway))
             {
-                results.Add((displayName(target), target));
+                (string name, string end) = RunwayRowName(layout, runway, node, activeEnds);
+                targets.Add((end, HoldShortChoice.RunwayBadge, name));
+            }
+
+            string? location = RouteTaxiwayAt(route, position);
+            foreach (string name in CrossingTaxiways(node, routeTaxiways))
+            {
+                // A location equal to the target names no crossing: record it as unlocated.
+                RecordCrossing(crossings, name, string.Equals(location, name, StringComparison.OrdinalIgnoreCase) ? null : location);
             }
         }
+
+        targets.AddRange(crossings.SelectMany(crossing => TaxiwayRowTargets(crossing.Key, crossing.Value)));
+        return targets;
+    }
+
+    /// <summary>
+    /// The <c>HS</c> targets of taxiway <paramref name="name"/>'s rows: one located target per route taxiway it is met
+    /// on when there are several, else the bare name.
+    /// </summary>
+    private static IEnumerable<(string Target, string Badge, string Name)> TaxiwayRowTargets(string name, List<string?> locations)
+    {
+        List<string> located = [.. locations.OfType<string>()];
+        return (located.Count > 1)
+            ? located.Select(location => ($"{name}@{location}", HoldShortChoice.TaxiwayBadge, name))
+            : [(name, HoldShortChoice.TaxiwayBadge, name)];
+    }
+
+    private static void RecordCrossing(Dictionary<string, List<string?>> crossings, string target, string? location)
+    {
+        if (!crossings.TryGetValue(target, out List<string?>? locations))
+        {
+            locations = [];
+            crossings[target] = locations;
+        }
+
+        if (!locations.Contains(location, StringComparer.OrdinalIgnoreCase))
+        {
+            locations.Add(location);
+        }
+    }
+
+    /// <summary>
+    /// The taxiways <paramref name="node"/> meets other than the route's own, as the server's <c>MatchesTaxiway</c> decides:
+    /// the name of each straight edge, and each taxiway a junction arc joins ("X - Y" meets X and Y), since <c>HS X</c>
+    /// binds the first node with an X arc even where X's own edges never touch the route. The joined name is never a
+    /// taxiway, and runway centerlines and ramp are no hold-short target.
+    /// </summary>
+    private static IEnumerable<string> CrossingTaxiways(GroundNode node, HashSet<string> routeTaxiways) =>
+        node
+            .Edges.Where(edge => !edge.IsRunwayCenterline)
+            .SelectMany(edge => (edge is GroundArc arc) ? arc.TaxiwayNames : [edge.TaxiwayName])
+            .Where(name =>
+                (name.Length > 0)
+                && !name.StartsWith("RWY", StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(name, "RAMP", StringComparison.OrdinalIgnoreCase)
+                && !routeTaxiways.Contains(name)
+            )
+            .Distinct(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// The row for <paramref name="rowTarget"/>: the bar <c>HS {target}</c> binds on <paramref name="route"/>
+    /// (<see cref="HoldShortBindIndex"/>, walked from <paramref name="start"/>'s first position), with its position along
+    /// the route, and its distance from the aircraft: the route up to it plus <paramref name="start"/>'s offset. Null when
+    /// the target binds no bar, or binds one at the aircraft's own position.
+    /// </summary>
+    private (int Position, HoldShortChoice Row)? HoldShortRow(
+        AirportGroundLayout layout,
+        TaxiRoute route,
+        (double OffsetFt, int FirstPosition) start,
+        (string Target, string Badge, string Name) rowTarget
+    )
+    {
+        if (!HoldShortTarget.TryParse(rowTarget.Target, out HoldShortTarget holdShort, out string? error))
+        {
+            _log.LogWarning("Hold short of… skips '{Target}': {Error}", rowTarget.Target, error);
+            return null;
+        }
+
+        if (HoldShortBindIndex(layout, route, holdShort, start.FirstPosition) is not { } position)
+        {
+            return null;
+        }
+
+        double distanceFt = TugMovePlanner.NoteDistanceFt(start.OffsetFt + route.PrefixDistanceFt(position));
+        if (distanceFt <= 0)
+        {
+            return null;
+        }
+
+        var label = new HoldShortRowLabel(rowTarget.Badge, rowTarget.Name, WhereOnRoute(route, position), distanceFt);
+        var preview = new TaxiRoute { Segments = route.Segments.GetRange(0, position), HoldShortPoints = [] };
+        return (position, new HoldShortChoice(label, $"HS {rowTarget.Target}", preview));
+    }
+
+    /// <summary>
+    /// Where the bar at <paramref name="route"/>'s node <paramref name="position"/> (<see cref="RouteNodeId"/>) lies: "at
+    /// W4, end of route" at the last node, "before turning onto T" where the route turns onto another taxiway, else
+    /// "crossing on S".
+    /// </summary>
+    private static string WhereOnRoute(TaxiRoute route, int position)
+    {
+        string? location = RouteTaxiwayAt(route, position);
+        if (position == route.Segments.Count)
+        {
+            return (location is null) ? "at the end of the route" : $"at {location}, end of route";
+        }
+
+        string? next = ArrivingTaxiway(route.Segments[position]);
+        if ((location is not null) && (next is not null) && !string.Equals(location, next, StringComparison.OrdinalIgnoreCase))
+        {
+            return $"before turning onto {next}";
+        }
+
+        return (location is null) ? "on the route" : $"crossing on {location}";
+    }
+
+    /// <summary>
+    /// A runway row's name and the end its <c>HS</c> names, from the room's active runway ends at the airport
+    /// (<paramref name="active"/>, <see cref="ActiveRunwayEnds"/>): the active end when exactly one is; otherwise the end
+    /// on the side of a full-length crossing (<see cref="FullLengthEnd"/>); otherwise both ends ("Runway 12/30"), sending
+    /// the lower-numbered end, which binds the same bar as the other.
+    /// </summary>
+    private (string Name, string End) RunwayRowName(AirportGroundLayout layout, RunwayIdentifier runway, GroundNode bar, HashSet<string> active)
+    {
+        bool end1Active = active.Contains(runway.End1);
+        bool end2Active = active.Contains(runway.End2);
+        string? end = (end1Active != end2Active) ? (end1Active ? runway.End1 : runway.End2) : FullLengthEnd(layout, runway, bar);
+        if (end is not null)
+        {
+            string shown = RunwayIdentifier.ToDisplayDesignator(end);
+            return ($"Runway {shown}", shown);
+        }
+
+        (string low, string high) =
+            (RunwayNumber(runway.End1) <= RunwayNumber(runway.End2)) ? (runway.End1, runway.End2) : (runway.End2, runway.End1);
+        string lowShown = RunwayIdentifier.ToDisplayDesignator(low);
+        return ($"Runway {lowShown}/{RunwayIdentifier.ToDisplayDesignator(high)}", lowShown);
+    }
+
+    /// <summary>
+    /// The ends the room's active runway list names at <paramref name="airportId"/>, read by
+    /// <see cref="ActiveRunwayListParser.FromTokenLists"/> and looked up by <c>ActiveRunways.For</c>,
+    /// which normalise the airport id: the server's layout id is lower-case (<c>oak</c>) where the room keys its list by the
+    /// FAA id (<c>OAK</c>). A list that does not read is logged and names no end.
+    /// </summary>
+    private HashSet<string> ActiveRunwayEnds(string airportId)
+    {
+        var byAirport = RoomActiveRunways().ToDictionary(entry => entry.Key, entry => (List<string>?)[.. entry.Value], StringComparer.Ordinal);
+        var warnings = new List<string>();
+        ActiveRunways runways = ActiveRunwayListParser.FromTokenLists(byAirport, "Hold short of… active runways", warnings);
+        foreach (string warning in warnings)
+        {
+            _log.LogWarning("{Warning}", warning);
+        }
+
+        return new HashSet<string>(runways.For(airportId).Select(runway => runway.Designator), StringComparer.OrdinalIgnoreCase);
+    }
+
+    /// <summary>The runway number of an end (<c>09L</c> → 9); <see cref="int.MaxValue"/> for an end that starts with none.</summary>
+    private static int RunwayNumber(string end)
+    {
+        List<char> digits = [.. end.TakeWhile(char.IsAsciiDigit)];
+        return (digits.Count > 0) ? digits.Aggregate(0, (number, digit) => (number * 10) + (digit - '0')) : int.MaxValue;
+    }
+
+    /// <summary>
+    /// The end whose side <paramref name="bar"/> sits at when it is a full-length crossing of <paramref name="runway"/>:
+    /// projected onto the centerline, within <see cref="FullLengthWindowFt"/> of the runway's outermost hold short at that
+    /// end. Null for a crossing between the two, or when the layout carries no geometry for the runway.
+    /// </summary>
+    private string? FullLengthEnd(AirportGroundLayout layout, RunwayIdentifier runway, GroundNode bar)
+    {
+        if (RunwayEndGeometry(runway, runway.End1) is not { } end1)
+        {
+            return null;
+        }
+
+        double AlongFt(GroundNode node) =>
+            GeoMath.AlongTrackDistanceNm(node.Position.Lat, node.Position.Lon, end1.Threshold.Lat, end1.Threshold.Lon, end1.Heading)
+            * GeoMath.FeetPerNm;
+
+        List<double> along =
+        [
+            .. layout.Nodes.Values.Where(n => (n.Type == GroundNodeType.RunwayHoldShort) && (n.RunwayId is { } id) && (id == runway)).Select(AlongFt),
+        ];
+        double barFt = AlongFt(bar);
+        if (barFt <= along.Min() + FullLengthWindowFt)
+        {
+            return runway.End1;
+        }
+
+        return (barFt >= along.Max() - FullLengthWindowFt) ? runway.End2 : null;
     }
 
     /// <summary>
@@ -1448,34 +1673,51 @@ public partial class GroundViewModel : ObservableObject
 
     /// <summary>
     /// <paramref name="runwayEnd"/>'s threshold on <paramref name="runway"/> and the true heading from it toward the other
-    /// end, from the layout's runway coordinates; null when the runway or the end is not in the layout.
+    /// end, from the runway's coordinates (<see cref="RunwayCenterline"/>); null when the runway or the end is not in the
+    /// layout.
     /// </summary>
     private (LatLon Threshold, TrueHeading Heading)? RunwayEndGeometry(RunwayIdentifier runway, string runwayEnd)
     {
+        if (RunwayCenterline(runway) is not { } line)
+        {
+            return null;
+        }
+
+        string end = RunwayIdentifier.NormalizeDesignator(runwayEnd);
+        if (string.Equals(line.Ids.End1, end, StringComparison.OrdinalIgnoreCase))
+        {
+            return (line.First, new TrueHeading(GeoMath.BearingTo(line.First, line.Last)));
+        }
+
+        if (string.Equals(line.Ids.End2, end, StringComparison.OrdinalIgnoreCase))
+        {
+            return (line.Last, new TrueHeading(GeoMath.BearingTo(line.Last, line.First)));
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// <paramref name="runway"/>'s ends in its own order and the pavement ends its coordinates run between: from the domain
+    /// layout's runways when it carries them (a layout parsed from GeoJSON), else from the server's layout DTO. Null when
+    /// neither has the runway's coordinates.
+    /// </summary>
+    private (RunwayIdentifier Ids, LatLon First, LatLon Last)? RunwayCenterline(RunwayIdentifier runway)
+    {
+        if (_domainLayout?.Runways.FirstOrDefault(r => (r.Coordinates.Count >= 2) && (r.Id == runway)) is { } domain)
+        {
+            ((double lat1, double lon1), (double lat2, double lon2)) = (domain.Coordinates[0], domain.Coordinates[^1]);
+            return (domain.Id, new LatLon(lat1, lon1), new LatLon(lat2, lon2));
+        }
+
         GroundRunwayDto? dto = Layout?.Runways?.FirstOrDefault(r => (r.Coordinates.Count >= 2) && (RunwayIdentifier.Parse(r.Name) == runway));
         if (dto is null)
         {
             return null;
         }
 
-        var ids = RunwayIdentifier.Parse(dto.Name);
-        string end = RunwayIdentifier.NormalizeDesignator(runwayEnd);
-        double[] threshold;
-        double[] far;
-        if (string.Equals(ids.End1, end, StringComparison.OrdinalIgnoreCase))
-        {
-            (threshold, far) = (dto.Coordinates[0], dto.Coordinates[^1]);
-        }
-        else if (string.Equals(ids.End2, end, StringComparison.OrdinalIgnoreCase))
-        {
-            (threshold, far) = (dto.Coordinates[^1], dto.Coordinates[0]);
-        }
-        else
-        {
-            return null;
-        }
-
-        return (new LatLon(threshold[0], threshold[1]), new TrueHeading(GeoMath.BearingTo(threshold[0], threshold[1], far[0], far[1])));
+        (double[] first, double[] last) = (dto.Coordinates[0], dto.Coordinates[^1]);
+        return (RunwayIdentifier.Parse(dto.Name), new LatLon(first[0], first[1]), new LatLon(last[0], last[1]));
     }
 
     /// <summary>
@@ -1573,59 +1815,32 @@ public partial class GroundViewModel : ObservableObject
         return bestNodeId;
     }
 
-    public TaxiRoute? FindHoldShortPreviewRoute(AircraftModel ac, string target)
+    /// <summary>
+    /// The position along <paramref name="route"/> (<see cref="RouteNodeId"/>) of the node <paramref name="holdShort"/>
+    /// binds: the first that is a bar of the target runway or meets the target taxiway, a located target (C@J) only on a
+    /// node of its location taxiway — the node walk the server falls back on when the route holds no point for the target
+    /// yet, so the row shows the crossing the command will arm. The walk starts at <paramref name="firstPosition"/>
+    /// (<see cref="RouteStart"/>): the node the route starts at counts only while the aircraft is short of it. Null when
+    /// it binds none.
+    /// </summary>
+    private static int? HoldShortBindIndex(AirportGroundLayout layout, TaxiRoute route, HoldShortTarget holdShort, int firstPosition)
     {
-        if (_domainLayout is null)
+        for (int position = firstPosition; position <= route.Segments.Count; position++)
         {
-            return null;
-        }
-
-        TaxiRoute? route = ResolveRemainingRoute(ac);
-        if (route is null)
-        {
-            return null;
-        }
-
-        if (!HoldShortTarget.TryParse(target, out HoldShortTarget holdShort, out _))
-        {
-            return null;
-        }
-
-        for (int i = 0; i < route.Segments.Count; i++)
-        {
-            TaxiRouteSegment seg = route.Segments[i];
-            int nodeId = seg.ToNodeId;
-
-            if (!_domainLayout.Nodes.TryGetValue(nodeId, out GroundNode? node))
+            if (!layout.Nodes.TryGetValue(RouteNodeId(route, position), out GroundNode? node))
             {
                 continue;
             }
 
-            // A located target (C@J) only binds a node on its location taxiway — the same
-            // node-incidence rule the server's annotators use, so the hover preview stops at the
-            // crossing the command will actually arm.
-            if (holdShort.OnTaxiway is { } onTaxiway && !node.Edges.Any(e => e.MatchesTaxiway(onTaxiway)))
+            if ((holdShort.OnTaxiway is { } onTaxiway) && !node.Edges.Any(e => e.MatchesTaxiway(onTaxiway)))
             {
                 continue;
             }
 
-            bool matches = node.Type == GroundNodeType.RunwayHoldShort && node.RunwayId is { } hsRwyId && hsRwyId.Contains(holdShort.Target);
-
-            if (!matches)
+            bool isTargetBar = (node.Type == GroundNodeType.RunwayHoldShort) && (node.RunwayId is { } runway) && runway.Contains(holdShort.Target);
+            if (isTargetBar || node.Edges.Any(e => e.MatchesTaxiway(holdShort.Target)))
             {
-                foreach (IGroundEdge edge in node.Edges)
-                {
-                    if (edge.MatchesTaxiway(holdShort.Target))
-                    {
-                        matches = true;
-                        break;
-                    }
-                }
-            }
-
-            if (matches)
-            {
-                return new TaxiRoute { Segments = route.Segments.GetRange(0, i + 1), HoldShortPoints = [] };
+                return position;
             }
         }
 

@@ -17,6 +17,7 @@ public class ViewInstanceViewModelTests
     private static GroundViewModel GroundVm(bool isPrimary) =>
         new(new ServerConnection(), sendCommand: (_, _, _) => Task.CompletedTask)
         {
+            RoomActiveRunways = () => new Dictionary<string, IReadOnlyList<string>>(),
             SettingsKeySuffix = isPrimary ? "" : "#2",
             IsPrimary = isPrimary,
         };
@@ -76,6 +77,7 @@ public class ViewInstanceViewModelTests
             preferences: prefs
         )
         {
+            RoomActiveRunways = () => new Dictionary<string, IReadOnlyList<string>>(),
             SettingsKeySuffix = "#2",
             IsPrimary = false,
         };
@@ -126,6 +128,7 @@ public class ViewInstanceViewModelTests
             preferences: prefs
         )
         {
+            RoomActiveRunways = () => new Dictionary<string, IReadOnlyList<string>>(),
             SettingsKeySuffix = "#2",
             IsPrimary = false,
         };

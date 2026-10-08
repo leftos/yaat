@@ -5,6 +5,8 @@ using Avalonia.Controls;
 using Avalonia.Controls.Templates;
 using Avalonia.Input;
 using Avalonia.Layout;
+using Avalonia.Media;
+using Avalonia.Media.Immutable;
 using Yaat.Sim;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
@@ -703,12 +705,145 @@ public static class MenuCatalog
     }
 
     /// <summary>
-    /// The Hold short of… submenu: one item per target the host finds on the taxi route, sending the host's finished
-    /// <c>HS</c> command, and previewing the route to the target when the pointer enters it. Null when the route offers
-    /// no target.
+    /// The Hold short of… submenu: the host's route line (<c>route S T V W4 · RWY 30</c>) as a disabled row over a
+    /// separator, then one row per bar along the route, nearest first, sending its finished <c>HS</c> command and
+    /// previewing the route to the bar when the pointer enters it. Null when the route offers no bar.
     /// </summary>
-    private static MenuItem? BuildHoldShort(string label, IMenuAircraft? aircraft, MenuContext context, IMenuHost host) =>
-        BuildChoiceSubmenu(label, host.GetHoldShortChoices(context.Callsign), context, host);
+    private static MenuItem? BuildHoldShort(string label, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
+    {
+        HoldShortMenu holdShort = host.GetHoldShortChoices(context.Callsign);
+        if (holdShort.Rows.Count == 0)
+        {
+            return null;
+        }
+
+        var menu = new MenuItem { Header = label };
+        if (holdShort.RouteLine is { } routeLine)
+        {
+            var line = new MenuItem
+            {
+                Header = routeLine,
+                HeaderTemplate = new FuncDataTemplate<string>((text, _) => HoldShortRouteLineView(text)),
+                IsEnabled = false,
+            };
+            menu.Items.Add(line);
+            menu.Items.Add(new Separator());
+        }
+
+        foreach (HoldShortChoice row in holdShort.Rows)
+        {
+            menu.Items.Add(BuildHoldShortRow(row, context, host));
+        }
+
+        return menu;
+    }
+
+    private static readonly IImmutableSolidColorBrush TaxiwayBadgeBrush = new ImmutableSolidColorBrush(Color.Parse("#4FB8A8"));
+
+    private static readonly IImmutableSolidColorBrush RunwayBadgeBrush = new ImmutableSolidColorBrush(Color.Parse("#E8A33D"));
+
+    /// <summary>What a hold-short row shows: its badge, name, where along the route, distance, and the command it sends.</summary>
+    private sealed record HoldShortRowHeader(string Badge, string Name, string Where, string Distance, string Command)
+    {
+        /// <summary>The row as one line of text: <c>TW S1 · crossing on S · ~150 ft — HS S1</c>.</summary>
+        public override string ToString() => $"{Badge} {Name} · {Where} · {Distance} — {Command}";
+    }
+
+    /// <summary>One hold-short row: sends its command, and previews the route to its bar on hover.</summary>
+    private static MenuItem BuildHoldShortRow(HoldShortChoice row, MenuContext context, IMenuHost host)
+    {
+        HoldShortRowLabel label = row.Label;
+        string distance = $"~{label.DistanceFt.ToString("N0", CultureInfo.InvariantCulture)} ft";
+        var header = new HoldShortRowHeader(label.Badge, label.Name, label.Where, distance, row.Command);
+        MenuItem item = BuildSend(header.ToString(), row.Command, context, host);
+        item.Header = header;
+        item.HeaderTemplate = new FuncDataTemplate<HoldShortRowHeader>((rowHeader, _) => HoldShortRowView(rowHeader));
+        AutomationProperties.SetName(item, header.ToString());
+        item.PointerEntered += (_, _) => host.SetRoutePreview(row.Preview);
+        return item;
+    }
+
+    /// <summary>The route line's view: dimmed, in the monospace font.</summary>
+    private static TextBlock HoldShortRouteLineView(string routeLine)
+    {
+        var text = new TextBlock
+        {
+            Text = routeLine,
+            FontSize = 12,
+            Opacity = 0.7,
+        };
+        text.Bind(TextBlock.FontFamilyProperty, text.GetResourceObservable(QuickCommandStrip.MonoFontKey));
+        return text;
+    }
+
+    /// <summary>
+    /// A hold-short row's view: the TW/RW badge, the name followed by the dimmed "where", then the distance, then the
+    /// command right-aligned in the dimmed monospace font.
+    /// </summary>
+    private static Grid HoldShortRowView(HoldShortRowHeader row)
+    {
+        var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto,Auto") };
+        IImmutableSolidColorBrush badgeBrush = (row.Badge == HoldShortChoice.RunwayBadge) ? RunwayBadgeBrush : TaxiwayBadgeBrush;
+        var badge = new Border
+        {
+            BorderBrush = badgeBrush,
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(3),
+            Padding = new Thickness(3, 0),
+            Margin = new Thickness(0, 0, 8, 0),
+            VerticalAlignment = VerticalAlignment.Center,
+            Child = new TextBlock
+            {
+                Text = row.Badge,
+                FontSize = 11,
+                Foreground = badgeBrush,
+            },
+        };
+        grid.Children.Add(badge);
+
+        var name = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            VerticalAlignment = VerticalAlignment.Center,
+            Children =
+            {
+                new TextBlock { Text = row.Name, FontWeight = FontWeight.SemiBold },
+                new TextBlock
+                {
+                    Text = $" · {row.Where}",
+                    FontSize = 12,
+                    Opacity = 0.8,
+                    VerticalAlignment = VerticalAlignment.Center,
+                },
+            },
+        };
+        Grid.SetColumn(name, 1);
+        grid.Children.Add(name);
+
+        var distance = new TextBlock
+        {
+            Text = row.Distance,
+            Margin = new Thickness(16, 0, 0, 0),
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        Grid.SetColumn(distance, 2);
+        grid.Children.Add(distance);
+
+        var command = new TextBlock
+        {
+            Text = row.Command,
+            FontSize = 12,
+            Opacity = 0.7,
+            Margin = new Thickness(16, 0, 0, 0),
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        command.Bind(TextBlock.FontFamilyProperty, command.GetResourceObservable(QuickCommandStrip.MonoFontKey));
+        Grid.SetColumn(command, 3);
+        grid.Children.Add(command);
+        return grid;
+    }
 
     /// <summary>
     /// The pushback-face entry's companion, which the ground group places right after Push back: one flat item per

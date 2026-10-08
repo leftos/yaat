@@ -71,6 +71,7 @@ public partial class MainViewModel
         {
             IsPrimary = isPrimary,
             SettingsKeySuffix = settingsKeySuffix,
+            RoomActiveRunways = () => RoomActiveRunways,
         };
         vm.ShownAirportChanged += () =>
         {

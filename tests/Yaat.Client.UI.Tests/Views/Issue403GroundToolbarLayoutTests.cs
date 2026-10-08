@@ -94,7 +94,11 @@ public class Issue403GroundToolbarLayoutTests
 
     private static (Window Window, GroundView View) ShowGroundView(double width)
     {
-        var vm = new GroundViewModel(new ServerConnection(), sendCommand: (_, _, _) => Task.CompletedTask) { Layout = MinimalLayout() };
+        var vm = new GroundViewModel(new ServerConnection(), sendCommand: (_, _, _) => Task.CompletedTask)
+        {
+            RoomActiveRunways = () => new Dictionary<string, IReadOnlyList<string>>(),
+            Layout = MinimalLayout(),
+        };
         var view = new GroundView { DataContext = vm };
         var window = new Window
         {

@@ -111,7 +111,10 @@ public class GroundViewModelTaxiRouteDirectionTests
         TaxiRoute server = ServerRoute(layout);
         Assert.Equal("S", server.FormatTaxiwaySequence());
 
-        var vm = new GroundViewModel(new ServerConnection(), sendCommand: (_, _, _) => Task.CompletedTask);
+        var vm = new GroundViewModel(new ServerConnection(), sendCommand: (_, _, _) => Task.CompletedTask)
+        {
+            RoomActiveRunways = () => new Dictionary<string, IReadOnlyList<string>>(),
+        };
         vm.SetDomainLayoutForTesting(layout);
         var ac = new AircraftModel
         {

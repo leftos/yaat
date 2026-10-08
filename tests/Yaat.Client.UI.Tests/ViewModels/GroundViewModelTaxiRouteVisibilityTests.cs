@@ -64,7 +64,10 @@ public class GroundViewModelTaxiRouteVisibilityTests
     private static GroundViewModel BuildVm(params AircraftModel[] aircraft)
     {
         List<AircraftModel> list = [.. aircraft];
-        var vm = new GroundViewModel(new ServerConnection(), sendCommand: (_, _, _) => Task.CompletedTask);
+        var vm = new GroundViewModel(new ServerConnection(), sendCommand: (_, _, _) => Task.CompletedTask)
+        {
+            RoomActiveRunways = () => new Dictionary<string, IReadOnlyList<string>>(),
+        };
         vm.SetAircraftLookup(cs => list.FirstOrDefault(a => a.Callsign == cs));
         vm.SetAircraftProvider(() => list);
         return vm;
@@ -160,7 +163,10 @@ public class GroundViewModelTaxiRouteVisibilityTests
             HasActiveTaxiRoute = true,
         };
 
-        var vm = new GroundViewModel(new ServerConnection(), sendCommand: (_, _, _) => Task.CompletedTask);
+        var vm = new GroundViewModel(new ServerConnection(), sendCommand: (_, _, _) => Task.CompletedTask)
+        {
+            RoomActiveRunways = () => new Dictionary<string, IReadOnlyList<string>>(),
+        };
         vm.SetLayoutForTesting(dto);
         vm.SetAircraftLookup(cs => cs == "A" ? ac : null);
         vm.SetAircraftProvider(() => [ac]);

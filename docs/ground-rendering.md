@@ -83,7 +83,7 @@ All five overlays flow VM → `GroundCanvas` `StyledProperty` → `RenderSnapsho
 
 | Overlay | Canvas property | Fed by | Paint |
 |---------|-----------------|--------|-------|
-| Command-build preview | `PreviewRoute` | context-menu `PointerEntered` while building a TAXI command, and a hold-short item's hover through `ClientMenuHost.SetRoutePreview` | dashed blue |
+| Command-build preview | `PreviewRoute` | context-menu `PointerEntered` while building a TAXI command, and a Hold short of… row's hover (the route up to its bar) through `ClientMenuHost.SetRoutePreview` | dashed blue |
 | Shown taxi routes | `ShownTaxiRoutes` (`IReadOnlyList<ShownTaxiRouteEntry>`) | the taxi-route display feature (below) | 8 rotating colors |
 | **Hover route** | `HoverTaxiRoute` | mouse-hover over an aircraft (below) | solid white, stroke 5 |
 | Draw-mode route | `DrawnRoutePreview` + `DrawWaypoints` | interactive "Draw taxi route…" mode | — |
@@ -299,7 +299,21 @@ The Display items are the view's own: `GroundView.BuildCanvasItems` builds Taxi 
 
 A surface live-traffic shadow gets the read-only menu every view shares (Track, Data Block, the same view section, Favorite Commands, All Commands holding only Coordination), its Display holding only Taxi route, Hide datablock, Reset datablock position and Measure, then Delete.
 
-Follow, Give way and Hold short come from the catalog: the host answers the ground traffic as `MenuGroundTrafficRow`s (every other ground aircraft but delayed spawns, nearest first; Give way to… drops live-traffic surface shadows) and the finished `HS` choices with their preview routes (`MenuCommandChoice`), and Core formats `FOLLOWG`/`GW`. Each traffic list shows a bold disabled Moving section, then Parked or holding, four rows each before a More flyout over the rest. Hovering a row calls `ClientMenuHost.HighlightAircraft`, which calls `DataBlockViewState.SetMenuHighlight` on every ground view (a hand-set highlight stays); `GroundCanvas` repaints on `HighlightsChanged` while attached to the visual tree (seam `WatchedDataBlockState`). Hovering a hold-short item calls `ClientMenuHost.SetRoutePreview`, which fans out over `main.AllGroundViews` and which nothing clears on pointer exit (`CanHoldShort` is `phase == "Taxiing"` exactly).
+Follow, Give way and Hold short come from the catalog: the host answers the ground traffic as `MenuGroundTrafficRow`s (every other ground aircraft but delayed spawns, nearest first; Give way to… drops live-traffic surface shadows) and the Hold short of… rows (`HoldShortMenu`: the route line and one `HoldShortChoice` per bar), and Core formats `FOLLOWG`/`GW`.
+
+Each traffic list shows a bold disabled Moving section, then Parked or holding, four rows each before a More flyout over the rest. Hovering a traffic row calls `ClientMenuHost.HighlightAircraft`, which calls `DataBlockViewState.SetMenuHighlight` on every ground view (a hand-set highlight stays); `GroundCanvas` repaints on `HighlightsChanged` while attached to the visual tree (seam `WatchedDataBlockState`).
+
+`GroundViewModel.GetHoldShortTargets` walks the reconstructed remaining route: a runway bar gives one row per runway (its first bar), a taxiway off the route gives a crossing wherever a route node has one of its edges, a junction arc's included ("X - Y" meets X and Y, as the server's `MatchesTaxiway` decides; the joined name is never a row), and a taxiway met on more than one route taxiway gives one located row (`X@A`) per route taxiway.
+
+Each row's bar is the node its `HS` binds by the node walk the server falls back on when the route holds no hold-short point for the target yet (`HoldShortBindIndex`); the client does not mirror the server's first step, which re-arms an existing `HoldShortPoint`, nor its walk starting at `CurrentSegmentIndex`. Its distance from the aircraft (`TaxiRoute.PrefixDistanceFt` corrected by `GroundViewModel.RouteStart`'s offset, rounded by `TugMovePlanner.NoteDistanceFt`), its "where" and its preview route are those of that bar; a bar at 0 ft is dropped.
+
+The node the route starts at is a bar like any other: an aircraft partway along an edge that ends at a holding position starts its route at that bar with no free-space leg, so the bar gets its own row, measured from the aircraft, with a preview of no segments.
+
+An aircraft already past the start node along the first segment (a turn about's route runs back over it) gets no row for that node, which the server never binds, and every distance drops the stretch of the first segment behind it; an aircraft standing on the start node (within `AtNodeToleranceFt`) gets no row there either.
+
+A runway row is named from the room's active runways (`GroundViewModel.RoomActiveRunways`, which `MainViewModel` sets to `RoomActiveRunways`): the one active end; else, for a bar within 300 ft of the runway's outermost hold short at an end (projected on the centerline, from the runway's coordinates), that end; else both ends, sending the lower-numbered one, since either binds the same bar (`HoldShortRunwayBothEndsTests`).
+
+Hovering a hold-short row calls `ClientMenuHost.SetRoutePreview`, which fans out over `main.AllGroundViews` and which nothing clears on pointer exit (`CanHoldShort` is `phase == "Taxiing"` exactly).
 
 The pushback block and the route presets come from the catalog as well, from host answers (`GetPushbackFaceChoices`, `GetPushbackToChoices`, `GetPresetTaxiChoices` as finished commands, `EnterPushRoute`, `EnterDrawRoute`) that `ClientMenuHost` takes from the primary `GroundViewModel`.
 

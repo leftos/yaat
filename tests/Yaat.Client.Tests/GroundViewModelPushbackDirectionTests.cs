@@ -88,7 +88,11 @@ public class GroundViewModelPushbackDirectionTests
         return match.Cardinal;
     }
 
-    private static GroundViewModel MakeViewModel() => new(new ServerConnection(), sendCommand: (_, _, _) => Task.CompletedTask);
+    private static GroundViewModel MakeViewModel() =>
+        new(new ServerConnection(), sendCommand: (_, _, _) => Task.CompletedTask)
+        {
+            RoomActiveRunways = () => new Dictionary<string, IReadOnlyList<string>>(),
+        };
 
     private static AircraftModel MakeAircraft() => new() { Callsign = "TST123", Position = Center };
 

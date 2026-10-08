@@ -215,8 +215,11 @@ internal sealed class RecordingMenuHost(string input) : IMenuHost
     public static MenuGroundTrafficRow ParkedRow(string callsign) =>
         new(callsign, "B738", 600, "at parking · gate 1") { IsMoving = false, IsSurfaceShadow = false };
 
-    /// <summary>The hold-short choices the Hold short of… submenu lists, whatever the callsign asked about.</summary>
-    public List<MenuCommandChoice> HoldShortChoices { get; } = [];
+    /// <summary>The hold-short rows the Hold short of… submenu lists, whatever the callsign asked about.</summary>
+    public List<HoldShortChoice> HoldShortChoices { get; } = [];
+
+    /// <summary>The line heading the Hold short of… rows; null for none.</summary>
+    public string? HoldShortRouteLine { get; set; }
 
     public List<TaxiRoute?> RoutePreviews { get; } = [];
 
@@ -227,7 +230,7 @@ internal sealed class RecordingMenuHost(string input) : IMenuHost
 
     public IReadOnlyList<MenuTrafficRow> GetNearbyTraffic(string callsign) => NearbyTraffic;
 
-    public IReadOnlyList<MenuCommandChoice> GetHoldShortChoices(string callsign) => HoldShortChoices;
+    public HoldShortMenu GetHoldShortChoices(string callsign) => new(HoldShortRouteLine, HoldShortChoices);
 
     public void SetRoutePreview(TaxiRoute? route) => RoutePreviews.Add(route);
 

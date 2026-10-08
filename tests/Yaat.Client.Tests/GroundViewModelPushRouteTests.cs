@@ -748,7 +748,10 @@ public class GroundViewModelPushRouteTests
     private static GroundViewModel MakeViewModel()
     {
         var connection = new ServerConnection();
-        return new GroundViewModel(connection, sendCommand: (_, _, _) => Task.CompletedTask);
+        return new GroundViewModel(connection, sendCommand: (_, _, _) => Task.CompletedTask)
+        {
+            RoomActiveRunways = () => new Dictionary<string, IReadOnlyList<string>>(),
+        };
     }
 
     // What the sim would plan for the same aircraft and the same clicked nodes, through the very tokens the

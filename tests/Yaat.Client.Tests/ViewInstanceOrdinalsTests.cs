@@ -55,5 +55,9 @@ public class ViewInstanceOrdinalsTests
 
     private static RadarViewModel TestRadarVm() => new(new ServerConnection(), new VideoMapService(), (_, _, _) => Task.CompletedTask);
 
-    private static GroundViewModel TestGroundVm() => new(new ServerConnection(), sendCommand: (_, _, _) => Task.CompletedTask);
+    private static GroundViewModel TestGroundVm() =>
+        new(new ServerConnection(), sendCommand: (_, _, _) => Task.CompletedTask)
+        {
+            RoomActiveRunways = () => new Dictionary<string, IReadOnlyList<string>>(),
+        };
 }

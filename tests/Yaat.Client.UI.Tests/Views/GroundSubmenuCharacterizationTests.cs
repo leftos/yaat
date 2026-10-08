@@ -1,3 +1,4 @@
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
@@ -286,16 +287,20 @@ public class GroundSubmenuCharacterizationTests
         Assert.DoesNotContain("Give way to…", headers);
     }
 
+    // W3's bar is mid-way along 12/30 and the room names no active runway, so the one runway row names both ends and
+    // sends the lower-numbered one, which binds the same bar.
     [AvaloniaFact]
-    public void GroundMenu_Taxiing_HoldShortListsRouteTargetsAndSendsHS()
+    public void GroundMenu_Taxiing_HoldShortListsTheRouteLineAndOneRowPerBar_AndSendsHS()
     {
         Built built = BuildMenu(TaxiingOnW3(), prevSelected: null);
 
-        Assert.Equal(["Runway 12", "Runway 30"], Children(built.Menu, "Hold short of…"));
+        Assert.Equal(["route W3 · RWY 30"], Children(built.Menu, "Hold short of…"));
+        MenuItem runway = Assert.Single(HoldShortRows(built.Menu));
+        Assert.Matches(@"^RW Runway 12/30 · at W3, end of route · ~\d[\d,]* ft — HS 12$", AutomationProperties.GetName(runway));
 
-        Click(Child(built.Menu, "Hold short of…", "Runway 30"));
+        Click(runway);
 
-        Assert.Equal([(TaxiingCallsign, "HS 30", Initials)], built.Sent);
+        Assert.Equal([(TaxiingCallsign, "HS 12", Initials)], built.Sent);
     }
 
     [AvaloniaFact]
@@ -304,16 +309,14 @@ public class GroundSubmenuCharacterizationTests
         AircraftModel target = TaxiingOnW3();
         Built built = BuildMenu(target, prevSelected: null);
 
-        MenuItem item = Child(built.Menu, "Hold short of…", "Runway 30");
+        MenuItem item = Assert.Single(HoldShortRows(built.Menu));
         Assert.Null(built.Vm.PreviewRoute);
 
         RaisePointer(item, InputElement.PointerEnteredEvent);
 
         TaxiRoute? preview = built.Vm.PreviewRoute;
-        TaxiRoute? expected = built.Vm.FindHoldShortPreviewRoute(target, "30");
-        Assert.NotNull(expected);
         Assert.NotNull(preview);
-        Assert.Equal(expected.Segments.Select(s => (s.FromNodeId, s.ToNodeId)), preview.Segments.Select(s => (s.FromNodeId, s.ToNodeId)));
+        Assert.Equal(HoldShort30AtW3.Id, preview.Segments[^1].ToNodeId);
 
         RaisePointer(item, InputElement.PointerExitedEvent);
 
@@ -494,6 +497,10 @@ public class GroundSubmenuCharacterizationTests
     private static ItemCollection CommandTree(ContextMenu menu) => Item(menu.Items, AircraftMenuBuilder.AllCommandsHeader).Items;
 
     private static List<string> Children(ContextMenu menu, string submenuHeader) => Headers(Item(CommandTree(menu), submenuHeader).Items);
+
+    /// <summary>The Hold short of… submenu's rows: every item but the route line.</summary>
+    private static List<MenuItem> HoldShortRows(ContextMenu menu) =>
+        [.. Item(CommandTree(menu), "Hold short of…").Items.OfType<MenuItem>().Where(m => m.Header is not string)];
 
     private static MenuItem Child(ContextMenu menu, string submenuHeader, string childHeader) =>
         Item(Item(CommandTree(menu), submenuHeader).Items, childHeader);

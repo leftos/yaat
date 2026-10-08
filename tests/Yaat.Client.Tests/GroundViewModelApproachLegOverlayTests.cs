@@ -24,7 +24,10 @@ public class GroundViewModelApproachLegOverlayTests
     private static GroundViewModel MakeViewModel()
     {
         var connection = new ServerConnection();
-        return new GroundViewModel(connection, sendCommand: (_, _, _) => Task.CompletedTask);
+        return new GroundViewModel(connection, sendCommand: (_, _, _) => Task.CompletedTask)
+        {
+            RoomActiveRunways = () => new Dictionary<string, IReadOnlyList<string>>(),
+        };
     }
 
     private static AirportGroundLayout? LoadOakLayout()

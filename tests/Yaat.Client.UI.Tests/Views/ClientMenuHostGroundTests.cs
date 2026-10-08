@@ -155,7 +155,7 @@ public class ClientMenuHostGroundTests
         var host = new ClientMenuHost(main, null, new Border());
 
         Assert.Empty(host.GetGroundTrafficRows(Callsign));
-        Assert.Empty(host.GetHoldShortChoices(Callsign));
+        Assert.Equal(HoldShortMenu.Empty, host.GetHoldShortChoices(Callsign));
         Assert.Empty(host.GetPushbackFaceChoices(Callsign));
         Assert.Empty(host.GetPushbackToChoices(Callsign));
         Assert.Empty(host.GetPresetTaxiChoices(Callsign));
@@ -172,17 +172,28 @@ public class ClientMenuHostGroundTests
         MainViewModel main = OakMain(target, []);
         var host = new ClientMenuHost(main, target, new Border());
 
-        IReadOnlyList<MenuCommandChoice> choices = host.GetHoldShortChoices(Callsign);
+        HoldShortMenu holdShort = host.GetHoldShortChoices(Callsign);
 
-        Assert.Equal([("Runway 12", "HS 12"), ("Runway 30", "HS 30")], choices.Select(c => (c.Label, c.Command)));
-        string[] runways = ["12", "30"];
-        foreach ((MenuCommandChoice choice, string runway) in choices.Zip(runways))
-        {
-            TaxiRoute? expected = main.Ground.FindHoldShortPreviewRoute(target, runway);
-            Assert.NotNull(expected);
-            Assert.NotNull(choice.Preview);
-            Assert.Equal(SegmentsOf(expected), SegmentsOf(choice.Preview));
-        }
+        // W3's bar is mid-way along 12/30 and the room names no active runway: one row naming both ends, sending the
+        // lower-numbered one, which binds the same bar.
+        Assert.Equal("route W3 · RWY 30", holdShort.RouteLine);
+        HoldShortChoice runway = Assert.Single(holdShort.Rows);
+        Assert.Equal((HoldShortChoice.RunwayBadge, "Runway 12/30", "HS 12"), (runway.Label.Badge, runway.Label.Name, runway.Command));
+        Assert.Equal(Runway30HoldShortNode.Id, runway.Preview.Segments[^1].ToNodeId);
+    }
+
+    [AvaloniaFact]
+    public void GetHoldShortChoices_ActiveEnd_NamesTheRunwayRow()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        AircraftModel target = TaxiingOnW3();
+        MainViewModel main = OakMain(target, []);
+        main.ApplyActiveRunways(new Dictionary<string, List<string>> { ["OAK"] = ["30"] });
+        var host = new ClientMenuHost(main, target, new Border());
+
+        HoldShortChoice runway = Assert.Single(host.GetHoldShortChoices(Callsign).Rows);
+
+        Assert.Equal(("Runway 30", "HS 30"), (runway.Label.Name, runway.Command));
     }
 
     [AvaloniaFact]
@@ -425,22 +436,22 @@ public class ClientMenuHostGroundTests
 
         string[] groundItems = ["Hold short of…", "Follow…", "Give way to…"];
         Assert.Equal(groundItems, Headers(CommandTree(menu)).Where(groundItems.Contains));
-        Assert.Equal(["Runway 12", "Runway 30"], Headers(Item(CommandTree(menu), "Hold short of…").Items));
+        Assert.Equal(["route W3 · RWY 30"], Headers(Item(CommandTree(menu), "Hold short of…").Items));
         MenuItem followRow = TrafficRow(Item(CommandTree(menu), "Follow…").Items, OtherCallsign);
         MenuItem giveWayRow = TrafficRow(Item(CommandTree(menu), "Give way to…").Items, OtherCallsign);
         Assert.Equal(["Moving"], Headers(Item(CommandTree(menu), "Follow…").Items));
         Assert.Equal(["Moving"], Headers(Item(CommandTree(menu), "Give way to…").Items));
 
-        MenuItem holdShort30 = Item(Item(CommandTree(menu), "Hold short of…").Items, "Runway 30");
-        RaisePointerEntered(holdShort30);
+        MenuItem holdShortRunway = Assert.Single(Item(CommandTree(menu), "Hold short of…").Items.OfType<MenuItem>(), m => m.Header is not string);
+        RaisePointerEntered(holdShortRunway);
         Assert.NotNull(main.Ground.PreviewRoute);
-        Assert.Equal(SegmentsOf(main.Ground.FindHoldShortPreviewRoute(target, "30")!), SegmentsOf(main.Ground.PreviewRoute));
+        Assert.Equal(Runway30HoldShortNode.Id, main.Ground.PreviewRoute.Segments[^1].ToNodeId);
 
-        Click(holdShort30);
+        Click(holdShortRunway);
         Click(followRow);
         Click(giveWayRow);
 
-        Assert.Equal([(Callsign, "HS 30", "AB"), (Callsign, $"FOLLOWG {OtherCallsign}", "AB"), (Callsign, $"GW {OtherCallsign}", "AB")], host.Sent);
+        Assert.Equal([(Callsign, "HS 12", "AB"), (Callsign, $"FOLLOWG {OtherCallsign}", "AB"), (Callsign, $"GW {OtherCallsign}", "AB")], host.Sent);
     }
 
     /// <summary>The traffic row in <paramref name="items"/> whose one-line header starts with <paramref name="callsign"/>.</summary>
@@ -540,8 +551,6 @@ public class ClientMenuHostGroundTests
             .Edges.Where(e => (e.FromNodeId == nodeId) || (e.ToNodeId == nodeId))
             .Select(e => e.TaxiwayName)
             .Concat((Oak.Arcs ?? []).Where(a => (a.FromNodeId == nodeId) || (a.ToNodeId == nodeId)).SelectMany(a => a.TaxiwayNames));
-
-    private static IEnumerable<(int From, int To)> SegmentsOf(TaxiRoute route) => route.Segments.Select(s => (s.FromNodeId, s.ToNodeId));
 
     private static List<string> Headers(ItemCollection items) =>
         [.. items.OfType<MenuItem>().Where(m => m.Header is string).Select(m => (string)m.Header!)];

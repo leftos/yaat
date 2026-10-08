@@ -404,22 +404,11 @@ internal sealed class ClientMenuHost(MainViewModel main, AircraftModel? aircraft
         ];
     }
 
-    /// <summary>The primary ground view model's hold-short targets on the aircraft's route, each sending <c>HS</c> with its route preview.</summary>
-    public IReadOnlyList<MenuCommandChoice> GetHoldShortChoices(string callsign)
-    {
-        if (FindAircraft(callsign) is not { } ac)
-        {
-            return [];
-        }
-
-        GroundViewModel ground = main.Ground;
-        return
-        [
-            .. ground
-                .GetHoldShortTargets(ac)
-                .Select(t => new MenuCommandChoice(t.DisplayName, $"HS {t.Target}", ground.FindHoldShortPreviewRoute(ac, t.Target), [])),
-        ];
-    }
+    /// <summary>The primary ground view model's hold-short rows along the aircraft's route, headed by the route's line.</summary>
+    public HoldShortMenu GetHoldShortChoices(string callsign) =>
+        (FindAircraft(callsign) is { } ac)
+            ? new HoldShortMenu(GroundViewModel.HoldShortRouteLine(ac), main.Ground.GetHoldShortTargets(ac))
+            : HoldShortMenu.Empty;
 
     /// <summary>Previews <paramref name="route"/> on every ground view, so it shows on whichever ground window is open.</summary>
     public void SetRoutePreview(TaxiRoute? route)

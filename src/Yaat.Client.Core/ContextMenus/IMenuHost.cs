@@ -161,10 +161,12 @@ public interface IMenuHost
     IReadOnlyList<MenuTrafficRow> GetNearbyTraffic(string callsign);
 
     /// <summary>
-    /// The Hold short of… choices for <paramref name="callsign"/>'s taxi route: each target's text, its finished
-    /// <c>HS</c> command, and the route to it the surface previews on hover; empty when the route offers none.
+    /// The Hold short of… submenu for <paramref name="callsign"/>'s taxi route: the line naming the route, and one row
+    /// per bar along the remaining route, nearest first, with its finished <c>HS</c> command and the route to it the
+    /// surface previews on hover; <see cref="HoldShortMenu.Empty"/> when the aircraft is unknown, and its route line (null
+    /// without a taxi route) with no rows when its route does not resolve.
     /// </summary>
-    IReadOnlyList<MenuCommandChoice> GetHoldShortChoices(string callsign);
+    HoldShortMenu GetHoldShortChoices(string callsign);
 
     /// <summary>Previews <paramref name="route"/> on the surface; null clears the preview.</summary>
     void SetRoutePreview(TaxiRoute? route);
