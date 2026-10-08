@@ -116,6 +116,7 @@
 - [x] YAAT-464 Name the aircraft and its action in the ground point menu header; offer Push route only from tug-reachable points · release vNext
 - [x] YAAT-465 Open every aircraft context menu with a one-line state header · release vNext
 - [ ] YAAT-478 Resolve a shorthand expected approach before picking the visual approach's default runway
+- [ ] YAAT-503 Context-menu For section is offered for a delayed-spawn selection
 
 ## Client surfaces redesign
 
@@ -551,3 +552,4 @@
 - [ ] YAAT-492 Send HFR, HFROFF, REL and CFR with no aircraft selected; answer a global verb's parse error, not Aircraft '' not found
 - [ ] YAAT-493 Flaky UI test: QuickCommandsSection_DragReordersARow fails once in a full run
 - [ ] YAAT-501 Live PUSH onto a taxiway can tow across other movement-area taxiways
+- [ ] YAAT-502 Recording archive writer drops SessionStartUtc
