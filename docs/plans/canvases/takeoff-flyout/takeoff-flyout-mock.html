@@ -1,0 +1,293 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Takeoff Flyout</title>
+<style>
+  :root {
+    --bg: #14161a; --panel: #1e2126; --panel-2: #262a31; --text: #e6e8eb; --muted: #9aa1ab;
+    --line: #343a43; --accent: #b58cf0; --hover: #2f3540; --cmd: #8fc1ff;
+    --tower: #e8a33d; --pattern: #b98be8; --flight: #7aa7f0; --notch: #9aa3ad;
+    --new-bg: #4a2f12; --new-fg: #ffc277; --input-bg: #15181c; --bad: #ff8a80;
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      --bg: #f3f4f6; --panel: #ffffff; --panel-2: #f6f7f9; --text: #1b1e23; --muted: #5d6570;
+      --line: #d9dde3; --accent: #7a4ad6; --hover: #eef0f4; --cmd: #1f5fbf;
+      --tower: #b8740f; --pattern: #8a52c9; --flight: #2f6fd0; --notch: #7d8590;
+      --new-bg: #fff1dc; --new-fg: #8a4b00; --input-bg: #ffffff; --bad: #c62828;
+    }
+  }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.4 "Segoe UI", system-ui, sans-serif; }
+  main { max-width: 1180px; margin: 0 auto; padding: 24px 16px 48px; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  h2 { font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); margin: 32px 0 10px; }
+  p.lede { color: var(--muted); margin: 0 0 8px; max-width: 780px; }
+  .row { display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-start; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px; }
+  .strip { display: flex; gap: 6px; }
+  .btn { width: 40px; height: 40px; border-radius: 6px; background: var(--panel-2); border: 1px solid var(--line);
+         display: grid; place-items: center; position: relative; }
+  .btn.active { outline: 2px solid var(--accent); }
+  .btn .notch { position: absolute; right: 2px; bottom: 2px; width: 0; height: 0;
+                border-left: 5px solid transparent; border-bottom: 5px solid var(--notch); }
+  .label { margin-top: 8px; font-weight: 600; }
+  .label small { display: block; font-weight: 400; color: var(--muted); }
+  .flyout { flex: 1 1 340px; max-width: 380px; min-width: 0; }
+  .flyout .title { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); padding: 2px 6px 2px; }
+  .flyout .sub { font-size: 12px; color: var(--muted); padding: 0 6px 8px; }
+  .alt { display: grid; grid-template-columns: 32px 1fr; gap: 10px; align-items: center; padding: 6px; margin: 0 0 6px;
+         border: 1px solid var(--line); border-radius: 6px; background: var(--panel-2); }
+  .alt label { font-weight: 600; font-size: 13px; }
+  .alt .hint { display: block; font-size: 12px; color: var(--muted); font-weight: 400; }
+  .group { font-size: 11px; color: var(--muted); padding: 8px 6px 2px; letter-spacing: .04em; }
+  .item { display: grid; grid-template-columns: 32px 1fr auto; gap: 10px; align-items: center; padding: 5px 6px;
+          border-radius: 5px; cursor: pointer; }
+  .item:hover { background: var(--hover); }
+  .item.disabled { cursor: default; }
+  .item.disabled .name > span:first-child, .item.disabled .cmd { opacity: .55; }
+  .item .name { min-width: 0; }
+  .item .note { display: block; color: var(--muted); font-size: 12px; }
+  .item .cmd { color: var(--cmd); font-family: Consolas, "Cascadia Mono", monospace; font-size: 12px; text-align: right;
+               white-space: nowrap; }
+  .badge { display: inline-block; margin-left: 6px; padding: 0 5px; border-radius: 3px; font: 600 10px/16px "Segoe UI", system-ui, sans-serif;
+           letter-spacing: .04em; text-transform: uppercase; background: var(--new-bg); color: var(--new-fg); vertical-align: 1px; }
+  input[type="text"] { font: 12px Consolas, "Cascadia Mono", monospace; color: var(--text); background: var(--input-bg);
+                       border: 1px solid var(--line); border-radius: 4px; padding: 3px 6px; width: 76px; text-transform: uppercase; }
+  input[type="text"]::placeholder { color: var(--muted); text-transform: none; font-family: "Segoe UI", system-ui, sans-serif; }
+  input[type="text"]:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  input.bad { border-color: var(--bad); }
+  .item .field { display: block; margin-top: 3px; }
+  .inline { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .sep { height: 1px; background: var(--line); margin: 6px 4px; }
+  .sent { margin-top: 8px; padding: 6px; font-size: 12px; color: var(--muted); border-top: 1px solid var(--line); min-height: 18px; }
+  .sent code { color: var(--cmd); font-family: Consolas, "Cascadia Mono", monospace; }
+  .note-list { color: var(--muted); font-size: 13px; max-width: 820px; padding-left: 20px; }
+  .note-list li { margin: 6px 0; }
+  .note-list code { color: var(--cmd); font-family: Consolas, "Cascadia Mono", monospace; font-size: 12px; }
+  .legend { display: flex; gap: 18px; flex-wrap: wrap; color: var(--muted); font-size: 12px; margin-top: 8px; }
+  @media (max-width: 420px) { .flyout { max-width: none; } .item { grid-template-columns: 28px 1fr; } .item .cmd { grid-column: 2; text-align: left; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>Cleared for takeoff flyout</h1>
+  <p class="lede">Mock for YAAT-522, in the style of the pattern-entry flyout (YAAT-521). The flyout opens from the Cleared for takeoff strip button and lists different rows for VFR and IFR aircraft. Each row shows the exact command it sends. Type in the boxes and the commands update. Glyphs are drawn for a runway landing and departing west (heading 270), off the runway rectangle.</p>
+
+  <h2>1 · Quick-command strip, holding short of the departure runway</h2>
+  <div class="row">
+    <div class="card">
+      <div class="strip" id="strip"></div>
+      <div class="label">Cleared for takeoff 28R › <small>opens a submenu · the notch marks the flyout</small></div>
+    </div>
+  </div>
+
+  <h2>2 · The flyout, three aircraft</h2>
+  <div class="row" id="flyouts"></div>
+  <div class="legend">
+    <span>Glyph colours follow the strip's families: tower (amber), pattern (purple), flight (blue).</span>
+    <span><span class="badge" style="margin:0">new syntax</span> the command needs grammar the sim does not parse today</span>
+  </div>
+
+  <h2>Open questions</h2>
+  <ol class="note-list">
+    <li><b>Initial altitude on a plain VFR takeoff clearance needs new grammar.</b> Today <code>CTO 4500</code> is rejected (a bare number above 360 is not understood) and <code>CTO 045</code> means fly heading 045. The mock shows <code>CTO 4500</code>, read as an altitude because it is above 360. The other options are a keyword (<code>CTO ALT 4500</code>), or no new grammar: send <code>CTO MSO 4500</code>. That flies the same path for a VFR aircraft, but the readback adds "fly runway heading".</li>
+    <li><b>Closed traffic and the altitude box.</b> On <code>CTO MLT</code>/<code>MRT</code> the altitude slot is the pattern altitude (<code>CTO MLT 045</code> = pattern at 4,500), and the handler ignores a takeoff altitude there. The mock leaves the altitude off those two rows. Alternatives: send it as the pattern altitude, or hide the box when only closed traffic applies.</li>
+    <li><b>Pre-filled <code>VFR/045</code>: send it, or only show it?</b> With no altitude in the clearance a VFR departure already climbs to its filed altitude, pattern exits included. Sending <code>4500</code> changes only the readback ("climb and maintain 4,500") and stores it as the assigned altitude. The mock sends whatever the box holds. The alternative is to send it only once the controller edits the box.</li>
+    <li><b>Inline boxes are a new menu pattern.</b> Today the strip flyout is a plain menu, and free text opens a popup (Custom…). This mock puts a text box inside the flyout: one shared altitude box at the top, and a fix box on each direct row. Still to settle:
+      <ul>
+        <li>Does Enter in a fix box send that row?</li>
+        <li>Is a row with an empty fix disabled, as the mock shows?</li>
+        <li>Should the fix box offer route fixes and autocomplete, as Direct to… does?</li>
+      </ul></li>
+    <li><b>Which VFR departures, and their wording</b> (for the aviation review, 7110.65 3-9-9, AIM 4-3-2 / 4-3-3). The set chosen here is: make left / right closed traffic; straight out; left / right crosswind departure; left / right downwind departure; on course; turn left / right direct {fix}. Left out:
+      <ul>
+        <li>left / right 270 (<code>ML270</code>/<code>MR270</code>) and other relative turns (<code>MR45</code>);</li>
+        <li>plain direct (<code>CTO DCT {fix}</code>);</li>
+        <li>cross-runway closed traffic (<code>CTO MLT 33</code>).</li>
+      </ul></li>
+    <li><b>"360 overhead" is broken today.</b> The current flyout's "360 overhead" item sends <code>CTO 360</code>, which the sim reads as fly heading 360, and the sim has no overhead departure at all. The mock drops it.</li>
+    <li><b>The IFR rows.</b> The request names a plain takeoff clearance and one with a heading. Today IFR also gets Fly runway heading (<code>CTO RH</code>), which tower issues routinely; keep it? Other choices for the heading row:
+      <ul>
+        <li>send <code>CTO 270</code> (shown) or <code>CTO H270</code>;</li>
+        <li>offer turn-direction variants (<code>RT270</code>/<code>LT270</code>);</li>
+        <li>add an altitude box for IFR as well.</li>
+      </ul></li>
+    <li><b>An IFR aircraft under "VFR commands for IFR aircraft: All".</b> Today it gets the VFR departures as well. Should the IFR flyout keep adding the VFR rows?</li>
+    <li><b>All Commands › Tower › Cleared for takeoff</b> is built by the same code as the strip flyout. Should both change, or only the strip? And should Custom… stay at the bottom?</li>
+    <li><b>Glyph rotation and colour.</b> Should the departure glyphs turn to the departure runway, as YAAT-456 does for pattern entries? The strip button keeps today's takeoff glyph. Colour: amber for every row, or purple for the circuit rows (shown)?</li>
+    <li><b>The menu needs the filed altitude.</b> The client knows the filed altitude, but the menu's view of an aircraft does not expose it. Showing the pre-filled value needs that added.</li>
+    <li><b>Docs follow any new grammar:</b> COMMANDS.md (the quick reference and the modifier table), the command cheat sheet, and USER_GUIDE.md.</li>
+  </ol>
+</main>
+
+<script>
+  // 24x24 glyphs, stroke style as the strip draws them. The runway rectangle (x 9..19) lands and departs west (270),
+  // so the departure leaves its west end. Facing west, a left turn goes south (down) and a right turn north (up).
+  const RWY = "M9 11h10v2H9z";
+  const GLYPH = {
+    takeoff: { color: "tower", d: "M2 20h20 M5 16L19 6 M13 6h6v6" },
+    lineUp: { color: "tower", d: "M6 21V3 M18 21V3 M10 9v6 M14 9v6" },
+    heading: { color: "flight", d: "M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18 M12 7l3 8-3-2-3 2z" },
+    straight: { color: "tower", d: `${RWY} M9 12H2.5 M2.5 12l2.2-2.2 M2.5 12l2.2 2.2` },
+    onCourse: { color: "tower", d: `${RWY} M9 12H6L3.9 6.7 M3 2.4a1.8 1.8 0 1 0 0 3.6a1.8 1.8 0 1 0 0-3.6` },
+    closedL: { color: "pattern", d: `${RWY} M9 12H4V18.5H21.5V12H19 M12 16.3l2.2 2.2-2.2 2.2` },
+    closedR: { color: "pattern", d: `${RWY} M9 12H4V5.5H21.5V12H19 M12 3.3l2.2 2.2-2.2 2.2` },
+    crossL: { color: "pattern", d: `${RWY} M9 12H4.5V20.5 M4.5 20.5l-2.2-2.2 M4.5 20.5l2.2-2.2` },
+    crossR: { color: "pattern", d: `${RWY} M9 12H4.5V3.5 M4.5 3.5l-2.2 2.2 M4.5 3.5l2.2 2.2` },
+    downL: { color: "pattern", d: `${RWY} M9 12H4V18.5H21 M21 18.5l-2.2-2.2 M21 18.5l-2.2 2.2` },
+    downR: { color: "pattern", d: `${RWY} M9 12H4V5.5H21 M21 5.5l-2.2-2.2 M21 5.5l-2.2 2.2` },
+    directL: { color: "flight", d: `${RWY} M9 12H6.5A3.5 3.5 0 0 0 3 15.5A3.5 3.5 0 0 0 6.5 19H10.5 M10.5 19l-2-2 M10.5 19l-2 2 M13.5 16.6l2.3 4h-4.6z` },
+    directR: { color: "flight", d: `${RWY} M9 12H6.5A3.5 3.5 0 0 1 3 8.5A3.5 3.5 0 0 1 6.5 5H10.5 M10.5 5l-2-2 M10.5 5l-2 2 M13.5 7.4l2.3-4h-4.6z` },
+    altitude: { color: "flight", d: "M3 18l7-7 4 4 7-7 M15 8h6v6" },
+  };
+
+  function svg(name, size) {
+    const g = GLYPH[name];
+    const s = size || 24;
+    return `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="var(--${g.color})" stroke-width="1.75"
+      stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${g.d}"/></svg>`;
+  }
+
+  // The altitude box holds feet as typed; the sim's altitude reader takes 1000+ as feet and under 1000 as hundreds.
+  function readAltitude(raw) {
+    const t = raw.trim();
+    if (t === "") return { token: "", feet: null, bad: false };
+    if (!/^\d{1,5}$/.test(t) || Number(t) <= 0) return { token: "", feet: null, bad: true };
+    const n = Number(t);
+    return { token: t, feet: n < 1000 ? n * 100 : n, bad: false };
+  }
+  const withAlt = (cmd, alt) => (alt.token ? `${cmd} ${alt.token}` : cmd);
+  const fixOf = raw => raw.trim().toUpperCase();
+  const validFix = f => /^[A-Z0-9]{2,12}$/.test(f);
+
+  const VFR_ROWS = [
+    { glyph: "takeoff", label: "Cleared for takeoff", note: "runway heading",
+      build: ({ alt }) => ({ cmd: alt.token ? `CTO ${alt.token}` : "CTO", isNew: !!alt.token }) },
+    { group: "Closed traffic" },
+    { glyph: "closedL", label: "Make left closed traffic",
+      build: ({ alt }) => ({ cmd: "CTO MLT", note: alt.token ? "pattern altitude; initial altitude not sent" : "" }) },
+    { glyph: "closedR", label: "Make right closed traffic",
+      build: ({ alt }) => ({ cmd: "CTO MRT", note: alt.token ? "pattern altitude; initial altitude not sent" : "" }) },
+    { group: "Departure legs" },
+    { glyph: "straight", label: "Straight out", build: ({ alt }) => ({ cmd: withAlt("CTO MSO", alt) }) },
+    { glyph: "crossL", label: "Left crosswind departure", build: ({ alt }) => ({ cmd: withAlt("CTO MLC", alt) }) },
+    { glyph: "crossR", label: "Right crosswind departure", build: ({ alt }) => ({ cmd: withAlt("CTO MRC", alt) }) },
+    { glyph: "downL", label: "Left downwind departure", build: ({ alt }) => ({ cmd: withAlt("CTO MLD", alt) }) },
+    { glyph: "downR", label: "Right downwind departure", build: ({ alt }) => ({ cmd: withAlt("CTO MRD", alt) }) },
+    { glyph: "onCourse", label: "On course", note: "direct to destination", build: ({ alt }) => ({ cmd: withAlt("CTO OC", alt) }) },
+    { group: "Direct to a fix" },
+    { glyph: "directL", label: "Turn left direct", input: "fix", build: rowDirect("TLDCT") },
+    { glyph: "directR", label: "Turn right direct", input: "fix", build: rowDirect("TRDCT") },
+  ];
+
+  function rowDirect(verb) {
+    return ({ alt, value }) => {
+      const fix = fixOf(value);
+      if (!validFix(fix)) return { cmd: `CTO ${verb} ···`, disabled: true, bad: fix !== "" };
+      return { cmd: withAlt(`CTO ${verb} ${fix}`, alt) };
+    };
+  }
+
+  const IFR_ROWS = [
+    { glyph: "takeoff", label: "Cleared for takeoff", note: "filed SID / route", build: () => ({ cmd: "CTO" }) },
+    { glyph: "heading", label: "Fly heading", input: "hdg",
+      build: ({ value }) => {
+        const t = value.trim();
+        const n = Number(t);
+        if (!/^\d{1,3}$/.test(t) || n < 1 || n > 360) return { cmd: "CTO ···", disabled: true, bad: t !== "" };
+        return { cmd: `CTO ${String(n).padStart(3, "0")}` };
+      } },
+  ];
+
+  const CARDS = [
+    { id: "vfr", title: "N4471K · C172 · VFR", sub: "Filed altitude: VFR (none)", rules: "VFR", alt: "" },
+    { id: "vfr045", title: "N812SP · PA28 · VFR/045", sub: "Filed altitude: VFR/045, pre-filled as 4500", rules: "VFR", alt: "4500" },
+    { id: "ifr", title: "SWA1924 · B738 · IFR", sub: "Filed 350, SID NIMI6", rules: "IFR", alt: null },
+  ];
+
+  function rowHtml(card, row, i) {
+    if (row.group) return `<div class="group">${row.group}</div>`;
+    const inputHtml = row.input === "fix"
+      ? `<input type="text" autocomplete="off" data-row="${i}" placeholder="fix" maxlength="12" aria-label="${row.label}: fix" spellcheck="false">`
+      : row.input === "hdg"
+        ? `<input type="text" autocomplete="off" data-row="${i}" placeholder="270" maxlength="3" inputmode="numeric" aria-label="Heading" spellcheck="false">`
+        : "";
+    const name = inputHtml
+      ? `<div class="name"><span>${row.label}</span><span class="field">${inputHtml}</span></div>`
+      : `<div class="name"><span>${row.label}</span><span class="note" data-note="${i}">${row.note || ""}</span></div>`;
+    return `<div class="item" data-item="${i}" role="menuitem" tabindex="-1">${svg(row.glyph)}${name}<span class="cmd" data-cmd="${i}"></span></div>`;
+  }
+
+  function cardHtml(card) {
+    const rows = card.rules === "VFR" ? VFR_ROWS : IFR_ROWS;
+    const altBox = card.alt === null ? "" : `
+      <div class="alt">${svg("altitude")}
+        <label>Initial altitude
+          <span class="inline"><input type="text" autocomplete="off" data-alt value="${card.alt}" placeholder="default" maxlength="5" inputmode="numeric" aria-label="Initial altitude in feet" spellcheck="false"><span class="hint" data-alt-hint></span></span>
+        </label>
+      </div>`;
+    return `<div class="card flyout" id="card-${card.id}" role="menu">
+      <div class="title">Cleared for takeoff · 28R</div>
+      <div class="sub">${card.title}<br>${card.sub}</div>
+      ${altBox}
+      ${rows.map((r, i) => rowHtml(card, r, i)).join("")}
+      <div class="sep"></div>
+      <div class="item" data-custom role="menuitem"><span></span><div class="name"><span>Custom…</span><span class="note">opens the free-text popup, as today</span></div><span class="cmd">CTO …</span></div>
+      <div class="sent" data-sent>Click a row to see what it sends.</div>
+    </div>`;
+  }
+
+  function refresh(card) {
+    const root = document.getElementById(`card-${card.id}`);
+    const rows = card.rules === "VFR" ? VFR_ROWS : IFR_ROWS;
+    const altInput = root.querySelector("[data-alt]");
+    const alt = altInput ? readAltitude(altInput.value) : { token: "", feet: null, bad: false };
+    if (altInput) {
+      altInput.classList.toggle("bad", alt.bad);
+      root.querySelector("[data-alt-hint]").textContent = alt.bad
+        ? "not an altitude"
+        : alt.feet ? `= ${alt.feet.toLocaleString("en-US")} ft` : "empty = default climb";
+    }
+    rows.forEach((row, i) => {
+      if (row.group) return;
+      const input = root.querySelector(`input[data-row="${i}"]`);
+      const out = row.build({ alt, value: input ? input.value : "" });
+      const item = root.querySelector(`[data-item="${i}"]`);
+      item.classList.toggle("disabled", !!out.disabled);
+      item.dataset.send = out.disabled ? "" : out.cmd;
+      if (input) input.classList.toggle("bad", !!out.bad);
+      root.querySelector(`[data-cmd="${i}"]`).innerHTML = out.cmd + (out.isNew ? `<span class="badge">new syntax</span>` : "");
+      const note = root.querySelector(`[data-note="${i}"]`);
+      if (note) note.textContent = out.note || row.note || "";
+    });
+  }
+
+  function wire(card) {
+    const root = document.getElementById(`card-${card.id}`);
+    root.addEventListener("input", () => refresh(card));
+    root.addEventListener("click", e => {
+      if (e.target.tagName === "INPUT") return;
+      const item = e.target.closest(".item");
+      if (!item) return;
+      const sent = root.querySelector("[data-sent]");
+      if (item.hasAttribute("data-custom")) {
+        sent.innerHTML = "Opens the Custom… popup: blank sends <code>CTO</code>.";
+      } else if (item.dataset.send) {
+        sent.innerHTML = `Sends <code>${item.dataset.send}</code> and closes the menu.`;
+      } else {
+        sent.textContent = "Type a value in this row's box first.";
+      }
+    });
+    refresh(card);
+  }
+
+  document.getElementById("strip").innerHTML =
+    `<div class="btn active" title="Cleared for takeoff 28R">${svg("takeoff")}<span class="notch"></span></div>` +
+    `<div class="btn" title="Line up and wait 28R — LUAW">${svg("lineUp")}</div>`;
+  document.getElementById("flyouts").innerHTML = CARDS.map(cardHtml).join("");
+  CARDS.forEach(wire);
+</script>
+</body>
+</html>
