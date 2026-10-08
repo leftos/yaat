@@ -7,6 +7,7 @@
 - [x] YAAT-406 TAXI issued on C at KOAK starts its route on parallel taxiway D · release vNext — Urgent · Wave 2 — Ground command grammar and dispatch
 - [x] YAAT-434 Linux CI fails three HoldInsideStoppingDistanceOfBarTests after the YAAT-406 landing · release vNext — Urgent · Wave 2 — Ground command grammar and dispatch
 - [x] YAAT-487 Command handlers: a lone read-only SAYEXIT wipes the entire pending queue (omitted from the broad IsPhaseTransparent list, None dimension trips the clear-everything fast path) · release vNext — Urgent · Wave 5 — Command queue and dispatch architecture
+- [ ] YAAT-519 Parallelise the precompute generator across stands — High · Precompute cache (feat/precompute-cache)
 - [x] YAAT-373 Load Scenario: pick a single scenario file, not only a folder to index · release vNext — High · Bug reports and feature requests
 - [x] YAAT-274 Redesign overwhelming client surfaces: Settings, import/export, View menu pop-outs · release vNext — High · Client surfaces redesign
 - [ ] YAAT-266 Tower Cab 3D joins a YAAT room without CRC and shows in Room Members · release vNext+1 — High · Wave 6 — Strips, TDLS, air-taxi and hub
@@ -15,7 +16,7 @@
 
 ## Active runways (feat/active-runways)
 
-- [/] YAAT-461 Ask the mentor for the active runways on scenario load when the scenario leaves them unclear
+- [x] YAAT-461 Ask the mentor for the active runways on scenario load when the scenario leaves them unclear · release vNext
 - [ ] YAAT-482 Merge feat/active-runways (#959)
 - [ ] YAAT-516 Fold the Hold short and ground traffic menu row views into one rich-row template
 
@@ -31,6 +32,7 @@
 - [ ] YAAT-497 Split the tug planner's shared pieces out of the precompute layout source set
 - [x] YAAT-499 Make every push-back decision read the stand's StandDeparture · release vNext
 - [ ] YAAT-511 Refuse TAXI for a jet or turboprop at a push-back stand without a push
+- [ ] YAAT-520 KOAK stands: North Field taxi-out by area, South Field remotes pushback
 
 ## Follow on the taxi graph (feat/follow-on-graph)
 
@@ -113,14 +115,17 @@
 - [ ] YAAT-456 Fix quick-command labels and give every quick command a glyph
 - [x] YAAT-457 List Direct-to fixes from the aircraft's next fix on · release vNext
 - [x] YAAT-458 Offer speed picker values from the aircraft's own type performance · release vNext
-- [ ] YAAT-459 List Hold short bars along the route, nearest first, one row per runway
+- [x] YAAT-459 List Hold short bars along the route, nearest first, one row per runway · release vNext
 - [ ] YAAT-460 Add Taxi to runway ▸ to the ground aircraft menu, with via and distance per entry point
 - [x] YAAT-462 Split the Follow and Give way lists into Moving and Parked, with type, state and distance · release vNext
-- [ ] YAAT-463 Offer the named exits ahead on the landing roll
+- [/] YAAT-463 Offer the named exits ahead on the landing roll
 - [x] YAAT-464 Name the aircraft and its action in the ground point menu header; offer Push route only from tug-reachable points · release vNext
 - [x] YAAT-465 Open every aircraft context menu with a one-line state header · release vNext
 - [ ] YAAT-478 Resolve a shorthand expected approach before picking the visual approach's default runway
 - [ ] YAAT-503 Context-menu For section is offered for a delayed-spawn selection
+- [ ] YAAT-517 Hold short of… destination-runway row sends a no-op HS
+- [ ] YAAT-521 Pattern-entry runway flyout: rotated glyphs, active runways first, landable first
+- [ ] YAAT-522 Cleared for takeoff flyout: VFR pattern exits, turn direct a fix, initial altitude; IFR heading
 
 ## Client surfaces redesign
 
@@ -566,3 +571,4 @@
 - [ ] YAAT-505 Make LaunchYaatTests' timing waits load-independent
 - [ ] YAAT-506 Make the tug timing and automation-pipe tests load-independent
 - [ ] YAAT-512 Pilot calls raised at command dispatch never reach a solo student's radio
+- [ ] YAAT-518 TG with a runway touches down on the pattern runway instead

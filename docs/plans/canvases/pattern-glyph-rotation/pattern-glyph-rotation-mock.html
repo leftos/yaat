@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pattern Glyph Rotation</title>
+<style>
+  :root {
+    --bg: #14161a; --panel: #1e2126; --panel-2: #262a31; --text: #e6e8eb; --muted: #9aa1ab;
+    --line: #343a43; --accent: #b58cf0; --hover: #2f3540; --cmd: #8fc1ff;
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      --bg: #f3f4f6; --panel: #ffffff; --panel-2: #f6f7f9; --text: #1b1e23; --muted: #5d6570;
+      --line: #d9dde3; --accent: #7a4ad6; --hover: #eef0f4; --cmd: #1f5fbf;
+    }
+  }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.4 "Segoe UI", system-ui, sans-serif; }
+  main { max-width: 1100px; margin: 0 auto; padding: 24px 16px 48px; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  h2 { font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); margin: 32px 0 10px; }
+  p.lede { color: var(--muted); margin: 0 0 8px; max-width: 760px; }
+  .row { display: flex; gap: 28px; flex-wrap: wrap; align-items: flex-start; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px; }
+  .strip { display: flex; gap: 6px; }
+  .btn { width: 40px; height: 40px; border-radius: 6px; background: var(--panel-2); border: 1px solid var(--line);
+         display: grid; place-items: center; position: relative; }
+  .btn.active { outline: 2px solid var(--accent); }
+  .btn .notch { position: absolute; right: 2px; bottom: 2px; width: 0; height: 0;
+                border-left: 5px solid transparent; border-bottom: 5px solid var(--muted); }
+  .label { margin-top: 8px; font-weight: 600; }
+  .label small { display: block; font-weight: 400; color: var(--muted); }
+  .flyout { min-width: 300px; }
+  .flyout .title { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); padding: 2px 6px 8px; }
+  .item { display: grid; grid-template-columns: 32px 1fr auto; gap: 10px; align-items: center; padding: 5px 6px; border-radius: 5px; }
+  .item:hover { background: var(--hover); }
+  .item .hdg { color: var(--muted); font-size: 12px; }
+  .item .cmd { color: var(--cmd); font-family: Consolas, monospace; font-size: 12px; }
+  table { border-collapse: collapse; }
+  th, td { padding: 6px 10px; text-align: center; border-bottom: 1px solid var(--line); }
+  th { font-size: 12px; color: var(--muted); font-weight: 600; }
+  td.rw { text-align: left; font-weight: 600; }
+  .big svg { width: 72px; height: 72px; }
+  .note { color: var(--muted); font-size: 13px; max-width: 760px; }
+  .note li { margin: 4px 0; }
+  .scroll { overflow-x: auto; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Pattern-entry glyphs rotated to the runway</h1>
+  <p class="lede">Mock for YAAT-456. Every glyph is drawn "lands west" (landing heading 270° magnetic). Where a runway is known, the glyph turns by (runway magnetic heading − 270°), so the arrowhead on the runway edge points the way the aircraft lands. KOAK runways shown.</p>
+
+  <h2>1 · Quick-command strip (no runway chosen yet: default lands-west icon)</h2>
+  <div class="row">
+    <div class="card">
+      <div class="strip" id="strip"></div>
+      <div class="label">Enter left downwind… <small>hover label · the notch opens the runway flyout</small></div>
+    </div>
+    <div class="card big">
+      <div class="row" id="defaults"></div>
+    </div>
+  </div>
+
+  <h2>2 · Flyout: each runway row's glyph rotated to that runway</h2>
+  <div class="row" id="flyouts"></div>
+
+  <h2>3 · Every entry at every KOAK runway end</h2>
+  <div class="card scroll"><table id="grid"></table></div>
+
+  <h2>Open questions</h2>
+  <ul class="note">
+    <li>Magnetic vs true: the glyph turns by the runway's magnetic heading (its number), as asked. The ground view and radar are drawn true-north-up, where OAK's runways sit about 13° clockwise of their numbers, so a glyph is about 13° off the drawn runway at OAK. Rotating by the true course instead would line up with the map exactly.</li>
+    <li>Make straight-in picks its frame from the runway's default pattern side (YAAT's rule today: an L/R parallel sends its pattern outboard, so 28L/10L left and 28R/10R right; a single runway is left traffic). The strip default, with no runway, is left.</li>
+    <li>The strip button keeps the default lands-west glyph. An aircraft already assigned a runway (on final, in the pattern) could show its runway's rotated glyph on the button too.</li>
+  </ul>
+</main>
+
+<script>
+  // 24x24 glyphs drawn landing west (270 deg). Pattern rectangle x 1.5..17.5 (16 long), y 9..15 (6 tall):
+  // the long edges are runway/final and downwind, the short edges crosswind and base.
+  // Left traffic: runway on top (y 9), downwind bottom (y 15), base the east side flown north.
+  // Right traffic: vertical mirror (runway bottom, y 15).
+  const RUNWAY_ARROW = { L: "M11 7.4 L9.4 9 L11 10.6", R: "M11 13.4 L9.4 15 L11 16.6" };
+  const RECT = "M3.5 9h12a2 2 0 0 1 2 2v2a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2v-2a2 2 0 0 1 2 -2z";
+  // Every entry arrow stops ~1.6 short of the pattern.
+  const ARROWS = {
+    // 45 deg onto mid-downwind, joining eastbound.
+    downwind: { L: "M6.35 20.65 L10.15 16.85 M10.15 16.85 h-3 M10.15 16.85 v3", R: "M6.35 3.35 L10.15 7.15 M10.15 7.15 h-3 M10.15 7.15 v-3" },
+    // Along the base leg (east side), toward the runway, from beyond the downwind corner.
+    base: { L: "M17.5 23 V16.6 M17.5 16.6 l-2.2 2.2 M17.5 16.6 l2.2 2.2", R: "M17.5 1 V7.4 M17.5 7.4 l-2.2 -2.2 M17.5 7.4 l2.2 -2.2" },
+    // On the extended runway line from the east, toward the threshold.
+    final: { L: "M23.5 9 H19.1 M19.1 9 l2.2 -2.2 M19.1 9 l2.2 2.2", R: "M23.5 15 H19.1 M19.1 15 l2.2 -2.2 M19.1 15 l2.2 2.2" },
+  };
+  const GLYPHS = {
+    ELD: { name: "Enter left downwind", side: () => "L", arrow: "downwind" },
+    ERD: { name: "Enter right downwind", side: () => "R", arrow: "downwind" },
+    ELB: { name: "Enter left base", side: () => "L", arrow: "base" },
+    ERB: { name: "Enter right base", side: () => "R", arrow: "base" },
+    EF:  { name: "Make straight-in", side: rw => defaultPatternSide(rw), arrow: "final" },
+  };
+  const RUNWAYS = ["10L", "10R", "12", "15", "28L", "28R", "30", "33"];
+  const headingOf = rw => parseInt(rw, 10) * 10;
+  // YAAT's default pattern side (GoAroundHelper.InferDefaultPatternDirection): an L/R parallel sends its pattern
+  // outboard (28L left, 28R right); a single runway, or no runway known, is left traffic (AIM 4-3-3).
+  function defaultPatternSide(rw) {
+    if (!rw) return "L";
+    const sfx = rw.slice(-1);
+    const sibling = rw.slice(0, -1) + (sfx === "L" ? "R" : "L");
+    return ((sfx === "L") || (sfx === "R")) && RUNWAYS.includes(sibling) ? sfx : "L";
+  }
+
+  function glyph(id, headingMag, size, rw) {
+    const g = GLYPHS[id];
+    const rot = headingMag - 270;
+    const side = g.side(rw);
+    const runwayArrow = RUNWAY_ARROW[side];
+    const entryArrow = ARROWS[g.arrow][side];
+    const s = size || 24;
+    return `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.6"
+      stroke-linecap="round" stroke-linejoin="round" aria-label="${g.name}, landing ${headingMag} degrees">
+      <g transform="rotate(${rot} 12 12)"><path d="${RECT}"/><path d="${runwayArrow}"/><path d="${entryArrow}"/></g></svg>`;
+  }
+
+  document.getElementById("strip").innerHTML = Object.keys(GLYPHS)
+    .map((id, i) => `<div class="btn${i === 0 ? " active" : ""}" title="${GLYPHS[id].name}">${glyph(id, 270)}<span class="notch"></span></div>`)
+    .join("");
+
+  document.getElementById("defaults").innerHTML = Object.keys(GLYPHS)
+    .map(id => `<div style="text-align:center">${glyph(id, 270, 72)}<div class="hdg" style="color:var(--muted);font-size:12px">${GLYPHS[id].name}</div></div>`)
+    .join("");
+
+  document.getElementById("flyouts").innerHTML = ["ELD", "ELB", "EF"].map(id => `
+    <div class="card flyout">
+      <div class="title">${GLYPHS[id].name} · runway</div>
+      ${RUNWAYS.map(rw => `<div class="item">${glyph(id, headingOf(rw), 28, rw)}<div>Runway ${rw} <span class="hdg">· lands ${String(headingOf(rw)).padStart(3, "0")}°</span></div><span class="cmd">${id} ${rw}</span></div>`).join("")}
+    </div>`).join("");
+
+  document.getElementById("grid").innerHTML =
+    `<tr><th></th>${Object.keys(GLYPHS).map(id => `<th>${GLYPHS[id].name}</th>`).join("")}</tr>` +
+    RUNWAYS.map(rw => `<tr><td class="rw">${rw} <span class="hdg" style="color:var(--muted);font-weight:400">${String(headingOf(rw)).padStart(3, "0")}°</span></td>${Object.keys(GLYPHS).map(id => `<td>${glyph(id, headingOf(rw), 36, rw)}</td>`).join("")}</tr>`).join("");
+</script>
+</body>
+</html>
