@@ -520,6 +520,11 @@ A synthetic round trip through the speech pipeline: a known canonical command is
 **Speech telemetry**:
 Push-to-talk samples (audio, per-stage transcripts, scenario context) that opted-in users' clients upload to the official yaat-server, which stores them for developers to pull with `tools/speech_telemetry.py` (docs/speech-recognition-pipeline.md).
 
+## Facility data
+
+**Sidecar**:
+A JSON file under `src/Yaat.Sim/Data/ARTCCs/{ARTCC}/` that adds facility rules beside what the vNAS data supplies; the airport sidecar (`Airports/{airport}.json`) carries per-airport ground-routing overrides ([`ARTCC_CUSTOMIZATION.md`](ARTCC_CUSTOMIZATION.md)).
+
 ## Releases
 
 **Sizzle reel**:

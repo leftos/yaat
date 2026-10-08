@@ -2,7 +2,7 @@
 
 **Looking for code, or about to change a subsystem? Read the map before reading source.** YAAT's docs front-load each subsystem's overview, contracts, and footguns — starting here is faster and more accurate than grepping blind.
 
-**Where docs live.** The repo root holds the user-facing docs only (`README`, `INSTALL`, `GETTING_STARTED`, `USER_GUIDE`, `COMMANDS`, `SOLO_TRAINING`, `CHANGELOG`); developer docs live here in `docs/`, and the root README points users at the root set. A developer doc still at the root is moved here.
+**Where docs live.** The repo root holds the user-facing docs only (`README`, `INSTALL`, `GETTING_STARTED`, `USER_GUIDE`, `COMMANDS`, `SOLO_TRAINING`, `ARTCC_CUSTOMIZATION`, `CHANGELOG`); developer docs live here in `docs/`, and the root README points users at the root set. A developer doc still at the root is moved here.
 
 ## 1. Locating files
 

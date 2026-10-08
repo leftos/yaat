@@ -49,6 +49,7 @@ See the [Installation Guide](INSTALL.md) for step-by-step instructions. Contribu
 | **[User Guide](USER_GUIDE.md)** | Active users | Interface, views, scenarios, weather, settings, and workflows |
 | **[Solo Training Guide](SOLO_TRAINING.md)** | Student controllers | Single-student workflow, pilot readbacks, workload pacing, Session Report, and solo-mode command differences |
 | **[Command Reference](COMMANDS.md)** | Active users | Complete command reference — every verb, alias, and example |
+| **[ARTCC Customization Guide](ARTCC_CUSTOMIZATION.md)** | ARTCC facility staff | What a facility's vNAS maps and config drive in YAAT, and the facility data files you can contribute |
 | **[Contributing](CONTRIBUTING.md)** | Developers | Development setup, code style, and formatting |
 
 ### Project governance

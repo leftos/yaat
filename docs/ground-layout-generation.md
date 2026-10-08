@@ -56,7 +56,7 @@ File: `src/Yaat.Sim/Data/Airport/GeoJsonParser.cs`
 
 The parser expects a GeoJSON FeatureCollection with features typed via `properties.type`:
 
-- **`parking`** — Point geometry. Required properties: `name`, `heading` (integer degrees true). Optional: heading may be a string that needs parsing.
+- **`parking`** — Point geometry. Required property: `name`. Optional: `heading` (integer degrees true, or a numeric string); absent or unparseable defaults to 0.
 - **`taxiway`** — LineString geometry. Required: `name` (taxiway letter/number, e.g., "C", "W3").
 - **`spot`** — Point geometry. Required: `name` (intersection or spot identifier).
 - **`runway`** — LineString geometry. Required: `name` (e.g., "28R/10L", both ends). Optional: `turnoff`, `noTurnoff`, `patternAltitude`, `patternSize`, `holdShortDistance`, and `threshold` — displaced-threshold distances in feet as `"end1 - end2"` in the same end order as the name (e.g. `"0 - 957"`).
@@ -82,8 +82,8 @@ the landing threshold; departures and anything covering the physical surface (ru
 `GeoJsonParser.Parse()` calls `JsonDocument.Parse()` and iterates features:
 
 - Features are classified by `properties.type`
-- Malformed features (missing required properties, invalid geometry) are logged and skipped
-- Four lists are populated: `parkingFeatures`, `helipadFeatures`, `spotFeatures`, `taxiwayFeatures`, `runwayFeatures`
+- A feature whose parse throws `InvalidOperationException` (for example a wrong value type) is logged and skipped; no other exception type is caught per feature
+- Five lists are populated: `parkingFeatures`, `helipadFeatures`, `spotFeatures`, `taxiwayFeatures`, `runwayFeatures`
 
 ### Step 2: Process Taxiway Coordinates
 

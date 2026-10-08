@@ -10,6 +10,7 @@ on:
       - "GETTING_STARTED.md"
       - "COMMANDS.md"
       - "SOLO_TRAINING.md"
+      - "ARTCC_CUSTOMIZATION.md"
   workflow_dispatch:
 
 permissions:
@@ -39,6 +40,8 @@ jobs:
           COMMANDS_CHANNEL: "1491542448575611000"
           SOLOTRAINING_WEBHOOK: ${{ secrets.DISCORD_SOLOTRAINING_WEBHOOK_URL }}
           SOLOTRAINING_CHANNEL: "1502514543702704249"
+          ARTCCCUSTOMIZATION_WEBHOOK: ${{ secrets.DISCORD_ARTCCCUSTOMIZATION_WEBHOOK_URL }}
+          ARTCCCUSTOMIZATION_CHANNEL: "1557585088542277684"
           REPO_URL: "https://github.com/${{ github.repository }}/blob/${{ github.sha }}"
         run: |
           set -euo pipefail
@@ -268,12 +271,14 @@ jobs:
             sync_toc "USER_GUIDE.md" "$USERGUIDE_WEBHOOK" "$USERGUIDE_CHANNEL" "YAAT User Guide" "USER_GUIDE.md"
             sync_toc "COMMANDS.md" "$COMMANDS_WEBHOOK" "$COMMANDS_CHANNEL" "YAAT Command Reference" "COMMANDS.md"
             sync_toc "SOLO_TRAINING.md" "$SOLOTRAINING_WEBHOOK" "$SOLOTRAINING_CHANNEL" "YAAT Solo Training Guide" "SOLO_TRAINING.md"
+            sync_toc "ARTCC_CUSTOMIZATION.md" "$ARTCCCUSTOMIZATION_WEBHOOK" "$ARTCCCUSTOMIZATION_CHANNEL" "YAAT ARTCC Customization Guide" "ARTCC_CUSTOMIZATION.md"
           else
             CHANGED=$(git diff --name-only ${{ github.event.before }}..${{ github.event.after }} 2>/dev/null || echo "")
-            echo "$CHANGED" | grep -q "INSTALL.md" && sync_full "INSTALL.md" "$INSTALL_WEBHOOK" "$INSTALL_CHANNEL" || true
-            echo "$CHANGED" | grep -q "README.md" && sync_full "README.md" "$README_WEBHOOK" "$README_CHANNEL" || true
-            echo "$CHANGED" | grep -q "GETTING_STARTED.md" && sync_full "GETTING_STARTED.md" "$GETTINGSTARTED_WEBHOOK" "$GETTINGSTARTED_CHANNEL" || true
-            echo "$CHANGED" | grep -q "USER_GUIDE.md" && sync_toc "USER_GUIDE.md" "$USERGUIDE_WEBHOOK" "$USERGUIDE_CHANNEL" "YAAT User Guide" "USER_GUIDE.md" || true
-            echo "$CHANGED" | grep -q "COMMANDS.md" && sync_toc "COMMANDS.md" "$COMMANDS_WEBHOOK" "$COMMANDS_CHANNEL" "YAAT Command Reference" "COMMANDS.md" || true
-            echo "$CHANGED" | grep -q "SOLO_TRAINING.md" && sync_toc "SOLO_TRAINING.md" "$SOLOTRAINING_WEBHOOK" "$SOLOTRAINING_CHANNEL" "YAAT Solo Training Guide" "SOLO_TRAINING.md" || true
+            echo "$CHANGED" | grep -qx "INSTALL.md" && sync_full "INSTALL.md" "$INSTALL_WEBHOOK" "$INSTALL_CHANNEL" || true
+            echo "$CHANGED" | grep -qx "README.md" && sync_full "README.md" "$README_WEBHOOK" "$README_CHANNEL" || true
+            echo "$CHANGED" | grep -qx "GETTING_STARTED.md" && sync_full "GETTING_STARTED.md" "$GETTINGSTARTED_WEBHOOK" "$GETTINGSTARTED_CHANNEL" || true
+            echo "$CHANGED" | grep -qx "USER_GUIDE.md" && sync_toc "USER_GUIDE.md" "$USERGUIDE_WEBHOOK" "$USERGUIDE_CHANNEL" "YAAT User Guide" "USER_GUIDE.md" || true
+            echo "$CHANGED" | grep -qx "COMMANDS.md" && sync_toc "COMMANDS.md" "$COMMANDS_WEBHOOK" "$COMMANDS_CHANNEL" "YAAT Command Reference" "COMMANDS.md" || true
+            echo "$CHANGED" | grep -qx "SOLO_TRAINING.md" && sync_toc "SOLO_TRAINING.md" "$SOLOTRAINING_WEBHOOK" "$SOLOTRAINING_CHANNEL" "YAAT Solo Training Guide" "SOLO_TRAINING.md" || true
+            echo "$CHANGED" | grep -qx "ARTCC_CUSTOMIZATION.md" && sync_toc "ARTCC_CUSTOMIZATION.md" "$ARTCCCUSTOMIZATION_WEBHOOK" "$ARTCCCUSTOMIZATION_CHANNEL" "YAAT ARTCC Customization Guide" "ARTCC_CUSTOMIZATION.md" || true
           fi

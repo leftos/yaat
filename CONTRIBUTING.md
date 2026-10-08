@@ -81,6 +81,10 @@ dotnet test tests/Yaat.Sim.Tests
 dotnet test tests/Yaat.Client.Tests
 ```
 
+## Contributing ARTCC data
+
+Facility staff can contribute airport sidecars, custom fixes, fix pronunciations and similar files without touching C#. The steps, the tests to run and what a pull request needs are in [Submitting a change](ARTCC_CUSTOMIZATION.md#submitting-a-change) in the ARTCC Customization Guide.
+
 ## License
 
 By contributing, you agree that your contributions will be licensed under the [MIT License](LICENSE).

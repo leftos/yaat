@@ -127,6 +127,7 @@ Each file is a JSON array of pronunciation entries. Use lowercase space-separate
 
 - `fix` — canonical fix name (case-insensitive; stored uppercase internally).
 - `pronunciations` — array of phonetic variants. Multiple entries are useful for regional pronunciation differences (e.g., `["see rah", "sih rah"]`).
+- `displayName` — optional human-readable name (e.g. `"Oakland Coliseum"` for `VPCOL`). Only an entry with a `displayName` shows in operator-facing text and pilot readbacks; a phonetic-only entry stays hidden from the display. An entry is skipped only when it has neither `pronunciations` nor a `displayName`.
 
 ### When to add a hint
 
@@ -352,6 +353,53 @@ How many aircraft may stand at once on an exit taxiway between two parallel runw
 
 An entry that fails any of the checks above is skipped with a warning at load. An entry that loads but does not resolve on the airport's live layout to exactly one hold-short-to-hold-short stretch logs an Error and is ignored for that layout, so exits there behave as if it were absent; `ExitCapacitySidecarTests` fails on such an entry. Worked example: [`ZOA/Airports/sfo.json`](ZOA/Airports/sfo.json).
 
+### `blockedTurns`
+
+Corners where no aircraft may turn through, whichever way it comes. Each entry is an ordered `path` of at least three waypoints tracing an L through the corner's apex; the middle point is the apex. Unlike `oneWayEdges` there is no `block` field and no wake-class exemption: the block is always both ways and always hard. Neither auto-routing nor an explicit `TAXI` clearance may turn through the corner, and Ground View hides the corner's fillet arc.
+
+```json
+"blockedTurns": [
+  {
+    "notes": "L/F south apex: no direct sharp turn between L and F. Aircraft use the LF connector instead.",
+    "path": [
+      { "point": [-122.373393, 37.614943], "taxiway": "L" },
+      { "point": [-122.372604, 37.616132], "taxiway": "L" },
+      { "point": [-122.372603, 37.616130], "taxiway": "F" },
+      { "point": [-122.371012, 37.615463], "taxiway": "F" }
+    ]
+  }
+]
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `blockedTurns[].path` | object[] | Yes (≥3) | Ordered waypoints through the corner |
+| `blockedTurns[].path[].point` | number[2] | Yes | `[lon, lat]` of the vertex (GeoJSON order) |
+| `blockedTurns[].path[].taxiway` | string | No | Expected taxiway at this vertex (validation hint) |
+| `blockedTurns[].notes` | string | No | Human-readable rationale. Informational only |
+
+An entry with fewer than three points, or with a point that is not a two-number array, is skipped with a warning. Worked example: [`ZOA/Airports/sfo.json`](ZOA/Airports/sfo.json).
+
+### `movementAreaTaxiways` / `nonMovementTaxilanes`
+
+Overrides for the movement-area verdict YAAT infers from taxiway names and the airport map. A name in `movementAreaTaxiways` is treated as movement area; a name in `nonMovementTaxilanes` is treated as a ramp taxilane (non-movement). The verdict drives pilot discretion on ramps, tug moves and the router.
+
+Use these only for a one-off exception checked against the real airport: anything the layout can show belongs in the inference rules ([`docs/ground/pathfinder.md`](../../../../docs/ground/pathfinder.md)). No shipped airport carries entries.
+
+```json
+"movementAreaTaxiways": [ { "name": "B7", "notes": "Controlled by ground, not the ramp tower." } ],
+"nonMovementTaxilanes": [ { "name": "TC", "notes": "Ramp-controlled." } ]
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `movementAreaTaxiways[].name` | string | Yes | Taxiway name to treat as movement area |
+| `movementAreaTaxiways[].notes` | string | No | Human-readable rationale. Informational only |
+| `nonMovementTaxilanes[].name` | string | Yes | Taxiway name to treat as a ramp taxilane |
+| `nonMovementTaxilanes[].notes` | string | No | Human-readable rationale. Informational only |
+
+Names are upper-cased and de-duplicated; a blank name is skipped with a warning. A name in both lists is movement area.
+
 ---
 
 ## Procedures
@@ -466,7 +514,8 @@ Each file is a JSON array of transfer rules:
 | `fromCallsign` | string | If no `fromPositionType` | Exact originating controller callsign, e.g. `"SFO_APP"`. |
 | `toPositionType` | string | If no `toCallsign` | Student/controller position type receiving communications. |
 | `toCallsign` | string | If no `toPositionType` | Exact receiving controller callsign, e.g. `"SFO_TWR"`. |
-| `contactAllowedWhen` | string | Yes | One of `handoffInitiated`, `handoffAccepted`, or `noHandoffNecessary`. |
+| `contactAllowedWhen` | string | Yes, unless the legacy `allowsWithoutTrackHandoff` is `true` | One of `handoffInitiated`, `handoffAccepted`, or `noHandoffNecessary`. Case, `-` and `_` are ignored, and `onHandoffInitiated`, `onHandoffAccepted`, `noHandoff` and `withoutHandoff` are accepted as alternate spellings. |
+| `allowsWithoutTrackHandoff` | bool | No | Legacy form of `"contactAllowedWhen": "noHandoffNecessary"`: when `true` and `contactAllowedWhen` is empty, the rule means `noHandoffNecessary`. Write `contactAllowedWhen` in new rules. |
 | `notes` | string | No | Human-readable SOP note/source. |
 
 Restart YAAT to pick up edits to initial-contact transfer JSONs.

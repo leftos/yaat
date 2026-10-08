@@ -71,6 +71,7 @@ The generic loop is the user-level `nextup` skill; this file supplies only what 
 | A client-driver lesson (the MCP server, the automation pipe, how agents drive the client) | `docs/client-driver-mcp.md`, and the rule in `docs/DRIVING_CONVENTIONS.md` |
 | A yaat-server file added, moved or removed; a server subsystem's shape | yaat-server `docs/architecture.md` |
 | A CRC wire DTO or MessagePack layout | yaat-server `docs/crc-wire/` (regenerated per `docs/crc-update.md`), yaat `docs/crc-display-state.md` |
+| A sidecar field or `Data/ARTCCs` category, a GeoJSON property YAAT reads, or a vNAS ARTCC-config/scenario field YAAT reads | `ARTCC_CUSTOMIZATION.md` (synced to Discord), `src/Yaat.Sim/Data/ARTCCs/README.md` for sidecar schemas |
 | Live traffic / SWIM behaviour | yaat-server `docs/plans/live-traffic-swim/` (the subplan the item cites), yaat `docs/live-traffic.md` |
 | Everything user-visible | `CHANGELOG.md` under the unreleased heading, one bullet per change |
 
