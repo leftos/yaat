@@ -28,6 +28,8 @@ public partial class MainViewModel
 
     private Dictionary<string, List<string>> _activeRunwaysPromptPrefill = [];
 
+    private Dictionary<string, RunwayUseCountsDto> _activeRunwaysPromptAssigned = [];
+
     /// <summary>Bumped on every open and close of the prompt, so an answer still sending can tell its prompt is gone.</summary>
     private int _activeRunwaysPromptGeneration;
 
@@ -44,7 +46,10 @@ public partial class MainViewModel
     /// <summary>The prompt's rows: the primary airport first, then every other airport the server's guess names.</summary>
     public ObservableCollection<ActiveRunwaysRow> ActiveRunwaysPromptRows { get; } = [];
 
-    /// <summary>The prompt's notes on the guess, for the airports still shown (<see cref="ActiveRunwaysEditor.Notes"/>).</summary>
+    /// <summary>
+    /// The prompt's notes, for the airports still shown in row order: each airport's line on the aircraft that already have
+    /// a runway (<see cref="ActiveRunwaysEditor.AssignedNote"/>), then its notes on the guess (<see cref="ActiveRunwaysEditor.Notes"/>).
+    /// </summary>
     public ObservableCollection<string> ActiveRunwaysPromptNotes { get; } = [];
 
     [ObservableProperty]
@@ -66,7 +71,7 @@ public partial class MainViewModel
         ApplyActiveRunways(result.ActiveRunways);
         if (result.ActiveRunwaysPromptNeeded && (!IsNonMentor) && (!result.IsLiveSession))
         {
-            OpenActiveRunwaysPrompt(result.PrimaryAirportId, result.ActiveRunwaysPrefill);
+            OpenActiveRunwaysPrompt(result.PrimaryAirportId, result.ActiveRunwaysPrefill, result.ActiveRunwaysAssigned);
         }
         else
         {
@@ -148,11 +153,16 @@ public partial class MainViewModel
         }
     }
 
-    private void OpenActiveRunwaysPrompt(string? primaryAirportId, Dictionary<string, List<string>> prefill)
+    private void OpenActiveRunwaysPrompt(
+        string? primaryAirportId,
+        Dictionary<string, List<string>> prefill,
+        Dictionary<string, RunwayUseCountsDto> assigned
+    )
     {
         CloseActiveRunwaysPrompt();
         _activeRunwaysPromptGeneration++;
         _activeRunwaysPromptPrefill = prefill;
+        _activeRunwaysPromptAssigned = assigned;
         foreach (string airport in ActiveRunwaysPromptAirports(primaryAirportId, prefill))
         {
             var row = new ActiveRunwaysRow(airport, ActiveRunwaysEditor.ToText(prefill.GetValueOrDefault(airport) ?? []));
@@ -189,9 +199,13 @@ public partial class MainViewModel
     private void RefreshActiveRunwaysPromptNotes()
     {
         ActiveRunwaysPromptNotes.Clear();
-        foreach (string note in ActiveRunwaysEditor.Notes(ActiveRunwaysPromptRows.Select(row => row.Airport), _activeRunwaysPromptPrefill))
+        foreach (ActiveRunwaysRow row in ActiveRunwaysPromptRows)
         {
-            ActiveRunwaysPromptNotes.Add(note);
+            ActiveRunwaysPromptNotes.Add(ActiveRunwaysEditor.AssignedNote(row.Airport, _activeRunwaysPromptAssigned.GetValueOrDefault(row.Airport)));
+            foreach (string note in ActiveRunwaysEditor.Notes([row.Airport], _activeRunwaysPromptPrefill))
+            {
+                ActiveRunwaysPromptNotes.Add(note);
+            }
         }
     }
 
@@ -207,6 +221,7 @@ public partial class MainViewModel
         ActiveRunwaysPromptRows.Clear();
         ActiveRunwaysPromptNotes.Clear();
         _activeRunwaysPromptPrefill = [];
+        _activeRunwaysPromptAssigned = [];
     }
 
     /// <summary>Every way out of a scenario: the room has no active runways, and the prompt for them closes.</summary>

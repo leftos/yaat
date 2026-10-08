@@ -132,6 +132,7 @@ public class MainViewModelSessionSettingsTests
                 ActiveRunways: [],
                 ActiveRunwaysPrefill: [],
                 ActiveRunwaysPromptNeeded: false,
+                ActiveRunwaysAssigned: [],
                 AutoDeleteOverride: null,
                 EffectiveAutoDeleteMode: "Parked",
                 AutoAcceptDelaySeconds: 5,
@@ -191,6 +192,7 @@ public class MainViewModelSessionSettingsTests
                 ActiveRunways: [],
                 ActiveRunwaysPrefill: [],
                 ActiveRunwaysPromptNeeded: false,
+                ActiveRunwaysAssigned: [],
                 DepartureAutoDeleteDistanceNm: 45
             )
         );

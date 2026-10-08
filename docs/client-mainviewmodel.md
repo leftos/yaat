@@ -198,7 +198,13 @@ It is server-authoritative and replaced wholesale by every payload that carries 
 
 The same file holds the prompt the loading mentor answers. It opens only from the loader's own result when `ActiveRunwaysPromptNeeded` is set, the client is a mentor (`!IsNonMentor`) and the load result's `IsLiveSession` is false; a restart, a join and another member's load never open it.
 
-It is an overlay in `MainWindow.axaml` (`ShowActiveRunwaysPrompt`) with one `ActiveRunwaysRow` per airport (the primary first, then each airport the prefill names), pre-filled from `ActiveRunwaysPrefill`, and `ActiveRunwaysPromptNotes` naming the airports whose guess implies no departure or no arrival end.
+It is an overlay in `MainWindow.axaml` (`ShowActiveRunwaysPrompt`) with one `ActiveRunwaysRow` per airport (the primary first, then each airport the prefill names), pre-filled from `ActiveRunwaysPrefill`.
+
+Under its title a fixed line says what the list drives: `YAAT's aircraft menus use these to name and suggest runways. Aircraft the scenario already gives a runway keep it.`
+
+`ActiveRunwaysPromptNotes` holds, for each row's airport in row order, its runway line (`ActiveRunwaysEditor.AssignedNote`, from the load result's `ActiveRunwaysAssigned`: how many departures and arrivals already have a runway and keep it, or that none does, then the runways the scenario's arrival generators land on) and then its notes on the guess (`ActiveRunwaysEditor.Notes`: no departure or no arrival end implied).
+
+The notes follow the rows, so an airport whose row was accepted loses its lines.
 
 OK checks every row with `ActiveRunwaysEditor.ToCommand` (`ActiveRunwaysEditor.cs`, returning an `ActiveRunwaysAnswer`, `ActiveRunwaysAnswer.cs`; it reads the text with `ActiveRunwayListParser.ParseWithNone`, the reader `ARWY` itself uses, so commas, tabs and new lines count as spaces when looking for `NONE`; an empty row sets every end of every runway the navigation data knows there, `NONE` alone clears) and sends nothing if a row fails. Otherwise it sends one `ARWY {FAA} {tokens}` per airport through `SendCommandAsync`, not added to command history. An accepted row leaves the prompt and a refused one stays with the server's message.
 

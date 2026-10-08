@@ -18,7 +18,7 @@ public class LoadOverlayViewModelTests
         new(loadId, sequence, "OAK Ground 7", isComplete, [.. steps]);
 
     private static LoadScenarioResultDto Result(bool success, params LoadStepDto[] steps) =>
-        new(success, "OAK Ground 7", "scenario-7", 0, 0, true, 1, "OAK", [], [], [], [], false) { Steps = [.. steps] };
+        new(success, "OAK Ground 7", "scenario-7", 0, 0, true, 1, "OAK", [], [], [], [], false, []) { Steps = [.. steps] };
 
     private static LoadOverlayViewModel Begun()
     {

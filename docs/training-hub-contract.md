@@ -288,7 +288,11 @@ payload DTO → the `ServerConnection` C# event it re-raises:
 
   On the server `LoadScenarioResult.Steps` and `RoomStateDto.LoadingBy` are positional members; the client declares them as `init` properties (`LoadScenarioResultDto.Steps` defaults to empty, `RoomStateDto.LoadingBy` to null).
 
-  `LoadScenarioResult` carries the room's active runways as loaded (`ActiveRunways`), the implied guess that pre-fills the mentor's prompt (`ActiveRunwaysPrefill`) and `ActiveRunwaysPromptNeeded`, true only in an RPO room whose scenario has no sidecar and no carried answer. All three, and `RoomStateDto.ActiveRunways`, are required members on the server and on the client.
+  `LoadScenarioResult` carries the room's active runways as loaded (`ActiveRunways`), the implied guess that pre-fills the mentor's prompt (`ActiveRunwaysPrefill`) and `ActiveRunwaysPromptNeeded`, true only in an RPO room whose scenario has no sidecar and no carried answer.
+
+  `ActiveRunwaysAssigned` (airport → `RunwayUseCountsDto(Departures, Arrivals, GeneratorArrivalRunways)`, from `ScenarioRunwayUse.CountAssigned`) says what the scenario already decides about runways: how many of its loaded aircraft (immediate and delayed) already have a runway, counted at that runway's airport as departures when they start on the ground and arrivals when airborne, and, at the primary airport, the runway designators its arrival generators feed.
+
+  An airport with neither is absent; it is empty on a failed load. All four, and `RoomStateDto.ActiveRunways`, are required members on the server and on the client.
 
   Every other payload that replaces a client's scenario carries the room's list too, as a required member on both sides: `ScenarioLoadedDto.ActiveRunways` (the other members' copy of a load), `RewindResultDto.ActiveRunways` (a rewind's or recording load's result and the `RecordingLoaded` broadcast; empty on a failure) and `ScenarioRestartedDto.ActiveRunways`. A client replaces its copy with each.
 

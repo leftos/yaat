@@ -135,12 +135,86 @@ public class MainViewModelActiveRunwaysPromptTests
     }
 
     [AvaloniaFact]
-    public void Prompt_ShowsTheNotesForItsAirports()
+    public void Prompt_ShowsTheNotesForItsAirports_PrimaryFirst_EachAirportsRunwayLineBeforeItsGuessNotes()
     {
-        MainViewModel vm = PromptedVm(("OAK", ["D28L"]), ("SFO", ["28R"]));
+        MainViewModel vm = NewVm();
+        vm.ApplyLoadResultActiveRunways(
+            MainViewModelActiveRunwaysTests.LoadResult([], Runways(("SFO", ["28R"]), ("SQL", ["D30"])), promptNeeded: true) with
+            {
+                ActiveRunwaysAssigned = new Dictionary<string, RunwayUseCountsDto> { ["SQL"] = new(1, 0, []), ["OAK"] = new(0, 2, ["30"]) },
+            }
+        );
 
-        Assert.Equal(["No arrival end implied at OAK"], vm.ActiveRunwaysPromptNotes);
+        Assert.Equal(
+            [
+                "OAK: 2 arrivals in this scenario already have a runway and keep it; the rest are offered these. "
+                    + "Arrivals from the scenario's generators land on 30.",
+                "No departure end implied at OAK",
+                "No arrival end implied at OAK",
+                "SFO: no aircraft placed by this scenario has a runway yet; all of them are offered these.",
+                "SQL: 1 departure in this scenario already has a runway and keeps it; the rest are offered these.",
+                "No arrival end implied at SQL",
+            ],
+            vm.ActiveRunwaysPromptNotes
+        );
     }
+
+    [AvaloniaFact]
+    public async Task Prompt_DropsTheRunwayLine_OfAnAirportWhoseRowWasAccepted()
+    {
+        MainViewModel vm = NewVm();
+        vm.ApplyLoadResultActiveRunways(
+            MainViewModelActiveRunwaysTests.LoadResult([], Runways(("OAK", ["28R"]), ("SFO", ["28R"])), promptNeeded: true) with
+            {
+                ActiveRunwaysAssigned = new Dictionary<string, RunwayUseCountsDto> { ["OAK"] = new(3, 0, []) },
+            }
+        );
+        var sender = new RecordingSender(command =>
+            command.StartsWith("ARWY SFO", StringComparison.Ordinal) ? new CommandResultDto(false, "No") : new CommandResultDto(true, null)
+        );
+
+        await vm.SubmitActiveRunwaysPromptAsync(NavDb(), sender.Send);
+
+        Assert.Equal(["SFO: no aircraft placed by this scenario has a runway yet; all of them are offered these."], vm.ActiveRunwaysPromptNotes);
+    }
+
+    [Theory]
+    [InlineData(1, 0, "OAK: 1 departure in this scenario already has a runway and keeps it; the rest are offered these.")]
+    [InlineData(3, 0, "OAK: 3 departures in this scenario already have a runway and keep it; the rest are offered these.")]
+    [InlineData(0, 1, "OAK: 1 arrival in this scenario already has a runway and keeps it; the rest are offered these.")]
+    [InlineData(0, 2, "OAK: 2 arrivals in this scenario already have a runway and keep it; the rest are offered these.")]
+    [InlineData(1, 1, "OAK: 1 departure and 1 arrival in this scenario already have a runway and keep it; the rest are offered these.")]
+    [InlineData(2, 3, "OAK: 2 departures and 3 arrivals in this scenario already have a runway and keep it; the rest are offered these.")]
+    [InlineData(0, 0, "OAK: no aircraft placed by this scenario has a runway yet; all of them are offered these.")]
+    public void RunwayLine_SpellsTheCounts_DroppingAZeroPart(int departures, int arrivals, string line) =>
+        Assert.Equal(line, ActiveRunwaysEditor.AssignedNote("OAK", new RunwayUseCountsDto(departures, arrivals, [])));
+
+    [Fact]
+    public void RunwayLine_AnAirportTheServerDidNotCount_HasNoAircraftWithARunway() =>
+        Assert.Equal(
+            "OAK: no aircraft placed by this scenario has a runway yet; all of them are offered these.",
+            ActiveRunwaysEditor.AssignedNote("OAK", null)
+        );
+
+    [Theory]
+    [InlineData(
+        0,
+        new[] { "28R" },
+        "OAK: no aircraft placed by this scenario has a runway yet; all of them are offered these. Arrivals from the scenario's generators land on 28R."
+    )]
+    [InlineData(
+        0,
+        new[] { "28R", "30" },
+        "OAK: no aircraft placed by this scenario has a runway yet; all of them are offered these. Arrivals from the scenario's generators land on 28R and 30."
+    )]
+    [InlineData(
+        2,
+        new[] { "28L", "28R", "30" },
+        "OAK: 2 departures in this scenario already have a runway and keep it; the rest are offered these. "
+            + "Arrivals from the scenario's generators land on 28L, 28R and 30."
+    )]
+    public void RunwayLine_NamesTheGeneratorsRunways(int departures, string[] runways, string line) =>
+        Assert.Equal(line, ActiveRunwaysEditor.AssignedNote("OAK", new RunwayUseCountsDto(departures, 0, [.. runways])));
 
     // --- Reading a row ---
 

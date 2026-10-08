@@ -1340,6 +1340,13 @@ public record AircraftDto(
     string? NextCrossingRunway = null
 );
 
+/// <summary>
+/// At one airport, how many of the loaded scenario's aircraft already have a runway (on the ground: departures; airborne:
+/// arrivals) and the runways its arrival generators feed, designators in ordinal order. Kept name-for-name in sync with
+/// the server's RunwayUseCountsDto.
+/// </summary>
+public record RunwayUseCountsDto(int Departures, int Arrivals, List<string> GeneratorArrivalRunways);
+
 public record LoadScenarioResultDto(
     bool Success,
     string Name,
@@ -1357,6 +1364,8 @@ public record LoadScenarioResultDto(
     Dictionary<string, List<string>> ActiveRunwaysPrefill,
     // True only in an RPO room whose scenario has no sidecar and no answer carried for it: the mentor is asked.
     bool ActiveRunwaysPromptNeeded,
+    // What the scenario already decides about runways, by airport: the prompt's per-airport lines. Empty on a failed load.
+    Dictionary<string, RunwayUseCountsDto> ActiveRunwaysAssigned,
     string? WeatherName = null,
     PositionDisplayConfigDto? PositionDisplayConfig = null,
     string? AutoDeleteOverride = null,

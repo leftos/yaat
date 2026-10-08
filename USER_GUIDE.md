@@ -1304,7 +1304,11 @@ Both API and local scenarios appear in the **Scenario > Load Recent Scenario** m
 
 When you load a scenario as a mentor in a training room and the scenario does not say which runways are in use, YAAT asks you once the load finishes. The **Active runways** prompt has one row per airport, filled in with YAAT's guess from the scenario's traffic and the weather.
 
-Type the runways separated by commas, spaces or new lines: `D28L` is departures only, `A28R` arrivals only, and a bare `30` is both. Leave a row empty to make every runway at that airport active, or type `NONE` for none. Notes under the rows name any airport where the guess has no departure end or no arrival end. A row YAAT cannot read shows why under it, and nothing is sent until you fix it.
+The prompt opens by saying what the list is for: YAAT's aircraft menus use the active runways to name and suggest runways, and aircraft the scenario already gives a runway keep it.
+
+Under the rows, one line per airport says how this scenario stands, for example `OAK: 2 departures and 6 arrivals in this scenario already have a runway and keep it; the rest are offered these.`, or that no aircraft the scenario places has a runway yet. When the scenario's arrival generators feed the airport, the line ends by naming the runways those arrivals land on.
+
+Type the runways separated by commas, spaces or new lines: `D28L` is departures only, `A28R` arrivals only, and a bare `30` is both. Leave a row empty to make every runway at that airport active, or type `NONE` for none. Further notes name any airport where the guess has no departure end or no arrival end. A row YAAT cannot read shows why under it, and nothing is sent until you fix it.
 
 **OK** sets each airport as an `ARWY` command would, and the server's replies appear in the terminal. **Cancel** keeps the room's current runways and prints a reminder to set them later with `ARWY`. Solo training, live sessions, other members, joining a room and restarting never ask; a restart keeps the runways in use.
 

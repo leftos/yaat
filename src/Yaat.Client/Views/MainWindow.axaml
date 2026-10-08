@@ -905,6 +905,11 @@
       <StackPanel Spacing="12">
         <TextBlock Text="Active runways" FontSize="16" FontWeight="Bold" Foreground="White" />
         <TextBlock
+          Text="YAAT's aircraft menus use these to name and suggest runways. Aircraft the scenario already gives a runway keep it."
+          TextWrapping="Wrap"
+          Foreground="LightGray"
+        />
+        <TextBlock
           Text="Which runways are active? Separate with commas, spaces or new lines. D28L = departures only, A28R = arrivals only."
           TextWrapping="Wrap"
           Foreground="LightGray"

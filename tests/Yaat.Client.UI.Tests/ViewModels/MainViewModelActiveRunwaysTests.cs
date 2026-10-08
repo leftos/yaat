@@ -48,6 +48,7 @@ public class MainViewModelActiveRunwaysTests
             ActiveRunways: activeRunways,
             ActiveRunwaysPrefill: prefill,
             ActiveRunwaysPromptNeeded: promptNeeded,
+            ActiveRunwaysAssigned: [],
             IsLiveSession: false
         );
 

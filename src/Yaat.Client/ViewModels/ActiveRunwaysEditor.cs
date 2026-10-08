@@ -1,3 +1,4 @@
+using Yaat.Client.Services;
 using Yaat.Sim.Data;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Simulation;
@@ -7,7 +8,7 @@ namespace Yaat.Client.ViewModels;
 /// <summary>
 /// The active-runways editor's text round trip, shared by the load prompt and any window that edits the room's list: the
 /// tokens a row shows, the <c>ARWY</c> command a row's text sends (checked with the parser the server's <c>ARWY</c> uses),
-/// and the notes on a guess.
+/// the notes on a guess, and the line saying which of the scenario's aircraft already have a runway.
 /// </summary>
 public static class ActiveRunwaysEditor
 {
@@ -38,6 +39,47 @@ public static class ActiveRunwaysEditor
 
         return notes;
     }
+
+    /// <summary>
+    /// The prompt's line for <paramref name="airport"/>: how many of the scenario's aircraft there already have a runway and
+    /// keep it (a zero part dropped), or that none does when <paramref name="use"/> counts none or is <c>null</c> (the
+    /// server did not list the airport), then the runways the scenario's arrival generators land on, when any.
+    /// </summary>
+    public static string AssignedNote(string airport, RunwayUseCountsDto? use)
+    {
+        int departures = use?.Departures ?? 0;
+        int arrivals = use?.Arrivals ?? 0;
+        string line =
+            (departures + arrivals) == 0
+                ? $"{airport}: no aircraft placed by this scenario has a runway yet; all of them are offered these."
+                : $"{airport}: {CountedAircraft(departures, arrivals)} in this scenario already "
+                    + ((departures + arrivals) == 1 ? "has a runway and keeps it" : "have a runway and keep it")
+                    + "; the rest are offered these.";
+
+        return use is { GeneratorArrivalRunways.Count: > 0 }
+            ? $"{line} Arrivals from the scenario's generators land on {JoinAnd(use.GeneratorArrivalRunways)}."
+            : line;
+    }
+
+    private static string CountedAircraft(int departures, int arrivals)
+    {
+        List<string> parts = [];
+        if (departures > 0)
+        {
+            parts.Add(departures == 1 ? "1 departure" : $"{departures} departures");
+        }
+
+        if (arrivals > 0)
+        {
+            parts.Add(arrivals == 1 ? "1 arrival" : $"{arrivals} arrivals");
+        }
+
+        return string.Join(" and ", parts);
+    }
+
+    /// <summary><c>28R</c>, <c>28R and 30</c>, <c>28L, 28R and 30</c>.</summary>
+    private static string JoinAnd(IReadOnlyList<string> items) =>
+        items.Count == 1 ? items[0] : $"{string.Join(", ", items.Take(items.Count - 1))} and {items[^1]}";
 
     /// <summary>
     /// Every end of every runway the navigation data knows at <paramref name="airport"/>, as bare tokens in its order: what

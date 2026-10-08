@@ -1861,6 +1861,8 @@ ActiveRunways.cs               # The room's active runway ends per airport (Acti
                                # NavigationDatabase.NormalizeAirport in an ordinal sorted map; immutable, carried on SimScenarioState.ActiveRunways and snapshotted.
 ImpliedActiveRunways.cs        # The runway ends a loaded scenario implies (For: spawns win whole per airport, then arrival generators, then the primary airport's
                                # facility knowledge pruned by the usability gate, then the generic rule), and RoomDefault: only airports whose ends name every runway.
+ScenarioRunwayUse.cs           # What a loaded scenario already decides about runways, per airport (CountAssigned): its immediate and delayed aircraft that already
+                               # have a runway (on the ground: departures; airborne: arrivals) and the primary's arrival-generator runways. The load prompt's lines.
 ActiveRunwayListParser.cs      # The one runway-list grammar (command, sidecar, snapshot, prompt): tokens split on commas, spaces or newlines; `30` both, `D28L`
                                # departures, `A28R` arrivals; ends 01-36 with optional L/R/C. Parse checks ends against navdata; FromTokenLists (sidecar, snapshot) warns and drops.
                                # ToTokenLists is its inverse (airport -> token list); ReadStored reads a recording's or checkpoint's stored starting list (null when it stored none).

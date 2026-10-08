@@ -75,14 +75,16 @@ public class HubJsonContractTests
     [Fact]
     public void LoadStepDto_ResolvesThroughYaatHubJsonContext() => Assert.NotNull(YaatHubJsonContext.Default.GetTypeInfo(typeof(LoadStepDto)));
 
-    // The active-runways broadcast, the room-join field and the load result's prompt fields, in the server's wire shape.
+    // The active-runways broadcast, the room-join field and the load result's prompt fields (the assigned-runway counts
+    // included), in the server's wire shape.
     [Fact]
     public void ActiveRunwaysShapes_DeserializeIntoClientRecords()
     {
         const string changedJson = """{"ByAirport":{"OAK":["D28L","A28R"],"SFO":["28R"]}}""";
         const string resultJson =
             """{"Success":true,"Name":"OAK","ScenarioId":"s-1","Warnings":[],"AllAircraft":[],"Steps":[],"""
-            + """ "ActiveRunways":{},"ActiveRunwaysPrefill":{"OAK":["D30"]},"ActiveRunwaysPromptNeeded":true}""";
+            + """ "ActiveRunways":{},"ActiveRunwaysPrefill":{"OAK":["D30"]},"ActiveRunwaysPromptNeeded":true,"""
+            + """ "ActiveRunwaysAssigned":{"OAK":{"Departures":2,"Arrivals":1,"GeneratorArrivalRunways":["28R","30"]}}}""";
         const string roomJson =
             """{"RoomId":"room-1","CreatorInitials":"CX","CreatorArtccId":"ZOA","Members":[],"AllAircraft":[],"""
             + """ "AircraftGenerators":[],"VfrArrivalGenerators":[],"OverflightGenerators":[],"Positions":[],"LoadingBy":null,"""
@@ -99,6 +101,9 @@ public class HubJsonContractTests
         Assert.Empty(result.ActiveRunways);
         Assert.Equal(["D30"], result.ActiveRunwaysPrefill["OAK"]);
         Assert.True(result.ActiveRunwaysPromptNeeded);
+        RunwayUseCountsDto oak = result.ActiveRunwaysAssigned["OAK"];
+        Assert.Equal((2, 1), (oak.Departures, oak.Arrivals));
+        Assert.Equal(["28R", "30"], oak.GeneratorArrivalRunways);
         Assert.NotNull(room);
         Assert.Equal(["30"], room.ActiveRunways["OAK"]);
     }
