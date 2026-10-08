@@ -92,6 +92,10 @@ internal sealed class PointMenuHostCache(IMenuHost inner) : IMenuHost
     public void ShowFilteredListPopup(string[] sortedNames, IReadOnlyList<object>? priorityItems, Func<string, Task> onPick) =>
         inner.ShowFilteredListPopup(sortedNames, priorityItems, onPick);
 
+    public void ShowRichListPopup(MenuRichList list, Action<MenuRichRow> onPick) => inner.ShowRichListPopup(list, onPick);
+
+    public (string Sector, int FloorFtMsl)? GetMva(LatLon position) => inner.GetMva(position);
+
     public double GetFieldElevation(string? destination) => inner.GetFieldElevation(destination);
 
     public void EnterDrawRoute(string callsign) => inner.EnterDrawRoute(callsign);

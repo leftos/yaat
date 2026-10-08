@@ -9,6 +9,7 @@ using Yaat.Client.ViewModels;
 using Yaat.Sim;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Mva;
 using Yaat.Sim.Situation;
 
 namespace Yaat.Client.Views;
@@ -154,7 +155,10 @@ internal sealed class ClientMenuHost(MainViewModel main, AircraftModel? aircraft
         return string.IsNullOrEmpty(taxiway) ? char.ToUpperInvariant(joined[0]) + joined[1..] : $"At {taxiway} ({joined})";
     }
 
-    /// <summary>The taxi's named destination at <paramref name="node"/>: a named Spot (<c>$</c>), a named Parking or Helipad stand (<c>@</c>); else null.</summary>
+    /// <summary>
+    /// The taxi's named destination at <paramref name="node"/>: a named Spot (<c>$</c>), a named Parking or Helipad stand
+    /// (<c>@</c>); else null.
+    /// </summary>
     private static TaxiSpotDestination? SpotDestinationFor(GroundNodeDto node) =>
         node.Type switch
         {
@@ -163,7 +167,10 @@ internal sealed class ClientMenuHost(MainViewModel main, AircraftModel? aircraft
             _ => null,
         };
 
-    /// <summary>The runway a taxi to <paramref name="node"/> ends at: <paramref name="runwayEnd"/> when a threshold click names one, else a hold-short node's runway End1, else none.</summary>
+    /// <summary>
+    /// The runway a taxi to <paramref name="node"/> ends at: <paramref name="runwayEnd"/> when a threshold click names one,
+    /// else a hold-short node's runway End1, else none.
+    /// </summary>
     private static string? DestinationRunwayFor(GroundNodeDto node, string? runwayEnd)
     {
         if (runwayEnd is not null)
@@ -249,6 +256,12 @@ internal sealed class ClientMenuHost(MainViewModel main, AircraftModel? aircraft
 
     public void ShowFilteredListPopup(string[] sortedNames, IReadOnlyList<object>? priorityItems, Func<string, Task> onPick) =>
         MenuPopups.ShowFilteredList(anchor, sortedNames, priorityItems, onPick);
+
+    public void ShowRichListPopup(MenuRichList list, Action<MenuRichRow> onPick) => MenuPopups.ShowRichList(anchor, list, onPick);
+
+    /// <summary>The controlling sector of the MVA database (<see cref="MvaDatabase.FindSector"/>) at <paramref name="position"/>.</summary>
+    public (string Sector, int FloorFtMsl)? GetMva(LatLon position) =>
+        (MvaDatabase.Default.FindSector(position) is { } sector) ? (sector.Sector, sector.FloorFtMsl) : null;
 
     /// <summary>The primary radar view model's fix names: every fix in the navigation database once it is loaded, else null.</summary>
     public string[]? FixNames => main.Radar.FixNames;

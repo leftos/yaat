@@ -7,7 +7,8 @@ namespace Yaat.Client.ContextMenus;
 
 /// <summary>
 /// What a catalog entry's builder needs from the surface that owns the menu: the send path, the popups and flyouts, the
-/// ground choices and route drawing. A surface's own canvas items — every view's view section — are not here: the view builds them with <see cref="CanvasMenuItems"/> from its own canvas state.
+/// ground choices and route drawing. A surface's own canvas items — every view's view section — are not here: the view
+/// builds them with <see cref="CanvasMenuItems"/> from its own canvas state.
 /// </summary>
 public interface IMenuHost
 {
@@ -88,6 +89,18 @@ public interface IMenuHost
     /// <paramref name="priorityItems"/> until the controller types, and hands the picked name to <paramref name="onPick"/>.
     /// </summary>
     void ShowFilteredListPopup(string[] sortedNames, IReadOnlyList<object>? priorityItems, Func<string, Task> onPick);
+
+    /// <summary>
+    /// Opens the surface's titled picker of <paramref name="list"/>'s rows, with its selected row centred, and hands the
+    /// row the controller picks to <paramref name="onPick"/>; a row without a command is never handed over.
+    /// </summary>
+    void ShowRichListPopup(MenuRichList list, Action<MenuRichRow> onPick);
+
+    /// <summary>
+    /// The minimum vectoring altitude sector covering <paramref name="position"/>: its name and floor in feet MSL; null
+    /// when none covers it.
+    /// </summary>
+    (string Sector, int FloorFtMsl)? GetMva(LatLon position);
 
     /// <summary>Every fix name the surface's filtered fix pickers offer, sorted; null while the navigation data is not loaded.</summary>
     string[]? FixNames { get; }

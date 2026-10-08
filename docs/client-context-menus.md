@@ -14,7 +14,7 @@ The aircraft right-click menus on the radar, ground and aircraft-list views. Thi
 - **Inapplicable entries are hidden, not disabled.** An issued clearance hides itself and shows its cancel entry instead.
 - **The icon strip** shows the glyph-bearing entries of the one per-situation list: the first ten in list order, two rows of five, the first row filled first and an empty second row hidden; every other entry, a glyph-bearing one past the tenth included, is a text entry below it. A list left with no glyph-bearing entry has no strip.
 
-  A button stands for its entry's own menu item: a sending or prompting item is clicked through, and a submenu (Maintain ▸, Cleared for takeoff ▸) opens as a flyout under the button, marked by a corner notch; choosing a command closes the menu. A label row above the icons names the entry under the pointer (or keyboard focus) with the command it sends, says so when the entry opens a submenu ("›"), and reads "Quick commands" / "point at an icon" when nothing on the strip is pointed at.
+  A button stands for its entry's own menu item: a sending or prompting item is clicked through, and a submenu (Cleared for takeoff ▸) opens as a flyout under the button, marked by a corner notch; choosing a command closes the menu. A label row above the icons names the entry under the pointer (or keyboard focus) with the command it sends, says so when the entry opens a submenu ("›"), and reads "Quick commands" / "point at an icon" when nothing on the strip is pointed at.
 
   The tooltip names the entry and, for one that sends a fixed command, that command (`Hold position — HOLD`); it closes, and stays suppressed, while a strip icon's submenu flyout is open. Glyphs are coloured by family (tower, ground, flight, pattern, scope and sim); a left/right pair shares one glyph, and so do Cancel landing clearance and Cancel takeoff clearance, which no situation offers together.
 - **The point menu** (a map, taxi-node, runway-threshold or runway-surface right-click with an aircraft selected) opens with the bold title `{callsign} · {type} → {place}`. The place is `HS 30 at W3` at the hold short a threshold click resolves to (`HS 30` when no named taxiway leads to it), `parking {name}`, `spot {name}`, the taxiways meeting at any other node in ordinal order (`B / C`), `runway 28R` on a runway surface, and `this point` on the radar map or at a node no taxiway names.
@@ -31,6 +31,11 @@ The aircraft right-click menus on the radar, ground and aircraft-list views. Thi
   The **grouped picker** opens with the default runway's group (`Runway 30 · assigned`; the runway is chosen as `SmartVisualRunway` chooses it), its rows under kind headers ILS, LOC, RNAV, RNP, then the others alphabetically, each row the procedure name (`ILS RWY 30`; CIFP does not code "ILS or LOC" titles), an `expected` badge and the command it sends. Then come `Other runways`, one submenu per runway labelled with its kinds (`28R · ILS, LOC, RNAV Y, RNP Z`), and a last `Circling · {kinds}` submenu for approaches with no runway.
 
   With no default runway every runway is a top-level submenu. The kind comes from the approach's type code (`CifpApproachProcedure.TypeCode`, today the id's first letter), and for a circling approach from the id's prefix (`VDM-A` is VOR/DME, `LDA-C` is LDA); the variant (Y, Z, A) comes from the id. The default leaf names an RNP approach as RNAV (`Cleared RNAV Z 28L`, 7110.65 4-8-1 NOTE 9) while its kind header stays RNP. An expected approach written in shorthand (`R28L`) is resolved to its CIFP id first. In the quick list the companion sits directly under its leaf, or, when the leaf is on the icon strip, as the first text row under the strip; the strip itself shows only the leaf. The goldens print the picker as `picker:grouped` (`MenuPickerDescriptor`).
+- **Maintain picker** (`MenuCatalog.BuildMaintainAltitude`) is a rich-row picker (`MenuRichList` of `MenuRichRow`, opened by `IMenuHost.ShowRichListPopup`, drawn by `MenuPopups.ShowRichList`): title `{callsign} · Maintain`, subtitle `now {altitude} · assigned {altitude} · type to jump`. The rows descend from the type's ceiling (`AircraftPerformance.Ceiling`; 60,000 ft for a type with no profile) on the existing altitude steps, with an off-step assignment as a row of its own. Altitudes print with thousands commas, FL from 18,000.
+
+  The popup opens centred on the assigned row, else the current altitude rounded to the step. A row above the current altitude is ↑ and sends `CM`, one below is ↓ and sends `DM`; ● marks the current row (`now`), ◆ the assigned one, one row reading `now · assigned` when they are equal. The ● row sends the verb toward the assignment (`CM` with none).
+
+  `IMenuHost.GetMva` gives the MVA sector at the aircraft's position; the `MVA {altitude} here (sector {name})` line row sits above the floor and the rows below it are greyed with a `· below MVA` hint, still picked and sent with no warning. No sector, no line. Typing jumps with `MenuTypeAhead` (the buffer read as `AltitudeResolver` reads an altitude, optional `FL`, reset after 1.5 s); Home/End and Page Up/Page Down (10 rows) move without sending, Enter sends. The goldens print it as `picker:richList`.
 
 ## Quick commands by situation
 
@@ -44,19 +49,19 @@ The default list of each situation, most frequent first (`QuickCommandDefaults`)
 | Taxiing | Hold position, Hold short of…, Cross, Follow…, Give way to…, Break conflict, Cleared for takeoff ▸, Cancel takeoff clearance |
 | Holding short | Cleared for takeoff ▸, Line up and wait, Cross, Resume taxi |
 | Lined up | Cleared for takeoff ▸, Cancel takeoff clearance, Draw taxi route… |
-| Departing | Fly heading ▸, Maintain ▸, Climb via SID *(IFR)*, Direct to…, Assign speed ▸ |
-| IFR enroute | Fly heading ▸, Maintain ▸, Direct to…, Assign speed ▸, Hold…, Cross fix |
-| IFR arrival | Descend via STAR *(IFR)*, Maintain ▸, Assign speed ▸, Fly heading ▸, Direct to…, Expect approach ▸, Hold… |
-| VFR flight following | Report traffic in sight…, Fly heading ▸, Maintain ▸, Direct to…, Expect approach ▸ |
-| Approach | Cleared approach ▸, Maintain ▸, Assign speed ▸, Report field in sight, Cleared visual *(IFR)*, Cleared to land |
-| Holding | Cleared approach ▸ *(IFR)*, Direct to…, Maintain ▸, then *(VFR)* Enter left / right downwind, Enter left / right base, Enter final |
+| Departing | Fly heading ▸, Maintain, Climb via SID *(IFR)*, Direct to…, Assign speed ▸ |
+| IFR enroute | Fly heading ▸, Maintain, Direct to…, Assign speed ▸, Hold…, Cross fix |
+| IFR arrival | Descend via STAR *(IFR)*, Maintain, Assign speed ▸, Fly heading ▸, Direct to…, Expect approach ▸, Hold… |
+| VFR flight following | Report traffic in sight…, Fly heading ▸, Maintain, Direct to…, Expect approach ▸ |
+| Approach | Cleared approach ▸, Maintain, Assign speed ▸, Report field in sight, Cleared visual *(IFR)*, Cleared to land |
+| Holding | Cleared approach ▸ *(IFR)*, Direct to…, Maintain, then *(VFR)* Enter left / right downwind, Enter left / right base, Enter final |
 | Pattern | Cleared to land, Cleared for the option, Touch and go, Follow…, Extend pattern leg, Make short approach, Make left / right 360, Turn base, Go around |
 | Final | Cleared to land, Go around, Cancel landing clearance, Reduce to final approach speed |
 | Rollout / exit | Exit left, Exit right, Cross, Draw taxi route… |
-| Go-around | Fly heading ▸, Maintain ▸, Cleared approach ▸ *(IFR)*, *(VFR)* Enter left / right downwind |
+| Go-around | Fly heading ▸, Maintain, Cleared approach ▸ *(IFR)*, *(VFR)* Enter left / right downwind |
 | Live traffic | Assume control, Assume and track |
 | VFR arrival, inbound | Enter left / right downwind, Enter left / right base, Enter final, Report N-mile final…, Report at fix…, Cleared to land, Follow… |
-| VFR departure | Fly heading ▸, On course, Maintain ▸, Report at fix…, Make left / right closed traffic |
+| VFR departure | Fly heading ▸, On course, Maintain, Report at fix…, Make left / right closed traffic |
 
 Holding is also the situation of a VFR hold and an airspace-boundary hold, which is why its IFR entries are followed by VFR-tagged pattern entries. Exit hold and Expect further clearance time have no sim command yet, so the Holding list leaves them out.
 

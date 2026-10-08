@@ -51,6 +51,10 @@ internal sealed class SendCapturingHost(IMenuHost inner, string sessionInitials)
     public void ShowFilteredListPopup(string[] sortedNames, IReadOnlyList<object>? priorityItems, Func<string, Task> onPick) =>
         inner.ShowFilteredListPopup(sortedNames, priorityItems, onPick);
 
+    public void ShowRichListPopup(MenuRichList list, Action<MenuRichRow> onPick) => inner.ShowRichListPopup(list, onPick);
+
+    public (string Sector, int FloorFtMsl)? GetMva(LatLon position) => inner.GetMva(position);
+
     public string[]? FixNames => inner.FixNames;
 
     public double GetFieldElevation(string? destination) => inner.GetFieldElevation(destination);

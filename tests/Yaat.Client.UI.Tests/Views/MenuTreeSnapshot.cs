@@ -8,7 +8,8 @@ namespace Yaat.Client.UI.Tests.Views;
 /// Renders a context menu as plain text, one line per node, depth-first in <c>Items</c> order with two spaces of
 /// indent per level: a <see cref="MenuItem"/> as its header text followed by <c>[disabled]</c>, <c>[checked]</c> and
 /// its <see cref="MenuPickerDescriptor"/> (<c>picker:list [a, b]</c>, <c>picker:filteredList [a, b]</c>,
-/// <c>picker:input</c>, or a grouped picker on one line with its groups and no children,
+/// <c>picker:input</c>, <c>picker:richList [FL410, …, MVA 5,000 here (sector SCK_M), …]</c>, or a grouped picker on one
+/// line with its groups and no children,
 /// <c>picker:grouped [Runway 30 · assigned: I30, L30 | Other runways: 10L, 12]</c>); the quick-command strip
 /// (<see cref="QuickCommandStrip"/>) as one node naming its buttons' catalog ids in order, <c>strip: [id, id, …]</c>; a
 /// <see cref="Separator"/> as <c>---</c>; anything else as its type name in angle brackets.

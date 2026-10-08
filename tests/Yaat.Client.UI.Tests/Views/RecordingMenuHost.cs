@@ -146,6 +146,24 @@ internal sealed class RecordingMenuHost(string input) : IMenuHost
         _ = onPick(input);
     }
 
+    /// <summary>Every rich-row picker shown, in order.</summary>
+    public List<MenuRichList> RichListPopups { get; } = [];
+
+    /// <summary>Records the list and, for a non-empty input, picks the row whose label is the input.</summary>
+    public void ShowRichListPopup(MenuRichList list, Action<MenuRichRow> onPick)
+    {
+        RichListPopups.Add(list);
+        if (input.Length > 0)
+        {
+            onPick(list.Rows.First(row => row.Label == input));
+        }
+    }
+
+    /// <summary>The minimum vectoring altitude every position is answered with; none by default.</summary>
+    public (string Sector, int FloorFtMsl)? Mva { get; init; }
+
+    public (string Sector, int FloorFtMsl)? GetMva(LatLon position) => Mva;
+
     /// <summary>Records the destination asked about and answers <see cref="FieldElevation"/>.</summary>
     public double GetFieldElevation(string? destination)
     {
