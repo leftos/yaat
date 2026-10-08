@@ -555,3 +555,4 @@
 - [ ] YAAT-502 Recording archive writer drops SessionStartUtc
 - [ ] YAAT-504 Make the N152SP full-replay test catch a missing IFR 400 ft turn floor
 - [ ] YAAT-505 Make LaunchYaatTests' timing waits load-independent
+- [ ] YAAT-506 Make the tug timing and automation-pipe tests load-independent
