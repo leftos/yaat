@@ -23,17 +23,18 @@ public static class ImpliedActiveRunways
 
     /// <summary>
     /// The runway ends <paramref name="result"/> implies, keyed by airport and ordinal-sorted by designator within
-    /// each. An airport any signal names gets exactly those ends; only the primary airport, and only when nothing
-    /// implies an end there, falls back to facility knowledge and then to the generic rule for the weather in force
-    /// (<paramref name="weather"/> null is calm). A scenario load carries no session configuration
-    /// (<see cref="ControllerAiConfig.RunwayConfigurations"/>) and no partner airport's decision, so neither is
-    /// consulted. Deferred aircraft imply nothing — the loader builds them without phases. Read
+    /// each: its runway spawns, the runways its aircraft's expected approaches and preset commands send them to
+    /// (<see cref="ScenarioRunwaySignals.AircraftRunways"/>), and its arrival generators' runways. An airport any signal
+    /// names gets exactly those ends; only the primary airport, and only when nothing implies an end there, falls back
+    /// to facility knowledge and then to the generic rule for the weather in force (<paramref name="weather"/> null is
+    /// calm). A scenario load carries no session configuration (<see cref="ControllerAiConfig.RunwayConfigurations"/>)
+    /// and no partner airport's decision, so neither is consulted. Deferred aircraft imply nothing. Read
     /// <paramref name="result"/> as <see cref="ScenarioLoader.Load"/> returned it, before the engine dispatches the
-    /// preset commands: a handler rewrites <see cref="AircraftState.Phases"/>.
+    /// preset commands: a handler rewrites <see cref="AircraftState.Phases"/>, and this only parses them.
     /// </summary>
     public static ActiveRunways For(ScenarioLoadResult result, WeatherProfile? weather, DateTime magneticModelDateUtc)
     {
-        Dictionary<string, List<ActiveRunway>> implied = CollectSpawnSignals(result);
+        Dictionary<string, List<ActiveRunway>> implied = CollectAircraftSignals(result);
         CollectGeneratorSignals(result, implied);
 
         var byAirport = new Dictionary<string, List<ActiveRunway>>(StringComparer.Ordinal);
@@ -86,20 +87,28 @@ public static class ImpliedActiveRunways
     private static bool CoversEveryRunway(IReadOnlyList<RunwayInfo> pavements, IReadOnlyList<ActiveRunway> ends) =>
         pavements.All(pavement => ends.Any(end => pavement.Id.Contains(end.Designator)));
 
-    /// <summary>An <c>OnRunway</c> spawn's initial phase departs its end; an <c>OnFinal</c> spawn's arrives on one.</summary>
-    private static Dictionary<string, List<ActiveRunway>> CollectSpawnSignals(ScenarioLoadResult result)
+    /// <summary>
+    /// An <c>OnRunway</c> spawn's initial phase departs its end and an <c>OnFinal</c> spawn's arrives on one; then every
+    /// runway the aircraft's expected approach and presets send it to, with its use.
+    /// </summary>
+    private static Dictionary<string, List<ActiveRunway>> CollectAircraftSignals(ScenarioLoadResult result)
     {
         var implied = new Dictionary<string, List<ActiveRunway>>(StringComparer.Ordinal);
         foreach (LoadedAircraft loaded in result.ImmediateAircraft.Concat(result.DelayedAircraft))
         {
-            if ((loaded.State.Phases is not { } phases) || (phases.AssignedRunway is not { } runway) || (phases.Phases.Count == 0))
-            {
-                continue;
-            }
-
-            if (InitialUse(phases.Phases[0]) is { } use)
+            if (
+                (loaded.State.Phases is { } phases)
+                && (phases.AssignedRunway is { } runway)
+                && (phases.Phases.Count > 0)
+                && (InitialUse(phases.Phases[0]) is { } use)
+            )
             {
                 Add(implied, runway.AirportId, runway.Designator, use);
+            }
+
+            foreach (AircraftRunwaySignal signal in ScenarioRunwaySignals.AircraftRunwaysInLoad(result, loaded))
+            {
+                Add(implied, signal.Runway.AirportId, signal.Runway.Designator, signal.Use);
             }
         }
 
@@ -122,12 +131,9 @@ public static class ImpliedActiveRunways
             return;
         }
 
-        foreach (ScenarioGeneratorConfig generator in result.Generators)
+        foreach (string designator in ScenarioRunwaySignals.GeneratorArrivalRunways(result))
         {
-            if ((!string.IsNullOrWhiteSpace(generator.Runway)) && (NavigationDatabase.Instance.GetRunway(primary, generator.Runway) is { } runway))
-            {
-                Add(implied, primary, runway.Designator, ActiveRunwayUse.Arrival);
-            }
+            Add(implied, primary, designator, ActiveRunwayUse.Arrival);
         }
     }
 

@@ -12,11 +12,13 @@ namespace Yaat.Sim.Simulation;
 public sealed record ScenarioRunwayUse(int Departures, int Arrivals, IReadOnlyList<string> GeneratorArrivalRunways)
 {
     /// <summary>
-    /// Counts the aircraft of <paramref name="result"/> (immediate and delayed) whose loaded phases carry an assigned
-    /// runway, at that runway's airport, and lists the primary airport's arrival-generator runways, read as
-    /// <see cref="ImpliedActiveRunways.For"/> reads them (a generator whose runway does not resolve is skipped). Keyed by
-    /// FAA id; an airport with neither is absent. Deferred aircraft count nothing. Read <paramref name="result"/> as
-    /// <see cref="ScenarioLoader.Load"/> returned it, before the engine dispatches the preset commands.
+    /// Counts the aircraft of <paramref name="result"/> (immediate and delayed) that already have a runway, once each at
+    /// that runway's airport: the runway their loaded phases carry, else the first one their expected approach or preset
+    /// commands send them to (<see cref="ScenarioRunwaySignals.AircraftRunways"/>, as <see cref="ImpliedActiveRunways.For"/>
+    /// reads them). Lists the primary airport's arrival-generator runways too (a generator whose runway does not resolve is
+    /// skipped). Keyed by FAA id; an airport with neither is absent. Deferred aircraft count nothing. Read
+    /// <paramref name="result"/> as <see cref="ScenarioLoader.Load"/> returned it, before the engine dispatches the preset
+    /// commands.
     /// </summary>
     public static IReadOnlyDictionary<string, ScenarioRunwayUse> CountAssigned(ScenarioLoadResult result)
     {
@@ -24,7 +26,10 @@ public sealed record ScenarioRunwayUse(int Departures, int Arrivals, IReadOnlyLi
         var arrivals = new Dictionary<string, int>(StringComparer.Ordinal);
         foreach (LoadedAircraft loaded in result.ImmediateAircraft.Concat(result.DelayedAircraft))
         {
-            if (loaded.State.Phases?.AssignedRunway is not { } runway)
+            if (
+                (loaded.State.Phases?.AssignedRunway ?? ScenarioRunwaySignals.AircraftRunwaysInLoad(result, loaded).FirstOrDefault()?.Runway)
+                is not { } runway
+            )
             {
                 continue;
             }
@@ -44,7 +49,7 @@ public sealed record ScenarioRunwayUse(int Departures, int Arrivals, IReadOnlyLi
         var counts = new Dictionary<string, ScenarioRunwayUse>(StringComparer.Ordinal);
         foreach (string airport in airports.Distinct(StringComparer.Ordinal))
         {
-            List<string> runways = (generated is { } g) && (g.Airport == airport) ? g.Runways : [];
+            List<string> runways = ((generated is { } g) && (g.Airport == airport)) ? g.Runways : [];
             counts[airport] = new ScenarioRunwayUse(departures.GetValueOrDefault(airport), arrivals.GetValueOrDefault(airport), runways);
         }
 
@@ -54,20 +59,12 @@ public sealed record ScenarioRunwayUse(int Departures, int Arrivals, IReadOnlyLi
     /// <summary>The primary airport and the distinct runways its arrival generators feed, or <c>null</c> when there are none.</summary>
     private static (string Airport, List<string> Runways)? GeneratorArrivalRunwaysAtPrimary(ScenarioLoadResult result)
     {
-        if (result.PrimaryAirportId is not { Length: > 0 } primary)
+        IReadOnlyList<string> runways = ScenarioRunwaySignals.GeneratorArrivalRunways(result);
+        if ((runways.Count == 0) || (result.PrimaryAirportId is not { Length: > 0 } primary))
         {
             return null;
         }
 
-        var runways = new SortedSet<string>(StringComparer.Ordinal);
-        foreach (ScenarioGeneratorConfig generator in result.Generators)
-        {
-            if ((!string.IsNullOrWhiteSpace(generator.Runway)) && (NavigationDatabase.Instance.GetRunway(primary, generator.Runway) is { } runway))
-            {
-                runways.Add(runway.Designator);
-            }
-        }
-
-        return runways.Count > 0 ? (NavigationDatabase.NormalizeAirport(primary), [.. runways]) : null;
+        return (NavigationDatabase.NormalizeAirport(primary), [.. runways]);
     }
 }

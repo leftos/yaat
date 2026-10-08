@@ -200,12 +200,14 @@ public class MainViewModelActiveRunwaysPromptTests
     [InlineData(
         0,
         new[] { "28R" },
-        "OAK: no aircraft placed by this scenario has a runway yet; all of them are offered these. Arrivals from the scenario's generators land on 28R."
+        "OAK: none of the aircraft this scenario starts with has a runway yet; they are offered these. "
+            + "Arrivals from the scenario's generators land on 28R."
     )]
     [InlineData(
         0,
         new[] { "28R", "30" },
-        "OAK: no aircraft placed by this scenario has a runway yet; all of them are offered these. Arrivals from the scenario's generators land on 28R and 30."
+        "OAK: none of the aircraft this scenario starts with has a runway yet; they are offered these. "
+            + "Arrivals from the scenario's generators land on 28R and 30."
     )]
     [InlineData(
         2,

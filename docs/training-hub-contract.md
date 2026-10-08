@@ -290,7 +290,7 @@ payload DTO → the `ServerConnection` C# event it re-raises:
 
   `LoadScenarioResult` carries the room's active runways as loaded (`ActiveRunways`), the implied guess that pre-fills the mentor's prompt (`ActiveRunwaysPrefill`) and `ActiveRunwaysPromptNeeded`, true only in an RPO room whose scenario has no sidecar and no carried answer.
 
-  `ActiveRunwaysAssigned` (airport → `RunwayUseCountsDto(Departures, Arrivals, GeneratorArrivalRunways)`, from `ScenarioRunwayUse.CountAssigned`) says what the scenario already decides about runways: how many of its loaded aircraft (immediate and delayed) already have a runway, counted at that runway's airport as departures when they start on the ground and arrivals when airborne, and, at the primary airport, the runway designators its arrival generators feed.
+  `ActiveRunwaysAssigned` (airport → `RunwayUseCountsDto(Departures, Arrivals, GeneratorArrivalRunways)`, from `ScenarioRunwayUse.CountAssigned`) says what the scenario already decides about runways: how many of its loaded aircraft (immediate and delayed) already have a runway, once each at that runway's airport (the spawn runway, else the expected approach, else the first runway-bearing preset command, read without dispatching), as departures when they start on the ground and arrivals when airborne, and, at the primary airport, the runway designators its arrival generators feed.
 
   An airport with neither is absent; it is empty on a failed load. All four, and `RoomStateDto.ActiveRunways`, are required members on the server and on the client.
 

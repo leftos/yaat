@@ -41,20 +41,27 @@ internal static class PatternCommandHandler
     // Falls back through assigned runway → filed destination → spawn-time airport
     // context. The last fallback covers VFR cold-call aircraft that have neither
     // a flight plan filed nor a runway assignment yet.
-    internal static string ResolveAirportContext(AircraftState aircraft)
+    internal static string ResolveAirportContext(AircraftState aircraft) =>
+        ResolveAirportContext(aircraft.Phases?.AssignedRunway, aircraft.FlightPlan.Destination, aircraft.AirportId);
+
+    /// <summary>
+    /// <see cref="ResolveAirportContext(AircraftState)"/> from its three inputs, for a reader that tracks its own
+    /// assigned runway and destination (a scenario load reading its presets in order) instead of writing the aircraft.
+    /// </summary>
+    internal static string ResolveAirportContext(RunwayInfo? assignedRunway, string? destination, string airportId)
     {
-        string? assigned = aircraft.Phases?.AssignedRunway?.AirportId;
+        string? assigned = assignedRunway?.AirportId;
         if (!string.IsNullOrEmpty(assigned))
         {
             return assigned;
         }
 
-        if (!string.IsNullOrEmpty(aircraft.FlightPlan.Destination))
+        if (!string.IsNullOrEmpty(destination))
         {
-            return aircraft.FlightPlan.Destination;
+            return destination;
         }
 
-        return aircraft.AirportId;
+        return airportId;
     }
 
     internal static CommandResult TryEnterPattern(

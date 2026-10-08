@@ -43,22 +43,24 @@ public static class ActiveRunwaysEditor
     /// <summary>
     /// The prompt's line for <paramref name="airport"/>: how many of the scenario's aircraft there already have a runway and
     /// keep it (a zero part dropped), or that none does when <paramref name="use"/> counts none or is <c>null</c> (the
-    /// server did not list the airport), then the runways the scenario's arrival generators land on, when any.
+    /// server did not list the airport), then the runways the scenario's arrival generators land on, when any. At an
+    /// airport only generators feed, the line speaks of the aircraft the scenario starts with, since the generated ones
+    /// do have a runway.
     /// </summary>
     public static string AssignedNote(string airport, RunwayUseCountsDto? use)
     {
         int departures = use?.Departures ?? 0;
         int arrivals = use?.Arrivals ?? 0;
+        List<string> generatorRunways = use?.GeneratorArrivalRunways ?? [];
         string line =
-            (departures + arrivals) == 0
-                ? $"{airport}: no aircraft placed by this scenario has a runway yet; all of them are offered these."
-                : $"{airport}: {CountedAircraft(departures, arrivals)} in this scenario already "
+            (departures + arrivals) > 0
+                ? $"{airport}: {CountedAircraft(departures, arrivals)} in this scenario already "
                     + ((departures + arrivals) == 1 ? "has a runway and keeps it" : "have a runway and keep it")
-                    + "; the rest are offered these.";
+                    + "; the rest are offered these."
+            : (generatorRunways.Count > 0) ? $"{airport}: none of the aircraft this scenario starts with has a runway yet; they are offered these."
+            : $"{airport}: no aircraft placed by this scenario has a runway yet; all of them are offered these.";
 
-        return use is { GeneratorArrivalRunways.Count: > 0 }
-            ? $"{line} Arrivals from the scenario's generators land on {JoinAnd(use.GeneratorArrivalRunways)}."
-            : line;
+        return (generatorRunways.Count > 0) ? $"{line} Arrivals from the scenario's generators land on {JoinAnd(generatorRunways)}." : line;
     }
 
     private static string CountedAircraft(int departures, int arrivals)

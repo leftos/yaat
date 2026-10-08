@@ -568,18 +568,9 @@ public static class ApproachCommandHandler
         }
 
         NavigationDatabase navDb = NavigationDatabase.Instance;
-        string airport;
-        if (cmd.AirportCode is not null)
+        if (!TryResolveApproachAirport(cmd.AirportCode, CommandDispatcher.ResolveAirport(aircraft), out string airport))
         {
-            if (!navDb.TryResolveAirport(cmd.AirportCode, out string? canonical))
-            {
-                return new CommandResult(false, $"Unknown airport {cmd.AirportCode.Trim().ToUpperInvariant()}");
-            }
-            airport = canonical;
-        }
-        else
-        {
-            airport = CommandDispatcher.ResolveAirport(aircraft);
+            return new CommandResult(false, $"Unknown airport {cmd.AirportCode?.Trim().ToUpperInvariant()}");
         }
 
         if (string.IsNullOrEmpty(airport))
@@ -823,21 +814,59 @@ public static class ApproachCommandHandler
 
     // --- Shared helpers ---
 
-    internal static ResolvedApproach ResolveApproach(string? approachId, string? airportCode, AircraftState aircraft)
+    /// <summary>
+    /// The parts of an aircraft's arrival state an approach command resolves against: the airport it falls back to with no
+    /// airport code (<see cref="CommandDispatcher.ResolveAirport(AircraftState)"/>), and the expected approach and
+    /// destination runway a bare clearance takes. A reader that only asks (a scenario load reading its presets in order)
+    /// passes its own, so it never writes the aircraft.
+    /// </summary>
+    internal readonly record struct ApproachResolutionContext(string FallbackAirport, string? ExpectedApproach, string? DestinationRunway)
+    {
+        public static ApproachResolutionContext Of(AircraftState aircraft) =>
+            new(CommandDispatcher.ResolveAirport(aircraft), aircraft.Approach.Expected, aircraft.Procedure.DestinationRunway);
+    }
+
+    /// <summary>
+    /// The airport an approach command is for: <paramref name="airportCode"/> when it names one (false when the navigation
+    /// data does not know it), else <paramref name="fallbackAirport"/> (the aircraft's destination, else its assigned
+    /// runway's airport); empty when none applies.
+    /// </summary>
+    internal static bool TryResolveApproachAirport(string? airportCode, string fallbackAirport, out string airport)
+    {
+        if (airportCode is null)
+        {
+            airport = fallbackAirport;
+            return true;
+        }
+
+        if (!NavigationDatabase.Instance.TryResolveAirport(airportCode, out string canonical))
+        {
+            airport = "";
+            return false;
+        }
+
+        airport = canonical;
+        return true;
+    }
+
+    internal static ResolvedApproach ResolveApproach(string? approachId, string? airportCode, AircraftState aircraft) =>
+        ResolveApproach(approachId, airportCode, aircraft, ApproachResolutionContext.Of(aircraft));
+
+    /// <summary>
+    /// <see cref="ResolveApproach(string?, string?, AircraftState)"/> against <paramref name="context"/> in place of the
+    /// aircraft's own arrival state; the aircraft still supplies its route and position for disambiguation.
+    /// </summary>
+    internal static ResolvedApproach ResolveApproach(
+        string? approachId,
+        string? airportCode,
+        AircraftState aircraft,
+        ApproachResolutionContext context
+    )
     {
         NavigationDatabase navDb = NavigationDatabase.Instance;
-        string airport;
-        if (airportCode is not null)
+        if (!TryResolveApproachAirport(airportCode, context.FallbackAirport, out string airport))
         {
-            if (!navDb.TryResolveAirport(airportCode, out string? canonical))
-            {
-                return ResolvedApproach.Fail($"Unknown airport {airportCode.Trim().ToUpperInvariant()}");
-            }
-            airport = canonical;
-        }
-        else
-        {
-            airport = CommandDispatcher.ResolveAirport(aircraft);
+            return ResolvedApproach.Fail($"Unknown airport {airportCode?.Trim().ToUpperInvariant()}");
         }
 
         if (string.IsNullOrEmpty(airport))
@@ -847,7 +876,7 @@ public static class ApproachCommandHandler
 
         if (approachId is null)
         {
-            return AutoResolveApproach(navDb, airport, aircraft);
+            return AutoResolveApproach(navDb, airport, aircraft, context);
         }
 
         List<string> candidates = navDb.ResolveApproachCandidates(airport, approachId);
@@ -861,7 +890,7 @@ public static class ApproachCommandHandler
             return BuildResolved(navDb, airport, candidates[0]);
         }
 
-        return DisambiguateCandidates(navDb, airport, candidates, aircraft);
+        return DisambiguateCandidates(navDb, airport, candidates, aircraft, context.ExpectedApproach);
     }
 
     /// <summary>
@@ -876,13 +905,18 @@ public static class ApproachCommandHandler
     /// <item>Fail with a clear error if nothing works.</item>
     /// </list>
     /// </summary>
-    private static ResolvedApproach AutoResolveApproach(NavigationDatabase navDb, string airport, AircraftState aircraft)
+    private static ResolvedApproach AutoResolveApproach(
+        NavigationDatabase navDb,
+        string airport,
+        AircraftState aircraft,
+        ApproachResolutionContext context
+    )
     {
         HashSet<string> knownFixes = BuildKnownFixes(aircraft);
         bool onNavRoute = aircraft.Targets.NavigationRoute.Count > 0;
 
         // Tier 1: try hint sources in priority order
-        string?[] sources = [aircraft.Approach.Expected, aircraft.Procedure.DestinationRunway];
+        string?[] sources = [context.ExpectedApproach, context.DestinationRunway];
 
         foreach (string? source in sources)
         {
@@ -915,7 +949,7 @@ public static class ApproachCommandHandler
                 return BuildResolved(navDb, airport, candidates[0]);
             }
 
-            return DisambiguateCandidates(navDb, airport, candidates, aircraft);
+            return DisambiguateCandidates(navDb, airport, candidates, aircraft, context.ExpectedApproach);
         }
 
         // Tier 2: auto-discover any approach at the airport that connects to the route
@@ -961,15 +995,16 @@ public static class ApproachCommandHandler
         NavigationDatabase navDb,
         string airport,
         IReadOnlyList<string> candidates,
-        AircraftState aircraft
+        AircraftState aircraft,
+        string? expectedApproach
     )
     {
         HashSet<string> knownFixes = BuildKnownFixes(aircraft);
 
         // Priority 1: ExpectedApproach, if it matches one of the candidates and connects
-        if (aircraft.Approach.Expected is not null)
+        if (expectedApproach is not null)
         {
-            string? expMatch = candidates.FirstOrDefault(c => c.Equals(aircraft.Approach.Expected, StringComparison.OrdinalIgnoreCase));
+            string? expMatch = candidates.FirstOrDefault(c => c.Equals(expectedApproach, StringComparison.OrdinalIgnoreCase));
             if (expMatch is not null)
             {
                 CifpApproachProcedure? expProc = navDb.GetApproach(airport, expMatch);

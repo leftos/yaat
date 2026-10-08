@@ -87,8 +87,14 @@ The mentor's answer to the load prompt, or the last live `ARWY`, kept on the roo
 **Carrier** (of the active runways):
 The room's store of carried answers, one per normalized scenario id (`TrainingRoom.FindCarriedActiveRunways` / `CarryActiveRunways`); only a load reads it.
 
+**Implied active runways**:
+The runway ends a loaded scenario implies per airport, read from its aircraft (loaded phases, expected approach, parsed preset commands, never dispatched) and its arrival generators, else the primary airport's facility knowledge (`ImpliedActiveRunways.For`). With no sidecar it pre-fills the mentor's prompt; the room takes it only where it names every runway.
+
 **Scenario sidecar**:
 An authored per-scenario JSON file, `Data/ARTCCs/{ARTCC}/Scenarios/{scenario id}.json`, carrying settings the vNAS scenario lacks (its active runways); unlike the per-airport ground sidecar.
+
+**Pre-fill** (of the load prompt):
+The implied active runways shown in the prompt's rows (`ActiveRunwaysPrefill`) for the mentor to edit or accept; a guess, not the room's list until OK sends it.
 
 **Preset**:
 A command the scenario gives one aircraft (`presetCommands`), dispatched at load or at its `timeOffset`, and scripted rather than spoken by the student: it does not count as the student's contact with the pilot.
@@ -96,6 +102,9 @@ A command the scenario gives one aircraft (`presetCommands`), dispatched at load
 **Runway spawn**:
 An aircraft the scenario starts lined up on a runway (`OnRunway`), as opposed to a ground spawn at a stand or on a taxiway.
 _Avoid_: runway departure (any departure ends up on a runway), on-runway aircraft
+
+**Spawns win whole**:
+At an airport that any loaded aircraft gives a runway, the implied active runways are exactly the ends those aircraft use; facility knowledge and the generic rule are not consulted there.
 
 **Prepare / commit**:
 The two halves of a scenario load. Prepare reads the manifest, fetches the resources and builds the aircraft without touching the room or holding its tick gate; commit swaps the prepared scenario into the room under the gate, CPU only.

@@ -5,6 +5,7 @@ using Yaat.Sim.Phases;
 using Yaat.Sim.Scenarios;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
+using static Yaat.Sim.Tests.Simulation.RunwayScenarioEdits;
 
 namespace Yaat.Sim.Tests.Simulation;
 
@@ -15,14 +16,10 @@ namespace Yaat.Sim.Tests.Simulation;
 /// </summary>
 public class ImpliedActiveRunwaysTests
 {
-    private const string S1Oak1 = "01H06NVK7VN8BS7MCDXHKJZ7MQ.json";
-    private const string S1Oak234 = "01H08FSWF5NCDXTQMQ3BWB0BND.json";
     private const string S1SfoP = "01HCE8FW7P81CGQQFZP0HRM9F7.json";
     private const string S2Oak4 = "01HG3N8Q5PPR7QXZK33ZPC4D5M.json";
     private const string S3Fat7 = "01HM8ARK79GCPJZG7RW6A0EEKW.json";
     private const string C1Zoa5 = "01HR2JAY7SSS096ZZP0EZ2G91A.json";
-
-    private static readonly string ExamplesDir = Path.Combine(TickRecorder.FindRepoRoot(), "docs", "atctrainer-scenario-examples");
 
     private static readonly DateTime ModelDate = MagneticDeclination.EvaluationDateUtc;
 
@@ -34,13 +31,14 @@ public class ImpliedActiveRunwaysTests
     [Fact]
     public void OnFinalSpawns_ImplyArrivalEnds_AndNothingElseIsAdded()
     {
-        // Six OnFinal arrivals at OAK (28L, 28R and 30), eleven parking departures that imply nothing. OAK is the
-        // primary and already implies ends, so the resolver must not widen it: spawns win whole.
+        // Six OnFinal arrivals at OAK (28L, 28R and 30), eleven parking departures that imply nothing (deferred with no
+        // ground data), and N436MS's `TAXI B 28R` from the ramp, which makes 28R a departure end too. OAK is the primary
+        // and already implies ends, so the resolver must not widen it: spawns win whole.
         ScenarioLoadResult result = Load(S2Oak4);
 
         ActiveRunways active = ImpliedActiveRunways.For(result, weather: null, ModelDate);
 
-        Assert.Equal(["A28L", "A28R", "A30"], Tokens(active, "OAK"));
+        Assert.Equal(["A28L", "28R", "A30"], Tokens(active, "OAK"));
         Assert.Equal(["OAK"], active.Airports);
     }
 
@@ -66,19 +64,224 @@ public class ImpliedActiveRunwaysTests
     public void OnRunwaySpawns_ImplyDepartureEnds_AtEverySpawnAirport_DelayedOnesIncluded()
     {
         // S3-FAT-7 lines up departures at FAT, FCH, O32, VIS, TLR, D86 and PTV; most are delayed spawns, so the
-        // delayed bucket has to be read too.
+        // delayed bucket has to be read too. Its presets and primary approach add arrival ends: the FAT-bound arrivals
+        // expect I29RY (29R), the closed-traffic departures (CTOMLT/CTOMRT) come back to 29L, N550KB's `EF 12` lands on
+        // VIS 12, and N320L's `ELB 30` on MAE 30. N152TR (`APT FCH`, then `EF 30`) lands on FCH 30 and N889J
+        // (`APT MAE`, then `EF 30`) on MAE 30: a destination change re-targets the later pattern entry.
         ScenarioLoadResult result = Load(S3Fat7);
 
         ActiveRunways active = ImpliedActiveRunways.For(result, weather: null, ModelDate);
 
-        Assert.Equal(["D29L", "D29R"], Tokens(active, "FAT"));
-        Assert.Equal(["D12"], Tokens(active, "FCH"));
+        Assert.Equal(["29L", "29R"], Tokens(active, "FAT"));
+        Assert.Equal(["D12", "A30"], Tokens(active, "FCH"));
         Assert.Equal(["D16", "D34"], Tokens(active, "O32"));
-        Assert.Equal(["D30"], Tokens(active, "VIS"));
+        Assert.Equal(["A12", "D30"], Tokens(active, "VIS"));
         Assert.Equal(["D31"], Tokens(active, "TLR"));
         Assert.Equal(["D13"], Tokens(active, "D86"));
         Assert.Equal(["D12"], Tokens(active, "PTV"));
-        Assert.Equal(["D86", "FAT", "FCH", "O32", "PTV", "TLR", "VIS"], active.Airports);
+        Assert.Equal(["A30"], Tokens(active, "MAE"));
+        LoadedAircraft n889j = result.DelayedAircraft.Concat(result.ImmediateAircraft).Single(loaded => loaded.State.Callsign == "N889J");
+        Assert.Contains(
+            ScenarioRunwaySignals.AircraftRunways(n889j),
+            signal => (signal.Runway.AirportId is "MAE" or "KMAE") && (signal.Runway.Designator == "30")
+        );
+        Assert.Equal(["D86", "FAT", "FCH", "MAE", "O32", "PTV", "TLR", "VIS"], active.Airports);
+    }
+
+    [Fact]
+    public void APresetDeparture_ImpliesItsEnd_AndSuppressesThePrimarysFallback()
+    {
+        // Alone, S1-OAK-1 falls back to KOAK's west configuration in this wind (28L, 28R and 30 both ways); one
+        // aircraft taxiing to 30 makes 30 the only end implied.
+        WeatherProfile weather = new() { WindLayers = [new WindLayer { Direction = 300, Speed = 12 }] };
+        ScenarioLoadResult result = LoadEdited(S1Oak1, root => Add(root, Aircraft("N461TX", "OAK", OakRamp(), ""), "WAIT 120 TAXI B 30"));
+
+        ActiveRunways active = ImpliedActiveRunways.For(result, weather, ModelDate);
+
+        Assert.Equal(["D30"], Tokens(active, "OAK"));
+    }
+
+    [Fact]
+    public void APresetApproachClearance_ImpliesAnArrivalEnd()
+    {
+        ScenarioLoadResult result = LoadEdited(S1Oak1, root => Add(root, Aircraft("N461AR", "OAK", Airborne(), "KOAK"), "AT 3000 CAPP I28R"));
+
+        Assert.Equal(["A28R"], Tokens(ImpliedActiveRunways.For(result, weather: null, ModelDate), "OAK"));
+    }
+
+    [Fact]
+    public void APresetArrival_AndARunwaySpawnDeparture_OnOneEnd_MergeIntoBoth()
+    {
+        ScenarioLoadResult result = LoadEdited(
+            S1Oak1,
+            root =>
+            {
+                Add(root, Aircraft("N461RS", "OAK", OnRunway("28R"), ""));
+                Add(root, Aircraft("N461AR", "OAK", Airborne(), "KOAK"), "CAPP 28R");
+            }
+        );
+
+        ActiveRunways active = ImpliedActiveRunways.For(result, weather: null, ModelDate);
+
+        Assert.Equal(["28R"], Tokens(active, "OAK"));
+        Assert.Equal(ActiveRunwayUse.Both, active.For("OAK").Single().Use);
+    }
+
+    [Fact]
+    public void APatternPresetThatDepartsAgain_ImpliesBoth_AndAFullStopEntryImpliesArrivalOnly()
+    {
+        // TG 30 touches and goes on 30; ELD 28L then a bare TG works 28L the same way; EF 28R alone lands full stop.
+        ScenarioLoadResult result = LoadEdited(
+            S1Oak1,
+            root =>
+            {
+                Add(root, Aircraft("N461TG", "OAK", Airborne(), "KOAK"), "WAIT 10 TG 30");
+                Add(root, Aircraft("N461LD", "OAK", Airborne(), "KOAK"), "ELD 28L", "TG");
+                Add(root, Aircraft("N461FS", "OAK", Airborne(), "KOAK"), "EF 28R");
+            }
+        );
+
+        ActiveRunways active = ImpliedActiveRunways.For(result, weather: null, ModelDate);
+
+        Assert.Equal(["28L", "A28R", "30"], Tokens(active, "OAK"));
+    }
+
+    [Fact]
+    public void ATakeoffClearance_TakesTheRunwayTheAircraftWasTaxiedTo_AndNamesNoneOfItsOwn()
+    {
+        ScenarioLoadResult result = LoadEdited(
+            S1Oak1,
+            root =>
+            {
+                Add(root, Aircraft("N461CT", "OAK", OakRamp(), ""), "TAXI B 28L", "CTO");
+                Add(root, Aircraft("N461NO", "OAK", OakRamp(), ""), "CTO");
+            }
+        );
+
+        LoadedAircraft taxied = result.ImmediateAircraft.Single(loaded => loaded.State.Callsign == "N461CT");
+        LoadedAircraft unassigned = result.ImmediateAircraft.Single(loaded => loaded.State.Callsign == "N461NO");
+
+        Assert.Equal(["D28L", "D28L"], SignalTokens(taxied));
+        Assert.Empty(SignalTokens(unassigned));
+    }
+
+    [Fact]
+    public void ARunwayAnEarlierPresetAssigns_IsWhereALaterPatternCommandResolves()
+    {
+        // As in live play, the runway an earlier preset assigns comes first in the pattern rule: N461RA's RWY 28R keeps its
+        // EF 28L at OAK though it is filed to HWD, and N461SL's CAPP at SJC puts its CLAND 30L at SJC.
+        ScenarioLoadResult result = LoadEdited(
+            S1Oak1,
+            root =>
+            {
+                Add(root, Aircraft("N461RA", "OAK", Airborne(), "KHWD"), "RWY 28R", "EF 28L");
+                Add(root, Aircraft("N461SL", "OAK", Airborne(), "KOAK"), "CAPP 30L SJC", "CLAND 30L");
+            }
+        );
+
+        ActiveRunways active = ImpliedActiveRunways.For(result, weather: null, ModelDate);
+
+        Assert.Equal(["A28R", "A28L"], SignalTokens(Loaded(result, "N461RA")));
+        Assert.Equal(["A30L", "A30L"], SignalTokens(Loaded(result, "N461SL")));
+        Assert.Equal(["A28L", "A28R"], Tokens(active, "OAK"));
+        Assert.Equal(["A30L"], Tokens(active, "SJC"));
+        Assert.Equal(["OAK", "SJC"], active.Airports);
+    }
+
+    [Fact]
+    public void AClosedTrafficDeparture_WorksItsRunwayBothWays_AndAPlainTakeoffDepartsOnly()
+    {
+        ScenarioLoadResult result = LoadEdited(
+            S1Oak1,
+            root =>
+            {
+                Add(root, Aircraft("N461CL", "OAK", OnRunway("28L"), ""), "CTOMLT");
+                Add(root, Aircraft("N461CR", "OAK", OnRunway("30"), ""), "CTOMRT");
+                Add(root, Aircraft("N461CT", "OAK", OnRunway("28R"), ""), "CTO");
+            }
+        );
+
+        Assert.Equal(["28L", "D28R", "30"], Tokens(ImpliedActiveRunways.For(result, weather: null, ModelDate), "OAK"));
+    }
+
+    [Fact]
+    public void AGroundSpawn_TakesNoRunwayFromThePrimaryApproach()
+    {
+        // The loader gives a destination-less spawn the scenario's primary approach; one that starts on the ground is a
+        // departure, so its expected approach implies nothing.
+        ScenarioLoadResult result = LoadEdited(
+            S1Oak1,
+            root =>
+            {
+                root["primaryApproach"] = "I28R";
+                Add(root, Aircraft("N461VD", "OAK", OnRunway("30"), ""));
+            }
+        );
+
+        LoadedAircraft departure = result.ImmediateAircraft.Single(loaded => loaded.State.Callsign == "N461VD");
+        Assert.Equal("I28R", departure.State.Approach.Expected);
+        Assert.Empty(SignalTokens(departure));
+        Assert.Equal(["D30"], Tokens(ImpliedActiveRunways.For(result, weather: null, ModelDate), "OAK"));
+    }
+
+    [Fact]
+    public void APresetAtAnotherAirport_ImpliesThatAirport()
+    {
+        ScenarioLoadResult result = LoadEdited(S1Oak1, root => Add(root, Aircraft("N461SJ", "OAK", Airborne(), "KOAK"), "CAPP 30L SJC"));
+
+        ActiveRunways active = ImpliedActiveRunways.For(result, weather: null, ModelDate);
+
+        Assert.Equal(["A30L"], Tokens(active, "SJC"));
+        Assert.Contains("OAK", active.Airports);
+    }
+
+    [Fact]
+    public void HoldShortAndCrossingPresets_ImplyNothing_SoThePrimaryStillFallsBack()
+    {
+        WeatherProfile weather = new() { WindLayers = [new WindLayer { Direction = 300, Speed = 12 }] };
+        ScenarioLoadResult result = LoadEdited(
+            S1Oak1,
+            root => Add(root, Aircraft("N461HS", "OAK", OakRamp(), ""), "TAXI B HS 28R", "HS 30", "CROSS 28L")
+        );
+
+        ActiveRunways active = ImpliedActiveRunways.For(result, weather, ModelDate);
+
+        Assert.Equal(ImpliedActiveRunways.For(Load(S1Oak1), weather, ModelDate), active);
+    }
+
+    [Fact]
+    public void AnExpectedApproach_ImpliesItsRunwayForArrivals()
+    {
+        ScenarioLoadResult result = LoadEdited(
+            S1Oak1,
+            root =>
+            {
+                JsonObject arrival = Aircraft("N461XA", "OAK", Airborne(), "KOAK");
+                arrival["expectedApproach"] = "I28R";
+                Add(root, arrival);
+            }
+        );
+
+        Assert.Equal(["A28R"], Tokens(ImpliedActiveRunways.For(result, weather: null, ModelDate), "OAK"));
+    }
+
+    [Fact]
+    public void ThePrimaryApproach_ImpliesARunwayOnlyAtThePrimary()
+    {
+        ScenarioLoadResult result = LoadEdited(
+            S1Oak1,
+            root =>
+            {
+                root["primaryApproach"] = "I28R";
+                Add(root, Aircraft("N461PO", "OAK", Airborne(), "KOAK"));
+                Add(root, Aircraft("N461PS", "OAK", Airborne(), "KSFO"));
+            }
+        );
+
+        ActiveRunways active = ImpliedActiveRunways.For(result, weather: null, ModelDate);
+
+        Assert.Equal(["A28R"], Tokens(active, "OAK"));
+        Assert.Equal(["OAK"], active.Airports);
     }
 
     [Fact]
@@ -215,11 +418,11 @@ public class ImpliedActiveRunwaysTests
         Assert.Equal(["VIS"], room.Airports);
         Assert.Equal(["D30"], Tokens(room, "VIS"));
 
-        // The same holds for every airport S3-FAT-7's departures imply: each is a single runway, or (FAT) both of
-        // its two parallel runways are named.
+        // The same holds for every airport S3-FAT-7 implies: each is a single runway, or (FAT) both of its two parallel
+        // runways are named.
         ActiveRunways fromScenario = ImpliedActiveRunways.RoomDefault(ImpliedActiveRunways.For(Load(S3Fat7), weather: null, ModelDate));
 
-        Assert.Equal(["D86", "FAT", "FCH", "O32", "PTV", "TLR", "VIS"], fromScenario.Airports);
+        Assert.Equal(["D86", "FAT", "FCH", "MAE", "O32", "PTV", "TLR", "VIS"], fromScenario.Airports);
     }
 
     [Fact]
@@ -239,9 +442,9 @@ public class ImpliedActiveRunwaysTests
     [Fact]
     public void RoomDefault_DropsAnAirportWithARunwayNoEndNames()
     {
-        // OAK has four runways (12/30, 15/33, 10L/28R, 10R/28L); the arrivals' 28L, 28R and 30 leave 15/33 unnamed.
+        // OAK has four runways (12/30, 15/33, 10L/28R, 10R/28L); the scenario's 28L, 28R and 30 leave 15/33 unnamed.
         ActiveRunways implied = ImpliedActiveRunways.For(Load(S2Oak4), weather: null, ModelDate);
-        Assert.Equal(["A28L", "A28R", "A30"], Tokens(implied, "OAK"));
+        Assert.Equal(["A28L", "28R", "A30"], Tokens(implied, "OAK"));
 
         ActiveRunways room = ImpliedActiveRunways.RoomDefault(implied);
 
@@ -281,16 +484,6 @@ public class ImpliedActiveRunwaysTests
 
     private static string[] Tokens(ActiveRunways active, string airport) => [.. active.For(airport).Select(runway => runway.ToToken())];
 
-    private static ScenarioLoadResult Load(string fileName) => LoadEdited(fileName, _ => { });
-
-    private static ScenarioLoadResult LoadEdited(string fileName, Action<JsonObject> mutate)
-    {
-        JsonNode root = JsonNode.Parse(File.ReadAllText(Path.Combine(ExamplesDir, fileName)))!;
-        mutate(root.AsObject());
-
-        return ScenarioLoader.Load(root.ToJsonString(), new NullGroundData(), new Random(7), ModelDate);
-    }
-
     private static void SetGeneratorRunway(JsonObject root, int index, string runway) =>
         root["aircraftGenerators"]!.AsArray()[index]!["runway"] = runway;
 
@@ -304,17 +497,5 @@ public class ImpliedActiveRunwaysTests
                 aircraft.RemoveAt(i);
             }
         }
-    }
-
-    /// <summary>Adds a runway spawn modelled on an existing aircraft, so the loader sees a shape it knows.</summary>
-    private static void AddOnRunwaySpawn(JsonObject root, string airportId, string runway)
-    {
-        JsonArray aircraft = root["aircraft"]!.AsArray();
-        JsonNode spawn = JsonNode.Parse(aircraft[0]!.ToJsonString())!;
-        spawn["aircraftId"] = "N461RW";
-        spawn["airportId"] = airportId;
-        spawn["spawnDelay"] = 0;
-        spawn["startingConditions"] = new JsonObject { ["type"] = "OnRunway", ["runway"] = runway };
-        aircraft.Add(spawn);
     }
 }

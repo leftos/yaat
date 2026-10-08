@@ -2643,17 +2643,23 @@ public static class CommandDispatcher
         }
     }
 
-    internal static string ResolveAirport(AircraftState aircraft)
+    internal static string ResolveAirport(AircraftState aircraft) => ResolveAirport(aircraft.FlightPlan.Destination, aircraft.Phases?.AssignedRunway);
+
+    /// <summary>
+    /// <see cref="ResolveAirport(AircraftState)"/> from its two inputs, for a reader that tracks its own destination and
+    /// assigned runway (a scenario load reading its presets in order) instead of writing the aircraft.
+    /// </summary>
+    internal static string ResolveAirport(string? destination, RunwayInfo? assignedRunway)
     {
         // Try destination airport from flight plan
-        if (!string.IsNullOrWhiteSpace(aircraft.FlightPlan.Destination))
+        if (!string.IsNullOrWhiteSpace(destination))
         {
-            string dest = aircraft.FlightPlan.Destination;
+            string dest = destination;
             return dest.StartsWith('K') && dest.Length == 4 ? dest[1..] : dest;
         }
 
         // Try assigned runway's airport
-        if (aircraft.Phases?.AssignedRunway is { } rwy)
+        if (assignedRunway is { } rwy)
         {
             string apt = rwy.AirportId;
             return apt.StartsWith('K') && apt.Length == 4 ? apt[1..] : apt;
@@ -2878,32 +2884,10 @@ public static class CommandDispatcher
 
     internal static RunwayInfo? ResolveRunway(AircraftState aircraft, string runwayId)
     {
-        NavigationDatabase navDb = NavigationDatabase.Instance;
-
-        // An aircraft physically on the ground departs/taxis on the airport its wheels are on —
-        // never on a filed destination. Prefer the physical/operational airport (mirrors
-        // SimulationEngine.ResolveGroundLayout) before the flight-plan fields, so a VFR plan filed
-        // with only a destination (e.g. KAPC while parked at OAK) does not send the runway lookup to
-        // the wrong airport and reject CTO/RWY/TAXI-to-runway. Empty strings are treated as null.
-        string? airportId =
-            aircraft.Phases?.AssignedRunway?.AirportId is { Length: > 0 } assignedApt ? assignedApt
-            : aircraft.AirportId is { Length: > 0 } operatingApt ? operatingApt
-            : aircraft.Ground.Layout?.AirportId is { Length: > 0 } layoutApt ? layoutApt
-            : aircraft.FlightPlan.Departure is { Length: > 0 } dep ? dep
-            : aircraft.FlightPlan.Destination is { Length: > 0 } dest ? dest
-            : null;
-
-        if (airportId is null)
+        RunwayInfo? result = FindRunway(aircraft, runwayId);
+        if ((result is null) && (RunwayAirportId(aircraft) is { } airportId))
         {
-            return null;
-        }
-
-        // Hold-short runway IDs can be combined (e.g., "28R/10L").
-        // Try each end until one resolves.
-        var parsed = RunwayIdentifier.Parse(runwayId);
-        RunwayInfo? result = navDb.GetRunway(airportId, parsed.End1) ?? navDb.GetRunway(airportId, parsed.End2);
-        if (result is null)
-        {
+            var parsed = RunwayIdentifier.Parse(runwayId);
             Log.LogWarning(
                 "Runway lookup failed for {Aircraft}: runway '{RunwayId}' not found at {Airport} (tried '{End1}' and '{End2}')",
                 aircraft.Callsign,
@@ -2916,6 +2900,37 @@ public static class CommandDispatcher
 
         return result;
     }
+
+    /// <summary>
+    /// The runway <paramref name="runwayId"/> names at the airport <see cref="ResolveRunway"/> reads it at, or <c>null</c>:
+    /// the same lookup without its warning on a miss, for a reader that only asks (a scenario load reading its presets).
+    /// A combined hold-short id ("28R/10L") resolves on whichever end the airport has.
+    /// </summary>
+    internal static RunwayInfo? FindRunway(AircraftState aircraft, string runwayId)
+    {
+        if (RunwayAirportId(aircraft) is not { } airportId)
+        {
+            return null;
+        }
+
+        NavigationDatabase navDb = NavigationDatabase.Instance;
+        var parsed = RunwayIdentifier.Parse(runwayId);
+        return navDb.GetRunway(airportId, parsed.End1) ?? navDb.GetRunway(airportId, parsed.End2);
+    }
+
+    /// <summary>
+    /// The airport a runway id resolves at. An aircraft physically on the ground departs/taxis on the airport its wheels are
+    /// on — never on a filed destination. Prefer the physical/operational airport (mirrors SimulationEngine.ResolveGroundLayout)
+    /// before the flight-plan fields, so a VFR plan filed with only a destination (e.g. KAPC while parked at OAK) does not send
+    /// the runway lookup to the wrong airport and reject CTO/RWY/TAXI-to-runway. Empty strings are treated as null.
+    /// </summary>
+    private static string? RunwayAirportId(AircraftState aircraft) =>
+        aircraft.Phases?.AssignedRunway?.AirportId is { Length: > 0 } assignedApt ? assignedApt
+        : aircraft.AirportId is { Length: > 0 } operatingApt ? operatingApt
+        : aircraft.Ground.Layout?.AirportId is { Length: > 0 } layoutApt ? layoutApt
+        : aircraft.FlightPlan.Departure is { Length: > 0 } dep ? dep
+        : aircraft.FlightPlan.Destination is { Length: > 0 } dest ? dest
+        : null;
 
     internal static string RunwayLabel(AircraftState aircraft)
     {

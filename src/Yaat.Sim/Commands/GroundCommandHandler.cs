@@ -4796,6 +4796,18 @@ public static class GroundCommandHandler
     /// <summary>How a resolved target is named in a readback: its own name, else its node id.</summary>
     private static string TugGoalName(TugGoal goal) => goal.Node!.Name ?? $"#{goal.Node.Id}";
 
+    /// <summary>
+    /// Whether <c>RWY</c> assigns <paramref name="aircraft"/> its runway as an arrival rather than a departure: it is
+    /// airborne, or on the ground on a STAR to a filed destination with no departure clearance.
+    /// </summary>
+    internal static bool IsArrivalRunwayAssignment(AircraftState aircraft) =>
+        (!aircraft.IsOnGround)
+        || (
+            (aircraft.Procedure.ActiveStarId is not null)
+            && (!string.IsNullOrEmpty(aircraft.FlightPlan.Destination))
+            && (aircraft.Phases?.DepartureClearance is null)
+        );
+
     internal static CommandResult TryAssignRunway(AircraftState aircraft, string runwayId)
     {
         RunwayInfo? runway = CommandDispatcher.ResolveRunway(aircraft, runwayId);
@@ -4807,15 +4819,7 @@ public static class GroundCommandHandler
         aircraft.Phases ??= new PhaseList();
         aircraft.Phases.AssignedRunway = runway;
 
-        bool arrivalContext =
-            !aircraft.IsOnGround
-            || (
-                aircraft.Procedure.ActiveStarId is not null
-                && !string.IsNullOrEmpty(aircraft.FlightPlan.Destination)
-                && aircraft.Phases.DepartureClearance is null
-            );
-
-        if (arrivalContext)
+        if (IsArrivalRunwayAssignment(aircraft))
         {
             NavigationCommandHandler.SyncDestinationRunwayWithActiveStar(aircraft, runway.Designator);
             if (
