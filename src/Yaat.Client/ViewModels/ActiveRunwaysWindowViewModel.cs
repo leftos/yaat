@@ -12,15 +12,16 @@ namespace Yaat.Client.ViewModels;
 /// The Scenario menu's Active Runways window over the room's current list: one row per airport (the primary airport first,
 /// then the room's list in ordinal order) holding the same text the load prompt and the <c>ARWY</c> command take. Rows
 /// follow every <see cref="MainViewModel.RoomActiveRunways"/> update until the user types in them, and Apply sends one
-/// <c>ARWY</c> per changed row and leaves the window open. It closes when the scenario it was opened on goes away: an
-/// unload, leaving the room, another scenario load and a recording load all end it, as they close the load prompt.
+/// <c>ARWY</c> per changed row (a second Apply waits for the first) and leaves the window open. It closes when the
+/// scenario it was opened on goes away — an unload, leaving the room, another scenario load and a recording load all end
+/// it, as they close the load prompt, which <see cref="MainViewModel.ActiveRunwaysScope"/> says — never on a restart.
 /// </summary>
 public partial class ActiveRunwaysWindowViewModel : ObservableObject
 {
     private static readonly ILogger Log = AppLog.CreateLogger("ActiveRunwaysWindow");
 
     private readonly MainViewModel? _owner;
-    private readonly string? _scenarioId;
+    private readonly int _scope;
 
     /// <summary>The rows the user has typed in: they keep their text while the room's list changes under them.</summary>
     private readonly HashSet<ActiveRunwaysRow> _typedIn = [];
@@ -36,7 +37,7 @@ public partial class ActiveRunwaysWindowViewModel : ObservableObject
     public ActiveRunwaysWindowViewModel(MainViewModel owner)
     {
         _owner = owner;
-        _scenarioId = owner.ActiveScenarioId;
+        _scope = owner.ActiveRunwaysScope;
         _owner.PropertyChanged += OnOwnerPropertyChanged;
         RefreshRows();
     }
@@ -48,47 +49,97 @@ public partial class ActiveRunwaysWindowViewModel : ObservableObject
     [ObservableProperty]
     private bool _isOpen = true;
 
+    /// <summary>True from the start of an Apply to its end: a second Apply is refused and the button is disabled on it.</summary>
+    [ObservableProperty]
+    private bool _isApplying;
+
     /// <summary>
     /// Sends one <c>ARWY</c> per row whose text differs from the room's list, through <paramref name="send"/>, once every
-    /// row reads with the parser the server's <c>ARWY</c> uses: a row that does not read shows its message and nothing is
-    /// sent. An accepted row stays in the window and counts as untouched again, so it follows the room's list once more; a
-    /// row the server refuses keeps its text with the server's message under it, and the other rows still go. Once the
-    /// window closes mid-send, nothing more is sent.
+    /// such row reads with the parser the server's <c>ARWY</c> uses (a row that does not shows its message and nothing is
+    /// sent, while the rows that already match the list are left alone). An accepted row stays in the window and follows
+    /// the room's own list and spelling again; a row the server refuses keeps its text with the server's message under it,
+    /// and the other rows still go. A second Apply while one is in flight does nothing, and once the window closes
+    /// mid-send nothing more is sent.
     /// </summary>
     public async Task ApplyAsync(NavigationDatabase? navDb, Func<string, Task<CommandResultDto>> send)
     {
-        if (_owner is null)
+        if ((_owner is null) || IsApplying)
         {
             return;
         }
 
-        List<(ActiveRunwaysRow Row, string? Command)>? answers = ActiveRunwaysEditor.ReadRows(Rows, navDb);
-        if (answers is null)
+        IsApplying = true;
+        try
         {
-            return;
-        }
-
-        foreach ((ActiveRunwaysRow row, string? command) in answers)
-        {
-            if ((command is null) || string.Equals(row.Text, TextOf(row.Airport), StringComparison.Ordinal))
+            List<ActiveRunwaysRow> changed = [];
+            foreach (ActiveRunwaysRow row in Rows)
             {
-                continue;
+                if (!string.Equals(row.Text, TextOf(row.Airport), StringComparison.Ordinal))
+                {
+                    changed.Add(row);
+                    continue;
+                }
+
+                _typedIn.Remove(row);
+                row.Error = null;
             }
 
-            CommandResultDto result = await SendAnswerAsync(send, command);
-            if (!IsOpen)
+            List<(ActiveRunwaysRow Row, string? Command)>? answers = ActiveRunwaysEditor.ReadRows(changed, navDb);
+            if (answers is null)
             {
                 return;
             }
 
-            if (result.Success)
+            foreach ((ActiveRunwaysRow row, string? command) in answers)
             {
-                _typedIn.Remove(row);
+                if (command is null)
+                {
+                    continue;
+                }
+
+                string sentText = row.Text;
+                CommandResultDto result = await SendAnswerAsync(send, command);
+                if (!IsOpen)
+                {
+                    return;
+                }
+
+                if (result.Success)
+                {
+                    ApplySent(row, sentText);
+                }
+                else
+                {
+                    row.Error = result.Message ?? $"ARWY {row.Airport} was refused";
+                }
             }
-            else
-            {
-                row.Error = result.Message ?? $"ARWY {row.Airport} was refused";
-            }
+        }
+        finally
+        {
+            IsApplying = false;
+        }
+    }
+
+    /// <summary>
+    /// Marks a sent row as following the room again and gives it the room's own spelling of what was sent — unless the
+    /// text moved while the answer was in flight, in which case the row the user retyped keeps its text and stays typed in.
+    /// </summary>
+    private void ApplySent(ActiveRunwaysRow row, string sentText)
+    {
+        if (!string.Equals(row.Text, sentText, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        _typedIn.Remove(row);
+        _refreshing = true;
+        try
+        {
+            row.Text = TextOf(row.Airport);
+        }
+        finally
+        {
+            _refreshing = false;
         }
     }
 
@@ -133,11 +184,11 @@ public partial class ActiveRunwaysWindowViewModel : ObservableObject
             return;
         }
 
-        if (e.PropertyName == nameof(MainViewModel.ActiveScenarioId))
+        if (e.PropertyName == nameof(MainViewModel.ActiveRunwaysScope))
         {
-            // Every way a scenario ends or is replaced moves the id: unload and leaving the room null it, another load and a
-            // recording load set the new one. A restart re-activates the same scenario, so the window stays.
-            if (!string.Equals(_scenarioId, _owner.ActiveScenarioId, StringComparison.Ordinal))
+            // Every way the scenario's active-runways scope ends or is replaced bumps it: another load, a recording load,
+            // an unload, leaving the room. A restart re-activates the same scenario without one, so the window stays.
+            if (_scope != _owner.ActiveRunwaysScope)
             {
                 Close();
             }
@@ -159,8 +210,11 @@ public partial class ActiveRunwaysWindowViewModel : ObservableObject
         }
     }
 
-    /// <summary>Brings the rows in line with the room's list: a row the user typed in keeps its text, every other row takes
-    /// the list's text, an airport the list has newly named gains a row and one it no longer names loses its own.</summary>
+    /// <summary>
+    /// Brings the rows in line with the room's list: an airport the list newly names gains a row in its place in the order
+    /// and one it no longer names loses its own row, unless the user has typed in that row; a row the user typed in keeps
+    /// its text and every other row takes the list's.
+    /// </summary>
     private void RefreshRows()
     {
         List<string> airports = TargetAirports();
@@ -170,26 +224,34 @@ public partial class ActiveRunwaysWindowViewModel : ObservableObject
             for (int index = Rows.Count - 1; index >= 0; index--)
             {
                 ActiveRunwaysRow row = Rows[index];
-                if (airports.Contains(row.Airport, StringComparer.Ordinal))
+                if (airports.Contains(row.Airport, StringComparer.Ordinal) || _typedIn.Contains(row))
                 {
                     continue;
                 }
 
                 row.PropertyChanged -= OnRowPropertyChanged;
-                _typedIn.Remove(row);
                 Rows.RemoveAt(index);
             }
 
-            foreach (string airport in airports)
+            for (int index = 0; index < airports.Count; index++)
             {
+                string airport = airports[index];
                 ActiveRunwaysRow? row = Rows.FirstOrDefault(candidate => string.Equals(candidate.Airport, airport, StringComparison.Ordinal));
                 if (row is null)
                 {
                     row = new ActiveRunwaysRow(airport, TextOf(airport));
                     row.PropertyChanged += OnRowPropertyChanged;
-                    Rows.Add(row);
+                    Rows.Insert(index, row);
+                    continue;
                 }
-                else if (!_typedIn.Contains(row))
+
+                int current = Rows.IndexOf(row);
+                if (current != index)
+                {
+                    Rows.Move(current, index);
+                }
+
+                if (!_typedIn.Contains(row))
                 {
                     row.Text = TextOf(airport);
                 }

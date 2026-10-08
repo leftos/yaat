@@ -1,5 +1,7 @@
 using System.ComponentModel;
 using Avalonia.Controls;
+using Microsoft.Extensions.Logging;
+using Yaat.Client.Logging;
 using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
 using Yaat.Sim.Data;
@@ -13,6 +15,8 @@ namespace Yaat.Client.Views;
 /// </summary>
 public partial class ActiveRunwaysWindow : Window
 {
+    private static readonly ILogger Log = AppLog.CreateLogger<ActiveRunwaysWindow>();
+
     private readonly ActiveRunwaysWindowViewModel _viewModel;
     private readonly Func<string, Task<CommandResultDto>> _send;
 
@@ -35,8 +39,17 @@ public partial class ActiveRunwaysWindow : Window
         Closed += OnClosed;
     }
 
-    private async void OnApplyClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e) =>
-        await _viewModel.ApplyAsync(NavigationDatabase.InstanceOrNull, _send);
+    private async void OnApplyClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        try
+        {
+            await _viewModel.ApplyAsync(NavigationDatabase.InstanceOrNull, _send);
+        }
+        catch (Exception ex)
+        {
+            Log.LogError(ex, "Apply active runways error");
+        }
+    }
 
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {

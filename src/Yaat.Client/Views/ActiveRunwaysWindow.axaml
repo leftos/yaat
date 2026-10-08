@@ -14,12 +14,12 @@
 >
   <DockPanel Margin="12">
     <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right" Margin="0,12,0,0">
-      <Button Content="Apply" x:Name="ApplyButton" />
+      <Button Content="Apply" x:Name="ApplyButton" IsEnabled="{Binding !IsApplying}" />
       <Button Content="Close" x:Name="CloseButton" />
     </StackPanel>
     <TextBlock
       DockPanel.Dock="Top"
-      Text="Separate runways with commas, spaces or new lines. D28L = departures only, A28R = arrivals only. Leave a row empty for every runway; NONE clears it."
+      Text="Separate runways with commas, spaces or new lines. D28L = departures only, A28R = arrivals only. Clear a row to turn on every runway; NONE turns them all off."
       TextWrapping="Wrap"
       Margin="0,0,0,12"
     />

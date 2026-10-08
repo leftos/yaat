@@ -55,6 +55,14 @@ public partial class MainViewModel
     [ObservableProperty]
     private bool _showActiveRunwaysPrompt;
 
+    /// <summary>
+    /// Bumped whenever the scenario's active-runways editing scope ends or is replaced — another load, a recording load,
+    /// an unload, leaving the room — and never by a restart: what the Scenario menu's window closes on. An id cannot say
+    /// it, because reloading a scenario and loading a recording of it keep the same id.
+    /// </summary>
+    [ObservableProperty]
+    private int _activeRunwaysScope;
+
     /// <summary>Replaces the room's active runways with <paramref name="byAirport"/>, as every feed does.</summary>
     internal void ApplyActiveRunways(Dictionary<string, List<string>> byAirport) =>
         RoomActiveRunways = byAirport.ToDictionary(entry => entry.Key, entry => (IReadOnlyList<string>)[.. entry.Value], StringComparer.Ordinal);
@@ -211,6 +219,7 @@ public partial class MainViewModel
 
     private void CloseActiveRunwaysPrompt()
     {
+        ActiveRunwaysScope++;
         _activeRunwaysPromptGeneration++;
         ShowActiveRunwaysPrompt = false;
         foreach (ActiveRunwaysRow row in ActiveRunwaysPromptRows)

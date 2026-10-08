@@ -106,6 +106,55 @@ public class ActiveRunwaysWindowViewModelTests
         Assert.Equal([("OAK", "33"), ("SFO", "28L")], window.Rows.Select(row => (row.Airport, row.Text)));
     }
 
+    [AvaloniaFact]
+    public void LiveChange_InsertsANewAirportInOrdinalOrder()
+    {
+        using var scope = new PreferencesFileScope();
+
+        (MainViewModel vm, ActiveRunwaysWindowViewModel window) = OpenWindow(("SFO", ["28R"]));
+
+        Refresh(vm, ("SFO", ["28R"]), ("HWD", ["28L"]));
+
+        Assert.Equal([("OAK", ""), ("HWD", "28L"), ("SFO", "28R")], window.Rows.Select(row => (row.Airport, row.Text)));
+    }
+
+    [AvaloniaFact]
+    public void PrimaryAirportChange_ReordersTheRows()
+    {
+        using var scope = new PreferencesFileScope();
+
+        (MainViewModel vm, ActiveRunwaysWindowViewModel window) = OpenWindow(("OAK", ["30"]), ("HWD", ["28L"]));
+
+        vm.ActiveScenarioPrimaryAirportId = "HWD";
+
+        Assert.Equal([("HWD", "28L"), ("OAK", "30")], window.Rows.Select(row => (row.Airport, row.Text)));
+    }
+
+    [AvaloniaFact]
+    public void LiveChange_KeepsATypedInRowOfADroppedAirport()
+    {
+        using var scope = new PreferencesFileScope();
+
+        (MainViewModel vm, ActiveRunwaysWindowViewModel window) = OpenWindow(("OAK", ["30"]), ("SFO", ["28R"]));
+        window.Rows[1].Text = "28L";
+
+        Refresh(vm, ("OAK", ["30"]));
+
+        Assert.Equal([("OAK", "30"), ("SFO", "28L")], window.Rows.Select(row => (row.Airport, row.Text)));
+    }
+
+    [AvaloniaFact]
+    public void LiveChange_RemovesAnUntouchedRowOfADroppedAirport()
+    {
+        using var scope = new PreferencesFileScope();
+
+        (MainViewModel vm, ActiveRunwaysWindowViewModel window) = OpenWindow(("OAK", ["30"]), ("SFO", ["28R"]));
+
+        Refresh(vm, ("OAK", ["30"]));
+
+        Assert.Equal([("OAK", "30")], window.Rows.Select(row => (row.Airport, row.Text)));
+    }
+
     // --- Apply ---
 
     [AvaloniaFact]
@@ -195,6 +244,107 @@ public class ActiveRunwaysWindowViewModelTests
     }
 
     [AvaloniaFact]
+    public async Task Apply_ARowTheServerEchoesDifferently_TakesTheServersSpelling()
+    {
+        using var scope = new PreferencesFileScope();
+
+        (MainViewModel vm, ActiveRunwaysWindowViewModel window) = OpenWindow(("OAK", ["30"]));
+        window.Rows[0].Text = "28l, 30";
+        // The room's list reaches the client before Apply's await resumes, which is why a row cannot keep the spelling it
+        // was sent with.
+        var sender = new RecordingSender(_ =>
+        {
+            vm.OnActiveRunwaysChanged(new ActiveRunwaysChangedDto(Runways(("OAK", ["28L", "30"]))));
+            Dispatcher.UIThread.RunJobs();
+            return new CommandResultDto(true, null);
+        });
+
+        await window.ApplyAsync(NavDb(), sender.Send);
+
+        Assert.Equal(["ARWY OAK 28L 30"], sender.Sent);
+        Assert.Equal("28L 30", window.Rows[0].Text);
+    }
+
+    [AvaloniaFact]
+    public async Task Apply_KeepsAnEditMadeDuringTheSend()
+    {
+        using var scope = new PreferencesFileScope();
+
+        (MainViewModel vm, ActiveRunwaysWindowViewModel window) = OpenWindow(("OAK", ["30"]));
+        window.Rows[0].Text = "28L";
+        var sender = new RecordingSender(_ =>
+        {
+            window.Rows[0].Text = "12";
+            return new CommandResultDto(true, null);
+        });
+
+        await window.ApplyAsync(NavDb(), sender.Send);
+        Refresh(vm, ("OAK", ["33"]));
+
+        Assert.Equal("12", window.Rows[0].Text);
+    }
+
+    [AvaloniaFact]
+    public async Task Apply_WhileOneIsInFlight_SendsNothingMore()
+    {
+        using var scope = new PreferencesFileScope();
+
+        (MainViewModel _, ActiveRunwaysWindowViewModel window) = OpenWindow(("OAK", ["30"]));
+        window.Rows[0].Text = "28L";
+        RecordingSender reentrant = AcceptAll();
+        bool applyingDuringTheSend = false;
+        Task? second = null;
+        var sender = new RecordingSender(_ =>
+        {
+            applyingDuringTheSend = window.IsApplying;
+            second = window.ApplyAsync(NavDb(), reentrant.Send);
+            return new CommandResultDto(true, null);
+        });
+
+        await window.ApplyAsync(NavDb(), sender.Send);
+        await second!;
+
+        Assert.True(applyingDuringTheSend);
+        Assert.Equal(["ARWY OAK 28L"], sender.Sent);
+        Assert.Empty(reentrant.Sent);
+        Assert.False(window.IsApplying);
+    }
+
+    [AvaloniaFact]
+    public async Task Apply_AnUnchangedRowTheClientCannotRead_DoesNotBlockTheOthers()
+    {
+        using var scope = new PreferencesFileScope();
+
+        // ZZZZ's ends came from the server, so the row is untouched and unchanged; the client's navdata knows no runway
+        // there, and reading it would refuse the whole Apply.
+        (MainViewModel _, ActiveRunwaysWindowViewModel window) = OpenWindow(("OAK", ["30"]), ("ZZZZ", ["99X"]));
+        window.Rows[0].Text = "28L";
+        RecordingSender sender = AcceptAll();
+
+        await window.ApplyAsync(NavDb(), sender.Send);
+
+        Assert.Equal(["ARWY OAK 28L"], sender.Sent);
+        Assert.All(window.Rows, row => Assert.False(row.HasError));
+    }
+
+    [AvaloniaFact]
+    public async Task Apply_ARowTypedBackToTheListsText_IsLeftAsTheListHasIt()
+    {
+        using var scope = new PreferencesFileScope();
+
+        (MainViewModel vm, ActiveRunwaysWindowViewModel window) = OpenWindow(("OAK", ["30"]));
+        window.Rows[0].Text = "";
+        window.Rows[0].Text = "30";
+        RecordingSender sender = AcceptAll();
+
+        await window.ApplyAsync(NavDb(), sender.Send);
+        Refresh(vm, ("OAK", ["12"]));
+
+        Assert.Empty(sender.Sent);
+        Assert.Equal("12", window.Rows[0].Text);
+    }
+
+    [AvaloniaFact]
     public async Task Apply_StopsSending_OnceTheWindowCloses()
     {
         using var scope = new PreferencesFileScope();
@@ -247,7 +397,8 @@ public class ActiveRunwaysWindowViewModelTests
 
         (MainViewModel vm, ActiveRunwaysWindowViewModel window) = OpenWindow(("OAK", ["30"]));
 
-        vm.OnScenarioLoaded(new ScenarioLoadedDto("scenario-2", "OAK Ground", "OAK", true, 1, [], Runways(("OAK", ["12"]))));
+        // The same scenario id: reloading a scenario is another load even though the id does not move.
+        vm.OnScenarioLoaded(new ScenarioLoadedDto("scenario-1", "OAK Ground", "OAK", true, 1, [], Runways(("OAK", ["12"]))));
         Dispatcher.UIThread.RunJobs();
 
         Assert.False(window.IsOpen);
@@ -260,8 +411,23 @@ public class ActiveRunwaysWindowViewModelTests
 
         (MainViewModel vm, ActiveRunwaysWindowViewModel window) = OpenWindow(("OAK", ["30"]));
 
-        vm.ApplyRecordingResult(new RewindResultDto(true, null, Runways(("OAK", ["12"])), [], "scenario-3", "OAK Ground", "OAK"));
+        // A recording carries the original scenario's id, so this too is only visible in the scope.
+        vm.ApplyRecordingResult(new RewindResultDto(true, null, Runways(("OAK", ["12"])), [], "scenario-1", "OAK Ground", "OAK"));
 
         Assert.False(window.IsOpen);
+    }
+
+    [AvaloniaFact]
+    public void Restart_LeavesTheWindowOpen_AndTheRowsFollowTheRestartsList()
+    {
+        using var scope = new PreferencesFileScope();
+
+        (MainViewModel vm, ActiveRunwaysWindowViewModel window) = OpenWindow(("OAK", ["30"]));
+
+        vm.OnScenarioRestarted(new ScenarioRestartedDto([], Runways(("OAK", ["D28L"]))));
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.True(window.IsOpen);
+        Assert.Equal([("OAK", "D28L")], window.Rows.Select(row => (row.Airport, row.Text)));
     }
 }

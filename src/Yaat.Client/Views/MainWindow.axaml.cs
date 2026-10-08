@@ -181,19 +181,8 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             };
         }
 
-        MenuItem? activeRunwaysItem = this.FindControl<MenuItem>("ActiveRunwaysMenuItem");
-        if (activeRunwaysItem is not null)
-        {
-            activeRunwaysItem.Click += OnActiveRunwaysClick;
-            activeRunwaysItem.IsEnabled = vm.HasScenario;
-            vm.PropertyChanged += (_, e) =>
-            {
-                if (e.PropertyName == nameof(MainViewModel.HasScenario))
-                {
-                    activeRunwaysItem.IsEnabled = vm.HasScenario;
-                }
-            };
-        }
+        // The item's IsEnabled is bound to HasScenario in the XAML, as the weather items are.
+        this.FindControl<MenuItem>("ActiveRunwaysMenuItem")?.Click += OnActiveRunwaysClick;
 
         MenuItem? recentItem = this.FindControl<MenuItem>("RecentScenariosMenuItem");
         if (recentItem is not null)
@@ -3509,7 +3498,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
 
     private void OnActiveRunwaysClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
-        if (DataContext is not MainViewModel vm || !vm.HasScenario)
+        if ((DataContext is not MainViewModel vm) || (!vm.HasScenario))
         {
             return;
         }
