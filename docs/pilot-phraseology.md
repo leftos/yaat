@@ -216,6 +216,8 @@ Grouped by trigger. All return `PilotSpeechText`; follow/traffic builders set `R
   either way: neither carries its designator, which lives in aircraft state.
 - **Follow / sequencing** (all `RpoTerminal`) — `BuildUnableToMaintainSeparation`, `BuildSequenceTightTurningBase`, `BuildSTurnsForSpacing` (also said, at most once a minute, when a free-pursuit follower starts an S-turn excursion for spacing: "S-turning for spacing behind the traffic", AIM §4-3-5).
 
+  `BuildUnableNoRouteToFollow` is a taxi follower's (`FOLLOWG`) one call when its plan at runtime finds no taxi route onto its traffic's path and it holds: Terminal "Unable to follow traffic, no taxi route to its path, request taxi instructions", Tts "{callsign}, unable, no route to follow traffic, request taxi.", RpoTerminal "Unable to follow {lead}, no taxi route to its path, request taxi instructions". Said once, to a solo student on ground or tower (`SoloPositionsGround`); a follower ahead of its traffic says nothing.
+
   `BuildUnableToFollowExtendingDownwind` ("unable to follow the traffic, extending downwind, request base turn": a follower that could not build spacing 2 nm past the lead's base turn, or nearing the final, ends the follow and holds an extended downwind — AIM §5-5-12.a.2, it cannot keep its own separation).
 
   `BuildTurningDownwindForSpacing` is the one call of a follower level with or ahead of its lead on base or final, or stalled alongside it, or breaking off its own base for spacing, as it turns out to the downwind heading: Terminal "turning downwind for spacing behind the traffic, request base turn.", Tts "{callsign}, turning downwind for spacing behind the traffic, request base turn.", RpoTerminal "turning downwind for spacing behind {lead}, request base turn."

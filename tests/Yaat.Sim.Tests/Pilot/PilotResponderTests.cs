@@ -1653,6 +1653,18 @@ public class PilotResponderTests
     }
 
     [Fact]
+    public void BuildUnableNoRouteToFollow_RpoTerminalNamesLead_TtsDoesNot()
+    {
+        AircraftState ac = MakeAircraft("N294MG");
+        PilotSpeechText result = PilotResponder.BuildUnableNoRouteToFollow(ac, "N10194");
+
+        Assert.Equal("Unable to follow traffic, no taxi route to its path, request taxi instructions", result.Terminal);
+        Assert.Equal("Unable to follow N10194, no taxi route to its path, request taxi instructions", result.TerminalForRpo);
+        Assert.EndsWith(", unable, no route to follow traffic, request taxi.", result.Tts, StringComparison.Ordinal);
+        Assert.DoesNotContain("november one zero one nine four", result.Tts, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void BuildFollowExtendingUnableToTurn_RpoTerminalNamesTarget_TtsDoesNot()
     {
         AircraftState ac = MakeAircraft("N294MG");

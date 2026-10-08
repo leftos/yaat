@@ -219,11 +219,15 @@ Inside the close-follow band behind a lead moving away from the follower, it is 
 
 **No plan.** With no plan the follower holds in position (it brakes to a stop where it is), never steering straight at the lead. With no layout, a `WaitForLead` plan, or an empty `Joinable` plan (no route to the merge and no lead path from it), it plans again each tick. A `NoPath` or `FollowerAhead` plan at runtime makes the follow unjoinable (`IsUnjoinable`), logged as the route lost: it holds for good, planning no more, until a new command replaces it.
 
+The first `NoPath` that makes it unjoinable also has the pilot say so once (`PilotResponder.BuildUnableNoRouteToFollow`, to a solo student on ground or tower, else the RPO's terminal naming the lead); a `FollowerAhead`, or a re-plan whose route starts behind the follower, says nothing. The latch is snapshotted, so a restored follow does not say it again.
+
 **The clearing route.** The follower never holds on a runway or inside its hold line (AIM 4-3-21). With no follow route to drive while its nose, centre or tail is on a runway's pavement or nearer the runway's centreline than the nearest of its bars on that side, it drives a clearing route instead (`StartClearingRoute`, once per runway until a follow route is installed again). A follower off the pavement facing the runway gets no clearing route: it logs a warning and holds.
 
-The clearing route runs from where the follower stands (from a follow route's start, `FollowRoutePlanner.StartOf` without the ahead check, a fillet arc it stands partway round included) by the auto route to the nearest of the runway's bars ahead, skipping an exit another aircraft stands in at rest unless every one is, then on past the bar by the aircraft's length plus 50 ft.
+The clearing route runs from where the follower stands (from a follow route's start, `FollowRoutePlanner.StartOf` without the ahead check, a fillet arc it stands partway round included) by the auto route to the nearest of the runway's bars ahead, skipping an exit another aircraft stands in at rest unless every one is, then on past the bar by the aircraft's length plus the longer of 50 ft and its stopping distance from taxi speed at the taxi brake rate (`ClearingNeedFt`).
 
-Past the bar it takes the straightest continuation that leads no nearer the runway, stopping at the first junction once on the next taxiway or where the pavement ends. A route that enters another runway, or that brings a follower that started off the pavement nearer this runway, is passed over for the next nearest bar.
+Past the bar it takes the straightest continuation that leads no nearer the runway and onto no other runway, on through any junction short of that length, stopping only where the pavement ends. A route that enters another runway, or that brings a follower that started off the pavement nearer this runway, is passed over for the next nearest bar.
+
+A clearing route never reaches past another runway's bar. Between close parallels a long aircraft can therefore run out of route before its tail clears: at SFO a B744 clearing 01R/19L on V stops 70 ft past the bar node, short of 01L/19R's bar, with its tail 45 ft inside 01R/19L's hold line, and the "clearing route ran out" warning tells the instructor it needs a crossing of the next runway. A B738 at the same crossing clears with 8 ft to spare.
 
 On the clearing route the follower keeps the gap to the nearest aircraft ahead on it, the lead or any other.
 
@@ -231,7 +235,15 @@ Once its tail and both wingtips are past the bar's hold line (`IsClearPastBar`; 
 
 At rest the clearing ends and the follower is checked again, so one inside a second, intersecting runway's hold line clears that one too. A clearing route that runs out first logs a warning and holds.
 
-**The lead gone.** When the lead is deleted or no longer on the ground, the follow drops its follow route, drives the clearing route if it is inside a runway's hold line, else brakes to a stop where it is, and at rest completes into a `HoldingInPositionPhase`.
+While it brakes along the clearing route past the bar, still rolling and inside no runway's hold line, a follow that is not unjoinable plans again each tick (`ResumeFollowFromBrakingRoll`; whether it is past the bar is read from where it stands, so a restore does the same, and a bar or runway the layout cannot resolve counts as not past). One still inside a second runway's hold line brakes on to rest and clears that runway first. A `Joinable` plan with a route to drive ends the clearing and is installed in that tick, so the follower takes up following without stopping first; its runway-bar stops still apply. Any other plan leaves it braking, to plan again at rest.
+
+**The lead gone.** When the lead is deleted or no longer on the ground, the follow drops its follow route and drives the clearing route if it is inside a runway's hold line.
+
+On a taxiway (inside no runway's hold line, no runway cleared since its last follow route) with an assigned route not yet driven to its end, a `TaxiingPhase` takes over at once on the rest of that route (`ResumeAssignedRoute`). `FOLLOWG` leaves the assigned route's current segment where the taxi was given, so the route is re-anchored first: the auto route from where the follower stands (`FollowRoutePlanner.RouteOnto`, from `StartOf` and never starting back the way it came) onto the nearest node of the route's remaining segments, then the route on from there, with its hold-short points.
+
+The hand-over is refused when the way back crosses a runway hold line, which the assigned route holds no stop for: any bar `HoldShortAnnotator.AddImplicitRunwayHoldShorts` marks on it (arriving at a bar of the assigned route is not crossing), or the bar it starts at when it goes on to another bar of that runway (`RunwayBarsCrossed`). The follow becomes unjoinable and the pilot says once that it cannot follow and asks for taxi instructions (`BuildUnableNoRouteToFollow`). A way back that crosses no bar, such as KOAK's B A C B around 28R's end, is taken. An unjoinable follow never resumes its assigned route on its own.
+
+Otherwise it brakes to a stop where it is, and at rest completes into a `HoldingInPositionPhase`.
 
 **Snapshot.** The follow route, merge index, `LeadEdgeIntoMerge`, give-way, unjoinable and braking-along-a-lost-route flags, the clearing route and its bar, and the navigator's state round-trip ([`../snapshots-and-replay.md`](../snapshots-and-replay.md)); a restore without a follow route plans afresh on the next tick.
 

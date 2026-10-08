@@ -166,6 +166,7 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
 
         AircraftState follower = run.Follower;
         LatLon start = follower.Position;
+        List<string> calls = CaptureUnableToFollowCalls(run.Engine);
         for (int second = 1; second <= 15; second++)
         {
             run.Engine.TickOneSecond();
@@ -178,6 +179,63 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
         Assert.Null(follow.FollowRoute);
         Assert.Equal(0.0, follower.GroundSpeed, 0.01);
         Assert.True(GeoMath.DistanceNm(start, follower.Position) * GeoMath.FeetPerNm < 1.0, "the follower moved with no taxi path to its lead");
+        Assert.Empty(calls);
+    }
+
+    /// <summary>
+    /// A follow whose plan at runtime finds no taxi path onto its lead's path — the follower on a part of the graph no edge
+    /// joins to the lead's, installed directly as <c>FOLLOWG</c> itself rejects it — holds in position and says once that it
+    /// cannot follow and wants taxi instructions: as a terminal warning naming the lead in an RPO room, and as a transmission to
+    /// a solo student on ground, in the traffic's words.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Following_NoPathAtRuntime_SaysUnableOnceAndHolds(bool soloOnGround)
+    {
+        if (StartFollowerOnIsland(soloOnGround) is not { } run)
+        {
+            return;
+        }
+
+        AircraftState follower = run.Follower;
+        LatLon start = follower.Position;
+        List<string> calls = CaptureUnableToFollowCalls(run.Engine);
+        for (int second = 1; second <= 15; second++)
+        {
+            run.Engine.TickOneSecond();
+            output.WriteLine($"t={second} follower {follower.Phases?.CurrentPhase?.Name} gs={follower.GroundSpeed:F2}");
+        }
+
+        FollowingPhase follow = Assert.IsType<FollowingPhase>(follower.Phases?.CurrentPhase);
+        Assert.True(follow.IsUnjoinable, "the follow with no taxi path to its lead did not hold for good");
+        Assert.Null(follow.FollowRoute);
+        Assert.Equal(0.0, follower.GroundSpeed, 0.01);
+        Assert.True(GeoMath.DistanceNm(start, follower.Position) * GeoMath.FeetPerNm < 1.0, "the follower moved with no taxi path to its lead");
+        string expected = soloOnGround
+            ? "Unable to follow traffic, no taxi route to its path, request taxi instructions"
+            : $"Unable to follow {LeadCallsign}, no taxi route to its path, request taxi instructions";
+        Assert.Equal([expected], calls);
+    }
+
+    /// <summary>
+    /// The follower's "unable to follow" calls <paramref name="engine"/> surfaces from here on, in order: warnings, and the
+    /// terminal entries RPO pilot speech and solo transmissions become.
+    /// </summary>
+    private static List<string> CaptureUnableToFollowCalls(SimulationEngine engine)
+    {
+        List<string> calls = [];
+        void Note(string callsign, string text)
+        {
+            if ((callsign == FollowerCallsign) && text.Contains("no taxi route", StringComparison.OrdinalIgnoreCase))
+            {
+                calls.Add(text);
+            }
+        }
+
+        engine.WarningEmitted += Note;
+        engine.TerminalEntryEmitted += entry => Note(entry.Callsign, entry.Message);
+        return calls;
     }
 
     /// <summary>
@@ -1038,7 +1096,7 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
     [Fact]
     public void Following_RouteRunsOutInsideTheHoldLineWithTheLeadUnplannable_ClearsPastTheBarThenHolds()
     {
-        if (RunRouteOutInsideHoldLine(ClearingBudgetSeconds, deleteLead: false) is not { } run)
+        if (RunRouteOutInsideHoldLine(ClearingBudgetSeconds, deleteLead: false, leadAheadAfter: null) is not { } run)
         {
             return;
         }
@@ -1109,13 +1167,13 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
     [Fact]
     public void Following_RestoredMidClearing_TicksIdentically()
     {
-        if (RunRouteOutInsideHoldLine(ClearingBudgetSeconds, deleteLead: false) is not { } reference)
+        if (RunRouteOutInsideHoldLine(ClearingBudgetSeconds, deleteLead: false, leadAheadAfter: null) is not { } reference)
         {
             return;
         }
 
         int snapshotAt = reference.Seconds.First(s => s.Clearing && (s.SpeedKts > 1.0)).Second;
-        ClearingRun original = Assert.IsType<ClearingRun>(RunRouteOutInsideHoldLine(snapshotAt, deleteLead: false));
+        ClearingRun original = Assert.IsType<ClearingRun>(RunRouteOutInsideHoldLine(snapshotAt, deleteLead: false, leadAheadAfter: null));
         FollowingPhase follow = Assert.IsType<FollowingPhase>(original.Follower.Phases?.CurrentPhase);
         Assert.NotNull(follow.ClearingRoute);
         string json = JsonSerializer.Serialize(original.Engine.CaptureSnapshot(), RecordingJsonOptions.Default);
@@ -1154,7 +1212,7 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
     [Fact]
     public void Following_RestoredMidBrakingRoll_TicksIdenticallyToRest()
     {
-        if (RunRouteOutInsideHoldLine(ClearingBudgetSeconds, deleteLead: false) is not { } reference)
+        if (RunRouteOutInsideHoldLine(ClearingBudgetSeconds, deleteLead: false, leadAheadAfter: null) is not { } reference)
         {
             return;
         }
@@ -1168,7 +1226,7 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
             $"t={snapshotAt}: the follower was not braking past the bar ({rolling.SpeedKts:F2} kt, then {next.SpeedKts:F2} kt)"
         );
 
-        ClearingRun original = Assert.IsType<ClearingRun>(RunRouteOutInsideHoldLine(snapshotAt, deleteLead: false));
+        ClearingRun original = Assert.IsType<ClearingRun>(RunRouteOutInsideHoldLine(snapshotAt, deleteLead: false, leadAheadAfter: null));
         Assert.NotNull(Assert.IsType<FollowingPhase>(original.Follower.Phases?.CurrentPhase).ClearingRoute);
         string json = JsonSerializer.Serialize(original.Engine.CaptureSnapshot(), RecordingJsonOptions.Default);
         SimulationEngine restored = KoakFollowGeometry.NewEngine(output, autoCross: false)!.Value.Engine;
@@ -1208,6 +1266,252 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
             $"the followers came to rest apart: restored at {restoredFollower.Position} heading {restoredFollower.TrueHeading.Degrees}, "
                 + $"live at {live.Position} heading {live.TrueHeading.Degrees}"
         );
+    }
+
+    /// <summary>
+    /// The clearing follower of <see cref="Following_RouteRunsOutInsideTheHoldLineWithTheLeadUnplannable_ClearsPastTheBarThenHolds"/>,
+    /// whose lead comes back onto the field ahead of it while it brakes along its clearing route past the far bar's hold line,
+    /// takes up following again during that braking roll: it drives a follow route while still rolling, never stopping first,
+    /// and never slows faster than the taxi brake rate on the way.
+    /// </summary>
+    [Fact]
+    public void Following_LeadPlannableDuringTheBrakingRoll_ResumesWithoutStopping()
+    {
+        if (BrakingRollSecond() is not { } rollingAt)
+        {
+            return;
+        }
+
+        ClearingRun run = Assert.IsType<ClearingRun>(RunRouteOutInsideHoldLine(rollingAt, deleteLead: false, leadAheadAfter: rollingAt));
+        AircraftState follower = run.Follower;
+        double rateKts = CategoryPerformance.TaxiDecelRate(AircraftCategory.Piston);
+        double lastKts = follower.GroundSpeed;
+        int followingAt = -1;
+        for (int second = rollingAt + 1; (second <= rollingAt + RestoreCompareSeconds) && (followingAt < 0); second++)
+        {
+            run.Engine.TickOneSecond();
+            var follow = follower.Phases?.CurrentPhase as FollowingPhase;
+            output.WriteLine(
+                $"t={second} {follower.Phases?.CurrentPhase?.Name} gs={follower.GroundSpeed:F2} follow={follow?.FollowRoute is not null} "
+                    + $"clearing={follow?.ClearingRoute is not null}"
+            );
+            Assert.True(follower.GroundSpeed >= 0.05, $"t={second}: the follower came to rest before it took up following again");
+            Assert.True(
+                lastKts - follower.GroundSpeed <= rateKts + 0.05,
+                $"t={second}: ground speed fell from {lastKts:F2} to {follower.GroundSpeed:F2} kt, faster than the {rateKts:F1} kt/s taxi rate"
+            );
+            lastKts = follower.GroundSpeed;
+            followingAt = follow?.FollowRoute is not null ? second : -1;
+        }
+
+        Assert.True(followingAt > 0, $"the follower never took up following again within {RestoreCompareSeconds}s of its lead coming back");
+        Assert.True(
+            followingAt == rollingAt + 1,
+            $"the follower braked on along its clearing route until t={followingAt} before it took up following again; its lead came back "
+                + $"after t={rollingAt}"
+        );
+    }
+
+    /// <summary>
+    /// The resuming follower of <see cref="Following_LeadPlannableDuringTheBrakingRoll_ResumesWithoutStopping"/>, snapshotted through
+    /// the recording JSON in its braking roll the moment its lead comes back, and restored into a second engine, drives exactly as
+    /// the run it was taken from: whether it is braking past the bar is read again from where it stands.
+    /// </summary>
+    [Fact]
+    public void Following_RestoredInTheBrakingRollWithTheLeadBack_TicksIdentically()
+    {
+        if (BrakingRollSecond() is not { } rollingAt)
+        {
+            return;
+        }
+
+        ClearingRun original = Assert.IsType<ClearingRun>(RunRouteOutInsideHoldLine(rollingAt, deleteLead: false, leadAheadAfter: rollingAt));
+        string json = JsonSerializer.Serialize(original.Engine.CaptureSnapshot(), RecordingJsonOptions.Default);
+        SimulationEngine restored = KoakFollowGeometry.NewEngine(output, autoCross: false)!.Value.Engine;
+        restored.RestoreFromSnapshot(
+            Assert.IsType<StateSnapshotDto>(JsonSerializer.Deserialize<StateSnapshotDto>(json, RecordingJsonOptions.Default))
+        );
+        AircraftState restoredFollower = Assert.IsType<AircraftState>(restored.FindAircraft(FollowerCallsign));
+        bool followed = false;
+        for (int second = rollingAt + 1; second <= rollingAt + RestoreCompareSeconds; second++)
+        {
+            original.Engine.TickOneSecond();
+            restored.TickOneSecond();
+            AircraftState live = original.Follower;
+            string at = $"t={second} (snapshot at t={rollingAt})";
+            Assert.True(live.Position == restoredFollower.Position, $"{at}: restored at {restoredFollower.Position}, live at {live.Position}");
+            Assert.True(
+                live.TrueHeading.Degrees == restoredFollower.TrueHeading.Degrees,
+                $"{at}: restored heading {restoredFollower.TrueHeading.Degrees}, live {live.TrueHeading.Degrees}"
+            );
+            Assert.True(
+                live.GroundSpeed == restoredFollower.GroundSpeed,
+                $"{at}: restored {restoredFollower.GroundSpeed} kt, live {live.GroundSpeed} kt"
+            );
+            followed |= live.Phases?.CurrentPhase is FollowingPhase { FollowRoute: not null };
+        }
+
+        Assert.True(followed, "the follower never took up following again after its lead came back");
+    }
+
+    /// <summary>
+    /// The first second of <see cref="RunRouteOutInsideHoldLine"/>'s clearing follow, with the lead off the field, at which the
+    /// follower is past the far bar's hold line still rolling on its clearing route; null when the layout is unavailable.
+    /// </summary>
+    private int? BrakingRollSecond()
+    {
+        if (RunRouteOutInsideHoldLine(ClearingBudgetSeconds, deleteLead: false, leadAheadAfter: null) is not { } reference)
+        {
+            return null;
+        }
+
+        ClearingSecond? rolling = reference.Seconds.FirstOrDefault(s => s.Clearing && s.PastBar && (s.SpeedKts > 1.0));
+        Assert.True(rolling is not null, "the follower was never past the far bar's hold line still rolling on its clearing route");
+        output.WriteLine($"braking roll from t={rolling.Second} at {rolling.SpeedKts:F2} kt");
+        return rolling.Second;
+    }
+
+    /// <summary>
+    /// A clearing bar the layout cannot resolve — no such node, or a node that is no runway's hold-short bar — is one the follower
+    /// is not known to be past, so it is not past it; a resolvable bar well behind the follower still is.
+    /// </summary>
+    [Fact]
+    public void IsPastClearingBar_BarTheLayoutCannotResolve_IsNotPast()
+    {
+        if (KoakFollowGeometry.NewEngine(output, autoCross: false) is not { } setup)
+        {
+            return;
+        }
+
+        AirportGroundLayout layout = setup.Layout;
+        List<GroundNode> chain = KoakFollowGeometry.BChain(layout);
+        AircraftState aircraft = KoakFollowGeometry.Spawn(FollowerCallsign, "C172", chain[5].Position, KoakFollowGeometry.Facing(chain[5], chain[6]));
+        int missing = layout.Nodes.Keys.Max() + 1;
+        Assert.False(FollowingPhase.IsPastClearingBar(layout, missing, aircraft), $"past bar node #{missing}, which the layout does not have");
+        Assert.False(FollowingPhase.IsPastClearingBar(layout, chain[5].Id, aircraft), $"past B node #{chain[5].Id}, which is no runway bar");
+        Assert.True(FollowingPhase.IsPastClearingBar(layout, chain[0].Id, aircraft), "not past the 28R bar from well up B");
+    }
+
+    /// <summary>
+    /// A long follower (and a B738 control) clearing a runway on its clearing route after its lead is deleted mid-crossing — at
+    /// OAK across 28R on B, at SFO across 01R/19L at the crossing whose far bar's clearing route was the shortest for a B744 —
+    /// gets its tail and wingtips past the far bar's hold line and brakes to rest on that route, then holds in position, its nose
+    /// never inside another runway's hold line. The SFO B744 is the known short case: 01L/19R's bar lies less than its length
+    /// past 01R/19L's, so it holds short of 01L/19R with its tail still inside 01R/19L's hold line, warning once.
+    /// </summary>
+    [Theory]
+    [InlineData("OAK", "B744")]
+    [InlineData("OAK", "B738")]
+    [InlineData("SFO", "B744")]
+    [InlineData("SFO", "B738")]
+    public void Following_LongAircraftOnClearingRoute_TailClearsAndBrakesWithinTheRoute(string airportId, string type)
+    {
+        if (NewEngineAt(airportId) is not { } probe)
+        {
+            return;
+        }
+
+        ClearingCase crossing = LongClearingCase(airportId, probe.Layout, type);
+        ClearingRun reference = RunClearingAcross(probe, crossing, ClearingBudgetSeconds, true, null);
+        int clearingAt = reference.Seconds.First(s => s.Clearing).Second;
+        (SimulationEngine Engine, AirportGroundLayout Layout) setup = NewEngineAt(airportId)!.Value;
+        var tap = new CapturingSimLogProvider(LogLevel.Warning, capacity: 200);
+        SimLogBuilder.CreateForTest(output).EnableCategory("FollowingPhase", LogLevel.Warning).CaptureInto(tap).InitializeSimLog();
+        List<RunwayInfo> others = [.. RunwayOccupancy.AirportRunways(setup.Layout.AirportId).Where(r => !r.Id.Overlaps(crossing.Runway.Id))];
+        ClearingRun run = RunClearingAcross(setup, crossing, clearingAt, true, null);
+        TaxiRoute clearing = Assert.IsType<TaxiRoute>(Assert.IsType<FollowingPhase>(run.Follower.Phases?.CurrentPhase).ClearingRoute);
+        int barAt = clearing.Segments.FindIndex(s => s.ToNodeId == crossing.FarBar.Id);
+        double pastBarFt = clearing.Segments.Skip(barAt + 1).Sum(s => s.Edge.DistanceNm * GeoMath.FeetPerNm);
+        GroundNode end = clearing.Segments[^1].Edge.ToNode;
+        for (int second = clearingAt + 1; second <= ClearingBudgetSeconds; second++)
+        {
+            run.Engine.TickOneSecond();
+            LatLon nose = GeoMath.ProjectPoint(
+                run.Follower.Position,
+                run.Follower.TrueHeading,
+                AircraftLength.ResolveFt(type) / 2.0 / GeoMath.FeetPerNm
+            );
+            RunwayInfo? entered = others.FirstOrDefault(r => FollowingPhase.IsInsideHoldLine(setup.Layout, r, nose));
+            Assert.True(entered is null, $"t={second}: the {type}'s nose went inside runway {entered?.Id}'s hold line");
+        }
+
+        int ranOut = tap.Drain().Count(r => r.Message.Contains("clearing route ran out", StringComparison.Ordinal));
+        (double tailFt, double barFt, bool sameSide) = TailAgainstBar(run);
+        double restToEndFt = GeoMath.DistanceNm(run.Follower.Position, end.Position) * GeoMath.FeetPerNm;
+        output.WriteLine(
+            $"{airportId} {type} ({AircraftLength.ResolveFt(type):F0} ft) across {crossing.Runway.Id} #{crossing.NearBar.Id}>#{crossing.FarBar.Id}: "
+                + $"clearing route {clearing.ToSummary()}, {pastBarFt:F0} ft past the bar node (bar at segment {barAt}); at rest tail "
+                + $"{tailFt - barFt:F0} ft past the hold line, centre {restToEndFt:F0} ft from the route's end node #{end.Id}"
+        );
+        Assert.True(barAt >= 0, $"the clearing route does not run through the far bar #{crossing.FarBar.Id}");
+        Assert.IsType<HoldingInPositionPhase>(run.Follower.Phases?.CurrentPhase);
+        Assert.True(run.Follower.GroundSpeed < 0.05, $"the follower holds rolling at {run.Follower.GroundSpeed:F2} kt");
+        bool clear = sameSide && FollowingPhase.IsClearPastBar(run.Follower, crossing.Runway, crossing.FarBar);
+        if ((airportId == "SFO") && (type == "B744"))
+        {
+            // Known short: 01L/19R's bar is less than a B744's length past 01R/19L's, so the clearing route ends short of it
+            // and the B744 holds there, its tail still inside 01R/19L's hold line, warning once that it needs to cross 01L/19R.
+            Assert.False(clear, $"the B744 cleared 01R/19L between the close parallels, tail {tailFt - barFt:F0} ft past the hold line");
+            Assert.Equal(1, ranOut);
+            return;
+        }
+
+        Assert.True(clear, $"the {type} held with its tail {tailFt:F0} ft from the centreline, the hold line is {barFt:F0} ft");
+        Assert.Equal(0, ranOut);
+    }
+
+    /// <summary>
+    /// The crossing <see cref="Following_LongAircraftOnClearingRoute_TailClearsAndBrakesWithinTheRoute"/> clears at
+    /// <paramref name="airportId"/>: OAK's 28R on B, as <see cref="RunRouteOutInsideHoldLine"/>; SFO's 01R/19L from bar #898 to
+    /// bar #897, the crossing a B744's clearing route ran out on.
+    /// </summary>
+    private static ClearingCase LongClearingCase(string airportId, AirportGroundLayout layout, string type)
+    {
+        if (airportId == "OAK")
+        {
+            GroundNode nearBar = KoakFollowGeometry.BChain(layout)[0];
+            GroundNode farBar = TestLayoutNodes
+                .RunwayHoldShortsOnTaxiway(layout, "28R", "B")
+                .Where(n => n.Id != nearBar.Id)
+                .MinBy(n => GeoMath.DistanceNm(n.Position, nearBar.Position))!;
+            return new ClearingCase(Runway28R(layout), nearBar, farBar, type);
+        }
+
+        RunwayInfo runway = RunwayOccupancy.AirportRunways(layout.AirportId).First(r => r.Id.Overlaps(RunwayIdentifier.Parse("01R")));
+        GroundNode near = layout.Nodes[898];
+        GroundNode far = layout.Nodes[897];
+        Assert.True(
+            (near.RunwayId is { } nearId) && nearId.Overlaps(runway.Id) && (far.RunwayId is { } farId) && farId.Overlaps(runway.Id),
+            "SFO nodes #898 and #897 are no longer bars of 01R/19L"
+        );
+        return new ClearingCase(runway, near, far, type);
+    }
+
+    /// <summary>An engine over the committed layout of <paramref name="airportId"/>, or null when the layout is unavailable.</summary>
+    private (SimulationEngine Engine, AirportGroundLayout Layout)? NewEngineAt(string airportId)
+    {
+        TestVnasData.EnsureInitialized();
+        var groundData = new TestAirportGroundData();
+        if (groundData.GetLayout(airportId) is not { } layout)
+        {
+            output.WriteLine($"SKIP: {airportId} layout unavailable");
+            return null;
+        }
+
+        SimLogBuilder.CreateForTest(output).InitializeSimLog();
+        var engine = new SimulationEngine(groundData)
+        {
+            Scenario = new SimScenarioState
+            {
+                ScenarioId = "test-follow-nested-clearing",
+                ScenarioName = "Follow clearing inside a second runway's hold line",
+                RngSeed = 42,
+                OriginalScenarioJson = "{}",
+                PrimaryAirportId = airportId,
+                AutoCrossRunway = false,
+            },
+        };
+        return (engine, layout);
     }
 
     /// <summary>
@@ -1323,7 +1627,7 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
     [Fact]
     public void Following_LeadDeletedMidCrossing_ClearsPastTheBarThenHolds()
     {
-        if (RunRouteOutInsideHoldLine(ClearingBudgetSeconds, deleteLead: true) is not { } run)
+        if (RunRouteOutInsideHoldLine(ClearingBudgetSeconds, deleteLead: true, leadAheadAfter: null) is not { } run)
         {
             return;
         }
@@ -1336,6 +1640,398 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
     }
 
     /// <summary>
+    /// A follower cleared <c>TAXI B W 30</c> and then told to follow a lead ahead of it on B, whose lead is deleted or leaves the
+    /// ground while the follower rolls on a taxiway clear of every runway's hold line, takes up the rest of its assigned route at
+    /// once: a <see cref="TaxiingPhase"/> on that route re-anchored where it stands, which drives on along B and stops at the
+    /// uncleared 28R bar, never holding in position on the way.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Following_LeadLostOnATaxiwayWithARouteLeft_ResumesTheAssignedRoute(bool leadAirborne)
+    {
+        if (RunLeadLostOnB(withRoute: true, leadAirborne) is not { } run)
+        {
+            return;
+        }
+
+        AircraftState follower = run.Follower;
+        int taxiingAt = -1;
+        int heldShortAt = -1;
+        bool heldInPosition = false;
+        for (int second = run.LostAt + 1; (second <= run.LostAt + BudgetSeconds) && (heldShortAt < 0); second++)
+        {
+            run.Lead.IsOnGround = !leadAirborne;
+            run.Engine.TickOneSecond();
+            Phase? phase = follower.Phases?.CurrentPhase;
+            TaxiRoute? route = follower.Ground.AssignedTaxiRoute;
+            output.WriteLine($"t={second} {phase?.Name} gs={follower.GroundSpeed:F1} seg={route?.CurrentSegmentIndex}/{route?.Segments.Count}");
+            if ((taxiingAt < 0) && (phase is TaxiingPhase))
+            {
+                taxiingAt = second;
+                TaxiRoute resumed = Assert.IsType<TaxiRoute>(route);
+                output.WriteLine($"resumed on {resumed.ToSummary()}");
+                Assert.True(OffRouteFt(resumed, follower.Position) <= 5.0, "the resumed route does not start where the follower stands");
+            }
+
+            heldInPosition |= phase is HoldingInPositionPhase;
+            heldShortAt = (phase is HoldingShortPhase hold) && SfoGroundHarness.HoldShortMatches(hold.HoldShort, "28R") ? second : -1;
+        }
+
+        Assert.True(taxiingAt == run.LostAt + 1, $"the follower took up its assigned route at t={taxiingAt}, its lead was lost at t={run.LostAt}");
+        Assert.False(heldInPosition, "the follower held in position with its assigned route left");
+        Assert.True(heldShortAt > 0, $"the follower never held short of 28R on its assigned route within {BudgetSeconds}s");
+    }
+
+    /// <summary>
+    /// A follower with no assigned route, told to follow a lead ahead of it on B, whose lead is deleted while the follower rolls on
+    /// a taxiway clear of every runway's hold line, brakes to rest where it is and holds in position.
+    /// </summary>
+    [Fact]
+    public void Following_LeadDeletedOnATaxiwayWithNoRouteLeft_HoldsInPosition()
+    {
+        if (RunLeadLostOnB(withRoute: false, leadAirborne: false) is not { } run)
+        {
+            return;
+        }
+
+        for (int second = run.LostAt + 1; (second <= run.LostAt + 60) && (run.Follower.Phases?.CurrentPhase is FollowingPhase); second++)
+        {
+            run.Engine.TickOneSecond();
+            output.WriteLine($"t={second} {run.Follower.Phases?.CurrentPhase?.Name} gs={run.Follower.GroundSpeed:F1}");
+        }
+
+        Assert.IsType<HoldingInPositionPhase>(run.Follower.Phases?.CurrentPhase);
+        Assert.True(run.Follower.GroundSpeed < 0.05, $"the follower holds in position rolling at {run.Follower.GroundSpeed:F2} kt");
+    }
+
+    /// <summary>
+    /// The follower of <see cref="Following_LeadLostOnATaxiwayWithARouteLeft_ResumesTheAssignedRoute"/>, snapshotted through the
+    /// recording JSON while it rolls on its resumed route and restored into a second engine, drives exactly as the run it was taken
+    /// from: the same position, heading, ground speed and phase every tick after.
+    /// </summary>
+    [Fact]
+    public void Following_RestoredAfterResumingTheAssignedRoute_TicksIdentically()
+    {
+        if (RunLeadLostOnB(withRoute: true, leadAirborne: false) is not { } run)
+        {
+            return;
+        }
+
+        for (int second = 1; second <= 3; second++)
+        {
+            run.Engine.TickOneSecond();
+        }
+
+        Assert.IsType<TaxiingPhase>(run.Follower.Phases?.CurrentPhase);
+        string json = JsonSerializer.Serialize(run.Engine.CaptureSnapshot(), RecordingJsonOptions.Default);
+        SimulationEngine restored = KoakFollowGeometry.NewEngine(output, autoCross: false)!.Value.Engine;
+        restored.RestoreFromSnapshot(
+            Assert.IsType<StateSnapshotDto>(JsonSerializer.Deserialize<StateSnapshotDto>(json, RecordingJsonOptions.Default))
+        );
+        AircraftState restoredFollower = Assert.IsType<AircraftState>(restored.FindAircraft(FollowerCallsign));
+        for (int second = 1; second <= RestoreCompareSeconds; second++)
+        {
+            run.Engine.TickOneSecond();
+            restored.TickOneSecond();
+            AircraftState live = run.Follower;
+            string at = $"+{second}s after the snapshot";
+            Assert.True(live.Position == restoredFollower.Position, $"{at}: restored at {restoredFollower.Position}, live at {live.Position}");
+            Assert.True(
+                live.TrueHeading.Degrees == restoredFollower.TrueHeading.Degrees,
+                $"{at}: restored heading {restoredFollower.TrueHeading.Degrees}, live {live.TrueHeading.Degrees}"
+            );
+            Assert.True(
+                live.GroundSpeed == restoredFollower.GroundSpeed,
+                $"{at}: restored {restoredFollower.GroundSpeed} kt, live {live.GroundSpeed} kt"
+            );
+            Assert.Equal(live.Phases?.CurrentPhase?.Name, restoredFollower.Phases?.CurrentPhase?.Name);
+        }
+    }
+
+    /// <summary>
+    /// A follower with an assigned route along B north of 28R, told to follow a lead ahead of it on B with a crossing of 28R,
+    /// whose lead is deleted once the follower is past 28R clear of every hold line: its way back onto that route, never turning
+    /// it about, runs around the runway's end and crosses no runway hold line, so it takes up the route at once and drives it,
+    /// never on a runway's pavement, saying nothing.
+    /// </summary>
+    [Fact]
+    public void Following_LeadLostWithABarFreeWayBack_ResumesAndNeverEntersARunway()
+    {
+        if (RunLeadLostPast28R() is not { } run)
+        {
+            return;
+        }
+
+        AircraftState follower = run.Follower;
+        List<string> calls = CaptureUnableToFollowCalls(run.Engine);
+        List<RunwayInfo> runways = [.. RunwayOccupancy.AirportRunways(KoakFollowGeometry.AirportId)];
+        int taxiingAt = -1;
+        for (int second = run.LostAt + 1; second <= run.LostAt + BudgetSeconds; second++)
+        {
+            run.Engine.TickOneSecond();
+            Phase? phase = follower.Phases?.CurrentPhase;
+            output.WriteLine($"t={second} {phase?.Name} gs={follower.GroundSpeed:F1} route={follower.Ground.AssignedTaxiRoute?.ToSummary()}");
+            RunwayInfo? entered = runways.FirstOrDefault(r => RunwayOccupancy.IsOnPavement(follower, r));
+            Assert.True(entered is null, $"t={second}: the follower entered runway {entered?.Id} ({phase?.Name})");
+            taxiingAt = (taxiingAt < 0) && (phase is TaxiingPhase) ? second : taxiingAt;
+        }
+
+        Assert.True(taxiingAt == run.LostAt + 1, $"the follower took up its assigned route at t={taxiingAt}, its lead was lost at t={run.LostAt}");
+        Assert.Empty(calls);
+    }
+
+    /// <summary>
+    /// A real way back across a runway — from a C172 south of 28R on B, facing north, onto B north of 28R — enters 28R at its
+    /// south bar, which <see cref="FollowingPhase.RunwayBarsCrossed"/> finds.
+    /// </summary>
+    [Fact]
+    public void RunwayBarsCrossed_WayBackAcross28ROnB_FindsTheBar()
+    {
+        if (LeadInAcross28R() is not { } leadIn)
+        {
+            return;
+        }
+
+        Assert.Contains(leadIn.FarBar.Id, FollowingPhase.RunwayBarsCrossed(leadIn.Layout, leadIn.Onto));
+    }
+
+    /// <summary>
+    /// A follower whose way back onto its assigned route crosses 28R on B refuses it: the follow becomes unjoinable, and the pilot
+    /// says once — however often the way back is refused — that it cannot follow and wants taxi instructions, naming the lead.
+    /// </summary>
+    [Fact]
+    public void Following_WayBackAcrossARunway_IsRefusedAndSaysUnableOnce()
+    {
+        if (LeadInAcross28R() is not { } leadIn)
+        {
+            return;
+        }
+
+        var follow = new FollowingPhase(LeadCallsign);
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(leadIn.Follower, leadIn.Layout);
+        Assert.True(follow.RefuseLeadInAcrossRunway(ctx, leadIn.Layout, leadIn.Onto), "the way back across 28R was not refused");
+        Assert.True(follow.RefuseLeadInAcrossRunway(ctx, leadIn.Layout, leadIn.Onto), "the way back across 28R was not refused again");
+        Assert.True(follow.IsUnjoinable, "the refused follow did not latch unjoinable");
+        Assert.Equal([$"Unable to follow {LeadCallsign}, no taxi route to its path, request taxi instructions"], leadIn.Follower.PendingWarnings);
+    }
+
+    private sealed record LeadIn(AirportGroundLayout Layout, AircraftState Follower, GroundNode FarBar, FollowRoutePlanner.RouteFromHere Onto);
+
+    /// <summary>
+    /// A C172 mid-way along the B edge into 28R's south bar from the south, facing the bar, and its way back
+    /// (<see cref="FollowRoutePlanner.RouteOnto"/>) onto B's <c>Chain[1]</c> north of 28R; null when the layout is unavailable.
+    /// </summary>
+    private LeadIn? LeadInAcross28R()
+    {
+        if (KoakFollowGeometry.NewEngine(output, autoCross: false) is not { } setup)
+        {
+            return null;
+        }
+
+        AirportGroundLayout layout = setup.Layout;
+        List<GroundNode> chain = KoakFollowGeometry.BChain(layout);
+        GroundNode farBar = TestLayoutNodes
+            .RunwayHoldShortsOnTaxiway(layout, "28R", "B")
+            .Where(n => n.Id != chain[0].Id)
+            .MinBy(n => GeoMath.DistanceNm(n.Position, chain[0].Position))!;
+        GroundNode south = farBar.Edges.Select(e => e.OtherNode(farBar)).MaxBy(n => GeoMath.DistanceNm(n.Position, chain[0].Position))!;
+        AircraftState follower = KoakFollowGeometry.Spawn(
+            FollowerCallsign,
+            "C172",
+            KoakFollowGeometry.Between(south.Position, farBar.Position, 0.5),
+            KoakFollowGeometry.Facing(south, farBar)
+        );
+        follower.Ground.Layout = layout;
+        FollowRoutePlanner.RouteFromHere? onto = FollowRoutePlanner.RouteOnto(layout, follower, new HashSet<int> { chain[1].Id });
+        Assert.True(onto.HasValue, $"no way back from south of 28R's bar #{farBar.Id} onto B node #{chain[1].Id}");
+        output.WriteLine($"way back {string.Join(" ", onto.Value.Segments.Select(s => $"#{s.FromNodeId}>#{s.ToNodeId}"))}");
+        return new LeadIn(layout, follower, farBar, onto.Value);
+    }
+
+    /// <summary>
+    /// A follow that latched no taxi path onto its lead's path — said once — and so holds for good never takes up its assigned
+    /// route on its own when its lead is then deleted: it stays where it is and ends in a <see cref="HoldingInPositionPhase"/>,
+    /// saying nothing more.
+    /// </summary>
+    [Fact]
+    public void Following_UnjoinableWhenItsLeadIsDeleted_NeverTakesUpItsAssignedRoute()
+    {
+        if (StartFollowerOnIsland(soloOnGround: false) is not { } run)
+        {
+            return;
+        }
+
+        AircraftState follower = run.Follower;
+        follower.Ground.AssignedTaxiRoute = IslandRouteAhead(run.Layout, follower);
+        output.WriteLine($"assigned {follower.Ground.AssignedTaxiRoute.ToSummary()}");
+        List<string> calls = CaptureUnableToFollowCalls(run.Engine);
+        for (int second = 1; second <= 5; second++)
+        {
+            run.Engine.TickOneSecond();
+        }
+
+        Assert.True(Assert.IsType<FollowingPhase>(follower.Phases?.CurrentPhase).IsUnjoinable, "the follow with no taxi path never latched");
+        run.Engine.World.RemoveAircraft(LeadCallsign);
+        LatLon start = follower.Position;
+        for (int second = 6; second <= 40; second++)
+        {
+            run.Engine.TickOneSecond();
+            Phase? phase = follower.Phases?.CurrentPhase;
+            output.WriteLine($"t={second} {phase?.Name} gs={follower.GroundSpeed:F2}");
+            Assert.False(phase is TaxiingPhase, $"t={second}: the unjoinable follower took up its assigned route on its own");
+        }
+
+        Assert.IsType<HoldingInPositionPhase>(follower.Phases?.CurrentPhase);
+        Assert.True(GeoMath.DistanceNm(start, follower.Position) * GeoMath.FeetPerNm < 1.0, "the unjoinable follower moved");
+        Assert.Single(calls);
+    }
+
+    /// <summary>
+    /// A taxi route on <paramref name="follower"/>'s island from the node ahead of it to the island node farthest from that one
+    /// that a route reaches; with none, back to the node behind it.
+    /// </summary>
+    private static TaxiRoute IslandRouteAhead(AirportGroundLayout layout, AircraftState follower)
+    {
+        bool IsAhead(GroundNode n) =>
+            Math.Abs(GeoMath.SignedBearingDifference(follower.TrueHeading.Degrees, GeoMath.BearingTo(follower.Position, n.Position))) <= 90.0;
+        GroundNode nearest = layout.Nodes.Values.MinBy(n => GeoMath.DistanceNm(n.Position, follower.Position))!;
+        HashSet<int> island = GraphComponents.ComponentOf(nearest);
+        List<GroundNode> nodes = [.. island.Select(id => layout.Nodes[id])];
+        GroundNode ahead = nodes.Where(IsAhead).MinBy(n => GeoMath.DistanceNm(n.Position, follower.Position))!;
+        WakeTurbulenceData.WakeClass wake = WakeTurbulenceData.WakeClassForType("C172", AircraftCategory.Piston);
+        foreach (GroundNode target in nodes.Where(n => n.Id != ahead.Id).OrderByDescending(n => GeoMath.DistanceNm(n.Position, ahead.Position)))
+        {
+            if (TaxiPathfinder.FindRoute(layout, ahead.Id, target.Id, AircraftCategory.Piston, wake) is { Segments.Count: > 0 } route)
+            {
+                return route;
+            }
+        }
+
+        Assert.Fail($"no taxi route on the island from node #{ahead.Id}");
+        return null!;
+    }
+
+    /// <summary>
+    /// The lead of <see cref="RunLeadLostOnB"/>, cleared to cross 28R, and a C172 behind it at <c>Chain[5]</c> told
+    /// <c>FOLLOWG</c> the lead with a <c>CROSS 28R</c> and given the taxi route along B from <c>Chain[4]</c> to <c>Chain[1]</c>.
+    /// The second the follower, having been on 28R, rolls at 2 kt or more on its follow route inside no runway's hold line, the lead is deleted.
+    /// </summary>
+    private LeadLostRun? RunLeadLostPast28R()
+    {
+        if (KoakFollowGeometry.NewEngine(output, autoCross: false) is not { } setup)
+        {
+            return null;
+        }
+
+        List<GroundNode> chain = KoakFollowGeometry.BChain(setup.Layout);
+        AircraftState lead = KoakFollowGeometry.AddTaxiing(setup, LeadCallsign, "C560", (chain[3], chain[2]), "TAXI B W 30");
+        CommandResult cross = setup.Engine.SendCommand(LeadCallsign, "CROSS 28R");
+        Assert.True(cross.Success, cross.Message);
+        for (int second = 0; (second < 120) && (lead.Ground.TaxiEdgeTrail.Edges.Count < 2); second++)
+        {
+            setup.Engine.TickOneSecond();
+        }
+
+        AircraftState follower = KoakFollowGeometry.Spawn(FollowerCallsign, "C172", chain[5].Position, KoakFollowGeometry.Facing(chain[5], chain[4]));
+        follower.Ground.Layout = setup.Layout;
+        setup.Engine.World.AddAircraft(follower);
+        CommandResult result = setup.Engine.SendCommand(FollowerCallsign, $"FOLLOWG {LeadCallsign}; CROSS 28R");
+        Assert.True(result.Success, result.Message);
+        WakeTurbulenceData.WakeClass wake = WakeTurbulenceData.WakeClassForType("C172", AircraftCategory.Piston);
+        follower.Ground.AssignedTaxiRoute = TaxiPathfinder.FindRoute(setup.Layout, chain[4].Id, chain[1].Id, AircraftCategory.Piston, wake);
+        output.WriteLine($"follower assigned {follower.Ground.AssignedTaxiRoute?.ToSummary()}");
+        RunwayInfo runway = Runway28R(setup.Layout);
+        bool crossed = false;
+        for (int second = 1; second <= BudgetSeconds; second++)
+        {
+            setup.Engine.TickOneSecond();
+            crossed |= RunwayOccupancy.IsOnPavement(follower, runway);
+            output.WriteLine($"t={second} {follower.Phases?.CurrentPhase?.Name} gs={follower.GroundSpeed:F1} crossed={crossed}");
+            bool past =
+                crossed
+                && (follower.Phases?.CurrentPhase is FollowingPhase { FollowRoute: not null })
+                && (follower.GroundSpeed >= 2.0)
+                && (FollowingPhase.RunwayInsideHoldLine(follower, setup.Layout) is null);
+            if (past)
+            {
+                setup.Engine.World.RemoveAircraft(LeadCallsign);
+                return new LeadLostRun(setup.Engine, lead, follower, second);
+            }
+        }
+
+        Assert.Fail($"the follower never rolled on its follow route past 28R clear of every hold line within {BudgetSeconds}s");
+        return null;
+    }
+
+    private sealed record LeadLostRun(SimulationEngine Engine, AircraftState Lead, AircraftState Follower, int LostAt);
+
+    /// <summary>
+    /// A C560 lead at B <c>Chain[3]</c> cleared <c>TAXI B W 30</c> (no crossing cleared) and a C172 behind it at <c>Chain[5]</c>,
+    /// cleared <c>TAXI B W 30</c> too when <paramref name="withRoute"/>, then told to follow the lead. The second the follower
+    /// rolls at 5 kt or more on its follow route, inside no runway's hold line, the lead is deleted, or with
+    /// <paramref name="leadAirborne"/> taken off the ground.
+    /// </summary>
+    private LeadLostRun? RunLeadLostOnB(bool withRoute, bool leadAirborne)
+    {
+        if (KoakFollowGeometry.NewEngine(output, autoCross: false) is not { } setup)
+        {
+            return null;
+        }
+
+        List<GroundNode> chain = KoakFollowGeometry.BChain(setup.Layout);
+        AircraftState lead = KoakFollowGeometry.AddTaxiing(setup, LeadCallsign, "C560", (chain[3], chain[2]), "TAXI B W 30");
+        CommandResult cross = setup.Engine.SendCommand(LeadCallsign, "CROSS 28R");
+        Assert.True(cross.Success, cross.Message);
+        for (int second = 0; (second < 120) && (lead.Ground.TaxiEdgeTrail.Edges.Count < 2); second++)
+        {
+            setup.Engine.TickOneSecond();
+        }
+
+        AircraftState follower;
+        if (withRoute)
+        {
+            follower = KoakFollowGeometry.AddTaxiing(setup, FollowerCallsign, "C172", (chain[5], chain[4]), "TAXI B W 30");
+        }
+        else
+        {
+            follower = KoakFollowGeometry.Spawn(FollowerCallsign, "C172", chain[5].Position, KoakFollowGeometry.Facing(chain[5], chain[4]));
+            follower.Ground.Layout = setup.Layout;
+            setup.Engine.World.AddAircraft(follower);
+        }
+
+        CommandResult result = setup.Engine.SendCommand(FollowerCallsign, $"FOLLOWG {LeadCallsign}");
+        Assert.True(result.Success, result.Message);
+        for (int second = 1; second <= BudgetSeconds; second++)
+        {
+            setup.Engine.TickOneSecond();
+            bool rolling =
+                (follower.Phases?.CurrentPhase is FollowingPhase { FollowRoute: not null })
+                && (follower.GroundSpeed >= 5.0)
+                && (FollowingPhase.RunwayInsideHoldLine(follower, setup.Layout) is null);
+            output.WriteLine($"t={second} {follower.Phases?.CurrentPhase?.Name} gs={follower.GroundSpeed:F1} lead gs={lead.GroundSpeed:F1}");
+            if (!rolling)
+            {
+                continue;
+            }
+
+            if (leadAirborne)
+            {
+                lead.IsOnGround = false;
+            }
+            else
+            {
+                setup.Engine.World.RemoveAircraft(LeadCallsign);
+            }
+
+            return new LeadLostRun(setup.Engine, lead, follower, second);
+        }
+
+        Assert.Fail($"the follower never rolled on its follow route clear of every hold line within {BudgetSeconds}s");
+        return null;
+    }
+
+    /// <summary>
     /// A follower clearing 28R at taxi speed after its lead is deleted brakes to its hold at the category's taxi brake rate once
     /// it is clear — its ground speed never falls faster than that rate in a second, so it never drops to rest in a tick — and
     /// then holds in position.
@@ -1343,7 +2039,7 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
     [Fact]
     public void Following_LeadDeletedAndClear_BrakesToItsHoldAtTheTaxiRate()
     {
-        if (RunRouteOutInsideHoldLine(ClearingBudgetSeconds, deleteLead: true) is not { } run)
+        if (RunRouteOutInsideHoldLine(ClearingBudgetSeconds, deleteLead: true, leadAheadAfter: null) is not { } run)
         {
             return;
         }
@@ -1505,13 +2201,13 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
     [Fact]
     public void Following_ClearingFollower_IsReadAsDrivingItsClearingRoute()
     {
-        if (RunRouteOutInsideHoldLine(ClearingBudgetSeconds, deleteLead: false) is not { } reference)
+        if (RunRouteOutInsideHoldLine(ClearingBudgetSeconds, deleteLead: false, leadAheadAfter: null) is not { } reference)
         {
             return;
         }
 
         int clearingAt = reference.Seconds.First(s => s.Clearing).Second;
-        ClearingRun run = Assert.IsType<ClearingRun>(RunRouteOutInsideHoldLine(clearingAt, deleteLead: false));
+        ClearingRun run = Assert.IsType<ClearingRun>(RunRouteOutInsideHoldLine(clearingAt, deleteLead: false, leadAheadAfter: null));
         TaxiRoute clearing = Assert.IsType<TaxiRoute>(Assert.IsType<FollowingPhase>(run.Follower.Phases?.CurrentPhase).ClearingRoute);
         TaxiRoute driven = Assert.IsType<TaxiRoute>(FollowingPhase.DrivenRouteOf(run.Follower));
         Assert.Same(clearing, driven);
@@ -1720,9 +2416,10 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
 
     /// <summary>
     /// One second of the clearing follow: the follower's speed, whether it was driving a clearing route, and whether its tail and
-    /// wingtips were past the far bar's hold line (<see cref="FollowingPhase.IsClearPastBar"/>).
+    /// wingtips were past the far bar's hold line (<see cref="FollowingPhase.IsClearPastBar"/>), and the runway whose hold line
+    /// some part of it was inside, if any (<see cref="FollowingPhase.RunwayInsideHoldLine"/>).
     /// </summary>
-    private sealed record ClearingSecond(int Second, double SpeedKts, bool Clearing, bool PastBar);
+    private sealed record ClearingSecond(int Second, double SpeedKts, bool Clearing, bool PastBar, RunwayIdentifier? InsideHoldLineOf);
 
     private sealed record ClearingRun(
         SimulationEngine Engine,
@@ -1736,21 +2433,42 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
     /// A C172 follower 0.2 along B's last edge across 28R into the far (south) bar, behind a C172 lead held 0.9 along it, both
     /// facing the bar; the follower is told to follow, plans on the first second (its route ends at the far bar node), and the
     /// lead is then moved off the field, so no plan joins it again, or deleted (<paramref name="deleteLead"/>). Ticked
-    /// <paramref name="seconds"/> seconds in all.
+    /// <paramref name="seconds"/> seconds in all. With <paramref name="leadAheadAfter"/>, the lead is put back on the field after
+    /// that second's tick, mid-way along the straightest taxiway edge on past the follower's clearing route
+    /// (<see cref="PutLeadAheadOfTheClearing"/>), so a plan joins it again.
     /// </summary>
-    private ClearingRun? RunRouteOutInsideHoldLine(int seconds, bool deleteLead)
+    private ClearingRun? RunRouteOutInsideHoldLine(int seconds, bool deleteLead, int? leadAheadAfter)
     {
         if (KoakFollowGeometry.NewEngine(output, autoCross: false) is not { } setup)
         {
             return null;
         }
 
-        (SimulationEngine engine, AirportGroundLayout layout) = setup;
-        GroundNode nearBar = KoakFollowGeometry.BChain(layout)[0];
+        GroundNode nearBar = KoakFollowGeometry.BChain(setup.Layout)[0];
         GroundNode farBar = TestLayoutNodes
-            .RunwayHoldShortsOnTaxiway(layout, "28R", "B")
+            .RunwayHoldShortsOnTaxiway(setup.Layout, "28R", "B")
             .Where(n => n.Id != nearBar.Id)
             .MinBy(n => GeoMath.DistanceNm(n.Position, nearBar.Position))!;
+        return RunClearingAcross(setup, new ClearingCase(Runway28R(setup.Layout), nearBar, farBar, "C172"), seconds, deleteLead, leadAheadAfter);
+    }
+
+    /// <summary>A runway, a hold-short bar of it, the bar across the runway from that one, and the follower's aircraft type.</summary>
+    private sealed record ClearingCase(RunwayInfo Runway, GroundNode NearBar, GroundNode FarBar, string FollowerType);
+
+    /// <summary>
+    /// <see cref="RunRouteOutInsideHoldLine"/>'s clearing follow across <paramref name="bars"/>' runway, from its near bar to its
+    /// far bar, on <paramref name="setup"/>'s engine.
+    /// </summary>
+    private ClearingRun RunClearingAcross(
+        (SimulationEngine Engine, AirportGroundLayout Layout) setup,
+        ClearingCase bars,
+        int seconds,
+        bool deleteLead,
+        int? leadAheadAfter
+    )
+    {
+        (SimulationEngine engine, AirportGroundLayout layout) = setup;
+        (RunwayInfo runway, GroundNode nearBar, GroundNode farBar, string followerType) = bars;
         WakeTurbulenceData.WakeClass wake = WakeTurbulenceData.WakeClassForType("C172", AircraftCategory.Piston);
         GoalRoute? across = TaxiPathfinder.FindRouteToNearestGoal(
             layout,
@@ -1762,7 +2480,6 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
         );
         List<TaxiRouteSegment> crossing = Assert.IsType<TaxiRoute>(across?.Route).Segments;
         DirectionalEdge lastEdge = crossing[^1].Edge;
-        RunwayInfo runway = Runway28R(layout);
         DirectionalEdge followerEdge = crossing.Select(s => s.Edge).Last(e => LastFractionOnPavement(e, runway) >= 0.0);
         double followerFraction = LastFractionOnPavement(followerEdge, runway);
         output.WriteLine(
@@ -1779,13 +2496,13 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
         engine.World.AddAircraft(lead);
         AircraftState follower = KoakFollowGeometry.Spawn(
             FollowerCallsign,
-            "C172",
+            followerType,
             KoakFollowGeometry.Between(followerEdge.FromNode.Position, followerEdge.ToNode.Position, followerFraction),
             KoakFollowGeometry.Facing(followerEdge.FromNode, followerEdge.ToNode)
         );
         follower.Ground.Layout = layout;
         engine.World.AddAircraft(follower);
-        Assert.True(RunwayOccupancy.IsOnPavement(follower, runway), "the follower does not start on 28R's pavement");
+        Assert.True(RunwayOccupancy.IsOnPavement(follower, runway), $"the follower does not start on {runway.Id}'s pavement");
         CommandResult result = engine.SendCommand(FollowerCallsign, $"FOLLOWG {LeadCallsign}");
         Assert.True(result.Success, result.Message);
 
@@ -1800,7 +2517,16 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
             lead.Position = new LatLon(lead.Position.Lat + 0.05, lead.Position.Lon);
         }
 
-        List<ClearingSecond> log = [new ClearingSecond(1, follower.GroundSpeed, false, FollowingPhase.IsClearPastBar(follower, runway, farBar))];
+        List<ClearingSecond> log =
+        [
+            new ClearingSecond(
+                1,
+                follower.GroundSpeed,
+                false,
+                FollowingPhase.IsClearPastBar(follower, runway, farBar),
+                FollowingPhase.RunwayInsideHoldLine(follower, layout)?.Id
+            ),
+        ];
         for (int second = 2; second <= seconds; second++)
         {
             engine.TickOneSecond();
@@ -1810,7 +2536,8 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
                     second,
                     follower.GroundSpeed,
                     follow?.ClearingRoute is not null,
-                    FollowingPhase.IsClearPastBar(follower, runway, farBar)
+                    FollowingPhase.IsClearPastBar(follower, runway, farBar),
+                    FollowingPhase.RunwayInsideHoldLine(follower, layout)?.Id
                 )
             );
             output.WriteLine(
@@ -1818,9 +2545,34 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
                     + $"clearing={follow?.ClearingRoute is not null} "
                     + $"toBar={GeoMath.DistanceNm(follower.Position, farBar.Position) * GeoMath.FeetPerNm:F0}"
             );
+            if (second == leadAheadAfter)
+            {
+                PutLeadAheadOfTheClearing(lead, follower);
+            }
         }
 
         return new ClearingRun(engine, follower, farBar, runway, log);
+    }
+
+    /// <summary>
+    /// Puts <paramref name="lead"/> back on the field mid-way along the straightest taxiway edge on past the end of
+    /// <paramref name="follower"/>'s clearing route, facing away from it, with that edge on its trail.
+    /// </summary>
+    private void PutLeadAheadOfTheClearing(AircraftState lead, AircraftState follower)
+    {
+        TaxiRoute clearing = Assert.IsType<TaxiRoute>(Assert.IsType<FollowingPhase>(follower.Phases?.CurrentPhase).ClearingRoute);
+        DirectionalEdge last = clearing.Segments[^1].Edge;
+        GroundNode end = last.ToNode;
+        GroundEdge? onward = end
+            .Edges.OfType<GroundEdge>()
+            .Where(e => !e.IsRunwayCenterline && (e.OtherNode(end).Id != last.FromNodeId))
+            .MinBy(e => Math.Abs(GeoMath.SignedBearingDifference(last.ArrivalBearing, GeoMath.BearingTo(end.Position, e.OtherNode(end).Position))));
+        Assert.True(onward is not null, $"no taxiway edge leads on past the clearing route's end node #{end.Id}");
+        GroundNode far = onward.OtherNode(end);
+        lead.Position = KoakFollowGeometry.Between(end.Position, far.Position, 0.5);
+        lead.TrueHeading = KoakFollowGeometry.Facing(end, far);
+        lead.Ground.TaxiEdgeTrail.Record(onward);
+        output.WriteLine($"lead put back mid-way along {onward.TaxiwayName} #{end.Id}>#{far.Id}");
     }
 
     /// <summary>The follower's tail and the far bar, as distances (ft) from 28R's centreline, and whether they are on the same side of it.</summary>
@@ -2244,6 +2996,76 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
         run.Engine.World.AddAircraft(follower);
         Assert.IsType<FollowRoutePlan.FollowerAhead>(FollowRoutePlanner.Plan(run.Layout, follower, run.Lead));
         return new MergeRun(run.Engine, run.Layout, run.Lead, follower);
+    }
+
+    /// <summary>
+    /// A C560 lead mid-way along a straight taxiway edge of the first committed layout with a disconnected island
+    /// (<see cref="GraphComponents.FindDisconnectedPair"/>), and a C172 mid-way along a straight taxiway edge of the island, clear
+    /// of every runway's hold lines, put straight into a follow of the lead — <c>FOLLOWG</c> itself rejects a follow with no
+    /// taxi path — whose plan is <see cref="FollowRoutePlan.NoPath"/>. With <paramref name="soloOnGround"/> the room is a solo
+    /// session with the student on ground. Null when no committed layout has an island.
+    /// </summary>
+    private MergeRun? StartFollowerOnIsland(bool soloOnGround)
+    {
+        TestVnasData.EnsureInitialized();
+        if (GraphComponents.FindDisconnectedPair() is not { } split)
+        {
+            output.WriteLine("SKIP: no committed layout has a disconnected island");
+            return null;
+        }
+
+        AirportGroundLayout layout = split.Layout;
+        List<RunwayInfo> runways = [.. RunwayOccupancy.AirportRunways(layout.AirportId)];
+        bool ClearOfRunways(GroundEdge e) => e.Nodes.All(n => runways.All(r => !FollowingPhase.IsInsideHoldLine(layout, r, n.Position)));
+        HashSet<int> island = [.. split.Island.Select(n => n.Id)];
+        GroundEdge islandEdge = split
+            .Island.SelectMany(n => n.Edges.OfType<GroundEdge>())
+            .First(e => !e.IsRamp && !e.IsRunwayCenterline && e.Nodes.All(n => island.Contains(n.Id)) && ClearOfRunways(e));
+        HashSet<int> main = GraphComponents.ComponentOf(split.MainNode);
+        GroundEdge mainEdge = layout
+            .Nodes.Values.Where(n => main.Contains(n.Id))
+            .SelectMany(n => n.Edges.OfType<GroundEdge>())
+            .First(e => !e.IsRamp && !e.IsRunwayCenterline && !string.IsNullOrEmpty(e.TaxiwayName) && ClearOfRunways(e));
+        output.WriteLine(
+            $"{layout.AirportId}: island edge {islandEdge.TaxiwayName} #{islandEdge.Nodes[0].Id}-#{islandEdge.Nodes[1].Id}, "
+                + $"lead edge {mainEdge.TaxiwayName} #{mainEdge.Nodes[0].Id}-#{mainEdge.Nodes[1].Id}"
+        );
+
+        SimLogBuilder.CreateForTest(output).InitializeSimLog();
+        var engine = new SimulationEngine(new TestAirportGroundData())
+        {
+            Scenario = new SimScenarioState
+            {
+                ScenarioId = "test-follow-island",
+                ScenarioName = "Follow from an island",
+                RngSeed = 42,
+                OriginalScenarioJson = "{}",
+                PrimaryAirportId = layout.AirportId,
+                SoloTrainingMode = soloOnGround,
+                StudentPositionType = soloOnGround ? "GND" : null,
+            },
+        };
+        AircraftState lead = KoakFollowGeometry.Spawn(
+            LeadCallsign,
+            "C560",
+            KoakFollowGeometry.Between(mainEdge.Nodes[0].Position, mainEdge.Nodes[1].Position, 0.5),
+            KoakFollowGeometry.Facing(mainEdge.Nodes[0], mainEdge.Nodes[1])
+        );
+        lead.Ground.Layout = layout;
+        engine.World.AddAircraft(lead);
+        AircraftState follower = KoakFollowGeometry.Spawn(
+            FollowerCallsign,
+            "C172",
+            KoakFollowGeometry.Between(islandEdge.Nodes[0].Position, islandEdge.Nodes[1].Position, 0.5),
+            KoakFollowGeometry.Facing(islandEdge.Nodes[0], islandEdge.Nodes[1])
+        );
+        follower.Ground.Layout = layout;
+        follower.Phases = new PhaseList();
+        follower.Phases.Add(new FollowingPhase(LeadCallsign));
+        follower.Phases.Start(CommandDispatcher.BuildMinimalContext(follower, layout));
+        engine.World.AddAircraft(follower);
+        Assert.IsType<FollowRoutePlan.NoPath>(FollowRoutePlanner.Plan(layout, follower, lead));
+        return new MergeRun(engine, layout, lead, follower);
     }
 
     /// <summary>

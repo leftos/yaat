@@ -41,6 +41,12 @@ public static class PilotResponder
     public static readonly IReadOnlyCollection<string> SoloPositionsTower = ["TWR"];
 
     /// <summary>
+    /// Solo-relevant student positions for transmissions about taxiing on the airport surface that ground or tower
+    /// handles (a taxi follow with no route to its traffic).
+    /// </summary>
+    public static readonly IReadOnlyCollection<string> SoloPositionsGround = ["GND", "TWR"];
+
+    /// <summary>
     /// Solo-relevant student positions for transmissions controllers handle in either
     /// the tower or terminal area (pattern reports, follow operations, going around).
     /// </summary>
@@ -1966,6 +1972,23 @@ public static class PilotResponder
         )
         {
             RpoTerminal = $"unable to maintain separation from {leadCallsign}, breaking off the follow.",
+        };
+    }
+
+    /// <summary>
+    /// Pilot transmission when a taxi follow (<c>FOLLOWG</c>) finds no taxi route onto its traffic's path: the follower holds
+    /// in position and asks for taxi instructions. Spoken and solo terminal forms say "traffic"; the RPO terminal names the
+    /// lead as a diagnostic.
+    /// </summary>
+    public static PilotSpeechText BuildUnableNoRouteToFollow(AircraftState aircraft, string leadCallsign)
+    {
+        string spoken = SpokenOwnCallsign(aircraft);
+        return new PilotSpeechText(
+            "Unable to follow traffic, no taxi route to its path, request taxi instructions",
+            $"{spoken}, unable, no route to follow traffic, request taxi."
+        )
+        {
+            RpoTerminal = $"Unable to follow {leadCallsign}, no taxi route to its path, request taxi instructions",
         };
     }
 

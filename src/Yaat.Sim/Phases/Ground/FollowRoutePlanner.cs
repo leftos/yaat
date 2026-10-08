@@ -460,6 +460,34 @@ public static class FollowRoutePlanner
     /// <summary>How far (ft) <paramref name="position"/> stands off <paramref name="arc"/>'s curve; infinite past either of its ends.</summary>
     private static double OffArcFt(GroundArc arc, LatLon position) => TaxiEdgeLocator.InsideArcDistanceFt(arc, position) ?? double.PositiveInfinity;
 
+    /// <summary>A route from where an aircraft stands onto a set of goal nodes, and the goal it reached.</summary>
+    /// <param name="Segments">The lead-in segment into the start node, if any, then the auto route from there to the goal.</param>
+    /// <param name="GoalNodeId">The goal node the route ends at.</param>
+    internal readonly record struct RouteFromHere(List<TaxiRouteSegment> Segments, int GoalNodeId);
+
+    /// <summary>
+    /// The auto route from where <paramref name="aircraft"/> stands (<see cref="StartOf"/>, without the ahead check, as a
+    /// re-plan starts) to the cheapest of <paramref name="goals"/>, led in by its lead-in segment. Like a re-plan's route it never
+    /// starts back the way the aircraft came (the forbidden first move), so it never turns the aircraft about. Null with no
+    /// start node or no route.
+    /// </summary>
+    internal static RouteFromHere? RouteOnto(AirportGroundLayout layout, AircraftState aircraft, IReadOnlySet<int> goals)
+    {
+        if (StartOf(layout, aircraft, requireAhead: false) is not { } routeStart)
+        {
+            return null;
+        }
+
+        (int From, int To)? forbidden = ForbiddenFirstMove(routeStart, new PlanStart(false, BackMove(layout, aircraft)));
+        if (TaxiClass.Of(aircraft).FindRoute(layout, routeStart.Node.Id, goals, forbidden) is not { } found)
+        {
+            return null;
+        }
+
+        List<TaxiRouteSegment> segments = routeStart.LeadIn is { } leadIn ? [leadIn, .. found.Route.Segments] : [.. found.Route.Segments];
+        return new RouteFromHere(segments, found.GoalNodeId);
+    }
+
     /// <summary>Whether <paramref name="node"/> lies ahead of <paramref name="aircraft"/>: its bearing within 90° of the heading.</summary>
     internal static bool LiesAhead(AircraftState aircraft, GroundNode node) =>
         Math.Abs(GeoMath.SignedBearingDifference(aircraft.TrueHeading.Degrees, GeoMath.BearingTo(aircraft.Position, node.Position))) <= 90.0;

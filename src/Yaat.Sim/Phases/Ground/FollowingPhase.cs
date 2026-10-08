@@ -21,7 +21,8 @@ namespace Yaat.Sim.Phases.Ground;
 /// lead's path or the follower ahead of the lead. It never stops on a runway or inside its hold line: with no follow route there,
 /// it first drives a clearing route off it (<see cref="ClearingRoute"/>). When the target is deleted or no longer on the ground,
 /// the follow drops its route, drives clear of any runway hold line it is inside, brakes along its clearing route to rest, then
-/// completes into a <see cref="HoldingInPositionPhase"/>. Requires PhaseContext.AircraftLookup to resolve the target.
+/// completes into a <see cref="HoldingInPositionPhase"/>; on a taxiway with an assigned route left it hands over to a
+/// <see cref="TaxiingPhase"/> on the rest of that route instead. Requires PhaseContext.AircraftLookup to resolve the target.
 /// </summary>
 public sealed class FollowingPhase(string targetCallsign) : Phase
 {
@@ -115,7 +116,7 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
     /// </summary>
     private List<RunwayIdentifier> _clearingAttemptedRunways = [];
 
-    /// <summary>How far (ft) past the hold line, beyond the aircraft's own length, a clearing route runs on.</summary>
+    /// <summary>The least distance (ft) past the bar, beyond the aircraft's own length, a clearing route runs on (<see cref="ClearingNeedFt"/>).</summary>
     private const double ClearingBeyondBarFt = 50.0;
 
     /// <summary>How much nearer (ft) a runway's centreline an edge may end and still count as leading away from it.</summary>
@@ -267,7 +268,7 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
             return TickLeadGone(ctx, target, barCap);
         }
 
-        if ((_clearingRoute is null) && DriveFollowRoute(ctx, target))
+        if (((_clearingRoute is null) || ResumeFollowFromBrakingRoll(ctx, target)) && DriveFollowRoute(ctx, target))
         {
             ApplySpeedCaps(ctx, target, barCap);
             return false;
@@ -471,7 +472,8 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
     /// <summary>
     /// The lead is deleted or no longer on the ground: the follow route is dropped, and a follower on a runway or inside its hold
     /// line first drives its clearing route off it and, once clear, brakes along that route to rest (<see cref="DriveClearingRoute"/>).
-    /// With no clearing route it brakes to a stop where it is (<see cref="HoldInPosition"/>), and at rest (<see cref="IsAtRest"/>) a
+    /// On a taxiway with an assigned route left, a <see cref="TaxiingPhase"/> takes over on the rest of it
+    /// (<see cref="ResumeAssignedRoute"/>). Otherwise it brakes to a stop where it is (<see cref="HoldInPosition"/>), and at rest (<see cref="IsAtRest"/>) a
     /// <see cref="HoldingInPositionPhase"/> takes over, so the aircraft stays in a state that accepts commands. True when the
     /// follow completes.
     /// </summary>
@@ -486,6 +488,11 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
         {
             ApplyClearingCaps(ctx, barCap);
             return false;
+        }
+
+        if (ResumeAssignedRoute(ctx, lead))
+        {
+            return true;
         }
 
         HoldInPosition(ctx, barCap);
@@ -504,6 +511,146 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
         ctx.Targets.TargetSpeed = 0;
         ctx.Aircraft.Phases?.InsertAfterCurrent(new HoldingInPositionPhase());
         return true;
+    }
+
+    /// <summary>
+    /// The lead lost with the follower on a taxiway — inside no runway's hold line, and with no runway cleared since its last
+    /// follow route — and with an assigned route not yet driven to its end: a <see cref="TaxiingPhase"/> takes over on the rest
+    /// of that route, re-anchored where the follower stands (<see cref="ReanchoredRoute"/>), so the route's own hold-shorts and
+    /// crossings stop it. An unjoinable follow never resumes on its own. Nor does one whose way back onto the route crosses a
+    /// runway hold line, which that route holds no stop for (<see cref="RunwayBarsCrossed"/>): it becomes unjoinable and the pilot
+    /// says once that it cannot follow and asks for taxi instructions. True when handed over; false with no route left, or none
+    /// that reaches it, when the follower holds.
+    /// </summary>
+    private bool ResumeAssignedRoute(PhaseContext ctx, AircraftState? lead)
+    {
+        if (
+            _unjoinable
+            || (ctx.GroundLayout is not { } layout)
+            || (ctx.Aircraft.Ground.AssignedTaxiRoute is not { IsComplete: false } assigned)
+            || (_clearingAttemptedRunways.Count > 0)
+            || (RunwayInsideHoldLine(ctx.Aircraft, layout) is not null)
+            || (FollowRoutePlanner.RouteOnto(layout, ctx.Aircraft, ReanchorGoals(assigned)) is not { } onto)
+        )
+        {
+            return false;
+        }
+
+        if (RefuseLeadInAcrossRunway(ctx, layout, onto) || (ReanchoredRoute(assigned, onto) is not { } resumed))
+        {
+            return false;
+        }
+
+        Log.LogDebug(
+            "[Follow] {Callsign}: target {Target} {Reason}; resuming its assigned route: {Route}",
+            ctx.Aircraft.Callsign,
+            _targetCallsign,
+            lead is null ? "not found" : "no longer on ground",
+            resumed.ToSummary()
+        );
+        ctx.Aircraft.Ground.AssignedTaxiRoute = resumed;
+        ctx.Aircraft.Phases?.InsertAfterCurrent(new TaxiingPhase());
+        return true;
+    }
+
+    /// <summary>The nodes of <paramref name="assigned"/>'s remaining segments: where a follower's way back onto it may join it.</summary>
+    private static HashSet<int> ReanchorGoals(TaxiRoute assigned)
+    {
+        List<TaxiRouteSegment> remaining = [.. assigned.Segments.Skip(assigned.CurrentSegmentIndex)];
+        return [.. remaining.Select(s => s.FromNodeId), remaining[^1].ToNodeId];
+    }
+
+    /// <summary>
+    /// Refuses a way back onto the assigned route that crosses a runway hold line (<see cref="RunwayBarsCrossed"/>): the assigned
+    /// route holds no stop for that bar. The first refusal makes the follow unjoinable, logs it, and has the pilot say it cannot
+    /// follow and ask for taxi instructions (<see cref="SayUnableNoRouteToFollow"/>), once. True when refused.
+    /// </summary>
+    internal bool RefuseLeadInAcrossRunway(PhaseContext ctx, AirportGroundLayout layout, FollowRoutePlanner.RouteFromHere onto)
+    {
+        if (RunwayBarsCrossed(layout, onto) is not { Count: > 0 } bars)
+        {
+            return false;
+        }
+
+        if (!_unjoinable)
+        {
+            _unjoinable = true;
+            LogHoldOnce(
+                ctx,
+                $"{_targetCallsign} lost; the way back onto its assigned route crosses the runway hold line at node {bars[0]}",
+                LogLevel.Information
+            );
+            SayUnableNoRouteToFollow(ctx);
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// The runway hold-short bars <paramref name="onto"/> enters a runway at, as a taxi route's implicit runway hold-shorts mark
+    /// them (<see cref="HoldShortAnnotator.AddImplicitRunwayHoldShorts"/>), less its goal node: arriving at a bar of the assigned
+    /// route is no crossing, and the assigned route holds its own stop there.
+    /// </summary>
+    internal static List<int> RunwayBarsCrossed(AirportGroundLayout layout, FollowRoutePlanner.RouteFromHere onto)
+    {
+        List<HoldShortPoint> bars = [];
+        HoldShortAnnotator.AddImplicitRunwayHoldShorts(layout, onto.Segments, bars);
+        List<int> crossed = [.. bars.Where(b => b.NodeId != onto.GoalNodeId).Select(b => b.NodeId)];
+        if ((StartBarCrossed(layout, onto.Segments) is { } startBar) && !crossed.Contains(startBar))
+        {
+            crossed.Insert(0, startBar);
+        }
+
+        return crossed;
+    }
+
+    /// <summary>
+    /// The runway bar <paramref name="segments"/> start at when they go on to another bar of the same runway: the annotator reads
+    /// such a start as an aircraft already mid-crossing, but a follower taking a way back stands short of every hold line, so
+    /// from that bar it crosses the runway. Null otherwise.
+    /// </summary>
+    private static int? StartBarCrossed(AirportGroundLayout layout, List<TaxiRouteSegment> segments)
+    {
+        if ((segments.Count == 0) || (RunwayOfBar(layout, segments[0].FromNodeId) is not { } runway))
+        {
+            return null;
+        }
+
+        return segments.Any(s => RunwayOfBar(layout, s.ToNodeId) is { } other && other.Overlaps(runway)) ? segments[0].FromNodeId : null;
+    }
+
+    /// <summary>The runway node <paramref name="nodeId"/> is a hold-short bar of; null for any other node.</summary>
+    private static RunwayIdentifier? RunwayOfBar(AirportGroundLayout layout, int nodeId) =>
+        layout.Nodes.TryGetValue(nodeId, out GroundNode? node) && (node.Type == GroundNodeType.RunwayHoldShort) ? node.RunwayId : null;
+
+    /// <summary>
+    /// The rest of <paramref name="assigned"/> from where the follower stands. <c>FOLLOWG</c> leaves the assigned route as it
+    /// was, so its current segment is where the taxi was given, not where the follower is: the route from where it stands onto
+    /// the nearest node of the route's remaining segments (<paramref name="onto"/>, from
+    /// <see cref="FollowRoutePlanner.RouteOnto"/>, never turning it about), then the assigned route on from that node, with the
+    /// assigned route's hold-short points. Null with nothing to drive.
+    /// </summary>
+    private static TaxiRoute? ReanchoredRoute(TaxiRoute assigned, FollowRoutePlanner.RouteFromHere onto)
+    {
+        List<TaxiRouteSegment> remaining = [.. assigned.Segments.Skip(assigned.CurrentSegmentIndex)];
+        int rejoinAt = remaining.FindIndex(s => s.FromNodeId == onto.GoalNodeId);
+        List<TaxiRouteSegment> onward = rejoinAt < 0 ? [] : remaining[rejoinAt..];
+        if ((onto.Segments.Count + onward.Count) == 0)
+        {
+            return null;
+        }
+
+        int? pullFrom = assigned.SpotLineUpPullFromSegment - assigned.CurrentSegmentIndex - rejoinAt + onto.Segments.Count;
+        return new TaxiRoute
+        {
+            Segments = [.. onto.Segments, .. onward],
+            HoldShortPoints = assigned.HoldShortPoints,
+            Warnings = assigned.Warnings,
+            ImpliedLanes = assigned.ImpliedLanes,
+            DestinationParking = assigned.DestinationParking,
+            DestinationSpot = assigned.DestinationSpot,
+            SpotLineUpPullFromSegment = (rejoinAt >= 0) && (pullFrom >= onto.Segments.Count) ? pullFrom : null,
+        };
     }
 
     /// <summary>
@@ -754,6 +901,43 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
         return _brakingClear;
     }
 
+    /// <summary>
+    /// A follower braking to rest along its clearing route — still rolling, its tail and wingtips past the bar's hold line, which
+    /// is read from where it stands (<see cref="IsPastClearingBar"/>), so a restored follow does the same — plans the follow
+    /// again each tick, unless it is unjoinable. A <see cref="FollowRoutePlan.Joinable"/> plan with a route to drive ends the
+    /// clearing and is installed, so the follower takes up following in the same tick without stopping first; any other plan
+    /// leaves it braking, to plan again at rest as before. True when the plan was installed.
+    /// </summary>
+    private bool ResumeFollowFromBrakingRoll(PhaseContext ctx, AircraftState lead)
+    {
+        if (
+            _unjoinable
+            || IsAtRest(ctx)
+            || (ctx.GroundLayout is not { } layout)
+            || !IsPastClearingBar(ctx)
+            || (RunwayInsideHoldLine(ctx.Aircraft, layout) is not null)
+        )
+        {
+            return false;
+        }
+
+        PlanCount++;
+        if ((FollowRoutePlanner.Plan(layout, ctx.Aircraft, lead) is not FollowRoutePlan.Joinable joinable) || IsEmpty(joinable))
+        {
+            return false;
+        }
+
+        Log.LogDebug(
+            "[Follow] {Callsign}: {Target} can be followed again while braking past runway bar node {NodeId}; following it",
+            ctx.Aircraft.Callsign,
+            _targetCallsign,
+            _clearingBarNodeId
+        );
+        EndClearingRoute();
+        InstallPlan(ctx, layout, joinable, lead, 0);
+        return true;
+    }
+
     /// <summary>Forgets the clearing route and its navigator state, keeping the note that one was tried.</summary>
     private void EndClearingRoute()
     {
@@ -926,7 +1110,7 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
         GroundNode bar = layout.Nodes[toBar.GoalNodeId];
         bool arrivesAtBar = (segments.Count > 0) && (segments[^1].ToNodeId == bar.Id);
         double arrivalDeg = arrivesAtBar ? GeoMath.BearingTo(segments[^1].Edge.FromNode.Position, bar.Position) : aircraft.TrueHeading.Degrees;
-        double needFt = AircraftLength.ResolveFt(aircraft.AircraftType) + ClearingBeyondBarFt;
+        double needFt = ClearingNeedFt(aircraft.AircraftType);
         List<TaxiRouteSegment> beyond = BeyondTheBar(runway, bar, arrivesAtBar ? segments[^1].FromNodeId : null, arrivalDeg, needFt);
         if (beyond.Count == 0)
         {
@@ -955,9 +1139,22 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
     }
 
     /// <summary>
+    /// How far (ft) past the bar a clearing route for <paramref name="aircraftType"/> runs: the aircraft's length, then the
+    /// longer of <see cref="ClearingBeyondBarFt"/> and its stopping distance from taxi speed at the taxi brake rate
+    /// (<see cref="GroundStopBraking.StoppingDistanceFt"/>), so a follower clearing at taxi speed has its tail past the hold line
+    /// and room on the route to brake to rest.
+    /// </summary>
+    private static double ClearingNeedFt(string aircraftType)
+    {
+        AircraftCategory category = AircraftCategorization.Categorize(aircraftType);
+        double stopFt = GroundStopBraking.StoppingDistanceFt(CategoryPerformance.TaxiSpeed(category), CategoryPerformance.TaxiDecelRate(category));
+        return AircraftLength.ResolveFt(aircraftType) + Math.Max(ClearingBeyondBarFt, stopFt);
+    }
+
+    /// <summary>
     /// The route on past <paramref name="bar"/> until it reaches <paramref name="needFt"/> beyond it: at each node the straightest
-    /// continuation of the way in that leads no nearer the runway, never onto another runway. It may turn onto the next taxiway;
-    /// on that one it stops at the first junction rather than drive on through it, and it stops where the pavement dead-ends.
+    /// continuation of the way in that leads no nearer the runway, never onto another runway, on through any junction short of
+    /// that length. It stops where the pavement dead-ends.
     /// </summary>
     private static List<TaxiRouteSegment> BeyondTheBar(RunwayInfo runway, GroundNode bar, int? cameFromId, double arrivalDeg, double needFt)
     {
@@ -971,11 +1168,6 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
             arrivalDeg = GeoMath.BearingTo(next.FromNode.Position, next.ToNode.Position);
             cameFromId = at.Id;
             at = next.ToNode;
-            bool onNextTaxiway = !string.Equals(next.Edge.TaxiwayName, beyond[0].TaxiwayName, StringComparison.OrdinalIgnoreCase);
-            if (onNextTaxiway && (at.Edges.Count > 2))
-            {
-                break;
-            }
         }
 
         return beyond;
@@ -1018,24 +1210,34 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
         CentrelineFt(runway, edge.ToNode.Position) < (CentrelineFt(runway, edge.FromNode.Position) - AwayToleranceFt);
 
     /// <summary>
-    /// Whether the follower is past the clearing bar's hold line (<see cref="IsClearPastBar"/>). True when the bar or its runway
-    /// can no longer be found, so the clearing ends.
+    /// Whether the follower is past the clearing bar's hold line (<see cref="IsClearPastBar"/>). False when the bar or its runway
+    /// can no longer be found: a hold line it cannot read is one it is not known to be past, so it drives on along its clearing
+    /// route rather than brake or follow.
     /// </summary>
     private bool IsPastClearingBar(PhaseContext ctx)
     {
+        NoteTailOnlyOnce(ctx.Aircraft);
+        return IsPastClearingBar(ctx.GroundLayout, _clearingBarNodeId, ctx.Aircraft);
+    }
+
+    /// <summary>
+    /// Whether <paramref name="aircraft"/> is past the hold line of the runway bar <paramref name="barNodeId"/> of
+    /// <paramref name="layout"/> (<see cref="IsClearPastBar"/>); false when the bar or its runway cannot be resolved.
+    /// </summary>
+    public static bool IsPastClearingBar(AirportGroundLayout? layout, int? barNodeId, AircraftState aircraft)
+    {
         if (
-            (ctx.GroundLayout is not { } layout)
-            || (_clearingBarNodeId is not { } nodeId)
+            (layout is null)
+            || (barNodeId is not { } nodeId)
             || !layout.Nodes.TryGetValue(nodeId, out GroundNode? bar)
             || (bar.RunwayId is not { } barRunway)
             || (RunwayNamed(layout, barRunway) is not { } runway)
         )
         {
-            return true;
+            return false;
         }
 
-        NoteTailOnlyOnce(ctx.Aircraft);
-        return IsClearPastBar(ctx.Aircraft, runway, bar);
+        return IsClearPastBar(aircraft, runway, bar);
     }
 
     /// <summary>
@@ -1443,7 +1645,9 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
     /// Holds for a plan that joins nothing, logged once: for good on a <see cref="FollowRoutePlan.FollowerAhead"/> or a
     /// <see cref="FollowRoutePlan.NoPath"/>, planning again each tick on a <see cref="FollowRoutePlan.WaitForLead"/>.
     /// <c>FOLLOWG</c> refuses a follow with no path to the lead or ahead of it, as it arms one, so either met at runtime — on the
-    /// first plan of an armed follow's release, or a re-plan after the lead was re-routed — is a route lost since.
+    /// first plan of an armed follow's release, or a re-plan after the lead was re-routed — is a route lost since. The first
+    /// <see cref="FollowRoutePlan.NoPath"/> that makes the follow unjoinable also has the pilot say it cannot follow and ask for
+    /// taxi instructions (<see cref="SayUnableNoRouteToFollow"/>), once: the latch is snapshotted, so a restore says nothing again.
     /// </summary>
     private void HoldOnUnjoinedPlan(PhaseContext ctx, FollowRoutePlan plan)
     {
@@ -1453,9 +1657,28 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
             FollowRoutePlan.FollowerAhead => ($"route lost: ahead of {_targetCallsign} on its route", LogLevel.Information),
             _ => ($"route lost: no taxi route to {_targetCallsign}'s path", LogLevel.Information),
         };
+        bool newlyNoPath = (plan is FollowRoutePlan.NoPath) && !_unjoinable;
         _unjoinable = plan is not FollowRoutePlan.WaitForLead;
         LogHoldOnce(ctx, reason, level);
+        if (newlyNoPath)
+        {
+            SayUnableNoRouteToFollow(ctx);
+        }
     }
+
+    /// <summary>
+    /// The pilot says it cannot follow, with no taxi route onto its traffic's path, and asks for taxi instructions: to a solo
+    /// student on ground or tower, else in the RPO's terminal naming the lead.
+    /// </summary>
+    private void SayUnableNoRouteToFollow(PhaseContext ctx) =>
+        Pilot.PilotResponder.RouteSoloOrRpoTransmission(
+            ctx.Aircraft,
+            ctx.SoloTrainingMode,
+            ctx.RpoShowPilotSpeech,
+            ctx.StudentPositionType,
+            Pilot.PilotResponder.BuildUnableNoRouteToFollow(ctx.Aircraft, _targetCallsign),
+            Pilot.PilotResponder.SoloPositionsGround
+        );
 
     /// <summary>
     /// Installs <paramref name="joinable"/> as the follow route, driven from segment <paramref name="startIndex"/>, giving way

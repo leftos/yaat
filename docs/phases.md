@@ -173,7 +173,9 @@ The rest are `HelicopterApproachPhase` (LAND @spot from off the airport: hold al
 
 With no plan to join (no layout, the lead not yet on a taxiway, no taxi path to the lead's path, or the follower ahead of the lead) the follow holds in position inside the phase rather than steering at the lead. It never holds on a runway or inside its hold line: with no follow route there, it first drives a clearing route past the nearest hold-short bar of that runway ahead.
 
-When the lead is deleted or leaves the ground, the follow drops its follow route and, inside a runway's hold line, drives its clearing route until its tail and both wingtips are past the bar's hold line, then brakes to rest along that route (the navigator still steering it). Otherwise it brakes to a stop where it is. At rest it completes into a `HoldingInPositionPhase`, so the aircraft stays in a phase that accepts commands.
+When the lead is deleted or leaves the ground, the follow drops its follow route and, inside a runway's hold line, drives its clearing route until its tail and both wingtips are past the bar's hold line, then brakes to rest along that route (the navigator still steering it). On a taxiway with an assigned route not yet driven to its end, a `TaxiingPhase` takes over at once on the rest of that route, re-anchored where the follower stands, and its own hold-shorts and crossings stop it. It does not take that route when the follow is unjoinable, or when the way back onto the route crosses a runway hold line; the latter makes it unjoinable and the pilot says once that it cannot follow and asks for taxi instructions. Otherwise it brakes to a stop where it is. At rest it completes into a `HoldingInPositionPhase`, so the aircraft stays in a phase that accepts commands.
+
+A follower braking along its clearing route past the bar, with its lead still on the ground, plans again each tick while it rolls clear of every runway's hold line, and takes up following without stopping first once a plan joins the lead's path.
 
 **A stand is `AtParkingPhase`; anything else a ground movement stops on is `HoldingInPositionPhase`** — the same rule in four writers.
 
