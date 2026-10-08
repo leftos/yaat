@@ -102,7 +102,7 @@
 - [ ] YAAT-448 Stop the Hold short submenu offering fillet names the server refuses
 - [ ] YAAT-449 Find why a grounded aircraft can end with no phase, and give it ground menus
 - [x] YAAT-451 Group the cleared-approach picker by runway and name the smart default · release vNext
-- [/] YAAT-452 Put relative traffic actions on top of the radar menu and list nearby traffic for Report traffic
+- [x] YAAT-452 Put relative traffic actions on top of the radar menu and list nearby traffic for Report traffic · release vNext
 - [x] YAAT-453 Open the maintain-altitude picker at the aircraft's altitude, mark climb or descend, grey rows below the MVA · release vNext
 - [x] YAAT-454 Name the receiving aircraft in the radar point menu header and add its quick icons · release vNext
 - [ ] YAAT-455 Show only the items that apply in the radar Track submenu
@@ -553,3 +553,5 @@
 - [ ] YAAT-493 Flaky UI test: QuickCommandsSection_DragReordersARow fails once in a full run
 - [ ] YAAT-501 Live PUSH onto a taxiway can tow across other movement-area taxiways
 - [ ] YAAT-502 Recording archive writer drops SessionStartUtc
+- [ ] YAAT-504 Make the N152SP full-replay test catch a missing IFR 400 ft turn floor
+- [ ] YAAT-505 Make LaunchYaatTests' timing waits load-independent
