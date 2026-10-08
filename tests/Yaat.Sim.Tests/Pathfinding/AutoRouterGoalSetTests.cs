@@ -56,7 +56,7 @@ public class AutoRouterGoalSetTests(ITestOutputHelper output)
         );
 
         HashSet<int> goals = [nearer.Node.Id, cheaper.Node.Id];
-        GoalRoute result = Assert.IsType<GoalRoute>(TaxiPathfinder.FindRouteToNearestGoal(run.Layout, run.Start.Id, goals, Category, Wake));
+        GoalRoute result = Assert.IsType<GoalRoute>(TaxiPathfinder.FindRouteToNearestGoal(run.Layout, run.Start.Id, goals, Category, Wake, null));
 
         Assert.Equal(cheaper.Node.Id, result.GoalNodeId);
         Assert.Equal(cheaper.Node.Id, result.Route.Segments[^1].ToNodeId);
@@ -74,7 +74,7 @@ public class AutoRouterGoalSetTests(ITestOutputHelper output)
         GroundNode other = run.Layout.Nodes.Values.Where(n => n.Id != run.Start.Id).OrderBy(n => Dist(run.Start, n)).First();
         HashSet<int> goals = [other.Id, run.Start.Id];
 
-        GoalRoute result = Assert.IsType<GoalRoute>(TaxiPathfinder.FindRouteToNearestGoal(run.Layout, run.Start.Id, goals, Category, Wake));
+        GoalRoute result = Assert.IsType<GoalRoute>(TaxiPathfinder.FindRouteToNearestGoal(run.Layout, run.Start.Id, goals, Category, Wake, null));
 
         Assert.Equal(run.Start.Id, result.GoalNodeId);
         Assert.Empty(result.Route.Segments);
@@ -89,7 +89,7 @@ public class AutoRouterGoalSetTests(ITestOutputHelper output)
             return;
         }
 
-        Assert.Null(TaxiPathfinder.FindRouteToNearestGoal(run.Layout, run.Start.Id, new HashSet<int>(), Category, Wake));
+        Assert.Null(TaxiPathfinder.FindRouteToNearestGoal(run.Layout, run.Start.Id, new HashSet<int>(), Category, Wake, null));
     }
 
     /// <summary>
@@ -106,7 +106,7 @@ public class AutoRouterGoalSetTests(ITestOutputHelper output)
         );
 
         HashSet<int> goals = [.. split.Island.Select(n => n.Id)];
-        Assert.Null(TaxiPathfinder.FindRouteToNearestGoal(split.Layout, split.MainNode.Id, goals, Category, Wake));
+        Assert.Null(TaxiPathfinder.FindRouteToNearestGoal(split.Layout, split.MainNode.Id, goals, Category, Wake, null));
     }
 
     /// <summary>
@@ -134,7 +134,7 @@ public class AutoRouterGoalSetTests(ITestOutputHelper output)
             }
         }
 
-        GoalRoute result = Assert.IsType<GoalRoute>(TaxiPathfinder.FindRouteToNearestGoal(run.Layout, run.Start.Id, goals, Category, Wake));
+        GoalRoute result = Assert.IsType<GoalRoute>(TaxiPathfinder.FindRouteToNearestGoal(run.Layout, run.Start.Id, goals, Category, Wake, null));
         output.WriteLine($"{goals.Count} goals; single route {single.ToSummary()}; goal-set route {result.Route.ToSummary()}");
 
         Assert.Equal(goal.Id, result.GoalNodeId);
@@ -174,11 +174,45 @@ public class AutoRouterGoalSetTests(ITestOutputHelper output)
         Assert.Null(hardRoute);
 
         HashSet<int> goalIds = [.. goals.Select(n => n.Id)];
-        GoalRoute result = Assert.IsType<GoalRoute>(TaxiPathfinder.FindRouteToNearestGoal(layout, start.Id, goalIds, Category, super));
+        GoalRoute result = Assert.IsType<GoalRoute>(TaxiPathfinder.FindRouteToNearestGoal(layout, start.Id, goalIds, Category, super, null));
         output.WriteLine($"goal #{result.GoalNodeId}: {result.Route.ToSummary()}");
 
         Assert.Contains(result.GoalNodeId, goalIds);
         Assert.Equal(result.GoalNodeId, result.Route.Segments[^1].ToNodeId);
+    }
+
+    /// <summary>
+    /// A forbidden first move is never the route's first edge: with the start's neighbours as goals, forbidding the move the free
+    /// search starts with leaves a route that starts with another move. A dead end whose only move is forbidden has no route.
+    /// </summary>
+    [Fact]
+    public void ForbiddenFirstMove_IsNeverTaken_AndAloneLeavesNoRoute()
+    {
+        if (LoadStart() is not { } run)
+        {
+            return;
+        }
+
+        HashSet<int> neighbours = [.. run.Start.Edges.Select(e => e.OtherNode(run.Start).Id)];
+        Assert.True(neighbours.Count >= 2, $"start #{run.Start.Id} has {neighbours.Count} neighbour(s)");
+        GoalRoute free = Assert.IsType<GoalRoute>(TaxiPathfinder.FindRouteToNearestGoal(run.Layout, run.Start.Id, neighbours, Category, Wake, null));
+        (int, int) taken = (free.Route.Segments[0].FromNodeId, free.Route.Segments[0].ToNodeId);
+        GoalRoute other = Assert.IsType<GoalRoute>(
+            TaxiPathfinder.FindRouteToNearestGoal(run.Layout, run.Start.Id, neighbours, Category, Wake, taken)
+        );
+        output.WriteLine($"free {free.Route.ToSummary()}; forbidding {taken}: {other.Route.ToSummary()}");
+        Assert.NotEqual(taken, (other.Route.Segments[0].FromNodeId, other.Route.Segments[0].ToNodeId));
+
+        GroundNode deadEnd = run.Layout.Nodes.Values.First(n =>
+            (n.Edges.Count == 1)
+            && (
+                TaxiPathfinder.FindRouteToNearestGoal(run.Layout, n.Id, new HashSet<int> { n.Edges[0].OtherNode(n).Id }, Category, Wake, null)
+                is not null
+            )
+        );
+        int only = deadEnd.Edges[0].OtherNode(deadEnd).Id;
+        output.WriteLine($"dead end #{deadEnd.Id}, its only move to #{only}");
+        Assert.Null(TaxiPathfinder.FindRouteToNearestGoal(run.Layout, deadEnd.Id, new HashSet<int> { only }, Category, Wake, (deadEnd.Id, only)));
     }
 
     private sealed record StartRun(AirportGroundLayout Layout, GroundNode Start);

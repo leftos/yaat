@@ -469,25 +469,13 @@ public sealed class TaxiingPhase : Phase
             return double.PositiveInfinity;
         }
 
-        // The segment in progress is measured from the aircraft, whole segments by their own length. A route
-        // that has not started yet (CurrentSegmentIndex < 0) is walked from segment 0, which is then the one
-        // the aircraft is on. The in-progress leg is measured straight to the node rather than along the
-        // navigator's primitive: GroundNavigator publishes no remaining-distance for the arc or Bézier it is
-        // flying, so on a fillet this reads a little short — conservative, since it can only call a bar
-        // unmakeable sooner.
-        int firstIndex = Math.Max(0, route.CurrentSegmentIndex);
-        double alongFt = 0;
-        for (int i = firstIndex; i < route.Segments.Count; i++)
+        // Measured as TaxiRoute.RemainingDistanceFt measures it: on a fillet the in-progress chord reads a little
+        // short, which is conservative here, since it can only call a bar unmakeable sooner.
+        for (int i = Math.Max(0, route.CurrentSegmentIndex); i < route.Segments.Count; i++)
         {
-            TaxiRouteSegment seg = route.Segments[i];
-            alongFt +=
-                i == firstIndex
-                    ? GeoMath.DistanceNm(position, seg.Edge.ToNode.Position) * GeoMath.FeetPerNm
-                    : seg.Edge.DistanceNm * GeoMath.FeetPerNm;
-
-            if (seg.ToNodeId == holdShort.NodeId)
+            if (route.Segments[i].ToNodeId == holdShort.NodeId)
             {
-                return alongFt - (route.HoldShortSetbackNm(i, holdShort) * GeoMath.FeetPerNm);
+                return route.RemainingDistanceFt(position, i + 1) - (route.HoldShortSetbackNm(i, holdShort) * GeoMath.FeetPerNm);
             }
         }
 

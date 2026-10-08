@@ -83,6 +83,21 @@ public sealed record SearchContext(
     public bool IsForbiddenMove(int fromId, int toId) => OneWayMode == OneWayMode.HardExclude && ForbiddenOneWayMoves.Contains((fromId, toId));
 
     /// <summary>
+    /// A directed move <c>(fromId, toId)</c> the route may not start with: never taken as the first edge out of
+    /// <see cref="StartNodeId"/>, though a later edge of the route may take it. A follower re-planning its follow route forbids
+    /// the move back along the edge it came in on, so its new route never turns it about. Hard on both search passes; null
+    /// forbids nothing.
+    /// </summary>
+    public (int From, int To)? ForbiddenFirstMove { get; init; }
+
+    /// <summary>
+    /// True when <paramref name="fromId"/> → <paramref name="toId"/> is <see cref="ForbiddenFirstMove"/> and is the route's first
+    /// edge: taken from <see cref="StartNodeId"/> by a path of <paramref name="depth"/> 0.
+    /// </summary>
+    public bool IsForbiddenFirstMove(int fromId, int toId, int depth) =>
+        (depth == 0) && (fromId == StartNodeId) && (ForbiddenFirstMove is { } forbidden) && (forbidden == (fromId, toId));
+
+    /// <summary>
     /// True when this search hard-excludes avoided taxiways (<see cref="AvoidTaxiwayMode.HardExclude"/>) or one-way wrong-way
     /// moves (<see cref="Pathfinding.OneWayMode.HardExclude"/>) — the gates <see cref="RelaxHardGates"/> relaxes.
     /// </summary>
@@ -120,7 +135,9 @@ public sealed record SearchContext(
     /// </summary>
     public bool IsBlockedTurn(int prevId, int apexId, int nextId) => BlockedTurnTriples.Contains((prevId, apexId, nextId));
 
-    /// <summary>True when traversing the blocked-turn corner arc <paramref name="fromId"/> → <paramref name="toId"/> is forbidden (hard, both route kinds).</summary>
+    /// <summary>
+    /// True when traversing the blocked-turn corner arc <paramref name="fromId"/> → <paramref name="toId"/> is forbidden (hard, both route kinds).
+    /// </summary>
     public bool IsBlockedArcMove(int fromId, int toId) => BlockedArcMoves.Contains((fromId, toId));
 
     /// <summary>
@@ -254,7 +271,9 @@ public sealed record SearchContext(
     /// </summary>
     public IReadOnlyList<ImplicitConnectorEntry> ImplicitConnectors { get; init; } = [];
 
-    /// <summary>The connector taxiway bridging <paramref name="fromTaxiway"/> and <paramref name="toTaxiway"/> (unordered), or null when none.</summary>
+    /// <summary>
+    /// The connector taxiway bridging <paramref name="fromTaxiway"/> and <paramref name="toTaxiway"/> (unordered), or null when none.
+    /// </summary>
     public string? GetImplicitConnectorName(string fromTaxiway, string toTaxiway)
     {
         foreach (ImplicitConnectorEntry connector in ImplicitConnectors)

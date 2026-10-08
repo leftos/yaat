@@ -420,6 +420,14 @@ public static class AutoRouter
                     continue;
                 }
 
+                // The caller's forbidden first move (a follow re-plan's move back along the edge it came in on): hard, and
+                // kept by the relaxed pass, so a start whose only move it is has no route.
+                if (ctx.IsForbiddenFirstMove(current.HeadNodeId, nextNode.Id, current.Depth))
+                {
+                    rejected++;
+                    continue;
+                }
+
                 // Along-runway pavement is capped at a crossing's worth unless the controller named
                 // the runway in the path or the aircraft started on it — a taxi route may CROSS a
                 // runway stitched through centerline nodes, but never invents a back-taxi (OAK

@@ -879,7 +879,8 @@ public sealed class GroundNavigator
         // near-crawl and any overshoot of a very short segment is small and recovered by the normal
         // arrival/overshoot advance on the (near-collinear) segments that follow.
         double segDepartureBearing = seg.Edge.DepartureBearing;
-        double headingDelta = new TrueHeading(segDepartureBearing).AbsAngleTo(ctx.Aircraft.TrueHeading);
+        double entryBearing = MidCurveEntryBearing(route, segmentPrimitive, ctx.Aircraft.Position) ?? segDepartureBearing;
+        double headingDelta = new TrueHeading(entryBearing).AbsAngleTo(ctx.Aircraft.TrueHeading);
         if (headingDelta > EntryAlignmentGateDeg(route, segDepartureBearing))
         {
             _turnAboutRollOutOffsetFt = offsetLineFt;
@@ -943,6 +944,29 @@ public sealed class GroundNavigator
         _turnAboutHold = null;
         _onAimedLineOverFillet = false;
         _aimedLineFilletFromNodeId = null;
+    }
+
+    /// <summary>
+    /// Where a route that starts partway round a curve enters it: when the route's first segment is a fillet Bézier and the
+    /// aircraft stands on or beside it — within <see cref="TaxiEdgeLocator.OnTaxiwayMaxOffsetFt"/> of the curve, at a point
+    /// strictly between its ends — the curve's tangent at the aircraft's closest point on it. Playback starts there on the first
+    /// tick (<see cref="ResumeBezierFromPosition"/>), and the braking distance counts the arc length left from it
+    /// (<see cref="BezierRemainingNm"/>), so the entry-alignment check reads the heading against that tangent rather than the
+    /// curve's start. Null for every other segment start, which keeps the departure bearing.
+    /// </summary>
+    private static double? MidCurveEntryBearing(TaxiRoute route, PathPrimitive primitive, LatLon position)
+    {
+        if ((route.CurrentSegmentIndex != 0) || (primitive is not PathPrimitiveBezier bezier))
+        {
+            return null;
+        }
+
+        if (TaxiEdgeLocator.InsideClosestPoint(bezier.Curve, position) is not { } closest)
+        {
+            return null;
+        }
+
+        return (closest.OffFt <= TaxiEdgeLocator.OnTaxiwayMaxOffsetFt) ? bezier.Curve.TangentBearing(closest.T) : null;
     }
 
     /// <summary>

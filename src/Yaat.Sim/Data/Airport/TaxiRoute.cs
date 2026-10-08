@@ -78,6 +78,20 @@ public sealed class TaxiRoute
     public double PrefixDistanceFt(int segmentCount) => Segments.Take(segmentCount).Sum(s => s.Edge.DistanceNm) * GeoMath.FeetPerNm;
 
     /// <summary>
+    /// How far (ft) an aircraft at <paramref name="position"/> has to go along the route to the node the first
+    /// <paramref name="segmentCount"/> segments end at: the segment in progress (<see cref="CurrentSegmentIndex"/>, or segment 0
+    /// before the route starts) measured straight from the position to its end node, then each later segment up to that count by
+    /// its length. The in-progress leg is measured straight rather than along the navigator's primitive, which publishes no
+    /// remaining distance, so on a fillet it reads the chord, a little short of the arc. The route must have a segment in progress.
+    /// </summary>
+    public double RemainingDistanceFt(LatLon position, int segmentCount)
+    {
+        int current = Math.Max(0, CurrentSegmentIndex);
+        double inProgressFt = GeoMath.DistanceNm(position, Segments[current].Edge.ToNode.Position) * GeoMath.FeetPerNm;
+        return inProgressFt + PrefixDistanceFt(segmentCount) - PrefixDistanceFt(current + 1);
+    }
+
+    /// <summary>
     /// The cleared taxiways in order for operator-facing display. Junction/membership arcs
     /// (<c>"D - RAMP"</c>) are transitions between taxiways, not a leg of one, so they never appear as
     /// a named part of the route, and ramp pavement is dropped: a route out of a stand through the

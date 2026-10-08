@@ -117,7 +117,7 @@ When no departure-aligned onto-runway arc route resolves — a parallel-taxiway 
 
 `FollowRoutePlanner.Plan(layout, follower, lead)` (`Phases/Ground/FollowRoutePlanner.cs`) says whether and where the follower can get onto the lead's taxi path. It is read twice. Before `FOLLOWG` installs a `FollowingPhase`, `GroundCommandHandler.RejectUnjoinableFollow` runs it as the joinability probe: `TryFollow` runs it, and so does `ArmFollowBehindRunwayHold` when the follow is armed at a runway bar; it is skipped when there is no layout or no lead lookup.
 
-`FollowingPhase` then plans again on its first tick (and after a restore with no follow route, or when its route runs out) and drives the `Joinable` plan as its follow route ([FOLLOWG: driving the follow route](#followg-driving-the-follow-route)).
+`FollowingPhase` then plans again on its first tick (and after a restore with no follow route, or when its route runs out) and drives the `Joinable` plan as its follow route ([FOLLOWG: driving the follow route](#followg-driving-the-follow-route)). While it drives one, it plans again through `FollowRoutePlanner.Replan` at each node and when the lead is re-routed ([re-planning](#followg-driving-the-follow-route)).
 
 **The lead's path** has three parts, oldest first:
 
@@ -136,12 +136,22 @@ When no departure-aligned onto-runway arc route resolves — a parallel-taxiway 
 1. The lead is in `PushbackPhase` or `AtParkingPhase`, or on no taxi edge → `WaitForLead`. There is no path to join yet, and the follow is accepted.
 2. The follower stands on the lead's edge nearer its far end than the lead is, or on an edge of the lead's route ahead of that edge → `FollowerAhead`. `FOLLOWG` answers "unable, ahead of {lead} on its route — issue HOLD, GIVEWAY or TAXI first".
 3. The follower stands behind the lead on the edge the lead is on → `Joinable` at once, with no search. The merge node is that edge's start in the lead's direction (behind the follower), the route to it has no segments, and the merge is on the lead's trail side, not ahead of it.
-4. A goal-set search from the follower's `AirportGroundLayout.FindTaxiStartNode` to every node of the lead's path (`TaxiPathfinder.FindRouteToNearestGoal`; see [the pathfinder](./pathfinder.md#goal-set-search-autorouterruntogoals)) finds nothing, or there is no start node → `NoPath`. `FOLLOWG` answers "unable, no taxi route to {lead}'s route".
+4. A goal-set search from the follower's route start (`StartOf`, [below](#where-the-follow-route-starts)) to every node of the lead's path (`TaxiPathfinder.FindRouteToNearestGoal`; see [the pathfinder](./pathfinder.md#goal-set-search-autorouterruntogoals)) finds nothing, or there is no start node → `NoPath`. `FOLLOWG` answers "unable, no taxi route to {lead}'s route".
 5. Otherwise → `Joinable`. The merge node is the goal the search reached, and the plan carries the follower's route to it (`PathToMerge`), the lead's path edge into it (`LeadEdgeIntoMerge`, null where the lead's path starts at the merge), the lead's path from it on, and whether the merge lies ahead of the lead (the far node of its current edge, or further along its route) rather than on its trail.
 
    A follower standing mid-way along an edge into the search's start node, facing that node, gets that edge as the first segment of `PathToMerge` (`LeadInSegment`, the lead-in segment; any straight edge within `TaxiEdgeLocator.OnTaxiwayMaxOffsetFt` that it projects between the ends of, a runway centreline too).
 
    It then drives on from where it stands, rather than reading the stretch back to the route's first node as a centreline it is off and crawling there at the navigator's re-acquire speed. There is no lead-in at the node itself, facing away from it, or on no edge into it.
+
+**Where the follow route starts.** `FollowRoutePlanner.StartOf` picks the search's start node, and the lead-in segment into it, from the follower's own `TaxiEdgeTrail`, which records ramp connectors too (`TaxiEdgeLocator.DrivenEdgeUnder`). A follower on a fillet arc, or beside another taxiway's edge, so plans on along the edges it drove rather than from whichever straight edge it stands nearest. The first rule that applies wins:
+
+1. **Partway round a fillet arc.** The follower stands on a fillet arc that meets its newest trail edge at the end it drives toward (`TaxiEdgeLocator.FilletArcRounding`), within `TaxiEdgeLocator.OnFilletArcMaxOffsetFt` (8 ft) of the curve and strictly between its ends. The route starts on the arc: the arc, pointed away from the trail edge, is the first segment and its far node the search's start.
+
+   A follower already driving a route counts as on the arc only while that route's current segment is the arc into its far node: where a fillet leaves a straight edge tangent to it the two lie within a foot of each other, and only the route says which one it drives. The navigator enters the Bézier at the follower's closest point on it ([Invariant I8](#analog-playback-over-compiled-primitives-design-b)).
+2. **The trail's end.** Within `TaxiEdgeLocator.OnTaxiwayMaxOffsetFt` (50 ft) of its newest trail edge, the start is the end of that edge the follower drives toward: the end it does not share with the edge recorded before it, or, with none that meets it, the end the edge runs toward within 90° of the heading. `LeadInSegment` leads it in as above.
+3. **Otherwise** (farther off the newest edge, an empty trail, or a newest edge the layout does not hold), `AirportGroundLayout.FindTaxiStartNode`.
+
+On a plan made with no route to drive (`Plan`: the first plan, or one after the route ran out) the arc's far node and the trail's end count only when they lie ahead of the follower, within 90° of its heading; one behind falls through to the next rule. A re-plan (`Replan`) takes them as they are, since a follower re-planning just past a node has that node a little behind it and still drives on from it. The clearing route starts the same way, without the ahead check.
 
 **Measuring along the lead's path.** A `Joinable` plan gives the follower's gap to its lead along the taxi path rather than in a straight line:
 
@@ -157,9 +167,33 @@ When no departure-aligned onto-runway arc route resolves — a parallel-taxiway 
 
 **The follow route.** On its first tick (`TryFollow` starts the phase through `BuildMinimalContext`, which has no aircraft lookup) the phase calls `FollowRoutePlanner.Plan` and installs a `Joinable` plan as one `TaxiRoute`: the `PathToMerge` segments, then the lead's path from the merge node. `MergeSegmentIndex` is the index of the first segment on the lead's path.
 
-Every new route gets a fresh navigator, set up with `MaxSpeedKts` at the category taxi speed and `RouteEndSpeedKts` 0, so the route's end is a stop.
+A route driven from its first segment gets a fresh navigator, set up with `MaxSpeedKts` at the category taxi speed; a route spliced in at a later segment keeps the navigator, which carries on ([re-planning](#followg-driving-the-follow-route)).
+
+The follow route's end is no navigator stop (`RouteEndSpeedKts` is the taxi speed): whether it is a stop turns on the lead each tick (`RouteEndIsStop`).
+
+Behind a lead at rest, or a lead with route of its own left (it stops at that route's end, which is the follow route's end too), it is: the phase caps the speed on the braking curve at the taxi rate onto the end, measured along the route (`RouteEndCap`, `TaxiRoute.RemainingDistanceFt`). A lead rolling at 1 kt or more with no route left is driving on past the planned end, so the follower drives on to the end and plans again there.
 
 When the route runs out the phase drops it and plans again in the same tick, so a follower whose new plan joins the lead's path never stands a tick with no route.
+
+**Re-planning.** A follower driving a follow route plans again (`FollowRoutePlanner.Replan`) at two moments. On each node arrival, before the next segment is set up (`ReplanAtNode`), it picks up a lead whose path grew past the planned end or changed; a plan there other than `Joinable` keeps the route it is driving.
+
+And on the tick the lead is re-routed (`FollowLeadReroute`): the lead's remaining route no longer matches the lead path the plan was built from (`FollowRoutePlanner.LeadRouteMatchesPath`), as after a new `TAXI` to the lead, or a lead that is itself a follower planning a new follow route.
+
+A re-plan's route starts where the follower stands, without the ahead check ([where the follow route starts](#followg-joining-the-leads-taxi-path)), and never turns it about. Its first move may not run back along the segment that leads the follower into the start or, with none, back along its newest trail edge: the pathfinder's [forbidden first move](./pathfinder.md#goal-set-search-autorouterruntogoals).
+
+A lead driving the follower's edge back the way the follower came, or a lead path that leaves a merge at the start that way, joins nothing (`NoPath`).
+
+A new plan is adopted only when it drives differently from the follower's current segment on: another edge sequence, or the merge at another distance ahead (`DrivesAlike`). One whose route runs through the current segment is spliced in from it, and its give-way replaces any the old plan latched.
+
+One whose route does not pass through the current segment is installed from its start only when that start lies ahead of the follower, within 90° of its heading; otherwise the route is lost and the follow is unjoinable.
+
+**The route lost.** A lead re-route whose re-plan joins nothing (`NoPath`, `FollowerAhead`), or whose new route starts behind the follower, loses the follow route (`LoseFollowRoute`) and makes the follow unjoinable. An empty re-plan (nothing to drive: the merge is where the follower stands and the lead's path ends) loses the route too, but the follow stays joinable and plans again each tick once the route is dropped.
+
+A follower with some part on a runway or inside its hold line drops the lost route at once and drives its clearing route. Any other keeps it and brakes to rest along it (`IsBrakingLostRoute`): the navigator keeps steering over the lost route, planning nothing, with the speed pinned to zero at the taxi rate, or the firm rate a runway bar ahead needs, so the stop stays on the centreline through any bend or fillet. At rest, or when the route runs out, it drops the route and holds.
+
+It never comes to rest inside a runway's hold line. A bar ahead on the rest of the lost route whose runway the follow's crossing clearance covers (one the bar scan passes) is stopped short of: at the taxi rate when that makes the hold line, at the firm rate (`CategoryPerformance.ExpediteExitDecelRate`: jet 7.5, turboprop 6.0, piston 4.5, helicopter 4.0 kt/s) when only that does.
+
+When not even the firm rate makes it, or the nose is already inside that runway's hold line, the follower carries on across under its crossing clearance. Once on the runway's pavement it drops the lost route, and its clearing route takes it on past the far hold line, after which it holds.
 
 **Hold-shorts.** The navigator is given an always-cleared hold-short delegate: `FollowingPhase` owns every runway-bar stop through its own bar scan (`CheckRunwayHoldShort`, `GroundStopBraking`, `TryTakeHoldAtBar`), so the follow route carries no hold-short points.
 
@@ -181,13 +215,13 @@ The gap's speed is zero at the stop gap (with 1 ft of settle), else the brake cu
 
 Inside the close-follow band behind a lead moving away from the follower, it is no slower than the lead, with a 5 kt walking-pace floor to close up; a lead backing or coming toward the follower opens no gap, so its speed is not matched.
 
-**Speed.** The published speed is the lowest of the navigator's (taxi speed, corner and route-end limits), the gap's, the give-way stop's and the runway bar's braking curve, with the highest brake rate any cap below the ground speed needs (`ApplyCap`). A `HOLD` or `GIVEWAY` on the follower keeps the navigator ticking and pins the speed to zero after it, as the [hold contract](#in-the-phase--tick-system) says.
+**Speed.** The published speed is the lowest of the navigator's (taxi speed, corner and route-end limits), the gap's, the give-way stop's, the route end's (behind a lead at rest) and the runway bar's braking curve, with the highest brake rate any cap below the ground speed needs (`ApplyCap`). A `HOLD` or `GIVEWAY` on the follower keeps the navigator ticking and pins the speed to zero after it, as the [hold contract](#in-the-phase--tick-system) says.
 
-**No plan.** With no plan the follower holds in position (it brakes to a stop where it is), never steering straight at the lead. With no layout, or a `WaitForLead` plan, it plans again each tick. A `NoPath` or `FollowerAhead` plan at runtime makes the follow unjoinable (`IsUnjoinable`): it holds for good, planning no more, until a new command replaces it.
+**No plan.** With no plan the follower holds in position (it brakes to a stop where it is), never steering straight at the lead. With no layout, a `WaitForLead` plan, or an empty `Joinable` plan (no route to the merge and no lead path from it), it plans again each tick. A `NoPath` or `FollowerAhead` plan at runtime makes the follow unjoinable (`IsUnjoinable`), logged as the route lost: it holds for good, planning no more, until a new command replaces it.
 
 **The clearing route.** The follower never holds on a runway or inside its hold line (AIM 4-3-21). With no follow route to drive while its nose, centre or tail is on a runway's pavement or nearer the runway's centreline than the nearest of its bars on that side, it drives a clearing route instead (`StartClearingRoute`, once per runway until a follow route is installed again). A follower off the pavement facing the runway gets no clearing route: it logs a warning and holds.
 
-The clearing route runs from where the follower stands (with the same lead-in segment as a follow route) by the auto route to the nearest of the runway's bars ahead, skipping an exit another aircraft stands in at rest unless every one is, then on past the bar by the aircraft's length plus 50 ft.
+The clearing route runs from where the follower stands (from a follow route's start, `FollowRoutePlanner.StartOf` without the ahead check, a fillet arc it stands partway round included) by the auto route to the nearest of the runway's bars ahead, skipping an exit another aircraft stands in at rest unless every one is, then on past the bar by the aircraft's length plus 50 ft.
 
 Past the bar it takes the straightest continuation that leads no nearer the runway, stopping at the first junction once on the next taxiway or where the pavement ends. A route that enters another runway, or that brings a follower that started off the pavement nearer this runway, is passed over for the next nearest bar.
 
@@ -199,7 +233,7 @@ At rest the clearing ends and the follower is checked again, so one inside a sec
 
 **The lead gone.** When the lead is deleted or no longer on the ground, the follow drops its follow route, drives the clearing route if it is inside a runway's hold line, else brakes to a stop where it is, and at rest completes into a `HoldingInPositionPhase`.
 
-**Snapshot.** The follow route, merge index, `LeadEdgeIntoMerge`, give-way and unjoinable flags, the clearing route and its bar, and the navigator's state round-trip ([`../snapshots-and-replay.md`](../snapshots-and-replay.md)); a restore without a follow route plans afresh on the next tick.
+**Snapshot.** The follow route, merge index, `LeadEdgeIntoMerge`, give-way, unjoinable and braking-along-a-lost-route flags, the clearing route and its bar, and the navigator's state round-trip ([`../snapshots-and-replay.md`](../snapshots-and-replay.md)); a restore without a follow route plans afresh on the next tick.
 
 ---
 
@@ -231,6 +265,8 @@ Closed-form playback has an implicit precondition — the aircraft is *on* the c
 
 Three rules now hold it:
 - **Entry state is captured on the primitive's first tick, from the live position** (`_arcEntryPending`). A Bézier entered off its start point resumes from `CubicBezier.ClosestT(position)` with the arc length up to that `t` as its progress baseline (`CubicBezier.ArcLengthToNm`), so a mid-arc restore continues from where the aircraft stands.
+
+  A route whose first segment is such a Bézier, with the aircraft within `TaxiEdgeLocator.OnTaxiwayMaxOffsetFt` of the curve at a point strictly between its ends (a follow route started partway round a fillet), also has `SetupSegment` read the entry-alignment check against the curve's tangent at that closest point (`MidCurveEntryBearing`) rather than the curve's departure bearing, so it lays no entry-alignment turn for a heading it already holds.
 
   The capture waits for the first tick rather than happening at install because phases run *before* physics: the position at install time is one physics step (along the old heading) behind the position the first arc write is compared against.
 - **An along-track shortfall is driven, a cross-track residual is bled off — neither is jumped.**
@@ -687,8 +723,8 @@ Adding new navigator runtime state means deciding whether it must round-trip; mo
 | `src/Yaat.Sim/Phases/Ground/GroundStopBraking.cs` | Stop-braking choice (taxi rate, firm rate, backstop) and the led stop curve, shared by `FOLLOWG`, `GIVEWAY` and the uncleared-bar cap |
 | `src/Yaat.Sim/Phases/Ground/RunwayExitPhase.cs` | Owns a navigator over the virtual exit route |
 | `src/Yaat.Sim/Phases/Ground/CrossingRunwayPhase.cs` | Owns a navigator over the crossing route |
-| `src/Yaat.Sim/Phases/Ground/FollowRoutePlanner.cs` | `FOLLOWG`'s planner and joinability probe: the lead's path (trail, current edge, remaining route), where the follower merges onto it, and the along-path gap |
-| `src/Yaat.Sim/Phases/Ground/FollowingPhase.cs` | The ground follow itself: owns a navigator over the follow route or a clearing route, gives way at the merge, keeps the gap along the path, stops at runway bars |
+| `src/Yaat.Sim/Phases/Ground/FollowRoutePlanner.cs` | `FOLLOWG`'s planner and joinability probe: the lead's path (trail, current edge, remaining route), where the follower's route starts (`StartOf`), where it merges onto the lead's path, the re-plan (`Replan`, forbidden first move), whether the lead was re-routed (`LeadRouteMatchesPath`), and the along-path gap |
+| `src/Yaat.Sim/Phases/Ground/FollowingPhase.cs` | The ground follow itself: owns a navigator over the follow route or a clearing route, re-plans at nodes and on a lead re-route, brakes along a lost route, gives way at the merge, keeps the gap along the path, stops at runway bars |
 | `src/Yaat.Sim/Data/Airport/TaxiRoute.cs` | The route the navigator follows (segments, hold-shorts, index) |
 | `src/Yaat.Sim/Data/Airport/AirportGroundLayout.cs` | `GroundArc` bezier fields, `DirectionalEdge` bearings, `MaxSafeSpeedKts` / `SafeSpeedForRadiusKts` / `SpeedProfile` / `TraversalSeconds` |
 | `src/Yaat.Sim/AircraftCategory.cs` | All category performance constants (taxi/turn/decel/nose-wheel/corner speeds) |

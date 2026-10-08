@@ -755,6 +755,14 @@ public sealed class FollowingPhaseDto : PhaseDto
     public bool Unjoinable { get; init; }
 
     /// <summary>
+    /// Whether the follower is braking to rest along a follow route it lost (<c>FollowingPhase.IsBrakingLostRoute</c>), dropped
+    /// once at rest: true while braking, null otherwise. Not written while null, so a snapshot of a follow not braking along a
+    /// lost route serializes exactly as it did before the field existed; null in snapshots written before it.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? BrakingLostRoute { get; init; }
+
+    /// <summary>
     /// The clearing route the follower drives off a runway it has no follow route on (<c>FollowingPhase.ClearingRoute</c>): to
     /// the nearest hold-short bar ahead and on past it. Null when not clearing, and in older snapshots.
     /// </summary>

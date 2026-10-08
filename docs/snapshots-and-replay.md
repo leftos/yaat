@@ -80,6 +80,7 @@ A restore that kept no latch would let the stop go once the aircraft had slowed 
 - `FollowRoute` (a `TaxiRouteDto`: the follower's route to the merge node, then the lead's path) and `MergeSegmentIndex` (the first segment on the lead's path), null and 0 before the follow planned one.
 - `LeadEdgeIntoMerge` (a `TaxiSegmentDto`, the lead's path edge into the merge, which the give-way stop keeps clear of with the edge out), written as the route's own segments are; null where the lead's path starts at the merge.
 - `GivingWay`, `Unjoinable` (the hold-for-good latch: a restored follow holds where the live one held rather than planning again) and `ExitingRunways` (the runways whose bars it passes on the way out).
+- `BrakingLostRoute` (`bool?`, `FollowingPhase.IsBrakingLostRoute`: braking to rest along a follow route a lead re-route lost, which the follower drops once at rest): true while braking, else null and not written (`JsonIgnore` `WhenWritingNull`), so a snapshot of a follow not braking along a lost route serializes byte-identical to one written before the field existed; absent restores as false.
 - `ClearingRoute` (a `TaxiRouteDto`) and `ClearingBarNodeId`, null when not clearing, and `ClearingAttemptedRunways`, written only when a clearing route has been tried.
 - `Navigator` (a `GroundNavigatorDto`), null with neither a follow route nor a clearing route.
 

@@ -5,6 +5,7 @@ using Yaat.Sim.Data.Airport.Pathfinding;
 using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
+using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
@@ -42,6 +43,443 @@ public class FollowRoutePlannerTests(ITestOutputHelper output)
         Assert.False(plan.MergeAheadOfLead);
         Assert.Equal(plan.MergeNode, plan.LeadPathFromMerge[0].FromNodeId);
         Assert.Equal(plan.MergeNode, plan.PathToMerge.Segments[^1].ToNodeId);
+    }
+
+    /// <summary>
+    /// A C172 the engine taxis (<c>TAXI B W 30</c>) from the ramp node behind the B/RAMP fillet at the B/C junction, off the
+    /// ramp edge and onto that fillet, has the ramp edge in its trail. Told <c>FOLLOWG</c> the lead on B there, it starts from
+    /// that trail on the fillet it is partway round: the fillet, into its node on B ahead, is its follow route's first segment,
+    /// never the far end of the C edge the fillet runs over (the taxi start pick, from where it would taxi round the field and
+    /// back across 28R). Played on from its own point on the fillet (the navigator's no-teleport check runs every tick), over
+    /// the next 10 s it never runs back along its follow route and never swings more than 90° from its heading at the command.
+    /// </summary>
+    [Fact]
+    public void FollowerTaxiedOffTheRampOntoAFillet_StartsAheadOnB_AndNeverTurnsBack()
+    {
+        if (KoakFollowGeometry.StartTaxiingLead(output) is not { } run)
+        {
+            return;
+        }
+
+        RampFillet ramp = TaxiHalfwayRoundTheRampFillet(run);
+        AircraftState follower = ramp.Follower;
+        GroundNode start = Assert.IsType<GroundNode>(FollowRoutePlanner.StartNode(run.Layout, follower, requireAhead: true));
+        output.WriteLine($"start #{start.Id}");
+        Assert.NotEqual(ramp.CFar.Id, start.Id);
+        Assert.Equal(run.Chain[5].Id, start.Id);
+        Assert.Contains(start.Edges, e => e.MatchesTaxiway("B") && !e.IsRunwayCenterline);
+        TrueHeading startHeading = follower.TrueHeading;
+        Assert.True(startHeading.AbsAngleTo(new TrueHeading(GeoMath.BearingTo(follower.Position, start.Position))) <= 90.0, "the start is behind");
+
+        CommandResult result = run.Engine.SendCommand("N2FOL", $"FOLLOWG {run.Lead.Callsign}");
+        Assert.True(result.Success, result.Message);
+        run.Engine.TickOneSecond();
+        TaxiRoute route = Assert.IsType<TaxiRoute>(Assert.IsType<FollowingPhase>(follower.Phases?.CurrentPhase).FollowRoute);
+        output.WriteLine($"follow route {route.ToSummary()}");
+        TaxiRouteSegment first = route.Segments[0];
+        Assert.Same(ramp.Fillet, first.Edge.Edge);
+        Assert.Equal((ramp.RampEnd.Id, start.Id), (first.FromNodeId, first.ToNodeId));
+        AssertNeverTurnsBack(run.Engine, follower, startHeading);
+    }
+
+    /// <summary>
+    /// The ramp follower above re-plans as it reaches the ramp fillet's far node on B (its lead has a new path), before its
+    /// trail records an edge past the ramp edge. Another fillet leaves that ramp edge at the ramp node it came from and passes
+    /// a few feet from it there; that fillet lies behind it, so the re-plan never starts on it: it is not one the follower
+    /// is rounding, and entering it near its end, off its curve, would move the follower farther in one step than it drove
+    /// (the navigator's no-teleport check runs every tick).
+    /// </summary>
+    [Fact]
+    public void RampFollowerReplanningAtTheFilletsFarNode_NeverStartsOnTheFilletBehindIt()
+    {
+        if (KoakFollowGeometry.StartTaxiingLead(output) is not { } run)
+        {
+            return;
+        }
+
+        RampFillet ramp = TaxiHalfwayRoundTheRampFillet(run);
+        AircraftState follower = ramp.Follower;
+        GroundNode farNode = ramp.Fillet.OtherNode(ramp.RampEnd);
+        (LatLon onTheArc, TrueHeading headingOnTheArc) = (follower.Position, follower.TrueHeading);
+        follower.Position = farNode.Position;
+        follower.TrueHeading = new TrueHeading(ramp.Fillet.Directed(ramp.RampEnd, farNode).ArrivalBearing);
+        (int NodeA, int NodeB) rampEnds = (ramp.RampEdge.Nodes[0].Id, ramp.RampEdge.Nodes[1].Id);
+        GroundArc behind = Assert.IsType<GroundArc>(TaxiEdgeLocator.FilletArcRounding(run.Layout, follower.Position, rampEnds));
+        output.WriteLine($"at #{farNode.Id} the locator finds fillet #{behind.Nodes[0].Id}-#{behind.Nodes[1].Id}");
+        Assert.True(behind.HasNode(ramp.RampNode.Id), "the fillet the locator finds does not leave the ramp edge at the ramp node");
+
+        FollowRoutePlanner.RouteStart replanStart = Assert.NotNull(FollowRoutePlanner.StartOf(run.Layout, follower, requireAhead: false));
+        output.WriteLine($"re-plan start #{replanStart.Node.Id}, lead-in {replanStart.LeadIn?.FromNodeId}->{replanStart.LeadIn?.ToNodeId}");
+        Assert.NotSame(behind, replanStart.LeadIn?.Edge.Edge);
+        Assert.NotEqual(behind.OtherNode(ramp.RampNode).Id, replanStart.Node.Id);
+        (follower.Position, follower.TrueHeading) = (onTheArc, headingOnTheArc);
+
+        CommandResult result = run.Engine.SendCommand("N2FOL", $"FOLLOWG {run.Lead.Callsign}");
+        Assert.True(result.Success, result.Message);
+        for (int second = 1; second <= 10; second++)
+        {
+            run.Engine.TickOneSecond();
+            if (FollowingPhase.DrivenRouteOf(follower) is { } route)
+            {
+                Assert.DoesNotContain(route.Segments, s => ReferenceEquals(s.Edge.Edge, behind));
+            }
+        }
+    }
+
+    /// <summary>
+    /// The ramp follower, stood farther than <see cref="TaxiEdgeLocator.OnFilletArcMaxOffsetFt"/> off the fillet it was
+    /// rounding (nudged outward after the engine taxied it half-way round), is beside the arc rather than on it: its follow
+    /// route starts as a follow off a fillet did before routes could start partway round one, from its trail's end node when
+    /// that lies ahead, else from the taxi start pick, and never on the arc.
+    /// </summary>
+    [Fact]
+    public void FollowerStandingOffTheFillet_StartsFromItsTrail_NotOnTheArc()
+    {
+        if (KoakFollowGeometry.StartTaxiingLead(output) is not { } run)
+        {
+            return;
+        }
+
+        RampFillet ramp = TaxiHalfwayRoundTheRampFillet(run);
+        AircraftState follower = ramp.Follower;
+        const double nudgeFt = 9.0;
+        follower.Position = GeoMath.ProjectPoint(
+            follower.Position,
+            new TrueHeading((follower.TrueHeading.Degrees + 90.0) % 360.0),
+            nudgeFt / GeoMath.FeetPerNm
+        );
+        (int NodeA, int NodeB) rampEnds = (ramp.RampEdge.Nodes[0].Id, ramp.RampEdge.Nodes[1].Id);
+        Assert.Same(ramp.Fillet, TaxiEdgeLocator.FilletArcRounding(run.Layout, follower.Position, rampEnds));
+        double offArcFt = Assert.NotNull(TaxiEdgeLocator.InsideArcDistanceFt(ramp.Fillet, follower.Position));
+        output.WriteLine($"{offArcFt:F1} ft off the fillet #{ramp.RampEnd.Id}-#{ramp.Fillet.OtherNode(ramp.RampEnd).Id}");
+        Assert.True(offArcFt > TaxiEdgeLocator.OnFilletArcMaxOffsetFt, $"only {offArcFt:F1} ft off the fillet");
+
+        bool rampEndAhead = follower.TrueHeading.AbsAngleTo(new TrueHeading(GeoMath.BearingTo(follower.Position, ramp.RampEnd.Position))) <= 90.0;
+        GroundNode? expected = rampEndAhead ? ramp.RampEnd : run.Layout.FindTaxiStartNode(follower.Position, follower.TrueHeading);
+        FollowRoutePlanner.RouteStart start = Assert.NotNull(FollowRoutePlanner.StartOf(run.Layout, follower, requireAhead: true));
+        output.WriteLine($"trail end #{ramp.RampEnd.Id} ahead: {rampEndAhead}; start #{start.Node.Id}");
+        Assert.Equal(expected?.Id, start.Node.Id);
+        Assert.NotSame(ramp.Fillet, start.LeadIn?.Edge.Edge);
+    }
+
+    /// <summary>
+    /// The ramp follower half-way round the fillet with no route left to drive (its taxi route cleared, as an aircraft stopped
+    /// on the fillet with nothing assigned) has only its pose and trail to go by: standing on the curve, its follow route still
+    /// starts on that fillet, into its node on B.
+    /// </summary>
+    [Fact]
+    public void FollowerOnTheFilletDrivingNoRoute_StartsOnTheArc()
+    {
+        if (KoakFollowGeometry.StartTaxiingLead(output) is not { } run)
+        {
+            return;
+        }
+
+        RampFillet ramp = TaxiHalfwayRoundTheRampFillet(run);
+        AircraftState follower = ramp.Follower;
+        follower.Ground.AssignedTaxiRoute = null;
+        Assert.Null(FollowingPhase.DrivenRouteOf(follower));
+
+        FollowRoutePlanner.RouteStart start = Assert.NotNull(FollowRoutePlanner.StartOf(run.Layout, follower, requireAhead: true));
+        output.WriteLine($"start #{start.Node.Id}, lead-in {start.LeadIn?.FromNodeId}->{start.LeadIn?.ToNodeId}");
+        Assert.Equal(run.Chain[5].Id, start.Node.Id);
+        Assert.Same(ramp.Fillet, start.LeadIn?.Edge.Edge);
+        Assert.Equal(ramp.RampEnd.Id, start.LeadIn?.FromNodeId);
+    }
+
+    /// <summary>
+    /// A C172 the engine taxied (<c>TAXI B W 30</c>) off the ramp edge at <c>Chain[6]</c> and half-way round the fillet from
+    /// there to <c>Chain[5]</c> on B: the follower, the fillet, the ramp edge with its two nodes, and the far end of the C edge
+    /// the fillet's chord runs over (the taxi start pick from the chord).
+    /// </summary>
+    private sealed record RampFillet(
+        AircraftState Follower,
+        GroundArc Fillet,
+        GroundEdge RampEdge,
+        GroundNode RampNode,
+        GroundNode RampEnd,
+        GroundNode CFar
+    );
+
+    private RampFillet TaxiHalfwayRoundTheRampFillet(KoakFollowGeometry.LeadRun run)
+    {
+        FilletChord pose = PoseOnFilletChord(run);
+        GroundNode rampEnd = run.Chain[6];
+        GroundNode rampNode = pose.RampEdge.OtherNode(rampEnd);
+        Assert.True(pose.RampEdge.IsRamp, $"#{rampNode.Id}-#{rampEnd.Id} is not a ramp edge");
+        GroundArc fillet = rampEnd.Edges.OfType<GroundArc>().First(e => e.OtherNode(rampEnd).Id == run.Chain[5].Id);
+        AircraftState follower = KoakFollowGeometry.AddTaxiing((run.Engine, run.Layout), "N2FOL", "C172", (rampNode, rampEnd), "TAXI B W 30");
+        output.WriteLine($"follower from #{rampNode.Id}: {follower.Ground.AssignedTaxiRoute?.ToSummary()}");
+        double halfFilletFt = fillet.DistanceNm * GeoMath.FeetPerNm / 2.0;
+        for (int second = 0; (second < 120) && (DistanceFt(follower.Position, rampEnd.Position) < halfFilletFt); second++)
+        {
+            run.Engine.TickOneSecond();
+        }
+
+        string trailText = string.Join(", ", follower.Ground.TaxiEdgeTrail.Edges.Select(e => $"#{e.NodeA}-#{e.NodeB}"));
+        output.WriteLine($"follower {DistanceFt(follower.Position, rampEnd.Position):F0} ft past #{rampEnd.Id} on the fillet; trail {trailText}");
+        Assert.True(DistanceFt(follower.Position, rampEnd.Position) >= halfFilletFt, "the follower never got half-way round the fillet");
+        Assert.Contains(follower.Ground.TaxiEdgeTrail.Edges, e => e.Is(pose.RampEdge));
+        return new RampFillet(follower, fillet, pose.RampEdge, rampNode, rampEnd, pose.CFar);
+    }
+
+    /// <summary>
+    /// Ticks <paramref name="engine"/> 10 s, asserting each second that <paramref name="follower"/> is no farther back along its
+    /// follow route than the second before (while it drives the same route) and within 90° of <paramref name="startHeading"/>.
+    /// </summary>
+    private void AssertNeverTurnsBack(SimulationEngine engine, AircraftState follower, TrueHeading startHeading)
+    {
+        TaxiRoute? lastRoute = null;
+        double lastProgressFt = 0.0;
+        for (int second = 1; second <= 10; second++)
+        {
+            engine.TickOneSecond();
+            double swingDeg = follower.TrueHeading.AbsAngleTo(startHeading);
+            Assert.True(swingDeg <= 90.0, $"t={second}s: heading {follower.TrueHeading.Degrees:F0} swung {swingDeg:F0} deg");
+            if (FollowingPhase.DrivenRouteOf(follower) is not { IsComplete: false } route)
+            {
+                lastRoute = null;
+                continue;
+            }
+
+            int index = route.CurrentSegmentIndex;
+            double progressFt = route.PrefixDistanceFt(index + 1) - DistanceFt(follower.Position, route.Segments[index].Edge.ToNode.Position);
+            output.WriteLine($"t={second}s: {follower.GroundSpeed:F1} kt, hdg {follower.TrueHeading.Degrees:F0}, {progressFt:F0} ft along");
+            if (ReferenceEquals(route, lastRoute))
+            {
+                Assert.True(progressFt >= lastProgressFt - 1.0, $"t={second}s: progress {progressFt:F1} ft fell from {lastProgressFt:F1} ft");
+            }
+
+            lastRoute = route;
+            lastProgressFt = progressFt;
+        }
+    }
+
+    private static double DistanceFt(LatLon a, LatLon b) => GeoMath.DistanceNm(a, b) * GeoMath.FeetPerNm;
+
+    /// <summary>
+    /// A C172 the engine pushes back from a KOAK stand (<c>PUSH</c>) ends tail-first on the push's last trail edge: the end of
+    /// that edge the trail's order says it travelled toward lies behind its nose, so its follow route starts at the taxi start
+    /// pick (<see cref="AirportGroundLayout.FindTaxiStartNode"/>) instead. A re-plan (<see cref="FollowRoutePlanner.Replan"/>)
+    /// takes the trail's end as it is, behind the nose.
+    /// </summary>
+    [Fact]
+    public void PushedBackAircraft_TrailEndBehindTheNose_FirstPlanStartsAtTheTaxiStartPick_ReplanAtTheTrailEnd()
+    {
+        if (KoakFollowGeometry.LoadLayout(output) is not { } layout)
+        {
+            return;
+        }
+
+        (AirportGroundLayout Layout, AircraftState Pushed)? found = null;
+        foreach (GroundNode stand in layout.Nodes.Values.Where(n => (n.Type == GroundNodeType.Parking) && (n.Edges.Count > 0)).OrderBy(n => n.Id))
+        {
+            (SimulationEngine Engine, AirportGroundLayout Layout) candidate = Assert.NotNull(KoakFollowGeometry.NewEngine(output, autoCross: false));
+            AircraftState aircraft = PushFrom(candidate, stand);
+            if (
+                (TravelledTowardEnd(candidate.Layout, aircraft) is { } behind)
+                && (candidate.Layout.FindTaxiStartNode(aircraft.Position, aircraft.TrueHeading)?.Id != behind.Id)
+            )
+            {
+                found = (candidate.Layout, aircraft);
+                break;
+            }
+        }
+
+        (AirportGroundLayout Layout, AircraftState Pushed) setup = Assert.NotNull(found);
+        AircraftState pushed = setup.Pushed;
+        IReadOnlyList<TaxiTrailEdge> trail = pushed.Ground.TaxiEdgeTrail.Edges;
+        output.WriteLine(
+            $"after the push: {pushed.Phases?.CurrentPhase?.Name}, trail {string.Join(", ", trail.Select(e => $"#{e.NodeA}-#{e.NodeB}"))}"
+        );
+        GroundEdge newest = Assert.IsType<GroundEdge>(trail[^1].Resolve(setup.Layout));
+        GroundNode end = Assert.IsType<GroundNode>(TravelledTowardEnd(setup.Layout, pushed));
+        double offFt = GeoMath.DistanceToSegmentFt(pushed.Position, newest.Nodes[0].Position, newest.Nodes[1].Position);
+        double toEndDeg = pushed.TrueHeading.AbsAngleTo(new TrueHeading(GeoMath.BearingTo(pushed.Position, end.Position)));
+        GroundNode? pick = setup.Layout.FindTaxiStartNode(pushed.Position, pushed.TrueHeading);
+        output.WriteLine($"trail end #{end.Id} {toEndDeg:F0} deg off the nose, {offFt:F1} ft off the edge; taxi start pick #{pick?.Id}");
+
+        Assert.True(offFt <= TaxiEdgeLocator.OnTaxiwayMaxOffsetFt, "the pushed aircraft is off its newest trail edge");
+        Assert.True(toEndDeg > 90.0, "the trail end lies ahead of the nose");
+        Assert.NotEqual(end.Id, pick?.Id);
+        GroundNode start = Assert.IsType<GroundNode>(FollowRoutePlanner.StartNode(setup.Layout, pushed, requireAhead: true));
+        Assert.Equal(pick?.Id, start.Id);
+        double toStartDeg = pushed.TrueHeading.AbsAngleTo(new TrueHeading(GeoMath.BearingTo(pushed.Position, start.Position)));
+        Assert.True(toStartDeg <= 90.0, $"the planned start #{start.Id} is {toStartDeg:F0} deg off the nose");
+
+        // A re-plan of a follow already driving its route has no ahead check: it starts at the trail's end, behind the nose.
+        Assert.Equal(end.Id, FollowRoutePlanner.StartNode(setup.Layout, pushed, requireAhead: false)?.Id);
+    }
+
+    /// <summary>
+    /// The end of <paramref name="aircraft"/>'s newest trail edge it travelled toward by the trail's order — the one that edge
+    /// does not share with the edge recorded before it — when that end lies behind its nose; null otherwise, or with fewer than
+    /// two edges, or two that do not meet.
+    /// </summary>
+    private static GroundNode? TravelledTowardEnd(AirportGroundLayout layout, AircraftState aircraft)
+    {
+        IReadOnlyList<TaxiTrailEdge> trail = aircraft.Ground.TaxiEdgeTrail.Edges;
+        if ((trail.Count < 2) || (trail[^1].Resolve(layout) is not { } newest))
+        {
+            return null;
+        }
+
+        TaxiTrailEdge previous = trail[^2];
+        bool firstShared = (newest.Nodes[0].Id == previous.NodeA) || (newest.Nodes[0].Id == previous.NodeB);
+        bool secondShared = (newest.Nodes[1].Id == previous.NodeA) || (newest.Nodes[1].Id == previous.NodeB);
+        if (firstShared == secondShared)
+        {
+            return null;
+        }
+
+        GroundNode end = firstShared ? newest.Nodes[1] : newest.Nodes[0];
+        double toEndDeg = aircraft.TrueHeading.AbsAngleTo(new TrueHeading(GeoMath.BearingTo(aircraft.Position, end.Position)));
+        return toEndDeg > 90.0 ? end : null;
+    }
+
+    /// <summary>
+    /// A C172 parked at <paramref name="stand"/>, added to the engine, told <c>PUSH</c> and ticked until the push is done: the
+    /// first stand, by node id, whose push leaves the travelled-toward end of its newest trail edge behind its nose
+    /// (<see cref="TravelledTowardEnd"/>) is the one the test reads.
+    /// </summary>
+    private static AircraftState PushFrom((SimulationEngine Engine, AirportGroundLayout Layout) setup, GroundNode stand)
+    {
+        AircraftState aircraft = KoakFollowGeometry.Spawn("N3PSH", "C172", stand.Position, new TrueHeading(0));
+        aircraft.Phases = new PhaseList();
+        aircraft.Phases.Add(new AtParkingPhase());
+        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, setup.Layout));
+        aircraft.Ground.Layout = setup.Layout;
+        setup.Engine.World.AddAircraft(aircraft);
+        CommandResult result = setup.Engine.SendCommand(aircraft.Callsign, "PUSH");
+        Assert.True(result.Success, result.Message);
+        for (int second = 0; (second < 300) && ((second < 2) || (aircraft.Phases?.CurrentPhase is PushbackPhase)); second++)
+        {
+            setup.Engine.TickOneSecond();
+        }
+
+        return aircraft;
+    }
+
+    /// <summary>
+    /// A C172 the engine taxis down B to 28R, clears for takeoff and stops on the runway with its takeoff clearance cancelled
+    /// mid-roll: the trail is not written on a runway roll, so its newest edge, B into the bar, lies far behind it, and its
+    /// follow route starts at the taxi start pick (<see cref="AirportGroundLayout.FindTaxiStartNode"/>). Told <c>FOLLOWG</c> a
+    /// lead on B, it drives off the runway.
+    /// </summary>
+    [Fact]
+    public void RejectedTakeoff_NewestTrailEdgeFarBehind_StartsAtTheTaxiStartPick()
+    {
+        if (KoakFollowGeometry.NewEngine(output, autoCross: false) is not { } setup)
+        {
+            return;
+        }
+
+        List<GroundNode> chain = KoakFollowGeometry.BChain(setup.Layout);
+        AircraftState departure = KoakFollowGeometry.AddTaxiing(setup, "N3RTO", "C172", (chain[3], chain[2]), "TAXI B 28R");
+        AircraftState lead = KoakFollowGeometry.AddTaxiing(setup, "N1LED", "C172", (chain[6], chain[5]), "TAXI B 28R");
+        Tick(setup.Engine, 120, () => departure.Phases?.CurrentPhase is HoldingShortPhase or HoldingInPositionPhase);
+        CommandResult cto = setup.Engine.SendCommand(departure.Callsign, "CTO");
+        Assert.True(cto.Success, cto.Message);
+        Tick(setup.Engine, 120, () => (departure.Phases?.CurrentPhase is TakeoffPhase) && (departure.GroundSpeed >= 30.0));
+        CommandResult cancel = setup.Engine.SendCommand(departure.Callsign, "CTOC");
+        Assert.True(cancel.Success, cancel.Message);
+        Tick(setup.Engine, 120, () => departure.GroundSpeed <= 0.0);
+
+        TaxiTrailEdge newest = Assert.IsType<TaxiTrailEdge>(departure.Ground.TaxiEdgeTrail.Newest);
+        GroundEdge edge = Assert.IsType<GroundEdge>(newest.Resolve(setup.Layout));
+        double offFt = GeoMath.DistanceToSegmentFt(departure.Position, edge.Nodes[0].Position, edge.Nodes[1].Position);
+        GroundNode? pick = setup.Layout.FindTaxiStartNode(departure.Position, departure.TrueHeading);
+        output.WriteLine(
+            $"{departure.Phases?.CurrentPhase?.Name} {departure.GroundSpeed:F1} kt, "
+                + $"{offFt:F0} ft off #{newest.NodeA}-#{newest.NodeB}; pick {pick?.Id}"
+        );
+        Assert.True(offFt > TaxiEdgeLocator.OnTaxiwayMaxOffsetFt, "the stopped departure is still on its newest trail edge");
+        Assert.Equal(pick?.Id, FollowRoutePlanner.StartNode(setup.Layout, departure, requireAhead: true)?.Id);
+
+        CommandResult follow = setup.Engine.SendCommand(departure.Callsign, $"FOLLOWG {lead.Callsign}");
+        Assert.True(follow.Success, follow.Message);
+        setup.Engine.TickOneSecond();
+        FollowingPhase phase = Assert.IsType<FollowingPhase>(departure.Phases?.CurrentPhase);
+        output.WriteLine($"follow route {phase.FollowRoute?.ToSummary()}; clearing route {phase.ClearingRoute?.ToSummary()}");
+        Assert.Null(phase.ClearingRoute);
+        TaxiRoute route = Assert.IsType<TaxiRoute>(phase.FollowRoute);
+        TaxiRouteSegment first = route.Segments[0];
+        Assert.True((first.FromNodeId == pick?.Id) || (first.ToNodeId == pick?.Id), $"the follow route does not start at #{pick?.Id}");
+    }
+
+    private static void Tick(SimulationEngine engine, int maxSeconds, Func<bool> until)
+    {
+        for (int second = 0; (second < maxSeconds) && !until(); second++)
+        {
+            engine.TickOneSecond();
+        }
+
+        Assert.True(until(), $"condition not met within {maxSeconds} s");
+    }
+
+    /// <summary>
+    /// The same follower with an empty trail has nothing of its own to start from: its plan starts where a taxi from its pose
+    /// does (<see cref="AirportGroundLayout.FindTaxiStartNode"/>), at the far end of the C edge it stands on.
+    /// </summary>
+    [Fact]
+    public void FollowerOnAFilletChordBesideAnotherTaxiway_EmptyTrail_StartsAtTheTaxiStartPick()
+    {
+        if (KoakFollowGeometry.StartTaxiingLead(output) is not { } run)
+        {
+            return;
+        }
+
+        FilletChord pose = PoseOnFilletChord(run);
+        Assert.Empty(pose.Follower.Ground.TaxiEdgeTrail.Edges);
+
+        FollowRoutePlan.Joinable plan = Assert.IsType<FollowRoutePlan.Joinable>(FollowRoutePlanner.Plan(run.Layout, pose.Follower, run.Lead));
+        string pathText = PathText(plan.PathToMerge.Segments.Select(s => s.Edge));
+        output.WriteLine($"merge #{plan.MergeNode}, path to merge {pathText}");
+
+        TaxiRouteSegment first = plan.PathToMerge.Segments[0];
+        Assert.True(
+            (first.FromNodeId == pose.CFar.Id) || (first.ToNodeId == pose.CFar.Id),
+            $"the plan does not start at #{pose.CFar.Id}, the taxi start pick: {pathText}"
+        );
+    }
+
+    /// <summary>
+    /// A follower on the B/RAMP fillet chord at the B/C junction, the far end of the C edge it stands on, and the ramp edge it
+    /// came off.
+    /// </summary>
+    private sealed record FilletChord(AircraftState Follower, GroundNode CFar, GroundEdge RampEdge);
+
+    /// <summary>
+    /// A C172 half-way along the chord of the B/RAMP fillet from <c>Chain[6]</c> (on the ramp side of the B/C junction) to
+    /// <c>Chain[5]</c> (on B), facing <c>Chain[5]</c>: the chord runs over the C edge that leaves the junction toward the 28R
+    /// side, so a taxi from the pose starts at that C edge's far end. The ramp edge is <c>Chain[6]</c>'s straight edge away from
+    /// the junction.
+    /// </summary>
+    private FilletChord PoseOnFilletChord(KoakFollowGeometry.LeadRun run)
+    {
+        GroundNode rampEnd = run.Chain[6];
+        GroundNode onB = run.Chain[5];
+        Assert.Contains(rampEnd.Edges, e => (e is GroundArc) && (e.OtherNode(rampEnd).Id == onB.Id));
+        GroundNode junction = onB
+            .Edges.OfType<GroundEdge>()
+            .Where(e => e.MatchesTaxiway("B"))
+            .Select(e => e.OtherNode(onB))
+            .First(n => n.Edges.Any(c => c.MatchesTaxiway("C")));
+        TrueHeading heading = KoakFollowGeometry.Facing(rampEnd, onB);
+        GroundNode cFar = junction
+            .Edges.OfType<GroundEdge>()
+            .Where(e => e.MatchesTaxiway("C"))
+            .Select(e => e.OtherNode(junction))
+            .OrderBy(n => Math.Abs(GeoMath.SignedBearingDifference(heading.Degrees, GeoMath.BearingTo(junction.Position, n.Position))))
+            .First();
+        GroundEdge rampEdge = rampEnd.Edges.OfType<GroundEdge>().First(e => e.OtherNode(rampEnd).Id != junction.Id);
+        LatLon at = KoakFollowGeometry.Between(rampEnd.Position, onB.Position, 0.5);
+        double offCFt = GeoMath.DistanceToSegmentFt(at, junction.Position, cFar.Position);
+        output.WriteLine(
+            $"on the #{rampEnd.Id}->#{onB.Id} chord, {offCFt:F1} ft off C #{junction.Id}->#{cFar.Id}; came off #{rampEdge.OtherNode(rampEnd).Id}"
+        );
+        Assert.Equal(cFar.Id, run.Layout.FindTaxiStartNode(at, heading)?.Id);
+        return new FilletChord(KoakFollowGeometry.Spawn("N2FOL", "C172", at, heading), cFar, rampEdge);
     }
 
     /// <summary>
@@ -369,6 +807,65 @@ public class FollowRoutePlannerTests(ITestOutputHelper output)
 
         Assert.Equal(first.FromNodeId, plan.MergeNode);
         Assert.Equal(expected.Select(e => (e.FromNodeId, e.ToNodeId)), plan.LeadPathFromMerge.Select(e => (e.FromNodeId, e.ToNodeId)));
+    }
+
+    /// <summary>
+    /// A re-plan never turns the follower about on its own edge. Mid-way along B, driving south with that edge newest in its
+    /// trail and the lead behind it on B, its route never leaves the node it drives toward back up its own edge. On a dead-end
+    /// stub with the lead's path behind it, where that move back is the only join, its first plan joins and a re-plan joins
+    /// nothing.
+    /// </summary>
+    [Fact]
+    public void Replan_NeverStartsBackAlongTheFollowersOwnEdge()
+    {
+        if (KoakFollowGeometry.LoadLayout(output) is not { } layout)
+        {
+            return;
+        }
+
+        List<GroundNode> chain = KoakFollowGeometry.BChain(layout);
+        AircraftState lead = KoakFollowGeometry.Spawn(
+            "N1LED",
+            "C172",
+            KoakFollowGeometry.Between(chain[1].Position, chain[2].Position, 0.5),
+            KoakFollowGeometry.Facing(chain[1], chain[2])
+        );
+        AircraftState follower = KoakFollowGeometry.Spawn(
+            "N2FOL",
+            "C172",
+            KoakFollowGeometry.Between(chain[4].Position, chain[5].Position, 0.5),
+            KoakFollowGeometry.Facing(chain[4], chain[5])
+        );
+        follower.Ground.TaxiEdgeTrail.Record(KoakFollowGeometry.EdgeBetween(chain[3], chain[4]));
+        follower.Ground.TaxiEdgeTrail.Record(KoakFollowGeometry.EdgeBetween(chain[4], chain[5]));
+
+        FollowRoutePlan.Joinable joinable = Assert.IsType<FollowRoutePlan.Joinable>(FollowRoutePlanner.Replan(layout, follower, lead));
+        List<(int From, int To)> moves =
+        [
+            .. joinable.PathToMerge.Segments.Select(s => (s.FromNodeId, s.ToNodeId)),
+            .. joinable.LeadPathFromMerge.Select(e => (e.FromNodeId, e.ToNodeId)),
+        ];
+        output.WriteLine($"re-plan: {string.Join(" ", moves.Select(m => $"#{m.From}>#{m.To}"))}");
+        (int From, int To) leaving = Assert.Single(moves.Where(m => m.From == chain[5].Id).Take(1));
+        Assert.NotEqual(chain[4].Id, leaving.To);
+
+        GroundEdge stub = layout
+            .Edges.Where(e => !e.IsRamp && !e.IsRunwayCenterline && ((e.Nodes[0].Edges.Count == 1) || (e.Nodes[1].Edges.Count == 1)))
+            .Where(e => (e.DistanceNm * GeoMath.FeetPerNm) >= 100.0)
+            .OrderBy(e => GeoMath.DistanceNm(e.Nodes[0].Position, lead.Position))
+            .First();
+        GroundNode deadEnd = stub.Nodes[0].Edges.Count == 1 ? stub.Nodes[0] : stub.Nodes[1];
+        GroundNode mouth = stub.OtherNode(deadEnd);
+        AircraftState stuck = KoakFollowGeometry.Spawn(
+            "N3FOL",
+            "C172",
+            KoakFollowGeometry.Between(mouth.Position, deadEnd.Position, 0.5),
+            KoakFollowGeometry.Facing(mouth, deadEnd)
+        );
+        stuck.Ground.TaxiEdgeTrail.Record(stub);
+        output.WriteLine($"stub #{mouth.Id}>#{deadEnd.Id} ({stub.TaxiwayName})");
+        Assert.IsType<FollowRoutePlan.Joinable>(FollowRoutePlanner.Plan(layout, stuck, lead));
+        Assert.IsType<FollowRoutePlan.NoPath>(FollowRoutePlanner.Replan(layout, stuck, lead));
     }
 
     /// <summary>A follower standing on an edge of the lead's remaining route, ahead of the lead, is ahead of it: no follow route.</summary>

@@ -146,6 +146,10 @@ public static class TaxiPathfinder
     /// <param name="goalNodeIds">The goal nodes; ids not in the layout are ignored.</param>
     /// <param name="category">The aircraft's performance category, for geometric admissibility and costs.</param>
     /// <param name="wakeClass">The aircraft's wake-turbulence class.</param>
+    /// <param name="forbiddenFirstMove">
+    /// A directed move <c>(fromId, toId)</c> the route never starts with (<see cref="SearchContext.ForbiddenFirstMove"/>); null
+    /// for none.
+    /// </param>
     /// <returns>
     /// The goal reached and the route to it — no segments when the start is itself a goal — or null when the goal set is
     /// empty, the start is not in the layout, or no goal is reachable.
@@ -155,7 +159,8 @@ public static class TaxiPathfinder
         int fromNodeId,
         IReadOnlySet<int> goalNodeIds,
         AircraftCategory category,
-        WakeTurbulenceData.WakeClass wakeClass
+        WakeTurbulenceData.WakeClass wakeClass,
+        (int From, int To)? forbiddenFirstMove
     )
     {
         List<GroundNode> goals = [.. goalNodeIds.Order().Where(layout.Nodes.ContainsKey).Select(id => layout.Nodes[id])];
@@ -166,7 +171,10 @@ public static class TaxiPathfinder
 
         // Compiled against goals[0] only because a node context names one destination: the goal-set search reads the goal
         // list, and re-targets the context at the goal it reached before materialising the route.
-        SearchContext ctx = BuildNodeContext(layout, fromNodeId, goals[0].Id, RoutePreference.FewestTurns, null, category, wakeClass);
+        SearchContext ctx = BuildNodeContext(layout, fromNodeId, goals[0].Id, RoutePreference.FewestTurns, null, category, wakeClass) with
+        {
+            ForbiddenFirstMove = forbiddenFirstMove,
+        };
         (GoalRoute? route, PathfindingFailure? _) = RunWithAvoidance(ctx, c => AutoRouter.RunToGoals(c, goals));
         return route;
     }

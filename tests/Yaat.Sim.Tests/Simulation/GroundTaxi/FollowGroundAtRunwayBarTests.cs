@@ -1,11 +1,15 @@
+using System.Text.Json;
+using Microsoft.Extensions.Logging;
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Pilot;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
+using Yaat.Sim.Soak;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation.GroundTaxi;
@@ -437,6 +441,642 @@ public class FollowGroundAtRunwayBarTests(ITestOutputHelper output)
         }
 
         output.WriteLine($"after {SnapshotCompareSeconds}s: {follower.Phases?.CurrentPhase?.Name} at {follower.Position}");
+    }
+
+    /// <summary>
+    /// A follow armed at the 1R bar whose leader is re-routed before the release onto a route along F1 through the follower's
+    /// own position: on <c>CROSS 1R</c> the follower crosses, its follow plans for the first time, finds itself ahead of the
+    /// leader on the leader's new route, and holds in position for good, logging once that its route is lost.
+    /// </summary>
+    [Fact]
+    public void FollowGArmedAtOneRightBar_LeaderReroutedThroughTheFollower_HoldsAndLogsRouteLost()
+    {
+        if (Stage(TaxiToOneRightBar, "1R") is not { } staged)
+        {
+            return;
+        }
+
+        (SfoGround ground, AircraftState follower, AircraftState leader) = staged;
+        var tap = new CapturingSimLogProvider(LogLevel.Information, capacity: 500);
+        SimLogBuilder.CreateForTest(output).EnableCategory("FollowingPhase", LogLevel.Information).CaptureInto(tap).InitializeSimLog();
+        AssertSent(ground, Follower, $"FOLLOWG {Leader}");
+        AssertRerouted(ground, leader, follower, ["TAXI L F F1 A", "TAXI F F1 A", "TAXI A F1 F"]);
+        AssertSent(ground, Follower, "CROSS 1R");
+
+        int followingAt = SfoGroundHarness.TickUntil(ground.Engine, () => follower.Phases?.CurrentPhase is FollowingPhase, CrossBudgetSeconds, null);
+        Assert.True(followingAt > 0, $"the armed follow never started within {CrossBudgetSeconds}s of CROSS: {follower.Phases?.CurrentPhase?.Name}");
+        SfoGroundHarness.TickUntil(ground.Engine, () => follower.GroundSpeed < SfoGroundHarness.StationarySpeedKts, CrossBudgetSeconds, null);
+        for (int second = 1; second <= HeldSeconds; second++)
+        {
+            ground.Engine.TickOneSecond();
+        }
+
+        FollowingPhase follow = Assert.IsType<FollowingPhase>(follower.Phases?.CurrentPhase);
+        output.WriteLine($"following at t={followingAt}s; now gs={follower.GroundSpeed:F1} unjoinable={follow.IsUnjoinable}");
+        Assert.True(follow.IsUnjoinable, "the follow ahead of its re-routed leader did not hold for good");
+        Assert.Null(follow.FollowRoute);
+        Assert.True(follower.GroundSpeed < SfoGroundHarness.StationarySpeedKts, $"the follower is still rolling at {follower.GroundSpeed:F1} kt");
+        AssertStoppedClearPastOneRight(ground, follower);
+        Assert.Single(
+            tap.Drain(),
+            r =>
+                (r.Level == LogLevel.Information)
+                && r.Message.Contains(Follower, StringComparison.Ordinal)
+                && r.Message.Contains("route lost", StringComparison.Ordinal)
+        );
+    }
+
+    /// <summary>
+    /// A follower rolling along a straight taxiway edge past 1R on its follow route loses that route when its leader is re-routed
+    /// along F1 through it: it keeps the route and brakes to rest along it, its centre never more than
+    /// <see cref="LostRouteOffsetFt"/> off the route's centreline, and drops the route once at rest.
+    /// </summary>
+    [Fact]
+    public void Following_RouteLostOnAStraight_BrakesAlongTheRouteToRest()
+    {
+        if (StageLostRoute(onFillet: false) is { } lost)
+        {
+            AssertBrakesAlongTheLostRouteToRest(lost);
+        }
+    }
+
+    /// <summary>
+    /// A follower partway round a fillet arc on its follow route loses that route when its leader is re-routed along F1 through
+    /// it: it brakes to rest round the fillet's curve, its centre never more than <see cref="LostRouteOffsetFt"/> off it, rather
+    /// than rolling on along its heading, and drops the route once at rest.
+    /// </summary>
+    [Fact]
+    public void Following_RouteLostMidFillet_BrakesRoundTheFilletToRest()
+    {
+        if (StageLostRoute(onFillet: true) is { } lost)
+        {
+            AssertBrakesAlongTheLostRouteToRest(lost);
+        }
+    }
+
+    /// <summary>
+    /// A follower on 1R's pavement, crossing it on its follow route under <c>CROSS 1L 1R</c>, loses that route when its leader is
+    /// re-routed along F1 through it: its clearing route takes over the same tick rather than braking along the lost route, and
+    /// it stops clear past the 1R hold line, never stopped on the runway.
+    /// </summary>
+    [Fact]
+    public void Following_RouteLostOnARunway_ClearsPastTheHoldLine()
+    {
+        if (Stage(TaxiToOneLeftBar, "1L") is not { } staged)
+        {
+            return;
+        }
+
+        (SfoGround ground, AircraftState follower, AircraftState leader) = staged;
+        RunwayInfo runway1R = SfoGroundHarness.Runway("1R");
+        AssertSent(ground, Leader, "HOLD");
+        AssertSent(ground, Follower, $"FOLLOWG {Leader}; CROSS 1L 1R");
+        int onRunwayAt = SfoGroundHarness.TickUntil(
+            ground.Engine,
+            () =>
+                (follower.Phases?.CurrentPhase is FollowingPhase { FollowRoute.IsComplete: false })
+                && RunwayOccupancy.IsOnPavement(follower, runway1R)
+                && (follower.GroundSpeed > SfoGroundHarness.StationarySpeedKts),
+            CrossBudgetSeconds,
+            second => LogFollow(second, follower, leader)
+        );
+        Assert.True(onRunwayAt > 0, $"the follower never rolled on 1R on its follow route within {CrossBudgetSeconds}s of CROSS");
+        FollowingPhase follow = Assert.IsType<FollowingPhase>(follower.Phases?.CurrentPhase);
+
+        RerouteThroughTheFollower(ground, leader, follower);
+        ground.Engine.TickOneSecond();
+        LogFollow(onRunwayAt + 1, follower, leader);
+        Assert.Null(follow.FollowRoute);
+        Assert.False(follow.IsBrakingLostRoute, "the follower on 1R braked along its lost route rather than clearing the runway");
+        Assert.NotNull(follow.ClearingRoute);
+
+        int restAt = SfoGroundHarness.TickUntil(
+            ground.Engine,
+            () => (follow.ClearingRoute is null) && (follower.GroundSpeed < SfoGroundHarness.StationarySpeedKts),
+            CrossBudgetSeconds,
+            second =>
+            {
+                LogFollow(second, follower, leader);
+                RunwayInfo? under = RunwayOccupancy
+                    .AirportRunways(ground.Layout.AirportId)
+                    .FirstOrDefault(r => RunwayOccupancy.IsOnPavement(follower, r));
+                Assert.False(
+                    (under is not null) && (follower.GroundSpeed < SfoGroundHarness.StationarySpeedKts),
+                    $"+{second}s: stopped on runway {under?.Id} pavement"
+                );
+            }
+        );
+        Assert.True(restAt > 0, $"the follower never came to rest clear of 1R within {CrossBudgetSeconds}s of losing its route");
+        AssertStoppedClearPastOneRight(ground, follower);
+    }
+
+    /// <summary>
+    /// A follower crossing 1L and 1R under <c>CROSS 1L 1R</c> loses its follow route between the two runways, where braking at
+    /// the taxi rate would stop it inside 1R's hold line but the firm rate stops it short: it brakes at the firm rate, harder
+    /// than the taxi rate, and comes to rest short of 1R, no part of it ever at rest inside a runway's hold line.
+    /// </summary>
+    [Fact]
+    public void Following_RouteLostShortOfACrossedBar_StopsShortAtTheFirmRate()
+    {
+        if (StageLostApproachingOneRight(firmStopMakesTheLine: true) is not { } staged)
+        {
+            return;
+        }
+
+        (SfoGround ground, AircraftState follower, AircraftState leader) = staged;
+        RunwayInfo runway1R = SfoGroundHarness.Runway("1R");
+        double worstDropKts = 0.0;
+        double lastKts = follower.GroundSpeed;
+        int restAt = SfoGroundHarness.TickUntil(
+            ground.Engine,
+            () => follower.GroundSpeed < RestKts,
+            HeldSeconds,
+            second =>
+            {
+                LogFollow(second, follower, leader);
+                worstDropKts = Math.Max(worstDropKts, lastKts - follower.GroundSpeed);
+                lastKts = follower.GroundSpeed;
+                AssertNeverAtRestInsideAHoldLine(ground, follower, second);
+                Assert.False(RunwayOccupancy.IsOnPavement(follower, runway1R), $"+{second}s: the follower rolled onto 1R");
+            }
+        );
+
+        double taxiRate = CategoryPerformance.TaxiDecelRate(AircraftCategory.Jet);
+        output.WriteLine($"rest at +{restAt}s; hardest one-second speed drop {worstDropKts:F2} kt (taxi rate {taxiRate:F1} kt/s)");
+        Assert.True(restAt > 0, $"the follower is still rolling at {follower.GroundSpeed:F1} kt {HeldSeconds}s after losing its route");
+        Assert.True(worstDropKts > taxiRate, $"the follower braked no harder than the taxi rate ({worstDropKts:F2} kt in a second)");
+        Assert.Null(FollowingPhase.RunwayInsideHoldLine(follower, ground.Layout));
+    }
+
+    /// <summary>
+    /// A follower crossing 1L and 1R under <c>CROSS 1L 1R</c> loses its follow route between the two runways too close to 1R's
+    /// hold line for even the firm rate to stop it short: it carries on across 1R under its crossing clearance and comes to rest
+    /// clear past 1R's far hold line, no part of it ever at rest inside a runway's hold line.
+    /// </summary>
+    [Fact]
+    public void Following_RouteLostTooCloseToACrossedBar_CrossesAndClearsBeyond()
+    {
+        if (StageLostApproachingOneRight(firmStopMakesTheLine: false) is not { } staged)
+        {
+            return;
+        }
+
+        (SfoGround ground, AircraftState follower, AircraftState leader) = staged;
+        FollowingPhase follow = Assert.IsType<FollowingPhase>(follower.Phases?.CurrentPhase);
+        int restAt = SfoGroundHarness.TickUntil(
+            ground.Engine,
+            () => (follow.ClearingRoute is null) && !follow.IsBrakingLostRoute && (follower.GroundSpeed < SfoGroundHarness.StationarySpeedKts),
+            CrossBudgetSeconds,
+            second =>
+            {
+                LogFollow(second, follower, leader);
+                AssertNeverAtRestInsideAHoldLine(ground, follower, second);
+            }
+        );
+        Assert.True(restAt > 0, $"the follower never came to rest within {CrossBudgetSeconds}s of losing its route");
+        AssertStoppedClearPastOneRight(ground, follower);
+    }
+
+    /// <summary>
+    /// A follower rolling on its follow route past 1R whose leader is re-routed onto a path that joins behind it, where the
+    /// follower has already been: it never turns about on its own edge — while it moves on that edge, its heading
+    /// stays within 90° of the edge's bearing, and its follow route never drives the edge back — and it ends at rest, or on a
+    /// route that leads on ahead of it. Off the edge, a forward turn onto another taxiway may swing it further.
+    /// </summary>
+    [Fact]
+    public void Following_LeadReroutedBehindTheFollower_NeverReversesOnItsOwnEdge()
+    {
+        if (StageRolling(onFillet: false) is not { } rolling)
+        {
+            return;
+        }
+
+        (SfoGround ground, AircraftState follower, AircraftState leader, _, TaxiRoute route) = rolling;
+        DirectionalEdge incoming = route.Segments[route.CurrentSegmentIndex].Edge;
+        double incomingDeg = incoming.ArrivalBearing;
+        RerouteBehindTheFollower(ground, leader, follower);
+        double worstDeg = 0.0;
+        for (int second = 1; second <= HeldSeconds; second++)
+        {
+            ground.Engine.TickOneSecond();
+            LogFollow(second, follower, leader);
+            double offDeg = Math.Abs(GeoMath.SignedBearingDifference(follower.TrueHeading.Degrees, incomingDeg));
+            bool onIncoming =
+                GeoMath.DistanceToSegmentFt(follower.Position, incoming.FromNode.Position, incoming.ToNode.Position) <= OnIncomingEdgeFt;
+            output.WriteLine($"   heading {follower.TrueHeading.Degrees:F0}° ({offDeg:F0}° off the incoming edge), on it: {onIncoming}");
+            if (onIncoming && (follower.GroundSpeed >= SfoGroundHarness.StationarySpeedKts))
+            {
+                worstDeg = Math.Max(worstDeg, offDeg);
+            }
+
+            TaxiRouteSegment? driving = (follower.Phases?.CurrentPhase as FollowingPhase)?.FollowRoute?.CurrentSegment;
+            Assert.False(
+                (driving is not null) && (driving.FromNodeId == incoming.ToNodeId) && (driving.ToNodeId == incoming.FromNodeId),
+                $"+{second}s: the follow route drives its incoming edge #{incoming.FromNodeId}-#{incoming.ToNodeId} back"
+            );
+        }
+
+        output.WriteLine($"heading off the incoming edge's {incomingDeg:F0}° by at most {worstDeg:F0}° while moving on it");
+        Assert.True(worstDeg <= 90.0, $"the follower turned about: its heading swung {worstDeg:F0}° off its incoming edge while moving on it");
+        bool atRest = follower.GroundSpeed < SfoGroundHarness.StationarySpeedKts;
+        TaxiRouteSegment? ahead = (follower.Phases?.CurrentPhase as FollowingPhase)?.FollowRoute?.CurrentSegment;
+        bool forward =
+            (ahead is not null) && (Math.Abs(GeoMath.SignedBearingDifference(follower.TrueHeading.Degrees, ahead.Edge.ArrivalBearing)) <= 90.0);
+        Assert.True(atRest || forward, $"the follower ends rolling at {follower.GroundSpeed:F1} kt with no route ahead of it");
+    }
+
+    /// <summary>How far (ft) off its incoming edge's line a follower still counts as on that edge.</summary>
+    private const double OnIncomingEdgeFt = 10.0;
+
+    /// <summary>
+    /// Clears <paramref name="leader"/> on the first re-route it accepts whose re-planned follow joins its path at a node behind
+    /// <paramref name="follower"/> (more than 90° off its heading), where the follower has already been.
+    /// </summary>
+    private void RerouteBehindTheFollower(SfoGround ground, AircraftState leader, AircraftState follower)
+    {
+        string[] taxis = ["TAXI F A", "TAXI L A", "TAXI F B", "TAXI F B A", "TAXI F Z", "TAXI F L A", "TAXI F C", "TAXI F A 28R"];
+        foreach (string taxi in taxis)
+        {
+            CommandResult result = ground.Engine.SendCommand(Leader, taxi);
+            FollowRoutePlan plan = FollowRoutePlanner.Replan(ground.Layout, follower, leader);
+            bool behind =
+                (plan is FollowRoutePlan.Joinable joinable)
+                && ground.Layout.Nodes.TryGetValue(joinable.MergeNode, out GroundNode? merge)
+                && (
+                    Math.Abs(GeoMath.SignedBearingDifference(follower.TrueHeading.Degrees, GeoMath.BearingTo(follower.Position, merge.Position)))
+                    > 90.0
+                );
+            output.WriteLine(
+                $"{Leader} <- '{taxi}' -> success={result.Success} msg={result.Message} route={leader.Ground.AssignedTaxiRoute?.ToSummary()} "
+                    + $"replan={plan.GetType().Name} mergeBehind={behind}"
+            );
+            if (result.Success && behind)
+            {
+                return;
+            }
+        }
+
+        Assert.Fail($"none of [{string.Join(", ", taxis)}] put {Leader}'s path behind {Follower}");
+    }
+
+    /// <summary>
+    /// Stages <see cref="StageRolling"/>'s crossing from the 1L bar under <c>CROSS 1L 1R</c> instead, and ticks until the follower
+    /// rolls on its follow route between 1L and 1R, inside neither's hold line, where braking at the taxi rate would carry its
+    /// nose inside 1R's hold line: with <paramref name="firmStopMakesTheLine"/> where the firm rate stops it short, else where
+    /// even the firm rate would not. Then re-routes the leader along F1 through it, losing the route.
+    /// </summary>
+    private (SfoGround Ground, AircraftState Follower, AircraftState Leader)? StageLostApproachingOneRight(bool firmStopMakesTheLine)
+    {
+        if (Stage(TaxiToOneLeftBar, "1L") is not { } staged)
+        {
+            return null;
+        }
+
+        (SfoGround ground, AircraftState follower, AircraftState leader) = staged;
+        RunwayInfo runway1R = SfoGroundHarness.Runway("1R");
+        AssertSent(ground, Leader, "HOLD");
+        AssertSent(ground, Follower, $"FOLLOWG {Leader}; CROSS 1L 1R");
+        int lostAt = SfoGroundHarness.TickUntil(
+            ground.Engine,
+            () => IsLosingTheLineAt(ground.Layout, runway1R, follower, firmStopMakesTheLine),
+            CrossBudgetSeconds,
+            second =>
+            {
+                LogFollow(second, follower, leader);
+                output.WriteLine(
+                    $"   nose+taxi stop inside 1R: {NoseStopInside(ground.Layout, runway1R, follower, TaxiStopFt(follower))} "
+                        + $"nose+firm stop inside 1R: {NoseStopInside(ground.Layout, runway1R, follower, FirmStopFt(follower))}"
+                );
+            }
+        );
+        string where = firmStopMakesTheLine ? "the firm rate stops it short of" : "even the firm rate carries it inside";
+        Assert.True(lostAt > 0, $"the follower never rolled to where {where} 1R's hold line within {CrossBudgetSeconds}s of CROSS");
+        RerouteThroughTheFollower(ground, leader, follower);
+        return (ground, follower, leader);
+    }
+
+    /// <summary>
+    /// Whether <paramref name="follower"/> rolls at <see cref="LostRouteMinSpeedKts"/> or more on its follow route, inside no
+    /// runway's hold line, with its taxi-rate stop carrying its nose inside <paramref name="runway"/>'s hold line, and its firm-rate
+    /// stop short of it (<paramref name="firmStopMakesTheLine"/>) or, by <see cref="CrossedBarMarginFt"/> or more, inside it.
+    /// </summary>
+    private static bool IsLosingTheLineAt(AirportGroundLayout layout, RunwayInfo runway, AircraftState follower, bool firmStopMakesTheLine)
+    {
+        if (
+            (follower.Phases?.CurrentPhase is not FollowingPhase { FollowRoute.IsComplete: false })
+            || (follower.GroundSpeed < LostRouteMinSpeedKts)
+            || (FollowingPhase.RunwayInsideHoldLine(follower, layout) is not null)
+            || !NoseStopInside(layout, runway, follower, TaxiStopFt(follower))
+        )
+        {
+            return false;
+        }
+
+        return firmStopMakesTheLine
+            ? !NoseStopInside(layout, runway, follower, FirmStopFt(follower) + CrossedBarMarginFt)
+            : NoseStopInside(layout, runway, follower, FirmStopFt(follower) - CrossedBarMarginFt);
+    }
+
+    /// <summary>How far (ft) clear of the hold line a staged firm-rate stop falls, either side, so the phase's own reckoning agrees.</summary>
+    private const double CrossedBarMarginFt = 3.0;
+
+    /// <summary>
+    /// Whether the follower's nose, carried <paramref name="aheadFt"/> along its heading, is inside <paramref name="runway"/>'s hold line.
+    /// </summary>
+    private static bool NoseStopInside(AirportGroundLayout layout, RunwayInfo runway, AircraftState follower, double aheadFt)
+    {
+        double noseAheadFt = (AircraftLength.ResolveFt(follower.AircraftType) / 2.0) + aheadFt;
+        LatLon point = GeoMath.ProjectPoint(follower.Position, follower.TrueHeading, noseAheadFt / GeoMath.FeetPerNm);
+        return FollowingPhase.IsInsideHoldLine(layout, runway, point);
+    }
+
+    /// <summary>How far (ft) the follower rolls braking to rest at the jet taxi rate.</summary>
+    private static double TaxiStopFt(AircraftState follower) => StopFt(follower, CategoryPerformance.TaxiDecelRate(AircraftCategory.Jet));
+
+    /// <summary>How far (ft) the follower rolls braking to rest at the jet firm rate.</summary>
+    private static double FirmStopFt(AircraftState follower) => StopFt(follower, CategoryPerformance.ExpediteExitDecelRate(AircraftCategory.Jet));
+
+    private static double StopFt(AircraftState follower, double rateKtsPerSec) =>
+        (follower.GroundSpeed * follower.GroundSpeed) / (2.0 * rateKtsPerSec) * GeoMath.FeetPerNm / 3600.0;
+
+    /// <summary>Fails when <paramref name="follower"/> is at rest with any part — nose, centre or tail — inside a runway's hold line.</summary>
+    private static void AssertNeverAtRestInsideAHoldLine(SfoGround ground, AircraftState follower, int second)
+    {
+        RunwayInfo? inside = FollowingPhase.RunwayInsideHoldLine(follower, ground.Layout);
+        Assert.False(
+            (inside is not null) && (follower.GroundSpeed < SfoGroundHarness.StationarySpeedKts),
+            $"+{second}s: at rest inside runway {inside?.Id}'s hold line"
+        );
+    }
+
+    /// <summary>
+    /// A follower braking along the follow route its leader's re-route lost, snapshotted through the recording JSON and restored
+    /// into a second engine, keeps braking along it: ticked side by side, the two stand at the same position every second, and
+    /// both drop the route once at rest.
+    /// </summary>
+    [Fact]
+    public void Following_SnapshotWhileBrakingAlongTheLostRoute_StopsAsTheOriginal()
+    {
+        if (StageLostRoute(onFillet: false) is not { } lost)
+        {
+            return;
+        }
+
+        string json = JsonSerializer.Serialize(lost.Ground.Engine.CaptureSnapshot(), RecordingJsonOptions.Default);
+        Assert.Contains("BrakingLostRoute", json, StringComparison.OrdinalIgnoreCase);
+        SfoGround restoredGround = Assert.IsType<SfoGround>(SfoGroundHarness.Build(output, autoCross: false));
+        restoredGround.Engine.RestoreFromSnapshot(
+            Assert.IsType<StateSnapshotDto>(JsonSerializer.Deserialize<StateSnapshotDto>(json, RecordingJsonOptions.Default))
+        );
+        AircraftState restored = Assert.IsType<AircraftState>(restoredGround.Engine.FindAircraft(Follower));
+        FollowingPhase restoredFollow = Assert.IsType<FollowingPhase>(restored.Phases?.CurrentPhase);
+        Assert.True(restoredFollow.IsBrakingLostRoute, "the restored follow forgot it was braking along its lost route");
+        Assert.NotNull(restoredFollow.FollowRoute);
+
+        for (int second = 1; second <= HeldSeconds; second++)
+        {
+            lost.Ground.Engine.TickOneSecond();
+            restoredGround.Engine.TickOneSecond();
+            Assert.Equal(lost.Follower.Phases?.CurrentPhase?.Name, restored.Phases?.CurrentPhase?.Name);
+            Assert.Equal(lost.Follower.Position, restored.Position);
+        }
+
+        output.WriteLine($"after {HeldSeconds}s: original at {lost.Follower.Position}, restored at {restored.Position}");
+        Assert.True(restored.GroundSpeed < RestKts, $"the restored follower is still rolling at {restored.GroundSpeed:F1} kt");
+        Assert.False(restoredFollow.IsBrakingLostRoute, "the restored follower at rest still holds the route it lost");
+    }
+
+    /// <summary>
+    /// A follow not braking along a lost route writes no <c>BrakingLostRoute</c> into its snapshot, so its phase JSON is the
+    /// same as before the field existed.
+    /// </summary>
+    [Fact]
+    public void Following_SnapshotWhileNotBraking_OmitsBrakingLostRoute()
+    {
+        if (StageRolling(onFillet: false) is not { } rolling)
+        {
+            return;
+        }
+
+        FollowingPhase follow = rolling.Follow;
+        Assert.False(follow.IsBrakingLostRoute);
+        string json = JsonSerializer.Serialize(Assert.IsType<FollowingPhaseDto>(follow.ToSnapshot()), RecordingJsonOptions.Default);
+        output.WriteLine(json.Length > 400 ? json[..400] : json);
+        Assert.DoesNotContain("BrakingLostRoute", json, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>How far (ft) off a lost follow route's centreline a follower braking along it may stand.</summary>
+    private const double LostRouteOffsetFt = 2.0;
+
+    /// <summary>The slowest a follower is rolling (kts) when its route is lost, so it is still braking a tick later.</summary>
+    private const double LostRouteMinSpeedKts = 8.0;
+
+    /// <summary>How far (ft) from both ends of a straight edge a follower must be to stand on the edge itself, not a node.</summary>
+    private const double StraightMarginFt = 10.0;
+
+    /// <summary>Speed (kts) below which a follower is at rest.</summary>
+    private const double RestKts = 0.05;
+
+    /// <summary>The follower, its follow and the follow route a lead re-route lost, with the follower braking along it.</summary>
+    private sealed record LostRoute(SfoGround Ground, AircraftState Follower, FollowingPhase Follow, TaxiRoute Route);
+
+    /// <summary>
+    /// Arms a follow at the 1R bar and crosses 1R, ticks until the follower rolls on its follow route clear of every runway's
+    /// hold line — along a straight edge, or with <paramref name="onFillet"/> partway round a fillet arc — then re-routes the
+    /// leader along F1 through it and ticks once: the follower is braking along the route it lost.
+    /// </summary>
+    private LostRoute? StageLostRoute(bool onFillet)
+    {
+        if (StageRolling(onFillet) is not { } rolling)
+        {
+            return null;
+        }
+
+        (SfoGround ground, AircraftState follower, AircraftState leader, FollowingPhase follow, TaxiRoute route) = rolling;
+        RerouteThroughTheFollower(ground, leader, follower);
+        ground.Engine.TickOneSecond();
+        LogFollow(0, follower, leader);
+        Assert.True(follow.IsBrakingLostRoute, "the follower did not brake along the follow route its leader's re-route lost");
+        Assert.Same(route, follow.FollowRoute);
+        return new LostRoute(ground, follower, follow, route);
+    }
+
+    /// <summary>
+    /// Arms a follow at the 1R bar behind a held leader and crosses 1R, then ticks until the follower rolls on its follow route
+    /// clear of every runway's hold line — along a straight edge, or with <paramref name="onFillet"/> partway round a fillet arc.
+    /// </summary>
+    private (SfoGround Ground, AircraftState Follower, AircraftState Leader, FollowingPhase Follow, TaxiRoute Route)? StageRolling(bool onFillet)
+    {
+        if (Stage(TaxiToOneRightBar, "1R") is not { } staged)
+        {
+            return null;
+        }
+
+        (SfoGround ground, AircraftState follower, AircraftState leader) = staged;
+        AssertSent(ground, Leader, "HOLD");
+        AssertSent(ground, Follower, $"FOLLOWG {Leader}");
+        AssertSent(ground, Follower, "CROSS 1R");
+        int rollingAt = SfoGroundHarness.TickUntil(
+            ground.Engine,
+            () => IsRollingOn(ground.Layout, follower, onFillet),
+            CrossBudgetSeconds,
+            second => LogFollow(second, follower, leader)
+        );
+        string where = onFillet ? "partway round a fillet" : "along a straight edge";
+        Assert.True(rollingAt > 0, $"the follower never rolled {where} clear of every hold line within {CrossBudgetSeconds}s of CROSS");
+        FollowingPhase follow = Assert.IsType<FollowingPhase>(follower.Phases?.CurrentPhase);
+        TaxiRoute route = Assert.IsType<TaxiRoute>(follow.FollowRoute);
+        return (ground, follower, leader, follow, route);
+    }
+
+    /// <summary>
+    /// Whether <paramref name="follower"/> rolls at <see cref="LostRouteMinSpeedKts"/> or more on its follow route short of the
+    /// merge, inside no runway's hold line, <see cref="StraightMarginFt"/> or more from both ends of a straight edge, or with
+    /// <paramref name="onFillet"/> a quarter or more of the way round a fillet arc from both its ends.
+    /// </summary>
+    private static bool IsRollingOn(AirportGroundLayout layout, AircraftState follower, bool onFillet)
+    {
+        if (
+            (follower.Phases?.CurrentPhase is not FollowingPhase { FollowRoute: { IsComplete: false } route } follow)
+            || (route.CurrentSegmentIndex >= follow.MergeSegmentIndex)
+            || (follower.GroundSpeed < LostRouteMinSpeedKts)
+            || (FollowingPhase.RunwayInsideHoldLine(follower, layout) is not null)
+        )
+        {
+            return false;
+        }
+
+        DirectionalEdge edge = route.Segments[route.CurrentSegmentIndex].Edge;
+        double fromFt = GeoMath.DistanceNm(follower.Position, edge.FromNode.Position) * GeoMath.FeetPerNm;
+        double toFt = GeoMath.DistanceNm(follower.Position, edge.ToNode.Position) * GeoMath.FeetPerNm;
+        double edgeFt = edge.DistanceNm * GeoMath.FeetPerNm;
+        return onFillet
+            ? (edge.Edge is GroundArc) && (Math.Min(fromFt, toFt) >= edgeFt / 4.0)
+            : (edge.Edge is GroundEdge) && (Math.Min(fromFt, toFt) >= StraightMarginFt);
+    }
+
+    /// <summary>
+    /// Ticks <paramref name="lost"/>'s follower to rest, asserting its centre stays within <see cref="LostRouteOffsetFt"/> of the
+    /// lost route's centreline every second, and that it drops the route once at rest.
+    /// </summary>
+    private void AssertBrakesAlongTheLostRouteToRest(LostRoute lost)
+    {
+        AircraftState follower = lost.Follower;
+        double worstFt = FollowGroundOnGraphTests.OffRouteFt(lost.Route, follower.Position);
+        int restAt = SfoGroundHarness.TickUntil(
+            lost.Ground.Engine,
+            () => follower.GroundSpeed < RestKts,
+            HeldSeconds,
+            second =>
+            {
+                double offFt = FollowGroundOnGraphTests.OffRouteFt(lost.Route, follower.Position);
+                worstFt = Math.Max(worstFt, offFt);
+                output.WriteLine($"+{second}s gs={follower.GroundSpeed:F2} off route {offFt:F2} ft braking={lost.Follow.IsBrakingLostRoute}");
+            }
+        );
+
+        Assert.True(restAt > 0, $"the follower is still rolling at {follower.GroundSpeed:F1} kt {HeldSeconds}s after losing its route");
+        Assert.True(worstFt <= LostRouteOffsetFt, $"the follower's centre went {worstFt:F2} ft off the route it lost");
+        Assert.False(lost.Follow.IsBrakingLostRoute, "the follower at rest still holds the route it lost");
+        Assert.Null(lost.Follow.FollowRoute);
+    }
+
+    /// <summary>
+    /// Clears <paramref name="leader"/> on the first re-route along F1 it accepts that leaves <paramref name="follower"/> nothing to
+    /// join: a re-plan of the follow finds it ahead of the leader on its new route, or no taxi path to it.
+    /// </summary>
+    private void RerouteThroughTheFollower(SfoGround ground, AircraftState leader, AircraftState follower)
+    {
+        string[] taxis = ["TAXI L F F1 A", "TAXI F F1 A", "TAXI A F1 F"];
+        foreach (string taxi in taxis)
+        {
+            CommandResult result = ground.Engine.SendCommand(Leader, taxi);
+            FollowRoutePlan plan = FollowRoutePlanner.Replan(ground.Layout, follower, leader);
+            output.WriteLine(
+                $"{Leader} <- '{taxi}' -> success={result.Success} msg={result.Message} route={leader.Ground.AssignedTaxiRoute?.ToSummary()} "
+                    + $"replan={plan.GetType().Name}"
+            );
+            if (result.Success && (plan is FollowRoutePlan.FollowerAhead or FollowRoutePlan.NoPath))
+            {
+                return;
+            }
+        }
+
+        Assert.Fail($"none of [{string.Join(", ", taxis)}] left {Follower} nothing to join on {Leader}'s new route");
+    }
+
+    /// <summary>One line of the follower's follow state and the leader's phase and speed.</summary>
+    private void LogFollow(int second, AircraftState follower, AircraftState leader)
+    {
+        var follow = follower.Phases?.CurrentPhase as FollowingPhase;
+        string segment = "-";
+        if (follow?.FollowRoute is { IsComplete: false } route)
+        {
+            DirectionalEdge edge = route.Segments[route.CurrentSegmentIndex].Edge;
+            double fromFt = GeoMath.DistanceNm(follower.Position, edge.FromNode.Position) * GeoMath.FeetPerNm;
+            double toFt = GeoMath.DistanceNm(follower.Position, edge.ToNode.Position) * GeoMath.FeetPerNm;
+            segment =
+                $"{route.CurrentSegmentIndex}/{route.Segments.Count} {edge.Edge.GetType().Name} {fromFt:F0}ft in, {toFt:F0}ft to go "
+                + $"merge={follow.MergeSegmentIndex} givingWay={follow.IsGivingWay} route={route.ToSummary()}";
+        }
+
+        output.WriteLine(
+            $"t={second} {follower.Phases?.CurrentPhase?.Name} gs={follower.GroundSpeed:F1} seg={segment} braking={follow?.IsBrakingLostRoute} "
+                + $"clearing={follow?.ClearingRoute is not null} {Leader} {leader.Phases?.CurrentPhase?.Name} gs={leader.GroundSpeed:F1}"
+        );
+    }
+
+    /// <summary>
+    /// The follower stopped with its tail and both wingtips past the hold line of the 1R bar nearest it on its side of 1R
+    /// (<see cref="FollowingPhase.IsClearPastBar"/>), and no part of it — nose, centre or tail — inside any runway's hold line, 1L's
+    /// included (<see cref="FollowingPhase.RunwayInsideHoldLine"/>).
+    /// </summary>
+    private void AssertStoppedClearPastOneRight(SfoGround ground, AircraftState follower)
+    {
+        RunwayInfo runway1R = SfoGroundHarness.Runway("1R");
+        GroundNode? bar = ground
+            .Layout.Nodes.Values.Where(n =>
+                (n.Type == GroundNodeType.RunwayHoldShort)
+                && (n.RunwayId is { } id)
+                && id.Overlaps(runway1R.Id)
+                && (RunwaySide(runway1R, n.Position) == RunwaySide(runway1R, follower.Position))
+            )
+            .MinBy(n => GeoMath.DistanceNm(n.Position, follower.Position));
+        Assert.NotNull(bar);
+        RunwayInfo? inside = FollowingPhase.RunwayInsideHoldLine(follower, ground.Layout);
+        output.WriteLine($"stopped beside 1R bar #{bar.Id}; inside the hold line of {inside?.Id.ToString() ?? "no runway"}");
+        Assert.True(FollowingPhase.IsClearPastBar(follower, runway1R, bar), $"the follower stopped short of 1R bar #{bar.Id}'s hold line");
+        Assert.Null(inside);
+    }
+
+    /// <summary>Which side of <paramref name="runway"/>'s centreline <paramref name="point"/> lies on: the sign of the cross-track.</summary>
+    private static bool RunwaySide(RunwayInfo runway, LatLon point)
+    {
+        LatLon start = new(runway.Lat1, runway.Lon1);
+        double along = GeoMath.BearingTo(start, new LatLon(runway.Lat2, runway.Lon2));
+        double toPoint = GeoMath.BearingTo(start, point);
+        return Math.Sin((toPoint - along) * Math.PI / 180.0) > 0.0;
+    }
+
+    /// <summary>
+    /// Clears <paramref name="leader"/> on the first of <paramref name="taxis"/> it accepts that puts <paramref name="follower"/>
+    /// ahead of it on its new route.
+    /// </summary>
+    private void AssertRerouted(SfoGround ground, AircraftState leader, AircraftState follower, string[] taxis)
+    {
+        foreach (string taxi in taxis)
+        {
+            CommandResult result = ground.Engine.SendCommand(Leader, taxi);
+            output.WriteLine(
+                $"{Leader} <- '{taxi}' -> success={result.Success} msg={result.Message} route={leader.Ground.AssignedTaxiRoute?.ToSummary()}"
+            );
+            if (result.Success && (FollowRoutePlanner.Plan(ground.Layout, follower, leader) is FollowRoutePlan.FollowerAhead))
+            {
+                return;
+            }
+        }
+
+        Assert.Fail($"none of [{string.Join(", ", taxis)}] put {Follower} ahead of {Leader} on its route");
     }
 
     private void AssertSent(SfoGround ground, string callsign, string command)

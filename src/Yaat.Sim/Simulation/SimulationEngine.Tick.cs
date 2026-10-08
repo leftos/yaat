@@ -1239,8 +1239,8 @@ public sealed partial class SimulationEngine
 
     /// <summary>
     /// Per-second, after physics: adds to each moving ground aircraft's <see cref="AircraftGroundOps.TaxiEdgeTrail"/> the
-    /// straight taxi edge it is on (<see cref="TaxiEdgeLocator.EdgeUnder"/>, looked for first around the trail's newest
-    /// edge), whatever its phase except a runway roll (<see cref="IsRunwayRoll"/>), and empties the trail of every airborne
+    /// straight edge it is on, a ramp connector included (<see cref="TaxiEdgeLocator.DrivenEdgeUnder"/>, looked for first around
+    /// the trail's newest edge), whatever its phase except a runway roll (<see cref="IsRunwayRoll"/>), and empties the trail of every airborne
     /// aircraft. An aircraft with no ground layout, standing still, or rolling along a runway is left as it is. A spine step
     /// (<see cref="Spine.StepId.TaxiEdgeTrail"/>) on every run kind.
     /// </summary>
@@ -1261,7 +1261,7 @@ public sealed partial class SimulationEngine
             }
 
             (int NodeA, int NodeB)? lastEdge = trail.Newest is { } newest ? (newest.NodeA, newest.NodeB) : null;
-            if (TaxiEdgeLocator.EdgeUnder(layout, ac.Position, lastEdge) is { } edge)
+            if (TaxiEdgeLocator.DrivenEdgeUnder(layout, ac.Position, lastEdge) is { } edge)
             {
                 trail.Record(edge);
             }

@@ -6,8 +6,10 @@ using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
+using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Testing;
+using Yaat.Sim.Tests.Simulation.GroundTaxi;
 
 namespace Yaat.Sim.Tests;
 
@@ -109,8 +111,11 @@ public class GroundPhaseTests
         };
     }
 
-    public GroundPhaseTests()
+    private readonly ITestOutputHelper _output;
+
+    public GroundPhaseTests(ITestOutputHelper output)
     {
+        _output = output;
         TestVnasData.EnsureInitialized();
     }
 
@@ -565,44 +570,67 @@ public class GroundPhaseTests
 
     // --- FIX 4: FollowingPhase hold-short awareness ---
 
-    [Fact(Skip = "YAAT-316 brief 3c: its synthetic layout sits on real KSFO 28L pavement; moves to a real layout")]
+    /// <summary>
+    /// How far (ft) short of SFO's east 1R bar on F1 <see cref="FollowingPhase_ApproachingHoldShort_AutoHolds"/>'s follower starts.
+    /// </summary>
+    private const double FollowHoldShortApproachFt = 150.0;
+
+    /// <summary>How far (ft) past SFO's west 1R bar on F1, between 1R and 1L, the lead in that test stands.</summary>
+    private const double FollowHoldShortLeadBeyondFt = 100.0;
+
+    /// <summary>
+    /// A follower on F1 at SFO, east of runway 1R and facing it, told <c>FOLLOWG</c> a lead standing on F1 across 1R (between 1R
+    /// and 1L): it has no crossing of its own, so its follow brakes to the 1R bar and takes the hold there — a
+    /// <see cref="HoldingShortPhase"/> at the bar as a runway crossing, the follow queued behind it — and never enters 1R.
+    /// </summary>
+    [Fact]
     public void FollowingPhase_ApproachingHoldShort_AutoHolds()
     {
-        AirportGroundLayout layout = BuildCrossingLayout();
-        AircraftState target = MakeGroundAircraft(37.623, -122.380, heading: 0);
-        target.Callsign = "LEAD01";
-
-        // Place follower just before the hold-short node (heading toward it)
-        AircraftState aircraft = MakeGroundAircraft(37.6208, -122.380, heading: 0);
-        aircraft.Phases = new PhaseList();
-        var followPhase = new FollowingPhase("LEAD01");
-        aircraft.Phases.Add(followPhase);
-        PhaseContext ctx = MakeContext(aircraft, layout, cs => cs == "LEAD01" ? target : null);
-        aircraft.Phases.Start(ctx);
-
-        bool completed = false;
-        for (int i = 0; i < 50; i++)
+        if (SfoGroundHarness.Build(_output, autoCross: false) is not { } ground)
         {
-            if (followPhase.OnTick(ctx))
-            {
-                completed = true;
-                break;
-            }
-
-            // Physics owns ground speed: the phase publishes the follow target, capped by the braking curve onto the
-            // bar it has latched, and physics integrates it. The hold is taken once the follower has braked to rest at
-            // the hold line, so the tick loop has to run both halves.
-            FlightPhysics.Update(aircraft, 1.0, cs => cs == "LEAD01" ? target : null, null, simTimeSeconds: i);
+            _output.WriteLine("SKIP: SFO layout or navdata unavailable");
+            return;
         }
 
-        Assert.True(completed, "FollowingPhase should complete when hold-short is detected");
+        List<GroundNode> bars1R = TestLayoutNodes.RunwayHoldShortsOnTaxiway(ground.Layout, "1R", "F1");
+        List<GroundNode> bars1L = TestLayoutNodes.RunwayHoldShortsOnTaxiway(ground.Layout, "1L", "F1");
+        Assert.True((bars1R.Count == 2) && (bars1L.Count > 0), $"SFO F1 has {bars1R.Count} 1R bars and {bars1L.Count} 1L bars");
+        GroundNode bar = bars1R.MaxBy(b => bars1L.Min(l => GeoMath.DistanceNm(b.Position, l.Position)))!;
+        GroundNode farBar = bars1R.Single(b => b.Id != bar.Id);
 
-        // Verify inserted phases: HoldingShortPhase + new FollowingPhase
-        List<Phase> phases = aircraft.Phases.Phases;
-        Assert.True(phases.Count >= 3, $"Expected at least 3 phases, got {phases.Count}");
-        Assert.IsType<FollowingPhase>(phases[0]);
-        Assert.IsType<HoldingShortPhase>(phases[1]);
-        Assert.IsType<FollowingPhase>(phases[2]);
+        TrueHeading beyond = TaxiCoverageRunner.TaxiwayDepartureHeading(farBar);
+        AircraftState lead = SfoGroundHarness.SpawnAt(ground, "LEAD01", "B738", (farBar, beyond), new HoldingInPositionPhase());
+        lead.Position = GeoMath.ProjectPoint(farBar.Position, beyond, FollowHoldShortLeadBeyondFt / GeoMath.FeetPerNm);
+
+        LatLon start = GeoMath.ProjectPoint(
+            bar.Position,
+            TaxiCoverageRunner.TaxiwayDepartureHeading(bar),
+            FollowHoldShortApproachFt / GeoMath.FeetPerNm
+        );
+        var towardBar = new TrueHeading(GeoMath.BearingTo(start, bar.Position));
+        AircraftState follower = SfoGroundHarness.SpawnAt(ground, "TEST001", "B738", (bar, towardBar), new HoldingInPositionPhase());
+        follower.Position = start;
+        _output.WriteLine($"follower {FollowHoldShortApproachFt} ft short of 1R bar #{bar.Id}; lead past #{farBar.Id}");
+
+        CommandResult follow = ground.Engine.SendCommand("TEST001", "FOLLOWG LEAD01");
+        Assert.True(follow.Success, follow.Message);
+        RunwayInfo runway1R = SfoGroundHarness.Runway("1R");
+        int heldAt = SfoGroundHarness.TickUntil(
+            ground.Engine,
+            () => follower.Phases?.CurrentPhase is HoldingShortPhase,
+            120,
+            second => Assert.False(RunwayOccupancy.IsOnPavement(follower, runway1R), $"t={second}s: entered 1R with no crossing clearance")
+        );
+
+        Assert.True(heldAt > 0, $"the follow never held short within 120 s: {follower.Phases?.CurrentPhase?.Name} gs={follower.GroundSpeed:F1}");
+        HoldingShortPhase hold = Assert.IsType<HoldingShortPhase>(follower.Phases!.CurrentPhase);
+        _output.WriteLine($"held at t={heldAt}s at #{hold.HoldShort.NodeId} ({hold.HoldShort.Reason})");
+        Assert.Equal(bar.Id, hold.HoldShort.NodeId);
+        Assert.Equal(HoldShortReason.RunwayCrossing, hold.HoldShort.Reason);
+        List<Phase> phases = follower.Phases.Phases;
+        FollowingPhase queued = Assert.IsType<FollowingPhase>(phases[phases.IndexOf(hold) + 1]);
+        Assert.Equal("LEAD01", queued.TargetCallsign);
+        Assert.True(follower.GroundSpeed < SfoGroundHarness.StationarySpeedKts, $"still rolling at {follower.GroundSpeed:F1} kt at the bar");
     }
 
     [Fact]
@@ -654,47 +682,57 @@ public class GroundPhaseTests
     /// the close-follow band's edge. Matching the leader's speed verbatim inside the band publishes
     /// TargetSpeed = 0 behind a parked lead, and physics — the only integrator of ground speed — holds the
     /// follower wherever it happened to be, up to the band's width short. Real traffic rolls up to the stop gap.
+    /// Both B738s stand on KOAK's longest straight taxiway B edge, the follower behind the lead on it.
     /// </summary>
-    [Fact(Skip = "YAAT-316 brief 3c: move to a real layout")]
+    [Fact]
     public void FollowingPhase_BehindStoppedLead_ClosesUpToStopDistance()
     {
-        TestVnasData.EnsureInitialized();
+        if (KoakFollowGeometry.NewEngine(_output, autoCross: false) is not { } setup)
+        {
+            return;
+        }
 
-        // Lead parked, engines running, not moving.
-        AircraftState lead = MakeGroundAircraft(37.623, -122.380, heading: 0);
-        lead.Callsign = "LEAD01";
-        lead.IndicatedAirspeed = 0;
+        (SimulationEngine engine, AirportGroundLayout layout) = setup;
+        GroundEdge shared = layout
+            .Nodes.Values.SelectMany(n => n.Edges.OfType<GroundEdge>())
+            .Where(e => e.MatchesTaxiway("B") && !e.IsRunwayCenterline && !e.IsRamp)
+            .MaxBy(e => e.DistanceNm)!;
+        GroundNode from = shared.Nodes[0];
+        GroundNode to = shared.Nodes[1];
+        TrueHeading along = KoakFollowGeometry.Facing(from, to);
+        double edgeFt = shared.DistanceNm * GeoMath.FeetPerNm;
 
-        // Follower directly behind the lead, its nose just inside the close-follow band of the lead's tail, still rolling at 5 kt.
+        // Follower behind the lead on the edge, its nose just inside the close-follow band of the lead's tail, still rolling at 5 kt.
         double stopGapFt = FollowGap.StopGapFt("B738", AircraftCategory.Jet, "B738", AircraftCategory.Jet);
         double bandFt = FollowGap.CloseFollowBandFt("B738", AircraftCategory.Jet, "B738", AircraftCategory.Jet);
         double lengthFt = AircraftLength.ResolveFt("B738");
-        double startGapNm = (bandFt - 10.0 + lengthFt) / GeoMath.FeetPerNm;
-        AircraftState follower = MakeGroundAircraft(37.623 - (startGapNm / 60.0), -122.380, heading: 0);
+        double startGapFt = bandFt - 10.0 + lengthFt;
+        double leadAlongFt = 0.8 * edgeFt;
+        Assert.True(leadAlongFt - startGapFt > 50.0, $"KOAK's longest B edge, {edgeFt:F0} ft, has no room for a {startGapFt:F0} ft start gap");
+
+        // Lead stopped, engines running, not moving.
+        AircraftState lead = KoakFollowGeometry.Spawn(
+            "LEAD01",
+            "B738",
+            GeoMath.ProjectPoint(from.Position, along, leadAlongFt / GeoMath.FeetPerNm),
+            along
+        );
+        lead.Ground.Layout = layout;
+        engine.World.AddAircraft(lead);
+        LatLon followerAt = GeoMath.ProjectPoint(from.Position, along, (leadAlongFt - startGapFt) / GeoMath.FeetPerNm);
+        AircraftState follower = KoakFollowGeometry.Spawn("TEST001", "B738", followerAt, along);
         follower.IndicatedAirspeed = 5;
-        follower.Phases = new PhaseList();
-        follower.Phases.Add(new FollowingPhase("LEAD01"));
+        follower.Ground.Layout = layout;
+        engine.World.AddAircraft(follower);
+        _output.WriteLine($"B edge #{from.Id}>#{to.Id}, {edgeFt:F0} ft; stop gap {stopGapFt:F0} ft, band {bandFt:F0} ft");
+        CommandResult result = engine.SendCommand("TEST001", "FOLLOWG LEAD01");
+        Assert.True(result.Success, result.Message);
 
-        AircraftState? lookup(string cs) => cs == "LEAD01" ? lead : null;
-        var ctx = new PhaseContext
-        {
-            Aircraft = follower,
-            Targets = follower.Targets,
-            Category = AircraftCategory.Jet,
-            DeltaSeconds = 0.25,
-            GroundLayout = null,
-            AircraftLookup = lookup,
-            Logger = NullLogger.Instance,
-        };
-        follower.Phases.Start(ctx);
-
-        // 60 s at the sub-tick rate physics runs at.
         bool everStopped = false;
         double speedAfterFirstStop = 0;
-        for (int i = 0; i < 240; i++)
+        for (int second = 0; second < 60; second++)
         {
-            PhaseRunner.Tick(follower, ctx);
-            FlightPhysics.Update(follower, ctx.DeltaSeconds, lookup, null, simTimeSeconds: i * ctx.DeltaSeconds);
+            engine.TickOneSecond();
 
             if (follower.GroundSpeed <= 0)
             {
@@ -706,8 +744,10 @@ public class GroundPhaseTests
             }
         }
 
-        // In line, the nose-to-tail gap is the centre-to-centre distance less half of each fuselage.
+        // In line on one straight edge, the nose-to-tail gap along the path is the centre-to-centre distance less half of each fuselage.
         double noseToTailFt = (GeoMath.DistanceNm(follower.Position, lead.Position) * GeoMath.FeetPerNm) - lengthFt;
+        _output.WriteLine($"settled {noseToTailFt:F1} ft nose to tail at {follower.GroundSpeed:F1} kt; {follower.Phases?.CurrentPhase?.Name}");
+        Assert.IsType<FollowingPhase>(follower.Phases?.CurrentPhase);
 
         // Ten feet of slack over the stop gap covers the brake-out from the close-up speed; it never stops inside the gap.
         Assert.True(
