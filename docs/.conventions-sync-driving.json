@@ -37,7 +37,7 @@
       "user": "5703da5682eac4dc"
     },
     "drive-owned-app-in-process": {
-      "repo": "f38cefd711838bf5",
+      "repo": "fcc9b721a853cb6e",
       "user": "db0a27091136c67f"
     },
     "emulation-per-call": {
@@ -101,7 +101,7 @@
       "user": "76eac69226b9a50c"
     },
     "never-block-main-thread": {
-      "repo": "1fcf0f8cddff3af7",
+      "repo": "df6c393a93be9a85",
       "user": "dcf14eb79d22e855"
     },
     "no-default-session": {
@@ -113,11 +113,11 @@
       "user": "55d55375dbbace2e"
     },
     "one-env-switch": {
-      "repo": "04a30eb5f9b59682",
+      "repo": "780721062c5b31fe",
       "user": "5bfa4f85ef0398a7"
     },
     "one-gate-source-pinned": {
-      "repo": "b23ab7c33845389d",
+      "repo": "dc7517c63e3d4d68",
       "user": "8d4921b6c4fad4d3"
     },
     "one-id-registry": {
@@ -161,7 +161,7 @@
       "user": "b9ad60542633fe76"
     },
     "record-steady-never-minimize": {
-      "repo": "60e1503fef1c130b",
+      "repo": "7647968d4e7ac11e",
       "user": "c7abbb984fdaa216"
     },
     "recording-shellout-hardening": {
@@ -189,7 +189,7 @@
       "user": "3876083c457cc8f6"
     },
     "semantic-click-first": {
-      "repo": "db085b31f2540228",
+      "repo": "fb645db8b1b87c1f",
       "user": "07c6ef3828d1467b"
     },
     "shared-wire-types": {
