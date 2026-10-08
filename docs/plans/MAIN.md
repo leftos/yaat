@@ -9,7 +9,7 @@
 ## Active runways (feat/active-runways)
 
 - [ ] YAAT-482 Merge feat/active-runways (#959) · release vNext
-- [ ] YAAT-516 Fold the Hold short and ground traffic menu row views into one rich-row template · release vNext
+- [/] YAAT-516 Fold the Hold short and ground traffic menu row views into one rich-row template · release vNext
 
 ## Precompute cache (feat/precompute-cache)
 
@@ -19,7 +19,7 @@
 - [ ] YAAT-475 Merge feat/precompute-cache (#951) · release vNext
 - [ ] YAAT-497 Split the tug planner's shared pieces out of the precompute layout source set · release vNext
 - [ ] YAAT-511 Refuse TAXI for a jet or turboprop at a push-back stand without a push · release vNext
-- [/] YAAT-520 KOAK stands: North Field taxi-out by area, South Field remotes pushback · release vNext
+- [ ] YAAT-533 Load ARTCC sidecar files in a fixed path order so rule precedence is the same on every OS · release vNext
 
 ## Follow on the taxi graph (feat/follow-on-graph)
 
@@ -158,6 +158,7 @@
 - [ ] YAAT-490 Add A388 and DH8D performance profiles so the speed picker offers their real speeds
 - [ ] YAAT-510 Rolling re-route back through a bar it faces away from falls back to the wide turn-about arc
 - [ ] YAAT-513 Fly the acute runway turn-off onto J along its fillet, and bound exit-test turn rate
+- [ ] YAAT-532 AI Ground never pushes an aircraft parked at a push-back stand; it taxis it forward
 
 ## Wave 2 — Ground command grammar and dispatch
 
