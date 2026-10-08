@@ -127,6 +127,7 @@ internal static class MenuGoldenFixtures
         return
         [
             new("at-parking", GroundJet("SWA101", "At Parking", AircraftSituation.AtParking, gate, ""), null),
+            new("at-parking-taxi-out", ParkedAtTaxiOutStand(layout), null),
             new("pushing-back", GroundJet("SWA102", "Pushback", AircraftSituation.PushingBack, gate, ""), null),
             new("holding-on-ground", GroundJet("SWA103", "Holding In Position", AircraftSituation.HoldingOnGround, taxiway, "30"), null),
             new("taxiing", GroundJet("SWA104", "Taxiing", AircraftSituation.Taxiing, taxiway, "30"), null),
@@ -141,6 +142,19 @@ internal static class MenuGoldenFixtures
             new("held-for-release", HeldForRelease(taxiway), null),
             new("cfr-window", CfrWindow(taxiway), null),
         ];
+    }
+
+    /// <summary>
+    /// A B738 parked on GA20, a stand its aircraft taxi out of: the server sends that stand departure, and the menus offer
+    /// none of the push entries the at-parking fixture's push-back stand offers.
+    /// </summary>
+    private static AircraftModel ParkedAtTaxiOutStand(AirportGroundLayout layout)
+    {
+        GroundNode ga20 = layout.FindParkingByName("GA20") ?? throw new InvalidOperationException("The KOAK test layout has no stand GA20");
+        AircraftModel ac = GroundJet("SWA110", "At Parking", AircraftSituation.AtParking, ga20.Position, "");
+        ac.ParkingSpot = "GA20";
+        ac.StandDeparture = StandDeparture.TaxiOut;
+        return ac;
     }
 
     /// <summary>A B738 taxiing under an armed hold-for-release, which the header's Release (HFR) item clears.</summary>

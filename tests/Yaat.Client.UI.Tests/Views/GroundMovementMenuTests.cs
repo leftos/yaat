@@ -7,6 +7,7 @@ using Yaat.Client.UI.Tests.Fakes;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views;
 using Yaat.Sim;
+using Yaat.Sim.Data.Airport;
 
 namespace Yaat.Client.UI.Tests.Views;
 
@@ -42,7 +43,11 @@ public class GroundMovementMenuTests
     /// active hold directive (<c>HoldKind</c> carries the <see cref="HoldKind"/> name), which is what drives
     /// <c>AircraftModel.IsHeld</c>.
     /// </summary>
-    private static AircraftModel GroundAircraft(string callsign, string phase, bool held)
+    private static AircraftModel GroundAircraft(string callsign, string phase, bool held) =>
+        GroundAircraft(callsign, phase, held, standDeparture: null);
+
+    /// <summary><see cref="GroundAircraft(string, string, bool)"/> with the stand departure the server sent for it.</summary>
+    private static AircraftModel GroundAircraft(string callsign, string phase, bool held, StandDeparture? standDeparture)
     {
         return new AircraftModel
         {
@@ -53,6 +58,7 @@ public class GroundMovementMenuTests
             CurrentPhase = phase,
             Position = new LatLon(Lat, Lon),
             HoldKind = held ? nameof(HoldKind.HoldPosition) : null,
+            StandDeparture = standDeparture,
         };
     }
 
@@ -61,14 +67,19 @@ public class GroundMovementMenuTests
     /// right-click path (<see cref="MenuHostHarness.BuildGroundMenu"/>), over a MainViewModel holding a second ground
     /// aircraft that supplies the follow candidate.
     /// </summary>
-    private static ContextMenu BuildGroundMenu(string phase, bool held)
+    private static ContextMenu BuildGroundMenu(string phase, bool held) => BuildGroundMenu(phase, held, standDeparture: null);
+
+    private static ContextMenu BuildGroundMenu(string phase, bool held, StandDeparture? standDeparture)
     {
-        AircraftModel ac = GroundAircraft("UAL100", phase, held);
+        AircraftModel ac = GroundAircraft("UAL100", phase, held, standDeparture);
         var mainVm = new MainViewModel(new FakeFilePickerService());
         mainVm.Aircraft.Add(ac);
         mainVm.Aircraft.Add(GroundAircraft("SWA200", "Taxiing", held: false));
         return MenuHostHarness.BuildGroundMenu(mainVm, ac, null);
     }
+
+    /// <summary>Every push entry of the aircraft menus: Push back, Push back, face, Push back to… and Push route….</summary>
+    private static bool IsPushEntry(string header) => header.StartsWith("Push", StringComparison.Ordinal);
 
     /// <summary>The headers of the ground-movement and taxi-route items: the ground pins below compare these, in menu order.</summary>
     private static readonly HashSet<string> GroundBlockHeaders =
@@ -97,9 +108,11 @@ public class GroundMovementMenuTests
     /// The aircraft-list right-click menu for a single aircraft in <paramref name="phase"/>, through the list's whole-menu
     /// builder, over the same two ground aircraft <see cref="BuildGroundMenu"/> holds.
     /// </summary>
-    private static ContextMenu BuildAircraftListMenu(string phase, bool held)
+    private static ContextMenu BuildAircraftListMenu(string phase, bool held) => BuildAircraftListMenu(phase, held, standDeparture: null);
+
+    private static ContextMenu BuildAircraftListMenu(string phase, bool held, StandDeparture? standDeparture)
     {
-        AircraftModel ac = GroundAircraft("UAL100", phase, held);
+        AircraftModel ac = GroundAircraft("UAL100", phase, held, standDeparture);
         var mainVm = new MainViewModel(new FakeFilePickerService());
         mainVm.Aircraft.Add(ac);
         mainVm.Aircraft.Add(GroundAircraft("SWA200", "Taxiing", held: false));
@@ -173,6 +186,24 @@ public class GroundMovementMenuTests
     [InlineData("Holding In Position")]
     public void GroundMenu_DoesNotOfferPushBack_ForHoldsTryPushbackRefuses(string phase) =>
         Assert.DoesNotContain(Headers(BuildGroundMenu(phase, held: false)), h => h.StartsWith("Push back", StringComparison.Ordinal));
+
+    // A taxi-out stand (the server's StandDeparture) offers none of the push entries: Push back, Push back, face,
+    // Push back to… and Push route… all hang off CanPushBack.
+    [AvaloniaFact]
+    public void GroundMenu_AtTaxiOutStand_OffersNoPushEntry() =>
+        Assert.DoesNotContain(Headers(BuildGroundMenu("At Parking", held: false, StandDeparture.TaxiOut)), IsPushEntry);
+
+    [AvaloniaFact]
+    public void AircraftListMenu_AtTaxiOutStand_OffersNoPushEntry() =>
+        Assert.DoesNotContain(Headers(BuildAircraftListMenu("At Parking", held: false, StandDeparture.TaxiOut)), IsPushEntry);
+
+    [AvaloniaFact]
+    public void GroundMenu_AtPushBackStand_OffersPushBackAndPushRoute()
+    {
+        List<string> headers = Headers(BuildGroundMenu("At Parking", held: false, StandDeparture.PushBack));
+        Assert.Contains("Push back", headers);
+        Assert.Contains("Push route…", headers);
+    }
 
     // The pushback block's Parking position and the Hold position both build Follow… submenus. Widening the
     // pushback gate must not let a "Holding After Pushback" aircraft collect one from each.
@@ -322,6 +353,20 @@ public class GroundMovementMenuTests
     [InlineData("Holding After Pushback")]
     public void CanPushBack_AcceptsStandAndCompletedPushback(string phase) =>
         Assert.True(AircraftCommandApplicability.CanPushBack(GroundAircraft("UAL100", phase, held: false)));
+
+    [Fact]
+    public void CanPushBack_AtTaxiOutStand_IsFalse() =>
+        Assert.False(AircraftCommandApplicability.CanPushBack(GroundAircraft("UAL100", "At Parking", held: false, StandDeparture.TaxiOut)));
+
+    [Fact]
+    public void CanPushBack_AtPushBackStand_IsTrue() =>
+        Assert.True(AircraftCommandApplicability.CanPushBack(GroundAircraft("UAL100", "At Parking", held: false, StandDeparture.PushBack)));
+
+    [Fact]
+    public void CanPushBack_AfterACompletedPushback_IgnoresTheStand() =>
+        Assert.True(
+            AircraftCommandApplicability.CanPushBack(GroundAircraft("UAL100", "Holding After Pushback", held: false, StandDeparture.TaxiOut))
+        );
 
     // The ground map's node menu offers "Push to <spot>" behind this predicate, so an aircraft resting on a
     // ramp spot can be pushed on to another one — the phase TryPushback accepts and the node menu used to miss.

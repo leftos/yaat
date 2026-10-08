@@ -21,6 +21,9 @@ public partial class AircraftModel : ObservableObject, IMenuAircraft
     /// <summary>Every unknown turn-about shape name this aircraft has already been warned of.</summary>
     private readonly HashSet<string> _warnedTurnAboutShapes = [];
 
+    /// <summary>Every unknown stand-departure name this aircraft has already been warned of.</summary>
+    private readonly HashSet<string> _warnedStandDepartures = [];
+
     [ObservableProperty]
     private string _callsign = "";
 
@@ -1061,6 +1064,13 @@ public partial class AircraftModel : ObservableObject, IMenuAircraft
     [ObservableProperty]
     private IReadOnlyList<ExitAheadDto>? _exitsAhead;
 
+    /// <summary>
+    /// How the aircraft leaves the stand it is parked on (<see cref="AircraftDto.StandDeparture"/>, computed by the server
+    /// from the stand); null when it is not at a stand. The menus hide the push entries for a taxi-out stand.
+    /// </summary>
+    [ObservableProperty]
+    private StandDeparture? _standDeparture;
+
     // Live CFR release-window badge shown as a prefix in the Aircraft List Info column.
     [ObservableProperty]
     private string _cfrBadge = "";
@@ -1201,6 +1211,31 @@ public partial class AircraftModel : ObservableObject, IMenuAircraft
         return TaxiTurnAboutShape.None;
     }
 
+    /// <summary>
+    /// The stand departure the server sends by name (<see cref="AircraftDto.StandDeparture"/>): null or empty is no stand,
+    /// and a name this client does not know is treated as no stand: warned of the first time this aircraft sends it,
+    /// logged at Debug on every later update carrying it.
+    /// </summary>
+    /// <param name="wire">The name the server sent, or null.</param>
+    /// <param name="log">The logger the unknown-name line goes to (the model's own logger outside tests).</param>
+    /// <returns>The stand departure, or null for no stand and for an unknown name.</returns>
+    internal StandDeparture? ParseStandDeparture(string? wire, ILogger log)
+    {
+        if (string.IsNullOrEmpty(wire))
+        {
+            return null;
+        }
+
+        if (Enum.TryParse(wire, ignoreCase: false, out StandDeparture departure) && Enum.IsDefined(departure))
+        {
+            return departure;
+        }
+
+        LogLevel level = _warnedStandDepartures.Add(wire) ? LogLevel.Warning : LogLevel.Debug;
+        log.Log(level, "{Callsign}: unknown stand departure '{Departure}' from the server; treating the aircraft as on no stand", Callsign, wire);
+        return null;
+    }
+
     public static AircraftModel FromDto(AircraftDto dto, Func<AircraftModel, double?>? computeDistance = null)
     {
         var model = new AircraftModel
@@ -1329,6 +1364,7 @@ public partial class AircraftModel : ObservableObject, IMenuAircraft
         model.NextCrossingRunway = dto.NextCrossingRunway;
         model.ExitsAhead = dto.ExitsAhead;
         model.TaxiTurnAboutShape = model.ParseTaxiTurnAboutShape(dto.TaxiTurnAboutShape);
+        model.StandDeparture = model.ParseStandDeparture(dto.StandDeparture, Log);
         return model;
     }
 
@@ -1455,6 +1491,7 @@ public partial class AircraftModel : ObservableObject, IMenuAircraft
         SituationFlags = dto.SituationFlags;
         NextCrossingRunway = dto.NextCrossingRunway;
         ExitsAhead = dto.ExitsAhead;
+        StandDeparture = ParseStandDeparture(dto.StandDeparture, Log);
     }
 
     internal static (int Order, int Seconds) ParseStatusSortKey(string status)

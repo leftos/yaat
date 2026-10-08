@@ -221,6 +221,7 @@ The Task Index above tells you *which files*; these docs explain *how each subsy
 
     `Pathfinding/ForcedPushLegPlannerTests.cs` (`/PUSH`/`/PULL` legs: only the forced kind after the stand push-off, a `/PUSH` onto a spot ends on the stop, a forced leg with no flyable plan is refused, a pull whose 30 ft tug lead ends on a taxiway is refused, marked points plan onto the pose or are refused on a taxiway, runway or holding position).
 
+    `Commands/ParkedStandDepartureTests.cs` (a parked aircraft's stand departure: the layout's answer, the sidecar override, a helipad as TaxiOut, none off a stand).
     `Commands/PushLegKindAndFreePoseParseTests.cs` (the suffix and `~lat/lon[/facing]` grammar, examples and non-examples, NaN/Infinity refused). `Simulation/GroundTaxi/MarkedPointPushTests.cs` (a marked-point tow flown through the handler ends on the point; a snapshot mid-tow restores to the same end pose and keeps `KeepsItsPlan`; a mid-tow `FACE` is refused as keeping its plan).
 
     `Phases/Ground/PushbackMoveBoundaryTests.cs` (SFO E6 `PUSH $6B`, a three-move plan: the tug holds 5 kt through the straight→turn boundary, still stops and dwells before the reversal pull, completes on 6B, and a taxi clearance that cuts a continuing move stops the aircraft dead).
@@ -1314,6 +1315,7 @@ Commands/GroundCommandHandler.cs    # Ground operation command logic (taxi, push
                                     # runway bar) probes the follow with FollowRoutePlanner.Plan before installing it (RejectUnjoinableFollow): NoPath → "unable, no taxi
                                     # route to {lead}'s route", FollowerAhead → "unable, ahead of {lead} on its route — issue HOLD, GIVEWAY or TAXI first"; Joinable and
                                     # WaitForLead go ahead, and the probe is skipped with no layout or no lead lookup
+Commands/ParkedStandDeparture.cs    # ParkedStandDeparture.Of: how an aircraft parked at its stand (AtParkingPhase) leaves it, PushBack or TaxiOut — StandDepartures.StandDepartureOf for a parking stand (the layout's answer, overridden by the airport sidecar), TaxiOut for a helipad. Read by GroundCommandHandler (the RPO note on a live PUSH/PUSHM at a taxi-out stand) and by yaat-server's DtoConverter (AircraftDto.StandDeparture, which the client menus read to hide push entries).
 Commands/TrackEngine.cs             # Pure domain logic for STARS track ops: Track, Drop, Handoff, Accept, Cancel, PointOut, Acknowledge,
                                     # RejectPointout, RetractPointout, Scratchpad1/2, TempAlt, Cruise, PilotReportedAlt,
                                     # InhibitConflictAlert, LeaderDirection, JRing, Cone. All methods mutate AircraftState directly.

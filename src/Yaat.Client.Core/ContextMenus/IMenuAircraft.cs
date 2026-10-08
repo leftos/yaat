@@ -1,4 +1,5 @@
 using Yaat.Sim;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Situation;
 
 namespace Yaat.Client.ContextMenus;
@@ -39,6 +40,12 @@ public interface IMenuAircraft
 
     /// <summary>The parking spot the aircraft is at, empty when none.</summary>
     string ParkingSpot { get; }
+
+    /// <summary>
+    /// How the aircraft leaves the stand it is parked on, as the server computes it from the stand; null when it is not at
+    /// a stand.
+    /// </summary>
+    StandDeparture? StandDeparture { get; }
 
     /// <summary>The airport of the ground layout the aircraft is on, null when none.</summary>
     string? GroundAirportId { get; }

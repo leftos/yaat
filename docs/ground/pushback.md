@@ -237,6 +237,10 @@ The precompute cache ([CONTEXT.md](../../CONTEXT.md) *Precompute cache*) stores,
 - **Stand departure.** A stand whose `StandDepartures.StandDepartureOf` is `TaxiOut` gets an empty target list for every group. The layout build classifies each parking node from the foot of the perpendicular from the stand onto the edge its parking connector joins: a foot less than 90° off the stand's heading is `TaxiOut`, a foot within 1 ft of the stand or exactly broadside is `PushBack`.
 
   The airport sidecar's `standDeparture` overrides it by stand name (KOAK GA1, GA2, GA4, GA7-GA12, HELI2; KSFO CG2-CG4).
+
+  An aircraft parked on a stand reads it through `ParkedStandDeparture.Of` (`src/Yaat.Sim/Commands/ParkedStandDeparture.cs`, outside the hashed `Data/Airport/` tree): while the aircraft is in `AtParkingPhase`, the parking stand its `Ground.ParkingSpot` names reads `StandDepartureOf`, a helipad is always `TaxiOut`, and a ramp spot, an unknown name or a missing layout is null; in any other phase it is null.
+
+  Two readers use it besides this cache. The training hub sends it as `AircraftStateDto.StandDeparture`, and the client's `CanPushBack` hides every push entry (Push back, Push back, face, Push back to…, Push route…, the point menu's Push to, the quick list) at a taxi-out stand. `PUSH` and `PUSHM` off a taxi-out stand are still made, live or as a scenario preset, and their readback carries the RPO note `(<stand> is a taxi-out stand)` (below).
 - **Staleness.** The entry's key carries the push-target algorithm hash and `AirportSidecarHash`, so an edit to the planner, the tug files or the airport's sidecar recomputes the push half only.
 
 ## Flying one move — `PushbackPhase`
@@ -392,6 +396,7 @@ The stand-vs-surface rule is [phases.md](../phases.md)'s: only a stand parks. `H
 | `(<part> will foul taxiway <X>, coordinate with ground)` | `TugFoulsTaxiwayWarning` | No candidate for the spot/stand/node push kept the outline outside X's object-free area; the plan flown reaches in least, and `<part>` (nose, tail, left wing, right wing) reaches in deepest. |
 | `(taxiway <X> is <n> ft away; long push)` | `TugLongPushWarning` | `PUSH <X> …` tows more than 500 ft before the aircraft is lined up on X; `<n>` is that tow, rounded to 50 ft. Accepted — the RPO may mean it — but worth checking for a mis-typed taxiway. |
 | `(<facing> is <n> ft away; facing only)` | `FacingTaxiwayIsFar` | The facing taxiway's junction lies more than 1,500 ft from where the push ends, so the facing only chose which way along X the nose points; `<n>` rounded to 50 ft. |
+| `(<stand> is a taxi-out stand)` | `ParkedStandDeparture` (`TaxiOutStandNote`) | A `PUSH` or `PUSHM` off a stand whose departure is `TaxiOut`; it follows the readback's own note and comes before the plan's notes. The push is made; `PUSHF` and `PUSHMF` carry no such note. |
 
 ## Parked neighbours — the outline rule in `GroundConflictDetector`
 

@@ -4,6 +4,7 @@ using Xunit;
 using Yaat.Client.ContextMenus;
 using Yaat.Client.Models;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Situation;
 
 namespace Yaat.Client.Tests;
@@ -119,6 +120,39 @@ public class QuickCommandResolverTests
 
         Assert.Equal([MenuIds.TrackTrack], StripIds(resolution));
         Assert.Empty(resolution.Text);
+    }
+
+    /// <summary>
+    /// The default at-parking list opens with Push back and Push back to…; at a taxi-out stand both are dropped, at a
+    /// push-back stand both are kept.
+    /// </summary>
+    [Theory]
+    [InlineData(StandDeparture.TaxiOut, false)]
+    [InlineData(StandDeparture.PushBack, true)]
+    public void AtParking_PushEntries_FollowTheStandDeparture(StandDeparture standDeparture, bool kept)
+    {
+        var parked = new AircraftModel
+        {
+            Callsign = "TST123",
+            CurrentPhase = "At Parking",
+            IsOnGround = true,
+            FlightRules = "IFR",
+            Situation = AircraftSituation.AtParking,
+            ParkingSpot = "GA20",
+            StandDeparture = standDeparture,
+        };
+
+        QuickCommandResolution resolution = QuickCommandResolver.Resolve(
+            QuickCommandDefaults.For(AircraftSituation.AtParking),
+            parked,
+            Context(),
+            _ => true
+        );
+
+        List<string> ids = [.. StripIds(resolution), .. TextIds(resolution)];
+        Assert.Equal(kept, ids.Contains(MenuIds.GroundPushback));
+        Assert.Equal(kept, ids.Contains(MenuIds.GroundPushbackTo));
+        Assert.NotEmpty(ids);
     }
 
     [Fact]

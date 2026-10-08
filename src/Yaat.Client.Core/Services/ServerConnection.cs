@@ -1342,7 +1342,10 @@ public record AircraftDto(
     // The named exits the arrival can make, in order along the runway, on the last miles of final and on the rollout; empty
     // when none is makeable, null when there is no list. Kept name-for-name in sync with the server's AircraftStateDto; the
     // Exit left / Exit right flyouts offer one row per exit on that side.
-    IReadOnlyList<ExitAheadDto>? ExitsAhead = null
+    IReadOnlyList<ExitAheadDto>? ExitsAhead = null,
+    // How the aircraft leaves the stand it is parked on, "PushBack" or "TaxiOut"; null when it is not at a stand. Kept
+    // name-for-name in sync with the server's AircraftStateDto; the menus hide the push entries for a taxi-out stand.
+    string? StandDeparture = null
 );
 
 /// <summary>

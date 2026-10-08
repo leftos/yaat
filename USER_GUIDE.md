@@ -518,6 +518,8 @@ Below that, a hold / squawk-standby / auto-yield status line and any instructor 
 
     Then a "Push back to…" submenu listing the closest 30 named parking/spot/helipad nodes (sorted by distance), "Push route…" (a multi-point tug move — see below) and a "Follow…" submenu — the aircraft starts up and falls in behind the chosen leader without needing a taxi route first.
 
+    At a taxi-out stand (one its aircraft park facing their way out of, such as a GA tie-down, and every helipad) none of the push items appear, in any view, in the quick list or on a node's "Push to": taxi the aircraft out instead. A typed `PUSH` or `PUSHM` there is still flown, with a note on the terminal (below).
+
     Every push is a tug move: the aircraft turns only while rolling, pauses about 5 s at each reversal, and a push that would put it on a runway, a runway holding position or a taxiway it was not sent to is refused with the reason
   - *Pushback / Taxiing / Following*: "Hold position"
   - *Taxiing*: "Hold short of…" submenu headed by the route (`route S T V W4 · RWY 30`), then one row per hold-short along the rest of the route, nearest first: a TW or RW badge, the name, where it is ("crossing on S", "before turning onto T", "at W4, end of route"), the distance along the route to the nearest 50 ft ("~1,500 ft") and the command the row sends.
@@ -693,6 +695,7 @@ When a push accepts something you may want to know about, its readback on the te
 |------|---------------|------------|
 | `(right wing will foul taxiway A, coordinate with ground)` | No path to that spot, gate or node keeps the aircraft clear of A's object-free area; the push flies the one that reaches in least, and names the part of the aircraft that reaches in deepest (nose, tail, left or right wing). | Coordinate with ground control for A, or pick a different spot. |
 | `(taxiway A is 1300 ft away; long push)` | `PUSH A …` has to tow more than 500 ft across the ramp before the aircraft is lined up on A. | Check you meant A; the push is flown as given. |
+| `(GA20 is a taxi-out stand)` | You pushed (`PUSH` or `PUSHM`) an aircraft off a stand it normally taxis out of under its own power. | Nothing, if you meant the tow; otherwise taxi it out instead. `PUSHF` / `PUSHMF` give no such note. |
 | `(F1 is 2500 ft away; facing only)` | In `PUSH A F1`, F1's junction with A is more than 1,500 ft from where the push ends, so F1 only chose which way along A the nose points; the push ends lined up on A at the gate's exit rather than towing toward F1. | Nothing, if that direction is what you wanted; taxi on from there. |
 | `(forced: …)` | The push was issued as `PUSHF` / `PUSHMF`, and the note names each check it overrode: a taxiway it enters or runs past, a taxiway object-free area it fouls, how close it passes a parked aircraft (or `overlaps`), a wide swing, or that it won't stop for parked aircraft. | Coordinate with ground where the note says so. |
 

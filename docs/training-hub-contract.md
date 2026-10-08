@@ -562,6 +562,11 @@ extend the resolver to depend on a new input, fingerprint that input too.
   Both go null when the turn-about leg completes with nothing else on the DTO changing (the `TaxiRoute` string is the same), so each has its own fingerprint slot (`TrainingDtoFingerprint.TaxiTurnAboutShape`, `TaxiTurnAboutTargetNodeId`).
 
   The client parses the name into `AircraftModel.TaxiTurnAboutShape` (an unknown name logs a warning and reads as `None`) and carries `AircraftModel.TaxiTurnAboutTargetNodeId`; the ground overlay draws exactly the sent shape from the sent node ([ground-rendering.md](ground-rendering.md)).
+- `StandDeparture` (a string, `null` by default, the last `AircraftStateDto` / `AircraftDto` field) is how the aircraft leaves the stand it is parked on, by `StandDeparture` name: `"PushBack"` or `"TaxiOut"`, from `ParkedStandDeparture.Of(ac, ac.Ground.Layout)` ([ground/pushback.md](ground/pushback.md), "Stand departure"). It is null when the aircraft is not in `AtParkingPhase`, or its parking spot names no parking stand or helipad of its layout.
+
+  Like `AsdexFix` it is a derived field fingerprinted by its inputs rather than its value, so `CaptureTrainingDto` never computes it per tick: the phase name and `ParkingSpot` are already fingerprinted, the airport sidecars are fixed for the process, and the layout's identity has its own slot (`TrainingDtoFingerprint.GroundLayoutAirportId`).
+
+  The client parses the name into `AircraftModel.StandDeparture` / `IMenuAircraft.StandDeparture` (an unknown name logs a warning and reads as null), and `AircraftCommandApplicability.CanPushBack` hides the push entries for `TaxiOut`.
 - `SmartStatus` / `SmartStatusSeverity` derive entirely from fingerprinted `AircraftState` inputs (`AircraftStatusView.FromState`
   → `AircraftStatusDescriber.Describe`); the only non-`ac` inputs (`IsDelayed`, `IsAutoClearedToLand`) are broadcast parameters
   `CaptureTrainingDto` cannot see, and they only matter for moving aircraft. No signature threading is needed.

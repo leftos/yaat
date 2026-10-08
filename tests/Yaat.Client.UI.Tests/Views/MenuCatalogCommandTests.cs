@@ -241,7 +241,7 @@ public class MenuCatalogCommandTests
         MenuItem? item = MenuCatalog.Get(id).Build(null, Context(), host);
 
         Assert.NotNull(item);
-        Click(item);
+        Click((MenuItem)item);
 
         Assert.Equal([(Callsign, command, Initials)], host.Sent);
     }
@@ -260,7 +260,7 @@ public class MenuCatalogCommandTests
         MenuItem? item = MenuCatalog.Get(MenuIds.LiveTrafficAssumeAndTrack).Build(null, Context(), host);
 
         Assert.NotNull(item);
-        Click(item);
+        Click((MenuItem)item);
 
         Assert.Equal([(Callsign, "ASSUME", Initials), (Callsign, "TRACK", Initials)], host.Sent);
     }
@@ -345,7 +345,7 @@ public class MenuCatalogCommandTests
         MenuItem? item = MenuCatalog.Get(MenuIds.SimControlWarp).Build(aircraft, Context(), host);
 
         Assert.NotNull(item);
-        Click(item);
+        Click((MenuItem)item);
 
         Assert.Equal([(Callsign, "", 90, 5000, 250)], host.WarpPopups);
 
@@ -363,7 +363,7 @@ public class MenuCatalogCommandTests
         MenuItem? item = MenuCatalog.Get(MenuIds.SimControlWarp).Build(new FakeMenuAircraft(), Context(), host);
 
         Assert.NotNull(item);
-        Click(item);
+        Click((MenuItem)item);
 
         Assert.Equal([(Callsign, "", 360, 0, 0)], host.WarpPopups);
     }
@@ -375,7 +375,7 @@ public class MenuCatalogCommandTests
         MenuItem? item = MenuCatalog.Get(MenuIds.AircraftEditFlightPlan).Build(new FakeMenuAircraft(), Context(), host);
 
         Assert.NotNull(item);
-        Click(item);
+        Click((MenuItem)item);
 
         Assert.Equal(1, host.FlightPlanEditorOpens);
     }
@@ -387,7 +387,7 @@ public class MenuCatalogCommandTests
         MenuItem? item = MenuCatalog.Get(MenuIds.SimControlDelete).Build(null, Context(), host);
 
         Assert.NotNull(item);
-        Click(item);
+        Click((MenuItem)item);
 
         Assert.Equal([(Callsign, "DEL", Initials)], host.Sent);
     }
@@ -401,7 +401,7 @@ public class MenuCatalogCommandTests
         MenuItem? item = MenuCatalog.Get(MenuIds.HeadingFly).Build(new FakeMenuAircraft { HeadingDegrees = heading }, Context(), host);
 
         Assert.NotNull(item);
-        Click(item);
+        Click((MenuItem)item);
 
         (IReadOnlyList<string> Items, object? Selected) popup = Assert.Single(host.ListPopups);
         Assert.Equal<object?>(seed, popup.Selected);
@@ -682,7 +682,7 @@ public class MenuCatalogCommandTests
         MenuItem? item = MenuCatalog.Get(MenuIds.SpeedAssign).Build(aircraft, Context(), host);
 
         Assert.NotNull(item);
-        Click(item);
+        Click((MenuItem)item);
 
         Assert.Equal<object?>(seed, Assert.Single(host.ListPopups).Selected);
         Assert.Equal([(Callsign, "SPD 200", Initials)], host.Sent);
@@ -857,7 +857,7 @@ public class MenuCatalogCommandTests
         Assert.NotNull(item);
         Assert.Equal("Cleared RNAV Y 28R", item.Header as string);
         Assert.Empty(item.Items);
-        Click(item);
+        Click((MenuItem)item);
         Assert.Equal([(Callsign, "CAPP R28RY", Initials)], host.Sent);
     }
 
@@ -872,7 +872,7 @@ public class MenuCatalogCommandTests
 
         Assert.NotNull(item);
         Assert.Equal("Cleared ILS 28R", item.Header as string);
-        Click(item);
+        Click((MenuItem)item);
         Assert.Equal([(Callsign, "CAPP I28R", Initials)], host.Sent);
     }
 
@@ -889,7 +889,7 @@ public class MenuCatalogCommandTests
 
         Assert.NotNull(item);
         Assert.Equal("Cleared RNAV Y 28L", item.Header as string);
-        Click(item);
+        Click((MenuItem)item);
         Assert.Equal([(Callsign, "CAPP R28LY", Initials)], host.Sent);
     }
 
@@ -913,7 +913,7 @@ public class MenuCatalogCommandTests
         Assert.NotNull(item);
         Assert.Equal(leaf, item.Header as string);
         Assert.Equal(command, MenuCommandText.GetCommand(item));
-        Click(item);
+        Click((MenuItem)item);
         Assert.Equal([(Callsign, command, Initials)], host.Sent);
         AssertPicker(MenuCatalog.BuildApproachOther(id, aircraft, Context(), host), other, MenuPickerDescriptor.Grouped, Koak30Groups);
     }
@@ -933,8 +933,8 @@ public class MenuCatalogCommandTests
 
         Assert.Equal("Cleared RNAV Z 28L", leaf?.Header as string);
         Assert.NotNull(other);
-        Assert.Contains("RNP [disabled]", Outline(other));
-        Assert.Contains("RNAV (RNP) Z RWY 28L · expected — CAPP H28LZ", Outline(other));
+        Assert.Contains("RNP [disabled]", Outline((MenuItem)other));
+        Assert.Contains("RNAV (RNP) Z RWY 28L · expected — CAPP H28LZ", Outline((MenuItem)other));
         Assert.Contains("28R · ILS, LOC, RNAV Y, RNP Z", other.Items.Select(DescribeRow));
     }
 
@@ -950,7 +950,7 @@ public class MenuCatalogCommandTests
 
         Assert.Equal("Cleared RNAV Y 28L", leaf?.Header as string);
         Assert.NotNull(other);
-        Assert.Contains("RNAV (GPS) Y RWY 28L · expected — CAPP R28LY", Outline(other));
+        Assert.Contains("RNAV (GPS) Y RWY 28L · expected — CAPP R28LY", Outline((MenuItem)other));
     }
 
     [AvaloniaFact]
@@ -971,7 +971,7 @@ public class MenuCatalogCommandTests
 
         Assert.Equal("Cleared ILS 28R", leaf?.Header as string);
         Assert.NotNull(other);
-        Assert.DoesNotContain(Outline(other), line => line.Contains("expected", StringComparison.Ordinal));
+        Assert.DoesNotContain(Outline((MenuItem)other), line => line.Contains("expected", StringComparison.Ordinal));
     }
 
     /// <summary>KOAK runway 33 has no approach: with no expected approach there is no default, and every runway is a top-level submenu.</summary>
@@ -1125,7 +1125,7 @@ public class MenuCatalogCommandTests
 
         Assert.NotNull(other);
         Assert.Contains("ILS RWY 30 — CAPP I30", other.Items.Select(DescribeRow));
-        Assert.DoesNotContain(Outline(other), line => line.Contains("expected", StringComparison.Ordinal));
+        Assert.DoesNotContain(Outline((MenuItem)other), line => line.Contains("expected", StringComparison.Ordinal));
     }
 
     [AvaloniaFact]
@@ -1379,7 +1379,7 @@ public class MenuCatalogCommandTests
         Assert.NotNull(item);
         Assert.Equal("Cleared visual approach 9L", item.Header as string);
         Assert.Null(item.Tag);
-        Click(item);
+        Click((MenuItem)item);
 
         Assert.Equal([(Callsign, "CVA 09L", Initials)], host.Sent);
         Assert.Null(MenuCatalog.BuildClearedVisualOther(aircraft, Context(), host));
@@ -1452,7 +1452,7 @@ public class MenuCatalogCommandTests
         Assert.NotNull(item);
         Assert.Equal("Cross fix SUNOL", item.Header as string);
         Assert.Null(item.Tag);
-        Click(item);
+        Click((MenuItem)item);
         Click(AssertPicker(MenuCatalog.BuildCrossFixOther(aircraft, Context(), host), "Cross fix (other)…", MenuPickerDescriptor.Input, []));
 
         Assert.Equal(["Fix name"], host.InputPlaceholders);
@@ -1509,7 +1509,7 @@ public class MenuCatalogCommandTests
         Assert.NotNull(item);
         Assert.Equal("Join STAR EMZOH4", item.Header as string);
         Assert.Null(item.Tag);
-        Click(item);
+        Click((MenuItem)item);
         Click(AssertPicker(MenuCatalog.BuildJoinStarOther(aircraft, Context(), host), "Join STAR (other)…", MenuPickerDescriptor.List, stars));
 
         Assert.Equal<object?>(stars[0], Assert.Single(host.ListPopups).Selected);
@@ -1845,7 +1845,7 @@ public class MenuCatalogCommandTests
         MenuItem? item = entry.Build(ac, Context(VfrCommandsForIfr.None), host);
         Assert.NotNull(item);
         Assert.Equal("Resume taxi", item.Header as string);
-        Click(item);
+        Click((MenuItem)item);
 
         Assert.Equal([(Callsign, "RES", Initials)], host.Sent);
     }
@@ -1859,7 +1859,7 @@ public class MenuCatalogCommandTests
         MenuItem? item = MenuCatalog.Get(MenuIds.GroundCrossRunway).Build(ac, Context(VfrCommandsForIfr.None), host);
         Assert.NotNull(item);
         Assert.Equal("Cross 28R", item.Header as string);
-        Click(item);
+        Click((MenuItem)item);
 
         Assert.Equal([(Callsign, "CROSS 28R", Initials)], host.Sent);
     }
@@ -1875,7 +1875,7 @@ public class MenuCatalogCommandTests
         MenuItem? item = MenuCatalog.Get(MenuIds.GroundCrossRunway).Build(ac, Context(VfrCommandsForIfr.None), host);
         Assert.NotNull(item);
         Assert.Equal("Cross 28R", item.Header as string);
-        Click(item);
+        Click((MenuItem)item);
 
         Assert.Equal([(Callsign, "CROSS 28R", Initials)], host.Sent);
     }
@@ -2866,7 +2866,7 @@ public class MenuCatalogCommandTests
         Assert.NotNull(item);
         Assert.Equal("Make straight-in 9L", item.Header as string);
         Assert.Null(item.Tag);
-        Click(item);
+        Click((MenuItem)item);
 
         Assert.Equal([(Callsign, "EF 09L", Initials)], host.Sent);
         Assert.Null(MenuCatalog.BuildPatternEntryOther(MenuIds.PatternEnterFinal, aircraft, Context(), host));
@@ -3058,6 +3058,8 @@ public class MenuCatalogCommandTests
         public string? NextCrossingRunway { get; init; }
 
         public IReadOnlyList<ExitAheadDto>? ExitsAhead { get; init; }
+
+        public StandDeparture? StandDeparture { get; init; }
 
         public IReadOnlyList<string> RouteFixes { get; init; } = [];
 

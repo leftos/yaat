@@ -62,7 +62,7 @@
 - An aircraft exiting a runway onto a sharply angled taxiway turns off at corner speed instead of turning around on the taxiway.
 - `FOLLOWG` answers "unable" when no taxi route reaches the leader's path, or when the follower is already ahead of the leader on it.
 - `PUSH` and `PUSHF` can tow an aircraft stopped at a hold bar back off it, and refuse a push that moves it deeper toward the runway.
-- Stands that aircraft leave by taxiing out, such as KOAK's GA ramp and KSFO's cargo stands, no longer offer push targets.
+- Menus offer no Push back or push targets at taxi-out stands, such as KOAK's GA ramp; a typed `PUSH` there still works, with an RPO note.
 
 ### Fixed
 

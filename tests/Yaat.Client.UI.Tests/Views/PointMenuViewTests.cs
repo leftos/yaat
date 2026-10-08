@@ -63,7 +63,7 @@ public class PointMenuViewTests
         List<string> labels = Labels(menu.Items);
         Assert.Contains("Push route…", labels);
         Assert.Contains($"Push to {ReachableSpot}", labels);
-        Assert.Contains(MenuIds.PointPushTo, StripTags(menu));
+        Assert.Contains(MenuIds.PointPushTo, StripTags((ContextMenu)menu));
     }
 
     // The tug planner refuses a move over 2,000 ft, so the named spot farthest from the aircraft is out of reach: neither
@@ -87,7 +87,28 @@ public class PointMenuViewTests
         Assert.Contains("Draw taxi route…", labels);
         Assert.DoesNotContain("Push route…", labels);
         Assert.DoesNotContain($"Push to {far.Name}", labels);
-        Assert.DoesNotContain(MenuIds.PointPushTo, StripTags(menu));
+        Assert.DoesNotContain(MenuIds.PointPushTo, StripTags((ContextMenu)menu));
+    }
+
+    // The server's stand departure decides the push gate, not the stand's geometry the client sees: the stand-25 aircraft
+    // that is offered both above loses both, as text and as an icon, once the server says its stand is taxied out of.
+    [AvaloniaFact]
+    public void GroundNode_TaxiOutStand_OffersNeitherPushRouteNorPushTo()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        AircraftModel ac = ParkedAtStand25();
+        ac.StandDeparture = StandDeparture.TaxiOut;
+        (GroundView view, MainViewModel main) = GroundHarness(ac);
+        Show(Parent(view));
+
+        ContextMenu? menu = view.BuildNodePointMenu(main.Ground, OakNode("Spot", ReachableSpot).Id, default);
+
+        Assert.NotNull(menu);
+        List<string> labels = Labels(menu.Items);
+        Assert.Contains("Draw taxi route…", labels);
+        Assert.DoesNotContain("Push route…", labels);
+        Assert.DoesNotContain($"Push to {ReachableSpot}", labels);
+        Assert.DoesNotContain(MenuIds.PointPushTo, StripTags((ContextMenu)menu));
     }
 
     [AvaloniaFact]

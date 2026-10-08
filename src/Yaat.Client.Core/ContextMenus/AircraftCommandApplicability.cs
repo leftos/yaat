@@ -2,6 +2,7 @@ using System.Diagnostics.CodeAnalysis;
 using Yaat.Sim;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Situation;
 
@@ -307,7 +308,10 @@ public static class AircraftCommandApplicability
     /// ("Holding After Exit", "Holding In Position"), which therefore get no item — offering one that can only
     /// produce a refusal is worse than offering nothing. The <see cref="IsControllable"/> guard keeps surface
     /// live-traffic shadows, which are never assumable, out; an assumable (airborne) shadow reaches the phase test
-    /// below and is refused there, having no ground phase.
+    /// below and is refused there, having no ground phase. An aircraft parked on a taxi-out stand
+    /// (<see cref="IMenuAircraft.StandDeparture"/>) gets no item: its stand is left under its own power, so every push
+    /// entry is hidden, though the sim still accepts a typed <c>PUSH</c> there. After a completed push the aircraft is
+    /// off its stand, so the stand's departure no longer gates it.
     /// </summary>
     public static bool CanPushBack(IMenuAircraft? ac)
     {
@@ -316,7 +320,7 @@ public static class AircraftCommandApplicability
             return false;
         }
 
-        return ac.CurrentPhase is "At Parking" or "Holding After Pushback";
+        return (ac.CurrentPhase is "Holding After Pushback") || ((ac.CurrentPhase is "At Parking") && (ac.StandDeparture != StandDeparture.TaxiOut));
     }
 
     /// <summary>

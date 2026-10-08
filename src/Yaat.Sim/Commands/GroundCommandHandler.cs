@@ -3488,9 +3488,23 @@ public static class GroundCommandHandler
         }
 
         TugAmendment? amendment = atStand ? TugAmendment.For(target.Goal, start) : null;
+        string? standNote = push.Forced ? null : TaxiOutStandNote(aircraft, groundLayout);
         InstallTugMove(aircraft, groundLayout, plan, new TugTow(target.Terminus, amendment, KeepsItsPlan(target.Goal), push.Forced));
-        return PushAccepted(target.Readback(plan), plan);
+        return PushAccepted(WithRpoNote(target.Readback(plan), standNote), plan);
     }
+
+    /// <summary>
+    /// The RPO note for a push off a taxi-out stand (<see cref="ParkedStandDeparture"/>), naming the stand:
+    /// <c>(GA20 is a taxi-out stand)</c>. The push is still made; the note tells the RPO the stand is normally left
+    /// under the aircraft's own power. Null on any other stand and off a stand. Read before the tow is installed, while
+    /// the aircraft is still at its stand.
+    /// </summary>
+    private static string? TaxiOutStandNote(AircraftState aircraft, AirportGroundLayout? groundLayout) =>
+        ParkedStandDeparture.Of(aircraft, groundLayout) == StandDeparture.TaxiOut ? $"({aircraft.Ground.ParkingSpot} is a taxi-out stand)" : null;
+
+    /// <summary><paramref name="readback"/> with <paramref name="note"/> after its own RPO note, if any; unchanged when the note is null.</summary>
+    private static PushReadback WithRpoNote(PushReadback readback, string? note) =>
+        note is null ? readback : readback with { RpoNote = readback.RpoNote is { } first ? $"{first} {note}" : note };
 
     /// <summary>
     /// A push the planner refused. A plain <c>PUSH</c> / <c>PUSHM</c> that its forced form would get past — the same
@@ -4489,8 +4503,9 @@ public static class GroundCommandHandler
             return refused;
         }
 
+        string? standNote = move.Forced ? null : TaxiOutStandNote(aircraft, groundLayout);
         InstallTugMove(aircraft, groundLayout, plan, new TugTow(terminus, null, goals.Any(KeepsItsPlan), move.Forced));
-        return PushAccepted(PushMultiReadback(goals, move), plan);
+        return PushAccepted(WithRpoNote(PushMultiReadback(goals, move), standNote), plan);
     }
 
     /// <summary>
