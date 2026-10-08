@@ -88,7 +88,7 @@ Source: D:\yaat\docs\architecture.md:164; D:\yaat\tests\Yaat.ClientDriver.Mcp.Te
 <!-- rule: drive-owned-app-in-process -->
 
 A survey of desktop-automation MCPs found that no tool driving an app from outside its process fully avoids stealing focus (Windows-MCP, terminator, WinAppDriver, NovaWindows and FlaUI-MCP all foreground the window or move the cursor); the ones that never do run a named pipe inside the app. So a YAAT client with a live pipe is driven over it, and everything else (CRC, a client started without automation mode) falls back to UI Automation; the route is chosen per pid by "is there a live pipe", and the input-mode setting does not touch pipe calls.
-Source: D:\yaat\docs\plans\client-driver-background.md:50-63, 99-102, 120; D:\yaat\docs\client-driver-mcp.md:3, 89. Seen: researched (survey 2026-10-01).
+Source: D:\yaat\docs\research\2026-10-01-desktop-automation-mcp-survey.md; D:\yaat\docs\client-driver-mcp.md:3, "Routes rejected for background driving". Seen: researched (survey 2026-10-01).
 
 ### Drive the real client, and write down what each lesser route cannot see
 <!-- rule: real-app-over-frontend-only -->
@@ -194,7 +194,7 @@ Source: godot-mcp's architecture doc and changelog fixes; .NET docs on System.Ra
 <!-- rule: record-steady-never-minimize -->
 
 Windows Graphics Capture delivers a frame only when the window redraws (one in 20 s on a static tab), so the recorder's timer writes a steady rate and ffmpeg stamps each frame with its arrival time (`-fps_mode vfr`), and a clip whose recorder fell behind still plays in real time; the stop reports frames dropped. A minimized Avalonia window stops rendering and restoring it calls `SetForegroundWindow`, so a minimized or hidden window freezes the clip on its last frame; hide it by DWM-cloaking instead (WGC still captures a cloaked window at 30 fps). Audio is the process's own loopback, and routing it to a virtual cable keeps the speakers silent while the recording still hears it. Each `record_mark` stores wall time, clip seconds (null before the first frame) and the app's scenario clock over the pipe (null after 2 s without an answer), because live playback shifted pilot lines 1-2 s against the wall clock.
-Source: D:\yaat\docs\client-driver-mcp.md:43-44, 75, 78, 90; D:\yaat\docs\plans\client-driver-background.md:65, 77-78, 103; D:\yaat\tools\Yaat.ClientDriver.Mcp\Recording\FfmpegPipeline.cs:69-73; Tools\RecordTools.cs:88-93; D:\yaat\docs\research\2026-10-02-godot-mcp-ideas-for-client-driver.md:16-17. Seen: measured (WGC spike; 969 samples over 15 s with no visible cloaked window).
+Source: D:\yaat\docs\client-driver-mcp.md:43-44, 75, 78, 90; D:\yaat\docs\client-driver-mcp.md "Montage video"; D:\yaat\docs\research\2026-10-01-background-window-automation.md; D:\yaat\tools\Yaat.ClientDriver.Mcp\Recording\FfmpegPipeline.cs:69-73; Tools\RecordTools.cs:88-93; D:\yaat\docs\research\2026-10-02-godot-mcp-ideas-for-client-driver.md:16-17. Seen: measured (WGC spike; 969 samples over 15 s with no visible cloaked window).
 
 ### Answer file dialogs before the action that opens them
 <!-- rule: queue-file-answers -->
@@ -226,13 +226,13 @@ Source: D:\yaat\docs\plans\client-driver-mcp-friction.md:1-3, 26, 37; D:\yaat\do
 <!-- rule: one-env-switch -->
 
 `YAAT_AUTOMATION=1` (exactly "1") turns on both the pipe endpoint and never-activated windows, and turns off the process-wide key hook and Discord presence; the launch tool always sets it. The flag writes through to the shared activation gate, so window code and the flag can never disagree. A dependent switch (`YAAT_CLOAK=1`) without it makes the client log the error and exit 2 before any native start-up, and a failed cloak exits 3 so no uncloaked window reaches the desktop. The code ships in release builds and is gated only at run time; the pipe is Windows-only and restricted to the current user.
-Source: D:\yaat\src\Yaat.Client\Automation\AutomationMode.cs:7-54; D:\yaat\src\Yaat.Client\Program.cs:45-47, 124-127, 155-177; D:\yaat\src\Yaat.Client\App.axaml.cs:92-107; D:\yaat\docs\client-driver-mcp.md:90; D:\yaat\docs\plans\client-driver-background.md:105. Seen: documented.
+Source: D:\yaat\src\Yaat.Client\Automation\AutomationMode.cs:7-54; D:\yaat\src\Yaat.Client\Program.cs:45-47, 124-127, 155-177; D:\yaat\src\Yaat.Client\App.axaml.cs:92-107; D:\yaat\docs\client-driver-mcp.md:90. Seen: documented.
 
 ### Put every activating or out-of-process UI path behind one seam, pinned by source tests
 <!-- rule: one-gate-source-pinned -->
 
 The app activated itself from many places (geometry apply, profile restore, pop-out reopen, command-input focus, a Topmost pulse, centre-on-owner dialogs); one gate suppresses them all in automation mode, and a source-scanning test fails on any raw `.Activate()` outside it. Avalonia itself calls `owner.Activate()` after a modal closes, and any visible Win32 `WindowState` change calls `SetFocus` and `SetForegroundWindow` (found by decompiling 12.1), so dialogs show non-modal through one presenter that disables the owner by hand, windows stay Normal, and `OverlayPopups = true` draws popups inside their window so they never take activation and appear in captures. Native file pickers go through one factory that returns a queue-answered picker in automation mode, with source tests that no picker is built and no `StorageProvider` touched elsewhere.
-Source: D:\yaat\docs\plans\client-driver-background.md:21-27, 86-89, 114-118, 125, 134-135, 146; D:\yaat\src\Yaat.Client\Program.cs:218-224; D:\yaat\tests\Yaat.Client.UI.Tests\AutomationModeSourceTests.cs:113, 488-494. Seen: the WindowState path surfaced in a review fix round.
+Source: D:\yaat\docs\client-driver-mcp.md "A never-activated window", "An injected file picker"; D:\yaat\docs\research\2026-10-01-background-window-automation.md; D:\yaat\src\Yaat.Client\Program.cs:218-224; D:\yaat\tests\Yaat.Client.UI.Tests\AutomationModeSourceTests.cs:113, 488-494. Seen: the WindowState path surfaced in a review fix round.
 
 ### Start the endpoint from the code that owns what it exposes, and remove only your own file
 <!-- rule: install-owner-cleanup-own -->
@@ -300,13 +300,13 @@ Source: godot-mcp's decision record; D:\yaat\docs\plans\client-driver-mcp-fricti
 <!-- rule: never-block-main-thread -->
 
 Pipe handlers do their UI work on the UI thread, so a handler that blocked there on work queued for later would deadlock the client. Each wait poll is bounded by the time left, so a busy UI thread cannot make an answer late, and heavy work (PNG encode, base64, `wait_until`'s then-actions) runs off it.
-Source: D:\yaat\src\Yaat.Client\Automation\AutomationDispatcher.cs:142-149; D:\yaat\docs\plans\client-driver-background.md:145; D:\yaat\docs\client-driver-mcp.md:85. Seen: documented.
+Source: D:\yaat\src\Yaat.Client\Automation\AutomationDispatcher.cs:142-149; D:\yaat\src\Yaat.Client\Automation\Handlers\ScreenshotHandler.cs; D:\yaat\docs\client-driver-mcp.md:85. Seen: documented.
 
 ### Click by running the control's own action first, the synthetic pointer only when there is none
 <!-- rule: semantic-click-first -->
 
 A click runs Avalonia's own path through the public automation peers (button invoke → `PerformClick`, toggle) and sends a synthetic press and release only when no meaningful action exists; doing both fired a button wired with a `Click` handler and a `Command` twice. The result names which ran. Typing is raised as text-input events at the caret so per-keystroke autocomplete runs, and shortcuts as routed `KeyDown`/`KeyUp` so the app's own handlers see them; Avalonia's private input API is avoided (it raises `AVA3001` under warnings-as-errors and breaks on upgrades).
-Source: D:\yaat\docs\plans\client-driver-background.md:110-111, 138-144; D:\yaat\docs\research\2026-10-01-in-app-automation-pipe-protocols.md:105-112. Seen: documented.
+Source: D:\yaat\docs\client-driver-mcp.md "Input inside the client"; D:\yaat\src\Yaat.Client\Automation\Handlers\ClickHandler.cs; D:\yaat\docs\research\2026-10-01-in-app-automation-pipe-protocols.md:105-112. Seen: documented.
 
 ### Size captures by the window's own render scale, not a global DPI
 <!-- rule: backing-store-ratio -->

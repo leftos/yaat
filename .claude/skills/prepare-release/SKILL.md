@@ -174,11 +174,11 @@ reader gets wrong. Skipping the check leaves both errors available: a bullet tha
 under-states its reach, and a needless narrowing of correct behavior because the
 reviewer trusted a heading instead of a call site.
 
-### 5d. Sizzle-reel review
+### 5d. Feature showcase and reels
 
-Every release is reviewed for features that warrant a **sizzle reel** (`CONTEXT.md`, "Releases"): a major feature this release introduces or reworks, or a set of UI and UX changes worth showing together. Read the open release's issues (`linear list yaat`, release `vNext`) beside the unreleased section, and list each candidate with the reel that covers it: an existing reel issue in the release (the FOLLOW reel, YAAT-7, and its sub-issues are the model), or none.
+Every release ships a **feature showcase** (`CONTEXT.md`): `docs/releases/whats-new-next.md`, one section per major feature this release introduces or reworks (or a set of UI and UX changes worth showing together), each a short paragraph and a screenshot under `docs/releases/img/`. Read the open release's issues (`linear list yaat`, release `vNext`) beside the unreleased section and check every candidate has its section; a missing one is written before the cut. At the cut, rename the file to `whats-new-<version>.md` (and its image folder references) in the release commit.
 
-A candidate with no reel is put to the user, one question per candidate: plan a reel now (an **add** in the release, `linear release add`), or ship without one. A reel issue in the release that is not finished stops the release like any other open release item, unless the user agrees to cut without it.
+**Sizzle reels never block a cut.** Reel issues live in the Linear release `vNext reels` in the yaat pipeline, not in `vNext`, and are recorded and edited after the cut in a session with no builds running. After `linear release complete`, rename `vNext reels` to `<version> reels` (the MCP `save_release`) and create a fresh `vNext reels` (stage Planned) for the next release's reels. A feature that warrants a reel and has none is put to the user, one question per candidate: plan a reel (an **add** joined to `vNext reels` with the MCP `save_issue` `setReleases`), or none.
 
 ## Step 6: Audit user-facing documentation against the release commits
 

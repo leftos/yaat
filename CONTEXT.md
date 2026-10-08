@@ -451,16 +451,22 @@ A direct connection that also negotiated first (TowerCab 3D): it keeps its negot
 
 ## Client settings
 
+**Import clash**:
+An incoming named entry (a macro, a favorite set, a layout) that matches an existing one under Merge, resolved per entry by Skip, Overwrite or Rename.
+
 **Room-only setting**:
 A session setting with no default in Settings › Scenario defaults: it belongs to the room, and any RPO in it changes it only in the session flyout or on its own button (live traffic; releases). Scenario defaults lists them in its "Room only" card (USER_GUIDE.md "Scenario defaults").
 _Avoid_: flyout-only setting (releases have their own button, not the flyout)
 
+**Section link**:
+A button in a Settings section that opens the section where a shared setting lives (its one home), such as Radar's font-size link to Appearance; it carries that setting's search aliases, so a search finds the setting at its home and at each link (docs/client-settings-and-menus.md).
+
+**Session flyout**:
+The gear flyout on the command input that shows and changes the room's live session settings for every RPO in it; Settings › Scenario defaults holds the user's defaults that a scenario load sends to it (docs/client-settings-and-menus.md).
+
 **Settings bundle**:
 A `.yaat-settings.zip` holding a `manifest.json` and one file per item type (preferences, macros, command verbs, favorites, grid layout, layouts), each in its single-item format; the Import / Export hub reads and writes it. Preferences travel only by an allowlist of Settings-section keys, each validated on import.
 _Avoid_: settings backup, profile (a layout is not a bundle)
-
-**Import clash**:
-An incoming named entry (a macro, a favorite set, a layout) that matches an existing one under Merge, resolved per entry by Skip, Overwrite or Rename.
 
 ## Tooling
 
@@ -503,7 +509,7 @@ The draft pull request from a marker's `feat/<name>` into `main`, one per repo, 
 **Automation mode**:
 The client's mode for being driven by an agent without disturbing the user, on when `YAAT_AUTOMATION=1` (`AutomationMode.IsEnabled`, `AutomationGate.SuppressActivation`).
 
-Every window the client builds shows never-activated and stays in its Normal state; dialogs and message boxes open non-modal through `DialogPresenter` (message boxes through `MessageBoxPresenter`) with their owner disabled, popups draw inside their window, the client never activates itself or sets `Topmost`, and the global push-to-talk key hook and Discord Rich Presence are off (docs/plans/client-driver-background.md).
+Every window the client builds shows never-activated and stays in its Normal state; dialogs and message boxes open non-modal through `DialogPresenter` (message boxes through `MessageBoxPresenter`) with their owner disabled, popups draw inside their window, the client never activates itself or sets `Topmost`, and the global push-to-talk key hook and Discord Rich Presence are off (docs/client-driver-mcp.md).
 
 **Never-activated window**:
 A window shown with `ShowActivated = false` that the client never activates afterwards, so it opens behind the user's foreground window without taking focus; automation mode shows every window this way.
@@ -512,10 +518,14 @@ A window shown with `ShowActivated = false` that the client never activates afte
 A window the client has hidden from the desktop with a DWM cloak (`DWMWA_CLOAK`) while it keeps rendering, so window capture still records it; an automation-mode client cloaks every window before its first show when `YAAT_CLOAK=1` (`launch_yaat` `cloaked`), and the app tool `set_cloaked` toggles it on a running client (docs/client-driver-mcp.md).
 
 **Pipe host**:
-The client's in-process automation endpoint (`src/Yaat.Client/Automation/AutomationHost.cs`), started on Windows in automation mode: a named pipe `yaat-automation-<pid>` open to the current user only, speaking line-delimited JSON requests `{id, method, params}` and answering a result or a coded error with a recovery hint; derived from Zafiro.Avalonia.Mcp (docs/plans/client-driver-background.md).
+The client's in-process automation endpoint (`src/Yaat.Client/Automation/AutomationHost.cs`), started on Windows in automation mode: a named pipe `yaat-automation-<pid>` open to the current user only, speaking line-delimited JSON requests `{id, method, params}` and answering a result or a coded error with a recovery hint; derived from Zafiro.Avalonia.Mcp (docs/client-driver-mcp.md).
 
 **Discovery file**:
 `%TEMP%/yaat-automation/<pid>.json`, written by the pipe host on start and deleted on exit, naming the pid, pipe name, process name, start time and protocol version, so a driver finds every running client's pipe; files whose process is gone, or whose pid now runs another program, are swept on start.
+
+**Injected file picker**:
+The file picker an automation-mode client uses in place of the native dialog (`InjectedFilePickerService`, built by `FilePickerFactory`): each open or save call takes the oldest answer an agent queued with `queue_file_pick` (a path or a cancel), and fails at once on an empty queue, so no dialog ever opens (docs/client-driver-mcp.md).
+_Avoid_: file dialog (none opens)
 
 **Node id**:
 The pipe host's stable id for a window, popup or element, issued by its `NodeRegistry` and kept for as long as the element lives, so a driver can name the same element across calls.
@@ -533,5 +543,11 @@ A JSON file under `src/Yaat.Sim/Data/ARTCCs/{ARTCC}/` that adds facility rules b
 
 ## Releases
 
+**Feature showcase**:
+A Markdown page with one short section and one screenshot per major feature a release introduces or reworks (`docs/releases/whats-new-next.md`, renamed `whats-new-<version>.md` at the cut). Every release ships one; `prepare-release` Step 5d checks it.
+
+**Reel release**:
+The Linear release `vNext reels` in the yaat pipeline, holding the sizzle reels for what `vNext` ships. It never fences work and never blocks a cut; at the cut it is renamed `<version> reels` and a fresh one opens.
+
 **Sizzle reel**:
-A short captioned video showing a major feature a release introduces or reworks, made from scripted scenes replayed in the client and recorded with the client driver, before the release is cut (the FOLLOW reel: docs/plans/follow-video-montage.md). Every release is reviewed for features that warrant one (`prepare-release` Step 5d).
+A short captioned video showing a major feature a release introduces or reworks, made from scripted scenes replayed in the client and recorded with the client driver, after the release is cut, in a session with no builds running (the FOLLOW reel: docs/plans/follow-video-montage.md). Reel issues live in the reel release, never in `vNext`.

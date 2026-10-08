@@ -4,7 +4,7 @@ Date: 2026-10-02.
 
 Sources: godot-mcp at `D:/godot-mcp` (`README.md`, `docs/TOOLS.md`, `docs/DECISIONS.md`, `docs/ARCHITECTURE.md`, `docs/csharp-runtime-tools.md`, `docs/plans/*.md`, `docs/research/2026-09-29-godot-mcp-survey.md`).
 
-From yaat: `docs/client-driver-mcp.md`, `docs/plans/client-driver-mcp-friction.md` (cited as friction #n), `docs/plans/client-driver-background.md`, `docs/plans/follow-video-montage.md`, `docs/crc-first-session.md`, `tools/montage/follow/README.md`, `docs/plans/HANDOFF.md`.
+From yaat: `docs/client-driver-mcp.md`, `docs/plans/client-driver-mcp-friction.md` (cited as friction #n), the client-driver background plan (its rulings now in `docs/client-driver-mcp.md`), `docs/plans/follow-video-montage.md`, `docs/crc-first-session.md`, `tools/montage/follow/README.md`, `docs/plans/HANDOFF.md`.
 
 Also Linear YAAT-114, 172, 173, 174, 220, 230, 237, 242, 245, 246, and the FOLLOW sampler's scratch scripts in `X:/dev/yaat.wt/montage-sampler/yaat/.tmp/sampler/` (`pipe.ps1`, `take.ps1`, `win.ps1`, `start-client.ps1`).
 
@@ -180,7 +180,7 @@ Quiet mode and the hidden desktop are also left out: the never-activated window 
   - Friction #4: the bare "An error occurred invoking 'find_elements'", twice, mid-tree-change.
   - YAAT-237: a null `elementId` returns a bare error.
   - Friction #22: `invoke` reports "element disappeared mid-call" after a successful close.
-  - A pipe call that blocks on a busy UI thread is reported only as a 30 s timeout (`client-driver-background.md` 6a-1).
+  - A pipe call that blocks on a busy UI thread is reported only as a 30 s timeout (the background plan's brief 6a-1).
 - **Mapping:** feasible in the MCP. Wrap every tool in one exception filter that names the argument and the exception type, retry once on a UIA `ElementNotAvailableException`, and treat a target that vanished after an `invoke` as success. On a pipe timeout, `ping` the host and sample the client process: whether the UI thread is stuck or merely busy, plus the client log tail.
 - **Size:** S.
 - **Linear:** partly covered. YAAT-237 has the null-id case and YAAT-173 friction #4/#22. The probe on timeout is not covered.

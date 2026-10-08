@@ -144,6 +144,7 @@ Subsystem references — open the matching doc *before* exploring, searching, or
 - [`flight-physics.md`](docs/flight-physics.md) — `FlightPhysics`, `ControlTargets`, `AircraftPerformance`, `CategoryPerformance`, `WindInterpolator`, kinematics
 - [`live-traffic.md`](docs/live-traffic.md) — `src/Yaat.Sim/LiveTraffic/` (shadow aircraft from an external feed: `AircraftLiveTraffic`, `LiveTrafficKinematics`, `IsShadow` tick bypass + command gate, `RecordedLiveTrafficSample`)
 - [`aircraft-performance.md`](docs/aircraft-performance.md) — per-type performance resolution + the contributor `AircraftProfileOverrides.json` correction layer (`AircraftProfileOverride`, `OverrideAwareProfileCorrectionAdapter`, `CategoryPerformance.BaselineProfile`)
+- [`client-settings-and-menus.md`](docs/client-settings-and-menus.md) — the Settings window (`SettingsNavigation`, sections, search, OK/Apply/Cancel), Scenario defaults vs the session flyout, the Import / Export hub, the View menu and hotkeys, layouts
 - [`client-driver-mcp.md`](docs/client-driver-mcp.md) — `tools/Yaat.ClientDriver.Mcp` (MCP server that drives the real desktop client and CRC through Windows UI Automation: reproducing UI-path bugs end to end, comparing CRC's display with YAAT's)
 - [`test-harness.md`](docs/test-harness.md) — writing any Yaat.Sim test / "passes alone but flakes in the suite"
 - [`tick-animator.md`](docs/tick-animator.md) — recording tick-by-tick aircraft state with `TickRecorder` and animating it over a ground layout (LayoutInspector `--ticks --html`) to eyeball test behavior

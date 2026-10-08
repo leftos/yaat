@@ -2,7 +2,7 @@
 
 Research date: 2026-10-01. Sources: shallow clones made that day of [SuperJMN/Zafiro.Avalonia.Mcp](https://github.com/SuperJMN/Zafiro.Avalonia.Mcp) at `b68c80a0` (last commit 2026-09-22) and [adirh3/AvaloniaMcp](https://github.com/adirh3/AvaloniaMcp) at `6cdde636` (last commit 2026-03-11); Avalonia source at tag `12.1.3`; the NuGet flat-container and registration APIs; the local `avalonia/12.1.0` package in the NuGet cache.
 
-Line numbers below refer to those commits. This note builds on [2026-10-01-desktop-automation-mcp-survey.md](./2026-10-01-desktop-automation-mcp-survey.md) and the decisions in [client-driver-background.md](../plans/client-driver-background.md); it does not repeat what they establish (why in-process, `ShowActivated = false`, `OverlayPopups`, RTB needing a visible window).
+Line numbers below refer to those commits. This note builds on [2026-10-01-desktop-automation-mcp-survey.md](./2026-10-01-desktop-automation-mcp-survey.md) and the decisions now in [client-driver-mcp.md](../client-driver-mcp.md) ("Background driving: the automation pipe"); it does not repeat what they establish (why in-process, `ShowActivated = false`, `OverlayPopups`, RTB needing a visible window).
 
 Short permalink prefixes used below: **Z** = `https://github.com/SuperJMN/Zafiro.Avalonia.Mcp/blob/b68c80a02429c8329e4d68925720677b207c1a66/`, **A** = `https://github.com/adirh3/AvaloniaMcp/blob/6cdde6364dfa1285204a074b49d491510170e164/`, **AV** = `https://github.com/AvaloniaUI/Avalonia/blob/12.1.3/`. A citation `Z src/X.cs:10-20` means the URL Z + `src/X.cs#L10-L20`.
 

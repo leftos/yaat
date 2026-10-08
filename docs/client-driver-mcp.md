@@ -111,6 +111,15 @@ Driving YAAT never steals focus or jumps to the foreground while the user works:
   Of these, `wait_until` reads the simulation through `IAutomationState`, `MainViewModelAutomationState` over the main view model, and runs its `then` actions off the UI thread.
 
   Selectors are Zafiro's CSS-like ones (`#Name`, a type name, `StackPanel > TextBox`), without its Roslyn `dc:` predicates (no Roslyn in the client).
+
+  The host is our own code copied from Zafiro.Avalonia.Mcp (MIT, an attribution header on each derived file), not a package reference. Zafiro's static node registry and discovery writer became per-host instances, so parallel tests never share one. The pipe methods mirror the MCP tools one for one, and node ids map onto the MCP's `eN` ids.
+
+  The host lives in `src/Yaat.Client/Automation/`, never in `Yaat.Client.Core`, which the browser front-ends consume. It starts only on Windows, under the same `OperatingSystem.IsWindows() && AutomationMode.IsEnabled` check that turns on `OverlayPopups` in `Program.cs`. Its `Protocol/` folder has no Avalonia `using`, because the MCP compiles those files as source rather than referencing the client.
+
+  The discovery file sits under `%TEMP%`, a deliberate exception to the `YaatPaths` rule: a driver finds a client whatever `YAAT_APPDATA_DIR` either process runs with.
+- **Input inside the client.** A `click` runs Avalonia's own click through the public automation peers (`ButtonAutomationPeer.Invoke` → `Button.PerformClick`, `IToggleProvider.Toggle`) and sends a synthetic press and release only when there is no such action; doing both fired a button wired with a `Click` handler and a `Command` twice. That ladder runs only for a plain left single click.
+
+  YAAT has no XAML `KeyBinding`s (its shortcuts are `WindowHotkeys`, a class handler on `KeyDownEvent`, and `OnKeyDown` overrides), so `send_keys` raises `KeyDown`/`KeyUp` on the focused element and lets routing reach them, and types plain characters as text-input events at the caret so per-keystroke autocomplete runs. Avalonia's private input API is never used: it raises `AVA3001` under warnings-as-errors.
 - **Client errors on every result.** Since protocol 1.3.0 (`Protocol/ProtocolVersion.cs`; 1.4.0 adds `get_sim_time` and the windows' `hwnd`; 1.5.0 adds `hover`, `drag` and the click results' `site`). The client keeps its last 200 Error and Critical log entries in a ring with sequence numbers (`Yaat.Client.Core/Logging/RecentErrorLog.cs`, registered by `AppLog`).
 
   Each response carries in `clientErrors` the entries logged from the call's start until its answer was ready, oldest first and at most 20, a handler failure's own entry included; the field is absent when there are none. `clientErrorsOmitted` counts the call's entries left out, by the cap or because the ring overflowed during a long call (absent when 0). Warnings are not attached.
@@ -126,15 +135,36 @@ Driving YAAT never steals focus or jumps to the foreground while the user works:
 
   Only `WS_EX_NOACTIVATE` stops that hand-off. Keyboard focus and Z order are separate: a client launched from a process that holds the foreground right (an agent's shell under the focused app) would be created above every window and painted over the user's app while focus stays put, so the gate also moves each window to the bottom of the Z order before its first show, and places an owned window (a dialog) directly above its owner once it opens, still below the user's window.
 
-  A real click does not activate an automation-mode client either, so a person cannot type into it; a driver's `SetForegroundWindow` still works, and the style never applies outside automation mode. Windows stay Normal, since any visible `WindowState` change activates on Win32. The global key hook and Discord Rich Presence are off.
+  A real click does not activate an automation-mode client either, so a person cannot type into it; a driver's `SetForegroundWindow` still works, and the style never applies outside automation mode.
+
+  Windows stay Normal, since any visible `WindowState` change activates on Win32 (Avalonia 12.1's setter calls `SetFocus` and `SetForegroundWindow`): a saved Maximized or Minimized state is kept for saving but not applied, and `RestoreAndActivate` leaves a minimised window alone. The global key hook and Discord Rich Presence are off.
+
+  New UI keeps this only by going through the same seams. A dialog shows through `DialogPresenter.ShowModalAsync` and a result dialog closes through `DialogPresenter.Close`; a MessageBox.Avalonia box opens through `MessageBoxPresenter`, since the package's own `ShowWindowDialogAsync` calls `ShowDialog`. Every `Activate()`, `Topmost` set or `WindowState` change sits behind `AutomationGate.SuppressActivation`.
+
+  `AutomationModeSourceTests.NoUngatedActivateCalls` scans every `src/Yaat.Client*` file and fails on any that does not, a non-Normal `WindowState` in XAML included.
 - **An injected file picker.** The client's storage-provider calls go to a pipe-answered picker; the agent queues paths with `queue_file_pick`, and a picker call on an empty queue fails at once.
+
+  Every picker the client opens comes from `FilePickerFactory.Create(TopLevel)`, which returns the injected picker in automation mode. `AutomationModeSourceTests` fails on an `AvaloniaFilePickerService` built anywhere else or a `StorageProvider` touched outside it. The answer queue (`FilePickQueue`) is static because the host starts after `MainWindow` is built.
 - **Routing in the MCP.** A YAAT pid with a live pipe routes to it; everything else, CRC included, keeps the UI Automation driver unchanged, and `set_input_mode` does not affect pipe-routed calls. Out of reach in-app and left to the outside driver: push-to-talk through the SharpHook hook.
+
+  A pipe-only tool called without a pid, and `send_keys` without an element, go to the client the last successful pipe call reached (`PipeDirectory.LastTargetPid`). That pid is forgotten when its client is forgotten or its pipe found closed, and when a UI Automation call succeeds, so untargeted keys follow whatever was driven last.
 - **A cloaked window.** With `YAAT_CLOAK=1` (only beside `YAAT_AUTOMATION=1`; alone, the client logs the error and exits 2) `AutomationGate.ApplyShowActivated` DWM-cloaks each window (`DWMWA_CLOAK`) before its first show; only the owning process can cloak its windows (another process gets `E_ACCESSDENIED`).
 
   A failed cloak logs and ends the client with exit 3, so no uncloaked window reaches the desktop. The app tool `set_cloaked(cloaked)` cloaks or uncloaks every open window and sets the state for windows opened later.
 
   Measured: 969 samples over 15 s from launch saw no visible uncloaked client window, WGC captured the cloaked main window at 30 fps, and the foreground never moved; the taskbar button stays (a click on it can minimize the invisible window, which freezes a recording on its last frame). The driver's screen-based paths skip cloaked windows by design (`NativeInput.cs`, the UI Automation ids and window-covering screenshots), so a cloaked client is driven through the pipe only.
-- **Montage video** is Windows Graphics Capture of a cloaked (or never-activated) window, with the client's audio by per-process loopback.
+- **Montage video** is Windows Graphics Capture of a cloaked (or never-activated) window, with the client's audio by per-process loopback. `PrintWindow` cannot drive video: it is synchronous, can block the target's render thread, and takes 1–5 s a capture on some apps.
+
+  WGC's border needs no handling (no consent prompt, no crop margin), and its frame-on-change delivery still gives a steady rate; the frame includes the title bar, which the recorder crops. A minimised Avalonia window stops rendering, so a window kept out of sight is cloaked, never minimised.
+- **Screenshot pixel tests need Skia.** Avalonia.Headless with `UseHeadlessDrawing = true` returns an undecodable PNG, so the pipe's screenshot pixel tests live in `tests/Yaat.Client.UI.Render.Tests` (Skia headless, its own assembly because the drawing mode is set per assembly). The Win32 `OverlayPopups` switch cannot be proven headless.
+
+### Routes rejected for background driving
+
+Every desktop-automation MCP that drives an app from outside its process foregrounds the window or moves the real cursor ([survey](research/2026-10-01-desktop-automation-mcp-survey.md)); the ones that never do run a pipe inside the app. Hence the pipe for YAAT, and the outside driver kept only for CRC, which we do not own. These were considered and rejected ([Win32 and Avalonia facts](research/2026-10-01-background-window-automation.md)):
+
+- **A never-activated window driven from outside** (posted input and `PrintWindow`): Avalonia reads modifiers from the real keyboard state, a posted click calls `SetFocus`, and target finding needs an on-monitor window. It survives only as the UI Automation fallback's virtual mode.
+- **A separate Windows desktop**: UI Automation cannot cross desktops (`WM_GETOBJECT`), and GPU rendering there is undocumented.
+- **A headless automation host** (Avalonia.Headless behind a pipe): every tool would need a second backend, it covers neither CRC nor real Win32 behaviour, and Avalonia does not document long interactive headless runs. `tools/Yaat.GuideCapture` uses headless for stills only.
 
 ## What CRC exposes
 

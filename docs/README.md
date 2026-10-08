@@ -30,6 +30,7 @@
 | Server rooms / hub, scenario load (prepare/commit, load flag, resource pin, progress) | [`server-rooms-and-hub.md`](./server-rooms-and-hub.md), [`training-hub-contract.md`](./training-hub-contract.md) |
 | CRC display state | [`crc-display-state.md`](./crc-display-state.md), [`crc-protocol-support.md`](./crc-protocol-support.md) (hub-method status table) |
 | Client (`MainViewModel`) | [`client-mainviewmodel.md`](./client-mainviewmodel.md) |
+| Client Settings window, Import / Export hub, View menu, hotkeys, layouts | [`client-settings-and-menus.md`](./client-settings-and-menus.md) |
 | Radar / map rendering | [`radar-rendering.md`](./radar-rendering.md) |
 | Ground view rendering | [`ground-rendering.md`](./ground-rendering.md) |
 | Speech (STT) / pilot speech (TTS) | [`speech-recognition-pipeline.md`](./speech-recognition-pipeline.md), [`solo-training-pilot-speech.md`](./solo-training-pilot-speech.md); measurements in [`research/`](./research/) (e.g. the controller-voice ouroboros baseline) |
