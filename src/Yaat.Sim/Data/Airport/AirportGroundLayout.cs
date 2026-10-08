@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Logging;
@@ -765,7 +766,8 @@ public sealed class AirportGroundLayout
     }
 
     /// <summary>
-    /// Rebuild <see cref="GroundNode.Edges"/> adjacency lists from the <see cref="Edges"/> collection.
+    /// Rebuild <see cref="GroundNode.Edges"/> adjacency lists from the <see cref="Edges"/> collection, and clear the exit search's
+    /// memos (<see cref="SearchMemo"/>, <see cref="WalkStart"/>), which the rebuilt graph would leave stale.
     /// Call after constructing all edges (e.g., in tests or client-side layout reconstruction).
     /// </summary>
     public void RebuildAdjacencyLists()
@@ -808,6 +810,8 @@ public sealed class AirportGroundLayout
         }
 
         _nodesByTaxiway = index;
+        Volatile.Write(ref _searchMemo, null);
+        Volatile.Write(ref _lastWalkStart, null);
     }
 
     /// <summary>
@@ -1520,19 +1524,8 @@ public sealed class AirportGroundLayout
         GroundNode? bestAny = null;
         double bestAnyDist = double.MaxValue;
 
-        foreach (GroundNode node in Nodes.Values)
+        foreach (GroundNode node in CenterlineNodes(runwayDesignator))
         {
-            if (!HasRunwayCenterlineEdge(node))
-            {
-                continue;
-            }
-
-            // Filter to edges matching the specific runway if designator provided
-            if (runwayDesignator is not null && !HasRunwayEdgeForDesignator(node, runwayDesignator))
-            {
-                continue;
-            }
-
             double dist = GeoMath.DistanceNm(new LatLon(lat, lon), node.Position);
 
             if (dist < bestAnyDist)
@@ -1552,6 +1545,23 @@ public sealed class AirportGroundLayout
 
         return bestAhead ?? bestAny;
     }
+
+    /// <summary>
+    /// The nodes with a runway centerline edge — of <paramref name="runwayDesignator"/> when given, of any runway when null — in
+    /// <see cref="Nodes"/> order, memoized per designator (<see cref="SearchMemo"/>). Only null stands for any runway: every other
+    /// designator, the empty one included, is matched as given (<see cref="HasRunwayEdgeForDesignator"/>).
+    /// </summary>
+    private GroundNode[] CenterlineNodes(string? runwayDesignator) =>
+        CurrentSearchMemo()
+            .CenterlineNodes.GetOrAdd(
+                (AnyRunway: runwayDesignator is null, Designator: runwayDesignator ?? ""),
+                key =>
+                    [
+                        .. Nodes.Values.Where(node =>
+                            HasRunwayCenterlineEdge(node) && (key.AnyRunway || HasRunwayEdgeForDesignator(node, key.Designator))
+                        ),
+                    ]
+            );
 
     /// <summary>
     /// Returns true if the node has a RWY edge whose name contains the given
@@ -1743,12 +1753,6 @@ public sealed class AirportGroundLayout
         HashSet<string>? excludeTaxiways = null
     )
     {
-        GroundNode? startNode = FindNearestCenterlineNode(lat, lon, runwayHeading, runwayDesignator);
-        if (startNode is null)
-        {
-            return null;
-        }
-
         // Authored noTurnoff: forbid named taxiways for this landing direction. Applied only
         // when the controller hasn't explicitly named a taxiway — explicit EXIT commands win.
         HashSet<string>? forbiddenTaxiways = null;
@@ -1775,35 +1779,21 @@ public sealed class AirportGroundLayout
         // walking — a real pilot wouldn't U-turn on the runway to reach E if G or
         // H is available further ahead. Commit to the deferred back-exit only if
         // nothing forward turns up.
-        const int maxCenterlineHops = 30;
         const double BackExitAngleThreshold = 100.0;
-        GroundNode? current = startNode;
         (GroundNode Node, string Taxiway, List<GroundNode> Path, double ExitAngle, ExitSide Side, GroundNode WalkCenterline)? deferredBackExit = null;
-        for (int hop = 0; hop < maxCenterlineHops && current is not null; hop++)
+        foreach (GroundNode current in CenterlineWalkAhead(lat, lon, runwayHeading, runwayDesignator, excludeBranchPoints))
         {
-            double alongTrack = GeoMath.AlongTrackDistanceNm(current.Position, new LatLon(lat, lon), runwayHeading);
-            if (alongTrack < -0.005)
+            if (Log.IsEnabled(LogLevel.Debug))
             {
-                // Node is behind the aircraft — skip
-                current = FindCenterlineNeighborAhead(current, runwayHeading, runwayDesignator);
-                continue;
+                Log.LogDebug(
+                    "[ExitCL] Checking centerline node #{Id} at ({Lat:F6}, {Lon:F6}), pref={PrefTwy}/{PrefSide}",
+                    current.Id,
+                    current.Position.Lat,
+                    current.Position.Lon,
+                    preference?.Taxiway ?? "any",
+                    preference?.Side?.ToString() ?? "any"
+                );
             }
-
-            // Skip centerline nodes where the aircraft already declared "unable"
-            if ((excludeBranchPoints is not null) && excludeBranchPoints.Contains(current.Id))
-            {
-                current = FindCenterlineNeighborAhead(current, runwayHeading, runwayDesignator);
-                continue;
-            }
-
-            Log.LogDebug(
-                "[ExitCL] Checking centerline node #{Id} at ({Lat:F6}, {Lon:F6}), pref={PrefTwy}/{PrefSide}",
-                current.Id,
-                current.Position.Lat,
-                current.Position.Lon,
-                preference?.Taxiway ?? "any",
-                preference?.Side?.ToString() ?? "any"
-            );
             (GroundNode Node, string Taxiway, List<GroundNode> Path, ExitSide Side)? result = FindAdjacentHoldShort(
                 current,
                 runwayDesignator,
@@ -1817,13 +1807,16 @@ public sealed class AirportGroundLayout
                 double? exitAngle =
                     ComputePathExitAngle(result.Value.Path, result.Value.Taxiway, runwayHeading)
                     ?? ComputeExitAngle(result.Value.Node, result.Value.Taxiway, runwayHeading);
-                Log.LogDebug(
-                    "[ExitCL] Found exit: twy={Twy} HS=#{HsId} angle={Angle:F0}° path=[{Path}]",
-                    result.Value.Taxiway,
-                    result.Value.Node.Id,
-                    exitAngle,
-                    string.Join("→", result.Value.Path.Select(n => n.Id))
-                );
+                if (Log.IsEnabled(LogLevel.Debug))
+                {
+                    Log.LogDebug(
+                        "[ExitCL] Found exit: twy={Twy} HS=#{HsId} angle={Angle:F0}° path=[{Path}]",
+                        result.Value.Taxiway,
+                        result.Value.Node.Id,
+                        exitAngle,
+                        string.Join("→", result.Value.Path.Select(n => n.Id))
+                    );
+                }
 
                 bool isBackExit = (exitAngle is not null) && (exitAngle.Value > BackExitAngleThreshold);
                 bool hasTaxiwayPreference = preference?.Taxiway is not null;
@@ -1831,18 +1824,181 @@ public sealed class AirportGroundLayout
                 {
                     // Remember the nearest back-exit but keep walking for a forward one.
                     deferredBackExit ??= (result.Value.Node, result.Value.Taxiway, result.Value.Path, exitAngle!.Value, result.Value.Side, current);
-                    current = FindCenterlineNeighborAhead(current, runwayHeading, runwayDesignator);
                     continue;
                 }
 
                 return (result.Value.Node, result.Value.Taxiway, result.Value.Path, exitAngle ?? 90, result.Value.Side, current);
             }
-
-            current = FindCenterlineNeighborAhead(current, runwayHeading, runwayDesignator);
         }
 
         return deferredBackExit;
     }
+
+    /// <summary>Most centerline nodes an exit search's walk steps through (<see cref="CenterlineWalkAhead"/>), passed-over ones included.</summary>
+    private const int MaxCenterlineHops = 30;
+
+    /// <summary>How far behind the search point a centerline node may lie and still be checked for an exit.</summary>
+    private const double CenterlineBehindToleranceNm = 0.005;
+
+    /// <summary>
+    /// The centerline nodes of <paramref name="runwayDesignator"/> an exit search from (<paramref name="lat"/>, <paramref name="lon"/>)
+    /// checks, in walk order: from the nearest centerline node (<see cref="FindNearestCenterlineNode(double, double, TrueHeading, string?)"/>)
+    /// forward along <paramref name="runwayHeading"/> for at most <see cref="MaxCenterlineHops"/> nodes, passing over those more than
+    /// <see cref="CenterlineBehindToleranceNm"/> behind the point and the branch points in <paramref name="excludeBranchPoints"/>
+    /// (where the aircraft has said "unable").
+    /// </summary>
+    private IEnumerable<GroundNode> CenterlineWalkAhead(
+        double lat,
+        double lon,
+        TrueHeading runwayHeading,
+        string runwayDesignator,
+        HashSet<int>? excludeBranchPoints
+    )
+    {
+        var from = new LatLon(lat, lon);
+        foreach (GroundNode node in WalkFrom(lat, lon, runwayHeading, runwayDesignator).Chain)
+        {
+            bool behind = GeoMath.AlongTrackDistanceNm(node.Position, from, runwayHeading) < -CenterlineBehindToleranceNm;
+            bool unable = (excludeBranchPoints is not null) && excludeBranchPoints.Contains(node.Id);
+            if (!behind && !unable)
+            {
+                yield return node;
+            }
+        }
+    }
+
+    /// <summary>
+    /// The last point an exit search walked from (<see cref="WalkFrom"/>), for the node count it was found at, and its walk: the
+    /// centerline nodes it steps through (<see cref="BuildCenterlineChain"/>) from the nearest centerline node, empty with none.
+    /// Every search of one exits-ahead list walks from the same point, so the one slot serves the whole list and holds one walk at
+    /// most; <see cref="RebuildAdjacencyLists"/> clears it.
+    /// </summary>
+    private sealed record WalkStart(int NodeCount, double Lat, double Lon, double HeadingDeg, string Designator, GroundNode[] Chain)
+    {
+        public bool IsFor(int nodeCount, double lat, double lon, TrueHeading runwayHeading, string designator) =>
+            (NodeCount == nodeCount)
+            && (Lat == lat)
+            && (Lon == lon)
+            && (HeadingDeg == runwayHeading.Degrees)
+            && string.Equals(Designator, designator, StringComparison.Ordinal);
+    }
+
+    private WalkStart? _lastWalkStart;
+
+    /// <summary>
+    /// The walk of an exit search from (<paramref name="lat"/>, <paramref name="lon"/>): the nearest centerline node
+    /// (<see cref="FindNearestCenterlineNode(double, double, TrueHeading, string?)"/>) and the chain ahead of it, kept for the last point
+    /// asked: a whole-runway scan and a graph walk that every search from one point would otherwise repeat.
+    /// </summary>
+    private WalkStart WalkFrom(double lat, double lon, TrueHeading runwayHeading, string runwayDesignator)
+    {
+        WalkStart? last = Volatile.Read(ref _lastWalkStart);
+        if ((last is not null) && last.IsFor(Nodes.Count, lat, lon, runwayHeading, runwayDesignator))
+        {
+            return last;
+        }
+
+        GroundNode[] chain = FindNearestCenterlineNode(lat, lon, runwayHeading, runwayDesignator) is { } start
+            ? BuildCenterlineChain(start, runwayHeading, runwayDesignator)
+            : [];
+        var walk = new WalkStart(Nodes.Count, lat, lon, runwayHeading.Degrees, runwayDesignator, chain);
+        Volatile.Write(ref _lastWalkStart, walk);
+        return walk;
+    }
+
+    /// <summary>
+    /// The centerline nodes an exit search's walk steps through from <paramref name="start"/>: it and each next node ahead
+    /// (<see cref="FindCenterlineNeighborAhead"/>), at most <see cref="MaxCenterlineHops"/> of them.
+    /// </summary>
+    private GroundNode[] BuildCenterlineChain(GroundNode start, TrueHeading runwayHeading, string runwayDesignator)
+    {
+        List<GroundNode> chain = [];
+        for (GroundNode? current = start; (current is not null) && (chain.Count < MaxCenterlineHops); )
+        {
+            chain.Add(current);
+            current = FindCenterlineNeighborAhead(current, runwayHeading, runwayDesignator);
+        }
+
+        return [.. chain];
+    }
+
+    /// <summary>
+    /// The taxiways a named exit search from (<paramref name="lat"/>, <paramref name="lon"/>) can start down: every taxiway name on
+    /// an edge at the tangent cluster (<see cref="ClusterSeedTaxiways"/>) of a centerline node its walk checks
+    /// (<see cref="CenterlineWalkAhead"/>). A search naming any other taxiway finds nothing, so a caller judging many taxiways from
+    /// one point passes over the rest without searching. Case-insensitive, as <see cref="IGroundEdge.MatchesTaxiway"/> is.
+    /// </summary>
+    public HashSet<string> TaxiwaysSeededAhead(
+        double lat,
+        double lon,
+        TrueHeading runwayHeading,
+        string runwayDesignator,
+        HashSet<int>? excludeBranchPoints
+    )
+    {
+        HashSet<string> names = new(StringComparer.OrdinalIgnoreCase);
+        foreach (GroundNode node in CenterlineWalkAhead(lat, lon, runwayHeading, runwayDesignator, excludeBranchPoints))
+        {
+            names.UnionWith(ClusterSeedTaxiways(node));
+        }
+
+        return names;
+    }
+
+    /// <summary>
+    /// The taxiways an exits-ahead list judges on <paramref name="runwayDesignator"/>: every taxiway name on an edge at one of the
+    /// runway's centerline nodes — straight branches and junction arcs alike, so a branch that ends without a bar of its own and hops
+    /// to the joining taxiway's is judged too — less the end's authored no-turnoff taxiways, which an exit is never offered onto.
+    /// Ordinal order, memoized per runway end (<see cref="SearchMemo"/>).
+    /// </summary>
+    public IReadOnlyList<string> ExitListTaxiways(string runwayDesignator) =>
+        CurrentSearchMemo()
+            .ExitListTaxiways.GetOrAdd(runwayDesignator, static (designator, layout) => layout.CollectExitListTaxiways(designator), this);
+
+    private IReadOnlyList<string> CollectExitListTaxiways(string runwayDesignator)
+    {
+        HashSet<string> noTurnoff = new(FindRunway(runwayDesignator)?.NoTurnoffForEnd(runwayDesignator) ?? [], StringComparer.OrdinalIgnoreCase);
+        SortedSet<string> taxiways = new(StringComparer.OrdinalIgnoreCase);
+        foreach (GroundNode node in Nodes.Values)
+        {
+            if (!node.Edges.Any(edge => edge.IsRunwayCenterline && edge.MatchesRunway(runwayDesignator)))
+            {
+                continue;
+            }
+
+            foreach (IGroundEdge edge in node.Edges)
+            {
+                IEnumerable<string> names = edge is GroundArc arc ? arc.TaxiwayNames : [edge.TaxiwayName];
+                taxiways.UnionWith(names.Where(name => !name.StartsWith("RWY", StringComparison.OrdinalIgnoreCase) && !noTurnoff.Contains(name)));
+            }
+        }
+
+        return [.. taxiways];
+    }
+
+    /// <summary>
+    /// Every taxiway name on a non-centerline edge at <paramref name="centerlineNode"/>'s tangent cluster
+    /// (<see cref="ExpandCenterlineCluster"/>): the edges an exit search from the node seeds, so a search naming a taxiway outside
+    /// the set has no edge to start down. Case-insensitive, memoized per node instance (<see cref="SearchMemo"/>).
+    /// </summary>
+    private IReadOnlySet<string> ClusterSeedTaxiways(GroundNode centerlineNode) =>
+        CurrentSearchMemo()
+            .ClusterSeedTaxiways.GetOrAdd(
+                centerlineNode,
+                static node =>
+                {
+                    HashSet<string> names = new(StringComparer.OrdinalIgnoreCase);
+                    foreach (GroundNode clusterNode in ExpandCenterlineCluster(node, [node.Id]))
+                    {
+                        foreach (IGroundEdge edge in clusterNode.Edges.Where(edge => !edge.IsRunwayCenterline))
+                        {
+                            names.UnionWith(edge is GroundArc arc ? arc.TaxiwayNames : [edge.TaxiwayName]);
+                        }
+                    }
+
+                    return names;
+                }
+            );
 
     /// <summary>
     /// From a runway centerline node, find a hold-short node reachable via
@@ -1904,17 +2060,31 @@ public sealed class AirportGroundLayout
         GroundNode centerlineNode = search.Centerline;
         ExitPreference? preference = search.Preference;
 
+        // A named search seeds only its own taxiway's edges (SeedEdgesFromCluster): with none at the cluster there is nothing to search.
+        if ((preference?.Taxiway is { } named) && !ClusterSeedTaxiways(centerlineNode).Contains(named))
+        {
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("[ExitBFS] RESULT: no {Pref} edge at centerline #{Id}'s cluster", named, centerlineNode.Id);
+            }
+
+            return null;
+        }
+
         var visited = new HashSet<int> { centerlineNode.Id };
         List<GroundNode> clusterNodes = ExpandCenterlineCluster(centerlineNode, visited);
 
-        Log.LogDebug(
-            "[ExitBFS] Cluster from #{CL}: [{Nodes}] pref={PrefTwy}/{PrefSide} instructed={Instructed}",
-            centerlineNode.Id,
-            string.Join(",", clusterNodes.Select(n => n.Id)),
-            preference?.Taxiway ?? "any",
-            preference?.Side?.ToString() ?? "any",
-            search.Instructed
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[ExitBFS] Cluster from #{CL}: [{Nodes}] pref={PrefTwy}/{PrefSide} instructed={Instructed}",
+                centerlineNode.Id,
+                string.Join(",", clusterNodes.Select(n => n.Id)),
+                preference?.Taxiway ?? "any",
+                preference?.Side?.ToString() ?? "any",
+                search.Instructed
+            );
+        }
 
         var queue = new Queue<(GroundNode Node, string Taxiway, List<GroundNode> Path, double TotalDist, int Depth)>();
 
@@ -1930,14 +2100,17 @@ public sealed class AirportGroundLayout
         while (queue.Count > 0)
         {
             (GroundNode? current, string? branchTwy, List<GroundNode>? path, double totalDist, int depth) = queue.Dequeue();
-            Log.LogDebug(
-                "[ExitBFS] dequeue #{Id} twy={Twy} depth={Depth} dist={Dist:F4} type={Type}",
-                current.Id,
-                branchTwy,
-                depth,
-                totalDist,
-                current.Type
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[ExitBFS] dequeue #{Id} twy={Twy} depth={Depth} dist={Dist:F4} type={Type}",
+                    current.Id,
+                    branchTwy,
+                    depth,
+                    totalDist,
+                    current.Type
+                );
+            }
 
             if ((current.Type == GroundNodeType.RunwayHoldShort) && !IsOtherRunwayBarLeftBehind(search, current, path))
             {
@@ -1973,15 +2146,18 @@ public sealed class AirportGroundLayout
             return null;
         }
 
-        Log.LogDebug(
-            "[ExitBFS] RESULT: centerline #{CL} → HS #{HS} via {Twy} onSide={OnSide} actualSide={Side} path=[{Path}]",
-            centerlineNode.Id,
-            exit.Bar.Id,
-            exit.Taxiway,
-            best.OnSide is not null,
-            best.ChosenSide,
-            string.Join("→", exit.Path.Select(n => n.Id))
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[ExitBFS] RESULT: centerline #{CL} → HS #{HS} via {Twy} onSide={OnSide} actualSide={Side} path=[{Path}]",
+                centerlineNode.Id,
+                exit.Bar.Id,
+                exit.Taxiway,
+                best.OnSide is not null,
+                best.ChosenSide,
+                string.Join("→", exit.Path.Select(n => n.Id))
+            );
+        }
         return (exit.Bar, exit.Taxiway, exit.Path, best.ChosenSide);
     }
 
@@ -2347,16 +2523,20 @@ public sealed class AirportGroundLayout
         }
 
         GroundNode target = continuation.Steps[^1];
-        Log.LogDebug(
-            "[ExitBFS] {Twy} ends at #{From} {FromFt:F0} ft from the {Rwy} centerline; continuing to HS #{Target} at {TargetFt:F0} ft via [{Steps}]",
-            deadEnd.Taxiway,
-            deadEnd.Bar.Id,
-            CrossTrackFromCenterlineFt(walk.Rect, deadEnd.Bar),
-            walk.Designator,
-            target.Id,
-            CrossTrackFromCenterlineFt(walk.Rect, target),
-            string.Join("→", continuation.Steps.Select(n => n.Id))
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[ExitBFS] {Twy} ends at #{From} {FromFt:F0} ft from the {Rwy} centerline; "
+                    + "continuing to HS #{Target} at {TargetFt:F0} ft via [{Steps}]",
+                deadEnd.Taxiway,
+                deadEnd.Bar.Id,
+                CrossTrackFromCenterlineFt(walk.Rect, deadEnd.Bar),
+                walk.Designator,
+                target.Id,
+                CrossTrackFromCenterlineFt(walk.Rect, target),
+                string.Join("→", continuation.Steps.Select(n => n.Id))
+            );
+        }
         return new ExitCandidate(
             target,
             deadEnd.Taxiway,
@@ -2870,7 +3050,14 @@ public sealed class AirportGroundLayout
 
                 if (visited.Contains(neighbor.Id))
                 {
-                    Log.LogDebug("[ExitBFS]   skip #{From}->{To} via {Twy}: already visited", clusterNode.Id, neighbor.Id, edge.TaxiwayName);
+                    LogSeedSkip("already visited", clusterNode, neighbor, edge);
+                    continue;
+                }
+
+                // A named search seeds only its own taxiway: checked before the arc geometry, which it makes moot.
+                if (preference?.Taxiway is { } prefTwy && !edge.MatchesTaxiway(prefTwy))
+                {
+                    LogSeedSkip("taxiway doesn't match the preference", clusterNode, neighbor, edge);
                     continue;
                 }
 
@@ -2880,14 +3067,18 @@ public sealed class AirportGroundLayout
                     double bearingDiff = runwayHeading.AbsAngleTo(new TrueHeading(departureBearing));
                     if (bearingDiff > 95)
                     {
-                        Log.LogDebug(
-                            "[ExitBFS]   skip arc #{From}->{To} via {Twy}: departure {Dep:F1} diff={Diff:F1} > 95",
-                            clusterNode.Id,
-                            neighbor.Id,
-                            edge.TaxiwayName,
-                            departureBearing,
-                            bearingDiff
-                        );
+                        if (Log.IsEnabled(LogLevel.Debug))
+                        {
+                            Log.LogDebug(
+                                "[ExitBFS]   skip arc #{From}->{To} via {Twy}: departure {Dep:F1} diff={Diff:F1} > 95",
+                                clusterNode.Id,
+                                neighbor.Id,
+                                edge.TaxiwayName,
+                                departureBearing,
+                                bearingDiff
+                            );
+                        }
+
                         continue;
                     }
 
@@ -2902,47 +3093,51 @@ public sealed class AirportGroundLayout
                     double arrivalDiff = runwayHeading.AbsAngleTo(new TrueHeading(arrivalBearing));
                     if (arrivalDiff > 95)
                     {
-                        Log.LogDebug(
-                            "[ExitBFS]   skip arc #{From}->{To} via {Twy}: arrival {Arr:F1} diff={Diff:F1} > 95",
-                            clusterNode.Id,
-                            neighbor.Id,
-                            edge.TaxiwayName,
-                            arrivalBearing,
-                            arrivalDiff
-                        );
+                        if (Log.IsEnabled(LogLevel.Debug))
+                        {
+                            Log.LogDebug(
+                                "[ExitBFS]   skip arc #{From}->{To} via {Twy}: arrival {Arr:F1} diff={Diff:F1} > 95",
+                                clusterNode.Id,
+                                neighbor.Id,
+                                edge.TaxiwayName,
+                                arrivalBearing,
+                                arrivalDiff
+                            );
+                        }
+
                         continue;
                     }
 
-                    Log.LogDebug(
-                        "[ExitBFS]   seed arc #{From}->{To} via {Twy}: departure {Dep:F1} diff={Diff:F1}",
-                        clusterNode.Id,
-                        neighbor.Id,
-                        edge.TaxiwayName,
-                        departureBearing,
-                        bearingDiff
-                    );
+                    if (Log.IsEnabled(LogLevel.Debug))
+                    {
+                        Log.LogDebug(
+                            "[ExitBFS]   seed arc #{From}->{To} via {Twy}: departure {Dep:F1} diff={Diff:F1}",
+                            clusterNode.Id,
+                            neighbor.Id,
+                            edge.TaxiwayName,
+                            departureBearing,
+                            bearingDiff
+                        );
+                    }
                 }
-                else
+                else if (Log.IsEnabled(LogLevel.Debug))
                 {
                     Log.LogDebug("[ExitBFS]   seed edge #{From}->{To} via {Twy}", clusterNode.Id, neighbor.Id, edge.TaxiwayName);
-                }
-
-                if (preference?.Taxiway is { } prefTwy && !edge.MatchesTaxiway(prefTwy))
-                {
-                    Log.LogDebug(
-                        "[ExitBFS]   skip #{From}->{To}: taxiway {Twy} doesn't match pref {Pref}",
-                        clusterNode.Id,
-                        neighbor.Id,
-                        edge.TaxiwayName,
-                        prefTwy
-                    );
-                    continue;
                 }
 
                 string branchName = edge is GroundArc { IsRunwayJunction: true } ja ? ja.FirstNonRunwayName() : edge.TaxiwayName;
                 visited.Add(neighbor.Id);
                 queue.Enqueue((neighbor, branchName, [clusterNode, neighbor], edge.DistanceNm, 1));
             }
+        }
+    }
+
+    /// <summary>Logs a cluster edge the exit search does not seed, building the line only when debug logging is on.</summary>
+    private static void LogSeedSkip(string reason, GroundNode clusterNode, GroundNode neighbor, IGroundEdge edge)
+    {
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("[ExitBFS]   skip #{From}->{To} via {Twy}: {Reason}", clusterNode.Id, neighbor.Id, edge.TaxiwayName, reason);
         }
     }
 
@@ -3964,10 +4159,53 @@ public sealed class AirportGroundLayout
     private const double HighSpeedExitBonus = 0.15;
 
     /// <summary>
+    /// Memoized results of the exit search's whole-layout scans and graph walks — each a pure function of the node set — for the node
+    /// count they were built at: parking distances and the taxiways at a centerline node's cluster per node, and the centerline nodes
+    /// and the taxiways an exits-ahead list judges per runway end. Every exit search on every rollout tick repeats them, and the
+    /// exits-ahead list runs one per taxiway and side. Built once the layout is frozen; <see cref="RebuildAdjacencyLists"/> clears it,
+    /// and a layout whose node set changes size starts afresh. Shared across threads: two threads filling the same entry compute the
+    /// same value.
+    /// </summary>
+    private sealed record SearchMemo(
+        int NodeCount,
+        ConcurrentDictionary<(int NodeId, int Count), double> ParkingDistanceNm,
+        ConcurrentDictionary<(bool AnyRunway, string Designator), GroundNode[]> CenterlineNodes,
+        ConcurrentDictionary<GroundNode, IReadOnlySet<string>> ClusterSeedTaxiways,
+        ConcurrentDictionary<string, IReadOnlyList<string>> ExitListTaxiways
+    );
+
+    private SearchMemo? _searchMemo;
+
+    private SearchMemo CurrentSearchMemo()
+    {
+        SearchMemo? memo = Volatile.Read(ref _searchMemo);
+        if ((memo is null) || (memo.NodeCount != Nodes.Count))
+        {
+            memo = new SearchMemo(Nodes.Count, new(), new(), new(ReferenceEqualityComparer.Instance), new(StringComparer.OrdinalIgnoreCase));
+            Volatile.Write(ref _searchMemo, memo);
+        }
+
+        return memo;
+    }
+
+    /// <summary>
+    /// Whether the exit search holds a memo of this layout (<see cref="SearchMemo"/> or the last walk, <see cref="WalkStart"/>): false
+    /// until a search builds one and after <see cref="RebuildAdjacencyLists"/> clears them. Read-only.
+    /// </summary>
+    public bool HoldsExitSearchMemo() => (Volatile.Read(ref _searchMemo) is not null) || (Volatile.Read(ref _lastWalkStart) is not null);
+
+    /// <summary>
+    /// The average distance from <paramref name="exitNode"/> to its <paramref name="count"/> nearest parking nodes
+    /// (<see cref="ComputeAverageNearestParkingDistanceNm"/>), memoized per node.
+    /// </summary>
+    public double AverageNearestParkingDistanceNm(GroundNode exitNode, int count) =>
+        CurrentSearchMemo().ParkingDistanceNm.GetOrAdd((exitNode.Id, count), _ => ComputeAverageNearestParkingDistanceNm(exitNode, count));
+
+    /// <summary>
     /// Compute the average distance from a node to the N nearest parking nodes.
     /// Returns 0 if there are no parking nodes in the layout.
     /// </summary>
-    private double AverageNearestParkingDistanceNm(GroundNode exitNode, int count)
+    public double ComputeAverageNearestParkingDistanceNm(GroundNode exitNode, int count)
     {
         // Collect distances to all parking nodes, keep the N smallest
         Span<double> nearest = stackalloc double[count];

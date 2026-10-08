@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Yaat.Sim.Simulation.Snapshots;
 
 /// <summary>Snapshot of <see cref="Yaat.Sim.Situation.AircraftSituationState"/>; every field defaults cleanly.</summary>
@@ -17,4 +19,11 @@ public sealed class AircraftSituationStateDto
 
     /// <summary>The runway to cross next, as the end to name in <c>CROSS</c>; null when none or absent.</summary>
     public string? NextCrossingRunway { get; init; }
+
+    /// <summary>
+    /// The named exits ahead the last <c>Situation</c> step found; written only when there is a list, so a snapshot without one
+    /// keeps its old bytes, and null (no list) when absent.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<ExitAheadDto>? ExitsAhead { get; init; }
 }

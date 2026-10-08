@@ -259,7 +259,8 @@ public sealed partial class SimulationEngine
     /// (<see cref="SituationFlagCalculator"/>) against the new situation, the stored flags, the aircraft's ground
     /// layout (resolved only while holding short or in the taxiing, holding-on-ground and rollout/exit situations: taxi
     /// and hold-short flags) and its assigned runway's own airport layout (inside-FAF), and beside them
-    /// <see cref="AircraftSituationState.NextCrossingRunway"/> from the same ground layout. A spine step (<see cref="Spine.StepId.Situation"/>) after the pilot-proactive step, so
+    /// <see cref="AircraftSituationState.NextCrossingRunway"/> from the same ground layout, and <see cref="AircraftSituationState.ExitsAhead"/>
+    /// (<see cref="ExitsAheadOf"/>). A spine step (<see cref="Spine.StepId.Situation"/>) after the pilot-proactive step, so
     /// it sees this second's phase changes; it runs on every run kind because the stored situation is snapshotted state
     /// that depends on the previous second's.
     /// </summary>
@@ -291,8 +292,29 @@ public sealed partial class SimulationEngine
                     : null;
             situation.Flags = SituationFlagCalculator.Compute(ac, situation.Current, situation.Flags, groundLayout, runwayLayout);
             situation.NextCrossingRunway = SituationFlagCalculator.NextCrossingRunway(ac, situation.Current, groundLayout);
+            situation.ExitsAhead = ExitsAheadOf(ac, phase, runwayLayout, World.Weather, scenario.ElapsedSeconds);
         }
     }
+
+    /// <summary>
+    /// The named exits ahead for <see cref="AircraftSituationState.ExitsAhead"/>: the landing's own list while it rolls out
+    /// (<see cref="LandingPhase.ListExitsAhead(AircraftState)"/>), the touchdown forecast on final
+    /// (<see cref="FinalApproachExitForecast.ListExitsAhead"/>, from the assigned runway's own layout), and null in every other phase —
+    /// <see cref="RunwayExitPhase"/> included. Both are read-only, so the step changes no tick.
+    /// </summary>
+    private static IReadOnlyList<ExitAheadDto>? ExitsAheadOf(
+        AircraftState ac,
+        Phase? phase,
+        AirportGroundLayout? runwayLayout,
+        WeatherProfile? weather,
+        double elapsedSeconds
+    ) =>
+        phase switch
+        {
+            LandingPhase landing => landing.ListExitsAhead(ac),
+            FinalApproachPhase => FinalApproachExitForecast.ListExitsAhead(ac, runwayLayout, weather, elapsedSeconds),
+            _ => null,
+        };
 
     /// <summary>
     /// Per-second transponder maintenance: advances each aircraft's IDENT timer so the ident flash

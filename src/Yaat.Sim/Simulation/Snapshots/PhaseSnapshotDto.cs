@@ -1290,6 +1290,11 @@ public sealed class LandingPhaseDto : PhaseDto
 
     /// <summary>The braking rate that selected the candidate exit; null on snapshots written before it round-tripped.</summary>
     public double? CandidateExitSelectionDecelRate { get; init; }
+
+    /// <summary>The side the exit search found the candidate exit on (<c>ExitSide</c>); null when none, or on older snapshots.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? CandidateExitSide { get; init; }
+
     public int? ActivePreferenceSide { get; init; }
     public string? ActivePreferenceTaxiway { get; init; }
     public int? OriginalPreferenceSide { get; init; }

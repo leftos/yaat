@@ -40,6 +40,13 @@ public class AircraftSituationState
     /// </summary>
     public string? NextCrossingRunway { get; set; }
 
+    /// <summary>
+    /// The named exits ahead the last <c>Situation</c> step found: the rollout's list while <c>LandingPhase</c> rolls out, the
+    /// forecast inside the final window (<c>FinalApproachExitForecast</c>). Null when no list applies (anywhere else, or no
+    /// layout or hold-short data); empty when one applies but no exit is makeable.
+    /// </summary>
+    public IReadOnlyList<ExitAheadDto>? ExitsAhead { get; set; }
+
     public AircraftSituationStateDto ToSnapshot() =>
         new()
         {
@@ -48,6 +55,7 @@ public class AircraftSituationState
             WasOnGround = WasOnGround,
             Flags = (int)Flags,
             NextCrossingRunway = NextCrossingRunway,
+            ExitsAhead = ExitsAhead is { } exits ? [.. exits] : null,
         };
 
     public static AircraftSituationState FromSnapshot(AircraftSituationStateDto dto) =>
@@ -58,5 +66,6 @@ public class AircraftSituationState
             WasOnGround = dto.WasOnGround,
             Flags = (SituationFlags)dto.Flags,
             NextCrossingRunway = dto.NextCrossingRunway,
+            ExitsAhead = dto.ExitsAhead,
         };
 }

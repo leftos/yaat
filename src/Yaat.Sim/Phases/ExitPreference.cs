@@ -46,6 +46,12 @@ public sealed class ResolvedExitInfo
     public required GroundNode BranchPointNode { get; init; }
 
     /// <summary>
+    /// The side of the runway the exit search found this exit on (its bar seen from the centerline node the walk reached it from).
+    /// Null when the straight-line search chose it (no graph) or when it was restored from a snapshot that did not carry it.
+    /// </summary>
+    public required ExitSide? Side { get; init; }
+
+    /// <summary>
     /// The braking rate (kts/sec) the reachability filter allowed when it chose this exit — the class-based default
     /// rate, the firm rate, the firm-braking fallback's rate, or the max-effort rate under <c>EXP</c>. Null when the
     /// straight-line search chose it (no braking filter) or when it was restored from a snapshot that did not carry it.

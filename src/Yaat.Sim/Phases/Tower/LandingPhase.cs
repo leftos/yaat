@@ -140,7 +140,7 @@ public sealed class LandingPhase : Phase
     private bool _needsRestoreRebuild;
 
     /// <summary>Runway-derived half of <see cref="LandingPlan"/>: the part a snapshot round-trips.</summary>
-    private readonly record struct LandingGeometry(double FieldElevation, TrueHeading RunwayHeading, double ThresholdLat, double ThresholdLon);
+    internal readonly record struct LandingGeometry(double FieldElevation, TrueHeading RunwayHeading, double ThresholdLat, double ThresholdLon);
 
     /// <summary>Current sub-state. Read-only except from within this class.</summary>
     public State CurrentState { get; set; } = State.StabilizedApproach;
@@ -238,6 +238,7 @@ public sealed class LandingPhase : Phase
             CandidateExitTurnOffSpeed = _candidateExit?.TurnOffSpeed ?? 0,
             CandidateExitPathNodeIds = _candidateExit?.Path.Select(n => n.Id).ToList(),
             CandidateExitSelectionDecelRate = _candidateExit?.SelectionDecelRate,
+            CandidateExitSide = (int?)_candidateExit?.Side,
             ActivePreferenceSide = (int?)_activePreference?.Side,
             ActivePreferenceTaxiway = _activePreference?.Taxiway,
             OriginalPreferenceSide = (int?)_originalPreference?.Side,
@@ -335,6 +336,7 @@ public sealed class LandingPhase : Phase
             TurnOffSpeed = dto.CandidateExitTurnOffSpeed,
             Path = path,
             SelectionDecelRate = dto.CandidateExitSelectionDecelRate,
+            Side = (ExitSide?)dto.CandidateExitSide,
         };
     }
 
@@ -542,7 +544,14 @@ public sealed class LandingPhase : Phase
     /// geometry it just computed, and a phase restored mid-approach reaches it with the geometry its snapshot
     /// carried.
     /// </summary>
-    private static LandingPlan BuildPlan(PhaseContext ctx, LandingGeometry geometry)
+    private static LandingPlan BuildPlan(PhaseContext ctx, LandingGeometry geometry) => BuildPlan(ctx.Aircraft, ctx.Category, ctx.Weather, geometry);
+
+    /// <summary>
+    /// The plan <paramref name="aircraft"/> of <paramref name="category"/> lands on <paramref name="geometry"/> with, without a running
+    /// phase: the same constants <see cref="OnStart"/> fills in, which the final-approach exit forecast
+    /// (<see cref="FinalApproachExitForecast"/>) needs before this phase has started.
+    /// </summary>
+    internal static LandingPlan BuildPlan(AircraftState aircraft, AircraftCategory category, WeatherProfile? weather, LandingGeometry geometry)
     {
         return new LandingPlan
         {
@@ -550,16 +559,16 @@ public sealed class LandingPhase : Phase
             RunwayHeading = geometry.RunwayHeading,
             ThresholdLat = geometry.ThresholdLat,
             ThresholdLon = geometry.ThresholdLon,
-            RunwayId = ctx.Aircraft.Phases?.AssignedRunway?.Designator,
-            FlareEntryAgl = CategoryPerformance.FlareAltitude(ctx.Category),
-            FlareFpm = CategoryPerformance.FlareDescentRate(ctx.Category),
+            RunwayId = aircraft.Phases?.AssignedRunway?.Designator,
+            FlareEntryAgl = CategoryPerformance.FlareAltitude(category),
+            FlareFpm = CategoryPerformance.FlareDescentRate(category),
             // FCTM: the gust correction is maintained to touchdown; only the steady-headwind
             // half of the approach additive bleeds off in the flare.
-            Vref = CategoryPerformance.ApproachSpeed(ctx.Category) + AircraftPerformance.GustApproachAdditive(ctx.Weather),
-            Vtd = AircraftPerformance.TouchdownSpeed(ctx.Aircraft.AircraftType, ctx.Category),
-            CoastSpeed = CategoryPerformance.RolloutCoastSpeed(ctx.Category),
-            DefaultDecel = CategoryPerformance.RolloutDecelRate(ctx.Category),
-            TouchdownAgl = ctx.Category == AircraftCategory.Helicopter ? 0 : 2,
+            Vref = CategoryPerformance.ApproachSpeed(category) + AircraftPerformance.GustApproachAdditive(weather),
+            Vtd = AircraftPerformance.TouchdownSpeed(aircraft.AircraftType, category),
+            CoastSpeed = CategoryPerformance.RolloutCoastSpeed(category),
+            DefaultDecel = CategoryPerformance.RolloutDecelRate(category),
+            TouchdownAgl = category == AircraftCategory.Helicopter ? 0 : 2,
         };
     }
 
@@ -1556,6 +1565,7 @@ public sealed class LandingPhase : Phase
                     Path = candidate.Path,
                     BranchPointNode = branch,
                     SelectionDecelRate = ForcedLandingProfile.RolloutMaxDecelKtsPerSec,
+                    Side = candidate.Side,
                 };
                 if ((distNm > lastDistNm) && (PlanForcedExitDeceleration(ctx, plan, plan.CoastSpeed, info) is not null))
                 {
@@ -1751,20 +1761,35 @@ public sealed class LandingPhase : Phase
     /// </summary>
     public ExitInstructionVerdict EvaluateAndApplyNamedExitInstruction(AircraftState aircraft, ExitPreference preference, bool expedite)
     {
+        if ((preference.Taxiway is not { } taxiway) || (NamedExitQuery(aircraft, preference, expedite) is not { } query))
+        {
+            return new ExitInstructionVerdict(true, null);
+        }
+
+        return FindWithInferredSide(query) is not null ? new ExitInstructionVerdict(true, null) : RefuseNamedExit(aircraft, query, taxiway);
+    }
+
+    /// <summary>
+    /// The search a named exit instruction is judged by on the rollout (<see cref="EvaluateAndApplyNamedExitInstruction"/>), and the
+    /// one the exits-ahead list repeats per taxiway and side (<see cref="ListExitsAhead(AircraftState)"/>): from the aircraft as it
+    /// stands, a taxiway the crew has given up judged afresh, at <see cref="RolloutBraking.NamedExitBrakingLimit"/>. Null — nothing
+    /// to judge — before touchdown and after the rollout, on a forced (<c>CLANDF</c>) rollout, and with no assigned runway or layout.
+    /// </summary>
+    private ExitCandidateQuery? NamedExitQuery(AircraftState aircraft, ExitPreference preference, bool expedite)
+    {
         if (
-            (preference.Taxiway is not { } taxiway)
-            || (CurrentState != State.Rollout)
+            (CurrentState != State.Rollout)
             || (_plan is not { } plan)
             || (aircraft.Phases is not { ForceLanding: false, AssignedRunway: { } runway })
             || (aircraft.Ground.Layout is not { } layout)
         )
         {
-            return new ExitInstructionVerdict(true, null);
+            return null;
         }
 
         AircraftCategory category = AircraftCategorization.Categorize(aircraft.AircraftType);
         double limit = RolloutBraking.NamedExitBrakingLimit(category, expedite);
-        var query = new ExitCandidateQuery
+        return new ExitCandidateQuery
         {
             Aircraft = aircraft,
             Category = category,
@@ -1777,9 +1802,95 @@ public sealed class LandingPhase : Phase
             BrakingLimitForTurnOffSpeed = _ => limit,
             IncludeGivenUp = true,
             IgnoreLahso = false,
+            From = ExitReachOrigin.Of(aircraft),
+            ExcludeBranchPoints = UnableBranchPointsOrNull(),
+            LahsoStopLimitNm = LahsoStopLimitNm(aircraft),
         };
-        return FindWithInferredSide(query) is not null ? new ExitInstructionVerdict(true, null) : RefuseNamedExit(aircraft, query, taxiway);
     }
+
+    /// <summary>
+    /// The named exits ahead this aircraft can make on its rollout, for the exits-ahead list: every taxiway an <c>EL</c>/<c>ER</c>
+    /// naming it would be accepted for right now — the very search <see cref="EvaluateAndApplyNamedExitInstruction"/> runs, without
+    /// expedite, per taxiway and side (<see cref="ListExitsAhead(ExitCandidateQuery, LatLon, Func{string, ExitSide, bool})"/>) — with
+    /// the distance from the aircraft and the exit it is braking for (<see cref="CandidateExit"/>) marked planned. Read-only: it never
+    /// refuses, gives up or commits anything. Null when no list applies: off the rollout, on a forced (<c>CLANDF</c>) rollout, and with
+    /// no assigned runway, layout or hold-short data for the runway (where the straight-line fallback, not the graph, resolves exits).
+    /// </summary>
+    public IReadOnlyList<ExitAheadDto>? ListExitsAhead(AircraftState aircraft)
+    {
+        if (
+            (NamedExitQuery(aircraft, new ExitPreference(), expedite: false) is not { } query)
+            || (query.Layout.GetRunwayHoldShortNodes(query.RwyDesignator).Count == 0)
+        )
+        {
+            return null;
+        }
+
+        // Matched on the side the candidate's own search found, never measured again from its nodes: a bar near the runway axis
+        // (at a runway end) can measure onto the other side and lose the mark.
+        ResolvedExitInfo? planned = _candidateExit;
+        return ListExitsAhead(
+            query,
+            aircraft.Position,
+            (taxiway, side) =>
+                (planned is { Side: { } plannedSide })
+                && (side == plannedSide)
+                && string.Equals(taxiway, planned.TaxiwayName, StringComparison.OrdinalIgnoreCase)
+        );
+    }
+
+    /// <summary>
+    /// The exits-ahead list for <paramref name="query"/>: each taxiway of the runway (<see cref="AirportGroundLayout.ExitListTaxiways"/>, authored
+    /// no-turnoff taxiways left out) judged on each side by <paramref name="query"/> naming that taxiway and side, and listed on that
+    /// side when the search finds a connection of it there whose bar is at the runway's holding distance — a short stub, accepted only
+    /// when named, is not an exit a crew would offer to take. One row per taxiway and side, at its first makeable connection. A
+    /// taxiway with no edge at a centerline node the search walks (<see cref="AirportGroundLayout.TaxiwaysSeededAhead"/>) cannot be
+    /// found ahead, so it is passed over without searching.
+    /// Distances run along the runway from <paramref name="distanceDatum"/> to the branch point, rounded to 100 ft; rows come left side
+    /// first, each side nearest first. Shared by the rollout (<see cref="ListExitsAhead(AircraftState)"/>) and the final-approach
+    /// forecast (<see cref="FinalApproachExitForecast"/>).
+    /// </summary>
+    internal static IReadOnlyList<ExitAheadDto> ListExitsAhead(ExitCandidateQuery query, LatLon distanceDatum, Func<string, ExitSide, bool> isPlanned)
+    {
+        List<(ExitAheadDto Row, double AlongNm)> rows = [];
+        HashSet<string> seededAhead = query.Layout.TaxiwaysSeededAhead(
+            query.From.Position.Lat,
+            query.From.Position.Lon,
+            query.Plan.RunwayHeading,
+            query.RwyDesignator,
+            query.ExcludeBranchPoints
+        );
+        foreach (string taxiway in query.Layout.ExitListTaxiways(query.RwyDesignator).Where(seededAhead.Contains))
+        {
+            foreach (ExitSide side in ListedSides)
+            {
+                ExitCandidateQuery named = query with
+                {
+                    SearchPref = new ExitPreference { Side = side, Taxiway = taxiway },
+                    SidePref = side,
+                };
+                if (
+                    (FindCenterlineCandidate(named) is not { } exit)
+                    || (exit.Side != side)
+                    || !query.Layout.IsAtRunwayHoldingDistance(exit.HoldShort, query.RwyDesignator)
+                )
+                {
+                    continue;
+                }
+
+                double alongNm = GeoMath.AlongTrackDistanceNm(exit.Path[0].Position, distanceDatum, query.Plan.RunwayHeading);
+                rows.Add((new ExitAheadDto(taxiway, side, RoundToHundredFt(alongNm), isPlanned(taxiway, side)), alongNm));
+            }
+        }
+
+        return [.. rows.OrderBy(r => r.Row.Side).ThenBy(r => r.AlongNm).ThenBy(r => r.Row.Taxiway, StringComparer.Ordinal).Select(r => r.Row)];
+    }
+
+    /// <summary>The sides the exits-ahead list judges every taxiway on, in the order its rows come.</summary>
+    private static readonly ExitSide[] ListedSides = [ExitSide.Left, ExitSide.Right];
+
+    private static int RoundToHundredFt(double distanceNm) =>
+        (int)(Math.Round(distanceNm * GeoMath.FeetPerNm / 100.0, MidpointRounding.AwayFromZero) * 100);
 
     /// <summary>
     /// The refusal for <paramref name="taxiway"/>, whose <paramref name="query"/> found nothing at the named limit: the crew's
@@ -1824,30 +1935,40 @@ public sealed class LandingPhase : Phase
     }
 
     /// <summary>
-    /// The one reachability test every exit search on the rollout applies, named or not, at command time and on the tick: a
-    /// connection whose <paramref name="branch"/> is at or behind the aircraft is passed; otherwise it is reachable when the
-    /// indicated airspeed is already within <see cref="RolloutBraking.TurnOffSpeedToleranceKts"/> of
-    /// <paramref name="turnOffSpeed"/>, or when the ground speed needs no more than <paramref name="brakingLimit"/> to come
-    /// down to it by the branch.
+    /// Where and how fast an exit search judges reach from (<see cref="JudgeExitReach"/>): on the rollout the aircraft's centroid,
+    /// indicated airspeed (wheel speed on the ground) and ground speed as they stand (<see cref="Of"/>); on final the projected
+    /// touchdown point and wheel speed (<see cref="FinalApproachExitForecast"/>).
+    /// </summary>
+    internal readonly record struct ExitReachOrigin(LatLon Position, double IndicatedAirspeedKts, double GroundSpeedKts)
+    {
+        public static ExitReachOrigin Of(AircraftState aircraft) => new(aircraft.Position, aircraft.IndicatedAirspeed, aircraft.GroundSpeed);
+    }
+
+    /// <summary>
+    /// The one reachability test every exit search on the rollout applies, named or not, at command time and on the tick, and the
+    /// final-approach forecast applies from the projected touchdown: a connection whose <paramref name="branch"/> is at or behind
+    /// <paramref name="from"/> along the runway is passed; otherwise it is reachable when the indicated airspeed is already within
+    /// <see cref="RolloutBraking.TurnOffSpeedToleranceKts"/> of the turn-off speed, or when the ground speed needs no more than the
+    /// braking limit to come down to it by the branch.
     /// </summary>
     private static ExitReach JudgeExitReach(
-        AircraftState aircraft,
+        ExitReachOrigin from,
         AircraftCategory category,
         TrueHeading runwayHeading,
         GroundNode branch,
         (double TurnOffSpeed, double BrakingLimit) target
     )
     {
-        double distToBranch = GeoMath.AlongTrackDistanceNm(branch.Position, aircraft.Position, runwayHeading);
+        double distToBranch = GeoMath.AlongTrackDistanceNm(branch.Position, from.Position, runwayHeading);
         if (distToBranch <= 0)
         {
             return ExitReach.AtOrBehind;
         }
 
-        bool alreadySlowEnough = aircraft.IndicatedAirspeed <= target.TurnOffSpeed + RolloutBraking.TurnOffSpeedToleranceKts;
+        bool alreadySlowEnough = from.IndicatedAirspeedKts <= target.TurnOffSpeed + RolloutBraking.TurnOffSpeedToleranceKts;
         bool reachable =
             alreadySlowEnough
-            || (RolloutBraking.RequiredDecelKtsPerSec(aircraft.GroundSpeed, target.TurnOffSpeed, distToBranch, category) <= target.BrakingLimit);
+            || (RolloutBraking.RequiredDecelKtsPerSec(from.GroundSpeedKts, target.TurnOffSpeed, distToBranch, category) <= target.BrakingLimit);
         return reachable ? ExitReach.Reachable : ExitReach.BeyondLimit;
     }
 
@@ -1881,9 +2002,11 @@ public sealed class LandingPhase : Phase
     /// </summary>
     private double NoseOffsetNm(AircraftState aircraft)
     {
-        _noseOffsetNm ??= AircraftLength.ResolveFt(aircraft.AircraftType) / 2.0 / GeoMath.FeetPerNm;
+        _noseOffsetNm ??= NoseOffsetNmOf(aircraft.AircraftType);
         return _noseOffsetNm.Value;
     }
+
+    private static double NoseOffsetNmOf(string aircraftType) => AircraftLength.ResolveFt(aircraftType) / 2.0 / GeoMath.FeetPerNm;
 
     /// <summary>
     /// Distance short of the LAHSO hold-short point the aircraft's centroid has to stop at for the nose to stay
@@ -1892,18 +2015,40 @@ public sealed class LandingPhase : Phase
     private double LahsoSetbackNm(AircraftState aircraft) => LahsoStopMarginNm + NoseOffsetNm(aircraft);
 
     /// <summary>
+    /// Furthest a branch point may lie from the landing threshold, along the runway, for an aircraft of
+    /// <paramref name="aircraftType"/> turning off there to leave the runway before a LAHSO hold-short point
+    /// <paramref name="holdShortDistNm"/> from the threshold: the point less the tick margin and the nose offset. The final-approach
+    /// forecast's form of the limit the rollout keeps (<see cref="LahsoStopLimitNm(AircraftState)"/>).
+    /// </summary>
+    internal static double LahsoStopLimitNm(double holdShortDistNm, string aircraftType) =>
+        holdShortDistNm - (LahsoStopMarginNm + NoseOffsetNmOf(aircraftType));
+
+    /// <summary>The LAHSO stop limit for this landing's exit searches (<see cref="BranchFitsBefore"/>); null without LAHSO.</summary>
+    private double? LahsoStopLimitNm(AircraftState aircraft) => _hasLahso ? _lahsoHoldShortDistNm - LahsoSetbackNm(aircraft) : null;
+
+    /// <summary>The branch points the crew has said "unable" at on this landing, for an exit search to pass over; null when none.</summary>
+    private HashSet<int>? UnableBranchPointsOrNull() => _unableBranchPoints.Count > 0 ? [.. _unableBranchPoints] : null;
+
+    /// <summary>
     /// True when an aircraft turning off at <paramref name="branchNode"/> leaves the runway before the LAHSO
     /// hold-short point — the branch point sits at or before the stop target, setback included. Only meaningful
     /// while <see cref="_hasLahso"/> is set.
     /// </summary>
-    private bool BranchFitsInsideLahso(AircraftState aircraft, GroundNode branchNode, LandingPlan plan)
+    private bool BranchFitsInsideLahso(AircraftState aircraft, GroundNode branchNode, LandingPlan plan) =>
+        BranchFitsBefore(branchNode, plan, _lahsoHoldShortDistNm - LahsoSetbackNm(aircraft));
+
+    /// <summary>
+    /// True when <paramref name="branchNode"/> lies no further than <paramref name="stopLimitNm"/> along the runway from the landing
+    /// threshold.
+    /// </summary>
+    private static bool BranchFitsBefore(GroundNode branchNode, LandingPlan plan, double stopLimitNm)
     {
         double branchFromThreshold = GeoMath.AlongTrackDistanceNm(
             branchNode.Position,
             new LatLon(plan.ThresholdLat, plan.ThresholdLon),
             plan.RunwayHeading
         );
-        return branchFromThreshold <= (_lahsoHoldShortDistNm - LahsoSetbackNm(aircraft));
+        return branchFromThreshold <= stopLimitNm;
     }
 
     private void ResolveNextCandidate(PhaseContext ctx, LandingPlan plan)
@@ -1951,6 +2096,7 @@ public sealed class LandingPhase : Phase
             Path = [result.Value.Node],
             BranchPointNode = result.Value.Node,
             SelectionDecelRate = null,
+            Side = null,
         };
     }
 
@@ -1983,11 +2129,22 @@ public sealed class LandingPhase : Phase
     }
 
     /// <summary>
-    /// One exit-candidate search's inputs: everything <see cref="TryFindCandidate"/> needs beyond the phase's own
-    /// state, bundled so the search takes one argument rather than seven positional ones.
+    /// One exit-candidate search's inputs: everything <see cref="TryFindCandidate"/> needs, bundled so the search takes one argument
+    /// rather than a positional one per field.
     /// </summary>
-    private readonly record struct ExitCandidateQuery
+    internal readonly record struct ExitCandidateQuery
     {
+        /// <summary>The point and speeds reach is judged from, and the centerline walk starts at.</summary>
+        public required ExitReachOrigin From { get; init; }
+
+        /// <summary>Centerline nodes the walk passes over: the branch points the crew has said "unable" at; null when none.</summary>
+        public required HashSet<int>? ExcludeBranchPoints { get; init; }
+
+        /// <summary>
+        /// Under LAHSO, the furthest a branch point may lie from the landing threshold (<see cref="BranchFitsBefore"/>); null without.
+        /// </summary>
+        public required double? LahsoStopLimitNm { get; init; }
+
         public required AircraftState Aircraft { get; init; }
         public required AircraftCategory Category { get; init; }
         public required AirportGroundLayout Layout { get; init; }
@@ -2040,6 +2197,9 @@ public sealed class LandingPhase : Phase
             BrakingLimitForTurnOffSpeed = turnOffSpeed => BrakingLimit(ctx, turnOffSpeed),
             IncludeGivenUp = false,
             IgnoreLahso = false,
+            From = ExitReachOrigin.Of(ctx.Aircraft),
+            ExcludeBranchPoints = UnableBranchPointsOrNull(),
+            LahsoStopLimitNm = LahsoStopLimitNm(ctx.Aircraft),
         };
         ResolvedExitInfo? found = FindWithInferredSide(query);
 
@@ -2067,9 +2227,15 @@ public sealed class LandingPhase : Phase
     /// <see cref="TryFindCandidate"/> for <paramref name="query"/>, trying a taxiway-only preference on the inferred exit
     /// side first and on any side after: the side the crew expects to turn off on is the one it judges a named exit by.
     /// </summary>
-    private ResolvedExitInfo? FindWithInferredSide(ExitCandidateQuery query)
+    private ResolvedExitInfo? FindWithInferredSide(ExitCandidateQuery query) => FindWithInferredSide(query, _inferredSide);
+
+    /// <summary>
+    /// <see cref="FindWithInferredSide(ExitCandidateQuery)"/> with the side the crew expects to turn off on given rather than read from
+    /// a running phase: the final-approach forecast's form, which judges a bare <c>EXIT &lt;twy&gt;</c> before this phase has started.
+    /// </summary>
+    internal static ResolvedExitInfo? FindWithInferredSide(ExitCandidateQuery query, ExitSide? inferredSide)
     {
-        if ((query.SearchPref is { Taxiway: { } taxiway, Side: null }) && (_inferredSide is { } inferred))
+        if ((query.SearchPref is { Taxiway: { } taxiway, Side: null }) && (inferredSide is { } inferred))
         {
             ResolvedExitInfo? onInferredSide = TryFindCandidate(
                 query with
@@ -2142,7 +2308,33 @@ public sealed class LandingPhase : Phase
     /// the search runs again with that connection's hold-short excluded, so a later connection of the same taxiway ahead is
     /// still judged — at most <see cref="MaxPassedConnectionSearches"/> runs.
     /// </summary>
-    private ResolvedExitInfo? TryFindCandidate(ExitCandidateQuery query)
+    private static ResolvedExitInfo? TryFindCandidate(ExitCandidateQuery query)
+    {
+        if (FindCenterlineCandidate(query) is not { } found)
+        {
+            return null;
+        }
+
+        GroundNode branch = found.Path[0];
+        double turnOff = CategoryPerformance.ExitTurnOffSpeed(query.Category, found.ExitAngle);
+        return new ResolvedExitInfo
+        {
+            HoldShortNode = found.HoldShort,
+            TaxiwayName = found.Taxiway,
+            TurnOffSpeed = turnOff,
+            Path = found.Path,
+            BranchPointNode = branch,
+            SelectionDecelRate = query.BrakingLimitForTurnOffSpeed(turnOff),
+            Side = found.Side,
+        };
+    }
+
+    /// <summary>
+    /// <see cref="TryFindCandidate"/>'s search, returning the centerline connection itself (its side included) rather than the
+    /// resolved exit: the side-preferred walk from <see cref="ExitCandidateQuery.From"/>, every candidate judged by
+    /// <see cref="JudgeCandidate"/>, rerun with passed connections set aside.
+    /// </summary>
+    private static AirportGroundLayout.CenterlineExitResult? FindCenterlineCandidate(ExitCandidateQuery query)
     {
         HashSet<int>? excludeHoldShortNodes = query.ExcludeHoldShortNodes;
         AirportGroundLayout.CenterlineExitResult? found = null;
@@ -2150,13 +2342,13 @@ public sealed class LandingPhase : Phase
         {
             List<int> passedHoldShorts = [];
             found = query.Layout.FindOnSidePreferredExit(
-                query.Aircraft.Position.Lat,
-                query.Aircraft.Position.Lon,
+                query.From.Position.Lat,
+                query.From.Position.Lon,
                 query.Plan.RunwayHeading,
                 query.RwyDesignator,
                 query.SearchPref,
                 query.SidePref,
-                excludeBranchPoints: _unableBranchPoints.Count > 0 ? [.. _unableBranchPoints] : null,
+                excludeBranchPoints: query.ExcludeBranchPoints,
                 excludeHoldShortNodes: excludeHoldShortNodes,
                 filter: candidate => JudgeCandidate(query, candidate, passedHoldShorts)
             );
@@ -2168,22 +2360,7 @@ public sealed class LandingPhase : Phase
             excludeHoldShortNodes = [.. excludeHoldShortNodes ?? [], .. passedHoldShorts];
         }
 
-        if (found is null)
-        {
-            return null;
-        }
-
-        GroundNode branch = found.Value.Path[0];
-        double turnOff = CategoryPerformance.ExitTurnOffSpeed(query.Category, found.Value.ExitAngle);
-        return new ResolvedExitInfo
-        {
-            HoldShortNode = found.Value.HoldShort,
-            TaxiwayName = found.Value.Taxiway,
-            TurnOffSpeed = turnOff,
-            Path = found.Value.Path,
-            BranchPointNode = branch,
-            SelectionDecelRate = query.BrakingLimitForTurnOffSpeed(turnOff),
-        };
+        return found;
     }
 
     /// <summary>
@@ -2199,7 +2376,7 @@ public sealed class LandingPhase : Phase
     /// <paramref name="passedHoldShorts"/>), when it lies past a LAHSO hold-short point, or when <see cref="JudgeExitReach"/>
     /// finds it beyond the query's braking limit for its turn-off speed.
     /// </summary>
-    private AirportGroundLayout.CandidateVerdict JudgeCandidate(
+    private static AirportGroundLayout.CandidateVerdict JudgeCandidate(
         ExitCandidateQuery query,
         AirportGroundLayout.CenterlineExitResult candidate,
         List<int> passedHoldShorts
@@ -2214,7 +2391,7 @@ public sealed class LandingPhase : Phase
         GroundNode branchNode = candidate.Path[0];
         double turnOffSpeed = CategoryPerformance.ExitTurnOffSpeed(query.Category, candidate.ExitAngle);
         double brakingLimit = query.BrakingLimitForTurnOffSpeed(turnOffSpeed);
-        ExitReach reach = JudgeExitReach(aircraft, query.Category, query.Plan.RunwayHeading, branchNode, (turnOffSpeed, brakingLimit));
+        ExitReach reach = JudgeExitReach(query.From, query.Category, query.Plan.RunwayHeading, branchNode, (turnOffSpeed, brakingLimit));
 
         if (reach == ExitReach.AtOrBehind)
         {
@@ -2225,13 +2402,13 @@ public sealed class LandingPhase : Phase
         // Under a LAHSO clearance an exit past the hold-short point is no use, however reachable it is: the aircraft has
         // to be stopped short of the point. Skipped like an unreachable candidate, so the search moves on and the stop at
         // the point remains the fallback.
-        if (_hasLahso && !query.IgnoreLahso && !BranchFitsInsideLahso(aircraft, branchNode, query.Plan))
+        if ((query.LahsoStopLimitNm is { } lahsoStopLimitNm) && !query.IgnoreLahso && !BranchFitsBefore(branchNode, query.Plan, lahsoStopLimitNm))
         {
             Log.LogDebug(
-                "[Landing] {Callsign}: skipping exit {Taxiway} — branch point is past the LAHSO hold-short point at {HoldShort:F2}nm",
+                "[Landing] {Callsign}: skipping exit {Taxiway} — branch point is past the LAHSO stop limit at {StopLimit:F2}nm",
                 aircraft.Callsign,
                 candidate.Taxiway,
-                _lahsoHoldShortDistNm
+                lahsoStopLimitNm
             );
             return AirportGroundLayout.CandidateVerdict.Skip;
         }
@@ -2246,7 +2423,7 @@ public sealed class LandingPhase : Phase
                 candidate.ExitAngle,
                 turnOffSpeed,
                 brakingLimit,
-                aircraft.GroundSpeed
+                query.From.GroundSpeedKts
             );
             return AirportGroundLayout.CandidateVerdict.Skip;
         }
