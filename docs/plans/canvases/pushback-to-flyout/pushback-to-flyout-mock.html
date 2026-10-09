@@ -1,0 +1,242 @@
+<title>Push Back To Flyout</title>
+<style>
+  /* Layout: one column; the strip, then the flyout through its four states side by side, then open questions. */
+  :root {
+    --bg: #f3f4f6; --panel: #ffffff; --panel-2: #f6f7f9; --text: #1b1e23; --muted: #5d6570;
+    --line: #d9dde3; --accent: #1f8a7a; --hover: #eef0f4; --cmd: #1f5fbf; --ground: #1f8a7a; --notch: #7d8590;
+    --tl: #b97d16; --tw: #a58a00; --spot: #2a8f72; --chip-bg: #eef0f4; --chip-hover: #dfe8f7; --warn: #b25a00;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #14161a; --panel: #1e2126; --panel-2: #262a31; --text: #e6e8eb; --muted: #9aa1ab;
+      --line: #343a43; --accent: #4fb8a8; --hover: #2f3540; --cmd: #8fc1ff; --ground: #4fb8a8; --notch: #9aa3ad;
+      --tl: #e0a84a; --tw: #f2d04b; --spot: #7fd1b9; --chip-bg: #2a2f37; --chip-hover: #34404f; --warn: #ffb259;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14161a; --panel: #1e2126; --panel-2: #262a31; --text: #e6e8eb; --muted: #9aa1ab;
+    --line: #343a43; --accent: #4fb8a8; --hover: #2f3540; --cmd: #8fc1ff; --ground: #4fb8a8; --notch: #9aa3ad;
+    --tl: #e0a84a; --tw: #f2d04b; --spot: #7fd1b9; --chip-bg: #2a2f37; --chip-hover: #34404f; --warn: #ffb259;
+    color-scheme: dark;
+  }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.4 "Segoe UI", system-ui, sans-serif; }
+  main { max-width: 1240px; margin: 0 auto; padding: 24px 16px 48px; }
+  h1 { font-size: 20px; margin: 0 0 4px; text-wrap: balance; }
+  h2 { font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); margin: 32px 0 10px; }
+  p.lede { color: var(--muted); margin: 0 0 8px; max-width: 800px; }
+  .row { display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-start; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px; }
+  .strip { display: flex; gap: 6px; }
+  .btn { width: 40px; height: 40px; border-radius: 6px; background: var(--panel-2); border: 1px solid var(--line);
+         display: grid; place-items: center; position: relative; }
+  .btn.active { outline: 2px solid var(--accent); }
+  .btn .notch { position: absolute; right: 2px; bottom: 2px; width: 0; height: 0;
+                border-left: 5px solid transparent; border-bottom: 5px solid var(--notch); }
+  .label { margin-top: 8px; font-weight: 600; }
+  .label small { display: block; font-weight: 400; color: var(--muted); }
+  .controls { display: flex; gap: 16px; flex-wrap: wrap; align-items: center; margin: 4px 0 12px; font-size: 13px; }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+  .seg button { font: inherit; color: var(--text); background: var(--panel); border: 0; padding: 5px 10px; cursor: pointer; }
+  .seg button + button { border-left: 1px solid var(--line); }
+  .seg button[aria-pressed="true"] { background: var(--accent); color: var(--panel); }
+  .seg button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .flyout { flex: 1 1 440px; max-width: 480px; min-width: 0; }
+  .flyout .title { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); padding: 2px 6px; display: flex; justify-content: space-between; gap: 8px; }
+  .flyout .title .live { text-transform: none; letter-spacing: 0; color: var(--warn); }
+  .flyout .sub { font-size: 12px; color: var(--muted); padding: 0 6px 8px; }
+  .group { font-size: 11px; color: var(--muted); padding: 8px 6px 2px; letter-spacing: .04em; }
+  .item { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto auto; gap: 10px; align-items: center; padding: 5px 6px;
+          border-radius: 5px; cursor: pointer; }
+  .item.with-arrow { grid-template-columns: 28px minmax(0, 1fr) auto auto 20px; }
+  .item:hover { background: var(--hover); }
+  .item.disabled { cursor: default; }
+  .item.disabled:hover { background: transparent; }
+  .item.disabled > :not(.name), .item.disabled .name > .main { opacity: .5; }
+  .item.placeholder { grid-template-columns: 28px 1fr; color: var(--muted); cursor: default; }
+  .item.placeholder:hover { background: transparent; }
+  .name { min-width: 0; }
+  .name .main { font-weight: 600; }
+  .name .note { color: var(--muted); font-weight: 400; }
+  .name .blocked { display: block; font-size: 12px; color: var(--warn); }
+  .dist { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+  .cmd { color: var(--cmd); font-family: Consolas, "Cascadia Mono", monospace; font-size: 12px; text-align: right; white-space: nowrap; }
+  .badge { width: 22px; height: 22px; display: grid; place-items: center; font: 700 10px/1 "Segoe UI", system-ui, sans-serif;
+           color: #14161a; border-radius: 4px; }
+  .badge.TL { background: var(--tl); } .badge.TW { background: var(--tw); } .badge.S { background: var(--spot); border-radius: 11px; }
+  .chips { display: flex; gap: 4px; margin-top: 3px; align-items: center; flex-wrap: wrap; font-size: 12px; color: var(--muted); }
+  .chip { font: 12px Consolas, "Cascadia Mono", monospace; color: var(--cmd); background: var(--chip-bg); border: 1px solid var(--line);
+          border-radius: 4px; padding: 1px 6px; cursor: pointer; }
+  .chip:hover, .chip:focus-visible { background: var(--chip-hover); outline: none; }
+  .arrow { color: var(--muted); text-align: center; border-radius: 4px; }
+  .item:not(.disabled) .arrow:hover { background: var(--chip-hover); color: var(--text); }
+  .subfly { margin: 2px 0 6px 44px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel-2); padding: 4px; max-width: 220px; }
+  .subfly .opt { padding: 4px 8px; border-radius: 4px; cursor: pointer; display: flex; justify-content: space-between; gap: 12px; }
+  .subfly .opt:hover { background: var(--hover); }
+  .sep { height: 1px; background: var(--line); margin: 6px 4px; }
+  .sent { margin-top: 8px; padding: 6px; font-size: 12px; color: var(--muted); border-top: 1px solid var(--line); min-height: 18px; }
+  .sent code { color: var(--cmd); font-family: Consolas, "Cascadia Mono", monospace; }
+  .spin { width: 14px; height: 14px; border: 2px solid var(--line); border-top-color: var(--accent); border-radius: 50%;
+          animation: spin 1s linear infinite; justify-self: center; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .spin { animation: none; } }
+  .note-list { color: var(--muted); font-size: 13px; max-width: 840px; padding-left: 20px; }
+  .note-list li { margin: 8px 0; }
+  .note-list b { color: var(--text); }
+  .note-list code { color: var(--cmd); font-family: Consolas, "Cascadia Mono", monospace; font-size: 12px; }
+  .legend { color: var(--muted); font-size: 12px; margin-top: 8px; max-width: 840px; }
+  @media (max-width: 460px) {
+    .item, .item.with-arrow { grid-template-columns: 28px minmax(0, 1fr) auto; }
+    .item .cmd { grid-column: 2 / -1; text-align: left; }
+    .item .arrow { grid-column: 3; grid-row: 1; }
+  }
+</style>
+
+<main>
+  <h1>Push back to flyout</h1>
+  <p class="lede">Mock for YAAT-570 (part of YAAT-569): the designed flyout behind the Push back to strip button, in the style of the Cleared for takeoff and pattern-entry flyouts. Each row shows the target's kind, its name, the tug's path length and the command it sends. The flyout follows the target list while it is open: it starts on a placeholder or the seed targets and refills in place when the client's plan lands. Targets are illustrative, for a B738 at OAK stand 26; labels and commands are the ones the code uses today.</p>
+
+  <h2>Quick-command strip, at parking</h2>
+  <div class="row">
+    <div class="card">
+      <div class="strip" id="strip"></div>
+      <div class="label">Push back to › <small>keeps main's icon (YAAT-456) · the notch marks a flyout</small></div>
+    </div>
+  </div>
+
+  <h2>The flyout, through the plan</h2>
+  <div class="controls">
+    <span>Facings:</span>
+    <span class="seg" role="group" aria-label="Facing layout">
+      <button type="button" id="v-chips" aria-pressed="true">Chips on the row (proposed)</button>
+      <button type="button" id="v-arrow" aria-pressed="false">› second flyout (today)</button>
+    </span>
+  </div>
+  <div class="row" id="flyouts"></div>
+  <p class="legend">Badges: TL taxilane, TW taxiway, S taxi spot (as today's rows). A blocked target is faded and names the aircraft in the way; it sends nothing. The distance is the tug's planned path, rounded to 5 ft.</p>
+
+  <h2>Open questions</h2>
+  <ol class="note-list">
+    <li><b>Facings: chips on the row, or today's › second flyout?</b> Chips (shown by default) put every choice in one flyout: the row sends the bare <code>PUSH TE</code> and each chip sends <code>PUSH TE FACE N</code>. Worst case: a taxiway with four or more facings makes the row tall. The › flyout keeps rows one line, but it is a nested popup again, which YAAT-569 rules out for quick commands, and the › button is outside arrow-key travel.</li>
+    <li><b>Does a click on the row still send the bare <code>PUSH TE</code>?</b> The mock says yes, "facing: tug's choice", like the takeoff flyout's bare Cleared for takeoff row. The alternative: the row only expands its facings, and the instructor always picks one. Worst case of yes: a stray click pushes with a facing the instructor did not mean.</li>
+    <li><b>A target with a single facing.</b> The mock shows no chip when there is one facing (the bare command already gives it). Today the › shows for one facing too.</li>
+    <li><b>While the plan computes.</b> The mock shows the seed targets with "refining…" in the title and a spinner, then swaps the rows in place when the plan lands, keeping the pointer's row when it survives. With no seed it shows "Computing targets…". Worst case: a row the instructor is about to click disappears (the plan finds it unflyable) or turns blocked under the pointer; the mock makes a click on a row that is no longer there do nothing. Alternative: hold the seed rows until the pointer leaves the flyout.</li>
+    <li><b>Nothing to push to.</b> The mock keeps the disabled "No push targets from here" row when the plan settles empty while open. When the list is already settled empty before the menu opens, the strip button is left off, as today.</li>
+    <li><b>Sections.</b> The mock keeps today's two groups, each in path-length order. Shorter headers ("Behind the aircraft", "Taxi spots") would suit the flyout's title line; the full "Taxilanes and taxiways behind the aircraft" is kept here.</li>
+    <li><b>Blocked targets.</b> Faded, the blocker named, no send (today's rule). The RPO override <code>PUSHF</code> (docs/ground/pushback.md) is not offered; should a blocked row offer it?</li>
+    <li><b>All Commands › Push back to…</b> is built by the same code. The ruling covers the strip; should All Commands get the designed rows too (one builder for both, as the takeoff flyout does), or keep today's submenu?</li>
+  </ol>
+</main>
+
+<script>
+  const PUSH_GLYPH = "M12 3v8 M9 8l3 3 3-3 M12 13a4 4 0 1 0 0 8a4 4 0 1 0 0-8";
+  const PUSH_PLAIN = "M12 3v12 M8 11l4 4 4-4 M6 20h12";
+  const PRESET = "M4 21v-5a4 4 0 0 1 4-4h8a4 4 0 0 0 4-4V4 M17 7l3-3 3 3";
+  const icon = d => `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--ground)" stroke-width="1.75"
+    stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${d}"/></svg>`;
+
+  const SEED = [
+    { kind: "TL", name: "TE", note: "alongside", ft: 250, cmd: "PUSH TE", facings: [] },
+    { kind: "TW", name: "W", note: "across", ft: 610, cmd: "PUSH W", facings: [] },
+  ];
+  const LANDED = [
+    { kind: "TL", name: "TE", note: "alongside", ft: 250, cmd: "PUSH TE", facings: ["N", "S"] },
+    { kind: "TL", name: "TF", note: "alongside", ft: 420, cmd: "PUSH TF", facings: ["N", "S"], blockedBy: "SWA919" },
+    { kind: "TW", name: "W", note: "across", ft: 610, cmd: "PUSH W", facings: ["NW", "SE"] },
+    { kind: "TW", name: "U", note: "across", ft: 980, cmd: "PUSH U", facings: ["E"] },
+    { kind: "S", name: "Spot C", ft: 1355, cmd: "PUSH $C", facings: [] },
+    { kind: "S", name: "Spot 1", ft: 1820, cmd: "PUSH $1", facings: [] },
+  ];
+  const STATES = [
+    { id: "computing", label: "1 · Opened before any seed", targets: null, live: true },
+    { id: "seed", label: "2 · Seed shown, plan running", targets: SEED, live: true },
+    { id: "landed", label: "3 · Plan landed (refilled in place)", targets: LANDED, live: false },
+    { id: "empty", label: "4 · Plan settled empty while open", targets: [], live: false },
+  ];
+  let variant = "chips";
+  let openArrow = null;
+
+  const ft = n => `~${n.toLocaleString("en-US")} ft`;
+  const esc = s => s.replace(/&/g, "&amp;").replace(/</g, "&lt;");
+
+  function rowHtml(t, i) {
+    const blocked = !!t.blockedBy;
+    const showChips = variant === "chips" && t.facings.length > 1;
+    const showArrow = variant === "arrow" && t.facings.length > 0;
+    const note = t.note ? `<span class="note"> · ${t.note}</span>` : "";
+    const chips = showChips
+      ? `<span class="chips">then face ${t.facings.map(f => `<span class="chip" role="menuitem" tabindex="${blocked ? -1 : 0}" data-send="${blocked ? "" : `${t.cmd} FACE ${f}`}">${f}</span>`).join("")}</span>`
+      : (t.facings.length === 1 && !blocked ? `<span class="chips">faces ${t.facings[0]}</span>` : "");
+    const blockedLine = blocked ? `<span class="blocked">blocked by ${t.blockedBy}</span>` : "";
+    const arrow = showArrow ? `<span class="arrow" data-arrow="${i}" aria-label="Facings">›</span>` : (variant === "arrow" ? "<span></span>" : "");
+    const cls = ["item", blocked ? "disabled" : "", variant === "arrow" ? "with-arrow" : ""].join(" ");
+    return `<div class="${cls}" role="menuitem" tabindex="${blocked ? -1 : 0}" data-send="${blocked ? "" : t.cmd}">
+      <span class="badge ${t.kind}">${t.kind}</span>
+      <div class="name"><span class="main">${esc(t.name)}</span>${note}${blockedLine}${chips}</div>
+      <span class="dist">${ft(t.ft)}</span><span class="cmd">${t.cmd}</span>${arrow}</div>`
+      + (showArrow && openArrow === `${i}` && !blocked
+        ? `<div class="subfly" role="menu">${t.facings.map(f => `<div class="opt" role="menuitem" data-send="${t.cmd} FACE ${f}"><span>Face ${f}</span><span class="cmd">${t.cmd} FACE ${f}</span></div>`).join("")}</div>`
+        : "");
+  }
+
+  function bodyHtml(state) {
+    if (state.targets === null) {
+      return `<div class="item placeholder"><span class="spin" aria-hidden="true"></span><span>Computing targets…</span></div>`;
+    }
+    if (state.targets.length === 0) {
+      return `<div class="item placeholder"><span></span><span>No push targets from here</span></div>`;
+    }
+    const lanes = state.targets.filter(t => t.kind !== "S");
+    const spots = state.targets.filter(t => t.kind === "S");
+    let html = "";
+    if (lanes.length) html += `<div class="group">Taxilanes and taxiways behind the aircraft</div>` + lanes.map(t => rowHtml(t, state.targets.indexOf(t))).join("");
+    if (lanes.length && spots.length) html += `<div class="sep"></div>`;
+    if (spots.length) html += `<div class="group">Taxi spots</div>` + spots.map(t => rowHtml(t, state.targets.indexOf(t))).join("");
+    return html;
+  }
+
+  function cardHtml(state) {
+    const live = state.live ? `<span class="live">${state.targets === null ? "planning…" : "refining…"}</span>` : "";
+    return `<div class="card flyout" id="card-${state.id}" role="menu" aria-label="Push back to, ${state.label}">
+      <div class="title"><span>Push back to · stand 26</span>${live}</div>
+      <div class="sub">${state.label}<br>UAL546 · B738 · at parking · oak</div>
+      ${bodyHtml(state)}
+      <div class="sent" data-sent>${state.targets && state.targets.length ? "Click a row or a facing to see what it sends." : "&nbsp;"}</div>
+    </div>`;
+  }
+
+  function render() {
+    document.getElementById("flyouts").innerHTML = STATES.map(cardHtml).join("");
+    document.getElementById("v-chips").setAttribute("aria-pressed", String(variant === "chips"));
+    document.getElementById("v-arrow").setAttribute("aria-pressed", String(variant === "arrow"));
+  }
+
+  document.getElementById("flyouts").addEventListener("click", e => {
+    const card = e.target.closest(".flyout");
+    if (!card) return;
+    const arrow = e.target.closest("[data-arrow]");
+    if (arrow) {
+      openArrow = openArrow === arrow.dataset.arrow ? null : arrow.dataset.arrow;
+      render();
+      return;
+    }
+    const hit = e.target.closest("[data-send]");
+    if (!hit) return;
+    const sent = card.querySelector("[data-sent]");
+    sent.innerHTML = hit.dataset.send
+      ? `Sends <code>${hit.dataset.send}</code> and closes the flyout and the menu.`
+      : "Blocked: sends nothing, the menu stays open.";
+  });
+  document.getElementById("flyouts").addEventListener("keydown", e => {
+    if (e.key === "Enter" && e.target.matches("[data-send]")) e.target.click();
+  });
+  document.getElementById("v-chips").addEventListener("click", () => { variant = "chips"; openArrow = null; render(); });
+  document.getElementById("v-arrow").addEventListener("click", () => { variant = "arrow"; openArrow = "0"; render(); });
+
+  document.getElementById("strip").innerHTML =
+    `<div class="btn" title="Push back">${icon(PUSH_PLAIN)}</div>` +
+    `<div class="btn" title="Preset taxi route">${icon(PRESET)}</div>` +
+    `<div class="btn active" title="Push back to">${icon(PUSH_GLYPH)}<span class="notch"></span></div>`;
+  render();
+</script>
