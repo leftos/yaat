@@ -12,17 +12,14 @@
 - [ ] YAAT-475 Merge feat/precompute-cache (#951) · release vNext
 - [ ] YAAT-497 Split the tug planner's shared pieces out of the precompute layout source set · release vNext
 - [ ] YAAT-511 Refuse TAXI for a jet or turboprop at a push-back stand without a push · release vNext
-- [ ] YAAT-533 Load ARTCC sidecar files in a fixed path order so rule precedence is the same on every OS · release vNext
-- [ ] YAAT-537 Reconcile the plain tow planner's keep with the live check's Blocked at OAK gate 26 · release vNext
 
 ## Follow on the taxi graph (feat/follow-on-graph)
 
 - [ ] YAAT-407 Merge feat/follow-on-graph (#881) · release vNext
 - [ ] YAAT-507 FOLLOWG clearing route stops one node before the next runway's hold bar
 - [ ] YAAT-508 FOLLOWG clearing check ignores traffic crossing at a junction
-- [ ] YAAT-534 Split GroundConflictDetector.ApplySpeedLimits under 100 lines · release vNext
 - [ ] YAAT-535 Keep ChooseMutualStopHolder from holding a follower against a lead closing on it · release vNext
-- [ ] YAAT-543 FOLLOWG follower takes the square corner through trail stub edges instead of the arc its lead drove · release vNext
+- [/] YAAT-543 FOLLOWG follower takes the square corner through trail stub edges instead of the arc its lead drove · release vNext
 
 ## Bug reports and feature requests
 
@@ -38,7 +35,7 @@
 - [ ] YAAT-288 Find what gave an automation-mode client the keyboard foreground for 3.5 s (YAAT-282 leftover)
 - [ ] YAAT-403 Support for vTBFM · release vNext
   - [/] YAAT-412 vTBFM: meter on the feed's clock (contributed PR) · release vNext
-  - [ ] YAAT-413 Integration and smoke test a YAAT-fed vTBFM, then write the setup steps · release vNext
+  - [/] YAAT-413 Integration and smoke test a YAAT-fed vTBFM, then write the setup steps · release vNext
   - [!] YAAT-538 List the rooms a feed consumer's user may see (ARTCC-filtered, authenticated) · release vNext+1
   - [!] YAAT-539 vTBFM: follow each user's chosen YAAT room (contributed PR) · release vNext+1
 
@@ -56,7 +53,6 @@
 - [ ] YAAT-522 Cleared for takeoff flyout: VFR pattern exits, turn direct a fix, initial altitude; IFR heading · release vNext
 - [ ] YAAT-524 Cleared for takeoff menu's "360 overhead" sends CTO 360, a heading
 - [ ] YAAT-545 Close the gap the quick-command label row leaves above the icon strip
-- [ ] YAAT-547 Open quick-command submenus as a sticky flyout beside the aircraft menu · release vNext
 
 ## Tick-path unification
 
@@ -309,6 +305,7 @@
 - [ ] YAAT-515 Stop the commit hook's style pass marking [ObservableProperty] fields readonly
 - [ ] YAAT-526 Update yaat's skills and docs for land going straight to Done (no Landed state)
 - [ ] YAAT-531 Re-read the four drifted docs the 2026-10-08 scan found outside YAAT-126
+- [ ] YAAT-550 Stop KillRecorder_EndsOnlyTheRecorder flaking under load
 
 ## Singles
 
