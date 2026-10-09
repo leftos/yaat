@@ -136,6 +136,10 @@ The single route every action takes, on every run kind, from text to effect. The
 it lives in `Yaat.Sim`, and no entry point decides anything the router decides.
 _Avoid_: dispatch chain, handler chain, command pipeline (the pipeline is the whole path from keyboard to aircraft)
 
+**RPO room**:
+Any room not in solo training (`!SoloTrainingMode`), an instructor room with no pilot operator included: a person, not the sim, launches its departures and answers for its pilots.
+_Avoid_: instructor room (as a contrast to RPO room; the code draws no line between them)
+
 **RPO-only command**:
 A command only a pilot operator may give, because it makes a pilot do something no controller instruction can, such as
 FOLLOWF, CVAF, RFISF, RTISF or CLANDF. Solo training refuses them unless the scenario's recorded `SoloRpoCommandsAllowed`

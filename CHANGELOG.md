@@ -25,7 +25,7 @@
 - Import / Export backs up all your settings to YAAT's backups folder before each import, and says what each item's import will change.
 - With a solo student on clearance delivery, departures call for their IFR clearance, or a VFR departure naming a direction and altitude, instead of "ready to taxi".
 - A beacon code (`SQ`, `RANDSQ`, `SQVFR`) or a PDC sent with `TDLSS` answers a departure's clearance request, so the pilot stops repeating it.
-- In solo radar sessions, IFR departures lined up at untowered fields ask for their release and wait in the Releases flyout until `REL` or `HFROFF`.
+- In solo radar sessions, IFR departures starting lined up at untowered fields with no scripted takeoff ask for their release and wait in the Releases flyout until `REL` or `HFROFF`.
 - In solo training with a radar student, unscripted runway departures at towered fields, or VFR at untowered ones, depart unprompted; RPOs launch them manually.
 - Load Scenario's Local Files tab can load one scenario file directly and lists recent scenarios, marking moved or deleted files missing; Remove drops one.
 - `ARWY OAK 28L 28R` sets an airport's active runways for the room (`D`/`A` prefixes for departures or arrivals only); `ARWY OAK` shows them, `ARWY OAK NONE` clears them.
@@ -56,7 +56,7 @@
 - The session flyout's auto-accept is a checkbox with a 0–60 second delay, matching its Settings default.
 - The session flyout's auto cleared-to-land and arrival spacing switches name the student's position, such as "Auto cleared-to-land (TWR)".
 - The scenario setup dialog starts from your Settings solo pacing defaults without changing them, and a load without the dialog uses them too.
-- In RPO rooms, a released departure with no scripted takeoff waits for the RPO's `CTO`; a takeoff preset held back by the hold fires as soon as it is released.
+- In RPO rooms, a released departure with no scripted takeoff waits for the RPO's `CTO`; in any room, a takeoff preset held back for release fires as soon as it is released.
 - Piston aircraft brake at most 4.0 kt/s for an assigned exit and 4.5 with `EXP`, down from 5.0.
 - An assigned exit the pilot can't make gets "unable W3" instead of a readback, and isn't used that landing unless reassigned or once stopped.
 - Taxiway turn-arounds depend on the aircraft's gear: types whose gear fits the taxiway turn tightly, while larger types, business jets included, answer "unable, no room to turn around".
