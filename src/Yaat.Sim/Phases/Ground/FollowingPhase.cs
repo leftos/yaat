@@ -391,10 +391,45 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
         {
             BrakeToRestShortOf(ctx, crossed, barCap);
             ApplyCap(ctx, LostRouteEndCap(ctx, route));
+            ApplyCap(ctx, LostRouteLeadGapCap(ctx, ctx.AircraftLookup?.Invoke(_targetCallsign)));
         }
 
         return true;
     }
+
+    /// <summary>
+    /// The brake rate for the lead (<see cref="LostRouteLeadGapDecelRate"/>) folded into the rest <see cref="BrakeToRestShortOf"/>
+    /// already pins; null when the taxi rate will do.
+    /// </summary>
+    private static SpeedCap? LostRouteLeadGapCap(PhaseContext ctx, AircraftState? lead) =>
+        LostRouteLeadGapDecelRate(ctx.Aircraft, ctx.Category, lead) is { } rate ? new SpeedCap(0.0, rate) : null;
+
+    /// <summary>
+    /// The brake rate (kt/s) a <paramref name="follower"/> of <paramref name="category"/> braking to rest along a lost route
+    /// needs for <paramref name="lead"/>, the follow route no longer leading to it: the max-effort rate
+    /// (<see cref="CategoryPerformance.ExpediteExitDecelRate"/>) when braking at the taxi rate would end inside the stop gap
+    /// (<see cref="FollowGap.StopGapFt"/>) behind the lead's tail, read on the straight-line nose-to-tail gap
+    /// (<see cref="NoseToTailFt"/>); else null, braking at the taxi rate. Null too with no lead, a lead off the ground, or a lead
+    /// whose tail is not ahead of the follower (<see cref="IsTailAhead"/>): a lead abeam or behind is nothing to brake for.
+    /// </summary>
+    public static double? LostRouteLeadGapDecelRate(AircraftState follower, AircraftCategory category, AircraftState? lead)
+    {
+        if ((lead is null) || !lead.IsOnGround || !IsTailAhead(follower, lead))
+        {
+            return null;
+        }
+
+        AircraftCategory leadCategory = AircraftCategorization.Categorize(lead.AircraftType);
+        double stopGapFt = FollowGap.StopGapFt(lead.AircraftType, leadCategory, follower.AircraftType, category);
+        return LostRouteEndDecelRate(category, follower.GroundSpeed, NoseToTailFt(follower, lead) - stopGapFt);
+    }
+
+    /// <summary>
+    /// Whether <paramref name="lead"/>'s tail lies within 90° either side of <paramref name="follower"/>'s heading, seen from
+    /// the follower's centre.
+    /// </summary>
+    private static bool IsTailAhead(AircraftState follower, AircraftState lead) =>
+        Math.Abs(GeoMath.SignedBearingDifference(follower.TrueHeading.Degrees, GeoMath.BearingTo(follower.Position, TailOf(lead)))) < 90.0;
 
     /// <summary>
     /// Ticks the navigator over the lost route, as a held follow's route is ticked (no lead, its end a stop), and true while it
@@ -787,7 +822,10 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
     /// highest any cap below the current ground speed needs (a null rate is the category taxi rate), so a lower cap braked at
     /// the taxi rate never hides a higher one — a runway bar's — that needs the max-effort rate to be met. A null target is no
     /// stop: physics clears the target once the aircraft reaches it, and the navigator publishes none on the sub-tick it arrives
-    /// at a node, so a null target reads as the speed the aircraft holds, which is what physics does with it.
+    /// at a node, so a null target reads as the speed the aircraft holds, which is what physics does with it. The target the cap
+    /// lowers — an explicit <see cref="ControlTargets.TargetSpeed"/>, or the held speed a null one reads as — is first capped by
+    /// the ground conflict detector's <see cref="AircraftGroundOps.SpeedLimit"/>, so a cap never publishes a speed above the
+    /// detector's limit.
     /// </summary>
     private static void ApplyCap(PhaseContext ctx, SpeedCap? cap)
     {
@@ -796,7 +834,13 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
             return;
         }
 
-        ctx.Targets.TargetSpeed = Math.Min(ctx.Targets.TargetSpeed ?? ctx.Aircraft.IndicatedAirspeed, applied.Kts);
+        double publishedKts = ctx.Targets.TargetSpeed ?? ctx.Aircraft.IndicatedAirspeed;
+        if (ctx.Aircraft.Ground.SpeedLimit is { } limitKts)
+        {
+            publishedKts = Math.Min(publishedKts, limitKts);
+        }
+
+        ctx.Targets.TargetSpeed = Math.Min(publishedKts, applied.Kts);
         double taxiRate = CategoryPerformance.TaxiDecelRate(ctx.Category);
         bool needsBraking = applied.Kts < ctx.Aircraft.GroundSpeed;
         if (needsBraking && ((applied.DecelRate ?? taxiRate) > (ctx.Targets.DesiredDecelRate ?? taxiRate)))
@@ -2215,13 +2259,11 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
 
     /// <summary>
     /// Whether the lead's track — its pushback track on a tug, else its heading — points back toward the follower: a lead
-    /// backing or coming toward the follower opens no gap, so its speed is no speed to match.
+    /// backing or coming toward the follower opens no gap, so its speed is no speed to match, and the ground conflict detector
+    /// limits it against its follower as in any other pair.
     /// </summary>
-    private static bool LeadTracksTowardFollower(AircraftState follower, AircraftState lead)
-    {
-        double trackDeg = lead.Ground.PushbackTrueHeading?.Degrees ?? lead.TrueHeading.Degrees;
-        return Math.Abs(GeoMath.SignedBearingDifference(trackDeg, GeoMath.BearingTo(lead.Position, follower.Position))) < 90.0;
-    }
+    internal static bool LeadTracksTowardFollower(AircraftState follower, AircraftState lead) =>
+        TaxiEdgeTrail.TracksWithin90Of(lead, GeoMath.BearingTo(lead.Position, follower.Position));
 
     /// <summary>
     /// While giving way short of the merge, the braking curve onto the give-way stop
@@ -2298,10 +2340,8 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
     /// </summary>
     public static double NoseToTailFt(AircraftState follower, AircraftState lead)
     {
-        double followerHalfNm = AircraftLength.ResolveFt(follower.AircraftType) / 2.0 / GeoMath.FeetPerNm;
-        double leadHalfNm = AircraftLength.ResolveFt(lead.AircraftType) / 2.0 / GeoMath.FeetPerNm;
-        LatLon nose = GeoMath.ProjectPoint(follower.Position, follower.TrueHeading, followerHalfNm);
-        LatLon tail = GeoMath.ProjectPoint(lead.Position, new TrueHeading((lead.TrueHeading.Degrees + 180.0) % 360.0), leadHalfNm);
+        LatLon nose = NoseOf(follower);
+        LatLon tail = TailOf(lead);
         double distFt = GeoMath.DistanceNm(nose, tail) * GeoMath.FeetPerNm;
         double towardLeadDeg = GeoMath.BearingTo(follower.Position, lead.Position);
         double offRad = GeoMath.SignedBearingDifference(towardLeadDeg, GeoMath.BearingTo(nose, tail)) * Math.PI / 180.0;

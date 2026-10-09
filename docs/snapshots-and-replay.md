@@ -73,7 +73,7 @@ All six are written only when set and absent (null) otherwise; no schema bump.
 
 A restore that kept no latch would let the stop go once the aircraft had slowed too far from the node to find it again.
 
-`AircraftGroundOpsDto.TaxiEdgeTrail` follows the same pattern: the taxi edges a ground aircraft drove, oldest first (`TaxiTrailEdgeDto`: `NodeA`, `NodeB`, `LengthFt`), written only when the trail is not empty, and restored as an empty trail when absent. The aircraft's own `AircraftGroundOps.TaxiEdgeTrail` is `[JsonIgnore]`; this DTO field is its carrier.
+`AircraftGroundOpsDto.TaxiEdgeTrail` follows the same pattern: the taxi edges a ground aircraft drove, oldest first (`TaxiTrailEdgeDto`: `NodeA`, `NodeB`, `LengthFt`, `EntryNodeId`, the end node the edge was entered from; additive, no schema bump, and a restore throws `InvalidDataException` on an entry node that is neither end of its edge, as a snapshot written without it loads 0), written only when the trail is not empty, and restored as an empty trail when absent. The aircraft's own `AircraftGroundOps.TaxiEdgeTrail` is `[JsonIgnore]`; this DTO field is its carrier.
 
 `FollowingPhaseDto` carries the `FOLLOWG` follow's graph state the same additive way, with no schema bump ([ground/navigator.md](ground/navigator.md) § FOLLOWG: driving the follow route):
 

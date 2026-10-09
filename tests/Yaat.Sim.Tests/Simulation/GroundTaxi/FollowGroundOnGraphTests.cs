@@ -3129,7 +3129,7 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
         GroundNode far = onward.OtherNode(end);
         lead.Position = KoakFollowGeometry.Between(end.Position, far.Position, 0.5);
         lead.TrueHeading = KoakFollowGeometry.Facing(end, far);
-        lead.Ground.TaxiEdgeTrail.Record(onward);
+        lead.Ground.TaxiEdgeTrail.Record(onward, end);
         output.WriteLine($"lead put back mid-way along {onward.TaxiwayName} #{end.Id}>#{far.Id}");
     }
 
@@ -3688,8 +3688,8 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
             KoakFollowGeometry.Facing(from, to)
         );
         lead.Ground.Layout = layout;
-        lead.Ground.TaxiEdgeTrail.Record(before);
-        lead.Ground.TaxiEdgeTrail.Record(shared);
+        lead.Ground.TaxiEdgeTrail.Record(before, before.OtherNode(from));
+        lead.Ground.TaxiEdgeTrail.Record(shared, from);
         engine.World.AddAircraft(lead);
         AircraftState follower = KoakFollowGeometry.Spawn(
             FollowerCallsign,

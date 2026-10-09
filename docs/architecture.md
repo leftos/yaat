@@ -20,6 +20,7 @@
 | **Change which aircraft refuse a controller's taxiway turn-about, or the turn-about radius and speed** | [`ground/pathfinder.md`](./ground/pathfinder.md#where-it-sits--entry-points) (route-aware start, gear fit) → `Commands/GroundCommandHandler.cs` (`ResolveFromEitherEnd`, `TurnAboutVerdictFor`) → `Phases/Ground/TurnAboutFit.cs` → `Data/Faa/FaaAircraftRecord.cs` + `FaaAircraftDatabase.cs` → `Phases/Ground/GroundNavigator.cs` (`SolveTaxiwayTurnAbout`, `ReAimPastTheBend`) → `AircraftCategory.cs` (`TightTurnFloorRadiusFt`, `TurnAboutSpeedKts`); tests `Simulation/GroundTaxi/TaxiStartsOnOccupiedTaxiwayTests.cs`, `Phases/Ground/TurnAboutFitTests.cs`, `Simulation/GroundTaxi/TaxiwayTurnAboutAimTests.cs` |
 | **Ground follow (`FOLLOWG`)** | [`ground/navigator.md`](./ground/navigator.md) (*FOLLOWG: joining the lead's taxi path*, *FOLLOWG: driving the follow route*) → `GroundCommandHandler.cs` (`TryFollow`, `ArmFollowBehindRunwayHold`, `RejectUnjoinableFollow`) → `Phases/Ground/FollowRoutePlanner.cs` → `TaxiPathfinder.cs` (`FindRouteToNearestGoal`) → `AutoRouter.cs` (`RunToGoals`) → `TaxiEdgeTrail.cs`, `TaxiEdgeLocator.cs` → `FollowingPhase.cs` (follow route, give-way at the merge, clearing route, `DrivenRouteOf`), `FollowGap.cs`, `GroundStopBraking.cs` → `GroundConflictDetector.cs` (`GiveWayStop`) → `PhaseSnapshotDto.cs` (`FollowingPhaseDto`); tests `Phases/Ground/FollowRoutePlannerTests.cs`, `Pathfinding/AutoRouterGoalSetTests.cs`, `GroundCommandHandlerTests` (`FollowG_*`), `Simulation/GroundTaxi/FollowGroundOnGraphTests.cs`, `Simulation/GroundTaxi/FollowGroundBarStopTests.cs` |
 | **Change how a ground follower behaves when it loses its lead or must clear a runway (FOLLOWG on the graph: lost-lead route end, clearing route, run-out hold, the pilot calls)** | [`ground/navigator.md`](./ground/navigator.md) → `Phases/Ground/FollowingPhase.cs` (`BrakeAlongLostRoute`, `StartClearingRoute`, `RunwayAheadAtTheHold`, `SayHoldingShortNotClear`, `SayLostTrafficHolding`, `RefuseLeadInAcrossRunway`) → `Phases/Ground/FollowRoutePlanner.cs` (`RouteOnto`, `Replan`, `BackAlongEdgeUnder`) → `Pilot/PilotResponder.cs` (`BuildHoldingShortNotClear`, `BuildHoldingPositionNotClear`, `BuildLostTrafficHolding`); tests `Simulation/GroundTaxi/FollowGroundOnGraphTests.cs`, `Simulation/GroundTaxi/FollowGroundAtRunwayBarTests.cs`, `Phases/Ground/FollowRoutePlannerTests.cs`, `Pilot/PilotResponderTests.cs` |
+| **Change how ground conflict limits treat a FOLLOWG follower (follower-vs-other pairs, the lead-chain exemption, when a lead counts as closing on its follower)** | [`conflict-and-visual-detection.md`](./conflict-and-visual-detection.md) (ground conflict resolution) → `GroundConflictDetector.cs` (`Classify`, the pair loop, `IsInLeadChainOf`, `LeadChainExemptionOf`, `ClosingOnFollower`, `ReEnteringTrailToward`, `OneSidedPair`) → `TaxiEdgeTrail.cs` (`TaxiTrailEdge.EntryNodeId`, `EntryNodeOf`), `TaxiEdgeLocator.cs` (`FilletArcEndingAt`, `ClosestT`) → `Phases/Ground/FollowingPhase.cs` (`DrivenRouteOf`, `TargetCallsign`, `ApplyCap`, `BrakeAlongLostRoute`); tests `GroundConflictDetectorTests.cs`, `Simulation/GroundTaxi/TaxiEdgeTrailTests.cs`, `Simulation/GroundTaxi/SfoDepartureFunnelTests.cs`, `Simulation/GroundTaxi/FollowGroundOnGraphTests.cs` |
 | **Pushback / tug move (`PUSH`, `PUSHM`, `PUSHF`), or a brief for one** | [`ground/pushback.md`](./ground/pushback.md) (the rules, then "Writing a push brief": probe recipe, premises, refusal texts) → `GroundCommandHandler.cs` (`ResolvePushTarget`, `TryPushbackMulti`) → `TugMovePlanner.cs` → `TugPathCheck.cs`, `TugTaxiwayClearance.cs` → `PushbackPhase.cs`; tests `Pathfinding/TugMovePlannerTests.cs`, `Pathfinding/TugAlleyClearanceTests.cs` |
 | **Ground layout parsing** | `GeoJsonParser.cs`, `IFilletArcGenerator` / `FilletGeneratorFactory`, `FilletArcGenerator.cs` + `Fillet/` (plan-then-execute edge-split), `TaxiwayGraphBuilder.cs`, `CoordinateIndex.cs` |
 | **Runway exits** | `LandingPhase.cs`, `ForcedLandingProfile.cs` (CLANDF), `RunwayExitPhase.cs`, `ExitPreference.cs`, `ExitCapacityResolver.cs`, `AirportGroundLayout.cs` (FindExitPath) |
@@ -210,7 +211,7 @@ The Task Index above tells you *which files*; these docs explain *how each subsy
 
     `Simulation/GroundTaxi/SfoSimultaneousAlleyPushTests.cs` (two tugs pushing into adjacent alley lanes — SFO 5A/5B, SOP 3-5.c.i — both complete with at most a brief in-line yield; a pusher aimed dead at another aircraft still stops while an abeam one clears). `Simulation/GroundTaxi/SfoDepartureFunnelTests.cs` (the 28/28 west-plan departure funnel: four B738s stage at F1-on-1R, A1 and the 1R bar, release 3-1-4-2 with RES/FOLLOWG/CROSS, end in a 28L line ranked 1..4 with nobody on 28L).
 
-    Its `FOLLOWG` release, `Release_3_1_4_2_FollowG`, is skipped while `GroundConflictDetector` skips every pair with a following aircraft.
+    Its `FOLLOWG` release, `Release_3_1_4_2_FollowG`, runs with `GroundConflictDetector` resolving follower-against-other pairs.
 
     `Phases/Ground/FollowingPhaseHoldShortTests.cs` (a follower reaching its own destination bar holds as a departure, and does not stop at the far-side bar of a runway it is leaving).
 
@@ -982,7 +983,11 @@ ControlTargets.cs              # Autopilot targets: heading, altitude, speed (IA
                                # planners, recomputed and cleared every tick): DesiredVerticalRate wins when both are set.
                                # PlannedVerticalRate is deliberately absent from ControlTargetsDto — re-derived on the first
                                # tick after a restore, so it's an exception to the "mirror in ControlTargetsDto" footgun below.
-TaxiEdgeTrail.cs               # The taxi edges a ground aircraft drove, oldest first (TaxiTrailEdge: NodeA, NodeB, LengthFt; Resolve(layout)), capped near 3,000 ft (CapFt), written by SimulationEngine.TickTaxiEdgeTrails once per second while it moves; 1 Hz samples, so consecutive edges need not share a node; cleared when airborne or warped
+TaxiEdgeTrail.cs               # The taxi edges a ground aircraft drove, oldest first (TaxiTrailEdge: NodeA, NodeB, LengthFt, EntryNodeId; Resolve(layout)),
+                               # capped near 3,000 ft (CapFt), written by SimulationEngine.TickTaxiEdgeTrails once per second while it moves; 1 Hz samples,
+                               # so consecutive edges need not share a node; cleared when airborne or warped. EntryNodeId is the end node the aircraft
+                               # entered the edge from, required: Record throws when it is not an end of the edge, and EntryNodeOf picks it (the node
+                               # shared with the newest edge, else the end behind the track). Read by GroundConflictDetector's lead-chain closing rules.
 AircraftGroundOps.cs           # Ground sub-object of AircraftState (AircraftState.Ground; snapshot AircraftGroundOpsDto): layout reference ([JsonIgnore] Layout + LayoutAirportId), assigned taxi route, TaxiEdgeTrail ([JsonIgnore]; snapshot TaxiEdgeTrail list, null when empty), parking spot and current taxiway, hold directive, auto-delete flags, expedite/commanded taxi speed, ground-conflict speed limit and auto-yield, runway queue position, pushback/towbar headings and ForcedTowIgnoresParked,
                                # the solo initial call-up (InitialCallup plan, InitialCallupDecisionProcessed, SpawnTaxiway, PushedBackFrom, PushEndSpot, PresetTaxiStop, VfrDepartureDirection), taxi-in call (AwaitingTaxiInCall, ReleasedToGround),
                                # hold-for-release (HeldForRelease, ReleasedForDeparture, ReleasedAtSeconds, ReleasedAtSpawnGate) and the CFR window (ReleaseWindowStartUtc/EndUtc)
@@ -1083,9 +1088,10 @@ RunwayDepartureQueue.cs        # Static per-hold-short departure-queue ranker (o
                                # "28R@E #2" off an intersection) + Info-column "(#N)". Second pass (RankFollowers)
                                # ranks a follower (FollowingPhase, or HoldingShortPhase with the follow queued behind
                                # it) directly behind its leader when the leader is in a line, the follower's own route
-                               # ends at that bar and it is within ProximityNm of it (leader's tier, distance = leader
-                               # + gap), iterated to a fixpoint so chains rank all the way down; a follower that cannot
-                               # inherit (leader lined up, different bar) falls back to its own route like a taxier.
+                               # ends at that bar, at any distance from it (ProximityNm gates only an aircraft ranked on its own route),
+                               # iterated to a fixpoint so chains rank all the way down; it takes the leader's line and is ranked on its own
+                               # distance to the bar, in the holding-short tier only while it holds at that bar, else the taxiing tier; a
+                               # follower that cannot inherit (leader lined up, different bar) falls back to its own route like a taxier.
 AircraftPerformance.cs         # Unified perf API: profile-first with category fallback. Altitude-banded
                                # climb/descent rates, Mach-aware speeds, 91.117 waiver support
 GroundRollProfile.cs           # GroundRollProfile: the takeoff-roll spool ramp (idle → steady accel over the category's spool time) with
@@ -1109,7 +1115,10 @@ GroundConflictDetector.cs      # Static pairwise ground proximity → SpeedLimit
                                # pair's lateral clearance of the target's track through the first shared node, or its nose (half its length ahead) within the
                                # target's half of it; null with a noStopReason when the routes share no such junction (an overload takes the held route and the
                                # target's track explicitly: FollowingPhase's give-way at the merge). Every route the detector reads is FollowingPhase.DrivenRouteOf,
-                               # so a FOLLOWG follower counts by its follow or clearing route; pairs with a following aircraft are still skipped.
+                               # so a FOLLOWG follower counts by its follow or clearing route. A follower is never limited against an aircraft in its lead chain
+                               # (IsInLeadChainOf); a lead is exempt from its follower only while it is not closing on it (LeadChainExemptionOf,
+                               # ClosingOnFollower: pushing toward it, or re-entering its own TaxiEdgeTrail by retracing, returning over a fillet arc, or turned about on its
+                               # newest edge — judged from TaxiTrailEdge.EntryNodeId); a closing lead is limited, and takes the follower's limit when only the follower is (OneSidedPair).
                                # live-traffic shadows = MovementState.External (obstacle, never subject; Ground.ExternalOnRunway by geometry).
                                # Single-pass pair classifier (SameEdgeTrailing/SameEdgeHeadOn/
                                # Converging/Crossing/Pushback/Stationary). Honors Ground.Hold

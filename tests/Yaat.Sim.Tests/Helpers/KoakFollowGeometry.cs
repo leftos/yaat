@@ -134,6 +134,39 @@ internal static class KoakFollowGeometry
 
     internal static GroundEdge EdgeBetween(GroundNode a, GroundNode b) => a.Edges.OfType<GroundEdge>().First(edge => edge.OtherNode(a).Id == b.Id);
 
+    /// <summary>
+    /// The sharpest turn of more than 90° at a KOAK junction from a straight taxiway edge at least 60 ft long onto another at least
+    /// 40 ft long (the lowest junction id among equals): the far end of the edge in, the junction, the far end of the edge out,
+    /// the two edges and the turn (degrees).
+    /// </summary>
+    internal static (GroundNode FarIn, GroundNode Junction, GroundNode FarOut, GroundEdge In, GroundEdge Out, double TurnDeg) SharpTurn(
+        AirportGroundLayout layout
+    )
+    {
+        (GroundNode FarIn, GroundNode Junction, GroundNode FarOut, GroundEdge In, GroundEdge Out, double TurnDeg)? sharpest = null;
+        foreach (GroundNode junction in layout.Nodes.Values.OrderBy(node => node.Id))
+        {
+            List<GroundEdge> edges = [.. junction.Edges.OfType<GroundEdge>().Where(edge => !edge.IsRunwayCenterline && !edge.IsRamp)];
+            foreach (GroundEdge inEdge in edges.Where(edge => edge.DistanceNm * GeoMath.FeetPerNm >= 60.0))
+            {
+                GroundNode farIn = inEdge.OtherNode(junction);
+                double inDeg = GeoMath.BearingTo(farIn.Position, junction.Position);
+                foreach (GroundEdge outEdge in edges.Where(edge => !ReferenceEquals(edge, inEdge) && (edge.DistanceNm * GeoMath.FeetPerNm >= 40.0)))
+                {
+                    GroundNode farOut = outEdge.OtherNode(junction);
+                    double turnDeg = Math.Abs(GeoMath.SignedBearingDifference(inDeg, GeoMath.BearingTo(junction.Position, farOut.Position)));
+                    if ((turnDeg > 90.0) && (turnDeg < 175.0) && (turnDeg > (sharpest?.TurnDeg ?? 0.0)))
+                    {
+                        sharpest = (farIn, junction, farOut, inEdge, outEdge, turnDeg);
+                    }
+                }
+            }
+        }
+
+        Assert.True(sharpest is not null, "KOAK has no straight taxiway edge turning more than 90° onto another");
+        return sharpest.Value;
+    }
+
     internal static TrueHeading Facing(GroundNode from, GroundNode to) => new(GeoMath.BearingTo(from.Position, to.Position));
 
     internal static LatLon Between(LatLon a, LatLon b, double fraction) =>

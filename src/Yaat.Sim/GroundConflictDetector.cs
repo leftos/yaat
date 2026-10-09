@@ -39,6 +39,20 @@
 // log distinguishes the kind of hold so DebugSink consumers can tell whether the
 // stop is intent-bearing ("Yielding to SWA123") or unconditional ("HoldPosition").
 //
+// FOLLOWG followers: a follower classifies on the route it drives (FollowingPhase.DrivenRouteOf, its follow or clearing route):
+// Taxiing while it has one, else through the same rest gates as any aircraft with no route — Stationary at rest, an Untracked
+// mover on its heading when rolling. A follower is never limited against an aircraft in its lead chain (its lead by
+// FollowingPhase.TargetCallsign, that lead's lead, and so on), since the follows keep their own gaps along the chain; a lead in
+// that chain is exempt from its follower only while it is not closing on it. A lead closes on its follower when its push track
+// points within 90° of it, or when it re-enters its own TaxiEdgeTrail with the follower on a trail edge: the edge it is on is a
+// trail edge older than the newest (retracing; the one just before the newest only when the two share no node); it is coming
+// back over the fillet arc between the node it entered its newest edge from and an older trail edge; or, on its newest edge
+// itself and not rounding an arc, its track points within 90° of the node it entered that edge from (turned about). A closing
+// lead is limited as in any other pair; when the pair's resolution limits only the follower, which cannot yield, the lead takes
+// that limit instead, fitted to its own brakes. A sibling follower of the same lead is an ordinary pair. A follower stopped at a bar (a
+// HoldingShortPhase with its FollowingPhase queued behind) is not following here — the chain walk reads only the current
+// phase — whereas RunwayDepartureQueue still ranks it as following its lead.
+//
 // Public API:
 //   - ApplySpeedLimits(List<AircraftState>, AirportGroundLayout?, double, Action<string>?)
 //   - IsClearOf(AircraftState, AircraftState, AirportGroundLayout?)
@@ -178,7 +192,6 @@ public static class GroundConflictDetector
         Stationary,
         Taxiing,
         Pushing,
-        Following,
         Untracked,
 
         /// <summary>A live-traffic shadow: moves as the real aircraft did; an obstacle to everyone, never a subject.</summary>
@@ -234,6 +247,12 @@ public static class GroundConflictDetector
             }
         }
 
+        var byCallsign = new Dictionary<string, AircraftState>(StringComparer.OrdinalIgnoreCase);
+        foreach (AircraftState ac in aircraft)
+        {
+            byCallsign.TryAdd(ac.Callsign, ac);
+        }
+
         IReadOnlyList<RunwayInfo> runways = layout is not null ? RunwayOccupancy.AirportRunways(layout.AirportId) : [];
         var entries = new List<(AircraftState Ac, MovementState State, double? MoveDir)>();
         for (int i = 0; i < aircraft.Count; i++)
@@ -268,22 +287,21 @@ public static class GroundConflictDetector
                 { Kind: HoldKind.HoldPosition } => " hold=HoldPosition",
                 _ => string.Empty,
             };
-            TaxiRoute? driven = FollowingPhase.DrivenRouteOf(ac);
-            diagnosticLog?.Invoke(
-                $"[Classify] {ac.Callsign}: {state}{holdReason}, dir={dir?.ToString("F0") ?? "null"}, gs={ac.GroundSpeed:F1}, "
-                    + $"phase={ac.Phases?.CurrentPhase?.Name ?? "null"}, "
-                    + $"route={(driven is null ? "null/null" : $"{driven.CurrentSegmentIndex}/{driven.Segments.Count}")}"
-            );
+            if (diagnosticLog is not null)
+            {
+                TaxiRoute? driven = FollowingPhase.DrivenRouteOf(ac);
+                string lead = ac.Phases?.CurrentPhase is FollowingPhase follow ? $", lead={follow.TargetCallsign}" : string.Empty;
+                diagnosticLog(
+                    $"[Classify] {ac.Callsign}: {state}{holdReason}, dir={dir?.ToString("F0") ?? "null"}, gs={ac.GroundSpeed:F1}, "
+                        + $"phase={ac.Phases?.CurrentPhase?.Name ?? "null"}, "
+                        + $"route={(driven is null ? "null/null" : $"{driven.CurrentSegmentIndex}/{driven.Segments.Count}")}{lead}"
+                );
+            }
         }
 
         for (int i = 0; i < entries.Count; i++)
         {
             (AircraftState? a, MovementState stateA, double? dirA) = entries[i];
-
-            if (stateA == MovementState.Following)
-            {
-                continue;
-            }
 
             if (a.Ground.ConflictBreakRemainingSeconds > 0)
             {
@@ -294,11 +312,6 @@ public static class GroundConflictDetector
             {
                 (AircraftState? b, MovementState stateB, double? dirB) = entries[j];
 
-                if (stateB == MovementState.Following)
-                {
-                    continue;
-                }
-
                 if (b.Ground.ConflictBreakRemainingSeconds > 0)
                 {
                     continue;
@@ -306,6 +319,12 @@ public static class GroundConflictDetector
 
                 double distNm = GeoMath.DistanceNm(a.Position, b.Position);
                 if (distNm > SearchRangeNm)
+                {
+                    continue;
+                }
+
+                (LeadChainExemption exemption, string? closing) = LeadChainExemptionOf(a, stateA, b, stateB, byCallsign);
+                if (exemption == LeadChainExemption.Both)
                 {
                     continue;
                 }
@@ -328,6 +347,22 @@ public static class GroundConflictDetector
 
                 diagnosticLog?.Invoke($"[Pair] {a.Callsign}({stateA})+{b.Callsign}({stateB}): dist={distFt:F0}ft → {kind}");
 
+                // A lead closing on its follower is limited as in any other pair; the follower keeps what it had before it.
+                OneSidedPair? oneSided = exemption switch
+                {
+                    LeadChainExemption.A => OneSidedPair.Before(a, b),
+                    LeadChainExemption.B => OneSidedPair.Before(b, a),
+                    _ => null,
+                };
+                if (oneSided is { } closingPair)
+                {
+                    diagnosticLog?.Invoke(
+                        $"  [LeadChain] {closingPair.Lead.Callsign} closing on its follower {closingPair.Follower.Callsign} ({closing}): "
+                            + $"only {closingPair.Lead.Callsign} is limited"
+                    );
+                }
+
+                AircraftState? releasedPusher = null;
                 switch (kind)
                 {
                     case PairKind.Distant:
@@ -337,7 +372,7 @@ public static class GroundConflictDetector
                     case PairKind.Pushback:
                         // Pushback is its own world — the dedicated buffer logic is
                         // sufficient; we don't run closing/head-on on top.
-                        ResolvePushbackYield(a, stateA, dirA, b, stateB, dirB, distFt, diagnosticLog);
+                        releasedPusher = ResolvePushbackYield(a, stateA, dirA, b, stateB, dirB, distFt, diagnosticLog);
                         break;
 
                     case PairKind.SameEdgeTrailing:
@@ -367,6 +402,8 @@ public static class GroundConflictDetector
                         ResolveCrossing(a, stateA, b, stateB, distFt, layout is not null, diagnosticLog);
                         break;
                 }
+
+                oneSided?.Finish(distFt, releasedPusher, diagnosticLog);
             }
         }
 
@@ -440,11 +477,6 @@ public static class GroundConflictDetector
 
         string? phaseName = ac.Phases?.CurrentPhase?.Name;
 
-        if (phaseName is not null && phaseName.StartsWith("Following", StringComparison.Ordinal))
-        {
-            return (MovementState.Following, null);
-        }
-
         // An aircraft on a tug (push or pull) is never Stationary, at whatever speed: the move is running and only
         // a limit is holding it. Physics nulls Targets.TargetSpeed the moment IAS reaches a zero limit, so the
         // rest-based gates below would call a tug move stopped by the outline rule Stationary on the very next
@@ -502,6 +534,388 @@ public static class GroundConflictDetector
         }
 
         return (MovementState.Untracked, ac.TrueHeading.Degrees);
+    }
+
+    /// <summary>
+    /// Whether <paramref name="other"/> is in <paramref name="follower"/>'s <c>FOLLOWG</c> lead chain: its lead (the aircraft its
+    /// <see cref="FollowingPhase.TargetCallsign"/> names), that lead's lead while it is following too, and so on, looked up in
+    /// <paramref name="byCallsign"/>. The walk takes at most one step per aircraft in <paramref name="byCallsign"/>, so a chain
+    /// that comes back on itself ends. A sibling follower of the same lead is not in the chain. What the detector does with such a
+    /// pair is <see cref="LeadChainExemptionOf"/>.
+    /// </summary>
+    private static bool IsInLeadChainOf(AircraftState follower, AircraftState other, Dictionary<string, AircraftState> byCallsign)
+    {
+        AircraftState? current = follower;
+        for (int step = 0; (step < byCallsign.Count) && (current?.Phases?.CurrentPhase is FollowingPhase follow); step++)
+        {
+            if (string.Equals(follow.TargetCallsign, other.Callsign, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            current = byCallsign.GetValueOrDefault(follow.TargetCallsign);
+        }
+
+        return false;
+    }
+
+    /// <summary>Which side of a pair the lead-chain exemption leaves unlimited (<see cref="LeadChainExemptionOf"/>).</summary>
+    private enum LeadChainExemption
+    {
+        None,
+        A,
+        B,
+        Both,
+    }
+
+    /// <summary>
+    /// Which of <paramref name="a"/> and <paramref name="b"/> the detector leaves unlimited against the other because one is in the
+    /// other's <c>FOLLOWG</c> lead chain (<see cref="IsInLeadChainOf"/>). A follower is exempt toward every aircraft in its lead
+    /// chain; a lead in that chain is exempt from its follower only while it is not closing on it
+    /// (<see cref="ClosingOnFollower"/>, returned as the closing clause for the log). Both when neither is limited, so the pair is
+    /// not resolved at all; None when neither is in the other's chain.
+    /// </summary>
+    private static (LeadChainExemption Exemption, string? Closing) LeadChainExemptionOf(
+        AircraftState a,
+        MovementState stateA,
+        AircraftState b,
+        MovementState stateB,
+        Dictionary<string, AircraftState> byCallsign
+    )
+    {
+        bool aFollowsB = IsInLeadChainOf(a, b, byCallsign);
+        bool bFollowsA = IsInLeadChainOf(b, a, byCallsign);
+        string? aClosing = bFollowsA ? ClosingOnFollower(a, stateA, b) : null;
+        string? bClosing = aFollowsB ? ClosingOnFollower(b, stateB, a) : null;
+        bool aExempt = aFollowsB || (bFollowsA && (aClosing is null));
+        bool bExempt = bFollowsA || (aFollowsB && (bClosing is null));
+        LeadChainExemption exemption = (aExempt, bExempt) switch
+        {
+            (true, true) => LeadChainExemption.Both,
+            (true, false) => LeadChainExemption.A,
+            (false, true) => LeadChainExemption.B,
+            _ => LeadChainExemption.None,
+        };
+        return (exemption, aClosing ?? bClosing);
+    }
+
+    /// <summary>
+    /// How <paramref name="lead"/> is closing on <paramref name="follower"/>, for the log, or null when it is not: pushing with
+    /// its push track toward it (<see cref="FollowingPhase.LeadTracksTowardFollower"/>), or coming back along its own trail
+    /// toward it (<see cref="ReEnteringTrailToward"/>). A push away from the follower is not closing on it.
+    /// </summary>
+    private static string? ClosingOnFollower(AircraftState lead, MovementState leadState, AircraftState follower)
+    {
+        if (leadState == MovementState.Pushing)
+        {
+            return FollowingPhase.LeadTracksTowardFollower(follower, lead) ? "pushing toward it" : null;
+        }
+
+        return ReEnteringTrailToward(lead, follower);
+    }
+
+    /// <summary>
+    /// How <paramref name="lead"/> is re-entering its own <see cref="AircraftGroundOps.TaxiEdgeTrail"/> with
+    /// <paramref name="follower"/> standing on a trail edge, for the log, or null when it is not. It is retracing its trail when
+    /// the edge it is on (<see cref="TaxiEdgeLocator.DrivenEdgeUnder"/>) is a trail edge older than the newest
+    /// (<see cref="IsRetracing"/>); it is coming back over the fillet arc it came round onto its newest trail edge
+    /// (<see cref="IsReturningOverArc"/>); or, on that newest edge itself (<see cref="IsOnNewestEdge"/>), it has turned about when
+    /// its track points back toward the node it entered the edge from (<see cref="IsTurnedAboutOnNewestEdge"/>). A lead on an edge
+    /// its trail does not hold yet is on new ground; it, one rounding a fillet arc outbound, and one whose follower waits on a
+    /// taxiway the lead never used are not re-entering.
+    /// </summary>
+    private static string? ReEnteringTrailToward(AircraftState lead, AircraftState follower)
+    {
+        TaxiEdgeTrail trail = lead.Ground.TaxiEdgeTrail;
+        if ((lead.Ground.Layout is not { } layout) || (trail.Newest is not { } newest) || !IsOnTrail(layout, follower, trail))
+        {
+            return null;
+        }
+
+        GroundEdge? leadEdge = TaxiEdgeLocator.DrivenEdgeUnder(layout, lead.Position, (newest.NodeA, newest.NodeB));
+        if (IsRetracing(trail, leadEdge))
+        {
+            return "retracing its trail";
+        }
+
+        if (IsReturningOverArc(layout, lead, newest, trail))
+        {
+            return "coming back over the fillet arc it came round";
+        }
+
+        bool onNewest = IsOnNewestEdge(layout, lead, newest, leadEdge);
+        return (onNewest && IsTurnedAboutOnNewestEdge(layout, lead, newest)) ? "turned about on its newest trail edge" : null;
+    }
+
+    /// <summary>
+    /// Whether <paramref name="lead"/> stands on <paramref name="newest"/>, its newest trail edge. With a driven route whose
+    /// current segment is a straight edge, it is on that edge: just past a fillet arc whose radius shrank, the locator still
+    /// finds the edge before the arc under it. With none, or while that route turns it about on the newest edge
+    /// (<see cref="IsTurningAboutOn"/>), the edge found under it, <paramref name="leadEdge"/>, is the newest edge, or it is no
+    /// farther from the newest edge than from the one found — at the node the two share it stands on both. On an edge its
+    /// trail does not hold yet, it is on new ground.
+    /// </summary>
+    private static bool IsOnNewestEdge(AirportGroundLayout layout, AircraftState lead, TaxiTrailEdge newest, GroundEdge? leadEdge)
+    {
+        TaxiRoute? route = FollowingPhase.DrivenRouteOf(lead);
+        if (!IsTurningAboutOn(route, newest) && (route?.CurrentSegment?.Edge.Edge is GroundEdge driving))
+        {
+            return newest.Is(driving);
+        }
+
+        if (leadEdge is null)
+        {
+            return false;
+        }
+
+        return newest.Is(leadEdge)
+            || (
+                (newest.Resolve(layout) is { } newestEdge)
+                && (
+                    GeoMath.DistanceToSegmentFt(lead.Position, newestEdge.Nodes[0].Position, newestEdge.Nodes[1].Position)
+                    <= GeoMath.DistanceToSegmentFt(lead.Position, leadEdge.Nodes[0].Position, leadEdge.Nodes[1].Position)
+                )
+            );
+    }
+
+    /// <summary>
+    /// Whether <paramref name="route"/> is still turning its aircraft about from the far end of the edge it stood mid-way along
+    /// (<see cref="TaxiTurnAboutShape.FromFarEnd"/>) toward a node of <paramref name="newest"/>: its current segment is then the
+    /// drive back along that edge, or the edge on from the target beyond it, never the edge the aircraft is driving.
+    /// </summary>
+    private static bool IsTurningAboutOn(TaxiRoute? route, TaxiTrailEdge newest) =>
+        (route is { PendingTurnAboutShape: TaxiTurnAboutShape.FromFarEnd, TurnAboutTargetNodeId: int target }) && newest.Touches(target);
+
+    /// <summary>
+    /// Whether <paramref name="follower"/> stands on an edge of <paramref name="trail"/> (<see cref="TaxiEdgeLocator.DrivenEdgeUnder"/>).
+    /// </summary>
+    private static bool IsOnTrail(AirportGroundLayout layout, AircraftState follower, TaxiEdgeTrail trail)
+    {
+        (int NodeA, int NodeB)? lastEdge = follower.Ground.TaxiEdgeTrail.Newest is { } newest ? (newest.NodeA, newest.NodeB) : null;
+        if (TaxiEdgeLocator.DrivenEdgeUnder(layout, follower.Position, lastEdge) is not { } followerEdge)
+        {
+            return false;
+        }
+
+        foreach (TaxiTrailEdge driven in trail.Edges)
+        {
+            if (driven.Is(followerEdge))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Whether <paramref name="leadEdge"/>, the edge the lead is on, is an edge of <paramref name="trail"/> older than its newest:
+    /// driven earlier and come back to. The edge just before the newest counts only when the two share no node, a fillet arc or
+    /// an edge driven between two records lying between them: where they meet at a junction node, a lead at that node can read
+    /// as on either, and one that has driven back past it is on the older edge for at most the second until the next record,
+    /// which puts that edge further back in the trail. False when the lead is on no edge.
+    /// </summary>
+    private static bool IsRetracing(TaxiEdgeTrail trail, GroundEdge? leadEdge)
+    {
+        if (leadEdge is null)
+        {
+            return false;
+        }
+
+        IReadOnlyList<TaxiTrailEdge> edges = trail.Edges;
+        int beforeNewest = edges.Count - 2;
+        for (int i = 0; i < beforeNewest; i++)
+        {
+            if (edges[i].Is(leadEdge))
+            {
+                return true;
+            }
+        }
+
+        return (beforeNewest >= 0) && edges[beforeNewest].Is(leadEdge) && !SharesANode(edges[beforeNewest], edges[^1]);
+    }
+
+    private static bool SharesANode(TaxiTrailEdge a, TaxiTrailEdge b) => b.Touches(a.NodeA) || b.Touches(a.NodeB);
+
+    /// <summary>
+    /// Whether <paramref name="lead"/> is coming back over the fillet arc it came round onto <paramref name="newest"/>, its
+    /// newest trail edge: it is on an arc ending at the node it entered that edge from (<see cref="ArcFromEntryUnder"/>) and, at
+    /// its other end, at a node of an older edge of <paramref name="trail"/>, its track (its pushback track on a tug, else its
+    /// heading) within 90° of the arc's direction toward that other end. An arc rounded outbound meets the newest edge at its far
+    /// end, and one onto new ground ends at no older trail node, so neither is coming back.
+    /// </summary>
+    private static bool IsReturningOverArc(AirportGroundLayout layout, AircraftState lead, TaxiTrailEdge newest, TaxiEdgeTrail trail)
+    {
+        if (!layout.Nodes.TryGetValue(newest.EntryNodeId, out GroundNode? entry) || (ArcFromEntryUnder(layout, lead, entry, newest) is not { } onArc))
+        {
+            return false;
+        }
+
+        GroundNode far = onArc.Arc.OtherNode(entry);
+        if (!IsNodeOfAnOlderEdge(trail, far.Id))
+        {
+            return false;
+        }
+
+        double alongDeg = onArc.Arc.ToBezier().TangentBearing(onArc.T);
+        double towardFarDeg = (far.Id == onArc.Arc.Nodes[0].Id) ? (alongDeg + 180.0) % 360.0 : alongDeg;
+        return TaxiEdgeTrail.TracksWithin90Of(lead, towardFarDeg);
+    }
+
+    /// <summary>
+    /// The fillet arc ending at <paramref name="entry"/>, the node <paramref name="lead"/> entered <paramref name="newest"/> from,
+    /// that the lead is on, with the parameter of the arc's curve nearest it: its driven route's current segment when that is such
+    /// an arc (close to the arc's end a straight edge there can be nearer than the curve), else the arc
+    /// <see cref="TaxiEdgeLocator.FilletArcEndingAt"/> finds under it. Null when it is on none.
+    /// </summary>
+    private static (GroundArc Arc, double T)? ArcFromEntryUnder(
+        AirportGroundLayout layout,
+        AircraftState lead,
+        GroundNode entry,
+        TaxiTrailEdge newest
+    )
+    {
+        if (
+            (FollowingPhase.DrivenRouteOf(lead)?.CurrentSegment?.Edge.Edge is GroundArc { IsRunwayCenterline: false } driving)
+            && ((driving.Nodes[0].Id == entry.Id) || (driving.Nodes[1].Id == entry.Id))
+        )
+        {
+            return (driving, TaxiEdgeLocator.ClosestT(driving, lead.Position));
+        }
+
+        return TaxiEdgeLocator.FilletArcEndingAt(layout, lead.Position, entry, (newest.NodeA, newest.NodeB));
+    }
+
+    /// <summary>Whether <paramref name="nodeId"/> is an end node of an edge of <paramref name="trail"/> older than its newest.</summary>
+    private static bool IsNodeOfAnOlderEdge(TaxiEdgeTrail trail, int nodeId)
+    {
+        IReadOnlyList<TaxiTrailEdge> edges = trail.Edges;
+        for (int i = 0; i < (edges.Count - 1); i++)
+        {
+            if (edges[i].Touches(nodeId))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Whether <paramref name="lead"/>, on <paramref name="newest"/>, its newest trail edge, has its track (its pushback track on
+    /// a tug, else its heading) within 90° of the bearing to the node it entered that edge from
+    /// (<see cref="TaxiTrailEdge.EntryNodeId"/>). Never while it rounds a fillet arc (<see cref="IsRoundingArc"/>), where the
+    /// turn swings its heading back past that node before it reaches new ground.
+    /// </summary>
+    private static bool IsTurnedAboutOnNewestEdge(AirportGroundLayout layout, AircraftState lead, TaxiTrailEdge newest)
+    {
+        if (!layout.Nodes.TryGetValue(newest.EntryNodeId, out GroundNode? entry) || IsRoundingArc(layout, lead, newest))
+        {
+            return false;
+        }
+
+        return TaxiEdgeTrail.TracksWithin90Of(lead, GeoMath.BearingTo(lead.Position, entry.Position));
+    }
+
+    /// <summary>
+    /// Whether <paramref name="lead"/> is on a fillet arc: its driven route's current segment is a <see cref="GroundArc"/>, or it
+    /// stands on an arc meeting <paramref name="newest"/> (<see cref="TaxiEdgeLocator.FilletArcRounding"/>).
+    /// </summary>
+    private static bool IsRoundingArc(AirportGroundLayout layout, AircraftState lead, TaxiTrailEdge newest) =>
+        (FollowingPhase.DrivenRouteOf(lead)?.CurrentSegment?.Edge.Edge is GroundArc)
+        || (TaxiEdgeLocator.FilletArcRounding(layout, lead.Position, (newest.NodeA, newest.NodeB)) is not null);
+
+    /// <summary>
+    /// A pair in which only the lead is limited (<see cref="LeadChainExemptionOf"/>): both aircraft's limits as they stood before
+    /// the pair was resolved. <see cref="Before"/> clears both, so what the pair's resolution writes to each is read on its own in
+    /// <see cref="Finish"/>, whatever earlier pairs in the pass had already set.
+    /// </summary>
+    private readonly record struct OneSidedPair(AircraftState Follower, AircraftState Lead, GroundLimits FollowerBefore, GroundLimits LeadBefore)
+    {
+        internal static OneSidedPair Before(AircraftState follower, AircraftState lead)
+        {
+            var pair = new OneSidedPair(follower, lead, GroundLimits.Of(follower), GroundLimits.Of(lead));
+            GroundLimits.None.RestoreTo(follower);
+            GroundLimits.None.RestoreTo(lead);
+            return pair;
+        }
+
+        /// <summary>
+        /// Puts the follower's limits back as they were, since it is exempt toward its lead chain, and merges what the pair's
+        /// resolution wrote to the lead into the lead's earlier limits (<see cref="GroundLimits.Merge"/>). When the resolution
+        /// limited the follower and not the lead, the lead yields to its follower instead (<see cref="TransferredLimitKts"/>), so
+        /// a follower that cannot yield never lets its closing lead drive into it — unless the resolution released the lead,
+        /// <paramref name="releasedPusher"/> being a push it let continue past the follower holding for it
+        /// (<see cref="TryResolveGiveWayToPushback"/>).
+        /// </summary>
+        internal void Finish(double distFt, AircraftState? releasedPusher, Action<string>? diagnosticLog)
+        {
+            var followerWritten = GroundLimits.Of(Follower);
+            FollowerBefore.RestoreTo(Follower);
+            if (
+                (Lead.Ground.SpeedLimit is null)
+                && (followerWritten.SpeedLimit is { } movedKts)
+                && !ReferenceEquals(releasedPusher, Lead)
+                && (TransferredLimitKts(movedKts, distFt) is { } leadKts)
+            )
+            {
+                diagnosticLog?.Invoke($"  [LeadChain] {Lead.Callsign} yields to its follower {Follower.Callsign}: limit={leadKts:F1}");
+                ApplyMinLimit(Lead, leadKts, "closing on its follower", Follower, distFt);
+                Lead.Ground.AutoYieldTarget = Follower.Callsign;
+                Lead.Ground.AutoYieldIsFollowing = false;
+            }
+
+            GroundLimits.Merge(LeadBefore, GroundLimits.Of(Lead)).RestoreTo(Lead);
+        }
+
+        /// <summary>
+        /// The limit (kt) the lead takes for the <paramref name="movedKts"/> the resolution gave its follower: a stop stays a stop;
+        /// any other limit is raised to the speed the lead can still brake down from over the next detector pass
+        /// (<see cref="BrakingFloorKts"/>). Null for a trail match (<see cref="ApplyTrailLimit"/>: the lead's own ground speed),
+        /// which only holds the follower behind the lead and asks nothing of the lead.
+        /// </summary>
+        private double? TransferredLimitKts(double movedKts, double distFt)
+        {
+            if (movedKts <= 0.0)
+            {
+                return 0.0;
+            }
+
+            if (movedKts == Lead.GroundSpeed)
+            {
+                return null;
+            }
+
+            return Math.Max(movedKts, BrakingFloorKts(Lead, distFt - DefaultStopDistanceFt));
+        }
+    }
+
+    /// <summary>The limit and yield target an aircraft carries, put back on it after a pair it is exempt from.</summary>
+    private readonly record struct GroundLimits(double? SpeedLimit, string? AutoYieldTarget, bool AutoYieldIsFollowing)
+    {
+        /// <summary>No limit and no yield target, as every aircraft starts a detector pass.</summary>
+        internal static readonly GroundLimits None = new(null, null, false);
+
+        internal static GroundLimits Of(AircraftState ac) => new(ac.Ground.SpeedLimit, ac.Ground.AutoYieldTarget, ac.Ground.AutoYieldIsFollowing);
+
+        /// <summary>
+        /// The lower of the two limits (no limit being the highest), with the yield target that goes with it — or, when that side
+        /// names none, the other side's; <paramref name="earlier"/> wins a tie.
+        /// </summary>
+        internal static GroundLimits Merge(GroundLimits earlier, GroundLimits pair)
+        {
+            bool pairWins = (pair.SpeedLimit is { } pairKts) && ((earlier.SpeedLimit is not { } earlierKts) || (pairKts < earlierKts));
+            (GroundLimits winner, GroundLimits other) = pairWins ? (pair, earlier) : (earlier, pair);
+            GroundLimits yieldSide = winner.AutoYieldTarget is not null ? winner : other;
+            return new GroundLimits(winner.SpeedLimit, yieldSide.AutoYieldTarget, yieldSide.AutoYieldIsFollowing);
+        }
+
+        internal void RestoreTo(AircraftState ac)
+        {
+            ac.Ground.SpeedLimit = SpeedLimit;
+            ac.Ground.AutoYieldTarget = AutoYieldTarget;
+            ac.Ground.AutoYieldIsFollowing = AutoYieldIsFollowing;
+        }
     }
 
     private static PairKind ClassifyPair(AircraftState a, MovementState stateA, AircraftState b, MovementState stateB, AirportGroundLayout? layout)
@@ -688,19 +1102,7 @@ public static class GroundConflictDetector
         // stop branch (conflict inside DefaultStopDistanceFt) is a genuine stop and stays at zero.
         if (conflictDistFt > DefaultStopDistanceFt)
         {
-            AircraftCategory yielderCategory = AircraftCategorization.Categorize(yielder.AircraftType);
-            double yielderDecelRate = yielder.Targets.DesiredDecelRate ?? CategoryPerformance.TaxiDecelRate(yielderCategory);
-            // When even the routine rate's own stopping distance no longer fits in the room left before the stop ring,
-            // a routine-rate floor lets the aircraft arrive at the ring still carrying speed it cannot shed there (the
-            // ring is an instant stop), so floor at the category's max-effort rate instead.
-            double roomFt = conflictDistFt - DefaultStopDistanceFt;
-            double routineStopFt = yielder.GroundSpeed * yielder.GroundSpeed / (2.0 * yielderDecelRate) * FtPerNm / 3600.0;
-            if (routineStopFt > roomFt)
-            {
-                yielderDecelRate = CategoryPerformance.ExpediteExitDecelRate(yielderCategory);
-            }
-
-            limitSpeed = Math.Max(limitSpeed, yielder.GroundSpeed - (yielderDecelRate * DetectorIntervalSeconds));
+            limitSpeed = Math.Max(limitSpeed, BrakingFloorKts(yielder, conflictDistFt - DefaultStopDistanceFt));
         }
 
         diagnosticLog?.Invoke(
@@ -710,6 +1112,27 @@ public static class GroundConflictDetector
         ApplyMinLimit(yielder, limitSpeed, "convergence", winner, conflictDistFt);
         yielder.Ground.AutoYieldTarget = winner.Callsign;
         return winner;
+    }
+
+    /// <summary>
+    /// The speed (kt) <paramref name="aircraft"/> can still brake down from over the next detector pass
+    /// (<see cref="DetectorIntervalSeconds"/>), at the rate it is braking at or its category's taxi rate: physics clamps the
+    /// speed to <see cref="AircraftGroundOps.SpeedLimit"/> at once, so a limit below this would brake it harder than its brakes
+    /// allow. When even that rate's stopping distance no longer fits in the <paramref name="roomFt"/> left before the stop ring,
+    /// a floor at it lets the aircraft arrive at the ring still carrying speed it cannot shed there (the ring is an instant
+    /// stop), so the floor is taken at the category's max-effort rate instead.
+    /// </summary>
+    private static double BrakingFloorKts(AircraftState aircraft, double roomFt)
+    {
+        AircraftCategory category = AircraftCategorization.Categorize(aircraft.AircraftType);
+        double decelRate = aircraft.Targets.DesiredDecelRate ?? CategoryPerformance.TaxiDecelRate(category);
+        double routineStopFt = aircraft.GroundSpeed * aircraft.GroundSpeed / (2.0 * decelRate) * FtPerNm / 3600.0;
+        if (routineStopFt > roomFt)
+        {
+            decelRate = CategoryPerformance.ExpediteExitDecelRate(category);
+        }
+
+        return aircraft.GroundSpeed - (decelRate * DetectorIntervalSeconds);
     }
 
     /// <summary>
@@ -784,9 +1207,10 @@ public static class GroundConflictDetector
     /// equivalent (neither reads the other's cap) — except for the pusher-versus-mover case the
     /// independent sides cannot resolve, where <see cref="TryResolveGiveWayToPushback"/> takes the
     /// whole pair (both orderings are offered, and a pair with two pushers or two movers falls
-    /// through to the symmetric calls unchanged).
+    /// through to the symmetric calls unchanged). Returns the pusher when that give-way took the pair, since the
+    /// give-way then settled the pusher's limit itself (no limit when it lets the push continue); else null.
     /// </summary>
-    private static void ResolvePushbackYield(
+    private static AircraftState? ResolvePushbackYield(
         AircraftState a,
         MovementState stateA,
         double? dirA,
@@ -799,18 +1223,25 @@ public static class GroundConflictDetector
     {
         if (distFt > PushbackBufferFt)
         {
-            return;
+            return null;
         }
 
         var partyA = new PushbackParty(a, stateA, dirA);
         var partyB = new PushbackParty(b, stateB, dirB);
-        if (TryResolveGiveWayToPushback(partyA, partyB, distFt, diagnosticLog) || TryResolveGiveWayToPushback(partyB, partyA, distFt, diagnosticLog))
+        if (
+            (
+                TryResolveGiveWayToPushback(partyA, partyB, distFt, diagnosticLog)
+                ?? TryResolveGiveWayToPushback(partyB, partyA, distFt, diagnosticLog)
+            ) is
+            { } releasedPusher
+        )
         {
-            return;
+            return releasedPusher;
         }
 
         ResolvePushbackSide(partyA, partyB, distFt, diagnosticLog);
         ResolvePushbackSide(partyB, partyA, distFt, diagnosticLog);
+        return null;
     }
 
     /// <summary>
@@ -874,8 +1305,8 @@ public static class GroundConflictDetector
     /// so the operator sees who it is waiting for — and the pusher runs through the graduated closing logic
     /// instead. The holder is handed to that logic as <see cref="MovementState.Stationary"/>, which it is:
     /// that re-opens the wingspan bypass, so the pusher clears an aircraft holding a lane away and stops only
-    /// for one it would actually hit. Returns false (leaving the pair to the independent sides) when the two
-    /// would not wedge.
+    /// for one it would actually hit. Returns the pusher, whose limit this has settled — none when the push
+    /// continues — or null (leaving the pair to the independent sides) when the two would not wedge.
     ///
     /// <para>Priority goes to the push off a stand — leg 1 of it, and nothing else — because of what each
     /// aircraft occupies: a pusher mid-lane blocks it whether it is moving or stopped, so holding it frees
@@ -895,11 +1326,11 @@ public static class GroundConflictDetector
     /// The holder is stationary by then, so the wingspan bypass cannot release the pusher either: at that
     /// range the two are closer than two half-spans however the push is aimed.</para>
     /// </summary>
-    private static bool TryResolveGiveWayToPushback(PushbackParty pusher, PushbackParty mover, double distFt, Action<string>? diagnosticLog)
+    private static AircraftState? TryResolveGiveWayToPushback(PushbackParty pusher, PushbackParty mover, double distFt, Action<string>? diagnosticLog)
     {
         if ((pusher.Direction is not { } pushDir) || !WouldDeadlock(pusher, mover))
         {
-            return false;
+            return null;
         }
 
         diagnosticLog?.Invoke($"    [Pushback] {mover.Aircraft.Callsign} gives way to pushback {pusher.Aircraft.Callsign}: dist={distFt:F0}ft");
@@ -917,7 +1348,7 @@ public static class GroundConflictDetector
                 diagnosticLog?.Invoke(
                     $"    [Pushback] {pusher.Aircraft.Callsign} push path clears {mover.Aircraft.Callsign} by {pushPathClearanceFt:F0}ft, continues"
                 );
-                return true;
+                return pusher.Aircraft;
             }
 
             diagnosticLog?.Invoke(
@@ -927,7 +1358,7 @@ public static class GroundConflictDetector
         }
 
         ApplyClosingLimit(pusher.Aircraft, pushDir, mover.Aircraft, MovementState.Stationary, distFt, diagnosticLog);
-        return true;
+        return pusher.Aircraft;
     }
 
     /// <summary>

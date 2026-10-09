@@ -1777,6 +1777,1770 @@ public class GroundConflictDetectorTests
         Assert.Null(a.Ground.SpeedLimit);
     }
 
+    private const string LeadCallsign = "N1LED";
+    private const string FollowerCallsign = "N2FOL";
+    private const string SiblingCallsign = "N3FOL";
+    private const string ThirdCallsign = "N4TRD";
+
+    /// <summary>
+    /// A <c>FOLLOWG</c> follower rolling on its follow route converges with an unrelated aircraft taxiing in from a side edge onto
+    /// a junction ahead of it: the detector resolves the pair exactly as it does when the follower is a plain taxiing aircraft on
+    /// the same route, so the follower, farther from the shared node, yields to the third aircraft.
+    /// </summary>
+    [Fact]
+    public void Follower_WithAThirdAircraftConverging_YieldsLikeATaxiingOne()
+    {
+        if (StartFollowAtJunction() is not { } at)
+        {
+            return;
+        }
+
+        AircraftState third = ThirdAtTheSide(at, speedKts: 2.0);
+        var log = new List<string>();
+        GroundConflictDetector.ApplySpeedLimits([at.Follower, third], at.Run.Layout, 0, log.Add);
+        log.ForEach(_output.WriteLine);
+        (double?, string?, double?, string?) asFollower = YieldOutcome(at.Follower, third);
+
+        at.Follower.Phases = null;
+        at.Follower.Ground.AssignedTaxiRoute = at.Follow.FollowRoute;
+        GroundConflictDetector.ApplySpeedLimits([at.Follower, third], at.Run.Layout);
+        (double? FollowerLimit, string? FollowerYieldsTo, double?, string?) asTaxiing = YieldOutcome(at.Follower, third);
+        _output.WriteLine($"as a follower {asFollower}, as a taxiing aircraft {asTaxiing}");
+
+        Assert.NotNull(asTaxiing.FollowerLimit);
+        Assert.Equal(ThirdCallsign, asTaxiing.FollowerYieldsTo);
+        Assert.Equal(asTaxiing, asFollower);
+    }
+
+    /// <summary>
+    /// A follower rolling behind its own lead on KOAK's B, within the detector's search range of it, is never limited against it,
+    /// nor the lead against the follower: the pair is not resolved at all, since the follow keeps its own gap to its lead.
+    /// </summary>
+    [Fact]
+    public void Follower_VsItsOwnLead_GetsNoLimit()
+    {
+        if (StartFollower(string.Empty) is not { } started)
+        {
+            return;
+        }
+
+        (KoakFollowGeometry.LeadRun run, AircraftState follower, FollowingPhase _) = started;
+        for (int second = 1; second <= 8; second++)
+        {
+            run.Engine.TickOneSecond();
+            _output.WriteLine(
+                $"t={second} follower gs={follower.GroundSpeed:F1} limit={follower.Ground.SpeedLimit} lead gs={run.Lead.GroundSpeed:F1} "
+                    + $"limit={run.Lead.Ground.SpeedLimit}"
+            );
+            Assert.Null(follower.Ground.SpeedLimit);
+            Assert.Null(follower.Ground.AutoYieldTarget);
+            Assert.Null(run.Lead.Ground.SpeedLimit);
+        }
+
+        Assert.IsType<FollowingPhase>(follower.Phases?.CurrentPhase);
+        Assert.True(
+            GeoMath.DistanceNm(follower.Position, run.Lead.Position) <= GroundConflictDetector.SearchRangeNm,
+            "the follower is out of the detector's search range of its lead, so the pair proves nothing"
+        );
+        var log = new List<string>();
+        GroundConflictDetector.ApplySpeedLimits([run.Lead, follower], run.Layout, 0, log.Add);
+        log.ForEach(_output.WriteLine);
+        Assert.DoesNotContain(log, line => line.StartsWith("[Pair]", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// A follower of a follower rolling toward the first follower's own lead on KOAK's B, within the detector's search range of it:
+    /// that lead is in its lead chain, so the detector resolves neither it nor its direct lead against the second follower.
+    /// </summary>
+    [Fact]
+    public void Follower_VsItsLeadsLead_GetsNoLimit()
+    {
+        if (StartFollower(string.Empty) is not { } started)
+        {
+            return;
+        }
+
+        (KoakFollowGeometry.LeadRun run, AircraftState follower, FollowingPhase _) = started;
+        AircraftState last = KoakFollowGeometry.Spawn(
+            SiblingCallsign,
+            "C172",
+            run.Chain[6].Position,
+            KoakFollowGeometry.Facing(run.Chain[6], run.Chain[5])
+        );
+        last.Ground.Layout = run.Layout;
+        last.Phases = new PhaseList();
+        last.Phases.Add(new FollowingPhase(FollowerCallsign));
+        last.Phases.CurrentPhase!.Status = PhaseStatus.Active;
+        last.IndicatedAirspeed = 10.0;
+        Assert.True(
+            GeoMath.DistanceNm(last.Position, run.Lead.Position) <= GroundConflictDetector.SearchRangeNm,
+            "the last follower is out of the detector's search range of its lead's lead, so the pair proves nothing"
+        );
+
+        var log = new List<string>();
+        GroundConflictDetector.ApplySpeedLimits([run.Lead, follower, last], run.Layout, 0, log.Add);
+        log.ForEach(_output.WriteLine);
+
+        Assert.DoesNotContain(log, line => line.StartsWith("[Pair]", StringComparison.Ordinal));
+        Assert.Null(last.Ground.SpeedLimit);
+        Assert.Null(run.Lead.Ground.SpeedLimit);
+    }
+
+    /// <summary>
+    /// Two followers of one lead, the second joining from a side edge at a junction ahead of the first: the two followers are an
+    /// ordinary pair the detector resolves against each other, while neither is resolved against the lead.
+    /// </summary>
+    [Fact]
+    public void Follower_VsItsLeadsOtherFollower_IsResolved()
+    {
+        if (StartFollowAtJunction() is not { } at)
+        {
+            return;
+        }
+
+        AircraftState sibling = KoakFollowGeometry.Spawn(SiblingCallsign, "C172", at.SidePoint, KoakFollowGeometry.Facing(at.SideFrom, at.Junction));
+        sibling.Ground.Layout = at.Run.Layout;
+        at.Run.Engine.World.AddAircraft(sibling);
+        CommandResult result = at.Run.Engine.SendCommand(SiblingCallsign, $"FOLLOWG {at.Run.Lead.Callsign}");
+        Assert.True(result.Success, result.Message);
+        at.Run.Engine.TickOneSecond();
+        FollowingPhase siblingFollow = Assert.IsType<FollowingPhase>(sibling.Phases?.CurrentPhase);
+        Assert.True(siblingFollow.FollowRoute is not null, "the second follower planned no follow route, so it is no mover to resolve");
+
+        var log = new List<string>();
+        GroundConflictDetector.ApplySpeedLimits([at.Run.Lead, at.Follower, sibling], at.Run.Layout, 0, log.Add);
+        log.ForEach(_output.WriteLine);
+
+        Assert.Contains(log, line => line.StartsWith($"[Pair] {FollowerCallsign}(Taxiing)+{SiblingCallsign}(Taxiing)", StringComparison.Ordinal));
+        Assert.DoesNotContain(log, line => line.StartsWith($"[Pair] {at.Run.Lead.Callsign}(", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// A follower with no route to drive (waiting for its lead) classifies as any aircraft with no route does: stationary while at
+    /// rest, a passable obstacle, and an untracked mover on its heading once rolling.
+    /// </summary>
+    [Fact]
+    public void Follower_WithNoDrivenRoute_IsAnObstacleAtRestAndAnUntrackedMoverRolling()
+    {
+        if (KoakFollowGeometry.LoadLayout(_output) is not { } layout)
+        {
+            return;
+        }
+
+        List<GroundNode> chain = KoakFollowGeometry.BChain(layout);
+        AircraftState waiting = KoakFollowGeometry.Spawn(FollowerCallsign, "C172", chain[4].Position, KoakFollowGeometry.Facing(chain[4], chain[3]));
+        waiting.Phases = new PhaseList();
+        waiting.Phases.Add(new FollowingPhase("N1LED"));
+        waiting.Phases.CurrentPhase!.Status = PhaseStatus.Active;
+        AircraftState mover = KoakFollowGeometry.Spawn(ThirdCallsign, "C172", chain[2].Position, KoakFollowGeometry.Facing(chain[2], chain[3]));
+        mover.Phases = null;
+        mover.IndicatedAirspeed = 10.0;
+
+        var atRest = new List<string>();
+        GroundConflictDetector.ApplySpeedLimits([waiting, mover], layout, 0, atRest.Add);
+        atRest.ForEach(_output.WriteLine);
+        Assert.Contains(atRest, line => line.StartsWith($"[Classify] {FollowerCallsign}: Stationary", StringComparison.Ordinal));
+
+        waiting.IndicatedAirspeed = 10.0;
+        var rolling = new List<string>();
+        GroundConflictDetector.ApplySpeedLimits([waiting, mover], layout, 0, rolling.Add);
+        rolling.ForEach(_output.WriteLine);
+        Assert.Contains(
+            rolling,
+            line => line.StartsWith($"[Classify] {FollowerCallsign}: Untracked, dir={waiting.TrueHeading.Degrees:F0}", StringComparison.Ordinal)
+        );
+    }
+
+    /// <summary>
+    /// A lead pushed tail-first on KOAK's B toward its own follower, which holds at rest astern of it: the lead is closing on the
+    /// follower, so the detector limits the push as it would against any aircraft astern, while the follower stays unlimited.
+    /// </summary>
+    [Fact]
+    public void Lead_PushingTowardItsHoldingFollower_IsLimited()
+    {
+        if (KoakFollowGeometry.LoadLayout(_output) is not { } layout)
+        {
+            return;
+        }
+
+        List<GroundNode> chain = KoakFollowGeometry.BChain(layout);
+        TrueHeading nose = KoakFollowGeometry.Facing(chain[3], chain[2]);
+        TrueHeading tailward = nose.ToReciprocal();
+        double pushKts = CategoryPerformance.PushbackSpeed(AircraftCategory.Jet);
+        AircraftState lead = MakeAircraft(LeadCallsign, chain[3].Position, heading: nose.Degrees, gs: pushKts, pushbackHeading: tailward.Degrees);
+        lead.Phases = new PhaseList();
+        lead.Phases.Add(StraightPushFrom(lead));
+        lead.Phases.CurrentPhase!.Status = PhaseStatus.Active;
+        lead.Ground.Layout = layout;
+        LatLon astern = GeoMath.ProjectPoint(chain[3].Position, tailward, 150.0 / FtPerNm);
+        AircraftState follower = MakeAircraft(FollowerCallsign, astern, heading: nose.Degrees, phase: new FollowingPhase(LeadCallsign));
+        follower.Ground.Layout = layout;
+
+        var log = new List<string>();
+        GroundConflictDetector.ApplySpeedLimits([lead, follower], layout, 1.0 / SimulationEngine.PhysicsSubTickRate, log.Add);
+        log.ForEach(_output.WriteLine);
+
+        Assert.True(
+            (lead.Ground.SpeedLimit is { } limitKts) && (limitKts < pushKts),
+            $"the push toward its follower was not limited: {lead.Ground.SpeedLimit}"
+        );
+        Assert.Null(follower.Ground.SpeedLimit);
+        Assert.Null(follower.Ground.AutoYieldTarget);
+    }
+
+    /// <summary>
+    /// A lead re-routed back up KOAK's B toward its own follower, which holds at rest on B ahead of it: the lead's track points at
+    /// the follower, and the follower sits on the lead's own trail (the B edges it came down), which is what makes the lead
+    /// closing on it — a follower off that trail would leave the lead exempt. The detector limits the lead, which yields to its
+    /// follower, while the follower stays unlimited.
+    /// </summary>
+    [Fact]
+    public void Lead_ReroutedBackTowardItsFollower_IsLimited()
+    {
+        if (KoakFollowGeometry.LoadLayout(_output) is not { } layout)
+        {
+            return;
+        }
+
+        // The lead came south down B from chain[5] to chain[3] (its trail), the follower behind it, and is now re-routed back north.
+        List<GroundNode> chain = KoakFollowGeometry.BChain(layout);
+        const double TaxiKts = 10.0;
+        AircraftState lead = KoakFollowGeometry.Spawn(LeadCallsign, "C172", chain[3].Position, KoakFollowGeometry.Facing(chain[3], chain[4]));
+        lead.Phases = null;
+        lead.IndicatedAirspeed = TaxiKts;
+        lead.Ground.Layout = layout;
+        lead.Ground.AssignedTaxiRoute = RouteAlongB(chain, 3, 5);
+        for (int i = 5; i > 3; i--)
+        {
+            lead.Ground.TaxiEdgeTrail.Record(KoakFollowGeometry.EdgeBetween(chain[i], chain[i - 1]), chain[i]);
+        }
+
+        LatLon onTrail = KoakFollowGeometry.Between(chain[4].Position, chain[5].Position, 0.5);
+        AircraftState follower = KoakFollowGeometry.Spawn(FollowerCallsign, "C172", onTrail, KoakFollowGeometry.Facing(chain[5], chain[4]));
+        follower.Phases = new PhaseList();
+        follower.Phases.Add(new FollowingPhase(LeadCallsign));
+        follower.Phases.CurrentPhase!.Status = PhaseStatus.Active;
+        follower.Ground.Layout = layout;
+
+        var log = new List<string>();
+        GroundConflictDetector.ApplySpeedLimits([lead, follower], layout, 0, log.Add);
+        log.ForEach(_output.WriteLine);
+
+        Assert.True(
+            (lead.Ground.SpeedLimit is { } limitKts) && (limitKts < TaxiKts),
+            $"the lead taxiing at its follower was not limited: {lead.Ground.SpeedLimit}"
+        );
+        Assert.Null(follower.Ground.SpeedLimit);
+        Assert.Null(follower.Ground.AutoYieldTarget);
+    }
+
+    /// <summary>
+    /// A lead re-routed back down its own trail on KOAK toward its follower, the two head-on on one edge of the follower's follow
+    /// route, while a third aircraft taxiing just ahead of the follower on that edge has already stopped it earlier in the pass.
+    /// The head-on pair holds the follower, which cannot yield to its lead, so the lead yields to its follower instead, although
+    /// the follower's limit was already zero; the follower keeps the third aircraft's stop.
+    /// </summary>
+    [Fact]
+    public void Lead_ReroutedBackTowardItsFollower_FollowerAlreadyPinnedByThirdAircraft_IsLimited()
+    {
+        if (StartFollower(string.Empty) is not { } started)
+        {
+            return;
+        }
+
+        (KoakFollowGeometry.LeadRun run, AircraftState follower, FollowingPhase follow) = started;
+        TaxiRoute route = Assert.IsType<TaxiRoute>(follow.FollowRoute);
+        int index = StraightPairOn(route, firstMinFt: 50.0, secondMinFt: 240.0);
+        TaxiRouteSegment came = route.Segments[index];
+        TaxiRouteSegment shared = route.Segments[index + 1];
+        route.CurrentSegmentIndex = index + 1;
+        double sharedFt = shared.Edge.DistanceNm * FtPerNm;
+        TrueHeading along = KoakFollowGeometry.Facing(shared.Edge.FromNode, shared.Edge.ToNode);
+        follower.Position = KoakFollowGeometry.Between(shared.Edge.FromNode.Position, shared.Edge.ToNode.Position, 30.0 / sharedFt);
+        follower.TrueHeading = along;
+        follower.Ground.TaxiEdgeTrail.Clear();
+        follower.Ground.TaxiEdgeTrail.Record(Assert.IsType<GroundEdge>(shared.Edge.Edge), shared.Edge.FromNode);
+
+        LatLon aheadOfFollower = KoakFollowGeometry.Between(shared.Edge.FromNode.Position, shared.Edge.ToNode.Position, 110.0 / sharedFt);
+        AircraftState third = KoakFollowGeometry.Spawn(ThirdCallsign, "C172", aheadOfFollower, along);
+        third.Phases = null;
+        third.IndicatedAirspeed = 5.0;
+        third.Ground.Layout = run.Layout;
+        third.Ground.AssignedTaxiRoute = new TaxiRoute
+        {
+            Segments = [new TaxiRouteSegment { Edge = shared.Edge, TaxiwayName = shared.TaxiwayName }],
+            HoldShortPoints = [],
+        };
+        SetComingBack(run.Lead, came, shared, pastFt: 230.0, speedKts: 10.0);
+
+        var log = new List<string>();
+        GroundConflictDetector.ApplySpeedLimits([follower, third, run.Lead], run.Layout, 0, log.Add);
+        log.ForEach(_output.WriteLine);
+
+        Assert.Contains(log, line => line.StartsWith($"[Pair] {FollowerCallsign}(Taxiing)+{run.Lead.Callsign}(Taxiing)", StringComparison.Ordinal));
+        Assert.Equal(0.0, follower.Ground.SpeedLimit);
+        Assert.Equal(ThirdCallsign, follower.Ground.AutoYieldTarget);
+        Assert.Equal(0.0, run.Lead.Ground.SpeedLimit);
+        Assert.Equal(FollowerCallsign, run.Lead.Ground.AutoYieldTarget);
+        Assert.False(run.Lead.Ground.AutoYieldIsFollowing);
+    }
+
+    /// <summary>
+    /// A lead that has just turned more than 90° at a KOAK junction onto an edge it had not driven, its follower behind it on the
+    /// edge it came along: the lead's heading still points back past the follower, but it is driving onto new ground, not coming
+    /// back — whether its trail has recorded the edge it turned onto (the node it entered that edge from, the junction, is behind
+    /// it) or not yet (its newest trail edge is still the edge it came along, whose far end its heading points back toward, but
+    /// it is no longer on that edge). Over several detector passes neither aircraft is limited by the pair, and both keep rolling.
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Lead_TurnedSharplyAwayOntoNewGround_IsNotClosing(bool outEdgeRecorded)
+    {
+        if (KoakFollowGeometry.LoadLayout(_output) is not { } layout)
+        {
+            return;
+        }
+
+        (GroundNode farIn, GroundNode junction, GroundNode farOut, GroundEdge inEdge, GroundEdge outEdge, double turnDeg) =
+            KoakFollowGeometry.SharpTurn(layout);
+        TrueHeading inHeading = KoakFollowGeometry.Facing(farIn, junction);
+        TrueHeading outHeading = KoakFollowGeometry.Facing(junction, farOut);
+        double inFt = inEdge.DistanceNm * FtPerNm;
+        double outFt = outEdge.DistanceNm * FtPerNm;
+
+        // The lead stops just short of where its heading would stop pointing back past the follower, so the follower is the
+        // aircraft the lead's track points at: only the node it entered its newest edge from, behind it, says it is not coming back.
+        double behindFt = Math.Min(150.0, inFt - 5.0);
+        double pastFt = Math.Clamp(-0.5 * behindFt * Math.Cos(turnDeg * Math.PI / 180.0), 2.0, outFt - 25.0);
+        _output.WriteLine(
+            $"junction #{junction.Id}: in from #{farIn.Id} on {inHeading.Degrees:F0}° ({inFt:F0} ft), out to #{farOut.Id} on "
+                + $"{outHeading.Degrees:F0}° ({outFt:F0} ft), turn {turnDeg:F0}°; follower {behindFt:F0} ft short, lead {pastFt:F1} ft past"
+        );
+
+        const double TaxiKts = 10.0;
+        LatLon pastTheTurn = KoakFollowGeometry.Between(junction.Position, farOut.Position, pastFt / outFt);
+        AircraftState lead = KoakFollowGeometry.Spawn(LeadCallsign, "C172", pastTheTurn, outHeading);
+        lead.Phases = null;
+        lead.IndicatedAirspeed = TaxiKts;
+        lead.Ground.Layout = layout;
+        var outward = new DirectionalEdge
+        {
+            Edge = outEdge,
+            FromNode = junction,
+            ToNode = farOut,
+        };
+        lead.Ground.AssignedTaxiRoute = new TaxiRoute
+        {
+            Segments = [new TaxiRouteSegment { Edge = outward, TaxiwayName = outEdge.TaxiwayName }],
+            HoldShortPoints = [],
+        };
+        lead.Ground.TaxiEdgeTrail.Record(inEdge, farIn);
+        if (outEdgeRecorded)
+        {
+            lead.Ground.TaxiEdgeTrail.Record(outEdge, junction);
+        }
+        else
+        {
+            double backTowardEntryDeg = GeoMath.AbsBearingDifference(outHeading.Degrees, GeoMath.BearingTo(pastTheTurn, farIn.Position));
+            Assert.True(
+                backTowardEntryDeg < 90.0,
+                $"the lead's heading is {backTowardEntryDeg:F0}° off the way back to #{farIn.Id}, "
+                    + "the node its newest trail edge was entered from, so the test proves nothing"
+            );
+        }
+
+        LatLon behind = KoakFollowGeometry.Between(junction.Position, farIn.Position, behindFt / inFt);
+        AircraftState follower = KoakFollowGeometry.Spawn(FollowerCallsign, "C172", behind, inHeading);
+        follower.Phases = new PhaseList();
+        follower.Phases.Add(new FollowingPhase(LeadCallsign));
+        follower.Phases.CurrentPhase!.Status = PhaseStatus.Active;
+        follower.IndicatedAirspeed = TaxiKts;
+        follower.Ground.Layout = layout;
+        follower.Ground.TaxiEdgeTrail.Record(inEdge, farIn);
+
+        const double PassSeconds = 1.0 / SimulationEngine.PhysicsSubTickRate;
+        double stepNm = TaxiKts * PassSeconds / 3600.0;
+        for (int pass = 1; pass <= 4; pass++)
+        {
+            var log = new List<string>();
+            GroundConflictDetector.ApplySpeedLimits([lead, follower], layout, PassSeconds, log.Add);
+            log.ForEach(_output.WriteLine);
+
+            AssertPairNotResolved(log);
+            Assert.Null(lead.Ground.SpeedLimit);
+            Assert.Null(lead.Ground.AutoYieldTarget);
+            Assert.Null(follower.Ground.SpeedLimit);
+            Assert.Null(follower.Ground.AutoYieldTarget);
+            lead.Position = GeoMath.ProjectPoint(lead.Position, outHeading, stepNm);
+            follower.Position = GeoMath.ProjectPoint(follower.Position, inHeading, stepNm);
+        }
+    }
+
+    /// <summary>
+    /// A C172 lead starting a push on KOAK's B, its follower rolling up ahead of its nose inside the trail distance: the push runs
+    /// away from the follower and opens the gap, so the lead is not closing on it and neither aircraft is limited.
+    /// </summary>
+    [Fact]
+    public void Lead_PushingAwayFromFollowerInFrontOfItsNose_IsNotLimited()
+    {
+        if (KoakFollowGeometry.LoadLayout(_output) is not { } layout)
+        {
+            return;
+        }
+
+        List<GroundNode> chain = KoakFollowGeometry.BChain(layout);
+        TrueHeading nose = KoakFollowGeometry.Facing(chain[3], chain[2]);
+        TrueHeading tailward = nose.ToReciprocal();
+        double pushKts = CategoryPerformance.PushbackSpeed(AircraftCategory.Piston);
+        AircraftState lead = MakeAircraft(LeadCallsign, chain[3].Position, heading: nose.Degrees, gs: pushKts, pushbackHeading: tailward.Degrees);
+        lead.AircraftType = "C172";
+        lead.Phases = new PhaseList();
+        lead.Phases.Add(StraightPushFrom(lead));
+        lead.Phases.CurrentPhase!.Status = PhaseStatus.Active;
+        lead.Ground.Layout = layout;
+        LatLon aheadOfNose = GeoMath.ProjectPoint(chain[3].Position, nose, 150.0 / FtPerNm);
+        AircraftState follower = MakeAircraft(
+            FollowerCallsign,
+            aheadOfNose,
+            heading: tailward.Degrees,
+            gs: 2.0,
+            phase: new FollowingPhase(LeadCallsign)
+        );
+        follower.AircraftType = "C172";
+        follower.Ground.Layout = layout;
+
+        var log = new List<string>();
+        GroundConflictDetector.ApplySpeedLimits([lead, follower], layout, 1.0 / SimulationEngine.PhysicsSubTickRate, log.Add);
+        log.ForEach(_output.WriteLine);
+
+        AssertPairNotResolved(log);
+        Assert.Null(lead.Ground.SpeedLimit);
+        Assert.Null(lead.Ground.AutoYieldTarget);
+        Assert.Null(follower.Ground.SpeedLimit);
+    }
+
+    /// <summary>
+    /// The lead and its follower were never resolved as a pair: the detector's diagnostic log carries no <c>[Pair]</c> line and
+    /// no <c>[LeadChain]</c> line, so the lead read as not closing on its follower.
+    /// </summary>
+    private static void AssertPairNotResolved(List<string> log)
+    {
+        Assert.DoesNotContain(log, line => line.StartsWith("[Pair]", StringComparison.Ordinal));
+        Assert.DoesNotContain(log, line => line.Contains("[LeadChain]", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// The lead of the re-route above has driven on back past <c>chain[4]</c>, the node it turned at, onto the B edge it first
+    /// came down, its follower still holding further up that edge: its trail is that edge, the edge on to <c>chain[3]</c>, and
+    /// that first edge again. The node the two newest trail edges share is now behind the lead, but the edge it is on appears
+    /// earlier in its trail, so it is retracing its own trail toward its follower and is limited, the follower unlimited.
+    /// </summary>
+    [Fact]
+    public void Lead_ReroutedBackPastTheNodeItTurnedAt_IsLimited()
+    {
+        if (KoakFollowGeometry.LoadLayout(_output) is not { } layout)
+        {
+            return;
+        }
+
+        // The lead came south down B from chain[5] to chain[3], turned back north, and has passed chain[4] again.
+        List<GroundNode> chain = KoakFollowGeometry.BChain(layout);
+        const double TaxiKts = 10.0;
+        LatLon pastTurnNode = KoakFollowGeometry.Between(chain[4].Position, chain[5].Position, 0.2);
+        AircraftState lead = KoakFollowGeometry.Spawn(LeadCallsign, "C172", pastTurnNode, KoakFollowGeometry.Facing(chain[4], chain[5]));
+        lead.Phases = null;
+        lead.IndicatedAirspeed = TaxiKts;
+        lead.Ground.Layout = layout;
+        lead.Ground.AssignedTaxiRoute = RouteAlongB(chain, 4, 5);
+        for (int i = 5; i > 3; i--)
+        {
+            lead.Ground.TaxiEdgeTrail.Record(KoakFollowGeometry.EdgeBetween(chain[i], chain[i - 1]), chain[i]);
+        }
+
+        GroundEdge drivenAgain = KoakFollowGeometry.EdgeBetween(chain[4], chain[5]);
+        lead.Ground.TaxiEdgeTrail.Record(drivenAgain, TaxiEdgeTrail.EntryNodeOf(drivenAgain, lead));
+
+        LatLon onTrail = KoakFollowGeometry.Between(chain[4].Position, chain[5].Position, 0.5);
+        AircraftState follower = KoakFollowGeometry.Spawn(FollowerCallsign, "C172", onTrail, KoakFollowGeometry.Facing(chain[5], chain[4]));
+        follower.Phases = new PhaseList();
+        follower.Phases.Add(new FollowingPhase(LeadCallsign));
+        follower.Phases.CurrentPhase!.Status = PhaseStatus.Active;
+        follower.Ground.Layout = layout;
+
+        var log = new List<string>();
+        GroundConflictDetector.ApplySpeedLimits([lead, follower], layout, 0, log.Add);
+        log.ForEach(_output.WriteLine);
+
+        string closingLine = $"[LeadChain] {LeadCallsign} closing on its follower {FollowerCallsign} (retracing its trail)";
+        Assert.Contains(log, line => line.Contains(closingLine, StringComparison.Ordinal));
+        Assert.Equal(3, lead.Ground.TaxiEdgeTrail.Edges.Count);
+        Assert.True(
+            (lead.Ground.SpeedLimit is { } limitKts) && (limitKts < TaxiKts),
+            $"the lead retracing its trail toward its follower was not limited: {lead.Ground.SpeedLimit}"
+        );
+        Assert.Null(follower.Ground.SpeedLimit);
+        Assert.Null(follower.Ground.AutoYieldTarget);
+    }
+
+    /// <summary>
+    /// A lead that turned through a filleted KOAK corner (the fillet arc replaced the junction node, so the edge before the arc and
+    /// the edge after it share no node) and then turned about on the edge after it, heading back toward the arc, its follower
+    /// holding on that edge just past the arc: the lead's track points at the node it entered its newest edge from, so it is
+    /// closing on its follower and is limited, the follower unlimited.
+    /// </summary>
+    [Fact]
+    public void Lead_TurnedAboutAfterAFilletedCorner_IsLimited()
+    {
+        if (KoakFollowGeometry.LoadLayout(_output) is not { } layout)
+        {
+            return;
+        }
+
+        FilletedCorner corner = FindFilletedCorner(layout, minSweepDeg: 45.0);
+        double outFt = corner.OutEdge.DistanceNm * FtPerNm;
+        const double TaxiKts = 10.0;
+        LatLon turnedAboutAt = KoakFollowGeometry.Between(corner.T2.Position, corner.Q.Position, 150.0 / outFt);
+        AircraftState lead = KoakFollowGeometry.Spawn(LeadCallsign, "C172", turnedAboutAt, KoakFollowGeometry.Facing(corner.Q, corner.T2));
+        lead.Phases = null;
+        lead.IndicatedAirspeed = TaxiKts;
+        lead.Ground.Layout = layout;
+        lead.Ground.AssignedTaxiRoute = MakeRoute(
+            new TaxiRouteSegment { TaxiwayName = corner.OutEdge.TaxiwayName, Edge = corner.OutEdge.Directed(corner.Q, corner.T2) }
+        );
+        lead.Ground.TaxiEdgeTrail.Record(corner.BeforeEdge, corner.O);
+        lead.Ground.TaxiEdgeTrail.Record(corner.InEdge, corner.P);
+        lead.Ground.TaxiEdgeTrail.Record(corner.OutEdge, corner.T2);
+
+        LatLon pastTheArc = KoakFollowGeometry.Between(corner.T2.Position, corner.Q.Position, 25.0 / outFt);
+        AircraftState follower = KoakFollowGeometry.Spawn(FollowerCallsign, "C172", pastTheArc, KoakFollowGeometry.Facing(corner.T2, corner.Q));
+        follower.Phases = new PhaseList();
+        follower.Phases.Add(new FollowingPhase(LeadCallsign));
+        follower.Phases.CurrentPhase!.Status = PhaseStatus.Active;
+        follower.Ground.Layout = layout;
+
+        var log = new List<string>();
+        GroundConflictDetector.ApplySpeedLimits([lead, follower], layout, 0, log.Add);
+        log.ForEach(_output.WriteLine);
+
+        string closingLine = $"[LeadChain] {LeadCallsign} closing on its follower {FollowerCallsign} (turned about";
+        Assert.Contains(log, line => line.Contains(closingLine, StringComparison.Ordinal));
+        Assert.True(
+            (lead.Ground.SpeedLimit is { } limitKts) && (limitKts < TaxiKts),
+            $"the lead turned about toward its follower was not limited: {lead.Ground.SpeedLimit}"
+        );
+        Assert.Null(follower.Ground.SpeedLimit);
+        Assert.Null(follower.Ground.AutoYieldTarget);
+    }
+
+    /// <summary>
+    /// A C172 lead that turned off H onto KOAK's C and stands mid-way along its newest trail edge, the long C edge west of H
+    /// (<see cref="KoakTaxiwayC.LongEdgeWestOfH"/>), its follower behind it on that edge at the follow gap, is cleared by a
+    /// controller <c>TAXI C B</c>, back the way it came: the route is planned from the edge's end behind it and turns it about
+    /// toward that end (<see cref="TaxiTurnAboutShape.FromFarEnd"/>), so segment 0 is the drive back to that end, not the edge it
+    /// stands on. Turned about and driving back along that edge toward its follower, it is closing on it and is limited, the
+    /// follower unlimited.
+    /// </summary>
+    [Fact]
+    public void Lead_TurnedAboutMidEdgeFromFarEnd_IsLimited()
+    {
+        if (KoakFollowGeometry.NewEngine(_output, autoCross: true) is not { } setup)
+        {
+            return;
+        }
+
+        (SimulationEngine engine, AirportGroundLayout layout) = setup;
+        (GroundNode entry, GroundNode ahead) = KoakTaxiwayC.LongEdgeWestOfH(layout);
+        GroundEdge newestEdge = KoakFollowGeometry.EdgeBetween(entry, ahead);
+        double edgeFt = newestEdge.DistanceNm * FtPerNm;
+        double centresFt = FollowGap.StopGapFt("C172", AircraftCategory.Piston, "C172", AircraftCategory.Piston) + LengthFt("C172");
+        const double FollowerFt = 40.0;
+        double leadFt = FollowerFt + centresFt;
+        _output.WriteLine($"C #{entry.Id}-#{ahead.Id} {edgeFt:F0} ft: lead {leadFt:F0} ft along, follower {FollowerFt:F0} ft along");
+
+        const double TaxiKts = 10.0;
+        LatLon midEdge = KoakFollowGeometry.Between(entry.Position, ahead.Position, leadFt / edgeFt);
+        AircraftState lead = KoakFollowGeometry.Spawn(LeadCallsign, "C172", midEdge, KoakFollowGeometry.Facing(entry, ahead));
+        lead.Ground.Layout = layout;
+        engine.World.AddAircraft(lead);
+        CommandResult taxi = engine.SendCommand(LeadCallsign, "TAXI C B");
+        Assert.True(taxi.Success, taxi.Message);
+        TaxiRoute route = Assert.IsType<TaxiRoute>(lead.Ground.AssignedTaxiRoute);
+        TaxiRouteSegment first = route.Segments[0];
+        _output.WriteLine(
+            $"lead route {route.ToSummary()}, segment 0 #{first.FromNodeId}->#{first.ToNodeId}, "
+                + $"turn about {route.PendingTurnAboutShape} toward #{route.TurnAboutTargetNodeId}"
+        );
+        Assert.Equal(TaxiTurnAboutShape.FromFarEnd, route.PendingTurnAboutShape);
+        Assert.Equal(entry.Id, route.TurnAboutTargetNodeId);
+
+        lead.Ground.TaxiEdgeTrail.Record(newestEdge, entry);
+        TaxiTrailEdge recorded = Assert.NotNull(lead.Ground.TaxiEdgeTrail.Newest);
+        GroundEdge driving = Assert.IsType<GroundEdge>(first.Edge.Edge);
+        Assert.False(recorded.Is(driving), "segment 0 is the lead's newest trail edge, so the test proves nothing");
+        TrueHeading turnedAbout = KoakFollowGeometry.Facing(ahead, entry);
+        lead.TrueHeading = turnedAbout;
+        lead.TrueTrack = turnedAbout;
+        lead.IndicatedAirspeed = TaxiKts;
+
+        LatLon behind = KoakFollowGeometry.Between(entry.Position, ahead.Position, FollowerFt / edgeFt);
+        AircraftState follower = KoakFollowGeometry.Spawn(FollowerCallsign, "C172", behind, KoakFollowGeometry.Facing(entry, ahead));
+        follower.Phases = new PhaseList();
+        follower.Phases.Add(new FollowingPhase(LeadCallsign));
+        follower.Phases.CurrentPhase!.Status = PhaseStatus.Active;
+        follower.Ground.Layout = layout;
+        follower.Ground.TaxiEdgeTrail.Record(newestEdge, entry);
+
+        var log = new List<string>();
+        GroundConflictDetector.ApplySpeedLimits([lead, follower], layout, 0, log.Add);
+        log.ForEach(_output.WriteLine);
+
+        string closingLine = $"[LeadChain] {LeadCallsign} closing on its follower {FollowerCallsign} (turned about";
+        Assert.Contains(log, line => line.Contains(closingLine, StringComparison.Ordinal));
+        Assert.True(
+            (lead.Ground.SpeedLimit is { } limitKts) && (limitKts < TaxiKts),
+            $"the lead turned about toward its follower was not limited: {lead.Ground.SpeedLimit}"
+        );
+        Assert.Null(follower.Ground.SpeedLimit);
+        Assert.Null(follower.Ground.AutoYieldTarget);
+    }
+
+    /// <summary>
+    /// A lead part-way round a KOAK fillet arc turning more than 90°, already past 90° of it, its follower holding on the edge
+    /// the lead came along: the lead's heading points back toward the ground it came over, but it is rounding the arc onto new
+    /// ground, not coming back, so it is not closing on its follower and the pair is not resolved.
+    /// </summary>
+    [Fact]
+    public void Lead_MidWayRoundAFilletedTurnOfMoreThan90Degrees_IsNotClosing()
+    {
+        if (KoakFollowGeometry.LoadLayout(_output) is not { } layout)
+        {
+            return;
+        }
+
+        FilletedCorner corner = FindFilletedCorner(layout, minSweepDeg: 100.0);
+        double turnDeg = corner.SweepDeg - 5.0;
+        (LatLon onArc, TrueHeading arcHeading) = PointAfterTurn(corner.Curve, turnDeg);
+        const double TaxiKts = 10.0;
+        AircraftState lead = KoakFollowGeometry.Spawn(LeadCallsign, "C172", onArc, arcHeading);
+        lead.Phases = null;
+        lead.IndicatedAirspeed = TaxiKts;
+        lead.Ground.Layout = layout;
+        lead.Ground.AssignedTaxiRoute = MakeRoute(
+            new TaxiRouteSegment { TaxiwayName = corner.Arc.TaxiwayName, Edge = corner.Arc.Directed(corner.T1, corner.T2) },
+            new TaxiRouteSegment { TaxiwayName = corner.OutEdge.TaxiwayName, Edge = corner.OutEdge.Directed(corner.T2, corner.Q) }
+        );
+        lead.Ground.TaxiEdgeTrail.Record(corner.BeforeEdge, corner.O);
+        lead.Ground.TaxiEdgeTrail.Record(corner.InEdge, corner.P);
+
+        double inFt = corner.InEdge.DistanceNm * FtPerNm;
+        LatLon behind = KoakFollowGeometry.Between(corner.T1.Position, corner.P.Position, Math.Min(60.0, inFt / 2.0) / inFt);
+        AircraftState follower = KoakFollowGeometry.Spawn(FollowerCallsign, "C172", behind, KoakFollowGeometry.Facing(corner.P, corner.T1));
+        follower.Phases = new PhaseList();
+        follower.Phases.Add(new FollowingPhase(LeadCallsign));
+        follower.Phases.CurrentPhase!.Status = PhaseStatus.Active;
+        follower.Ground.Layout = layout;
+        double towardEntryOffDeg = Math.Abs(GeoMath.SignedBearingDifference(arcHeading.Degrees, GeoMath.BearingTo(onArc, corner.P.Position)));
+        _output.WriteLine(
+            $"lead {turnDeg:F0}° round a {corner.SweepDeg:F0}° arc; its heading is {towardEntryOffDeg:F0}° off the way back to #{corner.P.Id}"
+        );
+        Assert.True(towardEntryOffDeg < 90.0, "the lead's heading does not point back toward the ground it came over, so the test proves nothing");
+
+        var log = new List<string>();
+        GroundConflictDetector.ApplySpeedLimits([lead, follower], layout, 0, log.Add);
+        log.ForEach(_output.WriteLine);
+
+        AssertPairNotResolved(log);
+        Assert.Null(lead.Ground.SpeedLimit);
+        Assert.Null(follower.Ground.SpeedLimit);
+    }
+
+    /// <summary>
+    /// A lead that came round a filleted KOAK corner and turned about on the edge after the arc, its trail the edge before the
+    /// corner's edge in, the edge in and the edge after the arc, now comes back over the arc and on along the edge in toward its
+    /// follower, which holds on the edge in or part-way round the arc. On every detector pass, round the whole arc and along the
+    /// edge in before the next trail record adds it again, the lead is closing on its follower — coming back over the arc on the
+    /// arc, retracing its trail on the edge in: the pair is resolved and the follower is never limited. The lead is limited on the
+    /// arc short of its follower, and wherever the follower stands dead ahead of it inside the stop distance.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Lead_ComingBackOverTheFilletArcItCameRound_IsClosingOnEveryPass(bool followerOnArc)
+    {
+        if (KoakFollowGeometry.LoadLayout(_output) is not { } layout)
+        {
+            return;
+        }
+
+        FilletedCorner corner = FindFilletedCorner(layout, minSweepDeg: 45.0);
+        double inFt = corner.InEdge.DistanceNm * FtPerNm;
+        const double TaxiKts = 10.0;
+        TaxiRoute route = MakeRoute(
+            new TaxiRouteSegment { TaxiwayName = corner.Arc.TaxiwayName, Edge = corner.Arc.Directed(corner.T2, corner.T1) },
+            new TaxiRouteSegment { TaxiwayName = corner.InEdge.TaxiwayName, Edge = corner.InEdge.Directed(corner.T1, corner.P) }
+        );
+        AircraftState lead = KoakFollowGeometry.Spawn(LeadCallsign, "C172", corner.T2.Position, KoakFollowGeometry.Facing(corner.Q, corner.T2));
+        lead.Phases = null;
+        lead.IndicatedAirspeed = TaxiKts;
+        lead.Ground.Layout = layout;
+        lead.Ground.AssignedTaxiRoute = route;
+        lead.Ground.TaxiEdgeTrail.Record(corner.BeforeEdge, corner.O);
+        lead.Ground.TaxiEdgeTrail.Record(corner.InEdge, corner.P);
+        lead.Ground.TaxiEdgeTrail.Record(corner.OutEdge, corner.T2);
+
+        (LatLon followerAt, TrueHeading followerHeading) = followerOnArc
+            ? PointAfterTurn(corner.Curve, 0.25 * corner.SweepDeg)
+            : (
+                KoakFollowGeometry.Between(corner.T1.Position, corner.P.Position, Math.Min(90.0, inFt - 10.0) / inFt),
+                KoakFollowGeometry.Facing(corner.P, corner.T1)
+            );
+        AircraftState follower = KoakFollowGeometry.Spawn(FollowerCallsign, "C172", followerAt, followerHeading);
+        follower.Phases = new PhaseList();
+        follower.Phases.Add(new FollowingPhase(LeadCallsign));
+        follower.Phases.CurrentPhase!.Status = PhaseStatus.Active;
+        follower.Ground.Layout = layout;
+        follower.Ground.TaxiEdgeTrail.Record(corner.BeforeEdge, corner.O);
+        follower.Ground.TaxiEdgeTrail.Record(corner.InEdge, corner.P);
+
+        List<(LatLon Position, TrueHeading Heading, int Segment, string Where)> passes = [];
+        for (double turnDeg = corner.SweepDeg - 2.0; turnDeg > 2.0; turnDeg -= 6.0)
+        {
+            (LatLon onArc, TrueHeading outbound) = PointAfterTurn(corner.Curve, turnDeg);
+            passes.Add((onArc, outbound.ToReciprocal(), 0, $"arc {turnDeg:F0}° from #{corner.T1.Id}"));
+        }
+
+        TrueHeading towardP = KoakFollowGeometry.Facing(corner.T1, corner.P);
+        for (double pastFt = 5.0; pastFt < inFt; pastFt += 10.0)
+        {
+            passes.Add(
+                (KoakFollowGeometry.Between(corner.T1.Position, corner.P.Position, pastFt / inFt), towardP, 1, $"{pastFt:F0} ft past #{corner.T1.Id}")
+            );
+        }
+
+        string closingLine = $"[LeadChain] {LeadCallsign} closing on its follower {FollowerCallsign}";
+        int onArcPasses = 0;
+        int limitedOnArc = 0;
+        foreach ((LatLon position, TrueHeading heading, int segment, string where) in passes)
+        {
+            double gapFt = GeoMath.DistanceNm(position, followerAt) * FtPerNm;
+            if (gapFt <= 60.0)
+            {
+                break;
+            }
+
+            lead.Position = position;
+            lead.TrueHeading = heading;
+            route.CurrentSegmentIndex = segment;
+            var log = new List<string>();
+            GroundConflictDetector.ApplySpeedLimits([lead, follower], layout, 0, log.Add);
+            double offNoseDeg = GeoMath.AbsBearingDifference(heading.Degrees, GeoMath.BearingTo(position, followerAt));
+            _output.WriteLine($"lead {where}: follower {gapFt:F0} ft, {offNoseDeg:F0}° off its nose; lead limit {lead.Ground.SpeedLimit}");
+
+            string reason = (segment == 0) ? "coming back over the fillet arc it came round" : "retracing its trail";
+            Assert.True(
+                log.Exists(line => line.Contains($"{closingLine} ({reason})", StringComparison.Ordinal)),
+                $"lead {where} not closing ({reason}):\n{string.Join("\n", log)}"
+            );
+            Assert.Null(follower.Ground.SpeedLimit);
+            Assert.Null(follower.Ground.AutoYieldTarget);
+            bool limited = (lead.Ground.SpeedLimit is { } limitKts) && (limitKts < TaxiKts);
+            if ((gapFt <= GroundConflictDetector.DefaultStopDistanceFt) && (offNoseDeg <= 20.0))
+            {
+                Assert.True(limited, $"lead {where} closing on its follower dead ahead inside the stop distance, not limited");
+            }
+
+            onArcPasses += (segment == 0) ? 1 : 0;
+            limitedOnArc += ((segment == 0) && limited) ? 1 : 0;
+        }
+
+        Assert.True(onArcPasses >= 3, $"only {onArcPasses} passes on the arc, so the test proves little about it");
+        Assert.True(limitedOnArc > 0, "the lead was never limited coming back over the arc toward its follower");
+    }
+
+    /// <summary>
+    /// The lead of <see cref="Lead_ComingBackOverTheFilletArcItCameRound_IsClosingOnEveryPass"/> a few feet to either side of the
+    /// arc's curve close to either of its ends, where a straight edge at that end can be nearer than the curve: its driven route
+    /// is on the arc, so at every such point it is closing on its follower on the edge in.
+    /// </summary>
+    [Fact]
+    public void Lead_ComingBackOffTheCurveNearTheArcsEnds_IsClosing()
+    {
+        if (KoakFollowGeometry.LoadLayout(_output) is not { } layout)
+        {
+            return;
+        }
+
+        FilletedCorner corner = FindFilletedCorner(layout, minSweepDeg: 45.0);
+        double inFt = corner.InEdge.DistanceNm * FtPerNm;
+        AircraftState lead = KoakFollowGeometry.Spawn(LeadCallsign, "C172", corner.T2.Position, KoakFollowGeometry.Facing(corner.Q, corner.T2));
+        lead.Phases = null;
+        lead.IndicatedAirspeed = 10.0;
+        lead.Ground.Layout = layout;
+        lead.Ground.AssignedTaxiRoute = MakeRoute(
+            new TaxiRouteSegment { TaxiwayName = corner.Arc.TaxiwayName, Edge = corner.Arc.Directed(corner.T2, corner.T1) },
+            new TaxiRouteSegment { TaxiwayName = corner.InEdge.TaxiwayName, Edge = corner.InEdge.Directed(corner.T1, corner.P) }
+        );
+        lead.Ground.TaxiEdgeTrail.Record(corner.BeforeEdge, corner.O);
+        lead.Ground.TaxiEdgeTrail.Record(corner.InEdge, corner.P);
+        lead.Ground.TaxiEdgeTrail.Record(corner.OutEdge, corner.T2);
+
+        LatLon followerAt = KoakFollowGeometry.Between(corner.T1.Position, corner.P.Position, Math.Min(90.0, inFt - 10.0) / inFt);
+        AircraftState follower = KoakFollowGeometry.Spawn(FollowerCallsign, "C172", followerAt, KoakFollowGeometry.Facing(corner.P, corner.T1));
+        follower.Phases = new PhaseList();
+        follower.Phases.Add(new FollowingPhase(LeadCallsign));
+        follower.Phases.CurrentPhase!.Status = PhaseStatus.Active;
+        follower.Ground.Layout = layout;
+        follower.Ground.TaxiEdgeTrail.Record(corner.BeforeEdge, corner.O);
+        follower.Ground.TaxiEdgeTrail.Record(corner.InEdge, corner.P);
+
+        string closingLine = $"[LeadChain] {LeadCallsign} closing on its follower {FollowerCallsign}";
+        double[] nearEndsDeg = [1.0, 2.0, 4.0, 6.0, 8.0, 10.0, corner.SweepDeg - 10.0, corner.SweepDeg - 6.0, corner.SweepDeg - 2.0];
+        List<string> notClosing = [];
+        foreach (double turnDeg in nearEndsDeg)
+        {
+            (LatLon onArc, TrueHeading outbound) = PointAfterTurn(corner.Curve, turnDeg);
+            TrueHeading back = outbound.ToReciprocal();
+            foreach ((double sideDeg, double offFt) in new[] { (90.0, 3.0), (90.0, 6.0), (270.0, 3.0), (270.0, 6.0) })
+            {
+                lead.Position = GeoMath.ProjectPoint(onArc, new TrueHeading(back.Degrees + sideDeg), offFt / FtPerNm);
+                lead.TrueHeading = back;
+                var log = new List<string>();
+                GroundConflictDetector.ApplySpeedLimits([lead, follower], layout, 0, log.Add);
+                bool closing = log.Exists(line => line.Contains(closingLine, StringComparison.Ordinal));
+                string where = $"{turnDeg:F0}° round from #{corner.T1.Id}, {offFt:F0} ft {(sideDeg < 180.0 ? "right" : "left")} of the curve";
+                _output.WriteLine($"lead {where}: {(closing ? "closing" : "NOT closing")}");
+                if (!closing)
+                {
+                    notClosing.Add(where);
+                }
+            }
+        }
+
+        Assert.True(notClosing.Count == 0, $"the lead coming back over the arc was not closing at: {string.Join("; ", notClosing)}");
+    }
+
+    /// <summary>
+    /// A lead that has just come off a KOAK fillet arc turning more than 90° onto the edge after it, which its trail has not
+    /// recorded yet (its newest trail edge is still the edge before the arc), its follower behind on that edge: the lead's heading
+    /// points back within 90° of the node it entered its newest trail edge from, but it is on an edge its trail does not hold yet,
+    /// new ground, so it is not closing and the pair is not resolved over several detector passes.
+    /// </summary>
+    [Fact]
+    public void Lead_JustPastAFilletedTurnOfMoreThan90Degrees_IsNotClosing()
+    {
+        if (KoakFollowGeometry.LoadLayout(_output) is not { } layout)
+        {
+            return;
+        }
+
+        FilletedCorner corner = FindFilletedCorner(layout, minSweepDeg: 100.0);
+        double outFt = corner.OutEdge.DistanceNm * FtPerNm;
+        double inFt = corner.InEdge.DistanceNm * FtPerNm;
+        TrueHeading outHeading = KoakFollowGeometry.Facing(corner.T2, corner.Q);
+        LatLon justPast = KoakFollowGeometry.Between(corner.T2.Position, corner.Q.Position, 10.0 / outFt);
+        const double TaxiKts = 10.0;
+        AircraftState lead = KoakFollowGeometry.Spawn(LeadCallsign, "C172", justPast, outHeading);
+        lead.Phases = null;
+        lead.IndicatedAirspeed = TaxiKts;
+        lead.Ground.Layout = layout;
+        lead.Ground.AssignedTaxiRoute = MakeRoute(
+            new TaxiRouteSegment { TaxiwayName = corner.OutEdge.TaxiwayName, Edge = corner.OutEdge.Directed(corner.T2, corner.Q) }
+        );
+        lead.Ground.TaxiEdgeTrail.Record(corner.BeforeEdge, corner.O);
+        lead.Ground.TaxiEdgeTrail.Record(corner.InEdge, corner.P);
+
+        TrueHeading inHeading = KoakFollowGeometry.Facing(corner.P, corner.T1);
+        LatLon behind = KoakFollowGeometry.Between(corner.T1.Position, corner.P.Position, Math.Min(60.0, inFt / 2.0) / inFt);
+        AircraftState follower = KoakFollowGeometry.Spawn(FollowerCallsign, "C172", behind, inHeading);
+        follower.Phases = new PhaseList();
+        follower.Phases.Add(new FollowingPhase(LeadCallsign));
+        follower.Phases.CurrentPhase!.Status = PhaseStatus.Active;
+        follower.IndicatedAirspeed = TaxiKts;
+        follower.Ground.Layout = layout;
+        follower.Ground.TaxiEdgeTrail.Record(corner.InEdge, corner.P);
+
+        double backTowardEntryDeg = GeoMath.AbsBearingDifference(outHeading.Degrees, GeoMath.BearingTo(justPast, corner.P.Position));
+        double chordFt = GeoMath.DistanceNm(corner.T1.Position, corner.T2.Position) * FtPerNm;
+        _output.WriteLine(
+            $"{corner.SweepDeg:F0}° arc, chord {chordFt:F0} ft; lead heading {backTowardEntryDeg:F0}° off the way back to #{corner.P.Id}"
+        );
+        Assert.True(
+            backTowardEntryDeg < 90.0,
+            "the lead's heading does not point back toward the node it entered its newest edge from, so the test proves nothing"
+        );
+
+        const double PassSeconds = 1.0 / SimulationEngine.PhysicsSubTickRate;
+        double stepNm = TaxiKts * PassSeconds / 3600.0;
+        for (int pass = 1; pass <= 4; pass++)
+        {
+            var log = new List<string>();
+            GroundConflictDetector.ApplySpeedLimits([lead, follower], layout, PassSeconds, log.Add);
+            log.ForEach(_output.WriteLine);
+
+            AssertPairNotResolved(log);
+            Assert.Null(lead.Ground.SpeedLimit);
+            Assert.Null(follower.Ground.SpeedLimit);
+            lead.Position = GeoMath.ProjectPoint(lead.Position, outHeading, stepNm);
+            follower.Position = GeoMath.ProjectPoint(follower.Position, inHeading, stepNm);
+        }
+    }
+
+    /// <summary>
+    /// A lead just off a KATL fillet arc turning more than 90° whose radius the fillet generator shrank, so its chord is short
+    /// (KOAK has no such corner), onto the edge after it, which its trail has not recorded yet, its follower behind on the edge
+    /// in. Standing that close to the edge in, the lead reads as on it (<see cref="TaxiEdgeLocator.DrivenEdgeUnder"/> looks only
+    /// around the edge last found), and its heading points back within 90° of the node it entered that edge from; but its route
+    /// is on the edge out, new ground, so it is not closing and the pair is not resolved.
+    /// </summary>
+    [Fact]
+    public void Lead_JustPastAShortChordFilletedTurnOfMoreThan90Degrees_IsNotClosing()
+    {
+        TestVnasData.EnsureInitialized();
+        if (new TestAirportGroundData().GetLayout("ATL") is not { } layout)
+        {
+            _output.WriteLine("SKIP: KATL layout unavailable");
+            return;
+        }
+
+        ShortChordCorner corner = FindShortChordCorner(layout);
+        TrueHeading outHeading = KoakFollowGeometry.Facing(corner.T2, corner.Q);
+        const double TaxiKts = 10.0;
+        AircraftState lead = KoakFollowGeometry.Spawn(LeadCallsign, "C172", corner.LeadAt, outHeading);
+        lead.Phases = null;
+        lead.IndicatedAirspeed = TaxiKts;
+        lead.Ground.Layout = layout;
+        lead.Ground.AssignedTaxiRoute = MakeRoute(
+            new TaxiRouteSegment { TaxiwayName = corner.OutEdge.TaxiwayName, Edge = corner.OutEdge.Directed(corner.T2, corner.Q) }
+        );
+        lead.Ground.TaxiEdgeTrail.Record(corner.InEdge, corner.P);
+
+        double inFt = corner.InEdge.DistanceNm * FtPerNm;
+        TrueHeading inHeading = KoakFollowGeometry.Facing(corner.P, corner.T1);
+        LatLon behind = KoakFollowGeometry.Between(corner.T1.Position, corner.P.Position, Math.Min(60.0, inFt / 2.0) / inFt);
+        AircraftState follower = KoakFollowGeometry.Spawn(FollowerCallsign, "C172", behind, inHeading);
+        follower.Phases = new PhaseList();
+        follower.Phases.Add(new FollowingPhase(LeadCallsign));
+        follower.Phases.CurrentPhase!.Status = PhaseStatus.Active;
+        follower.IndicatedAirspeed = TaxiKts;
+        follower.Ground.Layout = layout;
+        follower.Ground.TaxiEdgeTrail.Record(corner.InEdge, corner.P);
+
+        double backTowardEntryDeg = GeoMath.AbsBearingDifference(outHeading.Degrees, GeoMath.BearingTo(corner.LeadAt, corner.P.Position));
+        _output.WriteLine($"lead heading {backTowardEntryDeg:F0}° off the way back to #{corner.P.Id}");
+        Assert.True(
+            backTowardEntryDeg < 90.0,
+            "the lead's heading does not point back toward the node it entered its newest edge from, so the test proves nothing"
+        );
+
+        var log = new List<string>();
+        GroundConflictDetector.ApplySpeedLimits([lead, follower], layout, 0, log.Add);
+        log.ForEach(_output.WriteLine);
+
+        AssertPairNotResolved(log);
+        Assert.Null(lead.Ground.SpeedLimit);
+        Assert.Null(follower.Ground.SpeedLimit);
+    }
+
+    /// <summary>
+    /// A filleted corner turning more than 90° with a short chord: the straight <see cref="InEdge"/> from <see cref="P"/> to
+    /// <see cref="T1"/>, the fillet arc from <see cref="T1"/> to <see cref="T2"/> (<see cref="ChordFt"/> apart, turning
+    /// <see cref="SweepDeg"/>), and <see cref="OutEdge"/> from <see cref="T2"/> to <see cref="Q"/>; <see cref="LeadAt"/> is a point
+    /// on the edge out just past the arc that still reads as on the edge in (<see cref="ShortChordCornerOn"/>).
+    /// </summary>
+    private sealed record ShortChordCorner(
+        GroundNode P,
+        GroundNode T1,
+        GroundNode T2,
+        GroundNode Q,
+        GroundEdge InEdge,
+        GroundEdge OutEdge,
+        double SweepDeg,
+        double ChordFt,
+        LatLon LeadAt
+    );
+
+    /// <summary>
+    /// The filleted corner of <paramref name="layout"/> turning more than 90° with the shortest chord
+    /// (<see cref="ShortChordCornerOn"/>), driven either way round its arc. Fails when the layout has none.
+    /// </summary>
+    private ShortChordCorner FindShortChordCorner(AirportGroundLayout layout)
+    {
+        ShortChordCorner? best = null;
+        foreach (GroundArc arc in layout.Arcs.Where(arc => !arc.IsRamp && !arc.IsRunwayCenterline))
+        {
+            foreach (GroundNode t1 in arc.Nodes)
+            {
+                if ((ShortChordCornerOn(layout, arc, t1) is { } corner) && (corner.ChordFt < (best?.ChordFt ?? double.PositiveInfinity)))
+                {
+                    best = corner;
+                }
+            }
+        }
+
+        Assert.True(best is not null, "the layout has no filleted corner turning more than 90° whose edge in is still found just past the arc");
+        _output.WriteLine(
+            $"corner #{best.P.Id}>#{best.T1.Id} arc {best.SweepDeg:F0}° chord {best.ChordFt:F0} ft #{best.T2.Id}>#{best.Q.Id} "
+                + $"({best.InEdge.TaxiwayName} to {best.OutEdge.TaxiwayName})"
+        );
+        return best;
+    }
+
+    /// <summary>
+    /// The corner <paramref name="arc"/> makes driven from <paramref name="t1"/>: a turn of more than 90° (under 175°) from a
+    /// straight taxiway edge of at least 20 ft running into <paramref name="t1"/> along the arc's tangent there onto one of at
+    /// least 20 ft running out of the arc's other end along its tangent there, the two sharing no node, with a point 5 ft (a
+    /// third of the edge out at most) past the arc that reads as on the edge in: the edge
+    /// <see cref="TaxiEdgeLocator.DrivenEdgeUnder"/> finds there, looking around the edge in, is the edge in or no nearer than it.
+    /// Null when the arc makes no such corner that way round.
+    /// </summary>
+    private static ShortChordCorner? ShortChordCornerOn(AirportGroundLayout layout, GroundArc arc, GroundNode t1)
+    {
+        GroundNode t2 = arc.OtherNode(t1);
+        (double startDeg, double endDeg) = TangentsFrom(arc, t1);
+        double sweepDeg = GeoMath.AbsBearingDifference(startDeg, endDeg);
+        GroundEdge? inEdge = AlignedTaxiEdge(t1, minFt: 20.0, alongDeg: startDeg, into: true, toleranceDeg: 20.0);
+        GroundEdge? outEdge = AlignedTaxiEdge(t2, minFt: 20.0, alongDeg: endDeg, into: false, toleranceDeg: 20.0);
+        if ((sweepDeg <= 90.0) || (sweepDeg >= 175.0) || (inEdge is null) || (outEdge is null))
+        {
+            return null;
+        }
+
+        GroundNode q = outEdge.OtherNode(t2);
+        double outFt = outEdge.DistanceNm * FtPerNm;
+        LatLon leadAt = KoakFollowGeometry.Between(t2.Position, q.Position, Math.Min(5.0, outFt / 3.0) / outFt);
+        bool sharesANode = inEdge.Nodes.Any(node => outEdge.Nodes.Any(other => other.Id == node.Id));
+        GroundEdge? found = TaxiEdgeLocator.DrivenEdgeUnder(layout, leadAt, (inEdge.Nodes[0].Id, inEdge.Nodes[1].Id));
+        double chordFt = GeoMath.DistanceNm(t1.Position, t2.Position) * FtPerNm;
+        return (!sharesANode && (found is not null) && (DistanceToFt(leadAt, inEdge) <= DistanceToFt(leadAt, found)))
+            ? new ShortChordCorner(inEdge.OtherNode(t1), t1, t2, q, inEdge, outEdge, sweepDeg, chordFt, leadAt)
+            : null;
+    }
+
+    private static double DistanceToFt(LatLon position, GroundEdge edge) =>
+        GeoMath.DistanceToSegmentFt(position, edge.Nodes[0].Position, edge.Nodes[1].Position);
+
+    /// <summary>
+    /// The bearings (degrees) of <paramref name="arc"/>'s curve, driven from <paramref name="t1"/>, where it leaves
+    /// <paramref name="t1"/> and where it reaches its other end.
+    /// </summary>
+    private static (double StartDeg, double EndDeg) TangentsFrom(GroundArc arc, GroundNode t1)
+    {
+        CubicBezier curve = arc.ToBezier();
+        return (arc.Nodes[0].Id == t1.Id)
+            ? (curve.TangentBearing(0.0), curve.TangentBearing(1.0))
+            : ((curve.TangentBearing(1.0) + 180.0) % 360.0, (curve.TangentBearing(0.0) + 180.0) % 360.0);
+    }
+
+    /// <summary>
+    /// A <c>FOLLOWG</c> pair the engine drives on KOAK: the lead taxis a route through a sharp turn — the sharpest unfilleted
+    /// junction turning more than 90°, or the filleted corner turning most past 90° — and on beyond it, its follower behind it on
+    /// its trail. The trail is the real one, recorded once a second as the lead drives, while the detector runs on every physics
+    /// sub-tick. What it guards: in no second does the detector log a <c>[LeadChain]</c> closing line while the lead drives these
+    /// two real KOAK corners through the real once-a-second recording path. The lead starts <paramref name="startFt"/> along its
+    /// first edge, which shifts where it is at each trail record. It does not reach the state a closing test can misread after a
+    /// turn of more than 90° (off its newest trail edge, its heading back toward that edge's entry node): the trail records the
+    /// edge out before the heading swings, and at the fillet the tangent stubs; the unit tests above prove that state.
+    /// </summary>
+    [Theory]
+    [InlineData(false, 0.0)]
+    [InlineData(false, 4.0)]
+    [InlineData(false, 8.0)]
+    [InlineData(false, 12.0)]
+    [InlineData(true, 0.0)]
+    [InlineData(true, 4.0)]
+    [InlineData(true, 8.0)]
+    [InlineData(true, 12.0)]
+    public void Engine_LeadThroughASharpTurn_NeverClosesOnItsFollowerBehind(bool filleted, double startFt)
+    {
+        if (KoakFollowGeometry.NewEngine(_output, autoCross: true) is not { } setup)
+        {
+            return;
+        }
+
+        (SimulationEngine engine, AirportGroundLayout layout) = setup;
+        engine.World.GroundLayout = layout;
+        (List<DirectionalEdge> path, GroundNode turnNode) = filleted ? FilletedTurnPath(layout) : SharpTurnPath(layout);
+        _output.WriteLine(
+            $"lead path (turn at #{turnNode.Id}): "
+                + string.Join(", ", path.Select(e => $"#{e.FromNode.Id}>#{e.ToNode.Id} {e.Edge.GetType().Name} {e.DistanceNm * FtPerNm:F0}ft"))
+        );
+
+        AircraftState lead = StartTaxiingOn(engine, layout, LeadCallsign, path, startFt);
+        LatLon followerStart = KoakFollowGeometry.Between(path[0].FromNode.Position, path[0].ToNode.Position, 0.3);
+        for (int second = 0; (second < 90) && ((GeoMath.DistanceNm(lead.Position, followerStart) * FtPerNm) < 200.0); second++)
+        {
+            engine.TickOneSecond();
+        }
+
+        AircraftState follower = KoakFollowGeometry.Spawn(
+            FollowerCallsign,
+            "C172",
+            followerStart,
+            KoakFollowGeometry.Facing(path[0].FromNode, path[0].ToNode)
+        );
+        follower.Ground.Layout = layout;
+        engine.World.AddAircraft(follower);
+        CommandResult result = engine.SendCommand(FollowerCallsign, $"FOLLOWG {LeadCallsign}");
+        Assert.True(result.Success, result.Message);
+
+        var lines = new List<string>();
+        int watchedSeconds = 0;
+        try
+        {
+            GroundConflictDetector.DebugSink = lines.Add;
+            for (int second = 1; (second <= 240) && !HasStopped(lead); second++)
+            {
+                lines.Clear();
+                engine.TickOneSecond();
+                double turnFt = GeoMath.DistanceNm(lead.Position, turnNode.Position) * FtPerNm;
+                bool watched = FollowsOnTrail(follower, lead, layout) && (turnFt <= 200.0);
+                watchedSeconds += watched ? 1 : 0;
+                _output.WriteLine(
+                    $"t={second} lead {turnFt:F0} ft from the turn hdg={lead.TrueHeading.Degrees:F0} gs={lead.GroundSpeed:F1} "
+                        + $"trail={TrailSummary(lead)} "
+                        + $"follower {follower.Phases?.CurrentPhase?.Name} gs={follower.GroundSpeed:F1}{(watched ? " watched" : string.Empty)}"
+                );
+                List<string> leadChain = [.. lines.Where(line => line.Contains("[LeadChain]", StringComparison.Ordinal))];
+                Assert.True(
+                    leadChain.Count == 0,
+                    $"t={second}: the detector read the lead as closing on its follower:\n{string.Join("\n", leadChain)}"
+                );
+            }
+        }
+        finally
+        {
+            GroundConflictDetector.DebugSink = null;
+        }
+
+        Assert.True(
+            watchedSeconds >= 3,
+            $"the follower was on the lead's trail behind it near the turn for only {watchedSeconds} s, so the run proves little"
+        );
+        GroundEdge outOfTurn = Assert.IsType<GroundEdge>(path.First(e => e.FromNode.Id == turnNode.Id).Edge);
+        Assert.Contains(lead.Ground.TaxiEdgeTrail.Edges, edge => edge.Is(outOfTurn));
+    }
+
+    private static bool HasStopped(AircraftState aircraft) =>
+        (aircraft.Ground.AssignedTaxiRoute is not { IsComplete: false }) && (aircraft.GroundSpeed <= 0.0);
+
+    /// <summary>
+    /// Whether <paramref name="follower"/> is following <paramref name="lead"/> within the detector's search range of it, standing
+    /// on an edge of the lead's trail.
+    /// </summary>
+    private static bool FollowsOnTrail(AircraftState follower, AircraftState lead, AirportGroundLayout layout)
+    {
+        if (
+            (follower.Phases?.CurrentPhase is not FollowingPhase follow)
+            || !string.Equals(follow.TargetCallsign, lead.Callsign, StringComparison.OrdinalIgnoreCase)
+            || (GeoMath.DistanceNm(follower.Position, lead.Position) > GroundConflictDetector.SearchRangeNm)
+        )
+        {
+            return false;
+        }
+
+        (int NodeA, int NodeB)? last = follower.Ground.TaxiEdgeTrail.Newest is { } newest ? (newest.NodeA, newest.NodeB) : null;
+        return (TaxiEdgeLocator.DrivenEdgeUnder(layout, follower.Position, last) is { } under)
+            && lead.Ground.TaxiEdgeTrail.Edges.Any(edge => edge.Is(under));
+    }
+
+    private static string TrailSummary(AircraftState aircraft) =>
+        string.Join(" ", aircraft.Ground.TaxiEdgeTrail.Edges.TakeLast(3).Select(edge => $"#{edge.NodeA}-#{edge.NodeB}<#{edge.EntryNodeId}"));
+
+    /// <summary>
+    /// <paramref name="callsign"/>, a C172 added to <paramref name="engine"/> <paramref name="startFt"/> along the first edge of
+    /// <paramref name="path"/>, facing along it, taxiing it as its route.
+    /// </summary>
+    private static AircraftState StartTaxiingOn(
+        SimulationEngine engine,
+        AirportGroundLayout layout,
+        string callsign,
+        List<DirectionalEdge> path,
+        double startFt
+    )
+    {
+        double firstFt = path[0].DistanceNm * FtPerNm;
+        AircraftState aircraft = KoakFollowGeometry.Spawn(
+            callsign,
+            "C172",
+            KoakFollowGeometry.Between(path[0].FromNode.Position, path[0].ToNode.Position, startFt / firstFt),
+            KoakFollowGeometry.Facing(path[0].FromNode, path[0].ToNode)
+        );
+        aircraft.Ground.Layout = layout;
+        aircraft.Ground.AssignedTaxiRoute = new TaxiRoute
+        {
+            Segments = [.. path.Select(edge => new TaxiRouteSegment { Edge = edge, TaxiwayName = edge.Edge.TaxiwayName })],
+            HoldShortPoints = [],
+        };
+        aircraft.Phases = new PhaseList();
+        aircraft.Phases.Add(new TaxiingPhase());
+        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, layout));
+        engine.World.AddAircraft(aircraft);
+        return aircraft;
+    }
+
+    /// <summary>
+    /// A route through <see cref="KoakFollowGeometry.SharpTurn"/>: about 300 ft of edges running straight on into the edge in, the edge in, the edge
+    /// out, and about 200 ft of edges running straight on beyond it; with the junction the turn is made at.
+    /// </summary>
+    private static (List<DirectionalEdge> Path, GroundNode TurnNode) SharpTurnPath(AirportGroundLayout layout)
+    {
+        (GroundNode farIn, GroundNode junction, GroundNode farOut, GroundEdge inEdge, GroundEdge outEdge, double _) = KoakFollowGeometry.SharpTurn(
+            layout
+        );
+        List<DirectionalEdge> path =
+        [
+            .. LeadIn(farIn, junction, 300.0),
+            Along(inEdge, farIn, junction),
+            Along(outEdge, junction, farOut),
+            .. StraightOn(farOut, junction, 200.0),
+        ];
+        return (path, junction);
+    }
+
+    /// <summary>
+    /// A route round the KOAK filleted corner turning most past 90° (<see cref="FindFilletedCorner"/>): about 200 ft of edges
+    /// running straight on into the edge before it, that edge, the edge in, the arc, the edge out, and about 200 ft of edges
+    /// running straight on beyond it; with the node where the arc ends, which the turn comes off at.
+    /// </summary>
+    private (List<DirectionalEdge> Path, GroundNode TurnNode) FilletedTurnPath(AirportGroundLayout layout)
+    {
+        FilletedCorner corner = FindFilletedCorner(layout, minSweepDeg: 90.0);
+        List<DirectionalEdge> path =
+        [
+            .. LeadIn(corner.O, corner.P, 200.0),
+            Along(corner.BeforeEdge, corner.O, corner.P),
+            Along(corner.InEdge, corner.P, corner.T1),
+            Along(corner.Arc, corner.T1, corner.T2),
+            Along(corner.OutEdge, corner.T2, corner.Q),
+            .. StraightOn(corner.Q, corner.T2, 200.0),
+        ];
+        return (path, corner.T2);
+    }
+
+    private static DirectionalEdge Along(IGroundEdge edge, GroundNode from, GroundNode to) =>
+        new()
+        {
+            Edge = edge,
+            FromNode = from,
+            ToNode = to,
+        };
+
+    /// <summary>
+    /// The edges driven up to <paramref name="node"/> over about <paramref name="minFt"/>, coming straight on from the side away
+    /// from <paramref name="ahead"/>.
+    /// </summary>
+    private static List<DirectionalEdge> LeadIn(GroundNode node, GroundNode ahead, double minFt)
+    {
+        List<DirectionalEdge> away = StraightOn(node, ahead, minFt);
+        away.Reverse();
+        return [.. away.Select(edge => Along(edge.Edge, edge.ToNode, edge.FromNode))];
+    }
+
+    /// <summary>
+    /// The edges from <paramref name="node"/> on, away from <paramref name="cameFrom"/>, each the taxiway edge (no runway centreline,
+    /// no ramp connector) turning least from the way the one before ran, until about <paramref name="minFt"/> are covered or the
+    /// least turn passes 45°.
+    /// </summary>
+    private static List<DirectionalEdge> StraightOn(GroundNode node, GroundNode cameFrom, double minFt)
+    {
+        List<DirectionalEdge> walk = [];
+        GroundNode here = node;
+        GroundNode previous = cameFrom;
+        double coveredFt = 0.0;
+        while (coveredFt < minFt)
+        {
+            GroundNode from = here;
+            GroundNode back = previous;
+            double inDeg = GeoMath.BearingTo(back.Position, from.Position);
+            double TurnDeg(IGroundEdge edge) => GeoMath.AbsBearingDifference(inDeg, GeoMath.BearingTo(from.Position, edge.OtherNode(from).Position));
+            IGroundEdge? next = from
+                .Edges.Where(edge => !edge.IsRunwayCenterline && !edge.IsRamp && (edge.OtherNode(from).Id != back.Id))
+                .MinBy(TurnDeg);
+            if ((next is null) || (TurnDeg(next) > 45.0))
+            {
+                break;
+            }
+
+            walk.Add(Along(next, from, next.OtherNode(from)));
+            coveredFt += next.DistanceNm * FtPerNm;
+            previous = from;
+            here = next.OtherNode(from);
+        }
+
+        return walk;
+    }
+
+    /// <summary>
+    /// A filleted corner: the straight edge <see cref="BeforeEdge"/> from <see cref="O"/> to <see cref="P"/>, then
+    /// <see cref="InEdge"/> from <see cref="P"/> to <see cref="T1"/>, the fillet <see cref="Arc"/> (played as
+    /// <see cref="Curve"/>, turning <see cref="SweepDeg"/>) from <see cref="T1"/> to <see cref="T2"/>, and
+    /// <see cref="OutEdge"/> from <see cref="T2"/> to <see cref="Q"/>.
+    /// </summary>
+    private sealed record FilletedCorner(
+        GroundNode O,
+        GroundNode P,
+        GroundNode T1,
+        GroundNode T2,
+        GroundNode Q,
+        GroundEdge BeforeEdge,
+        GroundEdge InEdge,
+        GroundArc Arc,
+        GroundEdge OutEdge,
+        CubicBezier Curve,
+        double SweepDeg
+    );
+
+    /// <summary>
+    /// The KOAK fillet arc turning the most, past <paramref name="minSweepDeg"/>, that a straight taxiway edge of at least 120 ft
+    /// runs into along the arc's start tangent and another of at least 200 ft runs out of along its end tangent, the edge in
+    /// having a straight edge before it within 45° of its line; the two edges share no node, the fillet having replaced the
+    /// junction. Fails when the layout has none.
+    /// </summary>
+    private FilletedCorner FindFilletedCorner(AirportGroundLayout layout, double minSweepDeg)
+    {
+        FilletedCorner? best = null;
+        foreach (GroundArc arc in layout.Arcs.Where(arc => !arc.IsRamp && !arc.IsRunwayCenterline))
+        {
+            CubicBezier curve = arc.ToBezier();
+            double sweepDeg = Math.Abs(GeoMath.SignedBearingDifference(curve.TangentBearing(0.0), curve.TangentBearing(1.0)));
+            if ((sweepDeg <= minSweepDeg) || (sweepDeg <= (best?.SweepDeg ?? 0.0)))
+            {
+                continue;
+            }
+
+            GroundNode t1 = arc.Nodes[0];
+            GroundNode t2 = arc.Nodes[1];
+            GroundEdge? inEdge = AlignedTaxiEdge(t1, minFt: 120.0, alongDeg: curve.TangentBearing(0.0), into: true, toleranceDeg: 20.0);
+            GroundEdge? outEdge = AlignedTaxiEdge(t2, minFt: 200.0, alongDeg: curve.TangentBearing(1.0), into: false, toleranceDeg: 20.0);
+            if ((inEdge is null) || (outEdge is null) || inEdge.Nodes.Any(node => outEdge.Nodes.Any(other => other.Id == node.Id)))
+            {
+                continue;
+            }
+
+            GroundNode p = inEdge.OtherNode(t1);
+            if (AlignedTaxiEdge(p, minFt: 0.0, alongDeg: GeoMath.BearingTo(p.Position, t1.Position), into: true, toleranceDeg: 45.0) is { } before)
+            {
+                best = new FilletedCorner(before.OtherNode(p), p, t1, t2, outEdge.OtherNode(t2), before, inEdge, arc, outEdge, curve, sweepDeg);
+            }
+        }
+
+        Assert.True(best is not null, $"KOAK has no filleted corner turning more than {minSweepDeg:F0}° between long enough straight edges");
+        _output.WriteLine(
+            $"corner #{best.O.Id}>#{best.P.Id}>#{best.T1.Id} arc {best.SweepDeg:F0}° #{best.T2.Id}>#{best.Q.Id} "
+                + $"({best.InEdge.TaxiwayName} to {best.OutEdge.TaxiwayName})"
+        );
+        return best;
+    }
+
+    /// <summary>
+    /// The straight taxiway edge at <paramref name="node"/>, at least <paramref name="minFt"/> long, whose line runs within
+    /// <paramref name="toleranceDeg"/> of <paramref name="alongDeg"/>: driven into the node when <paramref name="into"/>, else out
+    /// of it. Null when there is none.
+    /// </summary>
+    private static GroundEdge? AlignedTaxiEdge(GroundNode node, double minFt, double alongDeg, bool into, double toleranceDeg) =>
+        node
+            .Edges.OfType<GroundEdge>()
+            .Where(edge => !edge.IsRunwayCenterline && !edge.IsRamp && (edge.DistanceNm * FtPerNm >= minFt))
+            .Where(edge =>
+            {
+                GroundNode other = edge.OtherNode(node);
+                double lineDeg = into ? GeoMath.BearingTo(other.Position, node.Position) : GeoMath.BearingTo(node.Position, other.Position);
+                return Math.Abs(GeoMath.SignedBearingDifference(alongDeg, lineDeg)) <= toleranceDeg;
+            })
+            .MinBy(edge => edge.OtherNode(node).Id);
+
+    /// <summary>
+    /// A C560 lead coming back at 20 kt down its own trail on KOAK toward the node it came from, its C172 follower rolling toward
+    /// the same node on the edge before it: the two converge there, and the follower, farther out, yields with a slow-taxi limit it
+    /// is exempt from. The limit that moves onto the lead is raised to the speed the lead's own brakes shed in one detector pass,
+    /// so the lead brakes as its brakes allow rather than dropping to the follower's limit at once.
+    /// </summary>
+    [Fact]
+    public void TransferredLimit_FasterLead_GetsItsOwnBrakingFloor()
+    {
+        if (StartFollower(string.Empty) is not { } started)
+        {
+            return;
+        }
+
+        (KoakFollowGeometry.LeadRun run, AircraftState follower, FollowingPhase follow) = started;
+        TaxiRoute route = Assert.IsType<TaxiRoute>(follow.FollowRoute);
+        int index = StraightPairOn(route, firstMinFt: 140.0, secondMinFt: 110.0);
+        TaxiRouteSegment towardNode = route.Segments[index];
+        TaxiRouteSegment beyond = route.Segments[index + 1];
+        route.CurrentSegmentIndex = index;
+        double towardFt = towardNode.Edge.DistanceNm * FtPerNm;
+        double shortOfNodeFt = Math.Min(200.0, towardFt - 10.0);
+        follower.Position = KoakFollowGeometry.Between(towardNode.Edge.ToNode.Position, towardNode.Edge.FromNode.Position, shortOfNodeFt / towardFt);
+        follower.TrueHeading = KoakFollowGeometry.Facing(towardNode.Edge.FromNode, towardNode.Edge.ToNode);
+        follower.IndicatedAirspeed = 8.0;
+        follower.Ground.TaxiEdgeTrail.Clear();
+        follower.Ground.TaxiEdgeTrail.Record(Assert.IsType<GroundEdge>(towardNode.Edge.Edge), towardNode.Edge.FromNode);
+        SetComingBack(run.Lead, towardNode, beyond, pastFt: 100.0, speedKts: 20.0);
+        run.Lead.Targets.DesiredDecelRate = null;
+
+        double pairFt = GeoMath.DistanceNm(follower.Position, run.Lead.Position) * FtPerNm;
+        Assert.True(pairFt > 200.0, $"the pair is {pairFt:F0} ft apart, inside the closing trail distance, so the lead would be limited directly");
+        AircraftCategory leadCategory = AircraftCategorization.Categorize(run.Lead.AircraftType);
+        double floorKts = run.Lead.GroundSpeed - (CategoryPerformance.TaxiDecelRate(leadCategory) / SimulationEngine.PhysicsSubTickRate);
+        Assert.True(floorKts > 15.0, $"the lead's braking floor {floorKts:F2} kt is not above every convergence limit, so the test proves nothing");
+
+        var log = new List<string>();
+        GroundConflictDetector.ApplySpeedLimits([follower, run.Lead], run.Layout, 0, log.Add);
+        log.ForEach(_output.WriteLine);
+
+        Assert.Contains(
+            log,
+            line => line.Contains("[Convergence] shared node", StringComparison.Ordinal) && line.Contains($"{FollowerCallsign} yields")
+        );
+        Assert.Null(follower.Ground.SpeedLimit);
+        Assert.True(run.Lead.Ground.SpeedLimit is not null, "the lead closing on its yielding follower was not limited");
+        Assert.Equal(floorKts, run.Lead.Ground.SpeedLimit.Value, 6);
+    }
+
+    /// <summary>
+    /// A push off a stand that has priority over its own follower taxiing up behind its tail: the follower gives way to the push,
+    /// a hold it is exempt from toward its lead, but the rest of the push leg clears it, so the detector lets the push continue and
+    /// moves no stop onto it.
+    /// </summary>
+    [Fact]
+    public void GiveWayToPushback_PushClearsFollower_PushIsNotStopped()
+    {
+        AircraftState pusher = MakePusherToTarget(
+            StandNorthOf(142),
+            new LatLon(BaseLat + (1.42 * OffsetLatPer100Ft), BaseLon),
+            new LatLon(BaseLat + (1.42 * OffsetLatPer100Ft), BaseLon + (2.0 * OffsetLonPer100Ft)),
+            pushHeading: 180
+        );
+        AircraftState follower = MakeTaxiingE75L(new LatLon(BaseLat, BaseLon), heading: 0);
+        follower.Phases = new PhaseList();
+        follower.Phases.Add(new FollowingPhase(pusher.Callsign));
+        follower.Phases.CurrentPhase!.Status = PhaseStatus.Active;
+
+        var log = new List<string>();
+        GroundConflictDetector.ApplySpeedLimits([pusher, follower], null, 0, log.Add);
+        log.ForEach(_output.WriteLine);
+
+        Assert.Contains(log, line => line.Contains($"[Pushback] {pusher.Callsign} push path clears {follower.Callsign}", StringComparison.Ordinal));
+        Assert.True(
+            (pusher.Ground.SpeedLimit is null) || (pusher.Ground.SpeedLimit > 0),
+            $"the push leg clears its follower, but the push was stopped: SpeedLimit={pusher.Ground.SpeedLimit}"
+        );
+        Assert.Null(follower.Ground.SpeedLimit);
+    }
+
+    /// <summary>
+    /// Puts <paramref name="lead"/> <paramref name="pastFt"/> along <paramref name="onto"/> from its from-node, having driven
+    /// <paramref name="came"/> and then <paramref name="onto"/> (its trail), turned back toward that node at
+    /// <paramref name="speedKts"/> on a one-segment route to it: a lead re-routed back the way it came.
+    /// </summary>
+    private static void SetComingBack(AircraftState lead, TaxiRouteSegment came, TaxiRouteSegment onto, double pastFt, double speedKts)
+    {
+        GroundNode back = onto.Edge.FromNode;
+        GroundNode ahead = onto.Edge.ToNode;
+        lead.Phases = null;
+        lead.IndicatedAirspeed = speedKts;
+        lead.Position = KoakFollowGeometry.Between(back.Position, ahead.Position, pastFt / (onto.Edge.DistanceNm * FtPerNm));
+        lead.TrueHeading = KoakFollowGeometry.Facing(ahead, back);
+        var backward = new DirectionalEdge
+        {
+            Edge = onto.Edge.Edge,
+            FromNode = ahead,
+            ToNode = back,
+        };
+        lead.Ground.AssignedTaxiRoute = new TaxiRoute
+        {
+            Segments = [new TaxiRouteSegment { Edge = backward, TaxiwayName = onto.TaxiwayName }],
+            HoldShortPoints = [],
+        };
+        lead.Ground.TaxiEdgeTrail.Clear();
+        lead.Ground.TaxiEdgeTrail.Record(Assert.IsType<GroundEdge>(came.Edge.Edge), came.Edge.FromNode);
+        lead.Ground.TaxiEdgeTrail.Record(Assert.IsType<GroundEdge>(onto.Edge.Edge), onto.Edge.FromNode);
+    }
+
+    /// <summary>
+    /// The index of the first segment of <paramref name="route"/>, from its current one on, that is a straight taxiway edge at
+    /// least <paramref name="firstMinFt"/> long followed by one at least <paramref name="secondMinFt"/> long.
+    /// </summary>
+    private int StraightPairOn(TaxiRoute route, double firstMinFt, double secondMinFt)
+    {
+        _output.WriteLine(
+            "follow route: "
+                + string.Join(
+                    ", ",
+                    route.Segments.Select(s => $"{s.FromNodeId}->{s.ToNodeId} {s.Edge.Edge.GetType().Name} {s.Edge.DistanceNm * FtPerNm:F0}ft")
+                )
+        );
+        int? found = Enumerable
+            .Range(route.CurrentSegmentIndex, Math.Max(0, route.Segments.Count - route.CurrentSegmentIndex - 1))
+            .Where(i => IsStraightAtLeast(route.Segments[i], firstMinFt) && IsStraightAtLeast(route.Segments[i + 1], secondMinFt))
+            .Select(i => (int?)i)
+            .FirstOrDefault();
+        Assert.True(found is not null, $"the follow route has no straight edge of {firstMinFt:F0} ft followed by one of {secondMinFt:F0} ft");
+        return found.Value;
+    }
+
+    private static bool IsStraightAtLeast(TaxiRouteSegment segment, double minFt) =>
+        (segment.Edge.Edge is GroundEdge { IsRunwayCenterline: false }) && (segment.Edge.DistanceNm * FtPerNm >= minFt);
+
+    /// <summary>
+    /// Two aircraft told to follow each other on KOAK's B and a third taxiing between them: the lead-chain walk stops where the
+    /// chain comes back on itself, so the detector returns, leaves the mutual pair unresolved, and resolves the third against each.
+    /// </summary>
+    [Fact]
+    public void MutualFollowers_WithAThirdAircraft_ResolveTheThirdAgainstEach()
+    {
+        if (KoakFollowGeometry.LoadLayout(_output) is not { } layout)
+        {
+            return;
+        }
+
+        const string MutualA = "N5MUT";
+        const string MutualB = "N6MUT";
+        List<GroundNode> chain = KoakFollowGeometry.BChain(layout);
+        AircraftState a = MakeAircraft(
+            MutualA,
+            chain[2].Position,
+            heading: KoakFollowGeometry.Facing(chain[2], chain[3]).Degrees,
+            phase: new FollowingPhase(MutualB)
+        );
+        AircraftState b = MakeAircraft(
+            MutualB,
+            chain[5].Position,
+            heading: KoakFollowGeometry.Facing(chain[5], chain[4]).Degrees,
+            phase: new FollowingPhase(MutualA)
+        );
+        AircraftState third = MakeAircraft(
+            ThirdCallsign,
+            chain[3].Position,
+            heading: KoakFollowGeometry.Facing(chain[3], chain[4]).Degrees,
+            gs: 10.0,
+            taxiRoute: RouteAlongB(chain, 3, 5)
+        );
+        Assert.True(
+            GeoMath.DistanceNm(a.Position, b.Position) <= GroundConflictDetector.SearchRangeNm,
+            "the mutual followers are out of the detector's search range of each other, so the pair proves nothing"
+        );
+
+        var log = new List<string>();
+        GroundConflictDetector.ApplySpeedLimits([a, b, third], layout, 0, log.Add);
+        log.ForEach(_output.WriteLine);
+
+        Assert.Contains(log, line => line.StartsWith($"[Pair] {MutualA}(", StringComparison.Ordinal) && line.Contains($"+{ThirdCallsign}("));
+        Assert.Contains(log, line => line.StartsWith($"[Pair] {MutualB}(", StringComparison.Ordinal) && line.Contains($"+{ThirdCallsign}("));
+        Assert.DoesNotContain(log, line => line.StartsWith($"[Pair] {MutualA}(", StringComparison.Ordinal) && line.Contains($"+{MutualB}("));
+    }
+
+    /// <summary>A taxi route along KOAK's B from <c>chain[from]</c> to <c>chain[to]</c>, edge by edge.</summary>
+    private static TaxiRoute RouteAlongB(List<GroundNode> chain, int from, int to) =>
+        new()
+        {
+            Segments =
+            [
+                .. Enumerable
+                    .Range(from, to - from)
+                    .Select(i => new TaxiRouteSegment
+                    {
+                        Edge = new DirectionalEdge
+                        {
+                            Edge = KoakFollowGeometry.EdgeBetween(chain[i], chain[i + 1]),
+                            FromNode = chain[i],
+                            ToNode = chain[i + 1],
+                        },
+                        TaxiwayName = "B",
+                    }),
+            ],
+            HoldShortPoints = [],
+        };
+
+    /// <summary>
+    /// A follower converging with a third aircraft standing on a side edge short of the junction is limited by the detector, and
+    /// the speed the follow publishes never exceeds that limit: the follow's own caps only ever lower it.
+    /// </summary>
+    [Fact]
+    public void DetectorLimit_NeverRaisedByFollowCaps()
+    {
+        if (StartFollowAtJunction() is not { } at)
+        {
+            return;
+        }
+
+        AircraftState third = ThirdAtTheSide(at, speedKts: 0.0);
+        at.Run.Engine.World.AddAircraft(third);
+        int limitedSeconds = 0;
+        for (int second = 1; second <= 40; second++)
+        {
+            at.Run.Engine.TickOneSecond();
+            double? limit = at.Follower.Ground.SpeedLimit;
+            double? published = at.Follower.Targets.TargetSpeed;
+            _output.WriteLine($"t={second} gs={at.Follower.GroundSpeed:F2} limit={limit:F2} published={published:F2}");
+            if (limit is { } kts)
+            {
+                limitedSeconds++;
+                Assert.True((published is null) || (published <= kts + 1e-9), $"t={second}: published {published:F3} kt over the limit {kts:F3} kt");
+            }
+        }
+
+        Assert.True(limitedSeconds > 0, "the detector never limited the follower converging with the third aircraft");
+    }
+
+    /// <summary>
+    /// A KOAK lead taxiing on B, a C172 taxiing <c>TAXI B W 30</c> behind it, then sent <c>FOLLOWG</c> the lead with
+    /// <paramref name="clearance"/> appended, rolling on its follow route.
+    /// </summary>
+    private (KoakFollowGeometry.LeadRun Run, AircraftState Follower, FollowingPhase Follow)? StartFollower(string clearance)
+    {
+        if (KoakFollowGeometry.StartTaxiingLead(_output) is not { } run)
+        {
+            return null;
+        }
+
+        AircraftState follower = KoakFollowGeometry.AddTaxiing(
+            (run.Engine, run.Layout),
+            FollowerCallsign,
+            "C172",
+            (run.Chain[6], run.Chain[5]),
+            "TAXI B W 30"
+        );
+        CommandResult result = run.Engine.SendCommand(FollowerCallsign, $"FOLLOWG {run.Lead.Callsign}{clearance}");
+        Assert.True(result.Success, result.Message);
+        for (int second = 0; (second < 60) && !IsRollingOnFollowRoute(follower); second++)
+        {
+            run.Engine.TickOneSecond();
+        }
+
+        Assert.True(IsRollingOnFollowRoute(follower), $"the follower never rolled on a follow route: gs={follower.GroundSpeed:F1}");
+        return (run, follower, Assert.IsType<FollowingPhase>(follower.Phases?.CurrentPhase));
+    }
+
+    private static bool IsRollingOnFollowRoute(AircraftState follower) =>
+        (follower.Phases?.CurrentPhase is FollowingPhase { FollowRoute.IsComplete: false }) && (follower.GroundSpeed >= 5.0);
+
+    /// <summary>
+    /// While <paramref name="follower"/> rolls on its follow route, the first junction on that route 250 ft or more ahead of it in a
+    /// straight line, within 1,200 ft along the route and more than <see cref="KoakFollowGeometry.ClearOfRunwayFt"/> from every
+    /// runway centreline, with a straight taxiway side edge off the route 75-1,200 ft long; else null.
+    /// </summary>
+    private static (GroundNode Junction, GroundEdge Edge)? SideJunctionAhead(AircraftState follower)
+    {
+        if (!IsRollingOnFollowRoute(follower) || (follower.Phases?.CurrentPhase is not FollowingPhase { FollowRoute: { } route }))
+        {
+            return null;
+        }
+
+        List<RunwayInfo> runways = [.. RunwayOccupancy.AirportRunways(KoakFollowGeometry.AirportId)];
+        HashSet<int> routeNodes = [.. route.Segments.SelectMany(s => new[] { s.FromNodeId, s.ToNodeId })];
+        double startFt = route.PrefixDistanceFt(route.CurrentSegmentIndex);
+        return Enumerable
+            .Range(route.CurrentSegmentIndex, route.Segments.Count - route.CurrentSegmentIndex)
+            .Where(i => route.PrefixDistanceFt(i + 1) - startFt <= 1200.0)
+            .Select(i => route.Segments[i].Edge.ToNode)
+            .Where(node =>
+                (GeoMath.DistanceNm(follower.Position, node.Position) * FtPerNm >= 250.0)
+                && runways.All(r =>
+                    GeoMath.DistanceToSegmentFt(node.Position, new LatLon(r.Lat1, r.Lon1), new LatLon(r.Lat2, r.Lon2))
+                    > KoakFollowGeometry.ClearOfRunwayFt
+                )
+            )
+            .SelectMany(node => node.Edges.OfType<GroundEdge>().Select(edge => (Junction: node, Edge: edge)))
+            .Where(c =>
+                !c.Edge.IsRunwayCenterline
+                && !c.Edge.IsRamp
+                && !routeNodes.Contains(c.Edge.OtherNode(c.Junction).Id)
+                && (c.Edge.DistanceNm * FtPerNm >= 75.0)
+                && (c.Edge.DistanceNm * FtPerNm <= 1200.0)
+            )
+            .Select(c => ((GroundNode Junction, GroundEdge Edge)?)c)
+            .FirstOrDefault();
+    }
+
+    /// <summary>A follower on its follow route, a junction ahead on that route, and a point on a side edge off it into the junction.</summary>
+    private sealed record FollowAtJunction(
+        KoakFollowGeometry.LeadRun Run,
+        AircraftState Follower,
+        FollowingPhase Follow,
+        GroundNode Junction,
+        GroundNode SideFrom,
+        GroundEdge Side,
+        LatLon SidePoint
+    );
+
+    /// <summary>How long (s) <see cref="StartFollowAtJunction"/> ticks the follower across both runways to a side taxiway.</summary>
+    private const int JunctionBudgetSeconds = 240;
+
+    /// <summary>
+    /// <see cref="StartFollower"/> cleared across 28R and 28L, ticked until <see cref="SideJunctionAhead"/> finds a junction ahead,
+    /// and a point on that junction's side edge nearer the junction than the follower is.
+    /// </summary>
+    private FollowAtJunction? StartFollowAtJunction()
+    {
+        if (StartFollower("; CROSS 28R 28L") is not { } started)
+        {
+            return null;
+        }
+
+        (KoakFollowGeometry.LeadRun run, AircraftState follower, FollowingPhase _) = started;
+        (GroundNode Junction, GroundEdge Edge)? found = SideJunctionAhead(follower);
+        for (int second = 0; (second < JunctionBudgetSeconds) && (found is null); second++)
+        {
+            run.Engine.TickOneSecond();
+            found = SideJunctionAhead(follower);
+            if (second % 10 == 0)
+            {
+                _output.WriteLine(
+                    $"t={second} {follower.Phases?.CurrentPhase?.Name} gs={follower.GroundSpeed:F1} "
+                        + $"route={(follower.Phases?.CurrentPhase as FollowingPhase)?.FollowRoute?.ToSummary()}"
+                );
+            }
+        }
+
+        Assert.True(found is not null, $"the follower rolled on no follow route with a side taxiway ahead within {JunctionBudgetSeconds}s");
+        FollowingPhase follow = Assert.IsType<FollowingPhase>(follower.Phases?.CurrentPhase);
+        _output.WriteLine($"follow route {follow.FollowRoute?.ToSummary()}, segment {follow.FollowRoute?.CurrentSegmentIndex}");
+        (GroundNode junction, GroundEdge side) = found.Value;
+        GroundNode from = side.OtherNode(junction);
+        double followerToJunctionFt = GeoMath.DistanceNm(follower.Position, junction.Position) * FtPerNm;
+        double sideFt = side.DistanceNm * FtPerNm;
+        double fromJunctionFt = Math.Min(sideFt, followerToJunctionFt) / 2.0;
+        LatLon point = KoakFollowGeometry.Between(junction.Position, from.Position, fromJunctionFt / sideFt);
+        _output.WriteLine(
+            $"junction #{junction.Id} {followerToJunctionFt:F0} ft from the follower; side {side.TaxiwayName} from #{from.Id}, point "
+                + $"{fromJunctionFt:F0} ft short of the junction"
+        );
+        return new FollowAtJunction(run, follower, follow, junction, from, side, point);
+    }
+
+    /// <summary>
+    /// A C172 at <paramref name="at"/>'s side point facing the junction, with no phase and a one-segment route into the junction,
+    /// at <paramref name="speedKts"/>: a plain taxiing aircraft to the detector.
+    /// </summary>
+    private static AircraftState ThirdAtTheSide(FollowAtJunction at, double speedKts)
+    {
+        AircraftState third = KoakFollowGeometry.Spawn(ThirdCallsign, "C172", at.SidePoint, KoakFollowGeometry.Facing(at.SideFrom, at.Junction));
+        third.Phases = null;
+        third.Ground.Layout = at.Run.Layout;
+        var intoJunction = new DirectionalEdge
+        {
+            Edge = at.Side,
+            FromNode = at.SideFrom,
+            ToNode = at.Junction,
+        };
+        third.Ground.AssignedTaxiRoute = new TaxiRoute
+        {
+            Segments = [new TaxiRouteSegment { Edge = intoJunction, TaxiwayName = at.Side.TaxiwayName }],
+            HoldShortPoints = [],
+        };
+        third.IndicatedAirspeed = speedKts;
+        return third;
+    }
+
+    /// <summary>The limit and yield target the detector left on the follower and on the third aircraft.</summary>
+    private static (double? FollowerLimit, string? FollowerYieldsTo, double? ThirdLimit, string? ThirdYieldsTo) YieldOutcome(
+        AircraftState follower,
+        AircraftState third
+    ) => (follower.Ground.SpeedLimit, follower.Ground.AutoYieldTarget, third.Ground.SpeedLimit, third.Ground.AutoYieldTarget);
+
     [Fact]
     public void AircraftFarApart_NoInteraction()
     {

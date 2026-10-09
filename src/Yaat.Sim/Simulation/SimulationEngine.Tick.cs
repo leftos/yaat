@@ -1263,7 +1263,7 @@ public sealed partial class SimulationEngine
             (int NodeA, int NodeB)? lastEdge = trail.Newest is { } newest ? (newest.NodeA, newest.NodeB) : null;
             if (TaxiEdgeLocator.DrivenEdgeUnder(layout, ac.Position, lastEdge) is { } edge)
             {
-                trail.Record(edge);
+                trail.Record(edge, TaxiEdgeTrail.EntryNodeOf(edge, ac));
             }
         }
     }

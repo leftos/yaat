@@ -13,14 +13,12 @@ namespace Yaat.Sim;
 /// — see <see cref="Data.Airport.RunwayEntryPoint"/>. A "line" is keyed by hold-short node, so two
 /// intersections feeding the same runway are two independent queues.
 ///
-/// <para>Membership takes three routes in, and every one of them requires a departure clearance ending at
-/// that node plus, for anyone not already stopped at it, presence within <see cref="ProximityNm"/> of it:
-/// holding short of the destination runway (tier 0, front of the line); still taxiing or idling toward it
-/// (tier 1); and following an aircraft already in the line, which takes the place directly behind its leader
-/// (see <see cref="RankFollowers"/>) or, failing that, is ranked on its own clearance like any other taxiing
-/// departure. An aircraft that has lined up / is rolling has left the line — its position drops to 0 and the
-/// aircraft behind it move up. Even a lone aircraft first in line gets #1: the ordinal tells the RPO who is
-/// next up, not only that a clump exists.</para>
+/// <para>Membership takes three routes in, and every one of them requires a departure clearance ending at that node: holding short of the destination
+/// runway (tier 0, front of the line); still taxiing or idling within <see cref="ProximityNm"/> of it (tier 1); and following an aircraft already in
+/// that line, which joins its leader's line at any distance from the bar (see <see cref="RankFollowers"/>) or, failing that, is ranked on its own
+/// clearance like any other taxiing departure. An aircraft that has lined up / is rolling has left the line — its position drops to 0 and the
+/// aircraft behind it move up. Even a lone aircraft first in line gets #1: the ordinal tells the RPO who is next up, not only that a clump
+/// exists.</para>
 ///
 /// <para>The ordinal is the physical order at the bar, not a sequencing decision — nothing here chooses who
 /// departs next, and the numbers re-derive from scratch every second.</para>
@@ -36,10 +34,11 @@ public static class RunwayDepartureQueue
     private static readonly ILogger Log = SimLog.CreateLogger("RunwayDepartureQueue");
 
     /// <summary>
-    /// Max distance (nm) from its destination-runway hold-short node for a still-taxiing departure to count
-    /// as "in line". Kept tight (~600 ft) so only aircraft physically bunched at the hold short are numbered —
-    /// an RPO cares about the few aircraft next up, not everyone taxiing toward the runway. Holding-short
-    /// aircraft are at the node and always count regardless of this gate.
+    /// Max distance (nm) from its destination-runway hold-short node for a still-taxiing departure ranked on its
+    /// own route to count as "in line". Kept tight (~600 ft) so only aircraft physically bunched at the hold
+    /// short are numbered — an RPO cares about the few aircraft next up, not everyone taxiing toward the runway.
+    /// Holding-short aircraft are at the node and always count regardless of this gate, and a follower queues
+    /// behind a leader already in the line at any distance, since the follow keeps it in trail.
     /// </summary>
     public const double ProximityNm = 0.1;
 
@@ -120,12 +119,16 @@ public static class RunwayDepartureQueue
     /// behind it would read as next up — exactly wrong for an RPO merging two taxi flows onto one bar by
     /// handing each trailer to the aircraft ahead.
     ///
-    /// <para>A follower takes the place directly behind its leader only when all three hold: the leader is
-    /// itself in a line, the follower's own clearance ends at that same bar, and the follower is inside
-    /// <see cref="ProximityNm"/> of it. It then inherits the leader's line, node, runway and tier and sits
-    /// one physical gap farther from the bar, which is what <see cref="CompareMembers"/> orders on inside a
-    /// tier. The same-bar requirement is what keeps an arrival trailing a departure, or a follower bound for
-    /// a different intersection, out of the line.</para>
+    /// <para>A follower joins its leader's line only when both hold: the leader is itself in a line, and the
+    /// follower's own clearance ends at that same bar. Its distance to the bar does not matter — the follow
+    /// keeps it in trail, so <see cref="ProximityNm"/> gates only aircraft ranked on their own route. It then
+    /// takes the leader's line, node and runway, and is ranked on its own straight-line distance to the bar in
+    /// the holding-short tier (0) when it is itself holding short at that bar, else in the taxiing tier (1) —
+    /// so an aircraft taxiing up between a holding leader and its follower ranks between them, as it physically
+    /// is. A follower holding short of an intermediate bar (its follow queued behind, see
+    /// <see cref="GoverningFollow"/>) is still following here and ranks in the taxiing tier. The same-bar
+    /// requirement is what keeps an arrival trailing a departure, or a follower bound for a different
+    /// intersection, out of the line.</para>
     ///
     /// <para>Two sub-passes, in this order. Inheritance runs first, to a fixpoint, so a follower of a
     /// follower is placed on the pass after its own leader — the bound is one pass per aircraft (the longest
@@ -176,12 +179,13 @@ public static class RunwayDepartureQueue
     /// <summary>A follower that can take its leader's line, or null when it is not following or cannot inherit.</summary>
     private static Member? ClassifyInheritedFollower(AircraftState ac, Dictionary<string, Member> ranked)
     {
-        if (!ac.IsOnGround || ac.Ground.Layout is not { } layout || GoverningFollow(ac) is not { } following)
+        // The layout is only the check that the follower is on an airport; the line it joins carries its leader's.
+        if (!ac.IsOnGround || (ac.Ground.Layout is null) || (GoverningFollow(ac) is not { } following))
         {
             return null;
         }
 
-        return InheritLeaderLine(ac, layout, following.TargetCallsign, ranked);
+        return InheritLeaderLine(ac, following.TargetCallsign, ranked);
     }
 
     /// <summary>A follower whose leader is not in any line, ranked on its own clearance like any other taxiing departure.</summary>
@@ -222,7 +226,7 @@ public static class RunwayDepartureQueue
         return null;
     }
 
-    private static Member? InheritLeaderLine(AircraftState ac, AirportGroundLayout layout, string leaderCallsign, Dictionary<string, Member> ranked)
+    private static Member? InheritLeaderLine(AircraftState ac, string leaderCallsign, Dictionary<string, Member> ranked)
     {
         if (!ranked.TryGetValue(leaderCallsign, out Member leader))
         {
@@ -236,45 +240,30 @@ public static class RunwayDepartureQueue
             return null;
         }
 
-        // The same gate a taxiing aircraft faces, measured on the follower's own distance to the bar rather
-        // than on the gap to its leader: a follower half a mile back is not in the line yet.
-        if (!TryNodePosition(layout, leader.NodeId, out LatLon barPosition))
+        if (!TryNodePosition(leader.Layout, leader.NodeId, out LatLon barPosition))
         {
             return null;
         }
 
+        // No proximity gate: the follow keeps the follower in trail of a leader already in the line, so it is
+        // in the line at whatever distance from the bar the line has grown to. It ranks on its own distance, in
+        // the front tier only while it is itself holding short at the bar, so an aircraft physically between it
+        // and its leader ranks between them.
+        bool holdingAtBar = (ac.Phases?.CurrentPhase is HoldingShortPhase hold) && (hold.HoldShort.NodeId == leader.NodeId);
+        int tier = holdingAtBar ? 0 : 1;
         double ownDistanceNm = GeoMath.DistanceNm(ac.Position, barPosition);
-        if (ownDistanceNm > ProximityNm)
-        {
-            return null;
-        }
-
-        double gapNm = GeoMath.DistanceNm(ac.Position, leader.Aircraft.Position);
         Log.LogTrace(
-            "[RunwayQueue] {Callsign}: following {Leader}, joins the {Runway} line at node {NodeId} ({Airport}) behind it, "
-                + "tier={Tier}, dist={Dist:F2}nm (leader {LeaderDist:F2}nm + gap {Gap:F2}nm), own dist to bar {Own:F2}nm",
+            "[RunwayQueue] {Callsign}: following {Leader}, joins the {Runway} line at node {NodeId} ({Airport}), tier={Tier}, dist={Dist:F2}nm",
             ac.Callsign,
             leaderCallsign,
             leader.Runway,
             leader.NodeId,
             leader.AirportId,
-            leader.Tier,
-            leader.DistanceNm + gapNm,
-            leader.DistanceNm,
-            gapNm,
+            tier,
             ownDistanceNm
         );
 
-        return new Member(
-            ac,
-            leader.Layout,
-            leader.AirportId,
-            leader.NodeId,
-            leader.Runway,
-            leader.Tier,
-            leader.DistanceNm + gapNm,
-            ac.Ground.StationarySeconds
-        );
+        return new Member(ac, leader.Layout, leader.AirportId, leader.NodeId, leader.Runway, tier, ownDistanceNm, ac.Ground.StationarySeconds);
     }
 
     /// <summary>

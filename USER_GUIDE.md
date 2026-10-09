@@ -636,7 +636,7 @@ A departure that is **not going full length** names the intersection it enters f
 
 The aircraft holding short at the front is #1; those bunched right behind it (within about 600 ft of the hold short) fill in #2, #3, in order of distance. Each hold-short intersection is its own line, so a runway fed from two intersections can show a #1 at each.
 
-Once the front aircraft is told to line up and wait it leaves the line and the next aircraft becomes #1. A lone departure first in line still shows **#1**. An aircraft told to `FOLLOWG` another bound for the same hold short ranks directly behind its leader once it is within about 600 ft of the bar, and keeps that number when the leader lines up.
+Once the front aircraft is told to line up and wait it leaves the line and the next aircraft becomes #1. A lone departure first in line still shows **#1**. An aircraft told to `FOLLOWG` another bound for the same hold short joins its leader's line at any distance from the bar, ranked by its own distance to it, and moves up when the leader lines up.
 
 **Runway-end click target:** When an aircraft is selected, a small amber dot appears at every runway threshold.
 

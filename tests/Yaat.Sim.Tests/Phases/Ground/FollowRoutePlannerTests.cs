@@ -746,9 +746,9 @@ public class FollowRoutePlannerTests(ITestOutputHelper output)
             KoakFollowGeometry.Between(push.J.Position, push.E1.Position, 0.5),
             KoakFollowGeometry.Facing(push.J, push.E1)
         );
-        lead.Ground.TaxiEdgeTrail.Record(push.Side);
-        lead.Ground.TaxiEdgeTrail.Record(KoakFollowGeometry.EdgeBetween(push.J, push.W1));
-        lead.Ground.TaxiEdgeTrail.Record(KoakFollowGeometry.EdgeBetween(push.J, push.E1));
+        lead.Ground.TaxiEdgeTrail.Record(push.Side, push.A);
+        lead.Ground.TaxiEdgeTrail.Record(KoakFollowGeometry.EdgeBetween(push.J, push.W1), push.J);
+        lead.Ground.TaxiEdgeTrail.Record(KoakFollowGeometry.EdgeBetween(push.J, push.E1), push.J);
         AircraftState follower = KoakFollowGeometry.Spawn(
             "N2FOL",
             "C172",
@@ -792,8 +792,8 @@ public class FollowRoutePlannerTests(ITestOutputHelper output)
             KoakFollowGeometry.Between(last.FromNode.Position, last.ToNode.Position, 0.5),
             KoakFollowGeometry.Facing(last.FromNode, last.ToNode)
         );
-        lead.Ground.TaxiEdgeTrail.Record((GroundEdge)first.Edge);
-        lead.Ground.TaxiEdgeTrail.Record((GroundEdge)last.Edge);
+        lead.Ground.TaxiEdgeTrail.Record((GroundEdge)first.Edge, first.FromNode);
+        lead.Ground.TaxiEdgeTrail.Record((GroundEdge)last.Edge, last.FromNode);
         AircraftState follower = KoakFollowGeometry.Spawn(
             "N2FOL",
             "B738",
@@ -836,8 +836,8 @@ public class FollowRoutePlannerTests(ITestOutputHelper output)
             KoakFollowGeometry.Between(chain[4].Position, chain[5].Position, 0.5),
             KoakFollowGeometry.Facing(chain[4], chain[5])
         );
-        follower.Ground.TaxiEdgeTrail.Record(KoakFollowGeometry.EdgeBetween(chain[3], chain[4]));
-        follower.Ground.TaxiEdgeTrail.Record(KoakFollowGeometry.EdgeBetween(chain[4], chain[5]));
+        follower.Ground.TaxiEdgeTrail.Record(KoakFollowGeometry.EdgeBetween(chain[3], chain[4]), chain[3]);
+        follower.Ground.TaxiEdgeTrail.Record(KoakFollowGeometry.EdgeBetween(chain[4], chain[5]), chain[4]);
 
         FollowRoutePlan.Joinable joinable = Assert.IsType<FollowRoutePlan.Joinable>(FollowRoutePlanner.Replan(layout, follower, lead));
         List<(int From, int To)> moves =
@@ -862,7 +862,7 @@ public class FollowRoutePlannerTests(ITestOutputHelper output)
             KoakFollowGeometry.Between(mouth.Position, deadEnd.Position, 0.5),
             KoakFollowGeometry.Facing(mouth, deadEnd)
         );
-        stuck.Ground.TaxiEdgeTrail.Record(stub);
+        stuck.Ground.TaxiEdgeTrail.Record(stub, mouth);
         output.WriteLine($"stub #{mouth.Id}>#{deadEnd.Id} ({stub.TaxiwayName})");
         Assert.IsType<FollowRoutePlan.Joinable>(FollowRoutePlanner.Plan(layout, stuck, lead));
         Assert.IsType<FollowRoutePlan.NoPath>(FollowRoutePlanner.Replan(layout, stuck, lead));
@@ -917,8 +917,8 @@ public class FollowRoutePlannerTests(ITestOutputHelper output)
             KoakFollowGeometry.Between(chain[2].Position, chain[1].Position, 0.5),
             KoakFollowGeometry.Facing(chain[2], chain[1])
         );
-        lead.Ground.TaxiEdgeTrail.Record(KoakFollowGeometry.EdgeBetween(chain[5], chain[4]));
-        lead.Ground.TaxiEdgeTrail.Record(KoakFollowGeometry.EdgeBetween(chain[2], chain[1]));
+        lead.Ground.TaxiEdgeTrail.Record(KoakFollowGeometry.EdgeBetween(chain[5], chain[4]), chain[5]);
+        lead.Ground.TaxiEdgeTrail.Record(KoakFollowGeometry.EdgeBetween(chain[2], chain[1]), chain[2]);
         AircraftState follower = KoakFollowGeometry.Spawn("N2FOL", "C172", chain[6].Position, KoakFollowGeometry.Facing(chain[6], chain[5]));
 
         FollowRoutePlan.Joinable plan = Assert.IsType<FollowRoutePlan.Joinable>(FollowRoutePlanner.Plan(layout, follower, lead));
@@ -1185,8 +1185,8 @@ public class FollowRoutePlannerTests(ITestOutputHelper output)
             KoakFollowGeometry.Between(from.Position, to.Position, 0.7),
             KoakFollowGeometry.Facing(from, to)
         );
-        lead.Ground.TaxiEdgeTrail.Record(before);
-        lead.Ground.TaxiEdgeTrail.Record(shared);
+        lead.Ground.TaxiEdgeTrail.Record(before, before.OtherNode(from));
+        lead.Ground.TaxiEdgeTrail.Record(shared, from);
         AircraftState follower = KoakFollowGeometry.Spawn(
             "N2FOL",
             "C172",
@@ -1230,7 +1230,7 @@ public class FollowRoutePlannerTests(ITestOutputHelper output)
         );
         for (int i = 5; i >= 2; i--)
         {
-            lead.Ground.TaxiEdgeTrail.Record(KoakFollowGeometry.EdgeBetween(chain[i], chain[i - 1]));
+            lead.Ground.TaxiEdgeTrail.Record(KoakFollowGeometry.EdgeBetween(chain[i], chain[i - 1]), chain[i]);
         }
 
         AircraftState follower = KoakFollowGeometry.Spawn("N2FOL", "C172", chain[6].Position, KoakFollowGeometry.Facing(chain[6], chain[5]));

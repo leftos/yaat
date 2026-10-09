@@ -291,6 +291,122 @@ public class TaxiEdgeTrailTests(ITestOutputHelper output)
         }
     }
 
+    /// <summary>
+    /// The entry node recorded for an edge is the end behind the aircraft's movement: taxiing nose-first along a KOAK B edge it
+    /// is the end behind the nose, either way along the edge; on a tug pushing it tail-first the nose points at the other end,
+    /// and the entry is the end the push moves away from.
+    /// </summary>
+    [Fact]
+    public void EntryNodeOf_ForwardTaxiAndPushback_IsTheEndBehindTheMovement()
+    {
+        if (KoakFollowGeometry.LoadLayout(output) is not { } layout)
+        {
+            return;
+        }
+
+        List<GroundNode> chain = KoakFollowGeometry.BChain(layout);
+        GroundNode near = chain[3];
+        GroundNode far = chain[4];
+        GroundEdge edge = KoakFollowGeometry.EdgeBetween(near, far);
+        LatLon midway = KoakFollowGeometry.Between(near.Position, far.Position, 0.5);
+
+        AircraftState towardFar = KoakFollowGeometry.Spawn(Callsign, AircraftType, midway, KoakFollowGeometry.Facing(near, far));
+        Assert.Equal(near.Id, TaxiEdgeTrail.EntryNodeOf(edge, towardFar).Id);
+
+        AircraftState towardNear = KoakFollowGeometry.Spawn(Callsign, AircraftType, midway, KoakFollowGeometry.Facing(far, near));
+        Assert.Equal(far.Id, TaxiEdgeTrail.EntryNodeOf(edge, towardNear).Id);
+
+        AircraftState pushedTowardNear = KoakFollowGeometry.Spawn(Callsign, AircraftType, midway, KoakFollowGeometry.Facing(near, far));
+        pushedTowardNear.Ground.PushbackTrueHeading = KoakFollowGeometry.Facing(far, near);
+        Assert.Equal(far.Id, TaxiEdgeTrail.EntryNodeOf(edge, pushedTowardNear).Id);
+    }
+
+    /// <summary>
+    /// Recording an edge with an entry node that is not one of its ends is refused, and leaves the trail as it was; recording
+    /// it with one of its ends keeps that end as the edge's entry node.
+    /// </summary>
+    [Fact]
+    public void Record_EntryNodeNotAnEndOfTheEdge_Throws()
+    {
+        if (KoakFollowGeometry.LoadLayout(output) is not { } layout)
+        {
+            return;
+        }
+
+        List<GroundNode> chain = KoakFollowGeometry.BChain(layout);
+        GroundEdge edge = KoakFollowGeometry.EdgeBetween(chain[3], chain[4]);
+        var trail = new TaxiEdgeTrail();
+
+        Assert.Throws<ArgumentException>(() => trail.Record(edge, chain[5]));
+        Assert.Empty(trail.Edges);
+
+        trail.Record(edge, chain[4]);
+        Assert.Equal(chain[4].Id, Assert.Single(trail.Edges).EntryNodeId);
+    }
+
+    /// <summary>
+    /// A snapshot trail edge whose entry node is not one of its ends — node 0, what a snapshot written without the field loads —
+    /// is refused on load with the edge named, rather than restoring a trail whose turned-about test reads a node that is not there.
+    /// </summary>
+    [Fact]
+    public void FromSnapshot_EntryNodeNotAnEndOfTheEdge_Throws()
+    {
+        if (KoakFollowGeometry.LoadLayout(output) is not { } layout)
+        {
+            return;
+        }
+
+        List<GroundNode> chain = KoakFollowGeometry.BChain(layout);
+        GroundEdge edge = KoakFollowGeometry.EdgeBetween(chain[3], chain[4]);
+        List<TaxiTrailEdgeDto> dto =
+        [
+            new TaxiTrailEdgeDto
+            {
+                NodeA = edge.Nodes[0].Id,
+                NodeB = edge.Nodes[1].Id,
+                LengthFt = edge.DistanceNm * GeoMath.FeetPerNm,
+                EntryNodeId = 0,
+            },
+        ];
+
+        InvalidDataException thrown = Assert.Throws<InvalidDataException>(() => TaxiEdgeTrail.FromSnapshot(dto));
+        output.WriteLine(thrown.Message);
+        Assert.Contains($"#{edge.Nodes[0].Id}-#{edge.Nodes[1].Id}", thrown.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// An edge recorded while the aircraft is still turning at a sharp unfilleted KOAK junction, its heading more than 90° off the
+    /// edge it is turning onto, was entered from the node it shares with the trail's newest edge, the junction — not from the far
+    /// end its heading alone reads as behind it. With nothing recorded before it, the heading is all there is to go on.
+    /// </summary>
+    [Fact]
+    public void EntryNodeOf_RecordedMidTurnAtASharpJunction_IsTheSharedNode()
+    {
+        if (KoakFollowGeometry.LoadLayout(output) is not { } layout)
+        {
+            return;
+        }
+
+        (GroundNode farIn, GroundNode junction, GroundNode farOut, GroundEdge inEdge, GroundEdge outEdge, double turnDeg) =
+            KoakFollowGeometry.SharpTurn(layout);
+        TrueHeading stillInbound = KoakFollowGeometry.Facing(farIn, junction);
+        double offOutDeg = GeoMath.AbsBearingDifference(stillInbound.Degrees, GeoMath.BearingTo(junction.Position, farOut.Position));
+        output.WriteLine($"junction #{junction.Id}: turn {turnDeg:F0}°, heading {offOutDeg:F0}° off the edge out to #{farOut.Id}");
+        Assert.True(offOutDeg > 90.0, "the heading is within 90° of the edge out, so the test proves nothing");
+
+        double outFt = outEdge.DistanceNm * GeoMath.FeetPerNm;
+        LatLon intoTheTurn = KoakFollowGeometry.Between(junction.Position, farOut.Position, 5.0 / outFt);
+        AircraftState aircraft = KoakFollowGeometry.Spawn(Callsign, AircraftType, intoTheTurn, stillInbound);
+        Assert.Equal(farOut.Id, TaxiEdgeTrail.EntryNodeOf(outEdge, aircraft).Id);
+
+        aircraft.Ground.TaxiEdgeTrail.Record(inEdge, farIn);
+        GroundNode entry = TaxiEdgeTrail.EntryNodeOf(outEdge, aircraft);
+        aircraft.Ground.TaxiEdgeTrail.Record(outEdge, entry);
+
+        Assert.Equal(junction.Id, entry.Id);
+        Assert.Equal(junction.Id, aircraft.Ground.TaxiEdgeTrail.Newest?.EntryNodeId);
+    }
+
     private sealed record TrailRun(
         TestAirportGroundData GroundData,
         SimulationEngine Engine,

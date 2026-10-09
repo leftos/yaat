@@ -338,6 +338,15 @@ The stop gap plus 150 ft: inside it, behind a lead moving away, a `FOLLOWG` foll
 **Goal-set search**:
 One A* pass to whichever of several goal nodes is cheapest to reach, rather than one search per goal (`AutoRouter.RunToGoals`, `TaxiPathfinder.FindRouteToNearestGoal`, docs/ground/pathfinder.md).
 
+**Lead chain**:
+The aircraft a `FOLLOWG` follower is never limited against by the ground conflict detector: its lead, that lead's lead while it is following too, and so on, read from each aircraft's current phase only (`GroundConflictDetector.IsInLeadChainOf`, docs/conflict-and-visual-detection.md). A sibling follower of the same lead is not in the chain.
+
+**Closing** (a lead closing on its follower):
+A lead in a follower's lead chain that the detector limits like any other aircraft because it is pushing toward the follower, or re-entering its own taxi edge trail with the follower standing on it (retracing, returning over a fillet arc, or turned about on its newest edge) (`GroundConflictDetector.ClosingOnFollower`).
+
+**Lost route**:
+The follow route a `FOLLOWG` follower keeps after a lead re-route joins nothing, while it brakes to rest along it rather than drive a clearing route (`FollowingPhase.IsBrakingLostRoute`, docs/ground/navigator.md).
+
 ## Airborne following
 
 **Free pursuit**:

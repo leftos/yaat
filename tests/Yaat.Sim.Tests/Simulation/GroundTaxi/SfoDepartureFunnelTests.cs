@@ -144,7 +144,7 @@ public class SfoDepartureFunnelTests(ITestOutputHelper output)
     /// the 28L bar is in that order physically, and the departure queue numbers it 1-2-3-4 — which needs
     /// the follower-ranking pass, since a following aircraft is in neither queue-eligible phase.
     /// </summary>
-    [Fact(Skip = "YAAT-316 brief 3c-3: GroundConflictDetector resolves follower-vs-other pairs")]
+    [Fact]
     public void Release_3_1_4_2_FollowG()
     {
         if (StageAll() is not { } funnel)
@@ -598,8 +598,54 @@ public class SfoDepartureFunnelTests(ITestOutputHelper output)
             AdvanceScript(second);
         }
 
+        /// <summary>
+        /// Whether the release is done. Released by <c>FOLLOWG</c>, it is done once FUN3 holds short of the 28L bar, each
+        /// follower — FUN1 behind FUN3, FUN2 behind FUN4 — is closed up behind the aircraft it follows
+        /// (<see cref="IsClosedUpBehind"/>), and all four are at rest in the 28L departure queue in the release order
+        /// (<see cref="IsQueuedInReleaseOrder"/>); released by <c>RES</c>, once FUN3 holds short of the 28L bar and the other
+        /// three are parked within <see cref="SfoDepartureFunnelTests.AtDestinationNm"/> of it.
+        /// </summary>
         internal bool IsComplete() =>
-            HoldsShortOfDestination(funnel.Fun3) && new[] { funnel.Fun1, funnel.Fun4, funnel.Fun2 }.All(IsParkedAtDestination);
+            byFollow
+                ? HoldsShortOfDestination(funnel.Fun3)
+                    && IsClosedUpBehind(funnel.Fun1, funnel.Fun3)
+                    && IsClosedUpBehind(funnel.Fun2, funnel.Fun4)
+                    && IsQueuedInReleaseOrder()
+                : HoldsShortOfDestination(funnel.Fun3) && new[] { funnel.Fun1, funnel.Fun4, funnel.Fun2 }.All(IsParkedAtDestination);
+
+        /// <summary>
+        /// Whether <paramref name="follower"/> is at rest with its nose within the close-follow band
+        /// (<see cref="FollowGap.CloseFollowBandFt"/>) of <paramref name="ahead"/>'s tail (<see cref="FollowingPhase.NoseToTailFt"/>).
+        /// </summary>
+        private static bool IsClosedUpBehind(AircraftState follower, AircraftState ahead)
+        {
+            AircraftCategory aheadCategory = AircraftCategorization.Categorize(ahead.AircraftType);
+            AircraftCategory followerCategory = AircraftCategorization.Categorize(follower.AircraftType);
+            double bandFt = FollowGap.CloseFollowBandFt(ahead.AircraftType, aheadCategory, follower.AircraftType, followerCategory);
+            return (follower.GroundSpeed < SfoGroundHarness.StationarySpeedKts) && (FollowingPhase.NoseToTailFt(follower, ahead) <= bandFt);
+        }
+
+        /// <summary>
+        /// Whether FUN3, FUN1, FUN4 and FUN2 are each at rest and numbered in the 28L departure queue
+        /// (<see cref="RunwayDepartureQueue"/>), their queue positions rising in that order.
+        /// </summary>
+        private bool IsQueuedInReleaseOrder()
+        {
+            AircraftState[] releaseOrder = [funnel.Fun3, funnel.Fun1, funnel.Fun4, funnel.Fun2];
+            int previousPosition = 0;
+            foreach (AircraftState aircraft in releaseOrder)
+            {
+                bool queued = (aircraft.Ground.RunwayQueueRunway == "28L") && (aircraft.Ground.RunwayQueuePosition > previousPosition);
+                if (!queued || (aircraft.GroundSpeed >= SfoGroundHarness.StationarySpeedKts))
+                {
+                    return false;
+                }
+
+                previousPosition = aircraft.Ground.RunwayQueuePosition;
+            }
+
+            return true;
+        }
 
         internal void Dump()
         {

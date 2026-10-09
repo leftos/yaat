@@ -20,12 +20,16 @@ public sealed class PresetTaxiStopDto
     public string? OnTaxiway { get; init; }
 }
 
-/// <summary>A <see cref="TaxiTrailEdge"/>: one straight taxi edge an aircraft drove, by its end node ids, with its length.</summary>
+/// <summary>
+/// A <see cref="TaxiTrailEdge"/>: one straight taxi edge an aircraft drove, by its end node ids, with its length and the end node
+/// it entered the edge from.
+/// </summary>
 public sealed class TaxiTrailEdgeDto
 {
     public required int NodeA { get; init; }
     public required int NodeB { get; init; }
     public required double LengthFt { get; init; }
+    public required int EntryNodeId { get; init; }
 }
 
 public sealed class AircraftGroundOpsDto

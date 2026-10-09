@@ -323,12 +323,12 @@ public class RunwayDepartureQueueTests
     }
 
     /// <summary>
-    /// A follower is admitted behind its leader only from inside the same proximity gate a taxiing
-    /// aircraft faces — measured on its own distance to the bar, not on the gap to the leader. Inheriting
-    /// the leader's line without that gate would number an aircraft still a quarter-mile down the taxiway.
+    /// A follower bound for the bar its queued lead is in ranks directly behind that lead at any distance from
+    /// the bar: the follow keeps it in trail, so it is in the line however long the line has grown. The
+    /// <see cref="RunwayDepartureQueue.ProximityNm"/> gate applies only to aircraft ranked on their own route.
     /// </summary>
     [Fact]
-    public void Follower_BeyondProximityGate_Stays0()
+    public void Follower_BeyondProximityGate_RanksBehindQueuedLead()
     {
         List<GroundNode> nodes = HoldShortNodes();
         if (nodes.Count == 0)
@@ -343,8 +343,31 @@ public class RunwayDepartureQueueTests
         RunwayDepartureQueue.UpdatePositions([lead, follower]);
 
         Assert.Equal(1, lead.Ground.RunwayQueuePosition);
-        Assert.Equal(0, follower.Ground.RunwayQueuePosition);
-        Assert.Equal("", follower.Ground.RunwayQueueRunway);
+        Assert.Equal(2, follower.Ground.RunwayQueuePosition);
+        Assert.Equal(Runway, follower.Ground.RunwayQueueRunway);
+    }
+
+    /// <summary>
+    /// An aircraft that is not following anyone keeps the proximity gate: taxiing to the same bar from the same
+    /// spot as <see cref="Follower_BeyondProximityGate_RanksBehindQueuedLead"/>'s follower, it is not numbered.
+    /// </summary>
+    [Fact]
+    public void NonFollower_BeyondProximity_IsNotQueued()
+    {
+        List<GroundNode> nodes = HoldShortNodes();
+        if (nodes.Count == 0)
+        {
+            return;
+        }
+
+        AircraftState lead = HoldingShort("LEAD", nodes[0]);
+        AircraftState taxier = TaxiingToward("TAXI", nodes[0], 0.15);
+
+        RunwayDepartureQueue.UpdatePositions([lead, taxier]);
+
+        Assert.Equal(1, lead.Ground.RunwayQueuePosition);
+        Assert.Equal(0, taxier.Ground.RunwayQueuePosition);
+        Assert.Equal("", taxier.Ground.RunwayQueueRunway);
     }
 
     /// <summary>
@@ -487,9 +510,8 @@ public class RunwayDepartureQueueTests
     }
 
     /// <summary>
-    /// A follower tucked in behind the holding lead is ahead of an aircraft still taxiing up to the same bar,
-    /// even though both are inside the proximity gate: the follower inherits the lead's tier, and tier beats
-    /// raw distance. Without that, the taxier would show as next-up over an aircraft already in the line.
+    /// A follower tucked in behind the holding lead is ahead of an aircraft still taxiing up to the same bar
+    /// from farther back: both are in the line's taxiing tier, ranked on their own distance to the bar.
     /// </summary>
     [Fact]
     public void Follower_RanksAheadOfFartherTaxier()
@@ -510,5 +532,31 @@ public class RunwayDepartureQueueTests
         Assert.Equal(1, lead.Ground.RunwayQueuePosition);
         Assert.Equal(2, follower.Ground.RunwayQueuePosition);
         Assert.Equal(3, taxier.Ground.RunwayQueuePosition);
+    }
+
+    /// <summary>
+    /// An aircraft taxiing up to the bar between a holding lead and the lead's follower, still farther back, ranks between
+    /// them: the follower is not itself holding short, so it takes the line's taxiing tier on its own distance to the bar
+    /// rather than its lead's front-of-line tier.
+    /// </summary>
+    [Fact]
+    public void NonFollowerBetweenLeadAndFollower_RanksBetween()
+    {
+        List<GroundNode> nodes = HoldShortNodes();
+        if (nodes.Count == 0)
+        {
+            return;
+        }
+
+        AircraftState lead = HoldingShort("LEAD", nodes[0]);
+        AircraftState taxier = TaxiingToward("TAXI", nodes[0], 0.05);
+        AircraftState follower = FollowingAt("FOLLOW", "LEAD", nodes[0], 0.08 * FeetPerNm);
+        BindDestination(follower, nodes[0]);
+
+        RunwayDepartureQueue.UpdatePositions([lead, follower, taxier]);
+
+        Assert.Equal(1, lead.Ground.RunwayQueuePosition);
+        Assert.Equal(2, taxier.Ground.RunwayQueuePosition);
+        Assert.Equal(3, follower.Ground.RunwayQueuePosition);
     }
 }

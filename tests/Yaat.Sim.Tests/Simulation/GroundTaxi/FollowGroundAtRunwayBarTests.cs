@@ -515,6 +515,80 @@ public class FollowGroundAtRunwayBarTests(ITestOutputHelper output)
     }
 
     /// <summary>
+    /// A follower braking to rest along a lost route brakes for its lead (<see cref="FollowingPhase.LostRouteLeadGapDecelRate"/>)
+    /// at the max-effort rate only when the taxi rate would end inside the stop gap behind a lead ahead of it, and at the taxi
+    /// rate for a lead ahead outside that stop, a lead abeam or behind it however close, a lead off the ground, and no lead. No
+    /// real-layout fixture brings a lead within a follower's stop on a lost route — the follow's gap curve keeps a follower
+    /// outside its taxi-rate stop behind a standing lead — so the choice is checked on B738s placed around the follower.
+    /// </summary>
+    [Fact]
+    public void Following_RouteLost_BrakesFirmOnlyForALeadAheadInsideTheTaxiRateStop()
+    {
+        TestVnasData.EnsureInitialized();
+        AircraftCategory category = AircraftCategorization.Categorize(Type);
+        double stopGapFt = FollowGap.StopGapFt(Type, category, Type, category);
+        double taxiRate = CategoryPerformance.TaxiDecelRate(category);
+        double maxEffortRate = CategoryPerformance.ExpediteExitDecelRate(category);
+        const double SpeedKts = 15.0;
+        double routineStopFt = GroundStopBraking.StoppingDistanceFt(SpeedKts, taxiRate);
+        double maxEffortStopFt = GroundStopBraking.StoppingDistanceFt(SpeedKts, maxEffortRate);
+        output.WriteLine($"stop gap {stopGapFt:F1} ft, stop at {SpeedKts} kt: taxi rate {routineStopFt:F1} ft, max effort {maxEffortStopFt:F1} ft");
+        Assert.True(maxEffortStopFt < routineStopFt, "the max-effort rate stops no shorter than the taxi rate");
+
+        AircraftState follower = OnGround("FOL9", Origin, 0.0, SpeedKts);
+        Assert.Null(FollowingPhase.LostRouteLeadGapDecelRate(follower, category, DeadAhead(follower, stopGapFt + routineStopFt + 20.0)));
+        double firmGapFt = stopGapFt + ((routineStopFt + maxEffortStopFt) / 2.0);
+        Assert.Equal(maxEffortRate, FollowingPhase.LostRouteLeadGapDecelRate(follower, category, DeadAhead(follower, firmGapFt)));
+        Assert.Equal(maxEffortRate, FollowingPhase.LostRouteLeadGapDecelRate(follower, category, DeadAhead(follower, stopGapFt)));
+
+        Assert.Null(FollowingPhase.LostRouteLeadGapDecelRate(follower, category, null));
+        AircraftState airborne = DeadAhead(follower, stopGapFt);
+        airborne.IsOnGround = false;
+        Assert.Null(FollowingPhase.LostRouteLeadGapDecelRate(follower, category, airborne));
+
+        // Abeam and behind, a follower rolling fast enough that the gap alone would call for the max-effort rate.
+        const double FastKts = 35.0;
+        AircraftState fast = OnGround("FOL9", Origin, 0.0, FastKts);
+        double fastRoutineStopFt = GroundStopBraking.StoppingDistanceFt(FastKts, taxiRate);
+        double halfFt = AircraftLength.ResolveFt(Type) / 2.0;
+        AircraftState abeam = OnGround("LED9", GeoMath.ProjectPoint(Origin, new TrueHeading(90.0), 80.0 / GeoMath.FeetPerNm), 0.0, 0.0);
+        double behindFt = halfFt + 20.0 + halfFt;
+        AircraftState behind = OnGround("LED9", GeoMath.ProjectPoint(Origin, new TrueHeading(180.0), behindFt / GeoMath.FeetPerNm), 180.0, 0.0);
+        foreach ((string where, AircraftState lead) in new[] { ("abeam", abeam), ("behind", behind) })
+        {
+            double toStopFt = FollowingPhase.NoseToTailFt(fast, lead) - stopGapFt;
+            output.WriteLine($"lead {where}: {toStopFt:F1} ft past the stop gap, taxi-rate stop from {FastKts} kt {fastRoutineStopFt:F1} ft");
+            Assert.True(fastRoutineStopFt > toStopFt, $"the lead {where} is outside the taxi-rate stop, so the sector proves nothing");
+            Assert.Null(FollowingPhase.LostRouteLeadGapDecelRate(fast, category, lead));
+        }
+    }
+
+    private static readonly LatLon Origin = new(37.62, -122.38);
+
+    /// <summary>
+    /// A B738 lead at rest facing north dead ahead of <paramref name="follower"/>, which faces north at <see cref="Origin"/>,
+    /// <paramref name="noseToTailFt"/> from the follower's nose to the lead's tail.
+    /// </summary>
+    private static AircraftState DeadAhead(AircraftState follower, double noseToTailFt)
+    {
+        double centresFt = (AircraftLength.ResolveFt(Type) / 2.0) + noseToTailFt + (AircraftLength.ResolveFt(Type) / 2.0);
+        AircraftState lead = OnGround("LED9", GeoMath.ProjectPoint(Origin, new TrueHeading(0.0), centresFt / GeoMath.FeetPerNm), 0.0, 0.0);
+        Assert.Equal(noseToTailFt, FollowingPhase.NoseToTailFt(follower, lead), 0.5);
+        return lead;
+    }
+
+    private static AircraftState OnGround(string callsign, LatLon position, double headingDeg, double speedKts) =>
+        new()
+        {
+            Callsign = callsign,
+            AircraftType = Type,
+            Position = position,
+            TrueHeading = new TrueHeading(headingDeg),
+            IsOnGround = true,
+            IndicatedAirspeed = speedKts,
+        };
+
+    /// <summary>
     /// A follower on 1R's pavement, crossing it on its follow route under <c>CROSS 1L 1R</c>, loses that route when its leader is
     /// re-routed along F1 through it: its clearing route takes over the same tick rather than braking along the lost route, and
     /// it stops clear past the 1R hold line, never stopped on the runway.
