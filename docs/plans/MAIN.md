@@ -24,6 +24,7 @@
 - [ ] YAAT-508 FOLLOWG clearing check ignores traffic crossing at a junction
 - [ ] YAAT-534 Split GroundConflictDetector.ApplySpeedLimits under 100 lines · release vNext
 - [ ] YAAT-535 Keep ChooseMutualStopHolder from holding a follower against a lead closing on it · release vNext
+- [ ] YAAT-543 FOLLOWG follower takes the square corner through trail stub edges instead of the arc its lead drove · release vNext
 
 ## Bug reports and feature requests
 
@@ -51,13 +52,15 @@
 - [ ] YAAT-446 Stop the Temporary altitude and Cruise popups throwing on FL or comma input
 - [ ] YAAT-448 Stop the Hold short submenu offering fillet names the server refuses
 - [ ] YAAT-449 Find why a grounded aircraft can end with no phase, and give it ground menus
-- [ ] YAAT-460 Add Taxi to runway ▸ to the ground aircraft menu, with via and distance per entry point · release vNext
+- [/] YAAT-460 Add Taxi to runway ▸ to the ground aircraft menu, with via and distance per entry point · release vNext
 - [ ] YAAT-478 Resolve a shorthand expected approach before picking the visual approach's default runway
 - [ ] YAAT-503 Context-menu For section is offered for a delayed-spawn selection
 - [ ] YAAT-517 Hold short of… destination-runway row sends a no-op HS
 - [ ] YAAT-521 Pattern-entry runway flyout: rotated glyphs, active runways first, landable first · release vNext
 - [ ] YAAT-522 Cleared for takeoff flyout: VFR pattern exits, turn direct a fix, initial altitude; IFR heading · release vNext
 - [ ] YAAT-524 Cleared for takeoff menu's "360 overhead" sends CTO 360, a heading
+- [ ] YAAT-540 Clear a menu's route preview on every ground view when the menu closes
+- [ ] YAAT-545 Close the gap the quick-command label row leaves above the icon strip
 
 ## Tick-path unification
 
@@ -460,3 +463,5 @@
 - [ ] YAAT-523 Remove GroundConflictDetector.IsClearOf, which has no production caller
 - [ ] YAAT-525 FOLLOWG then CROSS on an aircraft with no taxi route drops the CROSS but reports success
 - [ ] YAAT-536 Rebuild KoakFollowGeometry.BChain from real edges; remove dead IsClearOf
+- [ ] YAAT-541 GuideCapture: keep one booted room across scenes, and an iterate mode for one scene
+- [ ] YAAT-544 Parse the CMH, LBB and TTN vNAS ground maps (GeoJsonParser throws)
