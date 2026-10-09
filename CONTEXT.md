@@ -595,7 +595,7 @@ Per-airport results computed offline from static inputs and shipped with YAAT (`
 How many airports a precompute tool compute run works on at once, each holding its parsed layout (`--airports-in-flight`, default 4); `--parallel` caps the stands planned at once across all of them.
 
 **Algorithm hash**:
-The part of a precompute cache key that names the code that produced an entry: a hash of the source files that feed the computation, generated at build time (`PrecomputeSourceHashes`). The layout and push-target halves have separate hashes, so a change to the push-target planner alone, or to an airport's sidecars, invalidates only push targets; the tug planner's files are in both.
+The part of a precompute cache key that names the code that produced an entry: a hash of the source files that feed the computation, generated at build time (`PrecomputeSourceHashes`). The layout and push-target halves have separate hashes, so a change to the push-target planner alone, or to an airport's sidecars, invalidates only push targets; the tug planner's `Tug*.cs` files are in the push set alone.
 
 **Design-group entry**:
 One push-target set per stand per airplane design group (ADG I-VI), planned with the group's envelope; an aircraft reads the entry for its own group.
@@ -606,11 +606,17 @@ A synthetic footprint (`ADG-I` to `ADG-VI`) for one airplane design group: the g
 **Golden (menu golden)**:
 A committed text snapshot of an aircraft right-click menu for one view and one situation fixture (`tests/Yaat.Client.UI.Tests/Goldens/menu/{radar,ground,list}/<fixture>.txt`, written by `MenuTreeSnapshot`); `MenuGoldenTests` fails when a menu differs from its golden, and `YAAT_MENU_GOLDEN_REGENERATE=1` rewrites them.
 
+**Layout set**:
+The source files whose hash is a precompute key's layout algorithm hash: `Data/Airport` minus `Precompute/`, the `Tug*.cs` planner files and a few pathfinder/navigator helpers, plus a few files outside it (`PrecomputeLayoutSource` in `Yaat.Sim.csproj`).
+
 **Live check**:
 The re-fly and sweep of a cached push target when an aircraft's Push Back To menu opens: the stored moves are flown again with the aircraft's own outline and turn radius and swept against the parked or held aircraft about it (`PushTargetLiveCheck.Check`). The verdict is Clear, Blocked (by a named neighbour) or Unflyable.
 
 **Offline check / online check**:
 The precompute tool's `--check`. Offline, it compares each listed airport's committed entry key with the build-time source hashes, the sidecar hash and the layout format version; online (`--check --online`), it also compares the GeoJSON MD5 and NavData serial with what vNAS serves now. A missing or stale entry is a warning, never a failure.
+
+**Push set**:
+The source files whose hash is a precompute key's push-target algorithm hash: all of `Data/Airport` except `Precompute/`, so the tug planner included, plus the push-target `Precompute/` types and a few files outside it (`PrecomputePushTargetSource`); it moves whenever the layout hash does.
 
 **Push-target seed**:
 The shipped precompute entry for an aircraft's stand and design group (`PushTargetSeed`), which first fills the Push back to… submenu, live-checked, before the client's own live plan lands and replaces it in place; a stand with no current entry, and any held aircraft, show `Computing targets…` instead.

@@ -273,7 +273,7 @@ public class PushTargetPlannerTests
         GroundNode gate = Stand(layout, "26");
         var live = new TugRequest
         {
-            Start = new TugPose(gate.Position, gate.TrueHeading!.Value.Degrees),
+            Start = new PushbackPose(gate.Position, gate.TrueHeading!.Value.Degrees),
             StartsAtStand = true,
             Footprint = DesignGroupEnvelopes.LoadShipped().FootprintOf(AirplaneDesignGroup.IV),
             MovementArea = Classification(layout),
@@ -667,7 +667,7 @@ public class PushTargetPlannerTests
     {
         AirportGroundLayout layout = Oak();
         var spotC = TugGoal.Spot(SpotNode(layout, "C"));
-        TugPose held = HeldAfter(layout, "12", spotC, AirplaneDesignGroup.III);
+        PushbackPose held = HeldAfter(layout, "12", spotC, AirplaneDesignGroup.III);
 
         IReadOnlyList<PrecomputedPushTarget> targets = HeldTargets(layout, held, AirplaneDesignGroup.III);
 
@@ -693,7 +693,7 @@ public class PushTargetPlannerTests
     {
         AirportGroundLayout layout = Oak();
         GroundNode gate = Stand(layout, "26");
-        TugPose held = HeldAfter(layout, "26", StraightBack(layout, gate, "TE"), AirplaneDesignGroup.III);
+        PushbackPose held = HeldAfter(layout, "26", StraightBack(layout, gate, "TE"), AirplaneDesignGroup.III);
 
         IReadOnlyList<PrecomputedPushTarget> heldTargets = HeldTargets(layout, held, AirplaneDesignGroup.III);
         PushTargetEntry standEntry = Assert.IsType<PushTargetEntry>(
@@ -733,7 +733,7 @@ public class PushTargetPlannerTests
     {
         AirportGroundLayout layout = Oak();
         GroundNode spotC = SpotNode(layout, "C");
-        TugPose held = HeldAfter(layout, "12", TugGoal.Spot(spotC), AirplaneDesignGroup.III);
+        PushbackPose held = HeldAfter(layout, "12", TugGoal.Spot(spotC), AirplaneDesignGroup.III);
         IReadOnlyList<PrecomputedPushTarget> targets = HeldTargets(layout, held, AirplaneDesignGroup.III);
 
         GroundNode fromHeld = layout.FindExitByTaxiway(held.Position, "TE") ?? throw new InvalidOperationException("No exit onto TE from spot C");
@@ -788,7 +788,7 @@ public class PushTargetPlannerTests
             .Select(n => n.Name!)
             .ToHashSet(StringComparer.Ordinal);
 
-    private static TugPose StartOf(GroundNode stand) => new(stand.Position, stand.TrueHeading!.Value.Degrees);
+    private static PushbackPose StartOf(GroundNode stand) => new(stand.Position, stand.TrueHeading!.Value.Degrees);
 
     private static GroundNode SpotNode(AirportGroundLayout layout, string name) =>
         layout.FindSpotNodeByName(name) ?? throw new InvalidOperationException($"No spot {name} at {layout.AirportId}");
@@ -797,7 +797,7 @@ public class PushTargetPlannerTests
     /// Where a push off <paramref name="standName"/> to <paramref name="goal"/> with <paramref name="group"/>'s envelope ends,
     /// as the planner flies it: the pose the aircraft is held at after the push.
     /// </summary>
-    private static TugPose HeldAfter(AirportGroundLayout layout, string standName, TugGoal goal, AirplaneDesignGroup group)
+    private static PushbackPose HeldAfter(AirportGroundLayout layout, string standName, TugGoal goal, AirplaneDesignGroup group)
     {
         AircraftFootprint footprint = DesignGroupEnvelopes.LoadShipped().FootprintOf(group);
         TugRequest request = PushTargetPlanner.RequestFor(
@@ -812,7 +812,7 @@ public class PushTargetPlannerTests
         return plan.End;
     }
 
-    private static IReadOnlyList<PrecomputedPushTarget> HeldTargets(AirportGroundLayout layout, TugPose held, AirplaneDesignGroup group) =>
+    private static IReadOnlyList<PrecomputedPushTarget> HeldTargets(AirportGroundLayout layout, PushbackPose held, AirplaneDesignGroup group) =>
         PushTargetPlanner.ComputeHeld(layout, DesignGroupEnvelopes.LoadShipped(), Sidecars.Value, held, group)
         ?? throw new InvalidOperationException($"No envelope for group {group}: nothing to plan the held pose with");
 
@@ -909,7 +909,7 @@ public class PushTargetPlannerTests
     private static string CommandOf(PushTargetKind kind, string name) => kind == PushTargetKind.Spot ? $"PUSH ${name}" : $"PUSH {name}";
 
     /// <summary>The four corners of the footprint (length × wingspan, centred on the sample) at one flown sample.</summary>
-    private static IEnumerable<LatLon> Corners(TugPose sample, AircraftFootprint footprint)
+    private static IEnumerable<LatLon> Corners(PushbackPose sample, AircraftFootprint footprint)
     {
         double noseRad = sample.NoseTrueDeg * Math.PI / 180.0;
         double feetPerDegree = 60.0 * GeoMath.FeetPerNm;

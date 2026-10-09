@@ -199,13 +199,13 @@ public sealed record TugGoal
 /// <param name="NodeId">The spot or taxiway exit node's id; null for a facing goal.</param>
 /// <param name="TaxiwayName">The taxiway a taxiway-line goal names; null otherwise.</param>
 /// <param name="StandStart">The pose the aircraft was in on the stand when the push began.</param>
-public sealed record TugAmendment(TugGoalKind GoalKind, int? NodeId, string? TaxiwayName, TugPose StandStart)
+public sealed record TugAmendment(TugGoalKind GoalKind, int? NodeId, string? TaxiwayName, PushbackPose StandStart)
 {
     /// <summary>The amendment for a goal, or null for a goal kind a mid-push facing change cannot re-plan.</summary>
     /// <param name="goal">The single goal of the push.</param>
     /// <param name="standStart">The pose on the stand when the push began.</param>
     /// <returns>The amendment, or null.</returns>
-    public static TugAmendment? For(TugGoal goal, TugPose standStart) =>
+    public static TugAmendment? For(TugGoal goal, PushbackPose standStart) =>
         goal switch
         {
             // The amendment re-plans from the goal's kind and node alone, which would drop a forced leg kind.
@@ -213,7 +213,7 @@ public sealed record TugAmendment(TugGoalKind GoalKind, int? NodeId, string? Tax
             _ => ForGoalKind(goal, standStart),
         };
 
-    private static TugAmendment? ForGoalKind(TugGoal goal, TugPose standStart) =>
+    private static TugAmendment? ForGoalKind(TugGoal goal, PushbackPose standStart) =>
         goal.Kind switch
         {
             TugGoalKind.Facing => new TugAmendment(goal.Kind, null, null, standStart),
@@ -254,7 +254,7 @@ public sealed record TugParkedNeighbour
 public sealed record TugRequest
 {
     /// <summary>The aircraft's pose now.</summary>
-    public required TugPose Start { get; init; }
+    public required PushbackPose Start { get; init; }
 
     /// <summary>The aircraft is parked on a stand, so the plan starts with a straight push-off.</summary>
     public required bool StartsAtStand { get; init; }
@@ -429,7 +429,7 @@ public sealed record TugLongPushWarning(string Taxiway, double DistanceFt) : Tug
 /// <param name="FacingTaxiwayName">The facing taxiway <paramref name="FacingJunctionFt"/> measures to; null with it.</param>
 public sealed record TugPlan(
     IReadOnlyList<TugMoveTrace> Moves,
-    TugPose End,
+    PushbackPose End,
     IReadOnlyList<TugPlanWarning> Warnings,
     double? FacingJunctionFt,
     string? FacingTaxiwayName
@@ -635,26 +635,6 @@ public static class TugMovePlanner
     /// <summary>How far <paramref name="point"/> lies ahead of <paramref name="reference"/> along <paramref name="headingDeg"/>, feet.</summary>
     internal static double AlongFt(LatLon point, LatLon reference, double headingDeg) =>
         GeoMath.AlongTrackDistanceNm(point, reference, new TrueHeading(headingDeg)) * GeoMath.FeetPerNm;
-
-    /// <summary>
-    /// An edge's centreline as points from <paramref name="from"/> to its other end: the two nodes with the edge's
-    /// intermediate points between them, in that order.
-    /// </summary>
-    /// <param name="edge">The edge.</param>
-    /// <param name="from">The end node the points start at.</param>
-    /// <returns>The centreline's points.</returns>
-    internal static List<LatLon> EdgePointsFrom(GroundEdge edge, GroundNode from)
-    {
-        var points = new List<LatLon> { edge.Nodes[0].Position };
-        points.AddRange(edge.IntermediatePoints.Select(q => new LatLon(q.Lat, q.Lon)));
-        points.Add(edge.Nodes[1].Position);
-        if (edge.Nodes[0].Id != from.Id)
-        {
-            points.Reverse();
-        }
-
-        return points;
-    }
 
     private static void ValidateRequest(TugRequest request)
     {
@@ -906,7 +886,7 @@ internal sealed class TugCandidate
     private readonly AircraftFootprint _footprint;
     private readonly List<TugMoveTrace> _traces = [];
 
-    internal TugCandidate(string template, AircraftFootprint footprint, TugPose start, PushbackLegKind? previousKind)
+    internal TugCandidate(string template, AircraftFootprint footprint, PushbackPose start, PushbackLegKind? previousKind)
     {
         Template = template;
         _footprint = footprint;
@@ -916,7 +896,7 @@ internal sealed class TugCandidate
 
     internal string Template { get; }
 
-    internal TugPose End { get; private set; }
+    internal PushbackPose End { get; private set; }
 
     internal PushbackLegKind? LastKind { get; private set; }
 
@@ -1174,7 +1154,7 @@ internal sealed class TugEmptyStands
     }
 
     /// <summary>The stands whose footprint the outline at <paramref name="pose"/> comes within <see cref="StandMarginFt"/> of.</summary>
-    internal IReadOnlySet<string> EnteredAt(TugPose pose, PushbackLegKind kind)
+    internal IReadOnlySet<string> EnteredAt(PushbackPose pose, PushbackLegKind kind)
     {
         var entered = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         AddEntered(entered, pose, kind, excluded: entered);
@@ -1191,10 +1171,10 @@ internal sealed class TugEmptyStands
         var entered = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (TugMoveTrace trace in traces)
         {
-            IReadOnlyList<TugPose> samples = trace.Samples;
+            IReadOnlyList<PushbackPose> samples = trace.Samples;
             for (int i = 0; i < samples.Count; i++)
             {
-                foreach (TugPose pose in PosesUpTo(samples, i))
+                foreach (PushbackPose pose in PosesUpTo(samples, i))
                 {
                     AddEntered(entered, pose, trace.Move.Kind, excluded);
                 }
@@ -1205,12 +1185,12 @@ internal sealed class TugEmptyStands
     }
 
     /// <summary>Sample <paramref name="i"/>, preceded by the poses splitting the gap from the sample before it.</summary>
-    private IEnumerable<TugPose> PosesUpTo(IReadOnlyList<TugPose> samples, int i)
+    private IEnumerable<PushbackPose> PosesUpTo(IReadOnlyList<PushbackPose> samples, int i)
     {
-        TugPose to = samples[i];
+        PushbackPose to = samples[i];
         if (i > 0)
         {
-            TugPose from = samples[i - 1];
+            PushbackPose from = samples[i - 1];
             double turnDeg = new TrueHeading(from.NoseTrueDeg).SignedAngleTo(new TrueHeading(to.NoseTrueDeg));
             double travelFt =
                 (GeoMath.DistanceNm(from.Position, to.Position) * GeoMath.FeetPerNm) + (_pulling.ReachFt * Math.Abs(turnDeg) * Math.PI / 180.0);
@@ -1222,14 +1202,14 @@ internal sealed class TugEmptyStands
                     from.Position.Lat + (fraction * (to.Position.Lat - from.Position.Lat)),
                     from.Position.Lon + (fraction * (to.Position.Lon - from.Position.Lon))
                 );
-                yield return new TugPose(position, from.NoseTrueDeg + (fraction * turnDeg));
+                yield return new PushbackPose(position, from.NoseTrueDeg + (fraction * turnDeg));
             }
         }
 
         yield return to;
     }
 
-    private void AddEntered(HashSet<string> entered, TugPose pose, PushbackLegKind kind, IReadOnlySet<string> excluded)
+    private void AddEntered(HashSet<string> entered, PushbackPose pose, PushbackLegKind kind, IReadOnlySet<string> excluded)
     {
         OutlinePoint reference = _frame.ToLocal(pose.Position);
         GroundOutline? mover = null;
@@ -1464,7 +1444,7 @@ internal sealed class TugPlanBuilder
     /// </summary>
     internal IReadOnlyList<TugBandChoice> BandChoices => _bandChoices;
 
-    private TugPose _end;
+    private PushbackPose _end;
     private PushbackLegKind? _lastKind;
     private TugRun? _run;
     private readonly List<TugPlanWarning> _warnings = [];
@@ -2669,7 +2649,7 @@ internal sealed class TugPlanBuilder
         TugMove move = last.Move;
         var line = new TrueHeading(move.LineTravelTrueDeg);
         LatLon? previous = null;
-        foreach (TugPose sample in last.Samples)
+        foreach (PushbackPose sample in last.Samples)
         {
             towFt += previous is { } from ? GeoMath.DistanceNm(from, sample.Position) * GeoMath.FeetPerNm : 0.0;
             previous = sample.Position;
@@ -2698,7 +2678,7 @@ internal sealed class TugPlanBuilder
             return names;
         }
 
-        TugPose start = request.Start;
+        PushbackPose start = request.Start;
         (IGroundEdge Edge, double DistanceFt)? behind = pathCheck.FirstCrossing(
             start.Position,
             start.TravelTrueDeg(PushbackLegKind.Push),
@@ -2823,7 +2803,7 @@ internal sealed class TugPlanBuilder
     /// </summary>
     private List<TugCandidate> FacedCandidates(ResolvedTugGoal goal, TugMove? pushOff)
     {
-        TugPose from = NewCandidate("probe", pushOff).End;
+        PushbackPose from = NewCandidate("probe", pushOff).End;
         double facing = goal.FacingTrueDeg;
         double stopOffFacingDeg = TugMovePlanner.AbsDiffDeg(GeoMath.BearingTo(from.Position, goal.Stop), facing);
         PushbackLegKind[] sides = goal.Goal.ForcedKind is { } forced ? [forced] : SidesFor(stopOffFacingDeg);
@@ -2955,7 +2935,7 @@ internal sealed class TugPlanBuilder
     /// </summary>
     private double? StraightThenLineStraightFt(ResolvedTugGoal goal, TugMove pushOff)
     {
-        TugPose from = NewCandidate("probe", pushOff).End;
+        PushbackPose from = NewCandidate("probe", pushOff).End;
         if ((LaneCrossingFt(goal, from) is not { } crossFt) || (PivotLeadFt(goal, from) is not { } leadFt))
         {
             return null;
@@ -3125,7 +3105,7 @@ internal sealed class TugPlanBuilder
     private List<TugCandidate> MultiPointCandidates(ResolvedTugGoal goal)
     {
         TugMove pushOff = _standPushOff;
-        TugPose from = NewCandidate("probe", pushOff).End;
+        PushbackPose from = NewCandidate("probe", pushOff).End;
         if ((goal.Goal.ForcedKind is not null) || (LaneCrossingFt(goal, from) is not { } crossFt))
         {
             return [];
@@ -3216,7 +3196,7 @@ internal sealed class TugPlanBuilder
     /// (the ramp lane through the spot); failing that, the push ray's intersection with the spot's approach line. Null
     /// when neither lies behind the aircraft.
     /// </summary>
-    private double? LaneCrossingFt(ResolvedTugGoal goal, TugPose from)
+    private double? LaneCrossingFt(ResolvedTugGoal goal, PushbackPose from)
     {
         double pushDeg = from.TravelTrueDeg(PushbackLegKind.Push);
         var laneNames = new HashSet<string>(
@@ -3260,11 +3240,11 @@ internal sealed class TugPlanBuilder
     /// pivot of <see cref="TugRun.MaxWanderDeg"/>, which no same-kind run may wander through without a turn, and where
     /// the lead grows without bound.
     /// </summary>
-    private double? PivotLeadFt(ResolvedTugGoal goal, TugPose from)
+    private double? PivotLeadFt(ResolvedTugGoal goal, PushbackPose from)
     {
         double pivotDeg = TugMovePlanner.AbsDiffDeg(
             from.TravelTrueDeg(PushbackLegKind.Push),
-            TugKinematics.FlipForKind(goal.FacingTrueDeg, PushbackLegKind.Push)
+            PushbackPose.FlipForKind(goal.FacingTrueDeg, PushbackLegKind.Push)
         );
         if (pivotDeg > TugRun.MaxWanderDeg)
         {
@@ -3293,12 +3273,12 @@ internal sealed class TugPlanBuilder
     /// </summary>
     private double LeadInDepartureFt(ResolvedTugGoal goal, TugCandidate candidate)
     {
-        TugPose start = _request.Start;
+        PushbackPose start = _request.Start;
         var lead = new TrueHeading(start.NoseTrueDeg);
         double halfNm = _request.Footprint.LengthFt / 2.0 / GeoMath.FeetPerNm;
         double radiusFt = TugKinematics.TurnRadiusFt(_request.Footprint, tight: false);
         double maxFt = 0.0;
-        foreach (TugPose pose in candidate.Traces.SelectMany(t => t.Samples))
+        foreach (PushbackPose pose in candidate.Traces.SelectMany(t => t.Samples))
         {
             double laneOffFt =
                 Math.Abs(GeoMath.SignedCrossTrackDistanceNm(pose.Position, goal.Stop, new TrueHeading(goal.FacingTrueDeg))) * GeoMath.FeetPerNm;
@@ -3328,8 +3308,8 @@ internal sealed class TugPlanBuilder
     private static double TotalRotationDeg(TugCandidate candidate)
     {
         double totalDeg = 0.0;
-        TugPose? previous = null;
-        foreach (TugPose pose in candidate.Traces.SelectMany(t => t.Samples))
+        PushbackPose? previous = null;
+        foreach (PushbackPose pose in candidate.Traces.SelectMany(t => t.Samples))
         {
             totalDeg += previous is { } last ? TugMovePlanner.AbsDiffDeg(last.NoseTrueDeg, pose.NoseTrueDeg) : 0.0;
             previous = pose;
@@ -3463,7 +3443,7 @@ internal sealed class TugPlanBuilder
         while (alongFt <= 3.0 * TugMovePlanner.MaxGoalDistanceFt)
         {
             GroundNode next = edge.OtherNode(at);
-            List<LatLon> points = TugMovePlanner.EdgePointsFrom(edge, at);
+            List<LatLon> points = EdgeGeometry.PointsFrom(edge, at);
             double arrivalDeg = GeoMath.BearingTo(points[^2], points[^1]);
             for (int i = 0; i + 1 < points.Count; i++)
             {
@@ -3505,7 +3485,7 @@ internal sealed class TugPlanBuilder
         double travelDeg = GeoMath.BearingTo(from.Position, first.OtherNode(from).Position);
         for (int hop = 0; hop < 50; hop++)
         {
-            List<LatLon> points = TugMovePlanner.EdgePointsFrom(edge, at);
+            List<LatLon> points = EdgeGeometry.PointsFrom(edge, at);
             for (int i = 0; i + 1 < points.Count; i++)
             {
                 double segFt = GeoMath.DistanceNm(points[i], points[i + 1]) * GeoMath.FeetPerNm;
@@ -3804,7 +3784,7 @@ internal sealed class TugPlanBuilder
     /// planner chose this turn, the controller did not ask for a tight one.
     /// </summary>
     private static TugMove LineMove(ResolvedTugGoal goal, PushbackLegKind kind, LatLon? stopAt) =>
-        TugMove.ViaLine(kind, goal.Stop, TugKinematics.FlipForKind(goal.FacingTrueDeg, kind), stopAt);
+        TugMove.ViaLine(kind, goal.Stop, PushbackPose.FlipForKind(goal.FacingTrueDeg, kind), stopAt);
 
     /// <summary>
     /// A controller's <c>PUSH FACE</c> turn: on the tight radius when it rotates the nose more than
@@ -4167,7 +4147,7 @@ internal sealed class TugPlanBuilder
         var frame = new GroundOutlineFrame(_request.Start.Position);
         for (int i = 0; i < traces.Count; i++)
         {
-            List<(TugPose Pose, double AlongFt)> path = TugNeighbourSweep.RunPathFrom(traces, i);
+            List<(PushbackPose Pose, double AlongFt)> path = TugNeighbourSweep.RunPathFrom(traces, i);
             if (path.Count == 0)
             {
                 continue;
@@ -4279,7 +4259,7 @@ internal sealed class TugPlanBuilder
     private static double PastLineDeg(TugMoveTrace trace)
     {
         var line = new TrueHeading(trace.Move.LineTravelTrueDeg);
-        IReadOnlyList<TugPose> samples = trace.Samples;
+        IReadOnlyList<PushbackPose> samples = trace.Samples;
         if (samples.Count == 0)
         {
             return 0.0;

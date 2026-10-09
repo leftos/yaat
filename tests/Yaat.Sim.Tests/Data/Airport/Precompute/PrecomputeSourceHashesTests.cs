@@ -64,10 +64,10 @@ public class PrecomputeSourceHashesTests
             "Data/AirportSidecarCatalog.cs",
             "Data/AirportSidecarDefinition.cs",
             "Data/AirportSidecarLoader.cs",
-            "Data/Airport/TugMovePlanner.cs",
         ];
         string[] pushOnly =
         [
+            "Data/Airport/TugMovePlanner.cs",
             "Data/PrecomputeCache/design-group-envelopes.json",
             "Data/Airport/Precompute/PushTargetPlanner.cs",
             "Data/Airport/Precompute/DesignGroupEnvelopes.cs",
@@ -178,11 +178,14 @@ public class PrecomputeSourceHashesTests
                 .Where(relative => !relative.Contains("/Precompute/", StringComparison.Ordinal)),
         ];
         string[] excluded = [.. onDisk.Except(hashed)];
-        string[] hashedTypes = [.. hashed.SelectMany(relative => DeclaredTypes(Path.Combine(simRoot, relative))).Distinct(StringComparer.Ordinal)];
+        string[] hashedTypes =
+        [
+            .. hashed.SelectMany(relative => DeclaredTypesWithModifier(Path.Combine(simRoot, relative))).Distinct(StringComparer.Ordinal),
+        ];
         string[] excludedOnlyTypes =
         [
             .. excluded
-                .SelectMany(relative => DeclaredTypes(Path.Combine(simRoot, relative)))
+                .SelectMany(relative => DeclaredTypesWithModifier(Path.Combine(simRoot, relative)))
                 .Where(type => !hashedTypes.Contains(type, StringComparer.Ordinal))
                 .Distinct(StringComparer.Ordinal),
         ];
@@ -199,26 +202,76 @@ public class PrecomputeSourceHashesTests
         }
     }
 
+    /// <summary>
+    /// The tug planner's files sit in the push set only, and the pieces layout code shares with them live in non-Tug
+    /// files the layout set holds.
+    /// </summary>
+    [Fact]
+    public void LayoutSetExcludes_TugFiles()
+    {
+        string simRoot = SimRoot();
+        string[] tugFiles =
+        [
+            .. Directory
+                .EnumerateFiles(Path.Combine(simRoot, "Data", "Airport"), "Tug*.cs", SearchOption.TopDirectoryOnly)
+                .Select(file => Path.GetRelativePath(simRoot, file).Replace('\\', '/')),
+        ];
+        string[] sharedHomes =
+        [
+            "Data/Airport/PushbackPose.cs",
+            "Data/Airport/NeighbourCandidate.cs",
+            "Data/Airport/PavementClassifier.cs",
+            "Data/Airport/EdgeGeometry.cs",
+            "Data/Airport/AircraftFootprint.cs",
+            "Data/Airport/MovementAreaClassification.cs",
+            "Data/Airport/AirplaneDesignGroup.cs",
+        ];
+
+        Assert.NotEmpty(tugFiles);
+        Assert.All(tugFiles, path => Assert.DoesNotContain(path, PrecomputeSourceHashes.LayoutFiles));
+        Assert.All(tugFiles, path => Assert.Contains(path, PrecomputeSourceHashes.PushTargetFiles));
+        Assert.All(sharedHomes, path => Assert.Contains(path, PrecomputeSourceHashes.LayoutFiles));
+    }
+
+    /// <summary>
+    /// An edit to a tug planner file, simulated by one extra byte in memory over the real file lists, moves the push
+    /// hash and leaves the layout hash as built.
+    /// </summary>
+    [Fact]
+    public void PlannerEdit_StalesPushHalfOnly()
+    {
+        const string plannerFile = "Data/Airport/TugMovePlanner.cs";
+        string simRoot = SimRoot();
+        byte[] edited = [.. File.ReadAllBytes(Path.Combine(simRoot, plannerFile)), (byte)'\n'];
+        var overrides = new Dictionary<string, byte[]>(StringComparer.Ordinal) { [plannerFile] = edited };
+
+        Assert.Contains(plannerFile, PrecomputeSourceHashes.PushTargetFiles);
+        Assert.Equal(PrecomputeSourceHashes.Layout, SetHash(simRoot, PrecomputeSourceHashes.LayoutFiles, overrides));
+        Assert.NotEqual(PrecomputeSourceHashes.PushTargets, SetHash(simRoot, PrecomputeSourceHashes.PushTargetFiles, overrides));
+    }
+
     private static string SimRoot() => Path.Combine(TickRecorder.FindRepoRoot(), "src", "Yaat.Sim");
 
-    private static string SetHash(string simRoot, IEnumerable<string> relativePaths)
+    private static string SetHash(string simRoot, IEnumerable<string> relativePaths) =>
+        SetHash(simRoot, relativePaths, new Dictionary<string, byte[]>(StringComparer.Ordinal));
+
+    /// <summary>The set hash, reading each file's bytes from <paramref name="bytesOverride"/> where it names the file.</summary>
+    private static string SetHash(string simRoot, IEnumerable<string> relativePaths, IReadOnlyDictionary<string, byte[]> bytesOverride)
     {
         string[] ordered = [.. relativePaths.Select(relative => relative.Replace('\\', '/')).OrderBy(relative => relative, StringComparer.Ordinal)];
         var concatenated = new StringBuilder();
         foreach (string relative in ordered)
         {
-            concatenated.Append(Sha256Hex(File.ReadAllBytes(Path.Combine(simRoot, relative))));
+            byte[] bytes = bytesOverride.TryGetValue(relative, out byte[]? overridden)
+                ? overridden
+                : File.ReadAllBytes(Path.Combine(simRoot, relative));
+            concatenated.Append(Sha256Hex(bytes));
         }
 
         return Sha256Hex(Encoding.ASCII.GetBytes(concatenated.ToString()));
     }
 
     private static string Sha256Hex(byte[] bytes) => Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
-
-    private static IEnumerable<string> DeclaredTypes(string filePath) =>
-        Regex
-            .Matches(File.ReadAllText(filePath), @"(?:class|record|struct|interface|enum)\s+([A-Za-z_][A-Za-z0-9_]*)")
-            .Select(match => match.Groups[1].Value);
 
     /// <summary>
     /// Type declarations with an access modifier, so a doc-comment phrase such as "a record in" is not taken for a type

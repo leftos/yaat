@@ -2,41 +2,6 @@ using Microsoft.Extensions.Logging;
 
 namespace Yaat.Sim.Data.Airport;
 
-/// <summary>Which way the tug moves the aircraft over one leg of a ramp reposition.</summary>
-public enum PushbackLegKind
-{
-    /// <summary>Tail-first: the tug reverses the aircraft.</summary>
-    Push,
-
-    /// <summary>Nose-first: the tug tows the aircraft forward.</summary>
-    Pull,
-}
-
-/// <summary>
-/// Where a tug-moved aircraft is: the reference point that travels along the aircraft's own axis, and the way the
-/// nose points. The heading is normalised to [0, 360) on construction and on every <c>with</c>.
-/// </summary>
-/// <param name="Position">The aircraft reference point.</param>
-/// <param name="NoseTrueDeg">The nose heading, degrees true.</param>
-public readonly record struct TugPose(LatLon Position, double NoseTrueDeg)
-{
-    private readonly double _noseTrueDeg = new TrueHeading(NoseTrueDeg).Degrees;
-
-    /// <summary>The nose heading, degrees true, in [0, 360).</summary>
-    public double NoseTrueDeg
-    {
-        get => _noseTrueDeg;
-        init => _noseTrueDeg = new TrueHeading(value).Degrees;
-    }
-
-    /// <summary>
-    /// The direction the reference point travels on a move of <paramref name="kind"/>.
-    /// </summary>
-    /// <param name="kind">Push travels tail-first, pull travels nose-first.</param>
-    /// <returns>Degrees true: the nose's reciprocal on a push, the nose on a pull.</returns>
-    public double TravelTrueDeg(PushbackLegKind kind) => TugKinematics.FlipForKind(NoseTrueDeg, kind);
-}
-
 /// <summary>The path a <see cref="TugMove"/> steers along.</summary>
 public enum TugMoveShape
 {
@@ -165,7 +130,7 @@ public readonly record struct TugMoveProgress(LatLon Start, double StartTravelTr
     /// <param name="pose">The pose the move starts from.</param>
     /// <param name="move">The move.</param>
     /// <returns>Zero distance, not captured, no deviation.</returns>
-    public static TugMoveProgress Begin(TugPose pose, TugMove move) => new(pose.Position, pose.TravelTrueDeg(move.Kind), 0.0, false, 0.0);
+    public static TugMoveProgress Begin(PushbackPose pose, TugMove move) => new(pose.Position, pose.TravelTrueDeg(move.Kind), 0.0, false, 0.0);
 }
 
 /// <summary>One move as <see cref="TugKinematics.Simulate"/> flew it.</summary>
@@ -178,7 +143,7 @@ public sealed record TugMoveTrace
     /// The start pose, one pose about every 5 ft of travel, then the end pose (never repeated). Empty for a move
     /// skipped because an earlier one was unflyable.
     /// </summary>
-    public required IReadOnlyList<TugPose> Samples { get; init; }
+    public required IReadOnlyList<PushbackPose> Samples { get; init; }
 
     /// <summary>The move finished inside its travel budget.</summary>
     public required bool Completed { get; init; }
@@ -190,7 +155,7 @@ public sealed record TugMoveTrace
     public required double MaxTravelDeviationDeg { get; init; }
 
     /// <summary>Where the move ended, or where it gave up. For a skipped move, the pose it would have started from.</summary>
-    public required TugPose End { get; init; }
+    public required PushbackPose End { get; init; }
 
     /// <summary><see cref="TugMoveShape.ViaLine"/> only: the end's signed cross-track from the line, feet (positive = right).</summary>
     public required double? EndCrossTrackFt { get; init; }
@@ -212,7 +177,7 @@ public sealed record TugSimulation
     public required IReadOnlyList<TugMoveTrace> Moves { get; init; }
 
     /// <summary>The last move's end pose (the start when there are no moves).</summary>
-    public required TugPose End { get; init; }
+    public required PushbackPose End { get; init; }
 
     /// <summary>Every move finished inside its travel budget.</summary>
     public bool Completed => Moves.All(m => m.Completed);
@@ -309,7 +274,7 @@ public static class TugKinematics
     /// <param name="radiusFt">The turn radius, feet; must be positive.</param>
     /// <param name="stepFt">The step length, feet. Zero or less returns the current travel unchanged.</param>
     /// <returns>The new direction of travel, degrees true in [0, 360).</returns>
-    public static double SteerTravel(TugPose pose, TugMove move, TugMoveProgress progress, double radiusFt, double stepFt)
+    public static double SteerTravel(PushbackPose pose, TugMove move, TugMoveProgress progress, double radiusFt, double stepFt)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(radiusFt);
         double currentDeg = pose.TravelTrueDeg(move.Kind);
@@ -329,10 +294,10 @@ public static class TugKinematics
     /// <param name="travelTrueDeg">The direction of travel for this step, degrees true.</param>
     /// <param name="stepFt">The step length, feet.</param>
     /// <returns>The new pose: nose on the travel for a pull, on its reciprocal for a push.</returns>
-    public static TugPose Advance(TugPose pose, TugMove move, double travelTrueDeg, double stepFt)
+    public static PushbackPose Advance(PushbackPose pose, TugMove move, double travelTrueDeg, double stepFt)
     {
         LatLon position = GeoMath.ProjectPoint(pose.Position, new TrueHeading(travelTrueDeg), stepFt / GeoMath.FeetPerNm);
-        return new TugPose(position, FlipForKind(travelTrueDeg, move.Kind));
+        return new PushbackPose(position, PushbackPose.FlipForKind(travelTrueDeg, move.Kind));
     }
 
     /// <summary>
@@ -344,7 +309,7 @@ public static class TugKinematics
     /// <param name="move">The move being flown.</param>
     /// <param name="stepFt">The step length, feet.</param>
     /// <returns>The progress after the step.</returns>
-    public static TugMoveProgress Record(TugMoveProgress progress, TugPose pose, TugMove move, double stepFt)
+    public static TugMoveProgress Record(TugMoveProgress progress, PushbackPose pose, TugMove move, double stepFt)
     {
         double deviationDeg = AbsDiffDeg(pose.TravelTrueDeg(move.Kind), progress.StartTravelTrueDeg);
         bool captured = progress.Captured || ((move.Shape == TugMoveShape.ViaLine) && IsOnLine(pose, move));
@@ -367,7 +332,7 @@ public static class TugKinematics
     /// <param name="move">The move being flown.</param>
     /// <param name="progress">The move's progress.</param>
     /// <returns>True when the move is done.</returns>
-    public static bool IsComplete(TugPose pose, TugMove move, TugMoveProgress progress) =>
+    public static bool IsComplete(PushbackPose pose, TugMove move, TugMoveProgress progress) =>
         move.Shape switch
         {
             TugMoveShape.Straight => progress.DistanceFt >= move.StraightDistanceFt,
@@ -388,11 +353,11 @@ public static class TugKinematics
     /// <param name="footprint">The aircraft's dimensions; they set the turn radius.</param>
     /// <param name="stepFt">The step length, feet; must be positive.</param>
     /// <returns>One trace per move, and the end pose.</returns>
-    public static TugSimulation Simulate(TugPose start, IReadOnlyList<TugMove> moves, AircraftFootprint footprint, double stepFt)
+    public static TugSimulation Simulate(PushbackPose start, IReadOnlyList<TugMove> moves, AircraftFootprint footprint, double stepFt)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(stepFt);
         var traces = new List<TugMoveTrace>(moves.Count);
-        TugPose pose = start;
+        PushbackPose pose = start;
         bool flyable = true;
         foreach (TugMove move in moves)
         {
@@ -405,17 +370,13 @@ public static class TugKinematics
         return new TugSimulation { Moves = traces, End = pose };
     }
 
-    /// <summary>The nose for a direction of travel, or the travel for a nose: the reciprocal on a push, itself on a pull.</summary>
-    internal static double FlipForKind(double headingTrueDeg, PushbackLegKind kind) =>
-        new TrueHeading(kind == PushbackLegKind.Push ? headingTrueDeg + 180.0 : headingTrueDeg).Degrees;
-
-    private static TugMoveTrace SimulateMove(TugPose start, TugMove move, AircraftFootprint footprint, double stepFt)
+    private static TugMoveTrace SimulateMove(PushbackPose start, TugMove move, AircraftFootprint footprint, double stepFt)
     {
         double radiusFt = TurnRadiusFt(footprint, move.Tight);
         double budgetFt = TravelBudgetFt(start, move, radiusFt);
         var progress = TugMoveProgress.Begin(start, move);
-        TugPose pose = start;
-        var samples = new List<TugPose> { start };
+        PushbackPose pose = start;
+        var samples = new List<PushbackPose> { start };
         double sinceSampleFt = 0.0;
         bool completed = IsComplete(pose, move, progress);
         while (!completed && (progress.DistanceFt <= budgetFt))
@@ -464,7 +425,7 @@ public static class TugKinematics
         };
     }
 
-    private static TugMoveTrace SkippedTrace(TugPose pose, TugMove move) =>
+    private static TugMoveTrace SkippedTrace(PushbackPose pose, TugMove move) =>
         new()
         {
             Move = move,
@@ -478,7 +439,7 @@ public static class TugKinematics
             EndOvershootFt = null,
         };
 
-    private static double TravelBudgetFt(TugPose start, TugMove move, double radiusFt) =>
+    private static double TravelBudgetFt(PushbackPose start, TugMove move, double radiusFt) =>
         move.Shape switch
         {
             TugMoveShape.Straight => move.StraightDistanceFt + StraightBudgetSlackFt,
@@ -502,13 +463,13 @@ public static class TugKinematics
     /// <param name="progress">The move's progress so far.</param>
     /// <param name="radiusFt">The turn radius, feet; sets a line capture's roll-out.</param>
     /// <returns>The commanded direction of travel, degrees true.</returns>
-    public static double CommandedTravelDeg(TugPose pose, TugMove move, TugMoveProgress progress, double radiusFt) =>
+    public static double CommandedTravelDeg(PushbackPose pose, TugMove move, TugMoveProgress progress, double radiusFt) =>
         move.Shape switch
         {
             TugMoveShape.Straight => progress.StartTravelTrueDeg,
             TugMoveShape.ToPoint => GeoMath.BearingTo(pose.Position, move.Point),
             TugMoveShape.ViaLine => LineGuidanceDeg(pose, move, radiusFt),
-            TugMoveShape.TurnTo => FlipForKind(move.FacingTrueDeg, move.Kind),
+            TugMoveShape.TurnTo => PushbackPose.FlipForKind(move.FacingTrueDeg, move.Kind),
             _ => throw new ArgumentOutOfRangeException(nameof(move), move.Shape, "Unknown tug move shape"),
         };
 
@@ -516,7 +477,7 @@ public static class TugKinematics
     /// The roll-out law: the line direction turned toward the line by the intercept angle for the cross-track,
     /// blended linearly to zero within <see cref="LineBlendFt"/> of the line.
     /// </summary>
-    private static double LineGuidanceDeg(TugPose pose, TugMove move, double radiusFt)
+    private static double LineGuidanceDeg(PushbackPose pose, TugMove move, double radiusFt)
     {
         double crossFt = CrossTrackFt(pose.Position, move);
         double offLineFt = Math.Abs(crossFt);
@@ -533,7 +494,7 @@ public static class TugKinematics
     private static double InterceptDeg(double offLineFt, double rolloutFt) =>
         offLineFt >= rolloutFt ? MaxInterceptDeg : Math.Acos(1.0 - (offLineFt / rolloutFt)) * RadToDeg;
 
-    private static bool HasReachedPoint(TugPose pose, TugMove move)
+    private static bool HasReachedPoint(PushbackPose pose, TugMove move)
     {
         double offFt = FeetBetween(pose.Position, move.Point);
         if (offFt <= StopToleranceFt)
@@ -545,7 +506,7 @@ public static class TugKinematics
         return (offFt <= PassedPointToleranceFt) && (aheadFt <= 0.0);
     }
 
-    private static bool IsOnLine(TugPose pose, TugMove move) =>
+    private static bool IsOnLine(PushbackPose pose, TugMove move) =>
         (Math.Abs(CrossTrackFt(pose.Position, move)) <= CaptureCrossTrackFt)
         && (AbsDiffDeg(pose.TravelTrueDeg(move.Kind), move.LineTravelTrueDeg) <= CaptureTravelErrorDeg);
 

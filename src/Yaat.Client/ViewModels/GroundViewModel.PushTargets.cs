@@ -75,9 +75,9 @@ public partial class GroundViewModel
 
     /// <summary>The aircraft and its neighbours, as one Push back to… open saw them, for the live check.</summary>
     private sealed record PushLiveCheckInputs(
-        TugNeighbourCandidate Subject,
+        NeighbourCandidate Subject,
         AircraftFootprint Actual,
-        IReadOnlyList<TugNeighbourCandidate> Others,
+        IReadOnlyList<NeighbourCandidate> Others,
         LatLon Position
     );
 
@@ -87,7 +87,7 @@ public partial class GroundViewModel
     /// </summary>
     private sealed class PushOrigin
     {
-        private PushOrigin(string? stand, TugPose? heldPose)
+        private PushOrigin(string? stand, PushbackPose? heldPose)
         {
             Stand = stand;
             HeldPose = heldPose;
@@ -97,7 +97,7 @@ public partial class GroundViewModel
         public string? Stand { get; }
 
         /// <summary>The held position and true heading, or null for a stand origin.</summary>
-        public TugPose? HeldPose { get; }
+        public PushbackPose? HeldPose { get; }
 
         /// <summary>The stand's name, or the held position (<see cref="PushTargetPlanner.HeldDescription"/>), for the log.</summary>
         public string Name =>
@@ -112,7 +112,7 @@ public partial class GroundViewModel
         public static PushOrigin AtStand(string stand) => new(stand, null);
 
         /// <summary>A push from where the aircraft is held after a pushback.</summary>
-        public static PushOrigin Held(TugPose heldPose) => new(null, heldPose);
+        public static PushOrigin Held(PushbackPose heldPose) => new(null, heldPose);
 
         /// <summary>
         /// Whether <paramref name="other"/> starts from the same origin: the same stand by name, or a held pose within
@@ -126,7 +126,7 @@ public partial class GroundViewModel
                 _ => false,
             };
 
-        private static bool CloseTo(TugPose a, TugPose b) =>
+        private static bool CloseTo(PushbackPose a, PushbackPose b) =>
             ((GeoMath.DistanceNm(a.Position, b.Position) * GeoMath.FeetPerNm) <= SameHeldPoseFt)
             && (new TrueHeading(a.NoseTrueDeg).AbsAngleTo(new TrueHeading(b.NoseTrueDeg)) <= SameHeldPoseDeg);
     }

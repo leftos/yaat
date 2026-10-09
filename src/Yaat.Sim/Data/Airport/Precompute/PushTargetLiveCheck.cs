@@ -12,7 +12,7 @@ public sealed record PushTargetLiveCheckRequest
     /// The aircraft where it stands: the stored moves are flown again from its pose, and its callsign tells it apart from
     /// <see cref="Others"/>.
     /// </summary>
-    public required TugNeighbourCandidate Subject { get; init; }
+    public required NeighbourCandidate Subject { get; init; }
 
     /// <summary>
     /// The aircraft's own dimensions: they set the outline the start overlap is read with, the turn radius the stored
@@ -24,7 +24,7 @@ public sealed record PushTargetLiveCheckRequest
     /// Every aircraft the caller can see; may include the subject. Only the parked or held ones count
     /// (<see cref="TugParkedNeighbours"/>).
     /// </summary>
-    public required IReadOnlyList<TugNeighbourCandidate> Others { get; init; }
+    public required IReadOnlyList<NeighbourCandidate> Others { get; init; }
 }
 
 /// <summary>What the live check found for one stored target.</summary>
@@ -90,7 +90,7 @@ public static class PushTargetLiveCheck
     /// The verdict on <paramref name="target"/> now. Blocked by a neighbour the aircraft's outline
     /// (<see cref="PushTargetLiveCheckRequest.Actual"/>) already touches where it stands, read with a tug and towbar ahead
     /// of the nose when the target opens with a pull
-    /// (<see cref="TugParkedNeighbours.FindStartOverlap(TugNeighbourCandidate, AircraftFootprint, bool, IEnumerable{TugNeighbourCandidate})"/>);
+    /// (<see cref="TugParkedNeighbours.FindStartOverlap(NeighbourCandidate, AircraftFootprint, bool, IEnumerable{NeighbourCandidate})"/>);
     /// else unflyable when the aircraft does not fly the stored moves to completion, or, for a plan whose last move is not a
     /// floating-stop line (<see cref="EndsOnAFloatingLine"/>), ends more than <see cref="EndDriftLimitFt"/> from the stored
     /// end (<see cref="EndDriftFt"/>); else blocked by the parked neighbour within reach of the re-flown path whose sweep
@@ -115,7 +115,7 @@ public static class PushTargetLiveCheck
             return PushTargetLiveVerdict.Clear;
         }
 
-        var start = new TugPose(request.Subject.Position, request.Subject.TrueHeadingDeg);
+        var start = new PushbackPose(request.Subject.Position, request.Subject.TrueHeadingDeg);
         List<TugMove> moves = [.. target.Moves.Select(m => m.ToMove())];
         TugSimulation flown = TugKinematics.Simulate(start, moves, request.Actual, TugMovePlanner.StepFt);
         if (!flown.Completed)
@@ -185,7 +185,7 @@ public static class PushTargetLiveCheck
     /// Of the parked neighbours within reach of the re-flown path (<see cref="TugParkedNeighbours.WithinReachOfPath"/>),
     /// the one whose sweep floor the path falls through first along it, or null when it keeps every floor.
     /// </summary>
-    private static string? FirstBlocker(PrecomputedPushTarget target, PushTargetLiveCheckRequest request, TugPose start, TugSimulation flown)
+    private static string? FirstBlocker(PrecomputedPushTarget target, PushTargetLiveCheckRequest request, PushbackPose start, TugSimulation flown)
     {
         var anchor = new TugRowAnchor(start, target.Moves[0].Kind);
         var rowClearances = new TugRowClearances();

@@ -35,7 +35,7 @@ internal static class TugNeighbourSweep
         double runStartFt = 0.0;
         for (int i = 0; (i < traces.Count) && (runStartFt < (firstFt ?? double.MaxValue)); i++)
         {
-            List<(TugPose Pose, double AlongFt)> path = RunPathFrom(traces, i);
+            List<(PushbackPose Pose, double AlongFt)> path = RunPathFrom(traces, i);
             if (path.Count > 0)
             {
                 GroundOutlineSweepResult swept = GroundOutlineSweep.Sweep(
@@ -78,7 +78,7 @@ internal static class TugNeighbourSweep
         foreach (TugMoveTrace trace in traces)
         {
             var moverSize = GroundOutlineSize.Of(mover, towedNoseFirst: trace.Move.Kind == PushbackLegKind.Pull);
-            foreach (TugPose pose in trace.Samples)
+            foreach (PushbackPose pose in trace.Samples)
             {
                 closestFt = Math.Min(
                     closestFt,
@@ -111,7 +111,7 @@ internal static class TugNeighbourSweep
                 rowAnchor,
                 mover,
                 neighbour.Callsign,
-                new TugPose(neighbour.Position, neighbour.TrueHeadingDeg),
+                new PushbackPose(neighbour.Position, neighbour.TrueHeadingDeg),
                 neighbour.Footprint
             )
             : null;
@@ -123,14 +123,14 @@ internal static class TugNeighbourSweep
     /// <param name="traces">The moves as flown, in order.</param>
     /// <param name="index">The move the run starts at.</param>
     /// <returns>The run's poses with their along-distances.</returns>
-    internal static List<(TugPose Pose, double AlongFt)> RunPathFrom(IReadOnlyList<TugMoveTrace> traces, int index)
+    internal static List<(PushbackPose Pose, double AlongFt)> RunPathFrom(IReadOnlyList<TugMoveTrace> traces, int index)
     {
-        var path = new List<(TugPose Pose, double AlongFt)>();
+        var path = new List<(PushbackPose Pose, double AlongFt)>();
         double alongFt = 0.0;
         LatLon? previous = null;
         for (int i = index; (i < traces.Count) && (traces[i].Move.Kind == traces[index].Move.Kind); i++)
         {
-            foreach (TugPose pose in traces[i].Samples)
+            foreach (PushbackPose pose in traces[i].Samples)
             {
                 alongFt += previous is { } from ? FeetBetween(from, pose.Position) : 0.0;
                 path.Add((pose, alongFt));

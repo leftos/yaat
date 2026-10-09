@@ -36,7 +36,7 @@ public class PushTaxiwayTailFacingTests
         Assert.True(result.Success, $"{command} failed: {result.Message}");
         List<TugMove> moves = [.. ac.Phases!.Phases.OfType<PushbackPhase>().Select(p => p.Move)];
         double facingTrue = TugKinematics
-            .Simulate(new TugPose(ac.Position, ac.TrueHeading.Degrees), moves, AircraftFootprint.FromType(ac.AircraftType), 1.0)
+            .Simulate(new PushbackPose(ac.Position, ac.TrueHeading.Degrees), moves, AircraftFootprint.FromType(ac.AircraftType), 1.0)
             .End.NoseTrueDeg;
         double hintTrue = MagneticDeclination.MagneticToTrue(hintMagneticDeg, layout.FindParkingByName("C8")!.Position);
         double offDeg = GeoMath.AbsBearingDifference(facingTrue, hintTrue);

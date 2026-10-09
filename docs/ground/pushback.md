@@ -6,7 +6,8 @@ Core code:
 
 | Piece | Where | Role |
 |---|---|---|
-| `TugKinematics`, `TugMove`, `TugPose`, `TugMoveProgress` | `src/Yaat.Sim/Data/Airport/TugKinematics.cs` | The motion body: pure, deterministic, no aircraft state. Used by the planner to simulate and by the phase to steer. |
+| `TugKinematics`, `TugMove`, `TugMoveProgress` | `src/Yaat.Sim/Data/Airport/TugKinematics.cs` | The motion body: pure, deterministic, no aircraft state. Used by the planner to simulate and by the phase to steer. |
+| `PushbackPose`, `PushbackLegKind` | `src/Yaat.Sim/Data/Airport/PushbackPose.cs` | A pose (position and nose heading) and the leg kind it travels in, shared by the tug planner, `PushbackPhase` and the layout's ground outline. |
 | `TugMovePlanner`, `TugGoal`, `TugRequest`, `TugPlan`, `TugAmendment` | `src/Yaat.Sim/Data/Airport/TugMovePlanner.cs` | Turns goals into a chain of moves, simulates every candidate, drops the unflyable or unsafe ones, keeps the best. |
 | `TugPathCheck` | `src/Yaat.Sim/Data/Airport/TugPathCheck.cs` | The flown-path check: runways, holding positions, the hold band, then the overshoot past the goal taxiway (taxiway goals) or movement-area pavement the move was not sent to (other goals). |
 | `TugTaxiwayClearance`, `AirplaneDesignGroups` | `src/Yaat.Sim/Data/Airport/TugTaxiwayClearance.cs`, `AirplaneDesignGroup.cs` | The alley clearance: how far a candidate's outline reaches into the movement-area taxiways' object-free areas, and each taxiway's design group. |
@@ -134,7 +135,7 @@ SFO C9 `PUSHM $5A $5B` takes the fallback, since `PUSH $5B` comes no closer than
 
 `TugRequest.ParkedNeighbours` is every `IsParkedOrHeld` aircraft within 400 ft of the start pose, excluding the subject and any neighbour already inside the 0.5 ft slack at the start (that one is `OverlapRefusal`'s own message).
 
-It is built by `TugParkedNeighbours.Build` over `TugNeighbourCandidate`s — the server maps its `AircraftState`s, the client's preview its `AircraftModel`s, both through `GroundConflictDetector.IsParkedOrHeld`'s plain-input overload; `TugParkedNeighbours.RangeFt` = 400 ft is a search radius covering the 2,000 ft goal reach's neighbouring stands, not an aviation figure.
+It is built by `TugParkedNeighbours.Build` over `NeighbourCandidate`s — the server maps its `AircraftState`s, the client's preview its `AircraftModel`s, both through `GroundConflictDetector.IsParkedOrHeld`'s plain-input overload; `TugParkedNeighbours.RangeFt` = 400 ft is a search radius covering the 2,000 ft goal reach's neighbouring stands, not an aviation figure.
 
 `TugPlanBuilder.Judge` (`NeighbourRefusal`) sweeps it against each candidate: every move from its own start pose together with the moves flown through before the first reversal, the same run the detector brakes for, with the same floor (`GroundOutlineSweep.FloorFt`: `max(0.5, min(WingtipBufferFt, clearance at start) − 0.5)`).
 
@@ -262,7 +263,7 @@ The precompute cache ([CONTEXT.md](../../CONTEXT.md) *Precompute cache*) stores,
   A held aircraft has no seed, so its submenu shows `Computing targets…` until the plan lands.
 
   The client keeps one in-flight plan per callsign, shared by the quick-command and All Commands copies of the entry, and reuses it while the layout, design group and origin are the same: the same stand name, or a held pose within 1 ft and 1° of the earlier one.
-- **Staleness.** The entry's key carries the push-target algorithm hash and `AirportSidecarHash`, so an edit to the planner, the tug files or the airport's sidecar recomputes the push half only.
+- **Staleness.** The entry's key carries the push-target algorithm hash and `AirportSidecarHash`, so an edit to the planner, the tug files (`Tug*.cs`, outside the layout source set) or the airport's sidecar recomputes the push half only.
 - **Producing entries.** `dotnet run -c Release --project tools/Yaat.PrecomputeCache` computes the entry of every airport in `Data/PrecomputeCache/airports.txt` (the airports a training scenario names as `primaryAirportId` or an aircraft's `airportId` that have a vNAS ground map: 190), or of each `--airport`.
 
   An entry is keyed on the live vNAS NavData serial (the run fails when only a cached serial loads), the MD5 of the GeoJSON vNAS serves now (`GeoJsonMd5`), the sidecar hash and the source hashes; a current entry is skipped unless `--force`.

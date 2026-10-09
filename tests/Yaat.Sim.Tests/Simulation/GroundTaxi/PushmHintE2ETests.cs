@@ -155,7 +155,7 @@ public class PushmHintE2ETests(ITestOutputHelper output)
     {
         var request = new TugRequest
         {
-            Start = new TugPose(ac.Position, ac.TrueHeading.Degrees),
+            Start = new PushbackPose(ac.Position, ac.TrueHeading.Degrees),
             StartsAtStand = true,
             Footprint = AircraftFootprint.FromType(AircraftType),
             MovementArea = MovementAreaClassification.For(layout),

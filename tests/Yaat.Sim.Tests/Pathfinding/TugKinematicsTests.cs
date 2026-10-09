@@ -45,7 +45,7 @@ public class TugKinematicsTests
         }
 
         double travel = lane.TravelDeg + 90.0;
-        var start = new TugPose(OnLaneBeforeSixB(lane), travel);
+        var start = new PushbackPose(OnLaneBeforeSixB(lane), travel);
         TugMove move = TugMove.ViaLine(PushbackLegKind.Pull, lane.SixB.Position, lane.TravelDeg, stopAt: null) with { Tight = tight };
         double radiusFt = TugKinematics.TurnRadiusFt(AircraftFootprint.FromType(Narrowbody), tight);
 
@@ -55,8 +55,8 @@ public class TugKinematicsTests
         double worstCurvature = 0.0;
         for (int i = 1; i < trace.Samples.Count; i++)
         {
-            TugPose from = trace.Samples[i - 1];
-            TugPose to = trace.Samples[i];
+            PushbackPose from = trace.Samples[i - 1];
+            PushbackPose to = trace.Samples[i];
             double turnRad = TravelChangeDeg(from, to, PushbackLegKind.Pull) * Math.PI / 180.0;
             worstCurvature = Math.Max(worstCurvature, turnRad / FeetBetween(from.Position, to.Position));
         }
@@ -74,7 +74,7 @@ public class TugKinematicsTests
             return;
         }
 
-        var pose = new TugPose(OnLaneBeforeSixB(lane), lane.TravelDeg + 60.0);
+        var pose = new PushbackPose(OnLaneBeforeSixB(lane), lane.TravelDeg + 60.0);
         LatLon offset = GeoMath.ProjectPoint(pose.Position, new TrueHeading(lane.TravelDeg - 90.0), 40.0 / GeoMath.FeetPerNm);
         TugMove[] moves =
         [
@@ -83,7 +83,7 @@ public class TugKinematicsTests
             TugMove.ViaLine(PushbackLegKind.Pull, lane.SixB.Position, lane.TravelDeg, stopAt: null),
             TugMove.TurnTo(PushbackLegKind.Pull, lane.TravelDeg),
         ];
-        TugPose otherStart = pose with { NoseTrueDeg = lane.TravelDeg };
+        PushbackPose otherStart = pose with { NoseTrueDeg = lane.TravelDeg };
         double radiusFt = TugKinematics.TurnRadiusFt(AircraftFootprint.FromType(Narrowbody), tight: false);
 
         foreach (TugMove? move in moves)
@@ -116,7 +116,7 @@ public class TugKinematicsTests
             return;
         }
 
-        (TugPose start, TugMove? move) = startAt switch
+        (PushbackPose start, TugMove? move) = startAt switch
         {
             StartAt.OnLane => OnLinePullStart(lane, angleOffDeg),
             StartAt.SeventyFeetAbeam => AbeamPushStart(lane, TowardSixA(lane, 70.0), angleOffDeg),
@@ -163,7 +163,7 @@ public class TugKinematicsTests
             return;
         }
 
-        (TugPose start, TugMove? move) = AbeamPushStart(lane, lane.SixA.Position, 0.0);
+        (PushbackPose start, TugMove? move) = AbeamPushStart(lane, lane.SixA.Position, 0.0);
         double rolloutFt = TugKinematics.RolloutMarginRadii * TugKinematics.TurnRadiusFt(AircraftFootprint.FromType(Narrowbody), tight: false);
         double boundFt = (2.5 * rolloutFt) + SixAAbeamFt;
 
@@ -193,7 +193,7 @@ public class TugKinematicsTests
 
         double pushLineDeg = lane.TravelDeg + 180.0;
         LatLon stop = GeoMath.ProjectPoint(lane.SixB.Position, new TrueHeading(pushLineDeg), CaptureFirstStopFt / GeoMath.FeetPerNm);
-        var start = new TugPose(TowardSixA(lane, 70.0), lane.TravelDeg);
+        var start = new PushbackPose(TowardSixA(lane, 70.0), lane.TravelDeg);
         var move = TugMove.ViaLine(PushbackLegKind.Push, lane.SixB.Position, pushLineDeg, stop);
 
         TugMoveTrace trace = Assert.Single(TugKinematics.Simulate(start, [move], AircraftFootprint.FromType(Narrowbody), StepFt).Moves);
@@ -227,7 +227,7 @@ public class TugKinematicsTests
 
         double pushLineDeg = lane.TravelDeg + 180.0;
         LatLon staging = GeoMath.ProjectPoint(lane.SixB.Position, new TrueHeading(pushLineDeg), 100.0 / GeoMath.FeetPerNm);
-        var start = new TugPose(lane.SixA.Position, lane.TravelDeg);
+        var start = new PushbackPose(lane.SixA.Position, lane.TravelDeg);
         var move = TugMove.ViaLine(PushbackLegKind.Push, lane.SixB.Position, pushLineDeg, staging);
 
         TugMoveTrace trace = Assert.Single(TugKinematics.Simulate(start, [move], AircraftFootprint.FromType(Narrowbody), StepFt).Moves);
@@ -259,7 +259,7 @@ public class TugKinematicsTests
         var move = TugMove.ViaLine(PushbackLegKind.Pull, lane.SixB.Position, lane.TravelDeg, stop);
         LatLon position = TowardSixA(lane, 70.0);
         double towardLine = CrossTrackFt(position, move) > 0.0 ? -45.0 : 45.0;
-        var start = new TugPose(position, lane.TravelDeg + towardLine);
+        var start = new PushbackPose(position, lane.TravelDeg + towardLine);
 
         TugMoveTrace trace = Assert.Single(TugKinematics.Simulate(start, [move], AircraftFootprint.FromType(Narrowbody), StepFt).Moves);
 
@@ -286,9 +286,9 @@ public class TugKinematicsTests
             return;
         }
 
-        (TugPose start, TugMove _) = AbeamPushStart(lane, lane.SixA.Position, 45.0);
+        (PushbackPose start, TugMove _) = AbeamPushStart(lane, lane.SixA.Position, 45.0);
         var move = TugMove.ViaLine(kind, lane.SixB.Position, lane.TravelDeg + 180.0, stopAt: null);
-        TugPose pose = kind == PushbackLegKind.Push ? start : start with { NoseTrueDeg = start.NoseTrueDeg + 180.0 };
+        PushbackPose pose = kind == PushbackLegKind.Push ? start : start with { NoseTrueDeg = start.NoseTrueDeg + 180.0 };
         var progress = TugMoveProgress.Begin(pose, move);
         double radiusFt = TugKinematics.TurnRadiusFt(AircraftFootprint.FromType(Narrowbody), tight: false);
 
@@ -296,7 +296,7 @@ public class TugKinematicsTests
         for (; (steps < 600) && !TugKinematics.IsComplete(pose, move, progress); steps++)
         {
             double travel = TugKinematics.SteerTravel(pose, move, progress, radiusFt, StepFt);
-            TugPose next = TugKinematics.Advance(pose, move, travel, StepFt);
+            PushbackPose next = TugKinematics.Advance(pose, move, travel, StepFt);
             progress = TugKinematics.Record(progress, next, move, StepFt);
 
             double movedDeg = GeoMath.BearingTo(pose.Position, next.Position);
@@ -320,7 +320,7 @@ public class TugKinematicsTests
             return;
         }
 
-        var start = new TugPose(lane.SixB.Position, lane.TravelDeg);
+        var start = new PushbackPose(lane.SixB.Position, lane.TravelDeg);
         double facingDeg = lane.TravelDeg + 90.0;
         var move = TugMove.TurnTo(kind, facingDeg);
         double radiusFt = TugKinematics.TurnRadiusFt(AircraftFootprint.FromType(Narrowbody), tight: false);
@@ -338,7 +338,7 @@ public class TugKinematicsTests
             LocalFt(origin, trace.Samples[^1].Position)
         );
         double worstErrorFt = 0.0;
-        foreach (TugPose sample in trace.Samples)
+        foreach (PushbackPose sample in trace.Samples)
         {
             (double X, double Y) p = LocalFt(origin, sample.Position);
             worstErrorFt = Math.Max(worstErrorFt, Math.Abs(Math.Sqrt(Sq(p.X - centre.X) + Sq(p.Y - centre.Y)) - radiusFt));
@@ -379,7 +379,7 @@ public class TugKinematicsTests
             return;
         }
 
-        var start = new TugPose(lane.SixB.Position, lane.TravelDeg);
+        var start = new PushbackPose(lane.SixB.Position, lane.TravelDeg);
         LatLon abeam = GeoMath.ProjectPoint(start.Position, new TrueHeading(lane.TravelDeg + 90.0), 10.0 / GeoMath.FeetPerNm);
         TugMove[] moves = [TugMove.ToPoint(PushbackLegKind.Pull, abeam), TugMove.Straight(PushbackLegKind.Pull, 10.0)];
 
@@ -407,7 +407,7 @@ public class TugKinematicsTests
         }
 
         const double longStepFt = 2.0;
-        var start = new TugPose(OnLaneBeforeSixB(lane), lane.TravelDeg);
+        var start = new PushbackPose(OnLaneBeforeSixB(lane), lane.TravelDeg);
         LatLon ahead = GeoMath.ProjectPoint(start.Position, new TrueHeading(lane.TravelDeg), 11.0 / GeoMath.FeetPerNm);
         LatLon target = GeoMath.ProjectPoint(ahead, new TrueHeading(lane.TravelDeg + 90.0), 2.0 / GeoMath.FeetPerNm);
 
@@ -442,23 +442,23 @@ public class TugKinematicsTests
         GeoMath.ProjectPoint(lane.SixB.Position, new TrueHeading(lane.TravelDeg + 180.0), LaneRunUpFt / GeoMath.FeetPerNm);
 
     /// <summary>On the lane, pulling, with the travel <paramref name="angleOffDeg"/> off the lane direction.</summary>
-    private static (TugPose Start, TugMove Move) OnLinePullStart(Lane lane, double angleOffDeg)
+    private static (PushbackPose Start, TugMove Move) OnLinePullStart(Lane lane, double angleOffDeg)
     {
         var move = TugMove.ViaLine(PushbackLegKind.Pull, lane.SixB.Position, lane.TravelDeg, stopAt: null);
-        return (new TugPose(OnLaneBeforeSixB(lane), lane.TravelDeg + angleOffDeg), move);
+        return (new PushbackPose(OnLaneBeforeSixB(lane), lane.TravelDeg + angleOffDeg), move);
     }
 
     /// <summary>
     /// Off the lane at <paramref name="position"/>, pushing down the 6B lane (travel = lane reciprocal), with the
     /// travel turned <paramref name="angleOffDeg"/> toward the lane — the 6A → 6B reposition.
     /// </summary>
-    private static (TugPose Start, TugMove Move) AbeamPushStart(Lane lane, LatLon position, double angleOffDeg)
+    private static (PushbackPose Start, TugMove Move) AbeamPushStart(Lane lane, LatLon position, double angleOffDeg)
     {
         double lineDeg = lane.TravelDeg + 180.0;
         var move = TugMove.ViaLine(PushbackLegKind.Push, lane.SixB.Position, lineDeg, stopAt: null);
         double towardLine = CrossTrackFt(position, move) > 0.0 ? -angleOffDeg : angleOffDeg;
         double travel = lineDeg + towardLine;
-        return (new TugPose(position, travel + 180.0), move);
+        return (new PushbackPose(position, travel + 180.0), move);
     }
 
     /// <summary>The point <paramref name="distanceFt"/> from 6B on the way to 6A (6A sits abeam the lane).</summary>
@@ -484,7 +484,7 @@ public class TugKinematicsTests
     {
         double nearSign = 0.0;
         double overshootFt = 0.0;
-        foreach (TugPose sample in trace.Samples.Append(trace.End))
+        foreach (PushbackPose sample in trace.Samples.Append(trace.End))
         {
             double crossFt = CrossTrackFt(sample.Position, move);
             if ((nearSign == 0.0) && (Math.Abs(crossFt) > 0.5))
@@ -504,7 +504,7 @@ public class TugKinematicsTests
     private static double CrossTrackFt(LatLon point, TugMove move) =>
         GeoMath.SignedCrossTrackDistanceNm(point, move.Point, new TrueHeading(move.LineTravelTrueDeg)) * GeoMath.FeetPerNm;
 
-    private static double TravelChangeDeg(TugPose from, TugPose to, PushbackLegKind kind) =>
+    private static double TravelChangeDeg(PushbackPose from, PushbackPose to, PushbackLegKind kind) =>
         AbsDiffDeg(from.TravelTrueDeg(kind), to.TravelTrueDeg(kind));
 
     private static double AbsDiffDeg(double a, double b) => new TrueHeading(a).AbsAngleTo(new TrueHeading(b));

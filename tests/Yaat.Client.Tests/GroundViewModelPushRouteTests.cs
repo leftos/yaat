@@ -91,7 +91,7 @@ public class GroundViewModelPushRouteTests
         Assert.True(vm.AddPushWaypoint(3));
 
         // The path carries its own start, so nothing else has to be held alongside it to draw the first move.
-        TugPose first = vm.PushRoutePreview!.Moves[0].Samples[0];
+        PushbackPose first = vm.PushRoutePreview!.Moves[0].Samples[0];
         Assert.Equal(ac.Position.Lat, first.Position.Lat, 9);
         Assert.Equal(ac.Position.Lon, first.Position.Lon, 9);
         Assert.Equal(ac.Heading.Degrees, first.NoseTrueDeg, 9);
@@ -113,7 +113,7 @@ public class GroundViewModelPushRouteTests
         Assert.NotNull(vm.PushRoutePreview);
 
         // The path carries its own start, so the first leg runs from where the aircraft stands.
-        TugPose first = vm.PushRoutePreview!.Moves[0].Samples[0];
+        PushbackPose first = vm.PushRoutePreview!.Moves[0].Samples[0];
         Assert.Equal(ac.Position.Lat, first.Position.Lat, 9);
         Assert.Equal(ac.Position.Lon, first.Position.Lon, 9);
         Assert.Equal(ac.Heading.Degrees, first.NoseTrueDeg, 9);
@@ -799,7 +799,7 @@ public class GroundViewModelPushRouteTests
     private static TugRequest RequestFor(AirportGroundLayout layout, AircraftModel ac, List<TugGoal> goals) =>
         new()
         {
-            Start = new TugPose(ac.Position, ac.Heading.Degrees),
+            Start = new PushbackPose(ac.Position, ac.Heading.Degrees),
             StartsAtStand = ac.CurrentPhase == "At Parking",
             Footprint = AircraftFootprint.FromType(ac.AircraftType),
             MovementArea = MovementAreaClassification.For(layout),

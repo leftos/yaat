@@ -24,7 +24,7 @@ public sealed record AircraftFootprint
     public required double WingspanFt { get; init; }
 
     /// <summary>
-    /// Wheelbase, feet, from the FAA record; null when the record has none. <see cref="TugKinematics.TurnRadiusFt"/> falls
+    /// Wheelbase, feet, from the FAA record; null when the record has none. The tug's turn radius falls
     /// back by <see cref="Category"/> when it is null or not positive.
     /// </summary>
     public required double? WheelbaseFt { get; init; }

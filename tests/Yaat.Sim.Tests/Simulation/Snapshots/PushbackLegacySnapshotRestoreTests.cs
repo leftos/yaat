@@ -131,7 +131,7 @@ public class PushbackLegacySnapshotRestoreTests(ITestOutputHelper output)
         Assert.Equal(TugMoveShape.TurnTo, phase.Move.Shape);
         Assert.Equal(heading, phase.Move.FacingTrueDeg, 6);
 
-        AircraftState ac = Fly(ground, "LEG3", stand, new TugPose(stand.Position, standDeg), pushing: false, list);
+        AircraftState ac = Fly(ground, "LEG3", stand, new PushbackPose(stand.Position, standDeg), pushing: false, list);
 
         double offDeg = new TrueHeading(heading).AbsAngleTo(ac.TrueHeading);
         output.WriteLine($"nose {ac.TrueHeading.Degrees:F2}° vs heading {heading}° ({offDeg:F2}° off)");
@@ -153,7 +153,7 @@ public class PushbackLegacySnapshotRestoreTests(ITestOutputHelper output)
 
         GroundNode stand = GateNode(ground.Layout);
         double standDeg = Assert.NotNull(stand.TrueHeading).Degrees;
-        var pushed = new TugPose(
+        var pushed = new PushbackPose(
             GeoMath.ProjectPoint(stand.Position, new TrueHeading(standDeg).ToReciprocal(), PushedSoFarFt / GeoMath.FeetPerNm),
             standDeg
         );
@@ -228,7 +228,7 @@ public class PushbackLegacySnapshotRestoreTests(ITestOutputHelper output)
     }
 
     /// <summary>Spot 6A's approach: its node, its nose-out heading rounded as the old snapshot stored it, and the points on that line.</summary>
-    private sealed record SpotLine(GroundNode Node, int Heading, LatLon Stop, LatLon Staging, TugPose RunUp);
+    private sealed record SpotLine(GroundNode Node, int Heading, LatLon Stop, LatLon Staging, PushbackPose RunUp);
 
     private static SpotLine SpotApproach(AirportGroundLayout layout)
     {
@@ -237,7 +237,7 @@ public class PushbackLegacySnapshotRestoreTests(ITestOutputHelper output)
         int heading = (int)Math.Round(outDeg);
         (LatLon stop, LatLon staging) = TugMovePlanner.SpotStopGeometry(node, heading, AircraftFootprint.FromType(AircraftType));
         LatLon runUp = GeoMath.ProjectPoint(staging, new TrueHeading(heading), RunUpFt / GeoMath.FeetPerNm);
-        return new SpotLine(node, heading, stop, staging, new TugPose(runUp, heading));
+        return new SpotLine(node, heading, stop, staging, new PushbackPose(runUp, heading));
     }
 
     /// <summary>
@@ -341,7 +341,7 @@ public class PushbackLegacySnapshotRestoreTests(ITestOutputHelper output)
     /// Puts an aircraft on <paramref name="pose"/> with the restored phases — rolling tail-first at the push speed
     /// when <paramref name="pushing"/>, as a snapshot taken mid-push holds it — and ticks until no pushback runs.
     /// </summary>
-    private AircraftState Fly(SfoGround ground, string callsign, GroundNode node, TugPose pose, bool pushing, PhaseList phases)
+    private AircraftState Fly(SfoGround ground, string callsign, GroundNode node, PushbackPose pose, bool pushing, PhaseList phases)
     {
         AircraftState ac = SfoGroundHarness.SpawnAt(
             ground,

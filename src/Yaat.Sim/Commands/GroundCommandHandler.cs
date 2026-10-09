@@ -1460,10 +1460,10 @@ public static class GroundCommandHandler
     /// Every aircraft on the ground <paramref name="inputs"/> can list, as the neighbours a free-space leg keeps its
     /// wingtip buffer clear of.
     /// </summary>
-    private static IReadOnlyList<TugNeighbourCandidate> OtherGroundCandidates(SpotLineUpInputs inputs)
+    private static IReadOnlyList<NeighbourCandidate> OtherGroundCandidates(SpotLineUpInputs inputs)
     {
         IEnumerable<AircraftState> others = inputs.ListAircraft?.Invoke() ?? [];
-        return [.. others.Where(a => a.IsOnGround).Select(TugNeighbourCandidate.From)];
+        return [.. others.Where(a => a.IsOnGround).Select(NeighbourCandidate.From)];
     }
 
     /// <summary>
@@ -3466,7 +3466,7 @@ public static class GroundCommandHandler
             return new CommandResult(false, resolved.Refusal);
         }
 
-        TugPose start = PoseOf(aircraft);
+        PushbackPose start = PoseOf(aircraft);
         bool atStand = aircraft.Phases.CurrentPhase is AtParkingPhase;
         var request = new TugRequest
         {
@@ -4627,9 +4627,7 @@ public static class GroundCommandHandler
     /// <param name="listAircraft">Every aircraft in the world, or null when the caller has none.</param>
     /// <returns>The neighbours to plan around.</returns>
     private static IReadOnlyList<TugParkedNeighbour> ParkedNeighboursNear(AircraftState aircraft, Func<IReadOnlyList<AircraftState>>? listAircraft) =>
-        listAircraft is null
-            ? []
-            : TugParkedNeighbours.Build(TugNeighbourCandidate.From(aircraft), listAircraft().Select(TugNeighbourCandidate.From));
+        listAircraft is null ? [] : TugParkedNeighbours.Build(NeighbourCandidate.From(aircraft), listAircraft().Select(NeighbourCandidate.From));
 
     /// <summary>
     /// Why a planned tug move may not be installed: the aircraft's <see cref="GroundOutline"/> already touches or
@@ -4657,8 +4655,8 @@ public static class GroundCommandHandler
             return null;
         }
 
-        IEnumerable<TugNeighbourCandidate> others = listAircraft().Select(TugNeighbourCandidate.From);
-        var subject = TugNeighbourCandidate.From(aircraft);
+        IEnumerable<NeighbourCandidate> others = listAircraft().Select(NeighbourCandidate.From);
+        var subject = NeighbourCandidate.From(aircraft);
         if (TugParkedNeighbours.FindStartOverlap(subject, AircraftFootprint.FromType(subject.AircraftType), plan, others) is not { } overlap)
         {
             return null;
@@ -4816,7 +4814,7 @@ public static class GroundCommandHandler
             plan.Moves.Select(m => $"{m.Move.Kind} {m.Move.Shape}{(m.Move.DwellBefore ? " after a dwell" : "")} {m.PathLengthFt:F0} ft")
         );
 
-    private static TugPose PoseOf(AircraftState aircraft) => new(aircraft.Position, aircraft.TrueHeading.Degrees);
+    private static PushbackPose PoseOf(AircraftState aircraft) => new(aircraft.Position, aircraft.TrueHeading.Degrees);
 
     /// <summary>
     /// Resolves one tug-move target token to a goal by its sigil: <c>$</c> is a ramp spot, <c>@</c> a helipad or

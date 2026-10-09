@@ -479,7 +479,7 @@ public static class AirplaneDesignGroups
     /// <returns>Each piece's two ends.</returns>
     internal static IEnumerable<(OutlinePoint A, OutlinePoint B)> Pieces(GroundEdge edge, GroundOutlineFrame frame)
     {
-        List<OutlinePoint> points = [.. TugMovePlanner.EdgePointsFrom(edge, edge.Nodes[0]).Select(frame.ToLocal)];
+        List<OutlinePoint> points = [.. EdgeGeometry.PointsFrom(edge, edge.Nodes[0]).Select(frame.ToLocal)];
         for (int i = 0; i + 1 < points.Count; i++)
         {
             yield return (points[i], points[i + 1]);

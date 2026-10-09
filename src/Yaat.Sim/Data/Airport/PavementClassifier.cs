@@ -6,7 +6,7 @@ namespace Yaat.Sim.Data.Airport;
 /// agree. The caller passes the classification in: a tug plan its request's, every other caller the current navigation
 /// database's (<see cref="MovementAreaClassification.For"/>).
 /// </summary>
-internal sealed class TugPavementClassifier
+internal sealed class PavementClassifier
 {
     /// <summary>
     /// How close to either end of a leg movement-area pavement may be touched. A leg is allowed to reach a
@@ -20,7 +20,7 @@ internal sealed class TugPavementClassifier
     private readonly AirportGroundLayout _layout;
     private readonly MovementAreaClassification _movementArea;
 
-    internal TugPavementClassifier(AirportGroundLayout layout, MovementAreaClassification movementArea)
+    internal PavementClassifier(AirportGroundLayout layout, MovementAreaClassification movementArea)
     {
         _layout = layout;
         _movementArea = movementArea;

@@ -68,7 +68,7 @@ internal sealed class TugTaxiwayClearance
     /// <summary>The movement-area taxiways whose object-free area the outline already reaches into at <paramref name="pose"/>.</summary>
     /// <param name="pose">The pose.</param>
     /// <returns>The taxiway names.</returns>
-    internal IReadOnlySet<string> TaxiwaysFouledAt(TugPose pose)
+    internal IReadOnlySet<string> TaxiwaysFouledAt(PushbackPose pose)
     {
         var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         GroundOutline outline = OutlineAt(pose);
@@ -105,7 +105,7 @@ internal sealed class TugTaxiwayClearance
     /// <summary>The path's fouling, or — with <paramref name="firstFoulingOnly"/> — the first penetration found, its exposure unsummed.</summary>
     private TugTaxiwayFouling Scan(IReadOnlyList<TugMoveTrace> traces, IReadOnlySet<string> excluded, bool firstFoulingOnly)
     {
-        List<TugPose> poses = [.. traces.SelectMany(t => t.Samples)];
+        List<PushbackPose> poses = [.. traces.SelectMany(t => t.Samples)];
         List<(Piece Piece, double ReachableFt)> pieces =
         [
             .. Near(poses)
@@ -120,8 +120,8 @@ internal sealed class TugTaxiwayClearance
 
         TugTaxiwayFouling worst = TugTaxiwayFouling.Clear;
         double exposure = 0.0;
-        TugPose? previous = null;
-        foreach (TugPose pose in poses)
+        PushbackPose? previous = null;
+        foreach (PushbackPose pose in poses)
         {
             GroundOutline outline = OutlineAt(pose);
             OutlinePoint centre = _zones.Frame.ToLocal(pose.Position);
@@ -154,10 +154,10 @@ internal sealed class TugTaxiwayClearance
         };
     }
 
-    private GroundOutline OutlineAt(TugPose pose) => GroundOutline.At(_zones.Frame.ToLocal(pose.Position), pose.NoseTrueDeg, _size);
+    private GroundOutline OutlineAt(PushbackPose pose) => GroundOutline.At(_zones.Frame.ToLocal(pose.Position), pose.NoseTrueDeg, _size);
 
     /// <summary>The pieces that could come within their taxiway's half-width of the outline at any of the poses; none for no poses.</summary>
-    private IEnumerable<Piece> Near(IReadOnlyCollection<TugPose> poses)
+    private IEnumerable<Piece> Near(IReadOnlyCollection<PushbackPose> poses)
     {
         if (poses.Count == 0)
         {

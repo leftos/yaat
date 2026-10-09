@@ -83,13 +83,18 @@
   -->
   <ItemGroup>
     <!--
-      Route-pathfinder and navigator-facing helpers that no layout-build source (GeoJsonParser, the fillet generator)
-      and no tug-planner source (TugMovePlanner, TugPathCheck, TugTaxiwayClearance, MovementAreaClassification) reaches:
-      rg on each type name across the files that stay in finds no reference from them. Keeping a file in costs a needless
-      invalidation, excluding one that IS reached would bake a stale entry, so a doubtful file stays in. Precompute\ is
-      excluded here because the layout set never holds the cache's own types.
+      A file leaves the layout set only when no file that stays in names a type it declares, doc comments included:
+      PrecomputeSourceHashesTests word-matches every excluded file's type names across the layout set. Keeping a file in
+      costs a needless invalidation, excluding one that IS reached would bake a stale entry, so a doubtful file stays in.
+      The single files below are route-pathfinder and navigator-facing helpers no layout source reaches. The Tug*.cs glob
+      takes the tug planner out (TugMovePlanner, TugPathCheck, TugKinematics and the rest), so an edit to it stales only
+      the push half; what layout code shares with it lives in non-Tug files that stay in (PushbackPose, EdgeGeometry,
+      PavementClassifier, NeighbourCandidate, MovementAreaClassification, AircraftFootprint, AirplaneDesignGroup), and a
+      new Tug file joins the push set alone without an edit here. Precompute\ is excluded because the layout set never
+      holds the cache's own types.
     -->
     <PrecomputeLayoutExclude Include="Data\Airport\Precompute\**\*.cs" />
+    <PrecomputeLayoutExclude Include="Data\Airport\Tug*.cs" />
     <PrecomputeLayoutExclude Include="Data\Airport\AirportLayoutDownloader.cs" />
     <PrecomputeLayoutExclude Include="Data\Airport\GroundSpawnSnap.cs" />
     <PrecomputeLayoutExclude Include="Data\Airport\IAirportGroundData.cs" />

@@ -42,7 +42,7 @@ public class MarkedPointPushTests(ITestOutputHelper output)
             return;
         }
 
-        (string command, TugPose point) = Command(ground.Layout);
+        (string command, PushbackPose point) = Command(ground.Layout);
         AircraftState aircraft = SfoGroundHarness.SpawnParked(ground, Callsign, Narrowbody, Stand);
 
         CommandResult result = ground.Engine.SendCommand(Callsign, command);
@@ -70,7 +70,7 @@ public class MarkedPointPushTests(ITestOutputHelper output)
             return;
         }
 
-        (string command, TugPose point) = Command(ground.Layout);
+        (string command, PushbackPose point) = Command(ground.Layout);
         AircraftState uninterrupted = SfoGroundHarness.SpawnParked(ground, Callsign, Narrowbody, Stand);
         Assert.True(ground.Engine.SendCommand(Callsign, command).Success);
         int towSeconds = FlyToRest(ground.Engine);
@@ -120,7 +120,7 @@ public class MarkedPointPushTests(ITestOutputHelper output)
             return;
         }
 
-        (string command, TugPose _) = Command(ground.Layout);
+        (string command, PushbackPose _) = Command(ground.Layout);
         SfoGroundHarness.SpawnParked(ground, Callsign, Narrowbody, Stand);
         Assert.True(ground.Engine.SendCommand(Callsign, command).Success);
 
@@ -152,14 +152,14 @@ public class MarkedPointPushTests(ITestOutputHelper output)
     private const string KeepsItsPlanRefusal = "Unable, a forced push or a push to a marked point keeps its plan — issue a new PUSH to change it";
 
     /// <summary>The typed command, <c>PUSHM $6A ~lat/lon/facing</c>, and the pose it names: 6B's stop, nose-out, degrees true.</summary>
-    private static (string Command, TugPose Point) Command(AirportGroundLayout layout)
+    private static (string Command, PushbackPose Point) Command(AirportGroundLayout layout)
     {
         GroundNode sixB = layout.FindSpotNodeByName("6B") ?? throw new InvalidOperationException("SFO spot 6B missing");
         Assert.True(layout.TryGetSpotOutboundHeading(sixB, out double outbound));
         LatLon stop = TugMovePlanner.SpotStopGeometry(sixB, outbound, AircraftFootprint.FromType(Narrowbody)).Stop;
         var facing = new MagneticHeading(MagneticDeclination.TrueToMagnetic(outbound, stop));
         string command = string.Create(CultureInfo.InvariantCulture, $"PUSHM $6A ~{stop.Lat:F6}/{stop.Lon:F6}/{facing.ToDisplayString()}");
-        return (command, new TugPose(stop, outbound));
+        return (command, new PushbackPose(stop, outbound));
     }
 
     /// <summary>Ticks until the aircraft holds after the tow, stationary; the seconds it took, or -1 past the budget.</summary>
@@ -173,7 +173,7 @@ public class MarkedPointPushTests(ITestOutputHelper output)
             null
         );
 
-    private void AssertRestsOn(TugPose point, AircraftState aircraft)
+    private void AssertRestsOn(PushbackPose point, AircraftState aircraft)
     {
         double offFt = GeoMath.DistanceNm(aircraft.Position, point.Position) * GeoMath.FeetPerNm;
         double offDeg = aircraft.TrueHeading.AbsAngleTo(new TrueHeading(point.NoseTrueDeg));

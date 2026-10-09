@@ -2036,13 +2036,13 @@ public static class GroundConflictDetector
     {
         var moverFootprint = AircraftFootprint.FromType(mover.AircraftType);
         var obstacleFootprint = AircraftFootprint.FromType(obstacle.AircraftType);
-        IReadOnlyList<(TugPose Pose, double AlongFt)> path = tugMove.RemainingPath(mover, TugRunContinuation(mover));
+        IReadOnlyList<(PushbackPose Pose, double AlongFt)> path = tugMove.RemainingPath(mover, TugRunContinuation(mover));
         double? rowFt = mover.Ground.TowRowAnchor is { } anchor
             ? mover.Ground.TowRowClearances.RowClearanceFt(
                 anchor,
                 moverFootprint,
                 obstacle.Callsign,
-                new TugPose(obstacle.Position, obstacle.TrueHeading.Degrees),
+                new PushbackPose(obstacle.Position, obstacle.TrueHeading.Degrees),
                 obstacleFootprint
             )
             : null;
@@ -2880,7 +2880,7 @@ public static class GroundConflictDetector
                 .Select(p => new LatLon(p.Lat, p.Lon));
         }
 
-        return edge.Edge is GroundEdge straight ? TugMovePlanner.EdgePointsFrom(straight, edge.FromNode).Skip(1) : [edge.ToNode.Position];
+        return edge.Edge is GroundEdge straight ? EdgeGeometry.PointsFrom(straight, edge.FromNode).Skip(1) : [edge.ToNode.Position];
     }
 
     internal static bool ShareUpcomingNode(AircraftState subject, AircraftState reference)

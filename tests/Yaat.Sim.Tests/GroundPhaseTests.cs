@@ -129,7 +129,7 @@ public class GroundPhaseTests
             Move = move,
             PlannedEnd = TugKinematics
                 .Simulate(
-                    new TugPose(aircraft.Position, aircraft.TrueHeading.Degrees),
+                    new PushbackPose(aircraft.Position, aircraft.TrueHeading.Degrees),
                     [move],
                     AircraftFootprint.FromType(aircraft.AircraftType),
                     1.0
@@ -160,7 +160,7 @@ public class GroundPhaseTests
             Move = move,
             PlannedEnd = TugKinematics
                 .Simulate(
-                    new TugPose(aircraft.Position, aircraft.TrueHeading.Degrees),
+                    new PushbackPose(aircraft.Position, aircraft.TrueHeading.Degrees),
                     [move],
                     AircraftFootprint.FromType(aircraft.AircraftType),
                     1.0
@@ -187,7 +187,7 @@ public class GroundPhaseTests
             Move = move,
             PlannedEnd = TugKinematics
                 .Simulate(
-                    new TugPose(aircraft.Position, aircraft.TrueHeading.Degrees),
+                    new PushbackPose(aircraft.Position, aircraft.TrueHeading.Degrees),
                     [move],
                     AircraftFootprint.FromType(aircraft.AircraftType),
                     1.0
@@ -1344,7 +1344,7 @@ public class GroundPhaseTests
     public void PushbackPhase_StandPushOff_AmendableAndNoRampPriorityUntilItHasMoved()
     {
         AircraftState aircraft = MakeGroundAircraft(heading: 0);
-        var standPose = new TugPose(aircraft.Position, 0);
+        var standPose = new PushbackPose(aircraft.Position, 0);
         var move = TugMove.Straight(PushbackLegKind.Push, 100.0);
         var phase = new PushbackPhase
         {

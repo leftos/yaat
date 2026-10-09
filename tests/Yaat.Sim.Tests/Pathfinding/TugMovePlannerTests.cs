@@ -234,7 +234,7 @@ public class TugMovePlannerTests
     [Fact]
     public void LeastFoulingOf_WithinTheClearanceMargin_TheLeastSwingWins()
     {
-        var start = new TugPose(new LatLon(37.62, -122.386), 254.0);
+        var start = new PushbackPose(new LatLon(37.62, -122.386), 254.0);
         TugFoulingCandidate Fouling(string template, double peakFt, double exposureFtFt, double swingDeg) =>
             new(
                 new TugCandidate(template, AircraftFootprint.FromType(Narrowbody), start, previousKind: null),
@@ -276,7 +276,7 @@ public class TugMovePlannerTests
         var previous = new TrueHeading(plan.Moves[0].End.NoseTrueDeg);
         double runningDeg = 0.0;
         double maxDeg = 0.0;
-        foreach (TugPose sample in plan.Moves.Skip(1).SelectMany(m => m.Samples))
+        foreach (PushbackPose sample in plan.Moves.Skip(1).SelectMany(m => m.Samples))
         {
             var nose = new TrueHeading(sample.NoseTrueDeg);
             runningDeg += previous.SignedAngleTo(nose);
@@ -338,7 +338,7 @@ public class TugMovePlannerTests
         double closestFt = double.PositiveInfinity;
         for (int m = 0; m < plan.Moves.Count; m++)
         {
-            foreach (TugPose sample in plan.Moves[m].Samples)
+            foreach (PushbackPose sample in plan.Moves[m].Samples)
             {
                 LatLon nose = GeoMath.ProjectPoint(sample.Position, new TrueHeading(sample.NoseTrueDeg), halfLengthNm);
                 LatLon tail = GeoMath.ProjectPoint(sample.Position, new TrueHeading(sample.NoseTrueDeg + 180.0), halfLengthNm);
@@ -488,7 +488,7 @@ public class TugMovePlannerTests
         }
 
         GroundNode stand = Parking(layout, "D15");
-        var standPose = new TugPose(stand.Position, Assert.NotNull(stand.TrueHeading).Degrees);
+        var standPose = new PushbackPose(stand.Position, Assert.NotNull(stand.TrueHeading).Degrees);
         double facingDeg = standPose.NoseTrueDeg + 90.0;
 
         TugPlan clear = Assert.IsType<TugPlan>(TugMovePlanner.Plan(null, StandStart(stand, TugGoal.Clear()), out string clearRefusal));
@@ -519,7 +519,7 @@ public class TugMovePlannerTests
 
         GroundNode stand = Parking(layout, "B12");
         GroundNode exit = layout.FindExitByTaxiway(stand.Position, "Y") ?? throw new InvalidOperationException("no taxiway Y exit near B12");
-        var start = new TugPose(stand.Position, Assert.NotNull(stand.TrueHeading).Degrees + 180.0);
+        var start = new PushbackPose(stand.Position, Assert.NotNull(stand.TrueHeading).Degrees + 180.0);
 
         string refusal = Refusal(layout, OffStand(start, TugGoal.StraightBackTo(exit, "Y")));
 
@@ -537,7 +537,7 @@ public class TugMovePlannerTests
 
         GroundNode eighteen = Spot(layout, "18");
         var goal = TugGoal.Spot(Spot(layout, "33"));
-        var start = new TugPose(eighteen.Position, GeoMath.BearingTo(eighteen.Position, goal.Node!.Position));
+        var start = new PushbackPose(eighteen.Position, GeoMath.BearingTo(eighteen.Position, goal.Node!.Position));
 
         string refusal = Refusal(layout, OffStand(start, goal));
 
@@ -582,7 +582,7 @@ public class TugMovePlannerTests
         Assert.NotNull(hold);
         _output.WriteLine($"hold-short node {hold.Id} is {FeetBetween(hold.Position, eighteen.Position):F0} ft from spot 18");
         var goal = TugGoal.AtNode(hold, facingTrueDeg: null);
-        var start = new TugPose(eighteen.Position, GeoMath.BearingTo(eighteen.Position, hold.Position));
+        var start = new PushbackPose(eighteen.Position, GeoMath.BearingTo(eighteen.Position, hold.Position));
 
         string refusal = Refusal(layout, OffStand(start, goal));
 
@@ -696,7 +696,7 @@ public class TugMovePlannerTests
         double reversed = new TrueHeading(outbound).ToReciprocal().Degrees;
         var goal = TugGoal.FreePose(VirtualNode.Create(stop.Lat, stop.Lon), "north", reversed, "the marked point");
 
-        string refusal = Refusal(layout, OffStand(new TugPose(stop, outbound), goal));
+        string refusal = Refusal(layout, OffStand(new PushbackPose(stop, outbound), goal));
 
         Assert.Equal("Unable, the marked point cannot be reached facing north", refusal);
     }
@@ -797,7 +797,7 @@ public class TugMovePlannerTests
         }
 
         (GroundNode hold, GroundNode junction, double towardRunwayDeg) = FHoldNearestAf(layout);
-        TugPose start = PastTheBar(hold, towardRunwayDeg);
+        PushbackPose start = PastTheBar(hold, towardRunwayDeg);
 
         TugPlan plan = PlanOrFail(layout, OffStand(start, TugGoal.StraightBackTo(junction, "AF")));
 
@@ -821,7 +821,7 @@ public class TugMovePlannerTests
         }
 
         (GroundNode hold, _, double towardRunwayDeg) = FHoldNearestAf(layout);
-        TugPose start = PastTheBar(hold, towardRunwayDeg);
+        PushbackPose start = PastTheBar(hold, towardRunwayDeg);
         LatLon deeper = GeoMath.ProjectPoint(start.Position, new TrueHeading(towardRunwayDeg), 15.0 / GeoMath.FeetPerNm);
 
         string refusal = Refusal(
@@ -851,7 +851,7 @@ public class TugMovePlannerTests
         LatLon behind = GeoMath.ProjectPoint(junction.Position, new TrueHeading(towardRunwayDeg).ToReciprocal(), 100.0 / GeoMath.FeetPerNm);
         var onto = TugGoal.AtNode(VirtualNode.Create(hold.Position.Lat, hold.Position.Lon), facingTrueDeg: null);
 
-        string refusal = Refusal(layout, OffStand(new TugPose(behind, towardRunwayDeg), onto) with { Forced = true });
+        string refusal = Refusal(layout, OffStand(new PushbackPose(behind, towardRunwayDeg), onto) with { Forced = true });
 
         Assert.Contains("reaches a runway holding position", refusal, StringComparison.Ordinal);
     }
@@ -890,7 +890,7 @@ public class TugMovePlannerTests
         }
 
         (GroundNode hold, GroundNode junction, double towardRunwayDeg) = FHoldNearestAf(layout);
-        TugPose start = NoseOnTheBar(hold, towardRunwayDeg);
+        PushbackPose start = NoseOnTheBar(hold, towardRunwayDeg);
 
         TugPlan plan = PlanOrFail(layout, OffStand(start, TugGoal.StraightBackTo(junction, "AF")));
 
@@ -914,7 +914,7 @@ public class TugMovePlannerTests
         }
 
         (GroundNode hold, _, double towardRunwayDeg) = FHoldNearestAf(layout);
-        TugPose start = NoseOnTheBar(hold, towardRunwayDeg);
+        PushbackPose start = NoseOnTheBar(hold, towardRunwayDeg);
         LatLon deeper = GeoMath.ProjectPoint(hold.Position, new TrueHeading(towardRunwayDeg), 15.0 / GeoMath.FeetPerNm);
         var goal = TugGoal.AtNode(VirtualNode.Create(deeper.Lat, deeper.Lon), facingTrueDeg: null);
 
@@ -936,15 +936,15 @@ public class TugMovePlannerTests
     }
 
     /// <summary>A B738 facing the runway with its centre 30 ft past the holding position.</summary>
-    private static TugPose PastTheBar(GroundNode hold, double towardRunwayDeg) =>
+    private static PushbackPose PastTheBar(GroundNode hold, double towardRunwayDeg) =>
         new(GeoMath.ProjectPoint(hold.Position, new TrueHeading(towardRunwayDeg), 30.0 / GeoMath.FeetPerNm), towardRunwayDeg);
 
     /// <summary>A B738 facing the runway with its nose on the holding position: its centre half a length short of it.</summary>
-    private static TugPose NoseOnTheBar(GroundNode hold, double towardRunwayDeg)
+    private static PushbackPose NoseOnTheBar(GroundNode hold, double towardRunwayDeg)
     {
         double halfLengthFt = AircraftFootprint.FromType(Narrowbody).LengthFt / 2.0;
         LatLon centre = GeoMath.ProjectPoint(hold.Position, new TrueHeading(towardRunwayDeg).ToReciprocal(), halfLengthFt / GeoMath.FeetPerNm);
-        return new TugPose(centre, towardRunwayDeg);
+        return new PushbackPose(centre, towardRunwayDeg);
     }
 
     private static bool HasStraightEdge(GroundNode node, string taxiway) => node.Edges.OfType<GroundEdge>().Any(e => e.MatchesTaxiway(taxiway));
@@ -1396,7 +1396,7 @@ public class TugMovePlannerTests
         OutlineClearanceFt(request.Start, request.Footprint.TypeCode, neighbour);
 
     /// <summary>One pose's outline clearance from the neighbour, feet.</summary>
-    private static double OutlineClearanceFt(TugPose pose, string aircraftType, TugParkedNeighbour neighbour)
+    private static double OutlineClearanceFt(PushbackPose pose, string aircraftType, TugParkedNeighbour neighbour)
     {
         var frame = new GroundOutlineFrame(pose.Position);
         return GroundOutline.Clearance(
@@ -1561,7 +1561,7 @@ public class TugMovePlannerTests
         Assert.True(layout.TryGetSpotOutboundHeading(spot, out double outbound));
         LatLon rest = TugMovePlanner.SpotStopGeometry(spot, outbound, AircraftFootprint.FromType(Narrowbody)).Stop;
         TrueHeading behind = new TrueHeading(outbound).ToReciprocal();
-        TugRequest alone = OffStand(new TugPose(rest, outbound), MarkedPoint(rest, behind, 150.0, "the marked point")) with
+        TugRequest alone = OffStand(new PushbackPose(rest, outbound), MarkedPoint(rest, behind, 150.0, "the marked point")) with
         {
             PreviousKind = PushbackLegKind.Pull,
             Forced = false,
@@ -1641,7 +1641,7 @@ public class TugMovePlannerTests
         TugPlan viaFiveA = PlanOrFail(layout, StandStart(c9, TugGoal.Spot(fiveA), TugGoal.Spot(Spot(layout, "5B"))));
         int towEnd = viaFiveA.Moves.ToList().FindIndex(m => FeetBetween(m.End.Position, fiveARest) <= LegHandoverToleranceFt);
         Assert.True((towEnd >= 0) && (towEnd < (viaFiveA.Moves.Count - 1)), "PUSHM $5A $5B off C9 took no pass-through tow onto 5A");
-        IReadOnlyList<TugPose> arrivalFirst = viaFiveA.Moves[towEnd + 1].Samples;
+        IReadOnlyList<PushbackPose> arrivalFirst = viaFiveA.Moves[towEnd + 1].Samples;
         LatLon point = arrivalFirst[arrivalFirst.Count / 2].Position;
         _output.WriteLine($"the point is {FeetBetween(point, fiveARest):F0} ft from 5A's rest point, on the arrival's first move");
 
@@ -1833,7 +1833,7 @@ public class TugMovePlannerTests
 
     private static IEnumerable<GroundEdge> MovementAreaEdges(AirportGroundLayout layout, string taxiway)
     {
-        var pavement = new TugPavementClassifier(layout, MovementAreaClassification.For(layout));
+        var pavement = new PavementClassifier(layout, MovementAreaClassification.For(layout));
         return layout.AllEdges.OfType<GroundEdge>().Where(e => e.MatchesTaxiway(taxiway) && (pavement.MovementAreaName(e) is not null));
     }
 
@@ -1854,7 +1854,7 @@ public class TugMovePlannerTests
     private static TugRequest StandStart(GroundNode stand, string aircraftType, params TugGoal[] goals) =>
         new()
         {
-            Start = new TugPose(stand.Position, stand.TrueHeading!.Value.Degrees),
+            Start = new PushbackPose(stand.Position, stand.TrueHeading!.Value.Degrees),
             StartsAtStand = true,
             Footprint = AircraftFootprint.FromType(aircraftType),
             MovementArea = null,
@@ -1866,7 +1866,7 @@ public class TugMovePlannerTests
         };
 
     /// <summary>A narrowbody not on a stand and not under tow, sent to <paramref name="goal"/>.</summary>
-    private static TugRequest OffStand(TugPose start, TugGoal goal) =>
+    private static TugRequest OffStand(PushbackPose start, TugGoal goal) =>
         new()
         {
             Start = start,
@@ -1916,7 +1916,7 @@ public class TugMovePlannerTests
         return refusal;
     }
 
-    private void LogPlan(AirportGroundLayout layout, TugPose start, TugPlan plan)
+    private void LogPlan(AirportGroundLayout layout, PushbackPose start, TugPlan plan)
     {
         _output.WriteLine(
             $"start ({start.Position.Lat:F6}, {start.Position.Lon:F6}) nose {start.NoseTrueDeg:F1}°; "
@@ -1939,7 +1939,7 @@ public class TugMovePlannerTests
     /// The side test for the second goal: how far off 6B's nose-out the bearing to 6B's stop point is, seen from
     /// 6A's stop point and from where the first goal actually ended. At or under 90° the approach is a pull.
     /// </summary>
-    private void LogSideTest(AirportGroundLayout layout, GroundNode first, GroundNode second, TugPose firstGoalEnd)
+    private void LogSideTest(AirportGroundLayout layout, GroundNode first, GroundNode second, PushbackPose firstGoalEnd)
     {
         Assert.True(layout.TryGetSpotOutboundHeading(first, out double firstDeg));
         Assert.True(layout.TryGetSpotOutboundHeading(second, out double secondDeg));

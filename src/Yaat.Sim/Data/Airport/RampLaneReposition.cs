@@ -106,7 +106,7 @@ public sealed record RampConfinedRouteRequest
     /// Every aircraft on the ground the caller can see; may include the aircraft itself. The cut's straight leg may not
     /// pass within a wingtip buffer of one, or of the stand one is parked on.
     /// </summary>
-    public required IReadOnlyList<TugNeighbourCandidate> OtherGroundAircraft { get; init; }
+    public required IReadOnlyList<NeighbourCandidate> OtherGroundAircraft { get; init; }
 }
 
 /// <summary>What <see cref="RampLaneReposition.TryPlanSpotLineUp"/> re-plans a ramp line-up on a spot from.</summary>
@@ -146,7 +146,7 @@ public sealed record SpotLineUpRequest
     /// Every aircraft on the ground the caller can see; may include the aircraft itself. Neither free-space leg may
     /// pass within a wingtip buffer of one, or of the stand one is parked on.
     /// </summary>
-    public required IReadOnlyList<TugNeighbourCandidate> OtherGroundAircraft { get; init; }
+    public required IReadOnlyList<NeighbourCandidate> OtherGroundAircraft { get; init; }
 }
 
 /// <summary>
@@ -1167,7 +1167,7 @@ public static class RampLaneReposition
     /// straight taxi edge and no movement-area taxiway within its own half-span — an aircraft whose wing overhangs a
     /// movement-area taxiway is on the movement area, whatever lane lies nearer. A pushback earns nothing of its own:
     /// an aircraft pushed onto a taxiway is on that taxiway. Pavement is classified exactly as a tug move classifies
-    /// it (<see cref="TugPavementClassifier.MovementAreaName"/>): an edge is movement area only when none of its names
+    /// it (<see cref="PavementClassifier.MovementAreaName"/>): an edge is movement area only when none of its names
     /// is RAMP or a ramp taxilane. A spot cleared from here is a line-up to leave the ramp
     /// (<see cref="TryPlanSpotLineUp"/>).
     /// </summary>
@@ -1195,12 +1195,12 @@ public static class RampLaneReposition
     /// <summary>The nearest straight taxi edge to <paramref name="position"/> is apron or a ramp taxilane, not movement area.</summary>
     private static bool IsOffMovementArea(AirportGroundLayout layout, LatLon position) =>
         (layout.FindNearestTaxiEdge(position) is { } edge)
-        && (new TugPavementClassifier(layout, MovementAreaClassification.For(layout)).MovementAreaName(edge.Edge) is null);
+        && (new PavementClassifier(layout, MovementAreaClassification.For(layout)).MovementAreaName(edge.Edge) is null);
 
     /// <summary>Some straight movement-area edge lies within <paramref name="rangeFt"/> of <paramref name="position"/>.</summary>
     private static bool IsNearMovementArea(AirportGroundLayout layout, LatLon position, double rangeFt)
     {
-        var pavement = new TugPavementClassifier(layout, MovementAreaClassification.For(layout));
+        var pavement = new PavementClassifier(layout, MovementAreaClassification.For(layout));
         foreach (IGroundEdge edge in layout.AllEdges)
         {
             if (
@@ -1461,12 +1461,12 @@ public static class RampLaneReposition
         AirportGroundLayout layout,
         string callsign,
         double ownHalfSpanFt,
-        IReadOnlyList<TugNeighbourCandidate> others,
+        IReadOnlyList<NeighbourCandidate> others,
         LatLon from,
         LatLon to
     )
     {
-        foreach (TugNeighbourCandidate other in others)
+        foreach (NeighbourCandidate other in others)
         {
             if (string.Equals(other.Callsign, callsign, StringComparison.OrdinalIgnoreCase))
             {
@@ -1621,7 +1621,7 @@ public static class RampLaneReposition
         }
 
         string lane = names[0];
-        var pavement = new TugPavementClassifier(layout, MovementAreaClassification.For(layout));
+        var pavement = new PavementClassifier(layout, MovementAreaClassification.For(layout));
         var walks = laneEdges.Select(e => (Edge: e, Walk: WalkLane(spot, e, lane, pavement))).ToList();
         var exits = walks.Where(w => w.Walk.ReachesMovementArea).ToList();
         if (exits.Count != 1)
@@ -1645,7 +1645,7 @@ public static class RampLaneReposition
     /// taking the straightest continuation at each node, until a node touches movement-area pavement (the lane's
     /// movement-area end) or the lane ends on the ramp.
     /// </summary>
-    private static LaneWalk WalkLane(GroundNode spot, IGroundEdge first, string lane, TugPavementClassifier pavement)
+    private static LaneWalk WalkLane(GroundNode spot, IGroundEdge first, string lane, PavementClassifier pavement)
     {
         var nodes = new List<(GroundNode Node, double RunFt)>();
         var visited = new HashSet<int> { spot.Id };

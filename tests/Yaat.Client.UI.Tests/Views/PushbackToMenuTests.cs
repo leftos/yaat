@@ -360,7 +360,7 @@ public class PushbackToMenuTests(OakPushTargetSeedCopy seedCopy) : IClassFixture
         AirportGroundLayout layout = main.Ground.DomainLayout!;
         GroundNode stand = StandNode(layout, standName);
         TugRequest request = PushTargetPlanner.RequestFor(
-            new TugPose(stand.Position, stand.TrueHeading!.Value.Degrees),
+            new PushbackPose(stand.Position, stand.TrueHeading!.Value.Degrees),
             DesignGroupEnvelopes.LoadShipped().FootprintOf(AirplaneDesignGroup.III),
             MovementAreaClassification.Build(layout, NavigationDatabase.Instance.AirportSidecars),
             goal,
@@ -383,7 +383,7 @@ public class PushbackToMenuTests(OakPushTargetSeedCopy seedCopy) : IClassFixture
             main.Ground.DomainLayout!,
             DesignGroupEnvelopes.LoadShipped(),
             NavigationDatabase.Instance.AirportSidecars,
-            new TugPose(target.Position, target.Heading.Degrees),
+            new PushbackPose(target.Position, target.Heading.Degrees),
             AirplaneDesignGroup.III
         );
         Assert.NotNull(held);

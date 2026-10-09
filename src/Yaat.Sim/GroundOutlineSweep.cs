@@ -12,7 +12,7 @@ namespace Yaat.Sim;
 /// </summary>
 /// <param name="TowStartPose">The aircraft's pose where the tow began.</param>
 /// <param name="FirstKind">The tow's first move: a push slides the outline aft, a pull forward.</param>
-public readonly record struct TugRowAnchor(TugPose TowStartPose, PushbackLegKind FirstKind)
+public readonly record struct TugRowAnchor(PushbackPose TowStartPose, PushbackLegKind FirstKind)
 {
     /// <summary>The anchor as its snapshot DTO.</summary>
     /// <returns>The DTO.</returns>
@@ -29,7 +29,7 @@ public readonly record struct TugRowAnchor(TugPose TowStartPose, PushbackLegKind
     /// <param name="dto">The DTO.</param>
     /// <returns>The anchor.</returns>
     public static TugRowAnchor FromSnapshot(TugRowAnchorDto dto) =>
-        new(new TugPose(new LatLon(dto.Latitude, dto.Longitude), dto.NoseTrueDeg), dto.FirstKind);
+        new(new PushbackPose(new LatLon(dto.Latitude, dto.Longitude), dto.NoseTrueDeg), dto.FirstKind);
 }
 
 /// <summary>
@@ -40,7 +40,7 @@ public readonly record struct TugRowAnchor(TugPose TowStartPose, PushbackLegKind
 /// </summary>
 internal sealed class TugRowClearances
 {
-    private readonly record struct Measured(AircraftFootprint Mover, TugPose NeighbourPose, AircraftFootprint Neighbour, double? RowClearanceFt);
+    private readonly record struct Measured(AircraftFootprint Mover, PushbackPose NeighbourPose, AircraftFootprint Neighbour, double? RowClearanceFt);
 
     private readonly Dictionary<(TugRowAnchor Anchor, string Neighbour), Measured> _measured = [];
 
@@ -55,7 +55,7 @@ internal sealed class TugRowClearances
         TugRowAnchor anchor,
         AircraftFootprint mover,
         string neighbourCallsign,
-        TugPose neighbourPose,
+        PushbackPose neighbourPose,
         AircraftFootprint neighbour
     )
     {
@@ -105,7 +105,7 @@ internal readonly record struct GroundOutlineSweepResult(
 
 /// <summary>
 /// Sweeps a tug-moved aircraft's <see cref="GroundOutline"/> along a path against a parked or held neighbour's, and
-/// says where it first comes closer than the move is allowed to. One body, two callers: <see cref="TugMovePlanner"/>
+/// says where it first comes closer than the move is allowed to. One body, two callers: the tug planner
 /// judges a candidate with it before the move is planned, and <see cref="GroundConflictDetector"/> judges the move
 /// under way with it. A planner that measured this any other way would accept a swing the detector then dead-stops
 /// mid-manoeuvre.
@@ -217,8 +217,8 @@ internal static class GroundOutlineSweep
     /// <param name="obstacleSize">The neighbour's outline size.</param>
     /// <returns>The floor, the closest approach, and where the path first falls through the floor.</returns>
     internal static GroundOutlineSweepResult Sweep(
-        IReadOnlyList<(TugPose Pose, double AlongFt)> path,
-        TugPose startPose,
+        IReadOnlyList<(PushbackPose Pose, double AlongFt)> path,
+        PushbackPose startPose,
         double? rowClearanceFt,
         GroundOutlineFrame frame,
         GroundOutlineSize moverSize,
@@ -235,7 +235,7 @@ internal static class GroundOutlineSweep
         double closestFt = double.MaxValue;
         for (int i = 0; i < path.Count; i++)
         {
-            (TugPose pose, double alongFt) = path[i];
+            (PushbackPose pose, double alongFt) = path[i];
             if ((OutlinePoint.Distance(frame.ToLocal(pose.Position), obstacleCentre) - reachFt) >= floorFt)
             {
                 continue;
@@ -248,7 +248,7 @@ internal static class GroundOutlineSweep
                 continue;
             }
 
-            (TugPose Pose, double AlongFt) previous = path[Math.Max(0, i - 1)];
+            (PushbackPose Pose, double AlongFt) previous = path[Math.Max(0, i - 1)];
             double previousClearanceFt = ClearanceAt(previous.Pose, frame, moverSize, obstacleOutline);
             double crossingFt = FloorCrossingAlongFt(floorFt, (previous.AlongFt, previousClearanceFt), (alongFt, clearanceFt));
             var foul = new GroundOutlineFoul(i, alongFt, clearanceFt, crossingFt);
@@ -269,7 +269,7 @@ internal static class GroundOutlineSweep
     /// <param name="neighbourPose">Where the neighbour stands, with its nose.</param>
     /// <param name="neighbour">The neighbour's dimensions.</param>
     /// <returns>The floor, feet.</returns>
-    internal static double TowStartFloorFt(TugRowAnchor rowAnchor, AircraftFootprint mover, TugPose neighbourPose, AircraftFootprint neighbour)
+    internal static double TowStartFloorFt(TugRowAnchor rowAnchor, AircraftFootprint mover, PushbackPose neighbourPose, AircraftFootprint neighbour)
     {
         var frame = new GroundOutlineFrame(rowAnchor.TowStartPose.Position);
         var moverSize = GroundOutlineSize.Of(mover, towedNoseFirst: rowAnchor.FirstKind == PushbackLegKind.Pull);
@@ -296,9 +296,9 @@ internal static class GroundOutlineSweep
     /// <param name="neighbourPose">Where the neighbour stands, with its nose.</param>
     /// <param name="neighbour">The neighbour's dimensions.</param>
     /// <returns>The row clearance, feet, or null when it does not count.</returns>
-    internal static double? RowClearanceFt(TugRowAnchor anchor, AircraftFootprint mover, TugPose neighbourPose, AircraftFootprint neighbour)
+    internal static double? RowClearanceFt(TugRowAnchor anchor, AircraftFootprint mover, PushbackPose neighbourPose, AircraftFootprint neighbour)
     {
-        TugPose start = anchor.TowStartPose;
+        PushbackPose start = anchor.TowStartPose;
         if (new TrueHeading(start.NoseTrueDeg).AbsAngleTo(new TrueHeading(neighbourPose.NoseTrueDeg)) > RowAnchorNoseToleranceDeg)
         {
             return null;
@@ -342,7 +342,7 @@ internal static class GroundOutlineSweep
     /// <param name="moverSize">The mover's outline size.</param>
     /// <param name="obstacleOutline">The neighbour's outline, in the same frame.</param>
     /// <returns>The clearance, feet.</returns>
-    private static double ClearanceAt(TugPose pose, GroundOutlineFrame frame, GroundOutlineSize moverSize, GroundOutline obstacleOutline) =>
+    private static double ClearanceAt(PushbackPose pose, GroundOutlineFrame frame, GroundOutlineSize moverSize, GroundOutline obstacleOutline) =>
         GroundOutline.Clearance(GroundOutline.At(frame.ToLocal(pose.Position), pose.NoseTrueDeg, moverSize), obstacleOutline);
 
     /// <summary>

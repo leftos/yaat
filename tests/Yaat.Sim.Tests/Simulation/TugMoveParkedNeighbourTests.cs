@@ -131,7 +131,7 @@ public class TugMoveParkedNeighbourTests(ITestOutputHelper output)
     {
         var move = TugMove.Straight(PushbackLegKind.Pull, distanceFt);
         LatLon end = TugKinematics
-            .Simulate(new TugPose(start.Position, start.NoseTrueDeg), [move], AircraftFootprint.FromType(Narrowbody), 1.0)
+            .Simulate(new PushbackPose(start.Position, start.NoseTrueDeg), [move], AircraftFootprint.FromType(Narrowbody), 1.0)
             .End.Position;
         return new PushbackPhase
         {
@@ -211,7 +211,7 @@ public class TugMoveParkedNeighbourTests(ITestOutputHelper output)
     {
         var moves = mover.Phases!.Phases.OfType<PushbackPhase>().Where(p => p.Status != PhaseStatus.Completed).Select(p => p.Move).ToList();
         TugSimulation simulation = TugKinematics.Simulate(
-            new TugPose(mover.Position, mover.TrueHeading.Degrees),
+            new PushbackPose(mover.Position, mover.TrueHeading.Degrees),
             moves,
             AircraftFootprint.FromType(mover.AircraftType),
             1.0

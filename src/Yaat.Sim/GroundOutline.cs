@@ -163,10 +163,10 @@ internal readonly record struct GroundOutline(OutlineSegment Fuselage, OutlineSe
     /// <returns>The clearance between the two outlines, feet.</returns>
     public static double ClearanceBetween(AircraftState a, bool aTowedNoseFirst, AircraftState b) =>
         ClearanceBetween(
-            new TugPose(a.Position, a.TrueHeading.Degrees),
+            new PushbackPose(a.Position, a.TrueHeading.Degrees),
             AircraftFootprint.FromType(a.AircraftType),
             aTowedNoseFirst,
-            new TugPose(b.Position, b.TrueHeading.Degrees),
+            new PushbackPose(b.Position, b.TrueHeading.Degrees),
             AircraftFootprint.FromType(b.AircraftType)
         );
 
@@ -180,7 +180,13 @@ internal readonly record struct GroundOutline(OutlineSegment Fuselage, OutlineSe
     /// <param name="b">The other aircraft's pose.</param>
     /// <param name="bFootprint">The other aircraft's dimensions.</param>
     /// <returns>The clearance between the two outlines, feet.</returns>
-    public static double ClearanceBetween(TugPose a, AircraftFootprint aFootprint, bool aTowedNoseFirst, TugPose b, AircraftFootprint bFootprint)
+    public static double ClearanceBetween(
+        PushbackPose a,
+        AircraftFootprint aFootprint,
+        bool aTowedNoseFirst,
+        PushbackPose b,
+        AircraftFootprint bFootprint
+    )
     {
         var frame = new GroundOutlineFrame(a.Position);
         return Clearance(

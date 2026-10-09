@@ -85,7 +85,7 @@ public class Issue475StaggeredStandPushTests(ITestOutputHelper output)
         return (engine, layout);
     }
 
-    private static AircraftState Spawn(SimulationEngine engine, AirportGroundLayout layout, string callsign, TugPose pose)
+    private static AircraftState Spawn(SimulationEngine engine, AirportGroundLayout layout, string callsign, PushbackPose pose)
     {
         var aircraft = new AircraftState
         {
@@ -112,11 +112,11 @@ public class Issue475StaggeredStandPushTests(ITestOutputHelper output)
         return aircraft;
     }
 
-    private static TugPose StandPose(AirportGroundLayout layout, string standName)
+    private static PushbackPose StandPose(AirportGroundLayout layout, string standName)
     {
         GroundNode stand =
             layout.FindParkingByName(standName) ?? throw new InvalidOperationException($"{layout.AirportId} has no stand '{standName}'");
-        return new TugPose(stand.Position, Assert.NotNull(stand.TrueHeading).Degrees);
+        return new PushbackPose(stand.Position, Assert.NotNull(stand.TrueHeading).Degrees);
     }
 
     /// <summary>
@@ -126,8 +126,8 @@ public class Issue475StaggeredStandPushTests(ITestOutputHelper output)
     /// </summary>
     private double AssertStaggeredRow(AirportGroundLayout layout, AircraftState pusher, AircraftState neighbour)
     {
-        TugPose pushing = StandPose(layout, PushingStand);
-        TugPose staggered = StandPose(layout, StaggeredStand);
+        PushbackPose pushing = StandPose(layout, PushingStand);
+        PushbackPose staggered = StandPose(layout, StaggeredStand);
         var nose = new TrueHeading(pushing.NoseTrueDeg);
         double lateralFt = Math.Abs(GeoMath.SignedCrossTrackDistanceNm(staggered.Position, pushing.Position, nose) * GeoMath.FeetPerNm);
         double behindFt = -GeoMath.AlongTrackDistanceNm(staggered.Position, pushing.Position, nose) * GeoMath.FeetPerNm;
@@ -223,14 +223,14 @@ public class Issue475StaggeredStandPushTests(ITestOutputHelper output)
             return;
         }
 
-        TugPose stand = StandPose(layout, PushingStand);
+        PushbackPose stand = StandPose(layout, PushingStand);
         LatLon onPushLine = GeoMath.ProjectPoint(
             stand.Position,
             new TrueHeading(stand.NoseTrueDeg + 180.0),
             PushLineNeighbourAftFt / GeoMath.FeetPerNm
         );
         AircraftState pusher = Spawn(engine, layout, Pusher, stand);
-        AircraftState neighbour = Spawn(engine, layout, Neighbour, new TugPose(onPushLine, stand.NoseTrueDeg));
+        AircraftState neighbour = Spawn(engine, layout, Neighbour, new PushbackPose(onPushLine, stand.NoseTrueDeg));
 
         CommandResult result = engine.SendCommand(Pusher, "PUSH TE");
         Assert.True(result.Success, $"PUSH TE off gate {PushingStand} was refused: {result.Message}");
@@ -392,8 +392,8 @@ public class Issue475StaggeredStandPushTests(ITestOutputHelper output)
             return;
         }
 
-        TugPose mover = StandPose(layout, DeepRowStand);
-        TugPose staggered = StandPose(layout, DeepStaggeredStand);
+        PushbackPose mover = StandPose(layout, DeepRowStand);
+        PushbackPose staggered = StandPose(layout, DeepStaggeredStand);
         var nose = new TrueHeading(mover.NoseTrueDeg);
         double lateralFt = Math.Abs(GeoMath.SignedCrossTrackDistanceNm(staggered.Position, mover.Position, nose) * GeoMath.FeetPerNm);
         double behindFt = -GeoMath.AlongTrackDistanceNm(staggered.Position, mover.Position, nose) * GeoMath.FeetPerNm;
@@ -502,7 +502,7 @@ public class Issue475StaggeredStandPushTests(ITestOutputHelper output)
             return;
         }
 
-        TugPose stand = StandPose(layout, PushingStand);
+        PushbackPose stand = StandPose(layout, PushingStand);
         AircraftState pusher = Spawn(engine, layout, Pusher, stand);
         Spawn(engine, layout, Neighbour, StandPose(layout, StaggeredStand));
         Assert.True(engine.SendCommand(Pusher, "PUSH TE").Success);
@@ -513,12 +513,12 @@ public class Issue475StaggeredStandPushTests(ITestOutputHelper output)
 
         Assert.IsType<PushbackPhase>(pusher.Phases?.CurrentPhase);
         Assert.Equal(stand, Assert.NotNull(pusher.Ground.TowRowAnchor).TowStartPose);
-        TugPose redirectedAt = default;
+        PushbackPose redirectedAt = default;
         CommandResult? result = SendUntilTaken(
             engine,
             pusher,
             "PUSHM $E $C",
-            () => redirectedAt = new TugPose(pusher.Position, pusher.TrueHeading.Degrees)
+            () => redirectedAt = new PushbackPose(pusher.Position, pusher.TrueHeading.Degrees)
         );
         Assert.True(result?.Success, $"PUSHM $E $C was never taken mid-tow: {result?.Message}");
 

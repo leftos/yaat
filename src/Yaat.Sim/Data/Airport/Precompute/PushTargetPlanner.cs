@@ -128,7 +128,7 @@ public static class PushTargetPlanner
     /// <param name="startsAtStand">Whether <paramref name="start"/> is a stand the aircraft pushes off.</param>
     /// <returns>The request.</returns>
     public static TugRequest RequestFor(
-        TugPose start,
+        PushbackPose start,
         AircraftFootprint footprint,
         MovementAreaClassification movementArea,
         TugGoal goal,
@@ -222,7 +222,7 @@ public static class PushTargetPlanner
         AirportGroundLayout layout,
         DesignGroupEnvelopes designGroupEnvelopes,
         AirportSidecarCatalog sidecars,
-        TugPose heldPose,
+        PushbackPose heldPose,
         AirplaneDesignGroup group
     )
     {
@@ -267,7 +267,7 @@ public static class PushTargetPlanner
     /// <summary>A held pose as the log names it: <c>the held position {lat},{lon} heading {deg}</c>.</summary>
     /// <param name="heldPose">The aircraft's position and true heading where it is held.</param>
     /// <returns>The description, invariant culture.</returns>
-    public static string HeldDescription(TugPose heldPose) =>
+    public static string HeldDescription(PushbackPose heldPose) =>
         string.Create(
             CultureInfo.InvariantCulture,
             $"the held position {heldPose.Position.Lat:F6},{heldPose.Position.Lon:F6} heading {heldPose.NoseTrueDeg:F0}"
@@ -376,7 +376,7 @@ public static class PushTargetPlanner
     private static List<OriginCandidate> TaxiwayCandidates(
         AirportGroundLayout layout,
         MovementAreaClassification classification,
-        TugPose start,
+        PushbackPose start,
         string originDescription
     )
     {
@@ -404,7 +404,7 @@ public static class PushTargetPlanner
     }
 
     /// <summary>The origin's spot goals, the same for every design group, by name.</summary>
-    private static List<OriginCandidate> SpotCandidates(AirportGroundLayout layout, TugPose start, string originDescription)
+    private static List<OriginCandidate> SpotCandidates(AirportGroundLayout layout, PushbackPose start, string originDescription)
     {
         var candidates = new List<OriginCandidate>();
         IEnumerable<string> spots = layout
@@ -530,7 +530,7 @@ public static class PushTargetPlanner
             return [];
         }
 
-        double bearing = GeoMath.BearingTo(exitNode.Position, TugMovePlanner.EdgePointsFrom(edge, exitNode)[1]);
+        double bearing = GeoMath.BearingTo(exitNode.Position, EdgeGeometry.PointsFrom(edge, exitNode)[1]);
         return [.. new[] { RoundBearing(bearing), RoundBearing(bearing + 180.0) }.Order()];
     }
 
@@ -540,14 +540,14 @@ public static class PushTargetPlanner
         return rounded >= 360.0 ? 0.0 : rounded;
     }
 
-    private static bool WithinSearch(TugPose start, GroundNode node) =>
+    private static bool WithinSearch(PushbackPose start, GroundNode node) =>
         (GeoMath.DistanceNm(start.Position, node.Position) * GeoMath.FeetPerNm) <= CandidateSearchFt;
 
     /// <summary>
     /// Whether a plan ending at <paramref name="end"/> leaves an aircraft at <paramref name="start"/> where it is: within
     /// <see cref="StayPutDistanceFt"/> and <see cref="StayPutHeadingDeg"/> of it.
     /// </summary>
-    private static bool StaysPut(TugPose end, TugPose start) =>
+    private static bool StaysPut(PushbackPose end, PushbackPose start) =>
         ((GeoMath.DistanceNm(start.Position, end.Position) * GeoMath.FeetPerNm) <= StayPutDistanceFt)
         && (new TrueHeading(start.NoseTrueDeg).AbsAngleTo(new TrueHeading(end.NoseTrueDeg)) <= StayPutHeadingDeg);
 
@@ -562,7 +562,7 @@ public static class PushTargetPlanner
         AirportGroundLayout Layout,
         MovementAreaClassification MovementArea,
         string Description,
-        TugPose Start,
+        PushbackPose Start,
         bool StartsAtStand
     )
     {
@@ -575,13 +575,13 @@ public static class PushTargetPlanner
             MovementAreaClassification classification,
             GroundNode stand,
             double headingDeg
-        ) => new(layout, classification, $"stand {stand.Name}", new TugPose(stand.Position, headingDeg), StartsAtStand: true);
+        ) => new(layout, classification, $"stand {stand.Name}", new PushbackPose(stand.Position, headingDeg), StartsAtStand: true);
 
         /// <summary>A push from where an aircraft is held after a pushback, which starts at no stand.</summary>
         public static OriginContext ForHeld(
             AirportGroundLayout layout,
             MovementAreaClassification classification,
-            TugPose heldPose,
+            PushbackPose heldPose,
             string description
         ) => new(layout, classification, description, heldPose, StartsAtStand: false);
     }
@@ -597,7 +597,7 @@ public static class PushTargetPlanner
 
         public required string Group { get; init; }
 
-        public required TugPose Start { get; init; }
+        public required PushbackPose Start { get; init; }
 
         public required bool StartsAtStand { get; init; }
 

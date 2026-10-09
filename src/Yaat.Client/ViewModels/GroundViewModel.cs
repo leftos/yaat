@@ -1271,7 +1271,7 @@ public partial class GroundViewModel : ObservableObject
         ac.CurrentPhase switch
         {
             "At Parking" when !string.IsNullOrEmpty(ac.ParkingSpot) => PushOrigin.AtStand(ac.ParkingSpot),
-            "Holding After Pushback" => PushOrigin.Held(new TugPose(ac.Position, ac.Heading.Degrees)),
+            "Holding After Pushback" => PushOrigin.Held(new PushbackPose(ac.Position, ac.Heading.Degrees)),
             _ => null,
         };
 
@@ -3736,11 +3736,11 @@ public partial class GroundViewModel : ObservableObject
 
         // The neighbours are chosen by the same body the simulation plans the executed move with, from the aircraft
         // the server's world holds, so a push the server would refuse for a neighbour shows that refusal here.
-        TugNeighbourCandidate subject = TugCandidateOf(aircraft);
-        List<TugNeighbourCandidate> others = ServerWorldCandidates();
+        NeighbourCandidate subject = TugCandidateOf(aircraft);
+        List<NeighbourCandidate> others = ServerWorldCandidates();
         var request = new TugRequest
         {
-            Start = new TugPose(aircraft.Position, aircraft.Heading.Degrees),
+            Start = new PushbackPose(aircraft.Position, aircraft.Heading.Degrees),
             StartsAtStand = aircraft.CurrentPhase == "At Parking",
             Footprint = AircraftFootprint.FromType(aircraft.AircraftType),
             MovementArea = MovementAreaClassification.For(layout),
@@ -3801,8 +3801,8 @@ public partial class GroundViewModel : ObservableObject
     private static (TugPlan? Plan, string? Refusal) PlanPushPreview(
         AirportGroundLayout layout,
         TugRequest request,
-        TugNeighbourCandidate subject,
-        IReadOnlyList<TugNeighbourCandidate> others
+        NeighbourCandidate subject,
+        IReadOnlyList<NeighbourCandidate> others
     )
     {
         TugPlan? plan = TugMovePlanner.Plan(layout, request, out string refusal);
@@ -3820,14 +3820,14 @@ public partial class GroundViewModel : ObservableObject
     /// Every aircraft this view knows that the server's world holds. A delayed spawn is listed ahead of its spawn time
     /// but is not in the world yet, so the server's tug planning cannot see it and neither may the preview.
     /// </summary>
-    private List<TugNeighbourCandidate> ServerWorldCandidates()
+    private List<NeighbourCandidate> ServerWorldCandidates()
     {
         IReadOnlyList<AircraftModel> all = _aircraftProvider?.Invoke() ?? [];
         return [.. all.Where(ac => !ac.IsDelayed).Select(TugCandidateOf)];
     }
 
     /// <summary>The aircraft as the tug planner and the push-target live check see it.</summary>
-    internal static TugNeighbourCandidate TugCandidateOf(AircraftModel aircraft) =>
+    internal static NeighbourCandidate TugCandidateOf(AircraftModel aircraft) =>
         new()
         {
             Callsign = aircraft.Callsign,

@@ -933,7 +933,7 @@ public class SfoPushRouteE2ETests(ITestOutputHelper output)
     {
         var request = new TugRequest
         {
-            Start = new TugPose(ac.Position, ac.TrueHeading.Degrees),
+            Start = new PushbackPose(ac.Position, ac.TrueHeading.Degrees),
             StartsAtStand = false,
             Footprint = AircraftFootprint.FromType(ac.AircraftType),
             MovementArea = MovementAreaClassification.For(layout),

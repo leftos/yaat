@@ -295,7 +295,7 @@ public class SfoF8PushHintE2ETests(ITestOutputHelper output)
     {
         var request = new TugRequest
         {
-            Start = new TugPose(ac.Position, ac.TrueHeading.Degrees),
+            Start = new PushbackPose(ac.Position, ac.TrueHeading.Degrees),
             StartsAtStand = true,
             Footprint = AircraftFootprint.FromType(AircraftType),
             MovementArea = MovementAreaClassification.For(layout),
@@ -711,8 +711,8 @@ public class SfoF8PushHintE2ETests(ITestOutputHelper output)
 
         AircraftState parked = SfoGroundHarness.SpawnParked(ground, ParkedCallsign, ParkedType, "F6");
         AircraftState pusher = SfoGroundHarness.SpawnParked(ground, PusherCallsign, pusherType, "F5");
-        var standPose = new TugPose(pusher.Position, pusher.TrueHeading.Degrees);
-        var parkedPose = new TugPose(parked.Position, parked.TrueHeading.Degrees);
+        var standPose = new PushbackPose(pusher.Position, pusher.TrueHeading.Degrees);
+        var parkedPose = new PushbackPose(parked.Position, parked.TrueHeading.Degrees);
         double floorFt = GroundOutlineSweep.TowStartFloorFt(
             new TugRowAnchor(standPose, PushbackLegKind.Push),
             AircraftFootprint.FromType(pusherType),
@@ -721,10 +721,7 @@ public class SfoF8PushHintE2ETests(ITestOutputHelper output)
         );
         double rowGapFt = RowGapFt(standPose, pusherType, parkedPose, ParkedType);
         double startFt = GroundOutline.ClearanceBetween(pusher, false, parked);
-        IReadOnlyList<TugParkedNeighbour> neighbours = TugParkedNeighbours.Build(
-            TugNeighbourCandidate.From(pusher),
-            [TugNeighbourCandidate.From(parked)]
-        );
+        IReadOnlyList<TugParkedNeighbour> neighbours = TugParkedNeighbours.Build(NeighbourCandidate.From(pusher), [NeighbourCandidate.From(parked)]);
         string command = $"PUSH ${spotName}";
         CommandResult result = ground.Engine.SendCommand(pusher.Callsign, command);
         output.WriteLine(
@@ -767,7 +764,7 @@ public class SfoF8PushHintE2ETests(ITestOutputHelper output)
     /// The wingtip gap of the row two parked aircraft stand in, feet: the neighbour's offset from the mover's fuselage axis
     /// less the two half-wingspans.
     /// </summary>
-    private static double RowGapFt(TugPose mover, string moverType, TugPose neighbour, string neighbourType)
+    private static double RowGapFt(PushbackPose mover, string moverType, PushbackPose neighbour, string neighbourType)
     {
         double lateralFt =
             Math.Abs(GeoMath.SignedCrossTrackDistanceNm(neighbour.Position, mover.Position, new TrueHeading(mover.NoseTrueDeg))) * GeoMath.FeetPerNm;
@@ -786,7 +783,7 @@ public class SfoF8PushHintE2ETests(ITestOutputHelper output)
     /// </summary>
     private void AssertNoRoomierCandidateWasPassedOver(
         AirportGroundLayout layout,
-        TugPose standPose,
+        PushbackPose standPose,
         string pusherType,
         string spotName,
         IReadOnlyList<TugParkedNeighbour> neighbours
@@ -818,7 +815,7 @@ public class SfoF8PushHintE2ETests(ITestOutputHelper output)
     /// </summary>
     private static void AssertRoomBeyondTheBufferTies(
         AirportGroundLayout layout,
-        TugPose standPose,
+        PushbackPose standPose,
         string pusherType,
         IReadOnlyList<TugParkedNeighbour> neighbours
     )
@@ -835,7 +832,7 @@ public class SfoF8PushHintE2ETests(ITestOutputHelper output)
     /// </summary>
     private static TugPlanBuilder PlanAgain(
         AirportGroundLayout layout,
-        TugPose standPose,
+        PushbackPose standPose,
         string pusherType,
         string spotName,
         IReadOnlyList<TugParkedNeighbour> neighbours
@@ -877,11 +874,8 @@ public class SfoF8PushHintE2ETests(ITestOutputHelper output)
 
         AircraftState parked = SfoGroundHarness.SpawnParked(ground, ParkedCallsign, ParkedType, "E1");
         AircraftState pusher = SfoGroundHarness.SpawnParked(ground, PusherCallsign, pusherType, "F5");
-        var standPose = new TugPose(pusher.Position, pusher.TrueHeading.Degrees);
-        IReadOnlyList<TugParkedNeighbour> neighbours = TugParkedNeighbours.Build(
-            TugNeighbourCandidate.From(pusher),
-            [TugNeighbourCandidate.From(parked)]
-        );
+        var standPose = new PushbackPose(pusher.Position, pusher.TrueHeading.Degrees);
+        IReadOnlyList<TugParkedNeighbour> neighbours = TugParkedNeighbours.Build(NeighbourCandidate.From(pusher), [NeighbourCandidate.From(parked)]);
         const string command = "PUSH $7A";
         CommandResult result = ground.Engine.SendCommand(pusher.Callsign, command);
         output.WriteLine($"E1-OCCUPIED {pusherType} '{command}' off F5: success={result.Success} \"{result.Message}\"");

@@ -1535,7 +1535,7 @@ public sealed class GroundRenderer : IDisposable
             }
 
             var screen = new List<(float X, float Y)>(trace.Samples.Count);
-            foreach (TugPose sample in trace.Samples)
+            foreach (PushbackPose sample in trace.Samples)
             {
                 screen.Add(vp.LatLonToScreen(sample.Position.Lat, sample.Position.Lon));
             }

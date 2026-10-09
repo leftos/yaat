@@ -154,7 +154,7 @@ public class PushTargetLiveCheckTests(ITestOutputHelper output)
         int moveCount = 0;
         foreach (PushTargetEntry entry in OakSampleEntries.Value)
         {
-            TugPose start = StartOf(Stand(layout, entry.StandName));
+            PushbackPose start = StartOf(Stand(layout, entry.StandName));
             AircraftFootprint footprint = EnvelopeFootprint(entry.DesignGroup);
             foreach (PrecomputedPushTarget target in entry.Targets)
             {
@@ -210,7 +210,7 @@ public class PushTargetLiveCheckTests(ITestOutputHelper output)
     {
         TestVnasData.EnsureInitialized();
         AirportGroundLayout layout = PushTargetPlannerTests.Oak();
-        TugPose start = StartOf(Stand(layout, "26"));
+        PushbackPose start = StartOf(Stand(layout, "26"));
         List<PushTargetEntry> gate26 = [.. OakSampleEntries.Value.Where(e => e.StandName == "26")];
         Assert.NotEmpty(gate26);
         foreach (PushTargetEntry entry in gate26)
@@ -238,11 +238,11 @@ public class PushTargetLiveCheckTests(ITestOutputHelper output)
     {
         TestVnasData.EnsureInitialized();
         AirportGroundLayout layout = PushTargetPlannerTests.Oak();
-        TugPose start = StartOf(Stand(layout, "26"));
+        PushbackPose start = StartOf(Stand(layout, "26"));
         string group = GroupOf(Narrowbody);
         AircraftFootprint envelope = EnvelopeFootprint(group);
-        TugNeighbourCandidate subject = Parked(Subject, Narrowbody, start, "26");
-        List<TugNeighbourCandidate> others =
+        NeighbourCandidate subject = Parked(Subject, Narrowbody, start, "26");
+        List<NeighbourCandidate> others =
         [
             Parked("SWA25", Narrowbody, StartOf(Stand(layout, "25")), "25"),
             Parked("SWA27", Narrowbody, StartOf(Stand(layout, "27")), "27"),
@@ -319,7 +319,7 @@ public class PushTargetLiveCheckTests(ITestOutputHelper output)
     {
         TestVnasData.EnsureInitialized();
         AirportGroundLayout layout = PushTargetPlannerTests.Oak();
-        TugPose start = StartOf(Stand(layout, "27"));
+        PushbackPose start = StartOf(Stand(layout, "27"));
 
         PushTargetLiveVerdict verdict = PushTargetLiveCheck.Check(
             Target(OakRowEntries.Value, "27", GroupOf(Narrowbody), "TE"),
@@ -339,8 +339,8 @@ public class PushTargetLiveCheckTests(ITestOutputHelper output)
     {
         TestVnasData.EnsureInitialized();
         AirportGroundLayout layout = PushTargetPlannerTests.Oak();
-        TugPose start = StartOf(Stand(layout, "27"));
-        var onPushLine = new TugPose(Offset(start, 180.0, PushLineNeighbourAftFt), start.NoseTrueDeg);
+        PushbackPose start = StartOf(Stand(layout, "27"));
+        var onPushLine = new PushbackPose(Offset(start, 180.0, PushLineNeighbourAftFt), start.NoseTrueDeg);
 
         PushTargetLiveVerdict verdict = PushTargetLiveCheck.Check(
             Target(OakRowEntries.Value, "27", GroupOf(Narrowbody), "TE"),
@@ -360,7 +360,7 @@ public class PushTargetLiveCheckTests(ITestOutputHelper output)
     {
         TestVnasData.EnsureInitialized();
         AirportGroundLayout layout = PushTargetPlannerTests.Oak();
-        TugPose start = StartOf(Stand(layout, "25"));
+        PushbackPose start = StartOf(Stand(layout, "25"));
 
         PushTargetLiveVerdict verdict = PushTargetLiveCheck.Check(
             Target(OakRowEntries.Value, "25", GroupOf(Narrowbody), "TE"),
@@ -387,9 +387,9 @@ public class PushTargetLiveCheckTests(ITestOutputHelper output)
     {
         TestVnasData.EnsureInitialized();
         AirportGroundLayout layout = PushTargetPlannerTests.Sfo();
-        TugPose start = StartOf(Stand(layout, "D2"));
-        TugNeighbourCandidate subject = Parked("SKW3396", Regional, start, "D2");
-        List<TugNeighbourCandidate> others = [Parked("SKW3398", Regional, StartOf(Stand(layout, "D1")), "D1")];
+        PushbackPose start = StartOf(Stand(layout, "D2"));
+        NeighbourCandidate subject = Parked("SKW3396", Regional, start, "D2");
+        List<NeighbourCandidate> others = [Parked("SKW3398", Regional, StartOf(Stand(layout, "D1")), "D1")];
         IReadOnlyList<TugParkedNeighbour> neighbours = TugParkedNeighbours.Build(subject, others);
         Assert.Single(neighbours);
         string group = GroupOf(Regional);
@@ -437,11 +437,11 @@ public class PushTargetLiveCheckTests(ITestOutputHelper output)
         TestVnasData.EnsureInitialized();
         Assert.Equal("II", GroupOf(GroupTwoType));
         AirportGroundLayout layout = PushTargetPlannerTests.Oak();
-        TugPose start = StartOf(Stand(layout, "26"));
+        PushbackPose start = StartOf(Stand(layout, "26"));
         LatLon aft = Offset(start, 180.0, BesideTheLineAftFt);
-        var beside = new TugPose(Offset(new TugPose(aft, start.NoseTrueDeg), 90.0, BesideTheLineFt), start.NoseTrueDeg);
-        TugNeighbourCandidate subject = Parked(Subject, GroupTwoType, start, "26");
-        List<TugNeighbourCandidate> others = [Parked(Neighbour, Narrowbody, beside, null)];
+        var beside = new PushbackPose(Offset(new PushbackPose(aft, start.NoseTrueDeg), 90.0, BesideTheLineFt), start.NoseTrueDeg);
+        NeighbourCandidate subject = Parked(Subject, GroupTwoType, start, "26");
+        List<NeighbourCandidate> others = [Parked(Neighbour, Narrowbody, beside, null)];
         PrecomputedPushTarget target = Target(OakSampleEntries.Value, "26", "IV", "TC");
         Assert.All(target.Moves, m => Assert.Equal(TugMoveShape.Straight, m.Shape));
 
@@ -455,7 +455,7 @@ public class PushTargetLiveCheckTests(ITestOutputHelper output)
     /// <summary>
     /// A B738 already touching the aircraft on gate 26 is not a neighbour to plan around (<see cref="TugParkedNeighbours.Build"/>
     /// drops it), and the live push would be refused naming it
-    /// (<see cref="TugParkedNeighbours.FindStartOverlap(TugNeighbourCandidate, AircraftFootprint, TugPlan, IEnumerable{TugNeighbourCandidate})"/>);
+    /// (<see cref="TugParkedNeighbours.FindStartOverlap(NeighbourCandidate, AircraftFootprint, TugPlan, IEnumerable{NeighbourCandidate})"/>);
     /// every target is blocked by it.
     /// </summary>
     [Fact]
@@ -463,9 +463,9 @@ public class PushTargetLiveCheckTests(ITestOutputHelper output)
     {
         TestVnasData.EnsureInitialized();
         AirportGroundLayout layout = PushTargetPlannerTests.Oak();
-        TugPose start = StartOf(Stand(layout, "26"));
-        TugNeighbourCandidate subject = Parked(Subject, Narrowbody, start, "26");
-        TugNeighbourCandidate touching = Parked(Neighbour, Narrowbody, new TugPose(Offset(start, 90.0, TouchingOffsetFt), start.NoseTrueDeg), null);
+        PushbackPose start = StartOf(Stand(layout, "26"));
+        NeighbourCandidate subject = Parked(Subject, Narrowbody, start, "26");
+        NeighbourCandidate touching = Parked(Neighbour, Narrowbody, new PushbackPose(Offset(start, 90.0, TouchingOffsetFt), start.NoseTrueDeg), null);
         string group = GroupOf(Narrowbody);
         IReadOnlyList<PrecomputedPushTarget> targets = Target(OakSampleEntries.Value, "26", group);
         Assert.NotEmpty(targets);
@@ -512,7 +512,7 @@ public class PushTargetLiveCheckTests(ITestOutputHelper output)
         var footprint = AircraftFootprint.FromType(Narrowbody);
         TugSimulation onTe = Refly(Target(OakSampleEntries.Value, "26", GroupOf(Narrowbody), "TE"), StartOf(Stand(layout, "26")), footprint);
         Assert.True(onTe.Completed, "gate 26's PUSH TE did not fly to completion for a B738");
-        TugPose start = onTe.End;
+        PushbackPose start = onTe.End;
         var classification = MovementAreaClassification.Build(layout, PushTargetPlannerTests.Sidecars.Value);
         PrecomputedPushTarget pullFirst = LiveTarget(
             layout,
@@ -533,9 +533,9 @@ public class PushTargetLiveCheckTests(ITestOutputHelper output)
         Assert.Equal(PushbackLegKind.Pull, pullFirst.Moves[0].Kind);
         Assert.Equal(PushbackLegKind.Push, pushFirst.Moves[0].Kind);
 
-        TugNeighbourCandidate subject = Parked(Subject, Narrowbody, start, null);
-        var inLineAhead = new TugPose(Offset(start, 0.0, footprint.LengthFt + LeadOnlyGapFt), start.NoseTrueDeg);
-        TugNeighbourCandidate leadOnly = Parked(Neighbour, Narrowbody, inLineAhead, null);
+        NeighbourCandidate subject = Parked(Subject, Narrowbody, start, null);
+        var inLineAhead = new PushbackPose(Offset(start, 0.0, footprint.LengthFt + LeadOnlyGapFt), start.NoseTrueDeg);
+        NeighbourCandidate leadOnly = Parked(Neighbour, Narrowbody, inLineAhead, null);
         Assert.Null(TugParkedNeighbours.FindStartOverlap(subject, footprint, towedNoseFirst: false, [leadOnly]));
         Assert.NotNull(TugParkedNeighbours.FindStartOverlap(subject, footprint, towedNoseFirst: true, [leadOnly]));
         PushTargetLiveCheckRequest request = Request(subject, footprint, [leadOnly]);
@@ -554,7 +554,7 @@ public class PushTargetLiveCheckTests(ITestOutputHelper output)
     {
         TestVnasData.EnsureInitialized();
         AirportGroundLayout layout = PushTargetPlannerTests.Sfo();
-        TugPose start = StartOf(Stand(layout, "D2"));
+        PushbackPose start = StartOf(Stand(layout, "D2"));
         PrecomputedPushTarget spot5A = Target(SfoD2Entries.Value, "D2", "V", "5A");
         Assert.True(spot5A.PathLengthFt >= 500.0, $"{spot5A.Command} is {spot5A.PathLengthFt} ft");
         AircraftFootprint envelope = EnvelopeFootprint("V");
@@ -562,9 +562,9 @@ public class PushTargetLiveCheckTests(ITestOutputHelper output)
         Assert.True(flown.Completed);
         Assert.Equal(PushbackLegKind.Pull, flown.Moves[^1].Move.Kind);
         double aheadFt = (envelope.LengthFt / 2.0) + GroundOutline.TugLeadFt + HeldGapFt + (AircraftFootprint.FromType(Narrowbody).LengthFt / 2.0);
-        var heldPose = new TugPose(Offset(flown.End, 0.0, aheadFt), flown.End.NoseTrueDeg);
-        TugNeighbourCandidate subject = Parked(Subject, Narrowbody, start, "D2");
-        TugNeighbourCandidate held = Parked(Neighbour, Narrowbody, heldPose, null) with { IsImmobile = true, PhaseName = null };
+        var heldPose = new PushbackPose(Offset(flown.End, 0.0, aheadFt), flown.End.NoseTrueDeg);
+        NeighbourCandidate subject = Parked(Subject, Narrowbody, start, "D2");
+        NeighbourCandidate held = Parked(Neighbour, Narrowbody, heldPose, null) with { IsImmobile = true, PhaseName = null };
         double fromStandFt = GeoMath.DistanceNm(start.Position, heldPose.Position) * GeoMath.FeetPerNm;
         output.WriteLine($"{spot5A.Command}: {spot5A.PathLengthFt} ft; held aircraft {fromStandFt:F1} ft from the stand");
         Assert.True(fromStandFt > TugParkedNeighbours.RangeFt, $"the held aircraft is {fromStandFt:F1} ft from the stand");
@@ -584,12 +584,12 @@ public class PushTargetLiveCheckTests(ITestOutputHelper output)
     {
         TestVnasData.EnsureInitialized();
         AirportGroundLayout layout = PushTargetPlannerTests.Oak();
-        TugPose start = StartOf(Stand(layout, "26"));
+        PushbackPose start = StartOf(Stand(layout, "26"));
         PrecomputedPushTarget target = Target(OakSampleEntries.Value, "26", GroupOf(Narrowbody), "TC");
         Assert.All(target.Moves, m => Assert.Equal(TugMoveShape.Straight, m.Shape));
-        TugNeighbourCandidate near = Parked("SWA1", Narrowbody, new TugPose(Offset(start, 180.0, NearBlockerAftFt), start.NoseTrueDeg), null);
-        TugNeighbourCandidate far = Parked("SWA2", Narrowbody, new TugPose(Offset(start, 180.0, FarBlockerAftFt), start.NoseTrueDeg), null);
-        TugNeighbourCandidate subject = Parked(Subject, Narrowbody, start, "26");
+        NeighbourCandidate near = Parked("SWA1", Narrowbody, new PushbackPose(Offset(start, 180.0, NearBlockerAftFt), start.NoseTrueDeg), null);
+        NeighbourCandidate far = Parked("SWA2", Narrowbody, new PushbackPose(Offset(start, 180.0, FarBlockerAftFt), start.NoseTrueDeg), null);
+        NeighbourCandidate subject = Parked(Subject, Narrowbody, start, "26");
 
         PushTargetLiveVerdict verdict = PushTargetLiveCheck.Check(target, Request(subject, AircraftFootprint.FromType(Narrowbody), [far, near]));
 
@@ -617,7 +617,7 @@ public class PushTargetLiveCheckTests(ITestOutputHelper output)
             double endGapMaxFt = 0.0;
             foreach (PushTargetEntry entry in group)
             {
-                TugPose start = StartOf(Stand(layout, entry.StandName));
+                PushbackPose start = StartOf(Stand(layout, entry.StandName));
                 foreach ((PrecomputedPushTarget target, string type) in entry.Targets.SelectMany(t => new[] { (t, smallest), (t, largest) }))
                 {
                     AircraftFootprint footprint = PinnedFootprint(type);
@@ -656,7 +656,7 @@ public class PushTargetLiveCheckTests(ITestOutputHelper output)
     {
         TestVnasData.EnsureInitialized();
         AirportGroundLayout layout = PushTargetPlannerTests.Oak();
-        TugPose start = StartOf(Stand(layout, "26"));
+        PushbackPose start = StartOf(Stand(layout, "26"));
         PrecomputedPushTarget target = Target(OakSampleEntries.Value, "26", "II", "TE");
         Assert.True(PushTargetLiveCheck.EndsOnAFloatingLine(target));
         AircraftFootprint footprint = PinnedFootprint(SmallGroupTwoType);
@@ -684,8 +684,8 @@ public class PushTargetLiveCheckTests(ITestOutputHelper output)
     {
         TestVnasData.EnsureInitialized();
         AirportGroundLayout layout = PushTargetPlannerTests.Oak();
-        TugPose stand = StartOf(Stand(layout, "26"));
-        var misaligned = new TugPose(stand.Position, new TrueHeading(stand.NoseTrueDeg + MisalignedDeg).Degrees);
+        PushbackPose stand = StartOf(Stand(layout, "26"));
+        var misaligned = new PushbackPose(stand.Position, new TrueHeading(stand.NoseTrueDeg + MisalignedDeg).Degrees);
         PrecomputedPushTarget target = Target(OakSampleEntries.Value, "26", GroupOf(Narrowbody), "TC");
         Assert.False(PushTargetLiveCheck.EndsOnAFloatingLine(target));
         var footprint = AircraftFootprint.FromType(Narrowbody);
@@ -712,8 +712,8 @@ public class PushTargetLiveCheckTests(ITestOutputHelper output)
     {
         TestVnasData.EnsureInitialized();
         AirportGroundLayout layout = PushTargetPlannerTests.Oak();
-        TugPose stand = StartOf(Stand(layout, "26"));
-        var turned = new TugPose(stand.Position, new TrueHeading(stand.NoseTrueDeg + UnflyableTurnDeg).Degrees);
+        PushbackPose stand = StartOf(Stand(layout, "26"));
+        var turned = new PushbackPose(stand.Position, new TrueHeading(stand.NoseTrueDeg + UnflyableTurnDeg).Degrees);
         PrecomputedPushTarget target = Target(OakSampleEntries.Value, "26", "I", "TE");
         var footprint = AircraftFootprint.FromType(SuperheavyType);
         Assert.False(Refly(target, turned, footprint).Completed);
@@ -738,7 +738,7 @@ public class PushTargetLiveCheckTests(ITestOutputHelper output)
         Assert.DoesNotContain(liveCheck, PrecomputeSourceHashes.LayoutFiles);
     }
 
-    private static TugSimulation Refly(PrecomputedPushTarget target, TugPose start, AircraftFootprint footprint) =>
+    private static TugSimulation Refly(PrecomputedPushTarget target, PushbackPose start, AircraftFootprint footprint) =>
         TugKinematics.Simulate(start, [.. target.Moves.Select(m => m.ToMove())], footprint, TugMovePlanner.StepFt);
 
     private static double EndGapFt(PushMoveEntry stored, LatLon end) =>
@@ -747,9 +747,9 @@ public class PushTargetLiveCheckTests(ITestOutputHelper output)
     private static bool SameMoves(TugPlan plan, PrecomputedPushTarget target) => plan.Moves.Select(PushMoveEntry.From).SequenceEqual(target.Moves);
 
     private static PushTargetLiveCheckRequest Request(
-        TugNeighbourCandidate subject,
+        NeighbourCandidate subject,
         AircraftFootprint actual,
-        IReadOnlyList<TugNeighbourCandidate> others
+        IReadOnlyList<NeighbourCandidate> others
     ) =>
         new()
         {
@@ -764,7 +764,7 @@ public class PushTargetLiveCheckTests(ITestOutputHelper output)
     /// </summary>
     private static PrecomputedPushTarget LiveTarget(
         AirportGroundLayout layout,
-        TugPose start,
+        PushbackPose start,
         AircraftFootprint footprint,
         MovementAreaClassification classification,
         LatLon point,
@@ -792,7 +792,7 @@ public class PushTargetLiveCheckTests(ITestOutputHelper output)
     }
 
     /// <summary>An aircraft parked at rest, as the simulation and the client feed it to <see cref="TugParkedNeighbours"/>.</summary>
-    private static TugNeighbourCandidate Parked(string callsign, string type, TugPose pose, string? stand) =>
+    private static NeighbourCandidate Parked(string callsign, string type, PushbackPose pose, string? stand) =>
         new()
         {
             Callsign = callsign,
@@ -807,13 +807,13 @@ public class PushTargetLiveCheckTests(ITestOutputHelper output)
         };
 
     /// <summary>The goal the planner planned a target for, as <see cref="PushTargetPlanner"/> builds it.</summary>
-    private static TugGoal GoalOf(AirportGroundLayout layout, TugPose start, PrecomputedPushTarget target) =>
+    private static TugGoal GoalOf(AirportGroundLayout layout, PushbackPose start, PrecomputedPushTarget target) =>
         target.Kind == PushTargetKind.Spot
             ? TugGoal.Spot(Assert.IsType<GroundNode>(layout.FindSpotNodeByName(target.Name)))
             : TugGoal.StraightBackTo(Assert.IsType<GroundNode>(layout.FindExitByTaxiway(start.Position, target.Name)), target.Name);
 
     /// <summary>A point <paramref name="feet"/> from <paramref name="pose"/>, <paramref name="offNoseDeg"/> clockwise off its nose.</summary>
-    private static LatLon Offset(TugPose pose, double offNoseDeg, double feet) =>
+    private static LatLon Offset(PushbackPose pose, double offNoseDeg, double feet) =>
         GeoMath.ProjectPoint(pose.Position, new TrueHeading(pose.NoseTrueDeg + offNoseDeg), feet / GeoMath.FeetPerNm);
 
     private static string GroupOf(string type) => Assert.NotNull(AirplaneDesignGroups.OfRecord(PinnedRecords.Value[type], out _)).ToString();
@@ -867,7 +867,7 @@ public class PushTargetLiveCheckTests(ITestOutputHelper output)
     private static GroundNode Stand(AirportGroundLayout layout, string name) =>
         layout.Nodes.Values.Where(n => (n.Type == GroundNodeType.Parking) && (n.Name == name)).OrderBy(n => n.Id).First();
 
-    private static TugPose StartOf(GroundNode stand) => new(stand.Position, Assert.NotNull(stand.TrueHeading).Degrees);
+    private static PushbackPose StartOf(GroundNode stand) => new(stand.Position, Assert.NotNull(stand.TrueHeading).Degrees);
 
     /// <summary>The <paramref name="count"/> named parking nodes nearest the named stand, nearest first then by node id.</summary>
     private static IReadOnlySet<string> NearestStandNames(AirportGroundLayout layout, string reference, int count)

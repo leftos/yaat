@@ -165,7 +165,7 @@ public class TugAlleyClearanceTests(ITestOutputHelper output)
     internal static TugRequest StandStart(AirportGroundLayout layout, GroundNode stand, string aircraftType, TugGoal goal) =>
         new()
         {
-            Start = new TugPose(stand.Position, stand.TrueHeading!.Value.Degrees),
+            Start = new PushbackPose(stand.Position, stand.TrueHeading!.Value.Degrees),
             StartsAtStand = true,
             Footprint = AircraftFootprint.FromType(aircraftType),
             MovementArea = MovementAreaClassification.For(layout),
@@ -196,7 +196,7 @@ public class TugAlleyClearanceTests(ITestOutputHelper output)
         double halfLengthNm = AircraftLength.ResolveFt(aircraftType) / 2.0 / GeoMath.FeetPerNm;
         double halfSpanNm = AircraftFootprint.ResolveWingspanFt(aircraftType) / 2.0 / GeoMath.FeetPerNm;
         double best = double.PositiveInfinity;
-        foreach (TugPose pose in plan.Moves.SelectMany(m => m.Samples))
+        foreach (PushbackPose pose in plan.Moves.SelectMany(m => m.Samples))
         {
             var nose = new TrueHeading(pose.NoseTrueDeg);
             LatLon tail = GeoMath.ProjectPoint(pose.Position, nose.ToReciprocal(), halfLengthNm);

@@ -6,8 +6,8 @@ namespace Yaat.Sim.Data.Airport.Precompute;
 /// Identifies one airport's precomputed data, so a stored entry is recognised as stale. <see cref="LayoutMatches"/>
 /// covers everything the layout payload depends on; <see cref="PushTargetsMatch"/> adds the push-target sources and the
 /// airport's sidecar hash, so a precompute-planner-only or sidecar-only change invalidates the push half alone. The tug
-/// planner's files (<c>TugMovePlanner</c>, <c>TugPathCheck</c> and the rest under <c>Data/Airport</c>) are in both source
-/// sets, so an edit to one stales both halves.
+/// planner's files (the <c>Tug*.cs</c> files under <c>Data/Airport</c>) are in the push-target set only, so an edit to
+/// one stales only the push half.
 /// </summary>
 public sealed record PrecomputeKey
 {

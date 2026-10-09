@@ -75,8 +75,8 @@ public class ForcedPushLegPlannerTests(ITestOutputHelper output)
         }
 
         GroundNode spot = Spot(layout, "7A");
-        TugPose stop = SpotStopPose(layout, spot);
-        var start = new TugPose(Project(stop.Position, stop.NoseTrueDeg, LaneRunUpFt), stop.NoseTrueDeg);
+        PushbackPose stop = SpotStopPose(layout, spot);
+        var start = new PushbackPose(Project(stop.Position, stop.NoseTrueDeg, LaneRunUpFt), stop.NoseTrueDeg);
         TugPlan unforced = PlanOrFail(layout, OffStand(start, TugGoal.Spot(spot)));
         Assert.True(unforced.Moves[^1].Move is { Kind: PushbackLegKind.Pull, Creep: true }, "today the push stages and creeps forward");
 
@@ -122,7 +122,7 @@ public class ForcedPushLegPlannerTests(ITestOutputHelper output)
             return;
         }
 
-        TugPose start = SpotStopPose(layout, Spot(layout, "6A"));
+        PushbackPose start = SpotStopPose(layout, Spot(layout, "6A"));
         TugPlan unforced = PlanOrFail(layout, OffStand(start, TugGoal.Spot(Spot(layout, "6B"))));
         output.WriteLine($"unforced: {Describe(unforced)}");
         Assert.Contains(unforced.Moves, m => m.Move.Kind == PushbackLegKind.Push);
@@ -166,8 +166,8 @@ public class ForcedPushLegPlannerTests(ITestOutputHelper output)
             return;
         }
 
-        TugPose noseOut = SpotStopPose(layout, Spot(layout, "7A"));
-        var start = new TugPose(noseOut.Position, new TrueHeading(noseOut.NoseTrueDeg).ToReciprocal().Degrees);
+        PushbackPose noseOut = SpotStopPose(layout, Spot(layout, "7A"));
+        var start = new PushbackPose(noseOut.Position, new TrueHeading(noseOut.NoseTrueDeg).ToReciprocal().Degrees);
         GroundNode behind = Parking(layout, "F8");
 
         string refusal = Refusal(layout, OffStand(start, TugGoal.AtNode(behind, facingTrueDeg: null) with { ForcedKind = PushbackLegKind.Pull }));
@@ -189,7 +189,7 @@ public class ForcedPushLegPlannerTests(ITestOutputHelper output)
             return;
         }
 
-        TugPose target = SpotStopPose(layout, Spot(layout, "6B"));
+        PushbackPose target = SpotStopPose(layout, Spot(layout, "6B"));
         TugGoal goal = MarkedPoint(target.Position, target.NoseTrueDeg);
 
         TugPlan plan = PlanOrFail(layout, OffStand(SpotStopPose(layout, Spot(layout, "6A")), goal));
@@ -226,7 +226,7 @@ public class ForcedPushLegPlannerTests(ITestOutputHelper output)
                     )
             )
             .MinBy(p => FeetBetween(p.Item2, hold.Position));
-        TugRequest fromHold = OffStand(new TugPose(hold.Position, 0.0), MarkedPoint(onRunway, null));
+        TugRequest fromHold = OffStand(new PushbackPose(hold.Position, 0.0), MarkedPoint(onRunway, null));
 
         Assert.Equal("Unable, the marked point is on taxiway A", Refusal(layout, FromD15(onAlpha)));
         Assert.Equal("Unable, the marked point is a runway holding position", Refusal(layout, FromD15(hold.Position)));
@@ -257,7 +257,7 @@ public class ForcedPushLegPlannerTests(ITestOutputHelper output)
         TugRequest PullTo(double fromAlphaFt)
         {
             LatLon point = Project(onAlpha, awayFromAlphaDeg, fromAlphaFt);
-            var start = new TugPose(Project(onAlpha, awayFromAlphaDeg, fromAlphaFt + PullRunUpFt), towardAlphaDeg);
+            var start = new PushbackPose(Project(onAlpha, awayFromAlphaDeg, fromAlphaFt + PullRunUpFt), towardAlphaDeg);
             output.WriteLine($"pull onto a point {fromAlphaFt:F0} ft from A's centreline (lead reaches {leadReachFt:F0} ft ahead of the centre)");
             return OffStand(start, MarkedPoint(point, towardAlphaDeg) with { ForcedKind = PushbackLegKind.Pull });
         }
@@ -290,7 +290,7 @@ public class ForcedPushLegPlannerTests(ITestOutputHelper output)
         double towardSpotDeg = GeoMath.BearingTo(onAlpha, spot.Position);
         double offAlphaDeg = new[] { alongAlphaDeg + 90.0, alongAlphaDeg - 90.0 }.MinBy(d => AbsDiffDeg(d, towardSpotDeg));
         LatLon point = Project(onAlpha, offAlphaDeg, WingsAcrossOffsetFt);
-        var start = new TugPose(Project(point, alongAlphaDeg + 180.0, PullRunUpFt), new TrueHeading(alongAlphaDeg).Degrees);
+        var start = new PushbackPose(Project(point, alongAlphaDeg + 180.0, PullRunUpFt), new TrueHeading(alongAlphaDeg).Degrees);
         output.WriteLine($"point {WingsAcrossOffsetFt:F0} ft off A's centreline, facing {alongAlphaDeg:F0}° along it");
 
         string refusal = Refusal(layout, OffStand(start, MarkedPoint(point, alongAlphaDeg)));
@@ -338,7 +338,7 @@ public class ForcedPushLegPlannerTests(ITestOutputHelper output)
 
     private void AssertEndsOnSpotStop(AirportGroundLayout layout, GroundNode spot, TugPlan plan)
     {
-        TugPose stop = SpotStopPose(layout, spot);
+        PushbackPose stop = SpotStopPose(layout, spot);
         double offFt = FeetBetween(plan.End.Position, stop.Position);
         output.WriteLine($"{Describe(plan)}; ends {offFt:F1} ft off the stop, nose {AbsDiffDeg(plan.End.NoseTrueDeg, stop.NoseTrueDeg):F1}° off");
         Assert.True(offFt <= EndToleranceFt, $"ended {offFt:F1} ft off the stop");
@@ -346,15 +346,15 @@ public class ForcedPushLegPlannerTests(ITestOutputHelper output)
     }
 
     /// <summary>Where a narrowbody rests on a spot: its stop point, nose on the spot's outbound heading.</summary>
-    private static TugPose SpotStopPose(AirportGroundLayout layout, GroundNode spot)
+    private static PushbackPose SpotStopPose(AirportGroundLayout layout, GroundNode spot)
     {
         Assert.True(layout.TryGetSpotOutboundHeading(spot, out double outbound), $"spot {spot.Name} has no outbound heading");
-        return new TugPose(TugMovePlanner.SpotStopGeometry(spot, outbound, AircraftFootprint.FromType(Narrowbody)).Stop, outbound);
+        return new PushbackPose(TugMovePlanner.SpotStopGeometry(spot, outbound, AircraftFootprint.FromType(Narrowbody)).Stop, outbound);
     }
 
     private static GroundEdge NearestMovementAreaEdge(AirportGroundLayout layout, string taxiway, LatLon near)
     {
-        var pavement = new TugPavementClassifier(layout, MovementAreaClassification.For(layout));
+        var pavement = new PavementClassifier(layout, MovementAreaClassification.For(layout));
         return layout
             .AllEdges.OfType<GroundEdge>()
             .Where(e => e.MatchesTaxiway(taxiway) && (pavement.MovementAreaName(e) is not null))
@@ -404,7 +404,7 @@ public class ForcedPushLegPlannerTests(ITestOutputHelper output)
     private static TugRequest StandStart(GroundNode stand, TugGoal goal) =>
         new()
         {
-            Start = new TugPose(stand.Position, stand.TrueHeading!.Value.Degrees),
+            Start = new PushbackPose(stand.Position, stand.TrueHeading!.Value.Degrees),
             StartsAtStand = true,
             Footprint = AircraftFootprint.FromType(Narrowbody),
             MovementArea = null,
@@ -415,7 +415,7 @@ public class ForcedPushLegPlannerTests(ITestOutputHelper output)
             Forced = false,
         };
 
-    private static TugRequest OffStand(TugPose start, TugGoal goal) =>
+    private static TugRequest OffStand(PushbackPose start, TugGoal goal) =>
         new()
         {
             Start = start,

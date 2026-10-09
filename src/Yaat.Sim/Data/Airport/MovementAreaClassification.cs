@@ -45,7 +45,7 @@ public enum MovementAreaRule
 /// multi-character movement-area lane falls to rule 5 and reads as a ramp taxilane. The airport sidecar's
 /// <c>movementAreaTaxiways</c> and <c>nonMovementTaxilanes</c> lists exist for exactly that case, and override the
 /// derived verdict both ways. One instance serves the ramp-lane cut (<see cref="RampLaneReposition"/>) and the tug
-/// planner's movement-area refusal (<see cref="TugPavementClassifier"/>), so the taxi router and the push planner agree.
+/// planner's movement-area refusal (<see cref="PavementClassifier"/>), so the taxi router and the push planner agree.
 /// The verdict is a pure function of the layout and the sidecar catalog, cached per pair of instances.
 /// </summary>
 public sealed class MovementAreaClassification

@@ -170,7 +170,7 @@ public class PushTaxiwayFacingJunctionTests(ITestOutputHelper output)
         double afterFt = 0.0;
         bool linedUp = false;
         LatLon? previous = null;
-        foreach (TugPose sample in last.Samples)
+        foreach (PushbackPose sample in last.Samples)
         {
             afterFt += (linedUp && (previous is { } from)) ? GeoMath.DistanceNm(from, sample.Position) * GeoMath.FeetPerNm : 0.0;
             previous = sample.Position;
@@ -195,7 +195,7 @@ public class PushTaxiwayFacingJunctionTests(ITestOutputHelper output)
             ?? throw new InvalidOperationException("no A edge");
         var request = new TugRequest
         {
-            Start = new TugPose(stand.Position, stand.TrueHeading!.Value.Degrees),
+            Start = new PushbackPose(stand.Position, stand.TrueHeading!.Value.Degrees),
             StartsAtStand = true,
             Footprint = AircraftFootprint.FromType(AircraftType),
             MovementArea = MovementAreaClassification.For(layout),

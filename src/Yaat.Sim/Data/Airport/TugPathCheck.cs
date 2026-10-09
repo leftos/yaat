@@ -62,7 +62,7 @@ public sealed class TugPathCheck
 
     private static readonly ConditionalWeakTable<AirportGroundLayout, List<GeoHoldBand>> HoldBands = [];
 
-    private readonly TugPavementClassifier _pavement;
+    private readonly PavementClassifier _pavement;
     private readonly LatLon _origin;
     private readonly double _eastFtPerDeg;
     private readonly double _halfLengthFt;
@@ -79,7 +79,7 @@ public sealed class TugPathCheck
 
     internal TugPathCheck(AirportGroundLayout layout, MovementAreaClassification movementArea, AircraftFootprint footprint, LatLon planStart)
     {
-        _pavement = new TugPavementClassifier(layout, movementArea);
+        _pavement = new PavementClassifier(layout, movementArea);
         _origin = planStart;
         _eastFtPerDeg = 60.0 * GeoMath.FeetPerNm * Math.Cos(planStart.Lat * DegToRad);
         _halfLengthFt = footprint.LengthFt / 2.0;
@@ -468,7 +468,7 @@ public sealed class TugPathCheck
             .. layout
                 .Edges.Where(e => e.IsRunwayCenterline)
                 .GroupBy(e => e.TaxiwayName, StringComparer.OrdinalIgnoreCase)
-                .Select(g => HoldBandRunwayOf(layout, g.Key, [.. g.SelectMany(e => Chords(TugMovePlanner.EdgePointsFrom(e, e.Nodes[0])))])),
+                .Select(g => HoldBandRunwayOf(layout, g.Key, [.. g.SelectMany(e => Chords(EdgeGeometry.PointsFrom(e, e.Nodes[0])))])),
         ];
         if (runways.Count == 0)
         {

@@ -194,7 +194,7 @@ public class PushbackPullLegTests(ITestOutputHelper output)
         LatLon linePoint = GeoMath.ProjectPoint(start.Position, new TrueHeading(noseDeg), LineOffsetFt / GeoMath.FeetPerNm);
         var move = TugMove.ViaLine(PushbackLegKind.Pull, linePoint, lineDeg, stopAt: null);
         LatLon planned = TugKinematics
-            .Simulate(new TugPose(start.Position, noseDeg), [move], AircraftFootprint.FromType(AircraftType), 1.0)
+            .Simulate(new PushbackPose(start.Position, noseDeg), [move], AircraftFootprint.FromType(AircraftType), 1.0)
             .End.Position;
         var phase = new PushbackPhase
         {
@@ -320,7 +320,7 @@ public class PushbackPullLegTests(ITestOutputHelper output)
         GroundNode stand = FindStand(ground);
         GroundNode target = NearestNodeOnTaxiway(ground.Layout, LaneTaxiway, stand.Position);
         double noseDeg = new TrueHeading(GeoMath.BearingTo(stand.Position, target.Position)).ToReciprocal().Degrees;
-        var standPose = new TugPose(stand.Position, noseDeg);
+        var standPose = new PushbackPose(stand.Position, noseDeg);
         TugMove move = TugMove.ToPoint(PushbackLegKind.Push, target.Position) with { Creep = true, DwellBefore = true, Tight = true };
         var phase = new PushbackPhase
         {
