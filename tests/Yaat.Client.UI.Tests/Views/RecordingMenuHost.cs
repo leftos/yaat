@@ -275,8 +275,8 @@ internal sealed class RecordingMenuHost(string input) : IMenuHost
     /// <summary>The pushback facings the face items list, whatever the callsign asked about.</summary>
     public List<MenuCommandChoice> PushbackFaceChoices { get; } = [];
 
-    /// <summary>The stands the Push back to… submenu lists, whatever the callsign asked about.</summary>
-    public List<MenuCommandChoice> PushbackToChoices { get; } = [];
+    /// <summary>The targets the Push back to… submenu lists, whatever the callsign asked about; settled and empty by default.</summary>
+    public PushTargetList PushbackTargets { get; set; } = PushTargetList.Ready([]);
 
     /// <summary>The routes the Preset taxi route submenu lists, whatever the callsign asked about.</summary>
     public List<TaxiRouteRow> PresetTaxiChoices { get; } = [];
@@ -285,7 +285,7 @@ internal sealed class RecordingMenuHost(string input) : IMenuHost
 
     public IReadOnlyList<MenuCommandChoice> GetPushbackFaceChoices(string callsign) => PushbackFaceChoices;
 
-    public IReadOnlyList<MenuCommandChoice> GetPushbackToChoices(string callsign) => PushbackToChoices;
+    public PushTargetList GetPushbackTargets(string callsign) => PushbackTargets;
 
     public IReadOnlyList<TaxiRouteRow> GetPresetTaxiChoices(string callsign) => PresetTaxiChoices;
 

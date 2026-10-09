@@ -60,6 +60,9 @@ internal static class MenuGoldenFixtures
     /// <summary>The committed KSFO layout as the server sends it, for <c>GroundViewModel.SetLayoutForTesting</c>.</summary>
     public static GroundLayoutDto SfoLayoutForClient => SfoLayoutDto.Value;
 
+    /// <summary>The KOAK layout <see cref="OakLayoutForClient"/> is sent from, as the simulation parses it.</summary>
+    public static AirportGroundLayout OakLayoutForSim => OakLayout.Value;
+
     /// <summary>The fixtures one view's goldens cover, in golden-file order.</summary>
     public static IReadOnlyList<MenuFixture> For(MenuView view)
     {
@@ -126,7 +129,7 @@ internal static class MenuGoldenFixtures
         LatLon taxiway = W3NodeBeforeHoldShort30(layout).Position;
         return
         [
-            new("at-parking", GroundJet("SWA101", "At Parking", AircraftSituation.AtParking, gate, ""), null),
+            new("at-parking", ParkedAtGate25(GroundJet("SWA101", "At Parking", AircraftSituation.AtParking, gate, "")), null),
             new("at-parking-taxi-out", ParkedAtTaxiOutStand(layout), null),
             new("pushing-back", GroundJet("SWA102", "Pushback", AircraftSituation.PushingBack, gate, ""), null),
             new("holding-on-ground", GroundJet("SWA103", "Holding In Position", AircraftSituation.HoldingOnGround, taxiway, "30"), null),
@@ -142,6 +145,16 @@ internal static class MenuGoldenFixtures
             new("held-for-release", HeldForRelease(taxiway), null),
             new("cfr-window", CfrWindow(taxiway), null),
         ];
+    }
+
+    /// <summary>
+    /// <paramref name="ac"/> with its parking spot named gate 25, as the server sends an aircraft parked there; with no
+    /// usable push-target seed its Push back to… submenu shows the computing row when the menu is built.
+    /// </summary>
+    private static AircraftModel ParkedAtGate25(AircraftModel ac)
+    {
+        ac.ParkingSpot = "25";
+        return ac;
     }
 
     /// <summary>

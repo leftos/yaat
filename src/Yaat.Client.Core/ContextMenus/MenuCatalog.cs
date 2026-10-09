@@ -231,11 +231,13 @@ public static class MenuCatalog
                     $"The '{MenuIds.GroundPushbackFace}' entry builds no item; MenuCatalog.BuildPushbackFaces builds its flat face items."
                 )
         ),
+        // Push back to… has no quick-command glyph and must not gain one: its submenu follows a list the background live
+        // plan fills through IsSubMenuOpen, which the strip button's flyout copy of the items never raises.
         HostLeaf(
             MenuIds.GroundPushbackTo,
             "Push back to…",
             (ac, _) => AircraftCommandApplicability.CanPushBack(ac),
-            (label, _, context, host) => BuildChoiceSubmenu(label, host.GetPushbackToChoices(context.Callsign), context, host)
+            (label, _, context, host) => PushbackToMenu.Build(label, host.GetPushbackTargets(context.Callsign), context, host)
         ),
         HostLeaf(MenuIds.GroundPushRoute, "Push route…", (ac, _) => AircraftCommandApplicability.CanPushBack(ac), BuildPushRoute),
         Leaf(MenuIds.GroundHoldPosition, "Hold position", "HOLD", (ac, _) => AircraftCommandApplicability.CanHoldPosition(ac)),

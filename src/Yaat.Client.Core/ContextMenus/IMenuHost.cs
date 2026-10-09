@@ -193,10 +193,13 @@ public interface IMenuHost
     IReadOnlyList<MenuCommandChoice> GetPushbackFaceChoices(string callsign);
 
     /// <summary>
-    /// The named stands <paramref name="callsign"/> can be pushed back to, nearest first and capped by the host: each
-    /// node's name and its finished <c>PUSH</c> command, no preview; empty when there are none.
+    /// The taxilanes, taxiways and taxi spots <paramref name="callsign"/> can be pushed back to from its stand when at
+    /// parking, or from where it is held after a pushback, each with its finished <c>PUSH</c> command, its facings and the
+    /// neighbour blocking it, in no particular order. The list may still be filling: it shows the shipped seed, or is
+    /// computing, until the host's background live plan replaces it in place. A list already settled with no targets
+    /// means there is nothing to plan (no layout, or the aircraft neither at a named stand nor held after a pushback).
     /// </summary>
-    IReadOnlyList<MenuCommandChoice> GetPushbackToChoices(string callsign);
+    PushTargetList GetPushbackTargets(string callsign);
 
     /// <summary>
     /// The airport's preset taxi routes that resolve from where <paramref name="callsign"/> starts its taxi, for its own

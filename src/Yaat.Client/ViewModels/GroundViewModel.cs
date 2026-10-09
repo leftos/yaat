@@ -1,5 +1,7 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Diagnostics;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Microsoft.Extensions.Logging;
 using SkiaSharp;
@@ -13,6 +15,7 @@ using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Airport.Pathfinding;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Simulation;
 
@@ -1199,34 +1202,163 @@ public partial class GroundViewModel : ObservableObject
     public List<MenuCommandChoice> GetPushbackFaceChoices(AircraftModel ac) =>
         [.. GetPushbackDirections(ac).Select(d => new MenuCommandChoice($"Push back, {d.Label}", $"PUSH FACE {d.Cardinal}", null, []))];
 
-    /// <summary>The most stands the Push back to… submenu lists.</summary>
-    private const int MaxPushbackToChoices = 30;
+    /// <summary>The shipped design-group envelopes every live push plan is made with, read once.</summary>
+    private static readonly Lazy<DesignGroupEnvelopes> ShippedEnvelopes = new(DesignGroupEnvelopes.LoadShipped);
+
+    /// <summary>The push-target seed the Push back to… submenu fills from first; created on first use.</summary>
+    private PushTargetSeed? _pushTargetSeed;
 
     /// <summary>
-    /// The named Parking, Spot and Helipad nodes the aircraft can be pushed back to, nearest first, at most
-    /// <see cref="MaxPushbackToChoices"/>, excluding the node it stands on: each labelled with its name and sending the
-    /// canonical PUSH command (<c>$name</c> for a spot, <c>@name</c> for parking or a helipad). Empty without a layout.
+    /// The Push back to… plan of each aircraft whose live plan has not landed yet, by callsign, so the menu's two copies
+    /// of the entry (the quick command and All Commands) share one plan. An open reuses it only for the same layout,
+    /// stand and design group.
     /// </summary>
-    public List<MenuCommandChoice> GetPushbackToChoices(AircraftModel ac)
+    private readonly Dictionary<string, InFlightPushPlan> _pushTargetsInFlight = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// Test-only hook: the seed <see cref="GetPushbackTargets"/> reads instead of the shipped
+    /// <c>Data/PrecomputeCache</c> one.
+    /// </summary>
+    internal void SetPushTargetSeedForTesting(PushTargetSeed seed) => _pushTargetSeed = seed;
+
+    /// <summary>
+    /// The Push back to… targets for the aircraft's push origin (<see cref="PushOriginOf"/>: its stand when at parking, or
+    /// where it is held after a pushback) and design group (<see cref="AirplaneDesignGroups.GroupForType"/>). For a stand
+    /// the shipped seed's targets, checked against the aircraft about, come back at once, or a computing list when there is
+    /// no seed; a held aircraft has no seed and always computes. A background task then plans the origin live
+    /// (<see cref="PushTargetPlanner.ComputeStand"/> or <see cref="PushTargetPlanner.ComputeHeld"/>), checks each target,
+    /// and replaces the list's targets on the UI thread. A target the live check calls unflyable is left out; a blocked one
+    /// names its blocker. A settled empty list without a layout or a push origin.
+    /// </summary>
+    public PushTargetList GetPushbackTargets(AircraftModel ac)
     {
-        if (_domainLayout is null)
+        if ((_domainLayout is not { } layout) || (PushOriginOf(ac) is not { } origin))
         {
-            return [];
+            return PushTargetList.Ready([]);
         }
 
-        int? currentNodeId = GetAircraftNearestNodeId(ac);
-        return
-        [
-            .. _domainLayout
-                .Nodes.Values.Where(node =>
-                    (node.Type is GroundNodeType.Parking or GroundNodeType.Spot or GroundNodeType.Helipad)
-                    && (!string.IsNullOrEmpty(node.Name))
-                    && (node.Id != currentNodeId)
-                )
-                .OrderBy(node => GeoMath.DistanceNm(ac.Position.Lat, ac.Position.Lon, node.Position.Lat, node.Position.Lon))
-                .Take(MaxPushbackToChoices)
-                .Select(node => new MenuCommandChoice(node.Name!, $"PUSH {(node.Type == GroundNodeType.Spot ? '$' : '@')}{node.Name}", null, [])),
-        ];
+        AirplaneDesignGroup group = AirplaneDesignGroups.GroupForType(ac.AircraftType);
+        if (_pushTargetsInFlight.TryGetValue(ac.Callsign, out InFlightPushPlan? inFlight) && inFlight.IsFor(layout, origin, group))
+        {
+            return inFlight.List;
+        }
+
+        // Everything the background task reads is taken here, on the UI thread: it touches no aircraft model or view state.
+        var request = new LivePushPlanRequest(
+            layout,
+            NavigationDatabase.InstanceOrNull?.AirportSidecars ?? AirportSidecarCatalog.Empty,
+            origin,
+            group,
+            new PushLiveCheckInputs(TugCandidateOf(ac), AircraftFootprint.FromType(ac.AircraftType), ServerWorldCandidates(), ac.Position)
+        );
+        var list = PushTargetList.Pending(SeedTargetsFor(request, ac.Callsign));
+        _pushTargetsInFlight[ac.Callsign] = new InFlightPushPlan(layout, origin, group, list);
+        string callsign = ac.Callsign;
+        _ = Task.Run(() =>
+        {
+            IReadOnlyList<MenuPushTarget>? planned = PlanLiveOrLog(request, callsign);
+            Dispatcher.UIThread.Post(() => ApplyLivePushPlan(callsign, list, planned));
+        });
+        return list;
+    }
+
+    /// <summary>
+    /// Where the aircraft's Push back to… targets are planned from, by its phase alone: at parking, its stand
+    /// (<see cref="AircraftModel.ParkingSpot"/>); holding after a pushback, where it stands and on its heading, whatever
+    /// stand name it still carries. Null in every other phase, and at parking with no stand named.
+    /// </summary>
+    private static PushOrigin? PushOriginOf(AircraftModel ac) =>
+        ac.CurrentPhase switch
+        {
+            "At Parking" when !string.IsNullOrEmpty(ac.ParkingSpot) => PushOrigin.AtStand(ac.ParkingSpot),
+            "Holding After Pushback" => PushOrigin.Held(new TugPose(ac.Position, ac.Heading.Degrees)),
+            _ => null,
+        };
+
+    /// <summary>
+    /// The shipped seed's targets for <paramref name="request"/>'s stand, checked live (<see cref="SeedTargetsOrLog"/>);
+    /// null when the origin is not a stand or the seed holds no entry for it, so the list computes.
+    /// </summary>
+    private List<MenuPushTarget>? SeedTargetsFor(LivePushPlanRequest request, string callsign) =>
+        (request.Origin.Stand is { } stand) && (PushTargetSeedInstance().Find(request.Layout.AirportId, stand, request.Group) is { } seed)
+            ? SeedTargetsOrLog(seed, request, callsign)
+            : null;
+
+    /// <summary>The push-target seed, created over the shipped <c>Data/PrecomputeCache</c> on first use.</summary>
+    private PushTargetSeed PushTargetSeedInstance() =>
+        _pushTargetSeed ??= new PushTargetSeed(
+            new PrecomputeStore(Path.Combine(AppContext.BaseDirectory, "Data", "PrecomputeCache")),
+            Path.Combine(AppContext.BaseDirectory, "Data", "ARTCCs")
+        );
+
+    /// <summary>
+    /// <paramref name="seed"/>'s targets checked live against the aircraft about; null, logged, when the live check
+    /// throws, so the list computes as it would with no seed.
+    /// </summary>
+    private List<MenuPushTarget>? SeedTargetsOrLog(PushTargetEntry seed, LivePushPlanRequest request, string callsign)
+    {
+        try
+        {
+            return ToMenuTargets(seed.Targets, request.Check);
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(
+                ex,
+                "Push back to…: the live check of stand {Stand}'s seed at {Airport} for {Callsign} threw; planning it live with no seed",
+                request.Origin.Name,
+                request.Layout.AirportId,
+                callsign
+            );
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Plans <paramref name="request"/>'s push origin live and checks each target; null, logged, when the plan throws. Runs on a
+    /// background thread and reads only the request. An origin that is neither a stand nor a held pose throws out
+    /// unlogged: it is a bug, not a failed plan.
+    /// </summary>
+    private IReadOnlyList<MenuPushTarget>? PlanLiveOrLog(LivePushPlanRequest request, string callsign)
+    {
+        Func<IReadOnlyList<PrecomputedPushTarget>?> plan = request.Origin switch
+        {
+            { Stand: { } stand } => () =>
+                PushTargetPlanner.ComputeStand(request.Layout, ShippedEnvelopes.Value, request.Sidecars, stand, request.Group)?.Targets,
+            { HeldPose: { } heldPose } => () =>
+                PushTargetPlanner.ComputeHeld(request.Layout, ShippedEnvelopes.Value, request.Sidecars, heldPose, request.Group),
+            _ => throw new UnreachableException("A push origin is either a stand or a held pose."),
+        };
+        try
+        {
+            IReadOnlyList<PrecomputedPushTarget>? targets = plan();
+            return targets is null ? [] : ToMenuTargets(targets, request.Check);
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(
+                ex,
+                "Push back to…: planning {Origin} at {Airport} live for {Callsign} threw; the submenu keeps the seed's targets, if any",
+                request.Origin.Name,
+                request.Layout.AirportId,
+                callsign
+            );
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Applies a landed live plan on the UI thread: <paramref name="planned"/>, or the seed's targets the list already
+    /// shows when the plan threw.
+    /// </summary>
+    private void ApplyLivePushPlan(string callsign, PushTargetList list, IReadOnlyList<MenuPushTarget>? planned)
+    {
+        if (_pushTargetsInFlight.TryGetValue(callsign, out InFlightPushPlan? current) && ReferenceEquals(current.List, list))
+        {
+            _pushTargetsInFlight.Remove(callsign);
+        }
+
+        list.Apply(planned ?? list.Targets);
     }
 
     /// <summary>
@@ -3694,7 +3826,8 @@ public partial class GroundViewModel : ObservableObject
         return [.. all.Where(ac => !ac.IsDelayed).Select(TugCandidateOf)];
     }
 
-    private static TugNeighbourCandidate TugCandidateOf(AircraftModel aircraft) =>
+    /// <summary>The aircraft as the tug planner and the push-target live check see it.</summary>
+    internal static TugNeighbourCandidate TugCandidateOf(AircraftModel aircraft) =>
         new()
         {
             Callsign = aircraft.Callsign,

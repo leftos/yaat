@@ -28,13 +28,13 @@ public class MenuGoldenTests
     public MenuGoldenTests() => _navDb = MenuGoldenFixtures.EnsureNavData();
 
     [AvaloniaFact]
-    public void RadarMenus_MatchGoldens() => AssertGoldens(MenuView.Radar);
+    public Task RadarMenus_MatchGoldens() => AssertGoldens(MenuView.Radar);
 
     [AvaloniaFact]
-    public void GroundMenus_MatchGoldens() => AssertGoldens(MenuView.Ground);
+    public Task GroundMenus_MatchGoldens() => AssertGoldens(MenuView.Ground);
 
     [AvaloniaFact]
-    public void ListMenus_MatchGoldens() => AssertGoldens(MenuView.List);
+    public Task ListMenus_MatchGoldens() => AssertGoldens(MenuView.List);
 
     /// <summary>
     /// The at-parking ground fixture's Taxi to runway submenu once opened, Other runways opened too, as the real host answers
@@ -90,12 +90,12 @@ public class MenuGoldenTests
     }
 
     [AvaloniaFact]
-    public void EveryView_RendersIdenticallyTwice()
+    public async Task EveryView_RendersIdenticallyTwice()
     {
         foreach (MenuView view in Enum.GetValues<MenuView>())
         {
-            string first = string.Concat(RenderAll(view).Select(g => g.Text));
-            string second = string.Concat(RenderAll(view).Select(g => g.Text));
+            string first = string.Concat((await RenderAll(view)).Select(g => g.Text));
+            string second = string.Concat((await RenderAll(view)).Select(g => g.Text));
             Assert.Equal(first, second);
         }
     }
@@ -108,12 +108,12 @@ public class MenuGoldenTests
     /// callsign keys the fixture, not the rendered title row, so the title row stays inside the compared text.
     /// </summary>
     [AvaloniaFact]
-    public void EveryView_SharesTheMenuOutsideItsViewSection()
+    public async Task EveryView_SharesTheMenuOutsideItsViewSection()
     {
         var byFixture = new Dictionary<string, List<(MenuView View, string Menu)>>(StringComparer.Ordinal);
         foreach (MenuView view in Enum.GetValues<MenuView>())
         {
-            foreach ((string name, string callsign, string text) in RenderAll(view))
+            foreach ((string name, string callsign, string text) in await RenderAll(view))
             {
                 string shared = WithoutViewSection(text);
                 string key = $"{name} ({callsign})";
@@ -175,10 +175,10 @@ public class MenuGoldenTests
         return string.Join('\n', kept);
     }
 
-    private void AssertGoldens(MenuView view)
+    private async Task AssertGoldens(MenuView view)
     {
         string dir = Path.Combine(FindRepoRoot(), "tests", "Yaat.Client.UI.Tests", "Goldens", "menu", FolderName(view));
-        IReadOnlyList<(string Name, string Callsign, string Text)> goldens = RenderAll(view);
+        IReadOnlyList<(string Name, string Callsign, string Text)> goldens = await RenderAll(view);
         List<string> stale = StaleGoldens(dir, goldens);
 
         if (Environment.GetEnvironmentVariable(RegenerateVariable) == "1")
@@ -240,14 +240,17 @@ public class MenuGoldenTests
     /// aircraft at each build. The render runs under a scoped override of the committed navigation database, which the
     /// main view model's own background navdata load cannot replace.
     /// </summary>
-    private List<(string Name, string Callsign, string Text)> RenderAll(MenuView view)
+    private async Task<List<(string Name, string Callsign, string Text)>> RenderAll(MenuView view)
     {
         using IDisposable navScope = NavigationDatabase.ScopedOverride(_navDb);
         var main = new MainViewModel(new FakeFilePickerService());
         main.DisplayFavorites.Clear();
         main.Ground.SetLayoutForTesting(MenuGoldenFixtures.OakLayoutForClient);
+        // No seed, whatever the committed precompute cache holds, so Push back to… shows its computing row.
+        main.Ground.SetPushTargetSeedForTesting(OakPushTargetSeedCopy.NoSeed());
 
         var goldens = new List<(string Name, string Callsign, string Text)>();
+        var pushPlans = new List<Task>();
         foreach (MenuFixture fixture in MenuGoldenFixtures.For(view))
         {
             main.Aircraft.Clear();
@@ -264,8 +267,14 @@ public class MenuGoldenTests
                 _ => DataGridView.BuildAircraftMenu(main, new DataGrid(), fixture.Aircraft, fixture.Selected, [fixture.Aircraft]),
             };
             goldens.Add((fixture.Name, fixture.Aircraft.Callsign, $"# {FolderName(view)} {fixture.Name}\n{MenuTreeSnapshot.Render(menu)}"));
+
+            // The menu's Push back to… plan is still in flight, so this returns its list.
+            pushPlans.Add(main.Ground.GetPushbackTargets(fixture.Aircraft).Settled);
         }
 
+        // Waited for only once every menu is rendered: a wait yields the UI thread, and the main view model's own
+        // background jobs would then change what a later fixture renders. Waiting keeps no plan outliving the render.
+        await Task.WhenAll(pushPlans).WaitAsync(ClientMenuHostGroundTests.SettleTimeout, TestContext.Current.CancellationToken);
         return goldens;
     }
 

@@ -129,7 +129,7 @@ internal sealed class PointMenuHostCache(IMenuHost inner) : IMenuHost
 
     public IReadOnlyList<MenuCommandChoice> GetPushbackFaceChoices(string callsign) => inner.GetPushbackFaceChoices(callsign);
 
-    public IReadOnlyList<MenuCommandChoice> GetPushbackToChoices(string callsign) => inner.GetPushbackToChoices(callsign);
+    public PushTargetList GetPushbackTargets(string callsign) => inner.GetPushbackTargets(callsign);
 
     public IReadOnlyList<TaxiRouteRow> GetPresetTaxiChoices(string callsign) => inner.GetPresetTaxiChoices(callsign);
 

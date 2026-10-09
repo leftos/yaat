@@ -12,6 +12,7 @@ using Yaat.Client.Views;
 using Yaat.Sim;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Airport.Precompute;
 
 namespace Yaat.Client.UI.Tests.Views;
 
@@ -21,10 +22,21 @@ namespace Yaat.Client.UI.Tests.Views;
 /// over them. The display items the menu shows are the view's own (see <c>CanvasMenuItemsTests</c>), so the host serves
 /// none of them.
 /// </summary>
-public class ClientMenuHostGroundTests
+public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassFixture<OakPushTargetSeedCopy>
 {
-    private const string Callsign = "UAL100";
+    internal const string Callsign = "UAL100";
     private const string OtherCallsign = "SWA200";
+
+    /// <summary>The OAK stand the push-target tests park on.</summary>
+    internal const string Gate26 = "26";
+
+    /// <summary>The B738 parked on gate 27, beside gate 26's pushes onto TE and TC.</summary>
+    internal const string Gate27Neighbour = "SWA27";
+
+    /// <summary>How long a test waits for a background live plan to land; it takes well under a second.</summary>
+    internal static readonly TimeSpan SettleTimeout = TimeSpan.FromSeconds(30);
+
+    private readonly OakPushTargetSeedCopy _seedCopy = seedCopy;
 
     // --- Ground traffic, hold short and route preview ----------------------------------------
 
@@ -157,7 +169,7 @@ public class ClientMenuHostGroundTests
         Assert.Empty(host.GetGroundTrafficRows(Callsign));
         Assert.Equal(HoldShortMenu.Empty, host.GetHoldShortChoices(Callsign));
         Assert.Empty(host.GetPushbackFaceChoices(Callsign));
-        Assert.Empty(host.GetPushbackToChoices(Callsign));
+        AssertSettledEmpty(host.GetPushbackTargets(Callsign));
         Assert.Empty(host.GetPresetTaxiChoices(Callsign));
 
         host.EnterPushRoute(Callsign);
@@ -232,23 +244,113 @@ public class ClientMenuHostGroundTests
         Assert.All(choices, c => Assert.Null(c.Preview));
     }
 
+    /// <summary>
+    /// With no usable seed the list is computing at once; once the background live plan lands, its rows are gate 26's
+    /// group-III targets as <see cref="PushTargetPlanner.ComputeStand"/> plans them, each through the live check.
+    /// </summary>
     [AvaloniaFact]
-    public void GetPushbackToChoices_AtSpotI30_ThirtyNearestStands_SpotUsesDollarParkingUsesAt()
+    public async Task PushbackTargets_Gate26_NoSeed_ShowsComputingThenTheLivePlan()
     {
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
-        AircraftModel target = GroundAircraft(Callsign, "At Parking", PositionOf(PushbackFaceNode));
-        var host = new ClientMenuHost(OakMain(target, []), target, new Border());
+        (AircraftModel target, MainViewModel main, ClientMenuHost host) = AtGate26(OakPushTargetSeedCopy.NoSeed());
 
-        IReadOnlyList<MenuCommandChoice> choices = host.GetPushbackToChoices(Callsign);
+        PushTargetList list = host.GetPushbackTargets(Callsign);
 
-        Assert.Equal(30, choices.Count);
-        Assert.DoesNotContain(choices, c => c.Label == "I30");
-        Assert.Contains(choices, c => (c.Label == "1") && (c.Command == "PUSH $1"));
-        Assert.Contains(choices, c => (c.Label == "32") && (c.Command == "PUSH @32"));
-        Assert.All(choices, c => Assert.Null(c.Preview));
+        Assert.True(list.Computing);
+        Assert.Empty(list.Targets);
+        Assert.False(list.Settled.IsCompleted);
 
-        List<double> distances = [.. choices.Select(c => DistanceToStand(target, c.Label))];
-        Assert.Equal(distances.Order(), distances);
+        await list.Settled.WaitAsync(SettleTimeout, TestContext.Current.CancellationToken);
+
+        Assert.False(list.Computing);
+        List<PushTargetRowKey> expected = LivePlanRows(main, target, Gate26);
+        Assert.NotEmpty(expected);
+        Assert.Equal(expected, RowKeys(list));
+        Assert.All(list.Targets.Where(t => t.Kind == MenuPushTargetKind.Spot), t => Assert.Empty(t.Facings));
+    }
+
+    /// <summary>
+    /// <paramref name="stand"/>'s group-III targets as <see cref="PushTargetPlanner.ComputeStand"/> plans them for
+    /// <paramref name="target"/>, alone at the airport, each through the live check: the rows a settled list should hold.
+    /// </summary>
+    internal static List<PushTargetRowKey> LivePlanRows(MainViewModel main, AircraftModel target, string stand)
+    {
+        PushTargetEntry? live = PushTargetPlanner.ComputeStand(
+            main.Ground.DomainLayout!,
+            DesignGroupEnvelopes.LoadShipped(),
+            NavigationDatabase.Instance.AirportSidecars,
+            stand,
+            AirplaneDesignGroup.III
+        );
+        Assert.NotNull(live);
+        Assert.NotEmpty(live.Targets);
+        var request = new PushTargetLiveCheckRequest
+        {
+            Subject = GroundViewModel.TugCandidateOf(target),
+            Actual = AircraftFootprint.FromType(target.AircraftType),
+            Others = [GroundViewModel.TugCandidateOf(target)],
+        };
+        return
+        [
+            .. live
+                .Targets.Select(t => (Target: t, Verdict: PushTargetLiveCheck.Check(t, request)))
+                .Where(v => v.Verdict.Outcome != PushTargetLiveOutcome.Unflyable)
+                .Select(v => new PushTargetRowKey(v.Target.Kind.ToString(), v.Target.Command, v.Target.PathLengthFt, v.Verdict.BlockerCallsign)),
+        ];
+    }
+
+    /// <summary>The list's targets as <see cref="PushTargetRowKey"/>s, in list order.</summary>
+    internal static List<PushTargetRowKey> RowKeys(PushTargetList list) =>
+        [.. list.Targets.Select(t => new PushTargetRowKey(t.Kind.ToString(), t.Command, t.PathLengthFt, t.BlockedBy))];
+
+    /// <summary>What a push-target row is compared by: its kind, command, planned length and blocker.</summary>
+    internal sealed record PushTargetRowKey(string Kind, string Command, double PathLengthFt, string? BlockedBy);
+
+    /// <summary>A seed keyed current fills the list at once, not computing; the live plan still follows.</summary>
+    [AvaloniaFact]
+    public async Task PushbackTargets_Gate26_Seed_ShowsSeedAtOnce()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        (_, _, ClientMenuHost host) = AtGate26(_seedCopy.NewSeed());
+
+        PushTargetList list = host.GetPushbackTargets(Callsign);
+
+        Assert.False(list.Computing);
+        Assert.False(list.Settled.IsCompleted);
+        Assert.Contains(list.Targets, t => t.Command == "PUSH TE");
+        Assert.All(list.Targets, t => Assert.Null(t.BlockedBy));
+
+        await list.Settled.WaitAsync(SettleTimeout, TestContext.Current.CancellationToken);
+        Assert.Contains(list.Targets, t => t.Command == "PUSH TE");
+    }
+
+    /// <summary>
+    /// A B738 parked on gate 27 sits beside gate 26's pushes onto TE and TC: the live check blocks both on it, from the
+    /// seed at once and from the live plan once it lands.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task PushbackTargets_ParkedNeighbour_GreysTheTargetAndNamesIt()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        (_, _, ClientMenuHost host) = AtGate26(_seedCopy.NewSeed(), ParkedAt("27", Gate27Neighbour));
+
+        PushTargetList list = host.GetPushbackTargets(Callsign);
+
+        Assert.Equal(Gate27Neighbour, Assert.Single(list.Targets, t => t.Command == "PUSH TE").BlockedBy);
+        Assert.Equal(Gate27Neighbour, Assert.Single(list.Targets, t => t.Command == "PUSH TC").BlockedBy);
+
+        await list.Settled.WaitAsync(SettleTimeout, TestContext.Current.CancellationToken);
+        Assert.Equal(Gate27Neighbour, Assert.Single(list.Targets, t => t.Command == "PUSH TE").BlockedBy);
+    }
+
+    [AvaloniaFact]
+    public void PushbackTargets_NoStandName_IsEmpty()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        (AircraftModel target, _, ClientMenuHost host) = AtGate26(_seedCopy.NewSeed());
+        target.ParkingSpot = "";
+
+        AssertSettledEmpty(host.GetPushbackTargets(Callsign));
     }
 
     [AvaloniaFact]
@@ -846,7 +948,7 @@ public class ClientMenuHostGroundTests
         var host = new ClientMenuHost(MainWith(target, []), target, new Border());
 
         Assert.Empty(host.GetPushbackFaceChoices(Callsign));
-        Assert.Empty(host.GetPushbackToChoices(Callsign));
+        AssertSettledEmpty(host.GetPushbackTargets(Callsign));
         Assert.Empty(host.GetPresetTaxiChoices(Callsign));
     }
 
@@ -1104,11 +1206,45 @@ public class ClientMenuHostGroundTests
             .Select(e => Oak.Nodes.First(n => n.Id == ((e.FromNodeId == holdShort.Id) ? e.ToNodeId : e.FromNodeId)))
             .Single(n => !LinkNamesOf(n.Id).Any(name => name.Contains("RWY", StringComparison.OrdinalIgnoreCase)));
 
-    /// <summary>The distance from <paramref name="aircraft"/> to the named stand <paramref name="name"/>.</summary>
-    private static double DistanceToStand(AircraftModel aircraft, string name)
+    /// <summary>
+    /// A B738 parked on OAK gate 26 on the stand's heading, its parking spot named, with <paramref name="others"/> about
+    /// it, the ground view reading <paramref name="seed"/>, and the client host serving it.
+    /// </summary>
+    internal static (AircraftModel Target, MainViewModel Main, ClientMenuHost Host) AtGate26(PushTargetSeed seed, params AircraftModel[] others) =>
+        AtStand(Gate26, seed, others);
+
+    /// <summary>
+    /// A B738 parked on the named OAK stand on its heading, its parking spot named, with <paramref name="others"/> about
+    /// it, the ground view reading <paramref name="seed"/>, and the client host serving it.
+    /// </summary>
+    internal static (AircraftModel Target, MainViewModel Main, ClientMenuHost Host) AtStand(
+        string standName,
+        PushTargetSeed seed,
+        params AircraftModel[] others
+    )
     {
-        GroundNodeDto stand = Oak.Nodes.First(n => (n.Name == name) && (n.Type is "Spot" or "Parking" or "Helipad"));
-        return GeoMath.DistanceNm(aircraft.Position.Lat, aircraft.Position.Lon, stand.Latitude, stand.Longitude);
+        AircraftModel target = ParkedAt(standName, Callsign);
+        MainViewModel main = OakMain(target, others);
+        main.Ground.SetPushTargetSeedForTesting(seed);
+        return (target, main, new ClientMenuHost(main, target, new Border()));
+    }
+
+    /// <summary>A B738 parked on the named OAK stand on its heading, at parking with its parking spot named.</summary>
+    internal static AircraftModel ParkedAt(string standName, string callsign)
+    {
+        GroundNodeDto gate = Oak.Nodes.Single(n => (n.Type == "Parking") && (n.Name == standName));
+        AircraftModel ac = GroundAircraft(callsign, "At Parking", PositionOf(gate));
+        GroundNode stand = MenuGoldenFixtures.OakLayoutForSim.Nodes[gate.Id];
+        ac.Heading = stand.TrueHeading ?? throw new InvalidOperationException($"OAK gate {standName} has no stand heading");
+        ac.ParkingSpot = standName;
+        return ac;
+    }
+
+    private static void AssertSettledEmpty(PushTargetList list)
+    {
+        Assert.True(list.Settled.IsCompleted);
+        Assert.False(list.Computing);
+        Assert.Empty(list.Targets);
     }
 
     /// <summary>Runway 30's hold-short node on taxiway W3.</summary>

@@ -17,7 +17,8 @@ using Yaat.Sim.Data.Airport;
 namespace Yaat.Client.UI.Tests.Views;
 
 // The aircraft menu's host-answered ground submenus, built through AircraftMenuBuilder over the client menu host: the
-// pushback face items and "Push back to…", "Preset taxi route", "Hold short of…", "Follow…" and "Give way to…".
+// pushback face items, "Preset taxi route", "Hold short of…", "Follow…" and "Give way to…" ("Push back to…" is
+// ClientMenuHostGroundTests' and PushbackToMenuTests').
 // The menu goldens are single-aircraft fixtures and show none of them, so nothing else pins their
 // headers, their children and order, their caps and gates, or the exact command a click sends.
 //
@@ -182,21 +183,6 @@ public class GroundSubmenuCharacterizationTests
 
         Assert.Equal([(ParkedCallsign, $"PUSH FACE {directions[0].Cardinal}", Initials)], built.Sent);
         Assert.Contains(directions[0].Cardinal, new[] { "N", "NE", "E", "SE", "S", "SW", "W", "NW" });
-    }
-
-    [AvaloniaFact]
-    public void GroundMenu_PushbackTo_SpotUsesDollarParkingUsesAt()
-    {
-        Built built = BuildMenu(ParkedAircraft(), prevSelected: null);
-
-        Assert.NotEqual(NodeTypeOf("1"), NodeTypeOf("32"));
-
-        Click(Child(built.Menu, "Push back to…", "1"));
-        Assert.Equal([(ParkedCallsign, "PUSH $1", Initials)], built.Sent);
-
-        built.Sent.Clear();
-        Click(Child(built.Menu, "Push back to…", "32"));
-        Assert.Equal([(ParkedCallsign, "PUSH @32", Initials)], built.Sent);
     }
 
     [AvaloniaFact]
@@ -414,8 +400,6 @@ public class GroundSubmenuCharacterizationTests
         };
 
     private static LatLon PositionOf(GroundNodeDto node) => new(node.Latitude, node.Longitude);
-
-    private static string NodeTypeOf(string name) => Oak.Nodes.First(n => (n.Name == name) && (n.Type is "Spot" or "Parking" or "Helipad")).Type;
 
     // --- OAK nodes --------------------------------------------------------------------------
 

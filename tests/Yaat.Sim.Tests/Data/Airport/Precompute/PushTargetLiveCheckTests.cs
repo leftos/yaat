@@ -255,7 +255,7 @@ public class PushTargetLiveCheckTests(ITestOutputHelper output)
         foreach (PrecomputedPushTarget target in Target(OakSampleEntries.Value, "26", group))
         {
             PushTargetLiveVerdict verdict = PushTargetLiveCheck.Check(target, request);
-            TugRequest live = PushTargetPlanner.RequestFor(start, envelope, classification, GoalOf(layout, start, target)) with
+            TugRequest live = PushTargetPlanner.RequestFor(start, envelope, classification, GoalOf(layout, start, target), startsAtStand: true) with
             {
                 ParkedNeighbours = neighbours,
             };
@@ -399,7 +399,11 @@ public class PushTargetLiveCheckTests(ITestOutputHelper output)
         Assert.DoesNotContain(Target(SfoD2Entries.Value, "D2", group), t => t.Command == "PUSH $5A");
         GroundNode spot5A = Assert.IsType<GroundNode>(layout.FindSpotNodeByName("5A"));
         TugPlan envelopePlan = Assert.IsType<TugPlan>(
-            TugMovePlanner.Plan(layout, PushTargetPlanner.RequestFor(start, envelope, classification, TugGoal.Spot(spot5A)), out _)
+            TugMovePlanner.Plan(
+                layout,
+                PushTargetPlanner.RequestFor(start, envelope, classification, TugGoal.Spot(spot5A), startsAtStand: true),
+                out _
+            )
         );
         double envelopePathFt = envelopePlan.Moves.Sum(m => m.PathLengthFt);
         output.WriteLine($"PUSH $5A for group {group}: {envelopePathFt:F1} ft, cap {PushTargetPlanner.PathCapFt(envelope):F1} ft");
@@ -408,7 +412,7 @@ public class PushTargetLiveCheckTests(ITestOutputHelper output)
         PrecomputedPushTarget t5A = Target(SfoD2Entries.Value, "D2", group, "T5A");
         var actual = AircraftFootprint.FromType(Regional);
         PushTargetLiveCheckRequest request = Request(subject, actual, others);
-        TugRequest live = PushTargetPlanner.RequestFor(start, actual, classification, GoalOf(layout, start, t5A)) with
+        TugRequest live = PushTargetPlanner.RequestFor(start, actual, classification, GoalOf(layout, start, t5A), startsAtStand: true) with
         {
             ParkedNeighbours = neighbours,
         };
@@ -469,7 +473,13 @@ public class PushTargetLiveCheckTests(ITestOutputHelper output)
         TugPlan plan = Assert.IsType<TugPlan>(
             TugMovePlanner.Plan(
                 layout,
-                PushTargetPlanner.RequestFor(start, AircraftFootprint.FromType(Narrowbody), classification, GoalOf(layout, start, targets[0])),
+                PushTargetPlanner.RequestFor(
+                    start,
+                    AircraftFootprint.FromType(Narrowbody),
+                    classification,
+                    GoalOf(layout, start, targets[0]),
+                    startsAtStand: true
+                ),
                 out _
             )
         );
@@ -765,7 +775,7 @@ public class PushTargetLiveCheckTests(ITestOutputHelper output)
         {
             ForcedKind = kind,
         };
-        TugRequest request = PushTargetPlanner.RequestFor(start, footprint, classification, goal) with { StartsAtStand = false };
+        TugRequest request = PushTargetPlanner.RequestFor(start, footprint, classification, goal, startsAtStand: false);
         TugPlan plan =
             TugMovePlanner.Plan(layout, request, out string refusal)
             ?? throw new InvalidOperationException($"The forced {kind} to the marked point was refused: {refusal}");

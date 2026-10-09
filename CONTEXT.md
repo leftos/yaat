@@ -586,7 +586,7 @@ _Avoid_: settings backup, profile (a layout is not a bundle)
 The tests outside a sim-behaviour brief's file list that pin the behaviour it changes; the brief names each with a ruling (update the expectation, keep it green unedited, or stop and report), as the `yaat-nextup` profile's Brief shape says.
 
 **Precompute cache**:
-Per-airport results computed offline from static inputs and shipped with YAAT (`src/Yaat.Sim/Data/PrecomputeCache/{FAA}.json.br`): the parsed ground layout and the per-stand push targets. An entry is used only when its key matches the current inputs; otherwise the server computes it.
+Per-airport results computed offline from static inputs and shipped with YAAT (`src/Yaat.Sim/Data/PrecomputeCache/{FAA}.json.br`): the parsed ground layout and the per-stand push targets. An entry is used only when its key matches the current inputs; otherwise the reader plans the result live (the client's Push back to… submenu does).
 
 **Airport list**:
 `src/Yaat.Sim/Data/PrecomputeCache/airports.txt`, the airports the precompute cache covers: those a training scenario names as `primaryAirportId` or on an aircraft's `airportId` that have a vNAS ground map. The maintainer tool computes and checks them, and `--refresh-airports` rebuilds the list.
@@ -611,6 +611,12 @@ The re-fly and sweep of a cached push target when an aircraft's Push Back To men
 
 **Offline check / online check**:
 The precompute tool's `--check`. Offline, it compares each listed airport's committed entry key with the build-time source hashes, the sidecar hash and the layout format version; online (`--check --online`), it also compares the GeoJSON MD5 and NavData serial with what vNAS serves now. A missing or stale entry is a warning, never a failure.
+
+**Push-target seed**:
+The shipped precompute entry for an aircraft's stand and design group (`PushTargetSeed`), which first fills the Push back to… submenu, live-checked, before the client's own live plan lands and replaces it in place; a stand with no current entry, and any held aircraft, show `Computing targets…` instead.
+
+**Stay-put target**:
+A push target planned from a held pose that ends within 10 ft and 10° of that pose (`PushTargetPlanner.StayPutDistanceFt`, `StayPutHeadingDeg`), such as a push to the spot the aircraft sits on; it would leave the aircraft where it is, so the held plan drops it.
 
 **Ouroboros** (controller-voice ouroboros):
 The speech sandbox's self-test (`--atc-ouroboros`): it synthesises controller transmissions from templates with a TTS voice, runs them through speech recognition and the phraseology mapper, and scores each case against the template's expected command (`tools/Yaat.SpeechSandbox/Corpus/atc-ouroboros-baseline.json`).

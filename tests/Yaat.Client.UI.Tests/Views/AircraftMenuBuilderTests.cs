@@ -80,7 +80,7 @@ public class AircraftMenuBuilderTests
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
         var host = new RecordingMenuHost("");
         host.GroundTraffic.Add(RecordingMenuHost.ParkedRow("SWA602"));
-        host.PushbackToChoices.Add(new MenuCommandChoice("Gate 26", "PUSH 26", null, []));
+        host.PushbackTargets = PushTargetList.Ready([new MenuPushTarget(MenuPushTargetKind.Taxilane, "TE", null, 140, "PUSH TE", [], null)]);
         host.PresetTaxiChoices.Add(RecordingMenuHost.PresetRow("Via B", "TAXI B 30"));
 
         List<string> atParking = Sequence(AllCommandsItem(Build(Fixture("at-parking"), host, _ => [])));
@@ -94,8 +94,10 @@ public class AircraftMenuBuilderTests
     public void GroundAircraft_OffersDrawTaxiRouteAndPushRouteUnderAllCommands()
     {
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
-        var host = new RecordingMenuHost("");
-        host.PushbackToChoices.Add(new MenuCommandChoice("Gate 26", "PUSH 26", null, []));
+        var host = new RecordingMenuHost("")
+        {
+            PushbackTargets = PushTargetList.Ready([new MenuPushTarget(MenuPushTargetKind.Taxilane, "TE", null, 140, "PUSH TE", [], null)]),
+        };
         host.PresetTaxiChoices.Add(RecordingMenuHost.PresetRow("Via B", "TAXI B 30"));
 
         List<string> atParking = Sequence(AllCommandsItem(Build(Fixture("at-parking"), host, _ => [])));

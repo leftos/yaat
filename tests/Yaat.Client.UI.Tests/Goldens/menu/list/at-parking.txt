@@ -1,6 +1,6 @@
 # list at-parking
 SWA101 · B738 [disabled]
-At parking [disabled]
+At parking · 25 [disabled]
 ---
 Command…
 Note…
@@ -27,36 +27,7 @@ Favorite Commands
 All Commands
   Push back
   Push back to…
-    24
-    26
-    23
-    27
-    22
-    29
-    21
-    30
-    20
-    31
-    6
-    4
-    32
-    8
-    8B
-    E
-    8A
-    C
-    10
-    3
-    3A
-    12
-    5
-    14
-    7A
-    7
-    9
-    17
-    9A
-    1
+    Computing targets… [disabled]
   Push route…
   Taxi to runway
     Finding runway entries… [disabled]

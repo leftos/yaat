@@ -315,7 +315,7 @@ A runway row is named from the room's active runways (`GroundViewModel.RoomActiv
 
 Hovering a hold-short row calls `ClientMenuHost.SetRoutePreview`, which fans out over `main.AllGroundViews` and which nothing clears on pointer exit (`CanHoldShort` is `phase == "Taxiing"` exactly).
 
-The pushback block, the route presets and Taxi to runway come from the catalog as well, from host answers (`GetPushbackFaceChoices`, `GetPushbackToChoices`, `GetPresetTaxiChoices` and `GetTaxiToRunwayChoices` as `TaxiRouteRow`s with finished commands, via, distance and a preview path, `EnterPushRoute`, `EnterDrawRoute`) that `ClientMenuHost` takes from the primary `GroundViewModel`.
+The pushback block, the route presets and Taxi to runway come from the catalog as well, from host answers (`GetPushbackFaceChoices`, `GetPushbackTargets` as a `PushTargetList` that may still be filling, `GetPresetTaxiChoices` and `GetTaxiToRunwayChoices` as `TaxiRouteRow`s with finished commands, via, distance and a preview path, `EnterPushRoute`, `EnterDrawRoute`) that `ClientMenuHost` takes from the primary `GroundViewModel`.
 
 Taxi to runway (`GroundViewModel.GetTaxiToRunwayChoices`) starts from `TaxiStartNode` with the aircraft's own category and wake class, finds the shortest route to each runway hold short (`RunwayEntryRoutes`, cached per start node, category, wake class and runway until the layout changes) and ranks the entries by runway remaining against the type's takeoff distance.
 

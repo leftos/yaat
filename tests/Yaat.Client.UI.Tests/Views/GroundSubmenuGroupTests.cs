@@ -269,21 +269,29 @@ public class GroundSubmenuGroupTests
     }
 
     [AvaloniaFact]
-    public void Pushback_PushBackToListsTheHostStandsInOrder_AndSendsTheirCommands()
+    public void Pushback_PushBackToListsTheHostTargetsBySection_AndSendsTheirCommands()
     {
-        var host = new RecordingMenuHost("");
-        host.PushbackToChoices.Add(new MenuCommandChoice("1", "PUSH $1", null, []));
-        host.PushbackToChoices.Add(new MenuCommandChoice("32", "PUSH @32", null, []));
+        var host = new RecordingMenuHost("")
+        {
+            PushbackTargets = PushTargetList.Ready([
+                new MenuPushTarget(MenuPushTargetKind.Spot, "1", null, 300, "PUSH $1", [], null),
+                new MenuPushTarget(MenuPushTargetKind.Taxilane, "TE", "alongside", 140, "PUSH TE", [], null),
+            ]),
+        };
 
         ContextMenu menu = BuildPushbackGroup(host);
         Assert.Equal(["Push back", "Push back to…", "Push route…"], HeadersWhere(menu, IsPushItem));
 
         MenuItem pushTo = Item(CommandTree(menu), "Push back to…");
-        Assert.Equal(["1", "32"], Headers(pushTo.Items));
+        Assert.Equal(
+            [PushbackToMenu.TaxiwaysHeader, "PUSH TE", "-", PushbackToMenu.SpotsHeader, "PUSH $1"],
+            pushTo.Items.Select(i => i is MenuItem { Header: string header } ? header : (i is MenuItem m ? MenuCommandText.GetCommand(m) : "-"))
+        );
 
-        Click(Item(pushTo.Items, "32"));
-        Click(Item(pushTo.Items, "1"));
-        Assert.Equal([(Callsign, "PUSH @32", Initials), (Callsign, "PUSH $1", Initials)], host.Sent);
+        MenuItem[] rows = [.. pushTo.Items.OfType<MenuItem>().Where(m => m.Header is not string)];
+        Click(rows[1]);
+        Click(rows[0]);
+        Assert.Equal([(Callsign, "PUSH $1", Initials), (Callsign, "PUSH TE", Initials)], host.Sent);
     }
 
     [AvaloniaFact]
@@ -310,7 +318,7 @@ public class GroundSubmenuGroupTests
     {
         var host = new RecordingMenuHost("");
         host.PushbackFaceChoices.Add(new MenuCommandChoice("Push back, face W1", "PUSH FACE N", null, []));
-        host.PushbackToChoices.Add(new MenuCommandChoice("1", "PUSH $1", null, []));
+        host.PushbackTargets = PushTargetList.Ready([new MenuPushTarget(MenuPushTargetKind.Spot, "1", null, 300, "PUSH $1", [], null)]);
 
         Assert.Empty(HeadersWhere(BuildMenu(host, Taxiing()), IsPushItem));
     }

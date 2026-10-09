@@ -658,6 +658,101 @@ public class PushTargetPlannerTests
         Assert.NotEmpty(Entry("26", "IV").Targets);
     }
 
+    /// <summary>
+    /// A group-III aircraft pushed from gate 12 to spot C and held there is not offered spot C again: a push to the spot it
+    /// sits on would leave it where it is. It is offered other targets, planned from where it stands.
+    /// </summary>
+    [Fact]
+    public void ComputeHeld_AfterPushToSpot_NeverOffersTheSpotItIsOn()
+    {
+        AirportGroundLayout layout = Oak();
+        var spotC = TugGoal.Spot(SpotNode(layout, "C"));
+        TugPose held = HeldAfter(layout, "12", spotC, AirplaneDesignGroup.III);
+
+        IReadOnlyList<PrecomputedPushTarget> targets = HeldTargets(layout, held, AirplaneDesignGroup.III);
+
+        Assert.NotEmpty(targets);
+        Assert.DoesNotContain(targets, t => t.Command == "PUSH $C");
+
+        // The planner itself accepts the push to C, a foot's creep: only the stay-put rule keeps it off the list.
+        AircraftFootprint footprint = DesignGroupEnvelopes.LoadShipped().FootprintOf(AirplaneDesignGroup.III);
+        TugRequest again = PushTargetPlanner.RequestFor(held, footprint, Classification(layout), spotC, startsAtStand: false);
+        TugPlan? stayPut = TugMovePlanner.Plan(layout, again, out string refusal);
+        Assert.True(stayPut is not null, refusal);
+        // Accepted and ending inside the stay-put radius: so the stay-put rule, not a planner refusal, is what removes C.
+        Assert.True((GeoMath.DistanceNm(held.Position, stayPut.End.Position) * GeoMath.FeetPerNm) <= PushTargetPlanner.StayPutDistanceFt);
+    }
+
+    /// <summary>
+    /// After gate 26's group-III <c>PUSH TE</c> the aircraft is held on TE, its stand still named 26 on the server (taxiway B
+    /// is 2,713 ft off, past the tug's sanity guard): its targets are planned from where it is held, so they differ from
+    /// gate 26's, and no target repeats a stand push's moves.
+    /// </summary>
+    [Fact]
+    public void ComputeHeld_AfterPushOntoTaxiway_PlansFromTheHeldPoseNotTheStand()
+    {
+        AirportGroundLayout layout = Oak();
+        GroundNode gate = Stand(layout, "26");
+        TugPose held = HeldAfter(layout, "26", StraightBack(layout, gate, "TE"), AirplaneDesignGroup.III);
+
+        IReadOnlyList<PrecomputedPushTarget> heldTargets = HeldTargets(layout, held, AirplaneDesignGroup.III);
+        PushTargetEntry standEntry = Assert.IsType<PushTargetEntry>(
+            PushTargetPlanner.ComputeStand(layout, DesignGroupEnvelopes.LoadShipped(), Sidecars.Value, "26", AirplaneDesignGroup.III)
+        );
+
+        Assert.NotEmpty(heldTargets);
+        Assert.NotEqual(Json(standEntry.Targets), Json(heldTargets));
+        Assert.All(heldTargets, t => Assert.DoesNotContain(standEntry.Targets, s => (s.Command == t.Command) && s.Moves.SequenceEqual(t.Moves)));
+    }
+
+    /// <summary>
+    /// A held push is planned as one that does not start at a stand: planned from gate 26's own pose, the held plan differs
+    /// from the stand plan, though the pose and the candidates are the same.
+    /// </summary>
+    [Fact]
+    public void ComputeHeld_StartsAtStandFalse()
+    {
+        AirportGroundLayout layout = Oak();
+        GroundNode gate = Stand(layout, "26");
+
+        IReadOnlyList<PrecomputedPushTarget> asHeld = HeldTargets(layout, StartOf(gate), AirplaneDesignGroup.III);
+        PushTargetEntry asStand = Assert.IsType<PushTargetEntry>(
+            PushTargetPlanner.ComputeStand(layout, DesignGroupEnvelopes.LoadShipped(), Sidecars.Value, "26", AirplaneDesignGroup.III)
+        );
+
+        Assert.NotEmpty(asHeld);
+        Assert.NotEqual(Json(asStand.Targets), Json(asHeld));
+    }
+
+    /// <summary>
+    /// After gate 12's group-III <c>PUSH $C</c>, a taxiway's exit is the one nearest where the aircraft is held, not the one
+    /// nearest spot C's node: the held target's moves are the plan to the held position's exit.
+    /// </summary>
+    [Fact]
+    public void ComputeHeld_TaxiwayExitFromTheHeldPosition()
+    {
+        AirportGroundLayout layout = Oak();
+        GroundNode spotC = SpotNode(layout, "C");
+        TugPose held = HeldAfter(layout, "12", TugGoal.Spot(spotC), AirplaneDesignGroup.III);
+        IReadOnlyList<PrecomputedPushTarget> targets = HeldTargets(layout, held, AirplaneDesignGroup.III);
+
+        GroundNode fromHeld = layout.FindExitByTaxiway(held.Position, "TE") ?? throw new InvalidOperationException("No exit onto TE from spot C");
+        Assert.NotEqual(layout.FindExitByTaxiway(spotC.Position, "TE")?.Id, fromHeld.Id);
+        AircraftFootprint footprint = DesignGroupEnvelopes.LoadShipped().FootprintOf(AirplaneDesignGroup.III);
+        TugRequest request = PushTargetPlanner.RequestFor(
+            held,
+            footprint,
+            Classification(layout),
+            TugGoal.StraightBackTo(fromHeld, "TE"),
+            startsAtStand: false
+        );
+        TugPlan? plan = TugMovePlanner.Plan(layout, request, out string refusal);
+        Assert.True(plan is not null, refusal);
+
+        PrecomputedPushTarget te = Assert.Single(targets, t => t.Name == "TE");
+        Assert.Equal(plan.Moves.Select(PushMoveEntry.From), te.Moves);
+    }
+
     internal static AirportGroundLayout Sfo() =>
         new TestAirportGroundData().GetLayout("KSFO")
         ?? throw new InvalidOperationException("The KSFO test layout (tests/Yaat.Sim.Tests/TestData/sfo.geojson) is missing.");
@@ -695,6 +790,32 @@ public class PushTargetPlannerTests
 
     private static TugPose StartOf(GroundNode stand) => new(stand.Position, stand.TrueHeading!.Value.Degrees);
 
+    private static GroundNode SpotNode(AirportGroundLayout layout, string name) =>
+        layout.FindSpotNodeByName(name) ?? throw new InvalidOperationException($"No spot {name} at {layout.AirportId}");
+
+    /// <summary>
+    /// Where a push off <paramref name="standName"/> to <paramref name="goal"/> with <paramref name="group"/>'s envelope ends,
+    /// as the planner flies it: the pose the aircraft is held at after the push.
+    /// </summary>
+    private static TugPose HeldAfter(AirportGroundLayout layout, string standName, TugGoal goal, AirplaneDesignGroup group)
+    {
+        AircraftFootprint footprint = DesignGroupEnvelopes.LoadShipped().FootprintOf(group);
+        TugRequest request = PushTargetPlanner.RequestFor(
+            StartOf(Stand(layout, standName)),
+            footprint,
+            Classification(layout),
+            goal,
+            startsAtStand: true
+        );
+        TugPlan? plan = TugMovePlanner.Plan(layout, request, out string refusal);
+        Assert.True(plan is not null, $"The push off {standName} for group {group} was refused: {refusal}");
+        return plan.End;
+    }
+
+    private static IReadOnlyList<PrecomputedPushTarget> HeldTargets(AirportGroundLayout layout, TugPose held, AirplaneDesignGroup group) =>
+        PushTargetPlanner.ComputeHeld(layout, DesignGroupEnvelopes.LoadShipped(), Sidecars.Value, held, group)
+        ?? throw new InvalidOperationException($"No envelope for group {group}: nothing to plan the held pose with");
+
     private static TugGoal StraightBack(AirportGroundLayout layout, GroundNode stand, string taxiway) =>
         TugGoal.StraightBackTo(
             layout.FindExitByTaxiway(stand.Position, taxiway) ?? throw new InvalidOperationException($"No exit onto {taxiway}"),
@@ -717,7 +838,7 @@ public class PushTargetPlannerTests
                 {
                     TugPlan? plan = TugMovePlanner.Plan(
                         layout,
-                        PushTargetPlanner.RequestFor(StartOf(stand), footprint, classification, g.Goal),
+                        PushTargetPlanner.RequestFor(StartOf(stand), footprint, classification, g.Goal, startsAtStand: true),
                         out _
                     );
                     double? lengthFt = plan is null ? null : Math.Round(plan.Moves.Sum(m => m.PathLengthFt), 1);
@@ -736,7 +857,14 @@ public class PushTargetPlannerTests
         var accepted = new List<(string Command, TugPlan Plan)>();
         foreach ((PushTargetKind kind, string name, TugGoal goal) in Candidates(layout, stand))
         {
-            if (TugMovePlanner.Plan(layout, PushTargetPlanner.RequestFor(StartOf(stand), footprint, classification, goal), out _) is { } plan)
+            if (
+                TugMovePlanner.Plan(
+                    layout,
+                    PushTargetPlanner.RequestFor(StartOf(stand), footprint, classification, goal, startsAtStand: true),
+                    out _
+                ) is
+                { } plan
+            )
             {
                 accepted.Add((CommandOf(kind, name), plan));
             }

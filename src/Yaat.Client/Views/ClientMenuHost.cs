@@ -487,9 +487,12 @@ internal sealed class ClientMenuHost(MainViewModel main, AircraftModel? aircraft
     public IReadOnlyList<MenuCommandChoice> GetPushbackFaceChoices(string callsign) =>
         FindAircraft(callsign) is { } ac ? main.Ground.GetPushbackFaceChoices(ac) : [];
 
-    /// <summary>The primary ground view model's nearest named stands for the aircraft, each sending <c>PUSH</c>.</summary>
-    public IReadOnlyList<MenuCommandChoice> GetPushbackToChoices(string callsign) =>
-        FindAircraft(callsign) is { } ac ? main.Ground.GetPushbackToChoices(ac) : [];
+    /// <summary>
+    /// The primary ground view model's Push back to… targets from the aircraft's stand, or from where it is held after a
+    /// pushback, filled in place by its background live plan; a settled empty list for an aircraft not in the list.
+    /// </summary>
+    public PushTargetList GetPushbackTargets(string callsign) =>
+        FindAircraft(callsign) is { } ac ? main.Ground.GetPushbackTargets(ac) : PushTargetList.Ready([]);
 
     /// <summary>The primary ground view model's preset taxi routes that resolve from the aircraft's taxi start, each sending <c>TAXI</c>.</summary>
     public IReadOnlyList<TaxiRouteRow> GetPresetTaxiChoices(string callsign) =>

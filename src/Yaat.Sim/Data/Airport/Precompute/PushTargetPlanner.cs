@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.Extensions.Logging;
 
 namespace Yaat.Sim.Data.Airport.Precompute;
@@ -9,7 +10,9 @@ namespace Yaat.Sim.Data.Airport.Precompute;
 /// planner accepts, each with the plan it made. The plans are made exactly as a live push off the stand would make them,
 /// with no other aircraft about, and with the footprint of the group's envelope
 /// (<see cref="DesignGroupEnvelopes.FootprintOf(DesignGroupEnvelope)"/>), never the FAA database. The movement-area
-/// classification is built from the sidecars the caller passes, the same ones the entry's key hashes.
+/// classification is built from the sidecars the caller passes, the same ones the entry's key hashes. An aircraft held
+/// where a push left it has no stand: <see cref="ComputeHeld"/> plans the same kinds of target from its held pose, as a
+/// push that does not start at a stand, leaving out any target that would end where it already is.
 /// </summary>
 public static class PushTargetPlanner
 {
@@ -26,6 +29,12 @@ public static class PushTargetPlanner
 
     /// <summary>The cap's floor, feet: a small group's push out to a taxilane a few hundred feet away is still a push.</summary>
     public const double MinPathCapFt = 600.0;
+
+    /// <summary>A held target ending within this distance of the held position leaves the aircraft where it is, feet.</summary>
+    public const double StayPutDistanceFt = 10.0;
+
+    /// <summary>A held target ending within this angle of the held heading leaves the aircraft where it is, degrees.</summary>
+    public const double StayPutHeadingDeg = 10.0;
 
     /// <summary>
     /// The longest path a target of <paramref name="footprint"/> may have and still be stored, feet: the greater of
@@ -109,19 +118,26 @@ public static class PushTargetPlanner
     }
 
     /// <summary>
-    /// The request a live push off <paramref name="start"/>'s stand makes for <paramref name="goal"/>, with no other
-    /// aircraft about.
+    /// The request a live push from <paramref name="start"/> makes for <paramref name="goal"/>, with no other aircraft
+    /// about: off a stand, or from where an aircraft is held after a pushback.
     /// </summary>
-    /// <param name="start">The stand's position and heading.</param>
+    /// <param name="start">The position and true heading the push starts from: the stand's, or the held pose.</param>
     /// <param name="footprint">The aircraft's dimensions.</param>
     /// <param name="movementArea">The movement-area classification the plan reads.</param>
     /// <param name="goal">The goal.</param>
+    /// <param name="startsAtStand">Whether <paramref name="start"/> is a stand the aircraft pushes off.</param>
     /// <returns>The request.</returns>
-    public static TugRequest RequestFor(TugPose start, AircraftFootprint footprint, MovementAreaClassification movementArea, TugGoal goal) =>
+    public static TugRequest RequestFor(
+        TugPose start,
+        AircraftFootprint footprint,
+        MovementAreaClassification movementArea,
+        TugGoal goal,
+        bool startsAtStand
+    ) =>
         new()
         {
             Start = start,
-            StartsAtStand = true,
+            StartsAtStand = startsAtStand,
             Footprint = footprint,
             MovementArea = movementArea,
             Goals = [goal],
@@ -171,12 +187,8 @@ public static class PushTargetPlanner
             return null;
         }
 
-        DesignGroupEnvelope? envelope = designGroupEnvelopes.Envelopes.FirstOrDefault(e =>
-            string.Equals(e.Group, group.ToString(), StringComparison.Ordinal)
-        );
-        if (envelope is null)
+        if (EnvelopeFor(designGroupEnvelopes, group, $"stand {stand.Name}", layout) is not { } envelope)
         {
-            Log.LogDebug("Design group {Group} has no envelope; no push targets for stand {Stand} at {Airport}", group, standName, layout.AirportId);
             return null;
         }
 
@@ -187,8 +199,79 @@ public static class PushTargetPlanner
         }
 
         var classification = MovementAreaClassification.Build(layout, sidecars);
-        return PlanGroup(new StandContext(layout, classification, stand, heading), envelope);
+        var origin = OriginContext.ForStand(layout, classification, stand, heading.Degrees);
+        return new PushTargetEntry(stand.Name!, envelope.Group, PlanGroup(origin, envelope));
     }
+
+    /// <summary>
+    /// <see cref="ComputeStand"/> for an aircraft held where a push left it: the taxiway and spot targets around
+    /// <paramref name="heldPose"/>, planned on the calling thread from that pose as a push that does not start at a stand,
+    /// each taxiway's exit found from the held position. A target whose plan would end where the aircraft already is
+    /// (within <see cref="StayPutDistanceFt"/> and <see cref="StayPutHeadingDeg"/> of <paramref name="heldPose"/>, as a push
+    /// to the spot it sits on) is left out. Null when the envelopes carry no envelope for <paramref name="group"/>.
+    /// </summary>
+    /// <param name="layout">The airport's ground layout.</param>
+    /// <param name="designGroupEnvelopes">The envelope per design group.</param>
+    /// <param name="sidecars">The airport sidecars the movement-area classification is built from.</param>
+    /// <param name="heldPose">The aircraft's position and true heading where it is held.</param>
+    /// <param name="group">The aircraft's design group.</param>
+    /// <returns>
+    /// The held position's targets for that group, sorted as a stand's are, or null when there is nothing to plan them with.
+    /// </returns>
+    public static IReadOnlyList<PrecomputedPushTarget>? ComputeHeld(
+        AirportGroundLayout layout,
+        DesignGroupEnvelopes designGroupEnvelopes,
+        AirportSidecarCatalog sidecars,
+        TugPose heldPose,
+        AirplaneDesignGroup group
+    )
+    {
+        ArgumentNullException.ThrowIfNull(layout);
+        ArgumentNullException.ThrowIfNull(designGroupEnvelopes);
+        ArgumentNullException.ThrowIfNull(sidecars);
+
+        string description = HeldDescription(heldPose);
+        if (EnvelopeFor(designGroupEnvelopes, group, description, layout) is not { } envelope)
+        {
+            return null;
+        }
+
+        var classification = MovementAreaClassification.Build(layout, sidecars);
+        return PlanGroup(OriginContext.ForHeld(layout, classification, heldPose, description), envelope);
+    }
+
+    /// <summary>The envelope of <paramref name="group"/>, or null, logged, when the envelopes carry none.</summary>
+    private static DesignGroupEnvelope? EnvelopeFor(
+        DesignGroupEnvelopes designGroupEnvelopes,
+        AirplaneDesignGroup group,
+        string originDescription,
+        AirportGroundLayout layout
+    )
+    {
+        DesignGroupEnvelope? envelope = designGroupEnvelopes.Envelopes.FirstOrDefault(e =>
+            string.Equals(e.Group, group.ToString(), StringComparison.Ordinal)
+        );
+        if (envelope is null)
+        {
+            Log.LogDebug(
+                "Design group {Group} has no envelope; no push targets from {Origin} at {Airport}",
+                group,
+                originDescription,
+                layout.AirportId
+            );
+        }
+
+        return envelope;
+    }
+
+    /// <summary>A held pose as the log names it: <c>the held position {lat},{lon} heading {deg}</c>.</summary>
+    /// <param name="heldPose">The aircraft's position and true heading where it is held.</param>
+    /// <returns>The description, invariant culture.</returns>
+    public static string HeldDescription(TugPose heldPose) =>
+        string.Create(
+            CultureInfo.InvariantCulture,
+            $"the held position {heldPose.Position.Lat:F6},{heldPose.Position.Lon:F6} heading {heldPose.NoseTrueDeg:F0}"
+        );
 
     private static List<PushTargetEntry> ComputeFor(
         AirportGroundLayout layout,
@@ -235,24 +318,27 @@ public static class PushTargetPlanner
             return [.. designGroupEnvelopes.Envelopes.Select(e => new PushTargetEntry(stand.Name!, e.Group, []))];
         }
 
-        var context = new StandContext(layout, classification, stand, heading);
-        return [.. designGroupEnvelopes.Envelopes.Select(e => PlanGroup(context, e))];
+        var context = OriginContext.ForStand(layout, classification, stand, heading.Degrees);
+        return [.. designGroupEnvelopes.Envelopes.Select(e => new PushTargetEntry(stand.Name!, e.Group, PlanGroup(context, e)))];
     }
 
-    /// <summary>The stand's entry for one design group's envelope, planned as a live push off the stand.</summary>
-    private static PushTargetEntry PlanGroup(StandContext stand, DesignGroupEnvelope envelope)
+    /// <summary>
+    /// The origin's targets for one design group's envelope, planned as a live push from the origin, sorted and capped.
+    /// </summary>
+    private static List<PrecomputedPushTarget> PlanGroup(OriginContext origin, DesignGroupEnvelope envelope)
     {
         var context = new PlanContext
         {
-            Layout = stand.Layout,
-            MovementArea = stand.MovementArea,
-            StandName = stand.Node.Name!,
+            Layout = origin.Layout,
+            MovementArea = origin.MovementArea,
+            OriginDescription = origin.Description,
             Group = envelope.Group,
-            Start = new TugPose(stand.Node.Position, stand.Heading.Degrees),
+            Start = origin.Start,
+            StartsAtStand = origin.StartsAtStand,
             Footprint = DesignGroupEnvelopes.FootprintOf(envelope),
         };
-        List<PrecomputedPushTarget> planned = [.. stand.Candidates.Select(c => Plan(context, c)).OfType<PrecomputedPushTarget>()];
-        return new PushTargetEntry(stand.Node.Name!, envelope.Group, Capped(Sorted(planned), context));
+        List<PrecomputedPushTarget> planned = [.. origin.Candidates.Select(c => Plan(context, c)).OfType<PrecomputedPushTarget>()];
+        return Capped(Sorted(planned), context);
     }
 
     /// <summary>
@@ -286,38 +372,43 @@ public static class PushTargetPlanner
         return stands;
     }
 
-    /// <summary>The stand's taxiway goals, the same for every design group, by name.</summary>
-    private static List<StandCandidate> TaxiwayCandidates(AirportGroundLayout layout, MovementAreaClassification classification, GroundNode stand)
+    /// <summary>The origin's taxiway goals, the same for every design group, by name, each exit found from the origin's position.</summary>
+    private static List<OriginCandidate> TaxiwayCandidates(
+        AirportGroundLayout layout,
+        MovementAreaClassification classification,
+        TugPose start,
+        string originDescription
+    )
     {
-        var candidates = new List<StandCandidate>();
+        var candidates = new List<OriginCandidate>();
         IEnumerable<string> taxiways = layout
             .Edges.OfType<GroundEdge>()
             .Where(e => !e.IsRamp && !e.IsRunwayCenterline && !e.IsRunwayCrossingLink)
-            .Where(e => e.Nodes.Any(n => WithinSearch(stand, n)))
+            .Where(e => e.Nodes.Any(n => WithinSearch(start, n)))
             .Select(e => e.TaxiwayName)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Order(StringComparer.Ordinal);
         foreach (string taxiway in taxiways)
         {
-            if (layout.FindExitByTaxiway(stand.Position, taxiway) is not { } exitNode)
+            if (layout.FindExitByTaxiway(start.Position, taxiway) is not { } exitNode)
             {
-                Log.LogDebug("PUSH {Taxiway} from stand {Stand} at {Airport} dropped: no exit onto it", taxiway, stand.Name, layout.AirportId);
+                Log.LogDebug("PUSH {Taxiway} from {Origin} at {Airport} dropped: no exit onto it", taxiway, originDescription, layout.AirportId);
                 continue;
             }
 
             PushTargetKind kind = classification.IsMovementArea(taxiway) ? PushTargetKind.Taxiway : PushTargetKind.Taxilane;
-            candidates.Add(new StandCandidate(kind, taxiway, TugGoal.StraightBackTo(exitNode, taxiway), TaxiwayFacings(exitNode, taxiway)));
+            candidates.Add(new OriginCandidate(kind, taxiway, TugGoal.StraightBackTo(exitNode, taxiway), TaxiwayFacings(exitNode, taxiway)));
         }
 
         return candidates;
     }
 
-    /// <summary>The stand's spot goals, the same for every design group, by name.</summary>
-    private static List<StandCandidate> SpotCandidates(AirportGroundLayout layout, GroundNode stand)
+    /// <summary>The origin's spot goals, the same for every design group, by name.</summary>
+    private static List<OriginCandidate> SpotCandidates(AirportGroundLayout layout, TugPose start, string originDescription)
     {
-        var candidates = new List<StandCandidate>();
+        var candidates = new List<OriginCandidate>();
         IEnumerable<string> spots = layout
-            .Nodes.Values.Where(n => (n.Type == GroundNodeType.Spot) && !string.IsNullOrEmpty(n.Name) && WithinSearch(stand, n))
+            .Nodes.Values.Where(n => (n.Type == GroundNodeType.Spot) && !string.IsNullOrEmpty(n.Name) && WithinSearch(start, n))
             .Select(n => n.Name!)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Order(StringComparer.Ordinal);
@@ -326,39 +417,51 @@ public static class PushTargetPlanner
             if (layout.FindSpotNodeByName(spot) is not { } spotNode)
             {
                 Log.LogDebug(
-                    "PUSH ${Spot} from stand {Stand} at {Airport} dropped: no spot node resolves by that name",
+                    "PUSH ${Spot} from {Origin} at {Airport} dropped: no spot node resolves by that name",
                     spot,
-                    stand.Name,
+                    originDescription,
                     layout.AirportId
                 );
                 continue;
             }
 
-            candidates.Add(new StandCandidate(PushTargetKind.Spot, spot, TugGoal.Spot(spotNode), []));
+            candidates.Add(new OriginCandidate(PushTargetKind.Spot, spot, TugGoal.Spot(spotNode), []));
         }
 
         return candidates;
     }
 
-    private static PrecomputedPushTarget? Plan(PlanContext context, StandCandidate candidate)
+    private static PrecomputedPushTarget? Plan(PlanContext context, OriginCandidate candidate)
     {
         string command = candidate.Kind == PushTargetKind.Spot ? $"PUSH ${candidate.Name}" : $"PUSH {candidate.Name}";
         if (
             TugMovePlanner.Plan(
                 context.Layout,
-                RequestFor(context.Start, context.Footprint, context.MovementArea, candidate.Goal),
+                RequestFor(context.Start, context.Footprint, context.MovementArea, candidate.Goal, context.StartsAtStand),
                 out string refusal
             )
             is not { } plan
         )
         {
             Log.LogDebug(
-                "{Command} from stand {Stand} at {Airport} for group {Group} dropped: {Refusal}",
+                "{Command} from {Origin} at {Airport} for group {Group} dropped: {Refusal}",
                 command,
-                context.StandName,
+                context.OriginDescription,
                 context.Layout.AirportId,
                 context.Group,
                 refusal
+            );
+            return null;
+        }
+
+        if (!context.StartsAtStand && StaysPut(plan.End, context.Start))
+        {
+            Log.LogDebug(
+                "{Command} from {Origin} at {Airport} for group {Group} dropped: it ends where the aircraft already is",
+                command,
+                context.OriginDescription,
+                context.Layout.AirportId,
+                context.Group
             );
             return null;
         }
@@ -391,9 +494,9 @@ public static class PushTargetPlanner
         foreach (PrecomputedPushTarget target in sorted.Where(t => t.PathLengthFt > capFt))
         {
             Log.LogDebug(
-                "{Command} from stand {Stand} at {Airport} for group {Group} dropped: its {PathFt} ft path is over the {CapFt:0.0} ft cap",
+                "{Command} from {Origin} at {Airport} for group {Group} dropped: its {PathFt} ft path is over the {CapFt:0.0} ft cap",
                 target.Command,
-                context.StandName,
+                context.OriginDescription,
                 context.Layout.AirportId,
                 context.Group,
                 target.PathLengthFt,
@@ -405,8 +508,8 @@ public static class PushTargetPlanner
         if (kept.Count == 0)
         {
             Log.LogDebug(
-                "Stand {Stand} at {Airport} has no push targets for group {Group}",
-                context.StandName,
+                "{Origin} at {Airport} has no push targets for group {Group}",
+                context.OriginDescription,
                 context.Layout.AirportId,
                 context.Group
             );
@@ -437,32 +540,66 @@ public static class PushTargetPlanner
         return rounded >= 360.0 ? 0.0 : rounded;
     }
 
-    private static bool WithinSearch(GroundNode stand, GroundNode node) =>
-        (GeoMath.DistanceNm(stand.Position, node.Position) * GeoMath.FeetPerNm) <= CandidateSearchFt;
-
-    private sealed record StandCandidate(PushTargetKind Kind, string Name, TugGoal Goal, double[] Facings);
+    private static bool WithinSearch(TugPose start, GroundNode node) =>
+        (GeoMath.DistanceNm(start.Position, node.Position) * GeoMath.FeetPerNm) <= CandidateSearchFt;
 
     /// <summary>
-    /// What every plan of one stand shares, whatever the design group: its pose and the candidate goals, both planned
-    /// for every group, so a stand's candidates are built once.
+    /// Whether a plan ending at <paramref name="end"/> leaves an aircraft at <paramref name="start"/> where it is: within
+    /// <see cref="StayPutDistanceFt"/> and <see cref="StayPutHeadingDeg"/> of it.
     /// </summary>
-    private sealed record StandContext(AirportGroundLayout Layout, MovementAreaClassification MovementArea, GroundNode Node, TrueHeading Heading)
+    private static bool StaysPut(TugPose end, TugPose start) =>
+        ((GeoMath.DistanceNm(start.Position, end.Position) * GeoMath.FeetPerNm) <= StayPutDistanceFt)
+        && (new TrueHeading(start.NoseTrueDeg).AbsAngleTo(new TrueHeading(end.NoseTrueDeg)) <= StayPutHeadingDeg);
+
+    private sealed record OriginCandidate(PushTargetKind Kind, string Name, TugGoal Goal, double[] Facings);
+
+    /// <summary>
+    /// What every plan of one origin (a stand, or where an aircraft is held after a push) shares, whatever the design
+    /// group: how the log names it, the pose the moves start from, whether that start is a stand push-off, and the
+    /// candidate goals searched around the start's position, so an origin's candidates are built once.
+    /// </summary>
+    private sealed record OriginContext(
+        AirportGroundLayout Layout,
+        MovementAreaClassification MovementArea,
+        string Description,
+        TugPose Start,
+        bool StartsAtStand
+    )
     {
-        public List<StandCandidate> Candidates { get; } = [.. TaxiwayCandidates(Layout, MovementArea, Node), .. SpotCandidates(Layout, Node)];
+        public List<OriginCandidate> Candidates { get; } =
+        [.. TaxiwayCandidates(Layout, MovementArea, Start, Description), .. SpotCandidates(Layout, Start, Description)];
+
+        /// <summary>A push off <paramref name="stand"/>, a named parking node, on its true heading.</summary>
+        public static OriginContext ForStand(
+            AirportGroundLayout layout,
+            MovementAreaClassification classification,
+            GroundNode stand,
+            double headingDeg
+        ) => new(layout, classification, $"stand {stand.Name}", new TugPose(stand.Position, headingDeg), StartsAtStand: true);
+
+        /// <summary>A push from where an aircraft is held after a pushback, which starts at no stand.</summary>
+        public static OriginContext ForHeld(
+            AirportGroundLayout layout,
+            MovementAreaClassification classification,
+            TugPose heldPose,
+            string description
+        ) => new(layout, classification, description, heldPose, StartsAtStand: false);
     }
 
-    /// <summary>What every plan of one stand and design group shares.</summary>
+    /// <summary>What every plan of one origin and design group shares.</summary>
     private sealed record PlanContext
     {
         public required AirportGroundLayout Layout { get; init; }
 
         public required MovementAreaClassification MovementArea { get; init; }
 
-        public required string StandName { get; init; }
+        public required string OriginDescription { get; init; }
 
         public required string Group { get; init; }
 
         public required TugPose Start { get; init; }
+
+        public required bool StartsAtStand { get; init; }
 
         public required AircraftFootprint Footprint { get; init; }
     }
