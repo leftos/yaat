@@ -41,6 +41,12 @@ The generic loop is the user-level `nextup` skill; this file supplies only what 
 - Brief shape: `test-fix` (red test first, real navdata, never synthetic). Every `dotnet` command wrapped as `pwsh tools/gate.ps1 -Log .tmp/<name>.log -TimeoutSeconds <seconds> -Slot heavy -- <command…>` (heavy for every yaat call, a filtered test run included since it builds first), 30 on filtered test runs (a ceiling on the gate's load-adjusted clock; `CLAUDE.md` "Build after edits" says how to read a `STALLED`, `TIMED OUT` or `BACKSTOP` kill), `-p:TreatWarningsAsErrors=true` on builds.
 
   A `Yaat.Sim` change is proved by `pwsh tools/test-all.ps1` (both repos) before it lands. `dotnet format style … --include` takes paths relative to the working directory: absolute paths match nothing and the check passes on an empty set.
+
+  **A brief that changes sim behaviour names its at-risk tests, with a ruling for each.** Sim behaviour is a phase, a pass, a detector, a planner rule or a navdata refresh. At-risk tests are the tests outside the brief's own file list that pin the behaviour being changed: the class or method names it touches, the scenario or recording it affects, the numbers it produces. Find them by searching the base for those names; where the search cannot bound the set, run the affected test project on the base branch.
+
+  Each at-risk test gets one ruling: *update the expectation, because the change explains it* (and say what explains it), *keep it green unedited* (a constraint on the change), or *stop and report*. A test outside the list that goes red still stops the run. Without the list, the implementer stops `blocked` at the full-suite step and the round trip costs 60–100 of its calls.
+
+  Worked example (YAAT-552, the FOLLOWG arc gated on the follower's turn radius): "At-risk: `CutCorner_TrailLoopingBackToTheCorner_KeepsTheLoop`, keep green unedited (the arc swap must keep a looping trail's loop); the two KOAK corner-352 jet tests, keep green unedited (arc r 50.2 ft passes a jet's 25 ft gate); every test through `FollowRoundTheC_J_Corner`, keep green by passing \"C172\" for both types; any other `*Follow*` test that turns red, stop and report."
 - Parent-side gate: `git -C <wt> status --short` in both halves of the pair, and the same in both main checkouts: yaat's is `$(cd "$(git rev-parse --path-format=absolute --git-common-dir)/.." && pwd)` also from a worktree, and yaat-server's is its sibling.
 
 ## Traps
