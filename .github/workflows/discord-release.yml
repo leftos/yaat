@@ -70,6 +70,10 @@ jobs:
 
           highlights=$(extract_section "## Highlights")
           changelog=$(extract_section "## Changelog")
+          # release.yml links the release's feature showcase below the highlights,
+          # where the Highlights section above already carries it; a release with
+          # no Highlights has the link alone above "## Changelog".
+          showcase=$(grep -m1 "^\*\*What's new in " /tmp/body.md || true)
 
           # Match the manually crafted format: "vX released (URL)" + the
           # markdown highlights verbatim. For small releases that have no
@@ -84,6 +88,10 @@ jobs:
             else
               echo ""
               echo "$changelog"
+              if [ -n "$showcase" ]; then
+                echo ""
+                echo "$showcase"
+              fi
             fi
           } > /tmp/discord-msg.txt
 

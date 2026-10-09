@@ -129,6 +129,16 @@ jobs:
           printf '%s\n' "$changelog" > release-notes/changelog.md
           printf '%s\n' "$highlights" > release-notes/highlights.md
 
+          # The release's feature showcase, when it has one, is linked below the
+          # highlights. discord-release.yml finds the link by its "**What's new" lead.
+          showcase="docs/releases/whats-new-${VERSION}.md"
+          if [[ -f "$showcase" ]]; then
+            printf "**What's new in %s, with screenshots:** https://github.com/%s/blob/%s/%s\n" \
+              "$VERSION" "$GITHUB_REPOSITORY" "$CURRENT_TAG" "$showcase" > release-notes/showcase.md
+          else
+            : > release-notes/showcase.md
+          fi
+
       - uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f  # v7.0.0
         with:
           name: release-notes
@@ -306,6 +316,11 @@ jobs:
               echo "## Highlights"
               echo ""
               cat "$notes/highlights.md"
+              echo ""
+            fi
+
+            if [[ -s "$notes/showcase.md" ]]; then
+              cat "$notes/showcase.md"
               echo ""
             fi
 

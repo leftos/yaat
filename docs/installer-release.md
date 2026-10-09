@@ -79,10 +79,10 @@ The check runs automatically five seconds after startup and stays silent unless 
 Triggered on `push` of a `v*` tag. Jobs run in dependency order:
 
 1. **version** — reads `<Version>` from `Directory.Build.props` and the short SHA.
-2. **changelog** — extracts the `CHANGELOG.md` section matching the tag, splitting out a `### Highlights` subsection (authored by `/prepare-release`) from the changelog body, and uploads both as `changelog.md` and `highlights.md` in the `release-notes` artifact. It fails when the section is missing or has no entries outside Highlights.
+2. **changelog** — extracts the `CHANGELOG.md` section matching the tag, splitting out a `### Highlights` subsection (authored by `/prepare-release`) from the changelog body, and uploads both as `changelog.md` and `highlights.md` in the `release-notes` artifact, with `showcase.md` holding a link to the release's feature showcase (`docs/releases/whats-new-<version>.md`) when the tagged commit has one. It fails when the section is missing or has no entries outside Highlights.
 3. **build** — `dotnet publish` of `src/Yaat.Client` for `win-x64` and `linux-x64` (`release-macos.yml` publishes `osx-arm64` and `osx-x64` itself).
 4. **package-win / package-linux / package-macos** — `vpk pack` per platform. `package-macos` (in `release-macos.yml`, once per architecture) additionally imports the Developer ID certificates and an App Store Connect API key into a temporary keychain, then signs + notarizes (skipped when the `MACOS_*` secrets are absent).
-5. **release** — assembles `release/`, builds `release-body.md` from the `release-notes` files + a download table (failing when `changelog.md` is missing or blank), and creates the release via `softprops/action-gh-release` with the default `GITHUB_TOKEN`, always as a **draft**.
+5. **release** — assembles `release/`, builds `release-body.md` from the `release-notes` files (the showcase link sits below the highlights, and `discord-release.yml` carries it into the announcement) + a download table (failing when `changelog.md` is missing or blank), and creates the release via `softprops/action-gh-release` with the default `GITHUB_TOKEN`, always as a **draft**.
 
 ### Workflow authoring notes
 
