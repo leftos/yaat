@@ -197,7 +197,7 @@ When invoking aviation-sim-expert, always include:
 
 `.claude/skills/` carries this repo's workflows; their descriptions are already in context, so this is only about *when to prefer one over doing it by hand*:
 
-- **Prefer the skill over ad-hoc CLI**: `layout-inspect` (never compose LayoutInspector flags from memory), `bug-bundle` (any `*-recording.zip` / `*.yaat-bug-report-bundle.zip`), `stt-pipeline-debugging` (any speech sample or "why doesn't this transcript match").
+- **Prefer the skill over ad-hoc CLI**: `layout-inspect` (never compose LayoutInspector flags from memory), `bug-bundle` (any `*-recording.zip` / `*.yaat-bug-report-bundle.zip`), `stt-pipeline-debugging` (any speech sample or "why doesn't this transcript match"), `guide-capture` (any GuideCapture screenshot scene).
 - **Bug fixes and sim changes**: `test-fix` implements the mandatory TDD loop below.
 - **Review gates**: invoke the `aviation-sim-expert` and `csharp-reviewer` agents directly (via `Agent`); the `architecture-updater` agent covers the pre-commit `docs/architecture.md` obligation.
 - **Starting a session from the plan**: the user-level `nextup` ("next up", "what's next", "clear the bug list") runs the loop — plan hygiene first, then explorations fan out, independent items run in their own worktrees, each ships as it lands; `yaat-nextup` is only its profile (plan convention, agents, gates, docs map, landing) and is never invoked on its own.
