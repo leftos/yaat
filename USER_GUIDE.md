@@ -68,7 +68,7 @@ The YAAT window has three areas:
 2. **Terminal panel** (bottom) — scrolling log of commands, responses, warnings, and errors
 3. **Command bar** (bottom edge) — where you type commands
 
-The menu bar provides access to File (connect/disconnect), Scenario (load/unload/weather/active runways), Room (members/students), View (pop-out windows), and Settings.
+The menu bar provides access to File (connect/disconnect), Scenario (load/unload/weather/active runways), Room (members/students), View (pop-out windows, bars, layouts), Tools (Settings, Import / Export, Copy traffic feed URL, CRC environments), and Help.
 
 #### Planned server maintenance
 
@@ -82,7 +82,7 @@ This applies only to **planned** restarts announced by the server. An unexpected
 
 ![Main window after Ground View and Radar View have been popped out](docs/user-guide/img/main-window-popped-out.png)
 
-The **View** menu has three submenus: **Windows** (the pop-outs, new Radar and Ground windows, Strips and vTDLS), **Bars** (the favorites bar and panel, the timeline bar) and **Layout** (saved layouts, Reset Aircraft List Layout).
+The **View** menu has three submenus: **Windows** (the pop-outs, new Radar and Ground windows, Strips and vTDLS), **Bars** (the favorites bar and panel, the timeline bar) and **Layout** (saved layouts, Reset aircraft list columns).
 
 Each view can be popped out into its own window via **View > Windows > Aircraft list / Ground view / Radar view / Terminal / Controllers / METAR**, or with its hotkey: **Ctrl+Shift+L** aircraft list, **Ctrl+Shift+G** ground, **Ctrl+Shift+R** radar, **Ctrl+Shift+E** terminal, **Ctrl+Shift+C** controllers, **Ctrl+Shift+M** METAR (all rebindable in **Settings › Keys**, and shown beside each menu item).
 
@@ -147,7 +147,7 @@ The button at the left of the filter toggles cycles what the leading timestamp s
 
 Right-click any terminal line and choose **Rewind to m:ss** (the line's scenario time, e.g. **Rewind to 1:30**; `h:mm:ss` past the first hour) to jump the replay timeline to the scenario-second that line happened — a command, chat, SAY, response, or warning. This is the fastest way to get back to "right when I issued that clearance."
 
-It's enabled whenever the timeline bar is showing (a scenario is loaded and **View > Show Timeline Bar** is checked) and the line has a known scenario time; otherwise the item reads **Rewind to this moment** and is greyed out. Loading a recording or bug bundle repopulates the terminal with the full session history, so every line stays scrubbable after a load.
+It's enabled whenever the timeline bar is showing (a scenario is loaded and **View > Bars > Timeline bar** is checked) and the line has a known scenario time; otherwise the item reads **Rewind to this moment** and is greyed out. Loading a recording or bug bundle repopulates the terminal with the full session history, so every line stays scrubbable after a load.
 
 ![The terminal's right-click menu on an aircraft's response line, offering Rewind to 1:30 and Clear](docs/user-guide/img/terminal-rewind-menu.png)
 
@@ -365,7 +365,7 @@ A custom command is sent as if you typed it, with your macros and command verbs,
 
 ![Aircraft List with the OAK scenario's 18 aircraft](docs/user-guide/img/aircraft-list.png)
 
-The default view. Shows all aircraft in your scenario, grouped into **Active** and **Delayed** sections. Click the group header row to collapse or expand each section. Use **View > Layout > Reset Aircraft List Layout** to restore defaults. Selecting an aircraft anywhere — clicking it on the Ground or Radar view, via a context menu, or by typing its callsign — automatically scrolls the list to bring its row into view.
+The default view. Shows all aircraft in your scenario, grouped into **Active** and **Delayed** sections. Click the group header row to collapse or expand each section. Use **View > Layout > Reset aircraft list columns** to restore defaults. Selecting an aircraft anywhere — clicking it on the Ground or Radar view, via a context menu, or by typing its callsign — automatically scrolls the list to bring its row into view.
 
 | Column | Description |
 |--------|-------------|
@@ -1239,7 +1239,7 @@ Pop-out state for the student strips entry is saved in `preferences.json` under 
 
 ### vTDLS
 
-The **vTDLS** tab is YAAT's emulation of vNAS's [Tower Data Link Services](https://tdls.virtualnas.net/) web app — the Pre-Departure Clearance (PDC) console real controllers use to issue clearances over data-link. It opens next to **Strips** under **View → vTDLS** as soon as the server tells the client which TDLS facilities the student position can access (typically the position's own ATCT, plus any consolidated child facilities when working a parent TRACON).
+The **vTDLS** tab is YAAT's emulation of vNAS's [Tower Data Link Services](https://tdls.virtualnas.net/) web app — the Pre-Departure Clearance (PDC) console real controllers use to issue clearances over data-link. It opens next to **Strips** under **View → Windows → vTDLS** as soon as the server tells the client which TDLS facilities the student position can access (typically the position's own ATCT, plus any consolidated child facilities when working a parent TRACON).
 
 vTDLS state lives on the server and broadcasts over SignalR — there is no CRC topic counterpart, so trainees do not see a vTDLS view in their CRC. The same display is also available in any browser at `/vtdls/` on the server (no install), backed by the WASM `Yaat.VTdls.Web` bundle.
 
@@ -1884,7 +1884,7 @@ Pause and sim rate are scoped to your room — they don't affect other rooms.
 
 ### Timeline / Rewind
 
-When a scenario is loaded and **View > Show Timeline Bar** is checked (it is off by default), a timeline bar appears below the menu. It shows elapsed time and provides rewind controls:
+When a scenario is loaded and **View > Bars > Timeline bar** is checked (it is off by default), a timeline bar appears below the menu. It shows elapsed time and provides rewind controls:
 
 - **⏮** — jump to the start of the scenario
 - **⏪30 / ⏪15** — rewind 30 or 15 seconds back from current time
@@ -1932,6 +1932,8 @@ Under the **Scenario** menu:
 - **Load Recording...** — loads a previously saved recording; enters playback mode at t=0
 
 Recordings are self-contained archives that include the scenario definition, RNG seed, weather state, periodic state snapshots, and all user actions with timestamps. They can be shared between users for review or training.
+
+A loaded solo recording comes up in solo mode, so its replay speaks every pilot line and keeps its recorded conflict-alert inhibits. A replayed recording or restored session uses the airport maps it was saved with.
 
 ### Filing a Bug Report
 
@@ -2294,7 +2296,7 @@ The favorites bar sits below the command input and provides quick-access buttons
 - **Right-click** a favorite to edit its label, command text, ground override, category, which sets it's in, button colors, button height, or delete it.
 - Click **+** to add a new favorite.
 - **View > Bars > Favorites bar** (**Ctrl+Shift+F**) hides or shows the bar (in the main window, or in the Terminal window when the Terminal is popped out). The pop-out panel keeps working while the bar is hidden. The setting is remembered across sessions and captured by layouts.
-- Click **Panel** or use **View > Open Favorites Panel...** for a larger pop-out panel with **Air**, **Ground**, **Vehicle**, and **Airport** tabs. The panel follows your selection: picking an aircraft on the ground opens the **Ground** tab and an airborne one the **Air** tab (**Vehicle** and **Airport** are only ever chosen by hand, and a tab you click stays until the next selection).
+- Click **Panel** or use **View > Bars > Favorites panel…** for a larger pop-out panel with **Air**, **Ground**, **Vehicle**, and **Airport** tabs. The panel follows your selection: picking an aircraft on the ground opens the **Ground** tab and an airborne one the **Air** tab (**Vehicle** and **Airport** are only ever chosen by hand, and a tab you click stays until the next selection).
 
   Buttons fill the grid edge to edge from the top-left, and the tallest favorite's height sets the row height for its tab. The panel's status bar shows which aircraft a favorite will act on (your current selection) and the result of your last click. Because favorites act on the selected aircraft, select one in the main window first; the panel floats freely, so you can bring the main window forward to change your selection.
 - In the pop-out panel, set **Cols** for a fixed grid, click **Batch** to add a screenful of blank slots to the active tab, then right-click each slot to fill in its label and command. Click **Blank** for a single extra slot.
@@ -2329,7 +2331,7 @@ Airport sets are useful for airport- or position-specific presets that don't app
 
 #### Import / Export
 
-Favorites are shared with the **Import** and **Export** buttons in the pop-out **Favorites Panel** header (open it with **View > Open Favorites Panel...** or the **Panel** button). Both open the [Import / Export](#importing-and-exporting-settings) window with Favorites ticked, and an import from there applies at once.
+Favorites are shared with the **Import** and **Export** buttons in the pop-out **Favorites Panel** header (open it with **View > Bars > Favorites panel…** or the **Panel** button). Both open the [Import / Export](#importing-and-exporting-settings) window with Favorites ticked, and an import from there applies at once.
 
 - **Export** — **Favorites to export** offers **All sets**, which saves every set and every favorite (including ones not in any set) as a `.yaat-favlibrary.zip`, or one set by name, which saves the set plus one JSON per favorite it references as a `.yaat-favset.zip`.
 - **Import** — load either zip, or a single favorite/set `.json` taken from one, as **Merge** or **Replace**. With **Back up all settings first** ticked (the default), every import first saves all your settings, favorites included, to a backup (see [Importing and exporting settings](#importing-and-exporting-settings)). Replace deletes every favorite and set you have and imports, loading exactly the sets the library had loaded (or the imported set, for a set export).

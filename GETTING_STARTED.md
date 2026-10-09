@@ -69,10 +69,12 @@ Your **[ARTCC](#glossary)** is filled in automatically from your VATSIM/VATUSA p
 
 2. Two tabs:
    - **ARTCC Scenarios** — training scenarios from the [vNAS](#glossary) data API for your ARTCC. Use the Airport filter to narrow results.
-   - **Local Files** — browse for ATCTrainer-format JSON scenario files on your machine
+   - **Local Files** — browse for ATCTrainer-format JSON scenario files on your machine, or load one scenario file directly. Recent scenarios are listed; a moved or deleted file is marked missing, and **Remove** drops one from the list.
 3. Select a scenario and click **Load** (or double-click)
 
    ![The Load Scenario dialog with the ARTCC Scenarios tab](docs/user-guide/img/load-scenario-dialog.png)
+
+4. In a room that is not solo training, the mentor is then asked for the scenario's **Active Runways**, pre-filled from its spawns, presets and expected approaches. Confirm or change them, then click **OK**.
 
 Aircraft spawn at their configured starting positions. The window title updates to show the room and scenario name.
 

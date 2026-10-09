@@ -148,7 +148,7 @@
         { "verb": "ELD / ERD", "aliases": [], "description": "Enter L/R downwind [rwy]" },
         { "verb": "ELC / ERC", "aliases": [], "description": "Enter L/R crosswind [rwy]" },
         { "verb": "ELB / ERB", "aliases": [], "description": "Enter L/R base [rwy] [dist]" },
-        { "verb": "EF", "aliases": [], "description": "Enter final [rwy]" },
+        { "verb": "EF", "aliases": [], "description": "Make straight-in [rwy]" },
         { "verb": "MLT / MRT", "aliases": [], "description": "Make L/R traffic [rwy]" },
         { "verb": "TC", "aliases": [], "description": "Turn crosswind" },
         { "verb": "TD", "aliases": [], "description": "Turn downwind" },

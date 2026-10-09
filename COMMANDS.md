@@ -485,7 +485,7 @@ The restriction covers only codes YAAT chooses on its own. `SQ {code}` still mak
 
 > **VFR only:** Pattern commands, traffic direction, VFR holds, touch-and-go, stop-and-go, low approach, and cleared-for-option are aimed at VFR aircraft. How much of that set an IFR aircraft can receive is up to you — see [VFR commands for IFR aircraft](#vfr-commands-for-ifr-aircraft) below.
 >
-> By default only `EF` (enter final) works on an IFR aircraft; for the rest, give `CIFR` (Cancel IFR) first. The report commands `RFIS`/`RTIS` are available to both IFR and VFR aircraft. **Visual approaches (`CVA`) are IFR only** — VFR pattern aircraft join the pattern via the pattern-entry commands (`ELD`/`ERD`/`SI` etc.) above.
+> By default only `EF` (make straight-in) works on an IFR aircraft; for the rest, give `CIFR` (Cancel IFR) first. The report commands `RFIS`/`RTIS` are available to both IFR and VFR aircraft. **Visual approaches (`CVA`) are IFR only** — VFR pattern aircraft join the pattern via the pattern-entry commands (`ELD`/`ERD`/`SI` etc.) above.
 
 | Command | Primary | Aliases | Concatenated |
 |---------|---------|---------|-------------|
@@ -495,7 +495,7 @@ The restriction covers only codes YAAT chooses on its own. `SQ {code}` still mak
 | Enter R crosswind | `ERC` | — | — |
 | Enter L base | `ELB` | — | — |
 | Enter R base | `ERB` | — | — |
-| Enter final | `EF` | — | — |
+| Make straight-in | `EF` | — | — |
 | Make L traffic | `MLT` | — | — |
 | Make R traffic | `MRT` | — | — |
 | Turn crosswind | `TC` | — | — |
@@ -526,7 +526,7 @@ set you can give an IFR aircraft without cancelling IFR first:
 | Setting | Effect |
 |---------|--------|
 | Never — require CIFR first | Every VFR-only command is refused for an IFR aircraft; `CIFR` first, as before. |
-| Enter final (EF) only *(default)* | `EF` works on an IFR aircraft — move a visual arrival to another runway in one command. Everything else still needs `CIFR`. |
+| Make straight-in (EF) only *(default)* | `EF` works on an IFR aircraft — move a visual arrival to another runway in one command. Everything else still needs `CIFR`. |
 | All VFR commands | The whole VFR-only set works on an IFR aircraft. |
 
 The setting covers the pattern-entry and pattern-maneuver commands above, `TG` / `SG` / `LA` / `COPT`,
@@ -769,7 +769,7 @@ These mutate ASDE-X display state only; they never change the underlying scenari
 | `TAXI A #42 B` | Mixed: walk taxiway A, A* to node 42, walk taxiway B |
 | `TAXI >A B <C D` | Taxi via A, B, C, D with turn-direction hints: right onto A, left onto C (the `>`/`<` glyph biases which way the aircraft turns onto that taxiway) |
 | `TAXI 28R G D` | Taxi **along** runway 28R, then taxiways G, D — a runway named as a path segment is taxied along its centerline (e.g. back-taxi). The aircraft taxis straight onto the cleared runway; a *different* runway the route crosses still holds short. Adding `HS` for the same runway (`TAXI F 33 D HS 33`) overrides the straight-on entry: the aircraft holds short at every 33 boundary on the route until each is cleared (`CROSS 33`), then proceeds onto/along it. |
-| `HOLD` / `HP` | Hold position — stop wherever on the ground. While the aircraft is taxiing into position after `LUAW`, it stops where it is instead of continuing onto the centerline; resume the line-up with `LUAW` or `CTO` (not `RES`). Rejected once the takeoff roll has begun — use `CTOC` to cancel the takeoff clearance. A stopped aircraft is free to turn around on the spot, so if a re-clearance issued while the aircraft was still rolling resolves the long way around (with warnings), `HOLD` first and re-issue the `TAXI` — from a stop the direct about-face route resolves. |
+| `HOLD` / `HP` | Hold position — stop wherever on the ground. While the aircraft is taxiing into position after `LUAW`, it stops where it is instead of continuing onto the centerline; resume the line-up with `LUAW` or `CTO` (not `RES`). Rejected once the takeoff roll has begun — use `CTOC` to cancel the takeoff clearance. A stopped aircraft may turn around on the spot only if its type's gear fits the taxiway; other types answer "unable, no room to turn around". If a re-clearance issued while the aircraft was still rolling resolves the long way around (with warnings), `HOLD` first and re-issue the `TAXI` — from a stop the direct about-face route resolves where the type can turn. |
 | `RES` / `RESUME` | Resume taxi after HOLD or release a runway hold-short (explicit or crossing). Also resumes an aircraft that is not held but was stopped or pinned to a crawl (5 kt or less) by the ground conflict detector — `Resume taxi — breaking ground conflict`, the same 15 s as `BREAK`; an aircraft the detector is only holding to a trail speed behind moving traffic still answers `Aircraft is not held`. Does not apply at the destination runway hold, or to an aircraft held while lining up — use CTO or LUAW. Refused at the end of an incomplete clearance (`holding short of C where the route issued ends — issue a TAXI that includes C`). |
 | `RES CROSS 28R 28L` | Resume taxi AND pre-clear listed crossings on the rest of the route (unordered set). Hold-shorts for any runway NOT in the list still stop the aircraft until a fresh CROSS. Fails the whole command if a listed runway has no matching upcoming crossing, or if it appears only as the destination runway. |
 | `RES HS 20` / `RES HS B` | Resume taxi AND add a hold-short further on the route. Runway targets re-arm the route's entry-side hold-short for that runway, revoking whatever cleared it (AutoCross, an earlier `CROSS`); taxiway targets add a new hold-short at the first matching intersection. Fails the whole command — applying none of the targets — if any target doesn't appear on the upcoming route, or if the aircraft has already entered a named runway. |
@@ -800,7 +800,11 @@ The tug runs at 5 kt, through turns as well as straights (the main gear moves sl
 
 The move is planned before it starts, and the plan is checked along the path the aircraft will actually fly: a move whose footprint would reach a **runway** or cross a **runway holding position**, or whose fuselage would cross a **taxiway it was not sent to**, is refused naming the leg and the pavement (`Unable, the move to spot 6A would put the aircraft on taxiway A`).
 
-The taxiway straight behind the stand is exempt — the push clearance covers pushing onto it and pulling back off. A tug move is also refused when the aircraft already stands with its outline against a parked neighbour's (`Unable, SWA1 is up against SWA2 — their outlines overlap; reposition one of them before towing`).
+The taxiway straight behind the stand is exempt — the push clearance covers pushing onto it and pulling back off.
+
+`PUSH` and `PUSHF` can also tow an aircraft stopped at a hold bar back off it; a push that would move it deeper toward the runway is refused.
+
+A tug move is also refused when the aircraft already stands with its outline against a parked neighbour's (`Unable, SWA1 is up against SWA2 — their outlines overlap; reposition one of them before towing`).
 
 A bare `PUSH` is a **straight-back push**: the tug reverses the aircraft onto the pavement behind it and the nose keeps the stand heading. That is deliberate — the alignment is part of the instruction, and it is the RPO's to give. A bare `PUSH <taxiway>` pushes straight back onto a taxiway that lies **across** the push, and S-curves onto the centreline of one that runs **alongside** it (the split is 45° between the push line and the taxiway).
 
@@ -1162,8 +1166,8 @@ A pattern entry that is still **queued** behind another instruction (`DCT VPCOL;
 | `ELB 3` / `ERB 5` | Enter left/right base projected to a fixed final distance (NM) |
 | `ELB 28R` / `ERB 28R` | Enter left/right base, assign runway (perpendicular from present position) |
 | `ELB 28R 3` | Enter left base, assign runway 28R, 3nm final |
-| `EF` | Enter final (straight-in) |
-| `EF 28R` | Enter final, assign runway |
+| `EF` | Make straight-in (enter final) |
+| `EF 28R` | Make straight-in, assign runway |
 | `MLT` / `MRT` | Make left/right traffic (sets pattern direction) |
 | `MLT 28R` / `MRT 28R` | Make left/right traffic for a specific runway (cross-runway pattern). Issued on an active pattern leg of another runway the aircraft transitions leg to leg rather than re-entering: from the upwind it continues straight ahead and turns crosswind only beyond both departure ends (AIM 4-3-2), from a close parallel's downwind it crosses over at midfield at pattern altitude (opposite side) or slides onto the parallel's downwind (same side); crosswind and base keep the wrong-side midfield crossing. Voids a landing clearance held for the old runway. `MLT 33` names runway 33: In the first slot a 1–2 digit token (with an optional L/C/R) is a runway, so a pattern altitude given alone needs three or more digits (`MLT 015` = 1,500 ft, `MLT 15` = runway 15); after a runway the altitude slot is unambiguous and the usual shorthand works (`MLT 15 15` = runway 15 at 1,500 ft). A runway the airport does not have is rejected. |
 | `OTG MLT 28L` / `OTG MRT 28R` | Same, but only once the aircraft is climbing out after its next touch-and-go / stop-and-go / low approach / go-around ("on the go"). Any command can follow `OTG`. If the aircraft lands full-stop instead, the queued command (and anything chained behind it) is dropped with an "unable — landed full stop" warning. |
@@ -1198,7 +1202,7 @@ All pattern entry commands (ELB, ERB, ELD, ERD, ELC, ERC, EF) accept an optional
   Up to 1.5× that rate the entry is still accepted but raises a controller-facing warning (`"… high for base to 28R — may need S-turns or a go-around"`) — the pilot may go around at the missed approach point. Beyond that it is rejected with `"Unable, too high for base"` — issue `DM` (descend maintain) first.
 - **With a distance** — the aircraft flies to a base entry point on the extended centerline at that NM from the threshold (offset by the standard pattern width), then flies the standard base leg.
 
-`EF` (enter final) joins the extended centerline where the aircraft can fly a stabilized straight-in:
+`EF` (make straight-in; spoken "straight-in approach" and "enter final" are still understood) joins the extended centerline where the aircraft can fly a stabilized straight-in:
 
 - For an aircraft roughly **aligned** with the runway, it flies a straight-in from its current position (a shallow cut-in onto final).
 - For a **diagonal** aircraft (heading outside the ~30° intercept envelope — 20° inside 2 nm, 45° helicopters; an airmanship analogy to 7110.65 §5-9-2 / TBL 5-9-1, not a VFR mandate) that has room for at least the category minimum final (jets/turboprops 2.0 nm, pistons 1.0 nm, helicopters 0.5 nm), the join is an **altitude-aware "make straight-in"**.
@@ -1765,7 +1769,7 @@ Changing your active position also updates the radar display:
 | `TRACK` | Initiate control — take ownership as your active position (the student position by default) |
 | `TRACK 3Y` | Initiate control as a specific position — claims the track for TCP 3Y. Equivalent to `AS 3Y TRACK`, but one-shot: it does **not** change your persistent active position |
 | `DROP` | Terminate control — release ownership (acts as the current owner) |
-| `HO 3Y` | Handoff to TCP 3Y (initiated from the current owner) |
+| `HO 3Y` | Handoff to TCP 3Y (initiated from the current owner); refused when that position already owns the track |
 | `HO C44` | Handoff to ERAM center sector 44 (initiated from the current owner) |
 | `HO Q2B` | Handoff from a Center sector to a neighboring TRACON position named by its facility prefix + TCP (e.g. `Q2B` = NorCal Boulder); the bare TCP (`HO 2B`) also works |
 | `HO Δ3` | Handoff to an adjacent terminal facility by its interfacility code (the Δ/tilde entry — e.g. `Δ3` to Fresno, `Δ31H` to Fresno's Chandler sector), decoded from the facility's STARS handoff IDs |
@@ -1773,7 +1777,7 @@ Changing your active position also updates the radar display:
 | `ACCEPT` / `A` | Accept a pending inbound handoff (acts as the handoff target) |
 | `CANCEL` | Retract a pending outbound handoff (acts as the current owner) |
 | `ACCEPTALL` | Accept all pending inbound handoffs (global — no callsign needed) |
-| `HOALL 3Y` | Handoff all your aircraft to TCP 3Y (global — no callsign needed) |
+| `HOALL 3Y` | Handoff all your aircraft to TCP 3Y (global — no callsign needed); refused for a track that position already owns |
 | `PO 3Y` | Point out to TCP 3Y |
 | `OK` | Acknowledge a pending pointout |
 | `PORJ` | Reject a pending inbound pointout |
@@ -1990,7 +1994,7 @@ or callsign rides in the argument, no aircraft selection is needed.
 
 Released departures don't pop airborne instantly — a held runway/airborne departure appears after a 20–60 s delay; in solo training a held ground departure is auto-cleared for takeoff once it's holding short (after a short readback delay) and departs normally. In an RPO room a released departure is only released (the hold is lifted) and waits for the RPO's `CTO` or its timed preset.
 
-In any room, a timed `CTO`, `CTOPP` or `LUAW` preset that comes due while the departure is held waits, and fires on the tick after `REL` or `HFROFF`. The **Releases** flyout on the command bar shows the live rundown of what's held at each armed field with click-to-release buttons; a held departure also gets a one-click **Release (HFR)** item under the title of its right-click menu (radar / ground / list).
+In any room, a timed `CTO`, `CTOPP` or `LUAW` preset that comes due while the departure is held waits, and fires on the tick after `REL` or `HFROFF`. A takeoff or line-up clearance queued in a chain (e.g. `TAXIAUTO 28R; CTO`) or behind a trigger waits for the release the same way. The **Releases** flyout on the command bar shows the live rundown of what's held at each armed field with click-to-release buttons; a held departure also gets a one-click **Release (HFR)** item under the title of its right-click menu (radar / ground / list).
 
 In solo training with a radar (approach or center) student, an IFR departure that starts lined up at an untowered field asks for its release ("ready for departure, request release") without any `HFR`: it shows in the **Releases** flyout as "Lined up (held)", and `REL <callsign>`, `REL <airport>` or `HFROFF` (at an armed field) answers the request and auto-clears it for takeoff after the same short delay.
 
