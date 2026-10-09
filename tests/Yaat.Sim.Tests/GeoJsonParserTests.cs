@@ -59,6 +59,122 @@ public class GeoJsonParserTests(ITestOutputHelper output)
         }
         """;
 
+    /// <summary>Two good parking spots, then a misspelled "patking" feature at index 2 (UNV's real typo).</summary>
+    private const string UnknownTypeGeoJson = """
+        {
+          "type": "FeatureCollection",
+          "features": [
+            {
+              "type": "Feature",
+              "properties": { "type": "parking", "name": "25", "heading": 68 },
+              "geometry": { "type": "Point", "coordinates": [ -122.211952, 37.710532 ] }
+            },
+            {
+              "type": "Feature",
+              "properties": { "type": "parking", "name": "32", "heading": 85 },
+              "geometry": { "type": "Point", "coordinates": [ -122.213782, 37.708623 ] }
+            },
+            {
+              "type": "Feature",
+              "properties": { "type": "patking", "name": "A5", "heading": 90 },
+              "geometry": { "type": "Point", "coordinates": [ -122.212000, 37.709000 ] }
+            }
+          ]
+        }
+        """;
+
+    /// <summary>A good parking spot, then a parking spot at index 1 whose longitude is a string.</summary>
+    private const string MalformedCoordinateGeoJson = """
+        {
+          "type": "FeatureCollection",
+          "features": [
+            {
+              "type": "Feature",
+              "properties": { "type": "parking", "name": "25", "heading": 68 },
+              "geometry": { "type": "Point", "coordinates": [ -122.211952, 37.710532 ] }
+            },
+            {
+              "type": "Feature",
+              "properties": { "type": "parking", "name": "40", "heading": 85 },
+              "geometry": { "type": "Point", "coordinates": [ "west", 37.708623 ] }
+            }
+          ]
+        }
+        """;
+
+    /// <summary>A good parking spot, then a feature at index 1 whose properties carry no "type" (FLL's real first feature).</summary>
+    private const string MissingTypeGeoJson = """
+        {
+          "type": "FeatureCollection",
+          "features": [
+            {
+              "type": "Feature",
+              "properties": { "type": "parking", "name": "25", "heading": 68 },
+              "geometry": { "type": "Point", "coordinates": [ -122.211952, 37.710532 ] }
+            },
+            {
+              "type": "Feature",
+              "properties": { "name": "W2" },
+              "geometry": { "type": "Point", "coordinates": [ -122.212000, 37.709000 ] }
+            }
+          ]
+        }
+        """;
+
+    [Fact]
+    public void ParseWithDiagnostics_MissingFeatureType_ReportsAnUnknownTypeWithNoType()
+    {
+        (_, IReadOnlyList<GroundMapIssue> issues) = GeoJsonParser.ParseWithDiagnostics("fll", MissingTypeGeoJson, null);
+
+        GroundMapIssue issue = Assert.Single(issues);
+        Assert.Equal(GroundMapIssueKind.UnknownFeatureType, issue.Kind);
+        Assert.Equal(1, issue.FeatureIndex);
+        Assert.Equal("", issue.FeatureType);
+        Assert.Equal("W2", issue.FeatureName);
+        Assert.Equal("no feature type", issue.Message);
+    }
+
+    [Fact]
+    public void ParseWithDiagnostics_MinimalGeoJson_ReportsNoIssues()
+    {
+        (AirportGroundLayout layout, IReadOnlyList<GroundMapIssue> issues) = GeoJsonParser.ParseWithDiagnostics("oak", MinimalGeoJson, null);
+
+        Assert.NotNull(layout.FindParkingByName("25"));
+        Assert.Empty(issues);
+    }
+
+    [Fact]
+    public void ParseWithDiagnostics_UnknownFeatureType_ReportsItsIndexTypeAndName()
+    {
+        (AirportGroundLayout layout, IReadOnlyList<GroundMapIssue> issues) = GeoJsonParser.ParseWithDiagnostics("unv", UnknownTypeGeoJson, null);
+
+        GroundMapIssue issue = Assert.Single(issues);
+        Assert.Equal(GroundMapIssueKind.UnknownFeatureType, issue.Kind);
+        Assert.Equal(2, issue.FeatureIndex);
+        Assert.Equal("patking", issue.FeatureType);
+        Assert.Equal("A5", issue.FeatureName);
+        Assert.Null(layout.FindParkingByName("A5"));
+        Assert.NotNull(layout.FindParkingByName("32"));
+    }
+
+    [Fact]
+    public void ParseWithDiagnostics_MalformedCoordinate_ReportsAMalformedFeature()
+    {
+        (AirportGroundLayout layout, IReadOnlyList<GroundMapIssue> issues) = GeoJsonParser.ParseWithDiagnostics(
+            "oak",
+            MalformedCoordinateGeoJson,
+            null
+        );
+
+        GroundMapIssue issue = Assert.Single(issues);
+        Assert.Equal(GroundMapIssueKind.MalformedFeature, issue.Kind);
+        Assert.Equal(1, issue.FeatureIndex);
+        Assert.Equal("parking", issue.FeatureType);
+        Assert.Equal("40", issue.FeatureName);
+        Assert.False(string.IsNullOrWhiteSpace(issue.Message));
+        Assert.Null(layout.FindParkingByName("40"));
+    }
+
     [Fact]
     public void Parse_MinimalGeoJson_CreatesParkingNodes()
     {

@@ -98,7 +98,35 @@ public static class GeoJsonParser
     public static AirportGroundLayout Parse(string airportId, string geoJson, string? runwayAirportCode, bool applyFillets) =>
         Parse(airportId, geoJson, runwayAirportCode, applyFillets ? FilletMode.Standard : FilletMode.None);
 
-    public static AirportGroundLayout Parse(string airportId, string geoJson, string? runwayAirportCode, FilletMode filletMode)
+    public static AirportGroundLayout Parse(string airportId, string geoJson, string? runwayAirportCode, FilletMode filletMode) =>
+        ParseCollectingIssues(airportId, geoJson, runwayAirportCode, filletMode, issues: []);
+
+    /// <summary>
+    /// Parse as <see cref="Parse(string, string, string?)"/> does (Standard fillets) and also return the features left out of
+    /// the layout: one <see cref="GroundMapIssue"/> per unknown-type feature and per malformed feature skipped.
+    /// </summary>
+    /// <param name="airportId">The layout's airport id.</param>
+    /// <param name="geoJson">The map's GeoJSON FeatureCollection.</param>
+    /// <param name="runwayAirportCode">The airport code runway widths are looked up by, or null for the default width.</param>
+    /// <returns>The layout and the dropped features, in feature order.</returns>
+    public static (AirportGroundLayout Layout, IReadOnlyList<GroundMapIssue> Issues) ParseWithDiagnostics(
+        string airportId,
+        string geoJson,
+        string? runwayAirportCode
+    )
+    {
+        var issues = new List<GroundMapIssue>();
+        AirportGroundLayout layout = ParseCollectingIssues(airportId, geoJson, runwayAirportCode, FilletMode.Standard, issues);
+        return (layout, issues);
+    }
+
+    private static AirportGroundLayout ParseCollectingIssues(
+        string airportId,
+        string geoJson,
+        string? runwayAirportCode,
+        FilletMode filletMode,
+        List<GroundMapIssue> issues
+    )
     {
         string sanitized = SanitizeJson(geoJson);
         using var doc = JsonDocument.Parse(sanitized, LenientJsonOptions);
@@ -109,7 +137,7 @@ public static class GeoJsonParser
             List<SpotFeature> Spots,
             List<TaxiwayFeature> Taxiways,
             List<RunwayFeature> Runways
-        ) classified = ClassifyFeatures(airportId, features.EnumerateArray());
+        ) classified = ClassifyFeatures(airportId, features.EnumerateArray(), issues);
         return BuildLayout(
             airportId,
             classified.Parkings,
@@ -161,7 +189,7 @@ public static class GeoJsonParser
             List<SpotFeature> Spots,
             List<TaxiwayFeature> Taxiways,
             List<RunwayFeature> Runways
-        ) classified = ClassifyFeatures(airportId, allFeatures);
+        ) classified = ClassifyFeatures(airportId, allFeatures, issues: []);
         return BuildLayout(
             airportId,
             classified.Parkings,
@@ -180,7 +208,7 @@ public static class GeoJsonParser
         List<SpotFeature> Spots,
         List<TaxiwayFeature> Taxiways,
         List<RunwayFeature> Runways
-    ) ClassifyFeatures(string airportId, IEnumerable<JsonElement> features)
+    ) ClassifyFeatures(string airportId, IEnumerable<JsonElement> features, List<GroundMapIssue> issues)
     {
         var parkings = new List<ParkingFeature>();
         var helipads = new List<ParkingFeature>();
@@ -189,7 +217,7 @@ public static class GeoJsonParser
         var runways = new List<RunwayFeature>();
 
         int skipped = 0;
-        foreach (JsonElement feature in features)
+        foreach ((int index, JsonElement feature) in features.Index())
         {
             JsonElement props = feature.GetProperty("properties");
             string type = TryGetPropertyIgnoreCase(props, "type", out JsonElement typeProp) ? typeProp.GetString() ?? "" : "";
@@ -216,13 +244,23 @@ public static class GeoJsonParser
                         break;
                     default:
                         Log.LogWarning("Unknown GeoJSON feature type: {Type}", type);
+                        issues.Add(
+                            new GroundMapIssue(
+                                GroundMapIssueKind.UnknownFeatureType,
+                                index,
+                                type,
+                                TryReadNameText(props, "name"),
+                                type.Length == 0 ? "no feature type" : "unknown feature type"
+                            )
+                        );
                         break;
                 }
             }
             catch (InvalidOperationException ex)
             {
-                string name = TryReadNameText(props, "name") ?? "?";
-                Log.LogWarning("Skipping malformed {Type} feature '{Name}' in {Airport}: {Message}", type, name, airportId, ex.Message);
+                string? name = TryReadNameText(props, "name");
+                Log.LogWarning("Skipping malformed {Type} feature '{Name}' in {Airport}: {Message}", type, name ?? "?", airportId, ex.Message);
+                issues.Add(new GroundMapIssue(GroundMapIssueKind.MalformedFeature, index, type, name, ex.Message));
                 skipped++;
             }
         }

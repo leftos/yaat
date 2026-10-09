@@ -6,13 +6,13 @@ There is no in-app validation surface: the client's batch window was removed onc
 
 Three surfaces, all driven by `ScenarioValidator.Validate()` (`src/Yaat.Sim/Scenarios/ScenarioValidator.cs`):
 
-1. **yaat-server CLI** — `dotnet run --project tools/Yaat.ScenarioValidator -- --all --json` (or one ARTCC / one file) fetches the scenarios from the vNAS data API and prints a text report or the raw `ScenarioValidationResult` JSON.
+1. **yaat-server CLI** — `dotnet run --project tools/Yaat.ScenarioValidator -- --all --json` (or one ARTCC / one file / one folder) fetches the scenarios from the vNAS data API, checks the ground map of every airport they use (below), and prints a text report or JSON: a report object `{ "Scenarios": [ScenarioValidationResult…], "GroundMaps": [GroundMapCheckResult…] }` for one unit, or one such object per ARTCC in multi mode.
 2. **Discord CI** — `.github/workflows/discord-scenario-validation.yml` in yaat-server runs the CLI weekly (and on the `/validate` button) and posts one report per ARTCC to that ARTCC's "Scenario Validation" channel. The post is built by hand from the JSON in the workflow's embedded Python (`format_message`), so **a new check only reaches Discord once that function extracts its list** — see "Adding a check".
 3. **Local corpus sweep** — `tests/Yaat.Sim.Tests/Scenarios/VnasScenarioParseTests.cs` runs the validator over the cached scenarios under `tests/Yaat.Sim.Tests/TestData/Scenarios/{ARTCC}/` (refreshed by yaat-server's `tools/validate-all-scenarios.py`); it asserts only that the JSON deserialises and logs the findings.
 
 ## What it checks
 
-`ScenarioValidationResult` carries one list per check. Only the first is a hard failure; the rest are advisories that the report lists but never fails on.
+`ScenarioValidationResult` carries one list per check. Only the first is a hard failure; the rest are advisories that the report lists but never fails on. The ground-map check (below) runs per unit beside them, and a map that cannot be parsed is also a hard failure.
 
 | List | Check | Typical cause |
 |------|-------|---------------|
@@ -21,11 +21,24 @@ Three surfaces, all driven by `ScenarioValidator.Validate()` (`src/Yaat.Sim/Scen
 | `TransitionFixSubstitutions` | After a version upgrade, the scenario's transition fix still exists on the new procedure; suggests the closest valid one | A transition renamed or dropped between revisions |
 | `AircraftTypeMismatches` (`AircraftTypeMismatch`) | The scenario's physical `aircraftType` and its `flightplan.aircraftType` name the same base ICAO type (wake prefix and equipment suffix stripped via `AircraftState.StripTypePrefix`; a blank filed type is not a mismatch) | An editor changed the aircraft (an A388 arriving as a filed B744 — #438). YAAT shows the physical type on the ground view and Tower Cab and the filed type on the radar, strips and flight plan, so the mismatch is visible to students |
 
+### Ground maps
+
+Per unit (an ARTCC, a file or a folder), the validator collects the airports its scenarios use (`ScenarioAirportCollector.AirportsOf`: each scenario's primary airport and every aircraft's airport, FAA-folded), fetches each airport's vNAS ground map once per run (shared across ARTCCs, four parses at a time) and checks it with `GroundMapCheck.Check` (`src/Yaat.Sim/Scenarios/GroundMapCheck.cs`), which parses it with `GeoJsonParser.ParseWithDiagnostics` as the runtime does. Each airport's `GroundMapCheckResult` has one of four outcomes:
+
+| Outcome | Meaning | Reported as |
+|---------|---------|-------------|
+| `ParseFailed` | vNAS serves a map the parser cannot read at all; `Error` holds the exception's type and message | A failure: listed, and the CLI exits 1 |
+| `Ok` with `Issues` | The map loads but features were dropped: an unknown feature type (UNV's `patking`), a feature with no type, or a malformed feature skipped (`GroundMapIssue`: kind, feature index, type, name, message) | An advisory, listed per airport |
+| `FetchFailed` | vNAS could not be reached and no cached copy exists | An advisory ("could not fetch") |
+| `NoMap` | vNAS has no map for the airport (404), normal for many scenario airports | Not listed; counted in the stderr summary only |
+
+The Discord post and `validate-all-scenarios.py` add a "Ground maps" section after the scenario sections, failures first, then advisories, airports alphabetical; an error message is cut to 200 characters there.
+
 Failures that are known scenario defects rather than parser bugs are catalogued in [scenario-validation-known-failures.md](scenario-validation-known-failures.md); check it before chasing one.
 
 ## Adding a check
 
-1. Add the record and a list on `ScenarioValidationResult`, populated by a private `Validate…` method shaped like `ValidateProcedures`, with a unit test beside `ProcedureVersionResolutionTests` (hand-built `Scenario`, assert the list).
+1. Add the record and a list on `ScenarioValidationResult`, populated by a private `Validate…` method shaped like `ValidateProcedures`, with a unit test beside `ProcedureVersionResolutionTests` (hand-built `Scenario`, assert the list). A check over something several scenarios share (as the ground-map check is, per airport) runs per unit in the CLI instead and adds its own list to the report object beside `Scenarios`.
 2. yaat-server `tools/Yaat.ScenarioValidator/Program.cs`: the JSON mode serialises the record automatically; add the counter to the console summary and a section to `PrintTextReport`.
 3. yaat-server `.github/workflows/discord-scenario-validation.yml` `format_message`: extract the new list (both PascalCase and camelCase keys), add it to `summary_parts`, and emit its per-scenario lines. Without this step the Discord post silently omits it.
 4. yaat-server `tools/validate-all-scenarios.py` `build_report`: the same section for the local report.

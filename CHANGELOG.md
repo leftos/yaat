@@ -33,6 +33,7 @@
 - Scenario › Active Runways… lets anyone in the room see and change the active runways, one row per airport.
 - Each room serves its traffic as a VATSIM-style datafeed for tools like vTBFM; Tools › Copy traffic feed URL copies its address.
 - Getting Started and the User Guide show screenshots of every step, including the terminal, timeline, taxi routes, vTDLS, Settings, Import / Export, layouts and CRC's environment list.
+- Each ARTCC's scenario validation post on Discord lists airports whose ground map won't load or drops features, such as a misspelled feature type.
 - Airport sidecars can set the stand departure for every stand on one side of a runway (`standDepartureAreas`), and a stand can be `Either`.
 
 ### Changed
