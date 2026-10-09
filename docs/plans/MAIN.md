@@ -6,20 +6,15 @@
 
 - [ ] YAAT-266 Tower Cab 3D joins a YAAT room without CRC and shows in Room Members · release vNext+1 — High · Wave 6 — Strips, TDLS, air-taxi and hub
 
-## Active runways (feat/active-runways)
-
-- [ ] YAAT-482 Merge feat/active-runways (#959) · release vNext
-- [/] YAAT-516 Fold the Hold short and ground traffic menu row views into one rich-row template · release vNext
-
 ## Precompute cache (feat/precompute-cache)
 
-- [ ] YAAT-495 Precompute cache brief C: maintainer tool (compute, --check, --refresh-representatives) · release vNext
-- [/] YAAT-494 Precompute cache brief B3: live swept-path check on menu open · release vNext
+- [/] YAAT-495 Precompute cache brief C: maintainer tool (compute, --check, --refresh-representatives) · release vNext
 - [ ] YAAT-440 Group, filter and distance-label the ground view's Push Back To submenu · release vNext
 - [ ] YAAT-475 Merge feat/precompute-cache (#951) · release vNext
 - [ ] YAAT-497 Split the tug planner's shared pieces out of the precompute layout source set · release vNext
 - [ ] YAAT-511 Refuse TAXI for a jet or turboprop at a push-back stand without a push · release vNext
 - [ ] YAAT-533 Load ARTCC sidecar files in a fixed path order so rule precedence is the same on every OS · release vNext
+- [ ] YAAT-537 Reconcile the plain tow planner's keep with the live check's Blocked at OAK gate 26 · release vNext
 
 ## Follow on the taxi graph (feat/follow-on-graph)
 
@@ -27,6 +22,8 @@
 - [ ] YAAT-407 Merge feat/follow-on-graph (#881) · release vNext
 - [ ] YAAT-507 FOLLOWG clearing route stops one node before the next runway's hold bar
 - [ ] YAAT-508 FOLLOWG clearing check ignores traffic crossing at a junction
+- [ ] YAAT-534 Split GroundConflictDetector.ApplySpeedLimits under 100 lines · release vNext
+- [ ] YAAT-535 Keep ChooseMutualStopHolder from holding a follower against a lead closing on it · release vNext
 
 ## Bug reports and feature requests
 
@@ -41,9 +38,11 @@
 - [ ] YAAT-284 FOLLOW gets no pilot readback in solo; late 'traffic in sight' in clip C2
 - [ ] YAAT-288 Find what gave an automation-mode client the keyboard foreground for 3.5 s (YAAT-282 leftover)
 - [ ] YAAT-403 Support for vTBFM · release vNext
-  - [ ] YAAT-411 Serve each room's traffic as a VATSIM-datafeed-shaped JSON feed
-  - [ ] YAAT-412 vTBFM: meter on the feed's clock (contributed PR)
-  - [ ] YAAT-413 Integration and smoke test a YAAT-fed vTBFM, then write the setup steps
+  - [/] YAAT-411 Serve each room's traffic as a VATSIM-datafeed-shaped JSON feed · release vNext
+  - [ ] YAAT-412 vTBFM: meter on the feed's clock (contributed PR) · release vNext
+  - [ ] YAAT-413 Integration and smoke test a YAAT-fed vTBFM, then write the setup steps · release vNext
+  - [!] YAAT-538 List the rooms a feed consumer's user may see (ARTCC-filtered, authenticated) · release vNext+1
+  - [!] YAAT-539 vTBFM: follow each user's chosen YAAT room (contributed PR) · release vNext+1
 - [ ] YAAT-527 Draft the vNext feature showcase: a Markdown page with screenshots of the new features · release vNext
 
 ## Context-menu quick commands (#471)
@@ -462,3 +461,4 @@
 - [ ] YAAT-518 TG with a runway touches down on the pattern runway instead
 - [ ] YAAT-523 Remove GroundConflictDetector.IsClearOf, which has no production caller
 - [ ] YAAT-525 FOLLOWG then CROSS on an aircraft with no taxi route drops the CROSS but reports success
+- [ ] YAAT-536 Rebuild KoakFollowGeometry.BChain from real edges; remove dead IsClearOf
