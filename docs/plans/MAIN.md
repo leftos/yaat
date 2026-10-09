@@ -38,12 +38,11 @@
 - [ ] YAAT-284 FOLLOW gets no pilot readback in solo; late 'traffic in sight' in clip C2
 - [ ] YAAT-288 Find what gave an automation-mode client the keyboard foreground for 3.5 s (YAAT-282 leftover)
 - [ ] YAAT-403 Support for vTBFM · release vNext
-  - [/] YAAT-411 Serve each room's traffic as a VATSIM-datafeed-shaped JSON feed · release vNext
   - [ ] YAAT-412 vTBFM: meter on the feed's clock (contributed PR) · release vNext
   - [ ] YAAT-413 Integration and smoke test a YAAT-fed vTBFM, then write the setup steps · release vNext
   - [!] YAAT-538 List the rooms a feed consumer's user may see (ARTCC-filtered, authenticated) · release vNext+1
   - [!] YAAT-539 vTBFM: follow each user's chosen YAAT room (contributed PR) · release vNext+1
-- [ ] YAAT-527 Draft the vNext feature showcase: a Markdown page with screenshots of the new features · release vNext
+- [/] YAAT-527 Draft the vNext feature showcase: a Markdown page with screenshots of the new features · release vNext
 
 ## Context-menu quick commands (#471)
 
