@@ -2578,7 +2578,7 @@ public static class CommandDispatcher
                     new GroundCommandHandler.TaxiDispatch(autoCrossRunway, ctx.IsScenarioScripted, ctx.ListAircraft)
                 );
             case TaxiAutoCommand autoTaxi:
-                return GroundCommandHandler.TryTaxiAuto(aircraft, autoTaxi, groundLayout, autoCrossRunway, ctx.ListAircraft);
+                return GroundCommandHandler.TryTaxiAuto(aircraft, autoTaxi, groundLayout, autoCrossRunway, ctx.IsScenarioScripted, ctx.ListAircraft);
             case HoldPositionCommand:
                 return GroundCommandHandler.TryHoldPosition(aircraft);
             case ResumeCommand groundResume when currentPhase is not HoldingShortPhase:

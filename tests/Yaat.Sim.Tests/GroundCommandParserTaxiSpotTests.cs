@@ -99,7 +99,7 @@ public class GroundCommandParserTaxiSpotTests
         ac.Ground.Layout = layout;
         ac.Phases = new PhaseList();
 
-        CommandResult result = GroundCommandHandler.TryTaxiAuto(ac, new TaxiAutoCommand(null, null, spot.Name), layout);
+        CommandResult result = GroundCommandHandler.TryTaxiAuto(ac, new TaxiAutoCommand(null, null, spot.Name), layout, isScenarioScripted: false);
 
         Assert.True(result.Success, result.Message);
         Assert.Equal(spot.Name, ac.Ground.AssignedTaxiRoute?.DestinationSpot);

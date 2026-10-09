@@ -39,7 +39,8 @@ public class Issue190Mia8RHoldShortTests(ITestOutputHelper output)
         CommandResult result = GroundCommandHandler.TryTaxiAuto(
             aircraft,
             new TaxiAutoCommand(DestinationRunway, DestinationParking: null, DestinationSpot: null),
-            data.MiaLayout
+            data.MiaLayout,
+            isScenarioScripted: false
         );
         Assert.True(result.Success, $"TAXIAUTO 08R failed: {result.Message}");
 
@@ -92,7 +93,8 @@ public class Issue190Mia8RHoldShortTests(ITestOutputHelper output)
         CommandResult taxiResult = GroundCommandHandler.TryTaxiAuto(
             aircraft,
             new TaxiAutoCommand(DestinationRunway, DestinationParking: null, DestinationSpot: null),
-            data.MiaLayout
+            data.MiaLayout,
+            isScenarioScripted: false
         );
         Assert.True(taxiResult.Success, $"TAXIAUTO 08R failed: {taxiResult.Message}");
 

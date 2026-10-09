@@ -185,7 +185,7 @@ public class ScenarioExporterTests
         AirportGroundLayout layout = SfoLayout();
         AircraftState taxiing = LoadSingle(GroundCoordinatesJson("SWA7", MidTaxiway(layout)));
         taxiing.Phases!.Start(CommandDispatcher.BuildMinimalContext(taxiing));
-        CommandResult taxi = GroundCommandHandler.TryTaxiAuto(taxiing, new TaxiAutoCommand("28L", null, null), layout);
+        CommandResult taxi = GroundCommandHandler.TryTaxiAuto(taxiing, new TaxiAutoCommand("28L", null, null), layout, isScenarioScripted: false);
         Assert.True(taxi.Success, $"TAXIAUTO 28L should succeed: {taxi.Message}");
         Assert.IsType<TaxiingPhase>(taxiing.Phases.CurrentPhase);
 

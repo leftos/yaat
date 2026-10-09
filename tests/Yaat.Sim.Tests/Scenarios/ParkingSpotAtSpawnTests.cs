@@ -80,7 +80,8 @@ public class ParkingSpotAtSpawnTests
         CommandResult result = GroundCommandHandler.TryTaxiAuto(
             ac,
             new TaxiAutoCommand(DestinationRunway: "28L", DestinationParking: null, DestinationSpot: null),
-            layout
+            layout,
+            isScenarioScripted: false
         );
 
         Assert.True(result.Success, $"TAXIAUTO 28L from {Stand} should succeed: {result.Message}");

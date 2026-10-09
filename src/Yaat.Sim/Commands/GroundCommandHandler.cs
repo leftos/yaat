@@ -71,9 +71,10 @@ public static class GroundCommandHandler
     private const double HeldShortLegReversalDeg = 150.0;
 
     /// <summary>
-    /// A controller-typed or scenario-preset <c>TAXI</c>. A bare runway destination with no taxiways named
-    /// (<c>TAXI 1L</c>) is honoured only when the aircraft is already at that runway's hold-short — see
-    /// <see cref="TaxiPathfinder.FindAdjacentRunwayRoute"/>; <see cref="TryTaxiAuto"/> is the explicit auto-route.
+    /// A live <c>TAXI</c> from a caller with no world and no auto-cross (a test or the standalone engine): no spot
+    /// line-up is planned against other traffic and no runway crossing is pre-cleared. A bare runway destination with
+    /// no taxiways named (<c>TAXI 1L</c>) is honoured only when the aircraft is already at that runway's hold-short —
+    /// see <see cref="TaxiPathfinder.FindAdjacentRunwayRoute"/>; <see cref="TryTaxiAuto"/> is the explicit auto-route.
     /// </summary>
     internal static CommandResult TryTaxi(
         AircraftState aircraft,
@@ -350,6 +351,11 @@ public static class GroundCommandHandler
             detectedRunway = CommandDispatcher.ResolveRunway(aircraft, taxi.DestinationRunway);
         }
 
+        // A live TAXI / TAXIAUTO off a stand that is normally pushed back from is still accepted and taxis; the
+        // response notes what the stand usually needs. Read here, while the aircraft is still at its stand: the
+        // reset below drops the AtParkingPhase and the parking spot the note reads.
+        string? pushBackNote = PushBackStandTaxiNote(aircraft, groundLayout, category, options.IsScenarioScripted);
+
         // Captured before the fresh PhaseList below drops the old clearance: both the arrival gate and the
         // runway-change warning read state this reset erases.
         DepartureRunwayAssignment priorAssignment = CaptureDepartureRunwayAssignment(aircraft);
@@ -472,15 +478,7 @@ public static class GroundCommandHandler
             msg = BuildTaxiReadback(route, groundLayout, taxi, new TaxiReadbackInputs(occupiedTaxiway, resolved.EndsShort, !options.IsTaxiAuto));
         }
 
-        if (route.Warnings.Count > 0)
-        {
-            msg += " [" + string.Join("; ", route.Warnings) + "]";
-        }
-
-        if (implicitCrossLabel is not null)
-        {
-            msg += $" (cross {implicitCrossLabel})";
-        }
+        msg = WithResponseNotes(msg, route.Warnings, implicitCrossLabel, pushBackNote);
 
         return CommandDispatcher.Ok(msg) with
         {
@@ -1473,24 +1471,38 @@ public static class GroundCommandHandler
     /// with an empty taxiway path so the standard pipeline's existing A* route resolvers
     /// (<see cref="ResolveRunwayRouteByAStar"/> / <see cref="ResolveParkingRoute"/>) discover
     /// the taxiway sequence. Hold-short annotation, auto-cross handling, and phase handoff
-    /// work identically to a user-typed TAXI.
+    /// work identically to a user-typed TAXI. The caller has no world and takes no auto-cross:
+    /// the convenience form for a live TAXIAUTO.
     /// </summary>
+    /// <param name="aircraft">The aircraft cleared.</param>
+    /// <param name="autoTaxi">The command as issued.</param>
+    /// <param name="groundLayout">The airport ground layout, or null when the aircraft has none.</param>
+    /// <param name="isScenarioScripted">
+    /// No controller issued it: a scenario preset or an AI controller (<see cref="DispatchContext.IsScenarioScripted"/>).
+    /// </param>
     internal static CommandResult TryTaxiAuto(
         AircraftState aircraft,
         TaxiAutoCommand autoTaxi,
         AirportGroundLayout? groundLayout,
-        bool autoCrossRunway = false
-    ) => TryTaxiAuto(aircraft, autoTaxi, groundLayout, autoCrossRunway, listAircraft: null);
+        bool isScenarioScripted
+    ) => TryTaxiAuto(aircraft, autoTaxi, groundLayout, autoCrossRunway: false, isScenarioScripted, listAircraft: null);
 
     /// <summary>
     /// A <c>TAXIAUTO</c> dispatched with the world's aircraft in view, as the matching
     /// <see cref="TryTaxi(AircraftState, TaxiCommand, AirportGroundLayout?, TaxiDispatch)"/>.
     /// </summary>
+    /// <param name="aircraft">The aircraft cleared.</param>
+    /// <param name="autoTaxi">The command as issued.</param>
+    /// <param name="groundLayout">The airport ground layout, or null when the aircraft has none.</param>
+    /// <param name="autoCrossRunway">The scenario pre-clears runway crossings.</param>
+    /// <param name="isScenarioScripted">No controller issued it: a scenario preset or an AI controller.</param>
+    /// <param name="listAircraft">Every aircraft in the world, or null when the caller has no world.</param>
     internal static CommandResult TryTaxiAuto(
         AircraftState aircraft,
         TaxiAutoCommand autoTaxi,
         AirportGroundLayout? groundLayout,
         bool autoCrossRunway,
+        bool isScenarioScripted,
         Func<IReadOnlyList<AircraftState>>? listAircraft
     )
     {
@@ -1515,12 +1527,7 @@ public static class GroundCommandHandler
             DestinationSpot: autoTaxi.DestinationSpot
         );
 
-        return TryTaxiCore(
-            aircraft,
-            taxi,
-            groundLayout,
-            new TaxiCoreOptions(autoCrossRunway, IsTaxiAuto: true, IsScenarioScripted: false, listAircraft)
-        );
+        return TryTaxiCore(aircraft, taxi, groundLayout, new TaxiCoreOptions(autoCrossRunway, IsTaxiAuto: true, isScenarioScripted, listAircraft));
     }
 
     /// <summary>
@@ -3501,6 +3508,55 @@ public static class GroundCommandHandler
     /// </summary>
     private static string? TaxiOutStandNote(AircraftState aircraft, AirportGroundLayout? groundLayout) =>
         ParkedStandDeparture.Of(aircraft, groundLayout) == StandDeparture.TaxiOut ? $"({aircraft.Ground.ParkingSpot} is a taxi-out stand)" : null;
+
+    /// <summary>
+    /// The RPO note for a live TAXI / TAXIAUTO off a stand whose departure is <see cref="StandDeparture.PushBack"/>
+    /// (<see cref="ParkedStandDeparture"/>), naming the stand: <c>(26 normally needs a push first)</c>. The taxi is still
+    /// made; the note tells the RPO the stand is normally left by push. Null for a scripted dispatch, for a piston or
+    /// helicopter, and on a taxi-out, either or unnamed stand. Read before the phases are cleared, while the aircraft is
+    /// still at its stand.
+    /// </summary>
+    private static string? PushBackStandTaxiNote(
+        AircraftState aircraft,
+        AirportGroundLayout? groundLayout,
+        AircraftCategory category,
+        bool isScenarioScripted
+    ) =>
+        (!isScenarioScripted)
+        && (category is AircraftCategory.Jet or AircraftCategory.Turboprop)
+        && (ParkedStandDeparture.Of(aircraft, groundLayout) == StandDeparture.PushBack)
+            ? $"({aircraft.Ground.ParkingSpot} normally needs a push first)"
+            : null;
+
+    /// <summary>
+    /// The readback <paramref name="msg"/> with the RPO-only notes a TAXI / TAXIAUTO response carries after it: the
+    /// route's <paramref name="warnings"/> as <c> [w1; w2]</c>, the implicit crossing as <c> (cross X)</c>, then the
+    /// push-back note. Each is left out when there is none.
+    /// </summary>
+    /// <param name="msg">The readback sentence.</param>
+    /// <param name="warnings">The route's warnings, in route order.</param>
+    /// <param name="implicitCrossLabel">The runway implicitly crossed by this clearance, or null.</param>
+    /// <param name="pushBackNote">The stand's push-back note, or null.</param>
+    /// <returns>The response text.</returns>
+    private static string WithResponseNotes(string msg, IReadOnlyList<string> warnings, string? implicitCrossLabel, string? pushBackNote)
+    {
+        if (warnings.Count > 0)
+        {
+            msg += " [" + string.Join("; ", warnings) + "]";
+        }
+
+        if (implicitCrossLabel is not null)
+        {
+            msg += $" (cross {implicitCrossLabel})";
+        }
+
+        if (pushBackNote is not null)
+        {
+            msg += $" {pushBackNote}";
+        }
+
+        return msg;
+    }
 
     /// <summary><paramref name="readback"/> with <paramref name="note"/> after its own RPO note, if any; unchanged when the note is null.</summary>
     private static PushReadback WithRpoNote(PushReadback readback, string? note) =>

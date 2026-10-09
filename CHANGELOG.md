@@ -64,6 +64,7 @@
 - `FOLLOWG` answers "unable" when no taxi route reaches the leader's path, or when the follower is already ahead of the leader on it.
 - `PUSH` and `PUSHF` can tow an aircraft stopped at a hold bar back off it, and refuse a push that moves it deeper toward the runway.
 - Menus offer no Push back or push targets at taxi-out stands, such as all of KOAK's North Field; a typed `PUSH` there still works, with an RPO note.
+- A typed `TAXI` or `TAXIAUTO` for a jet or turboprop on a push-back stand gets an RPO note, "(26 normally needs a push first)".
 - KOAK's South Field remote stands push back, and its MTN stands offer both a push and a normal taxi-out.
 
 ### Fixed

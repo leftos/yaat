@@ -340,7 +340,7 @@ public class SfoT1SouthRampOneWayTests(ITestOutputHelper output)
         }
 
         AircraftState aircraft = AircraftAtT28RExit(layout, "B738");
-        CommandResult result = GroundCommandHandler.TryTaxiAuto(aircraft, new TaxiAutoCommand(null, "B2", null), layout);
+        CommandResult result = GroundCommandHandler.TryTaxiAuto(aircraft, new TaxiAutoCommand(null, "B2", null), layout, isScenarioScripted: false);
         TaxiRoute route = AssertAccepted(result, aircraft);
 
         AssertReachesParking(layout, route, "B2");
