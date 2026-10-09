@@ -17,7 +17,8 @@ public enum RecordingPolicy
 
     /// <summary>
     /// Never recorded: transport verbs (the session clock), bookmarks (timeline metadata the rewind paths carry over
-    /// verbatim) and the <c>SHOW</c> query (read-only).
+    /// verbatim), the <c>SHOW</c> query (read-only) and the parse refusal of a malformed verb sent without a selection
+    /// (it changes nothing).
     /// </summary>
     Never,
 }
@@ -142,6 +143,7 @@ public static class ArmTable
             ),
             Sim(RecordedCommandKind.Transport, RecordingPolicy.Never, static ctx => TransportCommandHandler.Handle(ctx.Engine, ctx.Parsed!)),
             Sim(RecordedCommandKind.AsdexEnableAllAlerts, RecordingPolicy.Text, static ctx => ctx.Engine.EnableAllAsdexAlerts()),
+            Sim(RecordedCommandKind.MalformedGlobal, RecordingPolicy.Never, ActionArms.MalformedGlobal),
         };
 
         foreach (ActionArm row in rows)

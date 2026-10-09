@@ -109,6 +109,14 @@ public enum RecordedCommandKind
 
     /// <summary>PAUSE / UNPAUSE / SIMRATE — the room's clock; deliberately never recorded.</summary>
     Transport,
+
+    /// <summary>
+    /// A single verb sent without a selected aircraft (<see cref="CommandScopes.SendsWithoutSelection"/>) whose arguments the
+    /// single-command parser rejects, such as <c>HFROFF</c> with no airport: refused with the parser's reason, never
+    /// recorded. Without it the body would classify as an aircraft-scoped <see cref="Compound"/> and an empty callsign
+    /// would answer the aircraft lookup instead of the mistake.
+    /// </summary>
+    MalformedGlobal,
 }
 
 /// <summary>A <see cref="ParsedCommand"/> subtype no arm of the classifier has claimed. Decide its kind and scope; there is no default.</summary>
@@ -127,18 +135,41 @@ public static class RecordedCommandClassifier
     /// <summary>
     /// Classifies a command body. The <see cref="Actions.ActionRouter"/> has already stripped any <c>AS {tcp}</c>
     /// prefix (<c>TrackResolver.ExtractAsPrefix</c>) and resolves it to the acting identity itself, so this sees the
-    /// verb alone. A body the single-command parser rejects is a multi-verb chain:
-    /// <see cref="RecordedCommandKind.Compound"/> against the addressed aircraft, with <c>Parsed</c> null.
+    /// verb alone. A body the single-command parser rejects is, with <c>Parsed</c> null, either a single malformed verb
+    /// that is sent without a selection (<see cref="RecordedCommandKind.MalformedGlobal"/>, refused with the parser's
+    /// reason) or a multi-verb chain or malformed aircraft verb (<see cref="RecordedCommandKind.Compound"/> against the
+    /// addressed aircraft).
     /// </summary>
     public static Classification Classify(string commandText)
     {
         ParseResult<ParsedCommand> result = CommandParser.Parse(commandText);
         if (!result.IsSuccess || result.Value is null)
         {
-            return new Classification(RecordedCommandKind.Compound, ActionScope.Aircraft, null);
+            RecordedCommandKind kind = IsSingleVerbSentWithoutSelection(commandText)
+                ? RecordedCommandKind.MalformedGlobal
+                : RecordedCommandKind.Compound;
+            return new Classification(kind, ScopeOf(kind), null);
         }
 
         return ClassifyParsed(result.Value);
+    }
+
+    /// <summary>
+    /// True when the body is one command, with no <c>;</c> or <c>,</c> chain separator, and its first whitespace-separated
+    /// token is an alias of a verb sent without a selection. A failing chain stays a <see cref="RecordedCommandKind.Compound"/>
+    /// whatever verb leads it (<c>REL OAK; FH 2X0</c>), so it answers the aircraft lookup as every failing chain does.
+    /// </summary>
+    private static bool IsSingleVerbSentWithoutSelection(string commandText)
+    {
+        if (commandText.AsSpan().IndexOfAny(';', ',') >= 0)
+        {
+            return false;
+        }
+
+        string[] tokens = commandText.Trim().Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
+        return (tokens.Length > 0)
+            && CommandRegistry.AliasToCanonicType.TryGetValue(tokens[0].ToUpperInvariant(), out CanonicalCommandType type)
+            && CommandScopes.SendsWithoutSelection(type);
     }
 
     /// <summary>
@@ -190,6 +221,7 @@ public static class RecordedCommandClassifier
             RecordedCommandKind.SetActivePosition => ActionScope.Position,
             RecordedCommandKind.Bookmark => ActionScope.Global,
             RecordedCommandKind.Transport => ActionScope.Global,
+            RecordedCommandKind.MalformedGlobal => ActionScope.Global,
             _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "Every RecordedCommandKind needs an ActionScope"),
         };
 

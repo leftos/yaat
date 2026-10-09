@@ -109,6 +109,77 @@ public class ActionRouterTests
         Assert.False(recorded.Accepted);
     }
 
+    /// <summary>
+    /// A verb sent without a selection whose arguments the parser rejects answers the parser's reason — room-scoped,
+    /// identically on the fresh and the recorded path, and recording nothing — rather than <c>Aircraft '' not found</c>.
+    /// </summary>
+    [Theory]
+    [InlineData("HFR")]
+    [InlineData("HFROFF")]
+    [InlineData("REL")]
+    [InlineData("REL OAK 0")]
+    [InlineData("GHOST N77GH")]
+    public void SentWithoutSelection_Malformed_AnswersTheParseReason(string command)
+    {
+        SimulationEngine engine = BuildEngine(soloTrainingMode: false, reactionDelaySeconds: 0);
+        string? reason = CommandParser.Parse(command).Reason;
+        Assert.NotNull(reason);
+
+        ActionOutcome issued = engine.Actions.Issue(new ActionInput("", command, "conn-1", "XX", Baked: null));
+        ActionOutcome applied = engine.Actions.Apply(Recorded("", command));
+
+        Assert.False(issued.Result.Success);
+        Assert.Equal(reason, issued.Result.Message);
+        Assert.Equal(ActionScope.Global, issued.Trace.Scope);
+        Assert.False(applied.Result.Success);
+        Assert.Equal(issued.Result.Message, applied.Result.Message);
+        Assert.Equal(issued.Trace, applied.Trace);
+        Assert.Empty(engine.Scenario!.ActionLog);
+    }
+
+    /// <summary>
+    /// ARWY's parser accepts every argument shape, so a bad runway is the global arm's own refusal; with an empty callsign
+    /// it still answers that, never the aircraft lookup.
+    /// </summary>
+    [Fact]
+    public void ActiveRunways_BadRunway_EmptyCallsign_AnswersTheArm()
+    {
+        SimulationEngine engine = BuildEngine(soloTrainingMode: false, reactionDelaySeconds: 0);
+
+        ActionOutcome issued = engine.Actions.Issue(new ActionInput("", "ARWY OAK 99", "conn-1", "XX", Baked: null));
+        ActionOutcome applied = engine.Actions.Apply(Recorded("", "ARWY OAK 99"));
+
+        Assert.False(issued.Result.Success);
+        Assert.DoesNotContain("not found", issued.Result.Message);
+        Assert.Equal(ActionScope.Global, issued.Trace.Scope);
+        Assert.Equal(issued.Result.Message, applied.Result.Message);
+        Assert.Equal(issued.Trace, applied.Trace);
+    }
+
+    /// <summary>
+    /// The parse-failure refusal is only for a single verb sent without a selection: an aircraft verb, a failing
+    /// multi-verb chain (even one led by a room verb, with or without its argument) and CFR, which releases the selected
+    /// departure, still need the aircraft.
+    /// </summary>
+    [Theory]
+    [InlineData("FH 270")]
+    [InlineData("FH 270, XYZZY 5")]
+    [InlineData("HFROFF, FH 270")]
+    [InlineData("REL OAK; FH 2X0")]
+    [InlineData("SIMRATE 4; FH 2X0")]
+    [InlineData("CFR")]
+    public void AircraftVerb_EmptyCallsign_StillAnswersAircraftNotFound(string command)
+    {
+        SimulationEngine engine = BuildEngine(soloTrainingMode: false, reactionDelaySeconds: 0);
+
+        ActionOutcome issued = engine.Actions.Issue(new ActionInput("", command, "conn-1", "XX", Baked: null));
+        ActionOutcome applied = engine.Actions.Apply(Recorded("", command));
+
+        Assert.Equal("Aircraft '' not found", issued.Result.Message);
+        Assert.Equal(ActionScope.Aircraft, issued.Trace.Scope);
+        Assert.Equal(issued.Result.Message, applied.Result.Message);
+    }
+
     [Fact]
     public void Issue_SamplesTheReactionDelay_AndBakesIt()
     {
@@ -219,6 +290,9 @@ public class ActionRouterTests
             ("", "SIMRATE 4", false),
             ("", "BM Test", false),
             ("UAL123", "SHOWAT", false),
+            // A malformed verb sent without a selection is refused with the parser's reason and never recorded.
+            ("", "HFROFF", false),
+            ("UAL123", "HFR", false),
             // Everything a controller writes, including through an AS prefix and a chain.
             ("UAL123", "H270", true),
             ("UAL123", "TRACK", true),

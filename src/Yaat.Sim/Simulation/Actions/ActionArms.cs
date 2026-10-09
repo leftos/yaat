@@ -671,6 +671,18 @@ internal static class ActionArms
     }
 
     /// <summary>
+    /// <see cref="RecordedCommandKind.MalformedGlobal"/>: answers the parser's reason for rejecting the verb's arguments.
+    /// The classifier chose this kind because the same text failed to parse, so a reason is always there.
+    /// </summary>
+    public static CommandResult MalformedGlobal(ArmContext ctx)
+    {
+        string reason =
+            CommandParser.Parse(ctx.Remainder).Reason
+            ?? throw new InvalidOperationException($"'{ctx.Remainder}' was classified as a malformed global verb but parses");
+        return new CommandResult(false, reason);
+    }
+
+    /// <summary>
     /// <c>CON</c> / <c>CON+</c>. Which of the sender's descendants move with a full consolidation depends on CRC
     /// attendance, which the engine carries on every run kind (<see cref="SimulationEngine.Attendance"/>).
     /// </summary>

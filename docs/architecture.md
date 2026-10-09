@@ -9,6 +9,7 @@
 |------|----------------------------------|
 | **Add a new command** | `CommandRegistry.cs` → `CommandScheme.cs` → `CommandSchemeParser.cs` → `CommandDispatcher.cs` → appropriate `*CommandHandler.cs` (+ `VfrCommandPolicy.cs` if it is a VFR-only verb) |
 | **Add a global typed command like HFR or ARWY** | [`command-pipeline.md`](command-pipeline.md) (One routing table) → `Commands/CanonicalCommandType.cs` → `CommandRegistry.cs` → `CommandParser.cs` (the parse; `ParseCommandList` if its argument may hold commas) → `CommandSchemeParser.cs` → `CompoundPolicy.cs` → `ParsedCommand.cs` (the record) → `Simulation/Actions/ActionArm.cs` (`ArmTable`) / `ActionArms.cs` (the body) → `Simulation/RecordedCommandClassifier.cs` (kind, `ActionScope.Global`) → `CommandDescriber.cs` → `docs/command-cheatsheet.json` → `COMMANDS.md`; tests `ClassifyCommandCompletenessTests.cs`, `ActiveRunwaysCommandParserTests.cs`, `Simulation/ActiveRunwaysCommandTests.cs`, yaat-server `tests/Yaat.Server.Tests/ActiveRunwaysCommandRoutingTests.cs` |
+| **A global (room-addressed) verb: client routing and server scope** | [`command-pipeline.md`](command-pipeline.md) (Verbs sent without a selection) → `Yaat.Client/ViewModels/MainViewModel.cs` (`GlobalCommandHandlerFor`, `HandleGlobalCommand`) → `Simulation/RecordedCommandClassifier.cs` (kind, `ScopeOf`, `MalformedGlobal`) → `Simulation/CommandScopes.cs` (`SendsWithoutSelection`, `VerbKinds`) → `Simulation/Actions/ActionArm.cs` / `ActionArms.cs` / `ActionRouter.cs` → `Commands/CommandRegistry.cs` → tests `Simulation/Actions/ActionRouterTests.cs`, `Simulation/CommandScopesTests.cs`, `tests/Yaat.Client.UI.Tests/ViewModels/MainViewModelGlobalCommandTests.cs` |
 | **Add a new phase** | `Phase.cs` (base) → new phase class → `PhaseList.cs` (registration) → `PhaseRunner.cs` (lifecycle) → `PhaseSnapshotDto.cs` (serialization) → `CommandDispatcher.cs` (acceptance) |
 | **Altitude commands** | `AltitudeResolver.cs`, `FlightCommandHandler.cs`, `FlightPhysics.cs` (UpdateAltitude), `ControlTargets.cs` |
 | **Speed commands** | `FlightCommandHandler.cs`, `FlightPhysics.cs` (UpdateSpeed/UpdateSpeedPlanning), `ControlTargets.cs`, `AircraftPerformance.cs` |
@@ -1924,6 +1925,10 @@ RecordedCommandClassifier.cs   # The exhaustive command classifier: RecordedComm
                                # Classify(text) is the key into Simulation/Actions/ArmTable for every fresh and recorded command in Yaat.Sim;
                                # Say (the SAY* queries) and ShowQueued (SHOWAT/SHOWCOND — never recorded) are separate kinds; the live room, a Sim replay and a
                                # server reconstruction all look the same kind up
+CommandScopes.cs               # SendsWithoutSelection(CanonicalCommandType): the typed verbs the desktop client sends with an empty callsign whatever is selected —
+                               # every verb whose kind (VerbKinds, checked against the parser by CommandScopesTests) has Global or Position scope in
+                               # RecordedCommandClassifier.ScopeOf, plus GHOST and TIMER. A body whose leading verb is one of them and fails to parse
+                               # classifies as RecordedCommandKind.MalformedGlobal (Global, never recorded; ActionArms.MalformedGlobal answers the parser's reason)
 TimerCommandApplier.cs         # The one TIMER body (set / cancel ActiveTimers on SimScenarioState, with the controller-facing messages);
                                # the router's Timer arm runs it on every run kind; the live room's OnTimersChanged consumer adds the broadcast
 RecordingCompression.cs        # Brotli compress/decompress; auto-detects Brotli, gzip, or plain JSON on read

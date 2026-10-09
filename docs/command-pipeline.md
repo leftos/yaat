@@ -90,7 +90,7 @@ log and the router ignores it from a record.
 
 | Kind | Verbs | Scope | Body | Recorded |
 |---|---|---|---|---|
-| `Compound` | every dispatcher-owned verb or chain (`IsAviationCommand`, ~150 types; also an unparseable multi-verb chain) | Aircraft | Sim: `CommandDispatcher.DispatchCompound` + `ApplyPostDispatch` | Text |
+| `Compound` | every dispatcher-owned verb or chain (`IsAviationCommand`, ~150 types; also an unparseable multi-verb chain or malformed aircraft verb) | Aircraft | Sim: `CommandDispatcher.DispatchCompound` + `ApplyPostDispatch` | Text |
 | `Say` | `SAY*` | Aircraft | Sim: the aviation arm | Text |
 | `ShowQueued` | `SHOWAT` / `SHOWCOND` | Aircraft | Sim: `ConditionalList.ToLines` → `OnQueuedCommandsShown` | Never |
 | `FlightPlan` | `FP` / `VP` / `DA` / `REMARKS` | Callsign | Sim: `SimulationEngine.AmendFlightPlan` fresh, recording a `RecordedAmendFlightPlan` that carries the state; from a record only the creator tag (the amendment record replays the plan) | Text |
@@ -120,6 +120,7 @@ log and the router ignores it from a record.
 | `SetActivePosition` | bare `AS` | Position | Sim: `SimulationEngine.SelectPosition` | Text |
 | `Bookmark` | `BM` | Global | Sim: `BookmarkCommandHandler.Handle` | Never |
 | `Transport` | `PAUSE` / `UNPAUSE` / `SIMRATE` | Global | Sim: `TransportCommandHandler.Handle` (`SimulationEngine.Pause` / `Resume` / `SetSimRate`) | Never |
+| `MalformedGlobal` | a verb sent without a selection (see below) whose arguments the parser rejects, e.g. `HFROFF` with no airport | Global | Sim: `ActionArms.MalformedGlobal` (answers the parser's reason) | Never |
 
 Two kinds are matched before the family predicates that also contain them: a bare `AS` (a member of the track family, but
 it addresses the issuing connection's position, not an aircraft) and `RDAUTO` (a member of the coordination family,
@@ -127,6 +128,14 @@ addressed to a position). The CRC entries that write state no verb covers are no
 (`RecordedStarsSharedStateChange`, `RecordedClearanceChange`, `RecordedHoldAnnotationChange`, `RecordedEramEntry`,
 `RecordedEramCrrGroup`, `RecordedStripRequest`, `RecordedAsdexSafetyLogicChange`), applied by `ActionRouter.ApplyRecorded`
 through their Sim applier; see [snapshots-and-replay.md](snapshots-and-replay.md) § RecordedAction.
+
+#### Verbs sent without a selection
+
+`CommandScopes.SendsWithoutSelection(CanonicalCommandType)` (`Yaat.Sim`) names the typed verbs the desktop client sends with an empty callsign whatever is selected: every verb whose recorded kind has `Global` or `Position` scope (read off `RecordedCommandClassifier.ScopeOf`, so the client and the router cannot disagree), plus `GHOST` (its callsign rides in the argument) and `TIMER` (an empty callsign is the room timer). `CFR` and the other aircraft-scoped verbs are not in it.
+
+The client routes them through `MainViewModel.GlobalCommandHandlerFor`, its one table of handlers; a test holds the table and `SendsWithoutSelection` to the same set. [client-mainviewmodel.md](client-mainviewmodel.md) has the client's step order.
+
+When the single-command parser rejects a body whose first token is such a verb, `RecordedCommandClassifier.Classify` returns `MalformedGlobal` (Global scope, `Parsed` null) instead of the aircraft-scoped `Compound`, so the controller reads the parser's own reason (`HFR requires an airport`) rather than `Aircraft '' not found`. Only a single command qualifies: a body containing a `;` or `,` chain separator stays a `Compound` whatever verb leads it, so a failing chain such as `REL OAK; FH 2X0` still answers `Aircraft '' not found`.
 
 The router records **every** routed command with its verdict (`RecordedCommand.Accepted`); the draws a fresh action
 made — the pilot-reaction delay (see [Deferred dispatch](#deferred-dispatch--wait-behind-and-the-command-run-delay)),
@@ -140,7 +149,7 @@ The connection id also says **who** issued the command: an AI-controller positio
 contact) and `ApplyPostDispatch` skips two-way-comms registration and evaluator scoring. Because the origin is derived
 from the recorded connection id, a reconstruction or tape playback (the router's `Apply` under the server's `RoomHost`) replays an AI command exactly as it ran live.
 
-`RecordingPolicy.Never` keeps three kinds out of the action log — `PAUSE`/`UNPAUSE`/`SIMRATE` (transport state, not simulation state), `BM` (bookmarks are timeline-global metadata that the rewind paths carry over verbatim, so replaying an add would duplicate every bookmark on each rewind) and `SHOWAT`/`SHOWCOND` (a read-only query the host shows the issuing connection alone) — and the router never applies any of them from a record, so the legacy records older recordings carry stay inert.
+`RecordingPolicy.Never` keeps four kinds out of the action log — `PAUSE`/`UNPAUSE`/`SIMRATE` (transport state, not simulation state), `BM` (bookmarks are timeline-global metadata that the rewind paths carry over verbatim, so replaying an add would duplicate every bookmark on each rewind), `SHOWAT`/`SHOWCOND` (a read-only query the host shows the issuing connection alone) and `MalformedGlobal` (a refusal that changes nothing) — and the router never applies any of them from a record, so the legacy records older recordings carry stay inert.
 
 ### 5. CommandDispatcher.DispatchCompound
 

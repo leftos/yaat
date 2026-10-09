@@ -276,8 +276,9 @@ public sealed class ActionRouter
     /// the <c>AS</c> prefix stripped first, the two chain refusals answering true because the refusal is itself recorded,
     /// a compound of scoped specials answering for its units — and reads the verdict off the same <see cref="ArmTable"/>
     /// row <see cref="Route"/> runs, so the two cannot disagree about a verb. A body that parses to nothing classifies to
-    /// <see cref="RecordedCommandKind.Compound"/> and records, exactly as it does live. <c>WouldRecord_AgreesWithTheLog</c>
-    /// checks the mirror against a log that actually grows, which is why it issues into a recording engine: on a
+    /// <see cref="RecordedCommandKind.Compound"/> and records, exactly as it does live — unless it is a single verb sent
+    /// without a selection, which classifies to <see cref="RecordedCommandKind.MalformedGlobal"/> and records nothing.
+    /// <c>WouldRecord_AgreesWithTheLog</c> checks the mirror against a log that actually grows, which is why it issues into a recording engine: on a
     /// replay-profile one the log stays empty for every verb and the comparison would prove nothing.
     /// </summary>
     public static bool WouldRecord(string command)
@@ -345,10 +346,11 @@ public sealed class ActionRouter
 
         // A kind that is never recorded (the session clock, bookmarks, the SHOW query) is never applied from a record
         // either: the legacy PAUSE / SIMRATE / BM records older recordings carry must not pause a rewind or re-add a
-        // bookmark.
-        if ((record is not null) && (arm.Recording == RecordingPolicy.Never))
+        // bookmark. A malformed global verb parses to nothing and its arm only refuses, so a record of one (recorded
+        // as a rejected compound before it had a kind of its own) answers the same refusal as live.
+        if ((record is not null) && (arm.Recording == RecordingPolicy.Never) && (classification.Parsed is { } neverApplied))
         {
-            string verb = CommandDescriber.DescribeCommand(classification.Parsed!);
+            string verb = CommandDescriber.DescribeCommand(neverApplied);
             return Finish(routing, new CommandResult(false, $"{verb} is not applied from a recording"), trace, arm.Recording, ctx: null);
         }
 

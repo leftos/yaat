@@ -2166,6 +2166,10 @@ These commands don't require an aircraft selection:
 | `RDTXT [/listId] <text>` | Set a held release's message text |
 | `CON` / `CON+` / `DECON` | Consolidation commands (see [Consolidation](#consolidation)) |
 | `TAXIALL 30` | Taxi every parked aircraft to runway 30, each auto-routed |
+| `HFR <airport>` / `HFROFF <airport>` / `REL <airport>` | Arm, disarm and release hold-for-release (see [Hold for Release](#hold-for-release-hfr--rel)); a malformed one answers its usage error, e.g. `HFR requires an airport` |
+| `ARWY [airport] <runways>` | Set or show the room's active runways (see [Active Runways](#active-runways-arwy)) |
+| `ASDXALERTS` | Clear alert inhibits across all aircraft in the room |
+| `GHOST <callsign> ...` | Create a ghost track; the callsign rides in the argument |
 
 ### Live Traffic (ASSUME)
 

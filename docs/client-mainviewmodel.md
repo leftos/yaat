@@ -315,8 +315,8 @@ order:
    `*T`; `.rbl A B` resolves each token via `MeasureEndpointResolver` and places a radar-view line), then
    `TryHandleCrcAlias` (`MainViewModel.CrcAliases.cs`); none claiming it yields "Unknown command or alias". The
    `CRC ` prefix skips the built-in steps so a shadowed alias is still reachable.
-4. **Global command** — `CommandSchemeParser.Parse` + `IsGlobalCommand`; dispatched via `HandleGlobalCommand` with no
-   callsign. Exception: the `AS {tcp} {track_command}` *prefix* form is per-aircraft (the standalone `AS {tcp}` is
+4. **Global command** — `CommandSchemeParser.Parse` + `IsGlobalCommand` (`CommandScopes.SendsWithoutSelection`: the room-addressed verbs plus `GHOST` and `TIMER`, whatever is selected); dispatched via `HandleGlobalCommand` with no
+   callsign through `GlobalCommandHandlerFor`, the one table of global handlers (a routed verb without a row is a test failure). A malformed one is answered with the server's parse reason. Exception: the `AS {tcp} {track_command}` *prefix* form is per-aircraft (the standalone `AS {tcp}` is
    global), so it is **not** taken here.
 5. **Single-token select** — if the input is one token with no `,`/`;` and matches a callsign, just select that
    aircraft and return (no command sent).
@@ -327,7 +327,7 @@ order:
    callsigns (`CM` while `CMD2` is up) falls through to the selected aircraft instead of reporting a false ambiguity.
 8. **Argument rewrite** — `CallsignArgumentResolver.TryRewrite` canonicalizes partial callsigns inside arguments
    (`FOLLOW UA` → `FOLLOW UAL123`).
-9. **RPO control commands** — `TryHandleRpoCommand` (`MainViewModel.cs:2097`) intercepts `TAKE` / `GIVE <initials>` /
+9. **RPO control commands** — `TryHandleRpoCommand` (`MainViewModel.cs`) intercepts `TAKE` / `GIVE <initials>` /
    `GIVEUP` (client-local ownership ops, bypass the command pipeline entirely).
 10. **`ParseCompound`** — on failure, falls back to **solo natural-language** dispatch
     (`TryDispatchSoloNaturalCommandAsync`) when `SessionSoloTrainingMode` is on; otherwise reports the parse error.

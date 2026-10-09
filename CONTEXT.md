@@ -147,6 +147,10 @@ What the router resolves before an arm runs — nothing, a callsign, a present a
 position. A property of the kind, not of the recorded text.
 _Avoid_: target, addressee
 
+**Sent without a selection**:
+A typed verb the desktop client sends with an empty callsign whatever aircraft is selected, because the room or the issuing position (or, for GHOST and TIMER, its own argument) addresses it: `CommandScopes.SendsWithoutSelection`. A malformed one is refused with the parser's reason, never as a missing aircraft.
+_Avoid_: global command (`CommandDefinition.IsGlobal` is a different question: the pilot never answers Unable)
+
 **Baked draw**:
 A value a live action drew — a reaction delay, a spawned aircraft, a strip id — carried on its record
 so every later run reuses it instead of drawing again.

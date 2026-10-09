@@ -22,6 +22,8 @@ using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.LiveTraffic;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Speech;
+// An alias, not `using Yaat.Sim.Simulation;`: that namespace's TerminalEntry clashes with Yaat.Client.Models.TerminalEntry (CS0104).
+using CommandScopes = Yaat.Sim.Simulation.CommandScopes;
 
 namespace Yaat.Client.ViewModels;
 
@@ -2912,195 +2914,153 @@ public partial class MainViewModel : ObservableObject
 
     private async Task HandleGlobalCommand(ParsedInput parsed)
     {
-        if (parsed.Type == CanonicalCommandType.TdlsOpsConfig)
+        if (GlobalCommandHandlerFor(parsed.Type) is not { } handler)
         {
-            string canonical = $"TDLSOPS {parsed.Argument}".TrimEnd();
-            await _connection.SendCommandAsync("", canonical, _preferences.UserInitials);
-            AddHistory("", canonical);
-            CommandText = "";
+            _log.LogError("Global command {Type} has no handler", parsed.Type);
+            StatusText = $"{parsed.Type} has no global command handler";
             return;
         }
-        if (parsed.Type == CanonicalCommandType.Pause)
-        {
-            await _connection.SendCommandAsync("", "PAUSE", _preferences.UserInitials);
-            AddHistory("", "PAUSE");
-            CommandText = "";
-            return;
-        }
-        if (parsed.Type == CanonicalCommandType.Unpause)
-        {
-            if (IsPaused && !await ConfirmResumeAsync())
-            {
-                return;
-            }
 
-            await _connection.SendCommandAsync("", "UNPAUSE", _preferences.UserInitials);
-            AddHistory("", "UNPAUSE");
-            CommandText = "";
+        await handler(parsed);
+    }
+
+    /// <summary>
+    /// The one table of typed verbs sent without a selected aircraft, always with an empty callsign. Every verb
+    /// <see cref="CommandScopes.SendsWithoutSelection"/> routes here has a row and nothing else does
+    /// (<c>MainViewModelGlobalCommandTests</c> checks both directions), so a routed verb can never go unsent.
+    /// </summary>
+    public Func<ParsedInput, Task>? GlobalCommandHandlerFor(CanonicalCommandType type) =>
+        type switch
+        {
+            CanonicalCommandType.TdlsOpsConfig => SendTdlsOpsAsync,
+            CanonicalCommandType.Pause => _ => SendPauseAsync(),
+            CanonicalCommandType.Unpause => _ => SendUnpauseAsync(),
+            CanonicalCommandType.SimRate => SendSimRateAsync,
+            CanonicalCommandType.SquawkAll => _ => SendSquawkAllAsync("SQALL"),
+            CanonicalCommandType.SquawkNormalAll => _ => SendSquawkAllAsync("SNALL"),
+            CanonicalCommandType.SquawkStandbyAll => _ => SendSquawkAllAsync("SSALL"),
+            CanonicalCommandType.Add => SendAddAsync,
+            CanonicalCommandType.Timer => SendTimerAsync,
+            CanonicalCommandType.Bookmark => SendBookmarkAsync,
+            CanonicalCommandType.Consolidate => p => SendGlobalVerbAsync("CON", p.Argument),
+            CanonicalCommandType.ConsolidateFull => p => SendGlobalVerbAsync("CON+", p.Argument),
+            CanonicalCommandType.Deconsolidate => p => SendGlobalVerbAsync("DECON", p.Argument),
+            CanonicalCommandType.SetActivePosition => p => SendGlobalVerbAsync("AS", p.Argument),
+            CanonicalCommandType.AcceptAllHandoffs => p => SendGlobalVerbAsync("ACCEPTALL", p.Argument),
+            CanonicalCommandType.InitiateHandoffAll => p => SendGlobalVerbAsync("HOALL", p.Argument),
+            CanonicalCommandType.CoordinationAutoAck => p => SendGlobalVerbAsync("RDAUTO", p.Argument),
+            CanonicalCommandType.TaxiAll => p => SendGlobalVerbAsync("TAXIALL", p.Argument),
+            CanonicalCommandType.HoldForRelease => p => SendGlobalVerbAsync("HFR", p.Argument),
+            CanonicalCommandType.DisarmHoldForRelease => p => SendGlobalVerbAsync("HFROFF", p.Argument),
+            CanonicalCommandType.ReleaseDeparture => p => SendGlobalVerbAsync("REL", p.Argument),
+            CanonicalCommandType.ActiveRunways => p => SendGlobalVerbAsync("ARWY", p.Argument),
+            CanonicalCommandType.GhostTrack => p => SendGlobalVerbAsync("GHOST", p.Argument),
+            CanonicalCommandType.AsdexEnableAllAlerts => p => SendGlobalVerbAsync("ASDXALERTS", p.Argument),
+            _ => null,
+        };
+
+    /// <summary>Sends <c>{verb} [argument]</c> with an empty callsign and shows the server's answer.</summary>
+    private async Task SendGlobalVerbAsync(string verb, string? argument)
+    {
+        string canonical = string.IsNullOrEmpty(argument) ? verb : $"{verb} {argument}";
+        try
+        {
+            CommandResultDto result = await _connection.SendCommandAsync("", canonical, _preferences.UserInitials);
+            AddHistory("", canonical);
+            StatusText = CommandStatusResolver.Resolve(result, verb);
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "{Verb} failed", verb);
+            StatusText = $"{verb} error: {ex.Message}";
+        }
+        _commandInput.DismissSuggestions();
+        _commandInput.ResetHistoryNavigation();
+        CommandText = "";
+    }
+
+    private async Task SendTdlsOpsAsync(ParsedInput parsed)
+    {
+        string canonical = $"TDLSOPS {parsed.Argument}".TrimEnd();
+        await _connection.SendCommandAsync("", canonical, _preferences.UserInitials);
+        AddHistory("", canonical);
+        CommandText = "";
+    }
+
+    private async Task SendPauseAsync()
+    {
+        await _connection.SendCommandAsync("", "PAUSE", _preferences.UserInitials);
+        AddHistory("", "PAUSE");
+        CommandText = "";
+    }
+
+    private async Task SendUnpauseAsync()
+    {
+        if (IsPaused && !await ConfirmResumeAsync())
+        {
             return;
         }
-        if (parsed.Type == CanonicalCommandType.SimRate)
+
+        await _connection.SendCommandAsync("", "UNPAUSE", _preferences.UserInitials);
+        AddHistory("", "UNPAUSE");
+        CommandText = "";
+    }
+
+    private async Task SendSimRateAsync(ParsedInput parsed)
+    {
+        if (int.TryParse(parsed.Argument, out int rate))
         {
-            if (int.TryParse(parsed.Argument, out int rate))
-            {
-                await _connection.SendCommandAsync("", $"SIMRATE {rate}", _preferences.UserInitials);
-                AddHistory("", $"SIMRATE {rate}");
-            }
-            CommandText = "";
+            await _connection.SendCommandAsync("", $"SIMRATE {rate}", _preferences.UserInitials);
+            AddHistory("", $"SIMRATE {rate}");
+        }
+        CommandText = "";
+    }
+
+    private async Task SendSquawkAllAsync(string verb)
+    {
+        try
+        {
+            await _connection.SendCommandAsync("", verb, _preferences.UserInitials);
+            AddHistory("", verb);
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "{Verb} failed", verb);
+            StatusText = $"{verb} error: {ex.Message}";
+        }
+        _commandInput.DismissSuggestions();
+        _commandInput.ResetHistoryNavigation();
+        CommandText = "";
+    }
+
+    private async Task SendAddAsync(ParsedInput parsed)
+    {
+        if (string.IsNullOrWhiteSpace(parsed.Argument))
+        {
+            StatusText = "ADD requires arguments: ADD {rules} {weight} {engine} {position...}";
             return;
         }
-        if (parsed.Type is CanonicalCommandType.SquawkAll or CanonicalCommandType.SquawkNormalAll or CanonicalCommandType.SquawkStandbyAll)
+
+        await SendGlobalVerbAsync("ADD", parsed.Argument);
+    }
+
+    private async Task SendTimerAsync(ParsedInput parsed)
+    {
+        if (string.IsNullOrWhiteSpace(parsed.Argument))
         {
-            string verb = parsed.Type switch
-            {
-                CanonicalCommandType.SquawkAll => "SQALL",
-                CanonicalCommandType.SquawkNormalAll => "SNALL",
-                CanonicalCommandType.SquawkStandbyAll => "SSALL",
-                _ => "",
-            };
-            try
-            {
-                await _connection.SendCommandAsync("", verb, _preferences.UserInitials);
-                AddHistory("", verb);
-            }
-            catch (Exception ex)
-            {
-                _log.LogError(ex, "{Verb} failed", verb);
-                StatusText = $"{verb} error: {ex.Message}";
-            }
-            _commandInput.DismissSuggestions();
-            _commandInput.ResetHistoryNavigation();
-            CommandText = "";
+            StatusText = "TIMER requires a duration (mm:ss or seconds) or CANCEL";
             return;
         }
-        if (parsed.Type == CanonicalCommandType.Add)
-        {
-            if (string.IsNullOrWhiteSpace(parsed.Argument))
-            {
-                StatusText = "ADD requires arguments: ADD {rules} {weight} {engine} {position...}";
-                return;
-            }
-            string canonical = $"ADD {parsed.Argument}";
-            try
-            {
-                CommandResultDto result = await _connection.SendCommandAsync("", canonical, _preferences.UserInitials);
-                AddHistory("", canonical);
-                StatusText = CommandStatusResolver.Resolve(result, "ADD");
-            }
-            catch (Exception ex)
-            {
-                _log.LogError(ex, "ADD failed");
-                StatusText = $"ADD error: {ex.Message}";
-            }
-            _commandInput.DismissSuggestions();
-            _commandInput.ResetHistoryNavigation();
-            CommandText = "";
-        }
-        if (parsed.Type is CanonicalCommandType.Consolidate or CanonicalCommandType.ConsolidateFull or CanonicalCommandType.Deconsolidate)
-        {
-            string verb = parsed.Type switch
-            {
-                CanonicalCommandType.Consolidate => "CON",
-                CanonicalCommandType.ConsolidateFull => "CON+",
-                CanonicalCommandType.Deconsolidate => "DECON",
-                _ => "",
-            };
-            string canonical = string.IsNullOrEmpty(parsed.Argument) ? verb : $"{verb} {parsed.Argument}";
-            try
-            {
-                CommandResultDto result = await _connection.SendCommandAsync("", canonical, _preferences.UserInitials);
-                AddHistory("", canonical);
-                StatusText = CommandStatusResolver.Resolve(result, verb);
-            }
-            catch (Exception ex)
-            {
-                _log.LogError(ex, "{Verb} failed", verb);
-                StatusText = $"{verb} error: {ex.Message}";
-            }
-            _commandInput.DismissSuggestions();
-            _commandInput.ResetHistoryNavigation();
-            CommandText = "";
-        }
-        if (
-            parsed.Type
-            is CanonicalCommandType.SetActivePosition
-                or CanonicalCommandType.AcceptAllHandoffs
-                or CanonicalCommandType.InitiateHandoffAll
-                or CanonicalCommandType.CoordinationAutoAck
-        )
-        {
-            string verb = parsed.Type switch
-            {
-                CanonicalCommandType.SetActivePosition => "AS",
-                CanonicalCommandType.AcceptAllHandoffs => "ACCEPTALL",
-                CanonicalCommandType.InitiateHandoffAll => "HOALL",
-                CanonicalCommandType.CoordinationAutoAck => "RDAUTO",
-                _ => "",
-            };
-            string canonical = string.IsNullOrEmpty(parsed.Argument) ? verb : $"{verb} {parsed.Argument}";
-            try
-            {
-                CommandResultDto result = await _connection.SendCommandAsync("", canonical, _preferences.UserInitials);
-                AddHistory("", canonical);
-                StatusText = CommandStatusResolver.Resolve(result, verb);
-            }
-            catch (Exception ex)
-            {
-                _log.LogError(ex, "{Verb} failed", verb);
-                StatusText = $"{verb} error: {ex.Message}";
-            }
-            _commandInput.DismissSuggestions();
-            _commandInput.ResetHistoryNavigation();
-            CommandText = "";
-        }
-        if (parsed.Type == CanonicalCommandType.TaxiAll)
-        {
-            string canonical = string.IsNullOrEmpty(parsed.Argument) ? "TAXIALL" : $"TAXIALL {parsed.Argument}";
-            try
-            {
-                CommandResultDto result = await _connection.SendCommandAsync("", canonical, _preferences.UserInitials);
-                AddHistory("", canonical);
-                StatusText = CommandStatusResolver.Resolve(result, "TAXIALL");
-            }
-            catch (Exception ex)
-            {
-                _log.LogError(ex, "TAXIALL failed");
-                StatusText = $"TAXIALL error: {ex.Message}";
-            }
-            _commandInput.DismissSuggestions();
-            _commandInput.ResetHistoryNavigation();
-            CommandText = "";
-        }
-        if (parsed.Type == CanonicalCommandType.Timer)
-        {
-            if (string.IsNullOrWhiteSpace(parsed.Argument))
-            {
-                StatusText = "TIMER requires a duration (mm:ss or seconds) or CANCEL";
-                return;
-            }
-            string canonical = $"TIMER {parsed.Argument}";
-            try
-            {
-                CommandResultDto result = await _connection.SendCommandAsync("", canonical, _preferences.UserInitials);
-                AddHistory("", canonical);
-                StatusText = CommandStatusResolver.Resolve(result, "TIMER");
-            }
-            catch (Exception ex)
-            {
-                _log.LogError(ex, "TIMER failed");
-                StatusText = $"TIMER error: {ex.Message}";
-            }
-            _commandInput.DismissSuggestions();
-            _commandInput.ResetHistoryNavigation();
-            CommandText = "";
-        }
-        if (parsed.Type == CanonicalCommandType.Bookmark)
-        {
-            await HandleBookmarkGlobalCommand(parsed.Argument);
-            _commandInput.DismissSuggestions();
-            _commandInput.ResetHistoryNavigation();
-            CommandText = "";
-        }
+
+        await SendGlobalVerbAsync("TIMER", parsed.Argument);
+    }
+
+    private async Task SendBookmarkAsync(ParsedInput parsed)
+    {
+        await HandleBookmarkGlobalCommand(parsed.Argument);
+        _commandInput.DismissSuggestions();
+        _commandInput.ResetHistoryNavigation();
+        CommandText = "";
     }
 
     /// <summary>
@@ -3210,29 +3170,7 @@ public partial class MainViewModel : ObservableObject
             || string.Equals(verb, "HSD", StringComparison.OrdinalIgnoreCase);
     }
 
-    private static bool IsGlobalCommand(CanonicalCommandType type)
-    {
-        return type
-            is CanonicalCommandType.Pause
-                or CanonicalCommandType.Unpause
-                or CanonicalCommandType.SimRate
-                or CanonicalCommandType.Add
-                or CanonicalCommandType.SquawkAll
-                or CanonicalCommandType.SquawkNormalAll
-                or CanonicalCommandType.SquawkStandbyAll
-                or CanonicalCommandType.Consolidate
-                or CanonicalCommandType.ConsolidateFull
-                or CanonicalCommandType.Deconsolidate
-                or CanonicalCommandType.SetActivePosition
-                or CanonicalCommandType.AcceptAllHandoffs
-                or CanonicalCommandType.InitiateHandoffAll
-                or CanonicalCommandType.CoordinationAutoAck
-                or CanonicalCommandType.TaxiAll
-                or CanonicalCommandType.GhostTrack
-                or CanonicalCommandType.Timer
-                or CanonicalCommandType.TdlsOpsConfig
-                or CanonicalCommandType.Bookmark;
-    }
+    private static bool IsGlobalCommand(CanonicalCommandType type) => CommandScopes.SendsWithoutSelection(type);
 
     /// <summary>
     /// Selects the aircraft matching the current command input text as a callsign,

@@ -60,6 +60,7 @@
 
 ### Fixed
 
+- `HFR`, `HFROFF`, `REL`, `ARWY`, `ASDXALERTS` and `GHOST` work with no aircraft selected, and a mistyped one says what is wrong instead of "Aircraft '' not found".
 - A taxiing aircraft keeps its speed through a node where the taxiway runs straight on, instead of slowing to a crawl for a few seconds.
 - Aircraft crossing a runway in trail no longer pile up on it: the leader keeps going and only the aircraft behind it slows.
 - An aircraft turning about on a taxiway rolls out along the centreline toward its next turn instead of pirouetting when that turn doubles back.
