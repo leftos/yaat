@@ -71,6 +71,9 @@ Element ids (`e1`, `e2`, …) come from `list_windows` / `find_elements` / `dump
 
 - The main window's title is `YAAT`. Avalonia maps `x:Name` to the UIA AutomationId: `CommandInput` (the command box), `ConnectMenuItem`, `DisconnectMenuItem`. Menu items without an `x:Name` are found by Name (the header without its `_` accelerator).
 - **Menus need clicks.** `ExpandCollapsePattern` is unsupported on Avalonia menus, and a menu's items do not exist until it is open: `click` the menu, then `find_elements` under the **main** window, where UI Automation files the popup and its items; `list_windows` never lists the popup. At the Win32 level the popup is its own owned `WS_EX_TOOLWINDOW` window, and in virtual mode a click on one of its items is posted to that window.
+
+  Over the automation pipe it is the other way round: a menu's items sit under the `OverlayPopupHost` window that `list_windows` lists, not under the main window.
+- **Loading a scenario.** The Load Scenario list is virtualised and its items carry no names: click the first item, move with `{END}` or `{UP}`, and confirm the selection with a screenshot. A load then opens an "Active runways" dialog inside the main window that must be closed with its OK button. `launch_yaat` cannot pass `--scenario`.
 - **File dialogs.** A client in automation mode opens no dialog: `queue_file_pick` the path before the action that opens it. A client driven through UI Automation shows the native picker, which runs in `PickerHost.exe`, outside the client's windows, and cannot be filled by the driver's keystrokes (friction #21 in [`plans/client-driver-mcp-friction.md`](plans/client-driver-mcp-friction.md)); launch through `launch_yaat` instead.
 - A button that "does nothing" usually logged `Unhandled UI-thread exception (recovered)`. Over the pipe it comes back with the call (**Client errors on every result** below); through UI Automation, `tail_yaat_log` first.
 
