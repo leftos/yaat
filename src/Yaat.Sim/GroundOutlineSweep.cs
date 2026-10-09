@@ -114,12 +114,12 @@ internal static class GroundOutlineSweep
 {
     /// <summary>
     /// Wingtip room left between two aircraft passing abeam, on top of the pair's half-wingspans
-    /// (<see cref="GroundConflictDetector.RequiredLateralClearanceFt"/>). A detector-frame figure, deliberately below the
-    /// AC 150/5300-13B design wingtip allowance (0.2 W + 20 ft on a taxiway, 0.1 W + 20 ft on a taxilane): the design value
-    /// buys centreline-tracking error the sim does not have, and importing it would ask 160.9 ft of SFO's 160 ft A/B spacing
-    /// and hold every parallel-lane pass. 7110.65 has no taxiway-separation paragraph; its §3-1-1 NOTE, AIM 4-3-18.b and
-    /// AIM 2-3-4.b.1 ("being centered on the taxiway centerline does not guarantee wingtip clearance") put wingtip avoidance
-    /// on the pilot.
+    /// (<see cref="GroundConflictDetector.RequiredLateralClearanceFt"/>). A detector-frame figure [J], deliberately below
+    /// AC 150/5300-13B's taxilane wingtip clearance: the design value buys centreline-tracking error the sim does not have,
+    /// and importing it would ask 160.9 ft of SFO's 160 ft A/B spacing and hold every parallel-lane pass. That AC is not in
+    /// the repo's references, so its figure is not quoted here. 7110.65 has no taxiway-separation paragraph; its §3-1-1
+    /// NOTE, AIM 4-3-18.b and AIM 2-3-4.b.1 ("being centered on the taxiway centerline does not guarantee wingtip
+    /// clearance") put wingtip avoidance on the pilot. [J] marks a judgement call.
     /// </summary>
     public const double WingtipBufferFt = 25.0;
 
@@ -134,7 +134,9 @@ internal static class GroundOutlineSweep
 
     /// <summary>
     /// The least row clearance the row anchor of <see cref="FloorFt"/> counts, feet [J]: about ICAO Annex 14's smallest
-    /// stand clearance. Under it the floor stays where the move started (OAK 26 → 27, a 6.2 ft row, still holds).
+    /// stand clearance. Under it the floor stays where the move started, with no row anchor to relax it: OAK 26 → 27
+    /// holding a B738 on each stand is the case it holds, their 6.5 ft row gap leaving the anchor null, so a
+    /// <c>PUSH TE</c> or <c>PUSH TC</c> from 26 is judged by the floor the push started with.
     /// </summary>
     public const double RowAnchorMinFt = 10.0;
 
@@ -171,12 +173,11 @@ internal static class GroundOutlineSweep
     /// overlaps the slide and keeps that floor. [J] marks a judgement call.</para>
     ///
     /// <para>The floor this works out to — 24.5 ft for the pair of E75Ls on adjacent SFO gates, off
-    /// <see cref="WingtipBufferFt"/>'s 25 ft — sits between AC 150/5300-13B's taxilane-to-object
-    /// wingtip allowance (0.1 W + 10 ft, about 20.2 ft for an ADG-III E75L) and its taxilane-to-taxilane allowance
-    /// (0.1 W + 20 ft, about 30.2 ft). The planner therefore refuses swings the object standard would permit, and that
-    /// is deliberate: a tow past a parked aircraft is walked, not flown down a design taxilane, and AC 00-65A §11.9 puts
-    /// the swing in the wing walkers' judgement before the move rather than on a design clearance. The AC 150/5300-13B
-    /// figures are quoted from memory; that AC is not on disk here.</para>
+    /// <see cref="WingtipBufferFt"/>'s 25 ft — is a judgement call below AC 150/5300-13B's taxilane wingtip clearance: the
+    /// planner therefore refuses swings that standard would permit, and that is deliberate, because a tow past a parked
+    /// aircraft is walked, not flown down a design taxilane, and AC 00-65A §11.9 puts the swing in the wing walkers'
+    /// judgement before the move rather than on a design clearance. That AC is not in the repo's references, so no figure
+    /// from it is quoted here.</para>
     /// </summary>
     /// <param name="anchorClearanceFt">
     /// The clearance the floor is anchored to, feet: the clearance at the move's start, or the row clearance when the row

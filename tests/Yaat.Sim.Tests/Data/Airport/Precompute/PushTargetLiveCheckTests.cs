@@ -1,7 +1,11 @@
 using Xunit;
+using Yaat.Sim;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Data.Faa;
+using Yaat.Sim.Simulation;
+using Yaat.Sim.Tests.Simulation;
 
 namespace Yaat.Sim.Tests.Data.Airport.Precompute;
 
@@ -11,7 +15,8 @@ namespace Yaat.Sim.Tests.Data.Airport.Precompute;
 /// the design group's envelope end where the stored plan says they did; a neighbour the aircraft already touches blocks a
 /// target, read with the tug lead for a pull-first one; a plan the actual aircraft cannot complete is unflyable; and the
 /// stored moves flown with the actual aircraft's turn radius and swept with its outline are blocked by exactly the parked
-/// neighbours the planner's own sweep would not pass.
+/// neighbours the planner's own sweep would not pass; and a push the check blocks is held short of that neighbour by the
+/// simulation itself.
 /// </summary>
 public class PushTargetLiveCheckTests(ITestOutputHelper output)
 {
@@ -80,6 +85,21 @@ public class PushTargetLiveCheckTests(ITestOutputHelper output)
 
     /// <summary>How far off gate 26's heading the A388 that cannot complete group I's <c>PUSH TE</c> is parked, degrees.</summary>
     private const double UnflyableTurnDeg = 225.0;
+
+    /// <summary>The B738 parked on gate 25, off the side of gate 26's push.</summary>
+    private const string Gate25Neighbour = "SWA25";
+
+    /// <summary>The B738 parked on gate 27, the neighbour the live check names and the push is held short of.</summary>
+    private const string Gate27Neighbour = "SWA27";
+
+    /// <summary>How long the held push is ticked in one-second ticks, long past the time an unheld push from gate 26 takes.</summary>
+    private const int HoldSeconds = 120;
+
+    /// <summary>The phase a push held short of its neighbour stays in.</summary>
+    private const string PushbackPhaseName = "Pushback";
+
+    /// <summary>The most ground speed a held push may read at the end of the hold, kt: at rest, not creeping.</summary>
+    private const double HeldSpeedKts = 0.5;
 
     private static readonly Lazy<DesignGroupEnvelopes> Envelopes = new(DesignGroupEnvelopes.LoadShipped);
 
@@ -206,6 +226,12 @@ public class PushTargetLiveCheckTests(ITestOutputHelper output)
     /// the planner refuses naming a neighbour is blocked by that neighbour, a spot target it plans as stored passed its
     /// sweep and is clear, and a target a forced tow plans as stored is blocked by one of the neighbours the forced tow notes
     /// passing inside the floor, or clear when it notes none.
+    ///
+    /// <para>The plain planner's keep is read as clearance for spot targets only, the faced goals. A taxilane or taxiway
+    /// target's plan is a bare <c>PUSH &lt;twy&gt;</c>, and <c>TugMovePlanner.NeighbourRefusal</c> judges no non-faced
+    /// goal: the tug stops short of a neighbour at fly time instead, so that keep carries no neighbour judgement at all.
+    /// For those targets the cross-check is the forced plan's <see cref="TugForcedPassesNeighbour"/> instead — forced as
+    /// stored with none noted is clear, and forced as stored with one noted is blocked by the neighbour it notes.</para>
     /// </summary>
     [Fact]
     public void GateNeighbours_LiveCheckAgreesWithTheLivePlanner()
@@ -270,6 +296,22 @@ public class PushTargetLiveCheckTests(ITestOutputHelper output)
 
         Assert.True(crossChecked > 0, "no group-III target of gate 26 could be cross-checked against the live planner");
     }
+
+    /// <summary>
+    /// Gate 26's group-III <c>PUSH TE</c> with B738s on gates 25 and 27: the live check blocks it on the B738 parked on
+    /// 27, and the push is held short of that aircraft rather than completing
+    /// (<see cref="Gate26PushHeldByTheB738OnGate27"/>).
+    /// </summary>
+    [Fact]
+    public void Oak_Gate26_PushTe_B738OnGate27_HeldAsTheLiveCheckSays() => Gate26PushHeldByTheB738OnGate27("TE");
+
+    /// <summary>
+    /// Gate 26's group-III <c>PUSH TC</c> with B738s on gates 25 and 27: the live check blocks it on the B738 parked on
+    /// 27, and the push is held short of that aircraft rather than completing
+    /// (<see cref="Gate26PushHeldByTheB738OnGate27"/>).
+    /// </summary>
+    [Fact]
+    public void Oak_Gate26_PushTc_B738OnGate27_HeldAsTheLiveCheckSays() => Gate26PushHeldByTheB738OnGate27("TC");
 
     /// <summary>Issue #475: a B738 on gate 27 pushed onto TE passes the B738 on staggered gate 29 at the row's wingtip gap.</summary>
     [Fact]
@@ -828,5 +870,60 @@ public class PushTargetLiveCheckTests(ITestOutputHelper output)
             .Take(count)
             .Select(n => n.Name!)
             .ToHashSet(StringComparer.Ordinal);
+    }
+
+    /// <summary>
+    /// With B738s on gates 25, 26 and 27, the live check blocks gate 26's group-III <c>PUSH <paramref name="taxilane"/></c>
+    /// on the B738 parked on 27, and the simulation holds the same push short of that aircraft instead of completing it.
+    /// The live check, which re-flies the stored plan, and the simulation, which plans the push live, must agree.
+    /// </summary>
+    /// <param name="taxilane">The taxilane the push is onto, <c>TE</c> or <c>TC</c>.</param>
+    private void Gate26PushHeldByTheB738OnGate27(string taxilane)
+    {
+        SimulationEngine? engine = Issue222PushbackParkedNeighborTests.BuildEngine(output);
+        Assert.NotNull(engine);
+        AirportGroundLayout layout = PushTargetPlannerTests.Oak();
+        engine.Scenario = new SimScenarioState
+        {
+            ScenarioId = "test-oak-gate26-push-hold",
+            ScenarioName = "OAK gate 26 push hold",
+            RngSeed = 42,
+            OriginalScenarioJson = "{}",
+            PrimaryAirportId = "OAK",
+            AutoCrossRunway = false,
+        };
+        AircraftState subject = Issue222PushbackParkedNeighborTests.SpawnParked(engine, layout, Subject, Narrowbody, "26");
+        _ = Issue222PushbackParkedNeighborTests.SpawnParked(engine, layout, Gate25Neighbour, Narrowbody, "25");
+        _ = Issue222PushbackParkedNeighborTests.SpawnParked(engine, layout, Gate27Neighbour, Narrowbody, "27");
+
+        PushTargetLiveVerdict verdict = PushTargetLiveCheck.Check(
+            Target(OakSampleEntries.Value, "26", GroupOf(Narrowbody), taxilane),
+            Request(
+                Parked(Subject, Narrowbody, StartOf(Stand(layout, "26")), "26"),
+                AircraftFootprint.FromType(Narrowbody),
+                [
+                    Parked(Gate25Neighbour, Narrowbody, StartOf(Stand(layout, "25")), "25"),
+                    Parked(Gate27Neighbour, Narrowbody, StartOf(Stand(layout, "27")), "27"),
+                ]
+            )
+        );
+        CommandResult push = engine.SendCommand(Subject, $"PUSH {taxilane}");
+        Assert.True(push.Success, $"PUSH {taxilane} off gate 26 was refused: {push.Message}");
+        for (int tick = 1; tick <= HoldSeconds; tick++)
+        {
+            engine.TickOneSecond();
+        }
+
+        output.WriteLine(
+            $"{Subject} PUSH {taxilane}: live check {verdict}; after {HoldSeconds}s phase {subject.Phases?.CurrentPhase?.Name}, "
+                + $"yielding to {subject.Ground.AutoYieldTarget ?? "-"}, speed {subject.GroundSpeed:F2} kt"
+        );
+        Assert.Equal(PushTargetLiveVerdict.Blocked(Gate27Neighbour), verdict);
+        Assert.Equal(PushbackPhaseName, subject.Phases?.CurrentPhase?.Name);
+        Assert.Equal(Gate27Neighbour, subject.Ground.AutoYieldTarget);
+        Assert.True(
+            subject.GroundSpeed < HeldSpeedKts,
+            $"{Subject} is moving at {subject.GroundSpeed:F2} kt after {HoldSeconds}s held on {Gate27Neighbour}"
+        );
     }
 }

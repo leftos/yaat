@@ -418,13 +418,17 @@ The stand-vs-surface rule is [phases.md](../phases.md)'s: only a stand parks. `H
 
 A tug-moved aircraft (push or pull) against a **parked or held** neighbour is judged by sweeping its `GroundOutline` — a cross of the fuselage segment (extended 30 ft ahead of the nose tip for the tug on a pull, which overstates a towbar rig by ~15 ft since the 30–40 ft figure is measured from the nose gear; conservative), the wing at the reference point and a tailplane 40 % of the span wide at the tail — along `RemainingPath` against the neighbour's outline.
 
-The segments have no width, so a modelled 25 ft is about 19 ft of skin clearance for a B738, which is the AC 150/5300-13B taxilane wingtip standard (0.05 × span + 10 ft):
+The segments have no width, so a modelled 25 ft is about 19 ft of skin clearance for a B738, a judgement call below AC 150/5300-13B's taxilane wingtip clearance (that AC is not in the repo's references, so no figure from it is quoted):
 
 - **Floor.** The clearance may never drop below `min(WingtipBufferFt = 25 ft, clearance at the move's start, row clearance) − 0.5 ft`, and never below the 0.5 ft slack. The **row clearance** (`GroundOutlineSweep.RowClearanceFt`, #475a) is the least clearance as the mover's outline at the pose the tow started from (`TugRowAnchor.TowStartPose`) slides along its own nose axis in the first move's direction (aft for a push, forward for a pull) past the neighbour: the row's own wingtip gap.
 
   It counts only for a neighbour whose nose is within 10° of the mover's, same direction (`RowAnchorNoseToleranceDeg` [J]), when it is at least `RowAnchorMinFt` = 10 ft [J]; a neighbour on the push line overlaps the slide and keeps the start floor.
 
   The anchor is set when the tug move is installed, carried through continuations and facing amendments, cleared when the tow ends, snapshotted (`AircraftGroundOpsDto.TowRowAnchor`), and a new `PUSH`/`PUSHM` starts a fresh one from the current pose. Without it a push off OAK gate 27 was held forever beside a B738 on staggered gate 29 (row gap 16.5 ft, start floor 24.5 ft).
+
+  Off OAK 26 a B738 pushed straight back passes a B738 on staggered 27 at a 6.5 ft row gap, under `RowAnchorMinFt`, so the floor stays at 24.5 ft and `PUSH TE` / `PUSH TC` are held about 25.8 ft from the neighbour. The push menu greys both as blocked by it, and `PUSHF` is the RPO's override. No FAA document on disk sets a ramp-tow wingtip minimum (7110.65 §3-7-2 NOTE 2, AIM 2-3-4.b.1), so 10 ft and 25 ft are both judgement calls.
+
+  Real OAK 26/27 spacing for two B738s is unverified: 123.9 ft centre to centre is less than span plus Annex 14's stand clearance, so the vNAS stand points may be the oddity (`PushTargetLiveCheckTests.Oak_Gate26_PushTe_B738OnGate27_HeldAsTheLiveCheckSays` and its `PushTc` twin pin the hold).
 
   The floor is anchored to the **move's start pose**, not the live one: a floor that followed the mover down ratcheted it into contact a foot at a time. Neighbouring stands usually start closer than 25 ft, and a move that never closes on them passes.
 - **Stop.** The sweep covers the whole **continuing run** of the tow — the rest of this move plus every queued move up to the first reversal (`GroundConflictDetector.TugRunContinuation`; a reversal is a full stop and a change of kind, so nothing past it needs braking for yet) — so a neighbour that a *later* move of a continuous tow would foul is seen one braking distance out, not at the move boundary with 5 kt on.
@@ -475,6 +479,7 @@ A brief for pushback or tug-move work cites the rules above by section and quote
 - **`PUSH <X>` ends lined up on X.** Across (≥ 45° crossing) stops on the centreline across it; a crossing just over 45° ends across the lane (rule 6).
 - **Spots abeam on parallel sub-lanes are reached without a reversal** (SFO 6A/6B always reverse; their two best plans differ by 1 ft).
 - **The fuselage may cross any taxiway behind.** The flown-path check refuses movement-area pavement outside the 300 ft behind-stand exemption and the leaving/arriving exemption.
+- **A plain plan's "as stored" means clear of neighbours.** For a `PUSH <twy>` goal `TugMovePlanner.NeighbourRefusal` sweeps no neighbour, so a plain acceptance says nothing about parked aircraft: cross-check a taxilane target with the forced plan's `TugForcedPassesNeighbour` note, `PushTargetLiveCheck` or a sim run.
 - **The layout knows the ramp's real limits.** Jet bridges, terminal faces and pavement polygons are not in it; a push-off sweep toward the terminal is unchecked.
 
 **Refusal texts**, as the RPO sees them (pin them verbatim in a test):

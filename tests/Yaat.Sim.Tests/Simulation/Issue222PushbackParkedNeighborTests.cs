@@ -43,15 +43,21 @@ public class Issue222PushbackParkedNeighborTests(ITestOutputHelper output)
 
     private static SessionRecording? LoadRecording() => RecordingLoader.Load(RecordingPath);
 
-    /// <summary>A B737 parked on the named OAK stand, nose on the stand heading, as the recording spawns it.</summary>
-    private static AircraftState SpawnParked(SimulationEngine engine, AirportGroundLayout layout, string callsign, string parkingName)
+    /// <summary>An aircraft of <paramref name="aircraftType"/> parked on the named OAK stand, nose on the stand heading.</summary>
+    internal static AircraftState SpawnParked(
+        SimulationEngine engine,
+        AirportGroundLayout layout,
+        string callsign,
+        string aircraftType,
+        string parkingName
+    )
     {
         GroundNode stand =
             layout.FindParkingByName(parkingName) ?? throw new InvalidOperationException($"OAK layout has no parking named '{parkingName}'");
         var aircraft = new AircraftState
         {
             Callsign = callsign,
-            AircraftType = "B737",
+            AircraftType = aircraftType,
             Position = stand.Position,
             TrueHeading = stand.TrueHeading ?? new TrueHeading(0),
             Altitude = 0,
@@ -93,7 +99,8 @@ public class Issue222PushbackParkedNeighborTests(ITestOutputHelper output)
             + $"lateral={lateralFt:F1}ft required={requiredFt:F1}ft";
     }
 
-    private SimulationEngine? BuildEngine()
+    /// <summary>A replay-free engine over the OAK test layout; null when real nav data is missing.</summary>
+    internal static SimulationEngine? BuildEngine(ITestOutputHelper output)
     {
         TestVnasData.EnsureInitialized();
         if (TestVnasData.NavigationDb is null)
@@ -134,8 +141,8 @@ public class Issue222PushbackParkedNeighborTests(ITestOutputHelper output)
                 AutoCrossRunway = false,
             },
         };
-        AircraftState pusher = SpawnParked(engine, layout, Pusher, "25");
-        AircraftState neighbour = SpawnParked(engine, layout, ParkedNeighbor, "26");
+        AircraftState pusher = SpawnParked(engine, layout, Pusher, "B737", "25");
+        AircraftState neighbour = SpawnParked(engine, layout, ParkedNeighbor, "B737", "26");
 
         CommandResult push = engine.SendCommand(Pusher, "PUSH TE");
         output.WriteLine($"PUSH TE: success={push.Success} msg={push.Message}");
@@ -174,7 +181,7 @@ public class Issue222PushbackParkedNeighborTests(ITestOutputHelper output)
     public void Pushback_CompletesWithoutBreak_PastParkedNeighbor()
     {
         SessionRecording? recording = LoadRecording();
-        SimulationEngine? engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine(output);
         if (recording is null || engine is null)
         {
             return;
