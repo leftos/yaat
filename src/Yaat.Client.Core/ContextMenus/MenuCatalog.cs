@@ -231,8 +231,8 @@ public static class MenuCatalog
                     $"The '{MenuIds.GroundPushbackFace}' entry builds no item; MenuCatalog.BuildPushbackFaces builds its flat face items."
                 )
         ),
-        // Push back to… has no quick-command glyph and must not gain one: its submenu follows a list the background live
-        // plan fills through IsSubMenuOpen, which the strip button's flyout copy of the items never raises.
+        // Push back to… follows a list the background live plan fills: as a submenu through IsSubMenuOpen, as the strip
+        // button's flyout through QuickCommandStrip.FollowInFlyout, since the flyout never raises IsSubMenuOpen.
         HostLeaf(
             MenuIds.GroundPushbackTo,
             "Push back to…",

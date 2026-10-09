@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Presenters;
@@ -12,6 +13,22 @@ using Yaat.Client.Logging;
 using Path = Avalonia.Controls.Shapes.Path;
 
 namespace Yaat.Client.ContextMenus;
+
+/// <summary>
+/// A submenu's items that follow live data on whichever surface shows them, registered with
+/// <see cref="QuickCommandStrip.FollowInFlyout"/>: told when a strip button's flyout showing them opens, with the flyout's
+/// own item list to keep current and the action that closes the flyout and the menu, and when it closes.
+/// </summary>
+public interface IStripFlyoutContent
+{
+    /// <summary>The flyout showing the items has opened.</summary>
+    /// <param name="items">The flyout's item list, which now holds the items.</param>
+    /// <param name="close">Closes the flyout and the menu, for a choice made where the strip wires no close of its own.</param>
+    void Opened(ItemCollection items, Action close);
+
+    /// <summary>The flyout showing the items has closed.</summary>
+    void Closed();
+}
 
 /// <summary>
 /// The quick-command icon strip at the top of an aircraft menu: one menu item whose header holds up to two rows of five
@@ -50,6 +67,7 @@ public static class QuickCommandStrip
     private static readonly Color NotchColor = Color.Parse("#9AA3AD");
     private static readonly Color StickyBackground = Color.Parse("#3E5F8A");
     private static readonly ILogger Log = AppLog.CreateLogger("QuickCommandStrip");
+    private static readonly ConditionalWeakTable<MenuItem, IStripFlyoutContent> FlyoutContents = [];
 
     /// <summary>
     /// The strip for <paramref name="items"/>, in order, or null when there are none or none of them builds a menu item
@@ -309,8 +327,31 @@ public static class QuickCommandStrip
         }
 
         flyout.Opened += (_, _) => CloseOnChoices(LazySubmenu.Fill(built, flyout.Items), flyout, menu);
+        if (FlyoutContents.TryGetValue(built, out IStripFlyoutContent? content))
+        {
+            flyout.Opened += (_, _) =>
+                content.Opened(
+                    flyout.Items,
+                    () =>
+                    {
+                        flyout.Hide();
+                        menu.Close();
+                    }
+                );
+            flyout.Closed += (_, _) => content.Closed();
+        }
+
         return flyout;
     }
+
+    /// <summary>
+    /// Has the flyout a strip button opens over <paramref name="entry"/>'s items tell <paramref name="content"/> when it
+    /// opens and closes, so items that follow live data keep following it once the strip has moved them into the flyout,
+    /// where <see cref="MenuItem.IsSubMenuOpen"/> never changes.
+    /// </summary>
+    /// <param name="entry">The submenu a catalog entry built.</param>
+    /// <param name="content">What keeps the entry's items current.</param>
+    public static void FollowInFlyout(MenuItem entry, IStripFlyoutContent content) => FlyoutContents.AddOrUpdate(entry, content);
 
     private static void CloseOnChoices(IReadOnlyList<Control> items, MenuFlyout flyout, ContextMenu menu)
     {

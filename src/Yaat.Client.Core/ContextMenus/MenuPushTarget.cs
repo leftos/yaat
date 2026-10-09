@@ -13,6 +13,11 @@ public enum MenuPushTargetKind
     Spot,
 }
 
+/// <summary>One facing a Push back to… target can end on.</summary>
+/// <param name="Cardinal">The magnetic 8-point cardinal it ends facing: <c>N</c>, <c>NW</c>.</param>
+/// <param name="Command">The command that pushes to the target ending on it: <c>PUSH TE FACE N</c>.</param>
+public sealed record MenuPushFacing(string Cardinal, string Command);
+
 /// <summary>
 /// One target the Push back to… submenu offers, planned as a tug move from the aircraft's stand or from the pose it is
 /// held at after a pushback, and checked against the aircraft about it: what it is, its name, how the move meets it,
@@ -25,7 +30,7 @@ public enum MenuPushTargetKind
 /// <param name="PathLengthFt">The planned tug path's length, feet.</param>
 /// <param name="Command">The finished command the row sends for the menu's aircraft.</param>
 /// <param name="Facings">
-/// For a taxilane or taxiway, one choice per magnetic cardinal the push can end facing, each sending
+/// For a taxilane or taxiway, one facing per magnetic cardinal the push can end on, each sending
 /// <c>PUSH &lt;twy&gt; FACE &lt;dir&gt;</c>; <c>[]</c> for a spot or a target with no stored facing.
 /// </param>
 /// <param name="BlockedBy">The callsign of the parked or held neighbour that blocks the target now; null when it is clear.</param>
@@ -35,6 +40,20 @@ public sealed record MenuPushTarget(
     string? Note,
     double PathLengthFt,
     string Command,
-    IReadOnlyList<MenuCommandChoice> Facings,
+    IReadOnlyList<MenuPushFacing> Facings,
     string? BlockedBy
-);
+)
+{
+    /// <summary>The verb, with its trailing space, every target's <see cref="Command"/> starts with.</summary>
+    public const string PushVerb = "PUSH ";
+
+    /// <summary>
+    /// The forced form of <see cref="Command"/>, which pushes past a blocking neighbour: <c>PUSHF TF</c> for <c>PUSH TF</c>,
+    /// <c>PUSHF $C</c> for <c>PUSH $C</c>.
+    /// </summary>
+    /// <exception cref="InvalidOperationException"><see cref="Command"/> does not start with the <c>PUSH</c> verb.</exception>
+    public string ForcedCommand =>
+        Command.StartsWith(PushVerb, StringComparison.Ordinal)
+            ? $"PUSHF {Command[PushVerb.Length..]}"
+            : throw new InvalidOperationException($"Push target command '{Command}' does not start with '{PushVerb}', so it has no forced form.");
+}

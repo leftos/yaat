@@ -18,6 +18,8 @@ The aircraft right-click menus on the radar, ground and aircraft-list views. Thi
 
   A button stands for its entry's own menu item: a sending or prompting item is clicked through, and a submenu (Cleared for takeoff ▸) opens as a flyout beside the menu, its top level with the icon strip (on the menu's left near the screen's right edge), marked by a corner notch; choosing a command closes the menu.
 
+  A submenu whose items follow live data (Push back to…, filling from a seed and then a live plan) registers `QuickCommandStrip.FollowInFlyout` with an `IStripFlyoutContent`: the strip tells it when the flyout opens, with the flyout's own item list and an action that closes the flyout and the menu, and when it closes, so the flyout follows the list while open instead of showing a frozen copy.
+
   The icon is latched (style class `sticky`, a light background) while its flyout is open; clicking it again, or Enter or Space on it, toggles the flyout, and Escape closes it and leaves the menu open. The flyout stays open when the pointer leaves the menu or rests on a plain row, and closes when another icon opens its flyout, when another row opens its own submenu or when the menu closes. `QuickCommandStrip.OpenSubmenu(Button)` opens it as a click does.
 
   A label row above the icons names the entry under the pointer (or keyboard focus), wrapping a long name onto a second line (an ellipsis only past two), with the command it sends, says so when the entry opens a submenu ("›"), and reads "Quick commands" / "point at an icon" when nothing on the strip is pointed at.
@@ -137,7 +139,11 @@ Settings › Input › **Quick commands** (`SettingsSectionId.QuickCommands`) ed
 ## Where it lives
 
 - **One catalog in `Yaat.Client.Core`, behind interfaces** (`IMenuAircraft`, `IMenuHost`, `MenuCatalogEntry`, `MenuIds`), one tree on every surface: radar, ground and the aircraft list build the same menu from the same catalog with no per-surface filtering, and the same view-agnostic builder serves YAAT Scope's aircraft menu. Every entry resolves to command text sent through `IMenuHost.SendAsync`, which `ClientMenuHost` routes to `MainViewModel.SendCommandForViewAsync` on every view, so a failed send shows in the status line wherever the menu opened. A view adds only its view section of canvas items (Display, Draw route), and a point click opens the point menu; both terms are in [`CONTEXT.md`](../CONTEXT.md).
-- **Host-answered submenus.** Pushback faces, Push back to… and the point menu's taxi tree are `MenuCommandChoice` lists (label, finished command, optional preview route, children). Preset taxi route and Taxi to runway are `TaxiRouteRow` lists (below).
+- **Host-answered submenus.** Pushback faces and the point menu's taxi tree are `MenuCommandChoice` lists (label, finished command, optional preview route, children). Push back to… is a `PushTargetList` of `MenuPushTarget`s built by `PushbackToMenu.Build`, the one builder for both the All Commands submenu and the strip flyout. Preset taxi route and Taxi to runway are `TaxiRouteRow` lists (below).
+
+  Push back to… refills in place while open: a placeholder or the seed first, then the landed plan, with a disabled `Refining targets…` row (`PushbackToMenu.RefiningText`) above the sections while the seed shows. Sections are `Behind the aircraft` (badge TL or TW) and `Taxi spots` (badge S). A target with two or more facings shows `then face` under its name and one chip per cardinal (`PUSH TE FACE N`), each closing the flyout and the menu; one facing is a dim `faces E` note.
+
+  A blocked target's row is enabled but faded, sends nothing and leaves the menu open; `blocked by SWA919` sits on a second line with a `push anyway` chip sending `MenuPushTarget.ForcedCommand` (`PUSHF TF`, `PUSHF $C` for a spot). A chip's accessible name is its command.
 
   Hold short of… is `IMenuHost.GetHoldShortChoices` → `HoldShortMenu`: the route line (`route S T V W4 · RWY 30`), shown as a disabled row over a separator, and one `HoldShortChoice` per bar along the route, nearest first (badge `TW`/`RW`, name, where, distance rounded to 50 ft, `HS` command, preview route).
 

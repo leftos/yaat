@@ -10,22 +10,18 @@ public sealed class PushTargetList
 {
     private readonly TaskCompletionSource _settled = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-    private PushTargetList(IReadOnlyList<MenuPushTarget> targets, bool computing)
+    private PushTargetList(IReadOnlyList<MenuPushTarget> targets)
     {
         Targets = targets;
-        Computing = computing;
     }
 
-    /// <summary>The targets to show now.</summary>
+    /// <summary>The targets to show now; empty while the live plan has not landed and there was no seed.</summary>
     public IReadOnlyList<MenuPushTarget> Targets { get; private set; }
-
-    /// <summary>True while there is nothing to show yet because the live plan has not landed and there was no seed.</summary>
-    public bool Computing { get; private set; }
 
     /// <summary>Completes once the live plan has been applied, or at once for a list that has none to wait for.</summary>
     public Task Settled => _settled.Task;
 
-    /// <summary>Raised on the UI thread when the live plan replaces <see cref="Targets"/>.</summary>
+    /// <summary>Raised on the UI thread when the live plan replaces <see cref="Targets"/>, the list already settled.</summary>
     public event Action? Changed;
 
     /// <summary>A settled list over <paramref name="targets"/>: no live plan follows.</summary>
@@ -33,22 +29,19 @@ public sealed class PushTargetList
     /// <returns>The list.</returns>
     public static PushTargetList Ready(IReadOnlyList<MenuPushTarget> targets)
     {
-        var list = new PushTargetList(targets, computing: false);
+        var list = new PushTargetList(targets);
         list._settled.SetResult();
         return list;
     }
 
-    /// <summary>
-    /// A list a live plan will fill: it shows <paramref name="seed"/> until then, or is <see cref="Computing"/> when
-    /// there is no seed.
-    /// </summary>
+    /// <summary>A list a live plan will fill: it shows <paramref name="seed"/> until then, or nothing when there is no seed.</summary>
     /// <param name="seed">The seed's targets, already checked against the aircraft about; null when there is no seed.</param>
     /// <returns>The list.</returns>
-    public static PushTargetList Pending(IReadOnlyList<MenuPushTarget>? seed) => new(seed ?? [], computing: seed is null);
+    public static PushTargetList Pending(IReadOnlyList<MenuPushTarget>? seed) => new(seed ?? []);
 
     /// <summary>
-    /// Replaces the targets with the live plan's, ends <see cref="Computing"/>, raises <see cref="Changed"/> and settles
-    /// the list. Called once, on the UI thread.
+    /// Replaces the targets with the live plan's, settles the list and raises <see cref="Changed"/>. Called once, on the UI
+    /// thread; the settled task runs its continuations asynchronously, so none runs before <see cref="Changed"/>'s handlers.
     /// </summary>
     /// <param name="targets">The live plan's targets.</param>
     /// <exception cref="InvalidOperationException">The list is already settled.</exception>
@@ -60,8 +53,7 @@ public sealed class PushTargetList
         }
 
         Targets = targets;
-        Computing = false;
-        Changed?.Invoke();
         _settled.SetResult();
+        Changed?.Invoke();
     }
 }

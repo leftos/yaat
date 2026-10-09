@@ -256,13 +256,12 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
 
         PushTargetList list = host.GetPushbackTargets(Callsign);
 
-        Assert.True(list.Computing);
         Assert.Empty(list.Targets);
         Assert.False(list.Settled.IsCompleted);
 
         await list.Settled.WaitAsync(SettleTimeout, TestContext.Current.CancellationToken);
 
-        Assert.False(list.Computing);
+        Assert.True(list.Settled.IsCompleted);
         List<PushTargetRowKey> expected = LivePlanRows(main, target, Gate26);
         Assert.NotEmpty(expected);
         Assert.Equal(expected, RowKeys(list));
@@ -315,7 +314,7 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
 
         PushTargetList list = host.GetPushbackTargets(Callsign);
 
-        Assert.False(list.Computing);
+        Assert.NotEmpty(list.Targets);
         Assert.False(list.Settled.IsCompleted);
         Assert.Contains(list.Targets, t => t.Command == "PUSH TE");
         Assert.All(list.Targets, t => Assert.Null(t.BlockedBy));
@@ -1243,7 +1242,6 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
     private static void AssertSettledEmpty(PushTargetList list)
     {
         Assert.True(list.Settled.IsCompleted);
-        Assert.False(list.Computing);
         Assert.Empty(list.Targets);
     }
 

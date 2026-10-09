@@ -41,8 +41,23 @@ public partial class GroundViewModel
         return rows;
     }
 
-    private static MenuPushTarget ToMenuTarget(PrecomputedPushTarget target, string? blockedBy, LatLon position) =>
-        new(
+    /// <summary>
+    /// <paramref name="target"/> as a menu target.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">
+    /// The target's command does not start with <see cref="MenuPushTarget.PushVerb"/>, so the menu could neither send its
+    /// facings nor force it.
+    /// </exception>
+    private static MenuPushTarget ToMenuTarget(PrecomputedPushTarget target, string? blockedBy, LatLon position)
+    {
+        if (!target.Command.StartsWith(MenuPushTarget.PushVerb, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                $"Push target '{target.Name}' has command '{target.Command}', which does not start with '{MenuPushTarget.PushVerb}'."
+            );
+        }
+
+        return new(
             MenuKindOf(target.Kind),
             target.Name,
             string.IsNullOrEmpty(target.Note) ? null : target.Note,
@@ -51,6 +66,7 @@ public partial class GroundViewModel
             FacingChoices(target, position),
             blockedBy
         );
+    }
 
     private static MenuPushTargetKind MenuKindOf(PushTargetKind kind) =>
         kind switch
@@ -63,14 +79,14 @@ public partial class GroundViewModel
 
     /// <summary>
     /// A target's stored true facings as magnetic 8-point cardinals at <paramref name="position"/>, a cardinal both
-    /// share given once: each <c>Face {cardinal}</c>, sending <c>{command} FACE {cardinal}</c>.
+    /// share given once: each sending <c>{command} FACE {cardinal}</c>.
     /// </summary>
-    private static List<MenuCommandChoice> FacingChoices(PrecomputedPushTarget target, LatLon position) =>
+    private static List<MenuPushFacing> FacingChoices(PrecomputedPushTarget target, LatLon position) =>
         [
             .. target
                 .Facings.Select(trueDeg => SnapToCardinal(MagneticDeclination.TrueToMagnetic(trueDeg, position)))
                 .Distinct(StringComparer.Ordinal)
-                .Select(cardinal => new MenuCommandChoice($"Face {cardinal}", $"{target.Command} FACE {cardinal}", null, [])),
+                .Select(cardinal => new MenuPushFacing(cardinal, $"{target.Command} FACE {cardinal}")),
         ];
 
     /// <summary>The aircraft and its neighbours, as one Push back to… open saw them, for the live check.</summary>
