@@ -6,6 +6,7 @@
   x:DataType="vm:ActiveRunwaysWindowViewModel"
   Icon="avares://Yaat.Client/Resources/icon.png"
   Title="Active Runways"
+  Background="#1E1E1E"
   Width="460"
   Height="360"
   MinWidth="380"
