@@ -4212,6 +4212,195 @@ public class GroundConflictDetectorTests
     }
 
     // -------------------------------------------------------------------------
+    // Mutual stops: which aircraft holds when both movers would stop for each other. The aircraft with the other nearly dead
+    // ahead holds first, so a follower with traffic crossing on its nose stops for it; otherwise a FOLLOWG follower facing an
+    // aircraft that is not following keeps its place in its chain and the other holds; else the callsign tie-break decides.
+    // -------------------------------------------------------------------------
+
+    /// <summary>The unrelated, route-less mover of the mutual-stop tests below: ordinal below <see cref="FollowerCallsign"/>.</summary>
+    private const string OpposingCallsign = "N1OPP";
+
+    /// <summary>
+    /// A route-less C172 <c>N1OPP</c> <paramref name="aheadFt"/> ft ahead of <paramref name="follower"/> on its heading, facing it:
+    /// a head-on pair whose two closing limits both sit at zero (the two-aircraft stop distance), so the pair reaches the mutual
+    /// stop. <c>N1OPP</c> sorts below the follower's callsign, so the callsign tie-break would hold the follower.
+    /// </summary>
+    private static AircraftState OpposingHeadOn(KoakFollowGeometry.LeadRun run, AircraftState follower, double aheadFt) =>
+        RouteLessOpponent(run, follower, aheadFt, offNoseDeg: 0.0, headingOffDeg: 180.0);
+
+    /// <summary>
+    /// A route-less C172 <c>N1OPP</c> <paramref name="aheadFt"/> ft from <paramref name="follower"/>, 10° off its nose and heading
+    /// 110° off the bearing to it — 70° off the nose of the follower sitting dead ahead of it — an aircraft crossing ahead of the
+    /// follower rather than meeting it head-on. Both closing limits still sit at zero, so the pair reaches the mutual stop.
+    /// </summary>
+    private static AircraftState OpposingCrossingAhead(KoakFollowGeometry.LeadRun run, AircraftState follower, double aheadFt) =>
+        RouteLessOpponent(run, follower, aheadFt, offNoseDeg: 10.0, headingOffDeg: 110.0);
+
+    /// <summary>
+    /// A route-less C172 <c>N1OPP</c> <paramref name="aheadFt"/> ft from <paramref name="follower"/> on the bearing
+    /// <paramref name="offNoseDeg"/> off its nose, heading <paramref name="headingOffDeg"/> off that bearing, rolling at 8 kt with
+    /// no route: an Untracked mover, so the pair resolves as a Crossing.
+    /// </summary>
+    private static AircraftState RouteLessOpponent(
+        KoakFollowGeometry.LeadRun run,
+        AircraftState follower,
+        double aheadFt,
+        double offNoseDeg,
+        double headingOffDeg
+    )
+    {
+        double towardMoverDeg = follower.TrueHeading.Degrees + offNoseDeg;
+        AircraftState mover = KoakFollowGeometry.Spawn(
+            OpposingCallsign,
+            "C172",
+            GeoMath.ProjectPoint(follower.Position, new TrueHeading(towardMoverDeg), aheadFt / FtPerNm),
+            new TrueHeading(towardMoverDeg + headingOffDeg)
+        );
+        mover.Phases = null;
+        mover.IndicatedAirspeed = 8.0;
+        mover.Ground.Layout = run.Layout;
+        return mover;
+    }
+
+    /// <summary>Asserts the pair of the two callsigns was classified a Crossing, whichever order the pass listed it in.</summary>
+    private static void AssertCrossingPair(List<string> log, string firstCallsign, string secondCallsign) =>
+        Assert.Contains(
+            log,
+            line =>
+                line.StartsWith("[Pair] ", StringComparison.Ordinal)
+                && line.Contains($"{firstCallsign}(", StringComparison.Ordinal)
+                && line.Contains($"{secondCallsign}(", StringComparison.Ordinal)
+                && line.EndsWith("Crossing", StringComparison.Ordinal)
+        );
+
+    /// <summary>
+    /// A mutual stop outside every lead chain: a <c>FOLLOWG</c> follower on KOAK's B and an unrelated route-less aircraft closing
+    /// head-on on it. The follower keeps its place in its chain, so the other aircraft holds, in either list order.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void MutualStop_FollowerAndNonFollower_NonFollowerHolds(bool moverFirst)
+    {
+        if (StartFollower(string.Empty) is not { } started)
+        {
+            return;
+        }
+
+        (KoakFollowGeometry.LeadRun run, AircraftState follower, FollowingPhase _) = started;
+        AircraftState mover = OpposingHeadOn(run, follower, aheadFt: 90.0);
+        List<AircraftState> pair = moverFirst ? [mover, follower] : [follower, mover];
+
+        var log = new List<string>();
+        GroundConflictDetector.ApplySpeedLimits(pair, run.Layout, 0, log.Add);
+        log.ForEach(_output.WriteLine);
+
+        AssertCrossingPair(log, FollowerCallsign, OpposingCallsign);
+        Assert.True(
+            (follower.Ground.SpeedLimit is null) || (follower.Ground.SpeedLimit > 0),
+            $"the follower keeps its place in its chain, so it must not be the holder, got limit={follower.Ground.SpeedLimit}"
+        );
+        Assert.Equal(0.0, mover.Ground.SpeedLimit);
+    }
+
+    /// <summary>
+    /// A mutual stop with the crossing aircraft 10° off the follower's nose, so it has the follower 70° off its own: the follower
+    /// rule does not reach that geometry, and the aircraft with the other nearly dead ahead holds — the follower stops for the
+    /// traffic in front of it instead of holding it mid-crossing.
+    /// </summary>
+    [Fact]
+    public void MutualStop_FollowerWithCrossingTrafficDeadAhead_FollowerHolds()
+    {
+        if (StartFollower(string.Empty) is not { } started)
+        {
+            return;
+        }
+
+        (KoakFollowGeometry.LeadRun run, AircraftState follower, FollowingPhase _) = started;
+        AircraftState crossing = OpposingCrossingAhead(run, follower, aheadFt: 80.0);
+
+        var log = new List<string>();
+        GroundConflictDetector.ApplySpeedLimits([follower, crossing], run.Layout, 0, log.Add);
+        log.ForEach(_output.WriteLine);
+
+        AssertCrossingPair(log, FollowerCallsign, OpposingCallsign);
+        Assert.Contains(log, line => line.Contains("[Crossing] mutual stop", StringComparison.Ordinal));
+        Assert.Equal(0.0, follower.Ground.SpeedLimit);
+        Assert.True(
+            (crossing.Ground.SpeedLimit is null) || (crossing.Ground.SpeedLimit > 0),
+            $"the aircraft nearly dead ahead of the follower must stop for it, got limit={crossing.Ground.SpeedLimit}"
+        );
+    }
+
+    /// <summary>
+    /// The same head-on Crossing geometry with the follower's <c>FOLLOWG</c> phase replaced by a plain taxiing one: neither is
+    /// following, so the follower rule does not apply and the callsign tie-break holds the ordinal-higher callsign alone.
+    /// </summary>
+    [Fact]
+    public void MutualStop_TwoPlainTaxiers_KeepTheCallsignTieBreak()
+    {
+        if (StartFollower(string.Empty) is not { } started)
+        {
+            return;
+        }
+
+        (KoakFollowGeometry.LeadRun run, AircraftState taxiing, FollowingPhase follow) = started;
+        taxiing.Phases = new PhaseList();
+        taxiing.Phases.Add(new TaxiingPhase());
+        taxiing.Phases.CurrentPhase!.Status = PhaseStatus.Active;
+        taxiing.Ground.AssignedTaxiRoute = follow.FollowRoute;
+        AircraftState mover = OpposingHeadOn(run, taxiing, aheadFt: 90.0);
+
+        var log = new List<string>();
+        GroundConflictDetector.ApplySpeedLimits([taxiing, mover], run.Layout, 0, log.Add);
+        log.ForEach(_output.WriteLine);
+
+        AssertCrossingPair(log, FollowerCallsign, OpposingCallsign);
+        Assert.Equal(0.0, taxiing.Ground.SpeedLimit);
+        Assert.True(
+            (mover.Ground.SpeedLimit is null) || (mover.Ground.SpeedLimit > 0),
+            $"the tie-break holds the ordinal-higher callsign alone, got mover limit={mover.Ground.SpeedLimit}"
+        );
+    }
+
+    /// <summary>
+    /// Two followers closing head-on, neither in the other's lead chain: the follower rule needs exactly one of the pair
+    /// following, so it does not apply and the callsign tie-break decides — the ordinal-higher callsign holds, in either list
+    /// order, where it is the first or the second of the pair.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void MutualStop_TwoFollowers_CallsignTieBreakDecides(bool siblingFirst)
+    {
+        if (StartFollower(string.Empty) is not { } started)
+        {
+            return;
+        }
+
+        (KoakFollowGeometry.LeadRun run, AircraftState follower, FollowingPhase _) = started;
+        AircraftState sibling = MakeAircraft(
+            SiblingCallsign,
+            GeoMath.ProjectPoint(follower.Position, follower.TrueHeading, 90.0 / FtPerNm),
+            heading: follower.TrueHeading.Degrees + 180.0,
+            gs: 8.0,
+            phase: new FollowingPhase(LeadCallsign)
+        );
+        List<AircraftState> pair = siblingFirst ? [sibling, follower] : [follower, sibling];
+
+        var log = new List<string>();
+        GroundConflictDetector.ApplySpeedLimits(pair, run.Layout, 0, log.Add);
+        log.ForEach(_output.WriteLine);
+
+        AssertCrossingPair(log, FollowerCallsign, SiblingCallsign);
+        Assert.Equal(0.0, sibling.Ground.SpeedLimit);
+        Assert.True(
+            (follower.Ground.SpeedLimit is null) || (follower.Ground.SpeedLimit > 0),
+            $"the callsign tie-break holds one aircraft alone, got follower limit={follower.Ground.SpeedLimit}"
+        );
+    }
+
+    // -------------------------------------------------------------------------
     // Parallel-track lateral room: two aircraft on neighbouring taxiways pass
     // each other instead of trailing or stopping (SFO ground control, taxiways
     // A and B, centrelines ~160 ft apart, passes bottoming out at ~238 ft).
