@@ -27,6 +27,10 @@ If the dry-run reports zero duplicates, the skill exits without committing
 and we continue. If it produces a cleanup commit, note the SHA — it'll be
 the parent of the release commit.
 
+## Step 0a2: Check the precompute cache
+
+Run `pwsh tools/gate.ps1 -Log .tmp/precompute-check.log -TimeoutSeconds 300 -Slot heavy -- dotnet run -c Release --project tools/Yaat.PrecomputeCache -- --check --online`. Every `::warning::` line names an airport whose push-target entry is missing or stale (a new AIRAC NavData serial, a changed ground map, sidecar or planner source); CI only warns about them, so this is where they are fixed. When any are reported, recompute them with `pwsh tools/gate.ps1 -Log .tmp/precompute.log -TimeoutSeconds 3600 -Slot heavy -- dotnet run -c Release --project tools/Yaat.PrecomputeCache` and commit the changed entries under `src/Yaat.Sim/Data/PrecomputeCache/` as `chore: recompute the precompute cache` before the release commit. An `::error::` line (an unreadable entry) or a non-zero exit stops the release until it is fixed. The tool and its flags are in `src/Yaat.Sim/Data/PrecomputeCache/README.md`.
+
 ## Step 0b: Resolve the sibling repo once, and assert it exists
 
 Every later step addresses yaat-server. **`git -C <path>` does not fail when

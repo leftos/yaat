@@ -83,6 +83,12 @@ jobs:
       - name: Test
         run: dotnet test --no-build --configuration Release -- --filter-not-trait "Category=Nightly" --report-xunit-trx --report-xunit-trx-filename results.trx
 
+      # Every airport in src/Yaat.Sim/Data/PrecomputeCache/airports.txt should have a committed entry computed from this
+      # commit's sources. Offline: the build-time source hashes, the sidecar hash and the layout format version. A stale
+      # or missing entry is a ::warning:: annotation naming the airport and the stale half; an unreadable one fails.
+      - name: Precompute cache check
+        run: dotnet run --no-build -c Release --project tools/Yaat.PrecomputeCache -- --check
+
       # yaat-server compiles against this commit's Yaat.Sim (its Directory.Build.props prefers the ../yaat sibling), so a
       # Yaat.Sim change that breaks the server fails here, on the yaat commit that caused it. A PR uses yaat-server's
       # same-named branch when one exists (feature pairs share a branch name), else main. yaat-server is private: a

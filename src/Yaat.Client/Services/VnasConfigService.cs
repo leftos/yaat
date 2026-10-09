@@ -13,8 +13,6 @@ namespace Yaat.Client.Services;
 /// </summary>
 public sealed class VnasConfigService : IDisposable
 {
-    private const string ConfigUrl = "https://configuration.vnas.vatsim.net/";
-
     private static readonly string CachePath = YaatPaths.Combine("cache", "vnas-config.json");
 
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
@@ -32,7 +30,7 @@ public sealed class VnasConfigService : IDisposable
 
         try
         {
-            string json = await _http.GetStringAsync(ConfigUrl);
+            string json = await _http.GetStringAsync(VnasConfig.Url);
             config = JsonSerializer.Deserialize<VnasConfig>(json, JsonOptions);
 
             if (config is not null)

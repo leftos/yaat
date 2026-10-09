@@ -588,6 +588,12 @@ The tests outside a sim-behaviour brief's file list that pin the behaviour it ch
 **Precompute cache**:
 Per-airport results computed offline from static inputs and shipped with YAAT (`src/Yaat.Sim/Data/PrecomputeCache/{FAA}.json.br`): the parsed ground layout and the per-stand push targets. An entry is used only when its key matches the current inputs; otherwise the server computes it.
 
+**Airport list**:
+`src/Yaat.Sim/Data/PrecomputeCache/airports.txt`, the airports the precompute cache covers: those a training scenario names as `primaryAirportId` or on an aircraft's `airportId` that have a vNAS ground map. The maintainer tool computes and checks them, and `--refresh-airports` rebuilds the list.
+
+**Airports in flight**:
+How many airports a precompute tool compute run works on at once, each holding its parsed layout (`--airports-in-flight`, default 4); `--parallel` caps the stands planned at once across all of them.
+
 **Algorithm hash**:
 The part of a precompute cache key that names the code that produced an entry: a hash of the source files that feed the computation, generated at build time (`PrecomputeSourceHashes`). The layout and push-target halves have separate hashes, so a change to the push-target planner alone, or to an airport's sidecars, invalidates only push targets; the tug planner's files are in both.
 
@@ -602,6 +608,9 @@ A committed text snapshot of an aircraft right-click menu for one view and one s
 
 **Live check**:
 The re-fly and sweep of a cached push target when an aircraft's Push Back To menu opens: the stored moves are flown again with the aircraft's own outline and turn radius and swept against the parked or held aircraft about it (`PushTargetLiveCheck.Check`). The verdict is Clear, Blocked (by a named neighbour) or Unflyable.
+
+**Offline check / online check**:
+The precompute tool's `--check`. Offline, it compares each listed airport's committed entry key with the build-time source hashes, the sidecar hash and the layout format version; online (`--check --online`), it also compares the GeoJSON MD5 and NavData serial with what vNAS serves now. A missing or stale entry is a warning, never a failure.
 
 **Ouroboros** (controller-voice ouroboros):
 The speech sandbox's self-test (`--atc-ouroboros`): it synthesises controller transmissions from templates with a TTS voice, runs them through speech recognition and the phraseology mapper, and scores each case against the template's expected command (`tools/Yaat.SpeechSandbox/Corpus/atc-ouroboros-baseline.json`).

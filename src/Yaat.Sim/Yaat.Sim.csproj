@@ -99,6 +99,12 @@
     <PrecomputeLayoutExclude Include="Data\Airport\RunwayIntersectionCalculator.cs" />
     <PrecomputeLayoutExclude Include="Data\Airport\TaxiRouteAutoCross.cs" />
     <PrecomputeLayoutSource Include="Data\Airport\**\*.cs" Exclude="@(PrecomputeLayoutExclude)" />
+    <!--
+      The cache files in both sets: the entry build parses the layout and keys the entry, and GeoJsonMd5 defines the key's
+      GeoJSON field, so an edit to either stales both halves.
+    -->
+    <PrecomputeLayoutSource Include="Data\Airport\Precompute\PrecomputeEntryBuild.cs" />
+    <PrecomputeLayoutSource Include="Data\Airport\Precompute\GeoJsonMd5.cs" />
     <PrecomputeLayoutSource Include="GeoMath.cs" />
     <!-- Named by layout sources (the footprint, design-group and ramp-lane code), so an edit to them stales the layout too. -->
     <PrecomputeLayoutSource Include="GroundOutline.cs" />
@@ -112,9 +118,9 @@
     <PrecomputeLayoutSource Include="Data\AirportSidecarLoader.cs" />
     <!--
       The push-target set is built on its own: every source under Data\Airport (the tug planner and everything it can
-      reach there) except the cache's own types, plus the cache types the push payload is computed and serialized
-      through, the representatives file, and the geometry and aircraft-dimension sources outside Data\Airport the planner
-      calls.
+      reach there) except the cache's own types, plus the cache types the push payload is computed, keyed and serialized
+      through, the geometry, heading, aircraft-dimension and sidecar sources outside Data\Airport the planner calls, and
+      the shipped design-group envelopes (Data\PrecomputeCache\design-group-envelopes.json) the targets are planned with.
     -->
     <PrecomputePushTargetSource Include="Data\Airport\**\*.cs" Exclude="Data\Airport\Precompute\**\*.cs" />
     <PrecomputePushTargetSource Include="Data\Airport\Precompute\PrecomputeEntry.cs" />
@@ -123,6 +129,8 @@
     <PrecomputePushTargetSource Include="Data\Airport\Precompute\DesignGroupEnvelopes.cs" />
     <PrecomputePushTargetSource Include="Data\Airport\Precompute\PushTargetPlanner.cs" />
     <PrecomputePushTargetSource Include="Data\Airport\Precompute\AirportSidecarHash.cs" />
+    <PrecomputePushTargetSource Include="Data\Airport\Precompute\PrecomputeEntryBuild.cs" />
+    <PrecomputePushTargetSource Include="Data\Airport\Precompute\GeoJsonMd5.cs" />
     <PrecomputePushTargetSource Include="GeoMath.cs" />
     <PrecomputePushTargetSource Include="GroundOutline.cs" />
     <PrecomputePushTargetSource Include="GroundOutlineSweep.cs" />

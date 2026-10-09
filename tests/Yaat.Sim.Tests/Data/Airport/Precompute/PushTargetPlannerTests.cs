@@ -51,8 +51,11 @@ public class PushTargetPlannerTests
             .ToHashSet(StringComparer.Ordinal);
     });
 
+    /// <summary>Stand loop options that plan the stands one after another.</summary>
+    public static ParallelOptions Sequential => new() { MaxDegreeOfParallelism = 1 };
+
     private static readonly Lazy<IReadOnlyList<PushTargetEntry>> OakEntries = new(() =>
-        PushTargetPlanner.ComputeStands(Oak(), DesignGroupEnvelopes.LoadShipped(), Sidecars.Value, SampleStands.Value, 1)
+        PushTargetPlanner.ComputeStands(Oak(), DesignGroupEnvelopes.LoadShipped(), Sidecars.Value, SampleStands.Value, Sequential)
     );
 
     private static readonly IReadOnlySet<string> Gate26 = new HashSet<string>(StringComparer.Ordinal) { "26" };
@@ -137,7 +140,7 @@ public class PushTargetPlannerTests
             DesignGroupEnvelopes.LoadShipped(),
             Sidecars.Value,
             SampleStands.Value,
-            1
+            Sequential
         );
         string firstRoot = NewRoot();
         string secondRoot = NewRoot();
@@ -174,7 +177,7 @@ public class PushTargetPlannerTests
         GroundNode reference = Stand(layout, airport == "KOAK" ? "26" : "D5");
         IReadOnlySet<string> stands = NearestStandNames(layout, reference, 8);
         var envelopes = DesignGroupEnvelopes.LoadShipped();
-        IReadOnlyList<PushTargetEntry> sequential = PushTargetPlanner.ComputeStands(layout, envelopes, Sidecars.Value, stands, 1);
+        IReadOnlyList<PushTargetEntry> sequential = PushTargetPlanner.ComputeStands(layout, envelopes, Sidecars.Value, stands, Sequential);
         var key = PrecomputeKey.Current(GeoJsonMd5, 12_345, AirportSidecarHash.For(ArtccsDir, airport));
         string sequentialRoot = NewRoot();
         string[] parallelRoots = [NewRoot(), NewRoot()];
@@ -192,7 +195,7 @@ public class PushTargetPlannerTests
                     envelopes,
                     Sidecars.Value,
                     stands,
-                    Environment.ProcessorCount
+                    new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount }
                 );
                 var store = new PrecomputeStore(root);
                 store.Write(new PrecomputeEntry(layout.AirportId, key, layout, parallel));
@@ -216,8 +219,10 @@ public class PushTargetPlannerTests
         AirportGroundLayout layout = Oak();
         var envelopes = DesignGroupEnvelopes.LoadShipped();
 
-        Assert.Throws<ArgumentOutOfRangeException>(() => PushTargetPlanner.ComputeStands(layout, envelopes, Sidecars.Value, Gate26, 0));
-        Assert.Throws<ArgumentOutOfRangeException>(() => PushTargetPlanner.Compute(layout, envelopes, Sidecars.Value, 0));
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            PushTargetPlanner.ComputeStands(layout, envelopes, Sidecars.Value, Gate26, new ParallelOptions())
+        );
+        Assert.Throws<ArgumentOutOfRangeException>(() => PushTargetPlanner.Compute(layout, envelopes, Sidecars.Value, new ParallelOptions()));
     }
 
     /// <summary>
@@ -311,7 +316,7 @@ public class PushTargetPlannerTests
             DesignGroupEnvelopes.LoadShipped(),
             old1PushBack,
             new HashSet<string>(StringComparer.Ordinal) { "OLD1" },
-            1
+            Sequential
         );
 
         Assert.Equal(PushTargetKind.Taxilane, Assert.Single(Entry("26", "IV").Targets, t => t.Name == "TE").Kind);
@@ -343,7 +348,7 @@ public class PushTargetPlannerTests
             envelopes,
             passed,
             new HashSet<string>(StringComparer.Ordinal) { "D5" },
-            1
+            Sequential
         );
 
         bool differs = false;
@@ -497,7 +502,7 @@ public class PushTargetPlannerTests
             envelopes,
             Sidecars.Value,
             new HashSet<string>(StringComparer.Ordinal) { "2-2B" },
-            1
+            Sequential
         );
 
         Assert.Equal(envelopes.Envelopes.Select(e => e.Group), entries.Select(e => e.DesignGroup));
@@ -516,7 +521,7 @@ public class PushTargetPlannerTests
         AirportGroundLayout headingless = GroundLayoutSerializer.Deserialize(stream, layout.AirportId);
         Assert.Null(headingless.Nodes[gate.Id].TrueHeading);
 
-        Assert.Empty(PushTargetPlanner.ComputeStands(headingless, DesignGroupEnvelopes.LoadShipped(), Sidecars.Value, Gate26, 1));
+        Assert.Empty(PushTargetPlanner.ComputeStands(headingless, DesignGroupEnvelopes.LoadShipped(), Sidecars.Value, Gate26, Sequential));
         Assert.NotEmpty(Entry("26", "IV").Targets);
     }
 
@@ -536,7 +541,7 @@ public class PushTargetPlannerTests
             DesignGroupEnvelopes.LoadShipped(),
             Sidecars.Value,
             new HashSet<string>(StringComparer.Ordinal) { "GA20" },
-            1
+            Sequential
         );
 
         Assert.Equal(StandDeparture.TaxiOut, ga20.StandDeparture);
@@ -565,8 +570,20 @@ public class PushTargetPlannerTests
             },
         ]);
 
-        IReadOnlyList<PushTargetEntry> either = PushTargetPlanner.ComputeStands(layout, DesignGroupEnvelopes.LoadShipped(), Sidecars.Value, mtn1, 1);
-        IReadOnlyList<PushTargetEntry> pushed = PushTargetPlanner.ComputeStands(layout, DesignGroupEnvelopes.LoadShipped(), pushBack, mtn1, 1);
+        IReadOnlyList<PushTargetEntry> either = PushTargetPlanner.ComputeStands(
+            layout,
+            DesignGroupEnvelopes.LoadShipped(),
+            Sidecars.Value,
+            mtn1,
+            Sequential
+        );
+        IReadOnlyList<PushTargetEntry> pushed = PushTargetPlanner.ComputeStands(
+            layout,
+            DesignGroupEnvelopes.LoadShipped(),
+            pushBack,
+            mtn1,
+            Sequential
+        );
 
         Assert.Equal(StandDeparture.Either, StandDepartures.StandDepartureOf(layout, Stand(layout, "MTN1"), Sidecars.Value));
         Assert.Contains(either, e => e.Targets.Count > 0);
@@ -588,7 +605,7 @@ public class PushTargetPlannerTests
             DesignGroupEnvelopes.LoadShipped(),
             Sidecars.Value,
             new HashSet<string>(StringComparer.Ordinal) { "OLD1" },
-            1
+            Sequential
         );
 
         Assert.Equal(StandDeparture.PushBack, old1.StandDeparture);
@@ -629,7 +646,13 @@ public class PushTargetPlannerTests
 
         Assert.Equal(StandDeparture.TaxiOut, StandDepartures.StandDepartureOf(layout, Stand(layout, "26"), flipped));
         Assert.Equal(StandDeparture.PushBack, StandDepartures.StandDepartureOf(layout, layout.Nodes[Ga20NodeId], flipped));
-        IReadOnlyList<PushTargetEntry> gate26 = PushTargetPlanner.ComputeStands(layout, DesignGroupEnvelopes.LoadShipped(), flipped, Gate26, 1);
+        IReadOnlyList<PushTargetEntry> gate26 = PushTargetPlanner.ComputeStands(
+            layout,
+            DesignGroupEnvelopes.LoadShipped(),
+            flipped,
+            Gate26,
+            Sequential
+        );
         Assert.NotEmpty(gate26);
         Assert.All(gate26, e => Assert.Empty(e.Targets));
         Assert.NotEmpty(Entry("26", "IV").Targets);

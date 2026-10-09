@@ -249,6 +249,15 @@ The precompute cache ([CONTEXT.md](../../CONTEXT.md) *Precompute cache*) stores,
 
   The verdict is Clear, Blocked (the callsign of the first neighbour along the path whose sweep floor the path falls through, or one the aircraft's outline already touches at its stand, read through `TugParkedNeighbours.FindStartOverlap` with the aircraft footprint) or Unflyable (the re-flown moves do not complete, or end more than half the aircraft's length from the stored end). A target whose last move is a floating-stop line is judged on completion alone. The file is outside `PrecomputeSourceHashes.PushTargetFiles`, so it never stales an entry.
 - **Staleness.** The entry's key carries the push-target algorithm hash and `AirportSidecarHash`, so an edit to the planner, the tug files or the airport's sidecar recomputes the push half only.
+- **Producing entries.** `dotnet run -c Release --project tools/Yaat.PrecomputeCache` computes the entry of every airport in `Data/PrecomputeCache/airports.txt` (the airports a training scenario names as `primaryAirportId` or an aircraft's `airportId` that have a vNAS ground map: 190), or of each `--airport`.
+
+  An entry is keyed on the live vNAS NavData serial (the run fails when only a cached serial loads), the MD5 of the GeoJSON vNAS serves now (`GeoJsonMd5`), the sidecar hash and the source hashes; a current entry is skipped unless `--force`.
+
+  `--parallel <n>` caps the stands planned at once across all airports, `--airports-in-flight <n>` (default 4) how many airports hold a parsed layout at once. One failed airport is reported and the rest run (summary, exit 1); a navdata, sidecar or envelope load failure prints once and exits 1.
+- **Checking.** `--check` is offline: for each listed airport it compares the committed entry's key with the build-time source hashes, the sidecar hash and the layout format version, and prints a `::warning::` line naming the airport and the stale half (layout stale, which takes the push targets with it, or push targets stale) or a missing entry; an unreadable entry is an `::error::` line and exit 1.
+
+  `--online` also compares the map MD5 and NavData serial with vNAS now. A usage error exits 2. CI runs the offline check after the tests; a stale entry is a warning, never a failure.
+- **When to regenerate.** The maintainer recomputes at an AIRAC cycle (the NavData serial changes) and before a release, and commits the changed `{FAA}.json.br` files. `--refresh-airports` rebuilds `airports.txt` from every ARTCC's scenarios (it refuses to write when none of the airports has a map and leaves the list as it was on any failed fetch); `--refresh-envelopes` rewrites `design-group-envelopes.json` and the pinned `TestData/FaaAcd.json` from the current FAA data.
 
 ## Flying one move — `PushbackPhase`
 

@@ -89,7 +89,13 @@ public class PushTargetLiveCheckTests(ITestOutputHelper output)
     private static readonly Lazy<IReadOnlyList<PushTargetEntry>> OakSampleEntries = new(() =>
     {
         AirportGroundLayout layout = PushTargetPlannerTests.Oak();
-        return PushTargetPlanner.ComputeStands(layout, Envelopes.Value, PushTargetPlannerTests.Sidecars.Value, NearestStandNames(layout, "26", 3), 1);
+        return PushTargetPlanner.ComputeStands(
+            layout,
+            Envelopes.Value,
+            PushTargetPlannerTests.Sidecars.Value,
+            NearestStandNames(layout, "26", 3),
+            PushTargetPlannerTests.Sequential
+        );
     });
 
     /// <summary>The targets of OAK gates 25 and 27, the stands the row tests push from.</summary>
@@ -99,7 +105,7 @@ public class PushTargetLiveCheckTests(ITestOutputHelper output)
             Envelopes.Value,
             PushTargetPlannerTests.Sidecars.Value,
             new HashSet<string>(StringComparer.Ordinal) { "25", "27" },
-            1
+            PushTargetPlannerTests.Sequential
         )
     );
 
@@ -110,7 +116,7 @@ public class PushTargetLiveCheckTests(ITestOutputHelper output)
             Envelopes.Value,
             PushTargetPlannerTests.Sidecars.Value,
             new HashSet<string>(StringComparer.Ordinal) { "D2" },
-            1
+            PushTargetPlannerTests.Sequential
         )
     );
 

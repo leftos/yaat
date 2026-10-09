@@ -11,8 +11,6 @@ namespace Yaat.Sim.Data.Vnas;
 /// </summary>
 public static class NavDataPathResolver
 {
-    private const string ConfigUrl = "https://configuration.vnas.vatsim.net/";
-
     private static readonly ILogger Log = SimLog.CreateLogger("NavDataPathResolver");
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
     private static readonly JsonSerializerOptions IndentedJsonOptions = new() { WriteIndented = true, PropertyNameCaseInsensitive = true };
@@ -220,7 +218,7 @@ public static class NavDataPathResolver
     {
         Interlocked.Increment(ref _configFetchCount);
         using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
-        string json = await http.GetStringAsync(ConfigUrl, cancellationToken).ConfigureAwait(false);
+        string json = await http.GetStringAsync(VnasConfig.Url, cancellationToken).ConfigureAwait(false);
         return JsonSerializer.Deserialize<VnasConfig>(json, JsonOptions);
     }
 

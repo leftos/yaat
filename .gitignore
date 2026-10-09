@@ -17,6 +17,8 @@ package-lock.json
 
 ## Temp
 .tmp/
+# PrecomputeStore's write-then-move temp files, left behind only by a run that died mid-write
+src/Yaat.Sim/Data/PrecomputeCache/*.tmp
 
 ## Claude Code local stuff
 .claude/worktrees/

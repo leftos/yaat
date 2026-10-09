@@ -43,19 +43,19 @@ public static class PushTargetPlanner
     /// <param name="layout">The airport's ground layout.</param>
     /// <param name="designGroupEnvelopes">The envelope per design group.</param>
     /// <param name="sidecars">The airport sidecars the movement-area classification is built from.</param>
-    /// <param name="maxDegreeOfParallelism">
-    /// How many stands to plan at once; 1 plans them one after another. The output is identical for every value.
+    /// <param name="parallelOptions">
+    /// How the stands are planned at once (<see cref="PlanInParallel{TItem, TResult}"/>). The output is identical for every value.
     /// </param>
     /// <returns>One entry per stand and design group, targets refused by the planner or over the length cap left out.</returns>
     public static IReadOnlyList<PushTargetEntry> Compute(
         AirportGroundLayout layout,
         DesignGroupEnvelopes designGroupEnvelopes,
         AirportSidecarCatalog sidecars,
-        int maxDegreeOfParallelism
+        ParallelOptions parallelOptions
     )
     {
         ArgumentNullException.ThrowIfNull(layout);
-        return ComputeFor(layout, designGroupEnvelopes, sidecars, Stands(layout), maxDegreeOfParallelism);
+        return ComputeFor(layout, designGroupEnvelopes, sidecars, Stands(layout), parallelOptions);
     }
 
     /// <summary>
@@ -66,8 +66,8 @@ public static class PushTargetPlanner
     /// <param name="designGroupEnvelopes">The envelope per design group.</param>
     /// <param name="sidecars">The airport sidecars the movement-area classification is built from.</param>
     /// <param name="standNames">The stands to compute.</param>
-    /// <param name="maxDegreeOfParallelism">
-    /// How many stands to plan at once; 1 plans them one after another. The output is identical for every value.
+    /// <param name="parallelOptions">
+    /// How the stands are planned at once (<see cref="PlanInParallel{TItem, TResult}"/>). The output is identical for every value.
     /// </param>
     /// <returns>One entry per named stand and design group, sorted as <see cref="Compute"/> sorts them.</returns>
     public static IReadOnlyList<PushTargetEntry> ComputeStands(
@@ -75,18 +75,37 @@ public static class PushTargetPlanner
         DesignGroupEnvelopes designGroupEnvelopes,
         AirportSidecarCatalog sidecars,
         IReadOnlySet<string> standNames,
-        int maxDegreeOfParallelism
+        ParallelOptions parallelOptions
     )
     {
         ArgumentNullException.ThrowIfNull(layout);
         ArgumentNullException.ThrowIfNull(standNames);
-        return ComputeFor(
-            layout,
-            designGroupEnvelopes,
-            sidecars,
-            [.. Stands(layout).Where(n => standNames.Contains(n.Name!))],
-            maxDegreeOfParallelism
-        );
+        return ComputeFor(layout, designGroupEnvelopes, sidecars, [.. Stands(layout).Where(n => standNames.Contains(n.Name!))], parallelOptions);
+    }
+
+    /// <summary>
+    /// The planner's stand loop: <paramref name="plan"/> for each item, at most
+    /// <see cref="ParallelOptions.MaxDegreeOfParallelism"/> at once on <see cref="ParallelOptions.TaskScheduler"/>, the
+    /// results in item order whatever order they finish in. The loop also runs bodies on the calling thread, so a caller
+    /// capping concurrency with a scheduler calls this from a task on that scheduler.
+    /// </summary>
+    /// <typeparam name="TItem">The item's type.</typeparam>
+    /// <typeparam name="TResult">The result's type.</typeparam>
+    /// <param name="items">The items.</param>
+    /// <param name="parallelOptions">The loop's options; a degree of 1 plans the items one after another.</param>
+    /// <param name="plan">The work on one item.</param>
+    /// <returns>One result per item, in item order.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">The degree of parallelism is unbounded (below 1).</exception>
+    public static TResult[] PlanInParallel<TItem, TResult>(IReadOnlyList<TItem> items, ParallelOptions parallelOptions, Func<TItem, TResult> plan)
+    {
+        ArgumentNullException.ThrowIfNull(items);
+        ArgumentNullException.ThrowIfNull(parallelOptions);
+        ArgumentNullException.ThrowIfNull(plan);
+        ArgumentOutOfRangeException.ThrowIfLessThan(parallelOptions.MaxDegreeOfParallelism, 1);
+
+        var results = new TResult[items.Count];
+        Parallel.ForEach(items, parallelOptions, (item, _, index) => results[(int)index] = plan(item));
+        return results;
     }
 
     /// <summary>
@@ -117,21 +136,17 @@ public static class PushTargetPlanner
         DesignGroupEnvelopes designGroupEnvelopes,
         AirportSidecarCatalog sidecars,
         List<GroundNode> stands,
-        int maxDegreeOfParallelism
+        ParallelOptions parallelOptions
     )
     {
         ArgumentNullException.ThrowIfNull(designGroupEnvelopes);
         ArgumentNullException.ThrowIfNull(sidecars);
-        ArgumentOutOfRangeException.ThrowIfLessThan(maxDegreeOfParallelism, 1);
+        ArgumentNullException.ThrowIfNull(parallelOptions);
+        ArgumentOutOfRangeException.ThrowIfLessThan(parallelOptions.MaxDegreeOfParallelism, 1);
 
         var classification = MovementAreaClassification.Build(layout, sidecars);
         StandDepartures.WarnAboutOverrides(layout, sidecars);
-        var perStand = new List<PushTargetEntry>[stands.Count];
-        Parallel.ForEach(
-            stands,
-            new ParallelOptions { MaxDegreeOfParallelism = maxDegreeOfParallelism },
-            (stand, _, index) => perStand[(int)index] = PlanStand(stand)
-        );
+        List<PushTargetEntry>[] perStand = PlanInParallel(stands, parallelOptions, PlanStand);
 
         return [.. perStand.SelectMany(e => e).OrderBy(e => e.StandName, StringComparer.Ordinal).ThenBy(e => e.DesignGroup, StringComparer.Ordinal)];
 

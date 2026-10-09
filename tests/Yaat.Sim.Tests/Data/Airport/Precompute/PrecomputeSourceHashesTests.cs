@@ -14,6 +14,9 @@ namespace Yaat.Sim.Tests.Data.Airport.Precompute;
 /// </summary>
 public class PrecomputeSourceHashesTests
 {
+    /// <summary>The one cache file in both source sets.</summary>
+    private const string EntryBuildFile = "Data/Airport/Precompute/PrecomputeEntryBuild.cs";
+
     [Fact]
     public void EveryHashedFileExists()
     {
@@ -76,6 +79,10 @@ public class PrecomputeSourceHashesTests
         Assert.All(pushOnly, path => Assert.DoesNotContain(path, PrecomputeSourceHashes.LayoutFiles));
         Assert.DoesNotContain("Data/Airport/Precompute/PrecomputeStore.cs", PrecomputeSourceHashes.PushTargetFiles);
         Assert.DoesNotContain("Data/Airport/Precompute/PrecomputeKey.cs", PrecomputeSourceHashes.PushTargetFiles);
+        Assert.Contains(EntryBuildFile, PrecomputeSourceHashes.LayoutFiles);
+        Assert.Contains(EntryBuildFile, PrecomputeSourceHashes.PushTargetFiles);
+        Assert.Contains("Data/Airport/Precompute/GeoJsonMd5.cs", PrecomputeSourceHashes.LayoutFiles);
+        Assert.Contains("Data/Airport/Precompute/GeoJsonMd5.cs", PrecomputeSourceHashes.PushTargetFiles);
     }
 
     /// <summary>
@@ -104,7 +111,9 @@ public class PrecomputeSourceHashesTests
         ];
 
         Assert.Contains("PushTargetPlanner", pushOnlyTypes);
-        foreach (string relative in layout)
+        // The entry build is the composition root that names both halves: it parses the layout and hands it to the push
+        // planner, but the layout it produces reads no push code, so it alone may name push-only types.
+        foreach (string relative in layout.Where(relative => relative != EntryBuildFile))
         {
             string text = File.ReadAllText(Path.Combine(simRoot, relative));
             foreach (string type in pushOnlyTypes)

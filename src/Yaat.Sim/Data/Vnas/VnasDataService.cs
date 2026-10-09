@@ -13,8 +13,6 @@ namespace Yaat.Sim.Data.Vnas;
 /// </summary>
 public sealed class VnasDataService : IDisposable
 {
-    private const string ConfigUrl = "https://configuration.vnas.vatsim.net/";
-
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
 
     private static readonly JsonSerializerOptions IndentedJsonOptions = new() { WriteIndented = true };
@@ -96,9 +94,9 @@ public sealed class VnasDataService : IDisposable
 
     private async Task<VnasConfig?> FetchConfigAsync()
     {
-        Log.LogInformation("Fetching VNAS config from {Url}", ConfigUrl);
+        Log.LogInformation("Fetching VNAS config from {Url}", VnasConfig.Url);
 
-        string json = await _http.GetStringAsync(ConfigUrl);
+        string json = await _http.GetStringAsync(VnasConfig.Url);
         return JsonSerializer.Deserialize<VnasConfig>(json, JsonOptions);
     }
 

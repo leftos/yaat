@@ -8,6 +8,9 @@ namespace Yaat.Sim.Data.Vnas;
 /// </summary>
 public class VnasConfig
 {
+    /// <summary>Where vNAS publishes this configuration.</summary>
+    public const string Url = "https://configuration.vnas.vatsim.net/";
+
     [JsonPropertyName("navDataSerial")]
     public long NavDataSerial { get; set; }
 

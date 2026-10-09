@@ -68,7 +68,7 @@ public class PrecomputeStoreTests
             DesignGroupEnvelopes.LoadShipped(),
             PushTargetPlannerTests.Sidecars.Value,
             new HashSet<string>(StringComparer.Ordinal) { "26" },
-            1
+            PushTargetPlannerTests.Sequential
         );
         Assert.Contains(targets, e => e.Targets.Count > 0);
         var entry = new PrecomputeEntry(layout.AirportId, PrecomputeKey.Current(GeoJsonMd5, 12_345, SidecarHash), layout, targets);
