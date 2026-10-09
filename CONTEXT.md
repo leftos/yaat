@@ -285,6 +285,9 @@ How far from a runway's centerline its holding position markings sit: the map's 
 **Continuation past a short bar**:
 An uninstructed runway exit whose own bar is a dead-end fallback inside the holding distance carries on to the same runway's bar on the joining taxiway, e.g. OAK P → J's 28R bar (docs/landing-and-runway-exit.md).
 
+**Exit ahead**:
+A named exit the arrival can make, as the Exit left / Exit right flyouts list it (`ExitAheadDto`, the `ExitsAhead` field): a taxiway on a side that an `EL <twy>` / `ER <twy>` would be accepted for, with its distance rounded to 100 ft and a flag for the exit it means to take. Computed on the rollout and, as a forecast from the landing threshold, on the last miles of final (docs/landing-and-runway-exit.md).
+
 **Exit capacity segment**:
 The stretch of an exit taxiway between a landing runway's exit hold-short and the parallel runway's hold-short, capped by a sidecar `exitCapacity` rule; when it is full an arrival treats that exit as occupied (`ExitCapacitySegment`, docs/landing-and-runway-exit.md).
 

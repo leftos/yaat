@@ -12,6 +12,7 @@
 - The radar point menu's Fly heading shows which way and how far the aircraft turns, such as "FH 270 · left turn, 40°".
 - Report traffic in sight… lists the five nearest airborne aircraft with their clock position, distance and altitude.
 - Quick commands show only what the aircraft can take: Cross names its runway and waits for the rollout to slow; Cancel takeoff stops at V1.
+- Exit left and Exit right list the named exits ahead with distances, the planned one marked; on final, distances are from the threshold.
 - Settings → Input → Quick commands edits each situation's right-click quick commands: add, reorder by dragging, reset, and add custom commands with their own label.
 - Settings is a searchable sidebar of sections with links between related settings, a Reset section button on each, and OK, Apply and Cancel.
 - Ctrl+Shift+L, G, R, E, C and M pop out or dock each view, and Ctrl+Shift+F toggles the favorites bar, from any YAAT window.

@@ -223,6 +223,19 @@ It is the taxiway, not a branch node, because one bar is reached from several ce
 - **Revived only by a new instruction naming it.** An accepted `EXIT <twy>` takes `<twy>` out of the set whatever phase the aircraft is in (`GroundCommandHandler.TryExitCommand`, `LandingPhase.TakeNewExitInstruction`), judged afresh by the up-front check; a re-target probe (`RunRetargetSearch`) treats the taxiway the instruction names as eligible before that write. A refused instruction, a side-only `EL`/`ER` and a bare `EXP` leave the set alone.
 - **Cleared** when a landing starts (`LandingPhase.OnStart`) and when the runway exit completes (`RunwayExitPhase.CompleteExit`), so a later runway exit of the same aircraft starts with none.
 
+### Exits ahead (the listing)
+
+The context menu's Exit left / Exit right flyouts offer the named exits the arrival can make. The server computes the list in the `Situation` step and ships it as `ExitsAhead` (`ExitAheadDto`: taxiway, side, distance rounded to 100 ft, planned; [training-hub-contract.md](training-hub-contract.md)); the client never recomputes it. Both forms are read-only: they never refuse, give up or commit anything.
+
+- **Rule.** `LandingPhase.ListExitsAhead` judges every taxiway of the runway (`AirportGroundLayout.ExitListTaxiways`, authored `noTurnoff` taxiways left out) on each side by the search an accepted `EL <twy>` / `ER <twy>` runs, without expedite, so a taxiway is listed exactly when that command would be accepted.
+
+  A given-up taxiway is judged afresh and listed if it passes; exits past a LAHSO hold-short point are left out; a connection whose bar sits inside the holding distance (a short stub accepted only when named) is not an exit a crew would offer. One row per taxiway and side, at its first makeable connection, left side first and each side nearest first.
+- **On the rollout** the list is live while `LandingPhase` rolls out: distances run from the aircraft to the branch point, and the exit the aircraft is braking for is planned. It is null under `CLANDF` and without a layout or hold-short data for the runway, and from the hand-off to `RunwayExitPhase` on (the menu then offers only the pilot's-choice rows).
+- **On final** `FinalApproachExitForecast.ListExitsAhead` runs the same search from the projected touchdown (the glidepath aiming point plus the flare's float, with the touchdown wheel speed) at the firm limit, as the first rollout tick would judge an exit named before touchdown.
+
+  Distances run from the landing threshold, and the planned row is the exit the controller's instruction would have the crew take. It is listed only while a full-stop landing follows and the aircraft, fixed-wing and on final for its assigned runway, is more than 1 and at most 5 nm from the threshold (`WindowInnerNm`, `WindowOuterNm`): inside 1 nm there is no list until the rollout's (7110.65 3-10-9.a NOTE). A pattern final usually turns inside that window, so it rarely has a list.
+- **Cached.** The forecast is recomputed only when its inputs change (layout, runway, type, projected touchdown, the instructed exit, the LAHSO limit), not as the aircraft advances down final.
+
 ## Land and hold short (LAHSO)
 
 `LAHSO <rwy>` (`PatternCommandHandler.TryLandAndHoldShort`) stores a `LahsoTarget` on `Phases.LahsoHoldShort`: the hold-short point's distance from the **landing** threshold (`RunwayIntersectionCalculator.ComputeHoldShortDistanceNm` — half the crossing runway's width plus the 200 ft runway safety area back from the intersection). `LandingPhase.OnStart` captures it; everything below lives in `LandingPhase.TickRollout`.
@@ -479,6 +492,8 @@ The `SA` (Make Short Approach) compressed pattern has two coupled geometry invar
 
 - `src/Yaat.Sim/Phases/Tower/LandingPhase.cs` — Rollout braking, exit candidate resolution, unable-replan, the forced (CLANDF) rollout
 - `src/Yaat.Sim/Phases/Tower/ForcedLandingProfile.cs` — CLANDF aim point, descent cap and braking constants
+- `src/Yaat.Sim/Phases/Tower/FinalApproachExitForecast.cs` — The exits-ahead list on the last miles of final: projected touchdown, window, cache
+- `src/Yaat.Sim/ExitAheadDto.cs` — One exit of the list (taxiway, side, distance, planned)
 - `src/Yaat.Sim/Phases/Ground/RunwayExitPhase.cs` — Analog rolling, virtual segments, exit search, the stopped-without-exit backstop
 - `src/Yaat.Sim/Data/Airport/ExitCapacityResolver.cs` — Resolves sidecar `exitCapacity` rules into exit capacity segments
 - `src/Yaat.Sim/Phases/Ground/GroundNavigator.cs` — Steering, turn anticipation, backward-propagated braking

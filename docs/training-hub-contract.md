@@ -537,13 +537,24 @@ extend the resolver to depend on a new input, fingerprint that input too.
   Several of its inputs (the taxi route, phase internals, the layout distances) are not fingerprinted and the reported-in-sight flags latch, so the flags are fingerprinted as one slot (`TrainingDtoFingerprint.SituationFlags`): a change of flags alone rebroadcasts the aircraft.
 
   The client carries them as `AircraftModel.SituationFlags` and exposes them to the context menus as `IMenuAircraft.SituationFlags`; only the quick lists read them, All Commands keeps every entry whatever they say.
-- `NextCrossingRunway` (a string, the last `AircraftStateDto` / `AircraftDto` field) is the stored `AircraftSituationState.NextCrossingRunway`, computed in the same `Situation` step by `SituationFlagCalculator.NextCrossingRunway`: while the situation is Taxiing, Holding on ground or Rollout/exit, the runway whose bar is the first uncleared one on the taxi route, as the display designator of the end to name in `CROSS` ("28R").
+- `NextCrossingRunway` (a string, an `AircraftStateDto` / `AircraftDto` field) is the stored `AircraftSituationState.NextCrossingRunway`, computed in the same `Situation` step by `SituationFlagCalculator.NextCrossingRunway`: while the situation is Taxiing, Holding on ground or Rollout/exit, the runway whose bar is the first uncleared one on the taxi route, as the display designator of the end to name in `CROSS` ("28R").
 
   It is null in every other situation, with no taxi route, when the next uncleared bar is the departure runway's or a taxiway's, at an intersection-departure hold-short of the assigned runway, and while the previous runway is not yet crossed (7110.65 §3-7-2.c): while a runway already cleared to cross lies ahead of that bar, or while the aircraft is still on the pavement of a runway whose bar is behind it on its taxi route.
 
   A cleared bar of the runway the aircraft is on (rolling out, exiting or clearing it) does not count as an uncrossed runway. It reads the unfingerprinted taxi route, so it has its own fingerprint slot (`TrainingDtoFingerprint.NextCrossingRunway`).
 
   The client carries it as `AircraftModel.NextCrossingRunway` / `IMenuAircraft.NextCrossingRunway`, from which the quick list's Cross entry takes its runway.
+- `ExitsAhead` (a list of `ExitAheadDto`, `null` by default, an `AircraftStateDto` / `AircraftDto` field) is the stored `AircraftSituationState.ExitsAhead`, computed in the same `Situation` step (`SimulationEngine.ExitsAheadOf`): the named exits the arrival can make, one `ExitAheadDto` (taxiway, `ExitSide`, `DistanceFt` rounded to 100 ft, `Planned`) per taxiway and side, left side first and each side nearest first.
+
+  It is populated in two phases only. While `LandingPhase` rolls out it is `LandingPhase.ListExitsAhead`, the very search an accepted `EL <twy>` / `ER <twy>` runs, with distances from the aircraft and `Planned` on the exit the aircraft is braking for.
+
+  On final it is `FinalApproachExitForecast.ListExitsAhead`, the same search from the projected touchdown, with distances from the landing threshold and `Planned` on the controller's named exit; it is listed only while a full-stop landing follows, the aircraft is on final for its assigned runway between 1 and 5 nm from the threshold, and the type is fixed-wing.
+
+  It is null in every other phase (`RunwayExitPhase` included), under `CLANDF`, and without the runway's layout or hold-short data; it is empty when a list applies and no exit is makeable. Both are read-only, so the step changes no tick.
+
+  The list changes with position and speed, so it is fingerprinted by value (`TrainingDtoFingerprint.ExitsAhead`, an `ExitsAheadFingerprint` over the rows; an empty list is not equal to null), and the snapshot (`AircraftSituationStateDto.ExitsAhead`) writes it only when it is not null.
+
+  The client carries it as `AircraftModel.ExitsAhead` / `IMenuAircraft.ExitsAhead`; the Exit left / Exit right flyouts read it as the menu opens and never recompute it.
 - `TaxiTurnAboutShape` (a string, `null` by default) is `AircraftGroundOps.TaxiTurnAboutShape` by name: `"FromFarEnd"` or `"InPlace"` while the assigned taxi route starts with a turn about on the taxiway the aircraft stood on (`TaxiRoute.TurnAboutShape`) and the aircraft is still on that first segment, null when none is pending. A far-end route with no leg back stops sending it once the aircraft has turned about and reached the target, though it is still on segment 0.
 
   `TaxiTurnAboutTargetNodeId` (an int, `null` by default) is `AircraftGroundOps.TaxiTurnAboutTargetNodeId`: the occupied edge's far node the turn about turns the aircraft toward (`TaxiRoute.TurnAboutTargetNodeId`), null when none is pending.

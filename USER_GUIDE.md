@@ -320,7 +320,7 @@ Right-click an aircraft on the [Radar View](#radar-view-1), the [Ground View](#g
 | Approach | Cleared approach, Maintain altitude, Assign speed, Report field in sight, Cleared visual (IFR), Cleared to land |
 | Holding | Cleared approach (IFR), Direct to…, Maintain altitude; for VFR, Enter left / right downwind, Enter left / right base, Make straight-in |
 | Pattern | Cleared to land, Cleared for the option, Touch and go, Follow traffic…, Extend pattern leg, Make short approach, Make left / right 360, Turn base, Go around |
-| Final | Cleared to land, Go around, Cancel landing clearance, Reduce to final approach speed |
+| Final | Cleared to land, Go around, Cancel landing clearance, Reduce to final approach speed, Exit left, Exit right |
 | Rollout / exit | Exit left, Exit right, Cross {runway}, Draw taxi route… |
 | Go-around or missed approach | Fly heading, Maintain altitude, Cleared approach (IFR); for VFR, Enter left / right downwind |
 | Live traffic | Assume control, Assume and track |
@@ -334,6 +334,9 @@ An aircraft YAAT cannot place in a situation shows no quick commands; use All Co
 - **Cross {runway}** names the runway to cross ("Cross 28R"): the one the aircraft holds short of, or the next runway on its taxi route. It shows only when a runway is the next hold-short on the route, and never while the aircraft is still crossing another runway or a runway it is already cleared to cross still lies ahead: one crossing at a time.
 
   On the landing rollout it waits until the aircraft is clearly slowing, as Exit left / right do; after a rejected takeoff it waits until the aircraft has slowed to taxi speed.
+- **Exit left / Exit right** open a list of the named exits the aircraft can still make on that side, each with its distance and the command it sends (`ER W3`), the exit the aircraft means to take marked "planned", and last the pilot's-choice row (bare `EL` / `ER`). On the landing roll the distances are from the aircraft; on final the list is a forecast of where the aircraft will touch down, headed "Exits ahead (distance from threshold)", and appears between 5 and 1 nm from the threshold.
+
+  A side with no exit it can make is not offered. An aircraft on a short pattern final is usually already inside 1 nm, so it rarely shows the list until the landing roll.
 - **Cleared for takeoff** shows while taxiing only near the departure runway, and at a hold-short only at the departure runway (there **Line up and wait** too, but not Resume taxi); neither shows while the aircraft is held for release.
 - **Cancel takeoff clearance** shows only once the aircraft is cleared for takeoff (taxiing with the clearance included) and only until it reaches V1.
 - **Cleared approach** hides once the aircraft is cleared for an approach; after a go-around or missed approach it comes back once you assign an altitude.
@@ -525,7 +528,7 @@ Below that, a hold / squawk-standby / auto-yield status line and any instructor 
   - *On the ground (most phases)*: "Preset taxi route" submenu listing per-airport SOP routes when applicable, "Draw taxi route…"
   - *Takeoff*: under **Tower**, "Cancel takeoff clearance"
   - *Final Approach*: under **Tower**, "Cleared to land {rwy}", "Go around {rwy}", "Cancel landing clearance"; for **VFR** aircraft also "Touch and go {rwy}", "Stop and go {rwy}", "Low approach {rwy}", "Cleared for the option {rwy}" (these option clearances are hidden for IFR aircraft) — runway shown in label when assigned
-  - *Landing / Runway Exit*: under **Tower**, "Exit left", "Exit right" (fixed-wing only)
+  - *Landing / Runway Exit*: under **Tower**, "Exit left", "Exit right" (fixed-wing only), each opening the named exits ahead on that side with their distances, the planned exit marked, and the pilot's-choice row last; the same two entries appear on final once the aircraft is within 5 nm of the threshold, with the list as a forecast
   - *With a different on-ground aircraft selected*: the "Follow…/Give way to…" candidate submenus are replaced by direct "Follow {clicked}" and "Give way to {clicked}" items, under a **For {selected} (selected)** heading at the top of the menu, issued to the **selected** aircraft — pick the traffic by right-clicking it instead of hunting a long submenu; a line under the heading says what the clicked aircraft is doing, how far ahead or behind, and whether it is on the selected aircraft's taxi route
 
 **Auto-delete on hold-short.** For busy tower / local scenarios where landing aircraft pile up at the post-runway hold-short, type `ONHS DEL` against the landing aircraft. The auto-delete fires the moment the aircraft transitions into the *Holding After Exit* phase (i.e., it has rolled out, taken the runway exit, and stopped at the next intersecting taxiway).

@@ -963,17 +963,16 @@ public static class MenuCatalog
     private static MenuItem? BuildExitFlyout(ExitSide side, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
     {
         string verb = (side == ExitSide.Left) ? "EL" : "ER";
-        IReadOnlyList<ExitAheadDto>? exits = aircraft?.ExitsAhead;
-        List<ExitAheadDto> rows = [.. (exits ?? []).Where(row => row.Side == side)];
-        if ((exits is not null) && (rows.Count == 0))
-        {
-            return null;
-        }
-
         var menu = new MenuItem { Header = ExitLabel(side) };
-        if (rows.Count > 0)
+        if ((aircraft is { } listed) && (listed.ExitsAhead is { } exits))
         {
-            menu.Items.Add(SharedMenuGroups.SectionLabel(ExitsAheadTitle(side, aircraft!)));
+            List<ExitAheadDto> rows = [.. exits.Where(row => row.Side == side)];
+            if (rows.Count == 0)
+            {
+                return null;
+            }
+
+            menu.Items.Add(SharedMenuGroups.SectionLabel(ExitsAheadTitle(side, listed)));
             foreach (ExitAheadDto row in rows)
             {
                 menu.Items.Add(ExitRow(row, verb, context, host));
@@ -1014,14 +1013,11 @@ public static class MenuCatalog
             EmphasizeName = false,
             Detail = row.Planned ? "planned" : null,
             DetailPlacement = MenuDetailPlacement.Stacked,
-            Distance = $"~{ExitDistanceText(row.DistanceFt)}",
+            Distance = $"~{RelativeGeometry.FeetText(row.DistanceFt)}",
             Command = command,
         };
         return BuildTemplatedSend(header, MenuCommandRowTemplate.Instance, command, context, host);
     }
-
-    /// <summary>An exit's distance, already rounded to 100 ft, with a thousands separator: <c>1,800 ft</c>.</summary>
-    private static string ExitDistanceText(int distanceFt) => $"{distanceFt.ToString("N0", CultureInfo.InvariantCulture)} ft";
 
     /// <summary>
     /// Builds a ground traffic submenu's rows: the callsign and type over the dimmed state, then the distance and the
