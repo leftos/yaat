@@ -6,10 +6,6 @@
 
 - [ ] YAAT-266 Tower Cab 3D joins a YAAT room without CRC and shows in Room Members · release vNext+1 — High · Wave 6 — Strips, TDLS, air-taxi and hub
 
-## Precompute cache (feat/precompute-cache)
-
-- [ ] YAAT-475 Merge feat/precompute-cache (#951) · release vNext
-
 ## Bug reports and feature requests
 
 - [/] YAAT-279 Sizzle reel: the release's new and reworked UI and UX · release vNext reels
@@ -22,9 +18,9 @@
 - [ ] YAAT-270 Widen the timing bound in AutomationWaitForTests.WaitFor_ConditionNeverMet (flakes under a loaded full UI suite)
 - [ ] YAAT-284 FOLLOW gets no pilot readback in solo; late 'traffic in sight' in clip C2
 - [ ] YAAT-288 Find what gave an automation-mode client the keyboard foreground for 3.5 s (YAAT-282 leftover)
-- [ ] YAAT-403 Support for vTBFM · release vNext
-  - [!] YAAT-412 vTBFM: meter on the feed's clock (contributed PR) · release vNext
-  - [/] YAAT-413 Integration and smoke test a YAAT-fed vTBFM, then write the setup steps · release vNext
+- [ ] YAAT-403 Support for vTBFM · release vNext+1
+  - [!] YAAT-412 vTBFM: meter on the feed's clock (contributed PR) · release vNext+1
+  - [/] YAAT-413 Integration and smoke test a YAAT-fed vTBFM, then write the setup steps · release vNext+1
   - [!] YAAT-538 List the rooms a feed consumer's user may see (ARTCC-filtered, authenticated) · release vNext+1
   - [!] YAAT-539 vTBFM: follow each user's chosen YAAT room (contributed PR) · release vNext+1
 
@@ -40,9 +36,7 @@
 - [ ] YAAT-517 Hold short of… destination-runway row sends a no-op HS
 - [ ] YAAT-524 Cleared for takeoff menu's "360 overhead" sends CTO 360, a heading
 - [ ] YAAT-545 Close the gap the quick-command label row leaves above the icon strip
-- [/] YAAT-557 Keep the Taxi to runway rows' detail clear of the distance column · release vNext
 - [ ] YAAT-569 Give every quick command a designed flyout instead of a nested context submenu
-  - [ ] YAAT-570 Push back to: a designed strip flyout that follows the filling target list · release vNext
 
 ## Tick-path unification
 
