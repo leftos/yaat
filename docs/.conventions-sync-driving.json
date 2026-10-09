@@ -145,8 +145,8 @@
       "user": "ebfaa4da3ea3e159"
     },
     "quiet-by-default": {
-      "repo": "d39e5d9d22140094",
-      "user": "6d334d367532d7b9"
+      "repo": "ebcf8cb4c6506449",
+      "user": "6bab3db9ab0a37c1"
     },
     "real-app-over-frontend-only": {
       "repo": "f403032e1736ece0",
@@ -237,5 +237,5 @@
       "user": "81e92891fb8fe24c"
     }
   },
-  "user_revision": 4
+  "user_revision": 5
 }

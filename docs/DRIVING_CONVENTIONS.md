@@ -112,10 +112,18 @@ A restart builds first, then stops, then launches, so a red build leaves the old
 Building beside a running app is safe only when the app loaded its assemblies into memory. The desktop client does not: it holds its exe and DLLs, so a build into the same output folder fails with `MSB3027` as the server's own did, and the prep refuses naming the running client's pid rather than failing inside MSBuild. A project can route the build through its own wrapper (its gate script).
 Source: godot-mcp's decision record and changelog fixes. Seen: 0 here (seeded from godot-mcp).
 
-### Show windows with WS_EX_NOACTIVATE and at the bottom of the Z order
+### Start the client quiet and out of the user's way, set at window creation
 <!-- rule: quiet-by-default -->
 
-`ShowActivated = false` shows a window with `SW_SHOWNOACTIVATE`, which leaves it activatable: when the window in front of it is minimized, Windows hands the foreground to the next top-level window in Z order, which can be the client. Only `WS_EX_NOACTIVATE` (added through Avalonia's Win32 window-styles callback) stops that. Separately, a client launched from a process that holds the foreground right (an agent's shell under the focused app) is created above every window and paints over the user's app while focus stays put, so each window is moved to the bottom of the Z order before its first show and an owned dialog placed just above its owner. Real input stays out because the window never takes it: a real click does not activate an automation-mode client, so a person cannot type into it. Out of sight is opt-in and set before the first show too: `launch_yaat cloaked: true` makes the client DWM-cloak every window before it shows, and a failed cloak ends the client so no uncloaked window reaches the desktop.
+A default run is unfocused, out of sight, click-through and silent; a visible run is only for when the user wants to watch or play along (with a mute to watch without sound). Each part is set before the first show, because later is too late: a window shown once is already on the desktop.
+
+`ShowActivated = false` shows a window with `SW_SHOWNOACTIVATE`, which leaves it activatable: when the window in front of it is minimized, Windows hands the foreground to the next top-level window in Z order, which can be the client. Only `WS_EX_NOACTIVATE` (added through Avalonia's Win32 window-styles callback) stops that.
+
+Separately, a client launched from a process that holds the foreground right (an agent's shell under the focused app) is created above every window and paints over the user's app while focus stays put, so each window is moved to the bottom of the Z order before its first show and an owned dialog placed just above its owner.
+
+Real input stays out because the window never takes it, not by swallowing it (an always-on swallow misses handlers that run before it and kills input the app synthesises itself, measured in another project): a real click does not activate an automation-mode client, so a person cannot type into it.
+
+Out of sight is DWM cloaking set before the first show: `launch_yaat cloaked: true` makes the client DWM-cloak every window before it shows, and a failed cloak ends the client so no uncloaked window reaches the desktop. Today it is opt-in, as is silence (`audioOutputDevice` routes the pilot voice to a virtual cable); silence comes from the output device, never from muting the app's own volume, so the app's mute stays testable and nothing leaks into saved preferences.
 Source: D:\yaat\src\Yaat.Client.Core\Views\AutomationGate.cs:19-22, 35-44, 83-113; D:\yaat\docs\client-driver-mcp.md:87, 90; D:\yaat\tests\Yaat.ClientDriver.Mcp.Tests\AutomationClientZOrderTests.cs:33, 63; D:\yaat\tests\Yaat.Client.UI.Tests\Automation\AutomationNoActivateStyleTests.cs:30-39. Seen: documented; live-check asserts it.
 
 ### Say "hands off" before driving a window on the user's desktop
