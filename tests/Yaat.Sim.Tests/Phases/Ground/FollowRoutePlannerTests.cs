@@ -2429,7 +2429,7 @@ public class FollowRoutePlannerTests(ITestOutputHelper output)
     {
         List<GroundNode> chain = FollowCornerGeometry.BChain(layout);
         GroundEdge leadEdge = FollowCornerGeometry.EdgeBetween(chain[2], chain[1]);
-        LatLon pieceEnd = TugMovePlanner.EdgePointsFrom(leadEdge, chain[2])[1];
+        LatLon pieceEnd = EdgeGeometry.PointsFrom(leadEdge, chain[2])[1];
         double leadAlongFt = GeoMath.DistanceNm(chain[2].Position, pieceEnd) * GeoMath.FeetPerNm / 2.0;
         var heading = new TrueHeading(GeoMath.BearingTo(chain[2].Position, pieceEnd));
         AircraftState lead = FollowCornerGeometry.Spawn(
@@ -2467,7 +2467,7 @@ public class FollowRoutePlannerTests(ITestOutputHelper output)
         double leftFt = alongFt;
         foreach (DirectionalEdge edge in path)
         {
-            List<LatLon> points = TugMovePlanner.EdgePointsFrom(Assert.IsType<GroundEdge>(edge.Edge), edge.FromNode);
+            List<LatLon> points = EdgeGeometry.PointsFrom(Assert.IsType<GroundEdge>(edge.Edge), edge.FromNode);
             for (int k = 1; k < points.Count; k++)
             {
                 double pieceFt = GeoMath.DistanceNm(points[k - 1], points[k]) * GeoMath.FeetPerNm;

@@ -650,7 +650,7 @@ public static class FollowRoutePlanner
     /// </summary>
     private static (double AlongFt, double OffFt) ProjectOntoEdge(GroundEdge edge, GroundNode from, LatLon position)
     {
-        List<LatLon> points = TugMovePlanner.EdgePointsFrom(edge, from);
+        List<LatLon> points = EdgeGeometry.PointsFrom(edge, from);
         double walkedFt = 0.0;
         double bestOffFt = double.PositiveInfinity;
         double bestAlongFt = 0.0;

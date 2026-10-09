@@ -8,15 +8,7 @@ Note…
 strip: [ground.taxi-preset, ground.draw-taxi-route]
 ---
 Track
-  Track
-  Drop track
-  ---
-  Accept handoff
-  Initiate handoff… picker:input
-  Cancel handoff
-  ---
-  Point out… picker:input
-  Acknowledge pointout
+  Initiate Track
 Data Block
   Scratchpad… picker:input
   Temporary altitude… picker:input
@@ -65,8 +57,10 @@ Display
 Favorite Commands
   (no items) [disabled]
 All Commands
+  Taxi to runway
+    Finding runway entries… [disabled]
   Preset taxi route
-    TERMINAL to 30
+    PR TERMINAL to 30 · via T U W · ~22,400 ft — TAXI T U W RWY 30
   Draw taxi route…
   ---
   Ask pilot to say…
