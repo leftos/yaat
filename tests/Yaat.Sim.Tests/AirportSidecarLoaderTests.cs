@@ -455,6 +455,128 @@ public class AirportSidecarLoaderTests
         );
     }
 
+    /// <summary>
+    /// Two sidecars for one airport in one ARTCC folder: the file later in ordinal path order (<c>a.json</c> after
+    /// <c>B.json</c>) wins a per-name clash, so the loaded result does not depend on the order the OS lists them.
+    /// </summary>
+    [Fact]
+    public void LoadAll_PerNameOverride_LastFileInOrdinalPathOrderWins()
+    {
+        string tempDir = Path.Combine(Path.GetTempPath(), "sidecar-" + Guid.NewGuid());
+        string categoryDir = Path.Combine(tempDir, "ZTEST", "Airports");
+        Directory.CreateDirectory(categoryDir);
+        try
+        {
+            File.WriteAllText(Path.Combine(categoryDir, "B.json"), """{ "airportId": "KOAK", "standDeparture": { "GA1": "PushBack" } }""");
+            File.WriteAllText(Path.Combine(categoryDir, "a.json"), """{ "airportId": "KOAK", "standDeparture": { "GA1": "TaxiOut" } }""");
+
+            AirportSidecarLoadResult result = AirportSidecarLoader.LoadAll(tempDir);
+
+            var catalog = new AirportSidecarCatalog(result.Airports);
+            Assert.Equal(StandDeparture.TaxiOut, catalog.GetStandDepartureOverrides("KOAK")["GA1"]);
+            Assert.Empty(result.Warnings);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, recursive: true);
+        }
+    }
+
+    /// <summary>
+    /// Two sidecars for one airport disagreeing over stand-departure areas: rules concatenate in load order, so the rule
+    /// from the file earlier in ordinal path order (<c>B.json</c> before <c>a.json</c>) comes first and matches first.
+    /// </summary>
+    [Fact]
+    public void LoadAll_StandDepartureAreas_FirstMatchInOrdinalPathOrderWins()
+    {
+        string tempDir = Path.Combine(Path.GetTempPath(), "sidecar-" + Guid.NewGuid());
+        string categoryDir = Path.Combine(tempDir, "ZTEST", "Airports");
+        Directory.CreateDirectory(categoryDir);
+        try
+        {
+            File.WriteAllText(
+                Path.Combine(categoryDir, "B.json"),
+                """{ "airportId": "KOAK", "standDepartureAreas": [ { "runway": "28R", "side": "right", "departure": "TaxiOut", "notes": "B" } ] }"""
+            );
+            File.WriteAllText(
+                Path.Combine(categoryDir, "a.json"),
+                """{ "airportId": "KOAK", "standDepartureAreas": [ { "runway": "28R", "side": "right", "departure": "PushBack", "notes": "a" } ] }"""
+            );
+
+            AirportSidecarLoadResult result = AirportSidecarLoader.LoadAll(tempDir);
+
+            var catalog = new AirportSidecarCatalog(result.Airports);
+            IReadOnlyList<StandDepartureArea> areas = catalog.GetStandDepartureAreas("KOAK");
+            Assert.Equal(2, areas.Count);
+            Assert.Equal("B", areas[0].Notes);
+            Assert.Equal("a", areas[1].Notes);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, recursive: true);
+        }
+    }
+
+    /// <summary>
+    /// The whole tree orders by each file's path relative to the ARTCCs base, ordinal, so <c>B/…</c> before <c>a/…</c>
+    /// and the later file's per-name value wins — the ARTCC folder's own listing order is irrelevant.
+    /// </summary>
+    [Fact]
+    public void LoadAll_ArtccFolders_OrderByOrdinalRelativePath()
+    {
+        string tempDir = Path.Combine(Path.GetTempPath(), "sidecar-" + Guid.NewGuid());
+        string upperDir = Path.Combine(tempDir, "B", "Airports");
+        string lowerDir = Path.Combine(tempDir, "a", "Airports");
+        Directory.CreateDirectory(upperDir);
+        Directory.CreateDirectory(lowerDir);
+        try
+        {
+            File.WriteAllText(Path.Combine(upperDir, "oak.json"), """{ "airportId": "KOAK", "standDeparture": { "GA1": "PushBack" } }""");
+            File.WriteAllText(Path.Combine(lowerDir, "oak.json"), """{ "airportId": "KOAK", "standDeparture": { "GA1": "TaxiOut" } }""");
+
+            AirportSidecarLoadResult result = AirportSidecarLoader.LoadAll(tempDir);
+
+            var catalog = new AirportSidecarCatalog(result.Airports);
+            Assert.Equal(StandDeparture.TaxiOut, catalog.GetStandDepartureOverrides("KOAK")["GA1"]);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, recursive: true);
+        }
+    }
+
+    /// <summary>
+    /// The sidecar files are the whole tree's <c>Airports/*.json</c> in the order the hash keys them: the ordinal order of
+    /// each path relative to the ARTCCs base, with forward slashes, so <c>A-B/…</c> precedes <c>A/…</c>.
+    /// </summary>
+    [Fact]
+    public void SidecarFilesInLoadOrder_MatchesTheHashOrder()
+    {
+        string tempDir = Path.Combine(Path.GetTempPath(), "sidecar-" + Guid.NewGuid());
+        string plainDir = Path.Combine(tempDir, "A", "Airports");
+        string dashedDir = Path.Combine(tempDir, "A-B", "Airports");
+        Directory.CreateDirectory(plainDir);
+        Directory.CreateDirectory(dashedDir);
+        try
+        {
+            File.WriteAllText(Path.Combine(plainDir, "oak.json"), """{ "airportId": "KOAK" }""");
+            File.WriteAllText(Path.Combine(dashedDir, "oak.json"), """{ "airportId": "KOAK" }""");
+
+            IReadOnlyList<string> files = AirportSidecarLoader.SidecarFilesInLoadOrder(tempDir);
+
+            // Ordinal '-' (0x2D) sorts before '/', so A-B/Airports/... precedes A/Airports/... even when the OS lists
+            // A first — the same key the sidecar hash orders the airport's files by.
+            Assert.Equal(
+                ["A-B/Airports/oak.json", "A/Airports/oak.json"],
+                [.. files.Select(file => Path.GetRelativePath(tempDir, file).Replace('\\', '/'))]
+            );
+        }
+        finally
+        {
+            Directory.Delete(tempDir, recursive: true);
+        }
+    }
+
     /// <summary>Loads one KOAK sidecar file with the given content.</summary>
     private static AirportSidecarLoadResult LoadOakSidecar(string json)
     {

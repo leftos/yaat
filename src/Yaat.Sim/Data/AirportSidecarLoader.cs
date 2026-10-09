@@ -22,8 +22,35 @@ public static class AirportSidecarLoader
     private const double MaxAdwRangeNm = 15.0;
 
     /// <summary>
-    /// Scans <c>{artccsBaseDir}/{ARTCC}/Airports/*.json</c> across every ARTCC subdirectory and parses
-    /// each into an <see cref="AirportSidecar"/>.
+    /// Every <c>{artccsBaseDir}/{ARTCC}/Airports/*.json</c> sidecar in load order: the ordinal order of each file's path
+    /// relative to <paramref name="artccsBaseDir"/>, with forward slashes, which is the order <see cref="LoadAll"/> loads
+    /// them in and the order the precompute cache keys the same files in. The order is the same on every OS, unlike a
+    /// directory listing.
+    /// </summary>
+    /// <param name="artccsBaseDir">The ARTCCs data directory.</param>
+    /// <returns>The sidecar file paths, in load order.</returns>
+    /// <exception cref="DirectoryNotFoundException"><paramref name="artccsBaseDir"/> does not exist.</exception>
+    public static IReadOnlyList<string> SidecarFilesInLoadOrder(string artccsBaseDir)
+    {
+        if (!Directory.Exists(artccsBaseDir))
+        {
+            throw new DirectoryNotFoundException($"ARTCCs directory not found: {artccsBaseDir}");
+        }
+
+        return
+        [
+            .. Directory
+                .EnumerateDirectories(artccsBaseDir)
+                .Select(artccDir => Path.Combine(artccDir, "Airports"))
+                .Where(Directory.Exists)
+                .SelectMany(airportsDir => Directory.EnumerateFiles(airportsDir, "*.json"))
+                .OrderBy(file => Path.GetRelativePath(artccsBaseDir, file).Replace('\\', '/'), StringComparer.Ordinal),
+        ];
+    }
+
+    /// <summary>
+    /// Scans <c>{artccsBaseDir}/{ARTCC}/Airports/*.json</c> across every ARTCC subdirectory and parses each into an
+    /// <see cref="AirportSidecar"/>, in <see cref="SidecarFilesInLoadOrder"/> order.
     /// </summary>
     public static AirportSidecarLoadResult LoadAll(string artccsBaseDir)
     {
@@ -35,18 +62,9 @@ public static class AirportSidecarLoader
             return result;
         }
 
-        foreach (string artccDir in Directory.EnumerateDirectories(artccsBaseDir))
+        foreach (string file in SidecarFilesInLoadOrder(artccsBaseDir))
         {
-            string categoryDir = Path.Combine(artccDir, "Airports");
-            if (!Directory.Exists(categoryDir))
-            {
-                continue;
-            }
-
-            foreach (string file in Directory.GetFiles(categoryDir, "*.json"))
-            {
-                LoadFile(file, result);
-            }
+            LoadFile(file, result);
         }
 
         return result;

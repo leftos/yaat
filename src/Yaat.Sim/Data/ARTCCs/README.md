@@ -144,7 +144,7 @@ Don't add hints for fixes whose spelling already decodes naturally — unnecessa
 
 ## Airports
 
-The unified per-airport ground sidecar. One JSON file per airport (`Airports/{airport}.json`) carrying every per-airport ground-routing override. Each file is scoped to one airport via `airportId` (ICAO or FAA — `KOAK` and `OAK` both match). All sections are optional; a file may carry any subset. Multiple files for the same airport are merged.
+The unified per-airport ground sidecar. One JSON file per airport (`Airports/{airport}.json`) carrying every per-airport ground-routing override. Each file is scoped to one airport via `airportId` (ICAO or FAA — `KOAK` and `OAK` both match). All sections are optional; a file may carry any subset. Multiple files for the same airport are merged, in the load order given under [`standDeparture`](#standdeparture): for a per-name entry (a stand's `standDeparture`, a runway end's exit direction) the last file wins.
 
 ```json
 {
@@ -425,6 +425,8 @@ Whether a stand is left by a push back, by taxiing out, or either way, overridin
 | `standDepartureAreas[].notes` | string | No | Facility rationale. Informational only |
 
 Precedence is the per-name `standDeparture`, then the first matching area rule (files concatenate in load order), then the layout's geometry. A rule is applied when the answer is read, never at layout build.
+
+Files load in the ordinal order of each file's path relative to `Data/ARTCCs`, written with forward slashes, so `ZOA/Airports/B.json` loads before `ZOA/Airports/a.json` — an upper-case name or folder sorts before a lower-case one. This is the same order on every OS, never the filesystem's own listing order. Where two files disagree, the last file wins for a per-name `standDeparture` entry, and the first file's rule comes first among `standDepartureAreas`.
 
 A blank stand name, a bad area entry or another value is skipped with a warning at load. A name that matches no stand on the airport's layout, or several, and an area rule naming no runway end on the layout, warn when the push targets are computed. Editing either section stales the airport's push-target cache entry. Worked example: [`ZOA/Airports/oak.json`](ZOA/Airports/oak.json) (North Field as an area, the MTN stands `Either`), and [`ZOA/Airports/sfo.json`](ZOA/Airports/sfo.json).
 

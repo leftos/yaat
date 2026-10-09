@@ -32,13 +32,9 @@ public static class AirportSidecarHash
         }
 
         string wanted = NavigationDatabase.NormalizeAirport(airportId);
-        IEnumerable<string> files = Directory
-            .EnumerateDirectories(artccsBaseDir)
-            .Select(artccDir => Path.Combine(artccDir, "Airports"))
-            .Where(Directory.Exists)
-            .SelectMany(airportsDir => Directory.EnumerateFiles(airportsDir, "*.json"))
-            .Where(file => (SidecarAirport(file) is { } id) && (NavigationDatabase.NormalizeAirport(id) == wanted))
-            .OrderBy(file => Path.GetRelativePath(artccsBaseDir, file).Replace('\\', '/'), StringComparer.Ordinal);
+        IEnumerable<string> files = AirportSidecarLoader
+            .SidecarFilesInLoadOrder(artccsBaseDir)
+            .Where(file => (SidecarAirport(file) is { } id) && (NavigationDatabase.NormalizeAirport(id) == wanted));
 
         var concatenated = new StringBuilder();
         foreach (string file in files)
