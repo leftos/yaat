@@ -102,7 +102,7 @@ public static class FollowRoutePlanner
             return new FollowRoutePlan.FollowerAhead();
         }
 
-        LeadPath path = BuildLeadPath(layout, lead, current, routeAhead);
+        LeadPath path = BuildLeadPath(layout, lead, follower, current, routeAhead);
         (int From, int To)? back = requireAhead ? null : BackMove(layout, follower);
         if ((followerEdge is not null) && Joins(followerEdge, current.FromNodeId, current.ToNodeId))
         {
@@ -847,12 +847,13 @@ public static class FollowRoutePlanner
     private static LeadPath BuildLeadPath(
         AirportGroundLayout layout,
         AircraftState lead,
+        AircraftState follower,
         DirectionalEdge current,
         IReadOnlyList<TaxiRouteSegment> routeAhead
     )
     {
         var taxiClass = TaxiClass.Of(lead);
-        List<DirectionalEdge> edges = [.. TrailBehind(layout, lead, current, taxiClass), current];
+        List<DirectionalEdge> edges = [.. TrailBehind(layout, lead, current, taxiClass, TaxiClass.Of(follower)), current];
         int aheadIndex = edges.Count;
         AppendRoute(layout, edges, routeAhead, taxiClass);
         return new LeadPath(edges, aheadIndex);
@@ -863,9 +864,16 @@ public static class FollowRoutePlanner
     /// pointed toward the edge after it; where the two do not meet, the shortest graph path between them fills the gap. The
     /// walk stops at the first edge no graph path joins, and at the first trail edge whose step back would revisit an edge the
     /// walk already holds — where the lead reversed, as after a push out along a taxiway it then taxied back down — so the
-    /// path never runs out and back over an edge.
+    /// path never runs out and back over an edge. A step back that has to fill a gap takes the fillet arc where what it
+    /// fills is the straight stubs either side of one the lead rounded (<see cref="CutCorner"/>).
     /// </summary>
-    private static List<DirectionalEdge> TrailBehind(AirportGroundLayout layout, AircraftState lead, DirectionalEdge current, TaxiClass taxiClass)
+    private static List<DirectionalEdge> TrailBehind(
+        AirportGroundLayout layout,
+        AircraftState lead,
+        DirectionalEdge current,
+        TaxiClass taxiClass,
+        TaxiClass followerClass
+    )
     {
         List<DirectionalEdge> reversed = [];
         HashSet<(int, int)> held = [EdgeKey(current)];
@@ -891,11 +899,103 @@ public static class FollowRoutePlanner
             }
 
             reversed.AddRange(step);
+            if (CutCorner(layout, followerClass, reversed, step.Count, lead.Callsign) is { } replaced)
+            {
+                held.ExceptWith(replaced.Select(EdgeKey));
+                held.Add(EdgeKey(reversed[^1]));
+            }
+
             cursor = reversed[^1].FromNode;
         }
 
         reversed.Reverse();
         return reversed;
+    }
+
+    /// <summary>
+    /// Replaces the newest run of the path behind the lead with a fillet arc where the lead rounded one: the run starts at
+    /// the arc's tangent node the step back from the cursor ends at and reaches the arc's other tangent node round the
+    /// junction through edges the lead never drove — the straight stubs either side of the arc its 1 Hz trail samples. A
+    /// run is the newest <paramref name="stepCount"/> edges, the step back that filled a gap, plus at most the one edge the
+    /// walk held before that step, the stub on the arc's far side; it never reaches further toward the lead, so a lead that
+    /// drove the junction itself, whose trail has no gap there, keeps the junction's edges, and a trail that leaves the
+    /// corner and comes back to it keeps its loop. A step of one edge filled no gap and is left alone. The arc must suit
+    /// the follower's class (<see cref="UsableArc"/>). Returns the replaced run, which the caller's held set swaps for the
+    /// arc so a later step back never re-uses it; null when no run is replaced.
+    /// </summary>
+    private static List<DirectionalEdge>? CutCorner(
+        AirportGroundLayout layout,
+        TaxiClass followerClass,
+        List<DirectionalEdge> reversed,
+        int stepCount,
+        string callsign
+    )
+    {
+        if (stepCount < 2)
+        {
+            return null;
+        }
+
+        GroundNode tangent = reversed[^1].FromNode;
+        // The gap step's own edges and the one edge before it; a longer run would reach into what the lead drove after it.
+        int longestRun = Math.Min(stepCount + 1, reversed.Count);
+        for (int run = 2; run <= longestRun; run++)
+        {
+            GroundNode far = reversed[^run].ToNode;
+            if ((UsableArc(layout, followerClass, tangent, far) is not { } arc) || (RunFt(reversed, run) <= (arc.DistanceNm * GeoMath.FeetPerNm)))
+            {
+                continue;
+            }
+
+            DirectionalEdge arcBack = arc.Directed(tangent, far);
+            List<DirectionalEdge> replaced = reversed.GetRange(reversed.Count - run, run);
+            reversed.RemoveRange(reversed.Count - run, run);
+            reversed.Add(arcBack);
+            Log.LogDebug(
+                "[FollowPlan] {Lead}: {Run} edges node {From} to {To} are a {Arc:F0} ft fillet arc's stubs; lead path takes the arc",
+                callsign,
+                run,
+                tangent.Id,
+                far.Id,
+                arc.DistanceNm * GeoMath.FeetPerNm
+            );
+            return replaced;
+        }
+
+        return null;
+    }
+
+    /// <summary>The summed length (ft) of the newest <paramref name="count"/> edges of <paramref name="edges"/>.</summary>
+    private static double RunFt(List<DirectionalEdge> edges, int count)
+    {
+        double ft = 0.0;
+        for (int i = edges.Count - count; i < edges.Count; i++)
+        {
+            ft += edges[i].DistanceNm * GeoMath.FeetPerNm;
+        }
+
+        return ft;
+    }
+
+    /// <summary>
+    /// The arc joining <paramref name="from"/> and <paramref name="to"/> when the follower's class may drive it that way: not
+    /// below the tightest radius any aircraft can steer, and not a move one-way data or a blocked turn forbids — the gates
+    /// <see cref="TaxiPathfinder"/>'s searches apply to the same traversal. A fillet leaves the edge it joins tangent to
+    /// itself, so its entry from either tangent node is no heading change for any category. Null when there is no such arc,
+    /// or it is not usable.
+    /// </summary>
+    private static GroundArc? UsableArc(AirportGroundLayout layout, TaxiClass followerClass, GroundNode from, GroundNode to)
+    {
+        if (from.Edges.OfType<GroundArc>().FirstOrDefault(arc => arc.OtherNode(from).Id == to.Id) is not { } arc)
+        {
+            return null;
+        }
+
+        bool forbidden =
+            (arc.MinRadiusOfCurvatureFt < GeometricAdmissibility.MinSteerableArcRadiusFt)
+            || OneWayResolver.GetForbiddenMoves(layout, followerClass.Wake).Contains((from.Id, to.Id))
+            || BlockedTurnResolver.GetBlocked(layout).ForbiddenArcMoves.Contains((from.Id, to.Id));
+        return forbidden ? null : arc;
     }
 
     /// <summary>Adds every edge of <paramref name="step"/> to <paramref name="held"/>; false at the first one it already holds.</summary>

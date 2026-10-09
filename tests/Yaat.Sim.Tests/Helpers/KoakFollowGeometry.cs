@@ -132,7 +132,12 @@ internal static class KoakFollowGeometry
         return chain;
     }
 
-    internal static GroundEdge EdgeBetween(GroundNode a, GroundNode b) => a.Edges.OfType<GroundEdge>().First(edge => edge.OtherNode(a).Id == b.Id);
+    internal static GroundEdge EdgeBetween(GroundNode a, GroundNode b) =>
+        a.Edges.OfType<GroundEdge>().FirstOrDefault(edge => edge.OtherNode(a).Id == b.Id)
+        ?? throw new InvalidOperationException(
+            $"No straight edge joins node #{a.Id} and node #{b.Id} (nodes joined only by a fillet arc, or not adjacent); "
+                + $"use the GroundArc from node #{a.Id}'s edges for arc pairs"
+        );
 
     /// <summary>
     /// The sharpest turn of more than 90° at a KOAK junction from a straight taxiway edge at least 60 ft long onto another at least
@@ -166,6 +171,174 @@ internal static class KoakFollowGeometry
         Assert.True(sharpest is not null, "KOAK has no straight taxiway edge turning more than 90° onto another");
         return sharpest.Value;
     }
+
+    /// <summary>
+    /// A C-to-J fillet corner whose straight way round the junction is longer than the arc joining its tangent nodes: the
+    /// corner a lead rounding the arc leaves straight stub edges either side of the junction in its trail for, never the arc
+    /// it drove. <see cref="ThroughRun"/> is the straight path round the junction, C tangent node first.
+    /// </summary>
+    internal sealed record CToJCorner(
+        GroundArc Arc,
+        GroundNode TangentOnC,
+        GroundNode TangentOnJ,
+        GroundEdge StubOnC,
+        GroundEdge StubOnJ,
+        IReadOnlyList<GroundNode> ThroughRun
+    );
+
+    /// <summary>
+    /// The KOAK C/J corner whose straight way round the junction exceeds the arc joining its tangent nodes by the most —
+    /// at node 352 the 130 ft arc against 300 ft round the apex, where the shallow corners either side differ by 2 ft.
+    /// </summary>
+    internal static CToJCorner FindCToJCorner(AirportGroundLayout layout)
+    {
+        CToJCorner? widest = null;
+        double widestFt = 0.0;
+        foreach (GroundNode junction in layout.Nodes.Values.OrderBy(node => node.Id))
+        {
+            foreach (CToJCorner candidate in CornerCandidates(junction))
+            {
+                double excessFt = ThroughFt(candidate) - (candidate.Arc.DistanceNm * GeoMath.FeetPerNm);
+                if (excessFt > widestFt)
+                {
+                    widestFt = excessFt;
+                    widest = candidate;
+                }
+            }
+        }
+
+        Assert.NotNull(widest);
+        return widest;
+    }
+
+    /// <summary>
+    /// The corners at <paramref name="junction"/>: each C edge and J edge pair with a straight stub off each to a tangent
+    /// node, those two tangent nodes joined by a fillet arc.
+    /// </summary>
+    private static IEnumerable<CToJCorner> CornerCandidates(GroundNode junction)
+    {
+        List<GroundEdge> straight = [.. junction.Edges.OfType<GroundEdge>()];
+        foreach (GroundEdge cEdge in straight.Where(edge => edge.MatchesTaxiway("C")))
+        {
+            foreach (GroundEdge jEdge in straight.Where(edge => edge.MatchesTaxiway("J")))
+            {
+                GroundNode cNear = cEdge.OtherNode(junction);
+                GroundNode jNear = jEdge.OtherNode(junction);
+                foreach (GroundEdge stubC in Stubs(cNear, junction, "C"))
+                {
+                    foreach (GroundEdge stubJ in Stubs(jNear, junction, "J"))
+                    {
+                        GroundNode t1 = stubC.OtherNode(cNear);
+                        GroundNode t2 = stubJ.OtherNode(jNear);
+                        if (t1.Edges.OfType<GroundArc>().FirstOrDefault(arc => arc.OtherNode(t1).Id == t2.Id) is not { } arc)
+                        {
+                            continue;
+                        }
+
+                        yield return new CToJCorner(arc, t1, t2, stubC, stubJ, [t1, cNear, junction, jNear, t2]);
+                    }
+                }
+            }
+        }
+    }
+
+    private static IEnumerable<GroundEdge> Stubs(GroundNode node, GroundNode junction, string taxiway) =>
+        node.Edges.OfType<GroundEdge>().Where(edge => edge.MatchesTaxiway(taxiway) && (edge.OtherNode(node).Id != junction.Id));
+
+    private static double ThroughFt(CToJCorner corner)
+    {
+        double nm = 0.0;
+        for (int i = 0; i + 1 < corner.ThroughRun.Count; i++)
+        {
+            nm += EdgeBetween(corner.ThroughRun[i], corner.ThroughRun[i + 1]).DistanceNm;
+        }
+
+        return nm * GeoMath.FeetPerNm;
+    }
+
+    /// <summary>
+    /// A C-to-J corner and <see cref="Loop"/>, the way round the block from its C tangent node back to its J tangent node that
+    /// never uses the junction, as a node chain over straight edges, C tangent node first.
+    /// </summary>
+    internal sealed record CornerLoop(CToJCorner Corner, IReadOnlyList<GroundNode> Loop);
+
+    /// <summary>
+    /// The corner at <see cref="FindCToJCorner"/>'s junction whose C side leads round the block back to its J side without
+    /// crossing a runway: on C away from the junction to H, H to D, D to J, and J back down to the J tangent node.
+    /// </summary>
+    internal static CornerLoop FindBlockBackToTheCorner(AirportGroundLayout layout)
+    {
+        GroundNode junction = FindCToJCorner(layout).ThroughRun[2];
+        foreach (CToJCorner corner in CornerCandidates(junction))
+        {
+            if (BlockBack(corner) is { } loop)
+            {
+                return new CornerLoop(corner, loop);
+            }
+        }
+
+        throw new InvalidOperationException($"No C-to-J corner at KOAK node #{junction.Id} leads round the block by C, H, D and J");
+    }
+
+    private static List<GroundNode>? BlockBack(CToJCorner corner)
+    {
+        (string Taxiway, Func<GroundNode, bool> IsGoal)[] legs =
+        [
+            ("C", node => HasStraight(node, "H")),
+            ("H", node => HasStraight(node, "D")),
+            ("D", node => HasStraight(node, "J")),
+            ("J", node => node.Id == corner.TangentOnJ.Id),
+        ];
+        List<GroundNode> chain = [corner.ThroughRun[1], corner.TangentOnC];
+        foreach ((string taxiway, Func<GroundNode, bool> isGoal) in legs)
+        {
+            if (AlongTaxiway(chain[^1], chain[^2], taxiway, isGoal) is not { } leg)
+            {
+                return null;
+            }
+
+            chain.AddRange(leg.Skip(1));
+        }
+
+        return chain[1..];
+    }
+
+    /// <summary>
+    /// The fewest straight <paramref name="taxiway"/> edges from <paramref name="from"/> to the nearest node
+    /// <paramref name="isGoal"/> accepts, never entering <paramref name="behind"/>, as a node chain from <paramref name="from"/>;
+    /// null when no such node is reachable.
+    /// </summary>
+    private static List<GroundNode>? AlongTaxiway(GroundNode from, GroundNode behind, string taxiway, Func<GroundNode, bool> isGoal)
+    {
+        Dictionary<int, GroundNode?> cameFrom = new() { [from.Id] = null, [behind.Id] = null };
+        Queue<GroundNode> frontier = new([from]);
+        while (frontier.TryDequeue(out GroundNode? node))
+        {
+            if ((node.Id != from.Id) && isGoal(node))
+            {
+                List<GroundNode> chain = [];
+                for (GroundNode? at = node; at is not null; at = cameFrom[at.Id])
+                {
+                    chain.Insert(0, at);
+                }
+
+                return chain;
+            }
+
+            foreach (GroundEdge edge in node.Edges.OfType<GroundEdge>().Where(edge => edge.MatchesTaxiway(taxiway)))
+            {
+                GroundNode next = edge.OtherNode(node);
+                if (cameFrom.TryAdd(next.Id, node))
+                {
+                    frontier.Enqueue(next);
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private static bool HasStraight(GroundNode node, string taxiway) => node.Edges.OfType<GroundEdge>().Any(edge => edge.MatchesTaxiway(taxiway));
 
     internal static TrueHeading Facing(GroundNode from, GroundNode to) => new(GeoMath.BearingTo(from.Position, to.Position));
 

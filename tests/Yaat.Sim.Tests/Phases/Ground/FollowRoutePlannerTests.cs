@@ -938,6 +938,208 @@ public class FollowRoutePlannerTests(ITestOutputHelper output)
     }
 
     /// <summary>
+    /// A lead that rounded KOAK's C-to-J fillet at the 352 corner has a trail holding the straight stubs either side of the
+    /// junction — the edges the 1 Hz sample records while it is on the arc — never the arc itself. Its path from the merge
+    /// takes that arc, not the stubs the planner would otherwise stitch through the apex: the follower's gap reads the arc's
+    /// 130 ft, not the 300 ft round the junction.
+    /// </summary>
+    [Fact]
+    public void LeadRoundTheC_J_Corner_FollowerPlansOverTheArc()
+    {
+        if (KoakFollowGeometry.LoadLayout(output) is not { } layout)
+        {
+            return;
+        }
+
+        CornerFollow c = FollowRoundTheC_J_Corner(layout, leadDroveTheJunction: false);
+        output.WriteLine($"C tangent #{c.Corner.TangentOnC.Id}, J tangent #{c.Corner.TangentOnJ.Id}; lead path {PathText(c.Plan.LeadPathFromMerge)}");
+
+        Assert.Contains(c.Plan.LeadPathFromMerge, e => ReferenceEquals(e.Edge, c.Corner.Arc));
+        Assert.DoesNotContain(c.Plan.LeadPathFromMerge, e => ReferenceEquals(e.Edge, c.Corner.StubOnC));
+        Assert.DoesNotContain(c.Plan.LeadPathFromMerge, e => ReferenceEquals(e.Edge, c.Corner.StubOnJ));
+
+        PathPosition? overTheArc = FollowRoutePlanner.LocateOnPath(layout, c.Plan.LeadPathFromMerge, c.Lead);
+        List<DirectionalEdge> roundTheJunction = RoundTheJunction(c);
+        PathPosition? round = FollowRoutePlanner.LocateOnPath(layout, roundTheJunction, c.Lead);
+        // The follower is the same distance from the merge on either path, so it is measured from the merge: the term cancels
+        // and what is left is what the arc saves the follower.
+        double? arcGapFt = FollowRoutePlanner.AlongPathGapFt(0.0, c.Plan.LeadPathFromMerge, overTheArc, "C172", "C172");
+        double? junctionGapFt = FollowRoutePlanner.AlongPathGapFt(0.0, roundTheJunction, round, "C172", "C172");
+
+        Assert.True(overTheArc is not null, $"the lead is not on the path over the arc ({PathText(c.Plan.LeadPathFromMerge)})");
+        Assert.True(round is not null, $"the lead is not on the path round the junction ({PathText(roundTheJunction)})");
+        Assert.True(arcGapFt is not null, "the follower has no along-path gap over the arc");
+        Assert.True(junctionGapFt is not null, "the follower has no along-path gap round the junction");
+        output.WriteLine($"gap over the arc {arcGapFt!.Value:F1} ft, round the junction {junctionGapFt!.Value:F1} ft");
+        Assert.True(
+            junctionGapFt!.Value - arcGapFt!.Value >= 150.0,
+            $"the gap over the arc {arcGapFt.Value:F1} ft is not 150 ft under the {junctionGapFt.Value:F1} ft round the junction"
+        );
+    }
+
+    /// <summary>
+    /// The same corner with a lead that drove straight through it instead: its trail holds the junction's own edges as well
+    /// as the stubs, so the planner has no gap to fill and the follower's path goes through the junction, never over the arc
+    /// the lead did not take.
+    /// </summary>
+    [Fact]
+    public void LeadThroughTheJunction_FollowerKeepsTheSquareCorner()
+    {
+        if (KoakFollowGeometry.LoadLayout(output) is not { } layout)
+        {
+            return;
+        }
+
+        CornerFollow c = FollowRoundTheC_J_Corner(layout, leadDroveTheJunction: true);
+        output.WriteLine($"lead path {PathText(c.Plan.LeadPathFromMerge)}");
+
+        GroundEdge intoJunction = KoakFollowGeometry.EdgeBetween(c.Corner.ThroughRun[1], c.Corner.ThroughRun[2]);
+        GroundEdge outOfJunction = KoakFollowGeometry.EdgeBetween(c.Corner.ThroughRun[2], c.Corner.ThroughRun[3]);
+        Assert.Contains(c.Plan.LeadPathFromMerge, e => ReferenceEquals(e.Edge, intoJunction));
+        Assert.Contains(c.Plan.LeadPathFromMerge, e => ReferenceEquals(e.Edge, outOfJunction));
+        Assert.DoesNotContain(c.Plan.LeadPathFromMerge, e => ReferenceEquals(e.Edge, c.Corner.Arc));
+    }
+
+    /// <summary>
+    /// A lead that left KOAK's 352 corner east on C, went round the block by H, D and J, and came back down J onto the corner's
+    /// J stub, with the stub into the H junction missing from its 1 Hz trail: the gap fill there starts at the C tangent node
+    /// the 352 fillet arc joins to the J tangent node the lead came back to. The arc stands in only for the stubs round the
+    /// junction, so the planned path keeps the whole loop the lead drove, never the arc.
+    /// </summary>
+    [Fact]
+    public void CutCorner_TrailLoopingBackToTheCorner_KeepsTheLoop()
+    {
+        if (KoakFollowGeometry.LoadLayout(output) is not { } layout)
+        {
+            return;
+        }
+
+        (KoakFollowGeometry.CToJCorner corner, IReadOnlyList<GroundNode> loop) = KoakFollowGeometry.FindBlockBackToTheCorner(layout);
+        GroundNode t1 = corner.TangentOnC;
+        GroundNode t2 = corner.TangentOnJ;
+        GroundNode cNear = corner.ThroughRun[1];
+        GroundNode jNear = corner.ThroughRun[3];
+        output.WriteLine($"loop {string.Join(" ", loop.Select(n => $"#{n.Id}"))}");
+        GroundEdge intoBehind = KoakFollowGeometry.EdgeBetween(cNear, t1);
+
+        AircraftState lead = KoakFollowGeometry.Spawn(
+            "N1LED",
+            "C172",
+            KoakFollowGeometry.Between(t2.Position, jNear.Position, 0.5),
+            KoakFollowGeometry.Facing(t2, jNear)
+        );
+        lead.Ground.TaxiEdgeTrail.Record(intoBehind, cNear);
+        for (int i = 0; i + 1 < loop.Count; i++)
+        {
+            // The 1 Hz trail misses the stub from the C tangent node by the H junction into the junction.
+            if (i != 1)
+            {
+                lead.Ground.TaxiEdgeTrail.Record(KoakFollowGeometry.EdgeBetween(loop[i], loop[i + 1]), loop[i]);
+            }
+        }
+
+        lead.Ground.TaxiEdgeTrail.Record(corner.StubOnJ, t2);
+        AircraftState follower = KoakFollowGeometry.Spawn(
+            "N2FOL",
+            "C172",
+            KoakFollowGeometry.Between(cNear.Position, t1.Position, 0.5),
+            KoakFollowGeometry.Facing(cNear, t1)
+        );
+        follower.Ground.TaxiEdgeTrail.Record(intoBehind, cNear);
+
+        FollowRoutePlan.Joinable plan = Assert.IsType<FollowRoutePlan.Joinable>(FollowRoutePlanner.Plan(layout, follower, lead));
+        output.WriteLine($"merge #{plan.MergeNode}; lead path {PathText(plan.LeadPathFromMerge)}");
+
+        Assert.DoesNotContain(plan.LeadPathFromMerge, e => ReferenceEquals(e.Edge, corner.Arc));
+        for (int i = 0; i + 1 < loop.Count; i++)
+        {
+            GroundEdge loopEdge = KoakFollowGeometry.EdgeBetween(loop[i], loop[i + 1]);
+            Assert.True(
+                plan.LeadPathFromMerge.Any(e => ReferenceEquals(e.Edge, loopEdge)),
+                $"the loop edge #{loop[i].Id}-#{loop[i + 1].Id} is not on the lead path {PathText(plan.LeadPathFromMerge)}"
+            );
+        }
+    }
+
+    /// <summary>
+    /// A lead whose trail is the corner's two stubs (or the junction edges too, when it drove them), standing past the J
+    /// tangent node on the J edge, and a C172 follower part way along the C edge behind that corner, with that edge in its
+    /// own trail: the corner and the follow's plan.
+    /// </summary>
+    private sealed record CornerFollow(
+        KoakFollowGeometry.CToJCorner Corner,
+        AircraftState Lead,
+        AircraftState Follower,
+        GroundEdge AheadOnJ,
+        FollowRoutePlan.Joinable Plan
+    );
+
+    private CornerFollow FollowRoundTheC_J_Corner(AirportGroundLayout layout, bool leadDroveTheJunction)
+    {
+        KoakFollowGeometry.CToJCorner corner = KoakFollowGeometry.FindCToJCorner(layout);
+        GroundNode t1 = corner.TangentOnC;
+        GroundNode t2 = corner.TangentOnJ;
+        GroundNode cNear = corner.ThroughRun[1];
+        GroundNode jNear = corner.ThroughRun[3];
+        GroundEdge cBefore = t1.Edges.OfType<GroundEdge>().First(e => e.MatchesTaxiway("C") && (e.OtherNode(t1).Id != cNear.Id));
+        GroundEdge onJ = t2.Edges.OfType<GroundEdge>().First(e => e.MatchesTaxiway("J") && (e.OtherNode(t2).Id != jNear.Id));
+        GroundNode cBeforeFar = cBefore.OtherNode(t1);
+        GroundNode beyondJ = onJ.OtherNode(t2);
+        AircraftState lead = KoakFollowGeometry.Spawn(
+            "N1LED",
+            "C172",
+            KoakFollowGeometry.Between(t2.Position, beyondJ.Position, 0.5),
+            KoakFollowGeometry.Facing(t2, beyondJ)
+        );
+        lead.Ground.TaxiEdgeTrail.Record(cBefore, cBeforeFar);
+        lead.Ground.TaxiEdgeTrail.Record(corner.StubOnC, t1);
+        if (leadDroveTheJunction)
+        {
+            lead.Ground.TaxiEdgeTrail.Record(KoakFollowGeometry.EdgeBetween(cNear, corner.ThroughRun[2]), cNear);
+            lead.Ground.TaxiEdgeTrail.Record(KoakFollowGeometry.EdgeBetween(corner.ThroughRun[2], jNear), corner.ThroughRun[2]);
+        }
+
+        lead.Ground.TaxiEdgeTrail.Record(corner.StubOnJ, jNear);
+        lead.Ground.TaxiEdgeTrail.Record(onJ, t2);
+        AircraftState follower = KoakFollowGeometry.Spawn(
+            "N2FOL",
+            "C172",
+            KoakFollowGeometry.Between(cBeforeFar.Position, t1.Position, 0.5),
+            KoakFollowGeometry.Facing(cBeforeFar, t1)
+        );
+        follower.Ground.TaxiEdgeTrail.Record(cBefore, cBeforeFar);
+        FollowRoutePlanner.RouteStart? start = FollowRoutePlanner.StartOf(layout, follower, requireAhead: true);
+        string leadIn = start?.LeadIn is { } into ? $"#{into.FromNodeId}>#{into.ToNodeId}" : "none";
+        output.WriteLine(
+            $"follower on C #{cBeforeFar.Id}>#{t1.Id}: start #{start?.Node.Id}, lead-in {leadIn}; "
+                + $"lead trail {string.Join(", ", lead.Ground.TaxiEdgeTrail.Edges.Select(e => $"#{e.NodeA}-#{e.NodeB}"))}"
+        );
+
+        FollowRoutePlan.Joinable plan = Assert.IsType<FollowRoutePlan.Joinable>(FollowRoutePlanner.Plan(layout, follower, lead));
+        output.WriteLine(
+            $"merge #{plan.MergeNode}; path to merge {string.Join(" ", plan.PathToMerge.Segments.Select(s => $"#{s.FromNodeId}>#{s.ToNodeId}"))}; "
+                + $"lead path {PathText(plan.LeadPathFromMerge)}"
+        );
+        return new CornerFollow(corner, lead, follower, onJ, plan);
+    }
+
+    /// <summary><paramref name="c"/>'s straight run round the junction, the arc's C tangent node first, then the lead's J edge on.</summary>
+    private static List<DirectionalEdge> RoundTheJunction(CornerFollow c)
+    {
+        List<DirectionalEdge> path = [];
+        for (int i = 0; i + 1 < c.Corner.ThroughRun.Count; i++)
+        {
+            GroundNode from = c.Corner.ThroughRun[i];
+            GroundNode to = c.Corner.ThroughRun[i + 1];
+            path.Add(KoakFollowGeometry.EdgeBetween(from, to).Directed(from, to));
+        }
+
+        GroundNode beyondJ = c.AheadOnJ.OtherNode(c.Corner.TangentOnJ);
+        path.Add(c.AheadOnJ.Directed(c.Corner.TangentOnJ, beyondJ));
+        return path;
+    }
+
+    /// <summary>
     /// A lead that is itself following has a taxi route left over from before its follow: the planner ignores it, so a follower
     /// on that stale route is not ahead of the lead, and it joins on the lead's trail or the edge it is on.
     /// </summary>
