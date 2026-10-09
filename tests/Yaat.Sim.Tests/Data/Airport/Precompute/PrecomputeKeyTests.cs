@@ -72,6 +72,29 @@ public class PrecomputeKeyTests
         Assert.False(current.PushTargetsMatch(stored));
     }
 
+    /// <summary>
+    /// The offline comparison of a stored key with the key built for a client that has no vNAS ignores the two facts
+    /// only the maintainer's run knows (the GeoJSON MD5 and the navdata serial, which the offline key leaves blank) and
+    /// holds on all four offline fields: the layout format version and the three source hashes.
+    /// </summary>
+    [Fact]
+    public void PushTargetsMatchOffline_IgnoresMd5AndSerial_ButNotSourceHashes()
+    {
+        var stored = PrecomputeKey.Current("md5", 7, "sidecar");
+        var offline = PrecomputeKey.CurrentOffline("sidecar");
+
+        Assert.NotEqual(stored.GeoJsonMd5, offline.GeoJsonMd5);
+        Assert.NotEqual(stored.NavDataSerial, offline.NavDataSerial);
+        Assert.True(offline.PushTargetsMatchOffline(stored));
+        Assert.False(stored.LayoutMatches(offline));
+        Assert.False(stored.PushTargetsMatch(offline));
+
+        Assert.False((stored with { LayoutFormatVersion = stored.LayoutFormatVersion + 1 }).PushTargetsMatchOffline(offline));
+        Assert.False((stored with { LayoutSourceHash = "other" }).PushTargetsMatchOffline(offline));
+        Assert.False((stored with { PushTargetSourceHash = "other" }).PushTargetsMatchOffline(offline));
+        Assert.False((stored with { PushSidecarHash = "other" }).PushTargetsMatchOffline(offline));
+    }
+
     private static PrecomputeKey Stored() =>
         new()
         {

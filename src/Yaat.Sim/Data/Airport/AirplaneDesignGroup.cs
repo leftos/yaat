@@ -146,6 +146,27 @@ public static class AirplaneDesignGroups
     }
 
     /// <summary>
+    /// The design group of an aircraft type: the group of its FAA record (<see cref="OfRecord"/>), when the database has
+    /// a record for the type and it gives a group, else the smallest group covering its span
+    /// (<see cref="SmallestCoveringSpan"/> over <see cref="AircraftFootprint.ResolveWingspanFt"/>, which falls back by
+    /// category when the record gives none).
+    /// </summary>
+    /// <param name="aircraftType">ICAO type designator, prefixes and suffixes allowed.</param>
+    /// <returns>The design group.</returns>
+    public static AirplaneDesignGroup GroupForType(string aircraftType)
+    {
+        FaaAircraftRecord? record = FaaAircraftDatabase.Get(aircraftType);
+        string? warning = null;
+        AirplaneDesignGroup? group = record is null ? null : OfRecord(record, out warning);
+        if (warning is not null)
+        {
+            Log.LogDebug("{Warning}", warning);
+        }
+
+        return group ?? SmallestCoveringSpan(AircraftFootprint.ResolveWingspanFt(aircraftType));
+    }
+
+    /// <summary>
     /// The taxiway centreline-to-object separation for the group, feet: half the taxiway object-free area, the
     /// distance from the centreline inside which nothing may stand while an aircraft of the group taxis on it
     /// (AC 150/5300-13B Table 4-1, 0.7·W + 10 ft).

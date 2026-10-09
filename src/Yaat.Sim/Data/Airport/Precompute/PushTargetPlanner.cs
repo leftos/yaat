@@ -131,6 +131,65 @@ public static class PushTargetPlanner
             Forced = false,
         };
 
+    /// <summary>
+    /// <see cref="Compute"/> for one stand and one design group, planned on the calling thread: the entry
+    /// <see cref="ComputeStands"/> produces for that stand and group, with only that group's envelope planned. Null when
+    /// the layout carries no such stand, the stand has no heading, or the envelopes carry no envelope for
+    /// <paramref name="group"/>. The airport-wide warnings <see cref="StandDepartures.WarnAboutOverrides"/> holds are
+    /// not emitted here, because a caller planning one stand as a menu opens does not want them on every call; a caller
+    /// that wants them runs that once per layout.
+    /// </summary>
+    /// <param name="layout">The airport's ground layout.</param>
+    /// <param name="designGroupEnvelopes">The envelope per design group.</param>
+    /// <param name="sidecars">The airport sidecars the movement-area classification is built from.</param>
+    /// <param name="standName">The stand's name, ordinal.</param>
+    /// <param name="group">The aircraft's design group.</param>
+    /// <returns>The stand's entry for that group, or null when there is nothing to plan it from.</returns>
+    public static PushTargetEntry? ComputeStand(
+        AirportGroundLayout layout,
+        DesignGroupEnvelopes designGroupEnvelopes,
+        AirportSidecarCatalog sidecars,
+        string standName,
+        AirplaneDesignGroup group
+    )
+    {
+        ArgumentNullException.ThrowIfNull(layout);
+        ArgumentNullException.ThrowIfNull(designGroupEnvelopes);
+        ArgumentNullException.ThrowIfNull(sidecars);
+        ArgumentException.ThrowIfNullOrWhiteSpace(standName);
+
+        GroundNode? stand = Stands(layout).FirstOrDefault(n => string.Equals(n.Name, standName, StringComparison.Ordinal));
+        if (stand is null)
+        {
+            Log.LogDebug("Stand {Stand} at {Airport} is not a named parking node; no push targets", standName, layout.AirportId);
+            return null;
+        }
+
+        if (stand.TrueHeading is not { } heading)
+        {
+            Log.LogDebug("Stand {Name} at {Airport} has no heading; no push targets", stand.Name, layout.AirportId);
+            return null;
+        }
+
+        DesignGroupEnvelope? envelope = designGroupEnvelopes.Envelopes.FirstOrDefault(e =>
+            string.Equals(e.Group, group.ToString(), StringComparison.Ordinal)
+        );
+        if (envelope is null)
+        {
+            Log.LogDebug("Design group {Group} has no envelope; no push targets for stand {Stand} at {Airport}", group, standName, layout.AirportId);
+            return null;
+        }
+
+        if (StandDepartures.StandDepartureOf(layout, stand, sidecars) == StandDeparture.TaxiOut)
+        {
+            Log.LogDebug("Stand {Name} at {Airport} is a taxi-out stand; no push targets", stand.Name, layout.AirportId);
+            return new PushTargetEntry(stand.Name!, envelope.Group, []);
+        }
+
+        var classification = MovementAreaClassification.Build(layout, sidecars);
+        return PlanGroup(new StandContext(layout, classification, stand, heading), envelope);
+    }
+
     private static List<PushTargetEntry> ComputeFor(
         AirportGroundLayout layout,
         DesignGroupEnvelopes designGroupEnvelopes,
@@ -146,44 +205,54 @@ public static class PushTargetPlanner
 
         var classification = MovementAreaClassification.Build(layout, sidecars);
         StandDepartures.WarnAboutOverrides(layout, sidecars);
-        List<PushTargetEntry>[] perStand = PlanInParallel(stands, parallelOptions, PlanStand);
+        List<PushTargetEntry>[] perStand = PlanInParallel(
+            stands,
+            parallelOptions,
+            stand => PlanStand(layout, designGroupEnvelopes, sidecars, classification, stand)
+        );
 
         return [.. perStand.SelectMany(e => e).OrderBy(e => e.StandName, StringComparer.Ordinal).ThenBy(e => e.DesignGroup, StringComparer.Ordinal)];
+    }
 
-        List<PushTargetEntry> PlanStand(GroundNode stand)
+    /// <summary>One stand's entries, one per design group, and none at all when the stand has no heading.</summary>
+    private static List<PushTargetEntry> PlanStand(
+        AirportGroundLayout layout,
+        DesignGroupEnvelopes designGroupEnvelopes,
+        AirportSidecarCatalog sidecars,
+        MovementAreaClassification classification,
+        GroundNode stand
+    )
+    {
+        if (stand.TrueHeading is not { } heading)
         {
-            var entries = new List<PushTargetEntry>();
-            if (stand.TrueHeading is not { } heading)
-            {
-                Log.LogDebug("Stand {Name} at {Airport} has no heading; no push targets", stand.Name, layout.AirportId);
-                return entries;
-            }
-
-            if (StandDepartures.StandDepartureOf(layout, stand, sidecars) == StandDeparture.TaxiOut)
-            {
-                Log.LogDebug("Stand {Name} at {Airport} is a taxi-out stand; no push targets", stand.Name, layout.AirportId);
-                entries.AddRange(designGroupEnvelopes.Envelopes.Select(e => new PushTargetEntry(stand.Name!, e.Group, [])));
-                return entries;
-            }
-
-            List<StandCandidate> candidates = [.. TaxiwayCandidates(layout, classification, stand), .. SpotCandidates(layout, stand)];
-            foreach (DesignGroupEnvelope envelope in designGroupEnvelopes.Envelopes)
-            {
-                var context = new PlanContext
-                {
-                    Layout = layout,
-                    MovementArea = classification,
-                    StandName = stand.Name!,
-                    Group = envelope.Group,
-                    Start = new TugPose(stand.Position, heading.Degrees),
-                    Footprint = DesignGroupEnvelopes.FootprintOf(envelope),
-                };
-                List<PrecomputedPushTarget> planned = [.. candidates.Select(c => Plan(context, c)).OfType<PrecomputedPushTarget>()];
-                entries.Add(new PushTargetEntry(stand.Name!, envelope.Group, Capped(Sorted(planned), context)));
-            }
-
-            return entries;
+            Log.LogDebug("Stand {Name} at {Airport} has no heading; no push targets", stand.Name, layout.AirportId);
+            return [];
         }
+
+        if (StandDepartures.StandDepartureOf(layout, stand, sidecars) == StandDeparture.TaxiOut)
+        {
+            Log.LogDebug("Stand {Name} at {Airport} is a taxi-out stand; no push targets", stand.Name, layout.AirportId);
+            return [.. designGroupEnvelopes.Envelopes.Select(e => new PushTargetEntry(stand.Name!, e.Group, []))];
+        }
+
+        var context = new StandContext(layout, classification, stand, heading);
+        return [.. designGroupEnvelopes.Envelopes.Select(e => PlanGroup(context, e))];
+    }
+
+    /// <summary>The stand's entry for one design group's envelope, planned as a live push off the stand.</summary>
+    private static PushTargetEntry PlanGroup(StandContext stand, DesignGroupEnvelope envelope)
+    {
+        var context = new PlanContext
+        {
+            Layout = stand.Layout,
+            MovementArea = stand.MovementArea,
+            StandName = stand.Node.Name!,
+            Group = envelope.Group,
+            Start = new TugPose(stand.Node.Position, stand.Heading.Degrees),
+            Footprint = DesignGroupEnvelopes.FootprintOf(envelope),
+        };
+        List<PrecomputedPushTarget> planned = [.. stand.Candidates.Select(c => Plan(context, c)).OfType<PrecomputedPushTarget>()];
+        return new PushTargetEntry(stand.Node.Name!, envelope.Group, Capped(Sorted(planned), context));
     }
 
     /// <summary>
@@ -372,6 +441,15 @@ public static class PushTargetPlanner
         (GeoMath.DistanceNm(stand.Position, node.Position) * GeoMath.FeetPerNm) <= CandidateSearchFt;
 
     private sealed record StandCandidate(PushTargetKind Kind, string Name, TugGoal Goal, double[] Facings);
+
+    /// <summary>
+    /// What every plan of one stand shares, whatever the design group: its pose and the candidate goals, both planned
+    /// for every group, so a stand's candidates are built once.
+    /// </summary>
+    private sealed record StandContext(AirportGroundLayout Layout, MovementAreaClassification MovementArea, GroundNode Node, TrueHeading Heading)
+    {
+        public List<StandCandidate> Candidates { get; } = [.. TaxiwayCandidates(Layout, MovementArea, Node), .. SpotCandidates(Layout, Node)];
+    }
 
     /// <summary>What every plan of one stand and design group shares.</summary>
     private sealed record PlanContext

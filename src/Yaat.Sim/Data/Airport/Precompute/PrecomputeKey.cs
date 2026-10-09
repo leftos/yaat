@@ -30,6 +30,16 @@ public sealed record PrecomputeKey
     public required string PushSidecarHash { get; init; }
 
     /// <summary>
+    /// The key of data computed now from the offline facts alone, for comparison through
+    /// <see cref="PushTargetsMatchOffline"/>: its four offline fields (the layout format version and the three source
+    /// hashes) are current, its <see cref="GeoJsonMd5"/> is empty and its <see cref="NavDataSerial"/> zero, so
+    /// <see cref="LayoutMatches"/> and <see cref="PushTargetsMatch"/> must not be used to compare it.
+    /// </summary>
+    /// <param name="pushSidecarHash">The airport's sidecar hash (<see cref="AirportSidecarHash.For"/>).</param>
+    /// <returns>The key.</returns>
+    public static PrecomputeKey CurrentOffline(string pushSidecarHash) => Current(string.Empty, 0, pushSidecarHash);
+
+    /// <summary>
     /// The key of data computed now, from the airport's GeoJSON hash, the loaded navdata serial and the airport's sidecar
     /// hash (<see cref="AirportSidecarHash.For"/>).
     /// </summary>
@@ -59,5 +69,22 @@ public sealed record PrecomputeKey
     {
         ArgumentNullException.ThrowIfNull(other);
         return (LayoutMatches(other)) && (PushTargetSourceHash == other.PushTargetSourceHash) && (PushSidecarHash == other.PushSidecarHash);
+    }
+
+    /// <summary>
+    /// True when the push targets computed under <paramref name="other"/> are still current to a reader that has no
+    /// vNAS: the layout format version and the three source hashes all match. The GeoJSON MD5 and the navdata serial are
+    /// online facts only the maintainer's run knows, so they are not compared; compare through
+    /// <see cref="CurrentOffline"/>, which leaves them blank.
+    /// </summary>
+    /// <param name="other">The key to compare with, as a rule <see cref="CurrentOffline"/> made.</param>
+    /// <returns>True when the push targets are current offline.</returns>
+    public bool PushTargetsMatchOffline(PrecomputeKey other)
+    {
+        ArgumentNullException.ThrowIfNull(other);
+        return (LayoutFormatVersion == other.LayoutFormatVersion)
+            && (LayoutSourceHash == other.LayoutSourceHash)
+            && (PushTargetSourceHash == other.PushTargetSourceHash)
+            && (PushSidecarHash == other.PushSidecarHash);
     }
 }

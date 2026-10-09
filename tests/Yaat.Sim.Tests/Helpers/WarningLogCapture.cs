@@ -11,16 +11,19 @@ internal sealed class WarningLogCapture : ILoggerProvider, ILogger
     /// <summary>The words of the navigator's warning when a restored playback does not belong to the segment set up.</summary>
     internal const string PlaybackDropped = "restored playback dropped";
 
-    private readonly List<string> _warnings = [];
+    private readonly List<(string Message, Exception? Exception)> _entries = [];
 
     /// <summary>The captured lines, in the order they were logged.</summary>
-    public IReadOnlyList<string> Warnings
+    public IReadOnlyList<string> Warnings => [.. Entries.Select(entry => entry.Message)];
+
+    /// <summary>The captured lines with the exception each was logged with, in the order they were logged.</summary>
+    public IReadOnlyList<(string Message, Exception? Exception)> Entries
     {
         get
         {
-            lock (_warnings)
+            lock (_entries)
             {
-                return [.. _warnings];
+                return [.. _entries];
             }
         }
     }
@@ -33,20 +36,20 @@ internal sealed class WarningLogCapture : ILoggerProvider, ILogger
         return capture;
     }
 
-    public ILogger CreateLogger(string categoryName) => this;
+    ILogger ILoggerProvider.CreateLogger(string categoryName) => this;
 
-    public IDisposable? BeginScope<TState>(TState state)
-        where TState : notnull => null;
+    IDisposable? ILogger.BeginScope<TState>(TState state) => null;
 
     public bool IsEnabled(LogLevel logLevel) => logLevel >= LogLevel.Warning;
 
-    public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+    void ILogger.Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
     {
         if (IsEnabled(logLevel))
         {
-            lock (_warnings)
+            (string Message, Exception? Exception) entry = (formatter(state, exception), exception);
+            lock (_entries)
             {
-                _warnings.Add(formatter(state, exception));
+                _entries.Add(entry);
             }
         }
     }

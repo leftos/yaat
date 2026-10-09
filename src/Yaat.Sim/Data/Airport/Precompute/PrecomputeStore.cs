@@ -71,6 +71,57 @@ public sealed class PrecomputeStore(string root)
     }
 
     /// <summary>
+    /// Reads only the push targets for <paramref name="airportId"/>, false when no file exists. The stored layout is left
+    /// in the document and never materialized, so a caller that has its own layout (the client) does not pay for a second
+    /// parse, repair and graph. A file that cannot be opened, or decompressed, or parsed, or that carries no key or push
+    /// targets, throws <see cref="InvalidDataException"/> naming its path.
+    /// </summary>
+    /// <param name="airportId">The airport, in the form the file is named for (<c>OAK.json.br</c>).</param>
+    /// <param name="key">The key the push targets were computed under.</param>
+    /// <param name="pushTargets">The push targets, one entry per stand and design group.</param>
+    /// <returns>True when the airport has a file.</returns>
+    public bool TryReadPushTargets(
+        string airportId,
+        [NotNullWhen(true)] out PrecomputeKey? key,
+        [NotNullWhen(true)] out IReadOnlyList<PushTargetEntry>? pushTargets
+    )
+    {
+        string path = PathFor(airportId);
+        if (!File.Exists(path))
+        {
+            key = null;
+            pushTargets = null;
+            return false;
+        }
+
+        // Opened outside the try so a sharing violation or an access denial surfaces as itself, not as corruption.
+        using FileStream file = File.OpenRead(path);
+        PushOnlyEntry? read;
+        try
+        {
+            using var brotli = new BrotliStream(file, CompressionMode.Decompress);
+            read = JsonSerializer.Deserialize<PushOnlyEntry>(brotli, GroundLayoutSerializer.Options);
+        }
+        // BrotliStream throws InvalidOperationException ("Decoder ran into invalid data") on non-Brotli input; the other
+        // three cover a truncated or malformed stream (InvalidDataException, IOException) and a non-JSON document
+        // (JsonException).
+        catch (Exception ex) when (ex is InvalidOperationException or InvalidDataException or IOException or JsonException)
+        {
+            throw new InvalidDataException($"Corrupt precompute cache file: {path}", ex);
+        }
+
+        // Checked outside the try so this text reaches the caller rather than being re-wrapped as corruption.
+        if ((read is null) || (read.Key is null) || (read.PushTargets is null))
+        {
+            throw new InvalidDataException($"Precompute cache file has no usable entry: {path}");
+        }
+
+        key = read.Key;
+        pushTargets = read.PushTargets;
+        return true;
+    }
+
+    /// <summary>
     /// Writes <paramref name="entry"/>, replacing any existing file through a uniquely named temporary sibling and a
     /// rename. The bytes are identical for the same entry: the documents' declaration order is fixed, the push targets
     /// are sorted by stand then design group, and nothing is timestamped.
@@ -140,4 +191,10 @@ public sealed class PrecomputeStore(string root)
             }
         }
     }
+
+    /// <summary>
+    /// The part of the stored document <see cref="TryReadPushTargets"/> maps: the key and the push targets. Every other
+    /// member of the document, the layout in particular, is unmapped and skipped.
+    /// </summary>
+    private sealed record PushOnlyEntry(PrecomputeKey? Key, IReadOnlyList<PushTargetEntry>? PushTargets);
 }
