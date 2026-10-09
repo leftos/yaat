@@ -8,7 +8,6 @@
 
 ## Precompute cache (feat/precompute-cache)
 
-- [/] YAAT-440 Group, filter and distance-label the ground view's Push Back To submenu · release vNext
 - [ ] YAAT-475 Merge feat/precompute-cache (#951) · release vNext
 - [ ] YAAT-497 Split the tug planner's shared pieces out of the precompute layout source set · release vNext
 - [ ] YAAT-553 Regenerate the precompute cache on feat/precompute-cache before its merge · release vNext
@@ -18,7 +17,6 @@
 - [ ] YAAT-407 Merge feat/follow-on-graph (#881) · release vNext
 - [ ] YAAT-507 FOLLOWG clearing route stops one node before the next runway's hold bar
 - [ ] YAAT-508 FOLLOWG clearing check ignores traffic crossing at a junction
-- [/] YAAT-552 FOLLOWG: give a jet lead's follower the fillet arc at a corner sharper than 135° · release vNext
 - [ ] YAAT-554 FOLLOWG: decide whether a same-edge head-on pair keeps the follower moving too
 
 ## Bug reports and feature requests
@@ -49,7 +47,6 @@
 - [ ] YAAT-478 Resolve a shorthand expected approach before picking the visual approach's default runway
 - [ ] YAAT-503 Context-menu For section is offered for a delayed-spawn selection
 - [ ] YAAT-517 Hold short of… destination-runway row sends a no-op HS
-- [/] YAAT-521 Pattern-entry runway flyout: rotated glyphs, active runways first, landable first · release vNext
 - [ ] YAAT-522 Cleared for takeoff flyout: VFR pattern exits, turn direct a fix, initial altitude; IFR heading · release vNext
 - [ ] YAAT-524 Cleared for takeoff menu's "360 overhead" sends CTO 360, a heading
 - [ ] YAAT-545 Close the gap the quick-command label row leaves above the icon strip
@@ -461,3 +458,5 @@
 - [ ] YAAT-548 Answer the Active runways prompt in the just-landed and ground-taxi-route capture scenes
 - [ ] YAAT-549 Show an error for PAUSE, UNPAUSE, SIMRATE and the TDLS ops verb when the send fails, instead of throwing
 - [ ] YAAT-551 Make launch_yaat start the client cloaked and silent by default
+- [ ] YAAT-560 Give the CL60 profile real landing and takeoff distances
+- [ ] YAAT-561 Put GeoMath.ProjectPoint on the same earth model as DistanceNm
