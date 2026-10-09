@@ -67,7 +67,9 @@ public static class FollowRoutePlanner
     /// <param name="follower">The aircraft told to follow.</param>
     /// <param name="lead">The aircraft it follows.</param>
     /// <returns>
-    /// <see cref="FollowRoutePlan.WaitForLead"/> while the lead pushes back, is parked or is off every taxiway;
+    /// <see cref="FollowRoutePlan.WaitForLead"/> while the lead pushes back, is parked or is off every taxiway and every fillet
+    /// arc of its route (<see cref="LocateLead"/>), and while it rounds an arc the follower may not drive with no path behind it
+    /// (<see cref="BuildLeadPath"/>);
     /// <see cref="FollowRoutePlan.FollowerAhead"/> when the follower is ahead of the lead on the edge it is on or on its
     /// route ahead of that edge; <see cref="FollowRoutePlan.NoPath"/> when no taxi path reaches the lead's path; otherwise
     /// <see cref="FollowRoutePlan.Joinable"/>.
@@ -88,13 +90,13 @@ public static class FollowRoutePlanner
 
     private static FollowRoutePlan Plan(AirportGroundLayout layout, AircraftState follower, AircraftState lead, bool requireAhead)
     {
-        if (TaxiingEdge(layout, lead) is not { } leadEdge)
+        if (LocateLead(layout, lead) is not { } located)
         {
             Log.LogDebug("[FollowPlan] {Follower}: {Lead} is not on a taxiway yet; wait for it", follower.Callsign, lead.Callsign);
             return new FollowRoutePlan.WaitForLead();
         }
 
-        (DirectionalEdge current, IReadOnlyList<TaxiRouteSegment> routeAhead) = OnRoute(leadEdge, lead);
+        (DirectionalEdge current, IReadOnlyList<TaxiRouteSegment> routeAhead) = located;
         GroundEdge? followerEdge = EdgeUnder(layout, follower);
         if (IsAheadOfLead(followerEdge, follower, lead, current, routeAhead))
         {
@@ -102,7 +104,16 @@ public static class FollowRoutePlanner
             return new FollowRoutePlan.FollowerAhead();
         }
 
-        LeadPath path = BuildLeadPath(layout, lead, follower, current, routeAhead);
+        if (BuildLeadPath(layout, lead, follower, current, routeAhead) is not { } path)
+        {
+            Log.LogDebug(
+                "[FollowPlan] {Follower}: {Lead} is rounding an arc the follower cannot drive and has no path behind it yet; wait for it",
+                follower.Callsign,
+                lead.Callsign
+            );
+            return new FollowRoutePlan.WaitForLead();
+        }
+
         (int From, int To)? back = requireAhead ? null : BackMove(layout, follower);
         if ((followerEdge is not null) && Joins(followerEdge, current.FromNodeId, current.ToNodeId))
         {
@@ -664,7 +675,9 @@ public static class FollowRoutePlanner
 
     /// <summary>
     /// The lead's path as directed edges, oldest first, and the index of the node ahead of the lead on the edge it is on
-    /// (node <c>i</c> is where edge <c>i</c> starts; the last edge's end is node <c>Edges.Count</c>).
+    /// (node <c>i</c> is where edge <c>i</c> starts; the last edge's end is node <c>Edges.Count</c>). <c>Edges.Count + 1</c> when
+    /// the path ends behind the lead, cut where it rounds a fillet arc the follower may not drive (<see cref="BuildLeadPath"/>):
+    /// no node of the path lies ahead of it.
     /// </summary>
     private sealed record LeadPath(List<DirectionalEdge> Edges, int AheadIndex);
 
@@ -682,9 +695,14 @@ public static class FollowRoutePlanner
             TaxiPathfinder.FindRouteToNearestGoal(layout, fromNodeId, goals, Category, Wake, forbiddenFirstMove);
     }
 
-    /// <summary>The edge the lead taxis on; null while it pushes back, is parked, or is off every taxiway.</summary>
-    private static GroundEdge? TaxiingEdge(AirportGroundLayout layout, AircraftState lead) =>
-        lead.Phases?.CurrentPhase is PushbackPhase or AtParkingPhase ? null : EdgeUnder(layout, lead);
+    /// <summary>
+    /// The edge the lead taxis on, pointed the way it is going, and its route ahead of that edge (<see cref="OnRoute"/>); null
+    /// while it pushes back or is parked, and while it is off every taxiway and every fillet arc of its route.
+    /// </summary>
+    private static (DirectionalEdge Current, IReadOnlyList<TaxiRouteSegment> RouteAhead)? LocateLead(
+        AirportGroundLayout layout,
+        AircraftState lead
+    ) => lead.Phases?.CurrentPhase is PushbackPhase or AtParkingPhase ? null : OnRoute(EdgeUnder(layout, lead), lead);
 
     private static GroundEdge? EdgeUnder(AirportGroundLayout layout, AircraftState aircraft) =>
         TaxiEdgeLocator.EdgeUnder(
@@ -709,16 +727,32 @@ public static class FollowRoutePlanner
 
     /// <summary>
     /// Whether the route <paramref name="lead"/> drives now (<see cref="RemainingRoute"/>) is still the one a plan's lead path from
-    /// its merge, <paramref name="leadPathFromMerge"/>, was built from: no route left, or a route that ends where the path ends and
-    /// whose segments, from the first one on the path, lie along the path in order (the path may hold bridging edges between
-    /// them). With no lead path from the merge — the merge is where the lead's path ends — a route that ends at
-    /// <paramref name="mergeNode"/>. False once the lead is re-routed — a new <c>TAXI</c>, or a lead that is itself a follower
-    /// planning a new follow route — so the follower plans again that tick.
+    /// its merge, <paramref name="leadPathFromMerge"/>, was built from: no route left, or a route whose segments, from the first
+    /// one on the path, lie along the path in order (the path may hold bridging edges between them, and the square way round a
+    /// fillet arc too tight for the follower in place of the arc, <see cref="IndexOnPath"/>) and that ends where the path ends —
+    /// or runs on past the path's end where the planner cut it for <paramref name="follower"/> (<see cref="PathCutBefore"/>). With
+    /// no lead path from the merge — the merge is where the lead's path ends — a route that ends at <paramref name="mergeNode"/>.
+    /// A route whose first segment is a fillet arc the follower may not drive out of the path's end (or the merge, with no path
+    /// from it) matches too: the lead is on that arc and the planner cut its path there (<see cref="IsCutArcFrom"/>). False
+    /// once the lead is re-routed — a new <c>TAXI</c>, or a lead that is itself a follower planning a new follow route — so
+    /// the follower plans again that tick.
     /// </summary>
-    public static bool LeadRouteMatchesPath(AircraftState lead, int mergeNode, IReadOnlyList<DirectionalEdge> leadPathFromMerge)
+    public static bool LeadRouteMatchesPath(
+        AirportGroundLayout layout,
+        AircraftState follower,
+        AircraftState lead,
+        int mergeNode,
+        IReadOnlyList<DirectionalEdge> leadPathFromMerge
+    )
     {
         IReadOnlyList<TaxiRouteSegment> route = RemainingRoute(lead);
         if (route.Count == 0)
+        {
+            return true;
+        }
+
+        DirectionalEdge? arrivedOn = leadPathFromMerge.Count == 0 ? null : leadPathFromMerge[^1];
+        if (IsCutArcFrom(layout, follower, arrivedOn, arrivedOn?.ToNodeId ?? mergeNode, route[0]))
         {
             return true;
         }
@@ -728,16 +762,25 @@ public static class FollowRoutePlanner
             return route[^1].ToNodeId == mergeNode;
         }
 
-        if (route[^1].ToNodeId != leadPathFromMerge[^1].ToNodeId)
-        {
-            return false;
-        }
+        return RouteRunsAlongPath(layout, follower, route, leadPathFromMerge);
+    }
 
+    /// <summary>
+    /// Whether <paramref name="route"/>'s segments, from the first one on <paramref name="path"/>, lie along it in order
+    /// (<see cref="IndexOnPath"/>) and end where it ends, or run on past a cut (<see cref="PathCutBefore"/>).
+    /// </summary>
+    private static bool RouteRunsAlongPath(
+        AirportGroundLayout layout,
+        AircraftState follower,
+        IReadOnlyList<TaxiRouteSegment> route,
+        IReadOnlyList<DirectionalEdge> path
+    )
+    {
         int onPath = 0;
         bool found = false;
         foreach (TaxiRouteSegment segment in route)
         {
-            int at = IndexOnPath(leadPathFromMerge, segment, onPath);
+            int at = IndexOnPath(path, segment, onPath);
             if (at >= 0)
             {
                 found = true;
@@ -745,21 +788,109 @@ public static class FollowRoutePlanner
             }
             else if (found)
             {
-                return false;
+                return PathCutBefore(layout, follower, path, onPath, segment);
             }
         }
 
-        return found;
+        return found && (route[^1].ToNodeId == path[^1].ToNodeId);
     }
 
     /// <summary>
-    /// The index of <paramref name="segment"/>'s directed edge on <paramref name="path"/> from <paramref name="from"/> on; -1 when absent.
+    /// Whether <paramref name="segment"/> is a fillet arc out of node <paramref name="nodeId"/> that <paramref name="follower"/>
+    /// may not drive (<see cref="IsRefusedArc"/>), not even at its tight-turn floor (<see cref="TightArcDrivable"/>), and that has
+    /// no acceptable square way round from <paramref name="arrivedOn"/>, the path edge into that node (null when not known)
+    /// (<see cref="SquareWayRound"/>): the arc <see cref="TryAppendUsable"/> cuts the path at. The lead's first remaining
+    /// segment is that arc, out of the lead path's end, when the lead is on it and the planner cut the path there
+    /// (<see cref="BuildLeadPath"/>).
+    /// </summary>
+    private static bool IsCutArcFrom(
+        AirportGroundLayout layout,
+        AircraftState follower,
+        DirectionalEdge? arrivedOn,
+        int nodeId,
+        TaxiRouteSegment segment
+    )
+    {
+        var followerClass = TaxiClass.Of(follower);
+        return (segment.FromNodeId == nodeId)
+            && (segment.Edge.Edge is GroundArc arc)
+            && IsRefusedArc(layout, followerClass, segment.Edge)
+            && !TightArcDrivable(layout, followerClass, segment.Edge)
+            && (SquareWayRound(layout, arrivedOn, segment.Edge, arc, followerClass) is null);
+    }
+
+    /// <summary>
+    /// Whether the planner cut <paramref name="path"/> short of <paramref name="next"/>, the lead route's first segment not on it,
+    /// <paramref name="onPath"/> the path edges the route has run along up to it. A fillet arc out of the path's last node is a
+    /// cut when <paramref name="follower"/> may not drive it, not even at its tight-turn floor (<see cref="IsCutArcFrom"/>; the
+    /// arc had no acceptable square way round, <see cref="TryAppendUsable"/>), wherever the route's earlier segments end on the
+    /// path: the path may end in a bridge to the arc. A segment that does not start at the path's last node is a cut once the
+    /// route has run along the whole path (the gap to it bridged by no path the follower may drive, <see cref="TryBridge"/>). A
+    /// straight edge out of the path's last node, or an arc the follower may drive, is a route run on past the path's end — a
+    /// re-route — never a cut.
+    /// </summary>
+    private static bool PathCutBefore(
+        AirportGroundLayout layout,
+        AircraftState follower,
+        IReadOnlyList<DirectionalEdge> path,
+        int onPath,
+        TaxiRouteSegment next
+    )
+    {
+        bool startsAtEnd = next.FromNodeId == path[^1].ToNodeId;
+        if (startsAtEnd && (next.Edge.Edge is GroundArc))
+        {
+            return IsCutArcFrom(layout, follower, path[^1], path[^1].ToNodeId, next);
+        }
+
+        return !startsAtEnd && (onPath == path.Count);
+    }
+
+    /// <summary>
+    /// The index of <paramref name="segment"/>'s directed edge on <paramref name="path"/> from <paramref name="from"/> on; -1 when
+    /// absent. A fillet arc the path does not hold matches the square way round it the planner put there in its place
+    /// (<see cref="TryAppendUsable"/>): a path edge leaving the arc's start, then the first later one reaching its end, whose
+    /// index it is — when that run is no longer than the planner accepts for a square way round the arc
+    /// (<see cref="SquareWayStubFactor"/> times <see cref="ArcStubLengthFt"/>), so a route cut short over an arc never matches
+    /// a longer way round still on the path.
     /// </summary>
     private static int IndexOnPath(IReadOnlyList<DirectionalEdge> path, TaxiRouteSegment segment, int from)
     {
-        for (int i = from; i < path.Count; i++)
+        int exact = FirstIndex(path, from, edge => (edge.FromNodeId == segment.FromNodeId) && (edge.ToNodeId == segment.ToNodeId));
+        if ((exact >= 0) || (segment.Edge.Edge is not GroundArc arc))
         {
-            if ((path[i].FromNodeId == segment.FromNodeId) && (path[i].ToNodeId == segment.ToNodeId))
+            return exact;
+        }
+
+        int leaves = FirstIndex(path, from, edge => edge.FromNodeId == segment.FromNodeId);
+        int reaches = leaves < 0 ? -1 : FirstIndex(path, leaves, edge => edge.ToNodeId == segment.ToNodeId);
+        return (reaches >= 0) && (SpanFt(path, leaves, reaches) <= (SquareWayStubFactor * ArcStubLengthFt(arc))) ? reaches : -1;
+    }
+
+    /// <summary>
+    /// The summed length (ft) of <paramref name="path"/>'s edges <paramref name="first"/> to <paramref name="last"/>, both
+    /// included.
+    /// </summary>
+    private static double SpanFt(IReadOnlyList<DirectionalEdge> path, int first, int last)
+    {
+        double nm = 0.0;
+        for (int i = first; i <= last; i++)
+        {
+            nm += path[i].DistanceNm;
+        }
+
+        return nm * GeoMath.FeetPerNm;
+    }
+
+    /// <summary>
+    /// The index of the first item of <paramref name="items"/> from <paramref name="from"/> on that <paramref name="match"/>
+    /// accepts; -1 when none.
+    /// </summary>
+    private static int FirstIndex<T>(IReadOnlyList<T> items, int from, Func<T, bool> match)
+    {
+        for (int i = from; i < items.Count; i++)
+        {
+            if (match(items[i]))
             {
                 return i;
             }
@@ -781,23 +912,42 @@ public static class FollowRoutePlanner
     /// The edge the lead is on, pointed the way it is going, and the lead's route ahead of that edge. On its route, the first
     /// remaining segment over the edge points it, and only the segments after that one lie ahead: the lead has passed those
     /// before it even while its segment index still names one — held on its first segment through an entry-alignment turn, or
-    /// sampled onto the next edge before it reaches the node. Off its route, the edge points toward the end nearer its heading
-    /// (<see cref="OrientByHeading"/>) and every remaining segment lies ahead.
+    /// sampled onto the next edge before it reaches the node. When no remaining segment runs over <paramref name="edge"/> — the
+    /// straight edge under the lead, null off every taxiway — the lead is on the first remaining fillet arc whose curve it lies
+    /// beside (<see cref="BesideArc"/>): rounding an arc, the straight edge nearest it is a stub the arc cuts past. That arc,
+    /// as the route drives it, is the edge it is on, and only the segments after it lie ahead. Off its route, the edge points
+    /// toward the end nearer its heading (<see cref="OrientByHeading"/>) and every remaining segment lies ahead; null with no
+    /// edge under the lead and no route arc beside it.
     /// </summary>
-    private static (DirectionalEdge Current, IReadOnlyList<TaxiRouteSegment> RouteAhead) OnRoute(GroundEdge edge, AircraftState lead)
+    private static (DirectionalEdge Current, IReadOnlyList<TaxiRouteSegment> RouteAhead)? OnRoute(GroundEdge? edge, AircraftState lead)
     {
         IReadOnlyList<TaxiRouteSegment> remaining = RemainingRoute(lead);
-        for (int i = 0; i < remaining.Count; i++)
+        if (edge is not null)
         {
-            TaxiRouteSegment segment = remaining[i];
-            if (Joins(edge, segment.FromNodeId, segment.ToNodeId))
+            int onEdge = FirstIndex(remaining, 0, segment => Joins(edge, segment.FromNodeId, segment.ToNodeId));
+            if (onEdge >= 0)
             {
-                return (Directed(edge, segment.Edge.FromNode, segment.Edge.ToNode), [.. remaining.Skip(i + 1)]);
+                return (Directed(edge, remaining[onEdge].Edge.FromNode, remaining[onEdge].Edge.ToNode), [.. remaining.Skip(onEdge + 1)]);
             }
         }
 
-        return (OrientByHeading(edge, lead), remaining);
+        int onArc = FirstIndex(remaining, 0, segment => BesideArc(segment, lead.Position));
+        if (onArc >= 0)
+        {
+            return (remaining[onArc].Edge, [.. remaining.Skip(onArc + 1)]);
+        }
+
+        return edge is null ? null : (OrientByHeading(edge, lead), remaining);
     }
+
+    /// <summary>
+    /// Whether <paramref name="segment"/> is a fillet arc whose curve passes within <see cref="TaxiEdgeLocator.OnTaxiwayMaxOffsetFt"/>
+    /// of <paramref name="position"/> at a point strictly between its ends (<see cref="TaxiEdgeLocator.InsideArcDistanceFt"/>).
+    /// </summary>
+    private static bool BesideArc(TaxiRouteSegment segment, LatLon position) =>
+        (segment.Edge.Edge is GroundArc arc)
+        && (TaxiEdgeLocator.InsideArcDistanceFt(arc, position) is { } offFt)
+        && (offFt <= TaxiEdgeLocator.OnTaxiwayMaxOffsetFt);
 
     /// <summary>
     /// <paramref name="edge"/> pointed toward the end nearer <paramref name="lead"/>'s heading, which a turn in progress can
@@ -844,7 +994,15 @@ public static class FollowRoutePlanner
     private static bool Joins(GroundEdge edge, int nodeA, int nodeB) =>
         ((edge.Nodes[0].Id == nodeA) && (edge.Nodes[1].Id == nodeB)) || ((edge.Nodes[0].Id == nodeB) && (edge.Nodes[1].Id == nodeA));
 
-    private static LeadPath BuildLeadPath(
+    /// <summary>
+    /// The lead's path: its trail behind <paramref name="current"/>, the edge it is on, then its route ahead. The follower drives
+    /// all of it, so every stretch the planner searches or takes over is held to the follower's taxi class, not the lead's. A
+    /// fillet arc the lead is on that the follower may not drive goes through <see cref="TryAppendUsable"/> as an arc on its
+    /// route ahead does: the square way round in its place, the node ahead of the lead the arc's far end, or the arc at the
+    /// follower's tight-turn floor; with neither, the path ends with the trail, the lead past its end, and the route ahead is
+    /// dropped. Null when that leaves no path: no trail behind the lead.
+    /// </summary>
+    private static LeadPath? BuildLeadPath(
         AirportGroundLayout layout,
         AircraftState lead,
         AircraftState follower,
@@ -852,28 +1010,27 @@ public static class FollowRoutePlanner
         IReadOnlyList<TaxiRouteSegment> routeAhead
     )
     {
-        var taxiClass = TaxiClass.Of(lead);
-        List<DirectionalEdge> edges = [.. TrailBehind(layout, lead, current, taxiClass, TaxiClass.Of(follower)), current];
+        var followerClass = TaxiClass.Of(follower);
+        List<DirectionalEdge> edges = TrailBehind(layout, lead, current, followerClass);
+        if (!TryAppendUsable(layout, edges, current, followerClass, RestOfRouteDropped))
+        {
+            return edges.Count == 0 ? null : new LeadPath(edges, edges.Count + 1);
+        }
+
         int aheadIndex = edges.Count;
-        AppendRoute(layout, edges, routeAhead, taxiClass);
+        AppendRoute(layout, edges, routeAhead, followerClass);
         return new LeadPath(edges, aheadIndex);
     }
 
     /// <summary>
     /// The lead's trail behind <paramref name="current"/>, oldest first, walked back from the newest edge. Each trail edge is
-    /// pointed toward the edge after it; where the two do not meet, the shortest graph path between them fills the gap. The
-    /// walk stops at the first edge no graph path joins, and at the first trail edge whose step back would revisit an edge the
-    /// walk already holds — where the lead reversed, as after a push out along a taxiway it then taxied back down — so the
-    /// path never runs out and back over an edge. A step back that has to fill a gap takes the fillet arc where what it
+    /// pointed toward the edge after it; where the two do not meet, the shortest graph path the follower's class may drive fills
+    /// the gap. The walk stops at the first edge no such path joins, and at the first trail edge whose step back would revisit
+    /// an edge the walk already holds — where the lead reversed, as after a push out along a taxiway it then taxied back down —
+    /// so the path never runs out and back over an edge. A step back that has to fill a gap takes the fillet arc where what it
     /// fills is the straight stubs either side of one the lead rounded (<see cref="CutCorner"/>).
     /// </summary>
-    private static List<DirectionalEdge> TrailBehind(
-        AirportGroundLayout layout,
-        AircraftState lead,
-        DirectionalEdge current,
-        TaxiClass taxiClass,
-        TaxiClass followerClass
-    )
+    private static List<DirectionalEdge> TrailBehind(AirportGroundLayout layout, AircraftState lead, DirectionalEdge current, TaxiClass followerClass)
     {
         List<DirectionalEdge> reversed = [];
         HashSet<(int, int)> held = [EdgeKey(current)];
@@ -886,7 +1043,7 @@ public static class FollowRoutePlanner
                 continue;
             }
 
-            if ((ReachForward(layout, edge, cursor, taxiClass) is not { } step) || !HoldsNoneOf(held, step))
+            if ((ReachForward(layout, edge, cursor, followerClass) is not { } step) || !HoldsNoneOf(held, step))
             {
                 Log.LogDebug(
                     "[FollowPlan] {Lead}: trail edge {A}-{B} joins no new path to node {Cursor}; older trail dropped",
@@ -920,8 +1077,9 @@ public static class FollowRoutePlanner
     /// walk held before that step, the stub on the arc's far side; it never reaches further toward the lead, so a lead that
     /// drove the junction itself, whose trail has no gap there, keeps the junction's edges, and a trail that leaves the
     /// corner and comes back to it keeps its loop. A step of one edge filled no gap and is left alone. The arc must suit
-    /// the follower's class (<see cref="UsableArc"/>). Returns the replaced run, which the caller's held set swaps for the
-    /// arc so a later step back never re-uses it; null when no run is replaced.
+    /// the follower's class (<see cref="UsableArc"/>): an arc tighter than the follower's own main-gear turn radius is
+    /// refused and the run keeps the square corner through the junction. Returns the replaced run, which the caller's held
+    /// set swaps for the arc so a later step back never re-uses it; null when no run is replaced.
     /// </summary>
     private static List<DirectionalEdge>? CutCorner(
         AirportGroundLayout layout,
@@ -978,24 +1136,71 @@ public static class FollowRoutePlanner
     }
 
     /// <summary>
-    /// The arc joining <paramref name="from"/> and <paramref name="to"/> when the follower's class may drive it that way: not
-    /// below the tightest radius any aircraft can steer, and not a move one-way data or a blocked turn forbids — the gates
-    /// <see cref="TaxiPathfinder"/>'s searches apply to the same traversal. A fillet leaves the edge it joins tangent to
-    /// itself, so its entry from either tangent node is no heading change for any category. Null when there is no such arc,
-    /// or it is not usable.
+    /// The first arc joining <paramref name="from"/> and <paramref name="to"/> that the follower's class may drive that way
+    /// (<see cref="ArcDrivable"/>); null when no arc joining them is drivable.
     /// </summary>
-    private static GroundArc? UsableArc(AirportGroundLayout layout, TaxiClass followerClass, GroundNode from, GroundNode to)
-    {
-        if (from.Edges.OfType<GroundArc>().FirstOrDefault(arc => arc.OtherNode(from).Id == to.Id) is not { } arc)
-        {
-            return null;
-        }
+    private static GroundArc? UsableArc(AirportGroundLayout layout, TaxiClass followerClass, GroundNode from, GroundNode to) =>
+        from.Edges.OfType<GroundArc>().FirstOrDefault(arc => (arc.OtherNode(from).Id == to.Id) && ArcDrivable(layout, followerClass, arc, from, to));
 
-        bool forbidden =
-            (arc.MinRadiusOfCurvatureFt < GeometricAdmissibility.MinSteerableArcRadiusFt)
-            || OneWayResolver.GetForbiddenMoves(layout, followerClass.Wake).Contains((from.Id, to.Id))
-            || BlockedTurnResolver.GetBlocked(layout).ForbiddenArcMoves.Contains((from.Id, to.Id));
-        return forbidden ? null : arc;
+    /// <summary>
+    /// Whether the follower's class may drive <paramref name="arc"/> from <paramref name="from"/> to <paramref name="to"/>: its
+    /// effective radius (<see cref="EffectiveArcRadiusFt"/>) not below the follower's own main-gear turn radius
+    /// (<see cref="CategoryPerformance.MainGearTurnRadiusFt"/>: a jet needs 25 ft, a helicopter 10 ft), its tightest radius not
+    /// below the floor no category steers under (<see cref="GeometricAdmissibility.MinSteerableArcRadiusFt"/>), and not a move
+    /// one-way data or a blocked turn forbids — the one-way and blocked-turn gates <see cref="TaxiPathfinder"/>'s searches apply
+    /// to the same traversal. A fillet leaves the edge it joins tangent to itself, so its entry from either tangent node is no
+    /// heading change for any category.
+    /// </summary>
+    private static bool ArcDrivable(AirportGroundLayout layout, TaxiClass followerClass, GroundArc arc, GroundNode from, GroundNode to) =>
+        ArcDrivableAbove(layout, followerClass, arc, (from.Id, to.Id), CategoryPerformance.MainGearTurnRadiusFt(followerClass.Category));
+
+    /// <summary>
+    /// Whether the follower's class may drive <paramref name="edge"/>, a fillet arc, at its tight-turn floor: as
+    /// <see cref="ArcDrivable"/>, with the arc's effective radius held to the follower's
+    /// <see cref="CategoryPerformance.TightTurnFloorRadiusFt"/> (a jet 15 ft) in place of its main-gear turn radius. The navigator
+    /// rounds such an arc at tight-turn speed; the planner keeps it only where it has no acceptable square way round
+    /// (<see cref="TryAppendUsable"/>).
+    /// </summary>
+    private static bool TightArcDrivable(AirportGroundLayout layout, TaxiClass followerClass, DirectionalEdge edge) =>
+        (edge.Edge is GroundArc arc)
+        && ArcDrivableAbove(
+            layout,
+            followerClass,
+            arc,
+            (edge.FromNodeId, edge.ToNodeId),
+            CategoryPerformance.TightTurnFloorRadiusFt(followerClass.Category)
+        );
+
+    /// <summary>
+    /// Whether the follower's class may drive <paramref name="arc"/> as <paramref name="move"/> with an effective radius
+    /// (<see cref="EffectiveArcRadiusFt"/>) of at least <paramref name="minEffectiveRadiusFt"/>: its tightest radius not below
+    /// <see cref="GeometricAdmissibility.MinSteerableArcRadiusFt"/>, and not a move one-way data or a blocked turn forbids.
+    /// </summary>
+    private static bool ArcDrivableAbove(
+        AirportGroundLayout layout,
+        TaxiClass followerClass,
+        GroundArc arc,
+        (int From, int To) move,
+        double minEffectiveRadiusFt
+    ) =>
+        (arc.MinRadiusOfCurvatureFt >= GeometricAdmissibility.MinSteerableArcRadiusFt)
+        && (EffectiveArcRadiusFt(arc) >= minEffectiveRadiusFt)
+        && !OneWayResolver.GetForbiddenMoves(layout, followerClass.Wake).Contains(move)
+        && !BlockedTurnResolver.GetBlocked(layout).ForbiddenArcMoves.Contains(move);
+
+    /// <summary>
+    /// The radius (ft) an aircraft rounding <paramref name="arc"/> turns on: the arc's length over its total heading change, in
+    /// radians, from the heading it leaves its first node on (toward its first control point) to the heading it reaches its
+    /// last node on (from its second control point). A Bezier fillet's tightest radius
+    /// (<see cref="GroundArc.MinRadiusOfCurvatureFt"/>) can be a curvature spike far shorter than a wheelbase, which no
+    /// aircraft follows; the turn it makes is spread over the arc. Infinite for an arc that does not turn.
+    /// </summary>
+    public static double EffectiveArcRadiusFt(GroundArc arc)
+    {
+        double leaveDeg = GeoMath.BearingTo(arc.Nodes[0].Position, new LatLon(arc.P1Lat, arc.P1Lon));
+        double reachDeg = GeoMath.BearingTo(new LatLon(arc.P2Lat, arc.P2Lon), arc.Nodes[1].Position);
+        double turnRad = Math.Abs(GeoMath.SignedBearingDifference(leaveDeg, reachDeg)) * Math.PI / 180.0;
+        return turnRad < 1e-6 ? double.PositiveInfinity : arc.DistanceNm * GeoMath.FeetPerNm / turnRad;
     }
 
     /// <summary>Adds every edge of <paramref name="step"/> to <paramref name="held"/>; false at the first one it already holds.</summary>
@@ -1020,79 +1225,243 @@ public static class FollowRoutePlanner
     /// The step back from <paramref name="cursor"/> to <paramref name="edge"/>, newest first: the gap between them, if any,
     /// then <paramref name="edge"/> pointed toward it. There is no gap when the cursor is an end of the edge. The gap is
     /// searched forward, the way the lead taxied it — from each end of the edge to the cursor, keeping the cheaper — so a
-    /// one-way lane the lead used the right way is not excluded. Null when no path joins them.
+    /// one-way lane the lead used the right way is not excluded — with the follower's class, which drives it. A gap route that
+    /// holds a fillet arc too tight for the follower (<see cref="ArcDrivable"/>) gives way to the other end's route when that one
+    /// holds none; with both holding one, the cheaper is driven the square way round each such arc, as the route ahead is
+    /// (<see cref="TryAppendUsable"/>), or kept at the follower's tight-turn floor. Null when no path joins them, or an arc in the
+    /// cheaper one has neither.
     /// </summary>
-    private static List<DirectionalEdge>? ReachForward(AirportGroundLayout layout, GroundEdge edge, GroundNode cursor, TaxiClass taxiClass)
+    private static List<DirectionalEdge>? ReachForward(AirportGroundLayout layout, GroundEdge edge, GroundNode cursor, TaxiClass followerClass)
     {
         if ((edge.Nodes[0].Id == cursor.Id) || (edge.Nodes[1].Id == cursor.Id))
         {
             return [Directed(edge, edge.OtherNode(cursor), cursor)];
         }
 
-        if (CheaperGap(layout, edge, cursor, taxiClass) is not { } gap)
+        List<GoalRoute> gaps = GapRoutes(layout, edge, cursor, followerClass);
+        if ((gaps.FirstOrDefault(gap => !HoldsRefusedArc(layout, followerClass, gap.Route)) ?? gaps.FirstOrDefault()) is not { } chosen)
         {
             return null;
         }
 
-        List<DirectionalEdge> step = [];
-        for (int i = gap.Route.Segments.Count - 1; i >= 0; i--)
+        GroundNode exit = chosen.Route.Segments[0].Edge.FromNode;
+        List<DirectionalEdge> forward = [Directed(edge, edge.OtherNode(exit), exit)];
+        foreach (TaxiRouteSegment segment in chosen.Route.Segments)
         {
-            step.Add(gap.Route.Segments[i].Edge);
+            if (!TryAppendUsable(layout, forward, segment.Edge, followerClass, "older trail dropped"))
+            {
+                return null;
+            }
         }
 
-        GroundNode exit = gap.Route.Segments[0].Edge.FromNode;
-        step.Add(Directed(edge, edge.OtherNode(exit), exit));
-        return step;
+        forward.Reverse();
+        return forward;
     }
 
     /// <summary>
-    /// The cheaper of the routes from either end of <paramref name="edge"/> to <paramref name="cursor"/>, which is not an end of
-    /// it; null when neither end reaches it.
+    /// The routes from either end of <paramref name="edge"/> to <paramref name="cursor"/>, which is not an end of it, cheaper
+    /// first (the first end's on a tie); empty when neither end reaches it.
     /// </summary>
-    private static GoalRoute? CheaperGap(AirportGroundLayout layout, GroundEdge edge, GroundNode cursor, TaxiClass taxiClass)
+    private static List<GoalRoute> GapRoutes(AirportGroundLayout layout, GroundEdge edge, GroundNode cursor, TaxiClass taxiClass)
     {
         HashSet<int> goal = [cursor.Id];
-        GoalRoute? fromA = taxiClass.FindRoute(layout, edge.Nodes[0].Id, goal, null);
-        GoalRoute? fromB = taxiClass.FindRoute(layout, edge.Nodes[1].Id, goal, null);
-        return (fromA is null) || ((fromB is not null) && (fromB.Cost < fromA.Cost)) ? fromB : fromA;
+        GoalRoute?[] routes = [taxiClass.FindRoute(layout, edge.Nodes[0].Id, goal, null), taxiClass.FindRoute(layout, edge.Nodes[1].Id, goal, null)];
+        return [.. routes.OfType<GoalRoute>().OrderBy(route => route.Cost)];
     }
 
     /// <summary>
     /// Appends <paramref name="routeAhead"/>, the lead's route ahead of the edge it is on (<see cref="OnRoute"/>); a segment
-    /// that does not start where the path ends is reached by the shortest graph path.
+    /// that does not start where the path ends is reached by the shortest graph path the follower's class may drive. Every edge
+    /// appended passes <see cref="TryAppendUsable"/>, so a fillet arc too tight for the follower is driven the square way
+    /// round, or kept at the follower's tight-turn floor; where neither is acceptable, the rest of the route is dropped.
     /// </summary>
     private static void AppendRoute(
         AirportGroundLayout layout,
         List<DirectionalEdge> edges,
         IReadOnlyList<TaxiRouteSegment> routeAhead,
-        TaxiClass taxiClass
+        TaxiClass followerClass
     )
     {
         foreach (TaxiRouteSegment segment in routeAhead)
         {
             int end = edges[^1].ToNodeId;
-            if ((end != segment.FromNodeId) && !TryBridge(layout, edges, segment.FromNodeId, taxiClass))
+            if ((end != segment.FromNodeId) && !TryBridge(layout, edges, segment.FromNodeId, followerClass))
             {
                 return;
             }
 
-            edges.Add(segment.Edge);
+            if (!TryAppendUsable(layout, edges, segment.Edge, followerClass, RestOfRouteDropped))
+            {
+                return;
+            }
         }
     }
 
-    /// <summary>Appends the shortest graph path from the end of <paramref name="edges"/> to <paramref name="toNodeId"/>; false when none.</summary>
-    private static bool TryBridge(AirportGroundLayout layout, List<DirectionalEdge> edges, int toNodeId, TaxiClass taxiClass)
+    /// <summary>
+    /// Appends the shortest graph path the follower's class may drive from the end of <paramref name="edges"/> to
+    /// <paramref name="toNodeId"/>, each edge through <see cref="TryAppendUsable"/>, all or nothing: false, with nothing
+    /// appended, when there is no such path or one of its edges is refused.
+    /// </summary>
+    private static bool TryBridge(AirportGroundLayout layout, List<DirectionalEdge> edges, int toNodeId, TaxiClass followerClass)
     {
         HashSet<int> goal = [toNodeId];
-        if (taxiClass.FindRoute(layout, edges[^1].ToNodeId, goal, null) is not { } bridge)
+        if (followerClass.FindRoute(layout, edges[^1].ToNodeId, goal, null) is not { } bridge)
         {
             Log.LogDebug("[FollowPlan] no path from node {From} to route node {To}; rest of the route dropped", edges[^1].ToNodeId, toNodeId);
             return false;
         }
 
-        edges.AddRange(bridge.Route.Segments.Select(s => s.Edge));
+        List<DirectionalEdge> scratch = [edges[^1]];
+        foreach (TaxiRouteSegment segment in bridge.Route.Segments)
+        {
+            if (!TryAppendUsable(layout, scratch, segment.Edge, followerClass, RestOfRouteDropped))
+            {
+                return false;
+            }
+        }
+
+        edges.AddRange(scratch.Skip(1));
         return true;
     }
+
+    /// <summary>
+    /// How much longer than the arc's stub length (<see cref="ArcStubLengthFt"/>) the square way round a fillet arc too tight for
+    /// the follower may be: a follower does not loop round a block away from its lead; it stops.
+    /// </summary>
+    private const double SquareWayStubFactor = 1.5;
+
+    /// <summary>What the lead path's route ahead and its bridges drop when an arc on them is refused (<see cref="TryAppendUsable"/>).</summary>
+    private const string RestOfRouteDropped = "rest of the lead route dropped";
+
+    /// <summary>
+    /// Appends <paramref name="edge"/>, or, when it is a fillet arc the follower may not drive (<see cref="ArcDrivable"/>), the
+    /// square way round the junction (<see cref="SquareWayRound"/>); with no acceptable square way round, the arc itself when the
+    /// follower may round it at its tight-turn floor (<see cref="TightArcDrivable"/>). False, with nothing appended, when it may
+    /// not, logging what the caller then drops, <paramref name="dropped"/>.
+    /// </summary>
+    private static bool TryAppendUsable(
+        AirportGroundLayout layout,
+        List<DirectionalEdge> edges,
+        DirectionalEdge edge,
+        TaxiClass followerClass,
+        string dropped
+    )
+    {
+        if (!IsRefusedArc(layout, followerClass, edge))
+        {
+            edges.Add(edge);
+            return true;
+        }
+
+        var arc = (GroundArc)edge.Edge;
+        DirectionalEdge? arrivedOn = edges.Count > 0 ? edges[^1] : null;
+        if (SquareWayRound(layout, arrivedOn, edge, arc, followerClass) is { } round)
+        {
+            Log.LogDebug(
+                "[FollowPlan] fillet arc node {From} to {To} ({Radius:F1} ft effective) is too tight for a {Category} follower; "
+                    + "lead path takes the square way round, {Edges} edges",
+                edge.FromNodeId,
+                edge.ToNodeId,
+                EffectiveArcRadiusFt(arc),
+                followerClass.Category,
+                round.Count
+            );
+            edges.AddRange(round);
+            return true;
+        }
+
+        if (TightArcDrivable(layout, followerClass, edge))
+        {
+            Log.LogDebug(
+                "[FollowPlan] fillet arc node {From} to {To} ({Radius:F1} ft effective) is too tight for a {Category} follower and has no "
+                    + "acceptable square way round; lead path keeps the arc, rounded at the {Floor:F0} ft tight-turn floor",
+                edge.FromNodeId,
+                edge.ToNodeId,
+                EffectiveArcRadiusFt(arc),
+                followerClass.Category,
+                CategoryPerformance.TightTurnFloorRadiusFt(followerClass.Category)
+            );
+            edges.Add(edge);
+            return true;
+        }
+
+        Log.LogDebug(
+            "[FollowPlan] fillet arc node {From} to {To} ({Radius:F1} ft effective, {Tightest:F1} ft tightest radius) is too tight for "
+                + "a {Category} follower even at its tight-turn floor and has no acceptable square way round; {Dropped}",
+            edge.FromNodeId,
+            edge.ToNodeId,
+            EffectiveArcRadiusFt(arc),
+            arc.MinRadiusOfCurvatureFt,
+            followerClass.Category,
+            dropped
+        );
+        return false;
+    }
+
+    /// <summary>
+    /// The follower's own route between the two nodes of <paramref name="arc"/>, driven as <paramref name="edge"/>, that does not
+    /// start over the arc — the square way round the junction — when it is acceptable: it holds no refused arc of its own, its
+    /// first edge does not turn back along <paramref name="arrivedOn"/>, the edge the path reached the arc's start by (null when
+    /// the path starts at the arc: a lead on the arc with no trail behind it), and it is no longer than
+    /// <see cref="SquareWayStubFactor"/> times the arc's stub length. Null otherwise.
+    /// </summary>
+    private static List<DirectionalEdge>? SquareWayRound(
+        AirportGroundLayout layout,
+        DirectionalEdge? arrivedOn,
+        DirectionalEdge edge,
+        GroundArc arc,
+        TaxiClass followerClass
+    )
+    {
+        HashSet<int> goal = [edge.ToNodeId];
+        if (
+            (followerClass.FindRoute(layout, edge.FromNodeId, goal, (edge.FromNodeId, edge.ToNodeId)) is not { } round)
+            || HoldsRefusedArc(layout, followerClass, round.Route)
+        )
+        {
+            return null;
+        }
+
+        DirectionalEdge first = round.Route.Segments[0].Edge;
+        bool turnsBack = (arrivedOn is not null) && (first.FromNodeId == arrivedOn.ToNodeId) && (first.ToNodeId == arrivedOn.FromNodeId);
+        double lengthFt = round.Route.Segments.Sum(s => s.Edge.DistanceNm) * GeoMath.FeetPerNm;
+        return turnsBack || (lengthFt > (SquareWayStubFactor * ArcStubLengthFt(arc))) ? null : [.. round.Route.Segments.Select(s => s.Edge)];
+    }
+
+    /// <summary>
+    /// The stub length of <paramref name="arc"/> (ft): the lines through its two tangent nodes along its end headings — toward its
+    /// control points — meet at a point P, and the stub length is the distance from one tangent node to P plus P to the other,
+    /// the way round the corner the arc rounds (for a 90° fillet of radius r, 2r). The arc's own length when the lines do not
+    /// meet ahead of both nodes.
+    /// </summary>
+    public static double ArcStubLengthFt(GroundArc arc)
+    {
+        LatLon a = arc.Nodes[0].Position;
+        LatLon b = arc.Nodes[1].Position;
+        double headingA = GeoMath.BearingTo(a, new LatLon(arc.P1Lat, arc.P1Lon)) * Math.PI / 180.0;
+        double headingB = GeoMath.BearingTo(b, new LatLon(arc.P2Lat, arc.P2Lon)) * Math.PI / 180.0;
+        double abFt = GeoMath.DistanceNm(a, b) * GeoMath.FeetPerNm;
+        double abBearing = GeoMath.BearingTo(a, b) * Math.PI / 180.0;
+        (double ux, double uy) = (Math.Sin(headingA), Math.Cos(headingA));
+        (double vx, double vy) = (Math.Sin(headingB), Math.Cos(headingB));
+        (double dx, double dy) = (abFt * Math.Sin(abBearing), abFt * Math.Cos(abBearing));
+        // A + s·u = B + t·v, solved for the distances s from A and t from B to P.
+        double det = (vx * uy) - (ux * vy);
+        double s = ((vx * dy) - (dx * vy)) / det;
+        double t = ((ux * dy) - (uy * dx)) / det;
+        return (Math.Abs(det) < 1e-6) || (s <= 0.0) || (t <= 0.0) ? arc.DistanceNm * GeoMath.FeetPerNm : s + t;
+    }
+
+    /// <summary>Whether <paramref name="route"/> holds a fillet arc the follower may not drive (<see cref="ArcDrivable"/>).</summary>
+    private static bool HoldsRefusedArc(AirportGroundLayout layout, TaxiClass followerClass, TaxiRoute route) =>
+        route.Segments.Any(s => IsRefusedArc(layout, followerClass, s.Edge));
+
+    /// <summary>
+    /// Whether <paramref name="edge"/> is a fillet arc the follower may not drive that way: that arc itself is gated
+    /// (<see cref="ArcDrivable"/>), not whichever arc first joins its two nodes.
+    /// </summary>
+    private static bool IsRefusedArc(AirportGroundLayout layout, TaxiClass followerClass, DirectionalEdge edge) =>
+        (edge.Edge is GroundArc arc) && !ArcDrivable(layout, followerClass, arc, edge.FromNode, edge.ToNode);
 
     /// <summary>The last node index of <paramref name="nodeId"/> along <paramref name="edges"/> (node <c>i</c> starts edge <c>i</c>).</summary>
     /// <exception cref="InvalidOperationException">No edge starts or ends at <paramref name="nodeId"/>.</exception>

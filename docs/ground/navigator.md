@@ -125,8 +125,32 @@ When no departure-aligned onto-runway arc route resolves — a parallel-taxiway 
 
   The walk stops at the first edge no graph path joins, and at the first step that would revisit an edge the walk already holds. That is where the lead reversed, as after a push out along a taxiway it then taxied back down, so the path never runs out and back over an edge.
 
-  The path is built from the edges the lead drove, except that a gap's straight stubs either side of a fillet arc the lead rounded are replaced by the arc, so the follower does not take the square corner. `FollowRoutePlanner.CutCorner` swaps the newest run of the gap step's edges (at most the step's edges plus the one edge held before it) for the junction's arc when the arc suits the follower's taxi class (`UsableArc`) and is shorter than the run. A trail that leaves a corner and returns to it keeps its loop, and a lead that drove the junction itself keeps the junction's edges. The held set swaps the run for the arc. A path arc is never matched by `LocateOnPath` (see [measuring along the lead's path](#followg-joining-the-leads-taxi-path)).
+  The path is built from the edges the lead drove, except that a gap's straight stubs either side of a fillet arc the lead rounded are replaced by the arc, so the follower does not take the square corner. `FollowRoutePlanner.CutCorner` swaps the newest run of the gap step's edges (at most the step's edges plus the one edge held before it) for the junction's arc when the arc is shorter than the run and the follower can drive it (`UsableArc`, next).
+
+  A trail that leaves a corner and returns to it keeps its loop, and a lead that drove the junction itself keeps the junction's edges. The held set swaps the run for the arc. A path arc is never matched by `LocateOnPath` (see [measuring along the lead's path](#followg-joining-the-leads-taxi-path)).
+
+  The lead path holds a fillet arc only if the follower can drive it. An arc is drivable (`ArcDrivable`) when its effective radius (`EffectiveArcRadiusFt`: the arc's length over its total heading change, from the heading it leaves its first node on to the one it reaches its last on) is at least the follower's own main-gear turn radius (`CategoryPerformance.MainGearTurnRadiusFt`: jet 25, turboprop 18, piston 15, helicopter 10 ft).
+
+  Its tightest radius (`MinRadiusOfCurvatureFt`) must also be at least the 10 ft `GeometricAdmissibility.MinSteerableArcRadiusFt`, and no one-way or blocked-turn rule forbids the move.
+
+  The tightest radius alone is the wrong measure for a wide Bezier fillet, whose curvature spike is far shorter than a wheelbase.
+
+  A refused arc, whether on the lead's route, in a gap fill, in a bridge or the arc the lead is on (`TryAppendUsable`), takes the first of these that holds. The square way round: the follower's own route between the arc's two nodes that does not start over the arc, holds no refused arc, does not turn back along the edge the path arrived on and is at most 1.5 times the arc's stub length (`ArcStubLengthFt`: from each tangent node to where the tangent lines meet).
+
+  Else the arc itself, when its effective radius is at least the category's tight-turn floor (`CategoryPerformance.TightTurnFloorRadiusFt`, jet 15 ft) and its tightest radius at least 10 ft, with the one-way and blocked-turn gates still applied (`TightArcDrivable`); the navigator rounds it at tight-turn speed. Else the rest of the lead route is dropped and the follower stops at the end of what it can drive.
+
+  A bridge is appended whole or not at all. Gap fills, the route ahead and bridges are searched with the follower's taxi class, so its own junction-turn limit applies.
+
+  On KOAK, the C-to-G corner (#1117 to #350 to #1120, 16.8 ft effective) is too tight for a jet: a jet follower arriving along taxiway C takes the square way round, and one whose square way would turn back along the stub keeps the arc at the tight floor. K/L #441 (5.9 ft tightest) is refused for every category even at the floor; a piston has a square way round it, while a jet's square way turns 147.5° at the junction, past its 135° limit, so its path is cut there.
+
+  `[FollowPlan]` logs each outcome: the arc "too tight for a {Category} follower" with "lead path takes the square way round", with "lead path keeps the arc, rounded at the {Floor} ft tight-turn floor", or "even at its tight-turn floor and has no acceptable square way round" followed by what is dropped. A lead rounding an arc the follower cannot drive, with no square way, no tight-floor keep and no trail behind it, gives `WaitForLead` ("{Lead} is rounding an arc the follower cannot drive and has no path behind it yet; wait for it"): it is passing through, and a path exists once it is on the edge beyond.
+
+  `LeadRouteMatchesPath(layout, follower, lead, mergeNode, leadPathFromMerge)` derives such a replacement or cut from the route, so the follower does not re-plan each tick: a route arc matches the square way round that stands on the path in its place, and a first segment that is an arc out of the path's end the follower cannot drive even at the tight floor and has no acceptable square way round from the edge the path arrived by, or a segment no drivable bridge reaches, matches a cut path. A lead re-cleared through such an arc that does have a square way round is a re-route, so the follower re-plans onto it.
+
+  The follower's own route to the merge (`PlanToMerge`) still uses the pathfinder's 10 ft floor (backlog YAAT-556).
 - **The edge it is on** (`TaxiEdgeLocator.EdgeUnder`, looking near the newest trail edge first), pointed the way it is going. On its route, the first remaining segment over that edge points it; off its route, the end nearer its heading does (`OrientByHeading`), which a turn in progress can swing past the edge's own direction.
+
+  A lead rounding a fillet arc of its route is placed on that arc, not on the nearest straight stub the arc cuts past: when no remaining segment runs over the edge under it, the first remaining arc whose curve it lies beside (`BesideArc`) is the edge it is on, and only the segments after the arc lie ahead. The follower therefore does not re-plan while the lead rounds the arc.
 - **Its remaining assigned route** after that edge. Segments the lead has passed are dropped even when its segment index lags and still names one — held on its first segment through an entry-alignment turn, or sampled onto the next edge before it reaches the node. Only the segments after the one over its current edge lie ahead.
 
   A segment that does not start where the path ends is reached by the shortest graph path.
@@ -135,7 +159,7 @@ When no departure-aligned onto-runway arc route resolves — a parallel-taxiway 
 
 **The rules, in order:**
 
-1. The lead is in `PushbackPhase` or `AtParkingPhase`, or on no taxi edge → `WaitForLead`. There is no path to join yet, and the follow is accepted.
+1. The lead is in `PushbackPhase` or `AtParkingPhase`, or on no taxi edge and beside no fillet arc of its route, or rounding an arc the follower cannot drive with no path behind it (above) → `WaitForLead`. There is no path to join yet, and the follow is accepted.
 2. The follower stands on the lead's edge nearer its far end than the lead is, or on an edge of the lead's route ahead of that edge → `FollowerAhead`. `FOLLOWG` answers "unable, ahead of {lead} on its route — issue HOLD, GIVEWAY or TAXI first".
 3. The follower stands behind the lead on the edge the lead is on → `Joinable` at once, with no search. The merge node is that edge's start in the lead's direction (behind the follower), the route to it has no segments, and the merge is on the lead's trail side, not ahead of it.
 4. A goal-set search from the follower's route start (`StartOf`, [below](#where-the-follow-route-starts)) to every node of the lead's path (`TaxiPathfinder.FindRouteToNearestGoal`; see [the pathfinder](./pathfinder.md#goal-set-search-autorouterruntogoals)) finds nothing, or there is no start node → `NoPath`. `FOLLOWG` answers "unable, no taxi route to {lead}'s route".
@@ -537,7 +561,7 @@ This only sets the straight-segment ceiling — the corner/arc/braking/conflict 
 
 Decided, not built yet: every other ground turn's main-gear radius is to be `max(categoryValue, 0.466 × FaaAircraftRecord.WheelbaseFt)` (WheelbaseFt / tan 65°), the category value when the type has no wheelbase, upward only: A388 ≈50 ft, B77W ≈47, B744 ≈39, B763 ≈35, B738 stays 25.
 
-An A388 (wheelbase about 100 ft) cannot turn on 25 ft. Because it only raises the radius, `GeometricAdmissibility.MinSteerableArcRadiusFt` (the smallest category radius) is unchanged. It changes about a dozen call sites' signatures and every heavy's ground turns, so its replay desyncs are triaged apart from other ground retunes.
+An A388 (wheelbase about 100 ft) cannot turn on 25 ft. Because it only raises the radius, `GeometricAdmissibility.MinSteerableArcRadiusFt` (the smallest category radius) is unchanged. It changes about a dozen call sites' signatures (the FOLLOWG `UsableArc`/`ArcDrivable` checks among them) and every heavy's ground turns, so its replay desyncs are triaged apart from other ground retunes.
 
 ### Stopping at an uncleared bar
 

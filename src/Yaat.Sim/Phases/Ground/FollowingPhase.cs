@@ -1607,7 +1607,7 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
             (ctx.GroundLayout is not { } layout)
             || (_plan is not { } plan)
             || (_followRoute is not { IsComplete: false })
-            || FollowRoutePlanner.LeadRouteMatchesPath(lead, plan.MergeNode, plan.LeadPathFromMerge)
+            || FollowRoutePlanner.LeadRouteMatchesPath(layout, ctx.Aircraft, lead, plan.MergeNode, plan.LeadPathFromMerge)
         )
         {
             return true;

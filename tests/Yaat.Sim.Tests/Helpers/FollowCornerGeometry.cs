@@ -1,14 +1,18 @@
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Airport.Pathfinding;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim.Tests.Helpers;
 
-/// <summary>KOAK taxiway B geometry and aircraft for the <c>FOLLOWG</c> planner and command tests.</summary>
-internal static class KoakFollowGeometry
+/// <summary>
+/// Ground geometry and aircraft for the <c>FOLLOWG</c> planner and command tests: KOAK's taxiway B chain and engine, and
+/// fillet-corner finders that work on any layout (KOAK and KSFO).
+/// </summary>
+internal static class FollowCornerGeometry
 {
     internal const string AirportId = "OAK";
 
@@ -90,7 +94,7 @@ internal static class KoakFollowGeometry
         string taxi
     )
     {
-        AircraftState aircraft = Spawn(callsign, type, pose.At.Position, Facing(pose.At, pose.Toward));
+        AircraftState aircraft = Spawn(setup.Layout.AirportId, callsign, type, pose.At.Position, Facing(pose.At, pose.Toward));
         aircraft.Ground.Layout = setup.Layout;
         setup.Engine.World.AddAircraft(aircraft);
         CommandResult result = setup.Engine.SendCommand(callsign, taxi);
@@ -175,7 +179,9 @@ internal static class KoakFollowGeometry
     /// <summary>
     /// A C-to-J fillet corner whose straight way round the junction is longer than the arc joining its tangent nodes: the
     /// corner a lead rounding the arc leaves straight stub edges either side of the junction in its trail for, never the arc
-    /// it drove. <see cref="ThroughRun"/> is the straight path round the junction, C tangent node first.
+    /// it drove. <see cref="ThroughRun"/> is the straight path round the junction, C tangent node first: the two tangent nodes,
+    /// the stub ends either side of the junction and the junction (five nodes), or, where each stub runs from its tangent node
+    /// to the junction itself, the tangent nodes and the junction (three nodes).
     /// </summary>
     internal sealed record CToJCorner(
         GroundArc Arc,
@@ -184,7 +190,14 @@ internal static class KoakFollowGeometry
         GroundEdge StubOnC,
         GroundEdge StubOnJ,
         IReadOnlyList<GroundNode> ThroughRun
-    );
+    )
+    {
+        /// <summary>The C stub's end away from its tangent node.</summary>
+        internal GroundNode NearOnC => ThroughRun[1];
+
+        /// <summary>The J stub's end away from its tangent node.</summary>
+        internal GroundNode NearOnJ => ThroughRun[^2];
+    }
 
     /// <summary>
     /// The KOAK C/J corner whose straight way round the junction exceeds the arc joining its tangent nodes by the most —
@@ -196,7 +209,7 @@ internal static class KoakFollowGeometry
         double widestFt = 0.0;
         foreach (GroundNode junction in layout.Nodes.Values.OrderBy(node => node.Id))
         {
-            foreach (CToJCorner candidate in CornerCandidates(junction))
+            foreach (CToJCorner candidate in CornerCandidates(junction, "C", "J"))
             {
                 double excessFt = ThroughFt(candidate) - (candidate.Arc.DistanceNm * GeoMath.FeetPerNm);
                 if (excessFt > widestFt)
@@ -212,21 +225,287 @@ internal static class KoakFollowGeometry
     }
 
     /// <summary>
-    /// The corners at <paramref name="junction"/>: each C edge and J edge pair with a straight stub off each to a tangent
-    /// node, those two tangent nodes joined by a fillet arc.
+    /// A fillet corner like <see cref="CToJCorner"/> on any two taxiways: <see cref="InTaxiway"/> takes the C side's place
+    /// and <see cref="OutTaxiway"/> the J side's.
     /// </summary>
-    private static IEnumerable<CToJCorner> CornerCandidates(GroundNode junction)
+    internal sealed record TaxiwayCorner(CToJCorner Corner, string InTaxiway, string OutTaxiway);
+
+    /// <summary>
+    /// The first fillet corner on <paramref name="layout"/> (lowest junction id) whose arc's tightest radius is under
+    /// <paramref name="category"/>'s main-gear turn radius but not under <paramref name="nextDown"/>'s, whose square way round
+    /// the junction turns no more than <paramref name="category"/> may at a junction, and that has a straight edge on past each
+    /// tangent node along the tangent's own taxiway; null when the layout has none.
+    /// </summary>
+    internal static TaxiwayCorner? FindArcTighterThan(AirportGroundLayout layout, AircraftCategory category, AircraftCategory nextDown)
+    {
+        double radiusFt = CategoryPerformance.MainGearTurnRadiusFt(category);
+        double floorFt = CategoryPerformance.MainGearTurnRadiusFt(nextDown);
+        double maxTurnDeg = CategoryLimits.MaxHeadingChangeDeg(category);
+        return layout
+            .Nodes.Values.OrderBy(node => node.Id)
+            .SelectMany(TaxiwayCorners)
+            .FirstOrDefault(c =>
+                (c.Corner.Arc.MinRadiusOfCurvatureFt >= floorFt)
+                && (c.Corner.Arc.MinRadiusOfCurvatureFt < radiusFt)
+                && (ApexTurnDeg(c.Corner) <= maxTurnDeg)
+                && HasStraightBeyond(c.Corner.TangentOnC, c.Corner.NearOnC, c.InTaxiway)
+                && HasStraightBeyond(c.Corner.TangentOnJ, c.Corner.NearOnJ, c.OutTaxiway)
+            );
+    }
+
+    /// <summary>
+    /// KSFO's Q-to-B1 corner (<paramref name="layout"/> is KSFO's): the first whose arc's tightest radius is under a jet's
+    /// main-gear turn radius but not a turboprop's, at a junction turn a jet may make (<see cref="FindArcTighterThan"/>) — a
+    /// wide Bezier fillet whose effective radius (<see cref="FollowRoutePlanner.EffectiveArcRadiusFt"/>) a jet turns on —
+    /// logged to <paramref name="output"/>.
+    /// </summary>
+    internal static TaxiwayCorner KsfoQToB1(AirportGroundLayout layout, ITestOutputHelper output)
+    {
+        TaxiwayCorner? corner = FindArcTighterThan(layout, AircraftCategory.Jet, AircraftCategory.Turboprop);
+        Assert.NotNull(corner);
+        LogCorner(corner, output);
+        return corner;
+    }
+
+    /// <summary>
+    /// The first corner on the layouts of <paramref name="airportIds"/>, in order, whose arc a C172 lead drives and a B738
+    /// follower refuses (<see cref="IsJetRefusedCorner"/>), with its airport and layout; null when no layout has one. Logs to
+    /// <paramref name="output"/>, for each airport searched, how many arcs are under a jet's effective radius, how many of
+    /// those a piston drives, and whether a corner qualifies.
+    /// </summary>
+    internal static (string AirportId, AirportGroundLayout Layout, TaxiwayCorner Corner)? ArcTighterThanAJet(
+        ITestOutputHelper output,
+        IReadOnlyList<string> airportIds
+    )
+    {
+        TestVnasData.EnsureInitialized();
+        var groundData = new TestAirportGroundData();
+        double jetFt = CategoryPerformance.MainGearTurnRadiusFt(AircraftCategory.Jet);
+        foreach (string airportId in airportIds)
+        {
+            if (groundData.GetLayout(airportId) is not { } layout)
+            {
+                output.WriteLine($"SKIP: {airportId} layout unavailable");
+                continue;
+            }
+
+            List<GroundArc> underJet =
+            [
+                .. layout
+                    .Nodes.Values.SelectMany(n => n.Edges.OfType<GroundArc>())
+                    .Distinct()
+                    .Where(a => FollowRoutePlanner.EffectiveArcRadiusFt(a) < jetFt),
+            ];
+            TaxiwayCorner? tight = ArcCorners(layout).FirstOrDefault(IsJetRefusedCorner);
+            output.WriteLine(
+                $"{airportId}: {underJet.Count} arcs under {jetFt:F0} ft effective, {underJet.Count(PistonDrives)} a piston drives; "
+                    + $"corner: {tight is not null}"
+            );
+            if (tight is not null)
+            {
+                LogCorner(tight, output);
+                return (airportId, layout, tight);
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Whether <paramref name="corner"/>'s arc is one a C172 drives (<see cref="PistonDrives"/>) and a B738 refuses, its
+    /// effective radius under a jet's main-gear turn radius, while its square way round turns no more than a jet may at a node
+    /// and is no longer than the follow planner accepts for a square way (1.5 times <see cref="FollowRoutePlanner.ArcStubLengthFt"/>),
+    /// with a straight edge on past each tangent node along the tangent's own taxiway.
+    /// </summary>
+    private static bool IsJetRefusedCorner(TaxiwayCorner corner) =>
+        PistonDrives(corner.Corner.Arc)
+        && (FollowRoutePlanner.EffectiveArcRadiusFt(corner.Corner.Arc) < CategoryPerformance.MainGearTurnRadiusFt(AircraftCategory.Jet))
+        && (ApexTurnDeg(corner.Corner) <= CategoryLimits.MaxHeadingChangeDeg(AircraftCategory.Jet))
+        && (ThroughFt(corner.Corner) <= (1.5 * FollowRoutePlanner.ArcStubLengthFt(corner.Corner.Arc)))
+        && HasStraightBeyond(corner.Corner.TangentOnC, corner.Corner.NearOnC, corner.InTaxiway)
+        && HasStraightBeyond(corner.Corner.TangentOnJ, corner.Corner.NearOnJ, corner.OutTaxiway);
+
+    /// <summary>
+    /// KOAK's K-to-L corner through node 441 (<paramref name="layout"/> is KOAK's), whose fillet arc's tightest radius is under
+    /// the floor no category steers under, so every follower refuses it at its main-gear turn radius and at its tight-turn floor
+    /// alike; logged to <paramref name="output"/> with its square way round against the follow planner's bound for it.
+    /// </summary>
+    internal static TaxiwayCorner KoakKToL441(AirportGroundLayout layout, ITestOutputHelper output)
+    {
+        TaxiwayCorner corner = ArcCorners(layout)
+            .First(c =>
+                string.Equals(c.InTaxiway, "K", StringComparison.OrdinalIgnoreCase)
+                && string.Equals(c.OutTaxiway, "L", StringComparison.OrdinalIgnoreCase)
+                && c.Corner.ThroughRun.Concat(c.Corner.Arc.Nodes).Any(n => n.Id == 441)
+            );
+        double boundFt = 1.5 * FollowRoutePlanner.ArcStubLengthFt(corner.Corner.Arc);
+        output.WriteLine($"K-to-L: square way {ThroughFt(corner.Corner):F1} ft against the 1.5 x stub bound {boundFt:F1} ft");
+        LogCorner(corner, output);
+        return corner;
+    }
+
+    /// <summary>
+    /// Whether a piston aircraft may round <paramref name="arc"/>: its effective radius not under a piston's main-gear turn
+    /// radius, its tightest radius not under the floor no category steers under.
+    /// </summary>
+    private static bool PistonDrives(GroundArc arc) =>
+        (FollowRoutePlanner.EffectiveArcRadiusFt(arc) >= CategoryPerformance.MainGearTurnRadiusFt(AircraftCategory.Piston))
+        && (arc.MinRadiusOfCurvatureFt >= GeometricAdmissibility.MinSteerableArcRadiusFt);
+
+    /// <summary>
+    /// Every fillet arc on <paramref name="layout"/> off the ramps and runways, each way round (arcs in order of their lowest
+    /// node id), as a corner whose <see cref="CToJCorner.ThroughRun"/> is the shortest run of at most four straight taxiway
+    /// edges from the arc's first tangent node to its other when that run has three or five nodes.
+    /// </summary>
+    private static IEnumerable<TaxiwayCorner> ArcCorners(AirportGroundLayout layout)
+    {
+        IEnumerable<GroundArc> arcs = layout
+            .Nodes.Values.OrderBy(node => node.Id)
+            .SelectMany(node => node.Edges.OfType<GroundArc>())
+            .Distinct()
+            .Where(arc =>
+                !arc.TaxiwayNames.Any(name =>
+                    name.StartsWith("RWY", StringComparison.OrdinalIgnoreCase) || name.Equals("RAMP", StringComparison.OrdinalIgnoreCase)
+                )
+            );
+        foreach (GroundArc arc in arcs)
+        {
+            foreach ((GroundNode from, GroundNode to) in new[] { (arc.Nodes[0], arc.Nodes[1]), (arc.Nodes[1], arc.Nodes[0]) })
+            {
+                if (ShortestRun([from], 0.0, to, 4) is { Run.Count: 3 or 5 } found)
+                {
+                    GroundEdge stubOnC = EdgeBetween(found.Run[0], found.Run[1]);
+                    GroundEdge stubOnJ = EdgeBetween(found.Run[^2], found.Run[^1]);
+                    var corner = new CToJCorner(arc, from, to, stubOnC, stubOnJ, found.Run);
+                    yield return new TaxiwayCorner(corner, stubOnC.TaxiwayName, stubOnJ.TaxiwayName);
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// The shortest run on from <paramref name="run"/> (<paramref name="runFt"/> long) to <paramref name="to"/> over at most
+    /// <paramref name="edgesLeft"/> more straight taxiway edges, off the ramps and runways and never back through a node it
+    /// holds; null when none reaches it.
+    /// </summary>
+    private static (List<GroundNode> Run, double Ft)? ShortestRun(List<GroundNode> run, double runFt, GroundNode to, int edgesLeft)
+    {
+        GroundNode here = run[^1];
+        if (here.Id == to.Id)
+        {
+            return (run, runFt);
+        }
+
+        (List<GroundNode> Run, double Ft)? best = null;
+        IEnumerable<GroundEdge> onward = edgesLeft > 0 ? here.Edges.OfType<GroundEdge>().Where(e => !e.IsRunwayCenterline && !e.IsRamp) : [];
+        foreach (GroundEdge edge in onward)
+        {
+            GroundNode next = edge.OtherNode(here);
+            if (run.Any(node => node.Id == next.Id))
+            {
+                continue;
+            }
+
+            if (
+                (ShortestRun([.. run, next], runFt + (edge.DistanceNm * GeoMath.FeetPerNm), to, edgesLeft - 1) is { } found)
+                && (found.Ft < (best?.Ft ?? double.PositiveInfinity))
+            )
+            {
+                best = found;
+            }
+        }
+
+        return best;
+    }
+
+    /// <summary>The airports whose committed layouts the jet-refuses tests search for their corner (<see cref="ArcTighterThanAJet"/>).</summary>
+    internal static readonly string[] JetRefusesSearchAirports =
+    [
+        "OAK",
+        "SFO",
+        "ATL",
+        "AUS",
+        "COS",
+        "FAT",
+        "FLL",
+        "HWD",
+        "IAH",
+        "LAX",
+        "MER",
+        "MIA",
+        "MSY",
+        "RNO",
+        "SEA",
+        "SJC",
+        "SMF",
+        "issue172-sfo",
+        "sfo-b1short",
+    ];
+
+    private static void LogCorner(TaxiwayCorner corner, ITestOutputHelper output) =>
+        output.WriteLine(
+            $"{corner.InTaxiway}-to-{corner.OutTaxiway} corner {string.Join(">", corner.Corner.ThroughRun.Select(n => $"#{n.Id}"))}: "
+                + $"arc tightest radius {corner.Corner.Arc.MinRadiusOfCurvatureFt:F1} ft, "
+                + $"effective {FollowRoutePlanner.EffectiveArcRadiusFt(corner.Corner.Arc):F1} ft, "
+                + $"apex turn {ApexTurnDeg(corner.Corner):F1}°"
+        );
+
+    /// <summary>The fillet corners at <paramref name="junction"/> between every two taxiways that meet there.</summary>
+    private static IEnumerable<TaxiwayCorner> TaxiwayCorners(GroundNode junction)
+    {
+        List<string> taxiways =
+        [
+            .. junction
+                .Edges.OfType<GroundEdge>()
+                .Where(edge => !edge.IsRunwayCenterline && !edge.IsRamp)
+                .Select(edge => edge.TaxiwayName)
+                .Distinct(StringComparer.OrdinalIgnoreCase),
+        ];
+        foreach (string inTaxiway in taxiways)
+        {
+            foreach (string outTaxiway in taxiways.Where(name => !string.Equals(name, inTaxiway, StringComparison.OrdinalIgnoreCase)))
+            {
+                foreach (CToJCorner corner in CornerCandidates(junction, inTaxiway, outTaxiway))
+                {
+                    yield return new TaxiwayCorner(corner, inTaxiway, outTaxiway);
+                }
+            }
+        }
+    }
+
+    /// <summary>The largest heading change (degrees) at a node of <paramref name="corner"/>'s straight way round: its junction turn.</summary>
+    internal static double ApexTurnDeg(CToJCorner corner)
+    {
+        double sharpestDeg = 0.0;
+        for (int i = 1; i + 1 < corner.ThroughRun.Count; i++)
+        {
+            double inDeg = GeoMath.BearingTo(corner.ThroughRun[i - 1].Position, corner.ThroughRun[i].Position);
+            double outDeg = GeoMath.BearingTo(corner.ThroughRun[i].Position, corner.ThroughRun[i + 1].Position);
+            sharpestDeg = Math.Max(sharpestDeg, Math.Abs(GeoMath.SignedBearingDifference(inDeg, outDeg)));
+        }
+
+        return sharpestDeg;
+    }
+
+    private static bool HasStraightBeyond(GroundNode tangent, GroundNode near, string taxiway) =>
+        tangent.Edges.OfType<GroundEdge>().Any(edge => edge.MatchesTaxiway(taxiway) && (edge.OtherNode(tangent).Id != near.Id));
+
+    /// <summary>
+    /// The corners at <paramref name="junction"/>: each <paramref name="inTaxiway"/> edge and <paramref name="outTaxiway"/>
+    /// edge pair with a straight stub off each to a tangent node, those two tangent nodes joined by a fillet arc.
+    /// </summary>
+    private static IEnumerable<CToJCorner> CornerCandidates(GroundNode junction, string inTaxiway, string outTaxiway)
     {
         List<GroundEdge> straight = [.. junction.Edges.OfType<GroundEdge>()];
-        foreach (GroundEdge cEdge in straight.Where(edge => edge.MatchesTaxiway("C")))
+        foreach (GroundEdge cEdge in straight.Where(edge => edge.MatchesTaxiway(inTaxiway)))
         {
-            foreach (GroundEdge jEdge in straight.Where(edge => edge.MatchesTaxiway("J")))
+            foreach (GroundEdge jEdge in straight.Where(edge => edge.MatchesTaxiway(outTaxiway)))
             {
                 GroundNode cNear = cEdge.OtherNode(junction);
                 GroundNode jNear = jEdge.OtherNode(junction);
-                foreach (GroundEdge stubC in Stubs(cNear, junction, "C"))
+                foreach (GroundEdge stubC in Stubs(cNear, junction, inTaxiway))
                 {
-                    foreach (GroundEdge stubJ in Stubs(jNear, junction, "J"))
+                    foreach (GroundEdge stubJ in Stubs(jNear, junction, outTaxiway))
                     {
                         GroundNode t1 = stubC.OtherNode(cNear);
                         GroundNode t2 = stubJ.OtherNode(jNear);
@@ -269,7 +548,7 @@ internal static class KoakFollowGeometry
     internal static CornerLoop FindBlockBackToTheCorner(AirportGroundLayout layout)
     {
         GroundNode junction = FindCToJCorner(layout).ThroughRun[2];
-        foreach (CToJCorner corner in CornerCandidates(junction))
+        foreach (CToJCorner corner in CornerCandidates(junction, "C", "J"))
         {
             if (BlockBack(corner) is { } loop)
             {
@@ -367,6 +646,7 @@ internal static class KoakFollowGeometry
                 && runways.All(r => ClearOf(r, Between(s.Edge.FromNode.Position, s.Edge.ToNode.Position, 0.5)))
             );
         return Spawn(
+            AirportId,
             callsign,
             type,
             Between(ahead.Edge.FromNode.Position, ahead.Edge.ToNode.Position, 0.5),
@@ -381,7 +661,7 @@ internal static class KoakFollowGeometry
     internal static AircraftState SpawnAtStand(AirportGroundLayout layout, string callsign)
     {
         GroundNode stand = layout.Nodes.Values.Where(n => (n.Type == GroundNodeType.Parking) && (n.Edges.Count > 0)).OrderBy(n => n.Id).First();
-        AircraftState aircraft = Spawn(callsign, "C172", stand.Position, new TrueHeading(0));
+        AircraftState aircraft = Spawn(AirportId, callsign, "C172", stand.Position, new TrueHeading(0));
         aircraft.Phases = new PhaseList();
         aircraft.Phases.Add(new AtParkingPhase());
         aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, layout));
@@ -389,7 +669,7 @@ internal static class KoakFollowGeometry
         return aircraft;
     }
 
-    internal static AircraftState Spawn(string callsign, string type, LatLon position, TrueHeading heading)
+    internal static AircraftState Spawn(string airportId, string callsign, string type, LatLon position, TrueHeading heading)
     {
         var aircraft = new AircraftState
         {
@@ -402,8 +682,8 @@ internal static class KoakFollowGeometry
             IsOnGround = true,
             FlightPlan = new AircraftFlightPlan
             {
-                Departure = AirportId,
-                Destination = AirportId,
+                Departure = airportId,
+                Destination = airportId,
                 FlightRules = "VFR",
                 Altitude = PlannedAltitude.Vfr(1500),
             },

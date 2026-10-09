@@ -687,7 +687,7 @@ public class GroundPhaseTests
     [Fact]
     public void FollowingPhase_BehindStoppedLead_ClosesUpToStopDistance()
     {
-        if (KoakFollowGeometry.NewEngine(_output, autoCross: false) is not { } setup)
+        if (FollowCornerGeometry.NewEngine(_output, autoCross: false) is not { } setup)
         {
             return;
         }
@@ -699,7 +699,7 @@ public class GroundPhaseTests
             .MaxBy(e => e.DistanceNm)!;
         GroundNode from = shared.Nodes[0];
         GroundNode to = shared.Nodes[1];
-        TrueHeading along = KoakFollowGeometry.Facing(from, to);
+        TrueHeading along = FollowCornerGeometry.Facing(from, to);
         double edgeFt = shared.DistanceNm * GeoMath.FeetPerNm;
 
         // Follower behind the lead on the edge, its nose just inside the close-follow band of the lead's tail, still rolling at 5 kt.
@@ -711,7 +711,8 @@ public class GroundPhaseTests
         Assert.True(leadAlongFt - startGapFt > 50.0, $"KOAK's longest B edge, {edgeFt:F0} ft, has no room for a {startGapFt:F0} ft start gap");
 
         // Lead stopped, engines running, not moving.
-        AircraftState lead = KoakFollowGeometry.Spawn(
+        AircraftState lead = FollowCornerGeometry.Spawn(
+            FollowCornerGeometry.AirportId,
             "LEAD01",
             "B738",
             GeoMath.ProjectPoint(from.Position, along, leadAlongFt / GeoMath.FeetPerNm),
@@ -720,7 +721,7 @@ public class GroundPhaseTests
         lead.Ground.Layout = layout;
         engine.World.AddAircraft(lead);
         LatLon followerAt = GeoMath.ProjectPoint(from.Position, along, (leadAlongFt - startGapFt) / GeoMath.FeetPerNm);
-        AircraftState follower = KoakFollowGeometry.Spawn("TEST001", "B738", followerAt, along);
+        AircraftState follower = FollowCornerGeometry.Spawn(FollowCornerGeometry.AirportId, "TEST001", "B738", followerAt, along);
         follower.IndicatedAirspeed = 5;
         follower.Ground.Layout = layout;
         engine.World.AddAircraft(follower);

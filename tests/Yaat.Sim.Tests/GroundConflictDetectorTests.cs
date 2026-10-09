@@ -37,7 +37,7 @@ public class GroundConflictDetectorTests
     [Fact]
     public void GiveWayStop_FollowerAtTheMerge_MatchesGiveWay()
     {
-        if (KoakFollowGeometry.StartTaxiingLead(_output) is not { } run)
+        if (FollowCornerGeometry.StartTaxiingLead(_output) is not { } run)
         {
             return;
         }
@@ -62,7 +62,13 @@ public class GroundConflictDetectorTests
             .OrderByDescending(c => c.Edge.DistanceNm)
             .Select(c => (c.Into, c.Junction, c.Edge.OtherNode(c.Junction)))
             .First();
-        AircraftState follower = KoakFollowGeometry.Spawn("N2FOL", "C172", far.Position, KoakFollowGeometry.Facing(far, junction));
+        AircraftState follower = FollowCornerGeometry.Spawn(
+            FollowCornerGeometry.AirportId,
+            "N2FOL",
+            "C172",
+            far.Position,
+            FollowCornerGeometry.Facing(far, junction)
+        );
         FollowRoutePlan.Joinable plan = Assert.IsType<FollowRoutePlan.Joinable>(FollowRoutePlanner.Plan(run.Layout, follower, run.Lead));
         Assert.Equal(junction.Id, plan.MergeNode);
         Assert.True(plan.MergeAheadOfLead);
@@ -88,17 +94,18 @@ public class GroundConflictDetectorTests
     [Fact]
     public void GiveWayStop_FollowerWithNoRouteLeft_NoStop()
     {
-        if (KoakFollowGeometry.StartTaxiingLead(_output) is not { } run)
+        if (FollowCornerGeometry.StartTaxiingLead(_output) is not { } run)
         {
             return;
         }
 
         TaxiRoute leadRoute = Assert.IsType<TaxiRoute>(run.Lead.Ground.AssignedTaxiRoute);
-        AircraftState follower = KoakFollowGeometry.Spawn(
+        AircraftState follower = FollowCornerGeometry.Spawn(
+            FollowCornerGeometry.AirportId,
             "N2FOL",
             "C172",
             run.Chain[6].Position,
-            KoakFollowGeometry.Facing(run.Chain[6], run.Chain[5])
+            FollowCornerGeometry.Facing(run.Chain[6], run.Chain[5])
         );
         var empty = new TaxiRoute { Segments = [], HoldShortPoints = [] };
 
@@ -113,7 +120,7 @@ public class GroundConflictDetectorTests
     [Fact]
     public void GiveWayStop_MergeBeyondTheLookAhead_NoStop()
     {
-        if (KoakFollowGeometry.StartTaxiingLead(_output) is not { } run)
+        if (FollowCornerGeometry.StartTaxiingLead(_output) is not { } run)
         {
             return;
         }
@@ -123,7 +130,7 @@ public class GroundConflictDetectorTests
         double straightFt = GeoMath.DistanceNm(run.Lead.Position, last.FromNode.Position) * FtPerNm;
         _output.WriteLine($"route {route.ToSummary()}: {straightFt:F0} ft straight from the lead to its last segment");
         Assert.True(straightFt >= 2500.0, $"the route's last segment is only {straightFt:F0} ft from the lead");
-        AircraftState follower = KoakFollowGeometry.Spawn("N2FOL", "C172", run.Lead.Position, run.Lead.TrueHeading);
+        AircraftState follower = FollowCornerGeometry.Spawn(FollowCornerGeometry.AirportId, "N2FOL", "C172", run.Lead.Position, run.Lead.TrueHeading);
 
         Assert.Null(GroundConflictDetector.GiveWayStop(follower, route, [last], run.Lead, out string? why));
         Assert.Equal("the merge is beyond the 1,500 ft look-ahead along its route", why);
@@ -1824,7 +1831,7 @@ public class GroundConflictDetectorTests
             return;
         }
 
-        (KoakFollowGeometry.LeadRun run, AircraftState follower, FollowingPhase _) = started;
+        (FollowCornerGeometry.LeadRun run, AircraftState follower, FollowingPhase _) = started;
         for (int second = 1; second <= 8; second++)
         {
             run.Engine.TickOneSecond();
@@ -1860,12 +1867,13 @@ public class GroundConflictDetectorTests
             return;
         }
 
-        (KoakFollowGeometry.LeadRun run, AircraftState follower, FollowingPhase _) = started;
-        AircraftState last = KoakFollowGeometry.Spawn(
+        (FollowCornerGeometry.LeadRun run, AircraftState follower, FollowingPhase _) = started;
+        AircraftState last = FollowCornerGeometry.Spawn(
+            FollowCornerGeometry.AirportId,
             SiblingCallsign,
             "C172",
             run.Chain[6].Position,
-            KoakFollowGeometry.Facing(run.Chain[6], run.Chain[5])
+            FollowCornerGeometry.Facing(run.Chain[6], run.Chain[5])
         );
         last.Ground.Layout = run.Layout;
         last.Phases = new PhaseList();
@@ -1898,7 +1906,13 @@ public class GroundConflictDetectorTests
             return;
         }
 
-        AircraftState sibling = KoakFollowGeometry.Spawn(SiblingCallsign, "C172", at.SidePoint, KoakFollowGeometry.Facing(at.SideFrom, at.Junction));
+        AircraftState sibling = FollowCornerGeometry.Spawn(
+            FollowCornerGeometry.AirportId,
+            SiblingCallsign,
+            "C172",
+            at.SidePoint,
+            FollowCornerGeometry.Facing(at.SideFrom, at.Junction)
+        );
         sibling.Ground.Layout = at.Run.Layout;
         at.Run.Engine.World.AddAircraft(sibling);
         CommandResult result = at.Run.Engine.SendCommand(SiblingCallsign, $"FOLLOWG {at.Run.Lead.Callsign}");
@@ -1922,17 +1936,29 @@ public class GroundConflictDetectorTests
     [Fact]
     public void Follower_WithNoDrivenRoute_IsAnObstacleAtRestAndAnUntrackedMoverRolling()
     {
-        if (KoakFollowGeometry.LoadLayout(_output) is not { } layout)
+        if (FollowCornerGeometry.LoadLayout(_output) is not { } layout)
         {
             return;
         }
 
-        List<GroundNode> chain = KoakFollowGeometry.BChain(layout);
-        AircraftState waiting = KoakFollowGeometry.Spawn(FollowerCallsign, "C172", chain[4].Position, KoakFollowGeometry.Facing(chain[4], chain[3]));
+        List<GroundNode> chain = FollowCornerGeometry.BChain(layout);
+        AircraftState waiting = FollowCornerGeometry.Spawn(
+            FollowCornerGeometry.AirportId,
+            FollowerCallsign,
+            "C172",
+            chain[4].Position,
+            FollowCornerGeometry.Facing(chain[4], chain[3])
+        );
         waiting.Phases = new PhaseList();
         waiting.Phases.Add(new FollowingPhase("N1LED"));
         waiting.Phases.CurrentPhase!.Status = PhaseStatus.Active;
-        AircraftState mover = KoakFollowGeometry.Spawn(ThirdCallsign, "C172", chain[2].Position, KoakFollowGeometry.Facing(chain[2], chain[3]));
+        AircraftState mover = FollowCornerGeometry.Spawn(
+            FollowCornerGeometry.AirportId,
+            ThirdCallsign,
+            "C172",
+            chain[2].Position,
+            FollowCornerGeometry.Facing(chain[2], chain[3])
+        );
         mover.Phases = null;
         mover.IndicatedAirspeed = 10.0;
 
@@ -1958,13 +1984,13 @@ public class GroundConflictDetectorTests
     [Fact]
     public void Lead_PushingTowardItsHoldingFollower_IsLimited()
     {
-        if (KoakFollowGeometry.LoadLayout(_output) is not { } layout)
+        if (FollowCornerGeometry.LoadLayout(_output) is not { } layout)
         {
             return;
         }
 
-        List<GroundNode> chain = KoakFollowGeometry.BChain(layout);
-        TrueHeading nose = KoakFollowGeometry.Facing(chain[3], chain[2]);
+        List<GroundNode> chain = FollowCornerGeometry.BChain(layout);
+        TrueHeading nose = FollowCornerGeometry.Facing(chain[3], chain[2]);
         TrueHeading tailward = nose.ToReciprocal();
         double pushKts = CategoryPerformance.PushbackSpeed(AircraftCategory.Jet);
         AircraftState lead = MakeAircraft(LeadCallsign, chain[3].Position, heading: nose.Degrees, gs: pushKts, pushbackHeading: tailward.Degrees);
@@ -1997,26 +2023,38 @@ public class GroundConflictDetectorTests
     [Fact]
     public void Lead_ReroutedBackTowardItsFollower_IsLimited()
     {
-        if (KoakFollowGeometry.LoadLayout(_output) is not { } layout)
+        if (FollowCornerGeometry.LoadLayout(_output) is not { } layout)
         {
             return;
         }
 
         // The lead came south down B from chain[5] to chain[3] (its trail), the follower behind it, and is now re-routed back north.
-        List<GroundNode> chain = KoakFollowGeometry.BChain(layout);
+        List<GroundNode> chain = FollowCornerGeometry.BChain(layout);
         const double TaxiKts = 10.0;
-        AircraftState lead = KoakFollowGeometry.Spawn(LeadCallsign, "C172", chain[3].Position, KoakFollowGeometry.Facing(chain[3], chain[4]));
+        AircraftState lead = FollowCornerGeometry.Spawn(
+            FollowCornerGeometry.AirportId,
+            LeadCallsign,
+            "C172",
+            chain[3].Position,
+            FollowCornerGeometry.Facing(chain[3], chain[4])
+        );
         lead.Phases = null;
         lead.IndicatedAirspeed = TaxiKts;
         lead.Ground.Layout = layout;
         lead.Ground.AssignedTaxiRoute = RouteAlongB(chain, 3, 5);
         for (int i = 5; i > 3; i--)
         {
-            lead.Ground.TaxiEdgeTrail.Record(KoakFollowGeometry.EdgeBetween(chain[i], chain[i - 1]), chain[i]);
+            lead.Ground.TaxiEdgeTrail.Record(FollowCornerGeometry.EdgeBetween(chain[i], chain[i - 1]), chain[i]);
         }
 
-        LatLon onTrail = KoakFollowGeometry.Between(chain[4].Position, chain[5].Position, 0.5);
-        AircraftState follower = KoakFollowGeometry.Spawn(FollowerCallsign, "C172", onTrail, KoakFollowGeometry.Facing(chain[5], chain[4]));
+        LatLon onTrail = FollowCornerGeometry.Between(chain[4].Position, chain[5].Position, 0.5);
+        AircraftState follower = FollowCornerGeometry.Spawn(
+            FollowCornerGeometry.AirportId,
+            FollowerCallsign,
+            "C172",
+            onTrail,
+            FollowCornerGeometry.Facing(chain[5], chain[4])
+        );
         follower.Phases = new PhaseList();
         follower.Phases.Add(new FollowingPhase(LeadCallsign));
         follower.Phases.CurrentPhase!.Status = PhaseStatus.Active;
@@ -2048,21 +2086,21 @@ public class GroundConflictDetectorTests
             return;
         }
 
-        (KoakFollowGeometry.LeadRun run, AircraftState follower, FollowingPhase follow) = started;
+        (FollowCornerGeometry.LeadRun run, AircraftState follower, FollowingPhase follow) = started;
         TaxiRoute route = Assert.IsType<TaxiRoute>(follow.FollowRoute);
         int index = StraightPairOn(route, firstMinFt: 50.0, secondMinFt: 240.0);
         TaxiRouteSegment came = route.Segments[index];
         TaxiRouteSegment shared = route.Segments[index + 1];
         route.CurrentSegmentIndex = index + 1;
         double sharedFt = shared.Edge.DistanceNm * FtPerNm;
-        TrueHeading along = KoakFollowGeometry.Facing(shared.Edge.FromNode, shared.Edge.ToNode);
-        follower.Position = KoakFollowGeometry.Between(shared.Edge.FromNode.Position, shared.Edge.ToNode.Position, 30.0 / sharedFt);
+        TrueHeading along = FollowCornerGeometry.Facing(shared.Edge.FromNode, shared.Edge.ToNode);
+        follower.Position = FollowCornerGeometry.Between(shared.Edge.FromNode.Position, shared.Edge.ToNode.Position, 30.0 / sharedFt);
         follower.TrueHeading = along;
         follower.Ground.TaxiEdgeTrail.Clear();
         follower.Ground.TaxiEdgeTrail.Record(Assert.IsType<GroundEdge>(shared.Edge.Edge), shared.Edge.FromNode);
 
-        LatLon aheadOfFollower = KoakFollowGeometry.Between(shared.Edge.FromNode.Position, shared.Edge.ToNode.Position, 110.0 / sharedFt);
-        AircraftState third = KoakFollowGeometry.Spawn(ThirdCallsign, "C172", aheadOfFollower, along);
+        LatLon aheadOfFollower = FollowCornerGeometry.Between(shared.Edge.FromNode.Position, shared.Edge.ToNode.Position, 110.0 / sharedFt);
+        AircraftState third = FollowCornerGeometry.Spawn(FollowCornerGeometry.AirportId, ThirdCallsign, "C172", aheadOfFollower, along);
         third.Phases = null;
         third.IndicatedAirspeed = 5.0;
         third.Ground.Layout = run.Layout;
@@ -2097,15 +2135,15 @@ public class GroundConflictDetectorTests
     [InlineData(false)]
     public void Lead_TurnedSharplyAwayOntoNewGround_IsNotClosing(bool outEdgeRecorded)
     {
-        if (KoakFollowGeometry.LoadLayout(_output) is not { } layout)
+        if (FollowCornerGeometry.LoadLayout(_output) is not { } layout)
         {
             return;
         }
 
         (GroundNode farIn, GroundNode junction, GroundNode farOut, GroundEdge inEdge, GroundEdge outEdge, double turnDeg) =
-            KoakFollowGeometry.SharpTurn(layout);
-        TrueHeading inHeading = KoakFollowGeometry.Facing(farIn, junction);
-        TrueHeading outHeading = KoakFollowGeometry.Facing(junction, farOut);
+            FollowCornerGeometry.SharpTurn(layout);
+        TrueHeading inHeading = FollowCornerGeometry.Facing(farIn, junction);
+        TrueHeading outHeading = FollowCornerGeometry.Facing(junction, farOut);
         double inFt = inEdge.DistanceNm * FtPerNm;
         double outFt = outEdge.DistanceNm * FtPerNm;
 
@@ -2119,8 +2157,8 @@ public class GroundConflictDetectorTests
         );
 
         const double TaxiKts = 10.0;
-        LatLon pastTheTurn = KoakFollowGeometry.Between(junction.Position, farOut.Position, pastFt / outFt);
-        AircraftState lead = KoakFollowGeometry.Spawn(LeadCallsign, "C172", pastTheTurn, outHeading);
+        LatLon pastTheTurn = FollowCornerGeometry.Between(junction.Position, farOut.Position, pastFt / outFt);
+        AircraftState lead = FollowCornerGeometry.Spawn(FollowCornerGeometry.AirportId, LeadCallsign, "C172", pastTheTurn, outHeading);
         lead.Phases = null;
         lead.IndicatedAirspeed = TaxiKts;
         lead.Ground.Layout = layout;
@@ -2150,8 +2188,8 @@ public class GroundConflictDetectorTests
             );
         }
 
-        LatLon behind = KoakFollowGeometry.Between(junction.Position, farIn.Position, behindFt / inFt);
-        AircraftState follower = KoakFollowGeometry.Spawn(FollowerCallsign, "C172", behind, inHeading);
+        LatLon behind = FollowCornerGeometry.Between(junction.Position, farIn.Position, behindFt / inFt);
+        AircraftState follower = FollowCornerGeometry.Spawn(FollowCornerGeometry.AirportId, FollowerCallsign, "C172", behind, inHeading);
         follower.Phases = new PhaseList();
         follower.Phases.Add(new FollowingPhase(LeadCallsign));
         follower.Phases.CurrentPhase!.Status = PhaseStatus.Active;
@@ -2184,13 +2222,13 @@ public class GroundConflictDetectorTests
     [Fact]
     public void Lead_PushingAwayFromFollowerInFrontOfItsNose_IsNotLimited()
     {
-        if (KoakFollowGeometry.LoadLayout(_output) is not { } layout)
+        if (FollowCornerGeometry.LoadLayout(_output) is not { } layout)
         {
             return;
         }
 
-        List<GroundNode> chain = KoakFollowGeometry.BChain(layout);
-        TrueHeading nose = KoakFollowGeometry.Facing(chain[3], chain[2]);
+        List<GroundNode> chain = FollowCornerGeometry.BChain(layout);
+        TrueHeading nose = FollowCornerGeometry.Facing(chain[3], chain[2]);
         TrueHeading tailward = nose.ToReciprocal();
         double pushKts = CategoryPerformance.PushbackSpeed(AircraftCategory.Piston);
         AircraftState lead = MakeAircraft(LeadCallsign, chain[3].Position, heading: nose.Degrees, gs: pushKts, pushbackHeading: tailward.Degrees);
@@ -2239,30 +2277,42 @@ public class GroundConflictDetectorTests
     [Fact]
     public void Lead_ReroutedBackPastTheNodeItTurnedAt_IsLimited()
     {
-        if (KoakFollowGeometry.LoadLayout(_output) is not { } layout)
+        if (FollowCornerGeometry.LoadLayout(_output) is not { } layout)
         {
             return;
         }
 
         // The lead came south down B from chain[5] to chain[3], turned back north, and has passed chain[4] again.
-        List<GroundNode> chain = KoakFollowGeometry.BChain(layout);
+        List<GroundNode> chain = FollowCornerGeometry.BChain(layout);
         const double TaxiKts = 10.0;
-        LatLon pastTurnNode = KoakFollowGeometry.Between(chain[4].Position, chain[5].Position, 0.2);
-        AircraftState lead = KoakFollowGeometry.Spawn(LeadCallsign, "C172", pastTurnNode, KoakFollowGeometry.Facing(chain[4], chain[5]));
+        LatLon pastTurnNode = FollowCornerGeometry.Between(chain[4].Position, chain[5].Position, 0.2);
+        AircraftState lead = FollowCornerGeometry.Spawn(
+            FollowCornerGeometry.AirportId,
+            LeadCallsign,
+            "C172",
+            pastTurnNode,
+            FollowCornerGeometry.Facing(chain[4], chain[5])
+        );
         lead.Phases = null;
         lead.IndicatedAirspeed = TaxiKts;
         lead.Ground.Layout = layout;
         lead.Ground.AssignedTaxiRoute = RouteAlongB(chain, 4, 5);
         for (int i = 5; i > 3; i--)
         {
-            lead.Ground.TaxiEdgeTrail.Record(KoakFollowGeometry.EdgeBetween(chain[i], chain[i - 1]), chain[i]);
+            lead.Ground.TaxiEdgeTrail.Record(FollowCornerGeometry.EdgeBetween(chain[i], chain[i - 1]), chain[i]);
         }
 
-        GroundEdge drivenAgain = KoakFollowGeometry.EdgeBetween(chain[4], chain[5]);
+        GroundEdge drivenAgain = FollowCornerGeometry.EdgeBetween(chain[4], chain[5]);
         lead.Ground.TaxiEdgeTrail.Record(drivenAgain, TaxiEdgeTrail.EntryNodeOf(drivenAgain, lead));
 
-        LatLon onTrail = KoakFollowGeometry.Between(chain[4].Position, chain[5].Position, 0.5);
-        AircraftState follower = KoakFollowGeometry.Spawn(FollowerCallsign, "C172", onTrail, KoakFollowGeometry.Facing(chain[5], chain[4]));
+        LatLon onTrail = FollowCornerGeometry.Between(chain[4].Position, chain[5].Position, 0.5);
+        AircraftState follower = FollowCornerGeometry.Spawn(
+            FollowCornerGeometry.AirportId,
+            FollowerCallsign,
+            "C172",
+            onTrail,
+            FollowCornerGeometry.Facing(chain[5], chain[4])
+        );
         follower.Phases = new PhaseList();
         follower.Phases.Add(new FollowingPhase(LeadCallsign));
         follower.Phases.CurrentPhase!.Status = PhaseStatus.Active;
@@ -2292,7 +2342,7 @@ public class GroundConflictDetectorTests
     [Fact]
     public void Lead_TurnedAboutAfterAFilletedCorner_IsLimited()
     {
-        if (KoakFollowGeometry.LoadLayout(_output) is not { } layout)
+        if (FollowCornerGeometry.LoadLayout(_output) is not { } layout)
         {
             return;
         }
@@ -2300,8 +2350,14 @@ public class GroundConflictDetectorTests
         FilletedCorner corner = FindFilletedCorner(layout, minSweepDeg: 45.0);
         double outFt = corner.OutEdge.DistanceNm * FtPerNm;
         const double TaxiKts = 10.0;
-        LatLon turnedAboutAt = KoakFollowGeometry.Between(corner.T2.Position, corner.Q.Position, 150.0 / outFt);
-        AircraftState lead = KoakFollowGeometry.Spawn(LeadCallsign, "C172", turnedAboutAt, KoakFollowGeometry.Facing(corner.Q, corner.T2));
+        LatLon turnedAboutAt = FollowCornerGeometry.Between(corner.T2.Position, corner.Q.Position, 150.0 / outFt);
+        AircraftState lead = FollowCornerGeometry.Spawn(
+            FollowCornerGeometry.AirportId,
+            LeadCallsign,
+            "C172",
+            turnedAboutAt,
+            FollowCornerGeometry.Facing(corner.Q, corner.T2)
+        );
         lead.Phases = null;
         lead.IndicatedAirspeed = TaxiKts;
         lead.Ground.Layout = layout;
@@ -2312,8 +2368,14 @@ public class GroundConflictDetectorTests
         lead.Ground.TaxiEdgeTrail.Record(corner.InEdge, corner.P);
         lead.Ground.TaxiEdgeTrail.Record(corner.OutEdge, corner.T2);
 
-        LatLon pastTheArc = KoakFollowGeometry.Between(corner.T2.Position, corner.Q.Position, 25.0 / outFt);
-        AircraftState follower = KoakFollowGeometry.Spawn(FollowerCallsign, "C172", pastTheArc, KoakFollowGeometry.Facing(corner.T2, corner.Q));
+        LatLon pastTheArc = FollowCornerGeometry.Between(corner.T2.Position, corner.Q.Position, 25.0 / outFt);
+        AircraftState follower = FollowCornerGeometry.Spawn(
+            FollowCornerGeometry.AirportId,
+            FollowerCallsign,
+            "C172",
+            pastTheArc,
+            FollowCornerGeometry.Facing(corner.T2, corner.Q)
+        );
         follower.Phases = new PhaseList();
         follower.Phases.Add(new FollowingPhase(LeadCallsign));
         follower.Phases.CurrentPhase!.Status = PhaseStatus.Active;
@@ -2344,14 +2406,14 @@ public class GroundConflictDetectorTests
     [Fact]
     public void Lead_TurnedAboutMidEdgeFromFarEnd_IsLimited()
     {
-        if (KoakFollowGeometry.NewEngine(_output, autoCross: true) is not { } setup)
+        if (FollowCornerGeometry.NewEngine(_output, autoCross: true) is not { } setup)
         {
             return;
         }
 
         (SimulationEngine engine, AirportGroundLayout layout) = setup;
         (GroundNode entry, GroundNode ahead) = KoakTaxiwayC.LongEdgeWestOfH(layout);
-        GroundEdge newestEdge = KoakFollowGeometry.EdgeBetween(entry, ahead);
+        GroundEdge newestEdge = FollowCornerGeometry.EdgeBetween(entry, ahead);
         double edgeFt = newestEdge.DistanceNm * FtPerNm;
         double centresFt = FollowGap.StopGapFt("C172", AircraftCategory.Piston, "C172", AircraftCategory.Piston) + LengthFt("C172");
         const double FollowerFt = 40.0;
@@ -2359,8 +2421,14 @@ public class GroundConflictDetectorTests
         _output.WriteLine($"C #{entry.Id}-#{ahead.Id} {edgeFt:F0} ft: lead {leadFt:F0} ft along, follower {FollowerFt:F0} ft along");
 
         const double TaxiKts = 10.0;
-        LatLon midEdge = KoakFollowGeometry.Between(entry.Position, ahead.Position, leadFt / edgeFt);
-        AircraftState lead = KoakFollowGeometry.Spawn(LeadCallsign, "C172", midEdge, KoakFollowGeometry.Facing(entry, ahead));
+        LatLon midEdge = FollowCornerGeometry.Between(entry.Position, ahead.Position, leadFt / edgeFt);
+        AircraftState lead = FollowCornerGeometry.Spawn(
+            FollowCornerGeometry.AirportId,
+            LeadCallsign,
+            "C172",
+            midEdge,
+            FollowCornerGeometry.Facing(entry, ahead)
+        );
         lead.Ground.Layout = layout;
         engine.World.AddAircraft(lead);
         CommandResult taxi = engine.SendCommand(LeadCallsign, "TAXI C B");
@@ -2378,13 +2446,19 @@ public class GroundConflictDetectorTests
         TaxiTrailEdge recorded = Assert.NotNull(lead.Ground.TaxiEdgeTrail.Newest);
         GroundEdge driving = Assert.IsType<GroundEdge>(first.Edge.Edge);
         Assert.False(recorded.Is(driving), "segment 0 is the lead's newest trail edge, so the test proves nothing");
-        TrueHeading turnedAbout = KoakFollowGeometry.Facing(ahead, entry);
+        TrueHeading turnedAbout = FollowCornerGeometry.Facing(ahead, entry);
         lead.TrueHeading = turnedAbout;
         lead.TrueTrack = turnedAbout;
         lead.IndicatedAirspeed = TaxiKts;
 
-        LatLon behind = KoakFollowGeometry.Between(entry.Position, ahead.Position, FollowerFt / edgeFt);
-        AircraftState follower = KoakFollowGeometry.Spawn(FollowerCallsign, "C172", behind, KoakFollowGeometry.Facing(entry, ahead));
+        LatLon behind = FollowCornerGeometry.Between(entry.Position, ahead.Position, FollowerFt / edgeFt);
+        AircraftState follower = FollowCornerGeometry.Spawn(
+            FollowCornerGeometry.AirportId,
+            FollowerCallsign,
+            "C172",
+            behind,
+            FollowCornerGeometry.Facing(entry, ahead)
+        );
         follower.Phases = new PhaseList();
         follower.Phases.Add(new FollowingPhase(LeadCallsign));
         follower.Phases.CurrentPhase!.Status = PhaseStatus.Active;
@@ -2413,7 +2487,7 @@ public class GroundConflictDetectorTests
     [Fact]
     public void Lead_MidWayRoundAFilletedTurnOfMoreThan90Degrees_IsNotClosing()
     {
-        if (KoakFollowGeometry.LoadLayout(_output) is not { } layout)
+        if (FollowCornerGeometry.LoadLayout(_output) is not { } layout)
         {
             return;
         }
@@ -2422,7 +2496,7 @@ public class GroundConflictDetectorTests
         double turnDeg = corner.SweepDeg - 5.0;
         (LatLon onArc, TrueHeading arcHeading) = PointAfterTurn(corner.Curve, turnDeg);
         const double TaxiKts = 10.0;
-        AircraftState lead = KoakFollowGeometry.Spawn(LeadCallsign, "C172", onArc, arcHeading);
+        AircraftState lead = FollowCornerGeometry.Spawn(FollowCornerGeometry.AirportId, LeadCallsign, "C172", onArc, arcHeading);
         lead.Phases = null;
         lead.IndicatedAirspeed = TaxiKts;
         lead.Ground.Layout = layout;
@@ -2434,8 +2508,14 @@ public class GroundConflictDetectorTests
         lead.Ground.TaxiEdgeTrail.Record(corner.InEdge, corner.P);
 
         double inFt = corner.InEdge.DistanceNm * FtPerNm;
-        LatLon behind = KoakFollowGeometry.Between(corner.T1.Position, corner.P.Position, Math.Min(60.0, inFt / 2.0) / inFt);
-        AircraftState follower = KoakFollowGeometry.Spawn(FollowerCallsign, "C172", behind, KoakFollowGeometry.Facing(corner.P, corner.T1));
+        LatLon behind = FollowCornerGeometry.Between(corner.T1.Position, corner.P.Position, Math.Min(60.0, inFt / 2.0) / inFt);
+        AircraftState follower = FollowCornerGeometry.Spawn(
+            FollowCornerGeometry.AirportId,
+            FollowerCallsign,
+            "C172",
+            behind,
+            FollowCornerGeometry.Facing(corner.P, corner.T1)
+        );
         follower.Phases = new PhaseList();
         follower.Phases.Add(new FollowingPhase(LeadCallsign));
         follower.Phases.CurrentPhase!.Status = PhaseStatus.Active;
@@ -2468,7 +2548,7 @@ public class GroundConflictDetectorTests
     [InlineData(true)]
     public void Lead_ComingBackOverTheFilletArcItCameRound_IsClosingOnEveryPass(bool followerOnArc)
     {
-        if (KoakFollowGeometry.LoadLayout(_output) is not { } layout)
+        if (FollowCornerGeometry.LoadLayout(_output) is not { } layout)
         {
             return;
         }
@@ -2480,7 +2560,13 @@ public class GroundConflictDetectorTests
             new TaxiRouteSegment { TaxiwayName = corner.Arc.TaxiwayName, Edge = corner.Arc.Directed(corner.T2, corner.T1) },
             new TaxiRouteSegment { TaxiwayName = corner.InEdge.TaxiwayName, Edge = corner.InEdge.Directed(corner.T1, corner.P) }
         );
-        AircraftState lead = KoakFollowGeometry.Spawn(LeadCallsign, "C172", corner.T2.Position, KoakFollowGeometry.Facing(corner.Q, corner.T2));
+        AircraftState lead = FollowCornerGeometry.Spawn(
+            FollowCornerGeometry.AirportId,
+            LeadCallsign,
+            "C172",
+            corner.T2.Position,
+            FollowCornerGeometry.Facing(corner.Q, corner.T2)
+        );
         lead.Phases = null;
         lead.IndicatedAirspeed = TaxiKts;
         lead.Ground.Layout = layout;
@@ -2492,10 +2578,10 @@ public class GroundConflictDetectorTests
         (LatLon followerAt, TrueHeading followerHeading) = followerOnArc
             ? PointAfterTurn(corner.Curve, 0.25 * corner.SweepDeg)
             : (
-                KoakFollowGeometry.Between(corner.T1.Position, corner.P.Position, Math.Min(90.0, inFt - 10.0) / inFt),
-                KoakFollowGeometry.Facing(corner.P, corner.T1)
+                FollowCornerGeometry.Between(corner.T1.Position, corner.P.Position, Math.Min(90.0, inFt - 10.0) / inFt),
+                FollowCornerGeometry.Facing(corner.P, corner.T1)
             );
-        AircraftState follower = KoakFollowGeometry.Spawn(FollowerCallsign, "C172", followerAt, followerHeading);
+        AircraftState follower = FollowCornerGeometry.Spawn(FollowCornerGeometry.AirportId, FollowerCallsign, "C172", followerAt, followerHeading);
         follower.Phases = new PhaseList();
         follower.Phases.Add(new FollowingPhase(LeadCallsign));
         follower.Phases.CurrentPhase!.Status = PhaseStatus.Active;
@@ -2510,11 +2596,16 @@ public class GroundConflictDetectorTests
             passes.Add((onArc, outbound.ToReciprocal(), 0, $"arc {turnDeg:F0}° from #{corner.T1.Id}"));
         }
 
-        TrueHeading towardP = KoakFollowGeometry.Facing(corner.T1, corner.P);
+        TrueHeading towardP = FollowCornerGeometry.Facing(corner.T1, corner.P);
         for (double pastFt = 5.0; pastFt < inFt; pastFt += 10.0)
         {
             passes.Add(
-                (KoakFollowGeometry.Between(corner.T1.Position, corner.P.Position, pastFt / inFt), towardP, 1, $"{pastFt:F0} ft past #{corner.T1.Id}")
+                (
+                    FollowCornerGeometry.Between(corner.T1.Position, corner.P.Position, pastFt / inFt),
+                    towardP,
+                    1,
+                    $"{pastFt:F0} ft past #{corner.T1.Id}"
+                )
             );
         }
 
@@ -2566,14 +2657,20 @@ public class GroundConflictDetectorTests
     [Fact]
     public void Lead_ComingBackOffTheCurveNearTheArcsEnds_IsClosing()
     {
-        if (KoakFollowGeometry.LoadLayout(_output) is not { } layout)
+        if (FollowCornerGeometry.LoadLayout(_output) is not { } layout)
         {
             return;
         }
 
         FilletedCorner corner = FindFilletedCorner(layout, minSweepDeg: 45.0);
         double inFt = corner.InEdge.DistanceNm * FtPerNm;
-        AircraftState lead = KoakFollowGeometry.Spawn(LeadCallsign, "C172", corner.T2.Position, KoakFollowGeometry.Facing(corner.Q, corner.T2));
+        AircraftState lead = FollowCornerGeometry.Spawn(
+            FollowCornerGeometry.AirportId,
+            LeadCallsign,
+            "C172",
+            corner.T2.Position,
+            FollowCornerGeometry.Facing(corner.Q, corner.T2)
+        );
         lead.Phases = null;
         lead.IndicatedAirspeed = 10.0;
         lead.Ground.Layout = layout;
@@ -2585,8 +2682,14 @@ public class GroundConflictDetectorTests
         lead.Ground.TaxiEdgeTrail.Record(corner.InEdge, corner.P);
         lead.Ground.TaxiEdgeTrail.Record(corner.OutEdge, corner.T2);
 
-        LatLon followerAt = KoakFollowGeometry.Between(corner.T1.Position, corner.P.Position, Math.Min(90.0, inFt - 10.0) / inFt);
-        AircraftState follower = KoakFollowGeometry.Spawn(FollowerCallsign, "C172", followerAt, KoakFollowGeometry.Facing(corner.P, corner.T1));
+        LatLon followerAt = FollowCornerGeometry.Between(corner.T1.Position, corner.P.Position, Math.Min(90.0, inFt - 10.0) / inFt);
+        AircraftState follower = FollowCornerGeometry.Spawn(
+            FollowCornerGeometry.AirportId,
+            FollowerCallsign,
+            "C172",
+            followerAt,
+            FollowCornerGeometry.Facing(corner.P, corner.T1)
+        );
         follower.Phases = new PhaseList();
         follower.Phases.Add(new FollowingPhase(LeadCallsign));
         follower.Phases.CurrentPhase!.Status = PhaseStatus.Active;
@@ -2629,7 +2732,7 @@ public class GroundConflictDetectorTests
     [Fact]
     public void Lead_JustPastAFilletedTurnOfMoreThan90Degrees_IsNotClosing()
     {
-        if (KoakFollowGeometry.LoadLayout(_output) is not { } layout)
+        if (FollowCornerGeometry.LoadLayout(_output) is not { } layout)
         {
             return;
         }
@@ -2637,10 +2740,10 @@ public class GroundConflictDetectorTests
         FilletedCorner corner = FindFilletedCorner(layout, minSweepDeg: 100.0);
         double outFt = corner.OutEdge.DistanceNm * FtPerNm;
         double inFt = corner.InEdge.DistanceNm * FtPerNm;
-        TrueHeading outHeading = KoakFollowGeometry.Facing(corner.T2, corner.Q);
-        LatLon justPast = KoakFollowGeometry.Between(corner.T2.Position, corner.Q.Position, 10.0 / outFt);
+        TrueHeading outHeading = FollowCornerGeometry.Facing(corner.T2, corner.Q);
+        LatLon justPast = FollowCornerGeometry.Between(corner.T2.Position, corner.Q.Position, 10.0 / outFt);
         const double TaxiKts = 10.0;
-        AircraftState lead = KoakFollowGeometry.Spawn(LeadCallsign, "C172", justPast, outHeading);
+        AircraftState lead = FollowCornerGeometry.Spawn(FollowCornerGeometry.AirportId, LeadCallsign, "C172", justPast, outHeading);
         lead.Phases = null;
         lead.IndicatedAirspeed = TaxiKts;
         lead.Ground.Layout = layout;
@@ -2650,9 +2753,9 @@ public class GroundConflictDetectorTests
         lead.Ground.TaxiEdgeTrail.Record(corner.BeforeEdge, corner.O);
         lead.Ground.TaxiEdgeTrail.Record(corner.InEdge, corner.P);
 
-        TrueHeading inHeading = KoakFollowGeometry.Facing(corner.P, corner.T1);
-        LatLon behind = KoakFollowGeometry.Between(corner.T1.Position, corner.P.Position, Math.Min(60.0, inFt / 2.0) / inFt);
-        AircraftState follower = KoakFollowGeometry.Spawn(FollowerCallsign, "C172", behind, inHeading);
+        TrueHeading inHeading = FollowCornerGeometry.Facing(corner.P, corner.T1);
+        LatLon behind = FollowCornerGeometry.Between(corner.T1.Position, corner.P.Position, Math.Min(60.0, inFt / 2.0) / inFt);
+        AircraftState follower = FollowCornerGeometry.Spawn(FollowCornerGeometry.AirportId, FollowerCallsign, "C172", behind, inHeading);
         follower.Phases = new PhaseList();
         follower.Phases.Add(new FollowingPhase(LeadCallsign));
         follower.Phases.CurrentPhase!.Status = PhaseStatus.Active;
@@ -2704,9 +2807,9 @@ public class GroundConflictDetectorTests
         }
 
         ShortChordCorner corner = FindShortChordCorner(layout);
-        TrueHeading outHeading = KoakFollowGeometry.Facing(corner.T2, corner.Q);
+        TrueHeading outHeading = FollowCornerGeometry.Facing(corner.T2, corner.Q);
         const double TaxiKts = 10.0;
-        AircraftState lead = KoakFollowGeometry.Spawn(LeadCallsign, "C172", corner.LeadAt, outHeading);
+        AircraftState lead = FollowCornerGeometry.Spawn(FollowCornerGeometry.AirportId, LeadCallsign, "C172", corner.LeadAt, outHeading);
         lead.Phases = null;
         lead.IndicatedAirspeed = TaxiKts;
         lead.Ground.Layout = layout;
@@ -2716,9 +2819,9 @@ public class GroundConflictDetectorTests
         lead.Ground.TaxiEdgeTrail.Record(corner.InEdge, corner.P);
 
         double inFt = corner.InEdge.DistanceNm * FtPerNm;
-        TrueHeading inHeading = KoakFollowGeometry.Facing(corner.P, corner.T1);
-        LatLon behind = KoakFollowGeometry.Between(corner.T1.Position, corner.P.Position, Math.Min(60.0, inFt / 2.0) / inFt);
-        AircraftState follower = KoakFollowGeometry.Spawn(FollowerCallsign, "C172", behind, inHeading);
+        TrueHeading inHeading = FollowCornerGeometry.Facing(corner.P, corner.T1);
+        LatLon behind = FollowCornerGeometry.Between(corner.T1.Position, corner.P.Position, Math.Min(60.0, inFt / 2.0) / inFt);
+        AircraftState follower = FollowCornerGeometry.Spawn(FollowCornerGeometry.AirportId, FollowerCallsign, "C172", behind, inHeading);
         follower.Phases = new PhaseList();
         follower.Phases.Add(new FollowingPhase(LeadCallsign));
         follower.Phases.CurrentPhase!.Status = PhaseStatus.Active;
@@ -2808,7 +2911,7 @@ public class GroundConflictDetectorTests
 
         GroundNode q = outEdge.OtherNode(t2);
         double outFt = outEdge.DistanceNm * FtPerNm;
-        LatLon leadAt = KoakFollowGeometry.Between(t2.Position, q.Position, Math.Min(5.0, outFt / 3.0) / outFt);
+        LatLon leadAt = FollowCornerGeometry.Between(t2.Position, q.Position, Math.Min(5.0, outFt / 3.0) / outFt);
         bool sharesANode = inEdge.Nodes.Any(node => outEdge.Nodes.Any(other => other.Id == node.Id));
         GroundEdge? found = TaxiEdgeLocator.DrivenEdgeUnder(layout, leadAt, (inEdge.Nodes[0].Id, inEdge.Nodes[1].Id));
         double chordFt = GeoMath.DistanceNm(t1.Position, t2.Position) * FtPerNm;
@@ -2853,7 +2956,7 @@ public class GroundConflictDetectorTests
     [InlineData(true, 12.0)]
     public void Engine_LeadThroughASharpTurn_NeverClosesOnItsFollowerBehind(bool filleted, double startFt)
     {
-        if (KoakFollowGeometry.NewEngine(_output, autoCross: true) is not { } setup)
+        if (FollowCornerGeometry.NewEngine(_output, autoCross: true) is not { } setup)
         {
             return;
         }
@@ -2867,17 +2970,18 @@ public class GroundConflictDetectorTests
         );
 
         AircraftState lead = StartTaxiingOn(engine, layout, LeadCallsign, path, startFt);
-        LatLon followerStart = KoakFollowGeometry.Between(path[0].FromNode.Position, path[0].ToNode.Position, 0.3);
+        LatLon followerStart = FollowCornerGeometry.Between(path[0].FromNode.Position, path[0].ToNode.Position, 0.3);
         for (int second = 0; (second < 90) && ((GeoMath.DistanceNm(lead.Position, followerStart) * FtPerNm) < 200.0); second++)
         {
             engine.TickOneSecond();
         }
 
-        AircraftState follower = KoakFollowGeometry.Spawn(
+        AircraftState follower = FollowCornerGeometry.Spawn(
+            FollowCornerGeometry.AirportId,
             FollowerCallsign,
             "C172",
             followerStart,
-            KoakFollowGeometry.Facing(path[0].FromNode, path[0].ToNode)
+            FollowCornerGeometry.Facing(path[0].FromNode, path[0].ToNode)
         );
         follower.Ground.Layout = layout;
         engine.World.AddAircraft(follower);
@@ -2960,11 +3064,12 @@ public class GroundConflictDetectorTests
     )
     {
         double firstFt = path[0].DistanceNm * FtPerNm;
-        AircraftState aircraft = KoakFollowGeometry.Spawn(
+        AircraftState aircraft = FollowCornerGeometry.Spawn(
+            FollowCornerGeometry.AirportId,
             callsign,
             "C172",
-            KoakFollowGeometry.Between(path[0].FromNode.Position, path[0].ToNode.Position, startFt / firstFt),
-            KoakFollowGeometry.Facing(path[0].FromNode, path[0].ToNode)
+            FollowCornerGeometry.Between(path[0].FromNode.Position, path[0].ToNode.Position, startFt / firstFt),
+            FollowCornerGeometry.Facing(path[0].FromNode, path[0].ToNode)
         );
         aircraft.Ground.Layout = layout;
         aircraft.Ground.AssignedTaxiRoute = new TaxiRoute
@@ -2980,12 +3085,12 @@ public class GroundConflictDetectorTests
     }
 
     /// <summary>
-    /// A route through <see cref="KoakFollowGeometry.SharpTurn"/>: about 300 ft of edges running straight on into the edge in, the edge in, the edge
-    /// out, and about 200 ft of edges running straight on beyond it; with the junction the turn is made at.
+    /// A route through <see cref="FollowCornerGeometry.SharpTurn"/>: about 300 ft of edges running straight on into the edge in,
+    /// the edge in, the edge out, and about 200 ft of edges running straight on beyond it; with the junction the turn is made at.
     /// </summary>
     private static (List<DirectionalEdge> Path, GroundNode TurnNode) SharpTurnPath(AirportGroundLayout layout)
     {
-        (GroundNode farIn, GroundNode junction, GroundNode farOut, GroundEdge inEdge, GroundEdge outEdge, double _) = KoakFollowGeometry.SharpTurn(
+        (GroundNode farIn, GroundNode junction, GroundNode farOut, GroundEdge inEdge, GroundEdge outEdge, double _) = FollowCornerGeometry.SharpTurn(
             layout
         );
         List<DirectionalEdge> path =
@@ -3164,7 +3269,7 @@ public class GroundConflictDetectorTests
             return;
         }
 
-        (KoakFollowGeometry.LeadRun run, AircraftState follower, FollowingPhase follow) = started;
+        (FollowCornerGeometry.LeadRun run, AircraftState follower, FollowingPhase follow) = started;
         TaxiRoute route = Assert.IsType<TaxiRoute>(follow.FollowRoute);
         int index = StraightPairOn(route, firstMinFt: 140.0, secondMinFt: 110.0);
         TaxiRouteSegment towardNode = route.Segments[index];
@@ -3172,8 +3277,12 @@ public class GroundConflictDetectorTests
         route.CurrentSegmentIndex = index;
         double towardFt = towardNode.Edge.DistanceNm * FtPerNm;
         double shortOfNodeFt = Math.Min(200.0, towardFt - 10.0);
-        follower.Position = KoakFollowGeometry.Between(towardNode.Edge.ToNode.Position, towardNode.Edge.FromNode.Position, shortOfNodeFt / towardFt);
-        follower.TrueHeading = KoakFollowGeometry.Facing(towardNode.Edge.FromNode, towardNode.Edge.ToNode);
+        follower.Position = FollowCornerGeometry.Between(
+            towardNode.Edge.ToNode.Position,
+            towardNode.Edge.FromNode.Position,
+            shortOfNodeFt / towardFt
+        );
+        follower.TrueHeading = FollowCornerGeometry.Facing(towardNode.Edge.FromNode, towardNode.Edge.ToNode);
         follower.IndicatedAirspeed = 8.0;
         follower.Ground.TaxiEdgeTrail.Clear();
         follower.Ground.TaxiEdgeTrail.Record(Assert.IsType<GroundEdge>(towardNode.Edge.Edge), towardNode.Edge.FromNode);
@@ -3241,8 +3350,8 @@ public class GroundConflictDetectorTests
         GroundNode ahead = onto.Edge.ToNode;
         lead.Phases = null;
         lead.IndicatedAirspeed = speedKts;
-        lead.Position = KoakFollowGeometry.Between(back.Position, ahead.Position, pastFt / (onto.Edge.DistanceNm * FtPerNm));
-        lead.TrueHeading = KoakFollowGeometry.Facing(ahead, back);
+        lead.Position = FollowCornerGeometry.Between(back.Position, ahead.Position, pastFt / (onto.Edge.DistanceNm * FtPerNm));
+        lead.TrueHeading = FollowCornerGeometry.Facing(ahead, back);
         var backward = new DirectionalEdge
         {
             Edge = onto.Edge.Edge,
@@ -3291,30 +3400,30 @@ public class GroundConflictDetectorTests
     [Fact]
     public void MutualFollowers_WithAThirdAircraft_ResolveTheThirdAgainstEach()
     {
-        if (KoakFollowGeometry.LoadLayout(_output) is not { } layout)
+        if (FollowCornerGeometry.LoadLayout(_output) is not { } layout)
         {
             return;
         }
 
         const string MutualA = "N5MUT";
         const string MutualB = "N6MUT";
-        List<GroundNode> chain = KoakFollowGeometry.BChain(layout);
+        List<GroundNode> chain = FollowCornerGeometry.BChain(layout);
         AircraftState a = MakeAircraft(
             MutualA,
             chain[2].Position,
-            heading: KoakFollowGeometry.Facing(chain[2], chain[3]).Degrees,
+            heading: FollowCornerGeometry.Facing(chain[2], chain[3]).Degrees,
             phase: new FollowingPhase(MutualB)
         );
         AircraftState b = MakeAircraft(
             MutualB,
             chain[5].Position,
-            heading: KoakFollowGeometry.Facing(chain[5], chain[4]).Degrees,
+            heading: FollowCornerGeometry.Facing(chain[5], chain[4]).Degrees,
             phase: new FollowingPhase(MutualA)
         );
         AircraftState third = MakeAircraft(
             ThirdCallsign,
             chain[3].Position,
-            heading: KoakFollowGeometry.Facing(chain[3], chain[4]).Degrees,
+            heading: FollowCornerGeometry.Facing(chain[3], chain[4]).Degrees,
             gs: 10.0,
             taxiRoute: RouteAlongB(chain, 3, 5)
         );
@@ -3344,7 +3453,7 @@ public class GroundConflictDetectorTests
                     {
                         Edge = new DirectionalEdge
                         {
-                            Edge = KoakFollowGeometry.EdgeBetween(chain[i], chain[i + 1]),
+                            Edge = FollowCornerGeometry.EdgeBetween(chain[i], chain[i + 1]),
                             FromNode = chain[i],
                             ToNode = chain[i + 1],
                         },
@@ -3389,14 +3498,14 @@ public class GroundConflictDetectorTests
     /// A KOAK lead taxiing on B, a C172 taxiing <c>TAXI B W 30</c> behind it, then sent <c>FOLLOWG</c> the lead with
     /// <paramref name="clearance"/> appended, rolling on its follow route.
     /// </summary>
-    private (KoakFollowGeometry.LeadRun Run, AircraftState Follower, FollowingPhase Follow)? StartFollower(string clearance)
+    private (FollowCornerGeometry.LeadRun Run, AircraftState Follower, FollowingPhase Follow)? StartFollower(string clearance)
     {
-        if (KoakFollowGeometry.StartTaxiingLead(_output) is not { } run)
+        if (FollowCornerGeometry.StartTaxiingLead(_output) is not { } run)
         {
             return null;
         }
 
-        AircraftState follower = KoakFollowGeometry.AddTaxiing(
+        AircraftState follower = FollowCornerGeometry.AddTaxiing(
             (run.Engine, run.Layout),
             FollowerCallsign,
             "C172",
@@ -3419,7 +3528,7 @@ public class GroundConflictDetectorTests
 
     /// <summary>
     /// While <paramref name="follower"/> rolls on its follow route, the first junction on that route 250 ft or more ahead of it in a
-    /// straight line, within 1,200 ft along the route and more than <see cref="KoakFollowGeometry.ClearOfRunwayFt"/> from every
+    /// straight line, within 1,200 ft along the route and more than <see cref="FollowCornerGeometry.ClearOfRunwayFt"/> from every
     /// runway centreline, with a straight taxiway side edge off the route 75-1,200 ft long; else null.
     /// </summary>
     private static (GroundNode Junction, GroundEdge Edge)? SideJunctionAhead(AircraftState follower)
@@ -3429,7 +3538,7 @@ public class GroundConflictDetectorTests
             return null;
         }
 
-        List<RunwayInfo> runways = [.. RunwayOccupancy.AirportRunways(KoakFollowGeometry.AirportId)];
+        List<RunwayInfo> runways = [.. RunwayOccupancy.AirportRunways(FollowCornerGeometry.AirportId)];
         HashSet<int> routeNodes = [.. route.Segments.SelectMany(s => new[] { s.FromNodeId, s.ToNodeId })];
         double startFt = route.PrefixDistanceFt(route.CurrentSegmentIndex);
         return Enumerable
@@ -3440,7 +3549,7 @@ public class GroundConflictDetectorTests
                 (GeoMath.DistanceNm(follower.Position, node.Position) * FtPerNm >= 250.0)
                 && runways.All(r =>
                     GeoMath.DistanceToSegmentFt(node.Position, new LatLon(r.Lat1, r.Lon1), new LatLon(r.Lat2, r.Lon2))
-                    > KoakFollowGeometry.ClearOfRunwayFt
+                    > FollowCornerGeometry.ClearOfRunwayFt
                 )
             )
             .SelectMany(node => node.Edges.OfType<GroundEdge>().Select(edge => (Junction: node, Edge: edge)))
@@ -3457,7 +3566,7 @@ public class GroundConflictDetectorTests
 
     /// <summary>A follower on its follow route, a junction ahead on that route, and a point on a side edge off it into the junction.</summary>
     private sealed record FollowAtJunction(
-        KoakFollowGeometry.LeadRun Run,
+        FollowCornerGeometry.LeadRun Run,
         AircraftState Follower,
         FollowingPhase Follow,
         GroundNode Junction,
@@ -3480,7 +3589,7 @@ public class GroundConflictDetectorTests
             return null;
         }
 
-        (KoakFollowGeometry.LeadRun run, AircraftState follower, FollowingPhase _) = started;
+        (FollowCornerGeometry.LeadRun run, AircraftState follower, FollowingPhase _) = started;
         (GroundNode Junction, GroundEdge Edge)? found = SideJunctionAhead(follower);
         for (int second = 0; (second < JunctionBudgetSeconds) && (found is null); second++)
         {
@@ -3503,7 +3612,7 @@ public class GroundConflictDetectorTests
         double followerToJunctionFt = GeoMath.DistanceNm(follower.Position, junction.Position) * FtPerNm;
         double sideFt = side.DistanceNm * FtPerNm;
         double fromJunctionFt = Math.Min(sideFt, followerToJunctionFt) / 2.0;
-        LatLon point = KoakFollowGeometry.Between(junction.Position, from.Position, fromJunctionFt / sideFt);
+        LatLon point = FollowCornerGeometry.Between(junction.Position, from.Position, fromJunctionFt / sideFt);
         _output.WriteLine(
             $"junction #{junction.Id} {followerToJunctionFt:F0} ft from the follower; side {side.TaxiwayName} from #{from.Id}, point "
                 + $"{fromJunctionFt:F0} ft short of the junction"
@@ -3517,7 +3626,13 @@ public class GroundConflictDetectorTests
     /// </summary>
     private static AircraftState ThirdAtTheSide(FollowAtJunction at, double speedKts)
     {
-        AircraftState third = KoakFollowGeometry.Spawn(ThirdCallsign, "C172", at.SidePoint, KoakFollowGeometry.Facing(at.SideFrom, at.Junction));
+        AircraftState third = FollowCornerGeometry.Spawn(
+            FollowCornerGeometry.AirportId,
+            ThirdCallsign,
+            "C172",
+            at.SidePoint,
+            FollowCornerGeometry.Facing(at.SideFrom, at.Junction)
+        );
         third.Phases = null;
         third.Ground.Layout = at.Run.Layout;
         var intoJunction = new DirectionalEdge
@@ -4225,7 +4340,7 @@ public class GroundConflictDetectorTests
     /// a head-on pair whose two closing limits both sit at zero (the two-aircraft stop distance), so the pair reaches the mutual
     /// stop. <c>N1OPP</c> sorts below the follower's callsign, so the callsign tie-break would hold the follower.
     /// </summary>
-    private static AircraftState OpposingHeadOn(KoakFollowGeometry.LeadRun run, AircraftState follower, double aheadFt) =>
+    private static AircraftState OpposingHeadOn(FollowCornerGeometry.LeadRun run, AircraftState follower, double aheadFt) =>
         RouteLessOpponent(run, follower, aheadFt, offNoseDeg: 0.0, headingOffDeg: 180.0);
 
     /// <summary>
@@ -4233,7 +4348,7 @@ public class GroundConflictDetectorTests
     /// 110° off the bearing to it — 70° off the nose of the follower sitting dead ahead of it — an aircraft crossing ahead of the
     /// follower rather than meeting it head-on. Both closing limits still sit at zero, so the pair reaches the mutual stop.
     /// </summary>
-    private static AircraftState OpposingCrossingAhead(KoakFollowGeometry.LeadRun run, AircraftState follower, double aheadFt) =>
+    private static AircraftState OpposingCrossingAhead(FollowCornerGeometry.LeadRun run, AircraftState follower, double aheadFt) =>
         RouteLessOpponent(run, follower, aheadFt, offNoseDeg: 10.0, headingOffDeg: 110.0);
 
     /// <summary>
@@ -4242,7 +4357,7 @@ public class GroundConflictDetectorTests
     /// no route: an Untracked mover, so the pair resolves as a Crossing.
     /// </summary>
     private static AircraftState RouteLessOpponent(
-        KoakFollowGeometry.LeadRun run,
+        FollowCornerGeometry.LeadRun run,
         AircraftState follower,
         double aheadFt,
         double offNoseDeg,
@@ -4250,7 +4365,8 @@ public class GroundConflictDetectorTests
     )
     {
         double towardMoverDeg = follower.TrueHeading.Degrees + offNoseDeg;
-        AircraftState mover = KoakFollowGeometry.Spawn(
+        AircraftState mover = FollowCornerGeometry.Spawn(
+            FollowCornerGeometry.AirportId,
             OpposingCallsign,
             "C172",
             GeoMath.ProjectPoint(follower.Position, new TrueHeading(towardMoverDeg), aheadFt / FtPerNm),
@@ -4287,7 +4403,7 @@ public class GroundConflictDetectorTests
             return;
         }
 
-        (KoakFollowGeometry.LeadRun run, AircraftState follower, FollowingPhase _) = started;
+        (FollowCornerGeometry.LeadRun run, AircraftState follower, FollowingPhase _) = started;
         AircraftState mover = OpposingHeadOn(run, follower, aheadFt: 90.0);
         List<AircraftState> pair = moverFirst ? [mover, follower] : [follower, mover];
 
@@ -4316,7 +4432,7 @@ public class GroundConflictDetectorTests
             return;
         }
 
-        (KoakFollowGeometry.LeadRun run, AircraftState follower, FollowingPhase _) = started;
+        (FollowCornerGeometry.LeadRun run, AircraftState follower, FollowingPhase _) = started;
         AircraftState crossing = OpposingCrossingAhead(run, follower, aheadFt: 80.0);
 
         var log = new List<string>();
@@ -4344,7 +4460,7 @@ public class GroundConflictDetectorTests
             return;
         }
 
-        (KoakFollowGeometry.LeadRun run, AircraftState taxiing, FollowingPhase follow) = started;
+        (FollowCornerGeometry.LeadRun run, AircraftState taxiing, FollowingPhase follow) = started;
         taxiing.Phases = new PhaseList();
         taxiing.Phases.Add(new TaxiingPhase());
         taxiing.Phases.CurrentPhase!.Status = PhaseStatus.Active;
@@ -4378,7 +4494,7 @@ public class GroundConflictDetectorTests
             return;
         }
 
-        (KoakFollowGeometry.LeadRun run, AircraftState follower, FollowingPhase _) = started;
+        (FollowCornerGeometry.LeadRun run, AircraftState follower, FollowingPhase _) = started;
         AircraftState sibling = MakeAircraft(
             SiblingCallsign,
             GeoMath.ProjectPoint(follower.Position, follower.TrueHeading, 90.0 / FtPerNm),

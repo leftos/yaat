@@ -97,7 +97,7 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
     {
         // GroundNavigator's re-acquire cap, which an aircraft short of its route's first node is held to.
         const double reacquireSpeedKts = 5.0;
-        if (KoakFollowGeometry.StartTaxiingLead(output) is not { } run)
+        if (FollowCornerGeometry.StartTaxiingLead(output) is not { } run)
         {
             return;
         }
@@ -119,11 +119,12 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
                 : (edge.Nodes[1], edge.Nodes[0]);
         output.WriteLine($"follower 0.3 along {edge.TaxiwayName} #{behind.Id}>#{ahead.Id}, {edge.DistanceNm * GeoMath.FeetPerNm:F0} ft");
         Assert.True(edge.DistanceNm * GeoMath.FeetPerNm >= 200.0, "no taxiway edge off the lead's path is long enough to roll up to speed on");
-        AircraftState follower = KoakFollowGeometry.Spawn(
+        AircraftState follower = FollowCornerGeometry.Spawn(
+            FollowCornerGeometry.AirportId,
             FollowerCallsign,
             "C172",
-            KoakFollowGeometry.Between(behind.Position, ahead.Position, 0.3),
-            KoakFollowGeometry.Facing(behind, ahead)
+            FollowCornerGeometry.Between(behind.Position, ahead.Position, 0.3),
+            FollowCornerGeometry.Facing(behind, ahead)
         );
         follower.Ground.Layout = run.Layout;
         run.Engine.World.AddAircraft(follower);
@@ -398,7 +399,7 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
     [Fact]
     public void Following_SnapshotAfterAFailedClearing_KeepsItsAttemptAndStaysHeld()
     {
-        if (KoakFollowGeometry.NewEngine(output, autoCross: false) is not { } setup)
+        if (FollowCornerGeometry.NewEngine(output, autoCross: false) is not { } setup)
         {
             return;
         }
@@ -406,10 +407,10 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
         (SimulationEngine engine, AirportGroundLayout layout) = setup;
         RunwayInfo runway = Runway28R(layout);
         (LatLon position, TrueHeading heading) = OffTheEndPose(layout, runway);
-        AircraftState follower = KoakFollowGeometry.Spawn(FollowerCallsign, "C172", position, heading);
+        AircraftState follower = FollowCornerGeometry.Spawn(FollowCornerGeometry.AirportId, FollowerCallsign, "C172", position, heading);
         follower.Ground.Layout = layout;
         engine.World.AddAircraft(follower);
-        engine.World.AddAircraft(KoakFollowGeometry.SpawnAtStand(layout, LeadCallsign));
+        engine.World.AddAircraft(FollowCornerGeometry.SpawnAtStand(layout, LeadCallsign));
         CommandResult result = engine.SendCommand(FollowerCallsign, $"FOLLOWG {LeadCallsign}");
         Assert.True(result.Success, result.Message);
         engine.TickOneSecond();
@@ -424,7 +425,7 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
         Assert.Equal(json, JsonSerializer.Serialize<PhaseDto>(restoredPhase.ToSnapshot(), RecordingJsonOptions.Default));
 
         string engineJson = JsonSerializer.Serialize(engine.CaptureSnapshot(), RecordingJsonOptions.Default);
-        SimulationEngine restored = KoakFollowGeometry.NewEngine(output, autoCross: false)!.Value.Engine;
+        SimulationEngine restored = FollowCornerGeometry.NewEngine(output, autoCross: false)!.Value.Engine;
         restored.RestoreFromSnapshot(
             Assert.IsType<StateSnapshotDto>(JsonSerializer.Deserialize<StateSnapshotDto>(engineJson, RecordingJsonOptions.Default))
         );
@@ -518,7 +519,7 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
         );
 
         string json = JsonSerializer.Serialize(original.Engine.CaptureSnapshot(), RecordingJsonOptions.Default);
-        SimulationEngine restored = Assert.IsType<SimulationEngine>(KoakFollowGeometry.NewEngine(output, autoCross: true)?.Engine);
+        SimulationEngine restored = Assert.IsType<SimulationEngine>(FollowCornerGeometry.NewEngine(output, autoCross: true)?.Engine);
         restored.RestoreFromSnapshot(
             Assert.IsType<StateSnapshotDto>(JsonSerializer.Deserialize<StateSnapshotDto>(json, RecordingJsonOptions.Default))
         );
@@ -678,7 +679,7 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
     [Fact]
     public void Following_GivingWay_LeadReroutedOffThePath_ReplansThatTickAndIsReleased()
     {
-        if (KoakFollowGeometry.StartTaxiingLead(output) is not { } run)
+        if (FollowCornerGeometry.StartTaxiingLead(output) is not { } run)
         {
             return;
         }
@@ -715,11 +716,12 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
             return;
         }
 
-        AircraftState middle = KoakFollowGeometry.Spawn(
+        AircraftState middle = FollowCornerGeometry.Spawn(
+            FollowCornerGeometry.AirportId,
             MiddleCallsign,
             "C172",
             run.Chain[2].Position,
-            KoakFollowGeometry.Facing(run.Chain[2], run.Chain[3])
+            FollowCornerGeometry.Facing(run.Chain[2], run.Chain[3])
         );
         middle.Ground.Layout = run.Layout;
         run.Engine.World.AddAircraft(middle);
@@ -759,15 +761,15 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
     /// A C560 on B north of the 28R bar at <c>Chain[3]</c>, facing away from the runway, cleared <c>TAXI B C J</c> (along C to the
     /// C/J intersection, no runway on the way) and ticked until its trail holds at least two edges.
     /// </summary>
-    private KoakFollowGeometry.LeadRun? StartTaxiingLeadAlongC()
+    private FollowCornerGeometry.LeadRun? StartTaxiingLeadAlongC()
     {
-        if (KoakFollowGeometry.NewEngine(output, autoCross: false) is not { } setup)
+        if (FollowCornerGeometry.NewEngine(output, autoCross: false) is not { } setup)
         {
             return null;
         }
 
-        List<GroundNode> chain = KoakFollowGeometry.BChain(setup.Layout);
-        AircraftState lead = KoakFollowGeometry.AddTaxiing(setup, LeadCallsign, "C560", (chain[3], chain[4]), "TAXI B C J");
+        List<GroundNode> chain = FollowCornerGeometry.BChain(setup.Layout);
+        AircraftState lead = FollowCornerGeometry.AddTaxiing(setup, LeadCallsign, "C560", (chain[3], chain[4]), "TAXI B C J");
         TaxiRoute route = Assert.IsType<TaxiRoute>(lead.Ground.AssignedTaxiRoute);
         Assert.DoesNotContain(route.Segments, s => s.Edge.Edge.IsRunwayCenterline);
         Assert.Empty(route.HoldShortPoints);
@@ -778,7 +780,7 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
 
         Assert.True(lead.Ground.TaxiEdgeTrail.Edges.Count >= 2, "the lead's trail never reached two edges");
         output.WriteLine($"lead route {route.ToSummary()}, segment {route.CurrentSegmentIndex}");
-        return new KoakFollowGeometry.LeadRun(setup.Engine, setup.Layout, chain, lead);
+        return new FollowCornerGeometry.LeadRun(setup.Engine, setup.Layout, chain, lead);
     }
 
     /// <summary>The merge node of <paramref name="follow"/>'s route: where the lead's path from the merge starts.</summary>
@@ -877,14 +879,15 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
     /// <summary>
     /// A C172 at <paramref name="turnOff"/>'s far node facing its junction, told to follow <paramref name="leadCallsign"/>, ticked once.
     /// </summary>
-    private AircraftState SpawnFollowing(KoakFollowGeometry.LeadRun run, TurnOff turnOff, string leadCallsign)
+    private AircraftState SpawnFollowing(FollowCornerGeometry.LeadRun run, TurnOff turnOff, string leadCallsign)
     {
         output.WriteLine($"junction #{turnOff.Junction.Id}, follower at #{turnOff.Far.Id}, re-route '{turnOff.Command}'");
-        AircraftState follower = KoakFollowGeometry.Spawn(
+        AircraftState follower = FollowCornerGeometry.Spawn(
+            FollowCornerGeometry.AirportId,
             FollowerCallsign,
             "C172",
             turnOff.Far.Position,
-            KoakFollowGeometry.Facing(turnOff.Far, turnOff.Junction)
+            FollowCornerGeometry.Facing(turnOff.Far, turnOff.Junction)
         );
         follower.Ground.Layout = run.Layout;
         run.Engine.World.AddAircraft(follower);
@@ -1043,6 +1046,179 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
         );
     }
 
+    /// <summary>
+    /// KOAK's C-to-G corner, whose fillet arc's effective radius is too tight for a jet and wide enough for a piston
+    /// (<see cref="FollowCornerGeometry.ArcTighterThanAJet"/>): a C172 on C taxiing a route round the arc and on along G, and a
+    /// B738 behind it on C told <c>FOLLOWG</c> it. The B738's lead path drives the square way round the arc, which still
+    /// matches the C172's route, so it keeps its follow route round the corner — never held for good — planning again only on
+    /// its own node arrivals, not every tick the lead's route holds the arc.
+    /// </summary>
+    [Fact]
+    public void FollowG_JetBehindPistonThroughTightArc_KeepsItsRouteWithoutReplanningEachTick()
+    {
+        (string AirportId, AirportGroundLayout Layout, FollowCornerGeometry.TaxiwayCorner Corner)? found = FollowCornerGeometry.ArcTighterThanAJet(
+            output,
+            FollowCornerGeometry.JetRefusesSearchAirports
+        );
+        Assert.True(found is not null, "no committed layout has a corner whose arc a piston drives and a jet refuses");
+        if (NewEngineAt(found.Value.AirportId) is not { } setup)
+        {
+            return;
+        }
+
+        FollowCornerGeometry.TaxiwayCorner tight = found.Value.Corner;
+        Assert.Same(found.Value.Layout, setup.Layout);
+        FollowCornerGeometry.CToJCorner corner = tight.Corner;
+        List<GroundNode> back = BackAlong(corner.TangentOnC, corner.NearOnC, tight.InTaxiway, 3);
+        List<GroundNode> onward = StraightOn(corner.TangentOnJ, corner.NearOnJ, 10);
+        List<DirectionalEdge> roundTheArc =
+        [
+            FollowCornerGeometry.EdgeBetween(back[1], back[0]).Directed(back[1], back[0]),
+            corner.Arc.Directed(corner.TangentOnC, corner.TangentOnJ),
+        ];
+        for (int i = 0; i + 1 < onward.Count; i++)
+        {
+            roundTheArc.Add(FollowCornerGeometry.EdgeBetween(onward[i], onward[i + 1]).Directed(onward[i], onward[i + 1]));
+        }
+
+        AircraftState lead = TaxiingOn(setup, LeadCallsign, "C172", roundTheArc);
+        TaxiRoute leadRoute = Assert.IsType<TaxiRoute>(lead.Ground.AssignedTaxiRoute);
+        int arcIndex = leadRoute.Segments.FindIndex(s => ReferenceEquals(s.Edge.Edge, corner.Arc));
+        string leadRouteText = string.Join(" ", leadRoute.Segments.Select(s => $"#{s.FromNodeId}>#{s.ToNodeId}:{s.TaxiwayName}"));
+        Assert.True(arcIndex >= 0, $"the C172's route {leadRouteText} does not round the arc");
+        AircraftState follower = FollowCornerGeometry.AddTaxiing(setup, FollowerCallsign, "B738", (back[3], back[2]), $"FOLLOWG {LeadCallsign}");
+        FollowingPhase follow = Assert.IsType<FollowingPhase>(follower.Phases?.CurrentPhase);
+
+        int plansAtCorner = -1;
+        bool followerPast = false;
+        for (int second = 1; (second <= BudgetSeconds) && !followerPast; second++)
+        {
+            int plansBefore = follow.PlanCount;
+            int leadSegmentBefore = leadRoute.CurrentSegmentIndex;
+            setup.Engine.TickOneSecond();
+            Assert.Same(follow, follower.Phases?.CurrentPhase);
+            Assert.False(follow.IsUnjoinable || follow.IsBrakingLostRoute, $"t={second}: the follower lost its follow route");
+            bool leadOnArc = (leadSegmentBefore == arcIndex) || (leadRoute.CurrentSegmentIndex == arcIndex);
+            Assert.False(
+                leadOnArc && (follow.PlanCount - plansBefore > 1),
+                $"t={second}: the follower planned {follow.PlanCount - plansBefore} times in one tick while its lead was on the arc"
+            );
+            plansAtCorner = (plansAtCorner < 0) && (leadRoute.CurrentSegmentIndex >= arcIndex) ? follow.PlanCount : plansAtCorner;
+            followerPast = follower.Ground.TaxiEdgeTrail.Edges.Any(e => corner.StubOnJ.HasNode(e.NodeA) && corner.StubOnJ.HasNode(e.NodeB));
+            string onRoute = follow.FollowRoute?.CurrentSegment is { } on ? $"#{on.FromNodeId}>#{on.ToNodeId}" : "none";
+            output.WriteLine(
+                $"t={second} lead segment {leadRoute.CurrentSegmentIndex}/{arcIndex} gs={lead.GroundSpeed:F1}; "
+                    + $"follower plans={follow.PlanCount} gs={follower.GroundSpeed:F1} on {onRoute}"
+            );
+        }
+
+        Assert.True(followerPast, $"the follower never reached the corner's {tight.OutTaxiway} stub");
+        Assert.True(plansAtCorner >= 0, "the lead never reached the arc");
+        Assert.True(
+            follow.PlanCount <= MaxPlansRoundTheTightCorner,
+            $"the follower planned {follow.PlanCount} times, {plansAtCorner} of them before its lead reached the corner"
+        );
+    }
+
+    /// <summary>
+    /// How many times the B738 following the C172 round KOAK's C-to-G corner may plan until it is past the corner: measured
+    /// 5 — its first plan, then one on each of its own node arrivals, none while the lead is on the arc — plus a margin of 2.
+    /// A lead located on a stub while it rounds the arc gave a path that ended at the merge, and the follower planned four times
+    /// a tick for as long as the lead was on the arc (13 in all).
+    /// </summary>
+    private const int MaxPlansRoundTheTightCorner = 7;
+
+    /// <summary>
+    /// A <paramref name="type"/> added to <paramref name="setup"/>'s engine at the start of <paramref name="route"/>, facing
+    /// along it, taxiing it: its assigned route, driven by a <see cref="TaxiingPhase"/>.
+    /// </summary>
+    private static AircraftState TaxiingOn(
+        (SimulationEngine Engine, AirportGroundLayout Layout) setup,
+        string callsign,
+        string type,
+        List<DirectionalEdge> route
+    )
+    {
+        GroundNode start = route[0].FromNode;
+        AircraftState aircraft = FollowCornerGeometry.Spawn(
+            setup.Layout.AirportId,
+            callsign,
+            type,
+            start.Position,
+            FollowCornerGeometry.Facing(start, route[0].ToNode)
+        );
+        aircraft.Ground.Layout = setup.Layout;
+        aircraft.Ground.AssignedTaxiRoute = new TaxiRoute
+        {
+            Segments = [.. route.Select(edge => new TaxiRouteSegment { Edge = edge, TaxiwayName = edge.Edge.TaxiwayName })],
+            HoldShortPoints = [],
+        };
+        aircraft.Phases = new PhaseList();
+        aircraft.Phases.Add(new TaxiingPhase());
+        setup.Engine.World.AddAircraft(aircraft);
+        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, setup.Layout));
+        return aircraft;
+    }
+
+    /// <summary>
+    /// <paramref name="count"/> straight taxiway edges on from <paramref name="from"/>, away from <paramref name="behind"/>, each
+    /// the one turning least from the edge before (no more than 60°) off the ramps and runways, as a node chain from
+    /// <paramref name="from"/>; shorter where no edge goes on.
+    /// </summary>
+    private static List<GroundNode> StraightOn(GroundNode from, GroundNode behind, int count)
+    {
+        List<GroundNode> chain = [behind, from];
+        while (chain.Count <= count)
+        {
+            GroundNode here = chain[^1];
+            double inDeg = GeoMath.BearingTo(chain[^2].Position, here.Position);
+            GroundNode? next = here
+                .Edges.OfType<GroundEdge>()
+                .Where(edge => !edge.IsRunwayCenterline && !edge.IsRamp)
+                .Select(edge => edge.OtherNode(here))
+                .Where(node => chain.All(held => held.Id != node.Id))
+                .Select(node =>
+                    (Node: node, TurnDeg: Math.Abs(GeoMath.SignedBearingDifference(inDeg, GeoMath.BearingTo(here.Position, node.Position))))
+                )
+                .Where(c => c.TurnDeg <= 60.0)
+                .OrderBy(c => c.TurnDeg)
+                .Select(c => c.Node)
+                .FirstOrDefault();
+            if (next is null)
+            {
+                break;
+            }
+
+            chain.Add(next);
+        }
+
+        return chain[1..];
+    }
+
+    /// <summary>
+    /// <paramref name="count"/> straight <paramref name="taxiway"/> edges on from <paramref name="from"/>, away from
+    /// <paramref name="behind"/>, as a node chain from <paramref name="from"/>.
+    /// </summary>
+    private static List<GroundNode> BackAlong(GroundNode from, GroundNode behind, string taxiway, int count)
+    {
+        List<GroundNode> chain = [from];
+        GroundNode previous = behind;
+        while (chain.Count <= count)
+        {
+            GroundNode here = chain[^1];
+            GroundNode? next = here
+                .Edges.OfType<GroundEdge>()
+                .Where(edge => edge.MatchesTaxiway(taxiway))
+                .Select(edge => edge.OtherNode(here))
+                .FirstOrDefault(node => node.Id != previous.Id);
+            Assert.True(next is not null, $"{taxiway} ends {chain.Count - 1} edges on from #{from.Id} at #{here.Id}");
+            previous = here;
+            chain.Add(next);
+        }
+
+        return chain;
+    }
+
     private const int HeldCheckSeconds = 30;
 
     /// <summary>How far (ft) from the junction a follower <see cref="StartConverging"/> puts at the junction stands.</summary>
@@ -1052,32 +1228,39 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
     /// The lead and the follower of <see cref="StartConverging"/>, the junction they converge on, and <see cref="EndAtJunction"/>,
     /// the lead's re-route along its route to the junction and onto the follower's taxiway, which ends at the junction.
     /// </summary>
-    private sealed record Converging(KoakFollowGeometry.LeadRun Run, TurnOff TurnOff, AircraftState Follower, string EndAtJunction);
+    private sealed record Converging(FollowCornerGeometry.LeadRun Run, TurnOff TurnOff, AircraftState Follower, string EndAtJunction);
 
     /// <summary>
-    /// The lead taxiing B (<see cref="KoakFollowGeometry.StartTaxiingLead"/>), and a C172 on the taxiway that meets the lead's route
+    /// The lead taxiing B (<see cref="FollowCornerGeometry.StartTaxiingLead"/>), and a C172 on the taxiway that meets the lead's route
     /// at the junction (<see cref="FindConvergingJunction"/>), facing the junction, told <c>FOLLOWG</c> the lead and ticked once:
     /// two nodes back and giving way there, or with <paramref name="atJunction"/> <see cref="AtJunctionFt"/> from the junction,
     /// within <see cref="AirportGroundLayout.AtNodeToleranceFt"/> of it.
     /// </summary>
     private Converging? StartConverging(bool atJunction)
     {
-        if (KoakFollowGeometry.StartTaxiingLead(output) is not { } run)
+        if (FollowCornerGeometry.StartTaxiingLead(output) is not { } run)
         {
             return null;
         }
 
         (TurnOff turnOff, GroundNode behind, string endAtJunction) = FindConvergingJunction(run);
         output.WriteLine($"junction #{turnOff.Junction.Id}, far #{turnOff.Far.Id}, follower at #{behind.Id}");
-        double edgeFt = KoakFollowGeometry.EdgeBetween(turnOff.Junction, turnOff.Far).DistanceNm * GeoMath.FeetPerNm;
+        double edgeFt = FollowCornerGeometry.EdgeBetween(turnOff.Junction, turnOff.Far).DistanceNm * GeoMath.FeetPerNm;
         AircraftState follower = atJunction
-            ? KoakFollowGeometry.Spawn(
+            ? FollowCornerGeometry.Spawn(
+                FollowCornerGeometry.AirportId,
                 FollowerCallsign,
                 "C172",
-                KoakFollowGeometry.Between(turnOff.Junction.Position, turnOff.Far.Position, AtJunctionFt / edgeFt),
-                KoakFollowGeometry.Facing(turnOff.Far, turnOff.Junction)
+                FollowCornerGeometry.Between(turnOff.Junction.Position, turnOff.Far.Position, AtJunctionFt / edgeFt),
+                FollowCornerGeometry.Facing(turnOff.Far, turnOff.Junction)
             )
-            : KoakFollowGeometry.Spawn(FollowerCallsign, "C172", behind.Position, KoakFollowGeometry.Facing(behind, turnOff.Far));
+            : FollowCornerGeometry.Spawn(
+                FollowCornerGeometry.AirportId,
+                FollowerCallsign,
+                "C172",
+                behind.Position,
+                FollowCornerGeometry.Facing(behind, turnOff.Far)
+            );
         follower.Ground.Layout = run.Layout;
         run.Engine.World.AddAircraft(follower);
         CommandResult result = run.Engine.SendCommand(FollowerCallsign, $"FOLLOWG {run.Lead.Callsign}");
@@ -1088,7 +1271,7 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
         return new Converging(run, turnOff, follower, endAtJunction);
     }
 
-    /// <summary>The clearance <see cref="KoakFollowGeometry.StartTaxiingLead"/> gives its lead.</summary>
+    /// <summary>The clearance <see cref="FollowCornerGeometry.StartTaxiingLead"/> gives its lead.</summary>
     private const string KoakLeadTaxi = "TAXI B W 30";
 
     /// <summary>
@@ -1099,7 +1282,7 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
     /// (<see cref="ConvergingOff"/>). That junction and far node, the node behind the far one, and the re-route that ends at the
     /// junction.
     /// </summary>
-    private static (TurnOff TurnOff, GroundNode Behind, string EndAtJunction) FindConvergingJunction(KoakFollowGeometry.LeadRun run)
+    private static (TurnOff TurnOff, GroundNode Behind, string EndAtJunction) FindConvergingJunction(FollowCornerGeometry.LeadRun run)
     {
         TaxiRoute route = Assert.IsType<TaxiRoute>(run.Lead.Ground.AssignedTaxiRoute);
         HashSet<int> onRoute = [.. route.Segments.SelectMany(s => new[] { s.FromNodeId, s.ToNodeId })];
@@ -1192,14 +1375,14 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
     [Fact]
     public void Following_WaitingWithNoFollowRoute_IsNotDrivingItsOldAssignedRoute()
     {
-        if (KoakFollowGeometry.NewEngine(output, autoCross: true) is not { } setup)
+        if (FollowCornerGeometry.NewEngine(output, autoCross: true) is not { } setup)
         {
             return;
         }
 
-        List<GroundNode> chain = KoakFollowGeometry.BChain(setup.Layout);
-        AircraftState follower = KoakFollowGeometry.AddTaxiing(setup, FollowerCallsign, "C172", (chain[5], chain[4]), "TAXI B W 30");
-        AircraftState lead = KoakFollowGeometry.SpawnAtStand(setup.Layout, LeadCallsign);
+        List<GroundNode> chain = FollowCornerGeometry.BChain(setup.Layout);
+        AircraftState follower = FollowCornerGeometry.AddTaxiing(setup, FollowerCallsign, "C172", (chain[5], chain[4]), "TAXI B W 30");
+        AircraftState lead = FollowCornerGeometry.SpawnAtStand(setup.Layout, LeadCallsign);
         setup.Engine.World.AddAircraft(lead);
         CommandResult result = setup.Engine.SendCommand(FollowerCallsign, $"FOLLOWG {LeadCallsign}");
         Assert.True(result.Success, result.Message);
@@ -1218,11 +1401,12 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
                 .Reverse()
                 .Select(s => new TaxiRouteSegment { Edge = s.Edge.Edge.Directed(s.Edge.ToNode, s.Edge.FromNode), TaxiwayName = s.TaxiwayName }),
         ];
-        AircraftState other = KoakFollowGeometry.Spawn(
+        AircraftState other = FollowCornerGeometry.Spawn(
+            FollowCornerGeometry.AirportId,
             "N3OTH",
             "C172",
             oncoming[0].Edge.FromNode.Position,
-            KoakFollowGeometry.Facing(oncoming[0].Edge.FromNode, oncoming[0].Edge.ToNode)
+            FollowCornerGeometry.Facing(oncoming[0].Edge.FromNode, oncoming[0].Edge.ToNode)
         );
         other.Ground.AssignedTaxiRoute = new TaxiRoute { Segments = oncoming, HoldShortPoints = [] };
         Assert.NotNull(GroundConflictDetector.FindSharedUpcomingNode(oldRoute, other.Ground.AssignedTaxiRoute));
@@ -1263,7 +1447,7 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
     [Fact]
     public void Following_InsideTheHoldLineWithNoBarAhead_WarnsAndHolds()
     {
-        if (KoakFollowGeometry.NewEngine(output, autoCross: false) is not { } setup)
+        if (FollowCornerGeometry.NewEngine(output, autoCross: false) is not { } setup)
         {
             return;
         }
@@ -1273,10 +1457,10 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
         (SimulationEngine engine, AirportGroundLayout layout) = setup;
         RunwayInfo runway = Runway28R(layout);
         (LatLon position, TrueHeading heading) = OffTheEndPose(layout, runway);
-        AircraftState follower = KoakFollowGeometry.Spawn(FollowerCallsign, "C172", position, heading);
+        AircraftState follower = FollowCornerGeometry.Spawn(FollowCornerGeometry.AirportId, FollowerCallsign, "C172", position, heading);
         follower.Ground.Layout = layout;
         engine.World.AddAircraft(follower);
-        engine.World.AddAircraft(KoakFollowGeometry.SpawnAtStand(layout, LeadCallsign));
+        engine.World.AddAircraft(FollowCornerGeometry.SpawnAtStand(layout, LeadCallsign));
         Assert.True(RunwayOccupancy.IsOnPavement(follower, runway), "the follower does not start on 28R's pavement");
         CommandResult result = engine.SendCommand(FollowerCallsign, $"FOLLOWG {LeadCallsign}");
         Assert.True(result.Success, result.Message);
@@ -1319,7 +1503,7 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
         FollowingPhase follow = Assert.IsType<FollowingPhase>(original.Follower.Phases?.CurrentPhase);
         Assert.NotNull(follow.ClearingRoute);
         string json = JsonSerializer.Serialize(original.Engine.CaptureSnapshot(), RecordingJsonOptions.Default);
-        SimulationEngine restored = KoakFollowGeometry.NewEngine(output, autoCross: false)!.Value.Engine;
+        SimulationEngine restored = FollowCornerGeometry.NewEngine(output, autoCross: false)!.Value.Engine;
         restored.RestoreFromSnapshot(
             Assert.IsType<StateSnapshotDto>(JsonSerializer.Deserialize<StateSnapshotDto>(json, RecordingJsonOptions.Default))
         );
@@ -1371,7 +1555,7 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
         ClearingRun original = Assert.IsType<ClearingRun>(RunRouteOutInsideHoldLine(snapshotAt, deleteLead: false, leadAheadAfter: null));
         Assert.NotNull(Assert.IsType<FollowingPhase>(original.Follower.Phases?.CurrentPhase).ClearingRoute);
         string json = JsonSerializer.Serialize(original.Engine.CaptureSnapshot(), RecordingJsonOptions.Default);
-        SimulationEngine restored = KoakFollowGeometry.NewEngine(output, autoCross: false)!.Value.Engine;
+        SimulationEngine restored = FollowCornerGeometry.NewEngine(output, autoCross: false)!.Value.Engine;
         restored.RestoreFromSnapshot(
             Assert.IsType<StateSnapshotDto>(JsonSerializer.Deserialize<StateSnapshotDto>(json, RecordingJsonOptions.Default))
         );
@@ -1469,7 +1653,7 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
 
         ClearingRun original = Assert.IsType<ClearingRun>(RunRouteOutInsideHoldLine(rollingAt, deleteLead: false, leadAheadAfter: rollingAt));
         string json = JsonSerializer.Serialize(original.Engine.CaptureSnapshot(), RecordingJsonOptions.Default);
-        SimulationEngine restored = KoakFollowGeometry.NewEngine(output, autoCross: false)!.Value.Engine;
+        SimulationEngine restored = FollowCornerGeometry.NewEngine(output, autoCross: false)!.Value.Engine;
         restored.RestoreFromSnapshot(
             Assert.IsType<StateSnapshotDto>(JsonSerializer.Deserialize<StateSnapshotDto>(json, RecordingJsonOptions.Default))
         );
@@ -1520,14 +1704,20 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
     [Fact]
     public void IsPastClearingBar_BarTheLayoutCannotResolve_IsNotPast()
     {
-        if (KoakFollowGeometry.NewEngine(output, autoCross: false) is not { } setup)
+        if (FollowCornerGeometry.NewEngine(output, autoCross: false) is not { } setup)
         {
             return;
         }
 
         AirportGroundLayout layout = setup.Layout;
-        List<GroundNode> chain = KoakFollowGeometry.BChain(layout);
-        AircraftState aircraft = KoakFollowGeometry.Spawn(FollowerCallsign, "C172", chain[5].Position, KoakFollowGeometry.Facing(chain[5], chain[6]));
+        List<GroundNode> chain = FollowCornerGeometry.BChain(layout);
+        AircraftState aircraft = FollowCornerGeometry.Spawn(
+            FollowCornerGeometry.AirportId,
+            FollowerCallsign,
+            "C172",
+            chain[5].Position,
+            FollowCornerGeometry.Facing(chain[5], chain[6])
+        );
         int missing = layout.Nodes.Keys.Max() + 1;
         Assert.False(FollowingPhase.IsPastClearingBar(layout, missing, aircraft), $"past bar node #{missing}, which the layout does not have");
         Assert.False(FollowingPhase.IsPastClearingBar(layout, chain[5].Id, aircraft), $"past B node #{chain[5].Id}, which is no runway bar");
@@ -1741,7 +1931,7 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
     {
         if (airportId == "OAK")
         {
-            GroundNode nearBar = KoakFollowGeometry.BChain(layout)[0];
+            GroundNode nearBar = FollowCornerGeometry.BChain(layout)[0];
             GroundNode farBar = TestLayoutNodes
                 .RunwayHoldShortsOnTaxiway(layout, "28R", "B")
                 .Where(n => n.Id != nearBar.Id)
@@ -1795,12 +1985,12 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
     [Fact]
     public void Plan_LeadFollowingIntoACrossing_IgnoresItsPreFollowRoute()
     {
-        if (KoakFollowGeometry.StartTaxiingLead(output) is not { } run)
+        if (FollowCornerGeometry.StartTaxiingLead(output) is not { } run)
         {
             return;
         }
 
-        AircraftState middle = KoakFollowGeometry.AddTaxiing(
+        AircraftState middle = FollowCornerGeometry.AddTaxiing(
             (run.Engine, run.Layout),
             MiddleCallsign,
             "C172",
@@ -1809,11 +1999,12 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
         );
         CommandResult follow = run.Engine.SendCommand(MiddleCallsign, $"FOLLOWG {run.Lead.Callsign}; CROSS 28R");
         Assert.True(follow.Success, follow.Message);
-        AircraftState follower = KoakFollowGeometry.Spawn(
+        AircraftState follower = FollowCornerGeometry.Spawn(
+            FollowCornerGeometry.AirportId,
             FollowerCallsign,
             "C172",
-            KoakFollowGeometry.Between(run.Chain[5].Position, run.Chain[4].Position, 0.5),
-            KoakFollowGeometry.Facing(run.Chain[5], run.Chain[4])
+            FollowCornerGeometry.Between(run.Chain[5].Position, run.Chain[4].Position, 0.5),
+            FollowCornerGeometry.Facing(run.Chain[5], run.Chain[4])
         );
         follower.Ground.Layout = run.Layout;
 
@@ -2029,7 +2220,7 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
         Assert.Single(live);
         Assert.IsType<FollowingPhase>(run.Follower.Phases?.CurrentPhase);
         string json = JsonSerializer.Serialize(run.Engine.CaptureSnapshot(), RecordingJsonOptions.Default);
-        SimulationEngine restored = KoakFollowGeometry.NewEngine(output, autoCross: false)!.Value.Engine;
+        SimulationEngine restored = FollowCornerGeometry.NewEngine(output, autoCross: false)!.Value.Engine;
         restored.RestoreFromSnapshot(
             Assert.IsType<StateSnapshotDto>(JsonSerializer.Deserialize<StateSnapshotDto>(json, RecordingJsonOptions.Default))
         );
@@ -2063,7 +2254,7 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
 
         Assert.IsType<TaxiingPhase>(run.Follower.Phases?.CurrentPhase);
         string json = JsonSerializer.Serialize(run.Engine.CaptureSnapshot(), RecordingJsonOptions.Default);
-        SimulationEngine restored = KoakFollowGeometry.NewEngine(output, autoCross: false)!.Value.Engine;
+        SimulationEngine restored = FollowCornerGeometry.NewEngine(output, autoCross: false)!.Value.Engine;
         restored.RestoreFromSnapshot(
             Assert.IsType<StateSnapshotDto>(JsonSerializer.Deserialize<StateSnapshotDto>(json, RecordingJsonOptions.Default))
         );
@@ -2103,7 +2294,7 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
 
         AircraftState follower = run.Follower;
         List<string> calls = CaptureUnableToFollowCalls(run.Engine);
-        List<RunwayInfo> runways = [.. RunwayOccupancy.AirportRunways(KoakFollowGeometry.AirportId)];
+        List<RunwayInfo> runways = [.. RunwayOccupancy.AirportRunways(FollowCornerGeometry.AirportId)];
         int taxiingAt = -1;
         for (int second = run.LostAt + 1; second <= run.LostAt + BudgetSeconds; second++)
         {
@@ -2206,14 +2397,20 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
     [Fact]
     public void RunwayEntries_WayBackStartingOnABarAcrossItsRunway_NamesThatBarFirst()
     {
-        if (KoakFollowGeometry.LoadLayout(output) is not { } layout)
+        if (FollowCornerGeometry.LoadLayout(output) is not { } layout)
         {
             return;
         }
 
-        List<GroundNode> chain = KoakFollowGeometry.BChain(layout);
+        List<GroundNode> chain = FollowCornerGeometry.BChain(layout);
         TaxiRoute southOf28R = RouteSouthOf28ROnB(layout);
-        AircraftState follower = KoakFollowGeometry.Spawn(FollowerCallsign, "C172", chain[0].Position, KoakFollowGeometry.Facing(chain[1], chain[0]));
+        AircraftState follower = FollowCornerGeometry.Spawn(
+            FollowCornerGeometry.AirportId,
+            FollowerCallsign,
+            "C172",
+            chain[0].Position,
+            FollowCornerGeometry.Facing(chain[1], chain[0])
+        );
         follower.Ground.Layout = layout;
         HashSet<int> goal = [southOf28R.Segments[^1].ToNodeId];
         FollowRoutePlanner.RouteFromHere? onto = FollowRoutePlanner.RouteOnto(layout, follower, goal);
@@ -2258,15 +2455,21 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
     [Fact]
     public void RouteOnto_AtANodeWithNoTrailFacingItsEdge_ForbidsNothing()
     {
-        if (KoakFollowGeometry.LoadLayout(output) is not { } layout)
+        if (FollowCornerGeometry.LoadLayout(output) is not { } layout)
         {
             return;
         }
 
-        List<GroundNode> chain = KoakFollowGeometry.BChain(layout);
+        List<GroundNode> chain = FollowCornerGeometry.BChain(layout);
         GroundNode at = chain[5];
         GroundNode next = chain[6];
-        AircraftState aircraft = KoakFollowGeometry.Spawn(FollowerCallsign, "C172", at.Position, KoakFollowGeometry.Facing(at, next));
+        AircraftState aircraft = FollowCornerGeometry.Spawn(
+            FollowCornerGeometry.AirportId,
+            FollowerCallsign,
+            "C172",
+            at.Position,
+            FollowCornerGeometry.Facing(at, next)
+        );
         aircraft.Ground.Layout = layout;
         FollowRoutePlanner.RouteFromHere? onto = FollowRoutePlanner.RouteOnto(layout, aircraft, new HashSet<int> { next.Id });
         output.WriteLine(
@@ -2282,7 +2485,7 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
     /// <summary>A taxi route along B south of 28R, from the node past its south bar on to the next.</summary>
     private static TaxiRoute RouteSouthOf28ROnB(AirportGroundLayout layout)
     {
-        List<GroundNode> chain = KoakFollowGeometry.BChain(layout);
+        List<GroundNode> chain = FollowCornerGeometry.BChain(layout);
         GroundNode farBar = TestLayoutNodes
             .RunwayHoldShortsOnTaxiway(layout, "28R", "B")
             .Where(n => n.Id != chain[0].Id)
@@ -2367,23 +2570,24 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
     /// </summary>
     private LeadIn? LeadInAcross28R()
     {
-        if (KoakFollowGeometry.NewEngine(output, autoCross: false) is not { } setup)
+        if (FollowCornerGeometry.NewEngine(output, autoCross: false) is not { } setup)
         {
             return null;
         }
 
         AirportGroundLayout layout = setup.Layout;
-        List<GroundNode> chain = KoakFollowGeometry.BChain(layout);
+        List<GroundNode> chain = FollowCornerGeometry.BChain(layout);
         GroundNode farBar = TestLayoutNodes
             .RunwayHoldShortsOnTaxiway(layout, "28R", "B")
             .Where(n => n.Id != chain[0].Id)
             .MinBy(n => GeoMath.DistanceNm(n.Position, chain[0].Position))!;
         GroundNode south = farBar.Edges.Select(e => e.OtherNode(farBar)).MaxBy(n => GeoMath.DistanceNm(n.Position, chain[0].Position))!;
-        AircraftState follower = KoakFollowGeometry.Spawn(
+        AircraftState follower = FollowCornerGeometry.Spawn(
+            FollowCornerGeometry.AirportId,
             FollowerCallsign,
             "C172",
-            KoakFollowGeometry.Between(south.Position, farBar.Position, 0.5),
-            KoakFollowGeometry.Facing(south, farBar)
+            FollowCornerGeometry.Between(south.Position, farBar.Position, 0.5),
+            FollowCornerGeometry.Facing(south, farBar)
         );
         follower.Ground.Layout = layout;
         FollowRoutePlanner.RouteFromHere? onto = FollowRoutePlanner.RouteOnto(layout, follower, new HashSet<int> { chain[1].Id });
@@ -2464,13 +2668,13 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
     /// </summary>
     private LeadLostRun? RunLeadLostPast28R()
     {
-        if (KoakFollowGeometry.NewEngine(output, autoCross: false) is not { } setup)
+        if (FollowCornerGeometry.NewEngine(output, autoCross: false) is not { } setup)
         {
             return null;
         }
 
-        List<GroundNode> chain = KoakFollowGeometry.BChain(setup.Layout);
-        AircraftState lead = KoakFollowGeometry.AddTaxiing(setup, LeadCallsign, "C560", (chain[3], chain[2]), "TAXI B W 30");
+        List<GroundNode> chain = FollowCornerGeometry.BChain(setup.Layout);
+        AircraftState lead = FollowCornerGeometry.AddTaxiing(setup, LeadCallsign, "C560", (chain[3], chain[2]), "TAXI B W 30");
         CommandResult cross = setup.Engine.SendCommand(LeadCallsign, "CROSS 28R");
         Assert.True(cross.Success, cross.Message);
         for (int second = 0; (second < 120) && (lead.Ground.TaxiEdgeTrail.Edges.Count < 2); second++)
@@ -2478,7 +2682,13 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
             setup.Engine.TickOneSecond();
         }
 
-        AircraftState follower = KoakFollowGeometry.Spawn(FollowerCallsign, "C172", chain[5].Position, KoakFollowGeometry.Facing(chain[5], chain[4]));
+        AircraftState follower = FollowCornerGeometry.Spawn(
+            FollowCornerGeometry.AirportId,
+            FollowerCallsign,
+            "C172",
+            chain[5].Position,
+            FollowCornerGeometry.Facing(chain[5], chain[4])
+        );
         follower.Ground.Layout = setup.Layout;
         setup.Engine.World.AddAircraft(follower);
         CommandResult result = setup.Engine.SendCommand(FollowerCallsign, $"FOLLOWG {LeadCallsign}; CROSS 28R");
@@ -2520,7 +2730,7 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
     /// </summary>
     private LeadLostRun? RunLeadLostOnB(bool withRoute, bool leadAirborne, bool soloTraining, string? studentPosition)
     {
-        if (KoakFollowGeometry.NewEngine(output, autoCross: false) is not { } setup)
+        if (FollowCornerGeometry.NewEngine(output, autoCross: false) is not { } setup)
         {
             return null;
         }
@@ -2528,8 +2738,8 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
         setup.Engine.Scenario!.SoloTrainingMode = soloTraining;
         setup.Engine.Scenario.StudentPositionType = studentPosition;
 
-        List<GroundNode> chain = KoakFollowGeometry.BChain(setup.Layout);
-        AircraftState lead = KoakFollowGeometry.AddTaxiing(setup, LeadCallsign, "C560", (chain[3], chain[2]), "TAXI B W 30");
+        List<GroundNode> chain = FollowCornerGeometry.BChain(setup.Layout);
+        AircraftState lead = FollowCornerGeometry.AddTaxiing(setup, LeadCallsign, "C560", (chain[3], chain[2]), "TAXI B W 30");
         CommandResult cross = setup.Engine.SendCommand(LeadCallsign, "CROSS 28R");
         Assert.True(cross.Success, cross.Message);
         for (int second = 0; (second < 120) && (lead.Ground.TaxiEdgeTrail.Edges.Count < 2); second++)
@@ -2540,11 +2750,17 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
         AircraftState follower;
         if (withRoute)
         {
-            follower = KoakFollowGeometry.AddTaxiing(setup, FollowerCallsign, "C172", (chain[5], chain[4]), "TAXI B W 30");
+            follower = FollowCornerGeometry.AddTaxiing(setup, FollowerCallsign, "C172", (chain[5], chain[4]), "TAXI B W 30");
         }
         else
         {
-            follower = KoakFollowGeometry.Spawn(FollowerCallsign, "C172", chain[5].Position, KoakFollowGeometry.Facing(chain[5], chain[4]));
+            follower = FollowCornerGeometry.Spawn(
+                FollowCornerGeometry.AirportId,
+                FollowerCallsign,
+                "C172",
+                chain[5].Position,
+                FollowCornerGeometry.Facing(chain[5], chain[4])
+            );
             follower.Ground.Layout = setup.Layout;
             setup.Engine.World.AddAircraft(follower);
         }
@@ -2619,7 +2835,7 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
     [Fact]
     public void Following_LeadDeletedClearingOntoABendingTaxiway_StopsOnTheClearingRouteCentreline()
     {
-        if (KoakFollowGeometry.NewEngine(output, autoCross: false) is not { } setup)
+        if (FollowCornerGeometry.NewEngine(output, autoCross: false) is not { } setup)
         {
             return;
         }
@@ -2634,10 +2850,22 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
             bendDeg >= 15.0,
             $"G's sharpest bend past a 28R bar (#{bar.Id}) is only {bendDeg:F1} deg: no bend to steer the braking roll through"
         );
-        AircraftState lead = KoakFollowGeometry.Spawn(LeadCallsign, "C172", outward.Position, KoakFollowGeometry.Facing(start, outward));
+        AircraftState lead = FollowCornerGeometry.Spawn(
+            FollowCornerGeometry.AirportId,
+            LeadCallsign,
+            "C172",
+            outward.Position,
+            FollowCornerGeometry.Facing(start, outward)
+        );
         lead.Ground.Layout = layout;
         engine.World.AddAircraft(lead);
-        AircraftState follower = KoakFollowGeometry.Spawn(FollowerCallsign, "C172", start.Position, KoakFollowGeometry.Facing(start, outward));
+        AircraftState follower = FollowCornerGeometry.Spawn(
+            FollowCornerGeometry.AirportId,
+            FollowerCallsign,
+            "C172",
+            start.Position,
+            FollowCornerGeometry.Facing(start, outward)
+        );
         follower.Ground.Layout = layout;
         engine.World.AddAircraft(follower);
         CommandResult result = engine.SendCommand(FollowerCallsign, $"FOLLOWG {LeadCallsign}");
@@ -2769,11 +2997,12 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
                 .Reverse()
                 .Select(s => new TaxiRouteSegment { Edge = s.Edge.Edge.Directed(s.Edge.ToNode, s.Edge.FromNode), TaxiwayName = s.TaxiwayName }),
         ];
-        AircraftState other = KoakFollowGeometry.Spawn(
+        AircraftState other = FollowCornerGeometry.Spawn(
+            FollowCornerGeometry.AirportId,
             "N3OTH",
             "C172",
             oncoming[0].Edge.FromNode.Position,
-            KoakFollowGeometry.Facing(oncoming[0].Edge.FromNode, oncoming[0].Edge.ToNode)
+            FollowCornerGeometry.Facing(oncoming[0].Edge.FromNode, oncoming[0].Edge.ToNode)
         );
         other.Ground.AssignedTaxiRoute = new TaxiRoute { Segments = oncoming, HoldShortPoints = [] };
         Assert.True(GroundConflictDetector.ShareUpcomingNode(run.Follower, other), "the detector did not read the clearing route as driven");
@@ -2786,7 +3015,7 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
     [Fact]
     public void Following_InsideTheHoldLineFacingTheRunway_WarnsAndHolds()
     {
-        if (KoakFollowGeometry.NewEngine(output, autoCross: false) is not { } setup)
+        if (FollowCornerGeometry.NewEngine(output, autoCross: false) is not { } setup)
         {
             return;
         }
@@ -2795,19 +3024,19 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
         SimLogBuilder.CreateForTest(output).EnableCategory("FollowingPhase", LogLevel.Warning).CaptureInto(tap).InitializeSimLog();
         (SimulationEngine engine, AirportGroundLayout layout) = setup;
         RunwayInfo runway = Runway28R(layout);
-        GroundNode nearBar = KoakFollowGeometry.BChain(layout)[0];
+        GroundNode nearBar = FollowCornerGeometry.BChain(layout)[0];
         IGroundEdge toward = nearBar.Edges.MinBy(e => CentrelineFt(runway, e.OtherNode(nearBar).Position))!;
         GroundNode next = toward.OtherNode(nearBar);
-        TrueHeading heading = KoakFollowGeometry.Facing(nearBar, next);
+        TrueHeading heading = FollowCornerGeometry.Facing(nearBar, next);
         double halfLengthNm = AircraftLength.ResolveFt("C172") / 2.0 / GeoMath.FeetPerNm;
         LatLon position = Enumerable
             .Range(1, 19)
-            .Select(step => KoakFollowGeometry.Between(nearBar.Position, next.Position, step / 20.0))
+            .Select(step => FollowCornerGeometry.Between(nearBar.Position, next.Position, step / 20.0))
             .Last(p => !RunwayOccupancy.IsWithinPavement(GeoMath.ProjectPoint(p, heading, halfLengthNm), runway));
-        AircraftState follower = KoakFollowGeometry.Spawn(FollowerCallsign, "C172", position, heading);
+        AircraftState follower = FollowCornerGeometry.Spawn(FollowCornerGeometry.AirportId, FollowerCallsign, "C172", position, heading);
         follower.Ground.Layout = layout;
         engine.World.AddAircraft(follower);
-        engine.World.AddAircraft(KoakFollowGeometry.SpawnAtStand(layout, LeadCallsign));
+        engine.World.AddAircraft(FollowCornerGeometry.SpawnAtStand(layout, LeadCallsign));
         Assert.False(RunwayOccupancy.IsOnPavement(follower, runway), "the follower starts on 28R's pavement");
         Assert.True(
             FollowingPhase.RunwayInsideHoldLine(follower, layout)?.Id.Overlaps(runway.Id) == true,
@@ -2880,7 +3109,8 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
         Assert.True(exit.AngleDeg < 60.0, $"the most angled exit meets its runway at {exit.AngleDeg:F0} deg");
         var heading = new TrueHeading(GeoMath.BearingTo(exit.Bar.Position, exit.Away.Position));
         double halfLengthFt = AircraftLength.ResolveFt("B744") / 2.0;
-        AircraftState wideBody = KoakFollowGeometry.Spawn(
+        AircraftState wideBody = FollowCornerGeometry.Spawn(
+            FollowCornerGeometry.AirportId,
             "N744",
             "B744",
             GeoMath.ProjectPoint(exit.Bar.Position, heading, (halfLengthFt + 10.0) / GeoMath.FeetPerNm),
@@ -2988,12 +3218,12 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
     /// </summary>
     private ClearingRun? RunRouteOutInsideHoldLine(int seconds, bool deleteLead, int? leadAheadAfter)
     {
-        if (KoakFollowGeometry.NewEngine(output, autoCross: false) is not { } setup)
+        if (FollowCornerGeometry.NewEngine(output, autoCross: false) is not { } setup)
         {
             return null;
         }
 
-        GroundNode nearBar = KoakFollowGeometry.BChain(setup.Layout)[0];
+        GroundNode nearBar = FollowCornerGeometry.BChain(setup.Layout)[0];
         GroundNode farBar = TestLayoutNodes
             .RunwayHoldShortsOnTaxiway(setup.Layout, "28R", "B")
             .Where(n => n.Id != nearBar.Id)
@@ -3038,19 +3268,21 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
             $"crossing {string.Join(" ", crossing.Select(s => $"#{s.FromNodeId}>#{s.ToNodeId}"))}; follower {followerFraction:F2} along "
                 + $"#{followerEdge.FromNodeId}>#{followerEdge.ToNodeId}, lead on #{lastEdge.FromNodeId}>#{lastEdge.ToNodeId}"
         );
-        AircraftState lead = KoakFollowGeometry.Spawn(
+        AircraftState lead = FollowCornerGeometry.Spawn(
+            FollowCornerGeometry.AirportId,
             LeadCallsign,
             "C172",
-            KoakFollowGeometry.Between(lastEdge.FromNode.Position, lastEdge.ToNode.Position, 0.95),
-            KoakFollowGeometry.Facing(lastEdge.FromNode, lastEdge.ToNode)
+            FollowCornerGeometry.Between(lastEdge.FromNode.Position, lastEdge.ToNode.Position, 0.95),
+            FollowCornerGeometry.Facing(lastEdge.FromNode, lastEdge.ToNode)
         );
         lead.Ground.Layout = layout;
         engine.World.AddAircraft(lead);
-        AircraftState follower = KoakFollowGeometry.Spawn(
+        AircraftState follower = FollowCornerGeometry.Spawn(
+            FollowCornerGeometry.AirportId,
             FollowerCallsign,
             followerType,
-            KoakFollowGeometry.Between(followerEdge.FromNode.Position, followerEdge.ToNode.Position, followerFraction),
-            KoakFollowGeometry.Facing(followerEdge.FromNode, followerEdge.ToNode)
+            FollowCornerGeometry.Between(followerEdge.FromNode.Position, followerEdge.ToNode.Position, followerFraction),
+            FollowCornerGeometry.Facing(followerEdge.FromNode, followerEdge.ToNode)
         );
         follower.Ground.Layout = layout;
         engine.World.AddAircraft(follower);
@@ -3127,8 +3359,8 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
             .MinBy(e => Math.Abs(GeoMath.SignedBearingDifference(last.ArrivalBearing, GeoMath.BearingTo(end.Position, e.OtherNode(end).Position))));
         Assert.True(onward is not null, $"no taxiway edge leads on past the clearing route's end node #{end.Id}");
         GroundNode far = onward.OtherNode(end);
-        lead.Position = KoakFollowGeometry.Between(end.Position, far.Position, 0.5);
-        lead.TrueHeading = KoakFollowGeometry.Facing(end, far);
+        lead.Position = FollowCornerGeometry.Between(end.Position, far.Position, 0.5);
+        lead.TrueHeading = FollowCornerGeometry.Facing(end, far);
         lead.Ground.TaxiEdgeTrail.Record(onward, end);
         output.WriteLine($"lead put back mid-way along {onward.TaxiwayName} #{end.Id}>#{far.Id}");
     }
@@ -3204,7 +3436,7 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
         for (int step = 0; step <= 85; step++)
         {
             double fraction = step / 100.0;
-            best = RunwayOccupancy.IsWithinPavement(KoakFollowGeometry.Between(edge.FromNode.Position, edge.ToNode.Position, fraction), runway)
+            best = RunwayOccupancy.IsWithinPavement(FollowCornerGeometry.Between(edge.FromNode.Position, edge.ToNode.Position, fraction), runway)
                 ? fraction
                 : best;
         }
@@ -3234,7 +3466,7 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
     private sealed record ChainRun(SimulationEngine Engine, AircraftState Follower, double StartFraction, List<ChainSecond> Seconds);
 
     /// <summary>
-    /// A chained follow on KOAK's B: a C560 taxiing toward 28R (<see cref="KoakFollowGeometry.StartTaxiingLead"/>), a C172 behind
+    /// A chained follow on KOAK's B: a C560 taxiing toward 28R (<see cref="FollowCornerGeometry.StartTaxiingLead"/>), a C172 behind
     /// it at <c>Chain[4]</c> following it across 28R, and a C172 behind that, <paramref name="startFraction"/> along the straight B
     /// edge from <c>Chain[5]</c> to the middle one,
     /// told at <see cref="ChainFollowerStartSecond"/> to follow the middle one across 28R too. The middle aircraft's taxi route
@@ -3243,7 +3475,7 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
     /// </summary>
     private ChainRun? RunChain(int seconds, double startFraction)
     {
-        if (KoakFollowGeometry.StartTaxiingLead(output) is not { } run)
+        if (FollowCornerGeometry.StartTaxiingLead(output) is not { } run)
         {
             return null;
         }
@@ -3251,19 +3483,21 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
         // The follower's start is interpolated straight between two chain nodes, so the edge joining them must be straight: B
         // leaves Chain[5] for Chain[6] by a fillet arc, whose chord runs over taxiway C's edge beside it.
         Assert.Contains(run.Chain[5].Edges.OfType<GroundEdge>(), e => e.OtherNode(run.Chain[5]).Id == run.Chain[4].Id);
-        AircraftState middle = KoakFollowGeometry.Spawn(
+        AircraftState middle = FollowCornerGeometry.Spawn(
+            FollowCornerGeometry.AirportId,
             MiddleCallsign,
             "C172",
             run.Chain[4].Position,
-            KoakFollowGeometry.Facing(run.Chain[4], run.Chain[3])
+            FollowCornerGeometry.Facing(run.Chain[4], run.Chain[3])
         );
         middle.Ground.Layout = run.Layout;
         run.Engine.World.AddAircraft(middle);
-        AircraftState follower = KoakFollowGeometry.Spawn(
+        AircraftState follower = FollowCornerGeometry.Spawn(
+            FollowCornerGeometry.AirportId,
             FollowerCallsign,
             "C172",
-            KoakFollowGeometry.Between(run.Chain[5].Position, run.Chain[4].Position, startFraction),
-            KoakFollowGeometry.Facing(run.Chain[5], run.Chain[4])
+            FollowCornerGeometry.Between(run.Chain[5].Position, run.Chain[4].Position, startFraction),
+            FollowCornerGeometry.Facing(run.Chain[5], run.Chain[4])
         );
         follower.Ground.Layout = run.Layout;
         run.Engine.World.AddAircraft(follower);
@@ -3300,13 +3534,13 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
     /// </summary>
     private ChainRun? RunRouteEnd(int seconds, double startFraction)
     {
-        if (KoakFollowGeometry.NewEngine(output, autoCross: true) is not { } setup)
+        if (FollowCornerGeometry.NewEngine(output, autoCross: true) is not { } setup)
         {
             return null;
         }
 
-        List<GroundNode> chain = KoakFollowGeometry.BChain(setup.Layout);
-        AircraftState scout = KoakFollowGeometry.AddTaxiing(setup, "N9SCT", "C560", (chain[3], chain[2]), "TAXI B W 30");
+        List<GroundNode> chain = FollowCornerGeometry.BChain(setup.Layout);
+        AircraftState scout = FollowCornerGeometry.AddTaxiing(setup, "N9SCT", "C560", (chain[3], chain[2]), "TAXI B W 30");
         List<TaxiRouteSegment> toThirty = Assert.IsType<TaxiRoute>(scout.Ground.AssignedTaxiRoute).Segments;
         setup.Engine.World.RemoveAircraft(scout.Callsign);
         List<RunwayInfo> runways = [.. RunwayOccupancy.AirportRunways(setup.Layout.AirportId)];
@@ -3331,11 +3565,12 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
         DirectionalEdge behind = toThirty[start - 1].Edge;
         DirectionalEdge leadEdge = toThirty[start].Edge;
 
-        AircraftState lead = KoakFollowGeometry.Spawn(
+        AircraftState lead = FollowCornerGeometry.Spawn(
+            FollowCornerGeometry.AirportId,
             LeadCallsign,
             "C560",
-            KoakFollowGeometry.Between(leadEdge.FromNode.Position, leadEdge.ToNode.Position, 0.5),
-            KoakFollowGeometry.Facing(leadEdge.FromNode, leadEdge.ToNode)
+            FollowCornerGeometry.Between(leadEdge.FromNode.Position, leadEdge.ToNode.Position, 0.5),
+            FollowCornerGeometry.Facing(leadEdge.FromNode, leadEdge.ToNode)
         );
         lead.Ground.Layout = setup.Layout;
         setup.Engine.World.AddAircraft(lead);
@@ -3344,11 +3579,12 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
         TaxiRoute full = Assert.IsType<TaxiRoute>(lead.Ground.AssignedTaxiRoute);
         lead.Ground.AssignedTaxiRoute = new TaxiRoute { Segments = [.. full.Segments.Take(ShortLeadRouteSegments)], HoldShortPoints = [] };
         output.WriteLine($"lead short route {lead.Ground.AssignedTaxiRoute.ToSummary()} of {full.ToSummary()}");
-        AircraftState follower = KoakFollowGeometry.Spawn(
+        AircraftState follower = FollowCornerGeometry.Spawn(
+            FollowCornerGeometry.AirportId,
             FollowerCallsign,
             "C172",
-            KoakFollowGeometry.Between(behind.FromNode.Position, behind.ToNode.Position, startFraction),
-            KoakFollowGeometry.Facing(behind.FromNode, behind.ToNode)
+            FollowCornerGeometry.Between(behind.FromNode.Position, behind.ToNode.Position, startFraction),
+            FollowCornerGeometry.Facing(behind.FromNode, behind.ToNode)
         );
         follower.Ground.Layout = setup.Layout;
         setup.Engine.World.AddAircraft(follower);
@@ -3416,7 +3652,7 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
         ChainRun original = Assert.IsType<ChainRun>(RunRouteEnd(snapshotAt, startFraction));
         StateSnapshotDto snapshot = original.Engine.CaptureSnapshot();
         string json = JsonSerializer.Serialize(snapshot, RecordingJsonOptions.Default);
-        SimulationEngine restored = KoakFollowGeometry.NewEngine(output, autoCross: true)!.Value.Engine;
+        SimulationEngine restored = FollowCornerGeometry.NewEngine(output, autoCross: true)!.Value.Engine;
         restored.RestoreFromSnapshot(
             Assert.IsType<StateSnapshotDto>(JsonSerializer.Deserialize<StateSnapshotDto>(json, RecordingJsonOptions.Default))
         );
@@ -3444,7 +3680,7 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
     private const int ArmedCrossingBudgetSeconds = 300;
 
     /// <summary>
-    /// A C172 on B behind a C560 taxiing <c>TAXI B W 30</c> across 28R (<see cref="KoakFollowGeometry.StartTaxiingLead"/>), told
+    /// A C172 on B behind a C560 taxiing <c>TAXI B W 30</c> across 28R (<see cref="FollowCornerGeometry.StartTaxiingLead"/>), told
     /// <c>FOLLOWG</c> it with a <c>CROSS 28R</c> armed behind the follow: the follow stops at the 28R bar, the armed crossing fires
     /// there, and the follower crosses 28R behind its lead rather than holding at the bar — alone, and with a third C172 behind it
     /// at <c>Chain[5]</c> following it across too (<see cref="RunChain"/>'s pose).
@@ -3454,29 +3690,31 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
     [InlineData(true)]
     public void Following_ArmedCrossing_CrossesBehindTheLead(bool withFollowerBehind)
     {
-        if (KoakFollowGeometry.StartTaxiingLead(output) is not { } run)
+        if (FollowCornerGeometry.StartTaxiingLead(output) is not { } run)
         {
             return;
         }
 
         if (withFollowerBehind)
         {
-            AircraftState behind = KoakFollowGeometry.Spawn(
+            AircraftState behind = FollowCornerGeometry.Spawn(
+                FollowCornerGeometry.AirportId,
                 MiddleCallsign,
                 "C172",
                 run.Chain[5].Position,
-                KoakFollowGeometry.Facing(run.Chain[5], run.Chain[4])
+                FollowCornerGeometry.Facing(run.Chain[5], run.Chain[4])
             );
             behind.Ground.Layout = run.Layout;
             run.Engine.World.AddAircraft(behind);
         }
 
         RunwayInfo runway = Runway28R(run.Layout);
-        AircraftState follower = KoakFollowGeometry.Spawn(
+        AircraftState follower = FollowCornerGeometry.Spawn(
+            FollowCornerGeometry.AirportId,
             FollowerCallsign,
             "C172",
             run.Chain[4].Position,
-            KoakFollowGeometry.Facing(run.Chain[4], run.Chain[3])
+            FollowCornerGeometry.Facing(run.Chain[4], run.Chain[3])
         );
         follower.Ground.Layout = run.Layout;
         run.Engine.World.AddAircraft(follower);
@@ -3535,18 +3773,18 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
     private sealed record MergeRun(SimulationEngine Engine, AirportGroundLayout Layout, AircraftState Lead, AircraftState Follower);
 
     /// <summary>
-    /// A C560 taxiing B toward 28R (<see cref="KoakFollowGeometry.StartTaxiingLead"/>) and a C172 on its route ahead of it,
+    /// A C560 taxiing B toward 28R (<see cref="FollowCornerGeometry.StartTaxiingLead"/>) and a C172 on its route ahead of it,
     /// put straight into a follow of the lead — <c>FOLLOWG</c> itself rejects a follower ahead — whose plan is
     /// <see cref="FollowRoutePlan.FollowerAhead"/>.
     /// </summary>
     private MergeRun? StartFollowerAhead()
     {
-        if (KoakFollowGeometry.StartTaxiingLead(output) is not { } run)
+        if (FollowCornerGeometry.StartTaxiingLead(output) is not { } run)
         {
             return null;
         }
 
-        AircraftState follower = KoakFollowGeometry.SpawnOnRouteAhead(run.Lead, FollowerCallsign, "C172");
+        AircraftState follower = FollowCornerGeometry.SpawnOnRouteAhead(run.Lead, FollowerCallsign, "C172");
         follower.Ground.Layout = run.Layout;
         follower.Phases = new PhaseList();
         follower.Phases.Add(new FollowingPhase(run.Lead.Callsign));
@@ -3603,19 +3841,21 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
                 StudentPositionType = soloOnGround ? "GND" : null,
             },
         };
-        AircraftState lead = KoakFollowGeometry.Spawn(
+        AircraftState lead = FollowCornerGeometry.Spawn(
+            FollowCornerGeometry.AirportId,
             LeadCallsign,
             "C560",
-            KoakFollowGeometry.Between(mainEdge.Nodes[0].Position, mainEdge.Nodes[1].Position, 0.5),
-            KoakFollowGeometry.Facing(mainEdge.Nodes[0], mainEdge.Nodes[1])
+            FollowCornerGeometry.Between(mainEdge.Nodes[0].Position, mainEdge.Nodes[1].Position, 0.5),
+            FollowCornerGeometry.Facing(mainEdge.Nodes[0], mainEdge.Nodes[1])
         );
         lead.Ground.Layout = layout;
         engine.World.AddAircraft(lead);
-        AircraftState follower = KoakFollowGeometry.Spawn(
+        AircraftState follower = FollowCornerGeometry.Spawn(
+            FollowCornerGeometry.AirportId,
             FollowerCallsign,
             "C172",
-            KoakFollowGeometry.Between(islandEdge.Nodes[0].Position, islandEdge.Nodes[1].Position, 0.5),
-            KoakFollowGeometry.Facing(islandEdge.Nodes[0], islandEdge.Nodes[1])
+            FollowCornerGeometry.Between(islandEdge.Nodes[0].Position, islandEdge.Nodes[1].Position, 0.5),
+            FollowCornerGeometry.Facing(islandEdge.Nodes[0], islandEdge.Nodes[1])
         );
         follower.Ground.Layout = layout;
         follower.Phases = new PhaseList();
@@ -3627,13 +3867,13 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// The planner's merge-ahead pose: a C560 taxiing B toward 28R (<see cref="KoakFollowGeometry.StartTaxiingLead"/>) and a
+    /// The planner's merge-ahead pose: a C560 taxiing B toward 28R (<see cref="FollowCornerGeometry.StartTaxiingLead"/>) and a
     /// C172 at the far end of a taxiway crossing B at a junction three or more segments ahead of the lead, facing the junction,
     /// told <c>FOLLOWG</c> the lead and ticked once so the follow has planned.
     /// </summary>
     private MergeRun? StartMergeAhead()
     {
-        if (KoakFollowGeometry.StartTaxiingLead(output) is not { } run)
+        if (FollowCornerGeometry.StartTaxiingLead(output) is not { } run)
         {
             return null;
         }
@@ -3650,7 +3890,13 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
             .Select(c => (c.Junction, c.Far))
             .First();
         output.WriteLine($"junction #{junction.Id} on B, follower at #{far.Id}");
-        AircraftState follower = KoakFollowGeometry.Spawn(FollowerCallsign, "C172", far.Position, KoakFollowGeometry.Facing(far, junction));
+        AircraftState follower = FollowCornerGeometry.Spawn(
+            FollowCornerGeometry.AirportId,
+            FollowerCallsign,
+            "C172",
+            far.Position,
+            FollowCornerGeometry.Facing(far, junction)
+        );
         follower.Ground.Layout = run.Layout;
         run.Engine.World.AddAircraft(follower);
         CommandResult result = run.Engine.SendCommand(FollowerCallsign, $"FOLLOWG {run.Lead.Callsign}");
@@ -3666,7 +3912,7 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
     /// </summary>
     private void FollowBehindOnLeadsEdge(bool followerFacesLead)
     {
-        if (KoakFollowGeometry.NewEngine(output, autoCross: false) is not { } setup)
+        if (FollowCornerGeometry.NewEngine(output, autoCross: false) is not { } setup)
         {
             return;
         }
@@ -3681,21 +3927,23 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
         GroundEdge before = from.Edges.OfType<GroundEdge>().First(e => (e != shared) && !e.IsRunwayCenterline && !e.IsRamp);
         output.WriteLine($"shared edge #{from.Id}>#{to.Id}, {shared.DistanceNm * GeoMath.FeetPerNm:F0} ft");
 
-        AircraftState lead = KoakFollowGeometry.Spawn(
+        AircraftState lead = FollowCornerGeometry.Spawn(
+            FollowCornerGeometry.AirportId,
             LeadCallsign,
             "C172",
-            KoakFollowGeometry.Between(from.Position, to.Position, 0.9),
-            KoakFollowGeometry.Facing(from, to)
+            FollowCornerGeometry.Between(from.Position, to.Position, 0.9),
+            FollowCornerGeometry.Facing(from, to)
         );
         lead.Ground.Layout = layout;
         lead.Ground.TaxiEdgeTrail.Record(before, before.OtherNode(from));
         lead.Ground.TaxiEdgeTrail.Record(shared, from);
         engine.World.AddAircraft(lead);
-        AircraftState follower = KoakFollowGeometry.Spawn(
+        AircraftState follower = FollowCornerGeometry.Spawn(
+            FollowCornerGeometry.AirportId,
             FollowerCallsign,
             "C172",
-            KoakFollowGeometry.Between(from.Position, to.Position, 0.1),
-            followerFacesLead ? KoakFollowGeometry.Facing(from, to) : KoakFollowGeometry.Facing(to, from)
+            FollowCornerGeometry.Between(from.Position, to.Position, 0.1),
+            followerFacesLead ? FollowCornerGeometry.Facing(from, to) : FollowCornerGeometry.Facing(to, from)
         );
         follower.Ground.Layout = layout;
         engine.World.AddAircraft(follower);
@@ -3727,7 +3975,7 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
 
         Assert.True(settledAt > 0, $"the follower never closed up behind the lead within {BudgetSeconds}s");
         Assert.False(everGaveWay, "the follower gave way on the lead's own edge");
-        double alongDeg = Math.Abs(GeoMath.SignedBearingDifference(follower.TrueHeading.Degrees, KoakFollowGeometry.Facing(from, to).Degrees));
+        double alongDeg = Math.Abs(GeoMath.SignedBearingDifference(follower.TrueHeading.Degrees, FollowCornerGeometry.Facing(from, to).Degrees));
         Assert.True(alongDeg <= 15.0, $"the follower ended {alongDeg:F0} deg off the lead's direction");
         double settledGapFt = FollowingPhase.NoseToTailFt(follower, lead);
         Assert.True(
