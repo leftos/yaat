@@ -1590,18 +1590,16 @@ public class MenuCatalogCommandTests
     public static TheoryData<string, string> ClearedForTakeoffChildren() =>
         new()
         {
-            { "Default (SID/on course)", "CTO" },
-            { "Fly runway heading", "CTO RH" },
-            { "Fly on course", "CTO OC" },
-            { "Make left traffic", "CTO MLT" },
-            { "Make right traffic", "CTO MRT" },
-            { "Turn left crosswind", "CTO MLC" },
-            { "Turn right crosswind", "CTO MRC" },
-            { "Turn left downwind", "CTO MLD" },
-            { "Turn right downwind", "CTO MRD" },
-            { "Left 270", "CTO ML270" },
-            { "Right 270", "CTO MR270" },
-            { "360 overhead", "CTO 360" },
+            { "Cleared for takeoff", "CTO" },
+            { "Make left closed traffic", "CTO MLT" },
+            { "Make right closed traffic", "CTO MRT" },
+            { "Straight out", "CTO MSO" },
+            { "Left crosswind departure", "CTO MLC" },
+            { "Right crosswind departure", "CTO MRC" },
+            { "Left downwind departure", "CTO MLD" },
+            { "Right downwind departure", "CTO MRD" },
+            { "Left turnout (45°)", "CTO ML45" },
+            { "Right turnout (45°)", "CTO MR45" },
         };
 
     [AvaloniaTheory]
@@ -1612,7 +1610,7 @@ public class MenuCatalogCommandTests
 
         List<MenuItem> children = ClearedForTakeoffChildItems(host);
 
-        Click(Assert.Single(children, m => m.Header as string == label));
+        Click(Assert.Single(children, m => (m.Header as TakeoffFlyoutRow)?.Label == label));
         Assert.Equal([(Callsign, command, Initials)], host.Sent);
     }
 
@@ -2341,24 +2339,28 @@ public class MenuCatalogCommandTests
         MenuItem cto = CtoSubmenu(ac, host);
 
         Assert.Equal("Cleared for takeoff 30", cto.Header as string);
+        // No destination, so On course is disabled; the heading and direct rows send nothing until their boxes are filled.
         Assert.Equal(
             [
-                "Default (SID/on course)",
-                "Fly runway heading",
-                "Fly on course",
-                "Make left traffic",
-                "Make right traffic",
-                "Turn left crosswind",
-                "Turn right crosswind",
-                "Turn left downwind",
-                "Turn right downwind",
-                "Left 270",
-                "Right 270",
-                "360 overhead",
+                "Initial altitude · default climb",
+                "Cleared for takeoff — CTO",
+                "Make left closed traffic — CTO MLT",
+                "Make right closed traffic — CTO MRT",
+                "Straight out — CTO MSO",
+                "Left crosswind departure — CTO MLC",
+                "Right crosswind departure — CTO MRC",
+                "Left downwind departure — CTO MLD",
+                "Right downwind departure — CTO MRD",
+                "Left turnout (45°) — CTO ML45",
+                "Right turnout (45°) — CTO MR45",
+                "Fly heading — CTO ···",
+                "On course — CTO OC [disabled]",
+                "Turn left direct — CTO TLDCT ···",
+                "Turn right direct — CTO TRDCT ···",
                 "---",
                 "Custom…",
             ],
-            cto.Items.Select(Describe)
+            cto.Items.Select(DescribeRow)
         );
 
         foreach (MenuItem child in cto.Items.OfType<MenuItem>().Where(i => (i.Header as string) != "Custom…"))
@@ -2367,20 +2369,23 @@ public class MenuCatalogCommandTests
         }
 
         Assert.Equal(
-            ["CTO", "CTO RH", "CTO OC", "CTO MLT", "CTO MRT", "CTO MLC", "CTO MRC", "CTO MLD", "CTO MRD", "CTO ML270", "CTO MR270", "CTO 360"],
+            ["CTO", "CTO MLT", "CTO MRT", "CTO MSO", "CTO MLC", "CTO MRC", "CTO MLD", "CTO MRD", "CTO ML45", "CTO MR45"],
             host.Sent.Select(s => s.Command)
         );
     }
 
-    // IFR without the VFR set: the default clearance and an explicit runway heading, then the separator and Custom.
+    // IFR without the VFR set: the plain clearance, a heading and runway heading, then the separator and Custom.
     [AvaloniaFact]
-    public void Cto_IfrDeparture_OffersDefaultAndRunwayHeading()
+    public void Cto_IfrDeparture_OffersTakeoffHeadingAndRunwayHeading()
     {
         AircraftModel ac = OnGround("LinedUpAndWaiting", "IFR", "30");
 
         MenuItem cto = CtoSubmenu(ac, new RecordingMenuHost(""));
         Assert.Equal("Cleared for takeoff 30", cto.Header as string);
-        Assert.Equal(["Default (SID/on course)", "Fly runway heading", "---", "Custom…"], cto.Items.Select(Describe));
+        Assert.Equal(
+            ["Cleared for takeoff — CTO", "Fly heading — CTO ···", "Fly runway heading — CTO RH", "---", "Custom…"],
+            cto.Items.Select(DescribeRow)
+        );
     }
 
     // The takeoff submenu ends with the separator and Custom, on the recording host and on the client host every view builds.
@@ -3017,6 +3022,8 @@ public class MenuCatalogCommandTests
         public string DisplayAircraftType => FiledAircraftType;
 
         public string BaseAircraftType { get; init; } = "";
+
+        public int? FiledVfrCruiseFeet => null;
 
         public string Note => "";
 

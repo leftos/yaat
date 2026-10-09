@@ -39,8 +39,9 @@ All Commands
   Tower
     Line up and wait 30
     Cleared for takeoff 30
-      Default (SID/on course)
-      Fly runway heading
+      Cleared for takeoff — CTO
+      Fly heading — CTO ···
+      Fly runway heading — CTO RH
       ---
       Custom… picker:input
   Draw taxi route…

@@ -25,6 +25,8 @@ internal sealed class PointMenuHostCache(IMenuHost inner) : IMenuHost
 
     public string[]? FixNames => inner.FixNames;
 
+    public IReadOnlyList<string> SuggestFixes(string partial) => inner.SuggestFixes(partial);
+
     public IReadOnlyList<MenuCommandChoice> GetTaxiChoices(string callsign, GroundNodeDto node, string? runwayEnd)
     {
         (string, int, string?) key = (callsign, node.Id, runwayEnd);

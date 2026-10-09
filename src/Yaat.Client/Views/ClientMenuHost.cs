@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Collections.ObjectModel;
 using Avalonia.Controls;
 using Microsoft.Extensions.Logging;
 using Yaat.Client.ContextMenus;
@@ -30,6 +31,9 @@ internal sealed class ClientMenuHost(MainViewModel main, AircraftModel? aircraft
 
     /// <summary>The most aircraft the Report traffic in sight… list offers.</summary>
     private const int MaxNearbyTraffic = 5;
+
+    /// <summary>The most fixes a menu fix box suggests, as many as the command bar's suggestion list shows.</summary>
+    private const int MaxFixSuggestions = 10;
 
     /// <summary>The custom quick-command texts already warned about, so each is logged once per session however many menus open.</summary>
     private static readonly ConcurrentDictionary<string, bool> WarnedQuickCommandTexts = new(StringComparer.Ordinal);
@@ -300,6 +304,31 @@ internal sealed class ClientMenuHost(MainViewModel main, AircraftModel? aircraft
 
     /// <summary>The primary radar view model's fix names: every fix in the navigation database once it is loaded, else null.</summary>
     public string[]? FixNames => main.Radar.FixNames;
+
+    /// <summary>
+    /// The command bar's fix suggestions for <paramref name="partial"/> (<see cref="FixSuggester.AddFixSuggestionsForActiveToken"/>):
+    /// the menu aircraft's route fixes first, then the navigation data's, at most <see cref="MaxFixSuggestions"/>; none for
+    /// a blank partial.
+    /// </summary>
+    public IReadOnlyList<string> SuggestFixes(string partial) => SuggestFixes(partial, aircraft, NavigationDatabase.InstanceOrNull);
+
+    /// <summary>
+    /// The fixes <see cref="SuggestFixes(string)"/> offers <paramref name="aircraft"/> for <paramref name="partial"/>; none
+    /// for a blank partial or while <paramref name="navigation"/> is not loaded, when the command bar's suggester would
+    /// throw reading the navigation data.
+    /// </summary>
+    internal static IReadOnlyList<string> SuggestFixes(string partial, AircraftModel? aircraft, NavigationDatabase? navigation)
+    {
+        string token = partial.Trim();
+        if ((token.Length == 0) || (navigation is null))
+        {
+            return [];
+        }
+
+        var suggestions = new ObservableCollection<SuggestionItem>();
+        FixSuggester.AddFixSuggestionsForActiveToken(token, 0, token.Length, token, aircraft, suggestions, MaxFixSuggestions);
+        return [.. suggestions.Select(suggestion => suggestion.Text)];
+    }
 
     /// <summary>
     /// The navdata elevation of <paramref name="destination"/>, else of the scenario's primary airport, from the primary

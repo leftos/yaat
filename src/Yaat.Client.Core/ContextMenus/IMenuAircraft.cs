@@ -133,6 +133,13 @@ public interface IMenuAircraft
     /// </summary>
     string BaseAircraftType { get; }
 
+    /// <summary>
+    /// The filed VFR cruise altitude in feet when the flight plan files the plain <c>VFR/NNN</c> form (<c>VFR/045</c> →
+    /// 4,500); null for any other filed altitude (IFR, VFR on top, a block, a bare <c>VFR</c>). The Cleared for takeoff
+    /// flyout's altitude box starts from it.
+    /// </summary>
+    int? FiledVfrCruiseFeet { get; }
+
     /// <summary>The instructor note on the aircraft, empty when none; the note popup opens prefilled with it.</summary>
     string Note { get; }
 

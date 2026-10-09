@@ -22,6 +22,15 @@ namespace Yaat.Client.UI.Tests.Views;
 // The one menu host every view builds per right-click.
 public class ClientMenuHostTests
 {
+    /// <summary>Before the navigation data loads a fix box is offered nothing, where the command bar's suggester would throw.</summary>
+    [AvaloniaFact]
+    public void SuggestFixes_WithoutNavigationData_OffersNone()
+    {
+        var aircraft = new AircraftModel { Callsign = "N123AB", Route = "SUNOL V25 ECA" };
+
+        Assert.Empty(ClientMenuHost.SuggestFixes("SUN", aircraft, null));
+    }
+
     [AvaloniaFact]
     public async Task FailedSend_IsShownInTheStatusLine()
     {

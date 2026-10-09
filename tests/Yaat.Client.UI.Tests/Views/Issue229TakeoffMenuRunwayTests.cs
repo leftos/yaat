@@ -45,7 +45,7 @@ public class Issue229TakeoffMenuRunwayTests
         ItemCollection tower = BuildTowerItems(host);
 
         MenuItem ctoParent = FindItem(tower, "Cleared for takeoff 28R");
-        MenuItem defaultItem = FindItem(ctoParent.Items, "Default (SID/on course)");
+        MenuItem defaultItem = ctoParent.Items.OfType<MenuItem>().Single(m => m.Header is TakeoffFlyoutRow { Label: "Cleared for takeoff" });
         defaultItem.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
 
         Assert.Equal([(Callsign, "CTO", Initials)], host.Sent);

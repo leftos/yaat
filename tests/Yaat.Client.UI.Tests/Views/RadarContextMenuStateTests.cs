@@ -66,6 +66,10 @@ public class RadarContextMenuStateTests
     private static List<string> Headers(MenuItem menu) =>
         [.. menu.Items.OfType<MenuItem>().Where(m => m.Header is string).Select(m => (string)m.Header!)];
 
+    /// <summary>The Cleared for takeoff flyout's row labels, in order, without the altitude box, separators or Custom….</summary>
+    private static List<string> TakeoffRowLabels(MenuItem cto) =>
+        [.. cto.Items.OfType<MenuItem>().Select(m => m.Header).OfType<TakeoffFlyoutRow>().Select(row => row.Label)];
+
     [AvaloniaFact]
     public void AirborneIfrOnFinal_TowerHasLanding_NotTakeoff()
     {
@@ -167,18 +171,17 @@ public class RadarContextMenuStateTests
 
         MenuItem? cto = tower!.Items.OfType<MenuItem>().FirstOrDefault(m => m.Header is "Cleared for takeoff 30");
         Assert.NotNull(cto);
-        List<string> ctoHeaders = Headers(cto!);
-        // IFR gets the default (follow-SID) clearance and an explicit runway-heading clearance (issue #221).
-        Assert.Contains("Default (SID/on course)", ctoHeaders);
-        Assert.Contains("Fly runway heading", ctoHeaders);
-        // On-course and pattern modifiers are VFR-only — hidden for IFR.
-        Assert.DoesNotContain("Fly on course", ctoHeaders);
-        Assert.DoesNotContain("Make left traffic", ctoHeaders);
-        Assert.DoesNotContain("360 overhead", ctoHeaders);
+        List<string> ctoRows = TakeoffRowLabels(cto!);
+        // IFR gets the default (follow-SID) clearance, a heading and an explicit runway-heading clearance (issue #221).
+        Assert.Equal(["Cleared for takeoff", "Fly heading", "Fly runway heading"], ctoRows);
+        // On-course, the departure legs and closed traffic are VFR rows, and the altitude box goes with them — hidden for IFR.
+        Assert.DoesNotContain("On course", ctoRows);
+        Assert.DoesNotContain("Make left closed traffic", ctoRows);
+        Assert.DoesNotContain(cto!.Items.OfType<MenuItem>(), m => m.Header is TakeoffAltitudeBox);
     }
 
     [AvaloniaFact]
-    public void VfrTakeoffClearance_ShowsRunwayHeadingAndOnCourseAndModifiers()
+    public void VfrTakeoffClearance_ShowsTheVfrDepartureRows()
     {
         var ac = new AircraftModel
         {
@@ -196,22 +199,25 @@ public class RadarContextMenuStateTests
         Assert.NotNull(cto);
         Assert.Equal(
             [
-                "Default (SID/on course)",
-                "Fly runway heading",
-                "Fly on course",
-                "Make left traffic",
-                "Make right traffic",
-                "Turn left crosswind",
-                "Turn right crosswind",
-                "Turn left downwind",
-                "Turn right downwind",
-                "Left 270",
-                "Right 270",
-                "360 overhead",
-                "Custom…",
+                "Cleared for takeoff",
+                "Make left closed traffic",
+                "Make right closed traffic",
+                "Straight out",
+                "Left crosswind departure",
+                "Right crosswind departure",
+                "Left downwind departure",
+                "Right downwind departure",
+                "Left turnout (45°)",
+                "Right turnout (45°)",
+                "Fly heading",
+                "On course",
+                "Turn left direct",
+                "Turn right direct",
             ],
-            Headers(cto!)
+            TakeoffRowLabels(cto!)
         );
+        Assert.IsType<TakeoffAltitudeBox>(Assert.IsType<MenuItem>(cto!.Items[0]).Header);
+        Assert.Equal(["Custom…"], Headers(cto!));
         List<object?> items = [.. cto!.Items];
         int custom = items.FindIndex(i => i is MenuItem { Header: "Custom…" });
         Assert.IsType<Separator>(items[custom - 1]);

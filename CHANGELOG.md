@@ -40,6 +40,7 @@
 - `BREAK` echoes "Ignore ground conflicts (15 s)" in the terminal, matching its quick command.
 - The ground view's Hold short of… lists every bar along the route nearest first, with its distance, one row per runway named by its active end.
 - Pattern entries pick their runway from a flyout: active runways first, each drawn turned to its runway, and runways too short for the aircraft dimmed "short".
+- Cleared for takeoff opens a flyout: VFR departures, turn direct a typed fix, and an initial altitude pre-filled from a filed VFR altitude.
 - Approach menus offer the expected approach, or the assigned runway's ILS, in one click, and list the rest grouped by runway and type.
 - Assign speed lists the aircraft type's own speed range, Mach numbers at FL240 and above, and Resume normal speed and Final approach speed.
 - Maintain opens at the aircraft's altitude, marks climbs and descents, ends at its type's ceiling, greys altitudes below the MVA and jumps to typed altitudes.

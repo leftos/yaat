@@ -115,6 +115,12 @@ public interface IMenuHost
     /// <summary>Every fix name the surface's filtered fix pickers offer, sorted; null while the navigation data is not loaded.</summary>
     string[]? FixNames { get; }
 
+    /// <summary>
+    /// The fixes a menu fix box offers for <paramref name="partial"/>, as the command bar offers them after <c>DCT</c>: the
+    /// menu aircraft's route fixes that start with it first, then the navigation data's; empty for an empty partial.
+    /// </summary>
+    IReadOnlyList<string> SuggestFixes(string partial);
+
     /// <summary>The field elevation in feet of <paramref name="destination"/>, or of the surface's primary airport when it has none.</summary>
     double GetFieldElevation(string? destination);
 

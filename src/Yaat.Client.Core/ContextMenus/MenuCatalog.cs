@@ -468,24 +468,6 @@ public static class MenuCatalog
     /// <summary>The placeholder of the Cleared for takeoff submenu's free-text item.</summary>
     private const string ClearedForTakeoffPlaceholder = "CTO arg (e.g. RH 3000, LT 270, DCT BERKS)";
 
-    /// <summary>
-    /// The VFR-only departure instructions the Cleared for takeoff submenu offers after the default and runway heading:
-    /// each item's text and the argument it sends after <c>CTO</c>.
-    /// </summary>
-    private static readonly (string Label, string Argument)[] VfrTakeoffModifiers =
-    [
-        ("Fly on course", "OC"),
-        ("Make left traffic", "MLT"),
-        ("Make right traffic", "MRT"),
-        ("Turn left crosswind", "MLC"),
-        ("Turn right crosswind", "MRC"),
-        ("Turn left downwind", "MLD"),
-        ("Turn right downwind", "MRD"),
-        ("Left 270", "ML270"),
-        ("Right 270", "MR270"),
-        ("360 overhead", "360"),
-    ];
-
     /// <summary>The visual-approach entry's label, which its smart-default leaf and its "(other)" companion extend.</summary>
     private const string ClearedVisualLabel = "Cleared visual approach";
 
@@ -1214,23 +1196,17 @@ public static class MenuCatalog
     }
 
     /// <summary>
-    /// The Cleared for takeoff submenu, the same on every view: headed with the held runway, else the assigned one
-    /// (<see cref="HoldShortMenuHelper.HeldRunway(IMenuAircraft?)"/>), the default clearance (the filed SID for IFR,
-    /// runway heading for VFR) and an explicit runway heading for either, then the VFR-only departure instructions when
-    /// <see cref="AircraftCommandApplicability.ShowVfrTakeoffModifiers"/> allows them, then the trailing separator and
+    /// The Cleared for takeoff flyout, the same on the quick-command strip and in All Commands › Tower on every view:
+    /// headed with the held runway, else the assigned one (<see cref="HoldShortMenuHelper.HeldRunway(IMenuAircraft?)"/>),
+    /// then the IFR or VFR rows and the initial-altitude box (<see cref="TakeoffFlyout"/>), then the trailing separator and
     /// Custom item: blank sends a bare <c>CTO</c>, anything else is trimmed and sent after it.
     /// </summary>
     private static MenuItem BuildClearedForTakeoff(IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
     {
         var menu = new MenuItem { Header = ClearedForTakeoffLabel + DisplaySuffix(HoldShortMenuHelper.HeldRunway(aircraft)) };
-        menu.Items.Add(BuildSend("Default (SID/on course)", "CTO", context, host));
-        menu.Items.Add(BuildSend("Fly runway heading", "CTO RH", context, host));
-        if (AircraftCommandApplicability.ShowVfrTakeoffModifiers(aircraft, context.VfrCommandsForIfr))
+        foreach (Control item in TakeoffFlyout.Items(aircraft, context, host))
         {
-            foreach ((string label, string argument) in VfrTakeoffModifiers)
-            {
-                menu.Items.Add(BuildSend(label, $"CTO {argument}", context, host));
-            }
+            menu.Items.Add(item);
         }
 
         menu.Items.Add(new Separator());

@@ -60,6 +60,8 @@ internal sealed class SendCapturingHost(IMenuHost inner, string sessionInitials)
 
     public string[]? FixNames => inner.FixNames;
 
+    public IReadOnlyList<string> SuggestFixes(string partial) => inner.SuggestFixes(partial);
+
     public double GetFieldElevation(string? destination) => inner.GetFieldElevation(destination);
 
     public void EnterDrawRoute(string callsign) => inner.EnterDrawRoute(callsign);

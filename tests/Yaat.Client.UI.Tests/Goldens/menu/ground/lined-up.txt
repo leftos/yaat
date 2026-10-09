@@ -34,8 +34,9 @@ Favorite Commands
 All Commands
   Tower
     Cleared for takeoff 30
-      Default (SID/on course)
-      Fly runway heading
+      Cleared for takeoff — CTO
+      Fly heading — CTO ···
+      Fly runway heading — CTO RH
       ---
       Custom… picker:input
     Cancel takeoff clearance

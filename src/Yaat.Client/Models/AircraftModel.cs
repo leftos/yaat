@@ -809,6 +809,12 @@ public partial class AircraftModel : ObservableObject, IMenuAircraft
 
     public string CruiseAltitudeDisplay => FlightPlanAltitude.Format(AsPlannedAltitude);
 
+    /// <summary>The cruise of a plain <c>VFR/NNN</c> filed altitude, in feet; null for every other form.</summary>
+    public int? FiledVfrCruiseFeet =>
+        AsPlannedAltitude is { IsVfr: true, IsVfrOnTop: false, IsAbove: false, BlockFloorFeet: null, AltitudeFix: null, CruiseFeet: { } feet }
+            ? feet
+            : null;
+
     internal static (string Rules, PlannedAltitude Altitude)? ParseAltitudeField(string text) => FlightPlanAltitude.Parse(text);
 
     [ObservableProperty]

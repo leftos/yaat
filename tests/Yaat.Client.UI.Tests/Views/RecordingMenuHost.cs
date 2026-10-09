@@ -18,6 +18,18 @@ internal sealed class RecordingMenuHost(string input) : IMenuHost
 
     public string[]? FixNames { get; init; }
 
+    /// <summary>The fixes <see cref="SuggestFixes"/> answers every partial name with; none by default.</summary>
+    public IReadOnlyList<string> FixSuggestions { get; init; } = [];
+
+    /// <summary>Every partial name <see cref="SuggestFixes"/> was asked for, in order.</summary>
+    public List<string> FixSuggestionRequests { get; } = [];
+
+    public IReadOnlyList<string> SuggestFixes(string partial)
+    {
+        FixSuggestionRequests.Add(partial);
+        return FixSuggestions;
+    }
+
     /// <summary>The field elevation the altitude picker is answered with; sea level by default, so the list starts at 100 ft.</summary>
     public double FieldElevation { get; init; }
 

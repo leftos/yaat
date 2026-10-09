@@ -286,7 +286,8 @@ public static class QuickCommandStrip
 
     /// <summary>
     /// A flyout over <paramref name="built"/>'s own items, moved over unchanged; choosing any command in it, at any
-    /// depth, closes the flyout and the menu after the item's own handler has run. A lazily built entry
+    /// depth, closes the flyout and the menu after the item's own handler has run; a click on an item that stays open on
+    /// click, or one its own handler marks handled, chooses nothing and leaves both open. A lazily built entry
     /// (<see cref="LazySubmenu"/>) fills the flyout when it first opens, as it fills its own submenu. It opens on the
     /// menu's right edge, or its left edge where the right would run off screen, as a submenu does, and does not close on
     /// a click outside it: <see cref="StripFlyouts"/> closes it, so a click in the parent menu reaches the menu.
@@ -334,8 +335,15 @@ public static class QuickCommandStrip
 
         if (menuItem.Items.Count == 0)
         {
-            menuItem.Click += (_, _) =>
+            // An item that stays open on its click (a row whose box is not filled yet), or whose own handler stopped the
+            // click, has chosen nothing.
+            menuItem.Click += (_, e) =>
             {
+                if (e.Handled || menuItem.StaysOpenOnClick)
+                {
+                    return;
+                }
+
                 flyout.Hide();
                 menu.Close();
             };
