@@ -224,7 +224,7 @@ public class TaxiEdgeTrailTests(ITestOutputHelper output)
     public void LandingRollout_RecordsNoEdgesUntilTheExit()
     {
         SimLogBuilder.CreateForTest(output).InitializeSimLog();
-        if (ShortFinalArrival.SpawnClearedToLand(AirportId, "28R", "B738", "SWA123") is not { } arrival)
+        if (ShortFinalArrival.SpawnClearedToLand(AirportId, "28R", "B738", "SWA123", 1.0) is not { } arrival)
         {
             output.WriteLine("SKIP: navdata or KOAK layout unavailable");
             return;
