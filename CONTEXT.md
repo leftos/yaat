@@ -533,7 +533,7 @@ A clickable context-menu row led by a quick-command glyph, with a label, an opti
 A runway end is landable for a physical aircraft type when its landing distance available is at least 1.15 times the type's landing distance, and short otherwise (`RunwayLandability`); a type with no figure, a helicopter and a `VEH*` type are always landable. The pattern entries' flyout lists landable ends first and marks short ones "short".
 
 **Designed flyout**:
-A quick command's strip flyout built from rows with their own layout (glyph or badge, label, what it sends) instead of a copy of a context submenu; the same rows serve the entry's All Commands submenu. The pattern entries' runway flyout and Push back to… are designed flyouts.
+A quick command's strip flyout built from rows with their own layout (glyph or badge, label, what it sends) instead of a copy of a context submenu; the same rows serve the entry's All Commands submenu. Cleared for takeoff, the pattern entries' runway flyout and Push back to… are designed flyouts.
 
 **Detail row**:
 A disabled, dimmed label row in a menu that sends nothing (`SharedMenuGroups.DetailRow`), such as the point menu's FRD, distance and bearing line; not a command row.
