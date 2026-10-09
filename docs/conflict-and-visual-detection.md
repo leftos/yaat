@@ -211,7 +211,7 @@ This is the only motion-affecting detector. **The resolution algorithms (the sev
 that for the per-kind behavior, the `[Classify]` / `[Pair]` diagnostic logging, and how the navigator honors the cap.
 Every close-range conflict resolves **one-holds-one-goes** (deterministic holder, never both stopped). Summary only here:
 
-`ApplySpeedLimits` (`GroundConflictDetector.cs:204`) clears every aircraft's `Ground.SpeedLimit` to `null` at the start of the sub-tick, then for each pair classifies into exactly **one** of seven `PairKind`s (`:188`) and runs that handler, writing the minimum surviving cap onto `Ground.SpeedLimit`:
+`GroundConflictDetector.ApplySpeedLimits` clears every aircraft's `Ground.SpeedLimit` to `null` at the start of the sub-tick (`ResetGroundState`), classifies each ground aircraft (`BuildEntries`), then for each pair (`ResolvePair`) classifies into exactly **one** of seven `PairKind`s and runs that handler (`ApplyPairResolution`), writing the minimum surviving cap onto `Ground.SpeedLimit`:
 
 | `PairKind` | Meaning |
 |---|---|
@@ -674,7 +674,7 @@ here and have `aviation-sim-expert` review against the local FAA references.
   reported below 10 SM; the airport datum is min(ARP, assigned threshold) so maintain can never out-reach acquisition) —
   that one is weather. The initial-acquisition path keeps all checks.
 
-- **Ground classification keys on phase *name* strings.** `Classify`/`IsStationaryPhase` (`GroundConflictDetector.cs:325`/`:959`)
+- **Ground classification keys on phase *name* strings.** `Classify`/`IsStationaryPhase` (`GroundConflictDetector.cs`)
   match literals like `"LinedUpAndWaiting"`, `"At Parking"`, and the prefix `"Holding Short"`. Renaming a phase
   silently breaks classification with **no compile error**. See [phases.md](phases.md) for the phase-name contract.
   The name match alone is not sufficient for `Stationary`: it is gated on `IsAtRest` (`GroundSpeed < HeldStationarySpeedKts` and no positive `TargetSpeed`; the same intent test applies to the route-less `GroundSpeed <= 0` fallback),

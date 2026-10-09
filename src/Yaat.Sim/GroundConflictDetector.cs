@@ -222,19 +222,57 @@ public static class GroundConflictDetector
     )
     {
         _tugRunContinuations = new Dictionary<AircraftState, IReadOnlyList<TugMove>>(ReferenceEqualityComparer.Instance);
-        Action<string>? explicitLog = diagnosticLog;
-        Action<string>? sink = DebugSink;
-        if (sink is not null)
+        diagnosticLog = BuildDiagnosticSink(diagnosticLog);
+        ResetGroundState(aircraft, deltaSeconds);
+
+        var byCallsign = new Dictionary<string, AircraftState>(StringComparer.OrdinalIgnoreCase);
+        foreach (AircraftState ac in aircraft)
         {
-            diagnosticLog = explicitLog is null
-                ? sink
-                : line =>
-                {
-                    explicitLog(line);
-                    sink(line);
-                };
+            byCallsign.TryAdd(ac.Callsign, ac);
         }
 
+        List<(AircraftState Ac, MovementState State, double? MoveDir)> entries = BuildEntries(aircraft, layout, diagnosticLog);
+
+        for (int i = 0; i < entries.Count; i++)
+        {
+            if (entries[i].Ac.Ground.ConflictBreakRemainingSeconds > 0)
+            {
+                continue;
+            }
+
+            for (int j = i + 1; j < entries.Count; j++)
+            {
+                ResolvePair(entries[i], entries[j], byCallsign, layout, diagnosticLog);
+            }
+        }
+
+        _tugRunContinuations = null;
+    }
+
+    /// <summary>
+    /// The pass's diagnostic sink: <paramref name="explicitLog"/> alone when no <see cref="DebugSink"/> is installed, the
+    /// sink alone when there is no explicit log, and both otherwise (the explicit log first).
+    /// </summary>
+    private static Action<string>? BuildDiagnosticSink(Action<string>? explicitLog)
+    {
+        Action<string>? sink = DebugSink;
+        if (sink is null)
+        {
+            return explicitLog;
+        }
+
+        return explicitLog is null
+            ? sink
+            : line =>
+            {
+                explicitLog(line);
+                sink(line);
+            };
+    }
+
+    /// <summary>Clears every aircraft's pass-scoped ground state and ages its conflict break, at the top of the pass.</summary>
+    private static void ResetGroundState(List<AircraftState> aircraft, double deltaSeconds)
+    {
         for (int i = 0; i < aircraft.Count; i++)
         {
             aircraft[i].Ground.SpeedLimit = null;
@@ -246,13 +284,18 @@ public static class GroundConflictDetector
                 aircraft[i].Ground.ConflictBreakRemainingSeconds = Math.Max(0, aircraft[i].Ground.ConflictBreakRemainingSeconds - deltaSeconds);
             }
         }
+    }
 
-        var byCallsign = new Dictionary<string, AircraftState>(StringComparer.OrdinalIgnoreCase);
-        foreach (AircraftState ac in aircraft)
-        {
-            byCallsign.TryAdd(ac.Callsign, ac);
-        }
-
+    /// <summary>
+    /// Classifies every aircraft of the pass into its <see cref="MovementState"/> for pair resolution, skipping shadows
+    /// that have coasted past the grace period and stamping the external-on-runway flag on the rest.
+    /// </summary>
+    private static List<(AircraftState Ac, MovementState State, double? MoveDir)> BuildEntries(
+        List<AircraftState> aircraft,
+        AirportGroundLayout? layout,
+        Action<string>? diagnosticLog
+    )
+    {
         IReadOnlyList<RunwayInfo> runways = layout is not null ? RunwayOccupancy.AirportRunways(layout.AirportId) : [];
         var entries = new List<(AircraftState Ac, MovementState State, double? MoveDir)>();
         for (int i = 0; i < aircraft.Count; i++)
@@ -281,133 +324,199 @@ public static class GroundConflictDetector
 
             (MovementState state, double? dir) = Classify(ac);
             entries.Add((ac, state, dir));
-            string holdReason = ac.Ground.Hold switch
-            {
-                { Kind: HoldKind.GiveWay, YieldTarget: { } t } => $" hold=GiveWay→{t}",
-                { Kind: HoldKind.HoldPosition } => " hold=HoldPosition",
-                _ => string.Empty,
-            };
-            if (diagnosticLog is not null)
-            {
-                TaxiRoute? driven = FollowingPhase.DrivenRouteOf(ac);
-                string lead = ac.Phases?.CurrentPhase is FollowingPhase follow ? $", lead={follow.TargetCallsign}" : string.Empty;
-                diagnosticLog(
-                    $"[Classify] {ac.Callsign}: {state}{holdReason}, dir={dir?.ToString("F0") ?? "null"}, gs={ac.GroundSpeed:F1}, "
-                        + $"phase={ac.Phases?.CurrentPhase?.Name ?? "null"}, "
-                        + $"route={(driven is null ? "null/null" : $"{driven.CurrentSegmentIndex}/{driven.Segments.Count}")}{lead}"
-                );
-            }
+            LogClassification(ac, state, dir, diagnosticLog);
         }
 
-        for (int i = 0; i < entries.Count; i++)
+        return entries;
+    }
+
+    /// <summary>Logs one aircraft's <see cref="MovementState"/>, its hold reason and its current follow lead.</summary>
+    private static void LogClassification(AircraftState ac, MovementState state, double? dir, Action<string>? diagnosticLog)
+    {
+        if (diagnosticLog is null)
         {
-            (AircraftState? a, MovementState stateA, double? dirA) = entries[i];
-
-            if (a.Ground.ConflictBreakRemainingSeconds > 0)
-            {
-                continue;
-            }
-
-            for (int j = i + 1; j < entries.Count; j++)
-            {
-                (AircraftState? b, MovementState stateB, double? dirB) = entries[j];
-
-                if (b.Ground.ConflictBreakRemainingSeconds > 0)
-                {
-                    continue;
-                }
-
-                double distNm = GeoMath.DistanceNm(a.Position, b.Position);
-                if (distNm > SearchRangeNm)
-                {
-                    continue;
-                }
-
-                (LeadChainExemption exemption, string? closing) = LeadChainExemptionOf(a, stateA, b, stateB, byCallsign);
-                if (exemption == LeadChainExemption.Both)
-                {
-                    continue;
-                }
-
-                double distFt = distNm * FtPerNm;
-                PairKind kind = ClassifyPair(a, stateA, b, stateB, layout);
-
-                // Make the controller-supplied GIVEWAY relationship visible. The pair
-                // resolution is still Stationary-driven (one aircraft is held, so it
-                // already classifies as Stationary), but the operator sees who is
-                // yielding to whom rather than an anonymous "Stationary" pair.
-                if (a.Ground.Hold is { } ha && ha.IsGiveWayFor(b.Callsign))
-                {
-                    diagnosticLog?.Invoke($"[Pair] ControllerGiveWay {a.Callsign}→{b.Callsign}");
-                }
-                else if (b.Ground.Hold is { } hb && hb.IsGiveWayFor(a.Callsign))
-                {
-                    diagnosticLog?.Invoke($"[Pair] ControllerGiveWay {b.Callsign}→{a.Callsign}");
-                }
-
-                diagnosticLog?.Invoke($"[Pair] {a.Callsign}({stateA})+{b.Callsign}({stateB}): dist={distFt:F0}ft → {kind}");
-
-                // A lead closing on its follower is limited as in any other pair; the follower keeps what it had before it.
-                OneSidedPair? oneSided = exemption switch
-                {
-                    LeadChainExemption.A => OneSidedPair.Before(a, b),
-                    LeadChainExemption.B => OneSidedPair.Before(b, a),
-                    _ => null,
-                };
-                if (oneSided is { } closingPair)
-                {
-                    diagnosticLog?.Invoke(
-                        $"  [LeadChain] {closingPair.Lead.Callsign} closing on its follower {closingPair.Follower.Callsign} ({closing}): "
-                            + $"only {closingPair.Lead.Callsign} is limited"
-                    );
-                }
-
-                AircraftState? releasedPusher = null;
-                switch (kind)
-                {
-                    case PairKind.Distant:
-                    case PairKind.Stationary:
-                        break;
-
-                    case PairKind.Pushback:
-                        // Pushback is its own world — the dedicated buffer logic is
-                        // sufficient; we don't run closing/head-on on top.
-                        releasedPusher = ResolvePushbackYield(a, stateA, dirA, b, stateB, dirB, distFt, diagnosticLog);
-                        break;
-
-                    case PairKind.SameEdgeTrailing:
-                        ResolveSameEdgeTrailing(a, b, distFt, diagnosticLog);
-                        break;
-
-                    case PairKind.SameEdgeHeadOn:
-                        ResolveSameEdgeHeadOn(a, b, distFt, diagnosticLog);
-                        break;
-
-                    case PairKind.Converging:
-                    {
-                        AircraftState? convWinner = ResolveConvergence(a, b, layout!, diagnosticLog);
-                        // Closing-proximity is the physical-overlap safety net, but at a true
-                        // merge (both routes onto the shared node's lane) there is no lateral
-                        // room for the wingspan bypass to open — applied symmetrically it pins
-                        // BOTH aircraft to zero (a deadlock). When convergence has chosen a
-                        // winner and both would stop, hold only the yielder so the winner (the
-                        // merge-order leader, nearer the shared node) proceeds — mirroring
-                        // ResolveCrossing's one-holds-one-goes. Head-on is skipped: convergence
-                        // already made the pair-level decision.
-                        ApplyConvergenceClosing(a, stateA, dirA, b, stateB, dirB, distFt, convWinner, diagnosticLog);
-                        break;
-                    }
-
-                    case PairKind.Crossing:
-                        ResolveCrossing(a, stateA, b, stateB, distFt, layout is not null, diagnosticLog);
-                        break;
-                }
-
-                oneSided?.Finish(distFt, releasedPusher, diagnosticLog);
-            }
+            return;
         }
 
-        _tugRunContinuations = null;
+        string holdReason = ac.Ground.Hold switch
+        {
+            { Kind: HoldKind.GiveWay, YieldTarget: { } t } => $" hold=GiveWay→{t}",
+            { Kind: HoldKind.HoldPosition } => " hold=HoldPosition",
+            _ => string.Empty,
+        };
+        TaxiRoute? driven = FollowingPhase.DrivenRouteOf(ac);
+        string lead = ac.Phases?.CurrentPhase is FollowingPhase follow ? $", lead={follow.TargetCallsign}" : string.Empty;
+        diagnosticLog(
+            $"[Classify] {ac.Callsign}: {state}{holdReason}, dir={dir?.ToString("F0") ?? "null"}, gs={ac.GroundSpeed:F1}, "
+                + $"phase={ac.Phases?.CurrentPhase?.Name ?? "null"}, "
+                + $"route={(driven is null ? "null/null" : $"{driven.CurrentSegmentIndex}/{driven.Segments.Count}")}{lead}"
+        );
+    }
+
+    /// <summary>The pair as its resolution sees it: both aircraft's entries, their distance (ft) and their <see cref="PairKind"/>.</summary>
+    private readonly record struct PairView(
+        (AircraftState Ac, MovementState State, double? MoveDir) A,
+        (AircraftState Ac, MovementState State, double? MoveDir) B,
+        double DistFt,
+        PairKind Kind
+    );
+
+    /// <summary>
+    /// Resolves one pair of the pass: skips it when the second aircraft is breaking out, when the pair is beyond
+    /// <see cref="SearchRangeNm"/>, or when both sides are in the other's follow lead chain
+    /// (<see cref="LeadChainExemptionOf"/>); otherwise classifies it, logs it, and runs its handler.
+    /// </summary>
+    private static void ResolvePair(
+        (AircraftState Ac, MovementState State, double? MoveDir) a,
+        (AircraftState Ac, MovementState State, double? MoveDir) b,
+        Dictionary<string, AircraftState> byCallsign,
+        AirportGroundLayout? layout,
+        Action<string>? diagnosticLog
+    )
+    {
+        if (b.Ac.Ground.ConflictBreakRemainingSeconds > 0)
+        {
+            return;
+        }
+
+        double distNm = GeoMath.DistanceNm(a.Ac.Position, b.Ac.Position);
+        if (distNm > SearchRangeNm)
+        {
+            return;
+        }
+
+        (LeadChainExemption exemption, string? closing) = LeadChainExemptionOf(a.Ac, a.State, b.Ac, b.State, byCallsign);
+        if (exemption == LeadChainExemption.Both)
+        {
+            return;
+        }
+
+        double distFt = distNm * FtPerNm;
+        PairKind kind = ClassifyPair(a.Ac, a.State, b.Ac, b.State, layout);
+        var pair = new PairView(a, b, distFt, kind);
+
+        LogPairVisibility(pair, diagnosticLog);
+        OneSidedPair? oneSided = BuildOneSidedPair(exemption, closing, a, b, diagnosticLog);
+
+        AircraftState? releasedPusher = ApplyPairResolution(pair, layout, diagnosticLog);
+        oneSided?.Finish(distFt, releasedPusher, diagnosticLog);
+    }
+
+    /// <summary>
+    /// Makes the pair visible to the sink: the controller-supplied GIVEWAY relationship first, then the classification
+    /// line. The pair resolution is still Stationary-driven (one aircraft is held, so it already classifies as
+    /// Stationary), but the operator sees who is yielding to whom rather than an anonymous "Stationary" pair.
+    /// </summary>
+    private static void LogPairVisibility(PairView pair, Action<string>? diagnosticLog)
+    {
+        AircraftState acA = pair.A.Ac;
+        AircraftState acB = pair.B.Ac;
+        if (acA.Ground.Hold is { } ha && ha.IsGiveWayFor(acB.Callsign))
+        {
+            diagnosticLog?.Invoke($"[Pair] ControllerGiveWay {acA.Callsign}→{acB.Callsign}");
+        }
+        else if (acB.Ground.Hold is { } hb && hb.IsGiveWayFor(acA.Callsign))
+        {
+            diagnosticLog?.Invoke($"[Pair] ControllerGiveWay {acB.Callsign}→{acA.Callsign}");
+        }
+
+        diagnosticLog?.Invoke($"[Pair] {acA.Callsign}({pair.A.State})+{acB.Callsign}({pair.B.State}): dist={pair.DistFt:F0}ft → {pair.Kind}");
+    }
+
+    /// <summary>
+    /// The pair's one-sided view when the lead-chain exemption limits only one side (<see cref="OneSidedPair"/>): a lead
+    /// closing on its follower is limited as in any other pair, and the follower keeps what it had before it. Null for
+    /// every other exemption.
+    /// </summary>
+    private static OneSidedPair? BuildOneSidedPair(
+        LeadChainExemption exemption,
+        string? closing,
+        (AircraftState Ac, MovementState State, double? MoveDir) a,
+        (AircraftState Ac, MovementState State, double? MoveDir) b,
+        Action<string>? diagnosticLog
+    )
+    {
+        OneSidedPair? oneSided = exemption switch
+        {
+            LeadChainExemption.A => OneSidedPair.Before(a.Ac, b.Ac),
+            LeadChainExemption.B => OneSidedPair.Before(b.Ac, a.Ac),
+            _ => null,
+        };
+        if (oneSided is { } closingPair)
+        {
+            diagnosticLog?.Invoke(
+                $"  [LeadChain] {closingPair.Lead.Callsign} closing on its follower {closingPair.Follower.Callsign} ({closing}): "
+                    + $"only {closingPair.Lead.Callsign} is limited"
+            );
+        }
+
+        return oneSided;
+    }
+
+    /// <summary>Runs the handler of the pair's <see cref="PairKind"/>, returning the pusher it released, if any.</summary>
+    private static AircraftState? ApplyPairResolution(PairView pair, AirportGroundLayout? layout, Action<string>? diagnosticLog)
+    {
+        AircraftState? releasedPusher = null;
+        switch (pair.Kind)
+        {
+            case PairKind.Distant:
+            case PairKind.Stationary:
+                break;
+
+            case PairKind.Pushback:
+                // Pushback is its own world — the dedicated buffer logic is
+                // sufficient; we don't run closing/head-on on top.
+                releasedPusher = ResolvePushbackYield(
+                    pair.A.Ac,
+                    pair.A.State,
+                    pair.A.MoveDir,
+                    pair.B.Ac,
+                    pair.B.State,
+                    pair.B.MoveDir,
+                    pair.DistFt,
+                    diagnosticLog
+                );
+                break;
+
+            case PairKind.SameEdgeTrailing:
+                ResolveSameEdgeTrailing(pair.A.Ac, pair.B.Ac, pair.DistFt, diagnosticLog);
+                break;
+
+            case PairKind.SameEdgeHeadOn:
+                ResolveSameEdgeHeadOn(pair.A.Ac, pair.B.Ac, pair.DistFt, diagnosticLog);
+                break;
+
+            case PairKind.Converging:
+            {
+                AircraftState? convWinner = ResolveConvergence(pair.A.Ac, pair.B.Ac, layout!, diagnosticLog);
+                // Closing-proximity is the physical-overlap safety net, but at a true
+                // merge (both routes onto the shared node's lane) there is no lateral
+                // room for the wingspan bypass to open — applied symmetrically it pins
+                // BOTH aircraft to zero (a deadlock). When convergence has chosen a
+                // winner and both would stop, hold only the yielder so the winner (the
+                // merge-order leader, nearer the shared node) proceeds — mirroring
+                // ResolveCrossing's one-holds-one-goes. Head-on is skipped: convergence
+                // already made the pair-level decision.
+                ApplyConvergenceClosing(
+                    pair.A.Ac,
+                    pair.A.State,
+                    pair.A.MoveDir,
+                    pair.B.Ac,
+                    pair.B.State,
+                    pair.B.MoveDir,
+                    pair.DistFt,
+                    convWinner,
+                    diagnosticLog
+                );
+                break;
+            }
+
+            case PairKind.Crossing:
+                ResolveCrossing(pair.A.Ac, pair.A.State, pair.B.Ac, pair.B.State, pair.DistFt, layout is not null, diagnosticLog);
+                break;
+        }
+
+        return releasedPusher;
     }
 
     /// <summary>
@@ -1075,7 +1184,8 @@ public static class GroundConflictDetector
             if (yielderArriveSec > winnerClearSec + ConvergenceClearanceBufferSec)
             {
                 diagnosticLog?.Invoke(
-                    $"  [Convergence] shared node={sharedNodeId.Value}: {winner.Callsign} clears in {winnerClearSec:F0}s, {yielder.Callsign} arrives in {yielderArriveSec:F0}s — no slowdown (clears first)"
+                    $"  [Convergence] shared node={sharedNodeId.Value}: {winner.Callsign} clears in {winnerClearSec:F0}s, "
+                        + $"{yielder.Callsign} arrives in {yielderArriveSec:F0}s — no slowdown (clears first)"
                 );
                 return null;
             }
@@ -1106,7 +1216,8 @@ public static class GroundConflictDetector
         }
 
         diagnosticLog?.Invoke(
-            $"  [Convergence] shared node={sharedNodeId.Value}: {a.Callsign} {distAFt:F0}ft away, {b.Callsign} {distBFt:F0}ft away → {yielder.Callsign} yields to {winner.Callsign}, pairDist={conflictDistFt:F0}ft, limit={limitSpeed:F1}"
+            $"  [Convergence] shared node={sharedNodeId.Value}: {a.Callsign} {distAFt:F0}ft away, {b.Callsign} {distBFt:F0}ft away "
+                + $"→ {yielder.Callsign} yields to {winner.Callsign}, pairDist={conflictDistFt:F0}ft, limit={limitSpeed:F1}"
         );
 
         ApplyMinLimit(yielder, limitSpeed, "convergence", winner, conflictDistFt);
@@ -1577,7 +1688,8 @@ public static class GroundConflictDetector
             if (staysPut && (RouteLateralClearanceFt(mover, obstacle, distFt) is { } routeLateralFt) && (routeLateralFt > requiredLateralFt))
             {
                 diagnosticLog?.Invoke(
-                    $"    [Closing] {mover.Callsign}→{obstacle.Callsign}: route lateral={routeLateralFt:F0}ft ≥ clear({requiredLateralFt:F0}ft), can pass"
+                    $"    [Closing] {mover.Callsign}→{obstacle.Callsign}: route lateral={routeLateralFt:F0}ft "
+                        + $"≥ clear({requiredLateralFt:F0}ft), can pass"
                 );
                 return null;
             }
@@ -1977,8 +2089,8 @@ public static class GroundConflictDetector
         {
             string closestText = swept.ClosestFt is { } closestFt ? $"{closestFt:F1}ft" : "nothing in reach";
             diagnosticLog?.Invoke(
-                $"    [Outline] {mover.Callsign}→{obstacle.Callsign}: {tugMove.Kind} started {swept.StartClearanceFt:F1}ft off{RowText(swept)}, closest "
-                    + $"{closestText} over {swept.SampleCount} samples ≥ floor({swept.FloorFt:F1}ft), passable"
+                $"    [Outline] {mover.Callsign}→{obstacle.Callsign}: {tugMove.Kind} started {swept.StartClearanceFt:F1}ft off{RowText(swept)}, "
+                    + $"closest {closestText} over {swept.SampleCount} samples ≥ floor({swept.FloorFt:F1}ft), passable"
             );
             return null;
         }
@@ -2120,8 +2232,10 @@ public static class GroundConflictDetector
         (double Limit, string Reason)? limitForB = closeDirB is { } db ? ComputeClosingLimit(b, db, a, stateA, distFt, diagnosticLog) : null;
 
         diagnosticLog?.Invoke(
-            $"  [Crossing] {a.Callsign}(dir={closeDirA?.ToString("F0") ?? "none"},gs={a.GroundSpeed:F1})→limit={limitForA?.Limit.ToString("F1") ?? "null"} "
-                + $"{b.Callsign}(dir={closeDirB?.ToString("F0") ?? "none"},gs={b.GroundSpeed:F1})→limit={limitForB?.Limit.ToString("F1") ?? "null"} dist={distFt:F0}ft"
+            $"  [Crossing] {a.Callsign}(dir={closeDirA?.ToString("F0") ?? "none"},gs={a.GroundSpeed:F1})"
+                + $"→limit={limitForA?.Limit.ToString("F1") ?? "null"} "
+                + $"{b.Callsign}(dir={closeDirB?.ToString("F0") ?? "none"},gs={b.GroundSpeed:F1})"
+                + $"→limit={limitForB?.Limit.ToString("F1") ?? "null"} dist={distFt:F0}ft"
         );
 
         if (limitForA is { Limit: <= 0 } && limitForB is { Limit: <= 0 })
@@ -2313,7 +2427,9 @@ public static class GroundConflictDetector
                 distFt ?? 0
             );
             DebugSink?.Invoke(
-                $"    [ApplyMinLimit] {aircraft.Callsign}: limit={maxSpeed:F1} (was {existing?.ToString("F1") ?? "none"}) reason={reason ?? "proximity"} other={other?.Callsign ?? "?"} dist={distFt?.ToString("F0") ?? "?"}ft"
+                $"    [ApplyMinLimit] {aircraft.Callsign}: limit={maxSpeed:F1} (was {existing?.ToString("F1") ?? "none"}) "
+                    + $"reason={reason ?? "proximity"} other={other?.Callsign ?? "?"} "
+                    + $"dist={distFt?.ToString("F0") ?? "?"}ft"
             );
         }
     }
