@@ -4,7 +4,7 @@ description: Prepare a new YAAT release — version bump, changelog cut, tag, cr
 disable-model-invocation: true
 ---
 
-Prepare a new YAAT release. Walk through these steps interactively:
+Prepare a new YAAT release. Walk through these steps interactively. Any two steps that do not depend on each other run in parallel (background the long ones: the test suite, the precompute recompute, captures, audits by subagents); the gate's slot pools, not the order of steps, limit the machine load.
 
 ## Step 0: Verify release secrets
 
@@ -30,6 +30,8 @@ the parent of the release commit.
 ## Step 0a2: Check the precompute cache
 
 Run `pwsh tools/gate.ps1 -Log .tmp/precompute-check.log -TimeoutSeconds 300 -Slot heavy -- dotnet run -c Release --project tools/Yaat.PrecomputeCache -- --check --online`. Every `::warning::` line names an airport whose push-target entry is missing or stale (a new AIRAC NavData serial, a changed ground map, sidecar or planner source); CI only warns about them, so this is where they are fixed. When any are reported, recompute them with `pwsh tools/gate.ps1 -Log .tmp/precompute.log -TimeoutSeconds 3600 -Slot heavy -- dotnet run -c Release --project tools/Yaat.PrecomputeCache` and commit the changed entries under `src/Yaat.Sim/Data/PrecomputeCache/` as `chore: recompute the precompute cache` before the release commit. An `::error::` line (an unreadable entry) or a non-zero exit stops the release until it is fixed. The tool and its flags are in `src/Yaat.Sim/Data/PrecomputeCache/README.md`.
+
+Start the recompute in the background alongside Step 0c's test suite, never one after the other: the gate's slot pools decide how much runs at once, so no step here waits for another to free the machine. A later change to a hashed source (any `PrecomputeLayoutSource` / `PrecomputePushTargetSource` in `src/Yaat.Sim/Yaat.Sim.csproj`, such as `GeoJsonParser.cs`) stales every entry again, so a recompute runs after the last such change lands, again in parallel with that change's gate.
 
 ## Step 0b: Resolve the sibling repo once, and assert it exists
 
