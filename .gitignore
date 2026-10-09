@@ -38,7 +38,7 @@ tools/oak_layout_dump.json
 
 ## Publish & installer output
 publish/
-releases/
+/releases/
 
 ## Local scenario snapshots (downloaded via the yaat-server repo's tools/validate-all-scenarios.py)
 tests/Yaat.Sim.Tests/TestData/Scenarios/

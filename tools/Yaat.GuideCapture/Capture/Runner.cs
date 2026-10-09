@@ -8,25 +8,16 @@ namespace Yaat.GuideCapture.Capture;
 
 internal static class Runner
 {
-    public static async Task<int> RunAsync(
-        string outDir,
-        string? sceneFilter,
-        IReadOnlyList<Scene> allScenes,
-        CaptureContext ctx,
-        double renderScaling
-    )
+    // outDirOverride is the --out folder; null writes each scene's PNG to its own DefaultOutDir under the current directory.
+    public static async Task<int> RunAsync(string? outDirOverride, string? sceneFilter, CaptureContext ctx, double renderScaling)
     {
-        Directory.CreateDirectory(outDir);
-
-        IReadOnlyList<Scene> scenes = sceneFilter is null
-            ? allScenes
-            : [.. allScenes.Where(s => string.Equals(s.Name, sceneFilter, StringComparison.OrdinalIgnoreCase))];
+        IReadOnlyList<Scene> scenes = SceneCatalog.Select(sceneFilter);
 
         if (scenes.Count == 0)
         {
             Console.Error.WriteLine($"No scenes match filter '{sceneFilter}'.");
             Console.Error.WriteLine("Available scenes:");
-            foreach (Scene s in allScenes)
+            foreach (Scene s in SceneCatalog.All)
             {
                 Console.Error.WriteLine($"  {s.Name}");
             }
@@ -38,6 +29,8 @@ internal static class Runner
         {
             try
             {
+                string outDir = outDirOverride ?? Path.Combine(Environment.CurrentDirectory, scene.DefaultOutDir);
+                Directory.CreateDirectory(outDir);
                 Exception? afterCaptureFailure = await CaptureOneAsync(scene, ctx, outDir, renderScaling);
                 if (afterCaptureFailure is not null)
                 {

@@ -59,7 +59,7 @@ public static class Program
     }
 
 #if HAS_YAAT_SERVER
-    private static async Task<int> MainAsync(string? sceneFilter, string outDir, double renderScaling)
+    private static async Task<int> MainAsync(string? sceneFilter, string? outDir, double renderScaling)
     {
         await using var server = new InProcessServer();
         Console.WriteLine("Starting in-process yaat-server ...");
@@ -94,7 +94,7 @@ public static class Program
         // (ConfigureAwaitOptions.ForceYielding does NOT work here — it only
         // covers the already-completed-at-await fast path.)
         return await session
-            .Dispatch(() => Runner.RunAsync(outDir, sceneFilter, SceneCatalog.All, ctx, renderScaling), CancellationToken.None)
+            .Dispatch(() => Runner.RunAsync(outDir, sceneFilter, ctx, renderScaling), CancellationToken.None)
             .ContinueWith(t => t.GetAwaiter().GetResult(), TaskScheduler.Default);
     }
 #endif
@@ -118,10 +118,10 @@ public static class Program
             .WithInterFont();
     }
 
-    private static bool TryParseArgs(string[] args, out string? sceneFilter, out string outDir, out double renderScaling, out string error)
+    private static bool TryParseArgs(string[] args, out string? sceneFilter, out string? outDir, out double renderScaling, out string error)
     {
         sceneFilter = null;
-        outDir = Path.Combine(Environment.CurrentDirectory, "docs", "user-guide", "img");
+        outDir = null;
         renderScaling = 1.0;
         error = string.Empty;
 
@@ -179,8 +179,8 @@ public static class Program
         Console.Error.WriteLine("  dotnet run --project tools/Yaat.GuideCapture [-- --scene <name>] [--out <dir>] [--scale <n>]");
         Console.Error.WriteLine();
         Console.Error.WriteLine("Options:");
-        Console.Error.WriteLine("  --scene <name>   Capture only the named scene (default: all).");
+        Console.Error.WriteLine("  --scene <name>   Capture only the named scene (default: every guide scene; whats-new-* scenes run only by name).");
         Console.Error.WriteLine("  --scale <n>      Render scaling / DPI factor, e.g. 2 for 2x-density images (default: 1).");
-        Console.Error.WriteLine("  --out <dir>      Output directory (default: docs/user-guide/img/).");
+        Console.Error.WriteLine("  --out <dir>      Output directory (default: docs/user-guide/img/, docs/releases/img/ for whats-new-* scenes).");
     }
 }

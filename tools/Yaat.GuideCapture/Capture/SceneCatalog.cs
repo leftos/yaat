@@ -63,5 +63,21 @@ internal static class SceneCatalog
         new WeatherEditorScene(),
         new ArrivalGeneratorsEditorScene(),
         new FileBugReportDialogScene(),
+        // Feature showcase (docs/releases/): left out of a run without --scene
+        // and captured one at a time with --scene whats-new-<topic>
+        new WhatsNewActiveRunwaysScene(),
+        new WhatsNewScenarioDefaultsScene(),
+        new WhatsNewRblLabelScene(),
+        new WhatsNewQuickCommandsScene(),
+        new WhatsNewPointMenuScene(),
+        new WhatsNewPickerScene(),
+        new WhatsNewExitsAheadScene(),
     ];
+
+    // The scenes a run captures: the one named by --scene (case-insensitive),
+    // or with no --scene every scene except the showcase ones.
+    public static IReadOnlyList<Scene> Select(string? sceneFilter) =>
+        sceneFilter is null
+            ? [.. All.Where(s => !s.IsShowcase)]
+            : [.. All.Where(s => string.Equals(s.Name, sceneFilter, StringComparison.OrdinalIgnoreCase))];
 }

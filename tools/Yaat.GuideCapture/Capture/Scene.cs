@@ -7,7 +7,17 @@ namespace Yaat.GuideCapture.Capture;
 // flyout open) by overriding BeforeWindowAsync / AfterShowAsync.
 internal abstract class Scene
 {
+    public const string ShowcasePrefix = "whats-new-";
+
     public abstract string Name { get; }
+
+    // A shot for the release feature showcase (docs/releases/). It runs only
+    // when named with --scene, and its PNG goes to docs/releases/img/ unless
+    // --out names another folder, so it never lands beside the guide's images.
+    public bool IsShowcase => Name.StartsWith(ShowcasePrefix, StringComparison.Ordinal);
+
+    // The folder, relative to the repo root, a run without --out writes this scene's PNG to.
+    public string DefaultOutDir => IsShowcase ? Path.Combine("docs", "releases", "img") : Path.Combine("docs", "user-guide", "img");
 
     public virtual int Width => 1600;
 

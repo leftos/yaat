@@ -1,8 +1,20 @@
+using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
+using Avalonia.Controls.Primitives.PopupPositioning;
+using Avalonia.Headless;
+using Avalonia.Input;
 using Avalonia.LogicalTree;
+using Avalonia.Media.Imaging;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using Yaat.Client.Models;
+using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
+using Yaat.Client.Views.Ground;
+using Yaat.Client.Views.Map;
+using Yaat.Client.Views.Radar;
+using Yaat.Sim;
 
 namespace Yaat.GuideCapture.Capture;
 
@@ -146,6 +158,223 @@ internal static class SceneActions
         );
         return vm.TerminalEntries.First(e => IsReply(e, sentAfter, callsign));
     }
+
+    // Answers the active-runways prompt a mentor's scenario load opens, the way
+    // the mentor would: with the server's guess, or by leaving the room
+    // unanswered when the guess does not read. The prompt sits over the tabs
+    // and takes the pointer input a scene sends to a view under it.
+    public static async Task AnswerActiveRunwaysPromptAsync(MainViewModel vm, TimeSpan timeout)
+    {
+        if (!vm.ShowActiveRunwaysPrompt)
+        {
+            return;
+        }
+
+        if (vm.ConfirmActiveRunwaysPromptCommand.CanExecute(null))
+        {
+            await vm.ConfirmActiveRunwaysPromptCommand.ExecuteAsync(null);
+        }
+        else
+        {
+            vm.CancelActiveRunwaysPromptCommand.Execute(null);
+        }
+
+        await WaitUntilAsync(() => !vm.ShowActiveRunwaysPrompt, timeout, "the active runways prompt to close");
+    }
+
+    // Selects the aircraft and opens the menu a right-click on it opens in the
+    // shown radar or ground view: the view's own right-click builder
+    // (BuildAircraftRightClickMenu), opened on the view's canvas at the
+    // aircraft as its right-click handler opens it. A pointer right-click
+    // cannot open it in the main window: the headless window's light-dismiss
+    // layer takes every press there.
+    public static Task<ContextMenu> OpenAircraftMenuAsync(Window window, MainViewModel vm, AircraftModel aircraft, TimeSpan timeout)
+    {
+        vm.SelectedAircraft = aircraft;
+        Dispatcher.UIThread.RunJobs();
+        RenderOnce(window);
+        string callsign = aircraft.Callsign;
+        if (ShownView<RadarView>(window) is { DataContext: RadarViewModel radarVm } radar)
+        {
+            RadarCanvas canvas = CanvasOf<RadarCanvas>(radar);
+            ContextMenu menu = radar.BuildAircraftRightClickMenu(radarVm, aircraft, aircraft, callsign);
+            return OpenAtAsync(window, menu, canvas, aircraft.Position, timeout, $"the aircraft menu of {callsign}");
+        }
+
+        if (ShownView<GroundView>(window) is { DataContext: GroundViewModel groundVm } ground)
+        {
+            GroundCanvas canvas = CanvasOf<GroundCanvas>(ground);
+            ContextMenu menu = ground.BuildAircraftRightClickMenu(groundVm, aircraft, aircraft, callsign);
+            return OpenAtAsync(window, menu, canvas, aircraft.Position, timeout, $"the aircraft menu of {callsign}");
+        }
+
+        throw new InvalidOperationException($"{window.GetType().Name} shows neither the radar nor the ground view.");
+    }
+
+    // Selects the aircraft and opens the menu a right-click on the ground node
+    // opens with it selected (the point menu, by GroundView.BuildNodeContextMenu),
+    // on the ground canvas at the node.
+    public static Task<ContextMenu> OpenGroundPointMenuAsync(Window window, MainViewModel vm, AircraftModel aircraft, int nodeId, TimeSpan timeout)
+    {
+        vm.SelectedAircraft = aircraft;
+        Dispatcher.UIThread.RunJobs();
+        RenderOnce(window);
+        GroundView ground = ShownView<GroundView>(window) ?? throw new InvalidOperationException($"{window.GetType().Name} shows no ground view.");
+        GroundNodeDto node = vm.Ground.GetNode(nodeId) ?? throw new InvalidOperationException($"The ground layout has no node {nodeId}.");
+        GroundCanvas canvas = CanvasOf<GroundCanvas>(ground);
+        var place = new LatLon(node.Latitude, node.Longitude);
+        (float x, float y) = canvas.Viewport.LatLonToScreen(place.Lat, place.Lon);
+        ContextMenu menu =
+            ground.BuildNodeContextMenu(nodeId, new Point(x, y))
+            ?? throw new InvalidOperationException($"The ground view builds no menu for node {nodeId}.");
+        return OpenAtAsync(window, menu, canvas, place, timeout, $"the point menu of {aircraft.Callsign} at node {nodeId}");
+    }
+
+    // Opens the menu on the canvas with its top-left corner at position, the
+    // pointer moved there as a right-click leaves it, and waits until it is
+    // laid out. The headless platform opens it in the window's overlay layer,
+    // so CaptureRenderedFrame includes it.
+    private static async Task<ContextMenu> OpenAtAsync(
+        Window window,
+        ContextMenu menu,
+        MapCanvasBase canvas,
+        LatLon position,
+        TimeSpan timeout,
+        string what
+    )
+    {
+        (float x, float y) = canvas.Viewport.LatLonToScreen(position.Lat, position.Lon);
+        Point inWindow =
+            canvas.TranslatePoint(new Point(x, y), window)
+            ?? throw new InvalidOperationException($"{canvas.GetType().Name} is not in {window.GetType().Name}.");
+        window.MouseMove(inWindow);
+        menu.PlacementTarget = canvas;
+        menu.Placement = PlacementMode.AnchorAndGravity;
+        menu.PlacementRect = new Rect(x, y, 1, 1);
+        menu.PlacementAnchor = PopupAnchor.TopLeft;
+        menu.PlacementGravity = PopupGravity.BottomRight;
+        menu.Open(canvas);
+        await WaitUntilAsync(() => menu.IsOpen && IsLaidOut(menu) && AreItemsLaidOut(menu.Items), timeout, what);
+        ArrangeDropdownHost(window);
+        return menu;
+    }
+
+    private static T? ShownView<T>(Window window)
+        where T : Control => window.GetVisualDescendants().OfType<T>().FirstOrDefault(v => v.IsEffectivelyVisible);
+
+    private static T CanvasOf<T>(Control view)
+        where T : MapCanvasBase =>
+        view.GetVisualDescendants().OfType<T>().FirstOrDefault()
+        ?? throw new InvalidOperationException($"{view.GetType().Name} has no {typeof(T).Name}.");
+
+    // Moves the pointer over the control's centre, as hovering it does. Its
+    // tooltip is switched off first so it does not cover the controls around
+    // it; a strip button's label row names it instead.
+    public static void PointAt(Window window, Control control)
+    {
+        ToolTip.SetServiceEnabled(control, false);
+        window.MouseMove(CenterInWindow(window, control));
+        Dispatcher.UIThread.RunJobs();
+    }
+
+    // A real left click on the control's centre.
+    public static void Click(Window window, Control control)
+    {
+        Point center = CenterInWindow(window, control);
+        window.MouseMove(center);
+        window.MouseDown(center, MouseButton.Left);
+        window.MouseUp(center, MouseButton.Left);
+        Dispatcher.UIThread.RunJobs();
+    }
+
+    // The quick-command strip's buttons in an open menu, in strip order; each
+    // button's Tag is its catalog entry id.
+    public static List<Button> StripButtons(ContextMenu menu) => [.. menu.GetVisualDescendants().OfType<Button>().Where(b => b.Tag is string)];
+
+    public static Button StripButton(ContextMenu menu, string entryId) =>
+        StripButtons(menu).FirstOrDefault(b => (b.Tag is string id) && (id == entryId))
+        ?? throw new InvalidOperationException(
+            $"The menu's strip has no '{entryId}' button; it has {string.Join(", ", StripButtons(menu).Select(b => b.Tag))}."
+        );
+
+    // Waits until the window's overlay layer (where the headless platform opens
+    // menus, flyouts and popups) holds a laid-out control of type T that meets
+    // ready, and returns it.
+    public static async Task<T> WaitForOverlayAsync<T>(Window window, Func<T, bool> ready, TimeSpan timeout, string description)
+        where T : Control
+    {
+        T? found = null;
+        try
+        {
+            await WaitUntilAsync(
+                () =>
+                {
+                    found = OverlayContent(window).OfType<T>().FirstOrDefault(c => IsLaidOut(c) && ready(c));
+                    return found is not null;
+                },
+                timeout,
+                description
+            );
+        }
+        catch (TimeoutException ex)
+        {
+            throw new TimeoutException($"{ex.Message} {DescribeOverlay(window)}", ex);
+        }
+
+        ArrangeDropdownHost(window);
+        return found!;
+    }
+
+    // Everything the overlay layer shows: its own visual tree, and the content
+    // of each open Popup placed in it (MenuPopups adds its pickers to the
+    // layer as Popup controls, whose content is hosted apart from them).
+    private static IEnumerable<Visual> OverlayContent(Window window)
+    {
+        if (OverlayLayer.GetOverlayLayer(window) is not { } overlay)
+        {
+            return [];
+        }
+
+        IEnumerable<Visual> popupContent = overlay
+            .Children.OfType<Popup>()
+            .Where(p => p.IsOpen && (p.Child is not null))
+            .SelectMany(p => p.Child!.GetSelfAndVisualDescendants());
+        IEnumerable<Visual> hostedPopups = window.GetVisualDescendants().OfType<OverlayPopupHost>().SelectMany(h => h.GetVisualDescendants());
+        return overlay.GetVisualDescendants().Concat(popupContent).Concat(hostedPopups);
+    }
+
+    // What the window's overlay layer holds, for a control that never appeared there.
+    private static string DescribeOverlay(Window window)
+    {
+        IEnumerable<string> hosted =
+            OverlayLayer
+                .GetOverlayLayer(window)
+                ?.Children.Select(c =>
+                    $"{c.GetType().Name}({(c as Popup)?.IsOpen}: {string.Join(" > ", c.GetVisualDescendants().Take(5).Select(d => d.GetType().Name))})"
+                )
+            ?? ["no overlay layer"];
+        return $"The overlay layer holds: {string.Join(", ", hosted.DefaultIfEmpty("nothing"))}.";
+    }
+
+    public static bool AreItemsLaidOut(ItemCollection items)
+    {
+        List<MenuItem> visibleItems = [.. items.OfType<MenuItem>().Where(m => m.IsVisible)];
+        return (visibleItems.Count > 0) && visibleItems.All(IsLaidOut);
+    }
+
+    // Renders one frame, which brings each map canvas's viewport up to date.
+    public static void RenderOnce(Window window)
+    {
+        using WriteableBitmap? frame = window.CaptureRenderedFrame();
+        Dispatcher.UIThread.RunJobs();
+    }
+
+    private static Point CenterInWindow(Window window, Control control) =>
+        control.TranslatePoint(new Point(control.Bounds.Width / 2, control.Bounds.Height / 2), window)
+        ?? throw new InvalidOperationException($"{control.GetType().Name} is not in {window.GetType().Name}.");
+
+    private static bool IsLaidOut(Control control) =>
+        (TopLevel.GetTopLevel(control) is not null) && control.IsArrangeValid && (control.Bounds.Width > 0);
 
     public static async Task LoadScenarioAsync(MainViewModel vm, string scenarioPath, TimeSpan timeout)
     {
