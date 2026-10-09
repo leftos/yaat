@@ -9,15 +9,6 @@
 ## Precompute cache (feat/precompute-cache)
 
 - [ ] YAAT-475 Merge feat/precompute-cache (#951) · release vNext
-- [ ] YAAT-497 Split the tug planner's shared pieces out of the precompute layout source set · release vNext
-- [ ] YAAT-553 Regenerate the precompute cache on feat/precompute-cache before its merge · release vNext
-
-## Follow on the taxi graph (feat/follow-on-graph)
-
-- [ ] YAAT-407 Merge feat/follow-on-graph (#881) · release vNext
-- [ ] YAAT-507 FOLLOWG clearing route stops one node before the next runway's hold bar
-- [ ] YAAT-508 FOLLOWG clearing check ignores traffic crossing at a junction
-- [ ] YAAT-554 FOLLOWG: decide whether a same-edge head-on pair keeps the follower moving too
 
 ## Bug reports and feature requests
 
@@ -47,10 +38,11 @@
 - [ ] YAAT-478 Resolve a shorthand expected approach before picking the visual approach's default runway
 - [ ] YAAT-503 Context-menu For section is offered for a delayed-spawn selection
 - [ ] YAAT-517 Hold short of… destination-runway row sends a no-op HS
-- [ ] YAAT-522 Cleared for takeoff flyout: VFR pattern exits, turn direct a fix, initial altitude; IFR heading · release vNext
 - [ ] YAAT-524 Cleared for takeoff menu's "360 overhead" sends CTO 360, a heading
 - [ ] YAAT-545 Close the gap the quick-command label row leaves above the icon strip
-- [ ] YAAT-557 Keep the Taxi to runway rows' detail clear of the distance column · release vNext
+- [/] YAAT-557 Keep the Taxi to runway rows' detail clear of the distance column · release vNext
+- [ ] YAAT-569 Give every quick command a designed flyout instead of a nested context submenu
+  - [ ] YAAT-570 Push back to: a designed strip flyout that follows the filling target list · release vNext
 
 ## Tick-path unification
 
@@ -387,11 +379,14 @@
 - [ ] YAAT-196 Draw the server's remaining line-up instead of re-planning it (Ground View)
 - [ ] YAAT-197 Confirm which vNAS position entities go over UDP before moving any
 - [ ] YAAT-198 Accept a Mode C Intruder ID in ERAM QN
+- [ ] YAAT-507 FOLLOWG clearing route stops one node before the next runway's hold bar
 - [ ] YAAT-230 live-check -WithInput: File click sometimes counts 2 menu windows before the click
+- [ ] YAAT-508 FOLLOWG clearing check ignores traffic crossing at a junction
 - [ ] YAAT-199 Keep the PUSHF hint out of the spoken pilot refusal
 - [ ] YAAT-229 Route the data-block field popups through MenuPopups.Open; wrap MenuPopups' summary line
 - [ ] YAAT-200 Build the standalone airport GeoJSON editor
 - [ ] YAAT-201 Work the phraseology coverage backlog
+- [ ] YAAT-554 FOLLOWG: decide whether a same-edge head-on pair keeps the follower moving too
 - [ ] YAAT-268 Context menus in an extra ground window at another airport use the primary view's layout
 - [ ] YAAT-556 Apply a per-category fillet-arc floor in the taxi pathfinder
 - [ ] YAAT-202 BEHIND grammar extensions
@@ -460,3 +455,9 @@
 - [ ] YAAT-551 Make launch_yaat start the client cloaked and silent by default
 - [ ] YAAT-560 Give the CL60 profile real landing and takeoff distances
 - [ ] YAAT-561 Put GeoMath.ProjectPoint on the same earth model as DistanceNm
+- [ ] YAAT-562 Offer the pattern-entry runway flyout to an aircraft with no destination
+- [ ] YAAT-563 Show pattern-entry commands on a jet's quick-command strip
+- [ ] YAAT-564 FOLLOWG: let the empty-path lead-route check apply the no-reversal rule
+- [ ] YAAT-565 Send the full ICAO aircraft string in the room datafeed's flight_plan.aircraft
+- [ ] YAAT-566 Register the app's fonts in the headless UI test app so menu geometry matches the client
+- [ ] YAAT-568 Client driver: find_elements fails on a deep open flyout (object cycle / depth over 64)
