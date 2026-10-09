@@ -26,12 +26,71 @@ public static class GeoJsonParser
 
     private const double GateGroupAnchorConnectMaxNm = 0.24;
 
-    private static readonly JsonDocumentOptions LenientJsonOptions = new() { AllowTrailingCommas = true };
+    private static readonly JsonDocumentOptions LenientJsonOptions = new() { AllowTrailingCommas = true, CommentHandling = JsonCommentHandling.Skip };
 
     /// <summary>Strips leading zeros from JSON number literals (e.g. 03 → 3) that are invalid per RFC 8259.</summary>
     private static readonly Regex LeadingZeroRegex = new(@"(?<=[:,\[]\s*)0+(\d)", RegexOptions.Compiled);
 
     private static string SanitizeJson(string json) => LeadingZeroRegex.Replace(json, "$1");
+
+    /// <summary>
+    /// Look a feature property up by key: exact match first, then a case-insensitive scan, since
+    /// ATCTrainer exports PascalCase keys where the vNAS maps use camelCase.
+    /// </summary>
+    private static bool TryGetPropertyIgnoreCase(JsonElement props, string propertyName, out JsonElement value)
+    {
+        if (props.TryGetProperty(propertyName, out value))
+        {
+            return true;
+        }
+
+        foreach (JsonProperty property in props.EnumerateObject())
+        {
+            if (string.Equals(property.Name, propertyName, StringComparison.OrdinalIgnoreCase))
+            {
+                value = property.Value;
+                return true;
+            }
+        }
+
+        value = default;
+        return false;
+    }
+
+    /// <summary>Read a name-style property as text, or null when it is absent or not a string or number.</summary>
+    private static string? TryReadNameText(JsonElement props, string propertyName)
+    {
+        if (!TryGetPropertyIgnoreCase(props, propertyName, out JsonElement value))
+        {
+            return null;
+        }
+
+        return value.ValueKind switch
+        {
+            JsonValueKind.String => value.GetString(),
+            JsonValueKind.Number => value.GetRawText(),
+            _ => null,
+        };
+    }
+
+    /// <summary>
+    /// Read a name-style property as text: a JSON string as-is, or a JSON number as its raw literal
+    /// (some maps carry unquoted numeric stand names). Absent or any other kind is a malformed feature.
+    /// </summary>
+    private static string ReadNameText(JsonElement props, string propertyName)
+    {
+        if (!TryGetPropertyIgnoreCase(props, propertyName, out JsonElement value))
+        {
+            throw new InvalidOperationException($"Property '{propertyName}' is missing");
+        }
+
+        return value.ValueKind switch
+        {
+            JsonValueKind.String => value.GetString() ?? "",
+            JsonValueKind.Number => value.GetRawText(),
+            _ => throw new InvalidOperationException($"Property '{propertyName}' is {value.ValueKind}, not a string or number"),
+        };
+    }
 
     public static AirportGroundLayout Parse(string airportId, string geoJson, string? runwayAirportCode) =>
         Parse(airportId, geoJson, runwayAirportCode, FilletMode.Standard);
@@ -133,7 +192,7 @@ public static class GeoJsonParser
         foreach (JsonElement feature in features)
         {
             JsonElement props = feature.GetProperty("properties");
-            string type = props.GetProperty("type").GetString() ?? "";
+            string type = TryGetPropertyIgnoreCase(props, "type", out JsonElement typeProp) ? typeProp.GetString() ?? "" : "";
             JsonElement geom = feature.GetProperty("geometry");
 
             try
@@ -162,7 +221,7 @@ public static class GeoJsonParser
             }
             catch (InvalidOperationException ex)
             {
-                string name = props.TryGetProperty("name", out JsonElement n) ? n.GetString() ?? "?" : "?";
+                string name = TryReadNameText(props, "name") ?? "?";
                 Log.LogWarning("Skipping malformed {Type} feature '{Name}' in {Airport}: {Message}", type, name, airportId, ex.Message);
                 skipped++;
             }
@@ -629,9 +688,9 @@ public static class GeoJsonParser
         JsonElement coords = geom.GetProperty("coordinates");
         double lon = coords[0].GetDouble();
         double lat = coords[1].GetDouble();
-        string name = props.GetProperty("name").GetString() ?? "";
+        string name = ReadNameText(props, "name");
         int heading = 0;
-        if (props.TryGetProperty("heading", out JsonElement h))
+        if (TryGetPropertyIgnoreCase(props, "heading", out JsonElement h))
         {
             if (h.ValueKind == JsonValueKind.String)
             {
@@ -650,13 +709,13 @@ public static class GeoJsonParser
         JsonElement coords = geom.GetProperty("coordinates");
         double lon = coords[0].GetDouble();
         double lat = coords[1].GetDouble();
-        string name = props.GetProperty("name").GetString() ?? "";
+        string name = ReadNameText(props, "name");
         return new SpotFeature(name, lat, lon);
     }
 
     private static (string Name, List<(double Lat, double Lon)> Coords) ParseLineString(JsonElement props, JsonElement geom)
     {
-        string name = props.GetProperty("name").GetString() ?? "";
+        string name = ReadNameText(props, "name");
         JsonElement coordsArray = geom.GetProperty("coordinates");
         var coords = new List<(double Lat, double Lon)>();
         foreach (JsonElement coord in coordsArray.EnumerateArray())
@@ -704,7 +763,7 @@ public static class GeoJsonParser
     private static IReadOnlyDictionary<string, double> ParseThresholdDisplacement(string runwayName, JsonElement props)
     {
         var empty = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
-        if (!props.TryGetProperty("threshold", out JsonElement t) || (t.ValueKind != JsonValueKind.String))
+        if (!TryGetPropertyIgnoreCase(props, "threshold", out JsonElement t) || (t.ValueKind != JsonValueKind.String))
         {
             return empty;
         }
@@ -735,7 +794,7 @@ public static class GeoJsonParser
     private static IReadOnlyDictionary<string, ExitSide> ParseTurnoff(string runwayName, JsonElement props)
     {
         var empty = new Dictionary<string, ExitSide>(StringComparer.OrdinalIgnoreCase);
-        if (!props.TryGetProperty("turnoff", out JsonElement t) || (t.ValueKind != JsonValueKind.String))
+        if (!TryGetPropertyIgnoreCase(props, "turnoff", out JsonElement t) || (t.ValueKind != JsonValueKind.String))
         {
             return empty;
         }
@@ -768,7 +827,7 @@ public static class GeoJsonParser
 
     private static double? ReadOptionalDouble(JsonElement props, string fieldName)
     {
-        if (!props.TryGetProperty(fieldName, out JsonElement v))
+        if (!TryGetPropertyIgnoreCase(props, fieldName, out JsonElement v))
         {
             return null;
         }
@@ -787,7 +846,7 @@ public static class GeoJsonParser
     private static IReadOnlyDictionary<string, IReadOnlyList<string>> ParseNoTurnoff(string runwayName, JsonElement props)
     {
         var empty = new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase);
-        if (!props.TryGetProperty("noTurnoff", out JsonElement arr) || arr.ValueKind != JsonValueKind.Array)
+        if (!TryGetPropertyIgnoreCase(props, "noTurnoff", out JsonElement arr) || arr.ValueKind != JsonValueKind.Array)
         {
             return empty;
         }

@@ -64,7 +64,9 @@ The parser expects a GeoJSON FeatureCollection with features typed via `properti
 
 **Coordinate System**: All coordinates are `[longitude, latitude]` per GeoJSON spec. The parser converts to `(latitude, longitude)` internally.
 
-**JSON Preprocessing**: The parser strips leading zeros from numeric literals (e.g., `03` → `3`) using regex before parsing, handling invalid JSON that some GeoJSON sources produce.
+**JSON Preprocessing**: The parser strips leading zeros from numeric literals (e.g., `03` → `3`) using regex before parsing, handling invalid JSON that some GeoJSON sources produce. It also skips `//` line comments, so CMH's map — which carries `///Parking///` header lines inside its feature array — parses.
+
+**Key and value leniency**: Property **keys** are looked up case-insensitively (exact match first, then an `OrdinalIgnoreCase` scan), so an ATCTrainer export whose keys are `Name`/`Heading`/`Turnoff`/`NoTurnoff`/`HoldShortDistance`/`PatternAltitude`/`PatternSize` parses identically to the vNAS maps' `name`/`heading`/`turnoff`/…. The values of `type` are still matched exactly, and a value's kind is still enforced: a `name` given as a JSON number is read as its raw text (`1` → `"1"`), while a missing name or any other kind is logged and skips that feature.
 
 **Displaced thresholds**: A runway's `Coordinates` endpoints are always the **pavement** ends, and so are
 the `RunwayInfo.ThresholdLatitude`/`Longitude` the nav database builds from vNAS (probed against the shipped

@@ -109,6 +109,7 @@
 - After a rewind, a scenario preset's queued command still fires as scripted, so it no longer counts as the student's instruction or first contact.
 - A `TAXI` on a taxiway starts on that taxiway, not a parallel one, turns around within its width, and the ground view draws the turn.
 - Asking an aircraft `SAYEXIT` no longer cancels the commands queued for it, such as a pending `AT 5000 SPD 180`.
+- Airports whose vNAS ground map has comments, numeric stand names or capitalised keys, such as CMH, LBB and TTN, now load their ground layout.
 
 ## v0.15.0-beta [2026/10/02]
 

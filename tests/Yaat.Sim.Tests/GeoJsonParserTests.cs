@@ -588,4 +588,50 @@ public class GeoJsonParserTests(ITestOutputHelper output)
             Assert.Empty(rwy.NoTurnoffForEnd(rwy.Id.End2));
         }
     }
+
+    /// <summary>CMH's vNAS map carries JavaScript-style line comments between features.</summary>
+    [Fact]
+    public void Parse_CmhMapWithLineComments_LoadsParking()
+    {
+        TestVnasData.EnsureInitialized();
+        string json = File.ReadAllText(Path.Combine("TestData", "CMH.geojson"));
+
+        AirportGroundLayout layout = GeoJsonParser.Parse("CMH", json, "CMH");
+
+        Assert.NotNull(layout.FindParkingByName("A1"));
+        Assert.Contains(layout.Nodes.Values, node => node.Type == GroundNodeType.Parking);
+    }
+
+    /// <summary>LBB's ramp stands 1-9 carry unquoted numeric names, which must become "1".."9".</summary>
+    [Fact]
+    public void Parse_LbbMapWithNumericNames_LoadsStands1Through9()
+    {
+        TestVnasData.EnsureInitialized();
+        string json = File.ReadAllText(Path.Combine("TestData", "LBB.geojson"));
+
+        AirportGroundLayout layout = GeoJsonParser.Parse("LBB", json, "LBB");
+
+        for (int stand = 1; stand <= 9; stand++)
+        {
+            Assert.NotNull(layout.FindParkingByName(stand.ToString()));
+        }
+    }
+
+    /// <summary>TTN is an ATCTrainer export whose property keys are PascalCase.</summary>
+    [Fact]
+    public void Parse_TtnAtcTrainerMap_LoadsRunwayTurnoffAndTaxiways()
+    {
+        TestVnasData.EnsureInitialized();
+        string json = File.ReadAllText(Path.Combine("TestData", "TTN.geojson"));
+
+        AirportGroundLayout layout = GeoJsonParser.Parse("TTN", json, "TTN");
+
+        GroundRunway? runway = layout.FindRunway("6");
+        Assert.NotNull(runway);
+        Assert.Equal("6 - 24", runway.Name);
+        Assert.Equal(ExitSide.Left, runway.TurnoffForEnd("6"));
+        Assert.Equal(ExitSide.Right, runway.TurnoffForEnd("24"));
+
+        Assert.Contains(layout.Edges, edge => edge.MatchesTaxiway("J"));
+    }
 }

@@ -23,6 +23,16 @@ TEST_DATA = REPO_ROOT / "tests" / "Yaat.Sim.Tests" / "TestData"
 MAP_URL = "https://data-api.vnas.vatsim.net/api/training/airports/{airport}/map"
 USER_AGENT = "yaat-refresh-test-layouts/1.0"
 AIRPORT_STEM = re.compile(r"^[A-Za-z]{3,4}$")
+LINE_COMMENT = re.compile(r"^[ \t]*//.*$", re.MULTILINE)
+
+
+def strip_line_comments(body: bytes) -> str:
+    """Drop whole-line ``//`` comments so the map validates as JSON.
+
+    CMH's map carries JavaScript-style ``///Parking///`` header lines inside its feature array. Only the
+    validation copy is stripped; the raw body is what gets written.
+    """
+    return LINE_COMMENT.sub("", body.decode("utf-8"))
 
 
 def fetch_map(airport: str) -> bytes | None:
@@ -36,7 +46,7 @@ def fetch_map(airport: str) -> bytes | None:
         print(f"  {airport}: fetch failed: {exc}", file=sys.stderr)
         return None
     try:
-        doc = json.loads(body)
+        doc = json.loads(strip_line_comments(body))
     except json.JSONDecodeError as exc:
         print(f"  {airport}: response is not JSON: {exc}", file=sys.stderr)
         return None
