@@ -28,6 +28,9 @@ internal sealed class GroundTaxiRouteScene : ScenarioSceneBase
     private const double MovingKnots = 5;
     private const double ZoomFactor = 3;
 
+    private static readonly RoomTicks.Stage FinishPushback = new("to finish its pushback", StepSeconds, MaxStageSeconds);
+    private static readonly RoomTicks.Stage MoveAlongRoute = new("to move along its taxi route", StepSeconds, MaxStageSeconds);
+
     private GroundViewModel? _ground;
     private string? _callsign;
     private TaxiRouteDisplayMode _priorMode;
@@ -40,25 +43,31 @@ internal sealed class GroundTaxiRouteScene : ScenarioSceneBase
     protected override async Task OnSceneReadyAsync(Window window, MainViewModel vm, CaptureContext ctx)
     {
         await SceneActions.WaitUntilAsync(
-            () => vm.AircraftView.OfType<AircraftModel>().Any(IsParked),
+            () => vm.AircraftView.OfType<AircraftModel>().Any(SceneActions.IsParked),
             TimeSpan.FromSeconds(10),
             "a parked aircraft in the Aircraft List"
         );
-        AircraftModel aircraft = vm.AircraftView.OfType<AircraftModel>().First(IsParked);
+        AircraftModel aircraft = vm.AircraftView.OfType<AircraftModel>().First(SceneActions.IsParked);
         vm.SelectedAircraft = aircraft;
         Dispatcher.UIThread.RunJobs();
 
         string callsign = aircraft.Callsign;
         await SendAcceptedAsync(vm, callsign, PushCommand);
-        await AdvanceUntilAsync(vm, ctx, callsign, a => a.CurrentPhase == "Holding After Pushback", "to finish its pushback");
+        await RoomTicks.AdvanceUntilAsync(vm, ctx, callsign, a => a.CurrentPhase == "Holding After Pushback", FinishPushback);
 
         await SendAcceptedAsync(vm, callsign, TaxiCommand);
         _ground = vm.Ground;
         _callsign = callsign;
         _priorMode = vm.Ground.GetTaxiRouteMode(callsign);
         vm.Ground.SetTaxiRouteMode(callsign, TaxiRouteDisplayMode.AlwaysShow);
-        await AdvanceUntilAsync(vm, ctx, callsign, a => (a.GroundSpeed >= MovingKnots) && a.HasActiveTaxiRoute, "to move along its taxi route");
-        _zoom = GroundViewZoom.Apply(vm.Ground, Find(vm, callsign).Position, ZoomFactor);
+        AircraftModel moving = await RoomTicks.AdvanceUntilAsync(
+            vm,
+            ctx,
+            callsign,
+            a => (a.GroundSpeed >= MovingKnots) && a.HasActiveTaxiRoute,
+            MoveAlongRoute
+        );
+        _zoom = GroundViewZoom.Apply(vm.Ground, moving.Position, ZoomFactor);
     }
 
     private static async Task SendAcceptedAsync(MainViewModel vm, string callsign, string command)
@@ -71,30 +80,6 @@ internal sealed class GroundTaxiRouteScene : ScenarioSceneBase
         }
     }
 
-    // Runs the paused room forward in fixed steps until the aircraft meets the
-    // condition, so the picture is the same every run.
-    private static async Task AdvanceUntilAsync(MainViewModel vm, CaptureContext ctx, string callsign, Func<AircraftModel, bool> done, string what)
-    {
-        int elapsed = 0;
-        AircraftModel aircraft = Find(vm, callsign);
-        while (!done(aircraft))
-        {
-            if (elapsed >= MaxStageSeconds)
-            {
-                throw new InvalidOperationException(
-                    $"{callsign} failed {what} within {MaxStageSeconds} s: {aircraft.CurrentPhase}, {aircraft.GroundSpeed:0} kt."
-                );
-            }
-            await RoomTicks.AdvancePausedAsync(vm, ctx, seconds: StepSeconds, secondsPerStep: StepSeconds);
-            elapsed += StepSeconds;
-            aircraft = Find(vm, callsign);
-            Console.WriteLine($"  {callsign} at +{elapsed} s: {aircraft.CurrentPhase}, {aircraft.GroundSpeed:0} kt");
-        }
-    }
-
-    private static AircraftModel Find(MainViewModel vm, string callsign) =>
-        vm.Aircraft.FirstOrDefault(a => a.Callsign == callsign) ?? throw new InvalidOperationException($"{callsign} left the aircraft list.");
-
     public override void AfterCapture()
     {
         _zoom?.Restore();
@@ -106,6 +91,4 @@ internal sealed class GroundTaxiRouteScene : ScenarioSceneBase
             _callsign = null;
         }
     }
-
-    private static bool IsParked(AircraftModel aircraft) => aircraft.IsOnGround && (!aircraft.IsDelayed);
 }

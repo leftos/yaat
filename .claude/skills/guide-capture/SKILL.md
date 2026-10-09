@@ -11,10 +11,10 @@ The facts (CLI, scene contract, determinism, `ADD` forms, menu builders) are in 
 
 | Question | Choose |
 |---|---|
-| Where does the traffic come from? | `ADD` through `SceneActions.SendCommandAsync`, placed where the shot needs it. Never advance hundreds of seconds of a loaded scenario hoping traffic arrives |
-| How much sim time? | Only the seconds the state needs (a landing roll, a taxi a few hundred feet), via `RoomTicks.AdvancePausedAsync` |
+| Where does the traffic come from? | `ADD` through `SceneActions.SpawnAsync(vm, "ADD …", timeout)` (returns the aircraft), placed where the shot needs it. Never advance hundreds of seconds of a loaded scenario hoping traffic arrives |
+| How much sim time? | Only the seconds the state needs (a landing roll, a taxi a few hundred feet), via `RoomTicks.AdvanceUntilAsync` with a `RoomTicks.Stage` to run until a state, `RoomTicks.AdvancePausedAsync` for a fixed number of seconds |
 | How does a context menu open? | The view's `BuildAircraftRightClickMenu` / `BuildNodeContextMenu`, opened at the target's screen point. Never a simulated pointer press on `MainWindow` |
-| Which output folder? | User guide: default `--out`. Release showcase: scene `whats-new-<topic>`, `--out docs/releases/img` |
+| Which output folder? | User guide: default `--out`. Release showcase: scene `whats-new-<topic>`, no `--out` needed (`Scene.DefaultOutDir`) |
 | What does the scene change? | Everything it changes (preferences, view settings, prompts) is put back in `AfterCapture` |
 
 ## Iterating

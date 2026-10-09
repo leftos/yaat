@@ -8,7 +8,7 @@ namespace Yaat.GuideCapture.Capture;
 
 internal static class Runner
 {
-    // outDirOverride is the --out folder; null writes each scene's PNG to its own DefaultOutDir under the current directory.
+    // outDirOverride is the --out folder; null writes each scene's PNG to its own DefaultOutDir under the repo root.
     public static async Task<int> RunAsync(string? outDirOverride, string? sceneFilter, CaptureContext ctx, double renderScaling)
     {
         IReadOnlyList<Scene> scenes = SceneCatalog.Select(sceneFilter);
@@ -29,7 +29,7 @@ internal static class Runner
         {
             try
             {
-                string outDir = outDirOverride ?? Path.Combine(Environment.CurrentDirectory, scene.DefaultOutDir);
+                string outDir = outDirOverride ?? Path.Combine(ctx.RepoRoot, scene.DefaultOutDir);
                 Directory.CreateDirectory(outDir);
                 Exception? afterCaptureFailure = await CaptureOneAsync(scene, ctx, outDir, renderScaling);
                 if (afterCaptureFailure is not null)

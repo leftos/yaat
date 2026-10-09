@@ -194,18 +194,23 @@ internal static class SceneActions
         Dispatcher.UIThread.RunJobs();
         RenderOnce(window);
         string callsign = aircraft.Callsign;
-        if (ShownView<RadarView>(window) is { DataContext: RadarViewModel radarVm } radar)
+        string what = $"the aircraft menu of {callsign}";
+        if (
+            (ShownCanvas<RadarCanvas>(window) is { } radarCanvas)
+            && (radarCanvas.FindAncestorOfType<RadarView>() is { DataContext: RadarViewModel radarVm } radar)
+        )
         {
-            RadarCanvas canvas = CanvasOf<RadarCanvas>(radar);
             ContextMenu menu = radar.BuildAircraftRightClickMenu(radarVm, aircraft, aircraft, callsign);
-            return OpenAtAsync(window, menu, canvas, aircraft.Position, timeout, $"the aircraft menu of {callsign}");
+            return OpenAtAsync(menu, radarCanvas, aircraft.Position, timeout, what);
         }
 
-        if (ShownView<GroundView>(window) is { DataContext: GroundViewModel groundVm } ground)
+        if (
+            (ShownCanvas<GroundCanvas>(window) is { } groundCanvas)
+            && (groundCanvas.FindAncestorOfType<GroundView>() is { DataContext: GroundViewModel groundVm } ground)
+        )
         {
-            GroundCanvas canvas = CanvasOf<GroundCanvas>(ground);
             ContextMenu menu = ground.BuildAircraftRightClickMenu(groundVm, aircraft, aircraft, callsign);
-            return OpenAtAsync(window, menu, canvas, aircraft.Position, timeout, $"the aircraft menu of {callsign}");
+            return OpenAtAsync(menu, groundCanvas, aircraft.Position, timeout, what);
         }
 
         throw new InvalidOperationException($"{window.GetType().Name} shows neither the radar nor the ground view.");
@@ -219,30 +224,27 @@ internal static class SceneActions
         vm.SelectedAircraft = aircraft;
         Dispatcher.UIThread.RunJobs();
         RenderOnce(window);
-        GroundView ground = ShownView<GroundView>(window) ?? throw new InvalidOperationException($"{window.GetType().Name} shows no ground view.");
+        GroundCanvas canvas =
+            ShownCanvas<GroundCanvas>(window) ?? throw new InvalidOperationException($"{window.GetType().Name} shows no ground view.");
+        GroundView ground =
+            canvas.FindAncestorOfType<GroundView>()
+            ?? throw new InvalidOperationException($"The shown {nameof(GroundCanvas)} is not in a GroundView.");
         GroundNodeDto node = vm.Ground.GetNode(nodeId) ?? throw new InvalidOperationException($"The ground layout has no node {nodeId}.");
-        GroundCanvas canvas = CanvasOf<GroundCanvas>(ground);
         var place = new LatLon(node.Latitude, node.Longitude);
         (float x, float y) = canvas.Viewport.LatLonToScreen(place.Lat, place.Lon);
         ContextMenu menu =
             ground.BuildNodeContextMenu(nodeId, new Point(x, y))
             ?? throw new InvalidOperationException($"The ground view builds no menu for node {nodeId}.");
-        return OpenAtAsync(window, menu, canvas, place, timeout, $"the point menu of {aircraft.Callsign} at node {nodeId}");
+        return OpenAtAsync(menu, canvas, place, timeout, $"the point menu of {aircraft.Callsign} at node {nodeId}");
     }
 
     // Opens the menu on the canvas with its top-left corner at position, the
     // pointer moved there as a right-click leaves it, and waits until it is
     // laid out. The headless platform opens it in the window's overlay layer,
     // so CaptureRenderedFrame includes it.
-    private static async Task<ContextMenu> OpenAtAsync(
-        Window window,
-        ContextMenu menu,
-        MapCanvasBase canvas,
-        LatLon position,
-        TimeSpan timeout,
-        string what
-    )
+    private static async Task<ContextMenu> OpenAtAsync(ContextMenu menu, MapCanvasBase canvas, LatLon position, TimeSpan timeout, string what)
     {
+        Window window = TopLevel.GetTopLevel(canvas) as Window ?? throw new InvalidOperationException($"{canvas.GetType().Name} is not in a window.");
         (float x, float y) = canvas.Viewport.LatLonToScreen(position.Lat, position.Lon);
         Point inWindow =
             canvas.TranslatePoint(new Point(x, y), window)
@@ -259,13 +261,36 @@ internal static class SceneActions
         return menu;
     }
 
-    private static T? ShownView<T>(Window window)
-        where T : Control => window.GetVisualDescendants().OfType<T>().FirstOrDefault(v => v.IsEffectivelyVisible);
+    // The window's map canvas of type T that is on screen (a hidden tab's is
+    // skipped), or null when the window shows none.
+    public static T? ShownCanvas<T>(Window window)
+        where T : MapCanvasBase => window.GetVisualDescendants().OfType<T>().FirstOrDefault(c => c.IsEffectivelyVisible);
 
-    private static T CanvasOf<T>(Control view)
-        where T : MapCanvasBase =>
-        view.GetVisualDescendants().OfType<T>().FirstOrDefault()
-        ?? throw new InvalidOperationException($"{view.GetType().Name} has no {typeof(T).Name}.");
+    // Adds an aircraft with an ADD command and returns it once the aircraft
+    // list holds it. The scenario's aircraft are waited for first, so none of
+    // them is taken for the new one.
+    public static async Task<AircraftModel> SpawnAsync(MainViewModel vm, string addCommand, TimeSpan timeout)
+    {
+        await WaitUntilAsync(() => vm.Aircraft.Count > 0, timeout, $"the scenario's aircraft before '{addCommand}'");
+        HashSet<string> before = [.. vm.Aircraft.Select(a => a.Callsign)];
+
+        vm.SelectedAircraft = null;
+        Dispatcher.UIThread.RunJobs();
+        vm.CommandText = addCommand;
+        await vm.SendCommandCommand.ExecuteAsync(null);
+        await WaitUntilAsync(
+            () => vm.Aircraft.Any(a => !before.Contains(a.Callsign)),
+            timeout,
+            $"the aircraft '{addCommand}' adds to appear in the aircraft list"
+        );
+        return vm.Aircraft.First(a => !before.Contains(a.Callsign));
+    }
+
+    public static AircraftModel Find(MainViewModel vm, string callsign) =>
+        vm.Aircraft.FirstOrDefault(a => a.Callsign == callsign) ?? throw new InvalidOperationException($"{callsign} left the aircraft list.");
+
+    // On the ground and in the sim now, not a delayed spawn waiting to appear.
+    public static bool IsParked(AircraftModel aircraft) => aircraft.IsOnGround && (!aircraft.IsDelayed);
 
     // Moves the pointer over the control's centre, as hovering it does. Its
     // tooltip is switched off first so it does not cover the controls around
@@ -277,7 +302,9 @@ internal static class SceneActions
         Dispatcher.UIThread.RunJobs();
     }
 
-    // A real left click on the control's centre.
+    // A real left click on the control's centre. A click on a quick-command
+    // strip icon closes the headless menu before the icon's flyout shows, so
+    // use it only for a control that opens its own popup.
     public static void Click(Window window, Control control)
     {
         Point center = CenterInWindow(window, control);
@@ -346,14 +373,15 @@ internal static class SceneActions
     // What the window's overlay layer holds, for a control that never appeared there.
     private static string DescribeOverlay(Window window)
     {
-        IEnumerable<string> hosted =
-            OverlayLayer
-                .GetOverlayLayer(window)
-                ?.Children.Select(c =>
-                    $"{c.GetType().Name}({(c as Popup)?.IsOpen}: {string.Join(" > ", c.GetVisualDescendants().Take(5).Select(d => d.GetType().Name))})"
-                )
-            ?? ["no overlay layer"];
+        IEnumerable<string> hosted = OverlayLayer.GetOverlayLayer(window)?.Children.Select(DescribeHosted) ?? ["no overlay layer"];
         return $"The overlay layer holds: {string.Join(", ", hosted.DefaultIfEmpty("nothing"))}.";
+    }
+
+    // One overlay child: its type, whether it is an open popup, and its first few descendants.
+    private static string DescribeHosted(Control hosted)
+    {
+        string descendants = string.Join(" > ", hosted.GetVisualDescendants().Take(5).Select(d => d.GetType().Name));
+        return $"{hosted.GetType().Name}({(hosted as Popup)?.IsOpen}: {descendants})";
     }
 
     public static bool AreItemsLaidOut(ItemCollection items)

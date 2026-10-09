@@ -3,7 +3,6 @@ using Avalonia.Controls;
 using Yaat.Client.ContextMenus;
 using Yaat.Client.Models;
 using Yaat.Client.ViewModels;
-using Yaat.Client.Views.Radar;
 using Yaat.GuideCapture.Capture;
 
 namespace Yaat.GuideCapture.Scenes;
@@ -31,8 +30,7 @@ internal sealed class WhatsNewPickerScene : ScenarioSceneBase
         await RadarViewScene.EnableLoWestSectorAsync(vm, ctx);
         await SceneActions.AnswerActiveRunwaysPromptAsync(vm, TimeSpan.FromSeconds(10));
         _vm = vm;
-        RadarCanvas canvas = RadarScreenPicks.Canvas(window);
-        AircraftModel aircraft = RadarScreenPicks.MostIsolated(vm, window, canvas, Region);
+        AircraftModel aircraft = RadarScreenPicks.MostIsolated(vm, window, Region, Name);
         Console.WriteLine($"  picker on {aircraft.Callsign} ({aircraft.CurrentPhase})");
 
         ContextMenu menu = await SceneActions.OpenAircraftMenuAsync(window, vm, aircraft, TimeSpan.FromSeconds(10));

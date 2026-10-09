@@ -1,6 +1,5 @@
 using Avalonia;
 using Avalonia.Controls;
-using Avalonia.VisualTree;
 using Yaat.Client.Models;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Radar;
@@ -15,16 +14,24 @@ namespace Yaat.GuideCapture.Scenes;
 // which the paused room makes the same every run.
 internal static class RadarScreenPicks
 {
-    public static RadarCanvas Canvas(Window window) =>
-        window.GetVisualDescendants().OfType<RadarCanvas>().FirstOrDefault(c => c.IsEffectivelyVisible)
-        ?? throw new InvalidOperationException("The main window shows no radar canvas.");
+    private static RadarCanvas Canvas(Window window) =>
+        SceneActions.ShownCanvas<RadarCanvas>(window) ?? throw new InvalidOperationException("The main window shows no radar canvas.");
 
     // The airborne aircraft drawn inside region (fractions of the canvas's
     // width and height) that is farthest on screen from every other aircraft.
-    public static AircraftModel MostIsolated(MainViewModel vm, Window window, RadarCanvas canvas, Rect region)
+    // scene names the caller in the failure message.
+    public static AircraftModel MostIsolated(MainViewModel vm, Window window, Rect region, string scene)
     {
+        RadarCanvas canvas = Canvas(window);
         SceneActions.RenderOnce(window);
         List<(AircraftModel Aircraft, Point Screen)> drawn = Drawn(vm, canvas);
+        if (drawn.Count < 2)
+        {
+            throw new InvalidOperationException(
+                $"{scene}: the radar draws {drawn.Count} airborne aircraft; picking the most isolated one needs two or more."
+            );
+        }
+
         return drawn
                 .Where(d => InRegion(canvas, d.Screen, region))
                 .OrderByDescending(d => drawn.Where(o => o.Aircraft != d.Aircraft).Min(o => Distance(d.Screen, o.Screen)))
@@ -40,12 +47,12 @@ internal static class RadarScreenPicks
     public static (AircraftModel From, AircraftModel To) CrowdedPair(
         MainViewModel vm,
         Window window,
-        RadarCanvas canvas,
         Rect region,
         (double MinNm, double MaxNm) span,
         double crowdPx
     )
     {
+        RadarCanvas canvas = Canvas(window);
         SceneActions.RenderOnce(window);
         List<(AircraftModel Aircraft, Point Screen)> drawn = [.. Drawn(vm, canvas).Where(d => InRegion(canvas, d.Screen, region))];
         (AircraftModel From, AircraftModel To)? best = null;

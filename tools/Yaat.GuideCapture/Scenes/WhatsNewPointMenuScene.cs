@@ -30,12 +30,12 @@ internal sealed class WhatsNewPointMenuScene : ScenarioSceneBase
     {
         await SceneActions.AnswerActiveRunwaysPromptAsync(vm, TimeSpan.FromSeconds(10));
         await SceneActions.WaitUntilAsync(
-            () => vm.AircraftView.OfType<AircraftModel>().Any(IsParked) && (vm.Ground.Layout is not null),
+            () => vm.AircraftView.OfType<AircraftModel>().Any(SceneActions.IsParked) && (vm.Ground.Layout is not null),
             TimeSpan.FromSeconds(10),
             "a parked aircraft and the ground layout"
         );
         _vm = vm;
-        AircraftModel aircraft = vm.AircraftView.OfType<AircraftModel>().First(IsParked);
+        AircraftModel aircraft = vm.AircraftView.OfType<AircraftModel>().First(SceneActions.IsParked);
         GroundNodeDto node = NearestIntersection(vm.Ground, aircraft.Position);
         var place = new LatLon(node.Latitude, node.Longitude);
         Console.WriteLine($"  {aircraft.Callsign} point menu at node {node.Id} ({string.Join(" / ", vm.Ground.GetNodeTaxiwayNames(node.Id))})");
@@ -74,6 +74,4 @@ internal sealed class WhatsNewPointMenuScene : ScenarioSceneBase
         _vm?.SelectedAircraft = null;
         _vm = null;
     }
-
-    private static bool IsParked(AircraftModel aircraft) => aircraft.IsOnGround && (!aircraft.IsDelayed);
 }

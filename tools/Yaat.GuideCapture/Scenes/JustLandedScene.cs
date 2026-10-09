@@ -1,5 +1,4 @@
 using Avalonia.Controls;
-using Avalonia.Threading;
 using Yaat.Client.Models;
 using Yaat.Client.ViewModels;
 using Yaat.GuideCapture.Capture;
@@ -15,9 +14,9 @@ namespace Yaat.GuideCapture.Scenes;
 internal sealed class JustLandedScene : ScenarioSceneBase
 {
     private const string AddCommand = "ADD IFR L J 30 4 B738";
-    private const int StepSeconds = 5;
-    private const int MaxSeconds = 300;
     private const double ZoomFactor = 3;
+
+    private static readonly RoomTicks.Stage TouchDown = new("to touch down", StepSeconds: 5, MaxSeconds: 300);
 
     private GroundViewZoom? _zoom;
 
@@ -27,32 +26,8 @@ internal sealed class JustLandedScene : ScenarioSceneBase
 
     protected override async Task OnSceneReadyAsync(Window window, MainViewModel vm, CaptureContext ctx)
     {
-        await SceneActions.WaitUntilAsync(() => vm.Aircraft.Count > 0, TimeSpan.FromSeconds(10), "scenario aircraft to populate");
-        HashSet<string> before = [.. vm.Aircraft.Select(a => a.Callsign)];
-
-        vm.SelectedAircraft = null;
-        Dispatcher.UIThread.RunJobs();
-        vm.CommandText = AddCommand;
-        await vm.SendCommandCommand.ExecuteAsync(null);
-        await SceneActions.WaitUntilAsync(
-            () => vm.Aircraft.Any(a => !before.Contains(a.Callsign)),
-            TimeSpan.FromSeconds(10),
-            $"the aircraft '{AddCommand}' spawns"
-        );
-        AircraftModel arrival = vm.Aircraft.First(a => !before.Contains(a.Callsign));
-
-        int elapsed = 0;
-        while (!arrival.IsOnGround)
-        {
-            if (elapsed >= MaxSeconds)
-            {
-                string state = $"{arrival.CurrentPhase}, {arrival.Altitude:0} ft, {arrival.GroundSpeed:0} kt";
-                throw new InvalidOperationException($"{arrival.Callsign} has not touched down after {MaxSeconds} s: {state}.");
-            }
-            await RoomTicks.AdvancePausedAsync(vm, ctx, seconds: StepSeconds, secondsPerStep: StepSeconds);
-            elapsed += StepSeconds;
-        }
-        Console.WriteLine($"  {arrival.Callsign} on the ground after {elapsed} s: {arrival.CurrentPhase}, {arrival.GroundSpeed:0} kt");
+        AircraftModel spawned = await SceneActions.SpawnAsync(vm, AddCommand, TimeSpan.FromSeconds(10));
+        AircraftModel arrival = await RoomTicks.AdvanceUntilAsync(vm, ctx, spawned.Callsign, a => a.IsOnGround, TouchDown);
         _zoom = GroundViewZoom.Apply(vm.Ground, arrival.Position, ZoomFactor);
     }
 

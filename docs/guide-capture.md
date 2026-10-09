@@ -6,7 +6,9 @@ How to build a screenshot scene in `tools/Yaat.GuideCapture` that renders the sa
 
 `dotnet run --project tools/Yaat.GuideCapture -- --scene <name> [--out <dir>] [--scale <n>]`, from the repo root, through `tools/gate.ps1` (`-Slot heavy`). It boots yaat-server in-process (`HAS_YAAT_SERVER`, the sibling checkout), opens the scene's window headless with real Skia pixels, and writes `<out>/<scene.Name>.png`.
 
-- `--out` defaults to `docs/user-guide/img/`. A shot for the release feature showcase uses `--out docs/releases/img` and a scene named `whats-new-<topic>`, so it never overwrites a user-guide image.
+- `--out` defaults to the scene's own folder (`Scene.DefaultOutDir`): `docs/user-guide/img/`, or `docs/releases/img/` for a showcase scene, one named `whats-new-<topic>`. Without `--out` a PNG goes under the repo root (`CaptureContext.RepoRoot`, found from `yaat.slnx`) whatever the current directory; an explicit `--out` is relative to the current directory. A showcase scene runs only when named with `--scene`; a plain run skips every `whats-new-*` scene (`SceneCatalog.Select`).
+- Re-running a guide scene with no `--out` rewrites its tracked PNG byte-identically, so it is a safe check that a change did not move the picture.
+- A fresh worktree's first capture downloads CIFP, which adds to that run's time.
 - Output is deterministic: the clock is pinned to `FixedTimeProvider.CaptureInstant` (2026-01-15 18:30Z) for the server, the terminal and every wall-clock view, and the scenario seed is pinned (`Program.cs`, `CaptureRngSeed`). A scene that reads `DateTime.Now`, `Random.Shared` or real time breaks this.
 - Each run pays the server boot, the room, the scenario load and whatever sim time the scene advances. A scenario-based scene that advances 480 s costs about 1.5 to 2.5 minutes before its own step runs, so every retry pays it again.
 
@@ -16,9 +18,11 @@ How to build a screenshot scene in `tools/Yaat.GuideCapture` that renders the sa
 
 `Scenes/ScenarioSceneBase.cs` connects, creates a room, loads an ATCTrainer example scenario from `docs/atctrainer-scenario-examples/` (default `S1-OAK-1 Clearances Intro`, 18 aircraft parked at OAK), closes the load report, switches the tab, then calls `OnSceneReadyAsync`. `StandaloneWindowSceneBase` is for dialogs that need no room; `TimelineSceneBase` for playback.
 
+A window that sets no `Background` captures as pure black, so a scene's window needs one (the Active Runways window sets `#1E1E1E`).
+
 ## Placing traffic: spawn it, do not simulate it
 
-Put exactly the aircraft the shot needs where it needs them with `ADD` through `SceneActions.SendCommandAsync`, then advance only the seconds the state needs (`RoomTicks.AdvancePausedAsync`). This is the same recipe the client driver uses ([`client-driver-mcp.md`](./client-driver-mcp.md), "Run yaat-server from source…"). The `ADD` forms are in `COMMANDS.md`, "Add Aircraft (ADD)":
+Put exactly the aircraft the shot needs where it needs them with `ADD` through `SceneActions.SpawnAsync(vm, "ADD …", timeout)`, which returns the new aircraft (`SendCommandAsync` sends any other command and returns its terminal reply). Then advance only what the state needs: `RoomTicks.AdvanceUntilAsync(vm, ctx, callsign, done, new RoomTicks.Stage(what, step, max))` runs to a state, and `RoomTicks.AdvancePausedAsync` runs a fixed number of seconds. This is the same recipe the client driver uses ([`client-driver-mcp.md`](./client-driver-mcp.md), "Run yaat-server from source…"). The `ADD` forms are in `COMMANDS.md`, "Add Aircraft (ADD)":
 
 | Need | Command |
 |---|---|
@@ -34,7 +38,9 @@ Put exactly the aircraft the shot needs where it needs them with `ADD` through `
 
 - **Do not simulate a pointer right-click on `MainWindow`.** Avalonia's `LightDismissOverlayLayer` takes every press even with no popup open, and the class is internal, so a scene cannot move it aside.
 - **Call the view's own builder** and open the result at the target's screen point: `RadarView.BuildAircraftRightClickMenu` (`Views/Radar/RadarView.ContextMenus.cs`), `GroundView.BuildAircraftRightClickMenu` and `GroundView.BuildNodeContextMenu` (`Views/Ground/GroundView.axaml.cs`). These are `internal`; GuideCapture sees them.
-- **The active-runways prompt** opens over the views on a scenario load in an RPO room when the server asks for it (`MainViewModel.ActiveRunways.cs`). Answer or close it before a shot that needs the views.
+- **The active-runways prompt** opens over the views on a scenario load in an RPO room when the server asks for it (`MainViewModel.ActiveRunways.cs`). Any `ScenarioSceneBase` scene that needs the views clear answers it with `SceneActions.AnswerActiveRunwaysPromptAsync` (confirm the server's guess, else cancel) before it opens a menu, since the prompt and the light-dismiss overlay take the pointer input a menu needs.
+- **A flyout on a menu's strip icon** opens with `FlyoutBase.ShowAttachedFlyout` on the icon after `SceneActions.PointAt`, never `SceneActions.Click`: a pointer click on a strip icon closes the headless menu first, and `Click` is only for a control that opens its own popup. It is placed relative to the icon, so a scene cannot keep it clear of the parent menu by moving the view; `Scenes/WhatsNewExitsAheadScene.cs` shows the result and stages the shot around it.
+- **A radar range/bearing shot needs two aircraft** to latch the line to; `Scenes/WhatsNewRblLabelScene.cs` picks the pair.
 - Menu-bar menus, submenus and button flyouts: `SceneActions.OpenMenuAsync`, `OpenSubmenuAsync`, `OpenButtonFlyoutAsync`. A control's `ContextMenu` in a host window: `Scenes/TerminalRewindMenuScene.cs`.
 
 ## Checking the result

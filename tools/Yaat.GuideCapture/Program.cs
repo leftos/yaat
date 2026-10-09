@@ -23,7 +23,7 @@ namespace Yaat.GuideCapture;
 //   dotnet run --project tools/Yaat.GuideCapture
 //   dotnet run --project tools/Yaat.GuideCapture -- --scene main-window-empty --out .tmp/guide
 //
-// Run from the repo root so the default --out resolves correctly.
+// Without --out each PNG goes under the repo root; an explicit --out is relative to the current directory.
 public static class Program
 {
     // The RNG seed every capture's scenario load uses; any fixed value works.

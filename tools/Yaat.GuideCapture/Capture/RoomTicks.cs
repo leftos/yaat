@@ -1,4 +1,5 @@
 using Avalonia.Threading;
+using Yaat.Client.Models;
 using Yaat.Client.ViewModels;
 #if HAS_YAAT_SERVER
 using Microsoft.Extensions.DependencyInjection;
@@ -24,6 +25,42 @@ namespace Yaat.GuideCapture.Capture;
 // position history as it would in a live run.
 internal static class RoomTicks
 {
+    // One state a scene runs the paused room towards: what the aircraft must
+    // do (for the failure message), the seconds per step, and the seconds
+    // after which the scene gives up.
+    public sealed record Stage(string What, int StepSeconds, int MaxSeconds);
+
+    // Runs the paused room forward in the stage's steps until the aircraft
+    // meets done, so the picture is the same every run, and returns it as it
+    // then stands. Throws with the aircraft's state once MaxSeconds pass.
+    public static async Task<AircraftModel> AdvanceUntilAsync(
+        MainViewModel vm,
+        CaptureContext ctx,
+        string callsign,
+        Func<AircraftModel, bool> done,
+        Stage stage
+    )
+    {
+        int elapsed = 0;
+        AircraftModel aircraft = SceneActions.Find(vm, callsign);
+        while (!done(aircraft))
+        {
+            if (elapsed >= stage.MaxSeconds)
+            {
+                throw new InvalidOperationException(
+                    $"{callsign} failed {stage.What} within {stage.MaxSeconds} s: "
+                        + $"{aircraft.CurrentPhase}, {aircraft.Altitude:0} ft, {aircraft.GroundSpeed:0} kt."
+                );
+            }
+            await AdvancePausedAsync(vm, ctx, seconds: stage.StepSeconds, secondsPerStep: stage.StepSeconds);
+            elapsed += stage.StepSeconds;
+            aircraft = SceneActions.Find(vm, callsign);
+        }
+
+        Console.WriteLine($"  {callsign} {stage.What} after {elapsed} s: {aircraft.CurrentPhase}, {aircraft.GroundSpeed:0} kt");
+        return aircraft;
+    }
+
     public static async Task AdvancePausedAsync(MainViewModel vm, CaptureContext ctx, int seconds, int secondsPerStep)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(secondsPerStep);

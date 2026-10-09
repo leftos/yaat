@@ -4,7 +4,6 @@ using Avalonia.Threading;
 using Yaat.Client.Models;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Map;
-using Yaat.Client.Views.Radar;
 using Yaat.GuideCapture.Capture;
 
 namespace Yaat.GuideCapture.Scenes;
@@ -37,8 +36,7 @@ internal sealed class WhatsNewRblLabelScene : ScenarioSceneBase
         // spawns fill the scope over the next minutes.
         await RoomTicks.AdvancePausedAsync(vm, ctx, seconds: ExtraSeconds, secondsPerStep: 30);
         RangeBearingViewState measure = vm.Radar.Measure ?? throw new InvalidOperationException("The radar has no measuring tool.");
-        RadarCanvas canvas = RadarScreenPicks.Canvas(window);
-        (AircraftModel from, AircraftModel to) = RadarScreenPicks.CrowdedPair(vm, window, canvas, Region, (10, 30), CrowdPx);
+        (AircraftModel from, AircraftModel to) = RadarScreenPicks.CrowdedPair(vm, window, Region, (10, 30), CrowdPx);
         Console.WriteLine($"  measuring {from.Callsign} to {to.Callsign}");
 
         _ =

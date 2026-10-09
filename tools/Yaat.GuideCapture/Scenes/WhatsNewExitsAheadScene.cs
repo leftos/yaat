@@ -1,6 +1,5 @@
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
-using Avalonia.Threading;
 using Yaat.Client.ContextMenus;
 using Yaat.Client.Models;
 using Yaat.Client.ViewModels;
@@ -22,9 +21,9 @@ namespace Yaat.GuideCapture.Scenes;
 internal sealed class WhatsNewExitsAheadScene : ScenarioSceneBase
 {
     private const string AddCommand = "ADD IFR L J 30 4 B738";
-    private const int StepSeconds = 2;
-    private const int MaxSeconds = 300;
     private const double ZoomFactor = 3;
+
+    private static readonly RoomTicks.Stage ExitChoice = new("to list the exits ahead on a side it can exit", StepSeconds: 2, MaxSeconds: 300);
 
     private MainViewModel? _vm;
     private GroundViewZoom? _zoom;
@@ -36,26 +35,16 @@ internal sealed class WhatsNewExitsAheadScene : ScenarioSceneBase
     protected override async Task OnSceneReadyAsync(Window window, MainViewModel vm, CaptureContext ctx)
     {
         await SceneActions.AnswerActiveRunwaysPromptAsync(vm, TimeSpan.FromSeconds(10));
-        await SceneActions.WaitUntilAsync(() => vm.Aircraft.Count > 0, TimeSpan.FromSeconds(10), "scenario aircraft to populate");
-        HashSet<string> before = [.. vm.Aircraft.Select(a => a.Callsign)];
-
-        vm.SelectedAircraft = null;
-        Dispatcher.UIThread.RunJobs();
-        vm.CommandText = AddCommand;
-        await vm.SendCommandCommand.ExecuteAsync(null);
-        await SceneActions.WaitUntilAsync(
-            () => vm.Aircraft.Any(a => !before.Contains(a.Callsign)),
-            TimeSpan.FromSeconds(10),
-            $"the aircraft '{AddCommand}' spawns"
-        );
-        string callsign = vm.Aircraft.First(a => !before.Contains(a.Callsign)).Callsign;
+        AircraftModel spawned = await SceneActions.SpawnAsync(vm, AddCommand, TimeSpan.FromSeconds(10));
+        string callsign = spawned.Callsign;
         _vm = vm;
 
-        AircraftModel arrival = await AdvanceToExitChoiceAsync(vm, ctx, callsign);
-        ExitSide side = ShownSide(arrival.ExitsAhead ?? []);
+        AircraftModel arrival = await RoomTicks.AdvanceUntilAsync(vm, ctx, callsign, OffersExitChoice, ExitChoice);
+        IReadOnlyList<ExitAheadDto> exits = arrival.ExitsAhead ?? [];
+        ExitSide side = ShownSide(callsign, exits);
         Console.WriteLine(
-            $"  {callsign}: {arrival.CurrentPhase}, {arrival.GroundSpeed:0} kt; exits ahead "
-                + string.Join(", ", (arrival.ExitsAhead ?? []).Select(e => $"{e.Taxiway} {e.Side} {e.DistanceFt} ft{(e.Planned ? " planned" : "")}"))
+            $"  {callsign}: exits ahead "
+                + string.Join(", ", exits.Select(e => $"{e.Taxiway} {e.Side} {e.DistanceFt} ft{(e.Planned ? " planned" : "")}"))
         );
         _zoom = GroundViewZoom.Apply(vm.Ground, arrival.Position, ZoomFactor);
 
@@ -75,50 +64,37 @@ internal sealed class WhatsNewExitsAheadScene : ScenarioSceneBase
         );
     }
 
-    // Runs the paused room forward until the arrival is on the ground and its
-    // menu offers an exit on either side, so the picture is the same every run.
-    private static async Task<AircraftModel> AdvanceToExitChoiceAsync(MainViewModel vm, CaptureContext ctx, string callsign)
-    {
-        int elapsed = 0;
-        AircraftModel arrival = Find(vm, callsign);
-        while (
-            !(
-                arrival.IsOnGround
-                && AircraftCommandApplicability.ShowsRunwayExit(arrival)
-                && (
-                    AircraftCommandApplicability.CanExitRunway(arrival, ExitSide.Left)
-                    || AircraftCommandApplicability.CanExitRunway(arrival, ExitSide.Right)
-                )
-            )
-        )
-        {
-            if (elapsed >= MaxSeconds)
-            {
-                string state = $"{arrival.CurrentPhase}, {arrival.Altitude:0} ft, {arrival.GroundSpeed:0} kt";
-                throw new InvalidOperationException($"{callsign} offers no exit side after {MaxSeconds} s: {state}.");
-            }
-            await RoomTicks.AdvancePausedAsync(vm, ctx, seconds: StepSeconds, secondsPerStep: StepSeconds);
-            elapsed += StepSeconds;
-            arrival = Find(vm, callsign);
-        }
+    // On the ground, its menu offering an exit on either side, and the exits
+    // ahead listed: CanExitRunway already holds while ExitsAhead is still
+    // empty, and the flyout then shows no named exits.
+    private static bool OffersExitChoice(AircraftModel arrival) =>
+        arrival.IsOnGround
+        && AircraftCommandApplicability.ShowsRunwayExit(arrival)
+        && (AircraftCommandApplicability.CanExitRunway(arrival, ExitSide.Left) || AircraftCommandApplicability.CanExitRunway(arrival, ExitSide.Right))
+        && (arrival.ExitsAhead is { Count: > 0 });
 
-        return arrival;
-    }
-
-    private static ExitSide ShownSide(IReadOnlyList<ExitAheadDto> exits)
+    // The side of the planned exit, else the side with more exits ahead.
+    private static ExitSide ShownSide(string callsign, IReadOnlyList<ExitAheadDto> exits)
     {
+        ExitSide side;
         if (exits.FirstOrDefault(e => e.Planned) is { } planned)
         {
-            return planned.Side;
+            side = planned.Side;
+        }
+        else
+        {
+            int left = exits.Count(e => e.Side == ExitSide.Left);
+            int right = exits.Count(e => e.Side == ExitSide.Right);
+            side = (left >= right) ? ExitSide.Left : ExitSide.Right;
         }
 
-        int left = exits.Count(e => e.Side == ExitSide.Left);
-        int right = exits.Count(e => e.Side == ExitSide.Right);
-        return (left >= right) ? ExitSide.Left : ExitSide.Right;
-    }
+        if (!exits.Any(e => e.Side == side))
+        {
+            throw new InvalidOperationException($"{callsign} lists no exit ahead on the {side} side; it lists {exits.Count} exit(s) in all.");
+        }
 
-    private static AircraftModel Find(MainViewModel vm, string callsign) =>
-        vm.Aircraft.FirstOrDefault(a => a.Callsign == callsign) ?? throw new InvalidOperationException($"{callsign} left the aircraft list.");
+        return side;
+    }
 
     public override void AfterCapture()
     {
