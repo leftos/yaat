@@ -45,6 +45,8 @@ internal sealed class FakeRecordingProcess : IRecordingProcess
 
     public int ExitCode { get; set; }
 
+    public bool IsRecorderRunning => !HasExited && !RecorderKilled;
+
     /// <summary>True once the whole pipeline was killed.</summary>
     public bool Killed { get; private set; }
 

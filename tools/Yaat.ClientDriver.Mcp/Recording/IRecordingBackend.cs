@@ -20,6 +20,13 @@ public interface IRecordingProcess : IDisposable
     /// <summary>The pipeline's exit code (ffmpeg's, the last stage); read only once <see cref="HasExited"/>.</summary>
     int ExitCode { get; }
 
+    /// <summary>
+    /// True when the recorder, the pipeline's first stage, is running now. False for a pipeline that has not spawned it yet,
+    /// whose recorder has ended, or whose cmd has ended; no warning is logged. Polling this waits out a slow spawn without
+    /// mistaking it for a recorder that has ended, which <see cref="WaitForRecorderExitAsync"/> deliberately does.
+    /// </summary>
+    bool IsRecorderRunning { get; }
+
     /// <summary>Waits up to <paramref name="timeout"/> for the pipeline to end; false when it is still running.</summary>
     Task<bool> WaitForExitAsync(TimeSpan timeout, CancellationToken ct);
 

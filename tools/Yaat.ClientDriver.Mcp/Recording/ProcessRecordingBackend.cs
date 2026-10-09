@@ -263,6 +263,20 @@ public sealed partial class ProcessRecordingBackend(ILogger<ProcessRecordingBack
 
         public int ExitCode => process.ExitCode;
 
+        public bool IsRecorderRunning
+        {
+            get
+            {
+                if (process.HasExited)
+                {
+                    return false;
+                }
+
+                using Process? recorder = FindRecorderChild();
+                return recorder is not null;
+            }
+        }
+
         public Task<bool> WaitForExitAsync(TimeSpan timeout, CancellationToken ct) => WaitAsync(process, timeout, ct);
 
         public async Task<bool> WaitForRecorderExitAsync(TimeSpan timeout, CancellationToken ct)

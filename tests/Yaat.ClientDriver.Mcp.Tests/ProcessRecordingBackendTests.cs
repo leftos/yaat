@@ -1,5 +1,6 @@
 extern alias mcp;
 
+using System.Diagnostics;
 using mcp::Yaat.ClientDriver.Mcp.Recording;
 using Microsoft.Extensions.Logging;
 using Xunit;
@@ -12,6 +13,9 @@ namespace Yaat.ClientDriver.Mcp.Tests;
 /// </summary>
 public sealed class ProcessRecordingBackendTests : IDisposable
 {
+    /// <summary>How long cmd is given to spawn the recorder, its second process, before a test fails.</summary>
+    private static readonly TimeSpan RecorderSpawnWait = TimeSpan.FromSeconds(20);
+
     private readonly string _folder = Path.Combine(Path.GetTempPath(), $"yaat-rec %USERNAME% !x! & ^ {Guid.NewGuid():N}");
     private readonly ListLogger<ProcessRecordingBackend> _logger = new();
     private readonly ProcessRecordingBackend _backend;
@@ -60,14 +64,16 @@ public sealed class ProcessRecordingBackendTests : IDisposable
         using IRecordingProcess pipeline = _backend.Start(FfmpegPipeline.CommandLine(PingIntoSort(output)));
         try
         {
-            await Task.Delay(TimeSpan.FromSeconds(1), Ct);
+            await WaitForRecorderAsync(pipeline);
 
             Assert.False(await pipeline.WaitForRecorderExitAsync(TimeSpan.FromMilliseconds(500), Ct));
             pipeline.KillRecorder();
 
             Assert.True(await pipeline.WaitForExitAsync(TimeSpan.FromSeconds(10), Ct));
             Assert.Equal(0, pipeline.ExitCode);
-            Assert.Contains("127.0.0.1", await File.ReadAllTextAsync(output, Ct), StringComparison.Ordinal);
+            // The recorder may be killed before it writes a single line, so the output's content is not asserted here: this
+            // test is the kill's reach, and the pipeline's data flow is Start_OddFolderName_PathsReachTheStagesLiterally's.
+            Assert.True(File.Exists(output));
             Assert.DoesNotContain(_logger.Entries, entry => entry.Level == LogLevel.Warning);
         }
         finally
@@ -111,6 +117,28 @@ public sealed class ProcessRecordingBackendTests : IDisposable
             new PipelineStage(System32("PING.EXE"), ["-n", "30", "127.0.0.1"], Path.Combine(_folder, "ping.log"), "127.0.0.1"),
             new PipelineStage(System32("sort.exe"), ["/o", output], Path.Combine(_folder, "sort.log"), output)
         );
+
+    /// <summary>
+    /// Waits for cmd to have spawned the recorder, so a later wait for its end is not answered by a recorder that is simply
+    /// not there yet. A bare delay races the spawn under load: the missing recorder reads as one that has ended, and the
+    /// warning that goes with it is what this class's tests also assert against.
+    /// </summary>
+    private static async Task WaitForRecorderAsync(IRecordingProcess pipeline)
+    {
+        var waited = Stopwatch.StartNew();
+        while (!pipeline.IsRecorderRunning)
+        {
+            // The exit code is read only once the pipeline has ended: reading it on a running cmd throws, and a message is
+            // built whichever way the assert goes.
+            if (pipeline.HasExited)
+            {
+                Assert.Fail($"cmd exited (code {pipeline.ExitCode}) before its recorder was seen");
+            }
+
+            Assert.True(waited.Elapsed < RecorderSpawnWait, $"cmd did not spawn its recorder within {RecorderSpawnWait.TotalSeconds:0} s");
+            await Task.Delay(TimeSpan.FromMilliseconds(50), Ct);
+        }
+    }
 
     private static async Task EndPipelineAsync(IRecordingProcess pipeline)
     {
