@@ -116,16 +116,15 @@
   <div class="row" id="flyouts"></div>
   <p class="legend">Badges: TL taxilane, TW taxiway, S taxi spot (as today's rows). A blocked target is faded and names the aircraft in the way; it sends nothing. The distance is the tug's planned path, rounded to 5 ft.</p>
 
-  <h2>Open questions</h2>
+  <h2>Settled with the owner</h2>
   <ol class="note-list">
-    <li><b>Facings: chips on the row, or today's › second flyout?</b> Chips (shown by default) put every choice in one flyout: the row sends the bare <code>PUSH TE</code> and each chip sends <code>PUSH TE FACE N</code>. Worst case: a taxiway with four or more facings makes the row tall. The › flyout keeps rows one line, but it is a nested popup again, which YAAT-569 rules out for quick commands, and the › button is outside arrow-key travel.</li>
-    <li><b>Does a click on the row still send the bare <code>PUSH TE</code>?</b> The mock says yes, "facing: tug's choice", like the takeoff flyout's bare Cleared for takeoff row. The alternative: the row only expands its facings, and the instructor always picks one. Worst case of yes: a stray click pushes with a facing the instructor did not mean.</li>
-    <li><b>A target with a single facing.</b> The mock shows no chip when there is one facing (the bare command already gives it). Today the › shows for one facing too.</li>
-    <li><b>While the plan computes.</b> The mock shows the seed targets with "refining…" in the title and a spinner, then swaps the rows in place when the plan lands, keeping the pointer's row when it survives. With no seed it shows "Computing targets…". Worst case: a row the instructor is about to click disappears (the plan finds it unflyable) or turns blocked under the pointer; the mock makes a click on a row that is no longer there do nothing. Alternative: hold the seed rows until the pointer leaves the flyout.</li>
-    <li><b>Nothing to push to.</b> The mock keeps the disabled "No push targets from here" row when the plan settles empty while open. When the list is already settled empty before the menu opens, the strip button is left off, as today.</li>
-    <li><b>Sections.</b> The mock keeps today's two groups, each in path-length order. Shorter headers ("Behind the aircraft", "Taxi spots") would suit the flyout's title line; the full "Taxilanes and taxiways behind the aircraft" is kept here.</li>
-    <li><b>Blocked targets.</b> Faded, the blocker named, no send (today's rule). The RPO override <code>PUSHF</code> (docs/ground/pushback.md) is not offered; should a blocked row offer it?</li>
-    <li><b>All Commands › Push back to…</b> is built by the same code. The ruling covers the strip; should All Commands get the designed rows too (one builder for both, as the takeoff flyout does), or keep today's submenu?</li>
+    <li><b>Facings are chips on the row</b>; each sends <code>PUSH TE FACE N</code>. No › second flyout (the toggle above shows the rejected layout for comparison).</li>
+    <li><b>A click on the row sends the bare command</b>, <code>PUSH TE</code>, the tug choosing the facing. A target with one facing shows "faces E" with no chip.</li>
+    <li><b>Live fill:</b> the seed rows show with "refining…" in the title, or "Computing targets…" with no seed; the rows are replaced in place when the plan lands, keeping the pointer's row when it survives. A click on a row that has gone does nothing.</li>
+    <li><b>Empty:</b> a disabled "No push targets from here" row when the plan settles empty while open; no strip button when the list is empty before the menu opens.</li>
+    <li><b>Sections:</b> "Behind the aircraft", then "Taxi spots", each in path-length order.</li>
+    <li><b>Blocked targets</b> are faded, name the blocker and send nothing on a click; a "push anyway" chip sends the forced <code>PUSHF TF</code>.</li>
+    <li><b>All Commands › Push back to…</b> uses the same designed rows: one builder for the strip flyout and the submenu.</li>
   </ol>
 </main>
 
@@ -168,7 +167,9 @@
     const chips = showChips
       ? `<span class="chips">then face ${t.facings.map(f => `<span class="chip" role="menuitem" tabindex="${blocked ? -1 : 0}" data-send="${blocked ? "" : `${t.cmd} FACE ${f}`}">${f}</span>`).join("")}</span>`
       : (t.facings.length === 1 && !blocked ? `<span class="chips">faces ${t.facings[0]}</span>` : "");
-    const blockedLine = blocked ? `<span class="blocked">blocked by ${t.blockedBy}</span>` : "";
+    const blockedLine = blocked
+      ? `<span class="blocked">blocked by ${t.blockedBy}</span><span class="chips"><span class="chip" role="menuitem" tabindex="0" data-send="PUSHF ${t.cmd.slice(5)}">push anyway</span></span>`
+      : "";
     const arrow = showArrow ? `<span class="arrow" data-arrow="${i}" aria-label="Facings">›</span>` : (variant === "arrow" ? "<span></span>" : "");
     const cls = ["item", blocked ? "disabled" : "", variant === "arrow" ? "with-arrow" : ""].join(" ");
     return `<div class="${cls}" role="menuitem" tabindex="${blocked ? -1 : 0}" data-send="${blocked ? "" : t.cmd}">
@@ -190,7 +191,7 @@
     const lanes = state.targets.filter(t => t.kind !== "S");
     const spots = state.targets.filter(t => t.kind === "S");
     let html = "";
-    if (lanes.length) html += `<div class="group">Taxilanes and taxiways behind the aircraft</div>` + lanes.map(t => rowHtml(t, state.targets.indexOf(t))).join("");
+    if (lanes.length) html += `<div class="group">Behind the aircraft</div>` + lanes.map(t => rowHtml(t, state.targets.indexOf(t))).join("");
     if (lanes.length && spots.length) html += `<div class="sep"></div>`;
     if (spots.length) html += `<div class="group">Taxi spots</div>` + spots.map(t => rowHtml(t, state.targets.indexOf(t))).join("");
     return html;
