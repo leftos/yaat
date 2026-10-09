@@ -5,15 +5,12 @@
 ## Do first
 
 - [ ] YAAT-266 Tower Cab 3D joins a YAAT room without CRC and shows in Room Members · release vNext+1 — High · Wave 6 — Strips, TDLS, air-taxi and hub
-- [ ] YAAT-221 Brief rule: name a sim change's at-risk tests and rule on each — High · Wave 9 — Docs and repo hygiene
-- [ ] YAAT-550 Stop KillRecorder_EndsOnlyTheRecorder flaking under load — High · Wave 9 — Docs and repo hygiene
 
 ## Precompute cache (feat/precompute-cache)
 
 - [/] YAAT-440 Group, filter and distance-label the ground view's Push Back To submenu · release vNext
 - [ ] YAAT-475 Merge feat/precompute-cache (#951) · release vNext
 - [ ] YAAT-497 Split the tug planner's shared pieces out of the precompute layout source set · release vNext
-- [/] YAAT-511 Refuse TAXI for a jet or turboprop at a push-back stand without a push · release vNext
 - [ ] YAAT-553 Regenerate the precompute cache on feat/precompute-cache before its merge · release vNext
 
 ## Follow on the taxi graph (feat/follow-on-graph)
@@ -52,10 +49,11 @@
 - [ ] YAAT-478 Resolve a shorthand expected approach before picking the visual approach's default runway
 - [ ] YAAT-503 Context-menu For section is offered for a delayed-spawn selection
 - [ ] YAAT-517 Hold short of… destination-runway row sends a no-op HS
-- [ ] YAAT-521 Pattern-entry runway flyout: rotated glyphs, active runways first, landable first · release vNext
+- [/] YAAT-521 Pattern-entry runway flyout: rotated glyphs, active runways first, landable first · release vNext
 - [ ] YAAT-522 Cleared for takeoff flyout: VFR pattern exits, turn direct a fix, initial altitude; IFR heading · release vNext
 - [ ] YAAT-524 Cleared for takeoff menu's "360 overhead" sends CTO 360, a heading
 - [ ] YAAT-545 Close the gap the quick-command label row leaves above the icon strip
+- [ ] YAAT-557 Keep the Taxi to runway rows' detail clear of the distance column · release vNext
 
 ## Tick-path unification
 
@@ -308,6 +306,8 @@
 - [ ] YAAT-526 Update yaat's skills and docs for land going straight to Done (no Landed state)
 - [ ] YAAT-531 Re-read the four drifted docs the 2026-10-08 scan found outside YAAT-126
 - [ ] YAAT-555 Add ck hybrid_search's threshold caveat to aviation-sim-expert and CLAUDE.md
+- [ ] YAAT-558 Stop QuickCommandsSection_DragReordersARow flaking under load
+- [ ] YAAT-559 Add every vNAS training airport with a real ground layout to the test data
 
 ## Singles
 
@@ -396,6 +396,7 @@
 - [ ] YAAT-200 Build the standalone airport GeoJSON editor
 - [ ] YAAT-201 Work the phraseology coverage backlog
 - [ ] YAAT-268 Context menus in an extra ground window at another airport use the primary view's layout
+- [ ] YAAT-556 Apply a per-category fillet-arc floor in the taxi pathfinder
 - [ ] YAAT-202 BEHIND grammar extensions
 - [ ] YAAT-203 Measure ApproachEvaluator separation at a common instant, not the current lead
 - [ ] YAAT-214 Warn the RPO in the terminal when an amended flight plan has unresolvable route elements
