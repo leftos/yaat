@@ -1,10 +1,8 @@
 using System.Globalization;
-using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Templates;
 using Avalonia.Input;
-using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Media.Immutable;
 using Yaat.Sim;
@@ -532,6 +530,27 @@ public static class MenuCatalog
     }
 
     /// <summary>
+    /// A <see cref="BuildSend"/> item whose header is <paramref name="header"/> drawn by <paramref name="template"/>, its
+    /// UI Automation name the header's one-line text. The caller adds any hover behaviour.
+    /// </summary>
+    internal static MenuItem BuildTemplatedSend<THeader>(
+        THeader header,
+        FuncDataTemplate<THeader> template,
+        string command,
+        MenuContext context,
+        IMenuHost host
+    )
+        where THeader : class
+    {
+        string text = header.ToString() ?? throw new InvalidOperationException($"The menu row header {typeof(THeader).Name} gave no one-line text.");
+        MenuItem item = BuildSend(text, command, context, host);
+        item.Header = header;
+        item.HeaderTemplate = template;
+        AutomationProperties.SetName(item, text);
+        return item;
+    }
+
+    /// <summary>
     /// A menu item labelled <paramref name="label"/> that sends the controller-authored text <paramref name="command"/>
     /// gives, read again when clicked, for the menu's aircraft through the host's VFR gate
     /// (<see cref="IMenuHost.SendGatedAsync"/>); the item records the text it gives when built.
@@ -742,23 +761,25 @@ public static class MenuCatalog
 
     private static readonly IImmutableSolidColorBrush RunwayBadgeBrush = new ImmutableSolidColorBrush(Color.Parse("#E8A33D"));
 
-    /// <summary>What a hold-short row shows: its badge, name, where along the route, distance, and the command it sends.</summary>
-    private sealed record HoldShortRowHeader(string Badge, string Name, string Where, string Distance, string Command)
-    {
-        /// <summary>The row as one line of text: <c>TW S1 · crossing on S · ~150 ft — HS S1</c>.</summary>
-        public override string ToString() => $"{Badge} {Name} · {Where} · {Distance} — {Command}";
-    }
-
-    /// <summary>One hold-short row: sends its command, and previews the route to its bar on hover.</summary>
+    /// <summary>
+    /// One hold-short row: the TW/RW badge, the name followed by the dimmed "where", then the distance right-aligned
+    /// and the command. Sends its command, and previews the route to its bar on hover.
+    /// </summary>
     private static MenuItem BuildHoldShortRow(HoldShortChoice row, MenuContext context, IMenuHost host)
     {
         HoldShortRowLabel label = row.Label;
-        string distance = $"~{label.DistanceFt.ToString("N0", CultureInfo.InvariantCulture)} ft";
-        var header = new HoldShortRowHeader(label.Badge, label.Name, label.Where, distance, row.Command);
-        MenuItem item = BuildSend(header.ToString(), row.Command, context, host);
-        item.Header = header;
-        item.HeaderTemplate = new FuncDataTemplate<HoldShortRowHeader>((rowHeader, _) => HoldShortRowView(rowHeader));
-        AutomationProperties.SetName(item, header.ToString());
+        IImmutableSolidColorBrush badgeBrush = (label.Badge == HoldShortChoice.RunwayBadge) ? RunwayBadgeBrush : TaxiwayBadgeBrush;
+        var header = new MenuCommandRow
+        {
+            Badge = new MenuDetailBadge(label.Badge, badgeBrush),
+            Name = label.Name,
+            EmphasizeName = true,
+            Detail = label.Where,
+            DetailPlacement = MenuDetailPlacement.Inline,
+            Distance = $"~{label.DistanceFt.ToString("N0", CultureInfo.InvariantCulture)} ft",
+            Command = row.Command,
+        };
+        MenuItem item = BuildTemplatedSend(header, MenuCommandRowTemplate.Instance, row.Command, context, host);
         item.PointerEntered += (_, _) => host.SetRoutePreview(row.Preview);
         return item;
     }
@@ -774,75 +795,6 @@ public static class MenuCatalog
         };
         text.Bind(TextBlock.FontFamilyProperty, text.GetResourceObservable(QuickCommandStrip.MonoFontKey));
         return text;
-    }
-
-    /// <summary>
-    /// A hold-short row's view: the TW/RW badge, the name followed by the dimmed "where", then the distance, then the
-    /// command right-aligned in the dimmed monospace font.
-    /// </summary>
-    private static Grid HoldShortRowView(HoldShortRowHeader row)
-    {
-        var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto,Auto") };
-        IImmutableSolidColorBrush badgeBrush = (row.Badge == HoldShortChoice.RunwayBadge) ? RunwayBadgeBrush : TaxiwayBadgeBrush;
-        var badge = new Border
-        {
-            BorderBrush = badgeBrush,
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(3),
-            Padding = new Thickness(3, 0),
-            Margin = new Thickness(0, 0, 8, 0),
-            VerticalAlignment = VerticalAlignment.Center,
-            Child = new TextBlock
-            {
-                Text = row.Badge,
-                FontSize = 11,
-                Foreground = badgeBrush,
-            },
-        };
-        grid.Children.Add(badge);
-
-        var name = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            VerticalAlignment = VerticalAlignment.Center,
-            Children =
-            {
-                new TextBlock { Text = row.Name, FontWeight = FontWeight.SemiBold },
-                new TextBlock
-                {
-                    Text = $" · {row.Where}",
-                    FontSize = 12,
-                    Opacity = 0.8,
-                    VerticalAlignment = VerticalAlignment.Center,
-                },
-            },
-        };
-        Grid.SetColumn(name, 1);
-        grid.Children.Add(name);
-
-        var distance = new TextBlock
-        {
-            Text = row.Distance,
-            Margin = new Thickness(16, 0, 0, 0),
-            HorizontalAlignment = HorizontalAlignment.Right,
-            VerticalAlignment = VerticalAlignment.Center,
-        };
-        Grid.SetColumn(distance, 2);
-        grid.Children.Add(distance);
-
-        var command = new TextBlock
-        {
-            Text = row.Command,
-            FontSize = 12,
-            Opacity = 0.7,
-            Margin = new Thickness(16, 0, 0, 0),
-            HorizontalAlignment = HorizontalAlignment.Right,
-            VerticalAlignment = VerticalAlignment.Center,
-        };
-        command.Bind(TextBlock.FontFamilyProperty, command.GetResourceObservable(QuickCommandStrip.MonoFontKey));
-        Grid.SetColumn(command, 3);
-        grid.Children.Add(command);
-        return grid;
     }
 
     /// <summary>
@@ -986,75 +938,29 @@ public static class MenuCatalog
         items.Add(more);
     }
 
-    /// <summary>What a ground traffic row shows: callsign and type, state, distance, and the command it sends.</summary>
-    private sealed record GroundTrafficRowHeader(string Name, string State, string Distance, string Command)
-    {
-        /// <summary>The row as one line of text: <c>SWA1182 · B737 · pushing back · gate 24 · ~450 ft — FOLLOWG SWA1182</c>.</summary>
-        public override string ToString() => $"{Name} · {State} · {Distance} — {Command}";
-    }
-
-    /// <summary>Builds a ground traffic submenu's rows: each sends the verb with its callsign and highlights its aircraft on hover.</summary>
+    /// <summary>
+    /// Builds a ground traffic submenu's rows: the callsign and type over the dimmed state, then the distance and the
+    /// command. Each sends the verb with its callsign and highlights its aircraft on hover.
+    /// </summary>
     private sealed class GroundTrafficRowSender(string verb, MenuContext context, IMenuHost host)
     {
         public MenuItem Row(MenuGroundTrafficRow row)
         {
             string command = $"{verb} {row.Callsign}";
-            string name = (row.AircraftType.Length > 0) ? $"{row.Callsign} · {row.AircraftType}" : row.Callsign;
-            var header = new GroundTrafficRowHeader(name, row.State, $"~{RelativeGeometry.FeetText(row.DistanceFeet)}", command);
-            MenuItem item = BuildSend(header.ToString(), command, context, host);
-            item.Header = header;
-            item.HeaderTemplate = new FuncDataTemplate<GroundTrafficRowHeader>((rowHeader, _) => GroundTrafficRowView(rowHeader));
-            AutomationProperties.SetName(item, header.ToString());
+            var header = new MenuCommandRow
+            {
+                Badge = null,
+                Name = (row.AircraftType.Length > 0) ? $"{row.Callsign} · {row.AircraftType}" : row.Callsign,
+                EmphasizeName = false,
+                Detail = row.State,
+                DetailPlacement = MenuDetailPlacement.Stacked,
+                Distance = $"~{RelativeGeometry.FeetText(row.DistanceFeet)}",
+                Command = command,
+            };
+            MenuItem item = BuildTemplatedSend(header, MenuCommandRowTemplate.Instance, command, context, host);
             item.PointerEntered += (_, _) => host.HighlightAircraft(row.Callsign);
             return item;
         }
-    }
-
-    /// <summary>
-    /// A ground traffic row's view: the callsign and type over the dimmed state, then the distance, then the command
-    /// right-aligned in the dimmed monospace font.
-    /// </summary>
-    private static Grid GroundTrafficRowView(GroundTrafficRowHeader row)
-    {
-        var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto,Auto") };
-        var name = new StackPanel
-        {
-            VerticalAlignment = VerticalAlignment.Center,
-            Children =
-            {
-                new TextBlock { Text = row.Name },
-                new TextBlock
-                {
-                    Text = row.State,
-                    FontSize = 11,
-                    Opacity = 0.8,
-                },
-            },
-        };
-        grid.Children.Add(name);
-
-        var distance = new TextBlock
-        {
-            Text = row.Distance,
-            Margin = new Thickness(16, 0, 0, 0),
-            VerticalAlignment = VerticalAlignment.Center,
-        };
-        Grid.SetColumn(distance, 1);
-        grid.Children.Add(distance);
-
-        var command = new TextBlock
-        {
-            Text = row.Command,
-            FontSize = 12,
-            Opacity = 0.7,
-            Margin = new Thickness(16, 0, 0, 0),
-            HorizontalAlignment = HorizontalAlignment.Right,
-            VerticalAlignment = VerticalAlignment.Center,
-        };
-        command.Bind(TextBlock.FontFamilyProperty, command.GetResourceObservable(QuickCommandStrip.MonoFontKey));
-        Grid.SetColumn(command, 2);
-        grid.Children.Add(command);
-        return grid;
     }
 
     /// <summary>

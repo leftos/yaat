@@ -1,5 +1,4 @@
 using Avalonia;
-using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Templates;
 using Avalonia.Layout;
@@ -410,11 +409,7 @@ internal static class ApproachPickerBuilder
         {
             string command = $"{Command} {approach.Id}";
             var header = new ApproachRowHeader(approach.FullName, (approach.Id == ExpectedId) ? ExpectedBadge : null, command);
-            MenuItem item = MenuCatalog.BuildSend(header.ToString(), command, Context, Host);
-            item.Header = header;
-            item.HeaderTemplate = new FuncDataTemplate<ApproachRowHeader>((row, _) => RowView(row));
-            AutomationProperties.SetName(item, header.ToString());
-            return item;
+            return MenuCatalog.BuildTemplatedSend(header, new FuncDataTemplate<ApproachRowHeader>((row, _) => RowView(row)), command, Context, Host);
         }
     }
 }

@@ -3,6 +3,9 @@ using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Layout;
+using Avalonia.Media;
+using Avalonia.VisualTree;
 using Xunit;
 using Yaat.Client.ContextMenus;
 using Yaat.Client.Models;
@@ -116,28 +119,71 @@ public class GroundSubmenuGroupTests
     private static List<MenuItem> HoldShortRows(MenuItem holdShort) => [.. holdShort.Items.OfType<MenuItem>().Where(m => m.Header is not string)];
 
     /// <summary>The texts <paramref name="row"/>'s header template shows, in layout order.</summary>
-    private static List<string> RowTexts(MenuItem row)
+    private static List<string> RowTexts(MenuItem row) => [.. TextBlocks(RowView(row)).Select(block => block.Text ?? "")];
+
+    [AvaloniaFact]
+    public void MenuCommandRowTemplate_HoldShortAndGroundTraffic_KeepTheirLayouts()
     {
-        Control view = row.HeaderTemplate!.Build(row.Header)!;
-        List<string> texts = [];
-        CollectTexts(view, texts);
-        return texts;
+        var host = new RecordingMenuHost("");
+        host.HoldShortChoices.Add(
+            new HoldShortChoice(
+                new HoldShortRowLabel(HoldShortChoice.TaxiwayBadge, "S1", "crossing on S", 1500),
+                "HS S1@S",
+                new TaxiRoute { Segments = [], HoldShortPoints = [] }
+            )
+        );
+        host.GroundTraffic.Add(RecordingMenuHost.ParkedRow("SWA200"));
+        ItemCollection tree = CommandTree(BuildTaxiGroups(host));
+
+        Control holdShortView = RowView(HoldShortRows(Item(tree, "Hold short of…"))[0]);
+        TextBlock where = TextWithContent(holdShortView, " · crossing on S");
+        Assert.Equal(12, where.FontSize);
+        StackPanel holdShortName = Assert.IsType<StackPanel>(where.Parent);
+        Assert.Equal(Orientation.Horizontal, holdShortName.Orientation);
+        TextBlock holdShortBar = Assert.IsType<TextBlock>(holdShortName.Children[0]);
+        Assert.Equal("S1", holdShortBar.Text);
+        Assert.Equal(FontWeight.SemiBold, holdShortBar.FontWeight);
+        Assert.NotEmpty(holdShortView.GetVisualDescendants().OfType<Border>());
+
+        Control groundView = RowView(FollowRow(Item(tree, "Follow…"), "SWA200"));
+        TextBlock state = TextWithContent(groundView, "at parking · gate 1");
+        Assert.Equal(11, state.FontSize);
+        StackPanel groundName = Assert.IsType<StackPanel>(state.Parent);
+        Assert.Equal(Orientation.Vertical, groundName.Orientation);
+        TextBlock groundCallsign = Assert.IsType<TextBlock>(groundName.Children[0]);
+        Assert.Equal("SWA200 · B738", groundCallsign.Text);
+        Assert.NotEqual(FontWeight.SemiBold, groundCallsign.FontWeight);
+        Assert.Empty(groundView.GetVisualDescendants().OfType<Border>());
     }
 
-    private static void CollectTexts(Control control, List<string> texts)
+    /// <summary>The view <paramref name="row"/>'s header template builds from its header.</summary>
+    private static Control RowView(MenuItem row) => row.HeaderTemplate!.Build(row.Header)!;
+
+    /// <summary>The one text block in <paramref name="view"/> that shows <paramref name="text"/>.</summary>
+    private static TextBlock TextWithContent(Control view, string text) => Assert.Single(TextBlocks(view), block => block.Text == text);
+
+    /// <summary>Every text block in <paramref name="view"/>, in layout order.</summary>
+    private static List<TextBlock> TextBlocks(Control view)
+    {
+        List<TextBlock> blocks = [];
+        CollectTextBlocks(view, blocks);
+        return blocks;
+    }
+
+    private static void CollectTextBlocks(Control control, List<TextBlock> blocks)
     {
         switch (control)
         {
             case TextBlock text:
-                texts.Add(text.Text ?? "");
+                blocks.Add(text);
                 break;
             case Border { Child: { } child }:
-                CollectTexts(child, texts);
+                CollectTextBlocks(child, blocks);
                 break;
             case Panel panel:
                 foreach (Control child in panel.Children)
                 {
-                    CollectTexts(child, texts);
+                    CollectTextBlocks(child, blocks);
                 }
 
                 break;
