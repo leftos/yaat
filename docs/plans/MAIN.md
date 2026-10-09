@@ -8,7 +8,6 @@
 
 ## Precompute cache (feat/precompute-cache)
 
-- [/] YAAT-495 Precompute cache brief C: maintainer tool (compute, --check, --refresh-representatives) · release vNext
 - [ ] YAAT-440 Group, filter and distance-label the ground view's Push Back To submenu · release vNext
 - [ ] YAAT-475 Merge feat/precompute-cache (#951) · release vNext
 - [ ] YAAT-497 Split the tug planner's shared pieces out of the precompute layout source set · release vNext
@@ -18,7 +17,6 @@
 
 ## Follow on the taxi graph (feat/follow-on-graph)
 
-- [/] YAAT-316 FOLLOWG follower cuts across the field off the taxiways and can bypass a runway hold line · release vNext
 - [ ] YAAT-407 Merge feat/follow-on-graph (#881) · release vNext
 - [ ] YAAT-507 FOLLOWG clearing route stops one node before the next runway's hold bar
 - [ ] YAAT-508 FOLLOWG clearing check ignores traffic crossing at a junction
@@ -39,11 +37,10 @@
 - [ ] YAAT-284 FOLLOW gets no pilot readback in solo; late 'traffic in sight' in clip C2
 - [ ] YAAT-288 Find what gave an automation-mode client the keyboard foreground for 3.5 s (YAAT-282 leftover)
 - [ ] YAAT-403 Support for vTBFM · release vNext
-  - [ ] YAAT-412 vTBFM: meter on the feed's clock (contributed PR) · release vNext
+  - [/] YAAT-412 vTBFM: meter on the feed's clock (contributed PR) · release vNext
   - [ ] YAAT-413 Integration and smoke test a YAAT-fed vTBFM, then write the setup steps · release vNext
   - [!] YAAT-538 List the rooms a feed consumer's user may see (ARTCC-filtered, authenticated) · release vNext+1
   - [!] YAAT-539 vTBFM: follow each user's chosen YAAT room (contributed PR) · release vNext+1
-- [/] YAAT-527 Draft the vNext feature showcase: a Markdown page with screenshots of the new features · release vNext
 
 ## Context-menu quick commands (#471)
 
@@ -52,15 +49,14 @@
 - [ ] YAAT-446 Stop the Temporary altitude and Cruise popups throwing on FL or comma input
 - [ ] YAAT-448 Stop the Hold short submenu offering fillet names the server refuses
 - [ ] YAAT-449 Find why a grounded aircraft can end with no phase, and give it ground menus
-- [/] YAAT-460 Add Taxi to runway ▸ to the ground aircraft menu, with via and distance per entry point · release vNext
 - [ ] YAAT-478 Resolve a shorthand expected approach before picking the visual approach's default runway
 - [ ] YAAT-503 Context-menu For section is offered for a delayed-spawn selection
 - [ ] YAAT-517 Hold short of… destination-runway row sends a no-op HS
 - [ ] YAAT-521 Pattern-entry runway flyout: rotated glyphs, active runways first, landable first · release vNext
 - [ ] YAAT-522 Cleared for takeoff flyout: VFR pattern exits, turn direct a fix, initial altitude; IFR heading · release vNext
 - [ ] YAAT-524 Cleared for takeoff menu's "360 overhead" sends CTO 360, a heading
-- [ ] YAAT-540 Clear a menu's route preview on every ground view when the menu closes
 - [ ] YAAT-545 Close the gap the quick-command label row leaves above the icon strip
+- [ ] YAAT-547 Open quick-command submenus as a sticky flyout beside the aircraft menu · release vNext
 
 ## Tick-path unification
 
@@ -451,7 +447,6 @@
 - [ ] YAAT-473 Read a room's pinned layouts and missing maps from one snapshot when bundling
 - [ ] YAAT-474 Read a recording's bundled layout by airport id ignoring case
 - [ ] YAAT-484 Make two client-driver MCP timing tests pass under machine load
-- [ ] YAAT-492 Send HFR, HFROFF, REL and CFR with no aircraft selected; answer a global verb's parse error, not Aircraft '' not found
 - [ ] YAAT-493 Flaky UI test: QuickCommandsSection_DragReordersARow fails once in a full run
 - [ ] YAAT-501 Live PUSH onto a taxiway can tow across other movement-area taxiways
 - [ ] YAAT-502 Recording archive writer drops SessionStartUtc
@@ -465,3 +460,5 @@
 - [ ] YAAT-536 Rebuild KoakFollowGeometry.BChain from real edges; remove dead IsClearOf
 - [ ] YAAT-541 GuideCapture: keep one booted room across scenes, and an iterate mode for one scene
 - [ ] YAAT-544 Parse the CMH, LBB and TTN vNAS ground maps (GeoJsonParser throws)
+- [ ] YAAT-548 Answer the Active runways prompt in the just-landed and ground-taxi-route capture scenes
+- [ ] YAAT-549 Show an error for PAUSE, UNPAUSE, SIMRATE and the TDLS ops verb when the send fails, instead of throwing
