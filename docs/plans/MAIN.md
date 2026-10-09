@@ -53,7 +53,6 @@
 - [ ] YAAT-448 Stop the Hold short submenu offering fillet names the server refuses
 - [ ] YAAT-449 Find why a grounded aircraft can end with no phase, and give it ground menus
 - [ ] YAAT-460 Add Taxi to runway ▸ to the ground aircraft menu, with via and distance per entry point · release vNext
-- [/] YAAT-463 Offer the named exits ahead on the landing roll · release vNext
 - [ ] YAAT-478 Resolve a shorthand expected approach before picking the visual approach's default runway
 - [ ] YAAT-503 Context-menu For section is offered for a delayed-spawn selection
 - [ ] YAAT-517 Hold short of… destination-runway row sends a no-op HS
