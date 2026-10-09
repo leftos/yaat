@@ -83,6 +83,41 @@ public sealed record PushMoveEntry
         };
     }
 
+    /// <summary>
+    /// The move this entry stores, built through the shape factory the planner built it with: the inverse of
+    /// <see cref="From"/> for every field but the planned end, which a re-flown move works out again.
+    /// </summary>
+    /// <returns>The move.</returns>
+    /// <exception cref="InvalidOperationException">
+    /// The entry carries one coordinate of its stop without the other, or a shape no move factory builds.
+    /// </exception>
+    public TugMove ToMove()
+    {
+        TugMove move = Shape switch
+        {
+            TugMoveShape.Straight => TugMove.Straight(Kind, StraightDistanceFt),
+            TugMoveShape.ToPoint => TugMove.ToPoint(Kind, Point()),
+            TugMoveShape.ViaLine => TugMove.ViaLine(Kind, Point(), LineTravelTrueDeg, StopAt()),
+            TugMoveShape.TurnTo => TugMove.TurnTo(Kind, FacingTrueDeg),
+            _ => throw new InvalidOperationException($"A stored push move has shape {Shape}, which no move factory builds"),
+        };
+        return move with { Tight = Tight, Creep = Creep, DwellBefore = DwellBefore };
+    }
+
+    /// <summary>The move's point: a to-point move's target, a via-line move's point on the line.</summary>
+    private LatLon Point() => new(PointLatitude, PointLongitude);
+
+    /// <summary>The via-line stop the entry stores, or null for a floating stop.</summary>
+    private LatLon? StopAt() =>
+        (StopAtLatitude, StopAtLongitude) switch
+        {
+            ({ } latitude, { } longitude) => new LatLon(latitude, longitude),
+            (null, null) => null,
+            _ => throw new InvalidOperationException(
+                $"A stored push move carries one coordinate of its stop without the other: {StopAtLatitude}, {StopAtLongitude}"
+            ),
+        };
+
     private static double Coordinate(double degrees) => Math.Round(degrees, 7);
 
     private static double Hundredths(double value) => Math.Round(value, 2);

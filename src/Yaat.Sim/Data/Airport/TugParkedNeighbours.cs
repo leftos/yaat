@@ -121,16 +121,46 @@ public static class TugParkedNeighbours
                 continue;
             }
 
-            near.Add(
-                new TugParkedNeighbour
-                {
-                    Callsign = other.Callsign,
-                    Position = other.Position,
-                    TrueHeadingDeg = other.TrueHeadingDeg,
-                    Footprint = otherFootprint,
-                    StandName = other.StandName,
-                }
-            );
+            near.Add(NeighbourOf(other, otherFootprint));
+        }
+
+        return near;
+    }
+
+    /// <summary>
+    /// The parked or held aircraft, excluding the aircraft itself (by callsign), within both outlines' reach plus
+    /// <see cref="GroundOutlineSweep.WingtipBufferFt"/> of any sample of a flown path: every one the sweep could find
+    /// under its floor anywhere along it, however far from the start. Unlike <see cref="Build"/> it applies no range
+    /// about the start and keeps a neighbour the aircraft already touches; a caller reads
+    /// <see cref="FindStartOverlap(TugNeighbourCandidate, AircraftFootprint, bool, IEnumerable{TugNeighbourCandidate})"/> first.
+    /// </summary>
+    /// <param name="aircraft">The aircraft the path is flown for.</param>
+    /// <param name="mover">Its dimensions; its reach is taken with the tug lead, which covers both kinds of move.</param>
+    /// <param name="flown">The flown moves.</param>
+    /// <param name="others">Every aircraft the caller can see; may include the aircraft itself.</param>
+    /// <returns>The neighbours to sweep the path against.</returns>
+    public static IReadOnlyList<TugParkedNeighbour> WithinReachOfPath(
+        TugNeighbourCandidate aircraft,
+        AircraftFootprint mover,
+        IReadOnlyList<TugMoveTrace> flown,
+        IEnumerable<TugNeighbourCandidate> others
+    )
+    {
+        double moverReachFt = GroundOutlineSize.Of(mover, towedNoseFirst: true).ReachFt;
+        var near = new List<TugParkedNeighbour>();
+        foreach (TugNeighbourCandidate other in others)
+        {
+            if (!IsParkedOrHeldOther(aircraft, other))
+            {
+                continue;
+            }
+
+            var otherFootprint = AircraftFootprint.FromType(other.AircraftType);
+            double withinFt = moverReachFt + GroundOutlineSize.Of(otherFootprint, towedNoseFirst: false).ReachFt + GroundOutlineSweep.WingtipBufferFt;
+            if (flown.Any(t => t.Samples.Any(p => (GeoMath.DistanceNm(p.Position, other.Position) * GeoMath.FeetPerNm) <= withinFt)))
+            {
+                near.Add(NeighbourOf(other, otherFootprint));
+            }
         }
 
         return near;
@@ -142,13 +172,34 @@ public static class TugParkedNeighbours
     /// range applies: an overlap is a contact wherever the pair stands.
     /// </summary>
     /// <param name="aircraft">The aircraft the move was planned for, where it stands now.</param>
+    /// <param name="footprint">The dimensions the aircraft's outline is read with.</param>
     /// <param name="plan">The planned move; its first leg says whether a tug leads the nose.</param>
     /// <param name="others">Every aircraft the caller can see; may include the aircraft itself.</param>
     /// <returns>The overlap, or null.</returns>
-    public static TugStartOverlap? FindStartOverlap(TugNeighbourCandidate aircraft, TugPlan plan, IEnumerable<TugNeighbourCandidate> others)
+    public static TugStartOverlap? FindStartOverlap(
+        TugNeighbourCandidate aircraft,
+        AircraftFootprint footprint,
+        TugPlan plan,
+        IEnumerable<TugNeighbourCandidate> others
+    ) => FindStartOverlap(aircraft, footprint, (plan.Moves.Count > 0) && (plan.Moves[0].Move.Kind == PushbackLegKind.Pull), others);
+
+    /// <summary>
+    /// The first parked or held aircraft whose outline the aircraft already touches or overlaps where it stands, with a
+    /// tug and towbar ahead of its nose when <paramref name="towedNoseFirst"/>; null when every one is clear. No range
+    /// applies: an overlap is a contact wherever the pair stands.
+    /// </summary>
+    /// <param name="aircraft">The aircraft the move is for, where it stands now.</param>
+    /// <param name="footprint">The dimensions the aircraft's outline is read with.</param>
+    /// <param name="towedNoseFirst">The move opens with a pull, so a tug and towbar lead the nose.</param>
+    /// <param name="others">Every aircraft the caller can see; may include the aircraft itself.</param>
+    /// <returns>The overlap, or null.</returns>
+    public static TugStartOverlap? FindStartOverlap(
+        TugNeighbourCandidate aircraft,
+        AircraftFootprint footprint,
+        bool towedNoseFirst,
+        IEnumerable<TugNeighbourCandidate> others
+    )
     {
-        bool towedNoseFirst = (plan.Moves.Count > 0) && (plan.Moves[0].Move.Kind == PushbackLegKind.Pull);
-        var aircraftFootprint = AircraftFootprint.FromType(aircraft.AircraftType);
         foreach (TugNeighbourCandidate other in others)
         {
             if (!IsParkedOrHeldOther(aircraft, other))
@@ -156,7 +207,7 @@ public static class TugParkedNeighbours
                 continue;
             }
 
-            double clearanceFt = ClearanceFt(aircraft, aircraftFootprint, towedNoseFirst, other, AircraftFootprint.FromType(other.AircraftType));
+            double clearanceFt = ClearanceFt(aircraft, footprint, towedNoseFirst, other, AircraftFootprint.FromType(other.AircraftType));
             if (clearanceFt < GroundOutlineSweep.OutlineClearanceSlackFt)
             {
                 return new TugStartOverlap(aircraft.Callsign, other.Callsign, clearanceFt, towedNoseFirst);
@@ -174,6 +225,16 @@ public static class TugParkedNeighbours
     private static bool IsParkedOrHeldOther(TugNeighbourCandidate aircraft, TugNeighbourCandidate other) =>
         !string.Equals(other.Callsign, aircraft.Callsign, StringComparison.OrdinalIgnoreCase)
         && GroundConflictDetector.IsParkedOrHeld(other.IsImmobile, other.PhaseName, other.GroundSpeedKts, other.TargetSpeedKts);
+
+    private static TugParkedNeighbour NeighbourOf(TugNeighbourCandidate other, AircraftFootprint footprint) =>
+        new()
+        {
+            Callsign = other.Callsign,
+            Position = other.Position,
+            TrueHeadingDeg = other.TrueHeadingDeg,
+            Footprint = footprint,
+            StandName = other.StandName,
+        };
 
     private static double ClearanceFt(
         TugNeighbourCandidate a,

@@ -600,6 +600,9 @@ A synthetic footprint (`ADG-I` to `ADG-VI`) for one airplane design group: the g
 **Golden (menu golden)**:
 A committed text snapshot of an aircraft right-click menu for one view and one situation fixture (`tests/Yaat.Client.UI.Tests/Goldens/menu/{radar,ground,list}/<fixture>.txt`, written by `MenuTreeSnapshot`); `MenuGoldenTests` fails when a menu differs from its golden, and `YAAT_MENU_GOLDEN_REGENERATE=1` rewrites them.
 
+**Live check**:
+The re-fly and sweep of a cached push target when an aircraft's Push Back To menu opens: the stored moves are flown again with the aircraft's own outline and turn radius and swept against the parked or held aircraft about it (`PushTargetLiveCheck.Check`). The verdict is Clear, Blocked (by a named neighbour) or Unflyable.
+
 **Ouroboros** (controller-voice ouroboros):
 The speech sandbox's self-test (`--atc-ouroboros`): it synthesises controller transmissions from templates with a TTS voice, runs them through speech recognition and the phraseology mapper, and scores each case against the template's expected command (`tools/Yaat.SpeechSandbox/Corpus/atc-ouroboros-baseline.json`).
 

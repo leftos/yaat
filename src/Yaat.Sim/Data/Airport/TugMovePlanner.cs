@@ -1952,47 +1952,16 @@ internal sealed class TugPlanBuilder
     }
 
     /// <summary>
-    /// How a candidate passes one parked neighbour: whether every run of it (<see cref="RunPathFrom"/>) keeps the sweep
-    /// floor a plain tow is held to (<see cref="GroundOutlineSweep"/>), and the closest its outline comes to the
-    /// neighbour's over its whole path, feet.
+    /// How a candidate passes one parked neighbour: whether every run of it keeps the sweep floor a plain tow is held to
+    /// (<see cref="TugNeighbourSweep.FirstFoulAlongFt"/>), and the closest its outline comes to the neighbour's over its
+    /// whole path, feet (<see cref="TugNeighbourSweep.ClosestFt"/>).
     /// </summary>
-    private TugNeighbourClearance NeighbourPass(IReadOnlyList<TugMoveTrace> traces, TugParkedNeighbour neighbour)
-    {
-        var frame = new GroundOutlineFrame(_request.Start.Position);
-        var neighbourSize = GroundOutlineSize.Of(neighbour.Footprint, towedNoseFirst: false);
-        var outline = GroundOutline.At(frame.ToLocal(neighbour.Position), neighbour.TrueHeadingDeg, neighbourSize);
-        bool fouls = false;
-        double closestFt = double.MaxValue;
-        for (int i = 0; i < traces.Count; i++)
-        {
-            var moverSize = GroundOutlineSize.Of(_request.Footprint, towedNoseFirst: traces[i].Move.Kind == PushbackLegKind.Pull);
-            foreach (TugPose pose in traces[i].Samples)
-            {
-                closestFt = Math.Min(
-                    closestFt,
-                    GroundOutline.Clearance(GroundOutline.At(frame.ToLocal(pose.Position), pose.NoseTrueDeg, moverSize), outline)
-                );
-            }
-
-            List<(TugPose Pose, double AlongFt)> path = RunPathFrom(traces, i);
-            if (path.Count > 0)
-            {
-                GroundOutlineSweepResult swept = GroundOutlineSweep.Sweep(
-                    path,
-                    path[0].Pose,
-                    RowClearanceFt(traces, neighbour),
-                    frame,
-                    moverSize,
-                    neighbour.Position,
-                    neighbour.TrueHeadingDeg,
-                    neighbourSize
-                );
-                fouls |= swept.Foul is not null;
-            }
-        }
-
-        return new TugNeighbourClearance(!fouls, closestFt);
-    }
+    private TugNeighbourClearance NeighbourPass(IReadOnlyList<TugMoveTrace> traces, TugParkedNeighbour neighbour) =>
+        new(
+            TugNeighbourSweep.FirstFoulAlongFt(traces, neighbour, _request.Start.Position, _request.Footprint, RowClearanceFt(traces, neighbour))
+                is null,
+            TugNeighbourSweep.ClosestFt(traces, neighbour, _request.Start.Position, _request.Footprint)
+        );
 
     /// <summary>
     /// The row anchor a candidate's moves are judged against (<see cref="GroundOutlineSweep.FloorFt"/>): the request's
@@ -2007,20 +1976,12 @@ internal sealed class TugPlanBuilder
     }
 
     /// <summary>
-    /// A candidate's row clearance from one parked neighbour (<see cref="GroundOutlineSweep.RowClearanceFt"/>), from its
+    /// A candidate's row clearance from one parked neighbour (<see cref="TugNeighbourSweep.RowClearanceFt"/>), from its
     /// row anchor (<see cref="RowAnchor"/>); measured once per anchor and neighbour for the whole request, however many
     /// candidates and runs are swept against it. Null when there is no anchor or the row does not count.
     /// </summary>
     private double? RowClearanceFt(IReadOnlyList<TugMoveTrace> traces, TugParkedNeighbour neighbour) =>
-        RowAnchor(traces) is { } anchor
-            ? _rowClearances.RowClearanceFt(
-                anchor,
-                _request.Footprint,
-                neighbour.Callsign,
-                new TugPose(neighbour.Position, neighbour.TrueHeadingDeg),
-                neighbour.Footprint
-            )
-            : null;
+        TugNeighbourSweep.RowClearanceFt(_rowClearances, RowAnchor(traces), _request.Footprint, neighbour);
 
     /// <summary>Appends a kept candidate's moves to the plan, which then continues from where it ends.</summary>
     private void Commit(TugCandidate best, ResolvedTugGoal goal)
@@ -4206,7 +4167,7 @@ internal sealed class TugPlanBuilder
         var frame = new GroundOutlineFrame(_request.Start.Position);
         for (int i = 0; i < traces.Count; i++)
         {
-            List<(TugPose Pose, double AlongFt)> path = RunPathFrom(traces, i);
+            List<(TugPose Pose, double AlongFt)> path = TugNeighbourSweep.RunPathFrom(traces, i);
             if (path.Count == 0)
             {
                 continue;
@@ -4247,31 +4208,6 @@ internal sealed class TugPlanBuilder
         }
 
         return null;
-    }
-
-    /// <summary>
-    /// The poses of move <paramref name="index"/> and of every move flown through from it before the first reversal,
-    /// each with how far along that run it sits, feet.
-    /// </summary>
-    /// <param name="traces">The candidate's moves.</param>
-    /// <param name="index">The move the run starts at.</param>
-    /// <returns>The run's poses with their along-distances.</returns>
-    private static List<(TugPose Pose, double AlongFt)> RunPathFrom(IReadOnlyList<TugMoveTrace> traces, int index)
-    {
-        var path = new List<(TugPose Pose, double AlongFt)>();
-        double alongFt = 0.0;
-        LatLon? previous = null;
-        for (int i = index; (i < traces.Count) && (traces[i].Move.Kind == traces[index].Move.Kind); i++)
-        {
-            foreach (TugPose pose in traces[i].Samples)
-            {
-                alongFt += previous is { } from ? GeoMath.DistanceNm(from, pose.Position) * GeoMath.FeetPerNm : 0.0;
-                path.Add((pose, alongFt));
-                previous = pose.Position;
-            }
-        }
-
-        return path;
     }
 
     /// <summary>

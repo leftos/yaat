@@ -3679,7 +3679,9 @@ public partial class GroundViewModel : ObservableObject
             return (null, refusal);
         }
 
-        return TugParkedNeighbours.FindStartOverlap(subject, plan, others) is { } overlap ? (null, overlap.Refusal) : (plan, null);
+        return TugParkedNeighbours.FindStartOverlap(subject, AircraftFootprint.FromType(subject.AircraftType), plan, others) is { } overlap
+            ? (null, overlap.Refusal)
+            : (plan, null);
     }
 
     /// <summary>

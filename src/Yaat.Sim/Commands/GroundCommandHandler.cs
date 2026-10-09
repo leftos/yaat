@@ -4602,7 +4602,8 @@ public static class GroundCommandHandler
         }
 
         IEnumerable<TugNeighbourCandidate> others = listAircraft().Select(TugNeighbourCandidate.From);
-        if (TugParkedNeighbours.FindStartOverlap(TugNeighbourCandidate.From(aircraft), plan, others) is not { } overlap)
+        var subject = TugNeighbourCandidate.From(aircraft);
+        if (TugParkedNeighbours.FindStartOverlap(subject, AircraftFootprint.FromType(subject.AircraftType), plan, others) is not { } overlap)
         {
             return null;
         }
