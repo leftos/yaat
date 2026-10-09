@@ -91,7 +91,7 @@ public partial class MainViewModel
                 return "Your ARTCC couldn't be determined from VATSIM/VATUSA and no ARTCC grant is on file for your CID. Make sure your VATSIM profile lists a subdivision.";
             }
 
-            _connectedServerUrl = url;
+            ConnectedServerUrl = url;
             // Now that a server URL and a valid token exist, drain anything captured while offline.
             _ = UploadSpeechTelemetryAsync();
             IsConnected = true;
@@ -227,7 +227,7 @@ public partial class MainViewModel
         IsConnected = false;
         StatusText = "Disconnected";
         AddSystemEntry($"Disconnected from {url}");
-        _connectedServerUrl = "";
+        ConnectedServerUrl = "";
         ClearRoomState();
 
         // The permitted ARTCCs were this server's answer; the next connect asks again.
@@ -328,6 +328,51 @@ public partial class MainViewModel
     }
 
     private bool CanOpenWebClientInBrowser() => IsConnected && !string.IsNullOrEmpty(_connectedServerUrl);
+
+    /// <summary>
+    /// Puts text on the system clipboard. Set by the main window, which owns the clipboard; null until it does.
+    /// </summary>
+    public Func<string, Task>? ClipboardWriter { get; set; }
+
+    /// <summary>
+    /// The URL of a room's traffic feed on a server: <c>{server}/feed/{roomId}/v3/vatsim-data.json</c>, the room's
+    /// aircraft in the VATSIM v3 datafeed shape. A trailing slash on the server URL is dropped first.
+    /// </summary>
+    public static string BuildTrafficFeedUrl(string serverBaseUrl, string roomId) =>
+        $"{serverBaseUrl.TrimEnd('/')}/feed/{Uri.EscapeDataString(roomId)}/v3/vatsim-data.json";
+
+    /// <summary>
+    /// Tools → Copy traffic feed URL. Copies the active room's feed URL on the connected server
+    /// (<see cref="BuildTrafficFeedUrl"/>) to the clipboard, for a tool that reads a VATSIM-shaped datafeed.
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanCopyTrafficFeedUrl))]
+    private async Task CopyTrafficFeedUrlAsync()
+    {
+        if ((ActiveRoomId is not { } roomId) || string.IsNullOrEmpty(_connectedServerUrl) || (ClipboardWriter is null))
+        {
+            _log.LogWarning(
+                "CopyTrafficFeedUrl skipped: room {RoomId}, server URL set {HasUrl}, clipboard set {HasClipboard}",
+                ActiveRoomId,
+                !string.IsNullOrEmpty(_connectedServerUrl),
+                ClipboardWriter is not null
+            );
+            return;
+        }
+
+        string url = BuildTrafficFeedUrl(_connectedServerUrl, roomId);
+        try
+        {
+            await ClipboardWriter(url);
+            StatusText = "Traffic feed URL copied";
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(ex, "CopyTrafficFeedUrl failed for {Url}", url);
+            StatusText = "Failed to copy the traffic feed URL";
+        }
+    }
+
+    private bool CanCopyTrafficFeedUrl() => CanOpenWebClientInBrowser() && IsInRoom;
 
     [RelayCommand(CanExecute = nameof(CanCreateRoom))]
     private async Task CreateRoomAsync()
@@ -738,7 +783,7 @@ public partial class MainViewModel
             IsConnected = false;
             StatusText = reason;
             AddSystemEntry(reason);
-            _connectedServerUrl = "";
+            ConnectedServerUrl = "";
             ClearRoomState();
         });
     }

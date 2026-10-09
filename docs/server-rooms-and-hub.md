@@ -373,6 +373,16 @@ room shares the CID), `RemoveRoom` (`:147`). `GetRoomForCid` (`:86`) resolves CR
 (`RoomEngine` / `TickProcessor` / `AircraftChangeTracker`) runs lock-free on the sequential tick loop. Don't mutate a
 room's `World` or its `ChangeTracker` from a hub callback thread expecting tick-loop safety.
 
+## Traffic feed endpoint — yaat-server `Feeds/VatsimDatafeedEndpoints.cs`
+
+`GET /feed/{roomId}/v3/vatsim-data.json` serves one room's aircraft as a VATSIM v3 datafeed document (`{ general, pilots[] }`, snake_case names via `[JsonPropertyName]`, DTOs in `Feeds/VatsimDatafeedDtos.cs`). It is mapped in `ServerApp.cs` beside `MapSpeechTelemetryEndpoints`, outside `/api/` and the `vstrips`/`vtdls` fallbacks, with no authorization: the room id is the only secret, so request logging stays at debug.
+
+The handler resolves `TrainingRoomManager.GetRoom` (unknown id: 404), then builds the whole document inside `room.GuardAsync`, so the aircraft (`World.GetSnapshot()`) and the clock are one instant and never half-ticked. `ActiveScenario` is re-read after the gate wait; with no scenario loaded the answer is 503, never a wall-clock stamp. The response carries `Cache-Control: no-store`.
+
+Time is feed time only: `general.update_timestamp` (and `update`) is `SimScenarioState.SimTimeUtc`, so it holds while the room is paused and follows sim rate and rewinds. No sim-rate or pause fields are added. `Feeds/VatsimDatafeedConverter.cs` is pure (aircraft list plus sim time in, document out): every aircraft including live-traffic shadows and ground aircraft, a stable synthetic CID in 9000000-9999999 hashed from the callsign, `flight_plan` null when nothing is filed, `cruise_tas` from the filed TAS or a filed Mach at the filed altitude (0 otherwise).
+
+The desktop client builds the URL (`MainViewModel.BuildTrafficFeedUrl`) for Tools → Copy traffic feed URL (`CopyTrafficFeedUrlCommand`, enabled when connected, the server URL is known and the user is in a room; the window supplies the clipboard through `MainViewModel.ClipboardWriter`).
+
 ## `TrainingHub` — the RPC surface (`Hubs/TrainingHub.cs`)
 
 Identity comes only from the session-token claims (`CallerCid`, `CallerRating`, `CallerArtcc`, `CallerIsMentorOrInstructor`).

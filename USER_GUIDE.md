@@ -1941,6 +1941,12 @@ Two mentor/instructor actions under the **Tools** menu manage it:
 - **Export ASDE-X / SAID Temp Data...** — pick a folder and YAAT writes one `{FACILITY}.json` per facility, in the format the project ships geometry in. Draw something worth keeping, export it, and send it in so every install gets it.
 - **Reset ASDE-X / SAID Temp Data to Defaults...** — discards everything drawn and puts each facility back on the geometry shipped with the project. This changes the server, not just your room, and cannot be undone — but it is the only way to undo a bad draw or bring back something that was deleted.
 
+### Traffic Feed
+
+Every room's traffic is also served as a JSON feed in the shape of the public VATSIM datafeed, so a tool built to read VATSIM traffic (vTBFM, for one) can watch a YAAT room instead. While you are connected and in a room, **Tools → Copy traffic feed URL** puts that room's feed address on the clipboard; the status line confirms **Traffic feed URL copied**, or says **Failed to copy the traffic feed URL**. The item is greyed out until you are connected and in a room. Point the other tool's datafeed setting at the URL.
+
+The feed lists every aircraft in the room, ground and air, and its timestamp is the room's simulation time, not the real clock: it holds still while the room is paused and follows the sim rate and rewinds. A room with no scenario loaded has no simulation time, so the feed answers 503 until one loads (vTBFM idles until it sees a valid timestamp). The feed needs no login, so anyone holding the URL can read that room's traffic while the room exists; the room id in the URL is the only secret.
+
 ### Live Traffic
 
 ![Radar View with four live-traffic shadows (dashed targets) among the scenario aircraft and the LIVE indicator in the status bar](docs/user-guide/img/live-traffic.png)

@@ -68,8 +68,21 @@ public partial class MainViewModel : ObservableObject
     private string? _studentPositionType;
     private bool _isAutoClearedToLand;
 
-    /// <summary>The URL of the server this client connected to, or empty when it has not connected.</summary>
-    public string ConnectedServerUrl => _connectedServerUrl;
+    /// <summary>
+    /// The URL of the server this client connected to, or empty when it has not connected. Setting it re-evaluates the
+    /// web-client commands, which need a server URL.
+    /// </summary>
+    public string ConnectedServerUrl
+    {
+        get => _connectedServerUrl;
+        set
+        {
+            _connectedServerUrl = value;
+            OpenStripsInBrowserCommand.NotifyCanExecuteChanged();
+            OpenTdlsInBrowserCommand.NotifyCanExecuteChanged();
+            CopyTrafficFeedUrlCommand.NotifyCanExecuteChanged();
+        }
+    }
 
     /// <summary>
     /// The single write path for <see cref="_studentPositionType"/>: every scenario load, join, rewind and unload
@@ -191,6 +204,7 @@ public partial class MainViewModel : ObservableObject
     [NotifyCanExecuteChangedFor(nameof(LoadLiveWeatherCommand))]
     [NotifyCanExecuteChangedFor(nameof(OpenStripsInBrowserCommand))]
     [NotifyCanExecuteChangedFor(nameof(OpenTdlsInBrowserCommand))]
+    [NotifyCanExecuteChangedFor(nameof(CopyTrafficFeedUrlCommand))]
     [NotifyPropertyChangedFor(nameof(ShowRpoWaiting))]
     private bool _isConnected;
 
@@ -527,6 +541,7 @@ public partial class MainViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(CanStartLiveSession))]
     [NotifyCanExecuteChangedFor(nameof(LoadWeatherCommand))]
     [NotifyCanExecuteChangedFor(nameof(ClearWeatherCommand))]
+    [NotifyCanExecuteChangedFor(nameof(CopyTrafficFeedUrlCommand))]
     [NotifyPropertyChangedFor(nameof(IsInRoom))]
     [NotifyPropertyChangedFor(nameof(ShowRpoWaiting))]
     private string? _activeRoomId;

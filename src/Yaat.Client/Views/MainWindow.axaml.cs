@@ -8,6 +8,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Data;
 using Avalonia.Input;
+using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
 using Avalonia.LogicalTree;
 using Avalonia.VisualTree;
@@ -108,6 +109,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         vm.SettingsRequested += OnSettingsRequested;
         vm.SpeechTelemetryPrompt = ShowSpeechTelemetryOptInAsync;
         vm.BugReportPrompt = ShowFileBugReportDialogAsync;
+        vm.ClipboardWriter = WriteClipboardTextAsync;
 
         // A user who already had speech-to-text on before the offer existed gets it once when the window
         // opens. Posted rather than raised from the Opened handler itself, so the modal appears over a
@@ -3782,6 +3784,16 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         var dialog = new SpeechTelemetryOptInDialog();
         await DialogPresenter.ShowModalAsync(dialog, this);
         return dialog.Accepted;
+    }
+
+    /// <summary>
+    /// Puts text on this window's clipboard. Wired into <see cref="MainViewModel.ClipboardWriter"/>; a window with no
+    /// clipboard throws, so the caller reports the failure instead of a copy that never happened.
+    /// </summary>
+    private async Task WriteClipboardTextAsync(string text)
+    {
+        IClipboard clipboard = Clipboard ?? throw new InvalidOperationException("The main window has no clipboard to copy to.");
+        await clipboard.SetTextAsync(text);
     }
 
     /// <summary>

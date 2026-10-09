@@ -30,6 +30,7 @@
 - `ARWY OAK 28L 28R` sets an airport's active runways for the room (`D`/`A` prefixes for departures or arrivals only); `ARWY OAK` shows them, `ARWY OAK NONE` clears them.
 - Loading a scenario in an RPO room asks the mentor for its active runways, pre-filled from its spawns, presets and expected approaches; a restart keeps them.
 - Scenario › Active Runways… lets anyone in the room see and change the active runways, one row per airport.
+- Each room serves its traffic as a VATSIM-style datafeed for tools like vTBFM; Tools › Copy traffic feed URL copies its address.
 - Getting Started and the User Guide show screenshots of every step, including the terminal, timeline, taxi routes, vTDLS, Settings, Import / Export, layouts and CRC's environment list.
 
 ### Changed

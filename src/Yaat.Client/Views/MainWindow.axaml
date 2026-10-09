@@ -173,6 +173,11 @@
             Command="{Binding OpenTdlsInBrowserCommand}"
             ToolTip.Tip="Open the connected server's web vTDLS in your default browser"
           />
+          <MenuItem
+            Header="Copy traffic _feed URL"
+            Command="{Binding CopyTrafficFeedUrlCommand}"
+            ToolTip.Tip="Copy this room's traffic feed URL (VATSIM datafeed format) to the clipboard"
+          />
           <Separator />
           <MenuItem
             Header="Export ASDE-X / SAID Temp _Data..."
