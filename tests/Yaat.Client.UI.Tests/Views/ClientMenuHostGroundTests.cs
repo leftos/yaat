@@ -529,6 +529,22 @@ public class ClientMenuHostGroundTests
     }
 
     [AvaloniaFact]
+    public void TaxiToRunway_FindOther_AfterClearLayout_FindsNoGroup()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        AircraftModel target = GroundAircraft(Callsign, "At Parking", PositionOf(Gate25Node));
+        MainViewModel main = OakMain(target, []);
+        main.ApplyActiveRunways(new Dictionary<string, List<string>> { ["OAK"] = ["D30", "28L"] });
+        TaxiToRunwayMenu menu = new ClientMenuHost(main, target, new Border()).GetTaxiToRunwayChoices(Callsign);
+        Func<IReadOnlyList<TaxiToRunwayGroup>> findOther = Assert.IsType<Func<IReadOnlyList<TaxiToRunwayGroup>>>(menu.FindOther);
+        Assert.NotEmpty(findOther());
+
+        main.Ground.ClearLayout();
+
+        Assert.Empty(findOther());
+    }
+
+    [AvaloniaFact]
     public void GetTaxiToRunwayChoices_HoldingShortAtABar_HidesThatBarsRow()
     {
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());

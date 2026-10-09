@@ -1,9 +1,14 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Presenters;
 using Avalonia.Controls.Primitives;
+using Avalonia.Controls.Primitives.PopupPositioning;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Styling;
+using Microsoft.Extensions.Logging;
+using Yaat.Client.Logging;
 using Path = Avalonia.Controls.Shapes.Path;
 
 namespace Yaat.Client.ContextMenus;
@@ -12,16 +17,20 @@ namespace Yaat.Client.ContextMenus;
 /// The quick-command icon strip at the top of an aircraft menu: one menu item whose header holds up to two rows of five
 /// glyph buttons, the first row filled first and an empty second row hidden. Each button stands for its catalog entry's
 /// own menu item, built through the entry's builder: a sending or prompting item is clicked through that item's own Click
-/// handler, and a submenu opens its items as a flyout under the button (the button shows a corner notch). Either way the
-/// menu closes once a command is chosen. The tooltip names the entry and, for an item that sends one fixed command, that
-/// command (<see cref="MenuCommandText"/>); a label row above the buttons says the same of the button under the pointer or
-/// keyboard focus, and prompts while the pointer is off the strip. Plain controls only, so it works on every view, the
-/// aircraft list included.
+/// handler, and a submenu opens its items as a flyout beside the menu (the button shows a corner notch), which stays open,
+/// its button latched, until that button is clicked again, another icon's flyout replaces it, another row's submenu opens,
+/// Escape closes it or the menu closes. Either way the menu closes once a command is chosen. The tooltip names the entry
+/// and, for an item that sends one fixed command, that command (<see cref="MenuCommandText"/>); a label row above the
+/// buttons says the same of the button under the pointer or keyboard focus, and prompts while the pointer is off the
+/// strip. Plain controls only, so it works on every view, the aircraft list included.
 /// </summary>
 public static class QuickCommandStrip
 {
     /// <summary>The style class the strip's menu item carries, by which <see cref="IsStrip"/> knows it.</summary>
     public const string StripClass = "quick-command-strip";
+
+    /// <summary>The style class a submenu button carries while its flyout is open.</summary>
+    public const string StickyClass = "sticky";
 
     /// <summary>How many buttons a row holds.</summary>
     public const int RowLength = 5;
@@ -36,7 +45,10 @@ public static class QuickCommandStrip
     private const string PromptTitle = "Quick commands";
     private const string PromptDetail = "point at an icon";
     private const string SubmenuDetail = "opens a submenu";
+    private const string ButtonPresenterPart = "PART_ContentPresenter";
     private static readonly Color NotchColor = Color.Parse("#9AA3AD");
+    private static readonly Color StickyBackground = Color.Parse("#3E5F8A");
+    private static readonly ILogger Log = AppLog.CreateLogger("QuickCommandStrip");
 
     /// <summary>
     /// The strip for <paramref name="items"/>, in order, or null when there are none or none of them builds a menu item
@@ -78,20 +90,37 @@ public static class QuickCommandStrip
     public static MenuItem? FromBuilt(ContextMenu menu, IReadOnlyList<(QuickCommandStripItem Item, MenuItem Built)> built)
     {
         var label = new StripLabel();
-        List<Control> buttons = [.. built.Select(pair => BuildButton(menu, pair.Item, pair.Built, label))];
+        var strip = new MenuItem { StaysOpenOnClick = true };
+        var flyouts = new StripFlyouts(menu, strip);
+        List<Control> buttons = [.. built.Select(pair => BuildButton(menu, pair.Item, pair.Built, label, flyouts))];
         if (buttons.Count == 0)
         {
             return null;
         }
 
-        var strip = new MenuItem
-        {
-            Header = new StackPanel { Spacing = Gap, Children = { label.Panel, Rows(buttons) } },
-            StaysOpenOnClick = true,
-        };
+        strip.Header = new StackPanel { Spacing = Gap, Children = { label.Panel, Rows(buttons) } };
         strip.Classes.Add(StripClass);
+        strip.Styles.Add(StickyStyle());
         strip.PointerExited += (_, _) => label.ShowPrompt();
         return strip;
+    }
+
+    /// <summary>
+    /// Opens <paramref name="button"/>'s submenu flyout beside the menu exactly as a click on it does, unless it is open
+    /// already.
+    /// </summary>
+    /// <exception cref="ArgumentException"><paramref name="button"/> is not a strip button that opens a submenu.</exception>
+    public static void OpenSubmenu(Button button)
+    {
+        if (FlyoutBase.GetAttachedFlyout(button) is not MenuFlyout flyout)
+        {
+            throw new ArgumentException($"The strip button '{button.Tag}' opens no submenu flyout.", nameof(button));
+        }
+
+        if (!flyout.IsOpen)
+        {
+            button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        }
     }
 
     /// <summary>
@@ -200,7 +229,7 @@ public static class QuickCommandStrip
     private static string? FixedCommand(MenuItem built) =>
         ((built.Items.Count == 0) && (MenuCommandText.GetCommand(built) is { Length: > 0 } command)) ? command : null;
 
-    private static Button BuildButton(ContextMenu menu, QuickCommandStripItem item, MenuItem built, StripLabel label)
+    private static Button BuildButton(ContextMenu menu, QuickCommandStripItem item, MenuItem built, StripLabel label, StripFlyouts flyouts)
     {
         bool opensSubmenu = built.Items.Count > 0;
         string title = opensSubmenu ? $"{EntryLabel(item.Entry, built)} ›" : EntryLabel(item.Entry, built);
@@ -216,7 +245,7 @@ public static class QuickCommandStrip
         button.GotFocus += (_, _) => label.Show(title, detail);
         if (opensSubmenu)
         {
-            AttachSubmenuFlyout(button, SubmenuFlyout(menu, built));
+            flyouts.Attach(button, SubmenuFlyout(menu, built));
         }
         else
         {
@@ -231,29 +260,20 @@ public static class QuickCommandStrip
     }
 
     /// <summary>
-    /// Makes <paramref name="button"/> open <paramref name="flyout"/> on a click. While the flyout is open the button's
-    /// tooltip is closed and switched off, so it never covers the flyout; it comes back when the flyout closes.
-    /// </summary>
-    private static void AttachSubmenuFlyout(Button button, MenuFlyout flyout)
-    {
-        FlyoutBase.SetAttachedFlyout(button, flyout);
-        button.Click += (_, _) => FlyoutBase.ShowAttachedFlyout(button);
-        flyout.Opened += (_, _) =>
-        {
-            ToolTip.SetIsOpen(button, false);
-            ToolTip.SetServiceEnabled(button, false);
-        };
-        flyout.Closed += (_, _) => ToolTip.SetServiceEnabled(button, true);
-    }
-
-    /// <summary>
     /// A flyout over <paramref name="built"/>'s own items, moved over unchanged; choosing any command in it, at any
     /// depth, closes the flyout and the menu after the item's own handler has run. A lazily built entry
-    /// (<see cref="LazySubmenu"/>) fills the flyout when it first opens, as it fills its own submenu.
+    /// (<see cref="LazySubmenu"/>) fills the flyout when it first opens, as it fills its own submenu. It opens on the
+    /// menu's right edge, or its left edge where the right would run off screen, as a submenu does, and does not close on
+    /// a click outside it: <see cref="StripFlyouts"/> closes it, so a click in the parent menu reaches the menu.
     /// </summary>
     private static MenuFlyout SubmenuFlyout(ContextMenu menu, MenuItem built)
     {
-        var flyout = new MenuFlyout();
+        var flyout = new MenuFlyout
+        {
+            Placement = PlacementMode.RightEdgeAlignedTop,
+            PlacementConstraintAdjustment = PopupPositionerConstraintAdjustment.FlipX | PopupPositionerConstraintAdjustment.SlideY,
+        };
+        flyout.Popup.IsLightDismissEnabled = false;
         List<object?> moved = [.. built.Items];
         built.Items.Clear();
         foreach (object? child in moved)
@@ -300,6 +320,154 @@ public static class QuickCommandStrip
         foreach (object? child in menuItem.Items)
         {
             CloseOnChoice(child, flyout, menu);
+        }
+    }
+
+    /// <summary>
+    /// A strip button's latched look while its flyout is open: a blue background unlike the default, pointer-over and
+    /// pressed ones, set on the button template's content presenter in every one of those states so hovering or pressing
+    /// the latched button still shows it latched.
+    /// </summary>
+    private static Style StickyStyle() =>
+        new(x =>
+            Selectors.Or(
+                StickyPresenter(x.OfType<Button>().Class(StickyClass)),
+                StickyPresenter(x.OfType<Button>().Class(StickyClass).Class(":pointerover")),
+                StickyPresenter(x.OfType<Button>().Class(StickyClass).Class(":pressed"))
+            )
+        )
+        {
+            Setters = { new Setter(ContentPresenter.BackgroundProperty, new SolidColorBrush(StickyBackground)) },
+        };
+
+    private static Selector StickyPresenter(Selector button) => button.Template().OfType<ContentPresenter>().Name(ButtonPresenterPart);
+
+    /// <summary>
+    /// The strip's submenu flyouts, of which at most one is open. A click on a button opens its flyout beside the menu,
+    /// its top edge on the strip's row, replacing any other, or closes it when it is the open one; the open flyout also
+    /// closes when a parent-menu row opens its own submenu or the menu closes. Its button carries <see cref="StickyClass"/>
+    /// and has its tooltip closed and switched off while it is open. When a flyout holding keyboard focus closes by itself
+    /// (Escape) with the menu still open, focus goes back to its button, so a second Escape closes the menu; a flyout this
+    /// class hides leaves focus where it is, on the row whose submenu just opened or the button just clicked.
+    /// </summary>
+    private sealed class StripFlyouts
+    {
+        private readonly ContextMenu _menu;
+        private readonly MenuItem _strip;
+        private MenuFlyout? _open;
+        private bool _hiding;
+
+        public StripFlyouts(ContextMenu menu, MenuItem strip)
+        {
+            _menu = menu;
+            _strip = strip;
+            menu.AddHandler(MenuItem.SubmenuOpenedEvent, OnSubmenuOpened);
+            menu.Closed += (_, _) => HideOpen();
+        }
+
+        public void Attach(Button button, MenuFlyout flyout)
+        {
+            FlyoutBase.SetAttachedFlyout(button, flyout);
+            button.Click += (_, _) => Toggle(flyout);
+            flyout.Opened += (_, _) =>
+            {
+                ToolTip.SetIsOpen(button, false);
+                ToolTip.SetServiceEnabled(button, false);
+                button.Classes.Add(StickyClass);
+            };
+            bool hadFocus = false;
+            flyout.Closing += (_, _) => hadFocus = (!_hiding) && (flyout.Popup.Child?.IsKeyboardFocusWithin == true);
+            flyout.Closed += (_, _) =>
+            {
+                ToolTip.SetServiceEnabled(button, true);
+                button.Classes.Remove(StickyClass);
+                bool refocus = hadFocus && _menu.IsOpen;
+                hadFocus = false;
+                if (refocus)
+                {
+                    button.Focus();
+                }
+            };
+        }
+
+        private void Toggle(MenuFlyout flyout)
+        {
+            if (flyout.IsOpen)
+            {
+                Hide(flyout);
+                return;
+            }
+
+            HideOpen();
+            flyout.VerticalOffset = StripTop();
+            flyout.ShowAt(_menu);
+            _open = flyout;
+        }
+
+        /// <summary>
+        /// The strip's top within the menu; before the menu is laid out (a <see cref="OpenSubmenu"/> call too early) the
+        /// strip has no place in it yet, and the flyout's top meets the menu's.
+        /// </summary>
+        private double StripTop()
+        {
+            if (_strip.TranslatePoint(default, _menu) is { } top)
+            {
+                return top.Y;
+            }
+
+            Log.LogWarning(
+                "Quick-command strip flyout opened before the menu was laid out: the strip has no place in the menu yet, "
+                    + "so the flyout's top meets the menu's top"
+            );
+            return 0;
+        }
+
+        private void HideOpen()
+        {
+            if (_open is { } open)
+            {
+                Hide(open);
+            }
+
+            _open = null;
+        }
+
+        private void Hide(MenuFlyout flyout)
+        {
+            _hiding = true;
+            try
+            {
+                flyout.Hide();
+            }
+            finally
+            {
+                _hiding = false;
+            }
+        }
+
+        private void OnSubmenuOpened(object? sender, RoutedEventArgs e)
+        {
+            if ((e.Source is MenuItem row) && IsParentMenuRow(row))
+            {
+                HideOpen();
+            }
+        }
+
+        /// <summary>Whether <paramref name="row"/> is a row of the menu or of one of its submenus, outside the strip and its flyouts.</summary>
+        private bool IsParentMenuRow(MenuItem row)
+        {
+            StyledElement? current = row;
+            while (current is MenuItem item)
+            {
+                if (ReferenceEquals(item, _strip))
+                {
+                    return false;
+                }
+
+                current = item.Parent;
+            }
+
+            return ReferenceEquals(current, _menu);
         }
     }
 

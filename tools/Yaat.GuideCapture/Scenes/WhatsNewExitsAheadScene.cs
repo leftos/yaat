@@ -1,5 +1,4 @@
 using Avalonia.Controls;
-using Avalonia.Controls.Primitives;
 using Yaat.Client.ContextMenus;
 using Yaat.Client.Models;
 using Yaat.Client.ViewModels;
@@ -51,11 +50,11 @@ internal sealed class WhatsNewExitsAheadScene : ScenarioSceneBase
         ContextMenu menu = await SceneActions.OpenAircraftMenuAsync(window, vm, arrival, TimeSpan.FromSeconds(10));
         string entryId = (side == ExitSide.Left) ? MenuIds.TowerExitLeft : MenuIds.TowerExitRight;
         // A pointer click on the icon closes the headless menu before its
-        // flyout shows, so the icon is pointed at and its flyout opened as its
-        // click handler opens it.
+        // flyout shows, so the icon is pointed at and its flyout opened beside
+        // the menu as its click opens it.
         Button exitButton = SceneActions.StripButton(menu, entryId);
         SceneActions.PointAt(window, exitButton);
-        FlyoutBase.ShowAttachedFlyout(exitButton);
+        QuickCommandStrip.OpenSubmenu(exitButton);
         await SceneActions.WaitForOverlayAsync<MenuFlyoutPresenter>(
             window,
             presenter => SceneActions.AreItemsLaidOut(presenter.Items),

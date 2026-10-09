@@ -1,10 +1,14 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Presenters;
 using Avalonia.Controls.Primitives;
+using Avalonia.Controls.Primitives.PopupPositioning;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
+using Avalonia.Threading;
+using Avalonia.VisualTree;
 using Xunit;
 using Yaat.Client.ContextMenus;
 using Yaat.Client.Models;
@@ -18,6 +22,8 @@ namespace Yaat.Client.UI.Tests.Views;
 // goes through its catalog entry's own menu item.
 public class QuickCommandStripTests
 {
+    private const string StickyClass = QuickCommandStrip.StickyClass;
+
     [AvaloniaTheory]
     [InlineData("taxiing")]
     [InlineData("final-ifr")]
@@ -184,6 +190,7 @@ public class QuickCommandStripTests
         Button taxiToRunway = QuickCommandStrip.Buttons(Strip(menu)).Single(b => (string)b.Tag! == MenuIds.GroundTaxiToRunway);
         taxiToRunway.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         MenuFlyout flyout = SubmenuFlyout(taxiToRunway);
+        Assert.True(flyout.IsOpen);
         MenuItem other = flyout.Items.OfType<MenuItem>().Single(m => (m.Header as string) == "Other runways");
 
         other.RaiseEvent(new RoutedEventArgs(MenuItem.SubmenuOpenedEvent, other));
@@ -217,6 +224,175 @@ public class QuickCommandStripTests
 
         Assert.Equal("CAPP I28R", Assert.Single(host.Sent).Command);
         Assert.False(flyout.IsOpen);
+        Assert.False(menu.IsOpen);
+    }
+
+    /// <summary>
+    /// The flyout opens on the menu's right edge, flipping to its left near the screen edge as a submenu does, with its top
+    /// edge on the strip's row; a click in the parent menu reaches the menu, as the flyout does not close on it by itself.
+    /// </summary>
+    [AvaloniaFact]
+    public void SubmenuFlyout_OpensBesideTheMenu_AnchoredToItsContent()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        ContextMenu menu = OpenLaidOut(Build(Fixture("taxiing"), Host()));
+        MenuItem strip = Strip(menu);
+        Button follow = QuickCommandStrip.Buttons(strip).Single(b => (string)b.Tag! == MenuIds.GroundFollow);
+
+        follow.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+
+        MenuFlyout flyout = SubmenuFlyout(follow);
+        Assert.True(flyout.IsOpen);
+        Assert.Same(menu, flyout.Target);
+        Assert.Equal(PlacementMode.RightEdgeAlignedTop, flyout.Placement);
+        Assert.True(flyout.PlacementConstraintAdjustment.HasFlag(PopupPositionerConstraintAdjustment.FlipX));
+        Assert.True(flyout.PlacementConstraintAdjustment.HasFlag(PopupPositionerConstraintAdjustment.SlideY));
+        Point stripTop = Assert.IsType<Point>(strip.TranslatePoint(default, menu));
+        Assert.True(stripTop.Y > 0, $"the strip's top is {stripTop.Y}, the menu's own top");
+        Assert.Equal(stripTop.Y, flyout.VerticalOffset);
+        Assert.False(flyout.Popup.IsLightDismissEnabled);
+    }
+
+    [AvaloniaFact]
+    public void SubmenuButton_SecondClick_ClosesItsFlyout()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        ContextMenu menu = OpenLaidOut(Build(Fixture("taxiing"), Host()));
+        Button follow = QuickCommandStrip.Buttons(Strip(menu)).Single(b => (string)b.Tag! == MenuIds.GroundFollow);
+        follow.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Assert.True(SubmenuFlyout(follow).IsOpen);
+
+        follow.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+
+        Assert.False(SubmenuFlyout(follow).IsOpen);
+        Assert.True(menu.IsOpen);
+    }
+
+    [AvaloniaFact]
+    public void SubmenuButton_IsStickyWhileItsFlyoutIsOpen()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        ContextMenu menu = OpenLaidOut(Build(Fixture("taxiing"), Host()));
+        IReadOnlyList<Button> buttons = QuickCommandStrip.Buttons(Strip(menu));
+        Button follow = buttons.Single(b => (string)b.Tag! == MenuIds.GroundFollow);
+        Button holdPosition = buttons.Single(b => (string)b.Tag! == MenuIds.GroundHoldPosition);
+        Assert.Equal(BackgroundColor(holdPosition), BackgroundColor(follow));
+
+        follow.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Assert.Contains(StickyClass, follow.Classes);
+        Assert.NotEqual(BackgroundColor(holdPosition), BackgroundColor(follow));
+
+        SubmenuFlyout(follow).Hide();
+        Assert.DoesNotContain(StickyClass, follow.Classes);
+        Assert.Equal(BackgroundColor(holdPosition), BackgroundColor(follow));
+    }
+
+    [AvaloniaFact]
+    public void SubmenuButton_ClickingAnotherSubmenuIcon_ReplacesTheFlyout()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        ContextMenu menu = OpenLaidOut(Build(Fixture("taxiing"), Host()));
+        List<Button> submenuButtons = [.. QuickCommandStrip.Buttons(Strip(menu)).Where(b => FlyoutBase.GetAttachedFlyout(b) is MenuFlyout)];
+        Assert.True(submenuButtons.Count >= 2, $"the strip has {submenuButtons.Count} submenu icon(s), not two");
+        (Button first, Button second) = (submenuButtons[0], submenuButtons[1]);
+        first.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+
+        second.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+
+        Assert.False(SubmenuFlyout(first).IsOpen);
+        Assert.DoesNotContain(StickyClass, first.Classes);
+        Assert.True(SubmenuFlyout(second).IsOpen);
+        Assert.Contains(StickyClass, second.Classes);
+        Assert.True(menu.IsOpen);
+    }
+
+    [AvaloniaFact]
+    public void SiblingSubmenuOpening_ClosesTheFlyout()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        ContextMenu menu = OpenLaidOut(Build(Fixture("taxiing"), Host()));
+        Button follow = QuickCommandStrip.Buttons(Strip(menu)).Single(b => (string)b.Tag! == MenuIds.GroundFollow);
+        follow.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        MenuItem sibling = menu.Items.OfType<MenuItem>().First(m => (!QuickCommandStrip.IsStrip(m)) && (m.Items.Count > 0));
+
+        sibling.RaiseEvent(new RoutedEventArgs(MenuItem.SubmenuOpenedEvent, sibling));
+
+        Assert.False(SubmenuFlyout(follow).IsOpen);
+        Assert.DoesNotContain(StickyClass, follow.Classes);
+        Assert.True(menu.IsOpen);
+    }
+
+    /// <summary>A sibling row opening its submenu while the flyout holds focus leaves focus alone: only Escape hands it back to the icon.</summary>
+    [AvaloniaFact]
+    public void SiblingSubmenuOpening_WithFocusInTheFlyout_LeavesTheIconUnfocused()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        ContextMenu menu = OpenLaidOut(Build(Fixture("taxiing"), Host()));
+        Button follow = QuickCommandStrip.Buttons(Strip(menu)).Single(b => (string)b.Tag! == MenuIds.GroundFollow);
+        follow.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        MenuFlyout flyout = SubmenuFlyout(follow);
+        Dispatcher.UIThread.RunJobs();
+        Assert.True(flyout.Popup.Child!.IsKeyboardFocusWithin, "the flyout took no keyboard focus when it opened");
+        MenuItem sibling = menu.Items.OfType<MenuItem>().First(m => (!QuickCommandStrip.IsStrip(m)) && (m.Items.Count > 0));
+
+        sibling.RaiseEvent(new RoutedEventArgs(MenuItem.SubmenuOpenedEvent, sibling));
+
+        Assert.False(flyout.IsOpen);
+        Dispatcher.UIThread.RunJobs();
+        Assert.False(follow.IsFocused);
+    }
+
+    [AvaloniaFact]
+    public void LeafRowHover_KeepsTheFlyoutOpen()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        ContextMenu menu = OpenLaidOut(Build(Fixture("taxiing"), Host()));
+        Button follow = QuickCommandStrip.Buttons(Strip(menu)).Single(b => (string)b.Tag! == MenuIds.GroundFollow);
+        follow.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        MenuItem leaf = menu.Items.OfType<MenuItem>().First(m => (!QuickCommandStrip.IsStrip(m)) && (m.Items.Count == 0) && m.IsEnabled);
+
+        RaisePointer(leaf, InputElement.PointerEnteredEvent);
+
+        Assert.True(SubmenuFlyout(follow).IsOpen);
+        Assert.Contains(StickyClass, follow.Classes);
+    }
+
+    [AvaloniaFact]
+    public void MenuClosing_ClosesTheFlyout()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        ContextMenu menu = OpenLaidOut(Build(Fixture("taxiing"), Host()));
+        Button follow = QuickCommandStrip.Buttons(Strip(menu)).Single(b => (string)b.Tag! == MenuIds.GroundFollow);
+        follow.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+
+        menu.Close();
+
+        Assert.False(SubmenuFlyout(follow).IsOpen);
+        Assert.DoesNotContain(StickyClass, follow.Classes);
+    }
+
+    [AvaloniaFact]
+    public void Escape_ClosesTheFlyoutFirst_ThenTheMenu()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        ContextMenu menu = OpenLaidOut(Build(Fixture("taxiing"), Host()));
+        MenuItem strip = Strip(menu);
+        Button follow = QuickCommandStrip.Buttons(strip).Single(b => (string)b.Tag! == MenuIds.GroundFollow);
+        follow.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        MenuFlyout flyout = SubmenuFlyout(follow);
+        Dispatcher.UIThread.RunJobs();
+        Assert.True(flyout.Popup.Child!.IsKeyboardFocusWithin, "the flyout took no keyboard focus when it opened");
+        MenuItem row = flyout.Items.OfType<MenuItem>().First(item => item.IsEnabled);
+
+        row.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Escape });
+
+        Assert.False(flyout.IsOpen);
+        Assert.DoesNotContain(StickyClass, follow.Classes);
+        Assert.True(menu.IsOpen);
+        // Headless, the menu's focus manager reports the strip row, not the icon, once the flyout has closed, so the
+        // second Escape is sent to the strip.
+        strip.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Escape });
+
         Assert.False(menu.IsOpen);
     }
 
@@ -387,6 +563,24 @@ public class QuickCommandStripTests
         menu.Open(window);
         Assert.True(menu.IsOpen);
         return menu;
+    }
+
+    /// <summary>
+    /// Opens <paramref name="menu"/> as <see cref="OpenInWindow"/> does and lays it out, so its rows sit in the menu's visual tree.
+    /// </summary>
+    private static ContextMenu OpenLaidOut(ContextMenu menu)
+    {
+        OpenInWindow(menu);
+        Dispatcher.UIThread.RunJobs();
+        menu.UpdateLayout();
+        return menu;
+    }
+
+    /// <summary>The colour <paramref name="button"/>'s template draws its background in, after every style has applied.</summary>
+    private static Color BackgroundColor(Button button)
+    {
+        ContentPresenter presenter = button.GetVisualDescendants().OfType<ContentPresenter>().Single(p => p.Name == "PART_ContentPresenter");
+        return Assert.IsType<ISolidColorBrush>(presenter.Background, exactMatch: false).Color;
     }
 
     private static MenuFlyout SubmenuFlyout(Button button) => Assert.IsType<MenuFlyout>(FlyoutBase.GetAttachedFlyout(button));
