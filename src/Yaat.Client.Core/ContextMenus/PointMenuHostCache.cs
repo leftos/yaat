@@ -96,6 +96,9 @@ internal sealed class PointMenuHostCache(IMenuHost inner) : IMenuHost
 
     public (string Sector, int FloorFtMsl)? GetMva(LatLon position) => inner.GetMva(position);
 
+    public IReadOnlyList<PatternRunwayChoice> GetPatternRunwayChoices(string airportId, string aircraftType) =>
+        inner.GetPatternRunwayChoices(airportId, aircraftType);
+
     public double GetFieldElevation(string? destination) => inner.GetFieldElevation(destination);
 
     public void EnterDrawRoute(string callsign) => inner.EnterDrawRoute(callsign);

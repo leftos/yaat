@@ -969,7 +969,7 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
         PatternDirection direction =
             aircraft.Phases?.TrafficDirection
             ?? aircraft.Pattern.TrafficDirection
-            ?? GoAroundHelper.InferDefaultPatternDirection(runway)
+            ?? PatternGeometry.InferDefaultPatternDirection(runway)
             ?? PatternDirection.Left;
         return new FollowPatternReturn(runway, direction, ResolvePatternAltitudeFt(aircraft, runway, groundLayout), fromBase);
     }
@@ -1958,7 +1958,7 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
 
     /// <summary>The traffic direction of a turn-out circuit this pursuit did not come from: the lead's, else the runway's default.</summary>
     private static PatternDirection TurnOutDirection(RunwayInfo runway, PhaseList leadPhases) =>
-        leadPhases.TrafficDirection ?? GoAroundHelper.InferDefaultPatternDirection(runway) ?? PatternDirection.Left;
+        leadPhases.TrafficDirection ?? PatternGeometry.InferDefaultPatternDirection(runway) ?? PatternDirection.Left;
 
     /// <summary>
     /// True when the follower's shortest path to <paramref name="circuit"/>'s threshold is no longer than the lead's remaining

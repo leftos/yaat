@@ -122,7 +122,15 @@ All Commands
     Join radial outbound… picker:input
     Join radial inbound… picker:input
   Pattern
-    Make straight-in… picker:list [6L, 6R, 7L, 7R, 24L, 24R, 25L, 25R]
+    Make straight-in
+      Runway 6L — EF 6L
+      Runway 6R — EF 6R
+      Runway 7L — EF 7L
+      Runway 7R — EF 7R
+      Runway 24L — EF 24L
+      Runway 24R — EF 24R
+      Runway 25L — EF 25L
+      Runway 25R — EF 25R
   ---
   Ask pilot to say…
     Altitude

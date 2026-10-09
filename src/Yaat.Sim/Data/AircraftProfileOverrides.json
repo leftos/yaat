@@ -27,5 +27,10 @@
     "typeCode": "BT36",
     "note": "Main-gear width corrected from the FAA ACD's anomalous 12.8 ft to the BE36's 9.6 ft, the same landing gear. Source: FAA ACD BE36 row.",
     "mainGearWidthFt": 9.6
+  },
+  {
+    "typeCode": "MD81",
+    "note": "The MD81's base profile carries no landing distance (0), so every runway counted as landable for it. Set to the MD82's 5,200 ft landing distance, the same airframe and the closest sourced figure. Source: AircraftProfiles.json MD82 row. Validated by aviation-sim-expert.",
+    "landingDistance": 5200
   }
 ]

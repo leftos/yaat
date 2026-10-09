@@ -9,10 +9,11 @@ namespace Yaat.Sim.Tests;
 /// asks "how long is this runway" means: a takeoff run, a departure flight-path projection, and
 /// "crossed the runway end" (7110.65 §3-9-6, §3-10-3).
 ///
-/// It used to be the nav data's declared <c>landing_distance_available</c>, which is a different
-/// quantity: the LDA "may be less than the physical length of the runway or the length of the runway
-/// remaining beyond a displaced threshold" (AIM 4-3-4.d.4), and it is declared once per runway *end*,
-/// so a single stored value was also silently one end's number applied to both directions.
+/// The nav data's declared <c>landing_distance_available</c> is a different quantity: the LDA "may be
+/// less than the physical length of the runway or the length of the runway remaining beyond a displaced
+/// threshold" (AIM 4-3-6.d.3(d)), and it is declared once per runway *end*. The runway never carries
+/// it: the navigation database answers it per end (<see cref="Data.NavigationDatabase.DeclaredLandingDistanceFt"/>,
+/// pinned by <see cref="LandableRunwayTests"/>), and it never stands in for the pavement length.
 /// </summary>
 public class RunwayLengthTests
 {

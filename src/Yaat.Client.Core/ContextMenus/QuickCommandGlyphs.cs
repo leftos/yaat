@@ -19,10 +19,16 @@ public enum QuickCommandGlyphFamily
     ScopeAndSim,
 }
 
-/// <summary>A quick command's icon: a 24 px stroke path and the family that colours it.</summary>
+/// <summary>
+/// A quick command's icon: a 24 px stroke path, the family that colours it, and how the path is turned on its view box
+/// when drawn, which never rewrites the path itself: first mirrored top to bottom about the box's centre line when
+/// <paramref name="MirroredTopToBottom"/>, then rotated clockwise about the box's centre by <paramref name="RotationDegrees"/>.
+/// </summary>
 /// <param name="PathData">The SVG path data, drawn on a 24 × 24 view box with round caps and joins.</param>
 /// <param name="Family">The family whose colour the glyph is drawn in.</param>
-public sealed record QuickCommandGlyph(string PathData, QuickCommandGlyphFamily Family);
+/// <param name="RotationDegrees">The clockwise rotation about the view box's centre; 0 draws the path as it is.</param>
+/// <param name="MirroredTopToBottom">Whether the path is mirrored top to bottom about the view box's centre line before it is rotated.</param>
+public sealed record QuickCommandGlyph(string PathData, QuickCommandGlyphFamily Family, double RotationDegrees, bool MirroredTopToBottom);
 
 /// <summary>
 /// The icon each glyph-bearing catalog action shows in a quick-command menu's strip, from the approved icon set, and the
@@ -197,13 +203,13 @@ public static class QuickCommandGlyphs
         return new QuickCommandResolution(strip, text);
     }
 
-    private static QuickCommandGlyph Tower(string path) => new(path, QuickCommandGlyphFamily.Tower);
+    private static QuickCommandGlyph Tower(string path) => new(path, QuickCommandGlyphFamily.Tower, 0, false);
 
-    private static QuickCommandGlyph Ground(string path) => new(path, QuickCommandGlyphFamily.Ground);
+    private static QuickCommandGlyph Ground(string path) => new(path, QuickCommandGlyphFamily.Ground, 0, false);
 
-    private static QuickCommandGlyph Flight(string path) => new(path, QuickCommandGlyphFamily.Flight);
+    private static QuickCommandGlyph Flight(string path) => new(path, QuickCommandGlyphFamily.Flight, 0, false);
 
-    private static QuickCommandGlyph Pattern(string path) => new(path, QuickCommandGlyphFamily.Pattern);
+    private static QuickCommandGlyph Pattern(string path) => new(path, QuickCommandGlyphFamily.Pattern, 0, false);
 
-    private static QuickCommandGlyph ScopeAndSim(string path) => new(path, QuickCommandGlyphFamily.ScopeAndSim);
+    private static QuickCommandGlyph ScopeAndSim(string path) => new(path, QuickCommandGlyphFamily.ScopeAndSim, 0, false);
 }

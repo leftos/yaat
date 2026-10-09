@@ -40,6 +40,7 @@ public static class QuickCommandStrip
 
     private const double CellSize = 40;
     private const double GlyphSize = 22;
+    private const double GlyphViewBox = 24;
     private const double Gap = 6;
     private const string NotchPath = "M6 0V6H0z";
     private const string PromptTitle = "Quick commands";
@@ -166,7 +167,11 @@ public static class QuickCommandStrip
         return cell;
     }
 
-    /// <summary>The glyph's stroke path on its 24 px view box, scaled to the strip's glyph size and drawn in its family's colour.</summary>
+    /// <summary>
+    /// The glyph's stroke path on its 24 px view box, scaled to the strip's glyph size and drawn in its family's colour,
+    /// mirrored and rotated about the box's centre as the glyph says (<see cref="GlyphTransform"/>). A rotated glyph's
+    /// corners reach a little past the box; nothing clips them.
+    /// </summary>
     public static Viewbox GlyphIcon(QuickCommandGlyph glyph) =>
         new()
         {
@@ -176,8 +181,10 @@ public static class QuickCommandStrip
             VerticalAlignment = VerticalAlignment.Center,
             Child = new Canvas
             {
-                Width = 24,
-                Height = 24,
+                Width = GlyphViewBox,
+                Height = GlyphViewBox,
+                RenderTransformOrigin = RelativePoint.TopLeft,
+                RenderTransform = GlyphTransform(glyph),
                 Children =
                 {
                     new Path
@@ -191,6 +198,24 @@ public static class QuickCommandStrip
                 },
             },
         };
+
+    /// <summary>
+    /// How <paramref name="glyph"/>'s path is turned on its view box, with the transform origin at the box's top left: one
+    /// rotation about the centre, preceded for a mirrored glyph by the top-to-bottom mirror about the centre line
+    /// (<c>y → 24 − y</c>).
+    /// </summary>
+    private static Transform GlyphTransform(QuickCommandGlyph glyph)
+    {
+        const double centre = GlyphViewBox / 2;
+        var rotation = new RotateTransform(glyph.RotationDegrees, centre, centre);
+        if (!glyph.MirroredTopToBottom)
+        {
+            return rotation;
+        }
+
+        var mirror = new MatrixTransform(new Matrix(1, 0, 0, -1, 0, GlyphViewBox));
+        return new TransformGroup { Children = { mirror, rotation } };
+    }
 
     /// <summary>Whether <paramref name="item"/> is a quick-command strip.</summary>
     public static bool IsStrip(MenuItem item) => item.Classes.Contains(StripClass);

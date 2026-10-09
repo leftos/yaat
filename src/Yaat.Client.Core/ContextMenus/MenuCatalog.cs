@@ -1249,28 +1249,25 @@ public static class MenuCatalog
 
     /// <summary>
     /// A pattern entry: with a runway assigned, a leaf naming it that sends the verb for the runway as assigned;
-    /// otherwise a picker over <see cref="PatternEntryRunways"/>, or free text when there are none, where a blank answer
-    /// sends the bare verb and any other is sent after it as typed. <see cref="BuildPatternEntryOther"/> offers the
-    /// runways beside an assigned one.
+    /// otherwise a flyout over the aircraft's airport's runway ends (<see cref="BuildPatternRunwayFlyout"/>), or free text
+    /// when there are none, where a blank answer sends the bare verb and any other is sent after it as typed.
+    /// <see cref="BuildPatternEntryOther"/> offers the runways beside an assigned one.
     /// </summary>
-    private static MenuCatalogEntry PatternEntry(string id, Func<IMenuAircraft?, MenuContext, bool> isApplicable)
+    private static MenuCatalogEntry PatternEntry(string id, Func<IMenuAircraft?, MenuContext, bool> isApplicable) =>
+        new(id, PatternEntrySpec(id).Label, MenuFlightRules.Both, isApplicable, (ac, context, host) => BuildPatternEntry(id, ac, context, host));
+
+    private static MenuItem BuildPatternEntry(string id, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
     {
         (string label, string command) = PatternEntrySpec(id);
-        return new(id, label, MenuFlightRules.Both, isApplicable, (ac, context, host) => BuildPatternEntry(label, command, ac, context, host));
-    }
-
-    private static MenuItem BuildPatternEntry(string label, string command, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
-    {
         if (aircraft is { AssignedRunway.Length: > 0 })
         {
             string runway = aircraft.AssignedRunway;
             return BuildSend($"{label} {RunwayIdentifier.ToDisplayDesignator(runway)}", $"{command} {runway}", context, host);
         }
 
-        IReadOnlyList<string> runways = PatternEntryRunways(aircraft);
-        if (runways.Count > 0)
+        if (BuildPatternRunwayFlyout(id, label, aircraft, context, host) is { } flyout)
         {
-            return BuildPatternRunwayList($"{label}{Ellipsis}", command, runways, context, host);
+            return flyout;
         }
 
         return BuildInput(
@@ -1284,8 +1281,8 @@ public static class MenuCatalog
     }
 
     /// <summary>
-    /// A pattern entry's companion, which shares its id: a picker over <see cref="PatternEntryRunways"/> labelled
-    /// "(other)", offered beside an assigned runway; null without an assigned runway or without runways.
+    /// A pattern entry's companion, which shares its id: the runway flyout (<see cref="BuildPatternRunwayFlyout"/>)
+    /// labelled "(other)", offered beside an assigned runway; null without an assigned runway or without runways.
     /// </summary>
     internal static MenuItem? BuildPatternEntryOther(string id, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
     {
@@ -1294,33 +1291,57 @@ public static class MenuCatalog
             return null;
         }
 
-        IReadOnlyList<string> runways = PatternEntryRunways(aircraft);
-        if (runways.Count == 0)
+        return BuildPatternRunwayFlyout(id, $"{PatternEntrySpec(id).Label} (other)", aircraft, context, host);
+    }
+
+    /// <summary>
+    /// A submenu labelled <paramref name="label"/> over every runway end at the aircraft's airport
+    /// (<see cref="PatternRunwayChoices.For"/>): the room's arrival or both-way active ends, a separator, then the rest,
+    /// the ends too short for the physical type (<see cref="IMenuAircraft.BaseAircraftType"/>) last in each group, dimmed
+    /// with a "short" note and still clickable. Each row draws the entry's glyph turned to the end
+    /// (<see cref="PatternRunwayChoices.Glyph"/>) and sends entry <paramref name="id"/>'s command for it. Null when the
+    /// aircraft has no airport or the navigation data no runways there.
+    /// </summary>
+    private static MenuItem? BuildPatternRunwayFlyout(string id, string label, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
+    {
+        if ((aircraft is null) || (PatternRunwayChoices.AirportOf(aircraft) is not { } airport))
         {
             return null;
         }
 
-        (string label, string command) = PatternEntrySpec(id);
-        return BuildPatternRunwayList($"{label} (other){Ellipsis}", command, runways, context, host);
-    }
-
-    /// <summary>The runways a pattern entry offers: the destination's, else the departure airport's; none without either.</summary>
-    private static IReadOnlyList<string> PatternEntryRunways(IMenuAircraft? aircraft)
-    {
-        if (aircraft is null)
+        IReadOnlyList<PatternRunwayChoice> choices = host.GetPatternRunwayChoices(airport, aircraft.BaseAircraftType);
+        if (choices.Count == 0)
         {
-            return [];
+            return null;
         }
 
-        string airport = !string.IsNullOrEmpty(aircraft.Destination) ? aircraft.Destination : aircraft.Departure;
-        return !string.IsNullOrEmpty(airport) ? RunwayDesignators.ForAirport(airport) : [];
+        string command = PatternEntrySpec(id).Command;
+        var flyout = new MenuItem { Header = label };
+        for (int i = 0; i < choices.Count; i++)
+        {
+            if ((i > 0) && choices[i - 1].IsActive && !choices[i].IsActive)
+            {
+                flyout.Items.Add(new Separator());
+            }
+
+            flyout.Items.Add(BuildPatternRunwayRow(id, command, choices[i], context, host));
+        }
+
+        return flyout;
     }
 
-    /// <summary>A list picker over <paramref name="runways"/>, the first highlighted, that sends <paramref name="command"/> for the pick.</summary>
-    private static MenuItem BuildPatternRunwayList(string label, string command, IReadOnlyList<string> runways, MenuContext context, IMenuHost host)
+    private static MenuItem BuildPatternRunwayRow(string id, string command, PatternRunwayChoice choice, MenuContext context, IMenuHost host)
     {
-        List<object> items = [.. runways];
-        return BuildList(label, items, items[0], picked => Send($"{command} {picked}", context, host), host);
+        string send = $"{command} {choice.Designator}";
+        var row = new MenuGlyphRow
+        {
+            Glyph = PatternRunwayChoices.Glyph(id, choice.End),
+            Label = $"Runway {choice.Designator}",
+            Note = choice.IsLandable ? null : "short",
+            IsDimmed = !choice.IsLandable,
+            Command = send,
+        };
+        return BuildTemplatedSend(row, MenuGlyphRowTemplate.Instance, send, context, host);
     }
 
     private static MenuCatalogEntry InputLeaf(string id, string label, string placeholder, BlankInput blank, Func<string, string> format) =>

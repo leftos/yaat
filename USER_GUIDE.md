@@ -344,6 +344,9 @@ An aircraft YAAT cannot place in a situation shows no quick commands; use All Co
 - **Cleared visual** shows only after an IFR aircraft reports the field or the preceding traffic in sight.
 - **Assign speed** and **Reduce to final approach speed** hide inside the final approach fix.
 - **Give way to…** needs a taxi route; **Climb via SID** and **Descend via STAR** need an assigned or filed procedure.
+- **Enter left / right downwind, Enter left / right base and Make straight-in** open a runway list when the aircraft has no assigned runway (and the "(other)" item beside an assigned one opens it too). Each row is the runway with an arrow turned to point the way an aircraft lands on it, then the command it sends (`ELD 28R`). Runways in use for arrivals come first, then a separator and the rest; in each group the runways the aircraft's type can land on come before the short ones.
+
+  A runway is short for the type when its landing distance available is under 1.15 times the type's landing distance. Such a row reads "Runway 28R · short" and is dimmed, but you can still click it. The icon on the strip turns to the aircraft's assigned runway the same way.
 
 **Changing the quick commands.** Open **Settings › Quick commands** (in the Input group) to change any situation's list. Pick a situation on the left: a blue ● marks one you changed from its default, an amber ⚠ one with a custom command to fix. **Menu preview** shows the selected list as the menu lays it out, the first ten commands with an icon as the strip and the rest as text, every command included whether or not it applies to a given aircraft.
 

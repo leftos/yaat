@@ -109,7 +109,15 @@ All Commands
     Join radial inbound… picker:input
   Pattern
     Make straight-in 30
-    Make straight-in (other)… picker:list [10L, 10R, 12, 15, 28L, 28R, 30, 33]
+    Make straight-in (other)
+      Runway 10R — EF 10R
+      Runway 12 — EF 12
+      Runway 28L — EF 28L
+      Runway 30 — EF 30
+      Runway 10L · short — EF 10L
+      Runway 15 · short — EF 15
+      Runway 28R · short — EF 28R
+      Runway 33 · short — EF 33
   ---
   Ask pilot to say…
     Altitude

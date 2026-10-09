@@ -97,7 +97,8 @@ public static class QuickCommandResolver
     /// <summary>
     /// The quick commands <paramref name="entries"/> leaves for <paramref name="aircraft"/>, in list order. A custom entry
     /// resolves to a text entry (<see cref="CustomQuickCommandEntry.MenuId"/>, no glyph) that sends
-    /// <see cref="CustomQuickCommandEntry.CommandFor"/>; it is filtered by its flight rules alone.
+    /// <see cref="CustomQuickCommandEntry.CommandFor"/>; it is filtered by its flight rules alone. A pattern entry on the
+    /// strip shows the aircraft's assigned runway's rotated glyph (<see cref="PatternRunwayChoices.StripGlyph"/>).
     /// </summary>
     /// <param name="entries">The quick-command list to resolve, in order.</param>
     /// <param name="aircraft">The aircraft the menu commands.</param>
@@ -125,7 +126,11 @@ public static class QuickCommandResolver
             }
         }
 
-        return QuickCommandGlyphs.Split(shown);
+        QuickCommandResolution split = QuickCommandGlyphs.Split(shown);
+        return split with
+        {
+            Strip = [.. split.Strip.Select(item => item with { Glyph = PatternRunwayChoices.StripGlyph(item.Entry.Id, item.Glyph, aircraft) })],
+        };
     }
 
     private static MenuCatalogEntry? ShownCatalogEntry(CatalogQuickCommandEntry entry, IMenuAircraft aircraft, MenuContext context)

@@ -6,6 +6,8 @@ An aircraft's right-click menu has a state line under its title (phase, altitude
 
 ![An aircraft's right-click menu with its quick-command strip](img/whats-new-quick-commands.png)
 
+The pattern entries (Enter downwind, Enter base, Make straight-in) open a runway list with an arrow turned to each runway, the runways in use first and the ones too short for the aircraft's type dimmed and marked "short".
+
 Right-clicking a taxiway, runway or the radar map with an aircraft selected leads with icons such as Taxi here, Push to or Hold left. The menu's title names the aircraft and the place, and the radar adds the distance and bearing.
 
 ![The point menu on a taxiway](img/whats-new-point-menu.png)

@@ -2772,21 +2772,38 @@ public class MenuCatalogCommandTests
         Assert.Null(none);
     }
 
-    [AvaloniaTheory]
-    [InlineData(ApproachAirport, UnknownAirport, MenuPickerDescriptor.List)]
-    [InlineData(UnknownAirport, ApproachAirport, MenuPickerDescriptor.Input)]
-    public void PatternEntry_RunwaysComeFromTheDestinationWheneverOneIsFiled(string destination, string departure, string kind)
+    [AvaloniaFact]
+    public void PatternEntry_RunwaysComeFromTheDestinationWheneverOneIsFiled()
     {
         TestVnasData.EnsureInitialized();
         Assert.Empty(RunwayDesignators.ForAirport(UnknownAirport));
-        string[] runways = kind == MenuPickerDescriptor.List ? [.. RunwayDesignators.ForAirport(ApproachAirport)] : [];
         var host = new RecordingMenuHost("28R");
-        var aircraft = new FakeMenuAircraft { Destination = destination, Departure = departure };
 
-        MenuItem? item = MenuCatalog.Get(MenuIds.PatternEnterLeftDownwind).Build(aircraft, Context(), host);
-        Click(AssertPicker(item, "Enter left downwind…", kind, runways));
+        MenuItem? flyout = MenuCatalog
+            .Get(MenuIds.PatternEnterLeftDownwind)
+            .Build(new FakeMenuAircraft { Destination = ApproachAirport, Departure = UnknownAirport }, Context(), host);
+        Click(PatternRunwayRow(flyout, "Enter left downwind", [.. RunwayDesignators.ForAirport(ApproachAirport)], "28R"));
+        MenuItem? input = MenuCatalog
+            .Get(MenuIds.PatternEnterLeftDownwind)
+            .Build(new FakeMenuAircraft { Destination = UnknownAirport, Departure = ApproachAirport }, Context(), host);
+        Click(AssertPicker(input, "Enter left downwind…", MenuPickerDescriptor.Input, []));
 
-        Assert.Equal([(Callsign, "ELD 28R", Initials)], host.Sent);
+        Assert.Equal([(Callsign, "ELD 28R", Initials), (Callsign, "ELD 28R", Initials)], host.Sent);
+    }
+
+    /// <summary>
+    /// Asserts a pattern entry's runway flyout: its header, no picker, and one row per runway in
+    /// <paramref name="runways"/> order (a type with no landing distance finds every runway landable, and the recording
+    /// host's room has no active runways, so the order is the runway order); returns the row for <paramref name="runway"/>.
+    /// </summary>
+    private static MenuItem PatternRunwayRow(MenuItem? flyout, string header, string[] runways, string runway)
+    {
+        Assert.NotNull(flyout);
+        Assert.Equal(header, flyout.Header as string);
+        Assert.Null(flyout.Tag);
+        List<MenuItem> rows = [.. flyout.Items.Cast<MenuItem>()];
+        Assert.Equal(runways.Select(r => $"Runway {r}"), rows.Select(row => Assert.IsType<MenuGlyphRow>(row.Header).Label));
+        return rows.Single(row => ((MenuGlyphRow)row.Header!).Label == $"Runway {runway}");
     }
 
     /// <summary>An airborne VFR aircraft in <paramref name="phase"/>, with no runway assigned.</summary>
@@ -2861,14 +2878,14 @@ public class MenuCatalogCommandTests
         var withDefault = new FakeMenuAircraft { Departure = ApproachAirport, AssignedRunway = "30" };
 
         MenuItem? list = MenuCatalog.Get(MenuIds.PatternEnterRightBase).Build(noDefault, Context(), host);
-        Click(AssertPicker(list, "Enter right base…", MenuPickerDescriptor.List, runways));
+        Click(PatternRunwayRow(list, "Enter right base", runways, "28R"));
         Assert.Null(MenuCatalog.BuildPatternEntryOther(MenuIds.PatternEnterRightBase, noDefault, Context(), host));
 
         Assert.Equal("Enter right base 30", MenuCatalog.Get(MenuIds.PatternEnterRightBase).Build(withDefault, Context(), host)?.Header as string);
         MenuItem? other = MenuCatalog.BuildPatternEntryOther(MenuIds.PatternEnterRightBase, withDefault, Context(), host);
-        Click(AssertPicker(other, "Enter right base (other)…", MenuPickerDescriptor.List, runways));
+        Click(PatternRunwayRow(other, "Enter right base (other)", runways, "28R"));
 
-        Assert.All(host.ListPopups, popup => Assert.Equal<object?>(runways[0], popup.Selected));
+        Assert.Empty(host.ListPopups);
         Assert.Equal([(Callsign, "ERB 28R", Initials), (Callsign, "ERB 28R", Initials)], host.Sent);
     }
 
@@ -2998,6 +3015,8 @@ public class MenuCatalogCommandTests
         public string FiledAircraftType { get; init; } = "";
 
         public string DisplayAircraftType => FiledAircraftType;
+
+        public string BaseAircraftType { get; init; } = "";
 
         public string Note => "";
 

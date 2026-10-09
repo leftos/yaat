@@ -4,6 +4,7 @@ using Yaat.Client.Services;
 using Yaat.Sim;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Simulation;
 
 namespace Yaat.Client.UI.Tests.Views;
 
@@ -163,6 +164,24 @@ internal sealed class RecordingMenuHost(string input) : IMenuHost
     public (string Sector, int FloorFtMsl)? Mva { get; init; }
 
     public (string Sector, int FloorFtMsl)? GetMva(LatLon position) => Mva;
+
+    /// <summary>The room's active-runway tokens by airport, as the server sends them (<c>OAK: [A28R, 30]</c>); none by default.</summary>
+    public IReadOnlyDictionary<string, IReadOnlyList<string>> RoomActiveRunways { get; init; } =
+        new Dictionary<string, IReadOnlyList<string>>(StringComparer.Ordinal);
+
+    /// <summary>
+    /// The pattern entries' runway choices, with the active ends read from <see cref="RoomActiveRunways"/> as the client
+    /// reads them; a token that does not read fails the test.
+    /// </summary>
+    public IReadOnlyList<PatternRunwayChoice> GetPatternRunwayChoices(string airportId, string aircraftType)
+    {
+        ActiveRunways runways = PatternRunwayChoices.ReadRoomActiveRunways(
+            RoomActiveRunways,
+            "Pattern entry active runways",
+            warning => throw new InvalidOperationException($"Unreadable active runways: {warning}")
+        );
+        return PatternRunwayChoices.For(airportId, aircraftType, PatternRunwayChoices.ActiveArrivalEnds(runways, airportId));
+    }
 
     /// <summary>Records the destination asked about and answers <see cref="FieldElevation"/>.</summary>
     public double GetFieldElevation(string? destination)

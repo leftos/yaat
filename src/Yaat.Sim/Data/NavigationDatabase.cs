@@ -39,6 +39,10 @@ public sealed class NavigationDatabase
     private readonly Dictionary<string, List<string>> _airways = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, List<RunwayInfo>> _runways = new(StringComparer.OrdinalIgnoreCase);
 
+    // Declared landing distance available (feet) per airport (FAA and ICAO id) and zero-padded runway end,
+    // only for ends that declare one. Kept off RunwayInfo so no snapshot or recording ever carries it.
+    private readonly Dictionary<string, Dictionary<string, double>> _declaredLandingDistancesFt = new(StringComparer.OrdinalIgnoreCase);
+
     // AP/1B military training route points, kept out of _navDb on purpose. Both public projections
     // of _navDb — AllFixNames (autocomplete, the DIST suggester, PhoneticFixMatcher, the scope's fix
     // overlay, and FRD anchoring via RadarViewModel.BuildVisibleFixes) and GetFixTuples (FRD nearest-
@@ -1822,6 +1826,7 @@ public sealed class NavigationDatabase
                         WidthFt = rwy1.Width,
                         AirportElevationFt = airport.Elevation,
                     };
+                    IndexDeclaredLandingDistance(airport, rwy2);
                 }
                 else
                 {
@@ -1845,6 +1850,7 @@ public sealed class NavigationDatabase
                     };
                 }
 
+                IndexDeclaredLandingDistance(airport, rwy1);
                 runwayInfos.Add(info);
                 paired.Add(i);
             }
@@ -2587,6 +2593,46 @@ public sealed class NavigationDatabase
         IReadOnlyDictionary<(string Airport, string Runway), double> elevations = CifpParser.ParseRunwayThresholdElevations(cifpFilePath);
         Log.LogInformation("CIFP runway threshold elevations: {Count} runway ends", elevations.Count);
         return elevations;
+    }
+
+    /// <summary>
+    /// The landing distance available the nav data declares for landing on <paramref name="runwayEnd"/> at
+    /// <paramref name="airportId"/>, in feet (AIM 4-3-6.d.3(d)); null when the nav data declares none there (it carries a
+    /// zero) or does not know the airport or the end. Never part of a <see cref="RunwayInfo"/>, so never serialized.
+    /// </summary>
+    /// <param name="airportId">The airport's FAA or ICAO id (<c>OAK</c>, <c>KOAK</c>).</param>
+    /// <param name="runwayEnd">The end landed on, zero-padded or not (<c>01L</c>, <c>1L</c>).</param>
+    public double? DeclaredLandingDistanceFt(string airportId, string runwayEnd) =>
+        (
+            (_declaredLandingDistancesFt.TryGetValue(airportId, out Dictionary<string, double>? ends))
+            && (ends.TryGetValue(RunwayIdentifier.NormalizeDesignator(runwayEnd), out double declaredFt))
+        )
+            ? declaredFt
+            : null;
+
+    /// <summary>Records <paramref name="end"/>'s declared landing distance under the airport's FAA and ICAO ids; a zero declares none.</summary>
+    private void IndexDeclaredLandingDistance(Proto.Airport airport, Runway end)
+    {
+        if (end.LandingDistanceAvailable <= 0)
+        {
+            return;
+        }
+
+        foreach (string? airportId in (string?[])[airport.FaaId, airport.IcaoId])
+        {
+            if (string.IsNullOrEmpty(airportId))
+            {
+                continue;
+            }
+
+            if (!_declaredLandingDistancesFt.TryGetValue(airportId, out Dictionary<string, double>? ends))
+            {
+                ends = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+                _declaredLandingDistancesFt[airportId] = ends;
+            }
+
+            ends[RunwayIdentifier.NormalizeDesignator(end.Id)] = end.LandingDistanceAvailable;
+        }
     }
 
     /// <summary>

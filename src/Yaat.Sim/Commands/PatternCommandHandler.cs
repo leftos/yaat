@@ -171,7 +171,7 @@ internal static class PatternCommandHandler
         // the wrong side and any subsequent COPT/TouchAndGo or GoAround circuit would
         // fly the downwind over the parallel runway. ELD/ERD/ELB/ERB/ELC/ERC pass an
         // explicit L/R that reflects the controller's verb and bypasses the inference.
-        PatternDirection direction = requestedDirection ?? GoAroundHelper.InferDefaultPatternDirection(runway) ?? PatternDirection.Left;
+        PatternDirection direction = requestedDirection ?? PatternGeometry.InferDefaultPatternDirection(runway) ?? PatternDirection.Left;
 
         // Parallel-runway sidestep (7110.65 §4-8-7, AIM §5-4-19). When EF targets a
         // runway parallel to the one the aircraft is currently flying FinalApproach on,
@@ -4257,7 +4257,7 @@ internal static class PatternCommandHandler
         lowApproach.EnableRetargetToDifferentRunway(feasibility.GateLat, feasibility.GateLon, runwayB.TrueHeading, RetargetFinalGateNm);
 
         // Build the runway-B tail: pattern entry onto B's final at the gate, then final + landing.
-        PatternDirection directionB = GoAroundHelper.InferDefaultPatternDirection(runwayB) ?? PatternDirection.Left;
+        PatternDirection directionB = PatternGeometry.InferDefaultPatternDirection(runwayB) ?? PatternDirection.Left;
         IReadOnlyList<RunwayInfo> airportRunwaysB = NavigationDatabase.Instance.GetRunways(runwayB.AirportId);
         (double? sizeOvB, double? altOvB) = PatternGeometry.ResolveAuthoredOverrides(
             runwayB,

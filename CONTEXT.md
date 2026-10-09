@@ -460,6 +460,12 @@ What a right-click gives an aircraft menu (`MenuClick`): the aircraft the menu c
 **Command row**:
 A clickable, templated context-menu row that sends a command: an optional badge, the name, a detail, a distance and the command text (`MenuCommandRow`, drawn by `MenuCommandRowTemplate`); the Hold short of… and Follow… / Give way to… rows are command rows.
 
+**Glyph row**:
+A clickable context-menu row led by a quick-command glyph, with a label, an optional dimmed note and the command text (`MenuGlyphRow`, drawn by `MenuGlyphRowTemplate`); a dimmed one stays clickable. The pattern entries' runway flyout rows are glyph rows, the glyph rotated to the runway's true course less 270°.
+
+**Landable (runway end) / short runway end**:
+A runway end is landable for a physical aircraft type when its landing distance available is at least 1.15 times the type's landing distance, and short otherwise (`RunwayLandability`); a type with no figure, a helicopter and a `VEH*` type are always landable. The pattern entries' flyout lists landable ends first and marks short ones "short".
+
 **Detail row**:
 A disabled, dimmed label row in a menu that sends nothing (`SharedMenuGroups.DetailRow`), such as the point menu's FRD, distance and bearing line; not a command row.
 

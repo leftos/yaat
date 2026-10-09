@@ -55,6 +55,9 @@ internal sealed class SendCapturingHost(IMenuHost inner, string sessionInitials)
 
     public (string Sector, int FloorFtMsl)? GetMva(LatLon position) => inner.GetMva(position);
 
+    public IReadOnlyList<PatternRunwayChoice> GetPatternRunwayChoices(string airportId, string aircraftType) =>
+        inner.GetPatternRunwayChoices(airportId, aircraftType);
+
     public string[]? FixNames => inner.FixNames;
 
     public double GetFieldElevation(string? destination) => inner.GetFieldElevation(destination);

@@ -74,13 +74,15 @@ public sealed class RunwayInfo
     /// rather than stored, so it cannot drift from the geometry every other calculation uses, and it is
     /// the same in both directions by construction.
     ///
-    /// This is the only length the runway carries. The nav data's <c>landing_distance_available</c> is
-    /// deliberately not stored: it is declared per end and can differ between them (KSJC 12L 8,831 ft
-    /// vs 30R 7,597 ft, AIM 4-3-4.d.4), and every caller here wants the physical extent instead — a
-    /// takeoff run (pre-threshold pavement is usable in either direction, AIM 2-3-3.h.2), a departure
-    /// flight path projection, or "crossed the runway end" (7110.65 §3-9-6, §3-10-3). An arrival's
-    /// usable distance comes from <c>LandingThreshold</c> instead, which starts at the displaced
-    /// threshold.
+    /// This is the runway's physical length, and what every geometric caller wants — a takeoff run
+    /// (pre-threshold pavement is usable in either direction, AIM 2-3-3.h.2), a departure flight path
+    /// projection, or "crossed the runway end" (7110.65 §3-9-6, §3-10-3). The nav data's declared
+    /// <c>landing_distance_available</c> is a different quantity, one of the declared distances (AIM 4-3-6.d;
+    /// LDA defined at 4-3-6.d.3(d)), declared per end and differing between them (KSJC 12L 8,831 ft vs
+    /// 30R 7,597 ft). The runway never carries it: <see cref="Data.NavigationDatabase.DeclaredLandingDistanceFt"/>
+    /// answers it per end from the nav data, so nothing a snapshot restores can differ from a live runway,
+    /// and it is read only to judge whether a type can land (<see cref="RunwayLandability"/>). An arrival's
+    /// touchdown geometry comes from <c>LandingThreshold</c> instead, which starts at the displaced threshold.
     /// </summary>
     public double PavementLengthFt => GeoMath.DistanceNm(Lat1, Lon1, Lat2, Lon2) * GeoMath.FeetPerNm;
 

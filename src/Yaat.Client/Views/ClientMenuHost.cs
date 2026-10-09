@@ -10,6 +10,7 @@ using Yaat.Sim;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Mva;
+using Yaat.Sim.Simulation;
 using Yaat.Sim.Situation;
 
 namespace Yaat.Client.Views;
@@ -35,6 +36,12 @@ internal sealed class ClientMenuHost(MainViewModel main, AircraftModel? aircraft
 
     /// <summary>The route-nearest hold short per aircraft and runway, found once for the menu this host builds.</summary>
     private readonly Dictionary<(string Callsign, RunwayIdentifier Runway), int?> _nearestHoldShortByRunway = [];
+
+    /// <summary>The room's active runways, read once for the menu this host builds; null until a pattern entry asks.</summary>
+    private ActiveRunways? _roomActiveRunways;
+
+    /// <summary>The pattern entries' runway choices per airport and physical type, found once for the menu this host builds.</summary>
+    private readonly Dictionary<(string Airport, string AircraftType), IReadOnlyList<PatternRunwayChoice>> _patternRunwayChoices = [];
 
     public MenuSession Session => SessionOf(main);
 
@@ -262,6 +269,34 @@ internal sealed class ClientMenuHost(MainViewModel main, AircraftModel? aircraft
     /// <summary>The controlling sector of the MVA database (<see cref="MvaDatabase.FindSector"/>) at <paramref name="position"/>.</summary>
     public (string Sector, int FloorFtMsl)? GetMva(LatLon position) =>
         (MvaDatabase.Default.FindSector(position) is { } sector) ? (sector.Sector, sector.FloorFtMsl) : null;
+
+    /// <summary>
+    /// The pattern entries' runway choices at <paramref name="airportId"/> for <paramref name="aircraftType"/>
+    /// (<see cref="PatternRunwayChoices.For"/>), found once per airport and type for the menu this host builds
+    /// (<see cref="_patternRunwayChoices"/>), so an end the navigation data cannot resolve is logged once per build. The
+    /// room's active ends come from <see cref="MainViewModel.RoomActiveRunways"/>, read once per build
+    /// (<see cref="_roomActiveRunways"/>); a token that does not read is logged once and names no runway.
+    /// </summary>
+    public IReadOnlyList<PatternRunwayChoice> GetPatternRunwayChoices(string airportId, string aircraftType)
+    {
+        if (_patternRunwayChoices.TryGetValue((airportId, aircraftType), out IReadOnlyList<PatternRunwayChoice>? cached))
+        {
+            return cached;
+        }
+
+        _roomActiveRunways ??= PatternRunwayChoices.ReadRoomActiveRunways(
+            main.RoomActiveRunways,
+            "Pattern entry active runways",
+            warning => Log.LogWarning("{Warning}", warning)
+        );
+        IReadOnlyList<PatternRunwayChoice> choices = PatternRunwayChoices.For(
+            airportId,
+            aircraftType,
+            PatternRunwayChoices.ActiveArrivalEnds(_roomActiveRunways, airportId)
+        );
+        _patternRunwayChoices[(airportId, aircraftType)] = choices;
+        return choices;
+    }
 
     /// <summary>The primary radar view model's fix names: every fix in the navigation database once it is loaded, else null.</summary>
     public string[]? FixNames => main.Radar.FixNames;

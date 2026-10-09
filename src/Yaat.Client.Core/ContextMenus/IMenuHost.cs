@@ -103,6 +103,15 @@ public interface IMenuHost
     /// </summary>
     (string Sector, int FloorFtMsl)? GetMva(LatLon position);
 
+    /// <summary>
+    /// The runway ends the pattern entries' flyout offers at <paramref name="airportId"/> for the physical type
+    /// <paramref name="aircraftType"/>, in its order (<see cref="PatternRunwayChoices.For"/>): the room's active ends that
+    /// it lands on — used for arrivals or both ways (<c>A28R</c>, <c>30</c>), never a departure-only end (<c>D28L</c>,
+    /// <see cref="PatternRunwayChoices.ActiveArrivalEnds"/>) — grouped first, the rest after, each group in runway order
+    /// with the short ends last. Empty when the navigation data has no runways there.
+    /// </summary>
+    IReadOnlyList<PatternRunwayChoice> GetPatternRunwayChoices(string airportId, string aircraftType);
+
     /// <summary>Every fix name the surface's filtered fix pickers offer, sorted; null while the navigation data is not loaded.</summary>
     string[]? FixNames { get; }
 

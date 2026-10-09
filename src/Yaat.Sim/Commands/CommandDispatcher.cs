@@ -5225,7 +5225,7 @@ public static class CommandDispatcher
         {
             return direction;
         }
-        if (GoAroundHelper.InferDefaultPatternDirection(runway) is { } naturalDirection)
+        if (PatternGeometry.InferDefaultPatternDirection(runway) is { } naturalDirection)
         {
             return naturalDirection;
         }

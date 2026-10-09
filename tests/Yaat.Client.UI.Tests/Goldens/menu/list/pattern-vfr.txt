@@ -106,15 +106,55 @@ All Commands
     Go around 28R
   Pattern
     Enter left downwind 28R
-    Enter left downwind (other)… picker:list [10L, 10R, 12, 15, 28L, 28R, 30, 33]
+    Enter left downwind (other)
+      Runway 10L — ELD 10L
+      Runway 10R — ELD 10R
+      Runway 12 — ELD 12
+      Runway 15 — ELD 15
+      Runway 28L — ELD 28L
+      Runway 28R — ELD 28R
+      Runway 30 — ELD 30
+      Runway 33 — ELD 33
     Enter right downwind 28R
-    Enter right downwind (other)… picker:list [10L, 10R, 12, 15, 28L, 28R, 30, 33]
+    Enter right downwind (other)
+      Runway 10L — ERD 10L
+      Runway 10R — ERD 10R
+      Runway 12 — ERD 12
+      Runway 15 — ERD 15
+      Runway 28L — ERD 28L
+      Runway 28R — ERD 28R
+      Runway 30 — ERD 30
+      Runway 33 — ERD 33
     Enter left base 28R
-    Enter left base (other)… picker:list [10L, 10R, 12, 15, 28L, 28R, 30, 33]
+    Enter left base (other)
+      Runway 10L — ELB 10L
+      Runway 10R — ELB 10R
+      Runway 12 — ELB 12
+      Runway 15 — ELB 15
+      Runway 28L — ELB 28L
+      Runway 28R — ELB 28R
+      Runway 30 — ELB 30
+      Runway 33 — ELB 33
     Enter right base 28R
-    Enter right base (other)… picker:list [10L, 10R, 12, 15, 28L, 28R, 30, 33]
+    Enter right base (other)
+      Runway 10L — ERB 10L
+      Runway 10R — ERB 10R
+      Runway 12 — ERB 12
+      Runway 15 — ERB 15
+      Runway 28L — ERB 28L
+      Runway 28R — ERB 28R
+      Runway 30 — ERB 30
+      Runway 33 — ERB 33
     Make straight-in 28R
-    Make straight-in (other)… picker:list [10L, 10R, 12, 15, 28L, 28R, 30, 33]
+    Make straight-in (other)
+      Runway 10L — EF 10L
+      Runway 10R — EF 10R
+      Runway 12 — EF 12
+      Runway 15 — EF 15
+      Runway 28L — EF 28L
+      Runway 28R — EF 28R
+      Runway 30 — EF 30
+      Runway 33 — EF 33
     ---
     Turn base
     ---

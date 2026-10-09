@@ -98,7 +98,7 @@ internal static class GoAroundHelper
 
         return aircraft.Pattern.TrafficDirection
             ?? InferDirectionFromPatternLegs(phases)
-            ?? InferDefaultPatternDirection(phases.AssignedRunway)
+            ?? PatternGeometry.InferDefaultPatternDirection(phases.AssignedRunway)
             ?? PatternDirection.Left;
     }
 
@@ -255,71 +255,5 @@ internal static class GoAroundHelper
         }
 
         return true;
-    }
-
-    /// <summary>
-    /// Infers the VFR pattern direction from a runway's L/R suffix when a parallel sibling exists.
-    /// 28R with 28L present → Right; 28L with 28R present → Left. Returns null for single runways,
-    /// center parallels (28C), or when no parallel sibling exists, leaving the caller to fall back to
-    /// left traffic (AIM 4-3-3.3).
-    ///
-    /// This is a convention, not a rule: right patterns aren't charted at towered fields (AIM 4-3-3
-    /// note 3), so the tower assigns the side and there is nothing to look up. Parallels are lettered
-    /// left-to-right as seen from the approach (AIM 4-3-6 note 1), so sending each runway's pattern
-    /// outboard is the guess that keeps the two circuits from overlapping. Only reached when neither
-    /// the controller's stated intent nor the aircraft's own flown legs name a side.
-    /// </summary>
-    internal static PatternDirection? InferDefaultPatternDirection(RunwayInfo? runway)
-    {
-        if (runway is null)
-        {
-            return null;
-        }
-
-        (string? number, char? suffix) = SplitDesignator(runway.Designator);
-        if (suffix is not ('L' or 'R') || number is null)
-        {
-            return null;
-        }
-
-        // GetRunways returns one entry per physical runway; the active Designator
-        // can be either End1 or End2 (whichever was loaded as the default). Check
-        // both ends to find the sibling.
-        IReadOnlyList<RunwayInfo> siblings = NavigationDatabase.Instance.GetRunways(runway.AirportId);
-        char siblingSuffix = suffix == 'L' ? 'R' : 'L';
-        bool hasSibling = false;
-        foreach (RunwayInfo rwy in siblings)
-        {
-            (string? end1Num, char? end1Sfx) = SplitDesignator(rwy.Id.End1);
-            (string? end2Num, char? end2Sfx) = SplitDesignator(rwy.Id.End2);
-            if ((end1Num == number && end1Sfx == siblingSuffix) || (end2Num == number && end2Sfx == siblingSuffix))
-            {
-                hasSibling = true;
-                break;
-            }
-        }
-
-        if (!hasSibling)
-        {
-            return null;
-        }
-
-        return suffix == 'R' ? PatternDirection.Right : PatternDirection.Left;
-    }
-
-    private static (string? Number, char? Suffix) SplitDesignator(string designator)
-    {
-        if (string.IsNullOrEmpty(designator))
-        {
-            return (null, null);
-        }
-
-        char last = designator[^1];
-        if (last is 'L' or 'R' or 'C')
-        {
-            return (designator[..^1], last);
-        }
-
-        return (designator, null);
     }
 }

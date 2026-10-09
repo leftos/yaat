@@ -127,6 +127,12 @@ public interface IMenuAircraft
     /// <summary>The type a menu header names: the filed type, else the simulated aircraft's own type.</summary>
     string DisplayAircraftType { get; }
 
+    /// <summary>
+    /// The bare ICAO designator of the aircraft physically flying (<c>H/B763/L</c> → <c>B763</c>), whatever the flight plan
+    /// files: the type the sim flies and lands, which a menu judges performance by (a runway too short to land on).
+    /// </summary>
+    string BaseAircraftType { get; }
+
     /// <summary>The instructor note on the aircraft, empty when none; the note popup opens prefilled with it.</summary>
     string Note { get; }
 

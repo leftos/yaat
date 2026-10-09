@@ -2135,18 +2135,8 @@ public partial class GroundViewModel : ObservableObject
     /// layout id is lower-case (<c>oak</c>) where the room keys its list by the FAA id (<c>OAK</c>). A list that does not
     /// read is logged and names no runway.
     /// </summary>
-    private IReadOnlyList<ActiveRunway> RoomActiveRunwaysAt(string airportId, string label)
-    {
-        var byAirport = RoomActiveRunways().ToDictionary(entry => entry.Key, entry => (List<string>?)[.. entry.Value], StringComparer.Ordinal);
-        var warnings = new List<string>();
-        ActiveRunways runways = ActiveRunwayListParser.FromTokenLists(byAirport, label, warnings);
-        foreach (string warning in warnings)
-        {
-            _log.LogWarning("{Warning}", warning);
-        }
-
-        return runways.For(airportId);
-    }
+    private IReadOnlyList<ActiveRunway> RoomActiveRunwaysAt(string airportId, string label) =>
+        PatternRunwayChoices.ReadRoomActiveRunways(RoomActiveRunways(), label, warning => _log.LogWarning("{Warning}", warning)).For(airportId);
 
     /// <summary>The runway number of an end (<c>09L</c> → 9); <see cref="int.MaxValue"/> for an end that starts with none.</summary>
     private static int RunwayNumber(string end)
