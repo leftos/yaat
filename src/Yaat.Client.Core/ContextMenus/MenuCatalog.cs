@@ -270,7 +270,18 @@ public static class MenuCatalog
             MenuIds.GroundTaxiPreset,
             "Preset taxi route",
             (ac, _) => AircraftCommandApplicability.CanDrawTaxiRoute(ac),
-            (label, _, context, host) => BuildChoiceSubmenu(label, host.GetPresetTaxiChoices(context.Callsign), context, host)
+            (label, _, context, host) => BuildTaxiRouteSubmenu(label, host.GetPresetTaxiChoices(context.Callsign), context, host)
+        ),
+        HostLeaf(
+            MenuIds.GroundTaxiToRunway,
+            "Taxi to runway",
+            (ac, _) => AircraftCommandApplicability.CanDrawTaxiRoute(ac),
+            (label, _, context, host) =>
+                LazySubmenu.Create(
+                    label,
+                    TaxiToRunwayPlaceholder,
+                    () => TaxiToRunwayItems(host.GetTaxiToRunwayChoices(context.Callsign), context, host)
+                )
         ),
         HostLeaf(MenuIds.GroundDrawTaxiRoute, "Draw taxi route…", (ac, _) => AircraftCommandApplicability.CanDrawTaxiRoute(ac), BuildDrawRoute),
         Relative(
@@ -543,13 +554,36 @@ public static class MenuCatalog
     )
         where THeader : class
     {
-        string text = header.ToString() ?? throw new InvalidOperationException($"The menu row header {typeof(THeader).Name} gave no one-line text.");
+        string text = HeaderText(header);
         MenuItem item = BuildSend(text, command, context, host);
         item.Header = header;
         item.HeaderTemplate = template;
         AutomationProperties.SetName(item, text);
         return item;
     }
+
+    /// <summary>
+    /// A submenu over <paramref name="children"/> whose header is <paramref name="header"/> drawn by
+    /// <paramref name="template"/>, its UI Automation name the header's one-line text. Clicking it sends nothing; the caller
+    /// adds any hover behaviour.
+    /// </summary>
+    internal static MenuItem BuildTemplatedSubmenu<THeader>(THeader header, FuncDataTemplate<THeader> template, IReadOnlyList<Control> children)
+        where THeader : class
+    {
+        var item = new MenuItem { Header = header, HeaderTemplate = template };
+        AutomationProperties.SetName(item, HeaderText(header));
+        foreach (Control child in children)
+        {
+            item.Items.Add(child);
+        }
+
+        return item;
+    }
+
+    /// <summary>A templated menu row header's one-line text; throws when the header gives none.</summary>
+    private static string HeaderText<THeader>(THeader header)
+        where THeader : class =>
+        header.ToString() ?? throw new InvalidOperationException($"The menu row header {typeof(THeader).Name} gave no one-line text.");
 
     /// <summary>
     /// A menu item labelled <paramref name="label"/> that sends the controller-authored text <paramref name="command"/>
@@ -773,12 +807,145 @@ public static class MenuCatalog
             Badge = new MenuDetailBadge(label.Badge, badgeBrush),
             Name = label.Name,
             EmphasizeName = true,
+            IsHighlighted = false,
             Detail = label.Where,
             DetailPlacement = MenuDetailPlacement.Inline,
             Distance = $"~{label.DistanceFt.ToString("N0", CultureInfo.InvariantCulture)} ft",
             Command = row.Command,
         };
         MenuItem item = BuildTemplatedSend(header, MenuCommandRowTemplate.Instance, row.Command, context, host);
+        item.PointerEntered += (_, _) => host.SetRoutePreview(row.Preview);
+        return item;
+    }
+
+    private static readonly IImmutableSolidColorBrush PresetBadgeBrush = new ImmutableSolidColorBrush(Color.Parse("#7FD1B9"));
+
+    /// <summary>A submenu of one command row per taxi route (<see cref="BuildTaxiRouteRow"/>); null when there are none.</summary>
+    private static MenuItem? BuildTaxiRouteSubmenu(string label, IReadOnlyList<TaxiRouteRow> rows, MenuContext context, IMenuHost host)
+    {
+        if (rows.Count == 0)
+        {
+            return null;
+        }
+
+        var menu = new MenuItem { Header = label };
+        foreach (TaxiRouteRow row in rows)
+        {
+            menu.Items.Add(BuildTaxiRouteRow(row, context, host));
+        }
+
+        return menu;
+    }
+
+    /// <summary>What Taxi to runway shows until it first opens and searches the routes (<see cref="LazySubmenu"/>).</summary>
+    internal const string TaxiToRunwayPlaceholder = "Finding runway entries…";
+
+    /// <summary>What Taxi to runway shows when no runway entry or preset is reachable.</summary>
+    internal const string NoRunwayEntry = "No runway entry found";
+
+    /// <summary>
+    /// The Taxi to runway submenu's items, built when it first opens: each inline group's title as a disabled row over its
+    /// rows (<see cref="BuildTaxiRouteRow"/>), the groups separated, then Other runways with one submenu per end over its
+    /// rows. One disabled <see cref="NoRunwayEntry"/> row when there is no group.
+    /// Other runways whose ends are still to be searched (<see cref="TaxiToRunwayMenu.FindOther"/>) is always there and
+    /// searches them when it first opens (<see cref="LazySubmenu"/>); found ones show only when some end has a row.
+    /// </summary>
+    private static List<Control> TaxiToRunwayItems(TaxiToRunwayMenu taxiToRunway, MenuContext context, IMenuHost host)
+    {
+        List<Control> items = [];
+        foreach (TaxiToRunwayGroup group in taxiToRunway.Inline)
+        {
+            if (items.Count > 0)
+            {
+                items.Add(new Separator());
+            }
+
+            items.Add(new MenuItem { Header = group.Title, IsEnabled = false });
+            items.AddRange(group.Rows.Select(row => BuildTaxiRouteRow(row, context, host)));
+        }
+
+        MenuItem? other =
+            (taxiToRunway.FindOther is { } findOther)
+                ? LazySubmenu.Create(OtherRunwaysHeader, TaxiToRunwayPlaceholder, () => OtherRunwayItems(findOther(), context, host))
+                : OtherRunwaysSubmenu(taxiToRunway.Other, context, host);
+        if (other is not null)
+        {
+            if (items.Count > 0)
+            {
+                items.Add(new Separator());
+            }
+
+            items.Add(other);
+        }
+
+        return (items.Count > 0) ? items : [NoRunwayEntryRow()];
+    }
+
+    /// <summary>The header of Taxi to runway's submenu of the runway ends not shown inline.</summary>
+    internal const string OtherRunwaysHeader = "Other runways";
+
+    /// <summary>Other runways over the ends already found; null when none has a row.</summary>
+    private static MenuItem? OtherRunwaysSubmenu(IReadOnlyList<TaxiToRunwayGroup> groups, MenuContext context, IMenuHost host)
+    {
+        List<Control> ends = OtherRunwayEnds(groups, context, host);
+        if (ends.Count == 0)
+        {
+            return null;
+        }
+
+        var other = new MenuItem { Header = OtherRunwaysHeader };
+        foreach (Control end in ends)
+        {
+            other.Items.Add(end);
+        }
+
+        return other;
+    }
+
+    /// <summary>The items of a lazily searched Other runways: one submenu per end, else one disabled <see cref="NoRunwayEntry"/> row.</summary>
+    private static List<Control> OtherRunwayItems(IReadOnlyList<TaxiToRunwayGroup> groups, MenuContext context, IMenuHost host)
+    {
+        List<Control> ends = OtherRunwayEnds(groups, context, host);
+        return (ends.Count > 0) ? ends : [NoRunwayEntryRow()];
+    }
+
+    /// <summary>One submenu per end of <paramref name="groups"/> over its rows (<see cref="BuildTaxiRouteSubmenu"/>).</summary>
+    private static List<Control> OtherRunwayEnds(IReadOnlyList<TaxiToRunwayGroup> groups, MenuContext context, IMenuHost host) =>
+        [.. groups.Select(group => BuildTaxiRouteSubmenu(group.Title, group.Rows, context, host)).OfType<MenuItem>()];
+
+    /// <summary>The disabled row saying no runway entry or preset is reachable.</summary>
+    private static MenuItem NoRunwayEntryRow() => new() { Header = NoRunwayEntry, IsEnabled = false };
+
+    /// <summary>
+    /// One taxi route row: the PR or RW badge, the name followed by the dimmed reason, the runway an intersection leaves
+    /// ahead and the via, then the distance right-aligned and the command
+    /// (<c>RW At W4 · nearest · ~7,600 ft avail · via S T V W4 · ~2,300 ft — TAXI S T V W4 30</c>), all drawn bold on a
+    /// highlighted row. A preset sends its command; a runway entry opens its variants (<see cref="BuildChoice"/>). Either
+    /// previews its route on hover.
+    /// </summary>
+    private static MenuItem BuildTaxiRouteRow(TaxiRouteRow row, MenuContext context, IMenuHost host)
+    {
+        string? available = (row.AvailableFt is { } availableFt) ? $"~{availableFt.ToString("N0", CultureInfo.InvariantCulture)} ft avail" : null;
+        string?[] detail = [row.Reason, available, row.Via];
+        var header = new MenuCommandRow
+        {
+            Badge = new MenuDetailBadge(row.Badge, (row.Badge == TaxiRouteRow.PresetBadge) ? PresetBadgeBrush : RunwayBadgeBrush),
+            Name = row.Name,
+            EmphasizeName = true,
+            IsHighlighted = row.IsHighlighted,
+            Detail = string.Join(" · ", detail.OfType<string>()),
+            DetailPlacement = MenuDetailPlacement.Inline,
+            Distance = $"~{row.DistanceFt.ToString("N0", CultureInfo.InvariantCulture)} ft",
+            Command = row.Command,
+        };
+        MenuItem item =
+            (row.Variants.Count == 0)
+                ? BuildTemplatedSend(header, MenuCommandRowTemplate.Instance, row.Command, context, host)
+                : BuildTemplatedSubmenu(
+                    header,
+                    MenuCommandRowTemplate.Instance,
+                    [.. row.Variants.Select(variant => BuildChoice(variant, context, host))]
+                );
         item.PointerEntered += (_, _) => host.SetRoutePreview(row.Preview);
         return item;
     }
@@ -1011,6 +1178,7 @@ public static class MenuCatalog
             Badge = null,
             Name = row.Taxiway,
             EmphasizeName = false,
+            IsHighlighted = false,
             Detail = row.Planned ? "planned" : null,
             DetailPlacement = MenuDetailPlacement.Stacked,
             Distance = $"~{RelativeGeometry.FeetText(row.DistanceFt)}",
@@ -1033,6 +1201,7 @@ public static class MenuCatalog
                 Badge = null,
                 Name = (row.AircraftType.Length > 0) ? $"{row.Callsign} · {row.AircraftType}" : row.Callsign,
                 EmphasizeName = false,
+                IsHighlighted = false,
                 Detail = row.State,
                 DetailPlacement = MenuDetailPlacement.Stacked,
                 Distance = $"~{RelativeGeometry.FeetText(row.DistanceFeet)}",
@@ -1160,7 +1329,8 @@ public static class MenuCatalog
     /// <summary>
     /// An entry whose item the host builds for a surface of its own rather than from a command text: the warp popup,
     /// the flight-plan editor, the display toggles and measure item that read and drive the surface's own state, and
-    /// the ground submenus whose choices the host answers (hold short, follow, give way, push back to, preset taxi).
+    /// the ground submenus whose choices the host answers (hold short, follow, give way, push back to, preset taxi, taxi to
+    /// runway).
     /// <paramref name="build"/> receives the entry's own label, so the item's text lives in one place, though a
     /// state-dependent item overrides it. A builder returns null for an item the surface's state hides.
     /// </summary>

@@ -83,7 +83,7 @@ All five overlays flow VM → `GroundCanvas` `StyledProperty` → `RenderSnapsho
 
 | Overlay | Canvas property | Fed by | Paint |
 |---------|-----------------|--------|-------|
-| Command-build preview | `PreviewRoute` | context-menu `PointerEntered` while building a TAXI command, and a Hold short of… row's hover (the route up to its bar) through `ClientMenuHost.SetRoutePreview` | dashed blue |
+| Command-build preview | `PreviewRoute` | context-menu `PointerEntered` while building a TAXI command, a Hold short of… row's hover (the route up to its bar), and a Preset taxi route or Taxi to runway row's hover (its resolved path) through `ClientMenuHost.SetRoutePreview` | dashed blue |
 | Shown taxi routes | `ShownTaxiRoutes` (`IReadOnlyList<ShownTaxiRouteEntry>`) | the taxi-route display feature (below) | 8 rotating colors |
 | **Hover route** | `HoverTaxiRoute` | mouse-hover over an aircraft (below) | solid white, stroke 5 |
 | Draw-mode route | `DrawnRoutePreview` + `DrawWaypoints` | interactive "Draw taxi route…" mode | — |
@@ -315,7 +315,11 @@ A runway row is named from the room's active runways (`GroundViewModel.RoomActiv
 
 Hovering a hold-short row calls `ClientMenuHost.SetRoutePreview`, which fans out over `main.AllGroundViews` and which nothing clears on pointer exit (`CanHoldShort` is `phase == "Taxiing"` exactly).
 
-The pushback block and the route presets come from the catalog as well, from host answers (`GetPushbackFaceChoices`, `GetPushbackToChoices`, `GetPresetTaxiChoices` as finished commands, `EnterPushRoute`, `EnterDrawRoute`) that `ClientMenuHost` takes from the primary `GroundViewModel`.
+The pushback block, the route presets and Taxi to runway come from the catalog as well, from host answers (`GetPushbackFaceChoices`, `GetPushbackToChoices`, `GetPresetTaxiChoices` and `GetTaxiToRunwayChoices` as `TaxiRouteRow`s with finished commands, via, distance and a preview path, `EnterPushRoute`, `EnterDrawRoute`) that `ClientMenuHost` takes from the primary `GroundViewModel`.
+
+Taxi to runway (`GroundViewModel.GetTaxiToRunwayChoices`) starts from `TaxiStartNode` with the aircraft's own category and wake class, finds the shortest route to each runway hold short (`RunwayEntryRoutes`, cached per start node, category, wake class and runway until the layout changes) and ranks the entries by runway remaining against the type's takeoff distance.
+
+The active departure ends come from `ActiveDepartureRunwayEnds`, which reads the room's active runways like `ActiveRunwayEnds` but keeps only the `Use` Both and Departure ends; Hold short's naming still uses `ActiveRunwayEnds`. The menu is built when Taxi to runway first opens ([client-context-menus.md](client-context-menus.md)).
 
 Draw taxi route… and Push route… are on every view, and `EnterDrawRoute` / `EnterPushRoute` show the primary ground view first (its tab, or its popped-out window brought forward), so picking one from the radar or the list starts the draw there. The **Taxi route** submenu is a `MenuItemToggleType.Radio` group whose checked item reflects `GroundViewModel.GetTaxiRouteMode(callsign)`; selecting one calls `SetTaxiRouteMode`.
 

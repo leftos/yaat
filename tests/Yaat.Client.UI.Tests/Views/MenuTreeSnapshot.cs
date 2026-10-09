@@ -1,12 +1,15 @@
 using System.Text;
 using Avalonia.Controls;
+using Avalonia.Media;
+using Avalonia.VisualTree;
 using Yaat.Client.ContextMenus;
 
 namespace Yaat.Client.UI.Tests.Views;
 
 /// <summary>
 /// Renders a context menu as plain text, one line per node, depth-first in <c>Items</c> order with two spaces of
-/// indent per level: a <see cref="MenuItem"/> as its header text followed by <c>[disabled]</c>, <c>[checked]</c> and
+/// indent per level: a <see cref="MenuItem"/> as its header text followed by <c>[disabled]</c>, <c>[checked]</c>,
+/// <c>[bold]</c> (a command row whose header template draws text bold: <see cref="MenuCommandRow.IsHighlighted"/>) and
 /// its <see cref="MenuPickerDescriptor"/> (<c>picker:list [a, b]</c>, <c>picker:filteredList [a, b]</c>,
 /// <c>picker:input</c>, <c>picker:richList [FL410, …, MVA 5,000 here (sector SCK_M), …]</c>, or a grouped picker on one
 /// line with its groups and no children,
@@ -24,6 +27,14 @@ internal static class MenuTreeSnapshot
     {
         var text = new StringBuilder();
         AppendItems(text, menu.Items, depth: 0);
+        return text.ToString();
+    }
+
+    /// <summary>One item and everything under it as text, in the same format.</summary>
+    public static string Render(MenuItem item)
+    {
+        var text = new StringBuilder();
+        AppendNode(text, item, depth: 0);
         return text.ToString();
     }
 
@@ -78,6 +89,11 @@ internal static class MenuTreeSnapshot
             parts.Add("[checked]");
         }
 
+        if (IsDrawnBold(menuItem))
+        {
+            parts.Add("[bold]");
+        }
+
         if (menuItem.Tag is MenuPickerDescriptor picker)
         {
             parts.Add(DescribePicker(picker));
@@ -85,6 +101,12 @@ internal static class MenuTreeSnapshot
 
         return string.Join(' ', parts);
     }
+
+    /// <summary>Whether <paramref name="menuItem"/>'s command row, as its header template builds it, draws any text bold.</summary>
+    private static bool IsDrawnBold(MenuItem menuItem) =>
+        (menuItem.Header is MenuCommandRow)
+        && (menuItem.HeaderTemplate?.Build(menuItem.Header) is { } view)
+        && view.GetVisualDescendants().OfType<TextBlock>().Any(text => text.FontWeight == FontWeight.Bold);
 
     private static string DescribePicker(MenuPickerDescriptor picker) =>
         picker.Kind switch

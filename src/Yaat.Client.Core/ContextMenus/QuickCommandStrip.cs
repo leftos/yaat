@@ -248,7 +248,8 @@ public static class QuickCommandStrip
 
     /// <summary>
     /// A flyout over <paramref name="built"/>'s own items, moved over unchanged; choosing any command in it, at any
-    /// depth, closes the flyout and the menu after the item's own handler has run.
+    /// depth, closes the flyout and the menu after the item's own handler has run. A lazily built entry
+    /// (<see cref="LazySubmenu"/>) fills the flyout when it first opens, as it fills its own submenu.
     /// </summary>
     private static MenuFlyout SubmenuFlyout(ContextMenu menu, MenuItem built)
     {
@@ -261,12 +262,27 @@ public static class QuickCommandStrip
             CloseOnChoice(child, flyout, menu);
         }
 
+        flyout.Opened += (_, _) => CloseOnChoices(LazySubmenu.Fill(built, flyout.Items), flyout, menu);
         return flyout;
+    }
+
+    private static void CloseOnChoices(IReadOnlyList<Control> items, MenuFlyout flyout, ContextMenu menu)
+    {
+        foreach (Control item in items)
+        {
+            CloseOnChoice(item, flyout, menu);
+        }
     }
 
     private static void CloseOnChoice(object? item, MenuFlyout flyout, ContextMenu menu)
     {
         if (item is not MenuItem menuItem)
+        {
+            return;
+        }
+
+        // A nested lazy submenu (Taxi to runway's Other runways) builds its items when it opens: wire those then.
+        if (LazySubmenu.WhenFilled(menuItem, children => CloseOnChoices(children, flyout, menu)))
         {
             return;
         }

@@ -300,7 +300,7 @@ Right-click an aircraft on the [Radar View](#radar-view-1), the [Ground View](#g
 - **Track**, **Data Block**, **Squawk**, then the view's own items (the radar's **Display** and **Draw route**, the ground's **Display**; the Aircraft List has none), and **Favorite Commands**.
 
   **Track** lists only what the track's own state calls for, the same items on every view: an untracked aircraft gets **Initiate Track**; an aircraft being tracked gets **Initiate handoff…**, **Point out…** and **Drop track**; a handoff in progress gets **Accept handoff** and **Cancel handoff**; and a pointout awaiting an answer gets **Acknowledge pointout**. States that overlap show both groups, separated.
-- **All Commands**: every command for the aircraft — the traffic actions for a selected aircraft, the ground items, Heading, Altitude, Speed, Navigation, Hold, Approach, Procedures, Tower and Pattern (only Tower while the aircraft is on the ground or rolling on the runway), Preset taxi route, Draw taxi route…, Ask pilot to say…, Coordination, Edit flight plan, and last **Warp…** and **Release to live feed**.
+- **All Commands**: every command for the aircraft — the traffic actions for a selected aircraft, the ground items, Heading, Altitude, Speed, Navigation, Hold, Approach, Procedures, Tower and Pattern (only Tower while the aircraft is on the ground or rolling on the runway), Draw taxi route…, Ask pilot to say…, Coordination, Edit flight plan, and last **Warp…** and **Release to live feed**.
 - **Delete** and the RPO assignment items.
 
 **Quick commands by situation.** YAAT sorts each aircraft into a situation and shows that situation's quick commands, most used first:
@@ -507,7 +507,7 @@ Below that, a hold / squawk-standby / auto-yield status line and any instructor 
   Each opens the same route choices as "Taxi here", with the route preview on hover. "Warp here" warps to the node nearest the click, and "Draw taxi route…" starts from that node.
 - **On an aircraft** — the same [aircraft menu](#aircraft-right-click-menu) the [Radar View](#radar-view-1) and the Aircraft List show, so every command is reachable from any view: the quick commands and icon strip for the aircraft's situation, then Track, Data Block, Squawk, the ground's own **Display** (Taxi route, Show/Hide datablock, Reset datablock position once you have dragged it, Measure from {callsign}), Favorite Commands and **All Commands**.
 
-  Under All Commands sit the items below by phase, then the tower submenu (Line up and wait, Cleared for takeoff, the landing clearances and the runway exits sit in **Tower**), Preset taxi route, Draw taxi route…, Ask pilot to say…, Coordination, Edit flight plan and Warp…. The ground items under All Commands, by phase:
+  Under All Commands sit the items below by phase, then the tower submenu (Line up and wait, Cleared for takeoff, the landing clearances and the runway exits sit in **Tower**), Draw taxi route…, Ask pilot to say…, Coordination, Edit flight plan and Warp…. The ground items under All Commands, by phase:
   - *At Parking*: "Push back" (default — a straight-back push, the nose keeps the stand heading) and "Push back, face {taxiway}" per connected edge (use this, or a typed `PUSH Y A1` / `PUSH Y FACE S`, when the aircraft should end up aligned for its taxi out).
 
     Then a "Push back to…" submenu listing the closest 30 named parking/spot/helipad nodes (sorted by distance), "Push route…" (a multi-point tug move — see below) and a "Follow…" submenu — the aircraft starts up and falls in behind the chosen leader without needing a taxi route first.
@@ -525,7 +525,12 @@ Below that, a hold / squawk-standby / auto-yield status line and any instructor 
   - *Holding Short*: "Resume taxi", "Cross {rwy}", and under **Tower** "Line up and wait" and "Cleared for takeoff" — all for the runway the aircraft is holding short of
   - *Holding After Exit / Holding After Pushback*: "Resume taxi" (when the aircraft is held), "Follow…" submenu ("Give way to…" when a route exists). *Holding After Pushback* — where a completed `PUSH $spot` leaves the aircraft — also carries the same "Push back" / "Push back, face {taxiway}" / "Push back to…" / "Push route…" items as *At Parking*, so an aircraft resting on a ramp spot can be repositioned without taxiing first
   - *Lined Up*: under **Tower**, "Cleared for takeoff", "Cancel takeoff clearance"
-  - *On the ground (most phases)*: "Preset taxi route" submenu listing per-airport SOP routes when applicable, "Draw taxi route…"
+  - *On the ground (most phases)*: "Taxi to runway" submenu (below), "Preset taxi route" submenu listing per-airport SOP routes when applicable, both in the ground block beside "Hold position" and "Hold short of…", and "Draw taxi route…"
+  - *Taxi to runway*: one group per runway end, headed "Runway 30" (with "· assigned runway" or "· departure runway" when the runway is the aircraft's assigned one or one of the room's active departure runways). With neither, the three ends nearest by taxi distance are listed. Every other runway sits under **Other runways**, searched when you open it.
+
+    Each group lists the full-length entry first, then every intersection long enough for the aircraft's type to take off from, most runway left first; an intersection shows the runway remaining as "~7,750 ft avail", rounded down to 50 ft. Each row names the taxiway ("At W3"), the route's taxiways ("via TE U W3") and the distance, and hovering it previews the route. The full-length entry and the nearest usable one are bold. A row opens For departure and Hold short of runway, with crossing variants when the route crosses another runway.
+
+    The presets that end at that runway end follow its entries. A route that only reaches a bar over the runway's own centreline, a bar at the far end of the runway or one on runway pavement only is never offered, and neither is the hold short the aircraft is standing at.
   - *Takeoff*: under **Tower**, "Cancel takeoff clearance"
   - *Final Approach*: under **Tower**, "Cleared to land {rwy}", "Go around {rwy}", "Cancel landing clearance"; for **VFR** aircraft also "Touch and go {rwy}", "Stop and go {rwy}", "Low approach {rwy}", "Cleared for the option {rwy}" (these option clearances are hidden for IFR aircraft) — runway shown in label when assigned
   - *Landing / Runway Exit*: under **Tower**, "Exit left", "Exit right" (fixed-wing only), each opening the named exits ahead on that side with their distances, the planned exit marked, and the pilot's-choice row last; the same two entries appear on final once the aircraft is within 5 nm of the threshold, with the list as a forecast
@@ -683,7 +688,9 @@ Right-click an aircraft on the Ground View and open **Display > Taxi route** to 
 
 A drawn route starts at the aircraft. When the aircraft is not yet on a painted taxiway line — just pushed back onto the apron, cutting across a ramp between parallel lanes, or rolling out on a runway toward its exit — the first leg is the straight free-space drive it will make to reach the route, drawn in the same color as the rest.
 
-**Preset taxi routes:** Right-click an aircraft on the ground and select "Preset taxi route" to issue an SOP-aligned taxi command in one click. Routes are loaded from per-airport JSON files bundled with YAAT under `Data/TaxiRoutes/{ARTCC}/{airport}-routes.json` — for example, FLL's "DEP 10R via T-T3-B" lives at `Data/TaxiRoutes/ZMA/kfll-routes.json`.
+**Preset taxi routes:** Right-click an aircraft on the ground and select "Preset taxi route" to issue an SOP-aligned taxi command in one click; each row shows the route's taxiways and distance and previews the route on hover, and a route that ends at a runway also appears under that runway in "Taxi to runway".
+
+A preset that ends where the aircraft already stands is hidden. Routes are loaded from per-airport JSON files bundled with YAAT under `Data/TaxiRoutes/{ARTCC}/{airport}-routes.json` — for example, FLL's "DEP 10R via T-T3-B" lives at `Data/TaxiRoutes/ZMA/kfll-routes.json`.
 
 Each route has a display name, a whitespace-separated path of taxiway names (whatever you'd type after `TAXI` in the command bar), and an optional destination (runway hold-short, parking, or spot):
 
@@ -770,7 +777,7 @@ A simplified [STARS](#glossary)-style radar display showing aircraft targets, vi
 
   All Commands holds the ground items for an aircraft on the ground (Push back, Hold position, Hold short of…, Follow…, Give way to…, Cross — see the Ground View) and the groups Heading, Altitude, Speed, Navigation, Hold, Approach, Procedures, Tower and Pattern in that order (only Tower while the aircraft is on the ground or rolling on the runway).
 
-  After them come Preset taxi route, Draw taxi route… (which switches to the Ground View to draw), Ask pilot to say, Coordination, Edit flight plan and Warp…; last Delete and the RPO items.
+  After them come Draw taxi route… (which switches to the Ground View to draw), Ask pilot to say, Coordination, Edit flight plan and Warp…; last Delete and the RPO items.
 
   Approach offers per-runway visual-approach clearance with a smart default to the aircraft's assigned runway / active or expected approach runway.
 

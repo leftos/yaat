@@ -8,6 +8,7 @@ using Avalonia.Media;
 using Xunit;
 using Yaat.Client.ContextMenus;
 using Yaat.Client.Models;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 
@@ -118,6 +119,77 @@ public class QuickCommandStripTests
         leaf.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
 
         Assert.Single(host.Sent);
+        Assert.False(flyout.IsOpen);
+        Assert.False(menu.IsOpen);
+    }
+
+    /// <summary>
+    /// Taxi to runway builds its rows only when it opens: from the strip its flyout shows the host's rows in place of the
+    /// placeholder, asks the host once however often it opens, and a row's command closes the flyout and the menu.
+    /// </summary>
+    [AvaloniaFact]
+    public void TaxiToRunwayButton_FlyoutShowsTheRowsWhenItOpens_AskingTheHostOnce()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        var host = new RecordingMenuHost("")
+        {
+            Session = new("AB", false, VfrCommandsForIfr.None, _ => [new CatalogQuickCommandEntry(MenuIds.GroundTaxiToRunway, null)]),
+            TaxiToRunway = new TaxiToRunwayMenu(
+                [new TaxiToRunwayGroup("Runway 30 · assigned runway", [RecordingMenuHost.PresetRow("TERMINAL to 30", "TAXI T U W RWY 30")])],
+                [],
+                null
+            ),
+        };
+        ContextMenu menu = OpenInWindow(Build(Fixture("taxiing"), host));
+        Button taxiToRunway = QuickCommandStrip.Buttons(Strip(menu)).Single(b => (string)b.Tag! == MenuIds.GroundTaxiToRunway);
+        Assert.Empty(host.TaxiToRunwayRequests);
+
+        taxiToRunway.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        MenuFlyout flyout = SubmenuFlyout(taxiToRunway);
+        flyout.Hide();
+        taxiToRunway.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+
+        Assert.True(flyout.IsOpen);
+        Assert.Equal(
+            ["Runway 30 · assigned runway", "PR TERMINAL to 30 · via B · ~1,000 ft — TAXI T U W RWY 30"],
+            flyout.Items.Select(i => ((MenuItem)i!).Header?.ToString())
+        );
+        Assert.Equal(["SWA104"], host.TaxiToRunwayRequests);
+
+        FirstLeaf(flyout.Items).RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+
+        Assert.Equal([("SWA104", "TAXI T U W RWY 30", "AB")], host.Sent);
+        Assert.False(flyout.IsOpen);
+        Assert.False(menu.IsOpen);
+    }
+
+    /// <summary>
+    /// A row inside Taxi to runway's Other runways, built only when that nested submenu opens, still closes the strip's
+    /// flyout and the menu when chosen.
+    /// </summary>
+    [AvaloniaFact]
+    public void TaxiToRunwayButton_RowInsideOtherRunways_ClosesTheFlyout()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        var host = new RecordingMenuHost("")
+        {
+            Session = new("AB", false, VfrCommandsForIfr.None, _ => [new CatalogQuickCommandEntry(MenuIds.GroundTaxiToRunway, null)]),
+            TaxiToRunway = new TaxiToRunwayMenu(
+                [],
+                [],
+                () => [new TaxiToRunwayGroup("Runway 28R", [RecordingMenuHost.PresetRow("TERMINAL to 28R", "TAXI T B RWY 28R")])]
+            ),
+        };
+        ContextMenu menu = OpenInWindow(Build(Fixture("taxiing"), host));
+        Button taxiToRunway = QuickCommandStrip.Buttons(Strip(menu)).Single(b => (string)b.Tag! == MenuIds.GroundTaxiToRunway);
+        taxiToRunway.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        MenuFlyout flyout = SubmenuFlyout(taxiToRunway);
+        MenuItem other = flyout.Items.OfType<MenuItem>().Single(m => (m.Header as string) == "Other runways");
+
+        other.RaiseEvent(new RoutedEventArgs(MenuItem.SubmenuOpenedEvent, other));
+        FirstLeaf(other.Items).RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+
+        Assert.Equal([("SWA104", "TAXI T B RWY 28R", "AB")], host.Sent);
         Assert.False(flyout.IsOpen);
         Assert.False(menu.IsOpen);
     }

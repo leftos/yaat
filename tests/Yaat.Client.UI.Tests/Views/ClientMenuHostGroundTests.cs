@@ -252,20 +252,532 @@ public class ClientMenuHostGroundTests
     }
 
     [AvaloniaFact]
-    public void GetPresetTaxiChoices_FromTheOakSidecar_KeepTheWalkableRouteAndDropTheOther()
+    public void GetPresetTaxiChoices_FromTheOakSidecar_KeepTheWalkableRouteWithItsViaDistanceAndPreview_AndDropTheOther()
     {
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
         AircraftModel target = GroundAircraft(Callsign, "Taxiing", PositionOf(PresetTaxiNode));
         target.AssignedRunway = "30";
         var host = new ClientMenuHost(OakMain(target, []), target, new Border());
 
-        IReadOnlyList<MenuCommandChoice> choices = host.GetPresetTaxiChoices(Callsign);
+        IReadOnlyList<TaxiRouteRow> rows = host.GetPresetTaxiChoices(Callsign);
 
-        MenuCommandChoice terminal = Assert.Single(choices, c => c.Label == "TERMINAL to 30");
-        Assert.Equal("TAXI T U W RWY 30", terminal.Command);
-        Assert.Null(terminal.Preview);
-        Assert.DoesNotContain(choices, c => c.Label == "30 to TERMINAL");
+        TaxiRouteRow terminal = Assert.Single(rows, r => r.Name == "TERMINAL to 30");
+        Assert.Equal(
+            (TaxiRouteRow.PresetBadge, (string?)null, "via T U W", "TAXI T U W RWY 30"),
+            (terminal.Badge, terminal.Reason, terminal.Via, terminal.Command)
+        );
+        Assert.Empty(terminal.Variants);
+
+        // The preview is the resolved path, ending at a runway 30 hold short; the aircraft stands on the node it starts
+        // at, so the distance is the path's own length, rounded to 50 ft.
+        Assert.NotEmpty(terminal.Preview.Segments);
+        GroundNodeDto end = Oak.Nodes.First(n => n.Id == terminal.Preview.Segments[^1].ToNodeId);
+        Assert.Equal("RunwayHoldShort", end.Type);
+        Assert.Contains("30", end.RunwayId);
+        Assert.True(terminal.DistanceFt > 0, $"distance {terminal.DistanceFt}");
+        Assert.Equal(TugMovePlanner.NoteDistanceFt(terminal.Preview.PrefixDistanceFt(terminal.Preview.Segments.Count)), terminal.DistanceFt);
+
+        Assert.DoesNotContain(rows, r => r.Name == "30 to TERMINAL");
     }
+
+    // --- Taxi to runway --------------------------------------------------------------------
+
+    [AvaloniaFact]
+    public void GetTaxiToRunwayChoices_AtAStand_ActiveDepartureEndsInline_NearestAndFullLength_RestUnderOther()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        AircraftModel target = GroundAircraft(Callsign, "At Parking", PositionOf(Gate25Node));
+        MainViewModel main = OakMain(target, []);
+        main.ApplyActiveRunways(new Dictionary<string, List<string>> { ["OAK"] = ["D30", "28L"] });
+        var host = new ClientMenuHost(main, target, new Border());
+
+        TaxiToRunwayMenu menu = host.GetTaxiToRunwayChoices(Callsign);
+
+        Assert.Equal(["Runway 30 · departure runway", "Runway 28L · departure runway"], menu.Inline.Select(g => g.Title));
+        // The other ends are searched only when Other runways opens.
+        Assert.Empty(menu.Other);
+        int searchesBeforeOther = main.Ground.TaxiToRunwayRouteSearches;
+        IReadOnlyList<TaxiToRunwayGroup> other = Assert.IsType<Func<IReadOnlyList<TaxiToRunwayGroup>>>(menu.FindOther)();
+        Assert.True(main.Ground.TaxiToRunwayRouteSearches > searchesBeforeOther, "Other runways searched nothing when it opened");
+        Assert.DoesNotContain(other, g => g.Title is "Runway 30" or "Runway 28L");
+        Assert.Contains(other, g => g.Title == "Runway 28R");
+
+        // Runway 30 from gate 25: the full-length entry at W1 first, then the intersections, one of them the nearest, each
+        // opening For departure and Hold short of runway 30 and previewing its route to a runway 30 hold short.
+        List<TaxiRouteRow> entries = EntryRows(menu.Inline[0]);
+        Assert.Equal(("At W1", "full length"), (entries[0].Name, entries[0].Reason));
+        TaxiRouteRow nearest = Assert.Single(entries, r => r.Reason == "nearest");
+        Assert.True(nearest.DistanceFt < entries[0].DistanceFt, $"{nearest.DistanceFt} vs {entries[0].DistanceFt}");
+        Assert.All(entries, AssertEntryTo("30"));
+    }
+
+    [AvaloniaFact]
+    public void GetTaxiToRunwayChoices_NearestEntryIsTheFullLengthOne_OneRowNamesBoth()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        AircraftModel target = GroundAircraft(Callsign, "Taxiing", PositionOf(NodeBehind(HoldShort30On("W1"), "W1")));
+        MainViewModel main = OakMain(target, []);
+        main.ApplyActiveRunways(new Dictionary<string, List<string>> { ["OAK"] = ["30"] });
+        var host = new ClientMenuHost(main, target, new Border());
+
+        TaxiToRunwayGroup runway30 = host.GetTaxiToRunwayChoices(Callsign).Inline[0];
+
+        Assert.Equal("Runway 30 · departure runway", runway30.Title);
+        List<TaxiRouteRow> entries = EntryRows(runway30);
+        Assert.Equal(("At W1", "nearest, full length"), (entries[0].Name, entries[0].Reason));
+        Assert.True(entries.Count > 1, "no intersection entry after the full-length one");
+        Assert.All(entries.Skip(1), r => Assert.Null(r.Reason));
+    }
+
+    /// <summary>
+    /// A B738 (7,545 ft takeoff distance) at a KOAK gate: W3 joins 12/30 about 2,900 ft from the 30 threshold and W2 about
+    /// 500 ft from it, too little runway ahead for a departure on 12, so neither is offered for 12; both are for 30.
+    /// </summary>
+    [AvaloniaFact]
+    public void GetTaxiToRunwayChoices_KoakTwelve_DropsShortIntersectionEntries()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        AircraftModel target = GroundAircraft(Callsign, "At Parking", PositionOf(Gate25Node));
+        MainViewModel main = OakMain(target, []);
+        main.ApplyActiveRunways(new Dictionary<string, List<string>> { ["OAK"] = ["30", "12"] });
+        var host = new ClientMenuHost(main, target, new Border());
+
+        TaxiToRunwayMenu menu = host.GetTaxiToRunwayChoices(Callsign);
+
+        Assert.Equal(["Runway 30 · departure runway", "Runway 12 · departure runway"], menu.Inline.Select(g => g.Title));
+        List<string> twelve = [.. EntryRows(menu.Inline[1]).Select(r => r.Name)];
+        Assert.NotEmpty(twelve);
+        Assert.DoesNotContain("At W3", twelve);
+        Assert.DoesNotContain("At W2", twelve);
+        Assert.Contains("At W2", EntryRows(menu.Inline[0]).Select(r => r.Name));
+        TaxiRouteRow w3 = Assert.Single(EntryRows(menu.Inline[0]), r => r.Name == "At W3");
+        Assert.True(w3.AvailableFt >= 7545, $"W3 leaves {w3.AvailableFt} ft of runway 30");
+    }
+
+    [AvaloniaFact]
+    public void GetTaxiToRunwayChoices_EntriesOrderedFromTheThreshold_FullLengthFirst()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        AircraftModel target = GroundAircraft(Callsign, "At Parking", PositionOf(Gate25Node));
+        MainViewModel main = OakMain(target, []);
+        main.ApplyActiveRunways(new Dictionary<string, List<string>> { ["OAK"] = ["30"] });
+        var host = new ClientMenuHost(main, target, new Border());
+
+        List<TaxiRouteRow> entries = EntryRows(host.GetTaxiToRunwayChoices(Callsign).Inline[0]);
+
+        Assert.True(entries.Count >= 3, $"{entries.Count} entries");
+        Assert.Equal(("At W1", "full length"), (entries[0].Name, entries[0].Reason));
+        Assert.DoesNotContain(entries.Skip(1), r => r.Reason?.Contains("full length", StringComparison.Ordinal) == true);
+        Assert.Null(entries[0].AvailableFt);
+        Assert.All(entries.Skip(1), r => Assert.NotNull(r.AvailableFt));
+        List<double> available = [.. entries.Skip(1).Select(r => r.AvailableFt!.Value)];
+        Assert.Equal(available.OrderDescending(), available);
+        // The full-length row and the nearest one are highlighted, and only they.
+        Assert.Equal(2, entries.Count(r => r.IsHighlighted));
+        Assert.Equal(entries.Where(r => r.Reason is not null).Select(r => r.Name), entries.Where(r => r.IsHighlighted).Select(r => r.Name));
+    }
+
+    [AvaloniaFact]
+    public void GetTaxiToRunwayChoices_RemainingLengthRoundsDownTo50Ft()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        AircraftModel target = GroundAircraft(Callsign, "At Parking", PositionOf(Gate25Node));
+        MainViewModel main = OakMain(target, []);
+        main.ApplyActiveRunways(new Dictionary<string, List<string>> { ["OAK"] = ["30"] });
+        var host = new ClientMenuHost(main, target, new Border());
+
+        TaxiRouteRow w3 = Assert.Single(EntryRows(host.GetTaxiToRunwayChoices(Callsign).Inline[0]), r => r.Name == "At W3");
+
+        double? remainingFt = main.Ground.RunwayRemainingFt("30", w3.Preview.Segments[^1].ToNodeId);
+        Assert.NotNull(remainingFt);
+        Assert.Equal(Math.Floor(remainingFt.Value / 50) * 50, w3.AvailableFt);
+        Assert.Equal(7600, GroundViewModel.AvailableRunwayFt(7649.9));
+        Assert.Equal(7650, GroundViewModel.AvailableRunwayFt(7650));
+        Assert.Equal(7600, GroundViewModel.AvailableRunwayFt(7600.1));
+    }
+
+    /// <summary>
+    /// From a KOAK gate, W3 leaves about 2,900 ft of runway 12 ahead: enough for a C172 (984 ft takeoff distance), not for a
+    /// B738 (7,545 ft).
+    /// </summary>
+    [AvaloniaFact]
+    public void GetTaxiToRunwayChoices_C172_KeepsAnIntersectionTheJetCannotUse()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        AircraftModel jet = GroundAircraft(Callsign, "At Parking", PositionOf(Gate25Node));
+        jet.AssignedRunway = "12";
+        AircraftModel cessna = GroundAircraft(OtherCallsign, "At Parking", PositionOf(Gate25Node));
+        cessna.AircraftType = "C172";
+        cessna.AssignedRunway = "12";
+
+        TaxiToRunwayGroup jet12 = new ClientMenuHost(OakMain(jet, []), jet, new Border()).GetTaxiToRunwayChoices(Callsign).Inline[0];
+        TaxiToRunwayGroup cessna12 = new ClientMenuHost(OakMain(cessna, []), cessna, new Border()).GetTaxiToRunwayChoices(OtherCallsign).Inline[0];
+
+        Assert.Equal(("Runway 12 · assigned runway", "Runway 12 · assigned runway"), (jet12.Title, cessna12.Title));
+        Assert.DoesNotContain("At W3", EntryRows(jet12).Select(r => r.Name));
+        TaxiRouteRow w3 = Assert.Single(EntryRows(cessna12), r => r.Name == "At W3");
+        Assert.InRange(w3.AvailableFt!.Value, 984, 7545);
+    }
+
+    /// <summary>
+    /// An MD81 carries no takeoff distance in its profile, so an intersection needs half the runway ahead: from a KOAK gate
+    /// W3 (about 2,900 ft of runway 12 ahead) and W2 (about 500 ft) are dropped for 12, an intersection in 12's departure
+    /// half is kept.
+    /// </summary>
+    [AvaloniaFact]
+    public void GetTaxiToRunwayChoices_TypeWithoutATakeoffDistance_KeepsIntersectionsWithHalfTheRunwayAhead()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        AircraftModel target = GroundAircraft(Callsign, "At Parking", PositionOf(Gate25Node));
+        target.AircraftType = "MD81";
+        target.AssignedRunway = "12";
+        var host = new ClientMenuHost(OakMain(target, []), target, new Border());
+
+        TaxiToRunwayGroup runway12 = host.GetTaxiToRunwayChoices(Callsign).Inline[0];
+
+        Assert.Equal(0, AircraftProfileDatabase.Get("MD81")!.TakeoffDistance);
+        Assert.Equal("Runway 12 · assigned runway", runway12.Title);
+        List<TaxiRouteRow> entries = EntryRows(runway12);
+        Assert.DoesNotContain("At W3", entries.Select(r => r.Name));
+        Assert.DoesNotContain("At W2", entries.Select(r => r.Name));
+        // 12/30 is about 10,500 ft long: every intersection kept leaves at least half of it (less up to 50 ft of rounding).
+        List<TaxiRouteRow> intersections = [.. entries.Where(r => r.AvailableFt is not null)];
+        Assert.NotEmpty(intersections);
+        Assert.All(intersections, r => Assert.True(r.AvailableFt >= 5200, $"{r.Name} leaves {r.AvailableFt} ft"));
+    }
+
+    /// <summary>The runway entry rows of <paramref name="group"/>, in order, without its presets.</summary>
+    private static List<TaxiRouteRow> EntryRows(TaxiToRunwayGroup group) => [.. group.Rows.Where(r => r.Badge == TaxiRouteRow.RunwayEntryBadge)];
+
+    [AvaloniaFact]
+    public void GetTaxiToRunwayChoices_NoActiveRunways_NearestThreeEndsInline_RestUnderOther()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        AircraftModel target = GroundAircraft(Callsign, "At Parking", PositionOf(Gate25Node));
+        var host = new ClientMenuHost(OakMain(target, []), target, new Border());
+
+        TaxiToRunwayMenu menu = host.GetTaxiToRunwayChoices(Callsign);
+
+        Assert.Equal(3, menu.Inline.Count);
+        Assert.NotEmpty(menu.Other);
+        Assert.All(menu.Inline.Concat(menu.Other), g => Assert.Matches(@"^Runway \d{1,2}[LCR]?$", g.Title));
+        List<double> inlineNearest = [.. menu.Inline.Select(NearestRowFt)];
+        Assert.Equal(inlineNearest.Order(), inlineNearest);
+        Assert.All(menu.Other, g => Assert.True(NearestRowFt(g) >= inlineNearest[^1], $"{g.Title} is nearer than an inline end"));
+    }
+
+    [AvaloniaFact]
+    public void GetTaxiToRunwayChoices_AssignedRunwayNotActive_ComesFirst_WithItsPresets_AndArrivalEndsAreNotDepartureEnds()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        AircraftModel target = GroundAircraft(Callsign, "Taxiing", PositionOf(PresetTaxiNode));
+        target.AssignedRunway = "30";
+        MainViewModel main = OakMain(target, []);
+        main.ApplyActiveRunways(new Dictionary<string, List<string>> { ["OAK"] = ["28L", "A28R"] });
+        var host = new ClientMenuHost(main, target, new Border());
+
+        TaxiToRunwayMenu menu = host.GetTaxiToRunwayChoices(Callsign);
+
+        Assert.Equal(["Runway 30 · assigned runway", "Runway 28L · departure runway"], menu.Inline.Select(g => g.Title));
+        Assert.Contains(Assert.IsType<Func<IReadOnlyList<TaxiToRunwayGroup>>>(menu.FindOther)(), g => g.Title == "Runway 28R");
+        TaxiRouteRow preset = menu.Inline[0].Rows[^1];
+        Assert.Equal((TaxiRouteRow.PresetBadge, "TERMINAL to 30", "TAXI T U W RWY 30"), (preset.Badge, preset.Name, preset.Command));
+    }
+
+    [AvaloniaFact]
+    public void GetTaxiToRunwayChoices_HoldingShortAtABar_HidesThatBarsRow()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        GroundNodeDto bar = Runway30HoldShortNode;
+        AircraftModel target = GroundAircraft(Callsign, $"Holding Short {bar.RunwayId}", PositionOf(bar));
+        target.AssignedRunway = "30";
+        var host = new ClientMenuHost(OakMain(target, []), target, new Border());
+
+        TaxiToRunwayMenu menu = host.GetTaxiToRunwayChoices(Callsign);
+
+        Assert.Equal("Runway 30 · assigned runway", menu.Inline[0].Title);
+        Assert.Contains(menu.Inline[0].Rows, r => r.Badge == TaxiRouteRow.RunwayEntryBadge);
+        List<TaxiRouteRow> rows = [.. menu.Inline.Concat(menu.Other).SelectMany(g => g.Rows)];
+        Assert.DoesNotContain(rows, r => r.Preview.Segments[^1].ToNodeId == bar.Id);
+    }
+
+    [AvaloniaFact]
+    public void GetTaxiToRunwayChoices_SecondOpenFromTheSameNode_ReusesTheRoutesItFound()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        AircraftModel target = GroundAircraft(Callsign, "At Parking", PositionOf(Gate25Node));
+        MainViewModel main = OakMain(target, []);
+
+        TaxiToRunwayMenu first = new ClientMenuHost(main, target, new Border()).GetTaxiToRunwayChoices(Callsign);
+        int searches = main.Ground.TaxiToRunwayRouteSearches;
+        TaxiToRunwayMenu second = new ClientMenuHost(main, target, new Border()).GetTaxiToRunwayChoices(Callsign);
+
+        Assert.True(searches > 0, "the first open searched no route");
+        Assert.Equal(searches, main.Ground.TaxiToRunwayRouteSearches);
+        Assert.Equal(Summary(first), Summary(second));
+    }
+
+    [AvaloniaFact]
+    public void GroupRunwayEnds_ArrivalsOnlyActiveList_FallsBackToNearestThree()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        AircraftModel target = GroundAircraft(Callsign, "At Parking", PositionOf(Gate25Node));
+        MainViewModel main = OakMain(target, []);
+        TaxiToRunwayMenu noList = new ClientMenuHost(main, target, new Border()).GetTaxiToRunwayChoices(Callsign);
+        main.ApplyActiveRunways(new Dictionary<string, List<string>> { ["OAK"] = ["A30", "A28R"] });
+
+        TaxiToRunwayMenu menu = new ClientMenuHost(main, target, new Border()).GetTaxiToRunwayChoices(Callsign);
+
+        Assert.Equal(3, menu.Inline.Count);
+        Assert.All(menu.Inline, g => Assert.Matches(@"^Runway \d{1,2}[LCR]?$", g.Title));
+        Assert.Null(menu.FindOther);
+        Assert.NotEmpty(menu.Other);
+        Assert.Equal(Summary(noList), Summary(menu));
+    }
+
+    [AvaloniaFact]
+    public void GetTaxiToRunwayChoices_NewLayout_SearchesTheRoutesAgain()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        AircraftModel target = GroundAircraft(Callsign, "At Parking", PositionOf(Gate25Node));
+        MainViewModel main = OakMain(target, []);
+        _ = new ClientMenuHost(main, target, new Border()).GetTaxiToRunwayChoices(Callsign);
+        int firstSearches = main.Ground.TaxiToRunwayRouteSearches;
+
+        main.Ground.SetLayoutForTesting(Oak);
+        _ = new ClientMenuHost(main, target, new Border()).GetTaxiToRunwayChoices(Callsign);
+
+        Assert.True(firstSearches > 0, "the first open searched no route");
+        Assert.Equal(2 * firstSearches, main.Ground.TaxiToRunwayRouteSearches);
+    }
+
+    [AvaloniaFact]
+    public void GetTaxiToRunwayChoices_HoldingShortWhereAPresetEnds_HidesThatPreset()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        AircraftModel atStart = GroundAircraft(Callsign, "Taxiing", PositionOf(PresetTaxiNode));
+        TaxiRouteRow terminal = Assert.Single(
+            new ClientMenuHost(OakMain(atStart, []), atStart, new Border()).GetPresetTaxiChoices(Callsign),
+            r => r.Name == "TERMINAL to 30"
+        );
+        GroundNodeDto bar = Oak.Nodes.First(n => n.Id == terminal.Preview.Segments[^1].ToNodeId);
+        AircraftModel holding = GroundAircraft(OtherCallsign, $"Holding Short {bar.RunwayId}", PositionOf(bar));
+        holding.AssignedRunway = "30";
+        var host = new ClientMenuHost(OakMain(holding, []), holding, new Border());
+
+        TaxiToRunwayMenu menu = host.GetTaxiToRunwayChoices(OtherCallsign);
+
+        Assert.DoesNotContain(host.GetPresetTaxiChoices(OtherCallsign), r => r.Preview.Segments[^1].ToNodeId == bar.Id);
+        Assert.DoesNotContain(menu.Inline.Concat(menu.Other).SelectMany(g => g.Rows), r => r.Preview.Segments[^1].ToNodeId == bar.Id);
+    }
+
+    // --- Taxi to runway: the runway's own bars, its centreline and bars without a name ------
+
+    [AvaloniaFact]
+    public void GetTaxiToRunwayChoices_KoakSecondNamedEnd_FirstVariantIsForDeparture()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        AircraftModel target = GroundAircraft(Callsign, "At Parking", PositionOf(Gate25Node));
+        target.AssignedRunway = "12";
+        var host = new ClientMenuHost(OakMain(target, []), target, new Border());
+
+        TaxiToRunwayGroup runway12 = host.GetTaxiToRunwayChoices(Callsign).Inline[0];
+
+        Assert.Equal("Runway 12 · assigned runway", runway12.Title);
+        List<TaxiRouteRow> entries = [.. runway12.Rows.Where(r => r.Badge == TaxiRouteRow.RunwayEntryBadge)];
+        Assert.NotEmpty(entries);
+        Assert.All(entries, row => AssertNeverCrossesItsOwnRunway(row.Variants, "12", ["12", "30"]));
+        Assert.All(entries, row => Assert.Equal(row.Variants[0].Command, row.Command));
+    }
+
+    [AvaloniaFact]
+    public void GetTaxiToRunwayChoices_KsfoOneLeft_FirstVariantIsForDeparture()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        AircraftModel target = GroundAircraft(Callsign, "At Parking", PositionOf(Sfo.Nodes.First(n => (n.Type == "Parking") && (n.Name == "A10"))));
+        target.AssignedRunway = "1L";
+        MainViewModel main = MainWith(target, []);
+        main.Ground.SetLayoutForTesting(Sfo);
+        var host = new ClientMenuHost(main, target, new Border());
+
+        TaxiToRunwayGroup runway1L = host.GetTaxiToRunwayChoices(Callsign).Inline[0];
+
+        Assert.Equal("Runway 1L · assigned runway", runway1L.Title);
+        List<TaxiRouteRow> entries = [.. runway1L.Rows.Where(r => r.Badge == TaxiRouteRow.RunwayEntryBadge)];
+        Assert.NotEmpty(entries);
+        Assert.All(entries, row => AssertNeverCrossesItsOwnRunway(row.Variants, "1L", ["1L", "01L", "19R"]));
+    }
+
+    /// <summary>The point menu's taxi to a threshold click on the runway's second-named end goes through the same variants.</summary>
+    [AvaloniaFact]
+    public void TaxiChoices_ThresholdClickOnTheSecondNamedEnd_NeverCrossesItsOwnRunway()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        AircraftModel target = GroundAircraft(Callsign, "At Parking", PositionOf(PushbackFaceNode));
+        var host = new ClientMenuHost(OakMain(target, []), target, new Border());
+        var runway = RunwayIdentifier.Parse(Runway30HoldShortNode.RunwayId!);
+
+        IReadOnlyList<MenuCommandChoice> routes = RouteChoices(host.GetTaxiChoices(Callsign, Runway30HoldShortNode, runway.End2));
+
+        Assert.Equal("12", runway.End2);
+        Assert.NotEmpty(routes);
+        Assert.All(routes, route => AssertNeverCrossesItsOwnRunway(route.Children, runway.End2, [runway.End1, runway.End2]));
+    }
+
+    [AvaloniaFact]
+    public void GetTaxiToRunwayChoices_HoldingShortWithBarAcrossTheRunway_OffersNoRouteOverThatRunway()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        (GroundNodeDto bar, GroundNodeDto across) = BarsFacingAcrossTheRunway();
+        var runway = RunwayIdentifier.Parse(bar.RunwayId!);
+        AircraftModel target = GroundAircraft(Callsign, $"Holding Short {bar.RunwayId}", PositionOf(bar));
+        var host = new ClientMenuHost(OakMain(target, []), target, new Border());
+
+        TaxiToRunwayMenu menu = host.GetTaxiToRunwayChoices(Callsign);
+
+        List<TaxiRouteRow> ownRows = [.. menu.Inline.Concat(menu.Other).Where(g => runway.Contains(g.Title.Split(' ')[1])).SelectMany(g => g.Rows)];
+        Assert.DoesNotContain(ownRows, r => r.Preview.Segments[^1].ToNodeId == across.Id);
+        Assert.All(
+            ownRows,
+            r =>
+                Assert.DoesNotContain(r.Preview.Segments, s => s.Edge.ToNode.Edges.Any(e => (e.IsRunwayCenterline) && (e.MatchesRunway(runway.End1))))
+        );
+
+        // Holding at W4, back along W to the full-length bar at W1 is a taxi, not a crossing: still offered.
+        GroundNodeDto w4 = HoldShort30On("W4");
+        AircraftModel atW4 = GroundAircraft(OtherCallsign, $"Holding Short {w4.RunwayId}", PositionOf(w4));
+        atW4.AssignedRunway = "30";
+        TaxiToRunwayGroup runway30 = new ClientMenuHost(OakMain(atW4, []), atW4, new Border()).GetTaxiToRunwayChoices(OtherCallsign).Inline[0];
+        Assert.Equal("Runway 30 · assigned runway", runway30.Title);
+        Assert.Contains(runway30.Rows, r => r.Preview.Segments[^1].ToNodeId == HoldShort30On("W1").Id);
+    }
+
+    /// <summary>
+    /// No hold short of KOAK or KSFO lies on runway pavement only, and no KOAK node has only centreline edges, so the rule
+    /// is shown on real KOAK data: every KOAK hold short is an entry, and a hold short at a runway 30 centreline junction
+    /// holding only that junction's two real centreline edges is not.
+    /// </summary>
+    [AvaloniaFact]
+    public void LiesOnRunwayPavementOnly_OnlyABarWhoseEveryEdgeIsCentreline()
+    {
+        string path = Path.Combine(AppContext.BaseDirectory, "TestData", "oak.geojson");
+        AirportGroundLayout layout = GeoJsonParser.Parse("OAK", File.ReadAllText(path), null, FilletMode.Standard);
+        GroundNode junction = layout.Nodes.Values.First(n => n.Edges.Count(e => (e.IsRunwayCenterline) && (e.MatchesRunway("30"))) >= 2);
+        var onPavement = new GroundNode
+        {
+            Id = junction.Id,
+            Position = junction.Position,
+            Type = GroundNodeType.RunwayHoldShort,
+            Edges = [.. junction.Edges.Where(e => (e.IsRunwayCenterline) && (e.MatchesRunway("30")))],
+        };
+
+        Assert.True(GroundViewModel.LiesOnRunwayPavementOnly(onPavement));
+        Assert.All(
+            layout.Nodes.Values.Where(n => n.Type == GroundNodeType.RunwayHoldShort),
+            bar => Assert.False(GroundViewModel.LiesOnRunwayPavementOnly(bar))
+        );
+    }
+
+    /// <summary>
+    /// No hold short of KOAK or KSFO sits on an unnamed taxiway, so the name fallback is shown on a real KOAK route: without
+    /// the bar's taxiway the entry is named by the route's last taxiway, and a route naming none gives no name.
+    /// </summary>
+    [AvaloniaFact]
+    public void EntryName_WithoutTheBarsTaxiway_IsTheRoutesLastTaxiway_AndNoneWithoutOne()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        AircraftModel target = GroundAircraft(Callsign, "At Parking", PositionOf(Gate25Node));
+        MainViewModel main = OakMain(target, []);
+        int from = main.Ground.GetAircraftNearestNodeId(target)!.Value;
+        TaxiRoute route = main.Ground.FindRoutesToNode(
+            from,
+            HoldShort30On("W1").Id,
+            GroundViewModel.CategoryFor(target),
+            GroundViewModel.WakeClassFor(target)
+        )[0];
+        string lastTaxiway = main.Ground.GetTaxiwayDisplayName(route).Split(' ')[^1];
+
+        Assert.Equal("At W1", GroundViewModel.EntryName("W1", route));
+        Assert.Equal($"At {lastTaxiway}", GroundViewModel.EntryName(null, route));
+        Assert.Null(GroundViewModel.EntryName(null, new TaxiRoute { Segments = [], HoldShortPoints = [] }));
+    }
+
+    /// <summary>
+    /// <paramref name="variants"/> taxi to <paramref name="end"/>: the first is For departure to it, and none holds short of
+    /// or crosses the runway itself under any spelling of its ends (<paramref name="ownSpellings"/>), but the hold short of
+    /// <paramref name="end"/> the Hold short variants end at.
+    /// </summary>
+    private static void AssertNeverCrossesItsOwnRunway(IReadOnlyList<MenuCommandChoice> variants, string end, string[] ownSpellings)
+    {
+        Assert.StartsWith($"For Departure {end}", variants[0].Label);
+        foreach (MenuCommandChoice variant in variants.Where(v => !ReferenceEquals(v, MenuCommandChoice.Separator)))
+        {
+            string command = variant.Command ?? "";
+            foreach (string spelling in ownSpellings)
+            {
+                Assert.DoesNotContain($"CROSS {spelling}", variant.Label);
+                Assert.DoesNotContain($", HS {spelling}", variant.Label);
+                Assert.DoesNotContain($"CROSS {spelling}", command);
+                Assert.True(
+                    (spelling == end) || !command.Contains($" HS {spelling}", StringComparison.Ordinal),
+                    $"'{command}' holds short of {spelling}"
+                );
+            }
+        }
+    }
+
+    /// <summary>
+    /// The first hold short of KOAK, in layout order, with a twin: another hold short of the same runway on a taxiway it
+    /// also sits on, under 700 ft away, across the runway.
+    /// </summary>
+    private static (GroundNodeDto Bar, GroundNodeDto Across) BarsFacingAcrossTheRunway()
+    {
+        List<GroundNodeDto> bars = [.. Oak.Nodes.Where(n => (n.Type == "RunwayHoldShort") && (n.RunwayId is not null))];
+        return bars.SelectMany(bar => bars.Where(across => IsTwin(bar, across)).Select(across => (bar, across))).First();
+    }
+
+    private static bool IsTwin(GroundNodeDto bar, GroundNodeDto across) =>
+        (across.Id != bar.Id)
+        && (RunwayIdentifier.Parse(across.RunwayId!) == RunwayIdentifier.Parse(bar.RunwayId!))
+        && (GeoMath.DistanceNm(bar.Latitude, bar.Longitude, across.Latitude, across.Longitude) * GeoMath.FeetPerNm < 700)
+        && (TaxiwaysAt(across.Id).Overlaps(TaxiwaysAt(bar.Id)));
+
+    /// <summary>The non-runway taxiway names on the links at <paramref name="nodeId"/> of KOAK.</summary>
+    private static HashSet<string> TaxiwaysAt(int nodeId) => [.. LinkNamesOf(nodeId).Where(name => (name.Length > 0) && !IsCentrelineName(name))];
+
+    /// <summary>A runway centreline's name (<c>RWY28L/10R</c>), not a runway crossing link's.</summary>
+    private static bool IsCentrelineName(string name) =>
+        name.StartsWith("RWY", StringComparison.OrdinalIgnoreCase) && !name.Contains(":link", StringComparison.OrdinalIgnoreCase);
+
+    private static GroundLayoutDto Sfo => MenuGoldenFixtures.SfoLayoutForClient;
+
+    /// <summary>Every group's title and its rows' name, reason, distance and command, in order.</summary>
+    private static List<string> Summary(TaxiToRunwayMenu menu) =>
+        [.. menu.Inline.Concat(menu.Other).SelectMany(g => g.Rows.Select(r => $"{g.Title}: {r.Name} {r.Reason} {r.DistanceFt} {r.Command}"))];
+
+    /// <summary>The distance to the nearest row of <paramref name="group"/>, which orders the ends shown inline.</summary>
+    private static double NearestRowFt(TaxiToRunwayGroup group) => group.Rows.Min(r => r.DistanceFt);
+
+    /// <summary>
+    /// A runway entry to <paramref name="runway"/>: named by its hold short's taxiway, routed by a via, a distance away,
+    /// showing its first variant's command, opening For departure and Hold short of the runway, and previewing its route
+    /// to a hold short of the runway.
+    /// </summary>
+    private static Action<TaxiRouteRow> AssertEntryTo(string runway) =>
+        row =>
+        {
+            Assert.StartsWith("At ", row.Name);
+            Assert.StartsWith("via ", row.Via);
+            Assert.True(row.DistanceFt > 0, $"{row.Name}: distance {row.DistanceFt}");
+            Assert.Equal(row.Variants[0].Command, row.Command);
+            Assert.Equal($"For Departure {runway}", row.Variants[0].Label);
+            Assert.EndsWith($" {runway}", row.Command);
+            Assert.Contains(row.Variants, v => ReferenceEquals(v, MenuCommandChoice.Separator));
+            Assert.Contains(row.Variants, v => v.Command?.EndsWith($" HS {runway}", StringComparison.Ordinal) == true);
+            GroundNodeDto end = Oak.Nodes.First(n => n.Id == row.Preview.Segments[^1].ToNodeId);
+            Assert.Equal("RunwayHoldShort", end.Type);
+            Assert.True(RunwayIdentifier.Parse(end.RunwayId!).Contains(runway), $"{row.Name} ends at a hold short of {end.RunwayId}");
+        };
 
     [AvaloniaFact]
     public void PushbackAndPresetChoices_NoLayout_AreEmpty()
@@ -517,6 +1029,20 @@ public class ClientMenuHostGroundTests
     /// <summary>The only intersection on both taxiway T and taxiway U, where the sidecar's "TERMINAL to 30" route begins.</summary>
     private static GroundNodeDto PresetTaxiNode =>
         Oak.Nodes.First(n => (n.Type == "TaxiwayIntersection") && LinkNamesOf(n.Id).Contains("T") && LinkNamesOf(n.Id).Contains("U"));
+
+    /// <summary>Gate 25, a named parking node at the terminal.</summary>
+    private static GroundNodeDto Gate25Node => Oak.Nodes.First(n => (n.Type == "Parking") && (n.Name == "25"));
+
+    /// <summary>Runway 30's hold short on <paramref name="taxiway"/>.</summary>
+    private static GroundNodeDto HoldShort30On(string taxiway) =>
+        Oak.Nodes.First(n => (n.Type == "RunwayHoldShort") && (n.RunwayId is { } rwy) && rwy.Contains("30") && LinkNamesOf(n.Id).Contains(taxiway));
+
+    /// <summary>The <paramref name="taxiway"/> node just behind <paramref name="holdShort"/>, away from the runway.</summary>
+    private static GroundNodeDto NodeBehind(GroundNodeDto holdShort, string taxiway) =>
+        Oak
+            .Edges.Where(e => (e.TaxiwayName == taxiway) && ((e.FromNodeId == holdShort.Id) || (e.ToNodeId == holdShort.Id)))
+            .Select(e => Oak.Nodes.First(n => n.Id == ((e.FromNodeId == holdShort.Id) ? e.ToNodeId : e.FromNodeId)))
+            .Single(n => !LinkNamesOf(n.Id).Any(name => name.Contains("RWY", StringComparison.OrdinalIgnoreCase)));
 
     /// <summary>The distance from <paramref name="aircraft"/> to the named stand <paramref name="name"/>.</summary>
     private static double DistanceToStand(AircraftModel aircraft, string name)

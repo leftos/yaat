@@ -215,6 +215,13 @@ internal sealed class RecordingMenuHost(string input) : IMenuHost
     public static MenuGroundTrafficRow ParkedRow(string callsign) =>
         new(callsign, "B738", 600, "at parking · gate 1") { IsMoving = false, IsSurfaceShadow = false };
 
+    /// <summary>
+    /// A preset taxi route row named <paramref name="name"/> sending <paramref name="command"/>, 1,000 ft away by a route
+    /// with no segments, which the Preset taxi route submenu lists.
+    /// </summary>
+    public static TaxiRouteRow PresetRow(string name, string command) =>
+        new(TaxiRouteRow.PresetBadge, name, null, null, false, "via B", 1000, command, new TaxiRoute { Segments = [], HoldShortPoints = [] }, []);
+
     /// <summary>The hold-short rows the Hold short of… submenu lists, whatever the callsign asked about.</summary>
     public List<HoldShortChoice> HoldShortChoices { get; } = [];
 
@@ -241,7 +248,7 @@ internal sealed class RecordingMenuHost(string input) : IMenuHost
     public List<MenuCommandChoice> PushbackToChoices { get; } = [];
 
     /// <summary>The routes the Preset taxi route submenu lists, whatever the callsign asked about.</summary>
-    public List<MenuCommandChoice> PresetTaxiChoices { get; } = [];
+    public List<TaxiRouteRow> PresetTaxiChoices { get; } = [];
 
     public List<string> PushRouteCallsigns { get; } = [];
 
@@ -249,7 +256,19 @@ internal sealed class RecordingMenuHost(string input) : IMenuHost
 
     public IReadOnlyList<MenuCommandChoice> GetPushbackToChoices(string callsign) => PushbackToChoices;
 
-    public IReadOnlyList<MenuCommandChoice> GetPresetTaxiChoices(string callsign) => PresetTaxiChoices;
+    public IReadOnlyList<TaxiRouteRow> GetPresetTaxiChoices(string callsign) => PresetTaxiChoices;
+
+    /// <summary>The Taxi to runway submenu's groups, whatever the callsign asked about; none by default.</summary>
+    public TaxiToRunwayMenu TaxiToRunway { get; set; } = TaxiToRunwayMenu.Empty;
+
+    /// <summary>The callsign each Taxi to runway request named, in order.</summary>
+    public List<string> TaxiToRunwayRequests { get; } = [];
+
+    public TaxiToRunwayMenu GetTaxiToRunwayChoices(string callsign)
+    {
+        TaxiToRunwayRequests.Add(callsign);
+        return TaxiToRunway;
+    }
 
     public void EnterPushRoute(string callsign) => PushRouteCallsigns.Add(callsign);
 

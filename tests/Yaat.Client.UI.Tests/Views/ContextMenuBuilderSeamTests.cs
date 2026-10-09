@@ -300,7 +300,19 @@ public class ContextMenuBuilderSeamTests
             "Delete"
         );
         Assert.Equal(
-            ["Push back", "Push route…", "Draw taxi route…", "---", "Ask pilot to say…", "Coordination", "---", "Edit flight plan", "---", "Warp…"],
+            [
+                "Push back",
+                "Push route…",
+                "Taxi to runway",
+                "Draw taxi route…",
+                "---",
+                "Ask pilot to say…",
+                "Coordination",
+                "---",
+                "Edit flight plan",
+                "---",
+                "Warp…",
+            ],
             AllCommandsSequence(menu)
         );
     }

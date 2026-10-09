@@ -37,6 +37,9 @@ public sealed record MenuCommandRow
     /// <summary>Whether the name is drawn semibold.</summary>
     public required bool EmphasizeName { get; init; }
 
+    /// <summary>Whether the row is one its submenu recommends, its name, detail and distance drawn bold.</summary>
+    public required bool IsHighlighted { get; init; }
+
     /// <summary>The dimmed detail beside or under the name, or null for none.</summary>
     public required string? Detail { get; init; }
 
@@ -110,6 +113,7 @@ public sealed class MenuCommandRowTemplate : FuncDataTemplate<MenuCommandRow>
                 HorizontalAlignment = HorizontalAlignment.Right,
                 VerticalAlignment = VerticalAlignment.Center,
             };
+            BoldWhenHighlighted(distance, row);
             Grid.SetColumn(distance, 2);
             grid.Children.Add(distance);
         }
@@ -151,13 +155,25 @@ public sealed class MenuCommandRowTemplate : FuncDataTemplate<MenuCommandRow>
             name.FontWeight = FontWeight.SemiBold;
         }
 
+        BoldWhenHighlighted(name, row);
         panel.Children.Add(name);
         if (row.Detail is { } detail)
         {
-            panel.Children.Add(DetailView(detail, row.DetailPlacement));
+            TextBlock detailView = DetailView(detail, row.DetailPlacement);
+            BoldWhenHighlighted(detailView, row);
+            panel.Children.Add(detailView);
         }
 
         return panel;
+    }
+
+    /// <summary>Draws <paramref name="text"/> bold when <paramref name="row"/> is highlighted; leaves it as it is otherwise.</summary>
+    private static void BoldWhenHighlighted(TextBlock text, MenuCommandRow row)
+    {
+        if (row.IsHighlighted)
+        {
+            text.FontWeight = FontWeight.Bold;
+        }
     }
 
     private static TextBlock DetailView(string detail, MenuDetailPlacement placement) =>

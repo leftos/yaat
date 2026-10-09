@@ -92,6 +92,7 @@ public static class QuickCommandGlyphs
                     + " M16 13.5a1.5 1.5 0 1 0 0 3a1.5 1.5 0 1 0 0-3 M16 16.5V21 M13 18l3 3 3-3"
             ),
             [MenuIds.GroundTaxiPreset] = Ground("M4 21v-5a4 4 0 0 1 4-4h8a4 4 0 0 0 4-4V4 M17 7l3-3 3 3"),
+            [MenuIds.GroundTaxiToRunway] = Ground("M19 3v18 M3 12h12 M11 8l4 4-4 4"),
             [MenuIds.GroundDrawTaxiRoute] = Ground("M4 20l4-1L19 8l-3-3L5 16z M14 7l3 3"),
             [MenuIds.GroundHoldPosition] = Ground("M8 3h8l5 5v8l-5 5H8l-5-5V8z M9 12h6"),
             [MenuIds.GroundResumeTaxi] = Ground("M7 4l13 8-13 8z"),
@@ -146,15 +147,16 @@ public static class QuickCommandGlyphs
     /// <summary>
     /// The glyphs of the point items the point menu's strip shows — the ground ones (Taxi here, Taxi to runway, Push to,
     /// Custom taxi…) and the radar ones (Fly heading, Direct to, Hold left, Hold right, Warp here) — kept apart from
-    /// <see cref="ById"/> because no quick-command list may hold a point item. Push to shares Push back's glyph, Custom
-    /// taxi… Draw taxi route…'s, Fly heading, Direct to and Warp here the aircraft menu's own; the two holds draw the hold
-    /// pattern's racetrack with an arrow on its top leg showing the direction of the turns.
+    /// <see cref="ById"/> because no quick-command list may hold a point item. Push to shares Push back's glyph, Taxi to
+    /// runway the aircraft menu's Taxi to runway's, Custom taxi… Draw taxi route…'s, Fly heading, Direct to and Warp here
+    /// the aircraft menu's own; the two holds draw the hold pattern's racetrack with an arrow on its top leg showing the
+    /// direction of the turns.
     /// </summary>
     public static IReadOnlyDictionary<string, QuickCommandGlyph> PointById { get; } =
         new Dictionary<string, QuickCommandGlyph>(StringComparer.Ordinal)
         {
             [MenuIds.PointTaxiHere] = Ground("M12 21s-6-5.5-6-10.5a6 6 0 0 1 12 0c0 5-6 10.5-6 10.5z M12 8a2.5 2.5 0 1 0 0 5a2.5 2.5 0 1 0 0-5"),
-            [MenuIds.PointTaxiToRunway] = Ground("M19 3v18 M3 12h12 M11 8l4 4-4 4"),
+            [MenuIds.PointTaxiToRunway] = ById[MenuIds.GroundTaxiToRunway],
             [MenuIds.PointPushTo] = ById[MenuIds.GroundPushback],
             [MenuIds.PointCustomTaxi] = ById[MenuIds.GroundDrawTaxiRoute],
             [MenuIds.PointFlyHeading] = ById[MenuIds.HeadingFly],

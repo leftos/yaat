@@ -14,6 +14,7 @@ using Yaat.Client.Views;
 using Yaat.Sim;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Situation;
 using Yaat.Sim.Testing;
@@ -196,6 +197,7 @@ public class MenuCatalogCommandTests
         MenuIds.GroundPushbackTo,
         MenuIds.GroundPushRoute,
         MenuIds.GroundTaxiPreset,
+        MenuIds.GroundTaxiToRunway,
         MenuIds.GroundDrawTaxiRoute,
         MenuIds.SpawnDelay,
         MenuIds.LiveTrafficAssumeSelected,
@@ -1888,6 +1890,225 @@ public class MenuCatalogCommandTests
 
         Assert.Null(MenuCatalog.Get(MenuIds.GroundCrossRunway).Build(ac, Context(VfrCommandsForIfr.None), new RecordingMenuHost("")));
     }
+
+    // --- Taxi to runway ---
+
+    /// <summary>
+    /// Taxi to runway lists each inline group under its disabled title, then Other runways with a submenu per end, searched
+    /// when Other runways opens. An entry
+    /// row opens For departure and Hold short of the runway, a preset row sends its own command, and each row previews its
+    /// route when the pointer enters it.
+    /// </summary>
+    [AvaloniaFact]
+    public void GroundTaxiToRunway_RowsSendTheirCommands_AndPreviewTheirRoutes()
+    {
+        TaxiRoute toW4 = new() { Segments = [], HoldShortPoints = [] };
+        TaxiRoute toB = new() { Segments = [], HoldShortPoints = [] };
+        TaxiRoute preset = new() { Segments = [], HoldShortPoints = [] };
+        var host = new RecordingMenuHost("")
+        {
+            TaxiToRunway = new TaxiToRunwayMenu(
+                [
+                    new TaxiToRunwayGroup(
+                        "Runway 30 · departure runway",
+                        [
+                            EntryRow(
+                                "At W4",
+                                "via S T V W4",
+                                toW4,
+                                ("For Departure 30", "TAXI S T V W4 30"),
+                                ("Hold short RWY 30", "TAXI S T V W4 HS 30")
+                            ),
+                            new TaxiRouteRow(
+                                TaxiRouteRow.PresetBadge,
+                                "TERMINAL to 30",
+                                null,
+                                null,
+                                false,
+                                "via T U W",
+                                5800,
+                                "TAXI T U W RWY 30",
+                                preset,
+                                []
+                            ),
+                        ]
+                    ),
+                ],
+                [],
+                () =>
+                    [
+                        new TaxiToRunwayGroup(
+                            "Runway 28R",
+                            [EntryRow("At B", "via B", toB, ("For Departure 28R", "TAXI B 28R"), ("Hold short RWY 28R", "TAXI B HS 28R"))]
+                        ),
+                    ]
+            ),
+        };
+        AircraftModel ac = OnGround("At Parking", "IFR", "");
+
+        MenuItem? item = MenuCatalog.Get(MenuIds.GroundTaxiToRunway).Build(ac, Context(VfrCommandsForIfr.None), host);
+
+        Assert.NotNull(item);
+        Assert.Equal("Taxi to runway", item.Header as string);
+        Assert.Equal(["Finding runway entries…"], item.Items.Select(RowText));
+        Assert.Empty(host.TaxiToRunwayRequests);
+
+        OpenSubmenu(item);
+        OpenSubmenu(item);
+
+        Assert.Equal([Callsign], host.TaxiToRunwayRequests);
+        Assert.Equal(
+            [
+                "Runway 30 · departure runway",
+                "RW At W4 · nearest · via S T V W4 · ~2,300 ft — TAXI S T V W4 30",
+                "PR TERMINAL to 30 · via T U W · ~5,800 ft — TAXI T U W RWY 30",
+                "---",
+                "Other runways",
+            ],
+            item.Items.Select(RowText)
+        );
+        Assert.False(Assert.IsType<MenuItem>(item.Items[0]).IsEnabled);
+
+        MenuItem w4 = Assert.IsType<MenuItem>(item.Items[1]);
+        Assert.Equal(["For Departure 30", "---", "Hold short RWY 30"], w4.Items.Select(Describe));
+        RaisePointerEntered(w4);
+        RaisePointerEntered(Assert.IsType<MenuItem>(item.Items[2]));
+        Click(Assert.IsType<MenuItem>(w4.Items[0]));
+        Click(Assert.IsType<MenuItem>(w4.Items[2]));
+        Click(Assert.IsType<MenuItem>(item.Items[2]));
+
+        // Other runways searches its ends only when it opens.
+        MenuItem other = Assert.IsType<MenuItem>(item.Items[4]);
+        Assert.Equal(["Finding runway entries…"], other.Items.Select(RowText));
+        OpenSubmenu(other);
+        MenuItem runway28R = Assert.IsType<MenuItem>(Assert.Single(other.Items));
+        Assert.Equal("Runway 28R", runway28R.Header as string);
+        Click(Assert.IsType<MenuItem>(Assert.IsType<MenuItem>(Assert.Single(runway28R.Items)).Items[0]));
+
+        Assert.Equal([toW4, preset], host.RoutePreviews);
+        Assert.Equal(
+            [
+                (Callsign, "TAXI S T V W4 30", Initials),
+                (Callsign, "TAXI S T V W4 HS 30", Initials),
+                (Callsign, "TAXI T U W RWY 30", Initials),
+                (Callsign, "TAXI B 28R", Initials),
+            ],
+            host.Sent
+        );
+    }
+
+    [AvaloniaFact]
+    public void GroundTaxiToRunway_NoGroups_SaysNoRunwayEntryFound()
+    {
+        MenuItem? item = MenuCatalog.Get(MenuIds.GroundTaxiToRunway).Build(OnGround("At Parking", "IFR", ""), Context(), new RecordingMenuHost(""));
+
+        Assert.NotNull(item);
+        OpenSubmenu(item);
+        MenuItem row = Assert.IsType<MenuItem>(Assert.Single(item.Items));
+        Assert.Equal(("No runway entry found", false), (row.Header as string, row.IsEnabled));
+    }
+
+    [AvaloniaTheory]
+    [InlineData("At Parking", true)]
+    [InlineData("Taxiing", true)]
+    [InlineData("Holding Short 28R/10L", true)]
+    [InlineData("Following SWA1", true)]
+    [InlineData("LinedUpAndWaiting", false)]
+    [InlineData("Takeoff", false)]
+    public void GroundTaxiToRunway_OfferedWhereATaxiRouteCanBeDrawn(string phase, bool offered) =>
+        AssertSame(MenuIds.GroundTaxiToRunway, OnGround(phase, "IFR", ""), offered);
+
+    /// <summary>
+    /// On the real KOAK layout, an entry whose route crosses another runway opens the crossing variants: For departure
+    /// holding short of the crossing, and crossing it, which the row sends as typed.
+    /// </summary>
+    [AvaloniaFact]
+    public void GroundTaxiToRunway_RouteCrossingARunway_OffersTheCrossVariants()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        GroundNodeDto gate = MenuGoldenFixtures.OakLayoutForClient.Nodes.First(n => (n.Type == "Parking") && (n.Name == "25"));
+        AircraftModel ac = OnGround("At Parking", "IFR", "");
+        ac.AircraftType = "B738";
+        ac.Position = new LatLon(gate.Latitude, gate.Longitude);
+        var main = new MainViewModel(new FakeFilePickerService());
+        main.Aircraft.Clear();
+        main.Aircraft.Add(ac);
+        main.Ground.SetLayoutForTesting(MenuGoldenFixtures.OakLayoutForClient);
+        var host = new SendCapturingHost(new ClientMenuHost(main, ac, new Border()), Initials);
+
+        MenuItem? item = MenuCatalog.Get(MenuIds.GroundTaxiToRunway).Build(ac, Context(VfrCommandsForIfr.None), host);
+
+        Assert.NotNull(item);
+        OpenSubmenu(item);
+        List<MenuItem> crossing =
+        [
+            .. Descendants(item).Where(m => MenuCommandText.GetCommand(m)?.Contains(", CROSS ", StringComparison.Ordinal) == true),
+        ];
+        Assert.NotEmpty(crossing);
+        string command = MenuCommandText.GetCommand(crossing[0])!;
+        Assert.StartsWith("TAXI ", command);
+        Click(crossing[0]);
+        Assert.Equal([(Callsign, command, Initials)], host.Sent);
+    }
+
+    /// <summary>A runway entry row named <paramref name="name"/> 2,300 ft away, nearest, opening its two variants.</summary>
+    private static TaxiRouteRow EntryRow(
+        string name,
+        string via,
+        TaxiRoute preview,
+        (string Label, string Command) departure,
+        (string Label, string Command) holdShort
+    ) =>
+        new(
+            TaxiRouteRow.RunwayEntryBadge,
+            name,
+            "nearest",
+            null,
+            true,
+            via,
+            2300,
+            departure.Command,
+            preview,
+            [
+                new MenuCommandChoice(departure.Label, departure.Command, preview, []),
+                MenuCommandChoice.Separator,
+                new MenuCommandChoice(holdShort.Label, holdShort.Command, preview, []),
+            ]
+        );
+
+    /// <summary>An item's one-line text, the header's own for a templated row, or "---" for a separator.</summary>
+    private static string RowText(object? item) =>
+        item switch
+        {
+            Separator => "---",
+            MenuItem menuItem => menuItem.Header?.ToString() ?? "",
+            _ => item?.GetType().Name ?? "null",
+        };
+
+    /// <summary>Opens <paramref name="item"/>'s submenu as the pointer does, which builds a lazily built one's items.</summary>
+    private static void OpenSubmenu(MenuItem item) => item.RaiseEvent(new RoutedEventArgs(MenuItem.SubmenuOpenedEvent, item));
+
+    /// <summary>Every menu item under <paramref name="item"/>, depth first.</summary>
+    private static IEnumerable<MenuItem> Descendants(MenuItem item) =>
+        item.Items.OfType<MenuItem>().SelectMany(child => (IEnumerable<MenuItem>)[child, .. Descendants(child)]);
+
+    /// <summary>
+    /// Raises a pointer enter on <paramref name="item"/> with a real <see cref="PointerEventArgs"/>, which the typed handler
+    /// requires.
+    /// </summary>
+    private static void RaisePointerEntered(MenuItem item) =>
+        item.RaiseEvent(
+            new PointerEventArgs(
+                InputElement.PointerEnteredEvent,
+                item,
+                new Pointer(0, PointerType.Mouse, isPrimary: true),
+                rootVisual: null,
+                rootVisualPosition: default,
+                timestamp: 0,
+                properties: default,
+                modifiers: KeyModifiers.None
+            )
+        );
 
     [AvaloniaFact]
     public void GroundRelative_SendsAsTheSelectedAircraft_NamingTheRightClickedOne()

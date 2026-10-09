@@ -90,8 +90,10 @@ All Commands
     9A
     1
   Push route…
+  Taxi to runway
+    Finding runway entries… [disabled]
   Preset taxi route
-    TERMINAL to 30
+    PR TERMINAL to 30 · via T U W · ~4,700 ft — TAXI T U W RWY 30
   Draw taxi route…
   ---
   Ask pilot to say…

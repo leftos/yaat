@@ -587,6 +587,7 @@ public partial class GroundViewModel : ObservableObject
                 _log.LogWarning("No ground layout for airport {Id}", airportId);
                 DataBlockState.Clear();
                 _domainLayout = null;
+                ForgetRunwayEntryRoutes();
                 Layout = null;
                 ShownAirportChanged?.Invoke();
                 return;
@@ -671,6 +672,7 @@ public partial class GroundViewModel : ObservableObject
         _activeScenarioId = null;
         _activeAirportId = null;
         _domainLayout = null;
+        ForgetRunwayEntryRoutes();
         Layout = null;
         HoverTaxiRoute = null;
         PreviewRoute = null;
@@ -1043,15 +1045,17 @@ public partial class GroundViewModel : ObservableObject
         // Find the destination hold-short node (last segment's ToNodeId is the dest)
         int destHsNodeId = route.Segments.Count > 0 ? route.Segments[^1].ToNodeId : -1;
 
+        // A crossing is a bar of another runway before the destination bar: the destination bar itself, and any bar of the
+        // destination runway (either end, however padded: 12 of 30/12, 1L of 01L/19R), is never one.
         var crossingHoldShorts = new List<(string RwyName, HoldShortPoint Hs)>();
         foreach (HoldShortPoint hs in route.HoldShortPoints)
         {
-            if (hs.Reason == HoldShortReason.RunwayCrossing && hs.TargetName is not null)
+            if ((hs.Reason == HoldShortReason.RunwayCrossing) && (hs.TargetName is not null) && (hs.NodeId != destHsNodeId))
             {
-                string rwyName = RunwayIdentifier.Parse(hs.TargetName).End1;
-                if (!string.Equals(rwyName, destRunway, StringComparison.OrdinalIgnoreCase))
+                var crossed = RunwayIdentifier.Parse(hs.TargetName);
+                if (!crossed.Contains(destRunway))
                 {
-                    crossingHoldShorts.Add((rwyName, hs));
+                    crossingHoldShorts.Add((RunwayIdentifier.ToDisplayDesignator(crossed.End1), hs));
                 }
             }
         }
@@ -1226,52 +1230,606 @@ public partial class GroundViewModel : ObservableObject
     }
 
     /// <summary>
-    /// The loaded per-ARTCC catalog's preset taxi routes for this airport that can be walked from the aircraft's node,
-    /// each labelled with the route's name and sending its canonical <c>TAXI</c> command; a route whose path cannot be
-    /// walked from here is dropped. Empty without a layout, a navigation database, routes or a nearest node.
+    /// The loaded per-ARTCC catalog's preset taxi routes for this airport whose path resolves from the aircraft's taxi
+    /// start (<see cref="TaxiStartNode"/>) for its own category and wake class, as rows: the route's name, its path's
+    /// taxiways, the distance from the aircraft along the resolved path, its canonical <c>TAXI</c> command and the path
+    /// to preview. A route that does not resolve from here is dropped. Empty without a layout, a navigation database,
+    /// routes or a start node.
     /// </summary>
-    public List<MenuCommandChoice> GetPresetTaxiChoices(AircraftModel ac)
+    public List<TaxiRouteRow> GetPresetTaxiChoices(AircraftModel ac) => [.. PresetTaxiRows(ac).Select(preset => preset.Row)];
+
+    /// <summary><see cref="GetPresetTaxiChoices"/>'s rows, each with the preset it was built from.</summary>
+    private List<(TaxiRouteDefinition Preset, TaxiRouteRow Row)> PresetTaxiRows(AircraftModel ac)
     {
-        if (_domainLayout is null)
+        if ((_domainLayout is not { } layout) || (NavigationDatabase.InstanceOrNull is not { } navDb) || (TaxiStartNode(layout, ac) is not { } start))
         {
             return [];
         }
 
-        if (NavigationDatabase.InstanceOrNull is not { } navDb)
+        List<(TaxiRouteDefinition Preset, TaxiRouteRow Row)> rows = [];
+        foreach (TaxiRouteDefinition preset in navDb.AirportSidecars.GetTaxiRoutes(layout.AirportId))
         {
-            return [];
+            if (PresetTaxiRow(layout, start, ac, preset) is { } row)
+            {
+                rows.Add((preset, row));
+            }
         }
 
-        AirportSidecarCatalog catalog = navDb.AirportSidecars;
+        return rows;
+    }
 
-        int? fromNodeId = GetAircraftNearestNodeId(ac);
-        if (fromNodeId is null)
+    /// <summary>
+    /// <paramref name="preset"/>'s row from <paramref name="start"/>: its path resolved for the aircraft's category and wake
+    /// class, the path's taxiways as the via (what the command sends), and the distance from the aircraft along the
+    /// resolved path. Null when the path does not resolve from there, or ends where the aircraft stands (the bar it is
+    /// holding short at), as no runway entry row is offered there.
+    /// </summary>
+    private static TaxiRouteRow? PresetTaxiRow(AirportGroundLayout layout, GroundNode start, AircraftModel ac, TaxiRouteDefinition preset)
+    {
+        List<string> path = preset.GetPathTokens();
+        TaxiRoute? route = TaxiPathfinder.ResolveExplicitPath(
+            layout,
+            start.Id,
+            path,
+            out _,
+            new ExplicitPathOptions { OccupiedTaxiway = null, DestinationRunway = preset.DestinationRunway },
+            CategoryFor(ac),
+            WakeClassFor(ac)
+        );
+        if ((route is not { Segments.Count: > 0 }) || (StandsAt(ac, route.Segments[^1].Edge.ToNode)))
         {
-            return [];
+            return null;
         }
 
-        AirportGroundLayout layout = _domainLayout;
+        string via = (path.Count > 0) ? $"via {string.Join(' ', path)}" : "direct";
+        return new TaxiRouteRow(
+            TaxiRouteRow.PresetBadge,
+            preset.Name,
+            null,
+            null,
+            false,
+            via,
+            RouteDistanceFt(route, ac.Position),
+            preset.ToCanonicalCommand(),
+            route,
+            []
+        );
+    }
+
+    /// <summary>
+    /// The node a taxi from <paramref name="ac"/> starts at, as the server picks it: on the taxiway the aircraft is on, else
+    /// the heading-aligned node (<see cref="AirportGroundLayout.FindNearestNodeForTaxi"/>), else the nearest node.
+    /// </summary>
+    private static GroundNode? TaxiStartNode(AirportGroundLayout layout, AircraftModel ac) =>
+        layout.FindNearestNodeForTaxi(ac.Position, ac.Heading) ?? layout.FindNearestNode(ac.Position);
+
+    /// <summary>Whether <paramref name="ac"/> stands at <paramref name="node"/>: under 25 ft away, 0 ft once rounded to 50 ft.</summary>
+    private static bool StandsAt(AircraftModel ac, GroundNode node) =>
+        TugMovePlanner.NoteDistanceFt(GeoMath.DistanceNm(ac.Position, node.Position) * GeoMath.FeetPerNm) == 0;
+
+    /// <summary>
+    /// The distance from the aircraft at <paramref name="position"/> to the end of <paramref name="route"/>, as the Hold
+    /// short of… rows measure it (<see cref="RouteStart"/>), rounded to the nearest 50 ft.
+    /// </summary>
+    private static double RouteDistanceFt(TaxiRoute route, LatLon position) =>
+        TugMovePlanner.NoteDistanceFt(RouteStart(route, position).OffsetFt + route.PrefixDistanceFt(route.Segments.Count));
+
+    /// <summary>The most runway ends Taxi to runway shows inline when the room names no active runway at the airport.</summary>
+    private const int MaxInlineRunwayEnds = 3;
+
+    /// <summary>A hold short of a runway the aircraft can taxi to, the shortest route there and its distance from the aircraft.</summary>
+    private sealed record RunwayEntry(GroundNode Bar, TaxiRoute Route, double DistanceFt);
+
+    /// <summary>
+    /// The Taxi to runway submenu for <paramref name="ac"/>, from its taxi start (<see cref="TaxiStartNode"/>) with its own
+    /// category and wake class. Every runway end with a hold short the aircraft can reach gets a group: the full-length
+    /// entry and the intersections long enough for its type (<see cref="EntryRowsFor"/>), then the presets ending at that end
+    /// (<see cref="GetPresetTaxiChoices"/>). The groups are placed by <see cref="GroupRunwayEnds"/>.
+    /// With an active departure end at the airport, only the runways of the assigned and active departure ends are searched
+    /// here; the rest are searched when Other runways opens (<see cref="TaxiToRunwayMenu.FindOther"/>), and only when some
+    /// runway end is not inline. Without one, the inline ends are the route-nearest, so every runway is searched at once.
+    /// Other runways opened after the layout changed finds no group. Empty without a layout or a start node.
+    /// </summary>
+    public TaxiToRunwayMenu GetTaxiToRunwayChoices(AircraftModel ac)
+    {
+        if ((_domainLayout is not { } layout) || (TaxiStartNode(layout, ac) is not { } start))
+        {
+            return TaxiToRunwayMenu.Empty;
+        }
+
+        List<(TaxiRouteDefinition Preset, TaxiRouteRow Row)> presets = PresetTaxiRows(ac);
+        List<RunwayIdentifier> runways = RunwaysWithHoldShorts(layout);
+        string assignedRunway = ac.AssignedRunway;
+        List<string> departureEnds = ActiveDepartureRunwayEnds(layout.AirportId);
+        if (departureEnds.Count == 0)
+        {
+            return GroupRunwayEnds(RunwayEndRows(layout, start, ac, runways, presets), assignedRunway, departureEnds);
+        }
+
+        List<string> inlineEnds = [.. departureEnds];
+        if (!string.IsNullOrEmpty(assignedRunway))
+        {
+            inlineEnds.Add(assignedRunway);
+        }
+
+        List<RunwayIdentifier> inlineRunways = [.. runways.Where(runway => inlineEnds.Any(runway.Contains))];
+        TaxiToRunwayMenu inline = GroupRunwayEnds(RunwayEndRows(layout, start, ac, inlineRunways, presets), assignedRunway, departureEnds);
+        bool anyEndNotInline = runways.SelectMany(EndsOf).Any(end => !inlineEnds.Any(inlineEnd => SameRunwayEnd(end, inlineEnd)));
+        if (!anyEndNotInline)
+        {
+            return new TaxiToRunwayMenu(inline.Inline, [], null);
+        }
+
+        return new TaxiToRunwayMenu(
+            inline.Inline,
+            [],
+            () =>
+                ReferenceEquals(_domainLayout, layout)
+                    ? GroupRunwayEnds(RunwayEndRows(layout, start, ac, runways, presets), assignedRunway, departureEnds).Other
+                    : []
+        );
+    }
+
+    /// <summary>A runway's ends, one for a runway named by a single end.</summary>
+    private static string[] EndsOf(RunwayIdentifier runway) => SameRunwayEnd(runway.End1, runway.End2) ? [runway.End1] : [runway.End1, runway.End2];
+
+    /// <summary>
+    /// The rows of each end of <paramref name="runways"/> that has any: its entries (<see cref="EntryRowsFor"/>), then the
+    /// presets that end at it. A runway searched before from the same start is answered from the route cache.
+    /// </summary>
+    private List<(string End, List<TaxiRouteRow> Rows)> RunwayEndRows(
+        AirportGroundLayout layout,
+        GroundNode start,
+        AircraftModel ac,
+        List<RunwayIdentifier> runways,
+        List<(TaxiRouteDefinition Preset, TaxiRouteRow Row)> presets
+    )
+    {
+        List<(string End, List<TaxiRouteRow> Rows)> ends = [];
+        double takeoffDistanceFt = TakeoffDistanceFt(ac);
+        foreach (RunwayIdentifier runway in runways)
+        {
+            List<RunwayEntry> entries = RunwayEntries(layout, start, ac, runway);
+            foreach (string end in EndsOf(runway))
+            {
+                List<TaxiRouteRow> rows =
+                [
+                    .. EntryRowsFor(layout, runway, end, entries, takeoffDistanceFt),
+                    .. presets.Where(p => (p.Preset.DestinationRunway is { } destination) && SameRunwayEnd(destination, end)).Select(p => p.Row),
+                ];
+                if (rows.Count > 0)
+                {
+                    ends.Add((end, rows));
+                }
+            }
+        }
+
+        return ends;
+    }
+
+    /// <summary>Every runway some <c>RunwayHoldShort</c> node of <paramref name="layout"/> holds short of, each once.</summary>
+    private static List<RunwayIdentifier> RunwaysWithHoldShorts(AirportGroundLayout layout) =>
+        [.. layout.Nodes.Values.Where(n => n.Type == GroundNodeType.RunwayHoldShort).Select(n => n.RunwayId).OfType<RunwayIdentifier>().Distinct()];
+
+    /// <summary>Whether <paramref name="node"/> is a hold short of <paramref name="runway"/>.</summary>
+    private static bool IsHoldShortOf(GroundNode node, RunwayIdentifier runway) =>
+        (node.Type == GroundNodeType.RunwayHoldShort) && (node.RunwayId is { } id) && (id == runway);
+
+    /// <summary>
+    /// The hold shorts of <paramref name="runway"/> the aircraft can taxi to from <paramref name="start"/>
+    /// (<see cref="RunwayEntryRoutes"/>), each with its distance from the aircraft, leaving out any hold short the aircraft
+    /// stands at (0 ft once rounded): the bar it is holding short at.
+    /// </summary>
+    private List<RunwayEntry> RunwayEntries(AirportGroundLayout layout, GroundNode start, AircraftModel ac, RunwayIdentifier runway)
+    {
+        List<RunwayEntry> entries = [];
+        foreach ((GroundNode bar, TaxiRoute route) in RunwayEntryRoutes(layout, start, CategoryFor(ac), WakeClassFor(ac), runway))
+        {
+            double distanceFt = RouteDistanceFt(route, ac.Position);
+            if (distanceFt > 0)
+            {
+                entries.Add(new RunwayEntry(bar, route, distanceFt));
+            }
+        }
+
+        return entries;
+    }
+
+    /// <summary>The most (start node, category, wake class, runway) keys the runway entry route cache holds before it starts over.</summary>
+    private const int MaxCachedRunwayEntryRoutes = 2000;
+
+    /// <summary>The layout <see cref="_runwayEntryRoutes"/> was found on; a new layout empties it.</summary>
+    private AirportGroundLayout? _runwayEntryRoutesLayout;
+
+    /// <summary>
+    /// The shortest route from a start node to each hold short of a runway an aircraft of the category and wake class can
+    /// taxi to, found once per key: a route depends only on the layout and those, never on where around the start node the
+    /// aircraft stands, so every later menu from that node reuses it.
+    /// </summary>
+    private readonly Dictionary<
+        (int StartNodeId, AircraftCategory Category, WakeTurbulenceData.WakeClass WakeClass, RunwayIdentifier Runway),
+        List<(GroundNode Bar, TaxiRoute Route)>
+    > _runwayEntryRoutes = [];
+
+    /// <summary>Empties the runway entry route cache once its layout is gone.</summary>
+    private void ForgetRunwayEntryRoutes()
+    {
+        _runwayEntryRoutes.Clear();
+        _runwayEntryRoutesLayout = null;
+    }
+
+    /// <summary>How many hold-short route searches Taxi to runway has run; an answer from the cache runs none.</summary>
+    public int TaxiToRunwayRouteSearches { get; private set; }
+
+    /// <summary>
+    /// The hold shorts of <paramref name="runway"/> reachable from <paramref name="start"/>, each by its shortest route
+    /// (<see cref="RoutePreference.Shortest"/>), in node order, from the cache when this key was searched on this layout.
+    /// Left out: <paramref name="start"/> itself; a hold short on another runway's pavement only
+    /// (<see cref="LiesOnRunwayPavementOnly"/>), which is no entry; a hold short whose route passes another hold short of
+    /// the same runway; and one whose route travels along the runway's own centreline, which crosses the runway (7110.65
+    /// 3-7-2) rather than taxiing to it, as to the bar across the runway from the one the aircraft holds at.
+    /// </summary>
+    private List<(GroundNode Bar, TaxiRoute Route)> RunwayEntryRoutes(
+        AirportGroundLayout layout,
+        GroundNode start,
+        AircraftCategory category,
+        WakeTurbulenceData.WakeClass wakeClass,
+        RunwayIdentifier runway
+    )
+    {
+        if ((!ReferenceEquals(_runwayEntryRoutesLayout, layout)) || (_runwayEntryRoutes.Count >= MaxCachedRunwayEntryRoutes))
+        {
+            _runwayEntryRoutes.Clear();
+            _runwayEntryRoutesLayout = layout;
+        }
+
+        (int, AircraftCategory, WakeTurbulenceData.WakeClass, RunwayIdentifier) key = (start.Id, category, wakeClass, runway);
+        if (_runwayEntryRoutes.TryGetValue(key, out List<(GroundNode Bar, TaxiRoute Route)>? cached))
+        {
+            return cached;
+        }
+
+        List<(GroundNode Bar, TaxiRoute Route)> routes = [];
+        IEnumerable<GroundNode> bars = layout.Nodes.Values.Where(n =>
+            (IsHoldShortOf(n, runway)) && (n.Id != start.Id) && (!LiesOnRunwayPavementOnly(n))
+        );
+        foreach (GroundNode bar in bars.OrderBy(n => n.Id))
+        {
+            TaxiToRunwayRouteSearches++;
+            TaxiRoute? route = TaxiPathfinder
+                .FindRoutes(layout, start.Id, bar.Id, RoutePreference.Shortest, maxRoutes: 1, authorizedTaxiways: null, category, wakeClass)
+                .FirstOrDefault();
+            if ((route is { Segments.Count: > 0 }) && (!PassesAnotherHoldShortOf(layout, route, runway)) && (!TravelsOnRunway(route, runway)))
+            {
+                routes.Add((bar, route));
+            }
+        }
+
+        _runwayEntryRoutes[key] = routes;
+        return routes;
+    }
+
+    /// <summary>
+    /// Whether every edge at <paramref name="node"/> runs along a runway centreline: a hold short painted on another runway's
+    /// pavement, not on a taxiway leading to its own runway.
+    /// </summary>
+    public static bool LiesOnRunwayPavementOnly(GroundNode node) => (node.Edges.Count > 0) && node.Edges.All(edge => edge.IsRunwayCenterline);
+
+    /// <summary>
+    /// Whether <paramref name="route"/> goes onto <paramref name="runway"/>'s centreline: before the bar it ends at, it
+    /// reaches a node on one of the runway's centreline edges, whether it then runs along the runway or straight across it.
+    /// The bar itself is not counted, so a bar with an edge on its own runway's centreline is still an entry.
+    /// </summary>
+    private static bool TravelsOnRunway(TaxiRoute route, RunwayIdentifier runway) =>
+        route
+            .Segments.Take(route.Segments.Count - 1)
+            .Any(segment => segment.Edge.ToNode.Edges.Any(edge => (edge.IsRunwayCenterline) && (edge.MatchesRunway(runway.End1))));
+
+    /// <summary>Whether <paramref name="route"/> passes a hold short of <paramref name="runway"/> before the one it ends at.</summary>
+    private static bool PassesAnotherHoldShortOf(AirportGroundLayout layout, TaxiRoute route, RunwayIdentifier runway) =>
+        route
+            .Segments.Take(route.Segments.Count - 1)
+            .Any(segment => (layout.Nodes.TryGetValue(segment.ToNodeId, out GroundNode? node)) && (IsHoldShortOf(node, runway)));
+
+    /// <summary>
+    /// <paramref name="end"/>'s entry rows from <paramref name="entries"/> for a type needing
+    /// <paramref name="takeoffDistanceFt"/> of runway (0 for a type with no figure): the full-length entry first, the
+    /// nearest of <see cref="FullLengthBars"/>, then the intersections leaving enough runway ahead
+    /// (<see cref="UsableIntersections"/>), most runway left first, each showing what it leaves rounded down to 50 ft
+    /// (<see cref="AvailableRunwayFt"/>). The hold shorts at the other end's threshold, from which a departure on
+    /// <paramref name="end"/> has no runway ahead, and the other full-length ones are left out. The nearest row is tagged
+    /// <c>nearest</c> (<c>nearest, full length</c> when it is the full-length one), and it and the full-length row are
+    /// highlighted. A row whose route names no taxiway is left out.
+    /// </summary>
+    private List<TaxiRouteRow> EntryRowsFor(
+        AirportGroundLayout layout,
+        RunwayIdentifier runway,
+        string end,
+        List<RunwayEntry> entries,
+        double takeoffDistanceFt
+    )
+    {
+        string otherEnd = string.Equals(end, runway.End1, StringComparison.OrdinalIgnoreCase) ? runway.End2 : runway.End1;
+        HashSet<int> oppositeBars = FullLengthBars(layout, runway, otherEnd);
+        HashSet<int> fullLengthBars = FullLengthBars(layout, runway, end);
+        List<RunwayEntry> candidates = [.. entries.Where(entry => !oppositeBars.Contains(entry.Bar.Id))];
+        RunwayEntry? fullLength = candidates.Where(entry => fullLengthBars.Contains(entry.Bar.Id)).MinBy(entry => entry.DistanceFt);
+        List<(RunwayEntry Entry, double? RemainingFt)> intersections = UsableIntersections(
+            runway,
+            otherEnd,
+            [.. candidates.Where(entry => !fullLengthBars.Contains(entry.Bar.Id))],
+            takeoffDistanceFt
+        );
+        RunwayEntry? nearest = intersections.Select(i => i.Entry).Append(fullLength).OfType<RunwayEntry>().MinBy(entry => entry.DistanceFt);
+
+        List<TaxiRouteRow?> rows = [];
+        if (fullLength is not null)
+        {
+            bool isNearest = ReferenceEquals(fullLength, nearest);
+            rows.Add(EntryRow(fullLength, end, isNearest ? "nearest, full length" : "full length", null, true));
+        }
+
+        foreach ((RunwayEntry entry, double? remainingFt) in intersections)
+        {
+            bool isNearest = ReferenceEquals(entry, nearest);
+            double? availableFt = (remainingFt is { } ft) ? AvailableRunwayFt(ft) : null;
+            rows.Add(EntryRow(entry, end, isNearest ? "nearest" : null, availableFt, isNearest));
+        }
+
+        return [.. rows.OfType<TaxiRouteRow>()];
+    }
+
+    /// <summary>
+    /// The intersection entries of <paramref name="intersections"/> that leave enough of <paramref name="runway"/> ahead of a
+    /// departure toward <paramref name="farEnd"/> (<see cref="RunwayRemainingFt(RunwayIdentifier, string, GroundNode)"/>),
+    /// each with what it leaves, most runway left first. Enough is the type's <paramref name="takeoffDistanceFt"/>; for a
+    /// type with no figure (0), half the runway's length, so a jet with no profile figure is never offered an entry near the
+    /// far end. Without the runway's geometry nothing can be measured: every entry is kept, nearest first, with no length.
+    /// </summary>
+    private List<(RunwayEntry Entry, double? RemainingFt)> UsableIntersections(
+        RunwayIdentifier runway,
+        string farEnd,
+        List<RunwayEntry> intersections,
+        double takeoffDistanceFt
+    )
+    {
+        double? requiredFt = (takeoffDistanceFt > 0) ? takeoffDistanceFt : RunwayLengthFt(runway) / 2;
         return
         [
-            .. catalog
-                .GetTaxiRoutes(layout.AirportId)
-                .Where(route => IsPresetWalkable(layout, fromNodeId.Value, route))
-                .Select(route => new MenuCommandChoice(route.Name, route.ToCanonicalCommand(), null, [])),
+            .. intersections
+                .Select(entry => (Entry: entry, RemainingFt: RunwayRemainingFt(runway, farEnd, entry.Bar)))
+                .Where(i => (i.RemainingFt is not { } remainingFt) || (requiredFt is not { } required) || (remainingFt >= required))
+                .OrderByDescending(i => i.RemainingFt ?? double.MinValue)
+                .ThenBy(i => i.Entry.DistanceFt),
         ];
     }
 
-    /// <summary>Whether <paramref name="route"/>'s path resolves from <paramref name="fromNodeId"/>, as a large jet.</summary>
-    private static bool IsPresetWalkable(AirportGroundLayout layout, int fromNodeId, TaxiRouteDefinition route) =>
-        TaxiPathfinder.ResolveExplicitPath(
-            layout,
-            fromNodeId,
-            route.GetPathTokens(),
-            out _,
-            new ExplicitPathOptions { OccupiedTaxiway = null, DestinationRunway = route.DestinationRunway },
-            AircraftCategory.Jet,
-            WakeTurbulenceData.WakeClass.Large
-        )
-            is not null;
+    /// <summary>
+    /// The runway <paramref name="ac"/>'s type needs to take off, in feet: its profile's takeoff distance after the override
+    /// layer (<see cref="AircraftProfileDatabase.Get"/>); 0 when the type has no profile or its profile carries no figure.
+    /// </summary>
+    public static double TakeoffDistanceFt(AircraftModel ac) =>
+        (AircraftProfileDatabase.Get(ac.AircraftType) is { TakeoffDistance: > 0 } profile) ? profile.TakeoffDistance : 0;
+
+    /// <summary>A runway length left ahead of an intersection as its row shows it: rounded down to 50 ft, never up.</summary>
+    public static double AvailableRunwayFt(double remainingFt) => Math.Floor(remainingFt / 50) * 50;
+
+    /// <summary>
+    /// How much runway lies ahead of an aircraft entering at the hold short <paramref name="barNodeId"/> for a departure
+    /// from <paramref name="departureEnd"/> (<see cref="RunwayRemainingFt(RunwayIdentifier, string, GroundNode)"/>). Null
+    /// without a layout, when the node is no hold short in it, or when the layout has no geometry for its runway.
+    /// </summary>
+    public double? RunwayRemainingFt(string departureEnd, int barNodeId)
+    {
+        if ((_domainLayout is not { } layout) || (!layout.Nodes.TryGetValue(barNodeId, out GroundNode? bar)) || (bar.RunwayId is not { } runway))
+        {
+            return null;
+        }
+
+        return RunwayRemainingFt(runway, SameRunwayEnd(departureEnd, runway.End1) ? runway.End2 : runway.End1, bar);
+    }
+
+    /// <summary>
+    /// How much of <paramref name="runway"/> lies ahead of an aircraft entering at <paramref name="bar"/> for a departure
+    /// toward <paramref name="farEnd"/>: the along-track distance from where the bar's taxiway meets the centreline
+    /// (<see cref="RunwayJunction"/>, the bar itself when none is found) to <paramref name="farEnd"/>'s threshold, from the
+    /// runway's coordinates (<see cref="RunwayEndGeometry"/>). Null when the layout has no geometry for the runway.
+    /// </summary>
+    private double? RunwayRemainingFt(RunwayIdentifier runway, string farEnd, GroundNode bar)
+    {
+        if (RunwayEndGeometry(runway, farEnd) is not { } far)
+        {
+            return null;
+        }
+
+        LatLon junction = (RunwayJunction(runway, bar) ?? bar).Position;
+        return GeoMath.AlongTrackDistanceNm(junction, far.Threshold, far.Heading) * GeoMath.FeetPerNm;
+    }
+
+    /// <summary>The length of <paramref name="runway"/> between its coordinates' ends, in feet; null without its geometry.</summary>
+    private double? RunwayLengthFt(RunwayIdentifier runway) =>
+        (RunwayCenterline(runway) is { } line) ? GeoMath.DistanceNm(line.First, line.Last) * GeoMath.FeetPerNm : null;
+
+    /// <summary>How far along the taxiways from a hold short <see cref="RunwayJunction"/> looks for its runway's centreline.</summary>
+    private const double MaxJunctionSearchFt = 2000;
+
+    /// <summary>
+    /// The node where <paramref name="bar"/>'s taxiway meets <paramref name="runway"/>'s centreline: the nearest node, along
+    /// the graph's off-centreline edges and within <see cref="MaxJunctionSearchFt"/> of the bar, that has a centreline edge
+    /// of the runway. Null when none is that close.
+    /// </summary>
+    private static GroundNode? RunwayJunction(RunwayIdentifier runway, GroundNode bar)
+    {
+        var settled = new HashSet<int>();
+        var queue = new PriorityQueue<GroundNode, double>();
+        queue.Enqueue(bar, 0);
+        while (queue.TryDequeue(out GroundNode? node, out double distanceFt))
+        {
+            if (!settled.Add(node.Id))
+            {
+                continue;
+            }
+
+            if (node.Edges.Any(edge => (edge.IsRunwayCenterline) && (edge.MatchesRunway(runway.End1))))
+            {
+                return node;
+            }
+
+            foreach (IGroundEdge edge in node.Edges.Where(edge => !edge.IsRunwayCenterline))
+            {
+                double nextFt = distanceFt + (edge.DistanceNm * GeoMath.FeetPerNm);
+                if (nextFt <= MaxJunctionSearchFt)
+                {
+                    queue.Enqueue(edge.OtherNode(node), nextFt);
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// The hold shorts of <paramref name="runway"/> at <paramref name="end"/>'s threshold: those whose along-track distance
+    /// from it is within <see cref="FullLengthWindowFt"/> of the smallest. Empty when the layout has no geometry for the end.
+    /// </summary>
+    private HashSet<int> FullLengthBars(AirportGroundLayout layout, RunwayIdentifier runway, string end)
+    {
+        if (RunwayEndGeometry(runway, end) is not { } geometry)
+        {
+            return [];
+        }
+
+        List<(int Id, double AlongFt)> along =
+        [
+            .. layout
+                .Nodes.Values.Where(n => IsHoldShortOf(n, runway))
+                .Select(n => (n.Id, GeoMath.AlongTrackDistanceNm(n.Position, geometry.Threshold, geometry.Heading) * GeoMath.FeetPerNm)),
+        ];
+        if (along.Count == 0)
+        {
+            return [];
+        }
+
+        double windowFt = along.Min(a => a.AlongFt) + FullLengthWindowFt;
+        return [.. along.Where(a => a.AlongFt <= windowFt).Select(a => a.Id)];
+    }
+
+    /// <summary>
+    /// <paramref name="entry"/>'s row for a departure from <paramref name="end"/>: named by its hold short's taxiway
+    /// (<see cref="GetHoldShortTaxiwayName"/>), showing <paramref name="reason"/>, the runway <paramref name="availableFt"/>
+    /// it leaves ahead (an intersection) and the route's via, highlighted when <paramref name="isHighlighted"/>, and opening
+    /// the For departure and Hold short variants (<see cref="BuildTaxiDestVariants"/>), the first of which it shows. Null
+    /// when the route names no taxiway, so no variant can be sent and the entry has no name (<see cref="EntryName"/>).
+    /// </summary>
+    private TaxiRouteRow? EntryRow(RunwayEntry entry, string end, string? reason, double? availableFt, bool isHighlighted)
+    {
+        string runwayEnd = RunwayIdentifier.ToDisplayDesignator(end);
+        List<MenuCommandChoice> variants =
+        [
+            .. BuildTaxiDestVariants(entry.Route, runwayEnd, spot: null)
+                .Select(v =>
+                    (v is { } variant) ? new MenuCommandChoice(variant.Label, variant.Command, variant.Preview, []) : MenuCommandChoice.Separator
+                ),
+        ];
+        if ((variants is not [{ Command: { } firstCommand }, ..]) || (EntryName(GetHoldShortTaxiwayName(entry.Bar.Id), entry.Route) is not { } name))
+        {
+            return null;
+        }
+
+        return new TaxiRouteRow(
+            TaxiRouteRow.RunwayEntryBadge,
+            name,
+            reason,
+            availableFt,
+            isHighlighted,
+            GetTaxiwayDisplayName(entry.Route),
+            entry.DistanceFt,
+            firstCommand,
+            entry.Route,
+            variants
+        );
+    }
+
+    /// <summary>
+    /// A runway entry row's name, <c>At {taxiway}</c>: the taxiway its hold short sits on (<paramref name="barTaxiway"/>),
+    /// else the last taxiway <paramref name="route"/> names, the one arriving at the bar. Null when neither names one.
+    /// </summary>
+    public static string? EntryName(string? barTaxiway, TaxiRoute route) =>
+        ((barTaxiway ?? TaxiRouteFormatter.CleanTaxiwaySequence(route).LastOrDefault()) is { } taxiway) ? $"At {taxiway}" : null;
+
+    /// <summary>
+    /// Places the runway ends' groups: the end of <paramref name="assignedRunway"/> first, then each of
+    /// <paramref name="departureEnds"/> in order; with no departure end at the airport, the ends nearest the aircraft fill
+    /// the inline list up to <see cref="MaxInlineRunwayEnds"/>, the assigned one counted. Every other end goes under Other
+    /// runways in runway order. An end with no row is never a group.
+    /// An active list naming only arrival ends (<c>A28R</c>) names no departure runway, so it takes the nearest-ends
+    /// fallback as an empty list does.
+    /// </summary>
+    private static TaxiToRunwayMenu GroupRunwayEnds(
+        List<(string End, List<TaxiRouteRow> Rows)> ends,
+        string assignedRunway,
+        IReadOnlyList<string> departureEnds
+    )
+    {
+        List<(string End, List<TaxiRouteRow> Rows)> remaining = [.. ends];
+        List<TaxiToRunwayGroup> inline = [];
+        if ((!string.IsNullOrEmpty(assignedRunway)) && (TakeEnd(remaining, assignedRunway) is { } assigned))
+        {
+            inline.Add(RunwayEndGroup(assigned, "assigned runway"));
+        }
+
+        foreach (string departureEnd in departureEnds)
+        {
+            if (TakeEnd(remaining, departureEnd) is { } departure)
+            {
+                inline.Add(RunwayEndGroup(departure, "departure runway"));
+            }
+        }
+
+        if (departureEnds.Count == 0)
+        {
+            List<(string End, List<TaxiRouteRow> Rows)> nearest =
+            [
+                .. remaining.OrderBy(e => e.Rows.Min(row => row.DistanceFt)).Take(Math.Max(0, MaxInlineRunwayEnds - inline.Count)),
+            ];
+            foreach ((string End, List<TaxiRouteRow> Rows) end in nearest)
+            {
+                remaining.Remove(end);
+                inline.Add(RunwayEndGroup(end, null));
+            }
+        }
+
+        List<TaxiToRunwayGroup> other =
+        [
+            .. remaining.OrderBy(e => RunwayNumber(e.End)).ThenBy(e => e.End, StringComparer.OrdinalIgnoreCase).Select(e => RunwayEndGroup(e, null)),
+        ];
+        return new TaxiToRunwayMenu(inline, other, null);
+    }
+
+    /// <summary>Removes and returns the group of <paramref name="end"/> from <paramref name="ends"/>; null when it has none.</summary>
+    private static (string End, List<TaxiRouteRow> Rows)? TakeEnd(List<(string End, List<TaxiRouteRow> Rows)> ends, string end)
+    {
+        int index = ends.FindIndex(e => SameRunwayEnd(e.End, end));
+        if (index < 0)
+        {
+            return null;
+        }
+
+        (string End, List<TaxiRouteRow> Rows) taken = ends[index];
+        ends.RemoveAt(index);
+        return taken;
+    }
+
+    /// <summary>A runway end's group, titled <c>Runway 30</c>, with <c> · {role}</c> after it when it has one.</summary>
+    private static TaxiToRunwayGroup RunwayEndGroup((string End, List<TaxiRouteRow> Rows) end, string? role)
+    {
+        string title = $"Runway {RunwayIdentifier.ToDisplayDesignator(end.End)}";
+        return new TaxiToRunwayGroup((role is null) ? title : $"{title} · {role}", end.Rows);
+    }
+
+    /// <summary>Whether two spellings name the same runway end (<c>1L</c> and <c>01L</c>).</summary>
+    private static bool SameRunwayEnd(string a, string b) =>
+        string.Equals(RunwayIdentifier.NormalizeDesignator(a), RunwayIdentifier.NormalizeDesignator(b), StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// The Hold short of… rows for <paramref name="ac"/>'s remaining route: one per bar the route passes, nearest first,
@@ -1550,17 +2108,37 @@ public partial class GroundViewModel : ObservableObject
     /// which normalise the airport id: the server's layout id is lower-case (<c>oak</c>) where the room keys its list by the
     /// FAA id (<c>OAK</c>). A list that does not read is logged and names no end.
     /// </summary>
-    private HashSet<string> ActiveRunwayEnds(string airportId)
+    private HashSet<string> ActiveRunwayEnds(string airportId) =>
+        new(RoomActiveRunwaysAt(airportId, "Hold short of… active runways").Select(runway => runway.Designator), StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// The ends the room's active runway list names for departures at <paramref name="airportId"/>, in the list's order:
+    /// those used for both (<c>30</c>) and for departures only (<c>D28L</c>), never an arrivals-only end (<c>A28R</c>).
+    /// </summary>
+    private List<string> ActiveDepartureRunwayEnds(string airportId) =>
+        [
+            .. RoomActiveRunwaysAt(airportId, "Taxi to runway active runways")
+                .Where(runway => runway.Use is ActiveRunwayUse.Both or ActiveRunwayUse.Departure)
+                .Select(runway => runway.Designator),
+        ];
+
+    /// <summary>
+    /// The room's active runways at <paramref name="airportId"/>, read by <see cref="ActiveRunwayListParser.FromTokenLists"/>
+    /// under <paramref name="label"/> and looked up by <c>ActiveRunways.For</c>, which normalise the airport id: the server's
+    /// layout id is lower-case (<c>oak</c>) where the room keys its list by the FAA id (<c>OAK</c>). A list that does not
+    /// read is logged and names no runway.
+    /// </summary>
+    private IReadOnlyList<ActiveRunway> RoomActiveRunwaysAt(string airportId, string label)
     {
         var byAirport = RoomActiveRunways().ToDictionary(entry => entry.Key, entry => (List<string>?)[.. entry.Value], StringComparer.Ordinal);
         var warnings = new List<string>();
-        ActiveRunways runways = ActiveRunwayListParser.FromTokenLists(byAirport, "Hold short of… active runways", warnings);
+        ActiveRunways runways = ActiveRunwayListParser.FromTokenLists(byAirport, label, warnings);
         foreach (string warning in warnings)
         {
             _log.LogWarning("{Warning}", warning);
         }
 
-        return new HashSet<string>(runways.For(airportId).Select(runway => runway.Designator), StringComparer.OrdinalIgnoreCase);
+        return runways.For(airportId);
     }
 
     /// <summary>The runway number of an end (<c>09L</c> → 9); <see cref="int.MaxValue"/> for an end that starts with none.</summary>

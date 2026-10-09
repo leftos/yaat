@@ -184,10 +184,22 @@ public interface IMenuHost
     IReadOnlyList<MenuCommandChoice> GetPushbackToChoices(string callsign);
 
     /// <summary>
-    /// The airport's preset taxi routes that can be walked from <paramref name="callsign"/>'s node: each route's name
-    /// and its finished <c>TAXI</c> command, no preview; empty when none applies.
+    /// The airport's preset taxi routes that resolve from where <paramref name="callsign"/> starts its taxi, for its own
+    /// category and wake class: each route's name, taxiways, distance from the aircraft, finished <c>TAXI</c> command and
+    /// resolved path to preview; empty when none applies.
     /// </summary>
-    IReadOnlyList<MenuCommandChoice> GetPresetTaxiChoices(string callsign);
+    IReadOnlyList<TaxiRouteRow> GetPresetTaxiChoices(string callsign);
+
+    /// <summary>
+    /// The Taxi to runway submenu for <paramref name="callsign"/>: per runway end, the entry nearest the aircraft and the
+    /// full-length entry (one row when they are the same hold short), each with its via, distance, route to preview and
+    /// the For departure and Hold short of runway commands, then the presets that end at that end. The assigned runway's
+    /// end comes first, then the room's active departure ends, and the rest under Other runways (<see cref="TaxiToRunwayMenu"/>),
+    /// searched only when it opens while the room names active departure ends. The hold short the aircraft stands at, and a
+    /// preset ending there, is never a row. <see cref="TaxiToRunwayMenu.Empty"/> when the aircraft is
+    /// unknown or no layout is loaded.
+    /// </summary>
+    TaxiToRunwayMenu GetTaxiToRunwayChoices(string callsign);
 
     /// <summary>Puts the surface into drawing a tug move for <paramref name="callsign"/>.</summary>
     void EnterPushRoute(string callsign);

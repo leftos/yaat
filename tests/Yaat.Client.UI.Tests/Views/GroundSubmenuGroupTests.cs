@@ -312,15 +312,16 @@ public class GroundSubmenuGroupTests
     public void TaxiRoutes_PresetsSendTheHostsCommands_AndDrawTaxiRouteEntersDrawing()
     {
         var host = new RecordingMenuHost("");
-        host.PresetTaxiChoices.Add(new MenuCommandChoice("TERMINAL to 30", "TAXI T U W RWY 30", null, []));
-        host.PresetTaxiChoices.Add(new MenuCommandChoice("TERMINAL to 28R", "TAXI B C RWY 28R", null, []));
+        host.PresetTaxiChoices.Add(RecordingMenuHost.PresetRow("TERMINAL to 30", "TAXI T U W RWY 30"));
+        host.PresetTaxiChoices.Add(RecordingMenuHost.PresetRow("TERMINAL to 28R", "TAXI B C RWY 28R"));
 
         ContextMenu menu = BuildMenu(host, Taxiing());
         Assert.Equal(["Preset taxi route", "Draw taxi route…"], HeadersWhere(menu, IsTaxiRouteItem));
 
         MenuItem presets = Item(CommandTree(menu), "Preset taxi route");
-        Assert.Equal(["TERMINAL to 30", "TERMINAL to 28R"], Headers(presets.Items));
-        Click(Item(presets.Items, "TERMINAL to 28R"));
+        List<MenuItem> presetRows = [.. presets.Items.OfType<MenuItem>()];
+        Assert.Equal(["TERMINAL to 30", "TERMINAL to 28R"], presetRows.Select(row => Assert.IsType<MenuCommandRow>(row.Header).Name));
+        Click(presetRows.Single(row => ((MenuCommandRow)row.Header!).Name == "TERMINAL to 28R"));
         Assert.Equal([(Callsign, "TAXI B C RWY 28R", Initials)], host.Sent);
 
         Click(Item(CommandTree(menu), "Draw taxi route…"));
@@ -341,7 +342,7 @@ public class GroundSubmenuGroupTests
     public void TaxiRoutes_NotOfferedAirborne()
     {
         var host = new RecordingMenuHost("");
-        host.PresetTaxiChoices.Add(new MenuCommandChoice("TERMINAL to 30", "TAXI T U W RWY 30", null, []));
+        host.PresetTaxiChoices.Add(RecordingMenuHost.PresetRow("TERMINAL to 30", "TAXI T U W RWY 30"));
         AircraftModel airborne = Taxiing();
         airborne.IsOnGround = false;
         airborne.CurrentPhase = "ApproachNav";

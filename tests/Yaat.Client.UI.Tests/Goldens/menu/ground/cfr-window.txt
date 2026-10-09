@@ -34,6 +34,10 @@ Favorite Commands
   (no items) [disabled]
 All Commands
   Hold position
+  Taxi to runway
+    Finding runway entries… [disabled]
+  Preset taxi route
+    PR 30 to TERMINAL · via W V T · ~4,750 ft — TAXI W V T
   Ignore ground conflicts (15 s)
   Tower
     Line up and wait 30
@@ -42,8 +46,6 @@ All Commands
       Fly runway heading
       ---
       Custom… picker:input
-  Preset taxi route
-    30 to TERMINAL
   Draw taxi route…
   ---
   Ask pilot to say…

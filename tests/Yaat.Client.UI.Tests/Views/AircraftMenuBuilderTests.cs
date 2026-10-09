@@ -81,7 +81,7 @@ public class AircraftMenuBuilderTests
         var host = new RecordingMenuHost("");
         host.GroundTraffic.Add(RecordingMenuHost.ParkedRow("SWA602"));
         host.PushbackToChoices.Add(new MenuCommandChoice("Gate 26", "PUSH 26", null, []));
-        host.PresetTaxiChoices.Add(new MenuCommandChoice("Via B", "TAXI B 30", null, []));
+        host.PresetTaxiChoices.Add(RecordingMenuHost.PresetRow("Via B", "TAXI B 30"));
 
         List<string> atParking = Sequence(AllCommandsItem(Build(Fixture("at-parking"), host, _ => [])));
         AssertBeforeCoordination(atParking, Label(MenuIds.GroundPushback), Label(MenuIds.GroundPushbackTo), Label(MenuIds.GroundFollow));
@@ -96,7 +96,7 @@ public class AircraftMenuBuilderTests
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
         var host = new RecordingMenuHost("");
         host.PushbackToChoices.Add(new MenuCommandChoice("Gate 26", "PUSH 26", null, []));
-        host.PresetTaxiChoices.Add(new MenuCommandChoice("Via B", "TAXI B 30", null, []));
+        host.PresetTaxiChoices.Add(RecordingMenuHost.PresetRow("Via B", "TAXI B 30"));
 
         List<string> atParking = Sequence(AllCommandsItem(Build(Fixture("at-parking"), host, _ => [])));
         Assert.True(
@@ -106,8 +106,12 @@ public class AircraftMenuBuilderTests
 
         List<string> taxiing = Sequence(AllCommandsItem(Build(Fixture("taxiing"), host, _ => [])));
         Assert.True(
-            taxiing.IndexOf(Label(MenuIds.GroundDrawTaxiRoute)) == taxiing.IndexOf(Label(MenuIds.GroundTaxiPreset)) + 1,
-            $"Draw taxi route… should follow Preset taxi route in: {string.Join(" | ", taxiing)}"
+            taxiing.IndexOf(Label(MenuIds.GroundTaxiPreset)) == taxiing.IndexOf(Label(MenuIds.GroundTaxiToRunway)) + 1,
+            $"Preset taxi route should follow Taxi to runway in: {string.Join(" | ", taxiing)}"
+        );
+        Assert.True(
+            taxiing.IndexOf(Label(MenuIds.GroundDrawTaxiRoute)) > taxiing.IndexOf(Label(MenuIds.GroundTaxiPreset)),
+            $"Draw taxi route… should come after Preset taxi route in: {string.Join(" | ", taxiing)}"
         );
         Assert.DoesNotContain(Label(MenuIds.GroundPushRoute), taxiing);
     }

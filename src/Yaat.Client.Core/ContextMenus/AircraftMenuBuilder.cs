@@ -364,7 +364,7 @@ public static class AircraftMenuBuilder
 
     /// <summary>
     /// The full command tree under All Commands: an assumable shadow's assume items, the ground-movement block, the
-    /// flight and tower groups in one fixed order (<see cref="AddFlightGroups"/>), Preset taxi route, Draw taxi route…
+    /// flight and tower groups in one fixed order (<see cref="AddFlightGroups"/>), Draw taxi route…
     /// (which starts on the primary ground view, the host showing it first), Ask pilot, Coordination, Edit flight plan,
     /// then the sim-control items (Warp…, Release to live feed) after a separator.
     /// </summary>
@@ -379,7 +379,6 @@ public static class AircraftMenuBuilder
 
         AddGroundMovement(items, aircraft, context, host);
         AddFlightGroups(items, aircraft, context, host);
-        SharedMenuGroups.AddIfApplicable(items, MenuIds.GroundTaxiPreset, aircraft, context, host);
         SharedMenuGroups.AddIfApplicable(items, MenuIds.GroundDrawTaxiRoute, aircraft, context, host);
 
         items.Add(new Separator());
@@ -408,6 +407,8 @@ public static class AircraftMenuBuilder
         MenuIds.GroundPushbackTo,
         MenuIds.GroundPushRoute,
         MenuIds.GroundHoldPosition,
+        MenuIds.GroundTaxiToRunway,
+        MenuIds.GroundTaxiPreset,
         MenuIds.GroundHoldShort,
         MenuIds.GroundFollow,
         MenuIds.GroundGiveWay,
@@ -418,9 +419,10 @@ public static class AircraftMenuBuilder
 
     /// <summary>
     /// The ground-movement block, each item by its predicate: Push back, the face items, Push back to…, Push route…, Hold
-    /// position, Hold short of…, Follow…, Give way to…, Ignore ground conflicts (15 s), Resume taxi, then Cross. A submenu
-    /// with nothing to list (no other ground traffic, no stand, no hold-short target) is left out. Push route… starts its
-    /// tug move on the primary ground view, which the host shows first.
+    /// position, Taxi to runway, Preset taxi route, Hold short of…, Follow…, Give way to…, Ignore ground conflicts (15 s),
+    /// Resume taxi, then Cross. A submenu with nothing to list (no other ground traffic, no stand, no hold-short target, no
+    /// preset route) is left out; Taxi to runway builds its rows only when it opens, so it is always there. Push route…
+    /// starts its tug move on the primary ground view, which the host shows first.
     /// </summary>
     private static void AddGroundMovement(ItemCollection items, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
     {

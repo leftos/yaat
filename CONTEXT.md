@@ -448,6 +448,12 @@ One command the aircraft menus can offer, with a stable ID (`<group>.<item>`, ne
 **Menu host**:
 The surface that owns an aircraft menu (radar, ground, aircraft list) as a catalog entry's builder sees it (`IMenuHost`): sending the command text, and whatever popups or reads the entry needs.
 
+**Runway entry (Taxi to runway)**:
+A runway hold short the Taxi to runway submenu offers as one row, reached by the shortest route from the aircraft: the **full-length entry** at the runway's end, or an **intersection entry** whose runway remaining (shown as `~N ft avail`) is at least the type's takeoff distance (`TaxiRouteRow`, `GroundViewModel.GetTaxiToRunwayChoices`); the client's own ranking, separate from `RunwayEntryPoint`, the Sim classifier behind a queued departure's `28R@E`.
+
+**Lazy submenu**:
+A menu submenu whose items are built when it first opens, holding one disabled placeholder until then, for an entry too costly to build with every menu (`LazySubmenu`; Taxi to runway).
+
 **Click context (menu click)**:
 What a right-click gives an aircraft menu (`MenuClick`): the aircraft the menu commands, the previously selected aircraft that sends the relative items (null when it is the clicked one), the clicked point on a point click (`MenuPoint`: a map position, a taxi node, a runway end; null on an aircraft click), and the list's selected rows (`[]` on the canvases).
 

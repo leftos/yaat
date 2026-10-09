@@ -51,6 +51,15 @@ internal static class MenuGoldenFixtures
     /// <summary>The KOAK layout as the server sends it, for <c>GroundViewModel.SetLayoutForTesting</c>.</summary>
     public static GroundLayoutDto OakLayoutForClient => OakLayoutDto.Value;
 
+    private static readonly Lazy<GroundLayoutDto> SfoLayoutDto = new(() =>
+        ToGroundLayoutDto(
+            GeoJsonParser.Parse("SFO", File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "TestData", "sfo.geojson")), null, FilletMode.Standard)
+        )
+    );
+
+    /// <summary>The committed KSFO layout as the server sends it, for <c>GroundViewModel.SetLayoutForTesting</c>.</summary>
+    public static GroundLayoutDto SfoLayoutForClient => SfoLayoutDto.Value;
+
     /// <summary>The fixtures one view's goldens cover, in golden-file order.</summary>
     public static IReadOnlyList<MenuFixture> For(MenuView view)
     {

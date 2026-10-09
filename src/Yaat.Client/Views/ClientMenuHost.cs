@@ -427,9 +427,13 @@ internal sealed class ClientMenuHost(MainViewModel main, AircraftModel? aircraft
     public IReadOnlyList<MenuCommandChoice> GetPushbackToChoices(string callsign) =>
         FindAircraft(callsign) is { } ac ? main.Ground.GetPushbackToChoices(ac) : [];
 
-    /// <summary>The primary ground view model's preset taxi routes walkable from the aircraft's node, each sending <c>TAXI</c>.</summary>
-    public IReadOnlyList<MenuCommandChoice> GetPresetTaxiChoices(string callsign) =>
+    /// <summary>The primary ground view model's preset taxi routes that resolve from the aircraft's taxi start, each sending <c>TAXI</c>.</summary>
+    public IReadOnlyList<TaxiRouteRow> GetPresetTaxiChoices(string callsign) =>
         FindAircraft(callsign) is { } ac ? main.Ground.GetPresetTaxiChoices(ac) : [];
+
+    /// <summary>The primary ground view model's runway entries and presets for the aircraft, grouped by runway end.</summary>
+    public TaxiToRunwayMenu GetTaxiToRunwayChoices(string callsign) =>
+        FindAircraft(callsign) is { } ac ? main.Ground.GetTaxiToRunwayChoices(ac) : TaxiToRunwayMenu.Empty;
 
     /// <summary>Assumes the selected shadows through the main view model, which owns the bulk-assume call.</summary>
     public Task AssumeSelectedLiveTrafficAsync(IReadOnlyList<string> callsigns) => main.AssumeSelectedLiveTrafficAsync([.. callsigns]);

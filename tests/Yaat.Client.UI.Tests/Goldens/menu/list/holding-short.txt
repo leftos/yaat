@@ -25,6 +25,10 @@ Squawk
 Favorite Commands
   (no items) [disabled]
 All Commands
+  Taxi to runway
+    Finding runway entries… [disabled]
+  Preset taxi route
+    PR 30 to TERMINAL · via W V T · ~4,800 ft — TAXI W V T
   Cross 30
   Tower
     Line up and wait 30
@@ -33,8 +37,6 @@ All Commands
       Fly runway heading
       ---
       Custom… picker:input
-  Preset taxi route
-    30 to TERMINAL
   Draw taxi route…
   ---
   Ask pilot to say…

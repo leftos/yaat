@@ -402,6 +402,12 @@ public static class MenuIds
     /// <summary>Taxi along one of the airport's preset routes (<c>TAXI</c>), the ones walkable from the aircraft's node.</summary>
     public const string GroundTaxiPreset = "ground.taxi-preset";
 
+    /// <summary>
+    /// Taxi to a runway end's entry point (<c>TAXI … 30</c> for departure, <c>TAXI … HS 30</c> to hold short), from the
+    /// assigned runway, the room's active departure runways and the rest, with the presets that end at each.
+    /// </summary>
+    public const string GroundTaxiToRunway = "ground.taxi-to-runway";
+
     /// <summary>Draw a taxi route on the surface for the aircraft.</summary>
     public const string GroundDrawTaxiRoute = "ground.draw-taxi-route";
 

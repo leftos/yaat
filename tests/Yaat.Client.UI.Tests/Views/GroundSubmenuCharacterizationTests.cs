@@ -343,7 +343,7 @@ public class GroundSubmenuCharacterizationTests
     {
         Built built = BuildMenu(PresetTaxiAircraft(), prevSelected: null);
 
-        Click(Child(built.Menu, "Preset taxi route", "TERMINAL to 30"));
+        Click(PresetRows(built.Menu).Single(row => ((MenuCommandRow)row.Header!).Name == "TERMINAL to 30"));
 
         Assert.Equal([(TaxiingCallsign, "TAXI T U W RWY 30", Initials)], built.Sent);
     }
@@ -353,7 +353,7 @@ public class GroundSubmenuCharacterizationTests
     {
         Built built = BuildMenu(PresetTaxiAircraft(), prevSelected: null);
 
-        List<string> routes = Children(built.Menu, "Preset taxi route");
+        List<string> routes = [.. PresetRows(built.Menu).Select(row => ((MenuCommandRow)row.Header!).Name)];
         Assert.Contains("TERMINAL to 30", routes);
         Assert.DoesNotContain("30 to TERMINAL", routes);
     }
@@ -504,6 +504,10 @@ public class GroundSubmenuCharacterizationTests
 
     private static MenuItem Child(ContextMenu menu, string submenuHeader, string childHeader) =>
         Item(Item(CommandTree(menu), submenuHeader).Items, childHeader);
+
+    /// <summary>The Preset taxi route submenu's rows, each headed by its command row.</summary>
+    private static List<MenuItem> PresetRows(ContextMenu menu) =>
+        [.. Item(CommandTree(menu), "Preset taxi route").Items.OfType<MenuItem>().Where(m => m.Header is MenuCommandRow)];
 
     /// <summary>The callsigns of the traffic rows in <paramref name="items"/>, in order, leaving out section labels and More.</summary>
     private static List<string> RowCallsigns(ItemCollection items) =>

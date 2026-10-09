@@ -1,7 +1,9 @@
 using System.Text;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
+using Avalonia.Interactivity;
 using Xunit;
+using Yaat.Client.ContextMenus;
 using Yaat.Client.UI.Tests.Fakes;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views;
@@ -33,6 +35,59 @@ public class MenuGoldenTests
 
     [AvaloniaFact]
     public void ListMenus_MatchGoldens() => AssertGoldens(MenuView.List);
+
+    /// <summary>
+    /// The at-parking ground fixture's Taxi to runway submenu once opened, Other runways opened too, as the real host answers
+    /// it over the committed KOAK layout: each group's rows with their via, distance and command, and every second level.
+    /// </summary>
+    [AvaloniaFact]
+    public void GroundMenu_AtParking_TaxiToRunwayOpened_MatchesGolden()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(_navDb);
+        var main = new MainViewModel(new FakeFilePickerService());
+        main.DisplayFavorites.Clear();
+        main.Ground.SetLayoutForTesting(MenuGoldenFixtures.OakLayoutForClient);
+        MenuFixture fixture = MenuGoldenFixtures.For(MenuView.Ground).Single(f => f.Name == "at-parking");
+        main.Aircraft.Clear();
+        main.Aircraft.Add(fixture.Aircraft);
+        ContextMenu menu = MenuHostHarness.BuildGroundMenu(main, fixture.Aircraft, fixture.Selected);
+        MenuItem allCommands = menu.Items.OfType<MenuItem>().Single(m => (m.Header as string) == AircraftMenuBuilder.AllCommandsHeader);
+        MenuItem taxiToRunway = allCommands.Items.OfType<MenuItem>().Single(m => (m.Header as string) == "Taxi to runway");
+
+        taxiToRunway.RaiseEvent(new RoutedEventArgs(MenuItem.SubmenuOpenedEvent, taxiToRunway));
+        foreach (MenuItem other in taxiToRunway.Items.OfType<MenuItem>().Where(m => (m.Header as string) == "Other runways"))
+        {
+            other.RaiseEvent(new RoutedEventArgs(MenuItem.SubmenuOpenedEvent, other));
+        }
+
+        AssertGolden(
+            "filled",
+            "ground-at-parking-taxi-to-runway",
+            $"# ground at-parking, Taxi to runway opened\n{MenuTreeSnapshot.Render(taxiToRunway)}"
+        );
+    }
+
+    /// <summary>
+    /// Compares <paramref name="actual"/> with the golden <c>Goldens/menu/{folder}/{name}.txt</c>, or rewrites it under the
+    /// variable.
+    /// </summary>
+    private static void AssertGolden(string folder, string name, string actual)
+    {
+        string path = Path.Combine(FindRepoRoot(), "tests", "Yaat.Client.UI.Tests", "Goldens", "menu", folder, name + ".txt");
+        if (Environment.GetEnvironmentVariable(RegenerateVariable) == "1")
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            File.WriteAllText(path, actual, Utf8NoBom);
+            Assert.Fail("golden regenerated; review the diff and rerun without the variable");
+        }
+
+        Assert.True(File.Exists(path), $"{folder}/{name}: no golden at {path}; rerun with {RegenerateVariable}=1");
+        string expected = File.ReadAllText(path).ReplaceLineEndings("\n");
+        Assert.True(
+            expected == actual,
+            $"{folder}/{name}:\n{Diff(expected, actual)}\n\nOnce the change is intended, rerun with {RegenerateVariable}=1."
+        );
+    }
 
     [AvaloniaFact]
     public void EveryView_RendersIdenticallyTwice()
