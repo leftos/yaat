@@ -1,3 +1,4 @@
+using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
@@ -138,9 +139,15 @@ public class GroundSubmenuGroupTests
         Control holdShortView = RowView(HoldShortRows(Item(tree, "Hold short of…"))[0]);
         TextBlock where = TextWithContent(holdShortView, " · crossing on S");
         Assert.Equal(12, where.FontSize);
-        StackPanel holdShortName = Assert.IsType<StackPanel>(where.Parent);
-        Assert.Equal(Orientation.Horizontal, holdShortName.Orientation);
+        holdShortView.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        holdShortView.Arrange(new Rect(holdShortView.DesiredSize));
+        Panel holdShortName = Assert.IsAssignableFrom<Panel>(where.Parent);
         TextBlock holdShortBar = Assert.IsType<TextBlock>(holdShortName.Children[0]);
+        Assert.True(
+            where.Bounds.X >= holdShortBar.Bounds.Right,
+            $"The detail's x={where.Bounds.X:F1} should be past the name's {holdShortBar.Bounds.Right:F1}."
+        );
+        Assert.True(Math.Abs(where.Bounds.Center.Y - holdShortBar.Bounds.Center.Y) <= 2, "The detail should share the name's row.");
         Assert.Equal("S1", holdShortBar.Text);
         Assert.Equal(FontWeight.SemiBold, holdShortBar.FontWeight);
         Assert.NotEmpty(holdShortView.GetVisualDescendants().OfType<Border>());

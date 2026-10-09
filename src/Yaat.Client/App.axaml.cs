@@ -7,6 +7,7 @@ using Avalonia.Threading;
 using Microsoft.Extensions.Logging;
 using Yaat.Client.Automation;
 using Yaat.Client.Automation.Tools;
+using Yaat.Client.ContextMenus;
 using Yaat.Client.Logging;
 using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
@@ -42,6 +43,10 @@ public class App : Application
     {
         OpenWindows.Register();
         AvaloniaXamlLoader.Load(this);
+
+        // Fluent caps every menu at FlyoutThemeMaxWidth (456), which leaves an aircraft menu row's inline detail a
+        // sliver, so the cap is the one the row's own template lays its detail out against.
+        Resources["FlyoutThemeMaxWidth"] = MenuCommandRow.InlineRowMaxWidth;
     }
 
     /// <summary>

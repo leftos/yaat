@@ -28,6 +28,9 @@ public sealed record MenuDetailBadge(string Text, IBrush Brush);
 /// </summary>
 public sealed record MenuCommandRow
 {
+    /// <summary>The widest a menu holding an inline-detail row grows; past it the detail is trimmed and carried whole in the row's tooltip.</summary>
+    public const double InlineRowMaxWidth = 480;
+
     /// <summary>The badge leading the row, or null for none.</summary>
     public required MenuDetailBadge? Badge { get; init; }
 
@@ -81,7 +84,10 @@ public sealed record MenuCommandRow
 
 /// <summary>
 /// The view of a <see cref="MenuCommandRow"/>: the badge outlined in its brush, the name with its detail, the distance,
-/// then the command right-aligned in the dimmed monospace font. A missing badge, detail or distance adds no element.
+/// then the command right-aligned in the dimmed monospace font. A missing badge, detail or distance adds no element. A row
+/// whose detail sits inline gives it its own column, so the menu widens with it up to
+/// <see cref="MenuCommandRow.InlineRowMaxWidth"/> (the menu's own cap) and past it the detail is ellipsis-trimmed rather
+/// than running under the distance, the row carrying the whole detail as its tooltip.
 /// </summary>
 public sealed class MenuCommandRowTemplate : FuncDataTemplate<MenuCommandRow>
 {
@@ -100,9 +106,13 @@ public sealed class MenuCommandRowTemplate : FuncDataTemplate<MenuCommandRow>
             grid.Children.Add(BadgeView(badge));
         }
 
-        StackPanel name = NameView(row);
+        Control name = NameView(row, out TextBlock? detailView);
         Grid.SetColumn(name, 1);
         grid.Children.Add(name);
+        if ((detailView is not null) && (row.Detail is { } wholeDetail))
+        {
+            TooltipTrimmedDetail(detailView, grid, wholeDetail);
+        }
 
         if (row.Distance is { } distanceText)
         {
@@ -141,14 +151,35 @@ public sealed class MenuCommandRowTemplate : FuncDataTemplate<MenuCommandRow>
             },
         };
 
-    /// <summary>The name, then its detail beside it (<see cref="MenuDetailPlacement.Inline"/>) or under it.</summary>
-    private static StackPanel NameView(MenuCommandRow row)
+    /// <summary>
+    /// The name, then its detail beside it (<see cref="MenuDetailPlacement.Inline"/>) or under it. An inline detail gets
+    /// its own column so it is trimmed rather than spilling into the distance, and is handed back for its row's tooltip.
+    /// </summary>
+    private static Control NameView(MenuCommandRow row, out TextBlock? detailView)
     {
-        var panel = new StackPanel
+        detailView = null;
+        TextBlock name = NameText(row);
+        if (row.Detail is not { } detail)
         {
-            Orientation = (row.DetailPlacement == MenuDetailPlacement.Inline) ? Orientation.Horizontal : Orientation.Vertical,
-            VerticalAlignment = VerticalAlignment.Center,
-        };
+            return NamePanel(row, name, null);
+        }
+
+        detailView = DetailView(detail, row.DetailPlacement);
+        BoldWhenHighlighted(detailView, row);
+        if (row.DetailPlacement == MenuDetailPlacement.Inline)
+        {
+            var inline = new DockPanel { LastChildFill = true, VerticalAlignment = VerticalAlignment.Center };
+            DockPanel.SetDock(name, Dock.Left);
+            inline.Children.Add(name);
+            inline.Children.Add(detailView);
+            return inline;
+        }
+
+        return NamePanel(row, name, detailView);
+    }
+
+    private static TextBlock NameText(MenuCommandRow row)
+    {
         var name = new TextBlock { Text = row.Name };
         if (row.EmphasizeName)
         {
@@ -156,16 +187,36 @@ public sealed class MenuCommandRowTemplate : FuncDataTemplate<MenuCommandRow>
         }
 
         BoldWhenHighlighted(name, row);
-        panel.Children.Add(name);
-        if (row.Detail is { } detail)
+        return name;
+    }
+
+    /// <summary>The name over or beside <paramref name="detailView"/>, or alone when a row has no detail.</summary>
+    private static StackPanel NamePanel(MenuCommandRow row, TextBlock name, TextBlock? detailView)
+    {
+        var panel = new StackPanel
         {
-            TextBlock detailView = DetailView(detail, row.DetailPlacement);
-            BoldWhenHighlighted(detailView, row);
+            Orientation = (row.DetailPlacement == MenuDetailPlacement.Inline) ? Orientation.Horizontal : Orientation.Vertical,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        panel.Children.Add(name);
+        if (detailView is not null)
+        {
             panel.Children.Add(detailView);
         }
 
         return panel;
     }
+
+    /// <summary>
+    /// Gives <paramref name="row"/> the whole <paramref name="detail"/> as its tooltip while <paramref name="detailView"/>
+    /// has too little width to draw it whole, and takes the tooltip away again while it fits.
+    /// </summary>
+    private static void TooltipTrimmedDetail(TextBlock detailView, Grid row, string detail) =>
+        detailView.SizeChanged += (_, _) => ToolTip.SetTip(row, NeedsTrimming(detailView) ? detail : null);
+
+    /// <summary>Whether <paramref name="detailView"/> drew its text collapsed to an ellipsis, or had no room to draw it.</summary>
+    private static bool NeedsTrimming(TextBlock detailView) =>
+        ((detailView.Bounds.Width < 1) && !string.IsNullOrEmpty(detailView.Text)) || detailView.TextLayout.TextLines.Any(line => line.HasCollapsed);
 
     /// <summary>Draws <paramref name="text"/> bold when <paramref name="row"/> is highlighted; leaves it as it is otherwise.</summary>
     private static void BoldWhenHighlighted(TextBlock text, MenuCommandRow row)
@@ -185,6 +236,7 @@ public sealed class MenuCommandRowTemplate : FuncDataTemplate<MenuCommandRow>
                 FontSize = 12,
                 Opacity = 0.8,
                 VerticalAlignment = VerticalAlignment.Center,
+                TextTrimming = TextTrimming.CharacterEllipsis,
             },
             MenuDetailPlacement.Stacked => new TextBlock
             {
