@@ -16,6 +16,12 @@ The pickers behind the commands are smarter. Maintain opens at the aircraft's al
 
 ![The Maintain altitude picker](img/whats-new-picker.png)
 
+## Taxi to runway
+
+A ground aircraft's All Commands → Taxi to runway lists, for its assigned runway and the room's departure runways (else the three nearest runway ends), the full-length entry and then each intersection long enough for its type, with the runway left, the taxi distance and the route it will take. Preset taxi routes that end at the runway sit beside them, and every other runway is under Other runways. A detail too long for the menu ends in an ellipsis; point at the row to read all of it.
+
+![Taxi to runway for a B738 at an Oakland stand, with runway 30's entries](img/whats-new-taxi-to-runway.png)
+
 ## Exits ahead
 
 For a fixed-wing aircraft on its landing rollout, Exit left and Exit right list the named exits ahead with their distances, the planned one marked. On final, from 5 nm out to 1 nm from the threshold on a full-stop landing, they list the exits the aircraft will be able to make, with distances from the threshold.
