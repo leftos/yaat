@@ -16,6 +16,22 @@ The pickers behind the commands are smarter. Maintain opens at the aircraft's al
 
 ![The Maintain altitude picker](img/whats-new-picker.png)
 
+## Push back and takeoff
+
+Push back to… lists only the places a tug can reach from the stand, behind the aircraft first and then the taxi spots, with distances. A target the aircraft can face two ways shows a chip for each heading, and one a parked aircraft blocks is faded, names the blocker and offers a "push anyway".
+
+![The Push back to flyout for a B738 at an Oakland gate](img/whats-new-push-back.png)
+
+Cleared for takeoff opens a flyout with the VFR departures (straight out, crosswind, downwind, turnouts, closed traffic), a turn direct to a typed fix, and an initial altitude filled in from the filed VFR altitude.
+
+![The Cleared for takeoff flyout for a C172 lined up on 28R](img/whats-new-takeoff.png)
+
+## Ground follow
+
+`FOLLOWG` taxies an aircraft behind its leader along the taxiways, squaring off corners too tight for it, stopping at runway hold lines and reading the instruction back. If the leader is lost, the follower takes up its own route or holds and says so.
+
+![A business jet following another along taxiways C and B at Oakland](img/whats-new-ground-follow.png)
+
 ## Taxi to runway
 
 A ground aircraft's All Commands → Taxi to runway lists, for its assigned runway and the room's departure runways (else the three nearest runway ends), the full-length entry and then each intersection long enough for its type, with the runway left, the taxi distance and the route it will take. Preset taxi routes that end at the runway sit beside them, and every other runway is under Other runways. A detail too long for the menu ends in an ellipsis; point at the row to read all of it.

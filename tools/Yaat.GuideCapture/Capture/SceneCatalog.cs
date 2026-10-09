@@ -73,6 +73,9 @@ internal static class SceneCatalog
         new WhatsNewPickerScene(),
         new WhatsNewExitsAheadScene(),
         new WhatsNewTaxiToRunwayScene(),
+        new WhatsNewPushBackScene(),
+        new WhatsNewTakeoffScene(),
+        new WhatsNewGroundFollowScene(),
     ];
 
     // The scenes a run captures: the one named by --scene (case-insensitive),

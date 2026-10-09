@@ -30,7 +30,6 @@ internal sealed class WhatsNewRblLabelScene : ScenarioSceneBase
     protected override async Task OnSceneReadyAsync(Window window, MainViewModel vm, CaptureContext ctx)
     {
         await RadarViewScene.EnableLoWestSectorAsync(vm, ctx);
-        await SceneActions.AnswerActiveRunwaysPromptAsync(vm, TimeSpan.FromSeconds(10));
 
         // radar-view's picture holds two aircraft; the scenario's delayed
         // spawns fill the scope over the next minutes.

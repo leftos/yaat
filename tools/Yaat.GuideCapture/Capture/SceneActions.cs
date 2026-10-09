@@ -8,6 +8,7 @@ using Avalonia.LogicalTree;
 using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using Yaat.Client.ContextMenus;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
@@ -323,6 +324,36 @@ internal static class SceneActions
         ?? throw new InvalidOperationException(
             $"The menu's strip has no '{entryId}' button; it has {string.Join(", ", StripButtons(menu).Select(b => b.Tag))}."
         );
+
+    // Opens the flyout of the menu's strip icon for the catalog entry beside the
+    // menu, as a click on the icon opens it, and returns it once its rows are
+    // laid out. The icon is pointed at, so the strip's label row names it: a
+    // pointer click on it closes the headless menu before its flyout shows.
+    public static async Task<MenuFlyoutPresenter> OpenStripFlyoutAsync(Window window, ContextMenu menu, string entryId, TimeSpan timeout, string what)
+    {
+        Button button = StripButton(menu, entryId);
+        PointAt(window, button);
+        QuickCommandStrip.OpenSubmenu(button);
+        return await WaitForOverlayAsync<MenuFlyoutPresenter>(window, presenter => AreItemsLaidOut(presenter.Items), timeout, what);
+    }
+
+    // Moves the shown ground view, at its zoom, so the position sits at the
+    // given fractions of its width and height: near its upper left, a menu
+    // opened there has room for its submenus and flyouts to its right and below.
+    public static void PlaceInGroundView(Window window, MainViewModel vm, LatLon position, double xFraction, double yFraction)
+    {
+        RenderOnce(window);
+        GroundCanvas canvas =
+            ShownCanvas<GroundCanvas>(window) ?? throw new InvalidOperationException($"{window.GetType().Name} shows no ground view.");
+        (float x, float y) = canvas.Viewport.LatLonToScreen(position.Lat, position.Lon);
+        float width = canvas.Viewport.PixelWidth;
+        float height = canvas.Viewport.PixelHeight;
+        (double lat, double lon) = canvas.Viewport.ScreenToLatLon(x + (float)((0.5 - xFraction) * width), y + (float)((0.5 - yFraction) * height));
+        vm.Ground.ViewCenterLat = lat;
+        vm.Ground.ViewCenterLon = lon;
+        Dispatcher.UIThread.RunJobs();
+        RenderOnce(window);
+    }
 
     // Waits until the window's overlay layer (where the headless platform opens
     // menus, flyouts and popups) holds a laid-out control of type T that meets

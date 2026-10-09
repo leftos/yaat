@@ -27,7 +27,6 @@ internal sealed class WhatsNewQuickCommandsScene : ScenarioSceneBase
     protected override async Task OnSceneReadyAsync(Window window, MainViewModel vm, CaptureContext ctx)
     {
         await RadarViewScene.EnableLoWestSectorAsync(vm, ctx);
-        await SceneActions.AnswerActiveRunwaysPromptAsync(vm, TimeSpan.FromSeconds(10));
         _vm = vm;
         AircraftModel aircraft = RadarScreenPicks.MostIsolated(vm, window, Region, Name);
         Console.WriteLine($"  menu on {aircraft.Callsign} ({aircraft.CurrentPhase})");

@@ -28,7 +28,6 @@ internal sealed class WhatsNewPointMenuScene : ScenarioSceneBase
 
     protected override async Task OnSceneReadyAsync(Window window, MainViewModel vm, CaptureContext ctx)
     {
-        await SceneActions.AnswerActiveRunwaysPromptAsync(vm, TimeSpan.FromSeconds(10));
         await SceneActions.WaitUntilAsync(
             () => vm.AircraftView.OfType<AircraftModel>().Any(SceneActions.IsParked) && (vm.Ground.Layout is not null),
             TimeSpan.FromSeconds(10),

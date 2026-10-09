@@ -33,7 +33,6 @@ internal sealed class WhatsNewExitsAheadScene : ScenarioSceneBase
 
     protected override async Task OnSceneReadyAsync(Window window, MainViewModel vm, CaptureContext ctx)
     {
-        await SceneActions.AnswerActiveRunwaysPromptAsync(vm, TimeSpan.FromSeconds(10));
         AircraftModel spawned = await SceneActions.SpawnAsync(vm, AddCommand, TimeSpan.FromSeconds(10));
         string callsign = spawned.Callsign;
         _vm = vm;
@@ -49,18 +48,7 @@ internal sealed class WhatsNewExitsAheadScene : ScenarioSceneBase
 
         ContextMenu menu = await SceneActions.OpenAircraftMenuAsync(window, vm, arrival, TimeSpan.FromSeconds(10));
         string entryId = (side == ExitSide.Left) ? MenuIds.TowerExitLeft : MenuIds.TowerExitRight;
-        // A pointer click on the icon closes the headless menu before its
-        // flyout shows, so the icon is pointed at and its flyout opened beside
-        // the menu as its click opens it.
-        Button exitButton = SceneActions.StripButton(menu, entryId);
-        SceneActions.PointAt(window, exitButton);
-        QuickCommandStrip.OpenSubmenu(exitButton);
-        await SceneActions.WaitForOverlayAsync<MenuFlyoutPresenter>(
-            window,
-            presenter => SceneActions.AreItemsLaidOut(presenter.Items),
-            TimeSpan.FromSeconds(10),
-            $"the {side} exits flyout of {callsign}"
-        );
+        await SceneActions.OpenStripFlyoutAsync(window, menu, entryId, TimeSpan.FromSeconds(10), $"the {side} exits flyout of {callsign}");
     }
 
     // On the ground, its menu offering an exit on either side, and the exits

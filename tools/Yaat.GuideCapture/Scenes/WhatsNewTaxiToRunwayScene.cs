@@ -3,7 +3,6 @@ using Avalonia.Threading;
 using Yaat.Client.ContextMenus;
 using Yaat.Client.Models;
 using Yaat.Client.ViewModels;
-using Yaat.Client.Views.Ground;
 using Yaat.GuideCapture.Capture;
 
 namespace Yaat.GuideCapture.Scenes;
@@ -40,7 +39,6 @@ internal sealed class WhatsNewTaxiToRunwayScene : ScenarioSceneBase
 
     protected override async Task OnSceneReadyAsync(Window window, MainViewModel vm, CaptureContext ctx)
     {
-        await SceneActions.AnswerActiveRunwaysPromptAsync(vm, Timeout);
         _vm = vm;
         await SetActiveRunwayAsync(vm);
         AircraftModel departure = await SceneActions.SpawnAsync(vm, AddCommand, Timeout);
@@ -52,7 +50,7 @@ internal sealed class WhatsNewTaxiToRunwayScene : ScenarioSceneBase
         );
         Console.WriteLine($"  {callsign} at stand 3, assigned runway '{departure.AssignedRunway}'");
         _zoom = GroundViewZoom.Apply(vm.Ground, departure.Position, ZoomFactor);
-        PlaceAircraftUpperLeft(window, vm, departure);
+        SceneActions.PlaceInGroundView(window, vm, departure.Position, AircraftX, AircraftY);
 
         ContextMenu menu = await SceneActions.OpenAircraftMenuAsync(window, vm, departure, Timeout);
         MenuItem allCommands =
@@ -85,22 +83,6 @@ internal sealed class WhatsNewTaxiToRunwayScene : ScenarioSceneBase
             Timeout,
             $"{Airport}'s active runways to be {Runway}"
         );
-    }
-
-    // Moves the view so the aircraft sits near its upper left, leaving the
-    // menu and its submenus room to open to its right and below.
-    private static void PlaceAircraftUpperLeft(Window window, MainViewModel vm, AircraftModel aircraft)
-    {
-        SceneActions.RenderOnce(window);
-        GroundCanvas canvas = SceneActions.ShownCanvas<GroundCanvas>(window) ?? throw new InvalidOperationException("No ground view is shown.");
-        (float x, float y) = canvas.Viewport.LatLonToScreen(aircraft.Position.Lat, aircraft.Position.Lon);
-        float width = canvas.Viewport.PixelWidth;
-        float height = canvas.Viewport.PixelHeight;
-        (double lat, double lon) = canvas.Viewport.ScreenToLatLon(x + (float)((0.5 - AircraftX) * width), y + (float)((0.5 - AircraftY) * height));
-        vm.Ground.ViewCenterLat = lat;
-        vm.Ground.ViewCenterLon = lon;
-        Dispatcher.UIThread.RunJobs();
-        SceneActions.RenderOnce(window);
     }
 
     // The nearest usable row: the second highlighted row (the first is the
