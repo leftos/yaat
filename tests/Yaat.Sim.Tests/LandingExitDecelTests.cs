@@ -597,7 +597,7 @@ public class LandingExitDecelTests
     [Fact]
     public void UninstructedExitTurn_BrakesAtTheRolloutSelectionRate_NotTheTaxiRate()
     {
-        ShortFinalArrival.Spawned? spawned = ShortFinalArrival.SpawnClearedToLand("OAK", "30", "DH8D", "QXE6184");
+        ShortFinalArrival.Spawned? spawned = ShortFinalArrival.SpawnClearedToLand("OAK", "30", "DH8D", "QXE6184", 1.0);
         if (spawned is null)
         {
             return;
@@ -662,7 +662,7 @@ public class LandingExitDecelTests
     public void C172InstructedExit_BrakesAtTheTaxiRatePastTheApproachLeg_AndStopsJustPastTheBar()
     {
         const string ExitTaxiway = "H";
-        ShortFinalArrival.Spawned? spawned = ShortFinalArrival.SpawnClearedToLand("OAK", "28R", "C172", "N172SE");
+        ShortFinalArrival.Spawned? spawned = ShortFinalArrival.SpawnClearedToLand("OAK", "28R", "C172", "N172SE", 1.0);
         if (spawned is null)
         {
             return;
@@ -938,7 +938,7 @@ public class LandingExitDecelTests
     /// </summary>
     private static SoloArrival? SpawnSolo(string airport, string runwayDesignator, string aircraftType)
     {
-        ShortFinalArrival.Spawned? spawned = ShortFinalArrival.SpawnClearedToLand(airport, runwayDesignator, aircraftType, "N172SE");
+        ShortFinalArrival.Spawned? spawned = ShortFinalArrival.SpawnClearedToLand(airport, runwayDesignator, aircraftType, "N172SE", 1.0);
         if (spawned is null)
         {
             return null;
@@ -2483,7 +2483,7 @@ public class LandingExitDecelTests
     [Fact(Skip = "YAAT-30(h): the no-exit stop is not built yet; the aircraft overruns the departure end")]
     public void Rollout_WithEveryExitHoldShortOccupied_StopsOnTheRemainingRunway()
     {
-        ShortFinalArrival.Spawned? spawned = ShortFinalArrival.SpawnClearedToLand("OAK", "28R", "CRJ9", "TST001");
+        ShortFinalArrival.Spawned? spawned = ShortFinalArrival.SpawnClearedToLand("OAK", "28R", "CRJ9", "TST001", 1.0);
         if (spawned is null)
         {
             return;

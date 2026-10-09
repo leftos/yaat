@@ -3,6 +3,7 @@ using Yaat.Client.Services;
 using Yaat.Sim;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Phases;
 using Yaat.Sim.Situation;
 using Yaat.Sim.Testing;
 
@@ -127,6 +128,7 @@ internal static class MenuGoldenFixtures
             ),
             new("lined-up", GroundJet("SWA106", "LinedUpAndWaiting", AircraftSituation.LinedUp, holdShort.Position, "30"), null),
             new("rollout-exit", RolloutJet(holdShort.Position), null),
+            new("rollout-exit-listed", RolloutJetWithExitsAhead(holdShort.Position), null),
             new("held-for-release", HeldForRelease(taxiway), null),
             new("cfr-window", CfrWindow(taxiway), null),
         ];
@@ -184,6 +186,24 @@ internal static class MenuGoldenFixtures
             Destination = "KOAK",
             AssignedRunway = "30",
         };
+
+    /// <summary>
+    /// The rolling-out B738 decelerating, with the named exits ahead listed on both sides (W2 the planned one), so the strip
+    /// carries Exit left and Exit right and All Commands shows both flyouts' rows.
+    /// </summary>
+    private static AircraftModel RolloutJetWithExitsAhead(LatLon position)
+    {
+        AircraftModel ac = RolloutJet(position);
+        ac.Callsign = "SWA110";
+        ac.SituationFlags = SituationFlags.RolloutDecelerating;
+        ac.ExitsAhead =
+        [
+            new ExitAheadDto("W1", ExitSide.Left, 900, false),
+            new ExitAheadDto("W2", ExitSide.Right, 1800, true),
+            new ExitAheadDto("W3", ExitSide.Right, 3600, false),
+        ];
+        return ac;
+    }
 
     private static List<MenuFixture> AirborneIfrFixtures() =>
         [

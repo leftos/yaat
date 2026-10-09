@@ -8,7 +8,7 @@ namespace Yaat.Sim.Phases.Tower;
 public sealed record TouchdownForecast(LatLon Position, double AlongFt, double WheelSpeedKts);
 
 /// <summary>
-/// The exits-ahead list on the last miles of final (YAAT-463): which named exits the arrival will be able to make, judged as the
+/// The exits-ahead list on the last miles of final: which named exits the arrival will be able to make, judged as the
 /// first rollout tick would judge an exit the controller named before touchdown (<c>LandingPhase.GiveUpUnreachableNamedExit</c>:
 /// the named-exit search at the firm limit) — from a projected touchdown rather than the aircraft's position. The search itself is
 /// the rollout's (<see cref="LandingPhase.ListExitsAhead(LandingPhase.ExitCandidateQuery, LatLon, Func{string, ExitSide, bool})"/>);
@@ -49,7 +49,14 @@ public static class FinalApproachExitForecast
             (aircraft.Phases is not { ForceLanding: false, AssignedRunway: { } runway, CurrentPhase: FinalApproachPhase } phases)
             || !IsFullStopNext(phases)
             || (layout is null)
-            || (AircraftCategorization.Categorize(aircraft.AircraftType) == AircraftCategory.Helicopter)
+        )
+        {
+            return null;
+        }
+
+        AircraftCategory category = AircraftCategorization.Categorize(aircraft.AircraftType);
+        if (
+            (category == AircraftCategory.Helicopter)
             || !IsInWindow(aircraft, runway, layout)
             || (layout.GetRunwayHoldShortNodes(runway.Designator).Count == 0)
         )
@@ -57,7 +64,6 @@ public static class FinalApproachExitForecast
             return null;
         }
 
-        AircraftCategory category = AircraftCategorization.Categorize(aircraft.AircraftType);
         LandingPlan plan = BuildPlan(aircraft, category, runway, layout, weather);
         TouchdownForecast touchdown = ProjectTouchdown(plan, aircraft, category, weather, simTimeSeconds);
         double limit = RolloutBraking.NamedExitBrakingLimit(category, expedite: false);

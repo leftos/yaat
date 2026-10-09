@@ -35,7 +35,7 @@ public class Oak28rPExitHoldingPositionTests(ITestOutputHelper output)
     public void UninstructedPExit_StopsWithTheTailBeyondTheRunwayHoldingDistance(string aircraftType)
     {
         SimLogBuilder.CreateForTest(output).InitializeSimLog();
-        ShortFinalArrival.Spawned? spawned = ShortFinalArrival.SpawnClearedToLand("OAK", "28R", aircraftType, "TST1");
+        ShortFinalArrival.Spawned? spawned = ShortFinalArrival.SpawnClearedToLand("OAK", "28R", aircraftType, "TST1", 1.0);
         if (spawned is null)
         {
             return;
@@ -147,7 +147,7 @@ public class Oak28rPExitHoldingPositionTests(ITestOutputHelper output)
     public void UninstructedRollout_WithJsBarOccupied_TakesTheNextExit()
     {
         SimLogBuilder.CreateForTest(output).InitializeSimLog();
-        ShortFinalArrival.Spawned? spawned = ShortFinalArrival.SpawnClearedToLand("OAK", "28R", "C25A", "TST1");
+        ShortFinalArrival.Spawned? spawned = ShortFinalArrival.SpawnClearedToLand("OAK", "28R", "C25A", "TST1", 1.0);
         if (spawned is null)
         {
             return;
@@ -190,7 +190,7 @@ public class Oak28rPExitHoldingPositionTests(ITestOutputHelper output)
     public void InstructedRightP_WithJsBarOccupied_TakesTheNextRightExitAndSaysUnable()
     {
         SimLogBuilder.CreateForTest(output).InitializeSimLog();
-        ShortFinalArrival.Spawned? spawned = ShortFinalArrival.SpawnClearedToLand("OAK", "28R", "C25A", "TST1");
+        ShortFinalArrival.Spawned? spawned = ShortFinalArrival.SpawnClearedToLand("OAK", "28R", "C25A", "TST1", 1.0);
         if (spawned is null)
         {
             return;

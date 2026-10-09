@@ -59,7 +59,9 @@ Favorite Commands
 All Commands
   Tower
     Exit left
+      Exit left · pilot's choice
     Exit right
+      Exit right · pilot's choice
   ---
   Ask pilot to say…
     Altitude

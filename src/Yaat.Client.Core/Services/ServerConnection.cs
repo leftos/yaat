@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Yaat.Client.Logging;
 using Yaat.Client.Tdls.Services;
+using Yaat.Sim;
 using Yaat.Sim.Simulation.Actions;
 
 namespace Yaat.Client.Services;
@@ -1337,7 +1338,11 @@ public record AircraftDto(
     // The runway whose bar is the next uncleared one on the taxi route, as the end to name in CROSS ("28R"), computed
     // beside the situation flags; null when the next bar is no runway crossing. Kept name-for-name in sync with the
     // server's AircraftStateDto; the quick list's Cross names and sends it.
-    string? NextCrossingRunway = null
+    string? NextCrossingRunway = null,
+    // The named exits the arrival can make, in order along the runway, on the last miles of final and on the rollout; empty
+    // when none is makeable, null when there is no list. Kept name-for-name in sync with the server's AircraftStateDto; the
+    // Exit left / Exit right flyouts offer one row per exit on that side.
+    IReadOnlyList<ExitAheadDto>? ExitsAhead = null
 );
 
 /// <summary>

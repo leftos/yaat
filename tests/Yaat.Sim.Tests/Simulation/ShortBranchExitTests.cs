@@ -25,7 +25,7 @@ public class ShortBranchExitTests(ITestOutputHelper output)
     public void Mia12_T8Exit_EndsAtSsBarBeyondTheHoldingDistance()
     {
         SimLogBuilder.CreateForTest(output).InitializeSimLog();
-        ShortFinalArrival.Spawned? spawned = ShortFinalArrival.SpawnClearedToLand("MIA", "12", "C25A", "TST1");
+        ShortFinalArrival.Spawned? spawned = ShortFinalArrival.SpawnClearedToLand("MIA", "12", "C25A", "TST1", 1.0);
         if (spawned is null)
         {
             return;
@@ -120,7 +120,7 @@ public class ShortBranchExitTests(ITestOutputHelper output)
     public void Cos35L_InstructedB1Exit_HoldsAtThe35LBarBeyondRunway13AndReportsClear()
     {
         SimLogBuilder.CreateForTest(output).InitializeSimLog();
-        ShortFinalArrival.Spawned? spawned = ShortFinalArrival.SpawnClearedToLand("COS", "35L", "C25A", "TST1");
+        ShortFinalArrival.Spawned? spawned = ShortFinalArrival.SpawnClearedToLand("COS", "35L", "C25A", "TST1", 1.0);
         if (spawned is null)
         {
             return;
@@ -153,7 +153,7 @@ public class ShortBranchExitTests(ITestOutputHelper output)
     public void Atl26R_InstructedA4Exit_HoldsAtItsShortBarWithoutReportingClear()
     {
         SimLogBuilder.CreateForTest(output).InitializeSimLog();
-        ShortFinalArrival.Spawned? spawned = ShortFinalArrival.SpawnClearedToLand("ATL", "26R", "C25A", "TST1");
+        ShortFinalArrival.Spawned? spawned = ShortFinalArrival.SpawnClearedToLand("ATL", "26R", "C25A", "TST1", 1.0);
         if (spawned is null)
         {
             return;

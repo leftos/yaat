@@ -294,7 +294,7 @@ public class SituationStepTests(ITestOutputHelper output)
     [Fact]
     public void TickSituation_RolloutExit_ResolvesTheLayoutForTheNextCrossing()
     {
-        if (ShortFinalArrival.SpawnClearedToLand("OAK", "28R", "B738", "ARR1") is not { } spawned)
+        if (ShortFinalArrival.SpawnClearedToLand("OAK", "28R", "B738", "ARR1", 1.0) is not { } spawned)
         {
             return;
         }

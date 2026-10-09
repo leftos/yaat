@@ -2,6 +2,7 @@ using System.Diagnostics.CodeAnalysis;
 using Yaat.Sim;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
+using Yaat.Sim.Phases;
 using Yaat.Sim.Situation;
 
 namespace Yaat.Client.ContextMenus;
@@ -273,8 +274,9 @@ public static class AircraftCommandApplicability
         IsControllable(ac) && (!string.IsNullOrEmpty(ac.LandingClearance) || !string.IsNullOrEmpty(ac.PendingLandingClearance));
 
     /// <summary>
-    /// Exit left / right after touchdown. Fixed-wing only — helicopters ("Landing-H")
-    /// land to a spot, not a runway exit.
+    /// Exit left / right in the landing and runway exit phases, and on final while the server lists the exits ahead
+    /// (<see cref="IMenuAircraft.ExitsAhead"/> not null). Fixed-wing only — helicopters ("Landing-H") land to a spot, not a
+    /// runway exit.
     /// </summary>
     public static bool CanExitRunway(IMenuAircraft? ac)
     {
@@ -284,8 +286,17 @@ public static class AircraftCommandApplicability
         }
 
         string phase = ac.CurrentPhase;
-        return phase is "Landing" or "Runway Exit";
+        return (phase is "Landing" or "Runway Exit") || (ac.ExitsAhead is not null);
     }
+
+    /// <summary>
+    /// Exit left / right on <paramref name="side"/>: <see cref="CanExitRunway(IMenuAircraft?)"/>, and while the server lists the
+    /// exits ahead, only with a listed exit on that side. The exit search falls back to the other side when nothing is makeable
+    /// on the one asked for, so an exit offered on a side with none would turn the aircraft the opposite way. With no list (no
+    /// layout or hold-short data) the side is not judged.
+    /// </summary>
+    public static bool CanExitRunway(IMenuAircraft? ac, ExitSide side) =>
+        CanExitRunway(ac) && ((ac!.ExitsAhead is not { } exits) || exits.Any(row => row.Side == side));
 
     // --- Ground movement ---
 

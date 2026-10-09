@@ -1,11 +1,11 @@
-# ground rollout-exit
-SWA107 · B738 [disabled]
+# radar rollout-exit-listed
+SWA110 · B738 [disabled]
 Landing · runway 30 · 60 kt [disabled]
 ---
 Command…
 Note…
 ---
-strip: [ground.draw-taxi-route]
+strip: [tower.exit-left, tower.exit-right, ground.draw-taxi-route]
 ---
 Track
   Initiate Track
@@ -23,19 +23,51 @@ Squawk
   ---
   Ident
 Display
-  Taxi route
-    Always show
-    Always hide
-    Follow “Show all” setting [checked]
-  Hide datablock
-  Measure from SWA107
+  Mini datablock
+  Show nav route
+  Measure from SWA110
+  ---
+  Leader direction
+    1
+    2
+    3
+    4
+    5 (default)
+    6
+    7
+    8
+    9
+  J-ring
+    Clear
+    1 nm
+    2 nm
+    3 nm
+    5 nm
+    10 nm
+  Cone
+    Clear
+    1 nm
+    2 nm
+    3 nm
+    5 nm
+    10 nm
+  ---
+  Blank target
+  Unblank target
 Favorite Commands
   (no items) [disabled]
 All Commands
   Tower
     Exit left
+      Exits ahead, left side [disabled]
+      W1 · ~900 ft — EL W1
+      ---
       Exit left · pilot's choice
     Exit right
+      Exits ahead, right side [disabled]
+      W2 · planned · ~1,800 ft — ER W2
+      W3 · ~3,600 ft — ER W3
+      ---
       Exit right · pilot's choice
   ---
   Ask pilot to say…

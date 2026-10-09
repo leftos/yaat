@@ -111,7 +111,7 @@ public class ExpediteRunwayExitTests(ITestOutputHelper output)
     private RolloutResult? RunRollout(string? command)
     {
         SimLogBuilder.CreateForTest(output).InitializeSimLog();
-        ShortFinalArrival.Spawned? spawned = ShortFinalArrival.SpawnClearedToLand("SFO", "19L", "A320", Callsign);
+        ShortFinalArrival.Spawned? spawned = ShortFinalArrival.SpawnClearedToLand("SFO", "19L", "A320", Callsign, 1.0);
         if (spawned is null)
         {
             return null;

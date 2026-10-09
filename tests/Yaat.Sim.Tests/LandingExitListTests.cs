@@ -116,58 +116,22 @@ public class LandingExitListTests
         };
     }
 
+    /// <summary>
+    /// <see cref="ShortFinalArrival.SpawnClearedToLand"/> <paramref name="distNm"/> out, then flying and targeting
+    /// <paramref name="ias"/> before the first tick; null when the data is missing.
+    /// </summary>
     private static OnFinal? SpawnOnFinal(string airport, string designator, string aircraftType, double distNm, double ias)
     {
-        var groundData = new TestAirportGroundData();
-        AirportGroundLayout? layout = groundData.GetLayout(airport);
-        RunwayInfo? runway = NavigationDatabase.Instance.GetRunway(airport, designator);
-        if ((layout is null) || (runway is null))
+        if (ShortFinalArrival.SpawnClearedToLand(airport, designator, aircraftType, "TST463", distNm) is not { } spawned)
         {
             return null;
         }
 
-        LatLon threshold = LandingThreshold.Resolve(runway, layout);
-        var aircraft = new AircraftState
-        {
-            Callsign = "TST463",
-            AircraftType = aircraftType,
-            Position = GeoMath.ProjectPoint(threshold, runway.TrueHeading.ToReciprocal(), distNm),
-            TrueHeading = runway.TrueHeading,
-            TrueTrack = runway.TrueHeading,
-            Altitude = GlideSlopeGeometry.AltitudeAtDistance(distNm, runway.ElevationFt, AircraftCategorization.Categorize(aircraftType)),
-            IndicatedAirspeed = ias,
-            IsOnGround = false,
-            FlightPlan = new AircraftFlightPlan
-            {
-                Departure = airport,
-                Destination = airport,
-                FlightRules = "IFR",
-                Altitude = PlannedAltitude.Ifr(3000),
-            },
-            Phases = new PhaseList { AssignedRunway = runway },
-        };
-        aircraft.Phases.Add(new FinalApproachPhase { SkipInterceptCheck = true });
-        aircraft.Phases.Add(new LandingPhase());
-        aircraft.Phases.Add(new RunwayExitPhase());
-        aircraft.Phases.Add(new HoldingAfterExitPhase());
-        aircraft.Ground.Layout = layout;
-        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, layout));
+        (SimulationEngine engine, AircraftState aircraft, RunwayInfo runway) = spawned;
+        aircraft.IndicatedAirspeed = ias;
         aircraft.Targets.TargetSpeed = ias;
-
-        var engine = new SimulationEngine(groundData);
-        engine.World.AddAircraft(aircraft);
-        engine.Scenario = new SimScenarioState
-        {
-            ScenarioId = "test-landing-exit-list",
-            ScenarioName = "Landing exit list",
-            RngSeed = 42,
-            OriginalScenarioJson = "{}",
-            PrimaryAirportId = airport,
-        };
-
-        CommandResult cland = engine.SendCommand(aircraft.Callsign, "CLAND");
-        Assert.True(cland.Success, $"CLAND failed: {cland.Message}");
-        return new OnFinal(engine, aircraft, runway, layout, threshold);
+        AirportGroundLayout layout = aircraft.Ground.Layout!;
+        return new OnFinal(engine, aircraft, runway, layout, LandingThreshold.Resolve(runway, layout));
     }
 
     /// <summary>
@@ -310,7 +274,7 @@ public class LandingExitListTests
     [InlineData("SFO", "28L")]
     public void RolloutList_AgreesWithTheNamedExitInstruction(string airport, string designator)
     {
-        if (ShortFinalArrival.SpawnClearedToLand(airport, designator, "B738", "TST463") is not { } spawned)
+        if (ShortFinalArrival.SpawnClearedToLand(airport, designator, "B738", "TST463", 1.0) is not { } spawned)
         {
             return;
         }

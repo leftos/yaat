@@ -53,7 +53,7 @@ public class OakTaxiCurrentTaxiwayTests(ITestOutputHelper output)
     public void ArrivalHoldingOnW5_TaxiW_Succeeds()
     {
         SimLogBuilder.CreateForTest(output).EnableCategory("GroundCommandHandler", LogLevel.Debug).InitializeSimLog();
-        ShortFinalArrival.Spawned? spawned = ShortFinalArrival.SpawnClearedToLand("OAK", "30", "E75L", "JSX170");
+        ShortFinalArrival.Spawned? spawned = ShortFinalArrival.SpawnClearedToLand("OAK", "30", "E75L", "JSX170", 1.0);
         if (spawned is null)
         {
             return;

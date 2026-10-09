@@ -1052,6 +1052,9 @@ public partial class AircraftModel : ObservableObject, IMenuAircraft
     [ObservableProperty]
     private string? _nextCrossingRunway;
 
+    [ObservableProperty]
+    private IReadOnlyList<ExitAheadDto>? _exitsAhead;
+
     // Live CFR release-window badge shown as a prefix in the Aircraft List Info column.
     [ObservableProperty]
     private string _cfrBadge = "";
@@ -1318,6 +1321,7 @@ public partial class AircraftModel : ObservableObject, IMenuAircraft
         model.Situation = dto.Situation;
         model.SituationFlags = dto.SituationFlags;
         model.NextCrossingRunway = dto.NextCrossingRunway;
+        model.ExitsAhead = dto.ExitsAhead;
         model.TaxiTurnAboutShape = model.ParseTaxiTurnAboutShape(dto.TaxiTurnAboutShape);
         return model;
     }
@@ -1444,6 +1448,7 @@ public partial class AircraftModel : ObservableObject, IMenuAircraft
         Situation = dto.Situation;
         SituationFlags = dto.SituationFlags;
         NextCrossingRunway = dto.NextCrossingRunway;
+        ExitsAhead = dto.ExitsAhead;
     }
 
     internal static (int Order, int Seconds) ParseStatusSortKey(string status)

@@ -1,7 +1,9 @@
 using Xunit;
 using Yaat.Client.ContextMenus;
 using Yaat.Client.Models;
+using Yaat.Sim;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Phases;
 using Yaat.Sim.Situation;
 
 namespace Yaat.Client.Tests;
@@ -107,6 +109,55 @@ public class QuickCommandVisibilityRulesTests
         AircraftModel aircraft = Aircraft(AircraftSituation.Taxiing, "Following LEAD1", onGround: true, "VFR");
         aircraft.HasActiveTaxiRoute = hasRoute;
         Assert.Equal(hasRoute, Shows(aircraft, MenuIds.GroundGiveWay, VfrCommandsForIfr.None));
+    }
+
+    /// <summary>
+    /// Exit left / right are on the Final list and show there, and in All Commands, only while the server lists the exits ahead
+    /// (5 NM down to 1 NM), and each only while the list holds an exit on its side: a pilot's-choice exit on a side with none
+    /// would turn the aircraft the other way, so an empty list (nothing makeable) shows neither. Inside 1 NM the list is gone
+    /// and they hide in the quick list until the roll decelerates.
+    /// </summary>
+    [Theory]
+    [InlineData("both sides", true, true)]
+    [InlineData("left only", true, false)]
+    [InlineData("right only", false, true)]
+    [InlineData("empty", false, false)]
+    [InlineData("none", false, false)]
+    public void ExitEntries_OnFinal_ShowOnlyOnAListedSide(string list, bool left, bool right)
+    {
+        Assert.True(Lists(AircraftSituation.Final, MenuIds.TowerExitLeft));
+        Assert.True(Lists(AircraftSituation.Final, MenuIds.TowerExitRight));
+        AircraftModel aircraft = Aircraft(AircraftSituation.Final, "FinalApproach", onGround: false, "IFR");
+        var leftRow = new ExitAheadDto("W1", ExitSide.Left, 4300, false);
+        var rightRow = new ExitAheadDto("W2", ExitSide.Right, 5200, false);
+        aircraft.ExitsAhead = list switch
+        {
+            "both sides" => [leftRow, rightRow],
+            "left only" => [leftRow],
+            "right only" => [rightRow],
+            "empty" => [],
+            _ => null,
+        };
+
+        Assert.Equal(left, Shows(aircraft, MenuIds.TowerExitLeft, VfrCommandsForIfr.None));
+        Assert.Equal(right, Shows(aircraft, MenuIds.TowerExitRight, VfrCommandsForIfr.None));
+        Assert.Equal(list != "none", AircraftCommandApplicability.CanExitRunway(aircraft));
+    }
+
+    /// <summary>On the rollout the entries show only once the roll decelerates, whether or not a list is stored.</summary>
+    [Theory]
+    [InlineData(SituationFlags.RolloutDecelerating, true, true)]
+    [InlineData(SituationFlags.RolloutDecelerating, false, true)]
+    [InlineData(SituationFlags.None, true, false)]
+    [InlineData(SituationFlags.None, false, false)]
+    public void ExitEntries_Rollout_ShowOnlyOnceDecelerating(SituationFlags flags, bool listed, bool shown)
+    {
+        AircraftModel aircraft = Aircraft(AircraftSituation.RolloutExit, "Landing", onGround: true, "IFR");
+        aircraft.SituationFlags = flags;
+        aircraft.ExitsAhead = listed ? [new ExitAheadDto("W1", ExitSide.Left, 900, false), new ExitAheadDto("W2", ExitSide.Right, 1800, true)] : null;
+
+        Assert.Equal(shown, Shows(aircraft, MenuIds.TowerExitLeft, VfrCommandsForIfr.None));
+        Assert.Equal(shown, Shows(aircraft, MenuIds.TowerExitRight, VfrCommandsForIfr.None));
     }
 
     /// <summary>Cross shows while taxiing, holding on the ground or rolling out only with a runway to cross next.</summary>

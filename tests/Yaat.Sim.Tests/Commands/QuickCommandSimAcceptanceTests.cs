@@ -386,6 +386,64 @@ public sealed class QuickCommandSimAcceptanceTests
         AssertAccepted(Dispatch(aircraft, $"{verb} 28R"), $"{verb} during {aircraft.Phases?.CurrentPhase?.Name}");
     }
 
+    // --- Exit left / right on final, while the exits-ahead list is stored (5 NM down to 1 NM) ---
+
+    /// <summary>The Final list's pilot's-choice rows: a bare <c>EL</c>/<c>ER</c> on a 3 NM final, with the list stored, is accepted.</summary>
+    [Theory]
+    [InlineData("EL")]
+    [InlineData("ER")]
+    public void ExitPilotsChoice_OnFinalInsideFiveMiles_IsAccepted(string verb)
+    {
+        if (ListedOnOak30Final() is not { } final)
+        {
+            return;
+        }
+
+        AssertAccepted(final.Engine.SendCommand(Arrival, verb), $"{verb} on a 3 NM final");
+    }
+
+    /// <summary>
+    /// Every row the Final list's flyouts offer: <c>EL</c>/<c>ER &lt;twy&gt;</c> for each listed exit, each on a fresh final, is
+    /// accepted.
+    /// </summary>
+    [Fact]
+    public void ExitNamed_OnFinalInsideFiveMiles_EveryListedRowIsAccepted()
+    {
+        if (ListedOnOak30Final() is not { } listing)
+        {
+            return;
+        }
+
+        IReadOnlyList<ExitAheadDto> rows = listing.Aircraft.Situation.ExitsAhead!;
+        Assert.NotEmpty(rows);
+        foreach (ExitAheadDto row in rows)
+        {
+            string command = $"{((row.Side == ExitSide.Left) ? "EL" : "ER")} {row.Taxiway}";
+            ShortFinalArrival.Spawned final = ListedOnOak30Final()!;
+            AssertAccepted(final.Engine.SendCommand(Arrival, command), $"{command} on a 3 NM final");
+        }
+    }
+
+    /// <summary>
+    /// A B738 on a 3 NM final to OAK 30 in an engine, cleared to land, after one tick, so the <c>Situation</c> step has stored
+    /// its exits-ahead list; null when the OAK data is missing.
+    /// </summary>
+    private ShortFinalArrival.Spawned? ListedOnOak30Final()
+    {
+        SimLogBuilder.CreateForTest(_output).InitializeSimLog();
+        if (ShortFinalArrival.SpawnClearedToLand("OAK", "30", "B738", Arrival, 3.0) is not { } final)
+        {
+            return null;
+        }
+
+        final.Aircraft.Targets.TargetSpeed = ShortFinalArrival.ApproachIas;
+        final.Engine.TickOneSecond();
+
+        Assert.IsType<FinalApproachPhase>(final.Aircraft.Phases?.CurrentPhase);
+        Assert.NotNull(final.Aircraft.Situation.ExitsAhead);
+        return final;
+    }
+
     private static AircraftState AirborneNearOak(Phase phase)
     {
         RunwayInfo runway = NavigationDatabase.Instance.GetRunway("OAK", "28R")!;
@@ -525,12 +583,12 @@ public sealed class QuickCommandSimAcceptanceTests
     private ShortFinalArrival.Spawned? ArriveAtSfo19L()
     {
         SimLogBuilder.CreateForTest(_output).InitializeSimLog();
-        return ShortFinalArrival.SpawnClearedToLand("SFO", "19L", "A320", Arrival);
+        return ShortFinalArrival.SpawnClearedToLand("SFO", "19L", "A320", Arrival, 1.0);
     }
 
     private ShortFinalArrival.Spawned? ArriveAtOak28R()
     {
         SimLogBuilder.CreateForTest(_output).InitializeSimLog();
-        return ShortFinalArrival.SpawnClearedToLand("OAK", "28R", "B738", Arrival);
+        return ShortFinalArrival.SpawnClearedToLand("OAK", "28R", "B738", Arrival, 1.0);
     }
 }

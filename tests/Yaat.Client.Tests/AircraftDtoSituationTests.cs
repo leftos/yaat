@@ -3,6 +3,8 @@ using Microsoft.AspNetCore.SignalR;
 using Xunit;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
+using Yaat.Sim;
+using Yaat.Sim.Phases;
 using Yaat.Sim.Situation;
 
 namespace Yaat.Client.Tests;
@@ -105,6 +107,35 @@ public class AircraftDtoSituationTests
 
         model.UpdateFromDto(Dto(AircraftSituation.RolloutExit) with { NextCrossingRunway = "10L" });
         Assert.Equal("10L", model.NextCrossingRunway);
+    }
+
+    [Fact]
+    public void Json_ExitsAhead_ReachesTheModel_OnCreateAndUpdate()
+    {
+        ExitAheadDto[] rows = [new ExitAheadDto("W2", ExitSide.Right, 1800, true), new ExitAheadDto("W3", ExitSide.Left, 3600, false)];
+        string json = JsonSerializer.Serialize(Dto(AircraftSituation.RolloutExit) with { ExitsAhead = rows }, WireOptions);
+        Assert.Contains("\"exitsAhead\":[", json, StringComparison.Ordinal);
+        AircraftDto back = JsonSerializer.Deserialize<AircraftDto>(json, WireOptions)!;
+
+        var model = AircraftModel.FromDto(back);
+        Assert.Equal(rows, model.ExitsAhead!);
+
+        model.UpdateFromDto(Dto(AircraftSituation.RolloutExit) with { ExitsAhead = [] });
+        Assert.Empty(Assert.IsAssignableFrom<IReadOnlyList<ExitAheadDto>>(model.ExitsAhead));
+
+        model.UpdateFromDto(Dto(AircraftSituation.Taxiing));
+        Assert.Null(model.ExitsAhead);
+    }
+
+    [Fact]
+    public void Json_NoExitsAhead_DeserializesAsNull()
+    {
+        string json = JsonSerializer.Serialize(Dto(AircraftSituation.Final), WireOptions);
+
+        AircraftDto back = JsonSerializer.Deserialize<AircraftDto>(json, WireOptions)!;
+
+        Assert.Null(back.ExitsAhead);
+        Assert.Null(AircraftModel.FromDto(back).ExitsAhead);
     }
 
     private static AircraftDto Dto(AircraftSituation situation) =>

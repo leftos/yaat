@@ -126,7 +126,7 @@ public class UninstructedExitSelectionTests(ITestOutputHelper output)
     private Landing? Land(string airport, string runwayDesignator, string aircraftType)
     {
         SimLogBuilder.CreateForTest(output).InitializeSimLog();
-        ShortFinalArrival.Spawned? spawned = ShortFinalArrival.SpawnClearedToLand(airport, runwayDesignator, aircraftType, "TST1");
+        ShortFinalArrival.Spawned? spawned = ShortFinalArrival.SpawnClearedToLand(airport, runwayDesignator, aircraftType, "TST1", 1.0);
         if (spawned is null)
         {
             return null;

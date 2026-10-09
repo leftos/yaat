@@ -1,3 +1,4 @@
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
@@ -13,6 +14,7 @@ using Yaat.Client.Views;
 using Yaat.Sim;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
+using Yaat.Sim.Phases;
 using Yaat.Sim.Situation;
 using Yaat.Sim.Testing;
 
@@ -136,8 +138,6 @@ public class MenuCatalogCommandTests
         (MenuIds.TowerLowApproach, "", "LA"),
         (MenuIds.TowerGoAround, "", "GA"),
         (MenuIds.TowerCancelLanding, "", "CLC"),
-        (MenuIds.TowerExitLeft, "", "EL"),
-        (MenuIds.TowerExitRight, "", "ER"),
         (MenuIds.PatternEnterLeftDownwind, "28R", "ELD 28R"),
         (MenuIds.PatternEnterRightDownwind, "28R", "ERD 28R"),
         (MenuIds.PatternEnterLeftBase, "28R", "ELB 28R"),
@@ -182,6 +182,8 @@ public class MenuCatalogCommandTests
         MenuIds.AircraftCommand,
         MenuIds.AircraftNote,
         MenuIds.TowerClearedForTakeoff,
+        MenuIds.TowerExitLeft,
+        MenuIds.TowerExitRight,
         MenuIds.GroundCrossRunway,
         MenuIds.RelativeReportInSight,
         MenuIds.RelativeFollow,
@@ -1655,6 +1657,163 @@ public class MenuCatalogCommandTests
         return [.. cto.Items.OfType<MenuItem>()];
     }
 
+    /// <summary>A rolling-out B738 with the named exits ahead listed on both sides, W2 the planned one.</summary>
+    private static FakeMenuAircraft RollingOutWithExits(IReadOnlyList<ExitAheadDto>? exits) =>
+        new()
+        {
+            IsOnGround = true,
+            CurrentPhase = "Landing",
+            Situation = AircraftSituation.RolloutExit,
+            SituationFlags = SituationFlags.RolloutDecelerating,
+            AssignedRunway = "30",
+            ExitsAhead = exits,
+        };
+
+    private static readonly ExitAheadDto[] ExitsBothSides =
+    [
+        new("W1", ExitSide.Left, 900, false),
+        new("W2", ExitSide.Right, 1800, true),
+        new("W3", ExitSide.Right, 3600, false),
+        new("W4", ExitSide.Right, 12400, false),
+    ];
+
+    /// <summary>The flyout's rows as shown: a section header's text, <c>---</c> for a separator, else the row's accessible name.</summary>
+    private static List<string> FlyoutRows(MenuItem flyout) =>
+        [
+            .. flyout.Items.Select(child =>
+                child switch
+                {
+                    Separator => "---",
+                    MenuItem { IsEnabled: false } section => $"[{section.Header}]",
+                    MenuItem row => (AutomationProperties.GetName(row) is { Length: > 0 } name) ? name : row.Header as string ?? "",
+                    _ => throw new Xunit.Sdk.XunitException($"unexpected flyout child {child}"),
+                }
+            ),
+        ];
+
+    [AvaloniaFact]
+    public void ExitFlyout_RightSide_ListsRowsThenPilotsChoice()
+    {
+        var host = new RecordingMenuHost("");
+        MenuItem flyout = Assert.IsType<MenuItem>(
+            MenuCatalog.Get(MenuIds.TowerExitRight).Build(RollingOutWithExits(ExitsBothSides), Context(), host)
+        );
+
+        Assert.Equal("Exit right", flyout.Header);
+        Assert.Equal(
+            [
+                "[Exits ahead, right side]",
+                "W2 · planned · ~1,800 ft — ER W2",
+                "W3 · ~3,600 ft — ER W3",
+                "W4 · ~12,400 ft — ER W4",
+                "---",
+                "Exit right · pilot's choice",
+            ],
+            FlyoutRows(flyout)
+        );
+
+        List<MenuItem> picks = [.. flyout.Items.OfType<MenuItem>().Where(item => item.IsEnabled)];
+        foreach (MenuItem pick in picks)
+        {
+            Click(pick);
+        }
+
+        Assert.Equal(
+            [(Callsign, "ER W2", Initials), (Callsign, "ER W3", Initials), (Callsign, "ER W4", Initials), (Callsign, "ER", Initials)],
+            host.Sent
+        );
+    }
+
+    [AvaloniaFact]
+    public void ExitFlyout_LeftSide_ListsOnlyTheLeftRows()
+    {
+        var host = new RecordingMenuHost("");
+        MenuItem flyout = Assert.IsType<MenuItem>(MenuCatalog.Get(MenuIds.TowerExitLeft).Build(RollingOutWithExits(ExitsBothSides), Context(), host));
+
+        Assert.Equal("Exit left", flyout.Header);
+        Assert.Equal(["[Exits ahead, left side]", "W1 · ~900 ft — EL W1", "---", "Exit left · pilot's choice"], FlyoutRows(flyout));
+    }
+
+    /// <summary>
+    /// With no list (no layout or hold-short data for the runway) the side is not judged: both entries are offered, each with
+    /// its pilot's-choice row alone.
+    /// </summary>
+    [AvaloniaTheory]
+    [InlineData(MenuIds.TowerExitLeft, "EL")]
+    [InlineData(MenuIds.TowerExitRight, "ER")]
+    public void ExitFlyout_NoList_OnlyPilotsChoice(string id, string verb)
+    {
+        FakeMenuAircraft aircraft = RollingOutWithExits(null);
+        var host = new RecordingMenuHost("");
+        Assert.True(MenuCatalog.Get(id).IsApplicable(aircraft, Context()));
+        MenuItem flyout = Assert.IsType<MenuItem>(MenuCatalog.Get(id).Build(aircraft, Context(), host));
+
+        MenuItem only = Assert.IsType<MenuItem>(Assert.Single(flyout.Items));
+        Assert.Equal($"{flyout.Header} · pilot's choice", only.Header);
+        Click(only);
+        Assert.Equal([(Callsign, verb, Initials)], host.Sent);
+    }
+
+    /// <summary>
+    /// A side the list holds no exit on has no entry, pilot's choice included: the exit search falls back to the other side
+    /// when nothing is makeable on the one asked for, so the aircraft would turn the opposite way (7110.65 3-10-9.a phrases
+    /// the exit by side). An empty list (nothing makeable) leaves neither side.
+    /// </summary>
+    [AvaloniaTheory]
+    [InlineData("right only", MenuIds.TowerExitLeft)]
+    [InlineData("empty", MenuIds.TowerExitLeft)]
+    [InlineData("empty", MenuIds.TowerExitRight)]
+    public void ExitFlyout_NoExitOnTheSide_HasNoEntry(string list, string id)
+    {
+        FakeMenuAircraft aircraft = RollingOutWithExits((list == "empty") ? [] : [new ExitAheadDto("W2", ExitSide.Right, 1800, true)]);
+
+        Assert.False(MenuCatalog.Get(id).IsApplicable(aircraft, Context()));
+        Assert.Null(MenuCatalog.Get(id).Build(aircraft, Context(), new RecordingMenuHost("")));
+    }
+
+    /// <summary>On final the distances are the forecast's, from the landing threshold, and the section header says so.</summary>
+    [AvaloniaFact]
+    public void ExitFlyout_OnFinal_HeaderSaysDistancesFromThreshold()
+    {
+        var aircraft = new FakeMenuAircraft
+        {
+            CurrentPhase = "FinalApproach",
+            Situation = AircraftSituation.Final,
+            AssignedRunway = "30",
+            ExitsAhead = ExitsBothSides,
+        };
+        MenuItem flyout = Assert.IsType<MenuItem>(MenuCatalog.Get(MenuIds.TowerExitLeft).Build(aircraft, Context(), new RecordingMenuHost("")));
+
+        Assert.Equal(["[Exits ahead (distance from threshold)]", "W1 · ~900 ft — EL W1", "---", "Exit left · pilot's choice"], FlyoutRows(flyout));
+    }
+
+    /// <summary>
+    /// The flyout is read once, as the menu opens: a row picked after the list changed (the exit passed or no longer
+    /// makeable) still sends the command it shows, and the pilot refuses an exit that is no longer makeable; the client
+    /// never filters it.
+    /// </summary>
+    [AvaloniaFact]
+    public void ExitFlyout_StalePick_SendsTheCommandAsShown()
+    {
+        var host = new RecordingMenuHost("");
+        var aircraft = new AircraftModel
+        {
+            Callsign = Callsign,
+            IsOnGround = true,
+            CurrentPhase = "Landing",
+            Situation = AircraftSituation.RolloutExit,
+            SituationFlags = SituationFlags.RolloutDecelerating,
+            AssignedRunway = "30",
+            ExitsAhead = ExitsBothSides,
+        };
+        MenuItem flyout = Assert.IsType<MenuItem>(MenuCatalog.Get(MenuIds.TowerExitRight).Build(aircraft, Context(), host));
+
+        aircraft.ExitsAhead = [new ExitAheadDto("W4", ExitSide.Right, 11000, true)];
+        Click(Assert.Single(flyout.Items.OfType<MenuItem>(), item => AutomationProperties.GetName(item) == "W2 · planned · ~1,800 ft — ER W2"));
+
+        Assert.Equal([(Callsign, "ER W2", Initials)], host.Sent);
+    }
+
     /// <summary>The aircraft selected before the right-click, which the relative ground items send as.</summary>
     private const string Selected = "N436MS";
 
@@ -2650,6 +2809,8 @@ public class MenuCatalogCommandTests
         public SituationFlags SituationFlags { get; init; }
 
         public string? NextCrossingRunway { get; init; }
+
+        public IReadOnlyList<ExitAheadDto>? ExitsAhead { get; init; }
 
         public IReadOnlyList<string> RouteFixes { get; init; } = [];
 

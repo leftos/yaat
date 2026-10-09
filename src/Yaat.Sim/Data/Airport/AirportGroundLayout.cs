@@ -1555,12 +1555,13 @@ public sealed class AirportGroundLayout
         CurrentSearchMemo()
             .CenterlineNodes.GetOrAdd(
                 (AnyRunway: runwayDesignator is null, Designator: runwayDesignator ?? ""),
-                key =>
+                static (key, layout) =>
                     [
-                        .. Nodes.Values.Where(node =>
+                        .. layout.Nodes.Values.Where(node =>
                             HasRunwayCenterlineEdge(node) && (key.AnyRunway || HasRunwayEdgeForDesignator(node, key.Designator))
                         ),
-                    ]
+                    ],
+                this
             );
 
     /// <summary>
@@ -1949,7 +1950,7 @@ public sealed class AirportGroundLayout
     /// The taxiways an exits-ahead list judges on <paramref name="runwayDesignator"/>: every taxiway name on an edge at one of the
     /// runway's centerline nodes — straight branches and junction arcs alike, so a branch that ends without a bar of its own and hops
     /// to the joining taxiway's is judged too — less the end's authored no-turnoff taxiways, which an exit is never offered onto.
-    /// Ordinal order, memoized per runway end (<see cref="SearchMemo"/>).
+    /// Sorted and de-duplicated case-insensitively (<c>OrdinalIgnoreCase</c>), memoized per runway end (<see cref="SearchMemo"/>).
     /// </summary>
     public IReadOnlyList<string> ExitListTaxiways(string runwayDesignator) =>
         CurrentSearchMemo()
@@ -4181,7 +4182,7 @@ public sealed class AirportGroundLayout
         SearchMemo? memo = Volatile.Read(ref _searchMemo);
         if ((memo is null) || (memo.NodeCount != Nodes.Count))
         {
-            memo = new SearchMemo(Nodes.Count, new(), new(), new(ReferenceEqualityComparer.Instance), new(StringComparer.OrdinalIgnoreCase));
+            memo = new SearchMemo(Nodes.Count, new(), new(), new(ReferenceEqualityComparer.Instance), new(StringComparer.Ordinal));
             Volatile.Write(ref _searchMemo, memo);
         }
 
@@ -4199,7 +4200,12 @@ public sealed class AirportGroundLayout
     /// (<see cref="ComputeAverageNearestParkingDistanceNm"/>), memoized per node.
     /// </summary>
     public double AverageNearestParkingDistanceNm(GroundNode exitNode, int count) =>
-        CurrentSearchMemo().ParkingDistanceNm.GetOrAdd((exitNode.Id, count), _ => ComputeAverageNearestParkingDistanceNm(exitNode, count));
+        CurrentSearchMemo()
+            .ParkingDistanceNm.GetOrAdd(
+                (exitNode.Id, count),
+                static (key, state) => state.Layout.ComputeAverageNearestParkingDistanceNm(state.ExitNode, key.Count),
+                (Layout: this, ExitNode: exitNode)
+            );
 
     /// <summary>
     /// Compute the average distance from a node to the N nearest parking nodes.

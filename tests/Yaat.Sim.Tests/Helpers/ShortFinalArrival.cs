@@ -10,18 +10,26 @@ using Yaat.Sim.Simulation;
 namespace Yaat.Sim.Tests.Helpers;
 
 /// <summary>
-/// Spawns an arrival on a 1 nm final to a real runway (real navdata and ground layout) with the production landing
-/// chain — <see cref="FinalApproachPhase"/> → <see cref="LandingPhase"/> → <see cref="RunwayExitPhase"/> →
-/// <see cref="HoldingAfterExitPhase"/> — in a <see cref="SimulationEngine"/>, and clears it to land with no exit
+/// Spawns an arrival on final to a real runway (real navdata and ground layout), on the extended centerline and on its
+/// category's glidepath at a given distance from the landing threshold, flying <see cref="ApproachIas"/> with no target
+/// speed of its own (the final approach sets the type's), with
+/// the production landing chain — <see cref="FinalApproachPhase"/> → <see cref="LandingPhase"/> → <see cref="RunwayExitPhase"/>
+/// → <see cref="HoldingAfterExitPhase"/> — in a <see cref="SimulationEngine"/>, and clears it to land with no exit
 /// instruction. The caller initializes <c>SimLog</c> first and drives the engine with <c>TickOneSecond</c>.
 /// </summary>
 public static class ShortFinalArrival
 {
+    /// <summary>The indicated airspeed the arrival is spawned at, in knots.</summary>
+    public const double ApproachIas = 140;
+
     /// <summary>The engine the arrival was added to, the arrival, and the runway it is cleared to.</summary>
     public sealed record Spawned(SimulationEngine Engine, AircraftState Aircraft, RunwayInfo Runway);
 
-    /// <summary>Returns null when navdata or the airport's ground layout is unavailable (silent skip).</summary>
-    public static Spawned? SpawnClearedToLand(string airport, string runwayDesignator, string aircraftType, string callsign)
+    /// <summary>
+    /// Spawns the arrival <paramref name="distNm"/> from the landing threshold. Returns null when navdata or the airport's
+    /// ground layout is unavailable (silent skip).
+    /// </summary>
+    public static Spawned? SpawnClearedToLand(string airport, string runwayDesignator, string aircraftType, string callsign, double distNm)
     {
         TestVnasData.EnsureInitialized();
         if (TestVnasData.NavigationDb is null)
@@ -39,16 +47,16 @@ public static class ShortFinalArrival
         RunwayInfo? runway = NavigationDatabase.Instance.GetRunway(airport, runwayDesignator);
         Assert.NotNull(runway);
 
-        double reciprocal = (runway.TrueHeading.Degrees + 180) % 360;
-        (double lat, double lon) = GeoMath.ProjectPointRaw(runway.ThresholdLatitude, runway.ThresholdLongitude, reciprocal, 1.0);
+        LatLon threshold = LandingThreshold.Resolve(runway, layout);
         var aircraft = new AircraftState
         {
             Callsign = callsign,
             AircraftType = aircraftType,
-            Position = new LatLon(lat, lon),
+            Position = GeoMath.ProjectPoint(threshold, runway.TrueHeading.ToReciprocal(), distNm),
             TrueHeading = runway.TrueHeading,
-            Altitude = runway.ElevationFt + 318, // ~3° glidepath at 1 nm
-            IndicatedAirspeed = 140,
+            TrueTrack = runway.TrueHeading,
+            Altitude = GlideSlopeGeometry.AltitudeAtDistance(distNm, runway.ElevationFt, AircraftCategorization.Categorize(aircraftType)),
+            IndicatedAirspeed = ApproachIas,
             IsOnGround = false,
             FlightPlan = new AircraftFlightPlan
             {

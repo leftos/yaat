@@ -9,6 +9,7 @@ using Yaat.Sim;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Vnas;
+using Yaat.Sim.Phases;
 
 namespace Yaat.Client.ContextMenus;
 
@@ -200,8 +201,8 @@ public static class MenuCatalog
         RunwayLeaf(MenuIds.TowerLowApproach, "Low approach", "LA", CanIssueVfrOption),
         RunwayLeaf(MenuIds.TowerGoAround, "Go around", "GA", (ac, _) => AircraftCommandApplicability.CanGoAround(ac)),
         Leaf(MenuIds.TowerCancelLanding, "Cancel landing clearance", "CLC", (ac, _) => AircraftCommandApplicability.CanCancelLandingClearance(ac)),
-        Leaf(MenuIds.TowerExitLeft, "Exit left", "EL", CanExitRunway),
-        Leaf(MenuIds.TowerExitRight, "Exit right", "ER", CanExitRunway),
+        ExitFlyout(MenuIds.TowerExitLeft, ExitSide.Left),
+        ExitFlyout(MenuIds.TowerExitRight, ExitSide.Right),
         PatternEntry(MenuIds.PatternEnterLeftDownwind, CanEnterPattern),
         PatternEntry(MenuIds.PatternEnterRightDownwind, CanEnterPattern),
         PatternEntry(MenuIds.PatternEnterLeftBase, CanEnterPattern),
@@ -582,8 +583,6 @@ public static class MenuCatalog
     private static Func<IMenuAircraft?, MenuContext, bool> CanIssueVfrOption =>
         (ac, context) => AircraftCommandApplicability.CanIssueVfrOption(ac, context.VfrCommandsForIfr);
 
-    private static Func<IMenuAircraft?, MenuContext, bool> CanExitRunway => (ac, _) => AircraftCommandApplicability.CanExitRunway(ac);
-
     /// <summary>The circuit-leg entries put the aircraft on a full VFR circuit, offered to an IFR aircraft only under the full VFR setting.</summary>
     private static Func<IMenuAircraft?, MenuContext, bool> CanEnterPattern =>
         (ac, context) => AircraftCommandApplicability.CanEnterPattern(ac, context.VfrCommandsForIfr);
@@ -937,6 +936,92 @@ public static class MenuCatalog
 
         items.Add(more);
     }
+
+    /// <summary>
+    /// An Exit left / Exit right entry: a submenu over the named exits ahead on its side
+    /// (<see cref="BuildExitFlyout"/>), applicable on the rollout and while the aircraft has an exits-ahead list, and then
+    /// only with an exit listed on its side (<see cref="AircraftCommandApplicability.CanExitRunway(IMenuAircraft?, ExitSide)"/>).
+    /// </summary>
+    private static MenuCatalogEntry ExitFlyout(string id, ExitSide side) =>
+        new(
+            id,
+            ExitLabel(side),
+            MenuFlightRules.Both,
+            (ac, _) => AircraftCommandApplicability.CanExitRunway(ac, side),
+            (ac, context, host) => BuildExitFlyout(side, ac, context, host)
+        );
+
+    private static string ExitLabel(ExitSide side) => (side == ExitSide.Left) ? "Exit left" : "Exit right";
+
+    /// <summary>
+    /// The Exit left / Exit right submenu, read from the aircraft's exits-ahead list as the menu opens: the section header
+    /// (<see cref="ExitsAheadTitle"/>), one row per listed exit on <paramref name="side"/> in list order sending
+    /// <c>EL</c>/<c>ER</c> with its taxiway, a separator, then the pilot's-choice row sending the bare verb. With no list, the
+    /// pilot's-choice row alone; with a list holding no exit on this side, nothing (null). A row is sent as shown: the pilot
+    /// refuses an exit that is no longer makeable.
+    /// </summary>
+    private static MenuItem? BuildExitFlyout(ExitSide side, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
+    {
+        string verb = (side == ExitSide.Left) ? "EL" : "ER";
+        IReadOnlyList<ExitAheadDto>? exits = aircraft?.ExitsAhead;
+        List<ExitAheadDto> rows = [.. (exits ?? []).Where(row => row.Side == side)];
+        if ((exits is not null) && (rows.Count == 0))
+        {
+            return null;
+        }
+
+        var menu = new MenuItem { Header = ExitLabel(side) };
+        if (rows.Count > 0)
+        {
+            menu.Items.Add(SharedMenuGroups.SectionLabel(ExitsAheadTitle(side, aircraft!)));
+            foreach (ExitAheadDto row in rows)
+            {
+                menu.Items.Add(ExitRow(row, verb, context, host));
+            }
+
+            menu.Items.Add(new Separator());
+        }
+
+        menu.Items.Add(BuildSend($"{ExitLabel(side)} · pilot's choice", verb, context, host));
+        return menu;
+    }
+
+    /// <summary>
+    /// The exit flyout's section header. On the rollout the distances are from the aircraft: "Exits ahead, left side" (or
+    /// right). On final they are the forecast's, from the landing threshold: "Exits ahead (distance from threshold)".
+    /// </summary>
+    private static string ExitsAheadTitle(ExitSide side, IMenuAircraft aircraft)
+    {
+        if (aircraft.CurrentPhase is not ("Landing" or "Runway Exit"))
+        {
+            return "Exits ahead (distance from threshold)";
+        }
+
+        return (side == ExitSide.Left) ? "Exits ahead, left side" : "Exits ahead, right side";
+    }
+
+    /// <summary>
+    /// One exit row: the taxiway with "planned" under it for the planned exit, then the distance and the command it sends
+    /// (<c>W2 · planned · ~1,800 ft — ER W2</c>, or <c>W3 · ~3,600 ft — ER W3</c>).
+    /// </summary>
+    private static MenuItem ExitRow(ExitAheadDto row, string verb, MenuContext context, IMenuHost host)
+    {
+        string command = $"{verb} {row.Taxiway}";
+        var header = new MenuCommandRow
+        {
+            Badge = null,
+            Name = row.Taxiway,
+            EmphasizeName = false,
+            Detail = row.Planned ? "planned" : null,
+            DetailPlacement = MenuDetailPlacement.Stacked,
+            Distance = $"~{ExitDistanceText(row.DistanceFt)}",
+            Command = command,
+        };
+        return BuildTemplatedSend(header, MenuCommandRowTemplate.Instance, command, context, host);
+    }
+
+    /// <summary>An exit's distance, already rounded to 100 ft, with a thousands separator: <c>1,800 ft</c>.</summary>
+    private static string ExitDistanceText(int distanceFt) => $"{distanceFt.ToString("N0", CultureInfo.InvariantCulture)} ft";
 
     /// <summary>
     /// Builds a ground traffic submenu's rows: the callsign and type over the dimmed state, then the distance and the

@@ -184,6 +184,13 @@ public interface IMenuAircraft
     /// </summary>
     string? NextCrossingRunway { get; }
 
+    /// <summary>
+    /// The server-computed named exits ahead (the stored AircraftSituationState.ExitsAhead), in order along the runway, which the
+    /// Exit left / Exit right flyouts list; empty when none is makeable, null when there is no list (outside the last miles of
+    /// final and the rollout).
+    /// </summary>
+    IReadOnlyList<ExitAheadDto>? ExitsAhead { get; }
+
     /// <summary>The fixes along the aircraft's route that a fix picker offers first, computed on each call.</summary>
     IReadOnlyList<string> RouteFixNames();
 }

@@ -134,6 +134,8 @@ public static class QuickCommandDefaults
                 Entry(MenuIds.TowerGoAround),
                 Entry(MenuIds.TowerCancelLanding),
                 Entry(MenuIds.SpeedFinalApproach),
+                Entry(MenuIds.TowerExitLeft),
+                Entry(MenuIds.TowerExitRight),
             ],
             [AircraftSituation.RolloutExit] =
             [
