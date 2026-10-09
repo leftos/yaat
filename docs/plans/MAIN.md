@@ -5,21 +5,24 @@
 ## Do first
 
 - [ ] YAAT-266 Tower Cab 3D joins a YAAT room without CRC and shows in Room Members · release vNext+1 — High · Wave 6 — Strips, TDLS, air-taxi and hub
+- [ ] YAAT-221 Brief rule: name a sim change's at-risk tests and rule on each — High · Wave 9 — Docs and repo hygiene
+- [ ] YAAT-550 Stop KillRecorder_EndsOnlyTheRecorder flaking under load — High · Wave 9 — Docs and repo hygiene
 
 ## Precompute cache (feat/precompute-cache)
 
-- [ ] YAAT-440 Group, filter and distance-label the ground view's Push Back To submenu · release vNext
+- [/] YAAT-440 Group, filter and distance-label the ground view's Push Back To submenu · release vNext
 - [ ] YAAT-475 Merge feat/precompute-cache (#951) · release vNext
 - [ ] YAAT-497 Split the tug planner's shared pieces out of the precompute layout source set · release vNext
-- [ ] YAAT-511 Refuse TAXI for a jet or turboprop at a push-back stand without a push · release vNext
+- [/] YAAT-511 Refuse TAXI for a jet or turboprop at a push-back stand without a push · release vNext
+- [ ] YAAT-553 Regenerate the precompute cache on feat/precompute-cache before its merge · release vNext
 
 ## Follow on the taxi graph (feat/follow-on-graph)
 
 - [ ] YAAT-407 Merge feat/follow-on-graph (#881) · release vNext
 - [ ] YAAT-507 FOLLOWG clearing route stops one node before the next runway's hold bar
 - [ ] YAAT-508 FOLLOWG clearing check ignores traffic crossing at a junction
-- [ ] YAAT-535 Keep ChooseMutualStopHolder from holding a follower against a lead closing on it · release vNext
-- [/] YAAT-543 FOLLOWG follower takes the square corner through trail stub edges instead of the arc its lead drove · release vNext
+- [/] YAAT-552 FOLLOWG: give a jet lead's follower the fillet arc at a corner sharper than 135° · release vNext
+- [ ] YAAT-554 FOLLOWG: decide whether a same-edge head-on pair keeps the follower moving too
 
 ## Bug reports and feature requests
 
@@ -34,7 +37,7 @@
 - [ ] YAAT-284 FOLLOW gets no pilot readback in solo; late 'traffic in sight' in clip C2
 - [ ] YAAT-288 Find what gave an automation-mode client the keyboard foreground for 3.5 s (YAAT-282 leftover)
 - [ ] YAAT-403 Support for vTBFM · release vNext
-  - [/] YAAT-412 vTBFM: meter on the feed's clock (contributed PR) · release vNext
+  - [!] YAAT-412 vTBFM: meter on the feed's clock (contributed PR) · release vNext
   - [/] YAAT-413 Integration and smoke test a YAAT-fed vTBFM, then write the setup steps · release vNext
   - [!] YAAT-538 List the rooms a feed consumer's user may see (ARTCC-filtered, authenticated) · release vNext+1
   - [!] YAAT-539 vTBFM: follow each user's chosen YAAT room (contributed PR) · release vNext+1
@@ -276,7 +279,6 @@
 - [ ] YAAT-121 Add the agent-mail-guard hook to prek.toml
 - [ ] YAAT-122 Wrap tools/test-all.ps1's builds and test runs in the gate
 - [ ] YAAT-123 Document how STT-on UI tests avoid the network prewarm
-- [ ] YAAT-221 Brief rule: name a sim change's at-risk tests and rule on each
 - [ ] YAAT-125 Add Task Index rows and a brief rule naming yaat-server's owning docs
 - [ ] YAAT-126 Re-read the drifted docs the docdrift scan reports
 - [ ] YAAT-127 Fix three stale doc facts (hub method count, PopulateRoom, ServerConnection)
@@ -305,7 +307,7 @@
 - [ ] YAAT-515 Stop the commit hook's style pass marking [ObservableProperty] fields readonly
 - [ ] YAAT-526 Update yaat's skills and docs for land going straight to Done (no Landed state)
 - [ ] YAAT-531 Re-read the four drifted docs the 2026-10-08 scan found outside YAAT-126
-- [ ] YAAT-550 Stop KillRecorder_EndsOnlyTheRecorder flaking under load
+- [ ] YAAT-555 Add ck hybrid_search's threshold caveat to aviation-sim-expert and CLAUDE.md
 
 ## Singles
 
@@ -415,7 +417,6 @@
 - [ ] YAAT-333 Drop the generic Airport suffix from spoken airport names
 - [ ] YAAT-341 Take control and quick bookmark keys work from pop-out windows
 - [ ] YAAT-342 MainWindowLifecycleTests pop-out close tests fail in some full UI test runs
-- [ ] YAAT-346 Flaky: ProcessRecordingBackendTests.KillRecorder depends on a 500 ms startup window
 - [ ] YAAT-366 Fix the garbled solo readback of EXIT given on final ('exit when if able at on to W3')
 - [ ] YAAT-369 Scenario load: status bar can end on 'Load by AB ended' instead of the load result (RoomLoadingChanged arrival-order race)
 - [ ] YAAT-370 LayoutInspector --exits prints double.MaxValue avg parking distance for a runway side with no exits
@@ -437,7 +438,6 @@
   - [ ] YAAT-394 Annotate every client-driver tool and check the annotations in the smoke test
 - [ ] YAAT-396 TAXI from a nose-in OAK gate is accepted but the aircraft never moves
 - [ ] YAAT-399 GuideCapture: default --out to this repo's docs/user-guide/img, not the current directory
-- [ ] YAAT-420 ProcessRecordingBackendTests KillRecorder test fails under load
 - [ ] YAAT-436 Draw the ground overlay for a ramp-only taxi route
 - [ ] YAAT-439 Aim a ramp or free-space reversal along the route when the next turn doubles back
 - [ ] YAAT-444 Stop drawing the far-end turn-about overlay during a re-aimed turn-about cut
