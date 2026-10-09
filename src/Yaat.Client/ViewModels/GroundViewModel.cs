@@ -1539,7 +1539,8 @@ public partial class GroundViewModel : ObservableObject
     /// (<see cref="AvailableRunwayFt"/>). The hold shorts at the other end's threshold, from which a departure on
     /// <paramref name="end"/> has no runway ahead, and the other full-length ones are left out. The nearest row is tagged
     /// <c>nearest</c> (<c>nearest, full length</c> when it is the full-length one), and it and the full-length row are
-    /// highlighted. A row whose route names no taxiway is left out.
+    /// highlighted. A runway whose full length is under <paramref name="takeoffDistanceFt"/> is still offered at full
+    /// length, its row's reason tagged <see cref="ShortForTypeTag"/>. A row whose route names no taxiway is left out.
     /// </summary>
     private List<TaxiRouteRow> EntryRowsFor(
         AirportGroundLayout layout,
@@ -1566,7 +1567,10 @@ public partial class GroundViewModel : ObservableObject
         if (fullLength is not null)
         {
             bool isNearest = ReferenceEquals(fullLength, nearest);
-            rows.Add(EntryRow(fullLength, end, isNearest ? "nearest, full length" : "full length", null, true));
+            string reason = isNearest ? "nearest, full length" : "full length";
+            bool isShort =
+                (takeoffDistanceFt > 0) && (RunwayRemainingFt(runway, otherEnd, fullLength.Bar) is { } fullFt) && (fullFt < takeoffDistanceFt);
+            rows.Add(EntryRow(fullLength, end, isShort ? $"{reason} · {ShortForTypeTag}" : reason, null, true));
         }
 
         foreach ((RunwayEntry entry, double? remainingFt) in intersections)
@@ -1610,6 +1614,9 @@ public partial class GroundViewModel : ObservableObject
     /// </summary>
     public static double TakeoffDistanceFt(AircraftModel ac) =>
         (AircraftProfileDatabase.Get(ac.AircraftType) is { TakeoffDistance: > 0 } profile) ? profile.TakeoffDistance : 0;
+
+    /// <summary>The tag a full-length entry row's reason gains when the runway is shorter than the type's takeoff distance.</summary>
+    public const string ShortForTypeTag = "short for type";
 
     /// <summary>A runway length left ahead of an intersection as its row shows it: rounded down to 50 ft, never up.</summary>
     public static double AvailableRunwayFt(double remainingFt) => Math.Floor(remainingFt / 50) * 50;

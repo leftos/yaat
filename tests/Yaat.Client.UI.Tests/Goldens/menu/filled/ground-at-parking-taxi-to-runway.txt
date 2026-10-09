@@ -16,7 +16,7 @@ Taxi to runway
   PR TERMINAL to 30 · via T U W · ~4,700 ft — TAXI T U W RWY 30
   ---
   Runway 28L [disabled]
-  RW At B · nearest, full length · via TE T B · ~9,350 ft — TAXI TE T B 28L [bold]
+  RW At B · nearest, full length · short for type · via TE T B · ~9,350 ft — TAXI TE T B 28L [bold]
     For Departure 28L
     ---
     Hold short RWY 28L
@@ -33,7 +33,7 @@ Taxi to runway
   ---
   Other runways
     Runway 15
-      RW At D · nearest, full length · via TE T B C D · ~18,650 ft — TAXI TE T B C D HS 28L RWY 15 [bold]
+      RW At D · nearest, full length · short for type · via TE T B C D · ~18,650 ft — TAXI TE T B C D HS 28L RWY 15 [bold]
         For Departure 15, HS 28L
         For Departure 15, CROSS 28L, HS 28R
         For Departure 15, CROSS 28L 28R
@@ -42,14 +42,14 @@ Taxi to runway
         CROSS 28L, HS 28R
         CROSS 28L 28R, HS 15
     Runway 28R
-      RW At B · nearest, full length · via TE T B · ~10,400 ft — TAXI TE T B HS 28L RWY 28R [bold]
+      RW At B · nearest, full length · short for type · via TE T B · ~10,400 ft — TAXI TE T B HS 28L RWY 28R [bold]
         For Departure 28R, HS 28L
         For Departure 28R, CROSS 28L
         ---
         Hold short RWY 28L
         CROSS 28L, HS 28R
     Runway 33
-      RW At C · nearest, full length · via TE T B C · ~15,400 ft — TAXI TE T B C HS 28L RWY 33 [bold]
+      RW At C · nearest, full length · short for type · via TE T B C · ~15,400 ft — TAXI TE T B C HS 28L RWY 33 [bold]
         For Departure 33, HS 28L
         For Departure 33, CROSS 28L, HS 28R
         For Departure 33, CROSS 28L 28R

@@ -420,6 +420,50 @@ public class ClientMenuHostGroundTests
     }
 
     /// <summary>
+    /// KOAK 15/33 is about 3,400 ft long: under a B738's 7,545 ft takeoff distance, so its full-length rows are still offered
+    /// but tagged <c>short for type</c>; runway 30 (about 10,500 ft) is not, and neither is 15/33 for a C172 (984 ft).
+    /// </summary>
+    [AvaloniaFact]
+    public void GetTaxiToRunwayChoices_RunwayShorterThanTheType_TagsFullLengthShortForType()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        AircraftModel jet = GroundAircraft(Callsign, "At Parking", PositionOf(Gate25Node));
+        AircraftModel cessna = GroundAircraft(OtherCallsign, "At Parking", PositionOf(Gate25Node));
+        cessna.AircraftType = "C172";
+
+        List<TaxiToRunwayGroup> jetGroups = AllRunwayGroups(jet, Callsign);
+        List<TaxiToRunwayGroup> cessnaGroups = AllRunwayGroups(cessna, OtherCallsign);
+
+        List<TaxiRouteRow> jetShort = FullLengthRows(jetGroups, "Runway 15", "Runway 33");
+        Assert.NotEmpty(jetShort);
+        Assert.All(jetShort, r => Assert.Contains("full length · short for type", r.Reason, StringComparison.Ordinal));
+        List<TaxiRouteRow> jet30 = FullLengthRows(jetGroups, "Runway 30");
+        Assert.NotEmpty(jet30);
+        Assert.All(jet30, r => Assert.DoesNotContain("short for type", r.Reason, StringComparison.Ordinal));
+        List<TaxiRouteRow> cessnaShort = FullLengthRows(cessnaGroups, "Runway 15", "Runway 33");
+        Assert.NotEmpty(cessnaShort);
+        Assert.All(cessnaShort, r => Assert.DoesNotContain("short for type", r.Reason, StringComparison.Ordinal));
+    }
+
+    /// <summary>Every runway group <paramref name="target"/>'s Taxi to runway menu offers at KOAK, the Other runways ones included.</summary>
+    private static List<TaxiToRunwayGroup> AllRunwayGroups(AircraftModel target, string callsign)
+    {
+        MainViewModel main = OakMain(target, []);
+        main.ApplyActiveRunways(new Dictionary<string, List<string>> { ["OAK"] = ["30", "15", "33"] });
+        TaxiToRunwayMenu menu = new ClientMenuHost(main, target, new Border()).GetTaxiToRunwayChoices(callsign);
+        return [.. menu.Inline, .. menu.Other, .. menu.FindOther?.Invoke() ?? []];
+    }
+
+    /// <summary>The full-length entry rows of the groups among <paramref name="groups"/> whose title starts with one of <paramref name="titles"/>.</summary>
+    private static List<TaxiRouteRow> FullLengthRows(List<TaxiToRunwayGroup> groups, params string[] titles) =>
+        [
+            .. groups
+                .Where(g => titles.Any(t => g.Title.StartsWith(t + " ", StringComparison.Ordinal) || (g.Title == t)))
+                .SelectMany(EntryRows)
+                .Where(r => r.Reason?.Contains("full length", StringComparison.Ordinal) == true),
+        ];
+
+    /// <summary>
     /// An MD81 carries no takeoff distance in its profile, so an intersection needs half the runway ahead: from a KOAK gate
     /// W3 (about 2,900 ft of runway 12 ahead) and W2 (about 500 ft) are dropped for 12, an intersection in 12's departure
     /// half is kept.
