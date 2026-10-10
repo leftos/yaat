@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- On request, the YAAT1 operator can delete one user's uploaded speech recordings and saved restart rooms in a single step.
+
+### Changed
+
+- YAAT1 now deletes opt-in speech recordings after 12 months, restart snapshots once restored (7 days at most), and server log lines after 90 days.
+
 ## v0.16.1-beta [2026/10/10]
 
 ### Changed

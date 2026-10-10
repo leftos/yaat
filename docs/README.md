@@ -39,6 +39,7 @@
 | Writing a deterministic screenshot scene (GuideCapture) | [`guide-capture.md`](./guide-capture.md) |
 | Setting up CRC against a local server (profile, connect, FPE) | [`crc-first-session.md`](./crc-first-session.md) |
 | vEDST sign-in: enabling it on a server, connecting a vEDST checkout | [`vedst-sign-in.md`](./vedst-sign-in.md) |
+| What data YAAT collects, keeps and deletes (privacy) | [`data-handling.md`](./data-handling.md) |
 | Tests | [`test-map.md`](./test-map.md) (which class of test pins what, and where a new one goes), [`test-harness.md`](./test-harness.md), [`e2e-tdd-issue-debugging.md`](./e2e-tdd-issue-debugging.md), [`test-suite-speed.md`](./test-suite-speed.md) |
 
 The table above is a quick index, not the full list — **[`../CLAUDE.md`](../CLAUDE.md) holds the complete, authoritative subsystem-references table.** When in doubt, consult it.

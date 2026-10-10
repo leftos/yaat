@@ -5,7 +5,7 @@ YAAT can preserve active training rooms across a **planned** server process rest
 ## Operator flow
 
 1. Authenticate as admin on the training hub (`AdminAuthenticate`).
-2. Call `AdminPrepareRestart(drainSeconds)` — broadcasts `ServerRestarting` to all lobby clients, pauses every loaded scenario, waits for the drain window, then writes one ZIP checkpoint per room with an active scenario into `<SessionCheckpointPath>/current/` (default root: `%LOCALAPPDATA%/yaat/session-checkpoints/`). Staging, backup, and post-restore archive directories are siblings of `current/` inside the same root.
+2. Call `AdminPrepareRestart(drainSeconds)` — broadcasts `ServerRestarting` to all lobby clients, pauses every loaded scenario, waits for the drain window, then writes one ZIP checkpoint per room with an active scenario into `<SessionCheckpointPath>/current/` (default root: `%LOCALAPPDATA%/yaat/session-checkpoints/`). The staging and backup directories of the swap are siblings of `current/` inside the same root.
 3. Wait for `ServerRestartReady` on clients (or server log: "Prepared restart").
 4. `POST /shutdown` with header `X-Yaat-Admin-Password: <password>` (or stop the process). Without a prior prepare, `/shutdown` returns 400 unless `?force=true`. Without the password header, `/shutdown` returns 401.
 5. Start the server. `SessionRestoreHostedService` reloads checkpoints (default max age 24h, `Yaat:SessionCheckpointMaxAgeHours`), recreates rooms with the **same `RoomId`**, and broadcasts `ServerRestartComplete`.
@@ -45,6 +45,15 @@ Restored rooms report **zero members** until someone reconnects. A room member i
 reclaims is retired by the paused-retirement sweep instead. `GET /admin/status` cannot tell the two cases apart, so do not
 assert that an occupied-looking room is "held open by its cleanup timer".
 
+## Checkpoint lifetime
+
+A checkpoint holds member CIDs and the room's chat, so it is kept only as long as a restart needs it ([data-handling.md](data-handling.md)):
+
+- A checkpoint that restores is deleted right after its room is rebuilt, and one skipped as stale (older than `SessionCheckpointMaxAgeHours`) is deleted when skipped. `current/` is removed once a restore empties it. There is no post-restore archive.
+- `SessionPersistenceService.SweepExpiredCheckpoints` deletes a `current/*.checkpoint.zip` whose last write is older than `SessionCheckpointRetentionDays`, any `restored-*` directory left by older builds, and `.staging-*` / `.old-*` swap directories created before the same cutoff. It touches nothing while a prepare-restart is in flight. It runs at the start of every restore (after `TryRecoverLiveCheckpointDirectory`, which gets first claim on the swap directories) and once a day from yaat-server's `DataRetentionHostedService`.
+- What the sweep leaves to its 7-day cutoff is a checkpoint the restore never consumed: an unsupported version, a room that already existed, or a restore that threw.
+- `DELETE /admin/data/{cid}` deletes every checkpoint under the root (live, staging or backup) whose manifest or room state names the CID as creator, member or vTDLS item, whole (room-state assignments are built only from members, so they are not searched). Sweep, restore, prepare-restart and erasure exclude each other under `_prepareLock`.
+
 ## Client behavior
 
 - `ServerRestarting` — banner, commands disabled, `ActiveRoomId` persisted to preferences.
@@ -55,10 +64,10 @@ assert that an occupied-looking room is "held open by its cleanup timer".
 
 | Key | Default | Meaning |
 |-----|---------|---------|
-| `SessionCheckpointPath` | `%LOCALAPPDATA%/yaat/session-checkpoints` | Checkpoint root. The runtime writes the live set to `<this>/current/`, with `.staging-*/`, `.old-*/`, and `restored-*/` as siblings inside. Safe to point at a Docker bind volume mount root — the root itself is never renamed. |
-| `SessionCheckpointMaxAgeHours` | `24` | Skip stale checkpoints on restore |
+| `SessionCheckpointPath` | `%LOCALAPPDATA%/yaat/session-checkpoints` | Checkpoint root. The runtime writes the live set to `<this>/current/`, with `.staging-*/` and `.old-*/` as siblings inside. Safe to point at a Docker bind volume mount root — the root itself is never renamed. |
+| `SessionCheckpointMaxAgeHours` | `24` | Skip (and delete) stale checkpoints on restore |
+| `SessionCheckpointRetentionDays` | `7` | Sweep any checkpoint file or swap directory older than this; at least 1, checked at startup |
 | `PrepareRestartDrainSeconds` | `30` | Default drain when hub arg is `0` |
-| `SessionCheckpointArchiveKeepCount` | `3` | Retained `restored-*` dirs after restore |
 
 ## CRC
 

@@ -136,7 +136,17 @@ Read these files first before speculating about a runtime error:
   honors the `YAAT_APPDATA_DIR` env override (`YaatPaths.cs:23-36`) — so a test or sandbox can redirect it without touching your real profile.
 - **Server**: `yaat-server.log` at `AppContext.BaseDirectory` (`ServerApp.cs:54`), which in a Debug build resolves to
   `src/Yaat.Server/bin/Debug/net10.0/yaat-server.log` relative to the yaat-server repo root. The server logs the resolved path at startup
-  (`ServerApp.cs:130`).
+  (`ServerApp.cs:130`). In the container `Yaat:LogPath` puts it on the `yaat-logs` volume instead.
+
+### Server log retention
+
+Server log lines carry CIDs, and a refused CRC socket's IP, so no line is kept past `Yaat:LogRetentionDays` (default 90, at least 3) ([data-handling.md](data-handling.md)):
+
+- `RollingLogWriter` rolls the live file to `yaat-server.log.1` (older generations shift up; there is no fixed count, and gaps left by pruning are tolerated) at process start, past 50 MB, and at the first write after a UTC day change, so no rolled file spans more than one UTC day.
+- After every roll it deletes rolled files last written more than `retention - 2 days` ago (one day for the span of a file, one for the daily pass's phase), then the oldest while the rolled set exceeds 450 MB. Each delete is tried on its own, so one locked file does not keep the rest. Age is the file's last-write time: copy the volume with times preserved.
+- yaat-server's `DataRetentionHostedService` calls `FileLoggerProvider.EnforceRetention()` once a day, so a server that writes nothing still rolls and prunes.
+- A roll that fails (a handle blocking the move, on Windows) is retried on the next write or daily pass, and the live file keeps the date it was opened on; if it would outlive the retention that way, it is truncated.
+- When `Yaat:LogPath` is set (the container), the console provider is filtered to Critical: Docker's json-file stdout stream has no age limit, so `docker compose logs` must not hold the lines the cap covers. The file on the volume is the log; `tools/fetch-server-logs.ps1 -Files` fetches it.
 
 ## Seeing logs in tests
 

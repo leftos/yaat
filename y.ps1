@@ -39,9 +39,8 @@
                       wait for /api/version to come back up.
       ckpt            `ckpt ls` -- list checkpoints under the checkpoint dir.
                       `ckpt show [roomId]` -- dump manifest.json for one or
-                      all checkpoints. `ckpt clean [-IncludeRestored]` -- rm
-                      the checkpoint dir (and optionally the restored
-                      archives under session-checkpoints-restored-*).
+                      all checkpoints. `ckpt clean` -- rm the checkpoint
+                      dir.
       claude          Start Claude Code in this checkout with the matching
                       yaat-server checkout added via --add-dir: the sibling
                       yaat-server (main checkout or worktree pair), else the
@@ -61,7 +60,7 @@
     .\y.ps1 status
     .\y.ps1 ckpt ls
     .\y.ps1 ckpt show
-    .\y.ps1 ckpt clean -IncludeRestored
+    .\y.ps1 ckpt clean
     .\y.ps1 logs server -Follow
     .\y.ps1 deploy -SkipSessionSave
     .\y.ps1 claude --continue
@@ -256,7 +255,7 @@ Session persistence
   restart-loop    [-Drain N] [-Url <url>] [-Password <pw>] [-Timeout N]
   ckpt ls
   ckpt show [<roomId>]
-  ckpt clean [-IncludeRestored]
+  ckpt clean
 
 Defaults
   URL:        http://localhost:5000 (override with -Url <url>)
@@ -485,7 +484,7 @@ function Invoke-Status {
 
     if ($remote) {
         Write-Section "Remote droplet ($script:RemoteServerHost)"
-        Write-Host "  Checkpoint dir / restored archives live on the droplet's named volume" -ForegroundColor Gray
+        Write-Host "  Checkpoints live on the droplet's named volume" -ForegroundColor Gray
         Write-Host "  ($script:RemoteServerPath, yaat-session-checkpoints docker volume) -- not inspectable from here." -ForegroundColor Gray
         Write-Host "  Use `.\y.ps1 logs server -Remote -Follow` to watch the deploy/restore log live." -ForegroundColor Gray
         return
@@ -502,21 +501,6 @@ function Invoke-Status {
         }
     } else {
         Write-Host '  (does not exist yet)' -ForegroundColor Gray
-    }
-
-    $parent = Split-Path $ckptDir -Parent
-    if (Test-Path $parent) {
-        $archives = @(Get-ChildItem $parent -Filter 'session-checkpoints-restored-*' -Directory -ErrorAction SilentlyContinue |
-            Sort-Object CreationTimeUtc -Descending)
-        Write-Section 'Restored archives'
-        if ($archives.Count -eq 0) {
-            Write-Host '  (none)' -ForegroundColor Gray
-        } else {
-            foreach ($a in $archives) {
-                $count = @(Get-ChildItem $a.FullName -Filter '*.checkpoint.zip' -ErrorAction SilentlyContinue).Count
-                Write-Host ("  {0}  ({1} ckpt)" -f $a.Name, $count)
-            }
-        }
     }
 }
 
@@ -658,7 +642,7 @@ function Show-CheckpointManifest {
 
 function Invoke-Ckpt {
     if ($script:Rest.Count -lt 1) {
-        Write-Error 'Usage: y.ps1 ckpt ls | show [roomId] | clean [-IncludeRestored]'
+        Write-Error 'Usage: y.ps1 ckpt ls | show [roomId] | clean'
         exit 2
     }
     $op = $script:Rest[0]
@@ -694,22 +678,11 @@ function Invoke-Ckpt {
             foreach ($z in $zips) { Show-CheckpointManifest -ZipPath $z.FullName }
         }
         'clean' {
-            $includeRestored = $script:Rest -contains '-IncludeRestored'
             if (Test-Path $ckptDir) {
                 Write-Host "Removing $ckptDir" -ForegroundColor Yellow
                 Remove-Item -Path $ckptDir -Recurse -Force
             } else {
                 Write-Host "Nothing to remove at $ckptDir" -ForegroundColor Gray
-            }
-            if ($includeRestored) {
-                $parent = Split-Path $ckptDir -Parent
-                if (Test-Path $parent) {
-                    $archives = @(Get-ChildItem $parent -Filter 'session-checkpoints-restored-*' -Directory -ErrorAction SilentlyContinue)
-                    foreach ($a in $archives) {
-                        Write-Host "Removing $($a.FullName)" -ForegroundColor Yellow
-                        Remove-Item -Path $a.FullName -Recurse -Force
-                    }
-                }
             }
         }
         default {

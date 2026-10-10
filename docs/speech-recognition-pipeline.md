@@ -431,6 +431,7 @@ Sample capture (`SpeechSampleStore`, `%LOCALAPPDATA%/yaat/speech-samples/<id>/au
   - It caps each CID at 300 samples / 150 MB per UTC day, answering 429 beyond that.
   - It rejects anything that isn't a zip whose `manifest.json` lists well-formed sample ids with their audio and session entries.
   - It writes atomically, storing the upload at `<TelemetryPath>/speech/<yyyy-MM-dd>/<cid>-<HHmmss>-<guid>.zip`, on the Docker volume `yaat-telemetry`. Developers pull the uploads with the admin routes `GET /admin/telemetry/speech[?since=]` and `GET /admin/telemetry/speech/{date}/{file}` (header `X-Yaat-Admin-Password`), through `tools/speech_telemetry.py`.
+  - Uploads are kept for `Yaat:SpeechTelemetryRetentionMonths` (default 12): yaat-server's `DataRetentionHostedService` runs `SpeechTelemetryRetention.SweepExpired` at startup and daily, deleting each date folder older than that whole. `DELETE /admin/data/{cid}` deletes one CID's uploads on request ([data-handling.md](data-handling.md)). Pull what you want to keep before it ages out.
 
 #### Reviewing telemetry
 
