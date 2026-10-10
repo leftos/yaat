@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- Quick-command icons are larger in the right-click menu and drawn brighter on darker buttons, in menus and Settings alike.
+
 ## v0.16.0-beta [2026/10/09]
 
 ### Highlights

@@ -118,7 +118,7 @@
             VerticalAlignment="Top"
             Padding="6"
             CornerRadius="4"
-            Background="#1B2129"
+            Background="#2B2B2B"
             Margin="0,0,8,0"
           />
           <WrapPanel x:Name="PreviewTextEntries" VerticalAlignment="Top" />

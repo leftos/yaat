@@ -6,7 +6,6 @@ using Avalonia.Controls;
 using Avalonia.Data.Converters;
 using Avalonia.Input;
 using Avalonia.Interactivity;
-using Avalonia.Media.Immutable;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Yaat.Client.ContextMenus;
@@ -25,8 +24,6 @@ public partial class QuickCommandsSection : UserControl
 
     // How far the pointer moves from the press before a drag shows its drop line and counts as a move.
     private const double DragThreshold = 4;
-
-    private static readonly ImmutableSolidColorBrush PreviewCellBrush = new(0xFF2A3340);
 
     private readonly ObservableCollection<object> _entryItems = [];
     private readonly List<QuickCommandEntryRow> _watchedRows = [];
@@ -181,7 +178,7 @@ public partial class QuickCommandsSection : UserControl
         var cell = new Border
         {
             Child = QuickCommandStrip.GlyphCell(glyph, opensSubmenu: false),
-            Background = PreviewCellBrush,
+            Background = QuickCommandStrip.WellBrush,
             CornerRadius = new CornerRadius(4),
             Tag = row.CatalogId,
         };

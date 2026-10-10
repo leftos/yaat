@@ -288,6 +288,18 @@ public class QuickCommandStripTests
     }
 
     [AvaloniaFact]
+    public void Button_AtRest_DrawsItsGlyphLargeInADarkWell()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        ContextMenu menu = OpenLaidOut(Build(Fixture("taxiing"), Host()));
+        Button holdPosition = QuickCommandStrip.Buttons(Strip(menu)).Single(b => (string)b.Tag! == MenuIds.GroundHoldPosition);
+
+        Assert.Equal(QuickCommandStrip.WellBrush.Color, BackgroundColor(holdPosition));
+        Viewbox icon = Assert.Single(holdPosition.GetVisualDescendants().OfType<Viewbox>());
+        Assert.True(icon.Width > QuickCommandStrip.GlyphIcon(QuickCommandGlyphs.For(MenuIds.GroundHoldPosition)!).Width);
+    }
+
+    [AvaloniaFact]
     public void SubmenuButton_ClickingAnotherSubmenuIcon_ReplacesTheFlyout()
     {
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());

@@ -7,6 +7,7 @@ using Avalonia.Controls.Primitives.PopupPositioning;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Media.Immutable;
 using Avalonia.Styling;
 using Microsoft.Extensions.Logging;
 using Yaat.Client.Logging;
@@ -49,6 +50,9 @@ public static class QuickCommandStrip
     /// <summary>The style class a submenu button carries while its flyout is open.</summary>
     public const string StickyClass = "sticky";
 
+    /// <summary>The style class every strip button carries, which the strip's well styles select.</summary>
+    private const string ButtonClass = "strip-button";
+
     /// <summary>How many buttons a row holds.</summary>
     public const int RowLength = 5;
 
@@ -57,7 +61,9 @@ public static class QuickCommandStrip
 
     private const double CellSize = 40;
     private const double GlyphSize = 22;
+    private const double CellGlyphSize = 32;
     private const double GlyphViewBox = 24;
+    private const double GlyphStrokeThickness = 1.9;
     private const double Gap = 6;
     private const string NotchPath = "M6 0V6H0z";
     private const string PromptTitle = "Quick commands";
@@ -65,7 +71,13 @@ public static class QuickCommandStrip
     private const string SubmenuDetail = "opens a submenu";
     private const string ButtonPresenterPart = "PART_ContentPresenter";
     private static readonly Color NotchColor = Color.Parse("#9AA3AD");
-    private static readonly Color StickyBackground = Color.Parse("#3E5F8A");
+    private static readonly Color WellBackground = Color.Parse("#1F2226");
+    private static readonly Color WellPointerOverBackground = Color.Parse("#2C3036");
+    private static readonly Color WellPressedBackground = Color.Parse("#16181B");
+    private static readonly Color StickyBackground = Color.Parse("#24406A");
+
+    /// <summary>The dark well a strip button's glyph sits in at rest; the Settings preview draws its cells on it too.</summary>
+    public static IImmutableSolidColorBrush WellBrush { get; } = new ImmutableSolidColorBrush(WellBackground);
     private static readonly ILogger Log = AppLog.CreateLogger("QuickCommandStrip");
     private static readonly ConditionalWeakTable<MenuItem, IStripFlyoutContent> FlyoutContents = [];
 
@@ -119,7 +131,7 @@ public static class QuickCommandStrip
 
         strip.Header = new StackPanel { Spacing = Gap, Children = { label.Panel, Rows(buttons) } };
         strip.Classes.Add(StripClass);
-        strip.Styles.Add(StickyStyle());
+        strip.Styles.AddRange(ButtonStyles());
         strip.PointerExited += (_, _) => label.ShowPrompt();
         return strip;
     }
@@ -170,13 +182,17 @@ public static class QuickCommandStrip
     }
 
     /// <summary>
-    /// The square a strip button shows: <paramref name="glyph"/> centred, with the corner notch when the button opens a
-    /// submenu. The menu's buttons and the Settings preview both draw their glyphs through it.
+    /// The square a strip button shows: <paramref name="glyph"/> centred, larger than an inline glyph so it fills most of
+    /// the button, with the corner notch when the button opens a submenu. The menu's buttons and the Settings preview both
+    /// draw their glyphs through it.
     /// </summary>
     public static Grid GlyphCell(QuickCommandGlyph glyph, bool opensSubmenu)
     {
         var cell = new Grid { Width = CellSize, Height = CellSize };
-        cell.Children.Add(GlyphIcon(glyph));
+        Viewbox icon = GlyphIcon(glyph);
+        icon.Width = CellGlyphSize;
+        icon.Height = CellGlyphSize;
+        cell.Children.Add(icon);
         if (opensSubmenu)
         {
             cell.Children.Add(Notch());
@@ -186,7 +202,7 @@ public static class QuickCommandStrip
     }
 
     /// <summary>
-    /// The glyph's stroke path on its 24 px view box, scaled to the strip's glyph size and drawn in its family's colour,
+    /// The glyph's stroke path on its 24 px view box, scaled to the inline glyph size and drawn in its family's colour,
     /// mirrored and rotated about the box's centre as the glyph says (<see cref="GlyphTransform"/>). A rotated glyph's
     /// corners reach a little past the box; nothing clips them.
     /// </summary>
@@ -209,7 +225,7 @@ public static class QuickCommandStrip
                     {
                         Data = Geometry.Parse(glyph.PathData),
                         Stroke = new SolidColorBrush(FamilyColor(glyph.Family)),
-                        StrokeThickness = 1.75,
+                        StrokeThickness = GlyphStrokeThickness,
                         StrokeLineCap = PenLineCap.Round,
                         StrokeJoin = PenLineJoin.Round,
                     },
@@ -248,11 +264,11 @@ public static class QuickCommandStrip
     public static Color FamilyColor(QuickCommandGlyphFamily family) =>
         family switch
         {
-            QuickCommandGlyphFamily.Tower => Color.Parse("#E8A33D"),
-            QuickCommandGlyphFamily.Ground => Color.Parse("#4FB8A8"),
-            QuickCommandGlyphFamily.Flight => Color.Parse("#7AA7F0"),
-            QuickCommandGlyphFamily.Pattern => Color.Parse("#B98BE8"),
-            QuickCommandGlyphFamily.ScopeAndSim => Color.Parse("#AEB6C0"),
+            QuickCommandGlyphFamily.Tower => Color.Parse("#FFC062"),
+            QuickCommandGlyphFamily.Ground => Color.Parse("#6EE0CE"),
+            QuickCommandGlyphFamily.Flight => Color.Parse("#A8CAFF"),
+            QuickCommandGlyphFamily.Pattern => Color.Parse("#DDBDFF"),
+            QuickCommandGlyphFamily.ScopeAndSim => Color.Parse("#DCE2E8"),
             _ => throw new ArgumentOutOfRangeException(nameof(family), family, "Unknown quick-command glyph family."),
         };
 
@@ -282,6 +298,7 @@ public static class QuickCommandStrip
             Content = GlyphCell(item.Glyph, opensSubmenu),
             Padding = new Thickness(0),
             Tag = item.Entry.Id,
+            Classes = { ButtonClass },
         };
         ToolTip.SetTip(button, Tooltip(item.Entry, built));
         button.PointerEntered += (_, _) => label.Show(title, detail);
@@ -398,23 +415,34 @@ public static class QuickCommandStrip
     }
 
     /// <summary>
-    /// A strip button's latched look while its flyout is open: a blue background unlike the default, pointer-over and
-    /// pressed ones, set on the button template's content presenter in every one of those states so hovering or pressing
+    /// A strip button's look, set on the button template's content presenter: a dark well at rest, a lighter one under the
+    /// pointer and a darker one while pressed, so the glyph keeps its contrast in every state; and, added last so it wins,
+    /// the latched look while its flyout is open: a blue background in every one of those states, so hovering or pressing
     /// the latched button still shows it latched.
     /// </summary>
-    private static Style StickyStyle() =>
-        new(x =>
-            Selectors.Or(
-                StickyPresenter(x.OfType<Button>().Class(StickyClass)),
-                StickyPresenter(x.OfType<Button>().Class(StickyClass).Class(":pointerover")),
-                StickyPresenter(x.OfType<Button>().Class(StickyClass).Class(":pressed"))
+    private static Style[] ButtonStyles() =>
+        [
+            PresenterStyle(x => StripButton(x), WellBackground),
+            PresenterStyle(x => StripButton(x).Class(":pointerover"), WellPointerOverBackground),
+            PresenterStyle(x => StripButton(x).Class(":pressed"), WellPressedBackground),
+            new(x =>
+                Selectors.Or(
+                    Presenter(StripButton(x).Class(StickyClass)),
+                    Presenter(StripButton(x).Class(StickyClass).Class(":pointerover")),
+                    Presenter(StripButton(x).Class(StickyClass).Class(":pressed"))
+                )
             )
-        )
-        {
-            Setters = { new Setter(ContentPresenter.BackgroundProperty, new SolidColorBrush(StickyBackground)) },
-        };
+            {
+                Setters = { new Setter(ContentPresenter.BackgroundProperty, new SolidColorBrush(StickyBackground)) },
+            },
+        ];
 
-    private static Selector StickyPresenter(Selector button) => button.Template().OfType<ContentPresenter>().Name(ButtonPresenterPart);
+    private static Style PresenterStyle(Func<Selector?, Selector> button, Color background) =>
+        new(x => Presenter(button(x))) { Setters = { new Setter(ContentPresenter.BackgroundProperty, new SolidColorBrush(background)) } };
+
+    private static Selector StripButton(Selector? x) => x.OfType<Button>().Class(ButtonClass);
+
+    private static Selector Presenter(Selector button) => button.Template().OfType<ContentPresenter>().Name(ButtonPresenterPart);
 
     /// <summary>
     /// The strip's submenu flyouts, of which at most one is open. A click on a button opens its flyout beside the menu,

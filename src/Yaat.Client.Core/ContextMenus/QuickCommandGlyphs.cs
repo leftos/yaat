@@ -3,19 +3,19 @@ namespace Yaat.Client.ContextMenus;
 /// <summary>The command family a quick-command glyph is coloured by.</summary>
 public enum QuickCommandGlyphFamily
 {
-    /// <summary>Tower clearances, drawn amber (<c>#E8A33D</c>).</summary>
+    /// <summary>Tower clearances, drawn amber (<c>#FFC062</c>).</summary>
     Tower,
 
-    /// <summary>Ground movement, drawn teal (<c>#4FB8A8</c>).</summary>
+    /// <summary>Ground movement, drawn teal (<c>#6EE0CE</c>).</summary>
     Ground,
 
-    /// <summary>Flight instructions, drawn blue (<c>#7AA7F0</c>).</summary>
+    /// <summary>Flight instructions, drawn blue (<c>#A8CAFF</c>).</summary>
     Flight,
 
-    /// <summary>Traffic-pattern instructions, drawn violet (<c>#B98BE8</c>).</summary>
+    /// <summary>Traffic-pattern instructions, drawn violet (<c>#DDBDFF</c>).</summary>
     Pattern,
 
-    /// <summary>Scope and sim actions, drawn grey (<c>#AEB6C0</c>).</summary>
+    /// <summary>Scope and sim actions, drawn grey (<c>#DCE2E8</c>).</summary>
     ScopeAndSim,
 }
 
