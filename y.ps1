@@ -260,8 +260,8 @@ Session persistence
 Defaults
   URL:        http://localhost:5000 (override with -Url <url>)
   Remote:     -Remote shortcut => https://yaat1.leftos.dev for status,
-              ssh root@yaat1.leftos.dev -> docker compose logs yaat-server
-              for `logs server`.
+              ssh root@yaat1.leftos.dev -> the container's
+              /data/logs/yaat-server.log for `logs server`.
   Drain:      5 seconds (clamped server-side to [5, 300])
   Password:   -Password > $env:YAAT_ADMIN_PASSWORD > yaat/.env >
               yaat-server/.env > yaat-server appsettings.{Local,Development,*}.json
@@ -400,8 +400,9 @@ function Invoke-RemoteServerLog {
         [int]$Lines,
         [bool]$Follow
     )
-    $followFlag = if ($Follow) { '-f' } else { '' }
-    $cmd = "cd $script:RemoteServerPath && docker compose logs $followFlag --tail $Lines yaat-server"
+    # The server's stdout carries Critical lines only; the log is the file on the yaat-logs volume.
+    $followFlag = if ($Follow) { '-F' } else { '' }
+    $cmd = "cd $script:RemoteServerPath && docker compose exec -T yaat-server tail -n $Lines $followFlag /data/logs/yaat-server.log"
     # Wrap in `su - <yaatuser> -c '...'` exactly like watch-server-logs.ps1 does --
     # the docker socket is accessible via the yaat user, not root directly.
     $remote = "su - $script:RemoteYaatUser -c `"$cmd`""

@@ -13,8 +13,8 @@ $dropletUser = "root"
 $yaatUser = "yaat"
 $serverPath = "/home/yaat/yaat-server"
 
-# Build docker compose logs command (follow + initial tail)
-$logsCmd = "cd $serverPath && docker compose logs yaat-server --no-color --follow --tail $Tail"
+# Follow the server's log file (stdout carries Critical lines only); -F follows it across rolls.
+$logsCmd = "cd $serverPath && docker compose exec -T yaat-server tail -n $Tail -F /data/logs/yaat-server.log"
 
 Write-Host "Streaming logs from $dropletIp (tail=$Tail). Press Ctrl+C to stop." -ForegroundColor Cyan
 

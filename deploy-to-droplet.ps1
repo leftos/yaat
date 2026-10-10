@@ -528,17 +528,18 @@ function Test-DropletReachable {
 function Show-ServerLogs {
   Write-Host "Following server logs (Ctrl-C to detach)..." -ForegroundColor Cyan
   Write-Host ""
-  ssh "$dropletUser@$dropletIp" "su - $yaatUser -c `"cd $serverPath && docker compose --env-file $remoteEnvFile logs -f yaat-server`""
+  # The server's stdout carries Critical lines only; the log is the file on the yaat-logs volume.
+  ssh "$dropletUser@$dropletIp" "su - $yaatUser -c `"cd $serverPath && docker compose --env-file $remoteEnvFile exec -T yaat-server tail -n 200 -F /data/logs/yaat-server.log`""
 }
 
-# Poll the container logs until the server reports it is listening. Relies on a
-# freshly recreated container (deploy: up --force-recreate; reboot: same) so the
-# "Now listening on" line we match is from the new instance, not a stale one.
+# Poll the server's log file until it reports it is listening. The server rolls the
+# previous run's file at startup, so the "Now listening on" line in the live file is
+# from the new instance; stdout carries Critical lines only, so it cannot be used.
 function Wait-ServerReady {
   $retry = 0
   $maxRetries = 30
   while ($retry -lt $maxRetries) {
-    $null = ssh "$dropletUser@$dropletIp" "su - $yaatUser -c `"cd $serverPath && docker compose --env-file $remoteEnvFile logs yaat-server 2>/dev/null | grep -q 'Now listening on'`"" 2>&1
+    $null = ssh "$dropletUser@$dropletIp" "su - $yaatUser -c `"cd $serverPath && docker compose --env-file $remoteEnvFile exec -T yaat-server grep -q 'Now listening on' /data/logs/yaat-server.log 2>/dev/null`"" 2>&1
     if ($LASTEXITCODE -eq 0) {
       return $true
     }

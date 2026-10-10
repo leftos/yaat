@@ -1,9 +1,10 @@
 # Fetch yaat-server logs from the production droplet
-# Usage: .\tools\fetch-server-logs.ps1 [-Minutes 60]   # docker stdout stream (current container only)
-#        .\tools\fetch-server-logs.ps1 -Files          # persisted /data/logs generation files (survive redeploys)
+# Usage: .\tools\fetch-server-logs.ps1 [-Lines 2000]   # the live yaat-server.log (whole file when -Lines is 0)
+#        .\tools\fetch-server-logs.ps1 -Files          # every persisted /data/logs generation file
+# The server's stdout carries Critical lines only, so both modes read the log files on the yaat-logs volume.
 
 param(
-  [int]$Minutes = 0,
+  [int]$Lines = 0,
   [switch]$Files
 )
 
@@ -21,9 +22,8 @@ $outputFile = Join-Path $outputDir "yaat-server-$timestamp.log"
 New-Item -ItemType Directory -Path $outputDir -Force | Out-Null
 
 if ($Files) {
-  # The rolled log generations live on the yaat-logs volume (/data/logs), surviving container
-  # recreation — unlike `docker compose logs`, which only covers the current container. Tar them
-  # up in the container, base64 over ssh (PowerShell mangles raw binary stdout), decode + extract.
+  # The log generations live on the yaat-logs volume (/data/logs), surviving container recreation.
+  # Tar them up in the container, base64 over ssh (PowerShell mangles raw binary stdout), decode + extract.
   Write-Host "Fetching persisted log files from /data/logs..." -ForegroundColor Cyan
   $tarCmd = "cd $serverPath && docker compose exec -T yaat-server tar -C /data/logs -czf - . | base64 -w0"
   $sshCmd = "su - $yaatUser -c `"$tarCmd`""
@@ -44,14 +44,13 @@ if ($Files) {
   exit 0
 }
 
-# Build docker compose logs command
-$logsCmd = "cd $serverPath && docker compose logs yaat-server --no-color"
-if ($Minutes -gt 0) {
-  $logsCmd += " --since ${Minutes}m"
-  Write-Host "Fetching logs from last $Minutes minutes..." -ForegroundColor Cyan
+if ($Lines -gt 0) {
+  $logsCmd = "cd $serverPath && docker compose exec -T yaat-server tail -n $Lines /data/logs/yaat-server.log"
+  Write-Host "Fetching the last $Lines lines of the live log..." -ForegroundColor Cyan
 }
 else {
-  Write-Host "Fetching all available logs..." -ForegroundColor Cyan
+  $logsCmd = "cd $serverPath && docker compose exec -T yaat-server cat /data/logs/yaat-server.log"
+  Write-Host "Fetching the live log..." -ForegroundColor Cyan
 }
 
 # Check connectivity
