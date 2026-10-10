@@ -19,8 +19,9 @@ log, the last -Tail lines on the screen, the command's own exit status, the fail
 output reports a failure a failure, below-normal priority for the command, and -StopTree, which stops the processes one
 Win32_Process snapshot shows under the pid, a process whose parent has already exited being beyond it, since only a job
 holds that one. It drops the parts that need the gate's machine: the slot pools, the watchdog's stall kill and ceiling,
-its wall-time backstop, and the handling of build servers. It says so on standard error before the command starts, one
-line, `gate: <path> not found; running without slots or watchdog`, so a run with no watchdog is never read as one with.
+its wall-time backstop, the handling of build servers, and routing to the build box (it reads -Local and ignores it).
+It says it has no gate on standard error before the command starts, one line, `gate: <path> not found; running without
+slots or watchdog`, so a run with no watchdog is never read as one with.
 
 Like the gate, and for the same reason, the options are read by hand out of $args rather than declared in a param
 block: a declared block sends the bare -- of a caller's command through PowerShell's parameter binder, which reads it
@@ -31,7 +32,7 @@ in that case, and a -name:value word the binder left as -name: and value is join
 launcher forwards to and the fallback's command both getting it whole.
 
 Usage: pwsh tools/gate.ps1 -Log <path> -TimeoutSeconds <n> -Slot heavy|light|critical [-StallSeconds <n>] [-Tail <n>]
-           [-NoMarkers] -- <command> [args...]
+           [-NoMarkers] [-Local] -- <command> [args...]
        pwsh tools/gate.ps1 -StopTree <pid>
 #>
 
@@ -42,8 +43,8 @@ $ErrorActionPreference = 'Stop'
 # assignments in their parse trees.
 $markers = '^Build FAILED\.|error CS\d+|: error |Test run summary: Failed!|^\s*failed: [1-9]|gate: (TIMED OUT|STALLED|BACKSTOP)'
 $usage = @(
-    'usage: pwsh tools/gate.ps1 -Log <path> -TimeoutSeconds <n> -Slot heavy|light|critical [-StallSeconds <n>] [-Tail <n>] [-NoMarkers] ' +
-    '-- <command> [args...]'
+    'usage: pwsh tools/gate.ps1 -Log <path> -TimeoutSeconds <n> -Slot heavy|light|critical [-StallSeconds <n>] [-Tail <n>] ' +
+    '[-NoMarkers] [-Local] -- <command> [args...]'
     '       pwsh tools/gate.ps1 -StopTree <pid>'
 )
 # The priority classes the fallback lowers for the command: a gate already at below normal or idle is left as it is.
@@ -141,8 +142,8 @@ function Read-Option {
         $value = $name.Substring($colon + 1)
         $name = $name.Substring(0, $colon)
     }
-    if ($name -eq 'NoMarkers') {
-        $Options['NoMarkers'] = $true
+    if ($name -in 'NoMarkers', 'Local') {
+        $Options[$name] = $true
         return 1
     }
     if (-not $Options.ContainsKey($name)) {
@@ -186,7 +187,7 @@ function Join-ColonWord {
 # why, for an option it cannot read.
 function Read-Argument {
     param([object[]]$Words)
-    $options = @{ Log = ''; TimeoutSeconds = ''; Slot = ''; StallSeconds = '120'; Tail = '20'; NoMarkers = $false }
+    $options = @{ Log = ''; TimeoutSeconds = ''; Slot = ''; StallSeconds = '120'; Tail = '20'; NoMarkers = $false; Local = $false }
     $read = 0
     while ($read -lt $Words.Count) {
         $word = [string]$Words[$read]
