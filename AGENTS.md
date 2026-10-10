@@ -31,7 +31,7 @@ Do not move or fork those sources casually. When a Claude-only feature has no Co
 
 - Claude skills that are format-compatible are linked into Codex by `tools/setup-codex.ps1`.
 - Claude agents do not map to user-defined Codex subagents in this environment. Read the agent prompt directly and follow it inline: `.claude/agents/aviation-sim-expert.md`, `.claude/agents/csharp-reviewer.md`, `.claude/agents/architecture-updater.md`.
-- Claude slash commands do not map directly. Read the command file directly and follow it inline: `.claude/commands/prepare-release.md`.
+- Claude slash commands do not map directly. Read the command file directly and follow it inline: `.claude/skills/prepare-release/SKILL.md`.
 - Claude hooks are not linked into Codex. Their behavior is restated here and checked by `tools/setup-codex.ps1`.
 
 ## Mandatory Aviation Review

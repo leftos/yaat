@@ -705,7 +705,7 @@ A JSON file under `src/Yaat.Sim/Data/ARTCCs/{ARTCC}/` that adds facility rules b
 ## Releases
 
 **Feature showcase**:
-A Markdown page with one short section and one screenshot per major feature a release introduces or reworks (`docs/releases/whats-new-next.md`, renamed `whats-new-<version>.md` at the cut). Every release ships one; `prepare-release` Step 5d checks it.
+A Markdown page with one short section and one screenshot per major feature a release introduces or reworks (`docs/releases/whats-new-next.md`, renamed `whats-new-<version>.md` at the cut). Every release ships one; `prepare-release` step 2.11 checks it.
 
 **Reel release**:
 The Linear release `vNext reels` in the yaat pipeline, holding the sizzle reels for what `vNext` ships. It never fences work and never blocks a cut; at the cut it is renamed `<version> reels` and a fresh one opens.

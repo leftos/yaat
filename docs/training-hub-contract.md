@@ -290,7 +290,7 @@ payload DTO → the `ServerConnection` C# event it re-raises:
 
   `LoadScenarioResult` carries the room's active runways as loaded (`ActiveRunways`), the implied guess that pre-fills the mentor's prompt (`ActiveRunwaysPrefill`) and `ActiveRunwaysPromptNeeded`, true only in an RPO room whose scenario has no sidecar and no carried answer.
 
-  `ActiveRunwaysAssigned` (airport → `RunwayUseCountsDto(Departures, Arrivals, GeneratorArrivalRunways)`, from `ScenarioRunwayUse.CountAssigned`) says what the scenario already decides about runways: how many of its loaded aircraft (immediate and delayed) already have a runway, once each at that runway's airport (the spawn runway, else the expected approach, else the first runway-bearing preset command, read without dispatching), as departures when they start on the ground and arrivals when airborne, and, at the primary airport, the runway designators its arrival generators feed.
+  `ActiveRunwaysAssigned` (airport → `RunwayUseCountsDto(Departures, Arrivals, GeneratorArrivalRunways)`, from `ScenarioRunwayUse.CountAssigned`) says what the scenario already decides about runways: how many of its loaded aircraft (immediate and delayed) already have a runway, once each at that runway's airport, as departures when they start on the ground and arrivals when airborne. An aircraft's runway is its spawn runway, else its expected approach, else its first runway-bearing preset command, read without dispatching. At the primary airport it also lists the runway designators the scenario's arrival generators feed.
 
   An airport with neither is absent; it is empty on a failed load. All four, and `RoomStateDto.ActiveRunways`, are required members on the server and on the client.
 
@@ -349,8 +349,7 @@ ignored. Every failure path **fails open** — unreachable server, malformed bod
 server predating the endpoint (whose catch-all returns `[]`) all yield "no objection". A false block leaves
 a user with no way forward, whereas a genuinely incompatible server still fails the connection on its own.
 
-Bumping the gate is release work, not day-to-day work: `Recommended` moves every release, `Minimum` only
-when a cycle breaks older clients. See `.claude/commands/prepare-release.md` Step 3a.
+Bumping the gate is release work, not day-to-day work: `Recommended` moves every release, `Minimum` only when a cycle breaks older clients. See `.claude/skills/prepare-release/SKILL.md` step 2.6.
 
 ## Room membership
 
@@ -562,7 +561,9 @@ extend the resolver to depend on a new input, fingerprint that input too.
   Both go null when the turn-about leg completes with nothing else on the DTO changing (the `TaxiRoute` string is the same), so each has its own fingerprint slot (`TrainingDtoFingerprint.TaxiTurnAboutShape`, `TaxiTurnAboutTargetNodeId`).
 
   The client parses the name into `AircraftModel.TaxiTurnAboutShape` (an unknown name logs a warning and reads as `None`) and carries `AircraftModel.TaxiTurnAboutTargetNodeId`; the ground overlay draws exactly the sent shape from the sent node ([ground-rendering.md](ground-rendering.md)).
-- `StandDeparture` (a string, `null` by default, the last `AircraftStateDto` / `AircraftDto` field) is how the aircraft leaves the stand it is parked on, by `StandDeparture` name: `"PushBack"`, `"TaxiOut"` or `"Either"` (a tug push and a taxi-out are both normal), from `ParkedStandDeparture.Of(ac, ac.Ground.Layout)` ([ground/pushback.md](ground/pushback.md), "Stand departure"). It is null when the aircraft is not in `AtParkingPhase`, or its parking spot names no parking stand or helipad of its layout.
+- `StandDeparture` (a string, `null` by default, the last `AircraftStateDto` / `AircraftDto` field) is how the aircraft leaves the stand it is parked on, by `StandDeparture` name: `"PushBack"`, `"TaxiOut"` or `"Either"` (a tug push and a taxi-out are both normal), from `ParkedStandDeparture.Of(ac, ac.Ground.Layout)` ([ground/pushback.md](ground/pushback.md), "Stand departure").
+
+  It is null when the aircraft is not in `AtParkingPhase`, or its parking spot names no parking stand or helipad of its layout.
 
   Like `AsdexFix` it is a derived field fingerprinted by its inputs rather than its value, so `CaptureTrainingDto` never computes it per tick: the phase name and `ParkingSpot` are already fingerprinted, the airport sidecars are fixed for the process, and the layout's identity has its own slot (`TrainingDtoFingerprint.GroundLayoutAirportId`).
 

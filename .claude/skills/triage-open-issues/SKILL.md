@@ -33,7 +33,7 @@ Apply the first row that matches:
 |---|---|---|
 | `planned` | `plan-refs.txt` cites `#N` from a live plan line (not a folder-map row) | the pointer already exists; re-read it against `new-comments.md` (below) |
 | `pr-linked` | `issues.tsv` shows a linked PR, or an open PR title carries `(#N)` | one Backlog line naming every PR↔issue pair, routed to the `land-bot-pr` skill; the issue's own scope notes are not plan items |
-| `probably-fixed` | `refs.txt` cites `#N`, or a bullet in `changelog-unreleased.md` satisfies the body's ask (the matching rules are `prepare-release` step 6d: read the body, a partial fix is not a fix) | none; report the evidence. Closing belongs to `prepare-release` step 6d after the release ships |
+| `probably-fixed` | `refs.txt` cites `#N`, or a bullet in `changelog-unreleased.md` satisfies the body's ask (the matching rules are `prepare-release` step 2.9: read the body, a partial fix is not a fix) | none; report the evidence. Closing belongs to `prepare-release` step 8.3 after the release ships |
 | `open` | everything else | place it (Step 3) |
 
 **A `planned` issue is re-read, never skipped.** For every issue `new-comments.md` shows activity on,
