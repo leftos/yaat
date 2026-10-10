@@ -4,12 +4,12 @@
 
 ## Do first
 
-- [ ] YAAT-266 Tower Cab 3D joins a YAAT room without CRC and shows in Room Members · release vNext — High · Wave 6 — Strips, TDLS, air-taxi and hub
+- [/] YAAT-266 Tower Cab 3D joins a YAAT room without CRC and shows in Room Members · release vNext — High · Tower Cab room attach (feat/towercab-room-attach)
 
 ## Bug reports and feature requests
 
 - [ ] YAAT-576 OAK ramp: TAXI routes through an occupied stand's parking node and deadlocks against the parked aircraft · release vNext
-- [ ] YAAT-575 Let RES pre-clear an upcoming taxiway hold short (CROSS stays for runways) · release vNext
+- [/] YAAT-575 Let RES pre-clear an upcoming taxiway hold short (CROSS stays for runways) · release vNext
 - [/] YAAT-279 Sizzle reel: the release's new and reworked UI and UX · release v0.16.0-beta reels
 - [/] YAAT-7 Record the FOLLOW video montage (release cut and review reel) · release v0.16.0-beta reels
   - [ ] YAAT-239 Short edited montage sampler of the clips so far, for presentation feedback · release v0.16.0-beta reels
@@ -21,9 +21,8 @@
 - [ ] YAAT-284 FOLLOW gets no pilot readback in solo; late 'traffic in sight' in clip C2 · release vNext
 - [ ] YAAT-288 Find what gave an automation-mode client the keyboard foreground for 3.5 s (YAAT-282 leftover) · release vNext
 - [ ] YAAT-403 Support for vTBFM · release vNext
-  - [!] YAAT-412 vTBFM: meter on the feed's clock (contributed PR) · release vNext
-  - [/] YAAT-413 Integration and smoke test a YAAT-fed vTBFM, then write the setup steps · release vNext
-  - [!] YAAT-538 List the rooms a feed consumer's user may see (ARTCC-filtered, authenticated) · release vNext
+  - [/] YAAT-538 List the rooms a feed consumer's user may see (ARTCC-filtered, authenticated) · release vNext
+    - [ ] YAAT-585 vTBFM: list and pick a YAAT room with the user's VATSIM token (contributed PR) · release vNext
   - [!] YAAT-539 vTBFM: follow each user's chosen YAAT room (contributed PR) · release vNext+1
 
 ## Context-menu quick commands (#471)
@@ -38,6 +37,7 @@
 - [ ] YAAT-524 CTO 360 still parses as heading 360: remove or implement the CTO 360 overload · release vNext
 - [ ] YAAT-545 Close the gap the quick-command label row leaves above the icon strip · release vNext
 - [ ] YAAT-569 Give every quick command a designed flyout instead of a nested context submenu · release vNext
+- [ ] YAAT-581 Offer RES in the context menu for a HOLD-ed taxiing aircraft
 
 ## Tick-path unification
 
@@ -135,6 +135,7 @@
 - [ ] YAAT-513 Fly the acute runway turn-off onto J along its fillet, and bound exit-test turn rate
 - [ ] YAAT-532 AI Ground never pushes an aircraft parked at a push-back stand; it taxis it forward · release vNext
 - [ ] YAAT-578 Warn when a plain `PUSH {taxiway}` path fouls a parked neighbour · release vNext
+- [ ] YAAT-583 Restore the junction target when a hold short ahead is cleared mid-taxi
 
 ## Wave 2 — Ground command grammar and dispatch
 
@@ -156,6 +157,9 @@
 - [ ] YAAT-337 Solo release auto-takeoff depends on the release request object surviving the jitter window
 - [ ] YAAT-427 Split GroundCommandHandler's TryTaxiCore and ResolveTaxiRouteFrom under the 100-line limit
 - [ ] YAAT-577 FOLLOWG behind a departing lead holds as a crossing of '30/12', not a departure hold · release vNext
+- [ ] YAAT-582 Bare CROSS clears the next bar in route order and re-aims the segment
+- [ ] YAAT-584 Decide and honour HS to a FOLLOWG follower (it never stops at a taxiway bar)
+- [ ] YAAT-586 Make RES/CROSS with CROSS and HS lists atomic when an HS target fails
 
 ## Wave 3 — Ground routing, pathfinder and their docs
 
@@ -292,6 +296,8 @@
 - [ ] YAAT-555 Add ck hybrid_search's threshold caveat to aviation-sim-expert and CLAUDE.md
 - [ ] YAAT-558 Stop QuickCommandsSection_DragReordersARow flaking under load
 - [ ] YAAT-559 Add every vNAS training airport with a real ground layout to the test data
+- [ ] YAAT-579 Write yaat's agent overlays (docs/agents/implementer.md and siblings)
+- [ ] YAAT-580 Move yaat-server CLAUDE.md's architecture narrative into its docs
 
 ## Singles
 
