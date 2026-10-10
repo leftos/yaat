@@ -377,6 +377,7 @@
 
 ## Backlog
 
+- [ ] YAAT-595 RoomCheckpointArchive.Open(path) leaks its file handle on a non-zip checkpoint
 - [ ] YAAT-196 Draw the server's remaining line-up instead of re-planning it (Ground View)
 - [ ] YAAT-197 Confirm which vNAS position entities go over UDP before moving any
 - [ ] YAAT-198 Accept a Mode C Intruder ID in ERAM QN
