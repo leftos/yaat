@@ -42,8 +42,6 @@ Caddy's access log is off. The live-traffic (SWIM) raw log holds real-world airc
 
 `DELETE /admin/data/{cid}` with the `X-Yaat-Admin-Password` header deletes that CID's speech uploads and every room checkpoint that names it (as creator, member or vTDLS item), and returns a JSON report of what it removed. It answers 409, deleting nothing, while a prepare-restart or checkpoint restore is running, and 500 with the same report when a checkpoint could not be read or a delete was refused (`CheckpointsUnreadable`, `DeleteFailures`): retry, or remove those files by hand. Rooms still running in memory are not touched; one that names the CID writes it into a new checkpoint at the next planned restart, so run the erasure again after it. A checkpoint's action and terminal logs are not searched: someone who left the room before it was saved appears there only by initials, and goes when the checkpoint does, within 7 days. A checkpoint is deleted whole, so the other members' copy of that room goes too; with a 7-day lifetime that costs at most one planned-restart restore.
 
-```bash
-curl -X DELETE -H "X-Yaat-Admin-Password: $YAAT_ADMIN_PASSWORD" https://yaat1.leftos.dev/admin/data/1234567
-```
+From the yaat repo root, `pwsh tools/erase-user-data.ps1 -Cid 1234567` (`-Target` picks another deployment from `deploy-targets.ps1`) calls the route with `ADMIN_PASSWORD` from `.env.<target>` or `.env`, the same file `deploy-to-droplet.ps1` reads, and prints the report. It exits 0 when erased, 1 on a 409 (retry shortly), 2 when the erasure was incomplete, and 3 on any other failure.
 
 Log lines are not rewritten: they age out under the 90-day cap. Tokens expire on their own (30 days at most). Data on the user's own machine is theirs to delete (`%LOCALAPPDATA%/yaat/`; Settings → "Delete all saved samples" clears local speech samples).
