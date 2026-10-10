@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## v0.16.0-beta [2026/10/09]
+
+### Highlights
+- Right-click menus lead with quick-command icons for the situation; their choices open beside the menu: Taxi to runway, Push back to, Cleared for takeoff, pattern-entry runways, exits ahead and smarter pickers.
+- Settings is a searchable sidebar with OK, Apply and Cancel; Tools › Import / Export saves or loads every setting in one file, and the View menu groups windows, bars and layouts.
+- Active runways: `ARWY` sets them for the room, a mentor is asked for them when loading a scenario, and Scenario › Active Runways… shows them.
+- Solo departures call clearance delivery for their clearance, and IFR departures at untowered fields ask a radar student for release.
 
 ### Added
 
