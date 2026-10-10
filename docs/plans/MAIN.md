@@ -459,3 +459,8 @@
 - [ ] YAAT-565 Send the full ICAO aircraft string in the room datafeed's flight_plan.aircraft
 - [ ] YAAT-566 Register the app's fonts in the headless UI test app so menu geometry matches the client
 - [ ] YAAT-568 Client driver: find_elements fails on a deep open flyout (object cycle / depth over 64)
+
+## No project
+
+- [ ] YAAT-588 Teach prepare-release the vHotfix tag-branch hotfix path · release vNext
+- [ ] YAAT-589 Make four GuideCapture scenes deterministic (terminal order, nav status, radar jitter)
