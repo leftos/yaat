@@ -1,0 +1,423 @@
+<meta charset="utf-8">
+<title>Ladder and Scope Previews</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+<style>
+  /* Layout: an answer sheet, then one section per open decision; each section is two or three lanes (A, B, C) of rendered flyout + scope states with a one-line caption. */
+  :root {
+    --bg: #eceff2; --panel: #ffffff; --ink: #15181c; --muted: #58616c; --line: #d3d8de;
+    --accent: #2c5fa6; --tag-a: #1f7f71; --tag-b: #7a4fbf; --tag-c: #a8326b; --warn: #a3520a;
+    --f-display: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
+    --f-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+    --f-mono: "IBM Plex Mono", Consolas, monospace;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0e1013; --panel: #171a1f; --ink: #e5e8ec; --muted: #9aa3ae; --line: #2b3038;
+      --accent: #8fc1ff; --tag-a: #5fd0bf; --tag-b: #c4a3ff; --tag-c: #ff8fc0; --warn: #ffb259;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0e1013; --panel: #171a1f; --ink: #e5e8ec; --muted: #9aa3ae; --line: #2b3038;
+    --accent: #8fc1ff; --tag-a: #5fd0bf; --tag-b: #c4a3ff; --tag-c: #ff8fc0; --warn: #ffb259;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html, body { overflow-x: hidden; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.5 var(--f-body); }
+  .wrap { max-width: 1720px; margin: 0 auto; padding-inline: 16px; padding-block: 28px 64px; }
+  .eyebrow { font: 500 11px var(--f-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+  h1 { font: 600 30px/1.15 var(--f-display); margin: 0 0 8px; text-wrap: balance; letter-spacing: -.01em; }
+  .lede { max-width: 82ch; color: var(--muted); margin: 0 0 6px; }
+  .lede b { color: var(--ink); font-weight: 600; }
+  code { font: 12px var(--f-mono); color: var(--accent); }
+
+  /* Answer sheet. */
+  .sheet { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; margin: 18px 0 24px;
+           display: flex; flex-wrap: wrap; gap: 10px 22px; align-items: center; }
+  .sheet .lbl { font: 500 11px var(--f-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+  .sheet .ans { font: 500 16px var(--f-mono); color: var(--ink); font-variant-numeric: tabular-nums; }
+  .sheet nav { display: flex; flex-wrap: wrap; gap: 6px; flex: 1 1 100%; }
+  .sheet nav a { font: 500 12px var(--f-mono); color: var(--ink); text-decoration: none; border: 1px solid var(--line); border-radius: 4px; padding: 3px 9px; }
+  .sheet nav a:hover, .sheet nav a:focus-visible { border-color: var(--accent); outline: none; }
+  .btn { font: 500 13px var(--f-body); color: var(--ink); background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 5px 12px; cursor: pointer; }
+  .btn:hover { border-color: var(--accent); }
+  .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+  /* Sections. */
+  .art { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 18px; margin-bottom: 28px; scroll-margin-top: 12px; }
+  .art-meta { margin-bottom: 14px; }
+  .art-meta h2 { font: 600 22px/1.2 var(--f-display); margin: 0 0 6px; text-wrap: balance; }
+  .art-meta h2 .num { color: var(--muted); margin-right: 6px; }
+  .art-meta p { margin: 0 0 6px; max-width: 88ch; color: var(--muted); }
+  .art-meta p b { color: var(--ink); font-weight: 600; }
+  .lanes { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); gap: 16px; align-items: start; }
+  .lane { min-width: 0; display: flex; flex-direction: column; gap: 8px; border: 1px solid transparent; border-radius: 8px; padding: 8px; margin: -8px; }
+  .lane.picked { border-color: var(--accent); }
+  .lane-h { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+  .tag { font: 600 12px var(--f-mono); letter-spacing: .06em; border: 1px solid currentColor; border-radius: 3px; padding: 0 6px; }
+  .tag.a { color: var(--tag-a); } .tag.b { color: var(--tag-b); } .tag.c { color: var(--tag-c); }
+  .lane-h h3 { font: 600 15px/1.25 var(--f-display); margin: 0; flex: 1 1 auto; min-width: 0; }
+  .pick { font: 500 11.5px var(--f-mono); color: var(--muted); background: transparent; border: 1px solid var(--line); border-radius: 4px; padding: 1px 8px; cursor: pointer; }
+  .pick[aria-pressed="true"] { color: var(--panel); background: var(--ink); border-color: var(--ink); }
+  .pick:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .cap { margin: 0; font-size: 13px; line-height: 1.45; }
+  .cap b { font: 500 11px var(--f-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin-right: 4px; }
+  .cap .worst { color: var(--warn); }
+  footer.foot { color: var(--muted); font-size: 12px; margin-top: 18px; max-width: 88ch; }
+
+  /* The app's own surfaces: YAAT runs Avalonia Fluent dark only, so these stay dark in either page theme. */
+  .stage { background: #0b0d10; border: 1px solid #22262c; border-radius: 8px; padding: 12px; overflow-x: auto; color-scheme: dark; }
+  .pair { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-start; }
+  .pair > .menu { flex: 1 1 300px; min-width: 0; }
+  .m { font: 14px/1.3 Inter, "Segoe UI", system-ui, sans-serif; color: #ffffff; }
+  .menu { background: #2c2c2c; border: 1px solid #474747; border-radius: 8px; padding: 4px; box-shadow: 0 10px 28px rgba(0, 0, 0, .55); width: 100%; max-width: 480px; }
+  .mi { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto auto; align-items: center; min-height: 32px; padding: 5px 11px; border-radius: 4px; }
+  .mi.kfocus { outline: 2px solid #8fc1ff; outline-offset: -2px; background: rgba(255, 255, 255, .085); }
+  .mi.sec { min-height: 26px; padding-top: 6px; padding-bottom: 2px; font-size: 12px; font-weight: 600; color: #cfd4da; grid-template-columns: 1fr; }
+  .mi.title { grid-template-columns: 1fr auto; min-height: 24px; padding-top: 4px; padding-bottom: 2px; font-size: 11px; letter-spacing: .02em; color: #a4adb8; }
+  .mi.title .r { font: 11px "JetBrains Mono", Consolas, monospace; color: #8c95a0; }
+  .msep { height: 1px; background: #3d3d3d; margin: 4px 2px; }
+  .bdg { border: 1px solid var(--b); color: var(--b); border-radius: 3px; padding: 0 3px; font-size: 11px; line-height: 15px; margin-right: 8px; }
+  .nm { min-width: 0; display: flex; align-items: baseline; flex-wrap: nowrap; overflow: hidden; }
+  .nm .n { white-space: nowrap; }
+  .nm.col { flex-direction: column; align-items: flex-start; }
+  .sb { font-weight: 600; }
+  .det-i { font-size: 12px; opacity: .8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  .det-s { font-size: 11px; opacity: .8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+  .det-s .faint { opacity: .6; font-style: italic; }
+  .note { font-size: 12px; opacity: .8; white-space: nowrap; }
+  .dist { padding-left: 16px; font-variant-numeric: tabular-nums; white-space: nowrap; font-size: 13px; }
+  .cmd { padding-left: 16px; font: 12px "JetBrains Mono", Consolas, monospace; opacity: .7; text-align: right; white-space: nowrap; }
+  .gly { flex: 0 0 auto; display: block; }
+  .grow > .gly { margin-right: 8px; }
+  .grow.tr { height: 44px; }
+  .mark { width: 14px; text-align: center; font-size: 10px; margin-right: 6px; }
+  .mark.mv { color: #6ee0ce; } .mark.pk { color: #8c95a0; }
+  .boxrow { display: flex; align-items: center; gap: 10px; padding: 6px 11px 4px; }
+  .tbox { font: 13px Inter, "Segoe UI", sans-serif; color: #fff; background: rgba(255, 255, 255, .06); border: 1px solid #5a5a5a; border-bottom-color: #9a9a9a;
+          border-radius: 4px; padding: 4px 8px; height: 28px; flex: 1; min-width: 0; }
+  .tbox::placeholder { color: #8f969e; }
+  .hint { font-size: 11.5px; color: #a4adb8; padding: 2px 11px 6px; }
+  .hint code { font: 11.5px "JetBrains Mono", Consolas, monospace; color: #8fc1ff; }
+
+  /* Hold-short ladder. */
+  .ladder { position: relative; padding: 2px 0; }
+  .ladder::before { content: ""; position: absolute; left: 22px; top: 18px; bottom: 18px; width: 2px; background: #3f6f68; }
+  .stop { grid-template-columns: 24px minmax(0, 1fr) auto auto; position: relative; }
+  .stop .bar { width: 22px; height: 10px; display: block; position: relative; z-index: 1; }
+  .stop.end { opacity: .5; }
+  .stop.gone > * { opacity: .38; }
+  .stop.gone .gonet { color: #ffc062; opacity: 1; }
+  .stop.me .note.em { opacity: 1; color: #ffffff; outline: 1px dashed #ffc062; outline-offset: 2px; border-radius: 2px; }
+
+  /* Scope inset. */
+  .scope { flex: 0 0 250px; max-width: 100%; background: #050607; border: 1px solid #2a2f36; border-radius: 6px; padding: 6px; }
+  .scope svg { display: block; width: 100%; height: auto; }
+  .scope .sc-cap { font: 11px/1.35 Inter, sans-serif; color: #a4adb8; padding: 4px 2px 0; }
+  .scopes { flex: 1 1 250px; display: flex; flex-wrap: wrap; gap: 10px; min-width: 0; }
+  .scopes .scope { flex: 1 1 200px; }
+
+  @media (max-width: 520px) {
+    h1 { font-size: 24px; }
+    .art { padding: 12px; }
+    .stage { padding: 8px; }
+    .cmd { font-size: 11px; padding-left: 8px; }
+    .dist { padding-left: 8px; font-size: 12px; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="wrap">
+  <div class="eyebrow">YAAT-569 part 2 · Hold short of ladder and scope previews · open decisions</div>
+  <h1>Ladder and scope previews</h1>
+  <p class="lede">The ladder (route order, the aircraft's own row on top, the destination dimmed and last), Hold short of while <b>Taxiing</b> or <b>Holding Short</b>, and the scope feedback rule (hover and keyboard focus both highlight the target and preview its path, cleared on blur and on close) are settled. Ladder distances update in place each second; a passed stop greys as <b>gone</b> and nothing re-sorts. These five choices are what that leaves open. Each lane is one option, with how it works and its worst case under it.</p>
+  <p class="lede">Answer as <b>1B, 2A, …</b>; the Pick buttons fill the sheet. Traffic and routes are illustrative KOAK-style ground traffic; taxiway geometry is schematic, not the real layout.</p>
+
+  <div class="sheet" role="group" aria-label="Answer sheet">
+    <span class="lbl">Your picks</span>
+    <span class="ans" id="ans">1– · 2– · 3– · 4– · 5–</span>
+    <button type="button" class="btn" id="copy">Copy</button>
+    <nav id="index" aria-label="Sections"></nav>
+  </div>
+
+  <div id="arts"></div>
+
+  <footer class="foot">Row templates, ladder bar marks (runway: two amber lines; taxiway: teal solid over dashed; connector line at the bar column) and the scope insets follow <code>docs/plans/canvases/quick-command-ground-states/</code> and <code>quick-command-flyouts/</code>. In the insets: blue double ring = the aircraft highlight, blue rounded box = a highlighted bar, amber ring = where the target's route meets this aircraft's, green labels = data blocks in the default data-block colour. The keyboard-focused row carries the blue outline; hover draws the same scope feedback.</footer>
+</div>
+
+<script>
+(() => {
+  "use strict";
+  const G = "#6EE0CE";
+  const PREVIEW = "rgba(80,180,255,.7)";
+  const HI = "#8fc1ff";
+  const MEET = "#ffc062";
+  const DB = "#00E600";
+  const GL = { FOL: "M4 17l5-5-5-5 M13 17l5-5-5-5", GW: "M3 5h18L12 20z" };
+  const BADGE = { TW: "#4FB8A8", RW: "#E8A33D" };
+
+  const esc = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  const ft = n => `~${n.toLocaleString("en-US")} ft`;
+  const gl = (id, size = 22) => `<svg class="gly" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="${G}" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${GL[id]}"/></svg>`;
+  const menu = (inner, label) => `<div class="menu m" role="menu" aria-label="${esc(label)}">${inner}</div>`;
+  const sep = () => `<div class="msep" role="separator"></div>`;
+  const sec = t => `<div class="mi sec">${esc(t)}</div>`;
+  const title = (t, r = "") => `<div class="mi title"><span>${esc(t)}</span><span class="r">${esc(r)}</span></div>`;
+
+  /* ---------- Flyout rows ---------- */
+  function grow(o) {
+    const name = `<span class="nm col"><span class="n sb">${o.label}</span>${o.under}</span>`;
+    return `<div class="mi grow tr${o.focus ? " kfocus" : ""}" role="menuitem" tabindex="-1">${o.lead}${name}<span class="dist">${esc(o.dist)}</span><span class="cmd">${esc(o.cmd)}</span><span></span></div>`;
+  }
+  const trafficRow = (r, verb, lead, focus, extra = "") => grow({
+    lead, focus, label: `${esc(r[0])} <span class="note" style="opacity:.75">${esc(r[1])}</span>`,
+    under: `<span class="det-s">${esc(r[2])}${extra}</span>`, dist: ft(r[3]), cmd: `${verb} ${r[0]}`,
+  });
+  const markLead = moving => `<span class="mark ${moving ? "mv" : "pk"}" aria-label="${moving ? "moving" : "parked or holding"}">${moving ? "▶" : "■"}</span>`;
+  function giveWayFly(rows, focusCs, extraFor = {}) {
+    return menu(title("Nearest first", "▶ moving  ■ parked") + rows.map(r => trafficRow([r[0], r[1], r[3], r[4]], "GW", markLead(r[2]), r[0] === focusCs, extraFor[r[0]] || "")).join(""), "Give way to flyout");
+  }
+  const folBox = () => `<div class="boxrow">${gl("FOL")}<input class="tbox" type="text" placeholder="Filter or type a callsign" aria-label="Filter or type a callsign" readonly tabindex="-1"></div><div class="hint">Enter sends the top match.</div>`;
+
+  const barMark = b => b === "RW"
+    ? `<svg class="bar" viewBox="0 0 22 10" aria-hidden="true"><rect width="22" height="10" fill="#2c2c2c"/><path d="M1 3H21 M1 7H21" stroke="#E8A33D" stroke-width="1.8"/></svg>`
+    : (b === "SPOT"
+      ? `<svg class="bar" viewBox="0 0 22 10" aria-hidden="true"><rect width="22" height="10" fill="#2c2c2c"/><circle cx="11" cy="5" r="3.6" fill="none" stroke="#4FB8A8" stroke-width="1.6"/></svg>`
+      : `<svg class="bar" viewBox="0 0 22 10" aria-hidden="true"><rect width="22" height="10" fill="#2c2c2c"/><path d="M1 3H21" stroke="#4FB8A8" stroke-width="1.8"/><path d="M1 7H21" stroke="#4FB8A8" stroke-width="1.8" stroke-dasharray="3 3"/></svg>`);
+  const meRow = (cs, note, em = false) => `<div class="mi stop me"><svg class="bar" viewBox="0 0 22 10" aria-hidden="true"><circle cx="11" cy="5" r="4.5" fill="${G}"/></svg><span class="nm"><span class="n sb">${esc(cs)}</span>&nbsp;<span class="note${em ? " em" : ""}">· ${esc(note)}</span></span><span></span><span></span></div>`;
+  const stopRow = (x, focus = false) => `<div class="mi stop${focus ? " kfocus" : ""}" role="menuitem" tabindex="-1">${barMark(x.b)}<span class="nm"><span class="bdg" style="--b:${BADGE[x.b]}">${x.b}</span><span class="n sb">${esc(x.name)}</span><span class="det-i">&nbsp;· ${esc(x.where)}</span></span><span class="dist">${ft(x.d)}</span><span class="cmd">HS ${esc(x.name)}</span></div>`;
+  const goneRow = x => `<div class="mi stop gone" role="menuitem" aria-disabled="true">${barMark(x.b)}<span class="nm"><span class="bdg" style="--b:${BADGE[x.b]}">${x.b}</span><span class="n sb">${esc(x.name)}</span><span class="det-i gonet">&nbsp;· gone</span></span><span class="dist"></span><span class="cmd">HS ${esc(x.name)}</span></div>`;
+  const endRow = e => `<div class="mi stop end" aria-disabled="true">${barMark(e.mark)}<span class="nm"><span class="n">${esc(e.name)}</span><span class="note">&nbsp;· ${esc(e.note)}</span></span><span class="dist">${ft(e.d)}</span><span></span></div>`;
+
+  /* ---------- Scope primitives (inset 250 x 165) ---------- */
+  const lbl = (x, y, t, fill = "#8c95a0", anchor = "start", size = 8) => `<text x="${x}" y="${y}" font-family="JetBrains Mono, monospace" font-size="${size}" fill="${fill}" text-anchor="${anchor}">${esc(t)}</text>`;
+  const rwy = (y, name) => `<rect x="8" y="${y - 4}" width="234" height="8" fill="#2b3036"/>${lbl(10, y - 6, name, "#6b7480")}`;
+  const twys = ds => `<g fill="none" stroke="#3a414a" stroke-width="3" stroke-linejoin="round">${ds.map(d => `<path d="${d}"/>`).join("")}</g>`;
+  const ac = (x, y, cs, own) => `<circle cx="${x}" cy="${y}" r="${own ? 4 : 3.2}" fill="${own ? G : "#d9dde2"}"/>${lbl(x + 6, y - 4, cs, own ? G : DB)}`;
+  const ring = (x, y) => `<circle cx="${x}" cy="${y}" r="8.5" fill="none" stroke="${HI}" stroke-width="1.6"/><circle cx="${x}" cy="${y}" r="12" fill="none" stroke="${HI}" stroke-width=".8" opacity=".5"/>`;
+  const hsBar = (x, y, rw) => rw
+    ? `<path d="M${x - 6} ${y - 1.5}h12 M${x - 6} ${y + 1.5}h12" stroke="#E8A33D" stroke-width="1.3"/>`
+    : `<path d="M${x - 6} ${y - 1.5}h12" stroke="#4FB8A8" stroke-width="1.3"/><path d="M${x - 6} ${y + 1.5}h12" stroke="#4FB8A8" stroke-width="1.3" stroke-dasharray="2 2"/>`;
+  const route = (d, color, w, dash = "") => `<path d="${d}" fill="none" stroke="${color}" stroke-width="${w}" stroke-linejoin="round"${dash ? ` stroke-dasharray="${dash}"` : ""}/>`;
+  const barBox = (x, y) => `<rect x="${x - 11}" y="${y - 7}" width="22" height="14" rx="3" fill="none" stroke="${HI}" stroke-width="1.6"/>`;
+  const scopeBox = (svg, cap, vb = "0 0 250 165") => `<div class="scope"><svg viewBox="${vb}" role="img" aria-label="Ground scope inset: ${esc(cap)}"><rect width="100%" height="100%" fill="#050607"/>${svg}</svg><div class="sc-cap">${esc(cap)}</div></div>`;
+
+  /** The shared field: 28R, 28L, 30 east-west; D south from the ramp, B east to W and south to 30; C crossing east-west. */
+  const OWN_ROUTE = "M60 18V70H150V143";
+  function field(extraTwys = []) {
+    let g = rwy(34, "28R") + rwy(96, "28L") + rwy(150, "30");
+    g += twys(["M60 6V70", "M60 70H226", "M150 70V146", "M14 52H230", ...extraTwys]);
+    g += lbl(64, 64, "D") + lbl(100, 66, "B") + lbl(20, 48, "C");
+    g += hsBar(60, 27, true) + hsBar(60, 46, false) + hsBar(150, 89, true) + hsBar(150, 143, true);
+    return g;
+  }
+
+  function lane(no, l) {
+    return `<section class="lane" data-lane data-sec="${no}" data-tag="${l.tag}">
+      <div class="lane-h"><span class="tag ${l.tag.toLowerCase()}">${no}${l.tag}</span><h3>${esc(l.name)}</h3><button type="button" class="pick" data-pick="${no}:${l.tag}" aria-pressed="false">Pick ${no}${l.tag}</button></div>
+      <div class="stage">${l.body}</div>
+      <p class="cap"><b>How</b>${l.how} <b>Worst case</b><span class="worst">${l.worst}</span></p>
+    </section>`;
+  }
+
+  /* ---------- 1. Preview colours ---------- */
+  const GW_TRAFFIC = [
+    ["N52417", "C172", true, "taxiing on C", 450], ["UAL455", "A320", true, "taxiing on W", 1600],
+    ["DAL1508", "B739", false, "at parking · gate 21", 2300],
+  ];
+  function s1Scope(mode) {
+    const tgtRoute = "M34 52H60V70H226";
+    let g = field(["M150 126H240"]) + lbl(226, 122, "W");
+    if (mode === "a") {
+      g += route(OWN_ROUTE, PREVIEW, 2.4) + route(tgtRoute, PREVIEW, 2.4);
+      g += `<circle cx="60" cy="52" r="4" fill="none" stroke="${PREVIEW}" stroke-width="1.6"/>${lbl(66, 44, "meets your route", HI)}`;
+    } else {
+      g += route(OWN_ROUTE, PREVIEW, 2.4) + route(tgtRoute, mode === "b" ? HI : DB, 2.2, "5 3");
+      g += `<circle cx="60" cy="52" r="4" fill="none" stroke="${MEET}" stroke-width="1.6"/>${lbl(66, 44, "meets your route", MEET)}`;
+    }
+    g += ac(60, 14, "SWA1234", true) + ac(30, 52, "N52417") + ac(200, 126, "UAL455") + ac(226, 14, "DAL1508") + ring(30, 52);
+    const cap = { a: "Every mark in one blue: SWA1234's route, N52417's route and the meet point.", b: "SWA1234's route solid, N52417's dashed, the meet point amber.", c: "N52417's route in its data-block green, SWA1234's route blue, the meet point amber." }[mode];
+    return scopeBox(g, cap);
+  }
+  function s1Lanes() {
+    const body = m => `<div class="pair">${giveWayFly(GW_TRAFFIC, "N52417")}${s1Scope(m)}</div>`;
+    return [
+      { tag: "A", name: "One blue for every preview", body: body("a"),
+        how: "Today's PreviewRouteColor for both routes and the meet ring, in one paint slot.",
+        worst: "Where N52417's route runs along SWA1234's (D then B here) the two draw as one line, so neither whose path it is nor the meet ring can be told apart." },
+      { tag: "B", name: "Split: own solid, target dashed, meet amber", body: body("b"),
+        how: "This aircraft's route solid in today's blue, the target's dashed in the lighter highlight blue, the meet point an amber ring.",
+        worst: "On the shared stretch the dash over the solid line reads as one thick line, and the amber ring sits beside the hold-short bar where D meets C, close enough to read as part of it." },
+      { tag: "C", name: "Target's route in its data-block colour", body: body("c"),
+        how: "The target's route dashed in its own data-block colour (default green), this aircraft's route blue, the meet point amber.",
+        worst: "With the default scheme every target's route is the same green, near the pull-leg green of pushback previews; an instructor who sets data blocks blue gets blue on blue." },
+    ];
+  }
+
+  /* ---------- 2. Me row wording, holding short ---------- */
+  const S2_STOPS = { gone: { b: "TW", name: "A" }, rest: [
+    { b: "RW", name: "28R", where: "crossing on B", d: 0 }, { b: "TW", name: "W", where: "before turning onto W", d: 350 },
+    { b: "TW", name: "V", where: "crossing on W", d: 1100 },
+  ], end: { mark: "SPOT", name: "Spot 5", note: "route ends here", d: 1650 } };
+  function s2Ladder(note) {
+    const s = S2_STOPS;
+    return menu(title("Hold short of", "route B W · spot 5") + `<div class="ladder">${meRow("UAL455", note, true)}${goneRow(s.gone)}${s.rest.map((x, i) => stopRow(x, i === 1)).join("")}${endRow(s.end)}</div>`, "Hold short of flyout");
+  }
+  function s2Lanes() {
+    return [
+      { tag: "A", name: "now, holding short of 28R", body: s2Ladder("now, holding short of 28R"),
+        how: "The taxiing row's grammar with the phase's own words; the bar is named, not the taxiway it is on.",
+        worst: "On a route that crosses 28R twice, or a runway with several bars on the field, the row does not say which bar the aircraft sits at; only the 28R row under it does." },
+      { tag: "B", name: "now, holding short of 28R on B", body: s2Ladder("now, holding short of 28R on B"),
+        how: "As A plus the taxiway the aircraft sits on, matching “now, taxiing on D”.",
+        worst: "Held at a taxiway bar it reads “holding short of C on D”, two taxiway names side by side that are easy to swap, and it repeats the 28R row beneath it almost word for word." },
+      { tag: "C", name: "held at B / 28R", body: s2Ladder("held at B / 28R"),
+        how: "A compact taxiway / bar pair, without the “now,” lead.",
+        worst: "“Held” is the word for an aircraft under a Hold position directive, so a holding-short aircraft and a held one read alike; the slash form appears nowhere else in the menu." },
+    ];
+  }
+
+  /* ---------- 3. Bar at the very start of the route ---------- */
+  function s3Ladder() {
+    const stops = [{ b: "RW", name: "28R", where: "on D", d: 0 }, { b: "TW", name: "C", where: "crossing on D", d: 150 }, { b: "RW", name: "28L", where: "on B", d: 1450 }];
+    return menu(title("Hold short of", "route D B · RWY 30") + `<div class="ladder">${meRow("N123AB", "now, taxiing on D")}${stops.map((x, i) => stopRow(x, i === 0)).join("")}${endRow({ mark: "RW", name: "RWY 30", note: "route ends here", d: 2900 })}</div>`, "Hold short of flyout");
+  }
+  function s3Field(mode) {
+    let g = field() + ac(60, 22, "N123AB", true);
+    g += barBox(60, 27);
+    if (mode === "b") g += route("M60 25.5V27", PREVIEW, 2.4);
+    return scopeBox(g, mode === "a" ? "Field zoom: the bar's box covers the aircraft." : "Field zoom: the tick is under the aircraft symbol.");
+  }
+  function s3Close(mode) {
+    let g = `<rect x="0" y="80" width="250" height="26" fill="#2b3036"/>${lbl(6, 76, "28R", "#6b7480", "start", 9)}`;
+    g += `<path d="M125 0V120" fill="none" stroke="#3a414a" stroke-width="10"/>${lbl(134, 14, "D", "#8c95a0", "start", 9)}`;
+    g += `<path d="M107 67h36 M107 72h36" stroke="#E8A33D" stroke-width="2"/>`;
+    g += `<path d="M125 58l-7-12h4v-8h6v8h4z" fill="${G}"/>${lbl(136, 44, "N123AB", G, "start", 9)}`;
+    g += `<rect x="102" y="61" width="46" height="17" rx="4" fill="none" stroke="${HI}" stroke-width="1.8"/>`;
+    if (mode === "b") g += route("M125 58V66", PREVIEW, 2.6);
+    return scopeBox(g, mode === "a" ? "Zoomed in: the bar boxed, nothing between it and the nose." : "Zoomed in: the bar boxed and a tick from the nose to it.", "0 0 250 120");
+  }
+  function s3Lanes() {
+    const body = m => `<div class="pair">${s3Ladder()}<div class="scopes">${s3Field(m)}${s3Close(m)}</div></div>`;
+    return [
+      { tag: "A", name: "Ring the bar only", body: body("a"),
+        how: "The preview has no segments, so only the bar is boxed; no route line is drawn.",
+        worst: "At field zoom the bar's box sits on the aircraft symbol and looks like an aircraft highlight, which is what a Follow or Give way row draws." },
+      { tag: "B", name: "Bar plus a tick from the nose", body: body("b"),
+        how: "As A plus a short blue line from the aircraft's nose (position plus heading) to the bar, standing in for the empty route.",
+        worst: "At field zoom the tick is 2 px and hidden under the symbol; and it is drawn from the heading, so an aircraft tail-on to its bar after a pushback gets a tick through its own tail." },
+    ];
+  }
+
+  /* ---------- 4. Give way target whose route does not meet ours ---------- */
+  const S4_TRAFFIC = [
+    ["N52417", "C172", true, "taxiing on C", 450], ["UAL455", "A320", true, "taxiing on W", 1600],
+    ["DAL1508", "B739", false, "at parking · gate 21", 2300],
+  ];
+  function s4Scope(mode) {
+    let g = field(["M226 8V146"]) + lbl(230, 20, "W") + lbl(232, 122, "spot 7", "#6b7480");
+    g += `<circle cx="226" cy="118" r="2.4" fill="none" stroke="#6b7480" stroke-width="1"/>`;
+    if (mode !== "c") g += route(OWN_ROUTE, PREVIEW, 2.4) + route("M226 28V118", HI, 2.2, "5 3");
+    if (mode === "b") g += `<circle cx="226" cy="70" r="6" fill="none" stroke="${MEET}" stroke-width="1.5" stroke-dasharray="2 2"/>${lbl(220, 82, "closest", MEET, "end")}`;
+    g += ac(60, 14, "SWA1234", true) + ac(30, 52, "N52417") + ac(226, 24, "UAL455") + ring(226, 24);
+    const cap = { a: "UAL455's route drawn; it shares no node with SWA1234's, so no meet mark.", b: "UAL455's route drawn, with its node nearest SWA1234's route ringed.", c: "Only UAL455 is ringed; no route on the scope." }[mode];
+    return scopeBox(g, cap);
+  }
+  function s4Lanes() {
+    const extra = { UAL455: ` · <span class="faint">routes don't meet</span>` };
+    return [
+      { tag: "A", name: "Route, no marker, “routes don't meet”", body: `<div class="pair">${giveWayFly(S4_TRAFFIC, "UAL455", extra)}${s4Scope("a")}</div>`,
+        how: "The target's route is drawn without a meet mark, and its row's detail text adds a faint “routes don't meet”.",
+        worst: "The instructor reads “don't meet” as “no conflict”, but it compares the routes as assigned now; a re-route or a pushback across SWA1234's path changes it with no warning." },
+      { tag: "B", name: "Route plus a “closest” ring", body: `<div class="pair">${giveWayFly(S4_TRAFFIC, "UAL455")}${s4Scope("b")}</div>`,
+        how: "The target's route plus a dashed amber ring on its node nearest this aircraft's route, labelled “closest”.",
+        worst: "Nearest by straight-line distance can be a node the target has already passed or one across a building, and the amber ring is easily read as the meet ring: a conflict that is not there." },
+      { tag: "C", name: "Ring the aircraft only", body: `<div class="pair">${giveWayFly(S4_TRAFFIC, "UAL455")}${s4Scope("c")}</div>`,
+        how: "When the routes share no node, only the aircraft is ringed; no route, no mark, no text.",
+        worst: "A target that meets gets a route and one that doesn't gets none, so a missing route reads as “parked, no route” (choice 5) as much as “doesn't meet”." },
+    ];
+  }
+
+  /* ---------- 5. Parked target with no route ---------- */
+  function s5Fly() {
+    const mv = [["N52417", "C172", "taxiing on C", 450], ["UAL455", "A320", "taxiing on B", 700]];
+    const pk = [["N123AB", "PA28", "at parking · south ramp", 2100], ["DAL1508", "B739", "at parking · gate 21", 2300]];
+    return menu(folBox() + sec("Moving") + mv.map(r => trafficRow(r, "FOLLOWG", gl("FOL"), false)).join("") + sec("Parked or holding") + pk.map(r => trafficRow(r, "FOLLOWG", gl("FOL"), r[0] === "N123AB")).join(""), "Follow flyout");
+  }
+  function s5Scope(mode) {
+    let g = field() + `<rect x="176" y="104" width="44" height="18" fill="none" stroke="#2a3038" stroke-width="1"/>${lbl(198, 130, "south ramp", "#6b7480", "middle")}`;
+    if (mode === "b") g += `<path d="M60 14L198 113" fill="none" stroke="${HI}" stroke-width="1.2" stroke-dasharray="1.5 3" opacity=".55"/>`;
+    g += ac(60, 14, "SWA1234", true) + ac(30, 52, "N52417") + ac(110, 70, "UAL455") + ac(198, 113, "N123AB") + ring(198, 113);
+    return scopeBox(g, mode === "a" ? "N123AB ringed; nothing else." : "N123AB ringed, with a faint dotted line from SWA1234 to it.");
+  }
+  function s5Lanes() {
+    const body = m => `<div class="pair">${s5Fly()}${s5Scope(m)}</div>`;
+    return [
+      { tag: "A", name: "Ring only", body: body("a"),
+        how: "A target with no route gets the aircraft ring and nothing else; Give way adds the amber meet ring only when it sits on this aircraft's route.",
+        worst: "The ring alone looks the same as a moving target whose route the client failed to rebuild, and a target off the visible part of the scope shows nothing at all." },
+      { tag: "B", name: "Ring plus a dotted line to it", body: body("b"),
+        how: "As A plus a faint dotted straight line from this aircraft to the target, so the eye finds it.",
+        worst: "The straight line crosses 28L and reads as a path; on Follow it suggests SWA1234 will head straight there, and arrowing through parked rows fans lines across the field." },
+    ];
+  }
+
+  /* ---------- Sections ---------- */
+  const SECTIONS = [
+    { no: 1, id: "s1", title: "Preview colours", lanes: s1Lanes,
+      intro: ["Decision 10. <b>SWA1234</b> (B737, taxiing on D, route D B to RWY 30) has Give way to open with keyboard focus on <b>N52417</b>, whose route runs C, D, B and so shares the D–B stretch with SWA1234's. Each lane is one colour scheme for the same preview: the target ringed, its route, this aircraft's route and the meet point."] },
+    { no: 2, id: "s2", title: "“Me” row wording while holding short", lanes: s2Lanes,
+      intro: ["Decision 5 and mock need 12b. <b>UAL455</b> (A320) is holding short of 28R on B, route B, across 28R, W to spot 5. Taxiway A, passed while the ladder was open, has greyed as <b>gone</b> in place; the 28R row reads ~0 ft. Only the outlined text in the top row differs between lanes."] },
+    { no: 3, id: "s3", title: "Bar at the very start of the route", lanes: s3Lanes,
+      intro: ["Mock need 12d. <b>N123AB</b> (C172) has just reached the 28R bar on D; focus is on the 28R row, so the route to that bar has zero segments. Each lane shows the scope at field zoom and zoomed in."] },
+    { no: 4, id: "s4", title: "Give way target whose route does not meet ours", lanes: s4Lanes,
+      intro: ["Mock need 12d and decision 9. <b>SWA1234</b> has Give way to open with focus on <b>UAL455</b>, taxiing south on W to spot 7; its route shares no node with SWA1234's (D, B to RWY 30). Routes are drawn in choice 1's lane B colours."] },
+    { no: 5, id: "s5", title: "Follow or Give way row for a parked target", lanes: s5Lanes,
+      intro: ["Decision 8. <b>SWA1234</b> has Follow open with focus on <b>N123AB</b> (PA28), parked on the south ramp with no route. Give way to draws the same for a parked target."] },
+  ];
+
+  function art(s) {
+    return `<section class="art" id="${s.id}">
+      <div class="art-meta"><div class="eyebrow">Choice ${s.no}</div><h2><span class="num">${s.no}</span>${esc(s.title)}</h2>${s.intro.map(p => `<p>${p}</p>`).join("")}</div>
+      <div class="lanes">${s.lanes().map(l => lane(s.no, l)).join("")}</div>
+    </section>`;
+  }
+  document.getElementById("arts").innerHTML = SECTIONS.map(art).join("");
+  document.getElementById("index").innerHTML = SECTIONS.map(s => `<a href="#${s.id}">${s.no} · ${esc(s.title)}</a>`).join("");
+
+  /* ---------- Picks ---------- */
+  const STORE = "ladder-preview-picks";
+  const KEYS = SECTIONS.map(s => s.no);
+  let picks = {};
+  try { picks = JSON.parse(localStorage.getItem(STORE) || "{}") || {}; } catch (err) { console.warn("Picks not restored:", err); picks = {}; }
+  const ansText = () => KEYS.map(k => k + (picks[k] || "–")).join(" · ");
+  function showPicks() {
+    document.getElementById("ans").textContent = ansText();
+    document.querySelectorAll("[data-lane]").forEach(l => {
+      const on = picks[l.dataset.sec] === l.dataset.tag;
+      l.classList.toggle("picked", on);
+      l.querySelector(".pick").setAttribute("aria-pressed", String(on));
+    });
+  }
+  showPicks();
+  document.addEventListener("click", e => {
+    const pick = e.target.closest("[data-pick]");
+    if (!pick) return;
+    const [k, v] = pick.dataset.pick.split(":");
+    picks[k] = picks[k] === v ? undefined : v;
+    try { localStorage.setItem(STORE, JSON.stringify(picks)); } catch (err) { console.warn("Picks not saved:", err); }
+    showPicks();
+  });
+  document.getElementById("copy").addEventListener("click", e => {
+    const text = KEYS.filter(k => picks[k]).map(k => k + picks[k]).join(", ") || ansText();
+    const btn = e.currentTarget;
+    const done = () => { btn.textContent = "Copied"; setTimeout(() => { btn.textContent = "Copy"; }, 1400); };
+    const fallback = () => { const r = document.createRange(); r.selectNodeContents(document.getElementById("ans")); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); btn.textContent = "Selected, press Ctrl+C"; };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, fallback); else fallback();
+  });
+})();
+</script>

@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Follow gone row</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+<style>
+  /* Layout: intro and the shared situation, three lanes of the same open Follow flyout (only the gone row differs), then the empty state. */
+  :root {
+    --bg: #eceff2; --panel: #ffffff; --ink: #15181c; --muted: #58616c; --line: #d3d8de;
+    --accent: #2c5fa6; --tag: #7a4fbf; --warn: #a3520a;
+    --f-display: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
+    --f-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+    --f-mono: "IBM Plex Mono", Consolas, monospace;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0e1013; --panel: #171a1f; --ink: #e5e8ec; --muted: #9aa3ae; --line: #2b3038;
+      --accent: #8fc1ff; --tag: #c4a3ff; --warn: #ffb259;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0e1013; --panel: #171a1f; --ink: #e5e8ec; --muted: #9aa3ae; --line: #2b3038;
+    --accent: #8fc1ff; --tag: #c4a3ff; --warn: #ffb259;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html, body { overflow-x: hidden; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.5 var(--f-body); }
+  .wrap { max-width: 1500px; margin: 0 auto; padding-inline: 16px; padding-block: 28px 64px; }
+  .eyebrow { font: 500 11px var(--f-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+  h1 { font: 600 30px/1.15 var(--f-display); margin: 0 0 8px; text-wrap: balance; letter-spacing: -.01em; }
+  h2 { font: 600 20px/1.2 var(--f-display); margin: 30px 0 6px; text-wrap: balance; }
+  .lede { max-width: 82ch; color: var(--muted); margin: 0 0 6px; }
+  .lede b { color: var(--ink); font-weight: 600; }
+  code { font: 12px var(--f-mono); color: var(--accent); }
+
+  .lanes { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 390px), 1fr)); gap: 16px; align-items: start; margin-top: 18px; }
+  .lane { min-width: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px; display: flex; flex-direction: column; gap: 8px; }
+  .lane-h { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+  .tag { font: 600 11px var(--f-mono); letter-spacing: .06em; border: 1px solid currentColor; border-radius: 3px; padding: 0 5px; color: var(--tag); }
+  .lane-h h3 { font: 600 16px/1.25 var(--f-display); margin: 0; flex: 1 1 auto; min-width: 0; }
+  .ptr-state { font: 500 11px var(--f-mono); color: var(--muted); }
+  .cap { margin: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 10px; font-size: 13px; border-top: 1px dashed var(--line); padding-top: 8px; }
+  .cap dt { font: 500 11px var(--f-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); padding-top: 2px; white-space: nowrap; }
+  .cap dd { margin: 0; }
+  .cap dd.worst { color: var(--warn); }
+  .shared { max-width: 82ch; color: var(--muted); font-size: 13px; margin: 14px 0 0; }
+  .empties { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 390px), 1fr)); gap: 16px; align-items: start; margin-top: 12px; }
+  .empty-panel { margin: 0; min-width: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px; display: flex; flex-direction: column; gap: 8px; }
+  .empty-panel figcaption { font-size: 13px; color: var(--muted); }
+  .empty-panel figcaption b { color: var(--ink); font-weight: 600; }
+  footer.foot { color: var(--muted); font-size: 12px; margin-top: 24px; max-width: 82ch; }
+
+  /* The app's own surfaces: YAAT runs Avalonia Fluent in dark only, so these stay dark in either page theme. */
+  .stage { background: #0b0d10; border: 1px solid #22262c; border-radius: 8px; padding: 10px; color-scheme: dark; overflow: hidden; }
+  .m { font: 14px/1.3 Inter, "Segoe UI", system-ui, sans-serif; color: #ffffff; }
+  .menu { background: #2c2c2c; border: 1px solid #474747; border-radius: 8px; padding: 4px; box-shadow: 0 10px 28px rgba(0, 0, 0, .55); width: 100%; max-width: 480px; }
+  .mi { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; height: 44px; padding: 4px 8px; border-radius: 4px; cursor: pointer; position: relative; }
+  .mi:hover, .mi.hot { background: rgba(255, 255, 255, .085); }
+  .mi.kfocus { outline: 2px solid #8fc1ff; outline-offset: -2px; background: rgba(255, 255, 255, .085); }
+  .mi.new { box-shadow: inset 2px 0 0 rgba(110, 224, 206, .85); }
+  .mi.gone { opacity: .5; cursor: default; }
+  .mi.gone:hover { background: transparent; }
+  .sec { height: 26px; padding: 4px 8px; font-size: 12px; font-weight: 600; color: #cfd4da; }
+  .scroll .sec { position: sticky; top: 0; background: #2c2c2c; z-index: 2; }
+  .gly { flex: 0 0 auto; display: block; margin-right: 8px; }
+  .nm { min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 1px; overflow: hidden; }
+  .nm .n { display: flex; align-items: baseline; gap: 5px; white-space: nowrap; max-width: 100%; min-width: 0; }
+  .cs { flex: 0 0 auto; font-weight: 600; }
+  .cs.strike { text-decoration: line-through; text-decoration-thickness: 1.5px; }
+  .note { font-size: 12px; color: #a4adb8; opacity: .75; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  .det-s { font-size: 11px; color: #a4adb8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+  .dist { padding-left: 8px; font-variant-numeric: tabular-nums; white-space: nowrap; font-size: 13px; min-width: 64px; text-align: right; }
+  .pill { display: inline-block; font-size: 11px; line-height: 16px; padding: 0 7px; border: 1px solid #8c95a0; border-radius: 8px; color: #cfd4da; }
+  .cmd { padding-left: 8px; font: 12px "JetBrains Mono", Consolas, monospace; color: #a4adb8; opacity: .7; text-align: right; white-space: nowrap; }
+  .tbox { font: 13px Inter, "Segoe UI", sans-serif; color: #fff; background: rgba(255, 255, 255, .06); border: 1px solid #5a5a5a; border-bottom-color: #9a9a9a;
+          border-radius: 4px; padding: 4px 8px; height: 28px; flex: 1; min-width: 0; }
+  .tbox::placeholder { color: #8f969e; }
+  .tbox.typing { border-bottom: 2px solid #8fc1ff; background: #1f1f1f; }
+  .boxrow { display: flex; align-items: center; padding: 6px 11px 4px; }
+  .hint { font-size: 11px; color: #a4adb8; padding: 2px 11px 6px; }
+  .hint code { font: 11px "JetBrains Mono", Consolas, monospace; color: #8fc1ff; }
+  .muted { font-size: 12.5px; color: #a4adb8; padding: 8px 11px 10px; }
+  .scroll { max-height: 352px; overflow-y: auto; scrollbar-color: #555 transparent; }
+  .cursor { position: absolute; left: 46%; top: 16px; width: 16px; height: 22px; pointer-events: none; z-index: 1; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .6)); }
+
+  @media (max-width: 520px) {
+    h1 { font-size: 24px; }
+    .lane { padding: 10px; }
+    .stage { padding: 8px; }
+    .cmd { font-size: 11px; padding-left: 6px; }
+    .dist { padding-left: 6px; font-size: 12px; min-width: 56px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="eyebrow">YAAT-569 · open choice: how a gone row looks in Follow · mock for the owner's pick</div>
+  <h1>Follow flyout: the gone row under the frozen order</h1>
+  <p class="lede">The settled rule (live refill, lane D): while the pointer is inside the flyout, the row order stays as it was at pointer entry, each row's text still updates in place, a traffic that leaves becomes a <b>gone</b> row (not clickable, skipped by the keyboard), and a newcomer goes at the bottom of the full list. Lane D drew Give way rows only. These three lanes are the <b>Follow</b> flyout under that rule; only the gone row's look differs.</p>
+  <p class="lede"><b>SWA1234</b> (B737) at KOAK opened Follow and typed <b>UA</b>, so only the United traffic shows. The pointer has been inside since then, so the order is frozen. Since entry, <b>UAL2207</b> (holding short 30 at W1) has departed, and <b>UAL1764</b> has started pushing back from gate 24 and was appended at the bottom. The list is scrolled to its end, so <b>Moving</b> is pinned at its top. <b>UAL613</b> holds keyboard focus; the pointer rests on UAL1450.</p>
+
+  <div class="lanes" id="lanes"></div>
+
+  <p class="shared">Same in every lane: Up from UAL613 goes to UAL2041 and Enter in the box sends the top live match, both skipping the gone row. The newcomer UAL1764 is pushing back yet sits under <b>Parked or holding</b>, because newcomers join the bottom of the full list rather than their section; the thin teal edge marks it as new until the flyout closes or the pointer leaves.</p>
+
+  <h2>Empty while open</h2>
+  <p class="lede">Two ways the open Follow list ends up with no rows. Both are the same in every lane.</p>
+  <div class="empties">
+    <figure class="empty-panel">
+      <div class="stage" aria-label="Follow flyout, filter matches nothing">
+        <div class="menu m" role="menu" aria-label="Follow flyout, nothing matches UA">
+          <div class="boxrow"><span data-glyph></span><input class="tbox typing" id="filter-nomatch" type="text" value="UA" placeholder="Filter or type a callsign" aria-label="Filter or type a callsign" readonly></div>
+          <div class="hint">No aircraft matches; Enter sends <code>FOLLOWG UA</code> as typed.</div>
+        </div>
+      </div>
+      <figcaption><b>1 · The filter matches nothing.</b> The ground holds N123AB, ASA22, DAL1508 and N8123K; none holds UA. Every row and both section titles hide, the pinned title hides with them, and no line is added: the hint line alone says what Enter sends.</figcaption>
+    </figure>
+    <figure class="empty-panel">
+      <div class="stage" aria-label="Follow flyout, list emptied">
+        <div class="menu m" role="menu" aria-label="Follow flyout, no other aircraft">
+          <div class="boxrow"><span data-glyph></span><input class="tbox" id="filter-emptied" type="text" value="" placeholder="Filter or type a callsign" aria-label="Filter or type a callsign" readonly></div>
+          <div class="hint">Enter sends the top match.</div>
+          <div class="muted">No other aircraft on the ground.</div>
+        </div>
+      </div>
+      <figcaption><b>2 · The list empties with no filter typed.</b> The last other aircraft left the ground while the flyout was open and the pointer outside it (with the pointer inside, it would stay as a gone row). One muted line, the code's <code>NoTrafficText</code>; the hint above it is as the code leaves it.</figcaption>
+    </figure>
+  </div>
+
+  <footer class="foot">Row template from <code>GroundTrafficRowTemplate</code> as Follow draws it: the follow glyph in the ground teal, the callsign semibold with the type dimmed beside it, the state under them at 11 px, the distance, then <code>FOLLOWG</code> in JetBrains Mono at 70%; 44 px rows, section titles at 12 px semibold in #CFD4DA, the list about eight rows (352 px) tall before it scrolls, on the Fluent dark menu surface. The pointer and the lane captions are mock annotations, not app UI.</footer>
+</div>
+
+<script>
+(() => {
+  "use strict";
+  const GLYPH = `<svg class="gly" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#6EE0CE" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 17l5-5-5-5 M13 17l5-5-5-5"/></svg>`;
+  const CURSOR = `<svg class="cursor" viewBox="0 0 18 24" aria-hidden="true"><path d="M1.5 1.5v18.2l4.6-4.3 3 6.8 3.1-1.4-3-6.7h6.3z" fill="#ffffff" stroke="#000000" stroke-width="1.3" stroke-linejoin="round"/></svg>`;
+
+  /* The UA-filtered traffic in the order frozen at pointer entry; distances from SWA1234 in feet, live text as of now. */
+  const MOVING = [
+    { cs: "UAL455", type: "A320", st: "taxiing on W", d: 700 },
+    { cs: "UAL1932", type: "B39M", st: "taxiing on B", d: 1300 },
+    { cs: "UAL2041", type: "A21N", st: "pushing back · gate 21", d: 1600 },
+  ];
+  const GONE = { cs: "UAL2207", type: "A319", st: "gone", d: null, gone: true };
+  const PARKED = [
+    { cs: "UAL613", type: "B738", st: "holding short 30 at W1", d: 950, focus: true },
+    { cs: "UAL1450", type: "B752", st: "at parking · gate 22", d: 1800, pointer: true },
+    { cs: "UAL99", type: "B789", st: "at parking · west ramp", d: 2600 },
+  ];
+  const NEWCOMER = { cs: "UAL1764", type: "B753", st: "pushing back · gate 24", d: 1150, isNew: true };
+
+  const ft = n => `~${n.toLocaleString("en-US")} ft`;
+  const sec = t => `<div class="sec">${t}</div>`;
+
+  function row(r, style) {
+    const cls = ["mi", r.gone && "gone", r.focus && "kfocus", r.pointer && "hot", r.isNew && "new"].filter(Boolean).join(" ");
+    const strike = r.gone && style === "b" ? " strike" : "";
+    let dist = r.d === null ? "" : ft(r.d);
+    if (r.gone && style === "b") dist = `<span class="pill">left</span>`;
+    const attrs = r.gone ? ` aria-disabled="true" tabindex="-1"` : ` tabindex="0"`;
+    return `<div class="${cls}" role="menuitem"${attrs}>${GLYPH}<span class="nm"><span class="n"><span class="cs${strike}">${r.cs}</span><span class="note">${r.type}</span></span><span class="det-s">${r.st}</span></span><span class="dist">${dist}</span><span class="cmd">FOLLOWG ${r.cs}</span>${r.pointer ? CURSOR : ""}</div>`;
+  }
+
+  function listInPlace(style) {
+    return sec("Moving") + MOVING.map(r => row(r, style)).join("") + sec("Parked or holding") + [GONE, ...PARKED, NEWCOMER].map(r => row(r, style)).join("");
+  }
+  function listGoneSection() {
+    return sec("Moving") + MOVING.map(r => row(r, "c")).join("") + sec("Parked or holding") + [...PARKED, NEWCOMER].map(r => row(r, "c")).join("") + sec("Gone") + row(GONE, "c");
+  }
+
+  const LANES = [
+    {
+      tag: "A", name: "Greyed in place", list: () => listInPlace("a"),
+      how: "The gone row keeps its slot in its own section at 50%: state reads gone, distance blank, command still shown.",
+      worst: "At 50% beside live rows it reads as dimmed, not dead: a click on UAL2207 does nothing and only the small “gone” says why.",
+    },
+    {
+      tag: "B", name: "Greyed in place, struck and tagged", list: () => listInPlace("b"),
+      how: "As A, plus the callsign struck through and a small “left” pill where the distance was.",
+      worst: "On a taxi list “left” reads like a direction, and a struck callsign at 50% is the hardest text here to read back.",
+    },
+    {
+      tag: "C", name: "Gone section at the bottom", list: listGoneSection,
+      how: "A gone row leaves its section for a Gone section under the newcomers, greyed; every other row keeps its frozen place.",
+      worst: "When UAL2207 left, every Parked row slid up a slot under the pointer: a click aimed at UAL1450 lands on UAL99.",
+    },
+  ];
+
+  document.getElementById("lanes").innerHTML = LANES.map(l => `<section class="lane" aria-labelledby="lane-${l.tag}">
+      <div class="lane-h"><span class="tag">${l.tag}</span><h3 id="lane-${l.tag}">${l.name}</h3></div>
+      <div class="ptr-state">pointer inside · order frozen at entry · scrolled to the end</div>
+      <div class="stage">
+        <div class="menu m" role="menu" aria-label="Follow flyout, lane ${l.tag}">
+          <div class="boxrow">${GLYPH}<input class="tbox" id="filter-${l.tag}" type="text" value="UA" placeholder="Filter or type a callsign" aria-label="Filter or type a callsign" readonly></div>
+          <div class="hint">Enter sends the top match.</div>
+          <div class="scroll" data-scroll>${l.list()}</div>
+        </div>
+      </div>
+      <dl class="cap"><dt>Treatment</dt><dd>${l.how}</dd><dt>Worst case</dt><dd class="worst">${l.worst}</dd></dl>
+    </section>`).join("");
+  document.querySelectorAll("[data-glyph]").forEach(el => { el.outerHTML = GLYPH; });
+
+  const toEnd = () => document.querySelectorAll("[data-scroll]").forEach(el => { el.scrollTop = el.scrollHeight; });
+  toEnd();
+  window.addEventListener("resize", toEnd);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(toEnd);
+})();
+</script>
+</body>
+</html>
