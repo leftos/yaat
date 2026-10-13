@@ -60,7 +60,11 @@ A held phase must also report **nothing terminal**: no segment advance, no hold-
 
 The one exception is a `TaxiingPhase` arriving still faster than 3 kt at an uncleared bar, which only an aircraft whose runway line was already lost does: it keeps braking at the firm rate instead of being stopped dead from that speed ([Stopping at an uncleared bar](#stopping-at-an-uncleared-bar)).
 
-Advancing the segment index while held would set up the next primitive and let the next held tick re-tick the finished one at `t = 1` and advance again; completing while held would start a stored takeoff clearance's line-up, or hand a held line-up to `TakeoffPhase`, with the controller having said hold. `CrossingRunwayPhase` is exempt from the staleness half only because it snaps `IndicatedAirspeed` to 0 on the same tick the hold appears, so its playback and the aircraft never diverge.
+Advancing the segment index while held would set up the next primitive and let the next held tick re-tick the finished one at `t = 1` and advance again; completing while held would start a stored takeoff clearance's line-up, or hand a held line-up to `TakeoffPhase`, with the controller having said hold. `CrossingRunwayPhase` follows the contract too: a HOLD mid-crossing ticks the navigator and pins the target after it (`PinHeldSpeed`), so the aircraft brakes along the crossing slice instead of snapping to 0. A piston or helicopter brakes at 4.5 kt/s and a jet or turboprop at the taxi rate, along the braking curve onto the near holding-position marking when that rate fits, else from where it is.
+
+A held arrival at a node inside the slice rolls on to the next slice segment; a held arrival at the slice's last node hands the route back (`HandRouteBack`) and ends the phase, still braking, and the onward `TaxiingPhase`'s held branch brakes it the rest of the way, so it is never stopped dead from speed. `TaxiingPhase` pins the same way in the stretch just before the crossing phase starts.
+
+The readback "holding position on runway {X}" (`CrossingRunwayPhase.HeldOnRunwayEnd`, `TaxiingPhase.HeldOnRunwayEnd`) is made when any part of the aircraft is past the near marking or the HOLD cannot stop it short of it. The readback and the braking judge the same room: the marking less 2 ft (`SetBackStopMarginFt`) and one phase tick of travel.
 
 A held `TaxiingPhase` near an uncleared bar does not stop where it is at the taxi rate alone: its pinned speed is capped by the braking the bar needs, after any node arrival, so a `HOLD` or `GIVEWAY` given inside the taxi-rate stopping distance still stops the nose at or behind the holding position marking ([Stopping at an uncleared bar](#stopping-at-an-uncleared-bar)).
 
@@ -79,6 +83,16 @@ The navigator is one stage in a chain owned by `TaxiingPhase`. It is **not** res
   The ½-fuselage tail-clearance past the far-side node follows the **route's own next segments** (a straight is cut at the exact distance with a virtual node; an arc is taken whole), and on completion the crossing phase writes `route.CurrentSegmentIndex` to the segment the aircraft is actually on.
 
   Until then the route's current segment stays on the crossing's entry segment for the whole crossing, even once the aircraft is past that segment's end node. Anything that reads `AssignedTaxiRoute.CurrentSegment` during a crossing must allow for that; `GroundConflictDetector` orders an in-trail pair by along-edge progress for this reason.
+
+  `CrossingRunwayPhase.PathAhead` returns the path actually ahead as segment indices (the rest of the slice, then the aircraft's own route past the tail clearance) for a reader that needs it.
+
+  An aircraft cleared across does not enter the runway while the far side lacks room: the **near-line gate** (`RunwayCrossingFarSideGate`) holds it at the near line and lets it go by itself when the room opens.
+
+  `TaxiingPhase` brakes onto the near bar for it until the aircraft has passed its commit point (`IsCommitted`), and `HoldingShortPhase` keeps a cleared aircraft at the bar (`HoldsAtBar`). It says "Holding short of runway {X}, traffic ahead" once per bar, and logs under the category `RunwayCrossingFarSideGate` (`[FarSideGate]` lines).
+
+  The room needed is the aircraft's own length, the pair's stop gap (`GroundConflictDetector.StopGapFt`) and 10 ft, past the far holding-position marking, against the stop point projected for each aircraft on the path across and beyond.
+
+  At rest it resumes only with 10 ft more room than it needs, and it is committed only with its nose past the marking. A leader held by its speed limit, or by its own gate at a cleared bar ahead, counts as stopping; one slowing for a corner does not. Oncoming traffic beyond the far bar blocks. A steady taxier queued behind traffic at rest counts as stopping there, and a crosswise mover briefly blocks (accepted).
 
   It used to extend straight along the entry taxiway's graph continuation and hand the route back one segment past the exit, so a route that turned right after the crossing resumed on a fillet 60 ft behind the aircraft (the SFO G → B case the no-teleport guard caught).
 - Route end with a parking destination → `AtParkingPhase`; otherwise `HoldingInPositionPhase` (a stored departure clearance lines up). A taxi whose route is already complete when it starts ends the same way (`CompleteRoute`), rather than ending with no phase inserted.
@@ -711,7 +725,9 @@ The runway-exit/landing side has its own tuning that interacts with the navigato
 
 `GroundConflictDetector` (`src/Yaat.Sim/GroundConflictDetector.cs`) runs once per physics sub-tick, before every aircraft's phase tick (`SimulationWorld`), and caps `Ground.SpeedLimit`, which the navigator honors.
 
-Physics applies that limit instantly (`FlightPhysics.UpdatePosition`), so a rule that slows rather than stops must make its limit brake-feasible itself: the tug limits (`TowbarBrakingFloorKts`) and the convergence slowdown floor the limit at what the aircraft can shed in one pass (the convergence at the category taxi brake rate, or at the max-effort `ExpediteExitDecelRate` when the routine stop no longer fits before the stop ring); only the 0-kt stops are meant to be instant.
+Physics applies that limit instantly (`FlightPhysics.UpdatePosition`), so a rule that slows rather than stops must make its limit brake-feasible itself: the tug limits (`TowbarBrakingFloorKts`) and the convergence slowdown floor the limit at what the aircraft can shed in one pass (the convergence at the category taxi brake rate, or at the max-effort `ExpediteExitDecelRate` when the routine stop no longer fits before the stop ring).
+
+Every non-zero limit whose producer knows its room is floored this way in `ApplyMinLimit` (`FlooredLimitKts`), at what one 0.25 s pass can shed; only the 0-kt stops are meant to be instant.
 
 It classifies each aircraft pair into exactly one `PairKind` and resolves it with a uniform **one-holds-one-goes** rule: exactly one aircraft of a close-range conflicting pair is held while the other proceeds — it never stops both. The deterministic holder per kind:
 

@@ -20,6 +20,9 @@ public sealed class HoldingShortPhase(HoldShortPoint holdShort) : Phase
     private HoldShortPoint _holdShort = holdShort;
     private bool _hasAnnouncedReady;
 
+    // Set once the pilot has said it is holding short, cleared across, for traffic beyond the far side. Snapshotted.
+    private bool _saidTrafficAhead;
+
     public HoldShortPoint HoldShort => _holdShort;
 
     /// <summary>
@@ -158,6 +161,14 @@ public sealed class HoldingShortPhase(HoldShortPoint holdShort) : Phase
             if (req.IsSatisfied)
             {
                 _holdShort.IsCleared = true;
+                // Cleared across, but traffic beyond the far marking leaves no room to clear the runway (AIM 4-3-18.b): hold at
+                // the line until it opens, then cross by itself.
+                if (RunwayCrossingFarSideGate.HoldsAtBar(ctx, _holdShort))
+                {
+                    SayHeldForTraffic(ctx);
+                    return false;
+                }
+
                 Log.LogDebug("[HoldShort] {Callsign}: cleared at {Target}", ctx.Aircraft.Callsign, _holdShort.TargetName ?? "unknown");
                 return true;
             }
@@ -172,6 +183,21 @@ public sealed class HoldingShortPhase(HoldShortPoint holdShort) : Phase
         }
 
         return false;
+    }
+
+    /// <summary>
+    /// Says once that the aircraft, cleared across, is holding short for traffic beyond the far side
+    /// (<see cref="RunwayCrossingFarSideGate.SayHoldingShortForTraffic"/>).
+    /// </summary>
+    private void SayHeldForTraffic(PhaseContext ctx)
+    {
+        if (_saidTrafficAhead)
+        {
+            return;
+        }
+
+        _saidTrafficAhead = true;
+        RunwayCrossingFarSideGate.SayHoldingShortForTraffic(ctx, _holdShort.TargetName);
     }
 
     /// <summary>
@@ -362,6 +388,7 @@ public sealed class HoldingShortPhase(HoldShortPoint holdShort) : Phase
             RunwayId = _holdShort.TargetName ?? string.Empty,
             Reason = _holdShort.Reason,
             HasAnnouncedReady = _hasAnnouncedReady,
+            SaidTrafficAhead = _saidTrafficAhead ? true : null,
         };
 
     public static HoldingShortPhase FromSnapshot(HoldingShortPhaseDto dto)
@@ -376,6 +403,7 @@ public sealed class HoldingShortPhase(HoldShortPoint holdShort) : Phase
         var phase = new HoldingShortPhase(holdShort)
         {
             _hasAnnouncedReady = dto.HasAnnouncedReady,
+            _saidTrafficAhead = dto.SaidTrafficAhead ?? false,
             Status = (PhaseStatus)dto.Status,
             ElapsedSeconds = dto.ElapsedSeconds,
         };

@@ -181,6 +181,10 @@ A restored taxi whose route the current layout cannot rebuild (an archive withou
 
 A mismatch drops the playback with a warning and builds the segment afresh from the aircraft's pose; a virtual (negative-id) from-node is not compared: its id hashes its position (`VirtualNode.IdFor`), but it sits at the aircraft's pose when the route was built (`RunwayExitPhase`'s approach leg), so a rebuild puts it somewhere else.
 
+Three more fields are the same kind (nullable, written only when set, null on older snapshots; no schema bump), each latching a once-only pilot call so a restore does not repeat it: `TaxiingPhaseDto.SaidFarSideBlockedNodeId` (int?, the cleared crossing bar it said "holding short of runway …, traffic ahead" at).
+
+`HoldingShortPhaseDto.SaidTrafficAhead` (bool?, the same call from the hold at the bar), and `CrossingRunwayPhaseDto.SaidNotClear` (bool?) with `NotClearRestSeconds` (double?, the rest time counted toward the not-clear call).
+
 A crossing also carries its slice segment and the pose that segment was set up at (`CrossingRunwayPhaseDto.CrossingRouteSegmentIndex`, `SegmentSetup*`), and a runway exit whose route cannot be rebuilt drops the navigator it was restored with.
 
 `LineUpPhaseDto` carries the maneuver under way, all nullable and written only when non-null (additive, no schema bump): `ManeuverState`, the plan's start pose (`PlanStartLat`, `PlanStartLon`, `PlanStartHeadingDeg`), and the arc playback (`Arc`, `ArcTargetSpeedKts`) or the graph-taxi navigator with its `RouteSegmentIndex`. The restore plans again from the start pose and resumes the playback (`LineUpRestoreRoundTripTests`); `ClearRunwayPhaseDto.Navigator` does the same for the clearance segment (`ClearRunwayRestoreTests`). A snapshot without them rebuilds from the aircraft's pose.

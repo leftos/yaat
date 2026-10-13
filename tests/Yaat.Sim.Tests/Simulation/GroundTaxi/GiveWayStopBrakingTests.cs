@@ -1,9 +1,11 @@
 using System.Text.Json.Nodes;
 using Microsoft.Extensions.Logging;
 using Xunit;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Phases.Ground;
+using Yaat.Sim.Pilot;
 using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim.Tests.Simulation.GroundTaxi;
@@ -597,12 +599,7 @@ public class GiveWayStopBrakingTests(ITestOutputHelper output)
                     return false;
                 }
 
-                // A second under the ground-conflict speed limit is the conflict detector's slowdown, not the give-way's.
-                if (giver.Ground.SpeedLimit is null)
-                {
-                    speeds.Add((second, giver.GroundSpeed));
-                }
-
+                speeds.Add((second, giver.GroundSpeed));
                 enteredCrossing |=
                     (giver.Phases?.CurrentPhase is CrossingRunwayPhase)
                     || (giver.Ground.AssignedTaxiRoute?.CurrentSegmentIndex > nearBarSegmentIndex);
@@ -640,11 +637,13 @@ public class GiveWayStopBrakingTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// Characterizes a HOLD issued while N738SP is crossing runway 33 on C under its CROSS clearance: the crossing stops it
-    /// where it is, on the runway, in the same second. A GIVEWAY waits for the far marking; a HOLD does not.
+    /// The same crossing with no GIVEWAY (YAAT-324): N738SP crosses runway 33 on C under its CROSS clearance and meets
+    /// N52417, taxiing J across C, at the C/J junction just past the far bar. The ground-conflict speed limit slows it for the
+    /// traffic, and it never loses more speed in a second than the piston firm rate allows, the seconds under that limit
+    /// included: physics clamps the speed to a limit at once, so a non-zero limit must not ask for more than its brakes give.
     /// </summary>
     [Fact]
-    public void Hold_MidCrossing_StopsOnTheRunwayAtOnce()
+    public void Crossing_TrafficAtTheJunctionPastTheFarBar_NeverLosesMoreThanTheFirmRateInASecond()
     {
         SimulationEngine? engine = KoakFollowClip.Load(output, WithLeadOnJ());
         if (engine is null)
@@ -652,8 +651,79 @@ public class GiveWayStopBrakingTests(ITestOutputHelper output)
             return;
         }
 
+        AircraftState crosser = engine.FindAircraft(KoakFollowClip.Follower)!;
+        AircraftState lead = engine.FindAircraft(KoakFollowClip.Lead)!;
+        AirportGroundLayout layout = Assert.IsType<AirportGroundLayout>(crosser.Ground.Layout);
+        GroundNode firstBar = layout.Nodes[ClearedBarNodeId];
+        var speeds = new List<(int Second, double SpeedKts)>();
+        bool enteredCrossing = false;
+        int limitedSeconds = 0;
+        int leadTaxiAt = -1;
+        int stoppedAt = KoakFollowClip.RunScript(
+            engine,
+            output,
+            [.. Script.Where(line => (line.Second != GiveWaySecond) && (line.Second != LeadTaxiSecond))],
+            LongTypeBudgetSeconds,
+            second =>
+            {
+                if (leadTaxiAt < 0)
+                {
+                    if (GeoMath.DistanceNm(crosser.Position, firstBar.Position) * GeoMath.FeetPerNm > LeadTaxiTriggerFt)
+                    {
+                        return false;
+                    }
+
+                    leadTaxiAt = second;
+                    Assert.True(engine.SendCommand(KoakFollowClip.Lead, LeadTaxiOnJ).Success);
+                    speeds.Add((second, crosser.GroundSpeed));
+                    return false;
+                }
+
+                speeds.Add((second, crosser.GroundSpeed));
+                enteredCrossing |= crosser.Phases?.CurrentPhase is CrossingRunwayPhase;
+                limitedSeconds += crosser.Ground.SpeedLimit is null ? 0 : 1;
+                output.WriteLine(
+                    $"t={second} gs={crosser.GroundSpeed:F1} {crosser.Phases?.CurrentPhase?.Name} "
+                        + $"limit={crosser.Ground.SpeedLimit?.ToString("F1")} | lead gs={lead.GroundSpeed:F1}"
+                );
+                bool pastTheCrossingAndFree =
+                    enteredCrossing && (crosser.Phases?.CurrentPhase is TaxiingPhase) && (crosser.Ground.SpeedLimit is null);
+                return pastTheCrossingAndFree || (crosser.GroundSpeed < StationaryKts);
+            }
+        );
+
+        Assert.True(leadTaxiAt > 0, $"N738SP never came within {LeadTaxiTriggerFt:F0} ft of the runway 33 bar on C (node {ClearedBarNodeId})");
+        Assert.True(enteredCrossing, $"N738SP never entered the runway 33 crossing past node {ClearedBarNodeId}");
+        Assert.True(limitedSeconds > 0, "The ground-conflict detector never limited N738SP for N52417");
+        (double lossKts, int atSecond) = LargestLossOverConsecutiveSeconds(speeds);
+        double firmLossKts = CategoryPerformance.ExpediteExitDecelRate(AircraftCategory.Piston) * (1.0 + (1.0 / SimulationEngine.PhysicsSubTickRate));
+        output.WriteLine(
+            $"largest one-second speed loss {lossKts:F2} kt ending t={atSecond} (at rest t={stoppedAt}); firm rate allows {firmLossKts:F2}"
+        );
+        Assert.True(lossKts <= firmLossKts + 1e-6, $"N738SP lost {lossKts:F2} kt in the second ending t={atSecond}, more than the firm rate allows");
+    }
+
+    /// <summary>
+    /// A HOLD issued while N738SP is crossing runway 33 on C under its CROSS clearance (YAAT-328) brakes it to a stop where it
+    /// is, on the runway: it stays in the crossing (no carrying on to the far marking, as a GIVEWAY does), its speed target is
+    /// pinned at zero, and it never loses more speed in a second than its category's HOLD-on-the-runway rate allows — the taxi
+    /// brake rate for a jet, the firm 4.5 kt/s for a piston — rather than stopping dead in the same second.
+    /// </summary>
+    [Theory]
+    [InlineData("C172", 4.5)]
+    [InlineData("B738", 5.0)]
+    public void Hold_MidCrossing_BrakesToAStopOnTheRunwayAtItsCategoryRate(string type, double rateKtsPerSec)
+    {
+        SimulationEngine? engine = KoakFollowClip.Load(output, WithHeldTypeAndLeadOnJ(type));
+        if (engine is null)
+        {
+            return;
+        }
+
         AircraftState held = engine.FindAircraft(KoakFollowClip.Follower)!;
+        var speeds = new List<(int Second, double SpeedKts)>();
         int holdAt = -1;
+        double holdKts = 0.0;
         int stoppedAt = KoakFollowClip.RunScript(
             engine,
             output,
@@ -669,19 +739,87 @@ public class GiveWayStopBrakingTests(ITestOutputHelper output)
                     }
 
                     holdAt = second;
+                    holdKts = held.GroundSpeed;
                     output.WriteLine($"t={second}: HOLD mid-crossing at gs={held.GroundSpeed:F1}");
                     Assert.True(engine.SendCommand(KoakFollowClip.Follower, "HOLD").Success);
+                    speeds.Add((second, held.GroundSpeed));
                     return false;
                 }
 
-                return true;
+                speeds.Add((second, held.GroundSpeed));
+                output.WriteLine($"t={second} gs={held.GroundSpeed:F2} {held.Phases?.CurrentPhase?.Name} target={held.Targets.TargetSpeed}");
+                Assert.IsType<CrossingRunwayPhase>(held.Phases?.CurrentPhase);
+                return held.GroundSpeed < StationaryKts;
             }
         );
 
-        Assert.True(holdAt > 0, "N738SP was never moving in its runway 33 crossing");
-        output.WriteLine($"t={stoppedAt}: gs={held.GroundSpeed:F2} {held.Phases?.CurrentPhase?.Name} hold={held.Ground.Hold?.Kind}");
+        Assert.True(holdAt > 0, $"{type} N738SP was never moving in its runway 33 crossing");
+        Assert.True(stoppedAt > 0, $"{type} N738SP never came to rest after the HOLD; gs={held.GroundSpeed:F1}");
+        (double lossKts, int atSecond) = LargestLossOverConsecutiveSeconds(speeds);
+        double allowedKts = rateKtsPerSec * (1.0 + (1.0 / SimulationEngine.PhysicsSubTickRate));
+        output.WriteLine(
+            $"HOLD at {holdKts:F1} kt, at rest t={stoppedAt}; largest one-second loss {lossKts:F2} kt ending t={atSecond}, allowed {allowedKts:F2}"
+        );
+        Assert.True(lossKts <= allowedKts + 1e-6, $"{type} N738SP lost {lossKts:F2} kt in the second ending t={atSecond}, more than {allowedKts:F2}");
+        Assert.True(stoppedAt - holdAt >= 2, $"{type} N738SP stopped dead from {holdKts:F1} kt within a second of the HOLD");
         Assert.IsType<CrossingRunwayPhase>(held.Phases?.CurrentPhase);
-        Assert.True(held.GroundSpeed < StationaryKts, $"N738SP was still rolling at {held.GroundSpeed:F2} kt a second after HOLD mid-crossing");
+        // Pinned at zero; physics clears a target the speed has reached, so at rest there is none at all.
+        Assert.True(held.Targets.TargetSpeed is null or 0.0, $"{type} N738SP holds with a speed target of {held.Targets.TargetSpeed} kt");
+    }
+
+    /// <summary>
+    /// A HOLD issued while N738SP is crossing runway 33 with its nose past the near holding-position marking is read back as
+    /// a hold on the runway, the runway named by the end nearest the aircraft (YAAT-328), in the readback frame every hold
+    /// readback uses.
+    /// </summary>
+    [Fact]
+    public void Hold_MidCrossingPastTheNearMarking_ReadsBackHoldingPositionOnTheRunway()
+    {
+        SimulationEngine? engine = KoakFollowClip.Load(output, WithLeadOnJ());
+        if (engine is null)
+        {
+            return;
+        }
+
+        AircraftState held = engine.FindAircraft(KoakFollowClip.Follower)!;
+        GroundNode firstBar = Assert.IsType<AirportGroundLayout>(held.Ground.Layout).Nodes[ClearedBarNodeId];
+        double approachDeg = double.NaN;
+        int holdAt = KoakFollowClip.RunScript(
+            engine,
+            output,
+            [.. Script.Where(line => (line.Second != GiveWaySecond) && (line.Second != LeadTaxiSecond))],
+            LongTypeBudgetSeconds,
+            second =>
+            {
+                if (double.IsNaN(approachDeg) && (held.Phases?.CurrentPhase is TaxiingPhase) && (held.GroundSpeed > MovingKts))
+                {
+                    approachDeg = ApproachBearingDeg(firstBar, held.Position);
+                }
+
+                return (held.Phases?.CurrentPhase is CrossingRunwayPhase) && (NosePastHoldLineFt(Nose(held), firstBar, approachDeg) > 0.0);
+            }
+        );
+
+        Assert.True(holdAt > 0, "N738SP's nose never passed the runway 33 hold line in its crossing");
+        Assert.True(engine.SendCommand(KoakFollowClip.Follower, "HOLD").Success);
+        PilotSpeechText readback = Assert.IsType<PilotSpeechText>(
+            PilotResponder.BuildReadback(new([new ParsedBlock(null, [new HoldPositionCommand()])]), held)
+        );
+        CrossingRunwayPhase crossing = Assert.IsType<CrossingRunwayPhase>(held.Phases?.CurrentPhase);
+        string runway = RunwayCrossingEnd.Nearest(held, Assert.IsType<string>(crossing.RunwayId), held.Ground.Layout);
+        output.WriteLine($"t={holdAt}: readback '{readback.Terminal}' / '{readback.Tts}' (nearest end {runway})");
+        Assert.Equal($"holding position on runway {PhraseologyVerbalizer.CompactRunway(runway)}", readback.Terminal);
+        Assert.StartsWith($"holding position on runway {PhraseologyVerbalizer.SpellRunway(runway)}, ", readback.Tts, StringComparison.Ordinal);
+    }
+
+    /// <summary>The H2 scenario with N738SP of <paramref name="type"/> and N52417 standing on taxiway J (see <see cref="WithLeadOnJ"/>).</summary>
+    private static string WithHeldTypeAndLeadOnJ(string type)
+    {
+        JsonNode scenario = Assert.IsAssignableFrom<JsonNode>(JsonNode.Parse(WithLeadOnJ()));
+        JsonNode held = Assert.Single(scenario["aircraft"]!.AsArray(), a => (string?)a?["aircraftId"] == KoakFollowClip.Follower)!;
+        held["aircraftType"] = type;
+        held["flightplan"]!["aircraftType"] = type;
+        return scenario.ToJsonString();
     }
 
     /// <summary>The largest speed loss (kt) between two samples one second apart, and the second it ended at.</summary>

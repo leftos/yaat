@@ -6,6 +6,7 @@ using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases;
+using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Speech;
@@ -415,8 +416,32 @@ public static class PilotResponder
             FollowGroundCommand follow => BuildFollowGroundClause(follow),
             FollowCommand follow => BuildFollowAirborneClause(follow),
             GiveWayCommand giveWay => BuildGiveWayClause(giveWay),
+            HoldPositionCommand when HeldOnRunwayEnd(aircraft) is { } runway => BuildHoldingPositionOnRunwayClause(runway),
             _ => VerbalizeDual(cmd, personality, activityLevel),
         };
+
+    /// <summary>
+    /// The runway end a HOLD given now stops the aircraft on, from the crossing it is in or the taxi in the stretch before a
+    /// crossing starts; null when the HOLD stops it clear of the runway.
+    /// </summary>
+    private static string? HeldOnRunwayEnd(AircraftState aircraft) =>
+        aircraft.Phases?.CurrentPhase switch
+        {
+            CrossingRunwayPhase crossing => crossing.HeldOnRunwayEnd(aircraft),
+            TaxiingPhase taxi => taxi.HeldOnRunwayEnd(aircraft),
+            _ => null,
+        };
+
+    /// <summary>
+    /// A HOLD taken mid-crossing with part of the aircraft past the near holding-position marking stops it on the runway, so
+    /// the readback says where it is holding — "holding position on runway three three" — rather than the bare "hold
+    /// position" (AIM 4-3-21.a: the HOLD is the approval to stop on the runway).
+    /// </summary>
+    private static PilotSpeechText BuildHoldingPositionOnRunwayClause(string runway) =>
+        new(
+            $"holding position on runway {PhraseologyVerbalizer.CompactRunway(runway)}",
+            $"holding position on runway {PhraseologyVerbalizer.SpellRunway(runway)}"
+        );
 
     /// <summary>
     /// A FOLLOWG away from a runway bar — from parking, mid-taxi or any hold that is not a runway bar —
@@ -1831,6 +1856,21 @@ public static class PilotResponder
     }
 
     /// <summary>
+    /// Pilot transmission when the aircraft, cleared across a runway, holds short of it because traffic beyond the far
+    /// holding-position marking leaves it no room to clear (AIM 4-3-18.b): "Holding short of runway 1L, traffic ahead".
+    /// <paramref name="runwayId"/> is a single runway end as the hold-short texts name it — the end nearest the aircraft
+    /// (<see cref="Yaat.Sim.Data.Airport.RunwayCrossingEnd.Nearest"/>). Every form says "traffic", never the traffic's callsign.
+    /// </summary>
+    public static PilotSpeechText BuildHoldingShortTrafficAhead(AircraftState aircraft, string runwayId)
+    {
+        string spoken = SpokenOwnCallsign(aircraft);
+        return new PilotSpeechText(
+            $"Holding short of runway {PhraseologyVerbalizer.CompactRunway(runwayId)}, traffic ahead",
+            $"{spoken}, holding short of runway {PhraseologyVerbalizer.SpellRunway(runwayId)}, traffic ahead."
+        );
+    }
+
+    /// <summary>
     /// Pilot transmission when the aircraft has fully exited the active runway after landing.
     /// Reports the runway just vacated and the taxiway used. Returns terminal + TTS forms
     /// independently — terminal uses the digit runway designator, TTS uses the spelled form.
@@ -2040,12 +2080,27 @@ public static class PilotResponder
     /// the hold-short texts name them — the end nearest the aircraft
     /// (<see cref="Yaat.Sim.Data.Airport.RunwayCrossingEnd.Nearest"/>) — spoken spelled and terminal compacted as those texts do.
     /// </summary>
-    public static PilotSpeechText BuildHoldingPositionNotClear(AircraftState aircraft, string clearedRunway)
+    public static PilotSpeechText BuildHoldingPositionNotClear(AircraftState aircraft, string clearedRunway) =>
+        BuildHoldingPositionNotClear(aircraft, clearedRunway, reason: null);
+
+    /// <summary>
+    /// The not-clear call (<see cref="BuildHoldingPositionNotClear(AircraftState, string)"/>) of an aircraft that has come to rest
+    /// mid-crossing behind traffic with part of it still inside the far holding-position marking (AIM 2-3-5.a): "Holding position, not
+    /// clear of runway 28L, traffic ahead". Every form says "traffic", never the traffic's callsign.
+    /// </summary>
+    public static PilotSpeechText BuildHoldingPositionNotClearTrafficAhead(AircraftState aircraft, string clearedRunway) =>
+        BuildHoldingPositionNotClear(aircraft, clearedRunway, "traffic ahead");
+
+    private static PilotSpeechText BuildHoldingPositionNotClear(AircraftState aircraft, string clearedRunway, string? reason)
     {
         string spoken = SpokenOwnCallsign(aircraft);
         string cleared = PhraseologyVerbalizer.CompactRunway(clearedRunway);
         string clearedSpoken = PhraseologyVerbalizer.SpellRunway(clearedRunway);
-        return new PilotSpeechText($"Holding position, not clear of runway {cleared}", $"{spoken}, holding position, not clear of {clearedSpoken}.");
+        string because = reason is null ? "" : $", {reason}";
+        return new PilotSpeechText(
+            $"Holding position, not clear of runway {cleared}{because}",
+            $"{spoken}, holding position, not clear of {clearedSpoken}{because}."
+        );
     }
 
     /// <summary>

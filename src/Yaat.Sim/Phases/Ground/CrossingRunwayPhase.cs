@@ -2,6 +2,8 @@ using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Faa;
+using Yaat.Sim.Pilot;
+using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Phases.Ground;
@@ -62,9 +64,20 @@ public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, st
     private (LatLon Position, TrueHeading Heading)? _restoredSetupPose;
     private GroundNavigatorDto? _restoredNavigator;
 
+    // The not-clear call (TickNotClearCall): how long the aircraft has been at rest, and whether the call was made this crossing.
+    // Both snapshotted.
+    private double _notClearRestSeconds;
+    private bool _saidNotClear;
+
     public override string Name => "Crossing Runway";
 
     public string? RunwayId => _runwayId;
+
+    /// <summary>The entry-side (near) bar node the crossing starts from.</summary>
+    public int ApproachNodeId => _approachNodeId;
+
+    /// <summary>The exit-side (far) bar node the crossing drives to.</summary>
+    public int TargetNodeId => _targetNodeId;
 
     /// <summary>The crossing slice the navigator is playing back (entry bar → exit bar → tail-clearance). Null until built.</summary>
     internal TaxiRoute? CrossingRoute => _crossingRoute;
@@ -105,14 +118,14 @@ public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, st
             TryBuildCrossingRoute(ctx);
         }
 
+        TickNotClearCall(ctx);
+
         // A GIVEWAY does not act on the runway: the crossing runs on until the tail is past the far holding-position marking
         // (AIM 4-3-21.a/b) and the onward TaxiingPhase applies the give-way braking from there. A HOLD stops it here.
-        if (ctx.Aircraft.Ground.IsImmobile && (ctx.Aircraft.Ground.Hold?.Kind != HoldKind.GiveWay))
+        bool held = ctx.Aircraft.Ground.IsImmobile && (ctx.Aircraft.Ground.Hold?.Kind != HoldKind.GiveWay);
+        if (held && (!_initialized || _navigator is null || _crossingRoute is null))
         {
-            ctx.Aircraft.IndicatedAirspeed = 0;
-            // Pin the target too: a stale nonzero TargetSpeed left by the navigator would let
-            // generic physics creep the aircraft forward each sub-tick between the IAS resets.
-            ctx.Targets.TargetSpeed = 0;
+            PinHeldSpeed(ctx);
             return false;
         }
 
@@ -129,6 +142,10 @@ public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, st
 
         bool isLastSegment = _crossingRoute.CurrentSegmentIndex + 1 >= _crossingRoute.Segments.Count;
         NavigatorResult result = _navigator.Tick(ctx, isLastSegment, _ => true);
+        if (held)
+        {
+            return TickHeld(ctx, _navigator, _crossingRoute, result);
+        }
 
         if (result == NavigatorResult.ArrivedAtNode)
         {
@@ -166,6 +183,237 @@ public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, st
         }
 
         return false;
+    }
+
+    /// <summary>Ground speed (kt) under which a crossing aircraft counts as at rest for the not-clear call.</summary>
+    private const double NotClearRestKts = 1.0;
+
+    /// <summary>How long (s) a crossing aircraft is at rest before it says it is not clear of the runway (owner ruling).</summary>
+    private const double NotClearCallDelaySeconds = 3.0;
+
+    /// <summary>
+    /// An aircraft that has come to rest mid-crossing with part of it still inside the far holding-position marking, not for a
+    /// controller's HOLD, says once per crossing, <see cref="NotClearCallDelaySeconds"/> after coming to rest, that it is holding
+    /// position not clear of the runway with traffic ahead (<see cref="PilotResponder.BuildHoldingPositionNotClearTrafficAhead"/>,
+    /// the runway end nearest it, <see cref="RunwayCrossingEnd.Nearest"/>; AIM 2-3-5.a, 4-3-18.b), routed to a student on ground
+    /// or as an RPO's pilot speech or warning. Moving again, or a HOLD, restarts the wait; a GIVEWAY does not, since it does not
+    /// stop the aircraft on the runway.
+    /// </summary>
+    private void TickNotClearCall(PhaseContext ctx)
+    {
+        if (_saidNotClear)
+        {
+            return;
+        }
+
+        if ((ctx.Aircraft.GroundSpeed >= NotClearRestKts) || (ctx.Aircraft.Ground.Hold is { Kind: HoldKind.HoldPosition }))
+        {
+            _notClearRestSeconds = 0.0;
+            return;
+        }
+
+        _notClearRestSeconds += ctx.DeltaSeconds;
+        if ((_notClearRestSeconds < NotClearCallDelaySeconds) || (_runwayId is null) || !IsNotClearOfFarMarking(ctx.Aircraft, ctx.GroundLayout))
+        {
+            return;
+        }
+
+        _saidNotClear = true;
+        string runway = RunwayCrossingEnd.Nearest(ctx.Aircraft, _runwayId, ctx.GroundLayout);
+        Log.LogDebug("[Crossing] {Callsign}: at rest not clear of runway {Rwy}, traffic ahead", ctx.Aircraft.Callsign, runway);
+        PilotResponder.RouteSoloOrRpoTransmission(
+            ctx.Aircraft,
+            ctx.SoloTrainingMode,
+            ctx.RpoShowPilotSpeech,
+            ctx.StudentPositionType,
+            PilotResponder.BuildHoldingPositionNotClearTrafficAhead(ctx.Aircraft, runway),
+            PilotResponder.SoloPositionsGround
+        );
+    }
+
+    /// <summary>
+    /// Whether <paramref name="aircraft"/> is on the runway side of the crossing with part of it still inside the far
+    /// holding-position marking: its nose past the near marking (<see cref="NosePastNearMarkingFt"/>) and its tail short of the line
+    /// through the exit-side bar node square to the way across.
+    /// </summary>
+    private bool IsNotClearOfFarMarking(AircraftState aircraft, AirportGroundLayout? layout)
+    {
+        if (
+            (layout is null)
+            || (NosePastNearMarkingFt(aircraft, layout) is not > 0.0)
+            || !layout.Nodes.TryGetValue(_approachNodeId, out GroundNode? near)
+            || !layout.Nodes.TryGetValue(_targetNodeId, out GroundNode? far)
+        )
+        {
+            return false;
+        }
+
+        var acrossHeading = new TrueHeading(GeoMath.BearingTo(near.Position, far.Position));
+        double centrePastFarFt = GeoMath.AlongTrackDistanceNm(aircraft.Position, far.Position, acrossHeading) * GeoMath.FeetPerNm;
+        return centrePastFarFt - (AircraftLength.ResolveFt(aircraft.AircraftType) / 2.0) < 0.0;
+    }
+
+    /// <summary>
+    /// The firm rate (kt/s) a piston or a helicopter brakes at for a HOLD on the runway, above its 2 kt/s taxi brake rate,
+    /// which would leave a 20 kt light aircraft rolling some 170 ft along the runway (owner ruling).
+    /// </summary>
+    private const double LightHoldOnRunwayDecelKtsPerSec = 4.5;
+
+    /// <summary>
+    /// The rate (kt/s) a HOLD on the runway brakes at: the taxi brake rate for a jet or a turboprop, the firm
+    /// <see cref="LightHoldOnRunwayDecelKtsPerSec"/> for a piston or a helicopter.
+    /// </summary>
+    internal static double HoldBrakeRateKtsPerSec(AircraftCategory category) =>
+        category is AircraftCategory.Piston or AircraftCategory.Helicopter
+            ? LightHoldOnRunwayDecelKtsPerSec
+            : CategoryPerformance.TaxiDecelRate(category);
+
+    /// <summary>
+    /// A held tick: a HOLD brakes the aircraft to a stop where it is, on the runway (AIM 4-3-21.a: HOLD is the approval to stop
+    /// there). The navigator has already ticked, so its curve playback stays with the aircraft while it brakes, and the speed
+    /// target is pinned after it (docs/ground/navigator.md, "The hold contract"). An arrival at a node inside the slice (a runway
+    /// centreline node) rolls on to the next slice segment at the brake rate. An arrival at the slice's last node, past the far
+    /// marking with the tail clear, ends the crossing as an un-held arrival does (<see cref="HandRouteBack"/>), still braking:
+    /// the onward taxi's held branch brakes the aircraft on from there. Returns whether the crossing is done.
+    /// </summary>
+    private bool TickHeld(PhaseContext ctx, GroundNavigator navigator, TaxiRoute crossingRoute, NavigatorResult result)
+    {
+        PinHeldSpeed(ctx);
+        if (result != NavigatorResult.ArrivedAtNode)
+        {
+            return false;
+        }
+
+        if (crossingRoute.CurrentSegment is { } seg)
+        {
+            ctx.Aircraft.Ground.CurrentTaxiway = seg.TaxiwayName;
+        }
+
+        crossingRoute.CurrentSegmentIndex += 1;
+        if (crossingRoute.IsComplete)
+        {
+            HandRouteBack(ctx);
+            return true;
+        }
+
+        SetupCurrentSegment(ctx, navigator, crossingRoute);
+        PinHeldSpeed(ctx);
+        return false;
+    }
+
+    /// <summary>Pins the held crossing's speed target and brake rate (<see cref="PinHeldSpeed(PhaseContext, double?)"/>).</summary>
+    private void PinHeldSpeed(PhaseContext ctx) => PinHeldSpeed(ctx, NosePastNearMarkingFt(ctx.Aircraft, ctx.GroundLayout));
+
+    /// <summary>
+    /// Pins the speed target and brake rate of an aircraft a HOLD stops at a runway crossing, its nose
+    /// <paramref name="nosePastFt"/> past the near holding-position marking (null when unknown): zero at
+    /// <see cref="HoldBrakeRateKtsPerSec"/>, or, when that rate stops the nose at the marking (<see cref="HoldBrakesOntoMarking"/>),
+    /// the braking curve onto the marking. The crossing pins a HOLD with it, and so does the taxi in the stretch before the
+    /// crossing starts.
+    /// </summary>
+    internal static void PinHeldSpeed(PhaseContext ctx, double? nosePastFt)
+    {
+        double rate = HoldBrakeRateKtsPerSec(ctx.Category);
+        ctx.Targets.DesiredDecelRate = rate;
+        ctx.Targets.TargetSpeed = 0.0;
+        if ((nosePastFt is { } pastFt) && HoldBrakesOntoMarking(ctx.Aircraft.GroundSpeed, rate, pastFt, ctx.DeltaSeconds))
+        {
+            ctx.Targets.TargetSpeed = Math.Min(ctx.Aircraft.GroundSpeed, GroundStopBraking.StopCurveKts(ctx, -pastFt, rate));
+        }
+    }
+
+    /// <summary>
+    /// How far (ft) <paramref name="aircraft"/>'s nose is past the near holding-position marking, negative while short of it:
+    /// the marking is the line through the entry-side bar node square to the way across (the slice's first segment, else the
+    /// line to the exit-side bar node), and the nose is half the fuselage ahead of the centre. Null when the layout lacks either
+    /// bar node.
+    /// </summary>
+    public double? NosePastNearMarkingFt(AircraftState aircraft, AirportGroundLayout? layout)
+    {
+        if (
+            (layout is null)
+            || !layout.Nodes.TryGetValue(_approachNodeId, out GroundNode? near)
+            || !layout.Nodes.TryGetValue(_targetNodeId, out GroundNode? far)
+        )
+        {
+            return null;
+        }
+
+        double acrossDeg = _crossingRoute?.Segments[0].Edge.DepartureBearing ?? GeoMath.BearingTo(near.Position, far.Position);
+        return NosePastMarkingFt(aircraft, near.Position, acrossDeg);
+    }
+
+    /// <summary>
+    /// How far (ft) <paramref name="aircraft"/>'s nose is past a holding-position marking, negative while short of it: the
+    /// marking is the line through <paramref name="nearBar"/> square to the way across, <paramref name="acrossDeg"/>, and the nose
+    /// is half the fuselage ahead of the centre. The one measure the crossing, the taxi before it and the near-line gate share.
+    /// </summary>
+    internal static double NosePastMarkingFt(AircraftState aircraft, LatLon nearBar, double acrossDeg)
+    {
+        double centreFt = GeoMath.AlongTrackDistanceNm(aircraft.Position, nearBar, new TrueHeading(acrossDeg)) * GeoMath.FeetPerNm;
+        return centreFt + (AircraftLength.ResolveFt(aircraft.AircraftType) / 2.0);
+    }
+
+    /// <summary>
+    /// The segments the crossing drives from where it is, as indices to walk: the rest of its slice (entry bar → exit bar → tail
+    /// clearance) from <c>SliceStart</c>, then, for a crossing of the aircraft's own route, <c>Onward</c> — that route — from
+    /// <c>OnwardStart</c>, the first segment the tail clearance did not drive whole, so a route segment the tail clearance drove
+    /// only part of comes back whole, a harmless overstatement of the path. The aircraft's route cursor stays on the entry segment
+    /// for the whole crossing (<see cref="HandRouteBack"/> is its only writer), so a reader of the path ahead takes it from here.
+    /// Null until the slice is built.
+    /// </summary>
+    public (TaxiRoute Slice, int SliceStart, TaxiRoute? Onward, int OnwardStart)? PathAhead(AircraftState aircraft) =>
+        _crossingRoute is { } slice
+            ? (
+                slice,
+                Math.Max(slice.CurrentSegmentIndex, 0),
+                (_ownPath is null) && (_exitRouteIndex >= 0) ? aircraft.Ground.AssignedTaxiRoute : null,
+                _exitRouteIndex + 1 + _tailClearFullSegments
+            )
+            : null;
+
+    /// <summary>
+    /// The runway end a HOLD on this crossing is read back as holding on — the end nearest the aircraft
+    /// (<see cref="RunwayCrossingEnd.Nearest"/>) — when the HOLD stops some part of the aircraft past the near holding-position
+    /// marking (<see cref="HoldStopsOnRunway"/>). Null otherwise, or when the crossing names no runway.
+    /// </summary>
+    public string? HeldOnRunwayEnd(AircraftState aircraft)
+    {
+        AirportGroundLayout? layout = aircraft.Ground.Layout;
+        return (_runwayId is not null) && (NosePastNearMarkingFt(aircraft, layout) is { } nosePastFt) && HoldStopsOnRunway(aircraft, nosePastFt)
+            ? RunwayCrossingEnd.Nearest(aircraft, _runwayId, layout)
+            : null;
+    }
+
+    /// <summary>One phase tick (s): the phases run once per physics sub-tick.</summary>
+    private const double PhaseTickSeconds = 1.0 / SimulationEngine.PhysicsSubTickRate;
+
+    /// <summary>
+    /// Whether a HOLD given now stops <paramref name="aircraft"/>, its nose <paramref name="nosePastFt"/> past the near
+    /// holding-position marking, with some part of it past the marking (AIM 2-3-5.a.1): unless the HOLD's rate
+    /// (<see cref="HoldBrakeRateKtsPerSec"/>) brakes it onto the marking (<see cref="HoldBrakesOntoMarking"/>, judged over the
+    /// phase tick <see cref="PinHeldSpeed(PhaseContext, double?)"/> pins it on), it brakes at that rate from where it is, and the
+    /// nose comes to rest its stopping distance on. The readback and the braking judge the same room, so they agree.
+    /// </summary>
+    internal static bool HoldStopsOnRunway(AircraftState aircraft, double nosePastFt)
+    {
+        double rate = HoldBrakeRateKtsPerSec(AircraftCategorization.Categorize(aircraft.AircraftType));
+        double speedKts = aircraft.GroundSpeed;
+        return !HoldBrakesOntoMarking(speedKts, rate, nosePastFt, PhaseTickSeconds)
+            && (nosePastFt + GroundStopBraking.StoppingDistanceFt(speedKts, rate) > 0.0);
+    }
+
+    /// <summary>
+    /// Whether a HOLD braking at <paramref name="rate"/> from <paramref name="speedKts"/> stops the nose, <paramref name="nosePastFt"/>
+    /// past the near holding-position marking, at the marking on the braking curve onto it
+    /// (<see cref="GroundStopBraking.StopCurveKts"/>): the nose is short of the marking and the stopping distance fits the room the
+    /// curve has — the distance short, less <see cref="GroundNavigator.SetBackStopMarginFt"/> and one tick's
+    /// (<paramref name="tickSeconds"/>) travel.
+    /// </summary>
+    private static bool HoldBrakesOntoMarking(double speedKts, double rate, double nosePastFt, double tickSeconds)
+    {
+        double roomFt = -nosePastFt - GroundNavigator.SetBackStopMarginFt - (speedKts * GroundStopBraking.FeetPerSecondPerKt * tickSeconds);
+        return (nosePastFt < 0.0) && (GroundStopBraking.StoppingDistanceFt(speedKts, rate) <= roomFt);
     }
 
     // Speed targets are owned by the next phase. The typical successor is
@@ -589,6 +837,8 @@ public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, st
             SegmentSetupLon = (_segmentSetupPose ?? _restoredSetupPose)?.Position.Lon,
             SegmentSetupHeadingDeg = (_segmentSetupPose ?? _restoredSetupPose)?.Heading.Degrees,
             OwnPath = _ownPath?.ToSnapshot(),
+            NotClearRestSeconds = _notClearRestSeconds > 0.0 ? _notClearRestSeconds : null,
+            SaidNotClear = _saidNotClear ? true : null,
         };
 
     public static CrossingRunwayPhase FromSnapshot(CrossingRunwayPhaseDto dto, AirportGroundLayout? groundLayout)
@@ -603,6 +853,8 @@ public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, st
                     ? (new LatLon(lat, lon), new TrueHeading(heading))
                     : null,
             _restoredNavigator = dto.Navigator,
+            _notClearRestSeconds = dto.NotClearRestSeconds ?? 0.0,
+            _saidNotClear = dto.SaidNotClear ?? false,
             Status = (PhaseStatus)dto.Status,
             ElapsedSeconds = dto.ElapsedSeconds,
         };

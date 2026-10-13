@@ -248,11 +248,24 @@ The centre is too close within `RequiredLateralClearanceFt` (both half-spans plu
 
 `TaxiingPhase.HeldSpeedKts` keeps the held aircraft taxiing toward the nearer of that point and the next node where a held arrival stops (an uncleared holding-position bar, or a cleared one whose painted stop is still ahead, measured to that painted stop; or the route's end). A cleared bar already behind the nose is skipped and its node is a pass-through, so a GIVEWAY issued between a cleared runway bar's hold line and the runway carries the aircraft across.
 
-`CrossingRunwayPhase` ignores a GIVEWAY for the rest of a crossing (AIM 4-3-21.a/b: no stopping on the runway, clear only past the far marking), and the give-way applies once `TaxiingPhase` takes over beyond it. A HOLD mid-crossing still stops at once (YAAT-328) on the braking curve `GroundStopBraking.ChooseStopBraking` picks, the rule a follower uses at a runway bar: the taxi brake rate, and the firm rate when only that makes the point.
+`CrossingRunwayPhase` ignores a GIVEWAY for the rest of a crossing (AIM 4-3-21.a/b: no stopping on the runway, clear only past the far marking), and the give-way applies once `TaxiingPhase` takes over beyond it.
+
+A HOLD mid-crossing brakes onto the near marking when it fits, else stops on the runway (piston and helicopter at 4.5 kt/s, jet and turboprop at the taxi rate); the braking is the crossing phase's own ([ground/navigator.md](ground/navigator.md) § Inputs and outputs, The hold contract), not this detector's.
 
 Unlike the follower at a bar, a GIVEWAY never stops dead for its give-way point: where not even the firm rate makes the point, or the aircraft is already inside the clearance, it brakes at the firm rate and stops where that takes it.
 
 Near an uncleared runway bar the bar's cap overrides that: a GIVEWAY inside its stopping distance of the bar's painted stop takes the firm rate and, when not even that makes the line, the last-resort dead stop short of the marking ([ground/navigator.md](ground/navigator.md) § Stopping at an uncleared bar).
+
+A runway crosser (an aircraft in `CrossingRunwayPhase`) takes no slowdown behind traffic: the trail match, the proximity trail and the convergence slowdown give it the **crossing stop curve** instead. It keeps its speed until the stop ring ahead of it is inside its own taxi-rate stopping distance, even beyond the trail band (always the ring plus 100 ft), so a committed crosser looks ahead as far as that stopping distance.
+
+It then brakes onto the ring at the taxi rate, and at the firm rate only once the taxi-rate stop no longer fits the room. The reasons logged are "crossing stop curve" and "convergence crossing stop curve", and the closing diagnostic reads "{dist}ft, {room}ft to the stop ring, crossing a runway, stop curve=…". The stops themselves (the ring, a hold) still apply.
+
+Every non-zero limit whose producer knows its room is floored at the speed the aircraft can still brake down from over one 0.25 s detector pass, since physics applies the limit at once ([ground/navigator.md](ground/navigator.md) § Ground conflict detection / mutual proximity-stop deadlock).
+
+A crosser yields to a runway aircraft across the whole trail band (`ResolveCrossing` rule 1: an off-runway aircraft yields to one on the runway).
+
+An aircraft cleared across a runway is held at the **near line** while the far side lacks room, by `RunwayCrossingFarSideGate` in the phases, not by this detector; it is committed (so the gate no longer holds it) once it can no longer stop with its nose at the near marking even at the firm rate, or, at rest, with its nose past the marking ([ground/navigator.md](ground/navigator.md) § Relationship to sibling ground phases). The detector's stop curve takes over only inside `CrossingRunwayPhase`.
+
 
 With no route on either side, or no shared node within the 1,500 ft look-ahead (`ConvergenceLookaheadFt`, which `FindSharedUpcomingNode` and the clearance walk both use), a GIVEWAY stops where it is, as HOLD does; the Debug log names which.
 

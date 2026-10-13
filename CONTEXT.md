@@ -381,8 +381,14 @@ The aircraft a `FOLLOWG` follower is never limited against by the ground conflic
 **Closing** (a lead closing on its follower):
 A lead in a follower's lead chain that the detector limits like any other aircraft because it is pushing toward the follower, or re-entering its own taxi edge trail with the follower standing on it (retracing, returning over a fillet arc, or turned about on its newest edge) (`GroundConflictDetector.ClosingOnFollower`).
 
+**Commit point** (of a runway crossing):
+The point past which an aircraft cleared across a runway is no longer held at the near line by the near-line gate: rolling, once it can no longer stop with its nose at the near holding-position marking even at the firm rate; at rest, once its nose is past the marking (`RunwayCrossingFarSideGate.IsCommitted`, docs/ground/navigator.md).
+
 **Lost route**:
 The follow route a `FOLLOWG` follower keeps after a lead re-route joins nothing, while it brakes to rest along it rather than drive a clearing route (`FollowingPhase.IsBrakingLostRoute`, docs/ground/navigator.md).
+
+**Near-line gate**:
+The hold that keeps an aircraft cleared across a runway at the near holding-position marking while the far side lacks room for it to clear the runway, releasing it by itself when the room opens (`RunwayCrossingFarSideGate`, docs/ground/navigator.md).
 
 ## Airborne following
 

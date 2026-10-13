@@ -332,6 +332,12 @@ mutual-yield check and is only caught by the stall net. Flake rules the harness 
 "saw the phase once"; `GroundSpeed < 5` for "slowed to the bar" and `< 1` only after two stationary seconds; budgets are failure
 timeouts, never trimmed.
 
+`SfoGroundHarness.Build` re-initialises `SimLog`, so call `SimLogBuilder.EnableCategory` (and `InitializeSimLog`) **after** `Build`, or the categories it enabled are gone.
+
+To sample each physics sub-tick of a second rather than only its end, drive the spine by hand in place of `TickOneSecond`: `engine.BeginSecond()`, `engine.OpenSecond(engine.BareHost)`, `engine.RunPrePhysics(engine.BareHost)`, `engine.RunPhysicsSubTick` once per sub-tick (`PhysicsSubTickRate` times, four), `engine.RunPostPhysics(engine.BareHost)`, then `engine.RunEndOfSecond(engine.BareHost)`, reading the state between sub-ticks.
+
+`TickOneSecond` runs that sequence through `SimulationEngine.RunSecond`.
+
 **Raw `GeoJsonParser.Parse` needs the nav DB only for runway crossings.** `GeoJsonParser.Parse(airportId, geoJson, runwayAirportCode)`
 runs `RunwayCrossingDetector.DetectRunwayCrossings`, which reads `NavigationDatabase.Instance` — so a non-null `runwayAirportCode` (e.g.
 `"OAK"`) throws `NavigationDatabase not initialized` in a test that hasn't loaded nav data. A test that only needs the graph or fillet

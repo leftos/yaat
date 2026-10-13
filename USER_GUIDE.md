@@ -630,6 +630,12 @@ It is a preference, not a constraint: if only the other direction is reachable t
 
 The named runway sets the direction, so this works even when the taxiway crosses two runways — an aircraft that just exited the parallel 28L heads at 28R, not back across 28L. Add an onward taxiway, parking `@`, or spot `$` to keep it moving; a destination in the clearance (e.g. `RWY 30 TAXI G CROSS 28R`) makes `CROSS 28R` a plain crossing pre-clearance instead.
 
+**Traffic beyond the crossing.** An aircraft cleared across a runway does not enter it while traffic past the far holding position leaves too little room for it to clear the runway. It holds at the near line, says "Holding short of runway 28R, traffic ahead" once, and crosses by itself as soon as the room opens, with no new `CROSS`. Once it is on the runway it keeps crossing at speed and brakes onto its stop only when the traffic ahead is close enough that it has to.
+
+An aircraft that traffic brings to rest on the runway says "Holding position, not clear of runway 28R, traffic ahead" about three seconds after it stops, once. A `GIVEWAY` does not stop an aircraft on the runway (it carries on across and gives way beyond it), so it does not silence that call; a `HOLD` does.
+
+`HOLD` (Hold position) while an aircraft is crossing stops it where the braking takes it: a jet or turboprop at the taxi rate, a piston aircraft or helicopter more firmly, short of the near line when that is still possible, otherwise on the runway. The readback says "holding position on runway 28R" whenever any part of the aircraft is past the near line or the `HOLD` cannot stop it short of it, so the instructor knows it is occupying the runway.
+
 **Clearing multiple crossings at once.** When a taxi route crosses two closely-spaced parallels (e.g. taxiway B across 28R/10L then 28L/10R at OAK), a single `CROSS 28R 28L` clears the crossing the aircraft is holding short of and pre-clears the next, so it taxis straight through without a second command.
 
 Add a hold-short in the same clearance — `CROSS 28R HS 20` crosses 28R then holds short of taxiway 20. The command is all-or-nothing: every named runway must be an upcoming crossing on the route and none may be the assigned departure runway (use `CTO`/`LUAW` for that). `RES CROSS 28R 28L` does the same while also resuming a held taxi.

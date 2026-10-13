@@ -346,6 +346,13 @@ public sealed class HoldingShortPhaseDto : PhaseDto
     /// hold-short re-fires the announcement. Non-required so older snapshots default to false.
     /// </summary>
     public bool HasAnnouncedReady { get; init; }
+
+    /// <summary>
+    /// True once the phase, cleared across, said "holding short of runway …, traffic ahead" for traffic beyond the crossing's far
+    /// side, so a restored phase does not say it again. Null before that, and in snapshots written before the field existed.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? SaidTrafficAhead { get; init; }
 }
 
 public sealed class CrossingRunwayPhaseDto : PhaseDto
@@ -396,6 +403,17 @@ public sealed class CrossingRunwayPhaseDto : PhaseDto
     /// ordinary crossing, and in snapshots written before the field existed.
     /// </summary>
     public TaxiRouteDto? OwnPath { get; init; }
+
+    /// <summary>
+    /// How long (s) the crossing aircraft had been at rest toward its not-clear call ("holding position, not clear of runway …,
+    /// traffic ahead"). Null when it was not at rest, and in snapshots written before the field existed.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? NotClearRestSeconds { get; init; }
+
+    /// <summary>True once the crossing's not-clear call was made, so a restore does not make it again. Null before that.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? SaidNotClear { get; init; }
 }
 
 /// <summary>
@@ -464,6 +482,14 @@ public sealed class TaxiingPhaseDto : PhaseDto
     /// stopping for at the firm rate until it takes the hold or the bar is cleared. Null whenever no such stop is under way.
     /// </summary>
     public int? PassedStartBarNodeId { get; init; }
+
+    /// <summary>
+    /// Node of the cleared crossing bar the phase already said "holding short of runway …, traffic ahead" at, holding for traffic
+    /// beyond the crossing's far side, so a restored phase does not say it again there. Null until that call is made, and in
+    /// snapshots written before the field existed.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? SaidFarSideBlockedNodeId { get; init; }
 }
 
 public sealed class GroundNavigatorDto

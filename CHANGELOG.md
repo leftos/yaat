@@ -16,6 +16,10 @@
 
 ### Fixed
 
+- An aircraft crossing a runway behind stopped traffic brakes at its normal taxi rate, hard only when it must, instead of stopping abruptly.
+- An aircraft cleared across a runway holds short when the far side has no room, says "holding short of runway X, traffic ahead", and goes once room opens.
+- `HOLD` during a runway crossing brakes firmly, reads back "holding position on runway X" when it cannot stop short, and no longer stops dead past the runway.
+
 - The room title's ARTCC label now follows the room when a scenario or recording is loaded or unloaded.
 - In replay, stepping by quarter seconds spawns delayed aircraft and fires timed presets in the same second as stepping by whole seconds.
 - In replay, a recorded live-traffic aircraft appears once, with no extra PDC or printed strip the live session never had.

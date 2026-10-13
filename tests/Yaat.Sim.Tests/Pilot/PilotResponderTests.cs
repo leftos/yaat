@@ -1746,6 +1746,18 @@ public class PilotResponderTests
     }
 
     [Fact]
+    public void BuildHoldingPositionNotClearTrafficAhead_AddsTheReasonToTheNotClearCall()
+    {
+        AircraftState ac = MakeAircraft("N294MG");
+        PilotSpeechText result = PilotResponder.BuildHoldingPositionNotClearTrafficAhead(ac, "28L");
+
+        Assert.Equal("Holding position, not clear of runway 28L, traffic ahead", result.Terminal);
+        Assert.Equal(result.Terminal, result.TerminalForRpo);
+        Assert.EndsWith("holding position, not clear of two eight left, traffic ahead.", result.Tts, StringComparison.Ordinal);
+        Assert.Contains("november two nine four mike golf", result.Tts, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void BuildLostTrafficHolding_RpoTerminalNamesLead_TtsDoesNot()
     {
         AircraftState pilot = MakeAircraft("N294MG");

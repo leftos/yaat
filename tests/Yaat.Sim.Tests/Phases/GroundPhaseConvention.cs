@@ -44,6 +44,7 @@ public sealed class GroundPhaseConvention
             "GroundStopBraking.cs",
             "PathPrimitive.cs",
             "PathPrimitiveBuilder.cs",
+            "RunwayCrossingFarSideGate.cs",
             "TurnAboutFit.cs",
         };
 

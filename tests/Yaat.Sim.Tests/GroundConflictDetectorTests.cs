@@ -633,7 +633,7 @@ public class GroundConflictDetectorTests
 
         GroundConflictDetector.ApplySpeedLimits([yielder, winner], layout);
 
-        Assert.Equal(GroundConflictDetector.SlowTaxiSpeedKts, winner.Ground.SpeedLimit);
+        Assert.Equal(NeaFlooredTrailLimitKts, Assert.IsType<double>(winner.Ground.SpeedLimit), 6);
         Assert.Null(winner.Ground.AutoYieldTarget);
         Assert.Equal("NEA", yielder.Ground.AutoYieldTarget);
         Assert.False(yielder.Ground.AutoYieldIsFollowing);
@@ -651,7 +651,7 @@ public class GroundConflictDetectorTests
 
         GroundConflictDetector.ApplySpeedLimits([farther, nearer], layout);
 
-        Assert.Equal(GroundConflictDetector.SlowTaxiSpeedKts, nearer.Ground.SpeedLimit);
+        Assert.Equal(NeaFlooredTrailLimitKts, Assert.IsType<double>(nearer.Ground.SpeedLimit), 6);
         Assert.Null(nearer.Ground.AutoYieldTarget);
         Assert.Null(farther.Ground.AutoYieldTarget);
     }
@@ -725,9 +725,17 @@ public class GroundConflictDetectorTests
     /// Two taxiing B744s converging on one junction at the base point: <c>SOU</c> <paramref name="fromSouthFt"/> south of it
     /// at 5 kt, nose north, and <c>NEA</c> 5 ft north-east of it at 30 kt, nose south-west, each on a route ending at the
     /// junction. NEA is the nearer, so it is the convergence's winner unless it clears the junction well before SOU arrives;
-    /// past the pair's stop ring and inside its trail band, NEA's closing check slows it to
-    /// <see cref="GroundConflictDetector.SlowTaxiSpeedKts"/> for the 5 kt aircraft behind it.
+    /// past the pair's stop ring and inside its trail band, NEA's closing check slows it for the 5 kt aircraft behind it, to
+    /// <see cref="NeaFlooredTrailLimitKts"/>.
     /// </summary>
+    /// <summary>
+    /// The limit NEA's closing check sets in <see cref="ConvergingB744s"/>: the proximity trail's
+    /// <see cref="GroundConflictDetector.SlowTaxiSpeedKts"/> floored at what the 30 kt B744 can brake from over one detector pass,
+    /// at the firm rate because its taxi-rate stop does not fit in the room before the stop ring.
+    /// </summary>
+    private static readonly double NeaFlooredTrailLimitKts =
+        30.0 - (CategoryPerformance.ExpediteExitDecelRate(AircraftCategory.Jet) / SimulationEngine.PhysicsSubTickRate);
+
     private static (AirportGroundLayout Layout, AircraftState FromSouth, AircraftState FromNortheast) ConvergingB744s(double fromSouthFt)
     {
         var junction = new GroundNode
@@ -838,6 +846,71 @@ public class GroundConflictDetectorTests
         // One of them should have a speed limit (the trailer)
         bool anyLimited = a.Ground.SpeedLimit is not null || b.Ground.SpeedLimit is not null;
         Assert.True(anyLimited, "Expected at least one aircraft to have a speed limit on same edge");
+    }
+
+    /// <summary>
+    /// YAAT-324: a B738 taxiing at 16.5 kt inside the trail band behind a C172 at 5.9 kt on the same edge is not matched to the
+    /// lead's speed in one pass. Physics clamps the speed to the limit at once, so the trail match is floored at the speed the
+    /// trailer can brake down from over one detector pass at its taxi brake rate, which fits in the room before the stop ring.
+    /// </summary>
+    [Fact]
+    public void SameEdgeTrailing_FastTrailerInsideTheTrailBand_LimitFlooredAtTheTaxiBrakeRate()
+    {
+        (AirportGroundLayout layout, GroundNode _, GroundNode _, GroundNode _) = BuildSimpleLayout();
+        GroundEdge edge01 = layout.Edges[0];
+        const double TrailerKts = 16.5;
+        AircraftState trailer = MakeAircraft(
+            "TRL",
+            new LatLon(BaseLat, BaseLon),
+            heading: 0,
+            gs: TrailerKts,
+            taxiRoute: MakeRoute(MakeSeg(0, 1, "A", edge01)),
+            phase: new TaxiingPhase()
+        );
+        AircraftState lead = MakeAircraft(
+            "LED",
+            new LatLon(BaseLat + 1.7 * OffsetLatPer100Ft, BaseLon),
+            heading: 0,
+            gs: 5.9,
+            taxiRoute: MakeRoute(MakeSeg(0, 1, "A", edge01)),
+            phase: new TaxiingPhase()
+        );
+        lead.AircraftType = "C172";
+
+        GroundConflictDetector.ApplySpeedLimits([trailer, lead], layout);
+
+        double floorKts = TrailerKts - (CategoryPerformance.TaxiDecelRate(AircraftCategory.Jet) / SimulationEngine.PhysicsSubTickRate);
+        Assert.Equal("LED", trailer.Ground.AutoYieldTarget);
+        Assert.Equal(floorKts, Assert.IsType<double>(trailer.Ground.SpeedLimit), 6);
+    }
+
+    /// <summary>
+    /// YAAT-324: a C172 taxiing at 16.5 kt straight at a C172 rolling ahead at 5.9 kt, off any shared route, is inside the
+    /// pair's trail band and outside its stop ring, so the closing check slows it. The proximity-trail limit is floored at the
+    /// speed it can brake down from over one detector pass; its taxi-rate stop does not fit before the stop ring, so the floor
+    /// is taken at the firm rate.
+    /// </summary>
+    [Fact]
+    public void ClosingProximityTrail_FastMoverInsideTheTrailBand_LimitFlooredAtTheFirmRateWhenTheTaxiStopDoesNotFit()
+    {
+        (AirportGroundLayout layout, GroundNode _, GroundNode _, GroundNode _) = BuildSimpleLayout();
+        const double MoverKts = 16.5;
+        AircraftState mover = MakeAircraft("MOV", new LatLon(BaseLat, BaseLon), heading: 0, gs: MoverKts, phase: new TaxiingPhase());
+        AircraftState lead = MakeAircraft(
+            "LED",
+            new LatLon(BaseLat + 1.5 * OffsetLatPer100Ft, BaseLon),
+            heading: 0,
+            gs: 5.9,
+            phase: new TaxiingPhase()
+        );
+        mover.AircraftType = "C172";
+        lead.AircraftType = "C172";
+
+        GroundConflictDetector.ApplySpeedLimits([mover, lead], layout);
+
+        double floorKts = MoverKts - (CategoryPerformance.ExpediteExitDecelRate(AircraftCategory.Piston) / SimulationEngine.PhysicsSubTickRate);
+        Assert.Null(lead.Ground.SpeedLimit);
+        Assert.Equal(floorKts, Assert.IsType<double>(mover.Ground.SpeedLimit), 6);
     }
 
     /// <summary>
@@ -1078,7 +1151,16 @@ public class GroundConflictDetectorTests
             leader.Ground.SpeedLimit is null,
             $"the leader {CrossingLeaderPastEntryEndFt:F0} ft past the crossing's entry segment end was capped at {leader.Ground.SpeedLimit} kt"
         );
-        Assert.NotNull(follower.Ground.SpeedLimit);
+        // The follower is the trailer, but a crossing takes no trail match: it is not slowed on the runway (YAAT-483), only braked
+        // onto the stop ring once the ring is inside its own taxi-rate stopping distance — at the taxi rate while that stop still
+        // fits the room (round-2 A1), never harder than the taxi rate sheds over one detector pass.
+        double taxiFloorKts =
+            follower.GroundSpeed
+            - (CategoryPerformance.TaxiDecelRate(AircraftCategorization.Categorize(follower.AircraftType)) / SimulationEngine.PhysicsSubTickRate);
+        Assert.True(
+            follower.Ground.SpeedLimit is null || (follower.Ground.SpeedLimit >= taxiFloorKts - 1e-9),
+            $"the crossing follower at {follower.GroundSpeed:F1} kt was limited to {follower.Ground.SpeedLimit:F2} kt, under the taxi-rate floor"
+        );
         Assert.Equal(LeaderCallsign, follower.Ground.AutoYieldTarget);
         Assert.True(follower.Ground.AutoYieldIsFollowing);
         Assert.Null(leader.Ground.AutoYieldTarget);
@@ -1805,9 +1887,15 @@ public class GroundConflictDetectorTests
         var aircraft = new List<AircraftState> { pusher, mover };
         GroundConflictDetector.ApplySpeedLimits(aircraft, null);
 
+        // The trail limit (the pusher's speed) is floored at what the 8 kt E75L can brake from over one detector pass at its
+        // taxi brake rate, which stops it well inside the room before the stop ring.
+        double flooredKts = Math.Max(
+            pusher.GroundSpeed,
+            mover.GroundSpeed - (CategoryPerformance.TaxiDecelRate(AircraftCategory.Jet) / SimulationEngine.PhysicsSubTickRate)
+        );
         Assert.Null(pusher.Ground.SpeedLimit);
         Assert.NotNull(mover.Ground.SpeedLimit);
-        Assert.Equal(pusher.GroundSpeed, mover.Ground.SpeedLimit!.Value);
+        Assert.Equal(flooredKts, mover.Ground.SpeedLimit!.Value, 6);
         Assert.Null(mover.Ground.AutoYieldTarget);
     }
 
@@ -4370,6 +4458,86 @@ public class GroundConflictDetectorTests
             $"Runway-exit aircraft should proceed, got limit={exiting.Ground.SpeedLimit?.ToString("F1") ?? "null"}"
         );
         Assert.Equal(0.0, crosser.Ground.SpeedLimit);
+    }
+
+    /// <summary>
+    /// Rule 1 against a committed crosser: a B738 crossing a runway (<see cref="CrossingRunwayPhase"/>), closing on a B738
+    /// rolling off the runway across its path, is inside the pair's trail band but still well outside its own stopping distance
+    /// of the stop ring, so its own braking onto the ring does not bind yet. The two are in conflict all the same: the
+    /// aircraft not on the runway surface yields across the whole trail band, not only once the crosser's stop curve binds.
+    /// </summary>
+    [Fact]
+    public void Crossing_CommittedCrosserClosingOnRunwayAircraftInsideTheTrailBand_CrosserYields()
+    {
+        (AirportGroundLayout? layout, GroundNode _, GroundNode _, GroundNode _) = BuildSimpleLayout();
+        GroundEdge edge01 = layout.Edges[0];
+        AircraftState exiting = MakeAircraft(
+            "EXIT",
+            new LatLon(BaseLat + 2.4 * OffsetLatPer100Ft, BaseLon),
+            heading: 90,
+            gs: 10,
+            phase: new RunwayExitPhase()
+        );
+        AircraftState crosser = MakeAircraft(
+            "CROSS",
+            new LatLon(BaseLat, BaseLon),
+            heading: 0,
+            gs: 15,
+            taxiRoute: MakeRoute(MakeSeg(0, 1, "A", edge01)),
+            phase: new CrossingRunwayPhase(approachNodeId: 0, targetNodeId: 1, runwayId: "28L")
+        );
+
+        GroundConflictDetector.ApplySpeedLimits([exiting, crosser], layout);
+
+        Assert.Equal(0.0, crosser.Ground.SpeedLimit);
+        Assert.True(exiting.Ground.SpeedLimit is null or > 0, $"the aircraft on the runway was limited to {exiting.Ground.SpeedLimit:F1} kt");
+    }
+
+    /// <summary>
+    /// A crosser (<see cref="CrossingRunwayPhase"/>) at its category's taxi speed, dead astern of an aircraft at rest, with the
+    /// pair's stop ring just inside its own taxi-rate stopping distance — which puts the pair beyond its trail band (the ring plus
+    /// 100 ft). The crosser starts braking onto the ring there, at its taxi rate: limited under its speed, never lower than the
+    /// taxi rate sheds over one detector pass. Waiting for the trail band would leave only the firm rate.
+    /// </summary>
+    [Theory]
+    [InlineData("B738")]
+    [InlineData("C172")]
+    public void Crossing_StopRingJustInsideItsTaxiRateStopBeyondTheTrailBand_CrosserBrakesAtTheTaxiRate(string type)
+    {
+        (AirportGroundLayout? layout, GroundNode _, GroundNode _, GroundNode _) = BuildSimpleLayout();
+        AircraftCategory category = AircraftCategorization.Categorize(type);
+        double speedKts = CategoryPerformance.TaxiSpeed(category);
+        double taxiRate = CategoryPerformance.TaxiDecelRate(category);
+        double taxiStopFt = speedKts * speedKts / (2.0 * taxiRate) * (FtPerNm / 3600.0);
+        double ringFt = StopRingFt(type, type);
+        double distFt = ringFt + taxiStopFt + 3.0;
+        Assert.True(distFt > ringFt + 100.0, $"{type}: {distFt:F1} ft is inside the trail band ({ringFt + 100.0:F1} ft)");
+        AircraftState crosser = MakeAircraft(
+            "CROSS",
+            new LatLon(BaseLat, BaseLon),
+            heading: 0,
+            gs: speedKts,
+            taxiRoute: MakeRoute(MakeSeg(0, 1, "A", layout.Edges[0]), MakeSeg(1, 2, "A", layout.Edges[1])),
+            phase: new CrossingRunwayPhase(approachNodeId: 0, targetNodeId: 1, runwayId: "28L")
+        );
+        crosser.AircraftType = type;
+        AircraftState held = MakeAircraft(
+            "HELD",
+            new LatLon(BaseLat + (distFt / 100.0 * OffsetLatPer100Ft), BaseLon),
+            heading: 0,
+            gs: 0,
+            phase: new HoldingInPositionPhase()
+        );
+        held.AircraftType = type;
+
+        GroundConflictDetector.ApplySpeedLimits([crosser, held], layout);
+
+        double floorKts = speedKts - (taxiRate / SimulationEngine.PhysicsSubTickRate);
+        double? limit = crosser.Ground.SpeedLimit;
+        Assert.True(limit is not null, $"{type} at {distFt:F1} ft was limited to none");
+        double limitKts = limit.Value;
+        Assert.True(limitKts < speedKts, $"{type} limited to {limitKts:F2} kt, not under its {speedKts:F1} kt");
+        Assert.True(limitKts >= floorKts - 1e-9, $"{type} limited to {limitKts:F2} kt, under the taxi-rate floor {floorKts:F2} kt");
     }
 
     /// <summary>
