@@ -725,9 +725,11 @@ There are two server entry points that build a scenario, and they share one load
   The ARTCC-tab path does **not** load a catalog scenario by id — instead the client first calls the `GetScenarioJsonById` query, which routes to `ResolveGatedJsonAsync`: that pulls the **canonical** JSON from the server catalog (not the client payload), applies the rating gate against the canonical MinimumRating, and returns the JSON.
 
   The client then runs the normal difficulty/pacing setup and loads it back via `LoadScenario` — so catalog loads get the same difficulty prompt as local-file loads, and client JSON tampering still can't obtain gated content (the gate is enforced at fetch).
-- **`ReloadForRewindAsync`** / **`ReloadForRewind`** — the rewind twin. Takes the saved scenario JSON, a `ReloadStart` (the **provided** `RngSeed` and `SessionStartUtc` — the session's, or the recording manifest's for an imported archive; a restart reads the room clock again — and the starting `InitialActiveRunways`) and a `ReloadKind` (`Restart`, `Rewind`, `RecordingLoad`, `CheckpointRestore`) that picks where the active runways come from, runs the same `LoadSeeded` + `PopulateRoom` core on the room's resource pin, so it never waits on vNAS, but skips broadcasting (caller sets `IsBroadcastSuppressed`) and the pacing-override recording.
+- **`ReloadOnRoomSettingsAsync`** / **`ReloadTapeForRewindAsync`** / **`ReloadForRewind`** — the rewind twins: `ReloadOnRoomSettingsAsync` (restart, checkpoint restore) starts on the room's session settings.
 
-  A room with no pin pins the live caches first (the async form fetches the manifest's resources into them before it does). `ReloadRecording` is the same reload on a recording load's freshly prepared pin, which replaces the room's. After reload, the caller in `RecordingManager` either restores the nearest snapshot and replays the remaining seconds, or replays from scratch.
+  `ReloadTapeForRewindAsync` (rewind, seek) and the sync `ReloadForRewind` (snapshot generation) take the tape and start on its t≤0 settings. Takes the saved scenario JSON, a `ReloadStart` (the **provided** `RngSeed` and `SessionStartUtc` — the session's, or the recording manifest's for an imported archive; a restart reads the room clock again — and the starting `InitialActiveRunways`) and a `ReloadKind` (`Restart`, `Rewind`, `RecordingLoad`, `CheckpointRestore`) that picks where the active runways come from, runs the same `LoadSeeded` + `PopulateRoom` core on the room's resource pin, so it never waits on vNAS, but skips broadcasting (caller sets `IsBroadcastSuppressed`) and the pacing-override recording.
+
+  A room with no pin pins the live caches first (the async form fetches the manifest's resources into them before it does). `ReloadRecording` is the same reload, handed the tape, on a recording load's freshly prepared pin, which replaces the room's. After reload, the caller in `RecordingManager` either restores the nearest snapshot and replays the remaining seconds, or replays from scratch.
 
 ### Fetch outcomes and load warnings
 
@@ -760,16 +762,15 @@ The division of labour:
 - **`SimScenarioState` is the runtime source of truth.** Every gate and every DTO reads the scenario, falling back to the room
   copy only when no scenario is loaded. Replay (`SimulationEngine.ApplySettingChange`) writes the scenario directly, so during a
   rewind reconstruction the scenario is ahead of the room copy — which is why the DTOs must not read the room.
-- **`TrainingRoom.SessionSettings` is what outlives the reload.** `SimControlService`'s setters write it first and
-  unconditionally (so a toggle flipped with no scenario loaded still seeds the next load), then the scenario. After a rewind
-  reconstruction `RecordingManager` calls `CaptureFrom(newScenario)` so the room copy follows the rewound values.
+- **`TrainingRoom.SessionSettings` is what outlives the reload.** `SimControlService`'s setters write it first and unconditionally (so a toggle flipped with no scenario loaded still seeds the next load), then the scenario. A tape's setting changes, applied in playback or reconstruction, refresh it through `RoomHost.ApplyRecordedAction`, and a rewind ends with `CaptureFrom(newScenario)`.
+- **A tape's t≤0 settings replace the room's when the scenario is built.** A recording load, a rewind or seek from t=0, and the export and migration snapshot generation pass the tape to `PopulateRoom`, whose `StartOnTapeSettings` resets the scenario to the defaults, applies the tape's t≤0 `RecordedSettingChange`s and captures the room copy, before any preset dispatches. A restart and a checkpoint restore pass no tape and start on the room's settings.
 - **Adding a setting means adding it to `RoomSessionSettings` in both `ApplyTo` and `CaptureFrom`.**
   `RoomSessionSettingsTests` walks the type reflectively and fails if you list it in only one.
 - **A seeded setting is recorded at t=0, or every reconstruction runs the default.** `SimControlService`'s setters record a `RecordedSettingChange` only for a toggle made *during* the scenario; a setting already on when the scenario loaded reaches it through `ApplyTo` and left no trace.
 
   The live load's commit (`ScenarioLifecycleService.CommitPreparedScenario`) therefore calls `RecordSeededSessionSettings`, which writes a t=0 record for every `ApplyTo` field that differs from a fresh `SimScenarioState` (same setting names and value formats as the setters, so `ApplySettingChange` applies them unchanged; `MetarReissuanceEnabled` is excluded because it travels on the weather record and the manifest).
 
-  Only the live load records — a rewind or restart replays the log it already holds, so `PopulateRoom` must not.
+  Only the live load and a restart record (a restart writes the room's non-default settings to its fresh log) — a rewind or recording load replays the log it already holds, so `PopulateRoom` must not.
 
   Why it matters: `RoomEngine.CreateTempReplayEngine` builds a brand-new `TrainingRoom` for the export's snapshot regeneration, so without it an exported bundle's snapshots are generated under default settings — the S2-OAK-4 bundle spoke "going around, traffic on the runway" at t=1100 in its terminal log while its own snapshots had `AutoGoAroundOnOccupiedRunway: false` and went around at t≈1108 from the no-clearance gate.
 
@@ -844,7 +845,7 @@ reattachment pattern.
 - **`ProcessGenerators` is suppressed during replay** when recorded spawns exist — generated arrivals are replayed verbatim from
   the action log, not regenerated. Don't add unconditional generator work in the tick path; gate it the same way.
 - **Rewind reuses the original `rngSeed`.** Determinism of the rewound session depends on it. Picking a fresh seed in
-  `ReloadForRewindAsync` would desync the action log from the reconstructed aircraft.
+  `ReloadTapeForRewindAsync` would desync the action log from the reconstructed aircraft.
 - **`GroundSpawnSnap` silently no-ops beyond 200 ft.** A coord ground spawn placed far from any taxiway keeps its authored pose
   (with a warning) — the aircraft will not be on a taxi edge, and a subsequent `TAXI` plans from off-graph.
 

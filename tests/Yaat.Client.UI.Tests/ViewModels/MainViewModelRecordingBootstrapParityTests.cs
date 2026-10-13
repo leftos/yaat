@@ -2,6 +2,7 @@ using Avalonia.Headless.XUnit;
 using Xunit;
 using Yaat.Client.Services;
 using Yaat.Client.UI.Tests.Fakes;
+using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.ViewModels;
 
 namespace Yaat.Client.UI.Tests.ViewModels;
@@ -121,5 +122,91 @@ public class MainViewModelRecordingBootstrapParityTests
         // The Ground View restores and saves its center/zoom per scenario, so a recording load has to
         // tell it which scenario it is on, exactly as the bootstrap router does.
         Assert.Equal(ScenarioId, vm.Ground.ActiveScenarioId);
+    }
+
+    // --- After a recording load the "No landing clnc" flag follows the tape's session, not the preference (YAAT-252) ---
+
+    private static SessionSettingsDto TapeSettings(bool autoClearedToLand) =>
+        new(
+            AutoDeleteOverride: null,
+            EffectiveAutoDeleteMode: null,
+            DepartureAutoDeleteDistanceNm: null,
+            AutoAcceptDelaySeconds: 5,
+            AutoClearedToLand: autoClearedToLand,
+            AutoCrossRunway: false,
+            AutoPullUpToParallel: false,
+            AutoGoAroundOnOccupiedRunway: false,
+            AutoRejectTakeoffOnOccupiedRunway: false,
+            AutoArrivalSpacingOnOccupiedRunway: false,
+            ValidateDctFixes: true,
+            SoloTrainingMode: false,
+            SoloParkingInitialCallupRatePercent: 100,
+            SoloArrivalGeneratorRatePercent: 100,
+            SoloGoAroundProbabilityPercent: 0,
+            HasSoloParkingInitialCallupSource: false,
+            HasSoloArrivalGeneratorSource: false,
+            RpoShowPilotSpeech: false
+        );
+
+    private static RewindResultDto LoadedTape(bool autoClearedToLand) =>
+        new(
+            Success: true,
+            Error: null,
+            ActiveRunways: [],
+            Aircraft: [MakeAircraft("SWA101")],
+            ScenarioId: ScenarioId,
+            ScenarioName: ScenarioName,
+            PrimaryAirportId: AirportId,
+            StudentPositionType: "TWR",
+            IsPlayback: true,
+            SessionSettings: TapeSettings(autoClearedToLand)
+        );
+
+    private static MainViewModel VmPreferringAutoClearedToLand()
+    {
+        MainViewModel vm = NewVm();
+        UserPreferences prefs = vm.Preferences;
+        prefs.SetSimulationShortcuts(
+            autoClearedToLandGnd: true,
+            autoClearedToLandTwr: true,
+            autoClearedToLandApp: true,
+            autoClearedToLandCtr: true,
+            autoCrossRunway: prefs.AutoCrossRunway,
+            autoPullUpToParallel: prefs.AutoPullUpToParallel,
+            autoGoAroundOnOccupiedRunway: prefs.AutoGoAroundOnOccupiedRunway,
+            autoRejectTakeoffOnOccupiedRunway: prefs.AutoRejectTakeoffOnOccupiedRunway,
+            autoArrivalSpacingOnOccupiedRunwayGnd: prefs.AutoArrivalSpacingOnOccupiedRunwayGnd,
+            autoArrivalSpacingOnOccupiedRunwayTwr: prefs.AutoArrivalSpacingOnOccupiedRunwayTwr
+        );
+        return vm;
+    }
+
+    /// <summary>The loader: the tape's settings broadcast landed first, then the load's result.</summary>
+    [AvaloniaFact]
+    public void ApplyRecordingResult_AfterTheSettingsBroadcast_FlagFollowsTheTapeNotThePreference()
+    {
+        using var scope = new PreferencesFileScope();
+        MainViewModel vm = VmPreferringAutoClearedToLand();
+
+        vm.ApplySessionSettings(TapeSettings(autoClearedToLand: false));
+        vm.ApplyRecordingResult(LoadedTape(autoClearedToLand: false));
+
+        Assert.False(Assert.Single(vm.Aircraft).IsAutoClearedToLand, "the tape's session has auto cleared-to-land off");
+        Assert.False(vm.SessionAutoClearedToLand);
+        Assert.True(vm.Preferences.GetAutoClearedToLand("TWR"), "a recording load must not write the preference");
+    }
+
+    /// <summary>Another room member: the RecordingLoaded result may land before the settings broadcast does.</summary>
+    [AvaloniaFact]
+    public void ApplyRecordingResult_BeforeTheSettingsBroadcast_FlagFollowsTheTapeNotThePreference()
+    {
+        using var scope = new PreferencesFileScope();
+        MainViewModel vm = VmPreferringAutoClearedToLand();
+
+        vm.ApplyRecordingResult(LoadedTape(autoClearedToLand: false));
+
+        Assert.False(Assert.Single(vm.Aircraft).IsAutoClearedToLand, "the tape's session has auto cleared-to-land off");
+        Assert.False(vm.SessionAutoClearedToLand);
+        Assert.True(vm.Preferences.GetAutoClearedToLand("TWR"), "a recording load must not write the preference");
     }
 }

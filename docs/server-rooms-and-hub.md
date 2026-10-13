@@ -153,12 +153,14 @@ An airport first named after the load falls through to the live service once and
 
 Readers of the pin:
 
-- `ReloadForRewind` / `ReloadForRewindAsync`: warm restart, rewind, rewind-from-snapshot, session restore and the export reconstruction (`RoomEngine.CreateTempReplayEngine`, handed the live room's pin) rebuild the loader and engine on the pin and never wait on vNAS. A room with no pin (restored from a checkpoint that saved no ARTCC config and no layouts) first loads the scenario's configs and layouts into the live caches, then pins those and logs it.
+- `ReloadOnRoomSettingsAsync` (warm restart, session restore: starts on the room's session settings) / `ReloadTapeForRewindAsync` (rewind, seek, rewind-from-snapshot) / `ReloadForRewind` (the export and migration reconstruction, `RoomEngine.CreateTempReplayEngine`, handed the live room's pin): the last two take the tape and start on its t≤0 settings. All three rebuild the loader and engine on the pin and never wait on vNAS. A room with no pin (restored from a checkpoint that saved no ARTCC config and no layouts) first loads the scenario's configs and layouts into the live caches, then pins those and logs it.
 - The ground-layout hub endpoint (`RoomEngine.GetAirportGroundLayout`), `ExportRoomAsScenario`, the recording export's ARTCC config and layout bundle, the headless soak room's bundle (`HeadlessRoom.GroundData`) and the checkpoint's configs and layouts. Every other runtime `ArtccConfigService` reader (CRC handlers, position lookups, the facility tree) stays on the live caches.
 
 The two archive kinds bundle the pin's airports through one writer path, `RecordingLayoutBundler.WritePinnedLayouts` over `ILayoutBundleWriter` (`RecordingArchiveWriter`, `RoomCheckpointArchiveWriter`): every pinned layout, referenced by an aircraft or not, its source GeoJSON, and the FAA codes pinned with no map. A room with no pin bundles no layouts, and the recording export logs it.
 
 **Recording loads** (`RoomEngine.LoadRecordingGuardedAsync` / `LoadRecordingArchiveGuardedAsync`) are the one path besides a scenario load that replaces the pin. They claim the load flag, fetch their scenario's resources off the tick gate (`ScenarioLifecycleService.PrepareResourcesAsync`, no progress events), then under the gate check the room is still registered, clear it, set the new pin and reload (`ReloadRecording`); the `RecordingLoaded` broadcast goes out before the flag is released.
+
+`ReloadRecording` is handed the tape, so the scenario starts on the tape's t≤0 session settings before any preset dispatches.
 
 A commit that throws after the clear leaves the room empty the way an unload does (`ClearRoomScenarioState`, then `ResyncEngineStateAsync`), and the hub sends `ScenarioUnloaded`. The v1 recording migration (`RecordingManager.MigrateToV2Async`, run by `tools/Yaat.RecordingUpgrader`) replays a v1 recording on its own scenario's freshly fetched resources, never the calling room's pin.
 
@@ -350,7 +352,9 @@ error. `UpdatePausedSince` (`:97`) stamps the continuous-pause clock that the re
 
 **Session settings outlive the scenario.** `SessionSettings` (`RoomSessionSettings`) holds the room's copy of everything a controller can toggle mid-session — the auto-* flags, `ValidateDctFixes`, solo mode and pacing, the auto-accept and command-run delays, the auto-delete override, the departure auto-delete distance, the dynamic-METAR intent.
 
-A load, restart, or rewind builds a **new** `SimScenarioState`, and `ScenarioLifecycleService` seeds it with `room.SessionSettings.ApplyTo(scenario)` at both construction sites. The scenario stays the runtime source of truth (every gate and DTO reads it, falling back to the room copy only when no scenario is loaded); `SimControlService` writes both. See [scenario-loading-and-generation.md](scenario-loading-and-generation.md#session-settings-belong-to-the-room-not-the-scenario-object).
+A load, restart, or rewind builds a **new** `SimScenarioState`, and `ScenarioLifecycleService` seeds it with `room.SessionSettings.ApplyTo(scenario)` at both construction sites; a recording load and a rewind or seek then replace those with the defaults plus the tape's t≤0 setting records, and a restart writes the room's non-default settings to its fresh log as t=0 records.
+
+Every tape setting change applied in playback or reconstruction refreshes the room's copy (`RoomHost.ApplyRecordedAction`), and the clients are sent `SessionSettingsChanged` (`TrainingBroadcastService.BuildSessionSettings` / `SendSessionSettings`). The scenario stays the runtime source of truth (every gate and DTO reads it, falling back to the room copy only when no scenario is loaded); `SimControlService` writes both. See [scenario-loading-and-generation.md](scenario-loading-and-generation.md#session-settings-belong-to-the-room-not-the-scenario-object).
 
 **The load flag and the resource pin are room state.** `LoadingBy` (claimed by `TryBeginLoad`, released by `EndLoad`) and `ResourcePin` live on the room rather than the scenario, since a load holds the flag before any new scenario exists and every reload reads the pin; see **Scenario load: prepare, commit and the load flag** above.
 

@@ -767,7 +767,20 @@ public partial class MainViewModel
         }
 
         SetStudentPositionType(result.StudentPositionType);
-        _isAutoClearedToLand = _preferences.GetAutoClearedToLand(_studentPositionType);
+        // The tape's session settings, carried in the result itself: the SessionSettingsChanged broadcast for the same
+        // load may land before or after this, and the per-position preference is not the session's.
+        if (result.SessionSettings is { } settings)
+        {
+            ApplySessionSettings(settings);
+        }
+        else
+        {
+            _log.LogWarning(
+                "The recording result for '{Scenario}' carried no session settings; the session's current ones stay",
+                result.ScenarioName
+            );
+        }
+
         foreach (RadarViewModel radar in AllRadarViews)
         {
             radar.ShowMvaHints = _preferences.GetMvaHintDefault(_studentPositionType);

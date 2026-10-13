@@ -31,7 +31,7 @@ Restore applies the final snapshot directly (no replay-from-zero). Coordination 
 
 The room is registered in `TrainingRoomManager` before any of its state exists, so `RestoreRoomFromArchiveAsync` runs the whole rebuild under the room's tick gate (`TrainingRoom.GuardAsync`, the same semaphore `RoomTickLoopService` takes per second).
 
-The rebuild is engine creation, the resource pin (`ScenarioLifecycleService.PinArchivedResourcesAsync`: the archived configs, the saved layouts and missing-map airports, and the scenario's ARTCC configs loaded into the live caches too, which the position registry and the CRC broadcasts read), `ReloadForRewindAsync`, the snapshot and room-state restores, `LeavePlayback`, the attendance sync and the returned summary.
+The rebuild is engine creation, the resource pin (`ScenarioLifecycleService.PinArchivedResourcesAsync`: the archived configs, the saved layouts and missing-map airports, and the scenario's ARTCC configs loaded into the live caches too, which the position registry and the CRC broadcasts read), `ReloadOnRoomSettingsAsync`, the snapshot and room-state restores, `LeavePlayback`, the attendance sync and the returned summary.
 
 The pin holds each saved layout with its saved GeoJSON, and each saved missing-map airport with no map, as the room had them; only a scenario airport the checkpoint lacks, or holds in another layout format, is fetched now, with one Information line for it.
 

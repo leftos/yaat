@@ -2048,6 +2048,7 @@ public record TimelineInfoDto(double ElapsedSeconds, double TapeEnd, bool IsPlay
 /// <summary>
 /// A rewind's or a recording load's result (and, for a recording load, another member's <c>RecordingLoaded</c>
 /// broadcast). <see cref="ActiveRunways"/> is the room's list after it, by airport; empty on a failure.
+/// <see cref="SessionSettings"/> is the loaded tape's session settings, carried by a recording load's result alone.
 /// </summary>
 public record RewindResultDto(
     bool Success,
@@ -2065,7 +2066,8 @@ public record RewindResultDto(
     int SimRate = 1,
     double ElapsedSeconds = 0,
     bool IsPlayback = false,
-    double TapeEnd = 0
+    double TapeEnd = 0,
+    SessionSettingsDto? SessionSettings = null
 );
 
 /// <summary>

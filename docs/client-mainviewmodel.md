@@ -270,7 +270,7 @@ The guard is `_isApplyingSessionSettings` (`MainViewModel.cs:3484`). `ApplySessi
 
 Because the same 23 DTO fields arrive under four different DTO shapes, there are **four adapters** that all build a `SessionSettingsDto` and call `ApplySessionSettings`:
 
-- `ApplySessionSettings(SessionSettingsDto)` — the base, used by the live `OnSessionSettingsChanged` broadcast.
+- `ApplySessionSettings(SessionSettingsDto)` — the base, used by the live `OnSessionSettingsChanged` broadcast and by `ApplyRecordingResult` for `RewindResultDto.SessionSettings`. A recording load therefore shows the tape's settings (the flyout and "No landing clnc" follow it); the per-position Auto Cleared-to-Land preference is neither read nor written there. A result without settings logs `The recording result for '{Scenario}' carried no session settings; the session's current ones stay`.
 - `ApplySessionSettingsFromRoom(RoomStateDto)` (`MainViewModel.cs:3527`).
 - `ApplySessionSettingsFromScenarioLoaded(ScenarioLoadedDto)` (`MainViewModel.cs:3559`).
 - `ApplySessionSettingsFromLoadScenarioResult(LoadScenarioResultDto)` (`MainViewModel.cs:3590`).

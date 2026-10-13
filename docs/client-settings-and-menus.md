@@ -36,6 +36,8 @@ Two surfaces stay, reconciled rather than merged. Settings › Scenario defaults
 
 **One auto cleared-to-land and one auto arrival-spacing flag per room.** Settings keeps per-position defaults (GND, TWR, APP, CTR for cleared-to-land; GND and TWR for arrival spacing). The room holds a single flag of each, loaded from the default for the student's position type, and the flyout labels it with that type ("Auto cleared-to-land (TWR)"); a per-position grid in the flyout was rejected.
 
+A recording load replaces that flag, and the rest of the flyout, with the tape's session settings; the per-position default is not applied to it.
+
 **Status-bar links.** The mic indicator and the live-traffic status text keep their quick on/off toggles and gain a link item: "Speech settings…" opens Settings at Speech, and "Live traffic…" opens the session flyout on whichever command input is showing.
 
 The flyout's mechanics (the `Session*` fields, the four `ApplySessionSettingsFrom*` adapters, the echo guard) are in [`client-mainviewmodel.md`](client-mainviewmodel.md#session-settings-echo-suppression).

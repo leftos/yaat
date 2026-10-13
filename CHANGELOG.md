@@ -19,6 +19,8 @@
 - An aircraft crossing a runway behind stopped traffic brakes at its normal taxi rate, hard only when it must, instead of stopping abruptly.
 - An aircraft cleared across a runway holds short when the far side has no room, says "holding short of runway X, traffic ahead", and goes once room opens.
 - `HOLD` during a runway crossing brakes firmly, reads back "holding position on runway X" when it cannot stop short, and no longer stops dead past the runway.
+- Loading, rewinding or seeking a recording runs on the recording's session settings, and a setting changed mid-recording reaches every client's Session Settings.
+- After loading a recording, "No landing clnc" follows the recording's session, not your Auto Cleared-to-Land preference.
 
 - The room title's ARTCC label now follows the room when a scenario or recording is loaded or unloaded.
 - In replay, stepping by quarter seconds spawns delayed aircraft and fires timed presets in the same second as stepping by whole seconds.
