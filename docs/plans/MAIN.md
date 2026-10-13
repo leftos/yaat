@@ -6,6 +6,8 @@
 
 - [/] YAAT-569 Give every quick command a designed flyout instead of a nested context submenu · release vNext
 - [ ] YAAT-650 Give every context-critical command a quick-command icon in its situation's strip
+- [ ] YAAT-657 Stop the quick-command strip's label scroll timer posting to the UI after the strip is gone
+- [ ] YAAT-659 Accept HS in Following, Holding In Position and Holding After Exit so Hold short of reaches every routed aircraft
 
 ## Bug reports and feature requests
 
@@ -72,9 +74,7 @@
 - [ ] YAAT-254 Visual follower behind a heavier lead lands beyond its touchdown point
 - [ ] YAAT-257 A follower whose lead has landed joins final instead of re-entering the pattern
 - [ ] YAAT-314 Ground paths that set taxi speed instead of braking to it (unmeasured sites)
-- [/] YAAT-324 Ground conflict limit drops a runway-crossing aircraft's speed in one second instead of braking · release vNext
 - [ ] YAAT-325 GIVEWAY to traffic that is just starting to taxi releases at once
-- [/] YAAT-328 HOLD issued mid runway crossing stops the aircraft dead on the runway · release vNext
 - [ ] YAAT-334 TAXI during landing rollout throws a navigator teleport on the next tick · release vNext
 - [ ] YAAT-348 CWT F length fallback overstates turboprops (AN26, DH8D, C130): pick by category
 - [ ] YAAT-353 Stop a landed aircraft re-accelerating on the exit route before the hold-bar stop (C172 OAK 28R H: +1 kt)
@@ -98,7 +98,6 @@
 - [ ] YAAT-469 Use one high-speed exit angle threshold for turn-off speed and exit search
 - [ ] YAAT-470 Split GroundNavigator.BuildEntryAlignmentArc and TickStraight under the size limits
 - [ ] YAAT-471 Stop on the taxiway centreline at a node-only hold short issued after a turn about
-- [/] YAAT-483 Keep a runway-crossing aircraft moving behind in-trail traffic, or hold it at the near line · release vNext
 - [ ] YAAT-485 Keep taxi speed through an early arrival at a gentle unrounded bend
 - [ ] YAAT-486 Fill NavTickDiag.PathDeviationFt, which is always written as zero
 - [ ] YAAT-490 Add A388 and DH8D performance profiles so the speed picker offers their real speeds
@@ -111,6 +110,7 @@
 - [ ] YAAT-615 Park SFO GA arrivals on the side of 28R they exit toward
 - [ ] YAAT-634 Apply a stored takeoff clearance only where the taxi ends at its runway
 - [ ] YAAT-635 End a taxi completed at an uncleared runway bar in HoldingShortPhase
+- [ ] YAAT-658 Give TAXI, TAXIAUTO and CROSS the same EXP (expedite) modifier as EXIT · release vNext
 
 ## Wave 2 — Ground command grammar and dispatch
 
@@ -171,9 +171,6 @@
 - [ ] YAAT-82 Make OakS1_TaxiPathPlusParking keep T; remove test order-dependence (server)
 - [ ] YAAT-83 Find why live recording playback shifts pilot transmissions 1–2 s
 - [ ] YAAT-84 Fix recording-load oddities: version label, future log lines, stuck landers
-- [ ] YAAT-251 A mid-tape recorded setting change never reaches the room's Session Settings or the clients · release vNext
-- [ ] YAAT-252 Loading a recording resets the auto cleared-to-land flags from the preference, not the tape's session setting · release vNext
-- [ ] YAAT-253 Recording load and t=0 rebuild dispatch scenario presets under the room's settings, not the tape's · release vNext
 - [ ] YAAT-429 Navigation queued blocks (JRADO, JRADI, DEPART, airway intercept) are lost silently after a snapshot restore · release vNext
 - [ ] YAAT-430 A restored or deferred AI-controller dispatch uses the student's facility hint, not the controller's
 - [ ] YAAT-431 Decide whether a split queued block keeps its original dispatch's scripted provenance
