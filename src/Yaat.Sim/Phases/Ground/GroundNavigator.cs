@@ -262,6 +262,12 @@ public sealed class GroundNavigator
     /// to physics. Null = the category taxi decel rate (normal taxi/exit). <see cref="RunwayExitPhase"/> sets it to
     /// <see cref="CategoryPerformance.ExpediteExitDecelRate"/> for an expedited (<c>EXP</c>) exit, so the aircraft brakes at
     /// max effort through the turn-off and to the hold-short stop, and leaves it null otherwise.
+    /// <see cref="TaxiingPhase"/> also sets it, to the same <see cref="CategoryPerformance.ExpediteExitDecelRate"/>, while
+    /// the first uncleared bar ahead of its route has been flagged unable and the taxi rate cannot make its stop: that
+    /// bar's stop has been moved forward to the point the aircraft can reach at the firm rate, and the whole curve onto it
+    /// has to be planned at it. The rate then also governs every corner slowdown between the aircraft and that bar, which
+    /// is harmless: the moved stop lies within one firm stopping distance, so any such slowdown is braked for at the firm
+    /// rate anyway.
     /// </summary>
     public double? DecelRateKts { get; set; }
 
@@ -274,6 +280,20 @@ public sealed class GroundNavigator
     /// rollout chose the exit with. Not serialized: the owning phase re-applies it before every tick and segment set-up.
     /// </summary>
     public double? SlowdownDecelRateKts { get; set; }
+
+    /// <summary>
+    /// True while every stop is planned on the braking curve the sub-ticked physics actually flies rather than the continuous
+    /// v = √(2ad). Physics brakes before it moves, so each sub-tick of length dt covers its <em>end</em> speed times dt, and an
+    /// aircraft whose speed this sub-tick is v and which brakes at a every sub-tick after comes to rest v²/2a + v·dt/2 from
+    /// where the sub-tick began; the target is that distance's inverse, v = (−a·dt + √(a²dt² + 8ad)) / 2. The continuous
+    /// curve read at the sub-tick's start asks a little more than a·dt of every sub-tick, which a plan at the hardest rate
+    /// the aircraft has cannot give, so it falls further behind the curve each sub-tick and reaches the stop at speed.
+    /// <see cref="TaxiingPhase"/> sets it while an unable bar's moved stop is flown at the firm rate. It applies to the
+    /// single-rate plan only: with <see cref="SlowdownDecelRateKts"/> set, the split-rate plan keeps the continuous curve,
+    /// which is harmless because <see cref="TaxiingPhase"/> never sets <see cref="SlowdownDecelRateKts"/>. Not serialized:
+    /// the phase re-applies it before every tick.
+    /// </summary>
+    public bool PlansStopsOnSubTicks { get; set; }
 
     // Set by ComputeTargetSpeed when a stop's braking curve set the target while SlowdownDecelRateKts applies, so
     // PublishSpeed publishes the stop rate rather than the slowdown rate. Reset at the start of every tick.
@@ -296,6 +316,14 @@ public sealed class GroundNavigator
         if ((_turnAboutRollOutOffsetFt > 0.0) && (_pendingSegmentPrimitive is null) && (_currentPrimitive is PathPrimitiveStraight held))
         {
             ReLayHeldStraightSquareToStop(ctx, new LatLon(lat, lon), new TrueHeading(held.BearingDeg));
+        }
+
+        // The overshoot check compares this sub-tick's distance to the target with the last one; across a move of the target
+        // that is a distance to another point, and a stop moved further on (an unable bar's) would read as overshot and be
+        // arrived at on the spot, from speed.
+        if ((lat != TargetLat) || (lon != TargetLon))
+        {
+            PrevDistToTarget = double.MaxValue;
         }
 
         TargetLat = lat;
@@ -3547,6 +3575,18 @@ public sealed class GroundNavigator
         return Math.Abs(GeoMath.SignedCrossTrackDistanceNm(position, segmentFrom, segmentHeading)) * GeoMath.FeetPerNm;
     }
 
+    /// <summary>
+    /// The arrival threshold (nm) of a stop planned on the sub-ticked curve (<see cref="PlansStopsOnSubTicks"/>): half a
+    /// sub-tick's braking distance, a·dt²/2. On that curve the stop is a·dt² away when the aircraft starts the sub-tick
+    /// that brings it there at one sub-tick of braking, so <see cref="FinalNodeArrivalThresholdNm"/> (1.8 ft, more than
+    /// a·dt² for every category) would take the hold a sub-tick early, from twice the speed the curve arrives at.
+    /// </summary>
+    private double SubTickStopArrivalThresholdNm(PhaseContext ctx)
+    {
+        double decelRate = DecelRateKts ?? CategoryPerformance.TaxiDecelRate(ctx.Category);
+        return decelRate * ctx.DeltaSeconds * ctx.DeltaSeconds / 2.0 / 3600.0;
+    }
+
     private NavigatorResult TickStraight(PhaseContext ctx, PathPrimitiveStraight prim, bool isLastSegment, Func<int, bool> isHoldShortCleared)
     {
         double distNm = GeoMath.DistanceNm(ctx.Aircraft.Position, new LatLon(TargetLat, TargetLon));
@@ -3616,6 +3656,11 @@ public sealed class GroundNavigator
         if (sharpCornerAhead && (_turnAboutRollOutOffsetFt > 0.0))
         {
             arrivalThresholdNm = OffsetLineArrivalThresholdNm(cornerTurnDeg, edgeLengthNm, _cornerRoundingRadiusFt, _turnAboutRollOutOffsetFt);
+        }
+
+        if (isStopTarget && PlansStopsOnSubTicks)
+        {
+            arrivalThresholdNm = SubTickStopArrivalThresholdNm(ctx);
         }
 
         bool overshot = distNm > PrevDistToTarget && PrevDistToTarget < OvershootDetectionNm;
@@ -4062,7 +4107,7 @@ public sealed class GroundNavigator
         bool stopCurveBinds = false;
         double brakingLimit = SlowdownDecelRateKts is { } slowdownRate
             ? SplitRateBrakingLimit(distToEndpointNm, isHoldShortCleared, (decelRate, slowdownRate), out stopCurveBinds)
-            : SingleRateBrakingLimit(distToEndpointNm, isHoldShortCleared, decelRate);
+            : SingleRateBrakingLimit(distToEndpointNm, isHoldShortCleared, decelRate, PlansStopsOnSubTicks ? ctx.DeltaSeconds : null);
         decelRate = SlowdownDecelRateKts ?? decelRate;
 
         // Quadratic scaling by heading error so the aircraft slows during
@@ -4102,11 +4147,12 @@ public sealed class GroundNavigator
 
     /// <summary>
     /// The braking-curve ceiling (kts) at <paramref name="decelRate"/> to the current node's required speed and every future
-    /// constraint, which <see cref="BuildSpeedConstraints"/> back-propagated at the same rate.
+    /// constraint, which <see cref="BuildSpeedConstraints"/> back-propagated at the same rate. With
+    /// <paramref name="subTickSeconds"/> set, each stop's curve is the sub-ticked one (<see cref="PlansStopsOnSubTicks"/>).
     /// </summary>
-    private double SingleRateBrakingLimit(double distToEndpointNm, Func<int, bool> isHoldShortCleared, double decelRate)
+    private double SingleRateBrakingLimit(double distToEndpointNm, Func<int, bool> isHoldShortCleared, double decelRate, double? subTickSeconds)
     {
-        double brakingLimit = Math.Sqrt(_currentNodeRequiredSpeed * _currentNodeRequiredSpeed + 2.0 * decelRate * distToEndpointNm * 3600.0);
+        double brakingLimit = CurveKts(_currentNodeRequiredSpeed, distToEndpointNm, decelRate, subTickSeconds);
 
         foreach ((double pathDist, double reqSpeed, int nodeId, bool isBarStop) in _speedConstraints)
         {
@@ -4115,11 +4161,28 @@ public sealed class GroundNavigator
                 continue;
             }
             double totalDist = Math.Max(0.0, distToEndpointNm + pathDist);
-            double limit = Math.Sqrt(reqSpeed * reqSpeed + 2.0 * decelRate * totalDist * 3600.0);
+            double limit = CurveKts(reqSpeed, totalDist, decelRate, subTickSeconds);
             brakingLimit = Math.Min(brakingLimit, limit);
         }
 
         return brakingLimit;
+    }
+
+    /// <summary>
+    /// The braking-curve speed (kts) <paramref name="distNm"/> before a point to be reached at <paramref name="reqSpeed"/>, at
+    /// <paramref name="decelRate"/>: the continuous √(v² + 2ad), or, for a stop with <paramref name="subTickSeconds"/> set,
+    /// the speed whose sub-ticked stop v²/2a + v·dt/2 is <paramref name="distNm"/> (<see cref="PlansStopsOnSubTicks"/>).
+    /// </summary>
+    internal static double CurveKts(double reqSpeed, double distNm, double decelRate, double? subTickSeconds)
+    {
+        if ((reqSpeed > 0.0) || (subTickSeconds is not { } dt))
+        {
+            return Math.Sqrt(reqSpeed * reqSpeed + 2.0 * decelRate * distNm * 3600.0);
+        }
+
+        double distKtSec = Math.Max(0.0, distNm) * 3600.0;
+        double brakePerSubTick = decelRate * dt;
+        return (-brakePerSubTick + Math.Sqrt((brakePerSubTick * brakePerSubTick) + (8.0 * decelRate * distKtSec))) / 2.0;
     }
 
     /// <summary>

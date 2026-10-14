@@ -47,7 +47,7 @@ public sealed class TaxiingPhase : Phase
 
     // Speed below which the start-node hold-short may take its instant stop — an imperceptible snap
     // from a crawl, versus teleport-stopping an aircraft still at taxi speed.
-    private const double StartNodeHoldArmSpeedKts = 3.0;
+    public const double StartNodeHoldArmSpeedKts = 3.0;
 
     // Along-route distance (ft) to a set-back bar's stop inside which the hold is taken. The braking curve reaches zero
     // GroundNavigator.SetBackStopMarginFt short of the stop, so the aircraft is at a crawl here and comes to rest with its
@@ -73,8 +73,9 @@ public sealed class TaxiingPhase : Phase
     // raises it again at the same tick it did live.
     private bool _holdShortsDirty;
 
-    /// <summary>Node of the bar whose stop was already moved forward for being unmakeable; moved once, never again.</summary>
-    private int? _unableStopNodeId;
+    // The first uncleared bar ahead as PrepareUnableStop found it at the start of this tick, reused by the re-aim and the
+    // unable bar's speed cap later in the same tick (BarAheadThisTick). Recomputed every tick: not snapshotted.
+    private (int SegmentIndex, HoldShortPoint Bar)? _barAheadThisTick;
 
     // The GIVEWAY target the give-way stop was last logged for, so the log line appears once per give-way rather than
     // every held tick. Logging only: not snapshotted.
@@ -173,6 +174,8 @@ public sealed class TaxiingPhase : Phase
         {
             return CompleteRoute(ctx, route);
         }
+
+        PrepareUnableStop(ctx, route);
 
         if (!_initialized)
         {
@@ -401,7 +404,6 @@ public sealed class TaxiingPhase : Phase
             TimeSinceLastLog = _timeSinceLastLog,
             PrevDistToTarget = _nav.PrevDistToTarget,
             Navigator = _nav.ToSnapshot(),
-            UnableStopNodeId = _unableStopNodeId,
             PassedStartBarNodeId = _passedStartBarNodeId,
             SaidFarSideBlockedNodeId = _saidFarSideBlockedNodeId,
         };
@@ -418,7 +420,6 @@ public sealed class TaxiingPhase : Phase
             _initialized = false,
             _saidFarSideBlockedNodeId = dto.SaidFarSideBlockedNodeId,
             _timeSinceLastLog = dto.TimeSinceLastLog,
-            _unableStopNodeId = dto.UnableStopNodeId,
             _passedStartBarNodeId = dto.PassedStartBarNodeId,
             Status = (PhaseStatus)dto.Status,
             ElapsedSeconds = dto.ElapsedSeconds,
@@ -455,27 +456,20 @@ public sealed class TaxiingPhase : Phase
     public void NotifyHoldShortsChanged() => _holdShortsDirty = true;
 
     /// <summary>
-    /// Distance (ft) an aircraft needs to brake from <paramref name="groundSpeedKts"/> to a standstill at
-    /// the category's taxi deceleration rate — v² / 2a, the same rate the navigator's braking curve and
-    /// <see cref="FlightPhysics"/> fly, so a bar inside this distance is one the aircraft physically cannot
-    /// stop at.
+    /// Distance (ft) an aircraft needs to brake from <paramref name="groundSpeedKts"/> to a standstill at the
+    /// category's firm rate (<see cref="CategoryPerformance.ExpediteExitDecelRate"/>) — the bare v² / 2a
+    /// (<see cref="GroundStopBraking.StoppingDistanceFt"/>), the continuous part of the stop the sub-ticked physics flies.
+    /// The unable judgement and the moved stop both use that flown stop (<see cref="MovedStopDistanceFt"/>), which adds
+    /// half a sub-tick of travel to this.
     ///
-    /// <para>No reaction time is added, deliberately. At the jet taxi rate (5 kt/s) the figure already
-    /// matches a crew reacting and then braking hard: from 28 kt, v²/2a gives 132.3 ft where a 1 s reaction
-    /// (49.7 ft) plus a 0.42 g max-effort stop (82.7 ft) gives 132.4 ft, so a reaction term would double-count
-    /// it. The equivalence is the jet's; a piston at 2 kt/s over-reads by about 74 ft from 20 kt, which is
-    /// conservative — it calls a bar unmakeable a little early. No FAA document gives a taxi stopping
-    /// distance, so both the rate and this reading of it are judgement calls.</para>
+    /// <para>No reaction time is added: a pilot's response time is the scenario's command-run delay, applied before
+    /// the clearance reaches the aircraft, so a term here would count it twice.</para>
     /// </summary>
     /// <param name="groundSpeedKts">Current ground speed in knots.</param>
-    /// <param name="category">Aircraft category, which sets the taxi brake rate.</param>
+    /// <param name="category">Aircraft category, which sets the firm brake rate.</param>
     /// <returns>Braking distance in feet.</returns>
-    public static double HoldShortBrakingDistanceFt(double groundSpeedKts, AircraftCategory category)
-    {
-        double speedFtPerSec = groundSpeedKts * GeoMath.FeetPerNm / 3600.0;
-        double decelFtPerSec2 = CategoryPerformance.TaxiDecelRate(category) * GeoMath.FeetPerNm / 3600.0;
-        return decelFtPerSec2 <= 0 ? 0 : (speedFtPerSec * speedFtPerSec) / (2.0 * decelFtPerSec2);
-    }
+    private static double HoldShortBrakingDistanceFt(double groundSpeedKts, AircraftCategory category) =>
+        GroundStopBraking.StoppingDistanceFt(groundSpeedKts, CategoryPerformance.ExpediteExitDecelRate(category));
 
     /// <summary>
     /// Distance (ft) left along the route before the aircraft reaches <paramref name="holdShort"/>'s painted
@@ -518,81 +512,300 @@ public sealed class TaxiingPhase : Phase
 
     /// <summary>
     /// True when the aircraft is moving faster than <see cref="StoppedGroundSpeedKts"/> and <paramref name="holdShort"/> is
-    /// closer than the distance it needs to brake to a stop: the painted bar cannot be made and the aircraft will come to
-    /// rest past it whatever it does. A stopped aircraft whose stop point is already behind it holds where it stands.
+    /// closer than the stop it can fly at the firm rate: the sub-ticked stop (<see cref="MovedStopDistanceFt"/>) plus the
+    /// <see cref="GroundNavigator.SetBackStopMarginFt"/> the firm braking curve onto a painted stop
+    /// (<see cref="GroundStopBraking.StopCurveKts"/>) reaches zero short of it. Inside that, the painted bar cannot be made
+    /// and the aircraft will come to rest past it whatever it does; the threshold is the stop that is flown, so a bar
+    /// judged makeable is one the firm rate does stop at. A stopped aircraft whose stop point is already behind it holds
+    /// where it stands.
     /// </summary>
     /// <param name="layout">Ground layout the route is resolved on.</param>
     /// <param name="route">The route being taxied.</param>
-    /// <param name="aircraft">The aircraft the bar was armed for.</param>
-    /// <param name="category">Aircraft category, which sets the taxi brake rate.</param>
+    /// <param name="aircraft">The aircraft the bar was armed for; its type sets the firm brake rate.</param>
     /// <param name="holdShort">The bar to judge.</param>
+    /// <param name="subTickSeconds">The physics sub-tick length (s) the stop is flown in.</param>
     /// <returns>True when the bar is unmakeable.</returns>
     public static bool IsHoldShortUnmakeable(
         AirportGroundLayout layout,
         TaxiRoute route,
         AircraftState aircraft,
-        AircraftCategory category,
-        HoldShortPoint holdShort
-    ) =>
-        (aircraft.GroundSpeed > StoppedGroundSpeedKts)
-        && (
-            AlongRouteDistanceToHoldShortFt(layout, route, aircraft.Position, holdShort) < HoldShortBrakingDistanceFt(aircraft.GroundSpeed, category)
-        );
+        HoldShortPoint holdShort,
+        double subTickSeconds
+    )
+    {
+        if (aircraft.GroundSpeed <= StoppedGroundSpeedKts)
+        {
+            return false;
+        }
+
+        AircraftCategory category = AircraftCategorization.Categorize(aircraft.AircraftType);
+        double flownStopFt = MovedStopDistanceFt(aircraft.GroundSpeed, category, subTickSeconds) + GroundNavigator.SetBackStopMarginFt;
+        return AlongRouteDistanceToHoldShortFt(layout, route, aircraft.Position, holdShort) < flownStopFt;
+    }
 
     /// <summary>
     /// Re-aims the segment in progress at a bar armed after its profile was built, and — when that bar is
-    /// inside the aircraft's braking distance — slides it forward to the stop the aircraft can actually make
-    /// so the navigator brakes at the full taxi rate onto that point. Both halves end in a speed re-plan;
-    /// a change that touched no bar on this segment's target node re-plans only, since a bar further along
-    /// the route is picked up by the profile's forward walk.
+    /// inside the distance the aircraft needs to stop at the firm rate — slides it forward to the stop the
+    /// aircraft can actually make so the navigator brakes at that rate onto that point. Both halves end in a
+    /// speed re-plan; a change that touched no bar on this segment's target node re-plans only, since a bar
+    /// further along the route is picked up by the profile's forward walk.
     /// </summary>
     private void ReaimAtChangedHoldShort(PhaseContext ctx, TaxiRoute route)
     {
         if (
             route.GetHoldShortAt(_nav.TargetNodeId) is { IsCleared: false, Latitude: not null, Longitude: not null } bar
             && ctx.GroundLayout is { } layout
+            && !bar.Unable
+            && IsHoldShortUnmakeable(layout, route, ctx.Aircraft, bar, ctx.DeltaSeconds)
         )
         {
-            if (!bar.Unable && IsHoldShortUnmakeable(layout, route, ctx.Aircraft, ctx.Category, bar))
-            {
-                bar.Unable = true;
-            }
-
-            // Once per bar. A later hold-short change re-enters here with the bar already moved, and
-            // re-projecting from the aircraft's new position each time would ratchet the stop forward.
-            if (bar.Unable && (_unableStopNodeId != bar.NodeId))
-            {
-                MoveBarToBrakingDistance(ctx, layout, bar);
-                _unableStopNodeId = bar.NodeId;
-            }
-
-            AimAtPaintedBar(ctx, route);
+            bar.Unable = true;
         }
 
+        // The stop is slid forward before the aim: a bar the aircraft cannot make is targeted at the point it can reach,
+        // and nothing re-aims afterwards, so aiming first would leave the navigator flying at the painted bar while the
+        // stop it has to brake onto sits further on.
+        (int SegmentIndex, HoldShortPoint Bar)? unmakeableAhead = BarAheadThisTick(route);
+        bool stopMovedNow = MoveUnmakeableBarToBrakingDistance(ctx, route, unmakeableAhead);
+        ApplyStopBrakeRate(ctx, route, unmakeableAhead, stopMovedNow);
+        AimAtPaintedBar(ctx, route);
         _nav.RefreshSpeedConstraints(route, ctx, nodeId => IsHoldShortCleared(route, nodeId));
     }
 
     /// <summary>
-    /// Moves an unmakeable bar to the point the aircraft can stop at — its braking distance ahead on the
-    /// aircraft's current heading, clamped at the node the bar protects so the stop is never planned beyond
-    /// the intersection itself. The heading is the path's tangent where the aircraft is now; the straight
-    /// line to the node is its chord, which on a fillet arc would put the stop off the pavement.
+    /// Each tick's handling of an unable bar ahead: its stop moved once (<see cref="MoveUnmakeableBarToBrakingDistance"/>)
+    /// and the brake rate set (<see cref="ApplyStopBrakeRate"/>). A stop moved here — a bar flagged unable while another
+    /// phase flew the aircraft — lies past the profile the segment in progress was set up with, so the navigator is
+    /// re-aimed and re-planned; before the phase's first setup, that setup aims it.
+    /// </summary>
+    private void PrepareUnableStop(PhaseContext ctx, TaxiRoute route)
+    {
+        _barAheadThisTick = FirstUnclearedBarAhead(route);
+        (int SegmentIndex, HoldShortPoint Bar)? unmakeableAhead = _barAheadThisTick;
+        bool stopMovedNow = MoveUnmakeableBarToBrakingDistance(ctx, route, unmakeableAhead);
+        ApplyStopBrakeRate(ctx, route, unmakeableAhead, stopMovedNow);
+        if (stopMovedNow && _initialized)
+        {
+            AimAtPaintedBar(ctx, route);
+            _nav.RefreshSpeedConstraints(route, ctx, nodeId => IsHoldShortCleared(route, nodeId));
+        }
+    }
+
+    /// <summary>
+    /// Slides the first unmakeable bar ahead to the stop the aircraft can actually make — its firm-rate braking distance
+    /// (<see cref="MovedStopDistanceFt"/>) along the route, clamped at the node the bar protects — once per bar
+    /// (<see cref="HoldShortPoint.StopMoved"/>). The guard lives on the bar, not the phase: a fresh taxi phase over the
+    /// same route (a follow whose lead has gone resumes its assigned route at rest, sharing its hold-short points) would
+    /// otherwise slide the stop again from where the aircraft now stands. A bar flagged unmakeable at dispatch may lie a
+    /// segment or more past the one in progress, where nothing re-aims at it, so the whole route ahead is walked rather
+    /// than the segment the navigator is targeting.
+    ///
+    /// <para>The bar is judged again when its stop is about to move (<see cref="IsHoldShortUnmakeable"/>): one flagged
+    /// unable while another phase flew the aircraft (a follow that later resumes its assigned route at rest) may be
+    /// makeable by the time a taxi phase reaches it. Then the flag is cleared and the painted stop kept, and nothing is
+    /// latched, so the bar is braked for as any makeable one.</para>
+    /// </summary>
+    /// <returns>True when the stop was moved on this call.</returns>
+    private static bool MoveUnmakeableBarToBrakingDistance(PhaseContext ctx, TaxiRoute route, (int SegmentIndex, HoldShortPoint Bar)? firstAhead)
+    {
+        if (
+            (ctx.GroundLayout is not { } layout)
+            || (firstAhead is not { SegmentIndex: var barSegmentIndex, Bar.Unable: true } unmakeable)
+            || unmakeable.Bar.StopMoved
+        )
+        {
+            return false;
+        }
+
+        if (!IsHoldShortUnmakeable(layout, route, ctx.Aircraft, unmakeable.Bar, ctx.DeltaSeconds))
+        {
+            Log.LogInformation(
+                "[Taxi] {Callsign}: hold short of {Target} flagged unable is makeable now at {Gs:F1}kt — keeping its painted stop",
+                ctx.Aircraft.Callsign,
+                unmakeable.Bar.TargetName,
+                ctx.Aircraft.GroundSpeed
+            );
+            unmakeable.Bar.Unable = false;
+            return false;
+        }
+
+        MoveBarToBrakingDistance(ctx, layout, route, barSegmentIndex, unmakeable.Bar);
+        unmakeable.Bar.StopMoved = true;
+        return true;
+    }
+
+    /// <summary>
+    /// The point <paramref name="aheadFt"/> along the route from <paramref name="position"/>, never past the end of
+    /// segment <paramref name="lastSegmentIndex"/>: every leg is measured by its own length
+    /// (<see cref="IGroundEdge.DistanceNm"/>, the arc's length on a fillet) and the point placed on its own line or arc
+    /// (<see cref="PointAlongSegment"/>). Measuring a leg by the distance to its end node instead would cut its corner
+    /// and carry a clamped stop past the bar's node.
+    /// </summary>
+    private static LatLon PointAheadAlongRoute(TaxiRoute route, LatLon position, double aheadFt, int lastSegmentIndex)
+    {
+        int current = Math.Max(0, route.CurrentSegmentIndex);
+        int last = Math.Clamp(lastSegmentIndex, current, route.Segments.Count - 1);
+        double leftFt = aheadFt;
+        for (int i = current; i <= last; i++)
+        {
+            TaxiRouteSegment seg = route.Segments[i];
+            double fromFt = i == current ? AlongSegmentFt(seg, position) : 0.0;
+            double legFt = Math.Max(0.0, (seg.Edge.DistanceNm * GeoMath.FeetPerNm) - fromFt);
+            if (leftFt <= legFt)
+            {
+                return PointAlongSegment(seg, fromFt + leftFt);
+            }
+
+            leftFt -= legFt;
+        }
+
+        return route.Segments[last].Edge.ToNode.Position;
+    }
+
+    /// <summary>
+    /// How far (ft) along <paramref name="seg"/>, measured from its from-node, <paramref name="position"/> stands.
+    /// </summary>
+    private static double AlongSegmentFt(TaxiRouteSegment seg, LatLon position) =>
+        seg.Edge.Edge is GroundArc arc
+            ? arc.Locate(seg.Edge.FromNode, position).AlongFt
+            : Math.Clamp(
+                GeoMath.AlongTrackDistanceNm(position, seg.Edge.FromNode.Position, new TrueHeading(seg.Edge.DepartureBearing)) * GeoMath.FeetPerNm,
+                0.0,
+                seg.Edge.DistanceNm * GeoMath.FeetPerNm
+            );
+
+    /// <summary>
+    /// The point <paramref name="alongFt"/> from <paramref name="seg"/>'s from-node along the segment: on its straight
+    /// line, or on its fillet arc (<see cref="GroundArc.PointAtFt"/>), where the node chord would cut the corner by
+    /// about d²/2R.
+    /// </summary>
+    private static LatLon PointAlongSegment(TaxiRouteSegment seg, double alongFt) =>
+        seg.Edge.Edge is GroundArc arc
+            ? arc.PointAtFt(seg.Edge.FromNode, alongFt)
+            : GeoMath.ProjectPoint(seg.Edge.FromNode.Position, new TrueHeading(seg.Edge.DepartureBearing), alongFt / GeoMath.FeetPerNm);
+
+    /// <summary>
+    /// Sets the brake rate the navigator plans and publishes its speed profile with: the firm rate
+    /// (<see cref="CategoryPerformance.ExpediteExitDecelRate"/>) while the first uncleared bar ahead has been flagged
+    /// unable and the taxi rate cannot make its moved stop, and the category taxi rate otherwise. The bar is skipped by
+    /// <see cref="BrakeForUnclearedBar"/> once it is unable, so nothing else publishes a rate for it, and without this
+    /// the navigator would plan a taxi-rate curve to a stop placed at the firm distance and brake through it. An unable
+    /// bar's stop is planned on the sub-ticked curve (<see cref="GroundNavigator.PlansStopsOnSubTicks"/>) at either rate:
+    /// at the firm rate it is the curve <see cref="MovedStopDistanceFt"/> placed the stop by — the aircraft holds its speed
+    /// for the sub-tick the stop moves on and brakes at the firm rate every sub-tick after, where the continuous curve would
+    /// first accelerate it and then leave it braking at the firm rate behind the curve — and at the taxi rate it brings the
+    /// aircraft onto the stop at a crawl, where the continuous curve, read a sub-tick behind, would reach the stop's arrival
+    /// threshold at several knots and have the hold zero them.
+    ///
+    /// <para>The rate is chosen as for a makeable bar (<see cref="GroundStopBraking.ChooseStopBraking"/>), against the moved
+    /// stop less the half sub-tick of travel the flown stop adds (<see cref="MovedStopDistanceFt"/>), with hysteresis on the
+    /// navigator's own rate, which its snapshot carries: the firm rate is taken on the tick the stop moves
+    /// (<paramref name="stopMovedNow"/>), kept until the taxi rate makes the stop outright — which an aircraft riding the
+    /// firm curve never reads, while one slowed below it by a HOLD or a conflict cap does — and taken again from the taxi
+    /// rate only once the taxi rate misses the stop by more than <see cref="TaxiCurveSlackFt"/>: an aircraft resumed from
+    /// rest well short of the stop rides the continuous taxi curve a little inside its own stopping distance, and must not
+    /// be read as needing the firm rate for it.</para>
+    /// </summary>
+    private void ApplyStopBrakeRate(PhaseContext ctx, TaxiRoute route, (int SegmentIndex, HoldShortPoint Bar)? firstAhead, bool stopMovedNow)
+    {
+        bool unable = firstAhead is { Bar.Unable: true };
+        bool firm =
+            (firstAhead is { Bar: { Unable: true } bar })
+            && (stopMovedNow || !TaxiRateMakesTheMovedStop(ctx, route, bar, _nav.DecelRateKts is null ? TaxiCurveSlackFt(ctx) : 0.0));
+        _nav.DecelRateKts = firm ? CategoryPerformance.ExpediteExitDecelRate(ctx.Category) : null;
+        _nav.PlansStopsOnSubTicks = unable;
+    }
+
+    /// <summary>
+    /// How far (ft) inside its taxi-rate stopping distance an aircraft riding the navigator's continuous taxi curve onto a
+    /// stop may be: the <see cref="GroundNavigator.SetBackStopMarginFt"/> the routine curve is aimed with plus this
+    /// sub-tick's travel, since the navigator reads that curve where the aircraft stands, a sub-tick behind it
+    /// (<see cref="GroundStopBraking.StopCurveKts"/> reads ahead by the same travel).
+    /// </summary>
+    private static double TaxiCurveSlackFt(PhaseContext ctx) =>
+        GroundNavigator.SetBackStopMarginFt + (ctx.Aircraft.GroundSpeed * GroundStopBraking.FeetPerSecondPerKt * ctx.DeltaSeconds);
+
+    /// <summary>
+    /// True when the routine taxi rate stops the aircraft at <paramref name="bar"/>'s (moved) stop: the choice
+    /// <see cref="GroundStopBraking.ChooseStopBraking"/> makes, judged against the along-route distance to the stop less the
+    /// half sub-tick of travel the sub-ticked stop adds, plus <paramref name="slackFt"/>. False without a layout to measure on.
+    /// </summary>
+    private static bool TaxiRateMakesTheMovedStop(PhaseContext ctx, TaxiRoute route, HoldShortPoint bar, double slackFt)
+    {
+        if (ctx.GroundLayout is not { } layout)
+        {
+            return false;
+        }
+
+        double halfSubTickFt = ctx.Aircraft.GroundSpeed * GroundStopBraking.FeetPerSecondPerKt * ctx.DeltaSeconds / 2.0;
+        double roomFt = AlongRouteDistanceToHoldShortFt(layout, route, ctx.Aircraft.Position, bar) - halfSubTickFt + slackFt;
+        return GroundStopBraking.ChooseStopBraking(ctx, roomFt) == GroundStopBraking.StopBraking.Routine;
+    }
+
+    /// <summary>
+    /// How far (ft) the aircraft travels from <paramref name="groundSpeedKts"/> to rest as the sub-ticked physics flies the
+    /// stop: one sub-tick held at that speed, then the firm rate every sub-tick after. Physics brakes before it moves, so
+    /// each sub-tick covers its end speed times its length, and that sequence comes to rest v²/2a + v·dt/2 ahead — the firm
+    /// stopping distance (<see cref="HoldShortBrakingDistanceFt"/>) plus half a sub-tick of travel. The navigator plans the
+    /// stop on the same sub-ticked curve (<see cref="GroundNavigator.PlansStopsOnSubTicks"/>), so it neither accelerates
+    /// onto the moved stop nor reaches it with speed left.
+    /// </summary>
+    /// <param name="groundSpeedKts">Current ground speed in knots.</param>
+    /// <param name="category">Aircraft category, which sets the firm brake rate.</param>
+    /// <param name="subTickSeconds">The physics sub-tick length (s), dt.</param>
+    /// <returns>The flown stopping distance in feet.</returns>
+    private static double MovedStopDistanceFt(double groundSpeedKts, AircraftCategory category, double subTickSeconds)
+    {
+        double speedFtPerSec = groundSpeedKts * GroundStopBraking.FeetPerSecondPerKt;
+        return HoldShortBrakingDistanceFt(groundSpeedKts, category) + (speedFtPerSec * subTickSeconds / 2.0);
+    }
+
+    /// <summary>
+    /// Moves an unmakeable bar to the point the aircraft can stop at — its firm-rate braking distance
+    /// (<see cref="MovedStopDistanceFt"/>, as the sub-ticked physics flies it) along the route from where the aircraft is,
+    /// clamped at the node the bar protects so the stop is never planned beyond the intersection itself. The stop is
+    /// projected along the route (<see cref="PointAheadAlongRoute"/>), since the bar may be a segment or more ahead and the
+    /// current heading's straight line would leave the pavement where the route bends.
     ///
     /// <para>Clamping at the node makes the modelled overrun a lower bound: an aircraft that cannot make the
     /// bar does not stop at the junction either, it keeps going. For a runway target that matters — AIM
     /// 2-3-5.a.1 makes the holding position marking the boundary of the runway safety area, so anything past
     /// it is already an incursion, and the modelled stop understates how far in the aircraft ends up.</para>
+    ///
+    /// <para>The stop is never moved backward: the moved stop is the further of the painted stop and the flown one along
+    /// the route. A painted stop at or past the flown stop — inside the <see cref="GroundNavigator.SetBackStopMarginFt"/>
+    /// window <see cref="IsHoldShortUnmakeable"/> judges unable, since the firm curve onto a painted stop reaches zero that
+    /// margin short — stays where it is painted, and the sub-ticked firm curve the bar is then flown on reaches it.</para>
     /// </summary>
-    private static void MoveBarToBrakingDistance(PhaseContext ctx, AirportGroundLayout layout, HoldShortPoint bar)
+    private static void MoveBarToBrakingDistance(
+        PhaseContext ctx,
+        AirportGroundLayout layout,
+        TaxiRoute route,
+        int barSegmentIndex,
+        HoldShortPoint bar
+    )
     {
-        if (!layout.Nodes.TryGetValue(bar.NodeId, out GroundNode? barNode))
+        double brakingFt = MovedStopDistanceFt(ctx.Aircraft.GroundSpeed, ctx.Category, ctx.DeltaSeconds);
+        double paintedFt = AlongRouteDistanceToHoldShortFt(layout, route, ctx.Aircraft.Position, bar);
+        if (paintedFt >= brakingFt)
         {
+            Log.LogInformation(
+                "[Taxi] {Callsign}: hold short of {Target} unmakeable at {Gs:F1}kt — its painted stop {Painted:F1}ft ahead lies past the "
+                    + "{Flown:F1}ft flown stop, so it is kept",
+                ctx.Aircraft.Callsign,
+                bar.TargetName,
+                ctx.Aircraft.GroundSpeed,
+                paintedFt,
+                brakingFt
+            );
             return;
         }
 
-        double toNodeFt = GeoMath.DistanceNm(ctx.Aircraft.Position, barNode.Position) * GeoMath.FeetPerNm;
-        double aheadFt = Math.Min(HoldShortBrakingDistanceFt(ctx.Aircraft.GroundSpeed, ctx.Category), toNodeFt);
-        LatLon stop = GeoMath.ProjectPoint(ctx.Aircraft.Position, ctx.Aircraft.TrueHeading, aheadFt / GeoMath.FeetPerNm);
+        // The walk clamps the stop at the bar's node, measuring each leg by its own length; the straight-line remainder is
+        // only the log's figure, since on a fillet it reads the chord, a little short of the arc.
+        LatLon stop = PointAheadAlongRoute(route, ctx.Aircraft.Position, brakingFt, barSegmentIndex);
+        double toNodeFt = route.RemainingDistanceFt(ctx.Aircraft.Position, barSegmentIndex + 1);
+        double aheadFt = Math.Min(brakingFt, toNodeFt);
 
         Log.LogInformation(
             "[Taxi] {Callsign}: hold short of {Target} unmakeable at {Gs:F1}kt — stopping {Ahead:F0}ft ahead, {ToNode:F0}ft short of node {NodeId}",
@@ -835,15 +1048,44 @@ public sealed class TaxiingPhase : Phase
     /// (<see cref="BrakeForUnclearedBar"/>): on a routine approach the taxi-rate curve the navigator trails by a tick, and when
     /// a TAXI re-route that drops a crossing clearance leaves the bar's painted stop inside the taxi-rate stopping distance,
     /// the firm-rate braking that still makes the marking. A target the navigator left unset (physics clears it on arrival at
-    /// a goal) is capped from the current speed, never raised to the cap.
+    /// a goal) is capped from the current speed, never raised to the cap. A bar flagged unable, which
+    /// <see cref="BrakeForUnclearedBar"/> leaves alone, is capped at its moved stop's own curve (<see cref="UnableStopCapKts"/>).
     /// </summary>
     private void CapAtUnclearedBar(PhaseContext ctx, TaxiRoute route)
     {
-        if (BrakeForUnclearedBar(ctx, route) is { } barCapKts)
+        if ((BrakeForUnclearedBar(ctx, route) ?? UnableStopCapKts(ctx, route)) is { } barCapKts)
         {
             ctx.Targets.TargetSpeed = Math.Min(ctx.Targets.TargetSpeed ?? ctx.Aircraft.IndicatedAirspeed, barCapKts);
         }
     }
+
+    /// <summary>
+    /// The speed cap (kts) the first uncleared bar ahead sets when it is flagged unable and its stop has been moved: the
+    /// sub-ticked curve onto the moved stop (<see cref="GroundNavigator.CurveKts"/>, the curve
+    /// <see cref="MovedStopDistanceFt"/> placed it by) at the rate the plan chose (<see cref="ApplyStopBrakeRate"/>). The
+    /// navigator plans the same curve, but publishes no speed on the sub-tick it arrives at a node, so a moved stop past a
+    /// junction would lose a braking sub-tick there that the firm rate cannot win back. Null when there is no such bar.
+    /// </summary>
+    private double? UnableStopCapKts(PhaseContext ctx, TaxiRoute route)
+    {
+        if ((ctx.GroundLayout is not { } layout) || (BarAheadThisTick(route) is not { Bar: { Unable: true, StopMoved: true } bar }))
+        {
+            return null;
+        }
+
+        double toStopNm = Math.Max(0.0, AlongRouteDistanceToHoldShortFt(layout, route, ctx.Aircraft.Position, bar)) / GeoMath.FeetPerNm;
+        double decelRate = _nav.DecelRateKts ?? CategoryPerformance.TaxiDecelRate(ctx.Category);
+        return GroundNavigator.CurveKts(0.0, toStopNm, decelRate, ctx.DeltaSeconds);
+    }
+
+    /// <summary>
+    /// The first uncleared bar ahead as this tick's <see cref="PrepareUnableStop"/> found it, so the route is walked once a
+    /// sub-tick; walked again only when the aircraft has since moved past that bar's segment or the bar has been cleared.
+    /// </summary>
+    private (int SegmentIndex, HoldShortPoint Bar)? BarAheadThisTick(TaxiRoute route) =>
+        _barAheadThisTick is not { } ahead ? null
+        : ((ahead.SegmentIndex >= route.CurrentSegmentIndex) && !ahead.Bar.IsCleared) ? ahead
+        : FirstUnclearedBarAhead(route);
 
     /// <summary>
     /// The speed cap the first uncleared bar ahead sets on the aircraft's approach to the bar's painted stop (centre at the
@@ -1037,8 +1279,9 @@ public sealed class TaxiingPhase : Phase
     /// <summary>
     /// The crossing a HOLD meets in the stretch before the crossing starts — the taxi hands the crossing over only once the centre
     /// reaches the near bar's node, half a length after the nose crossed the marking: the cleared crossing ahead
-    /// (<see cref="CrossingAhead"/>) whose painted stop lies inside the aircraft's taxi-rate stopping distance, so taxi braking would
-    /// carry the nose past the near marking, unless the near-line gate already brakes the aircraft onto a bar
+    /// (<see cref="CrossingAhead"/>) whose painted stop lies inside the aircraft's stopping distance at the rate the
+    /// HOLD brakes at (<see cref="CrossingRunwayPhase.HoldBrakeRateKtsPerSec"/>), so that braking would carry the nose
+    /// past the near marking, unless the near-line gate already brakes the aircraft onto a bar
     /// (<see cref="BrakeForUnclearedBar"/>). The bar and how far (ft) the nose is past its marking; null otherwise.
     /// </summary>
     private (HoldShortPoint Bar, double NosePastFt)? HoldAtCrossingAhead(AircraftState aircraft, TaxiRoute route, AirportGroundLayout layout)
@@ -1049,8 +1292,8 @@ public sealed class TaxiingPhase : Phase
         }
 
         AircraftCategory category = AircraftCategorization.Categorize(aircraft.AircraftType);
-        double taxiStopFt = GroundStopBraking.StoppingDistanceFt(aircraft.GroundSpeed, CategoryPerformance.TaxiDecelRate(category));
-        return AlongRouteDistanceToHoldShortFt(layout, route, aircraft.Position, crossing.Bar) < taxiStopFt
+        double holdStopFt = GroundStopBraking.StoppingDistanceFt(aircraft.GroundSpeed, CrossingRunwayPhase.HoldBrakeRateKtsPerSec(category));
+        return AlongRouteDistanceToHoldShortFt(layout, route, aircraft.Position, crossing.Bar) < holdStopFt
             ? (crossing.Bar, CrossingRunwayPhase.NosePastMarkingFt(aircraft, crossing.NearBar, crossing.AcrossDeg))
             : null;
     }

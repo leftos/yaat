@@ -276,7 +276,7 @@ Because `AnnotateHoldShorts` keeps exactly one `HoldShortPoint` per crossed runw
 - A `DestinationRunway` point is a **no-op** — re-arming it as a plain `ExplicitHoldShort` would strip the LUAW/CTO departure gate.
 - Only when no point exists yet does it walk the remaining segments to add one (runway bar first, then a taxiway edge match; a spot target matches only the named `Spot` node).
 - A **located** target (`HS C@J`) filters both steps by node incidence with the location taxiway — existing candidate points off `J` are ignored (so the located command adds/re-arms only the crossing it names), and the segment walk skips nodes not on `J`. With no layout to check incidence against, a located target fails closed (`NotOnRoute`) rather than binding an unverifiable crossing.
-- The phase is told (`TaxiingPhase.NotifyHoldShortsChanged`) so the segment in progress is re-aimed at the new bar at once, and a bar inside the aircraft's braking distance is flagged `Unable` at dispatch — see [hold-short-placement.md](hold-short-placement.md) § A hold-short armed under a taxi in progress.
+- The phase is told (`TaxiingPhase.NotifyHoldShortsChanged`) so the segment in progress is re-aimed at the new bar at once, and a bar inside the aircraft's firm-rate flown stop is flagged `Unable` at dispatch — see [hold-short-placement.md](hold-short-placement.md) § A hold-short armed under a taxi in progress.
 
 **Truncation rules** (`src/Yaat.Sim/Data/Airport/Pathfinding/RouteMaterialiser.cs:233`):
 

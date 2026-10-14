@@ -483,12 +483,6 @@ public sealed class TaxiingPhaseDto : PhaseDto
     public GroundNavigatorDto? Navigator { get; init; }
 
     /// <summary>
-    /// Node of the hold-short whose stop the phase already moved forward for being unmakeable, so a restored
-    /// phase does not move it a second time. Null on legacy snapshots, and whenever no bar has been moved.
-    /// </summary>
-    public int? UnableStopNodeId { get; init; }
-
-    /// <summary>
     /// Node of the uncleared runway hold-short the route starts on whose marking the nose was found past, which the phase is
     /// stopping for at the firm rate until it takes the hold or the bar is cleared. Null whenever no such stop is under way.
     /// </summary>

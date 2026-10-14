@@ -328,6 +328,92 @@ public sealed class GroundArc : IGroundEdge
     public CubicBezier ToBezier() =>
         new(Nodes[0].Position.Lat, Nodes[0].Position.Lon, P1Lat, P1Lon, P2Lat, P2Lon, Nodes[1].Position.Lat, Nodes[1].Position.Lon);
 
+    /// <summary>How many chords the arc is sampled into when a distance is measured along it rather than by its parameter.</summary>
+    private const int LengthSamples = 64;
+
+    /// <summary>
+    /// The point <paramref name="alongFt"/> along this arc measured from <paramref name="from"/>, walking the curve, since
+    /// neither its parameter nor the chord between its nodes is proportional to its length.
+    /// </summary>
+    /// <param name="from">The end the distance is measured from.</param>
+    /// <param name="alongFt">Distance along the arc in feet.</param>
+    /// <returns>The point on the arc.</returns>
+    public LatLon PointAtFt(GroundNode from, double alongFt)
+    {
+        bool forward = Nodes[0].Id == from.Id;
+        CubicBezier curve = ToBezier();
+        double wantFt = Math.Max(0.0, alongFt);
+        double walkedFt = 0.0;
+        (double Lat, double Lon) previous = curve.Evaluate(forward ? 0.0 : 1.0);
+        for (int i = 1; i <= LengthSamples; i++)
+        {
+            double t = forward ? (double)i / LengthSamples : 1.0 - ((double)i / LengthSamples);
+            (double lat, double lon) = curve.Evaluate(t);
+            double stepFt = GeoMath.DistanceNm(new LatLon(previous.Lat, previous.Lon), new LatLon(lat, lon)) * GeoMath.FeetPerNm;
+            if ((walkedFt + stepFt) >= wantFt)
+            {
+                double frac = stepFt <= 0.0 ? 0.0 : (wantFt - walkedFt) / stepFt;
+                return new LatLon(previous.Lat + ((lat - previous.Lat) * frac), previous.Lon + ((lon - previous.Lon) * frac));
+            }
+
+            walkedFt += stepFt;
+            previous = (lat, lon);
+        }
+
+        return new LatLon(previous.Lat, previous.Lon);
+    }
+
+    /// <summary>
+    /// Where <paramref name="point"/> lies against this arc: how far (ft) along it from <paramref name="from"/> its nearest
+    /// point is, and how far (ft) off the arc the point is. The arc is walked as <see cref="LengthSamples"/> chords and the
+    /// point projected onto the nearest one, so a point on the curve reads its along-arc distance to well under a foot.
+    /// </summary>
+    /// <param name="from">The end the distance is measured from.</param>
+    /// <param name="point">The point to place along the arc.</param>
+    /// <returns>The distance along the arc and the distance off it, both in feet.</returns>
+    public (double AlongFt, double OffFt) Locate(GroundNode from, LatLon point)
+    {
+        bool forward = Nodes[0].Id == from.Id;
+        CubicBezier curve = ToBezier();
+        double bestAlongFt = 0.0;
+        double bestOffFt = double.MaxValue;
+        double walkedFt = 0.0;
+        (double Lat, double Lon) start = curve.Evaluate(forward ? 0.0 : 1.0);
+        var previous = new LatLon(start.Lat, start.Lon);
+        for (int i = 1; i <= LengthSamples; i++)
+        {
+            double t = forward ? (double)i / LengthSamples : 1.0 - ((double)i / LengthSamples);
+            (double lat, double lon) = curve.Evaluate(t);
+            var next = new LatLon(lat, lon);
+            double stepFt = GeoMath.DistanceNm(previous, next) * GeoMath.FeetPerNm;
+            double offFt = GeoMath.DistanceToSegmentFt(point, previous, next);
+            if (offFt < bestOffFt)
+            {
+                bestOffFt = offFt;
+                bestAlongFt = walkedFt + AlongChordFt(previous, next, stepFt, point);
+            }
+
+            walkedFt += stepFt;
+            previous = next;
+        }
+
+        return (bestAlongFt, bestOffFt);
+    }
+
+    /// <summary>How far (ft) from <paramref name="a"/> the projection of <paramref name="point"/> onto the chord a→b falls, within it.</summary>
+    private static double AlongChordFt(LatLon a, LatLon b, double chordFt, LatLon point)
+    {
+        if (chordFt <= 0.0)
+        {
+            return 0.0;
+        }
+
+        double toAFt = GeoMath.DistanceNm(point, a) * GeoMath.FeetPerNm;
+        double toBFt = GeoMath.DistanceNm(point, b) * GeoMath.FeetPerNm;
+        double alongFt = ((toAFt * toAFt) - (toBFt * toBFt) + (chordFt * chordFt)) / (2.0 * chordFt);
+        return Math.Clamp(alongFt, 0.0, chordFt);
+    }
+
     /// <summary>Lateral acceleration ceiling for taxi turns (m/s²) ≈ 0.13 g — a tire-scrub / passenger-comfort
     /// limit, matching the ~0.12–0.13 g implied by ICAO Annex 14's rapid-exit taxiway radius/speed pairs
     /// (and FAA AC 150/5300-13B).</summary>

@@ -107,4 +107,11 @@ public sealed class HoldShortPointDto
     /// snapshots, which is correct: those routes carried only makeable bars.
     /// </summary>
     public bool Unable { get; init; }
+
+    /// <summary>
+    /// True once the taxi phase has moved this <see cref="Unable"/> bar's stop forward, so a restored taxi does not move
+    /// it again. Null (absent) when it has not, and on legacy snapshots.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? StopMoved { get; init; }
 }

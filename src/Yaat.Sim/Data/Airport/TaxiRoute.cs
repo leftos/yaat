@@ -295,9 +295,6 @@ public sealed class TaxiRoute
         return int.MaxValue;
     }
 
-    /// <summary>
-    /// Build a human-readable taxi route summary (e.g., "S T U W W1 HS 28L, RWY 30").
-    /// </summary>
     /// <summary>How close (ft) a bar's stop must lie to a segment's chord to count as on that segment.</summary>
     private const double StopOnChordToleranceFt = 3.0;
 
@@ -306,10 +303,13 @@ public sealed class TaxiRoute
 
     /// <summary>
     /// How far (nm, along the route) <paramref name="holdShort"/>'s stop sits back from the node it protects, the far end of
-    /// segment <paramref name="barSegmentIndex"/>. The stop is placed on the route's node-to-node chords, possibly several
-    /// segments back, so the walk goes backward from the bar's segment to the chord the stop lies on; whole segments count
-    /// at their own length (an arc's arc length), the one the stop lies on pro rata. A stop on no chord (one moved off the
-    /// route) counts its straight-line distance to the node. Zero when the bar has no stop position.
+    /// segment <paramref name="barSegmentIndex"/>. A painted stop is placed on the route's node-to-node chords, possibly
+    /// several segments back, so the walk goes backward from the bar's segment to the segment the stop lies on; whole
+    /// segments count at their own length (an arc's arc length), the one the stop lies on pro rata. A stop the taxi phase
+    /// moved forward lies on the segment's own geometry instead, which on a fillet is the arc, not its chord: a segment is
+    /// read on whichever of its chord and its arc the stop lies closer to, and on the arc the stop's distance to the
+    /// segment's end is measured along the arc (<see cref="GroundArc.Locate"/>). A stop on no segment counts its
+    /// straight-line distance to the node. Zero when the bar has no stop position.
     /// </summary>
     /// <param name="barSegmentIndex">Index of the segment whose far node is the bar's node.</param>
     /// <param name="holdShort">The bar.</param>
@@ -335,21 +335,57 @@ public sealed class TaxiRoute
         for (int j = barSegmentIndex; j >= 0; j--)
         {
             DirectionalEdge edge = Segments[j].Edge;
-            LatLon from = edge.FromNode.Position;
-            LatLon to = edge.ToNode.Position;
-            double offFt = GeoMath.DistanceToSegmentFt(stop, from, to);
+            (double offFt, double toEndNm) = StopOnSegment(edge, stop);
             if (offFt < bestOffFt)
             {
-                double chordNm = GeoMath.DistanceNm(from, to);
-                double fraction = chordNm < 1e-9 ? 0.0 : Math.Min(1.0, GeoMath.DistanceNm(stop, to) / chordNm);
                 bestOffFt = offFt;
-                setbackNm = walkedNm + (fraction * edge.DistanceNm);
+                setbackNm = walkedNm + toEndNm;
             }
 
             walkedNm += edge.DistanceNm;
         }
 
         return setbackNm ?? GeoMath.DistanceNm(stop, Segments[barSegmentIndex].Edge.ToNode.Position);
+    }
+
+    /// <summary>
+    /// True when a stop <paramref name="chordOffFt"/> off <paramref name="arc"/>'s chord cannot lie within
+    /// <see cref="StopOnChordToleranceFt"/> of the arc itself, so the arc walk (<see cref="GroundArc.Locate"/>) can be
+    /// skipped: the curve stays inside the convex hull of its control points, so no point of it lies further from the chord
+    /// than the further of P1 and P2.
+    /// </summary>
+    private static bool TooFarFromArc(GroundArc arc, LatLon from, LatLon to, double chordOffFt)
+    {
+        double arcBoundFt = Math.Max(
+            GeoMath.DistanceToSegmentFt(new LatLon(arc.P1Lat, arc.P1Lon), from, to),
+            GeoMath.DistanceToSegmentFt(new LatLon(arc.P2Lat, arc.P2Lon), from, to)
+        );
+        return (chordOffFt - arcBoundFt) > StopOnChordToleranceFt;
+    }
+
+    /// <summary>
+    /// How far (ft) <paramref name="stop"/> lies off <paramref name="edge"/>, and how far (nm) along it the stop sits from
+    /// its end node: on the chord between its nodes, counted pro rata of the edge's length, or — on a fillet arc the stop
+    /// lies closer to than to that chord — on the arc itself, measured along it. The arc is walked only when the stop can
+    /// lie within tolerance of it (<see cref="TooFarFromArc"/>).
+    /// </summary>
+    private static (double OffFt, double ToEndNm) StopOnSegment(DirectionalEdge edge, LatLon stop)
+    {
+        LatLon from = edge.FromNode.Position;
+        LatLon to = edge.ToNode.Position;
+        double chordOffFt = GeoMath.DistanceToSegmentFt(stop, from, to);
+        if ((edge.Edge is GroundArc arc) && !TooFarFromArc(arc, from, to, chordOffFt))
+        {
+            (double alongFt, double arcOffFt) = arc.Locate(edge.ToNode, stop);
+            if (arcOffFt < chordOffFt)
+            {
+                return (arcOffFt, alongFt / GeoMath.FeetPerNm);
+            }
+        }
+
+        double chordNm = GeoMath.DistanceNm(from, to);
+        double fraction = chordNm < 1e-9 ? 0.0 : Math.Min(1.0, GeoMath.DistanceNm(stop, to) / chordNm);
+        return (chordOffFt, fraction * edge.DistanceNm);
     }
 
     /// <summary>
@@ -602,6 +638,7 @@ public sealed class TaxiRoute
                     RecrossesLandingRunway = hs.RecrossesLandingRunway ? true : null,
                     TailOverRunwayNodeId = hs.TailOverRunwayNodeId,
                     Unable = hs.Unable,
+                    StopMoved = hs.StopMoved ? true : null,
                 }),
             ],
             Description = ToSummary(),
@@ -688,6 +725,7 @@ public sealed class TaxiRoute
                         Longitude = hs.Longitude,
                         TailOverRunwayNodeId = hs.TailOverRunwayNodeId,
                         Unable = hs.Unable,
+                        StopMoved = hs.StopMoved == true,
                     }
                 );
             }
@@ -772,11 +810,19 @@ public sealed class HoldShortPoint
     /// True when the aircraft was already inside its own braking distance of this bar when the bar was
     /// armed, so the painted stop cannot be made. <see cref="Latitude"/>/<see cref="Longitude"/> are then
     /// moved forward to the point the aircraft can actually stop at (never past the node the bar protects),
-    /// the taxi brakes at the full taxi rate onto it, and the pilot answers "unable … stopping" instead of
+    /// the taxi brakes at the firm rate onto it, and the pilot answers "unable … stopping" instead of
     /// reading back a hold it will not fly. Set once, at the moment the bar is armed; a bar the aircraft has
     /// room for is never flagged.
     /// </summary>
     public bool Unable { get; set; }
+
+    /// <summary>
+    /// True once the taxi phase has moved this <see cref="Unable"/> bar's stop forward to the point the aircraft can
+    /// reach. Kept on the bar rather than the phase so the stop is moved once per bar: a later taxi phase over the same
+    /// route — a follow resuming its assigned route, a restore — would otherwise project it again from wherever the
+    /// aircraft then stands.
+    /// </summary>
+    public bool StopMoved { get; set; }
 
     /// <summary>
     /// When this taxiway hold-short sits within a fuselage length past a runway the route crosses, the

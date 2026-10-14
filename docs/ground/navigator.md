@@ -25,7 +25,7 @@ Phases run **before** physics each sub-tick (see [`../tick-loop.md`](../tick-loo
 
 **The navigator never integrates speed.**
 
-It publishes `Targets.TargetSpeed` (and `Targets.DesiredDecelRate`: `SlowdownDecelRateKts` when the owning phase set one and no stop's braking curve sets the target, else `DecelRateKts` — the expedite rate, null otherwise) every tick and `FlightPhysics.UpdateSpeed` closes the gap at the ground rates — `CategoryPerformance.TaxiAccelRate` (1.0 kt/s for every category: the breakaway rate, then idle) and `DesiredDecelRate ?? TaxiDecelRate` — with a snap window of one sub-tick's change.
+It publishes `Targets.TargetSpeed` (and `Targets.DesiredDecelRate`: `SlowdownDecelRateKts` when the owning phase set one and no stop's braking curve sets the target, else `DecelRateKts` — the expedite rate, set by `RunwayExitPhase` for an `EXP` exit and by `TaxiingPhase` for an unable bar the taxi rate cannot stop at, null otherwise) every tick and `FlightPhysics.UpdateSpeed` closes the gap at the ground rates — `CategoryPerformance.TaxiAccelRate` (1.0 kt/s for every category: the breakaway rate, then idle) and `DesiredDecelRate ?? TaxiDecelRate` — with a snap window of one sub-tick's change.
 
 The braking curve planned at `TaxiDecelRate` executes at exactly that rate, with no hidden margin.
 
@@ -558,6 +558,8 @@ The navigator never overspeeds into a future turn. `BuildSpeedConstraints` (`Gro
 
 **Two braking rates: slowdowns and stops.** `DecelRateKts` (null = `TaxiDecelRate`) is the rate for the whole route. `SlowdownDecelRateKts`, when set, applies only to the in-route slowdowns — corner and arc speeds, and the arc cap — while every stop (the route end, and each bar not yet cleared) stays on its own braking curve at `DecelRateKts`'s rate.
 
+`PlansStopsOnSubTicks` (set by `TaxiingPhase` while the first uncleared bar ahead is unable) plans each stop of the single-rate plan on the curve the sub-ticked physics flies, `CurveKts`: the speed whose stop v²/2a + v·dt/2 is the distance, instead of the continuous √(2ad). A stop target then arrives at the threshold a·dt²/2 (`SubTickStopArrivalThresholdNm`) rather than `FinalNodeArrivalThresholdNm`. The split-rate plan keeps the continuous curve.
+
 With it set, `BuildSpeedConstraints` skips the back-propagation (one rate would blend the two) and `SplitRateBrakingLimit` plans each constraint on its own curve at its own rate; the published `DesiredDecelRate` is the stop rate on a tick where a stop's curve sets the target (`_stopCurveBinds`), the slowdown rate otherwise.
 
 A softer or firmer slowdown rate therefore never moves a stop. `RunwayExitPhase` sets it on the turn-off to the rate the rollout chose the exit with ([landing-and-runway-exit.md](../landing-and-runway-exit.md) § The turn-off keeps the rollout's rate) and re-applies it before every tick and segment set-up; it is not serialized.
@@ -592,7 +594,7 @@ An uncleared bar's painted stop puts the centre at the stop and the nose at the 
 
 It judges the first uncleared bar ahead by `GroundStopBraking.ChooseStopBraking` against the painted stop: the led taxi-rate curve when the taxi rate makes the stop; when only the firm rate (`CategoryPerformance.ExpediteExitDecelRate`) does, that rate published as `DesiredDecelRate` and the led curve at it; when not even the firm rate does, the firm rate and a zero target.
 
-An un-held tick applies it as `CapAtUnclearedBar`. A target physics already cleared on arrival at its goal (`FlightPhysics.ArriveAtGoal`) is capped from the current speed, never raised to the cap. A bar already called unmakeable (`HoldShortPoint.Unable`) keeps its moved stop, and a route-incomplete end keeps the navigator's routine braking; the cap skips both.
+An un-held tick applies it as `CapAtUnclearedBar`. A target physics already cleared on arrival at its goal (`FlightPhysics.ArriveAtGoal`) is capped from the current speed, never raised to the cap. A route-incomplete end keeps the navigator's routine braking; the cap skips it. A bar already called unmakeable (`HoldShortPoint.Unable`) is not braked for by `BrakeForUnclearedBar`; once its stop has moved (`StopMoved`), `UnableStopCapKts` caps the target at the moved stop's sub-ticked curve (`CurveKts`) at the rate the plan chose, since the navigator publishes no speed on a node-arrival sub-tick.
 
 **The hold contract near an uncleared bar.** A held aircraft's pinned speed (`HeldSpeedKts`: zero for `HOLD` and a `GIVEWAY` with no give-way point, the give-way curve otherwise) is capped by the same braking after any node arrival (`CapHeldSpeedAtUnclearedBar`). The braking therefore steps up in three stages: the taxi rate; the firm rate when only that makes the stop; and, for a runway bar whose line is not yet lost only, a last-resort dead stop.
 
@@ -622,7 +624,7 @@ With the nose short of the start bar, the start-node hold is `TryHoldAtRouteStar
 `GroundNavigator.cs:325`. Runs once when the route advances to a new segment:
 
 1. Compile the current segment to a primitive (`PathPrimitiveBuilder.FromSegment` — returns `PathPrimitiveStraight` or `PathPrimitiveBezier`).
-2. Set target node / lat / lon from the segment's to-node; reset `PrevDistToTarget`.
+2. Set target node / lat / lon from the segment's to-node; reset `PrevDistToTarget`. `OverrideTargetPosition` also resets it when the target moves (an unable bar's stop slid further on), so the moved distance is not read as an overshoot.
 3. **Entry-alignment check** (above). If the start heading delta exceeds the threshold and the segment is long enough, swap in an alignment slow-turn and stash the real primitive.
 4. Otherwise install the real primitive.
 5. `BuildSpeedConstraints` (`GroundNavigator.cs:424` calls it; defined at `988`) — speed profile for this and all downstream segments.

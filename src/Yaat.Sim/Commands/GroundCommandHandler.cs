@@ -11,6 +11,7 @@ using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Pilot;
+using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim.Commands;
 
@@ -5322,8 +5323,7 @@ public static partial class GroundCommandHandler
             return false;
         }
 
-        AircraftCategory category = AircraftCategorization.Categorize(aircraft.AircraftType);
-        if (!TaxiingPhase.IsHoldShortUnmakeable(layout, route, aircraft, category, bar))
+        if (!TaxiingPhase.IsHoldShortUnmakeable(layout, route, aircraft, bar, 1.0 / SimulationEngine.PhysicsSubTickRate))
         {
             return false;
         }

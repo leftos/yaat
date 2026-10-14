@@ -72,6 +72,7 @@ public class UnableHoldShortSnapshotTests(ITestOutputHelper output)
                 Reason = HoldShortReason.ExplicitHoldShort,
                 TargetName = "T",
                 Unable = true,
+                StopMoved = true,
                 Latitude = movedLat,
                 Longitude = movedLon,
             }
@@ -83,6 +84,7 @@ public class UnableHoldShortSnapshotTests(ITestOutputHelper output)
         Assert.NotNull(restored);
         HoldShortPoint bar = Assert.Single(restored!.HoldShortPoints);
         Assert.True(bar.Unable, "the unable flag did not survive the snapshot");
+        Assert.True(bar.StopMoved, "the stop-moved flag did not survive the snapshot");
         Assert.Equal(movedLat, bar.Latitude!.Value, 9);
         Assert.Equal(movedLon, bar.Longitude!.Value, 9);
     }
@@ -167,10 +169,10 @@ public class UnableHoldShortSnapshotTests(ITestOutputHelper output)
 
     /// <summary>
     /// The moved stop survives a restore as a stop that has already been moved. <c>TaxiingPhase</c> moves an
-    /// unable bar once and remembers which bar it was; that memory has to ride the phase snapshot, or a rewind
-    /// taken mid-brake followed by a second <c>HS</c> on the same target re-projects the bar from wherever the
-    /// aircraft has got to — the ratchet — and a replay restored from that snapshot stops somewhere the live
-    /// run never did.
+    /// unable bar once and records it on the route's hold-short point (<see cref="HoldShortPoint.StopMoved"/>); that
+    /// memory rides the route's snapshot, so both the phase and the route are restored here, or a rewind taken
+    /// mid-brake followed by a second <c>HS</c> on the same target re-projects the bar from wherever the aircraft has
+    /// got to — the ratchet — and a replay restored from that snapshot stops somewhere the live run never did.
     /// </summary>
     [Fact]
     public void PhaseRestore_ThenASecondHoldShort_LeavesTheMovedStopWhereItWas()
@@ -229,8 +231,14 @@ public class UnableHoldShortSnapshotTests(ITestOutputHelper output)
             $"the aircraft left the taxi before the rewind; phase {phases.CurrentPhase?.GetType().Name}"
         );
         var dto = (TaxiingPhaseDto)phases.CurrentPhase!.ToSnapshot();
-        Assert.Equal(bar.NodeId, dto.UnableStopNodeId);
+        TaxiRoute route = aircraft.Ground.AssignedTaxiRoute ?? throw new InvalidOperationException($"{Callsign} has no taxi route");
+        Assert.True(
+            route.ToSnapshot().HoldShortPoints?.Single(h => h.NodeId == bar.NodeId).StopMoved == true,
+            "the route's snapshot does not record that the bar's stop was moved"
+        );
         phases.Phases[phases.CurrentIndex] = TaxiingPhase.FromSnapshot(dto);
+        aircraft.Ground.AssignedTaxiRoute =
+            TaxiRoute.FromSnapshot(route.ToSnapshot(), ground.Layout) ?? throw new InvalidOperationException($"{Callsign}'s route did not restore");
         ground.Engine.TickOneSecond();
 
         Assert.True(
@@ -248,6 +256,10 @@ public class UnableHoldShortSnapshotTests(ITestOutputHelper output)
         );
         Assert.Equal(movedLat, after.Latitude!.Value, 9);
         Assert.Equal(movedLon, after.Longitude!.Value, 9);
+        // The bar is still the unable one whose stop was moved once. Whether the restore kept that memory is pinned by the
+        // route round trip above: an aircraft riding the sub-ticked firm curve, as this one is, re-projects a forgotten stop
+        // onto the same point (the curve loses exactly v·dt per sub-tick), so this case cannot tell the two apart.
+        Assert.True(after.Unable && after.StopMoved, $"after the restore the bar reads unable {after.Unable}, stop moved {after.StopMoved}");
     }
 
     /// <summary>The uncleared hold-short of T on the aircraft's route.</summary>
