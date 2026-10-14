@@ -216,6 +216,35 @@ public class PushbackToMenuTests(OakPushTargetSeedCopy seedCopy) : IClassFixture
     }
 
     /// <summary>
+    /// The plan landing while a strip-flyout row holds keyboard focus moves that row up in place: it keeps focus, even
+    /// though the rows that were above it go below.
+    /// </summary>
+    [AvaloniaFact]
+    public void StripFlyout_PlanLandingMovesAFocusedRowUp_ItKeepsFocus()
+    {
+        var list = PushTargetList.Pending([
+            Target(MenuPushTargetKind.Taxilane, "TE", 250, [], null),
+            Target(MenuPushTargetKind.Taxilane, "TF", 400, [], null),
+            Target(MenuPushTargetKind.Taxilane, "TG", 600, [], null),
+        ]);
+        MenuFlyout flyout = OpenStripFlyout(OpenInWindow(Build(new RecordingMenuHost("") { PushbackTargets = list })));
+        MenuItem focused = RowOf(flyout.Items, "PUSH TG");
+        focused.Focus();
+        Assert.True(focused.IsKeyboardFocusWithin, "the TG row did not take focus");
+
+        list.Apply([
+            Target(MenuPushTargetKind.Taxilane, "TG", 100, [], null),
+            Target(MenuPushTargetKind.Taxilane, "TE", 250, [], null),
+            Target(MenuPushTargetKind.Taxilane, "TF", 400, [], null),
+        ]);
+        Layout(flyout);
+
+        Assert.Equal([PushbackToMenu.TaxiwaysHeader, "PUSH TG", "PUSH TE", "PUSH TF"], Texts(flyout.Items));
+        Assert.Same(focused, RowOf(flyout.Items, "PUSH TG"));
+        Assert.True(focused.IsKeyboardFocusWithin, "the moved row lost keyboard focus");
+    }
+
+    /// <summary>
     /// A facing chip on a strip-flyout row sends that facing's push, not the row's bare one, and closes the flyout and the
     /// menu; the chips read the cardinals alone after "then face".
     /// </summary>

@@ -261,7 +261,19 @@ internal sealed class RecordingMenuHost(string input) : IMenuHost
 
     public List<TaxiRoute?> RoutePreviews { get; } = [];
 
-    public IReadOnlyList<MenuGroundTrafficRow> GetGroundTrafficRows(string callsign) => GroundTraffic;
+    /// <summary>How many times the ground traffic was asked for.</summary>
+    public int GroundTrafficRequests { get; private set; }
+
+    public IReadOnlyList<MenuGroundTrafficRow> GetGroundTrafficRows(string callsign)
+    {
+        GroundTrafficRequests++;
+        return GroundTraffic;
+    }
+
+    /// <summary>The clock a live flyout ticks on: it moves only when the test advances it, so no flyout timer outlives a test.</summary>
+    public ManualClock Clock { get; } = new();
+
+    TimeProvider IMenuHost.Clock => Clock;
 
     /// <summary>The airborne traffic the Report traffic in sight… list offers, whatever the callsign asked about; none by default.</summary>
     public List<MenuTrafficRow> NearbyTraffic { get; } = [];

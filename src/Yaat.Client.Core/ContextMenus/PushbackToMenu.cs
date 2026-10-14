@@ -146,6 +146,9 @@ public static class PushbackToMenu
             Follow();
         }
 
+        /// <summary>The targets follow the live plan wherever the pointer is: nothing to do.</summary>
+        public void PointerInside(bool inside) { }
+
         /// <inheritdoc />
         public void Closed()
         {
@@ -185,7 +188,8 @@ public static class PushbackToMenu
         private void Show(bool settled)
         {
             // The strip moves the items into its flyout once, for good; until then they are the submenu's own.
-            FlyoutItemSync.Sync(_flyoutItems ?? entry.Items, Wanted(settled));
+            List<Control> wanted = Wanted(settled);
+            FlyoutItemSync.Sync(_flyoutItems ?? entry.Items, wanted, FlyoutItemSync.FocusedIn(wanted));
             _shownTargets = list.Targets;
             _shownSettled = settled;
         }

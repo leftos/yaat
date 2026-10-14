@@ -12,7 +12,7 @@
 
 - The right-click menu names the pointed quick-command icon in the line under its title, with no gap above the icons, and Command… and Note… follow the icons.
 - Release (HFR) and Check release window are the first icons in the menu's quick-command strip, also on a delayed spawn's menu.
-- Give way to… and Follow… open flyouts: Give way lists traffic nearest first, Follow adds a filter box; with no other ground traffic both say why.
+- Give way to… and Follow… open live flyouts of nearby ground traffic, refreshed each second; Follow adds a filter, and an empty list says why.
 
 ### Fixed
 

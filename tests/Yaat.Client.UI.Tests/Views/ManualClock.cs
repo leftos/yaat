@@ -1,13 +1,17 @@
 namespace Yaat.Client.UI.Tests.Views;
 
 /// <summary>
-/// A clock that moves only when the test advances it; each advance fires every live timer once. A test that shows a
-/// strip label which overflows its line sets it as the line's marquee clock, so no frame timer outlives the test.
+/// A clock that moves only when the test advances it; each advance fires every live timer once. It is the clock for a
+/// strip label's marquee (set as the line's marquee clock when the label overflows its line) and for a live flyout's
+/// once-a-second refill (the test hosts' <c>Clock</c>), so no frame or refill timer outlives a test.
 /// </summary>
 internal sealed class ManualClock : TimeProvider
 {
     private readonly List<ManualTimer> _timers = [];
     private long _ticks;
+
+    /// <summary>How many timers made on this clock have not been disposed.</summary>
+    public int LiveTimerCount => _timers.Count;
 
     public override long TimestampFrequency => TimeSpan.TicksPerSecond;
 

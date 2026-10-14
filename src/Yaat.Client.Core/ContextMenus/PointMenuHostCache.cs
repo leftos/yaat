@@ -117,6 +117,8 @@ internal sealed class PointMenuHostCache(IMenuHost inner) : IMenuHost
 
     public IReadOnlyList<MenuGroundTrafficRow> GetGroundTrafficRows(string callsign) => inner.GetGroundTrafficRows(callsign);
 
+    public TimeProvider Clock => inner.Clock;
+
     public bool IsOnTaxiRoute(string callsign, string otherCallsign) => inner.IsOnTaxiRoute(callsign, otherCallsign);
 
     public void HighlightAircraft(string? callsign) => inner.HighlightAircraft(callsign);

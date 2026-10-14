@@ -8,7 +8,7 @@ namespace Yaat.Client.UI.Tests.Views;
 
 /// <summary>
 /// A menu host with its sends captured into <see cref="Sent"/> instead of going to a server, which a test has none of,
-/// and its session sending with <paramref name="sessionInitials"/>; every other member is <paramref name="inner"/>'s own, so a
+/// its session sending with <paramref name="sessionInitials"/> and its clock a manual one; every other member is <paramref name="inner"/>'s own, so a
 /// menu built over it answers, previews and draws through the real host.
 /// </summary>
 internal sealed class SendCapturingHost(IMenuHost inner, string sessionInitials) : IMenuHost
@@ -77,6 +77,9 @@ internal sealed class SendCapturingHost(IMenuHost inner, string sessionInitials)
     public void OpenFlightPlanEditor(string callsign) => inner.OpenFlightPlanEditor(callsign);
 
     public IReadOnlyList<MenuGroundTrafficRow> GetGroundTrafficRows(string callsign) => inner.GetGroundTrafficRows(callsign);
+
+    /// <summary>A clock of its own that moves only when the test advances it, not the real host's, so no flyout timer outlives a test.</summary>
+    public TimeProvider Clock { get; } = new ManualClock();
 
     public bool IsOnTaxiRoute(string callsign, string otherCallsign) => inner.IsOnTaxiRoute(callsign, otherCallsign);
 

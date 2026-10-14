@@ -20,7 +20,8 @@ namespace Yaat.Client.ContextMenus;
 /// <summary>
 /// A submenu's items that follow live data on whichever surface shows them, registered with
 /// <see cref="QuickCommandStrip.FollowInFlyout"/>: told when a strip button's flyout showing them opens, with the flyout's
-/// own item list to keep current and the action that closes the flyout and the menu, and when it closes.
+/// own item list to keep current and the action that closes the flyout and the menu, when the pointer enters and leaves
+/// it, and when it closes.
 /// </summary>
 public interface IStripFlyoutContent
 {
@@ -28,6 +29,10 @@ public interface IStripFlyoutContent
     /// <param name="items">The flyout's item list, which now holds the items.</param>
     /// <param name="close">Closes the flyout and the menu, for a choice made where the strip wires no close of its own.</param>
     void Opened(ItemCollection items, Action close);
+
+    /// <summary>The pointer has entered the open flyout (<paramref name="inside"/> true) or left it (false).</summary>
+    /// <param name="inside">Whether the pointer is now over the flyout.</param>
+    void PointerInside(bool inside);
 
     /// <summary>The flyout showing the items has closed.</summary>
     void Closed();
@@ -340,19 +345,37 @@ public static class QuickCommandStrip
         flyout.Opened += (_, _) => CloseOnChoices(LazySubmenu.Fill(built, flyout.Items), flyout, menu);
         if (FlyoutContents.TryGetValue(built, out IStripFlyoutContent? content))
         {
-            flyout.Opened += (_, _) =>
-                content.Opened(
-                    flyout.Items,
-                    () =>
-                    {
-                        flyout.Hide();
-                        menu.Close();
-                    }
-                );
-            flyout.Closed += (_, _) => content.Closed();
+            Tell(content, flyout, menu);
         }
 
         return flyout;
+    }
+
+    /// <summary>
+    /// Tells <paramref name="content"/> when <paramref name="flyout"/> opens and closes, and when the pointer enters and
+    /// leaves the flyout's popup, watched from the first opening on, when the popup has its presenter.
+    /// </summary>
+    private static void Tell(IStripFlyoutContent content, MenuFlyout flyout, ContextMenu menu)
+    {
+        Control? watched = null;
+        flyout.Opened += (_, _) =>
+        {
+            content.Opened(
+                flyout.Items,
+                () =>
+                {
+                    flyout.Hide();
+                    menu.Close();
+                }
+            );
+            if ((flyout.Popup.Child is Control root) && !ReferenceEquals(root, watched))
+            {
+                watched = root;
+                root.PointerEntered += (_, _) => content.PointerInside(true);
+                root.PointerExited += (_, _) => content.PointerInside(false);
+            }
+        };
+        flyout.Closed += (_, _) => content.Closed();
     }
 
     /// <summary>

@@ -576,6 +576,12 @@ The block at the top of an aircraft's menu, under its header, while another airc
 **Traffic row**:
 One other aircraft as a menu's traffic list shows it, seen from the aircraft the menu commands: in the air a `MenuTrafficRow` (callsign and type, distance, clock position, altitude difference), on the ground a `MenuGroundTrafficRow` (callsign, type, distance in feet, state such as `taxiing on W · ahead`).
 
+**Gone row**:
+A Follow… or Give way to… row whose aircraft has left the ground while the pointer holds the open flyout's list in place: dimmed, reading `gone`, disabled, skipped by the keyboard and sending nothing.
+
+**Live refill**:
+A strip flyout's once-a-second rebuild from the host's data while it is open (`FlyoutLiveTick`): rebuilt nearest first with the pointer outside, held in place with gone rows and teal-edged newcomers with the pointer inside (Follow…, Give way to…).
+
 ## CRC hub connections
 
 **Direct connection**:

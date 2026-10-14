@@ -158,6 +158,9 @@ public interface IMenuHost
     /// </summary>
     IReadOnlyList<MenuGroundTrafficRow> GetGroundTrafficRows(string callsign);
 
+    /// <summary>The clock a live flyout refills on while it is open (<see cref="FlyoutLiveTick"/>).</summary>
+    TimeProvider Clock { get; }
+
     /// <summary>
     /// Whether <paramref name="otherCallsign"/> stands on the taxi route <paramref name="callsign"/> still has ahead of it,
     /// which the ground For line names (<c>on SWA602's route</c>); false when either is not found or there is no route.

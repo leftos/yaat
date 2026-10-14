@@ -2,6 +2,7 @@ using System.Text;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Controls.Presenters;
 using Avalonia.Controls.Primitives;
 using Avalonia.Controls.Templates;
 using Avalonia.Input;
@@ -12,6 +13,7 @@ using Avalonia.Media;
 using Avalonia.Media.Immutable;
 using Avalonia.Styling;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 
 namespace Yaat.Client.ContextMenus;
 
@@ -24,7 +26,14 @@ namespace Yaat.Client.ContextMenus;
 /// list falls back to eight rows when the flyout closes. A row highlights its aircraft while it is pointed at or holds
 /// keyboard focus, and the highlight clears when it loses both and when the flyout closes. With no other aircraft on the
 /// ground the entry is disabled, the reason faint beside its label, and the strip shows its button faded, opening nothing,
-/// its label naming the same reason.
+/// its label naming the same reason. While the quick-command strip's flyout of either list is open it refills once a
+/// second (<see cref="FlyoutLiveTick"/>): with the pointer outside it the list is rebuilt nearest first, rows leaving and
+/// appearing; with the pointer inside it the order freezes, each row's distance and state updating in place, an aircraft
+/// that left staying as a dimmed <see cref="GoneState"/> row that sends nothing and the keyboard skips, and a newcomer
+/// joining the bottom of the list; when the pointer leaves the list catches up at once. A row whose aircraft leaves the
+/// list, or goes while it is still listed, hands keyboard focus to the nearest live row, to "Show n more" (Give way) or the
+/// filter box (Follow) when nothing else is in reach, and a row that goes gone under the pointer stops highlighting its
+/// aircraft. A Follow list off screen, its flyout or submenu closed, leaves its stuck title alone.
 /// </summary>
 public static class GroundTrafficFlyout
 {
@@ -39,6 +48,9 @@ public static class GroundTrafficFlyout
 
     /// <summary>The muted line a traffic flyout shows once its list has emptied while open.</summary>
     public const string NoTrafficText = "No other aircraft on the ground.";
+
+    /// <summary>The state a row reads once its aircraft has left the ground while the pointer is inside the flyout.</summary>
+    public const string GoneState = "gone";
 
     /// <summary>How many rows the Give way to… list shows before its "Show n more" row.</summary>
     public const int GiveWayShownRows = 8;
@@ -80,7 +92,28 @@ public static class GroundTrafficFlyout
     /// <summary>The border in a menu row's template that draws its pointed-at and selected background.</summary>
     private const string MenuItemLayoutRootPart = "PART_LayoutRoot";
 
+    /// <summary>The presenter in a button's template that draws its background.</summary>
+    private const string ButtonPresenterPart = "PART_ContentPresenter";
+
+    /// <summary>The style class a row carries while it is a newcomer a held list appended.</summary>
+    private const string NewcomerClass = "newcomer";
+
     private static readonly IImmutableSolidColorBrush SectionTitleBrush = new ImmutableSolidColorBrush(Color.Parse("#CFD4DA"));
+
+    /// <summary>A newcomer row's mark: a 2 px edge in the ground teal at 85%, drawn inside the row's left side.</summary>
+    private static readonly BoxShadows NewcomerEdge = new(
+        new BoxShadow
+        {
+            IsInset = true,
+            OffsetX = 2,
+            Color = Color.FromArgb(
+                217,
+                GroundTrafficLook.MovingBrush.Color.R,
+                GroundTrafficLook.MovingBrush.Color.G,
+                GroundTrafficLook.MovingBrush.Color.B
+            ),
+        }
+    );
 
     /// <summary>
     /// The Give way to… entry labelled <paramref name="label"/>: a submenu over the other ground aircraft, or, with none,
@@ -116,7 +149,7 @@ public static class GroundTrafficFlyout
     public static MenuItem BuildFollow(string label, MenuContext context, IMenuHost host)
     {
         var entry = new MenuItem { Header = label };
-        List<MenuGroundTrafficRow> traffic = [.. host.GetGroundTrafficRows(context.Callsign).OrderBy(row => row.DistanceFeet)];
+        List<MenuGroundTrafficRow> traffic = FollowTraffic(context, host);
         if (traffic.Count == 0)
         {
             return Inert(entry, label);
@@ -139,6 +172,26 @@ public static class GroundTrafficFlyout
     /// <summary>The other ground aircraft Give way to… offers, nearest first, live-traffic shadows left out.</summary>
     private static List<MenuGroundTrafficRow> GiveWayTraffic(MenuContext context, IMenuHost host) =>
         [.. host.GetGroundTrafficRows(context.Callsign).Where(row => !row.IsSurfaceShadow).OrderBy(row => row.DistanceFeet)];
+
+    /// <summary>The other ground aircraft Follow… offers, nearest first, live-traffic shadows included.</summary>
+    private static List<MenuGroundTrafficRow> FollowTraffic(MenuContext context, IMenuHost host) =>
+        [.. host.GetGroundTrafficRows(context.Callsign).OrderBy(row => row.DistanceFeet)];
+
+    /// <summary>
+    /// Dims <paramref name="row"/> and takes it out of reach once its aircraft is gone, or shows it as usual, and marks it
+    /// with the teal left edge while it is a newcomer. A gone row that <paramref name="holdsFocus"/> stays in reach until
+    /// its list has handed the focus on, since a row taken out of reach drops the focus altogether.
+    /// </summary>
+    private static void ShowState(InputElement row, TrafficEntry shown, bool holdsFocus)
+    {
+        row.IsEnabled = (!shown.IsGone) || holdsFocus;
+        row.Opacity = shown.IsGone ? MenuGlyphRowTemplate.DimmedOpacity : 1;
+        row.Classes.Set(NewcomerClass, shown.IsNew);
+    }
+
+    /// <summary>Draws the newcomer's teal left edge inside the background of the template part <paramref name="part"/> picks.</summary>
+    private static Style NewcomerEdgeStyle(Func<Selector?, Selector> part, AvaloniaProperty boxShadow) =>
+        new(part) { Setters = { new Setter(boxShadow, NewcomerEdge) } };
 
     /// <summary>
     /// Disables <paramref name="entry"/>, which All Commands then draws with <see cref="NoTrafficReason"/> faint beside its
@@ -184,8 +237,9 @@ public static class GroundTrafficFlyout
         {
             row.PointerEntered += (_, _) => Point(callsign);
             row.PointerExited += (_, _) => Unpoint(callsign);
-            row.GotFocus += (_, _) => Focus(callsign);
-            row.LostFocus += (_, _) => Blur(callsign);
+            // A menu row marks its focus events handled before handlers added the plain way would see them.
+            row.AddHandler(InputElement.GotFocusEvent, (_, _) => Focus(callsign), handledEventsToo: true);
+            row.AddHandler(InputElement.LostFocusEvent, (_, _) => Blur(callsign), handledEventsToo: true);
         }
 
         /// <summary>Forgets the pointed and the focused row and clears the highlight, as the flyout closes.</summary>
@@ -202,14 +256,17 @@ public static class GroundTrafficFlyout
             Apply();
         }
 
-        private void Unpoint(string callsign)
+        /// <summary>
+        /// Stops highlighting <paramref name="callsign"/> when it is the pointed row, for a row going out of reach, which
+        /// raises no PointerExited of its own.
+        /// </summary>
+        public void Unpoint(string callsign)
         {
             if (_pointed == callsign)
             {
                 _pointed = null;
+                Apply();
             }
-
-            Apply();
         }
 
         private void Focus(string callsign)
@@ -232,9 +289,83 @@ public static class GroundTrafficFlyout
     }
 
     /// <summary>
+    /// An aircraft row as a traffic flyout lists it: the aircraft as last seen, whether it has left the ground since, and
+    /// the Follow… section it sits under.
+    /// </summary>
+    /// <param name="Traffic">The aircraft as the host last listed it.</param>
+    /// <param name="IsGone">Whether the host no longer lists it.</param>
+    /// <param name="InMovingSection">Whether it sits under Follow…'s Moving title rather than Parked or holding.</param>
+    /// <param name="IsNew">Whether it joined the bottom of a held list as a newcomer, which its row's teal left edge marks.</param>
+    private sealed record TrafficEntry(MenuGroundTrafficRow Traffic, bool IsGone, bool InMovingSection, bool IsNew)
+    {
+        /// <summary>The entry for an aircraft the host lists, under the section its own motion calls for.</summary>
+        public static TrafficEntry Live(MenuGroundTrafficRow traffic) => new(traffic, false, traffic.IsMoving, false);
+    }
+
+    /// <summary>
+    /// A traffic list held in place while the pointer is inside its flyout: the entries shown when the pointer entered,
+    /// each keeping its place and section while its text follows the host; an aircraft the host no longer lists stays as
+    /// a gone entry, and a newcomer joins the bottom of the list, under the last entry's section.
+    /// </summary>
+    private sealed class FrozenTraffic(IEnumerable<TrafficEntry> shown)
+    {
+        private readonly List<TrafficEntry> _entries = [.. shown];
+
+        /// <summary>The held entries, in order.</summary>
+        public List<TrafficEntry> Entries => [.. _entries];
+
+        /// <summary>Brings every held entry up to <paramref name="traffic"/>, nearest first, and adds its newcomers at the bottom.</summary>
+        public void Update(List<MenuGroundTrafficRow> traffic)
+        {
+            var listed = new Dictionary<string, MenuGroundTrafficRow>(StringComparer.Ordinal);
+            foreach (MenuGroundTrafficRow row in traffic)
+            {
+                listed.TryAdd(row.Callsign, row);
+            }
+
+            var held = new HashSet<string>(StringComparer.Ordinal);
+            for (int i = 0; i < _entries.Count; i++)
+            {
+                TrafficEntry entry = _entries[i];
+                held.Add(entry.Traffic.Callsign);
+                _entries[i] = listed.TryGetValue(entry.Traffic.Callsign, out MenuGroundTrafficRow? now)
+                    ? entry with
+                    {
+                        Traffic = now,
+                        IsGone = false,
+                    }
+                    : entry with
+                    {
+                        IsGone = true,
+                    };
+            }
+
+            foreach (MenuGroundTrafficRow row in traffic.Where(row => held.Add(row.Callsign)))
+            {
+                bool movingSection = (_entries.Count > 0) ? _entries[^1].InMovingSection : row.IsMoving;
+                _entries.Add(new TrafficEntry(row, false, movingSection, true));
+            }
+        }
+
+        /// <summary>Lets go of the gone entries from <paramref name="index"/> on, which a folded list never shows.</summary>
+        public void DropGoneFrom(int index)
+        {
+            for (int i = _entries.Count - 1; i >= index; i--)
+            {
+                if (_entries[i].IsGone)
+                {
+                    _entries.RemoveAt(i);
+                }
+            }
+        }
+    }
+
+    /// <summary>
     /// The Give way to… rows over the host's traffic, on whichever surface shows them: filled when built, refilled when
-    /// a surface opens and when "Show n more" or "Show fewer" is chosen. An aircraft keeps its row, by callsign, across a
-    /// refill; a row no longer listed sends nothing, even on a click already on its way.
+    /// a surface opens, when "Show n more" or "Show fewer" is chosen and, while the strip's flyout is open, once a second,
+    /// held in place while the pointer is inside the flyout. An aircraft keeps its row, by callsign, across a refill; a
+    /// row no longer listed, or gone, sends nothing, even on a click already on its way. A gone row past the first eight
+    /// is let go while the list is folded, so "Show n more" counts only aircraft still on the ground.
     /// </summary>
     private sealed class GiveWayList(MenuItem entry, MenuContext context, IMenuHost host) : IStripFlyoutContent
     {
@@ -253,11 +384,14 @@ public static class GroundTrafficFlyout
         private ItemCollection? _flyoutItems;
         private Action? _closeFlyout;
         private bool _expanded;
+        private FlyoutLiveTick? _tick;
+        private FrozenTraffic? _frozen;
+        private List<TrafficEntry> _shown = [];
 
         /// <summary>Fills the submenu with <paramref name="traffic"/> and folds the list back to eight rows whenever the submenu closes.</summary>
         public void Attach(List<MenuGroundTrafficRow> traffic)
         {
-            Show(traffic);
+            Show([.. traffic.Select(TrafficEntry.Live)]);
             entry.PropertyChanged += (_, e) =>
             {
                 if ((e.Property == MenuItem.IsSubMenuOpenProperty) && !entry.IsSubMenuOpen)
@@ -273,55 +407,194 @@ public static class GroundTrafficFlyout
         {
             _flyoutItems = items;
             _closeFlyout = close;
+            (_tick ??= new FlyoutLiveTick(host.Clock, Refill)).Start();
             Refill();
+        }
+
+        /// <inheritdoc />
+        public void PointerInside(bool inside)
+        {
+            if ((_tick?.IsRunning != true) || (inside == (_frozen is not null)))
+            {
+                return;
+            }
+
+            _frozen = inside ? new FrozenTraffic(_shown) : null;
+            if (!inside)
+            {
+                Refill();
+            }
         }
 
         /// <inheritdoc />
         public void Closed()
         {
+            _tick?.Stop();
+            _frozen = null;
             _closeFlyout = null;
             _expanded = false;
             _highlight.Clear();
             Refill();
         }
 
-        private void Refill() => Show(GiveWayTraffic(context, host));
+        private void Refill()
+        {
+            List<MenuGroundTrafficRow> traffic = GiveWayTraffic(context, host);
+            if (_frozen is null)
+            {
+                Show([.. traffic.Select(TrafficEntry.Live)]);
+                return;
+            }
 
-        private void Show(List<MenuGroundTrafficRow> traffic) => FlyoutItemSync.Sync(_flyoutItems ?? entry.Items, Wanted(traffic));
+            _frozen.Update(traffic);
+            if (!_expanded)
+            {
+                _frozen.DropGoneFrom(GiveWayShownRows);
+            }
 
-        /// <summary>The items <paramref name="traffic"/> calls for, reusing the row of every aircraft shown before.</summary>
-        private List<Control> Wanted(List<MenuGroundTrafficRow> traffic)
+            Show(_frozen.Entries);
+        }
+
+        private void Show(List<TrafficEntry> entries)
+        {
+            MenuItem? focused = _rows.Values.FirstOrDefault(row => row.IsKeyboardFocusWithin);
+            int at = ListedIndex(focused);
+            _shown = entries;
+            List<Control> wanted = Wanted(entries, focused);
+            FlyoutItemSync.Sync(_flyoutItems ?? entry.Items, wanted, FlyoutItemSync.FocusedIn(wanted));
+            HandFocusOnIfGone(focused, wanted, at);
+        }
+
+        /// <summary>Where <paramref name="focused"/> sat among the listed aircraft rows, or -1 when it was not one of them.</summary>
+        private int ListedIndex(MenuItem? focused)
+        {
+            if (focused is null)
+            {
+                return -1;
+            }
+
+            int listed = _expanded ? _shown.Count : Math.Min(_shown.Count, GiveWayShownRows);
+            for (int i = 0; i < listed; i++)
+            {
+                if (_rows.TryGetValue(_shown[i].Traffic.Callsign, out MenuItem? row) && ReferenceEquals(row, focused))
+                {
+                    return i;
+                }
+            }
+
+            return -1;
+        }
+
+        /// <summary>
+        /// Hands keyboard focus from <paramref name="focused"/> once its row can no longer hold it — its aircraft left the
+        /// list, <paramref name="at"/> being where its row sat, or went while its row is still listed — to the nearest live
+        /// row, "Show n more" when that is all that is left, else nowhere, then takes it out of reach; the highlight follows.
+        /// </summary>
+        private void HandFocusOnIfGone(MenuItem? focused, List<Control> wanted, int at)
+        {
+            if ((focused is null) || (at < 0) || _live.Contains(focused))
+            {
+                return;
+            }
+
+            var listed = new HashSet<MenuItem>(_rows.Values);
+            List<MenuItem> rows = [.. wanted.OfType<MenuItem>().Where(listed.Contains)];
+            int left = rows.IndexOf(focused);
+            MenuItem? next;
+            if (left >= 0)
+            {
+                next = rows.Skip(left + 1).FirstOrDefault(_live.Contains) ?? rows.Take(left).LastOrDefault(_live.Contains);
+            }
+            else
+            {
+                next = NearestLiveAt(rows, at);
+            }
+
+            if (next is not null)
+            {
+                next.Focus(NavigationMethod.Directional);
+            }
+            else if ((_more is not null) && wanted.Contains(_more))
+            {
+                _more.Focus(NavigationMethod.Directional);
+            }
+
+            if (focused.Header is GroundTrafficFlyoutRow { Traffic.Callsign: { } callsign })
+            {
+                _highlight.Unpoint(callsign);
+            }
+
+            focused.IsEnabled = false;
+        }
+
+        /// <summary>The nearest live row at or above <paramref name="at"/> in <paramref name="rows"/>; null when there is none.</summary>
+        private MenuItem? NearestLiveAt(List<MenuItem> rows, int at)
+        {
+            for (int i = Math.Min(at, rows.Count - 1); i >= 0; i--)
+            {
+                if (_live.Contains(rows[i]))
+                {
+                    return rows[i];
+                }
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// The items <paramref name="entries"/> call for, reusing the row of every aircraft shown before; <paramref name="focused"/>,
+        /// the row holding keyboard focus, stays in reach for now even when gone.
+        /// </summary>
+        private List<Control> Wanted(List<TrafficEntry> entries, MenuItem? focused)
         {
             var rows = new Dictionary<string, MenuItem>(StringComparer.Ordinal);
             _live.Clear();
-            if (traffic.Count == 0)
+            if (entries.Count == 0)
             {
                 _rows = rows;
                 return [_empty];
             }
 
             List<Control> wanted = [_title];
-            foreach (MenuGroundTrafficRow row in _expanded ? traffic : traffic.Take(GiveWayShownRows))
+            foreach (TrafficEntry shown in _expanded ? entries : entries.Take(GiveWayShownRows))
             {
-                MenuItem item =
-                    (!rows.ContainsKey(row.Callsign) && _rows.TryGetValue(row.Callsign, out MenuItem? kept)) ? kept : NewRow(row.Callsign);
-                rows.TryAdd(row.Callsign, item);
-                Present(item, row);
-                _live.Add(item);
+                string callsign = shown.Traffic.Callsign;
+                MenuItem item = (!rows.ContainsKey(callsign) && _rows.TryGetValue(callsign, out MenuItem? kept)) ? kept : NewRow(callsign);
+                rows.TryAdd(callsign, item);
+                Present(item, shown, ReferenceEquals(item, focused));
+                if (shown.IsGone)
+                {
+                    _highlight.Unpoint(callsign);
+                }
+                else
+                {
+                    _live.Add(item);
+                }
+
                 wanted.Add(item);
             }
 
             _rows = rows;
-            if (traffic.Count > GiveWayShownRows)
+            if (entries.Count > GiveWayShownRows)
             {
-                List<MenuGroundTrafficRow> rest = traffic[GiveWayShownRows..];
-                MenuItem more = _more ??= NewMoreRow();
-                more.Header = new GroundTrafficMoreRow(rest.Count, rest.Max(row => row.DistanceFeet), _expanded);
-                AutomationProperties.SetName(more, more.Header.ToString());
-                wanted.Add(more);
+                wanted.Add(MoreRow(entries[GiveWayShownRows..]));
             }
 
             return wanted;
+        }
+
+        /// <summary>The "Show n more" row over <paramref name="rest"/>, the entries past the first eight.</summary>
+        private MenuItem MoreRow(List<TrafficEntry> rest)
+        {
+            MenuItem more = _more ??= NewMoreRow();
+            var header = new GroundTrafficMoreRow(rest.Count, rest.Max(shown => shown.Traffic.DistanceFeet), _expanded);
+            if (!Equals(more.Header, header))
+            {
+                more.Header = header;
+                AutomationProperties.SetName(more, header.ToString());
+            }
+
+            return more;
         }
 
         private MenuItem NewRow(string callsign)
@@ -338,6 +611,14 @@ public static class GroundTrafficFlyout
                 await ChooseAsync(row.Command, entry, _closeFlyout, context, host);
             };
             _highlight.Track(item, callsign);
+            // The rows leave the entry for the strip's own flyout while it is open, out of a style attached to the entry,
+            // so each row carries the newcomer edge's style itself.
+            item.Styles.Add(
+                NewcomerEdgeStyle(
+                    x => x.OfType<MenuItem>().Class(NewcomerClass).Template().OfType<Border>().Name(MenuItemLayoutRootPart),
+                    Border.BoxShadowProperty
+                )
+            );
             return item;
         }
 
@@ -353,12 +634,17 @@ public static class GroundTrafficFlyout
             return more;
         }
 
-        private static void Present(MenuItem item, MenuGroundTrafficRow traffic)
+        private static void Present(MenuItem item, TrafficEntry shown, bool holdsFocus)
         {
-            var row = new GroundTrafficFlyoutRow(traffic, $"{GiveWayVerb} {traffic.Callsign}", ShowsMark: true);
-            item.Header = row;
-            MenuCommandText.SetCommand(item, row.Command);
-            AutomationProperties.SetName(item, row.ToString());
+            var row = new GroundTrafficFlyoutRow(shown.Traffic, $"{GiveWayVerb} {shown.Traffic.Callsign}", ShowsMark: true, shown.IsGone);
+            if (!Equals(item.Header, row))
+            {
+                item.Header = row;
+                MenuCommandText.SetCommand(item, row.Command);
+                AutomationProperties.SetName(item, row.ToString());
+            }
+
+            ShowState(item, shown, holdsFocus);
         }
     }
 
@@ -368,7 +654,11 @@ public static class GroundTrafficFlyout
     /// hides every row and title and the hint says what Enter sends. Enter in the box sends the top row, or, with no
     /// row left, <c>FOLLOWG</c> with the typed text upper-cased. Down from the box moves to the first row, Up from the
     /// first row back to the box; Enter or a click on a row sends it. A row highlights its aircraft while pointed at or
-    /// focused. The section title scrolled past sticks at the list's top.
+    /// focused. The section title scrolled past sticks at the list's top. While the strip's flyout is open the list
+    /// refills once a second, held in place while the pointer is inside the flyout: an aircraft keeps its row, by callsign,
+    /// moved in place rather than rebuilt, so the filter text, the caret, the scroll offset and the focused row all stay.
+    /// A gone row keeps its place in its section and Down, Up and Enter pass it by. A list emptied with nothing typed
+    /// shows the muted <see cref="NoTrafficText"/> line.
     /// </summary>
     private sealed class FollowList : IStripFlyoutContent
     {
@@ -380,8 +670,16 @@ public static class GroundTrafficFlyout
         private readonly StackPanel _rows = new();
         private readonly ScrollViewer _scroll;
         private readonly Border _sticky;
+        private readonly TextBlock _movingTitle = SectionTitle(FollowMovingTitle);
+        private readonly TextBlock _parkedTitle = SectionTitle(FollowParkedTitle);
+        private readonly TextBlock _emptyLine = EmptyLine();
         private readonly List<(TextBlock Title, List<Button> Rows)> _sections = [];
+        private readonly HashSet<Button> _live = [];
         private readonly TrafficHighlight _highlight;
+        private readonly FlyoutLiveTick _tick;
+        private Dictionary<string, Button> _buttons = new(StringComparer.Ordinal);
+        private List<TrafficEntry> _shown = [];
+        private FrozenTraffic? _frozen;
         private Action? _closeFlyout;
 
         public FollowList(MenuItem entry, MenuContext context, IMenuHost host)
@@ -390,6 +688,14 @@ public static class GroundTrafficFlyout
             _context = context;
             _host = host;
             _highlight = new TrafficHighlight(host);
+            _tick = new FlyoutLiveTick(host.Clock, Refill);
+            _rows.Styles.Add(GoneRowStyle());
+            _rows.Styles.Add(
+                NewcomerEdgeStyle(
+                    x => x.OfType<Button>().Class(NewcomerClass).Template().OfType<ContentPresenter>().Name(ButtonPresenterPart),
+                    ContentPresenter.BoxShadowProperty
+                )
+            );
             _box = new TextBox
             {
                 Name = FollowFilterBoxName,
@@ -451,25 +757,59 @@ public static class GroundTrafficFlyout
         }
 
         /// <summary>Lists <paramref name="traffic"/>, nearest first, Moving then Parked or holding, and applies the filter to it.</summary>
-        public void Fill(List<MenuGroundTrafficRow> traffic)
+        public void Fill(List<MenuGroundTrafficRow> traffic) => Show(LiveEntries(traffic));
+
+        /// <inheritdoc />
+        public void Opened(ItemCollection items, Action close)
         {
-            _rows.Children.Clear();
-            _sections.Clear();
-            AddSection(FollowMovingTitle, [.. traffic.Where(row => row.IsMoving)]);
-            AddSection(FollowParkedTitle, [.. traffic.Where(row => !row.IsMoving)]);
-            ApplyFilter();
+            _closeFlyout = close;
+            _tick.Start();
+            Refill();
         }
 
         /// <inheritdoc />
-        public void Opened(ItemCollection items, Action close) => _closeFlyout = close;
+        public void PointerInside(bool inside)
+        {
+            if (!_tick.IsRunning || (inside == (_frozen is not null)))
+            {
+                return;
+            }
+
+            _frozen = inside ? new FrozenTraffic(_shown) : null;
+            if (!inside)
+            {
+                Refill();
+            }
+        }
 
         /// <inheritdoc />
         public void Closed()
         {
+            _tick.Stop();
+            _frozen = null;
             _closeFlyout = null;
             _box.Text = "";
             _highlight.Clear();
+            Refill();
         }
+
+        /// <summary><paramref name="traffic"/>, nearest first, as the Moving rows then the Parked or holding rows.</summary>
+        private static List<TrafficEntry> LiveEntries(List<MenuGroundTrafficRow> traffic) =>
+            [.. traffic.Where(row => row.IsMoving).Select(TrafficEntry.Live), .. traffic.Where(row => !row.IsMoving).Select(TrafficEntry.Live)];
+
+        private static TextBlock EmptyLine()
+        {
+            TextBlock line = GroundTrafficLook.Subtle(NoTrafficText, 12);
+            line.Padding = new Thickness(8, 4);
+            return line;
+        }
+
+        /// <summary>Keeps a gone row's background clear, as at rest, rather than the theme's disabled fill: only its fading shows it gone.</summary>
+        private static Style GoneRowStyle() =>
+            new(x => x.OfType<Button>().Class(":disabled").Template().OfType<ContentPresenter>().Name(ButtonPresenterPart))
+            {
+                Setters = { new Setter(ContentPresenter.BackgroundProperty, Brushes.Transparent) },
+            };
 
         private static MenuItem KeepClicks(MenuItem item)
         {
@@ -499,26 +839,131 @@ public static class GroundTrafficFlyout
                 Padding = new Thickness(8, 4),
             };
 
-        private void AddSection(string title, List<MenuGroundTrafficRow> traffic)
+        private void Refill()
         {
-            if (traffic.Count == 0)
+            List<MenuGroundTrafficRow> traffic = FollowTraffic(_context, _host);
+            if (_frozen is null)
+            {
+                Show(LiveEntries(traffic));
+                return;
+            }
+
+            _frozen.Update(traffic);
+            Show(_frozen.Entries);
+        }
+
+        /// <summary>
+        /// Lists <paramref name="entries"/> in order, each section's title over its run of rows, reusing the row of every
+        /// aircraft shown before and moving it in place, then applies the filter.
+        /// </summary>
+        private void Show(List<TrafficEntry> entries)
+        {
+            _shown = entries;
+            Button? focused = _buttons.Values.FirstOrDefault(row => row.IsKeyboardFocusWithin);
+            int at = (focused is null) ? -1 : ListedRows().IndexOf(focused);
+            var buttons = new Dictionary<string, Button>(StringComparer.Ordinal);
+            _live.Clear();
+            _sections.Clear();
+            List<Control> wanted = [];
+            List<Button> section = [];
+            foreach (TrafficEntry shown in entries)
+            {
+                TextBlock title = shown.InMovingSection ? _movingTitle : _parkedTitle;
+                if ((_sections.Count == 0) || !ReferenceEquals(_sections[^1].Title, title))
+                {
+                    section = [];
+                    _sections.Add((title, section));
+                    wanted.Add(title);
+                }
+
+                Button row = RowFor(shown, buttons, focused);
+                section.Add(row);
+                wanted.Add(row);
+            }
+
+            if (entries.Count == 0)
+            {
+                wanted.Add(_emptyLine);
+            }
+
+            _buttons = buttons;
+            FlyoutItemSync.Sync(_rows.Children, wanted);
+            ApplyFilter();
+            HandFocusOnIfGone(focused, at);
+        }
+
+        /// <summary>
+        /// Hands keyboard focus from <paramref name="focused"/> once its row can no longer hold it — its aircraft left the
+        /// list, <paramref name="at"/> being where its row sat, or went while its row is still listed — to the nearest live
+        /// row below it, else above it, else the filter box, then takes it out of reach; the highlight follows the focus.
+        /// </summary>
+        private void HandFocusOnIfGone(Button? focused, int at)
+        {
+            if ((focused is null) || (at < 0) || _live.Contains(focused))
             {
                 return;
             }
 
-            TextBlock titleBlock = SectionTitle(title);
-            _rows.Children.Add(titleBlock);
-            List<Button> rows = [.. traffic.Select(NewRow)];
-            _rows.Children.AddRange(rows);
-            _sections.Add((titleBlock, rows));
+            List<Button> rows = ListedRows();
+            int left = rows.IndexOf(focused);
+            Button? next = (left >= 0) ? NextReachable(focused, 1) ?? NextReachable(focused, -1) : NearestLiveAt(rows, at);
+            if (next is not null)
+            {
+                FocusRow(next);
+            }
+            else
+            {
+                _box.Focus();
+            }
+
+            if (focused.Content is GroundTrafficFlyoutRow { Traffic.Callsign: { } callsign })
+            {
+                _highlight.Unpoint(callsign);
+            }
+
+            focused.IsEnabled = false;
         }
 
-        private Button NewRow(MenuGroundTrafficRow traffic)
+        /// <summary>
+        /// The nearest reachable row at or below <paramref name="at"/> in <paramref name="rows"/>, else above it, passing gone
+        /// rows and the rows the filter hides; null when there is none.
+        /// </summary>
+        private Button? NearestLiveAt(List<Button> rows, int at) =>
+            rows.Skip(at).FirstOrDefault(Reachable) ?? rows.Take(Math.Min(at, rows.Count)).LastOrDefault(Reachable);
+
+        /// <summary>
+        /// The row for <paramref name="shown"/>: the one its aircraft had, unless already taken, else a new one. The row
+        /// holding keyboard focus, <paramref name="focused"/>, stays in reach for now even when gone.
+        /// </summary>
+        private Button RowFor(TrafficEntry shown, Dictionary<string, Button> buttons, Button? focused)
         {
-            var row = new GroundTrafficFlyoutRow(traffic, $"{FollowVerb} {traffic.Callsign}", ShowsMark: false);
+            string callsign = shown.Traffic.Callsign;
+            Button row = (!buttons.ContainsKey(callsign) && _buttons.TryGetValue(callsign, out Button? kept)) ? kept : NewRow(callsign);
+            buttons.TryAdd(callsign, row);
+            var content = new GroundTrafficFlyoutRow(shown.Traffic, $"{FollowVerb} {callsign}", ShowsMark: false, shown.IsGone);
+            if (!Equals(row.Content, content))
+            {
+                row.Content = content;
+                AutomationProperties.SetName(row, content.ToString());
+            }
+
+            ShowState(row, shown, ReferenceEquals(row, focused));
+            if (shown.IsGone)
+            {
+                _highlight.Unpoint(callsign);
+            }
+            else
+            {
+                _live.Add(row);
+            }
+
+            return row;
+        }
+
+        private Button NewRow(string callsign)
+        {
             var button = new Button
             {
-                Content = row,
                 ContentTemplate = GroundTrafficRowTemplate.Instance,
                 MinHeight = FollowRowHeight,
                 Padding = new Thickness(8, 4),
@@ -526,20 +971,46 @@ public static class GroundTrafficFlyout
                 HorizontalAlignment = HorizontalAlignment.Stretch,
                 HorizontalContentAlignment = HorizontalAlignment.Stretch,
             };
-            AutomationProperties.SetName(button, row.ToString());
             button.Click += async (_, e) =>
             {
                 e.Handled = true;
-                await Choose(row.Command);
+                if (_live.Contains(button) && (button.Content is GroundTrafficFlyoutRow row))
+                {
+                    await Choose(row.Command);
+                }
             };
             button.AddHandler(InputElement.KeyDownEvent, OnRowKeyDown, RoutingStrategies.Tunnel);
-            _highlight.Track(button, traffic.Callsign);
+            _highlight.Track(button, callsign);
             return button;
         }
 
         private Task Choose(string command) => ChooseAsync(command, _entry, _closeFlyout, _context, _host);
 
-        private List<Button> VisibleRows() => [.. _sections.SelectMany(section => section.Rows).Where(row => row.IsVisible)];
+        /// <summary>The rows Down, Up and Enter reach, in order.</summary>
+        private List<Button> VisibleRows() => [.. ListedRows().Where(Reachable)];
+
+        private List<Button> ListedRows() => [.. _sections.SelectMany(section => section.Rows)];
+
+        /// <summary>Whether Down, Up and Enter reach <paramref name="row"/>: it shows and its aircraft is still on the ground.</summary>
+        private bool Reachable(Button row) => row.IsVisible && _live.Contains(row);
+
+        /// <summary>
+        /// The nearest row Down (<paramref name="step"/> 1) or Up (-1) reaches from <paramref name="row"/>'s place in the list,
+        /// passing gone and hidden rows, and from a focused row just gone, where the focus is handed to; null past either end.
+        /// </summary>
+        private Button? NextReachable(Button row, int step)
+        {
+            List<Button> rows = ListedRows();
+            for (int at = rows.IndexOf(row) + step; (at >= 0) && (at < rows.Count); at += step)
+            {
+                if (Reachable(rows[at]))
+                {
+                    return rows[at];
+                }
+            }
+
+            return null;
+        }
 
         private string Typed() => (_box.Text ?? "").Trim();
 
@@ -561,6 +1032,7 @@ public static class GroundTrafficFlyout
 
             bool matchesNone = (VisibleRows().Count == 0) && (TypedCallsign() is not null);
             _hint.Text = matchesNone ? FollowNoMatchHint(TypedCallsign()!) : FollowTopMatchHint;
+            _emptyLine.IsVisible = typed.Length == 0;
             // The titles take their new places at the next layout pass, which Loaded runs after.
             Dispatcher.UIThread.Post(UpdateSticky, DispatcherPriority.Loaded);
         }
@@ -612,21 +1084,27 @@ public static class GroundTrafficFlyout
             }
 
             e.Handled = true;
-            List<Button> visible = VisibleRows();
-            int at = visible.IndexOf(row) + ((e.Key == Key.Down) ? 1 : -1);
-            if (at < 0)
+            if (NextReachable(row, (e.Key == Key.Down) ? 1 : -1) is { } next)
+            {
+                FocusRow(next);
+            }
+            else if (e.Key == Key.Up)
             {
                 _box.Focus();
             }
-            else if (at < visible.Count)
-            {
-                FocusRow(visible[at]);
-            }
         }
 
-        /// <summary>Shows the title of the section the list has scrolled into, once its own title has scrolled out of view.</summary>
+        /// <summary>
+        /// Shows the title of the section the list has scrolled into, once its own title has scrolled out of view; a list off
+        /// screen, its flyout or submenu closed, stays put.
+        /// </summary>
         private void UpdateSticky()
         {
+            if (!_scroll.IsAttachedToVisualTree())
+            {
+                return;
+            }
+
             string? current = null;
             foreach ((TextBlock title, _) in _sections)
             {
@@ -655,15 +1133,23 @@ public sealed record GroundTrafficFlyoutTitle(string Title, string Note)
 /// One aircraft row of a traffic flyout, drawn by <see cref="GroundTrafficRowTemplate"/>: the moving or parked mark when
 /// <paramref name="ShowsMark"/>, the callsign with the type dimmed beside it, the state under them, the distance and the
 /// command. Its text form, which the row's automation name uses, reads
-/// <c>SWA5286 · B738 · taxiing on W · ahead · ~1,100 ft — GW SWA5286</c>.
+/// <c>SWA5286 · B738 · taxiing on W · ahead · ~1,100 ft — GW SWA5286</c>, or, once its aircraft is gone,
+/// <c>SWA5286 · B738 · gone — GW SWA5286</c>.
 /// </summary>
-/// <param name="Traffic">The aircraft as the host sees it.</param>
+/// <param name="Traffic">The aircraft as the host sees it, or last saw it once gone.</param>
 /// <param name="Command">The command the row sends.</param>
 /// <param name="ShowsMark">Whether the row leads with the moving (▶) or parked (■) mark.</param>
-public sealed record GroundTrafficFlyoutRow(MenuGroundTrafficRow Traffic, string Command, bool ShowsMark)
+/// <param name="IsGone">
+/// Whether the aircraft has left the ground while the pointer is inside the flyout: the row's state reads
+/// <see cref="GroundTrafficFlyout.GoneState"/>, it shows no distance, and it sends nothing.
+/// </param>
+public sealed record GroundTrafficFlyoutRow(MenuGroundTrafficRow Traffic, string Command, bool ShowsMark, bool IsGone)
 {
-    /// <summary>The distance the row shows, <c>~1,100 ft</c>.</summary>
-    public string Distance => $"~{RelativeGeometry.FeetText(Traffic.DistanceFeet)}";
+    /// <summary>The distance the row shows, <c>~1,100 ft</c>; empty once the aircraft is gone.</summary>
+    public string Distance => IsGone ? "" : $"~{RelativeGeometry.FeetText(Traffic.DistanceFeet)}";
+
+    /// <summary>The state the row shows under the callsign, <c>taxiing on W · ahead</c>, or <c>gone</c>.</summary>
+    public string State => IsGone ? GroundTrafficFlyout.GoneState : Traffic.State;
 
     /// <inheritdoc />
     public override string ToString()
@@ -674,7 +1160,13 @@ public sealed record GroundTrafficFlyoutRow(MenuGroundTrafficRow Traffic, string
             text.Append(" · ").Append(Traffic.AircraftType);
         }
 
-        return text.Append(" · ").Append(Traffic.State).Append(" · ").Append(Distance).Append(" — ").Append(Command).ToString();
+        text.Append(" · ").Append(State);
+        if (Distance.Length > 0)
+        {
+            text.Append(" · ").Append(Distance);
+        }
+
+        return text.Append(" — ").Append(Command).ToString();
     }
 }
 
@@ -778,7 +1270,7 @@ internal sealed class GroundTrafficRowTemplate : FuncDataTemplate<GroundTrafficF
 
         var nameColumn = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Spacing = 1 };
         nameColumn.Children.Add(nameLine);
-        nameColumn.Children.Add(GroundTrafficLook.Subtle(row.Traffic.State, 11));
+        nameColumn.Children.Add(GroundTrafficLook.Subtle(row.State, 11));
         Grid.SetColumn(nameColumn, 1);
         grid.Children.Add(nameColumn);
 
