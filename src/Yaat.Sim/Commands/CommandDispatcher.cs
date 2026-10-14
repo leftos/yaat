@@ -3434,6 +3434,15 @@ public static class CommandDispatcher
             return false;
         }
 
+        // The navigation verbs that queue a *follow-up* block (JRADO/JRADI/JAWY intercept, DEPART reach-fix)
+        // rehydrate from their own factory instead: their dispatch arm sets the immediate half and enqueues
+        // the follow-up, so applying the re-parsed instruction would queue a second block rather than rebuild
+        // this one. The trigger is the serialized one and is left alone.
+        if (TryRebuildQueuedNavigationBlock(block, compound))
+        {
+            return true;
+        }
+
         int commandCount = block.Commands.Count;
         List<ParsedCommand>? matched = null;
         int matchedLength = -1;
@@ -3469,6 +3478,81 @@ public static class CommandDispatcher
         // narrowed from All to Ground would otherwise restore a taxi block that still wipes airborne work.
         block.Dimensions = AggregateDimensions(matched);
         return true;
+    }
+
+    /// <summary>
+    /// Rebuilds a restored follow-up block queued by <see cref="NavigationCommandHandler"/> (JRADO/JRADI/JAWY
+    /// intercept, DEPART reach-fix) from the same factory that built it live. The source text is the
+    /// instruction's own canonical text, so the re-parsed command is the *instruction*, not the block's
+    /// follow-on action — applying it would set the immediate half and queue a second block.
+    ///
+    /// The block's <see cref="CommandBlock.Description"/> identifies the follow-up, since the four factories
+    /// render it from the instruction alone: a block carrying the same instruction behind a condition
+    /// (e.g. <c>AT FIXIE JRADO OAK090</c>) or as an unconditional instruction block has a different
+    /// description and keeps the ordinary rebuilt-ApplyAction path. A JAWY block's description names the fix
+    /// sequence, which is rebuilt from the block's saved trigger and matched against that same saved
+    /// description.
+    /// </summary>
+    private static bool TryRebuildQueuedNavigationBlock(CommandBlock block, CompoundCommand compound)
+    {
+        if (compound.Blocks.Count != 1 || compound.Blocks[0].Commands.Count != 1)
+        {
+            return false;
+        }
+
+        ParsedCommand command = compound.Blocks[0].Commands[0];
+
+        // A JAWY block's fix sequence is rebuilt from its trigger, and the saved description picks which of the
+        // candidate sequences it was. When nothing matches — a conditional JAWY block, say — this method returns
+        // false and the ordinary text-match path in the caller runs instead.
+        if (command is JoinAirwayCommand jawy && RebuildRestoredAirwayBlock(jawy, block) is { } airway)
+        {
+            CopyRebuiltNavigationBlock(block, airway);
+            return true;
+        }
+
+        CommandBlock? rebuilt = command switch
+        {
+            JoinRadialOutboundCommand jrado => NavigationCommandHandler.BuildJradoInterceptBlock(jrado),
+            JoinRadialInboundCommand jradi => NavigationCommandHandler.BuildJradiInterceptBlock(jradi),
+            DepartFixCommand depart => NavigationCommandHandler.BuildDepartBlock(depart),
+            _ => null,
+        };
+
+        if (rebuilt is null || !string.Equals(rebuilt.Description, block.Description, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        CopyRebuiltNavigationBlock(block, rebuilt);
+        return true;
+    }
+
+    /// <summary>Takes the rebuilt candidate's runtime halves onto the restored block; the trigger stays as serialized.</summary>
+    private static void CopyRebuiltNavigationBlock(CommandBlock block, CommandBlock rebuilt)
+    {
+        block.ParsedCommands = rebuilt.ParsedCommands;
+        block.ApplyAction = rebuilt.ApplyAction;
+        block.Dimensions = rebuilt.Dimensions;
+    }
+
+    private static CommandBlock? RebuildRestoredAirwayBlock(JoinAirwayCommand jawy, CommandBlock block)
+    {
+        if (block.Trigger is not { } trigger)
+        {
+            return null;
+        }
+
+        foreach (NavigationCommandHandler.AirwayInterceptPlan plan in NavigationCommandHandler.PlanAirwayInterceptsFromTrigger(jawy, trigger))
+        {
+            CommandBlock candidate = NavigationCommandHandler.BuildAirwayInterceptBlock(jawy, plan);
+            if (string.Equals(candidate.Description, block.Description, StringComparison.Ordinal))
+            {
+                return candidate;
+            }
+        }
+
+        return null;
     }
 
     /// <summary>

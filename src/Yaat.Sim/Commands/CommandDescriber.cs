@@ -819,7 +819,7 @@ public static class CommandDescriber
             : cmd.Altitude is not null ? $"DVIA {cmd.Altitude}"
             : "DVIA",
             CrossFixCommand cmd => FormatCfixCanonical(cmd),
-            DepartFixCommand cmd => $"DEPART {cmd.FixName} {cmd.MagneticHeading.Degrees:000}",
+            DepartFixCommand cmd => $"DEPART {cmd.FixName} {cmd.MagneticHeading.ToDisplayInt():000}",
             ListApproachesCommand cmd => cmd.AirportCode is not null ? $"APPS {cmd.AirportCode}" : "APPS",
             ClearedVisualApproachCommand cmd => FormatCvaCanonical(cmd),
             ReportFieldInSightCommand => "RFIS",

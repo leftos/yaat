@@ -119,7 +119,7 @@ Some state is intentionally runtime-only:
   commands are runtime-only; `SourceCommandText` is the durable carrier, with `IsScenarioScripted` (the creating dispatch was a preset or AI controller). `SimulationEngine.RehydrateRestoredQueueBlocks`
   (top of `TickPhysics`, shared by both hosts) rebuilds them by re-parsing that text, under the block's scripted flag, before the queue can fire, so a
   queued instruction survives rewind/replay/restore instead of firing as a silent no-op. An unrecoverable block is
-  dropped with an RPO warning. See [command-handlers.md](command-handlers.md).
+  dropped with an RPO warning. No snapshot field carries `ParsedCommands` (`CommandQueueDto` has none; `CommandBlock.ToSnapshot` writes only `SourceCommandText`); a restored block gets it set again on rehydration. The JRADO, JRADI, DEPART and airway-intercept follow-up blocks restore the same way, through their own factories. See [command-handlers.md](command-handlers.md).
 
 - **Room-owned state outside `Yaat.Sim`** — the ASDE-X / SAID wire projection the room keeps between ticks (`AsdexRoomState` / `SaidRoomState`: the coasting surface tracks' wire cache, ended by the Sim's disconnect-coast expiry and clear, and the per-tick termination drain), which no snapshot carries.
 

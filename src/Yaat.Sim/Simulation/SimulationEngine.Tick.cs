@@ -138,8 +138,16 @@ public sealed partial class SimulationEngine
             List<CommandBlock>? failed = null;
             foreach (CommandBlock block in aircraft.Queue.Blocks)
             {
-                if (block.ApplyAction is not null || block.IsApplied || string.IsNullOrEmpty(block.SourceCommandText))
+                if (block.ApplyAction is not null || block.IsApplied)
                 {
+                    continue;
+                }
+
+                // Nothing can rebuild a block with no source text — it would reach its turn, mark itself
+                // applied, and fire as a silent no-op. Treat it as unrecoverable and drop it below.
+                if (string.IsNullOrEmpty(block.SourceCommandText))
+                {
+                    (failed ??= []).Add(block);
                     continue;
                 }
 
@@ -176,24 +184,32 @@ public sealed partial class SimulationEngine
                 continue;
             }
 
-            // A block that cannot be recovered would fire as a silent no-op; drop it with a warning so
-            // the RPO knows the instruction was lost rather than believing it is still pending.
-            foreach (CommandBlock block in failed)
-            {
-                _logger.LogWarning(
-                    "[Restore] {Callsign}: could not rehydrate queued block '{Description}' from '{Source}' — dropping it",
-                    aircraft.Callsign,
-                    block.Description,
-                    block.SourceCommandText
-                );
-                aircraft.PendingWarnings.Add($"{aircraft.Callsign} queued command lost after restore: {block.Description}");
-                aircraft.Queue.Blocks.Remove(block);
-            }
+            DropUnrehydratableBlocks(aircraft, failed);
+        }
+    }
 
-            if (aircraft.Queue.CurrentBlockIndex >= aircraft.Queue.Blocks.Count)
-            {
-                aircraft.Queue.CurrentBlockIndex = Math.Max(0, aircraft.Queue.Blocks.Count - 1);
-            }
+    /// <summary>
+    /// Drops the blocks a restore could not rebuild and tells the RPO: a block that cannot be recovered would fire as
+    /// a silent no-op, so it is named rather than left looking like a pending instruction.
+    /// </summary>
+    private void DropUnrehydratableBlocks(AircraftState aircraft, List<CommandBlock> failed)
+    {
+        foreach (CommandBlock block in failed)
+        {
+            string source = string.IsNullOrEmpty(block.SourceCommandText) ? "(no source text)" : block.SourceCommandText;
+            _logger.LogWarning(
+                "[Restore] {Callsign}: could not rehydrate queued block '{Description}' from '{Source}' — dropping it",
+                aircraft.Callsign,
+                block.Description,
+                source
+            );
+            aircraft.PendingWarnings.Add($"{aircraft.Callsign} queued command lost after restore: {block.Description}");
+            aircraft.Queue.Blocks.Remove(block);
+        }
+
+        if (aircraft.Queue.CurrentBlockIndex >= aircraft.Queue.Blocks.Count)
+        {
+            aircraft.Queue.CurrentBlockIndex = Math.Max(0, aircraft.Queue.Blocks.Count - 1);
         }
     }
 

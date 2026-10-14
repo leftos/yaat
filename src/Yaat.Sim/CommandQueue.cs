@@ -175,8 +175,10 @@ public class CommandBlock
     /// The parsed commands that produced this block. Stored to enable block splitting
     /// when a new command only partially conflicts with this block's dimensions.
     /// NOT serialized — recovered from <see cref="SourceCommandText"/> after a snapshot restore by
-    /// <c>CommandDispatcher.RehydrateRestoredBlock</c>, the one writer besides
-    /// <c>CommandDispatcher.CreateBlock</c> (hence settable, not init-only).
+    /// <c>CommandDispatcher.RehydrateRestoredBlock</c>, which writes them onto the restored block, and by
+    /// <c>CommandDispatcher.CopyRebuiltNavigationBlock</c>, which takes them from the
+    /// <c>NavigationCommandHandler.Build*Block</c> factory a restored navigation follow-up block is rebuilt
+    /// from. <c>CommandDispatcher.CreateBlock</c> sets them for a fresh dispatch (hence settable, not init-only).
     /// </summary>
     public List<ParsedCommand>? ParsedCommands { get; set; }
 
@@ -260,10 +262,12 @@ public class CommandBlock
     /// Set by the CommandDispatcher when building the queue.
     /// Returns a CommandResult with success/failure and optional message.
     ///
-    /// Settable (not init-only) for exactly one second writer:
-    /// <c>CommandDispatcher.RehydrateRestoredBlock</c>, which rebuilds the closure from
-    /// <see cref="SourceCommandText"/> after a snapshot restore — without it a restored block fires as a
-    /// silent no-op. Every other construction goes through <c>CommandDispatcher.CreateBlock</c>.
+    /// Settable (not init-only) because a snapshot restore rebuilds it: the closure exists only in the dispatch
+    /// that built the block. <c>CommandDispatcher.CreateBlock</c> sets it for a fresh dispatch;
+    /// <c>CommandDispatcher.RehydrateRestoredBlock</c> rebuilds it from <see cref="SourceCommandText"/>, and
+    /// <c>CommandDispatcher.CopyRebuiltNavigationBlock</c> copies it from the
+    /// <c>NavigationCommandHandler.Build*Block</c> factory that builds a restored navigation follow-up block —
+    /// without it a restored block fires as a silent no-op.
     /// </summary>
     public Func<AircraftState, Commands.CommandResult>? ApplyAction { get; set; }
 

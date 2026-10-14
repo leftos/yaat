@@ -24,7 +24,20 @@ internal static class NavigationCommandHandler
         aircraft.Targets.PreferredTurnDirection = null;
 
         // Block 1: on radial intercept, fly outbound heading (radial is magnetic)
-        var interceptBlock = new CommandBlock
+        aircraft.Queue.Blocks.Add(BuildJradoInterceptBlock(cmd));
+
+        return CommandDispatcher.Ok($"Fly present heading, intercept {FixDisplay(cmd.FixName)} {cmd.Radial:D3} radial outbound");
+    }
+
+    /// <summary>
+    /// The block a JRADO leaves queued behind itself: on intercepting the radial, fly it outbound. Built here
+    /// rather than inline so <c>CommandDispatcher.RehydrateRestoredBlock</c> rebuilds a restored block from the
+    /// same closure; applying the re-parsed instruction instead would set the immediate half and queue a
+    /// second block.
+    /// </summary>
+    internal static CommandBlock BuildJradoInterceptBlock(JoinRadialOutboundCommand cmd)
+    {
+        var block = new CommandBlock
         {
             Trigger = new BlockTrigger
             {
@@ -45,11 +58,11 @@ internal static class NavigationCommandHandler
             },
             Description = $"at {FixDisplay(cmd.FixName)} R{cmd.Radial:D3}: FH {cmd.Radial:D3}",
             NaturalDescription = $"On {FixDisplay(cmd.FixName)} {cmd.Radial:D3} radial: fly heading {cmd.Radial:D3}",
+            ParsedCommands = [cmd],
+            SourceCommandText = CommandDescriber.DescribeCommand(cmd),
         };
-        interceptBlock.Commands.Add(new TrackedCommand { Type = TrackedCommandType.Heading });
-        aircraft.Queue.Blocks.Add(interceptBlock);
-
-        return CommandDispatcher.Ok($"Fly present heading, intercept {FixDisplay(cmd.FixName)} {cmd.Radial:D3} radial outbound");
+        block.Commands.Add(new TrackedCommand { Type = TrackedCommandType.Heading });
+        return block;
     }
 
     internal static CommandResult DispatchJradi(JoinRadialInboundCommand cmd, AircraftState aircraft)
@@ -61,7 +74,18 @@ internal static class NavigationCommandHandler
         aircraft.Targets.PreferredTurnDirection = null;
 
         // Block 1: on radial intercept, navigate inbound to fix
-        var interceptBlock = new CommandBlock
+        aircraft.Queue.Blocks.Add(BuildJradiInterceptBlock(cmd));
+
+        return CommandDispatcher.Ok($"Fly present heading, intercept {FixDisplay(cmd.FixName)} {cmd.Radial:D3} radial inbound");
+    }
+
+    /// <summary>
+    /// The block a JRADI leaves queued behind itself: on intercepting the radial, proceed inbound to the fix.
+    /// Built here for the same reason as <see cref="BuildJradoInterceptBlock"/>.
+    /// </summary>
+    internal static CommandBlock BuildJradiInterceptBlock(JoinRadialInboundCommand cmd)
+    {
+        var block = new CommandBlock
         {
             Trigger = new BlockTrigger
             {
@@ -80,11 +104,11 @@ internal static class NavigationCommandHandler
             },
             Description = $"at {FixDisplay(cmd.FixName)} R{cmd.Radial:D3}: DCT {FixDisplay(cmd.FixName)}",
             NaturalDescription = $"On {FixDisplay(cmd.FixName)} {cmd.Radial:D3} radial: proceed inbound to {FixDisplay(cmd.FixName)}",
+            ParsedCommands = [cmd],
+            SourceCommandText = CommandDescriber.DescribeCommand(cmd),
         };
-        interceptBlock.Commands.Add(new TrackedCommand { Type = TrackedCommandType.Navigation });
-        aircraft.Queue.Blocks.Add(interceptBlock);
-
-        return CommandDispatcher.Ok($"Fly present heading, intercept {FixDisplay(cmd.FixName)} {cmd.Radial:D3} radial inbound");
+        block.Commands.Add(new TrackedCommand { Type = TrackedCommandType.Navigation });
+        return block;
     }
 
     internal static CommandResult DispatchDepartFix(DepartFixCommand cmd, AircraftState aircraft)
@@ -113,7 +137,19 @@ internal static class NavigationCommandHandler
         );
 
         // Block 1: on reaching fix, fly heading (controller heading)
-        var departBlock = new CommandBlock
+        aircraft.Queue.Blocks.Add(BuildDepartBlock(cmd));
+
+        return CommandDispatcher.Ok($"Proceed direct {FixDisplay(cmd.FixName)}, depart heading {cmd.MagneticHeading.ToDisplayInt():000}");
+    }
+
+    /// <summary>
+    /// The block a DEPART leaves queued behind itself: on reaching the fix, turn to the depart heading and
+    /// publish any crossing-restriction speed stamped on that fix as the aircraft's ceiling. Built here for
+    /// the same reason as <see cref="BuildJradoInterceptBlock"/>.
+    /// </summary>
+    internal static CommandBlock BuildDepartBlock(DepartFixCommand cmd)
+    {
+        var block = new CommandBlock
         {
             Trigger = new BlockTrigger
             {
@@ -143,11 +179,11 @@ internal static class NavigationCommandHandler
             },
             Description = $"at {FixDisplay(cmd.FixName)}: FH {cmd.MagneticHeading.ToDisplayInt():000}",
             NaturalDescription = $"At {FixDisplay(cmd.FixName)}: fly heading {cmd.MagneticHeading.ToDisplayInt():000}",
+            ParsedCommands = [cmd],
+            SourceCommandText = CommandDescriber.DescribeCommand(cmd),
         };
-        departBlock.Commands.Add(new TrackedCommand { Type = TrackedCommandType.Heading });
-        aircraft.Queue.Blocks.Add(departBlock);
-
-        return CommandDispatcher.Ok($"Proceed direct {FixDisplay(cmd.FixName)}, depart heading {cmd.MagneticHeading.ToDisplayInt():000}");
+        block.Commands.Add(new TrackedCommand { Type = TrackedCommandType.Heading });
+        return block;
     }
 
     internal static CommandResult DispatchCrossFix(CrossFixCommand cmd, AircraftState aircraft)
@@ -707,6 +743,77 @@ internal static class NavigationCommandHandler
 
     internal static CommandResult DispatchJawy(JoinAirwayCommand cmd, AircraftState aircraft)
     {
+        CommandResult planned = PlanAirwayIntercept(aircraft, cmd, out AirwayInterceptPlan plan);
+        if (!planned.Success)
+        {
+            return planned;
+        }
+
+        // Block 0 (immediate): fly present heading (to allow intercept)
+        aircraft.Targets.NavigationRoute.Clear();
+        aircraft.Targets.TargetTrueHeading = aircraft.TrueHeading;
+        aircraft.Targets.AssignedMagneticHeading = aircraft.MagneticHeading;
+        aircraft.Targets.PreferredTurnDirection = null;
+
+        // Block 1: on segment intercept, navigate the airway fix sequence
+        aircraft.Queue.Blocks.Add(BuildAirwayInterceptBlock(cmd, plan));
+
+        return planned;
+    }
+
+    /// <summary>
+    /// The bracketing segment a JAWY intercept flies: the trigger's origin and radial, and the airway fix
+    /// sequence to navigate once the segment is intercepted. A restored block's plan is rebuilt from the block's
+    /// saved trigger, not from the aircraft's restored position.
+    /// </summary>
+    internal readonly record struct AirwayInterceptPlan(
+        string InterceptFixName,
+        double InterceptFixLat,
+        double InterceptFixLon,
+        int SegmentRadial,
+        List<NavigationTarget> NavTargets,
+        List<string> RemainingFixes
+    );
+
+    /// <summary>
+    /// The block a JAWY leaves queued behind itself: on intercepting the segment, navigate the remaining fixes.
+    /// Built here for the same reason as <see cref="BuildJradoInterceptBlock"/>.
+    /// </summary>
+    internal static CommandBlock BuildAirwayInterceptBlock(JoinAirwayCommand cmd, AirwayInterceptPlan plan)
+    {
+        var block = new CommandBlock
+        {
+            Trigger = new BlockTrigger
+            {
+                Type = BlockTriggerType.InterceptRadial,
+                FixName = plan.InterceptFixName,
+                FixLat = plan.InterceptFixLat,
+                FixLon = plan.InterceptFixLon,
+                Radial = plan.SegmentRadial,
+            },
+            ApplyAction = ac =>
+            {
+                ac.Targets.AssignedMagneticHeading = null;
+                ac.Targets.NavigationRoute.Clear();
+                foreach (NavigationTarget target in plan.NavTargets)
+                {
+                    ac.Targets.NavigationRoute.Add(target);
+                }
+                return new CommandResult(true);
+            },
+            Description = $"intercept {cmd.AirwayId}: DCT {string.Join(" ", plan.RemainingFixes.Select(FixDisplay))}",
+            NaturalDescription = $"On {cmd.AirwayId}: proceed via {string.Join(" ", plan.RemainingFixes.Select(FixDisplay))}",
+            ParsedCommands = [cmd],
+            SourceCommandText = CommandDescriber.DescribeCommand(cmd),
+        };
+        block.Commands.Add(new TrackedCommand { Type = TrackedCommandType.Navigation });
+        return block;
+    }
+
+    /// <summary>Plans a JAWY intercept, or returns the refusal the dispatch hands straight back.</summary>
+    private static CommandResult PlanAirwayIntercept(AircraftState aircraft, JoinAirwayCommand cmd, out AirwayInterceptPlan plan)
+    {
+        plan = default;
         NavigationDatabase navDb = NavigationDatabase.Instance;
         IReadOnlyList<string>? airwayFixes = navDb.GetAirwayFixes(cmd.AirwayId);
         if (airwayFixes is null || airwayFixes.Count == 0)
@@ -754,73 +861,136 @@ internal static class NavigationCommandHandler
         bool reversed = behindIdx >= 0 && behindIdx > aheadIdx;
 
         // Build remaining fix list from ahead fix onward (in the direction of travel)
-        var remainingFixes = new List<string>();
-        if (!reversed)
-        {
-            for (int i = aheadIdx; i < airwayFixes.Count; i++)
-            {
-                remainingFixes.Add(airwayFixes[i]);
-            }
-        }
-        else
-        {
-            for (int i = aheadIdx; i >= 0; i--)
-            {
-                remainingFixes.Add(airwayFixes[i]);
-            }
-        }
+        List<string> remainingFixes = FixesFrom(airwayFixes, aheadIdx, forward: !reversed);
 
         // Build NavigationTargets for the remaining fixes
-        var navTargets = new List<NavigationTarget>();
-        foreach (string fixName in remainingFixes)
-        {
-            (double Lat, double Lon)? pos = navDb.GetFixPosition(fixName);
-            if (pos is not null)
-            {
-                navTargets.Add(new NavigationTarget { Name = fixName, Position = new LatLon(pos.Value.Lat, pos.Value.Lon) });
-            }
-        }
+        List<NavigationTarget> navTargets = ResolveFixTargets(remainingFixes);
 
         if (navTargets.Count == 0)
         {
             return new CommandResult(false, $"Could not resolve fixes on {cmd.AirwayId}");
         }
 
-        // Block 0 (immediate): fly present heading (to allow intercept)
-        aircraft.Targets.NavigationRoute.Clear();
-        aircraft.Targets.TargetTrueHeading = aircraft.TrueHeading;
-        aircraft.Targets.AssignedMagneticHeading = aircraft.MagneticHeading;
-        aircraft.Targets.PreferredTurnDirection = null;
-
-        // Block 1: on segment intercept, navigate the airway fix sequence
-        var interceptBlock = new CommandBlock
-        {
-            Trigger = new BlockTrigger
-            {
-                Type = BlockTriggerType.InterceptRadial,
-                FixName = interceptFixName,
-                FixLat = interceptFixLat,
-                FixLon = interceptFixLon,
-                Radial = segmentRadial,
-            },
-            ApplyAction = ac =>
-            {
-                ac.Targets.AssignedMagneticHeading = null;
-                ac.Targets.NavigationRoute.Clear();
-                foreach (NavigationTarget target in navTargets)
-                {
-                    ac.Targets.NavigationRoute.Add(target);
-                }
-                return new CommandResult(true);
-            },
-            Description = $"intercept {cmd.AirwayId}: DCT {string.Join(" ", remainingFixes.Select(FixDisplay))}",
-            NaturalDescription = $"On {cmd.AirwayId}: proceed via {string.Join(" ", remainingFixes.Select(FixDisplay))}",
-        };
-        interceptBlock.Commands.Add(new TrackedCommand { Type = TrackedCommandType.Navigation });
-        aircraft.Queue.Blocks.Add(interceptBlock);
+        plan = new AirwayInterceptPlan(interceptFixName, interceptFixLat, interceptFixLon, segmentRadial, navTargets, remainingFixes);
 
         string fixListStr = string.Join(" ", remainingFixes.Select(FixDisplay));
         return CommandDispatcher.Ok($"Fly present heading, intercept {cmd.AirwayId}: {fixListStr}");
+    }
+
+    /// <summary>
+    /// The candidate fix sequences a restored JAWY block could have been planned with, given the trigger it was
+    /// saved with. The sequence is rebuilt from that trigger and never re-planned against the aircraft's position:
+    /// <see cref="FindBracketingSegment"/> can pick a different fix once earlier fixes pass abeam, and finds no
+    /// segment at all once the aircraft is past the airway's last fix ahead.
+    ///
+    /// The trigger names the segment origin, which is either the fix behind the aircraft — the far end is then a
+    /// neighbour of it — or, when the live plan found no fix behind, the first fix still to fly, with the whole
+    /// forward sequence from it. The trigger alone cannot say which: its radial is a segment course in the first
+    /// case and the bearing from the aircraft to the origin in the second, and an aircraft on the airway's extended
+    /// centreline makes the two agree. So all three sequences are offered, and the caller keeps the one whose
+    /// rebuilt description matches the block's saved one.
+    /// </summary>
+    internal static IEnumerable<AirwayInterceptPlan> PlanAirwayInterceptsFromTrigger(JoinAirwayCommand cmd, BlockTrigger trigger)
+    {
+        if (trigger.FixName is not { } originName || trigger.FixLat is not { } originLat || trigger.FixLon is not { } originLon)
+        {
+            yield break;
+        }
+
+        IReadOnlyList<string>? airwayFixes = NavigationDatabase.Instance.GetAirwayFixes(cmd.AirwayId);
+        if (airwayFixes is null || airwayFixes.Count == 0)
+        {
+            yield break;
+        }
+
+        int originIdx = IndexOfFix(airwayFixes, originName);
+        if (originIdx < 0)
+        {
+            yield break;
+        }
+
+        foreach (List<string> remainingFixes in RemainingFixCandidates(airwayFixes, originIdx))
+        {
+            List<NavigationTarget> navTargets = ResolveFixTargets(remainingFixes);
+            if (navTargets.Count == 0)
+            {
+                continue;
+            }
+
+            // The serialized trigger is never re-derived, so the plan carries its own origin and radial only to keep
+            // the plan's shape uniform with the live one's.
+            yield return new AirwayInterceptPlan(originName, originLat, originLon, trigger.Radial ?? 0, navTargets, remainingFixes);
+        }
+    }
+
+    /// <summary>
+    /// The sequences a trigger's origin can start: forward from the neighbour after it, backward from the neighbour
+    /// before it, and forward from the origin itself when it is the first fix still to fly.
+    /// </summary>
+    private static IEnumerable<List<string>> RemainingFixCandidates(IReadOnlyList<string> airwayFixes, int originIdx)
+    {
+        if (originIdx + 1 < airwayFixes.Count)
+        {
+            yield return FixesFrom(airwayFixes, originIdx + 1, forward: true);
+        }
+
+        if (originIdx > 0)
+        {
+            yield return FixesFrom(airwayFixes, originIdx - 1, forward: false);
+        }
+
+        yield return FixesFrom(airwayFixes, originIdx, forward: true);
+    }
+
+    /// <summary>The airway fix list from <paramref name="startIdx"/> to its end (or to its start, walking back).</summary>
+    private static List<string> FixesFrom(IReadOnlyList<string> airwayFixes, int startIdx, bool forward)
+    {
+        var fixes = new List<string>();
+        if (forward)
+        {
+            for (int i = startIdx; i < airwayFixes.Count; i++)
+            {
+                fixes.Add(airwayFixes[i]);
+            }
+        }
+        else
+        {
+            for (int i = startIdx; i >= 0; i--)
+            {
+                fixes.Add(airwayFixes[i]);
+            }
+        }
+
+        return fixes;
+    }
+
+    private static int IndexOfFix(IReadOnlyList<string> airwayFixes, string fixName)
+    {
+        for (int i = 0; i < airwayFixes.Count; i++)
+        {
+            if (string.Equals(airwayFixes[i], fixName, StringComparison.OrdinalIgnoreCase))
+            {
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
+    private static List<NavigationTarget> ResolveFixTargets(IReadOnlyList<string> fixNames)
+    {
+        NavigationDatabase navDb = NavigationDatabase.Instance;
+        var targets = new List<NavigationTarget>();
+        foreach (string fixName in fixNames)
+        {
+            (double Lat, double Lon)? pos = navDb.GetFixPosition(fixName);
+            if (pos is not null)
+            {
+                targets.Add(new NavigationTarget { Name = fixName, Position = new LatLon(pos.Value.Lat, pos.Value.Lon) });
+            }
+        }
+
+        return targets;
     }
 
     /// <summary>

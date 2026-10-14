@@ -484,7 +484,11 @@ Enum + registry + scheme + parser are covered in `architecture.md`. Inside the d
   `World.Tick` can fire the queue) re-parses that text, matches the block's sub-block by its serialized `Description` (longest suffix match),
   and rebuilds `ParsedCommands` + `ApplyAction` via `CommandDispatcher.RehydrateRestoredBlock` with a fresh engine `DispatchContext` carrying the block's `IsScenarioScripted`, so a restored scripted block fires as it did live. A block
   that cannot be recovered (text no longer parses / no description match) is **dropped with an RPO warning** rather than left to fire as a
-  silent no-op. Rehydration does not recover `DescriptionPrefix`/`NaturalDescriptionPrefix` (cosmetic: a post-restore supersede-split loses
+  silent no-op.
+
+  The follow-up blocks that `NavigationCommandHandler` queues (JRADO, JRADI, DEPART's reach-fix block, the airway intercept after JAWY) serialize their `SourceCommandText` too, and `CommandDispatcher.TryRebuildQueuedNavigationBlock` rebuilds them from the same factory that built them live (`BuildJradoInterceptBlock`, `BuildJradiInterceptBlock`, `BuildDepartBlock`, `BuildAirwayInterceptBlock`), keeping the serialized trigger. Applying the re-parsed instruction instead would set its immediate half and queue a second block. The factory's description must equal the saved `Description`, else the ordinary path runs.
+
+  A JAWY block's fix sequence is rebuilt from its saved trigger (`PlanAirwayInterceptsFromTrigger`) and accepted only when the rebuilt description equals the saved one; otherwise the block is dropped with the RPO warning. It never resolves the trigger's own fix position, so a trigger naming a fix this navdata lacks drops the block rather than throwing. A block with no `SourceCommandText` is dropped the same way. Rehydration does not recover `DescriptionPrefix`/`NaturalDescriptionPrefix` (cosmetic: a post-restore supersede-split loses
   the "At FIXIE: " label, not the trigger). Long-lived deferred behavior still belongs on the aircraft (as the `REPORT` armed flags do on
   `AircraftApproachState`) — rehydration protects queued instructions, it doesn't make closures a durable store. Track commands are
   additionally re-dispatched by `ProcessTriggeredTrackBlocks` (see "Triggered re-dispatch" above).
