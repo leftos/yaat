@@ -323,12 +323,11 @@ public class FollowFlyoutTests
         Assert.Empty(host.Sent);
         Assert.True(menu.IsOpen);
         QuickCommandLabelLine line = Assert.IsType<QuickCommandLabelLine>(menu.Items[1]);
-        // The label overflows, so the marquee runs frames for as long as it shows: on a clock the test owns, none outlive it.
-        line.MarqueeClock = new ManualClock();
 
         RaisePointer(follow, InputElement.PointerEnteredEvent);
 
         Assert.Equal("Follow · no other aircraft on the ground", line.Label);
+        menu.Close();
     }
 
     // --- Harness ----------------------------------------------------------------------------

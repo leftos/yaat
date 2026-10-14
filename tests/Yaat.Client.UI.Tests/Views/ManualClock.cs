@@ -1,9 +1,10 @@
 namespace Yaat.Client.UI.Tests.Views;
 
 /// <summary>
-/// A clock that moves only when the test advances it; each advance fires every live timer once. It is the clock for a
-/// strip label's marquee (set as the line's marquee clock when the label overflows its line) and for a live flyout's
-/// once-a-second refill (the test hosts' <c>Clock</c>), so no frame or refill timer outlives a test.
+/// A clock that moves only when the test advances it; each advance fires every live timer once. It is the clock a live
+/// flyout's once-a-second refill runs on (the test hosts' <c>Clock</c>), so no refill timer outlives a test, and the time
+/// source a strip label's marquee reads; the marquee's frames run on a dispatcher timer, so a test draws one with
+/// <c>QuickCommandLabelLine.RenderMarqueeFrame</c>.
 /// </summary>
 internal sealed class ManualClock : TimeProvider
 {

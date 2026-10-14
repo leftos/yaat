@@ -536,8 +536,6 @@ public class QuickCommandStripTests
         AircraftModel ac = Fixture("final-ifr");
         ac.FiledAircraftType = "B738";
         ContextMenu menu = OpenLaidOut(Build(ac, Host()));
-        // The label overflows, so the marquee runs frames for as long as it shows: on a clock the test owns, none outlive it.
-        Line(menu).MarqueeClock = new ManualClock();
         Size atRest = menu.Bounds.Size;
         Button fas = QuickCommandStrip.Buttons(Strip(menu)).Single(b => (string)b.Tag! == MenuIds.SpeedFinalApproach);
 
@@ -546,6 +544,7 @@ public class QuickCommandStripTests
 
         Assert.StartsWith("Reduce to final approach speed - ", Line(menu).Label);
         Assert.Equal(atRest, menu.Bounds.Size);
+        menu.Close();
     }
 
     /// <summary>An aircraft with nothing for the state line still gets a line of its height under the title, blank at rest.</summary>
@@ -566,8 +565,6 @@ public class QuickCommandStripTests
         Assert.Equal(Line(withState).Bounds.Height, line.Bounds.Height);
         MenuItem strip = Strip(menu);
         Button flyHeading = QuickCommandStrip.Buttons(strip).Single(b => (string)b.Tag! == MenuIds.HeadingFly);
-        // A label that overflows the blank line runs the marquee's frames while it shows: on a clock the test owns, none outlive it.
-        line.MarqueeClock = new ManualClock();
 
         RaisePointer(flyHeading, InputElement.PointerEnteredEvent);
 
@@ -670,6 +667,7 @@ public class QuickCommandStripTests
         RenderFrame(menu);
 
         Assert.Equal(30, line.MarqueeOffset, 6);
+        menu.Close();
     }
 
     /// <summary>
@@ -754,10 +752,46 @@ public class QuickCommandStripTests
         Assert.Equal(0, line.MarqueeOffset);
     }
 
-    /// <summary>Lays the menu out and runs the frames the clock's timers posted, so the marquee reads the clock.</summary>
+    /// <summary>
+    /// An overflowing label runs its frames on a UI-owned timer, not on the clock: the timer starts while the label shows
+    /// and stops when the menu closes, and a frame after the close leaves the label where it was.
+    /// </summary>
+    [AvaloniaFact]
+    public void OverflowingLabel_UsesOnlyUiOwnedFramesAndStopsAfterDetach()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        AircraftModel ac = Fixture("final-ifr");
+        ac.FiledAircraftType = "B738";
+        ContextMenu menu = OpenLaidOut(Build(ac, Host()));
+        QuickCommandLabelLine line = Line(menu);
+        var clock = new ManualClock();
+        line.MarqueeClock = clock;
+        Button fas = QuickCommandStrip.Buttons(Strip(menu)).Single(b => (string)b.Tag! == MenuIds.SpeedFinalApproach);
+
+        RaisePointer(fas, InputElement.PointerEnteredEvent);
+        RenderFrame(menu);
+        Assert.True(line.MarqueeFramesRunning);
+        Assert.Equal(0, clock.LiveTimerCount);
+
+        clock.Advance(TimeSpan.FromMilliseconds(1300));
+        RenderFrame(menu);
+        Assert.Equal(30, line.MarqueeOffset, 6);
+
+        menu.Close();
+        Dispatcher.UIThread.RunJobs();
+        Assert.False(line.MarqueeFramesRunning);
+
+        clock.Advance(TimeSpan.FromMilliseconds(500));
+        line.RenderMarqueeFrame();
+
+        Assert.Equal(30, line.MarqueeOffset, 6);
+    }
+
+    /// <summary>Lays the menu out and renders one deterministic marquee frame against the test clock.</summary>
     private static void RenderFrame(ContextMenu menu)
     {
         menu.UpdateLayout();
+        Line(menu).RenderMarqueeFrame();
         Dispatcher.UIThread.RunJobs();
     }
 
