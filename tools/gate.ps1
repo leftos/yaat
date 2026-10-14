@@ -49,7 +49,7 @@ $ErrorActionPreference = 'Stop'
 
 # The failure markers a zero exit must not hide: copied from gate.ps1, which the self-test proves by comparing the two
 # assignments in their parse trees.
-$markers = '^Build FAILED\.|error CS\d+|: error |Test run summary: Failed!|^\s*failed: [1-9]|gate: (TIMED OUT|STALLED|BACKSTOP)'
+$markers = '^Build FAILED\.|error CS\d+|: error |Test run summary: Failed!|^\s*failed: [1-9]|gate: (TIMED OUT|STALLED|BACKSTOP|TRANSFER TIMED OUT)'
 $usage = @(
     'usage: pwsh tools/gate.ps1 -Log <path> -TimeoutSeconds <n> -Slot heavy|light|critical|none [-StallSeconds <n>] [-Tail <n>] ' +
     '[-NoMarkers] [-Local] -- <command> [args...]'
