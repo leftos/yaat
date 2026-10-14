@@ -17,10 +17,12 @@
   - [ ] YAAT-278 FOLLOW sizzle reel: add ground FOLLOW and give-way taxi clips · release v0.16.0-beta reels
 - [ ] YAAT-403 Support for vTBFM · release vNext
   - [!] YAAT-539 vTBFM: follow each user's chosen YAAT room (contributed PR) · release vNext+1
+  - [ ] YAAT-640 Vary live winds aloft across the airspace from a NOAA GFS grid · release vNext
 - [ ] YAAT-613 Rebuild a queued wrong-side crossing when the pattern altitude changes before it starts
 - [ ] YAAT-616 Carry a deferred pattern altitude into a FOLLOW join on the armed runway
 - [ ] YAAT-624 Find why a solo pilot reports traffic in sight minutes after the traffic call
 - [!] YAAT-585 vTBFM: list and pick a YAAT room with the user's VATSIM token (contributed PR) · release vNext
+- [ ] YAAT-661 Weird FOLG Route/Interaction · release vNext
 
 ## Say again
 
@@ -75,7 +77,7 @@
 - [ ] YAAT-257 A follower whose lead has landed joins final instead of re-entering the pattern
 - [ ] YAAT-314 Ground paths that set taxi speed instead of braking to it (unmeasured sites)
 - [ ] YAAT-325 GIVEWAY to traffic that is just starting to taxi releases at once
-- [ ] YAAT-334 TAXI during landing rollout throws a navigator teleport on the next tick · release vNext
+- [/] YAAT-334 TAXI during landing rollout throws a navigator teleport on the next tick · release vNext
 - [ ] YAAT-348 CWT F length fallback overstates turboprops (AN26, DH8D, C130): pick by category
 - [ ] YAAT-353 Stop a landed aircraft re-accelerating on the exit route before the hold-bar stop (C172 OAK 28R H: +1 kt)
 - [ ] YAAT-364 C172 exiting OAK 28R at H stops with its tail 0.7 ft short of clearing the bar
@@ -86,7 +88,7 @@
 - [ ] YAAT-378 LAHSO: query an EXIT instructed beyond the hold-short point at the readback
 - [ ] YAAT-397 Repeat EXIT under a standing EXP: judge it the same before and after the exit hand-off
 - [ ] YAAT-398 Runway exit EXIT judgement leftovers: confirming EXIT under EXP, unchecked EXIT while searching, behind-wording
-- [ ] YAAT-401 HS mid-taxi: judge 'unable' against the firm braking rate, and brake firm on an unable overrun · release vNext
+- [/] YAAT-401 HS mid-taxi: judge 'unable' against the firm braking rate, and brake firm on an unable overrun · release vNext
 - [ ] YAAT-402 Count an aircraft past a runway hold line as fouling that runway · release vNext
 - [ ] YAAT-404 Split TaxiingPhase.OnTick under the 100-line limit
 - [ ] YAAT-410 Start-node hold aims the centre, not the nose; ILS/approach holds; firm taxi stop rate
@@ -111,6 +113,10 @@
 - [ ] YAAT-634 Apply a stored takeoff clearance only where the taxi ends at its runway
 - [ ] YAAT-635 End a taxi completed at an uncleared runway bar in HoldingShortPhase
 - [ ] YAAT-658 Give TAXI, TAXIAUTO and CROSS the same EXP (expedite) modifier as EXIT · release vNext
+- [ ] YAAT-660 Ground conflict prediction ignores a ground expedite before the first navigator tick
+- [ ] YAAT-665 Keep the landing-runway auto-cross exemption when auto-cross is toggled on mid-session
+- [ ] YAAT-666 Let controller-AI rules and PilotResponder see a TAXI stored on the landing rollout
+- [ ] YAAT-670 Judge an HS given with the TAXI clearance against the firm braking rate
 
 ## Wave 2 — Ground command grammar and dispatch
 
@@ -171,7 +177,7 @@
 - [ ] YAAT-82 Make OakS1_TaxiPathPlusParking keep T; remove test order-dependence (server)
 - [ ] YAAT-83 Find why live recording playback shifts pilot transmissions 1–2 s
 - [ ] YAAT-84 Fix recording-load oddities: version label, future log lines, stuck landers
-- [ ] YAAT-429 Navigation queued blocks (JRADO, JRADI, DEPART, airway intercept) are lost silently after a snapshot restore · release vNext
+- [/] YAAT-429 Navigation queued blocks (JRADO, JRADI, DEPART, airway intercept) are lost silently after a snapshot restore · release vNext
 - [ ] YAAT-430 A restored or deferred AI-controller dispatch uses the student's facility hint, not the controller's
 - [ ] YAAT-431 Decide whether a split queued block keeps its original dispatch's scripted provenance
 - [ ] YAAT-632 Move three version-pinned recording tests onto today's airport layout · release vNext
@@ -277,6 +283,9 @@
 - [ ] YAAT-639 Profile the test suites and land the worthwhile speedups · release vNext
 - [ ] YAAT-642 QuickCommandsSection_DragReordersARow presses the scroll presenter under load
 - [ ] YAAT-643 Run prepare-release's remote deploy and watch steps under the gate's -Slot none
+- [ ] YAAT-667 Stop MethodStep_TimeoutMs_IsTheAnswerTimeout flaking under load
+- [ ] YAAT-668 Call gate run on PATH in yaat and yaat-server; delete tools/gate.ps1 · release vNext
+- [ ] YAAT-669 Skip the Desktop-trait AutomationClientZOrderTests when no interactive desktop exists
 
 ## Singles
 
@@ -355,7 +364,6 @@
 - [ ] YAAT-627 Show 360, not 000, for a magnetic heading of exactly 0.5 degrees
 - [ ] YAAT-630 Treat a transponder set to Off as not replying, like Standby
 - [ ] YAAT-637 UNV ground map types a stand as patking; name the airport in the unknown-feature warning
-- [ ] YAAT-640 Vary live winds aloft across the airspace from a NOAA GFS grid · release vNext
 
 ## Backlog
 
