@@ -57,6 +57,8 @@ The generic loop is the user-level `nextup` skill; this file supplies only what 
 
 ## Traps
 
+- **The precompute cache is never regenerated in an item.** Iterative work keeps touching its hashed source sets, so entries go stale within minutes and a refresh (about 12 minutes of heavy CPU) is wasted; stale entries only make the runtime compute, and CI merely warns. It is regenerated at an AIRAC cycle and by `prepare-release` (`src/Yaat.Sim/Data/PrecomputeCache/README.md`). No brief carries a refresh or `--check` step, and a tree whose `src/Yaat.Sim/Data/PrecomputeCache/` changed is restored before it lands.
+
 - `git -C ../yaat-server` from a lone yaat worktree (no pair beside it) walks up to the nearest `.git` and silently operates on yaat; resolve `$SERVER` from the main checkout first (the recipe is in `prepare-release`).
 - A partial commit stashes the rest of yaat; if yaat-server's on-disk code depends on a stashed `Yaat.Sim` change, prek's build hook fails with `CS0246` from the sibling — stash yaat-server first (CLAUDE.md, "prek's build hook is cross-repo").
 - `dotnet format`: never bare, never `-v q`; CSharpier formats nothing under a dot-directory worktree, so format in the main checkout after the patch is applied.
