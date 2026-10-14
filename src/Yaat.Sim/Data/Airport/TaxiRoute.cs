@@ -599,6 +599,7 @@ public sealed class TaxiRoute
                     Longitude = hs.Longitude,
                     Reason = hs.Reason,
                     ClearedByAutoCross = hs.ClearedByAutoCross,
+                    RecrossesLandingRunway = hs.RecrossesLandingRunway ? true : null,
                     TailOverRunwayNodeId = hs.TailOverRunwayNodeId,
                     Unable = hs.Unable,
                 }),
@@ -682,6 +683,7 @@ public sealed class TaxiRoute
                         TargetName = hs.RunwayId,
                         IsCleared = hs.IsSatisfied,
                         ClearedByAutoCross = hs.ClearedByAutoCross,
+                        RecrossesLandingRunway = hs.RecrossesLandingRunway ?? false,
                         Latitude = hs.Latitude,
                         Longitude = hs.Longitude,
                         TailOverRunwayNodeId = hs.TailOverRunwayNodeId,
@@ -747,6 +749,12 @@ public sealed class HoldShortPoint
     /// so toggling AutoCross OFF only reverts the clearances it owns.
     /// </summary>
     public bool ClearedByAutoCross { get; set; }
+
+    /// <summary>
+    /// True at a re-crossing of the runway just landed on, on a route a TAXI stored during the landing rollout: the AutoCrossRunway
+    /// scenario toggle never clears it, at TAXI time or mid-session, so only an explicit <c>CROSS</c> does (7110.65 3-10-9.b.2).
+    /// </summary>
+    public bool RecrossesLandingRunway { get; set; }
 
     /// <summary>
     /// Computed hold-short position. For taxiway hold-shorts, this is offset from the

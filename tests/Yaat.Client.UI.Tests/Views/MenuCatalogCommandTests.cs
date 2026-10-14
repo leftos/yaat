@@ -3020,6 +3020,8 @@ public class MenuCatalogCommandTests
 
         public bool HasActiveTaxiRoute { get; init; }
 
+        public bool HasStoredTaxiRoute { get; init; }
+
         public bool HasTaxiwayHoldShortAhead { get; init; }
 
         public bool HasCfrWindow { get; init; }

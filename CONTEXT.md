@@ -197,6 +197,10 @@ _Avoid_: release (a release lifts a hold the aircraft is already stopped at)
 The route a `TAXI … $spot` from the ramp is re-planned into: across the apron, a ~90° turn onto the spot's lane on the ramp side, and a slow pull onto the mark facing the movement-area taxiway the lane joins (`RampLaneReposition.TryPlanSpotLineUp`, docs/ground/pathfinder.md).
 _Avoid_: ramp cut (a ramp cut is a free-space shortcut between lanes; a line-up decides which way the aircraft ends facing)
 
+**Stored taxi route**:
+The route a `TAXI` or `TAXIAUTO` given on the landing rollout keeps behind the instructed exit: held on `PhaseList.TaxiRoute` from acceptance, shown to the controller at once, and started when `RunwayExitPhase` completes the exit, or dropped (a go-around, a given-up or replaced exit, a stop with no exit ahead). The active route stays `Ground.AssignedTaxiRoute` (`GroundCommandHandler.RolloutTaxi.cs`, docs/landing-and-runway-exit.md).
+_Avoid_: queued taxi (a queued `;` block waits for the exit to finish and routes from the hold-short)
+
 **Wingtip-clearance floor**:
 The least distance from a taxiway hold-short holder's nose to the centreline of the taxiway it holds short of: the half-span of the widest aircraft the airport can take, judged by its widest runway, plus 25 ft (`HoldShortAnnotator.WingtipClearanceFloorFt`, docs/ground/hold-short-placement.md).
 _Avoid_: setback (the setback is where the aircraft's centre stops; the floor is a minimum the nose must keep)

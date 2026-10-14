@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
@@ -93,41 +94,39 @@ public class Issue207LandingRunwayCrossTests(ITestOutputHelper output)
         Assert.True(result.Success, $"TAXI command failed: {result.Message}");
         output.WriteLine($"TAXI response: {result.Message}");
 
-        TaxiRoute? route = aircraft.Ground.AssignedTaxiRoute;
+        // On the rollout the TAXI is an instructed exit at G plus a route stored from G's hold-short node (YAAT-334): the
+        // landing runway's exit bar is where the route starts, never a hold-short of it.
+        Assert.IsType<LandingPhase>(aircraft.Phases?.CurrentPhase);
+        TaxiRoute? route = aircraft.Phases?.TaxiRoute;
         Assert.NotNull(route);
+        Assert.Equal("G", aircraft.Phases?.RequestedExit?.Taxiway);
+        int exitBarNode = route.Segments[0].FromNodeId;
         output.WriteLine(
             "Hold-shorts: " + string.Join(", ", route.HoldShortPoints.Select(h => $"{h.TargetName}@{h.NodeId}({h.Reason},cleared={h.IsCleared})"))
         );
 
-        var crossings = route.HoldShortPoints.Where(h => h.Reason == HoldShortReason.RunwayCrossing).ToList();
-        Assert.NotEmpty(crossings);
-
-        // The first RunwayCrossing is the exit bar of the runway just landed on — it
-        // must overlap the landing runway and be implicitly cleared (no hold short of
-        // the runway the aircraft is rolling out on).
-        HoldShortPoint firstCrossing = crossings[0];
-        Assert.False(string.IsNullOrEmpty(firstCrossing.TargetName));
-        Assert.True(
-            RunwayIdentifier.Parse(firstCrossing.TargetName!).Overlaps(RunwayIdentifier.Parse(landedRwy)),
-            $"First RunwayCrossing is for {firstCrossing.TargetName}, expected it to overlap landing runway {landedRwy}"
-        );
-        Assert.True(
-            firstCrossing.IsCleared,
-            $"Expected the exit crossing of the landing runway ({firstCrossing.TargetName} at node {firstCrossing.NodeId}) "
-                + $"to be implicitly cleared because {Callsign} just landed on {landedRwy}, but IsCleared=false"
-        );
-
-        // The response acknowledges the implicit cross of the landing runway.
-        Assert.Contains("cross", result.Message, StringComparison.OrdinalIgnoreCase);
-
-        // Subsequent crossings (the genuine re-cross of 28R and the 28L crossing on J)
-        // still require clearance — only the landing-runway exit is auto-cleared.
-        foreach (HoldShortPoint? later in crossings.Skip(1))
+        // Downstream crossings (the genuine re-cross of 28R and the 28L crossing on J) still require clearance.
+        foreach (HoldShortPoint later in route.HoldShortPoints.Where(h => (h.Reason == HoldShortReason.RunwayCrossing) && (h.NodeId != exitBarNode)))
         {
             Assert.False(
                 later.IsCleared,
                 $"Downstream crossing {later.TargetName} at node {later.NodeId} should still require explicit clearance, but was auto-cleared"
             );
         }
+
+        // Ticked on, the C210 exits at G and rolls into the route without holding at its own landing runway's exit bar.
+        for (int second = 1; (second <= 90) && (aircraft.Phases?.CurrentPhase is not TaxiingPhase); second++)
+        {
+            engine.TickOneSecond();
+            if (aircraft.Phases?.CurrentPhase is HoldingShortPhase hold)
+            {
+                Assert.NotEqual(exitBarNode, hold.HoldShort.NodeId);
+            }
+
+            Assert.IsNotType<HoldingAfterExitPhase>(aircraft.Phases?.CurrentPhase);
+        }
+
+        Assert.IsType<TaxiingPhase>(aircraft.Phases?.CurrentPhase);
+        Assert.Same(route, aircraft.Ground.AssignedTaxiRoute);
     }
 }

@@ -35,6 +35,17 @@ public sealed class PhaseListDto
     // the field existed (yaat-server pins snapshot 0's hash).
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public List<string>? GivenUpExitTaxiways { get; init; }
+
+    // The destination runway the TAXI that stored TaxiRoute on the rollout named (PhaseList.StoredTaxiDestinationRunway). Not
+    // `required` and not written while null, so a snapshot with no stored route — every snapshot 0 — serializes as before.
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? StoredTaxiDestinationRunway { get; init; }
+
+    // True when RequestedExit is the exit a TAXI on the rollout implied (PhaseList.TaxiImpliedExit), so the restored list shares
+    // the instance again. Not `required` and not written while null, so a snapshot with none — every snapshot 0 — serializes as before.
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? RequestedExitIsTaxiImplied { get; init; }
+
     public required int CurrentIndex { get; init; }
     public required List<PhaseDto> Phases { get; init; }
 }
@@ -1515,6 +1526,13 @@ public sealed class LandingPhaseDto : PhaseDto
     // again; an equal but separate instruction (re-issued, not yet ticked) restores as new. Not `required`: absent on older
     // snapshots, where false makes the restored list's preference read as a new instruction.
     public bool OriginalPreferenceIsRequestedExit { get; init; }
+
+    // True when the active (possibly relaxed) preference was the very instance the phase list's RequestedExit held, so a restore
+    // shares it again: the handoff writes it back as RequestedExit, and the exit a rollout TAXI implied is told by reference.
+    // Not `required` and not written while null, so a snapshot without such a preference — every snapshot 0 — serializes as before.
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? ActivePreferenceIsRequestedExit { get; init; }
+
     public required bool StoppedForLahso { get; init; }
 
     // LandingPhase additions (optional for backward-compat with older snapshots)
@@ -1531,6 +1549,15 @@ public sealed class LandingPhaseDto : PhaseDto
     public double StabilizedSinceSec { get; init; }
     public List<int>? UnableBranchPointIds { get; init; }
     public int? InferredSideValue { get; init; }
+
+    // True while InferredSideValue points toward a taxi route stored on the rollout (LandingPhase.InferSideTowardTaxiRoute);
+    // SideBeforeTaxiRouteValue is the side it replaced (ExitSide, null for none), given back when the route is dropped. Neither
+    // is written while null, so a snapshot without such a route — every snapshot 0 — serializes as before.
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? SideTowardTaxiRoute { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? SideBeforeTaxiRouteValue { get; init; }
 
     // The rest of the landing plan. Vref carries the gust additive the aircraft actually flew and the runway id
     // is the one it was assigned, so a rewind lands on the same numbers instead of recomputing them from the

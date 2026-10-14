@@ -835,6 +835,13 @@ public partial class AircraftModel : ObservableObject, IMenuAircraft
     private bool _hasActiveTaxiRoute;
 
     /// <summary>
+    /// True when the aircraft has no active taxi route but one a TAXI sent on the landing rollout stored behind the runway exit,
+    /// started when the exit completes. The ground view draws it, and Give way is offered for it.
+    /// </summary>
+    [ObservableProperty]
+    private bool _hasStoredTaxiRoute;
+
+    /// <summary>
     /// True while the route the aircraft drives (the follow route for a FOLLOWG follower) has a taxiway or spot bar as its
     /// next uncleared hold short ahead, the one a bare RES pre-clears; the menus offer RES to the rolling aircraft on it.
     /// </summary>
@@ -1309,6 +1316,7 @@ public partial class AircraftModel : ObservableObject, IMenuAircraft
             IsSpeedClassified = dto.IsSpeedClassified,
             TaxiRoute = dto.TaxiRoute,
             HasActiveTaxiRoute = dto.HasActiveTaxiRoute,
+            HasStoredTaxiRoute = dto.HasStoredTaxiRoute,
             HasTaxiwayHoldShortAhead = dto.HasTaxiwayHoldShortAhead,
             TaxiDestination = dto.TaxiDestination,
             TaxiTurnAboutTargetNodeId = dto.TaxiTurnAboutTargetNodeId,
@@ -1440,6 +1448,7 @@ public partial class AircraftModel : ObservableObject, IMenuAircraft
         IsSpeedClassified = dto.IsSpeedClassified;
         TaxiRoute = dto.TaxiRoute;
         HasActiveTaxiRoute = dto.HasActiveTaxiRoute;
+        HasStoredTaxiRoute = dto.HasStoredTaxiRoute;
         HasTaxiwayHoldShortAhead = dto.HasTaxiwayHoldShortAhead;
         TaxiDestination = dto.TaxiDestination;
         TaxiTurnAboutShape = ParseTaxiTurnAboutShape(dto.TaxiTurnAboutShape);

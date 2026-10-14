@@ -1183,6 +1183,9 @@ public record AircraftDto(
     // rows that are IsUnsupported && !IsGhostOverlay.
     bool IsGhostOverlay = false,
     bool HasActiveTaxiRoute = false,
+    // True while the aircraft has no active taxi route but one a TAXI sent on the landing rollout stored behind the runway exit,
+    // started when the exit completes: the ground view draws it, and the menus offer GIVEWAY.
+    bool HasStoredTaxiRoute = false,
     // True while the route the aircraft drives (the follow route for a FOLLOWG follower) has a taxiway or spot bar as its next
     // uncleared hold short ahead: the bar a bare RES pre-clears, so the menu offers RES to the rolling aircraft.
     bool HasTaxiwayHoldShortAhead = false,

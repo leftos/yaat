@@ -7,11 +7,13 @@ namespace Yaat.Sim.ControllerAi.Rules;
 /// <summary>
 /// Watchdog: an aircraft in a movement phase that makes no net progress for <see cref="StuckAfterSeconds"/> is stuck —
 /// a pathfinder loop, a give-way deadlock, a phase that never completes. Stops the controller ordered (HOLD / GIVEWAY,
-/// a hold for release) are sequencing, not stalls (7110.65 §3-8-1), and never count; a stop the ground-conflict
-/// detector imposed (the aircraft is yielding to traffic ahead) is routine in a departure queue and only counts after
-/// <see cref="YieldingStuckAfterSeconds"/> — and a stall that yielded at any point keeps that longer threshold, since the
-/// detector releases its limit a moment before the aircraft actually rolls. Phases that legitimately wait for a command
-/// (parking, hold-short, LUAW, the ground holds) and airborne holds are never stuck.
+/// a hold for release) are sequencing, not stalls (7110.65 §3-8-1), and never count — except a GIVEWAY still pending on
+/// the landing runway (<see cref="AircraftState.HasGiveWayPendingOnLandingRunway"/>), which never stops the aircraft
+/// there and would hide a real stall: an arrival that stops on its exit under one is stuck like any other. A stop the
+/// ground-conflict detector imposed (the aircraft is yielding to traffic ahead) is routine in a departure queue and only
+/// counts after <see cref="YieldingStuckAfterSeconds"/> — and a stall that yielded at any point keeps that longer
+/// threshold, since the detector releases its limit a moment before the aircraft actually rolls. Phases that
+/// legitimately wait for a command (parking, hold-short, LUAW, the ground holds) and airborne holds are never stuck.
 /// </summary>
 public sealed class StuckAircraftRule : IDecisionRule
 {
@@ -31,7 +33,7 @@ public sealed class StuckAircraftRule : IDecisionRule
             AiAircraftMemo memo = scope.MemoFor(aircraft);
             Phase? phase = aircraft.Phases?.CurrentPhase;
             AircraftGroundOps ground = aircraft.Ground;
-            bool orderedStop = (ground.Hold is not null) || ground.HeldForRelease;
+            bool orderedStop = ((ground.Hold is not null) && !aircraft.HasGiveWayPendingOnLandingRunway) || ground.HeldForRelease;
             if (!IsMovementPhase(phase) || orderedStop)
             {
                 memo.MovementAnchor = null;

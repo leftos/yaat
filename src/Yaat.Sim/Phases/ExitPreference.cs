@@ -33,6 +33,12 @@ public readonly record struct ExitInstructionVerdict(bool Allowed, string? Unabl
 }
 
 /// <summary>
+/// The judgement of a TAXI's implied exit on the rollout (<c>LandingPhase.EvaluateImpliedExit</c>): the verdict, the exit instruction
+/// it stands for, and the exit the rollout will brake for — null when the verdict refuses or the exit was not judged.
+/// </summary>
+public readonly record struct ImpliedExitVerdict(ExitInstructionVerdict Verdict, ExitPreference Preference, ResolvedExitInfo? Exit);
+
+/// <summary>
 /// Fully resolved exit: hold-short node, branch point on the centerline,
 /// ordered path of intermediate nodes, taxiway name, and turn-off speed.
 /// Produced by LandingPhase's continuous evaluation; consumed by RunwayExitPhase.

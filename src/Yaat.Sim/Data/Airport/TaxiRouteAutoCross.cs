@@ -23,13 +23,15 @@ public static class TaxiRouteAutoCross
     ///     explicit CROSS keyword, CTO commands) keep their clearance.</description></item>
     /// </list>
     /// Hold-shorts with a non-RunwayCrossing reason (ExplicitHoldShort, DestinationRunway)
-    /// are never touched.
+    /// are never touched, nor is a re-crossing of the runway just landed on, on a route stored
+    /// during the landing rollout (<see cref="HoldShortPoint.RecrossesLandingRunway"/>): only an
+    /// explicit CROSS clears that one (7110.65 3-10-9.b.2).
     /// </summary>
     public static void Apply(TaxiRoute route, bool autoCross)
     {
         foreach (HoldShortPoint hs in route.HoldShortPoints)
         {
-            if (hs.Reason != HoldShortReason.RunwayCrossing)
+            if ((hs.Reason != HoldShortReason.RunwayCrossing) || hs.RecrossesLandingRunway)
             {
                 continue;
             }

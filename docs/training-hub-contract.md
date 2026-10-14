@@ -576,6 +576,7 @@ extend the resolver to depend on a new input, fingerprint that input too.
 - `SmartStatus` / `SmartStatusSeverity` derive entirely from fingerprinted `AircraftState` inputs (`AircraftStatusView.FromState`
   → `AircraftStatusDescriber.Describe`); the only non-`ac` inputs (`IsDelayed`, `IsAutoClearedToLand`) are broadcast parameters
   `CaptureTrainingDto` cannot see, and they only matter for moving aircraft. No signature threading is needed.
+- `HasStoredTaxiRoute` (a bool, right after `HasActiveTaxiRoute` in `AircraftStateDto` / `AircraftDto`) is true while the aircraft has no incomplete active route but `PhaseList.TaxiRoute` holds one a `TAXI`/`TAXIAUTO` on the landing rollout stored behind the exit (`DtoConverter`). Until the exit completes and the route starts, the `TaxiRoute` string and `TaxiDestination` are read from that stored route (`AircraftState.ActiveOrStoredTaxiRoute`), so the strip, the ground view and the status text show it from the moment the TAXI is accepted. The client lands it on `AircraftModel` / `IMenuAircraft.HasStoredTaxiRoute`: the ground view draws the route, and `AircraftCommandApplicability.CanGiveWayTo` / `ShowsGiveWay` offer "Give way to…" on it. It has no fingerprint slot of its own: it co-varies with the `TaxiRoute` string.
 - `ActiveApproachId`, `HasActiveTaxiRoute`, `PointoutToTcpCode` are covered by motion or co-vary with `TaxiRoute` /
   `PointoutStatus`.
 

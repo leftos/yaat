@@ -9,7 +9,7 @@ A **phase** is a self-contained behavior that owns an aircraft's `ControlTargets
 - **In a phase** (`aircraft.Phases?.CurrentPhase != null`) — the phase writes `TargetHeading`/`TargetAltitude`/`TargetSpeed`/`NavigationRoute` directly each tick. The CommandQueue is **bypassed**.
 - **Free-flying** (`aircraft.Phases is null`) — `ControlTargets` reflects the last command issued; CommandQueue triggers fire when conditions are met.
 
-`PhaseList` (the queue) is more than just a list — it also stores **persistent metadata** that crosses phase transitions: `AssignedRunway`, `TaxiRoute`, `LandingClearance`, `ActiveApproach`, `DepartureClearance`, `TrafficDirection` (pattern mode), `LahsoHoldShort`, `RequestedExit`.
+`PhaseList` (the queue) is more than just a list — it also stores **persistent metadata** that crosses phase transitions: `AssignedRunway`, `TaxiRoute` (only the route a TAXI on the landing rollout stores), `LandingClearance`, `ActiveApproach`, `DepartureClearance`, `TrafficDirection` (pattern mode), `LahsoHoldShort`, `RequestedExit`.
 
 ## Base contract — `Phases/Phase.cs`
 
@@ -113,7 +113,8 @@ Phases write **directly** to `ctx.Targets` — they do not enqueue commands.
 | Field | Set by | Consumed by |
 |---|---|---|
 | `AssignedRunway` | TAXI, RWY, departure clearance | `LineUpPhase`, `TakeoffPhase`, `FinalApproachPhase` |
-| `TaxiRoute` | TAXI handler | `TaxiingPhase` |
+| `TaxiRoute` | A TAXI or TAXIAUTO accepted on the landing rollout (`GroundCommandHandler.RolloutTaxi.cs`); cleared when the exit completes and the route starts, or dropped (exit given up, another exit instructed, go-around, stopped with no exit ahead). The active route is `Ground.AssignedTaxiRoute`, not this | `RunwayExitPhase` (rolls into it; `GroundCommandHandler.TryStartStoredTaxiRoute`), the CROSS handlers, `SituationFlagCalculator`, `AircraftStatusDescriber` |
+| `StoredTaxiDestinationRunway` | The same TAXI, when its clearance names a destination runway; set and cleared with `TaxiRoute` | `TryStartStoredTaxiRoute` (assigned as the departure runway in preference to the one the route's last bar detects) |
 | `DepartureClearance` | LUAW / CTO | `LinedUpAndWaitingPhase`, threshold logic |
 | `LandingClearance` (`ClearanceType?`) | CLAND, CTOC, LUAW-cancel; voided by any go-around (`GoAroundHelper.InstallGoAroundPhases`, along with `Pattern.PendingLandingClearance`) | `FinalApproachPhase`, `LandingPhase` |
 | `ClearedRunwayId` | landing clearance; voided with it at go-around | `FinalApproachPhase` |

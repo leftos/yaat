@@ -97,7 +97,8 @@ public sealed class SimulationWorld
             if (removed > 0)
             {
                 Log.LogWarning(
-                    "AddAircraft({Callsign}): replaced {Count} pre-existing entry/entries with the same callsign (likely a user-typed FP ghost colliding with a scenario or runtime spawn).",
+                    "AddAircraft({Callsign}): replaced {Count} pre-existing entry/entries with the same callsign "
+                        + "(likely a user-typed FP ghost colliding with a scenario or runtime spawn).",
                     aircraft.Callsign,
                     removed
                 );
@@ -171,7 +172,8 @@ public sealed class SimulationWorld
 
     /// <summary>
     /// Re-evaluates implicit RunwayCrossing hold-shorts on every aircraft's active
-    /// taxi route against the supplied AutoCross setting. Called by the server when
+    /// taxi route, and on a route a TAXI on the landing rollout stored behind the exit
+    /// (<see cref="PhaseList.TaxiRoute"/>), against the supplied AutoCross setting. Called by the server when
     /// the controller toggles AutoCrossRunway mid-session, and by the engine's replay
     /// applier when a recorded toggle is replayed. Aircraft currently sitting in
     /// <see cref="Yaat.Sim.Phases.Ground.HoldingShortPhase"/> are intentionally left
@@ -183,13 +185,15 @@ public sealed class SimulationWorld
         {
             foreach (AircraftState ac in _aircraft)
             {
-                TaxiRoute? route = ac.Ground.AssignedTaxiRoute;
-                if (route is null)
+                if (ac.Ground.AssignedTaxiRoute is { } route)
                 {
-                    continue;
+                    TaxiRouteAutoCross.Apply(route, autoCross);
                 }
 
-                Data.Airport.TaxiRouteAutoCross.Apply(route, autoCross);
+                if (ac.Phases?.TaxiRoute is { } stored)
+                {
+                    TaxiRouteAutoCross.Apply(stored, autoCross);
+                }
             }
         }
     }

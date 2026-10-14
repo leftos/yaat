@@ -108,7 +108,10 @@ public static class SituationFlagCalculator
     private static bool HasGoneAround(PhaseList phases) =>
         (phases.CurrentPhase is GoAroundPhase) || phases.Phases.Any(phase => phase is GoAroundPhase { Status: not PhaseStatus.Pending });
 
-    /// <summary>The phases on which the inside-FAF flag is computed: an approach (not the missed approach), its intercept, a procedure turn, the final.</summary>
+    /// <summary>
+    /// The phases on which the inside-FAF flag is computed: an approach (not the missed approach), its intercept, a procedure turn,
+    /// the final.
+    /// </summary>
     public static bool IsInstrumentApproachPhase(Phase? phase) =>
         phase is ApproachNavigationPhase { IsMissedApproach: false } or InterceptCoursePhase or ProcedureTurnPhase or FinalApproachPhase;
 
@@ -130,9 +133,7 @@ public static class SituationFlagCalculator
         }
 
         double limitFt = latched ? NearingDepartureHoldLineLeaveFt : NearingDepartureHoldLineFt;
-        return (distanceFt <= limitFt)
-            && (!HasRunwayBarBeforeDestinationBar(ac.Ground.AssignedTaxiRoute, layout))
-            && (!IsOnAnotherRunway(ac, layout));
+        return (distanceFt <= limitFt) && (!HasRunwayBarBeforeDestinationBar(ac.ActiveOrStoredTaxiRoute, layout)) && (!IsOnAnotherRunway(ac, layout));
     }
 
     /// <summary>On the pavement of a runway at the departure airport other than the assigned departure runway.</summary>
@@ -216,7 +217,7 @@ public static class SituationFlagCalculator
     /// </summary>
     private static HoldShortPoint? FirstUnclearedBarWithNoCrossingBefore(AircraftState ac, AirportGroundLayout? layout)
     {
-        foreach (HoldShortPoint bar in RemainingBars(ac.Ground.AssignedTaxiRoute))
+        foreach (HoldShortPoint bar in RemainingBars(ac.ActiveOrStoredTaxiRoute))
         {
             if (!bar.IsCleared)
             {
@@ -238,7 +239,7 @@ public static class SituationFlagCalculator
     /// </summary>
     private static bool IsStillCrossingAPassedRunwayBar(AircraftState ac, AirportGroundLayout? layout)
     {
-        foreach (HoldShortPoint bar in PassedBars(ac.Ground.AssignedTaxiRoute))
+        foreach (HoldShortPoint bar in PassedBars(ac.ActiveOrStoredTaxiRoute))
         {
             if (IsRunwayCrossingBar(bar, layout) && IsOnPavementOfBarRunway(ac, bar, layout))
             {
@@ -287,7 +288,7 @@ public static class SituationFlagCalculator
         (bar.Reason == HoldShortReason.ExplicitHoldShort)
         && (ac.Phases?.AssignedRunway is { } assigned)
         && IsBarOfRunway(bar, layout, assigned)
-        && (!RemainingBars(ac.Ground.AssignedTaxiRoute).Any(b => b.Reason == HoldShortReason.DestinationRunway));
+        && (!RemainingBars(ac.ActiveOrStoredTaxiRoute).Any(b => b.Reason == HoldShortReason.DestinationRunway));
 
     /// <summary>The combined id of the runway a runway bar protects: the crossing bar's target, else the runway its node stands on.</summary>
     private static string? CrossedRunwayTarget(HoldShortPoint bar, AirportGroundLayout? layout) =>
@@ -320,7 +321,7 @@ public static class SituationFlagCalculator
         {
             HoldShortReason.DestinationRunway => true,
             HoldShortReason.ExplicitHoldShort => IsBarOfRunway(bar, layout, assigned)
-                && (!RemainingBars(ac.Ground.AssignedTaxiRoute).Any(b => b.Reason == HoldShortReason.DestinationRunway)),
+                && (!RemainingBars(ac.ActiveOrStoredTaxiRoute).Any(b => b.Reason == HoldShortReason.DestinationRunway)),
             _ => false,
         };
     }

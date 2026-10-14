@@ -22,7 +22,8 @@
 - `HOLD` during a runway crossing brakes firmly, reads back "holding position on runway X" when it cannot stop short, and no longer stops dead past the runway.
 - Loading, rewinding or seeking a recording runs on the recording's session settings, and a setting changed mid-recording reaches every client's Session Settings.
 - After loading a recording, "No landing clnc" follows the recording's session, not your Auto Cleared-to-Land preference.
-
+- `TAXI` and `TAXIAUTO` during the landing rollout take the exit the route implies and roll on into the route, instead of jumping the aircraft.
+- With auto-cross turned on mid-session, an arrival still waits for your `CROSS` before re-crossing the runway it landed on.
 - The room title's ARTCC label now follows the room when a scenario or recording is loaded or unloaded.
 - In replay, stepping by quarter seconds spawns delayed aircraft and fires timed presets in the same second as stepping by whole seconds.
 - In replay, a recorded live-traffic aircraft appears once, with no extra PDC or printed strip the live session never had.

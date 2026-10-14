@@ -215,6 +215,20 @@ internal static class GoAroundHelper
         // hold short on the next landing this aircraft flies — which may be a different runway.
         phaseList.LahsoHoldShort = null;
 
+        // A taxi route stored on the rollout (a TAXI given on it) and the exit it implied were the plan for this landing's exit:
+        // left set, CROSS would amend a route that never starts and the next landing would exit where this one was told to. An
+        // exit instruction the controller gave on its own stays, as on any go-around.
+        if ((phaseList.TaxiImpliedExit is { } implied) && ReferenceEquals(phaseList.RequestedExit, implied))
+        {
+            phaseList.RequestedExit = null;
+        }
+
+        phaseList.TaxiImpliedExit = null;
+        if (phaseList.TaxiRoute is not null)
+        {
+            phaseList.ClearStoredTaxiRoute();
+        }
+
         var phases = new List<Phase> { goAround };
         phases.AddRange(missedApproachPhases);
 

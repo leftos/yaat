@@ -47,7 +47,7 @@ public sealed record StandOrSpotGoal
 /// <see cref="ResolveStandOrSpotGoal"/>, the same bodies the commands themselves use; every other member stays
 /// internal to the simulation.
 /// </summary>
-public static class GroundCommandHandler
+public static partial class GroundCommandHandler
 {
     private static readonly ILogger Log = SimLog.CreateLogger("GroundCommandHandler");
 
@@ -56,6 +56,9 @@ public static class GroundCommandHandler
     // failed resolution rather than a clearance. The reported 48-node route resolved to 544 segments.
     private const int NodeRefSegmentSlack = 20;
     private const int NodeRefSegmentFactor = 2;
+
+    /// <summary>What a TAXI is refused with while the aircraft is not on the ground.</summary>
+    private const string TaxiNeedsGroundRefusal = "Taxi requires aircraft on the ground";
 
     // A gate's first cleared taxiway may be a neighbouring ramp lane the ground graph does not connect to
     // the gate (SFO B20S → M4: M4 only joins M1, but its nearest node is 404 ft away across the M3 lane —
@@ -131,7 +134,21 @@ public static class GroundCommandHandler
     /// <param name="OccupiedTaxiway">The taxiway the aircraft occupies, counted as named.</param>
     /// <param name="EndsShort">The route ends short of its destination (held short of a missing taxiway).</param>
     /// <param name="AdviseUnclearedTaxiways">Warn about each movement-area taxiway driven that the clearance did not name (not for TAXIAUTO).</param>
-    private sealed record TaxiReadbackInputs(string? OccupiedTaxiway, bool EndsShort, bool AdviseUnclearedTaxiways);
+    /// <param name="ImpliedExitTaxiway">
+    /// The taxiway of the exit a rollout TAXI implies, which the readback's exit clause names already: the via list leaves it out and
+    /// its "not in the route issued" note is suppressed. Null for a TAXI that implies no exit.
+    /// </param>
+    /// <param name="ExitClauseTaxiway">
+    /// The taxiway the readback's leading exit clause names ("Exit right at J, taxi via …"), left out of the via list; null when no
+    /// exit clause leads, so a taxiway the clearance names is read back even when it is the implied exit's.
+    /// </param>
+    private sealed record TaxiReadbackInputs(
+        string? OccupiedTaxiway,
+        bool EndsShort,
+        bool AdviseUnclearedTaxiways,
+        string? ImpliedExitTaxiway,
+        string? ExitClauseTaxiway
+    );
 
     /// <summary>What <see cref="ApplySpotLineUp"/> needs beyond the aircraft, the layout and the resolved route.</summary>
     /// <param name="Category">The aircraft's performance category.</param>
@@ -157,7 +174,17 @@ public static class GroundCommandHandler
     {
         if (!aircraft.IsOnGround)
         {
-            return new CommandResult(false, "Taxi requires aircraft on the ground");
+            // Airborne in the landing phase (stabilized approach / flare): the phase's own refusal.
+            CanonicalCommandType taxiType = options.IsTaxiAuto ? CanonicalCommandType.TaxiAuto : CanonicalCommandType.Taxi;
+            if (
+                (aircraft.Phases?.CurrentPhase is LandingPhase airborneLanding)
+                && (airborneLanding.CanAcceptCommand(taxiType) is { IsRejected: true } refused)
+            )
+            {
+                return new CommandResult(false, refused.Reason ?? TaxiNeedsGroundRefusal);
+            }
+
+            return new CommandResult(false, TaxiNeedsGroundRefusal);
         }
 
         if (groundLayout is null)
@@ -232,6 +259,14 @@ public static class GroundCommandHandler
             FailureLogLevel = LogLevel.Warning,
         };
         TaxiResolution resolved = ResolveTaxiRouteFromStart(inputs, taxi, startNode);
+
+        // On the landing rollout a TAXIAUTO turns off at the first exit the aircraft can make, and a TAXI whose first taxiway is off
+        // the runway, or no route from the runway resolves for, joins from one (GroundCommandHandler.RolloutTaxi.cs).
+        if ((aircraft.Phases?.CurrentPhase is LandingPhase rollout) && (TryTaxiFromMakeableExit(rollout, inputs, taxi, resolved) is { } fromExit))
+        {
+            return fromExit;
+        }
+
         if (resolved.Route is not { } route)
         {
             return resolved.Refusal ?? throw new InvalidOperationException("a taxi resolution carries neither a route nor a refusal");
@@ -268,20 +303,24 @@ public static class GroundCommandHandler
             return new CommandResult(false, "Cannot resolve the drawn taxi route from the aircraft's current position");
         }
 
+        // On the landing rollout the TAXI is an instructed exit plus a route stored for when the exit completes; the landing's
+        // phases keep running (GroundCommandHandler.RolloutTaxi.cs).
+        if (aircraft.Phases?.CurrentPhase is LandingPhase landing)
+        {
+            return TryTaxiOnRollout(landing, new RolloutTaxiRequest(inputs, taxi, route, resolved));
+        }
+
         // Implicit first-crossing clearance: when the aircraft is already holding short of a
         // runway — or is in the middle of landing on / exiting one (it must taxi past that
         // runway's hold-short bars to finish clearing the runway it just landed on, not hold
         // short of the runway it is leaving) — and the new route's first runway crossing is for
         // that same runway, the TAXI command itself authorizes it. No separate CTO needed.
-        // Subsequent crossings still require explicit clearance. TryTaxi already rejected the
-        // command unless the aircraft is on the ground, so a LandingPhase here is the rollout on
-        // the runway just landed on — its exit bar is a crossing of that runway, not a hold-short.
+        // Subsequent crossings still require explicit clearance.
         string? priorRwy = aircraft.Phases?.CurrentPhase switch
         {
             HoldingShortPhase priorHold when priorHold.HoldShort.TargetName is { Length: > 0 } heldRwy => heldRwy,
             RunwayExitPhase exitPhase when exitPhase.RunwayId is { Length: > 0 } exitRwy => exitRwy,
             HoldingAfterExitPhase afterExit when afterExit.RunwayId is { Length: > 0 } afterExitRwy => afterExitRwy,
-            LandingPhase => aircraft.Phases?.ClearedRunwayId ?? aircraft.Phases?.AssignedRunway?.Designator,
             _ => null,
         };
         string? implicitCrossLabel = null;
@@ -306,41 +345,7 @@ public static class GroundCommandHandler
         }
 
         TaxiRouteAutoCross.Apply(route, options.AutoCrossRunway);
-
-        // Pre-clear specific runway crossings from CROSS keywords in the TAXI command
-        if (taxi.CrossRunways is { Count: > 0 })
-        {
-            var matchedCrossRunways = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            foreach (HoldShortPoint hs in route.HoldShortPoints)
-            {
-                if (hs.Reason == HoldShortReason.RunwayCrossing && hs.TargetName is not null)
-                {
-                    var hsRwyId = RunwayIdentifier.Parse(hs.TargetName);
-                    foreach (string crossRwy in taxi.CrossRunways)
-                    {
-                        if (hsRwyId.Contains(crossRwy))
-                        {
-                            hs.IsCleared = true;
-                            // Explicit user CROSS keyword owns the clearance — clear any
-                            // AutoCross attribution so a future AutoCross-OFF toggle does
-                            // not revert this user-issued crossing authorization.
-                            hs.ClearedByAutoCross = false;
-                            matchedCrossRunways.Add(crossRwy);
-                            break;
-                        }
-                    }
-                }
-            }
-
-            // A CROSS runway that pre-cleared nothing was silently inert; tell the controller.
-            foreach (string crossRwy in taxi.CrossRunways)
-            {
-                if (!matchedCrossRunways.Contains(crossRwy))
-                {
-                    route.Warnings.Add($"CROSS {crossRwy} not applied — the route crosses no runway {crossRwy}");
-                }
-            }
-        }
+        ApplyCrossKeywords(route, taxi);
 
         // Auto-detect runway from final node when no explicit destination runway
         RunwayInfo? detectedRunway = null;
@@ -382,11 +387,7 @@ public static class GroundCommandHandler
             aircraft.Ground.NoDeleteRequested = true;
         }
 
-        aircraft.Phases = new PhaseList();
-        if (detectedRunway is not null)
-        {
-            ApplyDepartureRunway(aircraft, detectedRunway, priorAssignment);
-        }
+        PhaseList taxiPhases = InstallFreshTaxiPhaseList(aircraft, detectedRunway, priorAssignment);
 
         // Zero-segment route to parking: A* snapped the aircraft to the destination node.
         // Only skip TaxiingPhase when the aircraft is genuinely at the spot; if it's
@@ -458,16 +459,16 @@ public static class GroundCommandHandler
                     aircraft.Ground.ParkingSpot = route.DestinationParking;
                 }
 
-                aircraft.Phases.Add(atStand ? new AtParkingPhase() : new HoldingInPositionPhase());
+                taxiPhases.Add(atStand ? new AtParkingPhase() : new HoldingInPositionPhase());
                 ctx = CommandDispatcher.BuildMinimalContext(aircraft, groundLayout);
-                aircraft.Phases.Start(ctx);
+                taxiPhases.Start(ctx);
                 return CommandDispatcher.Ok($"Taxi via {destinationSigil}{parkingName}") with { EffectiveCommand = effectiveCommand };
             }
         }
 
-        aircraft.Phases.Add(new TaxiingPhase());
+        taxiPhases.Add(new TaxiingPhase());
         ctx = CommandDispatcher.BuildMinimalContext(aircraft, groundLayout);
-        aircraft.Phases.Start(ctx);
+        taxiPhases.Start(ctx);
 
         string msg;
         if ((route.Segments.Count == 0) && (taxi.DestinationRunway is not null))
@@ -477,7 +478,12 @@ public static class GroundCommandHandler
         }
         else
         {
-            msg = BuildTaxiReadback(route, groundLayout, taxi, new TaxiReadbackInputs(occupiedTaxiway, resolved.EndsShort, !options.IsTaxiAuto));
+            msg = BuildTaxiReadback(
+                route,
+                groundLayout,
+                taxi,
+                new TaxiReadbackInputs(occupiedTaxiway, resolved.EndsShort, !options.IsTaxiAuto, null, null)
+            );
         }
 
         msg = WithResponseNotes(msg, route.Warnings, implicitCrossLabel, pushBackNote);
@@ -490,6 +496,59 @@ public static class GroundCommandHandler
         {
             EffectiveCommand = effectiveCommand,
         };
+    }
+
+    /// <summary>
+    /// Gives the aircraft the empty phase list a taxi clearance starts on, with <paramref name="departureRunway"/> assigned when the
+    /// route names or ends at one (<see cref="ApplyDepartureRunway"/>): nothing of the list it replaces carries over.
+    /// </summary>
+    private static PhaseList InstallFreshTaxiPhaseList(AircraftState aircraft, RunwayInfo? departureRunway, DepartureRunwayAssignment prior)
+    {
+        aircraft.Phases = new PhaseList();
+        if (departureRunway is not null)
+        {
+            ApplyDepartureRunway(aircraft, departureRunway, prior);
+        }
+
+        return aircraft.Phases;
+    }
+
+    /// <summary>Pre-clears the route's runway crossings the TAXI's <c>CROSS</c> keywords name, warning about any that crosses nothing.</summary>
+    private static void ApplyCrossKeywords(TaxiRoute route, TaxiCommand taxi)
+    {
+        if (taxi.CrossRunways is { Count: > 0 })
+        {
+            var matchedCrossRunways = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (HoldShortPoint hs in route.HoldShortPoints)
+            {
+                if (hs.Reason == HoldShortReason.RunwayCrossing && hs.TargetName is not null)
+                {
+                    var hsRwyId = RunwayIdentifier.Parse(hs.TargetName);
+                    foreach (string crossRwy in taxi.CrossRunways)
+                    {
+                        if (hsRwyId.Contains(crossRwy))
+                        {
+                            hs.IsCleared = true;
+                            // Explicit user CROSS keyword owns the clearance — clear any
+                            // AutoCross attribution so a future AutoCross-OFF toggle does
+                            // not revert this user-issued crossing authorization.
+                            hs.ClearedByAutoCross = false;
+                            matchedCrossRunways.Add(crossRwy);
+                            break;
+                        }
+                    }
+                }
+            }
+
+            // A CROSS runway that pre-cleared nothing was silently inert; tell the controller.
+            foreach (string crossRwy in taxi.CrossRunways)
+            {
+                if (!matchedCrossRunways.Contains(crossRwy))
+                {
+                    route.Warnings.Add($"CROSS {crossRwy} not applied — the route crosses no runway {crossRwy}");
+                }
+            }
+        }
     }
 
     /// <summary>What a TAXI clearance resolves from, beyond the working command and the start node.</summary>
@@ -1786,7 +1845,10 @@ public static class GroundCommandHandler
     /// resolver's own warning about the lead-in is withdrawn too. The one-way lanes the resolver implied
     /// (<see cref="TaxiRoute.ImpliedLanes"/>, SFO <c>TAXI T A @B2</c> entering on M1) are named, since the aircraft drives a
     /// lane the clearance left out. A route that ends short of its destination has no lead-in. A TAXIAUTO carries no
-    /// advisory (<see cref="TaxiReadbackInputs.AdviseUnclearedTaxiways"/>).
+    /// advisory (<see cref="TaxiReadbackInputs.AdviseUnclearedTaxiways"/>). The taxiway of the exit a rollout TAXI implies is driven
+    /// silently (<see cref="TaxiReadbackInputs.ImpliedExitTaxiway"/>), and left out of the via list where the route leads with it —
+    /// its first leg naming it (<see cref="TaxiReadbackInputs.ExitClauseTaxiway"/>, <see cref="IsImpliedExitTaxiway"/>) — a later leg
+    /// naming it stays.
     /// </summary>
     private static string BuildTaxiReadback(TaxiRoute route, AirportGroundLayout layout, TaxiCommand taxi, TaxiReadbackInputs inputs)
     {
@@ -1799,11 +1861,24 @@ public static class GroundCommandHandler
 
         if (inputs.AdviseUnclearedTaxiways)
         {
-            WarnUnclearedMovementAreaTaxiways(route, layout, taxi.Path, occupiedTaxiway, [ImpliedRunwayEntryConnector(route, taxi), impliedLeadIn]);
+            WarnUnclearedMovementAreaTaxiways(
+                route,
+                layout,
+                taxi.Path,
+                occupiedTaxiway,
+                [ImpliedRunwayEntryConnector(route, taxi), impliedLeadIn, inputs.ImpliedExitTaxiway]
+            );
         }
 
         Func<string, bool> issued = ReadbackTaxiwayFilter(taxi.Path, occupiedTaxiway);
-        bool Named(string taxiway) => issued(taxiway) || route.ImpliedLanes.Contains(taxiway, StringComparer.OrdinalIgnoreCase);
+        bool firstTaxiway = true;
+        bool Named(string taxiway)
+        {
+            bool isLeading = firstTaxiway;
+            firstTaxiway = false;
+            return !(isLeading && IsImpliedExitTaxiway(taxiway, inputs.ExitClauseTaxiway))
+                && (issued(taxiway) || route.ImpliedLanes.Contains(taxiway, StringComparer.OrdinalIgnoreCase));
+        }
         IReadOnlyList<string> beyondRoute = inputs.EndsShort ? [] : IssuedTaxiwaysBeyondRoute(route, layout, taxi.Path);
         return $"Taxi via {route.ToSummary(BuildTurnHintMap(taxi), taxi.Path, Named, beyondRoute)}";
     }
@@ -1820,6 +1895,23 @@ public static class GroundCommandHandler
         int lastDriven = taxiways.FindLastIndex(t => route.Segments.Any(s => s.Edge.Edge.MatchesTaxiway(t)));
         return lastDriven < 0 ? [] : taxiways[(lastDriven + 1)..];
     }
+
+    /// <summary>
+    /// Whether <paramref name="taxiway"/> is the exit taxiway a rollout TAXI leads with: the drop rule the controller echo and the
+    /// pilot readback (<see cref="WithoutTaxiway"/>) share, each applying it at its own leading position — the echo at the route's
+    /// first leg, the readback at the clearance's first token (<see cref="LeadingExitTaxiway"/>) — so a later mention of the same
+    /// taxiway stays in both.
+    /// </summary>
+    private static bool IsImpliedExitTaxiway(string taxiway, string? exitTaxiway) =>
+        (exitTaxiway is not null) && string.Equals(taxiway, exitTaxiway, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// The clearance's leading token when it names the exit taxiway (<see cref="IsImpliedExitTaxiway"/>): the one segment the pilot
+    /// readback leaves out, as the controller echo leaves out the route's leading one. Null when the exit taxiway is anywhere but
+    /// the path's first segment — the clearance is unchanged then.
+    /// </summary>
+    internal static string? LeadingExitTaxiway(IReadOnlyList<string> path, string? exitTaxiway) =>
+        ((path.Count > 0) && IsImpliedExitTaxiway(path[0], exitTaxiway)) ? path[0] : null;
 
     /// <summary>
     /// Why an unresolved TAXI is refused: the missing link the start needs (with the resolver's own reason alongside
@@ -3638,7 +3730,9 @@ public static class GroundCommandHandler
     /// note and the plan's notes (<see cref="WithPushNotes"/>); the pilot's readback
     /// (<see cref="CommandResult.PilotReadback"/>) is the same sentence without any note, so the two cannot drift.
     /// </summary>
-    /// <param name="command">The push's command type, <see cref="CanonicalCommandType.Pushback"/> or <see cref="CanonicalCommandType.PushbackMulti"/>.</param>
+    /// <param name="command">
+    /// The push's command type, <see cref="CanonicalCommandType.Pushback"/> or <see cref="CanonicalCommandType.PushbackMulti"/>.
+    /// </param>
     /// <param name="readback">What the push reads back.</param>
     /// <param name="plan">The accepted plan.</param>
     /// <returns>The acceptance.</returns>
@@ -5082,7 +5176,7 @@ public static class GroundCommandHandler
             return CommandDispatcher.Ok("");
         }
 
-        TaxiRoute? route = aircraft.Ground.AssignedTaxiRoute;
+        TaxiRoute? route = aircraft.ActiveOrStoredTaxiRoute;
         if (route is null)
         {
             return new CommandResult(false, "No taxi route assigned");
@@ -5164,7 +5258,7 @@ public static class GroundCommandHandler
             return CommandDispatcher.Ok("");
         }
 
-        TaxiRoute? route = aircraft.Ground.AssignedTaxiRoute;
+        TaxiRoute? route = aircraft.ActiveOrStoredTaxiRoute;
         if (route is null)
         {
             return new CommandResult(false, "No taxi route assigned");
@@ -5206,10 +5300,16 @@ public static class GroundCommandHandler
     /// the same breath as the clearance. What cannot be complied with is refused rather than read back:
     /// P/CG "UNABLE" is "inability to comply with a specific instruction, request, or clearance", and the
     /// instruction here is AIM 2-3-5.b.3's — "the pilot MUST STOP so that no part of the aircraft extends
-    /// beyond the holding position marking".
+    /// beyond the holding position marking". A route a TAXI on the landing rollout stored behind the exit
+    /// (<see cref="PhaseList.TaxiRoute"/>) is never judged: the aircraft is not on it yet.
     /// </summary>
     private static bool MarkUnmakeableHoldShort(AircraftState aircraft, AirportGroundLayout layout, TaxiRoute route, ExplicitHoldShortPlan plan)
     {
+        if (!ReferenceEquals(route, aircraft.Ground.AssignedTaxiRoute))
+        {
+            return false;
+        }
+
         int nodeId = plan.Outcome switch
         {
             ExplicitHoldShortOutcome.ReArm when plan.Existing is { } existing => existing.NodeId,
@@ -5392,7 +5492,7 @@ public static class GroundCommandHandler
         // Either not holding short, or holding short of a different target:
         // pre-clear matching upcoming hold-short(s) on the taxi route. Accepts
         // both runway designators and taxiway/intersection names.
-        TaxiRoute? route = aircraft.Ground.AssignedTaxiRoute;
+        TaxiRoute? route = aircraft.ActiveOrStoredTaxiRoute;
         if (route is null)
         {
             return new CommandResult(false, "No taxi route assigned");
@@ -5682,7 +5782,7 @@ public static class GroundCommandHandler
     /// </summary>
     private static CommandResult TryExtendRouteAcrossDestinationRunway(AircraftState aircraft, HoldShortPoint terminalHoldShort)
     {
-        TaxiRoute? route = aircraft.Ground.AssignedTaxiRoute;
+        TaxiRoute? route = aircraft.ActiveOrStoredTaxiRoute;
         if (route is null)
         {
             return new CommandResult(false, "No taxi route assigned");
@@ -5755,7 +5855,7 @@ public static class GroundCommandHandler
             return CommandDispatcher.Ok(DescribeHoldShortRelease(holdPhase.HoldShort.TargetName));
         }
 
-        TaxiRoute? route = aircraft.Ground.AssignedTaxiRoute;
+        TaxiRoute? route = aircraft.ActiveOrStoredTaxiRoute;
         if (route is null)
         {
             return new CommandResult(false, "No taxi route assigned");
@@ -5808,7 +5908,7 @@ public static class GroundCommandHandler
             return new CommandResult(false, "Hold short requires aircraft on the ground");
         }
 
-        TaxiRoute? route = aircraft.Ground.AssignedTaxiRoute;
+        TaxiRoute? route = aircraft.ActiveOrStoredTaxiRoute;
         if (route is null)
         {
             return new CommandResult(false, "No taxi route assigned");
@@ -6051,7 +6151,7 @@ public static class GroundCommandHandler
             return new CommandResult(false, "Give way requires aircraft on the ground");
         }
 
-        if (aircraft.Ground.AssignedTaxiRoute is null)
+        if (aircraft.ActiveOrStoredTaxiRoute is null)
         {
             return new CommandResult(false, "Aircraft must have a taxi route assigned");
         }
@@ -6704,12 +6804,18 @@ public static class GroundCommandHandler
         // standing side, so "ER ; EXIT D" exits right AT D instead of dropping Right and
         // falling back to the inferred side (issue #276). An explicit side on the new
         // command still wins. If D only exists on the other side, the resolver's
-        // on-/off-side fallback still takes it — the taxiway name is a hard constraint.
-        if ((preference.Side is null) && (preference.Taxiway is not null) && (aircraft.Phases.RequestedExit?.Side is { } standingSide))
+        // on-/off-side fallback still takes it — the taxiway name is a hard constraint. Only a side the controller said is
+        // kept: the side of an exit a rollout TAXI implied (PhaseList.TaxiImpliedExit) is not, so the exit picks its side as
+        // it would with no TAXI.
+        ExitPreference? standing = aircraft.Phases.RequestedExit;
+        bool standingIsTaxiImplied = (standing is not null) && ReferenceEquals(standing, aircraft.Phases.TaxiImpliedExit);
+        if ((preference.Side is null) && (preference.Taxiway is not null) && !standingIsTaxiImplied && (standing?.Side is { } standingSide))
         {
             preference = new ExitPreference { Side = standingSide, Taxiway = preference.Taxiway };
         }
 
+        ExitPreference spoken = preference;
+        preference = ConfirmedImpliedExit(aircraft.Phases, preference);
         bool expediteStands = expedite || KeepsStandingExpedite(aircraft, preference);
 
         // Handing a route to the navigator is not the same as turning off: the route's first segment runs
@@ -6748,6 +6854,18 @@ public static class GroundCommandHandler
             aircraft.Phases.GivenUpExitTaxiways.Remove(revivedTaxiway);
         }
 
+        // A taxi route stored behind the rollout's exit (a TAXI on the rollout) is the plan for the exit it was given with: an
+        // instruction naming another turn-off replaces it, and the aircraft exits there and holds clear for a new TAXI.
+        if (
+            (aircraft.Phases.TaxiRoute is not null)
+            && !string.Equals(preference.Taxiway, aircraft.Phases.RequestedExit?.Taxiway, StringComparison.OrdinalIgnoreCase)
+        )
+        {
+            Log.LogInformation("[Exit] {Callsign}: new exit instruction replaces the stored taxi route", aircraft.Callsign);
+            aircraft.Phases.ClearStoredTaxiRoute();
+            (aircraft.Phases.CurrentPhase as LandingPhase)?.DropSideTowardTaxiRoute();
+        }
+
         aircraft.Phases.RequestedExit = preference;
         if (noDelete)
         {
@@ -6756,7 +6874,29 @@ public static class GroundCommandHandler
         }
 
         aircraft.Ground.IsExpeditingExit = expediteStands;
+        return CommandDispatcher.Ok(ExitInstructionText(spoken, expedite));
+    }
 
+    /// <summary>
+    /// A bare <c>EL</c>/<c>ER</c> on the side of the exit a rollout TAXI implied (<see cref="PhaseList.TaxiImpliedExit"/>, still the
+    /// requested exit) confirms that exit while its stored route still waits: the implied exit itself, so the aircraft still turns
+    /// off there into the stored route and the link to the TAXI stays. Any other instruction, and any once the implied exit was
+    /// given up with its route, is returned as it is.
+    /// </summary>
+    private static ExitPreference ConfirmedImpliedExit(PhaseList phases, ExitPreference preference)
+    {
+        bool confirms =
+            (phases.TaxiRoute is not null)
+            && (phases.TaxiImpliedExit is { Side: { } impliedSide } implied)
+            && ReferenceEquals(implied, phases.RequestedExit)
+            && (preference.Taxiway is null)
+            && (preference.Side == impliedSide);
+        return confirms ? phases.TaxiImpliedExit! : preference;
+    }
+
+    /// <summary>The controller-facing echo of an exit instruction: "Exit left at V", "Exit right", "Exit at W3, without delay".</summary>
+    private static string ExitInstructionText(ExitPreference preference, bool expedite)
+    {
         // 7110.65 §3-7-2.b.10: the phrase is "without delay" (the word "expedite"
         // is reserved by §2-1-5 for imminent situations). The EXP token is just a
         // terse keyboard mnemonic.
@@ -6769,10 +6909,10 @@ public static class GroundCommandHandler
                 ExitSide.Right => "right ",
                 _ => "",
             };
-            return CommandDispatcher.Ok($"Exit {sideText}at {preference.Taxiway}{expediteText}");
+            return $"Exit {sideText}at {preference.Taxiway}{expediteText}";
         }
 
-        return CommandDispatcher.Ok((preference.Side == ExitSide.Left ? "Exit left" : "Exit right") + expediteText);
+        return (preference.Side == ExitSide.Left ? "Exit left" : "Exit right") + expediteText;
     }
 
     /// <summary>

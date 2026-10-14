@@ -199,7 +199,7 @@ public static class AircraftStatusDescriber
                 CrossingRunwayId = ExtractCrossingRunwayId(ac.Phases) is { } crossing ? RunwayIdentifier.ToDisplayDesignator(crossing) : null,
                 ExitingRunwayId = ExtractExitingRunwayId(ac.Phases) is { } exiting ? RunwayIdentifier.ToDisplayDesignator(exiting) : null,
                 CurrentTaxiway = ac.Ground.CurrentTaxiway ?? "",
-                TaxiRoute = ac.Ground.AssignedTaxiRoute?.FormatTaxiwaySequence() ?? "",
+                TaxiRoute = ac.ActiveOrStoredTaxiRoute?.FormatTaxiwaySequence() ?? "",
                 ParkingSpot = ac.Ground.ParkingSpot ?? "",
                 PatternDirection = ac.Phases?.TrafficDirection?.ToString() ?? "",
                 PatternEntryKind = ExtractPatternEntryKind(ac.Phases),

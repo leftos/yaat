@@ -250,6 +250,8 @@ The centre is too close within `RequiredLateralClearanceFt` (both half-spans plu
 
 `CrossingRunwayPhase` ignores a GIVEWAY for the rest of a crossing (AIM 4-3-21.a/b: no stopping on the runway, clear only past the far marking), and the give-way applies once `TaxiingPhase` takes over beyond it.
 
+So does the landing runway: a GIVEWAY given on the rollout or exit (once a TAXI stored a route, [landing-and-runway-exit.md](landing-and-runway-exit.md) § TAXI on the rollout) is pending while `LandingPhase` or `RunwayExitPhase` is current (`AircraftState.HasGiveWayPendingOnLandingRunway`). It sets no give-way stop (`RunwayCrossingFarSideGate` skips it), is not aged by `FlightPhysics.UpdateGiveWayResume`, and the hold is kept for `TaxiingPhase`. `StuckAircraftRule` does not treat it as an ordered stop, so an arrival that stops on its exit under one is still flagged stuck.
+
 A HOLD mid-crossing brakes onto the near marking when it fits, else stops on the runway (piston and helicopter at 4.5 kt/s, jet and turboprop at the taxi rate); the braking is the crossing phase's own ([ground/navigator.md](ground/navigator.md) § Inputs and outputs, The hold contract), not this detector's.
 
 Unlike the follower at a bar, a GIVEWAY never stops dead for its give-way point: where not even the firm rate makes the point, or the aircraft is already inside the clearance, it brakes at the firm rate and stops where that takes it.

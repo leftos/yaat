@@ -177,7 +177,7 @@ Effective persistent visibility (the transient hover route is separate and overl
 ```
 AlwaysShow           -> drawn
 AlwaysHide           -> not drawn
-Follow               -> ShowAllTaxiRoutes && HasActiveTaxiRoute
+Follow               -> ShowAllTaxiRoutes && (HasActiveTaxiRoute || HasStoredTaxiRoute)
 ```
 
 `IsTaxiRouteVisible(callsign)` is the per-aircraft form. The pure, layout-free set computation is the `static GroundViewModel.ComputeVisibleTaxiRouteCallsigns(forcedShown, forcedHidden, showAll, allAircraft)` helper (unit-tested in `GroundViewModelTaxiRouteVisibilityTests`).
@@ -190,9 +190,10 @@ Follow               -> ShowAllTaxiRoutes && HasActiveTaxiRoute
 
 **The client never receives taxi-route geometry over the wire.** The `AircraftUpdated`/`AircraftSpawned` DTO carries only:
 
-- `AircraftModel.TaxiRoute` — a formatted taxiway-name string (e.g. `"S T U W W1"`), from `AssignedTaxiRoute.FormatTaxiwaySequence()` server-side.
+- `AircraftModel.TaxiRoute` — a formatted taxiway-name string (e.g. `"S T U W W1"`), from `ActiveOrStoredTaxiRoute.FormatTaxiwaySequence()` server-side (the active route, else the one a TAXI on the landing rollout stored behind the exit).
 - `AircraftModel.CurrentTaxiway` — the taxiway the aircraft is on now.
 - `AircraftModel.HasActiveTaxiRoute` — whether an incomplete route exists.
+- `AircraftModel.HasStoredTaxiRoute` — whether no active route exists but one a TAXI on the landing rollout stored behind the runway exit does; `GroundViewModel` treats it like an active route for the Follow mode and "show all" (`IsTaxiRouteVisible`), and the route reconstruction draws it from that moment.
 - `AircraftModel.Position` — live lat/lon.
 - `AircraftModel.AssignedRunway` — the runway the taxi route holds short of (departures). The formatted `TaxiRoute` string lists only taxiways taxied *along*, never the held-short runway, so this is the only channel for it.
 - `AircraftModel.TaxiDestination` — the `@parking` / `$spot` the route ends at (`""` otherwise), from `DtoConverter.TaxiDestinationLabel`. The taxiway string cannot say where a ramp cut is headed, so this is the only channel for it.

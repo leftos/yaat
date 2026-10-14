@@ -627,6 +627,19 @@ public class AircraftCommandApplicabilityTests
         Assert.Equal(expected, AircraftCommandApplicability.CanGiveWayTo(ac, Context(null)));
     }
 
+    /// <summary>On the landing rollout, once a TAXI stored a route behind the runway exit, Give way shows and is offered.</summary>
+    [Fact]
+    public void GiveWay_DuringARolloutTaxi_ShowsAndIsOffered()
+    {
+        AircraftModel ac = Ac("Landing", onGround: true);
+        Assert.False(AircraftCommandApplicability.ShowsGiveWay(ac));
+        Assert.False(AircraftCommandApplicability.CanGiveWayTo(ac, Context(null)));
+
+        ac.HasStoredTaxiRoute = true;
+        Assert.True(AircraftCommandApplicability.ShowsGiveWay(ac));
+        Assert.True(AircraftCommandApplicability.CanGiveWayTo(ac, Context(null)));
+    }
+
     [Fact]
     public void CanGiveWayTo_RelativeSelectionShadowOrNoAircraft_IsFalse()
     {

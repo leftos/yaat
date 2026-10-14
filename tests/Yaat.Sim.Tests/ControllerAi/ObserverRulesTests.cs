@@ -110,6 +110,52 @@ public class ObserverRulesTests
         Assert.Contains("after yielding", Assert.Single(engine.Scenario.AiAnomalies.Drain()).Detail);
     }
 
+    /// <summary>
+    /// A give-way still pending on the landing runway never stops the aircraft there, so it is not an ordered stop: an arrival that
+    /// goes nowhere on its exit under one is a stuck exit and trips the watchdog, while the same stop under an ordered hold is
+    /// sequencing (7110.65 §3-8-1) and never trips it.
+    /// </summary>
+    [Fact]
+    public void StuckAircraft_RaisesAStalledExitUnderAPendingGiveWay_ButNotUnderAnOrderedHold()
+    {
+        if (_zoa is null)
+        {
+            return;
+        }
+
+        // A runway exit is on the runway still: local control's (7110.65 §3-1-3), so the tower position owns it.
+        AiPositionConfig tower = TestAiPositions.OakTower(_zoa);
+        ShortFinalArrival.Spawned spawned =
+            ShortFinalArrival.SpawnClearedToLand("OAK", "28R", "B738", "ARR1", 1.0) ?? throw new Xunit.Sdk.XunitException("no arrival");
+        AircraftState arrival = spawned.Aircraft;
+        int exit = SfoGroundHarness.TickUntil(spawned.Engine, () => arrival.Phases?.CurrentPhase is RunwayExitPhase, 400, null);
+        Assert.True(exit > 0, $"never reached the exit: {arrival.Phases?.CurrentPhase?.Name}");
+
+        var rule = new StuckAircraftRule();
+        double now = spawned.Engine.Scenario!.ElapsedSeconds;
+
+        // The give-way was given on the rollout and is still pending: nothing has judged or aged it, and it is not a stop.
+        arrival.Ground.Hold = HoldDirective.GiveWay("UAL123");
+        Assert.True(arrival.HasGiveWayPendingOnLandingRunway, $"no pending give-way in {arrival.Phases?.CurrentPhase?.Name}");
+        var pending = new Dictionary<string, AiAircraftMemo>(StringComparer.Ordinal);
+        AiRuleScope scope = Scope(spawned.Engine, [arrival], tower, now, pending);
+        Assert.Equal("ARR1", Assert.Single(scope.Jurisdiction).Callsign);
+        rule.Evaluate(scope);
+        rule.Evaluate(Scope(spawned.Engine, [arrival], tower, now + StuckAircraftRule.StuckAfterSeconds + 20, pending));
+        AiAnomalyEvent opened = Assert.Single(spawned.Engine.Scenario.AiAnomalies.Drain());
+        Assert.Equal(AiAnomalyKind.StuckAircraft, opened.Kind);
+        Assert.Contains("Runway Exit", opened.Detail);
+
+        // The same stop under an ordered hold is a controller-sequenced aircraft, not a stall.
+        spawned.Engine.Scenario.AiAnomalies.Clear();
+        arrival.Ground.Hold = HoldDirective.HoldPosition;
+        Assert.False(arrival.HasGiveWayPendingOnLandingRunway);
+        var held = new Dictionary<string, AiAircraftMemo>(StringComparer.Ordinal);
+        rule.Evaluate(Scope(spawned.Engine, [arrival], tower, now, held));
+        rule.Evaluate(Scope(spawned.Engine, [arrival], tower, now + 1000, held));
+        Assert.Empty(spawned.Engine.Scenario.AiAnomalies.Drain());
+    }
+
     [Fact]
     public void StuckAircraft_NeverFlagsAnAircraftWaitingForACommand()
     {

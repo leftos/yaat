@@ -4,6 +4,7 @@ using Yaat.Sim.Data.Airport;
 using Yaat.Sim.LiveTraffic;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
+using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Pilot;
 using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Situation;
@@ -206,6 +207,22 @@ public class AircraftState
     public ControlTargets Targets { get; } = new();
     public CommandQueue Queue { get; set; } = new();
     public PhaseList? Phases { get; set; }
+
+    /// <summary>
+    /// The taxi route the controller sees and a <c>CROSS</c> amends: the active one (<c>Ground.AssignedTaxiRoute</c>), else the one
+    /// a TAXI on the landing rollout stored behind the exit (<see cref="PhaseList.TaxiRoute"/>), from the moment it is accepted.
+    /// </summary>
+    [JsonIgnore]
+    public TaxiRoute? ActiveOrStoredTaxiRoute => Ground.AssignedTaxiRoute ?? Phases?.TaxiRoute;
+
+    /// <summary>
+    /// A <c>GIVEWAY</c> hold given while the aircraft is still on its landing runway (landing rollout or runway exit): it never slows
+    /// or stops the aircraft there, and is neither judged nor aged until the aircraft is off the runway and taxiing.
+    /// </summary>
+    [JsonIgnore]
+    public bool HasGiveWayPendingOnLandingRunway =>
+        (Ground.Hold?.Kind == HoldKind.GiveWay) && (Phases?.CurrentPhase is LandingPhase or RunwayExitPhase);
+
     public List<DeferredDispatch> DeferredDispatches { get; } = [];
     public List<string> PendingWarnings { get; } = [];
     public List<string> PendingNotifications { get; } = [];

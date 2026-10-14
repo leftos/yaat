@@ -188,7 +188,7 @@ Warning messages appear when the simulator detects potential issues:
 
   So does `CTO` issued while another aircraft holds in position on the runway without its own takeoff clearance (3-9-6 same-runway separation) or while a preceding arrival is not yet clear of the runway — rolling out, on a touch-and-go or stop-and-go, exiting along the centerline, or still airborne over it (3-9-6.b). In the `CTO` case the cleared aircraft also stops behind that traffic instead of taxiing through it, continuing once the runway is clear.
 
-  Traffic you have frozen *on* the runway with `HOLDPOSITION` or `GIVEWAY` (for example mid-crossing) also counts as an occupied runway for both the landing-family and `CTO` advisories — a crossing still moving stays silent, since it will be clear by itself.
+  Traffic you have frozen *on* the runway with `HOLDPOSITION` or `GIVEWAY` (for example mid-crossing) also counts as an occupied runway for both the landing-family and `CTO` advisories — a crossing still moving stays silent, since it will be clear by itself. A `GIVEWAY` given to an arrival still rolling out or exiting does not stop it there, so that arrival counts as landed traffic still on the runway (the "not yet clear" case above), not as frozen traffic.
 
 ### Command Bar
 
@@ -322,7 +322,7 @@ Right-click an aircraft on the [Radar View](#radar-view-1), the [Ground View](#g
 | Holding | Cleared approach (IFR), Direct to…, Maintain altitude; for VFR, Enter left / right downwind, Enter left / right base, Make straight-in |
 | Pattern | Cleared to land, Cleared for the option, Touch and go, Follow traffic…, Extend pattern leg, Make short approach, Make left / right 360, Turn base, Go around |
 | Final | Cleared to land, Go around, Cancel landing clearance, Reduce to final approach speed, Exit left, Exit right |
-| Rollout / exit | Exit left, Exit right, Cross {runway}, Draw taxi route… |
+| Rollout / exit | Exit left, Exit right, Cross {runway}, Draw taxi route…, Give way to… (once a TAXI stored a route) |
 | Go-around or missed approach | Fly heading, Maintain altitude, Cleared approach (IFR); for VFR, Enter left / right downwind |
 | Live traffic | Assume control, Assume and track |
 | VFR arrival | Enter left / right downwind, Enter left / right base, Make straight-in, At N-mile final…, At fix…, Cleared to land, Follow traffic… |
@@ -349,7 +349,7 @@ An aircraft YAAT cannot place in a situation shows no quick commands; use All Co
 - **Cleared visual** shows only after an IFR aircraft reports the field or the preceding traffic in sight. It defaults to the assigned runway, else the runway of the active or expected approach, even when that approach is written in shorthand (an expected `R28L` at KOAK gives runway 28L and sends `CVA 28L`).
 - **Heading pickers and Warp start from the datablock heading.** Fly heading, Turn left and Turn right highlight the aircraft's magnetic heading (rounded to 5°), and the Warp popup is pre-filled with it.
 - **Assign speed** and **Reduce to final approach speed** hide inside the final approach fix.
-- **Give way to…** needs a taxi route; **Climb via SID** and **Descend via STAR** need an assigned or filed procedure.
+- **Give way to…** needs a taxi route (on the landing rollout or the runway exit, one a `TAXI` stored behind the exit is enough); **Climb via SID** and **Descend via STAR** need an assigned or filed procedure.
 - **Enter left / right downwind, Enter left / right base and Make straight-in** open a runway list when the aircraft has no assigned runway (and the "(other)" item beside an assigned one opens it too). Each row is the runway with an arrow turned to point the way an aircraft lands on it, then the command it sends (`ELD 28R`). Runways in use for arrivals come first, then a separator and the rest; in each group the runways the aircraft's type can land on come before the short ones.
 
   A runway is short for the type when its landing distance available is under 1.15 times the type's landing distance. Such a row reads "Runway 28R · short" and is dimmed, but you can still click it. The icon on the strip turns to the aircraft's assigned runway the same way.
@@ -557,7 +557,7 @@ Below that, a hold / squawk-standby / auto-yield status line and any instructor 
     The presets that end at that runway end follow its entries. A route that only reaches a bar over the runway's own centreline, a bar at the far end of the runway or one on runway pavement only is never offered, and neither is the hold short the aircraft is standing at.
   - *Takeoff*: under **Tower**, "Cancel takeoff clearance"
   - *Final Approach*: under **Tower**, "Cleared to land {rwy}", "Go around {rwy}", "Cancel landing clearance"; for **VFR** aircraft also "Touch and go {rwy}", "Stop and go {rwy}", "Low approach {rwy}", "Cleared for the option {rwy}" (these option clearances are hidden for IFR aircraft) — runway shown in label when assigned
-  - *Landing / Runway Exit*: under **Tower**, "Exit left", "Exit right" (fixed-wing only), each opening the named exits ahead on that side with their distances, the planned exit marked, and the pilot's-choice row last; the same two entries appear on final once the aircraft is within 5 nm of the threshold, with the list as a forecast
+  - *Landing / Runway Exit*: under **Tower**, "Exit left", "Exit right" (fixed-wing only), each opening the named exits ahead on that side with their distances, the planned exit marked, and the pilot's-choice row last; the same two entries appear on final once the aircraft is within 5 nm of the threshold, with the list as a forecast Once a `TAXI` has stored a route on the rollout, "Give way to…" is offered too.
   - *With a different on-ground aircraft selected*: the "Follow…/Give way to…" candidate submenus are replaced by direct "Follow {clicked}" and "Give way to {clicked}" items, under a **For {selected} (selected)** heading at the top of the menu, issued to the **selected** aircraft — pick the traffic by right-clicking it instead of hunting a long submenu; a line under the heading says what the clicked aircraft is doing, how far ahead or behind, and whether it is on the selected aircraft's taxi route
 
 **Auto-delete on hold-short.** For busy tower / local scenarios where landing aircraft pile up at the post-runway hold-short, type `ONHS DEL` against the landing aircraft. The auto-delete fires the moment the aircraft transitions into the *Holding After Exit* phase (i.e., it has rolled out, taken the runway exit, and stopped at the next intersecting taxiway).
@@ -587,6 +587,14 @@ Once it is actually turning — or close enough that it could no longer brake fo
 **When the pilot can't make the exit.** A pilot brakes firmly for an exit you assign, never harder unless you add `EXP`. An exit that would need more is refused with *"unable W3"*: straight away if you send `EXIT W3` during the rollout, or as soon as the pilot knows when an exit read back on final drifts out of reach (a long float).
 
 The aircraft then takes a later exit, and does not use W3 for the rest of that landing — a bare `EXP` does not bring it back; a new `EXIT W3` does, if it can still be made. If the aircraft ends up stopped on the runway with W3 still ahead, it may taxi forward to it.
+
+**Taxiing while the aircraft is still rolling out.** `TAXI` and `TAXIAUTO` work on the landing rollout, so you need not wait for "clear of the runway". The aircraft takes the exit the route implies (the first taxiway you name, or for `TAXIAUTO` the first exit it can make, on either side) and rolls from it into the route without stopping. The pilot reads the exit back first: "exit right at J, taxi to runway 30 via C B W W1". The route shows on the strip, in the status "via" text and on the route overlay as soon as the pilot reads it back, and `CROSS` already applies to its next runway.
+
+When the first taxiway you name is not on the runway, the aircraft tries the exits it can make nearest first, those on the side of an `EL`/`ER` you already gave first, then those on the side of the route. A bare `EL`/`ER` on the side of the exit the `TAXI` implied, given while the route waits, confirms that exit; an exit naming another taxiway cancels the stored route. `GIVEWAY` works once the route is stored: it waits without slowing or stopping the aircraft on the runway and takes effect when the aircraft is taxiing.
+
+If the exit is too close to make you get *"unable {taxiway}."*, and if it is already behind the aircraft *"Unable, no {taxiway} ahead"*. A `TAXI` whose first taxiway is not on the runway is joined from the first makeable exit that leads straight to it; if none does, the pilot says "unable" to that taxiway. A route that only runs along the landing runway is refused.
+
+With scenario auto-cross on, other runways on the route are crossed automatically, but the landing runway's own re-crossing (for example OAK 28R's left exit, which crosses 28L) waits for your `CROSS`. A go-around, an exit the pilot gives up, a different exit instruction, or the aircraft stopping with no exit ahead cancels the stored route; `CROSS` is then refused until you issue a new `TAXI`.
 
 **Taxiing from where the aircraft already is.** A `TAXI` clearance need not name the taxiway the aircraft currently occupies — issue just the continuation (`TAXI W` to an aircraft sitting on W5, `TAXI E RWY 28R` to one on C) and the current taxiway is added to the route automatically when it joins the first cleared taxiway directly.
 

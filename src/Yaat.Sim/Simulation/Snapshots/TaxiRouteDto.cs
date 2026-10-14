@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using Yaat.Sim.Data.Airport;
 
 namespace Yaat.Sim.Simulation.Snapshots;
@@ -85,6 +86,14 @@ public sealed class HoldShortPointDto
     /// hold-shorts.
     /// </summary>
     public bool ClearedByAutoCross { get; init; }
+
+    /// <summary>
+    /// True at a re-crossing of the runway just landed on, on a route stored during the landing rollout, which auto-cross never
+    /// clears (<see cref="HoldShortPoint.RecrossesLandingRunway"/>). Null otherwise and on older snapshots, and not written while
+    /// null, so every other bar — and every snapshot 0 — serializes as before.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? RecrossesLandingRunway { get; init; }
 
     /// <summary>
     /// Runway hold-short node the aircraft's tail hangs over while holding short of this taxiway

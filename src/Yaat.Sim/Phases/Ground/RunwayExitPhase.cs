@@ -110,6 +110,11 @@ public sealed class RunwayExitPhase : Phase
     // Latched once the turn-off is physically under way — see TurnStarted.
     private bool _turnStarted;
 
+    /// <summary>
+    /// The exit route reaches the taxi route stored behind it, so its end is rolled through, not stopped at (set when the route is built).
+    /// </summary>
+    private bool _rollsIntoStoredRoute;
+
     // The braking rate the committed exit was chosen with — see TurnOffDecelRate.
     private double? _turnOffDecelRate;
 
@@ -288,7 +293,8 @@ public sealed class RunwayExitPhase : Phase
 
     public override bool OnTick(PhaseContext ctx)
     {
-        if (ctx.Aircraft.Ground.IsImmobile)
+        // A give-way never stops the aircraft on the runway it is leaving: it waits for the taxi.
+        if (ctx.Aircraft.Ground.IsImmobile && !ctx.Aircraft.HasGiveWayPendingOnLandingRunway)
         {
             ctx.Targets.TargetSpeed = 0;
             ctx.Targets.DesiredDecelRate = CategoryPerformance.TaxiDecelRate(ctx.Category);
@@ -615,6 +621,15 @@ public sealed class RunwayExitPhase : Phase
     private void ReportNoExitAhead(PhaseContext ctx)
     {
         _reportedNoExitAhead = true;
+
+        // A taxi route stored behind the exit (a TAXI on the rollout) never starts from an exit that cannot be made: dropped, so a
+        // CROSS no longer amends it and the TAXI or EXIT the aircraft now waits for is the plan.
+        if (ctx.Aircraft.Phases is { TaxiRoute: not null } phases)
+        {
+            Log.LogInformation("[Exit] {Callsign}: no exit ahead; the stored taxi route is dropped", ctx.Aircraft.Callsign);
+            phases.ClearStoredTaxiRoute();
+        }
+
         string? exitBehind = FindExitBehind(ctx)?.Taxiway;
         string runway = RunwayIdentifier.ToDisplayDesignator(_runwayId ?? "?");
         Log.LogInformation(
@@ -1301,6 +1316,11 @@ public sealed class RunwayExitPhase : Phase
         _state = ExitState.FollowingExitPath;
         _committedPreference = ctx.Aircraft.Phases?.RequestedExit;
         ctx.Aircraft.Ground.CurrentTaxiway = _exitTaxiway;
+        _rollsIntoStoredRoute =
+            (ctx.GroundLayout is not null)
+            && (ctx.Aircraft.Phases?.TaxiRoute is { } stored)
+            && (StoredRouteJoin() is { } join)
+            && (Commands.GroundCommandHandler.JoinStoredRoute(stored, join) is not null);
 
         Log.LogDebug(
             "[Exit] {Callsign}: following exit path, {SegCount} segments on {Twy}, maxSpeed={Speed:F0}kts, path=[virtual→{Path}]",
@@ -1328,7 +1348,10 @@ public sealed class RunwayExitPhase : Phase
             _turnStarted = true;
         }
 
-        bool isLastSegment = _exitRoute.CurrentSegmentIndex + 1 >= _exitRoute.Segments.Count;
+        // A stored taxi route the exit joins: the route end is not a stop, the aircraft rolls on into the route at taxi speed.
+        // With no layout the route cannot start (TryStartStoredTaxiRoute), so the exit brakes to its end as usual.
+        bool rollsOn = _rollsIntoStoredRoute && (ctx.Aircraft.Phases?.TaxiRoute is not null) && (ctx.GroundLayout is not null);
+        bool isLastSegment = (_exitRoute.CurrentSegmentIndex + 1 >= _exitRoute.Segments.Count) && !rollsOn;
         ApplyExitDecelRate(ctx);
         NavigatorResult result = _navigator.Tick(ctx, isLastSegment, _ => true);
 
@@ -1411,16 +1434,24 @@ public sealed class RunwayExitPhase : Phase
 
     private bool CompleteExit(PhaseContext ctx)
     {
-        ctx.Aircraft.IndicatedAirspeed = 0;
-        ctx.Targets.TargetSpeed = 0;
-
         // The runway exit is done — drop the expedite flag so it doesn't bleed
         // into a subsequent taxi (which has its own EXP).
         ctx.Aircraft.Ground.IsExpeditingExit = false;
-        ctx.Aircraft.Ground.AwaitingTaxiInCall = true;
 
         // The landing's given-up exits end with its runway exit: a later runway exit of this aircraft starts with none.
         ctx.Aircraft.Phases?.GivenUpExitTaxiways.Clear();
+
+        // A taxi route stored behind the exit (a TAXI on the rollout) starts here, the aircraft rolling on into it; one the exit
+        // does not reach is dropped with the crew's "unable" and the aircraft holds clear below.
+        if ((ctx.Aircraft.Phases?.TaxiRoute is not null) && Commands.GroundCommandHandler.TryStartStoredTaxiRoute(ctx, StoredRouteJoin()))
+        {
+            Log.LogDebug("[Exit] {Callsign}: exit complete on {Twy}, rolling on into the stored taxi route", ctx.Aircraft.Callsign, _exitTaxiway);
+            return true;
+        }
+
+        ctx.Aircraft.IndicatedAirspeed = 0;
+        ctx.Targets.TargetSpeed = 0;
+        ctx.Aircraft.Ground.AwaitingTaxiInCall = true;
 
         // No position snap — the GroundNavigator already brakes to 0 at the
         // final node (FinalNodeArrivalThresholdNm ≈ 1.8ft). The aircraft is
@@ -1455,6 +1486,18 @@ public sealed class RunwayExitPhase : Phase
         );
 
         return true;
+    }
+
+    /// <summary>Where this exit ends, for joining a stored taxi route from it; null before the exit path is known.</summary>
+    private Commands.GroundCommandHandler.StoredRouteJoin? StoredRouteJoin()
+    {
+        if ((_exitPath is not { Count: >= 2 } path) || (_exitTaxiway is null))
+        {
+            return null;
+        }
+
+        string holdTaxiway = _exitRoute?.Segments[^1].TaxiwayName ?? _exitTaxiway;
+        return new Commands.GroundCommandHandler.StoredRouteJoin(_holdShortNode ?? path[^1], path[^2], holdTaxiway, _runwayId);
     }
 
     /// <summary>The exit ends at a bar inside the landing runway's holding distance (a named exit whose bar is short of it).</summary>

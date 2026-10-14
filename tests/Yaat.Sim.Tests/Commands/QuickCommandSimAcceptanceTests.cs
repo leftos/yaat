@@ -124,6 +124,14 @@ public sealed class QuickCommandSimAcceptanceTests
         Assert.True(reached > 0, $"never reached {phaseName} within {PhaseBudgetSeconds}s: {spawned.Aircraft.Phases?.CurrentPhase?.Name}");
 
         AssertAccepted(spawned.Engine.SendCommand(Arrival, "TAXIAUTO $1"), $"TAXI during {phaseName}");
+        if (phaseName != "Landing")
+        {
+            return;
+        }
+
+        // On the rollout the TAXIAUTO turns off at the first exit the aircraft can make (YAAT-334), and is ticked on into its route.
+        int started = SfoGroundHarness.TickUntil(spawned.Engine, () => spawned.Aircraft.Ground.AssignedTaxiRoute is not null, 120, null);
+        Assert.True(started > 0, $"the stored route never started: {spawned.Aircraft.Phases?.CurrentPhase?.Name}");
     }
 
     // --- Cross runway off a hold-short: CROSS for the runway to cross next, before the aircraft reaches its bar ---
@@ -165,6 +173,11 @@ public sealed class QuickCommandSimAcceptanceTests
         );
         Assert.True(reached > 0, $"never reached {phaseName} within {PhaseBudgetSeconds}s: {spawned.Aircraft.Phases?.CurrentPhase?.Name}");
         AssertAccepted(spawned.Engine.SendCommand(Arrival, "TAXIAUTO 30"), $"TAXI 30 during {phaseName}");
+        if (phaseName == "Landing")
+        {
+            // On the rollout the TAXI is stored behind its exit until the exit completes (YAAT-334); CROSS amends the stored route.
+            Assert.NotNull(spawned.Aircraft.Phases?.TaxiRoute);
+        }
 
         AssertCrossClearsTheNextCrossing(spawned.Engine, Arrival, $"during {phaseName}");
     }
@@ -508,7 +521,7 @@ public sealed class QuickCommandSimAcceptanceTests
         Assert.IsNotType<HoldingShortPhase>(aircraft.Phases?.CurrentPhase);
         engine.TickSituation();
         string runway = aircraft.Situation.NextCrossingRunway ?? throw new Xunit.Sdk.XunitException($"no runway to cross next {what}");
-        TaxiRoute route = aircraft.Ground.AssignedTaxiRoute!;
+        TaxiRoute route = aircraft.ActiveOrStoredTaxiRoute!;
         HoldShortPoint bar = route.HoldShortPoints.First(h => !h.IsCleared);
 
         AssertAccepted(engine.SendCommand(callsign, $"CROSS {runway}"), $"CROSS {runway} {what}");

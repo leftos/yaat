@@ -171,12 +171,20 @@ public sealed class LandingPhase : Phase
     private ExitPreference? _originalPreference;
     private bool _exitResolutionEnabled;
     private ExitSide? _inferredSide;
+
+    // Set while _inferredSide points toward a stored taxi route (InferSideTowardTaxiRoute), with the side it replaced.
+    private bool _sideTowardTaxiRoute;
+    private ExitSide? _sideBeforeTaxiRoute;
     private readonly HashSet<int> _unableBranchPoints = [];
     private bool _unableBroadcast;
 
     // Restored from a snapshot: the live run's _originalPreference was the very instance PhaseList.RequestedExit held, so
     // the restore shares that instance again (ShareRequestedExit). False on a phase built live.
     private bool _restoredOriginalIsRequestedExit;
+
+    // Restored from a snapshot: the live run's _activePreference was the very instance PhaseList.RequestedExit held, so the
+    // restore shares it again (ShareRequestedExit) and the handoff writes back that instance. False on a phase built live.
+    private bool _restoredActiveIsRequestedExit;
 
     /// <summary>The currently committed candidate exit chosen by the rollout planner. Null before resolution.</summary>
     public ResolvedExitInfo? CandidateExit => _candidateExit;
@@ -246,6 +254,7 @@ public sealed class LandingPhase : Phase
             ExitResolutionEnabled = _exitResolutionEnabled,
             UnableBroadcast = _unableBroadcast,
             OriginalPreferenceIsRequestedExit = (_originalPreference is not null) && ReferenceEquals(_originalPreference, requestedExit),
+            ActivePreferenceIsRequestedExit = ((_activePreference is not null) && ReferenceEquals(_activePreference, requestedExit)) ? true : null,
             StoppedForLahso = StoppedForLahso,
             CurrentStateValue = (int)CurrentState,
             TouchdownLat = _touchdownLat,
@@ -255,6 +264,8 @@ public sealed class LandingPhase : Phase
             StabilizedSinceSec = _stabilizedSinceSec,
             UnableBranchPointIds = _unableBranchPoints.Count > 0 ? [.. _unableBranchPoints] : null,
             InferredSideValue = (int?)_inferredSide,
+            SideTowardTaxiRoute = _sideTowardTaxiRoute ? true : null,
+            SideBeforeTaxiRouteValue = _sideTowardTaxiRoute ? (int?)_sideBeforeTaxiRoute : null,
             RunwayId = _plan?.RunwayId,
             FlareEntryAgl = _plan?.FlareEntryAgl,
             FlareFpm = _plan?.FlareFpm,
@@ -370,6 +381,7 @@ public sealed class LandingPhase : Phase
         phase._exitResolutionEnabled = dto.ExitResolutionEnabled;
         phase._unableBroadcast = dto.UnableBroadcast;
         phase._restoredOriginalIsRequestedExit = dto.OriginalPreferenceIsRequestedExit;
+        phase._restoredActiveIsRequestedExit = dto.ActivePreferenceIsRequestedExit == true;
         phase.StoppedForLahso = dto.StoppedForLahso;
         phase.CurrentState = (State)dto.CurrentStateValue;
         phase._touchdownLat = dto.TouchdownLat;
@@ -388,6 +400,8 @@ public sealed class LandingPhase : Phase
         {
             phase._inferredSide = (ExitSide)dto.InferredSideValue.Value;
         }
+        phase._sideTowardTaxiRoute = dto.SideTowardTaxiRoute ?? false;
+        phase._sideBeforeTaxiRoute = (ExitSide?)dto.SideBeforeTaxiRouteValue;
         if (dto.ActivePreferenceSide.HasValue || dto.ActivePreferenceTaxiway is not null)
         {
             phase._activePreference = new ExitPreference
@@ -1370,8 +1384,21 @@ public sealed class LandingPhase : Phase
     /// </summary>
     private void GiveUpNamedExit(AircraftState aircraft, string taxiway)
     {
-        aircraft.Phases?.GivenUpExitTaxiways.Add(taxiway);
+        if (aircraft.Phases is not { } phases)
+        {
+            return;
+        }
+
+        phases.GivenUpExitTaxiways.Add(taxiway);
         RelaxPreferenceToSide();
+
+        // A taxi route stored behind the exit (a TAXI on the rollout) goes with it: the aircraft exits where it can and holds clear.
+        if (phases.TaxiRoute is not null)
+        {
+            Log.LogDebug("[Landing] {Callsign}: exit {Taxiway} given up; the stored taxi route is dropped", aircraft.Callsign, taxiway);
+            phases.ClearStoredTaxiRoute();
+            DropSideTowardTaxiRoute();
+        }
     }
 
     /// <summary>True when the crew has given <paramref name="taxiway"/> up on this landing (<see cref="GiveUpNamedExit"/>).</summary>
@@ -1766,6 +1793,104 @@ public sealed class LandingPhase : Phase
     }
 
     /// <summary>
+    /// A TAXI's implied exit on the rollout: <paramref name="taxiway"/>, the TAXI's first taxiway, judged as an <c>EXIT</c> naming it
+    /// (<see cref="EvaluateAndApplyNamedExitInstruction"/>) at the firm limit, on the side whose named-exit search path reaches
+    /// <paramref name="routeNodeIds"/> (the taxi route the TAXI resolved from the runway), no side when neither does. When allowed,
+    /// the exit the rollout will brake for comes back with it. Allowed with no exit — unjudged — wherever a named exit is not judged
+    /// (<see cref="NamedExitQuery"/> null: a forced <c>CLANDF</c> rollout, no layout) and on a runway without hold-short data.
+    /// </summary>
+    public ImpliedExitVerdict EvaluateImpliedExit(AircraftState aircraft, string taxiway, IReadOnlySet<int> routeNodeIds)
+    {
+        var bare = new ExitPreference { Taxiway = taxiway };
+        if (
+            (NamedExitQuery(aircraft, bare, expedite: false) is not { } query)
+            || (query.Layout.GetRunwayHoldShortNodes(query.RwyDesignator).Count == 0)
+        )
+        {
+            return new ImpliedExitVerdict(new ExitInstructionVerdict(true, null), bare, null);
+        }
+
+        var preference = new ExitPreference { Taxiway = taxiway, Side = RouteSide(query, taxiway, routeNodeIds) };
+        ExitInstructionVerdict verdict = EvaluateAndApplyNamedExitInstruction(aircraft, preference, expedite: false);
+        ResolvedExitInfo? exit = verdict.Allowed
+            ? FindWithInferredSide(query with { SearchPref = preference, SidePref = preference.Side ?? _inferredSide })
+            : null;
+        return new ImpliedExitVerdict(verdict, preference, exit);
+    }
+
+    /// <summary>
+    /// The side whose search for <paramref name="taxiway"/>, at any braking, finds a path through one of <paramref name="routeNodeIds"/>.
+    /// </summary>
+    private static ExitSide? RouteSide(ExitCandidateQuery query, string taxiway, IReadOnlySet<int> routeNodeIds)
+    {
+        foreach (ExitSide side in ListedSides)
+        {
+            ExitCandidateQuery named = query with
+            {
+                SearchPref = new ExitPreference { Side = side, Taxiway = taxiway },
+                SidePref = side,
+                BrakingLimitForTurnOffSpeed = _ => double.PositiveInfinity,
+                IgnoreLahso = true,
+            };
+            if ((TryFindCandidate(named) is { } exit) && (exit.Side == side) && exit.Path.Skip(1).Any(n => routeNodeIds.Contains(n.Id)))
+            {
+                return side;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// The exits the rollout can make right now, nearest first, ties broken by taxiway name: each row of the exits-ahead list
+    /// (<see cref="ListExitsAhead(AircraftState)"/>) as the exit its named search finds. Null where the list is (off the rollout, a
+    /// forced rollout, no layout or hold-short data).
+    /// </summary>
+    public IReadOnlyList<ResolvedExitInfo>? MakeableExitsAhead(AircraftState aircraft)
+    {
+        if (
+            (NamedExitQuery(aircraft, new ExitPreference(), expedite: false) is not { } query)
+            || (query.Layout.GetRunwayHoldShortNodes(query.RwyDesignator).Count == 0)
+        )
+        {
+            return null;
+        }
+
+        return
+        [
+            .. ExitsAheadRows(query, aircraft.Position, (_, _) => false)
+                .OrderBy(r => r.AlongNm)
+                .ThenBy(r => r.Row.Taxiway, StringComparer.Ordinal)
+                .Select(r => ResolveCandidate(query, r.Found)),
+        ];
+    }
+
+    /// <summary>
+    /// The side the rollout's own exit pick prefers from now on: toward a stored taxi route the exit is to join. The side it had
+    /// before comes back when the route is dropped (<see cref="DropSideTowardTaxiRoute"/>).
+    /// </summary>
+    public void InferSideTowardTaxiRoute(ExitSide side)
+    {
+        if (!_sideTowardTaxiRoute)
+        {
+            _sideBeforeTaxiRoute = _inferredSide;
+            _sideTowardTaxiRoute = true;
+        }
+
+        _inferredSide = side;
+    }
+
+    /// <summary>The stored taxi route is dropped: the side <see cref="InferSideTowardTaxiRoute"/> set gives way to the one before it.</summary>
+    public void DropSideTowardTaxiRoute()
+    {
+        if (_sideTowardTaxiRoute)
+        {
+            _inferredSide = _sideBeforeTaxiRoute;
+            _sideTowardTaxiRoute = false;
+        }
+    }
+
+    /// <summary>
     /// The search a named exit instruction is judged by on the rollout (<see cref="EvaluateAndApplyNamedExitInstruction"/>), and the
     /// one the exits-ahead list repeats per taxiway and side (<see cref="ListExitsAhead(AircraftState)"/>): from the aircraft as it
     /// stands, a taxiway the crew has given up judged afresh, at <see cref="RolloutBraking.NamedExitBrakingLimit"/>. Null — nothing
@@ -1846,9 +1971,30 @@ public sealed class LandingPhase : Phase
     /// first, each side nearest first. Shared by the rollout (<see cref="ListExitsAhead(AircraftState)"/>) and the final-approach
     /// forecast (<see cref="FinalApproachExitForecast"/>).
     /// </summary>
-    internal static IReadOnlyList<ExitAheadDto> ListExitsAhead(ExitCandidateQuery query, LatLon distanceDatum, Func<string, ExitSide, bool> isPlanned)
+    internal static IReadOnlyList<ExitAheadDto> ListExitsAhead(
+        ExitCandidateQuery query,
+        LatLon distanceDatum,
+        Func<string, ExitSide, bool> isPlanned
+    ) =>
+        [
+            .. ExitsAheadRows(query, distanceDatum, isPlanned)
+                .OrderBy(r => r.Row.Side)
+                .ThenBy(r => r.AlongNm)
+                .ThenBy(r => r.Row.Taxiway, StringComparer.Ordinal)
+                .Select(r => r.Row),
+        ];
+
+    /// <summary>
+    /// The rows of <see cref="ListExitsAhead(ExitCandidateQuery, LatLon, Func{string, ExitSide, bool})"/>, unordered, each with its
+    /// unrounded distance along the runway and the connection its search found.
+    /// </summary>
+    private static List<(ExitAheadDto Row, double AlongNm, AirportGroundLayout.CenterlineExitResult Found)> ExitsAheadRows(
+        ExitCandidateQuery query,
+        LatLon distanceDatum,
+        Func<string, ExitSide, bool> isPlanned
+    )
     {
-        List<(ExitAheadDto Row, double AlongNm)> rows = [];
+        List<(ExitAheadDto Row, double AlongNm, AirportGroundLayout.CenterlineExitResult Found)> rows = [];
         HashSet<string> seededAhead = query.Layout.TaxiwaysSeededAhead(
             query.From.Position.Lat,
             query.From.Position.Lon,
@@ -1875,11 +2021,11 @@ public sealed class LandingPhase : Phase
                 }
 
                 double alongNm = GeoMath.AlongTrackDistanceNm(exit.Path[0].Position, distanceDatum, query.Plan.RunwayHeading);
-                rows.Add((new ExitAheadDto(taxiway, side, RoundToHundredFt(alongNm), isPlanned(taxiway, side)), alongNm));
+                rows.Add((new ExitAheadDto(taxiway, side, RoundToHundredFt(alongNm), isPlanned(taxiway, side)), alongNm, exit));
             }
         }
 
-        return [.. rows.OrderBy(r => r.Row.Side).ThenBy(r => r.AlongNm).ThenBy(r => r.Row.Taxiway, StringComparer.Ordinal).Select(r => r.Row)];
+        return rows;
     }
 
     /// <summary>The sides the exits-ahead list judges every taxiway on, in the order its rows come.</summary>
@@ -1973,13 +2119,26 @@ public sealed class LandingPhase : Phase
     /// instance <see cref="PhaseList.RequestedExit"/> holds when the snapshot says they were one instance in the live run
     /// (<see cref="LandingPhaseDto.OriginalPreferenceIsRequestedExit"/>): the rollout detects a new exit instruction by
     /// reference, so two restored copies would read as a new one and re-enable an exit already given up, while an equal
-    /// but separate instruction (re-issued, not yet ticked) must stay new.
+    /// but separate instruction (re-issued, not yet ticked) must stay new. The active preference (<c>_activePreference</c>) is
+    /// shared the same way (<see cref="LandingPhaseDto.ActivePreferenceIsRequestedExit"/>): the handoff writes it back as
+    /// <see cref="PhaseList.RequestedExit"/>, and the exit a rollout TAXI implied (<see cref="PhaseList.TaxiImpliedExit"/>) is
+    /// told from one the controller gave by reference.
     /// </summary>
     internal void ShareRequestedExit(ExitPreference? requestedExit)
     {
-        if (_restoredOriginalIsRequestedExit && (requestedExit is not null))
+        if (requestedExit is null)
+        {
+            return;
+        }
+
+        if (_restoredOriginalIsRequestedExit)
         {
             _originalPreference = requestedExit;
+        }
+
+        if (_restoredActiveIsRequestedExit)
+        {
+            _activePreference = requestedExit;
         }
     }
 
@@ -2304,13 +2463,12 @@ public sealed class LandingPhase : Phase
     /// the search runs again with that connection's hold-short excluded, so a later connection of the same taxiway ahead is
     /// still judged — at most <see cref="MaxPassedConnectionSearches"/> runs.
     /// </summary>
-    private static ResolvedExitInfo? TryFindCandidate(ExitCandidateQuery query)
-    {
-        if (FindCenterlineCandidate(query) is not { } found)
-        {
-            return null;
-        }
+    private static ResolvedExitInfo? TryFindCandidate(ExitCandidateQuery query) =>
+        FindCenterlineCandidate(query) is { } found ? ResolveCandidate(query, found) : null;
 
+    /// <summary>The exit <paramref name="found"/> stands for, its turn-off speed and braking taken from <paramref name="query"/>.</summary>
+    private static ResolvedExitInfo ResolveCandidate(ExitCandidateQuery query, AirportGroundLayout.CenterlineExitResult found)
+    {
         GroundNode branch = found.Path[0];
         double turnOff = CategoryPerformance.ExitTurnOffSpeed(query.Category, found.ExitAngle);
         return new ResolvedExitInfo
@@ -2500,13 +2658,13 @@ public sealed class LandingPhase : Phase
             CanonicalCommandType.ExitLeft => CommandAcceptance.Allowed,
             CanonicalCommandType.ExitRight => CommandAcceptance.Allowed,
             CanonicalCommandType.ExitTaxiway => CommandAcceptance.Allowed,
+            CanonicalCommandType.Taxi => CommandAcceptance.Allowed,
+            CanonicalCommandType.TaxiAuto => CommandAcceptance.Allowed,
             CanonicalCommandType.Delete => CommandAcceptance.ClearsPhase,
             CanonicalCommandType.GoAround => _canGoAround
                 ? CommandAcceptance.Allowed
                 : CommandAcceptance.Rejected("aircraft is below the go-around speed gate after touchdown; GA is no longer available"),
-            _ => CommandAcceptance.Rejected(
-                "aircraft is rolling out after touchdown; only EL/ER/EXIT or DEL apply (issue TAXI after the runway exit)"
-            ),
+            _ => CommandAcceptance.Rejected("aircraft is rolling out after touchdown; only EL/ER/EXIT, TAXI or DEL apply"),
         };
     }
 }

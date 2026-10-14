@@ -124,7 +124,9 @@ public static class RunwaySafetyAdvisor
     /// coordinated operations, 3-10-5.b "traffic crossing downfield") and does — its
     /// <see cref="AircraftGroundState.IsImmobile"/> is false. Occupants the phase-based branches
     /// already count (line-up family awaiting takeoff clearance, <see cref="HoldingInPositionPhase"/>)
-    /// are excluded so a held LUAW aircraft draws one warning, not two.
+    /// are excluded so a held LUAW aircraft draws one warning, not two. A <c>GIVEWAY</c> still pending on an arrival's landing
+    /// rollout or exit (<see cref="AircraftState.HasGiveWayPendingOnLandingRunway"/>) does not stop it, so that arrival is landed
+    /// traffic (<see cref="WarnIfLandedTrafficBlocksTakeoff"/>), not stopped traffic.
     /// </summary>
     private static void WarnIfStoppedTrafficOnRunway(AircraftState aircraft, RunwayInfo runway, DispatchContext ctx, bool forTakeoff)
     {
@@ -132,6 +134,7 @@ public static class RunwaySafetyAdvisor
             .Where(other =>
                 (!ReferenceEquals(other, aircraft))
                 && other.Ground.IsImmobile
+                && (!other.HasGiveWayPendingOnLandingRunway)
                 && RunwayOccupancy.IsOnPavement(other, runway)
                 && (!AwaitsTakeoffClearanceOnRunway(other))
                 && other.Phases?.CurrentPhase is not HoldingInPositionPhase
@@ -258,7 +261,8 @@ public static class RunwaySafetyAdvisor
     /// that is 3-9-5 anticipated compliance with 3-9-6.b. Occupants the sibling branches already name are
     /// excluded so each draws one advisory: line-up-family occupants (awaiting or holding a takeoff
     /// clearance — the latter is 3-9-5 anticipated separation and stays silent), traffic frozen by a hold
-    /// directive (<see cref="WarnIfStoppedTrafficOnRunway"/>), and shadows
+    /// directive (<see cref="WarnIfStoppedTrafficOnRunway"/>) other than a give-way still pending on the landing rollout or exit,
+    /// which never stops the arrival, and shadows
     /// (<see cref="WarnIfLiveTrafficBlocksTakeoff"/>). A departure already rolling is 3-9-5 anticipated
     /// compliance with 3-9-6.a and stays silent.
     /// </summary>
@@ -268,7 +272,7 @@ public static class RunwaySafetyAdvisor
             .Where(other =>
                 (!ReferenceEquals(other, aircraft))
                 && (!other.IsShadow)
-                && (!other.Ground.IsImmobile)
+                && ((!other.Ground.IsImmobile) || other.HasGiveWayPendingOnLandingRunway)
                 && (!AwaitsTakeoffClearanceOnRunway(other))
                 && other.Phases?.CurrentPhase is not (LineUpPhase or LinedUpAndWaitingPhase or HoldingInPositionPhase)
             )

@@ -446,7 +446,8 @@ public static class AircraftCommandApplicability
     /// Give way to another ground aircraft (<c>GW</c>), which needs an assigned taxi route: offered while taxiing and
     /// holding in position, and in the after-exit and after-pushback holds only while the aircraft has an active taxi
     /// route, since an aircraft resting after a runway exit or a push may have none. Never at parking, which has no
-    /// route; and, as with <see cref="CanFollowBehind"/>, not while the relative items replace it.
+    /// route; and, as with <see cref="CanFollowBehind"/>, not while the relative items replace it. On the landing rollout and
+    /// the runway exit it is offered once a TAXI stored a route behind the exit (<see cref="IMenuAircraft.HasStoredTaxiRoute"/>).
     /// </summary>
     public static bool CanGiveWayTo(IMenuAircraft? ac, MenuContext context)
     {
@@ -457,7 +458,8 @@ public static class AircraftCommandApplicability
 
         string phase = ac.CurrentPhase;
         return (phase is "Taxiing" or "Holding In Position")
-            || ((phase is "Holding After Exit" or "Holding After Pushback") && ac.HasActiveTaxiRoute);
+            || ((phase is "Holding After Exit" or "Holding After Pushback") && ac.HasActiveTaxiRoute)
+            || ac.HasStoredTaxiRoute;
     }
 
     // --- Ground routing ---
@@ -604,8 +606,11 @@ public static class AircraftCommandApplicability
     public static bool ShowsApproachClearanceUntilCleared(IMenuAircraft? ac) =>
         ac is not null && !ac.SituationFlags.HasFlag(SituationFlags.ApproachClearedForDescent);
 
-    /// <summary>Give way shows only with a taxi route, which the sim needs before it accepts <c>GW</c>.</summary>
-    public static bool ShowsGiveWay(IMenuAircraft? ac) => ac is { HasActiveTaxiRoute: true };
+    /// <summary>
+    /// Give way shows only with a taxi route, which the sim needs before it accepts <c>GW</c>: an active one, or one a TAXI on the
+    /// landing rollout stored behind the runway exit.
+    /// </summary>
+    public static bool ShowsGiveWay(IMenuAircraft? ac) => ac is { HasActiveTaxiRoute: true } or { HasStoredTaxiRoute: true };
 
     /// <summary>Cleared to land hides on final once a landing clearance is on the aircraft.</summary>
     public static bool ShowsClearedToLandOnFinal(IMenuAircraft? ac) =>

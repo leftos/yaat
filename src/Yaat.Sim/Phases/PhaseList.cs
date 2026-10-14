@@ -148,9 +148,26 @@ public sealed class PhaseList
     public RunwayInfo? AssignedRunway { get; set; }
 
     /// <summary>
-    /// Taxi route persisted across phase transitions (set once, consumed by ground phases).
+    /// The taxi route a TAXI sent on the landing rollout stores behind the rollout's exit: set when the TAXI is accepted, started
+    /// (and cleared) when the runway exit completes (<c>GroundCommandHandler.TryStartStoredTaxiRoute</c>), dropped when the exit is
+    /// given up or another exit is instructed. Null otherwise; the active route is <see cref="AircraftGroundOps.AssignedTaxiRoute"/>.
     /// </summary>
     public TaxiRoute? TaxiRoute { get; set; }
+
+    /// <summary>
+    /// The destination runway the TAXI that stored <see cref="TaxiRoute"/> named, assigned when the route starts in preference to the
+    /// runway its last bar detects; set and cleared with <see cref="TaxiRoute"/>, null for a TAXI naming none.
+    /// </summary>
+    public string? StoredTaxiDestinationRunway { get; set; }
+
+    /// <summary>
+    /// Drops the stored taxi route and its destination runway (<see cref="TaxiRoute"/>, <see cref="StoredTaxiDestinationRunway"/>).
+    /// </summary>
+    public void ClearStoredTaxiRoute()
+    {
+        TaxiRoute = null;
+        StoredTaxiDestinationRunway = null;
+    }
 
     /// <summary>
     /// Pre-issued departure clearance (LUAW or CTO) during taxi.
@@ -251,6 +268,12 @@ public sealed class PhaseList
     /// the controller can issue the command during approach or rollout.
     /// </summary>
     public ExitPreference? RequestedExit { get; set; }
+
+    /// <summary>
+    /// The exit a TAXI on the landing rollout implied and instructed: while <see cref="RequestedExit"/> is this very instance, a
+    /// go-around drops it with the stored route, and an exit instruction the controller gave on its own (another instance) stays.
+    /// </summary>
+    public ExitPreference? TaxiImpliedExit { get; set; }
 
     /// <summary>
     /// Active approach clearance. Set by JFAC/CAPP/JAPP/PTAC commands.
@@ -459,6 +482,16 @@ public sealed class PhaseList
             list.GivenUpExitTaxiways.UnionWith(dto.GivenUpExitTaxiways);
         }
 
+        list.StoredTaxiDestinationRunway = list.TaxiRoute is not null ? dto.StoredTaxiDestinationRunway : null;
+        list.TaxiImpliedExit = (dto.RequestedExitIsTaxiImplied == true) ? list.RequestedExit : null;
+        if ((dto.TaxiRoute is not null) && (list.TaxiRoute is null))
+        {
+            Log.LogInformation(
+                "[PhaseList] stored taxi route dropped on restore: {Reason}",
+                groundLayout is null ? "no ground layout" : "its nodes are not in the layout"
+            );
+        }
+
         foreach (PhaseDto phaseDto in dto.Phases)
         {
             Phase phase = RestorePhase(phaseDto, groundLayout);
@@ -598,6 +631,8 @@ public sealed class PhaseList
             ActiveApproach = ActiveApproach?.ToSnapshot(),
             LahsoHoldShort = LahsoHoldShort?.ToSnapshot(),
             GivenUpExitTaxiways = (GivenUpExitTaxiways.Count > 0) ? [.. GivenUpExitTaxiways.Order(StringComparer.OrdinalIgnoreCase)] : null,
+            StoredTaxiDestinationRunway = StoredTaxiDestinationRunway,
+            RequestedExitIsTaxiImplied = ((TaxiImpliedExit is not null) && ReferenceEquals(TaxiImpliedExit, RequestedExit)) ? true : null,
             CurrentIndex = CurrentIndex,
             Phases = [.. Phases.Select(p => p is LandingPhase landing ? landing.ToSnapshot(RequestedExit) : p.ToSnapshot())],
         };

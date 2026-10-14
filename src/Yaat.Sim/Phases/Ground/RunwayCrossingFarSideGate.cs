@@ -442,8 +442,10 @@ internal static class RunwayCrossingFarSideGate
     private static double? KnownStopAheadFt(Judge judge, AircraftState other)
     {
         PhaseContext ctx = judge.Ctx;
+        // A give-way given on the landing rollout sets no stop until the aircraft is off its landing runway and taxiing.
         if (
-            (other.Ground.Hold is { Kind: HoldKind.GiveWay, YieldTarget: { } yieldTarget })
+            (!other.HasGiveWayPendingOnLandingRunway)
+            && (other.Ground.Hold is { Kind: HoldKind.GiveWay, YieldTarget: { } yieldTarget })
             && (ctx.AircraftLookup?.Invoke(yieldTarget) is { } target)
             && (GroundConflictDetector.GiveWayStop(other, target, out _) is { } giveWay)
         )

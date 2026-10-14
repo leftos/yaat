@@ -1785,6 +1785,12 @@ public static class FlightPhysics
             return;
         }
 
+        // Still on the landing runway: the give-way is judged (and ages) only once the aircraft taxis.
+        if (aircraft.HasGiveWayPendingOnLandingRunway)
+        {
+            return;
+        }
+
         aircraft.Ground.HoldElapsedSeconds += deltaSeconds;
 
         if (aircraftLookup is null)

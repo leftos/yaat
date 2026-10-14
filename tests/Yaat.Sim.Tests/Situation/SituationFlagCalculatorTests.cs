@@ -768,11 +768,12 @@ public class SituationFlagCalculatorTests
     }
 
     /// <summary>
-    /// A 28R arrival on the rollout given a taxi to runway 30: the route's first bar, the landing runway's own, is cleared to
-    /// leave it. Leaving the runway the aircraft is on is not crossing another, so the runway after it is named.
+    /// A 28R arrival on the rollout given a taxi to runway 30: the TAXI stores its route behind the rollout's exit, and the controller
+    /// sees that route from the moment it is accepted. The route starts at the exit's hold-short, so leaving the runway the
+    /// aircraft is on is no crossing on it, and the runway named is the stored route's first uncleared crossing.
     /// </summary>
     [Fact]
-    public void NextCrossing_OnTheRolloutPastTheLandingRunwaysOwnClearedBar_NamesTheNextRunway()
+    public void NextCrossing_OnTheRolloutWithAStoredRoute_NamesItsFirstUnclearedCrossing()
     {
         if (RollingOut() is not { } rollout)
         {
@@ -782,18 +783,19 @@ public class SituationFlagCalculatorTests
         CommandResult result = rollout.Engine.SendCommand(AiTestFixture.Callsign, "TAXIAUTO 30");
         Assert.True(result.Success, result.Message);
         AircraftState ac = rollout.Aircraft;
-        TaxiRoute route = ac.Ground.AssignedTaxiRoute!;
+        Assert.IsType<LandingPhase>(ac.Phases?.CurrentPhase);
+        Assert.Null(ac.Ground.AssignedTaxiRoute);
+        TaxiRoute route = ac.Phases!.TaxiRoute ?? throw new Xunit.Sdk.XunitException("no taxi route stored on the phase list");
         List<HoldShortPoint> bars =
         [
             .. route.Segments.Skip(route.CurrentSegmentIndex).Select(s => route.GetHoldShortAt(s.ToNodeId)).OfType<HoldShortPoint>(),
         ];
         string dump = string.Join(", ", bars.Select(b => $"{b.Reason} {b.TargetName} cleared={b.IsCleared}"));
-        Assert.True(bars is [{ IsCleared: true, TargetName: { } own }, ..] && RunwayIdentifier.Parse(own).Contains("28R"), dump);
         HoldShortPoint next = bars.First(b => !b.IsCleared);
 
         string? runway = NextCrossing(rollout.Engine, ac, AircraftSituation.RolloutExit);
 
-        Assert.NotNull(runway);
+        Assert.True(runway is not null, $"no next crossing on the rollout: {dump}");
         Assert.True(RunwayIdentifier.Parse(next.TargetName!).Contains(runway), $"{runway} is not an end of {next.TargetName}: {dump}");
     }
 
@@ -864,7 +866,7 @@ public class SituationFlagCalculatorTests
     [InlineData("Holding In Position", AircraftSituation.HoldingOnGround)]
     public void NextCrossing_OnItsOwnAssignedRunway_NamesTheNextRunway(string phaseName, AircraftSituation situation)
     {
-        if (RolloutTaxiingTo30() is not { } rollout)
+        if (OnOwnRunwayTaxiingTo30(phaseName) is not { } rollout)
         {
             return;
         }
@@ -926,14 +928,20 @@ public class SituationFlagCalculatorTests
         Assert.Null(NextCrossing(taxi.Engine, ac, AircraftSituation.HoldingOnGround));
     }
 
-    /// <summary>The 28R rollout given a taxi to runway 30, which crosses a runway after 28R's own cleared bar.</summary>
-    private Rollout? RolloutTaxiingTo30()
+    /// <summary>
+    /// The 28R arrival, out of its rollout and staged in <paramref name="phaseName"/> on 28R at taxi speed, given a taxi to runway
+    /// 30: the TAXI routes it from 28R's centerline, so the active route starts on 28R and crosses a runway after 28R's own bar.
+    /// </summary>
+    private Rollout? OnOwnRunwayTaxiingTo30(string phaseName)
     {
         if (RollingOut() is not { } rollout)
         {
             return null;
         }
 
+        AircraftState ac = rollout.Aircraft;
+        Restage(ac, OwnRunwayPhase(phaseName), ac.Phases!.AssignedRunway!);
+        ac.IndicatedAirspeed = 20;
         CommandResult result = rollout.Engine.SendCommand(AiTestFixture.Callsign, "TAXIAUTO 30");
         Assert.True(result.Success, result.Message);
         return rollout;
@@ -960,7 +968,10 @@ public class SituationFlagCalculatorTests
     private static RunwayInfo OakRunwayOf(string target) =>
         NavigationDatabase.Instance.GetRunways("OAK").First(r => r.Id.Overlaps(RunwayIdentifier.Parse(target)));
 
-    /// <summary>An explicit hold-short of the assigned runway with no departure bar after it is an intersection departure, not a crossing: null.</summary>
+    /// <summary>
+    /// An explicit hold-short of the assigned runway with no departure bar after it is an intersection departure, not a crossing:
+    /// null.
+    /// </summary>
     [Fact]
     public void NextCrossing_IntersectionDepartureHoldShort_IsNull()
     {

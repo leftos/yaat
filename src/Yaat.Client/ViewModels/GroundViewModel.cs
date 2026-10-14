@@ -2970,7 +2970,7 @@ public partial class GroundViewModel : ObservableObject
         }
 
         AircraftModel? ac = _findAircraft?.Invoke(callsign);
-        return ac is not null && ac.HasActiveTaxiRoute;
+        return (ac is not null) && (ac.HasActiveTaxiRoute || ac.HasStoredTaxiRoute);
     }
 
     /// <summary>The explicit per-aircraft taxi-route override, or <see cref="TaxiRouteDisplayMode.Follow"/> when none is set.</summary>
@@ -3076,7 +3076,7 @@ public partial class GroundViewModel : ObservableObject
             _shownTaxiRouteCallsigns,
             _taxiRouteHiddenCallsigns,
             ShowAllTaxiRoutes,
-            [.. all.Select(ac => (ac.Callsign, ac.HasActiveTaxiRoute))]
+            [.. all.Select(ac => (ac.Callsign, ac.HasActiveTaxiRoute || ac.HasStoredTaxiRoute))]
         );
 
         AllocateRouteColors(effective);
