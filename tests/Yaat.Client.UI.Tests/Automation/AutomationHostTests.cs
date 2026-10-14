@@ -279,6 +279,51 @@ public sealed class AutomationHostTests : AutomationHostFixture
     }
 
     [AvaloniaFact]
+    public async Task Dispose_RefusesNewConnections_WhileARequestIsInFlight()
+    {
+        AutomationHost? host = null;
+        Exception? connectAfterDispose = null;
+        bool held = false;
+        host = StartHost(() =>
+        {
+            if (!held)
+            {
+                held = true;
+                host!.Dispose();
+                connectAfterDispose = Record.Exception(() =>
+                    Task.Run(async () =>
+                        {
+                            await using AutomationPipeTestClient late = await AutomationPipeTestClient.ConnectAsync(
+                                PipeName,
+                                TimeSpan.FromMilliseconds(300)
+                            );
+                        })
+                        .GetAwaiter()
+                        .GetResult()
+                );
+            }
+
+            return [];
+        });
+        await using AutomationPipeTestClient client = await Connect();
+
+        await client.WriteLineAsync($$"""{"id":"1","method":"{{ProtocolMethods.ListWindows}}"}""");
+        string? line;
+        try
+        {
+            line = await client.ReadLineAsync();
+        }
+        catch (IOException)
+        {
+            line = null;
+        }
+
+        Assert.True(held);
+        Assert.Null(line);
+        Assert.IsType<TimeoutException>(connectAfterDispose);
+    }
+
+    [AvaloniaFact]
     public async Task Pipe_IsRestrictedToCurrentUser()
     {
         if (!OperatingSystem.IsWindows())

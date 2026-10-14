@@ -19,6 +19,13 @@ public sealed class NamedPipeTransport(string pipeName) : IDisposable
     // Cancelled on dispose, never disposed: connection tasks may still observe its token after the listen loop ends,
     // and a source with no timer or wait handle holds nothing to free.
     private readonly CancellationTokenSource _cts = new();
+
+    // Every server instance not yet disposed, the pending one and the connected ones. On Unix all instances of a pipe
+    // name share one listening socket, which stays connectable until the last instance is disposed, so Dispose closes
+    // them all itself rather than leaving them to the listen loop and the connection tasks.
+    private readonly Lock _instancesLock = new();
+    private readonly HashSet<NamedPipeServerStream> _instances = [];
+    private bool _stopped;
     private int _started;
 
     /// <summary>
@@ -49,6 +56,10 @@ public sealed class NamedPipeTransport(string pipeName) : IDisposable
         {
             Log.LogDebug("Automation pipe {PipeName} stopped listening: host shutdown", pipeName);
         }
+        catch (Exception ex) when (IsShutdownClose(ex, ct))
+        {
+            Log.LogDebug(ex, "Automation pipe {PipeName} stopped listening: host shutdown closed the pending instance", pipeName);
+        }
         catch (Exception ex)
         {
             Log.LogError(ex, "Automation pipe {PipeName} stopped listening: a server instance could not be created or accepted", pipeName);
@@ -57,13 +68,7 @@ public sealed class NamedPipeTransport(string pipeName) : IDisposable
 
     private async Task AcceptOne(Func<Stream, CancellationToken, Task> connectionHandler, CancellationToken ct)
     {
-        var pipe = new NamedPipeServerStream(
-            pipeName,
-            PipeDirection.InOut,
-            NamedPipeServerStream.MaxAllowedServerInstances,
-            PipeTransmissionMode.Byte,
-            PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly
-        );
+        NamedPipeServerStream pipe = CreateInstance(ct);
 
         bool handedOff = false;
         try
@@ -81,8 +86,40 @@ public sealed class NamedPipeTransport(string pipeName) : IDisposable
         {
             if (!handedOff)
             {
-                await pipe.DisposeAsync().ConfigureAwait(false);
+                await ReleaseAsync(pipe).ConfigureAwait(false);
             }
+        }
+    }
+
+    /// <summary>A new server instance, tracked until it is released; none once the transport is disposed.</summary>
+    private NamedPipeServerStream CreateInstance(CancellationToken ct)
+    {
+        lock (_instancesLock)
+        {
+            if (_stopped)
+            {
+                throw new OperationCanceledException($"Automation pipe {pipeName} is disposed; no new server instance is created.", ct);
+            }
+
+            var pipe = new NamedPipeServerStream(
+                pipeName,
+                PipeDirection.InOut,
+                NamedPipeServerStream.MaxAllowedServerInstances,
+                PipeTransmissionMode.Byte,
+                PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly
+            );
+            _instances.Add(pipe);
+            return pipe;
+        }
+    }
+
+    /// <summary>Disposes <paramref name="pipe"/>, then stops tracking it, so a tracked instance is always one still open or being closed.</summary>
+    private async ValueTask ReleaseAsync(NamedPipeServerStream pipe)
+    {
+        await pipe.DisposeAsync().ConfigureAwait(false);
+        lock (_instancesLock)
+        {
+            _instances.Remove(pipe);
         }
     }
 
@@ -90,14 +127,22 @@ public sealed class NamedPipeTransport(string pipeName) : IDisposable
     {
         try
         {
-            await using (pipe)
+            try
             {
                 await handler(pipe, ct).ConfigureAwait(false);
+            }
+            finally
+            {
+                await ReleaseAsync(pipe).ConfigureAwait(false);
             }
         }
         catch (OperationCanceledException)
         {
             Log.LogDebug("Automation pipe {PipeName}: connection closed by host shutdown", pipeName);
+        }
+        catch (Exception ex) when (IsShutdownClose(ex, ct))
+        {
+            Log.LogDebug(ex, "Automation pipe {PipeName}: connection closed by host shutdown", pipeName);
         }
         catch (IOException ex)
         {
@@ -109,6 +154,42 @@ public sealed class NamedPipeTransport(string pipeName) : IDisposable
         }
     }
 
-    /// <summary>Stops accepting clients and closes every open connection.</summary>
-    public void Dispose() => _cts.Cancel();
+    /// <summary>What an instance raises when <see cref="Dispose"/> closes it under a pending accept, read or write.</summary>
+    private static bool IsShutdownClose(Exception ex, CancellationToken ct) =>
+        ct.IsCancellationRequested && (ex is ObjectDisposedException or IOException);
+
+    /// <summary>
+    /// Stops accepting clients and closes every open connection. Every server instance is disposed before this returns, so
+    /// a client connecting afterwards finds no pipe. Calling it again does nothing.
+    /// </summary>
+    public void Dispose()
+    {
+        _cts.Cancel();
+
+        List<NamedPipeServerStream> open;
+        lock (_instancesLock)
+        {
+            if (_stopped)
+            {
+                return;
+            }
+
+            _stopped = true;
+            open = [.. _instances];
+        }
+
+        foreach (NamedPipeServerStream pipe in open)
+        {
+            try
+            {
+                pipe.Dispose();
+            }
+            catch (Exception ex)
+            {
+                Log.LogError(ex, "Automation pipe {PipeName}: closing a server instance on dispose failed", pipeName);
+            }
+        }
+
+        Log.LogDebug("Automation pipe {PipeName}: closed {Count} server instance(s) on dispose", pipeName, open.Count);
+    }
 }

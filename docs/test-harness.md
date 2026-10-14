@@ -215,6 +215,8 @@ CI runs on `ubuntu-latest` (`.github/workflows/ci.yml`). A test can pass on Wind
 
 Both set `YAAT_APPDATA_DIR` to a fresh directory, so NavData resolves to the committed `TestData/NavData.dat` as on CI rather than to a newer user cache (CIFP downloads, as on CI). Use either for a Linux-only CI red, and to check a change to numeric code with a zero or tie boundary (a stop distance, a sign test, a sort key that can tie) before it lands.
 
+Loop a Linux-only failure alone as well as inside its class: a race that is lost only on a cold code path passes once its classmates have warmed it (YAAT-662's pipe-dispose test was red 44 of 48 alone and 0 of 50 in its class). Give each concurrent run its own temp and app-data directories (`TMPDIR`, `XDG_DATA_HOME`, `XDG_CONFIG_HOME`, `DOTNET_CLI_HOME`): runs sharing one crashed at startup with `Internal CLR error`. Run the Windows-built test DLL directly, as above; `dotnet test` from WSL against a Windows checkout fails MSBuild evaluation.
+
 ## The `xunit.runner.json` Content-copy gotcha
 
 `xunit.runner.json` only takes effect if it sits **next to the test DLL in `bin/`**. xUnit does not read it from the source tree. Each

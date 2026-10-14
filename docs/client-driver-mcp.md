@@ -109,6 +109,8 @@ Driving YAAT never steals focus or jumps to the foreground while the user works:
 
 - **An automation endpoint inside the client, local only.** With `YAAT_AUTOMATION=1` (one switch; `launch_yaat` always sets it) the client (`src/Yaat.Client/Automation/`) hosts the named pipe `yaat-automation-<pid>`, restricted to the current user, with a discovery file per PID (`%TEMP%/yaat-automation/<pid>.json`), on Zafiro.Avalonia.Mcp's line-delimited `{id, method, params}` protocol with coded errors and recovery hints.
 
+  On Unix every `NamedPipeServerStream` instance of one pipe name shares a single listening socket, which stays connectable until the last instance (pending or connected) is disposed. So `NamedPipeTransport.Dispose` (`src/Yaat.Client/Automation/Transport/NamedPipeTransport.cs`) tracks every instance and disposes them all before it returns; cancelling the accept loop alone leaves the socket open, and a client can still connect after the host is gone.
+
   Its methods: `ping`, `list_windows`, `get_tree`, `click`, `click_point`, `hover`, `drag`, `send_keys`, `set_text`, `focus`, `screenshot` (`RenderTargetBitmap`), `wait_for`, `wait_until`, `queue_file_pick`, `list_app_tools`, `call_app_tool` and `get_sim_time` (`{simSeconds, isPaused, simRate}` from `IAutomationState`; `UNSUPPORTED_OPERATION` until the main window is up), all raised on the UI thread.
 
   Of these, `wait_until` reads the simulation through `IAutomationState`, `MainViewModelAutomationState` over the main view model, and runs its `then` actions off the UI thread.
