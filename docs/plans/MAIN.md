@@ -10,7 +10,7 @@
 ## Do first
 
 - [ ] YAAT-640 Vary live winds aloft across the airspace from a NOAA GFS grid · release vNext — High · Bug reports and feature requests
-- [ ] YAAT-672 GFS winds part 2: sample wind by position for airborne aircraft · release vNext — High · Bug reports and feature requests
+- [/] YAAT-672 GFS winds part 2: sample wind by position for airborne aircraft · release vNext — High · Bug reports and feature requests
 - [ ] YAAT-673 GFS winds part 3: fetch the grid in the client and record it once by hash · release vNext — High · Bug reports and feature requests
 - [ ] YAAT-674 GFS winds part 4: show the grid source in the weather status and document it · release vNext — High · Bug reports and feature requests
 
@@ -115,7 +115,6 @@
 - [ ] YAAT-490 Add A388 and DH8D performance profiles so the speed picker offers their real speeds
 - [ ] YAAT-510 Rolling re-route back through a bar it faces away from falls back to the wide turn-about arc
 - [ ] YAAT-513 Fly the acute runway turn-off onto J along its fillet, and bound exit-test turn rate
-- [/] YAAT-532 AI Ground never pushes an aircraft parked at a push-back stand; it taxis it forward · release vNext
 - [ ] YAAT-578 Warn when a plain `PUSH {taxiway}` path fouls a parked neighbour · release vNext
 - [ ] YAAT-583 Restore the junction target when a hold short ahead is cleared mid-taxi
 - [ ] YAAT-606 Clear the runway hold line with margin when a widebody vacates (RunwayExitPhase stop point)
