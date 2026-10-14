@@ -22,6 +22,7 @@ public static class WindInterpolator
     private const double InvGammaRatio = 1.0 / GammaRatio; // 2/7
     private const double TropopauseM = 11_000.0; // Tropopause altitude (m)
     private const double TropopauseK = 216.65; // Tropopause temperature (K)
+    private const double SeaLevelPressureHpa = 1013.25; // ISA sea-level pressure P₀ (hPa)
     private static readonly double A0 = Math.Sqrt(Gamma * RGas * T0); // Sea-level speed of sound (~340.294 m/s)
     private static readonly double DeltaTropopause = Math.Pow(TropopauseK / T0, GOverLR); // ~0.22336
 
@@ -272,6 +273,32 @@ public static class WindInterpolator
 
         double stratDelta = DeltaTropopause * Math.Exp(-G * (h - TropopauseM) / (RGas * TropopauseK));
         return (TropopauseK, stratDelta);
+    }
+
+    /// <summary>
+    /// ISA pressure altitude in feet for a static pressure: the inverse of the pressure ratio <see cref="GetAtmosphere"/>
+    /// gives, with the standard lapse rate up to the tropopause (36,089 ft) and an isothermal stratosphere above.
+    /// 500 hPa ≈ 18,289 ft.
+    /// </summary>
+    /// <param name="pressureHpa">Static pressure in hectopascals.</param>
+    /// <returns>The altitude in feet at which the ISA pressure equals <paramref name="pressureHpa"/>.</returns>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="pressureHpa"/> is zero, negative or NaN.</exception>
+    public static double PressureToIsaAltitudeFt(double pressureHpa)
+    {
+        if (!(pressureHpa > 0))
+        {
+            throw new ArgumentOutOfRangeException(nameof(pressureHpa), pressureHpa, "Pressure must be a positive number of hectopascals");
+        }
+
+        double delta = pressureHpa / SeaLevelPressureHpa;
+        if (delta >= DeltaTropopause)
+        {
+            double tempK = T0 * Math.Pow(delta, 1.0 / GOverLR);
+            return (T0 - tempK) / LapseRate / FtToM;
+        }
+
+        double h = TropopauseM - (Math.Log(delta / DeltaTropopause) * RGas * TropopauseK / G);
+        return h / FtToM;
     }
 
     /// <summary>

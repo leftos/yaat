@@ -551,6 +551,28 @@ public class WindInterpolatorTests
     }
 
     // -------------------------------------------------------------------------
+    // PressureToIsaAltitudeFt
+    // -------------------------------------------------------------------------
+
+    [Theory]
+    [InlineData(5_000.0)]
+    [InlineData(30_000.0)]
+    [InlineData(45_000.0)]
+    public void PressureToIsaAltitudeFt_RoundTripsGetAtmosphere(double altitudeFt)
+    {
+        (double _, double delta) = WindInterpolator.GetAtmosphere(altitudeFt);
+
+        Assert.Equal(altitudeFt, WindInterpolator.PressureToIsaAltitudeFt(delta * 1013.25), 0.01);
+    }
+
+    [Theory]
+    [InlineData(0.0)]
+    [InlineData(-1.0)]
+    [InlineData(double.NaN)]
+    public void PressureToIsaAltitudeFt_NonPositivePressure_Throws(double pressureHpa) =>
+        Assert.Throws<ArgumentOutOfRangeException>(() => WindInterpolator.PressureToIsaAltitudeFt(pressureHpa));
+
+    // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------
 

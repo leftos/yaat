@@ -1,7 +1,7 @@
 # Weather Parsing, Wind Interpolation, and Magnetic Declination
 
 > Read this before touching `WeatherProfile`, `WeatherTimeline`, `MetarParser`, `WindsAloftParser`, `WindInterpolator`,
-> `MetarInterpolator`, `MagneticDeclination`, `LiveWeatherService`, or the wind/declination consumers in `FlightPhysics`.
+> `MetarInterpolator`, `MagneticDeclination`, `LiveWeatherService`, `Grib2Reader`, `GriddedWindField`, or the wind/declination consumers in `FlightPhysics`.
 > Four direction conventions and three independent interpolation algorithms coexist here and are never co-located in code —
 > mixing them silently produces ~15-20° heading/wind errors.
 
@@ -170,11 +170,11 @@ decomposition for direction; the **spatial** axis does not interpolate direction
 
 ### (a) Altitude, within one profile — `WindInterpolator.GetWindAt`
 
-`GetWindAt(profile, altitudeFt)` (`WindInterpolator.cs:34`) returns a `WindAtAltitude(DirectionDeg, SpeedKts)`:
+`GetWindAt` (`WindInterpolator.cs:40`) returns a `WindAtAltitude(DirectionDeg, SpeedKts)`:
 
 - Null/empty profile → zero wind.
 - Below the lowest layer or above the highest → **clamped** to the nearest layer (no extrapolation).
-- Between layers: linear `t`, then **direction is decomposed into unit N/E components and lerped**, so the `350°↔010°` wraparound is handled correctly (`WindInterpolator.cs:63-72`). Speed lerps linearly.
+- Between layers: linear `t`, then **direction is decomposed into unit N/E components and lerped**, so the `350°↔010°` wraparound is handled correctly (`InterpolateMean`). Speed lerps linearly.
 - `DirectionDeg` inherits the layer convention: **wind FROM, MAGNETIC** (the layers are magnetic).
 - `GetMeanWindAt(profile, altitudeFt)` is the same interpolation with no `WindVariation` (gusts and direction swing) applied; the two share the private `Bracket`/`InterpolateMean` helpers. ERAM `UR` reads it and converts the direction to true at the requested location.
 
@@ -203,12 +203,24 @@ Inside a transition window (`WeatherTimeline.cs:70-87`), with `t` = fraction thr
 
 `WindInterpolator` carries the ISA standard-atmosphere model used for airspeed conversion:
 
-- **`GetAtmosphere(altitudeFt)`** (`WindInterpolator.cs:164`) returns ISA temperature (K) and pressure ratio δ = P/P₀, splitting at the tropopause (`TropopauseM = 11,000 m`, i.e. ~36,089 ft): troposphere uses the standard lapse rate, stratosphere is isothermal.
+- **`GetAtmosphere(altitudeFt)`** (`WindInterpolator.cs:264`) returns ISA temperature (K) and pressure ratio δ = P/P₀, splitting at the tropopause (`TropopauseM = 11,000 m`, i.e. ~36,089 ft): troposphere uses the standard lapse rate, stratosphere is isothermal.
 - **`IasToTas` / `TasToIas` / `MachToIas` / `IasToMach`** are full ISA compressible-flow conversions (CAS↔Mach↔TAS via isentropic impact-pressure relations). **The equations, the airspeed-frame model (IAS is the single source of truth, TAS/GS/Mach derive), and the per-category constants are documented in [flight-physics.md](flight-physics.md)** — do not duplicate them here. `SpeedOfSoundKts(altitudeFt)` is the ISA speed of sound for the same model.
-- **`ComputeWindCorrectionAngle(desiredTrack, tas, windFrom, windSpeed)`** (`WindInterpolator.cs:184`) returns the crab angle (WCA) so the aircraft tracks a straight ground path: positive = crab right. It reverses **wind FROM → blows TOWARD** by `+180°` internally, then projects the cross-track wind component. Returns 0 if TAS or wind speed is zero.
+- **`PressureToIsaAltitudeFt(pressureHpa)`** is the inverse of the pressure ratio `GetAtmosphere` gives: the ISA pressure altitude (ft) of a static pressure, standard lapse rate up to the tropopause and isothermal above (500 hPa ≈ 18,289 ft). Zero, negative or NaN pressure throws `ArgumentOutOfRangeException`. `GriddedWindField` uses it to place each isobaric level.
+- **`ComputeWindCorrectionAngle(desiredTrack, tas, windFrom, windSpeed)`** (`WindInterpolator.cs:319`) returns the crab angle (WCA) so the aircraft tracks a straight ground path: positive = crab right. It reverses **wind FROM → blows TOWARD** by `+180°` internally, then projects the cross-track wind component. Returns 0 if TAS or wind speed is zero.
 
-`GetWindComponents(profile, altitudeFt)` (`WindInterpolator.cs:86`) is the other consumer-facing helper: it returns the wind as
+`GetWindComponents` (`WindInterpolator.cs:181`) is the other consumer-facing helper: it returns the wind as
 `(NorthKts, EastKts)` in the direction the wind **blows toward** (FROM `+180°`), ready to add to the TAS vector.
+
+## GRIB2 reader and gridded wind field (`Weather/`)
+
+`Grib2Reader.Read(bytes)` and `GriddedWindField` decode a NOMADS GFS lat/lon regional subset (isobaric levels; UGRD, VGRD and TMP) into a sampleable wind column. They are not yet wired into `GetWindAt` or any `WeatherProfile`; nothing in the sim's wind lookup calls them.
+
+- **Reader subset** (`Grib2Reader`): edition 2, grid template 3.0 (regular lat/lon), product template 4.0 with the forecast time in hours, data representation template 5.0 (simple packing), section 6 bitmap present (indicator 0) or absent (255). Anything else throws `Grib2FormatException` naming the section and the template or value found; so does an empty, truncated, or otherwise malformed file (missing `GRIB`/`7777` markers, section lengths that overrun the message, increments that disagree with the corner-to-corner span, a bad reference date).
+- **Scanning modes**: only the 0x80 (columns run west) and 0x40 (rows run north) bits are accepted, and all four combinations are reordered. Every `Grib2Message.Values` array is row-major from the south-west corner (`index = j·Ni + i`, rows south to north, columns west to east) whatever the file's mode; a point the bitmap marks missing is `NaN`. Grid longitudes stay in the file's 0–360 convention.
+- **Levels**: `Grib2Message.FirstSurfaceValue` is pascals for an isobaric surface (type 100). `GriddedWindField.FromMessages` ignores any message that is not UGRD (0, 2, 2), VGRD (0, 2, 3) or TMP (0, 0, 0) on type 100, groups the rest by whole-pascal pressure, and places each level at its ISA pressure altitude via `WindInterpolator.PressureToIsaAltitudeFt` (feet MSL; a standard-atmosphere height, not geopotential height from the model). Levels come out lowest altitude (highest pressure) first.
+- **Sampling**: `SampleColumn(lat, lon)` accepts longitude as −180..180 or 0..360, bilinearly interpolates U, V and T between the four surrounding grid points, then converts each level: speed from the U/V magnitude (m/s → kt), temperature kelvin → Celsius, and direction as the meteorological **FROM** bearing in degrees **TRUE**, `atan2(−U, −V)` normalised to [0, 360), with a calm reported as 0. Direction is derived after the U/V interpolation, never interpolated itself, so the 350°↔010° wrap cannot appear.
+- **Refusals**: `FromMessages` throws `InvalidOperationException` (naming the parameter and level) for a grid smaller than 2 × 2, messages that disagree on grid, reference time or forecast hour, a value count that is not Ni × Nj, a level that rounds to 0 Pa or below, a duplicated parameter at a level, or a parameter missing at a level the others have. `SampleColumn` returns `null` outside the grid, and drops a level whose four corners include a `NaN` in U, V or T (the column is then shorter, possibly empty).
+- **Direction is TRUE**: unlike `WindLayer.Direction` (magnetic), a `GriddedWindSample` is true, so a consumer feeding the magnetic-based physics must convert it with `MagneticDeclination.TrueToMagnetic`. See the [cheat-sheet](#direction--units-convention-cheat-sheet).
 
 ## Magnetic declination (`MagneticDeclination.cs`)
 
@@ -299,11 +311,12 @@ The single most error-prone area. Memorize this before touching any wind value.
 | Quantity | FROM or TOWARD | True or Magnetic | Altitude ref | Where |
 |---|---|---|---|---|
 | `WindLayer.Direction` | FROM | **Magnetic** | feet **MSL** | `WeatherProfile.cs:14` |
-| `WindAtAltitude.DirectionDeg` (`GetWindAt`) | FROM | Magnetic (inherits layer) | — | `WindInterpolator.cs:34` |
+| `WindAtAltitude.DirectionDeg` (`GetWindAt`) | FROM | Magnetic (inherits layer) | — | `WindInterpolator.cs:40` |
+| `GriddedWindSample.DirectionTrueDeg` (`GriddedWindField.SampleColumn`) | FROM | **True** (derived from U/V) | ISA pressure altitude, feet | `Weather/GriddedWindField.cs` |
 | `WindAtLevel.DirectionTrue` (FD parser) | FROM | **True** | feet (level) | `WindsAloftParser.cs:4` |
 | METAR text wind | FROM | **True** (AIM 7-1-28; converted to magnetic when building the surface layer) | surface | `LiveWeatherService.BuildSurfaceWindLayer` |
 | FD-derived layer (after `BuildWindLayersFromFd`) | FROM | Magnetic (converted via ARTCC-center declination) | feet MSL | `LiveWeatherService.cs:190` |
-| `GetWindComponents` output | **TOWARD** (FROM `+180°`) | matches input | — | `WindInterpolator.cs:86` |
+| `GetWindComponents` output | **TOWARD** (FROM `+180°`) | matches input | — | `WindInterpolator.cs:181` |
 | Cloud layer base (`CloudLayer.BaseFeetAgl`) | — | — | feet **AGL** (hundreds in METAR) | `MetarParser.cs:15` |
 
 A profile layer's direction is **magnetic**; a steering `bearing` from `GeoMath.BearingTo` is **true**. `ComputeWindCorrectionAngle`
@@ -319,7 +332,9 @@ The behaviors above already have regression coverage — find the right harness 
 |---|---|
 | `tests/Yaat.Sim.Tests/MetarParserTests.cs` | station-id heuristic, visibility forms, FEW/SCT/BKN/OVC + VV synthetic-OVC, ceiling = lowest BKN/OVC, wind/altimeter. |
 | `tests/Yaat.Sim.Tests/WindsAloftParserTests.cs` | FD header-column matching, DDSS decode (≥100 kt, 9900 light-variable, temp-suffix strip). |
-| `tests/Yaat.Sim.Tests/WindInterpolatorTests.cs` | altitude N/E lerp, clamp outside range, IAS/TAS/Mach conversions, WCA. |
+| `tests/Yaat.Sim.Tests/WindInterpolatorTests.cs` | altitude N/E lerp, clamp outside range, IAS/TAS/Mach conversions, WCA, `PressureToIsaAltitudeFt` round-trip against `GetAtmosphere`. |
+| `tests/Yaat.Sim.Tests/Grib2ReaderTests.cs` | the real NOMADS GFS sample `TestData/gfs-zoa-sample.grib2` (60 messages, header/grid/values checked against ecCodes), all four scanning-mode reorderings, sign-magnitude binary scale, bitmap NaN, and the refusals (template 5.2, edition 1, truncated file, bad reference date, increment/latitude/point-count disagreements). |
+| `tests/Yaat.Sim.Tests/GriddedWindFieldTests.cs` | the sample's cycle, bounds and 20 levels; exact-point and bilinear sampling; outside-grid null; ±longitude equivalence; FROM direction and speed from U/V (due-north wind is +0); a NaN corner drops only that level; construction errors naming parameter and level. |
 | `tests/Yaat.Sim.Tests/MetarInterpolatorTests.cs` | exact-station match, 50 nm IDW visibility, lowest-ceiling layer set. |
 | `tests/Yaat.Sim.Tests/WeatherTimelineTests.cs` | time interpolation, layer-count snap. |
 | `tests/Yaat.Sim.Tests/WeatherTimelineParserTests.cs` | v1/v2 auto-detect, v2 validation/sort, error cases. |
