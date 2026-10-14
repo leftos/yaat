@@ -39,7 +39,7 @@ binder a -name:value word to split in $args, where the process argv keeps it who
 in that case, and a -name:value word the binder left as -name: and value is joined back into one word, the gate this
 launcher forwards to and the fallback's command both getting it whole.
 
-Usage: pwsh tools/gate.ps1 -Log <path> -TimeoutSeconds <n> -Slot heavy|light|critical [-StallSeconds <n>] [-Tail <n>]
+Usage: pwsh tools/gate.ps1 -Log <path> -TimeoutSeconds <n> -Slot heavy|light|critical|none [-StallSeconds <n>] [-Tail <n>]
            [-NoMarkers] [-Local] -- <command> [args...]
        pwsh tools/gate.ps1 -StopTree <pid>
 #>
@@ -51,7 +51,7 @@ $ErrorActionPreference = 'Stop'
 # assignments in their parse trees.
 $markers = '^Build FAILED\.|error CS\d+|: error |Test run summary: Failed!|^\s*failed: [1-9]|gate: (TIMED OUT|STALLED|BACKSTOP)'
 $usage = @(
-    'usage: pwsh tools/gate.ps1 -Log <path> -TimeoutSeconds <n> -Slot heavy|light|critical [-StallSeconds <n>] [-Tail <n>] ' +
+    'usage: pwsh tools/gate.ps1 -Log <path> -TimeoutSeconds <n> -Slot heavy|light|critical|none [-StallSeconds <n>] [-Tail <n>] ' +
     '[-NoMarkers] [-Local] -- <command> [args...]'
     '       pwsh tools/gate.ps1 -StopTree <pid>'
 )
