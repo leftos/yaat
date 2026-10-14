@@ -11,7 +11,6 @@
 
 - [/] YAAT-569 Give every quick command a designed flyout instead of a nested context submenu · release vNext
 - [ ] YAAT-650 Give every context-critical command a quick-command icon in its situation's strip
-- [ ] YAAT-657 Stop the quick-command strip's label scroll timer posting to the UI after the strip is gone · release vNext
 - [ ] YAAT-659 Accept HS in Following, Holding In Position and Holding After Exit so Hold short of reaches every routed aircraft
 
 ## Bug reports and feature requests
@@ -128,6 +127,13 @@
 - [ ] YAAT-683 Read back unable for a RES HS or CROSS…HS the aircraft cannot make
 - [ ] YAAT-684 Make CROSS … HS … all-or-nothing when its hold-short is refused
 - [ ] YAAT-685 Join a fillet arc at the aircraft's true distance after a chord entry alignment
+- [ ] YAAT-687 Let a firm hold-short stop run past the bar's node instead of dead-stopping at it
+- [ ] YAAT-688 Re-judge an unable hold-short bar when the aircraft was halted short of it
+- [ ] YAAT-689 Stop on a fillet arc at the hold-short stop, not at the arc's end node
+- [ ] YAAT-690 Resolve a tail-to-tail pair of pushing aircraft that hold each other
+- [ ] YAAT-691 Hold an AI push for traffic taxiing into the same alley
+- [ ] YAAT-692 Crew on a push-back stand answers a TAXI with 'unable, need a push first'
+- [ ] YAAT-693 Short pushback re-ask and a reasoned STAND BY from AI Ground
 
 ## Wave 2 — Ground command grammar and dispatch
 
