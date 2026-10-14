@@ -609,6 +609,21 @@
     "Solo": false
   },
   {
+    "File": "issue1144-folg-head-on-recording.yaat-bug-report-bundle.zip",
+    "Commands": 88,
+    "ByKind": {
+      "ActiveRunways": 1,
+      "Compound": 36,
+      "Delete": 1,
+      "SetActivePosition": 3,
+      "Strip": 47
+    },
+    "Unparsed": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 0,
+    "Solo": false
+  },
+  {
     "File": "issue154-vfr-cold-calls-recording.zip",
     "Commands": 37,
     "ByKind": {

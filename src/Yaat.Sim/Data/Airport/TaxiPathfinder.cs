@@ -1,6 +1,34 @@
+using System.Collections.Frozen;
 using Yaat.Sim.Data.Airport.Pathfinding;
 
 namespace Yaat.Sim.Data.Airport;
+
+/// <summary>
+/// What <see cref="TaxiPathfinder.FindRouteToNearestGoal"/> searches for: the goal nodes, and the moves and arrivals the route is
+/// held to.
+/// </summary>
+/// <param name="GoalNodeIds">The goal nodes; ids not in the layout are ignored.</param>
+/// <param name="ForbiddenFirstMove">
+/// A directed move <c>(fromId, toId)</c> the route never starts with (<see cref="SearchContext.ForbiddenFirstMove"/>); null for none.
+/// </param>
+/// <param name="OnwardEdges">
+/// The edge out of each goal the route must be able to turn onto where it stops (<see cref="GoalOnwardEdges"/>); null to stop at
+/// the first goal reached on any arrival.
+/// </param>
+/// <param name="ForbiddenMoves">Directed moves <c>(fromId, toId)</c> the route never takes, anywhere along it.</param>
+public sealed record NearestGoalRequest(
+    IReadOnlySet<int> GoalNodeIds,
+    (int From, int To)? ForbiddenFirstMove,
+    GoalOnwardEdges? OnwardEdges,
+    IReadOnlySet<(int From, int To)> ForbiddenMoves
+)
+{
+    /// <summary>No move forbidden: one shared empty set, read-only.</summary>
+    public static readonly IReadOnlySet<(int From, int To)> NoForbiddenMoves = FrozenSet<(int From, int To)>.Empty;
+
+    /// <summary>The cheapest of <paramref name="goalNodeIds"/>, reached on any arrival, no move forbidden.</summary>
+    public static NearestGoalRequest To(IReadOnlySet<int> goalNodeIds) => new(goalNodeIds, null, null, NoForbiddenMoves);
+}
 
 /// <summary>
 /// Taxi pathfinder. Auto-route methods (<see cref="FindRoute"/>, <see cref="FindRoutes"/>) are
@@ -143,13 +171,9 @@ public static class TaxiPathfinder
     /// </summary>
     /// <param name="layout">The airport ground layout.</param>
     /// <param name="fromNodeId">The node the route starts at.</param>
-    /// <param name="goalNodeIds">The goal nodes; ids not in the layout are ignored.</param>
     /// <param name="category">The aircraft's performance category, for geometric admissibility and costs.</param>
     /// <param name="wakeClass">The aircraft's wake-turbulence class.</param>
-    /// <param name="forbiddenFirstMove">
-    /// A directed move <c>(fromId, toId)</c> the route never starts with (<see cref="SearchContext.ForbiddenFirstMove"/>); null
-    /// for none.
-    /// </param>
+    /// <param name="request">The goal nodes, and the moves and arrivals the route is held to.</param>
     /// <returns>
     /// The goal reached and the route to it — no segments when the start is itself a goal — or null when the goal set is
     /// empty, the start is not in the layout, or no goal is reachable.
@@ -157,13 +181,12 @@ public static class TaxiPathfinder
     public static GoalRoute? FindRouteToNearestGoal(
         AirportGroundLayout layout,
         int fromNodeId,
-        IReadOnlySet<int> goalNodeIds,
         AircraftCategory category,
         WakeTurbulenceData.WakeClass wakeClass,
-        (int From, int To)? forbiddenFirstMove
+        NearestGoalRequest request
     )
     {
-        List<GroundNode> goals = [.. goalNodeIds.Order().Where(layout.Nodes.ContainsKey).Select(id => layout.Nodes[id])];
+        List<GroundNode> goals = [.. request.GoalNodeIds.Order().Where(layout.Nodes.ContainsKey).Select(id => layout.Nodes[id])];
         if (goals.Count == 0)
         {
             return null;
@@ -173,9 +196,12 @@ public static class TaxiPathfinder
         // list, and re-targets the context at the goal it reached before materialising the route.
         SearchContext ctx = BuildNodeContext(layout, fromNodeId, goals[0].Id, RoutePreference.FewestTurns, null, category, wakeClass) with
         {
-            ForbiddenFirstMove = forbiddenFirstMove,
+            ForbiddenFirstMove = request.ForbiddenFirstMove,
         };
-        (GoalRoute? route, PathfindingFailure? _) = RunWithAvoidance(ctx, c => AutoRouter.RunToGoals(c, goals));
+        (GoalRoute? route, PathfindingFailure? _) = RunWithAvoidance(
+            ctx,
+            c => AutoRouter.RunToGoals(c, goals, request.OnwardEdges, request.ForbiddenMoves)
+        );
         return route;
     }
 

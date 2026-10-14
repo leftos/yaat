@@ -85,6 +85,7 @@ A restore that kept no latch would let the stop go once the aircraft had slowed 
 - `LeadEdgeIntoMerge` (a `TaxiSegmentDto`, the lead's path edge into the merge, which the give-way stop keeps clear of with the edge out), written as the route's own segments are; null where the lead's path starts at the merge.
 - `GivingWay`, `Unjoinable` (the hold-for-good latch: a restored follow holds where the live one held rather than planning again) and `ExitingRunways` (the runways whose bars it passes on the way out).
 - `BrakingLostRoute` (`bool?`, `FollowingPhase.IsBrakingLostRoute`: braking to rest along a follow route a lead re-route lost, which the follower drops once at rest): true while braking, else null and not written (`JsonIgnore` `WhenWritingNull`), so a snapshot of a follow not braking along a lost route serializes byte-identical to one written before the field existed; absent restores as false.
+- `LeadWaitVerdicts` (`Dictionary<int, bool>?`, keyed by hold-short node id: whether the follower waits for its lead at each cleared runway bar judged in the phase's current whole second) and `LeadWaitSecond` (`int?`, that second): written only while a verdict is cached, so a restore mid-second stops on the same tick as the original run; absent restores as none cached.
 - `ClearingRoute` (a `TaxiRouteDto`) and `ClearingBarNodeId`, null when not clearing, and `ClearingAttemptedRunways`, written only when a clearing route has been tried.
 - `Navigator` (a `GroundNavigatorDto`), null with neither a follow route nor a clearing route.
 
@@ -185,9 +186,11 @@ A restored taxi whose route the current layout cannot rebuild (an archive withou
 
 A mismatch drops the playback with a warning and builds the segment afresh from the aircraft's pose; a virtual (negative-id) from-node is not compared: its id hashes its position (`VirtualNode.IdFor`), but it sits at the aircraft's pose when the route was built (`RunwayExitPhase`'s approach leg), so a rebuild puts it somewhere else.
 
-Three more fields are the same kind (nullable, written only when set, null on older snapshots; no schema bump), each latching a once-only pilot call so a restore does not repeat it: `TaxiingPhaseDto.SaidFarSideBlockedNodeId` (int?, the cleared crossing bar it said "holding short of runway …, traffic ahead" at).
+More fields are the same kind (nullable, written only when set, null on older snapshots; no schema bump), each latching a once-only pilot call so a restore does not repeat it: `TaxiingPhaseDto.SaidFarSideBlockedNodeId` (int?, the cleared crossing bar it said "holding short of runway …, traffic ahead" at).
 
-`HoldingShortPhaseDto.SaidTrafficAhead` (bool?, the same call from the hold at the bar), and `CrossingRunwayPhaseDto.SaidNotClear` (bool?) with `NotClearRestSeconds` (double?, the rest time counted toward the not-clear call).
+`HoldingShortPhaseDto.SaidTrafficAhead` (bool?, the same call from the hold at the bar), `HoldingShortPhaseDto.WaitingForLead` (bool?, the hold, cleared across, is waiting at its bar for the lead of the follow armed behind it) with `SaidWaitForLead` (bool?, the "waiting for the traffic to pass" call made for the current wait; a restore does not repeat it), both omitted when null.
+
+`CrossingRunwayPhaseDto.SaidNotClear` (bool?) with `NotClearRestSeconds` (double?, the rest time counted toward the not-clear call).
 
 A crossing also carries its slice segment and the pose that segment was set up at (`CrossingRunwayPhaseDto.CrossingRouteSegmentIndex`, `SegmentSetup*`), and a runway exit whose route cannot be rebuilt drops the navigator it was restored with.
 

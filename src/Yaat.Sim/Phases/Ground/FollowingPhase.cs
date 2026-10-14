@@ -106,10 +106,11 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
     private bool _saidLostTraffic;
 
     /// <summary>
-    /// Set when the pilot has said once that it cannot follow at all — no taxi route onto its traffic's path
-    /// (<see cref="SayUnableNoRouteToFollow"/>, from <see cref="HoldOnUnjoinedPlan"/>). Snapshotted. Silences the lost-traffic
-    /// call: a follower that cannot follow says that once and nothing more, while one unjoinable for another reason (a lead
-    /// re-route, or a plan ahead of its lead) has said nothing and still reports losing the traffic.
+    /// Set when the pilot has said once that it cannot follow (<see cref="SayUnableToFollowOnce"/>): no taxi route onto its
+    /// traffic's path, a re-plan after a lead re-route that finds it ahead of the lead, or a hold standing on the lead's route
+    /// ahead of it (<see cref="HoldOnUnjoinedPlan"/>, <see cref="HoldOnEmptyPlan"/>). Snapshotted. Silences the lost-traffic
+    /// call: a follower that cannot follow says that once and nothing more, while one unjoinable for another reason (a route
+    /// lost to a backward start, or a first plan ahead of its lead) has said nothing and still reports losing the traffic.
     /// </summary>
     private bool _saidUnableNoRoute;
 
@@ -190,6 +191,16 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
     private double? _latchedBarApproachDeg;
 
     /// <summary>
+    /// Whether the follower waits for its lead at each cleared bar judged so far in the phase's current whole second
+    /// (<see cref="_leadWaitSecond"/>), by bar node id (<see cref="WaitsForLeadAt"/>): each judgement plans the follow afresh, so
+    /// a verdict holds for the rest of that second. Snapshotted, so a restore mid-second keeps the verdicts the run held.
+    /// </summary>
+    private Dictionary<int, bool> _leadWaitVerdicts = [];
+
+    /// <summary>The whole second of <see cref="Phase.ElapsedSeconds"/> <see cref="_leadWaitVerdicts"/> were judged in.</summary>
+    private int _leadWaitSecond;
+
+    /// <summary>
     /// The straight taxi edge the moving follower was last found on, by its end nodes (<c>Nodes[0]</c>, <c>Nodes[1]</c>):
     /// where <see cref="RefreshCurrentTaxiway"/> looks first. Null before the first find and while off every taxiway.
     /// </summary>
@@ -252,6 +263,9 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
 
     /// <summary>Whether the follow holds in position for good, planning no more: no taxi path to the lead's path, or ahead of the lead.</summary>
     public bool IsUnjoinable => _unjoinable;
+
+    /// <summary>The cached wait-for-the-lead verdicts at cleared bars, by bar node id, for the current whole second of the phase.</summary>
+    public IReadOnlyDictionary<int, bool> LeadWaitVerdicts => _leadWaitVerdicts;
 
     /// <summary>Whether the follower is braking to rest along a follow route a lead re-route lost, which it drops once at rest.</summary>
     public bool IsBrakingLostRoute => _brakingLostRoute;
@@ -392,12 +406,41 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
 
         if (!carryOn)
         {
+            AircraftState? lead = ctx.AircraftLookup?.Invoke(_targetCallsign);
             BrakeToRestShortOf(ctx, crossed, barCap);
             ApplyCap(ctx, LostRouteEndCap(ctx, route));
-            ApplyCap(ctx, LostRouteLeadGapCap(ctx, ctx.AircraftLookup?.Invoke(_targetCallsign)));
+            ApplyCap(ctx, LostRouteLeadGapCap(ctx, lead));
+            ApplyCap(ctx, LostRouteHeadOnCap(ctx, route, lead));
         }
 
         return true;
+    }
+
+    /// <summary>
+    /// The firm stop short of the first edge of the lost route that runs head-on against <paramref name="lead"/>'s driven route
+    /// (<see cref="DrivenRouteOf"/>) from its current segment on, when that edge lies inside the follower's stop at the taxi rate
+    /// (<see cref="LostRouteEndDecelRate"/>): a follower a re-route left ahead of its lead brakes as hard as it may short of the
+    /// lead's path rather than rolling into it. Null when no such edge lies ahead, or the taxi rate stops it short.
+    /// </summary>
+    private static SpeedCap? LostRouteHeadOnCap(PhaseContext ctx, TaxiRoute route, AircraftState? lead)
+    {
+        if (route.IsComplete || (lead is null) || (DrivenRouteOf(lead) is not { } leadRoute))
+        {
+            return null;
+        }
+
+        HashSet<(int, int)> againstLead =
+        [
+            .. leadRoute.Segments.Skip(Math.Max(0, leadRoute.CurrentSegmentIndex)).Select(s => (s.ToNodeId, s.FromNodeId)),
+        ];
+        int headOn = route.Segments.FindIndex(Math.Max(0, route.CurrentSegmentIndex), s => againstLead.Contains((s.FromNodeId, s.ToNodeId)));
+        if (headOn < 0)
+        {
+            return null;
+        }
+
+        double toEdgeFt = route.RemainingDistanceFt(ctx.Aircraft.Position, headOn);
+        return LostRouteEndDecelRate(ctx.Category, ctx.Aircraft.GroundSpeed, toEdgeFt) is { } rate ? new SpeedCap(0.0, rate) : null;
     }
 
     /// <summary>
@@ -1163,7 +1206,10 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
         }
 
         PlanCount++;
-        if ((FollowRoutePlanner.Plan(layout, ctx.Aircraft, lead, GroundTraffic(ctx)) is not FollowRoutePlan.Joinable joinable) || IsEmpty(joinable))
+        if (
+            (FollowRoutePlanner.Plan(layout, ctx.Aircraft, lead, GroundTraffic(ctx)) is not FollowRoutePlan.Joinable joinable)
+            || HoldsWhereItStands(joinable)
+        )
         {
             return false;
         }
@@ -1254,7 +1300,7 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
         {
             var taxiClass = FollowRoutePlanner.TaxiClass.Of(ctx.Aircraft);
             TaxiRouteSegment? leadIn = start.LeadIn;
-            while ((goals.Count > 0) && (taxiClass.FindRoute(layout, start.Node.Id, goals, null) is { } toBar))
+            while ((goals.Count > 0) && (taxiClass.FindRoute(layout, start.Node.Id, NearestGoalRequest.To(goals)) is { } toBar))
             {
                 if (ClearingRouteVia(ctx.Aircraft, layout, runway, leadIn, toBar, onPavement) is { } route)
                 {
@@ -1610,7 +1656,7 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
     /// that segment when it runs through it, and replaces any give-way the old plan latched with its own. One that joins nothing
     /// — no taxi path to the lead's new path, or the follower now ahead of the lead on it — loses the route
     /// (<see cref="LoseFollowRoute"/>): the follower stops and holds in position for good, logging it once. An empty plan
-    /// (<see cref="IsEmpty"/>) loses it too, but the follower plans again each tick once stopped. False when the route was lost.
+    /// (<see cref="HoldsWhereItStands"/>) loses it too, but the follower plans again each tick once stopped. False when the route was lost.
     /// </summary>
     private bool FollowLeadReroute(PhaseContext ctx, AircraftState lead)
     {
@@ -1634,14 +1680,14 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
         if (replanned is not FollowRoutePlan.Joinable joinable)
         {
             LoseFollowRoute(ctx, layout);
-            HoldOnUnjoinedPlan(ctx, replanned);
+            HoldOnUnjoinedPlan(ctx, replanned, isReplan: true);
             return false;
         }
 
-        if (IsEmpty(joinable))
+        if (HoldsWhereItStands(joinable))
         {
             LoseFollowRoute(ctx, layout);
-            HoldOnEmptyPlan(ctx);
+            HoldOnEmptyPlan(ctx, joinable);
             return false;
         }
 
@@ -1665,15 +1711,30 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
     }
 
     /// <summary>
-    /// Whether <paramref name="joinable"/> has nothing to drive: no route to the merge and no lead path from it, the merge being
-    /// where the follower stands and the lead's path ends. Never installed: the follower holds and plans again
+    /// Whether <paramref name="joinable"/> leaves the follower nothing to drive yet: no route to the merge, the merge being where
+    /// the follower stands, and either no lead path from it (the lead's path ends there) or the merge ahead of the lead, so
+    /// driving on would put the follower ahead of it. Never installed: the follower holds and plans again
     /// (<see cref="HoldOnEmptyPlan"/>).
     /// </summary>
-    private static bool IsEmpty(FollowRoutePlan.Joinable joinable) => (joinable.PathToMerge.Segments.Count + joinable.LeadPathFromMerge.Count) == 0;
+    private static bool HoldsWhereItStands(FollowRoutePlan.Joinable joinable) =>
+        (joinable.PathToMerge.Segments.Count == 0) && ((joinable.LeadPathFromMerge.Count == 0) || joinable.MergeAheadOfLead);
 
-    /// <summary>Holds for an empty plan (<see cref="IsEmpty"/>), logged once; the follow plans again each tick.</summary>
-    private void HoldOnEmptyPlan(PhaseContext ctx) =>
-        LogHoldOnce(ctx, $"{_targetCallsign}'s path ends where the follower joins it", LogLevel.Information);
+    /// <summary>
+    /// Holds for a plan with nothing to drive yet (<see cref="HoldsWhereItStands"/>), logged once; the follow plans again each tick.
+    /// A follower standing on the lead's route ahead of it also says it cannot follow and asks for taxi instructions
+    /// (<see cref="SayUnableToFollowOnce"/>) the first time it holds so.
+    /// </summary>
+    private void HoldOnEmptyPlan(PhaseContext ctx, FollowRoutePlan.Joinable joinable)
+    {
+        if (joinable.LeadPathFromMerge.Count == 0)
+        {
+            LogHoldOnce(ctx, $"{_targetCallsign}'s path ends where the follower joins it", LogLevel.Information);
+            return;
+        }
+
+        LogHoldOnce(ctx, $"standing on {_targetCallsign}'s route ahead of it; waiting for it to pass", LogLevel.Information);
+        SayUnableToFollowOnce(ctx);
+    }
 
     /// <summary>
     /// Adopts <paramref name="joinable"/> when it drives differently from the follow route's current segment on: its route from
@@ -1860,13 +1921,13 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
         FollowRoutePlan plan = FollowRoutePlanner.Plan(layout, ctx.Aircraft, lead, GroundTraffic(ctx));
         if (plan is not FollowRoutePlan.Joinable joinable)
         {
-            HoldOnUnjoinedPlan(ctx, plan);
+            HoldOnUnjoinedPlan(ctx, plan, isReplan: false);
             return false;
         }
 
-        if (IsEmpty(joinable))
+        if (HoldsWhereItStands(joinable))
         {
-            HoldOnEmptyPlan(ctx);
+            HoldOnEmptyPlan(ctx, joinable);
             return false;
         }
 
@@ -1890,7 +1951,10 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
         }
 
         PlanCount++;
-        if ((FollowRoutePlanner.Replan(layout, ctx.Aircraft, lead, GroundTraffic(ctx)) is FollowRoutePlan.Joinable joinable) && !IsEmpty(joinable))
+        if (
+            (FollowRoutePlanner.Replan(layout, ctx.Aircraft, lead, GroundTraffic(ctx)) is FollowRoutePlan.Joinable joinable)
+            && !HoldsWhereItStands(joinable)
+        )
         {
             AdoptIfDifferent(ctx, lead, joinable, "has a new path", keepOnBackwardStart: true);
         }
@@ -1935,10 +1999,13 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
     /// <see cref="FollowRoutePlan.NoPath"/>, planning again each tick on a <see cref="FollowRoutePlan.WaitForLead"/>.
     /// <c>FOLLOWG</c> refuses a follow with no path to the lead or ahead of it, as it arms one, so either met at runtime — on the
     /// first plan of an armed follow's release, or a re-plan after the lead was re-routed — is a route lost since. The first
-    /// <see cref="FollowRoutePlan.NoPath"/> that makes the follow unjoinable also has the pilot say it cannot follow and ask for
-    /// taxi instructions (<see cref="SayUnableNoRouteToFollow"/>), once: the latch is snapshotted, so a restore says nothing
-    /// again, and a follower that has said it says no lost-traffic call either.</summary>
-    private void HoldOnUnjoinedPlan(PhaseContext ctx, FollowRoutePlan plan)
+    /// <see cref="FollowRoutePlan.NoPath"/> that makes the follow unjoinable, and the first <see cref="FollowRoutePlan.FollowerAhead"/>
+    /// of a re-plan (<paramref name="isReplan"/>, after the lead was re-routed), also has the pilot say it cannot follow and ask for
+    /// taxi instructions (<see cref="SayUnableToFollowOnce"/>). A first plan's <see cref="FollowRoutePlan.FollowerAhead"/> holds
+    /// silently here; a first plan that finds the follower standing on the lead's route ahead is a joinable plan with nothing to
+    /// drive, held by <see cref="HoldOnEmptyPlan"/>, which does say it.
+    /// </summary>
+    private void HoldOnUnjoinedPlan(PhaseContext ctx, FollowRoutePlan plan, bool isReplan)
     {
         (string reason, LogLevel level) = plan switch
         {
@@ -1946,14 +2013,29 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
             FollowRoutePlan.FollowerAhead => ($"route lost: ahead of {_targetCallsign} on its route", LogLevel.Information),
             _ => ($"route lost: no taxi route to {_targetCallsign}'s path", LogLevel.Information),
         };
-        bool newlyNoPath = (plan is FollowRoutePlan.NoPath) && !_unjoinable;
+        bool saysUnable = !_unjoinable && ((plan is FollowRoutePlan.NoPath) || (isReplan && (plan is FollowRoutePlan.FollowerAhead)));
         _unjoinable = plan is not FollowRoutePlan.WaitForLead;
         LogHoldOnce(ctx, reason, level);
-        if (newlyNoPath)
+        if (saysUnable)
         {
-            _saidUnableNoRoute = true;
-            SayUnableNoRouteToFollow(ctx);
+            SayUnableToFollowOnce(ctx);
         }
+    }
+
+    /// <summary>
+    /// The pilot says it cannot follow and asks for taxi instructions (<see cref="SayUnableNoRouteToFollow"/>), once per follow:
+    /// the latch (<see cref="_saidUnableNoRoute"/>) is snapshotted, so a restore says nothing again, and a follower that has said
+    /// it says no lost-traffic call either.
+    /// </summary>
+    private void SayUnableToFollowOnce(PhaseContext ctx)
+    {
+        if (_saidUnableNoRoute)
+        {
+            return;
+        }
+
+        _saidUnableNoRoute = true;
+        SayUnableNoRouteToFollow(ctx);
     }
 
     /// <summary>
@@ -2007,7 +2089,7 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
     private void InstallPlan(PhaseContext ctx, AirportGroundLayout layout, FollowRoutePlan.Joinable joinable, AircraftState lead, int startIndex)
     {
         int mergeIndex = joinable.PathToMerge.Segments.Count;
-        bool giveWay = (mergeIndex > startIndex) && (joinable.MergeAheadOfLead || !LeadTailPastMerge(layout, joinable.LeadPathFromMerge, lead));
+        bool giveWay = (mergeIndex > startIndex) && GivesWayAtMerge(layout, joinable, lead);
         TaxiRoute route = new()
         {
             Segments = FollowSegments(joinable),
@@ -2055,6 +2137,182 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
 
     private static TaxiRouteSegment ToSegment(DirectionalEdge edge) => new() { Edge = edge, TaxiwayName = edge.Edge.TaxiwayName ?? "" };
 
+    /// <summary>
+    /// Whether a follower on <paramref name="joinable"/> is to give way to <paramref name="lead"/> short of the merge: the merge
+    /// lies ahead of the lead, or the lead's tail is not yet past it.
+    /// </summary>
+    private static bool GivesWayAtMerge(AirportGroundLayout layout, FollowRoutePlan.Joinable joinable, AircraftState lead) =>
+        joinable.MergeAheadOfLead || !LeadTailPastMerge(layout, joinable.LeadPathFromMerge, lead);
+
+    /// <summary>
+    /// A runway bar a follower is cleared across: <paramref name="NearBar"/>, the bar it stands at or rolls up to, and the
+    /// runways its crossing clearance covers (<paramref name="ClearedRunways"/>, the near bar's own runway included or not).
+    /// </summary>
+    public sealed record BarCrossing(GroundNode NearBar, IReadOnlyCollection<RunwayIdentifier> ClearedRunways)
+    {
+        /// <summary>Whether the clearance covers the runway <paramref name="bar"/> protects: the near bar's runway or a cleared one.</summary>
+        public bool Covers(GroundNode bar) =>
+            (bar.RunwayId is { } barRunway)
+            && (((NearBar.RunwayId is { } nearRunway) && barRunway.Overlaps(nearRunway)) || ClearedRunways.Any(barRunway.Overlaps));
+    }
+
+    /// <summary>
+    /// Whether the follower in <paramref name="ctx"/>, cleared across <paramref name="crossing"/>'s near bar with a follow of
+    /// <paramref name="lead"/>, keeps holding there until the lead is ahead of it on their shared route. It does while the
+    /// follow's plan (<see cref="FollowRoutePlanner.Plan"/>) has its merge ahead of the lead with the follower standing at it, or
+    /// has route to drive to the merge and the follower would give way there (<see cref="GivesWayAtMerge"/>), and after that
+    /// until the gap to the lead is at least the stop gap, the release a give-way at the merge waits for
+    /// (<see cref="IsGiveWayOver"/>). Only behind a lead driving a route: one whose path is only guessed from where it stands
+    /// and heads is given way to at the merge, past the bar. Never when the merge lies beyond the near bar's runway and the
+    /// follower fits between that runway's far hold line and its give-way stop (<see cref="RoomBeyondFarBarFt"/>): it crosses
+    /// and waits there instead.
+    /// </summary>
+    public static bool WaitsAtBarForLead(PhaseContext ctx, AirportGroundLayout layout, AircraftState lead, BarCrossing crossing)
+    {
+        if (
+            (DrivenRouteOf(lead) is not { IsComplete: false })
+            || (FollowRoutePlanner.Plan(layout, ctx.Aircraft, lead, GroundTraffic(ctx)) is not FollowRoutePlan.Joinable joinable)
+        )
+        {
+            return false;
+        }
+
+        if (joinable.PathToMerge.Segments.Count == 0)
+        {
+            return joinable.MergeAheadOfLead;
+        }
+
+        if ((RoomBeyondFarBarFt(ctx.Aircraft, joinable, lead, crossing) is { } roomFt) && (roomFt >= 0.0))
+        {
+            return false;
+        }
+
+        if (GivesWayAtMerge(layout, joinable, lead))
+        {
+            return true;
+        }
+
+        AircraftCategory leadCategory = AircraftCategorization.Categorize(lead.AircraftType);
+        double stopGapFt = FollowGap.StopGapFt(lead.AircraftType, leadCategory, ctx.Aircraft.AircraftType, ctx.Category);
+        double? gapFt = FollowRoutePlanner.AlongPathGapFt(
+            FollowRoutePlanner.FollowerToMergeFt(layout, joinable, ctx.Aircraft),
+            joinable.LeadPathFromMerge,
+            FollowRoutePlanner.LocateOnPath(layout, joinable.LeadPathFromMerge, lead),
+            ctx.Aircraft.AircraftType,
+            lead.AircraftType
+        );
+        return (gapFt ?? NoseToTailFt(ctx.Aircraft, lead)) < stopGapFt;
+    }
+
+    /// <summary>
+    /// Whether a wait at a bar for <paramref name="lead"/> (<see cref="WaitsAtBarForLead"/>) is a real wait for the traffic to pass,
+    /// which the pilot reports: the follow's merge lies ahead of the lead, or the lead, past it, is not moving away from it (below
+    /// <see cref="LeadMovingKts"/>). The short wait for a lead moving away past the merge to get its tail clear of it is not.
+    /// True when the follow joins nothing, so a wait is never left unreported on a plan that changed under it.
+    /// </summary>
+    public static bool IsWaitForTrafficToPass(PhaseContext ctx, AirportGroundLayout layout, AircraftState lead) =>
+        (FollowRoutePlanner.Plan(layout, ctx.Aircraft, lead, GroundTraffic(ctx)) is not FollowRoutePlan.Joinable joinable)
+        || joinable.MergeAheadOfLead
+        || !IsMoving(lead);
+
+    /// <summary>
+    /// The room (ft) a follower at <paramref name="follower"/>'s position on <paramref name="joinable"/>'s route to the merge has to
+    /// wait for <paramref name="lead"/> beyond the runway of <paramref name="crossing"/>'s near bar: how far its tail, with its
+    /// centre at its stop short of the merge, lies past the farthest runway bar the route reaches before that stop — negative
+    /// when it would stop with its tail short of it, or inside a runway's pair of bars. The stop is the give-way stop
+    /// (<see cref="GroundConflictDetector.GiveWayStop(AircraftState, TaxiRoute, IReadOnlyList{DirectionalEdge}, AircraftState, out string?)"/>),
+    /// or the hold line of a bar of a runway the clearance does not cover where the route reaches one first: the follower holds
+    /// short of it. A give-way stop beyond the look-ahead leaves room without bound (positive infinity): the follower crosses
+    /// and gives way at the merge when it gets there. Null when the route reaches no other bar of the near bar's runway before
+    /// the stop, so the merge is not beyond its far hold line.
+    /// </summary>
+    public static double? RoomBeyondFarBarFt(AircraftState follower, FollowRoutePlan.Joinable joinable, AircraftState lead, BarCrossing crossing)
+    {
+        TaxiRoute toMerge = joinable.PathToMerge;
+        List<DirectionalEdge> track = TrackAtMerge(joinable.LeadEdgeIntoMerge, joinable.LeadPathFromMerge);
+        if ((crossing.NearBar.RunwayId is not { } nearRunway) || toMerge.IsComplete || (track.Count == 0))
+        {
+            return null;
+        }
+
+        double halfLengthFt = AircraftLength.ResolveFt(follower.AircraftType) / 2.0;
+        double giveWayFt = GroundConflictDetector.GiveWayStop(follower, toMerge, track, lead, out _) is { } stop
+            ? stop.ToStopFt
+            : double.PositiveInfinity;
+        BarsBeforeStop bars = ScanBarsBeforeStop(follower, toMerge, crossing, nearRunway, giveWayFt);
+        if (!bars.CrossesNearRunway)
+        {
+            return null;
+        }
+
+        return bars.StopsInsideARunway ? -halfLengthFt : bars.StopFt - halfLengthFt - bars.LastBarFt;
+    }
+
+    /// <summary>
+    /// What a follower's route to the merge reaches before its stop (<see cref="ScanBarsBeforeStop"/>): the stop (ft along the
+    /// route), the farthest bar before it, whether one of those is a bar of the near bar's runway, and whether the stop lies
+    /// between a runway's two bars.
+    /// </summary>
+    private readonly record struct BarsBeforeStop(double StopFt, double LastBarFt, bool CrossesNearRunway, bool StopsInsideARunway);
+
+    /// <summary>
+    /// Walks <paramref name="toMerge"/> from <paramref name="follower"/>'s position to the stop, <paramref name="giveWayFt"/> along
+    /// it or, where it reaches first a bar of a runway <paramref name="crossing"/> does not cover, half the follower's length short
+    /// of that bar. Each bar passed opens or closes its runway — <paramref name="nearRunway"/>, the near bar's, opens at the start —
+    /// so a runway left open at the stop is one the stop lies inside.
+    /// </summary>
+    private static BarsBeforeStop ScanBarsBeforeStop(
+        AircraftState follower,
+        TaxiRoute toMerge,
+        BarCrossing crossing,
+        RunwayIdentifier nearRunway,
+        double giveWayFt
+    )
+    {
+        double halfLengthFt = AircraftLength.ResolveFt(follower.AircraftType) / 2.0;
+        List<RunwayIdentifier> open = [nearRunway];
+        bool crossesNearRunway = false;
+        double stopFt = giveWayFt;
+        double lastBarFt = 0.0;
+        for (int i = Math.Max(0, toMerge.CurrentSegmentIndex); i < toMerge.Segments.Count; i++)
+        {
+            GroundNode node = toMerge.Segments[i].Edge.ToNode;
+            double alongFt = toMerge.RemainingDistanceFt(follower.Position, i + 1);
+            if (alongFt > stopFt)
+            {
+                break;
+            }
+
+            if ((node.Type != GroundNodeType.RunwayHoldShort) || (node.Id == crossing.NearBar.Id) || (node.RunwayId is not { } barRunway))
+            {
+                continue;
+            }
+
+            if (!crossing.Covers(node))
+            {
+                stopFt = Math.Min(stopFt, alongFt - halfLengthFt);
+                break;
+            }
+
+            crossesNearRunway |= barRunway.Overlaps(nearRunway);
+            lastBarFt = Math.Max(lastBarFt, alongFt);
+            if (open.FindIndex(barRunway.Overlaps) is var at and >= 0)
+            {
+                open.RemoveAt(at);
+            }
+            else
+            {
+                open.Add(barRunway);
+            }
+        }
+
+        return new BarsBeforeStop(stopFt, lastBarFt, crossesNearRunway, open.Count > 0);
+    }
+
+    /// <summary>The lead's path edges into and out of the merge, the track a give-way at the merge keeps clear of.</summary>
+    private static List<DirectionalEdge> TrackAtMerge(DirectionalEdge? leadEdgeIntoMerge, IReadOnlyList<DirectionalEdge> leadPathFromMerge) =>
+        leadEdgeIntoMerge is { } into ? [into, .. leadPathFromMerge.Take(1)] : [.. leadPathFromMerge.Take(1)];
+
     /// <summary>Whether the lead's tail is past the start of <paramref name="leadPath"/>; false when the lead is not on it.</summary>
     private static bool LeadTailPastMerge(AirportGroundLayout layout, IReadOnlyList<DirectionalEdge> leadPath, AircraftState lead) =>
         (FollowRoutePlanner.LocateOnPath(layout, leadPath, lead) is { } at) && FollowRoutePlanner.LeadTailPastMerge(leadPath, at, lead.AircraftType);
@@ -2072,7 +2330,7 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
         int mergeNode = mergeIndex < route.Segments.Count ? route.Segments[mergeIndex].FromNodeId : route.Segments[^1].ToNodeId;
         TaxiRoute pathToMerge = new() { Segments = [.. route.Segments.Take(mergeIndex)], HoldShortPoints = [] };
         List<DirectionalEdge> leadPath = [.. route.Segments.Skip(mergeIndex).Select(s => s.Edge)];
-        List<DirectionalEdge> track = leadEdgeIntoMerge is { } into ? [into, .. leadPath.Take(1)] : [.. leadPath.Take(1)];
+        List<DirectionalEdge> track = TrackAtMerge(leadEdgeIntoMerge, leadPath);
         _plan = new FollowView(mergeNode, pathToMerge, leadEdgeIntoMerge, leadPath, track);
         SyncPathToMerge();
     }
@@ -2416,6 +2674,8 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
             ExitingRunways = [.. _exitingRunways.Select(static r => r.ToString())],
             LatchedBarNodeId = _latchedBarNodeId,
             LatchedBarApproachDeg = _latchedBarApproachDeg,
+            LeadWaitVerdicts = (_leadWaitVerdicts.Count > 0) ? new Dictionary<int, bool>(_leadWaitVerdicts) : null,
+            LeadWaitSecond = (_leadWaitVerdicts.Count > 0) ? _leadWaitSecond : null,
             TaxiEdgeNodeA = _taxiEdgeNodeIds?.NodeA,
             TaxiEdgeNodeB = _taxiEdgeNodeIds?.NodeB,
             FollowRoute = _followRoute?.ToSnapshot(),
@@ -2448,6 +2708,8 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
             _exitingRunways = [.. dto.ExitingRunways.Select(RunwayIdentifier.Parse)],
             _latchedBarNodeId = dto.LatchedBarNodeId,
             _latchedBarApproachDeg = dto.LatchedBarApproachDeg,
+            _leadWaitVerdicts = dto.LeadWaitVerdicts is { } verdicts ? new Dictionary<int, bool>(verdicts) : [],
+            _leadWaitSecond = dto.LeadWaitSecond ?? 0,
             _taxiEdgeNodeIds = (dto.TaxiEdgeNodeA is { } nodeA) && (dto.TaxiEdgeNodeB is { } nodeB) ? (nodeA, nodeB) : null,
             _unjoinable = dto.Unjoinable,
             _brakingLostRoute = dto.BrakingLostRoute ?? false,
@@ -2620,7 +2882,7 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
     /// <summary>
     /// Whether the follower must stop at this bar: not when it is already on that runway; always when the bar is its own
     /// departure bar; otherwise not when it is leaving a runway it occupied in this follow away from it, nor when its crossing
-    /// clearance covers the runway.
+    /// clearance covers the runway — unless it is to wait at that bar for its lead (<see cref="WaitsForLeadAt"/>).
     /// </summary>
     private bool MustStopAt(PhaseContext ctx, GroundNode node)
     {
@@ -2640,7 +2902,34 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
             return true;
         }
 
-        return !IsExitingAwayFrom(ctx, node) && !IsClearedToCross(node);
+        return !IsExitingAwayFrom(ctx, node) && (!IsClearedToCross(node) || WaitsForLeadAt(ctx, node));
+    }
+
+    /// <summary>
+    /// Whether the follower, cleared across the runway <paramref name="bar"/> protects, is to wait at it for its lead as a hold at
+    /// that bar would (<see cref="WaitsAtBarForLead"/>): the merge lies ahead of the lead beyond the bar with no room to wait
+    /// past the runway. Judged once per bar per whole second of the phase (<see cref="_leadWaitVerdicts"/>), as a hold waiting
+    /// at the bar is, so the wait/go decision lags the traffic by under a second.
+    /// </summary>
+    private bool WaitsForLeadAt(PhaseContext ctx, GroundNode bar)
+    {
+        int second = (int)Math.Floor(ElapsedSeconds);
+        if (second != _leadWaitSecond)
+        {
+            _leadWaitVerdicts.Clear();
+            _leadWaitSecond = second;
+        }
+
+        if (!_leadWaitVerdicts.TryGetValue(bar.Id, out bool waits))
+        {
+            waits =
+                (ctx.GroundLayout is { } layout)
+                && (ctx.AircraftLookup?.Invoke(_targetCallsign) is { IsOnGround: true } lead)
+                && WaitsAtBarForLead(ctx, layout, lead, new BarCrossing(bar, _crossingClearedRunways));
+            _leadWaitVerdicts[bar.Id] = waits;
+        }
+
+        return waits;
     }
 
     /// <summary><paramref name="node"/> as a bar ahead of the follower, its hold line square to <paramref name="approachDeg"/>.</summary>
@@ -2794,7 +3083,16 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
         };
 
         var holdPhase = new HoldingShortPhase(holdShort);
-        var resumeFollow = new FollowingPhase(_targetCallsign);
+        if (!IsClearedToCross(node) || (bar.Reason != HoldShortReason.RunwayCrossing))
+        {
+            ctx.Aircraft.Phases?.InsertAfterCurrent([holdPhase, new FollowingPhase(_targetCallsign)]);
+            return true;
+        }
+
+        // Cleared across, stopped only to wait for the lead: the hold keeps the clearance armed and lets the follow, which keeps
+        // crossing the cleared runways, go once the lead is ahead.
+        holdPhase.SatisfyClearance(ClearanceType.RunwayCrossing);
+        var resumeFollow = new FollowingPhase(_targetCallsign) { CrossingClearedRunways = _crossingClearedRunways };
         ctx.Aircraft.Phases?.InsertAfterCurrent([holdPhase, resumeFollow]);
         return true;
     }

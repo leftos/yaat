@@ -1,6 +1,8 @@
+using System.Text.Json;
 using Xunit;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases.Ground;
+using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
 
@@ -34,6 +36,45 @@ public class HoldShortReasonSnapshotTests
         var restored = HoldingShortPhase.FromSnapshot(dto);
 
         Assert.Equal(HoldShortReason.DestinationRunway, restored.HoldShort.Reason);
+    }
+
+    /// <summary>
+    /// A hold's wait for its follow's lead and the call it made for that wait survive a JSON round trip of its snapshot as true,
+    /// and are not written at all while null.
+    /// </summary>
+    [Fact]
+    public void HoldingShortPhaseDto_JsonRoundTrip_KeepsTheWaitForLeadAndItsCall()
+    {
+        var waiting = new HoldingShortPhaseDto
+        {
+            Status = 0,
+            ElapsedSeconds = 0,
+            HoldShortNodeId = 5,
+            RunwayId = "01R/19L",
+            Reason = HoldShortReason.RunwayCrossing,
+            WaitingForLead = true,
+            SaidWaitForLead = true,
+        };
+
+        string json = JsonSerializer.Serialize(waiting, RecordingJsonOptions.Default);
+        HoldingShortPhaseDto restored = Assert.IsType<HoldingShortPhaseDto>(
+            JsonSerializer.Deserialize<HoldingShortPhaseDto>(json, RecordingJsonOptions.Default)
+        );
+        Assert.True(restored.WaitingForLead);
+        Assert.True(restored.SaidWaitForLead);
+
+        string idleJson = JsonSerializer.Serialize(
+            new HoldingShortPhaseDto
+            {
+                Status = 0,
+                ElapsedSeconds = 0,
+                HoldShortNodeId = 5,
+                RunwayId = "01R/19L",
+            },
+            RecordingJsonOptions.Default
+        );
+        Assert.DoesNotContain(nameof(HoldingShortPhaseDto.WaitingForLead), idleJson, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(nameof(HoldingShortPhaseDto.SaidWaitForLead), idleJson, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

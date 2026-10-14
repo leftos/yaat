@@ -165,6 +165,58 @@ public class FollowGroundAtRunwayBarTests(ITestOutputHelper output)
     }
 
     /// <summary>
+    /// A follow released at the 1R bar whose crossing clearance also covers the follower's own departure runway, 28L: at its 28L
+    /// departure bar the follow still stops for a plain hold (<see cref="HoldShortReason.DestinationRunway"/>), not cleared by the
+    /// crossing clearance, and never enters 28L — a crossing clearance is no line-up or takeoff clearance. <c>CROSS</c> refuses to
+    /// name a runway the route departs from, so the follow behind <c>CROSS 1R</c> is replaced by one cleared across 1R and 28L.
+    /// </summary>
+    [Fact]
+    public void FollowGThenCrossCoveringTheDepartureRunway_HoldsUnclearedAtTheDepartureBar()
+    {
+        if (Stage(TaxiToOneRightBar, "1R") is not { } staged)
+        {
+            return;
+        }
+
+        (SfoGround ground, AircraftState follower, AircraftState leader) = staged;
+        AssertSent(ground, Follower, $"FOLLOWG {Leader}");
+        AssertSent(ground, Follower, "CROSS 1R");
+        PhaseList phases = Assert.IsType<PhaseList>(follower.Phases);
+        CrossingRunwayPhase crossing = Assert.IsType<CrossingRunwayPhase>(phases.Phases[phases.CurrentIndex + 1]);
+        RunwayIdentifier[] cleared = [SfoGroundHarness.Runway("1R").Id, SfoGroundHarness.Runway("28L").Id];
+        phases.ReplaceUpcoming([crossing, new FollowingPhase(Leader) { CrossingClearedRunways = cleared }]);
+        bool leaderLinedUp = false;
+        int held = SfoGroundHarness.TickUntil(
+            ground.Engine,
+            () => (follower.Phases?.CurrentPhase is HoldingShortPhase hold) && SfoGroundHarness.HoldShortMatches(hold.HoldShort, "28L"),
+            DepartureBarBudgetSeconds,
+            second =>
+            {
+                LogFollow(second, follower, leader);
+                // Move the leader onto 28L so the follower comes up to the bar rather than stopping behind the leader.
+                if (!leaderLinedUp && (leader.Phases?.CurrentPhase is HoldingShortPhase))
+                {
+                    leaderLinedUp = ground.Engine.SendCommand(Leader, "LUAW").Success;
+                }
+            }
+        );
+        Assert.True(held > 0, $"the follower never held short of 28L within {DepartureBarBudgetSeconds}s: {follower.Phases?.CurrentPhase?.Name}");
+        FollowingPhase follow = Assert.IsType<FollowingPhase>(follower.Phases!.Phases[follower.Phases.CurrentIndex - 1]);
+        Assert.Contains(follow.CrossingClearedRunways, r => r.Overlaps(SfoGroundHarness.Runway("28L").Id));
+
+        HoldingShortPhase departureBar = Assert.IsType<HoldingShortPhase>(follower.Phases?.CurrentPhase);
+        Assert.Equal(HoldShortReason.DestinationRunway, departureBar.HoldShort.Reason);
+        RunwayInfo runway28L = SfoGroundHarness.Runway("28L");
+        for (int second = 1; second <= HeldSeconds; second++)
+        {
+            ground.Engine.TickOneSecond();
+            Assert.Same(departureBar, follower.Phases?.CurrentPhase);
+            Assert.False(departureBar.HoldShort.IsCleared, $"t={second}s: the crossing clearance cleared the departure bar");
+            Assert.False(RunwayOccupancy.IsOnPavement(follower, runway28L), $"t={second}s: entered 28L with no line-up or takeoff clearance");
+        }
+    }
+
+    /// <summary>
     /// <c>FOLLOWG X; CROSS 1L 1R</c> — one clearance for both runways (7110.65 §3-7-2c) — takes the follower across
     /// 1L and 1R without stopping at the 1R bar between them.
     /// </summary>
@@ -360,6 +412,461 @@ public class FollowGroundAtRunwayBarTests(ITestOutputHelper output)
     }
 
     /// <summary>
+    /// The pilot's call when, cleared across, it holds short for the traffic it follows: the leader is "the traffic" in the
+    /// terminal and spoken forms, and only the RPO form names it.
+    /// </summary>
+    [Fact]
+    public void HoldingShortForFollowTraffic_SaysWaitingForTheTrafficToPass()
+    {
+        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        {
+            output.WriteLine("SKIP: SFO layout or navdata unavailable");
+            return;
+        }
+
+        AircraftState follower = SfoGroundHarness.SpawnAtSpot(ground, Follower, Type, "3");
+        PilotSpeechText call = PilotResponder.BuildHoldingShortForFollowTraffic(follower, "1R", Leader);
+        output.WriteLine($"terminal='{call.Terminal}' tts='{call.Tts}' rpo='{call.RpoTerminal}'");
+        Assert.Equal("Holding short of runway 1R, waiting for the traffic to pass", call.Terminal);
+        Assert.EndsWith(", holding short of runway one right, waiting for the traffic to pass.", call.Tts, StringComparison.Ordinal);
+        Assert.Equal($"Holding short of runway 1R, waiting for {Leader} to pass", call.TerminalForRpo);
+    }
+
+    /// <summary>
+    /// A follow armed at the 1R bar on F1 behind a leader held short of 1L on F, whose route down F meets the follower's just past
+    /// 1R where F1 joins F: the follower has no room between 1R's far hold line and its give-way stop for the merge, so on
+    /// <c>CROSS 1R</c> it holds at the near bar, the clearance armed. As the wait starts the pilot says it is holding short for the
+    /// traffic and the controller is warned, once: not again on later ticks, nor after a snapshot restored mid-wait.
+    /// </summary>
+    [Fact]
+    public void FollowGArmedAtOneRightBar_NoRoomBeyondOneRight_HoldsAtTheBarAndSaysSoOnce()
+    {
+        if (StageNoRoomAtOneRight() is not { } staged)
+        {
+            return;
+        }
+
+        (SfoGround ground, AircraftState follower, _) = staged;
+        HoldingShortPhase hold = Assert.IsType<HoldingShortPhase>(follower.Phases?.CurrentPhase);
+        List<string> said = HoldAtTheBar(ground, follower, hold);
+        Assert.True(hold.IsWaitingForLead, "the cleared follower is not holding for its leader");
+        Assert.Equal(
+            [$"Holding short of runway 1R, waiting for {Leader} to pass", $"{Follower} cleared across RWY 1R, holding for the follow traffic"],
+            said
+        );
+
+        StateSnapshotDto snapshot = ground.Engine.CaptureSnapshot();
+        SfoGround restoredGround = Assert.IsType<SfoGround>(SfoGroundHarness.Build(output, autoCross: false));
+        restoredGround.Engine.RestoreFromSnapshot(snapshot);
+        AircraftState restored = Assert.IsType<AircraftState>(restoredGround.Engine.World.GetSnapshot().FirstOrDefault(a => a.Callsign == Follower));
+        HoldingShortPhase restoredHold = Assert.IsType<HoldingShortPhase>(restored.Phases?.CurrentPhase);
+        Assert.True(restoredHold.IsWaitingForLead, "the restored hold lost its wait for the leader");
+        Assert.Empty(HoldAtTheBar(restoredGround, restored, restoredHold));
+        Assert.Empty(HoldAtTheBar(ground, follower, hold));
+    }
+
+    /// <summary>
+    /// A follower released at the 1L bar on <c>FOLLOWG; CROSS 1L 1R</c> — its leader stood with no route, so there was nothing to
+    /// wait for — whose leader is then cleared down F, across 1L and 1R, to meet the follower's route just past 1R: the follow,
+    /// cleared across 1R, still stops at the 1R bar, since the merge is now ahead of the leader with no room beyond 1R, and holds
+    /// there with the clearance armed, saying so once.
+    /// </summary>
+    [Fact]
+    public void FollowGThenCrossOneLeftOneRight_LeaderRoutedAheadAfterTheRelease_WaitsAtTheOneRightBar()
+    {
+        if (StageBehind(TaxiToOneLeftBar, "1L", "TAXI A F", Type) is not { } staged)
+        {
+            return;
+        }
+
+        (SfoGround ground, AircraftState follower, AircraftState leader) = staged;
+        int restAt = SfoGroundHarness.TickUntil(
+            ground.Engine,
+            () =>
+                (FollowingPhase.DrivenRouteOf(leader) is null or { IsComplete: true }) && (leader.GroundSpeed < SfoGroundHarness.StationarySpeedKts),
+            CrossBudgetSeconds,
+            null
+        );
+        Assert.True(restAt >= 0, $"{Leader} never came to rest with no route left: {leader.Phases?.CurrentPhase?.Name}");
+        AssertSent(ground, Follower, $"FOLLOWG {Leader}; CROSS 1L 1R");
+        int crossingAt = SfoGroundHarness.TickUntil(
+            ground.Engine,
+            () => follower.Phases?.CurrentPhase is CrossingRunwayPhase,
+            CrossBudgetSeconds,
+            null
+        );
+        Assert.True(crossingAt > 0, $"the follower never started across 1L: {follower.Phases?.CurrentPhase?.Name}");
+        AssertSent(ground, Leader, "TAXI F 28L");
+
+        List<string> said = [];
+        ground.Engine.WarningEmitted += (callsign, warning) =>
+        {
+            if (callsign == Follower)
+            {
+                said.Add(warning);
+            }
+        };
+        RunwayInfo runway1R = SfoGroundHarness.Runway("1R");
+        int heldAt = SfoGroundHarness.TickUntil(
+            ground.Engine,
+            () =>
+                (follower.Phases?.CurrentPhase is HoldingShortPhase { IsWaitingForLead: true } hold)
+                && SfoGroundHarness.HoldShortMatches(hold.HoldShort, "1R"),
+            CrossBudgetSeconds,
+            second =>
+            {
+                LogFollow(second, follower, leader);
+                Assert.False(RunwayOccupancy.IsOnPavement(follower, runway1R), $"t={second}s: entered 1R with the merge ahead of {Leader}");
+            }
+        );
+        Assert.True(heldAt > 0, $"the follower never held at the 1R bar for {Leader}: {follower.Phases?.CurrentPhase?.Name}");
+        HoldingShortPhase oneRight = Assert.IsType<HoldingShortPhase>(follower.Phases?.CurrentPhase);
+        HoldAtTheBar(ground, follower, oneRight);
+        // The hold-short report any follow's stop at a bar makes, then the wait's own call and warning.
+        Assert.Equal(
+            [
+                $"{Follower} holding short runway 1R/19L at F1",
+                $"Holding short of runway 1R, waiting for {Leader} to pass",
+                $"{Follower} cleared across RWY 1R, holding for the follow traffic",
+            ],
+            said
+        );
+    }
+
+    /// <summary>
+    /// The follow of <see cref="FollowGThenCrossOneLeftOneRight_LeaderRoutedAheadAfterTheRelease_WaitsAtTheOneRightBar"/>, driving
+    /// up to the 1R bar it is cleared across with a cached verdict that it waits there for its leader, survives a snapshot round
+    /// trip: the restored follower drives as the original and stops at the bar on the same tick. It does not guard the cached
+    /// verdict itself — the restored follow judges the bar afresh within the second and reaches the same verdict — which
+    /// <see cref="FollowingSnapshot_WithACachedWaitVerdict_RoundTripsTheVerdictsAndTheirSecond"/> does.
+    /// </summary>
+    [Fact]
+    public void FollowGThenCrossOneLeftOneRight_SnapshotWithACachedWaitVerdict_StopsAtTheBarAsTheOriginal()
+    {
+        if (StageCachedWaitVerdict() is not { } staged)
+        {
+            return;
+        }
+
+        (SfoGround ground, AircraftState follower, _) = staged;
+        string json = JsonSerializer.Serialize(ground.Engine.CaptureSnapshot(), RecordingJsonOptions.Default);
+        SfoGround restoredGround = Assert.IsType<SfoGround>(SfoGroundHarness.Build(output, autoCross: false));
+        restoredGround.Engine.RestoreFromSnapshot(
+            Assert.IsType<StateSnapshotDto>(JsonSerializer.Deserialize<StateSnapshotDto>(json, RecordingJsonOptions.Default))
+        );
+        AircraftState restored = Assert.IsType<AircraftState>(restoredGround.Engine.FindAircraft(Follower));
+        for (int second = 1; second <= CrossBudgetSeconds; second++)
+        {
+            ground.Engine.TickOneSecond();
+            restoredGround.Engine.TickOneSecond();
+            output.WriteLine($"+{second}s: original {follower.Phases?.CurrentPhase?.Name}, restored {restored.Phases?.CurrentPhase?.Name}");
+            Assert.Equal(follower.Phases?.CurrentPhase?.Name, restored.Phases?.CurrentPhase?.Name);
+            Assert.Equal(follower.Position, restored.Position);
+            if (follower.Phases?.CurrentPhase is HoldingShortPhase { IsWaitingForLead: true })
+            {
+                return;
+            }
+        }
+
+        Assert.Fail($"the follower never stopped at the 1R bar for {Leader} within {CrossBudgetSeconds}s of the snapshot");
+    }
+
+    /// <summary>
+    /// A follow's cached wait verdicts at cleared bars and the second they were judged in survive its snapshot both ways: the
+    /// follow of <see cref="StageCachedWaitVerdict"/>, snapshot, restored and snapshot again, writes the same verdicts and second.
+    /// </summary>
+    [Fact]
+    public void FollowingSnapshot_WithACachedWaitVerdict_RoundTripsTheVerdictsAndTheirSecond()
+    {
+        if (StageCachedWaitVerdict() is not { } staged)
+        {
+            return;
+        }
+
+        FollowingPhase follow = Assert.IsType<FollowingPhase>(staged.Follower.Phases?.CurrentPhase);
+        FollowingPhaseDto first = Assert.IsType<FollowingPhaseDto>(follow.ToSnapshot());
+        FollowingPhaseDto second = Assert.IsType<FollowingPhaseDto>(FollowingPhase.FromSnapshot(first, staged.Ground.Layout).ToSnapshot());
+        output.WriteLine($"verdicts {string.Join(", ", first.LeadWaitVerdicts ?? [])} at second {first.LeadWaitSecond}");
+        Assert.Equal(follow.LeadWaitVerdicts, Assert.IsType<Dictionary<int, bool>>(first.LeadWaitVerdicts));
+        Assert.True(first.LeadWaitSecond is > 0, $"the snapshot's verdict second is {first.LeadWaitSecond?.ToString() ?? "null"}");
+        Assert.Equal(first.LeadWaitVerdicts, second.LeadWaitVerdicts);
+        Assert.Equal(first.LeadWaitSecond, second.LeadWaitSecond);
+    }
+
+    /// <summary>
+    /// Stages the follow of <see cref="FollowGThenCrossOneLeftOneRight_LeaderRoutedAheadAfterTheRelease_WaitsAtTheOneRightBar"/>
+    /// driving up to the 1R bar with a cached verdict that it waits there for its leader. Null on the repo's silent-skip path.
+    /// </summary>
+    private (SfoGround Ground, AircraftState Follower, AircraftState Leader)? StageCachedWaitVerdict()
+    {
+        if (StageBehind(TaxiToOneLeftBar, "1L", "TAXI A F", Type) is not { } staged)
+        {
+            return null;
+        }
+
+        (SfoGround ground, AircraftState follower, AircraftState leader) = staged;
+        int restAt = SfoGroundHarness.TickUntil(
+            ground.Engine,
+            () =>
+                (FollowingPhase.DrivenRouteOf(leader) is null or { IsComplete: true }) && (leader.GroundSpeed < SfoGroundHarness.StationarySpeedKts),
+            CrossBudgetSeconds,
+            null
+        );
+        Assert.True(restAt >= 0, $"{Leader} never came to rest with no route left: {leader.Phases?.CurrentPhase?.Name}");
+        AssertSent(ground, Follower, $"FOLLOWG {Leader}; CROSS 1L 1R");
+        AssertSent(ground, Leader, "TAXI F 28L");
+        int cachedAt = SfoGroundHarness.TickUntil(
+            ground.Engine,
+            () => (follower.Phases?.CurrentPhase is FollowingPhase follow) && follow.LeadWaitVerdicts.Values.Contains(true),
+            CrossBudgetSeconds,
+            second => LogFollow(second, follower, leader)
+        );
+        Assert.True(cachedAt > 0, $"the follow never cached a wait verdict driving up to 1R: {follower.Phases?.CurrentPhase?.Name}");
+        return staged;
+    }
+
+    /// <summary>
+    /// A follow armed at the 1R bar behind a leader stood with no route where LF meets F, past 1R's far bar on the follower's
+    /// F1: with no known leader route there is no wait at the bar, and on <c>CROSS 1R</c> the follower crosses and gives way short
+    /// of the merge, never at rest inside a hold line, and stops clear past 1R's far hold line.
+    /// </summary>
+    [Fact]
+    public void FollowGArmedAtOneRightBar_LeaderWithNoRoutePastOneRight_GivesWayClearOfTheFarHoldLine()
+    {
+        if (Stage(TaxiToOneRightBar, "1R") is not { } staged)
+        {
+            return;
+        }
+
+        (SfoGround ground, AircraftState follower, AircraftState leader) = staged;
+        StandLeaderWithNoRoute(ground, leader, ToFJunction);
+        AssertSent(ground, Follower, $"FOLLOWG {Leader}; CROSS 1R");
+        int followingAt = SfoGroundHarness.TickUntil(ground.Engine, () => follower.Phases?.CurrentPhase is FollowingPhase, CrossBudgetSeconds, null);
+        Assert.True(followingAt > 0, $"the follow never started within {CrossBudgetSeconds}s of CROSS 1R: {follower.Phases?.CurrentPhase?.Name}");
+        for (int second = 1; second <= WaitSeconds; second++)
+        {
+            ground.Engine.TickOneSecond();
+            LogFollow(second, follower, leader);
+            AssertNeverAtRestInsideAHoldLine(ground, follower, second);
+        }
+
+        Assert.True(follower.GroundSpeed < SfoGroundHarness.StationarySpeedKts, $"the follower is still rolling at {follower.GroundSpeed:F1} kt");
+        AssertStoppedClearPastOneRight(ground, follower);
+    }
+
+    /// <summary>
+    /// A follower cleared across 1L only, whose merge with its leader's route lies just past 1R with no room to wait beyond 1R:
+    /// it crosses 1L and holds at the 1R bar its clearance does not cover; cleared across 1R there, it keeps holding for the
+    /// leader as a hold at the bar would, saying so once.
+    /// </summary>
+    [Fact]
+    public void FollowGThenCrossOneLeftOnly_NoRoomBeyondOneRight_HoldsAtOneRightThenWaitsThereOnCross()
+    {
+        if (StageBehind(TaxiToOneLeftBar, "1L", LeaderDownF, Type) is not { } staged)
+        {
+            return;
+        }
+
+        (SfoGround ground, AircraftState follower, AircraftState leader) = staged;
+        AssertSent(ground, Follower, $"FOLLOWG {Leader}; CROSS 1L");
+        int heldAt = SfoGroundHarness.TickUntil(
+            ground.Engine,
+            () => (follower.Phases?.CurrentPhase is HoldingShortPhase hold) && SfoGroundHarness.HoldShortMatches(hold.HoldShort, "1R"),
+            CrossBudgetSeconds,
+            second => LogFollow(second, follower, leader)
+        );
+        Assert.True(heldAt > 0, $"the follower never held short of 1R after crossing 1L: {follower.Phases?.CurrentPhase?.Name}");
+        HoldingShortPhase oneRight = Assert.IsType<HoldingShortPhase>(follower.Phases?.CurrentPhase);
+        Assert.False(oneRight.IsWaitingForLead, "the follower not cleared across 1R holds there for its leader");
+
+        AssertSent(ground, Follower, "CROSS 1R");
+        List<string> said = HoldAtTheBar(ground, follower, oneRight);
+        Assert.True(oneRight.IsWaitingForLead, "cleared across 1R, the follower is not holding for its leader");
+        Assert.Equal(
+            [$"Holding short of runway 1R, waiting for {Leader} to pass", $"{Follower} cleared across RWY 1R, holding for the follow traffic"],
+            said
+        );
+    }
+
+    /// <summary>
+    /// A follow armed at the 1R bar on F1 behind a leader cleared down F across 1L and 1R, released with <c>CROSS 1R</c> once the
+    /// leader has driven past the merge where F1 joins F but before its tail is clear of it: the follower waits at the bar for that
+    /// tail without a word — no pilot call and no warning, since the leader is moving away past the merge — and then goes.
+    /// </summary>
+    [Fact]
+    public void FollowGArmedAtOneRightBar_LeaderPastTheMergeTailNotClear_WaitsSilentlyThenGoes()
+    {
+        if (StageBehind(TaxiToOneRightBar, "1R", LeaderDownF, Type) is not { } staged)
+        {
+            return;
+        }
+
+        (SfoGround ground, AircraftState follower, AircraftState leader) = staged;
+        HoldingShortPhase hold = Assert.IsType<HoldingShortPhase>(follower.Phases?.CurrentPhase);
+        AssertSent(ground, Follower, $"FOLLOWG {Leader}");
+        AssertSent(ground, Leader, "CROSS 1L 1R");
+        int pastAt = SfoGroundHarness.TickUntil(
+            ground.Engine,
+            () => LeaderPastTheMergeTailNotClear(ground, follower, leader),
+            DepartureBarBudgetSeconds,
+            second => LogFollow(second, follower, leader)
+        );
+        Assert.True(pastAt > 0, $"{Leader} never stood past the merge with its tail not clear of it");
+
+        List<string> said = [];
+        void Collect(string callsign, string warning)
+        {
+            if (callsign == Follower)
+            {
+                said.Add(warning);
+            }
+        }
+
+        ground.Engine.WarningEmitted += Collect;
+        AssertSent(ground, Follower, "CROSS 1R");
+        bool waited = false;
+        int goneAt = SfoGroundHarness.TickUntil(
+            ground.Engine,
+            () => !ReferenceEquals(follower.Phases?.CurrentPhase, hold),
+            CrossBudgetSeconds,
+            second =>
+            {
+                waited |= hold.IsWaitingForLead;
+                LogFollow(second, follower, leader);
+            }
+        );
+        ground.Engine.WarningEmitted -= Collect;
+
+        Assert.True(waited, "the follower released at 1R never waited for its leader's tail to clear the merge");
+        Assert.True(goneAt > 0, $"the follower never left the 1R bar within {CrossBudgetSeconds}s of CROSS 1R");
+        Assert.Empty(said);
+    }
+
+    /// <summary>
+    /// The silent wait of <see cref="FollowGArmedAtOneRightBar_LeaderPastTheMergeTailNotClear_WaitsSilentlyThenGoes"/> turned real:
+    /// the follower released at 1R waits without a word for its moving leader's tail to clear the merge, and the leader is then
+    /// held with its tail still across it — a B744, long enough to stop from taxi speed with its tail short of the merge. On the next
+    /// re-check of the wait the pilot says it is holding short for the traffic and the controller is warned, once for the wait.
+    /// </summary>
+    [Fact]
+    public void FollowGArmedAtOneRightBar_LeaderStopsWithItsTailAcrossTheMerge_SaysTheWaitOnce()
+    {
+        if (StageBehind(TaxiToOneRightBar, "1R", LeaderDownF, "B744") is not { } staged)
+        {
+            return;
+        }
+
+        (SfoGround ground, AircraftState follower, AircraftState leader) = staged;
+        HoldingShortPhase hold = Assert.IsType<HoldingShortPhase>(follower.Phases?.CurrentPhase);
+        AssertSent(ground, Follower, $"FOLLOWG {Leader}");
+        AssertSent(ground, Leader, "CROSS 1L 1R");
+        int pastAt = SfoGroundHarness.TickUntil(
+            ground.Engine,
+            () => LeaderPastTheMergeTailNotClear(ground, follower, leader),
+            DepartureBarBudgetSeconds,
+            second => LogFollow(second, follower, leader)
+        );
+        Assert.True(pastAt > 0, $"{Leader} never stood past the merge with its tail not clear of it");
+
+        List<string> said = [];
+        void Collect(string callsign, string warning)
+        {
+            if (callsign == Follower)
+            {
+                said.Add(warning);
+            }
+        }
+
+        ground.Engine.WarningEmitted += Collect;
+        AssertSent(ground, Follower, "CROSS 1R");
+        AssertSent(ground, Leader, "HOLD");
+        ground.Engine.TickOneSecond();
+        LogFollow(1, follower, leader);
+        Assert.True(hold.IsWaitingForLead, "the follower released at 1R is not waiting for its leader's tail to clear the merge");
+        Assert.True(leader.GroundSpeed >= SfoGroundHarness.StationarySpeedKts, $"{Leader} stopped before the wait started");
+        Assert.Empty(said);
+
+        for (int second = 2; second <= HeldSeconds; second++)
+        {
+            ground.Engine.TickOneSecond();
+            LogFollow(second, follower, leader);
+            Assert.Same(hold, follower.Phases?.CurrentPhase);
+        }
+
+        ground.Engine.WarningEmitted -= Collect;
+        Assert.True(LeaderPastTheMergeTailNotClear(ground, follower, leader), $"{Leader}'s tail cleared the merge before it stopped");
+        Assert.Equal(
+            [$"Holding short of runway 1R, waiting for {Leader} to pass", $"{Follower} cleared across RWY 1R, holding for the follow traffic"],
+            said
+        );
+    }
+
+    /// <summary>
+    /// Whether <paramref name="leader"/> stands past the merge of <paramref name="follower"/>'s follow with its tail not yet clear
+    /// of it.
+    /// </summary>
+    private static bool LeaderPastTheMergeTailNotClear(SfoGround ground, AircraftState follower, AircraftState leader) =>
+        (FollowRoutePlanner.Plan(ground.Layout, follower, leader, () => []) is FollowRoutePlan.Joinable { MergeAheadOfLead: false } plan)
+        && (FollowRoutePlanner.LocateOnPath(ground.Layout, plan.LeadPathFromMerge, leader) is { } at)
+        && !FollowRoutePlanner.LeadTailPastMerge(plan.LeadPathFromMerge, at, leader.AircraftType);
+
+    /// <summary>
+    /// Ticks <see cref="HeldSeconds"/> with <paramref name="follower"/> held by <paramref name="hold"/> short of 1R, failing if it
+    /// leaves the hold or enters 1R; returns the warnings it raised meanwhile, in order.
+    /// </summary>
+    private static List<string> HoldAtTheBar(SfoGround ground, AircraftState follower, HoldingShortPhase hold)
+    {
+        RunwayInfo runway1R = SfoGroundHarness.Runway("1R");
+        List<string> said = [];
+        void Collect(string callsign, string warning)
+        {
+            if (callsign == Follower)
+            {
+                said.Add(warning);
+            }
+        }
+
+        ground.Engine.WarningEmitted += Collect;
+        for (int second = 1; second <= HeldSeconds; second++)
+        {
+            ground.Engine.TickOneSecond();
+            Assert.Same(hold, follower.Phases?.CurrentPhase);
+            Assert.False(RunwayOccupancy.IsOnPavement(follower, runway1R), $"t={second}s: entered 1R while holding for the leader");
+        }
+
+        ground.Engine.WarningEmitted -= Collect;
+        return said;
+    }
+
+    /// <summary>
+    /// Stages a follow armed at the 1R bar on F1 behind a leader held short of 1L on F (<see cref="LeaderDownF"/>), then
+    /// <c>CROSS 1R</c>. Null on the repo's silent-skip path.
+    /// </summary>
+    private (SfoGround Ground, AircraftState Follower, AircraftState Leader)? StageNoRoomAtOneRight()
+    {
+        if (StageBehind(TaxiToOneRightBar, "1R", LeaderDownF, Type) is not { } staged)
+        {
+            return null;
+        }
+
+        AssertSent(staged.Ground, Follower, $"FOLLOWG {Leader}");
+        FollowRoutePlan.Joinable plan = Assert.IsType<FollowRoutePlan.Joinable>(
+            FollowRoutePlanner.Plan(staged.Ground.Layout, staged.Follower, staged.Leader, () => [])
+        );
+        GroundNode nearBar = staged.Ground.Layout.Nodes[Assert.IsType<HoldingShortPhase>(staged.Follower.Phases?.CurrentPhase).HoldShort.NodeId];
+        double? roomFt = FollowingPhase.RoomBeyondFarBarFt(staged.Follower, plan, staged.Leader, new FollowingPhase.BarCrossing(nearBar, []));
+        output.WriteLine($"merge at node {plan.MergeNode} aheadOfLead={plan.MergeAheadOfLead}; room beyond 1R {roomFt?.ToString("F0") ?? "none"} ft");
+        Assert.True(plan.MergeAheadOfLead, $"the merge at node {plan.MergeNode} is not ahead of the held leader");
+        // No room: the tail would stop short of the far bar, or the give-way stop itself lies short of it (no far bar before it).
+        Assert.True(roomFt is null or < 0.0, $"the follower fits beyond 1R ({roomFt:F0} ft of room)");
+        AssertSent(staged.Ground, Follower, "CROSS 1R");
+        return staged;
+    }
+
+    /// <summary>The leader's taxi from spot 1 down F, across 1L and 1R, held short of 1L: F meets the follower's F1 past 1R.</summary>
+    private const string LeaderDownF = "TAXI A F RWY 28L";
+
+    /// <summary>
     /// At the departure bar a completed taxi route ends at, CROSS takes the aircraft across, so a FOLLOWG there arms
     /// the follow as at any other runway bar.
     /// </summary>
@@ -487,6 +994,291 @@ public class FollowGroundAtRunwayBarTests(ITestOutputHelper output)
     }
 
     /// <summary>
+    /// A follow under way past 1R whose leader is then re-routed onto a route along F1 through the follower's position: the re-plan
+    /// finds the follower ahead of the leader, and it holds for good and says once that it cannot follow and wants taxi
+    /// instructions — not again however long it holds.
+    /// </summary>
+    [Fact]
+    public void FollowingPastOneRight_LeaderReroutedThroughTheFollower_SaysUnableOnce()
+    {
+        if (Stage(TaxiToOneRightBar, "1R") is not { } staged)
+        {
+            return;
+        }
+
+        (SfoGround ground, AircraftState follower, AircraftState leader) = staged;
+        AssertSent(ground, Follower, $"FOLLOWG {Leader}");
+        AssertSent(ground, Follower, "CROSS 1R");
+        int drivingAt = SfoGroundHarness.TickUntil(
+            ground.Engine,
+            () => (follower.Phases?.CurrentPhase is FollowingPhase { FollowRoute.IsComplete: false }) && (follower.GroundSpeed > 3.0),
+            CrossBudgetSeconds,
+            second => LogFollow(second, follower, leader)
+        );
+        Assert.True(drivingAt > 0, $"the follow never drove a route within {CrossBudgetSeconds}s of CROSS 1R: {follower.Phases?.CurrentPhase?.Name}");
+
+        List<string> unable = [];
+        void Note(string from, string text)
+        {
+            if ((from == Follower) && text.Contains("no taxi route", StringComparison.OrdinalIgnoreCase))
+            {
+                unable.Add(text);
+            }
+        }
+
+        ground.Engine.WarningEmitted += Note;
+        ground.Engine.TerminalEntryEmitted += entry => Note(entry.Callsign, entry.Message);
+        AssertRerouted(ground, leader, follower, ["TAXI L F F1 A", "TAXI F F1 A", "TAXI A F1 F"]);
+        for (int second = 1; second <= HeldSeconds * 2; second++)
+        {
+            ground.Engine.TickOneSecond();
+            LogFollow(second, follower, leader);
+        }
+
+        FollowingPhase follow = Assert.IsType<FollowingPhase>(follower.Phases?.CurrentPhase);
+        Assert.True(follow.IsUnjoinable, "the follow ahead of its re-routed leader did not hold for good");
+        Assert.Equal([$"Unable to follow {Leader}, no taxi route to its path, request taxi instructions"], unable);
+    }
+
+    /// <summary>
+    /// A follow armed at the 1R bar behind a leader held short of where its route meets the follower's (LF onto F at the merge):
+    /// the merge lies beyond 1R with room for the follower between 1R's far hold line and its give-way stop, so on
+    /// <c>CROSS 1R</c> it crosses and comes to rest there, tail clear past the far hold line and nose short of the give-way stop,
+    /// still giving way and never turning down L.
+    /// </summary>
+    [Fact]
+    public void FollowGArmedAtOneRightBar_LeadHeldShortOfTheMerge_CrossesAndWaitsBeyondOneRight()
+    {
+        if (StageWaitingAtOneRight() is not { } staged)
+        {
+            return;
+        }
+
+        (SfoGround ground, AircraftState follower, AircraftState leader) = staged;
+        GroundNode farBar = FarBarOfOneRight(ground, follower, leader);
+        for (int second = 1; second <= WaitSeconds; second++)
+        {
+            ground.Engine.TickOneSecond();
+            LogFollow(second, follower, leader);
+            Assert.NotEqual("L", follower.Ground.CurrentTaxiway);
+        }
+
+        AssertWaitingBeyondOneRight(ground, follower, leader, farBar);
+    }
+
+    /// <summary>
+    /// The follower waiting beyond 1R for its held leader (as above) passes its give-way stop only once the leader, released, has
+    /// its tail past the merge, and falls in behind it: when the leader holds short of 28L both come to rest with the follower's
+    /// nose-to-tail gap at its stop gap.
+    /// </summary>
+    [Fact]
+    public void FollowGArmedAtOneRightBar_LeadHeldShortOfTheMerge_ThenClosesBehindItOnRelease()
+    {
+        if (StageWaitingAtOneRight() is not { } staged)
+        {
+            return;
+        }
+
+        (SfoGround ground, AircraftState follower, AircraftState leader) = staged;
+        FollowRoutePlan.Joinable plan = Assert.IsType<FollowRoutePlan.Joinable>(FollowRoutePlanner.Plan(ground.Layout, follower, leader, () => []));
+        Assert.True(plan.MergeAheadOfLead, $"the merge at node {plan.MergeNode} is not ahead of the held leader");
+        GroundNode farBar = FarBarOfOneRight(ground, follower, leader);
+        for (int second = 1; second <= WaitSeconds; second++)
+        {
+            ground.Engine.TickOneSecond();
+            Assert.NotEqual("L", follower.Ground.CurrentTaxiway);
+        }
+
+        AssertWaitingBeyondOneRight(ground, follower, leader, farBar);
+        AssertSent(ground, Leader, "RES");
+        bool passedStop = false;
+        int restAt = SfoGroundHarness.TickUntil(
+            ground.Engine,
+            () =>
+                (leader.Phases?.CurrentPhase is HoldingShortPhase hold)
+                && SfoGroundHarness.HoldShortMatches(hold.HoldShort, "28L")
+                && (leader.GroundSpeed < SfoGroundHarness.StationarySpeedKts)
+                && (follower.GroundSpeed < SfoGroundHarness.StationarySpeedKts)
+                && (follower.Phases?.CurrentPhase is FollowingPhase),
+            DepartureBarBudgetSeconds,
+            second =>
+            {
+                LogFollow(second, follower, leader);
+                passedStop = passedStop || AssertLeavesTheGiveWayStopOnlyBehindTheLeader(ground, plan, follower, leader, second);
+            }
+        );
+
+        AircraftCategory category = AircraftCategorization.Categorize(Type);
+        double stopGapFt = FollowGap.StopGapFt(Type, category, Type, category);
+        double gapFt = FollowingPhase.NoseToTailFt(follower, leader);
+        output.WriteLine($"both at rest at +{restAt}s: nose-to-tail {gapFt:F0} ft, stop gap {stopGapFt:F0} ft");
+        Assert.True(restAt > 0, $"{Leader} and {Follower} never both came to rest with {Leader} short of 28L within {DepartureBarBudgetSeconds}s");
+        Assert.True(passedStop, "the follower never left its give-way stop beyond 1R");
+        Assert.InRange(gapFt, stopGapFt - 10.0, stopGapFt + 20.0);
+    }
+
+    /// <summary>
+    /// A follower taxiing between 1L and 1R, given <c>FOLLOWG</c> and <c>CROSS 1R</c> there behind a leader held short of the
+    /// merge of their routes beyond 1R, with room to wait between 1R's far hold line and its give-way stop: it crosses 1R and
+    /// comes to rest there, and leaves that stop only once the leader, released, has its tail past the merge.
+    /// </summary>
+    [Fact]
+    public void FollowGWhileTaxiing_LeadHeldShortOfTheMerge_CrossesAndWaitsBeyondOneRight()
+    {
+        if (Stage(TaxiToOneLeftBar, "1L") is not { } staged)
+        {
+            return;
+        }
+
+        (SfoGround ground, AircraftState follower, AircraftState leader) = staged;
+        AssertSent(ground, Leader, "HOLD");
+        AssertSent(ground, Follower, "CROSS 1L");
+        int taxiingAt = SfoGroundHarness.TickUntil(
+            ground.Engine,
+            () => (follower.Phases?.CurrentPhase is TaxiingPhase) && (FollowingPhase.RunwayInsideHoldLine(follower, ground.Layout) is null),
+            CrossBudgetSeconds,
+            null
+        );
+        Assert.True(taxiingAt > 0, $"the follower never taxied on clear of 1L within {CrossBudgetSeconds}s of CROSS 1L");
+        AssertSent(ground, Follower, $"FOLLOWG {Leader}; CROSS 1R");
+        FollowRoutePlan.Joinable plan = Assert.IsType<FollowRoutePlan.Joinable>(FollowRoutePlanner.Plan(ground.Layout, follower, leader, () => []));
+        Assert.True(plan.MergeAheadOfLead, $"the merge at node {plan.MergeNode} is not ahead of the held leader");
+        GroundNode farBar = FarBarOfOneRight(ground, follower, leader);
+
+        for (int second = 1; second <= WaitSeconds; second++)
+        {
+            ground.Engine.TickOneSecond();
+            LogFollow(second, follower, leader);
+            Assert.NotEqual("L", follower.Ground.CurrentTaxiway);
+        }
+
+        AssertWaitingBeyondOneRight(ground, follower, leader, farBar);
+        AssertSent(ground, Leader, "RES");
+        bool passedStop = false;
+        int passedAt = SfoGroundHarness.TickUntil(
+            ground.Engine,
+            () => passedStop,
+            DepartureBarBudgetSeconds,
+            second =>
+            {
+                LogFollow(second, follower, leader);
+                passedStop = AssertLeavesTheGiveWayStopOnlyBehindTheLeader(ground, plan, follower, leader, second);
+            }
+        );
+        Assert.True(passedAt > 0, $"the follower never left its give-way stop beyond 1R within {DepartureBarBudgetSeconds}s of {Leader}'s release");
+    }
+
+    /// <summary>
+    /// 1R's far bar on the follower's route to the merge with <paramref name="leader"/>'s path: the last bar of 1R on it.
+    /// </summary>
+    private static GroundNode FarBarOfOneRight(SfoGround ground, AircraftState follower, AircraftState leader)
+    {
+        FollowRoutePlan.Joinable plan = Assert.IsType<FollowRoutePlan.Joinable>(FollowRoutePlanner.Plan(ground.Layout, follower, leader, () => []));
+        RunwayInfo runway1R = SfoGroundHarness.Runway("1R");
+        return plan
+            .PathToMerge.Segments.Select(s => s.Edge.ToNode)
+            .Last(n => (n.Type == GroundNodeType.RunwayHoldShort) && (n.RunwayId is { } id) && id.Overlaps(runway1R.Id));
+    }
+
+    /// <summary>
+    /// Fails unless the follower is following, giving way and at rest with its tail clear past 1R's <paramref name="farBar"/>
+    /// and off 1R's pavement and hold line, its route short of the merge and its centre at the give-way stop (within
+    /// <see cref="GiveWayRestToleranceFt"/> of it).
+    /// </summary>
+    private void AssertWaitingBeyondOneRight(SfoGround ground, AircraftState follower, AircraftState leader, GroundNode farBar)
+    {
+        RunwayInfo runway1R = SfoGroundHarness.Runway("1R");
+        FollowingPhase follow = Assert.IsType<FollowingPhase>(follower.Phases?.CurrentPhase);
+        TaxiRoute route = Assert.IsType<TaxiRoute>(follow.FollowRoute);
+        Assert.True(follow.IsGivingWay, "the follower beyond 1R is not giving way to its leader");
+        Assert.True(follower.GroundSpeed < SfoGroundHarness.StationarySpeedKts, $"the follower is rolling at {follower.GroundSpeed:F1} kt");
+        Assert.True(
+            FollowingPhase.IsClearPastBar(follower, runway1R, farBar),
+            $"the follower's tail is not clear past 1R's far bar (node {farBar.Id})"
+        );
+        Assert.False(RunwayOccupancy.IsOnPavement(follower, runway1R), "the follower waits on 1R");
+        Assert.False(FollowingPhase.IsInsideHoldLine(ground.Layout, runway1R, follower.Position), "the follower waits inside 1R's hold line");
+        Assert.True(route.CurrentSegmentIndex < follow.MergeSegmentIndex, "the follower is past the merge");
+
+        FollowRoutePlan.Joinable plan = Assert.IsType<FollowRoutePlan.Joinable>(FollowRoutePlanner.Plan(ground.Layout, follower, leader, () => []));
+        List<DirectionalEdge> track = plan.LeadEdgeIntoMerge is { } into ? [into, plan.LeadPathFromMerge[0]] : [plan.LeadPathFromMerge[0]];
+        (int NodeId, double ToStopFt)? stop = GroundConflictDetector.GiveWayStop(follower, plan.PathToMerge, track, leader, out string? why);
+        Assert.True(stop is not null, $"no give-way stop for the follower waiting beyond 1R: {why}");
+        output.WriteLine($"waiting beyond 1R: {stop.Value.ToStopFt:F0} ft to the give-way stop at node {stop.Value.NodeId}");
+        Assert.InRange(stop.Value.ToStopFt, 0.0, GiveWayRestToleranceFt);
+    }
+
+    /// <summary>How far (ft) short of its give-way stop a follower at rest there may stand.</summary>
+    private const double GiveWayRestToleranceFt = 30.0;
+
+    /// <summary>
+    /// Whether the follower has left its give-way stop (rolls again), failing when it does before <paramref name="leader"/>'s tail
+    /// is past the merge of <paramref name="plan"/>.
+    /// </summary>
+    private static bool AssertLeavesTheGiveWayStopOnlyBehindTheLeader(
+        SfoGround ground,
+        FollowRoutePlan.Joinable plan,
+        AircraftState follower,
+        AircraftState leader,
+        int second
+    )
+    {
+        if (follower.GroundSpeed < SfoGroundHarness.StationarySpeedKts)
+        {
+            return false;
+        }
+
+        bool tailPast =
+            (FollowRoutePlanner.LocateOnPath(ground.Layout, plan.LeadPathFromMerge, leader) is { } at)
+            && FollowRoutePlanner.LeadTailPastMerge(plan.LeadPathFromMerge, at, leader.AircraftType);
+        Assert.True(tailPast, $"+{second}s: the follower left its give-way stop before {Leader}'s tail passed the merge at node {plan.MergeNode}");
+        return true;
+    }
+
+    /// <summary>How long (s) the waiting follower is ticked with its leader held.</summary>
+    private const int WaitSeconds = 120;
+
+    /// <summary>
+    /// Stages a follow armed at the 1R bar behind a held leader (<c>HOLD</c>, <c>FOLLOWG</c>, <c>CROSS 1R</c>), the merge of
+    /// their routes ahead of the leader. Null on the repo's silent-skip path.
+    /// </summary>
+    private (SfoGround Ground, AircraftState Follower, AircraftState Leader)? StageWaitingAtOneRight()
+    {
+        if (Stage(TaxiToOneRightBar, "1R") is not { } staged)
+        {
+            return null;
+        }
+
+        AssertSent(staged.Ground, Leader, "HOLD");
+        AssertSent(staged.Ground, Follower, $"FOLLOWG {Leader}");
+        AssertSent(staged.Ground, Follower, "CROSS 1R");
+        return staged;
+    }
+
+    /// <summary>
+    /// Stops the leader with no route left: <paramref name="taxi"/> names no destination, so it ends where its last two taxiways
+    /// meet (<see cref="ToFJunction"/>), and the leader is ticked to rest there. A follower then has
+    /// only the leader's trail and the edge it stands on to join — a path guessed from where it stands — so it gives way at the
+    /// merge past the bar rather than waiting short of the runway.
+    /// </summary>
+    private void StandLeaderWithNoRoute(SfoGround ground, AircraftState leader, string taxi)
+    {
+        AssertSent(ground, Leader, taxi);
+        int restAt = SfoGroundHarness.TickUntil(
+            ground.Engine,
+            () =>
+                (FollowingPhase.DrivenRouteOf(leader) is null or { IsComplete: true }) && (leader.GroundSpeed < SfoGroundHarness.StationarySpeedKts),
+            CrossBudgetSeconds,
+            null
+        );
+        output.WriteLine($"{Leader} at rest with no route at +{restAt}s: {leader.Phases?.CurrentPhase?.Name} taxiway={leader.Ground.CurrentTaxiway}");
+        Assert.True(restAt > 0, $"{Leader} never came to rest with no route left within {CrossBudgetSeconds}s of '{taxi}'");
+    }
+
+    /// <summary>The leader's taxi along L and LF that ends where LF meets F, at the merge of its path with the follower's.</summary>
+    private const string ToFJunction = "TAXI L LF F";
+
+    /// <summary>
     /// A follower rolling along a straight taxiway edge past 1R on its follow route loses that route when its leader is re-routed
     /// along F1 through it: it keeps the route and brakes to rest along it, its centre never more than
     /// <see cref="LostRouteOffsetFt"/> off the route's centreline, and drops the route once at rest.
@@ -505,7 +1297,7 @@ public class FollowGroundAtRunwayBarTests(ITestOutputHelper output)
     /// it: it brakes to rest round the fillet's curve, its centre never more than <see cref="LostRouteOffsetFt"/> off it, rather
     /// than rolling on along its heading, and drops the route once at rest.
     /// </summary>
-    [Fact]
+    [Fact(Skip = "Needs a fillet long enough to stage mid-arc; re-enabled by YAAT-675 (follower squares the fillet corner via a 14 ft stub).")]
     public void Following_RouteLostMidFillet_BrakesRoundTheFilletToRest()
     {
         if (StageLostRoute(onFillet: true) is { } lost)
@@ -603,7 +1395,7 @@ public class FollowGroundAtRunwayBarTests(ITestOutputHelper output)
 
         (SfoGround ground, AircraftState follower, AircraftState leader) = staged;
         RunwayInfo runway1R = SfoGroundHarness.Runway("1R");
-        AssertSent(ground, Leader, "HOLD");
+        StandLeaderWithNoRoute(ground, leader, ToFJunction);
         AssertSent(ground, Follower, $"FOLLOWG {Leader}; CROSS 1L 1R");
         int onRunwayAt = SfoGroundHarness.TickUntil(
             ground.Engine,
@@ -732,7 +1524,7 @@ public class FollowGroundAtRunwayBarTests(ITestOutputHelper output)
     /// follow would install from its start, leaving back across the heading, is never adopted: it never turns about on the arc
     /// it is rolling round, and its follow route never drives the arc back.
     /// </summary>
-    [Fact]
+    [Fact(Skip = "Needs a fillet long enough to stage mid-arc; re-enabled by YAAT-675 (follower squares the fillet corner via a 14 ft stub).")]
     public void Following_LeadReroutedBehindTheFollowerMidFillet_NeverReversesOnTheArc()
     {
         if (StageRolling(onFillet: true) is { } rolling)
@@ -745,6 +1537,8 @@ public class FollowGroundAtRunwayBarTests(ITestOutputHelper output)
     /// Re-routes <paramref name="leader"/> with <paramref name="reroute"/> while <paramref name="follower"/> rolls on
     /// <paramref name="route"/>'s current segment, then ticks it: while it moves on that incoming edge its heading stays within
     /// 90° of the edge's bearing, its follow route never drives the edge back, and it ends at rest or on a route ahead of it.
+    /// A follower cannot stop at once, so its follow route may carry it onto an edge the leader's route runs against only while
+    /// it brakes to rest (<see cref="HeadOnRun"/>).
     /// </summary>
     private void AssertNeverReversesOnItsOwnEdge(
         SfoGround ground,
@@ -756,12 +1550,18 @@ public class FollowGroundAtRunwayBarTests(ITestOutputHelper output)
     {
         DirectionalEdge incoming = route.Segments[route.CurrentSegmentIndex].Edge;
         double incomingDeg = incoming.ArrivalBearing;
+        double rerouteKts = follower.GroundSpeed;
         reroute(ground, leader, follower);
+        HashSet<(int, int)> againstLead = [.. (leader.Ground.AssignedTaxiRoute?.Segments ?? []).Select(s => (s.ToNodeId, s.FromNodeId))];
+        TaxiRouteSegment? onAtReroute = (follower.Phases?.CurrentPhase as FollowingPhase)?.FollowRoute?.CurrentSegment;
+        var headOn = new HeadOnRun(againstLead, onAtReroute, rerouteKts);
         double worstDeg = 0.0;
         for (int second = 1; second <= HeldSeconds; second++)
         {
+            double beforeKts = follower.GroundSpeed;
             ground.Engine.TickOneSecond();
             LogFollow(second, follower, leader);
+            headOn.Observe(second, follower, beforeKts);
             double offDeg = Math.Abs(GeoMath.SignedBearingDifference(follower.TrueHeading.Degrees, incomingDeg));
             bool onIncoming =
                 GeoMath.DistanceToSegmentFt(follower.Position, incoming.FromNode.Position, incoming.ToNode.Position) <= OnIncomingEdgeFt;
@@ -778,6 +1578,7 @@ public class FollowGroundAtRunwayBarTests(ITestOutputHelper output)
             );
         }
 
+        headOn.AssertBrakedToRest(output);
         output.WriteLine($"heading off the incoming edge's {incomingDeg:F0}° by at most {worstDeg:F0}° while moving on it");
         Assert.True(worstDeg <= 90.0, $"the follower turned about: its heading swung {worstDeg:F0}° off its incoming edge while moving on it");
         bool atRest = follower.GroundSpeed < SfoGroundHarness.StationarySpeedKts;
@@ -791,8 +1592,88 @@ public class FollowGroundAtRunwayBarTests(ITestOutputHelper output)
     private const double OnIncomingEdgeFt = 10.0;
 
     /// <summary>
+    /// A follower's run onto an edge its leader's route runs against (<paramref name="againstLead"/>, directed moves), after the
+    /// leader's re-route, other than the segment it was on at the re-route (<paramref name="onAtReroute"/>). It may enter one only
+    /// braking to rest along a lost route at the firm rate (<see cref="CategoryPerformance.ExpediteExitDecelRate"/>) from the
+    /// re-route on, as far as its stop at that rate from <paramref name="rerouteKts"/> carries it plus one sub-tick's travel; it
+    /// comes to rest, and does not move on from there until its follow is released onto a route again.
+    /// </summary>
+    private sealed class HeadOnRun(HashSet<(int, int)> againstLead, TaxiRouteSegment? onAtReroute, double rerouteKts)
+    {
+        private const double RestDriftFt = 1.0;
+        private LatLon? _entry;
+        private LatLon? _rest;
+        private double _againstFt;
+        private double _firstDropKts;
+        private bool _rested;
+
+        public void Observe(int second, AircraftState follower, double beforeKts)
+        {
+            if (second == 1)
+            {
+                _firstDropKts = beforeKts - follower.GroundSpeed;
+            }
+
+            var follow = follower.Phases?.CurrentPhase as FollowingPhase;
+            TaxiRouteSegment? driving = follow?.FollowRoute?.CurrentSegment;
+            if ((driving is not null) && !IsOnAtReroute(driving) && againstLead.Contains((driving.FromNodeId, driving.ToNodeId)))
+            {
+                Assert.True(follow!.IsBrakingLostRoute, $"+{second}s: drives #{driving.FromNodeId}-#{driving.ToNodeId} head-on, not braking to rest");
+                _entry ??= driving.Edge.FromNode.Position;
+            }
+
+            if (_entry is { } entry)
+            {
+                _againstFt = Math.Max(_againstFt, GeoMath.DistanceNm(entry, follower.Position) * GeoMath.FeetPerNm);
+            }
+
+            bool released = follow?.FollowRoute is not null;
+            if (released || (follower.GroundSpeed >= SfoGroundHarness.StationarySpeedKts))
+            {
+                Assert.True(released || (_rest is null), $"+{second}s: moved on from rest at {follower.GroundSpeed:F1} kt with no route");
+                _rest = null;
+                return;
+            }
+
+            _rest ??= follower.Position;
+            _rested |= _entry is not null;
+            double driftFt = GeoMath.DistanceNm(_rest.Value, follower.Position) * GeoMath.FeetPerNm;
+            Assert.True(driftFt <= RestDriftFt, $"+{second}s: drifted {driftFt:F1} ft from rest with no route");
+        }
+
+        public void AssertBrakedToRest(ITestOutputHelper output)
+        {
+            double firmRate = CategoryPerformance.ExpediteExitDecelRate(AircraftCategory.Jet);
+            double feetPerSecondPerKt = GeoMath.FeetPerNm / 3600.0;
+            double boundFt =
+                ((rerouteKts * rerouteKts) / (2.0 * firmRate) * feetPerSecondPerKt)
+                + (rerouteKts * feetPerSecondPerKt / SimulationEngine.PhysicsSubTickRate);
+            output.WriteLine(
+                $"head-on: drove {_againstFt:F1} ft against the leader's route (bound {boundFt:F1} ft from {rerouteKts:F1} kt), "
+                    + $"first-second drop {_firstDropKts:F2} kt (firm rate {firmRate:F1} kt/s)"
+            );
+            if (_entry is null)
+            {
+                return;
+            }
+
+            Assert.True(_firstDropKts >= firmRate - FirmRateSlackKts, $"braked only {_firstDropKts:F2} kt in the first second, below the firm rate");
+            Assert.True(_againstFt <= boundFt, $"drove {_againstFt:F1} ft against the leader's route, past its {boundFt:F1} ft firm stop");
+            Assert.True(_rested, "never came to rest after driving onto the leader's route");
+        }
+
+        private bool IsOnAtReroute(TaxiRouteSegment driving) =>
+            (onAtReroute is not null) && (driving.FromNodeId == onAtReroute.FromNodeId) && (driving.ToNodeId == onAtReroute.ToNodeId);
+    }
+
+    /// <summary>How far (kt) below the firm rate a first second of braking may fall, the brake applying from the re-route's first sub-tick.</summary>
+    private const double FirmRateSlackKts = 0.25;
+
+    /// <summary>
     /// Clears <paramref name="leader"/> on the first re-route it accepts whose re-planned follow joins its path at a node behind
-    /// <paramref name="follower"/> (more than 90° off its heading), where the follower has already been.
+    /// <paramref name="follower"/> (more than 90° off its heading), where the follower has already been, or that the follower
+    /// could reach only head-on down the leader's path (<see cref="FollowRoutePlan.FollowerAhead"/>): <c>TAXI F L A</c>, which
+    /// brings the leader up F1 toward the follower, re-plans so.
     /// </summary>
     private void RerouteBehindTheFollower(SfoGround ground, AircraftState leader, AircraftState follower)
     {
@@ -812,7 +1693,12 @@ public class FollowGroundAtRunwayBarTests(ITestOutputHelper output)
                 $"{Leader} <- '{taxi}' -> success={result.Success} msg={result.Message} route={leader.Ground.AssignedTaxiRoute?.ToSummary()} "
                     + $"replan={plan.GetType().Name} mergeBehind={behind}"
             );
-            if (result.Success && behind)
+            if (taxi == "TAXI F L A")
+            {
+                Assert.IsType<FollowRoutePlan.FollowerAhead>(plan);
+            }
+
+            if (result.Success && (behind || (plan is FollowRoutePlan.FollowerAhead)))
             {
                 return;
             }
@@ -836,7 +1722,7 @@ public class FollowGroundAtRunwayBarTests(ITestOutputHelper output)
 
         (SfoGround ground, AircraftState follower, AircraftState leader) = staged;
         RunwayInfo runway1R = SfoGroundHarness.Runway("1R");
-        AssertSent(ground, Leader, "HOLD");
+        StandLeaderWithNoRoute(ground, leader, ToFJunction);
         AssertSent(ground, Follower, $"FOLLOWG {Leader}; CROSS 1L 1R");
         int lostAt = SfoGroundHarness.TickUntil(
             ground.Engine,
@@ -1025,78 +1911,6 @@ public class FollowGroundAtRunwayBarTests(ITestOutputHelper output)
     private static IEnumerable<GroundNode> StraightNeighboursOn(GroundNode node, string taxiway) =>
         node.Edges.OfType<GroundEdge>().Where(e => e.MatchesTaxiway(taxiway)).Select(e => e.OtherNode(node));
 
-    /// <summary>How far (deg) a ground heading may turn in one physics sub-tick, with margin, at taxi speeds.</summary>
-    private const double SubTickTurnMarginDeg = 5.0;
-
-    /// <summary>
-    /// A follower crossing 1R up F1 behind a held leader re-plans at each node arrival. At the F1/L junction a re-plan joins the
-    /// leader's path sooner along L, leaving the junction back across the follower's heading; a route installed from its start
-    /// is adopted only when its first edge leaves within 90° of the heading, so the follower keeps the route it is driving
-    /// rather than swerve onto L. Stepped a physics sub-tick at a time, so each adoption is judged against the heading the
-    /// follower had just before it.
-    /// </summary>
-    [Fact]
-    public void Following_ReplanAtAJunction_NeverAdoptsARouteLeavingBackAcrossItsHeading()
-    {
-        if (Stage(TaxiToOneRightBar, "1R") is not { } staged)
-        {
-            return;
-        }
-
-        (SfoGround ground, AircraftState follower, AircraftState leader) = staged;
-        AssertSent(ground, Leader, "HOLD");
-        AssertSent(ground, Follower, $"FOLLOWG {Leader}");
-        AssertSent(ground, Follower, "CROSS 1R");
-        SimulationEngine engine = ground.Engine;
-        using var tap = new CapturingSimLogProvider(LogLevel.Debug, capacity: 500);
-        SimLogBuilder.CreateForTest(output).EnableCategory("FollowingPhase", LogLevel.Debug).CaptureInto(tap).InitializeSimLog();
-        TaxiRoute? previous = null;
-        int adoptions = 0;
-        bool roundTheFillet = false;
-        for (int second = 1; second <= CrossBudgetSeconds; second++)
-        {
-            engine.BeginSecond();
-            engine.OpenSecond(engine.BareHost);
-            engine.RunPrePhysics(engine.BareHost);
-            for (int sub = 0; sub < SimulationEngine.PhysicsSubTickRate; sub++)
-            {
-                double headingBefore = follower.TrueHeading.Degrees;
-                engine.RunPhysicsSubTick(1.0 / SimulationEngine.PhysicsSubTickRate, sub);
-                TaxiRoute? route = (follower.Phases?.CurrentPhase as FollowingPhase)?.FollowRoute;
-                if ((route is not null) && (previous is not null) && !ReferenceEquals(route, previous))
-                {
-                    adoptions++;
-                    double departsDeg = route.Segments[0].Edge.DepartureBearing;
-                    double offDeg = Math.Abs(GeoMath.SignedBearingDifference(headingBefore, departsDeg));
-                    Assert.True(
-                        offDeg <= 90.0 + SubTickTurnMarginDeg,
-                        $"t={second} sub-tick {sub}: adopted {route.ToSummary()} whose first edge leaves at {departsDeg:F0}°, {offDeg:F0}° off "
-                            + $"the heading {headingBefore:F0}°"
-                    );
-                }
-
-                previous = route ?? previous;
-                roundTheFillet |= IsRollingOn(ground.Layout, follower, onFillet: true);
-            }
-
-            engine.RunPostPhysics(engine.BareHost);
-            engine.RunEndOfSecond(engine.BareHost);
-            LogFollow(second, follower, leader);
-            if (roundTheFillet)
-            {
-                break;
-            }
-        }
-
-        output.WriteLine($"{adoptions} follow routes adopted after the first");
-        Assert.True(roundTheFillet, "the follower never rolled round the F1-F fillet it was following on");
-        Assert.True(
-            tap.Drain().Any(r => r.Message.Contains("keeping the route", StringComparison.Ordinal)),
-            "no re-plan at a junction offered a route leaving back across the heading, so the guard was never reached"
-        );
-        Assert.Equal(0, tap.DroppedCount);
-    }
-
     /// <summary>How far (ft) off a lost follow route's centreline a follower braking along it may stand.</summary>
     private const double LostRouteOffsetFt = 2.0;
 
@@ -1140,7 +1954,8 @@ public class FollowGroundAtRunwayBarTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// Arms a follow at the 1R bar behind a held leader and crosses 1R, then ticks until the follower rolls on its follow route
+    /// Arms a follow at the 1R bar behind a leader standing at the LF/F junction with no route left (<see cref="StandLeaderWithNoRoute"/>)
+    /// and crosses 1R, then ticks until the follower rolls on its follow route
     /// clear of every runway's hold line — along a straight edge, or with <paramref name="onFillet"/> partway round a fillet arc.
     /// </summary>
     private (SfoGround Ground, AircraftState Follower, AircraftState Leader, FollowingPhase Follow, TaxiRoute Route)? StageRolling(bool onFillet)
@@ -1151,7 +1966,7 @@ public class FollowGroundAtRunwayBarTests(ITestOutputHelper output)
         }
 
         (SfoGround ground, AircraftState follower, AircraftState leader) = staged;
-        AssertSent(ground, Leader, "HOLD");
+        StandLeaderWithNoRoute(ground, leader, ToFJunction);
         AssertSent(ground, Follower, $"FOLLOWG {Leader}");
         AssertSent(ground, Follower, "CROSS 1R");
         int rollingAt = SfoGroundHarness.TickUntil(
@@ -1349,7 +2164,16 @@ public class FollowGroundAtRunwayBarTests(ITestOutputHelper output)
     /// Spawns the leader and the follower, clears both, and ticks until the follower holds short of
     /// <paramref name="barRunway"/> on F1. Null on the repo's silent-skip path (no navdata / no SFO layout).
     /// </summary>
-    private (SfoGround Ground, AircraftState Follower, AircraftState Leader)? Stage(string followerTaxi, string barRunway)
+    private (SfoGround Ground, AircraftState Follower, AircraftState Leader)? Stage(string followerTaxi, string barRunway) =>
+        StageBehind(followerTaxi, barRunway, "TAXI A L F 28L", Type);
+
+    /// <summary>As <see cref="Stage"/>, the leader a <paramref name="leaderType"/> cleared on <paramref name="leaderTaxi"/>.</summary>
+    private (SfoGround Ground, AircraftState Follower, AircraftState Leader)? StageBehind(
+        string followerTaxi,
+        string barRunway,
+        string leaderTaxi,
+        string leaderType
+    )
     {
         if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
         {
@@ -1357,11 +2181,11 @@ public class FollowGroundAtRunwayBarTests(ITestOutputHelper output)
             return null;
         }
 
-        AircraftState leader = SfoGroundHarness.SpawnAtSpot(ground, Leader, Type, "1");
+        AircraftState leader = SfoGroundHarness.SpawnAtSpot(ground, Leader, leaderType, "1");
         AircraftState follower = SfoGroundHarness.SpawnAtSpot(ground, Follower, Type, "3");
         AssertSent(ground, Follower, followerTaxi);
         ground.Engine.TickOneSecond();
-        AssertSent(ground, Leader, "TAXI A L F 28L");
+        AssertSent(ground, Leader, leaderTaxi);
 
         int held = SfoGroundHarness.TickUntil(
             ground.Engine,

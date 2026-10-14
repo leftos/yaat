@@ -12,7 +12,8 @@ public abstract record FollowRoutePlan
 
     /// <summary>The follower can join the lead's taxi path at <paramref name="MergeNode"/>.</summary>
     /// <param name="MergeNode">
-    /// The first node of the lead's path the follower's shortest taxi path reaches; for a follower behind the lead on the edge
+    /// The first node of the lead's path the follower's shortest taxi path reaches with a turn onto the lead's path it can make
+    /// (<see cref="GoalOnwardEdges"/>); for a follower behind the lead on the edge
     /// the lead is on, that edge's start in the lead's direction, behind the follower.
     /// </param>
     /// <param name="PathToMerge">
@@ -33,7 +34,10 @@ public abstract record FollowRoutePlan
         bool MergeAheadOfLead
     ) : FollowRoutePlan;
 
-    /// <summary>The follower stands on an edge of the lead's remaining route, ahead of the lead.</summary>
+    /// <summary>
+    /// The follower is ahead of the lead on its route: on an edge of it, at a node of it away from a runway bar (as the command
+    /// judges it), or able to reach it only by driving the lead's edge or route ahead.
+    /// </summary>
     public sealed record FollowerAhead : FollowRoutePlan;
 
     /// <summary>No taxi path reaches any node of the lead's path.</summary>
@@ -53,8 +57,9 @@ public readonly record struct PathPosition(int EdgeIndex, double AlongEdgeFt);
 /// oldest first, gaps between non-adjacent samples filled with the shortest graph path the way the lead was going), the edge
 /// it is on, and its remaining assigned route — the route only when the lead is not itself a follower (a follow current or
 /// queued in its phases), since a follower's assigned route is stale. The follower joins at the merge point: the node of that
-/// path its shortest taxi path reaches first, or — standing behind the lead on the edge the lead is on — that edge's start,
-/// with no path to it.
+/// path its shortest taxi path reaches first arriving where it can turn onto the lead's path within its category's junction
+/// limit (a node it reaches only facing the lead's path back the way it came is driven through), or — standing behind the lead
+/// on the edge the lead is on — that edge's start, with no path to it.
 /// </summary>
 public static class FollowRoutePlanner
 {
@@ -76,7 +81,9 @@ public static class FollowRoutePlanner
     /// arc of its route (<see cref="LocateLead"/>), and while it rounds an arc the follower may not drive with no path behind it
     /// (<see cref="BuildLeadPath"/>);
     /// <see cref="FollowRoutePlan.FollowerAhead"/> when the follower is ahead of the lead on the edge it is on or on its
-    /// route ahead of that edge; <see cref="FollowRoutePlan.NoPath"/> when no taxi path reaches the lead's path; otherwise
+    /// route ahead of that edge, stands at a node of that route away from a runway bar (as the command judges it,
+    /// <see cref="PlanForCommand"/>), or reaches the lead's path only by driving that edge or route;
+    /// <see cref="FollowRoutePlan.NoPath"/> when no taxi path reaches the lead's path; otherwise
     /// <see cref="FollowRoutePlan.Joinable"/>.
     /// </returns>
     public static FollowRoutePlan Plan(
@@ -84,7 +91,21 @@ public static class FollowRoutePlanner
         AircraftState follower,
         AircraftState lead,
         Func<IReadOnlyList<NeighbourCandidate>> otherGroundAircraft
-    ) => Plan(layout, follower, lead, new PlanStart(RequireAhead: true, Back: null, otherGroundAircraft));
+    ) => Plan(layout, follower, lead, new PlanStart(RequireAhead: true, RefuseStandingAhead: false, Back: null, otherGroundAircraft));
+
+    /// <summary>
+    /// Plans the follow as the <c>FOLLOWG</c> command judges it, to answer the command: as
+    /// <see cref="Plan(AirportGroundLayout, AircraftState, AircraftState, Func{IReadOnlyList{NeighbourCandidate}})"/>, except
+    /// that a follower standing at a node of the lead's route ahead of the lead, away from a runway bar, with no route to drive
+    /// to it, is <see cref="FollowRoutePlan.FollowerAhead"/> — refused — rather than joined where it stands. A follow already
+    /// under way that plans that way holds there and plans again instead.
+    /// </summary>
+    public static FollowRoutePlan PlanForCommand(
+        AirportGroundLayout layout,
+        AircraftState follower,
+        AircraftState lead,
+        Func<IReadOnlyList<NeighbourCandidate>> otherGroundAircraft
+    ) => Plan(layout, follower, lead, new PlanStart(RequireAhead: true, RefuseStandingAhead: true, Back: null, otherGroundAircraft));
 
     /// <summary>
     /// Plans the follow again for a follower already driving a follow route: as
@@ -99,7 +120,7 @@ public static class FollowRoutePlanner
         AircraftState follower,
         AircraftState lead,
         Func<IReadOnlyList<NeighbourCandidate>> otherGroundAircraft
-    ) => Plan(layout, follower, lead, new PlanStart(RequireAhead: false, Back: null, otherGroundAircraft));
+    ) => Plan(layout, follower, lead, new PlanStart(RequireAhead: false, RefuseStandingAhead: false, Back: null, otherGroundAircraft));
 
     private static FollowRoutePlan Plan(AirportGroundLayout layout, AircraftState follower, AircraftState lead, PlanStart start)
     {
@@ -138,11 +159,13 @@ public static class FollowRoutePlanner
     }
 
     /// <summary>
-    /// How a plan starts: whether its start node must lie ahead (a first plan), the move back it never starts with, and the
-    /// aircraft on the ground its start is picked against.
+    /// How a plan starts: whether its start node must lie ahead (a first plan), whether a follower standing on the lead's route
+    /// ahead of it off a bar is refused (the command's answer, <see cref="PlanForCommand"/>), the move back it never starts with,
+    /// and the aircraft on the ground its start is picked against.
     /// </summary>
     private readonly record struct PlanStart(
         bool RequireAhead,
+        bool RefuseStandingAhead,
         (int From, int To)? Back,
         Func<IReadOnlyList<NeighbourCandidate>> OtherGroundAircraft
     );
@@ -182,7 +205,13 @@ public static class FollowRoutePlanner
     }
 
     /// <summary>
-    /// The plan for a follower off the lead's edge: its route from <see cref="StartOf"/> to the cheapest node of the lead's path.
+    /// The plan for a follower off the lead's edge: its route from <see cref="StartOf"/> to the cheapest node of the lead's path
+    /// it reaches able to turn onto the lead's edge out of it (<see cref="OnwardEdges"/>; at the start, from the bearing its
+    /// lead-in arrives on, or with none from its heading), never running head-on down the lead's path or ahead of the lead on it
+    /// (<see cref="HeadOnMoves"/>; a follower that can join only that way is ahead of the lead). For the command's answer, a follower
+    /// standing at a node of the lead's path ahead of the lead, with no route to drive to it, is ahead of the lead too, unless it
+    /// stands at a runway bar, where it merges and waits for the lead to pass (<see cref="FollowingPhase.WaitsAtBarForLead"/>); a
+    /// follow's own plan merges there and the follow holds where it stands, planning again.
     /// On a re-plan the route never starts back along the segment that leads the follower into its start, or with none, back
     /// along its newest trail edge; and a merge at the start whose lead path leaves back that way joins nothing.
     /// </summary>
@@ -196,10 +225,16 @@ public static class FollowRoutePlanner
         GroundNode start = routeStart.Node;
         (int From, int To)? forbidden = ForbiddenFirstMove(routeStart, how);
         HashSet<int> goals = [.. path.Edges.Select(e => e.FromNodeId), path.Edges[^1].ToNodeId];
-        if (TaxiClass.Of(follower).FindRoute(layout, start.Id, goals, forbidden) is not { } toMerge)
+        double startHeadingDeg = (routeStart.LeadIn is { } into) ? into.Edge.ArrivalBearing : follower.TrueHeading.Degrees;
+        var request = new NearestGoalRequest(
+            goals,
+            forbidden,
+            new GoalOnwardEdges(OnwardEdges(path.Edges, goals), startHeadingDeg),
+            HeadOnMoves(path)
+        );
+        if (TaxiClass.Of(follower).FindRoute(layout, start.Id, request) is not { } toMerge)
         {
-            Log.LogDebug("[FollowPlan] {Follower}: no taxi route from node {Start} to {Lead}'s path", follower.Callsign, start.Id, lead.Callsign);
-            return new FollowRoutePlan.NoPath();
+            return NoMergeOffTheLeadsPath(layout, follower, start.Id, path, request);
         }
 
         int mergeIndex = LastNodeIndex(path.Edges, toMerge.GoalNodeId);
@@ -218,6 +253,17 @@ public static class FollowRoutePlanner
         TaxiRoute pathToMerge = routeStart.LeadIn is { } leadIn
             ? new TaxiRoute { Segments = [leadIn, .. toMerge.Route.Segments], HoldShortPoints = toMerge.Route.HoldShortPoints }
             : toMerge.Route;
+        if (how.RefuseStandingAhead && mergeAhead && (pathToMerge.Segments.Count == 0) && (start.Type != GroundNodeType.RunwayHoldShort))
+        {
+            Log.LogDebug(
+                "[FollowPlan] {Follower}: stands at node {Merge} of {Lead}'s route ahead of it, away from a runway bar; ahead of it",
+                follower.Callsign,
+                start.Id,
+                lead.Callsign
+            );
+            return new FollowRoutePlan.FollowerAhead();
+        }
+
         Log.LogDebug(
             "[FollowPlan] {Follower}: joins {Lead}'s path at node {Merge} (ahead of the lead: {MergeAhead}), {Segs} segments to the merge",
             follower.Callsign,
@@ -233,6 +279,104 @@ public static class FollowRoutePlanner
             [.. path.Edges.Skip(mergeIndex)],
             mergeAhead
         );
+    }
+
+    /// <summary>
+    /// The moves a route to the merge never takes: along an edge of the lead's path against the lead's direction, head-on down
+    /// its path, and either way along the edge the lead is on or an edge of its route ahead (<see cref="LeadPath.AheadIndex"/>),
+    /// where the follower would get ahead of the lead on its path.
+    /// </summary>
+    private static HashSet<(int From, int To)> HeadOnMoves(LeadPath path)
+    {
+        HashSet<(int From, int To)> moves = [.. path.Edges.Select(edge => (edge.ToNodeId, edge.FromNodeId))];
+        foreach (DirectionalEdge ahead in path.Edges.Skip(Math.Max(0, path.AheadIndex - 1)))
+        {
+            moves.Add((ahead.FromNodeId, ahead.ToNodeId));
+        }
+
+        return moves;
+    }
+
+    /// <summary>
+    /// The plan when no route reaches the lead's path under <paramref name="request"/>: the follower is ahead of the lead
+    /// (<see cref="FollowRoutePlan.FollowerAhead"/>) when the route it would take with no move forbidden drives the edge the lead
+    /// is on or its route ahead (<see cref="RunsOnTheLeadsEdgeOrRouteAhead"/>); else, reaching it only back along the lead's trail
+    /// or not at all, no route reaches it (<see cref="FollowRoutePlan.NoPath"/>).
+    /// </summary>
+    private static FollowRoutePlan NoMergeOffTheLeadsPath(
+        AirportGroundLayout layout,
+        AircraftState follower,
+        int startId,
+        LeadPath path,
+        NearestGoalRequest request
+    )
+    {
+        GoalRoute? unrestricted = TaxiClass
+            .Of(follower)
+            .FindRoute(layout, startId, request with { ForbiddenMoves = NearestGoalRequest.NoForbiddenMoves });
+        if ((unrestricted is not null) && RunsOnTheLeadsEdgeOrRouteAhead(unrestricted.Route, path.Edges, path.AheadIndex - 1))
+        {
+            Log.LogDebug(
+                "[FollowPlan] {Follower}: reaches its lead's path from node {Start} only on the lead's edge or route ahead; ahead of it",
+                follower.Callsign,
+                startId
+            );
+            return new FollowRoutePlan.FollowerAhead();
+        }
+
+        Log.LogDebug(
+            "[FollowPlan] {Follower}: no taxi route from node {Start} to its lead's path (one with no move forbidden: {Route})",
+            follower.Callsign,
+            startId,
+            unrestricted?.Route.ToSummary() ?? "none"
+        );
+        return new FollowRoutePlan.NoPath();
+    }
+
+    /// <summary>
+    /// Whether <paramref name="route"/> drives, either way, an edge of <paramref name="leadPath"/> from the lead's own edge (index
+    /// <paramref name="leadEdgeIndex"/>) on: the edge the lead is on or its route ahead, where the follower would be ahead of it.
+    /// The lead's trail behind it does not count.
+    /// </summary>
+    public static bool RunsOnTheLeadsEdgeOrRouteAhead(TaxiRoute route, IReadOnlyList<DirectionalEdge> leadPath, int leadEdgeIndex)
+    {
+        HashSet<(int, int)> ahead = [];
+        foreach (DirectionalEdge edge in leadPath.Skip(Math.Max(0, leadEdgeIndex)))
+        {
+            ahead.Add((edge.FromNodeId, edge.ToNodeId));
+            ahead.Add((edge.ToNodeId, edge.FromNodeId));
+        }
+
+        return route.Segments.Any(s => ahead.Contains((s.FromNodeId, s.ToNodeId)));
+    }
+
+    /// <summary>
+    /// The lead's path edge out of each of <paramref name="goals"/> — the edge after the node's last place on the path
+    /// (<see cref="LastNodeIndex"/>), the merge index a goal reached becomes — that the follower must turn onto to merge
+    /// there; none for the path's end. A zero-length no-op edge turns nothing, so the turn is judged onto the first edge past it
+    /// that moves (<see cref="GeometricAdmissibility.IsNoOpEdge"/>), and onto the no-op edge only where no edge after it moves.
+    /// </summary>
+    public static Dictionary<int, DirectionalEdge> OnwardEdges(List<DirectionalEdge> edges, IEnumerable<int> goals)
+    {
+        var onward = new Dictionary<int, DirectionalEdge>();
+        foreach (int goal in goals)
+        {
+            int index = LastNodeIndex(edges, goal);
+            if (index >= edges.Count)
+            {
+                continue;
+            }
+
+            int moving = index;
+            while ((moving < edges.Count) && GeometricAdmissibility.IsNoOpEdge(edges[moving].Edge))
+            {
+                moving++;
+            }
+
+            onward[goal] = edges[(moving < edges.Count) ? moving : index];
+        }
+
+        return onward;
     }
 
     /// <summary>
@@ -531,7 +675,8 @@ public static class FollowRoutePlanner
         (int From, int To)? forbidden = routeStart.LeadIn is { } into
             ? (into.ToNodeId, into.FromNodeId)
             : (BackMove(layout, aircraft) ?? BackAlongEdgeUnder(layout, aircraft, routeStart.Node));
-        if (TaxiClass.Of(aircraft).FindRoute(layout, routeStart.Node.Id, goals, forbidden) is not { } found)
+        var request = new NearestGoalRequest(goals, forbidden, null, NearestGoalRequest.NoForbiddenMoves);
+        if (TaxiClass.Of(aircraft).FindRoute(layout, routeStart.Node.Id, request) is not { } found)
         {
             return null;
         }
@@ -727,9 +872,12 @@ public static class FollowRoutePlanner
             return new TaxiClass(category, WakeTurbulenceData.WakeClassForType(aircraft.AircraftType, category));
         }
 
-        /// <summary>The auto route from <paramref name="fromNodeId"/> to the cheapest of <paramref name="goals"/>; null when none.</summary>
-        public GoalRoute? FindRoute(AirportGroundLayout layout, int fromNodeId, IReadOnlySet<int> goals, (int From, int To)? forbiddenFirstMove) =>
-            TaxiPathfinder.FindRouteToNearestGoal(layout, fromNodeId, goals, Category, Wake, forbiddenFirstMove);
+        /// <summary>
+        /// The auto route from <paramref name="fromNodeId"/> to the cheapest goal of <paramref name="request"/> it reaches as the
+        /// request holds it (<see cref="NearestGoalRequest"/>); null when none.
+        /// </summary>
+        public GoalRoute? FindRoute(AirportGroundLayout layout, int fromNodeId, NearestGoalRequest request) =>
+            TaxiPathfinder.FindRouteToNearestGoal(layout, fromNodeId, Category, Wake, request);
     }
 
     /// <summary>
@@ -1032,6 +1180,13 @@ public static class FollowRoutePlanner
         ((edge.Nodes[0].Id == nodeA) && (edge.Nodes[1].Id == nodeB)) || ((edge.Nodes[0].Id == nodeB) && (edge.Nodes[1].Id == nodeA));
 
     /// <summary>
+    /// The lead's path <paramref name="follower"/> would join (<see cref="BuildLeadPath"/>), edge to edge, oldest first; null
+    /// while the lead is not on a taxiway (<see cref="LocateLead"/>) or the path is empty.
+    /// </summary>
+    public static IReadOnlyList<DirectionalEdge>? LeadPathOf(AirportGroundLayout layout, AircraftState lead, AircraftState follower) =>
+        LocateLead(layout, lead) is not { } located ? null : BuildLeadPath(layout, lead, follower, located.Current, located.RouteAhead)?.Edges;
+
+    /// <summary>
     /// The lead's path: its trail behind <paramref name="current"/>, the edge it is on, then its route ahead. The follower drives
     /// all of it, so every stretch the planner searches or takes over is held to the follower's taxi class, not the lead's. A
     /// fillet arc the lead is on that the follower may not drive goes through <see cref="TryAppendUsable"/> as an arc on its
@@ -1064,15 +1219,21 @@ public static class FollowRoutePlanner
     /// pointed toward the edge after it; where the two do not meet, the shortest graph path the follower's class may drive fills
     /// the gap. The walk stops at the first edge no such path joins, and at the first trail edge whose step back would revisit
     /// an edge the walk already holds — where the lead reversed, as after a push out along a taxiway it then taxied back down —
-    /// so the path never runs out and back over an edge. A step back that has to fill a gap takes the fillet arc where what it
-    /// fills is the straight stubs either side of one the lead rounded (<see cref="CutCorner"/>).
+    /// so the path never runs out and back over an edge. A trail edge whose gap fill, its corner cut, still turns past the lead's
+    /// junction limit is one the lead turned off through a fillet beside it, and is skipped (<see cref="TryTakeStep"/>). A step
+    /// back that has to fill a gap takes the fillet arc where what it fills is the straight stubs either side of one the lead
+    /// rounded (<see cref="CutCorner"/>).
     /// </summary>
     private static List<DirectionalEdge> TrailBehind(AirportGroundLayout layout, AircraftState lead, DirectionalEdge current, TaxiClass followerClass)
     {
+        // Past a dropped trail edge the cursor stays put, so the next older edge's gap to it grows: it must close within one edge.
+        const int MaxStepAfterDrop = 2;
         List<DirectionalEdge> reversed = [];
         HashSet<(int, int)> held = [EdgeKey(current)];
         GroundNode cursor = current.FromNode;
         IReadOnlyList<TaxiTrailEdge> trail = lead.Ground.TaxiEdgeTrail.Edges;
+        var walk = new TrailWalk(layout, followerClass, current, CategoryLimits.MaxHeadingChangeDeg(TaxiClass.Of(lead).Category), lead.Callsign);
+        bool afterDrop = false;
         for (int i = trail.Count - 1; i >= 0; i--)
         {
             if ((trail[i].Resolve(layout) is not { } edge) || ((reversed.Count == 0) && Joins(edge, current.FromNodeId, current.ToNodeId)))
@@ -1080,10 +1241,14 @@ public static class FollowRoutePlanner
                 continue;
             }
 
-            if ((ReachForward(layout, edge, cursor, followerClass) is not { } step) || !HoldsNoneOf(held, step))
+            if (
+                (ReachForward(layout, edge, cursor, followerClass) is not { } step)
+                || !HoldsNoneOf(held, step)
+                || (afterDrop && (step.Count > MaxStepAfterDrop))
+            )
             {
                 Log.LogDebug(
-                    "[FollowPlan] {Lead}: trail edge {A}-{B} joins no new path to node {Cursor}; older trail dropped",
+                    "[FollowPlan] {Lead}: trail edge {A}-{B} joins no new path to node {Cursor} (within one edge past a drop); older trail dropped",
                     lead.Callsign,
                     trail[i].NodeA,
                     trail[i].NodeB,
@@ -1092,18 +1257,90 @@ public static class FollowRoutePlanner
                 break;
             }
 
-            reversed.AddRange(step);
-            if (CutCorner(layout, followerClass, reversed, step.Count, lead.Callsign) is { } replaced)
+            if (!TryTakeStep(walk, reversed, held, step))
             {
-                held.ExceptWith(replaced.Select(EdgeKey));
-                held.Add(EdgeKey(reversed[^1]));
+                Log.LogDebug(
+                    "[FollowPlan] {Lead}: trail edge {A}-{B} fills back to node {Cursor} past the turn limit (a fillet turn-off); dropped",
+                    lead.Callsign,
+                    trail[i].NodeA,
+                    trail[i].NodeB,
+                    cursor.Id
+                );
+                afterDrop = true;
+                continue;
             }
 
+            afterDrop = false;
             cursor = reversed[^1].FromNode;
         }
 
         reversed.Reverse();
         return reversed;
+    }
+
+    /// <summary>
+    /// What a walk back along the lead's trail (<see cref="TrailBehind"/>) holds fixed: the layout, the follower's taxi class,
+    /// the edge the lead is on, the lead's own junction limit (<see cref="CategoryLimits.MaxHeadingChangeDeg"/>) and its callsign.
+    /// </summary>
+    private sealed record TrailWalk(
+        AirportGroundLayout Layout,
+        TaxiClass FollowerClass,
+        DirectionalEdge Current,
+        double LeadLimitDeg,
+        string Callsign
+    );
+
+    /// <summary>
+    /// Adds <paramref name="step"/>, a step back newest edge first whose edges <paramref name="held"/> already holds
+    /// (<see cref="HoldsNoneOf"/>), to <paramref name="reversed"/>, the corner it fills cut to its fillet arc (<see cref="CutCorner"/>).
+    /// A step that fills a gap and, so cut, still turns past the lead's junction limit between two edges or onto the path edge
+    /// after it is a step back to a trail edge the lead sampled while rounding a fillet beside it — its centre over the straight
+    /// edge it was turning off — that fills back across it: it is left out, <paramref name="reversed"/> and
+    /// <paramref name="held"/> as they were, and false returned.
+    /// </summary>
+    private static bool TryTakeStep(TrailWalk walk, List<DirectionalEdge> reversed, HashSet<(int, int)> held, List<DirectionalEdge> step)
+    {
+        List<DirectionalEdge>? before = (step.Count > 1) ? [.. reversed] : null;
+        int from = reversed.Count;
+        reversed.AddRange(step);
+        List<DirectionalEdge>? replaced = CutCorner(walk.Layout, walk.FollowerClass, reversed, step.Count, walk.Callsign);
+        int firstChanged = ((replaced is not null) && (replaced.Count > step.Count)) ? from - 1 : from;
+        if ((before is not null) && TurnsPastLimit(reversed, firstChanged, walk.Current, walk.LeadLimitDeg))
+        {
+            reversed.Clear();
+            reversed.AddRange(before);
+            held.ExceptWith(step.Select(EdgeKey));
+            return false;
+        }
+
+        if (replaced is not null)
+        {
+            held.ExceptWith(replaced.Select(EdgeKey));
+            held.Add(EdgeKey(reversed[^1]));
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Whether the path behind the lead, <paramref name="reversed"/> (newest edge first), turns past <paramref name="limitDeg"/>
+    /// onto the edge after any of its edges from index <paramref name="fromIndex"/> on — the edge before it in the list, or
+    /// <paramref name="current"/> for the newest. A zero-distance no-op edge turns nothing.
+    /// </summary>
+    private static bool TurnsPastLimit(List<DirectionalEdge> reversed, int fromIndex, DirectionalEdge current, double limitDeg)
+    {
+        for (int k = fromIndex; k < reversed.Count; k++)
+        {
+            DirectionalEdge older = reversed[k];
+            DirectionalEdge newer = (k == 0) ? current : reversed[k - 1];
+            bool moves = !GeometricAdmissibility.IsNoOpEdge(older.Edge) && !GeometricAdmissibility.IsNoOpEdge(newer.Edge);
+            if (moves && (RouteCostFunction.HeadingDelta(older.ArrivalBearing, newer.DepartureBearing) > limitDeg))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>
@@ -1302,7 +1539,11 @@ public static class FollowRoutePlanner
     private static List<GoalRoute> GapRoutes(AirportGroundLayout layout, GroundEdge edge, GroundNode cursor, TaxiClass taxiClass)
     {
         HashSet<int> goal = [cursor.Id];
-        GoalRoute?[] routes = [taxiClass.FindRoute(layout, edge.Nodes[0].Id, goal, null), taxiClass.FindRoute(layout, edge.Nodes[1].Id, goal, null)];
+        GoalRoute?[] routes =
+        [
+            taxiClass.FindRoute(layout, edge.Nodes[0].Id, NearestGoalRequest.To(goal)),
+            taxiClass.FindRoute(layout, edge.Nodes[1].Id, NearestGoalRequest.To(goal)),
+        ];
         return [.. routes.OfType<GoalRoute>().OrderBy(route => route.Cost)];
     }
 
@@ -1342,7 +1583,7 @@ public static class FollowRoutePlanner
     private static bool TryBridge(AirportGroundLayout layout, List<DirectionalEdge> edges, int toNodeId, TaxiClass followerClass)
     {
         HashSet<int> goal = [toNodeId];
-        if (followerClass.FindRoute(layout, edges[^1].ToNodeId, goal, null) is not { } bridge)
+        if (followerClass.FindRoute(layout, edges[^1].ToNodeId, NearestGoalRequest.To(goal)) is not { } bridge)
         {
             Log.LogDebug("[FollowPlan] no path from node {From} to route node {To}; rest of the route dropped", edges[^1].ToNodeId, toNodeId);
             return false;
@@ -1452,8 +1693,14 @@ public static class FollowRoutePlanner
     {
         HashSet<int> goal = [edge.ToNodeId];
         if (
-            (followerClass.FindRoute(layout, edge.FromNodeId, goal, (edge.FromNodeId, edge.ToNodeId)) is not { } round)
-            || HoldsRefusedArc(layout, followerClass, round.Route)
+            (
+                followerClass.FindRoute(
+                    layout,
+                    edge.FromNodeId,
+                    new NearestGoalRequest(goal, (edge.FromNodeId, edge.ToNodeId), null, NearestGoalRequest.NoForbiddenMoves)
+                )
+                is not { } round
+            ) || HoldsRefusedArc(layout, followerClass, round.Route)
         )
         {
             return null;

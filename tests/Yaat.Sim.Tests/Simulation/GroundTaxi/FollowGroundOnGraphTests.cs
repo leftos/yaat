@@ -975,38 +975,87 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
     private const int GapKeptSeconds = 5;
 
     /// <summary>
-    /// A follower giving way on a taxiway short of a junction ahead of its lead, on the edge into the junction, whose lead is then
-    /// re-routed to end at that junction: its new plan joins the lead's path where it stands, with nothing to drive. The follower
-    /// does not throw installing an empty route: it brakes to rest and holds, planning again (not held for good), as a follow
-    /// whose first plan is empty does.
+    /// A follower giving way on a taxiway two nodes short of a junction ahead of its lead, whose lead is then re-routed to end at
+    /// that junction, the merge: it gives way at rest short of the junction, keeping its route, planning on (not held for good),
+    /// and never drives past the junction ahead of the lead.
     /// </summary>
     [Fact]
-    public void Following_LeadReroutedToEndWhereTheFollowerStands_HoldsAndPlansAgain()
+    public void Following_LeadReroutedToEndAtTheMerge_GivesWayShortAndNeverPassesIt()
     {
-        if (StartConverging(atJunction: true) is not { } run)
+        if (StartConverging(atJunction: false) is not { } run)
         {
             return;
         }
 
-        double toJunctionFt = GeoMath.DistanceNm(run.Follower.Position, run.TurnOff.Junction.Position) * GeoMath.FeetPerNm;
-        output.WriteLine($"follower {toJunctionFt:F1} ft from the junction, trail {run.Follower.Ground.TaxiEdgeTrail.Newest}");
-        Assert.True(toJunctionFt <= AirportGroundLayout.AtNodeToleranceFt, $"the follower stands {toJunctionFt:F1} ft from the junction");
         EndLeadAtJunction(run);
+        LatLon start = run.Follower.Position;
+        double junctionFromStartFt = GeoMath.DistanceNm(start, run.TurnOff.Junction.Position) * GeoMath.FeetPerNm;
         for (int second = 1; second <= HeldCheckSeconds; second++)
         {
             run.Run.Engine.TickOneSecond();
             var held = run.Follower.Phases?.CurrentPhase as FollowingPhase;
+            double fromStartFt = GeoMath.DistanceNm(start, run.Follower.Position) * GeoMath.FeetPerNm;
+            double toJunctionFt = GeoMath.DistanceNm(run.Follower.Position, run.TurnOff.Junction.Position) * GeoMath.FeetPerNm;
             output.WriteLine(
                 $"t={second} {run.Follower.Phases?.CurrentPhase?.Name} gs={run.Follower.GroundSpeed:F1} route={held?.FollowRoute?.ToSummary()} "
-                    + $"seg={held?.FollowRoute?.CurrentSegmentIndex} merge={held?.MergeSegmentIndex} givingWay={held?.IsGivingWay}"
+                    + $"seg={held?.FollowRoute?.CurrentSegmentIndex} merge={held?.MergeSegmentIndex} givingWay={held?.IsGivingWay} "
+                    + $"to junction {toJunctionFt:F1} ft"
+            );
+            Assert.True(
+                fromStartFt <= junctionFromStartFt + AirportGroundLayout.AtNodeToleranceFt,
+                $"t={second}: the follower drove past the junction, ahead of {run.Run.Lead.Callsign}"
             );
         }
 
         FollowingPhase follow = Assert.IsType<FollowingPhase>(run.Follower.Phases?.CurrentPhase);
-        Assert.False(follow.IsUnjoinable, "a lead path ending where the follower stands held the follow for good");
+        double restFt = GeoMath.DistanceNm(run.Follower.Position, run.TurnOff.Junction.Position) * GeoMath.FeetPerNm;
+        Assert.False(follow.IsUnjoinable, "a lead path ending at the merge held the follow for good");
         Assert.False(follow.IsBrakingLostRoute, "the follower is still braking along its lost route");
-        Assert.Null(follow.FollowRoute);
+        Assert.True(follow.IsGivingWay, "the follower short of the merge is not giving way to its lead");
+        Assert.NotNull(follow.FollowRoute);
+        Assert.True(restFt > AirportGroundLayout.AtNodeToleranceFt, $"the follower stands {restFt:F1} ft from the junction, not short of it");
         Assert.True(run.Follower.GroundSpeed < 0.05, $"the follower is still rolling at {run.Follower.GroundSpeed:F1} kt");
+    }
+
+    /// <summary>
+    /// A follower standing at a junction on its lead's route ahead of the lead, away from a runway bar (a C172 <see cref="AtJunctionFt"/>
+    /// from it on the taxiway that meets the lead's route there), with the lead re-routed to end at that junction: the
+    /// <c>FOLLOWG</c> command's plan refuses it as ahead of the lead (<see cref="FollowRoutePlan.FollowerAhead"/>), while the
+    /// follow's own plans — its first plan (an armed follow's release, a re-follow after braking past a bar) and a re-plan — join
+    /// the lead's path where it stands with nothing to drive, which the follow holds on, planning again, never held for good.
+    /// </summary>
+    [Fact]
+    public void FollowPlan_StandingAtTheEndOfTheLeadsRoute_CommandIsAhead_FollowsOwnPlansJoinWithNothingToDrive()
+    {
+        if (FollowCornerGeometry.StartTaxiingLead(output) is not { } run)
+        {
+            return;
+        }
+
+        (TurnOff turnOff, _, string endAtJunction) = FindConvergingJunction(run);
+        double edgeFt = FollowCornerGeometry.EdgeBetween(turnOff.Junction, turnOff.Far).DistanceNm * GeoMath.FeetPerNm;
+        AircraftState follower = FollowCornerGeometry.Spawn(
+            FollowCornerGeometry.AirportId,
+            FollowerCallsign,
+            "C172",
+            FollowCornerGeometry.Between(turnOff.Junction.Position, turnOff.Far.Position, AtJunctionFt / edgeFt),
+            FollowCornerGeometry.Facing(turnOff.Far, turnOff.Junction)
+        );
+        follower.Ground.Layout = run.Layout;
+        EndLeadAtJunction(new Converging(run, turnOff, follower, endAtJunction));
+
+        FollowRoutePlan command = FollowRoutePlanner.PlanForCommand(run.Layout, follower, run.Lead, () => []);
+        FollowRoutePlan first = FollowRoutePlanner.Plan(run.Layout, follower, run.Lead, () => []);
+        FollowRoutePlan replan = FollowRoutePlanner.Replan(run.Layout, follower, run.Lead, () => []);
+        output.WriteLine($"junction #{turnOff.Junction.Id}: command {command}; the follow's first plan {first}; re-plan {replan}");
+        Assert.IsType<FollowRoutePlan.FollowerAhead>(command);
+        foreach (FollowRoutePlan own in new[] { first, replan })
+        {
+            FollowRoutePlan.Joinable joined = Assert.IsType<FollowRoutePlan.Joinable>(own);
+            Assert.Equal(turnOff.Junction.Id, joined.MergeNode);
+            Assert.Empty(joined.PathToMerge.Segments);
+            Assert.Empty(joined.LeadPathFromMerge);
+        }
     }
 
     /// <summary>
@@ -3259,7 +3308,13 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
         (RunwayInfo runway, GroundNode nearBar, GroundNode farBar, string followerType, bool withAssignedRoute) = bars;
         AircraftCategory category = AircraftCategorization.Categorize(followerType);
         WakeTurbulenceData.WakeClass wake = WakeTurbulenceData.WakeClassForType(followerType, category);
-        GoalRoute? across = TaxiPathfinder.FindRouteToNearestGoal(layout, nearBar.Id, new HashSet<int> { farBar.Id }, category, wake, null);
+        GoalRoute? across = TaxiPathfinder.FindRouteToNearestGoal(
+            layout,
+            nearBar.Id,
+            category,
+            wake,
+            NearestGoalRequest.To(new HashSet<int> { farBar.Id })
+        );
         List<TaxiRouteSegment> crossing = Assert.IsType<TaxiRoute>(across?.Route).Segments;
         DirectionalEdge lastEdge = crossing[^1].Edge;
         DirectionalEdge followerEdge = crossing.Select(s => s.Edge).Last(e => LastFractionOnPavement(e, runway) >= 0.0);

@@ -364,6 +364,20 @@ public sealed class HoldingShortPhaseDto : PhaseDto
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public bool? SaidTrafficAhead { get; init; }
+
+    /// <summary>
+    /// True while the phase, cleared across, holds for the lead of the follow armed behind it to be ahead on their shared route.
+    /// Null otherwise, and in snapshots written before the field existed.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? WaitingForLead { get; init; }
+
+    /// <summary>
+    /// True once the pilot has said, for the current wait for the follow's lead, that it holds short for the traffic. Null
+    /// otherwise, and in snapshots written before the field existed.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? SaidWaitForLead { get; init; }
 }
 
 public sealed class CrossingRunwayPhaseDto : PhaseDto
@@ -757,6 +771,18 @@ public sealed class FollowingPhaseDto : PhaseDto
     public double? LatchedBarApproachDeg { get; init; }
 
     /// <summary>
+    /// Whether the follower waits for its lead at each cleared runway bar judged in the phase's current whole second
+    /// (<see cref="LeadWaitSecond"/>), by hold-short node id (<c>FollowingPhase</c>'s wait verdicts, held for the rest of that
+    /// second). Null with none judged, and in snapshots written before the field existed.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Dictionary<int, bool>? LeadWaitVerdicts { get; init; }
+
+    /// <summary>The whole second of the phase's elapsed time <see cref="LeadWaitVerdicts"/> were judged in; null with none.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? LeadWaitSecond { get; init; }
+
+    /// <summary>
     /// The first end node id (<c>Nodes[0]</c>) of the straight taxi edge the follower was last found on, where
     /// <c>FollowingPhase</c> looks first for the taxiway it is on. Null before the first find, while off every taxiway, and in
     /// snapshots written before the field existed (the restored follow then scans the whole layout once).
@@ -831,8 +857,9 @@ public sealed class FollowingPhaseDto : PhaseDto
     public bool? SaidLostTraffic { get; init; }
 
     /// <summary>
-    /// Whether this follow has said that it cannot follow at all, with no taxi route onto its traffic's path: true once said,
-    /// null otherwise. Not written while null, so a snapshot of a follow that has said nothing serializes exactly as it did
+    /// Whether this follow has said that it cannot follow — no taxi route onto its traffic's path, a re-plan after the lead's
+    /// re-route that finds it ahead of the lead, or a hold standing on the lead's route ahead of it: true once said, null
+    /// otherwise. Not written while null, so a snapshot of a follow that has said nothing serializes exactly as it did
     /// before the field existed; null in snapshots written before it.
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]

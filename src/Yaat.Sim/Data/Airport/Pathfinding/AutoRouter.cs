@@ -10,6 +10,35 @@ namespace Yaat.Sim.Data.Airport.Pathfinding;
 public sealed record GoalRoute(int GoalNodeId, TaxiRoute Route, double Cost);
 
 /// <summary>
+/// The edges a goal-set search (<see cref="AutoRouter.RunToGoals"/>) must be able to turn onto where it stops: a goal with an
+/// onward edge is reached only on an arrival from which that edge is admissible (<see cref="GeometricAdmissibility.IsAdmissible"/>),
+/// and otherwise the search passes through it; a goal with no onward edge is reached on any arrival.
+/// </summary>
+/// <param name="ByGoal">
+/// The onward edge out of each goal node that has one, by node id, pointed the way it is driven: the first edge past the goal
+/// that is not a zero-length no-op (<see cref="GeometricAdmissibility.IsNoOpEdge"/>), which may start at a node co-located with
+/// the goal; a no-op edge only where nothing but no-op edges follows.
+/// </param>
+/// <param name="StartHeadingTrue">The aircraft's heading, degrees true: the arrival a start that is itself a goal is judged from.</param>
+public sealed record GoalOnwardEdges(IReadOnlyDictionary<int, DirectionalEdge> ByGoal, double StartHeadingTrue)
+{
+    /// <summary>
+    /// Whether the search may stop at <paramref name="arrival"/>'s head: it has no onward edge, or the onward edge is admissible
+    /// from the arrival — from <see cref="StartHeadingTrue"/> when the arrival is the search's start, which has no edge in.
+    /// </summary>
+    public bool Admits(PartialRoute arrival, AircraftCategory category)
+    {
+        if (!ByGoal.TryGetValue(arrival.HeadNodeId, out DirectionalEdge? onward))
+        {
+            return true;
+        }
+
+        double arrivalDeg = (arrival.LastEdge is not null) ? arrival.ArrivalBearing : StartHeadingTrue;
+        return GeometricAdmissibility.AdmitsTurn(arrivalDeg, onward.Edge, onward.DepartureBearing, category);
+    }
+}
+
+/// <summary>
 /// Auto-mode A* driver. Runs a flat best-first search over the full layout from start to
 /// destination, constrained by <see cref="SearchContext.AuthorizedTaxiways"/> (soft penalty)
 /// and <see cref="GeometricAdmissibility"/> (hard gate). Returns a flat edge sequence for
@@ -139,7 +168,13 @@ public static class AutoRouter
             return (emptyRoute, null, 0.0);
         }
 
-        GoalSearch search = SearchToGoals(ctx, startNode, [destinationNode], startOverride, maxExpansions);
+        GoalSearch search = SearchToGoals(
+            ctx,
+            startNode,
+            new GoalSet([destinationNode], null, NearestGoalRequest.NoForbiddenMoves),
+            startOverride,
+            maxExpansions
+        );
         return (search.Route, search.Failure, search.Cost);
     }
 
@@ -151,9 +186,19 @@ public static class AutoRouter
     /// </summary>
     /// <param name="ctx">The search context; a node destination, which the search re-targets at the goal it reaches.</param>
     /// <param name="goals">The goal nodes, at least one.</param>
+    /// <param name="onwardEdges">
+    /// The edge out of each goal the route must be able to turn onto where it stops (<see cref="GoalOnwardEdges"/>), the start
+    /// included; null to stop at the first goal reached on any arrival.
+    /// </param>
+    /// <param name="forbiddenMoves">Directed moves <c>(fromId, toId)</c> the route never takes, anywhere along it.</param>
     /// <returns>The goal reached and the route to it — no segments when the start is a goal — or the failure.</returns>
     /// <exception cref="InvalidOperationException">The materialised route does not end at the goal the search reached.</exception>
-    public static (GoalRoute? Route, PathfindingFailure? Failure) RunToGoals(SearchContext ctx, IReadOnlyList<GroundNode> goals)
+    public static (GoalRoute? Route, PathfindingFailure? Failure) RunToGoals(
+        SearchContext ctx,
+        IReadOnlyList<GroundNode> goals,
+        GoalOnwardEdges? onwardEdges,
+        IReadOnlySet<(int From, int To)> forbiddenMoves
+    )
     {
         if (!ctx.Layout.Nodes.TryGetValue(ctx.StartNodeId, out GroundNode? startNode))
         {
@@ -163,13 +208,14 @@ public static class AutoRouter
             );
         }
 
-        if (goals.Any(goal => goal.Id == startNode.Id))
+        var goalSet = new GoalSet(goals, onwardEdges, forbiddenMoves);
+        if (goalSet.Accepts(PartialRoute.StartAt(startNode.Id), ctx.Category))
         {
             TaxiRoute here = RouteMaterialiser.Materialise([], MaterialiseContext(ctx, startNode.Id), []);
             return (new GoalRoute(startNode.Id, here, 0.0), null);
         }
 
-        GoalSearch search = SearchToGoals(ctx, startNode, goals, null, MaxExpansions);
+        GoalSearch search = SearchToGoals(ctx, startNode, goalSet, null, MaxExpansions);
         if (search.Route is null)
         {
             return (null, search.Failure);
@@ -207,21 +253,14 @@ public static class AutoRouter
     /// <paramref name="startOverride"/>. The same-side runway check runs on the materialised route, which
     /// <see cref="RouteMaterialiser.Materialise"/> may have truncated.
     /// </summary>
-    private static GoalSearch SearchToGoals(
-        SearchContext ctx,
-        GroundNode startNode,
-        IReadOnlyList<GroundNode> goals,
-        PartialRoute? startOverride,
-        int maxExpansions
-    )
+    private static GoalSearch SearchToGoals(SearchContext ctx, GroundNode startNode, GoalSet goalSet, PartialRoute? startOverride, int maxExpansions)
     {
         // A returned path may use an uncleared runway as a same-side shortcut (on at one exit, off
         // at the next) — not a crossing. That can only be judged on the whole path, and judging it
         // inside the A* would poison the (node, bearing-bucket) closed set with path-dependent dead
         // ends. So: run, validate, and on a violation re-run with that run's centerline edges banned
         // outright, so the next attempt finds the legal path instead of inheriting poisoned states.
-        HashSet<(int, int)>? bannedMoves = null;
-        var goalSet = new GoalSet(goals);
+        HashSet<(int, int)>? bannedMoves = (goalSet.ForbiddenMoves.Count > 0) ? [.. goalSet.ForbiddenMoves] : null;
         for (int attempt = 0; attempt < 3; attempt++)
         {
             (List<DirectionalEdge>? Edges, PathfindingFailure? Failure, double Cost) result = RunAstar(
@@ -362,8 +401,8 @@ public static class AutoRouter
                 popLog($"[auto] pop f={f:F3}  node={current.HeadNodeId}  depth={current.Depth}  cost={current.AccumulatedCost:F3}");
             }
 
-            // Destination check.
-            if (goals.Contains(current.HeadNodeId))
+            // Destination check: a goal the route cannot turn onward from is passed through.
+            if (goals.Accepts(current, ctx.Category))
             {
                 int baseDepth = startOverride?.Depth ?? 0;
                 int newEdgeCount = current.Depth - baseDepth;
@@ -439,7 +478,7 @@ public static class AutoRouter
                     continue;
                 }
 
-                // Centerline moves banned by a prior same-side-shortcut retry (see Run).
+                // The goal-set caller's forbidden moves, and centerline moves banned by a prior same-side-shortcut retry (see Run).
                 if (bannedMoves is not null && bannedMoves.Contains((current.HeadNodeId, nextNode.Id)))
                 {
                     rejected++;
@@ -535,19 +574,28 @@ public static class AutoRouter
 
     /// <summary>
     /// The goal nodes of one search. Every goal is a node — a runway destination is resolved to its full-length line-up
-    /// hold-short before the search starts (<see cref="RouteMaterialiser.FindFullLengthLineupHoldShort"/>).
+    /// hold-short before the search starts (<see cref="RouteMaterialiser.FindFullLengthLineupHoldShort"/>). With
+    /// <paramref name="onwardEdges"/>, a goal is reached only on an arrival it admits (<see cref="GoalOnwardEdges.Admits"/>); a
+    /// route to the set never takes one of <paramref name="forbiddenMoves"/>.
     /// </summary>
-    private sealed class GoalSet(IReadOnlyList<GroundNode> nodes)
+    private sealed class GoalSet(IReadOnlyList<GroundNode> nodes, GoalOnwardEdges? onwardEdges, IReadOnlySet<(int From, int To)> forbiddenMoves)
     {
         private readonly HashSet<int> _ids = [.. nodes.Select(node => node.Id)];
+
+        /// <summary>The directed moves <c>(fromId, toId)</c> a route to the set never takes.</summary>
+        public IReadOnlySet<(int From, int To)> ForbiddenMoves => forbiddenMoves;
 
         /// <summary>Heuristics already computed, by node id; only with more than one goal, where each costs a pass over them.</summary>
         private readonly Dictionary<int, double>? _heuristics = nodes.Count > 1 ? [] : null;
 
         public IReadOnlyList<GroundNode> Nodes => nodes;
 
-        /// <summary>True when <paramref name="nodeId"/> satisfies the destination: an exact node-id match against a goal.</summary>
-        public bool Contains(int nodeId) => _ids.Contains(nodeId);
+        /// <summary>
+        /// True when <paramref name="arrival"/> satisfies the destination: its head is a goal, by exact node id, whose onward edge
+        /// (if any) it admits.
+        /// </summary>
+        public bool Accepts(PartialRoute arrival, AircraftCategory category) =>
+            _ids.Contains(arrival.HeadNodeId) && ((onwardEdges is null) || onwardEdges.Admits(arrival, category));
 
         /// <summary>
         /// The A* heuristic toward the goal set: the least <see cref="RouteCostFunction.Heuristic"/> to any goal. It never

@@ -686,7 +686,8 @@ public class RunwayCrossingDetectorTests
 
     /// <summary>
     /// The unbarred escapes the committed layouts already had before junction fallback bars could be dropped (no dropped
-    /// bar adds one). Each is a bar-placement gap of its own; the list only shrinks, and a fix that closes one removes it.
+    /// bar adds one). Each is a bar-placement gap of its own, and a fix that closes one removes it. An entry is added only for a
+    /// gap verified in the real layout data, citing the issue that tracks it (the HKY entries cite YAAT-60).
     /// </summary>
     private static readonly string[] KnownUnbarredEscapes =
     [
@@ -715,6 +716,11 @@ public class RunwayCrossingDetectorTests
         "fll 10R - 28L: J",
         "fll 10R - 28L: J12/J",
         "fll 10R - 28L: J4",
+        // Pre-existing bar-placement gaps the hky fixture exposes, not regressions (YAAT-60):
+        // the 01/19 bar is seated on the centreline (node #14), not at holding distance.
+        "hky 1 - 19: A3/A3 - RWY06/24",
+        // no bar is placed past holding distance at the runway's north end (#227/#228).
+        "hky 1 - 19: NRAMP/NRAMP - B",
         "lax 6R - 24L: E6/E",
         "mia 8R - 26L: N13/M/M11",
         "mia 8R - 26L: M1L/M1L - Q1",

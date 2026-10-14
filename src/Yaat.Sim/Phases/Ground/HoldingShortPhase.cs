@@ -23,7 +23,20 @@ public sealed class HoldingShortPhase(HoldShortPoint holdShort) : Phase
     // Set once the pilot has said it is holding short, cleared across, for traffic beyond the far side. Snapshotted.
     private bool _saidTrafficAhead;
 
+    // Set while the phase holds at its bar, any runway bar the crossing clearance releases, for the lead of the follow armed
+    // behind it. Snapshotted.
+    private bool _waitingForLead;
+
+    // Set once the pilot has made the call for the current wait for the lead; cleared as a wait starts or ends. Snapshotted.
+    private bool _saidWaitForLead;
+
     public HoldShortPoint HoldShort => _holdShort;
+
+    /// <summary>
+    /// Whether the phase holds at its bar, any runway bar the crossing clearance releases, for the lead of the follow armed behind
+    /// it to be ahead on their shared route (<see cref="FollowingPhase.WaitsAtBarForLead"/>).
+    /// </summary>
+    public bool IsWaitingForLead => _waitingForLead;
 
     /// <summary>
     /// Re-points this phase at the taxi route's own <see cref="HoldShortPoint"/> after a snapshot restore.
@@ -169,6 +182,11 @@ public sealed class HoldingShortPhase(HoldShortPoint holdShort) : Phase
                     return false;
                 }
 
+                if (HoldsForFollowLead(ctx))
+                {
+                    return false;
+                }
+
                 Log.LogDebug("[HoldShort] {Callsign}: cleared at {Target}", ctx.Aircraft.Callsign, _holdShort.TargetName ?? "unknown");
                 return true;
             }
@@ -184,6 +202,106 @@ public sealed class HoldingShortPhase(HoldShortPoint holdShort) : Phase
 
         return false;
     }
+
+    /// <summary>
+    /// Whether the aircraft, released at its bar (any runway bar the crossing clearance covers or the hold inherits it at), keeps
+    /// holding for the lead of the follow armed behind the crossing that releases this
+    /// bar, until that lead is ahead of it on their shared route (<see cref="FollowingPhase.WaitsAtBarForLead"/>): a follow hold,
+    /// not an unable, so the clearance stays armed for when it goes. Logs each start and end of a wait. A wait is re-judged once per
+    /// second of the phase (<see cref="IsFirstTickOfASecond"/>) rather than every tick, since each judgement plans the follow afresh;
+    /// a hold not yet waiting is judged at once, so it never starts across on a stale verdict.
+    /// </summary>
+    private bool HoldsForFollowLead(PhaseContext ctx)
+    {
+        if (_waitingForLead && !IsFirstTickOfASecond(ctx))
+        {
+            return true;
+        }
+
+        bool waiting =
+            (ArmedFollow(ctx.Aircraft.Phases) is { } follow)
+            && (ctx.GroundLayout is { } layout)
+            && layout.Nodes.TryGetValue(_holdShort.NodeId, out GroundNode? bar)
+            && (ctx.AircraftLookup?.Invoke(follow.TargetCallsign) is { IsOnGround: true } lead)
+            && FollowingPhase.WaitsAtBarForLead(ctx, layout, lead, new FollowingPhase.BarCrossing(bar, follow.CrossingClearedRunways));
+        if (waiting != _waitingForLead)
+        {
+            _waitingForLead = waiting;
+            _saidWaitForLead = false;
+            Log.LogDebug(
+                "[HoldShort] {Callsign}: {State} at {Target}",
+                ctx.Aircraft.Callsign,
+                waiting ? "released at the bar, holding for the follow's lead to be ahead on the shared route" : "the follow's lead is ahead; going",
+                _holdShort.TargetName ?? "unknown"
+            );
+        }
+
+        if (waiting)
+        {
+            SayWaitIfForTrafficToPass(ctx);
+        }
+
+        return waiting;
+    }
+
+    /// <summary>
+    /// Makes the wait's call (<see cref="AnnounceWaitForFollowLead"/>) the first time a judgement of the wait finds it a real wait
+    /// for the traffic to pass (<see cref="IsWaitForTrafficToPass"/>): at its start, or on a later re-check once a lead that was
+    /// moving away past the merge has stopped there. Once per wait (<see cref="_saidWaitForLead"/>, snapshotted).
+    /// </summary>
+    private void SayWaitIfForTrafficToPass(PhaseContext ctx)
+    {
+        if (_saidWaitForLead || (ArmedFollow(ctx.Aircraft.Phases) is not { } armed) || !IsWaitForTrafficToPass(ctx, armed.TargetCallsign))
+        {
+            return;
+        }
+
+        _saidWaitForLead = true;
+        AnnounceWaitForFollowLead(ctx, armed.TargetCallsign);
+    }
+
+    /// <summary>
+    /// Whether this tick carries the phase's elapsed time (<see cref="Phase.ElapsedSeconds"/>, snapshotted) past a whole second,
+    /// so a replay or a restored snapshot re-judges on the same ticks as the original run.
+    /// </summary>
+    private bool IsFirstTickOfASecond(PhaseContext ctx) => Math.Floor(ElapsedSeconds) != Math.Floor(ElapsedSeconds - ctx.DeltaSeconds);
+
+    /// <summary>
+    /// Whether the wait for the follow's lead, as judged this time, is one the pilot reports
+    /// (<see cref="FollowingPhase.IsWaitForTrafficToPass"/>): not the short wait for a lead moving away past the merge to get its
+    /// tail clear. True when the lead or the layout is gone, so a wait never goes unreported for want of them.
+    /// </summary>
+    private static bool IsWaitForTrafficToPass(PhaseContext ctx, string leadCallsign) =>
+        (ctx.GroundLayout is not { } layout)
+        || (ctx.AircraftLookup?.Invoke(leadCallsign) is not { } lead)
+        || FollowingPhase.IsWaitForTrafficToPass(ctx, layout, lead);
+
+    /// <summary>
+    /// Says, for a wait for the follow's lead, that the aircraft holds short for the traffic it follows
+    /// (<see cref="PilotResponder.BuildHoldingShortForFollowTraffic"/>), routed to a student on ground or as an RPO's pilot speech or
+    /// warning, and warns the controller that the aircraft, cleared across, is holding for that traffic. Once per wait
+    /// (<see cref="SayWaitIfForTrafficToPass"/>).
+    /// </summary>
+    private void AnnounceWaitForFollowLead(PhaseContext ctx, string leadCallsign)
+    {
+        string runway = RunwayEndFacing(ctx.Aircraft);
+        PilotResponder.RouteSoloOrRpoTransmission(
+            ctx.Aircraft,
+            ctx.SoloTrainingMode,
+            ctx.RpoShowPilotSpeech,
+            ctx.StudentPositionType,
+            PilotResponder.BuildHoldingShortForFollowTraffic(ctx.Aircraft, runway, leadCallsign),
+            PilotResponder.SoloPositionsGround
+        );
+        ctx.Aircraft.PendingWarnings.Add($"{ctx.Aircraft.Callsign} cleared across RWY {runway}, holding for the follow traffic");
+    }
+
+    /// <summary>
+    /// The follow armed behind this hold: the first phase queued after it, past the crossing phases a crossing clearance put in
+    /// front of the follow; null when that phase is no follow.
+    /// </summary>
+    private static FollowingPhase? ArmedFollow(PhaseList? phases) =>
+        phases?.Phases.Skip(phases.CurrentIndex + 1).SkipWhile(static p => p is CrossingRunwayPhase).FirstOrDefault() as FollowingPhase;
 
     /// <summary>
     /// Says once that the aircraft, cleared across, is holding short for traffic beyond the far side
@@ -311,6 +429,7 @@ public sealed class HoldingShortPhase(HoldShortPoint holdShort) : Phase
 
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)
     {
+        string destination = RunwayIdentifier.ToDisplayDesignator(_holdShort.TargetName ?? "runway");
         return cmd switch
         {
             CanonicalCommandType.CrossRunway => _holdShort.Reason == HoldShortReason.RouteIncomplete
@@ -332,7 +451,7 @@ public sealed class HoldingShortPhase(HoldShortPoint holdShort) : Phase
             CanonicalCommandType.Resume => _holdShort.Reason switch
             {
                 HoldShortReason.DestinationRunway => CommandAcceptance.Rejected(
-                    $"holding short of destination runway {RunwayIdentifier.ToDisplayDesignator(_holdShort.TargetName ?? "runway")} — RES does not apply (issue CTO or LUAW)"
+                    $"holding short of destination runway {destination} — RES does not apply (issue CTO or LUAW)"
                 ),
                 HoldShortReason.RouteIncomplete => CommandAcceptance.Rejected(RejectionMessage()),
                 _ => CommandAcceptance.ClearsPhase,
@@ -389,6 +508,8 @@ public sealed class HoldingShortPhase(HoldShortPoint holdShort) : Phase
             Reason = _holdShort.Reason,
             HasAnnouncedReady = _hasAnnouncedReady,
             SaidTrafficAhead = _saidTrafficAhead ? true : null,
+            WaitingForLead = _waitingForLead ? true : null,
+            SaidWaitForLead = _saidWaitForLead ? true : null,
         };
 
     public static HoldingShortPhase FromSnapshot(HoldingShortPhaseDto dto)
@@ -404,6 +525,8 @@ public sealed class HoldingShortPhase(HoldShortPoint holdShort) : Phase
         {
             _hasAnnouncedReady = dto.HasAnnouncedReady,
             _saidTrafficAhead = dto.SaidTrafficAhead ?? false,
+            _waitingForLead = dto.WaitingForLead ?? false,
+            _saidWaitForLead = dto.SaidWaitForLead ?? false,
             Status = (PhaseStatus)dto.Status,
             ElapsedSeconds = dto.ElapsedSeconds,
         };

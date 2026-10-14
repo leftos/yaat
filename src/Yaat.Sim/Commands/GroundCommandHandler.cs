@@ -6083,7 +6083,7 @@ public static partial class GroundCommandHandler
             return null;
         }
 
-        FollowRoutePlan plan = FollowRoutePlanner.Plan(groundLayout, aircraft, lead, probe.OtherGroundAircraft);
+        FollowRoutePlan plan = FollowRoutePlanner.PlanForCommand(groundLayout, aircraft, lead, probe.OtherGroundAircraft);
         return plan switch
         {
             FollowRoutePlan.NoPath => new CommandResult(false, $"unable, no taxi route to {follow.TargetCallsign}'s route"),

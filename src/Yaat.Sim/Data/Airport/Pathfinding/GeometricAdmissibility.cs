@@ -36,9 +36,9 @@ public static class GeometricAdmissibility
     /// rather than reading the edge's stored bearing.
     ///
     /// <para>
-    /// Defence-in-depth: the fillet generator removes zero-distance pairs at the source (guarded by
-    /// <c>FilletCornerSpanGuardTests.EdgeSplit_NoZeroDistanceEdges</c>), so this admissibility skip
-    /// should never fire in practice — it keeps the pathfinder robust against any stray zero-distance edge.
+    /// The fillet generator removes zero-distance pairs at the source (guarded by
+    /// <c>FilletCornerSpanGuardTests.EdgeSplit_NoZeroDistanceEdges</c>), but zero-distance edges can still occur in a layout
+    /// (KHKY has one), and the pathfinder and the follow planner handle them as no-ops.
     /// </para>
     /// </summary>
     public const double NoOpEdgeThresholdNm = 0.0002; // ≈ 1.2 ft
@@ -101,31 +101,44 @@ public static class GeometricAdmissibility
     /// </summary>
     public static bool IsAdmissible(PartialRoute current, IGroundEdge candidate, GroundNode nextNode, AircraftCategory category)
     {
-        if (IsNoOpEdge(candidate))
-        {
-            return true;
-        }
-
-        if (candidate is GroundArc { MinRadiusOfCurvatureFt: var tightestRadiusFt } && (tightestRadiusFt < MinSteerableArcRadiusFt))
-        {
-            return false;
-        }
-
         if (current.LastEdge is null)
         {
-            return true;
+            return IsNoOpEdge(candidate) || !IsUnsteerableArc(candidate);
         }
 
         GroundNode headNode = ResolveNode(candidate, current.HeadNodeId);
         if (headNode is null)
         {
+            return IsNoOpEdge(candidate);
+        }
+
+        return AdmitsTurn(current.ArrivalBearing, candidate, GetDepartureBearing(candidate, headNode, nextNode), category);
+    }
+
+    /// <summary>
+    /// Whether an aircraft of <paramref name="category"/> arriving on <paramref name="arrivalBearing"/> can turn onto
+    /// <paramref name="onward"/>, leaving on <paramref name="departureBearing"/>: always onto a zero-distance no-op edge
+    /// (<see cref="IsNoOpEdge"/>), never onto an arc too tight to steer (<see cref="MinSteerableArcRadiusFt"/>), and otherwise
+    /// when the heading change is within the category's junction limit (<see cref="CategoryLimits.MaxHeadingChangeDeg"/>).
+    /// </summary>
+    public static bool AdmitsTurn(double arrivalBearing, IGroundEdge onward, double departureBearing, AircraftCategory category)
+    {
+        if (IsNoOpEdge(onward))
+        {
+            return true;
+        }
+
+        if (IsUnsteerableArc(onward))
+        {
             return false;
         }
 
-        double departureBearing = GetDepartureBearing(candidate, headNode, nextNode);
-        double delta = RouteCostFunction.HeadingDelta(current.ArrivalBearing, departureBearing);
-        return delta <= CategoryLimits.MaxHeadingChangeDeg(category);
+        return RouteCostFunction.HeadingDelta(arrivalBearing, departureBearing) <= CategoryLimits.MaxHeadingChangeDeg(category);
     }
+
+    /// <summary>Whether <paramref name="edge"/> is an arc tighter than any aircraft can steer (<see cref="MinSteerableArcRadiusFt"/>).</summary>
+    private static bool IsUnsteerableArc(IGroundEdge edge) =>
+        edge is GroundArc { MinRadiusOfCurvatureFt: var tightestRadiusFt } && (tightestRadiusFt < MinSteerableArcRadiusFt);
 
     /// <summary>
     /// Returns the bearing the aircraft will be travelling immediately after entering

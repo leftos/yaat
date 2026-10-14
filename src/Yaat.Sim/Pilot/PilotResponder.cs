@@ -1871,6 +1871,25 @@ public static class PilotResponder
     }
 
     /// <summary>
+    /// Pilot transmission when the aircraft, cleared across a runway with a follow armed, holds short of it until the traffic it
+    /// follows has passed where their routes meet: "Holding short of runway 1R, waiting for the traffic to pass". The leader is
+    /// "the traffic" in the spoken and solo forms, like every follow call; its callsign is the RPO diagnostic.
+    /// <paramref name="runwayId"/> is a single runway end as the hold-short texts name it.
+    /// </summary>
+    public static PilotSpeechText BuildHoldingShortForFollowTraffic(AircraftState aircraft, string runwayId, string leadCallsign)
+    {
+        string spoken = SpokenOwnCallsign(aircraft);
+        string terminalRunway = PhraseologyVerbalizer.CompactRunway(runwayId);
+        return new PilotSpeechText(
+            $"Holding short of runway {terminalRunway}, waiting for the traffic to pass",
+            $"{spoken}, holding short of runway {PhraseologyVerbalizer.SpellRunway(runwayId)}, waiting for the traffic to pass."
+        )
+        {
+            RpoTerminal = $"Holding short of runway {terminalRunway}, waiting for {leadCallsign} to pass",
+        };
+    }
+
+    /// <summary>
     /// Pilot transmission when the aircraft has fully exited the active runway after landing.
     /// Reports the runway just vacated and the taxiway used. Returns terminal + TTS forms
     /// independently — terminal uses the digit runway designator, TTS uses the spelled form.

@@ -691,6 +691,8 @@ It keeps a nose-to-tail gap behind the leader: about 100 ft behind a small or pr
 
 It stops at every runway hold-short it has no crossing clearance of its own for: the leader's crossing does not carry over, so give it a `CROSS` (`FOLLOWG SWA123; CROSS 28R`). It never stops at a taxiway hold-short the leader was given; it stops behind the leader instead. Leaving a runway, it does not stop at that runway's hold-short on the way off.
 
+When its route merges head-on with the leader's, it stops short of the merge and waits for the leader to pass. Cleared across a runway with the merge beyond it, it holds at the bar for the leader instead (past the runway if it fits there) and says "Holding short of runway 28R, waiting for the traffic to pass" (the RPO terminal names the leader) when the wait is for the leader to pass, not just to clear its tail; it goes once the leader is ahead.
+
 If the leader is deleted or departs, the follower never stops on a runway: on one, or inside its hold line, it taxis clear past the hold line, brakes to a stop on the taxiway, and holds in position; elsewhere it brakes to a stop where it is.
 
 If the way back onto its assigned route would enter a runway, or the clearing route runs out with its tail still over the runway it was leaving, it holds in position and says so once: "Lost sight of traffic, holding position, request taxi instructions" (the RPO terminal names the leader), or "Holding short of runway 28R, not clear of runway 28L" when another runway lies ahead, else "Holding position, not clear of runway 28L". It says nothing when it has no assigned route left to lose. Give it a new `TAXI`, `CLRWY` or `FOLLOWG` to move it on.
