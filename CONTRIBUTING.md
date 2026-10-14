@@ -2,6 +2,16 @@
 
 If you just want to run YAAT, grab a prebuilt installer from the [Releases page](https://github.com/leftos/yaat/releases/latest) — the contributor path below is only for people modifying the code. The [Installation Guide](INSTALL.md#building-from-source) has the full source-build walkthrough including the .NET SDK install.
 
+## Pull requests from outside contributors
+
+YAAT has one maintainer, so review time goes to work that was agreed on first. If you don't have write access to the repository, a pull request is accepted only when it links an open issue that a maintainer has assigned to you:
+
+1. Find the issue, or open one describing the bug or change.
+2. Comment on it asking to take it, with a line on how you would approach it.
+3. Once a maintainer assigns it to you, open a pull request whose description links it as `Refs #N`.
+
+The PR Gate workflow closes, with a comment, any outside pull request that doesn't link an issue assigned to its author. A pull request that only changes ARTCC data files under `src/Yaat.Sim/Data/ARTCCs/` (and `CHANGELOG.md`) is exempt; see [Submitting a change](ARTCC_CUSTOMIZATION.md#submitting-a-change).
+
 ## Prerequisites
 
 - [.NET 10 SDK](https://dotnet.microsoft.com/download)

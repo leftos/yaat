@@ -211,7 +211,7 @@ These are maintained by the YAAT maintainers and are not facility-specific:
 
 ## Submitting a change
 
-Anyone with a GitHub account can propose a change to the ARTCC folders.
+Anyone with a GitHub account can propose a change to the ARTCC folders. A pull request that only touches `src/Yaat.Sim/Data/ARTCCs/` and `CHANGELOG.md` doesn't need an issue assigned to you first, unlike code changes ([Pull requests from outside contributors](CONTRIBUTING.md#pull-requests-from-outside-contributors)).
 
 1. Fork [leftos/yaat](https://github.com/leftos/yaat) and create a branch.
 2. Edit or add the file under `src/Yaat.Sim/Data/ARTCCs/{ARTCC}/...`, following the schema in [`src/Yaat.Sim/Data/ARTCCs/README.md`](src/Yaat.Sim/Data/ARTCCs/README.md). Cite the SOP, LOA or facility directive in the entry's `notes`.

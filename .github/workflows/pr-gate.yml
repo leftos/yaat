@@ -1,0 +1,71 @@
+name: PR Gate
+
+# Pull requests from authors without write access are accepted only when they
+# link an open issue the maintainer has assigned to the author (CONTRIBUTING.md,
+# "Pull requests from outside contributors"); any other is closed with a comment.
+# A PR that only touches ARTCC data and CHANGELOG.md is exempt.
+#
+# The job never checks out or runs the PR's code: it reads the PR's metadata
+# through the API, and the untrusted body reaches the script only through env.
+# A reopen by the repository owner skips the gate, so the owner can override it.
+
+on:
+  pull_request_target:  # zizmor: ignore[dangerous-triggers] -- no checkout; reads PR metadata through the API only
+    types: [opened, reopened]
+
+permissions: {}
+
+jobs:
+  gate:
+    if: >-
+      github.event.pull_request.author_association != 'OWNER' &&
+      github.event.pull_request.author_association != 'MEMBER' &&
+      github.event.pull_request.author_association != 'COLLABORATOR' &&
+      github.event.pull_request.user.type != 'Bot' &&
+      github.event.sender.login != github.repository_owner
+    runs-on: ubuntu-latest
+    permissions:
+      issues: read
+      pull-requests: write
+    steps:
+      - name: Require an issue assigned to the author
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          AUTHOR: ${{ github.event.pull_request.user.login }}
+          BODY: ${{ github.event.pull_request.body }}
+        run: |
+          set -euo pipefail
+
+          files=$(gh api --paginate "repos/$REPO/pulls/$PR/files" --jq '.[].filename')
+          if ! printf '%s\n' "$files" | grep -qvE '^(src/Yaat\.Sim/Data/ARTCCs/|CHANGELOG\.md$)'; then
+            echo "::notice::#$PR only touches ARTCC data and CHANGELOG.md; exempt."
+            exit 0
+          fi
+
+          # A body without any issue reference is a legitimate input, not an error.
+          refs=$(printf '%s' "$BODY" | grep -oE "#[0-9]+|github\.com/$REPO/issues/[0-9]+" | grep -oE '[0-9]+$' | sort -un || true)
+          for n in $refs; do
+            # shellcheck disable=SC2016 # $ENV.AUTHOR is a jq expression, read by gh's jq, not the shell
+            if ! verdict=$(gh api "repos/$REPO/issues/$n" \
+              --jq '(.pull_request == null) and (.state == "open") and ([.assignees[].login] | index($ENV.AUTHOR) != null)' 2>&1); then
+              echo "::notice::Could not read #$n: $verdict"
+              continue
+            fi
+            if [ "$verdict" = "true" ]; then
+              echo "::notice::#$PR links #$n, which is assigned to $AUTHOR."
+              exit 0
+            fi
+          done
+
+          echo "::notice::#$PR links no open issue assigned to $AUTHOR (refs: $(echo "${refs:-none}" | paste -sd' ')); closing."
+          cat > "$RUNNER_TEMP/gate-comment.md" <<EOF
+          Thanks for the pull request, @$AUTHOR. YAAT accepts pull requests from outside contributors only for an open issue a maintainer has assigned to you, and this one doesn't link one, so it is being closed automatically.
+
+          To work on something, comment on its issue (or open one) and ask to take it. Once it is assigned to you, open a pull request whose description links it as \`Refs #N\`. The details are in [Pull requests from outside contributors](https://github.com/$REPO/blob/main/CONTRIBUTING.md#pull-requests-from-outside-contributors).
+
+          Pull requests that only change ARTCC data files under \`src/Yaat.Sim/Data/ARTCCs/\` (and \`CHANGELOG.md\`) don't need an assigned issue.
+          EOF
+          gh pr comment "$PR" --repo "$REPO" --body-file "$RUNNER_TEMP/gate-comment.md"
+          gh pr close "$PR" --repo "$REPO"

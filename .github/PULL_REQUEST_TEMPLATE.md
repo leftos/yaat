@@ -9,7 +9,11 @@ See CONTRIBUTING.md for the development setup and CHANGELOG conventions.
 
 ## Linked issues
 
-<!-- e.g., "Refs #123". The issue is closed when the release that ships it goes out, so please don't use "Closes" or "Fixes". -->
+<!--
+e.g., "Refs #123". The issue is closed when the release that ships it goes out, so please don't use "Closes" or "Fixes".
+Without write access to the repo, you must link an open issue a maintainer has assigned to you, or the PR is closed automatically
+(ARTCC-data-only PRs are exempt). See "Pull requests from outside contributors" in CONTRIBUTING.md.
+-->
 
 ## Test plan
 

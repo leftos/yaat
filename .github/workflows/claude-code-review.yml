@@ -1,8 +1,11 @@
 name: Claude Code Review
 
+# Run by hand on an outside pull request the maintainer has chosen to consider.
+# Never automatic: claude-code-action refuses a triggering actor without write
+# access, and CLAUDE_CODE_OAUTH_TOKEN must not meet untrusted PR content
+# unattended.
+
 on:
-  pull_request_target:
-    types: [opened, synchronize, ready_for_review, reopened]
   workflow_dispatch:
     inputs:
       pr_number:
@@ -12,10 +15,6 @@ on:
 
 jobs:
   claude-review:
-    if: >-
-      github.event_name == 'workflow_dispatch' ||
-      github.event.pull_request.user.login != 'leftos'
-
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -27,15 +26,7 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
         with:
           fetch-depth: 1
-
-      - name: Resolve PR number
-        id: pr
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "number=${{ inputs.pr_number }}" >> "$GITHUB_OUTPUT"
-          else
-            echo "number=${{ github.event.pull_request.number }}" >> "$GITHUB_OUTPUT"
-          fi
+          persist-credentials: false
 
       - name: Run Claude Code Review
         id: claude-review
@@ -45,6 +36,6 @@ jobs:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           plugin_marketplaces: 'https://github.com/anthropics/claude-code.git'
           plugins: 'code-review@claude-code-plugins'
-          prompt: '/code-review:code-review ${{ github.repository }}/pull/${{ steps.pr.outputs.number }}'
+          prompt: '/code-review:code-review ${{ github.repository }}/pull/${{ inputs.pr_number }}'
           # --model opus tracks the latest Opus release without pinning a version.
           claude_args: '--model opus'

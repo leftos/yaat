@@ -36,9 +36,9 @@ Active roadmap lives in `docs/plans/main-plan.md` (public repo). Milestones M0 a
 
 ## How features get in
 
-1. **Open an issue** describing the problem or use case. (Direct PRs without prior discussion are fine for bugfixes and small things; please open an issue first for anything bigger.)
-2. **Discuss the approach.** A maintainer comments on the issue confirming direction.
-3. **Send a PR.** Reference the issue. Keep the PR focused — one logical change.
+1. **Open an issue** describing the problem or use case, or find an existing one.
+2. **Discuss the approach.** A maintainer comments on the issue confirming direction, and assigns it to you if you'll write the change.
+3. **Send a PR.** Reference the issue as `Refs #N`. Keep the PR focused — one logical change. A PR from someone without write access is closed unless it links an issue assigned to its author; only ARTCC data changes are exempt ([Pull requests from outside contributors](CONTRIBUTING.md#pull-requests-from-outside-contributors)).
 4. **Review.** A maintainer reviews. Expect questions; don't take them personally.
 5. **Merge.** A maintainer merges once review passes and CI is green.
 
