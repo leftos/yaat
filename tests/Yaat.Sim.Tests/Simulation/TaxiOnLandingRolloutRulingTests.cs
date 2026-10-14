@@ -3,6 +3,7 @@ using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
@@ -713,7 +714,7 @@ public sealed class TaxiOnLandingRolloutRulingTests
         Assert.Equal(ExitSide.Right, toward);
 
         // The restore fills scenario state only into an engine that already has a scenario, and an engine with none never ticks.
-        var engine = new SimulationEngine(new TestAirportGroundData())
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped())
         {
             Scenario = new SimScenarioState
             {
@@ -1748,7 +1749,7 @@ public sealed class TaxiOnLandingRolloutRulingTests
     private static (SimulationEngine Engine, AircraftState Aircraft) Restored(ShortFinalArrival.Spawned live, string airport)
     {
         // The restore fills scenario state only into an engine that already has a scenario, and an engine with none never ticks.
-        var engine = new SimulationEngine(new TestAirportGroundData())
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped())
         {
             Scenario = new SimScenarioState
             {
