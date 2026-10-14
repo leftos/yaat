@@ -48,3 +48,12 @@
 {"expect": "deny", "cmd": "pwsh -NoProfile -File tools/gate.ps1 -Log .tmp/build.log -TimeoutSeconds 300 -Slot heavy -- dotnet build -q"}
 {"expect": "allow", "cmd": "git pull -q && pwsh tools/gate.ps1 -Log .tmp/build.log -TimeoutSeconds 300 -Slot heavy -- dotnet build"}
 {"expect": "deny", "cmd": "pwsh tools/gate.ps1 -Log .tmp/format.log -TimeoutSeconds 300 -Slot heavy -- dotnet format"}
+{"expect": "allow", "cmd": "gate run --log .tmp/b.log --timeout 300 --slot heavy -- dotnet build -p:TreatWarningsAsErrors=true"}
+{"expect": "allow", "cmd": "gate run --log .tmp/t.log --timeout 30 --slot heavy -- dotnet test tests/Yaat.Sim.Tests -c Release"}
+{"expect": "allow", "cmd": "gate run --log=.tmp/t.log --timeout=120 --slot heavy -- dotnet test"}
+{"expect": "deny", "cmd": "gate run --slot heavy -- dotnet test"}
+{"expect": "deny", "cmd": "gate run --log .tmp/t.log --slot heavy -- dotnet test"}
+{"expect": "deny", "cmd": "gate run --log .tmp/b.log --timeout 300 --slot heavy -- dotnet build -q"}
+{"expect": "allow", "cmd": "gate stop-tree 1234"}
+{"expect": "deny", "cmd": "xgate run --log .tmp/t.log --timeout 30 --slot heavy; dotnet test"}
+{"expect": "deny", "cmd": "gate running --log .tmp/t.log --timeout 30 --slot heavy; dotnet test"}

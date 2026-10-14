@@ -52,6 +52,8 @@ strip_heredocs() {
 # mentions a guarded command must not trip the guard. Newlines are folded to
 #  while blanking, so a quoted span that runs over several lines (a commit
 # message) is blanked whole instead of leaking its inner lines as segments.
+# A `gate run … -- <command>` wrapper is stripped the same way as `gate.ps1`, so
+# the gate CLI's inner command is checked in command position too.
 segments() {
     printf '%s\n' "$CMD" |
         strip_heredocs |
@@ -65,6 +67,7 @@ segments() {
             -e 's/^[[:space:]]*//' \
             -e 's/^(timeout[[:space:]]+[0-9]+[smhd]?|nice([[:space:]]+-n[[:space:]]*-?[0-9]+)?|command|exec)[[:space:]]+//' \
             -e 's#^(pwsh([[:space:]]+-[^[:space:]]+)*[[:space:]]+)?[^[:space:]]*gate\.ps1[[:space:]]+(([^-[:space:]][^[:space:]]*|-[^-[:space:]][^[:space:]]*)[[:space:]]+)*--[[:space:]]+##' \
+            -e 's#^(pwsh([[:space:]]+-[^[:space:]]+)*[[:space:]]+)?gate[[:space:]]+run[[:space:]]+((--?[A-Za-z][-A-Za-z0-9]*(=[^[:space:]]+)?|[^-[:space:]][^[:space:]]*)[[:space:]]+)*--[[:space:]]+##' \
             -e 's/^(timeout[[:space:]]+[0-9]+[smhd]?)[[:space:]]+//' \
             -e 's/^([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)+//'
 }
@@ -123,17 +126,20 @@ fi
 # re-running. `| tee` prints the whole log and reports tee's status, so it is
 # denied even though it captures.
 captured() {
-    line_has '(^|[[:space:]/])gate\.ps1[[:space:]]' || line_has '>>?[[:space:]]*["'"'"']?[^[:space:]"'"'"']*\.tmp/[^[:space:]"'"'"']*\.log'
+    line_has '(^|[[:space:]/])gate\.ps1[[:space:]]' ||
+        line_has '>>?[[:space:]]*["'"'"']?[^[:space:]"'"'"']*\.tmp/[^[:space:]"'"'"']*\.log' ||
+        { line_has '(^|[[:space:]])gate[[:space:]]+run([[:space:]]|$)' && line_has '(^|[[:space:]])--log([[:space:]]|=)'; }
 }
 if starts_with 'dotnet[[:space:]]+(test|build|run)' && ! captured; then
     deny 'dotnet test/build/run must write its full output to a .tmp/<name>.log and print only the tail: `pwsh tools/gate.ps1 -Log .tmp/<name>.log -TimeoutSeconds <seconds> -Slot heavy -- <command...>` (from yaat-server: `pwsh ../yaat/tools/gate.ps1`), or `<command> > .tmp/<name>.log 2>&1; rc=$?; tail -n 20 .tmp/<name>.log; (exit $rc)`. `| tee` prints the whole log into context and hides the exit status. For more of the output, read the log file — never re-run the command.'
 fi
 
-# A ceiling is gate.ps1's -TimeoutSeconds, or a coreutils `timeout <n>` on the
-# line.
+# A ceiling is gate.ps1's -TimeoutSeconds, gate run's --timeout, or a coreutils
+# `timeout <n>` on the line.
 has_ceiling() {
     line_has 'gate\.ps1[[:space:]].*-TimeoutSeconds[[:space:]]+[0-9]' ||
-        line_has '(^|[[:space:]])timeout[[:space:]]+[0-9]'
+        line_has '(^|[[:space:]])timeout[[:space:]]+[0-9]' ||
+        { line_has '(^|[[:space:]])gate[[:space:]]+run([[:space:]]|$)' && line_has '(^|[[:space:]])--timeout(=|[[:space:]]+)[0-9]'; }
 }
 if starts_with 'dotnet[[:space:]]+test' && ! has_ceiling; then
     deny 'dotnet test must run under a ceiling to catch soft hangs: `pwsh tools/gate.ps1 -Log .tmp/test.log -TimeoutSeconds 30 -Slot heavy -- dotnet test ...` for a filtered run (--filter-class ...), `pwsh tools/gate.ps1 -Log .tmp/test.log -TimeoutSeconds 120 -Slot heavy -- dotnet test` for the full suite (from yaat-server: `pwsh ../yaat/tools/gate.ps1`). The gate kills a hung run and exits 124.'
