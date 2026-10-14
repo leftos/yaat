@@ -3,6 +3,7 @@ using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
@@ -245,7 +246,7 @@ public class HoldInsideStoppingDistanceOfBarTests
         }
 
         SimLogBuilder.CreateForTest(_output).InitializeSimLog();
-        var engine = new SimulationEngine(groundData);
+        var engine = new SimulationEngine(groundData, PushPlanStore.CreateShipped());
         engine.LoadScenario(Scenario, 1, MagneticDeclination.EvaluationDateUtc);
         AircraftState aircraft = Assert.IsType<AircraftState>(engine.FindAircraft(Callsign));
         Assert.True(engine.SendCommand(Callsign, FirstTaxi).Success);
@@ -657,7 +658,7 @@ public class HoldInsideStoppingDistanceOfBarTests
         }
 
         SimLogBuilder.CreateForTest(_output).EnableCategory("TaxiingPhase", LogLevel.Debug).InitializeSimLog();
-        var engine = new SimulationEngine(groundData);
+        var engine = new SimulationEngine(groundData, PushPlanStore.CreateShipped());
         engine.LoadScenario(Scenario.Replace(ParkedAtGa16, OnCAtSpotI8R, StringComparison.Ordinal), 1, MagneticDeclination.EvaluationDateUtc);
         AircraftState aircraft = Assert.IsType<AircraftState>(engine.FindAircraft(Callsign));
         Assert.True(engine.SendCommand(Callsign, TaxiCToA).Success, $"{TaxiCToA} was rejected");
@@ -853,7 +854,7 @@ public class HoldInsideStoppingDistanceOfBarTests
         }
 
         SimLogBuilder.CreateForTest(_output).InitializeSimLog();
-        var engine = new SimulationEngine(groundData);
+        var engine = new SimulationEngine(groundData, PushPlanStore.CreateShipped());
         engine.LoadScenario(Scenario.Replace(Jet, type, StringComparison.Ordinal), 1, MagneticDeclination.EvaluationDateUtc);
         AircraftState aircraft = Assert.IsType<AircraftState>(engine.FindAircraft(Callsign));
         Assert.True(engine.SendCommand(Callsign, RoutineTaxi).Success);
@@ -1098,7 +1099,7 @@ public class HoldInsideStoppingDistanceOfBarTests
             SimLogBuilder.CreateForTest(_output).InitializeSimLog();
         }
 
-        var engine = new SimulationEngine(groundData);
+        var engine = new SimulationEngine(groundData, PushPlanStore.CreateShipped());
         string scenario =
             c.Order == Order.GiveWayToCrossingTraffic
                 ? Scenario.Replace("\"aircraft\": [", "\"aircraft\": [" + TrafficOnJ, StringComparison.Ordinal)
@@ -1473,7 +1474,7 @@ public class HoldInsideStoppingDistanceOfBarTests
         }
 
         SimLogBuilder.CreateForTest(_output).InitializeSimLog();
-        var engine = new SimulationEngine(groundData);
+        var engine = new SimulationEngine(groundData, PushPlanStore.CreateShipped());
         engine.LoadScenario(Scenario, 1, MagneticDeclination.EvaluationDateUtc);
         AircraftState aircraft = Assert.IsType<AircraftState>(engine.FindAircraft(Callsign));
         Assert.True(engine.SendCommand(Callsign, FirstTaxi).Success);

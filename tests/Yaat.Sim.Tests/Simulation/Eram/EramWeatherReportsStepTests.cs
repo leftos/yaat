@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Xunit;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Eram;
@@ -200,7 +201,7 @@ public class EramWeatherReportsStepTests
         Assert.True(engine.Actions.IssueDerived(Entry(now, "WX KSFO 1251 THIRD"), host).Success);
         SessionRecording recording = Recording(engine);
 
-        var replayed = new SimulationEngine(new TestAirportGroundData());
+        var replayed = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
         Assert.True(replayed.EramWeatherReports.TryApply("WX KSJC 1200 STALE", TenSecondsBeforeRoutine));
         replayed.Replay(recording, now + 5);
 
@@ -275,11 +276,11 @@ public class EramWeatherReportsStepTests
 
         SessionRecording recording = Recording(engine);
 
-        var before = new SimulationEngine(new TestAirportGroundData());
+        var before = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
         before.Replay(recording, entered + 9);
         Assert.Equal("ENTERED", Assert.Single(before.EramWeatherReports.Reports).Text);
 
-        var after = new SimulationEngine(new TestAirportGroundData());
+        var after = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
         after.Replay(recording, entered + 11);
         Assert.Empty(after.EramWeatherReports.Reports);
     }

@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation;
@@ -36,7 +37,7 @@ public class Issue172Jbu577ClearRunwayTests(ITestOutputHelper output)
         }
 
         SimLogBuilder.CreateForTest(output).EnableCategory("GroundCommandHandler", LogLevel.Information).InitializeSimLog();
-        return new SimulationEngine(groundData);
+        return new SimulationEngine(groundData, PushPlanStore.CreateShipped());
     }
 
     [Fact]

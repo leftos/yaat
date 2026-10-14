@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
@@ -58,7 +59,7 @@ public class Issue234Spot7AConflictTests(ITestOutputHelper output)
             return;
         }
 
-        var engine = new SimulationEngine(groundData) { Scenario = MakeScenario() };
+        var engine = new SimulationEngine(groundData, PushPlanStore.CreateShipped()) { Scenario = MakeScenario() };
 
         AircraftState jet = MakeGroundAircraft(Taxiing, "CRJ2", f8.Position, f8.TrueHeading ?? new TrueHeading(0), layout, new AtParkingPhase());
         engine.World.AddAircraft(jet);
@@ -178,7 +179,7 @@ public class Issue234Spot7AConflictTests(ITestOutputHelper output)
             return null;
         }
 
-        var engine = new SimulationEngine(groundData) { Scenario = MakeScenario() };
+        var engine = new SimulationEngine(groundData, PushPlanStore.CreateShipped()) { Scenario = MakeScenario() };
 
         // Spot occupant (B739) facing taxiway A, centroid offset forwardOffsetFt toward A from the marking.
         double hdgToA = GeoMath.BearingTo(spot.Position, aJunction.Position);

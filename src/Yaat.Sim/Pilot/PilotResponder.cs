@@ -1052,6 +1052,27 @@ public static class PilotResponder
     }
 
     /// <summary>
+    /// A jet or turboprop's stand call from a push-back stand, asking ground for a push:
+    /// <c>{facility}, at gate S7{info}, request pushback.</c> (terminal) /
+    /// <c>{facility}, november one two three alpha bravo at gate sierra seven{info}, request pushback.</c> (spoken). The
+    /// location and ATIS clauses are <see cref="BuildReadyToTaxi(AircraftState, string, string?, ReadyToTaxiLocation)"/>'s;
+    /// the call names no destination or flight rules, which the after-push ready-to-taxi call carries.
+    /// </summary>
+    public static PilotSpeechText BuildPushbackRequest(
+        AircraftState aircraft,
+        string facilityCallName,
+        string? atisLetter,
+        ReadyToTaxiLocation location
+    )
+    {
+        (string place, string placeSpoken) = DescribeReadyToTaxiLocation(location);
+        string spoken = SpokenOwnCallsign(aircraft);
+        string facility = CleanFacilityCallName(facilityCallName, "ground");
+        string tail = $"{AtisInfoClause(atisLetter)}, request pushback.";
+        return new PilotSpeechText($"{facility}, {place}{tail}", $"{facility}, {spoken} {placeSpoken}{tail}");
+    }
+
+    /// <summary>
     /// True when a call from <paramref name="location"/> asks for taxi to parking rather than reporting ready to taxi: the
     /// aircraft sits on a taxiway and its filed destination is the field it is at.
     /// </summary>

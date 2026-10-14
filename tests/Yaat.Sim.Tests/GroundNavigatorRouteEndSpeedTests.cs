@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
@@ -434,7 +435,7 @@ public class GroundNavigatorRouteEndSpeedTests(ITestOutputHelper output)
         }
 
         SimLogBuilder.CreateForTest(output).InitializeSimLog();
-        var engine = new SimulationEngine(groundData);
+        var engine = new SimulationEngine(groundData, PushPlanStore.CreateShipped());
 
         int headingMag = (int)
             Math.Round(

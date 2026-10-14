@@ -1,6 +1,7 @@
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
@@ -245,7 +246,7 @@ public class SfoHoldShortLiveSegmentTests(ITestOutputHelper output)
         RecordingGroundData groundData
     )
     {
-        var engine = new SimulationEngine(groundData);
+        var engine = new SimulationEngine(groundData, PushPlanStore.CreateShipped());
         engine.Replay(recording, 0);
         RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
         Assert.NotNull(archive);

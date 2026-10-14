@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Xunit;
 using Yaat.Sim.ControllerAi;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
@@ -28,7 +29,7 @@ public class ControllerAiServiceTests
 
         AiPositionConfig ground = TestAiPositions.OakGround(_zoa);
         AiPositionConfig tower = TestAiPositions.OakTower(_zoa);
-        var engine = new SimulationEngine(new TestAirportGroundData());
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
         engine.LoadScenario(AiTestFixture.ParkedAtOak, 7, MagneticDeclination.EvaluationDateUtc);
         SimScenarioState scenario = engine.Scenario!;
         scenario.ArtccConfig = _zoa;
@@ -74,7 +75,7 @@ public class ControllerAiServiceTests
         }
 
         AiPositionConfig ground = TestAiPositions.OakGround(_zoa);
-        var engine = new SimulationEngine(new TestAirportGroundData());
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
         engine.LoadScenario(AiTestFixture.ParkedAtOak, 7, MagneticDeclination.EvaluationDateUtc);
         SimScenarioState scenario = engine.Scenario!;
         scenario.ArtccConfig = _zoa;
@@ -118,7 +119,7 @@ public class ControllerAiServiceTests
 
         AiPositionConfig ground = TestAiPositions.OakGround(_zoa);
         AiPositionConfig tower = TestAiPositions.OakTower(_zoa);
-        var engine = new SimulationEngine(new TestAirportGroundData());
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
         engine.LoadScenario(AiTestFixture.ParkedAtOak, 7, MagneticDeclination.EvaluationDateUtc);
         SimScenarioState scenario = engine.Scenario!;
         scenario.ArtccConfig = _zoa;
@@ -158,7 +159,7 @@ public class ControllerAiServiceTests
 
         string delivery = _zoa.FindPositionByCallsign("OAK_DEL", facilityHint: null)!.Id;
         string ground = _zoa.FindPositionByCallsign("OAK_GND", facilityHint: null)!.Id;
-        var engine = new SimulationEngine(new TestAirportGroundData());
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
         engine.LoadScenario(AiTestFixture.ParkedAtOak, 7, MagneticDeclination.EvaluationDateUtc);
         SimScenarioState scenario = engine.Scenario!;
         scenario.ControllerAi = new ControllerAiConfig

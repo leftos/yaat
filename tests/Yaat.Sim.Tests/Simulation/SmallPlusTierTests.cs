@@ -1,6 +1,7 @@
 using Xunit;
 using Yaat.Sim;
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Scenarios;
 using Yaat.Sim.Simulation;
@@ -158,7 +159,7 @@ public class SmallPlusTierTests
             return;
         }
 
-        var engine = new SimulationEngine(groundData);
+        var engine = new SimulationEngine(groundData, PushPlanStore.CreateShipped());
         engine.LoadScenario(SmallPlusScenarioJson(), rngSeed: 42, sessionStartUtc: MagneticDeclination.EvaluationDateUtc);
 
         for (int t = 0; t < 1200; t++)

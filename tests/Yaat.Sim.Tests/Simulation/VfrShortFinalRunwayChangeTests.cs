@@ -2,6 +2,7 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
@@ -43,7 +44,7 @@ public class VfrShortFinalRunwayChangeTests(ITestOutputHelper output)
         var groundData = new TestAirportGroundData();
         SimLogBuilder.CreateForTest(output).EnableCategory("PatternCommandHandler", LogLevel.Debug).InitializeSimLog();
 
-        return new SimulationEngine(groundData);
+        return new SimulationEngine(groundData, PushPlanStore.CreateShipped());
     }
 
     // -------------------------------------------------------------------------

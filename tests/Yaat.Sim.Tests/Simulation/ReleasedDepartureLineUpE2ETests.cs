@@ -2,6 +2,7 @@ using System.Text.Json;
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
@@ -280,7 +281,7 @@ public class ReleasedDepartureLineUpE2ETests
             return null;
         }
 
-        var engine = new SimulationEngine(groundData);
+        var engine = new SimulationEngine(groundData, PushPlanStore.CreateShipped());
         var terminal = new List<TerminalEntry>();
         engine.TerminalEntryEmitted += entry => terminal.Add(entry);
         List<string> warnings = engine.LoadScenario(scenarioJson, 42, MagneticDeclination.EvaluationDateUtc);

@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Xunit;
 using Yaat.Sim;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
@@ -40,7 +41,7 @@ public class IssueL360StallsTests(ITestOutputHelper output)
         var groundData = new TestAirportGroundData();
         SimLogBuilder.CreateForTest(output).EnableCategory("MakeTurnPhase", LogLevel.Debug).InitializeSimLog();
 
-        return new SimulationEngine(groundData);
+        return new SimulationEngine(groundData, PushPlanStore.CreateShipped());
     }
 
     /// <summary>

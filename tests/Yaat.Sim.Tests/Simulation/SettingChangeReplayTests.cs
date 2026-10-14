@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
@@ -40,7 +41,7 @@ public class SettingChangeReplayTests(ITestOutputHelper output)
 
         var groundData = new TestAirportGroundData();
         SimLogBuilder.CreateForTest(output).InitializeSimLog();
-        var engine = new SimulationEngine(groundData);
+        var engine = new SimulationEngine(groundData, PushPlanStore.CreateShipped());
 
         // Before t=0 — neither setting applied yet
         engine.Replay(recording, 0);
@@ -95,7 +96,7 @@ public class SettingChangeReplayTests(ITestOutputHelper output)
             ArtccId = baseline.ArtccId,
         };
 
-        var engine = new SimulationEngine(new TestAirportGroundData());
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
         engine.Replay(recording, 1);
 
         Assert.True(engine.Scenario!.RpoShowPilotSpeech, "RpoShowPilotSpeech should round-trip through replay");
@@ -131,7 +132,7 @@ public class SettingChangeReplayTests(ITestOutputHelper output)
             ArtccId = baseline.ArtccId,
         };
 
-        var engine = new SimulationEngine(new TestAirportGroundData());
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
         engine.Replay(recording, 1);
 
         Assert.True(engine.Scenario!.AutoGoAroundOnOccupiedRunway, "AutoGoAroundOnOccupiedRunway should round-trip through replay");
@@ -167,7 +168,7 @@ public class SettingChangeReplayTests(ITestOutputHelper output)
             ArtccId = baseline.ArtccId,
         };
 
-        var engine = new SimulationEngine(new TestAirportGroundData());
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
         engine.Replay(recording, 1);
 
         Assert.True(engine.Scenario!.AutoArrivalSpacingOnOccupiedRunway, "AutoArrivalSpacingOnOccupiedRunway should round-trip through replay");
@@ -203,7 +204,7 @@ public class SettingChangeReplayTests(ITestOutputHelper output)
             ArtccId = baseline.ArtccId,
         };
 
-        var engine = new SimulationEngine(new TestAirportGroundData());
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
         engine.Replay(recording, 1);
 
         Assert.True(engine.Scenario!.AutoRejectTakeoffOnOccupiedRunway, "AutoRejectTakeoffOnOccupiedRunway should round-trip through replay");
@@ -239,7 +240,7 @@ public class SettingChangeReplayTests(ITestOutputHelper output)
             ArtccId = baseline.ArtccId,
         };
 
-        var engine = new SimulationEngine(new TestAirportGroundData());
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
         engine.Replay(recording, 1);
 
         Assert.True(engine.Scenario!.LiveTrafficEnabled, "LiveTrafficEnabled should round-trip through replay");
@@ -276,7 +277,7 @@ public class SettingChangeReplayTests(ITestOutputHelper output)
             ArtccId = baseline.ArtccId,
         };
 
-        var engine = new SimulationEngine(new TestAirportGroundData());
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
         engine.Replay(recording, 1);
 
         Assert.True(engine.Scenario!.SoloTrainingMode, "SoloTrainingMode should round-trip through replay");
@@ -312,7 +313,7 @@ public class SettingChangeReplayTests(ITestOutputHelper output)
             ArtccId = baseline.ArtccId,
         };
 
-        var engine = new SimulationEngine(new TestAirportGroundData());
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
         engine.Replay(recording, 1);
 
         Assert.True(engine.Scenario!.SoloRpoCommandsAllowed, "SoloRpoCommandsAllowed should round-trip through replay");
@@ -351,7 +352,7 @@ public class SettingChangeReplayTests(ITestOutputHelper output)
             ArtccId = baseline.ArtccId,
         };
 
-        var engine = new SimulationEngine(new TestAirportGroundData());
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
         engine.Replay(recording, 1);
 
         Assert.Equal(35, engine.Scenario!.SoloParkingInitialCallupRatePercent);
@@ -398,7 +399,7 @@ public class SettingChangeReplayTests(ITestOutputHelper output)
 
         var groundData = new TestAirportGroundData();
         SimLogBuilder.CreateForTest(output).InitializeSimLog();
-        var engine = new SimulationEngine(groundData);
+        var engine = new SimulationEngine(groundData, PushPlanStore.CreateShipped());
         engine.Replay(recording, 1);
 
         Assert.True(engine.Scenario!.AutoClearedToLand, "AutoClearedToLand should round-trip");
@@ -446,7 +447,7 @@ public class SettingChangeReplayTests(ITestOutputHelper output)
             ArtccId = baseline.ArtccId,
         };
 
-        var engine = new SimulationEngine(new TestAirportGroundData());
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
         engine.Replay(recording, 1);
 
         Assert.Equal(TimeSpan.FromSeconds(expectedSeconds), engine.Scenario!.AutoAcceptDelay);
@@ -489,7 +490,7 @@ public class SettingChangeReplayTests(ITestOutputHelper output)
             ArtccId = baseline.ArtccId,
         };
 
-        var engine = new SimulationEngine(new TestAirportGroundData());
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
         engine.Replay(recording, 1);
 
         Assert.Equal(expected, engine.Scenario!.ClientAutoDeleteOverride);

@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Data.Airspace;
 using Yaat.Sim.Scenarios;
 using Yaat.Sim.Simulation;
@@ -75,7 +76,7 @@ public class VfrGeneratorsE2ETests(ITestOutputHelper output)
             return null;
         }
 
-        var engine = new SimulationEngine(groundData);
+        var engine = new SimulationEngine(groundData, PushPlanStore.CreateShipped());
         foreach (string w in engine.LoadScenario(scenarioJson, rngSeed: 42, sessionStartUtc: MagneticDeclination.EvaluationDateUtc))
         {
             output.WriteLine($"[load-warn] {w}");

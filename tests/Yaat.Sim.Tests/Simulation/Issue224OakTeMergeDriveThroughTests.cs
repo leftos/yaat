@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
 using Xunit;
 using Yaat.Sim;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
@@ -71,7 +72,7 @@ public class Issue224OakTeMergeDriveThroughTests(ITestOutputHelper output)
         );
         Assert.True(groundData.Bundles("oak"), "the recording bundles no OAK layout");
         SimLogBuilder.CreateForTest(output).EnableCategory("GroundConflictDetector", LogLevel.Debug).InitializeSimLog();
-        return new SimulationEngine(groundData);
+        return new SimulationEngine(groundData, PushPlanStore.CreateShipped());
     }
 
     [Fact]

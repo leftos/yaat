@@ -2,6 +2,7 @@ using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.ControllerAi;
 using Yaat.Sim.ControllerAi.Brains;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
@@ -377,7 +378,7 @@ public class AtParkingPhaseCallupTests
 
     private (SimulationEngine Engine, List<TerminalEntry> Said) Load(string scenarioJson)
     {
-        var engine = new SimulationEngine(new TestAirportGroundData());
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
         List<string> warnings = engine.LoadScenario(scenarioJson, 42, MagneticDeclination.EvaluationDateUtc);
         Assert.DoesNotContain(warnings, w => w.Contains("error", StringComparison.OrdinalIgnoreCase));
         SimScenarioState scenario = engine.Scenario!;

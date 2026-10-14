@@ -2,6 +2,7 @@ using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
@@ -74,7 +75,7 @@ public static class ShortFinalArrival
         aircraft.Ground.Layout = layout;
         aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, layout));
 
-        var engine = new SimulationEngine(groundData);
+        var engine = new SimulationEngine(groundData, PushPlanStore.CreateShipped());
         engine.World.AddAircraft(aircraft);
         engine.Scenario = new SimScenarioState
         {

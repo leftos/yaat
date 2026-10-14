@@ -3,6 +3,7 @@ using Xunit;
 using Yaat.Sim;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
@@ -112,7 +113,7 @@ public class Issue222PushbackParkedNeighborTests(ITestOutputHelper output)
 
         var groundData = RecordingGroundData.Evergreen(GroundDataWhy);
         SimLogBuilder.CreateForTest(output).EnableCategory("GroundConflictDetector", LogLevel.Debug).InitializeSimLog();
-        return new SimulationEngine(groundData);
+        return new SimulationEngine(groundData, PushPlanStore.CreateShipped());
     }
 
     /// <summary>
@@ -131,7 +132,7 @@ public class Issue222PushbackParkedNeighborTests(ITestOutputHelper output)
         }
 
         SimLogBuilder.CreateForTest(output).EnableCategory("GroundConflictDetector", LogLevel.Debug).InitializeSimLog();
-        var engine = new SimulationEngine(groundData)
+        var engine = new SimulationEngine(groundData, PushPlanStore.CreateShipped())
         {
             Scenario = new SimScenarioState
             {

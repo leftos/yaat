@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.LiveTraffic;
 using Yaat.Sim.Simulation;
@@ -92,7 +93,7 @@ public class ShadowSpawnHandOverParityTests
             .ToSnapshot();
 
     private static SimulationEngine BareEngine() =>
-        new(new TestAirportGroundData())
+        new(new TestAirportGroundData(), PushPlanStore.CreateShipped())
         {
             Scenario = new SimScenarioState
             {

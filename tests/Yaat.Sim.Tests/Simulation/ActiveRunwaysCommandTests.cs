@@ -1,5 +1,6 @@
 using Xunit;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Actions;
 using Yaat.Sim.Tests.Helpers;
@@ -20,7 +21,7 @@ public class ActiveRunwaysCommandTests
 
     private static SimulationEngine BuildEngine(string? primaryAirportId)
     {
-        var engine = new SimulationEngine(new TestAirportGroundData())
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped())
         {
             Scenario = new SimScenarioState
             {

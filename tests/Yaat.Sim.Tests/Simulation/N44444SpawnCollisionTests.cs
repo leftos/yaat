@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Xunit;
 using Yaat.Sim;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
@@ -37,7 +38,7 @@ public class N44444SpawnCollisionTests(ITestOutputHelper output)
     {
         SimLogBuilder.CreateForTest(output).EnableCategory("SimulationWorld", LogLevel.Warning).InitializeSimLog();
 
-        var world = new SimulationWorld();
+        var world = new SimulationWorld(PushPlanStore.CreateShipped());
 
         var ghost = new AircraftState
         {
@@ -143,7 +144,7 @@ public class N44444SpawnCollisionTests(ITestOutputHelper output)
 
         SimLogBuilder.CreateForTest(output).EnableCategory("SimulationWorld", LogLevel.Warning).InitializeSimLog();
 
-        var engine = new SimulationEngine(new TestAirportGroundData());
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
 
         // Scenario spawn for N44444 fires at t=1254 (spawnDelay in scenario JSON).
         engine.Replay(recording, 1260);

@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Xunit;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
@@ -59,7 +60,7 @@ public class FollowStraightInJetBaseTurnTests(ITestOutputHelper output)
             .EnableCategory("AirborneFollowHelper", LogLevel.Debug)
             .InitializeSimLog();
 
-        return new SimulationEngine(RecordingGroundData.Evergreen("the base turn behind a fast straight-in lead"));
+        return new SimulationEngine(RecordingGroundData.Evergreen("the base turn behind a fast straight-in lead"), PushPlanStore.CreateShipped());
     }
 
     [Fact]

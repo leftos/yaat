@@ -1,4 +1,6 @@
+using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Simulation;
 
@@ -81,7 +83,9 @@ public static class InitialCallupCall
     /// <summary>
     /// Makes the initial call from <paramref name="location"/> once someone answers ground at the airport and a pacing slot
     /// is free: queues the line, records the open Taxi request, marks the aircraft as having called and the decision
-    /// processed. Returns false, changing nothing, when nobody answers or no slot is free; the caller retries next tick.
+    /// processed. A jet or turboprop on a push-back stand asks for pushback instead: the open request is a Pushback one,
+    /// and the decision stays open as the after-push call (<see cref="MakePushbackRequest"/>). Returns false, changing
+    /// nothing, when nobody answers or no slot is free; the caller retries next tick.
     /// </summary>
     public static bool TryMake(PhaseContext ctx, ReadyToTaxiLocation location)
     {
@@ -109,6 +113,12 @@ public static class InitialCallupCall
         }
 
         string facilityCallName = PilotResponder.ResolveAnsweringCallName(answering, "GND", "ground");
+        if (RequestsPushback(ctx, location))
+        {
+            MakePushbackRequest(ctx, answering, facilityCallName, location);
+            return true;
+        }
+
         PilotSpeechText line = PilotResponder.BuildReadyToTaxi(ctx.Aircraft, facilityCallName, ctx.AtisLetter, location);
         PilotResponder.QueueSoloPilotTransmission(ctx.Aircraft, line, PilotTransmissionKind.Proactive, PilotResponder.SourceResponse);
         PilotRequestTracker.RecordRequest(
@@ -122,6 +132,40 @@ public static class InitialCallupCall
         answering.MarkInitialContact(ctx.Aircraft);
         ctx.Aircraft.Ground.InitialCallupDecisionProcessed = true;
         return true;
+    }
+
+    /// <summary>
+    /// Whether the call is a pushback request: a jet or turboprop (the categories the RPO's push-back note names) calling
+    /// from the push-back stand it is parked on. A piston or helicopter, and any aircraft on an either or taxi-out stand,
+    /// calls ready to taxi, and so does the after-push call made on a stand a tow ended on.
+    /// </summary>
+    private static bool RequestsPushback(PhaseContext ctx, ReadyToTaxiLocation location) =>
+        (ctx.Aircraft.Ground.InitialCallup == InitialCallupPlan.StandCall)
+        && (location.Kind == ReadyToTaxiLocationKind.Stand)
+        && (ctx.Category is AircraftCategory.Jet or AircraftCategory.Turboprop)
+        && (ParkedStandDeparture.Of(ctx.Aircraft, ctx.GroundLayout) == StandDeparture.PushBack);
+
+    /// <summary>
+    /// The stand call as a pushback request: queues "request pushback", records the open
+    /// <see cref="PilotPendingRequestKind.Pushback"/> request, and re-arms the plan as the after-push call with the decision
+    /// still open, so the push (<see cref="BeforeTow"/>) carries it and the crew reports ready to taxi after the push.
+    /// </summary>
+    private static void MakePushbackRequest(PhaseContext ctx, PilotAnsweringPosition answering, string facilityCallName, ReadyToTaxiLocation location)
+    {
+        AircraftState aircraft = ctx.Aircraft;
+        PilotSpeechText line = PilotResponder.BuildPushbackRequest(aircraft, facilityCallName, ctx.AtisLetter, location);
+        PilotResponder.QueueSoloPilotTransmission(aircraft, line, PilotTransmissionKind.Proactive, PilotResponder.SourceResponse);
+        PilotRequestTracker.RecordRequest(
+            aircraft,
+            PilotPendingRequestKind.Pushback,
+            ctx.ScenarioElapsedSeconds,
+            line,
+            PilotRequestContext.Facility(facilityCallName)
+        );
+        aircraft.Ground.HasAnnouncedReady = true;
+        answering.MarkInitialContact(aircraft);
+        aircraft.Ground.InitialCallup = InitialCallupPlan.AfterPush;
+        aircraft.Ground.InitialCallupDecisionProcessed = false;
     }
 
     /// <summary>

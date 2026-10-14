@@ -4,6 +4,7 @@ using Yaat.Client.Services;
 using Yaat.Client.Views;
 using Yaat.Sim;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Simulation;
 using EditorAmendment = Yaat.Client.Models.FlightPlanAmendment;
 using SimAmendment = Yaat.Sim.Simulation.FlightPlanAmendment;
@@ -103,7 +104,7 @@ public class FlightPlanEditorRoundTripTests
             originalRemarks: ac.FlightPlan.Remarks
         );
 
-        var engine = new SimulationEngine(new NoGroundData());
+        var engine = new SimulationEngine(new NoGroundData(), PushPlanStore.CreateShipped());
         engine.World.AddAircraft(ac);
         engine.AmendFlightPlan(Callsign, ToSimAmendment(amendment));
         return amendment;

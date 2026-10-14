@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Pilot;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
@@ -36,7 +37,7 @@ public class IssueSaltAfterCtoAltitudeTests(ITestOutputHelper output)
         var groundData = new TestAirportGroundData();
         SimLogBuilder.CreateForTest(output).InitializeSimLog();
 
-        return new SimulationEngine(groundData);
+        return new SimulationEngine(groundData, PushPlanStore.CreateShipped());
     }
 
     /// <summary>

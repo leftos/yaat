@@ -209,6 +209,109 @@ public class ObserverRulesTests
         Assert.Equal(AiAnomalyEventKind.Closed, Assert.Single(engine.Scenario.AiAnomalies.Drain()).Event);
     }
 
+    /// <summary>
+    /// A pushback request answered "standby" and asked again 90 s later is an acknowledged wait (P/CG STAND BY), not an
+    /// unanswered request; it is flagged once it goes unanswered after that re-ask and the pilot asks once more.
+    /// </summary>
+    [Fact]
+    public void UnansweredPilotRequest_ReaskAfterStandby_OpensNothing_UntilUnansweredAgain()
+    {
+        if (_zoa is null)
+        {
+            return;
+        }
+
+        AiPositionConfig ground = TestAiPositions.OakGround(_zoa);
+        (SimulationEngine engine, AircraftState parked) = PushbackReaskedAfterStandby(ground, standby: true);
+        var rule = new UnansweredPilotRequestRule();
+        var memos = new Dictionary<string, AiAircraftMemo>(StringComparer.Ordinal);
+
+        rule.Evaluate(Scope(engine, [parked], ground, engine.Scenario!.ElapsedSeconds, memos));
+        Assert.Empty(engine.Scenario.AiAnomalies.Drain());
+
+        double reaskedAt = parked.PendingPilotRequest!.LastRequestedAtSeconds;
+        AiTestFixture.TickUntil(engine, AiTestFixture.Callsign, ac => ac.PendingPilotRequest!.LastRequestedAtSeconds > reaskedAt, 200);
+        Assert.False(parked.PendingPilotRequest.ReaskedAfterStandby);
+        rule.Evaluate(Scope(engine, [parked], ground, engine.Scenario.ElapsedSeconds, memos));
+        AiAnomalyEvent opened = Assert.Single(engine.Scenario.AiAnomalies.Drain());
+        Assert.Equal(AiAnomalyKind.UnansweredPilotRequest, opened.Kind);
+        Assert.Contains("Pushback", opened.Detail);
+    }
+
+    /// <summary>A pushback request never answered is flagged at its first re-ask, as any request is.</summary>
+    [Fact]
+    public void UnansweredPilotRequest_PushbackNeverAnswered_OpensAtTheReask()
+    {
+        if (_zoa is null)
+        {
+            return;
+        }
+
+        AiPositionConfig ground = TestAiPositions.OakGround(_zoa);
+        (SimulationEngine engine, AircraftState parked) = PushbackReaskedAfterStandby(ground, standby: false);
+        Assert.False(parked.PendingPilotRequest!.ReaskedAfterStandby);
+
+        new UnansweredPilotRequestRule().Evaluate(
+            Scope(engine, [parked], ground, engine.Scenario!.ElapsedSeconds, new Dictionary<string, AiAircraftMemo>(StringComparer.Ordinal))
+        );
+
+        Assert.Equal(AiAnomalyKind.UnansweredPilotRequest, Assert.Single(engine.Scenario.AiAnomalies.Drain()).Kind);
+    }
+
+    /// <summary>A request re-asked after a standby keeps that through a snapshot round trip: restored mid-wait, it opens nothing.</summary>
+    [Fact]
+    public void UnansweredPilotRequest_ReaskAfterStandby_SurvivesASnapshotRoundTrip()
+    {
+        if (_zoa is null)
+        {
+            return;
+        }
+
+        AiPositionConfig ground = TestAiPositions.OakGround(_zoa);
+        (SimulationEngine engine, AircraftState parked) = PushbackReaskedAfterStandby(ground, standby: true);
+
+        var restored = AircraftState.FromSnapshot(parked.ToSnapshot(), parked.Ground.Layout);
+        Assert.True(restored.PendingPilotRequest is { IsOpen: true, Kind: PilotPendingRequestKind.Pushback, ReaskedAfterStandby: true });
+        new UnansweredPilotRequestRule().Evaluate(
+            Scope(engine, [restored], ground, engine.Scenario!.ElapsedSeconds, new Dictionary<string, AiAircraftMemo>(StringComparer.Ordinal))
+        );
+
+        Assert.Empty(engine.Scenario.AiAnomalies.Drain());
+    }
+
+    /// <summary>
+    /// A B738 parked on KOAK's push-back stand S7 with the pushback request its stand call opened, answered "standby" when
+    /// <paramref name="standby"/>, ticked until the pilot asks again on its own clock.
+    /// </summary>
+    private (SimulationEngine Engine, AircraftState Parked) PushbackReaskedAfterStandby(AiPositionConfig ground, bool standby)
+    {
+        string jetAtS7 = AiTestFixture
+            .ParkedAtOak.Replace("\"C172\"", "\"B738\"", StringComparison.Ordinal)
+            .Replace("\"cruiseSpeed\": 100", "\"cruiseSpeed\": 430", StringComparison.Ordinal)
+            .Replace("\"parking\": \"SIG1\"", "\"parking\": \"S7\"", StringComparison.Ordinal);
+        SimulationEngine engine = AiTestFixture.Load(jetAtS7, _zoa!, 7, [ground]);
+        AircraftState parked = AiTestFixture.TickUntil(
+            engine,
+            AiTestFixture.Callsign,
+            ac => ac.PendingPilotRequest is { IsOpen: true, Kind: PilotPendingRequestKind.Pushback },
+            15
+        );
+        double asked = parked.PendingPilotRequest!.LastRequestedAtSeconds;
+        if (standby)
+        {
+            Assert.True(engine.DispatchAiCommand(ground, AiTestFixture.Callsign, "STBY").Success);
+            Assert.Equal(PilotPendingRequestResponseState.Standby, parked.PendingPilotRequest!.ResponseState);
+        }
+
+        AiTestFixture.TickUntil(engine, AiTestFixture.Callsign, ac => ac.PendingPilotRequest!.LastRequestedAtSeconds > asked, 200);
+        Assert.True(
+            parked.PendingPilotRequest
+                is { IsOpen: true, Kind: PilotPendingRequestKind.Pushback, ResponseState: PilotPendingRequestResponseState.None }
+        );
+        Assert.Equal(standby, parked.PendingPilotRequest.ReaskedAfterStandby);
+        return (engine, parked);
+    }
+
     [Fact]
     public void UnansweredPilotRequest_NeverOverdue_WhileTheDepartureIsHeldForRelease()
     {

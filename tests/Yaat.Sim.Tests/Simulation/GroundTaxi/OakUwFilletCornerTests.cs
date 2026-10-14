@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Xunit;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
@@ -55,7 +56,10 @@ public class OakUwFilletCornerTests(ITestOutputHelper output)
         }
 
         SimLogBuilder.CreateForTest(output).EnableCategory("GroundNavigator", LogLevel.Debug).InitializeSimLog();
-        var engine = new SimulationEngine(RecordingGroundData.Evergreen("the U-to-W corner taxied along today's fillet"));
+        var engine = new SimulationEngine(
+            RecordingGroundData.Evergreen("the U-to-W corner taxied along today's fillet"),
+            PushPlanStore.CreateShipped()
+        );
         engine.Replay(recording, 0);
         for (int t = 1; t <= RouteResolvedBySeconds; t++)
         {

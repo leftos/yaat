@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Xunit;
 using Yaat.Sim.Asdex;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
@@ -72,7 +73,7 @@ public class AsdexSafetyLogicConfigStepTests
     [Fact]
     public void Apply_WithNoScenario_IsANoOp()
     {
-        var engine = new SimulationEngine(new TestAirportGroundData());
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
         Assert.Null(engine.Scenario);
 
         engine.ApplyRecordedAsdexSafetyLogic(new RecordedAsdexSafetyLogicChange(0, "OAK", Config(isClosed: false)));

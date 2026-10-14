@@ -1,5 +1,6 @@
 using Xunit;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Scenarios;
 using Yaat.Sim.Simulation;
@@ -62,7 +63,7 @@ public class ArrivalGeneratorSpawnModelTests(ITestOutputHelper output)
             return null;
         }
 
-        var engine = new SimulationEngine(groundData);
+        var engine = new SimulationEngine(groundData, PushPlanStore.CreateShipped());
         List<string> warnings = engine.LoadScenario(
             ScenarioJson(intervalTime, randomizeInterval),
             rngSeed: 42,
@@ -250,7 +251,7 @@ public class ArrivalGeneratorSpawnModelTests(ITestOutputHelper output)
             return null;
         }
 
-        var engine = new SimulationEngine(groundData);
+        var engine = new SimulationEngine(groundData, PushPlanStore.CreateShipped());
         List<string> warnings = engine.LoadScenario(OakScenarioJson(), rngSeed: 42, sessionStartUtc: MagneticDeclination.EvaluationDateUtc);
         foreach (string w in warnings)
         {

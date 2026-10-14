@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.LiveTraffic;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
@@ -69,7 +70,7 @@ public class LiveTrafficReplayTests(ITestOutputHelper output)
             return;
         }
 
-        var live = new SimulationEngine(new TestAirportGroundData());
+        var live = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
         live.Replay(WithActions(baseline, [], 0), 0);
 
         LatLon second = GeoMath.ProjectPoint(Origin, new TrueHeading(90), 0.3);
@@ -98,7 +99,7 @@ public class LiveTrafficReplayTests(ITestOutputHelper output)
         Assert.Null(actions.OfType<RecordedLiveTrafficSample>().Last().SpawnState);
 
         SessionRecording recording = WithActions(baseline, actions, 10);
-        var replay = new SimulationEngine(new TestAirportGroundData());
+        var replay = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
 
         replay.Replay(recording, 4);
         AircraftState? replayAt4 = replay.World.FindAircraft("UAL123");
@@ -129,7 +130,7 @@ public class LiveTrafficReplayTests(ITestOutputHelper output)
             return;
         }
 
-        var live = new SimulationEngine(new TestAirportGroundData());
+        var live = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
         live.Replay(WithActions(baseline, [], 0), 0);
         AircraftSnapshotDto spawnState = LiveTrafficKinematics
             .CreateShadow("UAL123", "B738", Sample(4, Origin, 90), new AircraftFlightPlan { HasFlightPlan = true })
@@ -143,7 +144,7 @@ public class LiveTrafficReplayTests(ITestOutputHelper output)
         LatLon expected = GeoMath.ProjectPoint(Origin, new TrueHeading(90), 240 * 7 / 3600.0);
         Assert.InRange(GeoMath.DistanceNm(expected, shadow.Position), 0, 0.001);
 
-        var replay = new SimulationEngine(new TestAirportGroundData());
+        var replay = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
         replay.Replay(WithActions(baseline, [.. live.Scenario!.ActionLog], 12), 10);
         Assert.InRange(GeoMath.DistanceNm(shadow.Position, replay.World.FindAircraft("UAL123")!.Position), 0, 0.001);
     }
@@ -170,11 +171,11 @@ public class LiveTrafficReplayTests(ITestOutputHelper output)
             10
         );
 
-        var full = new SimulationEngine(new TestAirportGroundData());
+        var full = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
         full.Replay(recording, 6);
         LatLon fullAt6 = full.World.FindAircraft("UAL123")!.Position;
 
-        var stepped = new SimulationEngine(new TestAirportGroundData());
+        var stepped = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
         stepped.Replay(recording, 4);
         stepped.ReplayOneSecond();
         stepped.ReplayOneSecond();

@@ -1,5 +1,6 @@
 ﻿using System.Diagnostics;
 using Xunit;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases;
 
 namespace Yaat.Sim.Tests;
@@ -20,7 +21,7 @@ public class TickBenchmarkTests(ITestOutputHelper output)
     [InlineData(50)]
     public void MeasureTickCost(int aircraftCount)
     {
-        var world = new SimulationWorld();
+        var world = new SimulationWorld(PushPlanStore.CreateShipped());
         for (int i = 0; i < aircraftCount; i++)
         {
             AircraftState ac = MakeAircraft($"TEST{i}", i);
@@ -59,7 +60,7 @@ public class TickBenchmarkTests(ITestOutputHelper output)
     [Fact]
     public void MeasureTickWithPhases()
     {
-        var world = new SimulationWorld();
+        var world = new SimulationWorld(PushPlanStore.CreateShipped());
         for (int i = 0; i < 20; i++)
         {
             AircraftState ac = MakeAircraftWithPhases($"PHASE{i}", i);

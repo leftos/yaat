@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
@@ -130,7 +131,7 @@ public sealed class MiaSpawnReplayCrossTests(ITestOutputHelper output)
 
         SimLogBuilder.CreateForTest(output).EnableCategory("GroundCommandHandler", LogLevel.Debug).InitializeSimLog();
 
-        var engine = new SimulationEngine(groundData);
+        var engine = new SimulationEngine(groundData, PushPlanStore.CreateShipped());
         engine.Replay(archive.ToBaseSessionRecording(), 0);
         return (engine, layout, archive);
     }

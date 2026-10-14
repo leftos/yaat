@@ -1,5 +1,6 @@
 using Xunit;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
@@ -169,7 +170,7 @@ public class Ual58Spot9ReversalTests(ITestOutputHelper output)
         using (archive)
         {
             SessionRecording recording = archive.ToBaseSessionRecording();
-            var engine = new SimulationEngine(groundData);
+            var engine = new SimulationEngine(groundData, PushPlanStore.CreateShipped());
             engine.Replay(recording, 0);
 
             TimedSnapshot? snapshot = archive.ReadSnapshotAt(restoreAtSeconds);

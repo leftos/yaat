@@ -222,7 +222,11 @@ public static class TugKinematics
     /// </summary>
     public const double LineBlendFt = 5.0;
 
-    private const double StopToleranceFt = 1.0;
+    /// <summary>
+    /// How far short of its stop a line move may be and still count as at the stop, feet: a line move ends once its line
+    /// is captured and the aircraft is no more than this short of the stop.
+    /// </summary>
+    public const double StopToleranceFt = 1.0;
 
     /// <summary>
     /// How far off a to-point move may pass its point and still end there, once the point is abeam or behind. A

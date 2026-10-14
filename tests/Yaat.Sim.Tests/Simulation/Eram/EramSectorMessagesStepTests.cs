@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Xunit;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Eram;
@@ -213,7 +214,7 @@ public class EramSectorMessagesStepTests
         Assert.True(engine.Actions.IssueDerived(Entry(now, "SMDE 62"), host).Success);
         SessionRecording recording = Recording(engine);
 
-        var replayed = new SimulationEngine(new TestAirportGroundData());
+        var replayed = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
         Assert.True(replayed.EramSectorMessages.TryApply(Facility, "SM 13 STALE"));
         replayed.Replay(recording, now + 5);
 

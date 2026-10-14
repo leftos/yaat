@@ -1,5 +1,6 @@
 using Xunit;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
@@ -49,7 +50,7 @@ public class SfoM2MultiTurnTaxiTests(ITestOutputHelper output)
             .EnableCategory("LineUpPhase", Microsoft.Extensions.Logging.LogLevel.Debug)
             .EnableCategory("TaxiPathfinder", Microsoft.Extensions.Logging.LogLevel.Debug)
             .InitializeSimLog();
-        return new SimulationEngine(groundData);
+        return new SimulationEngine(groundData, PushPlanStore.CreateShipped());
     }
 
     /// <summary>
@@ -290,7 +291,7 @@ public class SfoM2MultiTurnAcceptanceTests(ITestOutputHelper output)
         }
 
         SimLogBuilder.CreateForTest(output).InitializeSimLog();
-        var engine = new SimulationEngine(groundData);
+        var engine = new SimulationEngine(groundData, PushPlanStore.CreateShipped());
 
         // Same spawn as the sibling test: ~20 ft north of M2 node 1529, heading 280° magnetic.
         string json = SfoM2MultiTurnTaxiTests.BuildScenarioJson(37.607759, -122.384926, 280);

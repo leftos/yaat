@@ -1,6 +1,7 @@
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.ControllerAi;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Pilot;
 using Yaat.Sim.Simulation;
@@ -92,7 +93,7 @@ public class AiAnsweredCallupE2ETests
 
         // Solo student on NorCal Approach, AI Oakland Local: an arrival spawned on final calls the tower and only the
         // tower — an aircraft on a four-mile final never makes an initial call to approach (AIM 5-4-3.a).
-        var engine = new SimulationEngine(new TestAirportGroundData());
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
         List<string> warnings = engine.LoadScenario(OnFinalAtOak, 42, MagneticDeclination.EvaluationDateUtc);
         Assert.DoesNotContain(warnings, w => w.Contains("error", StringComparison.OrdinalIgnoreCase));
         SimScenarioState scenario = engine.Scenario!;
@@ -139,7 +140,7 @@ public class AiAnsweredCallupE2ETests
             return;
         }
 
-        var engine = new SimulationEngine(new TestAirportGroundData());
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
         engine.LoadScenario(ParkedAtOak, 42, MagneticDeclination.EvaluationDateUtc);
         engine.Scenario!.ArtccConfig = _zoa;
         var said = new List<string>();
@@ -226,7 +227,7 @@ public class AiAnsweredCallupE2ETests
 
     private (SimulationEngine Engine, List<string> Said) LoadWithAiGround(bool solo, TrackOwner? student)
     {
-        var engine = new SimulationEngine(new TestAirportGroundData());
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
         List<string> warnings = engine.LoadScenario(ParkedAtOak, 42, MagneticDeclination.EvaluationDateUtc);
         Assert.DoesNotContain(warnings, w => w.Contains("error", StringComparison.OrdinalIgnoreCase));
         SimScenarioState scenario = engine.Scenario!;

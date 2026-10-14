@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
@@ -32,7 +33,7 @@ public class ReplayTwoWayCommsTests(ITestOutputHelper output)
         }
 
         SimLogBuilder.CreateForTest(output).InitializeSimLog();
-        return new SimulationEngine(new TestAirportGroundData());
+        return new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
     }
 
     [Fact]

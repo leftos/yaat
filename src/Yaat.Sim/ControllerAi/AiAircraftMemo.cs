@@ -4,6 +4,7 @@ namespace Yaat.Sim.ControllerAi;
 public enum GroundIntent
 {
     None,
+    PushIssued,
     TaxiIssued,
     CrossingRequested,
     CrossingIssued,

@@ -1,5 +1,6 @@
 using Xunit;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Acceptance;
 using Yaat.Sim.Tests.Helpers;
@@ -45,7 +46,7 @@ public class N9225LExitTimingTests(ITestOutputHelper output)
         }
 
         var groundData = new TestAirportGroundData(FilletMode.Standard);
-        var engine = new SimulationEngine(groundData);
+        var engine = new SimulationEngine(groundData, PushPlanStore.CreateShipped());
         engine.Replay(recording, TouchdownSecond);
 
         int? stopSecond = null;

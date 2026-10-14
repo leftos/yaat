@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
@@ -26,7 +27,10 @@ public class Issue187DepartureCapTests(ITestOutputHelper output)
         }
 
         SimLogBuilder.CreateForTest(output).InitializeSimLog();
-        return new SimulationEngine(RecordingGroundData.Evergreen("SID initial-altitude caps on IAH and HOU departures"));
+        return new SimulationEngine(
+            RecordingGroundData.Evergreen("SID initial-altitude caps on IAH and HOU departures"),
+            PushPlanStore.CreateShipped()
+        );
     }
 
     private void AssertHoldsInitialAltitude(string callsign, int expectedCapFt)

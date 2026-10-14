@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
@@ -31,7 +32,7 @@ public class Kpo83Hussh2TurnbackTests(ITestOutputHelper output)
 
         var groundData = RecordingGroundData.Evergreen("the HUSSH2 route not turning back over OAK");
         SimLogBuilder.CreateForTest(output).InitializeSimLog();
-        return new SimulationEngine(groundData);
+        return new SimulationEngine(groundData, PushPlanStore.CreateShipped());
     }
 
     [Fact]

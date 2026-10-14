@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Xunit;
 using Yaat.Sim;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
@@ -194,7 +195,7 @@ public class DynamicMetarReissuanceTests
     }
 
     private static SimulationEngine NewEngineWithScenario() =>
-        new(new TestAirportGroundData())
+        new(new TestAirportGroundData(), PushPlanStore.CreateShipped())
         {
             Scenario = new SimScenarioState
             {

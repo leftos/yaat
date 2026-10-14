@@ -1,5 +1,6 @@
 using Xunit;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
@@ -76,7 +77,7 @@ public class SfoCtoIntersectionDepartureE2ETests(ITestOutputHelper output)
         }
 
         SimLogBuilder.CreateForTest(output).InitializeSimLog();
-        return new SimulationEngine(groundData);
+        return new SimulationEngine(groundData, PushPlanStore.CreateShipped());
     }
 
     /// <summary>Distance (ft) of a position from the 28R centerline.</summary>

@@ -16,6 +16,11 @@ public enum PilotPendingRequestKind
 
     /// <summary>A runway spawn at an untowered field asking the radar student for its departure release.</summary>
     Release,
+
+    /// <summary>
+    /// A jet or turboprop parked on a push-back stand asking ground for a push; its after-push call is the taxi request.
+    /// </summary>
+    Pushback,
 }
 
 public enum PilotPendingRequestResponseState
@@ -73,6 +78,12 @@ public sealed class PilotPendingRequest
     /// <summary>The parking an arrival asked to taxi to (a taxi-in request); null for a departure's ready-to-taxi call.</summary>
     public string? ParkingName { get; init; }
 
+    /// <summary>
+    /// The pilot's last asking was a re-ask after the controller answered "standby": the wait was acknowledged, so the
+    /// request is not yet one the controller has ignored. Cleared by a re-ask that followed no answer.
+    /// </summary>
+    public bool ReaskedAfterStandby { get; set; }
+
     public bool IsOpen => ResponseState is PilotPendingRequestResponseState.None or PilotPendingRequestResponseState.Standby;
 
     public PilotPendingRequestDto ToSnapshot() =>
@@ -91,6 +102,7 @@ public sealed class PilotPendingRequest
             AirspaceIdent = AirspaceIdent,
             AirspaceReferencePosition = AirspaceReferencePosition,
             ParkingName = ParkingName,
+            ReaskedAfterStandby = ReaskedAfterStandby,
         };
 
     public static PilotPendingRequest FromSnapshot(PilotPendingRequestDto dto) =>
@@ -111,5 +123,6 @@ public sealed class PilotPendingRequest
             AirspaceIdent = dto.AirspaceIdent,
             AirspaceReferencePosition = dto.AirspaceReferencePosition,
             ParkingName = dto.ParkingName,
+            ReaskedAfterStandby = dto.ReaskedAfterStandby,
         };
 }

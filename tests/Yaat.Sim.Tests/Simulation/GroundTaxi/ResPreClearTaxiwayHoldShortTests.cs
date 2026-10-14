@@ -2,6 +2,7 @@ using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
@@ -127,7 +128,7 @@ public class ResPreClearTaxiwayHoldShortTests(ITestOutputHelper output)
         }
 
         SimLogBuilder.CreateForTest(output).InitializeSimLog();
-        var engine = new SimulationEngine(groundData);
+        var engine = new SimulationEngine(groundData, PushPlanStore.CreateShipped());
         engine.LoadScenario(Scenario, 1, MagneticDeclination.EvaluationDateUtc);
         AircraftState aircraft = Assert.IsType<AircraftState>(engine.FindAircraft(Callsign));
         CommandResult taxi = engine.SendCommand(Callsign, Taxi);

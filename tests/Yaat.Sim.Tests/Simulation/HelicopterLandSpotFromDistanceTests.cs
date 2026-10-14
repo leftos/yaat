@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Xunit;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
@@ -46,7 +47,10 @@ public class HelicopterLandSpotFromDistanceTests(ITestOutputHelper output)
         }
 
         SimLogBuilder.CreateForTest(output).EnableCategory("HelicopterApproachPhase", LogLevel.Trace).InitializeSimLog();
-        return new SimulationEngine(RecordingGroundData.Evergreen("LAND @SIG1 from miles out keeping altitude until final"));
+        return new SimulationEngine(
+            RecordingGroundData.Evergreen("LAND @SIG1 from miles out keeping altitude until final"),
+            PushPlanStore.CreateShipped()
+        );
     }
 
     private static LatLon? SpotPosition()

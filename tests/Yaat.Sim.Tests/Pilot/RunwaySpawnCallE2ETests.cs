@@ -1,6 +1,7 @@
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.ControllerAi;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Pilot;
@@ -400,7 +401,7 @@ public class RunwaySpawnCallE2ETests
             return null;
         }
 
-        var engine = new SimulationEngine(new TestAirportGroundData());
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
         var terminal = new List<TerminalEntry>();
         engine.TerminalEntryEmitted += entry => terminal.Add(entry);
         List<string> warnings = engine.LoadScenario(ScenarioJson(spawn, presets), 42, MagneticDeclination.EvaluationDateUtc);

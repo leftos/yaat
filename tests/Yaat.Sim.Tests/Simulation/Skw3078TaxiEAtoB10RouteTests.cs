@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Xunit;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
@@ -314,7 +315,7 @@ public class Skw3078TaxiEAtoB10RouteTests(ITestOutputHelper output)
             return;
         }
 
-        var engine = new SimulationEngine(groundData);
+        var engine = new SimulationEngine(groundData, PushPlanStore.CreateShipped());
         engine.Replay(recording, 820);
 
         AircraftState? ac = engine.FindAircraft("SKW3078");

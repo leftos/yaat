@@ -1,5 +1,6 @@
 using Xunit;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
@@ -66,7 +67,7 @@ public class PostPhysicsDrainOrderTests
             Track = new AircraftTrack(),
         };
 
-        var engine = new SimulationEngine(new TestAirportGroundData())
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped())
         {
             Scenario = new SimScenarioState
             {
@@ -122,7 +123,7 @@ public class PostPhysicsDrainOrderTests
             Track = new AircraftTrack(),
         };
 
-        var engine = new SimulationEngine(new TestAirportGroundData())
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped())
         {
             Scenario = new SimScenarioState
             {

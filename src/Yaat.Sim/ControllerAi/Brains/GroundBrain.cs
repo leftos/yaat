@@ -3,11 +3,11 @@ using Yaat.Sim.ControllerAi.Rules;
 namespace Yaat.Sim.ControllerAi.Brains;
 
 /// <summary>
-/// The AI Ground position: answers ready-to-taxi and taxi-in requests, clears (or asks Local for) runway crossings
-/// along the way, and hands departures to the tower before the hold-short — all as canonical commands through the
-/// sink, paced like a real frequency. The watchdog rules run first, unpaced, so a stuck or unanswered aircraft is
-/// reported whatever the decision rules are doing. Per-aircraft memos remember what was issued and what is awaited;
-/// last tick's outcomes settle them before any rule runs.
+/// The AI Ground position: answers pushback (with a recorded push off the stand), ready-to-taxi and taxi-in requests,
+/// clears (or asks Local for) runway crossings along the way, and hands departures to the tower before the hold-short —
+/// all as canonical commands through the sink, paced like a real frequency. The watchdog rules run first, unpaced, so a
+/// stuck or unanswered aircraft is reported whatever the decision rules are doing. Per-aircraft memos remember what was
+/// issued and what is awaited; last tick's outcomes settle them before any rule runs.
 /// </summary>
 public sealed class GroundBrain : IPositionBrain
 {
@@ -18,6 +18,7 @@ public sealed class GroundBrain : IPositionBrain
         new ConflictAlertInAiJurisdictionRule(),
     ];
     private readonly HandToLocalRule _handToLocal = new();
+    private readonly PushOffStandRule _pushOffStand = new();
     private readonly IDecisionRule[] _decisions;
     private readonly Dictionary<string, AiAircraftMemo> _memos = new(StringComparer.Ordinal);
     private readonly AiPacing _pacing = new();
@@ -25,7 +26,7 @@ public sealed class GroundBrain : IPositionBrain
     public GroundBrain(AiPositionConfig position)
     {
         Position = position;
-        _decisions = [new AnswerTaxiOutRule(), new RunwayCrossingRule(), new AnswerTaxiInRule(), _handToLocal];
+        _decisions = [_pushOffStand, new AnswerTaxiOutRule(), new RunwayCrossingRule(), new AnswerTaxiInRule(), _handToLocal];
     }
 
     public AiPositionConfig Position { get; }
@@ -68,6 +69,7 @@ public sealed class GroundBrain : IPositionBrain
         _memos.Clear();
         _pacing.Reset();
         _handToLocal.Reset();
+        _pushOffStand.Reset();
     }
 
     /// <summary>

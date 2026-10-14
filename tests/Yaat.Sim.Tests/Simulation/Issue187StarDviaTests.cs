@@ -1,5 +1,6 @@
 using Xunit;
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
@@ -33,7 +34,7 @@ public class Issue187StarDviaTests(ITestOutputHelper output)
         }
 
         SimLogBuilder.CreateForTest(output).InitializeSimLog();
-        return new SimulationEngine(RecordingGroundData.Evergreen("DVIA descending on a version-less STAR"));
+        return new SimulationEngine(RecordingGroundData.Evergreen("DVIA descending on a version-less STAR"), PushPlanStore.CreateShipped());
     }
 
     private double RunDescentProbe(SimulationEngine engine, string callsign, int seconds)

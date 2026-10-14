@@ -1,6 +1,7 @@
 using Xunit;
 using Yaat.Sim;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Pilot;
 using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
@@ -86,7 +87,7 @@ public class AircraftDebriefDataTests
     [Fact]
     public void RemoveAircraft_AfterCompletion_PreservesRecordInRegistry()
     {
-        var world = new SimulationWorld();
+        var world = new SimulationWorld(PushPlanStore.CreateShipped());
         var ac = new AircraftState
         {
             Callsign = "N123AB",
@@ -120,7 +121,7 @@ public class AircraftDebriefDataTests
     {
         // Aircraft that disappear without a completion stamp (scenario unload, manual
         // delete on an active aircraft) get no debrief block.
-        var world = new SimulationWorld();
+        var world = new SimulationWorld(PushPlanStore.CreateShipped());
         AircraftState ac = MakeAircraft();
         world.AddAircraft(ac);
 
@@ -132,7 +133,7 @@ public class AircraftDebriefDataTests
     [Fact]
     public void Clear_ResetsCompletedRegistry()
     {
-        var world = new SimulationWorld();
+        var world = new SimulationWorld(PushPlanStore.CreateShipped());
         var ac = new AircraftState
         {
             Callsign = "N123AB",
@@ -196,7 +197,7 @@ public class AircraftDebriefDataTests
         // FiledDeparture / FiledDestination must be null (not empty strings) when the
         // aircraft had no flight plan — the debrief operation-kind classifier uses null
         // checks to fall through to Transit.
-        var world = new SimulationWorld();
+        var world = new SimulationWorld(PushPlanStore.CreateShipped());
         var ac = new AircraftState
         {
             Callsign = "N123AB",
@@ -220,7 +221,7 @@ public class AircraftDebriefDataTests
         // Respawn after a removal: the previous completed record would otherwise still
         // be in the registry, and once the new run later completes the Aircraft tab
         // would surface both runs once the new entry is also removed.
-        var world = new SimulationWorld();
+        var world = new SimulationWorld(PushPlanStore.CreateShipped());
         var first = new AircraftState
         {
             Callsign = "N123AB",
@@ -244,7 +245,7 @@ public class AircraftDebriefDataTests
     {
         // Long sessions must not grow the registry unbounded; oldest entries drop off
         // as new completed records arrive past the cap.
-        var world = new SimulationWorld();
+        var world = new SimulationWorld(PushPlanStore.CreateShipped());
         for (int i = 0; i < SimulationWorld.CompletedAircraftCapacity + 50; i++)
         {
             string callsign = $"AC{i:D4}";

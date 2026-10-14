@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Xunit;
 using Yaat.Sim;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
@@ -40,7 +41,7 @@ public class IssueSawDeparturesReservedSquawkTests(ITestOutputHelper output)
         var groundData = RecordingGroundData.Evergreen("spawned departures avoiding reserved squawks");
         SimLogBuilder.CreateForTest(output).EnableCategory("ScenarioLoader", LogLevel.Debug).InitializeSimLog();
 
-        return new SimulationEngine(groundData);
+        return new SimulationEngine(groundData, PushPlanStore.CreateShipped());
     }
 
     [Fact]

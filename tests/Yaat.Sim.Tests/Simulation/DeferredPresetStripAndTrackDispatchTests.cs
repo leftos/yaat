@@ -1,6 +1,7 @@
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Scenarios;
@@ -38,7 +39,7 @@ public class DeferredPresetStripAndTrackDispatchTests
     }
 
     private static SimulationEngine BuildEngine() =>
-        new(new TestAirportGroundData())
+        new(new TestAirportGroundData(), PushPlanStore.CreateShipped())
         {
             Scenario = new SimScenarioState
             {

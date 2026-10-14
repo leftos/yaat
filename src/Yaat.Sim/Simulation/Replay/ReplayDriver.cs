@@ -90,12 +90,13 @@ internal sealed class ReplayDriver(SimulationEngine engine)
             // has just emptied what an earlier pass queued. Running them here — in the world's insertion order, at
             // elapsed 0 — is what stamps a load-time departure's PDC at the second and under the id the live run gave
             // it, rather than one second late from the next tick's catch-up sweep. A no-op when the run carries no
-            // TDLS configuration. A shadow already in the world gets no hooks, as it got none when it spawned.
+            // TDLS configuration. A shadow already in the world gets no hooks, as it got none when it spawned. These run
+            // before the replay profile is entered, through AfterLoadedAircraftPlaced, which never plans a push stand.
             foreach (AircraftState aircraft in _engine.World.GetSnapshot())
             {
                 if (!aircraft.IsShadow)
                 {
-                    _engine.AfterAircraftSpawned(aircraft);
+                    _engine.AfterLoadedAircraftPlaced(aircraft);
                 }
             }
         }

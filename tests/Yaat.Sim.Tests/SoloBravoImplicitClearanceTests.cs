@@ -1,5 +1,6 @@
 using Xunit;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Data.Airspace;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases;
@@ -355,7 +356,7 @@ public sealed class SoloBravoImplicitClearanceTests
         AircraftState ac = Airborne(NearWestRing, trueHeading: 90, destination: "KMOD");
         SimScenarioState scenario = SoloScenario();
         scenario.SoloTrainingMode = false;
-        var engine = new SimulationEngine(new TestAirportGroundData()) { Scenario = scenario };
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped()) { Scenario = scenario };
         engine.World.AddAircraft(ac);
 
         PilotProactive.TickAirspaceBoundaryRespect(ac, scenario, AirspaceDatabase.Default, LookupAirport);
@@ -384,7 +385,7 @@ public sealed class SoloBravoImplicitClearanceTests
     private static (SimulationEngine Engine, SimScenarioState Scenario) SoloEngine(AircraftState ac)
     {
         SimScenarioState scenario = SoloScenario();
-        var engine = new SimulationEngine(new TestAirportGroundData()) { Scenario = scenario };
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped()) { Scenario = scenario };
         engine.World.AddAircraft(ac);
         return (engine, scenario);
     }

@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
@@ -83,7 +84,7 @@ public class Skw3078FixComparisonCapture(ITestOutputHelper output)
         GroundConflictDetector.WingspanLateralCheckRequireStationary = requireStationary;
         try
         {
-            var engine = new SimulationEngine(groundData);
+            var engine = new SimulationEngine(groundData, PushPlanStore.CreateShipped());
             SessionRecording? recording = RecordingLoader.Load(RecordingPath);
             if (recording is null)
             {

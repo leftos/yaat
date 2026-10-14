@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Xunit;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
@@ -54,7 +55,7 @@ public class Issue172Jbu577TaxiSpinTests(ITestOutputHelper output)
             .EnableCategory("TaxiingPhase", LogLevel.Debug)
             .EnableCategory("RunwayExitPhase", LogLevel.Debug)
             .InitializeSimLog();
-        return new SimulationEngine(groundData);
+        return new SimulationEngine(groundData, PushPlanStore.CreateShipped());
     }
 
     [Fact]

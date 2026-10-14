@@ -2,6 +2,7 @@ using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Xunit;
 using Yaat.Sim;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Soak;
@@ -148,7 +149,7 @@ public sealed class ActiveRunwaysSnapshotTests : IDisposable
             OriginalScenarioJson = "{}",
         };
 
-    private static SimulationEngine NewEngine() => new(new TestAirportGroundData()) { Scenario = NewScenarioState() };
+    private static SimulationEngine NewEngine() => new(new TestAirportGroundData(), PushPlanStore.CreateShipped()) { Scenario = NewScenarioState() };
 
     private static StateSnapshotDto Wrap(ScenarioSnapshotDto scenario) =>
         new()

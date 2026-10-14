@@ -39,9 +39,10 @@ public enum PushTargetLiveOutcome
     /// <summary>
     /// The aircraft cannot fly the stored plan: it does not complete it, or, for a plan whose last move is not a
     /// floating-stop line, ends more than half its length from the stored end
-    /// (<see cref="PushTargetLiveCheck.EndDriftLimitFt"/>). For a plan whose last move is a floating-stop line, completion
-    /// is the whole test: completing a final floating line already puts the aircraft on the line, and only the slide
-    /// along it remains, which is not part of the plan.
+    /// (<see cref="PushTargetLiveCheck.EndDriftLimitFt"/>). For a plan whose last move is a floating-stop line — a line
+    /// with no stop, or one whose stored end lies past its stop, so the move ended where it captured the line
+    /// (<see cref="PushTargetLiveCheck.EndsOnAFloatingLine"/>) — completion is the whole test: completing a final floating
+    /// line already puts the aircraft on the line, and only the slide along it remains, which is not part of the plan.
     /// </summary>
     Unflyable,
 }
@@ -92,7 +93,8 @@ public static class PushTargetLiveCheck
     /// of the nose when the target opens with a pull
     /// (<see cref="TugParkedNeighbours.FindStartOverlap(NeighbourCandidate, AircraftFootprint, bool, IEnumerable{NeighbourCandidate})"/>);
     /// else unflyable when the aircraft does not fly the stored moves to completion, or, for a plan whose last move is not a
-    /// floating-stop line (<see cref="EndsOnAFloatingLine"/>), ends more than <see cref="EndDriftLimitFt"/> from the stored
+    /// floating-stop line (<see cref="EndsOnAFloatingLine"/>: a line with no stop, or a stop the stored end lies past, so the
+    /// move ended at the line's capture), ends more than <see cref="EndDriftLimitFt"/> from the stored
     /// end (<see cref="EndDriftFt"/>); else blocked by the parked neighbour within reach of the re-flown path whose sweep
     /// floor the path falls through first along it; else clear.
     /// </summary>
@@ -156,13 +158,33 @@ public static class PushTargetLiveCheck
     public static double EndDriftLimitFt(AircraftFootprint actual) => actual.LengthFt / 2.0;
 
     /// <summary>
-    /// The target's last move captures a line with no stop on it (<c>PUSH TE</c>): where along the line it ends is not
-    /// part of the plan.
+    /// The target's last move captures a line whose stop does not decide where it ends: the line has no stop on it
+    /// (<c>PUSH TE</c>), or its stored planned end lies more than <see cref="TugKinematics.StopToleranceFt"/> plus one
+    /// simulation step (<see cref="TugMovePlanner.StepFt"/>, the most a move that stopped there can overrun) past the stop
+    /// along the line, so the stop lay behind the point where the move captured the line and the move ended at capture.
+    /// Either way, where along the line it ends is not part of the plan.
     /// </summary>
     /// <param name="target">The stored target.</param>
     /// <returns>Whether it ends on a floating line.</returns>
-    public static bool EndsOnAFloatingLine(PrecomputedPushTarget target) =>
-        (target.Moves.Count > 0) && (target.Moves[^1].Shape == TugMoveShape.ViaLine) && (target.Moves[^1].StopAtLatitude is null);
+    public static bool EndsOnAFloatingLine(PrecomputedPushTarget target)
+    {
+        ArgumentNullException.ThrowIfNull(target);
+        if ((target.Moves.Count == 0) || (target.Moves[^1].Shape != TugMoveShape.ViaLine))
+        {
+            return false;
+        }
+
+        PushMoveEntry last = target.Moves[^1];
+        if ((last.StopAtLatitude is not { } stopLatitude) || (last.StopAtLongitude is not { } stopLongitude))
+        {
+            return true;
+        }
+
+        var plannedEnd = new LatLon(last.PlannedEndLatitude, last.PlannedEndLongitude);
+        var stop = new LatLon(stopLatitude, stopLongitude);
+        double pastStopFt = GeoMath.AlongTrackDistanceNm(plannedEnd, stop, new TrueHeading(last.LineTravelTrueDeg)) * GeoMath.FeetPerNm;
+        return pastStopFt > TugKinematics.StopToleranceFt + TugMovePlanner.StepFt;
+    }
 
     /// <summary>
     /// How far the re-flown plan drifted from the stored one, feet: how far the flown end lies from the stored planned

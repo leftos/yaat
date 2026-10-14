@@ -3,6 +3,7 @@ using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.LiveTraffic;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
@@ -94,7 +95,7 @@ public class LiveTrafficAssumeTests
     /// <summary>An engine whose world holds <paramref name="ac"/>, for the verbs the action router owns.</summary>
     private static SimulationEngine EngineWith(AircraftState ac)
     {
-        var engine = new SimulationEngine(new TestAirportGroundData())
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped())
         {
             Scenario = new SimScenarioState
             {

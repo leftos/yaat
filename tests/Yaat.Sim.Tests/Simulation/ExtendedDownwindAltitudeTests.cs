@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
@@ -671,7 +672,7 @@ public class ExtendedDownwindAltitudeTests
     }
 
     private static SimulationEngine Engine() =>
-        new(new TestAirportGroundData())
+        new(new TestAirportGroundData(), PushPlanStore.CreateShipped())
         {
             Scenario = new SimScenarioState
             {

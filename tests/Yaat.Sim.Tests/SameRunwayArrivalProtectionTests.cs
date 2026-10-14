@@ -1,5 +1,6 @@
 using Xunit;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
@@ -426,7 +427,7 @@ public class SameRunwayArrivalProtectionTests
             return;
         }
 
-        var engine = new SimulationEngine(new TestAirportGroundData())
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped())
         {
             Scenario = new SimScenarioState
             {

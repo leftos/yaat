@@ -4,6 +4,7 @@ using Yaat.Sim;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation;
@@ -155,7 +156,7 @@ public class RunwayDepartureQueueE2ETests(ITestOutputHelper output)
     private SimulationEngine BuildEngine(AirportGroundLayout layout)
     {
         SimLogBuilder.CreateForTest(output).InitializeSimLog();
-        var engine = new SimulationEngine(new TestAirportGroundData())
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped())
         {
             Scenario = new SimScenarioState
             {

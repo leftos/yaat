@@ -1,5 +1,6 @@
 using Xunit;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
@@ -45,7 +46,7 @@ public class Issue239Lineup33CornerCutTests(ITestOutputHelper output)
 
         var groundData = RecordingGroundData.Evergreen("a graph-aware line-up on 33 from taxiway C");
         SimLogBuilder.CreateForTest(output).InitializeSimLog();
-        return new SimulationEngine(groundData);
+        return new SimulationEngine(groundData, PushPlanStore.CreateShipped());
     }
 
     [Fact]

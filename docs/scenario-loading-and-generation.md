@@ -156,6 +156,10 @@ bay instead of the printer queue (see [`flight-strips.md`](flight-strips.md)).
 
 The server's `PopulateRoom` (`ScenarioLifecycleService.PlaceLoadedAircraft`, run by a load's commit and by every reload) iterates the three buckets: immediate aircraft are added to the world and `DispatchPresetCommands` runs synchronously; delayed aircraft are queued; deferred aircraft only have their `ScenarioId` stamped and are reported in the manifest. `SimulationEngine.LoadScenario` (`SimulationEngine.cs:378`) is the standalone (test/replay) equivalent.
 
+Placement runs the spawn hooks through `SimulationEngine.AfterLoadedAircraftPlaced`, not `AfterAircraftSpawned`: the two are the same except that placement never plans a push-back stand's push plan, since the load's prepare and a reload have planned every parked stand (immediate and delayed) into the room's `PushPlanStore` through `LoadSeeded`.
+
+A spawn after the load (a delayed aircraft, a generator's) goes through `AfterAircraftSpawned`, which plans its stand only while the room's AI Ground is active. A replay runs its load-time aircraft through `AfterLoadedAircraftPlaced` too.
+
 ### Implied active runways
 
 `ImpliedActiveRunways.For(result, weather, magneticModelDateUtc)` (`src/Yaat.Sim/Simulation/ImpliedActiveRunways.cs`) reads a `ScenarioLoadResult` as `Load` returned it, before any preset command is dispatched, and names the runway ends the scenario implies per airport. An airport any immediate or delayed aircraft names gets exactly the ends those aircraft use (spawns win whole): the runway of its loaded phases (an `OnRunway` spawn departs its end, an `OnFinal` spawn arrives on one) and the runways `ScenarioRunwaySignals.AircraftRunways` reads from its expected approach and its preset commands. The arrival generators add theirs; deferred aircraft imply nothing, since they have no phases. Generator runways are resolved against the primary airport only.
@@ -707,7 +711,7 @@ Weather is not exported.
 
 ## Server orchestration and the rewind-reload twin path
 
-There are two server entry points that build a scenario, and they share one load core: the private `LoadSeeded` and `PopulateRoom`. `LoadSeeded` creates the engine over the pinned layouts, seeds all three world RNG streams — `Rng`, `ReactionDelayRng`, `ReleaseJitterRng` — like the standalone `SimulationEngine.LoadScenario`, and runs `ScenarioLoader.Load`.
+There are two server entry points that build a scenario, and they share one load core: the private `LoadSeeded` and `PopulateRoom`. `LoadSeeded` creates the engine over the pinned layouts and the room's `PushPlanStore`, seeds all three world RNG streams — `Rng`, `ReactionDelayRng`, `ReleaseJitterRng` — like the standalone `SimulationEngine.LoadScenario`, runs `ScenarioLoader.Load`, then plans the scenario's push-back stands the store lacks (`PlanPushBackStands`; no RNG draw).
 
 `PopulateRoom` builds `SimScenarioState`, applies the room's session settings then the live load's pacing overrides, sets the ground layout, warms per-aircraft layouts, resolves track positions / coordination channels / strip bays / TDLS configs against the pinned ARTCC configs, spawns immediate aircraft (+ presets + auto-track), queues delayed aircraft, stamps deferred aircraft, queues triggers, initializes generators.
 

@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Xunit;
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim.Tests.Simulation;
@@ -28,7 +29,7 @@ public class RestoredQueuedBlockTests(ITestOutputHelper output)
         SimLogBuilder.CreateForTest(output).EnableCategory("FlightPhysics", LogLevel.Debug).InitializeSimLog();
 
         // TickOneSecond early-returns with no scenario loaded; give it a minimal one.
-        return new SimulationEngine(new TestAirportGroundData())
+        return new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped())
         {
             Scenario = new SimScenarioState
             {

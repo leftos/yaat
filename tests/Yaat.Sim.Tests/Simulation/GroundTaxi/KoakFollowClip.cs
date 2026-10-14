@@ -1,5 +1,6 @@
 using Xunit;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
@@ -43,7 +44,7 @@ internal static class KoakFollowClip
         }
 
         SimLogBuilder.CreateForTest(output).InitializeSimLog();
-        var engine = new SimulationEngine(groundData);
+        var engine = new SimulationEngine(groundData, PushPlanStore.CreateShipped());
         engine.LoadScenario(scenarioJson, 1, MagneticDeclination.EvaluationDateUtc);
         Assert.NotNull(engine.FindAircraft(Lead));
         Assert.NotNull(engine.FindAircraft(Follower));

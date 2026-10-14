@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Tower;
 
@@ -92,7 +93,7 @@ public class FinalApproachFacRampTests(ITestOutputHelper output)
 
         ac.Targets.TargetSpeed = 149;
 
-        var world = new SimulationWorld();
+        var world = new SimulationWorld(PushPlanStore.CreateShipped());
         world.AddAircraft(ac);
 
         // Mirror SimulationEngine.PreTick: build a PhaseContext per aircraft per tick

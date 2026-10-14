@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Xunit;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
@@ -121,7 +122,7 @@ public class Sfo28rArrivalOccupancyTests(ITestOutputHelper output)
             SimLogBuilder.CreateForTest(output).EnableCategory("RunwayExitPhase", LogLevel.Debug).InitializeSimLog();
 
             SessionRecording recording = archive.ToBaseSessionRecording();
-            var engine = new SimulationEngine(RecordingGroundData.Evergreen("SFO arrival runway-occupancy times"));
+            var engine = new SimulationEngine(RecordingGroundData.Evergreen("SFO arrival runway-occupancy times"), PushPlanStore.CreateShipped());
             engine.Replay(recording, 0);
 
             TimedSnapshot? snapshot = archive.ReadSnapshotAt(restoreAt);

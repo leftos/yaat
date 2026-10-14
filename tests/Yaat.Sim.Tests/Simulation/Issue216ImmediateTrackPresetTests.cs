@@ -1,5 +1,6 @@
 using Xunit;
 using Yaat.Sim;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Scenarios;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
@@ -27,7 +28,7 @@ public class Issue216ImmediateTrackPresetTests
     [Fact]
     public void ImmediateHandoffPreset_OwnedAircraft_InitiatesHandoffToAtcPosition()
     {
-        var engine = new SimulationEngine(new TestAirportGroundData());
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
 
         TrackOwner target = Stars("SFO_B_APP", 2, "W");
         engine.Scenario = new SimScenarioState

@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
@@ -34,7 +35,7 @@ public class Issue289NuevoRollingCtoTests(ITestOutputHelper output)
 
         var groundData = RecordingGroundData.Evergreen("the NUEVO8 heading legs after a rolling CTO");
         SimLogBuilder.CreateForTest(output).InitializeSimLog();
-        return new SimulationEngine(groundData);
+        return new SimulationEngine(groundData, PushPlanStore.CreateShipped());
     }
 
     [Fact]

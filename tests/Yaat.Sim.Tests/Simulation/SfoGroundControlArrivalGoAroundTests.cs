@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Xunit;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
@@ -103,7 +104,10 @@ public class SfoGroundControlArrivalGoAroundTests(ITestOutputHelper output)
             SimLogBuilder.CreateForTest(output).EnableCategory("OccupiedRunwayGoAround", LogLevel.Debug).InitializeSimLog();
 
             SessionRecording recording = archive.ToBaseSessionRecording();
-            var engine = new SimulationEngine(RecordingGroundData.Evergreen("which occupied-runway go-arounds still fire at SFO"));
+            var engine = new SimulationEngine(
+                RecordingGroundData.Evergreen("which occupied-runway go-arounds still fire at SFO"),
+                PushPlanStore.CreateShipped()
+            );
             engine.Replay(recording, 0);
 
             TimedSnapshot? snapshot = archive.ReadSnapshotAt(restoreAt);

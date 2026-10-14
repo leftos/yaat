@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 using Yaat.Sim.Training;
@@ -15,7 +16,10 @@ public class SoloTrainingEvaluationTickTests
     [Fact]
     public void TickSoloTrainingEvaluation_NotSoloMode_ReturnsEmpty()
     {
-        var engine = new SimulationEngine(new TestAirportGroundData()) { Scenario = NewScenario(soloTrainingMode: false, elapsedSeconds: 100) };
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped())
+        {
+            Scenario = NewScenario(soloTrainingMode: false, elapsedSeconds: 100),
+        };
         engine.World.AddAircraft(IfrAircraft("AAL1", new LatLon(37.6213, -122.3790)));
         engine.World.AddAircraft(IfrAircraft("UAL2", GeoMath.ProjectPoint(new LatLon(37.6213, -122.3790), new TrueHeading(90), 2.5)));
 
@@ -25,7 +29,10 @@ public class SoloTrainingEvaluationTickTests
     [Fact]
     public void TickSoloTrainingEvaluation_SoloModeIfrPairInsideThreeMiles_ReturnsSeparationEvent()
     {
-        var engine = new SimulationEngine(new TestAirportGroundData()) { Scenario = NewScenario(soloTrainingMode: true, elapsedSeconds: 100) };
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped())
+        {
+            Scenario = NewScenario(soloTrainingMode: true, elapsedSeconds: 100),
+        };
         AircraftState a = IfrAircraft("AAL1", new LatLon(37.6213, -122.3790));
         AircraftState b = IfrAircraft("UAL2", GeoMath.ProjectPoint(a.Position, new TrueHeading(90), 2.5));
         engine.World.AddAircraft(a);

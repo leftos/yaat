@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Xunit;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Tower;
@@ -573,7 +574,7 @@ public class StripStepTests
         Assert.Equal(liveIds, StripIds(engine));
 
         // And from scratch: the spawn hook prints the bay strip at t=0, the log reprints under the baked id.
-        var replayed = new SimulationEngine(new TestAirportGroundData());
+        var replayed = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
         replayed.Replay(recording, engine.Scenario.ElapsedSeconds);
 
         Assert.Equal(liveIds, StripIds(replayed));

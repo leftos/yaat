@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Xunit;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
@@ -46,7 +47,7 @@ public class ExpediteAltitudeAssignmentTests(ITestOutputHelper output)
 
         SimLogBuilder.CreateForTest(output).EnableCategory("FlightCommandHandler", LogLevel.Debug).InitializeSimLog();
 
-        return new SimulationEngine(RecordingGroundData.Evergreen("EXP <alt> assigning the altitude"));
+        return new SimulationEngine(RecordingGroundData.Evergreen("EXP <alt> assigning the altitude"), PushPlanStore.CreateShipped());
     }
 
     [Fact]

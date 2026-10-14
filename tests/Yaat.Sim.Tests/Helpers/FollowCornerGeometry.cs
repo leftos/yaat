@@ -2,6 +2,7 @@ using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Airport.Pathfinding;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation;
@@ -67,7 +68,7 @@ internal static class FollowCornerGeometry
         }
 
         SimLogBuilder.CreateForTest(output).InitializeSimLog();
-        var engine = new SimulationEngine(groundData)
+        var engine = new SimulationEngine(groundData, PushPlanStore.CreateShipped())
         {
             Scenario = new SimScenarioState
             {

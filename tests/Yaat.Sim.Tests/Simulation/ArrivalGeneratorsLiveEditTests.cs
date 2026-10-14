@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Xunit;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Scenarios;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
@@ -55,7 +56,7 @@ public class ArrivalGeneratorsLiveEditTests(ITestOutputHelper output)
             return null;
         }
 
-        var engine = new SimulationEngine(groundData);
+        var engine = new SimulationEngine(groundData, PushPlanStore.CreateShipped());
         List<string> warnings = engine.LoadScenario(MinimalScenarioJson, rngSeed: 42, sessionStartUtc: MagneticDeclination.EvaluationDateUtc);
         foreach (string w in warnings)
         {
@@ -219,7 +220,7 @@ public class ArrivalGeneratorsLiveEditTests(ITestOutputHelper output)
 
         // Simulate the recording pipeline: apply the change directly via the
         // RecordedAction handler that replay would use.
-        var freshEngine = new SimulationEngine(new TestAirportGroundData());
+        var freshEngine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
         freshEngine.LoadScenario(MinimalScenarioJson, rngSeed: 42, sessionStartUtc: MagneticDeclination.EvaluationDateUtc);
         for (int t = 0; t < 10; t++)
         {

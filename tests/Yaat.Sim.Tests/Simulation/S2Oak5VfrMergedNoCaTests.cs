@@ -1,5 +1,6 @@
 using Xunit;
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
@@ -39,7 +40,7 @@ public class S2Oak5VfrMergedNoCaTests(ITestOutputHelper output)
             return null;
         }
 
-        return new SimulationEngine(new TestAirportGroundData());
+        return new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
     }
 
     [Fact]

@@ -2,6 +2,7 @@ using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
@@ -35,7 +36,7 @@ public class TouchdownAimPointTests(ITestOutputHelper output)
             return;
         }
 
-        var engine = new SimulationEngine(new TestAirportGroundData());
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
         double? touchdownFt = RunToTouchdown(engine, "OAK", "28R", aircraftType);
 
         Assert.NotNull(touchdownFt);

@@ -1,5 +1,6 @@
 using Xunit;
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
@@ -148,7 +149,7 @@ public class AutoDeleteTickTests
     public void LoadScenario_RecordsWhetherTrafficKeepsComing_AndItSurvivesASnapshot()
     {
         TestVnasData.EnsureInitialized();
-        var staticEngine = new SimulationEngine(new TestAirportGroundData());
+        var staticEngine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
         staticEngine.LoadScenario(ControllerAi.AiTestFixture.ParkedAtOak, 1, MagneticDeclination.EvaluationDateUtc);
         Assert.False(staticEngine.Scenario!.HasOngoingTrafficSource);
         Assert.Null(staticEngine.Scenario.EffectiveAutoDeleteMode);
@@ -159,7 +160,7 @@ public class AutoDeleteTickTests
                 + "\"startingConditions\": { \"type\": \"Parking\", \"parking\": \"SIG2\" }, "
                 + "\"flightplan\": { \"rules\": \"VFR\", \"departure\": \"KOAK\", \"destination\": \"KOAK\", \"cruiseAltitude\": 1500, \"cruiseSpeed\": 100, \"route\": \"\", \"remarks\": \"\", \"aircraftType\": \"C172\" } },"
         );
-        var timedEngine = new SimulationEngine(new TestAirportGroundData());
+        var timedEngine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
         timedEngine.LoadScenario(timedJson, 1, MagneticDeclination.EvaluationDateUtc);
         Assert.True(timedEngine.Scenario!.HasOngoingTrafficSource);
         Assert.Equal("Parked", timedEngine.Scenario.EffectiveAutoDeleteMode);
@@ -207,7 +208,7 @@ public class AutoDeleteTickTests
         };
 
     private static SimulationEngine EngineWithMode(string? autoDeleteMode) =>
-        new(new TestAirportGroundData())
+        new(new TestAirportGroundData(), PushPlanStore.CreateShipped())
         {
             Scenario = new SimScenarioState
             {

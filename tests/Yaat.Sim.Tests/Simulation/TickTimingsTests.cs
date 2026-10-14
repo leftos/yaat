@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Spine;
 using Yaat.Sim.Tests.Helpers;
@@ -110,7 +111,10 @@ public class TickTimingsTests
             TotalElapsedSeconds = 0,
         };
 
-        var engine = new SimulationEngine(new TestAirportGroundData()) { TickTimings = new() { ["sentinel"] = (1, 0.0) } };
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped())
+        {
+            TickTimings = new() { ["sentinel"] = (1, 0.0) },
+        };
 
         engine.Replay(recording, 0);
 

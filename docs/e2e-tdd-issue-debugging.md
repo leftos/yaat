@@ -151,7 +151,7 @@ private SimulationEngine? BuildEngine()
         builder.AddXUnit(output).SetMinimumLevel(LogLevel.Debug));
     SimLog.Initialize(loggerFactory);
 
-    return new SimulationEngine(groundData);
+    return new SimulationEngine(groundData, PushPlanStore.CreateShipped());
 }
 ```
 

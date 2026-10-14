@@ -1799,7 +1799,7 @@ public static class RampLaneReposition
     private static double DistanceFt(LatLon a, LatLon b) => GeoMath.DistanceNm(a, b) * GeoMath.FeetPerNm;
 
     /// <summary>Walk RAMP pavement out of a parking node to the first named taxiway it reaches.</summary>
-    private static string? LeadOutLane(GroundNode parking) => LeadOut(parking).Lane;
+    public static string? LeadOutLane(GroundNode parking) => LeadOut(parking).Lane;
 
     /// <summary>
     /// The first named taxiway a parking node's RAMP lead-out reaches, plus every RAMP node walked on the way

@@ -2,6 +2,7 @@ using Xunit;
 using Yaat.Sim;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Pilot;
@@ -46,7 +47,7 @@ public class Issue292KoakLowApproachRetargetTests(ITestOutputHelper output)
             .EnableCategory("LowApproachPhase", Microsoft.Extensions.Logging.LogLevel.Debug)
             .EnableCategory("FinalApproachPhase", Microsoft.Extensions.Logging.LogLevel.Debug)
             .InitializeSimLog();
-        return new SimulationEngine(RecordingGroundData.Evergreen("a low approach retargeted to a diverging runway"));
+        return new SimulationEngine(RecordingGroundData.Evergreen("a low approach retargeted to a diverging runway"), PushPlanStore.CreateShipped());
     }
 
     /// <summary>

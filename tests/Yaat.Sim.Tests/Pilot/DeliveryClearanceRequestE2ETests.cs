@@ -1,6 +1,7 @@
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Pilot;
 using Yaat.Sim.Simulation;
@@ -308,7 +309,7 @@ public class DeliveryClearanceRequestE2ETests
             return null;
         }
 
-        var engine = new SimulationEngine(groundData);
+        var engine = new SimulationEngine(groundData, PushPlanStore.CreateShipped());
         var terminal = new List<TerminalEntry>();
         engine.TerminalEntryEmitted += entry => terminal.Add(entry);
         List<string> warnings = engine.LoadScenario(

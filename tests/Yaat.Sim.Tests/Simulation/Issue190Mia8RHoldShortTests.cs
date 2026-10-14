@@ -1,6 +1,7 @@
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
@@ -117,7 +118,7 @@ public class Issue190Mia8RHoldShortTests(ITestOutputHelper output)
         }
 
         SimLogBuilder.CreateForTest(output).InitializeSimLog();
-        return new SimulationEngine(data.GroundData);
+        return new SimulationEngine(data.GroundData, PushPlanStore.CreateShipped());
     }
 
     private static Issue190Recording? LoadIssueRecording()

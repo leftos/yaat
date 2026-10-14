@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Xunit;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
@@ -20,7 +21,7 @@ public class AmendFlightPlanEramFieldsTests(ITestOutputHelper output)
     private SimulationEngine BuildEngine()
     {
         SimLogBuilder.CreateForTest(output).InitializeSimLog();
-        return new SimulationEngine(new TestAirportGroundData());
+        return new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
     }
 
     private static AircraftState Aircraft(bool hasFlightPlan, uint assignedCode) =>

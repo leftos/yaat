@@ -4,6 +4,7 @@ using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
@@ -972,7 +973,7 @@ public class LandingExitListTests
             return;
         }
 
-        var original = new SimulationEngine(RecordingGroundData.Evergreen(GroundDataWhy));
+        var original = new SimulationEngine(RecordingGroundData.Evergreen(GroundDataWhy), PushPlanStore.CreateShipped());
         original.Replay(recording, 430);
         for (int t = 0; (t < 150) && !((original.FindAircraft(ReplayCallsign) is { } rolling) && IsRollingOut(rolling)); t++)
         {
@@ -985,7 +986,7 @@ public class LandingExitListTests
         Assert.NotEmpty(original.FindAircraft(ReplayCallsign)!.Situation.ExitsAhead!);
 
         string snapshotJson = JsonSerializer.Serialize(original.CaptureSnapshot(), RecordingJsonOptions.Default);
-        var restored = new SimulationEngine(RecordingGroundData.Evergreen(GroundDataWhy));
+        var restored = new SimulationEngine(RecordingGroundData.Evergreen(GroundDataWhy), PushPlanStore.CreateShipped());
         restored.Replay(recording, original.Scenario!.ElapsedSeconds);
         restored.RestoreFromSnapshot(JsonSerializer.Deserialize<StateSnapshotDto>(snapshotJson, RecordingJsonOptions.Default)!);
 
@@ -1021,7 +1022,7 @@ public class LandingExitListTests
             return;
         }
 
-        var engine = new SimulationEngine(RecordingGroundData.Evergreen(GroundDataWhy));
+        var engine = new SimulationEngine(RecordingGroundData.Evergreen(GroundDataWhy), PushPlanStore.CreateShipped());
         engine.Replay(recording, 430);
         ResolvedExitInfo? lastCandidate = null;
         for (int t = 0; t < 200; t++)

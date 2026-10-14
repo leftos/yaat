@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
@@ -41,7 +42,7 @@ public class OakTaxiResolutionE2ETests(ITestOutputHelper output)
             .EnableCategory("TaxiPathfinder", LogLevel.Debug)
             .InitializeSimLog();
 
-        return new SimulationEngine(RecordingGroundData.Evergreen("four OAK taxi-resolution fixes"));
+        return new SimulationEngine(RecordingGroundData.Evergreen("four OAK taxi-resolution fixes"), PushPlanStore.CreateShipped());
     }
 
     /// <summary>

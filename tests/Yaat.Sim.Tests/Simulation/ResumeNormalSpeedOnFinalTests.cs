@@ -1,5 +1,6 @@
 using Xunit;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Data.Airspace;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Tower;
@@ -633,7 +634,7 @@ public class ResumeNormalSpeedOnFinalTests(ITestOutputHelper output)
             return null;
         }
 
-        var engine = new SimulationEngine(groundData);
+        var engine = new SimulationEngine(groundData, PushPlanStore.CreateShipped());
         engine.LoadScenario(File.ReadAllText(ScenarioPath), rngSeed: 1, sessionStartUtc: MagneticDeclination.EvaluationDateUtc);
         if (engine.Scenario is null)
         {

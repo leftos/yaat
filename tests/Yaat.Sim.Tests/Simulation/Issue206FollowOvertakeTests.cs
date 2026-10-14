@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Xunit;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
@@ -63,7 +64,7 @@ public class Issue206FollowOvertakeTests(ITestOutputHelper output)
             .EnableCategory("FinalApproachPhase", LogLevel.Debug)
             .InitializeSimLog();
 
-        return new SimulationEngine(groundData);
+        return new SimulationEngine(groundData, PushPlanStore.CreateShipped());
     }
 
     /// <summary>

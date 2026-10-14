@@ -1,5 +1,6 @@
 using Xunit;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
@@ -37,7 +38,7 @@ public class Oak576PushTeThenTaxiEReplayTests(ITestOutputHelper output)
             return;
         }
 
-        var engine = new SimulationEngine(groundData);
+        var engine = new SimulationEngine(groundData, PushPlanStore.CreateShipped());
         engine.Replay(recording, AfterTaxiSecond);
 
         AircraftState aircraft = Assert.IsType<AircraftState>(engine.FindAircraft(Callsign));

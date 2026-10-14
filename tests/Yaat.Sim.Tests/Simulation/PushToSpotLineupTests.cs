@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
@@ -75,7 +76,7 @@ public class PushToSpotLineupTests(ITestOutputHelper output)
         double startBearing = new TrueHeading(hdgOut - 45.0).Degrees;
         LatLon startPos = GeoMath.ProjectPoint(spot.Position, new TrueHeading(startBearing), 150.0 / GeoMath.FeetPerNm);
 
-        var engine = new SimulationEngine(groundData) { Scenario = MakeScenario() };
+        var engine = new SimulationEngine(groundData, PushPlanStore.CreateShipped()) { Scenario = MakeScenario() };
 
         AircraftState ac = MakeGroundAircraft(Pushed, "CRJ2", startPos, new TrueHeading(hdgOut), layout, new AtParkingPhase());
         engine.World.AddAircraft(ac);
@@ -193,7 +194,7 @@ public class PushToSpotLineupTests(ITestOutputHelper output)
         double hdgOut = GeoMath.BearingTo(spot.Position, aJunction.Position);
         LatLon startPos = GeoMath.ProjectPoint(spot.Position, new TrueHeading(hdgOut), 140.0 / GeoMath.FeetPerNm);
 
-        var engine = new SimulationEngine(groundData) { Scenario = MakeScenario() };
+        var engine = new SimulationEngine(groundData, PushPlanStore.CreateShipped()) { Scenario = MakeScenario() };
         AircraftState ac = MakeGroundAircraft(Pushed, "CRJ2", startPos, new TrueHeading(hdgOut), layout, new AtParkingPhase());
         engine.World.AddAircraft(ac);
         Assert.True(engine.SendCommand(Pushed, "PUSH $7A").Success);
@@ -225,7 +226,7 @@ public class PushToSpotLineupTests(ITestOutputHelper output)
 
         // Fly the restored creep in its own engine from the pose the original had; the phase is installed active,
         // as a restore leaves it, so it is not restarted.
-        var twinEngine = new SimulationEngine(groundData) { Scenario = MakeScenario() };
+        var twinEngine = new SimulationEngine(groundData, PushPlanStore.CreateShipped()) { Scenario = MakeScenario() };
         AircraftState twin = MakeGroundAircraft("TWIN1", "CRJ2", ac.Position, ac.TrueHeading, layout, new HoldingAfterPushbackPhase());
         twin.Phases = new PhaseList();
         twin.Phases.Add(restored);
@@ -375,7 +376,7 @@ public class PushToSpotLineupTests(ITestOutputHelper output)
         double startBearing = new TrueHeading(hdgOut - 45.0).Degrees;
         LatLon startPos = GeoMath.ProjectPoint(spot.Position, new TrueHeading(startBearing), 150.0 / GeoMath.FeetPerNm);
 
-        var engine = new SimulationEngine(groundData) { Scenario = MakeScenario() };
+        var engine = new SimulationEngine(groundData, PushPlanStore.CreateShipped()) { Scenario = MakeScenario() };
         AircraftState ac = MakeGroundAircraft(Pushed, "CRJ2", startPos, new TrueHeading(hdgOut), layout, new AtParkingPhase());
         engine.World.AddAircraft(ac);
         return new SpotPushWorld(engine, ac, layout, spot);

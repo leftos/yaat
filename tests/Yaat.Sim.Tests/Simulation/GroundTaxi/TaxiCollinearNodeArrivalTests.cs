@@ -1,6 +1,7 @@
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation;
@@ -55,7 +56,7 @@ public class TaxiCollinearNodeArrivalTests(ITestOutputHelper output)
         var lineHeading = new TrueHeading(GeoMath.BearingTo(start.Position, node.Position));
         output.WriteLine($"B {start.Id} -> {node.Id} -> {next.Id}, bearing {lineHeading.Degrees:F1}");
 
-        var engine = new SimulationEngine(groundData)
+        var engine = new SimulationEngine(groundData, PushPlanStore.CreateShipped())
         {
             Scenario = new SimScenarioState
             {

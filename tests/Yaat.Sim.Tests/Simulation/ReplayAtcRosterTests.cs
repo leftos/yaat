@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Xunit;
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Scenarios;
 using Yaat.Sim.Simulation;
@@ -199,7 +200,7 @@ public class ReplayAtcRosterTests
             },
         ]);
 
-        var engine = new SimulationEngine(new TestAirportGroundData());
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
         var lines = new List<string>();
         engine.TerminalEntryEmitted += entry => lines.Add(entry.Message);
 
@@ -217,7 +218,7 @@ public class ReplayAtcRosterTests
         Assert.Contains(lines, line => line.Contains("[AutoTrack] On STARS", StringComparison.Ordinal));
 
         // Without the roster there is nothing to resolve the departure against — the legacy behavior, pinned.
-        var legacyEngine = new SimulationEngine(new TestAirportGroundData());
+        var legacyEngine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
         legacyEngine.Replay(BuildRecording(initialAtcPositions: null), crossedAt);
         AircraftState legacyAircraft = legacyEngine.FindAircraft(Callsign)!;
         Assert.False(FieldElevationResolver.IsBelowDisplayFloor(legacyAircraft, NavigationDatabase.Instance));

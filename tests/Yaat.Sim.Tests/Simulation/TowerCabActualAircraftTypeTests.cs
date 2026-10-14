@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Scenarios;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
@@ -26,7 +27,7 @@ public class TowerCabActualAircraftTypeTests(ITestOutputHelper output)
 {
     private const string BundlePath = "TestData/a67670e50d58.zip";
 
-    private static SimulationEngine NewEngine() => new(new TestAirportGroundData());
+    private static SimulationEngine NewEngine() => new(new TestAirportGroundData(), PushPlanStore.CreateShipped());
 
     private static AircraftState SpawnAircraft(SimulationEngine engine, string callsign, string actualType, string filedType)
     {

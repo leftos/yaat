@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
@@ -38,7 +39,7 @@ public class S2Oak3ErbEfDiagnosticTests(ITestOutputHelper output)
         }
 
         SimLogBuilder.CreateForTest(output).InitializeSimLog();
-        var engine = new SimulationEngine(new TestAirportGroundData());
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
 
         // Replay to t=333 (1s before EF 28L). N42416 should be on FinalApproach for 28R.
         engine.Replay(recording, 333);

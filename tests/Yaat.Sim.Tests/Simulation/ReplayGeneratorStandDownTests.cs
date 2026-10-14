@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
@@ -116,7 +117,7 @@ public class ReplayGeneratorStandDownTests(ITestOutputHelper output)
             return null;
         }
 
-        var engine = new SimulationEngine(groundData);
+        var engine = new SimulationEngine(groundData, PushPlanStore.CreateShipped());
         List<string> warnings = engine.LoadScenario(ScenarioJson, rngSeed: 42, sessionStartUtc: MagneticDeclination.EvaluationDateUtc);
         foreach (string w in warnings)
         {

@@ -302,6 +302,8 @@ airportId)` per process (~500 ms OAK, ~2700 ms SFO) since layouts are immutable 
 `FilletMode.Standard` (the shipping fillet generator), so the ~150 existing call sites build the production graph; pass `FilletMode.None`
 explicitly for raw, unfilleted-graph tests. `GetLayout` returns `null` for an unknown airport — callers skip silently.
 
+A test engine takes a **push-plan store** as a required argument: `new SimulationEngine(groundData, PushPlanStore.CreateShipped())` (a `SimulationWorld` likewise), so a test that exercises AI Ground's push rule plans with the shipped seed and envelopes. Pass a store built on a counting or throwing `PushPlanStore.StandPlanner` to see what is planned and when (`PushPlanStoreTests`); share one store between engines to model a server room's reload.
+
 `GetLayout` passes the **real airport code** to `GeoJsonParser.Parse`, matching both production call sites, so runway widths come from
 navdata instead of the 150 ft default. It calls `TestVnasData.EnsureInitialized()` first: the layout is cached per `(FilletMode,
 airportId)` per process, so leaving the width dependent on whether some other test class had already loaded nav data would bake one

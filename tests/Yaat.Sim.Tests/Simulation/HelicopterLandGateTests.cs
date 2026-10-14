@@ -1,6 +1,7 @@
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
@@ -34,7 +35,7 @@ public class HelicopterLandGateTests
         AirportGroundLayout? layout = groundData.GetLayout("OAK");
         Assert.NotNull(layout);
 
-        var engine = new SimulationEngine(groundData)
+        var engine = new SimulationEngine(groundData, PushPlanStore.CreateShipped())
         {
             Scenario = new SimScenarioState
             {
@@ -75,7 +76,7 @@ public class HelicopterLandGateTests
     public void Land_WithNoPhaseAndNoCachedLayout_ResolvesTheAirport()
     {
         var groundData = new TestAirportGroundData();
-        var engine = new SimulationEngine(groundData)
+        var engine = new SimulationEngine(groundData, PushPlanStore.CreateShipped())
         {
             Scenario = new SimScenarioState
             {

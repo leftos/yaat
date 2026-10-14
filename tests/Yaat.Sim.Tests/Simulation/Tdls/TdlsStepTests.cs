@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Xunit;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Actions;
@@ -500,7 +501,7 @@ public class TdlsStepTests
 
         SessionRecording recording = Recording(engine);
 
-        var replayed = new SimulationEngine(new TestAirportGroundData());
+        var replayed = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
         replayed.Replay(recording, engine.Scenario!.ElapsedSeconds);
 
         TdlsItemRecord item = Assert.Single(replayed.Tdls.Items.Values);
@@ -531,7 +532,7 @@ public class TdlsStepTests
         // The premise: nothing in the log queues this PDC. Only the spawn hook can.
         Assert.Empty(recording.Actions);
 
-        var replayed = new SimulationEngine(new TestAirportGroundData());
+        var replayed = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
         replayed.Replay(recording, engine.Scenario!.ElapsedSeconds);
 
         TdlsItemRecord item = Assert.Single(replayed.Tdls.Items.Values);

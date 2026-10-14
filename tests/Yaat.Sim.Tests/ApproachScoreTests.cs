@@ -1,5 +1,6 @@
 ﻿using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Tower;
 
@@ -592,7 +593,7 @@ public class ApproachScoreTests
     [Fact]
     public void DrainAllApproachScores_ClearsAndReturns()
     {
-        var world = new SimulationWorld();
+        var world = new SimulationWorld(PushPlanStore.CreateShipped());
 
         var ac1 = new AircraftState
         {
@@ -644,7 +645,7 @@ public class ApproachScoreTests
     [Fact]
     public void DrainAllApproachScores_EmptyWhenNoPendingScores()
     {
-        var world = new SimulationWorld();
+        var world = new SimulationWorld(PushPlanStore.CreateShipped());
 
         var ac = new AircraftState
         {

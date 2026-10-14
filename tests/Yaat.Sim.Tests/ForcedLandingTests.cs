@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Training;
@@ -120,7 +121,7 @@ public class ForcedLandingTests : IDisposable
         ac.Phases.Add(new LandingPhase());
         ac.Targets.TargetSpeed = ac.IndicatedAirspeed;
 
-        var world = new SimulationWorld();
+        var world = new SimulationWorld(PushPlanStore.CreateShipped());
         world.AddAircraft(ac);
 
         RunResult result = Run(world, ac, PreTick);
@@ -138,7 +139,7 @@ public class ForcedLandingTests : IDisposable
         ac.Phases.Add(new LandingPhase());
         ac.Targets.TargetSpeed = ac.IndicatedAirspeed;
 
-        var world = new SimulationWorld();
+        var world = new SimulationWorld(PushPlanStore.CreateShipped());
         world.AddAircraft(ac);
 
         RunResult result = Run(world, ac, PreTick);
@@ -156,7 +157,7 @@ public class ForcedLandingTests : IDisposable
         ac.Targets.TargetSpeed = ac.IndicatedAirspeed;
         ac.Targets.DesiredVerticalRate = -700;
 
-        var world = new SimulationWorld();
+        var world = new SimulationWorld(PushPlanStore.CreateShipped());
         world.AddAircraft(ac);
 
         RunResult result = Run(world, ac, PreTick, maxSeconds: 60);
@@ -176,7 +177,7 @@ public class ForcedLandingTests : IDisposable
         ac.Phases.Add(new LandingPhase());
         ac.Targets.TargetSpeed = ac.IndicatedAirspeed;
 
-        var world = new SimulationWorld();
+        var world = new SimulationWorld(PushPlanStore.CreateShipped());
         world.AddAircraft(ac);
 
         RunResult result = Run(world, ac, PreTickNoAutoClear);

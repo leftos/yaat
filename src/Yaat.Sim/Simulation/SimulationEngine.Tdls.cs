@@ -1,6 +1,8 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
+using Yaat.Sim.ControllerAi;
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Simulation.Spine;
 using Yaat.Sim.Simulation.Tdls;
@@ -243,14 +245,37 @@ public sealed partial class SimulationEngine
     /// <summary>
     /// The hooks every spawn runs, whatever put the aircraft in the world. First, for any spawn, the callsign's
     /// disconnect coast is cleared (a spawn under a coasting callsign re-associates it; the host is told on the next
-    /// drain, <see cref="IStateChangeConsumer.OnDisconnectCoastsCleared"/>). Then, for a departure filed at the scenario's
+    /// drain, <see cref="IStateChangeConsumer.OnDisconnectCoastsCleared"/>). While AI Ground is active
+    /// (<see cref="IsAiGroundActive"/>), a jet or turboprop on a push-back stand has its stand's push plan made unless it
+    /// is stored (<see cref="PushPlanStore.PlanSpawned"/>); with AI Ground off nothing is planned, and the push rule
+    /// plans the stand on the tick if AI Ground is switched on later. Then, for a departure filed at the scenario's
     /// primary airport: the TDLS auto-queue first, then the strip auto-print — the order the live room ran them in.
     /// Public so a caller that adds an aircraft to the world itself (a host, a test) runs the same hooks.
     /// Fired inline at spawn time so the DCL and strip lists populate immediately rather than on the next tick;
     /// <see cref="TickAutoTdlsQueue"/> stays as the catch-up path for flight plans edited after spawn. The broadcasts
     /// are the later drain's, so a client learns the callsign before the PDC and the strip for it arrive.
     /// </summary>
-    public void AfterAircraftSpawned(AircraftState ac)
+    public void AfterAircraftSpawned(AircraftState ac) => RunSpawnHooks(ac, planPushStand: IsAiGroundActive());
+
+    /// <summary>
+    /// <see cref="AfterAircraftSpawned"/> for an aircraft a scenario load put in the world: the server's placement of a
+    /// load's or reload's aircraft, and a replay's load-time aircraft, which the replay runs the hooks for before it enters
+    /// its replay profile. Never plans a push stand: the load's prepare and reload already plan these aircraft through
+    /// <c>LoadSeeded</c>, so placement never plans, and AI brains never run in a replay.
+    /// </summary>
+    public void AfterLoadedAircraftPlaced(AircraftState ac) => RunSpawnHooks(ac, planPushStand: false);
+
+    /// <summary>
+    /// Whether AI Ground is active on this run: the run kind runs the controller AI (never a replay), the scenario
+    /// configures it, an AI service is hosted, and its staffing holds a <see cref="ControlRole.Ground"/> position active.
+    /// </summary>
+    private bool IsAiGroundActive() =>
+        RunProfile.RunsControllerAi
+        && (Scenario is { ControllerAi: not null })
+        && (ControllerAi is { } ai)
+        && ai.Staffing.ActivePositions.Any(position => position.Role == ControlRole.Ground);
+
+    private void RunSpawnHooks(AircraftState ac, bool planPushStand)
     {
         if (Scenario is not { } scenario)
         {
@@ -259,6 +284,11 @@ public sealed partial class SimulationEngine
 
         ClearDisconnectCoast(scenario, ac.Callsign);
         EvaluateSurfaceMembership(ac);
+
+        if (planPushStand)
+        {
+            World.PushPlans.PlanSpawned(ac, ResolveGroundLayout(ac));
+        }
 
         if (!IsDepartureAircraft(ac, scenario))
         {

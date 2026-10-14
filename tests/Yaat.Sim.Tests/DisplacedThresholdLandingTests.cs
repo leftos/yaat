@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Tower;
 
@@ -104,7 +105,7 @@ public class DisplacedThresholdLandingTests
             );
         }
 
-        var world = new SimulationWorld();
+        var world = new SimulationWorld(PushPlanStore.CreateShipped());
         world.AddAircraft(ac);
 
         const double dt = 0.25;

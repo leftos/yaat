@@ -2,6 +2,7 @@ using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Pilot;
@@ -76,6 +77,22 @@ public sealed class SimulationWorld
     /// to <c>PendingPilotSpeech</c> instead of <c>PendingWarnings</c>.
     /// </summary>
     public bool RpoShowPilotSpeech { get; set; }
+
+    /// <summary>A world whose push plans are kept in <paramref name="pushPlans"/>.</summary>
+    /// <param name="pushPlans">The push-plan store: a server room's own, shared by every engine the room builds; else a fresh one.</param>
+    public SimulationWorld(PushPlanStore pushPlans)
+    {
+        ArgumentNullException.ThrowIfNull(pushPlans);
+        PushPlans = pushPlans;
+    }
+
+    /// <summary>
+    /// The push plans of the push-back stands the world's jets and turboprops are parked on, made off the sim tick and
+    /// read by the AI's push rule. A derived cache keyed on the layout and never snapshotted. It lives as long as its
+    /// owner: a server room's store outlives every engine the room builds (a restart, rewind, recording load or
+    /// checkpoint restore reads the plans the load made); a world built without a room has its own.
+    /// </summary>
+    public PushPlanStore PushPlans { get; }
 
     public void AddAircraft(AircraftState aircraft)
     {

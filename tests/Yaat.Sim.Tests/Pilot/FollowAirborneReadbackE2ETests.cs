@@ -1,5 +1,6 @@
 using Xunit;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Pilot;
 using Yaat.Sim.Simulation;
@@ -52,7 +53,7 @@ public sealed class FollowAirborneReadbackE2ETests
             PrimaryAirportId = "OAK",
             StudentPositionType = "APP",
         };
-        var engine = new SimulationEngine(new TestAirportGroundData()) { Scenario = scenario };
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped()) { Scenario = scenario };
         AircraftState follower = Airborne(Follower, 37.75);
         AircraftState lead = Airborne(Lead, 37.73);
         follower.Approach.HasReportedTrafficInSight = true;

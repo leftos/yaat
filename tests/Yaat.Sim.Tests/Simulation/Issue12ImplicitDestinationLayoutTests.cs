@@ -2,6 +2,7 @@ using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
@@ -42,7 +43,7 @@ public class Issue12ImplicitDestinationLayoutTests(ITestOutputHelper output)
         }
 
         SimLogBuilder.CreateForTest(output).InitializeSimLog();
-        return new SimulationEngine(new TestAirportGroundData());
+        return new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
     }
 
     private static AircraftState MakeInboundVfr(RunwayInfo? assignedRunway, string airportId)
@@ -337,7 +338,7 @@ public class Issue12ImplicitDestinationLayoutTests(ITestOutputHelper output)
         using IDisposable _ = NavigationDatabase.ScopedOverride(TestVnasData.NavigationDb!);
 
         var groundData = new TestAirportGroundData();
-        var engine = new SimulationEngine(groundData);
+        var engine = new SimulationEngine(groundData, PushPlanStore.CreateShipped());
 
         AirportGroundLayout? oakLayout = groundData.GetLayout("OAK");
         Assert.NotNull(oakLayout);

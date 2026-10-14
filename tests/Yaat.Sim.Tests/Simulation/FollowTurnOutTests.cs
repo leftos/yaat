@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
@@ -32,7 +33,7 @@ public class FollowTurnOutTests(ITestOutputHelper output)
             .EnableCategory("BaseFollowSpacing", LogLevel.Debug)
             .InitializeSimLog();
 
-        return new SimulationEngine(new TestAirportGroundData());
+        return new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
     }
 
     private static RunwayInfo Oak(string designator) =>

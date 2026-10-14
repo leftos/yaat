@@ -1,6 +1,7 @@
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.Airport.Precompute;
 
 namespace Yaat.Sim.Tests;
 
@@ -234,7 +235,7 @@ public class OnHandoffConditionTests
     [Fact]
     public void SimulationWorld_ClearsHandoffAccepted_ForStudentTcp()
     {
-        var world = new SimulationWorld();
+        var world = new SimulationWorld(PushPlanStore.CreateShipped());
         var studentTcp = new Tcp(3, "O", "student-tcp-id", null);
         world.StudentTcp = studentTcp;
 
@@ -254,7 +255,7 @@ public class OnHandoffConditionTests
     [Fact]
     public void SimulationWorld_PreservesHandoffAccepted_ForNonStudentTcp()
     {
-        var world = new SimulationWorld();
+        var world = new SimulationWorld(PushPlanStore.CreateShipped());
         var studentTcp = new Tcp(3, "O", "student-tcp-id", null);
         world.StudentTcp = studentTcp;
 

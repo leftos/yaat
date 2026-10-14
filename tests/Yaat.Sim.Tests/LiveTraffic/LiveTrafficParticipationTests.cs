@@ -2,6 +2,7 @@ using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Data.Airspace;
 using Yaat.Sim.LiveTraffic;
 using Yaat.Sim.Phases;
@@ -390,7 +391,7 @@ public class LiveTrafficParticipationTests
     [Fact]
     public void ShadowLanding_StampsLanded_AndRemovalRecordsTheCompletion()
     {
-        var engine = new SimulationEngine(new TestAirportGroundData())
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped())
         {
             Scenario = new SimScenarioState
             {

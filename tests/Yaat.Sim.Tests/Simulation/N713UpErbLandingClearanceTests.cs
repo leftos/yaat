@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Pattern;
@@ -43,7 +44,7 @@ public class N713UpErbLandingClearanceTests(ITestOutputHelper output)
         var groundData = RecordingGroundData.Evergreen("ERB after CLAND keeping the full stop");
         SimLogBuilder.CreateForTest(output).InitializeSimLog();
 
-        return new SimulationEngine(groundData);
+        return new SimulationEngine(groundData, PushPlanStore.CreateShipped());
     }
 
     private static Phase? Terminator(AircraftState ac)

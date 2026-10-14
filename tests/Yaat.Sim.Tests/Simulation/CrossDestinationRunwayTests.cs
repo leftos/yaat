@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation;
@@ -235,7 +236,7 @@ public sealed class CrossDestinationRunwayTests(ITestOutputHelper output)
             .EnableCategory("CrossingRunwayPhase", LogLevel.Debug)
             .InitializeSimLog();
 
-        return new SimulationEngine(groundData);
+        return new SimulationEngine(groundData, PushPlanStore.CreateShipped());
     }
 
     private (bool LeftInitialHold, bool SawCrossing, bool EndedHoldingInPosition) TickAndObserve(

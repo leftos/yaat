@@ -3,6 +3,7 @@ using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
@@ -37,7 +38,7 @@ public class SfoExitCapacityTests(ITestOutputHelper output)
         }
 
         SimLogBuilder.CreateForTest(output).EnableCategory("ExitCapacity", LogLevel.Debug).InitializeSimLog();
-        return new SimulationEngine(RecordingGroundData.Evergreen("the T exit capacity between the 28R and 28L bars"))
+        return new SimulationEngine(RecordingGroundData.Evergreen("the T exit capacity between the 28R and 28L bars"), PushPlanStore.CreateShipped())
         {
             Scenario = new SimScenarioState
             {

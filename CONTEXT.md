@@ -660,6 +660,9 @@ The re-fly and sweep of a cached push target when an aircraft's Push Back To men
 **Offline check / online check**:
 The precompute tool's `--check`. Offline, it compares each listed airport's committed entry key with the build-time source hashes, the sidecar hash and the layout format version; online (`--check --online`), it also compares the GeoJSON MD5 and NavData serial with what vNAS serves now. A missing or stale entry is a warning, never a failure.
 
+**Push plan store**:
+`PushPlanStore`, the plan of each push-back stand a parked jet or turboprop sits on (`PushTargetEntry` for the stand and its design group), made off the tick and read by AI Ground's push rule. A server room owns one for every engine it builds; a scenario load's prepare and a reload fill it, a spawn adds to it only while AI Ground is active, and a stand it lacks is planned on the tick.
+
 **Push set**:
 The source files whose hash is a precompute key's push-target algorithm hash: all of `Data/Airport` except `Precompute/`, so the tug planner included, plus the push-target `Precompute/` types and a few files outside it (`PrecomputePushTargetSource`); it moves whenever the layout hash does.
 

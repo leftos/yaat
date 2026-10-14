@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Xunit;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
@@ -117,7 +118,7 @@ public class Issue236SfoAF1BConnectorTests(ITestOutputHelper output)
         (double Lat, double Lon) spawn = FindSpawnNorthOnA(layout);
         output.WriteLine($"Spawn: ({spawn.Lat:F6}, {spawn.Lon:F6})");
 
-        var engine = new SimulationEngine(groundData);
+        var engine = new SimulationEngine(groundData, PushPlanStore.CreateShipped());
         engine.LoadScenario(
             BuildScenarioJson(spawn.Lat, spawn.Lon, headingMag: 178),
             rngSeed: 42,

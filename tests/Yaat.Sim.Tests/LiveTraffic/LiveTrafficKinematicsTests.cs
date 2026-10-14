@@ -1,5 +1,6 @@
 using Xunit;
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.LiveTraffic;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
@@ -49,7 +50,7 @@ public class LiveTrafficKinematicsTests
 
     private static SimulationEngine EngineWith(WeatherProfile? weather, params AircraftState[] aircraft)
     {
-        var engine = new SimulationEngine(new TestAirportGroundData())
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped())
         {
             Scenario = new SimScenarioState
             {

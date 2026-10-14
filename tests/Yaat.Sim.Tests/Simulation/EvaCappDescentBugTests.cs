@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
@@ -59,7 +60,7 @@ public class EvaCappDescentBugTests(ITestOutputHelper output)
             .EnableCategory("InterceptCoursePhase", Microsoft.Extensions.Logging.LogLevel.Debug)
             .InitializeSimLog();
 
-        return new SimulationEngine(groundData);
+        return new SimulationEngine(groundData, PushPlanStore.CreateShipped());
     }
 
     private static string PhaseSummary(AircraftState ac)

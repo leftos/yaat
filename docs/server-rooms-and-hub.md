@@ -110,6 +110,10 @@ A scenario load is two halves (`Simulation/ScenarioLifecycleService.cs`), compos
 
   Once the layouts are in it pins them (`PinnedAirportGroundData.FromBundle` with `BundledAirportLayouts.None`, since a scenario load has no archive), warms the CIFP SID/STAR/approach tables of the manifest's airports and runs `ScenarioLoader.Load` on a fresh `SimulationEngine`, while the ARTCC configs may still be arriving (the loader reads layouts and navdata, no config).
 
+  The engine keeps its push plans in the room's `TrainingRoom.PushPlans` (a `PushPlanStore` passed to `PrepareScenarioAsync` and every engine the room builds), and the load plans the push-back stand of every jet and turboprop the scenario parks, delayed aircraft included, into it (`PlanPushBackStands`, in parallel on half the cores) so AI Ground's push rule reads a plan rather than making one on the tick.
+
+  A reload on the same pinned layouts finds the stands already stored and plans nothing; one stand's failure is logged and skipped.
+
   It returns a `PreparedScenario`: the engine and loader result, the seed and session start, the room's resource pin (below), the fetch outcomes and the step reporter.
 - **Commit** (`CommitPreparedScenario`) runs under the room's tick gate and is CPU only.
 
@@ -258,7 +262,7 @@ spine's (`SpineOrder` in Yaat.Sim, [tick-loop.md](tick-loop.md)), and `RoomHost`
 
 - **Pre-physics**: `HandlePrePhysicsResult` broadcasts each newly-spawned aircraft (the spawn hooks — the PDC auto-queue
   and the strip auto-print — are the engine's `SimulationEngine.AfterAircraftSpawned`, run before the result reaches
-  the host), and records generator spawns *after* their autotrack so the recorded snapshot carries the
+  the host; with AI Ground active the hook also plans the spawn's push-back stand into `TrainingRoom.PushPlans`, while placing a load's aircraft goes through `AfterLoadedAircraftPlaced`, which never plans), and records generator spawns *after* their autotrack so the recorded snapshot carries the
   owner; `BroadcastTerminalEntries` takes the spine's drain; `ProcessDelayedHandoffs`; `SyncLiveTraffic` runs
   `ShadowTrafficSync.Sync` last — the pre-physics mutator of the aircraft set (see [live-traffic.md](live-traffic.md)).
 - **Post-physics**: no ATC pass of its own (auto-accept, the point-out timeout, the two autotrack passes, the coordination timers and the tower lists are Yaat.Sim spine steps now, `SimulationEngine.TrackAutomation` / `SimulationEngine.Coordination.cs`, and the first three read the recorded `Attendance`).

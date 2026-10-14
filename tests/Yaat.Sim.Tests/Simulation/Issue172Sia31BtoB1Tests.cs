@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
@@ -46,7 +47,7 @@ public class Issue172Sia31BtoB1Tests(ITestOutputHelper output)
             .EnableCategory("GroundCommandHandler", LogLevel.Debug)
             .EnableCategory("TaxiPathfinder", LogLevel.Debug)
             .InitializeSimLog();
-        return new SimulationEngine(groundData);
+        return new SimulationEngine(groundData, PushPlanStore.CreateShipped());
     }
 
     [Fact]

@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation;
@@ -57,7 +58,7 @@ public class Issue240Ga9TaxiSpinTests(ITestOutputHelper output)
 
         var groundData = new TestAirportGroundData();
         SimLogBuilder.CreateForTest(output).EnableCategory("SegmentExpander", LogLevel.Debug).InitializeSimLog();
-        return new SimulationEngine(groundData);
+        return new SimulationEngine(groundData, PushPlanStore.CreateShipped());
     }
 
     [Fact]

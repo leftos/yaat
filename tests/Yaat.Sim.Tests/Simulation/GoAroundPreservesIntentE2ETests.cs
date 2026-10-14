@@ -1,6 +1,7 @@
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
@@ -40,7 +41,7 @@ public class GoAroundPreservesIntentE2ETests(ITestOutputHelper output)
         var groundData = new TestAirportGroundData(FilletMode.Standard);
         SimLogBuilder.CreateForTest(output).InitializeSimLog();
 
-        return new SimulationEngine(groundData);
+        return new SimulationEngine(groundData, PushPlanStore.CreateShipped());
     }
 
     /// <summary>

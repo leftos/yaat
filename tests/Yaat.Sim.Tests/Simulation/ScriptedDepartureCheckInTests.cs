@@ -2,6 +2,7 @@ using Xunit;
 using Yaat.Sim;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
@@ -136,7 +137,7 @@ public class ScriptedDepartureCheckInTests
             return;
         }
 
-        var engine = new SimulationEngine(new TestAirportGroundData()) { Scenario = MinimalScenario(0) };
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped()) { Scenario = MinimalScenario(0) };
         AircraftState scripted = LinedUpIfrDeparture(Oak28R());
 
         engine.DispatchPresetCommands(
@@ -160,7 +161,7 @@ public class ScriptedDepartureCheckInTests
         }
 
         // Elapsed time well past the deterministic tower-readback jitter so the auto-CTO fires.
-        var engine = new SimulationEngine(new TestAirportGroundData()) { Scenario = MinimalScenario(10_000) };
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped()) { Scenario = MinimalScenario(10_000) };
         AircraftState scripted = HeldThenReleasedDeparture(Oak28R());
         engine.World.AddAircraft(scripted);
 

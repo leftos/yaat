@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
@@ -29,7 +30,7 @@ public class MultiCfixPresetReplayTests(ITestOutputHelper output)
         }
 
         SimLogBuilder.CreateForTest(output).InitializeSimLog();
-        return new SimulationEngine(RecordingGroundData.Evergreen("chained CFIX presets stacking"));
+        return new SimulationEngine(RecordingGroundData.Evergreen("chained CFIX presets stacking"), PushPlanStore.CreateShipped());
     }
 
     [Fact]

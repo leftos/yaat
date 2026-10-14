@@ -1,5 +1,6 @@
 using Xunit;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Actions;
 using Yaat.Sim.Simulation.Snapshots;
@@ -28,7 +29,7 @@ public class CommandRunDelayTests
 
     private static SimulationEngine BuildEngine(int minDelay, int maxDelay, int rngSeed = 42)
     {
-        var engine = new SimulationEngine(new NullGroundData())
+        var engine = new SimulationEngine(new NullGroundData(), PushPlanStore.CreateShipped())
         {
             Scenario = new SimScenarioState
             {

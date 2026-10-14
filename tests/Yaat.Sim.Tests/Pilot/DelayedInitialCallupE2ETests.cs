@@ -2,6 +2,7 @@ using System.Text.Json;
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.ControllerAi.Rules;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
@@ -316,7 +317,7 @@ public class DelayedInitialCallupE2ETests
             return null;
         }
 
-        var engine = new SimulationEngine(groundData);
+        var engine = new SimulationEngine(groundData, PushPlanStore.CreateShipped());
         List<string> warnings = engine.LoadScenario(
             ScenarioJson(airport, callsign, type, parking, presets),
             42,

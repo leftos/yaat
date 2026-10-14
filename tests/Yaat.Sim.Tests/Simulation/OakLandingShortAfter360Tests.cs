@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation;
@@ -45,7 +46,7 @@ public class OakLandingShortAfter360Tests(ITestOutputHelper output)
         }
 
         SimLogBuilder.CreateForTest(output).InitializeSimLog();
-        return new SimulationEngine(RecordingGroundData.Evergreen("a 360 on final resuming the approach"));
+        return new SimulationEngine(RecordingGroundData.Evergreen("a 360 on final resuming the approach"), PushPlanStore.CreateShipped());
     }
 
     [Fact]

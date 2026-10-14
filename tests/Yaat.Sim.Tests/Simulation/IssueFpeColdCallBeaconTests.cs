@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Xunit;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
@@ -40,7 +41,7 @@ public class IssueFpeColdCallBeaconTests(ITestOutputHelper output)
         var groundData = RecordingGroundData.Evergreen("a cold-call flight plan getting a beacon code");
         SimLogBuilder.CreateForTest(output).EnableCategory("SimulationEngine", LogLevel.Debug).InitializeSimLog();
 
-        return new SimulationEngine(groundData);
+        return new SimulationEngine(groundData, PushPlanStore.CreateShipped());
     }
 
     /// <summary>

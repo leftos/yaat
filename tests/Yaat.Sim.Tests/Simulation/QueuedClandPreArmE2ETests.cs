@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Xunit;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
@@ -44,7 +45,7 @@ public class QueuedClandPreArmE2ETests(ITestOutputHelper output)
         ILoggerFactory loggerFactory = LoggerFactory.Create(builder => builder.AddXUnit(output).SetMinimumLevel(LogLevel.Debug));
         SimLog.InitializeForTest(loggerFactory);
 
-        return new SimulationEngine(RecordingGroundData.Evergreen("CLAND pre-armed behind a queued pattern entry"));
+        return new SimulationEngine(RecordingGroundData.Evergreen("CLAND pre-armed behind a queued pattern entry"), PushPlanStore.CreateShipped());
     }
 
     [Fact]

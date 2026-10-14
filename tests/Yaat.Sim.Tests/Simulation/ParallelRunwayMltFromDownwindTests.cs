@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
@@ -53,7 +54,10 @@ public class ParallelRunwayMltFromDownwindTests(ITestOutputHelper output)
             .EnableCategory("MidfieldCrossingPhase", LogLevel.Debug)
             .InitializeSimLog();
 
-        return new SimulationEngine(RecordingGroundData.Evergreen("a parallel-runway pattern switch from the downwind"));
+        return new SimulationEngine(
+            RecordingGroundData.Evergreen("a parallel-runway pattern switch from the downwind"),
+            PushPlanStore.CreateShipped()
+        );
     }
 
     [Fact]

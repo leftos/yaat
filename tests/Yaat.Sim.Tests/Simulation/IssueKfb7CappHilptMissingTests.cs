@@ -1,6 +1,7 @@
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Approach;
@@ -77,7 +78,7 @@ public class IssueKfb7CappHilptMissingTests(ITestOutputHelper output)
         var groundData = new TestAirportGroundData();
         SimLogBuilder.CreateForTest(output).InitializeSimLog();
 
-        var engine = new SimulationEngine(groundData);
+        var engine = new SimulationEngine(groundData, PushPlanStore.CreateShipped());
         SessionRecording recording = archive.ToBaseSessionRecording();
         engine.Replay(recording, 0); // load scenario + weather, no actions
         engine.RestoreFromSnapshot(snapshot.State);

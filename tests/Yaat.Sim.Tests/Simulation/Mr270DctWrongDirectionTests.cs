@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Xunit;
 using Yaat.Sim;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
@@ -65,7 +66,7 @@ public class Mr270DctWrongDirectionTests(ITestOutputHelper output)
             .EnableCategory("FlightPhysics", LogLevel.Debug)
             .InitializeSimLog();
 
-        return new SimulationEngine(groundData);
+        return new SimulationEngine(groundData, PushPlanStore.CreateShipped());
     }
 
     /// <summary>
@@ -211,7 +212,7 @@ public class Mr270DctRolloutAcceptanceTests(ITestOutputHelper output)
             return;
         }
 
-        var engine = new SimulationEngine(new TestAirportGroundData(Yaat.Sim.Data.Airport.FilletMode.Standard));
+        var engine = new SimulationEngine(new TestAirportGroundData(Yaat.Sim.Data.Airport.FilletMode.Standard), PushPlanStore.CreateShipped());
         Mr270DctWrongDirectionTests.AssertTurnsLeftAfterRollout(engine, recording, output);
     }
 }

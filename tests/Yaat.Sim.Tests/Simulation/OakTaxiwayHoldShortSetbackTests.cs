@@ -1,6 +1,7 @@
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation;
@@ -220,7 +221,7 @@ public sealed class OakTaxiwayHoldShortSetbackTests
                     )
             );
         GroundNode onB = arriving.OtherNode(fork);
-        var engine = new SimulationEngine(groundData)
+        var engine = new SimulationEngine(groundData, PushPlanStore.CreateShipped())
         {
             Scenario = new SimScenarioState
             {
@@ -366,7 +367,7 @@ public sealed class OakTaxiwayHoldShortSetbackTests
         (ac.GroundSpeed < SfoGroundHarness.StationarySpeedKts) && (ac.Phases?.CurrentPhase is HoldingShortPhase);
 
     private static SimulationEngine BuildEngine(TestAirportGroundData groundData) =>
-        new(groundData)
+        new(groundData, PushPlanStore.CreateShipped())
         {
             Scenario = new SimScenarioState
             {

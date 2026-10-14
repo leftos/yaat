@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
@@ -59,7 +60,7 @@ public class TransponderIdentTests
     [Fact]
     public void TickTransponders_ClearsExpiredIdentAcrossWorld()
     {
-        var engine = new SimulationEngine(new TestAirportGroundData())
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped())
         {
             Scenario = NewScenario(elapsedSeconds: 10 + AircraftTransponder.IdentDurationSeconds),
         };
@@ -82,7 +83,7 @@ public class TransponderIdentTests
     [Fact]
     public void TickPostPhysics_RunsIdentExpiry()
     {
-        var engine = new SimulationEngine(new TestAirportGroundData())
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped())
         {
             Scenario = NewScenario(elapsedSeconds: 10 + AircraftTransponder.IdentDurationSeconds),
         };

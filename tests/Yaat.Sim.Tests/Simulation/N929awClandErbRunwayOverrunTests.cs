@@ -1,5 +1,6 @@
 using Xunit;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Pattern;
@@ -49,7 +50,7 @@ public class N929awClandErbRunwayOverrunTests(ITestOutputHelper output)
         var groundData = new TestAirportGroundData();
         SimLogBuilder.CreateForTest(output).InitializeSimLog();
 
-        return new SimulationEngine(groundData);
+        return new SimulationEngine(groundData, PushPlanStore.CreateShipped());
     }
 
     /// <summary>

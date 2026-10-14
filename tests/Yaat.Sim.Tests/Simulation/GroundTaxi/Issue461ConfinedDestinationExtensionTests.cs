@@ -1,6 +1,7 @@
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation;
@@ -429,7 +430,7 @@ public class Issue461ConfinedDestinationExtensionTests(ITestOutputHelper output)
         using (archive)
         {
             SimLogBuilder.CreateForTest(output).InitializeSimLog();
-            var engine = new SimulationEngine(new TestAirportGroundData(FilletMode.Standard));
+            var engine = new SimulationEngine(new TestAirportGroundData(FilletMode.Standard), PushPlanStore.CreateShipped());
             engine.Replay(archive.ToBaseSessionRecording(), 423);
             for (int t = 0; (t < 120) && (engine.FindAircraft("N9225L")?.Phases?.CurrentPhase?.Name != "Holding After Exit"); t++)
             {

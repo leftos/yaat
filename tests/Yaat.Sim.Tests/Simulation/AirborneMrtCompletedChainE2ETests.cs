@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Pattern;
@@ -81,7 +82,10 @@ public class AirborneMrtCompletedChainE2ETests(ITestOutputHelper output)
                 return;
             }
 
-            var engine = new SimulationEngine(RecordingGroundData.Evergreen("airborne MRT after a completed departure chain"));
+            var engine = new SimulationEngine(
+                RecordingGroundData.Evergreen("airborne MRT after a completed departure chain"),
+                PushPlanStore.CreateShipped()
+            );
             engine.Replay(recording, 0);
 
             TimedSnapshot? snapshot = archive.ReadSnapshotAt(RestoreTime);

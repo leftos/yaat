@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
@@ -55,7 +56,7 @@ public class Issue393SfoBareTaxiRunwayTests(ITestOutputHelper output)
             .EnableCategory("GroundCommandHandler", LogLevel.Debug)
             .EnableCategory("TaxiingPhase", LogLevel.Debug)
             .InitializeSimLog();
-        return new SimulationEngine(groundData);
+        return new SimulationEngine(groundData, PushPlanStore.CreateShipped());
     }
 
     private static bool IsOnRunwaySurface(TaxiRoute route, string runwayId) =>

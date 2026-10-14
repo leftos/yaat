@@ -1,6 +1,7 @@
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.LiveTraffic;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Simulation;
@@ -236,7 +237,7 @@ public class DepartureAutoDeleteTests
             TotalElapsedSeconds = 1,
         };
 
-        var engine = new SimulationEngine(new TestAirportGroundData());
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
         engine.Replay(recording, 1);
 
         Assert.Equal(expected, engine.Scenario!.DepartureAutoDeleteDistanceNm);
@@ -244,7 +245,7 @@ public class DepartureAutoDeleteTests
 
     private static SimulationEngine LoadDeparture()
     {
-        var engine = new SimulationEngine(new TestAirportGroundData());
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
         engine.LoadScenario(DepartureAtOak, 1, MagneticDeclination.EvaluationDateUtc);
         Assert.NotNull(engine.World.FindAircraft(Callsign));
         return engine;

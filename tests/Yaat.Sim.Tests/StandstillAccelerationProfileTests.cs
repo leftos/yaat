@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Scenarios;
@@ -429,7 +430,7 @@ public sealed class StandstillAccelerationProfileTests
         }
 
         SimLogBuilder.CreateForTest(_output).InitializeSimLog();
-        return new SimulationEngine(groundData);
+        return new SimulationEngine(groundData, PushPlanStore.CreateShipped());
     }
 
     /// <summary>

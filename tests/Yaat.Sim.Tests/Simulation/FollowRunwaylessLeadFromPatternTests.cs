@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Approach;
 using Yaat.Sim.Phases.Pattern;
@@ -45,7 +46,7 @@ public class FollowRunwaylessLeadFromPatternTests(ITestOutputHelper output)
             .EnableCategory("VfrFollowPhase", LogLevel.Debug)
             .InitializeSimLog();
 
-        return new SimulationEngine(RecordingGroundData.Evergreen("FOLLOW of a lead with no current runway"));
+        return new SimulationEngine(RecordingGroundData.Evergreen("FOLLOW of a lead with no current runway"), PushPlanStore.CreateShipped());
     }
 
     private static RunwayInfo Oak(string designator) =>

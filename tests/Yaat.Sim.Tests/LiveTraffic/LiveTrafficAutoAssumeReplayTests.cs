@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.LiveTraffic;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Actions;
@@ -66,7 +67,7 @@ public class LiveTrafficAutoAssumeReplayTests(ITestOutputHelper output)
     /// <summary>A live engine holding the shadow, ticked through second 5 the way the server would.</summary>
     private static SimulationEngine LiveWithShadow(SessionRecording baseline)
     {
-        var live = new SimulationEngine(new TestAirportGroundData());
+        var live = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
         live.Replay(WithActions(baseline, [], 0), 0);
 
         AircraftSnapshotDto spawnState = LiveTrafficKinematics
@@ -119,7 +120,7 @@ public class LiveTrafficAutoAssumeReplayTests(ITestOutputHelper output)
         Assert.False(command.Accepted);
         Assert.Equal(2, actions.Count);
 
-        var replay = new SimulationEngine(new TestAirportGroundData());
+        var replay = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
         replay.Replay(WithActions(baseline, actions, 22), 20);
         AircraftState? replayed = replay.World.FindAircraft(Callsign);
 
@@ -140,7 +141,7 @@ public class LiveTrafficAutoAssumeReplayTests(ITestOutputHelper output)
             return;
         }
 
-        var live = new SimulationEngine(new TestAirportGroundData());
+        var live = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
         live.Replay(WithActions(baseline, [], 0), 0);
 
         AircraftSnapshotDto spawnState = LiveTrafficKinematics
@@ -173,7 +174,7 @@ public class LiveTrafficAutoAssumeReplayTests(ITestOutputHelper output)
         Assert.True(command.Accepted);
         Assert.Equal(2, actions.Count);
 
-        var replay = new SimulationEngine(new TestAirportGroundData());
+        var replay = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
         replay.Replay(WithActions(baseline, actions, 22), 20);
         AircraftState? replayed = replay.World.FindAircraft(Callsign);
 

@@ -1,5 +1,6 @@
 using Xunit;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Pilot;
@@ -51,7 +52,7 @@ public sealed class M104PendingRequestTests
     [InlineData("ROGER")]
     public void SendCommand_AcknowledgementMovesPendingRequestToStandby(string command)
     {
-        var engine = new SimulationEngine(new TestAirportGroundData()) { Scenario = NewScenario(elapsedSeconds: 20) };
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped()) { Scenario = NewScenario(elapsedSeconds: 20) };
         AircraftState ac = NewAircraft();
         PilotRequestTracker.RecordRequest(ac, PilotPendingRequestKind.Taxi, nowSeconds: 10, ReadyToTaxiLine, PilotRequestContext.None);
         engine.World.AddAircraft(ac);

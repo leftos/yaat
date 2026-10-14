@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Xunit;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
@@ -33,7 +34,7 @@ public class IssueN513sjNimi6PublishedHeadingReplayTests(ITestOutputHelper outpu
 
         var groundData = RecordingGroundData.Evergreen("the NIMI6 published heading from a prior cycle");
         SimLogBuilder.CreateForTest(output).EnableCategory("CommandDispatcher", LogLevel.Debug).InitializeSimLog();
-        return new SimulationEngine(groundData);
+        return new SimulationEngine(groundData, PushPlanStore.CreateShipped());
     }
 
     [Fact]

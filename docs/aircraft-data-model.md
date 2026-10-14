@@ -164,6 +164,7 @@ the SignalR `AircraftUpdated` / `AircraftSpawned` deserialization.
   driven by `SimulationEngine` (`PhysicsSubTickRate = 4`), which calls `World.Tick` repeatedly with a 0.25 s delta. The local `Lookup` closure is
   passed in so phases can resolve follow targets; the reentrant lock makes `FindAircraft` callable from inside the tick. See
   [tick-loop.md](tick-loop.md) for the per-aircraft step order.
+- **`PushPlans`** is the `PushPlanStore` the world's constructor takes (required), a derived cache of push-back stand plans that is never snapshotted. A server room passes its own to every world it builds, so it outlives each engine; a world built without a room gets `PushPlanStore.CreateShipped()`.
 - **`GetSnapshot` (`SimulationWorld.cs:169`)** returns a shallow `List` copy — a new list whose elements are the **live mutable** `AircraftState`
   instances. It is the read-only view every broadcast/projection iterates.
 - **Drain surface** — `DrainAllWarnings`, `DrainAllNotifications`, `DrainAllPilotSpeech`, `DrainAllPilotReadbacks`, `DrainReadyPilotTransmissions`,

@@ -1,5 +1,6 @@
 using Xunit;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases;
 
@@ -20,7 +21,7 @@ public class SimulationWorldTests
     [Fact]
     public void AddAircraft_GeneratesCid_WhenEmpty()
     {
-        var world = new SimulationWorld();
+        var world = new SimulationWorld(PushPlanStore.CreateShipped());
         AircraftState ac = MakeAircraft("AAL100");
 
         world.AddAircraft(ac);
@@ -32,7 +33,7 @@ public class SimulationWorldTests
     [Fact]
     public void AddAircraft_PreservesCid_WhenProvided()
     {
-        var world = new SimulationWorld();
+        var world = new SimulationWorld(PushPlanStore.CreateShipped());
         AircraftState ac = MakeAircraft("AAL100", cid: "500");
 
         world.AddAircraft(ac);
@@ -43,7 +44,7 @@ public class SimulationWorldTests
     [Fact]
     public void GetSnapshot_ReturnsShallowCopy()
     {
-        var world = new SimulationWorld();
+        var world = new SimulationWorld(PushPlanStore.CreateShipped());
         world.AddAircraft(MakeAircraft("AAL100"));
 
         List<AircraftState> snapshot = world.GetSnapshot();
@@ -56,7 +57,7 @@ public class SimulationWorldTests
     [Fact]
     public void GetSnapshot_ReturnsAllAircraft()
     {
-        var world = new SimulationWorld();
+        var world = new SimulationWorld(PushPlanStore.CreateShipped());
         world.AddAircraft(MakeAircraft("AAL100"));
         world.AddAircraft(MakeAircraft("UAL200"));
         world.AddAircraft(MakeAircraft("DAL300"));
@@ -67,7 +68,7 @@ public class SimulationWorldTests
     [Fact]
     public void RemoveAircraft_RemovesMatchingCallsign()
     {
-        var world = new SimulationWorld();
+        var world = new SimulationWorld(PushPlanStore.CreateShipped());
         world.AddAircraft(MakeAircraft("AAL100"));
 
         world.RemoveAircraft("AAL100");
@@ -78,7 +79,7 @@ public class SimulationWorldTests
     [Fact]
     public void RemoveAircraft_NoMatch_DoesNothing()
     {
-        var world = new SimulationWorld();
+        var world = new SimulationWorld(PushPlanStore.CreateShipped());
         world.AddAircraft(MakeAircraft("AAL100"));
 
         world.RemoveAircraft("UAL200");
@@ -89,7 +90,7 @@ public class SimulationWorldTests
     [Fact]
     public void DrainAllWarnings_ReturnsAndClears()
     {
-        var world = new SimulationWorld();
+        var world = new SimulationWorld(PushPlanStore.CreateShipped());
         AircraftState ac = MakeAircraft("AAL100");
         ac.PendingWarnings.Add("test warning");
         world.AddAircraft(ac);
@@ -105,7 +106,7 @@ public class SimulationWorldTests
     [Fact]
     public void DrainAllNotifications_ReturnsAndClears()
     {
-        var world = new SimulationWorld();
+        var world = new SimulationWorld(PushPlanStore.CreateShipped());
         AircraftState ac = MakeAircraft("UAL200");
         ac.PendingNotifications.Add("test notification");
         world.AddAircraft(ac);
@@ -121,7 +122,7 @@ public class SimulationWorldTests
     [Fact]
     public void DrainAllApproachScores_ReturnsAndClears()
     {
-        var world = new SimulationWorld();
+        var world = new SimulationWorld(PushPlanStore.CreateShipped());
         AircraftState ac = MakeAircraft("DAL300");
         ac.PendingApproachScores.Add(
             new ApproachScore
@@ -146,7 +147,7 @@ public class SimulationWorldTests
     [Fact]
     public void Clear_ReturnsCount_AndEmptiesWorld()
     {
-        var world = new SimulationWorld();
+        var world = new SimulationWorld(PushPlanStore.CreateShipped());
         world.AddAircraft(MakeAircraft("AAL100"));
         world.AddAircraft(MakeAircraft("UAL200"));
         world.AddAircraft(MakeAircraft("DAL300"));
@@ -160,7 +161,7 @@ public class SimulationWorldTests
     [Fact]
     public void Clear_SetsGroundLayoutToNull()
     {
-        var world = new SimulationWorld { GroundLayout = new AirportGroundLayout { AirportId = "OAK" } };
+        var world = new SimulationWorld(PushPlanStore.CreateShipped()) { GroundLayout = new AirportGroundLayout { AirportId = "OAK" } };
 
         world.Clear();
 
@@ -217,7 +218,7 @@ public class SimulationWorldTests
     [Fact]
     public void Tick_CallsPreTick()
     {
-        var world = new SimulationWorld();
+        var world = new SimulationWorld(PushPlanStore.CreateShipped());
         world.AddAircraft(MakeAircraft("AAL100"));
 
         var invokedCallsigns = new List<string>();

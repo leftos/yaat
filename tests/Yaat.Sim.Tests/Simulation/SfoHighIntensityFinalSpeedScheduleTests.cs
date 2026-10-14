@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
@@ -45,7 +46,7 @@ public class SfoHighIntensityFinalSpeedScheduleTests
             return null;
         }
 
-        var engine = new SimulationEngine(RecordingGroundData.Evergreen("the Vref speed schedule on a 14 nm final"));
+        var engine = new SimulationEngine(RecordingGroundData.Evergreen("the Vref speed schedule on a 14 nm final"), PushPlanStore.CreateShipped());
         List<string> errors = engine.LoadScenario(
             recording.ScenarioJson,
             522837118,

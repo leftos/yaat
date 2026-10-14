@@ -2,6 +2,7 @@ using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
@@ -74,7 +75,7 @@ public class Issue315LuawAfterCrossingTests(ITestOutputHelper output)
         var groundData = RecordingGroundData.Evergreen("LUAW after a re-taxi crossing one parallel to the other");
         SimLogBuilder.CreateForTest(output).InitializeSimLog();
 
-        return new SimulationEngine(groundData);
+        return new SimulationEngine(groundData, PushPlanStore.CreateShipped());
     }
 
     [Fact]

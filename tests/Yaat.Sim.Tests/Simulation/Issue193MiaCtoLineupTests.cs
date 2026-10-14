@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
@@ -38,7 +39,7 @@ public class Issue193MiaCtoLineupTests(ITestOutputHelper output)
         var groundData = RecordingGroundData.Evergreen("CTO lining up from the parallel-taxiway 8R hold-short");
         SimLogBuilder.CreateForTest(output).InitializeSimLog();
 
-        return new SimulationEngine(groundData);
+        return new SimulationEngine(groundData, PushPlanStore.CreateShipped());
     }
 
     [Fact]

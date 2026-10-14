@@ -6,6 +6,7 @@ using Yaat.Sim.Commands;
 using Yaat.Sim.ControllerAi;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Data.Airspace;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.LiveTraffic;
@@ -162,7 +163,7 @@ public sealed partial class SimulationEngine
     /// <summary>The engine's logger, so collaborators it owns log under the same category.</summary>
     internal ILogger Logger => _logger;
 
-    public SimulationWorld World { get; } = new();
+    public SimulationWorld World { get; }
     public SimScenarioState? Scenario { get; set; }
     public ConsolidationState ConsolidationState { get; } = new();
     public ApproachEvaluator ApproachEvaluator { get; } = new();
@@ -205,8 +206,13 @@ public sealed partial class SimulationEngine
 
     internal void FirePilotSpeechEmitted(string callsign, string speech) => PilotSpeechEmitted?.Invoke(callsign, speech);
 
-    public SimulationEngine(IAirportGroundData groundData, ILogger? logger = null)
+    /// <summary>An engine on <paramref name="groundData"/> whose world keeps its push plans in <paramref name="pushPlans"/>.</summary>
+    /// <param name="groundData">The airport layouts the engine resolves.</param>
+    /// <param name="pushPlans">The push-plan store: a server room passes its own to every engine it builds; else a fresh one.</param>
+    /// <param name="logger">The engine's logger; null for the default category.</param>
+    public SimulationEngine(IAirportGroundData groundData, PushPlanStore pushPlans, ILogger? logger = null)
     {
+        World = new SimulationWorld(pushPlans);
         _groundData = groundData;
         _logger = logger ?? SimLog.CreateLogger<SimulationEngine>();
         _bareHost = new BareHost(this);

@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.LiveTraffic;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
@@ -23,7 +24,7 @@ public class LiveTrafficRemovalSuppressionTests
 
     private static SimulationEngine EngineWithShadow()
     {
-        var engine = new SimulationEngine(new TestAirportGroundData())
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped())
         {
             Scenario = new SimScenarioState
             {

@@ -2,6 +2,7 @@ using System.Text.Json;
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.ControllerAi;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Scenarios;
 using Yaat.Sim.Simulation;
@@ -129,7 +130,7 @@ public class TrackResolverTests
         TrackOwner o90Approach = Twin("BAY_B_APP", "O90");
         TrackOwner o90Tower = Twin("OAK_TWR", "O90");
         SimScenarioState scenario = Scenario(Twin("OAK_TWR", "NCT"), new Tcp(3, "O", "tcp-3o", null), _zoa);
-        var world = new SimulationWorld();
+        var world = new SimulationWorld(PushPlanStore.CreateShipped());
         AircraftState ac = new()
         {
             Callsign = "UAL1",

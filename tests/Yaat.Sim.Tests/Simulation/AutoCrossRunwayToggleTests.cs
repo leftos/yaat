@@ -2,6 +2,7 @@ using Xunit;
 using Yaat.Sim;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
@@ -95,7 +96,7 @@ public class AutoCrossRunwayToggleTests(ITestOutputHelper output)
     [Fact]
     public void World_ApplyAutoCrossToActiveTaxiRoutes_UpdatesEveryTaxiingAircraft()
     {
-        var world = new SimulationWorld();
+        var world = new SimulationWorld(PushPlanStore.CreateShipped());
         var ac1 = new AircraftState { Callsign = "A1", AircraftType = "C172" };
         ac1.Ground.AssignedTaxiRoute = MakeRoute(MakeHs(100, HoldShortReason.RunwayCrossing, isCleared: false));
         var ac2 = new AircraftState { Callsign = "A2", AircraftType = "C172" };
@@ -138,7 +139,7 @@ public class AutoCrossRunwayToggleTests(ITestOutputHelper output)
 
         var groundData = new TestAirportGroundData();
         SimLogBuilder.CreateForTest(output).InitializeSimLog();
-        var engine = new SimulationEngine(groundData);
+        var engine = new SimulationEngine(groundData, PushPlanStore.CreateShipped());
 
         engine.Replay(recording, 673);
 
@@ -201,7 +202,7 @@ public class AutoCrossRunwayToggleTests(ITestOutputHelper output)
 
         var groundData = new TestAirportGroundData();
         SimLogBuilder.CreateForTest(output).InitializeSimLog();
-        var engine = new SimulationEngine(groundData);
+        var engine = new SimulationEngine(groundData, PushPlanStore.CreateShipped());
 
         engine.Replay(recording, 673);
 

@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation;
@@ -48,7 +49,7 @@ public class Edg320Sig4JetTaxiOutTests(ITestOutputHelper output)
         GroundNode? origin = layout.FindParkingByName("SIG4");
         Assert.NotNull(origin);
 
-        var engine = new SimulationEngine(groundData);
+        var engine = new SimulationEngine(groundData, PushPlanStore.CreateShipped());
         var aircraft = new AircraftState
         {
             Callsign = "EDG320",

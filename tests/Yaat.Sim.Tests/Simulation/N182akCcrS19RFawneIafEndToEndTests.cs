@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Xunit;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases.Approach;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
@@ -39,7 +40,7 @@ public class N182akCcrS19RFawneIafEndToEndTests(ITestOutputHelper output)
         var groundData = new TestAirportGroundData();
         SimLogBuilder.CreateForTest(output).EnableCategory("ApproachCommandHandler", LogLevel.Debug).InitializeSimLog();
 
-        return new SimulationEngine(groundData);
+        return new SimulationEngine(groundData, PushPlanStore.CreateShipped());
     }
 
     [Fact]

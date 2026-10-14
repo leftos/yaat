@@ -2,6 +2,7 @@ using Yaat.Sim.ControllerAi;
 using Yaat.Sim.ControllerAi.Brains;
 using Yaat.Sim.ControllerAi.Knowledge;
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
@@ -71,7 +72,7 @@ internal static class AiTestFixture
         Func<AiPositionConfig, IPositionBrain> brainFor
     )
     {
-        var engine = new SimulationEngine(new TestAirportGroundData());
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
         List<string> warnings = engine.LoadScenario(scenarioJson, seed, MagneticDeclination.EvaluationDateUtc);
         if (warnings.Any(w => w.Contains("error", StringComparison.OrdinalIgnoreCase)))
         {

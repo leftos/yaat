@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Xunit;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
@@ -74,7 +75,7 @@ public class SessionClockTests
     [Fact]
     public void LoadScenario_PinsTheInstant_AndSimTimeAdvancesWithElapsed()
     {
-        var engine = new SimulationEngine(new TestAirportGroundData());
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
         List<string> warnings = engine.LoadScenario(ScenarioJson, 42, Instant);
         Assert.DoesNotContain(warnings, w => w.Contains("error", StringComparison.OrdinalIgnoreCase));
 
@@ -97,7 +98,7 @@ public class SessionClockTests
         StateSnapshotDto snapshot = engine.CaptureSnapshot();
         Assert.Equal(Day2024, snapshot.Scenario.SessionStartUtc);
 
-        var restored = new SimulationEngine(new TestAirportGroundData());
+        var restored = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
         restored.LoadScenario(ScenarioJson, 42, Day2026);
         restored.RestoreFromSnapshot(snapshot);
         Assert.Equal(Day2024, restored.Scenario!.MagneticModelDateUtc);
@@ -105,7 +106,7 @@ public class SessionClockTests
         string legacyJson = JsonSerializer.Serialize(snapshot).Replace("\"SessionStartUtc\":\"2024-06-01T00:00:00Z\"", "\"SessionStartUtc\":null");
         Assert.NotEqual(JsonSerializer.Serialize(snapshot), legacyJson);
         StateSnapshotDto legacy = JsonSerializer.Deserialize<StateSnapshotDto>(legacyJson)!;
-        var legacyEngine = new SimulationEngine(new TestAirportGroundData());
+        var legacyEngine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
         legacyEngine.LoadScenario(ScenarioJson, 42, Day2026);
         legacyEngine.RestoreFromSnapshot(legacy);
         Assert.Equal(Day2026, legacyEngine.Scenario!.MagneticModelDateUtc);
@@ -114,7 +115,7 @@ public class SessionClockTests
     [Fact]
     public void Snapshot_RoundTripsTheInstant_TickPrecise()
     {
-        var engine = new SimulationEngine(new TestAirportGroundData());
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
         engine.LoadScenario(ScenarioJson, 42, Instant);
         StateSnapshotDto snapshot = engine.CaptureSnapshot();
         Assert.Equal(Instant, snapshot.Scenario.SessionStartUtc);
@@ -122,7 +123,7 @@ public class SessionClockTests
         StateSnapshotDto serialized = JsonSerializer.Deserialize<StateSnapshotDto>(JsonSerializer.Serialize(snapshot))!;
         Assert.Equal(Instant, serialized.Scenario.SessionStartUtc);
 
-        var restored = new SimulationEngine(new TestAirportGroundData());
+        var restored = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
         restored.LoadScenario(ScenarioJson, 42, Day2026);
         restored.RestoreFromSnapshot(serialized);
         Assert.Equal(Instant, restored.Scenario!.SessionStartUtc);
@@ -168,7 +169,7 @@ public class SessionClockTests
         SessionRecording recording = archive.ToBaseSessionRecording();
         Assert.Equal(Instant, recording.SessionStartUtc);
 
-        var engine = new SimulationEngine(new TestAirportGroundData());
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
         engine.Replay(recording, 0);
 
         Assert.Equal(Instant, engine.Scenario!.SessionStartUtc);
@@ -188,7 +189,7 @@ public class SessionClockTests
 
     private static SimulationEngine LoadAndTick(DateTime sessionStartUtc)
     {
-        var engine = new SimulationEngine(new TestAirportGroundData());
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
         List<string> warnings = engine.LoadScenario(ScenarioJson, 42, sessionStartUtc);
         Assert.DoesNotContain(warnings, w => w.Contains("error", StringComparison.OrdinalIgnoreCase));
         engine.TickOneSecond();

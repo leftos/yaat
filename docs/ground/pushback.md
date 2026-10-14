@@ -258,6 +258,14 @@ The precompute cache ([CONTEXT.md](../../CONTEXT.md) *Precompute cache*) stores,
   It sweeps the path against the parked or held neighbours within reach of it, whatever the target's goal. The sweep is `TugNeighbourSweep`, the same body `TugMovePlanner` and `GroundConflictDetector` hold a candidate or a tow to.
 
   The verdict is Clear, Blocked (the callsign of the first neighbour along the path whose sweep floor the path falls through, or one the aircraft's outline already touches at its stand, read through `TugParkedNeighbours.FindStartOverlap` with the aircraft footprint) or Unflyable (the re-flown moves do not complete, or end more than half the aircraft's length from the stored end). A target whose last move is a floating-stop line is judged on completion alone. The file is outside `PrecomputeSourceHashes.PushTargetFiles`, so it never stales an entry.
+- **The AI Ground push plan.** AI Ground pushes a jet or turboprop off a `PushBack` stand (`PushOffStandRule`) to the first target of the stand's plan that the live check grades Clear. The plan is read from `PushPlanStore` (`Data/Airport/Precompute/PushPlanStore.cs`), keyed on the layout (by identity), the stand and the design group, and made off the tick: the shipped seed's entry where current, else `PushTargetPlanner.ComputeStand` with the shipped envelopes and the airport sidecars.
+
+  When it is made: a scenario load's prepare and a reload plan every parked push-back stand of the scenario, delayed aircraft included (`PlanParked`, in parallel, through the server's `LoadSeeded`); a spawned aircraft plans its own stand (`PlanSpawned`, from `SimulationEngine.AfterAircraftSpawned`) only while the room's AI Ground is active. Placing a load's aircraft (`AfterLoadedAircraftPlaced`) and a replay plan nothing.
+
+  The store is a derived cache: never snapshotted, and a server room owns one for every engine it builds, so a restart, rewind or restore on the same pinned layouts reuses it.
+
+  A stand whose classification or planning throws is logged and skipped, left unstored; the rule then plans it on the tick (`PlanStand`), the fallback, so a missing plan costs a tick's work, never the push. A stand with no plan, or one whose every target is unflyable or blocked, opens `AiAnomalyKind.PushbackHeld` at the standby that finds it.
+
 - **The submenu.** The ground view's Push back to… submenu is built client-side (`GroundViewModel.GetPushbackTargets`, `GroundViewModel.PushTargets.cs`). For an aircraft at parking, `PushTargetSeed` (`Data/Airport/Precompute/PushTargetSeed.cs`) reads the shipped entry for its stand and design group (`AirplaneDesignGroups.GroupForType`) without materializing the layout, and the live check runs on it at once.
 
   With no usable entry (no file, a file stale offline by `PrecomputeKey.PushTargetsMatchOffline`, no entry for the stand or group), the submenu shows `Computing targets…`.

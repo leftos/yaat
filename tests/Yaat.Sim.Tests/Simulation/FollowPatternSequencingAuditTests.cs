@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Approach;
 using Yaat.Sim.Phases.Pattern;
@@ -975,7 +976,7 @@ public class FollowPatternSequencingAuditTests
     public void DownwindFollower_OfIlsLeadOnFiveMileFinal_TurnsBaseBehindIt()
     {
         RunwayInfo rwy = Oak28R();
-        var engine = new SimulationEngine(new TestAirportGroundData());
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
         AircraftState lead = ApproachLead(rwy, 5.0);
         engine.World.AddAircraft(lead);
 
@@ -1062,7 +1063,7 @@ public class FollowPatternSequencingAuditTests
     public void UpwindFollower_BehindReenteringGoAroundLead_DoesNotTurnBaseAheadOfIt()
     {
         RunwayInfo rwy = Oak28R();
-        var engine = new SimulationEngine(new TestAirportGroundData());
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
         PatternWaypoints wp = PistonWaypoints(rwy, PatternDirection.Right);
         var der = new LatLon(wp.CrosswindTurnLat, wp.CrosswindTurnLon);
 

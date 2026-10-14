@@ -1,5 +1,6 @@
 using Xunit;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Scenarios;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.ControllerAi;
@@ -115,7 +116,7 @@ public class AutoTrackStepTests
             return;
         }
 
-        var engine = new SimulationEngine(groundData);
+        var engine = new SimulationEngine(groundData, PushPlanStore.CreateShipped());
         engine.LoadScenario(File.ReadAllText(OakArrivalGeneratorsScenario), rngSeed: 42, sessionStartUtc: MagneticDeclination.EvaluationDateUtc);
 
         // The generators in this scenario carry an autoTrackConfiguration whose position id resolves through the

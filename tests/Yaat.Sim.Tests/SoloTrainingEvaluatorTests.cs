@@ -2,6 +2,7 @@ using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Data.Airspace;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
@@ -510,7 +511,10 @@ public sealed class SoloTrainingEvaluatorTests
     public void SendCommand_StructuredRtisRecordsTrafficAdvisoryProofIntoEvaluator()
     {
         (AircraftState? a, AircraftState? b) = CreateClosingIfrPair();
-        var engine = new SimulationEngine(new TestAirportGroundData()) { Scenario = NewScenario(soloTrainingMode: true, elapsedSeconds: 5) };
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped())
+        {
+            Scenario = NewScenario(soloTrainingMode: true, elapsedSeconds: 5),
+        };
         engine.World.AddAircraft(a);
         engine.World.AddAircraft(b);
 
@@ -526,7 +530,7 @@ public sealed class SoloTrainingEvaluatorTests
     [Fact]
     public void Replay_StructuredRtisRecordsTrafficAdvisoryProofUsingFullSnapshot()
     {
-        var engine = new SimulationEngine(new TestAirportGroundData());
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
         var recording = new SessionRecording
         {
             ScenarioJson = BuildReplayProofScenarioJson(),
@@ -572,7 +576,10 @@ public sealed class SoloTrainingEvaluatorTests
                 FinalApproachCourse = runway.TrueHeading,
             },
         };
-        var engine = new SimulationEngine(new TestAirportGroundData()) { Scenario = NewScenario(soloTrainingMode: true, elapsedSeconds: 5) };
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped())
+        {
+            Scenario = NewScenario(soloTrainingMode: true, elapsedSeconds: 5),
+        };
         engine.World.AddAircraft(aircraft);
         engine.World.AddAircraft(other);
 

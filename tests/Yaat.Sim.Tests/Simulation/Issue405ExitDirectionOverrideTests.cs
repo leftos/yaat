@@ -2,6 +2,7 @@ using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
@@ -117,7 +118,7 @@ public class Issue405ExitDirectionOverrideTests(ITestOutputHelper output)
 
         SimLogBuilder.CreateForTest(output).InitializeSimLog();
 
-        var engine = new SimulationEngine(new TestAirportGroundData());
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
 
         double reciprocal = (rwy26R.TrueHeading.Degrees + 180) % 360;
         (double acLat, double acLon) = GeoMath.ProjectPointRaw(rwy26R.ThresholdLatitude, rwy26R.ThresholdLongitude, reciprocal, 1.0);

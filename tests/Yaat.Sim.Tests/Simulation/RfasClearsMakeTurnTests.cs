@@ -1,5 +1,6 @@
 using Xunit;
 using Yaat.Sim;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
@@ -48,7 +49,7 @@ public class RfasClearsMakeTurnTests(ITestOutputHelper output)
         var groundData = RecordingGroundData.Evergreen("RFAS keeping a 360 in progress");
         SimLogBuilder.CreateForTest(output).InitializeSimLog();
 
-        return new SimulationEngine(groundData);
+        return new SimulationEngine(groundData, PushPlanStore.CreateShipped());
     }
 
     /// <summary>

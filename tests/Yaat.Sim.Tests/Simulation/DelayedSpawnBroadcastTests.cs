@@ -1,5 +1,6 @@
 ﻿using Xunit;
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Scenarios;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
@@ -8,7 +9,7 @@ namespace Yaat.Sim.Tests.Simulation;
 
 public class DelayedSpawnBroadcastTests
 {
-    private static SimulationEngine BuildEngine() => new(new NullGroundData());
+    private static SimulationEngine BuildEngine() => new(new NullGroundData(), PushPlanStore.CreateShipped());
 
     private static void SetupScenarioWithDelayedSpawns(SimulationEngine engine, params int[] spawnAtSeconds)
     {

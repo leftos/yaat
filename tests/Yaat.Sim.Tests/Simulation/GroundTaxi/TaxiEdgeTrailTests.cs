@@ -2,6 +2,7 @@ using System.Text.Json;
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
@@ -535,7 +536,7 @@ public class TaxiEdgeTrailTests(ITestOutputHelper output)
     private SimulationEngine NewEngine(TestAirportGroundData groundData, bool autoCross)
     {
         SimLogBuilder.CreateForTest(output).InitializeSimLog();
-        return new SimulationEngine(groundData)
+        return new SimulationEngine(groundData, PushPlanStore.CreateShipped())
         {
             Scenario = new SimScenarioState
             {

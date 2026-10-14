@@ -1,6 +1,7 @@
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
@@ -35,7 +36,7 @@ public class OakHsDirectionalHintTests(ITestOutputHelper output)
 
         var groundData = RecordingGroundData.Evergreen("an HS taxiway steering the route");
         SimLogBuilder.CreateForTest(output).InitializeSimLog();
-        return new SimulationEngine(groundData);
+        return new SimulationEngine(groundData, PushPlanStore.CreateShipped());
     }
 
     private static bool HasUnauthorizedWarning(TaxiRoute route) =>

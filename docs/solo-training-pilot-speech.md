@@ -169,6 +169,10 @@ The taxiway's name is kept as `AircraftGroundOps.SpawnTaxiway`; a parking spawn 
 **The ground calls.** Each call waits its own delay and then goes through `InitialCallupCall.TryMake`: the pacing rate must be above zero, someone must answer ground at the airport, and a pacing slot must be free (otherwise it retries next tick); the call queues the line, records a `Taxi` pending request and marks the decision processed (`InitialCallupDecisionProcessed`).
 
 - **Stand call** (`StandCall`, `AtParkingPhase`): 5 s after the phase starts (`ReadyToTaxiDelaySeconds`), from the stand ("at gate F8", "at parking GA13"), else from the spawn taxiway ("on taxiway K"), else "at the ramp".
+
+  A jet or turboprop on a `PushBack` stand (`ParkedStandDeparture.Of`) asks for a push instead (`InitialCallupCall.RequestsPushback`): "request pushback", recorded as a `Pushback` pending request. The plan re-arms as `AfterPush` with the decision still open, so the after-push ready-to-taxi call follows the push.
+
+  A piston, a helicopter and any aircraft on an `Either` or `TaxiOut` stand still call "ready to taxi". AI Ground answers the request with a recorded `PUSH`; a `TAXI` straight off the stand answers it too, and `AtParkingPhase.OnEnd` then drops the owed after-push call.
 - **After-push call** (`AfterPush`): the crew's post-push setup delay — jet 90 s, turboprop 60 s, piston and helicopter 30 s (`InitialCallupCall.PostPushSetupDelaySeconds`) — from the start of `HoldingAfterPushbackPhase`, naming the spot the tow ended on ("at spot 5") or the stand it left ("pushed back from gate F8").
 
   A tow that ends on another stand calls from `AtParkingPhase` there after the same delay, as a stand call from the new stand; an after-push aircraft still at its spawn stand never calls.
@@ -287,11 +291,11 @@ public record CommandResult(bool Success, string? Message = null, CanonicalComma
 - `SatisfyOpenRequest(aircraft, kind)` — answers the open request of one kind by an action that is not an aircraft command and so never passes `ApplyControllerResponse`: a release (`REL`, `HFROFF`, in `HeldReleaseService`) answers a `Release` request, a PDC sent by `TDLSS` (`TdlsCommandHandler.HandleSend`) a `Clearance` request. An open request of any other kind is left alone.
 - `TryQueueFollowUp(nowSeconds)` — called from `PilotProactive.TickPendingRequests` each tick. Re-queues both stored forms (`LastPilotLine` + `LastPilotLineTts`) via the `PilotSpeechText` overload after 120 s normally, 90 s after `STBY`/`ROGER` (`AcknowledgePilotContactCommand`). The shorter STBY/ROGER delay reflects that a bare acknowledgment isn't substantive direction — a pilot expecting a clearance won't sit silent for several minutes after only "roger".
 
-  `Taxi`, `Takeoff`, `Clearance` and `Release` are surface-only kinds: an airborne aircraft closes them as `Superseded` instead of following up, so no one re-announces "holding short … ready for departure" from 3000 ft.
+  `Taxi`, `Pushback`, `Takeoff`, `Clearance` and `Release` are surface-only kinds: an airborne aircraft closes them as `Superseded` instead of following up, so no one re-announces "holding short … ready for departure" from 3000 ft.
 
-  A `Taxi` or `Clearance` request is also closed as `Superseded` once the aircraft is in any phase but one where a pilot still waits for a taxi clearance (`AtParkingPhase`, `HoldingAfterPushbackPhase`, `HoldingAfterExitPhase`, `HoldingInPositionPhase`, or `HoldingShortPhase` at a bar that protects no runway), so an aircraft taxiing or following never repeats "at parking GA16 … ready to taxi" from the taxiway.
+  A `Taxi`, `Pushback` or `Clearance` request is also closed as `Superseded` once the aircraft is in any phase but one where a pilot still waits for a taxi clearance (`AtParkingPhase`, `HoldingAfterPushbackPhase`, `HoldingAfterExitPhase`, `HoldingInPositionPhase`, or `HoldingShortPhase` at a bar that protects no runway), so an aircraft taxiing or following never repeats "at parking GA16 … ready to taxi" from the taxiway.
 
-Seven request kinds: `Taxi`, `Takeoff`, `Landing`, `Approach`, `AirspaceEntry`, `Clearance` (a departure's request to a delivery student) and `Release` (an untowered runway spawn's release request).
+Eight request kinds: `Taxi`, `Pushback` (a jet or turboprop on a push-back stand asking for a push; mapped as Taxi is), `Takeoff`, `Landing`, `Approach`, `AirspaceEntry`, `Clearance` (a departure's request to a delivery student) and `Release` (an untowered runway spawn's release request).
 
 Each maps controller commands to terminal states (e.g. `ClearedForTakeoffCommand` → Satisfied for Takeoff; `FollowGroundCommand`, like any taxi or push, → Satisfied for Taxi; `SquawkCommand` / `RandomSquawkCommand` / `SquawkVfrCommand` → Satisfied for Clearance; `ExpectApproachCommand` → Standby for Approach; `LineUpAndWaitCommand` → Superseded for Takeoff). A `Release` request is answered only through `SatisfyOpenRequest`.
 

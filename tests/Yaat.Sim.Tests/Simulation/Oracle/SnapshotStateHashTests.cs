@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json.Nodes;
 using Xunit;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Oracle;
 using Yaat.Sim.Simulation.Snapshots;
@@ -68,7 +69,7 @@ public class SnapshotStateHashTests
     public void RealSnapshot_HashesStablyAcrossCallsAndSerializations()
     {
         TestVnasData.EnsureInitialized();
-        var engine = new SimulationEngine(new TestAirportGroundData());
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
         engine.LoadScenario(AiTestFixture.ParkedAtOak, 1, MagneticDeclination.EvaluationDateUtc);
         StateSnapshotDto snapshot = engine.CaptureSnapshot();
 

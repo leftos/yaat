@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
@@ -48,7 +49,10 @@ public class FlightPlanCommandReplayKeepsPhaseTests(ITestOutputHelper output)
         using (archive)
         {
             SimLogBuilder.CreateForTest(output).InitializeSimLog();
-            var engine = new SimulationEngine(RecordingGroundData.Evergreen("a replayed flight-plan amendment keeping the hover phase"));
+            var engine = new SimulationEngine(
+                RecordingGroundData.Evergreen("a replayed flight-plan amendment keeping the hover phase"),
+                PushPlanStore.CreateShipped()
+            );
             SessionRecording recording = archive.ToBaseSessionRecording();
             engine.Replay(recording, 0);
 

@@ -1,5 +1,6 @@
 using Xunit;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Scenarios;
 using Yaat.Sim.Simulation;
@@ -43,7 +44,7 @@ public class IssueReplayDivergenceFromT0Tests
             },
         };
 
-        var engine = new SimulationEngine(new TestAirportGroundData()) { Scenario = scenario };
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped()) { Scenario = scenario };
         engine.World.AddAircraft(aircraft);
         engine.Actions.Apply(new RecordedCommand(0, "KFB7", "AS 3Y ACCEPT", "XX", ""));
 
@@ -69,7 +70,7 @@ public class IssueReplayDivergenceFromT0Tests
             Cid = "913",
         };
 
-        var engine = new SimulationEngine(new TestAirportGroundData()) { Scenario = scenario };
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped()) { Scenario = scenario };
         engine.World.AddAircraft(aircraft);
         engine.Actions.Apply(new RecordedCommand(0, "", "AS 3Y", "XX", "conn-A"));
         engine.Actions.Apply(new RecordedCommand(0, "KFB7", "TRACK", "XX", "conn-A"));

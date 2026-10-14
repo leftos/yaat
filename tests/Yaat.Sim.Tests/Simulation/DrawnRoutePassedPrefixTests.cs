@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Xunit;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
@@ -62,7 +63,10 @@ public class DrawnRoutePassedPrefixTests(ITestOutputHelper output)
             .EnableCategory("TaxiPathfinder", LogLevel.Debug)
             .InitializeSimLog();
 
-        return new SimulationEngine(RecordingGroundData.Evergreen("a drawn route whose leading nodes were already passed, on today's OAK ids"));
+        return new SimulationEngine(
+            RecordingGroundData.Evergreen("a drawn route whose leading nodes were already passed, on today's OAK ids"),
+            PushPlanStore.CreateShipped()
+        );
     }
 
     private TaxiRoute? ResolveDrawnRoute()

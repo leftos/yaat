@@ -1,5 +1,6 @@
 using Xunit;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
@@ -31,7 +32,7 @@ public class GiveWayInTrailReleaseTests(ITestOutputHelper output)
 
         using (archive)
         {
-            var engine = new SimulationEngine(groundData);
+            var engine = new SimulationEngine(groundData, PushPlanStore.CreateShipped());
             engine.Replay(archive.ToBaseSessionRecording(), 0);
             TimedSnapshot snapshot = Assert.IsType<TimedSnapshot>(archive.ReadSnapshotAt(345));
             engine.RestoreFromSnapshot(snapshot.State);

@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Tower;
 
@@ -98,7 +99,7 @@ public class LandingPhaseStabilizationDiagnosticTests(ITestOutputHelper output)
     {
         RunwayInfo rwy = MakeRunway();
         AircraftState ac = MakeAircraftOnFinal(rwy, agl: 200, ias: 200, bank: 0, vs: -700, xteNm: 0);
-        var world = new SimulationWorld();
+        var world = new SimulationWorld(PushPlanStore.CreateShipped());
         world.AddAircraft(ac);
 
         string? warning = RunUntilGoAround(world);
@@ -114,7 +115,7 @@ public class LandingPhaseStabilizationDiagnosticTests(ITestOutputHelper output)
         RunwayInfo rwy = MakeRunway();
         // B738 Vref ~140; 1.3·Vref = 182. IAS=200 trips speed gate only.
         AircraftState ac = MakeAircraftOnFinal(rwy, agl: 200, ias: 200, bank: 0, vs: -700, xteNm: 0);
-        var world = new SimulationWorld();
+        var world = new SimulationWorld(PushPlanStore.CreateShipped());
         world.AddAircraft(ac);
 
         string? warning = RunUntilGoAround(world);
@@ -130,7 +131,7 @@ public class LandingPhaseStabilizationDiagnosticTests(ITestOutputHelper output)
         RunwayInfo rwy = MakeRunway();
         // 0.15 nm = ~911 ft, comfortably above 0.08 nm threshold.
         AircraftState ac = MakeAircraftOnFinal(rwy, agl: 200, ias: 140, bank: 0, vs: -700, xteNm: 0.15);
-        var world = new SimulationWorld();
+        var world = new SimulationWorld(PushPlanStore.CreateShipped());
         world.AddAircraft(ac);
 
         string? warning = RunUntilGoAround(world);
@@ -150,7 +151,7 @@ public class LandingPhaseStabilizationDiagnosticTests(ITestOutputHelper output)
         // the turn completes (~3 sec at dt=0.25), tripping the bank gate.
         AircraftState ac = MakeAircraftOnFinal(rwy, agl: 100, ias: 140, bank: 0, vs: 0, xteNm: 0);
         ac.TrueHeading = rwy.TrueHeading + 10.0;
-        var world = new SimulationWorld();
+        var world = new SimulationWorld(PushPlanStore.CreateShipped());
         world.AddAircraft(ac);
 
         string? warning = RunUntilGoAround(world);
@@ -172,7 +173,7 @@ public class LandingPhaseStabilizationDiagnosticTests(ITestOutputHelper output)
         // trips on the steep VS before the aircraft captures the path.
         AircraftState ac = MakeAircraftOnFinal(rwy, agl: 500, ias: 140, bank: 0, vs: -1500, xteNm: 0);
         ac.Targets.DesiredVerticalRate = -1500;
-        var world = new SimulationWorld();
+        var world = new SimulationWorld(PushPlanStore.CreateShipped());
         world.AddAircraft(ac);
 
         string? warning = RunUntilGoAround(world);
@@ -190,7 +191,7 @@ public class LandingPhaseStabilizationDiagnosticTests(ITestOutputHelper output)
         // the glidepath floor lets the forced dive through (see Reason_HighDescent_NamesFpm).
         AircraftState ac = MakeAircraftOnFinal(rwy, agl: 500, ias: 200, bank: 0, vs: -1500, xteNm: 0.15);
         ac.Targets.DesiredVerticalRate = -1500; // force FlightPhysics to keep VS at -1500 fpm
-        var world = new SimulationWorld();
+        var world = new SimulationWorld(PushPlanStore.CreateShipped());
         world.AddAircraft(ac);
 
         string? warning = RunUntilGoAround(world);

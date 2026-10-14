@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Xunit;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Actions;
@@ -138,7 +139,7 @@ public class DeferredStripIdDeterminismTests
         List<string> liveIds = StripIds(engine);
         Assert.Equal(spawned + 2, liveIds.Count);
 
-        var replayed = new SimulationEngine(new TestAirportGroundData());
+        var replayed = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
         replayed.Replay(Recording(engine), engine.Scenario!.ElapsedSeconds);
 
         Assert.Equal(liveIds, StripIds(replayed));
@@ -236,7 +237,7 @@ public class DeferredStripIdDeterminismTests
         List<string> expected = [$"HSTRIP_{Callsign}_{firedAt}_1", $"STRIP_{Callsign}_{firedAt}_0"];
         Assert.Equal(expected, created);
 
-        var replayed = new SimulationEngine(new TestAirportGroundData());
+        var replayed = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
         replayed.Replay(Recording(engine), engine.Scenario!.ElapsedSeconds);
 
         Assert.Equal(expected, [.. StripIds(replayed).Where(id => !beforeFire.Contains(id))]);

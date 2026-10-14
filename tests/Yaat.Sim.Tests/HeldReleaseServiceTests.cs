@@ -1,6 +1,7 @@
 using Xunit;
 using Yaat.Sim;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
@@ -72,7 +73,7 @@ public class HeldReleaseServiceTests
     public void Arm_HoldsOnGroundIfrDeparture()
     {
         SimScenarioState scenario = NewScenario();
-        var world = new SimulationWorld();
+        var world = new SimulationWorld(PushPlanStore.CreateShipped());
         AircraftState ac = ParkedDeparture("N1", "KSJC");
         world.AddAircraft(ac);
 
@@ -88,7 +89,7 @@ public class HeldReleaseServiceTests
     public void Arm_DoesNotHoldVfrDeparture()
     {
         SimScenarioState scenario = NewScenario();
-        var world = new SimulationWorld();
+        var world = new SimulationWorld(PushPlanStore.CreateShipped());
         AircraftState ac = ParkedDeparture("N2", "KSJC", vfr: true);
         world.AddAircraft(ac);
 
@@ -101,7 +102,7 @@ public class HeldReleaseServiceTests
     public void Arm_DoesNotHoldDepartureFromOtherAirport()
     {
         SimScenarioState scenario = NewScenario();
-        var world = new SimulationWorld();
+        var world = new SimulationWorld(PushPlanStore.CreateShipped());
         AircraftState ac = ParkedDeparture("N9", "KPAO");
         world.AddAircraft(ac);
 
@@ -114,7 +115,7 @@ public class HeldReleaseServiceTests
     public void Release_ClearsGroundHold_AndMarksReleased()
     {
         SimScenarioState scenario = NewScenario(elapsed: 50);
-        var world = new SimulationWorld();
+        var world = new SimulationWorld(PushPlanStore.CreateShipped());
         AircraftState ac = ParkedDeparture("N3", "KSJC");
         world.AddAircraft(ac);
         HeldReleaseService.Arm(scenario, world, "SJC");
@@ -131,7 +132,7 @@ public class HeldReleaseServiceTests
     public void Release_ByAirport_ReleasesNextPending()
     {
         SimScenarioState scenario = NewScenario(elapsed: 10);
-        var world = new SimulationWorld();
+        var world = new SimulationWorld(PushPlanStore.CreateShipped());
         AircraftState first = ParkedDeparture("N1", "KSJC", spawnedAt: 1);
         AircraftState second = ParkedDeparture("N2", "KSJC", spawnedAt: 2);
         world.AddAircraft(first);
@@ -150,7 +151,7 @@ public class HeldReleaseServiceTests
     public void Disarm_AutoReleasesHeldGroundDepartures()
     {
         SimScenarioState scenario = NewScenario();
-        var world = new SimulationWorld();
+        var world = new SimulationWorld(PushPlanStore.CreateShipped());
         AircraftState ac = ParkedDeparture("N4", "KSJC");
         world.AddAircraft(ac);
         HeldReleaseService.Arm(scenario, world, "SJC");
@@ -167,7 +168,7 @@ public class HeldReleaseServiceTests
     public void HeldRunwaySpawn_IsHeld_AndAppearsInRundown()
     {
         SimScenarioState scenario = NewScenario(elapsed: 200);
-        var world = new SimulationWorld();
+        var world = new SimulationWorld(PushPlanStore.CreateShipped());
         LoadedAircraft spawn = RunwaySpawn("N5", "KSJC");
         scenario.DelayedQueue.Add(
             new DelayedSpawn
@@ -188,7 +189,7 @@ public class HeldReleaseServiceTests
     public void Release_HeldRunwaySpawn_ReschedulesSpawnWithAirborneJitter()
     {
         SimScenarioState scenario = NewScenario(elapsed: 200);
-        var world = new SimulationWorld();
+        var world = new SimulationWorld(PushPlanStore.CreateShipped());
         LoadedAircraft spawn = RunwaySpawn("N5", "KSJC");
         scenario.DelayedQueue.Add(
             new DelayedSpawn
@@ -216,7 +217,7 @@ public class HeldReleaseServiceTests
     public void Release_WholeQueueWithInterval_EnqueuesSpacedReleases()
     {
         SimScenarioState scenario = NewScenario(elapsed: 0);
-        var world = new SimulationWorld();
+        var world = new SimulationWorld(PushPlanStore.CreateShipped());
         world.AddAircraft(ParkedDeparture("N1", "KSJC", spawnedAt: 1));
         world.AddAircraft(ParkedDeparture("N2", "KSJC", spawnedAt: 2));
         world.AddAircraft(ParkedDeparture("N3", "KSJC", spawnedAt: 3));
@@ -234,7 +235,7 @@ public class HeldReleaseServiceTests
     private static string RundownStatusFor(Phase phase)
     {
         SimScenarioState scenario = NewScenario();
-        var world = new SimulationWorld();
+        var world = new SimulationWorld(PushPlanStore.CreateShipped());
         world.AddAircraft(GroundDeparture("N7", "KSJC", phase, vfr: false, spawnedAt: 0));
         HeldReleaseService.Arm(scenario, world, "SJC");
 
@@ -271,7 +272,7 @@ public class HeldReleaseServiceTests
     public void Release_UnknownAirport_Fails()
     {
         SimScenarioState scenario = NewScenario();
-        var world = new SimulationWorld();
+        var world = new SimulationWorld(PushPlanStore.CreateShipped());
 
         HeldReleaseResult result = HeldReleaseService.Release(scenario, world, new SerializableRandom(0), "SJC", null);
 

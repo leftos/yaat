@@ -3,6 +3,7 @@ using Yaat.Sim.Commands;
 using Yaat.Sim.ControllerAi.Rules;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Approach;
@@ -396,7 +397,7 @@ public class SituationFlagCalculatorTests
     [Fact]
     public void InsideFaf_OnMissedApproach_IsClear()
     {
-        var engine = new SimulationEngine(new TestAirportGroundData());
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
         var ac = new AircraftState
         {
             Callsign = "N123",

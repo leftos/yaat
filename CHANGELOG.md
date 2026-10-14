@@ -10,6 +10,7 @@
 
 ### Changed
 
+- A jet or turboprop parked at a push-back stand asks "request pushback" instead of calling ready to taxi; `PUSH` or `TAXI` answers it.
 - The right-click menu names the pointed quick-command icon in the line under its title, with no gap above the icons, and Command… and Note… follow the icons.
 - Release (HFR) and Check release window are the first icons in the menu's quick-command strip, also on a delayed spawn's menu.
 - Give way to… and Follow… open live flyouts of nearby ground traffic, refreshed each second; Follow adds a filter, and an empty list says why.
@@ -28,6 +29,7 @@
 - After loading a recording, "No landing clnc" follows the recording's session, not your Auto Cleared-to-Land preference.
 - `TAXI` and `TAXIAUTO` during the landing rollout take the exit the route implies and roll on into the route, instead of jumping the aircraft.
 - With auto-cross turned on mid-session, an arrival still waits for your `CROSS` before re-crossing the runway it landed on.
+- Two aircraft pushing back into each other no longer both stop for good: one keeps pushing while the other holds.
 - The room title's ARTCC label now follows the room when a scenario or recording is loaded or unloaded.
 - In replay, stepping by quarter seconds spawns delayed aircraft and fires timed presets in the same second as stepping by whole seconds.
 - In replay, a recorded live-traffic aircraft appears once, with no extra PDC or printed strip the live session never had.

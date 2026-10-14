@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Xunit;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
@@ -52,7 +53,7 @@ public class EramConflictSuppressionTests
     /// <summary>Both aircraft tracked by one ERAM sector, alongside each other at the same altitude, before any conflict pass.</summary>
     private static SimulationEngine Load()
     {
-        var engine = new SimulationEngine(new TestAirportGroundData());
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
         List<string> warnings = engine.LoadScenario(ScenarioJson, 42, SessionStart);
         Assert.DoesNotContain(warnings, w => w.Contains("error", StringComparison.OrdinalIgnoreCase));
         engine.FindAircraft("AAL100")!.Track.Owner = Sector44;
@@ -376,7 +377,7 @@ public class EramConflictSuppressionTests
         StateSnapshotDto snapshot = engine.CaptureSnapshot();
         StateSnapshotDto serialized = JsonSerializer.Deserialize<StateSnapshotDto>(JsonSerializer.Serialize(snapshot))!;
 
-        var restored = new SimulationEngine(new TestAirportGroundData());
+        var restored = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
         restored.LoadScenario(ScenarioJson, 42, SessionStart);
         restored.RestoreFromSnapshot(serialized);
 

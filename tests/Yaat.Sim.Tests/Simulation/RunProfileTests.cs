@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
@@ -57,7 +58,7 @@ public class RunProfileTests(ITestOutputHelper output)
     [Fact]
     public void BareEngine_IsATestRun()
     {
-        var engine = new SimulationEngine(new TestAirportGroundData());
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
 
         Assert.Same(RunProfile.Test, engine.RunProfile);
     }
@@ -65,7 +66,7 @@ public class RunProfileTests(ITestOutputHelper output)
     [Fact]
     public void EnterReplay_RestoresThePreviousProfile_EvenWhenNested()
     {
-        var engine = new SimulationEngine(new TestAirportGroundData()) { RunProfile = RunProfile.Soak };
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped()) { RunProfile = RunProfile.Soak };
 
         using (engine.EnterReplay())
         {
@@ -191,7 +192,7 @@ public class RunProfileTests(ITestOutputHelper output)
             return null;
         }
 
-        var engine = new SimulationEngine(groundData);
+        var engine = new SimulationEngine(groundData, PushPlanStore.CreateShipped());
         List<string> warnings = engine.LoadScenario(ScenarioJson, rngSeed: 42, sessionStartUtc: MagneticDeclination.EvaluationDateUtc);
         foreach (string w in warnings)
         {

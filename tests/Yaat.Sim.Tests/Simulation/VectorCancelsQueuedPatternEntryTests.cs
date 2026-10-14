@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Xunit;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
@@ -44,7 +45,7 @@ public class VectorCancelsQueuedPatternEntryTests(ITestOutputHelper output)
 
         SimLogBuilder.CreateForTest(output).EnableCategory("CommandDispatcher", LogLevel.Debug).InitializeSimLog();
 
-        return new SimulationEngine(RecordingGroundData.Evergreen("a vector cancelling a queued pattern entry"));
+        return new SimulationEngine(RecordingGroundData.Evergreen("a vector cancelling a queued pattern entry"), PushPlanStore.CreateShipped());
     }
 
     /// <summary>

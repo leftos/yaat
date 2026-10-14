@@ -129,6 +129,7 @@ public static class PilotRequestTracker
             PilotTransmissionKind.Proactive,
             PilotResponder.SourceResponse
         );
+        pending.ReaskedAfterStandby = pending.ResponseState == PilotPendingRequestResponseState.Standby;
         pending.ResponseState = PilotPendingRequestResponseState.None;
         pending.LastRequestedAtSeconds = nowSeconds;
         pending.NextFollowUpDueSeconds = nowSeconds + NormalFollowUpDelaySeconds;
@@ -147,6 +148,7 @@ public static class PilotRequestTracker
         bool surfaceRequest =
             request.Kind
             is PilotPendingRequestKind.Taxi
+                or PilotPendingRequestKind.Pushback
                 or PilotPendingRequestKind.Takeoff
                 or PilotPendingRequestKind.Clearance
                 or PilotPendingRequestKind.Release;
@@ -159,7 +161,7 @@ public static class PilotRequestTracker
         // clearance. An aircraft that is taxiing, following, holding short, or crossing a runway is executing
         // one, so the request is moot and re-announcing "at parking GA16 … ready to taxi" from the taxiway is
         // wrong. A minimal harness with no active phase is left alone.
-        return (request.Kind is PilotPendingRequestKind.Taxi or PilotPendingRequestKind.Clearance)
+        return (request.Kind is PilotPendingRequestKind.Taxi or PilotPendingRequestKind.Pushback or PilotPendingRequestKind.Clearance)
             && (aircraft.Phases?.CurrentPhase is { } phase)
             && !IsWaitingForTaxi(phase);
     }
@@ -170,7 +172,8 @@ public static class PilotRequestTracker
     /// after a runway exit for the taxi-in call (<see cref="HoldingAfterExitPhase"/>), or holding in position
     /// (<see cref="HoldingInPositionPhase"/>), or holding short of a taxiway or spot bar (<see cref="HoldingShortPhase"/>
     /// at a bar that protects no runway), where a spawn's preset taxi can end and its delayed call opens the request. Any
-    /// other ground phase means the aircraft is already moving on one. Asked only of an open Taxi or Clearance request.
+    /// other ground phase means the aircraft is already moving on one. Asked only of an open Taxi, Pushback or Clearance
+    /// request.
     /// </summary>
     private static bool IsWaitingForTaxi(Phase phase) =>
         phase
@@ -183,7 +186,9 @@ public static class PilotRequestTracker
     private static PilotPendingRequestResponseState ResolveResponse(PilotPendingRequestKind kind, ParsedCommand command) =>
         kind switch
         {
-            PilotPendingRequestKind.Taxi => command switch
+            // A pushback request is answered by the push, and as a ready-to-taxi request is by anything else that clears the
+            // aircraft off its stand: a TAXI straight off a push-back stand answers it too.
+            PilotPendingRequestKind.Taxi or PilotPendingRequestKind.Pushback => command switch
             {
                 PushbackCommand
                 or PushbackMultiCommand

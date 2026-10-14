@@ -1,5 +1,6 @@
 using Xunit;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
@@ -39,7 +40,7 @@ public class GoAroundClearsNoLandingClearanceFlashTests(ITestOutputHelper output
         var groundData = RecordingGroundData.Evergreen("a go-around clearing the no-landing-clearance flash");
         SimLogBuilder.CreateForTest(output).InitializeSimLog();
 
-        return new SimulationEngine(groundData);
+        return new SimulationEngine(groundData, PushPlanStore.CreateShipped());
     }
 
     [Fact]

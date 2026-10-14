@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Xunit;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Eram;
@@ -206,7 +207,7 @@ public class EramCrrGroupStepTests
 
         SessionRecording recording = Recording(engine);
 
-        var replayed = new SimulationEngine(new TestAirportGroundData());
+        var replayed = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
         replayed.Replay(recording, engine.Scenario!.ElapsedSeconds + 5);
 
         Assert.Equal(live, Assert.Single(replayed.CrrGroups.Values));

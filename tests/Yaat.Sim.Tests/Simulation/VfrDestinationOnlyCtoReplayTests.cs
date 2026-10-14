@@ -1,5 +1,6 @@
 using Xunit;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
@@ -41,7 +42,7 @@ public class VfrDestinationOnlyCtoReplayTests(ITestOutputHelper output)
         }
 
         SimLogBuilder.CreateForTest(output).InitializeSimLog();
-        return new SimulationEngine(RecordingGroundData.Evergreen("CTO for a destination-only VFR plan"));
+        return new SimulationEngine(RecordingGroundData.Evergreen("CTO for a destination-only VFR plan"), PushPlanStore.CreateShipped());
     }
 
     [Fact]

@@ -1,5 +1,6 @@
 using Xunit;
 using Yaat.Sim;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Tests;
@@ -35,7 +36,7 @@ public class HasBeenAirborneTests
     [Fact]
     public void Tick_AirborneAircraft_LatchesHasBeenAirborne()
     {
-        var world = new SimulationWorld();
+        var world = new SimulationWorld(PushPlanStore.CreateShipped());
         AircraftState ac = MakeAircraft(onGround: false);
         world.AddAircraft(ac);
         Assert.False(ac.HasBeenAirborne);
@@ -48,7 +49,7 @@ public class HasBeenAirborneTests
     [Fact]
     public void Tick_GroundAircraft_DoesNotSetHasBeenAirborne()
     {
-        var world = new SimulationWorld();
+        var world = new SimulationWorld(PushPlanStore.CreateShipped());
         AircraftState ac = MakeAircraft(onGround: true);
         world.AddAircraft(ac);
 

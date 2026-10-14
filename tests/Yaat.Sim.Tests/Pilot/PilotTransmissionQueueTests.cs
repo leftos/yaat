@@ -1,5 +1,6 @@
 using Xunit;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Pilot;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
@@ -54,7 +55,7 @@ public sealed class PilotTransmissionQueueTests
     [Fact]
     public void DrainReadyPilotTransmissions_DrainsTypedQueueToFrequencyQueue()
     {
-        var world = new SimulationWorld();
+        var world = new SimulationWorld(PushPlanStore.CreateShipped());
         AircraftState aircraft = NewAircraft("SWA123");
         world.AddAircraft(aircraft);
         PilotResponder.QueueSoloPilotReadback(aircraft, "Traffic in sight", PilotResponder.SourceSayReadback);
@@ -73,7 +74,7 @@ public sealed class PilotTransmissionQueueTests
     [Fact]
     public void DrainReadyPilotTransmissions_PrioritizesAwaitedReadback()
     {
-        var world = new SimulationWorld();
+        var world = new SimulationWorld(PushPlanStore.CreateShipped());
         AircraftState proactive = NewAircraft("N200BB");
         AircraftState readback = NewAircraft("N100AA");
         world.AddAircraft(proactive);
@@ -96,7 +97,7 @@ public sealed class PilotTransmissionQueueTests
     [Fact]
     public void DrainReadyPilotTransmissions_AwaitedReadbackTimesOut_OtherTransmissionsResume()
     {
-        var world = new SimulationWorld();
+        var world = new SimulationWorld(PushPlanStore.CreateShipped());
         AircraftState quiet = NewAircraft("N200BB");
         world.AddAircraft(quiet);
         QueueSetupTransmission(quiet, "tower, november two zero zero bravo bravo ready to taxi.", PilotTransmissionKind.Proactive);
@@ -117,7 +118,7 @@ public sealed class PilotTransmissionQueueTests
     [Fact]
     public void DrainReadyPilotTransmissions_ProactiveSetsControllerResponseGate_HoldsOtherPilotProactive()
     {
-        var world = new SimulationWorld();
+        var world = new SimulationWorld(PushPlanStore.CreateShipped());
         AircraftState first = NewAircraft("N100AA");
         AircraftState second = NewAircraft("N200BB");
         world.AddAircraft(first);
@@ -156,7 +157,7 @@ public sealed class PilotTransmissionQueueTests
     [Fact]
     public void DrainReadyPilotTransmissions_ControllerResponseGate_ClearedByAcknowledgeControllerResponse()
     {
-        var world = new SimulationWorld();
+        var world = new SimulationWorld(PushPlanStore.CreateShipped());
         AircraftState first = NewAircraft("N100AA");
         AircraftState second = NewAircraft("N200BB");
         world.AddAircraft(first);
@@ -188,7 +189,7 @@ public sealed class PilotTransmissionQueueTests
     [Fact]
     public void DrainReadyPilotTransmissions_ControllerResponseGate_DoesNotBlockSamePilotFollowUp()
     {
-        var world = new SimulationWorld();
+        var world = new SimulationWorld(PushPlanStore.CreateShipped());
         AircraftState pilot = NewAircraft("N100AA");
         world.AddAircraft(pilot);
         QueueSetupTransmission(
@@ -210,7 +211,7 @@ public sealed class PilotTransmissionQueueTests
     [Fact]
     public void DrainReadyPilotTransmissions_ControllerResponseGate_DoesNotBlockReadbacks()
     {
-        var world = new SimulationWorld();
+        var world = new SimulationWorld(PushPlanStore.CreateShipped());
         AircraftState first = NewAircraft("N100AA");
         AircraftState second = NewAircraft("N200BB");
         world.AddAircraft(first);
@@ -240,7 +241,10 @@ public sealed class PilotTransmissionQueueTests
     [Fact]
     public void SendCommand_SoloTraining_SuccessfulDispatchClearsControllerResponseGate()
     {
-        var engine = new SimulationEngine(new TestAirportGroundData()) { Scenario = NewScenario(soloTrainingMode: true, elapsedSeconds: 2) };
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped())
+        {
+            Scenario = NewScenario(soloTrainingMode: true, elapsedSeconds: 2),
+        };
         AircraftState first = NewAircraft("N100AA");
         AircraftState second = NewAircraft("N200BB");
         engine.World.AddAircraft(first);
@@ -311,7 +315,10 @@ public sealed class PilotTransmissionQueueTests
     [Fact]
     public void SendCommand_SoloTraining_UsesVariedReadbackWithCurrentActivityLevel()
     {
-        var engine = new SimulationEngine(new TestAirportGroundData()) { Scenario = NewScenario(soloTrainingMode: true, elapsedSeconds: 30) };
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped())
+        {
+            Scenario = NewScenario(soloTrainingMode: true, elapsedSeconds: 30),
+        };
         AircraftState aircraft = NewAircraft("N123AB");
         engine.World.AddAircraft(aircraft);
         for (int i = 0; i < 21; i++)
@@ -332,7 +339,10 @@ public sealed class PilotTransmissionQueueTests
     [Fact]
     public void SendCommand_NonSolo_DoesNotQueueVariedReadback()
     {
-        var engine = new SimulationEngine(new TestAirportGroundData()) { Scenario = NewScenario(soloTrainingMode: false, elapsedSeconds: 30) };
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped())
+        {
+            Scenario = NewScenario(soloTrainingMode: false, elapsedSeconds: 30),
+        };
         AircraftState aircraft = NewAircraft("N123AB");
         engine.World.AddAircraft(aircraft);
 
@@ -345,7 +355,10 @@ public sealed class PilotTransmissionQueueTests
     [Fact]
     public void SendCommand_SoloTraining_FailedPilotCommandQueuesUnable()
     {
-        var engine = new SimulationEngine(new TestAirportGroundData()) { Scenario = NewScenario(soloTrainingMode: true, elapsedSeconds: 30) };
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped())
+        {
+            Scenario = NewScenario(soloTrainingMode: true, elapsedSeconds: 30),
+        };
         AircraftState aircraft = NewAircraft("N123AB");
         aircraft.FlightPlan = new AircraftFlightPlan { FlightRules = "VFR" };
         engine.World.AddAircraft(aircraft);
@@ -365,7 +378,10 @@ public sealed class PilotTransmissionQueueTests
     [Fact]
     public void SendCommand_SoloTraining_ParseFailureDoesNotQueueUnable()
     {
-        var engine = new SimulationEngine(new TestAirportGroundData()) { Scenario = NewScenario(soloTrainingMode: true, elapsedSeconds: 30) };
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped())
+        {
+            Scenario = NewScenario(soloTrainingMode: true, elapsedSeconds: 30),
+        };
         AircraftState aircraft = NewAircraft("N123AB");
         engine.World.AddAircraft(aircraft);
 

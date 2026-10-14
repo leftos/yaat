@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Pattern;
@@ -568,7 +569,7 @@ public class OnTheGoConditionTests(ITestOutputHelper output)
 
         SimLogBuilder.CreateForTest(output).EnableCategory("PatternCommandHandler", LogLevel.Debug).InitializeSimLog();
 
-        return new SimulationEngine(RecordingGroundData.Evergreen("OTG holding its command until the climb-out"));
+        return new SimulationEngine(RecordingGroundData.Evergreen("OTG holding its command until the climb-out"), PushPlanStore.CreateShipped());
     }
 
     /// <summary>

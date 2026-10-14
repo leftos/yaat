@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
@@ -521,7 +522,7 @@ public class TaxiwayTurnAboutAimTests(ITestOutputHelper output)
         );
 
         var capture = DebugLogCapture.Install(NodeTurnFromTheOffsetLine);
-        var restoredEngine = new SimulationEngine(new TestAirportGroundData()) { Scenario = live.Engine.Scenario };
+        var restoredEngine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped()) { Scenario = live.Engine.Scenario };
         restoredEngine.RestoreFromSnapshot(Assert.IsType<StateSnapshotDto>(json.Deserialize<StateSnapshotDto>(RecordingJsonOptions.Default)));
         AircraftState restored = Assert.IsType<AircraftState>(restoredEngine.FindAircraft(N152sp));
         TaxiRoute restoredRoute = Assert.IsType<TaxiRoute>(restored.Ground.AssignedTaxiRoute);
@@ -888,13 +889,13 @@ public class TaxiwayTurnAboutAimTests(ITestOutputHelper output)
 
         (LatLon Position, double HeadingDeg) atTaxi = (started.Aircraft.Position, started.Aircraft.TrueHeading.Degrees);
         ReplayUntilNewRoute(started.Engine, started.Aircraft);
-        var engine = new SimulationEngine(new TestAirportGroundData()) { Scenario = started.Engine.Scenario };
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped()) { Scenario = started.Engine.Scenario };
         engine.RestoreFromSnapshot(RoundTrip(started.Engine.CaptureSnapshot()));
         AircraftState aircraft = Assert.IsType<AircraftState>(engine.FindAircraft(N152sp));
         HeldAtNode366 setUp = PutBarOnNode366FromRest(engine, aircraft, atTaxi);
         StateSnapshotDto? picked = TickUntilPicked(engine, s => (aircraft.Phases?.CurrentPhase is not HoldingShortPhase) && capture(s));
         Assert.True(picked is not null, $"N152SP was never {where} before holding short at node {setUp.Junction.Id}");
-        var restoredEngine = new SimulationEngine(new TestAirportGroundData()) { Scenario = engine.Scenario };
+        var restoredEngine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped()) { Scenario = engine.Scenario };
         restoredEngine.RestoreFromSnapshot(RoundTrip(picked));
         AircraftState restored = Assert.IsType<AircraftState>(restoredEngine.FindAircraft(N152sp));
         int seconds = 0;
@@ -1314,7 +1315,7 @@ public class TaxiwayTurnAboutAimTests(ITestOutputHelper output)
             SimLogBuilder.CreateForTest(output).EnableCategory("GroundNavigator", LogLevel.Debug).InitializeSimLog();
         }
 
-        var engine = new SimulationEngine(new TestAirportGroundData());
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
         engine.Replay(recording, TaxiCommandSecond - 1);
         AircraftState aircraft = engine.FindAircraft(N152sp) ?? throw new InvalidOperationException("N152SP is not in the replay");
         if (aircraftType is not null)
@@ -1419,7 +1420,7 @@ public class TaxiwayTurnAboutAimTests(ITestOutputHelper output)
         (SimulationEngine engine, AircraftState aircraft) = live;
         StateSnapshotDto? picked = TickUntilPicked(engine, capture);
         Assert.True(picked is not null, $"N152SP was never {where} within {ReAimTickSeconds}s of its TAXI");
-        var restoredEngine = new SimulationEngine(new TestAirportGroundData()) { Scenario = engine.Scenario };
+        var restoredEngine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped()) { Scenario = engine.Scenario };
         restoredEngine.RestoreFromSnapshot(RoundTrip(picked));
         AircraftState restored = Assert.IsType<AircraftState>(restoredEngine.FindAircraft(N152sp));
         for (int second = 1; second <= SnapshotCompareSeconds; second++)
@@ -1446,7 +1447,7 @@ public class TaxiwayTurnAboutAimTests(ITestOutputHelper output)
         }
 
         AssertRollingPlan(started.Plan, HeldStraightBrakeRateKtsPerSec, holds: true);
-        var engine = new SimulationEngine(new TestAirportGroundData()) { Scenario = started.Engine.Scenario };
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped()) { Scenario = started.Engine.Scenario };
         engine.RestoreFromSnapshot(RoundTrip(started.Engine.CaptureSnapshot()));
         return (engine, Assert.IsType<AircraftState>(engine.FindAircraft(N152sp)));
     }
@@ -1646,7 +1647,7 @@ public class TaxiwayTurnAboutAimTests(ITestOutputHelper output)
         ?? throw new InvalidOperationException($"no taxiway meets {branch.Branch.TaxiwayName} beyond the junction {branch.Junction.Id}");
 
     private static SimulationEngine BuildEngine(string airportId) =>
-        new(new TestAirportGroundData())
+        new(new TestAirportGroundData(), PushPlanStore.CreateShipped())
         {
             Scenario = new SimScenarioState
             {

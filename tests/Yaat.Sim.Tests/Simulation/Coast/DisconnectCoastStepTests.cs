@@ -1,5 +1,6 @@
 using Xunit;
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.LiveTraffic;
 using Yaat.Sim.Simulation;
@@ -420,7 +421,7 @@ public class DisconnectCoastStepTests
 
         // Live: the feed spawns the shadow, loses it (an ERAM coast at 8,000 ft), re-supplies it under the same
         // callsign (the coast clears), then loses it again.
-        var live = new SimulationEngine(new TestAirportGroundData());
+        var live = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
         live.Replay(ShadowRecording(baseline, [], 0), 0);
         live.RunProfile = RunProfile.Live;
         var liveHost = new SpineCapturingHost(live);
@@ -438,11 +439,11 @@ public class DisconnectCoastStepTests
         SessionRecording recording = ShadowRecording(baseline, actions, 6);
 
         // Replay, the public way: the state it ends on.
-        var replay = new SimulationEngine(new TestAirportGroundData());
+        var replay = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
         replay.Replay(recording, 6);
 
         // Replay again under a capturing host wrapped around the replay host, for what the drains hand over.
-        var captured = new SimulationEngine(new TestAirportGroundData());
+        var captured = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
         captured.Replay(ShadowRecording(baseline, [], 0), 0);
         var replayHost = new SpineCapturingHost(new ReplayHost(captured, new RecordedActionPump(actions), applier: null));
         using (captured.EnterReplay())

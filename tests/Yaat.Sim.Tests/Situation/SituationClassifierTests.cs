@@ -3,6 +3,7 @@ using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.LiveTraffic;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Approach;
@@ -143,7 +144,7 @@ public sealed class SituationClassifierTests
     [Fact]
     public void Classify_OnPublishedMissedApproach_IsGoAround()
     {
-        SimulationEngine engine = new(new TestAirportGroundData());
+        SimulationEngine engine = new(new TestAirportGroundData(), PushPlanStore.CreateShipped());
         var ac = new AircraftState
         {
             Callsign = "N123",

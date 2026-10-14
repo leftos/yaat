@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Xunit;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
@@ -26,7 +27,10 @@ public class Issue192MiaGateEntryTests(ITestOutputHelper output)
             .EnableCategory("TaxiPathfinder", LogLevel.Debug)
             .InitializeSimLog();
 
-        return new SimulationEngine(RecordingGroundData.Evergreen("TAXIAUTO to D32 through today's gate-group connector, not taxiway N"));
+        return new SimulationEngine(
+            RecordingGroundData.Evergreen("TAXIAUTO to D32 through today's gate-group connector, not taxiway N"),
+            PushPlanStore.CreateShipped()
+        );
     }
 
     [Fact]

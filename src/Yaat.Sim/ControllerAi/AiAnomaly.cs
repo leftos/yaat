@@ -23,6 +23,13 @@ public enum AiAnomalyKind
 
     /// <summary>The facility's knowledge chose a runway configuration the usability gate refused; the generic rule decided instead (a knowledge-file bug is a finding too).</summary>
     KnowledgeConflict,
+
+    /// <summary>
+    /// A parked aircraft's pushback request this Ground position keeps answering "standby" with no end in sight: its stand
+    /// has no push plan, or every target is unflyable or blocked by aircraft parked and waiting on it, or the push is still
+    /// held at the third standby for the request. The crew waits at the stand; the AI never forces the push.
+    /// </summary>
+    PushbackHeld,
 }
 
 public enum AiAnomalyEventKind

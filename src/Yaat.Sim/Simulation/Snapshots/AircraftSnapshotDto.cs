@@ -264,6 +264,12 @@ public sealed class PilotPendingRequestDto
 
     /// <summary>The parking an arrival's taxi-in request named. Optional: earlier snapshots lack it (clean default null).</summary>
     public string? ParkingName { get; init; }
+
+    /// <summary>
+    /// The last asking was a re-ask after a "standby". Optional: earlier snapshots lack it (clean default false), so no
+    /// SnapshotSchemaMigrator step or SchemaVersion bump is required.
+    /// </summary>
+    public bool ReaskedAfterStandby { get; init; }
 }
 
 public sealed class ApproachScoreDto

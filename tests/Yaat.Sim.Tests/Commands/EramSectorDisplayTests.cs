@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Xunit;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
@@ -121,7 +122,7 @@ public class EramSectorDisplayTests(ITestOutputHelper output)
         }
 
         TestVnasData.EnsureInitialized();
-        var probe = new SimulationEngine(new TestAirportGroundData());
+        var probe = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
         probe.Replay(WithActions(baseline, [], 0), 0);
         string callsign = probe.World.GetSnapshot()[0].Callsign;
 
@@ -134,7 +135,7 @@ public class EramSectorDisplayTests(ITestOutputHelper output)
             new RecordedEramEntry(3, callsign, "DWELL ZOA 44 0", null, null, null, null, null),
         ];
         SessionRecording recording = WithActions(baseline, actions, 5);
-        var replay = new SimulationEngine(new TestAirportGroundData());
+        var replay = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
 
         replay.Replay(recording, 2);
         AircraftEramState at2 = replay.World.FindAircraft(callsign)!.Eram;

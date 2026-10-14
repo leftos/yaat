@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Xunit;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Actions;
@@ -505,7 +506,7 @@ public class AsdexMutationStepTests
 
         SessionRecording recording = Recording(engine);
 
-        var replayed = new SimulationEngine(new TestAirportGroundData());
+        var replayed = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
         replayed.Replay(recording, elapsed + 5);
 
         AircraftStarsState stars = replayed.FindAircraft(Parked)!.Stars;

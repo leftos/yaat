@@ -77,16 +77,19 @@ public sealed class AtParkingPhase : Phase
     /// controller's TAXI or PUSH) never makes it later, and a stand it taxis to starts no new one; likewise for the
     /// after-push call owed on a stand a tow ended on. A tow off the stand carries an uncalled call over itself
     /// (<c>GroundCommandHandler.InstallTugMove</c>), and an after-push aircraft still at its spawn stand and an
-    /// after-arrival one keep theirs, since their call comes after the move this phase ends for.
+    /// after-arrival one keep theirs, since their call comes after the move this phase ends for — except one whose crew
+    /// asked for a push from here: leaving without the tow (a <c>TAXI</c> off the stand) leaves no push to call after.
     /// </summary>
     public override void OnEnd(PhaseContext ctx, PhaseStatus endStatus)
     {
         AircraftGroundOps ground = ctx.Aircraft.Ground;
+        bool afterPushOwed = (ground.InitialCallup == InitialCallupPlan.AfterPush) && !ground.InitialCallupDecisionProcessed;
         bool owedHere =
             (ground.InitialCallup == InitialCallupPlan.StandCall)
-            || (
-                (ground.InitialCallup == InitialCallupPlan.AfterPush) && (ground.PushedBackFrom is not null) && !ground.InitialCallupDecisionProcessed
-            );
+            || (afterPushOwed && (ground.PushedBackFrom is not null))
+            // The pushback request made from this stand armed the after-push call; leaving by anything but a tow (which
+            // carries the call over itself) means there is no push for it to follow.
+            || (afterPushOwed && ground.HasAnnouncedReady);
         if (owedHere)
         {
             Log.LogDebug(

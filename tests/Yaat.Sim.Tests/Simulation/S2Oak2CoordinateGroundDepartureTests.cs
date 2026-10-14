@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
@@ -44,7 +45,7 @@ public class S2Oak2CoordinateGroundDepartureTests
             return null;
         }
 
-        var engine = new SimulationEngine(groundData);
+        var engine = new SimulationEngine(groundData, PushPlanStore.CreateShipped());
         engine.LoadScenario(recording.ScenarioJson, recording.RngSeed, recording.SessionStartUtc ?? MagneticDeclination.EvaluationDateUtc);
         return engine.Scenario is null ? null : engine;
     }

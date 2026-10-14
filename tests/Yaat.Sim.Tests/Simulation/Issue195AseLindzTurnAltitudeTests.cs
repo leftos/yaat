@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
@@ -39,7 +40,7 @@ public class Issue195AseLindzTurnAltitudeTests(ITestOutputHelper output)
         }
 
         SimLogBuilder.CreateForTest(output).InitializeSimLog();
-        return new SimulationEngine(RecordingGroundData.Evergreen("the LINDZ1 turn starting at 400 ft AGL"));
+        return new SimulationEngine(RecordingGroundData.Evergreen("the LINDZ1 turn starting at 400 ft AGL"), PushPlanStore.CreateShipped());
     }
 
     [Fact]

@@ -3,6 +3,7 @@ using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
@@ -63,7 +64,7 @@ public class LineUpPhaseRestoreTests(ITestOutputHelper output)
     private static SimulationEngine? BuildEngine()
     {
         TestVnasData.EnsureInitialized();
-        return TestVnasData.NavigationDb is null ? null : new SimulationEngine(new TestAirportGroundData());
+        return TestVnasData.NavigationDb is null ? null : new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
     }
 
     /// <summary>

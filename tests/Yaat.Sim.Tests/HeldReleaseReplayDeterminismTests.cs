@@ -1,5 +1,6 @@
 using Xunit;
 using Yaat.Sim;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Scenarios;
@@ -50,7 +51,7 @@ public class HeldReleaseReplayDeterminismTests
     public void ReplayRelease_HeldRunwaySpawn_UsesBakedJitter_AndConsumesNoRng()
     {
         SimScenarioState scenario = NewScenario(elapsed: 200);
-        var world = new SimulationWorld();
+        var world = new SimulationWorld(PushPlanStore.CreateShipped());
         LoadedAircraft spawn = RunwaySpawn("N5", "KSJC");
         scenario.DelayedQueue.Add(
             new DelayedSpawn
@@ -79,7 +80,7 @@ public class HeldReleaseReplayDeterminismTests
     public void ReplayRelease_NullBakedJitter_FallsBackDeterministically_NoRng()
     {
         SimScenarioState scenario = NewScenario(elapsed: 200);
-        var world = new SimulationWorld();
+        var world = new SimulationWorld(PushPlanStore.CreateShipped());
         LoadedAircraft spawn = RunwaySpawn("N5", "KSJC");
         scenario.DelayedQueue.Add(
             new DelayedSpawn

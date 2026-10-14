@@ -4,6 +4,7 @@ using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
@@ -699,7 +700,7 @@ public sealed class RunwayExitRestoreTests
 
         SimLogBuilder.CreateForTest(_output).InitializeSimLog();
 
-        var engine = new SimulationEngine(new TestAirportGroundData());
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
         RunwayInfo? runway = NavigationDatabase.Instance.GetRunway("OAK", "30");
         Assert.NotNull(runway);
 
@@ -754,7 +755,7 @@ public sealed class RunwayExitRestoreTests
             livePositions.Add(aircraft.Position);
         }
 
-        var engine2 = new SimulationEngine(new TestAirportGroundData());
+        var engine2 = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
         var restored = AircraftState.FromSnapshot(dto!, layout);
         restored.Ground.Layout = layout;
         engine2.World.AddAircraft(restored);

@@ -1,5 +1,6 @@
 using Xunit;
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
@@ -53,7 +54,7 @@ public class GustyWindConflictNonRegressionTests(ITestOutputHelper output)
         using (archive)
         {
             SessionRecording recording = archive.ToBaseSessionRecording();
-            var engine = new SimulationEngine(new TestAirportGroundData());
+            var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
             engine.Replay(recording, 0);
 
             TimedSnapshot? snapshot = archive.ReadSnapshotAt(RestoreAtSeconds);

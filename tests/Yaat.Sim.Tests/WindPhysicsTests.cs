@@ -1,4 +1,5 @@
 ﻿using Xunit;
+using Yaat.Sim.Data.Airport.Precompute;
 
 namespace Yaat.Sim.Tests;
 
@@ -323,7 +324,7 @@ public class WindPhysicsTests
         // identical positions — the perturbation is a pure function of sim time.
         static SimulationWorld BuildWorld()
         {
-            var world = new SimulationWorld();
+            var world = new SimulationWorld(PushPlanStore.CreateShipped());
             var ac = new AircraftState
             {
                 Callsign = "RPL01",

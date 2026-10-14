@@ -2,6 +2,7 @@ using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
@@ -87,7 +88,7 @@ public class MiaRwy9RolloutExitTests(ITestOutputHelper output)
 
         SimLogBuilder.CreateForTest(output).InitializeSimLog();
 
-        var engine = new SimulationEngine(new TestAirportGroundData());
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
 
         double reciprocal = (rwy9.TrueHeading.Degrees + 180) % 360;
         (double acLat, double acLon) = GeoMath.ProjectPointRaw(rwy9.ThresholdLatitude, rwy9.ThresholdLongitude, reciprocal, 1.0);

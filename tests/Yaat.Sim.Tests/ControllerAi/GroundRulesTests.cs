@@ -1,8 +1,10 @@
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.ControllerAi;
+using Yaat.Sim.ControllerAi.Brains;
 using Yaat.Sim.ControllerAi.Rules;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
@@ -133,6 +135,540 @@ public class GroundRulesTests
         AiCommandRequest request = Assert.Single(probe.Sink.Issued);
         Assert.StartsWith("TAXIAUTO ", request.Canonical, StringComparison.Ordinal);
         Assert.Equal("answer-taxi-out", request.Intent.Rule);
+    }
+
+    /// <summary>
+    /// The defect (YAAT-532): a jet parked on a push-back stand asks Ground for a push, and Ground answers with the
+    /// stand's first clear planned target as a recorded <c>PUSH</c>, which satisfies the request. The crew then reports
+    /// "pushed back from gate" after its setup time, and the ready-to-taxi answer follows as for any pushed aircraft.
+    /// </summary>
+    [Fact]
+    public void GroundBrain_PushbackRequest_AnsweredWithPush_ThenTaxiAuto()
+    {
+        if (_zoa is null)
+        {
+            return;
+        }
+
+        AiPositionConfig ground = TestAiPositions.OakGround(_zoa);
+        SimulationEngine engine = AiTestFixture.Load(JetAt("S7"), _zoa, 7, [ground]);
+        engine.World.Weather = new WeatherProfile { WindLayers = [new WindLayer { Direction = 300, Speed = 12 }] };
+        AircraftState aircraft = PushbackRequested(engine, AiTestFixture.Callsign, 15);
+        // The stand the rule is about: a stand-data change that made S7 anything else must fail here, not silently.
+        Assert.Equal(StandDeparture.PushBack, ParkedStandDeparture.Of(aircraft, engine.ResolveGroundLayout(aircraft)));
+
+        var probe = new RuleProbe(engine, ground);
+        var rule = new PushOffStandRule();
+        double now = engine.Scenario!.ElapsedSeconds;
+
+        // The think time runs from the first evaluation; nothing before it.
+        rule.Evaluate(probe.Scope([aircraft], now));
+        Assert.Empty(probe.Sink.Issued);
+        rule.Evaluate(probe.Scope([aircraft], now + AiPacing.ThinkMaxSeconds));
+        AiCommandRequest push = Assert.Single(probe.Sink.Issued);
+        Assert.StartsWith("PUSH ", push.Canonical, StringComparison.Ordinal);
+        Assert.Equal("push-off-stand", push.Intent.Rule);
+        Assert.StartsWith("pushback requested; PUSH ", push.Intent.Rationale, StringComparison.Ordinal);
+        Assert.Equal(GroundIntent.PushIssued, probe.Memos[AiTestFixture.Callsign].Intent);
+
+        Assert.True(engine.SendCommand(AiTestFixture.Callsign, push.Canonical).Success, push.Canonical);
+        probe.Memos[AiTestFixture.Callsign].Complete(success: true, engine.Scenario!.ElapsedSeconds);
+        Assert.Equal(PilotPendingRequestResponseState.Satisfied, aircraft.PendingPilotRequest!.ResponseState);
+
+        int budget = 400 + (int)InitialCallupCall.PostPushSetupDelaySeconds(AircraftCategory.Jet);
+        AircraftState pushed = AiTestFixture.TickUntil(
+            engine,
+            AiTestFixture.Callsign,
+            ac => ac.PendingPilotRequest is { IsOpen: true, Kind: PilotPendingRequestKind.Taxi },
+            budget
+        );
+        Assert.Contains("pushed back from gate", pushed.PendingPilotRequest!.LastPilotLine, StringComparison.OrdinalIgnoreCase);
+
+        // The push rule has nothing more to do; the pushed aircraft is taxied out as any other is.
+        double after = engine.Scenario!.ElapsedSeconds;
+        rule.Evaluate(probe.Scope([pushed], after));
+        Assert.Single(probe.Sink.Issued);
+        var answer = new AnswerTaxiOutRule();
+        answer.Evaluate(probe.Scope([pushed], after));
+        answer.Evaluate(probe.Scope([pushed], after + AiPacing.ThinkMaxSeconds));
+        AiCommandRequest taxi = probe.Sink.Issued[^1];
+        Assert.StartsWith("TAXIAUTO ", taxi.Canonical, StringComparison.Ordinal);
+        Assert.Equal("answer-taxi-out", taxi.Intent.Rule);
+    }
+
+    /// <summary>
+    /// A stand planned before the tick (<see cref="PushPlanStore.PlanParked"/>, the server's prepare step): the rule's
+    /// first answer is a PUSH read from the store, with no read that misses and so no plan made on the tick.
+    /// </summary>
+    [Fact]
+    public void PushOffStand_StandPlannedBeforeTheTick_PushesWithoutPlanningOnTheTick()
+    {
+        if (_zoa is null)
+        {
+            return;
+        }
+
+        AiPositionConfig ground = TestAiPositions.OakGround(_zoa);
+        SimulationEngine engine = AiTestFixture.Load(JetAt("S7"), _zoa, 7, [ground]);
+        PushPlanStore store = engine.World.PushPlans;
+        Assert.Equal(1, store.PlanParked(engine.World.GetSnapshot(), engine.ResolveGroundLayout, 2));
+        AircraftState aircraft = PushbackRequested(engine, AiTestFixture.Callsign, 15);
+
+        AiCommandRequest push = FirstAnswer(engine, ground, [aircraft]);
+
+        Assert.StartsWith("PUSH ", push.Canonical, StringComparison.Ordinal);
+        Assert.Equal(0, store.Misses);
+        Assert.True(store.Hits >= 1, $"the rule read {store.Hits} plans from the store");
+    }
+
+    /// <summary>
+    /// A stand never planned before the tick: the rule's read misses, so it plans the stand on the tick and stores it,
+    /// and the next read of that stand is a hit.
+    /// </summary>
+    [Fact]
+    public void PushOffStand_StandNeverPlanned_PlansOnTheTickAndStoresIt()
+    {
+        if (_zoa is null)
+        {
+            return;
+        }
+
+        AiPositionConfig ground = TestAiPositions.OakGround(_zoa);
+        SimulationEngine engine = AiTestFixture.Load(JetAt("S7"), _zoa, 7, [ground]);
+        PushPlanStore store = engine.World.PushPlans;
+        AircraftState aircraft = PushbackRequested(engine, AiTestFixture.Callsign, 15);
+
+        AiCommandRequest push = FirstAnswer(engine, ground, [aircraft]);
+
+        Assert.StartsWith("PUSH ", push.Canonical, StringComparison.Ordinal);
+        Assert.Equal(1, store.Misses);
+        AirportGroundLayout layout = engine.ResolveGroundLayout(aircraft)!;
+        int hits = store.Hits;
+        Assert.True(store.TryGet(layout, "S7", AirplaneDesignGroups.GroupForType("B738"), out PushTargetEntry? stored));
+        Assert.NotNull(stored);
+        Assert.Equal(hits + 1, store.Hits);
+        Assert.Equal(1, store.Misses);
+    }
+
+    /// <summary>A piston is out of the rule's scope: a C172 on the same push-back stand asks to taxi and is never pushed.</summary>
+    [Fact]
+    public void GroundBrain_ParkedPushBackStand_PistonIsNotPushed()
+    {
+        if (_zoa is null)
+        {
+            return;
+        }
+
+        AiPositionConfig ground = TestAiPositions.OakGround(_zoa);
+        SimulationEngine engine = AiTestFixture.Load(ParkedAt("S7", "C172", "100"), _zoa, 7, [ground]);
+        AircraftState aircraft = AiTestFixture.TickUntil(engine, AiTestFixture.Callsign, ac => ac.PendingPilotRequest is { IsOpen: true }, 15);
+        Assert.Equal(StandDeparture.PushBack, ParkedStandDeparture.Of(aircraft, engine.ResolveGroundLayout(aircraft)));
+        Assert.Equal(PilotPendingRequestKind.Taxi, aircraft.PendingPilotRequest!.Kind);
+        AssertRuleIssuesNothing(engine, ground, aircraft);
+    }
+
+    /// <summary>A taxi-out stand keeps today's direct taxi-out: the crew asks to taxi and Ground never pushes it.</summary>
+    [Fact]
+    public void GroundBrain_ParkedTaxiOutStand_JetIsNotPushed()
+    {
+        if (_zoa is null)
+        {
+            return;
+        }
+
+        AiPositionConfig ground = TestAiPositions.OakGround(_zoa);
+        SimulationEngine engine = AiTestFixture.Load(JetAt("SIG4"), _zoa, 7, [ground]);
+        AircraftState aircraft = AiTestFixture.TickUntil(engine, AiTestFixture.Callsign, ac => ac.PendingPilotRequest is { IsOpen: true }, 15);
+        Assert.Equal(StandDeparture.TaxiOut, ParkedStandDeparture.Of(aircraft, engine.ResolveGroundLayout(aircraft)));
+        Assert.Equal(PilotPendingRequestKind.Taxi, aircraft.PendingPilotRequest!.Kind);
+        AssertRuleIssuesNothing(engine, ground, aircraft);
+    }
+
+    /// <summary>
+    /// Every target of the stand blocked by a parked neighbour the aircraft already touches: Ground answers standby once,
+    /// pushes nothing and taxis nothing; the aircraft waits at the stand until the neighbour leaves, when the same rule
+    /// pushes it.
+    /// </summary>
+    [Fact]
+    public void GroundBrain_PushbackRequest_EveryTargetBlocked_StandbyThenPushes()
+    {
+        if (_zoa is null)
+        {
+            return;
+        }
+
+        AiPositionConfig ground = TestAiPositions.OakGround(_zoa);
+        SimulationEngine engine = AiTestFixture.Load(JetAt("S7"), _zoa, 7, [ground]);
+        AircraftState aircraft = PushbackRequested(engine, AiTestFixture.Callsign, 15);
+        AircraftState blocker = ParkedOnTopOf(aircraft);
+        var probe = new RuleProbe(engine, ground);
+        var rule = new PushOffStandRule();
+        double now = engine.Scenario!.ElapsedSeconds;
+
+        for (double t = 0; t <= 60; t += 5)
+        {
+            rule.Evaluate(probe.Scope([aircraft, blocker], now + AiPacing.ThinkMaxSeconds + t));
+            DispatchStandby(engine, probe);
+        }
+
+        AiCommandRequest standby = Assert.Single(probe.Sink.Issued);
+        Assert.Equal("STBY", standby.Canonical);
+        Assert.Equal("push-off-stand", standby.Intent.Rule);
+        Assert.Contains("blocked", standby.Intent.Rationale, StringComparison.Ordinal);
+        Assert.Equal(PilotPendingRequestResponseState.Standby, aircraft.PendingPilotRequest!.ResponseState);
+
+        // The neighbour leaves: the first clear target of the same stand is pushed on the next evaluation.
+        rule.Evaluate(probe.Scope([aircraft], now + AiPacing.ThinkMaxSeconds + 65));
+
+        Assert.Equal(2, probe.Sink.Issued.Count);
+        AiCommandRequest push = probe.Sink.Issued[^1];
+        Assert.StartsWith("PUSH ", push.Canonical, StringComparison.Ordinal);
+        Assert.Equal("push-off-stand", push.Intent.Rule);
+        Assert.DoesNotContain(probe.Sink.Issued, issued => issued.Canonical.StartsWith("TAXI", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// Two jets asking for a push off neighbouring stands of one ramp: the first is pushed, the second is told to stand by
+    /// and is pushed only once the first's tow has ended.
+    /// </summary>
+    [Fact]
+    public void GroundBrain_SecondPushbackRequestInTheSameRamp_StandbyUntilTheFirstPushEnds()
+    {
+        if (_zoa is null)
+        {
+            return;
+        }
+
+        AiPositionConfig ground = TestAiPositions.OakGround(_zoa);
+        SimulationEngine engine = AiTestFixture.Load(TwoJetsAt("RON9", "RON10"), _zoa, 7, [ground]);
+        AircraftState first = PushbackRequested(engine, AiTestFixture.Callsign, 15);
+        AircraftState second = PushbackRequested(engine, SecondCallsign, 180);
+        var probe = new RuleProbe(engine, ground);
+        var rule = new PushOffStandRule();
+        double now = engine.Scenario!.ElapsedSeconds;
+
+        rule.Evaluate(probe.Scope([first], now));
+        rule.Evaluate(probe.Scope([first], now + AiPacing.ThinkMaxSeconds));
+        AiCommandRequest push = Assert.Single(probe.Sink.Issued);
+        Assert.StartsWith("PUSH ", push.Canonical, StringComparison.Ordinal);
+
+        // Issued but not yet started: the second already waits for it.
+        rule.Evaluate(probe.Scope([first, second], now + AiPacing.ThinkMaxSeconds + 1));
+        rule.Evaluate(probe.Scope([first, second], now + (2 * AiPacing.ThinkMaxSeconds) + 1));
+        AiCommandRequest standby = probe.Sink.Issued[^1];
+        Assert.Equal(SecondCallsign, standby.Callsign);
+        Assert.Equal("STBY", standby.Canonical);
+        Assert.Contains(AiTestFixture.Callsign, standby.Intent.Rationale, StringComparison.Ordinal);
+        DispatchStandby(engine, probe);
+
+        Assert.True(engine.SendCommand(AiTestFixture.Callsign, push.Canonical).Success, push.Canonical);
+        probe.Memos[AiTestFixture.Callsign].Complete(success: true, engine.Scenario!.ElapsedSeconds);
+        AiTestFixture.TickUntil(engine, AiTestFixture.Callsign, ac => ac.Phases?.CurrentPhase is PushbackPhase, 30);
+
+        // Every pass while the first is under tow: no push for the second, only a standby again if its crew asks again.
+        int issuedBefore = probe.Sink.Issued.Count;
+        for (int elapsed = 0; (first.Phases?.CurrentPhase is PushbackPhase) && (elapsed < 600); elapsed++)
+        {
+            rule.Evaluate(probe.Scope([first, second], engine.Scenario!.ElapsedSeconds + (2 * AiPacing.ThinkMaxSeconds)));
+            Assert.All(probe.Sink.Issued.Skip(issuedBefore), issued => Assert.Equal("STBY", issued.Canonical));
+            DispatchStandby(engine, probe);
+            AiTestFixture.Tick(engine, 1);
+        }
+
+        Assert.False(
+            first.Phases!.CurrentPhase is PushbackPhase,
+            $"{first.Callsign} still under tow: yielding to {first.Ground.AutoYieldTarget ?? "nobody"}, "
+                + $"limit {first.Ground.SpeedLimit}, gs {first.GroundSpeed:F1}"
+        );
+        double end = engine.Scenario!.ElapsedSeconds + (2 * AiPacing.ThinkMaxSeconds);
+        rule.Evaluate(probe.Scope([first, second], end));
+        AiCommandRequest secondPush = probe.Sink.Issued[^1];
+        Assert.Equal(SecondCallsign, secondPush.Callsign);
+        Assert.StartsWith("PUSH ", secondPush.Canonical, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Two jets each parked across the other, each asking for a push: every target of each is blocked by the other, which
+    /// is itself parked and waiting on it, so the wait can never end. The standby that finds it opens a
+    /// <see cref="AiAnomalyKind.PushbackHeld"/> anomaly naming the stand and the outcomes, at the first standby.
+    /// </summary>
+    [Fact]
+    public void PushOffStand_BlockersParkedAndWaitingOnIt_FlagsTheFirstStandby()
+    {
+        if (_zoa is null)
+        {
+            return;
+        }
+
+        AiPositionConfig ground = TestAiPositions.OakGround(_zoa);
+        SimulationEngine engine = AiTestFixture.Load(TwoJetsAt("25", "26"), _zoa, 7, [ground]);
+        AircraftState first = PushbackRequested(engine, AiTestFixture.Callsign, 15);
+        AircraftState second = PushbackRequested(engine, SecondCallsign, 180);
+        second.Position = first.Position;
+        var probe = new RuleProbe(engine, ground);
+        var rule = new PushOffStandRule();
+        double now = engine.Scenario!.ElapsedSeconds;
+
+        int standbys = 0;
+        for (double t = 0; (t <= 60) && (standbys == 0); t += 1)
+        {
+            rule.Evaluate(probe.Scope([first, second], now + t));
+            standbys = probe.Sink.Issued.Count(issued => (issued.Callsign == AiTestFixture.Callsign) && (issued.Canonical == "STBY"));
+            if (standbys == 0)
+            {
+                Assert.False(Flagged(engine, ground, AiTestFixture.Callsign), "flagged before any standby");
+            }
+
+            DispatchStandby(engine, probe);
+        }
+
+        Assert.Equal(1, standbys);
+        Assert.True(Flagged(engine, ground, AiTestFixture.Callsign), "the first standby did not flag the wait");
+        AiAnomalyEvent opened = engine
+            .Scenario.AiAnomalies.Drain()
+            .First(e => (e.Kind == AiAnomalyKind.PushbackHeld) && (e.SubjectKey == AiTestFixture.Callsign));
+        Assert.Contains("stand 25", opened.Detail, StringComparison.Ordinal);
+        Assert.Contains($"blocked by {SecondCallsign}", opened.Detail, StringComparison.Ordinal);
+        Assert.DoesNotContain(probe.Sink.Issued, issued => issued.Canonical.StartsWith("PUSH", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// A jet held by a real pusher in its ramp area — a tug that never finishes here — is told to stand by at every asking;
+    /// the wait is flagged at the third standby for the request, and not before.
+    /// </summary>
+    [Fact]
+    public void PushOffStand_HeldByARealPusher_FlagsTheThirdStandbyAndNotBefore()
+    {
+        if (_zoa is null)
+        {
+            return;
+        }
+
+        AiPositionConfig ground = TestAiPositions.OakGround(_zoa);
+        SimulationEngine engine = AiTestFixture.Load(JetAt("25"), _zoa, 7, [ground]);
+        AircraftState aircraft = PushbackRequested(engine, AiTestFixture.Callsign, 15);
+        AirportGroundLayout layout = engine.ResolveGroundLayout(aircraft)!;
+        AircraftState pusher = Pusher(layout, "OAK", StandPosition(layout, "26"), pushedBackFrom: "26");
+        var probe = new RuleProbe(engine, ground);
+        var rule = new PushOffStandRule();
+
+        int standbys = 0;
+        for (int second = 0; (second < 600) && (standbys < PushOffStandRule.StandbysBeforeAnomaly); second++)
+        {
+            rule.Evaluate(probe.Scope([aircraft, pusher], engine.Scenario!.ElapsedSeconds));
+            int now = probe.Sink.Issued.Count(issued => issued.Canonical == "STBY");
+            if (now > standbys)
+            {
+                standbys = now;
+                Assert.True(
+                    Flagged(engine, ground, AiTestFixture.Callsign) == (standbys >= PushOffStandRule.StandbysBeforeAnomaly),
+                    $"standby {standbys}: flagged={Flagged(engine, ground, AiTestFixture.Callsign)}"
+                );
+            }
+
+            DispatchStandby(engine, probe);
+            AiTestFixture.Tick(engine, 1);
+        }
+
+        Assert.Equal(PushOffStandRule.StandbysBeforeAnomaly, standbys);
+        Assert.All(probe.Sink.Issued, issued => Assert.Equal("STBY", issued.Canonical));
+        Assert.Contains("same ramp area", probe.Sink.Issued[^1].Intent.Rationale, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A tug pushing at another airport, off a stand that has the name of one in this stand's ramp area, does not hold the
+    /// push: only pushers on this aircraft's ground layout count.
+    /// </summary>
+    [Fact]
+    public void PushOffStand_PusherAtAnotherAirport_DoesNotHoldThePush()
+    {
+        if (_zoa is null)
+        {
+            return;
+        }
+
+        AiPositionConfig ground = TestAiPositions.OakGround(_zoa);
+        SimulationEngine engine = AiTestFixture.Load(JetAt("25"), _zoa, 7, [ground]);
+        AircraftState aircraft = PushbackRequested(engine, AiTestFixture.Callsign, 15);
+        AirportGroundLayout layout = engine.ResolveGroundLayout(aircraft)!;
+        AircraftState elsewhere = Pusher(layout, "SFO", new LatLon(37.6189, -122.3750), pushedBackFrom: "26");
+        Assert.NotSame(layout, engine.ResolveGroundLayout(elsewhere));
+
+        AiCommandRequest issued = FirstAnswer(engine, ground, [aircraft, elsewhere]);
+
+        Assert.StartsWith("PUSH ", issued.Canonical, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A snapshot restore resets the brain while the request stands by: the restored aircraft gets no second standby (the
+    /// crew has not asked again) and no anomaly, though the push is still held.
+    /// </summary>
+    [Fact]
+    public void PushOffStand_RestoredWithTheBrainResetDuringStandby_NoSecondStandbyAndNoAnomaly()
+    {
+        if (_zoa is null)
+        {
+            return;
+        }
+
+        AiPositionConfig ground = TestAiPositions.OakGround(_zoa);
+        SimulationEngine engine = AiTestFixture.Load(JetAt("25"), _zoa, 7, [ground]);
+        AircraftState aircraft = PushbackRequested(engine, AiTestFixture.Callsign, 15);
+        AirportGroundLayout layout = engine.ResolveGroundLayout(aircraft)!;
+        AircraftState pusher = Pusher(layout, "OAK", StandPosition(layout, "26"), pushedBackFrom: "26");
+        var probe = new RuleProbe(engine, ground);
+        Assert.Equal("STBY", FirstAnswer(probe, new PushOffStandRule(), engine, [aircraft, pusher]).Canonical);
+        DispatchStandby(engine, probe);
+        Assert.Equal(PilotPendingRequestResponseState.Standby, aircraft.PendingPilotRequest!.ResponseState);
+
+        var restored = AircraftState.FromSnapshot(aircraft.ToSnapshot(), layout);
+        var reset = new RuleProbe(engine, ground);
+        var rule = new PushOffStandRule();
+        double now = engine.Scenario!.ElapsedSeconds;
+        for (double t = 0; t <= 60; t += 5)
+        {
+            rule.Evaluate(reset.Scope([restored, pusher], now + AiPacing.ThinkMaxSeconds + t));
+        }
+
+        Assert.Empty(reset.Sink.Issued);
+        Assert.False(Flagged(engine, ground, AiTestFixture.Callsign));
+    }
+
+    private const string SecondCallsign = "N153SP";
+
+    /// <summary>
+    /// Whether a <see cref="AiAnomalyKind.PushbackHeld"/> anomaly is open on <paramref name="callsign"/> for
+    /// <paramref name="ground"/>.
+    /// </summary>
+    private static bool Flagged(SimulationEngine engine, AiPositionConfig ground, string callsign) =>
+        engine.Scenario!.AiAnomalies.IsOpen(AiAnomalyKind.PushbackHeld, ground.PositionId, callsign);
+
+    private static LatLon StandPosition(AirportGroundLayout layout, string stand) => layout.FindParkingByName(stand)!.Position;
+
+    /// <summary>The first thing a fresh push rule issues over <paramref name="world"/> once the think time has run.</summary>
+    private static AiCommandRequest FirstAnswer(SimulationEngine engine, AiPositionConfig ground, List<AircraftState> world) =>
+        FirstAnswer(new RuleProbe(engine, ground), new PushOffStandRule(), engine, world);
+
+    private static AiCommandRequest FirstAnswer(RuleProbe probe, PushOffStandRule rule, SimulationEngine engine, List<AircraftState> world)
+    {
+        double now = engine.Scenario!.ElapsedSeconds;
+        rule.Evaluate(probe.Scope(world, now));
+        rule.Evaluate(probe.Scope(world, now + AiPacing.ThinkMaxSeconds));
+        return Assert.Single(probe.Sink.Issued);
+    }
+
+    /// <summary>
+    /// A B738 under a tug push, not in the engine, at <paramref name="at"/> on <paramref name="airportId"/>'s ground: pushed
+    /// off <paramref name="pushedBackFrom"/> (null for a tow from a non-stand origin), its push leg running 300 ft south.
+    /// </summary>
+    private static AircraftState Pusher(AirportGroundLayout layout, string airportId, LatLon at, string? pushedBackFrom)
+    {
+        LatLon legEnd = GeoMath.ProjectPoint(at, new TrueHeading(180), 300.0 / GeoMath.FeetPerNm);
+        var pusher = new AircraftState
+        {
+            Callsign = "N8PSH",
+            AircraftType = "B738",
+            Position = at,
+            TrueHeading = new TrueHeading(0),
+            IsOnGround = true,
+            AirportId = airportId,
+            IndicatedAirspeed = 3,
+            Phases = new PhaseList(),
+        };
+        pusher.Phases.Add(
+            new PushbackPhase
+            {
+                Move = TugMove.ToPoint(PushbackLegKind.Push, legEnd),
+                PlannedEnd = legEnd,
+                StartsAtStand = pushedBackFrom is not null,
+                ContinuesIntoNextMove = false,
+                ContinuesStandPushOff = false,
+            }
+        );
+        pusher.Phases.Start(CommandDispatcher.BuildMinimalContext(pusher, layout));
+        pusher.Ground.PushedBackFrom = pushedBackFrom;
+        pusher.Ground.PushbackTrueHeading = new TrueHeading(180);
+        return pusher;
+    }
+
+    /// <summary>Ticks the stand call, the aircraft's open pushback request: 5 s after spawn, later when another call holds the pacing slot.</summary>
+    private static AircraftState PushbackRequested(SimulationEngine engine, string callsign, int budgetSeconds) =>
+        AiTestFixture.TickUntil(
+            engine,
+            callsign,
+            ac => ac.PendingPilotRequest is { IsOpen: true, Kind: PilotPendingRequestKind.Pushback },
+            budgetSeconds
+        );
+
+    /// <summary>The push rule over a minute of evaluations past the think time issues nothing for <paramref name="aircraft"/>.</summary>
+    private static void AssertRuleIssuesNothing(SimulationEngine engine, AiPositionConfig ground, AircraftState aircraft)
+    {
+        var probe = new RuleProbe(engine, ground);
+        var rule = new PushOffStandRule();
+        double now = engine.Scenario!.ElapsedSeconds;
+        rule.Evaluate(probe.Scope([aircraft], now));
+        rule.Evaluate(probe.Scope([aircraft], now + AiPacing.ThinkMaxSeconds));
+        rule.Evaluate(probe.Scope([aircraft], now + AiPacing.ThinkMaxSeconds + 60));
+        Assert.Empty(probe.Sink.Issued);
+    }
+
+    /// <summary>Dispatches every standby still in flight, as the host would, and closes it on its memo.</summary>
+    private static void DispatchStandby(SimulationEngine engine, RuleProbe probe)
+    {
+        foreach ((string callsign, AiAircraftMemo memo) in probe.Memos)
+        {
+            if (memo.InFlight is { Canonical: "STBY" })
+            {
+                Assert.True(engine.SendCommand(callsign, "STBY").Success);
+                memo.Complete(success: true, engine.Scenario!.ElapsedSeconds);
+            }
+        }
+    }
+
+    /// <summary>
+    /// <see cref="AiTestFixture.ParkedAtOak"/>'s aircraft as <paramref name="type"/> parked on <paramref name="stand"/>:
+    /// the rule's scope is jets and turboprops on a push-back stand.
+    /// </summary>
+    private static string JetAt(string stand) => ParkedAt(stand, "B738", "430");
+
+    private static string ParkedAt(string stand, string type, string cruiseSpeed) =>
+        AiTestFixture
+            .ParkedAtOak.Replace("\"C172\"", $"\"{type}\"", StringComparison.Ordinal)
+            .Replace("\"cruiseSpeed\": 100", $"\"cruiseSpeed\": {cruiseSpeed}", StringComparison.Ordinal)
+            .Replace("\"parking\": \"SIG1\"", $"\"parking\": \"{stand}\"", StringComparison.Ordinal);
+
+    /// <summary>
+    /// Two B738s, <see cref="AiTestFixture.Callsign"/> on <paramref name="firstStand"/> and <see cref="SecondCallsign"/> on
+    /// <paramref name="secondStand"/>.
+    /// </summary>
+    private static string TwoJetsAt(string firstStand, string secondStand)
+    {
+        string scenario = JetAt(firstStand);
+        int start = scenario.IndexOf("    {", scenario.IndexOf("\"aircraft\"", StringComparison.Ordinal), StringComparison.Ordinal);
+        int end = scenario.IndexOf("\n  ]", start, StringComparison.Ordinal);
+        string entry = scenario[start..end].TrimEnd();
+        string second = entry
+            .Replace("\"id\": \"a1\"", "\"id\": \"a2\"", StringComparison.Ordinal)
+            .Replace(AiTestFixture.Callsign, SecondCallsign, StringComparison.Ordinal)
+            .Replace($"\"parking\": \"{firstStand}\"", $"\"parking\": \"{secondStand}\"", StringComparison.Ordinal);
+        return scenario.Insert(end, ",\n" + second);
+    }
+
+    /// <summary>A parked neighbour sitting where <paramref name="subject"/> stands, so every one of its push targets grades blocked.</summary>
+    private static AircraftState ParkedOnTopOf(AircraftState subject)
+    {
+        var blocker = new AircraftState
+        {
+            Callsign = "N9BLK",
+            AircraftType = "B738",
+            Position = subject.Position,
+            TrueHeading = subject.TrueHeading,
+            IsOnGround = true,
+            AirportId = "OAK",
+            Phases = new PhaseList(),
+        };
+        blocker.Phases.Add(new AtParkingPhase());
+        return blocker;
     }
 
     [Fact]

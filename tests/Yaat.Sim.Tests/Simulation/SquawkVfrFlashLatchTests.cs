@@ -1,5 +1,6 @@
 using Xunit;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
@@ -27,7 +28,7 @@ public class SquawkVfrFlashLatchTests(ITestOutputHelper output)
         TestVnasData.EnsureInitialized();
         var groundData = RecordingGroundData.Evergreen("SQVFR latching off the beacon mismatch flash");
         SimLogBuilder.CreateForTest(output).InitializeSimLog();
-        return new SimulationEngine(groundData);
+        return new SimulationEngine(groundData, PushPlanStore.CreateShipped());
     }
 
     private static void AddVfrAircraft(SimulationEngine engine, string callsign, uint assigned, uint code)

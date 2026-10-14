@@ -1365,9 +1365,146 @@ public static class GroundConflictDetector
             return releasedPusher;
         }
 
+        if (AreMutuallyYieldingPushers(partyA, partyB))
+        {
+            (AircraftState winner, string reason) = ChoosePushbackPairWinner(a, b);
+            (PushbackParty loser, PushbackParty goes) = ReferenceEquals(winner, a) ? (partyB, partyA) : (partyA, partyB);
+            diagnosticLog?.Invoke(
+                $"    [Pushback] {loser.Aircraft.Callsign} holds for pushback {goes.Aircraft.Callsign} (mutual yield, {reason}): dist={distFt:F0}ft"
+            );
+            ResolvePushbackSide(loser, goes, distFt, diagnosticLog);
+            LetTieBreakWinnerGo(goes, loser, distFt, diagnosticLog);
+            return null;
+        }
+
         ResolvePushbackSide(partyA, partyB, distFt, diagnosticLog);
         ResolvePushbackSide(partyB, partyA, distFt, diagnosticLog);
         return null;
+    }
+
+    /// <summary>
+    /// True when two pushers would each take <see cref="PushbackYieldForTraffic"/>'s hard stop for the other: both
+    /// are pushing, neither is a parked or held obstacle, and neither has the lateral room to pass the other along its
+    /// own push direction. Resolved independently, both would stop and neither would move again.
+    /// </summary>
+    private static bool AreMutuallyYieldingPushers(PushbackParty a, PushbackParty b) =>
+        (a.State == MovementState.Pushing)
+        && (b.State == MovementState.Pushing)
+        && (a.Direction is { } dirA)
+        && (b.Direction is { } dirB)
+        && !IsParkedOrHeld(a.Aircraft)
+        && !IsParkedOrHeld(b.Aircraft)
+        && !HasWingspanLateralClearance(a.Aircraft, dirA, b.Aircraft)
+        && !HasWingspanLateralClearance(b.Aircraft, dirB, a.Aircraft);
+
+    /// <summary>
+    /// The tie-break winner's side of a mutually yielding pusher pair: it takes no pushback yield for the pusher holding
+    /// for it, but — the pair kind being exclusive, so nothing else stops it — it does not push through that pusher either.
+    /// It continues when the rest of its push leg clears the holder laterally (<see cref="PushLegClearanceFt"/>), and
+    /// otherwise brakes to the stop ring against it as against a stationary aircraft, the same treatment
+    /// <see cref="TryResolveGiveWayToPushback"/> gives a pusher a mover holds for.
+    /// </summary>
+    private static void LetTieBreakWinnerGo(PushbackParty winner, PushbackParty holder, double distFt, Action<string>? diagnosticLog)
+    {
+        if (winner.Direction is not { } pushDir)
+        {
+            return;
+        }
+
+        if (
+            (PushLegClearanceFt(winner.Aircraft, holder.Aircraft) is { } pushPathClearanceFt)
+            && (RequiredLateralClearanceFt(winner.Aircraft, holder.Aircraft) is { } requiredLateralFt)
+        )
+        {
+            if (pushPathClearanceFt > requiredLateralFt)
+            {
+                diagnosticLog?.Invoke(
+                    $"    [Pushback] {winner.Aircraft.Callsign} push path clears {holder.Aircraft.Callsign} by {pushPathClearanceFt:F0}ft, continues"
+                );
+                return;
+            }
+
+            diagnosticLog?.Invoke(
+                $"    [Pushback] {winner.Aircraft.Callsign} push path passes {holder.Aircraft.Callsign} at "
+                    + $"{pushPathClearanceFt:F0}ft < clear({requiredLateralFt:F0}ft)"
+            );
+        }
+
+        ApplyClosingLimit(winner.Aircraft, pushDir, holder.Aircraft, MovementState.Stationary, distFt, diagnosticLog);
+    }
+
+    /// <summary>
+    /// Picks which of two mutually yielding pushers (<see cref="AreMutuallyYieldingPushers"/>) keeps going; the other
+    /// holds for it. Lexicographic on exact keys (<see cref="PushRank.Order"/>), so the order is total: of any two pushers
+    /// exactly one holds, and two pushers never each wait for the other:
+    /// <list type="number">
+    /// <item>A live-traffic shadow is never the one held: the simulated aircraft is (the rule
+    /// <see cref="ChooseMutualStopHolder"/> follows).</item>
+    /// <item>When the rest of exactly one side's push leg clears the other laterally (<see cref="PushLegClearanceFt"/> over
+    /// <see cref="RequiredLateralClearanceFt"/>), that side goes: it can finish its push past the holder, where the other,
+    /// its leg running into the holder, could only brake to the stop ring and hold both.</item>
+    /// <item>A committed push off a stand (<see cref="PushbackPhase.HasRampPriority"/>) beats one still on its stand.</item>
+    /// <item>A push off a stand beats a tow from a non-stand origin.</item>
+    /// <item>The one that has moved further from where its move began goes, compared exactly.</item>
+    /// <item>The lower callsign goes (<see cref="ChooseMutualStopHolder"/>'s convention: the higher callsign holds).</item>
+    /// </list>
+    /// Stateless: recomputed on every pass from the phases' recorded starts, so a snapshot restore reproduces it. The
+    /// winner still yields to third aircraft in their own pairs. 7110.65 §3-7-2 NOTE 2 leaves the nonmovement area to
+    /// the pilots and the ramp operator, so this models the ramp convention rather than an ATC instruction.
+    /// </summary>
+    private static (AircraftState Winner, string Reason) ChoosePushbackPairWinner(AircraftState a, AircraftState b)
+    {
+        var rankA = PushRank.Of(a, b);
+        var rankB = PushRank.Of(b, a);
+        foreach ((string reason, Func<PushRank, PushRank, int> compare) in PushRank.Order)
+        {
+            int order = compare(rankA, rankB);
+            if (order != 0)
+            {
+                return (order > 0 ? a : b, reason);
+            }
+        }
+
+        return (a, "identical keys");
+    }
+
+    /// <summary>
+    /// The keys <see cref="ChoosePushbackPairWinner"/> orders a pusher by against the other pusher of its pair: its
+    /// callsign, whether it is a live-traffic shadow, whether the rest of its push leg clears the other, whether its push
+    /// off a stand is committed, whether the tow started on a stand at all, and how far (ft) it has moved from where its
+    /// current move began.
+    /// </summary>
+    private readonly record struct PushRank(string Callsign, bool IsShadow, bool LegClears, bool Committed, bool OffStand, double MovedFt)
+    {
+        /// <summary>
+        /// The keys in the order they decide, each with the reason the log gives; a positive comparison means the first
+        /// pusher goes.
+        /// </summary>
+        public static readonly (string Reason, Func<PushRank, PushRank, int> Compare)[] Order =
+        [
+            ("shadow", (x, y) => x.IsShadow.CompareTo(y.IsShadow)),
+            ("push leg clears", (x, y) => x.LegClears.CompareTo(y.LegClears)),
+            ("committed push", (x, y) => x.Committed.CompareTo(y.Committed)),
+            ("push off a stand", (x, y) => x.OffStand.CompareTo(y.OffStand)),
+            ("moved further", (x, y) => x.MovedFt.CompareTo(y.MovedFt)),
+            ("lower callsign", (x, y) => string.CompareOrdinal(y.Callsign, x.Callsign)),
+        ];
+
+        public static PushRank Of(AircraftState aircraft, AircraftState other)
+        {
+            bool legClears =
+                (PushLegClearanceFt(aircraft, other) is { } legFt)
+                && (RequiredLateralClearanceFt(aircraft, other) is { } requiredFt)
+                && (legFt > requiredFt);
+            if (aircraft.Phases?.CurrentPhase is not PushbackPhase phase)
+            {
+                return new PushRank(aircraft.Callsign, aircraft.IsShadow, legClears, Committed: false, OffStand: false, MovedFt: 0.0);
+            }
+
+            double movedFt = GeoMath.DistanceNm(phase.StartPose(aircraft).Position, aircraft.Position) * FtPerNm;
+            bool offStand = phase.StartsAtStand || phase.ContinuesStandPushOff;
+            return new PushRank(aircraft.Callsign, aircraft.IsShadow, legClears, phase.HasRampPriority(aircraft), offStand, movedFt);
+        }
     }
 
     /// <summary>

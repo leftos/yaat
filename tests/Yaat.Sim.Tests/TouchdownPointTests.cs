@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Tower;
 
@@ -101,7 +102,7 @@ public class TouchdownPointTests(ITestOutputHelper output)
         ac.Phases.Add(new LandingPhase());
         ac.Targets.TargetSpeed = approachSpeedKt;
 
-        var world = new SimulationWorld();
+        var world = new SimulationWorld(PushPlanStore.CreateShipped());
         world.AddAircraft(ac);
 
         static void PreTick(AircraftState aircraft, double dt)

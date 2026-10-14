@@ -1,5 +1,6 @@
 using Xunit;
 using Yaat.Sim;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Scenarios;
 
 namespace Yaat.Sim.Tests;
@@ -34,8 +35,8 @@ public class RngDeterminismTests
     [Fact]
     public void GenerateUniqueCid_SameSeed_SameSequence()
     {
-        var world1 = new SimulationWorld { Rng = new SerializableRandom(42) };
-        var world2 = new SimulationWorld { Rng = new SerializableRandom(42) };
+        var world1 = new SimulationWorld(PushPlanStore.CreateShipped()) { Rng = new SerializableRandom(42) };
+        var world2 = new SimulationWorld(PushPlanStore.CreateShipped()) { Rng = new SerializableRandom(42) };
 
         var ac1 = new AircraftState { Callsign = "AAL100", AircraftType = "B738" };
         var ac2 = new AircraftState { Callsign = "AAL100", AircraftType = "B738" };
@@ -49,14 +50,14 @@ public class RngDeterminismTests
     [Fact]
     public void SimulationWorld_Rng_DefaultsToSerializableRandom()
     {
-        var world = new SimulationWorld();
+        var world = new SimulationWorld(PushPlanStore.CreateShipped());
         Assert.IsType<SerializableRandom>(world.Rng);
     }
 
     [Fact]
     public void SimulationWorld_Rng_CanBeSeeded()
     {
-        var world = new SimulationWorld();
+        var world = new SimulationWorld(PushPlanStore.CreateShipped());
         var seeded = new SerializableRandom(123);
         world.Rng = seeded;
         Assert.Same(seeded, world.Rng);
@@ -66,8 +67,8 @@ public class RngDeterminismTests
     public void SeededWorld_TickDeterministic()
     {
         // Two worlds with same seed and same aircraft should produce identical results after ticking
-        var world1 = new SimulationWorld { Rng = new SerializableRandom(42) };
-        var world2 = new SimulationWorld { Rng = new SerializableRandom(42) };
+        var world1 = new SimulationWorld(PushPlanStore.CreateShipped()) { Rng = new SerializableRandom(42) };
+        var world2 = new SimulationWorld(PushPlanStore.CreateShipped()) { Rng = new SerializableRandom(42) };
 
         var ac1 = new AircraftState
         {

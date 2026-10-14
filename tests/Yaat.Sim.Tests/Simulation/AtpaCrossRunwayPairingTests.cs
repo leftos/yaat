@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Xunit;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
@@ -31,7 +32,10 @@ public class AtpaCrossRunwayPairingTests(ITestOutputHelper output)
         }
 
         SimLogBuilder.CreateForTest(output).EnableCategory("AtpaProcessor", LogLevel.Debug).InitializeSimLog();
-        return new SimulationEngine(RecordingGroundData.Evergreen("no ATPA cone between arrivals on different OAK finals"));
+        return new SimulationEngine(
+            RecordingGroundData.Evergreen("no ATPA cone between arrivals on different OAK finals"),
+            PushPlanStore.CreateShipped()
+        );
     }
 
     [Fact]
