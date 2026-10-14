@@ -134,6 +134,8 @@
 - [ ] YAAT-691 Hold an AI push for traffic taxiing into the same alley
 - [ ] YAAT-692 Crew on a push-back stand answers a TAXI with 'unable, need a push first'
 - [ ] YAAT-693 Short pushback re-ask and a reasoned STAND BY from AI Ground
+- [ ] YAAT-694 Clear a finished departure taxi route so rollout HS, CROSS and GIVEWAY don't act on it
+- [ ] YAAT-695 Let AI Ground push sibling-lane stands together and resolve a pusher/taxiing standoff
 
 ## Wave 2 — Ground command grammar and dispatch
 
@@ -423,7 +425,7 @@
 - [ ] YAAT-333 Drop the generic Airport suffix from spoken airport names
 - [ ] YAAT-341 Take control and quick bookmark keys work from pop-out windows
 - [ ] YAAT-342 MainWindowLifecycleTests pop-out close tests fail in some full UI test runs
-- [ ] YAAT-366 Fix the garbled solo readback of EXIT given on final ('exit when if able at on to W3')
+- [ ] YAAT-366 Fix the garbled solo readback of EXIT given on final ('exit when if able at on to W3') · release vNext
 - [ ] YAAT-369 Scenario load: status bar can end on 'Load by AB ended' instead of the load result (RoomLoadingChanged arrival-order race)
 - [ ] YAAT-370 LayoutInspector --exits prints double.MaxValue avg parking distance for a runway side with no exits
 - [ ] YAAT-372 ERAM conformance test flakes when the harness aircraft's random CID is 128
