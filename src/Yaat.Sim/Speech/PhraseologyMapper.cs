@@ -397,6 +397,9 @@ public static class PhraseologyMapper
                 outputs.Clear();
                 matchedRules.Clear();
                 totalConsumed = 0;
+                // Also clear the runway veto: a garbled {rwy} in a retracted clause must not null
+                // out the valid instruction that follows "disregard".
+                runwayInvalid = false;
                 idx++;
                 continue;
             }
