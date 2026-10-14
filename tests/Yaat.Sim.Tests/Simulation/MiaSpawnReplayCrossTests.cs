@@ -29,6 +29,9 @@ namespace Yaat.Sim.Tests.Simulation;
 ///    with runway 12 marked as an en-route hold-short — <c>HS 12</c> is a hold/authorization
 ///    marker, not a routing terminus. <c>CROSS 12</c> then clears that crossing and the
 ///    aircraft continues toward runway 9 instead of stopping past the runway-12 bars.
+///
+/// Runs on today's MIA layout (<see cref="RecordingGroundData.Evergreen"/>, <c>TestData/mia.geojson</c>), so the
+/// taxi behavior is checked against the airport as it stands.
 /// </summary>
 public sealed class MiaSpawnReplayCrossTests(ITestOutputHelper output)
 {
@@ -110,19 +113,21 @@ public sealed class MiaSpawnReplayCrossTests(ITestOutputHelper output)
             return null;
         }
 
+        var groundData = RecordingGroundData.Evergreen(
+            "the replayed THY41J P/S taxi holding short of 12 before continuing to runway 9 on today's MIA layout"
+        );
+        AirportGroundLayout? layout = groundData.GetLayout("mia");
+        if (layout is null)
+        {
+            return null;
+        }
+
         RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
         if (archive is null)
         {
             return null;
         }
 
-        var groundData = RecordingGroundData.VersionPinned(
-            RecordingPath,
-            "the replayed THY41J P/S taxi and its 12 hold-short on the recorded MIA graph"
-        );
-        Assert.True(groundData.Bundles("mia"), "the recording bundles no MIA layout");
-        AirportGroundLayout? layout = groundData.GetLayout("mia");
-        Assert.NotNull(layout);
         SimLogBuilder.CreateForTest(output).EnableCategory("GroundCommandHandler", LogLevel.Debug).InitializeSimLog();
 
         var engine = new SimulationEngine(groundData);

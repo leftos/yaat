@@ -1,6 +1,5 @@
 using Xunit;
 using Yaat.Sim.Data.Airport;
-using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation;
@@ -16,14 +15,12 @@ namespace Yaat.Sim.Tests.Simulation;
 /// The route must stay on the cleared taxiways (C, B, W and their numbered connectors / RAMP) — it
 /// may NOT detour onto taxiway A, which the controller did not name.
 ///
-/// Uses the OAK practical-exam recording purely as the source of the real OAK layout; JSX1 is
-/// node 604. This is a pathfinder-level assertion (the route the clearance produces); the CROSS
-/// continuation across an intermediate crossing is the existing behavior exercised elsewhere.
+/// Runs on today's OAK layout (<see cref="RecordingGroundData.Evergreen"/>, <c>TestData/oak.geojson</c>); JSX1
+/// resolves by its parking name. This is a pathfinder-level assertion (the route the clearance produces); the
+/// CROSS continuation across an intermediate crossing is the existing behavior exercised elsewhere.
 /// </summary>
 public sealed class OakMultiCrossingTaxiTests(ITestOutputHelper output)
 {
-    private const string RecordingPath = "TestData/oak-cross-dest-runway-recording.yaat-bug-report-bundle.zip";
-
     [Fact]
     public void Taxi_FromJsx1_RoutesAcrossBothParallels_ToRunway30()
     {
@@ -33,16 +30,13 @@ public sealed class OakMultiCrossingTaxiTests(ITestOutputHelper output)
             return;
         }
 
-        using RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
-        if (archive is null)
+        var groundData = RecordingGroundData.Evergreen("the JSX1 route across 28R and 28L to 30 on today's OAK layout");
+        AirportGroundLayout? layout = groundData.GetLayout("oak");
+        if (layout is null)
         {
             return;
         }
 
-        var groundData = RecordingGroundData.VersionPinned(RecordingPath, "the JSX1 route across 28R and 28L to 30 on the recorded OAK graph");
-        Assert.True(groundData.Bundles("oak"), "the recording bundles no OAK layout");
-        AirportGroundLayout? layout = groundData.GetLayout("oak");
-        Assert.NotNull(layout);
         AircraftCategory category = AircraftCategorization.Categorize("E45X");
 
         GroundNode? jsx1 = layout.FindParkingByName("JSX1");

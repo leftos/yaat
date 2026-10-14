@@ -1,6 +1,5 @@
 using Xunit;
 using Yaat.Sim.Data.Airport;
-using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation;
@@ -35,18 +34,18 @@ public sealed class RunwayDesignatorNormalizationTests(ITestOutputHelper output)
             return;
         }
 
-        using RecordingArchive? archive = RecordingLoader.OpenArchive("TestData/c000c2b0afc8.zip");
-        if (archive is null)
+        var groundData = RecordingGroundData.Evergreen("the 8R and 08R runway routes from a taxiway-N start node on today's MIA layout");
+        AirportGroundLayout? layout = groundData.GetLayout("mia");
+        if (layout is null)
         {
             return;
         }
 
-        var groundData = RecordingGroundData.VersionPinned("TestData/c000c2b0afc8.zip", "the 8R and 08R runway routes from recorded MIA node 304");
-        Assert.True(groundData.Bundles("mia"), "the recording bundles no MIA layout");
-        AirportGroundLayout? layout = groundData.GetLayout("mia");
-        Assert.NotNull(layout);
         AircraftCategory category = AircraftCategorization.Categorize("E75L");
-        GroundNode startNode = layout.Nodes[304];
+
+        // The recorded vertex on taxiway N, resolved by position so the test survives node renumbering.
+        GroundNode? startNode = layout.FindNearestNodeOnTaxiway(new LatLon(25.798985183057184, -80.2966386201263), "N", 50);
+        Assert.NotNull(startNode);
 
         TaxiRoute? padded = TaxiPathfinder.FindRunwayRoute(layout, startNode, "08R", category, WakeTurbulenceData.WakeClass.Large);
         TaxiRoute? unpadded = TaxiPathfinder.FindRunwayRoute(layout, startNode, "8R", category, WakeTurbulenceData.WakeClass.Large);
