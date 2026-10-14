@@ -918,18 +918,26 @@ public static class PhraseologyRules
             new(["give", "way", "to", "{callsign}"], "GIVEWAY {callsign}", GiveWay),
             new(["exit", "left"], "EL", ExitLeft),
             new(["exit", "right"], "ER", ExitRight),
-            // Exit + (optional preamble) + (optional connector) + taxiway. Optional slots cover:
+            // Exit instruction with the taxiway named. The readback mirrors the instruction —
+            // "exit left W3", "exit right W3", "exit W3" — so no filler word is carried.
+            new(["exit", "left", "{taxiway}"], "EL {taxiway}", ExitLeft),
+            new(["exit", "right", "{taxiway}"], "ER {taxiway}", ExitRight),
+            new(["exit", "{taxiway}"], "EXIT {taxiway}", ExitTaxiway),
+            // Speech-input only ("exit left when able at charlie" → EL C, "exit if able on delta" →
+            // EXIT D). The optional slots exist to accept the spoken form and must never be spoken
+            // back — the pilot reads back through the clean rules above:
             //   when?/if?/able? — informal pilot/controller "if able" or "when able" condition
             //   at?/on?/to? — connector words ("at charlie", "on delta", "to alpha")
             // Trailing "when able" / "if able" AFTER the taxiway silently skips via the no-match
             // advance, so we don't need to enumerate them in the rule pattern. {taxiway} capture
             // is sanity-checked + validated against MapContext.TaxiwayNames in PhraseologyMapper.
-            new(["exit", "left", "when?", "if?", "able?", "at?", "on?", "to?", "{taxiway}"], "EL {taxiway}", ExitLeft),
-            new(["exit", "right", "when?", "if?", "able?", "at?", "on?", "to?", "{taxiway}"], "ER {taxiway}", ExitRight),
-            new(["exit", "when?", "if?", "able?", "at?", "on?", "to?", "{taxiway}"], "EXIT {taxiway}", ExitTaxiway),
+            new(["exit", "left", "when?", "if?", "able?", "at?", "on?", "to?", "{taxiway}"], "EL {taxiway}", ExitLeft, SttOnly: true),
+            new(["exit", "right", "when?", "if?", "able?", "at?", "on?", "to?", "{taxiway}"], "ER {taxiway}", ExitRight, SttOnly: true),
+            new(["exit", "when?", "if?", "able?", "at?", "on?", "to?", "{taxiway}"], "EXIT {taxiway}", ExitTaxiway, SttOnly: true),
             // FAA 7110.65 §3-10-9: "TURN LEFT/RIGHT (taxiway)" runway-exit instruction. SttOnly so
-            // the pilot AI keeps reading these back as the canonical "exit left at …" form.
-            // Same optional preamble + connector slots as the exit-form rules above.
+            // the pilot AI keeps reading these back as the mirrored "exit left W3" / "exit right W3"
+            // form (the clean exit rules above), never as a "turn" instruction.
+            // Same speech-input optional slots as the exit-form rules above.
             new(["turn", "left", "when?", "if?", "able?", "at?", "on?", "to?", "{taxiway}"], "EL {taxiway}", ExitLeft, SttOnly: true),
             new(["turn", "right", "when?", "if?", "able?", "at?", "on?", "to?", "{taxiway}"], "ER {taxiway}", ExitRight, SttOnly: true),
         ];

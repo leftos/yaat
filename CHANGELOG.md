@@ -21,6 +21,7 @@
 - An aircraft cleared across a runway holds short when the far side has no room, says "holding short of runway X, traffic ahead", and goes once room opens.
 - `HOLD` during a runway crossing brakes firmly, reads back "holding position on runway X" when it cannot stop short, and no longer stops dead past the runway.
 - `HS` to a taxiing aircraft answers "unable" only when a firm stop cannot make the line, then brakes firmly as short as it can.
+- `EXIT W3`, `EL W3` and `ER W3` are read back as given ("exit left W3") instead of "exit when if able at on to W3".
 - Loading, rewinding or seeking a recording runs on the recording's session settings, and a setting changed mid-recording reaches every client's Session Settings.
 - After loading a recording, "No landing clnc" follows the recording's session, not your Auto Cleared-to-Land preference.
 - `TAXI` and `TAXIAUTO` during the landing rollout take the exit the route implies and roll on into the route, instead of jumping the aircraft.

@@ -287,6 +287,39 @@ public class PhraseologyVerbalizerTests
         Assert.DoesNotContain("eight", terminal);
     }
 
+    // --- Runway exits (issue #840): the readback mirrors the instruction ---
+    //
+    // The speech-input rules carry filler optionals ("when? if? able? at? on? to?") so a controller
+    // utterance like "exit left when able at charlie" maps to EL C. Those rules are SttOnly, so the
+    // pilot never speaks the fillers back; the readback comes from the clean rule with no optionals,
+    // "exit left W3" — the exit instruction mirrored, not embellished. Nothing in 7110.65 §3-7-2 or
+    // §3-10-9 prescribes a pilot readback for an exit, and the controller's "if able" is a
+    // condition on the instruction, not something the crew repeats.
+
+    [Fact]
+    public void VerbalizeTerminal_ExitTaxiway_MirrorsTheInstruction() =>
+        Assert.Equal("exit W3", PhraseologyVerbalizer.VerbalizeTerminal(new ExitTaxiwayCommand("W3")));
+
+    [Fact]
+    public void VerbalizeTerminal_ExitLeft_DropsFillerWords() =>
+        Assert.Equal("exit left W3", PhraseologyVerbalizer.VerbalizeTerminal(new ExitLeftCommand(Taxiway: "W3")));
+
+    [Fact]
+    public void VerbalizeTerminal_ExitRight_DropsFillerWords() =>
+        Assert.Equal("exit right W3", PhraseologyVerbalizer.VerbalizeTerminal(new ExitRightCommand(Taxiway: "W3")));
+
+    [Fact]
+    public void VerbalizeTerminal_BareExitLeftAndRight_KeepTheirCleanForm()
+    {
+        Assert.Equal("exit left", PhraseologyVerbalizer.VerbalizeTerminal(new ExitLeftCommand()));
+        Assert.Equal("exit right", PhraseologyVerbalizer.VerbalizeTerminal(new ExitRightCommand()));
+    }
+
+    [Fact]
+    public void Verbalize_ExitLeftWithTaxiway_SpellsTheTaxiwayPhonetically() =>
+        // PilotSpeechText.Tts is built from this spoken form ("whiskey three", never "W3").
+        Assert.Contains("exit left whiskey three", PhraseologyVerbalizer.Verbalize(new ExitLeftCommand(Taxiway: "W3")));
+
     // --- Frequency formatting (FAA 7110.65 §2-4-16) ---
 
     [Fact]
