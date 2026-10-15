@@ -16,6 +16,77 @@ internal static class KoakFollowClip
     internal const string Lead = "N52417";
     internal const string Follower = "N738SP";
 
+    /// <summary>The H2 clip's <c>scenario.json</c>: N52417 standing on K, N738SP parked at GA16.</summary>
+    internal const string H2Scenario = """
+        {
+          "id": "01JH02G8F0L1W5T7R9N2K4X6QC",
+          "name": "Montage H2 | Give way to traffic crossing ahead on the taxiway",
+          "artccId": "ZOA",
+          "primaryAirportId": "OAK",
+          "studentPositionId": "01GEAMCGAZ418Q26GEPYNXWZ4A",
+          "autoDeleteMode": "None",
+          "initializationTriggers": [],
+          "aircraftGenerators": [],
+          "aircraft": [
+            {
+              "id": "01JH02N52417G8F0L1W5T7R9NB",
+              "aircraftId": "N52417",
+              "aircraftType": "C172",
+              "transponderMode": "C",
+              "startingConditions": { "type": "Coordinates", "coordinates": { "lat": 37.73075, "lon": -122.22539 }, "heading": 9 },
+              "onAltitudeProfile": false,
+              "flightplan": {
+                "rules": "VFR",
+                "departure": "KOAK",
+                "destination": "KSQL",
+                "cruiseAltitude": 3500,
+                "cruiseSpeed": 0,
+                "route": "",
+                "remarks": "/V/",
+                "aircraftType": "C172"
+              },
+              "presetCommands": [],
+              "spawnDelay": 0,
+              "airportId": "OAK",
+              "difficulty": "Easy"
+            },
+            {
+              "id": "01JH02N738SPG8F0L1W5T7R9ND",
+              "aircraftId": "N738SP",
+              "aircraftType": "C172",
+              "transponderMode": "Standby",
+              "startingConditions": { "type": "Parking", "parking": "GA16" },
+              "onAltitudeProfile": false,
+              "flightplan": {
+                "rules": "VFR",
+                "departure": "KOAK",
+                "destination": "KLVK",
+                "cruiseAltitude": 3500,
+                "cruiseSpeed": 0,
+                "route": "",
+                "remarks": "/V/",
+                "aircraftType": "C172"
+              },
+              "presetCommands": [],
+              "spawnDelay": 0,
+              "airportId": "OAK",
+              "difficulty": "Easy"
+            }
+          ],
+          "atc": [
+            {
+              "id": "01G9CQW3XEE3RW84EBYKEBCPQD",
+              "artccId": "ZOA",
+              "facilityId": "OAK",
+              "positionId": "01GEAMB98RKCPP9HCNPW5AVDA5",
+              "autoConnect": true,
+              "autoTrackAirportIds": []
+            }
+          ],
+          "flightStripConfigurations": []
+        }
+        """;
+
     /// <summary>
     /// The most a C172 may lose in one sim-second on the ground: the piston taxi brake rate over the second, plus the one
     /// physics sub-tick of change the ground snap window allows on top of it.

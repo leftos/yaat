@@ -138,6 +138,26 @@ public class AircraftDtoSituationTests
         Assert.Null(AircraftModel.FromDto(back).ExitsAhead);
     }
 
+    [Fact]
+    public void Json_MeetPoints_ReachTheModel_OnCreateAndUpdate()
+    {
+        GroundMeetPointDto[] rows = [new GroundMeetPointDto("N52417", 352, new LatLon(37.7306, -122.2161))];
+        string json = JsonSerializer.Serialize(Dto(AircraftSituation.Taxiing) with { MeetPoints = rows }, WireOptions);
+        string expected = "\"meetPoints\":[{\"callsign\":\"N52417\",\"nodeId\":352,\"position\":{\"lat\":37.7306,\"lon\":-122.2161}}]";
+        Assert.Contains(expected, json, StringComparison.Ordinal);
+        AircraftDto back = JsonSerializer.Deserialize<AircraftDto>(json, WireOptions)!;
+
+        var model = AircraftModel.FromDto(back);
+        Assert.Equal(rows, model.MeetPoints!);
+
+        GroundMeetPointDto[] moved = [new GroundMeetPointDto("N52417", 376, new LatLon(37.7307, -122.2160))];
+        model.UpdateFromDto(Dto(AircraftSituation.Taxiing) with { MeetPoints = moved });
+        Assert.Equal(moved, model.MeetPoints!);
+
+        model.UpdateFromDto(Dto(AircraftSituation.Taxiing));
+        Assert.Null(model.MeetPoints);
+    }
+
     private static AircraftDto Dto(AircraftSituation situation) =>
         new(
             Callsign: "UAL123",

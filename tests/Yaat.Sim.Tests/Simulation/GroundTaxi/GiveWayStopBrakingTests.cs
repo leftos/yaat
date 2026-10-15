@@ -44,75 +44,7 @@ public class GiveWayStopBrakingTests(ITestOutputHelper output)
     /// <summary>Points sampled along a fillet's curve when measuring how far a point is from it.</summary>
     private const int ArcSamples = 64;
 
-    private const string Scenario = """
-        {
-          "id": "01JH02G8F0L1W5T7R9N2K4X6QC",
-          "name": "Montage H2 | Give way to traffic crossing ahead on the taxiway",
-          "artccId": "ZOA",
-          "primaryAirportId": "OAK",
-          "studentPositionId": "01GEAMCGAZ418Q26GEPYNXWZ4A",
-          "autoDeleteMode": "None",
-          "initializationTriggers": [],
-          "aircraftGenerators": [],
-          "aircraft": [
-            {
-              "id": "01JH02N52417G8F0L1W5T7R9NB",
-              "aircraftId": "N52417",
-              "aircraftType": "C172",
-              "transponderMode": "C",
-              "startingConditions": { "type": "Coordinates", "coordinates": { "lat": 37.73075, "lon": -122.22539 }, "heading": 9 },
-              "onAltitudeProfile": false,
-              "flightplan": {
-                "rules": "VFR",
-                "departure": "KOAK",
-                "destination": "KSQL",
-                "cruiseAltitude": 3500,
-                "cruiseSpeed": 0,
-                "route": "",
-                "remarks": "/V/",
-                "aircraftType": "C172"
-              },
-              "presetCommands": [],
-              "spawnDelay": 0,
-              "airportId": "OAK",
-              "difficulty": "Easy"
-            },
-            {
-              "id": "01JH02N738SPG8F0L1W5T7R9ND",
-              "aircraftId": "N738SP",
-              "aircraftType": "C172",
-              "transponderMode": "Standby",
-              "startingConditions": { "type": "Parking", "parking": "GA16" },
-              "onAltitudeProfile": false,
-              "flightplan": {
-                "rules": "VFR",
-                "departure": "KOAK",
-                "destination": "KLVK",
-                "cruiseAltitude": 3500,
-                "cruiseSpeed": 0,
-                "route": "",
-                "remarks": "/V/",
-                "aircraftType": "C172"
-              },
-              "presetCommands": [],
-              "spawnDelay": 0,
-              "airportId": "OAK",
-              "difficulty": "Easy"
-            }
-          ],
-          "atc": [
-            {
-              "id": "01G9CQW3XEE3RW84EBYKEBCPQD",
-              "artccId": "ZOA",
-              "facilityId": "OAK",
-              "positionId": "01GEAMB98RKCPP9HCNPW5AVDA5",
-              "autoConnect": true,
-              "autoTrackAirportIds": []
-            }
-          ],
-          "flightStripConfigurations": []
-        }
-        """;
+    private const string Scenario = KoakFollowClip.H2Scenario;
 
     /// <summary>The H2 clip's <c>script.txt</c>.</summary>
     private static readonly (int Second, string Callsign, string Command)[] Script =

@@ -276,8 +276,10 @@ public sealed partial class SimulationEngine
     /// layout (resolved only while holding short or in the taxiing, holding-on-ground and rollout/exit situations: taxi
     /// and hold-short flags) and its assigned runway's own airport layout (inside-FAF), and beside them
     /// <see cref="AircraftSituationState.NextCrossingRunway"/> from the same ground layout, and <see cref="AircraftSituationState.ExitsAhead"/>
-    /// (<see cref="ExitsAheadOf"/>). A spine step (<see cref="Spine.StepId.Situation"/>) after the pilot-proactive step, so
-    /// it sees this second's phase changes; it runs on every run kind because the stored situation is snapshotted state
+    /// (<see cref="ExitsAheadOf"/>). Last it stores <see cref="AircraftSituationState.MeetPoints"/>, null for every aircraft but
+    /// those <see cref="GroundConflictDetector.MeetCandidates"/> lists, each paired against the others in world order
+    /// (<see cref="GroundConflictDetector.MeetPointsOf"/>, read-only). A spine step (<see cref="Spine.StepId.Situation"/>) after
+    /// the pilot-proactive step, so it sees this second's phase changes; it runs on every run kind because the stored situation is snapshotted state
     /// that depends on the previous second's.
     /// </summary>
     public void TickSituation()
@@ -287,7 +289,8 @@ public sealed partial class SimulationEngine
             return;
         }
 
-        foreach (AircraftState ac in World.GetSnapshot())
+        List<AircraftState> traffic = World.GetSnapshot();
+        foreach (AircraftState ac in traffic)
         {
             AircraftSituationState situation = ac.Situation;
             if ((!ac.IsOnGround) && situation.WasOnGround)
@@ -309,6 +312,13 @@ public sealed partial class SimulationEngine
             situation.Flags = SituationFlagCalculator.Compute(ac, situation.Current, situation.Flags, groundLayout, runwayLayout);
             situation.NextCrossingRunway = SituationFlagCalculator.NextCrossingRunway(ac, situation.Current, groundLayout);
             situation.ExitsAhead = ExitsAheadOf(ac, phase, runwayLayout, World.Weather, scenario.ElapsedSeconds);
+            situation.MeetPoints = null;
+        }
+
+        List<GroundMeetCandidate> candidates = GroundConflictDetector.MeetCandidates(traffic);
+        foreach (GroundMeetCandidate own in candidates)
+        {
+            own.Aircraft.Situation.MeetPoints = GroundConflictDetector.MeetPointsOf(own, candidates);
         }
     }
 

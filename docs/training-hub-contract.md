@@ -56,9 +56,9 @@ invariant is property-name + type compatibility, not positional or name identity
 to *both* records; whether the order matches is irrelevant to the wire, but every server field needs a client
 counterpart of a JSON-compatible type or it deserializes to the client default.
 
-`AircraftStateDto` is produced by `DtoConverter.ToTrainingDto` (`DtoConverter.cs:620`). Note that the server maps
+`AircraftStateDto` is produced by `DtoConverter.ToTrainingDto`. Note that the server maps
 `Assigned*` fields onto the wire `Assigned*` slots — e.g. `ac.Targets.AssignedMagneticHeading` →
-`AssignedHeading` (`DtoConverter.cs:644`), not the transient `Target*` physics goal. The wire DTO is the autopilot/UI
+`AssignedHeading`, not the transient `Target*` physics goal. The wire DTO is the autopilot/UI
 projection, not the raw physics state. The same assigned-vs-actual split applies to the transponder: `ac.Transponder.Code`
 → `BeaconCode` (the reported/current code) and `ac.Transponder.AssignedCode` → `AssignedBeaconCode` (the ATC-assigned
 code) cross as **two** fields, so the radar datablock can flag a beacon-code mismatch when the pilot has not yet squawked
@@ -75,8 +75,8 @@ never starts or stops (`ChangeDetectionTests.IsIdenting_Change_TriggersTrainingD
 `TargetSpeedKts` carries `ac.Targets.TargetSpeed` (the transient physics goal, null when none) — the one `Target*` value on the wire, and it is not `AssignedSpeed`. It exists so the client can run the sim's own parked-or-held classification (`GroundConflictDetector.IsParkedOrHeld`, whose at-rest test excludes a `LiningUp` aircraft creeping at 2 kt by its target speed) for the Ground view's push-route preview; it is already part of `TrainingDtoFingerprint`.
 
 **Heading frame mismatch — `Heading` is TRUE, `AssignedHeading` is MAGNETIC.** The DTO's bare `Heading` field carries
-`ac.TrueHeading.Degrees` (`DtoConverter.cs:844`) — true heading — while `AssignedHeading` carries
-`ac.Targets.AssignedMagneticHeading?.Degrees` (`:850`) — magnetic. Client-side, `AircraftModel` reconstructs typed
+`ac.TrueHeading.Degrees` (in `ToTrainingDto`) — true heading — while `AssignedHeading` carries
+`ac.Targets.AssignedMagneticHeading?.Degrees` — magnetic. Client-side, `AircraftModel` reconstructs typed
 `TrueHeading`/`MagneticHeading?` structs on receipt; to display the live heading in magnetic (what controllers read), convert at
 the aircraft's position via `Heading.ToMagnetic(MagneticDeclination.GetDeclination(Position))`. Both heading structs expose
 `ToDisplayString()` (3-digit zero-padded, north = `360`, never `000`) — use it for every UI/readback heading instead of
@@ -484,16 +484,16 @@ rather than restating it.
 
 **Decided shape, not converted yet:** `AircraftStateDto` becomes `required` init properties server-side and `AircraftDto` plain init properties client-side, replacing the defaulted positional constructor parameters (about 100 on the server DTO, against the no-optional-parameters rule).
 
-The defaults buy nothing: there is one production construction site (`DtoConverter.cs`), and System.Text.Json fills a missing constructor parameter either way. Until the pair is converted, step 1 below still adds a defaulted parameter; the conversion rewrites this checklist.
+The defaults buy nothing: `DtoConverter.ToTrainingDto` has many callers but there is one `new AircraftStateDto(` site (inside `ToTrainingDto`), and System.Text.Json fills a missing constructor parameter either way. Until the pair is converted, step 1 below still adds a defaulted parameter; the conversion rewrites this checklist.
 
-1. **Add to `AircraftStateDto`** (`../yaat-server/.../Dtos/TrainingDtos.cs:3`) — a new constructor param with a default
+1. **Add to `AircraftStateDto`** (`../yaat-server/.../Dtos/TrainingDtos.cs`) — a new constructor param with a default
    so older positional call sites still compile.
-2. **Add to `AircraftDto`** (`src/Yaat.Client.Core/Services/ServerConnection.cs:723`) — **same JSON property name**, a
+2. **Add to `AircraftDto`** (`src/Yaat.Client.Core/Services/ServerConnection.cs`) — **same JSON property name**, a
    JSON-compatible type, and a default. Order need not match the server.
-3. **Map it in `DtoConverter.ToTrainingDto`** (`../yaat-server/.../Simulation/DtoConverter.cs:620`) so the value is
+3. **Map it in `DtoConverter.ToTrainingDto`** (`../yaat-server/.../Simulation/DtoConverter.cs`) so the value is
    actually written onto the wire DTO.
 4. **Add it to `TrainingDtoFingerprint`** and capture it in `CaptureTrainingDto`
-   (`../yaat-server/.../Simulation/AircraftChangeTracker.cs:340`). **Skip this step and the field round-trips on
+   (`../yaat-server/.../Simulation/AircraftChangeTracker.cs`). **Skip this step and the field round-trips on
    initial join — because the full manifest carries it — but never updates live**, because `DetectChanges` only sets
    `DtoChangeFlags.TrainingDto` when a *fingerprinted* field changes. This is the field-round-trips-but-never-updates
    bug. (If the field is a non-`AircraftDto` topic — STARS/ASDE-X/ERAM/Tower-Cab — it belongs in a *different*
@@ -558,6 +558,17 @@ extend the resolver to depend on a new input, fingerprint that input too.
   The list changes with position and speed, so it is fingerprinted by value (`TrainingDtoFingerprint.ExitsAhead`, an `ExitsAheadFingerprint` over the rows; an empty list is not equal to null), and the snapshot (`AircraftSituationStateDto.ExitsAhead`) writes it only when it is not null.
 
   The client carries it as `AircraftModel.ExitsAhead` / `IMenuAircraft.ExitsAhead`; the Exit left / Exit right flyouts read it as the menu opens and never recompute it.
+- `MeetPoints` (a list of `GroundMeetPointDto(Callsign, NodeId, Position)`, `null` by default, an `AircraftStateDto` / `AircraftDto` field after `ExitsAhead`; JSON `meetPoints`: `[{callsign, nodeId, position:{lat, lon}}]` or null) is the stored `AircraftSituationState.MeetPoints`, computed once a second in the same `Situation` step (`SimulationEngine.TickSituation`) by `GroundConflictDetector.MeetCandidates` and `MeetPointsOf`: one row per other on-ground aircraft at the same airport whose driven route meets this aircraft's.
+
+  The meeting point is the first junction both driven routes (`FollowingPhase.DrivenRouteOf`) reach within the 1,500 ft look-ahead (`GroundConflictDetector.FindSharedUpcomingNode`), the geometry a `GIVEWAY` gives way short of. There is no ETA test, so a row says where two routes meet, not who gets there first, who gives way or whether either must slow. Pairs whose current-segment from-nodes are more than 3,000 ft apart are skipped.
+
+  `NodeId` is the junction's id in the airport's ground layout and `Position` its position. The list is null for an aircraft that is airborne, parked or driving no route, and when no other aircraft's route meets its own.
+
+  Ruling: the Give way "meets your route" point is this server-predicted point, not a client-side intersection of routes, so the client reads `MeetPoints` and never recomputes it. The CA / ATPA note above keeps the actual separation off `AircraftDto` because the client recomputes it per frame from positions; this is the stated exception, an `AircraftDto` field the server computes because the client holds no other aircraft's driven route.
+
+  The taxi routes are not fingerprinted, so it is fingerprinted by value (`TrainingDtoFingerprint.MeetPoints`, a `MeetPointsFingerprint` over the rows; null equals null only), and the snapshot (`AircraftSituationStateDto.MeetPoints`) writes it only when it is not null, with no schema bump.
+
+  The client carries it as `AircraftDto.MeetPoints` and `AircraftModel.MeetPoints` (observable); nothing draws it yet.
 - `TaxiTurnAboutShape` (a string, `null` by default) is `AircraftGroundOps.TaxiTurnAboutShape` by name: `"FromFarEnd"` or `"InPlace"` while the assigned taxi route starts with a turn about on the taxiway the aircraft stood on (`TaxiRoute.TurnAboutShape`) and the aircraft is still on that first segment, null when none is pending. A far-end route with no leg back stops sending it once the aircraft has turned about and reached the target, though it is still on segment 0.
 
   `TaxiTurnAboutTargetNodeId` (an int, `null` by default) is `AircraftGroundOps.TaxiTurnAboutTargetNodeId`: the occupied edge's far node the turn about turns the aircraft toward (`TaxiRoute.TurnAboutTargetNodeId`), null when none is pending.

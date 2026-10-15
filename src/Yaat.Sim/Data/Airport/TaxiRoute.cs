@@ -282,7 +282,7 @@ public sealed class TaxiRoute
     /// The index of the first segment from <see cref="CurrentSegmentIndex"/> on that ends at <paramref name="nodeId"/>, or
     /// <see cref="int.MaxValue"/> when none does — a bar already passed, or one on no segment of the route.
     /// </summary>
-    private int SegmentIndexAhead(int nodeId)
+    public int SegmentIndexAhead(int nodeId)
     {
         for (int i = Math.Max(0, CurrentSegmentIndex); i < Segments.Count; i++)
         {

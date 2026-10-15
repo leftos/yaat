@@ -47,6 +47,14 @@ public class AircraftSituationState
     /// </summary>
     public IReadOnlyList<ExitAheadDto>? ExitsAhead { get; set; }
 
+    /// <summary>
+    /// Where the aircraft's driven route meets other aircraft's, as the last <c>Situation</c> step found
+    /// (<see cref="GroundConflictDetector.MeetPointsOf"/>): one row per other on-ground aircraft whose route shares a junction
+    /// with its own within the convergence look-ahead, in world order. Null when there is none, the aircraft has no route or
+    /// no ground layout or is airborne, or until the step first runs.
+    /// </summary>
+    public IReadOnlyList<GroundMeetPointDto>? MeetPoints { get; set; }
+
     public AircraftSituationStateDto ToSnapshot() =>
         new()
         {
@@ -56,6 +64,7 @@ public class AircraftSituationState
             Flags = (int)Flags,
             NextCrossingRunway = NextCrossingRunway,
             ExitsAhead = ExitsAhead is { } exits ? [.. exits] : null,
+            MeetPoints = MeetPoints is { } meetPoints ? [.. meetPoints] : null,
         };
 
     public static AircraftSituationState FromSnapshot(AircraftSituationStateDto dto) =>
@@ -67,5 +76,6 @@ public class AircraftSituationState
             Flags = (SituationFlags)dto.Flags,
             NextCrossingRunway = dto.NextCrossingRunway,
             ExitsAhead = dto.ExitsAhead,
+            MeetPoints = dto.MeetPoints,
         };
 }

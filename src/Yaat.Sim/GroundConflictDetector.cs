@@ -2995,23 +2995,38 @@ public static class GroundConflictDetector
         return GeoMath.AlongTrackDistanceNm(ac.Position, from, new TrueHeading(GeoMath.BearingTo(from, to)));
     }
 
-    internal static int? FindSharedUpcomingNode(TaxiRoute routeA, TaxiRoute routeB)
+    internal static int? FindSharedUpcomingNode(TaxiRoute routeA, TaxiRoute routeB) => FindSharedUpcomingNode(UpcomingNodes(routeA), routeB);
+
+    /// <summary>
+    /// The nodes <paramref name="route"/> reaches within the convergence look-ahead from its current segment's from-node, each by
+    /// the node it first enters it from.
+    /// </summary>
+    private static Dictionary<int, int> UpcomingNodes(TaxiRoute route)
     {
         double lookaheadNm = ConvergenceLookaheadFt / FtPerNm;
-
-        var nodesA = new Dictionary<int, int>();
-        double cumulativeA = 0;
-        for (int i = routeA.CurrentSegmentIndex; i < routeA.Segments.Count; i++)
+        var nodes = new Dictionary<int, int>();
+        double cumulative = 0;
+        for (int i = route.CurrentSegmentIndex; i < route.Segments.Count; i++)
         {
-            TaxiRouteSegment seg = routeA.Segments[i];
-            cumulativeA += seg.Edge.DistanceNm;
-            if (cumulativeA > lookaheadNm)
+            TaxiRouteSegment seg = route.Segments[i];
+            cumulative += seg.Edge.DistanceNm;
+            if (cumulative > lookaheadNm)
             {
                 break;
             }
-            nodesA.TryAdd(seg.ToNodeId, seg.FromNodeId);
+            nodes.TryAdd(seg.ToNodeId, seg.FromNodeId);
         }
 
+        return nodes;
+    }
+
+    /// <summary>
+    /// The first node <paramref name="routeB"/> reaches within the look-ahead that is also in <paramref name="nodesA"/>
+    /// (<see cref="UpcomingNodes"/>) and that the two enter from different nodes; null when there is none.
+    /// </summary>
+    private static int? FindSharedUpcomingNode(Dictionary<int, int> nodesA, TaxiRoute routeB)
+    {
+        double lookaheadNm = ConvergenceLookaheadFt / FtPerNm;
         double cumulativeB = 0;
         for (int i = routeB.CurrentSegmentIndex; i < routeB.Segments.Count; i++)
         {
@@ -3030,6 +3045,86 @@ public static class GroundConflictDetector
 
         return null;
     }
+
+    /// <summary>
+    /// The aircraft in <paramref name="traffic"/> that can meet another on the taxiways, in its order: on the ground, driving a
+    /// route (<see cref="FollowingPhase.DrivenRouteOf"/>; not parked, nor a follower waiting on its lead) with a current segment
+    /// left, on a ground layout. Built once a step, for <see cref="MeetPointsOf"/> to pair.
+    /// </summary>
+    public static List<GroundMeetCandidate> MeetCandidates(IReadOnlyList<AircraftState> traffic)
+    {
+        var candidates = new List<GroundMeetCandidate>();
+        foreach (AircraftState ac in traffic)
+        {
+            if (
+                ac.IsOnGround
+                && (FollowingPhase.DrivenRouteOf(ac) is { CurrentSegment: { } segment } route)
+                && (ac.Ground.Layout?.AirportId is { } airportId)
+            )
+            {
+                candidates.Add(new GroundMeetCandidate(ac, route, segment.Edge.FromNode.Position, airportId));
+            }
+        }
+
+        return candidates;
+    }
+
+    /// <summary>
+    /// Where <paramref name="own"/>'s driven route meets the others' in <paramref name="candidates"/>: one row per aircraft whose
+    /// route shares a junction with its own (<see cref="FindSharedUpcomingNode(TaxiRoute, TaxiRoute)"/>, the junction a
+    /// <c>GIVEWAY</c> hold gives way short of), at that junction, in <paramref name="candidates"/>' order. An aircraft that is not a
+    /// candidate (parked, airborne) is no one's partner. Null when there is no row. It predicts where the routes meet, not who
+    /// gives way or whether either has to slow.
+    /// </summary>
+    public static IReadOnlyList<GroundMeetPointDto>? MeetPointsOf(GroundMeetCandidate own, IReadOnlyList<GroundMeetCandidate> candidates)
+    {
+        Dictionary<int, int>? ownNodes = null;
+        List<GroundMeetPointDto>? rows = null;
+        foreach (GroundMeetCandidate other in candidates)
+        {
+            if (!CanMeet(own, other))
+            {
+                continue;
+            }
+
+            ownNodes ??= UpcomingNodes(own.Route);
+            if (FindSharedUpcomingNode(ownNodes, other.Route) is { } nodeId)
+            {
+                rows ??= [];
+                rows.Add(new GroundMeetPointDto(other.Aircraft.Callsign, nodeId, JunctionPosition(own, other, nodeId)));
+            }
+        }
+
+        return rows;
+    }
+
+    /// <summary>
+    /// Whether the pair is worth walking: two different aircraft on the same airport's layout (node ids are per layout) whose route
+    /// starts lie within <see cref="MeetPairRangeFt"/>. Each route's look-ahead counts from its current segment's from-node, which a
+    /// fresh taxi route can place well ahead of the aircraft, so a junction both reach within it lies within the look-ahead of both
+    /// from-nodes, and from-nodes farther apart than twice it cannot share one.
+    /// </summary>
+    private static bool CanMeet(GroundMeetCandidate own, GroundMeetCandidate other) =>
+        (!ReferenceEquals(own.Aircraft, other.Aircraft))
+        && (own.AirportId == other.AirportId)
+        && (GeoMath.DistanceNm(own.RouteStart, other.RouteStart) * FtPerNm <= MeetPairRangeFt);
+
+    /// <summary>The position of the junction <paramref name="nodeId"/> ahead on <paramref name="own"/>'s route.</summary>
+    private static LatLon JunctionPosition(GroundMeetCandidate own, GroundMeetCandidate other, int nodeId)
+    {
+        int index = own.Route.SegmentIndexAhead(nodeId);
+        if (index == int.MaxValue)
+        {
+            throw new InvalidOperationException(
+                $"{own.Aircraft.Callsign}: shared node {nodeId} with {other.Aircraft.Callsign} is not on its route ahead"
+            );
+        }
+
+        return own.Route.Segments[index].Edge.ToNode.Position;
+    }
+
+    /// <summary>The farthest apart (ft) two route starts can lie and still have routes meeting within the look-ahead.</summary>
+    private const double MeetPairRangeFt = 2.0 * ConvergenceLookaheadFt;
 
     /// <summary>
     /// True when <paramref name="target"/> is taxiing and will reach the node where its route merges into

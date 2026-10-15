@@ -1082,6 +1082,13 @@ public partial class AircraftModel : ObservableObject, IMenuAircraft
     private IReadOnlyList<ExitAheadDto>? _exitsAhead;
 
     /// <summary>
+    /// Where this aircraft's taxi route meets other aircraft's (<see cref="AircraftDto.MeetPoints"/>, predicted by the server's
+    /// ground conflict detector): one row per other aircraft at the junction both routes reach; null when it meets none.
+    /// </summary>
+    [ObservableProperty]
+    private IReadOnlyList<GroundMeetPointDto>? _meetPoints;
+
+    /// <summary>
     /// How the aircraft leaves the stand it is parked on (<see cref="AircraftDto.StandDeparture"/>, computed by the server
     /// from the stand); null when it is not at a stand. The menus hide the push entries for a taxi-out stand.
     /// </summary>
@@ -1385,6 +1392,7 @@ public partial class AircraftModel : ObservableObject, IMenuAircraft
         model.SituationFlags = dto.SituationFlags;
         model.NextCrossingRunway = dto.NextCrossingRunway;
         model.ExitsAhead = dto.ExitsAhead;
+        model.MeetPoints = dto.MeetPoints;
         model.TaxiTurnAboutShape = model.ParseTaxiTurnAboutShape(dto.TaxiTurnAboutShape);
         model.StandDeparture = model.ParseStandDeparture(dto.StandDeparture, Log);
         return model;
@@ -1515,6 +1523,7 @@ public partial class AircraftModel : ObservableObject, IMenuAircraft
         SituationFlags = dto.SituationFlags;
         NextCrossingRunway = dto.NextCrossingRunway;
         ExitsAhead = dto.ExitsAhead;
+        MeetPoints = dto.MeetPoints;
         StandDeparture = ParseStandDeparture(dto.StandDeparture, Log);
     }
 

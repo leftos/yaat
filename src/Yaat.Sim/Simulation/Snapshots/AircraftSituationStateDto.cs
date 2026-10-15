@@ -26,4 +26,11 @@ public sealed class AircraftSituationStateDto
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public List<ExitAheadDto>? ExitsAhead { get; init; }
+
+    /// <summary>
+    /// Where the aircraft's route meets other aircraft's, as the last <c>Situation</c> step found; written only when there is a row,
+    /// so a snapshot without one keeps its old bytes, and null (none) when absent.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<GroundMeetPointDto>? MeetPoints { get; init; }
 }

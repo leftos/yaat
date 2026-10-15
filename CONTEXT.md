@@ -369,6 +369,9 @@ The taxi route a `FOLLOWG` follower drives off a runway when it has no follow ro
 **Driven route**:
 The taxi route an aircraft actually drives: a follower's follow route or clearing route while a follow is its current phase, else its assigned route (`FollowingPhase.DrivenRouteOf`). The ground conflict detector reads every aircraft's route through it.
 
+**Meet point**:
+The first junction two aircraft's driven routes both reach within the 1,500 ft look-ahead (`GroundConflictDetector.FindSharedUpcomingNode`, the junction a `GIVEWAY` gives way short of), sent per aircraft as `MeetPoints` (`GroundMeetPointDto`: the other callsign, node id, position). It is the server's prediction of where routes meet, with no ETA test, and says nothing about who gives way.
+
 **Stop gap**:
 The nose-to-tail distance a `FOLLOWG` follower stops at behind its lead, keyed by both aircraft: about 100 ft behind a small or prop lead, 150 ft behind a large or 757-class jet, 250 ft behind a heavy or super, plus 100 ft for a small or helicopter follower behind a jet (`FollowGap.StopGapFt`, a judgement value).
 _Avoid_: follow distance (the gap is nose to tail along the path, not centre to centre)
