@@ -151,6 +151,9 @@
 - [ ] YAAT-734 Check a rolling aircraft's reversal arcs against runway hold lines
 - [ ] YAAT-735 Limit the turn-about cleared-runway exemption to the cleared crossing's own bars
 - [ ] YAAT-736 Turn-about footprint leads: end-of-runway circle, GA body model, follower re-saying unable
+- [ ] YAAT-744 Turn heavies through sub-135° corners on their own turn radius
+- [ ] YAAT-745 Turn a just-pushed heavy about on its own radius, toward the stand side
+- [ ] YAAT-746 Stop the SFO G13S/G14T PUSH B5 target short of taxiway B
 
 ## Wave 2 — Ground command grammar and dispatch
 
