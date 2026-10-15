@@ -270,9 +270,12 @@ public class TaxiApproachLegTests(ITestOutputHelper output)
         Assert.Equal("Taxi via B [taxiing via E — not in the route issued]", result.Message);
     }
 
-    /// <summary>The same pose in a B738: a jet has no room to turn about on F, so it refuses and its state is untouched.</summary>
+    /// <summary>
+    /// The same pose in a B738: its gear does not fit a turn about on F, but it is holding after a pushback, and an
+    /// aircraft held after a pushback is never refused a turn about, so it turns about and taxis E then B like the C172.
+    /// </summary>
     [Fact]
-    public void StaleE_OnF_RouteBehind_JetRefusesToTurnAround()
+    public void StaleE_OnF_RouteBehind_JetHeldAfterPushTurnsAbout()
     {
         if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
         {
@@ -281,10 +284,9 @@ public class TaxiApproachLegTests(ITestOutputHelper output)
 
         CommandResult result = TaxiBFromFShortOfA(ground.Layout, "B738", out AircraftState aircraft);
 
-        Assert.False(result.Success, $"TryTaxi was accepted: {result.Message}");
-        Assert.Equal("Unable, no room to turn around on F, request a route ahead", result.Message);
-        Assert.Null(aircraft.Ground.AssignedTaxiRoute);
-        Assert.IsType<HoldingAfterPushbackPhase>(aircraft.Phases?.CurrentPhase);
+        Assert.True(result.Success, $"TryTaxi was refused: {result.Message}");
+        Assert.Equal("E B", aircraft.Ground.AssignedTaxiRoute?.FormatTaxiwaySequence());
+        Assert.Equal("Taxi via B [taxiing via E — not in the route issued]", result.Message);
     }
 
     /// <summary>A <paramref name="type"/> on F short of node 54, its current taxiway a stale E, cleared <c>TAXI B</c>.</summary>

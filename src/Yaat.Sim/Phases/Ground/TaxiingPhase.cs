@@ -1474,6 +1474,10 @@ public sealed class TaxiingPhase : Phase
     /// the nose reaches the spot; otherwise applies the slow-approach cap and returns false. No-op for
     /// non-spot routes. The half-length setback mirrors the runway-hold-short "nose at line" offset in
     /// <see cref="HoldShortAnnotator.ComputeHoldShortPositions"/>. See issue #234 (SFO spot 7A over A).
+    /// No stop while the navigator still flies the route's opening entry-alignment turn
+    /// (<see cref="GroundNavigator.IsEntryAligning"/> on the first segment), though the slow-approach cap still applies: an
+    /// aircraft pushed to within half a length of the spot, across the lane, must turn onto the lane before the stop can
+    /// leave it on the spot.
     /// </summary>
     private bool TryStopNoseAtSpot(PhaseContext ctx, TaxiRoute route)
     {
@@ -1494,7 +1498,8 @@ public sealed class TaxiingPhase : Phase
         double halfLenNm = (lengthFt / 2.0) / GeoMath.FeetPerNm;
         double distToSpotNm = GeoMath.DistanceNm(ctx.Aircraft.Position, spotNode.Position);
 
-        if (distToSpotNm <= halfLenNm)
+        bool flyingOpeningAlignment = (route.CurrentSegmentIndex == 0) && _nav.IsEntryAligning;
+        if ((distToSpotNm <= halfLenNm) && !flyingOpeningAlignment)
         {
             ctx.Aircraft.IndicatedAirspeed = 0;
             ctx.Targets.TargetSpeed = 0;

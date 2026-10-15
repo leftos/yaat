@@ -39,7 +39,9 @@ A `TAXI`/`TAXIAUTO` command reaches the pathfinder through the command pipeline 
 
    Either shape is reported by `ReportTurnAbout`, which sets `TaxiRoute.TurnAboutShape` and `TaxiRoute.TurnAboutTargetNodeId` (the occupied edge's far node; both snapshotted). `TaxiRoute.PendingTurnAboutShape` / `AircraftGroundOps.TaxiTurnAboutShape` read the shape, and `AircraftGroundOps.TaxiTurnAboutTargetNodeId` the node, until segment 0 is flown; then `TaxiTurnAboutShape.None` and null. A far-end route with no leg back (segment 0 starts at the target) ends sooner: `TaxiingPhase.EndTurnAboutAtItsTarget` clears both fields once the aircraft has turned about and reached the target (centre past the line through the target square to segment 0, heading within `StartBarAlignedDeg` of it), since it stays on segment 0 past the target. The clear is snapshotted with the fields.
 
-   **A type whose gear does not fit a turn about refuses a controller's clearance that would turn it about, at any heading** (`GroundCommandHandler.TurnAboutVerdictFor`).
+   **A type whose gear does not fit a turn about refuses a controller's clearance that would turn it about at a reversal** (`GroundCommandHandler.TurnAboutVerdictFor`): its heading 135° or more (`GroundNavigator.ReversalEntryThresholdDeg`) off the bearing to the far end of the edge it stands on. A turn toward the far end of less than 135° is a corner, which any type takes on any clearance.
+
+   An aircraft holding after a pushback (`HoldingAfterPushbackPhase`) or still under tow (`PushbackPhase`) is never refused: a tug kept it on pavement the whole way, so the ramp it was pushed over is pavement to turn on. A bare `PUSH` stays straight back. The Debug line `[TryTaxi] … turn about {Verdict} ({VerdictReason})` names which of these applied.
 
    The fit is the type's gear fit, `TurnAboutFit.Evaluate`, from its FAA aircraft characteristics record (`FaaAircraftDatabase`): the pivot radius (the main-gear axle midpoint's path at the 65° nose-wheel steering limit, or half the main-gear width MGW when that is larger) is R = max(MGW/2, 0.466 × wheelbase), and the type fits when its outer main tyre (R + MGW/2) and its nose gear (√(R² + wheelbase²)) both stay within half the width of a taxiway of its own taxiway design group.
 
@@ -53,9 +55,9 @@ A `TAXI`/`TAXIAUTO` command reaches the pathfinder through the command pipeline 
 
    It refuses this way whether the route from the endpoint ahead reversed over the edge or resolved nothing; when neither end resolves a route, it gives the first attempt's own refusal. A 737/A320 needs about 75–80 ft of pavement to turn 180°, more than its 50 ft design taxiway, so the pilot asks for a route ahead (AIM 4-3-18.b).
 
-   The heading does not enter into it: a type angled across its edge saves little of a full 180's room (a 150° turn still needs about 93% of it).
+   The line sits at the navigator's reversal threshold because a type angled across its edge saves little of a full 180's room (a 150° turn still needs about 93% of it); under 135° the navigator flies a corner, not a turn about.
 
-   **A clearance no controller issued is never refused that way** (`TaxiCoreOptions.ControllerIssued` is false for `TAXIAUTO` and for a scenario preset or AI controller, `DispatchContext.IsScenarioScripted`): no one is there to re-issue it. A type that does not fit keeps the route from the endpoint ahead, at any heading, and takes the far-end route, turning about, only when the endpoint ahead resolves nothing, so no unattended aircraft is left stuck.
+   **A clearance no controller issued is never refused that way** (`TaxiCoreOptions.ControllerIssued` is false for `TAXIAUTO` and for a scenario preset or AI controller, `DispatchContext.IsScenarioScripted`): no one is there to re-issue it. A type that does not fit keeps the route from the endpoint ahead, at a reversal, and takes the far-end route, turning about, only when the endpoint ahead resolves nothing, so no unattended aircraft is left stuck.
 
    Both attempts log their failures at Debug, so a first-attempt failure the re-plan recovers never reaches Warning; a refusal is logged once, at Warning.
 3. `TryTaxi` picks where the named path starts (`GroundCommandHandler.ResolveFromBestStart`, #455/#457). It tries three starts in order and takes the first that resolves:

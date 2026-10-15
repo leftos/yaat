@@ -1823,8 +1823,9 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// The same B738 angled 45° across C: its gear does not fit a turn about on a TDG 3 taxiway at any angle (turning from
-    /// off the edge saves little of a full 180's room), so it refuses the controller's TAXI as when lined up.
+    /// The same B738 angled <see cref="AcrossEdgeDeg"/> across C, not held after a push: turning toward the far node is a
+    /// reversal of about 150°, past <see cref="GroundNavigator.ReversalEntryThresholdDeg"/>, and its gear does not fit a
+    /// turn about on a TDG 3 taxiway, so it refuses the controller's TAXI as when lined up.
     /// </summary>
     [Fact]
     public void TaxiOnC_DestinationBehind_JetAngledAcrossCRefusesToTurnAround()
@@ -1836,7 +1837,9 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
 
         (GroundNode tangentCut, GroundNode farEnd) = KoakTaxiwayC.LongEdgeWestOfH(ground.Layout);
         AircraftState aircraft = SpawnMidCFacingH(ground, tangentCut, farEnd, "B738");
-        TrueHeading angled = AngleAcrossC(aircraft);
+        TrueHeading angled = AngleAcrossC(aircraft, AcrossEdgeDeg);
+        double offFarDeg = GeoMath.AbsBearingDifference(angled.Degrees, GeoMath.BearingTo(aircraft.Position, farEnd.Position));
+        Assert.InRange(offFarDeg, GroundNavigator.ReversalEntryThresholdDeg + 10.0, 180.0);
 
         string command = $"TAXI C {FirstTaxiwayOffCBeyond(farEnd, tangentCut)}";
         ParseResult<ParsedCommand> parsed = CommandParser.Parse(command);
@@ -1866,7 +1869,7 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
 
         (GroundNode tangentCut, GroundNode farEnd) = KoakTaxiwayC.LongEdgeWestOfH(ground.Layout);
         AircraftState aircraft = SpawnMidCFacingH(ground, tangentCut, farEnd, "B738");
-        TrueHeading angled = AngleAcrossC(aircraft);
+        TrueHeading angled = AngleAcrossC(aircraft, AcrossEdgeDeg);
 
         string command = $"TAXI C {FirstTaxiwayOffCBeyond(farEnd, tangentCut)}";
         ParseResult<ParsedCommand> parsed = CommandParser.Parse(command);
@@ -1926,17 +1929,56 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
         }
     }
 
-    /// <summary>Turns <paramref name="aircraft"/>'s heading and track <see cref="AcrossEdgeDeg"/> across C, and returns the new heading.</summary>
-    private static TrueHeading AngleAcrossC(AircraftState aircraft)
+    /// <summary>
+    /// The same B738 angled <see cref="CornerAcrossEdgeDeg"/> across C, not held after a push: turning toward the far node
+    /// is a corner of about 120°, short of <see cref="GroundNavigator.ReversalEntryThresholdDeg"/>, so although its gear
+    /// does not fit a turn about on C the controller's TAXI is accepted and it turns toward the far node.
+    /// </summary>
+    [Fact]
+    public void TaxiOnC_DestinationBehind_JetAngledSixtyAcrossCTurnsTheCornerTowardTheFarNode()
     {
-        var angled = new TrueHeading(aircraft.TrueHeading.Degrees + AcrossEdgeDeg);
+        if (BuildOak() is not { } ground)
+        {
+            return;
+        }
+
+        (GroundNode tangentCut, GroundNode farEnd) = KoakTaxiwayC.LongEdgeWestOfH(ground.Layout);
+        AircraftState aircraft = SpawnMidCFacingH(ground, tangentCut, farEnd, "B738");
+        Assert.IsType<HoldingInPositionPhase>(aircraft.Phases?.CurrentPhase);
+        TrueHeading angled = AngleAcrossC(aircraft, CornerAcrossEdgeDeg);
+        double offFarDeg = GeoMath.AbsBearingDifference(angled.Degrees, GeoMath.BearingTo(aircraft.Position, farEnd.Position));
+        Assert.InRange(offFarDeg, 90.0, GroundNavigator.ReversalEntryThresholdDeg - 10.0);
+
+        string command = $"TAXI C {FirstTaxiwayOffCBeyond(farEnd, tangentCut)}";
+        ParseResult<ParsedCommand> parsed = CommandParser.Parse(command);
+        Assert.True(parsed.IsSuccess, parsed.Reason);
+        CommandResult result = GroundCommandHandler.TryTaxi(aircraft, Assert.IsType<TaxiCommand>(parsed.Value), ground.Layout);
+        output.WriteLine($"{command} at heading {angled.Degrees:F0}, {offFarDeg:F0}° off the far node: {result.Success} — {result.Message}");
+
+        Assert.True(result.Success, $"'{command}' was refused: {result.Message}");
+        TaxiRoute route = Assert.IsType<TaxiRoute>(aircraft.Ground.AssignedTaxiRoute);
+        SfoGroundHarness.DumpRoute(output, route);
+        Assert.Equal(TaxiTurnAboutShape.FromFarEnd, route.TurnAboutShape);
+        Assert.Equal(farEnd.Id, route.TurnAboutTargetNodeId);
+    }
+
+    /// <summary>Turns <paramref name="aircraft"/>'s heading and track <paramref name="acrossDeg"/> across C, and returns the new heading.</summary>
+    private static TrueHeading AngleAcrossC(AircraftState aircraft, double acrossDeg)
+    {
+        var angled = new TrueHeading(aircraft.TrueHeading.Degrees + acrossDeg);
         aircraft.TrueHeading = angled;
         aircraft.TrueTrack = angled;
         return angled;
     }
 
-    /// <summary>How far the angled jet's heading is turned off C: well off the taxiway's line, still short of across it.</summary>
-    private const double AcrossEdgeDeg = 45.0;
+    /// <summary>
+    /// How far the angled jet's heading is turned off C toward the H side: off the taxiway's line, with the far node still
+    /// well past the navigator's reversal threshold behind it.
+    /// </summary>
+    private const double AcrossEdgeDeg = 30.0;
+
+    /// <summary>How far the cornering jet's heading is turned off C: far enough that the far node is a corner, not a reversal.</summary>
+    private const double CornerAcrossEdgeDeg = 60.0;
 
     /// <summary>
     /// The C172 turned about on C by a controller's clearance reports the turn about as pending (the overlay draws it
@@ -2724,10 +2766,10 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
 
     /// <summary>
     /// A B738 held after a push on M2, lined up toward <see cref="M2NodeAhead"/>, given the scenario preset
-    /// <c>PUSH; TAXI @B26</c>: the push tows it straight back along M2 and it ends still lined up toward the node ahead, so
-    /// the TAXI from the controller would be refused for want of room to turn around. A preset is not refused: it takes
-    /// the route from the node behind. Snapshotted mid-push and restored, the queued TAXI still fires as the preset it is
-    /// and takes the same route as the live run.
+    /// <c>PUSH; TAXI @B26</c>: the push tows it straight back along M2 and it ends still lined up toward the node ahead.
+    /// An aircraft held after a pushback is never refused a turn about, so the controller's TAXI is accepted, and the
+    /// preset takes the route from the node behind. Snapshotted mid-push and restored, the queued TAXI still fires as the
+    /// preset it is and takes the same route as the live run.
     /// </summary>
     [Fact]
     public void ScriptedPushThenTaxi_RestoredMidPush_TaxisAsLive()
@@ -2737,17 +2779,17 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
             return;
         }
 
-        // The pose: after the push, the controller's TAXI is refused.
+        // The pose: after the push, the controller's TAXI turns about on M2.
         PushAndHold(controller, isScenarioScripted: false);
         ParseResult<ParsedCommand> parsedTaxi = CommandParser.Parse($"TAXI @{M2Gate}");
         Assert.True(parsedTaxi.IsSuccess, parsedTaxi.Reason);
-        CommandResult refused = GroundCommandHandler.TryTaxi(
+        CommandResult controllerTaxi = GroundCommandHandler.TryTaxi(
             controller.Aircraft,
             Assert.IsType<TaxiCommand>(parsedTaxi.Value),
             controller.Ground.Layout
         );
-        output.WriteLine($"controller TAXI @{M2Gate} after the push: {refused.Success} — {refused.Message}");
-        Assert.Equal(GroundCommandHandler.NoRoomToTurnAroundReason("M2"), refused.Message);
+        output.WriteLine($"controller TAXI @{M2Gate} after the push: {controllerTaxi.Success} — {controllerTaxi.Message}");
+        Assert.True(controllerTaxi.Success, $"the controller's TAXI @{M2Gate} after the push was refused: {controllerTaxi.Message}");
 
         TaxiRoute live = PushThenTaxiFires(SpawnHeldAfterPushOnM2()!.Value, snapshotMidPush: false);
         TaxiRoute restored = PushThenTaxiFires(SpawnHeldAfterPushOnM2()!.Value, snapshotMidPush: true);
