@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Auto-sort separator lanes</title>
+<style>
+  :root { --bg: #1e1f22; --fg: #e6e6e6; --muted: #9aa0a6; --strip: #f3eccb; --strip-fg: #1b1b1b; --half: #d9e8f5; --sep: #3b6ea8; --blank: #cfcfcf; --lane: #2a2c30; }
+  body { background: var(--bg); color: var(--fg); font: 14px/1.4 system-ui, sans-serif; margin: 0; padding: 16px; }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  p.note { color: var(--muted); margin: 0 0 16px; max-width: 900px; }
+  .lanes { display: flex; flex-wrap: wrap; gap: 16px; }
+  .lane { background: var(--lane); border-radius: 6px; padding: 12px; width: 230px; }
+  .lane h2 { font-size: 14px; margin: 0 0 4px; }
+  .lane .why { color: var(--muted); font-size: 12px; margin: 0 0 10px; min-height: 48px; }
+  .rack { display: flex; flex-direction: column; gap: 3px; }
+  .s { background: var(--strip); color: var(--strip-fg); font: 600 13px/1 ui-monospace, monospace; padding: 7px 8px; border-radius: 2px; }
+  .s.half { background: var(--half); width: 55%; }
+  .s.sep { background: var(--sep); color: #fff; text-align: center; font-weight: 700; padding: 3px; }
+  .s.blank { background: var(--blank); color: #666; font-weight: 400; }
+  .top { color: var(--muted); font-size: 11px; text-align: center; margin-bottom: 2px; }
+  .sorted .rack::before, .sorted .rack::after { content: "auto-sort on"; background: #5a4a12; color: #ffd75e; font: 600 10px/1 system-ui, sans-serif; letter-spacing: 0.04em; text-align: center; padding: 3px; border-radius: 2px; }
+</style>
+</head>
+<body>
+<h1>YAAT-716: where separators go in an auto-sorted rack</h1>
+<p class="note">One rack, read top to bottom. Tails sort first, then airlines, each A→Z. Half strips sort by line 1; blanks and empty half strips sit at the bottom of whatever they are sorted with. A sorted rack is framed by pinned "auto-sort on" banners at its top and bottom.</p>
+<div class="lanes">
+  <div class="lane">
+    <h2>Before (unsorted)</h2>
+    <p class="why">The rack as the controller left it.</p>
+    <div class="top">top</div>
+    <div class="rack">
+      <div class="s">UAL512</div>
+      <div class="s sep">RWY 28L</div>
+      <div class="s">SKW5432</div>
+      <div class="s">N172SP</div>
+      <div class="s blank">(blank)</div>
+      <div class="s">AAL2210</div>
+      <div class="s sep">RWY 1R</div>
+      <div class="s half">DAL88</div>
+      <div class="s">N1234</div>
+      <div class="s">ASA301</div>
+    </div>
+  </div>
+  <div class="lane sorted">
+    <h2>A. Separators split the rack</h2>
+    <p class="why">Separators stay put; each run between them is sorted on its own.</p>
+    <div class="top">top</div>
+    <div class="rack">
+      <div class="s">UAL512</div>
+      <div class="s sep">RWY 28L</div>
+      <div class="s">N172SP</div>
+      <div class="s">AAL2210</div>
+      <div class="s">SKW5432</div>
+      <div class="s blank">(blank)</div>
+      <div class="s sep">RWY 1R</div>
+      <div class="s">N1234</div>
+      <div class="s">ASA301</div>
+      <div class="s half">DAL88</div>
+    </div>
+  </div>
+  <div class="lane sorted">
+    <h2>B. Separators to the top</h2>
+    <p class="why">One sorted list of strips; separators gather at the top in their existing order.</p>
+    <div class="top">top</div>
+    <div class="rack">
+      <div class="s sep">RWY 28L</div>
+      <div class="s sep">RWY 1R</div>
+      <div class="s">N1234</div>
+      <div class="s">N172SP</div>
+      <div class="s">AAL2210</div>
+      <div class="s">ASA301</div>
+      <div class="s half">DAL88</div>
+      <div class="s">SKW5432</div>
+      <div class="s">UAL512</div>
+      <div class="s blank">(blank)</div>
+    </div>
+  </div>
+  <div class="lane sorted">
+    <h2>C. Separators to the bottom</h2>
+    <p class="why">One sorted list of strips; separators gather at the bottom in their existing order.</p>
+    <div class="top">top</div>
+    <div class="rack">
+      <div class="s">N1234</div>
+      <div class="s">N172SP</div>
+      <div class="s">AAL2210</div>
+      <div class="s">ASA301</div>
+      <div class="s half">DAL88</div>
+      <div class="s">SKW5432</div>
+      <div class="s">UAL512</div>
+      <div class="s blank">(blank)</div>
+      <div class="s sep">RWY 28L</div>
+      <div class="s sep">RWY 1R</div>
+    </div>
+  </div>
+</div>
+</body>
+</html>
