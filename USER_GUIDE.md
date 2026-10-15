@@ -625,7 +625,7 @@ When the ramp alone doesn't reach the spot or gate, the TAXI is refused with `Un
 
 **Starting from the middle of a taxiway.** A `TAXI` to an aircraft standing on a taxiway starts on that taxiway, heading whichever way its route goes. When the route lies behind it, an aircraft whose gear fits the taxiway's width turns around where it stands, and the ground view draws the turn: small props such as a C172 or C208 do.
 
-Larger types, business jets and regional turboprops included, have no room for that whichever way they face, and answer *"Unable, no room to turn around on C, request a route ahead"*: give them a route that continues ahead.
+Larger types, business jets and regional turboprops included, have no room for a full reversal (a route that leaves 135° or more off the way they face), and answer *"Unable, no room to turn around on C, request a route ahead"*: give them a route that continues ahead. A turn of less than 135° is a corner, which every type takes, and an aircraft held after a pushback or still being towed is never refused: it turns on the ramp it was pushed over.
 
 An aircraft that is already rolling when the new route turns it around first brakes to pivot speed, and never past a runway hold line: it stops short of the line and turns there. When it has no room to turn on the pavement or to stop first, it stops, holds and gives the same *unable* call once.
 

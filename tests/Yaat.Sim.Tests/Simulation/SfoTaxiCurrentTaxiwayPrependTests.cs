@@ -185,10 +185,11 @@ public class SfoTaxiCurrentTaxiwayPrependTests(ITestOutputHelper output)
 
     /// <summary>
     /// THY9WC at the bundle's own heading, 225°, lined up along B facing away from the route: the re-issued
-    /// <c>TAXI A F 28L HS 1L</c> needs a turn about on B, which a jet refuses.
+    /// <c>TAXI A F 28L HS 1L</c> needs a turn about on B. The jet is holding after a pushback, and an aircraft held after a
+    /// pushback is never refused a turn about, so the clearance is accepted.
     /// </summary>
     [Fact]
-    public void Taxi_ReissuedAF28L_AtTheBundleHeading_JetRefusesToTurnAboutOnB()
+    public void Taxi_ReissuedAF28L_AtTheBundleHeading_JetHeldAfterPushTurnsAboutOnB()
     {
         if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
         {
@@ -202,8 +203,8 @@ public class SfoTaxiCurrentTaxiwayPrependTests(ITestOutputHelper output)
 
         CommandResult result = ground.Engine.SendCommand("THY9WC", "TAXI A F 28L HS 1L");
         output.WriteLine($"TAXI A F 28L HS 1L: {result.Success} — {result.Message}");
-        Assert.False(result.Success, result.Message);
-        Assert.Equal(GroundCommandHandler.NoRoomToTurnAroundReason("B"), result.Message);
+        Assert.True(result.Success, result.Message);
+        Assert.NotNull(aircraft.Ground.AssignedTaxiRoute);
     }
 
     /// <summary>THY9WC's heading in the bundle at t=180..195, nosed down B away from the route.</summary>

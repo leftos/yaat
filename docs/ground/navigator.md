@@ -103,6 +103,8 @@ The navigator is one stage in a chain owned by `TaxiingPhase`. It is **not** res
 
   Otherwise a fuselage centered on a ramp spot juts a half-length toward the adjacent taxiway, and the ground conflict detector then slows traffic taxiing past (issue #234; SFO's spot 7 ramp sits ~175 ft off taxiway A).
 
+  While the navigator still flies the route's opening entry-alignment turn (`GroundNavigator.IsEntryAligning` on segment 0), the slow-approach cap applies but the stop waits for the turn to end. An aircraft pushed to within half a length of the spot, across the lane, has its nose past the marking before the taxi starts (a bare `PUSH TE` off OAK gate 31 leaves the reference point 42.4 ft behind spot E, less than a B737's half-length), and must turn onto the lane before the stop can leave it on the spot.
+
   The final approach within one fuselage of the spot is capped to a slow parking speed so the stop lands cleanly; on a tight ramp whose lead-in lane is shorter than a fuselage the aircraft comes to rest mid-turn, at an angle — realistic for a taxi-in (aircraft are normally pushed onto spots).
 - A pending departure clearance at route end → `LineUpPhase` / `LinedUpAndWaitingPhase` / `TakeoffPhase` chain. The route end is **not** a stop in that case: `TaxiingPhase` sets `GroundNavigator.RouteEndSpeedKts` to the category taxi-corner speed when a takeoff or LUAW clearance is already stored for the destination-runway bar the route terminates at, so the speed plan aims to arrive rolling and `TaxiingPhase.OnEnd` skips its stop-braking, the same exemption a moving crossing gets.
 

@@ -215,13 +215,15 @@ The Task Index above tells you *which files*; these docs explain *how each subsy
 
     `Simulation/GroundTaxi/OakSimplePushThenTaxiApproachTests.cs` (unit-level: a PUSH-then-TAXI route starting behind the aircraft is driven to via a free-space leg, not teleported onto). `Simulation/GroundTaxi/OakSimplePushThenTaxiApproachReplayTests.cs` (E2E replay of the same PUSH/TAXI session off a recording).
 
+    `Simulation/GroundTaxi/OakPushTeThenTaxiTests.cs` (YAAT-708: a B737/B738 held on KOAK TE after a bare `PUSH TE` off gate 31 or 29 is accepted `TAXI T U W RWY 30`, `TAXI $E` and `TAXI TE $E`, turning the 117°/104° corner toward T; the taxi to spot E flies the corner before the spot stop). `Simulation/GroundTaxi/PushThenTaxiSweepTests.cs` (YAAT-41: for each KOAK/KSFO stand and each taxilane its push menu offers, a B738 pushed by a bare `PUSH {lane}` is accepted a `TAXI` onto every taxiway the lane meets, and moves off or completes its route; the full sweep is `Nightly`, the known OAK/SFO cases run on every change).
+
     `Simulation/GroundTaxi/TaxiApproachLegTests.cs` (`TaxiApproachLeg.Prepend` unit cover: the four refusal shapes plus the along-runway-roll case). `VirtualNodeTests.cs` (position-hashed virtual-node ids: same position → same id, a foot apart → a different one, cross-process determinism).
 
     `Simulation/GroundTaxi/TaxiStartsOnOccupiedTaxiwayTests.cs` (a TAXI to an aircraft mid-way along a straight taxi edge starts on that taxiway, at KOAK C and KSFO B, and one in a fillet arc starts at the arc's end ahead).
 
     Its route-aware-start cases: a route behind turns a C172 about to the far node, reported `TaxiTurnAboutShape.FromFarEnd` with that node as target until that leg is flown; a route drawn back through a runway holding position, with no leg to it, and a scripted B738 whose node ahead resolves none also report `FromFarEnd`.
 
-    Its gear-fit cases: a B738, lined up or angled 45° across, refuses "no room to turn around", as do a C25A and an AT76, while a C208 turns about; the angled B738 on a scripted TAXI keeps the route ahead; a scripted TAXI is never refused, also across a mid-push snapshot restore.
+    Its gear-fit cases: a B738, lined up or angled 30° across (a reversal of about 150°), refuses "no room to turn around", as do a C25A and an AT76, while a C208 turns about; a B738 angled 60° across (a corner of about 120°) is accepted and turns toward the far node; the angled B738 on a scripted TAXI keeps the route ahead; a scripted TAXI is never refused, and a controller's TAXI after a push (held after a pushback) is accepted too, also across a mid-push snapshot restore.
 
     Its turn-about cases: a C172 and a C208 cleared to a taxiway behind them on KOAK C, and a C172 on a drawn route to the C node behind, turn about with their centre within the 12.5 ft TDG 1A half-width of C's centreline, at no more than ω·R on their type's turn-about radius (`TurnAboutFit`).
 

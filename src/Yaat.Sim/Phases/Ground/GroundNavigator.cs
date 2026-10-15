@@ -643,7 +643,7 @@ public sealed class GroundNavigator
     /// onto an acute crossing taxiway — is the one exception: it is rounded, never turned about
     /// (<see cref="BuildTaxiwayTurnAbout"/>).
     /// </summary>
-    private const double ReversalEntryThresholdDeg = 135.0;
+    internal const double ReversalEntryThresholdDeg = 135.0;
 
     /// <summary>
     /// A straight→straight corner sharper than this (deg) is treated as an UNFILLETED kink: the fillet
@@ -680,6 +680,12 @@ public sealed class GroundNavigator
     /// entry alignment is in progress.
     /// </summary>
     private PathPrimitive? _pendingSegmentPrimitive;
+
+    /// <summary>
+    /// True while an entry-alignment turn onto the current segment is pending or playing: the slow-turn rounds the
+    /// aircraft onto the segment, and the segment's own primitive waits behind it.
+    /// </summary>
+    internal bool IsEntryAligning => _pendingSegmentPrimitive is not null;
 
     /// <summary>
     /// True while the current segment starts at a virtual node — a free-space leg (the approach leg

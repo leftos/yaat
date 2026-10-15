@@ -393,11 +393,12 @@ public class SfoT1SouthRampOneWayTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// The super pushed off B2 onto M5 and lined up along it, then <c>TAXI A</c>: the route ahead needs a turn about on M5,
-    /// which a jet refuses.
+    /// The super pushed off B2 onto M5 and lined up along it, then <c>TAXI A</c>: the route ahead needs a turn about on M5.
+    /// An aircraft holding after a pushback is never refused a turn about, so the super turns about and leaves on M1, never
+    /// on M2.
     /// </summary>
     [Fact]
-    public void PushedOffB2_TaxiA_A388_RefusesToTurnAboutOnM5()
+    public void PushedOffB2_TaxiA_A388_TurnsAboutOnM5()
     {
         if (PushOffB2("A388") is not { } pushed)
         {
@@ -406,9 +407,77 @@ public class SfoT1SouthRampOneWayTests(ITestOutputHelper output)
 
         CommandResult result = pushed.Ground.Engine.SendCommand(pushed.Aircraft.Callsign, "TAXI A");
         output.WriteLine($"TAXI A: {result.Success} — {result.Message}");
-        Assert.False(result.Success, result.Message);
-        Assert.Equal(GroundCommandHandler.NoRoomToTurnAroundReason("M5"), result.Message);
+        Assert.True(result.Success, result.Message);
+        TaxiRoute route = Assert.IsType<TaxiRoute>(pushed.Aircraft.Ground.AssignedTaxiRoute);
+        Assert.True(DrivesStraight(route, "M1"), "the super must leave the ramp on M1");
+        Assert.False(DrivesStraight(route, "M2"), "the super must not use M2");
+        Assert.True(DrivesStraight(route, "A"), "the route must reach A");
     }
+
+    /// <summary>
+    /// The super given <c>PUSH M5</c> off B2 and cleared <c>TAXI A</c> while the tug is still pushing it back along M5, lined
+    /// up with it: the route ahead needs a reversal on M5 its gear does not fit, but an aircraft still under tow is on the
+    /// ramp pavement it was pushed over, as one held after the push is, so it is not refused, turns about and taxis off.
+    /// </summary>
+    [Fact]
+    public void MidPushOntoM5_TaxiA_A388_TurnsAboutOnM5()
+    {
+        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        {
+            return;
+        }
+
+        AircraftState aircraft = SfoGroundHarness.SpawnParked(ground, "WJA1509", "A388", "B2");
+        CommandResult push = ground.Engine.SendCommand(aircraft.Callsign, "PUSH M5");
+        Assert.True(push.Success, push.Message);
+        int alongM5At = SfoGroundHarness.TickUntil(ground.Engine, () => TowedAlongM5(ground.Layout, aircraft), 600, null);
+        Assert.True(alongM5At > 0, "the tug never pushed the super back along M5, lined up with it");
+        output.WriteLine($"mid-push at {aircraft.Position} facing {aircraft.TrueHeading.Degrees:F1}° after {alongM5At} s");
+
+        CommandResult result = ground.Engine.SendCommand(aircraft.Callsign, "TAXI A");
+        output.WriteLine($"TAXI A: {result.Success} — {result.Message}");
+        Assert.True(result.Success, result.Message);
+        TaxiRoute route = Assert.IsType<TaxiRoute>(aircraft.Ground.AssignedTaxiRoute);
+        Assert.NotEqual(TaxiTurnAboutShape.None, route.TurnAboutShape);
+        Assert.True(DrivesStraight(route, "M1"), "the super must leave the ramp on M1");
+
+        LatLon clearedAt = aircraft.Position;
+        int movedAt = SfoGroundHarness.TickUntil(
+            ground.Engine,
+            () => (aircraft.Phases?.CurrentPhase is TaxiingPhase) && (MovedFt(clearedAt, aircraft) >= MinTaxiMoveFt),
+            TaxiMoveWindowSeconds,
+            null
+        );
+        output.WriteLine($"moved {MovedFt(clearedAt, aircraft):F1} ft, phase {aircraft.Phases?.CurrentPhase?.GetType().Name}");
+        Assert.True(movedAt > 0, $"the super did not taxi {MinTaxiMoveFt} ft within {TaxiMoveWindowSeconds} s of the clearance");
+    }
+
+    /// <summary>How far (ft) the super must taxi after the mid-tow clearance.</summary>
+    private const double MinTaxiMoveFt = 30.0;
+
+    /// <summary>How long (s) the super has to taxi <see cref="MinTaxiMoveFt"/> after the mid-tow clearance.</summary>
+    private const int TaxiMoveWindowSeconds = 60;
+
+    private static double MovedFt(LatLon from, AircraftState aircraft) => GeoMath.DistanceNm(from, aircraft.Position) * GeoMath.FeetPerNm;
+
+    /// <summary>
+    /// Whether <paramref name="aircraft"/> is still under tow (<see cref="PushbackPhase"/>) mid-way along an M5 edge, its
+    /// heading within <see cref="LinedUpToleranceDeg"/> of the edge's line.
+    /// </summary>
+    private static bool TowedAlongM5(AirportGroundLayout layout, AircraftState aircraft)
+    {
+        if ((aircraft.Phases?.CurrentPhase is not PushbackPhase) || (layout.FindMidEdgeTaxiStart(aircraft.Position) is not { } edge))
+        {
+            return false;
+        }
+
+        double edgeDeg = GeoMath.BearingTo(edge.Nodes[0].Position, edge.Nodes[1].Position);
+        double offLineDeg = GeoMath.AbsBearingDifference(aircraft.TrueHeading.Degrees, edgeDeg);
+        return edge.MatchesTaxiway("M5") && (Math.Min(offLineDeg, 180.0 - offLineDeg) <= LinedUpToleranceDeg);
+    }
+
+    /// <summary>How close (deg) to an edge's line a heading counts as lined up with it.</summary>
+    private const double LinedUpToleranceDeg = 10.0;
 
     /// <summary>
     /// A super inbound with <c>TAXI T A M2 M5 @B2</c>: M2 is closed to supers, but the controller named it, so the route is

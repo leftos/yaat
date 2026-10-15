@@ -617,23 +617,22 @@ public static partial class GroundCommandHandler
     }
 
     /// <summary>
-    /// Resolves the clearance from <paramref name="startNode"/>, route-aware when the aircraft stands mid-way along a
-    /// straight taxi edge (<see cref="AirportGroundLayout.FindMidEdgeTaxiStart"/>) and the start is one of that edge's
-    /// endpoints: the endpoint ahead, or the nearer one when the heading crosses the edge. When the route from there drives
-    /// back over the edge the aircraft is on (<see cref="DrivesOccupiedEdge"/>), or no route resolves from there, the
-    /// clearance is re-planned from the edge's other endpoint, and that route wins when it resolves and does not drive the
-    /// edge: the aircraft turns about on the taxiway. A type whose gear does not fit a turn about on a taxiway of its design
-    /// group (<see cref="TurnAboutFit"/>), at any heading, does not turn about on a controller's clearance: where that route
-    /// would win it refuses for want of room to turn around, whether the endpoint ahead resolved a route or none. A
-    /// clearance no controller issued (<see cref="TaxiCoreOptions.ControllerIssued"/>) is never refused that way: the type
-    /// keeps the route from the endpoint ahead, and turns about only when that resolved none. Otherwise the endpoint ahead
-    /// wins, with its route or its refusal. A route kept from the endpoint ahead whose first segment drives straight back
-    /// over the edge turns the aircraft about where it stands: a type that does not fit refuses it on a controller's
-    /// clearance, and every other route reports it (<see cref="TaxiTurnAboutShape.InPlace"/>). A route from the other
-    /// endpoint that wins always reports its turn about toward that endpoint (<see cref="TaxiTurnAboutShape.FromFarEnd"/>),
-    /// whether or not it opens with the free-space leg back to it. Both carry that endpoint as the target
-    /// (<see cref="TaxiRoute.TurnAboutTargetNodeId"/>).
-    /// The attempts log their failures at Debug and a refusal is logged once.
+    /// Resolves the clearance from <paramref name="startNode"/>, route-aware when the aircraft stands mid-way along a straight taxi edge
+    /// (<see cref="AirportGroundLayout.FindMidEdgeTaxiStart"/>) and the start is one of that edge's endpoints: the endpoint ahead, or the nearer one
+    /// when the heading crosses the edge. When the route from there drives back over the edge the aircraft is on (<see cref="DrivesOccupiedEdge"/>),
+    /// or no route resolves from there, the clearance is re-planned from the edge's other endpoint, and that route wins when it resolves and does not
+    /// drive the edge: the aircraft turns about on the taxiway. When its heading is less than <see cref="GroundNavigator.ReversalEntryThresholdDeg"/>
+    /// off the bearing to the edge's other endpoint, the turn toward that endpoint is a corner, not a reversal, and any type takes that route on any
+    /// clearance. At a reversal, a type whose gear does not fit a turn about on a taxiway of its design group (<see cref="TurnAboutFit"/>) does not
+    /// turn about on a controller's clearance: where that route would win it refuses for want of room to turn around, whether the endpoint ahead
+    /// resolved a route or none. An aircraft holding after a pushback, or still under tow, is never refused that way: it turns about on the ramp it
+    /// was pushed over (<see cref="TurnAboutVerdictFor"/>). A clearance no controller issued (<see cref="TaxiCoreOptions.ControllerIssued"/>) is
+    /// never refused that way: the type keeps the route from the endpoint ahead, and turns about only when that resolved none. Otherwise the endpoint
+    /// ahead wins, with its route or its refusal. A route kept from the endpoint ahead whose first segment drives straight back over the edge turns
+    /// the aircraft about where it stands: a type that does not fit refuses it on a controller's clearance, and every other route reports it
+    /// (<see cref="TaxiTurnAboutShape.InPlace"/>). A route from the other endpoint that wins always reports its turn about toward that endpoint
+    /// (<see cref="TaxiTurnAboutShape.FromFarEnd"/>), whether or not it opens with the free-space leg back to it. Both carry that endpoint as the
+    /// target (<see cref="TaxiRoute.TurnAboutTargetNodeId"/>). The attempts log their failures at Debug and a refusal is logged once.
     /// </summary>
     private static TaxiResolution ResolveTaxiRouteFromStart(TaxiResolveInputs inputs, TaxiCommand taxi, GroundNode startNode)
     {
@@ -664,7 +663,7 @@ public static partial class GroundCommandHandler
         }
 
         GroundNode otherEnd = occupied.OtherNode(startNode);
-        TurnAboutVerdict verdict = TurnAboutVerdictFor(inputs);
+        (TurnAboutVerdict verdict, string verdictReason) = TurnAboutVerdictFor(inputs, otherEnd);
         if ((verdict == TurnAboutVerdict.KeepRouteAhead) && (fromStart.Route is not null))
         {
             return KeepRouteAhead(inputs, taxi, fromStart, occupied, otherEnd);
@@ -674,7 +673,7 @@ public static partial class GroundCommandHandler
         TaxiRoute? turned = RouteAvoiding(fromOtherEnd, occupied);
         Log.LogDebug(
             "[TryTaxi] {Callsign}: on {Taxiway} edge {First}-{Second}, the route from node {Start} is refused ({Refused}) or drives back over "
-                + "the edge; from node {Other} it avoids it ({Avoids}); turn about {Verdict}",
+                + "the edge; from node {Other} it avoids it ({Avoids}); turn about {Verdict} ({VerdictReason})",
             inputs.Aircraft.Callsign,
             occupied.TaxiwayName,
             occupied.Nodes[0].Id,
@@ -683,7 +682,8 @@ public static partial class GroundCommandHandler
             fromStart.Route is null,
             otherEnd.Id,
             turned is not null,
-            verdict
+            verdict,
+            verdictReason
         );
         if (turned is null)
         {
@@ -702,32 +702,62 @@ public static partial class GroundCommandHandler
     /// <summary>What a turn about on the taxiway the aircraft stands mid-way along is open to, by aircraft and clearance.</summary>
     private enum TurnAboutVerdict
     {
-        /// <summary>The aircraft turns about wherever the route needs it to.</summary>
+        /// <summary>
+        /// The aircraft turns about wherever the route needs it to: a type that fits, any type holding after a pushback or
+        /// still under tow, or any type when the turn toward the edge's other endpoint is a corner short of
+        /// <see cref="GroundNavigator.ReversalEntryThresholdDeg"/>.
+        /// </summary>
         TurnAbout,
 
         /// <summary>
-        /// A type whose gear does not fit a turn about, on a clearance no controller issued: it keeps the route from the
-        /// endpoint ahead when one resolved, and turns about only when none did.
+        /// A type whose gear does not fit a turn about, at a reversal, on a clearance no controller issued: it keeps the route
+        /// from the endpoint ahead when one resolved, and turns about only when none did.
         /// </summary>
         KeepRouteAhead,
 
-        /// <summary>A type whose gear does not fit a turn about, on a controller's clearance: it refuses any turn about, for want of room.</summary>
+        /// <summary>
+        /// A type whose gear does not fit a turn about, at a reversal, on a controller's clearance: it refuses any turn about,
+        /// for want of room.
+        /// </summary>
         Refuse,
     }
 
     /// <summary>
-    /// The <see cref="TurnAboutVerdict"/> for the aircraft and clearance of <paramref name="inputs"/>: by whether the type's
-    /// gear fits a turn about on a taxiway of its design group (<see cref="TurnAboutFit"/>) and who issued the clearance,
-    /// whatever the aircraft's heading.
+    /// The <see cref="TurnAboutVerdict"/> for the aircraft and clearance of <paramref name="inputs"/>, with the reason the
+    /// Debug log carries. An aircraft holding after a pushback (<see cref="HoldingAfterPushbackPhase"/>) that has not taxied
+    /// since, or still under tow (<see cref="PushbackPhase"/>), turns about on any clearance: a tug kept it on pavement the
+    /// whole way, so the ramp it was pushed over is pavement to turn on. When the aircraft's
+    /// heading is less than <see cref="GroundNavigator.ReversalEntryThresholdDeg"/> off the bearing to
+    /// <paramref name="otherEnd"/>, turning toward it is a corner the navigator flies, not a reversal, so every type turns
+    /// on every clearance. At a reversal the verdict goes by whether the type's gear fits a turn about on a taxiway of its
+    /// design group (<see cref="TurnAboutFit"/>) and who issued the clearance.
     /// </summary>
-    private static TurnAboutVerdict TurnAboutVerdictFor(TaxiResolveInputs inputs)
+    private static (TurnAboutVerdict Verdict, string Reason) TurnAboutVerdictFor(TaxiResolveInputs inputs, GroundNode otherEnd)
     {
-        if (TurnAboutFit.Evaluate(inputs.Aircraft.AircraftType, inputs.Category).Fits)
+        AircraftState aircraft = inputs.Aircraft;
+        if (aircraft.Phases?.CurrentPhase is HoldingAfterPushbackPhase)
         {
-            return TurnAboutVerdict.TurnAbout;
+            return (TurnAboutVerdict.TurnAbout, "held after a pushback");
         }
 
-        return inputs.Options.ControllerIssued ? TurnAboutVerdict.Refuse : TurnAboutVerdict.KeepRouteAhead;
+        if (aircraft.Phases?.CurrentPhase is PushbackPhase)
+        {
+            return (TurnAboutVerdict.TurnAbout, "mid-tow");
+        }
+
+        double offOtherEndDeg = GeoMath.AbsBearingDifference(aircraft.TrueHeading.Degrees, GeoMath.BearingTo(aircraft.Position, otherEnd.Position));
+        if (offOtherEndDeg < GroundNavigator.ReversalEntryThresholdDeg)
+        {
+            return (TurnAboutVerdict.TurnAbout, $"corner {offOtherEndDeg:F0}°");
+        }
+
+        if (TurnAboutFit.Evaluate(aircraft.AircraftType, inputs.Category).Fits)
+        {
+            return (TurnAboutVerdict.TurnAbout, $"reversal {offOtherEndDeg:F0}°, gear fits");
+        }
+
+        TurnAboutVerdict noFit = inputs.Options.ControllerIssued ? TurnAboutVerdict.Refuse : TurnAboutVerdict.KeepRouteAhead;
+        return (noFit, $"reversal {offOtherEndDeg:F0}°, gear does not fit");
     }
 
     /// <summary>The route <paramref name="resolution"/> resolved, when it does not drive <paramref name="occupied"/>; null otherwise.</summary>
@@ -753,7 +783,7 @@ public static partial class GroundCommandHandler
             return fromStart;
         }
 
-        if (TurnAboutVerdictFor(inputs) == TurnAboutVerdict.Refuse)
+        if (TurnAboutVerdictFor(inputs, otherEnd).Verdict == TurnAboutVerdict.Refuse)
         {
             return NoRoomToTurnAround(inputs.Aircraft, taxi, occupied.TaxiwayName);
         }
