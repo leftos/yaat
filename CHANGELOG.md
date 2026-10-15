@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.16.3-beta [2026/10/15]
+
+### Fixed
+
+- After a push-back, `TAXI` turns the aircraft around instead of answering "unable, no room to turn around", and only a full reversal needs taxiway room.
+
 ## v0.16.2-beta [2026/10/11]
 
 ### Highlights
