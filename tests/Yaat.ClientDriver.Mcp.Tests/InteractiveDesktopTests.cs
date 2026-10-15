@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Xunit;
 
 namespace Yaat.ClientDriver.Mcp.Tests;
@@ -20,5 +21,12 @@ public sealed class InteractiveDesktopTests
 
     [Fact]
     [Trait("Category", "Desktop")]
-    public void MissingReason_AtThisDesktop_ReportsADesktop() => Assert.Null(InteractiveDesktop.MissingReason());
+    public void MissingReason_AtThisDesktop_ReportsADesktop()
+    {
+        using var process = Process.GetCurrentProcess();
+        uint sessionId = (uint)process.SessionId;
+        string? headless = InteractiveDesktop.Describe(OperatingSystem.IsWindows(), sessionId, hasInputDesktop: true, windowStationVisible: true);
+        Assert.SkipWhen(headless is not null, headless ?? "");
+        Assert.Null(InteractiveDesktop.MissingReason());
+    }
 }
