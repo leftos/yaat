@@ -1,0 +1,4 @@
+workloads = ["wasm-tools"]
+
+[tools]
+pwsh = "7.4"
