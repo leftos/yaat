@@ -32,7 +32,6 @@
 - `TAXI` and `TAXIAUTO` during the landing rollout take the exit the route implies and roll on into the route, instead of jumping the aircraft.
 - With auto-cross turned on mid-session, an arrival still waits for your `CROSS` before re-crossing the runway it landed on.
 - Two aircraft pushing back into each other no longer both stop for good: one keeps pushing while the other holds.
-- After a push-back, `TAXI` turns the aircraft around instead of answering "unable, no room to turn around", and only a full reversal needs taxiway room.
 - The room title's ARTCC label now follows the room when a scenario or recording is loaded or unloaded.
 - In replay, stepping by quarter seconds spawns delayed aircraft and fires timed presets in the same second as stepping by whole seconds.
 - In replay, a recorded live-traffic aircraft appears once, with no extra PDC or printed strip the live session never had.
@@ -43,6 +42,12 @@
 - Client log lines carry the full date, time and UTC offset instead of the time of day alone.
 - An auto-delete no longer closes the Flight Plan Editor; deleting the aircraft it shows clears the editor and leaves it open.
 - Scenario > Session Report opens its window instead of failing with an error.
+
+## v0.16.3-beta [2026/10/15]
+
+### Fixed
+
+- After a push-back, `TAXI` turns the aircraft around instead of answering "unable, no room to turn around", and only a full reversal needs taxiway room.
 
 ## v0.16.2-beta [2026/10/11]
 
