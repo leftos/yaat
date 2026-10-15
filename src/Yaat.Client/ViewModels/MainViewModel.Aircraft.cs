@@ -428,7 +428,7 @@ public partial class MainViewModel
         Avalonia.Threading.Dispatcher.UIThread.Post(() =>
         {
             _cfrMonitor.Remove(callsign);
-            FlightPlanEditorManager.Close();
+            FlightPlanEditorManager.HandleAircraftDeleted(callsign);
             foreach (RadarViewModel radar in AllRadarViews)
             {
                 radar.RemoveShownPath(callsign);

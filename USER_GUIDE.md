@@ -20,6 +20,7 @@ YAAT (Yet Another ATC Trainer) is an instructor/[RPO](#glossary) desktop client 
   - [Flight Strips](#flight-strips)
   - [vTDLS](#vtdls)
   - [Flight Plan Editor](#flight-plan-editor)
+  - [Session Report](#session-report)
   - [Applying a Layout or Another Scenario's Views](#applying-a-layout-or-another-scenarios-views)
 - [Scenarios and Weather](#scenarios-and-weather)
   - [Loading a Scenario](#loading-a-scenario)
@@ -1326,6 +1327,12 @@ The FPE shows editable flight plan fields: beacon code, aircraft type, equipment
 The ICAO EQ field takes ICAO flight-plan field-10a equipment codes (e.g., `SDE2E3FGHIJ5M1RWXY`); entering a satcom code (`J5`–`J7` or `M1`–`M3`) lights the aircraft's SATCOMM `*` indicator on ERAM data blocks in CRC.
 
 A cruise speed filed as a Mach number or as classified shows in the SPD box in grey as ERAM writes it (`M078`, `SC`). Leave the box empty to keep it, or type knots to replace it. Edit any field, then click **Amend** to send the changes to the server. The Amend button is only enabled when at least one field differs from the current flight plan.
+
+If the aircraft the editor shows is deleted while it is open (auto-delete on parking or departure distance, or anyone's `DEL`), the editor stays open instead of closing: every field is cleared, the title shows no aircraft, and **Amend** and **Recycle beacon** are disabled. The boxes stay editable, but nothing can be submitted. Opening the editor on another aircraft rebinds the same window. Deleting any other aircraft leaves the editor and your unsent edits alone.
+
+### Session Report
+
+**Scenario > Session Report** opens the Session Report in its own window, which stays open while you keep working the radar. It scores separation, wake and advisory handling and lists coaching notes, an event timeline, approach outcomes, runway statistics and a per-aircraft debrief. See [Session Report](SOLO_TRAINING.md#session-report) in the Solo Training guide for what each part shows and how it is scored. If the window cannot open, the status bar shows "Session report error" and the cause is written to the client log.
 
 ### Applying a Layout or Another Scenario's Views
 

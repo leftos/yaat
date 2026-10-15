@@ -11,7 +11,7 @@ namespace Yaat.Client.Views;
 
 public partial class FlightPlanEditorWindow : Window
 {
-    private AircraftModel _aircraft;
+    private AircraftModel? _aircraft;
     private readonly Action<string, FlightPlanAmendment> _onAmend;
     private readonly Func<string, Task> _onRequestNewBeacon;
 
@@ -26,10 +26,13 @@ public partial class FlightPlanEditorWindow : Window
     private string _origRmk = "";
     private string _strippedRemarksPrefix = "";
 
+    /// <summary>The callsign of the aircraft the editor shows, or null while it is bound to none.</summary>
+    public string? Callsign => _aircraft?.Callsign;
+
     public FlightPlanEditorWindow()
     {
         InitializeComponent();
-        _aircraft = null!;
+        _aircraft = null;
         _onAmend = null!;
         _onRequestNewBeacon = null!;
     }
@@ -74,7 +77,7 @@ public partial class FlightPlanEditorWindow : Window
         // beacon assigned or recycled after the editor opens arrives via a later AircraftUpdated
         // push. Re-target the subscription without re-running the editable-field copy below, which
         // would clobber in-progress edits.
-        _aircraft?.PropertyChanged -= OnAircraftPropertyChanged;
+        UnsubscribeAircraft();
         _aircraft = aircraft;
         _aircraft.PropertyChanged += OnAircraftPropertyChanged;
 
@@ -105,6 +108,56 @@ public partial class FlightPlanEditorWindow : Window
 
         SubmitButton.Content = aircraft.HasFlightPlan ? "Amend" : "Create";
         SubmitButton.IsEnabled = false;
+        RecycleBcnButton.IsEnabled = true;
+    }
+
+    /// <summary>
+    /// Drops the aircraft the editor was showing after the server deletes it (an auto-delete on
+    /// parking or departure-distance, or a manual DEL). The window stays open — the instructor keeps
+    /// their place — but is bound to no aircraft until another one is opened in it: every field is
+    /// cleared and Amend/Create stays disabled.
+    /// </summary>
+    public void ClearAircraft()
+    {
+        UnsubscribeAircraft();
+        _aircraft = null;
+
+        Title = "Flight Plan";
+        AidText.Text = "";
+        BcnText.Text = "";
+        TypBox.Text = "";
+        EqBox.Text = "";
+        IcaoEqBox.Text = "";
+        DepBox.Text = "";
+        DestBox.Text = "";
+        SpdBox.Text = "";
+        SpdBox.PlaceholderText = "";
+        AltBox.Text = "";
+        RteBox.Text = "";
+        RmkBox.Text = "";
+
+        _origTyp = "";
+        _origEq = "";
+        _origIcaoEq = "";
+        _origDep = "";
+        _origDest = "";
+        _origSpd = "";
+        _origAlt = "";
+        _origRte = "";
+        _origRmk = "";
+        _strippedRemarksPrefix = "";
+
+        SubmitButton.Content = "Amend";
+        SubmitButton.IsEnabled = false;
+        RecycleBcnButton.IsEnabled = false;
+    }
+
+    private void UnsubscribeAircraft()
+    {
+        if (_aircraft is { } aircraft)
+        {
+            aircraft.PropertyChanged -= OnAircraftPropertyChanged;
+        }
     }
 
     /// <summary>
@@ -143,43 +196,48 @@ public partial class FlightPlanEditorWindow : Window
     // in-progress edits (see RefreshEditableField).
     private void OnAircraftPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
+        if (_aircraft is not { } aircraft)
+        {
+            return;
+        }
+
         switch (e.PropertyName)
         {
             case nameof(AircraftModel.AssignedBeaconCode):
-                BcnText.Text = _aircraft.AssignedBeaconCode.ToString("D4");
+                BcnText.Text = aircraft.AssignedBeaconCode.ToString("D4");
                 break;
             case nameof(AircraftModel.HasFlightPlan):
-                SubmitButton.Content = _aircraft.HasFlightPlan ? "Amend" : "Create";
+                SubmitButton.Content = aircraft.HasFlightPlan ? "Amend" : "Create";
                 break;
             case nameof(AircraftModel.FiledAircraftType):
-                RefreshEditableField(TypBox, ref _origTyp, _aircraft.FiledAircraftType);
+                RefreshEditableField(TypBox, ref _origTyp, aircraft.FiledAircraftType);
                 break;
             case nameof(AircraftModel.EquipmentSuffix):
-                RefreshEditableField(EqBox, ref _origEq, _aircraft.EquipmentSuffix);
+                RefreshEditableField(EqBox, ref _origEq, aircraft.EquipmentSuffix);
                 break;
             case nameof(AircraftModel.IcaoEquipmentCodes):
-                RefreshEditableField(IcaoEqBox, ref _origIcaoEq, _aircraft.IcaoEquipmentCodes);
+                RefreshEditableField(IcaoEqBox, ref _origIcaoEq, aircraft.IcaoEquipmentCodes);
                 break;
             case nameof(AircraftModel.Departure):
-                RefreshEditableField(DepBox, ref _origDep, _aircraft.Departure);
+                RefreshEditableField(DepBox, ref _origDep, aircraft.Departure);
                 break;
             case nameof(AircraftModel.Destination):
-                RefreshEditableField(DestBox, ref _origDest, _aircraft.Destination);
+                RefreshEditableField(DestBox, ref _origDest, aircraft.Destination);
                 break;
             case nameof(AircraftModel.EditorSpeedText):
-                RefreshEditableField(SpdBox, ref _origSpd, _aircraft.EditorSpeedText);
+                RefreshEditableField(SpdBox, ref _origSpd, aircraft.EditorSpeedText);
                 break;
             case nameof(AircraftModel.EditorSpeedPlaceholder):
-                SpdBox.PlaceholderText = _aircraft.EditorSpeedPlaceholder;
+                SpdBox.PlaceholderText = aircraft.EditorSpeedPlaceholder;
                 break;
             case nameof(AircraftModel.CruiseAltitudeDisplay):
-                RefreshEditableField(AltBox, ref _origAlt, _aircraft.CruiseAltitudeDisplay);
+                RefreshEditableField(AltBox, ref _origAlt, aircraft.CruiseAltitudeDisplay);
                 break;
             case nameof(AircraftModel.Route):
-                RefreshEditableField(RteBox, ref _origRte, _aircraft.Route);
+                RefreshEditableField(RteBox, ref _origRte, aircraft.Route);
                 break;
             case nameof(AircraftModel.Remarks):
-                RefreshEditableField(RmkBox, ref _origRmk, SplitRemarks(_aircraft.Remarks, out _strippedRemarksPrefix));
+                RefreshEditableField(RmkBox, ref _origRmk, SplitRemarks(aircraft.Remarks, out _strippedRemarksPrefix));
                 break;
         }
     }
@@ -200,12 +258,14 @@ public partial class FlightPlanEditorWindow : Window
 
     protected override void OnClosed(EventArgs e)
     {
-        _aircraft?.PropertyChanged -= OnAircraftPropertyChanged;
+        UnsubscribeAircraft();
 
         base.OnClosed(e);
     }
 
-    private void OnFieldChanged(object? sender, TextChangedEventArgs e) => SubmitButton.IsEnabled = HasChanges();
+    // A cleared editor stays inert: typing into its boxes must not re-arm Amend, which would submit
+    // the typed text against an aircraft the window is no longer bound to.
+    private void OnFieldChanged(object? sender, TextChangedEventArgs e) => SubmitButton.IsEnabled = (_aircraft is not null) && HasChanges();
 
     private bool HasChanges()
     {
@@ -222,6 +282,11 @@ public partial class FlightPlanEditorWindow : Window
 
     private void OnAmendClick(object? sender, RoutedEventArgs e)
     {
+        if (_aircraft is not { } aircraft)
+        {
+            return;
+        }
+
         FlightPlanAmendment amendment = FlightPlanEditorAmendmentBuilder.Build(
             typText: TypBox.Text,
             eqText: EqBox.Text,
@@ -233,10 +298,10 @@ public partial class FlightPlanEditorWindow : Window
             rteText: RteBox.Text,
             rmkText: RmkBox.Text,
             strippedRemarksPrefix: _strippedRemarksPrefix,
-            originalRemarks: _aircraft.Remarks
+            originalRemarks: aircraft.Remarks
         );
 
-        _onAmend(_aircraft.Callsign, amendment);
+        _onAmend(aircraft.Callsign, amendment);
 
         _origTyp = TypBox.Text ?? "";
         _origEq = EqBox.Text ?? "";
@@ -252,14 +317,23 @@ public partial class FlightPlanEditorWindow : Window
 
     private async void OnRecycleBeaconClick(object? sender, RoutedEventArgs e)
     {
+        if (_aircraft is not { } aircraft)
+        {
+            return;
+        }
+
         try
         {
-            await _onRequestNewBeacon(_aircraft.Callsign);
+            await _onRequestNewBeacon(aircraft.Callsign);
         }
         catch (Exception ex)
         {
-            // Surface the error in the title so the instructor sees it without a popup.
-            Title = $"{_aircraft.Callsign} - Flight Plan (recycle failed: {ex.Message})";
+            // Surface the error in the title so the instructor sees it without a popup — but only while
+            // the editor still shows that aircraft, which may have been re-bound or cleared meanwhile.
+            if (ReferenceEquals(_aircraft, aircraft))
+            {
+                Title = $"{aircraft.Callsign} - Flight Plan (recycle failed: {ex.Message})";
+            }
         }
     }
 

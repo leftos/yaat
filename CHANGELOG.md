@@ -39,6 +39,8 @@
 - Bug report bundles include the client logs of the previous three sessions, so reopening YAAT before saving one no longer loses the session's log.
 - Bug report bundles hide names, VATSIM IDs, initials, your Windows user folder and your own server addresses in the client logs, using the server log's placeholders.
 - Client log lines carry the full date, time and UTC offset instead of the time of day alone.
+- An auto-delete no longer closes the Flight Plan Editor; deleting the aircraft it shows clears the editor and leaves it open.
+- Scenario > Session Report opens its window instead of failing with an error.
 
 ## v0.16.2-beta [2026/10/11]
 

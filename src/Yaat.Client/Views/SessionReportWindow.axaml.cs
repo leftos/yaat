@@ -116,17 +116,30 @@ public partial class SessionReportWindow : Window
         text?.Text = value;
     }
 
+    // The window fills lists of two kinds: a DataGrid for each tabular list (active events, timeline,
+    // aircraft debriefs, approach scores, runway stats) and an ItemsControl for each templated one
+    // (the score buckets, and the coaching notes as a ListBox). FindControl<T> throws when the named
+    // control is not a T, so the lookup is by Control and the type decides how to fill it.
     private void SetItems(string controlName, IEnumerable items)
     {
-        if (this.FindControl<DataGrid>(controlName) is { } grid)
+        if (this.FindControl<Control>(controlName) is not { } control)
         {
-            grid.ItemsSource = items;
             return;
         }
 
-        if (this.FindControl<ItemsControl>(controlName) is { } control)
+        if (control is DataGrid grid)
         {
-            control.ItemsSource = items;
+            grid.ItemsSource = items;
+        }
+        else if (control is ItemsControl listControl)
+        {
+            listControl.ItemsSource = items;
+        }
+        else
+        {
+            throw new InvalidOperationException(
+                $"Session report control '{controlName}' is a {control.GetType().Name}, not a DataGrid or ItemsControl"
+            );
         }
     }
 }

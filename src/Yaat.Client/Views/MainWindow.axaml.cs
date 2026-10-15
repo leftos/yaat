@@ -2955,6 +2955,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             return;
         }
 
+        SessionReportWindow? window = null;
         try
         {
             SessionReportDto? report = await vm.Connection.GetSessionReportAsync();
@@ -2964,7 +2965,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
                 return;
             }
 
-            var window = new SessionReportWindow(vm.Connection.GetSessionReportAsync, vm.ShowAircraftOnTimelineAsync);
+            window = new SessionReportWindow(vm.Connection.GetSessionReportAsync, vm.ShowAircraftOnTimelineAsync);
             window.Closed += (_, _) => _sessionReportWindow = null;
             _sessionReportWindow = window;
             new WindowGeometryHelper(window, vm.Preferences, "SessionReport", 1000, 700).Restore();
@@ -2973,6 +2974,14 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         }
         catch (Exception ex)
         {
+            // Opening the session report failed: log it, and drop the half-built window so a second
+            // click retries instead of re-activating a window that never showed.
+            Log.LogError(ex, "Failed to open the session report");
+            if (ReferenceEquals(_sessionReportWindow, window))
+            {
+                _sessionReportWindow = null;
+            }
+
             vm.StatusText = $"Session report error: {ex.Message}";
         }
     }

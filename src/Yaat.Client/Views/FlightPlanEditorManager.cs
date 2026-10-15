@@ -75,6 +75,20 @@ public static class FlightPlanEditorManager
     /// <summary>The flight-plan editor window open now, or null when none is.</summary>
     internal static FlightPlanEditorWindow? OpenEditor => _openEditor;
 
+    /// <summary>
+    /// Reacts to an aircraft removal on the server (an auto-delete on parking or departure-distance,
+    /// or a manual DEL). When the removed aircraft is the one the editor shows, the editor stays
+    /// open — the instructor keeps their place — cleared and bound to no aircraft; any other removal
+    /// leaves the editor, in-progress edits included, untouched.
+    /// </summary>
+    public static void HandleAircraftDeleted(string callsign)
+    {
+        if (_openEditor is { } editor && editor.Callsign == callsign)
+        {
+            editor.ClearAircraft();
+        }
+    }
+
     public static void Close()
     {
         _openEditor?.Close();
