@@ -32,6 +32,8 @@ public sealed class AutomationClientZOrderTests
     [Fact]
     public async Task AutomationClient_OpensItsWindowsBehindAWindowAlreadyOnScreen()
     {
+        string? missing = InteractiveDesktop.MissingReason();
+        Assert.SkipWhen(missing is not null, missing ?? "");
         string exePath = ClientExePath();
         using var reference = new ReferenceWindow();
         string appDataDir = NewAppDataDirectory();
@@ -62,6 +64,8 @@ public sealed class AutomationClientZOrderTests
     [Fact]
     public async Task AutomationClient_OpensAnOwnedDialogAboveItsOwnerAndBelowTheWindowAlreadyOnScreen()
     {
+        string? missing = InteractiveDesktop.MissingReason();
+        Assert.SkipWhen(missing is not null, missing ?? "");
         string exePath = ClientExePath();
         using var reference = new ReferenceWindow();
         string appDataDir = NewAppDataDirectory();

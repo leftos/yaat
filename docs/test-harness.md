@@ -442,7 +442,7 @@ duplicate-arc/parallel-bypass removals — i.e. the generator produced clean out
 
 `[Trait("Category", "Nightly")]` (per-spot taxi-coverage grid sweeps, e.g. `TaxiCoverageOakGridTests` / `TaxiCoverageSfoGridTests`) and `[Trait("Category", "PathfinderGrid")]` (the state-aware-pruning necessity oracle sweep) are excluded from the default `test-all.ps1` run for speed.
 
-`[Trait("Category", "Desktop")]` (`AutomationClientZOrderTests`, which launch the real client on the interactive desktop; Windows only, so never in the Linux CI) is excluded too, because it puts windows on the developer's screen.
+`[Trait("Category", "Desktop")]` (`AutomationClientZOrderTests`, which launch the real client on the interactive desktop; Windows only, so never in the Linux CI) is excluded too, because it puts windows on the developer's screen. Run without an interactive desktop (session 0, a locked or disconnected session, a headless builder), each of its tests skips with the reason `InteractiveDesktop.MissingReason()` gives instead of failing.
 
 The default run passes `--filter-not-trait` for each of the three (untagged tests still run — a trait-inequality filter only drops explicitly tagged tests). Pass `pwsh tools/test-all.ps1 -Full` to include them (CI/nightly run Nightly and PathfinderGrid).
 
