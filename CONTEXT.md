@@ -769,7 +769,7 @@ A GFS forecast subset (UGRD, VGRD and TMP on isobaric levels over a lat/lon box)
 _Avoid_: GFS layer, forecast layer
 
 **Wind grid pin**:
-A hold on a registered wind grid that keeps `WindGridRegistry` from evicting it (the registry keeps at most eight unpinned grids). A running scenario, a loaded recording and a replay each own their pins, and releasing the last pin on a grid makes it evictable again.
+A hold on a registered wind grid that keeps `WindGridRegistry` from evicting it (the registry keeps at most eight unpinned grids). A Sim-hosted scenario, a loaded recording, a replay and a server room (its weather, tape, snapshots and pending upload) each own their pins, and releasing the last pin on a grid makes it evictable again.
 _Avoid_: lock, resource pin (that holds a room's airport layouts and ARTCC configs)
 
 ## Facility data

@@ -241,7 +241,7 @@ public class Grib2ReaderTests
     }
 
     [Fact]
-    public void Read_PointCountAboveArrayLimit_Throws()
+    public void Read_PointCountBeyondAnyArray_RefusedByTheGridCap()
     {
         byte[] data = LoadSample();
         int section3 = FindSection(data, 3);
@@ -251,7 +251,80 @@ public class Grib2ReaderTests
 
         Grib2FormatException ex = Assert.Throws<Grib2FormatException>(() => Grib2Reader.Read(data));
 
-        Assert.Contains("2500000000 data points", ex.Message);
+        Assert.Contains($"2500000000 data points exceed the {Grib2Reader.MaxGridPoints}", ex.Message);
+    }
+
+    [Fact]
+    public void RepeatedFieldsOverDecodeBudget_RefusedBeforeAllocating()
+    {
+        // Each field is a 400 × 400 grid (under the per-grid cap) of 0-bit values, so its section 7 is a bare 5-byte
+        // header; enough of them in one message declare more points than the decode budget in a few kilobytes.
+        const int side = 400;
+        byte[] data = WithZeroBitGrid(FirstMessage(), side);
+        int section4 = FindSection(data, 4);
+        int section7 = FindSection(data, 7);
+        int fields = (Grib2Reader.MaxDecodedPoints / (side * side)) + 1;
+        byte[] field = [.. data[section4..section7], 0, 0, 0, 5, 7];
+        byte[] rebuilt = [.. data[..section4], .. Enumerable.Repeat(field, fields).SelectMany(f => f), .. "7777"u8];
+        BinaryPrimitives.WriteUInt64BigEndian(rebuilt.AsSpan(8), (ulong)rebuilt.Length);
+
+        Grib2FormatException ex = Assert.Throws<Grib2FormatException>(() => Grib2Reader.Read(rebuilt));
+
+        Assert.Contains($"{Grib2Reader.MaxDecodedPoints}", ex.Message);
+    }
+
+    [Fact]
+    public void DataSectionWithoutProductSection_Refused()
+    {
+        byte[] data = FirstMessage();
+        int section7 = FindSection(data, 7);
+        byte[] dataSection = data[section7..^4];
+        byte[] rebuilt = [.. data[..^4], .. dataSection, .. "7777"u8];
+        BinaryPrimitives.WriteUInt64BigEndian(rebuilt.AsSpan(8), (ulong)rebuilt.Length);
+
+        Grib2FormatException ex = Assert.Throws<Grib2FormatException>(() => Grib2Reader.Read(rebuilt));
+
+        Assert.Contains("section 4", ex.Message);
+    }
+
+    /// <summary>
+    /// <paramref name="message"/> re-gridded to <paramref name="side"/> × <paramref name="side"/> points at 0.001° spacing,
+    /// every value packed in 0 bits, so section 7 needs no data bytes.
+    /// </summary>
+    private static byte[] WithZeroBitGrid(byte[] message, int side)
+    {
+        const int incrementMicroDeg = 1000;
+        byte[] data = [.. message];
+        int section3 = FindSection(data, 3);
+        int section5 = FindSection(data, 5);
+        uint points = (uint)(side * side);
+        uint la1 = BinaryPrimitives.ReadUInt32BigEndian(data.AsSpan(section3 + 46));
+        uint lo1 = BinaryPrimitives.ReadUInt32BigEndian(data.AsSpan(section3 + 50));
+        BinaryPrimitives.WriteUInt32BigEndian(data.AsSpan(section3 + 6), points);
+        BinaryPrimitives.WriteUInt32BigEndian(data.AsSpan(section3 + 30), (uint)side);
+        BinaryPrimitives.WriteUInt32BigEndian(data.AsSpan(section3 + 34), (uint)side);
+        BinaryPrimitives.WriteUInt32BigEndian(data.AsSpan(section3 + 55), la1 + (uint)((side - 1) * incrementMicroDeg));
+        BinaryPrimitives.WriteUInt32BigEndian(data.AsSpan(section3 + 59), lo1 + (uint)((side - 1) * incrementMicroDeg));
+        BinaryPrimitives.WriteUInt32BigEndian(data.AsSpan(section3 + 63), incrementMicroDeg);
+        BinaryPrimitives.WriteUInt32BigEndian(data.AsSpan(section3 + 67), incrementMicroDeg);
+        BinaryPrimitives.WriteUInt32BigEndian(data.AsSpan(section5 + 5), points);
+        data[section5 + 19] = 0;
+        return data;
+    }
+
+    [Fact]
+    public void DeclaredPointsOverCap_RefusedBeforeAllocating()
+    {
+        // A grid of 1000 × 1000 points at 0.001° spacing whose values all take 0 bits: the file stays a few hundred bytes
+        // while the reader would allocate a float per declared point.
+        const int side = 1000;
+        byte[] data = WithZeroBitGrid(FirstMessage(), side);
+        Assert.True(side * side > Grib2Reader.MaxGridPoints, "the crafted grid must declare more points than the cap");
+
+        Grib2FormatException ex = Assert.Throws<Grib2FormatException>(() => Grib2Reader.Read(data));
+
+        Assert.Contains($"{side * side} data points", ex.Message);
+        Assert.Contains($"{Grib2Reader.MaxGridPoints}", ex.Message);
     }
 
     /// <summary>The sample's first message (TMP at 150 hPa) on its own.</summary>

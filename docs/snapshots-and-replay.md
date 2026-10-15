@@ -242,7 +242,7 @@ bookmarks.json               # plain JSON (optional; user-authored timeline book
 
 `RecordingArchive.RegisterWindGrids` reads them back, verifying each against its name, and both loaders (`ToBaseSessionRecording`, `ToSessionRecording`) call it before the weather text is parsed. The pins it takes ride on `SessionRecording.WindGridPins`, owned by whoever holds the recording; a load that fails after registering grids disposes them.
 
-`ReplayDriver` takes its own pins before `LoadScenario` and hands them to `SimScenarioState.WindGridPins`. Archives written before grids were recorded have no `WindGridHashes` and replay on the FD layers. See [weather-and-wind.md](weather-and-wind.md).
+`ReplayDriver` takes its own pins before `LoadScenario` and hands them to `SimScenarioState.WindGridPins`. The server's archive load registers the grids inside its gated commit and its `TrainingRoom` pins them (`RebuildWindGridPins`); a live export and the soak sink write the grids with `RecordingArchiveWriter.WriteReferencedWindGrids`, the public form of the call the writer's own recording write makes. Archives written before grids were recorded have no `WindGridHashes` and replay on the FD layers. See [weather-and-wind.md](weather-and-wind.md).
 
 **`terminal-log.json.br`** is the room's broadcast terminal stream — the command echoes, responses, SAY lines, warnings, and chat the user saw — each captured with a wall-clock `Timestamp` and the scenario-elapsed `ElapsedSeconds` it occurred at (`RecordedTerminalEntry`).
 

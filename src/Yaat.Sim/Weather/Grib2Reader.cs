@@ -23,6 +23,20 @@ public static class Grib2Reader
     private const long MicroDegPerTurn = 360_000_000;
 
     /// <summary>
+    /// The most points one message's grid may declare. A CONUS-sized 0.25° box (20–55° N, 130–60° W) is 141 × 281 =
+    /// 39,621 points per level; the cap is four times that, rounded up. It is checked before any value array is
+    /// allocated, because a file with 0 bits per value declares any number of points in a few bytes.
+    /// </summary>
+    public const int MaxGridPoints = 160_000;
+
+    /// <summary>
+    /// The most points one file may declare across all its fields, refused before the field that passes it is allocated:
+    /// 3 variables (UGRD, VGRD, TMP) × the 20 isobaric levels 1000–150 hPa the client fetches (the NOMADS request in
+    /// docs/research/2026-10-11-gridded-winds-aloft.md) × <see cref="MaxGridPoints"/> (four CONUS-sized 0.25° boxes).
+    /// </summary>
+    public const int MaxDecodedPoints = 3 * 20 * MaxGridPoints;
+
+    /// <summary>
     /// Decodes every message in <paramref name="data"/>, which holds one or more GRIB2 messages back to back.
     /// </summary>
     /// <param name="data">The whole file.</param>
@@ -36,11 +50,12 @@ public static class Grib2Reader
         }
 
         var messages = new List<Grib2Message>();
+        var budget = new DecodeBudget();
         int offset = 0;
         while (offset < data.Length)
         {
             int length = ReadMessageLength(data, offset);
-            ReadMessage(data.Slice(offset, length), offset, messages);
+            ReadMessage(data.Slice(offset, length), offset, budget, messages);
             offset += length;
         }
 
@@ -79,14 +94,14 @@ public static class Grib2Reader
         return (int)length;
     }
 
-    private static void ReadMessage(ReadOnlySpan<byte> message, int fileOffset, List<Grib2Message> output)
+    private static void ReadMessage(ReadOnlySpan<byte> message, int fileOffset, DecodeBudget budget, List<Grib2Message> output)
     {
         if (!message[^EndMarkerLength..].SequenceEqual("7777"u8))
         {
             throw new Grib2FormatException($"Section 8 of the message at byte {fileOffset}: no '7777' end marker");
         }
 
-        var state = new MessageState(message[6]);
+        var state = new MessageState(message[6]) { Budget = budget };
         int end = message.Length - EndMarkerLength;
         int pos = IndicatorLength;
         while (pos < end)
@@ -128,6 +143,7 @@ public static class Grib2Reader
                 break;
             case 4:
                 state.Product = ReadProduct(section);
+                state.HasProductSinceData = true;
                 break;
             case 5:
                 state.Packing = ReadPacking(section);
@@ -218,9 +234,9 @@ public static class Grib2Reader
             throw new Grib2FormatException($"Section 3: {pointCount} data points do not match Ni {grid.Ni} × Nj {grid.Nj}");
         }
 
-        if (points > Array.MaxLength)
+        if (points > MaxGridPoints)
         {
-            throw new Grib2FormatException($"Section 3: {pointCount} data points exceed the {Array.MaxLength} a value array can hold");
+            throw new Grib2FormatException($"Section 3: {pointCount} data points exceed the {MaxGridPoints} a wind grid may hold");
         }
 
         ValidateLatitudes(grid);
@@ -337,6 +353,13 @@ public static class Grib2Reader
             throw new Grib2FormatException("Section 7 arrived before sections 5 and 6");
         }
 
+        if (!state.HasProductSinceData)
+        {
+            throw new Grib2FormatException("Section 7 repeated without a new section 4 (a message repeats sections 2–7, 3–7 or 4–7)");
+        }
+
+        state.HasProductSinceData = false;
+        state.Budget.Spend((long)grid.Ni * grid.Nj);
         float[] stored = Unpack(section[SectionHeaderLength..], grid.Ni * grid.Nj, packing, state.Bitmap);
         return new Grib2Message
         {
@@ -497,5 +520,29 @@ public static class Grib2Reader
         public PackingHeader? Packing { get; set; }
         public byte[]? Bitmap { get; set; }
         public bool HasBitmapSection { get; set; }
+
+        /// <summary>A section 4 has arrived since the last section 7: GRIB2 repeats sections 2–7, 3–7 or 4–7, never a bare 7.</summary>
+        public bool HasProductSinceData { get; set; }
+
+        /// <summary>The points every field of the file declared so far, shared by all its messages.</summary>
+        public required DecodeBudget Budget { get; init; }
+    }
+
+    /// <summary>The running count of points a file's fields declare, held against <see cref="MaxDecodedPoints"/>.</summary>
+    private sealed class DecodeBudget
+    {
+        private long _declaredPoints;
+
+        /// <summary>Counts a field of <paramref name="points"/> points, refusing it when the file's total passes the budget.</summary>
+        public void Spend(long points)
+        {
+            _declaredPoints += points;
+            if (_declaredPoints > MaxDecodedPoints)
+            {
+                throw new Grib2FormatException(
+                    $"Section 7: the file's fields declare {_declaredPoints} data points, more than the {MaxDecodedPoints} a wind grid file may hold"
+                );
+            }
+        }
     }
 }

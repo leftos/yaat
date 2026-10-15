@@ -237,7 +237,7 @@ public sealed class RecordingArchiveWriter(Stream output) : ILayoutBundleWriter,
             writer.WriteArtccConfig(recording.ArtccConfigJson);
             writer.WriteActions(recording.Actions);
             writer.WriteTerminalLog(recording.TerminalLog);
-            WriteReferencedWindGrids(writer, recording);
+            WriteReferencedWindGrids(writer, recording.WeatherJson, recording.Actions, recording.Snapshots?.Select(s => s.State.WeatherJson) ?? []);
 
             if (recording.Snapshots is { } snapshots)
             {
@@ -267,13 +267,22 @@ public sealed class RecordingArchiveWriter(Stream output) : ILayoutBundleWriter,
     }
 
     /// <summary>
-    /// Writes every GFS grid the recording's weather names, from <see cref="WindGridRegistry"/>. A grid the registry does not
-    /// hold is left out with a warning; a replay of the archive then flies the FD wind layers where it was named.
+    /// Writes every GFS grid a recording's weather names (<see cref="WindGridHashes.Referenced"/>), each once, from
+    /// <see cref="WindGridRegistry"/>. A grid the registry does not hold is left out with a warning; a replay of the archive
+    /// then flies the FD wind layers where it was named.
     /// </summary>
-    private static void WriteReferencedWindGrids(RecordingArchiveWriter writer, SessionRecording recording)
+    /// <param name="writer">The archive being written; call before <see cref="Finish"/>.</param>
+    /// <param name="initialWeatherJson">The weather the recording starts on, or null without one.</param>
+    /// <param name="actions">The recording's action log; its weather changes name grids.</param>
+    /// <param name="snapshotWeatherJsons">The weather text of each snapshot the archive carries, or none when they are not at hand.</param>
+    public static void WriteReferencedWindGrids(
+        RecordingArchiveWriter writer,
+        string? initialWeatherJson,
+        IEnumerable<RecordedAction> actions,
+        IEnumerable<string?> snapshotWeatherJsons
+    )
     {
-        IEnumerable<string?> snapshotWeather = recording.Snapshots?.Select(s => s.State.WeatherJson) ?? [];
-        foreach (string hash in WindGridHashes.Referenced(recording.WeatherJson, recording.Actions, snapshotWeather))
+        foreach (string hash in WindGridHashes.Referenced(initialWeatherJson, actions, snapshotWeatherJsons))
         {
             if (WindGridRegistry.TryGetBytes(hash, out ReadOnlyMemory<byte> grib2))
             {
