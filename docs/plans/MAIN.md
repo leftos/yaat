@@ -5,7 +5,7 @@
 ## Do first
 
 - [ ] YAAT-640 Vary live winds aloft across the airspace from a NOAA GFS grid · release vNext — High · Bug reports and feature requests
-- [ ] YAAT-673 GFS winds part 3: fetch the grid in the client and record it once by hash · release vNext — High · Bug reports and feature requests
+- [/] YAAT-673 GFS winds part 3: fetch the grid in the client and record it once by hash · release vNext — High · Bug reports and feature requests
 - [ ] YAAT-674 GFS winds part 4: show the grid source in the weather status and document it · release vNext — High · Bug reports and feature requests
 
 ## GFS winds (feat/gfs-winds)
@@ -14,7 +14,7 @@
 
 ## Context-menu quick commands (#471)
 
-- [ ] YAAT-569 Give every quick command a designed flyout instead of a nested context submenu · release vNext
+- [/] YAAT-569 Give every quick command a designed flyout instead of a nested context submenu · release vNext
 - [ ] YAAT-650 Give every context-critical command a quick-command icon in its situation's strip
 - [ ] YAAT-659 Accept HS in Following, Holding In Position and Holding After Exit so Hold short of reaches every routed aircraft
 
@@ -210,6 +210,7 @@
 - [ ] YAAT-430 A restored or deferred AI-controller dispatch uses the student's facility hint, not the controller's
 - [ ] YAAT-431 Decide whether a split queued block keeps its original dispatch's scripted provenance
 - [ ] YAAT-678 Refuse a snapshot restore into an engine with no scenario
+- [ ] YAAT-726 Bug bundle's rebuilt replay sends landed arrivals around (N462NX, FDX109)
 
 ## Wave 5 — Command queue and dispatch architecture
 
@@ -320,7 +321,6 @@
 - [ ] YAAT-668 Call gate run on PATH in yaat and yaat-server; delete tools/gate.ps1 · release vNext
 - [ ] YAAT-669 Skip the Desktop-trait AutomationClientZOrderTests when no interactive desktop exists · release vNext
 - [ ] YAAT-705 Make RecordToolsTests.Mark_SimClockBlocked load-proof
-- [ ] YAAT-725 Declare yaat-server's toolchain in .gate/toolchain.toml
 
 ## Singles
 
@@ -399,6 +399,7 @@
 - [ ] YAAT-627 Show 360, not 000, for a magnetic heading of exactly 0.5 degrees
 - [ ] YAAT-630 Treat a transponder set to Off as not replying, like Standby
 - [ ] YAAT-637 UNV ground map types a stand as patking; name the airport in the unknown-feature warning
+- [ ] YAAT-727 Refuse weather JSON whose root is not an object instead of throwing in a tick
 
 ## Backlog
 
@@ -509,6 +510,6 @@
 - [ ] YAAT-713 Place the surface wind layer at each station's own elevation
 - [ ] YAAT-714 ERAM UR: omit grid wind levels within 1,500 ft of the station elevation
 - [ ] YAAT-715 Make WeatherProfile.SurfaceElevationFt's lazy cache safe across threads
-- [ ] YAAT-721 Pseudonymise names in a bug report bundle's recording terminal log
-- [ ] YAAT-722 Keep departed CRC controllers in the server log's anonymization list
-- [ ] YAAT-723 Hide bare and nested CRC real names in bundled client logs
+- [/] YAAT-721 Pseudonymise names in a bug report bundle's recording terminal log · release vNext
+- [/] YAAT-722 Keep departed CRC controllers in the server log's anonymization list · release vNext
+- [/] YAAT-723 Hide bare and nested CRC real names in bundled client logs · release vNext
