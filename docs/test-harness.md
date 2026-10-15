@@ -444,6 +444,8 @@ duplicate-arc/parallel-bypass removals — i.e. the generator produced clean out
 
 `[Trait("Category", "Desktop")]` (`AutomationClientZOrderTests`, which launch the real client on the interactive desktop, and `InteractiveDesktopTests`' check of the desktop probe; Windows only, so never in the Linux CI) is excluded too, because it puts windows on the developer's screen. Run without an interactive desktop (session 0, a locked or disconnected session, a headless builder), each of its tests skips with the reason `InteractiveDesktop.MissingReason()` gives instead of failing; the probe's own check skips on the facts it does not probe (not Windows, session 0), so a real desktop still checks the probe.
 
+The `AutomationPointerTests` whose assertions need `SyntheticMouse` input to reach a shown window (the hover, drag and quick-commands reorder tests) skip on the same probe; the UI test project links `InteractiveDesktop.cs` from `Yaat.ClientDriver.Mcp.Tests`, so both projects share one copy. The pipe's argument validation and refusals in that class run everywhere.
+
 The default run passes `--filter-not-trait` for each of the three (untagged tests still run — a trait-inequality filter only drops explicitly tagged tests). Pass `pwsh tools/test-all.ps1 -Full` to include them (CI/nightly run Nightly and PathfinderGrid).
 
 ## Other fixtures

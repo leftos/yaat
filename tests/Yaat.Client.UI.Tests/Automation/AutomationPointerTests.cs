@@ -22,6 +22,7 @@ using Yaat.Client.ViewModels;
 using Yaat.Client.Views;
 using Yaat.Client.Views.Ground;
 using Yaat.Client.Views.Settings;
+using Yaat.ClientDriver.Mcp.Tests;
 using Yaat.Sim;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
@@ -32,13 +33,19 @@ namespace Yaat.Client.UI.Tests.Automation;
 /// <summary>
 /// Hover and drag as raw mouse input through a window's own input path (<see cref="SyntheticMouse"/>): a hover raises
 /// PointerEntered and sets IsPointerOver as a real mouse does, and a drag presses, moves with the button held past the
-/// drag thresholds, routes its moves to a capture taken on the press, and releases the capture on the release.
+/// drag thresholds, routes its moves to a capture taken on the press, and releases the capture on the release. A test whose
+/// assertions depend on that input reaching a shown window skips without an interactive desktop
+/// (<see cref="InteractiveDesktop.MissingReason"/>), where a hover or drag reaches no real window; the pipe's argument
+/// validation and its refusals — out of bounds, a disabled window, a gesture already under way — answer before any input goes
+/// out, and run everywhere.
 /// </summary>
 public sealed class AutomationPointerTests : AutomationHostFixture
 {
     [AvaloniaFact]
     public async Task Hover_RaisesPointerEnteredOnMenuItem()
     {
+        string? missing = InteractiveDesktop.MissingReason();
+        Assert.SkipWhen(missing is not null, missing ?? "");
         var item = new MenuItem { Header = "Preview" };
         int entered = 0;
         item.PointerEntered += (_, _) => entered++;
@@ -60,6 +67,8 @@ public sealed class AutomationPointerTests : AutomationHostFixture
     [AvaloniaFact]
     public async Task Drag_CapturesAndMovesPastThreshold()
     {
+        string? missing = InteractiveDesktop.MissingReason();
+        Assert.SkipWhen(missing is not null, missing ?? "");
         Border pad = Pad();
         Window window = ShowWindow("DragWindow", pad, null);
         bool capturedOnPress = false;
@@ -94,6 +103,8 @@ public sealed class AutomationPointerTests : AutomationHostFixture
     [AvaloniaFact(Timeout = 60_000)]
     public async Task QuickCommandsSection_DragReordersARow()
     {
+        string? missing = InteractiveDesktop.MissingReason();
+        Assert.SkipWhen(missing is not null, missing ?? "");
         using var scope = new PreferencesFileScope();
         string[] ids = [.. QuickCommandCatalog.Eligible.Where(item => item.Glyph is not null).Take(3).Select(item => item.Id)];
         new UserPreferences().SetQuickCommandList(AircraftSituation.Taxiing, [.. ids.Select(id => new CatalogQuickCommandEntry(id, null))]);
@@ -160,6 +171,8 @@ public sealed class AutomationPointerTests : AutomationHostFixture
     [AvaloniaFact(Timeout = 60_000)]
     public async Task GroundRunwayMenu_HoverPreviewsRoute()
     {
+        string? missing = InteractiveDesktop.MissingReason();
+        Assert.SkipWhen(missing is not null, missing ?? "");
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
         GroundNodeDto start = MenuGoldenFixtures.OakLayoutForClient.Nodes.First(node => (node.Type == "Spot") && (node.Name == "I30"));
         var main = new MainViewModel(new FakeFilePickerService());
@@ -207,6 +220,8 @@ public sealed class AutomationPointerTests : AutomationHostFixture
     [AvaloniaFact]
     public async Task HoverPipe_WindowPoint_EntersTheElementUnderIt()
     {
+        string? missing = InteractiveDesktop.MissingReason();
+        Assert.SkipWhen(missing is not null, missing ?? "");
         Border pad = Pad();
         int entered = 0;
         pad.PointerEntered += (_, _) => entered++;
@@ -239,6 +254,8 @@ public sealed class AutomationPointerTests : AutomationHostFixture
     [AvaloniaFact]
     public async Task HoverPipe_Selector_HoversTheElementCentre()
     {
+        string? missing = InteractiveDesktop.MissingReason();
+        Assert.SkipWhen(missing is not null, missing ?? "");
         Border pad = Pad();
         Window window = ShowWindow("PointerWindow", pad, null);
         Point centre = pad.TranslatePoint(new Point(60, 40), window)!.Value;
@@ -256,6 +273,8 @@ public sealed class AutomationPointerTests : AutomationHostFixture
     [AvaloniaFact]
     public async Task DragPipe_CapturesAndReleasesAtTheTarget()
     {
+        string? missing = InteractiveDesktop.MissingReason();
+        Assert.SkipWhen(missing is not null, missing ?? "");
         Border pad = Pad();
         Window window = ShowWindow("PointerWindow", pad, null);
         List<Point> heldMoves = [];
