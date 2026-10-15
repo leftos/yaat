@@ -33,6 +33,7 @@
 - [ ] YAAT-624 Find why a solo pilot reports traffic in sight minutes after the traffic call
 - [ ] YAAT-710 A/C Held short of the runway on the inside of the hold short bars · release vNext
 - [ ] YAAT-711 A/C got stuck on another at the gate when instructed to park in the same spot · release vNext
+- [ ] YAAT-754 Restore the recorded weather on a rewind after the room's weather was cleared
 
 ## Say again
 
@@ -149,6 +150,8 @@
 - [ ] YAAT-744 Turn heavies through sub-135° corners on their own turn radius
 - [ ] YAAT-745 Turn a just-pushed heavy about on its own radius, toward the stand side
 - [ ] YAAT-746 Stop the SFO G13S/G14T PUSH B5 target short of taxiway B
+- [ ] YAAT-755 Use one readback for an aircraft stopped over a runway's hold line
+- [ ] YAAT-756 Check a two-runway bar against both runways when leaving a runway, and name the two nose measures
 
 ## Wave 2 — Ground command grammar and dispatch
 
@@ -169,11 +172,14 @@
 - [ ] YAAT-336 Immediate preset CTO for a departure held for release is dropped instead of waiting for the release
 - [ ] YAAT-337 Solo release auto-takeoff depends on the release request object surviving the jitter window
 - [ ] YAAT-427 Split GroundCommandHandler's TryTaxiCore and ResolveTaxiRouteFrom under the 100-line limit
-- [ ] YAAT-577 FOLLOWG behind a departing lead holds as a crossing of '30/12', not a departure hold · release vNext
+- [/] YAAT-577 FOLLOWG behind a departing lead holds as a crossing of '30/12', not a departure hold · release vNext
 - [ ] YAAT-582 Bare CROSS clears the next bar in route order and re-aims the segment
 - [ ] YAAT-584 Decide and honour HS to a FOLLOWG follower (it never stops at a taxiway bar)
 - [ ] YAAT-586 Make RES/CROSS with CROSS and HS lists atomic when an HS target fails
 - [ ] YAAT-596 Add "Auto Cross only non-Active Runways" as option for Auto-Cross
+- [ ] YAAT-751 Name the intersection in the ready call at an intersection departure bar
+- [ ] YAAT-752 Name W1, not T - RAMP, in a follower's hold warning at the OAK runway 30 bar
+- [ ] YAAT-753 Line up on the end the aircraft holds at when CTO names a combined runway id
 
 ## Wave 3 — Ground routing, pathfinder and their docs
 
@@ -324,7 +330,6 @@
 - [ ] YAAT-667 Stop MethodStep_TimeoutMs_IsTheAnswerTimeout flaking under load
 - [ ] YAAT-668 Call gate run on PATH in yaat and yaat-server; delete tools/gate.ps1 · release vNext
 - [ ] YAAT-705 Make RecordToolsTests.Mark_SimClockBlocked load-proof
-- [ ] YAAT-748 Skip the AutomationPointerTests drags without an interactive desktop · release vNext
 
 ## Singles
 
