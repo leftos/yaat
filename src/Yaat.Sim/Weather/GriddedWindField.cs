@@ -11,6 +11,11 @@ namespace Yaat.Sim.Weather;
 /// <param name="TemperatureC">Air temperature in degrees Celsius.</param>
 public readonly record struct GriddedWindSample(double PressureHpa, double AltitudeFt, double DirectionTrueDeg, double SpeedKts, double TemperatureC);
 
+/// <summary>The kept levels either side of an altitude in a sampled column (<see cref="GriddedWindField.SampleBracket"/>).</summary>
+/// <param name="Below">The highest kept level strictly below the altitude, or null when there is none.</param>
+/// <param name="Above">The lowest kept level at or above the altitude, or null when there is none.</param>
+public readonly record struct GriddedWindBracket(GriddedWindSample? Below, GriddedWindSample? Above);
+
 /// <summary>
 /// Wind and temperature on isobaric levels over a regular latitude/longitude grid, built from decoded GRIB2 UGRD
 /// (0, 2, 2), VGRD (0, 2, 3) and TMP (0, 0, 0) messages of one model run and forecast hour. Immutable after construction.
@@ -119,6 +124,49 @@ public sealed class GriddedWindField
         }
 
         return column;
+    }
+
+    /// <summary>
+    /// The two levels of the column at a position that bracket an altitude, without building the column: only the levels it
+    /// returns (and any level with a missing corner it skips past) are interpolated, and nothing is allocated. Levels below
+    /// <paramref name="floorFt"/> are left out, as is a level with a missing (NaN) corner, so the bracket is the one the
+    /// column <see cref="SampleColumn"/> gives would have once those levels are removed from it.
+    /// </summary>
+    /// <param name="latDeg">Latitude in degrees.</param>
+    /// <param name="lonDeg">Longitude in degrees, −180..180 or 0..360.</param>
+    /// <param name="altitudeFt">The altitude to bracket, feet MSL.</param>
+    /// <param name="floorFt">The lowest level altitude kept, feet MSL.</param>
+    /// <returns>
+    /// Null when the position lies outside the grid. Otherwise <see cref="GriddedWindBracket.Below"/> is the highest kept level
+    /// strictly below <paramref name="altitudeFt"/> and <see cref="GriddedWindBracket.Above"/> the lowest kept level at or above
+    /// it, each null when there is none; both are null when no level is kept.
+    /// </returns>
+    public GriddedWindBracket? SampleBracket(double latDeg, double lonDeg, double altitudeFt, double floorFt)
+    {
+        if (Locate(latDeg, lonDeg) is not { } cell)
+        {
+            return null;
+        }
+
+        int firstAtOrAbove = 0;
+        while ((firstAtOrAbove < _levels.Length) && (_levels[firstAtOrAbove].AltitudeFt < altitudeFt))
+        {
+            firstAtOrAbove++;
+        }
+
+        GriddedWindSample? above = null;
+        for (int i = firstAtOrAbove; (i < _levels.Length) && (above is null); i++)
+        {
+            above = _levels[i].AltitudeFt >= floorFt ? SampleLevel(_levels[i], cell) : null;
+        }
+
+        GriddedWindSample? below = null;
+        for (int i = firstAtOrAbove - 1; (i >= 0) && (below is null) && (_levels[i].AltitudeFt >= floorFt); i--)
+        {
+            below = SampleLevel(_levels[i], cell);
+        }
+
+        return new GriddedWindBracket(below, above);
     }
 
     private Cell? Locate(double latDeg, double lonDeg)

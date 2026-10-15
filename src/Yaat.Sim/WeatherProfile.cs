@@ -1,5 +1,6 @@
 using System.Text.Json.Serialization;
 using Yaat.Sim.Data;
+using Yaat.Sim.Weather;
 
 namespace Yaat.Sim;
 
@@ -76,6 +77,14 @@ public class WeatherProfile
     /// </summary>
     [JsonIgnore]
     public Dictionary<string, MetarParser.ParsedMetar>? ParsedMetarOverrides { get; set; }
+
+    /// <summary>
+    /// The GFS wind grid over the room, or null without one. Where it covers a position, the position-taking
+    /// <see cref="WindInterpolator"/> overloads take the winds above the METAR surface layer (layer 0) from its column instead
+    /// of from the FD layers. Not serialized: a snapshot, a recorded weather change or a rebuilt profile carries no grid.
+    /// </summary>
+    [JsonIgnore]
+    public GriddedWindField? WindGrid { get; set; }
 
     /// <summary>
     /// Get parsed ceiling/visibility for an airport, with caching.
@@ -203,6 +212,41 @@ public class WeatherProfile
         }
 
         return _windLayers.Count > 0 ? _windLayers[0].Altitude : 0;
+    }
+
+    /// <summary>The altimeter setting a METAR carries when none is reported: standard pressure, inches of mercury.</summary>
+    public const double StandardAltimeterInHg = 29.92;
+
+    private double _surfaceAltimeterInHg;
+    private bool _surfaceAltimeterResolved;
+
+    /// <summary>
+    /// The altimeter setting (inHg) of the profile's first METAR that reports one, or <see cref="StandardAltimeterInHg"/> when
+    /// none does. With <see cref="SurfaceElevationFt"/> it gives the surface's pressure altitude, the floor below which a GFS
+    /// grid's isobaric levels lie under (or too near) the ground. Cached per profile; safe to call from the tick thread and a
+    /// hub thread at once: the value is written before the flag that publishes it, so a reader sees either no value (and
+    /// computes the same one itself) or the whole value.
+    /// </summary>
+    public double SurfaceAltimeterInHg()
+    {
+        if (Volatile.Read(ref _surfaceAltimeterResolved))
+        {
+            return _surfaceAltimeterInHg;
+        }
+
+        double altimeter = StandardAltimeterInHg;
+        foreach (string metarStr in Metars)
+        {
+            if (MetarParser.Parse(metarStr)?.AltimeterInHg is { } reported)
+            {
+                altimeter = reported;
+                break;
+            }
+        }
+
+        _surfaceAltimeterInHg = altimeter;
+        Volatile.Write(ref _surfaceAltimeterResolved, true);
+        return altimeter;
     }
 
     private List<(string AirportId, LatLon Position)> BuildStationIndex()

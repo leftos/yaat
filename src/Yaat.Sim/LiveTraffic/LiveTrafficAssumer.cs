@@ -155,7 +155,7 @@ public static class LiveTrafficAssumer
             PendingPilotSpeechCount = aircraft.PendingPilotSpeech.Count,
         };
 
-        LiveTrafficKinematics.Advance(aircraft, 0, ctx.Weather, ctx.ScenarioElapsedSeconds);
+        LiveTrafficKinematics.Advance(aircraft, 0, ctx.Weather, ctx.ScenarioElapsedSeconds, ctx.SessionStartUtc.Date);
         // Outlives the satellite: it is what tells UNASSUME there is a feed to hand this aircraft back to. A flag
         // rather than the feed identity, which is null for a track no product gave a GUFI.
         aircraft.AssumedFromLiveTraffic = true;

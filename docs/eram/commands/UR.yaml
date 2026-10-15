@@ -7,13 +7,13 @@ variants:
     handler: UR.UpperWinds
     note: |
       §C.2 p.565 makes UR valid from specially adapted R-positions; YAAT accepts it from every R-position. A Response Area
-      readout of the room's mean wind (the wind layers without gusts or variability), converted to true at the location
-      and rounded to 10°, in whole knots: "UPPER WINDS <name>", then one "<alt> <dir>/<kt>" line per level, each three
+      readout of the room's mean wind (the wind layers without gusts or variability), true at the location (the layers
+      converted to true there; a room that carries a GFS wind grid covering the location reads the grid's winds straight from it, true) and rounded to 10°, in whole knots: "UPPER WINDS <name>", then one "<alt> <dir>/<kt>" line per level, each three
       digits ("300 270/045"; a calm level reads 000/000). With no altitude field it reads the FAA FD levels 030, 060, 090,
       120, 180, 240, 300, 340 and 390; with 300 the FD levels inside the block, inclusive; with 301 the FD levels at or
       above (+) or at or below (-) the bound; with 302 the altitudes typed, in the order typed. The location is the typed
       field 68 (named as typed), a field 65 pick (named for the nearest airport within 100 NM, else its lat/long), or with
-      neither the room's primary airport. A room with no wind layers reads "NO UPPER WIND DATA". Nothing is recorded. The
+      neither the room's primary airport. A room with neither wind layers nor a grid winds at the location reads "NO UPPER WIND DATA" (a grid-only room reads winds inside the grid and this outside it). Nothing is recorded. The
       layout is coined (yaat ruling): the B-level Upper Winds Request is not in the SRS volume.
     fields:
       - field: Position

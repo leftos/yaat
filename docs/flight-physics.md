@@ -131,6 +131,10 @@ This is the load-bearing model the rest of physics rests on. (This material prev
 `ComputeWindCorrectionAngle`, and `GetWindComponents`. Wind layers are vector-interpolated by altitude
 (`WindInterpolator.GetWindAt`) so the 0/360 boundary is handled correctly.
 
+Airborne, `FlightPhysics` samples the wind at the aircraft's own position (`WindSamplePoint(Position, Declination)` overloads of `GetWindAt` / `GetWindComponents`) for the crab angle and the groundspeed vector: where the weather carries a GFS grid covering the aircraft, the winds above the METAR surface layer come from the grid's column there, otherwise from the layers as before.
+
+The ground samples stay on the layers (no position). See [weather-and-wind.md](weather-and-wind.md#sampling-the-grid-at-a-position).
+
 ## Heading integration (`UpdateHeading`)
 
 `UpdateHeading(aircraft, cat, deltaSeconds)` (`FlightPhysics.cs`, `FlightPhysics.UpdateHeading`):
@@ -157,7 +161,7 @@ This is the load-bearing model the rest of physics rests on. (This material prev
 - **Arc-blended steering.** While in the anticipation zone but not yet sequencing, the steering heading is the tangent to the inscribed turn
   circle (`FlightPhysics.ComputeArcBlendedHeading`), not the straight bearing to the waypoint — so fly-by turns are smooth.
 - **Wind correction angle.** When airborne with weather, the final steering heading is `bearing + WCA` where
-  `WCA = WindInterpolator.ComputeWindCorrectionAngle(bearing, TAS, windFrom, windSpeed)` — the aircraft crabs so it tracks a straight
+  `WCA = WindInterpolator.ComputeWindCorrectionAngle(bearing, TAS, windFrom, windSpeed)` with the wind sampled at the aircraft's position — the aircraft crabs so it tracks a straight
   ground path, not a downwind pursuit curve.
 - **Fix-constraint apply/revert.** On sequencing, `ApplyFixConstraints` applies the next fix's altitude/speed restriction (gated by
   SID-via / STAR-via mode), and `NavigationTarget.Revert*` fields restore the prior target/assigned alt+speed when sequencing past a constrained
@@ -289,7 +293,7 @@ speed — unless an explicit ATC speed is active.
 
 - **Ground branch**: re-enforce `Ground.SpeedLimit` on IAS (instantly: a ground-conflict rule that slows rather than stops floors its own limit to a brake-feasible value, see [ground/navigator.md](ground/navigator.md)), move along `Ground.PushbackTrueHeading ?? TrueHeading` at
   `IAS / 3600` nm/s, and set `TrueTrack = TrueHeading` (track follows heading directly; GS = IAS on the ground).
-- **Airborne branch**: `TAS = IasToTas(IAS, alt)`; ground-speed vector = `TAS·(cos/sin heading) + wind`; **cache `WindComponents`**;
+- **Airborne branch**: `TAS = IasToTas(IAS, alt)`; ground-speed vector = `TAS·(cos/sin heading) + wind` (sampled at the aircraft's position); **cache `WindComponents`**;
   `TrueTrack = atan2(gsE, gsN)`; displace by the full GS vector. This is where wind makes track diverge from heading.
 
 ## Performance constants — the two-tier lookup

@@ -117,7 +117,7 @@ public static class WindVariation
     private const double FullAmplitudeTopAglFt = 1000.0;
 
     /// <summary>Zero perturbation at or above this height (cruise track stays clean); smoothstep between.</summary>
-    private const double ZeroAmplitudeTopAglFt = 3000.0;
+    public const double ZeroAmplitudeTopAglFt = 3000.0;
 
     /// <summary>
     /// VRB is a shallow decoupled-surface-layer phenomenon (tens to ~200 ft), not boundary-layer
@@ -184,6 +184,22 @@ public static class WindVariation
         }
 
         return (hash / (double)uint.MaxValue) * PerAircraftPhaseSpanSeconds;
+    }
+
+    /// <summary>
+    /// Re-caps amplitudes resolved for one mean wind (<see cref="ResolveAmplitudes"/>) against another mean speed, by the same
+    /// rules: none below the minimum perturbable mean speed, the gust excess at most (max gust factor − 1) × the mean, the
+    /// half-spread within the engine's clamp. For a level that borrows another level's amplitudes, such as a gridded wind
+    /// level carrying the METAR surface layer's.
+    /// </summary>
+    public static (double GustExcessKts, double HalfSpreadDeg) CapAmplitudes(double meanSpeedKts, double gustExcessKts, double halfSpreadDeg)
+    {
+        if (meanSpeedKts < MinPerturbableMeanSpeedKt)
+        {
+            return (0, 0);
+        }
+
+        return (Math.Clamp(gustExcessKts, 0, (MaxGustFactor - 1.0) * meanSpeedKts), Math.Clamp(halfSpreadDeg, 0, MaxHalfSpreadDeg));
     }
 
     /// <summary>

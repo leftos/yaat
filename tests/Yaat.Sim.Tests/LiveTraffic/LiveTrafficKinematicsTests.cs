@@ -203,6 +203,52 @@ public class LiveTrafficKinematicsTests
         Assert.InRange(GeoMath.DistanceNm(expected, ac.Position), 0, 0.005);
     }
 
+    /// <summary>
+    /// Under a GFS grid, a shadow's cached wind (which its displayed heading and IAS are derived from) is the grid's at the
+    /// shadow's own position, not the FD layers': two shadows far apart at one altitude carry different winds.
+    /// </summary>
+    [Fact]
+    public void ShadowWind_IsTheGridWindAtItsPosition()
+    {
+        WeatherProfile weather = GriddedWindSamplingTests.LayersWithGrid(GriddedWindSamplingTests.Field);
+        AircraftState bayArea = Shadow(Sample(0, Origin, 10_000, 250, 90, 0, LiveTrafficSource.Stars));
+        AircraftState nearReno = LiveTrafficKinematics.CreateShadow(
+            "SWA456",
+            "B738",
+            Sample(0, new LatLon(39.5, -119.8), 10_000, 250, 90, 0, LiveTrafficSource.Stars),
+            new AircraftFlightPlan
+            {
+                HasFlightPlan = true,
+                Departure = "KRNO",
+                Destination = "KLAS",
+            }
+        );
+        SimulationEngine engine = EngineWith(weather, bayArea, nearReno);
+
+        TickSeconds(engine, 5);
+
+        double now = engine.Scenario!.ElapsedSeconds;
+        foreach (AircraftState ac in new[] { bayArea, nearReno })
+        {
+            double phase = WindVariation.PhaseSecondsFor(ac.Callsign);
+            (double north, double east) = WindInterpolator.GetWindComponents(
+                weather,
+                new WindSamplePoint(ac.Position, ac.Declination),
+                ac.Altitude,
+                now,
+                phase
+            );
+            Assert.Equal(north, ac.WindComponents.N, 9);
+            Assert.Equal(east, ac.WindComponents.E, 9);
+            Assert.NotEqual(WindInterpolator.GetWindComponents(weather, ac.Altitude, now, phase), ac.WindComponents);
+        }
+
+        Assert.True(
+            (Math.Abs(bayArea.WindSpeedKts - nearReno.WindSpeedKts) > 1) || (Math.Abs(bayArea.WindComponents.N - nearReno.WindComponents.N) > 1),
+            $"Bay Area {bayArea.WindComponents} and Reno {nearReno.WindComponents} carry the same wind"
+        );
+    }
+
     [Fact]
     public void CoastsAfterDeliverySilence_AndKeepsMoving()
     {
@@ -267,7 +313,7 @@ public class LiveTrafficKinematicsTests
         AircraftState ac = Shadow(AirborneSample(0) with { SourceCoasting = true });
         Assert.True(ac.LiveTraffic!.IsCoasting);
 
-        LiveTrafficKinematics.Advance(ac, 1.0, null, 1.0);
+        LiveTrafficKinematics.Advance(ac, 1.0, null, 1.0, MagneticDeclination.EvaluationDateUtc);
         Assert.True(ac.LiveTraffic.IsCoasting);
         Assert.True(GeoMath.DistanceNm(Origin, ac.Position) > 0.05); // still dead-reckoned while coasting
 
@@ -280,7 +326,7 @@ public class LiveTrafficKinematicsTests
     public void DeadReckonedClimb_LevelsAtTheFeedAssignedAltitude()
     {
         AircraftState ac = Shadow(AirborneSample(0, verticalSpeedFpm: 2000) with { AssignedAltitudeFt = 11_000 });
-        LiveTrafficKinematics.Advance(ac, 120, null, 120);
+        LiveTrafficKinematics.Advance(ac, 120, null, 120, MagneticDeclination.EvaluationDateUtc);
         Assert.Equal(11_000, ac.Altitude);
     }
 
@@ -288,7 +334,7 @@ public class LiveTrafficKinematicsTests
     public void DeadReckonedDescent_LevelsAtTheFeedInterimAltitude()
     {
         AircraftState ac = Shadow(AirborneSample(0, verticalSpeedFpm: -2000) with { InterimAltitudeFt = 9_000, AssignedAltitudeFt = 5_000 });
-        LiveTrafficKinematics.Advance(ac, 120, null, 120);
+        LiveTrafficKinematics.Advance(ac, 120, null, 120, MagneticDeclination.EvaluationDateUtc);
         Assert.Equal(9_000, ac.Altitude);
     }
 
@@ -296,7 +342,7 @@ public class LiveTrafficKinematicsTests
     public void DeadReckonedClimb_IgnoresAStaleClearanceBelowTheObservedAltitude()
     {
         AircraftState ac = Shadow(AirborneSample(0, verticalSpeedFpm: 2000) with { AssignedAltitudeFt = 5_000 });
-        LiveTrafficKinematics.Advance(ac, 120, null, 120);
+        LiveTrafficKinematics.Advance(ac, 120, null, 120, MagneticDeclination.EvaluationDateUtc);
         Assert.Equal(10_000, ac.Altitude); // holds the observed altitude, never dragged toward the stale clearance
     }
 
@@ -304,7 +350,7 @@ public class LiveTrafficKinematicsTests
     public void SurfaceSample_FreezesPastTheProjectionCap()
     {
         AircraftState ac = Shadow(Sample(0, Origin, 0, 20, 90, 0, LiveTrafficSource.Asdex));
-        LiveTrafficKinematics.Advance(ac, 60, null, 60);
+        LiveTrafficKinematics.Advance(ac, 60, null, 60, MagneticDeclination.EvaluationDateUtc);
 
         double capped = 20 * LiveTrafficKinematics.AsdexProjectionCapSeconds / 3600.0;
         Assert.InRange(GeoMath.DistanceNm(Origin, ac.Position), capped - 0.01, capped + 0.01);
@@ -320,7 +366,7 @@ public class LiveTrafficKinematicsTests
 
         // Short final at DEN, sinking at 1 500 fpm, then the feed goes quiet for a minute.
         AircraftState ac = Shadow(Sample(0, new LatLon(den.Lat, den.Lon), field + 200, 130, 170, -1500, LiveTrafficSource.Stars));
-        LiveTrafficKinematics.Advance(ac, 60, null, 60);
+        LiveTrafficKinematics.Advance(ac, 60, null, 60, MagneticDeclination.EvaluationDateUtc);
 
         Assert.Equal(field, ac.Altitude, 0);
     }

@@ -1,7 +1,16 @@
+using Yaat.Sim.Weather;
+
 namespace Yaat.Sim;
 
 /// <summary>Wind at a specific altitude after interpolation.</summary>
 public readonly record struct WindAtAltitude(double DirectionDeg, double SpeedKts);
+
+/// <summary>
+/// Where a wind is sampled: the position, and the magnetic declination there (degrees, east positive, as
+/// <see cref="MagneticDeclination.GetDeclination(LatLon, DateTime)"/> gives it) that turns the profile's gridded winds, which
+/// are true, magnetic as its layers are.
+/// </summary>
+public readonly record struct WindSamplePoint(LatLon Position, double DeclinationDeg);
 
 public static class WindInterpolator
 {
@@ -44,53 +53,125 @@ public static class WindInterpolator
             return new WindAtAltitude(0, 0);
         }
 
-        List<WindLayer> layers = profile.WindLayers;
+        return SampleLayers(profile.WindLayers, profile.SurfaceElevationFt(), altitudeFt, simTimeSeconds, phaseSeconds);
+    }
 
+    /// <summary>
+    /// <see cref="GetWindAt(WeatherProfile?, double, double, double)"/> at a position. Where the profile's
+    /// <see cref="WeatherProfile.WindGrid"/> covers <paramref name="at"/>, the wind comes from a column of the METAR surface
+    /// layer (layer 0), placed at the surface datum (<see cref="WeatherProfile.SurfaceElevationFt"/>) rather than its authored
+    /// altitude, and above it the grid's levels there, each turned magnetic with <see cref="WindSamplePoint.DeclinationDeg"/>;
+    /// the FD layers are not used. Grid levels lower than <see cref="GridLevelGroundClearanceFt"/> above the surface's pressure
+    /// altitude (<see cref="SurfacePressureAltitudeFt"/>) are left out: they lie under or too near the ground. A grid level
+    /// inside the variability taper band (below <see cref="WindVariation.ZeroAmplitudeTopAglFt"/> above the surface) carries
+    /// layer 0's gust and direction-spread amplitudes, so the taper alone fades them with height. The altitude interpolation
+    /// and the perturbation then run as they do over the layers. With no grid, outside it, or with no grid level kept, the
+    /// result is exactly the overload without a position. Nothing is allocated.
+    /// </summary>
+    public static WindAtAltitude GetWindAt(WeatherProfile? profile, WindSamplePoint at, double altitudeFt, double simTimeSeconds, double phaseSeconds)
+    {
+        if ((profile is null) || (GridBracket(profile, at, altitudeFt, ColumnFrame.Magnetic) is not { } bracket))
+        {
+            return GetWindAt(profile, altitudeFt, simTimeSeconds, phaseSeconds);
+        }
+
+        double heightAglFt = Math.Max(0, altitudeFt - profile.SurfaceElevationFt());
+        WindPerturbationInputs inputs = bracket.High is { } high
+            ? InputsBetween(bracket.Low, high, bracket.T, heightAglFt)
+            : InputsAt(bracket.Low, heightAglFt);
+        return WindVariation.Compute(inputs, simTimeSeconds, phaseSeconds);
+    }
+
+    /// <summary>
+    /// How far above the surface's pressure altitude the lowest GFS level a column keeps must lie: a model level nearer the
+    /// ground than this is an extrapolation through (or a boundary layer under) the terrain, not the wind an aircraft flies in.
+    /// </summary>
+    public const double GridLevelGroundClearanceFt = 500.0;
+
+    /// <summary>
+    /// The surface's pressure altitude, feet: <see cref="WeatherProfile.SurfaceElevationFt"/> plus 1,000 ft per inch of mercury
+    /// the profile's altimeter setting (<see cref="WeatherProfile.SurfaceAltimeterInHg"/>) lies below standard (29.92).
+    /// </summary>
+    public static double SurfacePressureAltitudeFt(WeatherProfile profile) =>
+        profile.SurfaceElevationFt() + ((WeatherProfile.StandardAltimeterInHg - profile.SurfaceAltimeterInHg()) * 1000.0);
+
+    /// <summary>
+    /// The perturbed wind at <paramref name="altitudeFt"/> over a non-empty, altitude-ascending layer list:
+    /// clamped to the end layers outside their range, interpolated between the bracketing layers inside it.
+    /// </summary>
+    private static WindAtAltitude SampleLayers(
+        List<WindLayer> layers,
+        double surfaceElevationFt,
+        double altitudeFt,
+        double simTimeSeconds,
+        double phaseSeconds
+    )
+    {
         // Height above the ground drives the variability taper. The datum is the profile's
         // resolved field elevation, NOT the lowest layer's altitude — real profiles author
         // their lowest layer well above the field, and live weather authors it at 0 MSL
         // regardless of terrain, either of which would misplace (or entirely disable) the
         // taper at high-elevation airports.
-        double heightAglFt = Math.Max(0, altitudeFt - profile.SurfaceElevationFt());
+        double heightAglFt = Math.Max(0, altitudeFt - surfaceElevationFt);
 
         if (altitudeFt <= layers[0].Altitude)
         {
-            return PerturbLayer(layers[0], heightAglFt, simTimeSeconds, phaseSeconds);
+            return WindVariation.Compute(InputsAt(ColumnLevel.Of(layers[0]), heightAglFt), simTimeSeconds, phaseSeconds);
         }
 
         if (altitudeFt >= layers[^1].Altitude)
         {
-            return PerturbLayer(layers[^1], heightAglFt, simTimeSeconds, phaseSeconds);
+            return WindVariation.Compute(InputsAt(ColumnLevel.Of(layers[^1]), heightAglFt), simTimeSeconds, phaseSeconds);
         }
 
         (WindLayer low, WindLayer high, double t) = Bracket(layers, altitudeFt);
-        WindAtAltitude mean = InterpolateMean(low, high, t);
+        return WindVariation.Compute(InputsBetween(ColumnLevel.Of(low), ColumnLevel.Of(high), t, heightAglFt), simTimeSeconds, phaseSeconds);
+    }
 
-        // Variability amplitudes interpolate between the bracketing layers with the same
-        // scheme as the mean vector, so a layer boundary never produces a turbulence
-        // discontinuity; the AGL taper applies last, inside Compute. The discrete VRB
-        // flag steps at t=0.5, matching the cloud-cover convention.
-        (double gustLow, double spreadLow) = WindVariation.ResolveAmplitudes(
-            low.Speed,
-            low.Gusts,
-            low.DirectionVariabilityDeg,
-            low.Variable ?? false
-        );
-        (double gustHigh, double spreadHigh) = WindVariation.ResolveAmplitudes(
-            high.Speed,
-            high.Gusts,
-            high.DirectionVariabilityDeg,
-            high.Variable ?? false
-        );
-        double gustExcess = gustLow + (t * (gustHigh - gustLow));
-        double halfSpread = spreadLow + (t * (spreadHigh - spreadLow));
-        bool variable = t < 0.5 ? (low.Variable ?? false) : (high.Variable ?? false);
+    /// <summary>
+    /// One level of a wind column as the perturbation sees it: altitude, mean FROM direction and speed, and the resolved
+    /// variability amplitudes (<see cref="WindVariation.ResolveAmplitudes"/>) with the VRB flag.
+    /// </summary>
+    private readonly record struct ColumnLevel(
+        double AltitudeFt,
+        double DirectionDeg,
+        double SpeedKts,
+        double GustExcessKts,
+        double HalfSpreadDeg,
+        bool Variable
+    )
+    {
+        /// <summary>An authored layer, its amplitudes resolved from its gusts and direction variability.</summary>
+        public static ColumnLevel Of(WindLayer layer)
+        {
+            bool variable = layer.Variable ?? false;
+            (double gustExcess, double halfSpread) = WindVariation.ResolveAmplitudes(
+                layer.Speed,
+                layer.Gusts,
+                layer.DirectionVariabilityDeg,
+                variable
+            );
+            return new ColumnLevel(layer.Altitude, layer.Direction, layer.Speed, gustExcess, halfSpread, variable);
+        }
+    }
 
-        return WindVariation.Compute(
-            new WindPerturbationInputs(mean.DirectionDeg, mean.SpeedKts, gustExcess, halfSpread, variable, heightAglFt),
-            simTimeSeconds,
-            phaseSeconds
-        );
+    /// <summary>The perturbation inputs of one level, used as it stands (an altitude clamped to an end of the column).</summary>
+    private static WindPerturbationInputs InputsAt(ColumnLevel level, double heightAglFt) =>
+        new(level.DirectionDeg, level.SpeedKts, level.GustExcessKts, level.HalfSpreadDeg, level.Variable, heightAglFt);
+
+    /// <summary>
+    /// The perturbation inputs a fraction <paramref name="t"/> of the way from <paramref name="low"/> to
+    /// <paramref name="high"/>. Variability amplitudes interpolate between the bracketing levels with the same scheme as the
+    /// mean vector, so a level boundary never produces a turbulence discontinuity; the AGL taper applies last, inside
+    /// <see cref="WindVariation.Compute"/>. The discrete VRB flag steps at t=0.5, matching the cloud-cover convention.
+    /// </summary>
+    private static WindPerturbationInputs InputsBetween(ColumnLevel low, ColumnLevel high, double t, double heightAglFt)
+    {
+        WindAtAltitude mean = InterpolateMean(low.DirectionDeg, low.SpeedKts, high.DirectionDeg, high.SpeedKts, t);
+        double gustExcess = low.GustExcessKts + (t * (high.GustExcessKts - low.GustExcessKts));
+        double halfSpread = low.HalfSpreadDeg + (t * (high.HalfSpreadDeg - low.HalfSpreadDeg));
+        bool variable = t < 0.5 ? low.Variable : high.Variable;
+        return new WindPerturbationInputs(mean.DirectionDeg, mean.SpeedKts, gustExcess, halfSpread, variable, heightAglFt);
     }
 
     /// <summary>
@@ -106,7 +187,31 @@ public static class WindInterpolator
             return new WindAtAltitude(0, 0);
         }
 
-        List<WindLayer> layers = profile.WindLayers;
+        return MeanOverLayers(profile.WindLayers, altitudeFt);
+    }
+
+    /// <summary>
+    /// The mean wind at <paramref name="altitudeFt"/> over the grid column at <paramref name="at"/>, TRUE: the column
+    /// <see cref="GetWindAt(WeatherProfile?, WindSamplePoint, double, double, double)"/> samples, with the grid's levels as the
+    /// grid gives them and the METAR surface layer turned true with <see cref="WindSamplePoint.DeclinationDeg"/>. Null where
+    /// that overload falls back to the layers: no grid, a position outside it, or no grid level kept.
+    /// </summary>
+    public static WindAtAltitude? GetGriddedMeanWindTrueAt(WeatherProfile profile, WindSamplePoint at, double altitudeFt)
+    {
+        if (GridBracket(profile, at, altitudeFt, ColumnFrame.True) is not { } bracket)
+        {
+            return null;
+        }
+
+        ColumnLevel low = bracket.Low;
+        return bracket.High is { } high
+            ? InterpolateMean(low.DirectionDeg, low.SpeedKts, high.DirectionDeg, high.SpeedKts, bracket.T)
+            : new WindAtAltitude(low.DirectionDeg, low.SpeedKts);
+    }
+
+    /// <summary>The unperturbed wind at <paramref name="altitudeFt"/> over a non-empty, altitude-ascending layer list.</summary>
+    private static WindAtAltitude MeanOverLayers(List<WindLayer> layers, double altitudeFt)
+    {
         if (altitudeFt <= layers[0].Altitude)
         {
             return new WindAtAltitude(layers[0].Direction, layers[0].Speed);
@@ -118,7 +223,84 @@ public static class WindInterpolator
         }
 
         (WindLayer low, WindLayer high, double t) = Bracket(layers, altitudeFt);
-        return InterpolateMean(low, high, t);
+        return InterpolateMean(low.Direction, low.Speed, high.Direction, high.Speed, t);
+    }
+
+    /// <summary>Which north a grid column's directions are measured from.</summary>
+    private enum ColumnFrame
+    {
+        Magnetic,
+        True,
+    }
+
+    /// <summary>
+    /// Where <paramref name="altitudeFt"/> falls in the grid column at a position: the level below (or the level an altitude
+    /// clamps to, with no <c>High</c>), the level above, and the fraction of the way between. The column is the METAR surface
+    /// layer (layer 0) at the surface datum, when the profile has one, then the grid levels kept above it (see
+    /// <see cref="GetWindAt(WeatherProfile?, WindSamplePoint, double, double, double)"/>). In <see cref="ColumnFrame.Magnetic"/>
+    /// the grid's true directions turn magnetic and layer 0 stays as authored; in <see cref="ColumnFrame.True"/> layer 0 turns
+    /// true and the grid's directions stay. Null without a grid, outside it, or with no grid level kept. Only the two
+    /// bracketing grid levels are sampled (<see cref="GriddedWindField.SampleBracket"/>).
+    /// </summary>
+    private static (ColumnLevel Low, ColumnLevel? High, double T)? GridBracket(
+        WeatherProfile profile,
+        WindSamplePoint at,
+        double altitudeFt,
+        ColumnFrame frame
+    )
+    {
+        if (profile.WindGrid is not { } grid)
+        {
+            return null;
+        }
+
+        double surfaceFt = profile.SurfaceElevationFt();
+        double floorFt = Math.Max(SurfacePressureAltitudeFt(profile) + GridLevelGroundClearanceFt, Math.BitIncrement(surfaceFt));
+        if (
+            (grid.SampleBracket(at.Position.Lat, at.Position.Lon, altitudeFt, floorFt) is not { } bracket)
+            || ((bracket.Below is null) && (bracket.Above is null))
+        )
+        {
+            return null;
+        }
+
+        ColumnLevel? surface = profile.WindLayers.Count > 0 ? SurfaceLevel(profile.WindLayers[0], surfaceFt, at, frame) : null;
+        ColumnLevel? low = bracket.Below is { } below ? GridLevel(below, surface, surfaceFt, at, frame) : surface;
+        ColumnLevel? high = bracket.Above is { } above ? GridLevel(above, surface, surfaceFt, at, frame) : null;
+        if (low is not { } lowLevel)
+        {
+            return (high!.Value, null, 0);
+        }
+
+        if ((high is not { } highLevel) || (altitudeFt <= lowLevel.AltitudeFt))
+        {
+            return (lowLevel, null, 0);
+        }
+
+        return (lowLevel, highLevel, (altitudeFt - lowLevel.AltitudeFt) / (highLevel.AltitudeFt - lowLevel.AltitudeFt));
+    }
+
+    /// <summary>Layer 0 as the bottom of a grid column: at the surface datum, turned true in the true frame.</summary>
+    private static ColumnLevel SurfaceLevel(WindLayer layer, double surfaceFt, WindSamplePoint at, ColumnFrame frame)
+    {
+        var level = ColumnLevel.Of(layer);
+        double direction = frame == ColumnFrame.True ? MagneticDeclination.NormalizeDeg(level.DirectionDeg + at.DeclinationDeg) : level.DirectionDeg;
+        return level with { AltitudeFt = surfaceFt, DirectionDeg = direction };
+    }
+
+    /// <summary>
+    /// A grid level in a column: turned magnetic in the magnetic frame; inside the variability taper band it carries layer 0's
+    /// amplitudes re-capped against its own mean speed (<see cref="WindVariation.CapAmplitudes"/>; none without a layer 0),
+    /// above it none. It is never VRB.
+    /// </summary>
+    private static ColumnLevel GridLevel(GriddedWindSample sample, ColumnLevel? surface, double surfaceFt, WindSamplePoint at, ColumnFrame frame)
+    {
+        double direction =
+            frame == ColumnFrame.Magnetic ? MagneticDeclination.NormalizeDeg(sample.DirectionTrueDeg - at.DeclinationDeg) : sample.DirectionTrueDeg;
+        bool inTaperBand = (sample.AltitudeFt - surfaceFt) < WindVariation.ZeroAmplitudeTopAglFt;
+        (double gustExcess, double halfSpread) =
+            (inTaperBand && (surface is { } s)) ? WindVariation.CapAmplitudes(sample.SpeedKts, s.GustExcessKts, s.HalfSpreadDeg) : (0.0, 0.0);
+        return new ColumnLevel(sample.AltitudeFt, direction, sample.SpeedKts, gustExcess, halfSpread, false);
     }
 
     /// <summary>
@@ -139,18 +321,18 @@ public static class WindInterpolator
     }
 
     /// <summary>
-    /// The mean wind a fraction <paramref name="t"/> of the way from <paramref name="low"/> to <paramref name="high"/>:
-    /// the wind FROM directions decompose into unit N/E components before the lerp, which handles the 0/360 wraparound
-    /// (350° and 010° → 000°); the speed lerps linearly.
+    /// The mean wind a fraction <paramref name="t"/> of the way from the low wind to the high: the wind FROM directions
+    /// decompose into unit N/E components before the lerp, which handles the 0/360 wraparound (350° and 010° → 000°); the
+    /// speed lerps linearly.
     /// </summary>
-    private static WindAtAltitude InterpolateMean(WindLayer low, WindLayer high, double t)
+    private static WindAtAltitude InterpolateMean(double lowDirectionDeg, double lowSpeedKts, double highDirectionDeg, double highSpeedKts, double t)
     {
-        double lowRad = low.Direction * DegToRad;
-        double highRad = high.Direction * DegToRad;
+        double lowRad = lowDirectionDeg * DegToRad;
+        double highRad = highDirectionDeg * DegToRad;
 
         double interpN = Math.Cos(lowRad) + t * (Math.Cos(highRad) - Math.Cos(lowRad));
         double interpE = Math.Sin(lowRad) + t * (Math.Sin(highRad) - Math.Sin(lowRad));
-        double interpSpeed = low.Speed + t * (high.Speed - low.Speed);
+        double interpSpeed = lowSpeedKts + t * (highSpeedKts - lowSpeedKts);
 
         double direction = Math.Atan2(interpE, interpN) * RadToDeg;
         if (direction < 0)
@@ -159,17 +341,6 @@ public static class WindInterpolator
         }
 
         return new WindAtAltitude(direction, interpSpeed);
-    }
-
-    private static WindAtAltitude PerturbLayer(WindLayer layer, double heightAglFt, double simTimeSeconds, double phaseSeconds)
-    {
-        bool variable = layer.Variable ?? false;
-        (double gustExcess, double halfSpread) = WindVariation.ResolveAmplitudes(layer.Speed, layer.Gusts, layer.DirectionVariabilityDeg, variable);
-        return WindVariation.Compute(
-            new WindPerturbationInputs(layer.Direction, layer.Speed, gustExcess, halfSpread, variable, heightAglFt),
-            simTimeSeconds,
-            phaseSeconds
-        );
     }
 
     /// <summary>
@@ -183,9 +354,23 @@ public static class WindInterpolator
         double altitudeFt,
         double simTimeSeconds,
         double phaseSeconds
-    )
+    ) => ToComponents(GetWindAt(profile, altitudeFt, simTimeSeconds, phaseSeconds));
+
+    /// <summary>
+    /// <see cref="GetWindComponents(WeatherProfile?, double, double, double)"/> at a position, from
+    /// <see cref="GetWindAt(WeatherProfile?, WindSamplePoint, double, double, double)"/>.
+    /// </summary>
+    public static (double NorthKts, double EastKts) GetWindComponents(
+        WeatherProfile? profile,
+        WindSamplePoint at,
+        double altitudeFt,
+        double simTimeSeconds,
+        double phaseSeconds
+    ) => ToComponents(GetWindAt(profile, at, altitudeFt, simTimeSeconds, phaseSeconds));
+
+    /// <summary>The (northKts, eastKts) vector a wind blowing FROM <see cref="WindAtAltitude.DirectionDeg"/> pushes toward.</summary>
+    private static (double NorthKts, double EastKts) ToComponents(WindAtAltitude wind)
     {
-        WindAtAltitude wind = GetWindAt(profile, altitudeFt, simTimeSeconds, phaseSeconds);
         if (wind.SpeedKts <= 0)
         {
             return (0, 0);

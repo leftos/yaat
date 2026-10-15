@@ -262,19 +262,20 @@ public static class LiveTrafficKinematics
     /// <see cref="Apply"/>; because it is a function of the sample time and the sim clock only, live and
     /// replay age the same sample identically.
     /// </summary>
-    public static void Resync(AircraftState ac, double simNowSeconds, WeatherProfile? weather)
+    public static void Resync(AircraftState ac, double simNowSeconds, WeatherProfile? weather, DateTime magneticModelDateUtc)
     {
         AircraftLiveTraffic lt = ac.LiveTraffic ?? throw new InvalidOperationException($"{ac.Callsign} is not a shadow aircraft");
         lt.SecondsSinceSample = Math.Max(0, simNowSeconds - lt.ObservedAtSimSeconds);
-        Advance(ac, 0, weather, simNowSeconds);
+        Advance(ac, 0, weather, simNowSeconds, magneticModelDateUtc);
     }
 
     /// <summary>
     /// One physics sub-tick for a shadow: advances the sample clock, re-derives position and altitude
     /// from the latest sample, and fills the per-tick caches <see cref="FlightPhysics.Update"/> would
-    /// otherwise own (declination, wind components) so magnetic readouts and the ground-speed getter work.
+    /// otherwise own (declination, on <paramref name="magneticModelDateUtc"/>, and wind components) so magnetic
+    /// readouts and the ground-speed getter work.
     /// </summary>
-    public static void Advance(AircraftState ac, double deltaSeconds, WeatherProfile? weather, double simTimeSeconds)
+    public static void Advance(AircraftState ac, double deltaSeconds, WeatherProfile? weather, double simTimeSeconds, DateTime magneticModelDateUtc)
     {
         AircraftLiveTraffic lt = ac.LiveTraffic ?? throw new InvalidOperationException($"{ac.Callsign} is not a shadow aircraft");
         lt.SecondsSinceSample += deltaSeconds;
@@ -307,9 +308,19 @@ public static class LiveTrafficKinematics
         ac.VerticalSpeed = lt.SampleVerticalSpeed;
         ac.TrueTrack = track;
 
-        // A shadow's declination is a display readout of live traffic, not replayed simulation state, so the process day suffices.
-        FlightPhysics.RefreshDeclinationCache(ac, MagneticDeclination.EvaluationDateUtc);
-        ac.WindComponents = WindInterpolator.GetWindComponents(weather, ac.Altitude, simTimeSeconds, WindVariation.PhaseSecondsFor(ac.Callsign));
+        // The session's magnetic-model day, as FlightPhysics uses: the declination turns a gridded wind magnetic, so a replay
+        // on another day must evaluate it on the recorded day to sample the same wind.
+        FlightPhysics.RefreshDeclinationCache(ac, magneticModelDateUtc);
+        double phaseSeconds = WindVariation.PhaseSecondsFor(ac.Callsign);
+        ac.WindComponents = ac.IsOnGround
+            ? WindInterpolator.GetWindComponents(weather, ac.Altitude, simTimeSeconds, phaseSeconds)
+            : WindInterpolator.GetWindComponents(
+                weather,
+                new WindSamplePoint(ac.Position, ac.Declination),
+                ac.Altitude,
+                simTimeSeconds,
+                phaseSeconds
+            );
 
         WritePose(ac, lt);
     }

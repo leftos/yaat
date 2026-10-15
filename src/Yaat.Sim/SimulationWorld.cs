@@ -296,7 +296,7 @@ public sealed class SimulationWorld
 
                 if (ac.IsShadow)
                 {
-                    LiveTraffic.LiveTrafficKinematics.Advance(ac, deltaSeconds, weather, simTimeSeconds);
+                    LiveTraffic.LiveTrafficKinematics.Advance(ac, deltaSeconds, weather, simTimeSeconds, MagneticModelDateUtc);
                     LatchAirborne(ac);
                     continue;
                 }

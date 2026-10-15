@@ -787,7 +787,7 @@ public class ScenarioExporterTests
     private static AircraftState Shadow(string callsign, LiveTrafficSample sample, WeatherProfile? weather)
     {
         AircraftState shadow = LiveTrafficKinematics.CreateShadow(callsign, "B738", sample, new AircraftFlightPlan());
-        LiveTrafficKinematics.Resync(shadow, sample.ObservedAtSimSeconds, weather);
+        LiveTrafficKinematics.Resync(shadow, sample.ObservedAtSimSeconds, weather, MagneticDeclination.EvaluationDateUtc);
         shadow.Position = new LatLon(sample.Lat + 0.5, sample.Lon + 0.5);
         shadow.Altitude = sample.AltitudeFt + 3000;
         return shadow;

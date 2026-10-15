@@ -48,13 +48,13 @@ Taken in issue #150, then revised by an adversarial review, whose decisions are 
   Motion is 4 Hz because the clock is the physics `dt`, not the per-second `ElapsedSeconds`.
 - **Air vector, not track = heading.** `AircraftState.GroundSpeed` is *computed* from IAS→TAS along `TrueHeading` plus the
   cached `WindComponents`. `Advance` therefore writes `TrueHeading = dir(G − W)` and `IndicatedAirspeed = TasToIas(|G − W|)`
-  with `W` the room wind at altitude, so `ac.GroundSpeed == SampleGroundSpeed` under any wind and every GS-derived readout
+  with `W` the room wind at altitude (an airborne shadow samples it at its own position, from the GFS grid where the weather carries one; a surface shadow stays on the layers), so `ac.GroundSpeed == SampleGroundSpeed` under any wind and every GS-derived readout
   (datablock, strips, ATPA closure, change-tracker fingerprint) agrees with the motion on the scope. The room wind is not
   the real atmosphere, so the derived IAS carries the wind-model error; accepted. On the surface (`Asdex`) IAS carries
   the wheel speed and heading = track. `Advance` also fills the caches `FlightPhysics.Update` would own:
-  `FlightPhysics.RefreshDeclinationCache` (magnetic readouts) and `WindComponents`.
+  `FlightPhysics.RefreshDeclinationCache` (magnetic readouts, and the declination that turns a gridded wind magnetic) and `WindComponents`. The declination is on the session's magnetic-model date, which `Advance` and `Resync` take as `magneticModelDateUtc`, so a replay on another day samples the same wind.
 - **A sample is aged to the second it is applied in.** `SimulationEngine.ApplyLiveTrafficSample` / `ApplyRecordedLiveTrafficSample`
-  call `LiveTrafficKinematics.Resync(ac, ElapsedSeconds, weather)` after `Apply`: `SecondsSinceSample = now − ObservedAtSimSeconds`,
+  call `LiveTrafficKinematics.Resync(ac, ElapsedSeconds, weather, magneticModelDateUtc)` after `Apply`: `SecondsSinceSample = now − ObservedAtSimSeconds`,
   then `Advance(0)`. A sample that was already 6 s old when it arrived (feed latency) therefore puts the target where the aircraft
   is now, and replay — same sample, same second — ages it identically.
 - **Fresh samples win.** `Apply` adopts a newer sample unconditionally (jump > 0.3 nm is logged at Debug), resets the

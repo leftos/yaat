@@ -371,4 +371,115 @@ public class WindPhysicsTests
         Assert.Equal(a.GroundSpeed, b.GroundSpeed);
         Assert.Equal(a.TrueTrack.Degrees, b.TrueTrack.Degrees);
     }
+
+    // -------------------------------------------------------------------------
+    // Gridded wind: an airborne aircraft flies in the GFS grid's wind at its own position
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public void GridWind_AirborneAircraft_GroundVectorFollowsTheGridWindAtItsPosition()
+    {
+        WeatherProfile weather = GriddedWindSamplingTests.LayersWithGrid(GriddedWindSamplingTests.Field);
+        var sfo = new LatLon(37.62, -122.38);
+        var reno = new LatLon(39.5, -119.8);
+        AircraftState atSfo = MakeAircraft(250, 000, 10_000);
+        atSfo.Position = sfo;
+        AircraftState atReno = MakeAircraft(250, 000, 10_000);
+        atReno.Position = reno;
+
+        FlightPhysics.Update(atSfo, 1.0, null, weather, simTimeSeconds: 0);
+        FlightPhysics.Update(atReno, 1.0, null, weather, simTimeSeconds: 0);
+
+        AssertGroundVectorFromGridWind(atSfo, sfo, weather);
+        AssertGroundVectorFromGridWind(atReno, reno, weather);
+        bool differ = (Math.Abs(atSfo.GroundSpeed - atReno.GroundSpeed) > 1) || (Math.Abs(atSfo.TrueTrack.Degrees - atReno.TrueTrack.Degrees) > 1);
+        Assert.True(
+            differ,
+            $"SFO GS {atSfo.GroundSpeed:F1} trk {atSfo.TrueTrack.Degrees:F1}, Reno GS {atReno.GroundSpeed:F1} trk {atReno.TrueTrack.Degrees:F1}"
+        );
+    }
+
+    /// <summary>
+    /// Navigating to a fix under a GFS grid, the aircraft crabs (heading = bearing + wind correction angle) for the grid's wind
+    /// at its own position, not for the FD layers'.
+    /// </summary>
+    [Fact]
+    public void GridWind_FixTarget_CrabsForTheGridWindAtItsPosition()
+    {
+        WeatherProfile weather = GriddedWindSamplingTests.LayersWithGrid(GriddedWindSamplingTests.Field);
+        var start = new LatLon(37.62, -122.38);
+        var fix = new LatLon(37.62, -121.0);
+        AircraftState ac = MakeAircraft(250, 090, 10_000);
+        ac.Position = start;
+        ac.Targets.NavigationRoute.Add(new NavigationTarget { Name = "FIX", Position = fix });
+
+        FlightPhysics.Update(ac, 1.0, null, weather, simTimeSeconds: 0);
+
+        double bearing = GeoMath.BearingTo(start, fix);
+        double tas = WindInterpolator.IasToTas(250, 10_000);
+        double phase = WindVariation.PhaseSecondsFor(ac.Callsign);
+        WindAtAltitude grid = WindInterpolator.GetWindAt(weather, new WindSamplePoint(start, ac.Declination), 10_000, 0, phase);
+        WindAtAltitude layers = WindInterpolator.GetWindAt(weather, 10_000, 0, phase);
+        double expected = new TrueHeading(
+            bearing + WindInterpolator.ComputeWindCorrectionAngle(bearing, tas, grid.DirectionDeg, grid.SpeedKts)
+        ).Degrees;
+        double fromLayers = new TrueHeading(
+            bearing + WindInterpolator.ComputeWindCorrectionAngle(bearing, tas, layers.DirectionDeg, layers.SpeedKts)
+        ).Degrees;
+
+        Assert.True(Math.Abs(expected - fromLayers) > 0.1, $"the grid and the layers crab alike: {expected:F2} vs {fromLayers:F2}");
+        TrueHeading target = Assert.IsType<TrueHeading>(ac.Targets.TargetTrueHeading);
+        Assert.Equal(expected, target.Degrees, 9);
+    }
+
+    /// <summary>
+    /// On the ground the cached wind is the layers' without a position (the METAR surface layer path the takeoff roll and the
+    /// approach-speed additives read), even under a grid at a high field (KRNO, 4,415 ft) whose grid levels near the ground
+    /// would otherwise apply.
+    /// </summary>
+    [Fact]
+    public void GridWind_OnTheGroundAtAHighField_IsTheLayersWithoutAPosition()
+    {
+        TestVnasData.EnsureInitialized();
+        WeatherProfile weather = GriddedWindSamplingTests.Profile(
+            ["KRNO 141755Z 30015G25KT 10SM CLR 15/M05 A3005"],
+            0,
+            GriddedWindSamplingTests.Field
+        );
+        double fieldFt = weather.SurfaceElevationFt();
+        var krno = new LatLon(39.4991, -119.7681);
+        AircraftState ac = MakeAircraft(20, 160, fieldFt, onGround: true);
+        ac.IndicatedAirspeed = 20;
+        ac.Position = krno;
+
+        FlightPhysics.Update(ac, 1.0, null, weather, simTimeSeconds: 0);
+
+        double phase = WindVariation.PhaseSecondsFor(ac.Callsign);
+        Assert.Equal(WindInterpolator.GetWindComponents(weather, fieldFt, 0, phase), ac.WindComponents);
+    }
+
+    /// <summary>
+    /// The aircraft's cached wind is the grid's at the position it was sampled at (with its own cached declination), not the FD
+    /// layers', and its ground vector is its true airspeed on its heading plus that wind.
+    /// </summary>
+    private static void AssertGroundVectorFromGridWind(AircraftState ac, LatLon sampledAt, WeatherProfile weather)
+    {
+        double phase = WindVariation.PhaseSecondsFor(ac.Callsign);
+        (double north, double east) = WindInterpolator.GetWindComponents(
+            weather,
+            new WindSamplePoint(sampledAt, ac.Declination),
+            ac.Altitude,
+            0,
+            phase
+        );
+        Assert.Equal(north, ac.WindComponents.N, 9);
+        Assert.Equal(east, ac.WindComponents.E, 9);
+        Assert.NotEqual(WindInterpolator.GetWindComponents(weather, ac.Altitude, 0, phase), ac.WindComponents);
+
+        double tas = WindInterpolator.IasToTas(ac.IndicatedAirspeed, ac.Altitude);
+        double headingRad = ac.TrueHeading.Degrees * Math.PI / 180.0;
+        double groundNorth = (tas * Math.Cos(headingRad)) + north;
+        double groundEast = (tas * Math.Sin(headingRad)) + east;
+        Assert.Equal(Math.Sqrt((groundNorth * groundNorth) + (groundEast * groundEast)), ac.GroundSpeed, 2);
+    }
 }

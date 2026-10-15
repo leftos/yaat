@@ -861,7 +861,7 @@ public class LiveTrafficAssumeTests
     {
         // The feed went quiet 50 s before "now" (elapsed 0, where the dispatch context clock sits).
         AircraftState ac = Shadow(Sample(-50, EnRoute, 11_000, 300, 90, 0), new AircraftFlightPlan { HasFlightPlan = true });
-        LiveTrafficKinematics.Advance(ac, 50, null, 0);
+        LiveTrafficKinematics.Advance(ac, 50, null, 0, MagneticDeclination.EvaluationDateUtc);
         Assert.True(ac.LiveTraffic!.IsCoasting);
         LatLon pose = ac.Position;
 

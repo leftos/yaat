@@ -321,12 +321,7 @@ public sealed class HoldingPatternPhase : Phase
             return targetInboundSeconds;
         }
 
-        WindAtAltitude wind = WindInterpolator.GetWindAt(
-            ctx.Weather,
-            ctx.Aircraft.Altitude,
-            ctx.ScenarioElapsedSeconds,
-            WindVariation.PhaseSecondsFor(ctx.Aircraft.Callsign)
-        );
+        WindAtAltitude wind = WindAtAircraft(ctx, ctx.Weather);
         if (wind.SpeedKts <= 0)
         {
             return targetInboundSeconds;
@@ -362,12 +357,7 @@ public sealed class HoldingPatternPhase : Phase
         }
 
         double tas = WindInterpolator.IasToTas(ctx.Aircraft.IndicatedAirspeed, ctx.Aircraft.Altitude);
-        WindAtAltitude wind = WindInterpolator.GetWindAt(
-            ctx.Weather,
-            ctx.Aircraft.Altitude,
-            ctx.ScenarioElapsedSeconds,
-            WindVariation.PhaseSecondsFor(ctx.Aircraft.Callsign)
-        );
+        WindAtAltitude wind = WindAtAircraft(ctx, ctx.Weather);
 
         // inboundWca > 0 means crab right to maintain inbound track.
         // Triple-drift outbound: subtract 3× WCA from the outbound heading
@@ -375,6 +365,16 @@ public sealed class HoldingPatternPhase : Phase
         double inboundWca = WindInterpolator.ComputeWindCorrectionAngle(InboundCourse, tas, wind.DirectionDeg, wind.SpeedKts);
         return new TrueHeading(_outboundHeading.Degrees - (TripleDriftFactor * inboundWca));
     }
+
+    /// <summary>The wind at the aircraft's position and altitude, with its cached declination turning a gridded wind magnetic.</summary>
+    private static WindAtAltitude WindAtAircraft(PhaseContext ctx, WeatherProfile weather) =>
+        WindInterpolator.GetWindAt(
+            weather,
+            new WindSamplePoint(ctx.Aircraft.Position, ctx.Aircraft.Declination),
+            ctx.Aircraft.Altitude,
+            ctx.ScenarioElapsedSeconds,
+            WindVariation.PhaseSecondsFor(ctx.Aircraft.Callsign)
+        );
 
     private bool AtFix(PhaseContext ctx) => GeoMath.DistanceNm(ctx.Aircraft.Position, new LatLon(FixLat, FixLon)) < ArrivalNm;
 

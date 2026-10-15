@@ -296,7 +296,8 @@ public static class FlightPhysics
         if (weather is not null && !aircraft.IsOnGround && aircraft.IndicatedAirspeed > 0)
         {
             double tas = WindInterpolator.IasToTas(aircraft.IndicatedAirspeed, aircraft.Altitude);
-            WindAtAltitude wind = WindInterpolator.GetWindAt(weather, aircraft.Altitude, simTimeSeconds, windPhaseSeconds);
+            var at = new WindSamplePoint(aircraft.Position, aircraft.Declination);
+            WindAtAltitude wind = WindInterpolator.GetWindAt(weather, at, aircraft.Altitude, simTimeSeconds, windPhaseSeconds);
             wca = WindInterpolator.ComputeWindCorrectionAngle(bearing, tas, wind.DirectionDeg, wind.SpeedKts);
         }
 
@@ -1308,8 +1309,18 @@ public static class FlightPhysics
 
         // Cache wind on the ground too: motion there is wheel-driven (track = heading, no
         // vector sum), but the takeoff roll's rotation gate and the touchdown frame flip
-        // read AircraftState.HeadwindKts from this cache.
-        aircraft.WindComponents = WindInterpolator.GetWindComponents(weather, aircraft.Altitude, simTimeSeconds, windPhaseSeconds);
+        // read AircraftState.HeadwindKts from this cache. On the ground the wind is the
+        // METAR surface layer (the layers without a position); airborne it is sampled at
+        // the aircraft's position, from the GFS grid's column there when the weather carries one.
+        aircraft.WindComponents = aircraft.IsOnGround
+            ? WindInterpolator.GetWindComponents(weather, aircraft.Altitude, simTimeSeconds, windPhaseSeconds)
+            : WindInterpolator.GetWindComponents(
+                weather,
+                new WindSamplePoint(pos, aircraft.Declination),
+                aircraft.Altitude,
+                simTimeSeconds,
+                windPhaseSeconds
+            );
 
         if (aircraft.IsOnGround)
         {

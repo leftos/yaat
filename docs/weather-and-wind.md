@@ -50,6 +50,7 @@ in the live server tick (`RoomTickLoopService.cs`); see [Consumption and broadca
 | `Metars` (`List<string>`) | Raw METAR strings; parsed lazily and cached per airport. |
 | `Precipitation` (`string?`) | Free-form; only compared for change detection, not modeled in physics. |
 | `ParsedMetarOverrides` | **`[JsonIgnore]`** (`WeatherProfile.cs:59`). Pre-computed interpolated METAR values; see [the override handshake](#footguns). |
+| `WindGrid` (`GriddedWindField?`) | **`[JsonIgnore]`**. The GFS grid over the room; where it covers a position, the position-taking `WindInterpolator` overloads take the winds above layer 0 from it. Null in production until the grid is wired in; see [Sampling the grid at a position](#sampling-the-grid-at-a-position). |
 | `GetWeatherForAirport(id)` | Override → exact station → 50 nm IDW (`WeatherProfile.cs:66`). Caches the result in a per-airport dictionary. |
 
 `WindLayer` (`WeatherProfile.cs:5`):
@@ -66,6 +67,8 @@ in the live server tick (`RoomTickLoopService.cs`); see [Consumption and broadca
 `WeatherProfile.SurfaceElevationFt()` resolves the ground datum for the variability altitude taper from the profile's first
 nav-database METAR station (fallback: lowest layer altitude) — the lowest layer is often authored well above the field, and
 live weather authors it at 0 MSL regardless of terrain, so the layer altitude is not a usable ground reference.
+
+`WeatherProfile.SurfaceAltimeterInHg()` is the altimeter setting of the first METAR that reports one (else `StandardAltimeterInHg`, 29.92), cached per profile. With `SurfaceElevationFt()` it gives the surface pressure altitude that floors a GFS column.
 
 ### `WeatherPeriod` / `WeatherTimeline` (`WeatherPeriod.cs`, `WeatherTimeline.cs`)
 
@@ -170,13 +173,14 @@ decomposition for direction; the **spatial** axis does not interpolate direction
 
 ### (a) Altitude, within one profile — `WindInterpolator.GetWindAt`
 
-`GetWindAt` (`WindInterpolator.cs:40`) returns a `WindAtAltitude(DirectionDeg, SpeedKts)`:
+`GetWindAt` (`WindInterpolator.GetWindAt`) returns a `WindAtAltitude(DirectionDeg, SpeedKts)`; this is the layer path every no-position call takes:
 
 - Null/empty profile → zero wind.
 - Below the lowest layer or above the highest → **clamped** to the nearest layer (no extrapolation).
 - Between layers: linear `t`, then **direction is decomposed into unit N/E components and lerped**, so the `350°↔010°` wraparound is handled correctly (`InterpolateMean`). Speed lerps linearly.
 - `DirectionDeg` inherits the layer convention: **wind FROM, MAGNETIC** (the layers are magnetic).
-- `GetMeanWindAt(profile, altitudeFt)` is the same interpolation with no `WindVariation` (gusts and direction swing) applied; the two share the private `Bracket`/`InterpolateMean` helpers. ERAM `UR` reads it and converts the direction to true at the requested location.
+- `GetMeanWindAt(profile, altitudeFt)` is the same interpolation with no `WindVariation` (gusts and direction swing) applied; the two share the private `Bracket`/`InterpolateMean` helpers. ERAM `UR` reads it, converting the direction to true at the requested location, when the profile has no grid there (`GetGriddedMeanWindTrueAt` otherwise).
+- The overloads that take a `WindSamplePoint` replace the layer interpolation with a grid column where the profile has a `WindGrid` covering the point; see [Sampling the grid at a position](#sampling-the-grid-at-a-position).
 
 ### (b) Spatial, across stations — `MetarInterpolator.GetWeatherForAirport`
 
@@ -208,12 +212,14 @@ Inside a transition window (`WeatherTimeline.cs:70-87`), with `t` = fraction thr
 - **`PressureToIsaAltitudeFt(pressureHpa)`** is the inverse of the pressure ratio `GetAtmosphere` gives: the ISA pressure altitude (ft) of a static pressure, standard lapse rate up to the tropopause and isothermal above (500 hPa ≈ 18,289 ft). Zero, negative or NaN pressure throws `ArgumentOutOfRangeException`. `GriddedWindField` uses it to place each isobaric level.
 - **`ComputeWindCorrectionAngle(desiredTrack, tas, windFrom, windSpeed)`** (`WindInterpolator.cs:319`) returns the crab angle (WCA) so the aircraft tracks a straight ground path: positive = crab right. It reverses **wind FROM → blows TOWARD** by `+180°` internally, then projects the cross-track wind component. Returns 0 if TAS or wind speed is zero.
 
-`GetWindComponents` (`WindInterpolator.cs:181`) is the other consumer-facing helper: it returns the wind as
+`GetWindComponents` (`WindInterpolator.GetWindComponents`, with and without a `WindSamplePoint`) is the other consumer-facing helper: it returns the wind as
 `(NorthKts, EastKts)` in the direction the wind **blows toward** (FROM `+180°`), ready to add to the TAS vector.
 
 ## GRIB2 reader and gridded wind field (`Weather/`)
 
-`Grib2Reader.Read(bytes)` and `GriddedWindField` decode a NOMADS GFS lat/lon regional subset (isobaric levels; UGRD, VGRD and TMP) into a sampleable wind column. They are not yet wired into `GetWindAt` or any `WeatherProfile`; nothing in the sim's wind lookup calls them.
+`Grib2Reader.Read(bytes)` and `GriddedWindField` decode a NOMADS GFS lat/lon regional subset (isobaric levels; UGRD, VGRD and TMP) into a sampleable wind column.
+
+A `WeatherProfile` carries one as `WindGrid` (`[JsonIgnore]`: a snapshot, a recorded weather change or a rebuilt profile has none), and the position-taking `WindInterpolator` overloads sample it (see [Sampling the grid at a position](#sampling-the-grid-at-a-position)). Nothing assigns `WindGrid` in production yet, so every profile runs the layer path.
 
 - **Reader subset** (`Grib2Reader`): edition 2, grid template 3.0 (regular lat/lon), product template 4.0 with the forecast time in hours, data representation template 5.0 (simple packing), section 6 bitmap present (indicator 0) or absent (255). Anything else throws `Grib2FormatException` naming the section and the template or value found; so does an empty, truncated, or otherwise malformed file (missing `GRIB`/`7777` markers, section lengths that overrun the message, increments that disagree with the corner-to-corner span, a bad reference date).
 - **Scanning modes**: only the 0x80 (columns run west) and 0x40 (rows run north) bits are accepted, and all four combinations are reordered. Every `Grib2Message.Values` array is row-major from the south-west corner (`index = j·Ni + i`, rows south to north, columns west to east) whatever the file's mode; a point the bitmap marks missing is `NaN`. Grid longitudes stay in the file's 0–360 convention.
@@ -221,6 +227,22 @@ Inside a transition window (`WeatherTimeline.cs:70-87`), with `t` = fraction thr
 - **Sampling**: `SampleColumn(lat, lon)` accepts longitude as −180..180 or 0..360, bilinearly interpolates U, V and T between the four surrounding grid points, then converts each level: speed from the U/V magnitude (m/s → kt), temperature kelvin → Celsius, and direction as the meteorological **FROM** bearing in degrees **TRUE**, `atan2(−U, −V)` normalised to [0, 360), with a calm reported as 0. Direction is derived after the U/V interpolation, never interpolated itself, so the 350°↔010° wrap cannot appear.
 - **Refusals**: `FromMessages` throws `InvalidOperationException` (naming the parameter and level) for a grid smaller than 2 × 2, messages that disagree on grid, reference time or forecast hour, a value count that is not Ni × Nj, a level that rounds to 0 Pa or below, a duplicated parameter at a level, or a parameter missing at a level the others have. `SampleColumn` returns `null` outside the grid, and drops a level whose four corners include a `NaN` in U, V or T (the column is then shorter, possibly empty).
 - **Direction is TRUE**: unlike `WindLayer.Direction` (magnetic), a `GriddedWindSample` is true, so a consumer feeding the magnetic-based physics must convert it with `MagneticDeclination.TrueToMagnetic`. See the [cheat-sheet](#direction--units-convention-cheat-sheet).
+
+### Sampling the grid at a position
+
+`WindInterpolator.GetWindAt(profile, WindSamplePoint at, altitudeFt, simTimeSeconds, phaseSeconds)` and the matching `GetWindComponents` take a `WindSamplePoint(LatLon Position, double DeclinationDeg)`. The declination is east-positive and turns the grid's true directions magnetic as the layers are. Where `WindGrid` covers the position the wind comes from a column built per call:
+
+- **Layer 0 is the bottom of the column**, placed at the surface datum (`SurfaceElevationFt()`) rather than its authored altitude, and stays as authored (magnetic). The FD layers above it are not used.
+- **Grid levels are kept only above the surface's pressure altitude plus 500 ft** (`GridLevelGroundClearanceFt`). `SurfacePressureAltitudeFt` is `SurfaceElevationFt()` + (29.92 − altimeter) × 1000, the altimeter from `SurfaceAltimeterInHg()` (the first METAR that reports one, else 29.92). A level nearer the ground than that is an extrapolation through the terrain, not the wind an aircraft flies in.
+- **Only the two bracketing levels are sampled**: `GriddedWindField.SampleBracket(lat, lon, altitudeFt, floorFt)` bilinearly interpolates just the kept level below and the kept level at or above the altitude (skipping a level with a `NaN` corner), with no allocation. Altitude interpolation between them is the same N/E vector lerp as the layers.
+- **Variability**: a grid level within 3,000 ft AGL (`WindVariation.ZeroAmplitudeTopAglFt`) carries layer 0's gust and direction-spread amplitudes re-capped against its own mean speed (`WindVariation.CapAmplitudes`), so `AmplitudeTaper` fades them with height as it does over the layers; higher levels carry none and are never VRB.
+- **Per position**: each grid level is converted to magnetic with the declination of the `WindSamplePoint`.
+- **Fallback is the old path exactly**: no grid, a position outside it, or no grid level kept after the floor reads the layers as the no-position overload does.
+- `GetGriddedMeanWindTrueAt(profile, at, altitudeFt)` is the same column unperturbed and in TRUE (the grid's directions as given, layer 0 turned true); it returns null where the fallback applies. ERAM `UR` uses it.
+
+Consumers that sample at their position: `FlightPhysics` (crab and the airborne groundspeed vector, from the aircraft's cached `Declination`), `LiveTrafficKinematics` (airborne shadows), `HoldingPatternPhase` (outbound heading and leg time), and yaat-server ERAM `UR`.
+
+Consumers that stay on the no-position layer path: ground samples (`FlightPhysics` on the ground, ground shadows), the exits-ahead touchdown forecast, the approach-speed additives (`AircraftPerformance.WindApproachAdditive`, `GustApproachAdditive`) and runway-in-use selection, all of which read layer 0.
 
 ## Magnetic declination (`MagneticDeclination.cs`)
 
@@ -235,18 +257,17 @@ Inside a transition window (`WeatherTimeline.cs:70-87`), with `t` = fraction thr
 
   The cell-centre rule keeps the value a pure function of the cell — independent of which aircraft (or thread) got there first — so replays stay reproducible; the error bound (~0.01° within a cell) is the same one the per-aircraft box below already accepts. The cache is cleared when it exceeds 200k cells.
 
-### The per-aircraft declination box-cache (`FlightPhysics.cs:50-85`)
+### The per-aircraft declination box-cache (`FlightPhysics.RefreshDeclinationCache`)
 
-`FlightPhysics.Update` recomputes declination only when the aircraft has moved outside a small box:
+`FlightPhysics.Update` recomputes declination only when the aircraft has moved outside a small box, on the scenario's magnetic-model date (`PhysicsTickOptions.MagneticModelDateUtc`, from `SimulationWorld.MagneticModelDateUtc`). A live-traffic shadow refreshes the same cache from `LiveTrafficKinematics.Advance` / `Resync`, which take that date too, so the declination that turns a gridded wind magnetic is the recorded day's on a replay:
 
-- Two `AircraftState` fields back this (`AircraftState.cs:54-64`):
+- Two `AircraftState` fields back this (in `AircraftState.cs`):
   - `Declination` — the cached value, **serialized** (round-trips in snapshots).
   - `DeclinationCachePosition` (`LatLon?`) — **`[JsonIgnore]`, runtime-only**; `null` = "not cached yet".
 - **Box threshold = `0.02°`** (≈ 1.2 nm of latitude). Inside the box the cached `Declination` is reused, because the WMM is ~0.06 ms/call and at 4 Hz × N aircraft it would dominate the tick.
 - **Out-of-range / non-finite-position guard**: if `Position` is NaN/∞ or `|lat| > 90` / `|lon| > 180`, the update is skipped and logged (`Geo.Coordinate`'s ctor would otherwise throw and crash the tick), keeping the previously cached value.
 
-`AircraftState.MagneticHeading` / `MagneticTrack` derive from `TrueHeading`/`TrueTrack` and this cached `Declination`
-(`AircraftState.cs:66-70`).
+`AircraftState.MagneticHeading` / `MagneticTrack` derive from `TrueHeading`/`TrueTrack` and this cached `Declination`.
 
 ## Consumption and broadcast
 
@@ -254,8 +275,9 @@ Inside a transition window (`WeatherTimeline.cs:70-87`), with `t` = fraction thr
 
 Two physics steps consume weather (`FlightPhysics.Update` passes `weather` through):
 
-- **`UpdateNavigation`** (`FlightPhysics.cs:224-233`): for airborne aircraft with IAS > 0, computes WCA from `IasToTas` + `GetWindAt` and sets `TargetTrueHeading = bearing + wca`, so the aircraft holds a straight ground track instead of a pursuit curve.
-- **`UpdatePosition`** airborne branch (`FlightPhysics.cs:1034-1058`): `TAS = IasToTas(IAS, alt)`; ground-speed vector = `TAS·(cos/sin heading) + GetWindComponents(...)`; the wind is **cached into `AircraftState.WindComponents`** so `GroundSpeed` can be recomputed on read without weather context. The **ground branch** (`FlightPhysics.cs:1022-1031`) ignores wind entirely — groundspeed is derived from IAS and track follows heading.
+- **`UpdateNavigation`**: for airborne aircraft with IAS > 0, computes WCA from `IasToTas` + `GetWindAt` at the aircraft's position (`WindSamplePoint(Position, Declination)`) and sets `TargetTrueHeading = bearing + wca`, so the aircraft holds a straight ground track instead of a pursuit curve.
+- **`UpdatePosition`** airborne branch: `TAS = IasToTas(IAS, alt)`; ground-speed vector = `TAS·(cos/sin heading) + GetWindComponents(...)` at the aircraft; the wind is **cached into `AircraftState.WindComponents`** so `GroundSpeed` can be recomputed on read without weather context. On the ground the cached wind is the no-position layer path (it feeds `HeadwindKts` for the frame flips); the ground branch's motion ignores wind — groundspeed is derived from IAS and track follows heading.
+- **Other airborne readers**: `LiveTrafficKinematics.Advance` fills a shadow's `WindComponents` at its position (a ground shadow stays on the layer path); `HoldingPatternPhase` samples the wind at the aircraft for the outbound heading and leg time. ERAM `UR` in yaat-server reads the grid in true.
 
 See [tick-loop.md](tick-loop.md) for where these steps sit in the 8-step `FlightPhysics.Update` order and the PrePhysics→Physics×4→PostPhysics frame.
 
@@ -311,16 +333,16 @@ The single most error-prone area. Memorize this before touching any wind value.
 | Quantity | FROM or TOWARD | True or Magnetic | Altitude ref | Where |
 |---|---|---|---|---|
 | `WindLayer.Direction` | FROM | **Magnetic** | feet **MSL** | `WeatherProfile.cs:14` |
-| `WindAtAltitude.DirectionDeg` (`GetWindAt`) | FROM | Magnetic (inherits layer) | — | `WindInterpolator.cs:40` |
+| `WindAtAltitude.DirectionDeg` (`GetWindAt`) | FROM | Magnetic (inherits layer; a gridded level is turned magnetic per position) | — | `WindInterpolator.GetWindAt` |
 | `GriddedWindSample.DirectionTrueDeg` (`GriddedWindField.SampleColumn`) | FROM | **True** (derived from U/V) | ISA pressure altitude, feet | `Weather/GriddedWindField.cs` |
 | `WindAtLevel.DirectionTrue` (FD parser) | FROM | **True** | feet (level) | `WindsAloftParser.cs:4` |
 | METAR text wind | FROM | **True** (AIM 7-1-28; converted to magnetic when building the surface layer) | surface | `LiveWeatherService.BuildSurfaceWindLayer` |
 | FD-derived layer (after `BuildWindLayersFromFd`) | FROM | Magnetic (converted via ARTCC-center declination) | feet MSL | `LiveWeatherService.cs:190` |
-| `GetWindComponents` output | **TOWARD** (FROM `+180°`) | matches input | — | `WindInterpolator.cs:181` |
+| `GetWindComponents` output | **TOWARD** (FROM `+180°`) | matches input | — | `WindInterpolator.GetWindComponents` |
 | Cloud layer base (`CloudLayer.BaseFeetAgl`) | — | — | feet **AGL** (hundreds in METAR) | `MetarParser.cs:15` |
 
 A profile layer's direction is **magnetic**; a steering `bearing` from `GeoMath.BearingTo` is **true**. `ComputeWindCorrectionAngle`
-is fed the true bearing alongside the magnetic wind direction (`FlightPhysics.cs:228-230`) — the WCA it produces therefore carries
+is fed the true bearing alongside the magnetic wind direction (`FlightPhysics.UpdateNavigation`) — the WCA it produces therefore carries
 the local declination into the crab. This is the current behavior; do not "fix" the mismatch without understanding that the wind
 profile is authored in magnetic by convention.
 
@@ -338,14 +360,17 @@ The behaviors above already have regression coverage — find the right harness 
 | `tests/Yaat.Sim.Tests/MetarInterpolatorTests.cs` | exact-station match, 50 nm IDW visibility, lowest-ceiling layer set. |
 | `tests/Yaat.Sim.Tests/WeatherTimelineTests.cs` | time interpolation, layer-count snap. |
 | `tests/Yaat.Sim.Tests/WeatherTimelineParserTests.cs` | v1/v2 auto-detect, v2 validation/sort, error cases. |
-| `tests/Yaat.Sim.Tests/WindPhysicsTests.cs` | end-to-end crab + groundspeed-vector behavior under wind. |
+| `tests/Yaat.Sim.Tests/WindPhysicsTests.cs` | end-to-end crab + groundspeed-vector behavior under wind, including a gridded profile: the airborne ground vector, a fix-target crab, and a ground aircraft at a high field staying on the layers. |
+| `tests/Yaat.Sim.Tests/GriddedWindSamplingTests.cs` | the position-taking `GetWindAt` over a `WindGrid`: each position gets its own grid wind, the sweep against a whole-column reference (`SampleBracket`), layer 0 at the surface datum, the altimeter-dependent ground-clearance floor, the borrowed gust amplitude and its re-cap (`CapAmplitudes`), and the fall-back to the layers (no grid, outside it). |
+| `tests/Yaat.Sim.Tests/HoldingPatternGridWindTests.cs` | `HoldingPatternPhase` outbound heading (direct entry) and outbound leg time under a gridded wind at the fix. |
+| `tests/Yaat.Sim.Tests/LiveTraffic/LiveTrafficKinematicsTests.cs` | shadow `Advance` / `Resync`, including `ShadowWind_IsTheGridWindAtItsPosition`. |
 | `tests/Yaat.Sim.Tests/MagneticDeclinationTests.cs` | WMM declination values, true↔magnetic round-trips. |
 | `tests/Yaat.Client.Tests/LiveWeatherServiceTests.cs`, `LiveWeatherRealDataTests.cs` | live fetch assembly, FD→magnetic conversion, surface-wind layer. |
 | `tests/Yaat.Client.Tests/ArtccAirportResolverTests.cs` | underlying-airport extraction from the real ZOA data-api config (facility-tree recursion, dedup). |
 
 ## Footguns
 
-- **Direction conventions are never co-located and differ by source.** `WindLayer.Direction` is FROM/magnetic/MSL; `WindAtLevel.DirectionTrue` (FD) is FROM/**true**; raw METAR winds are already magnetic (`LiveWeatherService.cs:243` adds no conversion); FD winds get `TrueToMagnetic`'d via ARTCC-center declination (`LiveWeatherService.cs:190`).
+- **Direction conventions are never co-located and differ by source.** `WindLayer.Direction` is FROM/magnetic/MSL; `WindAtLevel.DirectionTrue` (FD) is FROM/**true**; METAR text winds are true (AIM 7-1-28) and `BuildSurfaceWindLayer` converts them with `TrueToMagnetic` via the ARTCC-center declination; FD winds get the same conversion in `BuildWindLayersFromFd`; a `GriddedWindSample` is true and is turned magnetic per position by the position-taking `WindInterpolator` overloads.
 
   `GetWindComponents`/`ComputeWindCorrectionAngle` reverse FROM→TOWARD by `+180°`. Mixing any two silently yields ~15-20° errors. See the [cheat-sheet](#direction--units-convention-cheat-sheet).
 - **Three interpolation algorithms, three different rules.** Altitude (`GetWindAt`) and time (`InterpolateWindLayers`) use N/E vector lerp; spatial (`MetarInterpolator`) does **not** lerp direction at all (lowest-ceiling layer set + IDW visibility). In the time axis, **cloud cover step-changes discretely at `t=0.5`** and a **layer-count mismatch snaps to the target list** instead of interpolating.
@@ -356,6 +381,8 @@ The behaviors above already have regression coverage — find the right harness 
 
   This is the same footgun documented in [snapshots-and-replay.md](snapshots-and-replay.md); use `FastForwardTo(target, …)` to advance from current state, never loop `ReplayFromStartTo`. The `Declination` value itself **is** serialized, so a snapshot restore keeps the last cached declination until the next box-exit recompute.
 - **`ParsedMetarOverrides` is `[JsonIgnore]`** (`WeatherProfile.cs:59`) and only populated by `WeatherTimeline.GetWeatherAt` during a transition window; `GetWeatherForAirport` checks it before its own cache (`WeatherProfile.cs:68`). After a snapshot round-trip mid-transition the overrides are gone and ceilings/visibility revert to parsing the raw METAR text — a subtle replay divergence to watch for if interpolated weather "jumps" on restore.
+- **`WindGrid` is `[JsonIgnore]` and is not part of the weather a snapshot, a `RecordedWeatherChange` or a rebuilt profile carries.** A profile without a grid silently flies the layer path.
+- **Position-aware and layer-0 readers must not be mixed up.** Airborne consumers sample at their position; the ground, the exits-ahead touchdown forecast, approach-speed additives, runway-in-use and `WindObservation` read layer 0. A new wind reader picks one deliberately (see the Task Index row "Make a wind consumer position-aware or add a wind reader").
 - **The WMM epoch is fixed at process start** (`MagneticDeclination.cs:20`). A long-lived process whose date passes the newest bundled epoch clamps to the last valid day; declination will not track the calendar past that point.
 - **`GetArtccCenter` and `FdRegionMapping` are hand-maintained tables** (`LiveWeatherService.cs:253`, `FdRegionMapping.cs:9`). An ARTCC missing from `FdRegionMapping` silently disables FD winds; one missing from `GetArtccCenter` falls back to mid-CONUS `(39, −98)` for the declination proxy, skewing the TRUE→MAGNETIC conversion of FD winds.
 - **The mean/instantaneous split is load-bearing.** `WindLayer.Direction/Speed` stay the authored MEAN; the instantaneous wind exists only at the `GetWindAt` output. Reporting (`MetarIssuer`), SPECI decisions, runway selection, crosswind limits, and any approach-stability gate must read the mean (or the observed 2-minute mean via `WindObservation`) — never the instantaneous value, which wobbles by design.

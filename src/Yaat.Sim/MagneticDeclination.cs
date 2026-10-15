@@ -110,9 +110,11 @@ public static class MagneticDeclination
     public static double TrueToMagnetic(double trueDeg, double lat, double lon, DateTime modelDateUtc)
     {
         double declination = GetDeclination(lat, lon, modelDateUtc);
-        double magnetic = trueDeg - declination;
-        return ((magnetic % 360.0) + 360.0) % 360.0;
+        return NormalizeDeg(trueDeg - declination);
     }
+
+    /// <summary>An angle in degrees brought into [0, 360); a result that rounds to 360 (a −ε input) reads 0.</summary>
+    public static double NormalizeDeg(double degrees) => ((degrees % 360.0) + 360.0) % 360.0;
 
     /// <summary>Converts a magnetic heading to true using position-based declination at the process day (display use).</summary>
     public static double MagneticToTrue(double magneticDeg, double lat, double lon) => MagneticToTrue(magneticDeg, lat, lon, EpochDate);
@@ -121,8 +123,7 @@ public static class MagneticDeclination
     public static double MagneticToTrue(double magneticDeg, double lat, double lon, DateTime modelDateUtc)
     {
         double declination = GetDeclination(lat, lon, modelDateUtc);
-        double trueDeg = magneticDeg + declination;
-        return ((trueDeg % 360.0) + 360.0) % 360.0;
+        return NormalizeDeg(magneticDeg + declination);
     }
 
     /// <summary>Declination at the given position, evaluated at the process day (display use).</summary>
