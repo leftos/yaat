@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Scenarios;
+using Yaat.Sim.Weather;
 
 namespace Yaat.Sim.Simulation.Replay;
 
@@ -131,7 +132,23 @@ internal sealed class ReplayDriver(SimulationEngine engine)
     public void To(SessionRecording recording, double targetSeconds, Action<SimScenarioState> configureAfterLoad)
     {
         _engine.TickTimings?.Clear();
-        _engine.LoadScenario(recording.ScenarioJson, recording.RngSeed, recording.SessionStartUtc ?? SimScenarioState.ProcessDayUtc);
+
+        // The replay holds its own pins on the recording's grids for as long as this scenario runs, so a grid a recorded
+        // weather change names later is still registered when the change attaches it, whatever registers elsewhere meanwhile.
+        // The pins are taken before the load, which releases the scenario's previous pins: taken after, an eviction between
+        // the two steps could drop the grid the recording is about to re-pin.
+        WindGridPins? pins = recording.WindGridPins?.Repin();
+        try
+        {
+            _engine.LoadScenario(recording.ScenarioJson, recording.RngSeed, recording.SessionStartUtc ?? SimScenarioState.ProcessDayUtc);
+        }
+        catch
+        {
+            pins?.Dispose();
+            throw;
+        }
+
+        _engine.Scenario?.ReplaceWindGridPins(pins);
 
         // The scenario JSON does not carry the resolved runtime student position (the server sets it
         // at load via InitializeTrackPositions). Restore it from the recording so CanInitiateWithStudent,

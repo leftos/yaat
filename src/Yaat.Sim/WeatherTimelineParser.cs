@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Yaat.Sim.Weather;
 
 namespace Yaat.Sim;
 
@@ -38,12 +39,47 @@ public static class WeatherTimelineParser
         {
             JsonElement root = doc.RootElement;
 
-            if (root.TryGetProperty("periods", out JsonElement periodsEl) && periodsEl.ValueKind == JsonValueKind.Array)
+            if (IsTimelineRoot(root, out JsonElement periodsEl))
             {
                 return ParseV2(json, periodsEl);
             }
 
             return ParseV1(json);
+        }
+    }
+
+    /// <summary>
+    /// True when <paramref name="root"/>, a JSON object, is v2 weather: it has a <c>periods</c> array (the name matched
+    /// case-sensitively). Anything else is read as a v1 profile.
+    /// </summary>
+    public static bool IsTimelineRoot(JsonElement root, out JsonElement periods) =>
+        root.TryGetProperty("periods", out periods) && (periods.ValueKind == JsonValueKind.Array);
+
+    /// <summary>
+    /// The timeline <paramref name="json"/> holds when it is valid v2 weather, else null; a v1 profile is not deserialized,
+    /// so its grid hash is not resolved.
+    /// </summary>
+    public static WeatherTimeline? ParseTimeline(string json)
+    {
+        JsonDocument doc;
+        try
+        {
+            doc = JsonDocument.Parse(json);
+        }
+        catch (JsonException)
+        {
+            // Not weather at all: Parse reports it as an error, and there is no timeline to rebuild.
+            return null;
+        }
+
+        using (doc)
+        {
+            if ((doc.RootElement.ValueKind != JsonValueKind.Object) || !IsTimelineRoot(doc.RootElement, out JsonElement periodsEl))
+            {
+                return null;
+            }
+
+            return ParseV2(json, periodsEl).Timeline;
         }
     }
 
@@ -101,6 +137,7 @@ public static class WeatherTimelineParser
             return new WeatherParseResult { Error = "Failed to deserialize weather profile" };
         }
 
+        WindGridRegistry.Attach(profile);
         return new WeatherParseResult { Profile = profile };
     }
 }

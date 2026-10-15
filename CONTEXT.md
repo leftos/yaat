@@ -762,6 +762,16 @@ The `LogParticipant` list, one per person in the identity ledger's first-seen or
 **Pseudonym**:
 The stand-in for a person in a bug report bundle, `A0`, `A1`, … by the person's index in the participant list (`SessionLogAnonymizer.Pseudonym`); a person the list does not hold becomes `??`, never a pseudonym-shaped guess.
 
+## Weather
+
+**Wind grid**:
+A GFS forecast subset (UGRD, VGRD and TMP on isobaric levels over a lat/lon box) that live weather flies above its surface wind layer. It is named by the SHA-256 of its raw GRIB2 bytes (`WeatherProfile.WindGridHash`), so the weather text, a snapshot and a recording all refer to the same grid by that hash, and the bytes live once in `WindGridRegistry` and in the recording archive.
+_Avoid_: GFS layer, forecast layer
+
+**Wind grid pin**:
+A hold on a registered wind grid that keeps `WindGridRegistry` from evicting it (the registry keeps at most eight unpinned grids). A running scenario, a loaded recording and a replay each own their pins, and releasing the last pin on a grid makes it evictable again.
+_Avoid_: lock, resource pin (that holds a room's airport layouts and ARTCC configs)
+
 ## Facility data
 
 **Sidecar**:

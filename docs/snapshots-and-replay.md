@@ -120,7 +120,8 @@ Snapshot entries are Brotli. `RecordingCompression.Decompress` autodetects in a 
 
 Some state is intentionally runtime-only:
 
-- **`AircraftState.DeclinationCachePosition`** — `null` means "not cached"; warms up on the first tick after a round-trip.
+- **`AircraftState.DeclinationCachePosition`** is `[JsonIgnore]` on the state but snapshotted: `AircraftSnapshotDto.DeclinationCachePosition` carries it (null, left out of the JSON, for a cold cache and for snapshots written before it existed), so a restored aircraft recomputes its declination where the original did.
+- **`WeatherProfile.WindGrid`** is not serialized; the weather JSON carries `WindGridHash` and `WindGridRegistry.Attach` resolves the grid on parse and on snapshot restore. The grid bytes travel in the recording archive (`wind-grids/` below).
 - **`Ground.Layout`** is `[JsonIgnore]`. Only `Ground.LayoutAirportId` round-trips. On restore, `SimulationEngine.RestoreFromSnapshot` re-resolves the layout from the airport ID against the engine's ground data — for each live aircraft (`ResolveAirportLayout(LayoutAirportId)`, falling back to the primary airport's layout when the snapshot carries no id or names a field with no map) and for each aircraft in the delayed-spawn queue alike.
 
   An aircraft bound to a secondary airport therefore comes back on that airport's layout, so its on-final and distance-to-threshold verdicts are the same before and after a rewind (`SnapshotRoundTripTests`). This avoids embedding an entire taxiway graph per aircraft.
@@ -222,7 +223,8 @@ manifest.json                # Version, RngSeed, SessionStartUtc, InitialActiveR
                              # HasArtccConfig, HasTerminalLog, ArtccId, ScenarioId/Name,
                              # ClientVersion, ClientBuildKind, ServerVersion,
                              # Snapshots[], LayoutAirportIds[], AirportGeoJsonIds[],
-                             # LayoutFormatVersion, MissingLayoutAirportIds[]
+                             # LayoutFormatVersion, MissingLayoutAirportIds[],
+                             # WindGridHashes[] (omitted when the recording flies no GFS grid)
 scenario.json.br             # Brotli-compressed scenario JSON
 actions.json.br              # Brotli-compressed RecordedAction[]
 terminal-log.json.br         # Brotli-compressed RecordedTerminalEntry[] (optional; HasTerminalLog)
@@ -230,10 +232,17 @@ snapshots/NNN.json.br        # one per snapshot index
 layouts/{AirportId}.json.br  # ground layouts (optional; a server export or soak run writes every airport the room pinned)
 airport-geojson/{AirportId}.geojson.br
                              # the source GeoJSON each bundled layout was parsed from (optional)
+wind-grids/{hash}.grib2.br   # a GFS wind grid's raw GRIB2 bytes, Brotli, named by their SHA-256 (optional; one per grid the weather names, listed in WindGridHashes)
 weather.json                 # plain JSON (optional; gated by HasWeather)
 artcc-config.json.br         # ARTCC config JSON (optional; HasArtccConfig; the room's pinned config of the scenario's ARTCC)
 bookmarks.json               # plain JSON (optional; user-authored timeline bookmarks)
 ```
+
+**`wind-grids/{hash}.grib2.br`** entries are written by `RecordingArchiveWriter.WriteWindGrid` (a hash already written is skipped; bytes that do not hash to the name throw) from `WindGridRegistry`, for every hash `WindGridHashes.Referenced` finds in the initial weather, the recorded weather changes and the snapshots' `WeatherJson`; a grid the registry no longer holds is left out with a warning.
+
+`RecordingArchive.RegisterWindGrids` reads them back, verifying each against its name, and both loaders (`ToBaseSessionRecording`, `ToSessionRecording`) call it before the weather text is parsed. The pins it takes ride on `SessionRecording.WindGridPins`, owned by whoever holds the recording; a load that fails after registering grids disposes them.
+
+`ReplayDriver` takes its own pins before `LoadScenario` and hands them to `SimScenarioState.WindGridPins`. Archives written before grids were recorded have no `WindGridHashes` and replay on the FD layers. See [weather-and-wind.md](weather-and-wind.md).
 
 **`terminal-log.json.br`** is the room's broadcast terminal stream — the command echoes, responses, SAY lines, warnings, and chat the user saw — each captured with a wall-clock `Timestamp` and the scenario-elapsed `ElapsedSeconds` it occurred at (`RecordedTerminalEntry`).
 

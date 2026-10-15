@@ -113,8 +113,9 @@ public class AircraftState
     /// <summary>
     /// Position at which <see cref="Declination"/> was last recomputed. Used by
     /// <c>FlightPhysics.Update</c> to skip the expensive WMM evaluation when the aircraft
-    /// has moved less than ~1 nm. <c>null</c> means "not cached yet". Runtime-only —
-    /// intentionally not serialized (cache warms up on first tick after a DTO round-trip).
+    /// has moved less than ~1 nm. <c>null</c> means "not cached yet". Carried through a snapshot
+    /// (<c>AircraftSnapshotDto.DeclinationCachePosition</c>) so a restored aircraft keeps the original's
+    /// declination; left out of this type's own JSON.
     /// </summary>
     [JsonIgnore]
     public LatLon? DeclinationCachePosition { get; set; }
@@ -473,6 +474,7 @@ public class AircraftState
             TrueHeading = new TrueHeading(dto.TrueHeadingDeg),
             TrueTrack = new TrueHeading(dto.TrueTrackDeg),
             Declination = dto.Declination,
+            DeclinationCachePosition = dto.DeclinationCachePosition,
             Altitude = dto.Altitude,
             IndicatedAirspeed = dto.IndicatedAirspeed,
             VerticalSpeed = dto.VerticalSpeed,
@@ -581,6 +583,7 @@ public class AircraftState
             TrueHeadingDeg = TrueHeading.Degrees,
             TrueTrackDeg = TrueTrack.Degrees,
             Declination = Declination,
+            DeclinationCachePosition = DeclinationCachePosition,
             Altitude = Altitude,
             IndicatedAirspeed = IndicatedAirspeed,
             VerticalSpeed = VerticalSpeed,

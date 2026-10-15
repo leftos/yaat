@@ -79,10 +79,26 @@ public class WeatherProfile
     public Dictionary<string, MetarParser.ParsedMetar>? ParsedMetarOverrides { get; set; }
 
     /// <summary>
+    /// The name of the GFS wind grid this live weather flies on: the SHA-256 of the grid's raw GRIB2 bytes, lowercase hex
+    /// (<see cref="WindGridRegistry"/>). Null without a grid, and then left out of the JSON, so a profile without one
+    /// serializes as it did before grids existed.
+    /// </summary>
+    [JsonPropertyName("windGridHash")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? WindGridHash { get; set; }
+
+    /// <summary>
     /// The GFS wind grid over the room, or null without one. Where it covers a position, the position-taking
     /// <see cref="WindInterpolator"/> overloads take the winds above the METAR surface layer (layer 0) from its column instead
-    /// of from the FD layers. Not serialized: a snapshot, a recorded weather change or a rebuilt profile carries no grid.
+    /// of from the FD layers. Not serialized: the JSON carries <see cref="WindGridHash"/>, which
+    /// <see cref="WindGridRegistry.Attach"/> resolves to the grid when a v1 profile is parsed or a snapshot restored. A
+    /// profile rebuilt from a weather timeline carries no grid.
     /// </summary>
+    /// <remarks>
+    /// Production code sets it only through <see cref="WindGridRegistry.Attach"/>, so the grid always has the hash a snapshot
+    /// or recording restores it by. Tests may assign a grid directly; a snapshot of such a profile logs a warning and
+    /// restores without the grid.
+    /// </remarks>
     [JsonIgnore]
     public GriddedWindField? WindGrid { get; set; }
 

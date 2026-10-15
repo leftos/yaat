@@ -990,13 +990,6 @@ public class LandingExitListTests
         restored.Replay(recording, original.Scenario!.ElapsedSeconds);
         restored.RestoreFromSnapshot(JsonSerializer.Deserialize<StateSnapshotDto>(snapshotJson, RecordingJsonOptions.Default)!);
 
-        // The declination cache's position is not snapshotted (docs/snapshots-and-replay.md): carried across by hand, so a restored
-        // aircraft does not recompute its declination on the first tick and drift off the original by a few thousandths of a degree.
-        foreach (AircraftState aircraft in restored.World.GetSnapshot())
-        {
-            aircraft.DeclinationCachePosition = original.FindAircraft(aircraft.Callsign)?.DeclinationCachePosition;
-        }
-
         Assert.Equal(Json(original.FindAircraft(ReplayCallsign)!.ToSnapshot()), Json(restored.FindAircraft(ReplayCallsign)!.ToSnapshot()));
 
         for (int t = 1; t <= 20; t++)

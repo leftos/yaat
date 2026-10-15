@@ -1,4 +1,6 @@
+using System.Text.Json.Serialization;
 using Yaat.Sim.Simulation.Snapshots;
+using Yaat.Sim.Weather;
 
 namespace Yaat.Sim.Simulation;
 
@@ -66,6 +68,14 @@ public sealed class SessionRecording
     /// record date.
     /// </summary>
     public DateTime? SessionStartUtc { get; init; }
+
+    /// <summary>
+    /// The pins on the GFS grids the archive carried (<see cref="RecordingArchive.RegisterWindGrids"/>), or null for a
+    /// recording not read from an archive. Whoever holds the recording owns them and disposes them when done with it; a
+    /// replay takes its own pins on the same grids (<see cref="SimScenarioState.WindGridPins"/>).
+    /// </summary>
+    [JsonIgnore]
+    public WindGridPins? WindGridPins { get; init; }
 
     /// <summary>
     /// The active runways the recorded session started on (<see cref="SimScenarioState.InitialActiveRunways"/>), airport →

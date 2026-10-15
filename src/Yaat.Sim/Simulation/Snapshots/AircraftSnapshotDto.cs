@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using Yaat.Sim.Phases;
 
 namespace Yaat.Sim.Simulation.Snapshots;
@@ -30,6 +31,15 @@ public sealed class AircraftSnapshotDto
     public required double TrueHeadingDeg { get; init; }
     public required double TrueTrackDeg { get; init; }
     public required double Declination { get; init; }
+
+    /// <summary>
+    /// The position <see cref="Declination"/> was computed at (<see cref="AircraftState.DeclinationCachePosition"/>), so a
+    /// restored aircraft recomputes its declination where the original did. Null for an aircraft whose cache was cold, and
+    /// then left out of the JSON; snapshots written before it existed read null, as a cold cache.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public LatLon? DeclinationCachePosition { get; init; }
+
     public required double Altitude { get; init; }
     public required double IndicatedAirspeed { get; init; }
     public required double VerticalSpeed { get; init; }

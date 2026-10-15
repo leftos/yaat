@@ -90,8 +90,8 @@ Every field on the aircraft falls into one of three buckets. Pick the right one 
 
 1. **Serialized** — has a counterpart in the snapshot DTO and round-trips through `ToSnapshot`/`FromSnapshot`. This is the default for any state
    that must survive a recording / replay / rewind. Example: almost every field above.
-2. **Runtime-only (`[JsonIgnore]`)** — deliberately not serialized; reconstructed on the first tick or via a separate carrier field. Only two exist:
-   - `AircraftState.DeclinationCachePosition` (`AircraftState.cs:63`) — `null` after a round-trip; re-warms on the first tick.
+2. **Runtime-only (`[JsonIgnore]`)** — deliberately not serialized on the state; reconstructed on the first tick or via a separate carrier field. Only two exist:
+   - `AircraftState.DeclinationCachePosition` — carried by `AircraftSnapshotDto.DeclinationCachePosition`, so it survives a snapshot round-trip; `null` only for a cold cache.
    - `AircraftGroundOps.Layout` (`AircraftGroundOps.cs:20`) — the heavy `AirportGroundLayout` object, stored separately in recording archives. Its
      `LayoutAirportId` (`AircraftGroundOps.cs:28`) **does** round-trip so `SimulationEngine` can re-resolve the layout on restore.
 3. **Transient per-tick drain lists** — get-only `List<…>` outboxes producers fill during the tick and `SimulationWorld` empties after. They are
@@ -204,7 +204,7 @@ the SignalR `AircraftUpdated` / `AircraftSpawned` deserialization.
   `PendingPilotReadbacks`, `PendingPilotTransmissions`, `PendingApproachScores`, and `PendingObservations` are not in the snapshot tree. Producers
   fill them during the tick; `SimulationWorld.Drain*` empties them after. Don't expect them to survive a replay round-trip.
 - **`[JsonIgnore]` fields need a carrier.** `Ground.Layout` is ignored but `Ground.LayoutAirportId` round-trips so the engine can re-resolve the
-  layout; `DeclinationCachePosition` is `null` after a round-trip and re-warms on the first tick. Adding a `[JsonIgnore]` field with no carrier and no
+  layout; `DeclinationCachePosition` rides on `AircraftSnapshotDto.DeclinationCachePosition`. Adding a `[JsonIgnore]` field with no carrier and no
   first-tick rebuild silently loses it.
 - **`AddAircraft` replaces, it does not append.** A user-typed FP ghost (and any scratchpads / track ownership on it) is discarded when a real spawn
   arrives with the same callsign, and the matching completed record is purged. Re-adding a callsign is not idempotent. A logged replacement is

@@ -4,9 +4,13 @@ using Xunit;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
+using Yaat.Sim.Tests.Helpers;
+using Yaat.Sim.Tests.Weather;
+using Yaat.Sim.Weather;
 
 namespace Yaat.Sim.Tests.Simulation;
 
+[Collection(WindGridRegistryCollection.Name)]
 public class RecordingArchiveTests
 {
     private static SessionRecording CreateTestRecording(int snapshotCount)
@@ -1076,5 +1080,197 @@ public class RecordingArchiveTests
         StateSnapshotDto snapshot = CreateMinimalSnapshot(elapsed);
         snapshot.Aircraft.Add(new AircraftState { Callsign = callsign, AircraftType = aircraftType }.ToSnapshot());
         return snapshot;
+    }
+
+    // --- GFS wind grids, recorded once by hash ---
+
+    [Fact]
+    public void WindGrid_WrittenOnce_ReadBackAndRegistered()
+    {
+        WindGridRegistry.ResetForTests();
+        byte[] sample = Grib2ReaderTests.LoadSample();
+        string hash = WindGridRegistry.Register(sample);
+        byte[] bytes = RecordingArchiveWriter.WriteToBytes(CreateGridRecording(hash));
+
+        using (var zip = new ZipArchive(new MemoryStream(bytes), ZipArchiveMode.Read))
+        {
+            ZipArchiveEntry gridEntry = Assert.Single(zip.Entries, e => e.FullName.StartsWith("wind-grids/", StringComparison.Ordinal));
+            Assert.Equal($"wind-grids/{hash}.grib2.br", gridEntry.FullName);
+        }
+
+        WindGridRegistry.ResetForTests();
+        using var archive = RecordingArchive.Open(new MemoryStream(bytes));
+        Assert.Equal([hash], archive.Manifest.WindGridHashes);
+        var loaded = archive.ToSessionRecording();
+
+        Assert.True(WindGridRegistry.TryGetBytes(hash, out ReadOnlyMemory<byte> registered));
+        Assert.Equal(sample, registered.ToArray());
+        Assert.Equal([hash], loaded.WindGridPins!.Hashes);
+        Assert.NotNull(WindGridRegistryTests.ParseProfile(loaded.WeatherJson!).WindGrid);
+    }
+
+    [Fact]
+    public void WindGrid_EntryWithWrongHash_IsSkippedWithAWarning()
+    {
+        WindGridRegistry.ResetForTests();
+        string hash = WindGridRegistry.Register(Grib2ReaderTests.LoadSample());
+        byte[] other = WindGridRegistryTests.DistinctGrids(1)[0];
+        byte[] tampered = ReplaceEntry(RecordingArchiveWriter.WriteToBytes(CreateGridRecording(hash)), $"wind-grids/{hash}.grib2.br", Brotli(other));
+        WindGridRegistry.ResetForTests();
+
+        var warnings = WarningLogCapture.Install();
+        using var archive = RecordingArchive.Open(new MemoryStream(tampered));
+        using WindGridPins pins = archive.RegisterWindGrids();
+
+        Assert.Empty(pins.Hashes);
+        Assert.Equal(0, WindGridRegistry.Count);
+        Assert.Contains(warnings.Warnings, w => w.Contains(hash, StringComparison.Ordinal) && w.Contains("hashing to", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void WindGrid_EntryThatIsNotBrotli_IsSkippedAndTheRestLoads()
+    {
+        WindGridRegistry.ResetForTests();
+        string hash = WindGridRegistry.Register(Grib2ReaderTests.LoadSample());
+        byte[] corrupt = ReplaceEntry(
+            RecordingArchiveWriter.WriteToBytes(CreateGridRecording(hash)),
+            $"wind-grids/{hash}.grib2.br",
+            Grib2ReaderTests.LoadSample()
+        );
+        WindGridRegistry.ResetForTests();
+
+        var warnings = WarningLogCapture.Install();
+        using var archive = RecordingArchive.Open(new MemoryStream(corrupt));
+        var loaded = archive.ToSessionRecording();
+
+        Assert.Empty(loaded.WindGridPins!.Hashes);
+        Assert.Equal(0, WindGridRegistry.Count);
+        Assert.Equal(5, loaded.Actions.Count);
+        Assert.Equal(2, loaded.Snapshots!.Count);
+        Assert.Contains(warnings.Warnings, w => w.Contains(hash, StringComparison.Ordinal) && w.Contains("cannot be read", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Referenced_CollectsInitialAndRecordedChanges_Distinct()
+    {
+        string first = new('a', 64);
+        string second = new('b', 64);
+        List<RecordedAction> actions =
+        [
+            new RecordedWeatherChange(5, WindGridRegistryTests.LiveWeatherJson(second), false),
+            new RecordedCommand(6, "DAL45", "H270", "LF", "conn1"),
+            new RecordedWeatherChange(9, WindGridRegistryTests.LiveWeatherJson(first), false),
+            new RecordedWeatherChange(12, null, false),
+            new RecordedWeatherChange(15, """{"metars":[],"windLayers":[{"altitude":0,"direction":270,"speed":5}]}""", false),
+            new RecordedWeatherChange(18, WindGridRegistryTests.LiveWeatherJson(second), false),
+        ];
+
+        Assert.Equal([first, second], WindGridHashes.Referenced(WindGridRegistryTests.LiveWeatherJson(first), actions, []));
+        Assert.Equal([second, first], WindGridHashes.Referenced(null, actions, []));
+        Assert.Empty(WindGridHashes.Referenced("""{"periods":[],"windGridHash":"cc"}""", [], []));
+    }
+
+    [Fact]
+    public void Referenced_CollectsSnapshotWeather()
+    {
+        string initial = new('a', 64);
+        string snapshotOnly = new('c', 64);
+
+        IReadOnlyList<string> hashes = WindGridHashes.Referenced(
+            WindGridRegistryTests.LiveWeatherJson(initial),
+            [],
+            [null, WindGridRegistryTests.LiveWeatherJson(initial), WindGridRegistryTests.LiveWeatherJson(snapshotOnly)]
+        );
+
+        Assert.Equal([initial, snapshotOnly], hashes);
+    }
+
+    [Fact]
+    public void Referenced_CapitalPeriods_IsAProfileAndItsHashIsCollected()
+    {
+        // The parser detects a timeline by a case-sensitive "periods" array; "Periods" parses as a v1 profile and attaches.
+        WindGridRegistry.ResetForTests();
+        string hash = WindGridRegistry.Register(Grib2ReaderTests.LoadSample());
+        string json = WindGridRegistryTests.LiveWeatherJson(hash).Replace("\"id\"", "\"Periods\": [], \"id\"", StringComparison.Ordinal);
+
+        Assert.NotNull(WindGridRegistryTests.ParseProfile(json).WindGrid);
+        Assert.Equal([hash], WindGridHashes.Referenced(json, [], []));
+    }
+
+    [Fact]
+    public void SchemaUpgrader_KeepsWindGridEntries()
+    {
+        WindGridRegistry.ResetForTests();
+        byte[] sample = Grib2ReaderTests.LoadSample();
+        string hash = WindGridRegistry.Register(sample);
+        SessionRecording recording = CreateGridRecording(hash);
+        recording.Snapshots![0].State.SchemaVersion = SnapshotSchemaMigrator.CurrentSchemaVersion - 1;
+
+        RecordingUpgradeResult upgraded = RecordingSchemaUpgrader.Upgrade(RecordingArchiveWriter.WriteToBytes(recording));
+
+        Assert.True(upgraded.Changed);
+        WindGridRegistry.ResetForTests();
+        using var archive = RecordingArchive.Open(new MemoryStream(upgraded.Output));
+        using WindGridPins pins = archive.RegisterWindGrids();
+        Assert.Equal([hash], pins.Hashes);
+        Assert.True(WindGridRegistry.TryGetBytes(hash, out ReadOnlyMemory<byte> registered));
+        Assert.Equal(sample, registered.ToArray());
+    }
+
+    /// <summary>A recording whose initial weather and two recorded weather changes all fly the grid <paramref name="hash"/>.</summary>
+    private static SessionRecording CreateGridRecording(string hash)
+    {
+        SessionRecording template = CreateTestRecording(snapshotCount: 2);
+        string weatherJson = WindGridRegistryTests.LiveWeatherJson(hash);
+        return new SessionRecording
+        {
+            Version = template.Version,
+            ScenarioJson = template.ScenarioJson,
+            RngSeed = template.RngSeed,
+            WeatherJson = weatherJson,
+            Actions = [.. template.Actions, new RecordedWeatherChange(4, weatherJson, false), new RecordedWeatherChange(9, weatherJson, false)],
+            TotalElapsedSeconds = template.TotalElapsedSeconds,
+            Snapshots = template.Snapshots,
+            ScenarioName = template.ScenarioName,
+            ScenarioId = template.ScenarioId,
+            ArtccId = template.ArtccId,
+            RecordedAtUtc = template.RecordedAtUtc,
+            RecordedBy = template.RecordedBy,
+        };
+    }
+
+    private static byte[] Brotli(byte[] data)
+    {
+        using var output = new MemoryStream();
+        using (var brotli = new BrotliStream(output, CompressionLevel.Optimal, leaveOpen: true))
+        {
+            brotli.Write(data);
+        }
+
+        return output.ToArray();
+    }
+
+    /// <summary>A copy of the archive with <paramref name="entryName"/>'s content replaced by <paramref name="content"/>.</summary>
+    private static byte[] ReplaceEntry(byte[] archiveBytes, string entryName, byte[] content)
+    {
+        using var source = new ZipArchive(new MemoryStream(archiveBytes), ZipArchiveMode.Read);
+        using var output = new MemoryStream();
+        using (var dest = new ZipArchive(output, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            foreach (ZipArchiveEntry entry in source.Entries)
+            {
+                using Stream destStream = dest.CreateEntry(entry.FullName, CompressionLevel.NoCompression).Open();
+                if (entry.FullName == entryName)
+                {
+                    destStream.Write(content);
+                    continue;
+                }
+
+                using Stream sourceStream = entry.Open();
+                sourceStream.CopyTo(destStream);
+            }
+        }
+
+        return output.ToArray();
     }
 }

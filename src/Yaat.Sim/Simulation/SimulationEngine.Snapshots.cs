@@ -21,6 +21,7 @@ using Yaat.Sim.Simulation.Eram;
 using Yaat.Sim.Simulation.Replay;
 using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Training;
+using Yaat.Sim.Weather;
 
 namespace Yaat.Sim.Simulation;
 
@@ -31,6 +32,13 @@ public sealed partial class SimulationEngine
     {
         SimScenarioState scenario = Scenario ?? throw new InvalidOperationException("No scenario loaded.");
         List<AircraftState> aircraft = World.GetSnapshot();
+        if (World.Weather is { WindGrid: not null, WindGridHash: null } unnamedGridWeather)
+        {
+            Logger.LogWarning(
+                "Weather '{Name}' flies a GFS wind grid that has no hash; a restore of this snapshot flies the FD wind layers",
+                unnamedGridWeather.Name
+            );
+        }
 
         return new StateSnapshotDto
         {
@@ -69,6 +77,11 @@ public sealed partial class SimulationEngine
         _loggedExitCapacityRefusals.Clear();
         World.Rng = new SerializableRandom(snapshot.Rng.S0, snapshot.Rng.S1, snapshot.Rng.S2, snapshot.Rng.S3);
         World.Weather = snapshot.WeatherJson is not null ? JsonSerializer.Deserialize<WeatherProfile>(snapshot.WeatherJson) : null;
+        if (World.Weather is { } restoredWeather)
+        {
+            // The snapshot's weather is not parsed through WeatherTimelineParser, so its GFS grid is resolved here.
+            WindGridRegistry.Attach(restoredWeather);
+        }
 
         ScenarioSnapshotDto scenarioDto = snapshot.Scenario;
 
@@ -140,11 +153,8 @@ public sealed partial class SimulationEngine
             Scenario.WeatherTimeline = null;
             if (scenarioDto.WeatherSourceJson is { } weatherSourceJson)
             {
-                WeatherParseResult weatherParse = WeatherTimelineParser.Parse(weatherSourceJson);
-                if (weatherParse.IsTimeline)
-                {
-                    Scenario.WeatherTimeline = weatherParse.Timeline;
-                }
+                // Only a timeline is rebuilt: a v1 source is not parsed again, so its grid hash is not resolved a second time.
+                Scenario.WeatherTimeline = WeatherTimelineParser.ParseTimeline(weatherSourceJson);
             }
 
             Scenario.IsPaused = scenarioDto.IsPaused;

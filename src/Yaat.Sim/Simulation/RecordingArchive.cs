@@ -1,8 +1,10 @@
 using System.IO.Compression;
 using System.Text.Json;
+using Microsoft.Extensions.Logging;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Scenarios;
 using Yaat.Sim.Simulation.Snapshots;
+using Yaat.Sim.Weather;
 
 namespace Yaat.Sim.Simulation;
 
@@ -13,6 +15,8 @@ namespace Yaat.Sim.Simulation;
 /// </summary>
 public sealed class RecordingArchive : IDisposable
 {
+    private static readonly ILogger Log = SimLog.CreateLogger("RecordingArchive");
+
     private readonly ZipArchive _zip;
     private readonly Stream? _ownedStream;
     private TimedSnapshot? _firstSnapshot;
@@ -231,6 +235,102 @@ public sealed class RecordingArchive : IDisposable
     /// <summary>The entry an airport's source GeoJSON is stored under, by the airport ID it was written with.</summary>
     public static string AirportGeoJsonEntryName(string airportId) => $"airport-geojson/{airportId}.geojson.br";
 
+    /// <summary>The entry a GFS wind grid's raw GRIB2 bytes are stored under (Brotli), by the grid's hash.</summary>
+    public static string WindGridEntryName(string hash) => $"wind-grids/{hash}.grib2.br";
+
+    /// <summary>
+    /// Registers and pins every GFS wind grid the manifest lists in <see cref="WindGridRegistry"/>, so the weather text the
+    /// archive replays resolves its grid however many grids it carries and whatever registers elsewhere meanwhile. An entry
+    /// that is missing, unreadable, whose bytes do not hash to its name, or that does not decode is skipped with a warning,
+    /// and the weather naming it flies the FD wind layers. Every loader calls this before the weather text is parsed.
+    /// </summary>
+    /// <returns>The pins on the grids registered; the caller owns them and disposes them when it no longer replays the archive.</returns>
+    public WindGridPins RegisterWindGrids()
+    {
+        if (Manifest.WindGridHashes is not { Count: > 0 } hashes)
+        {
+            return new WindGridPins([], []);
+        }
+
+        var registered = new List<string>(hashes.Count);
+        var pins = new List<IDisposable>(hashes.Count);
+        try
+        {
+            foreach (string hash in hashes)
+            {
+                try
+                {
+                    if (ReadWindGrid(hash) is { } grib2)
+                    {
+                        pins.Add(WindGridRegistry.RegisterAndPin(grib2, out _));
+                        registered.Add(hash);
+                    }
+                }
+                catch (Exception ex)
+                    when (ex
+                            is (Grib2FormatException or InvalidOperationException or InvalidDataException or IOException)
+                                and not ObjectDisposedException
+                    )
+                {
+                    Log.LogWarning(
+                        ex,
+                        "Recorded GFS wind grid {Hash} cannot be read or decoded; skipped, its weather flies the FD wind layers",
+                        hash
+                    );
+                }
+            }
+        }
+        catch
+        {
+            foreach (IDisposable pin in pins)
+            {
+                pin.Dispose();
+            }
+
+            throw;
+        }
+
+        return new WindGridPins(registered, pins);
+    }
+
+    /// <summary>The bytes of the grid entry <paramref name="hash"/>, or null (with a warning) when it is missing or holds other bytes.</summary>
+    private byte[]? ReadWindGrid(string hash)
+    {
+        string entryName = WindGridEntryName(hash);
+        if (_zip.GetEntry(entryName) is not { } entry)
+        {
+            Log.LogWarning(
+                "Recording lists GFS wind grid {Hash} but has no {Entry} entry; skipped, its weather flies the FD wind layers",
+                hash,
+                entryName
+            );
+            return null;
+        }
+
+        byte[] grib2;
+        using (Stream entryStream = entry.Open())
+        using (var brotli = new BrotliStream(entryStream, CompressionMode.Decompress))
+        using (var buffer = new MemoryStream())
+        {
+            brotli.CopyTo(buffer);
+            grib2 = buffer.ToArray();
+        }
+
+        string actual = WindGridRegistry.HashOf(grib2);
+        if (!string.Equals(actual, hash, StringComparison.Ordinal))
+        {
+            Log.LogWarning(
+                "Recorded GFS wind grid entry {Entry} holds bytes hashing to {Actual}, not {Hash}; skipped, its weather flies the FD wind layers",
+                entryName,
+                actual,
+                hash
+            );
+            return null;
+        }
+
+        return grib2;
+    }
+
     /// <summary>
     /// Read a ground layout stored in the archive by airport ID.
     /// </summary>
@@ -359,31 +459,41 @@ public sealed class RecordingArchive : IDisposable
     /// </summary>
     public SessionRecording ToBaseSessionRecording()
     {
-        List<RecordedAction> actions = ReadActionsForReplay();
-        string scenarioJson = ReadScenarioJson();
-        return new SessionRecording
+        WindGridPins windGridPins = RegisterWindGrids();
+        try
         {
-            Version = Manifest.Version,
-            ScenarioJson = scenarioJson,
-            RngSeed = Manifest.RngSeed,
-            WeatherJson = ReadWeatherJson(),
-            MetarReissuanceEnabled = Manifest.MetarReissuanceEnabled,
-            ArtccConfigJson = ReadArtccConfigJson(),
-            Actions = actions,
-            TerminalLog = ReadTerminalLog(),
-            TotalElapsedSeconds = Manifest.TotalElapsedSeconds,
-            Snapshots = null,
-            ScenarioName = Manifest.ScenarioName,
-            ScenarioId = Manifest.ScenarioId,
-            ArtccId = Manifest.ArtccId,
-            RecordedAtUtc = Manifest.RecordedAtUtc,
-            RecordedBy = Manifest.RecordedBy,
-            SessionStartUtc = Manifest.ResolveSessionStartUtc(),
-            InitialActiveRunways = Manifest.InitialActiveRunways,
-            StudentPositionState = ReadInitialStudentPosition(),
-            InitialAtcPositions = ReadInitialAtcPositions(),
-            FinalApproachSpeedVarietyEnabled = ReadInitialFinalApproachSpeedVariety(),
-        };
+            List<RecordedAction> actions = ReadActionsForReplay();
+            string scenarioJson = ReadScenarioJson();
+            return new SessionRecording
+            {
+                Version = Manifest.Version,
+                ScenarioJson = scenarioJson,
+                RngSeed = Manifest.RngSeed,
+                WeatherJson = ReadWeatherJson(),
+                MetarReissuanceEnabled = Manifest.MetarReissuanceEnabled,
+                ArtccConfigJson = ReadArtccConfigJson(),
+                Actions = actions,
+                TerminalLog = ReadTerminalLog(),
+                TotalElapsedSeconds = Manifest.TotalElapsedSeconds,
+                Snapshots = null,
+                ScenarioName = Manifest.ScenarioName,
+                ScenarioId = Manifest.ScenarioId,
+                ArtccId = Manifest.ArtccId,
+                RecordedAtUtc = Manifest.RecordedAtUtc,
+                RecordedBy = Manifest.RecordedBy,
+                SessionStartUtc = Manifest.ResolveSessionStartUtc(),
+                InitialActiveRunways = Manifest.InitialActiveRunways,
+                StudentPositionState = ReadInitialStudentPosition(),
+                InitialAtcPositions = ReadInitialAtcPositions(),
+                FinalApproachSpeedVarietyEnabled = ReadInitialFinalApproachSpeedVariety(),
+                WindGridPins = windGridPins,
+            };
+        }
+        catch
+        {
+            windGridPins.Dispose();
+            throw;
+        }
     }
 
     /// <summary>
@@ -444,46 +554,56 @@ public sealed class RecordingArchive : IDisposable
     /// </summary>
     public SessionRecording ToSessionRecording()
     {
-        Dictionary<string, AirportGroundLayout> layouts = ReadAllLayouts();
-        List<RecordedAction> actions = ReadActions();
-        string scenarioJson = ReadScenarioJson();
-
-        List<TimedSnapshot>? snapshots = null;
-        if (Manifest.Snapshots.Count > 0)
+        WindGridPins windGridPins = RegisterWindGrids();
+        try
         {
-            snapshots = new List<TimedSnapshot>(Manifest.Snapshots.Count);
-            for (int i = 0; i < Manifest.Snapshots.Count; i++)
+            Dictionary<string, AirportGroundLayout> layouts = ReadAllLayouts();
+            List<RecordedAction> actions = ReadActions();
+            string scenarioJson = ReadScenarioJson();
+
+            List<TimedSnapshot>? snapshots = null;
+            if (Manifest.Snapshots.Count > 0)
             {
-                TimedSnapshot timed = ReadTimedSnapshot(i);
-                ReattachDelayedSpawnLayouts(timed.State, layouts);
-                snapshots.Add(timed);
+                snapshots = new List<TimedSnapshot>(Manifest.Snapshots.Count);
+                for (int i = 0; i < Manifest.Snapshots.Count; i++)
+                {
+                    TimedSnapshot timed = ReadTimedSnapshot(i);
+                    ReattachDelayedSpawnLayouts(timed.State, layouts);
+                    snapshots.Add(timed);
+                }
             }
-        }
-        actions = AddSyntheticAircraftSpawnsFromSnapshots(actions, ReadScenarioAircraftCallsigns(scenarioJson));
+            actions = AddSyntheticAircraftSpawnsFromSnapshots(actions, ReadScenarioAircraftCallsigns(scenarioJson));
 
-        return new SessionRecording
+            return new SessionRecording
+            {
+                Version = Manifest.Version,
+                ScenarioJson = scenarioJson,
+                RngSeed = Manifest.RngSeed,
+                WeatherJson = ReadWeatherJson(),
+                MetarReissuanceEnabled = Manifest.MetarReissuanceEnabled,
+                ArtccConfigJson = ReadArtccConfigJson(),
+                Actions = actions,
+                TerminalLog = ReadTerminalLog(),
+                TotalElapsedSeconds = Manifest.TotalElapsedSeconds,
+                Snapshots = snapshots,
+                ScenarioName = Manifest.ScenarioName,
+                ScenarioId = Manifest.ScenarioId,
+                ArtccId = Manifest.ArtccId,
+                RecordedAtUtc = Manifest.RecordedAtUtc,
+                RecordedBy = Manifest.RecordedBy,
+                SessionStartUtc = Manifest.ResolveSessionStartUtc(),
+                InitialActiveRunways = Manifest.InitialActiveRunways,
+                StudentPositionState = ReadInitialStudentPosition(),
+                InitialAtcPositions = ReadInitialAtcPositions(),
+                FinalApproachSpeedVarietyEnabled = ReadInitialFinalApproachSpeedVariety(),
+                WindGridPins = windGridPins,
+            };
+        }
+        catch
         {
-            Version = Manifest.Version,
-            ScenarioJson = scenarioJson,
-            RngSeed = Manifest.RngSeed,
-            WeatherJson = ReadWeatherJson(),
-            MetarReissuanceEnabled = Manifest.MetarReissuanceEnabled,
-            ArtccConfigJson = ReadArtccConfigJson(),
-            Actions = actions,
-            TerminalLog = ReadTerminalLog(),
-            TotalElapsedSeconds = Manifest.TotalElapsedSeconds,
-            Snapshots = snapshots,
-            ScenarioName = Manifest.ScenarioName,
-            ScenarioId = Manifest.ScenarioId,
-            ArtccId = Manifest.ArtccId,
-            RecordedAtUtc = Manifest.RecordedAtUtc,
-            RecordedBy = Manifest.RecordedBy,
-            SessionStartUtc = Manifest.ResolveSessionStartUtc(),
-            InitialActiveRunways = Manifest.InitialActiveRunways,
-            StudentPositionState = ReadInitialStudentPosition(),
-            InitialAtcPositions = ReadInitialAtcPositions(),
-            FinalApproachSpeedVarietyEnabled = ReadInitialFinalApproachSpeedVariety(),
-        };
+            windGridPins.Dispose();
+            throw;
+        }
     }
 
     /// <summary>

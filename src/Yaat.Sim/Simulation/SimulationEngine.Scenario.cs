@@ -30,6 +30,7 @@ public sealed partial class SimulationEngine
     /// </summary>
     public List<string> LoadScenario(string json, int rngSeed, DateTime sessionStartUtc)
     {
+        Scenario?.ReplaceWindGridPins(null);
         World.Clear();
         _loggedExitCapacityRefusals.Clear();
         World.Rng = new SerializableRandom(rngSeed);

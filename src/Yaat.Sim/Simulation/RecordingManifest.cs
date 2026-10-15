@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Yaat.Sim.Simulation;
 
 /// <summary>
@@ -110,6 +112,14 @@ public sealed class RecordingManifest
     /// archives written before it was recorded.
     /// </summary>
     public List<string> MissingLayoutAirportIds { get; init; } = [];
+
+    /// <summary>
+    /// The hashes of the GFS wind grids stored as <c>wind-grids/{hash}.grib2.br</c> entries (<see cref="RecordingArchive.WindGridEntryName"/>):
+    /// every grid the recording's weather names, once each. Null when the recording flies no grid, and then left out of the
+    /// JSON; archives written before grids were recorded read null.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<string>? WindGridHashes { get; init; }
 }
 
 /// <summary>

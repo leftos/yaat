@@ -371,6 +371,23 @@ public sealed class SimScenarioState
     // Keeps the v3 archive open for on-demand snapshot reads; disposed on scenario unload
     public RecordingArchive? SnapshotArchive { get; set; }
 
+    /// <summary>
+    /// This scenario's pins on the GFS grids its weather may name, so none is evicted while it runs. Set through
+    /// <see cref="ReplaceWindGridPins"/>; released when the engine loads the next scenario, and by a host that unloads it.
+    /// </summary>
+    public IDisposable? WindGridPins { get; private set; }
+
+    /// <summary>Releases the held grid pins and holds <paramref name="pins"/> instead (null to hold none).</summary>
+    public void ReplaceWindGridPins(IDisposable? pins)
+    {
+        IDisposable? previous = WindGridPins;
+        WindGridPins = pins;
+        if (!ReferenceEquals(previous, pins))
+        {
+            previous?.Dispose();
+        }
+    }
+
     // Handoff tracking
     public List<DelayedHandoff> DelayedHandoffQueue { get; } = [];
 

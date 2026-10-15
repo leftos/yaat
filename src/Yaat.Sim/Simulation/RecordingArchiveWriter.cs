@@ -1,7 +1,9 @@
 using System.IO.Compression;
 using System.Text.Json;
+using Microsoft.Extensions.Logging;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Simulation.Snapshots;
+using Yaat.Sim.Weather;
 
 namespace Yaat.Sim.Simulation;
 
@@ -12,7 +14,10 @@ namespace Yaat.Sim.Simulation;
 /// </summary>
 public sealed class RecordingArchiveWriter(Stream output) : ILayoutBundleWriter, IDisposable
 {
+    private static readonly ILogger Log = SimLog.CreateLogger("RecordingArchiveWriter");
+
     private readonly ZipArchive _zip = new(output, ZipArchiveMode.Create, leaveOpen: true);
+    private readonly List<string> _windGridHashes = [];
     private readonly List<SnapshotIndexEntry> _snapshotIndex = [];
     private readonly List<string> _layoutAirportIds = [];
     private readonly List<string> _airportGeoJsonIds = [];
@@ -137,6 +142,28 @@ public sealed class RecordingArchiveWriter(Stream output) : ILayoutBundleWriter,
         WriteAirportGeoJsonEntry(_zip, airportId, geoJson);
     }
 
+    /// <summary>
+    /// Writes a GFS wind grid's raw GRIB2 bytes under its hash (<see cref="RecordingArchive.WindGridEntryName"/>, Brotli) and
+    /// lists the hash in the manifest. A hash already written is skipped, so a grid loaded several times is stored once.
+    /// </summary>
+    /// <exception cref="ArgumentException"><paramref name="grib2"/> does not hash to <paramref name="hash"/>.</exception>
+    public void WriteWindGrid(string hash, ReadOnlySpan<byte> grib2)
+    {
+        string actual = WindGridRegistry.HashOf(grib2);
+        if (!string.Equals(actual, hash, StringComparison.Ordinal))
+        {
+            throw new ArgumentException($"The wind grid's bytes hash to {actual}, not to {hash}, the name it was to be written under", nameof(hash));
+        }
+
+        if (_windGridHashes.Contains(hash))
+        {
+            return;
+        }
+
+        _windGridHashes.Add(hash);
+        WriteBrotliEntry(_zip, RecordingArchive.WindGridEntryName(hash), grib2);
+    }
+
     /// <summary>Records the airports (by FAA code) the room had pinned with no map, so that a load pins them with none.</summary>
     public void WriteMissingLayoutAirportIds(IEnumerable<string> faaCodes) => _missingLayoutAirportIds.AddRange(faaCodes);
 
@@ -187,6 +214,7 @@ public sealed class RecordingArchiveWriter(Stream output) : ILayoutBundleWriter,
             AirportGeoJsonIds = _airportGeoJsonIds.Count > 0 ? _airportGeoJsonIds : null,
             LayoutFormatVersion = RecordingArchive.CurrentLayoutFormatVersion,
             MissingLayoutAirportIds = _missingLayoutAirportIds,
+            WindGridHashes = _windGridHashes.Count > 0 ? _windGridHashes : null,
         };
 
         byte[] manifestJson = JsonSerializer.SerializeToUtf8Bytes(manifest, RecordingJsonOptions.Default);
@@ -209,6 +237,7 @@ public sealed class RecordingArchiveWriter(Stream output) : ILayoutBundleWriter,
             writer.WriteArtccConfig(recording.ArtccConfigJson);
             writer.WriteActions(recording.Actions);
             writer.WriteTerminalLog(recording.TerminalLog);
+            WriteReferencedWindGrids(writer, recording);
 
             if (recording.Snapshots is { } snapshots)
             {
@@ -237,6 +266,26 @@ public sealed class RecordingArchiveWriter(Stream output) : ILayoutBundleWriter,
         return ms.ToArray();
     }
 
+    /// <summary>
+    /// Writes every GFS grid the recording's weather names, from <see cref="WindGridRegistry"/>. A grid the registry does not
+    /// hold is left out with a warning; a replay of the archive then flies the FD wind layers where it was named.
+    /// </summary>
+    private static void WriteReferencedWindGrids(RecordingArchiveWriter writer, SessionRecording recording)
+    {
+        IEnumerable<string?> snapshotWeather = recording.Snapshots?.Select(s => s.State.WeatherJson) ?? [];
+        foreach (string hash in WindGridHashes.Referenced(recording.WeatherJson, recording.Actions, snapshotWeather))
+        {
+            if (WindGridRegistry.TryGetBytes(hash, out ReadOnlyMemory<byte> grib2))
+            {
+                writer.WriteWindGrid(hash, grib2.Span);
+            }
+            else
+            {
+                Log.LogWarning("GFS wind grid {Hash} named by the recording's weather is not registered; the archive is written without it", hash);
+            }
+        }
+    }
+
     public void Dispose()
     {
         if (!_finished)
@@ -253,7 +302,7 @@ public sealed class RecordingArchiveWriter(Stream output) : ILayoutBundleWriter,
 
     private void WriteBrotliEntry(string entryName, byte[] utf8Bytes) => WriteBrotliEntry(_zip, entryName, utf8Bytes);
 
-    private static void WriteBrotliEntry(ZipArchive zip, string entryName, byte[] utf8Bytes)
+    private static void WriteBrotliEntry(ZipArchive zip, string entryName, ReadOnlySpan<byte> utf8Bytes)
     {
         // ZIP-level compression is Store; we handle compression ourselves with Brotli
         ZipArchiveEntry entry = zip.CreateEntry(entryName, CompressionLevel.NoCompression);

@@ -382,8 +382,8 @@ itself memoizes results on a process-wide 0.02° grid (evaluated at cell centres
 [weather-and-wind.md](weather-and-wind.md#magnetic-declination-magneticdeclinationcs).
 
 If `Position` is non-finite or out of range (`|lat| > 90`, `|lon| > 180`), the WMM update is **skipped and logged** (`FlightPhysics.RefreshDeclinationCache`) rather than throwing
-— a `Geo.Coordinate` ctor would otherwise crash the tick. The previously cached value is kept. `DeclinationCachePosition` is `[JsonIgnore]`
-(`AircraftState.cs`, `AircraftState.DeclinationCachePosition`), so the first tick after a snapshot restore always runs the full WMM eval to re-warm the cache.
+— a `Geo.Coordinate` ctor would otherwise crash the tick. The previously cached value is kept. `DeclinationCachePosition` is `[JsonIgnore]` on `AircraftState` but carried by
+`AircraftSnapshotDto.DeclinationCachePosition`, so a restored aircraft keeps its cache position and does not re-run the WMM until it leaves the box (a cold cache restores as `null` and warms on the first tick).
 
 ## Footguns & gotchas
 
@@ -447,7 +447,7 @@ If `Position` is non-finite or out of range (`|lat| > 90`, `|lon| > 180`), the W
   [landing-and-runway-exit.md](landing-and-runway-exit.md) and [ground/pushback.md](ground/pushback.md).
 - **Magnetic declination is cached with a 0.02° box; a non-finite/out-of-range `Position` SKIPS the WMM update (logged) and keeps the stale
   value** rather than throwing — so an upstream bug can leave declination subtly stale without an obvious crash. `DeclinationCachePosition` is
-  `[JsonIgnore]`, so the first tick after a snapshot restore re-runs the full WMM eval.
+  `[JsonIgnore]` on the state but snapshotted, so a restore keeps it.
 - **`UpdatePosition` uses a flat-earth approximation** (`NmPerDegLat = 60`, longitude scaled by `cos(lat)`); fine per-tick but not a great-circle
   step — don't reuse it for long-range geometry.
 - **While a phase is active, `UpdateCommandQueue` skips block advancement.** Conditional triggers still fire, but the three `Notify*` hooks are
