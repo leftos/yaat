@@ -180,7 +180,7 @@ internal static class SfoGroundHarness
     internal static AircraftState SpawnAtHoldShort(SfoGround ground, string callsign, string type, (string Runway, string Taxiway, string Toward) bar)
     {
         GroundNode node = NearestHoldShortBar(ground.Layout, bar);
-        return SpawnAt(ground, callsign, type, (node, TaxiCoverageRunner.TaxiwayDepartureHeading(node)), new HoldingInPositionPhase());
+        return SpawnAt(ground, callsign, type, (node, TaxiCoverageRunner.TaxiwayDepartureHeading(ground.Layout, node)), new HoldingInPositionPhase());
     }
 
     /// <summary>

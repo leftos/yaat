@@ -18,6 +18,7 @@
 
 ### Fixed
 
+- An aircraft stopped short of a runway whose turn around would swing its nose or wingtips past the hold line holds and says unable instead.
 - Instructions queued to run later (`JRADO`, `JRADI`, `DEPART`, an airway intercept) survive a rewind or a restored session instead of silently vanishing.
 - A ground follower whose route meets its leader head-on waits short of the merge for the leader to pass instead of driving into it.
 - `FOLLOWG` given to an aircraft already ahead of its leader on the leader's route is refused.

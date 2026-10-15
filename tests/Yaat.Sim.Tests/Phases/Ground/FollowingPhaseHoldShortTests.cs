@@ -114,7 +114,7 @@ public class FollowingPhaseHoldShortTests(ITestOutputHelper output)
         // Short of the bar on the taxiway, nose toward the runway: off the pavement, so the "already on it"
         // skip cannot fire and the bar is genuinely one this aircraft would be crossing.
         GroundNode bar = bars[0];
-        TrueHeading awayFromRunway = TaxiCoverageRunner.TaxiwayDepartureHeading(bar);
+        TrueHeading awayFromRunway = TaxiCoverageRunner.TaxiwayDepartureHeading(ground.Layout, bar);
         LatLon position = GeoMath.ProjectPoint(bar.Position, awayFromRunway, ApproachFt / FeetPerNm);
         AircraftState aircraft = PlaceFollower(ground, position, GeoMath.BearingTo(position, bar.Position), destinationRunway, phase);
 
@@ -190,7 +190,7 @@ public class FollowingPhaseHoldShortTests(ITestOutputHelper output)
 
         // On F1, beyond the bar-detection window, rolling toward the bar, still carrying the name of a taxiway it left.
         GroundNode bar = bars[0];
-        TrueHeading awayFromRunway = TaxiCoverageRunner.TaxiwayDepartureHeading(bar);
+        TrueHeading awayFromRunway = TaxiCoverageRunner.TaxiwayDepartureHeading(ground.Layout, bar);
         LatLon position = GeoMath.ProjectPoint(bar.Position, awayFromRunway, StaleTaxiwayProbeFt / FeetPerNm);
         AircraftState aircraft = PlaceFollower(ground, position, GeoMath.BearingTo(position, bar.Position), "28L", new FollowingPhase(Leader));
         aircraft.Ground.CurrentTaxiway = "A";

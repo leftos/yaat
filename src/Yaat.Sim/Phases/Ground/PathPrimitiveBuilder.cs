@@ -296,11 +296,19 @@ public static class PathPrimitiveBuilder
     /// Where <paramref name="arc"/> ends: the point its centre's radial reaches after the sweep in the arc's own sense, and
     /// the tangent heading there. Pure.
     /// </summary>
-    public static (LatLon Position, double HeadingDeg) ExitPose(PathPrimitiveSlowTurn arc)
+    public static (LatLon Position, double HeadingDeg) ExitPose(PathPrimitiveSlowTurn arc) => PoseAtSweep(arc, arc.SweepDeg);
+
+    /// <summary>
+    /// Where <paramref name="arc"/> has the aircraft once it has swept <paramref name="sweptDeg"/> of it (0 its entry,
+    /// <see cref="PathPrimitiveSlowTurn.SweepDeg"/> its exit): the point its centre's radial reaches, and the tangent heading
+    /// there in the arc's own sense. Pure.
+    /// </summary>
+    public static (LatLon Position, double HeadingDeg) PoseAtSweep(PathPrimitiveSlowTurn arc, double sweptDeg)
     {
-        double endBearingDeg = Normalise360(arc.StartBearingFromCenterDeg + (arc.RightTurn ? arc.SweepDeg : -arc.SweepDeg));
-        LatLon position = GeoMath.ProjectPoint(new LatLon(arc.CenterLat, arc.CenterLon), new TrueHeading(endBearingDeg), arc.RadiusNm);
-        return (position, arc.ExitTangentBearingDeg);
+        double signedDeg = arc.RightTurn ? sweptDeg : -sweptDeg;
+        double radialDeg = Normalise360(arc.StartBearingFromCenterDeg + signedDeg);
+        LatLon position = GeoMath.ProjectPoint(new LatLon(arc.CenterLat, arc.CenterLon), new TrueHeading(radialDeg), arc.RadiusNm);
+        return (position, Normalise360(arc.EntryTangentBearingDeg + signedDeg));
     }
 
     /// <summary>

@@ -2038,14 +2038,33 @@ public static class PilotResponder
     /// <summary>
     /// A jet's refusal of a taxi clearance that would have it turn about on <paramref name="taxiway"/>. The terminal line is
     /// the one <see cref="BuildUnable"/> makes of the controller-facing
-    /// <see cref="Commands.GroundCommandHandler.NoRoomToTurnAroundReason"/>; the spoken form spells the taxiway (AIM 4-2-7).
+    /// <see cref="Commands.GroundCommandHandler.NoRoomToTurnAroundReason"/>; without a taxiway (the aircraft stands on none)
+    /// the "on" clause is left out. The spoken form spells the taxiway (AIM 4-2-7).
     /// </summary>
-    public static PilotSpeechText BuildUnableNoRoomToTurnAround(AircraftState aircraft, string taxiway)
+    public static PilotSpeechText BuildUnableNoRoomToTurnAround(AircraftState aircraft, string? taxiway)
     {
         string spoken = SpokenOwnCallsign(aircraft);
+        string onTaxiway = (taxiway is null) ? "" : $" on {taxiway}";
+        string onSpokenTaxiway = (taxiway is null) ? "" : $" on {PhraseologyVerbalizer.SpellTaxiway(taxiway)}";
         return new PilotSpeechText(
-            $"unable, no room to turn around on {taxiway}, request a route ahead.",
-            $"{spoken}, unable, no room to turn around on {PhraseologyVerbalizer.SpellTaxiway(taxiway)}, request a route ahead."
+            $"unable, no room to turn around{onTaxiway}, request a route ahead.",
+            $"{spoken}, unable, no room to turn around{onSpokenTaxiway}, request a route ahead."
+        );
+    }
+
+    /// <summary>
+    /// The refusal of an aircraft whose turn about on <paramref name="taxiway"/> would carry some part of it past
+    /// <paramref name="runway"/>'s hold line: it holds short of the runway instead (AIM 2-3-5.a.1). Without a taxiway (the
+    /// aircraft stands on none) the "on" clause is left out. The spoken form spells the taxiway (AIM 4-2-7) and the runway.
+    /// </summary>
+    public static PilotSpeechText BuildUnableNoRoomToTurnAroundAtRunway(AircraftState aircraft, string? taxiway, string runway)
+    {
+        string spoken = SpokenOwnCallsign(aircraft);
+        string onTaxiway = (taxiway is null) ? "" : $" on {taxiway}";
+        string onSpokenTaxiway = (taxiway is null) ? "" : $" on {PhraseologyVerbalizer.SpellTaxiway(taxiway)}";
+        return new PilotSpeechText(
+            $"unable, no room to turn around{onTaxiway}, holding short of runway {runway}.",
+            $"{spoken}, unable, no room to turn around{onSpokenTaxiway}, holding short of runway {PhraseologyVerbalizer.SpellRunway(runway)}."
         );
     }
 

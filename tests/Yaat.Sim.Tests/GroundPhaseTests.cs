@@ -613,13 +613,13 @@ public class GroundPhaseTests
         GroundNode bar = bars1R.MaxBy(b => bars1L.Min(l => GeoMath.DistanceNm(b.Position, l.Position)))!;
         GroundNode farBar = bars1R.Single(b => b.Id != bar.Id);
 
-        TrueHeading beyond = TaxiCoverageRunner.TaxiwayDepartureHeading(farBar);
+        TrueHeading beyond = TaxiCoverageRunner.TaxiwayDepartureHeading(ground.Layout, farBar);
         AircraftState lead = SfoGroundHarness.SpawnAt(ground, "LEAD01", "B738", (farBar, beyond), new HoldingInPositionPhase());
         lead.Position = GeoMath.ProjectPoint(farBar.Position, beyond, FollowHoldShortLeadBeyondFt / GeoMath.FeetPerNm);
 
         LatLon start = GeoMath.ProjectPoint(
             bar.Position,
-            TaxiCoverageRunner.TaxiwayDepartureHeading(bar),
+            TaxiCoverageRunner.TaxiwayDepartureHeading(ground.Layout, bar),
             FollowHoldShortApproachFt / GeoMath.FeetPerNm
         );
         var towardBar = new TrueHeading(GeoMath.BearingTo(start, bar.Position));

@@ -340,7 +340,7 @@ timeouts, never trimmed.
 
 To sample each physics sub-tick of a second rather than only its end, drive the spine by hand in place of `TickOneSecond`: `engine.BeginSecond()`, `engine.OpenSecond(engine.BareHost)`, `engine.RunPrePhysics(engine.BareHost)`, `engine.RunPhysicsSubTick` once per sub-tick (`PhysicsSubTickRate` times, four), `engine.RunPostPhysics(engine.BareHost)`, then `engine.RunEndOfSecond(engine.BareHost)`, reading the state between sub-ticks.
 
-`TickOneSecond` runs that sequence through `SimulationEngine.RunSecond`.
+`TickOneSecond` runs that sequence through `SimulationEngine.RunSecond`. `TurnAboutAtRunwayBarFootprintTests.TickOneSecondBySubTick(engine, afterSubTick)` is that hand-driven sequence as a helper that mirrors `RunSecond`, calling back after each sub-tick; a test that samples sub-ticks uses it rather than repeating the sequence, and must be changed with `RunSecond` when the spine's steps change.
 
 **Raw `GeoJsonParser.Parse` needs the nav DB only for runway crossings.** `GeoJsonParser.Parse(airportId, geoJson, runwayAirportCode)`
 runs `RunwayCrossingDetector.DetectRunwayCrossings`, which reads `NavigationDatabase.Instance` — so a non-null `runwayAirportCode` (e.g.
@@ -611,3 +611,7 @@ Run it: `pwsh tools/gate.ps1 -Log .tmp/test.log -TimeoutSeconds 30 -Slot heavy -
   A controller-issued TAXI whose only route lies behind an aircraft whose gear does not fit a turn about on its taxiway (`TurnAboutFit`, at any heading: a B738, CRJ2, C25A, DH8D or AT76, for example) is refused ("no room to turn around", see [ground/pathfinder.md](ground/pathfinder.md#where-it-sits--entry-points)), so a recording made when it turned about replays a rejected command and the aircraft stays put until a later command moves it.
 
   Re-pose the test rather than loosen the gate: give the TAXI before the aircraft passes the junction its route turns at, as the `Issue172Jbu577*` tests do (`Issue172Jbu577TaxiSpinTests.ActionsWithTaxiGBMovedEarlier` moves JBU577's `TAXI G B HS B` from t=444 to t=410, before the H/G junction, and `SimulationEngine.ArmReplay` replays the edited list), or use a type whose gear fits (a C172 or C208). A scripted TAXI (preset, AI controller, `TAXIAUTO`) is never refused this way.
+
+- **A fixture that stages an aircraft at a runway bar must stage it on the taxiway side.** `TaxiCoverageRunner.TaxiwayDepartureHeading(layout, holdShort)` points from the bar toward the far node of its non-runway edge leading farthest from the runway's centreline; it once took the first non-runway edge, which at a bar can run toward the runway, so a spawn "short of the bar" faced the runway and started inside the hold line. The layout is a required argument so the runway is found.
+
+  The same trap sat in helpers that picked an approach point from the runway side of the bar. A test that places an aircraft short of a bar checks which side of the line it is on (`FollowingPhase.IsInsideHoldLine`, or `HoldLineFootprint` for the body's nose, wingtips and tail), since a turn about from rest now refuses to carry any part past a line and an aircraft that starts inside it is judged differently (`TurnAboutAtRunwayBarFootprintTests` stages with every part short of the line).

@@ -318,6 +318,10 @@ A non-jet whose wheelbase is 0.48 to 0.9 of its length is a taildragger (the FAA
 A type that does not fit refuses a controller's TAXI that would need a turn about, in either shape, at any heading: "Unable, no room to turn around on C, request a route ahead". A C172 or C208 fits; a C25A, AT76, B738, DH8D or CRJ2 does not.
 _Avoid_: lined-up jet (neither the heading nor the category decides it)
 
+**Hold-line footprint**:
+The body an aircraft carries past a runway's hold line for the turn-about check: nose and tail half its length ahead of and behind the main-gear position, both wingtips half its span abeam (`AircraftBody`, `HoldLineFootprint`). A part is past a line on the runway's pavement, or nearer its centreline than the runway's bars within 200 ft along the runway of one of them.
+A turn about, from rest or rolling, that would carry any part past a line is not flown: the aircraft holds short and says "unable, no room to turn around on C, holding short of runway 28R" (docs/ground/navigator.md).
+
 **Holding distance**:
 How far from a runway's centerline its holding position markings sit: the map's `holdShortDistance`, else the width-based default (`RunwayCrossingDetector.HoldShortDistanceForWidth`). An aircraft is clear of the runway only with its tail past a bar at this distance.
 

@@ -653,7 +653,7 @@ public sealed class GroundNavigatorPlaybackDto
 }
 
 /// <summary>
-/// A rolling aircraft's stop when it has no room to turn about on its taxiway (<see cref="GroundNavigatorPlaybackDto.TurnAboutHold"/>).
+/// An aircraft's stop when it has no room to turn about on its taxiway (<see cref="GroundNavigatorPlaybackDto.TurnAboutHold"/>).
 /// </summary>
 public sealed class TurnAboutHoldDto
 {
@@ -669,8 +669,15 @@ public sealed class TurnAboutHoldDto
     /// <summary>The brake rate (kts/s).</summary>
     public required double DecelRateKts { get; init; }
 
-    /// <summary>The taxiway it has no room to turn about on, named in its unable.</summary>
-    public required string Taxiway { get; init; }
+    /// <summary>The taxiway it has no room to turn about on, named in its unable; null when it stands on none.</summary>
+    public required string? Taxiway { get; init; }
+
+    /// <summary>
+    /// The runway whose hold line its turn about would have carried a part past, as its unable names it; absent (null) when
+    /// the stop is not at a runway bar, or its overrun holds short of no runway.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Runway { get; init; }
 
     /// <summary>Whether it has said its unable, on the stop's first tick.</summary>
     public required bool UnableSaid { get; init; }

@@ -75,6 +75,10 @@ Four more carry what the straight after the turn about is laid as ([ground/navig
 
 All six are written only when set and absent (null) otherwise; no schema bump.
 
+`GroundNavigatorPlaybackDto.TurnAboutHold` (`TurnAboutHoldDto`) carries the stop an aircraft holds at when it has no room to turn about, rolling or at rest short of a runway hold line: the stop point, bearing and brake rate, the taxiway named in its unable (null when it stands on none), whether it has said unable (`UnableSaid`), and `Runway`, the runway whose hold line governs the stop, written only when set (`WhenWritingNull`, additive, no schema bump) and absent when the stop is not at a runway bar.
+
+A restore neither re-plans the stop nor says unable again, and a snapshot written without `Runway` restores a hold that asks for a route ahead rather than naming a runway ([ground/navigator.md](ground/navigator.md#a-rolling-turn-about-with-no-room)).
+
 A restore that kept no latch would let the stop go once the aircraft had slowed too far from the node to find it again.
 
 `AircraftGroundOpsDto.TaxiEdgeTrail` follows the same pattern: the taxi edges a ground aircraft drove, oldest first (`TaxiTrailEdgeDto`: `NodeA`, `NodeB`, `LengthFt`, `EntryNodeId`, the end node the edge was entered from; additive, no schema bump, and a restore throws `InvalidDataException` on an entry node that is neither end of its edge, as a snapshot written without it loads 0), written only when the trail is not empty, and restored as an empty trail when absent. The aircraft's own `AircraftGroundOps.TaxiEdgeTrail` is `[JsonIgnore]`; this DTO field is its carrier.

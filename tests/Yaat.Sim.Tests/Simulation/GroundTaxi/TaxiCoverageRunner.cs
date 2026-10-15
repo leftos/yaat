@@ -132,23 +132,20 @@ internal static class TaxiCoverageRunner
     }
 
     /// <summary>
-    /// Bearing along the hold-short's first non-runway taxiway edge, pointed
-    /// away from the runway. Used as the spawn heading for runway-exit-origin
-    /// pairs — the aircraft just rolled off the runway and is facing along
-    /// the exit taxiway. Falls back to 0° if the node has no taxiway edge.
+    /// Bearing from the hold-short toward the far node of its non-runway edge
+    /// leading farthest from the runway's centreline. Used as the spawn heading
+    /// for runway-exit-origin pairs — the aircraft just rolled off the runway
+    /// and is facing along the exit taxiway. Falls back to 0° if the node has
+    /// no taxiway edge.
     /// </summary>
-    public static TrueHeading TaxiwayDepartureHeading(GroundNode holdShort)
+    public static TrueHeading TaxiwayDepartureHeading(AirportGroundLayout layout, GroundNode holdShort)
     {
-        foreach (IGroundEdge edge in holdShort.Edges)
-        {
-            if (edge.IsRunwayCenterline)
-            {
-                continue;
-            }
-            GroundNode other = edge.OtherNode(holdShort);
-            return new TrueHeading(GeoMath.BearingTo(holdShort.Position, other.Position));
-        }
-        return new TrueHeading(0);
+        RunwayInfo? runway =
+            (holdShort.RunwayId is { } id) ? RunwayOccupancy.AirportRunways(layout.AirportId).FirstOrDefault(r => r.Id.Overlaps(id)) : null;
+        IGroundEdge? away = holdShort
+            .Edges.Where(e => !e.IsRunwayCenterline)
+            .MaxBy(e => (runway is null) ? 0.0 : RunwayHoldBars.CentrelineFt(runway, e.OtherNode(holdShort).Position));
+        return (away is null) ? new TrueHeading(0) : new TrueHeading(GeoMath.BearingTo(holdShort.Position, away.OtherNode(holdShort).Position));
     }
 
     /// <summary>
@@ -273,7 +270,7 @@ internal static class TaxiCoverageRunner
         TrueHeading spawnHeading = pair.OriginKind switch
         {
             TaxiNodeKind.Parking => origin.TrueHeading ?? new TrueHeading(0),
-            TaxiNodeKind.RunwayExit => TaxiwayDepartureHeading(origin),
+            TaxiNodeKind.RunwayExit => TaxiwayDepartureHeading(layout, origin),
             _ => new TrueHeading(0),
         };
 

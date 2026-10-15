@@ -1677,6 +1677,51 @@ public class PilotResponderTests
     }
 
     /// <summary>
+    /// YAAT-509: an aircraft whose turn about has no room, standing on no taxiway, leaves the "on" clause out: it asks for a
+    /// route ahead with nothing to name.
+    /// </summary>
+    [Fact]
+    public void BuildUnableNoRoomToTurnAround_NoTaxiway_LeavesOutTheOnClause()
+    {
+        AircraftState ac = MakeAircraft("N123AB");
+        PilotSpeechText result = PilotResponder.BuildUnableNoRoomToTurnAround(ac, null);
+
+        Assert.Equal("unable, no room to turn around, request a route ahead.", result.Terminal);
+        Assert.EndsWith(", unable, no room to turn around, request a route ahead.", result.Tts, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// YAAT-509: an aircraft whose turn about would carry a part past a runway's hold line holds short of the runway and says so;
+    /// the spoken form spells the taxiway and the runway. Standing on no taxiway, it leaves the "on" clause out.
+    /// </summary>
+    [Theory]
+    [InlineData(
+        "C",
+        "28R",
+        "unable, no room to turn around on C, holding short of runway 28R.",
+        ", unable, no room to turn around on charlie, holding short of runway two eight right."
+    )]
+    [InlineData(
+        null,
+        "1L",
+        "unable, no room to turn around, holding short of runway 1L.",
+        ", unable, no room to turn around, holding short of runway one left."
+    )]
+    public void BuildUnableNoRoomToTurnAroundAtRunway_NamesTheRunway_AndSpellsItSpoken(
+        string? taxiway,
+        string runway,
+        string terminal,
+        string ttsTail
+    )
+    {
+        AircraftState ac = MakeAircraft("N123AB");
+        PilotSpeechText result = PilotResponder.BuildUnableNoRoomToTurnAroundAtRunway(ac, taxiway, runway);
+
+        Assert.Equal(terminal, result.Terminal);
+        Assert.EndsWith(ttsTail, result.Tts, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// Rejection reasons are authored as controller-facing text, where "Unable — reason" is natural
     /// typography. The leading-token strip has to treat en/em dashes like the ASCII hyphen it already
     /// handles, or the dash survives into the transmission: "unable, — already turning off at G".

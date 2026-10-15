@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Text.Json;
 using Xunit;
 using Yaat.Sim.Commands;
@@ -91,7 +92,7 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
     /// </summary>
     private void TurnAboutOnC(string type, AircraftCategory category)
     {
-        if (BuildOak() is not { } ground)
+        if (BuildGround("OAK") is not { } ground)
         {
             return;
         }
@@ -175,7 +176,7 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
     /// </summary>
     private void RollingTurnAboutOnC(bool reRouteNearTheNode)
     {
-        if (BuildOak() is not { } ground)
+        if (BuildGround("OAK") is not { } ground)
         {
             return;
         }
@@ -427,7 +428,7 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
     /// </summary>
     private RollingTurnAboutRun? RollIntoTurnAboutOnC(string type, double shortOfNodeFt, double speedKts, bool isScenarioScripted)
     {
-        if (BuildOak() is not { } ground)
+        if (BuildGround("OAK") is not { } ground)
         {
             return null;
         }
@@ -528,7 +529,7 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
         double taxiBrakeFt = BrakeToPivotFt(Type, JetBarSpeedKts, taxiRate);
         double firmBrakeFt = BrakeToPivotFt(Type, JetBarSpeedKts, firmRate);
         double brakeFt = taxiRateLeavesRoom ? taxiBrakeFt + RoomToSpareFt : (taxiBrakeFt + firmBrakeFt) / 2.0;
-        if (RollTowardARunwayBar(Type, BarClearanceFt(Type) + brakeFt, JetBarSpeedKts, isScenarioScripted: true) is not { } run)
+        if (RollTowardARunwayBar(Type, TurnAboutReachFt(Type) + brakeFt, JetBarSpeedKts, isScenarioScripted: true) is not { } run)
         {
             return;
         }
@@ -557,11 +558,73 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
         }
 
         AssertStoppedHeldAndSaidUnable(run);
-        Assert.True(
-            run.MaxHalfLengthReachFt <= 0.0,
-            $"the C172's nose, half its length ahead, reached {run.MaxHalfLengthReachFt:F1} ft past the hold line"
-        );
+        Assert.True(run.FirstInside is null, $"the C172's {run.FirstInside} was inside the hold line");
     }
+
+    /// <summary>
+    /// A C172 creeping at <see cref="CreepTowardBarKts"/> toward the runway holding position at the end of the long KOAK stub,
+    /// re-routed back so near it that its taxi-rate stop keeps its nose <see cref="NoseClearOfBarFt"/> short of the bar, yet
+    /// a turn about from where its braking ends, at either rate, would carry a part past the hold line (its turn-about reach,
+    /// <see cref="TurnAboutReachFt"/>, exceeds the room left past its firm-rate stop). It stops at its taxi rate with every
+    /// part short of the line, holds and says unable once, holding short of the bar's runway: the line a turn about from its
+    /// stop would cross governs the stop.
+    /// </summary>
+    [Fact]
+    public void RollingTowardARunwayBar_TaxiRateStopsShortButNoRoomToTurnAbout_SaysHoldingShortOfTheRunway()
+    {
+        const string Type = "C172";
+        double taxiStopFt = StoppingDistanceFt(CreepTowardBarKts, CategoryPerformance.TaxiDecelRate(AircraftCategory.Piston));
+        double firmStopFt = StoppingDistanceFt(CreepTowardBarKts, CategoryPerformance.ExpediteExitDecelRate(AircraftCategory.Piston));
+        double shortOfBarFt = taxiStopFt + HalfLengthFt(Type) + NoseClearOfBarFt;
+        double reachFt = TurnAboutReachFt(Type);
+        Assert.True(
+            (shortOfBarFt - firmStopFt) < reachFt,
+            $"{shortOfBarFt - firmStopFt:F1} ft is left past the firm-rate stop, inside the {Type}'s {reachFt:F1} ft turn-about reach"
+        );
+        if (RollTowardARunwayBarSaying(Type, shortOfBarFt, CreepTowardBarKts) is not { } rolled)
+        {
+            return;
+        }
+
+        AssertStoppedHeldAndSaidUnable(rolled.Run);
+        Assert.True(rolled.Run.FirstInside is null, $"the {Type}'s {rolled.Run.FirstInside} was inside the hold line");
+        double taxiRate = CategoryPerformance.TaxiDecelRate(AircraftCategory.Piston);
+        Assert.True(
+            rolled.Run.MaxDecelKtsPerSec <= (taxiRate + DecelToleranceKtsPerSec),
+            $"the {Type} slowed by {rolled.Run.MaxDecelKtsPerSec:F2} kt in one second, faster than its {taxiRate:F1} kt/s taxi rate"
+        );
+        Assert.Contains($"holding short of runway {rolled.RunwayNamed}", Assert.Single(rolled.Unables), StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// A C172 rolling at <see cref="BarTaxiSpeedKts"/> toward the same runway holding position, re-routed back so near it that
+    /// even its firm-rate stop carries its nose <see cref="OverrunNoseFt"/> past the bar: an overrun. It stops, holds and says
+    /// the plain unable once, naming its taxiway and no runway: it is not holding short of a line it has overrun.
+    /// </summary>
+    [Fact]
+    public void RollingTowardARunwayBar_OverrunsTheLineEvenAtTheFirmRate_SaysThePlainUnable()
+    {
+        const string Type = "C172";
+        double firmStopFt = StoppingDistanceFt(BarTaxiSpeedKts, CategoryPerformance.ExpediteExitDecelRate(AircraftCategory.Piston));
+        if (RollTowardARunwayBarSaying(Type, firmStopFt + HalfLengthFt(Type) - OverrunNoseFt, BarTaxiSpeedKts) is not { } rolled)
+        {
+            return;
+        }
+
+        AssertStoppedHeldAndSaidUnable(rolled.Run);
+        string unable = Assert.Single(rolled.Unables);
+        Assert.Contains($"no room to turn around on {rolled.Taxiway}", unable, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("holding short of runway", unable, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>The C172's speed (kts) creeping toward the runway holding position: above its pivot speed, its stops short.</summary>
+    private const double CreepTowardBarKts = 4.0;
+
+    /// <summary>How far (ft) short of the bar the creeping C172's taxi-rate stop leaves its nose.</summary>
+    private const double NoseClearOfBarFt = 3.0;
+
+    /// <summary>How far (ft) past the bar the C172's firm-rate stop carries its nose when it overruns the line.</summary>
+    private const double OverrunNoseFt = 5.0;
 
     /// <summary>
     /// The same C172 with no room to turn about short of the runway bar, snapshotted <paramref name="secondsBeforeSnapshot"/>
@@ -574,7 +637,7 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
     [InlineData(0, 1)]
     public void RollingTowardARunwayBar_NoRoomShortOfTheLine_SurvivesSnapshotRoundTripMidStop(int secondsBeforeSnapshot, int restoredUnableCalls)
     {
-        if (BuildOak() is not { } ground)
+        if (BuildGround("OAK") is not { } ground)
         {
             return;
         }
@@ -602,7 +665,9 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
             p => p[nameof(GroundNavigatorPlaybackDto.TurnAboutHold)] is not null
         );
 
-        SfoGround restored = BuildOak()!.Value;
+        SfoGround? rebuilt = BuildGround("OAK");
+        Assert.NotNull(rebuilt);
+        SfoGround restored = rebuilt.Value;
         restored.Engine.RestoreFromSnapshot(snapshot);
         AircraftState restoredAircraft = Assert.IsType<AircraftState>(restored.Engine.FindAircraft(aircraft.Callsign));
         int restoredCalls = 0;
@@ -629,11 +694,12 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
     /// How far (ft) short of the runway bar a <paramref name="type"/> rolling at <see cref="BarTaxiSpeedKts"/> has no room to turn
     /// about short of the hold line even at the firm rate, yet room to stop with its nose, half its length ahead, short of it.
     /// </summary>
-    private static double NoRoomShortOfBarFt(string type)
+    private double NoRoomShortOfBarFt(string type)
     {
-        Assert.True(BarClearanceFt(type) > HalfLengthFt(type), $"the {type}'s turn-about clearance does not exceed its half length");
+        double reachFt = TurnAboutReachFt(type);
+        Assert.True(reachFt > HalfLengthFt(type), $"the {type}'s turn-about reach does not exceed its half length");
         double firmRate = CategoryPerformance.ExpediteExitDecelRate(AircraftCategorization.Categorize(type));
-        return StoppingDistanceFt(BarTaxiSpeedKts, firmRate) + ((HalfLengthFt(type) + BarClearanceFt(type)) / 2.0);
+        return StoppingDistanceFt(BarTaxiSpeedKts, firmRate) + ((HalfLengthFt(type) + reachFt) / 2.0);
     }
 
     /// <summary>
@@ -645,7 +711,7 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
     [Fact]
     public void RollingTurnAboutOnAShortEdge_NoAimNode_StopsHoldsAndSaysUnable()
     {
-        if (BuildOak() is not { } ground)
+        if (BuildGround("OAK") is not { } ground)
         {
             return;
         }
@@ -688,7 +754,7 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
     [Fact]
     public void RollingTurnAboutIntoAJunctionWithNoContinuation_TooFastToTurnAtTheNode_StopsHoldsAndSaysUnable()
     {
-        if (BuildOak() is not { } ground)
+        if (BuildGround("OAK") is not { } ground)
         {
             return;
         }
@@ -725,7 +791,7 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
     [Fact]
     public void RollingJetIntoAJunctionWithAShortContinuation_NoRoomToTurnAbout_KeepsItsTaxiRateAndStopsPastTheNode()
     {
-        if (BuildOak() is not { } ground)
+        if (BuildGround("OAK") is not { } ground)
         {
             return;
         }
@@ -763,7 +829,7 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
     [Fact]
     public void RollingJetIntoAJunction_TurnAboutAtTheNodeLeavesItsPavement_StopsHoldsAndSaysUnable()
     {
-        if (BuildOak() is not { } ground)
+        if (BuildGround("OAK") is not { } ground)
         {
             return;
         }
@@ -783,52 +849,109 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
 
     /// <summary>
     /// A C172 rolling along a KOAK taxiway toward a junction whose straight edge beyond ends at a runway holding position
-    /// (<see cref="FirstStraightRollIntoAContinuationToARunwayBar"/>), re-routed back with less than its firm-rate braking to
-    /// pivot speed left to the junction, and so fast that its taxi-rate braking would end where a turn about clears that
-    /// edge's far end by its turning radius but not by its clearance from a runway bar (<see cref="BarClearanceFt"/>). It rolls
-    /// on past the junction, brakes at the firm rate instead and turns about short of the bar, its fuselage nose short of the
-    /// hold line throughout.
+    /// (<see cref="RollOntoAContinuationToARunwayBar"/>; W2, shorter than its turn-about reach, <see cref="TurnAboutReachFt"/>),
+    /// so fast that its taxi-rate stop would put its nose, half its length ahead, <see cref="TaxiStopNoseOverBarFt"/> past the
+    /// bar. No turn about there, at either rate, keeps every part (nose, wingtips, tail) short of the runway's hold line, so it
+    /// stops straight ahead at the firm rate, every part short of the line, holds and says once that it has no room to turn
+    /// around, holding short of the bar's runway.
     /// </summary>
     [Fact]
-    public void RollingTurnAboutOnAContinuationToARunwayBar_BrakesFirmAndTurnsAboutShortOfTheLine()
+    public void RollingTurnAboutOnAContinuationToARunwayBar_StopsAndSaysUnableHoldingShortOfTheRunway()
     {
-        if (BuildOak() is not { } ground)
+        const string Type = "C172";
+        if (RollOntoAContinuationToARunwayBar(("OAK", Type), (_, _) => HalfLengthFt(Type) - TaxiStopNoseOverBarFt) is not { } rolled)
         {
             return;
         }
 
+        AssertStoppedHeldAndSaidUnable(rolled.Run);
+        Assert.True(rolled.Run.FirstInside is null, $"the {Type}'s {rolled.Run.FirstInside} was inside the hold line");
+        Assert.Contains($"holding short of runway {rolled.RunwayNamed}", Assert.Single(rolled.Unables), StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>How far (ft) past the bar the C172's taxi-rate stop would put its nose on the continuation.</summary>
+    private const double TaxiStopNoseOverBarFt = 5.0;
+
+    /// <summary>
+    /// A C172 on the first such KSFO approach (KOAK has none) whose edge beyond is long enough, slow enough that its
+    /// taxi-rate braking ends past the junction its turn-about reach (<see cref="TurnAboutReachFt"/>) and
+    /// <see cref="RoomToSpareFt"/> short of the bar: it rolls on past the junction and
+    /// turns about on the edge beyond, every part short of the hold line, at its pivot speed, and says nothing.
+    /// </summary>
+    [Fact]
+    public void RollingTurnAboutOnAContinuationToARunwayBar_RoomShortOfTheLine_TurnsAboutOnTheContinuation()
+    {
         const string Type = "C172";
+        if (RollOntoAContinuationToARunwayBar(("SFO", Type), (reachFt, _) => reachFt + RoomToSpareFt) is not { } rolled)
+        {
+            return;
+        }
+
+        AssertTurnedAboutShortOfTheLine(rolled.Run);
+        Assert.Empty(rolled.Unables);
+    }
+
+    /// <summary>
+    /// A <c>at.Type</c> rolling along the first taxiway of airport <c>at.Airport</c> toward a junction whose straight edge
+    /// beyond ends at a runway holding position (<see cref="FirstStraightRollIntoAContinuationToARunwayBar"/>), re-routed back
+    /// with less than its firm-rate braking to pivot speed left to the junction, at the speed whose taxi-rate braking ends
+    /// <paramref name="taxiStopShortOfBarFt"/> (given its turn-about reach and radius) short of the bar, watched until it
+    /// finishes the leg back or stands still. With the run, the unables it said and the runway end they should name; null
+    /// when the layout is unavailable.
+    /// </summary>
+    private (RollingRun Run, List<string> Unables, string RunwayNamed)? RollOntoAContinuationToARunwayBar(
+        (string Airport, string Type) at,
+        Func<double, double, double> taxiStopShortOfBarFt
+    )
+    {
+        if (BuildGround(at.Airport) is not { } ground)
+        {
+            return null;
+        }
+
+        string type = at.Type;
+
+        AircraftCategory category = AircraftCategorization.Categorize(type);
+        double radiusFt = TurnAboutFit.Evaluate(type, category).RadiusFt;
+        double reachFt = TurnAboutReachFt(type);
+        double stopShortOfBarFt = taxiStopShortOfBarFt(reachFt, radiusFt);
+        double minContinuationFt = stopShortOfBarFt + (2.0 * radiusFt);
         (GroundNode junction, GroundNode behind, GroundEdge edge, GroundNode beyond) =
-            FirstStraightRollIntoAContinuationToARunwayBar(ground.Layout)
+            FirstStraightRollIntoAContinuationToARunwayBar(ground.Layout, minContinuationFt)
             ?? throw new InvalidOperationException(
-                $"no KOAK taxiway edge ends at a junction with a straight edge beyond of {MaxBarContinuationFt:F0} ft or less to a runway bar"
+                $"no {at.Airport} taxiway edge ends at a junction with a straight edge beyond of {minContinuationFt:F0} "
+                    + $"to {MaxBarContinuationFt:F0} ft to a runway bar"
             );
         GroundEdge continuation = StraightContinuation(ground.Layout, edge, junction)!;
         GroundNode bar = continuation.OtherNode(junction);
         double continuationFt = continuation.DistanceNm * GeoMath.FeetPerNm;
-        double radiusFt = TurnAboutFit.Evaluate(Type, AircraftCategory.Piston).RadiusFt;
-        double taxiRate = CategoryPerformance.TaxiDecelRate(AircraftCategory.Piston);
-        double rateRatio = taxiRate / CategoryPerformance.ExpediteExitDecelRate(AircraftCategory.Piston);
+        double taxiRate = CategoryPerformance.TaxiDecelRate(category);
+        double rateRatio = taxiRate / CategoryPerformance.ExpediteExitDecelRate(category);
 
-        // The taxi-rate braking ends half-way between a turning radius and the bar clearance short of the bar; placed short of
-        // the junction by half its firm-rate braking to pivot speed, which then ends as far past the junction as it starts short.
-        double taxiPastNodeFt = continuationFt - ((BarClearanceFt(Type) + radiusFt) / 2.0);
+        // Placed short of the junction by half its firm-rate braking to pivot speed, which then ends as far past the junction
+        // as it starts short.
+        double taxiPastNodeFt = continuationFt - stopShortOfBarFt;
         double shortOfNodeFt = taxiPastNodeFt * rateRatio / (2.0 - rateRatio);
-        double firmPastNodeFt = Math.Max(2.0 * radiusFt, shortOfNodeFt);
-        double speedKts = SpeedBrakingToPivotInFt(Type, shortOfNodeFt + taxiPastNodeFt, taxiRate);
+        double speedKts = SpeedBrakingToPivotInFt(type, shortOfNodeFt + taxiPastNodeFt, taxiRate);
         output.WriteLine(
             $"{continuation.TaxiwayName} edge {junction.Id}-{bar.Id} ({continuationFt:F1} ft) to runway bar {bar.Id}; taxi rate ends "
-                + $"{taxiPastNodeFt:F1} ft past the junction, firm rate {firmPastNodeFt:F1} ft; bar clearance {BarClearanceFt(Type):F1} ft"
+                + $"{taxiPastNodeFt:F1} ft past the junction; turn-about reach {reachFt:F1} ft, radius {radiusFt:F1} ft"
         );
         Assert.True(taxiPastNodeFt >= 2.0 * radiusFt, $"the taxi-rate braking ends {taxiPastNodeFt:F1} ft past the junction, inside two radii");
-        Assert.True(
-            (firmPastNodeFt + BarClearanceFt(Type)) < continuationFt,
-            $"no room for the firm-rate turn about short of the bar: {firmPastNodeFt:F1} + {BarClearanceFt(Type):F1} ft on {continuationFt:F1} ft"
-        );
 
-        AircraftState aircraft = PlaceShortOfAJunction(ground, Type, (junction, behind, edge), shortOfNodeFt, speedKts);
+        AircraftState aircraft = PlaceShortOfAJunction(ground, type, (junction, behind, edge), shortOfNodeFt, speedKts);
+        List<string> unables = [];
+        ground.Engine.WarningEmitted += (callsign, message) =>
+        {
+            if ((callsign == aircraft.Callsign) && message.Contains(UnableToTurnAround, StringComparison.OrdinalIgnoreCase))
+            {
+                unables.Add(message);
+            }
+        };
         RollingRun run = TrackRoll(ground, aircraft, ($"TAXI #{behind.Id} #{beyond.Id}", false), bar, untilLegDone: true);
-        AssertTurnedAboutShortOfTheLine(run);
+        output.WriteLine($"said: {string.Join(" | ", unables)}");
+        RunwayInfo runway = RunwayOccupancy.AirportRunways(ground.Layout.AirportId).First(r => r.Id.Overlaps(bar.RunwayId!.Value));
+        return (run, unables, RunwayCrossingEnd.Nearest(aircraft, runway.Id.ToString(), ground.Layout));
     }
 
     /// <summary>
@@ -842,7 +965,7 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
     [InlineData("APP", false)]
     public void RollingTowardARunwayBar_NoRoomShortOfTheLine_SoloUnableCallsGroundAndTower(string studentPosition, bool radioCall)
     {
-        if (BuildOak() is not { } ground)
+        if (BuildGround("OAK") is not { } ground)
         {
             return;
         }
@@ -944,18 +1067,18 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// An E145, a jet short enough that a stop just short of the node keeps its nose short of a KOAK runway bar on the straight
-    /// edge beyond (no KOAK fixture fits a B738), rolling along a straight KOAK taxiway toward a junction whose straight edge
-    /// beyond ends at a runway holding position (<see cref="ShortestContinuationIntoAJunction"/>, the shortest such edge
-    /// beyond longer than its nose reach), turned about by a scenario
+    /// An E145, a jet short enough that a stop just short of the node keeps its nose short of a KSFO runway bar on the straight
+    /// edge beyond, rolling along a straight KSFO taxiway toward a junction whose straight edge beyond ends at a runway holding
+    /// position it faces from the taxiway side (<see cref="ShortestContinuationIntoAJunction"/>, the shortest such edge
+    /// beyond longer than its nose reach; KOAK has none), turned about by a scenario
     /// preset's TAXI with no room to turn about, so fast that its taxi-rate stop past the node would put its nose, half its
-    /// length ahead, over that hold line (<see cref="ContinuationOverrunFt"/>): it brakes at the firm rate instead, stops short
+    /// length ahead, inside that hold line (<see cref="BarOverrunFt"/>): it brakes at the firm rate instead, stops short
     /// of the node, holds and says unable once, its nose never past the hold line.
     /// </summary>
     [Fact]
     public void RollingJetIntoAJunction_RunwayBarInsideItsTaxiRateStop_BrakesFirmAndStopsShortOfTheNode()
     {
-        if (BuildOak() is not { } ground)
+        if (BuildGround("SFO") is not { } ground)
         {
             return;
         }
@@ -963,25 +1086,26 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
         const string Type = "E145";
         Assert.Equal(AircraftCategory.Jet, AircraftCategorization.Categorize(Type));
         (GroundNode junction, GroundNode behind, GroundEdge edge, GroundNode beyond, GroundEdge continuation) =
-            ShortestContinuationIntoAJunction(ground.Layout, HalfLengthFt(Type), barBeyond: true)
+            ShortestContinuationIntoAJunction(
+                ground.Layout,
+                (HalfLengthFt(Type), true),
+                (junction, behind, edge, continuation) =>
+                    (BarOverrunFt(ground.Layout, (junction, behind), continuation.OtherNode(junction), Type) is { } overrunFt)
+                    && ((edge.DistanceNm * GeoMath.FeetPerNm) > (JetShortOfNodeFt(overrunFt) + StopMarginFt))
+            )
             ?? throw new InvalidOperationException(
-                $"no straight KOAK taxiway edge ends at a junction with a straight edge beyond to a runway bar for an {Type}"
+                $"no straight {ground.Layout.AirportId} taxiway edge ends at a junction with a straight edge beyond to a runway bar for an {Type}"
             );
         GroundNode bar = continuation.OtherNode(junction);
-        (RollingRun run, double pastNodeFt) = RollJetPastTheNode(
-            ground,
-            Type,
-            (junction, behind, edge, beyond),
-            ContinuationOverrunFt(continuation, HalfLengthFt(Type)),
-            bar
-        );
+        double overrunFt = BarOverrunFt(ground.Layout, (junction, behind), bar, Type) ?? throw new InvalidOperationException("no overrun");
+        double startFt = JetShortOfNodeFt(overrunFt);
+        double edgeFt = edge.DistanceNm * GeoMath.FeetPerNm;
+        Assert.True(edgeFt > (startFt + StopMarginFt), $"edge {behind.Id}-{junction.Id} ({edgeFt:F1} ft) is too short to start {startFt:F1} ft back");
+        (RollingRun run, double pastNodeFt) = RollJetPastTheNode(ground, Type, (junction, behind, edge, beyond), overrunFt, bar);
 
         AssertStoppedHeldAndSaidUnable(run);
         AssertBrakedFirmAndStoppedShortOfTheNode(run, pastNodeFt, junction);
-        Assert.True(
-            run.MaxHalfLengthReachFt <= 0.0,
-            $"the {Type}'s nose, half its length ahead, reached {run.MaxHalfLengthReachFt:F1} ft past the hold line at node {bar.Id}"
-        );
+        Assert.True(run.FirstInside is null, $"the {Type}'s {run.FirstInside} was inside the hold line at node {bar.Id}");
     }
 
     /// <summary>
@@ -993,14 +1117,14 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
     [Fact]
     public void RollingJetIntoAJunction_ContinuationShorterThanItsOverrun_BrakesFirmAndStopsShortOfTheNode()
     {
-        if (BuildOak() is not { } ground)
+        if (BuildGround("OAK") is not { } ground)
         {
             return;
         }
 
         const string Type = "B738";
         (GroundNode junction, GroundNode behind, GroundEdge edge, GroundNode beyond, GroundEdge continuation) =
-            ShortestContinuationIntoAJunction(ground.Layout, 0.0, barBeyond: false)
+            ShortestContinuationIntoAJunction(ground.Layout, (0.0, false), (_, _, _, _) => true)
             ?? throw new InvalidOperationException("no straight KOAK taxiway edge ends at a junction with a straight edge beyond");
         (RollingRun run, double pastNodeFt) = RollJetPastTheNode(
             ground,
@@ -1023,7 +1147,7 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
     [Fact]
     public void RollingJetIntoAJunctionWithNoStraightContinuation_NoRoomToTurnAbout_StopsShortOfTheNodeOrBrakesFirm()
     {
-        if (BuildOak() is not { } ground)
+        if (BuildGround("OAK") is not { } ground)
         {
             return;
         }
@@ -1213,6 +1337,37 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
         Math.Max(StopMarginFt, (continuation.DistanceNm * GeoMath.FeetPerNm) - noseReachFt + StopMarginFt);
 
     /// <summary>
+    /// How far (ft) past <c>approach.Junction</c> a <paramref name="type"/>'s taxi-rate stop, rolling from <c>approach.Behind</c>,
+    /// must end to carry a part past <paramref name="bar"/>'s hold line (<see cref="PartPastHoldLine"/>), judged against the parts
+    /// already inside it at its firm stop <see cref="StopMarginFt"/> short of the junction, plus <see cref="StopMarginFt"/>;
+    /// searched a foot at a time up to <see cref="MaxBarOverrunFt"/>; null when no stop that far does.
+    /// </summary>
+    private static double? BarOverrunFt(AirportGroundLayout layout, (GroundNode Junction, GroundNode Behind) approach, GroundNode bar, string type)
+    {
+        RunwayInfo runway = RunwayOccupancy.AirportRunways(layout.AirportId).First(r => r.Id.Overlaps(bar.RunwayId!.Value));
+        double rollingDeg = GeoMath.BearingTo(approach.Behind.Position, approach.Junction.Position);
+        LatLon GearAt(double pastFt) => GeoMath.ProjectPoint(approach.Junction.Position, new TrueHeading(rollingDeg), pastFt / GeoMath.FeetPerNm);
+        HashSet<string> insideAtFirmStop = PartsInsideHoldLine(layout, (bar, runway), GearAt(-StopMarginFt), rollingDeg, type);
+        for (double pastFt = 0.0; pastFt <= MaxBarOverrunFt; pastFt += 1.0)
+        {
+            LatLon gear = GearAt(pastFt);
+            HashSet<string> inside = PartsInsideHoldLine(layout, (bar, runway), gear, rollingDeg, type);
+            bool onPavement = TurnAboutAtRunwayBarFootprintTests
+                .BodyPoints(gear, rollingDeg, type)
+                .Any(p => RunwayOccupancy.IsWithinPavement(p.Point, runway));
+            if (onPavement || inside.Except(insideAtFirmStop).Any())
+            {
+                return pastFt + StopMarginFt;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>How far (ft) past the junction <see cref="BarOverrunFt"/> searches.</summary>
+    private const double MaxBarOverrunFt = 200.0;
+
+    /// <summary>
     /// How far short (ft) of a junction a jet starts for its taxi-rate stop to end <paramref name="overrunFt"/> past the node
     /// and its firm-rate stop <see cref="StopMarginFt"/> short of it: with r the firm rate over the taxi rate and s the start,
     /// r(s − margin) = s + overrun.
@@ -1260,14 +1415,16 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// The straight KOAK turn-about taxiway edge, with no runway holding position at either end, toward a junction whose
-    /// straight edge beyond (<see cref="StraightContinuation"/>) ends at a runway holding position when
-    /// <paramref name="barBeyond"/> and at none otherwise, and is longer than <paramref name="noseReachFt"/> and
-    /// <see cref="StopMarginFt"/> together (a stop that margin short of the node keeps the nose short of its far end), long
+    /// The straight turn-about taxiway edge, with no runway holding position at either end, toward a junction whose
+    /// straight edge beyond (<see cref="StraightContinuation"/>) ends at a runway holding position the approach faces from the
+    /// taxiway side (<see cref="ApproachFacesTheBar"/>) when <paramref name="barBeyond"/> and at none otherwise, and is longer
+    /// than <paramref name="noseReachFt"/> and <see cref="StopMarginFt"/> together (a stop that margin short of the node keeps
+    /// the nose short of its far end), long
     /// enough for a jet to start <see cref="JetShortOfNodeFt"/> short of the junction for its
     /// <see cref="ContinuationOverrunFt"/>, with a node one edge beyond the node behind: the shortest such edge beyond first.
     /// The junction, the node behind, the edge,
-    /// that node beyond and the edge beyond; null when there is none.
+    /// that node beyond and the edge beyond, of those <paramref name="alsoFits"/> (given the junction, the node behind, the edge
+    /// and the edge beyond); null when there is none. <c>want</c> carries the nose reach and whether a bar ends the edge beyond.
     /// </summary>
     private static (
         GroundNode Junction,
@@ -1275,8 +1432,13 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
         GroundEdge Edge,
         GroundNode Beyond,
         GroundEdge Continuation
-    )? ShortestContinuationIntoAJunction(AirportGroundLayout layout, double noseReachFt, bool barBeyond)
+    )? ShortestContinuationIntoAJunction(
+        AirportGroundLayout layout,
+        (double NoseReachFt, bool BarBeyond) want,
+        Func<GroundNode, GroundNode, GroundEdge, GroundEdge, bool> alsoFits
+    )
     {
+        (double noseReachFt, bool barBeyond) = want;
         var fits = new List<(GroundNode Junction, GroundNode Behind, GroundEdge Edge, GroundNode Beyond, GroundEdge Continuation)>();
         IEnumerable<GroundEdge> edges = layout
             .Edges.Where(e => GroundNavigator.IsTurnAboutTaxiway(e, layout))
@@ -1291,6 +1453,8 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
                     && ((next.DistanceNm * GeoMath.FeetPerNm) > (noseReachFt + StopMarginFt))
                     && ((edge.DistanceNm * GeoMath.FeetPerNm) > (JetShortOfNodeFt(ContinuationOverrunFt(next, noseReachFt)) + StopMarginFt))
                     && (behind.Edges.FirstOrDefault(e => !ReferenceEquals(e, edge)) is { } back)
+                    && (!barBeyond || ApproachFacesTheBar(layout, junction, behind, next.OtherNode(junction)))
+                    && alsoFits(junction, behind, edge, next)
                 )
                 {
                     fits.Add((junction, behind, edge, back.OtherNode(behind), next));
@@ -1427,11 +1591,11 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
         /// <summary>The most (kts) its speed fell in any one second.</summary>
         public required double MaxDecelKtsPerSec { get; init; }
 
-        /// <summary>The furthest (ft) its fuselage nose, its cockpit-to-main-gear figure ahead, got past the line through the node ahead.</summary>
-        public required double MaxNoseReachFt { get; init; }
-
-        /// <summary>The furthest (ft) the point half its length ahead got past that line.</summary>
-        public required double MaxHalfLengthReachFt { get; init; }
+        /// <summary>
+        /// The first part of it (nose, a wingtip, tail) found inside the hold line of the runway bar it rolled toward, and when;
+        /// null when none ever was, or the node it rolled toward is no runway bar.
+        /// </summary>
+        public required string? FirstInside { get; init; }
 
         /// <summary>The most (deg) its heading turned off the rolling bearing.</summary>
         public required double MaxHeadingOffDeg { get; init; }
@@ -1458,7 +1622,7 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
     /// </summary>
     private RollingRun? RollTowardARunwayBar(string type, double shortOfBarFt, double speedKts, bool isScenarioScripted)
     {
-        if (BuildOak() is not { } ground)
+        if (BuildGround("OAK") is not { } ground)
         {
             return null;
         }
@@ -1466,6 +1630,39 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
         (AircraftState aircraft, string command) = PlaceShortOfARunwayBar(ground, type, shortOfBarFt, speedKts);
         GroundNode holdShort = FirstStubToARunwayCrossing(ground.Layout)!.Value.HoldShort;
         return TrackRoll(ground, aircraft, (command, isScenarioScripted), holdShort, untilLegDone: true);
+    }
+
+    /// <summary>
+    /// <see cref="RollTowardARunwayBar"/> by a controller's TAXI, with the turn-about refusals the aircraft said, the taxiway
+    /// it rolled on and the runway end a hold short of the bar's runway names where it ends; null when the layout is
+    /// unavailable.
+    /// </summary>
+    private (RollingRun Run, List<string> Unables, string Taxiway, string RunwayNamed)? RollTowardARunwayBarSaying(
+        string type,
+        double shortOfBarFt,
+        double speedKts
+    )
+    {
+        if (BuildGround("OAK") is not { } ground)
+        {
+            return null;
+        }
+
+        (AircraftState aircraft, string command) = PlaceShortOfARunwayBar(ground, type, shortOfBarFt, speedKts);
+        string taxiway = aircraft.Ground.CurrentTaxiway!;
+        List<string> unables = [];
+        ground.Engine.WarningEmitted += (callsign, message) =>
+        {
+            if ((callsign == aircraft.Callsign) && message.Contains(UnableToTurnAround, StringComparison.OrdinalIgnoreCase))
+            {
+                unables.Add(message);
+            }
+        };
+        GroundNode holdShort = FirstStubToARunwayCrossing(ground.Layout)!.Value.HoldShort;
+        RollingRun run = TrackRoll(ground, aircraft, (command, false), holdShort, untilLegDone: true);
+        output.WriteLine($"said: {string.Join(" | ", unables)}");
+        RunwayInfo runway = RunwayOccupancy.AirportRunways(ground.Layout.AirportId).First(r => r.Id.Overlaps(holdShort.RunwayId!.Value));
+        return (run, unables, taxiway, RunwayCrossingEnd.Nearest(aircraft, runway.Id.ToString(), ground.Layout));
     }
 
     /// <summary>
@@ -1484,7 +1681,7 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
         LatLon start = GeoMath.ProjectPoint(holdShort.Position, backDeg, shortOfBarFt / GeoMath.FeetPerNm);
         output.WriteLine(
             $"{type} {shortOfBarFt:F1} ft short of runway holding position {holdShort.Id} on {stub.TaxiwayName} edge {farEnd.Id}-{holdShort.Id} "
-                + $"({stub.DistanceNm * GeoMath.FeetPerNm:F0} ft) at {speedKts:F1} kt; bar clearance {BarClearanceFt(type):F1} ft"
+                + $"({stub.DistanceNm * GeoMath.FeetPerNm:F0} ft) at {speedKts:F1} kt"
         );
         return (PlaceRolling(ground, type, (start, bearingDeg), stub.TaxiwayName, speedKts), $"TAXI #{farEnd.Id} #{beyond.Id}");
     }
@@ -1517,7 +1714,7 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
         double speedKts
     )
     {
-        AircraftState aircraft = MakeAircraft(ground.Layout, pose.Position, pose.HeadingDeg, "OAK", taxiway);
+        AircraftState aircraft = MakeAircraft(ground.Layout, pose.Position, pose.HeadingDeg, ground.Layout.AirportId, taxiway);
         aircraft.AircraftType = type;
         aircraft.IndicatedAirspeed = speedKts;
         ground.Engine.World.AddAircraft(aircraft);
@@ -1546,8 +1743,14 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
 
         double rollingBearingDeg = aircraft.TrueHeading.Degrees;
         var rolling = new TrueHeading(rollingBearingDeg);
-        double noseFt = NoseAheadOfMainGearFt(aircraft.AircraftType);
-        double halfLengthFt = HalfLengthFt(aircraft.AircraftType);
+        RunwayInfo? barRunway =
+            (ahead.Type == GroundNodeType.RunwayHoldShort) && (ahead.RunwayId is { } barId)
+                ? RunwayOccupancy.AirportRunways(ground.Layout.AirportId).First(r => r.Id.Overlaps(barId))
+                : null;
+        HashSet<string> startedInside =
+            (barRunway is null)
+                ? []
+                : PartsInsideHoldLine(ground.Layout, (ahead, barRunway), aircraft.Position, aircraft.TrueHeading.Degrees, aircraft.AircraftType);
         double PastLineFt(double aheadOfCentreFt)
         {
             LatLon point = GeoMath.ProjectPoint(aircraft.Position, aircraft.TrueHeading, aheadOfCentreFt / GeoMath.FeetPerNm);
@@ -1556,8 +1759,7 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
 
         double previousKts = aircraft.IndicatedAirspeed;
         double furthestFt = PastLineFt(0.0);
-        double noseReachFt = PastLineFt(noseFt);
-        double halfReachFt = PastLineFt(halfLengthFt);
+        string? firstInside = null;
         double turnKts = 0.0;
         double decelKts = 0.0;
         double offDeg = 0.0;
@@ -1568,7 +1770,16 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
         int second = 0;
         while ((second++ < RollWatchSeconds) && (still < MinStillSeconds) && !(untilLegDone && (route.CurrentSegmentIndex > 0)))
         {
-            ground.Engine.TickOneSecond();
+            int thisSecond = second;
+            TurnAboutAtRunwayBarFootprintTests.TickOneSecondBySubTick(
+                ground.Engine,
+                subTick =>
+                    firstInside ??=
+                        (barRunway is null) ? null
+                        : PartPastHoldLine(ground.Layout, (ahead, barRunway), aircraft, startedInside) is { } part
+                            ? $"{part} at {thisSecond}s sub-tick {subTick}"
+                        : null
+            );
             double kts = aircraft.GroundSpeed;
             decelKts = Math.Max(decelKts, previousKts - kts);
             previousKts = kts;
@@ -1577,8 +1788,6 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
             turning |= headingOffDeg > TurnStartDeg;
             facedBack |= headingOffDeg >= (180.0 - MaxTurnFromStartDeg);
             turnKts = (turning && !facedBack) ? Math.Max(turnKts, kts) : turnKts;
-            noseReachFt = Math.Max(noseReachFt, PastLineFt(noseFt));
-            halfReachFt = Math.Max(halfReachFt, PastLineFt(halfLengthFt));
             if (headingOffDeg < 90.0)
             {
                 double alongFt = PastLineFt(0.0);
@@ -1594,8 +1803,7 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
             PivotKts = PivotSpeedKts(aircraft.AircraftType, AircraftCategorization.Categorize(aircraft.AircraftType)),
             MaxTurnKts = turnKts,
             MaxDecelKtsPerSec = decelKts,
-            MaxNoseReachFt = noseReachFt,
-            MaxHalfLengthReachFt = halfReachFt,
+            FirstInside = firstInside,
             MaxHeadingOffDeg = offDeg,
             MaxSlideBackFt = slideBackFt,
             StillSeconds = still,
@@ -1614,7 +1822,7 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
     {
         Assert.True(run.LegDone, "the aircraft did not finish the leg back");
         Assert.Equal(0, run.UnableCalls);
-        Assert.True(run.MaxNoseReachFt <= 0.0, $"the aircraft's nose reached {run.MaxNoseReachFt:F1} ft past the hold line");
+        Assert.True(run.FirstInside is null, $"the aircraft's {run.FirstInside} was inside the hold line");
         Assert.True(
             run.MaxTurnKts <= (run.PivotKts + TurnSpeedOvershootKts),
             $"the aircraft turned about at up to {run.MaxTurnKts:F2} kt, above its {run.PivotKts:F2} kt pivot speed "
@@ -1639,21 +1847,91 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// How far (ft) short of a runway holding position a rolling turn about must begin for the whole aircraft but its wings to
-    /// stay short of the hold line: 2.73 turn-about radii of main-gear reach over the jog and reversal, plus the fuselage
-    /// nose's distance from the turn centre, √(R² + d²), d its cockpit-to-main-gear figure (<see cref="NoseAheadOfMainGearFt"/>).
+    /// How far ahead (ft) of where its main gear starts, along the way it faces, any part of a <paramref name="type"/> (nose,
+    /// both wingtips, tail) reaches over a turn about begun at its pivot speed: measured on the first long KOAK stub to a
+    /// runway crossing (<see cref="FirstStubToARunwayCrossing"/>), half-way along it and facing the crossing, rolling
+    /// <see cref="ReachProbeOverPivotKts"/> over its pivot speed (plus the physics overshoot) so it brakes for a fraction of a
+    /// foot first, cleared back to the taxiway behind it and watched each second until it finishes the leg back. Measured once
+    /// per type and cached (<see cref="TurnAboutReachByType"/>).
     /// </summary>
-    private static double BarClearanceFt(string type)
+    private double TurnAboutReachFt(string type) => TurnAboutReachByType.GetOrAdd(type, MeasureTurnAboutReachFt);
+
+    /// <summary>Each type's turn-about reach (ft), measured once by <see cref="MeasureTurnAboutReachFt"/>.</summary>
+    private static readonly ConcurrentDictionary<string, double> TurnAboutReachByType = new();
+
+    /// <summary>Measures <see cref="TurnAboutReachFt"/> for <paramref name="type"/>.</summary>
+    private double MeasureTurnAboutReachFt(string type)
     {
-        double radiusFt = TurnAboutFit.Evaluate(type, AircraftCategorization.Categorize(type)).RadiusFt;
-        double noseFt = NoseAheadOfMainGearFt(type);
-        return (GroundNavigator.TurnAboutReachRadii * radiusFt) + Math.Sqrt((radiusFt * radiusFt) + (noseFt * noseFt));
+        SfoGround ground = BuildGround("OAK") ?? throw new InvalidOperationException("the KOAK layout is unavailable");
+        (GroundNode farEnd, GroundNode holdShort, GroundEdge stub, _) =
+            FirstStubToARunwayCrossing(ground.Layout)
+            ?? throw new InvalidOperationException($"no straight KOAK taxi edge of {MinTurnAboutStubFt:F0} ft or more ends at a runway crossing");
+        GroundNode beyond = farEnd.Edges.First(e => !ReferenceEquals(e, stub)).OtherNode(farEnd);
+        var facing = new TrueHeading(GeoMath.BearingTo(farEnd.Position, holdShort.Position));
+        LatLon start = GeoMath.ProjectPoint(farEnd.Position, facing, stub.DistanceNm / 2.0);
+        double speedKts = PivotSpeedKts(type, AircraftCategorization.Categorize(type)) + TurnSpeedOvershootKts + ReachProbeOverPivotKts;
+        AircraftState aircraft = PlaceRolling(ground, type, (start, facing.Degrees), stub.TaxiwayName, speedKts);
+        TaxiRoute route = DispatchTaxi(ground, aircraft, ($"TAXI #{farEnd.Id} #{beyond.Id}", true));
+        double reachFt = 0.0;
+        for (int second = 0; (second < RollWatchSeconds) && (route.CurrentSegmentIndex == 0); second++)
+        {
+            ground.Engine.TickOneSecond();
+            double aheadFt = TurnAboutAtRunwayBarFootprintTests
+                .BodyPoints(aircraft.Position, aircraft.TrueHeading.Degrees, type)
+                .Max(p => GeoMath.AlongTrackDistanceNm(p.Point, start, facing) * GeoMath.FeetPerNm);
+            reachFt = Math.Max(reachFt, aheadFt);
+        }
+
+        Assert.True(route.CurrentSegmentIndex > 0, $"the {type} did not finish its turn about on {stub.TaxiwayName} to measure its reach");
+        output.WriteLine($"{type} turn-about reach: {reachFt:F1} ft ahead of its main gear");
+        return reachFt;
+    }
+
+    /// <summary>How far (kts) over its pivot speed and the physics overshoot <see cref="TurnAboutReachFt"/> starts the aircraft.</summary>
+    private const double ReachProbeOverPivotKts = 0.5;
+
+    /// <summary>
+    /// The first part of <paramref name="aircraft"/> (nose, both wingtips, tail) past the hold line of <c>line.Bar</c>'s runway:
+    /// on its pavement, or inside the line (<see cref="PartsInsideHoldLine"/>) when it was not inside at the start
+    /// (<paramref name="startedInside"/>: a part that starts over the line of a taxiway meeting the runway at an angle has not
+    /// crossed it); null when none is.
+    /// </summary>
+    private static string? PartPastHoldLine(
+        AirportGroundLayout layout,
+        (GroundNode Bar, RunwayInfo Runway) line,
+        AircraftState aircraft,
+        IReadOnlySet<string> startedInside
+    )
+    {
+        HashSet<string> inside = PartsInsideHoldLine(layout, line, aircraft.Position, aircraft.TrueHeading.Degrees, aircraft.AircraftType);
+        return TurnAboutAtRunwayBarFootprintTests
+            .BodyPoints(aircraft.Position, aircraft.TrueHeading.Degrees, aircraft.AircraftType)
+            .Where(p => RunwayOccupancy.IsWithinPavement(p.Point, line.Runway) || (inside.Contains(p.Part) && !startedInside.Contains(p.Part)))
+            .Select(p => p.Part)
+            .FirstOrDefault();
     }
 
     /// <summary>
-    /// How far (ft) the fuselage nose is ahead of the main gear: the FAA record's cockpit-to-main-gear figure, else half the length.
+    /// The parts of a <paramref name="type"/> at <paramref name="position"/> facing <paramref name="headingDeg"/> inside the hold
+    /// line of <c>line.Bar</c>'s runway (<see cref="FollowingPhase.IsInsideHoldLine"/>) within
+    /// <see cref="HoldLineFootprint.MarkedBarReachFt"/> of the bar, where its line is painted.
     /// </summary>
-    private static double NoseAheadOfMainGearFt(string type) => FaaAircraftDatabase.Get(type)?.CockpitToMainGearFt ?? HalfLengthFt(type);
+    private static HashSet<string> PartsInsideHoldLine(
+        AirportGroundLayout layout,
+        (GroundNode Bar, RunwayInfo Runway) line,
+        LatLon position,
+        double headingDeg,
+        string type
+    ) =>
+        [
+            .. TurnAboutAtRunwayBarFootprintTests
+                .BodyPoints(position, headingDeg, type)
+                .Where(p =>
+                    ((GeoMath.DistanceNm(p.Point, line.Bar.Position) * GeoMath.FeetPerNm) <= HoldLineFootprint.MarkedBarReachFt)
+                    && FollowingPhase.IsInsideHoldLine(layout, line.Runway, p.Point)
+                )
+                .Select(p => p.Part),
+        ];
 
     /// <summary>Half the length (ft) of <paramref name="type"/>.</summary>
     private static double HalfLengthFt(string type) => AircraftLength.ResolveFt(type) / 2.0;
@@ -1719,13 +1997,15 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
         );
 
     /// <summary>
-    /// The first straight KOAK turn-about taxiway edge (by edge order) of at least <see cref="MinBarApproachEdgeFt"/>, with no
+    /// The first straight turn-about taxiway edge (by edge order) of at least <see cref="MinBarApproachEdgeFt"/>, with no
     /// runway holding position at either end, ending at a junction whose straight turn-about taxiway beyond it
-    /// (<see cref="StraightContinuation"/>), no longer than <see cref="MaxBarContinuationFt"/>, ends at a runway holding
-    /// position: the junction, the node behind, the edge and a node one edge beyond the node behind; null when there is none.
+    /// (<see cref="StraightContinuation"/>), of <paramref name="minContinuationFt"/> to <see cref="MaxBarContinuationFt"/>,
+    /// ends at a runway holding position the approach faces from the taxiway side (<see cref="ApproachFacesTheBar"/>): the
+    /// junction, the node behind, the edge and a node one edge beyond the node behind; null when there is none.
     /// </summary>
     private static (GroundNode Junction, GroundNode Behind, GroundEdge Edge, GroundNode Beyond)? FirstStraightRollIntoAContinuationToARunwayBar(
-        AirportGroundLayout layout
+        AirportGroundLayout layout,
+        double minContinuationFt
     ) =>
         FirstStraightRollIntoAJunction(
             layout,
@@ -1733,8 +2013,23 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
             (edge, junction) =>
                 (StraightContinuation(layout, edge, junction) is { } next)
                 && (next.OtherNode(junction).Type == GroundNodeType.RunwayHoldShort)
+                && ((next.DistanceNm * GeoMath.FeetPerNm) >= minContinuationFt)
                 && ((next.DistanceNm * GeoMath.FeetPerNm) <= MaxBarContinuationFt)
+                && ApproachFacesTheBar(layout, junction, edge.OtherNode(junction), next.OtherNode(junction))
         );
+
+    /// <summary>
+    /// Whether an approach through <paramref name="junction"/> from <paramref name="behind"/> faces <paramref name="bar"/> from
+    /// the taxiway side: neither node is inside the bar's runway hold line, and the junction is farther from the runway's
+    /// centreline than the bar.
+    /// </summary>
+    private static bool ApproachFacesTheBar(AirportGroundLayout layout, GroundNode junction, GroundNode behind, GroundNode bar)
+    {
+        RunwayInfo runway = RunwayOccupancy.AirportRunways(layout.AirportId).First(r => r.Id.Overlaps(bar.RunwayId!.Value));
+        return !FollowingPhase.IsInsideHoldLine(layout, runway, junction.Position)
+            && !FollowingPhase.IsInsideHoldLine(layout, runway, behind.Position)
+            && (RunwayHoldBars.CentrelineFt(runway, junction.Position) > RunwayHoldBars.CentrelineFt(runway, bar.Position));
+    }
 
     /// <summary>
     /// The first straight KOAK turn-about taxiway edge (by edge order) of at least <paramref name="minEdgeFt"/>, with no runway
@@ -1802,7 +2097,7 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
     [Fact]
     public void TaxiOnC_DestinationBehind_JetRefusesToTurnAround()
     {
-        if (BuildOak() is not { } ground)
+        if (BuildGround("OAK") is not { } ground)
         {
             return;
         }
@@ -1830,7 +2125,7 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
     [Fact]
     public void TaxiOnC_DestinationBehind_JetAngledAcrossCRefusesToTurnAround()
     {
-        if (BuildOak() is not { } ground)
+        if (BuildGround("OAK") is not { } ground)
         {
             return;
         }
@@ -1860,7 +2155,7 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
     [Fact]
     public void TaxiOnC_DestinationBehind_ScriptedJetAngledAcrossCKeepsTheRouteAheadAndTurnsAboutInPlace()
     {
-        if (BuildOak() is not { } ground)
+        if (BuildGround("OAK") is not { } ground)
         {
             return;
         }
@@ -1897,7 +2192,7 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
     [InlineData("AT76", false)]
     public void TaxiOnC_DestinationBehind_LinedUpTypeTurnsAboutOnlyWhenItsGearFits(string type, bool turnsAbout)
     {
-        if (BuildOak() is not { } ground)
+        if (BuildGround("OAK") is not { } ground)
         {
             return;
         }
@@ -1946,7 +2241,7 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
     [Fact]
     public void TaxiOnC_DestinationBehind_TurnAboutPendingUntilTheLegCompletes()
     {
-        if (BuildOak() is not { } ground)
+        if (BuildGround("OAK") is not { } ground)
         {
             return;
         }
@@ -1978,7 +2273,7 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
     [Fact]
     public void TaxiOnC_DestinationBehind_TurnAboutPendingSurvivesASnapshotRestore()
     {
-        if (BuildOak() is not { } ground)
+        if (BuildGround("OAK") is not { } ground)
         {
             return;
         }
@@ -1992,7 +2287,9 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
         Assert.Equal(TaxiTurnAboutShape.FromFarEnd, aircraft.Ground.TaxiTurnAboutShape);
 
         StateSnapshotDto snapshot = ground.Engine.CaptureSnapshot();
-        SfoGround restored = BuildOak()!.Value;
+        SfoGround? rebuilt = BuildGround("OAK");
+        Assert.NotNull(rebuilt);
+        SfoGround restored = rebuilt.Value;
         restored.Engine.RestoreFromSnapshot(snapshot);
         AircraftState restoredAircraft = Assert.IsType<AircraftState>(restored.Engine.FindAircraft(aircraft.Callsign));
         Assert.Equal(TaxiTurnAboutShape.FromFarEnd, restoredAircraft.Ground.TaxiTurnAboutShape);
@@ -2011,7 +2308,7 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
     [Fact]
     public void TaxiOnC_RouteAhead_NoTurnAboutPending()
     {
-        if (BuildOak() is not { } ground)
+        if (BuildGround("OAK") is not { } ground)
         {
             return;
         }
@@ -2038,7 +2335,7 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
     [Fact]
     public void TaxiOnC_DestinationBehind_JetLinedUpOffCentrelineNearTheNodeIsRefused()
     {
-        if (BuildOak() is not { } ground)
+        if (BuildGround("OAK") is not { } ground)
         {
             return;
         }
@@ -2074,7 +2371,7 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
     [Fact]
     public void TaxiOnC_DestinationBehind_ScriptedJetTaxiIsNotRefused()
     {
-        if (BuildOak() is not { } ground)
+        if (BuildGround("OAK") is not { } ground)
         {
             return;
         }
@@ -2105,7 +2402,7 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
     [Fact]
     public void DrawnRouteToTheNodeBehind_KeepsTheRouteAheadAndReportsTheTurnAbout()
     {
-        if (BuildOak() is not { } ground)
+        if (BuildGround("OAK") is not { } ground)
         {
             return;
         }
@@ -2136,7 +2433,7 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
     [Fact]
     public void DrawnRouteToTheNodeBehind_TurnsAboutWithinTheTaxiway()
     {
-        if (BuildOak() is not { } ground)
+        if (BuildGround("OAK") is not { } ground)
         {
             return;
         }
@@ -2192,7 +2489,7 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
     [Fact]
     public void DrawnRouteToTheNodeBehind_LinedUpJetRefusesToTurnAround()
     {
-        if (BuildOak() is not { } ground)
+        if (BuildGround("OAK") is not { } ground)
         {
             return;
         }
@@ -2221,7 +2518,7 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
     [Fact]
     public void DrawnRouteBackThroughARunwayHoldShort_NoLegToIt_ReportsTheTurnAboutFromTheFarEnd()
     {
-        if (BuildOak() is not { } ground)
+        if (BuildGround("OAK") is not { } ground)
         {
             return;
         }
@@ -2242,7 +2539,7 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
     [Fact]
     public void NoLegFarEndRoute_PastTheTarget_TurnAboutNoLongerPending()
     {
-        if (BuildOak() is not { } ground)
+        if (BuildGround("OAK") is not { } ground)
         {
             return;
         }
@@ -2284,7 +2581,7 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
     [Fact]
     public void NoLegFarEndRoute_PastTheTarget_SnapshotRestore_StaysNotPending()
     {
-        if (BuildOak() is not { } ground)
+        if (BuildGround("OAK") is not { } ground)
         {
             return;
         }
@@ -2322,7 +2619,7 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
     [Fact]
     public void NoLegFarEndRoute_HeldAtTheTargetBar_TurnAboutNoLongerPending()
     {
-        if (BuildOak() is not { } ground)
+        if (BuildGround("OAK") is not { } ground)
         {
             return;
         }
@@ -2347,7 +2644,7 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
     [Fact]
     public void NoLegFarEndRoute_BarClearedUpFront_PastTheTarget_TurnAboutNoLongerPending()
     {
-        if (BuildOak() is not { } ground)
+        if (BuildGround("OAK") is not { } ground)
         {
             return;
         }
@@ -2595,7 +2892,9 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
     /// <summary>The aircraft <paramref name="callsign"/> from <paramref name="snapshot"/>, restored into a fresh KOAK engine.</summary>
     private AircraftState RestoreIntoAFreshEngine(StateSnapshotDto snapshot, string callsign)
     {
-        SfoGround restored = BuildOak()!.Value;
+        SfoGround? rebuilt = BuildGround("OAK");
+        Assert.NotNull(rebuilt);
+        SfoGround restored = rebuilt.Value;
         restored.Engine.RestoreFromSnapshot(snapshot);
         return Assert.IsType<AircraftState>(restored.Engine.FindAircraft(callsign));
     }
@@ -2924,10 +3223,13 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
     /// <summary>How far above the slow-turn speed the ground speed may read during the turn about: physics overshoot within one sub-tick.</summary>
     private const double TurnSpeedOvershootKts = 0.2;
 
-    /// <summary>Builds an engine over the committed KOAK layout, or null when the layout or navdata is unavailable.</summary>
-    private SfoGround? BuildOak()
+    /// <summary>
+    /// Builds an engine over the committed layout of <paramref name="airportId"/>, or null when the layout or navdata is
+    /// unavailable.
+    /// </summary>
+    private SfoGround? BuildGround(string airportId)
     {
-        if (LoadLayout("OAK") is not { } layout)
+        if (LoadLayout(airportId) is not { } layout)
         {
             return null;
         }
@@ -2936,11 +3238,11 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
         {
             Scenario = new SimScenarioState
             {
-                ScenarioId = "test-oak-c-turn-about",
-                ScenarioName = "OAK C Turn About",
+                ScenarioId = $"test-{airportId.ToLowerInvariant()}-c-turn-about",
+                ScenarioName = $"{airportId} C Turn About",
                 RngSeed = 42,
                 OriginalScenarioJson = "{}",
-                PrimaryAirportId = "OAK",
+                PrimaryAirportId = airportId,
                 AutoCrossRunway = false,
             },
         };

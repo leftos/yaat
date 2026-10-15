@@ -164,9 +164,15 @@ A handler that has the pilot's own words for a refusal sets `CommandResult.Pilot
 
 So does the refusal of a TAXI that would turn an aircraft about on its taxiway when the type's gear does not fit (`TurnAboutFit`, [ground/pathfinder.md](ground/pathfinder.md#where-it-sits--entry-points)): the message is `Unable, no room to turn around on B, request a route ahead` (`GroundCommandHandler.NoRoomToTurnAroundReason`).
 
-`BuildUnableNoRoomToTurnAround` gives the terminal line *unable, no room to turn around on B, request a route ahead.* and speaks *…, unable, no room to turn around on bravo, request a route ahead.*, the taxiway spelled by `PhraseologyVerbalizer.SpellTaxiway`.
+`BuildUnableNoRoomToTurnAround` gives the terminal line *unable, no room to turn around on B, request a route ahead.* and speaks *…, unable, no room to turn around on bravo, request a route ahead.*, the taxiway spelled by `PhraseologyVerbalizer.SpellTaxiway`. Without a taxiway (an aircraft standing on none whose stop overruns a hold line) the "on" clause is left out: *unable, no room to turn around, request a route ahead.*
 
-The same phrase is said, unprompted and once, by an aircraft still rolling when a TAXI turns it about on its taxiway with no room to do so: no room short of a runway holding position ahead even at the firm brake rate, an overrun of the node ahead with no straight edge beyond it that has room, a turn about at the node ahead that would leave its pavement with no straight edge beyond it that has room, or no route node a turning diameter from any turn about it could fly. It stops, holds and says it on the stop's first tick (`GroundNavigator.HoldUnableToTurnAbout`, [ground/navigator.md](ground/navigator.md)).
+The same phrase is said, unprompted and once, by an aircraft that has no room to turn about on its taxiway: one still rolling when a TAXI turns it about there, with no room short of a runway hold line even at the firm brake rate, an overrun of the node ahead with no straight edge beyond it that has room, a turn about at the node ahead that would leave its pavement with no straight edge beyond it that has room, or no route node a turning diameter from any turn about it could fly. It stops, holds and says it on the stop's first tick (`GroundNavigator.HoldUnableToTurnAbout`, [ground/navigator.md](ground/navigator.md)).
+
+An aircraft at rest, or creeping at up to its pivot speed, says it too when its turn about would carry any part of it (nose, wingtips, tail; AIM 2-3-5.a.1) past a runway's hold line (`GroundNavigator.HoldUnableFromRest`).
+
+When a runway's hold line is what governs the stop, the refusal names the runway instead of asking for a route: `BuildUnableNoRoomToTurnAroundAtRunway` gives the terminal line *unable, no room to turn around on B, holding short of runway 28R.* and speaks *…, unable, no room to turn around on bravo, holding short of runway two eight right.* (taxiway spelled by `SpellTaxiway`, runway by `SpellRunway`). An aircraft standing on no taxiway drops the "on B" clause. The runway named is the end the aircraft is nearest.
+
+A stop that is an overrun, a firm stop that still ends with a part past a hold line, names no runway and says the plain *request a route ahead* form; only an aircraft on no taxiway still names the runway, so the unable has something to name.
 
 That call goes through `RouteSoloOrRpoTransmission` like any unsolicited pilot call: queued for a GND or TWR student in solo training, otherwise a terminal warning, or pilot speech when the RPO shows it.
 
@@ -204,7 +210,7 @@ Grouped by trigger. All return `PilotSpeechText`; follow/traffic builders set `R
 
   A ramp spot in `BuildReadyToTaxi` takes "spot" instead, its leading "SPOT" dropped.
 
-  The group also holds `BuildUnableToExit` ("unable W3.": an instructed exit the crew cannot make), `BuildUnableNoExitAhead` ("unable, no W3 ahead.": no connection of it ahead), `BuildUnableToExitRequestBackTaxi` (stopped on the runway with no exit ahead), `BuildUnableNoRoomToTurnAround` ("unable, no room to turn around on B, request a route ahead.": a type whose gear does not fit refusing a TAXI that would turn it about), `BuildGoingAround`, `BuildApproachingMinimumsNoLandingClearance`.
+  The group also holds `BuildUnableToExit` ("unable W3.": an instructed exit the crew cannot make), `BuildUnableNoExitAhead` ("unable, no W3 ahead.": no connection of it ahead), `BuildUnableToExitRequestBackTaxi` (stopped on the runway with no exit ahead), `BuildUnableNoRoomToTurnAround` ("unable, no room to turn around on B, request a route ahead.": a type whose gear does not fit refusing a TAXI that would turn it about), `BuildUnableNoRoomToTurnAroundAtRunway` ("unable, no room to turn around on B, holding short of runway 28R.": a turn about that would carry a part past a runway hold line), `BuildGoingAround`, `BuildApproachingMinimumsNoLandingClearance`.
 - **Visual acquisition** — `BuildTrafficInSight`, `BuildFieldInSight`, `BuildLostSightOfTraffic`,
   `BuildLostSightOfField`, `BuildLostSightOfTrafficFieldInSight` (traffic lost, field held — the §7-4-3.c.3
   separation handback), `BuildUnableVisualRequestVectors` (visual ended away from the runway — level-off +

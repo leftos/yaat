@@ -510,4 +510,40 @@ public class PathPrimitiveBuilderTests
 
         Assert.Equal(expectDeg, jogDeg, 3);
     }
+
+    /// <summary>
+    /// <see cref="PathPrimitiveBuilder.PoseAtSweep"/> of an arc swept 0° is its entry pose, and swept its whole
+    /// <see cref="PathPrimitiveSlowTurn.SweepDeg"/> is its exit pose (<see cref="PathPrimitiveBuilder.ExitPose"/>), heading
+    /// the way the arc was built to turn to, either way round.
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void PoseAtSweep_ZeroAndWholeSweep_AreTheEntryAndExitPoses(bool rightTurn)
+    {
+        const double FromLat = 37.0;
+        const double FromLon = -122.0;
+        const double FromHdgDeg = 30.0;
+        const double ToHdgDeg = 210.0;
+        PathPrimitiveSlowTurn arc = PathPrimitiveBuilder.SlowTurnDirected(
+            fromLat: FromLat,
+            fromLon: FromLon,
+            fromHdgDeg: FromHdgDeg,
+            toHdgDeg: ToHdgDeg,
+            radiusFt: 20.0,
+            maxSpeedKts: 2.0,
+            toNodeId: 1,
+            rightTurn: rightTurn
+        );
+
+        (LatLon entry, double entryDeg) = PathPrimitiveBuilder.PoseAtSweep(arc, 0.0);
+        (LatLon exit, double exitDeg) = PathPrimitiveBuilder.PoseAtSweep(arc, arc.SweepDeg);
+        (LatLon expectedExit, double expectedExitDeg) = PathPrimitiveBuilder.ExitPose(arc);
+
+        Assert.True(GeoMath.DistanceNm(entry, new LatLon(FromLat, FromLon)) * GeoMath.FeetPerNm < 0.01, $"entry pose {entry} is off the start");
+        Assert.True(GeoMath.AbsBearingDifference(entryDeg, FromHdgDeg) < 0.01, $"entry heading {entryDeg:F3}");
+        Assert.Equal(expectedExit, exit);
+        Assert.True(GeoMath.AbsBearingDifference(exitDeg, expectedExitDeg) < 1e-9, $"exit heading {exitDeg:F3} vs {expectedExitDeg:F3}");
+        Assert.True(GeoMath.AbsBearingDifference(exitDeg, ToHdgDeg) < 0.01, $"exit heading {exitDeg:F3} is not the arc's {ToHdgDeg:F0}");
+    }
 }
