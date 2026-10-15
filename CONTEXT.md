@@ -748,6 +748,17 @@ A synthetic round trip through the speech pipeline: a known canonical command is
 **Speech telemetry**:
 Push-to-talk samples (audio, per-stage transcripts, scenario context) that opted-in users' clients upload to the official yaat-server, which stores them for developers to pull with `tools/speech_telemetry.py` (docs/speech-recognition-pipeline.md).
 
+## Bug report privacy
+
+**Identity ledger**:
+The room's append-only record of everyone ever bound to it (creator, hub members, CRC controllers, pulled RPOs, Tower Cab viewers), keyed by CID and holding every set of initials and every name each was seen with; kept after they leave and across a restart, and the source of the participant list (`RoomIdentityLedger`, yaat-server).
+
+**Participant list**:
+The `LogParticipant` list, one per person in the identity ledger's first-seen order, that every artifact of a bug report bundle is pseudonymised with, so a person has one pseudonym in the server log, the recording and the client logs; the client builds a local one only when the server's is unavailable (`SessionLogAnonymizer.BuildParticipants`).
+
+**Pseudonym**:
+The stand-in for a person in a bug report bundle, `A0`, `A1`, … by the person's index in the participant list (`SessionLogAnonymizer.Pseudonym`); a person the list does not hold becomes `??`, never a pseudonym-shaped guess.
+
 ## Facility data
 
 **Sidecar**:

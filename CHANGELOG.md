@@ -38,7 +38,7 @@
 - ERAM coverage-loss coasts keep their 24 s through rewinds and aircraft removal, and a low handoff still shown as a normal track is auto-accepted.
 - A rewind or replay during a line-up or clear-the-runway turn continues on the original path instead of restarting the turn.
 - Bug report bundles include the client logs of the previous three sessions, so reopening YAAT before saving one no longer loses the session's log.
-- Bug report bundles hide names, VATSIM IDs, initials, your Windows user folder and your own server addresses in the client logs, using the server log's placeholders.
+- Bug report bundles hide names, VATSIM IDs, initials, your Windows user folder and server addresses in the recording and logs, including people who left.
 - Client log lines carry the full date, time and UTC offset instead of the time of day alone.
 - An auto-delete no longer closes the Flight Plan Editor; deleting the aircraft it shows clears the editor and leaves it open.
 - Scenario > Session Report opens its window instead of failing with an error.

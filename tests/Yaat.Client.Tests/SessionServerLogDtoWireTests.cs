@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Xunit;
 using Yaat.Client.Services;
+using Yaat.Sim.Logging;
 
 namespace Yaat.Client.Tests;
 
@@ -23,6 +24,8 @@ public class SessionServerLogDtoWireTests
                     Cid = "1826127",
                     RealName = "Jane Doe",
                     Initials = "JD",
+                    OtherInitials = new[] { "JX" },
+                    OtherRealNames = new[] { "Jane X. Doe" },
                 },
             },
         };
@@ -32,6 +35,9 @@ public class SessionServerLogDtoWireTests
 
         Assert.NotNull(dto);
         Assert.Equal("A0 joined the room", dto.Text);
-        Assert.Equal(("1826127", "Jane Doe", "JD"), (dto.Participants[0].Cid, dto.Participants[0].RealName, dto.Participants[0].Initials));
+        LogParticipant participant = dto.Participants[0];
+        Assert.Equal(("1826127", "Jane Doe", "JD"), (participant.Cid, participant.RealName, participant.Initials));
+        Assert.Equal(["JX"], participant.OtherInitials);
+        Assert.Equal(["Jane X. Doe"], participant.OtherRealNames);
     }
 }

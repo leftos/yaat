@@ -159,6 +159,18 @@ public partial class MainViewModel
         StatusText = status;
     }
 
+    /// <summary>
+    /// A test seam: replaces the server export for Save Recording and the bug report bundle; called with whether the
+    /// recording is to be pseudonymised. Null = export from the connected server.
+    /// </summary>
+    public Func<bool, Task<byte[]?>>? RecordingExporter { get; set; }
+
+    /// <summary>A test seam: replaces the server's <c>GetSessionServerLog</c> for the bug report bundle. Null = ask the connected server.</summary>
+    public Func<Task<SessionServerLogDto>>? SessionServerLogFetcher { get; set; }
+
+    private Task<byte[]?> ExportRecordingAsync(bool anonymize) =>
+        RecordingExporter?.Invoke(anonymize) ?? _connection.ExportRecordingAsync(BuildInfo.Version, BuildInfo.BuildKind, anonymize);
+
     [RelayCommand]
     private async Task SaveRecording()
     {
@@ -180,7 +192,8 @@ public partial class MainViewModel
                 await _connection.SendCommandAsync("", "PAUSE", _preferences.UserInitials);
             }
 
-            byte[]? compressedBytes = await _connection.ExportRecordingAsync(BuildInfo.Version, BuildInfo.BuildKind);
+            // A saved recording is the user's own: it keeps the real initials.
+            byte[]? compressedBytes = await ExportRecordingAsync(anonymize: false);
             IsExportingRecording = false;
 
             if (compressedBytes is null)
@@ -302,8 +315,8 @@ public partial class MainViewModel
                 await _connection.SendCommandAsync("", "PAUSE", _preferences.UserInitials);
             }
 
-            byte[]? compressedBytes = await _connection.ExportRecordingAsync(BuildInfo.Version, BuildInfo.BuildKind);
-            return compressedBytes;
+            // A bundle is posted publicly: the server pseudonymises the people in the recording.
+            return await ExportRecordingAsync(anonymize: true);
         }
         finally
         {
@@ -315,13 +328,16 @@ public partial class MainViewModel
     /// <summary>
     /// Writes the bug report bundle at <paramref name="path"/>: the recording's own entries (with the
     /// timeline bookmarks folded in) and the client logs (the live one and the rotated previous sessions),
-    /// plus the server log when there is a recording to go with it. With no recording the client logs are
-    /// the whole bundle. The client logs are scrubbed with the server log's participant list, so a person
-    /// carries the same pseudonym in both; the log files on disk are left as they are.
+    /// plus the server log whenever the client is in a room, recording or not. The client logs, the server log's
+    /// leftovers and the bookmarks' creators are scrubbed with the server log's participant list, so a person carries
+    /// the same pseudonym in all of them; the log files on disk are left as they are. In a room whose list the server
+    /// could not give, everything is scrubbed with the client's own list and the bundle carries
+    /// <see cref="AnonymizationNoteEntry"/> saying the pseudonyms may not line up across files.
     /// </summary>
-    private async Task WriteBugReportBundleAsync(string path, byte[]? recordingBytes)
+    public async Task WriteBugReportBundleAsync(string path, byte[]? recordingBytes)
     {
-        SessionServerLogDto? serverLog = recordingBytes is null ? null : await FetchSessionServerLogAsync();
+        SessionServerLogDto? serverLog = IsInRoom ? await FetchSessionServerLogAsync() : null;
+        bool serverListMissing = IsInRoom && serverLog is not { Participants.Count: > 0 };
         var scrubContext = new ClientLogScrubContext(
             serverLog is { Participants.Count: > 0 } ? serverLog.Participants : BuildLocalLogParticipants(),
             Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
@@ -349,7 +365,11 @@ public partial class MainViewModel
             byte[] bytes = recordingBytes;
             if (Bookmarks.Count > 0 && RecordingCompression.IsZipArchive(bytes))
             {
-                bytes = RecordingArchive.WriteBookmarks(bytes, SnapshotBookmarks());
+                // Creators by the logs' pseudonyms; a bookmark's name stays as typed.
+                bytes = RecordingArchive.WriteBookmarks(
+                    bytes,
+                    RecordingPseudonymizer.PseudonymizeBookmarks(SnapshotBookmarks(), scrubContext.Participants)
+                );
             }
 
             using var recordingStream = new MemoryStream(bytes);
@@ -368,18 +388,28 @@ public partial class MainViewModel
             AddLogToArchive(archive, log);
         }
 
-        // Anonymized on the server already.
+        // Anonymized on the server already; the client's fail-closed passes catch anyone the server's list does not hold.
         if (!string.IsNullOrEmpty(serverLog?.Text))
         {
-            AddTextToArchive(archive, "yaat-server.log", serverLog.Text);
+            AddTextToArchive(archive, "yaat-server.log", ClientLogScrubber.ScrubLeftoverPeople(serverLog.Text, scrubContext.Participants));
+        }
+
+        if (serverListMissing)
+        {
+            AddTextToArchive(archive, AnonymizationNoteEntry, AnonymizationNote);
         }
     }
+
+    private const string AnonymizationNoteEntry = "ANONYMIZATION-NOTE.txt";
+
+    private const string AnonymizationNote =
+        "Pseudonyms in this report may not match across files: the server's participant list was unavailable when the report was built.";
 
     private async Task<SessionServerLogDto?> FetchSessionServerLogAsync()
     {
         try
         {
-            return await _connection.GetSessionServerLogAsync();
+            return SessionServerLogFetcher is null ? await _connection.GetSessionServerLogAsync() : await SessionServerLogFetcher();
         }
         catch (Exception ex)
         {
@@ -389,17 +419,17 @@ public partial class MainViewModel
     }
 
     /// <summary>
-    /// The participants this client knows of, for scrubbing its logs when the server sent none (no room, or
-    /// no recording): its own identity first, then the room's members and the CRC clients it has seen.
+    /// The participants this client knows of, for scrubbing its logs when the server sent none (no room, or the
+    /// server's list could not be got): its own identity first, then the room's members and the CRC clients it has seen.
     /// </summary>
-    private IReadOnlyList<LogParticipant> BuildLocalLogParticipants()
+    public IReadOnlyList<LogParticipant> BuildLocalLogParticipants()
     {
         VatsimIdentity? own = _auth.GetIdentity(ConnectedServerUrl);
         List<(string Cid, string Initials)> members = [.. RoomMembers.Select(m => (m.Cid, m.Initials))];
         List<(string Cid, string RealName)> crcIdentities =
         [
-            .. CrcRoomMembers.Where(m => m.Cid is not null).Select(m => (m.Cid!, RealNameOf(m.DisplayName))),
-            .. CrcLobbyClients.Where(c => c.Cid is not null).Select(c => (c.Cid!, RealNameOf(c.DisplayName))),
+            .. CrcRoomMembers.Where(m => m.Cid is not null).Select(m => (m.Cid!, RealNameOf(m.DisplayName, m.PositionId))),
+            .. CrcLobbyClients.Where(c => c.Cid is not null).Select(c => (c.Cid!, RealNameOf(c.DisplayName, c.PositionId))),
         ];
 
         if (own is not null)
@@ -411,8 +441,22 @@ public partial class MainViewModel
         return SessionLogAnonymizer.BuildParticipants(members, crcIdentities);
     }
 
-    // A CRC display name is "{callsign} ({realName})"; one without the pair carries no real name to scrub by.
-    private static string RealNameOf(string? displayName) => CrcDisplayName.TryGetRealName(displayName, out string? realName) ? realName : "";
+    // A CRC display name is "{callsign} ({realName})"; a client with no position shows its bare real name instead, unless
+    // it has none ("unknown") or the name is a bare position callsign.
+    private static string RealNameOf(string? displayName, string? positionId)
+    {
+        if (CrcDisplayName.TryGetRealName(displayName, out string? realName))
+        {
+            return realName;
+        }
+
+        bool isBareName =
+            string.IsNullOrEmpty(positionId)
+            && !string.IsNullOrWhiteSpace(displayName)
+            && (displayName != CrcDisplayName.Unknown)
+            && !CrcDisplayName.IsPositionCallsign(displayName);
+        return isBareName ? displayName! : "";
+    }
 
     private sealed record ScrubbedLog(string EntryName, string Text, DateTime LastWriteTime);
 

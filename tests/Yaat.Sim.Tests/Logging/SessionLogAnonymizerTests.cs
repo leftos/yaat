@@ -112,8 +112,8 @@ public class SessionLogAnonymizerTests
 
         string result = SessionLogAnonymizer.Anonymize(log, participants, SessionLogAnonymizer.CommandVerbs);
 
-        // An unlisted sender is the caller's to handle.
-        Assert.Equal(string.Join('\n', "[SendCommand] UAL123: 'CM 050' (from A0)", "[SendCommand] UAL456: 'FH 270' (from XY)"), result);
+        // A sender the list does not hold is hidden.
+        Assert.Equal(string.Join('\n', "[SendCommand] UAL123: 'CM 050' (from A0)", "[SendCommand] UAL456: 'FH 270' (from ??)"), result);
     }
 
     [Fact]
@@ -161,8 +161,27 @@ public class SessionLogAnonymizerTests
         IReadOnlyList<LogParticipant> result = SessionLogAnonymizer.BuildParticipants(members, crc);
 
         Assert.Equal(2, result.Count);
-        // Ordered by CID ordinal, blank CID dropped.
-        Assert.Equal("1826127", result[0].Cid);
-        Assert.Equal("700123", result[1].Cid);
+        // In first-seen order, blank CID dropped.
+        Assert.Equal("700123", result[0].Cid);
+        Assert.Equal("1826127", result[1].Cid);
+    }
+
+    [Fact]
+    public void BuildParticipants_KeepsFirstSeenOrder()
+    {
+        // A later arrival never renumbers the people already seen: pseudonym index = first-seen position.
+        (string, string)[] members = [("700123", "PS"), ("1826127", "JD"), ("700123", "XX")];
+        (string, string)[] crc = [("555", "Zed Outsider"), ("1826127", "Jane Doe")];
+
+        IReadOnlyList<LogParticipant> result = SessionLogAnonymizer.BuildParticipants(members, crc);
+
+        Assert.Equal(
+            [
+                new LogParticipant("700123", null, "PS") { OtherInitials = ["XX"] },
+                new LogParticipant("1826127", "Jane Doe", "JD"),
+                new LogParticipant("555", "Zed Outsider", null),
+            ],
+            result
+        );
     }
 }

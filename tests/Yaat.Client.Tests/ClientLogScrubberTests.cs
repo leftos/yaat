@@ -142,8 +142,57 @@ public class ClientLogScrubberTests
     [InlineData(Sys + "[CRC] OAK_TWR (Jane Doe) ended session", Sys + "[CRC] OAK_TWR (A0) ended session")]
     // Hubs/CrcClientState.FlightPlan.cs:215
     [InlineData(Sys + "[CRC] OAK_TWR (Zed Outsider) FP: (UAL238 B738/L KSFO KOAK)", Sys + "[CRC] OAK_TWR (??) FP: (UAL238 B738/L KSFO KOAK)")]
+    // Hubs/CrcClientState.FlightPlan.cs:215, a CRC client with no position: the bare real name
+    [InlineData(Sys + "[CRC] Zed Outsider FP: (UAL238 B738/L KSFO KOAK)", Sys + "[CRC] ?? FP: (UAL238 B738/L KSFO KOAK)")]
+    // Hubs/CrcClientState.FlightPlan.cs:279, a CRC client with no position
+    [InlineData(Sys + "[CRC] Zed Outsider FP: (N172SP C172/G KOAK KSFO)", Sys + "[CRC] ?? FP: (N172SP C172/G KOAK KSFO)")]
+    // Hubs/CrcClientState.FlightPlan.cs:279, a listed CRC client with no position
+    [InlineData(Sys + "[CRC] Pat Smith FP: (N172SP C172/G KOAK KSFO)", Sys + "[CRC] A1 FP: (N172SP C172/G KOAK KSFO)")]
+    // Hubs/CrcClientState.FlightPlan.cs:279, a position with no real name
+    [InlineData(Sys + "[CRC] OAK_TWR FP: (N172SP C172/G KOAK KSFO)", Sys + "[CRC] OAK_TWR FP: (N172SP C172/G KOAK KSFO)")]
     // Hubs/CrcClientState.Session.cs:100, no real name
     [InlineData(Sys + "[CRC] OAK_TWR connected", Sys + "[CRC] OAK_TWR connected")]
+    // A CRC client with no position: CrcDisplayName.Build (Yaat.Sim/Logging/CrcDisplayName.cs:28) gives the bare real name.
+    // Hubs/CrcClientState.Session.cs:100
+    [InlineData(Sys + "[CRC] Zed Outsider connected", Sys + "[CRC] ?? connected")]
+    // Hubs/CrcClientState.Session.cs:353
+    [InlineData(Sys + "[CRC] Pat Smith activated", Sys + "[CRC] A1 activated")]
+    // Hubs/CrcClientState.Session.cs:353
+    [InlineData(Sys + "[CRC] BOB activated", Sys + "[CRC] ?? activated")]
+    // Hubs/CrcClientState.Session.cs:372
+    [InlineData(Sys + "[CRC] Zed Outsider deactivated", Sys + "[CRC] ?? deactivated")]
+    // Hubs/CrcClientState.cs:511
+    [InlineData(Sys + "[CRC] Zed Outsider disconnected", Sys + "[CRC] ?? disconnected")]
+    // Hubs/CrcClientState.Session.cs:781
+    [InlineData(Sys + "[CRC] Zed Outsider ended session", Sys + "[CRC] ?? ended session")]
+    // Hubs/CrcClientState.Session.cs:781, no callsign and no name
+    [InlineData(Sys + "[CRC] unknown ended session", Sys + "[CRC] unknown ended session")]
+    // Hubs/TrainingHub.cs:2530: $"[CRC] Pulled {name} into room", name = the display name, else the client id.
+    [InlineData(Sys + "[CRC] Pulled Zed Outsider into room", Sys + "[CRC] Pulled ?? into room")]
+    // Hubs/TrainingHub.cs:2530
+    [InlineData(Sys + "[CRC] Pulled Jane Doe into room", Sys + "[CRC] Pulled A0 into room")]
+    // Hubs/TrainingHub.cs:2622: $"[CRC] Kicked {name} from room"
+    [InlineData(Sys + "[CRC] Kicked Zed Outsider from room", Sys + "[CRC] Kicked ?? from room")]
+    // Hubs/TrainingHub.cs:2743 (who = the kicked CID's CRC display name, a bare real name with no position) and :2784
+    [InlineData(Sys + "Zed Outsider was kicked from the room", Sys + "?? was kicked from the room")]
+    // Hubs/TrainingHub.cs:2784, a listed CRC name
+    [InlineData(Sys + "Jane Doe was kicked from the room", Sys + "A0 was kicked from the room")]
+    // Hubs/CrcClientState.Messaging.cs:22: sender = GetPositionCallsign(), the display name when the client has no position
+    [InlineData(Sys + "[CRC] Zed Outsider: UAL238 cleared to land", Sys + "[CRC] ??: UAL238 cleared to land")]
+    // Hubs/CrcClientState.Messaging.cs:22, a listed CRC name
+    [InlineData(Sys + "[CRC] Jane Doe: UAL238 cleared to land", Sys + "[CRC] A0: UAL238 cleared to land")]
+    // Hubs/CrcClientState.Messaging.cs:80
+    [InlineData(Sys + "[CRC PM → OAK_TWR] Zed Outsider: are you there", Sys + "[CRC PM → OAK_TWR] ??: are you there")]
+    // Hubs/CrcClientState.Messaging.cs:106
+    [InlineData(Sys + "[CRC Wallop] Zed Outsider: need a hand", Sys + "[CRC Wallop] ??: need a hand")]
+    // Hubs/CrcClientState.Messaging.cs:106
+    [InlineData(Sys + "[CRC ATC] Zed Outsider: release SKW12", Sys + "[CRC ATC] ??: release SKW12")]
+    // Hubs/CrcClientState.Info.cs:102
+    [InlineData(Sys + "[CRC] Zed Outsider killed OAK_TWR: Disconnected by supervisor", Sys + "[CRC] ?? killed OAK_TWR: Disconnected by supervisor")]
+    // Hubs/CrcClientState.Info.cs:102, a position
+    [InlineData(Sys + "[CRC] OAK_TWR killed SFO_GND: Disconnected by supervisor", Sys + "[CRC] OAK_TWR killed SFO_GND: Disconnected by supervisor")]
+    // Hubs/CrcClientState.Messaging.cs:71: a private message to an aircraft records the sender in the initials slot
+    [InlineData(Vm + "[Terminal] [Chat] Zed Outsider UAL238: say altitude", Vm + "[Terminal] [Chat] ?? UAL238: say altitude")]
     // Hubs/CrcClientState.Messaging.cs:22
     [InlineData(Sys + "[CRC] OAK_TWR: UAL238 cleared to land", Sys + "[CRC] OAK_TWR: UAL238 cleared to land")]
     // Messaging.cs:80
@@ -152,6 +201,14 @@ public class ClientLogScrubberTests
     [InlineData(Sys + "[CRC ATC] OAK_TWR: runway 28R closed", Sys + "[CRC ATC] OAK_TWR: runway 28R closed")]
     // Hubs/CrcClientState.Info.cs:102
     [InlineData(Sys + "[CRC] OAK_SUP killed OAK_TWR: Disconnected by supervisor", Sys + "[CRC] OAK_SUP killed OAK_TWR: Disconnected by supervisor")]
+    // Hubs/CrcClientState.Messaging.cs:22: a message's text that ends like an event line is the message, not a name
+    [InlineData(Sys + "[CRC] OAK_TWR: ILS back up, frequency connected", Sys + "[CRC] OAK_TWR: ILS back up, frequency connected")]
+    // Hubs/CrcClientState.Stars.cs:1785, a CRC client with no position
+    [InlineData(Sys + "[CRC] Zed Outsider consolidated 2W → 2E (full)", Sys + "[CRC] ?? consolidated 2W → 2E (full)")]
+    // Hubs/CrcClientState.Stars.cs:1812
+    [InlineData(Sys + "[CRC] Zed Outsider deconsolidated 2W", Sys + "[CRC] ?? deconsolidated 2W")]
+    // Hubs/CrcClientState.Stars.cs:1785, a position
+    [InlineData(Sys + "[CRC] OAK_TWR consolidated 2W → 2E (basic)", Sys + "[CRC] OAK_TWR consolidated 2W → 2E (basic)")]
     // Hubs/TrainingHub.cs:2530
     [InlineData(Sys + "[CRC] Pulled OAK_TWR (BOB) into room", Sys + "[CRC] Pulled OAK_TWR (??) into room")]
     // Hubs/TrainingHub.cs:2622
@@ -161,6 +218,19 @@ public class ClientLogScrubberTests
     [InlineData(Vm + "[Terminal] [Command] CM UAL238: CM 050", Vm + "[Terminal] [Command] A1 UAL238: CM 050")]
     // Simulation/RoomEngine.cs:1193
     [InlineData(Vm + "[Terminal] [Strip] XY UAL238: FH 270", Vm + "[Terminal] [Strip] ?? UAL238: FH 270")]
+    // Simulation/RoomEngine.cs:1178: an override command's slot is "{initials} (override)"
+    [InlineData(Vm + "[Terminal] [Command] JD (override) UAL238: FH 270", Vm + "[Terminal] [Command] A0 (override) UAL238: FH 270")]
+    // Simulation/RoomEngine.cs:1178, a listed person whose initials are a command verb
+    [InlineData(Vm + "[Terminal] [Command] CM (override) UAL238: CM 050", Vm + "[Terminal] [Command] A1 (override) UAL238: CM 050")]
+    // Simulation/RoomEngine.cs:1178, someone outside the list
+    [InlineData(Vm + "[Terminal] [Command] XY (override) UAL238: FH 270", Vm + "[Terminal] [Command] ?? (override) UAL238: FH 270")]
+    // Yaat.Sim SimulationEngine.Commands.cs:39: the AI's own commands, echoed by LiveRoomHost.cs:123
+    [InlineData(Vm + "[Terminal] [Command] AI UAL238: FH 270", Vm + "[Terminal] [Command] AI UAL238: FH 270")]
+    // Simulation/RoomEngine.cs:1145, in the server log: the AI is no person
+    [InlineData(
+        At + "[dbug] Yaat.Server.Simulation.RoomEngine: [SendCommand] UAL238: 'FH 270' (from AI)",
+        At + "[dbug] Yaat.Server.Simulation.RoomEngine: [SendCommand] UAL238: 'FH 270' (from AI)"
+    )]
     // Simulation/RoomEngine.cs:1498
     [InlineData(Vm + "[Terminal] [Chat] CM : break for lunch", Vm + "[Terminal] [Chat] A1 : break for lunch")]
     // Simulation/RoomEngine.cs:1498
@@ -176,11 +246,21 @@ public class ClientLogScrubberTests
     )]
     // Eram.Messages.cs:185
     [InlineData(Vm + "[Terminal] [Chat] SIGWX : KOAK TS >> MOV E 10KT", Vm + "[Terminal] [Chat] SIGWX : KOAK TS >> MOV E 10KT")]
-    // Known and accepted: a command result naming the assignee keeps it (YAAT-723).
+    // A command result naming the assignee: $"Assigned to {ownerInitials}. Prefix with ** to override."
     // Simulation/RoomEngine.cs:1170
     [InlineData(
         Vm + "[Terminal] [Error]  UAL238: Assigned to XY. Prefix with ** to override.",
-        Vm + "[Terminal] [Error]  UAL238: Assigned to XY. Prefix with ** to override."
+        Vm + "[Terminal] [Error]  UAL238: Assigned to ??. Prefix with ** to override."
+    )]
+    // Simulation/RoomEngine.cs:1170
+    [InlineData(
+        Vm + "[Terminal] [Error]  UAL238: Assigned to CM. Prefix with ** to override.",
+        Vm + "[Terminal] [Error]  UAL238: Assigned to A1. Prefix with ** to override."
+    )]
+    // Simulation/RoomEngine.cs:1170
+    [InlineData(
+        Vm + "[Terminal] [Error]  UAL238: Assigned to JD. Prefix with ** to override.",
+        Vm + "[Terminal] [Error]  UAL238: Assigned to A0. Prefix with ** to override."
     )]
     // Kept: echoed alias text, aviation text with no who.
     [InlineData(Sys + "TWR frequency is 118.3", Sys + "TWR frequency is 118.3")]
@@ -201,6 +281,11 @@ public class ClientLogScrubberTests
     [InlineData(
         Vm + "[CrcLobby] Push received: 2 clients (jkl(no-name), mno(unknown))",
         Vm + "[CrcLobby] Push received: 2 clients (jkl(no-name), mno(unknown))"
+    )]
+    // MainViewModel.Rooms.cs:1081, CRC clients with no position: a one-word upper-case real name and a name with parentheses
+    [InlineData(
+        Vm + "[CrcLobby] Push received: 3 clients (jkl(BOB), mno(Zed (Jr)), pqr(SFO_TWR))",
+        Vm + "[CrcLobby] Push received: 3 clients (jkl(??), mno(??), pqr(SFO_TWR))"
     )]
     // yaat: web client URLs carry the user's own initials (MainViewModel.Rooms.cs:262/:305).
     // MainViewModel.Rooms.cs:281
@@ -422,6 +507,20 @@ public class ClientLogScrubberTests
     public void InitialsThatAreACommandVerb_StayInTheCommand_ButNotInTheInitialsSlot() =>
         Assert.Equal($"{Prefix}[Terminal] [Command] A1 UAL238: CM 050", Scrub($"{Prefix}[Terminal] [Command] CM UAL238: CM 050"));
 
+    // A position callsign always holds an underscore, so a one-word upper-case lobby entry is a real name: the listed
+    // person's pseudonym, else unknown.
+    [Theory]
+    [InlineData("BOB", "A0")]
+    [InlineData("SAM", "??")]
+    public void CrcLobbyLine_AOneWordNameIsNoCallsign(string name, string expected)
+    {
+        ClientLogScrubContext context = Context with { Participants = [new LogParticipant("1234567", "BOB", "BB")] };
+
+        string scrubbed = ClientLogScrubber.Scrub($"{Prefix}[CrcLobby] Pull returned: 1 clients (abc({name}))", context);
+
+        Assert.Equal($"{Prefix}[CrcLobby] Pull returned: 1 clients (abc({expected}))", scrubbed);
+    }
+
     [Fact]
     public void CrcLobbyLine_ReplacesNamesButKeepsCallsigns()
     {
@@ -456,6 +555,68 @@ public class ClientLogScrubberTests
         Assert.Equal(
             $"{Prefix}[Terminal] [System] A1 : A1 is loading 'OAK 28R'…",
             Scrub($"{Prefix}[Terminal] [System] CM : CM is loading 'OAK 28R'…")
+        );
+    }
+
+    // Context issues A0 and A1 only: B2 is a departed person whose initials look like a pseudonym, never kept by its shape.
+    [Fact]
+    public void DepartedPseudonymShapedInitials_BecomeQuestionMarks()
+    {
+        Assert.Equal($"{Prefix}[Terminal] [Command] ?? UAL238: FH 270", Scrub($"{Prefix}[Terminal] [Command] B2 UAL238: FH 270"));
+        Assert.Equal($"{Prefix}[Terminal] [System]  : ?? joined the room", Scrub($"{Prefix}[Terminal] [System]  : B2 joined the room"));
+        Assert.Equal($"{Prefix}[SendCommand] UAL238: 'FH 270' (from ??)", Scrub($"{Prefix}[SendCommand] UAL238: 'FH 270' (from B2)"));
+        Assert.Equal(
+            $"{Prefix}[Terminal] [System]  : A0 pulled ?? into the room as an RPO",
+            Scrub($"{Prefix}[Terminal] [System]  : JD pulled B2 into the room as an RPO")
+        );
+        Assert.Equal(
+            $"{Prefix}[Terminal] [System]  : [CRC] OAK_TWR (??) connected",
+            Scrub($"{Prefix}[Terminal] [System]  : [CRC] OAK_TWR (B2) connected")
+        );
+        Assert.Equal($"{Prefix}[CrcLobby] Pull returned: 1 clients (abc(??))", Scrub($"{Prefix}[CrcLobby] Pull returned: 1 clients (abc(B2))"));
+        Assert.Equal("open /vstrips/?initials=??&cid=??", Scrub("open /vstrips/?initials=B2&cid=B2"));
+    }
+
+    [Fact]
+    public void IssuedPseudonym_IsKept()
+    {
+        Assert.Equal($"{Prefix}[Terminal] [Command] A1 UAL238: FH 270", Scrub($"{Prefix}[Terminal] [Command] A1 UAL238: FH 270"));
+        Assert.Equal($"{Prefix}[Terminal] [System]  : A0 joined the room", Scrub($"{Prefix}[Terminal] [System]  : A0 joined the room"));
+        Assert.Equal($"{Prefix}[SendCommand] UAL238: 'FH 270' (from A1)", Scrub($"{Prefix}[SendCommand] UAL238: 'FH 270' (from A1)"));
+        Assert.Equal(
+            $"{Prefix}[Terminal] [System]  : [CRC] OAK_TWR (A0) connected",
+            Scrub($"{Prefix}[Terminal] [System]  : [CRC] OAK_TWR (A0) connected")
+        );
+        Assert.Equal($"{Prefix}[CrcLobby] Pull returned: 1 clients (abc(A1))", Scrub($"{Prefix}[CrcLobby] Pull returned: 1 clients (abc(A1))"));
+    }
+
+    [Fact]
+    public void NestedParenthesesName_IsHiddenWhole()
+    {
+        Assert.Equal(
+            $"{Prefix}[Terminal] [System]  : [CRC] OAK_TWR (??) connected",
+            Scrub($"{Prefix}[Terminal] [System]  : [CRC] OAK_TWR (Zed (Jr) Outsider) connected")
+        );
+        Assert.Equal(
+            $"{Prefix}[Terminal] [System]  : [CRC] OAK_TWR (??) activated",
+            Scrub($"{Prefix}[Terminal] [System]  : [CRC] OAK_TWR (A (B (C)) D) activated")
+        );
+        Assert.Equal(
+            $"{Prefix}[CrcLobby] Pull returned: 2 clients (abc(OAK_TWR (??)), def(SFO_GND (??)))",
+            Scrub($"{Prefix}[CrcLobby] Pull returned: 2 clients (abc(OAK_TWR (Zed (Jr) Outsider)), def(SFO_GND (A (B (C)) D)))")
+        );
+    }
+
+    [Fact]
+    public void UnbalancedName_HidesToTheEndOfTheSlot()
+    {
+        Assert.Equal(
+            $"{Prefix}[Terminal] [System]  : [CRC] OAK_TWR (??)\n{Prefix}[Terminal] [System]  : [CRC] SFO_GND connected",
+            Scrub($"{Prefix}[Terminal] [System]  : [CRC] OAK_TWR (Zed (Jr Outsider connected\n{Prefix}[Terminal] [System]  : [CRC] SFO_GND connected")
+        );
+        Assert.Equal(
+            $"{Prefix}[CrcLobby] Pull returned: 1 clients (abc(??)",
+            Scrub($"{Prefix}[CrcLobby] Pull returned: 1 clients (abc(Zed (Jr Outsider)")
         );
     }
 

@@ -7,9 +7,34 @@ namespace Yaat.Sim.Logging;
 /// One distinct participant in a training session, collapsed across the identity sources that name
 /// them in the server log: their VATSIM <paramref name="Cid"/>, their CRC <paramref name="RealName"/>,
 /// and their controller <paramref name="Initials"/>. Any of these may be null when a source didn't
-/// supply it (e.g. an instructor on the YAAT client has no CRC real name).
+/// supply it (e.g. an instructor on the YAAT client has no CRC real name). A person seen under more than one
+/// name or set of initials (a rejoin with other initials) keeps the first in <paramref name="RealName"/> and
+/// <paramref name="Initials"/> and the rest in <see cref="OtherRealNames"/> and <see cref="OtherInitials"/>; every one
+/// of them stands for the participant's one pseudonym.
 /// </summary>
-public sealed record LogParticipant(string? Cid, string? RealName, string? Initials);
+public sealed record LogParticipant(string? Cid, string? RealName, string? Initials)
+{
+    public IReadOnlyList<string> OtherRealNames { get; init; } = [];
+
+    public IReadOnlyList<string> OtherInitials { get; init; } = [];
+
+    /// <summary><see cref="RealName"/> then <see cref="OtherRealNames"/>; the first may be null.</summary>
+    public IEnumerable<string?> EveryRealName() => OtherRealNames.Prepend(RealName);
+
+    /// <summary><see cref="Initials"/> then <see cref="OtherInitials"/>; the first may be null.</summary>
+    public IEnumerable<string?> EveryInitials() => OtherInitials.Prepend(Initials);
+
+    // The other names and initials compare by their contents, so two participants built from the same sightings are equal.
+    public bool Equals(LogParticipant? other) =>
+        (other is not null)
+        && (Cid == other.Cid)
+        && (RealName == other.RealName)
+        && (Initials == other.Initials)
+        && OtherRealNames.SequenceEqual(other.OtherRealNames)
+        && OtherInitials.SequenceEqual(other.OtherInitials);
+
+    public override int GetHashCode() => HashCode.Combine(Cid, RealName, Initials);
+}
 
 /// <summary>
 /// Redacts a room-scoped server-log slice before it leaves the server in a bug-report bundle. Each
@@ -27,6 +52,9 @@ public sealed record LogParticipant(string? Cid, string? RealName, string? Initi
 /// </summary>
 public static class SessionLogAnonymizer
 {
+    /// <summary>What a person outside the participant list becomes.</summary>
+    public const string Unknown = "??";
+
     private static readonly HashSet<string> NonPersonTokens = new(StringComparer.Ordinal) { "YAAT", "CRC" };
 
     /// <summary>
@@ -38,63 +66,81 @@ public static class SessionLogAnonymizer
     /// <summary>
     /// Collapses the per-source identity rows for a room into one <see cref="LogParticipant"/> per
     /// distinct CID, merged from training-hub membership (CID + initials) and CRC sessions (CID + real
-    /// name). Ordered by CID so pseudonym assignment is deterministic across exports.
+    /// name). Kept in the order the CIDs are first seen (the members first, then the CRC identities), so a person's
+    /// pseudonym, which is their position in the list, never changes when someone is seen after them. Every distinct
+    /// initials and real name a CID is seen with is kept: the first in the participant's own field, the rest among its
+    /// others.
     /// </summary>
     public static IReadOnlyList<LogParticipant> BuildParticipants(
         IEnumerable<(string Cid, string Initials)> members,
         IEnumerable<(string Cid, string RealName)> crcIdentities
     )
     {
-        var byCid = new Dictionary<string, (string? RealName, string? Initials)>(StringComparer.Ordinal);
+        var firstSeen = new List<string>();
+        var byCid = new Dictionary<string, Sightings>(StringComparer.Ordinal);
 
         foreach ((string? cid, string? initials) in members)
         {
-            if (string.IsNullOrWhiteSpace(cid))
+            if (!string.IsNullOrWhiteSpace(cid))
             {
-                continue;
+                AddDistinct(Seen(byCid, firstSeen, cid).Initials, initials);
             }
-
-            (string? RealName, string? Initials) entry = byCid.GetValueOrDefault(cid);
-            if (string.IsNullOrWhiteSpace(entry.Initials) && !string.IsNullOrWhiteSpace(initials))
-            {
-                entry.Initials = initials;
-            }
-
-            byCid[cid] = entry;
         }
 
         foreach ((string? cid, string? realName) in crcIdentities)
         {
-            if (string.IsNullOrWhiteSpace(cid))
+            if (!string.IsNullOrWhiteSpace(cid))
             {
-                continue;
+                AddDistinct(Seen(byCid, firstSeen, cid).RealNames, realName);
             }
-
-            (string? RealName, string? Initials) entry = byCid.GetValueOrDefault(cid);
-            if (string.IsNullOrWhiteSpace(entry.RealName) && !string.IsNullOrWhiteSpace(realName))
-            {
-                entry.RealName = realName;
-            }
-
-            byCid[cid] = entry;
         }
 
-        return
-        [
-            .. byCid
-                .OrderBy(kvp => kvp.Key, StringComparer.Ordinal)
-                .Select(kvp => new LogParticipant(kvp.Key, kvp.Value.RealName, kvp.Value.Initials)),
-        ];
+        return [.. firstSeen.Select(cid => byCid[cid].ToParticipant(cid))];
+    }
+
+    private static Sightings Seen(Dictionary<string, Sightings> byCid, List<string> firstSeen, string cid)
+    {
+        if (!byCid.TryGetValue(cid, out Sightings? sightings))
+        {
+            sightings = new Sightings();
+            byCid[cid] = sightings;
+            firstSeen.Add(cid);
+        }
+
+        return sightings;
+    }
+
+    private static void AddDistinct(List<string> values, string? value)
+    {
+        if (!string.IsNullOrWhiteSpace(value) && !values.Contains(value, StringComparer.Ordinal))
+        {
+            values.Add(value);
+        }
+    }
+
+    /// <summary>The initials and real names one CID was seen with, in the order they were seen.</summary>
+    private sealed class Sightings
+    {
+        public List<string> Initials { get; } = [];
+        public List<string> RealNames { get; } = [];
+
+        public LogParticipant ToParticipant(string cid) =>
+            new(cid, RealNames.FirstOrDefault(), Initials.FirstOrDefault())
+            {
+                OtherRealNames = [.. RealNames.Skip(1)],
+                OtherInitials = [.. Initials.Skip(1)],
+            };
     }
 
     /// <summary>
     /// Returns <paramref name="log"/> with every participant identifier replaced by that participant's
-    /// stable pseudonym, except a token in <paramref name="keepTokens"/>. Returns the input unchanged when
-    /// there is nothing to redact.
+    /// stable pseudonym, except a token in <paramref name="keepTokens"/>. A <c>(from XX)</c> sender the list does not
+    /// hold becomes <c>??</c> unless it is a system sender (<c>AI</c>, <c>CRC</c>, <c>YAAT</c>), an issued pseudonym or a
+    /// position callsign.
     /// </summary>
     public static string Anonymize(string log, IReadOnlyList<LogParticipant> participants, IReadOnlySet<string> keepTokens)
     {
-        if (string.IsNullOrEmpty(log) || participants.Count == 0)
+        if (string.IsNullOrEmpty(log))
         {
             return log;
         }
@@ -105,8 +151,15 @@ public static class SessionLogAnonymizer
         {
             string pseudonym = Pseudonym(i);
             AddToken(replacements, participants[i].Cid, pseudonym);
-            AddToken(replacements, participants[i].RealName, pseudonym);
-            AddToken(replacements, participants[i].Initials, pseudonym);
+            foreach (string? realName in participants[i].EveryRealName())
+            {
+                AddToken(replacements, realName, pseudonym);
+            }
+
+            foreach (string? initials in participants[i].EveryInitials())
+            {
+                AddToken(replacements, initials, pseudonym);
+            }
         }
 
         // Longest token first so a full name is redacted before its constituent words / initials, and a
@@ -122,24 +175,39 @@ public static class SessionLogAnonymizer
             }
         }
 
-        // The sender slot names a person whatever the keep set says; an unlisted sender is left to the caller.
+        // The sender slot names a person whatever the keep set says, and one the list does not hold is hidden.
         Dictionary<string, string> byInitials = PseudonymsByInitials(participants);
-        return Regex.Replace(result, @"(?<=\(from )[^\s()]+(?=\))", m => byInitials.GetValueOrDefault(m.Value, m.Value));
+        HashSet<string> issued = IssuedPseudonyms(participants);
+        return Regex.Replace(
+            result,
+            @"(?<=\(from )[^\s()]+(?=\))",
+            m => byInitials.GetValueOrDefault(m.Value) ?? (IsKeptSender(m.Value, issued) ? m.Value : Unknown)
+        );
     }
 
+    private static bool IsKeptSender(string sender, HashSet<string> issued) =>
+        NonPersonTokens.Contains(sender) || (sender is "AI" or Unknown) || issued.Contains(sender) || CrcDisplayName.IsPositionCallsign(sender);
+
+    /// <summary>The pseudonyms <paramref name="participants"/> issue: one per participant, by their position in the list.</summary>
+    public static HashSet<string> IssuedPseudonyms(IReadOnlyList<LogParticipant> participants) =>
+        [.. Enumerable.Range(0, participants.Count).Select(Pseudonym)];
+
     /// <summary>
-    /// Each listed participant's initials mapped to that participant's pseudonym, first participant winning on a
-    /// shared initial; the non-person markers are left out.
+    /// Each listed participant's initials (every set they used) mapped to that participant's pseudonym, first participant
+    /// winning on a shared initial; the non-person markers are left out.
     /// </summary>
     public static Dictionary<string, string> PseudonymsByInitials(IReadOnlyList<LogParticipant> participants)
     {
         var byInitials = new Dictionary<string, string>(StringComparer.Ordinal);
         for (int i = 0; i < participants.Count; i++)
         {
-            string? initials = participants[i].Initials?.Trim();
-            if (!string.IsNullOrEmpty(initials) && !NonPersonTokens.Contains(initials))
+            foreach (string? every in participants[i].EveryInitials())
             {
-                byInitials.TryAdd(initials, Pseudonym(i));
+                string? initials = every?.Trim();
+                if (!string.IsNullOrEmpty(initials) && !NonPersonTokens.Contains(initials))
+                {
+                    byInitials.TryAdd(initials, Pseudonym(i));
+                }
             }
         }
 

@@ -861,13 +861,23 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
         return await _connection!.InvokeAsync<List<TerminalBroadcastDto>>("GetTerminalLog");
     }
 
-    public async Task<byte[]?> ExportRecordingAsync(string clientVersion, string clientBuildKind, CancellationToken cancellationToken = default)
+    /// <summary>
+    /// Streams the room's recording archive. With <paramref name="anonymize"/> the server replaces the people in it (the
+    /// initials of commands, chat and terminal lines) with the session's pseudonyms, as a bug report bundle needs; without
+    /// it the recording keeps the real initials, as Save Recording does. Null when the server has no recording.
+    /// </summary>
+    public async Task<byte[]?> ExportRecordingAsync(
+        string clientVersion,
+        string clientBuildKind,
+        bool anonymize,
+        CancellationToken cancellationToken = default
+    )
     {
         EnsureConnected();
         var ms = new MemoryStream();
         await foreach (
             byte[]? chunk in _connection!
-                .StreamAsync<byte[]>("ExportRecording", clientVersion, clientBuildKind, cancellationToken)
+                .StreamAsync<byte[]>("ExportRecording", clientVersion, clientBuildKind, anonymize, cancellationToken)
                 .WithCancellation(cancellationToken)
         )
         {

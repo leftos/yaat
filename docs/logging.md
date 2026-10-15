@@ -110,7 +110,7 @@ Two `ILoggerProvider` implementations exist, both in `Yaat.Client.Core` / `Yaat.
   (`RotatePreviousLogs`). The live log is then opened with `FileMode.Create`, so the current session always starts clean while the
   last three sessions survive. This exists so a user who hits a freeze or crash and *then* reopens YAAT to collect their log still has
   the failing session on disk — before rotation, relaunching destroyed the only record of the failure.
-- A bug report bundle (Save Bug Report Bundle, File Bug Report) carries the rotated sessions too, as `yaat-client.1.log` … `.3.log` (`FileLoggerProvider.PreviousLogs`), so a relaunch before saving does not lose the reported session. The bundle's copies are scrubbed by `ClientLogScrubber` (people → the server log's pseudonyms, user folder, private servers, secrets); the files on disk are never changed.
+- A bug report bundle (Save Bug Report Bundle, File Bug Report) carries the rotated sessions too, as `yaat-client.1.log` … `.3.log` (`FileLoggerProvider.PreviousLogs`), so a relaunch before saving does not lose the reported session. The bundle's copies are scrubbed by `ClientLogScrubber` (people → the server log's pseudonyms, or `??` where the list misses them; user folder, private servers, secrets; the bundle's recording is pseudonymised on the server, see [`snapshots-and-replay.md`](snapshots-and-replay.md)); the files on disk are never changed.
 - Rotation is best-effort: if the files can't be moved (most often a second client instance holding a handle), the failure is written
   as the first line of the new log rather than thrown, and the log still opens.
 - `FileShare.ReadWrite | FileShare.Delete` so the file is readable (and deletable) while the app holds it open — you can tail it live.

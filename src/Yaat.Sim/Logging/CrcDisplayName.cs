@@ -40,6 +40,15 @@ public static partial class CrcDisplayName
         return match.Success;
     }
 
+    /// <summary>
+    /// Whether <paramref name="name"/> is shaped as a CRC position callsign (<c>OAK_TWR</c>, <c>NCT_A_APP</c>): upper-case
+    /// letters and digits around at least one underscore, which a person's name or initials never hold.
+    /// </summary>
+    public static bool IsPositionCallsign(string? name) => (name is not null) && PositionCallsignRegex().IsMatch(name);
+
     [GeneratedRegex(@"^\S+ \((?<name>.+)\)$")]
     private static partial Regex CallsignAndNameRegex();
+
+    [GeneratedRegex(@"^[A-Z0-9]+_[A-Z0-9_]+$")]
+    private static partial Regex PositionCallsignRegex();
 }
