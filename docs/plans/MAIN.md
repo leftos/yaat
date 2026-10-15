@@ -235,7 +235,7 @@
 - [ ] YAAT-95 Warn at ATXI issue time for each runway the direct air-taxi path crosses
 - [ ] YAAT-96 Make a re-fired deferred BLANK idempotent after a rewind
 - [ ] YAAT-97 Withdraw stranded ASDE-X safety-logic config and alerts on rewind/unload
-- [ ] YAAT-716 vStrips: Add "auto-sort this rack" as a checkbox in the context menu
+- [ ] YAAT-716 vStrips: Add "auto-sort this rack" as a checkbox in the context menu · release vNext
 
 ## Wave 7 — Client UI cleanup
 
@@ -523,3 +523,8 @@
 - [ ] YAAT-741 Have a pilot's no-room unable name the request it wants (alternate route, progressive, tow)
 - [ ] YAAT-742 Make the tower-cab session-binding test hold under load
 - [ ] YAAT-747 Keep the tape's starting weather across rewind, restart and recording load
+
+## No project
+
+- [ ] YAAT-749 Find the Yaat.Client.Tests hang that stalls a suite run with two child test hosts
+- [ ] YAAT-750 Publish the vStrips and vTDLS WASM apps in parallel Docker stages
