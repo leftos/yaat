@@ -918,13 +918,13 @@ public static class ArtccConfigResolver
 
     /// <summary>
     /// Collects all ASDEX airports declared anywhere in the facility tree.
-    /// Uses <see cref="NavigationDatabase.Instance"/> to look up airport
-    /// coordinates when a tower-cab override isn't present.
+    /// Uses <paramref name="fixes"/> to look up airport coordinates when a tower-cab override
+    /// isn't present; a <see langword="null"/> database skips that lookup.
     /// </summary>
-    public static List<AsdexAirportInfo> GetAllAsdexAirports(this ArtccConfigRoot config)
+    public static List<AsdexAirportInfo> GetAllAsdexAirports(this ArtccConfigRoot config, NavigationDatabase? fixes)
     {
         var result = new List<AsdexAirportInfo>();
-        CollectAsdexAirports(config.Facility, NavigationDatabase.Instance, result);
+        CollectAsdexAirports(config.Facility, fixes, result);
         return result;
     }
 
@@ -936,23 +936,24 @@ public static class ArtccConfigResolver
     /// <summary>
     /// Collects all SAAB SAID airports declared anywhere in the facility tree. Coordinates come
     /// from <c>SaabConfiguration.TowerLocation</c>, falling back to the facility's indexed
-    /// position. Only the <see cref="SaidVendor.Saab"/> vendor is emitted (the only one CRC 2.17
-    /// renders); other vendors parse but produce no SAID airport.
+    /// position looked up in <paramref name="fixes"/>. Only the <see cref="SaidVendor.Saab"/> vendor
+    /// is emitted (the only one CRC 2.17 renders); other vendors parse but produce no SAID airport.
     /// </summary>
-    public static List<SaidAirportInfo> GetAllSaidAirports(this ArtccConfigRoot config)
+    public static List<SaidAirportInfo> GetAllSaidAirports(this ArtccConfigRoot config, NavigationDatabase? fixes)
     {
         var result = new List<SaidAirportInfo>();
-        CollectSaidAirports(config.Facility, NavigationDatabase.Instance, result);
+        CollectSaidAirports(config.Facility, fixes, result);
         return result;
     }
 
     /// <summary>
-    /// Collects all TowerCab airports declared anywhere in the facility tree.
+    /// Collects all TowerCab airports declared anywhere in the facility tree, looking up a
+    /// facility's position in <paramref name="fixes"/>.
     /// </summary>
-    public static List<TowerCabAirportInfo> GetAllTowerCabAirports(this ArtccConfigRoot config)
+    public static List<TowerCabAirportInfo> GetAllTowerCabAirports(this ArtccConfigRoot config, NavigationDatabase? fixes)
     {
         var result = new List<TowerCabAirportInfo>();
-        CollectTowerCabAirports(config.Facility, NavigationDatabase.Instance, result);
+        CollectTowerCabAirports(config.Facility, fixes, result);
         return result;
     }
 
