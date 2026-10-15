@@ -153,6 +153,7 @@
         SelectedAircraft="{Binding SelectedAircraft}"
         HoverTaxiRoute="{Binding HoverTaxiRoute}"
         PreviewRoute="{Binding PreviewRoute}"
+        ScopePreview="{Binding ScopePreview}"
         DrawnRoutePreview="{Binding DrawnRoutePreview}"
         DrawHoverPreview="{Binding DrawHoverPreview}"
         PushRoutePreview="{Binding PushRoutePreview}"

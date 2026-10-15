@@ -244,7 +244,12 @@ internal sealed class RecordingMenuHost(string input) : IMenuHost
 
     /// <summary>A parked B738 ground traffic row for <paramref name="callsign"/>, which the follow and give-way submenus list.</summary>
     public static MenuGroundTrafficRow ParkedRow(string callsign) =>
-        new(callsign, "B738", 600, "at parking · gate 1") { IsMoving = false, IsSurfaceShadow = false };
+        new(callsign, "B738", 600, "at parking · gate 1")
+        {
+            IsMoving = false,
+            IsSurfaceShadow = false,
+            MeetPoint = null,
+        };
 
     /// <summary>
     /// A preset taxi route row named <paramref name="name"/> sending <paramref name="command"/>, 1,000 ft away by a route
@@ -283,6 +288,16 @@ internal sealed class RecordingMenuHost(string input) : IMenuHost
     public HoldShortMenu GetHoldShortChoices(string callsign) => new(HoldShortRouteLine, HoldShortChoices);
 
     public void SetRoutePreview(TaxiRoute? route) => RoutePreviews.Add(route);
+
+    /// <summary>The route each callsign still has ahead of it; a callsign not listed has none.</summary>
+    public Dictionary<string, TaxiRoute> RemainingRoutes { get; } = new(StringComparer.Ordinal);
+
+    public TaxiRoute? GetRemainingTaxiRoute(string callsign) => RemainingRoutes.GetValueOrDefault(callsign);
+
+    /// <summary>Every scope preview the menu asked for, in order, null for a clear.</summary>
+    public List<ScopePreview?> ScopePreviews { get; } = [];
+
+    public void SetScopePreview(ScopePreview? preview) => ScopePreviews.Add(preview);
 
     /// <summary>The pushback facings the face items list, whatever the callsign asked about.</summary>
     public List<MenuCommandChoice> PushbackFaceChoices { get; } = [];

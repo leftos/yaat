@@ -154,7 +154,14 @@ public class GroundSubmenuGroupTests
             )
         );
         host.GroundTraffic.Add(RecordingMenuHost.ParkedRow("SWA200"));
-        host.GroundTraffic.Add(new MenuGroundTrafficRow("SWA300", "B738", 300, "taxiing on W") { IsMoving = true, IsSurfaceShadow = false });
+        host.GroundTraffic.Add(
+            new MenuGroundTrafficRow("SWA300", "B738", 300, "taxiing on W")
+            {
+                IsMoving = true,
+                IsSurfaceShadow = false,
+                MeetPoint = null,
+            }
+        );
         ItemCollection tree = CommandTree(BuildTaxiGroups(host));
 
         Control holdShortView = RowView(HoldShortRows(Item(tree, "Hold short of…"))[0]);

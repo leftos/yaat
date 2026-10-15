@@ -1,5 +1,6 @@
 using System.Collections.Frozen;
 using SkiaSharp;
+using Yaat.Client.ContextMenus;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
@@ -183,6 +184,27 @@ public sealed class GroundRenderer : IDisposable
     private static readonly SKColor NodeSpot = new(220, 160, 40, 140);
     private static readonly SKColor HoverRouteColor = new(255, 255, 255);
     private static readonly SKColor PreviewRouteColor = new(80, 180, 255, 180);
+
+    // A menu row's scope preview: the commanded aircraft's route solid in the preview blue, the other aircraft's route
+    // dashed in the lighter highlight blue, which also rings that aircraft and boxes a bar, and the meet point in amber.
+    private static readonly SKColor ScopeOwnRouteColor = new(80, 180, 255, 179);
+    private static readonly SKColor ScopeHighlightColor = new(143, 193, 255);
+    private static readonly SKColor ScopeMeetColor = new(255, 192, 98);
+
+    /// <summary>The smallest radius of the inner ring around the aircraft a scope preview names, in px.</summary>
+    public const float ScopeRingMinRadiusPx = 17f;
+
+    /// <summary>How far the inner ring around the aircraft a scope preview names stands clear of its drawn symbol, in px.</summary>
+    public const float ScopeRingMarginPx = 6f;
+
+    /// <summary>How far the outer, half-strength ring stands beyond the inner one, in px.</summary>
+    public const float ScopeOuterRingGapPx = 7f;
+
+    /// <summary>The radius of the amber ring at the point where a scope preview's two routes meet, in px.</summary>
+    public const float ScopeMeetRingRadiusPx = 8f;
+
+    private const float ScopeBarBoxWidthPx = 44f;
+    private const float ScopeBarBoxHeightPx = 28f;
     private static readonly SKColor DrawnRouteColor = new(0, 200, 255);
     private static readonly SKColor DrawHoverPreviewColor = new(255, 180, 50);
     private static readonly SKColor WaypointMarkerColor = new(255, 200, 0);
@@ -321,6 +343,27 @@ public sealed class GroundRenderer : IDisposable
         StrokeCap = SKStrokeCap.Round,
         PathEffect = SKPathEffect.CreateDash([10f, 6f], 0),
     };
+
+    private readonly SKPaint _scopeOwnRoutePaint = new()
+    {
+        Color = ScopeOwnRouteColor,
+        StrokeWidth = 5,
+        Style = SKPaintStyle.Stroke,
+        IsAntialias = true,
+        StrokeCap = SKStrokeCap.Round,
+    };
+
+    private readonly SKPaint _scopeTargetRoutePaint = new()
+    {
+        Color = ScopeHighlightColor,
+        StrokeWidth = 4.5f,
+        Style = SKPaintStyle.Stroke,
+        IsAntialias = true,
+        StrokeCap = SKStrokeCap.Round,
+        PathEffect = SKPathEffect.CreateDash([10f, 6f], 0),
+    };
+
+    private readonly SKPaint _scopeMarkPaint = new() { Style = SKPaintStyle.Stroke, IsAntialias = true };
 
     private readonly SKPaint _nodePaint = new() { Style = SKPaintStyle.Fill, IsAntialias = true };
 
@@ -645,6 +688,7 @@ public sealed class GroundRenderer : IDisposable
         string? hoveredRunwayEnd,
         TaxiRoute? hoverRoute,
         TaxiRoute? previewRoute,
+        ScopePreview? scopePreview,
         TaxiRoute? drawnRoutePreview,
         TaxiRoute? drawHoverPreview,
         IReadOnlyList<int>? drawWaypoints,
@@ -724,6 +768,7 @@ public sealed class GroundRenderer : IDisposable
 
             DrawEdges(canvas, vp, layout, showDebugInfo, showTaxiwayLabels, showParking);
             DrawPreviewRoute(canvas, vp, layout, previewRoute);
+            DrawScopePreviewRoutes(canvas, vp, layout, scopePreview);
             DrawShownTaxiRoutes(canvas, vp, layout, shownTaxiRoutes);
             DrawHoverRoute(canvas, vp, layout, hoverRoute);
             DrawDrawnRoute(canvas, vp, layout, drawnRoutePreview, drawWaypoints, pushWaypointMarks);
@@ -742,6 +787,12 @@ public sealed class GroundRenderer : IDisposable
         // once in GroundCanvas.FilterActiveAircraft, the shared draw + hit-test chokepoint, so `aircraft`
         // is already the exact set to paint.
         DrawAircraft(canvas, vp, aircraft, selectedAircraft);
+        if (showYaatLayout)
+        {
+            // Above the aircraft symbols, so a ring or a box never hides under the aircraft it marks.
+            DrawScopePreviewMarks(canvas, vp, aircraft, selectedAircraft, scopePreview);
+        }
+
         DrawDataBlocks(canvas, vp, aircraft, selectedAircraft, dataBlockOffsets, deconflictOffsets, highlightedCallsigns, hiddenDataBlockCallsigns);
 
         if (showYaatLayout)
@@ -1347,6 +1398,84 @@ public sealed class GroundRenderer : IDisposable
 
     private void DrawHoverRoute(SKCanvas canvas, MapViewport vp, GroundLayoutDto layout, TaxiRoute? route) =>
         DrawRoute(canvas, vp, layout, route, _hoverRoutePaint);
+
+    /// <summary>
+    /// The scope preview's routes: the commanded aircraft's solid in the preview blue, the other aircraft's dashed in the
+    /// highlight blue.
+    /// </summary>
+    private void DrawScopePreviewRoutes(SKCanvas canvas, MapViewport vp, GroundLayoutDto layout, ScopePreview? preview)
+    {
+        if (preview is null)
+        {
+            return;
+        }
+
+        DrawRoute(canvas, vp, layout, preview.OwnRoute, _scopeOwnRoutePaint);
+        DrawRoute(canvas, vp, layout, preview.TargetRoute, _scopeTargetRoutePaint);
+    }
+
+    /// <summary>
+    /// The scope preview's marks, each drawn only when the preview names it: two rings in the highlight blue around the
+    /// aircraft it names, clear of its drawn symbol (<see cref="ScopeRingRadius"/>; the inner solid, the outer at half
+    /// strength; none when that aircraft is not among <paramref name="aircraft"/>), a rounded box in the same blue around
+    /// the bar, and an amber ring at the meet point.
+    /// </summary>
+    private void DrawScopePreviewMarks(
+        SKCanvas canvas,
+        MapViewport vp,
+        IReadOnlyList<AircraftModel> aircraft,
+        AircraftModel? selectedAircraft,
+        ScopePreview? preview
+    )
+    {
+        if (preview is null)
+        {
+            return;
+        }
+
+        if ((preview.RingCallsign is { } callsign) && (aircraft.FirstOrDefault(ac => ac.Callsign == callsign) is { } ringed))
+        {
+            (float x, float y) = vp.LatLonToScreen(ringed.Position.Lat, ringed.Position.Lon);
+            float pxPerFt = (float)(vp.Zoom * 5000.0 / FeetPerDegLat);
+            float radius = ScopeRingRadius(ringed, pxPerFt, ringed == selectedAircraft);
+            StrokeCircle(canvas, x, y, radius, 3.2f, ScopeHighlightColor);
+            StrokeCircle(canvas, x, y, radius + ScopeOuterRingGapPx, 1.6f, ScopeHighlightColor.WithAlpha(128));
+        }
+
+        if (preview.BarPoint is { } bar)
+        {
+            (float x, float y) = vp.LatLonToScreen(bar.Lat, bar.Lon);
+            _scopeMarkPaint.Color = ScopeHighlightColor;
+            _scopeMarkPaint.StrokeWidth = 3.2f;
+            var box = SKRect.Create(x - (ScopeBarBoxWidthPx / 2), y - (ScopeBarBoxHeightPx / 2), ScopeBarBoxWidthPx, ScopeBarBoxHeightPx);
+            canvas.DrawRoundRect(box, 6, 6, _scopeMarkPaint);
+        }
+
+        if (preview.MeetPoint is { } meet)
+        {
+            (float x, float y) = vp.LatLonToScreen(meet.Lat, meet.Lon);
+            StrokeCircle(canvas, x, y, ScopeMeetRingRadiusPx, 3.2f, ScopeMeetColor);
+        }
+    }
+
+    /// <summary>
+    /// The radius of the inner ring around <paramref name="ac"/>: <see cref="ScopeRingMarginPx"/> beyond the larger of the
+    /// half length and half wingspan its symbol is drawn at (<see cref="DrawAircraft"/>, scaled up when selected), and never
+    /// under <see cref="ScopeRingMinRadiusPx"/>.
+    /// </summary>
+    private static float ScopeRingRadius(AircraftModel ac, float pxPerFt, bool isSelected)
+    {
+        (float halfLengthPx, float halfWidthPx) = ComputeAircraftPixelSize(FaaAircraftDatabase.Get(ac.AircraftType), pxPerFt);
+        float scale = isSelected ? SelectedScaleFactor : 1f;
+        return MathF.Max(ScopeRingMinRadiusPx, (MathF.Max(halfLengthPx, halfWidthPx) * scale) + ScopeRingMarginPx);
+    }
+
+    private void StrokeCircle(SKCanvas canvas, float x, float y, float radius, float strokeWidth, SKColor color)
+    {
+        _scopeMarkPaint.Color = color;
+        _scopeMarkPaint.StrokeWidth = strokeWidth;
+        canvas.DrawCircle(x, y, radius, _scopeMarkPaint);
+    }
 
     private void DrawPreviewRoute(SKCanvas canvas, MapViewport vp, GroundLayoutDto layout, TaxiRoute? route) =>
         DrawRoute(canvas, vp, layout, route, _previewRoutePaint);
@@ -2865,6 +2994,9 @@ public sealed class GroundRenderer : IDisposable
         _taxiLabelFont.Dispose();
         _hoverRoutePaint.Dispose();
         _previewRoutePaint.Dispose();
+        _scopeOwnRoutePaint.Dispose();
+        _scopeTargetRoutePaint.Dispose();
+        _scopeMarkPaint.Dispose();
         _drawnRoutePaint.Dispose();
         _drawHoverPreviewPaint.Dispose();
         _pushLegPaint.Dispose();

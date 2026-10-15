@@ -192,6 +192,18 @@ public interface IMenuHost
     void SetRoutePreview(TaxiRoute? route);
 
     /// <summary>
+    /// The taxi route <paramref name="callsign"/> still has ahead of it, as the surface reconstructs it; null when the
+    /// aircraft is not found or has no route.
+    /// </summary>
+    TaxiRoute? GetRemainingTaxiRoute(string callsign);
+
+    /// <summary>
+    /// Shows <paramref name="preview"/> on the ground views, replacing the one shown before; null clears it. Nothing is
+    /// drawn on the radar.
+    /// </summary>
+    void SetScopePreview(ScopePreview? preview);
+
+    /// <summary>
     /// The pushback facings at <paramref name="callsign"/>'s stand, one per taxiway leaving it: each item's text and
     /// its finished <c>PUSH FACE</c> command, no preview; empty when the stand offers none.
     /// </summary>

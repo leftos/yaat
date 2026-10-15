@@ -481,7 +481,7 @@ public class MenuCatalogCommandTests
 
         Assert.NotNull(item);
         Assert.Equal("Maintain altitude", item.Header as string);
-        Click(item);
+        Click((MenuItem)item);
 
         MenuRichList popup = Assert.Single(host.RichListPopups);
         Assert.Equal("10,000", popup.Rows[popup.SelectedIndex].Label);
@@ -687,7 +687,7 @@ public class MenuCatalogCommandTests
     {
         MenuItem? item = MenuCatalog.Get(MenuIds.AltitudeMaintain).Build(aircraft, Context(), host);
         Assert.NotNull(item);
-        Click(item);
+        Click((MenuItem)item);
         return Assert.Single(host.RichListPopups);
     }
 
@@ -700,7 +700,7 @@ public class MenuCatalogCommandTests
         MenuItem? item = MenuCatalog.Get(MenuIds.HeadingTurnLeftDegrees).Build(null, Context(), host);
 
         Assert.NotNull(item);
-        Click(item);
+        Click((MenuItem)item);
 
         (IReadOnlyList<string> Items, object? Selected) popup = Assert.Single(host.ListPopups);
         Assert.Equal<object?>(30, popup.Selected);
@@ -1267,7 +1267,7 @@ public class MenuCatalogCommandTests
         MenuItem? item = MenuCatalog.Get(MenuIds.ApproachClearedVisual).Build(aircraft, Context(), host);
         Assert.NotNull(item);
         Assert.Equal("Cleared visual approach 28L", item.Header as string);
-        Click(item);
+        Click((MenuItem)item);
 
         Assert.Equal([(Callsign, "CVA 28L", Initials)], host.Sent);
     }
@@ -2012,8 +2012,8 @@ public class MenuCatalogCommandTests
         Assert.Equal(["Finding runway entries…"], item.Items.Select(RowText));
         Assert.Empty(host.TaxiToRunwayRequests);
 
-        OpenSubmenu(item);
-        OpenSubmenu(item);
+        OpenSubmenu((MenuItem)item);
+        OpenSubmenu((MenuItem)item);
 
         Assert.Equal([Callsign], host.TaxiToRunwayRequests);
         Assert.Equal(
@@ -2062,7 +2062,7 @@ public class MenuCatalogCommandTests
         MenuItem? item = MenuCatalog.Get(MenuIds.GroundTaxiToRunway).Build(OnGround("At Parking", "IFR", ""), Context(), new RecordingMenuHost(""));
 
         Assert.NotNull(item);
-        OpenSubmenu(item);
+        OpenSubmenu((MenuItem)item);
         MenuItem row = Assert.IsType<MenuItem>(Assert.Single(item.Items));
         Assert.Equal(("No runway entry found", false), (row.Header as string, row.IsEnabled));
     }
@@ -2098,10 +2098,10 @@ public class MenuCatalogCommandTests
         MenuItem? item = MenuCatalog.Get(MenuIds.GroundTaxiToRunway).Build(ac, Context(VfrCommandsForIfr.None), host);
 
         Assert.NotNull(item);
-        OpenSubmenu(item);
+        OpenSubmenu((MenuItem)item);
         List<MenuItem> crossing =
         [
-            .. Descendants(item).Where(m => MenuCommandText.GetCommand(m)?.Contains(", CROSS ", StringComparison.Ordinal) == true),
+            .. Descendants((MenuItem)item).Where(m => MenuCommandText.GetCommand(m)?.Contains(", CROSS ", StringComparison.Ordinal) == true),
         ];
         Assert.NotEmpty(crossing);
         string command = MenuCommandText.GetCommand(crossing[0])!;
@@ -3132,6 +3132,8 @@ public class MenuCatalogCommandTests
         public string? NextCrossingRunway { get; init; }
 
         public IReadOnlyList<ExitAheadDto>? ExitsAhead { get; init; }
+
+        public IReadOnlyList<GroundMeetPointDto>? MeetPoints { get; init; }
 
         public StandDeparture? StandDeparture { get; init; }
 

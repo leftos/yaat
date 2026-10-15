@@ -1,3 +1,5 @@
+using Yaat.Sim;
+
 namespace Yaat.Client.ContextMenus;
 
 /// <summary>
@@ -16,4 +18,10 @@ public sealed record MenuGroundTrafficRow(string Callsign, string AircraftType, 
 
     /// <summary>Whether the aircraft is a live-traffic shadow on the surface, which Give way to… leaves out.</summary>
     public required bool IsSurfaceShadow { get; init; }
+
+    /// <summary>
+    /// Where the route of the aircraft the menu commands meets this aircraft's, as the server predicts it
+    /// (<see cref="IMenuAircraft.MeetPoints"/>); null when no meeting is predicted.
+    /// </summary>
+    public required LatLon? MeetPoint { get; init; }
 }

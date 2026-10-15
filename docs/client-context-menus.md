@@ -163,7 +163,19 @@ Settings › Input › **Quick commands** (`SettingsSectionId.QuickCommands`) ed
 
   Follow's keyboard is box-first: focus lands in the box, Down moves into the list, Down and Up skip the rows the filter hides, and Enter sends the top match, or the focused row once focus is in the list. With no match, Enter sends `FOLLOWG` with the first word typed and the hint reads `No aircraft matches; Enter sends FOLLOWG N1 as typed.` The box takes focus through `FlyoutBoxFocus.HandFocusToTheBox`, shared with the takeoff flyout's boxes.
 
-  In both flyouts the row under the pointer, else the keyboard-focused row, highlights its aircraft on the scope (`IMenuHost.HighlightAircraft`); leaving a row falls back to the focused one, and closing the flyout clears it (`TrafficHighlight`). A row that goes gone under the pointer is disabled and raises no `PointerExited`, so its highlight is released when it is disabled and falls to the focused row, or clears.
+  In both flyouts the row under the pointer, else the keyboard-focused row, highlights its aircraft on the scope (`IMenuHost.HighlightAircraft`); leaving a row falls back to the focused one, and closing the flyout clears it (`ScopeFeedbackTracker`, which keeps the pointed and the focused row apart). A row that goes gone under the pointer is disabled and raises no `PointerExited`, so its highlight is released when it is disabled and falls to the focused row, or clears.
+
+  The same row also drives a **scope preview** on the ground views (`ScopePreview`, `IMenuHost.SetScopePreview`, fanned over `main.AllGroundViews`; nothing on the radar): the row's aircraft ringed, the commanded aircraft's remaining route and the row aircraft's, each read through `IMenuHost.GetRemainingTaxiRoute`, and, for Give way to… only, the meet point from `MenuGroundTrafficRow.MeetPoint` (the commanded aircraft's `MeetPoints` entry for that callsign). An aircraft with no route is ringed alone; a gone row previews nothing.
+
+  Paint and draw order are in [ground-rendering.md](ground-rendering.md).
+
+  The preview is sent when the row is pointed at or focused and again with the strip flyout's 1 s list refill, so the routes and the meet point follow the traffic.
+
+  The refill sends it only while the strip's live flyout is open (`FlyoutLiveTick` running), because a submenu closing fires a refill of its own that would put a preview back after the menu cleared it.
+
+  The preview clears with the highlight when the row loses pointer and focus, when the flyout closes and when the menu closes (`AircraftMenuBuilder`).
+
+  A Give way to… row whose aircraft has no meet point shows a faint `no conflict predicted` line under its state (`GroundTrafficFlyout.NoConflictPredictedText`), only while the commanded aircraft has a taxi route; a gone row keeps what it said, and Follow… rows never show it. The note means no shared junction within the server's 1,500 ft look-ahead, not that the aircraft will not conflict ([CONTEXT.md](../CONTEXT.md), Meet point).
 
   A focused row whose aircraft leaves the list, or goes gone while still listed, hands keyboard focus to the live row now at its place, else the one above it; under a Follow filter, the next row the filter shows below it, else above. With no live row left, Give way falls back to `Show n more` and Follow to the filter box. A Follow list whose flyout or submenu is closed leaves its stuck section title alone, and the All Commands Follow… list restates its stuck title when the filter changes.
 

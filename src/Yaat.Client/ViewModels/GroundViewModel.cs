@@ -123,6 +123,10 @@ public partial class GroundViewModel : ObservableObject
     [ObservableProperty]
     private TaxiRoute? _previewRoute;
 
+    /// <summary>The scope preview a pointed or focused menu row shows (<see cref="IMenuHost.SetScopePreview"/>); null for none.</summary>
+    [ObservableProperty]
+    private ScopePreview? _scopePreview;
+
     [ObservableProperty]
     private bool _isDrawingRoute;
 
@@ -679,6 +683,7 @@ public partial class GroundViewModel : ObservableObject
         Layout = null;
         HoverTaxiRoute = null;
         PreviewRoute = null;
+        ScopePreview = null;
         AirportCenterLat = 0;
         AirportCenterLon = 0;
         AirportElevation = 0;

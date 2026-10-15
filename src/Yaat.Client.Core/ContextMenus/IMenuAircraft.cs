@@ -226,6 +226,12 @@ public interface IMenuAircraft
     /// </summary>
     IReadOnlyList<ExitAheadDto>? ExitsAhead { get; }
 
+    /// <summary>
+    /// Where the aircraft's taxi route meets other aircraft's, as the server's ground conflict detector predicts it: one row
+    /// per other aircraft, at the junction both routes reach; null when it meets none.
+    /// </summary>
+    IReadOnlyList<GroundMeetPointDto>? MeetPoints { get; }
+
     /// <summary>The fixes along the aircraft's route that a fix picker offers first, computed on each call.</summary>
     IReadOnlyList<string> RouteFixNames();
 }

@@ -34,6 +34,7 @@ public class GiveWayFlyoutTests
             {
                 IsMoving = i % 2 == 1,
                 IsSurfaceShadow = false,
+                MeetPoint = null,
             })
             .OrderByDescending(row => row.DistanceFeet),
     ];
@@ -103,7 +104,12 @@ public class GiveWayFlyoutTests
     [AvaloniaFact]
     public void GiveWay_LeavesOutSurfaceShadows()
     {
-        MenuGroundTrafficRow shadow = new("SHD1", "B738", 100, "taxiing on P · live feed") { IsMoving = true, IsSurfaceShadow = true };
+        MenuGroundTrafficRow shadow = new("SHD1", "B738", 100, "taxiing on P · live feed")
+        {
+            IsMoving = true,
+            IsSurfaceShadow = true,
+            MeetPoint = null,
+        };
         RecordingMenuHost host = HostWith([shadow, .. Thirteen.Take(2)]);
 
         Assert.DoesNotContain("SHD1", Rows(GiveWay(BuildMenu(host)).Items).Select(row => row.Traffic.Callsign));

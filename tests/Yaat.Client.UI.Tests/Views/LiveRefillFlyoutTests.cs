@@ -816,13 +816,28 @@ public class LiveRefillFlyoutTests
     // --- Harness ----------------------------------------------------------------------------
 
     private static MenuGroundTrafficRow Moving(string callsign, double feet) =>
-        new(callsign, "B738", feet, "taxiing on W") { IsMoving = true, IsSurfaceShadow = false };
+        new(callsign, "B738", feet, "taxiing on W")
+        {
+            IsMoving = true,
+            IsSurfaceShadow = false,
+            MeetPoint = null,
+        };
 
     private static MenuGroundTrafficRow Parked(string callsign, double feet) =>
-        new(callsign, "B738", feet, "at parking · gate 1") { IsMoving = false, IsSurfaceShadow = false };
+        new(callsign, "B738", feet, "at parking · gate 1")
+        {
+            IsMoving = false,
+            IsSurfaceShadow = false,
+            MeetPoint = null,
+        };
 
     private static MenuGroundTrafficRow Holding(string callsign, double feet) =>
-        new(callsign, "B738", feet, "holding short of 28R") { IsMoving = false, IsSurfaceShadow = false };
+        new(callsign, "B738", feet, "holding short of 28R")
+        {
+            IsMoving = false,
+            IsSurfaceShadow = false,
+            MeetPoint = null,
+        };
 
     private static RecordingMenuHost HostWith(IEnumerable<MenuGroundTrafficRow> traffic)
     {

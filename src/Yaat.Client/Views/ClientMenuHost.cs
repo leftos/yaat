@@ -493,6 +493,21 @@ internal sealed class ClientMenuHost(MainViewModel main, AircraftModel? aircraft
         }
     }
 
+    /// <summary>
+    /// The route the primary ground view model reconstructs for what <paramref name="callsign"/> has left to taxi
+    /// (<see cref="GroundViewModel.ResolveRemainingRoute"/>); null when it is not in the list or has none.
+    /// </summary>
+    public TaxiRoute? GetRemainingTaxiRoute(string callsign) => (FindAircraft(callsign) is { } ac) ? main.Ground.ResolveRemainingRoute(ac) : null;
+
+    /// <summary>Shows <paramref name="preview"/> on every ground view, so it shows on whichever ground window is open; never on the radar.</summary>
+    public void SetScopePreview(ScopePreview? preview)
+    {
+        foreach (GroundViewModel ground in main.AllGroundViews)
+        {
+            ground.ScopePreview = preview;
+        }
+    }
+
     /// <summary>The primary ground view model's pushback facings at the aircraft's node, each sending <c>PUSH FACE</c>.</summary>
     public IReadOnlyList<MenuCommandChoice> GetPushbackFaceChoices(string callsign) =>
         FindAircraft(callsign) is { } ac ? main.Ground.GetPushbackFaceChoices(ac) : [];

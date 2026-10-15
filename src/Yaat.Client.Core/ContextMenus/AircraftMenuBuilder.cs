@@ -59,7 +59,11 @@ public static class AircraftMenuBuilder
         }
 
         var menu = new ContextMenu();
-        menu.Closed += (_, _) => host.HighlightAircraft(null);
+        menu.Closed += (_, _) =>
+        {
+            host.HighlightAircraft(null);
+            host.SetScopePreview(null);
+        };
         SharedMenuGroups.AddHeader(menu.Items, aircraft, context);
 
         if (aircraft is { IsDelayed: true })

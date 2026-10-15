@@ -110,6 +110,7 @@ public static class RelativeGeometry
         {
             IsMoving = IsMoving(target),
             IsSurfaceShadow = AircraftCommandApplicability.IsSurfaceShadow(target),
+            MeetPoint = from.MeetPoints?.FirstOrDefault(meet => meet.Callsign == target.Callsign)?.Position,
         };
 
     /// <summary>

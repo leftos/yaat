@@ -161,4 +161,33 @@ public class RelativeGeometryTests
         Assert.Equal("AAL601 is at its 2 o'clock, 4 nm, 1,500 ft below", RelativeGeometry.Describe("AAL601", 2, 4, -1500));
         Assert.Equal("N1 is at its 12 o'clock, 1 nm, same altitude", RelativeGeometry.Describe("N1", 12, 1, 0));
     }
+
+    [Fact]
+    public void GroundTrafficRow_MeetPoint_IsTheFromAircraftsMeetRowNamingTheTarget()
+    {
+        var targetMeet = new LatLon(37.7213, -122.2207);
+        AircraftModel from = Ground("SWA602", "Taxiing", "", "W");
+        from.MeetPoints = [new GroundMeetPointDto("DAL9", 12, new LatLon(37.7, -122.2)), new GroundMeetPointDto("SWA601", 34, targetMeet)];
+
+        MenuGroundTrafficRow row = RelativeGeometry.GroundTrafficRow(from, Ground("SWA601", "Taxiing", "", "W"));
+
+        Assert.Equal(targetMeet, row.MeetPoint);
+    }
+
+    [Fact]
+    public void GroundTrafficRow_NoMeetRows_HasNoMeetPoint()
+    {
+        AircraftModel from = Ground("SWA602", "Taxiing", "", "W");
+
+        Assert.Null(RelativeGeometry.GroundTrafficRow(from, Ground("SWA601", "Taxiing", "", "W")).MeetPoint);
+    }
+
+    [Fact]
+    public void GroundTrafficRow_OnlyAnotherAircraftsMeetRow_HasNoMeetPoint()
+    {
+        AircraftModel from = Ground("SWA602", "Taxiing", "", "W");
+        from.MeetPoints = [new GroundMeetPointDto("DAL9", 12, new LatLon(37.7, -122.2))];
+
+        Assert.Null(RelativeGeometry.GroundTrafficRow(from, Ground("SWA601", "Taxiing", "", "W")).MeetPoint);
+    }
 }

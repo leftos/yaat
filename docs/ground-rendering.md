@@ -28,9 +28,11 @@ For taxi-route *resolution and following* (the pathfinder and navigator), see [`
 4. **Runways** (drawn when GND *or* MAP is on; labels + threshold markers only when GND is on and an aircraft is selected), then **ADW marks** under the same condition plus the `ADW` toggle — see below
 5. **Layer 3 — YAAT ground layout** (only when `ShowYaatLayout`), brightness-scaled, in this sub-order:
    - `DrawEdges` (taxiway/ramp infrastructure)
-   - `DrawPreviewRoute` → `DrawShownTaxiRoutes` → **`DrawHoverRoute`** → `DrawDrawnRoute` → `DrawDrawHoverPreview` (the five route overlays — see below)
+   - `DrawPreviewRoute` → `DrawScopePreviewRoutes` → `DrawShownTaxiRoutes` → **`DrawHoverRoute`** → `DrawDrawnRoute` → `DrawDrawHoverPreview` (the five route overlays — see below)
    - `DrawNodes` (hold-short / parking / spot icons) then `DrawLabels`
-6. **Aircraft symbols** then **datablocks** (always drawn, independent of the layout toggle).
+6. **Aircraft symbols**, then the **scope preview's marks** (only when `ShowYaatLayout`), then **datablocks** (aircraft and datablocks are always drawn, independent of the layout toggle).
+
+   `DrawScopePreviewMarks` draws, from the canvas's `ScopePreview`, two rings in the highlight blue on the aircraft it names (the inner solid at a radius of the drawn half-size plus 6 px, minimum 17 px, scaled up for the selected aircraft; the outer 7 px further out at half strength), a rounded box at a bar point, and an amber ring at the meet point. They sit above the symbols so a ring never hides under its aircraft and below the datablocks.
 
    A fixed-wing aircraft on the ground whose `AircraftModel.TowbarHeading` is set (the wire's `TowbarTrueHeadingDeg`, present only under a `PushbackPhase`) also gets its **tug** (`DrawTug`): a towbar line from the nose gear (`0.12 × length` aft of the nose tip, a judgement call) `TowbarLengthFt` = 18 ft along the towbar heading, then a 15 × 8 ft tractor body with its cab at the hitch end, filled with the aircraft paint and rotated to the towbar heading.
 
@@ -79,11 +81,12 @@ detached windows. Two rules follow:
 
 ## Route overlays
 
-All five overlays flow VM → `GroundCanvas` `StyledProperty` → `RenderSnapshot` → `GroundRenderer`, and all funnel through one primitive, `GroundRenderer.DrawRoute(canvas, vp, layout, TaxiRoute?, SKPaint)`, which walks `TaxiRoute.Segments` (straight `GroundEdge`s and `GroundArc` fillets) and projects each node via `MapViewport.LatLonToScreen`.
+All five overlays (and the scope preview's two routes, below) flow VM → `GroundCanvas` `StyledProperty` → `RenderSnapshot` → `GroundRenderer`, and all funnel through one primitive, `GroundRenderer.DrawRoute(canvas, vp, layout, TaxiRoute?, SKPaint)`, which walks `TaxiRoute.Segments` (straight `GroundEdge`s and `GroundArc` fillets) and projects each node via `MapViewport.LatLonToScreen`.
 
 | Overlay | Canvas property | Fed by | Paint |
 |---------|-----------------|--------|-------|
 | Command-build preview | `PreviewRoute` | context-menu `PointerEntered` while building a TAXI command, a Hold short of… row's hover (the route up to its bar), and a Preset taxi route or Taxi to runway row's hover (its resolved path) through `ClientMenuHost.SetRoutePreview` | dashed blue |
+| Scope preview | `ScopePreview` (`ScopePreview?`: ring callsign, own route, target route, bar point, meet point) | a pointed or focused Give way to… / Follow… row through `ClientMenuHost.SetScopePreview`, which fans out over `main.AllGroundViews`; `DrawScopePreviewRoutes` draws the two routes right after the command-build preview | own route solid light blue, the other aircraft's route dashed lighter blue (marks: see the draw order) |
 | Shown taxi routes | `ShownTaxiRoutes` (`IReadOnlyList<ShownTaxiRouteEntry>`) | the taxi-route display feature (below) | 8 rotating colors |
 | **Hover route** | `HoverTaxiRoute` | mouse-hover over an aircraft (below) | solid white, stroke 5 |
 | Draw-mode route | `DrawnRoutePreview` + `DrawWaypoints` | interactive "Draw taxi route…" mode | — |

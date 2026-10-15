@@ -40,6 +40,10 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         nameof(PreviewRoute)
     );
 
+    public static readonly StyledProperty<ScopePreview?> ScopePreviewProperty = AvaloniaProperty.Register<GroundCanvas, ScopePreview?>(
+        nameof(ScopePreview)
+    );
+
     public static readonly StyledProperty<double> AirportCenterLatProperty = AvaloniaProperty.Register<GroundCanvas, double>(
         nameof(AirportCenterLat)
     );
@@ -392,6 +396,13 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
     {
         get => GetValue(PreviewRouteProperty);
         set => SetValue(PreviewRouteProperty, value);
+    }
+
+    /// <summary>The scope preview a pointed or focused menu row shows (<see cref="GroundViewModel.ScopePreview"/>); null for none.</summary>
+    public ScopePreview? ScopePreview
+    {
+        get => GetValue(ScopePreviewProperty);
+        set => SetValue(ScopePreviewProperty, value);
     }
 
     public double AirportCenterLat
@@ -783,6 +794,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             || change.Property == SelectedAircraftProperty
             || change.Property == HoverTaxiRouteProperty
             || change.Property == PreviewRouteProperty
+            || change.Property == ScopePreviewProperty
             || change.Property == DrawnRoutePreviewProperty
             || change.Property == DrawHoverPreviewProperty
             || change.Property == DrawWaypointsProperty
@@ -885,6 +897,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         string? HoveredRunwayEnd,
         TaxiRoute? HoverTaxiRoute,
         TaxiRoute? PreviewRoute,
+        ScopePreview? ScopePreview,
         TaxiRoute? DrawnRoutePreview,
         TaxiRoute? DrawHoverPreview,
         IReadOnlyList<int>? DrawWaypoints,
@@ -966,6 +979,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             _hoveredRunwayEnd,
             HoverTaxiRoute,
             PreviewRoute,
+            ScopePreview,
             DrawnRoutePreview,
             DrawHoverPreview,
             DrawWaypoints,
@@ -1205,6 +1219,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             s.HoveredRunwayEnd,
             s.HoverTaxiRoute,
             s.PreviewRoute,
+            s.ScopePreview,
             s.DrawnRoutePreview,
             s.DrawHoverPreview,
             s.DrawWaypoints,

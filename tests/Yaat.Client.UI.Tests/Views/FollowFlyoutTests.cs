@@ -36,6 +36,7 @@ public class FollowFlyoutTests
             {
                 IsMoving = (i % 2 == 1) || (i == 10),
                 IsSurfaceShadow = i == 3,
+                MeetPoint = null,
             })
             .OrderByDescending(row => row.DistanceFeet),
     ];
@@ -198,11 +199,17 @@ public class FollowFlyoutTests
                 .SelectMany(i =>
                     new[]
                     {
-                        new MenuGroundTrafficRow($"MOV{i:00}", "B738", i * 100, "taxiing on W") { IsMoving = true, IsSurfaceShadow = false },
+                        new MenuGroundTrafficRow($"MOV{i:00}", "B738", i * 100, "taxiing on W")
+                        {
+                            IsMoving = true,
+                            IsSurfaceShadow = false,
+                            MeetPoint = null,
+                        },
                         new MenuGroundTrafficRow($"PRK{i:00}", "B738", 2000 + (i * 100), "at parking · gate 1")
                         {
                             IsMoving = false,
                             IsSurfaceShadow = false,
+                            MeetPoint = null,
                         },
                     }
                 ),
