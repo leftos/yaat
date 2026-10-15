@@ -21,7 +21,7 @@ Subcommands:
     weather   Print weather.json (if present).
     layouts   List ground layout airport IDs, or dump one with --airport / all with --all.
               Pass --geojson to list/dump original airport GeoJSON entries instead.
-    logs      Extract yaat-client.log / yaat-server.log to .tmp/ (or --out-dir).
+    logs      Extract every bundled *.log (client, rotated client, server) to .tmp/ (or --out-dir).
     install   Copy bundle into tests/Yaat.Sim.Tests/TestData/ with issue{N}-{desc}-... naming.
               Either a local path, or --issue N to fetch the attachment from a GitHub issue.
               Then runs yaat-server's Yaat.RecordingUpgrader on it (snapshot schema +
@@ -42,6 +42,7 @@ V4 bundle layout (ZIP at root):
     weather.json                plain JSON (optional; HasWeather in manifest)
     artcc-config.json.br        Brotli-compressed ARTCC config (optional; HasArtccConfig in manifest)
     yaat-client.log             plain text (bug bundles only)
+    yaat-client.N.log           plain text, the client's previous sessions (N=1 newest; bug bundles only)
     yaat-server.log             plain text (bug bundles only, local server)
 
 Legacy bug bundles contain a nested `recording.yaat-recording.zip` with the same

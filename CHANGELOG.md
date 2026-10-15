@@ -35,6 +35,8 @@
 - In replay, a recorded live-traffic aircraft appears once, with no extra PDC or printed strip the live session never had.
 - ERAM coverage-loss coasts keep their 24 s through rewinds and aircraft removal, and a low handoff still shown as a normal track is auto-accepted.
 - A rewind or replay during a line-up or clear-the-runway turn continues on the original path instead of restarting the turn.
+- Bug report bundles include the client logs of the previous three sessions, so reopening YAAT before saving one no longer loses the session's log.
+- Client log lines carry the full date, time and UTC offset instead of the time of day alone.
 
 ## v0.16.2-beta [2026/10/11]
 

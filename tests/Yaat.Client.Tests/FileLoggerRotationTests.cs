@@ -68,5 +68,42 @@ public class FileLoggerRotationTests : IDisposable
 
         Assert.True(File.Exists(LogPath));
         Assert.False(File.Exists($"{LogPath}.1"));
+        Assert.Empty(FileLoggerProvider.PreviousLogs(LogPath));
+    }
+
+    [Fact]
+    public void PreviousLogsListsRotatedSessionsNewestFirst()
+    {
+        foreach (string marker in new[] { "older", "previous", "current" })
+        {
+            WriteSession(marker);
+        }
+
+        IReadOnlyList<(int Generation, string Path)> logs = FileLoggerProvider.PreviousLogs(LogPath);
+
+        Assert.Equal([1, 2], logs.Select(log => log.Generation));
+        Assert.Contains("previous", File.ReadAllText(logs[0].Path), StringComparison.Ordinal);
+        Assert.Contains("older", File.ReadAllText(logs[1].Path), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void LogLinesCarryTheFullDateTimeWithOffset()
+    {
+        WriteSession("dated-line");
+
+        string line = File.ReadAllLines(LogPath).Single(l => l.Contains("dated-line", StringComparison.Ordinal));
+
+        Assert.Matches(@"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3} [+-]\d{2}:\d{2} \[info\] Test: dated-line$", line);
+    }
+
+    [Fact]
+    public void PreviousLogsKeepsTheGenerationAcrossAGap()
+    {
+        WriteSession("only-session");
+        File.WriteAllText($"{LogPath}.2", "left by an earlier rotation");
+
+        IReadOnlyList<(int Generation, string Path)> logs = FileLoggerProvider.PreviousLogs(LogPath);
+
+        Assert.Equal([2], logs.Select(log => log.Generation));
     }
 }

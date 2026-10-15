@@ -179,7 +179,7 @@ python tools/bug_bundle.py validate <bundle.zip>
 | `scenario` | Pretty-print `scenario.json.br`. Optional `--aircraft CS [CS ...]` filter and `--show {full,presets,spawns,summary}` (default `full`). |
 | `weather` | Print `weather.json` if present |
 | `layouts` | List airport IDs, `--airport X` to dump one, `--all --out-dir D` for all |
-| `logs` | Extract `yaat-client.log`/`yaat-server.log` to `.tmp/` |
+| `logs` | Extract `yaat-client.log`, the previous client sessions `yaat-client.1.log`–`.3.log` (`.1` newest; the session being reported when the user relaunched YAAT before saving) and `yaat-server.log` to `.tmp/` |
 | `trim` | Shrink a bundle by dropping late snapshots (`--max-seconds N` or `--max-snapshots N`, optional `--out`); preserves actions/scenario/weather/logs and rewrites the manifest's snapshot index |
 | `install` | Copy into TestData as `[issue{N}-]{desc}-recording[.yaat-bug-report-bundle].zip` — the bundle suffix is kept only when the input filename carries it (`--issue` optional for local installs), then run yaat-server's `Yaat.RecordingUpgrader` on it in place (current snapshot schema + retired-canonical rewrite such as `HSE` → `HSA`) |
 | `validate` | Manifest + Brotli decompression integrity check |

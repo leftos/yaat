@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Globalization;
 using Microsoft.Extensions.Logging;
 
 namespace Yaat.Client.Logging;
@@ -40,6 +41,25 @@ public sealed class FileLoggerProvider : ILoggerProvider
     public ILogger CreateLogger(string categoryName) => _loggers.GetOrAdd(categoryName, name => new FileLogger(name, _writer));
 
     public void Dispose() => _writer.Dispose();
+
+    /// <summary>
+    /// The previous sessions' logs that exist beside the live log at <paramref name="path"/>, newest first.
+    /// <c>Generation</c> is the rotation suffix: 1 is the session before this one.
+    /// </summary>
+    public static IReadOnlyList<(int Generation, string Path)> PreviousLogs(string path)
+    {
+        List<(int Generation, string Path)> logs = [];
+        for (int generation = 1; generation <= KeepPreviousLogs; generation++)
+        {
+            string previous = $"{path}.{generation}";
+            if (File.Exists(previous))
+            {
+                logs.Add((generation, previous));
+            }
+        }
+
+        return logs;
+    }
 
     /// <summary>
     /// Shifts <c>log</c> → <c>log.1</c> → <c>log.2</c> … dropping the oldest. Returns the exception
@@ -101,7 +121,8 @@ public sealed class FileLogger(string category, StreamWriter writer) : ILogger
         }
 
         string message = formatter(state, exception);
-        string timestamp = DateTime.Now.ToString("HH:mm:ss.fff");
+        // The date and UTC offset let a rotated session be placed in time and lined up with the server log.
+        string timestamp = DateTimeOffset.Now.ToString("yyyy-MM-dd HH:mm:ss.fff zzz", CultureInfo.InvariantCulture);
         string level = logLevel switch
         {
             LogLevel.Trace => "trce",

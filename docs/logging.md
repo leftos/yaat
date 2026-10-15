@@ -110,12 +110,13 @@ Two `ILoggerProvider` implementations exist, both in `Yaat.Client.Core` / `Yaat.
   (`RotatePreviousLogs`). The live log is then opened with `FileMode.Create`, so the current session always starts clean while the
   last three sessions survive. This exists so a user who hits a freeze or crash and *then* reopens YAAT to collect their log still has
   the failing session on disk — before rotation, relaunching destroyed the only record of the failure.
+- A bug report bundle (Save Bug Report Bundle, File Bug Report) carries the rotated sessions too, as `yaat-client.1.log` … `.3.log` (`FileLoggerProvider.PreviousLogs`), so a relaunch before saving does not lose the reported session.
 - Rotation is best-effort: if the files can't be moved (most often a second client instance holding a handle), the failure is written
   as the first line of the new log rather than thrown, and the log still opens.
 - `FileShare.ReadWrite | FileShare.Delete` so the file is readable (and deletable) while the app holds it open — you can tail it live.
 - `StreamWriter { AutoFlush = true }` (`FileLoggerProvider.cs:20`) and a process-wide `lock (WriteLock)` around each write (`FileLoggerProvider.cs:71`) so
   concurrent log calls don't interleave.
-- Line format is ``$"{HH:mm:ss.fff} [{level}] {category}: {message}"`` using **local time** (`DateTime.Now`, `FileLoggerProvider.cs:57-69`), with the level
+- Line format is ``$"{yyyy-MM-dd HH:mm:ss.fff zzz} [{level}] {category}: {message}"`` using **local time with its UTC offset** (`DateTimeOffset.Now`, `FileLogger.Log`), with the level
   rendered as the four-char tags `trce`/`dbug`/`info`/`warn`/`fail`/`crit`. An attached `Exception` is written on its own following line.
 - `FileLogger.IsEnabled` returns `logLevel != LogLevel.None` — the sink does **not** filter by level. Level/category filtering is the
   `LoggerFactory`'s job (the factory `AppLog` builds is set to `LogLevel.Debug` minimum), not the sink's.

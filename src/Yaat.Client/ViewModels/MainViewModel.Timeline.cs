@@ -313,8 +313,9 @@ public partial class MainViewModel
 
     /// <summary>
     /// Writes the bug report bundle at <paramref name="path"/>: the recording's own entries (with the
-    /// timeline bookmarks folded in) and the client log, plus the server log when there is a recording
-    /// to go with it. With no recording the client log is the whole bundle.
+    /// timeline bookmarks folded in) and the client logs (the live one and the rotated previous sessions),
+    /// plus the server log when there is a recording to go with it. With no recording the client logs are
+    /// the whole bundle.
     /// </summary>
     private async Task WriteBugReportBundleAsync(string path, byte[]? recordingBytes)
     {
@@ -341,6 +342,13 @@ public partial class MainViewModel
         }
 
         AddFileToArchive(archive, AppLog.LogPath, "yaat-client.log");
+
+        // A user who closed and reopened YAAT before saving left the session they are reporting in a
+        // rotated log; the live one holds only the relaunch.
+        foreach ((int generation, string previousPath) in FileLoggerProvider.PreviousLogs(AppLog.LogPath))
+        {
+            AddFileToArchive(archive, previousPath, $"yaat-client.{generation}.log");
+        }
 
         if (recordingBytes is not null)
         {
@@ -629,6 +637,7 @@ public partial class MainViewModel
         }
 
         ZipArchiveEntry entry = archive.CreateEntry(entryName);
+        entry.LastWriteTime = File.GetLastWriteTime(filePath);
         using Stream entryStream = entry.Open();
         using var fileStream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
         fileStream.CopyTo(entryStream);

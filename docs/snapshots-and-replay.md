@@ -334,7 +334,7 @@ To find where a replay leaves a recording, step it with `ReplayOneSecond()` and,
 
 ## Bug bundles — `tools/bug_bundle.py`
 
-A `*.yaat-bug-report-bundle.zip` (v4) wraps a `RecordingArchive` plus client/server logs. Subcommands:
+A `*.yaat-bug-report-bundle.zip` (v4) wraps a `RecordingArchive` plus client/server logs. The client logs are the live `yaat-client.log` and each rotated previous session as `yaat-client.N.log` (`.1` newest, from `FileLoggerProvider.PreviousLogs`), each zip entry stamped with its file's last-write time, so a user who relaunched YAAT before saving still sends the session they are reporting. Subcommands:
 
 ```
 info        snapshot   track       actions     history

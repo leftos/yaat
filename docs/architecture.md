@@ -602,7 +602,7 @@ Code referenced by Yaat.Client that needs Avalonia.Desktop, Velopack, or file-sy
 Logging/
   AppLog.cs                     # Static logger factory; Initialize(logFileName) called by each desktop app's Program.cs. Wraps SimLog; both Initialize paths also register RecentErrors (AppLog.RecentErrors, the RecentErrorLog). WASM has its own inline init in Program.cs that wires SimLog directly.
   RecentErrorLog.cs             # ILoggerProvider keeping the last 200 Error/Critical entries (RecentErrorEntry) with ever-growing sequence numbers; Since(sequence, max) reads the newer ones. Registered by AppLog as AppLog.RecentErrors
-  FileLoggerProvider.cs         # Writes to YaatPaths.AppDataRoot/<logFileName> (yaat-client.log); rotates the previous 3 sessions to .log.1/.2/.3 on launch so a relaunch can't destroy a crash/freeze log
+  FileLoggerProvider.cs         # Writes to YaatPaths.AppDataRoot/<logFileName> (yaat-client.log); rotates the previous 3 sessions to .log.1/.2/.3 on launch so a relaunch can't destroy a crash/freeze log (PreviousLogs lists them for bug report bundles); lines are stamped with date, time and UTC offset
 
 Services/
   ServerConnection.cs           # SignalR client to /hubs/training (JSON). TakeControlConfirmation is asked before SendCommandAsync sends a command. Scenario-load events ScenarioLoadProgress (ScenarioLoadProgressDto/LoadStepDto) and RoomLoadingChanged; CloseRoomAsync; LoadScenarioResultDto.Steps and RoomStateDto.LoadingBy are init properties
