@@ -125,8 +125,8 @@ public sealed record SurfaceAirports(
     /// <summary>Walks <paramref name="config"/>'s facility tree; a SAID field elevation <paramref name="navDb"/> does not know is 0.</summary>
     public static SurfaceAirports Resolve(ArtccConfigRoot config, NavigationDatabase navDb)
     {
-        var asdex = config.GetAllAsdexAirports().DistinctBy(apt => apt.AirportId).ToList();
-        var said = config.GetAllSaidAirports().DistinctBy(apt => apt.AirportId).Select(apt => SaidSurfaceAirport.From(apt, navDb)).ToList();
+        var asdex = config.GetAllAsdexAirports(navDb).DistinctBy(apt => apt.AirportId).ToList();
+        var said = config.GetAllSaidAirports(navDb).DistinctBy(apt => apt.AirportId).Select(apt => SaidSurfaceAirport.From(apt, navDb)).ToList();
         return new SurfaceAirports(
             asdex,
             SurfaceMembership.FromIds(asdex.Select(apt => apt.AirportId)),

@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Xunit;
+using Yaat.Sim.Data;
 using Yaat.Sim.Data.Vnas;
 
 namespace Yaat.Sim.Tests.Data;
@@ -18,7 +19,7 @@ public sealed class SaidConfigParseTests
 
     public SaidConfigParseTests()
     {
-        // GetAllSaidAirports passes NavigationDatabase.Instance to the collector; pin it so the
+        // The GetAllSaidAirports calls below pass NavigationDatabase.Instance; pin it so the
         // singleton getter doesn't throw when another test class hasn't initialized it yet.
         TestVnasData.EnsureInitialized();
     }
@@ -78,7 +79,7 @@ public sealed class SaidConfigParseTests
     [Fact]
     public void GetAllSaidAirports_EmitsSaabAirport_WithDefaultRangeAndTowerCoords()
     {
-        SaidAirportInfo airport = Assert.Single(Load(SaidFacilityJson).GetAllSaidAirports());
+        SaidAirportInfo airport = Assert.Single(Load(SaidFacilityJson).GetAllSaidAirports(NavigationDatabase.Instance));
 
         Assert.Equal("OAK", airport.AirportId);
         Assert.Equal(37.72, airport.Lat);
@@ -91,7 +92,7 @@ public sealed class SaidConfigParseTests
     public void GetAllSaidAirports_NonSaabVendor_EmitsNothing()
     {
         string json = SaidFacilityJson.Replace("\"vendor\": \"Saab\"", "\"vendor\": \"UAvionix\"", StringComparison.Ordinal);
-        Assert.Empty(Load(json).GetAllSaidAirports());
+        Assert.Empty(Load(json).GetAllSaidAirports(NavigationDatabase.Instance));
     }
 
     [Fact]
@@ -99,6 +100,6 @@ public sealed class SaidConfigParseTests
     {
         string json = SaidFacilityJson.Replace("\"saidConfiguration\"", "\"unusedConfiguration\"", StringComparison.Ordinal);
         Assert.Null(Oak(Load(json)).SaidConfiguration);
-        Assert.Empty(Load(json).GetAllSaidAirports());
+        Assert.Empty(Load(json).GetAllSaidAirports(NavigationDatabase.Instance));
     }
 }
