@@ -147,7 +147,7 @@ both the wrapper name and the hub method's own semantics** — grep for the stri
 | `AddBookmarkAsync(timeSeconds, name, initials)` | `AddBookmark` | `AddBookmark(...)` — adds a shared timeline bookmark, broadcasts `BookmarksChanged` |
 | `RenameBookmarkAsync(id, name)` | `RenameBookmark` | `RenameBookmark(id, name)` — any RPO may rename any bookmark |
 | `DeleteBookmarkAsync(id)` | `DeleteBookmark` | `DeleteBookmark(id)` — any RPO may delete any bookmark |
-| `GetSessionServerLogAsync()` | `GetSessionServerLog` | `GetSessionServerLog()` (room-scoped, anonymized text) |
+| `GetSessionServerLogAsync()` | `GetSessionServerLog` | `GetSessionServerLog()` → `SessionServerLogDto(Text, Participants)`: the room-scoped server log, anonymized, and the `LogParticipant` list it was anonymized with, so the client scrubs its own logs to the same pseudonyms. The list carries raw CIDs and names and goes only to a caller in that room; not in a room → empty text and list |
 | `ExportSurfaceTempDataAsync()` | `ExportSurfaceTempData` | `ExportSurfaceTempData()` — mentor/instructor only; the room's ASDE-X / SAAB SAID drawn geometry as committable ARTCC sidecar JSON, one entry per facility |
 | `ResetSurfaceTempDataAsync()` | `ResetSurfaceTempData` | `ResetSurfaceTempData()` — mentor/instructor only; discards drawn geometry (server-side too) and re-seeds every facility from the committed sidecars, returning the facility count |
 | `GetAirportGroundLayoutAsync(id)` | `GetAirportGroundLayout` | `GetAirportGroundLayout(id)` |

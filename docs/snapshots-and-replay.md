@@ -334,7 +334,9 @@ To find where a replay leaves a recording, step it with `ReplayOneSecond()` and,
 
 ## Bug bundles — `tools/bug_bundle.py`
 
-A `*.yaat-bug-report-bundle.zip` (v4) wraps a `RecordingArchive` plus client/server logs. The client logs are the live `yaat-client.log` and each rotated previous session as `yaat-client.N.log` (`.1` newest, from `FileLoggerProvider.PreviousLogs`), each zip entry stamped with its file's last-write time, so a user who relaunched YAAT before saving still sends the session they are reporting. Subcommands:
+A `*.yaat-bug-report-bundle.zip` (v4) wraps a `RecordingArchive` plus client/server logs. The client logs are the live `yaat-client.log` and each rotated previous session as `yaat-client.N.log` (`.1` newest, from `FileLoggerProvider.PreviousLogs`), each zip entry stamped with its file's last-write time, so a user who relaunched YAAT before saving still sends the session they are reporting.
+
+Every client log is scrubbed as it is written into the bundle (`ClientLogScrubber`, Yaat.Client.Core); the file on disk is untouched. Participants get the server log's pseudonyms (the list comes back with `GetSessionServerLog`; outside a room the client builds it from its own identity and the room and CRC members it holds). Structural passes catch people the list misses (they left before the export, or appear only in a rotated log): the terminal initials slot, `(from XX)` (mapped in `SessionLogAnonymizer` itself, so the server log gets it too), the person who acted at the start of a `[Terminal] [System]` room line (two-character initials followed by a server room-action verb: "XY joined the room", "XY set command run delay"; echoed alias text such as "TWR frequency is 118.3" is left alone), the target of "… assigned … to XY", the person an RPO pull names, CRC lobby entries (`id(CALLSIGN (Name))`) and any `CALLSIGN (Name)` (a 1-3 character sector code such as `OAK_TWR (TW)` is kept) give the pseudonym when the person is listed, else `??`. Command verbs and aliases (`SessionLogAnonymizer.CommandVerbs`) are never replaced in free text, so a controller with initials `CM` does not wipe every `CM 050`; the server log uses the same keep set. The user profile folder becomes `%USERPROFILE%` and other users' home folders `{user}`; the hosts of the user's own servers (the connected one and every saved one, except the official server and loopback) become `{server}` with or without a scheme, while public endpoints (GitHub, vNAS) stay readable; non-loopback IP addresses become `{ip}`; emails, tokens and auth codes become placeholders. Speech transcripts are kept. Subcommands:
 
 ```
 info        snapshot   track       actions     history
@@ -350,14 +352,9 @@ An archive with no terminal log (`HasTerminalLog` false, or the entry absent) pr
 
 For single-aircraft triage, `history --callsign X` is one chronological view that replaces 5+ targeted `snapshot --at` calls. See `.claude/skills/bug-bundle/SKILL.md` for the full reference and CLAUDE.md for examples.
 
-Bundles embed a room-scoped, anonymized `yaat-server.log`, including for **remote** servers (not just a local disk read).
-Server-side: `RoomLogStore` (Simulation) is a per-room bounded ring buffer (50k-line cap, marks earlier lines dropped) that
-`FileLogger` mirrors lines into only while inside `BeginRoomScope` (tick loop, `SendCommand`, CRC dispatch) — unscoped lines are
-file-only and never exported. `SessionLogAnonymizer` (pure/static) replaces each participant's CID + real name + initials with a
-stable pseudonym (`A0`..`B9`, whole-word matched so CIDs embedded in beacon codes/callsigns survive) before
-`TrainingHub.GetSessionServerLog()` returns the text. Client: `ServerConnection.GetSessionServerLogAsync()` →
-`MainViewModel.Timeline` always embeds the text into the archive. Tests: `RoomLogStoreTests`, `FileLoggerRoomScopeTests`,
-`SessionLogAnonymizerTests`.
+Bundles embed a room-scoped, anonymized `yaat-server.log`, including for **remote** servers (not just a local disk read). Server-side: `RoomLogStore` (Simulation) is a per-room bounded ring buffer (50k-line cap, marks earlier lines dropped) that `FileLogger` mirrors lines into only while inside `BeginRoomScope` (tick loop, `SendCommand`, CRC dispatch) — unscoped lines are file-only and never exported.
+
+`SessionLogAnonymizer` (Yaat.Sim `Logging/`, pure/static, shared by server and client) replaces each participant's CID + real name + initials with a stable pseudonym (`A0`..`B9`, whole-word matched so CIDs embedded in beacon codes/callsigns survive) before `TrainingHub.GetSessionServerLog()` returns the text with its participant list. Client: `ServerConnection.GetSessionServerLogAsync()` → `MainViewModel.Timeline` embeds the text into the archive and scrubs the client logs with the same list. Tests: `RoomLogStoreTests`, `FileLoggerRoomScopeTests`, `SessionLogAnonymizerTests`, `ClientLogScrubberTests`.
 
 ## Pitfalls
 

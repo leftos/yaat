@@ -100,6 +100,7 @@ namespace Yaat.Client.Services;
 [JsonSerializable(typeof(UnloadScenarioResultDto))]
 [JsonSerializable(typeof(RewindResultDto))]
 [JsonSerializable(typeof(TimelineInfoDto))]
+[JsonSerializable(typeof(SessionServerLogDto))]
 [JsonSerializable(typeof(GroundLayoutDto))]
 [JsonSerializable(typeof(FacilityVideoMapsDto))]
 [JsonSerializable(typeof(ApproachReportDto))]

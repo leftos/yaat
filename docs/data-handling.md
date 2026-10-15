@@ -22,7 +22,7 @@ Server paths are in the sibling repo `yaat-server` (`src/Yaat.Server/...`).
 | vNAS data and configuration APIs, FAA (CIFP, aircraft database), aviationweather.gov (live weather only), GitHub (updates), Hugging Face / LM-Kit catalogue (model downloads), GitHub (Piper voices), nuget.org (optional CUDA backend) | Plain GETs with no identifier beyond what HTTP carries | On use, cached |
 | Discord desktop app, local IPC only | Rich Presence: scenario name, ARTCC and airport, start time | While a scenario runs, unless turned off in Settings ([`discord-integration.md`](discord-integration.md)) |
 
-There is no analytics, usage telemetry or crash reporting, and speech recognition, the command LLM and pilot TTS all run locally. Bug reports are written to disk and published on GitHub by the user by hand; the room-scoped server-log slice in a bundle is pseudonymised by yaat-server's `SessionLogAnonymizer` (CIDs, names and initials become `A0`, `A1`, …), recordings and callsigns are not.
+There is no analytics, usage telemetry or crash reporting, and speech recognition, the command LLM and pilot TTS all run locally. Bug reports are written to disk and published on GitHub by the user by hand; the room-scoped server-log slice in a bundle is pseudonymised by `SessionLogAnonymizer` (CIDs, names and initials become `A0`, `A1`, …), and the client logs in it are scrubbed to the same pseudonyms by `ClientLogScrubber`, which also hides people the list misses (`??`), the Windows user folder, the user's own server addresses, IP addresses, emails and tokens (the log on disk is untouched); recordings and callsigns are not.
 
 ## What the server keeps, and for how long
 

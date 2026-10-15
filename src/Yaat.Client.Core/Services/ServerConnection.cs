@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using Yaat.Client.Logging;
 using Yaat.Client.Tdls.Services;
 using Yaat.Sim;
+using Yaat.Sim.Logging;
 using Yaat.Sim.Simulation.Actions;
 
 namespace Yaat.Client.Services;
@@ -877,13 +878,14 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
     }
 
     /// <summary>
-    /// Returns the server's room-scoped, anonymized log slice for the current session as text, for
-    /// embedding into a bug-report bundle. Works against remote servers (no disk access needed).
+    /// Returns the server's room-scoped, anonymized log slice for the current session, for embedding into
+    /// a bug-report bundle, with the participants it was anonymized with. Works against remote servers
+    /// (no disk access needed).
     /// </summary>
-    public async Task<string?> GetSessionServerLogAsync()
+    public async Task<SessionServerLogDto?> GetSessionServerLogAsync()
     {
         EnsureConnected();
-        return await _connection!.InvokeAsync<string?>("GetSessionServerLog");
+        return await _connection!.InvokeAsync<SessionServerLogDto?>("GetSessionServerLog");
     }
 
     /// <summary>
@@ -2051,6 +2053,12 @@ public record AircraftDebriefDto(
 );
 
 public record TimelineInfoDto(double ElapsedSeconds, double TapeEnd, bool IsPlayback, bool IsAvailable);
+
+/// <summary>
+/// The room's anonymized server-log slice and the participants it was anonymized with, in pseudonym order
+/// (index 0 is <c>A0</c>), so the client logs in a bug report bundle use the same pseudonyms.
+/// </summary>
+public record SessionServerLogDto(string Text, IReadOnlyList<LogParticipant> Participants);
 
 /// <summary>
 /// A rewind's or a recording load's result (and, for a recording load, another member's <c>RecordingLoaded</c>

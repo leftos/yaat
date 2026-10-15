@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using Yaat.Client.Logging;
 using Yaat.Client.Services;
+using Yaat.Sim.Logging;
 using Yaat.Sim.Simulation;
 
 namespace Yaat.Client.ViewModels;
@@ -315,10 +316,31 @@ public partial class MainViewModel
     /// Writes the bug report bundle at <paramref name="path"/>: the recording's own entries (with the
     /// timeline bookmarks folded in) and the client logs (the live one and the rotated previous sessions),
     /// plus the server log when there is a recording to go with it. With no recording the client logs are
-    /// the whole bundle.
+    /// the whole bundle. The client logs are scrubbed with the server log's participant list, so a person
+    /// carries the same pseudonym in both; the log files on disk are left as they are.
     /// </summary>
     private async Task WriteBugReportBundleAsync(string path, byte[]? recordingBytes)
     {
+        SessionServerLogDto? serverLog = recordingBytes is null ? null : await FetchSessionServerLogAsync();
+        var scrubContext = new ClientLogScrubContext(
+            serverLog is { Participants.Count: > 0 } ? serverLog.Participants : BuildLocalLogParticipants(),
+            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+            Environment.UserName,
+            Environment.MachineName,
+            ClientLogScrubber.ServerHostsOf([ConnectedServerUrl, .. _preferences.SavedServers.Select(s => s.Url)])
+        );
+
+        // A user who closed and reopened YAAT before saving left the session they are reporting in a
+        // rotated log; the live one holds only the relaunch.
+        List<(string Path, string EntryName)> logs =
+        [
+            (AppLog.LogPath, "yaat-client.log"),
+            .. FileLoggerProvider.PreviousLogs(AppLog.LogPath).Select(p => (p.Path, $"yaat-client.{p.Generation}.log")),
+        ];
+
+        // Reading and scrubbing a long log takes a while, so it stays off the UI thread.
+        List<ScrubbedLog> scrubbedLogs = await Task.Run(() => ScrubLogs(logs, scrubContext));
+
         await using FileStream stream = File.Create(path);
         using var archive = new ZipArchive(stream, ZipArchiveMode.Create);
 
@@ -341,30 +363,73 @@ public partial class MainViewModel
             }
         }
 
-        AddFileToArchive(archive, AppLog.LogPath, "yaat-client.log");
-
-        // A user who closed and reopened YAAT before saving left the session they are reporting in a
-        // rotated log; the live one holds only the relaunch.
-        foreach ((int generation, string previousPath) in FileLoggerProvider.PreviousLogs(AppLog.LogPath))
+        foreach (ScrubbedLog log in scrubbedLogs)
         {
-            AddFileToArchive(archive, previousPath, $"yaat-client.{generation}.log");
+            AddLogToArchive(archive, log);
         }
 
-        if (recordingBytes is not null)
+        // Anonymized on the server already.
+        if (!string.IsNullOrEmpty(serverLog?.Text))
         {
-            try
+            AddTextToArchive(archive, "yaat-server.log", serverLog.Text);
+        }
+    }
+
+    private async Task<SessionServerLogDto?> FetchSessionServerLogAsync()
+    {
+        try
+        {
+            return await _connection.GetSessionServerLogAsync();
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(ex, "Could not retrieve session server log");
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// The participants this client knows of, for scrubbing its logs when the server sent none (no room, or
+    /// no recording): its own identity first, then the room's members and the CRC clients it has seen.
+    /// </summary>
+    private IReadOnlyList<LogParticipant> BuildLocalLogParticipants()
+    {
+        VatsimIdentity? own = _auth.GetIdentity(ConnectedServerUrl);
+        List<(string Cid, string Initials)> members = [.. RoomMembers.Select(m => (m.Cid, m.Initials))];
+        List<(string Cid, string RealName)> crcIdentities =
+        [
+            .. CrcRoomMembers.Where(m => m.Cid is not null).Select(m => (m.Cid!, RealNameOf(m.DisplayName))),
+            .. CrcLobbyClients.Where(c => c.Cid is not null).Select(c => (c.Cid!, RealNameOf(c.DisplayName))),
+        ];
+
+        if (own is not null)
+        {
+            members.Insert(0, (own.Cid, _preferences.UserInitials));
+            crcIdentities.Insert(0, (own.Cid, own.Name));
+        }
+
+        return SessionLogAnonymizer.BuildParticipants(members, crcIdentities);
+    }
+
+    // A CRC display name is "{callsign} ({realName})"; one without the pair carries no real name to scrub by.
+    private static string RealNameOf(string? displayName) => CrcDisplayName.TryGetRealName(displayName, out string? realName) ? realName : "";
+
+    private sealed record ScrubbedLog(string EntryName, string Text, DateTime LastWriteTime);
+
+    private static List<ScrubbedLog> ScrubLogs(List<(string Path, string EntryName)> logs, ClientLogScrubContext scrubContext)
+    {
+        List<ScrubbedLog> scrubbed = [];
+        foreach ((string logPath, string entryName) in logs)
+        {
+            if (File.Exists(logPath))
             {
-                string? serverLog = await _connection.GetSessionServerLogAsync();
-                if (!string.IsNullOrEmpty(serverLog))
-                {
-                    AddTextToArchive(archive, "yaat-server.log", serverLog);
-                }
-            }
-            catch (Exception ex)
-            {
-                _log.LogWarning(ex, "Could not retrieve session server log");
+                scrubbed.Add(
+                    new ScrubbedLog(entryName, ClientLogScrubber.Scrub(ReadSharedText(logPath), scrubContext), File.GetLastWriteTime(logPath))
+                );
             }
         }
+
+        return scrubbed;
     }
 
     /// <summary>
@@ -629,18 +694,21 @@ public partial class MainViewModel
         writer.Write(content);
     }
 
-    private static void AddFileToArchive(ZipArchive archive, string filePath, string entryName)
+    private static void AddLogToArchive(ZipArchive archive, ScrubbedLog log)
     {
-        if (!File.Exists(filePath))
-        {
-            return;
-        }
-
-        ZipArchiveEntry entry = archive.CreateEntry(entryName);
-        entry.LastWriteTime = File.GetLastWriteTime(filePath);
+        ZipArchiveEntry entry = archive.CreateEntry(log.EntryName);
+        entry.LastWriteTime = log.LastWriteTime;
         using Stream entryStream = entry.Open();
+        using var writer = new StreamWriter(entryStream);
+        writer.Write(log.Text);
+    }
+
+    // The live log is held open for writing by the logger, so it is read with a share that allows that.
+    private static string ReadSharedText(string filePath)
+    {
         using var fileStream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-        fileStream.CopyTo(entryStream);
+        using var reader = new StreamReader(fileStream);
+        return reader.ReadToEnd();
     }
 
     [RelayCommand]
