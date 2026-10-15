@@ -6,7 +6,6 @@
 
 - [/] YAAT-708 A/C unable to taxi when pushed close to the end of a taxiway · release vHotfix
 - [ ] YAAT-41 Make a bare PUSH onto a spot lane end facing the lane's exit (SFO T7A, T8) · release vHotfix
-- [ ] YAAT-738 Thread navDb through ArtccConfigResolver.GetAllAsdexAirports (CrcVisibilitySaidTests fails alone) · release vHotfix
 
 ## Do first
 
@@ -109,7 +108,6 @@
 - [ ] YAAT-410 Start-node hold aims the centre, not the nose; ILS/approach holds; firm taxi stop rate
 - [ ] YAAT-414 Navigator reads an aircraft in line but short of segment 0 as off-line and crawls at 5 kt
 - [ ] YAAT-435 Let a re-route's stop lie behind the aircraft by under 3 ft on segment 0
-- [/] YAAT-509 Turn about from rest short of a runway bar ignores the bar clearance · release vNext
 - [ ] YAAT-467 Lay a taxi turn from rest at a junction node so it finishes on the next centreline
 - [ ] YAAT-468 Stop at a hold-short bar the parser places at the aircraft's own start on a short leg
 - [ ] YAAT-469 Use one high-speed exit angle threshold for turn-off speed and exit search
@@ -327,7 +325,6 @@
 - [ ] YAAT-643 Run prepare-release's remote deploy and watch steps under the gate's -Slot none
 - [ ] YAAT-667 Stop MethodStep_TimeoutMs_IsTheAnswerTimeout flaking under load
 - [ ] YAAT-668 Call gate run on PATH in yaat and yaat-server; delete tools/gate.ps1 · release vNext
-- [/] YAAT-669 Skip the Desktop-trait AutomationClientZOrderTests when no interactive desktop exists · release vNext
 - [ ] YAAT-705 Make RecordToolsTests.Mark_SimClockBlocked load-proof
 
 ## Singles
@@ -518,9 +515,6 @@
 - [ ] YAAT-713 Place the surface wind layer at each station's own elevation
 - [ ] YAAT-714 ERAM UR: omit grid wind levels within 1,500 ft of the station elevation
 - [ ] YAAT-715 Make WeatherProfile.SurfaceElevationFt's lazy cache safe across threads
-- [/] YAAT-721 Pseudonymise names in a bug report bundle's recording terminal log · release vNext
-- [/] YAAT-722 Keep departed CRC controllers in the server log's anonymization list · release vNext
-- [/] YAAT-723 Hide bare and nested CRC real names in bundled client logs · release vNext
 - [ ] YAAT-730 Give bundle pseudonyms a shape real initials cannot take
 - [ ] YAAT-731 Scrub the bug-report bundle's remaining raw text channels
 - [ ] YAAT-733 Close or clear the Flight Plan Editor whenever the aircraft list is wiped
@@ -528,3 +522,4 @@
 - [ ] YAAT-739 Make the Session Report fail loudly when a named control is missing
 - [ ] YAAT-740 Test a from-rest turn about whose taxi-rate stop stays short of the hold line
 - [ ] YAAT-741 Have a pilot's no-room unable name the request it wants (alternate route, progressive, tow)
+- [ ] YAAT-742 Make the tower-cab session-binding test hold under load
