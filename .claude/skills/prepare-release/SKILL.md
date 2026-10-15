@@ -609,10 +609,10 @@ Report each run's final conclusion to the user in the message that moves on to t
 
 ### 7.2 Build the server image (when 6.1 chose an image build)
 
-Run it **in the background**, through the gate wrapper (a green-looking failed build would feed a stale image straight into step 7.5). The build runs on a GitHub runner and this command only dispatches and watches it, so it takes a light slot, as the deploy in 7.5 does: a heavy one would hold a local build's slot for twenty idle minutes.
+Run it **in the background**, through the gate wrapper (a green-looking failed build would feed a stale image straight into step 7.5). The build runs on a GitHub runner and this command only dispatches and watches it, so it takes no slot (`-Slot none`), as the deploy in 7.5 does: any slot would sit idle for twenty minutes while a local build or test waits for it.
 
 ```bash
-pwsh tools/gate.ps1 -Log .tmp/deploy-image-build.log -TimeoutSeconds 1800 -Slot light -- pwsh deploy-to-droplet.ps1 -BuildImageOnly
+pwsh tools/gate.ps1 -Log .tmp/deploy-image-build.log -TimeoutSeconds 3600 -Slot none -- pwsh deploy-to-droplet.ps1 -BuildImageOnly
 ```
 
 It dispatches yaat-server's `docker-image.yml`, watches the ~20-minute CI build, and exits without touching the droplet — the live server keeps serving throughout, so no room check is needed yet. (`docker-image.yml` checks `extern/yaat` out at its `client_ref` input, default `main`, at build time, so dispatching immediately after the push is safe.)
@@ -622,7 +622,7 @@ It dispatches yaat-server's `docker-image.yml`, watches the ~20-minute CI build,
 **On a hotfix** the image is built from both repos' `hotfix/v{version}` branches with `extern/yaat` pinned to the yaat tag, which is why 6.3 pushes the server branch first:
 
 ```bash
-pwsh tools/gate.ps1 -Log .tmp/deploy-image-build.log -TimeoutSeconds 1800 -Slot light -- pwsh deploy-to-droplet.ps1 -BuildImageOnly -ServerRef hotfix/v{version} -ClientRef v{version}
+pwsh tools/gate.ps1 -Log .tmp/deploy-image-build.log -TimeoutSeconds 3600 -Slot none -- pwsh deploy-to-droplet.ps1 -BuildImageOnly -ServerRef hotfix/v{version} -ClientRef v{version}
 ```
 
 The image lands on `:latest`, and `main` may keep moving: nothing the build reads is on `main`. Run this and the 7.5 deploy from the **main** checkout: its `deploy-to-droplet.ps1` has the `-ServerRef` / `-ClientRef` / `-ReleaseTag` flags, and the hotfix branch's copy, cut from the last tag, may not.
@@ -656,13 +656,13 @@ Surface the room status in the same message as the deploy question, then use `As
 The deploy publishes the draft release, so a still-running or failed `Release (macOS)` at this point ships a release without a macOS installer; if a watch is still pending, wait for it (rooms cleared in step 7.4 stay cleared for the extra minutes, and the deploy's `prepare-restart` covers any that appear). Run it through the gate wrapper:
 
 ```bash
-pwsh tools/gate.ps1 -Log .tmp/deploy-droplet.log -TimeoutSeconds 1800 -Slot light -- pwsh deploy-to-droplet.ps1 -SkipCiBuild -NoLogs
+pwsh tools/gate.ps1 -Log .tmp/deploy-droplet.log -TimeoutSeconds 1800 -Slot none -- pwsh deploy-to-droplet.ps1 -SkipCiBuild -NoLogs
 ```
 
 **On a hotfix** the command is the same plus the release tag, which the publish check compares the deployed client commit against, and with no `-ServerRef` / `-ClientRef` (the script refuses them together with `-SkipCiBuild`):
 
 ```bash
-pwsh tools/gate.ps1 -Log .tmp/deploy-droplet.log -TimeoutSeconds 1800 -Slot light -- pwsh deploy-to-droplet.ps1 -SkipCiBuild -NoLogs -ReleaseTag v{version}
+pwsh tools/gate.ps1 -Log .tmp/deploy-droplet.log -TimeoutSeconds 1800 -Slot none -- pwsh deploy-to-droplet.ps1 -SkipCiBuild -NoLogs -ReleaseTag v{version}
 ```
 
 `-SkipCiBuild` deploys the image step 7.2 already built instead of building again; always pass `-NoLogs` — without it the script tails server logs indefinitely and blocks the agent until timeout. The script calls `POST /admin/prepare-restart` first (needs `ADMIN_PASSWORD` in yaat `.env`, matching the droplet) so active training sessions survive the deploy. Use `-SkipSessionSave` only for emergency deploys. Wait for the `Deployment complete!` banner before declaring the release done.
