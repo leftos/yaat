@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Xunit;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
@@ -72,7 +73,7 @@ public sealed class WindGridSnapshotTests
 
     private static SimulationEngine LoadedEngine()
     {
-        var engine = new SimulationEngine(new TestAirportGroundData());
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
         engine.LoadScenario(WindGridRegistryTests.AirborneNearOakScenarioJson, 1, MagneticDeclination.EvaluationDateUtc);
         return engine;
     }

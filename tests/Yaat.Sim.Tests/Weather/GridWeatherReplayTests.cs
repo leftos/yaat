@@ -1,5 +1,6 @@
 using System.IO.Compression;
 using Xunit;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Oracle;
 using Yaat.Sim.Simulation.Snapshots;
@@ -37,7 +38,7 @@ public sealed class GridWeatherReplayTests
         string hash = WindGridRegistry.Register(Grib2ReaderTests.LoadSample());
         string gridWeatherJson = WindGridRegistryTests.LiveWeatherJson(hash);
 
-        var live = new SimulationEngine(new TestAirportGroundData());
+        var live = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
         live.Replay(Recording([], 0), 0);
         var liveSnapshots = new List<StateSnapshotDto>();
         for (int t = 1; t <= EndSecond; t++)
@@ -62,7 +63,7 @@ public sealed class GridWeatherReplayTests
         using var archive = RecordingArchive.Open(new MemoryStream(archiveBytes));
         SessionRecording loaded = archive.ToBaseSessionRecording();
 
-        var replay = new SimulationEngine(new TestAirportGroundData());
+        var replay = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
         replay.Replay(loaded, 0);
         for (int t = 1; t <= EndSecond; t++)
         {
@@ -107,7 +108,7 @@ public sealed class GridWeatherReplayTests
 
         using var archive = RecordingArchive.Open(new MemoryStream(archiveBytes));
         SessionRecording loaded = archive.ToBaseSessionRecording();
-        var replay = new SimulationEngine(new TestAirportGroundData());
+        var replay = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
         replay.Replay(loaded, 0);
         AssertFliesOn(replay, hashes[0], 0);
         for (int t = 1; t <= 9; t++)
@@ -245,7 +246,7 @@ public sealed class GridWeatherReplayTests
         WindGridRegistry.ResetForTests();
         using var archive = RecordingArchive.Open(new MemoryStream(archiveBytes));
         SessionRecording loaded = archive.ToBaseSessionRecording();
-        var replay = new SimulationEngine(new TestAirportGroundData());
+        var replay = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
         replay.Replay(loaded, 0);
         loaded.WindGridPins!.Dispose();
         Assert.NotNull(replay.Scenario!.WindGridPins);
