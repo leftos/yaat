@@ -4,7 +4,6 @@
 
 ## Do first
 
-- [/] YAAT-786 Make MainViewModelBugBundleTests independent of the navigation-data load's status text (red CI on main at 5f8719410) · release vNext — Urgent · Backlog
 - [/] YAAT-640 Vary live winds aloft across the airspace from a NOAA GFS grid · release vNext — High · Bug reports and feature requests
 - [!] YAAT-671 GFS winds part 1: decode a NOMADS GRIB2 subset into a gridded wind field · release vNext — High · Bug reports and feature requests
 - [!] YAAT-672 GFS winds part 2: sample wind by position for airborne aircraft · release vNext — High · Bug reports and feature requests
@@ -37,9 +36,9 @@
 - [ ] YAAT-403 Support for vTBFM · release vNext
   - [!] YAAT-539 vTBFM: follow each user's chosen YAAT room (contributed PR) · release vNext+1
   - [ ] YAAT-780 Keep the GFS grid when a member who did not load the weather saves it · release vNext
-  - [/] YAAT-781 Cap the wind grids a recording import registers, by count and decompressed size · release vNext
-  - [/] YAAT-782 Refuse a GRIB2 grid that decodes to non-finite winds · release vNext
-  - [/] YAAT-783 Fix the saved-grid FD wording, the showcase scene's wind direction and the guide's grid wording · release vNext
+  - [!] YAAT-781 Cap the wind grids a recording import registers, by count and decompressed size · release vNext
+  - [!] YAAT-782 Refuse a GRIB2 grid that decodes to non-finite winds · release vNext
+  - [!] YAAT-783 Fix the saved-grid FD wording, the showcase scene's wind direction and the guide's grid wording · release vNext
 - [ ] YAAT-613 Rebuild a queued wrong-side crossing when the pattern altitude changes before it starts
 - [ ] YAAT-616 Carry a deferred pattern altitude into a FOLLOW join on the armed runway
 - [ ] YAAT-624 Find why a solo pilot reports traffic in sight minutes after the traffic call
@@ -555,3 +554,12 @@
 - [ ] YAAT-750 Publish the vStrips and vTDLS WASM apps in parallel Docker stages
 - [ ] YAAT-775 Record where a weather came from so the winds-aloft line labels it exactly
 - [ ] YAAT-784 Make ChangeDetectionTests' concurrent remove-and-clear test load-proof
+- [ ] YAAT-789 Let UI tests construct MainViewModel without the real navigation-data load
+- [ ] YAAT-790 Count tape-named wind grids another room registered against the recording cap
+- [ ] YAAT-791 Say Saved weather, not Live weather, in the saved-load GFS warning
+- [ ] YAAT-792 Share one FindRepoRoot helper across the client test projects
+- [ ] YAAT-793 Catch WindGridLimitException at the LoadRecording hub method
+- [ ] YAAT-794 Use LiveWeatherService's ARTCC centre in the winds-aloft showcase scene
+- [ ] YAAT-795 Refuse recording manifest wind-grid hashes that are not 64 lowercase hex
+- [ ] YAAT-796 Merge the two warnings of a live weather load with neither GFS nor FD winds
+- [ ] YAAT-797 Make QuickCommandsSection_DragReordersARow hold under load
