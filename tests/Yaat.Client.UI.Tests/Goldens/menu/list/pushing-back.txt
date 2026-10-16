@@ -11,7 +11,7 @@ All Commands
   Taxi to runway
     Finding runway entries… [disabled]
   Preset taxi route
-    PR TERMINAL to 30 · via T U W · ~4,700 ft — TAXI T U W RWY 30
+    TERMINAL to 30 · via T U W · ~4,700 ft — TAXI T U W RWY 30
   Draw taxi route…
   ---
   Ask pilot to say…

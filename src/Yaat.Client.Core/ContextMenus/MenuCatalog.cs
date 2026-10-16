@@ -292,7 +292,7 @@ public static class MenuCatalog
             MenuIds.GroundTaxiPreset,
             "Preset taxi route",
             (ac, _) => AircraftCommandApplicability.CanDrawTaxiRoute(ac),
-            (label, _, context, host) => BuildTaxiRouteSubmenu(label, host.GetPresetTaxiChoices(context.Callsign), context, host)
+            (label, _, context, host) => TaxiRouteFlyout.BuildPreset(label, context, host)
         ),
         HostLeaf(
             MenuIds.GroundTaxiToRunway,
@@ -873,6 +873,7 @@ public static class MenuCatalog
         var header = new MenuCommandRow
         {
             Badge = new MenuDetailBadge(row.Badge, (row.Badge == TaxiRouteRow.PresetBadge) ? PresetBadgeBrush : RunwayBadgeBrush),
+            Glyph = null,
             Name = row.Name,
             EmphasizeName = true,
             IsHighlighted = row.IsHighlighted,
@@ -1045,6 +1046,7 @@ public static class MenuCatalog
         var header = new MenuCommandRow
         {
             Badge = null,
+            Glyph = null,
             Name = row.Taxiway,
             EmphasizeName = false,
             IsHighlighted = false,

@@ -16,6 +16,13 @@ public enum MenuDetailPlacement
 
     /// <summary>Under the name, dimmed at 11 pt.</summary>
     Stacked,
+
+    /// <summary>
+    /// Under the name in the monospace font at 11.5 pt, dimmed: a route's taxiways. The row is capped at
+    /// <see cref="MenuCommandRow.InlineRowMaxWidth"/>; past it the line, the name and the command trim with an ellipsis and
+    /// the row carries its whole text in its tooltip.
+    /// </summary>
+    Route,
 }
 
 /// <summary>A command row's leading badge: its text and the brush that outlines and colours it.</summary>
@@ -23,17 +30,29 @@ public sealed record MenuDetailBadge(string Text, IBrush Brush);
 
 /// <summary>
 /// What a clickable menu item's command row shows, drawn by <see cref="MenuCommandRowTemplate"/>: an optional leading
-/// badge, the name with an optional detail, an optional distance, and the command the item sends. The hold-short rows
-/// (<c>TW S1 · crossing on S · ~1,500 ft — HS S1@S</c>) and the Follow… and Give way to… traffic rows
-/// (<c>SWA1182 · B737 · at parking · gate 1 · ~600 ft — FOLLOWG SWA1182</c>) are built from it.
+/// badge or glyph, the name with an optional detail, an optional distance, and the command the item sends. The Taxi to
+/// runway rows (<c>RW At W4 · nearest · via S T V W4 · ~2,300 ft — TAXI S T V W4 30</c>), the exit rows and the Preset taxi
+/// route rows (the preset glyph, <c>TERMINAL to 30</c> over <c>via T U W</c>, <c>~4,700 ft</c>, <c>TAXI T U W RWY 30</c>)
+/// are built from it.
 /// </summary>
 public sealed record MenuCommandRow
 {
-    /// <summary>The widest a menu holding an inline-detail row grows; past it the detail is trimmed and carried whole in the row's tooltip.</summary>
+    /// <summary>
+    /// The widest a menu holding an inline-detail or route row grows; past it the detail is trimmed and carried whole in the
+    /// row's tooltip.
+    /// </summary>
     public const double InlineRowMaxWidth = 480;
+
+    /// <summary>The widest a route row's command is drawn before it too is trimmed with an ellipsis.</summary>
+    public const double RouteCommandMaxWidth = 180;
 
     /// <summary>The badge leading the row, or null for none.</summary>
     public required MenuDetailBadge? Badge { get; init; }
+
+    /// <summary>
+    /// The quick-command glyph leading the row in place of a badge, or null for none; a row with both draws the badge.
+    /// </summary>
+    public required QuickCommandGlyph? Glyph { get; init; }
 
     /// <summary>What the row names: a hold bar, an aircraft's callsign and type.</summary>
     public required string Name { get; init; }
@@ -84,11 +103,14 @@ public sealed record MenuCommandRow
 }
 
 /// <summary>
-/// The view of a <see cref="MenuCommandRow"/>: the badge outlined in its brush, the name with its detail, the distance,
-/// then the command right-aligned in the dimmed monospace font. A missing badge, detail or distance adds no element. A row
-/// whose detail sits inline gives it its own column, so the menu widens with it up to
+/// The view of a <see cref="MenuCommandRow"/>: the badge outlined in its brush (or the glyph), the name with its detail,
+/// the distance, then the command right-aligned in the dimmed monospace font. A missing badge, detail or distance adds no
+/// element. A row whose detail sits inline gives it its own column, so the menu widens with it up to
 /// <see cref="MenuCommandRow.InlineRowMaxWidth"/> (the menu's own cap) and past it the detail is ellipsis-trimmed rather
-/// than running under the distance, the row carrying the whole detail as its tooltip.
+/// than running under the distance, the row carrying the whole detail as its tooltip. A route row caps itself at
+/// <see cref="MenuCommandRow.InlineRowMaxWidth"/> and its command at <see cref="MenuCommandRow.RouteCommandMaxWidth"/>;
+/// its name, route line and command each trim with an ellipsis, and while any is trimmed the row carries its whole text
+/// as its tooltip.
 /// </summary>
 public sealed class MenuCommandRowTemplate : FuncDataTemplate<MenuCommandRow>
 {
@@ -102,15 +124,20 @@ public sealed class MenuCommandRowTemplate : FuncDataTemplate<MenuCommandRow>
     private static Grid Build(MenuCommandRow row)
     {
         var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto,Auto") };
-        if (row.Badge is { } badge)
+        if (row.DetailPlacement == MenuDetailPlacement.Route)
         {
-            grid.Children.Add(BadgeView(badge));
+            grid.MaxWidth = MenuCommandRow.InlineRowMaxWidth;
         }
 
-        Control name = NameView(row, out TextBlock? detailView);
+        if (LeadView(row) is { } lead)
+        {
+            grid.Children.Add(lead);
+        }
+
+        Control name = NameView(row, out TextBlock nameText, out TextBlock? detailView);
         Grid.SetColumn(name, 1);
         grid.Children.Add(name);
-        if ((detailView is not null) && (row.Detail is { } wholeDetail))
+        if ((row.DetailPlacement != MenuDetailPlacement.Route) && (detailView is not null) && (row.Detail is { } wholeDetail))
         {
             TooltipTrimmedDetail(detailView, grid, wholeDetail);
         }
@@ -132,7 +159,47 @@ public sealed class MenuCommandRowTemplate : FuncDataTemplate<MenuCommandRow>
         TextBlock command = CommandView(row.Command);
         Grid.SetColumn(command, 3);
         grid.Children.Add(command);
+        if (row.DetailPlacement == MenuDetailPlacement.Route)
+        {
+            TrimRoute(grid, row, nameText, detailView, command);
+        }
+
         return grid;
+    }
+
+    /// <summary>The badge leading <paramref name="row"/>, else its glyph, else nothing.</summary>
+    private static Control? LeadView(MenuCommandRow row)
+    {
+        if (row.Badge is { } badge)
+        {
+            return BadgeView(badge);
+        }
+
+        if (row.Glyph is not { } glyphData)
+        {
+            return null;
+        }
+
+        Viewbox glyph = QuickCommandStrip.GlyphIcon(glyphData);
+        glyph.Margin = new Thickness(0, 0, 8, 0);
+        glyph.VerticalAlignment = VerticalAlignment.Center;
+        return glyph;
+    }
+
+    /// <summary>
+    /// Caps a route row's <paramref name="command"/> and trims it with an ellipsis, then gives <paramref name="grid"/> the
+    /// whole row as its tooltip while the name, the route line or the command is trimmed, and none while all fit.
+    /// </summary>
+    private static void TrimRoute(Grid grid, MenuCommandRow row, TextBlock name, TextBlock? route, TextBlock command)
+    {
+        command.MaxWidth = MenuCommandRow.RouteCommandMaxWidth;
+        command.TextTrimming = TextTrimming.CharacterEllipsis;
+        List<TextBlock> parts = (route is null) ? [name, command] : [name, route, command];
+        string whole = row.ToString();
+        foreach (TextBlock part in parts)
+        {
+            part.SizeChanged += (_, _) => ToolTip.SetTip(grid, parts.Any(NeedsTrimming) ? whole : null);
+        }
     }
 
     private static Border BadgeView(MenuDetailBadge badge) =>
@@ -154,12 +221,14 @@ public sealed class MenuCommandRowTemplate : FuncDataTemplate<MenuCommandRow>
 
     /// <summary>
     /// The name, then its detail beside it (<see cref="MenuDetailPlacement.Inline"/>) or under it. An inline detail gets
-    /// its own column so it is trimmed rather than spilling into the distance, and is handed back for its row's tooltip.
+    /// its own column so it is trimmed rather than spilling into the distance, and is handed back for its row's tooltip, as
+    /// is the name's own text (<paramref name="nameView"/>).
     /// </summary>
-    private static Control NameView(MenuCommandRow row, out TextBlock? detailView)
+    private static Control NameView(MenuCommandRow row, out TextBlock nameView, out TextBlock? detailView)
     {
         detailView = null;
         TextBlock name = NameText(row);
+        nameView = name;
         if (row.Detail is not { } detail)
         {
             return NamePanel(row, name, null);
@@ -182,6 +251,11 @@ public sealed class MenuCommandRowTemplate : FuncDataTemplate<MenuCommandRow>
     private static TextBlock NameText(MenuCommandRow row)
     {
         var name = new TextBlock { Text = row.Name };
+        if (row.DetailPlacement == MenuDetailPlacement.Route)
+        {
+            name.TextTrimming = TextTrimming.CharacterEllipsis;
+        }
+
         if (row.EmphasizeName)
         {
             name.FontWeight = FontWeight.SemiBold;
@@ -245,8 +319,24 @@ public sealed class MenuCommandRowTemplate : FuncDataTemplate<MenuCommandRow>
                 FontSize = 11,
                 Opacity = 0.8,
             },
+            MenuDetailPlacement.Route => RouteView(detail),
             _ => throw new ArgumentOutOfRangeException(nameof(placement), placement, "Unknown detail placement."),
         };
+
+    /// <summary>A route's taxiways under its name: monospace at 11.5 pt, dimmed, ellipsis-trimmed past the row's width.</summary>
+    private static TextBlock RouteView(string route)
+    {
+        var view = new TextBlock
+        {
+            Text = route,
+            FontSize = 11.5,
+            Opacity = 0.8,
+            Margin = new Thickness(0, 3, 0, 0),
+            TextTrimming = TextTrimming.CharacterEllipsis,
+        };
+        view.Bind(TextBlock.FontFamilyProperty, view.GetResourceObservable(QuickCommandStrip.MonoFontKey));
+        return view;
+    }
 
     private static TextBlock CommandView(string commandText)
     {

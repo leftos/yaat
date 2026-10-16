@@ -116,8 +116,8 @@ public class QuickCommandStripTests
     public void SubmenuLeaf_SendsItsCommandAndClosesTheFlyoutAndTheMenu()
     {
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
-        // Preset taxi route is a plain submenu of menu items; the ground traffic lists and the Hold short of… ladder keep
-        // their rows live, with their own tests.
+        // Preset taxi route opens its designed flyout of two-line route rows (PresetTaxiRouteFlyoutTests covers the rest);
+        // a row's command still closes the flyout and the menu.
         var host = new RecordingMenuHost("")
         {
             Session = new("AB", false, VfrCommandsForIfr.None, _ => [new CatalogQuickCommandEntry(MenuIds.GroundTaxiPreset, null)]),
@@ -129,6 +129,9 @@ public class QuickCommandStripTests
         preset.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         MenuFlyout flyout = SubmenuFlyout(preset);
         MenuItem leaf = FirstLeaf(flyout.Items);
+        MenuCommandRow row = Assert.IsType<MenuCommandRow>(leaf.Header);
+        Assert.Equal(MenuDetailPlacement.Route, row.DetailPlacement);
+        Assert.Equal(QuickCommandGlyphs.For(MenuIds.GroundTaxiPreset), row.Glyph);
 
         leaf.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
 

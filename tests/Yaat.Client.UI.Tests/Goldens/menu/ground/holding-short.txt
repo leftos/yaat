@@ -10,7 +10,7 @@ All Commands
   Taxi to runway
     Finding runway entries… [disabled]
   Preset taxi route
-    PR 30 to TERMINAL · via W V T · ~4,800 ft — TAXI W V T
+    30 to TERMINAL · via W V T · ~4,800 ft — TAXI W V T
   Cross 30
   Tower
     Line up and wait 30

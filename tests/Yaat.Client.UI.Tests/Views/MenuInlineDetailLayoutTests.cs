@@ -75,12 +75,25 @@ public class MenuInlineDetailLayoutTests
     [AvaloniaFact]
     public void ShortInlineDetail_IsNotTrimmed()
     {
-        using RowsHost host = ShowHoldingShortRows();
+        using RowsHost host = ShowTaxiToRunwayRows();
         (MenuCommandRow row, MenuItem item) = host.Rows.OrderBy(pair => pair.Row.Detail!.Length).First();
         TextBlock detail = Block(item, $" · {row.Detail}");
 
         Assert.False(Collapsed(detail), $"'{row.Name}' has a short detail that should fit the menu.");
         Assert.Null(ToolTip.GetTip(RowGrid(detail)));
+    }
+
+    /// <summary>A preset taxi route's two-line row whose taxiway line fits the row draws it whole, with no tooltip.</summary>
+    [AvaloniaFact]
+    public void ShortRouteLine_IsNotTrimmed()
+    {
+        using RowsHost host = ShowPresetRows();
+        Assert.NotEmpty(host.Rows);
+        (MenuCommandRow row, MenuItem item) = host.Rows.OrderBy(pair => pair.Row.Detail!.Length).First();
+        TextBlock via = Block(item, row.Detail!);
+
+        Assert.False(Collapsed(via), $"'{row.Name}' has a short taxiway line that should fit the row.");
+        Assert.Null(ToolTip.GetTip(RowGrid(via)));
     }
 
     [AvaloniaFact]
@@ -122,16 +135,17 @@ public class MenuInlineDetailLayoutTests
     }
 
     /// <summary>The at-parking ground menu's Taxi to runway rows, in their own submenu.</summary>
-    private RowsHost ShowTaxiToRunwayRows() => ShowRows("at-parking", "Taxi to runway");
+    private RowsHost ShowTaxiToRunwayRows() => ShowRows("at-parking", "Taxi to runway", MenuDetailPlacement.Inline);
 
-    /// <summary>The holding-short ground menu's preset taxi rows, whose detail fits the menu whole.</summary>
-    private RowsHost ShowHoldingShortRows() => ShowRows("holding-short", "Preset taxi route");
+    /// <summary>The holding-short ground menu's preset taxi rows, their taxiways under the name.</summary>
+    private RowsHost ShowPresetRows() => ShowRows("holding-short", "Preset taxi route", MenuDetailPlacement.Route);
 
     /// <summary>
     /// The <paramref name="fixtureName"/> ground menu built and opened at stand the way a right-click opens it, down the
-    /// All Commands path to <paramref name="submenuHeader"/>: that submenu's own inline-detail rows, laid out in its popup.
+    /// All Commands path to <paramref name="submenuHeader"/>: that submenu's own rows whose detail sits by
+    /// <paramref name="placement"/>, laid out in its popup.
     /// </summary>
-    private RowsHost ShowRows(string fixtureName, string submenuHeader)
+    private RowsHost ShowRows(string fixtureName, string submenuHeader, MenuDetailPlacement placement)
     {
         IDisposable navScope = NavigationDatabase.ScopedOverride(_navDb);
         var main = new MainViewModel(new FakeFilePickerService());
@@ -162,7 +176,7 @@ public class MenuInlineDetailLayoutTests
         OpenAll(submenu);
 
         var laidOut = new List<(MenuCommandRow Row, MenuItem Item)>();
-        Collect(submenu, laidOut);
+        Collect(submenu, placement, laidOut);
         return new RowsHost(navScope, window, menu, laidOut);
     }
 
@@ -177,23 +191,26 @@ public class MenuInlineDetailLayoutTests
         }
     }
 
-    /// <summary>Every inline-detail row under <paramref name="parent"/>, at any depth.</summary>
-    private static void Collect(MenuItem parent, List<(MenuCommandRow Row, MenuItem Item)> rows)
+    /// <summary>Every row under <paramref name="parent"/>, at any depth, whose detail sits by <paramref name="placement"/>.</summary>
+    private static void Collect(MenuItem parent, MenuDetailPlacement placement, List<(MenuCommandRow Row, MenuItem Item)> rows)
     {
         foreach (MenuItem child in parent.Items.OfType<MenuItem>())
         {
-            if ((child.Header is MenuCommandRow row) && IsLaidOutInlineRow(row))
+            if ((child.Header is MenuCommandRow row) && IsLaidOutRow(row, placement))
             {
                 rows.Add((row, child));
             }
 
-            Collect(child, rows);
+            Collect(child, placement, rows);
         }
     }
 
-    /// <summary>Whether <paramref name="row"/> draws an inline detail beside a distance, the rows these tests lay out.</summary>
-    private static bool IsLaidOutInlineRow(MenuCommandRow row) =>
-        (row.DetailPlacement == MenuDetailPlacement.Inline) && (row.Detail is not null) && (row.Distance is not null);
+    /// <summary>
+    /// Whether <paramref name="row"/> draws a detail placed by <paramref name="placement"/> and a distance, the rows these
+    /// tests lay out.
+    /// </summary>
+    private static bool IsLaidOutRow(MenuCommandRow row, MenuDetailPlacement placement) =>
+        (row.DetailPlacement == placement) && (row.Detail is not null) && (row.Distance is not null);
 
     /// <summary>The longest of <paramref name="host"/>'s rows whose detail lost its whole text to an ellipsis.</summary>
     private static (MenuCommandRow Row, MenuItem Item) LongestTrimmed(RowsHost host)

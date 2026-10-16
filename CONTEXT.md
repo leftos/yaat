@@ -555,7 +555,7 @@ A menu submenu whose items are built when it first opens, holding one disabled p
 What a right-click gives an aircraft menu (`MenuClick`): the aircraft the menu commands, the previously selected aircraft that sends the relative items (null when it is the clicked one), the clicked point on a point click (`MenuPoint`: a map position, a taxi node, a runway end; null on an aircraft click), and the list's selected rows (`[]` on the canvases).
 
 **Command row**:
-A clickable, templated context-menu row that sends a command: an optional badge, the name, a detail, a distance and the command text (`MenuCommandRow`, drawn by `MenuCommandRowTemplate`); the Preset taxi route, Taxi to runway and Exit left / right rows are command rows; the Follow…, Give way to… and Hold short of… rows draw their own layouts.
+A clickable, templated context-menu row that sends a command: an optional badge, the name, a detail, a distance and the command text (`MenuCommandRow`, drawn by `MenuCommandRowTemplate`); the Preset taxi route (a glyph in place of the badge, the taxiways under the name), Taxi to runway and Exit left / right rows are command rows; the Follow…, Give way to… and Hold short of… rows draw their own layouts.
 
 **Glyph row**:
 A clickable context-menu row led by a quick-command glyph, with a label, an optional dimmed note and the command text (`MenuGlyphRow`, drawn by `MenuGlyphRowTemplate`); a dimmed one stays clickable. The pattern entries' runway flyout rows are glyph rows, the glyph rotated to the runway's true course less 270°.
@@ -594,10 +594,10 @@ The block at the top of an aircraft's menu, under its header, while another airc
 One other aircraft as a menu's traffic list shows it, seen from the aircraft the menu commands: in the air a `MenuTrafficRow` (callsign and type, distance, clock position, altitude difference), on the ground a `MenuGroundTrafficRow` (callsign, type, distance in feet, state such as `taxiing on W · ahead`).
 
 **Gone row**:
-A Follow… or Give way to… row whose aircraft has left the ground, or a Hold short of… stop the route has left, while the pointer holds the open flyout's list in place: dimmed, reading `gone`, disabled, skipped by the keyboard and sending nothing.
+A Follow… or Give way to… row whose aircraft has left the ground, a Hold short of… stop the route has left, or a Preset taxi route row the host no longer returns, while the pointer holds the open flyout's list in place: dimmed, reading `gone`, disabled, skipped by the keyboard and sending nothing.
 
 **Live refill**:
-A strip flyout's once-a-second rebuild from the host's data while it is open (`FlyoutLiveTick`): rebuilt nearest first with the pointer outside, held in place with gone rows and teal-edged newcomers with the pointer inside (Follow…, Give way to…, Hold short of…).
+A strip flyout's once-a-second rebuild from the host's data while it is open (`FlyoutLiveTick`): rebuilt nearest first with the pointer outside, held in place with gone rows and teal-edged newcomers with the pointer inside (Follow…, Give way to…, Hold short of…, Preset taxi route).
 
 ## CRC hub connections
 
