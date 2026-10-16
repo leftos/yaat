@@ -1,0 +1,319 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Weather Source Status</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  /* Layout: one artboard per open question; each has a header (question, situation) over lanes A, B and C. */
+  :root {
+    --bg: #eceff2; --panel: #ffffff; --ink: #15181c; --muted: #58616c; --line: #d3d8de;
+    --accent: #2c5fa6; --tag-a: #1f7f71; --tag-b: #7a4fbf; --tag-c: #a3520a; --warn: #a3520a;
+    --f-display: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
+    --f-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+    --f-mono: "IBM Plex Mono", Consolas, monospace;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0e1013; --panel: #171a1f; --ink: #e5e8ec; --muted: #9aa3ae; --line: #2b3038;
+      --accent: #8fc1ff; --tag-a: #5fd0bf; --tag-b: #c4a3ff; --tag-c: #ffb259; --warn: #ffb259;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0e1013; --panel: #171a1f; --ink: #e5e8ec; --muted: #9aa3ae; --line: #2b3038;
+    --accent: #8fc1ff; --tag-a: #5fd0bf; --tag-b: #c4a3ff; --tag-c: #ffb259; --warn: #ffb259;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html, body { overflow-x: hidden; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.5 var(--f-body); }
+  .wrap { max-width: 1720px; margin: 0 auto; padding-inline: 16px; padding-block: 28px 64px; }
+  h1 { font: 600 30px/1.15 var(--f-display); margin: 0 0 8px; text-wrap: balance; letter-spacing: -.01em; }
+  .lede { max-width: 86ch; color: var(--muted); margin: 0 0 6px; }
+  .lede b { color: var(--ink); font-weight: 600; }
+  .lede code, .cap code, .art-meta code, footer code, .snote code { font: 12px var(--f-mono); color: var(--accent); }
+  .eyebrow { font: 500 11px var(--f-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+  nav.index { display: flex; flex-wrap: wrap; gap: 6px; margin: 16px 0 28px; }
+  nav.index a { font: 500 12px var(--f-mono); color: var(--ink); text-decoration: none; border: 1px solid var(--line); background: var(--panel);
+                border-radius: 4px; padding: 4px 9px; }
+  nav.index a:hover, nav.index a:focus-visible { border-color: var(--accent); outline: none; }
+
+  .art { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 18px; margin-bottom: 28px; scroll-margin-top: 12px; }
+  .art-meta { margin-bottom: 16px; }
+  .art-meta h2 { font: 600 22px/1.2 var(--f-display); margin: 0 0 6px; text-wrap: balance; }
+  .art-meta p { margin: 0 0 6px; max-width: 96ch; color: var(--muted); }
+  .art-meta p b { color: var(--ink); font-weight: 600; }
+  h3.sub { font: 600 17px/1.25 var(--f-display); margin: 22px 0 10px; }
+
+  .lanes { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 460px), 1fr)); gap: 16px; align-items: start; }
+  .lanes.two { grid-template-columns: repeat(auto-fit, minmax(min(100%, 600px), 1fr)); }
+  .lane { min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+  .lane-h { display: flex; align-items: baseline; gap: 8px; }
+  .tag { font: 600 11px var(--f-mono); letter-spacing: .06em; text-transform: uppercase; border: 1px solid currentColor; border-radius: 3px; padding: 0 5px; }
+  .tag.a { color: var(--tag-a); } .tag.b { color: var(--tag-b); } .tag.c { color: var(--tag-c); }
+  .lane-h h3 { font: 600 15px/1.25 var(--f-display); margin: 0; }
+  .cap { margin: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 10px; font-size: 13px; }
+  .cap dt { font: 500 11px var(--f-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); padding-top: 2px; white-space: nowrap; }
+  .cap dd { margin: 0; }
+  .cap dd.worst { color: var(--warn); }
+  footer.foot { color: var(--muted); font-size: 12px; margin-top: 18px; max-width: 100ch; }
+
+  /* State strip (question 2). */
+  .states { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 600px), 1fr)); gap: 16px; align-items: start; }
+  .state { min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+  .state-h { display: flex; align-items: baseline; gap: 8px; }
+  .state-h .k { font: 600 12px var(--f-mono); color: var(--accent); }
+  .state-h h4 { font: 600 15px/1.25 var(--f-display); margin: 0; }
+  .snote { font-size: 13px; color: var(--muted); margin: 0; }
+
+  /* ---------- The app's own surfaces: YAAT runs Avalonia Fluent dark only, so these stay dark in either page theme. ---------- */
+  .stage { background: #0b0d10; border: 1px solid #22262c; border-radius: 8px; padding: 14px; overflow-x: auto; color-scheme: dark;
+           display: flex; flex-direction: column; gap: 14px; }
+  .frame { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .flabel { font: 500 11px "JetBrains Mono", Consolas, monospace; color: #a4adb8; letter-spacing: .02em; }
+  .flabel b { color: #e4e7eb; font-weight: 400; }
+  .pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+
+  /* Client window: black content, Inter 12 (UiFontSize), subtle text #B0B0B0 (SubtleTextBrush). */
+  .win { background: #000; color: #fff; font: 12px/1.35 Inter, "Segoe UI", system-ui, sans-serif; border: 1px solid #2a2d33; overflow: hidden; }
+  .win.w520 { width: 520px; max-width: 100%; }
+  .titlebar { display: flex; align-items: center; height: 30px; background: #1f1f1f; border-bottom: 1px solid #2a2a2a; padding-left: 10px; font-size: 12px; color: #e8e8e8; }
+  .titlebar .t { flex: 1; }
+  .titlebar .wc { width: 44px; text-align: center; color: #cfcfcf; font-size: 13px; }
+  .tabs { display: flex; gap: 0; padding: 4px 6px 0; border-bottom: 1px solid #1c1c1c; white-space: nowrap; overflow: hidden; }
+  .tabs span { padding: 4px 6px 5px; color: #b0b0b0; font-size: 12.5px; border-bottom: 2px solid transparent; }
+  .tabs span.on { color: #fff; border-bottom-color: #4ea1ff; }
+
+  /* MetarView: header Border Padding 8,5, #0AFFFFFF fill, #1AFFFFFF bottom rule, StackPanel spacing 8. */
+  .mhead { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 8px; align-items: baseline; padding: 5px 8px;
+           background: rgba(255, 255, 255, .04); border-bottom: 1px solid rgba(255, 255, 255, .10); }
+  .mhead .lbl { font-weight: 600; }
+  .mhead .nm { color: #b0b0b0; }
+  .mhead .src { grid-column: 2; color: #b0b0b0; font-size: 11px; line-height: 1.35; padding-top: 1px; }
+  .mhead .src.new { box-shadow: inset 2px 0 0 #ffc062; padding-left: 6px; margin-left: -8px; }
+  .mrow { padding: 6px 8px; border-bottom: 1px solid rgba(255, 255, 255, .08); }
+  .mrow .st { font-size: 11px; color: #b0b0b0; font-weight: 600; }
+  .mrow .st i { font-style: normal; font-weight: 400; margin-right: 6px; }
+  .mrow .raw { font: 12px/1.35 Consolas, "JetBrains Mono", monospace; color: #fff; }
+  .mbody { min-height: 0; }
+
+  /* Status bar: Border top #3F3F46, Padding 8,2, 11 px subtle text; "mic: off" at the right. */
+  .status { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; border-top: 1px solid #3f3f46; padding: 2px 8px; font-size: 11px; color: #b0b0b0; background: #000; }
+  .status .msg { white-space: nowrap; overflow: hidden; }
+  .status .none { color: #6e7680; font-style: italic; }
+
+  /* Terminal panel: header + #1A1A1E body in JetBrains Mono, coloured per kind. */
+  .term { background: #000; }
+  .term-h { display: flex; align-items: center; gap: 8px; padding: 4px 6px; }
+  .term-h b { font-weight: 700; font-size: 12.5px; }
+  .term-h .flt { width: 140px; height: 20px; border: 1px solid #5a5a5a; border-radius: 3px; color: #777; font-size: 11px; padding: 1px 5px; }
+  .term-b { background: #1a1a1e; font: 12.5px/1.45 "JetBrains Mono", Consolas, monospace; padding: 4px; }
+  .tl { display: grid; grid-template-columns: 9ch 5ch minmax(0, 1fr); color: #808080; }
+  .tl.wrn { color: #ffa500; } .tl.rsp { color: #d3d3d3; } .tl.cmd { color: #fff; font-weight: 700; }
+  .tl.new > span:last-child { box-shadow: inset 0 -1px 0 rgba(255, 192, 98, .55); }
+
+  /* Radar weather readout: STARS green, monospace 14, first line at (10, 20), 18 px apart. */
+  .radar { position: relative; background: #000; height: 150px; font: 14px/18px "JetBrains Mono", Consolas, monospace; color: #00c800; padding: 6px 10px; overflow: visible; }
+  .radar .ln { white-space: pre; }
+  .radar .ring { position: absolute; border: 1px solid #3a3a3a; border-radius: 50%; }
+  .tip { position: absolute; z-index: 3; font: 12px/1.35 Inter, "Segoe UI", sans-serif; color: #fff; background: #2b2b2b; border: 1px solid #555; border-radius: 4px;
+         padding: 5px 8px; box-shadow: 0 6px 16px rgba(0, 0, 0, .5); max-width: 330px; }
+  .tip b { font-weight: 600; }
+  .cursor { position: absolute; width: 18px; height: 24px; z-index: 4; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .6)); }
+
+  /* Mock-only annotations. */
+  .callout { font: 11.5px/1.4 Inter, "Segoe UI", sans-serif; color: #fff; background: #1d1f23; border: 1px dashed #ffc062; border-radius: 4px; padding: 5px 8px; }
+  .callout b { color: #ffc062; font-weight: 600; }
+  .callout.calm { border-color: #5fd0bf; }
+  .callout.calm b { color: #6ee0ce; }
+
+  @media (max-width: 640px) {
+    h1 { font-size: 24px; }
+    .art { padding: 12px; }
+    .stage { padding: 10px; }
+    .pair { grid-template-columns: minmax(0, 1fr); }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="eyebrow">YAAT-674 · GFS winds part 4 · weather source status · mock for the owner's choice</div>
+  <h1>Where the live winds aloft came from: three open choices</h1>
+  <p class="lede">Settled and drawn in every lane: the fallback order is <b>GFS grid → FAA FD winds aloft → METAR only</b>; the attribution names <b>NOAA GFS</b> with the cycle and forecast hour; when GFS fails, part 3's terminal warning reads <code>Live weather: GFS winds unavailable — {reason}; using FD winds aloft only.</code>, and while the load runs the status bar shows <code>Fetching live weather...</code> then <code>Fetching GFS winds aloft (12Z f004)...</code>.</p>
+  <p class="lede">The situation: an instructor in a ZOA room picks <b>Scenario › Load Live Weather</b> at <b>15:52Z on 16 Oct</b>. The newest posted cycle is <b>12Z</b> (posting delay 3.5 h) and the nearest forecast hour is <b>f004</b> (<code>GfsGridFetcher.NewestCycle</code>, <code>ForecastHour</code>), so the grid case reads 12Z f004. Failure reasons are part 3's real constants (<code>NOMADS request failed</code>, <code>grid not in the saved file</code>). Fragments are drawn at the client's scale: Inter 12 (11 for the status bar and subtle text), the METAR pop-out at its default 520 px width.</p>
+  <nav class="index" id="index" aria-label="Questions"></nav>
+  <div id="arts"></div>
+  <footer class="foot">Surfaces follow <code>MainWindow.axaml</code> (status bar at :563-565, terminal panel), <code>MetarView.axaml</code> (header at :9-13) and <code>RadarRenderer.DrawWeatherLines</code> (STARS green, mono 14); colours are the client's own (<code>SubtleTextBrush</code> #B0B0B0, terminal warning #FFA500, terminal body #1A1A1E). A thin amber bar marks a line part 4 would add; dashed boxes, the pointer and the tooltip placement are mock annotations, not app UI.</footer>
+</div>
+
+<script>
+(() => {
+  "use strict";
+  const esc = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
+  /* ---------- Data ---------- */
+  const LIVE = "Live Weather (15:52Z)";
+  const GRID = "NOAA GFS 12Z 16 Oct +4 h";
+  const METARS = [
+    ["OAK", "KOAK 161453Z 28012KT 10SM FEW015 18/11 A2998"],
+    ["SFO", "KSFO 161456Z 29015KT 10SM FEW012 17/11 A2997"],
+    ["SJC", "KSJC 161453Z 32009KT 10SM CLR 21/09 A2995"],
+  ];
+  const GFS_WARN = r => `Live weather: GFS winds unavailable — ${r}; using FD winds aloft only.`;
+
+  /* ---------- Client fragments ---------- */
+  const metarHead = (name, src) => `<div class="mhead"><span class="lbl">METAR</span><span class="nm">${esc(name)}</span>${src ? `<span class="src new">${esc(src)}</span>` : ""}</div>`;
+  const metarRows = n => METARS.slice(0, n).map(([st, raw]) => `<div class="mrow"><div class="st"><i>☆</i>${st}</div><div class="raw">${esc(raw)}</div></div>`).join("");
+  const metarPanel = (name, src, rows = 2) => metarHead(name, src) + `<div class="mbody">${metarRows(rows)}</div>`;
+  const tabs = on => `<div class="tabs">${["Aircraft List", "Ground View", "Radar View", "Controllers", "METAR"].map(t => `<span class="${t === on ? "on" : ""}">${esc(t)}</span>`).join("")}</div>`;
+  const status = (msg, none = false) => `<div class="status"><span class="msg${none ? " none" : ""}">${esc(msg)}</span><span>mic: off</span></div>`;
+  const term = lines => `<div class="term"><div class="term-h"><b>Terminal</b><span class="flt">Filter...</span></div><div class="term-b">${lines.map(([t, k, x, cls]) => `<div class="tl ${cls || k.toLowerCase()}"><span>${t}</span><span>${k}</span><span>${esc(x)}</span></div>`).join("")}</div></div>`;
+  const popout = (inner, w = "w520") => `<div class="win ${w}"><div class="titlebar"><span class="t">METAR</span><span class="wc">—</span><span class="wc">☐</span><span class="wc">✕</span></div>${inner}</div>`;
+  const win = inner => `<div class="win">${inner}</div>`;
+  const frame = (label, inner, after = "") => `<div class="frame"><div class="flabel">${label}</div>${inner}${after}</div>`;
+  const cursorSvg = (l, t) => `<svg class="cursor" style="left:${l}px;top:${t}px" viewBox="0 0 18 24" aria-hidden="true"><path d="M1.5 1.5v18.2l4.6-4.3 3 6.8 3.1-1.4-3-6.7h6.3z" fill="#ffffff" stroke="#000000" stroke-width="1.3" stroke-linejoin="round"/></svg>`;
+
+  function radar(tip) {
+    const lines = ["OAK 29.98 28012KT", "SFO 29.97 29015KT", "SJC 29.95 32009KT"].map(l => `<div class="ln">${l}</div>`).join("");
+    const rings = [[260, 40, 220], [300, 80, 140], [340, 120, 60]].map(([x, y, d]) => `<div class="ring" style="left:${x}px;top:${y - 30}px;width:${d}px;height:${d}px"></div>`).join("");
+    return `<div class="radar">${rings}${lines}${cursorSvg(150, 26)}${tip ? `<div class="tip" style="left:40px;top:66px">${tip}</div>` : ""}</div>`;
+  }
+
+  /* ---------- Shared shell ---------- */
+  function lane(l) {
+    return `<section class="lane">
+      <div class="lane-h"><span class="tag ${l.kind}">${l.kind.toUpperCase()}</span><h3>${esc(l.name)}</h3></div>
+      <div class="stage">${l.body}</div>
+      <dl class="cap"><dt>How it works</dt><dd>${l.how}</dd><dt>Worst case</dt><dd class="worst">${l.worst}</dd></dl>
+    </section>`;
+  }
+  const art = a => `<section class="art" id="${a.id}">
+      <div class="art-meta"><h2>${esc(a.title)}</h2>${a.intro.map(p => `<p>${p}</p>`).join("")}</div>
+      ${a.body}
+    </section>`;
+
+  /* ---------- 1. Where the source is shown ---------- */
+  const LOADED = `Loaded: ${LIVE} · winds aloft: ${GRID}`;
+  const LATER = "Select an aircraft first";
+  const mainMetar = src => win(tabs("METAR") + metarPanel(LIVE, src, 3) + status(LOADED));
+  const mainMetarLater = src => win(tabs("METAR") + metarPanel(LIVE, src, 3) + status(LATER));
+  const q1 = {
+    id: "q1-where", title: "1 · Where the source is shown",
+    intro: [
+      "Each lane draws the main window just after the load (METAR tab open, the status bar's final message) and the same window a minute later, after an unrelated action has written the status bar. Today nothing persistent names the source: the METAR header shows only <code>ActiveWeatherName</code>, and the status bar's last message is <code>Loaded: Live Weather (15:52Z)</code>.",
+    ],
+    body: `<div class="lanes">${[
+      { kind: "a", name: "Status bar's final message only",
+        how: "The load's last status message gains the source; nothing else changes. The next status message replaces it, as every message does today.",
+        worst: "A minute later “Select an aircraft first” has replaced it: an instructor who looked away during the load cannot tell GFS from FD without scrolling the terminal for a warning that only exists when GFS failed.",
+        body: frame("Main window · <b>just loaded</b>", mainMetar(null))
+          + frame("Main window · <b>a minute later</b>", mainMetarLater(null), `<div class="callout"><b>Gone:</b> the status bar no longer names the source, and the METAR header never did.</div>`) },
+      { kind: "b", name: "METAR header line + status bar",
+        how: "A second line under the weather name in the METAR header (tab and pop-out share <code>MetarView</code>) states the source while that weather is active; the status bar's final message says it too.",
+        worst: "On Radar View the line is a tab switch away, and the pop-out loses about 15 px of METAR list to it; the user guide's <code>metar-window.png</code> needs a recapture.",
+        body: frame("Main window · <b>just loaded</b>", mainMetar(`Winds aloft: ${GRID}`))
+          + frame("Main window · <b>a minute later</b>", mainMetarLater(`Winds aloft: ${GRID}`), `<div class="callout calm"><b>Kept:</b> the status bar moved on; the METAR header still names the source.</div>`) },
+      { kind: "c", name: "B, plus a tooltip on the wind readout",
+        how: "As B, and hovering the radar's or ground view's weather readout shows a tooltip naming where each part came from. The readout is drawn on the Skia canvas, so the tooltip needs a hit test on the text block in both renderers.",
+        worst: "The readout's wind is the METAR surface wind, not GFS: a tooltip that says “NOAA GFS” over <code>28012KT</code> invites reading the shown wind as the model's. Nothing shows until the pointer finds the text.",
+        body: frame("Main window · <b>a minute later</b>", mainMetarLater(`Winds aloft: ${GRID}`))
+          + frame("Radar View · <b>hovering the readout</b>", win(tabs("Radar View") + radar(`<b>Surface:</b> METAR (KOAK 161453Z)<br><b>Winds aloft:</b> ${GRID}`) + status(LATER))) },
+    ].map(lane).join("")}</div>`,
+  };
+
+  /* ---------- 2. Text per state ---------- */
+  const fdLine = why => `Winds aloft: FAA FD forecast · ${why}`;
+  const STATES = [
+    { k: "a", t: "Live load, GFS grid loaded", name: LIVE, src: `Winds aloft: ${GRID}`, st: LOADED,
+      note: "Cycle and hour are the fetched grid's own (<code>GfsGridFetchResult.CycleUtc</code>, <code>ForecastHour</code>), not the predicted pair the fetching line showed." },
+    { k: "b", t: "GFS failed, FD loaded", name: LIVE, src: fdLine("GFS unavailable (NOMADS request failed)"), st: `Loaded: ${LIVE} · winds aloft: FAA FD (GFS unavailable)`,
+      term: [["10:30:04", "WRN", GFS_WARN("NOMADS request failed")]],
+      note: "Part 3's warning stays as it is; the header repeats the reason so it outlives the terminal's scroll." },
+    { k: "c", t: "FD failed too, METAR surface winds only", name: LIVE, src: "Winds aloft: none · METAR surface winds only", st: `Loaded: ${LIVE} · no winds aloft, METAR surface winds only`,
+      term: [["10:30:04", "WRN", GFS_WARN("NOMADS request failed")], ["10:30:04", "WRN", "Live weather: FD winds aloft unavailable; METAR surface winds only.", "wrn new"]],
+      note: "Today nothing reports a missing FD set; the second warning (underlined) would be new in part 4." },
+    { k: "d", t: "Saved weather file with an embedded grid", name: LIVE, src: `Winds aloft: ${GRID} · saved file`, st: `Weather loaded: ${LIVE} · winds aloft: ${GRID} (saved file)`,
+      note: "A saved file carries only the GRIB bytes: the client decodes the cycle and hour from them (<code>Grib2Message.ReferenceTimeUtc</code>, <code>ForecastHours</code>)." },
+    { k: "e", t: "Saved file whose grid is missing", name: LIVE, src: fdLine("GFS grid not in the saved file"), st: `Weather loaded: ${LIVE} · winds aloft: FAA FD (GFS grid not in the saved file)`,
+      term: [["10:30:04", "WRN", GFS_WARN("grid not in the saved file")]],
+      note: "Part 3's warning with its saved-file reason; the file's FD layers fly." },
+    { k: "f", t: "Scenario weather (no live winds)", name: "OAK West Gusty", src: "Winds aloft: scenario weather", st: "Loaded 'S1-OAK-1 | Clearances Intro': 18 aircraft",
+      note: "Scenario weather arrives by <code>WeatherChanged</code> and writes no weather status; the status bar keeps the scenario load's message. The name is whatever the scenario's weather is called." },
+    { k: "g", t: "A recording replay", name: LIVE, src: `Winds aloft: ${GRID} · recorded`, st: "no weather message: replay weather arrives by WeatherChanged", stNone: true,
+      note: "Needs question 3's lane B (the server sends the grid's cycle and hour). If the recording lacks the grid blob the server flies FD and sends none, so the line reads <code>Winds aloft: FAA FD forecast</code> with no reason." },
+  ];
+  const stateCard = s => `<section class="state">
+      <div class="state-h"><span class="k">(${s.k})</span><h4>${esc(s.t)}</h4></div>
+      <div class="stage">
+        ${frame("METAR pop-out · 520 px", popout(metarPanel(s.name, s.src, 1)))}
+        ${frame("Status bar · final message", win(status(s.st, s.stNone)))}
+        ${s.term ? frame("Terminal", win(term(s.term))) : ""}
+      </div>
+      <p class="snote">${s.note}</p>
+    </section>`;
+
+  const WORD_A = "Winds aloft: NOAA GFS 12Z 16 Oct, +4 h forecast";
+  const WORD_B = "Winds aloft: GFS 0.25° · 1612Z f004";
+  const q2 = {
+    id: "q2-text", title: "2 · Text per state",
+    intro: [
+      "Lane B's home (the METAR header line, with the status bar's final message) for each state the weather can be in, drawn in the pop-out at its default size. Then two wordings for the grid case.",
+    ],
+    body: `<div class="states">${STATES.map(stateCard).join("")}</div>
+      <h3 class="sub">Wording for the grid case</h3>
+      <div class="lanes two">${[
+        { kind: "a", name: "“NOAA GFS 12Z 16 Oct, +4 h forecast”",
+          how: "Plain words: the run (cycle time and date, since a 18Z run can be read the next day) and how far ahead its forecast is. Names NOAA as the settled attribution does.",
+          worst: "“+4 h” reads as “four hours from now”; after three hours of session the line still says +4 h while the sim flies a forecast valid at 16Z for a 19Z sky.",
+          body: frame("METAR pop-out · 520 px", popout(metarPanel(LIVE, WORD_A, 1)))
+            + frame("METAR tab header · narrow pop-out, 360 px", `<div class="win" style="width:360px;max-width:100%">${metarHead(LIVE, WORD_A)}</div>`) },
+        { kind: "b", name: "“GFS 0.25° · 1612Z f004”",
+          how: "Compact model shorthand: resolution, the run as day-hour Z, and the forecast hour in the same f004 form the fetching status line already uses.",
+          worst: "“1612Z” looks like a METAR-style time, 16:12Z, sitting under METARs stamped 161453Z; and it drops “NOAA”, which the settled attribution names.",
+          body: frame("METAR pop-out · 520 px", popout(metarPanel(LIVE, WORD_B, 1)))
+            + frame("METAR tab header · narrow pop-out, 360 px", `<div class="win" style="width:360px;max-width:100%">${metarHead(LIVE, WORD_B)}</div>`) },
+      ].map(lane).join("")}</div>`,
+  };
+
+  /* ---------- 3. Other room members ---------- */
+  const member = (who, name, src) => frame(who, `<div class="win">${metarHead(name, src)}${metarRows(1)}</div>`);
+  const both = (title, loader, other) => frame(title, `<div class="pair">${loader}${other}</div>`);
+  const q3 = {
+    id: "q3-members", title: "3 · What other room members see",
+    intro: [
+      "The instructor loaded the live weather; the RPO is a second member of the same room. Each lane draws both METAR headers for the grid case and for a GFS failure. Today every member gets <code>WeatherChangedDto</code> (name, layers, METARs, source JSON with only <code>windGridHash</code>); the cycle, the forecast hour and the failure reason live only on the loader's client.",
+    ],
+    body: `<div class="lanes two">${[
+      { kind: "a", name: "Only the loader's client sees the source",
+        how: "The line is built from what the loading client fetched; other members, a rejoining client and a replay show the weather name alone. No wire change.",
+        worst: "The RPO sees “Live Weather (15:52Z)” and cannot tell GFS from FD; the instructor loses the line too after a reconnect, and a replay never has one.",
+        body: both("GFS grid loaded",
+            member("Instructor · <b>loaded it</b>", LIVE, `Winds aloft: ${GRID}`),
+            member("RPO · <b>same room</b>", LIVE, null))
+          + both("GFS failed, FD loaded",
+            member("Instructor · <b>loaded it</b>", LIVE, fdLine("GFS unavailable (NOMADS request failed)")),
+            member("RPO · <b>same room</b>", LIVE, null)) },
+      { kind: "b", name: "Every member sees the grid source; the reason stays local",
+        how: "The server fills the grid's cycle and forecast hour from the registered grid into two new <code>WeatherChangedDto</code> fields (both repos), so members, rejoiners, replays, rewinds and checkpoint restores all get them. The failure reason is never sent.",
+        worst: "On a GFS failure the RPO sees a bare “FAA FD forecast” and cannot tell a fallback from a choice; the instructor's own reason disappears after a reconnect, when the instructor gets the member's line.",
+        body: both("GFS grid loaded",
+            member("Instructor · <b>loaded it</b>", LIVE, `Winds aloft: ${GRID}`),
+            member("RPO · <b>same room, rejoin or replay</b>", LIVE, `Winds aloft: ${GRID}`))
+          + both("GFS failed, FD loaded",
+            member("Instructor · <b>loaded it</b>", LIVE, fdLine("GFS unavailable (NOMADS request failed)")),
+            member("RPO · <b>same room, rejoin or replay</b>", LIVE, "Winds aloft: FAA FD forecast")) },
+    ].map(lane).join("")}</div>`,
+  };
+
+  const ARTS = [q1, q2, q3];
+  document.getElementById("arts").innerHTML = ARTS.map(art).join("");
+  document.getElementById("index").innerHTML = ARTS.map(a => `<a href="#${a.id}">${esc(a.title)}</a>`).join("");
+})();
+</script>
+</body>
+</html>
