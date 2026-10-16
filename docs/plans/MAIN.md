@@ -41,6 +41,7 @@
 - [ ] YAAT-624 Find why a solo pilot reports traffic in sight minutes after the traffic call
 - [ ] YAAT-754 Restore the recorded weather on a rewind after the room's weather was cleared
 - [ ] YAAT-757 Share the wind-grid archive helpers and tidy the checkpoint restore
+- [ ] YAAT-769 Set a room's weather JSON before broadcasting WeatherChanged, so other members get the new weather
 
 ## Say again
 
@@ -87,7 +88,7 @@
 - [ ] YAAT-40 Stop spot line-up from past the spot looping behind the spot (SKW5564)
 - [ ] YAAT-43 A cleared first taxiway must be driven, or the TAXI refused (SFO M4 M1)
 - [ ] YAAT-44 Confine TryTaxiCore's zero-segment re-route to the ramp
-- [ ] YAAT-45 Share SFO exit capacity across 28L/28R arrivals on every crossover taxiway · release vNext
+- [/] YAAT-45 Share SFO exit capacity across 28L/28R arrivals on every crossover taxiway · release vNext
 - [ ] YAAT-46 Stop the rollout's straight-line exit fallback picking non-exit nodes
 - [ ] YAAT-47 CLANDF follow-ups: clear the forced landing on phase clear, aim point, teleport
 - [ ] YAAT-48 Check the SFO I28L MAP/DA (65 ft) against CIFP
@@ -180,7 +181,6 @@
 - [ ] YAAT-336 Immediate preset CTO for a departure held for release is dropped instead of waiting for the release
 - [ ] YAAT-337 Solo release auto-takeoff depends on the release request object surviving the jitter window
 - [ ] YAAT-427 Split GroundCommandHandler's TryTaxiCore and ResolveTaxiRouteFrom under the 100-line limit
-- [/] YAAT-577 FOLLOWG behind a departing lead holds as a crossing of '30/12', not a departure hold · release vNext
 - [ ] YAAT-582 Bare CROSS clears the next bar in route order and re-aims the segment
 - [ ] YAAT-584 Decide and honour HS to a FOLLOWG follower (it never stops at a taxiway bar)
 - [ ] YAAT-586 Make RES/CROSS with CROSS and HS lists atomic when an HS target fails
@@ -188,6 +188,10 @@
 - [ ] YAAT-751 Name the intersection in the ready call at an intersection departure bar
 - [ ] YAAT-752 Name W1, not T - RAMP, in a follower's hold warning at the OAK runway 30 bar
 - [ ] YAAT-753 Line up on the end the aircraft holds at when CTO names a combined runway id
+- [ ] YAAT-765 Let a FOLLOWG follower clear a crossed runway between close parallels, then taxi on to its departed lead's bar
+- [ ] YAAT-766 Refuse CROSS at a departure hold the aircraft has reached
+- [ ] YAAT-767 Number a no-runway FOLLOWG follower behind its lead in the departure queue while it taxis
+- [ ] YAAT-768 Guard a departed lead's follower joining the lead's path against runway entry, and treat an unfiled VFR arrival as arriving
 
 ## Wave 3 — Ground routing, pathfinder and their docs
 
@@ -536,6 +540,7 @@
 - [ ] YAAT-741 Have a pilot's no-room unable name the request it wants (alternate route, progressive, tow)
 - [ ] YAAT-742 Make the tower-cab session-binding test hold under load
 - [ ] YAAT-747 Keep the tape's starting weather across rewind, restart and recording load
+- [ ] YAAT-770 Fetch GFS winds for ARTCCs across 180° and over the upload cap (ZAN, ZAK, ZAP, ZWY)
 
 ## No project
 
