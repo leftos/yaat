@@ -225,6 +225,74 @@ public class GriddedWindFieldTests
         Assert.Throws<InvalidOperationException>(() => GriddedWindField.FromMessages(messages));
     }
 
+    [Theory]
+    [InlineData(2, 2, 151f, "UGRD")]
+    [InlineData(2, 3, -151f, "VGRD")]
+    public void FromMessages_WindBeyondBound_RefusedNamingVariable(int category, int number, float value, string name)
+    {
+        List<Grib2Message> messages = SampleMessages();
+        int index = IndexOf(messages, category, number, 50000);
+        float[] values = [.. messages[index].Values];
+        values[0] = value;
+        messages[index] = Copy(messages[index], values, 50000);
+
+        InvalidOperationException ex = Assert.Throws<InvalidOperationException>(() => GriddedWindField.FromMessages(messages));
+
+        Assert.Contains($"{name} at 500 hPa has value", ex.Message);
+        Assert.Contains("±150 m/s", ex.Message);
+    }
+
+    [Theory]
+    [InlineData(159f)]
+    [InlineData(351f)]
+    public void FromMessages_TemperatureBeyondBound_Refused(float value)
+    {
+        List<Grib2Message> messages = SampleMessages();
+        int index = IndexOf(messages, 0, 0, 50000);
+        float[] values = [.. messages[index].Values];
+        values[0] = value;
+        messages[index] = Copy(messages[index], values, 50000);
+
+        InvalidOperationException ex = Assert.Throws<InvalidOperationException>(() => GriddedWindField.FromMessages(messages));
+
+        Assert.Contains("TMP at 500 hPa has value", ex.Message);
+        Assert.Contains("160–350 K", ex.Message);
+    }
+
+    [Fact]
+    public void FromMessages_ValuesExactlyOnBound_Accepted()
+    {
+        List<Grib2Message> messages = SampleMessages();
+        int u500 = IndexOf(messages, 2, 2, 50000);
+        int t500 = IndexOf(messages, 0, 0, 50000);
+        float[] u = [.. messages[u500].Values];
+        u[0] = 150f;
+        u[1] = -150f;
+        messages[u500] = Copy(messages[u500], u, 50000);
+        float[] t = [.. messages[t500].Values];
+        t[0] = 160f;
+        t[1] = 350f;
+        messages[t500] = Copy(messages[t500], t, 50000);
+
+        var field = GriddedWindField.FromMessages(messages);
+
+        Assert.Equal(20, field.LevelsHpa.Count);
+    }
+
+    [Fact]
+    public void FromMessages_NaNValue_Accepted()
+    {
+        List<Grib2Message> messages = SampleMessages();
+        int u500 = IndexOf(messages, 2, 2, 50000);
+        float[] values = [.. messages[u500].Values];
+        values[0] = float.NaN;
+        messages[u500] = Copy(messages[u500], values, 50000);
+
+        var field = GriddedWindField.FromMessages(messages);
+
+        Assert.Equal(20, field.LevelsHpa.Count);
+    }
+
     private static List<Grib2Message> SampleMessages() => [.. Grib2Reader.Read(Grib2ReaderTests.LoadSample())];
 
     private static int IndexOf(List<Grib2Message> messages, int category, int number, double pa) =>

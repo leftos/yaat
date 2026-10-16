@@ -7,7 +7,9 @@ namespace Yaat.Sim.Weather;
 /// Decodes GRIB edition 2 files in the subset NOMADS' GRIB filter serves: grid definition template 3.0 (regular
 /// latitude/longitude), product definition template 4.0 with the forecast time in hours, data representation template 5.0
 /// (simple packing: value = (R + X·2^E) / 10^D) and a section 6 bitmap that is either present (indicator 0) or absent (255).
-/// Anything else throws <see cref="Grib2FormatException"/> naming the section and the template or value found.
+/// Anything else throws <see cref="Grib2FormatException"/> naming the section and the template or value found: a template
+/// outside the subset, a truncated or overrunning section, a non-finite reference value or computed value, or a scale
+/// factor outside ±127 (binary) or ±38 (decimal).
 /// </summary>
 public static class Grib2Reader
 {
@@ -21,6 +23,12 @@ public static class Grib2Reader
     private const int SupportedScanBits = ScanWestward | ScanNorthward;
     private const uint MissingUInt32 = 0xFFFFFFFF;
     private const long MicroDegPerTurn = 360_000_000;
+
+    // Section 5's scales, bounded so Unpack's double arithmetic stays finite: |X·2^E| ≤ 2^159 and 10^±38 leave a double
+    // far from its own range, so no Inf or NaN arises before the cast to float. 127 and 38 are float32's exponent limits;
+    // a value whose cast still overflows float32 is refused per value in Unpack.
+    private const int MaxBinaryScale = 127;
+    private const int MaxDecimalScale = 38;
 
     /// <summary>
     /// The most points one message's grid may declare. A CONUS-sized 0.25° box (20–55° N, 130–60° W) is 141 × 281 =
@@ -320,13 +328,25 @@ public static class Grib2Reader
             throw new Grib2FormatException($"Section 5: {bitsPerValue} bits per value is not supported (at most 32)");
         }
 
-        return new PackingHeader(
-            BinaryPrimitives.ReadUInt32BigEndian(section[5..]),
-            BinaryPrimitives.ReadSingleBigEndian(section[11..]),
-            ReadSignMagnitudeInt16(section[15..]),
-            ReadSignMagnitudeInt16(section[17..]),
-            bitsPerValue
-        );
+        float referenceValue = BinaryPrimitives.ReadSingleBigEndian(section[11..]);
+        if (!float.IsFinite(referenceValue))
+        {
+            throw new Grib2FormatException("Section 5: reference value is not finite");
+        }
+
+        int binaryScale = ReadSignMagnitudeInt16(section[15..]);
+        if ((binaryScale < -MaxBinaryScale) || (binaryScale > MaxBinaryScale))
+        {
+            throw new Grib2FormatException($"Section 5: binary scale factor {binaryScale} is outside ±{MaxBinaryScale}");
+        }
+
+        int decimalScale = ReadSignMagnitudeInt16(section[17..]);
+        if ((decimalScale < -MaxDecimalScale) || (decimalScale > MaxDecimalScale))
+        {
+            throw new Grib2FormatException($"Section 5: decimal scale factor {decimalScale} is outside ±{MaxDecimalScale}");
+        }
+
+        return new PackingHeader(BinaryPrimitives.ReadUInt32BigEndian(section[5..]), referenceValue, binaryScale, decimalScale, bitsPerValue);
     }
 
     private static byte[]? ReadBitmap(ReadOnlySpan<byte> section)
@@ -404,7 +424,13 @@ public static class Grib2Reader
 
             uint packedValue = ReadBits(packed, bitPos, packing.BitsPerValue);
             bitPos += packing.BitsPerValue;
-            values[k] = (float)((packing.ReferenceValue + (packedValue * binaryScale)) / decimalScale);
+            float value = (float)((packing.ReferenceValue + (packedValue * binaryScale)) / decimalScale);
+            if (!float.IsFinite(value))
+            {
+                throw new Grib2FormatException($"Section 7: value {k} is not finite");
+            }
+
+            values[k] = value;
         }
 
         return values;

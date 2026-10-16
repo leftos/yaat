@@ -185,6 +185,88 @@ public class Grib2ReaderTests
         }
     }
 
+    [Theory]
+    [InlineData(0x7F, 0xFF)] // E = 32767 in sign-magnitude: 2^32767 is infinity
+    [InlineData(0x80, 0x80)] // E = −128 in sign-magnitude: past the accepted ±127
+    public void Read_BinaryScaleOutOfRange_Refuses(int high, int low)
+    {
+        byte[] data = FirstMessage();
+        int section5 = FindSection(data, 5);
+        Assert.Equal(0, BinaryPrimitives.ReadUInt16BigEndian(data.AsSpan(section5 + 15))); // E = 0 in the sample
+        data[section5 + 15] = (byte)high;
+        data[section5 + 16] = (byte)low;
+
+        Grib2FormatException ex = Assert.Throws<Grib2FormatException>(() => Grib2Reader.Read(data));
+
+        Assert.Contains("Section 5", ex.Message);
+        Assert.Contains("binary scale factor", ex.Message);
+    }
+
+    [Fact]
+    public void Read_InfiniteReferenceValue_Refuses()
+    {
+        byte[] data = FirstMessage();
+        int section5 = FindSection(data, 5);
+        Assert.True(float.IsFinite(BinaryPrimitives.ReadSingleBigEndian(data.AsSpan(section5 + 11))));
+        BinaryPrimitives.WriteUInt32BigEndian(data.AsSpan(section5 + 11), 0x7F800000u); // +Inf
+
+        Grib2FormatException ex = Assert.Throws<Grib2FormatException>(() => Grib2Reader.Read(data));
+
+        Assert.Contains("Section 5", ex.Message);
+        Assert.Contains("reference value", ex.Message);
+    }
+
+    [Fact]
+    public void Read_NaNReferenceValue_Refuses()
+    {
+        byte[] data = FirstMessage();
+        int section5 = FindSection(data, 5);
+        Assert.True(float.IsFinite(BinaryPrimitives.ReadSingleBigEndian(data.AsSpan(section5 + 11))));
+        BinaryPrimitives.WriteUInt32BigEndian(data.AsSpan(section5 + 11), 0x7FC00000u); // NaN
+
+        Grib2FormatException ex = Assert.Throws<Grib2FormatException>(() => Grib2Reader.Read(data));
+
+        Assert.Contains("Section 5", ex.Message);
+        Assert.Contains("reference value", ex.Message);
+    }
+
+    [Theory]
+    [InlineData(0x00, 39)] // D = 39 in sign-magnitude: 10^38 is the last decimal power float32 holds
+    [InlineData(0x80, 0x27)] // D = −39 in sign-magnitude: past the accepted ±38
+    public void Read_DecimalScaleOutOfRange_Refuses(int high, int low)
+    {
+        byte[] data = FirstMessage();
+        int section5 = FindSection(data, 5);
+        Assert.True(BinaryPrimitives.ReadUInt16BigEndian(data.AsSpan(section5 + 17)) <= 38);
+        data[section5 + 17] = (byte)high;
+        data[section5 + 18] = (byte)low;
+
+        Grib2FormatException ex = Assert.Throws<Grib2FormatException>(() => Grib2Reader.Read(data));
+
+        Assert.Contains("Section 5", ex.Message);
+        Assert.Contains("decimal scale factor", ex.Message);
+    }
+
+    /// <summary>
+    /// The header checks pass (a finite reference, |E| = 127, D = 0) but the value they imply does not fit float32:
+    /// float.MaxValue plus one packed step of 2^127 overflows on the cast, and only the per-value check catches it.
+    /// </summary>
+    [Fact]
+    public void Read_ValueOverflowingFloat_RefusedBySection7()
+    {
+        byte[] data = FirstMessage();
+        int section5 = FindSection(data, 5);
+        BinaryPrimitives.WriteUInt32BigEndian(data.AsSpan(section5 + 11), 0x7F7FFFFFu); // float.MaxValue, finite
+        data[section5 + 15] = 0x00; // E = 127 in sign-magnitude (2^127 ≈ 1.7e38), the largest scale the reader accepts
+        data[section5 + 16] = 0x7F;
+        data[section5 + 17] = 0x00; // D = 0: the decimal divisor cannot pull the value back into range
+        data[section5 + 18] = 0x00;
+
+        Grib2FormatException ex = Assert.Throws<Grib2FormatException>(() => Grib2Reader.Read(data));
+
+        Assert.Contains("Section 7", ex.Message);
+    }
+
     [Fact]
     public void Read_BitmapWithFirstPointMissing_DecodesNaNAndShiftsValues()
     {

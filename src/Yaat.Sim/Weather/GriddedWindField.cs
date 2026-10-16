@@ -34,6 +34,13 @@ public sealed class GriddedWindField
     private const double RadToDeg = 180.0 / Math.PI;
     private const double PaPerHpa = 100.0;
 
+    // Physical bounds on the decoded values: the strongest observed jets run about 100–125 m/s, 150 hPa polar winter
+    // lows about 183–190 K, and 1000 hPa extrapolated over high terrain reaches about 325–335 K, so these bracket every
+    // value a real GFS grid holds.
+    private const double MaxWindMs = 150;
+    private const double MinTemperatureK = 160;
+    private const double MaxTemperatureK = 350;
+
     private readonly Grib2LatLonGrid _grid;
     private readonly Level[] _levels;
 
@@ -74,8 +81,9 @@ public sealed class GriddedWindField
     /// <returns>The field, one level per isobaric surface the three parameters share.</returns>
     /// <exception cref="InvalidOperationException">
     /// No UGRD/VGRD/TMP message is present; the grid has fewer than two rows or columns; the messages disagree on the grid,
-    /// reference time or forecast hour; a message's level rounds below 1 Pa, or its value count is not Ni × Nj; a parameter
-    /// appears twice at a level; or one is missing at a level the others have. The message names the parameter and level.
+    /// reference time or forecast hour; a message's level rounds below 1 Pa, or its value count is not Ni × Nj; a decoded value
+    /// is outside its parameter's physical range (a wind past 150 m/s, a temperature outside 160–350 K); a parameter appears
+    /// twice at a level; or one is missing at a level the others have. The message names the parameter and level.
     /// </exception>
     public static GriddedWindField FromMessages(IReadOnlyList<Grib2Message> messages)
     {
@@ -329,14 +337,38 @@ public sealed class GriddedWindField
         Grib2Message u = slots[(int)Parameter.Ugrd] ?? throw MissingAt(Parameter.Ugrd, pa);
         Grib2Message v = slots[(int)Parameter.Vgrd] ?? throw MissingAt(Parameter.Vgrd, pa);
         Grib2Message t = slots[(int)Parameter.Tmp] ?? throw MissingAt(Parameter.Tmp, pa);
+        RequirePlausible(u, Parameter.Ugrd, "m/s", -MaxWindMs, MaxWindMs);
+        RequirePlausible(v, Parameter.Vgrd, "m/s", -MaxWindMs, MaxWindMs);
+        RequirePlausible(t, Parameter.Tmp, "K", MinTemperatureK, MaxTemperatureK);
         double hpa = pa / PaPerHpa;
         return new Level(hpa, WindInterpolator.PressureToIsaAltitudeFt(hpa), [.. u.Values], [.. v.Values], [.. t.Values]);
+    }
+
+    /// <summary>
+    /// Refuses a level whose decoded values leave the parameter's physical range, so a damaged or absurd grid never
+    /// reaches a level. A NaN (the bitmap marks the point missing) is skipped: it is legal, the reader refuses a
+    /// non-finite value it computed, and the sampler drops a level whose corners include one.
+    /// </summary>
+    private static void RequirePlausible(Grib2Message message, Parameter parameter, string unit, double min, double max)
+    {
+        string bounds = (min == -max) ? $"±{FormatValue(max)} {unit}" : $"{FormatValue(min)}–{FormatValue(max)} {unit}";
+        foreach (float value in message.Values)
+        {
+            if (float.IsNaN(value) || ((value >= min) && (value <= max)))
+            {
+                continue;
+            }
+
+            throw new InvalidOperationException($"{Describe(parameter, message)} has value {FormatValue(value)} {unit}, outside {bounds}");
+        }
     }
 
     private static InvalidOperationException MissingAt(Parameter parameter, long pa) =>
         new($"{parameter.ToString().ToUpperInvariant()} is missing at {FormatLevel(pa)}, where the other wind-field parameters are present");
 
     private static string FormatLevel(double pa) => string.Create(CultureInfo.InvariantCulture, $"{pa / PaPerHpa:0.##} hPa");
+
+    private static string FormatValue(double value) => string.Create(CultureInfo.InvariantCulture, $"{value:G6}");
 
     private enum Parameter
     {
