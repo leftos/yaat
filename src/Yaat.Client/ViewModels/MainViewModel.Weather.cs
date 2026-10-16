@@ -84,10 +84,11 @@ public static class WindsAloftSource
     }
 
     /// <summary>
-    /// A saved or API weather load, as the loader sees it: the file's grid, or the FD fallback and why. Null when the weather never
-    /// named a grid, so the room's weather sets the line and the load keeps its usual status.
+    /// A saved or API weather load, as the loader sees it: the file's grid, or — with layers above the surface layer — the FD
+    /// fallback and why, or, without them, METAR surface winds only. Null when the weather never named a grid, so the room's
+    /// weather sets the line and the load keeps its usual status. A missing FD is not a fetch failure here, so no warning.
     /// </summary>
-    public static WindsAloftReport? ForSavedLoad(string name, WindGridOutcome outcome)
+    public static WindsAloftReport? ForSavedLoad(string name, WindGridOutcome outcome, bool hasFdLayers)
     {
         if (outcome.Grid is { } grid)
         {
@@ -98,9 +99,19 @@ public static class WindsAloftSource
         return outcome.FailureReason switch
         {
             null => null,
+            SavedWeatherGrid.NotInSavedFile when !hasFdLayers => new WindsAloftReport(
+                $"{MetarOnlyLine} · GFS grid not in the saved file",
+                $"Weather loaded: {name} · no winds aloft, METAR surface winds only (GFS grid not in the saved file)",
+                null
+            ),
             SavedWeatherGrid.NotInSavedFile => new WindsAloftReport(
                 $"{FdLine} · GFS grid not in the saved file",
                 $"Weather loaded: {name} · winds aloft: FAA FD (GFS grid not in the saved file)",
+                null
+            ),
+            { } reason when !hasFdLayers => new WindsAloftReport(
+                $"{MetarOnlyLine} · GFS unavailable ({reason})",
+                $"Weather loaded: {name} · no winds aloft, METAR surface winds only (GFS unavailable)",
                 null
             ),
             { } reason => new WindsAloftReport(
@@ -158,6 +169,61 @@ public static class WindsAloftSource
 
     /// <summary>True when <paramref name="profile"/> has wind layers above the METAR surface layer: the FD winds aloft.</summary>
     public static bool HasFdLayers(WeatherProfile profile) => profile.WindLayers.Any(l => l.Altitude > 0);
+
+    /// <summary>
+    /// True when the saved weather <paramref name="weatherJson"/> carries layers above the METAR surface layer, by
+    /// <see cref="HasFdLayers(WeatherProfile)"/>'s rule. A timeline — the server's own v2 split, a <c>periods</c> array — counts
+    /// as having them, as does a JSON that is not an object. A profile whose <c>windLayers</c> is missing, null or not an array
+    /// has none. Read with plain JSON: parsing the file as a weather profile or timeline would attach its grid client-side
+    /// before the loader has sent it.
+    /// </summary>
+    public static bool HasFdLayers(string weatherJson)
+    {
+        using var doc = JsonDocument.Parse(weatherJson);
+        JsonElement root = doc.RootElement;
+        if ((root.ValueKind != JsonValueKind.Object) || WeatherTimelineParser.IsTimelineRoot(root, out _))
+        {
+            return true;
+        }
+
+        if (!TryGetPropertyIgnoringCase(root, "windLayers", out JsonElement layers) || (layers.ValueKind != JsonValueKind.Array))
+        {
+            return false;
+        }
+
+        foreach (JsonElement layer in layers.EnumerateArray())
+        {
+            if (IsAboveSurface(layer))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>One property of a JSON object by name, matched case-insensitively as the server's own v1 parse matches it.</summary>
+    private static bool TryGetPropertyIgnoringCase(JsonElement element, string name, out JsonElement value)
+    {
+        foreach (JsonProperty property in element.EnumerateObject())
+        {
+            if (string.Equals(property.Name, name, StringComparison.OrdinalIgnoreCase))
+            {
+                value = property.Value;
+                return true;
+            }
+        }
+
+        value = default;
+        return false;
+    }
+
+    /// <summary>True when one saved <c>windLayers</c> entry carries an altitude above the 0 ft surface layer.</summary>
+    private static bool IsAboveSurface(JsonElement layer) =>
+        (layer.ValueKind == JsonValueKind.Object)
+        && TryGetPropertyIgnoringCase(layer, "altitude", out JsonElement altitude)
+        && (altitude.ValueKind == JsonValueKind.Number)
+        && (altitude.GetDouble() > 0);
 }
 
 /// <summary>One airport's raw METAR string, as broadcast for the currently active weather.</summary>
@@ -459,7 +525,7 @@ public partial class MainViewModel
         if (grid.Grib2 is not { } grib2)
         {
             string reason = grid.FailureReason ?? throw new InvalidOperationException("GFS grid fetch returned neither a grid nor a reason");
-            WarnGfsUnavailable(reason);
+            WarnGfsUnavailable(reason, WindsAloftSource.HasFdLayers(profile));
             return new WindGridOutcome(null, reason);
         }
 
@@ -468,7 +534,7 @@ public partial class MainViewModel
             throw new InvalidOperationException("GFS grid fetch returned a grid without its cycle and forecast hour");
         }
 
-        (string? hash, string? refusal) = await UploadWindGridAsync(grib2);
+        (string? hash, string? refusal) = await UploadWindGridAsync(grib2, WindsAloftSource.HasFdLayers(profile));
         if (hash is null)
         {
             return new WindGridOutcome(null, refusal);
@@ -483,12 +549,12 @@ public partial class MainViewModel
     /// a grid that is missing, corrupt or refused leaves the JSON naming none, with the GFS warning. The JSON returned never
     /// carries the embedded bytes.
     /// </summary>
-    private async Task<PreparedWeather> PrepareSavedWeatherAsync(string json)
+    internal async Task<PreparedWeather> PrepareSavedWeatherAsync(string json)
     {
         SavedWeatherGridExtract extract = SavedWeatherGrid.Extract(json);
         if (extract.GridMissing)
         {
-            WarnGfsUnavailable(SavedWeatherGrid.NotInSavedFile);
+            WarnGfsUnavailable(SavedWeatherGrid.NotInSavedFile, WindsAloftSource.HasFdLayers(extract.Json));
             return new PreparedWeather(extract.Json, new WindGridOutcome(null, SavedWeatherGrid.NotInSavedFile));
         }
 
@@ -497,7 +563,7 @@ public partial class MainViewModel
             return new PreparedWeather(extract.Json, WindGridOutcome.None);
         }
 
-        (string? hash, string? refusal) = await UploadWindGridAsync(grib2);
+        (string? hash, string? refusal) = await UploadWindGridAsync(grib2, WindsAloftSource.HasFdLayers(extract.Json));
         if (hash is null)
         {
             return new PreparedWeather(SavedWeatherGrid.WithHash(extract.Json, null), new WindGridOutcome(null, refusal));
@@ -518,13 +584,14 @@ public partial class MainViewModel
     }
 
     /// <summary>
-    /// Uploads a grid within the client cap; returns the server's hash, or no hash and the reason after the GFS warning.
+    /// Uploads a grid within the client cap; returns the server's hash, or no hash and the reason after the GFS warning, worded
+    /// for whether the weather the grid belongs to flies the FD layers.
     /// </summary>
-    private async Task<(string? Hash, string? Refusal)> UploadWindGridAsync(byte[] grib2)
+    private async Task<(string? Hash, string? Refusal)> UploadWindGridAsync(byte[] grib2, bool hasFdLayers)
     {
         if (grib2.Length > WindGridRegistry.MaxGridBytes)
         {
-            WarnGfsUnavailable(GfsGridFetcher.OverUploadLimit);
+            WarnGfsUnavailable(GfsGridFetcher.OverUploadLimit, hasFdLayers);
             return (null, GfsGridFetcher.OverUploadLimit);
         }
 
@@ -536,7 +603,7 @@ public partial class MainViewModel
         catch (HubException ex)
         {
             string refusal = GfsGridFetcher.RefusalReason(ex.Message);
-            WarnGfsUnavailable(refusal);
+            WarnGfsUnavailable(refusal, hasFdLayers);
             return (null, refusal);
         }
 
@@ -549,9 +616,10 @@ public partial class MainViewModel
         return (hash, null);
     }
 
-    private void WarnGfsUnavailable(string reason)
+    /// <summary>Logs the GFS warning and shows it in the terminal, worded for whether this weather flies the FD layers.</summary>
+    private void WarnGfsUnavailable(string reason, bool hasFdLayers)
     {
-        string warning = GfsGridFetcher.WarningText(reason);
+        string warning = GfsGridFetcher.WarningText(reason, hasFdLayers);
         _log.LogWarning("{Warning}", warning);
         AddWarningEntry(warning);
     }
@@ -568,14 +636,15 @@ public partial class MainViewModel
     }
 
     /// <summary>
-    /// A saved or API load's report when it named a grid; otherwise its usual status, the room's weather setting the line. The
-    /// name shown is the weather's own (<see cref="WindsAloftSource.NameOf"/>), else <paramref name="fallbackName"/> — the file's
-    /// stem, or the caller's display name.
+    /// A saved or API load's report whenever the load named a grid — held, missing or refused; otherwise its usual status, the
+    /// room's weather setting the line. The name shown is the weather's own (<see cref="WindsAloftSource.NameOf"/>), else
+    /// <paramref name="fallbackName"/> — the file's stem, or the caller's display name.
     /// </summary>
     internal void ReportSavedWindsAloft(PreparedWeather prepared, string fallbackName, string usualStatus)
     {
         string name = WindsAloftSource.NameOf(prepared.Json) ?? fallbackName;
-        if (WindsAloftSource.ForSavedLoad(name, prepared.WindGrid) is { } report)
+        bool hasFdLayers = WindsAloftSource.HasFdLayers(prepared.Json);
+        if (WindsAloftSource.ForSavedLoad(name, prepared.WindGrid, hasFdLayers) is { } report)
         {
             ApplyLoadedWindsAloft(prepared.Json, report);
         }

@@ -16,4 +16,4 @@ Load Live Weather downloads a NOAA GFS wind grid for your ARTCC, so winds aloft 
 
 ![The METAR window header naming the GFS grid a saved weather file flies on](img/whats-new-winds-aloft-source.png)
 
-Everyone in the room sees the same line, including a client that joins later and a replay of a recording ("· recorded"). When the grid cannot be had, the line says the weather flies the FAA FD forecast and, on the screen that loaded it, why. Weather saved with Save Weather As carries its grid, so loading the file brings the same winds back ("· saved file"). The status bar's load message names the source too.
+Everyone in the room sees the same line, including a client that joins later and a replay of a recording ("· recorded"). When the grid cannot be had, the line says the weather flies the FAA FD forecast (or METAR surface winds only, when it has no FD winds aloft) and, on the screen that loaded it, why. Weather saved with Save Weather As carries its grid, so loading the file brings the same winds back ("· saved file"). The status bar's load message names the source too.

@@ -6,6 +6,7 @@ using Yaat.Client.ViewModels;
 using Yaat.Client.Views;
 using Yaat.GuideCapture.Capture;
 using Yaat.Sim;
+using Yaat.Sim.Data;
 using Yaat.Sim.Weather;
 
 namespace Yaat.GuideCapture.Scenes;
@@ -15,14 +16,17 @@ namespace Yaat.GuideCapture.Scenes;
 // the committed GFS grid over ZOA (tests/Yaat.Sim.Tests/TestData/gfs-zoa-sample.grib2) embedded
 // in it, loaded through the client's own saved-weather path so the header's second line is that
 // code's output. The profile gains the 0 ft surface layer the server's live-weather rule needs,
-// carrying the KOAK METAR's own surface wind. The METAR window is opened as MainWindow does,
-// once the load's line has landed.
+// carrying the KOAK METAR's own surface wind converted to magnetic at the ZOA declination
+// reference. The METAR window is opened as MainWindow does, once the load's line has landed.
 internal sealed class WhatsNewWindsAloftSourceScene : ScenarioSceneBase
 {
     private const string WeatherFileName = "01HTY06CDMYXR5BS55E22SGAF2.json";
     private const string WeatherFileFolder = "atctrainer-weather-examples";
     private const string GridFileName = "gfs-zoa-sample.grib2";
     private const string SurfaceStation = "KOAK";
+
+    // The position the live path takes its declination from for ZOA (LiveWeatherService.GetArtccCenter).
+    private const string DeclinationReferenceAirport = "SFO";
 
     private MetarWindow? _metarWindow;
     private string? _stagedWeatherPath;
@@ -33,6 +37,13 @@ internal sealed class WhatsNewWindsAloftSourceScene : ScenarioSceneBase
 
     protected override async Task OnSceneReadyAsync(Window window, MainViewModel vm, CaptureContext ctx)
     {
+        // The client's navdata load is asynchronous, and the surface layer's magnetic direction needs it.
+        await SceneActions.WaitUntilAsync(
+            () => NavigationDatabase.InstanceOrNull is not null,
+            TimeSpan.FromSeconds(30),
+            "the navigation database, for the ZOA declination reference"
+        );
+
         _stagedWeatherPath = await StageWeatherFileAsync(ctx);
         await vm.LoadWeatherCommand.ExecuteAsync(_stagedWeatherPath);
         await SceneActions.WaitUntilAsync(
@@ -75,7 +86,7 @@ internal sealed class WhatsNewWindsAloftSourceScene : ScenarioSceneBase
         string weatherPath = Path.Combine(ctx.RepoRoot, "docs", WeatherFileFolder, WeatherFileName);
         string gridPath = Path.Combine(ctx.RepoRoot, "tests", "Yaat.Sim.Tests", "TestData", GridFileName);
         byte[] grib2 = await File.ReadAllBytesAsync(gridPath);
-        string json = AddSurfaceLayer(await File.ReadAllTextAsync(weatherPath));
+        string json = AddSurfaceLayer(await File.ReadAllTextAsync(weatherPath), DeclinationReference());
         string staged = SavedWeatherGrid.Embed(SavedWeatherGrid.WithHash(json, WindGridRegistry.HashOf(grib2)), grib2);
 
         string folder = Path.Combine(ctx.RepoRoot, ".tmp");
@@ -86,9 +97,19 @@ internal sealed class WhatsNewWindsAloftSourceScene : ScenarioSceneBase
         return path;
     }
 
+    // The declination reference the live path uses for ZOA: its primary airport's position. The
+    // caller waits for the client's navdata first, so the instance is there to query.
+    private static (double Lat, double Lon) DeclinationReference() =>
+        NavigationDatabase.Instance.GetAirportPosition(DeclinationReferenceAirport)
+        ?? throw new InvalidOperationException(
+            $"{DeclinationReferenceAirport} is missing from the navdata, so the ZOA declination reference cannot be resolved."
+        );
+
     // The profile with the METAR surface layer at 0 ft that the grid's column sits above, built
-    // from the station's own METAR: the server attaches a grid only to live-shaped weather.
-    private static string AddSurfaceLayer(string json)
+    // from the station's own METAR: the server attaches a grid only to live-shaped weather. A
+    // METAR's wind is TRUE (AIM 7-1-28) while a wind layer's direction is MAGNETIC, so it is
+    // converted at the ZOA declination reference, as the live path's own surface layer is.
+    private static string AddSurfaceLayer(string json, (double Lat, double Lon) declinationReference)
     {
         JsonObject root =
             JsonNode.Parse(json) as JsonObject
@@ -100,12 +121,17 @@ internal sealed class WhatsNewWindsAloftSourceScene : ScenarioSceneBase
                 $"The ZOA weather file {WeatherFileName} has no {SurfaceStation} METAR to take the surface wind from."
             );
 
+        int trueDirection =
+            station.WindDirectionDeg ?? throw new InvalidOperationException($"{SurfaceStation}'s METAR reports no surface wind direction.");
+        double magneticDirection = Math.Round(
+            MagneticDeclination.TrueToMagnetic(trueDirection, declinationReference.Lat, declinationReference.Lon),
+            1
+        );
+
         var surface = new JsonObject
         {
             ["altitude"] = JsonValue.Create(0),
-            ["direction"] = JsonValue.Create(
-                station.WindDirectionDeg ?? throw new InvalidOperationException($"{SurfaceStation}'s METAR reports no surface wind direction.")
-            ),
+            ["direction"] = JsonValue.Create(magneticDirection),
             ["speed"] = JsonValue.Create(
                 station.WindSpeedKts ?? throw new InvalidOperationException($"{SurfaceStation}'s METAR reports no surface wind speed.")
             ),
@@ -118,6 +144,10 @@ internal sealed class WhatsNewWindsAloftSourceScene : ScenarioSceneBase
         JsonArray layers = root["windLayers"] as JsonArray ?? [];
         layers.Insert(0, surface);
         root["windLayers"] = layers;
+        Console.WriteLine(
+            $"  surface wind: {trueDirection:0.#} true → {magneticDirection:0.#} magnetic"
+                + $" at {DeclinationReferenceAirport} ({SurfaceStation} METAR, ZOA declination reference)"
+        );
         return root.ToJsonString();
     }
 }

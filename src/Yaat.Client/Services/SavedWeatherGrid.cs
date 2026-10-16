@@ -7,7 +7,7 @@ namespace Yaat.Client.Services;
 
 /// <summary>
 /// A saved weather file split for loading: the JSON to send (never carrying <c>windGridGrib2</c>), the embedded grid's bytes when
-/// they decoded, and whether the file named a grid it does not hold, which loads on the FD winds aloft with the GFS warning.
+/// they decoded, and whether the file named a grid it does not hold, which loads without the grid under the GFS warning.
 /// </summary>
 public sealed record SavedWeatherGridExtract(string Json, byte[]? Grib2, bool GridMissing);
 
@@ -114,7 +114,7 @@ public static class SavedWeatherGrid
     {
         if ((embedded is not JsonValue value) || !value.TryGetValue(out string? base64))
         {
-            Log.LogWarning("Saved weather's {Property} is not a string; loading on the FD winds aloft", GridProperty);
+            Log.LogWarning("Saved weather's {Property} is not a string; loading without the grid", GridProperty);
             return null;
         }
 
@@ -124,7 +124,7 @@ public static class SavedWeatherGrid
         }
         catch (FormatException ex)
         {
-            Log.LogWarning(ex, "Saved weather's {Property} is not base64; loading on the FD winds aloft", GridProperty);
+            Log.LogWarning(ex, "Saved weather's {Property} is not base64; loading without the grid", GridProperty);
             return null;
         }
     }

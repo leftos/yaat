@@ -1,3 +1,4 @@
+using System.Text.Json.Nodes;
 using Xunit;
 using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
@@ -30,6 +31,20 @@ public class WindsAloftSourceTests
     [Fact]
     public void FdUnavailableWarning_IsTheTerminalLine() =>
         Assert.Equal("Live weather: FD winds aloft unavailable; METAR surface winds only.", GfsGridFetcher.FdUnavailableWarning);
+
+    [Fact]
+    public void WarningText_WithFdLayers_FliesTheFdForecastOnly() =>
+        Assert.Equal(
+            "Live weather: GFS winds unavailable — grid not in the saved file; using FD winds aloft only.",
+            GfsGridFetcher.WarningText(SavedWeatherGrid.NotInSavedFile, hasFdLayers: true)
+        );
+
+    [Fact]
+    public void WarningText_WithoutFdLayers_SaysMetarSurfaceWindsOnly() =>
+        Assert.Equal(
+            "Live weather: GFS winds unavailable — grid not in the saved file; METAR surface winds only.",
+            GfsGridFetcher.WarningText(SavedWeatherGrid.NotInSavedFile, hasFdLayers: false)
+        );
 
     // ── (a)-(c): a live load, as the loader sees it ─────────────
 
@@ -101,7 +116,7 @@ public class WindsAloftSourceTests
     [Fact]
     public void SavedLoad_GridInTheFile_NamesTheGridFromTheSavedFile()
     {
-        WindsAloftReport? report = WindsAloftSource.ForSavedLoad(LiveName, new WindGridOutcome(SampleGrid(), null));
+        WindsAloftReport? report = WindsAloftSource.ForSavedLoad(LiveName, new WindGridOutcome(SampleGrid(), null), hasFdLayers: true);
 
         Assert.NotNull(report);
         Assert.Equal($"Winds aloft: {Grid} · saved file", report.Line);
@@ -111,7 +126,11 @@ public class WindsAloftSourceTests
     [Fact]
     public void SavedLoad_GridMissingFromTheFile_NamesTheFdForecastAndWhy()
     {
-        WindsAloftReport? report = WindsAloftSource.ForSavedLoad(LiveName, new WindGridOutcome(null, SavedWeatherGrid.NotInSavedFile));
+        WindsAloftReport? report = WindsAloftSource.ForSavedLoad(
+            LiveName,
+            new WindGridOutcome(null, SavedWeatherGrid.NotInSavedFile),
+            hasFdLayers: true
+        );
 
         Assert.NotNull(report);
         Assert.Equal("Winds aloft: FAA FD forecast · GFS grid not in the saved file", report.Line);
@@ -121,7 +140,11 @@ public class WindsAloftSourceTests
     [Fact]
     public void SavedLoad_GridRefused_NamesTheFdForecastAndTheReason()
     {
-        WindsAloftReport? report = WindsAloftSource.ForSavedLoad(LiveName, new WindGridOutcome(null, GfsGridFetcher.OverUploadLimit));
+        WindsAloftReport? report = WindsAloftSource.ForSavedLoad(
+            LiveName,
+            new WindGridOutcome(null, GfsGridFetcher.OverUploadLimit),
+            hasFdLayers: true
+        );
 
         Assert.NotNull(report);
         Assert.Equal("Winds aloft: FAA FD forecast · GFS unavailable (grid over the upload limit)", report.Line);
@@ -129,8 +152,38 @@ public class WindsAloftSourceTests
     }
 
     [Fact]
+    public void SavedLoad_GridMissing_NoFdLayers_SaysMetarSurfaceWindsOnly()
+    {
+        WindsAloftReport? report = WindsAloftSource.ForSavedLoad(
+            LiveName,
+            new WindGridOutcome(null, SavedWeatherGrid.NotInSavedFile),
+            hasFdLayers: false
+        );
+
+        Assert.NotNull(report);
+        Assert.Equal("Winds aloft: none · METAR surface winds only · GFS grid not in the saved file", report.Line);
+        Assert.Equal($"Weather loaded: {LiveName} · no winds aloft, METAR surface winds only (GFS grid not in the saved file)", report.Status);
+        Assert.Null(report.Warning);
+    }
+
+    [Fact]
+    public void SavedLoad_GridRefused_NoFdLayers_SaysMetarSurfaceWindsOnlyAndTheReason()
+    {
+        WindsAloftReport? report = WindsAloftSource.ForSavedLoad(
+            LiveName,
+            new WindGridOutcome(null, GfsGridFetcher.OverUploadLimit),
+            hasFdLayers: false
+        );
+
+        Assert.NotNull(report);
+        Assert.Equal("Winds aloft: none · METAR surface winds only · GFS unavailable (grid over the upload limit)", report.Line);
+        Assert.Equal($"Weather loaded: {LiveName} · no winds aloft, METAR surface winds only (GFS unavailable)", report.Status);
+        Assert.Null(report.Warning);
+    }
+
+    [Fact]
     public void SavedLoad_NoGridNamed_LeavesTheLineToTheRoomWeather() =>
-        Assert.Null(WindsAloftSource.ForSavedLoad("OAK West Gusty", WindGridOutcome.None));
+        Assert.Null(WindsAloftSource.ForSavedLoad("OAK West Gusty", WindGridOutcome.None, hasFdLayers: true));
 
     // ── The room's weather, as every member sees it ─────────────
 
@@ -191,6 +244,32 @@ public class WindsAloftSourceTests
     [InlineData("""{"metars":[],"windLayers":[]}""", null)]
     public void NameOf_IsTheWeathersOwnName(string json, string? expected) => Assert.Equal(expected, WindsAloftSource.NameOf(json));
 
+    // ── Whether a saved weather JSON carries FD layers ─────────
+
+    [Fact]
+    public void HasFdLayers_RealSavedFile_IsTrue() => Assert.True(WindsAloftSource.HasFdLayers(ZoaWeatherJson()));
+
+    [Fact]
+    public void HasFdLayers_SavedFileWithoutLayersAboveTheSurface_IsFalse() =>
+        Assert.False(WindsAloftSource.HasFdLayers(WithoutFdLayers(ZoaWeatherJson())));
+
+    [Fact]
+    public void HasFdLayers_TimelineJson_IsTrue() =>
+        Assert.True(
+            WindsAloftSource.HasFdLayers(
+                """{"name":"Timeline","periods":[{"startMinutes":0,"windLayers":[{"altitude":0,"direction":300,"speed":10}]}]}"""
+            )
+        );
+
+    [Fact]
+    public void HasFdLayers_ProfileWithoutWindLayers_IsFalse() => Assert.False(WindsAloftSource.HasFdLayers("""{"name":"X"}"""));
+
+    [Theory]
+    [InlineData("""{"WindLayers":[{"Altitude":3000,"Direction":200,"Speed":20}]}""", true)]
+    [InlineData("""{"windLayers":null}""", false)]
+    [InlineData("""{"windLayers":{}}""", false)]
+    public void HasFdLayers_MatchesTheServersOwnV1Keys(string json, bool expected) => Assert.Equal(expected, WindsAloftSource.HasFdLayers(json));
+
     [Fact]
     public void ActiveWindGrid_FromGrib2_ReadsTheRunFromTheBytes()
     {
@@ -201,6 +280,45 @@ public class WindsAloftSourceTests
         Assert.Equal(new DateTime(2026, 10, 14, 12, 0, 0, DateTimeKind.Utc), grid.CycleUtc);
         Assert.Equal(0, grid.ForecastHours);
         Assert.Equal("hash", grid.Hash);
+    }
+
+    private const string ZoaWeatherFile = "01HTY06CDMYXR5BS55E22SGAF2.json";
+
+    /// <summary>The real ZOA weather example (a profile: <c>name</c>, <c>windLayers</c>, <c>metars</c>) from the checkout.</summary>
+    private static string ZoaWeatherJson() => File.ReadAllText(Path.Combine(FindRepoRoot(), "docs", "atctrainer-weather-examples", ZoaWeatherFile));
+
+    /// <summary>The same JSON with every layer above the 0 ft surface layer removed: METAR surface winds only.</summary>
+    private static string WithoutFdLayers(string json)
+    {
+        JsonObject root = JsonNode.Parse(json) as JsonObject ?? throw new InvalidOperationException("The ZOA weather example is not a JSON object.");
+        JsonArray layers =
+            root["windLayers"] as JsonArray
+            ?? throw new InvalidOperationException("The ZOA weather example has no windLayers array to strip the FD layers from.");
+        foreach (JsonNode layer in layers.OfType<JsonNode>().Where(l => (AltitudeOf(l) > 0)).ToList())
+        {
+            layers.Remove(layer);
+        }
+
+        root["windLayers"] = layers;
+        return root.ToJsonString();
+    }
+
+    private static double AltitudeOf(JsonNode layer) =>
+        layer["altitude"]?.GetValue<double>()
+        ?? throw new InvalidOperationException("A ZOA weather example layer has no altitude to compare with the surface layer.");
+
+    /// <summary>The checkout this test assembly was built in: the nearest folder above the output that holds yaat.slnx.</summary>
+    private static string FindRepoRoot()
+    {
+        for (DirectoryInfo? dir = new(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)
+        {
+            if (File.Exists(Path.Combine(dir.FullName, "yaat.slnx")))
+            {
+                return dir.FullName;
+            }
+        }
+
+        throw new InvalidOperationException($"No yaat.slnx above {AppContext.BaseDirectory}: the ZOA weather example is read from the checkout.");
     }
 
     private const string Metar = "METAR KOAK 161453Z 28012KT 10SM FEW010 18/11 A3000";

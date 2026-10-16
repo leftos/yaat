@@ -2,6 +2,7 @@ using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.VisualTree;
 using Xunit;
+using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Client.UI.Tests.Fakes;
 using Yaat.Client.UI.Tests.Helpers;
@@ -126,6 +127,45 @@ public class MainViewModelWindsAloftLineTests
         Assert.Equal("Weather loaded: OAK West Gusty", vm.StatusText);
     }
 
+    // ── A saved load without FD layers says METAR surface winds only ──
+
+    [AvaloniaFact]
+    public void SavedLoadWithoutFdLayers_GridMissing_ShowsTheMetarOnlyLine()
+    {
+        var vm = new MainViewModel(new FakeFilePickerService());
+
+        vm.ReportSavedWindsAloft(
+            new PreparedWeather(SurfaceOnlyJson, new WindGridOutcome(null, SavedWeatherGrid.NotInSavedFile)),
+            "c1-zoa-8-saved",
+            "Weather loaded"
+        );
+
+        Assert.Equal("Winds aloft: none · METAR surface winds only · GFS grid not in the saved file", vm.WindsAloftLine);
+    }
+
+    [AvaloniaFact]
+    public async Task SavedLoadWithoutFdLayers_GridMissing_WarnsMetarSurfaceWindsOnly()
+    {
+        var vm = new MainViewModel(new FakeFilePickerService());
+
+        await vm.PrepareSavedWeatherAsync(NamedGridWithoutFdLayersJson);
+
+        TerminalEntry warning = Assert.Single(vm.TerminalEntries, e => (e.Kind == TerminalEntryKind.Warning));
+        Assert.Equal("Live weather: GFS winds unavailable — grid not in the saved file; METAR surface winds only.", warning.Message);
+    }
+
+    [AvaloniaFact]
+    public async Task SavedLoadWithoutFdLayers_GridOverTheUploadLimit_WarnsMetarSurfaceWindsOnly()
+    {
+        var vm = new MainViewModel(new FakeFilePickerService());
+        string json = SavedWeatherGrid.Embed(SurfaceOnlyJson, new byte[GfsGridFetcher.MaxWindGridUploadBytes + 1]);
+
+        await vm.PrepareSavedWeatherAsync(json);
+
+        TerminalEntry warning = Assert.Single(vm.TerminalEntries, e => (e.Kind == TerminalEntryKind.Warning));
+        Assert.EndsWith("grid over the upload limit; METAR surface winds only.", warning.Message);
+    }
+
     // ── A saved load's name: the weather's own, else the call site's fallback ──
 
     [AvaloniaFact]
@@ -209,6 +249,13 @@ public class MainViewModelWindsAloftLineTests
     }
 
     private const string WgustyJson = "{\"name\":\"OAK West Gusty\"}";
+
+    // A live-shaped saved profile carrying only the 0 ft surface layer: no FD winds aloft.
+    private const string SurfaceOnlyJson = "{\"name\":\"C1-ZOA-8\",\"windLayers\":[{\"altitude\":0,\"direction\":207.2,\"speed\":10}]}";
+
+    // The same, naming a grid whose bytes it does not carry, so the load reports them missing.
+    private const string NamedGridWithoutFdLayersJson =
+        "{\"name\":\"C1-ZOA-8\",\"windGridHash\":\"abc\",\"windLayers\":[{\"altitude\":0,\"direction\":207.2,\"speed\":10}]}";
 
     private static readonly ActiveWindGrid SampleGrid = new([1, 2, 3], "hash", Cycle, 4);
 

@@ -65,8 +65,14 @@ public sealed class GfsGridFetcher(HttpMessageHandler handler, TimeSpan requestT
 
     private static readonly int[] LevelsHpa = [1000, 975, 950, 925, 900, 850, 800, 750, 700, 650, 600, 550, 500, 450, 400, 350, 300, 250, 200, 150];
 
-    /// <summary>The terminal warning (and log line) for a live weather load that flies the FD layers because the grid could not be had.</summary>
-    public static string WarningText(string reason) => $"Live weather: GFS winds unavailable — {reason}; using FD winds aloft only.";
+    /// <summary>
+    /// The terminal warning (and log line) for a weather load that flies whatever winds it has — the FD layers, or METAR surface
+    /// winds alone — because the grid could not be had.
+    /// </summary>
+    public static string WarningText(string reason, bool hasFdLayers) =>
+        hasFdLayers
+            ? $"Live weather: GFS winds unavailable — {reason}; using FD winds aloft only."
+            : $"Live weather: GFS winds unavailable — {reason}; METAR surface winds only.";
 
     /// <summary>The terminal warning (and log line) for a live weather load with neither the grid nor FD winds aloft.</summary>
     public const string FdUnavailableWarning = "Live weather: FD winds aloft unavailable; METAR surface winds only.";
