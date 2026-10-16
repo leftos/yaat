@@ -254,6 +254,7 @@ public static partial class GroundCommandHandler
             AsCleared = asCleared,
             FoldTargets = foldTargets,
             Options = options,
+            Traffic = traffic,
             Category = category,
             WakeClass = wakeClass,
             AircraftLengthFt = aircraftLengthFt,
@@ -312,14 +313,24 @@ public static partial class GroundCommandHandler
         }
 
         // Implicit first-crossing clearance: when the aircraft is already holding short of a
-        // runway — or is in the middle of landing on / exiting one (it must taxi past that
-        // runway's hold-short bars to finish clearing the runway it just landed on, not hold
-        // short of the runway it is leaving) — and the new route's first runway crossing is for
-        // that same runway, the TAXI command itself authorizes it. No separate CTO needed.
+        // runway, or is landing on or exiting one (it must taxi past that runway's hold-short
+        // bars to finish clearing the runway it just landed on, not hold short of the runway it
+        // is leaving), and the new route's first runway crossing is for that same runway, the
+        // TAXI command itself authorizes it. No separate CTO needed.
+        // A cleared crossing works the same way once stopping would leave part of the aircraft
+        // past the runway's entry holding-position marking — its nose past it, whether the
+        // crossing phase is running or the taxi has not yet handed over to it: a TAXI that leaves
+        // the crossing out does not cancel it, and the aircraft finishes crossing. Short of the
+        // marking the new route holds short as written; HOLD and HS still stop it.
+        // An aircraft between a runway's bars, leaving it by a cleared bar and not yet clear of it, keeps that runway cleared too.
         // Subsequent crossings still require explicit clearance.
         string? priorRwy = aircraft.Phases?.CurrentPhase switch
         {
             HoldingShortPhase priorHold when priorHold.HoldShort.TargetName is { Length: > 0 } heldRwy => heldRwy,
+            CrossingRunwayPhase crossing
+                when (crossing.RunwayId is { Length: > 0 } crossingRwyId) && (crossing.NosePastNearMarkingFt(aircraft, groundLayout) > 0.0) =>
+                crossingRwyId,
+            TaxiingPhase when TaxiingPhase.CrossingUnderwayRunway(aircraft, groundLayout) is { } underwayRwy => underwayRwy,
             RunwayExitPhase exitPhase when exitPhase.RunwayId is { Length: > 0 } exitRwy => exitRwy,
             HoldingAfterExitPhase afterExit when afterExit.RunwayId is { Length: > 0 } afterExitRwy => afterExitRwy,
             _ => null,
@@ -487,7 +498,7 @@ public static partial class GroundCommandHandler
             );
         }
 
-        msg = WithResponseNotes(msg, route.Warnings, implicitCrossLabel, pushBackNote);
+        msg = WithResponseNotes(msg, ResponseWarnings(route, groundLayout, traffic), implicitCrossLabel, pushBackNote);
         if (startBlocker is not null)
         {
             msg += $" (blocked by {startBlocker})";
@@ -569,6 +580,9 @@ public static partial class GroundCommandHandler
 
         /// <summary>The dispatch-level switches.</summary>
         public required TaxiCoreOptions Options { get; init; }
+
+        /// <summary>The aircraft and the other aircraft on the ground, as the TAXI saw them when it was given.</summary>
+        public required TaxiStartTraffic Traffic { get; init; }
 
         /// <summary>The aircraft's performance category.</summary>
         public required AircraftCategory Category { get; init; }
@@ -3657,6 +3671,25 @@ public static partial class GroundCommandHandler
         && (ParkedStandDeparture.Of(aircraft, groundLayout) == StandDeparture.PushBack)
             ? $"({aircraft.Ground.ParkingSpot} normally needs a push first)"
             : null;
+
+    /// <summary>
+    /// The warnings a TAXI / TAXIAUTO response lists: the route's own, then, when the route ends at a stand another aircraft
+    /// occupies (<see cref="AirportGroundLayout.StandOccupant"/>), <c>stand FDX1 occupied by FDX440</c>. The aircraft still
+    /// taxis; the ground conflict detector holds it short of the occupied stand.
+    /// </summary>
+    /// <param name="route">The route cleared.</param>
+    /// <param name="layout">The airport it is on.</param>
+    /// <param name="traffic">The aircraft and the other aircraft on the ground.</param>
+    /// <returns>The warnings, in that order.</returns>
+    private static IReadOnlyList<string> ResponseWarnings(TaxiRoute route, AirportGroundLayout layout, TaxiStartTraffic traffic)
+    {
+        if ((route.DestinationParking is not { } standName) || (layout.StandOccupant(standName, traffic) is not { } occupant))
+        {
+            return route.Warnings;
+        }
+
+        return [.. route.Warnings, $"stand {standName} occupied by {occupant}"];
+    }
 
     /// <summary>
     /// The readback <paramref name="msg"/> with the RPO-only notes a TAXI / TAXIAUTO response carries after it: the

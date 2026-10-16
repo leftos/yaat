@@ -24,6 +24,8 @@
 - `FOLLOWG` given to an aircraft already ahead of its leader on the leader's route is refused.
 - An aircraft crossing a runway behind stopped traffic brakes at its normal taxi rate, hard only when it must, instead of stopping abruptly.
 - An aircraft cleared across a runway holds short when the far side has no room, says "holding short of runway X, traffic ahead", and goes once room opens.
+- A `TAXI` re-route given while an aircraft is crossing a runway keeps the crossing cleared, so it finishes crossing instead of holding inside the bars.
+- `TAXI` to a stand another aircraft occupies names the occupant in the readback, and the aircraft stops short of it instead of getting stuck on it.
 - `HOLD` during a runway crossing brakes firmly, reads back "holding position on runway X" when it cannot stop short, and no longer stops dead past the runway.
 - `HS` to a taxiing aircraft answers "unable" only when a firm stop cannot make the line, then brakes firmly as short as it can.
 - `EXIT W3`, `EL W3` and `ER W3` are read back as given ("exit left W3") instead of "exit when if able at on to W3".

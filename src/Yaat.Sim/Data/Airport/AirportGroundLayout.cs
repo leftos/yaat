@@ -4657,6 +4657,36 @@ public sealed class AirportGroundLayout
     }
 
     /// <summary>
+    /// The callsign of the aircraft other than <paramref name="traffic"/>'s own that occupies the stand named
+    /// <paramref name="standName"/> (<see cref="OccupiedStandOf"/>); null when the stand is free or the layout has no such stand.
+    /// </summary>
+    /// <param name="standName">The stand's name.</param>
+    /// <param name="traffic">The taxiing aircraft and the other aircraft on the ground.</param>
+    /// <returns>The occupant's callsign, or null.</returns>
+    internal string? StandOccupant(string standName, TaxiStartTraffic traffic)
+    {
+        if (FindParkingByName(standName) is not { } stand)
+        {
+            return null;
+        }
+
+        foreach (NeighbourCandidate other in traffic.OtherGroundAircraft)
+        {
+            if (string.Equals(other.Callsign, traffic.Callsign, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (OccupiedStandOf(other)?.Id == stand.Id)
+            {
+                return other.Callsign;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
     /// What rules <paramref name="start"/> out as the start of a free-space leg from <paramref name="position"/>: the
     /// aircraft occupying the stand whose parking node it is, or the parked or held aircraft the leg passes, or whose stand
     /// it passes (<see cref="RampLaneReposition.FindLegObstacle"/>); null when nothing does.

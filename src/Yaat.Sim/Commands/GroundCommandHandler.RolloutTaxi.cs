@@ -427,7 +427,7 @@ public static partial class GroundCommandHandler
         );
         string taxiMessage = WithResponseNotes(
             BuildTaxiReadback(route, inputs.Layout, stored.Taxi, readbackInputs),
-            route.Warnings,
+            ResponseWarnings(route, inputs.Layout, inputs.Traffic),
             crossLabel,
             null
         );

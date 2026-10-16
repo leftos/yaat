@@ -4,6 +4,7 @@ using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Pilot;
+using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Phases.Ground;
@@ -1277,34 +1278,191 @@ public sealed class TaxiingPhase : Phase
             : null;
 
     /// <summary>
+    /// The runway <paramref name="aircraft"/> is partway across on its assigned route, which a re-route keeps cleared: the
+    /// cleared crossing ahead (<see cref="CrossingAhead"/>) the aircraft has reached (<see cref="HasReachedCrossing"/>), in the
+    /// stretch before the taxi hands the crossing over, so stopping now would leave part of the aircraft past the near marking;
+    /// else the runway it is between the bars of, leaving by a cleared bar (<see cref="RunwayBeingLeft"/>). Null when neither
+    /// holds, or the bar names no runway.
+    /// </summary>
+    /// <param name="aircraft">The taxiing aircraft.</param>
+    /// <param name="layout">The airport it is on.</param>
+    /// <returns>The runway being crossed, or null.</returns>
+    internal static string? CrossingUnderwayRunway(AircraftState aircraft, AirportGroundLayout layout)
+    {
+        if (aircraft.Ground.AssignedTaxiRoute is not { } route)
+        {
+            return null;
+        }
+
+        if (
+            (CrossingAhead(aircraft, route, layout) is { Bar.TargetName: { Length: > 0 } runwayId } crossing)
+            && HasReachedCrossing(aircraft, route, layout, crossing)
+        )
+        {
+            return runwayId;
+        }
+
+        return RunwayBeingLeft(aircraft, route, layout);
+    }
+
+    /// <summary>
+    /// Whether <paramref name="aircraft"/>'s nose is past <paramref name="crossing"/>'s near holding-position marking
+    /// (<see cref="CrossingRunwayPhase.NosePastMarkingFt"/>) at the crossing itself, not merely past the marking's line drawn on
+    /// across the airport: the crossing starts on the route's start node, or the aircraft's centre is within half its length of the
+    /// painted stop along the route (<see cref="AlongRouteDistanceToHoldShortFt"/>). The painted stop already sits half a length
+    /// before the bar node, so the window opens about a full length before the bar node along the route (half a length on a bar
+    /// whose stop was moved up to the node).
+    /// </summary>
+    private static bool HasReachedCrossing(AircraftState aircraft, TaxiRoute route, AirportGroundLayout layout, CrossingStart crossing) =>
+        (CrossingRunwayPhase.NosePastMarkingFt(aircraft, crossing.NearBar, crossing.AcrossDeg) > 0.0)
+        && (
+            crossing.AtStart
+            || (
+                AlongRouteDistanceToHoldShortFt(layout, route, aircraft.Position, crossing.Bar)
+                < AircraftLength.ResolveFt(aircraft.AircraftType) / 2.0
+            )
+        );
+
+    /// <summary>
+    /// The runway <paramref name="aircraft"/> is between the bars of on <paramref name="route"/>, leaving it: the first runway bar
+    /// ahead is cleared and has no far bar after it on the route (<see cref="FarBarAfter"/>), and the aircraft is not yet clear of
+    /// the runway — the route's start node, its nose or its tail on the runway's pavement
+    /// (<see cref="RunwayOccupancy.IsWithinPavement"/>), or its centre past the runway edge with its tail short of that bar's
+    /// marking (<see cref="IsPastEdgeShortOfMarking"/>). Null otherwise, when an uncleared bar comes first, or the bar names no
+    /// runway the airport has.
+    /// </summary>
+    private static string? RunwayBeingLeft(AircraftState aircraft, TaxiRoute route, AirportGroundLayout layout)
+    {
+        if (
+            (FirstRunwayBarAhead(route, layout) is not { } exit)
+            || !exit.Bar.IsCleared
+            || (exit.Bar.TargetName is not { Length: > 0 } runwayId)
+            || (FarBarAfter(route, exit.SegmentIndex, exit.Bar, layout) is not null)
+            || !layout.Nodes.TryGetValue(route.Segments[0].FromNodeId, out GroundNode? start)
+            || !layout.Nodes.TryGetValue(exit.Bar.NodeId, out GroundNode? exitBar)
+        )
+        {
+            return null;
+        }
+
+        var barRunway = RunwayIdentifier.Parse(runwayId);
+        if (RunwayOccupancy.AirportRunways(layout.AirportId).FirstOrDefault(r => r.Id.Overlaps(barRunway)) is not { } runway)
+        {
+            return null;
+        }
+
+        double halfLengthNm = AircraftLength.ResolveFt(aircraft.AircraftType) / 2.0 / GeoMath.FeetPerNm;
+        LatLon nose = GeoMath.ProjectPoint(aircraft.Position, aircraft.TrueHeading, halfLengthNm);
+        LatLon tail = GeoMath.ProjectPoint(aircraft.Position, new TrueHeading((aircraft.TrueHeading.Degrees + 180.0) % 360.0), halfLengthNm);
+        bool onPavement =
+            RunwayOccupancy.IsWithinPavement(start.Position, runway)
+            || RunwayOccupancy.IsWithinPavement(nose, runway)
+            || RunwayOccupancy.IsWithinPavement(tail, runway);
+        return (onPavement || IsPastEdgeShortOfMarking(aircraft.Position, tail, exitBar.Position, runway)) ? runwayId : null;
+    }
+
+    /// <summary>
+    /// Whether an aircraft centred at <paramref name="centre"/> is leaving <paramref name="runway"/> by the bar at
+    /// <paramref name="exitBar"/> and not yet clear (AIM 2-3-5.a.1.a): measured across the runway from its centreline, toward the
+    /// bar's side, the centre is past the runway edge, <paramref name="tail"/> is short of the bar's holding-position marking, and
+    /// the centre is over the runway's own length — its foot on the centreline between the thresholds, with half a width of slack
+    /// past each for an exit at the very end. An aircraft outside the marking, approaching the bar, has its tail beyond the marking
+    /// and never counts; one crossing the extended centreline beyond a threshold, past that slack, is off the runway's length and
+    /// never counts either.
+    /// </summary>
+    private static bool IsPastEdgeShortOfMarking(LatLon centre, LatLon tail, LatLon exitBar, RunwayInfo runway)
+    {
+        var end1 = new LatLon(runway.Lat1, runway.Lon1);
+        var end2 = new LatLon(runway.Lat2, runway.Lon2);
+        var along = new TrueHeading(GeoMath.BearingTo(end1, end2));
+        double barFt = GeoMath.SignedCrossTrackDistanceNm(exitBar, end1, along) * GeoMath.FeetPerNm;
+        double side = Math.Sign(barFt);
+        double centreFt = GeoMath.SignedCrossTrackDistanceNm(centre, end1, along) * GeoMath.FeetPerNm * side;
+        double tailFt = GeoMath.SignedCrossTrackDistanceNm(tail, end1, along) * GeoMath.FeetPerNm * side;
+        double slackFt = runway.WidthFt / 2.0;
+        double centreAlongFt = GeoMath.AlongTrackDistanceNm(centre, end1, along) * GeoMath.FeetPerNm;
+        double lengthFt = runway.PavementLengthFt;
+        return (centreFt > slackFt) && (tailFt < Math.Abs(barFt)) && (centreAlongFt > -slackFt) && (centreAlongFt < lengthFt + slackFt);
+    }
+
+    /// <summary>
+    /// The first bar ahead on <paramref name="route"/> that is a runway's (<see cref="NeedsRunwayCrossing"/>) or is uncleared,
+    /// whichever comes first, with the index of the segment ending at it: an uncleared bar of any kind is returned as it is met,
+    /// for the caller to reject. Null when there is neither.
+    /// </summary>
+    private static (HoldShortPoint Bar, int SegmentIndex)? FirstRunwayBarAhead(TaxiRoute route, AirportGroundLayout layout)
+    {
+        for (int i = Math.Max(0, route.CurrentSegmentIndex); i < route.Segments.Count; i++)
+        {
+            if (route.GetHoldShortAt(route.Segments[i].ToNodeId) is not { } bar)
+            {
+                continue;
+            }
+
+            if (!bar.IsCleared || NeedsRunwayCrossing(bar, layout))
+            {
+                return (bar, i);
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
     /// The crossing a HOLD meets in the stretch before the crossing starts — the taxi hands the crossing over only once the centre
     /// reaches the near bar's node, half a length after the nose crossed the marking: the cleared crossing ahead
     /// (<see cref="CrossingAhead"/>) whose painted stop lies inside the aircraft's stopping distance at the rate the
     /// HOLD brakes at (<see cref="CrossingRunwayPhase.HoldBrakeRateKtsPerSec"/>), so that braking would carry the nose
     /// past the near marking, unless the near-line gate already brakes the aircraft onto a bar
-    /// (<see cref="BrakeForUnclearedBar"/>). The bar and how far (ft) the nose is past its marking; null otherwise.
+    /// (<see cref="BrakeForUnclearedBar"/>). A crossing whose near bar is the route's start node has no painted stop ahead to
+    /// measure to, so it is met while the nose is past its marking. The bar and how far (ft) the nose is past its marking; null
+    /// otherwise.
     /// </summary>
     private (HoldShortPoint Bar, double NosePastFt)? HoldAtCrossingAhead(AircraftState aircraft, TaxiRoute route, AirportGroundLayout layout)
     {
-        if ((_farSideBlockedBar is not null) || (CrossingAhead(route, layout) is not { } crossing))
+        if ((_farSideBlockedBar is not null) || (CrossingAhead(aircraft, route, layout) is not { } crossing))
         {
             return null;
         }
 
+        double nosePastFt = CrossingRunwayPhase.NosePastMarkingFt(aircraft, crossing.NearBar, crossing.AcrossDeg);
+        if (crossing.AtStart)
+        {
+            return (nosePastFt > 0.0) ? (crossing.Bar, nosePastFt) : null;
+        }
+
         AircraftCategory category = AircraftCategorization.Categorize(aircraft.AircraftType);
         double holdStopFt = GroundStopBraking.StoppingDistanceFt(aircraft.GroundSpeed, CrossingRunwayPhase.HoldBrakeRateKtsPerSec(category));
-        return AlongRouteDistanceToHoldShortFt(layout, route, aircraft.Position, crossing.Bar) < holdStopFt
-            ? (crossing.Bar, CrossingRunwayPhase.NosePastMarkingFt(aircraft, crossing.NearBar, crossing.AcrossDeg))
-            : null;
+        return (AlongRouteDistanceToHoldShortFt(layout, route, aircraft.Position, crossing.Bar) < holdStopFt) ? (crossing.Bar, nosePastFt) : null;
     }
 
     /// <summary>
     /// The cleared runway crossing ahead on <paramref name="route"/>: the first cleared bar that is the near bar of a crossing
-    /// (<see cref="FarBarAfter"/>), its node's position and the way across (the bearing of the segment after it). Null when an
-    /// uncleared bar comes first, or there is none.
+    /// (<see cref="FarBarAfter"/>), its node's position and the way across (the bearing of the segment after it). While the route
+    /// is on its first segment, a cleared near bar on its start node comes first, the way across its first segment, until
+    /// <paramref name="aircraft"/>'s tail is past the far bar's marking. Null when an uncleared bar comes first, or there is none.
     /// </summary>
-    private static (HoldShortPoint Bar, LatLon NearBar, double AcrossDeg)? CrossingAhead(TaxiRoute route, AirportGroundLayout layout)
+    private static CrossingStart? CrossingAhead(AircraftState aircraft, TaxiRoute route, AirportGroundLayout layout)
     {
+        if (
+            (route.CurrentSegmentIndex <= 0)
+            && (route.Segments.Count > 0)
+            && (route.GetHoldShortAt(route.Segments[0].FromNodeId) is { IsCleared: true } startBar)
+            && NeedsRunwayCrossing(startBar, layout)
+            && (FarBarAfter(route, -1, startBar, layout) is { } far)
+            && layout.Nodes.TryGetValue(startBar.NodeId, out GroundNode? startNode)
+            && layout.Nodes.TryGetValue(far.NodeId, out GroundNode? farNode)
+        )
+        {
+            double acrossDeg = route.Segments[0].Edge.DepartureBearing;
+            double tailPastFarFt =
+                CrossingRunwayPhase.NosePastMarkingFt(aircraft, farNode.Position, acrossDeg) - AircraftLength.ResolveFt(aircraft.AircraftType);
+            if (tailPastFarFt <= 0.0)
+            {
+                return new CrossingStart(startBar, startNode.Position, acrossDeg, AtStart: true);
+            }
+        }
+
         for (int i = Math.Max(0, route.CurrentSegmentIndex); i < route.Segments.Count; i++)
         {
             if (route.GetHoldShortAt(route.Segments[i].ToNodeId) is not { } bar)
@@ -1323,12 +1481,18 @@ public sealed class TaxiingPhase : Phase
                 && layout.Nodes.TryGetValue(bar.NodeId, out GroundNode? near)
             )
             {
-                return (bar, near.Position, route.Segments[i + 1].Edge.DepartureBearing);
+                return new CrossingStart(bar, near.Position, route.Segments[i + 1].Edge.DepartureBearing, AtStart: false);
             }
         }
 
         return null;
     }
+
+    /// <summary>
+    /// A cleared runway crossing ahead (<see cref="CrossingAhead"/>): its near bar, that bar node's position, the way across
+    /// (degrees true), and whether the near bar is the route's start node, where no painted stop lies ahead to measure to.
+    /// </summary>
+    private readonly record struct CrossingStart(HoldShortPoint Bar, LatLon NearBar, double AcrossDeg, bool AtStart);
 
     /// <summary>
     /// How far (ft) ahead the near-line gate starts judging a crossing bar: the taxi-rate stopping distance,

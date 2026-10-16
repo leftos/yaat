@@ -115,7 +115,7 @@ While approaching, the navigator's speed is clamped to a braking curve that reac
 
 With the nose already at or past the marking of an uncleared **runway** bar on the start node (a TAXI starts the route on a bar's node only once the aircraft is close to it, so this is common), the line is lost. `TaxiingPhase.TryHoldPastStartBar` takes that hold instead: the aircraft brakes at the firm rate as soon as it can, to keep off the runway's pavement, never stopped dead from taxi speed, and holds once it is down to one sub-tick of that braking, wherever that leaves it.
 
-The finding is latched on the bar's node (`TaxiingPhaseDto.PassedStartBarNodeId`), so the stop is not let go part-way as it carries the aircraft away from the node; how the nose is judged past the line is in [navigator.md](./navigator.md) § Stopping at an uncleared bar. `HoldInsideStoppingDistanceOfBarTests` pins the latch, its snapshot round-trip and an `HS` that re-arms the start bar.
+The finding is latched on the bar's node (`TaxiingPhaseDto.PassedStartBarNodeId`), so the stop is not let go part-way as it carries the aircraft away from the node; how the nose is judged past the line is in [navigator.md](./navigator.md) § Stopping at an uncleared bar. `HoldInsideStoppingDistanceOfBarTests` pins an `HS` that re-arms the start bar, live and after a rewind. A re-route with no `HS` that leaves the aircraft partway across that runway keeps the crossing cleared and finishes it, so it never reaches this stop ([navigator.md](./navigator.md) § A re-route mid-crossing keeps the crossing).
 
 ## Full-length vs intersection entry — `RunwayEntryPoint`
 
@@ -171,7 +171,7 @@ The clamp makes the modelled overrun a lower bound: an aircraft that cannot make
 
 Measured (B738 on B westbound at 30 kt): issued 584 ft out → holds 271 ft from the junction node (the bar binds a fillet split node ~111 ft east of `FindIntersectionNode("B","T")`, plus the length+30 setback); issued 178 ft out → "unable", rolls 74 ft and stops 105 ft short of the junction. The field crawl at 5 kt in the bundle was the conflict detector's cap for SWA2644 on T (a crossing pair), not the hold-short.
 
-**Inside the stopping distance without `HS`.** A bar the aircraft is already inside the taxi-rate stopping distance of without an `HS` (a `TAXI` re-route that drops a crossing clearance, or a `HOLD` or `GIVEWAY` given close to the bar) is never marked unable: the stop stays on the painted line, centre at the stop and nose at the marking, and `TaxiingPhase` brakes harder for it.
+**Inside the stopping distance without `HS`.** A bar the aircraft is already inside the taxi-rate stopping distance of without an `HS` (a `TAXI` re-route that drops a crossing clearance short of the runway's entry marking, or a `HOLD` or `GIVEWAY` given close to the bar) is never marked unable: the stop stays on the painted line, centre at the stop and nose at the marking, and `TaxiingPhase` brakes harder for it.
 
 It takes the firm rate when only that makes the stop and, at a runway bar whose line is not yet lost, a last-resort dead stop with the nose short of the marking. A taxiway bar is never stopped dead: the hold is taken where the firm rate stops the aircraft. The braking ladder is in [navigator.md](./navigator.md) § Stopping at an uncleared bar.
 

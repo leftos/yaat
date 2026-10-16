@@ -219,6 +219,8 @@ The Task Index above tells you *which files*; these docs explain *how each subsy
 
     `Simulation/GroundTaxi/TaxiApproachLegTests.cs` (`TaxiApproachLeg.Prepend` unit cover: the four refusal shapes plus the along-runway-roll case). `VirtualNodeTests.cs` (position-hashed virtual-node ids: same position → same id, a foot apart → a different one, cross-process determinism).
 
+    `Simulation/GroundTaxi/OakTaxiMidRunwayCrossingTests.cs` (YAAT-710: a `TAXI` given to a C56X crossing KOAK 28R, on the runway between its bars or off its pavement short of the north marking, keeps 28R cleared and finishes clearing it instead of holding at the far bar). `Simulation/GroundTaxi/SeaCrossingNotYetReachedTests.cs` (YAAT-732: a C172 on KSEA C past the line through D's 34R marking but short of the crossing is held by a plain HOLD and holds short as written on a re-route that leaves the crossing out). `Simulation/GroundTaxi/OakTaxiToOccupiedStandTests.cs` (YAAT-711: a `TAXI` to a KOAK stand another aircraft is parked on names the occupant in its response, also on the landing rollout, and says nothing for a free stand).
+
     `Simulation/GroundTaxi/TaxiStartsOnOccupiedTaxiwayTests.cs` (a TAXI to an aircraft mid-way along a straight taxi edge starts on that taxiway, at KOAK C and KSFO B, and one in a fillet arc starts at the arc's end ahead).
 
     Its route-aware-start cases: a route behind turns a C172 about to the far node, reported `TaxiTurnAboutShape.FromFarEnd` with that node as target until that leg is flown; a route drawn back through a runway holding position, with no leg to it, and a scripted B738 whose node ahead resolves none also report `FromFarEnd`.

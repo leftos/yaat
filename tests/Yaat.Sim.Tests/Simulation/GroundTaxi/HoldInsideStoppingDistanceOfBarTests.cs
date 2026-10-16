@@ -7,6 +7,7 @@ using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
+using Yaat.Sim.Pilot;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
@@ -36,6 +37,7 @@ public class HoldInsideStoppingDistanceOfBarTests
     private const string CrossedRunway = "33";
     private const int ApproachBudgetSeconds = 400;
     private const int StopBudgetSeconds = 60;
+    private const int CrossingBudgetSeconds = 120;
     private const double StationaryKts = 0.01;
 
     /// <summary>How far back up the route (ft) the hold line's approach bearing is taken from.</summary>
@@ -53,9 +55,6 @@ public class HoldInsideStoppingDistanceOfBarTests
     /// <summary>How far (ft) behind the held aircraft the GIVEWAY traffic is placed, on its track and heading.</summary>
     private const double TrafficBehindFt = 400.0;
 
-    /// <summary>How much farther past the line (ft) than a firm-rate stop from the re-route the start-bar cases let the nose rest.</summary>
-    private const double StartBarToleranceFt = 5.0;
-
     /// <summary>
     /// The most an aircraft not held may be rolling (kt) when the hold it takes at the bar stops it: the speed
     /// <see cref="TaxiingPhase"/> takes a set-back or start-node hold at, which its arrival at the bar's own stop stays under.
@@ -72,11 +71,6 @@ public class HoldInsideStoppingDistanceOfBarTests
 
     /// <summary>How much farther short of the line (ft) than a last-tick stop the last-resort cases let the nose rest.</summary>
     private const double DeadStopToleranceFt = 2.0;
-
-    private const int ReleaseSeconds = 15;
-
-    /// <summary>How far (ft) the nose must move on after the crossing release.</summary>
-    private const double MovedOnFt = 20.0;
 
     /// <summary>How far (ft) back toward the bar the nose may settle after the release (pose noise, not a reversal).</summary>
     private const double BackStepToleranceFt = 1.0;
@@ -166,9 +160,6 @@ public class HoldInsideStoppingDistanceOfBarTests
 
     /// <summary>The words of the warning for an aircraft whose nose is past an uncleared runway marking, braking or stationary.</summary>
     private const string NosePastWording = "ft past the hold line for";
-
-    /// <summary>How that warning ends when the aircraft is standing still.</summary>
-    private const string StationaryWording = ", stationary";
 
     /// <summary>The words of the warning for the last-resort stop short of an uncleared runway marking.</summary>
     private const string StoppedDeadShortWording = "stopped dead short of";
@@ -472,31 +463,31 @@ public class HoldInsideStoppingDistanceOfBarTests
     }
 
     /// <summary>
-    /// Re-routed at an expedited taxi with its centre already at or past the 33 bar's node, so the new route starts on the
-    /// bar's node with the nose well over the line: the firm-rate stop is held on that bar however far it carries the
-    /// aircraft from the node, so the B738 is never let go part-way as it slows — it comes to a stop, holds, and never
-    /// re-accelerates.
+    /// Re-routed at an expedited taxi, without the crossing, with its centre already at or past the 33 bar's node, so the new
+    /// route starts on the bar's node with the nose well over the line: stopping now would leave the B738 on runway 33, so the
+    /// re-route keeps 33 cleared as an implicit crossing and the aircraft finishes crossing, never holding short of 33.
     /// </summary>
     [Fact]
-    public void PassedStartBar_Latched_StopDoesNotReleaseWhileSlowing()
+    public void PassedStartBar_ReRouteWithoutTheCrossing_FinishesCrossing()
     {
-        Outcome? outcome = Run(
+        CrossingOutcome? outcome = RunThroughTheCrossing(
             new Case(Jet, AircraftCategory.Jet, Order.None, CentrePastBarNode) { Expedite = true, ReRouteAtKts = ExpeditedJetKts }
         );
         if (outcome is not null)
         {
-            AssertStopsAndHoldsWithoutReaccelerating(outcome);
+            AssertFinishesCrossing(outcome, Jet);
         }
     }
 
     /// <summary>
-    /// The same expedited stop past the start bar, rewound part-way: the taxi phase's snapshot carries the bar it is stopping
-    /// for, and the phase restored from it keeps stopping — it comes to a stop, holds, and never re-accelerates.
+    /// The same expedited re-route past the start bar, its running phase (the taxi, else the crossing it hands over to) swapped
+    /// for one restored from its own snapshot: a taxi snapshot carries no start bar to stop for, and the restored phase finishes
+    /// the crossing too.
     /// </summary>
     [Fact]
-    public void PassedStartBar_LatchSurvivesSnapshotRoundTrip()
+    public void PassedStartBar_ReRouteWithoutTheCrossing_FinishesCrossingAcrossASnapshotRoundTrip()
     {
-        Outcome? outcome = Run(
+        CrossingOutcome? outcome = RunThroughTheCrossing(
             new Case(Jet, AircraftCategory.Jet, Order.None, CentrePastBarNode)
             {
                 Expedite = true,
@@ -506,55 +497,69 @@ public class HoldInsideStoppingDistanceOfBarTests
         );
         if (outcome is not null)
         {
-            Assert.True(outcome.Rewound, $"the {Jet} was never rewound below {RewindBelowKts:F0} kt while taxiing");
-            AssertStopsAndHoldsWithoutReaccelerating(outcome);
+            Assert.True(outcome.Rewound, $"the {Jet}'s taxi or crossing phase was never rewound after the re-route");
+            AssertFinishesCrossing(outcome, Jet);
+        }
+    }
+
+    /// <summary>
+    /// YAAT-732: re-routed without the crossing while still taxiing toward 33 — its nose past the 33 holding-position marking,
+    /// its centre short of the bar's node — the B738 keeps 33 cleared as an implicit crossing and finishes crossing.
+    /// </summary>
+    [Fact]
+    public void NosePastTheMarkingWhileTaxiing_ReRouteWithoutTheCrossing_FinishesCrossing()
+    {
+        CrossingOutcome? outcome = RunThroughTheCrossing(new Case(Jet, AircraftCategory.Jet, Order.None, LineLostOffTheBarNode));
+        if (outcome is not null)
+        {
+            AssertFinishesCrossing(outcome, Jet);
         }
     }
 
     /// <summary>
     /// Re-routed with the B738's centre already past the 33 bar's set-back painted stop — the nose over the holding position
-    /// marking — on a route that does not start on the bar's node: the line is lost, so the aircraft brakes at the firm rate
-    /// to a crawl rather than stopping dead from taxi speed, takes the hold, and warns once that its nose is past the hold line.
+    /// marking — on a route that does not start on the bar's node: the re-route keeps the crossing cleared, so the aircraft
+    /// finishes crossing and never warns that its nose is past a hold line or that it stopped dead short of one.
     /// </summary>
     [Fact]
-    public void LineAlreadyLost_RunwayBar_FirmStopThenHold()
+    public void LineAlreadyLost_RunwayBar_ClearedCrossing_FinishesWithoutWarning()
     {
         var warnings = WarningLogCapture.Install();
-        Outcome? outcome = Run(new Case(Jet, AircraftCategory.Jet, Order.None, LineLostOffTheBarNode) { LogInstalled = true });
+        CrossingOutcome? outcome = RunThroughTheCrossing(
+            new Case(Jet, AircraftCategory.Jet, Order.None, LineLostOffTheBarNode) { LogInstalled = true }
+        );
         if (outcome is null)
         {
             return;
         }
 
-        Assert.False(outcome.RouteStartsAtBar, $"{ReRoute} started the route on the runway {CrossedRunway} bar's node");
-        AssertFirmBrakingToACrawl(outcome, Jet, AircraftCategory.Jet);
-        Assert.IsType<HoldingShortPhase>(outcome.Aircraft.Phases?.CurrentPhase);
-        Assert.Single(warnings.Warnings, w => w.Contains(NosePastWording, StringComparison.Ordinal));
+        AssertFinishesCrossing(outcome, Jet);
+        Assert.DoesNotContain(warnings.Warnings, w => w.Contains(NosePastWording, StringComparison.Ordinal));
         Assert.DoesNotContain(warnings.Warnings, w => w.Contains(StoppedDeadShortWording, StringComparison.Ordinal));
     }
 
     /// <summary>
-    /// The same lost line with a HOLD given on the re-route's sub-tick: the held B738 reaches the 33 bar's node still rolling
-    /// and keeps braking at the firm rate, never stopped dead there from the speed it arrives with.
+    /// The same lost line with a HOLD given on the re-route's sub-tick: the re-route keeps the crossing cleared, so the B738
+    /// is on a cleared crossing and the HOLD stops it at the HOLD-on-crossing rate.
     /// </summary>
     [Fact]
-    public void LineAlreadyLost_RunwayBar_Hold_FirmStopThenHold()
+    public void LineAlreadyLost_RunwayBar_Hold_ClearedCrossing_StopsAtTheHoldOnCrossingRate()
     {
         Outcome? outcome = Run(new Case(Jet, AircraftCategory.Jet, Order.Hold, LineLostOffTheBarNode));
         if (outcome is not null)
         {
             Assert.False(outcome.RouteStartsAtBar, $"{ReRoute} started the route on the runway {CrossedRunway} bar's node");
-            AssertFirmBraking(outcome.LargestSubTickLossKts, Jet, AircraftCategory.Jet);
+            AssertHoldOnCrossingStop(outcome, Jet, AircraftCategory.Jet);
         }
     }
 
     /// <summary>
     /// Stopped by a creeping HOLD with its centre past the 33 bar's set-back painted stop, the B738 is re-routed again onto a
-    /// route that does not start on the bar's node: it takes the hold where it stands and warns once that its nose is past the
-    /// hold line, stationary.
+    /// route that does not start on the bar's node: the crossing stays cleared, so it never warns that it stopped past the hold
+    /// line and, released by the re-route, finishes crossing.
     /// </summary>
     [Fact]
-    public void StationaryPastNonStartRunwayBar_WarnsStoppedPastOnce()
+    public void StationaryPastNonStartRunwayBar_ClearedCrossing_NoStoppedPastWarning_FinishesOnceReleased()
     {
         Outcome? outcome = Run(new Case(Jet, AircraftCategory.Jet, Order.Hold, LineLostOffTheBarNode) { ReRouteAtKts = CreepKts });
         if (outcome is null)
@@ -567,14 +572,13 @@ public class HoldInsideStoppingDistanceOfBarTests
         Assert.True(reRoute.Success, $"{ReRoute} was rejected: {reRoute.Message}");
         TaxiRoute route = Assert.IsType<TaxiRoute>(outcome.Aircraft.Ground.AssignedTaxiRoute);
         Assert.NotEqual(outcome.Line.Node.Id, route.Segments[0].FromNodeId);
-        for (int second = 0; second < ReleaseSeconds; second++)
+        CrossingOutcome crossing = RunToFarMarking(outcome.Engine, outcome.Aircraft, (outcome.Line, outcome.FarLine), rewind: false) with
         {
-            outcome.Engine.TickOneSecond();
-        }
+            ImplicitCross = reRoute.Message?.Contains("(cross ", StringComparison.Ordinal) == true,
+        };
 
-        string warning = Assert.Single(warnings.Warnings, w => w.Contains(NosePastWording, StringComparison.Ordinal));
-        Assert.EndsWith(StationaryWording, warning, StringComparison.Ordinal);
-        Assert.IsType<HoldingShortPhase>(outcome.Aircraft.Phases?.CurrentPhase);
+        AssertFinishesCrossing(crossing, Jet);
+        Assert.DoesNotContain(warnings.Warnings, w => w.Contains(NosePastWording, StringComparison.Ordinal));
     }
 
     /// <summary>
@@ -616,11 +620,11 @@ public class HoldInsideStoppingDistanceOfBarTests
 
     /// <summary>
     /// Standing still with its centre at the 33 bar's node, where a HOLD given with a creeping re-route past the line stopped
-    /// it, the B738 is re-routed again onto a route starting on the bar's node: it warns once that it stopped past the hold
-    /// line.
+    /// it, the B738 is re-routed again, without the crossing, onto a route starting on the bar's node: its nose is past the
+    /// marking, so the re-route keeps 33 cleared and the aircraft finishes crossing, never warning that it stopped past the line.
     /// </summary>
     [Fact]
-    public void StationaryPastStartBar_WarnsStoppedPastOnce()
+    public void StationaryPastStartBar_ReRouteWithoutTheCrossing_FinishesCrossingWithoutStoppedPastWarning()
     {
         Outcome? outcome = Run(new Case(Jet, AircraftCategory.Jet, Order.Hold, CentrePastBarNode) { ReRouteAtKts = CreepKts });
         if (outcome is null)
@@ -633,13 +637,13 @@ public class HoldInsideStoppingDistanceOfBarTests
         Assert.True(reRoute.Success, $"{ReRoute} was rejected: {reRoute.Message}");
         TaxiRoute route = Assert.IsType<TaxiRoute>(outcome.Aircraft.Ground.AssignedTaxiRoute);
         Assert.Equal(outcome.Line.Node.Id, route.Segments[0].FromNodeId);
-        for (int second = 0; second < ReleaseSeconds; second++)
+        CrossingOutcome crossing = RunToFarMarking(outcome.Engine, outcome.Aircraft, (outcome.Line, outcome.FarLine), rewind: false) with
         {
-            outcome.Engine.TickOneSecond();
-        }
+            ImplicitCross = reRoute.Message?.Contains("(cross ", StringComparison.Ordinal) == true,
+        };
 
-        string warning = Assert.Single(warnings.Warnings, w => w.Contains(NosePastWording, StringComparison.Ordinal));
-        Assert.EndsWith(StationaryWording, warning, StringComparison.Ordinal);
+        AssertFinishesCrossing(crossing, Jet);
+        Assert.DoesNotContain(warnings.Warnings, w => w.Contains(NosePastWording, StringComparison.Ordinal));
     }
 
     /// <summary>
@@ -719,17 +723,6 @@ public class HoldInsideStoppingDistanceOfBarTests
         );
     }
 
-    /// <summary>
-    /// After a re-route onto a route starting on the bar's node: the route did start there, the aircraft never gained speed
-    /// in any sub-tick, and it came to rest holding short.
-    /// </summary>
-    private static void AssertStopsAndHoldsWithoutReaccelerating(Outcome outcome)
-    {
-        Assert.True(outcome.RouteStartsAtBar, $"{ReRoute} did not start the route on the runway {CrossedRunway} bar's node");
-        Assert.True(outcome.LargestGainKts <= 1e-6, $"the {Jet} re-accelerated by {outcome.LargestGainKts:F2} kt in one sub-tick after the re-route");
-        Assert.IsType<HoldingShortPhase>(outcome.Aircraft.Phases?.CurrentPhase);
-    }
-
     /// <summary>The route would start on the bar's node with the aircraft's centre at or past that node.</summary>
     private static bool CentrePastBarNode(Approach approach) => approach.StartsAtBar && (approach.CentrePastNodeFt >= 0.0);
 
@@ -756,84 +749,57 @@ public class HoldInsideStoppingDistanceOfBarTests
 
     /// <summary>
     /// Re-routed close enough to the 33 bar that the new route starts on the bar's node — which a TAXI only does once the nose
-    /// is already over the hold line — and told HOLD on the same sub-tick: the line is lost, so the aircraft stops as soon as
-    /// the firm rate lets it, short of runway 33's pavement, rather than at the taxi rate onto the runway.
+    /// is already over the hold line — and told HOLD on the same sub-tick: the re-route keeps the crossing cleared, so the
+    /// aircraft is on a cleared crossing and the HOLD stops it at the HOLD-on-crossing rate.
     /// </summary>
     [Theory]
     [InlineData(Piston)]
     [InlineData(Jet)]
-    public void Hold_RouteStartingPastUnclearedBar_StopsAtTheFirmRate(string type)
+    public void Hold_RouteStartingPastClearedCrossingBar_StopsAtTheHoldOnCrossingRate(string type)
     {
-        Outcome? outcome = RunPastStartBar(type, Order.Hold, expedite: false);
+        AircraftCategory category = AircraftCategorization.Categorize(type);
+        Outcome? outcome = Run(new Case(type, category, Order.Hold, static approach => approach.StartsAtBar));
         if (outcome is not null)
         {
-            AssertOffTheRunway(outcome, type);
-        }
-    }
-
-    /// <summary>The same re-route onto a route starting on the 33 bar's node, with no HOLD: the firm-rate stop, then the hold short.</summary>
-    [Theory]
-    [InlineData(Piston)]
-    [InlineData(Jet)]
-    public void NoHold_RouteStartingPastUnclearedBar_StopsAtTheFirmRate(string type)
-    {
-        Outcome? outcome = RunPastStartBar(type, Order.None, expedite: false);
-        if (outcome is not null)
-        {
-            AssertOffTheRunway(outcome, type);
-            Assert.IsType<HoldingShortPhase>(outcome.Aircraft.Phases?.CurrentPhase);
+            Assert.True(outcome.RouteStartsAtBar, $"{ReRoute} did not start the route on the runway {CrossedRunway} bar's node");
+            AssertHoldOnCrossingStop(outcome, type, category);
         }
     }
 
     /// <summary>
-    /// The start-bar re-route at an expedited taxi (the B738 at 39 kt, a firm-rate stop longer than the start-node radius):
-    /// the stop is never let go part-way, and the aircraft holds where the firm rate leaves it.
+    /// The same re-route onto a route starting on the 33 bar's node, with no HOLD: the crossing stays cleared, and the aircraft
+    /// finishes crossing on its own heading — never holding short of 33, never turned back at the bar node behind it.
+    /// </summary>
+    [Theory]
+    [InlineData(Piston)]
+    [InlineData(Jet)]
+    public void NoHold_RouteStartingPastClearedCrossingBar_FinishesCrossing_CarriesOnForward(string type)
+    {
+        CrossingOutcome? outcome = RunThroughTheCrossing(
+            new Case(type, AircraftCategorization.Categorize(type), Order.None, static approach => approach.StartsAtBar)
+        );
+        if (outcome is not null)
+        {
+            AssertFinishesCrossing(outcome, type);
+            Assert.True(outcome.BackStepFt <= BackStepToleranceFt, $"the {type} moved {outcome.BackStepFt:F1} ft back toward the bar");
+            Assert.True(outcome.MostTurnDeg < ReversalDeg, $"the {type} turned {outcome.MostTurnDeg:F0} deg off its heading");
+        }
+    }
+
+    /// <summary>
+    /// The start-bar re-route at an expedited taxi (the B738 at 39 kt, a firm-rate stop longer than the start-node radius): the
+    /// crossing stays cleared, and the aircraft finishes crossing.
     /// </summary>
     [Fact]
-    public void NoHold_RouteStartingPastUnclearedBar_Expedited_StillStopsAndHolds()
+    public void NoHold_RouteStartingPastClearedCrossingBar_Expedited_FinishesCrossing()
     {
-        Outcome? outcome = RunPastStartBar(Jet, Order.None, expedite: true);
+        CrossingOutcome? outcome = RunThroughTheCrossing(
+            new Case(Jet, AircraftCategory.Jet, Order.None, static approach => approach.StartsAtBar) { Expedite = true }
+        );
         if (outcome is not null)
         {
-            Assert.IsType<HoldingShortPhase>(outcome.Aircraft.Phases?.CurrentPhase);
+            AssertFinishesCrossing(outcome, Jet);
         }
-    }
-
-    /// <summary>
-    /// Released with <c>CROSS 33</c> from the hold taken past the start bar, the aircraft carries on forward across runway 33
-    /// on its own heading: the crossing never aims it back at the bar node behind it.
-    /// </summary>
-    [Theory]
-    [InlineData(Piston)]
-    [InlineData(Jet)]
-    public void RouteStartingPastUnclearedBar_CrossRelease_CarriesOnForward(string type)
-    {
-        Outcome? outcome = RunPastStartBar(type, Order.None, expedite: false);
-        if (outcome is null)
-        {
-            return;
-        }
-
-        AircraftState aircraft = outcome.Aircraft;
-        double restHeading = aircraft.TrueHeading.Degrees;
-        Assert.True(outcome.Engine.SendCommand(Callsign, $"CROSS {CrossedRunway}").Success);
-        double leastNosePastFt = outcome.NosePastLineFt;
-        double mostTurnDeg = 0.0;
-        for (int second = 0; second < ReleaseSeconds; second++)
-        {
-            outcome.Engine.TickOneSecond();
-            leastNosePastFt = Math.Min(leastNosePastFt, outcome.Line.NosePastFt(aircraft));
-            mostTurnDeg = Math.Max(mostTurnDeg, GeoMath.AbsBearingDifference(restHeading, aircraft.TrueHeading.Degrees));
-        }
-
-        double nowPastFt = outcome.Line.NosePastFt(aircraft);
-        _output.WriteLine(
-            $"after CROSS {CrossedRunway}: nose {nowPastFt:F1} ft past the line (least {leastNosePastFt:F1}), most turn off the rest heading "
-                + $"{mostTurnDeg:F0} deg, phase {aircraft.Phases?.CurrentPhase?.Name}"
-        );
-        Assert.True(nowPastFt > outcome.NosePastLineFt + MovedOnFt, $"the {type} did not move on after CROSS {CrossedRunway}");
-        Assert.True(leastNosePastFt >= outcome.NosePastLineFt - BackStepToleranceFt, $"the {type} moved back toward the bar after CROSS");
-        Assert.True(mostTurnDeg < ReversalDeg, $"the {type} turned {mostTurnDeg:F0} deg off its heading after CROSS {CrossedRunway}");
     }
 
     /// <summary>
@@ -931,40 +897,6 @@ public class HoldInsideStoppingDistanceOfBarTests
 
             _stillSubTicks = aircraft.GroundSpeed < StationaryKts ? _stillSubTicks + 1 : 0;
         }
-    }
-
-    /// <summary>
-    /// Runs the re-route that starts the route on the 33 bar's node, the nose already over the line, and checks the firm-rate
-    /// stop: harder than the taxi rate, no harder than the firm rate, and no farther past the line than a firm-rate stop from
-    /// where the re-route found it. Null when the KOAK layout is unavailable.
-    /// </summary>
-    private Outcome? RunPastStartBar(string type, Order order, bool expedite)
-    {
-        AircraftCategory category = AircraftCategorization.Categorize(type);
-        Outcome? outcome = Run(new Case(type, category, order, static approach => approach.StartsAtBar) { Expedite = expedite });
-        if (outcome is null)
-        {
-            return null;
-        }
-
-        Assert.True(outcome.RouteStartsAtBar, $"{ReRoute} did not start the route on the runway {CrossedRunway} bar's node");
-        AssertFirmBraking(outcome.LargestSubTickLossKts, type, category);
-        double limitFt = outcome.NosePastAtOrderFt + outcome.FirmStopAtOrderFt + StartBarToleranceFt;
-        Assert.True(
-            outcome.NosePastLineFt <= limitFt,
-            $"the {type}'s nose came to rest {outcome.NosePastLineFt:F1} ft past the line; "
-                + $"a firm-rate stop from the re-route leaves it {limitFt - StartBarToleranceFt:F1}"
-        );
-        return outcome;
-    }
-
-    private static void AssertOffTheRunway(Outcome outcome, string type)
-    {
-        RunwayInfo runway = Assert.IsType<RunwayInfo>(NavigationDatabase.Instance.GetRunway("OAK", CrossedRunway));
-        Assert.False(
-            RunwayOccupancy.IsWithinPavement(outcome.RestNose, runway),
-            $"the {type}'s nose came to rest on runway {CrossedRunway}'s pavement"
-        );
     }
 
     /// <summary>
@@ -1071,14 +1003,13 @@ public class HoldInsideStoppingDistanceOfBarTests
         double LargestLossFromKts,
         double LargestBrakingLossKts,
         double LargestStopFromKts,
-        double LargestGainKts,
         double ToStopAtHoldFt,
         double TaxiStopAtHoldFt,
         bool RouteStartsAtBar,
-        double NosePastAtOrderFt,
-        double FirmStopAtOrderFt,
         bool Rewound,
-        LatLon RestNose
+        bool ImplicitCross,
+        HoldLine FarLine,
+        HoldGiven? Hold
     );
 
     /// <summary>
@@ -1087,34 +1018,13 @@ public class HoldInsideStoppingDistanceOfBarTests
     /// </summary>
     private Outcome? Run(Case c)
     {
-        var groundData = new TestAirportGroundData();
-        if (groundData.GetLayout("OAK") is null)
+        if (StartApproach(c) is not { } started)
         {
-            _output.WriteLine("SKIP: KOAK layout unavailable");
             return null;
         }
 
-        if (!c.LogInstalled)
-        {
-            SimLogBuilder.CreateForTest(_output).InitializeSimLog();
-        }
-
-        var engine = new SimulationEngine(groundData, PushPlanStore.CreateShipped());
-        string scenario =
-            c.Order == Order.GiveWayToCrossingTraffic
-                ? Scenario.Replace("\"aircraft\": [", "\"aircraft\": [" + TrafficOnJ, StringComparison.Ordinal)
-                : Scenario;
-        engine.LoadScenario(scenario.Replace(Jet, c.Type, StringComparison.Ordinal), 1, MagneticDeclination.EvaluationDateUtc);
-        AircraftState aircraft = Assert.IsType<AircraftState>(engine.FindAircraft(Callsign));
-        Assert.True(engine.SendCommand(Callsign, FirstTaxi).Success);
-        aircraft.Ground.IsExpeditingTaxi = c.Expedite;
-        engine.TickOneSecond();
-        AirportGroundLayout layout = Assert.IsType<AirportGroundLayout>(aircraft.Ground.Layout);
-        TaxiRoute firstRoute = Assert.IsType<TaxiRoute>(aircraft.Ground.AssignedTaxiRoute);
-        (int barSegment, HoldShortPoint clearedBar) = BarAhead(firstRoute);
-        Assert.True(clearedBar.IsCleared, $"{FirstTaxi} left the runway {CrossedRunway} bar uncleared");
-        var approachRig = new ApproachRig(layout, firstRoute, barSegment, clearedBar, HoldLine.Through(firstRoute, barSegment));
-
+        (SimulationEngine engine, AircraftState aircraft, ApproachRig approachRig) = started;
+        HoldShortPoint clearedBar = approachRig.ClearedBar;
         ReRouted? reRouted = null;
         var losses = new LossTracker();
         bool rewound = false;
@@ -1126,7 +1036,7 @@ public class HoldInsideStoppingDistanceOfBarTests
             {
                 reRouted = TryReRoute(engine, aircraft, approachRig, c);
             }
-            else if (reRouted.OnCrossing && !latchChecked)
+            else if (reRouted.OnCrossing && !reRouted.ImplicitCross && !latchChecked)
             {
                 latchChecked = true;
                 AssertLatchedOnStartBar(aircraft, clearedBar.NodeId);
@@ -1179,6 +1089,158 @@ public class HoldInsideStoppingDistanceOfBarTests
         return AtRest(engine, aircraft, reRouted, losses, rewound);
     }
 
+    /// <summary>
+    /// Loads the scenario, gives <see cref="FirstTaxi"/> (cleared across 33) and measures the 33 bar it approaches. Null when the
+    /// KOAK layout is unavailable.
+    /// </summary>
+    private (SimulationEngine Engine, AircraftState Aircraft, ApproachRig Rig)? StartApproach(Case c)
+    {
+        var groundData = new TestAirportGroundData();
+        if (groundData.GetLayout("OAK") is null)
+        {
+            _output.WriteLine("SKIP: KOAK layout unavailable");
+            return null;
+        }
+
+        if (!c.LogInstalled)
+        {
+            SimLogBuilder.CreateForTest(_output).InitializeSimLog();
+        }
+
+        var engine = new SimulationEngine(groundData, PushPlanStore.CreateShipped());
+        string scenario =
+            c.Order == Order.GiveWayToCrossingTraffic
+                ? Scenario.Replace("\"aircraft\": [", "\"aircraft\": [" + TrafficOnJ, StringComparison.Ordinal)
+                : Scenario;
+        engine.LoadScenario(scenario.Replace(Jet, c.Type, StringComparison.Ordinal), 1, MagneticDeclination.EvaluationDateUtc);
+        AircraftState aircraft = Assert.IsType<AircraftState>(engine.FindAircraft(Callsign));
+        Assert.True(engine.SendCommand(Callsign, FirstTaxi).Success);
+        aircraft.Ground.IsExpeditingTaxi = c.Expedite;
+        engine.TickOneSecond();
+        AirportGroundLayout layout = Assert.IsType<AirportGroundLayout>(aircraft.Ground.Layout);
+        TaxiRoute firstRoute = Assert.IsType<TaxiRoute>(aircraft.Ground.AssignedTaxiRoute);
+        (int barSegment, HoldShortPoint clearedBar) = BarAhead(firstRoute);
+        Assert.True(clearedBar.IsCleared, $"{FirstTaxi} left the runway {CrossedRunway} bar uncleared");
+        return (engine, aircraft, new ApproachRig(layout, firstRoute, barSegment, clearedBar, HoldLine.Through(firstRoute, barSegment)));
+    }
+
+    /// <summary>What became of a re-route that kept the 33 crossing cleared.</summary>
+    /// <param name="ImplicitCross">The re-route's response carried the implicit crossing and its route left the 33 bar cleared.</param>
+    /// <param name="HeldShortOfTheCrossing">The aircraft took a hold short of runway 33.</param>
+    /// <param name="TailPastFarMarking">The aircraft's tail got past the far 33 holding-position marking.</param>
+    /// <param name="Rewound">The taxi or crossing phase was swapped for one restored from its own snapshot.</param>
+    /// <param name="MostTurnDeg">The most the aircraft turned off the heading it had when the run started, degrees.</param>
+    /// <param name="BackStepFt">How far (ft) its nose came back toward the near 33 marking from where the run started.</param>
+    private sealed record CrossingOutcome(
+        bool ImplicitCross,
+        bool HeldShortOfTheCrossing,
+        bool TailPastFarMarking,
+        bool Rewound,
+        double MostTurnDeg,
+        double BackStepFt
+    );
+
+    /// <summary>
+    /// Taxis the aircraft toward the 33 crossing and, on the first sub-tick <paramref name="c"/>'s condition holds, re-routes it
+    /// without the crossing; then runs it on (<see cref="RunToFarMarking"/>), with <see cref="Case.RewindMidStop"/> rewinding its
+    /// running phase once. Null when the KOAK layout is unavailable.
+    /// </summary>
+    private CrossingOutcome? RunThroughTheCrossing(Case c)
+    {
+        if (StartApproach(c) is not { } started)
+        {
+            return null;
+        }
+
+        (SimulationEngine engine, AircraftState aircraft, ApproachRig rig) = started;
+        ReRouted? reRouted = null;
+        void BeforeSubTick() => reRouted ??= TryReRoute(engine, aircraft, rig, c);
+
+        for (int second = 0; (second < ApproachBudgetSeconds) && (reRouted is null); second++)
+        {
+            StepSecond(engine, BeforeSubTick, static () => { });
+        }
+
+        Assert.True(reRouted is not null, $"the {c.Type} never met the re-route condition approaching the runway {CrossedRunway} bar");
+        return RunToFarMarking(engine, aircraft, (rig.Line, reRouted.FarLine), c.RewindMidStop) with { ImplicitCross = reRouted.ImplicitCross };
+    }
+
+    /// <summary>
+    /// Runs the aircraft a whole second at a time until its tail is past the far 33 marking (<paramref name="lines"/>.Far, the
+    /// first route's far bar) or it holds short of 33, tracking how far it turns and steps back toward the near marking. With
+    /// <paramref name="rewind"/>, the running taxi or crossing phase is swapped for one restored from its snapshot on the first
+    /// second. The outcome's <see cref="CrossingOutcome.ImplicitCross"/> is left false for the caller to set.
+    /// </summary>
+    private CrossingOutcome RunToFarMarking(SimulationEngine engine, AircraftState aircraft, (HoldLine Near, HoldLine Far) lines, bool rewind)
+    {
+        double lengthFt = AircraftLength.ResolveFt(aircraft.AircraftType);
+        double startHeadingDeg = aircraft.TrueHeading.Degrees;
+        double startNosePastFt = lines.Near.NosePastFt(aircraft);
+        double leastNosePastFt = startNosePastFt;
+        _output.WriteLine(
+            $"run on: near bar node {lines.Near.Node.Id} nose {startNosePastFt:F1} ft past, far bar node {lines.Far.Node.Id} nose "
+                + $"{lines.Far.NosePastFt(aircraft):F1} ft past, length {lengthFt:F1} ft"
+        );
+        double mostTurnDeg = 0.0;
+        bool heldShort = false;
+        bool rewound = false;
+        for (int second = 0; (second < CrossingBudgetSeconds) && !heldShort && ((lines.Far.NosePastFt(aircraft) - lengthFt) <= 0.0); second++)
+        {
+            if (rewind && !rewound)
+            {
+                rewound = RewindTaxi(aircraft, null) || RewindCrossing(aircraft);
+            }
+
+            engine.TickOneSecond();
+            leastNosePastFt = Math.Min(leastNosePastFt, lines.Near.NosePastFt(aircraft));
+            mostTurnDeg = Math.Max(mostTurnDeg, GeoMath.AbsBearingDifference(startHeadingDeg, aircraft.TrueHeading.Degrees));
+            heldShort =
+                (aircraft.Phases?.CurrentPhase is HoldingShortPhase { HoldShort.TargetName: { } target })
+                && HoldShortAnnotator.TargetMatches(target, CrossedRunway);
+        }
+
+        double tailPastFt = lines.Far.NosePastFt(aircraft) - lengthFt;
+        _output.WriteLine(
+            $"after {ReRoute}: tail {tailPastFt:F1} ft past the far runway {CrossedRunway} marking, held short {heldShort}, most turn "
+                + $"{mostTurnDeg:F0} deg, back step {startNosePastFt - leastNosePastFt:F1} ft, phase {aircraft.Phases?.CurrentPhase?.Name}"
+        );
+        return new CrossingOutcome(false, heldShort, tailPastFt > 0.0, rewound, mostTurnDeg, startNosePastFt - leastNosePastFt);
+    }
+
+    /// <summary>
+    /// The re-route kept runway 33 cleared (the response carries the implicit crossing), and the aircraft went on across without a
+    /// hold short until its tail was past the far marking.
+    /// </summary>
+    private static void AssertFinishesCrossing(CrossingOutcome outcome, string type)
+    {
+        Assert.True(outcome.ImplicitCross, $"{ReRoute} did not keep runway {CrossedRunway} cleared with the {type}'s nose past the marking");
+        Assert.False(outcome.HeldShortOfTheCrossing, $"the {type} held short of runway {CrossedRunway} after its nose was past the marking");
+        Assert.True(outcome.TailPastFarMarking, $"the {type} never got its tail past the far runway {CrossedRunway} marking");
+    }
+
+    /// <summary>
+    /// A HOLD given with the re-route that kept runway 33 cleared: the aircraft is on a cleared crossing, so the HOLD is read back
+    /// as holding position on the runway and stops it at the HOLD-on-crossing rate
+    /// (<see cref="CrossingRunwayPhase.HoldBrakeRateKtsPerSec"/>), reaching that rate and never exceeding it, and it rests held.
+    /// </summary>
+    private static void AssertHoldOnCrossingStop(Outcome outcome, string type, AircraftCategory category)
+    {
+        Assert.True(outcome.ImplicitCross, $"{ReRoute} did not keep runway {CrossedRunway} cleared with the {type}'s nose past the marking");
+        double holdStepKts = CrossingRunwayPhase.HoldBrakeRateKtsPerSec(category) / SimulationEngine.PhysicsSubTickRate;
+        Assert.True(
+            outcome.LargestSubTickLossKts <= holdStepKts + 1e-6,
+            $"the {type} lost {outcome.LargestSubTickLossKts:F2} kt in one sub-tick, more than the HOLD-on-crossing rate allows ({holdStepKts:F2})"
+        );
+        Assert.True(
+            outcome.LargestSubTickLossKts >= holdStepKts - 1e-6,
+            $"the {type} lost at most {outcome.LargestSubTickLossKts:F2} kt in one sub-tick, short of the HOLD-on-crossing rate ({holdStepKts:F2})"
+        );
+        HoldGiven hold = Assert.IsType<HoldGiven>(outcome.Hold);
+        PilotSpeechText readback = Assert.IsType<PilotSpeechText>(hold.Readback);
+        Assert.Equal($"holding position on runway {PhraseologyVerbalizer.CompactRunway(hold.NearestEnd)}", readback.Terminal);
+        Assert.True(outcome.Aircraft.Ground.Hold is { Kind: HoldKind.HoldPosition }, $"the {type} came to rest without its HOLD");
+    }
+
     /// <summary>Logs where the aircraft came to rest after the re-route and how it braked, and returns the run's outcome.</summary>
     private Outcome AtRest(SimulationEngine engine, AircraftState aircraft, ReRouted reRouted, LossTracker losses, bool rewound)
     {
@@ -1200,22 +1262,22 @@ public class HoldInsideStoppingDistanceOfBarTests
             losses.LargestFromKts,
             losses.LargestRollingKts,
             losses.LargestStopFromKts,
-            losses.LargestGainKts,
             reRouted.AtOrder.ToStopFt,
             reRouted.AtOrder.TaxiStopFt,
             reRouted.StartsAtBar,
-            reRouted.NosePastAtOrderFt,
-            reRouted.AtOrder.FirmStopFt,
             rewound,
-            HoldLine.Nose(aircraft)
+            reRouted.ImplicitCross,
+            reRouted.FarLine,
+            reRouted.Hold
         );
     }
 
     /// <summary>
     /// Replaces the running taxi phase with one restored from its own snapshot, as a rewind does, after checking the snapshot
-    /// carries the start bar the phase is stopping for. False when the aircraft is no longer taxiing.
+    /// carries the start bar the phase is stopping for (none when <paramref name="barNodeId"/> is null). False when the aircraft is
+    /// no longer taxiing.
     /// </summary>
-    private static bool RewindTaxi(AircraftState aircraft, int barNodeId)
+    private static bool RewindTaxi(AircraftState aircraft, int? barNodeId)
     {
         if (aircraft.Phases is not { CurrentPhase: TaxiingPhase taxiing } phases)
         {
@@ -1225,6 +1287,22 @@ public class HoldInsideStoppingDistanceOfBarTests
         var dto = (TaxiingPhaseDto)taxiing.ToSnapshot();
         Assert.Equal(barNodeId, dto.PassedStartBarNodeId);
         phases.Phases[phases.CurrentIndex] = TaxiingPhase.FromSnapshot(dto);
+        return true;
+    }
+
+    /// <summary>
+    /// Replaces the running runway-crossing phase with one restored from its own snapshot, as a rewind does. False when the
+    /// aircraft is not crossing.
+    /// </summary>
+    private static bool RewindCrossing(AircraftState aircraft)
+    {
+        if (aircraft.Phases is not { CurrentPhase: CrossingRunwayPhase crossing } phases)
+        {
+            return false;
+        }
+
+        var dto = (CrossingRunwayPhaseDto)crossing.ToSnapshot();
+        phases.Phases[phases.CurrentIndex] = CrossingRunwayPhase.FromSnapshot(dto, aircraft.Ground.Layout);
         return true;
     }
 
@@ -1256,8 +1334,22 @@ public class HoldInsideStoppingDistanceOfBarTests
     /// <summary>The first route's view of the 33 bar the aircraft is approaching, cleared, and its hold line.</summary>
     private sealed record ApproachRig(AirportGroundLayout Layout, TaxiRoute FirstRoute, int BarSegment, HoldShortPoint ClearedBar, HoldLine Line);
 
-    /// <summary>The re-route: where the aircraft stood when it was given, the hold line on the new route, and whether it starts on the bar.</summary>
-    private sealed record ReRouted(Approach AtOrder, HoldLine Line, bool StartsAtBar, double NosePastAtOrderFt, bool OnCrossing);
+    /// <summary>
+    /// The re-route: where the aircraft stood when it was given, the hold line on the new route, whether it starts on the bar,
+    /// whether it kept the 33 crossing cleared as an implicit crossing, and the HOLD given with it.
+    /// </summary>
+    private sealed record ReRouted(
+        Approach AtOrder,
+        HoldLine Line,
+        bool StartsAtBar,
+        bool OnCrossing,
+        bool ImplicitCross,
+        HoldLine FarLine,
+        HoldGiven? Hold
+    );
+
+    /// <summary>A HOLD as given: the pilot's readback of it, and the runway 33 end nearest the aircraft at that moment.</summary>
+    private sealed record HoldGiven(PilotSpeechText? Readback, string NearestEnd);
 
     /// <summary>
     /// Asserts the taxi phase a re-route on the crossing installed has, one sub-tick on, latched the firm-rate stop on the
@@ -1318,11 +1410,13 @@ public class HoldInsideStoppingDistanceOfBarTests
 
         TaxiRoute route = Assert.IsType<TaxiRoute>(aircraft.Ground.AssignedTaxiRoute);
         bool startsAtBar = route.Segments[0].FromNodeId == rig.ClearedBar.NodeId;
+        bool implicitCross = reRoute.Message?.Contains("(cross ", StringComparison.Ordinal) == true;
         HoldLine line;
         string where;
         if (startsAtBar)
         {
-            Assert.True(route.GetHoldShortAt(rig.ClearedBar.NodeId) is { IsCleared: false }, $"{ReRoute} did not hold short of the start bar");
+            HoldShortPoint startBar = Assert.IsType<HoldShortPoint>(route.GetHoldShortAt(rig.ClearedBar.NodeId));
+            Assert.True(startBar.IsCleared == implicitCross, $"{ReRoute} ('{reRoute.Message}') left the start bar cleared {startBar.IsCleared}");
             line = rig.Line;
             where = $"route starts on bar node {rig.ClearedBar.NodeId}";
         }
@@ -1330,19 +1424,23 @@ public class HoldInsideStoppingDistanceOfBarTests
         {
             (int newBarSegment, HoldShortPoint bar) = BarAhead(route);
             Assert.Equal(rig.ClearedBar.NodeId, bar.NodeId);
-            Assert.False(bar.IsCleared, $"{ReRoute} left the runway {CrossedRunway} bar cleared");
+            Assert.True(
+                bar.IsCleared == implicitCross,
+                $"{ReRoute} ('{reRoute.Message}') left the runway {CrossedRunway} bar cleared {bar.IsCleared}"
+            );
             line = HoldLine.Through(route, newBarSegment);
             where = $"stop set back {route.HoldShortSetbackNm(newBarSegment, bar) * GeoMath.FeetPerNm:F1} ft from bar node {bar.NodeId}";
         }
 
-        GiveOrder(engine, aircraft, rig.Layout, c.Order);
+        HoldGiven? hold = GiveOrder(engine, aircraft, rig.Layout, c.Order);
         double nosePastFt = rig.Line.NosePastFt(aircraft);
         _output.WriteLine(
             $"{ReRoute} + {c.Order} at {aircraft.GroundSpeed:F1} kt, {approach.ToStopFt:F1} ft from the painted stop (taxi-rate stop "
                 + $"{approach.TaxiStopFt:F1} ft, firm-rate stop {approach.FirmStopFt:F1} ft, nose {nosePastFt:F1} ft past the line), {where}, "
                 + $"phase {sampledPhase} -> {aircraft.Phases?.CurrentPhase?.Name}"
         );
-        return new ReRouted(approach, line, startsAtBar, nosePastFt, onCrossing);
+        HoldLine farLine = FarBarLine(rig);
+        return new ReRouted(approach, line, startsAtBar, onCrossing, implicitCross, farLine, hold);
     }
 
     private static Approach Measure(AircraftState aircraft, ApproachRig rig, AircraftCategory category)
@@ -1356,25 +1454,32 @@ public class HoldInsideStoppingDistanceOfBarTests
         return new Approach(toStopFt, taxiStopFt, firmStopFt, startsAtBar, centrePastNodeFt);
     }
 
-    private void GiveOrder(SimulationEngine engine, AircraftState aircraft, AirportGroundLayout layout, Order order)
+    /// <summary>Gives the case's order; for a HOLD, the HOLD as given (null for every other order).</summary>
+    private HoldGiven? GiveOrder(SimulationEngine engine, AircraftState aircraft, AirportGroundLayout layout, Order order)
     {
         switch (order)
         {
             case Order.Hold:
+                var hold = new HoldGiven(
+                    PilotResponder.BuildReadback(new([new ParsedBlock(null, [new HoldPositionCommand()])]), aircraft),
+                    RunwayCrossingEnd.Nearest(aircraft, CrossedRunway, layout)
+                );
                 Assert.True(engine.SendCommand(Callsign, "HOLD").Success);
-                break;
+                return hold;
             case Order.GiveWay:
                 GiveWayToTrafficBehind(engine, aircraft, layout);
-                break;
+                return null;
             case Order.GiveWayToCrossingTraffic:
                 GiveWayToCrossingTraffic(engine, aircraft, layout);
-                break;
+                return null;
             case Order.Cross:
                 Assert.True(engine.SendCommand(Callsign, $"CROSS {CrossedRunway}").Success, $"CROSS {CrossedRunway} was rejected");
-                break;
+                return null;
             case Order.None:
-                break;
+                return null;
         }
+
+        throw new ArgumentOutOfRangeException(nameof(order), order, "unknown order");
     }
 
     /// <summary>
@@ -1543,6 +1648,27 @@ public class HoldInsideStoppingDistanceOfBarTests
                 + $"phase {aircraft.Phases?.CurrentPhase?.Name}"
         );
         return new TaxiwayOutcome(centrePastFt, losses.LargestRollingKts, losses.LargestStopFromKts);
+    }
+
+    /// <summary>
+    /// The hold line through the 33 crossing's far bar: the first runway 33 hold-short node of the layout the first route reaches
+    /// past the near bar it is cleared across (the route carries only the near bar as a hold-short point).
+    /// </summary>
+    private static HoldLine FarBarLine(ApproachRig rig)
+    {
+        TaxiRoute route = rig.FirstRoute;
+        for (int i = rig.BarSegment + 1; i < route.Segments.Count; i++)
+        {
+            GroundNode node = route.Segments[i].Edge.ToNode;
+            if ((node.Type == GroundNodeType.RunwayHoldShort) && (node.RunwayId is { } runwayId) && runwayId.Contains(CrossedRunway))
+            {
+                return HoldLine.Through(route, i);
+            }
+        }
+
+        throw new InvalidOperationException(
+            $"no runway {CrossedRunway} hold-short node past bar node {rig.ClearedBar.NodeId} on {route.ToSummary()}"
+        );
     }
 
     /// <summary>The index of the segment ending at the last runway 33 bar on <paramref name="route"/>: the crossing's far bar.</summary>

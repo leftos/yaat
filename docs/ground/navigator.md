@@ -648,7 +648,7 @@ The dead stop is taken on the last tick before the nose would reach the marking 
 
 A taxiway bar never takes a dead stop: the firm rate brakes the aircraft toward its stop, and the hold is taken where it gets there (by `TryHoldAtSetBackStop` at a crawl for a set-back stop, by `ArriveAtNode` for a stop on the bar's own segment). The cap overrides a `GIVEWAY`'s rule that it never stops dead: a give-way point past an uncleared runway bar still stops the aircraft at the bar, dead on the last tick if nothing else makes the line.
 
-**A runway line already lost takes a firm stop, then the hold.** A re-route given with the nose already past an uncleared runway bar's marking cannot stop it short. The aircraft brakes at the firm rate as soon as it can, to keep off the runway's pavement, and is never stopped dead from taxi speed. An arrival at the bar's node still faster than 3 kt (`IsRollingOntoUnclearedBar`), held or not, waits while it brakes, so the hold is taken at a crawl.
+**A runway line already lost takes a firm stop, then the hold.** A re-route given with the nose already past an uncleared runway bar's marking cannot stop it short; when that bar is a crossing the aircraft is partway across, the re-route keeps it cleared and the aircraft finishes crossing instead ([A re-route mid-crossing keeps the crossing](#a-re-route-mid-crossing-keeps-the-crossing)), so this ladder is for a bar that crossing does not clear. The aircraft brakes at the firm rate as soon as it can, to keep off the runway's pavement, and is never stopped dead from taxi speed. An arrival at the bar's node still faster than 3 kt (`IsRollingOntoUnclearedBar`), held or not, waits while it brakes, so the hold is taken at a crawl.
 
 The overrun is warned once per phase: `[Taxi] {Callsign}: nose {PastFt:F0} ft past the hold line for {Target}, braking from {Speed:F1} kt` while it brakes toward a bar ahead, and `[Taxi] {Callsign}: nose {PastFt:F0} ft past the hold line for {Target}, stationary` for a hold taken standing still past the line (a set-back stop, or the start bar below).
 
@@ -661,6 +661,18 @@ The finding is latched on the bar's node (`PassedStartBarNodeId`, snapshotted on
 Running every tick lets an `HS` that re-arms the start bar later, and a phase restored from a snapshot, take the hold alike. A route that starts moving past the line warns `route starts on the uncleared hold-short of {Target} … stopping at the firm rate` on its first tick.
 
 With the nose short of the start bar, the start-node hold is `TryHoldAtRouteStartNode`'s: it caps the navigator to a braking curve that reaches zero 15 ft short of the node, and takes the hold within 150 ft of it at 3 kt or less ([hold-short-placement.md](./hold-short-placement.md)). `HoldInsideStoppingDistanceOfBarTests` pins the whole ladder at KOAK: the runway 33 bar on C, and the taxiway E and A bars.
+
+### A re-route mid-crossing keeps the crossing
+
+A `TAXI` given while the aircraft is partway across a runway keeps that runway cleared, so the aircraft finishes clearing it rather than stopping on it or holding short of the bar it is leaving. `GroundCommandHandler` takes the runway as the implicit first-crossing clearance (the `priorRwy` switch in `TryTaxiCore`) from the phase the aircraft is in: a `CrossingRunwayPhase` with its nose past the near marking (`NosePastNearMarkingFt`), or a `TaxiingPhase` for which `TaxiingPhase.CrossingUnderwayRunway` names a runway.
+
+`CrossingUnderwayRunway` reads the assigned route in two steps. First, the cleared crossing ahead (`CrossingAhead`) the aircraft has reached (`HasReachedCrossing`): its nose past the near holding-position marking, and either the crossing starts on the route's start node or its centre is within half a length of the painted stop along the route, so the taxi has not yet handed over to `CrossingRunwayPhase`. A nose past the marking's line drawn on across the airport, with the crossing itself still round a corner, is not reached; that re-route holds short as written.
+
+Second, `RunwayBeingLeft`: the first runway bar ahead is cleared and has no far bar after it on the route, and the aircraft is not yet clear of the runway. It counts as on it while the route's start node, its nose or its tail is on the runway's pavement, or its centre is past the edge with its tail still short of that bar's marking (`IsPastEdgeShortOfMarking`: over the runway's length, with half a width of slack past each threshold). An uncleared bar coming first ends the question.
+
+Short of the entry marking the re-route is a new route like any other, and `HOLD` or `HS` still stop the aircraft. A `HOLD` on a crossing that starts on the route's start node is met while the nose is past the marking (`HoldAtCrossingAhead`), since no painted stop lies ahead to measure to. An explicit `CROSS` clearance stands until used.
+
+Pins: `OakTaxiMidRunwayCrossingTests` (KOAK 28R, re-routed on the runway between its bars and off its pavement short of the north marking), `SeaCrossingNotYetReachedTests` (KSEA D and 34R: past the marking's line but short of the crossing), and the cleared-crossing cases of `HoldInsideStoppingDistanceOfBarTests`.
 
 
 ## Per-tick walkthrough

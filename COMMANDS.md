@@ -951,6 +951,10 @@ An aircraft whose current taxiway was never set occupies the movement-area taxiw
 
 An aircraft that has just exited a runway is implicitly cleared to finish crossing that same runway's hold-short bars when it receives a `TAXI`; any subsequent crossing of a different runway still requires `CROSS`.
 
+The same holds for an aircraft partway across a runway: a `TAXI` given when its nose is past the runway's entry marking, or it is between the runway's bars, keeps that runway cleared, and the aircraft finishes crossing instead of stopping on it. Short of the marking the new route holds short as written.
+
+A `TAXI` or `TAXIAUTO` to a stand another aircraft is parked on is still accepted, but the response ends with a bracketed note naming the occupant (`[stand FDX1 occupied by FDX440]`), and the aircraft holds short of the stand until it is free.
+
 Ground aircraft automatically detect and avoid collisions — trailing aircraft slow down or stop to maintain safe separation. Head-on conflicts cause both aircraft to stop. Use `BREAK` to temporarily override conflict avoidance for 15 seconds.
 
 ### Helicopter Commands
