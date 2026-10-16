@@ -494,6 +494,14 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
         return await _connection!.InvokeAsync<CommandResultDto>("LoadWeather", weatherJson, reconstructMetars);
     }
 
+    /// <summary>Uploads a GFS wind grid's raw GRIB2 bytes to the room; returns the hash the weather JSON names it by.</summary>
+    /// <exception cref="Microsoft.AspNetCore.SignalR.HubException">The server refused the grid; the message carries its reason.</exception>
+    public async Task<string> UploadWindGridAsync(byte[] grib2)
+    {
+        EnsureConnected();
+        return await _connection!.InvokeAsync<string>("UploadWindGrid", grib2);
+    }
+
     public async Task ClearWeatherAsync()
     {
         EnsureConnected();

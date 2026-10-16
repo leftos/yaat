@@ -1,12 +1,20 @@
 using System.Collections.ObjectModel;
 using System.Text.Json;
 using CommunityToolkit.Mvvm.Input;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Logging;
 using Yaat.Client.Services;
 using Yaat.Sim;
 using Yaat.Sim.Data;
+using Yaat.Sim.Weather;
 
 namespace Yaat.Client.ViewModels;
+
+/// <summary>A GFS wind grid the active weather names: its raw GRIB2 bytes and the hash the server stored them under.</summary>
+public sealed record ActiveWindGrid(byte[] Grib2, string Hash);
+
+/// <summary>Weather JSON ready for <c>LoadWeather</c>, with the grid it names, if any.</summary>
+public sealed record PreparedWeather(string Json, ActiveWindGrid? WindGrid);
 
 /// <summary>One airport's raw METAR string, as broadcast for the currently active weather.</summary>
 public record MetarEntry(string? StationId, string Raw, bool IsFavorite, bool CanFavorite);
@@ -68,9 +76,13 @@ public record WeatherDisplayInfo(
 public partial class MainViewModel
 {
     private readonly LiveWeatherService _liveWeather = new();
+    private readonly GfsGridFetcher _gfsGrid = new(new HttpClientHandler(), GfsGridFetcher.DefaultRequestTimeout);
     private readonly ArtccAirportResolver _airportResolver = new();
 
     private string? _activeWeatherJson;
+
+    // The GFS grid the active weather JSON names, kept so Save Weather can embed its bytes.
+    private ActiveWindGrid? _activeWindGrid;
     private IReadOnlyList<WeatherDisplayInfo>? _allWeatherInfo;
     private IReadOnlyList<string>? _lastPopulatedMetars;
 
@@ -81,9 +93,10 @@ public partial class MainViewModel
 
     public bool HasActiveWeather => _activeWeatherJson is not null;
 
-    private void SetActiveWeatherJson(string? json)
+    private void SetActiveWeatherJson(string? json, ActiveWindGrid? windGrid)
     {
         _activeWeatherJson = json;
+        _activeWindGrid = windGrid;
         OnPropertyChanged(nameof(ActiveWeatherJson));
         OnPropertyChanged(nameof(HasActiveWeather));
         SaveWeatherCommand.NotifyCanExecuteChanged();
@@ -100,15 +113,16 @@ public partial class MainViewModel
         try
         {
             _log.LogInformation("Loading weather from {Path}", filePath);
-            string json = await File.ReadAllTextAsync(filePath);
-            CommandResultDto result = await _connection.LoadWeatherAsync(json, reconstructMetars: true);
+            string fileJson = await File.ReadAllTextAsync(filePath);
+            PreparedWeather prepared = await PrepareSavedWeatherAsync(fileJson);
+            CommandResultDto result = await _connection.LoadWeatherAsync(prepared.Json, reconstructMetars: true);
 
             if (result.Success)
             {
                 StatusText = result.Message ?? "Weather loaded";
                 string name = Path.GetFileNameWithoutExtension(filePath);
                 _preferences.AddRecentWeather(filePath, name);
-                SetActiveWeatherJson(json);
+                SetActiveWeatherJson(prepared.Json, prepared.WindGrid);
             }
             else
             {
@@ -131,7 +145,8 @@ public partial class MainViewModel
         try
         {
             _log.LogInformation("Loading weather from API: {Name}", displayName);
-            CommandResultDto result = await _connection.LoadWeatherAsync(json, reconstructMetars: true);
+            PreparedWeather prepared = await PrepareSavedWeatherAsync(json);
+            CommandResultDto result = await _connection.LoadWeatherAsync(prepared.Json, reconstructMetars: true);
 
             if (result.Success)
             {
@@ -140,7 +155,7 @@ public partial class MainViewModel
                 {
                     _preferences.AddRecentWeather("", displayName, apiId);
                 }
-                SetActiveWeatherJson(json);
+                SetActiveWeatherJson(prepared.Json, prepared.WindGrid);
             }
             else
             {
@@ -169,7 +184,10 @@ public partial class MainViewModel
                 return;
             }
 
-            WeatherProfile? profile = await _liveWeather.BuildLiveWeatherAsync(artccId, airportIds);
+            DateTime nowUtc = DateTime.UtcNow;
+            using var gridCancel = new CancellationTokenSource();
+            Task<GfsGridFetchResult> gridTask = _gfsGrid.FetchAsync(artccId, nowUtc, gridCancel.Token);
+            WeatherProfile? profile = await BuildLiveWeatherBesideGridAsync(artccId, airportIds, gridTask, gridCancel);
             if (profile is null)
             {
                 StatusText = "Failed to fetch live weather data";
@@ -181,6 +199,8 @@ public partial class MainViewModel
                 AddWarningEntry("Live weather: METARs unavailable — winds aloft only. Altimeter and surface wind will use defaults.");
             }
 
+            ActiveWindGrid? windGrid = await AwaitLiveWindGridAsync(profile, gridTask, nowUtc);
+
             string json = JsonSerializer.Serialize(profile);
             // Live-fetched real METARs are left untouched (no dynamic reconstruction).
             CommandResultDto result = await _connection.LoadWeatherAsync(json, reconstructMetars: false);
@@ -188,7 +208,7 @@ public partial class MainViewModel
             if (result.Success)
             {
                 StatusText = result.Message ?? $"Loaded: {profile.Name}";
-                SetActiveWeatherJson(json);
+                SetActiveWeatherJson(json, windGrid);
             }
             else
             {
@@ -201,6 +221,161 @@ public partial class MainViewModel
             _log.LogError(ex, "Live weather error");
             StatusText = $"Live weather error: {ex.Message}";
         }
+    }
+
+    /// <summary>
+    /// The AWC weather, built while the grid fetch runs. When there is no weather (null or a throw), the grid fetch is cancelled
+    /// and awaited, so its GETs stop and its outcome is logged.
+    /// </summary>
+    private async Task<WeatherProfile?> BuildLiveWeatherBesideGridAsync(
+        string artccId,
+        IReadOnlyList<string> airportIds,
+        Task<GfsGridFetchResult> gridTask,
+        CancellationTokenSource gridCancel
+    )
+    {
+        WeatherProfile? profile;
+        try
+        {
+            profile = await _liveWeather.BuildLiveWeatherAsync(artccId, airportIds);
+        }
+        catch
+        {
+            await StopGridFetchAsync(gridTask, gridCancel);
+            throw;
+        }
+
+        if (profile is null)
+        {
+            await StopGridFetchAsync(gridTask, gridCancel);
+        }
+
+        return profile;
+    }
+
+    private async Task StopGridFetchAsync(Task<GfsGridFetchResult> gridTask, CancellationTokenSource gridCancel)
+    {
+        await gridCancel.CancelAsync();
+        try
+        {
+            GfsGridFetchResult dropped = await gridTask;
+            _log.LogInformation("GFS grid fetch stopped without live weather to go with it ({Outcome})", dropped.FailureReason ?? "fetched");
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "GFS grid fetch faulted");
+        }
+    }
+
+    /// <summary>
+    /// Awaits the grid fetch (showing the GFS status line while it is still running) and, for live-shaped weather, uploads it and
+    /// names it on <paramref name="profile"/>. Other weather drops the bytes without a warning.
+    /// </summary>
+    private async Task<ActiveWindGrid?> AwaitLiveWindGridAsync(WeatherProfile profile, Task<GfsGridFetchResult> gridTask, DateTime nowUtc)
+    {
+        if (!gridTask.IsCompleted)
+        {
+            DateTime cycle = GfsGridFetcher.NewestCycle(nowUtc);
+            StatusText = GfsGridFetcher.FetchingStatus(cycle, GfsGridFetcher.ForecastHour(cycle, nowUtc));
+        }
+
+        GfsGridFetchResult grid = await gridTask;
+        return WindGridRegistry.IsLiveWeather(profile) ? await AttachLiveWindGridAsync(profile, grid) : null;
+    }
+
+    /// <summary>
+    /// Uploads the fetched grid and names it on <paramref name="profile"/>; null (after the GFS warning) when there is none to name.
+    /// </summary>
+    private async Task<ActiveWindGrid?> AttachLiveWindGridAsync(WeatherProfile profile, GfsGridFetchResult grid)
+    {
+        if (grid.Grib2 is not { } grib2)
+        {
+            WarnGfsUnavailable(grid.FailureReason ?? throw new InvalidOperationException("GFS grid fetch returned neither a grid nor a reason"));
+            return null;
+        }
+
+        string? hash = await UploadWindGridAsync(grib2);
+        if (hash is null)
+        {
+            return null;
+        }
+
+        profile.WindGridHash = hash;
+        return new ActiveWindGrid(grib2, hash);
+    }
+
+    /// <summary>
+    /// Readies a saved or API weather JSON for <c>LoadWeather</c>: an embedded grid is uploaded first and its server hash named;
+    /// a grid that is missing, corrupt or refused leaves the JSON naming none, with the GFS warning. The JSON returned never
+    /// carries the embedded bytes.
+    /// </summary>
+    private async Task<PreparedWeather> PrepareSavedWeatherAsync(string json)
+    {
+        SavedWeatherGridExtract extract = SavedWeatherGrid.Extract(json);
+        if (extract.GridMissing)
+        {
+            WarnGfsUnavailable(SavedWeatherGrid.NotInSavedFile);
+            return new PreparedWeather(extract.Json, null);
+        }
+
+        if (extract.Grib2 is not { } grib2)
+        {
+            return new PreparedWeather(extract.Json, null);
+        }
+
+        string? hash = await UploadWindGridAsync(grib2);
+        if (hash is null)
+        {
+            return new PreparedWeather(SavedWeatherGrid.WithHash(extract.Json, null), null);
+        }
+
+        string? savedHash = SavedWeatherGrid.NamedHash(extract.Json);
+        if (!string.Equals(savedHash, hash, StringComparison.Ordinal))
+        {
+            _log.LogWarning(
+                "Saved weather names GFS wind grid {SavedHash}, but the server stored its bytes as {Hash}; using the server's",
+                savedHash,
+                hash
+            );
+        }
+
+        return new PreparedWeather(SavedWeatherGrid.WithHash(extract.Json, hash), new ActiveWindGrid(grib2, hash));
+    }
+
+    /// <summary>Uploads a grid within the client cap; returns the server's hash, or null after the GFS warning.</summary>
+    private async Task<string?> UploadWindGridAsync(byte[] grib2)
+    {
+        if (grib2.Length > GfsGridFetcher.MaxWindGridUploadBytes)
+        {
+            WarnGfsUnavailable(GfsGridFetcher.OverUploadLimit);
+            return null;
+        }
+
+        string hash;
+        try
+        {
+            hash = await _connection.UploadWindGridAsync(grib2);
+        }
+        catch (HubException ex)
+        {
+            WarnGfsUnavailable(GfsGridFetcher.RefusalReason(ex.Message));
+            return null;
+        }
+
+        string localHash = WindGridRegistry.HashOf(grib2);
+        if (!string.Equals(localHash, hash, StringComparison.Ordinal))
+        {
+            _log.LogWarning("GFS wind grid hashed {LocalHash} here but the server returned {Hash}; using the server's", localHash, hash);
+        }
+
+        return hash;
+    }
+
+    private void WarnGfsUnavailable(string reason)
+    {
+        string warning = GfsGridFetcher.WarningText(reason);
+        _log.LogWarning("{Warning}", warning);
+        AddWarningEntry(warning);
     }
 
     private bool CanLoadLiveWeather() =>
@@ -248,7 +423,8 @@ public partial class MainViewModel
 
         try
         {
-            await File.WriteAllTextAsync(path, _activeWeatherJson);
+            string contents = _activeWindGrid is { } windGrid ? SavedWeatherGrid.Embed(_activeWeatherJson, windGrid.Grib2) : _activeWeatherJson;
+            await File.WriteAllTextAsync(path, contents);
             string name = Path.GetFileNameWithoutExtension(path);
             _preferences.AddRecentWeather(path, name);
             StatusText = $"Weather saved: {name}";
@@ -280,12 +456,14 @@ public partial class MainViewModel
 
         if (dto.Name is null)
         {
-            SetActiveWeatherJson(null);
+            SetActiveWeatherJson(null, null);
             ApplyDefaultWeatherIfNoWeather();
         }
         else
         {
-            SetActiveWeatherJson(dto.SourceJson);
+            // The room's weather keeps the grid bytes only while it names the same grid.
+            bool sameGrid = (_activeWindGrid is { } held) && SavedWeatherGrid.NamesGrid(dto.SourceJson, held.Hash);
+            SetActiveWeatherJson(dto.SourceJson, sameGrid ? _activeWindGrid : null);
 
             IReadOnlyList<WeatherDisplayInfo>? allInfo = ExtractAllWeatherDisplay(dto.Metars);
             _allWeatherInfo = allInfo;

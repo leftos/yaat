@@ -48,6 +48,8 @@
     <None Include="..\Yaat.Sim.Tests\TestData\AircraftSpecs.json" Link="TestData\AircraftSpecs.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\Yaat.Sim.Tests\TestData\AircraftCwt.json" Link="TestData\AircraftCwt.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\Yaat.Sim.Tests\TestData\FaaAcd.json" Link="TestData\FaaAcd.json" CopyToOutputDirectory="PreserveNewest" />
+    <!-- Real NOMADS GFS 0.25° subset over ZOA: GfsGridFetcherTests serves it as the fetched grid. -->
+    <None Include="..\Yaat.Sim.Tests\TestData\gfs-zoa-sample.grib2" Link="TestData\gfs-zoa-sample.grib2" CopyToOutputDirectory="PreserveNewest" />
     <!-- Real vNAS data-api ARTCC config. ArtccAirportResolver parses this exact shape to find
          the underlying airports live weather is fetched for; a synthetic stub would not have
          caught the facility-tree nesting that broke it. -->

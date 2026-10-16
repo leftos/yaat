@@ -1500,9 +1500,11 @@ The reported observation reflects the conditions at the moment it was issued and
 
 Live weather builds wind layers from FAA Winds and Temperatures Aloft (FD) data at standard levels (3000–39000 ft) and a surface layer averaged from METARs. Wind directions are converted from true to magnetic heading automatically.
 
+Load Live Weather also downloads a NOAA GFS wind grid (0.25° forecast, newest posted cycle, the forecast hour nearest now) covering your ARTCC from NOMADS and sends it to the room, so winds aloft vary across the ARTCC instead of being one set of layers. The status bar shows the download while it runs. If the grid cannot be had (NOMADS down or slow, no cycle posted, the ARTCC box too large, or the server refusing the grid), the weather still loads with the FD winds aloft and a warning appears in the terminal giving the reason, for example `Live weather: GFS winds unavailable — no GFS cycle posted; using FD winds aloft only.`
+
 **Clear weather:** **Scenario > Clear Weather** removes the active weather profile. All aircraft return to IAS = GS behavior.
 
-**Save weather:** **Scenario > Save Weather As...** exports the active weather profile to a JSON file.
+**Save weather:** **Scenario > Save Weather As...** exports the active weather profile to a JSON file. Live weather saved this way carries its GFS wind grid inside the file, so loading it later sends the same grid to the room and the same winds come back on any server. A file whose grid is missing or damaged loads on its FD winds aloft with the same warning (`grid not in the saved file`).
 
 ### Weather Editor
 

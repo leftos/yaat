@@ -17,6 +17,8 @@ it does not re-derive the equations.
                           ▼                                        ▼
               WeatherTimelineParser.Parse                  BuildLiveWeatherAsync
               (auto-detect v1 vs v2)                       → one WeatherProfile
+                                                           + GfsGridFetcher (NOMADS) → UploadWindGrid
+                                                             → profile.WindGridHash
                   │              │
             v2 Timeline      v1 Profile
                   │              │
@@ -337,16 +339,27 @@ The METAR *string* broadcast to clients (`WeatherChangedDto.Metars`) is reconstr
 `ExtractUnderlyingAirports` **recurses the `facility` / `childFacilities` tree**, collecting
 `starsConfiguration.areas[].underlyingAirports[]` from every STARS facility and deduplicating — a STARS config belongs to a facility
 (each TRACON has its own), never to the document root. IDs are FAA-style (`OAK`); `BuildLiveWeatherAsync` prefixes three-letter IDs
-with `K` before querying (`LiveWeatherService.cs:33`). An empty list short-circuits the command with "No airports found for ARTCC".
+with `K` before querying (`LiveWeatherService.cs:34`). An empty list short-circuits the command with "No airports found for ARTCC".
 
-`LiveWeatherService.BuildLiveWeatherAsync(artccId, airportIds)` (`LiveWeatherService.cs:24`) fetches from `aviationweather.gov` and
+`LiveWeatherService.BuildLiveWeatherAsync(artccId, airportIds)` (`LiveWeatherService.cs:25`) fetches from `aviationweather.gov` and
 assembles one `WeatherProfile`:
 
 - METARs (`/api/data/metar`) and FD winds (`/api/data/windtemp`) are fetched in parallel; returns `null` only if **both** fail.
-- **FD wind layers** (`BuildWindLayersFromFd`): for each altitude level, vector-average the non-light-variable station reports, then **convert TRUE → MAGNETIC** via `MagneticDeclination.TrueToMagnetic` using the ARTCC center as a proxy position (`LiveWeatherService.cs:190`).
+- **FD wind layers** (`BuildWindLayersFromFd`): for each altitude level, vector-average the non-light-variable station reports, then **convert TRUE → MAGNETIC** via `MagneticDeclination.TrueToMagnetic` using the ARTCC center as a proxy position (`LiveWeatherService.cs:223`).
 - **Surface wind from METAR** (`BuildSurfaceWindLayer`): vector-averaged METAR winds inserted as an `Altitude = 0` layer, converted **TRUE → MAGNETIC** via the ARTCC-center declination like the FD layers (METAR text winds are true per AIM 7-1-28; only ATIS/ASOS voice is magnetic). VRB stations contribute speed only (all-VRB → a `Variable` layer); gusts and dddVddd spreads are mined from each station's raw text.
-- `GetArtccCenter(artccId)` (`LiveWeatherService.cs:253`) is a hand-maintained ARTCC → primary-airport table used purely as a declination proxy; unknown ARTCC falls back to mid-CONUS `(39.0, −98.0)`.
+- `GetArtccCenter(artccId)` (`LiveWeatherService.cs:353`) is a hand-maintained ARTCC → primary-airport table used purely as a declination proxy; unknown ARTCC falls back to mid-CONUS `(39.0, −98.0)`.
 - `FdRegionMapping.GetRegion(artccId)` (`FdRegionMapping.cs`) is a separate hand-maintained ARTCC → FD-region table (`bos`/`mia`/`chi`/`dfw`/`slc`/`sfo`/`alaska`); an unmapped ARTCC disables the FD fetch and the profile has no winds-aloft layers.
+
+### GFS grid fetch and upload
+
+`MainViewModel.LoadLiveWeatherAsync` starts `GfsGridFetcher.FetchAsync(artccId, nowUtc, …)` before `BuildLiveWeatherAsync` and awaits it after, so the NOMADS GET runs beside the AWC calls (cancelled, and its outcome logged, when there is no weather to go with it). The status line reads "Fetching GFS winds aloft (HHZ fFFF)..." while it is still running.
+
+- **Request**: the NOMADS GRIB filter (`filter_gfs_0p25.pl`) for UGRD, VGRD and TMP on the 20 isobaric levels `Grib2Reader` expects, over the ARTCC boundary's extremes (`ArtccBoundaryDatabase.Default.FindById`) plus `GfsGridFetcher.BoxMarginDeg` (1.5°), at least 2° × 2°, rounded outward to whole degrees, longitudes in the grid's 0–360 convention.
+- **Cycle**: `NewestCycle` is the latest 00/06/12/18Z cycle at least 3.5 h old; the forecast hour is the one nearest now, clamped to 0..120. A 404 means not posted yet and steps back 6 h (`StepBack`), three cycles in all; any other status, timeout or connection error ends the fetch as `RequestFailed`. Each GET and its body read share the 20 s request timeout.
+- **Size**: the response is read only up to `MaxWindGridUploadBytes` (512 KB, the server's cap, restated because the client cannot reference it). A box whose estimated size (`EstimatedBytes`: 0.25° points × 60 messages × 1.3 bytes, the ratio measured on the ZOA sample) passes the cap, or that spans more than 180° of longitude (ZAN), is refused before any request as `BoxTooLarge`.
+- **Upload**: only a live-shaped profile (`WindGridRegistry.IsLiveWeather`) uses the grid. `ServerConnection.UploadWindGridAsync` sends the bytes, the returned hash goes to `profile.WindGridHash`, and the usual `LoadWeather` follows (the hub consumes the pending upload). The client compares the returned hash with `WindGridRegistry.HashOf` and logs a mismatch, using the server's.
+- **Failure**: every failure (no boundary, box too large, no cycle posted, request failed, over the upload limit, a `HubException` refusal whose server text becomes the reason) leaves `WindGridHash` null and the weather loads on the FD layers, with one terminal warning from `GfsGridFetcher.WarningText`: "Live weather: GFS winds unavailable — {reason}; using FD winds aloft only."
+- **Saved files**: `MainViewModel` keeps the uploaded bytes beside the active weather JSON (`ActiveWindGrid`). Save Weather writes them through `SavedWeatherGrid.Embed` as a base64 `windGridGrib2` beside `windGridHash`. Loading a file or API weather runs `PrepareSavedWeatherAsync`: `SavedWeatherGrid.Extract` pulls the bytes out (the JSON sent never carries them), they are re-uploaded, and the server's hash replaces the file's. A file naming a hash with no usable bytes has the hash stripped and warns with the reason `grid not in the saved file`. A room weather echo keeps the held bytes only while it names the same hash.
 
 ## Direction & units convention cheat-sheet
 
@@ -359,7 +372,7 @@ The single most error-prone area. Memorize this before touching any wind value.
 | `GriddedWindSample.DirectionTrueDeg` (`GriddedWindField.SampleColumn`) | FROM | **True** (derived from U/V) | ISA pressure altitude, feet | `Weather/GriddedWindField.cs` |
 | `WindAtLevel.DirectionTrue` (FD parser) | FROM | **True** | feet (level) | `WindsAloftParser.cs:4` |
 | METAR text wind | FROM | **True** (AIM 7-1-28; converted to magnetic when building the surface layer) | surface | `LiveWeatherService.BuildSurfaceWindLayer` |
-| FD-derived layer (after `BuildWindLayersFromFd`) | FROM | Magnetic (converted via ARTCC-center declination) | feet MSL | `LiveWeatherService.cs:190` |
+| FD-derived layer (after `BuildWindLayersFromFd`) | FROM | Magnetic (converted via ARTCC-center declination) | feet MSL | `LiveWeatherService.cs:223` |
 | `GetWindComponents` output | **TOWARD** (FROM `+180°`) | matches input | — | `WindInterpolator.GetWindComponents` |
 | Cloud layer base (`CloudLayer.BaseFeetAgl`) | — | — | feet **AGL** (hundreds in METAR) | `MetarParser.cs:15` |
 
@@ -388,6 +401,8 @@ The behaviors above already have regression coverage — find the right harness 
 | `tests/Yaat.Sim.Tests/LiveTraffic/LiveTrafficKinematicsTests.cs` | shadow `Advance` / `Resync`, including `ShadowWind_IsTheGridWindAtItsPosition`. |
 | `tests/Yaat.Sim.Tests/MagneticDeclinationTests.cs` | WMM declination values, true↔magnetic round-trips. |
 | `tests/Yaat.Client.Tests/LiveWeatherServiceTests.cs`, `LiveWeatherRealDataTests.cs` | live fetch assembly, FD→magnetic conversion, surface-wind layer. |
+| `tests/Yaat.Client.Tests/GfsGridFetcherTests.cs` | the NOMADS URL against the sample's, cycle choice and step-back across midnight, forecast-hour rounding and clamps, the ZOA box, the 180° and size-estimate refusals, and `FetchAsync` over a stub handler (404 step-back, server error, over-cap body, stalled and reset bodies, unknown ARTCC, ZAN with no request). |
+| `tests/Yaat.Client.Tests/SavedWeatherGridTests.cs` | `SavedWeatherGrid` embed/extract round trip, a hash without bytes or corrupt base64 stripping the hash, `NamedHash`/`NamesGrid`/`WithHash`, and the weather editor dropping both grid fields. |
 | `tests/Yaat.Client.Tests/ArtccAirportResolverTests.cs` | underlying-airport extraction from the real ZOA data-api config (facility-tree recursion, dedup). |
 
 ## Footguns
@@ -401,10 +416,10 @@ The behaviors above already have regression coverage — find the right harness 
 - **`VV` is a synthetic OVC layer.** `MetarParser` injects vertical-visibility / indefinite-ceiling as an `Overcast` `CloudLayer` (`MetarParser.cs:245`) so multi-layer obstruction logic treats it uniformly. It is not an OVC token in the raw METAR — don't expect it to round-trip back to `VV`.
 - **`DeclinationCachePosition` is snapshotted** (`AircraftSnapshotDto.DeclinationCachePosition`), so a restored aircraft keeps the position its `Declination` was computed at and recomputes where the original did. It is `null` only for an aircraft whose cache was cold, or from a snapshot written before the field existed. Looping `ReplayFromStartTo(t)` — which resets to `t=0` every call — is still wrong for a declination check; use `FastForwardTo(target, …)` to advance from current state.
 - **`ParsedMetarOverrides` is `[JsonIgnore]`** (`WeatherProfile.cs:59`) and only populated by `WeatherTimeline.GetWeatherAt` during a transition window; `GetWeatherForAirport` checks it before its own cache (`WeatherProfile.cs:68`). After a snapshot round-trip mid-transition the overrides are gone and ceilings/visibility revert to parsing the raw METAR text — a subtle replay divergence to watch for if interpolated weather "jumps" on restore.
-- **`WindGrid` is `[JsonIgnore]`; the weather text carries `WindGridHash` and `WindGridRegistry.Attach` resolves it.** A hash whose grid is not registered, or on weather that is not live weather, flies the layer path with only a log warning. A profile rebuilt from a weather timeline carries no grid.
+- **`WindGrid` is `[JsonIgnore]`; the weather text carries `WindGridHash` and `WindGridRegistry.Attach` resolves it.** A hash whose grid is not registered, or on weather that is not live weather, flies the layer path with only a log warning. A saved weather file therefore embeds the grid bytes (`windGridGrib2`) and Load Weather re-uploads them, because a bare hash would load silently on the FD layers on any server that no longer holds the grid; a file with a hash and no usable bytes is stripped client-side and warns. A profile rebuilt from a weather timeline carries no grid.
 - **Position-aware and layer-0 readers must not be mixed up.** Airborne consumers sample at their position; the ground, the exits-ahead touchdown forecast, approach-speed additives, runway-in-use and `WindObservation` read layer 0. A new wind reader picks one deliberately (see the Task Index row "Make a wind consumer position-aware or add a wind reader").
 - **The WMM epoch is fixed at process start** (`MagneticDeclination.cs:20`). A long-lived process whose date passes the newest bundled epoch clamps to the last valid day; declination will not track the calendar past that point.
-- **`GetArtccCenter` and `FdRegionMapping` are hand-maintained tables** (`LiveWeatherService.cs:253`, `FdRegionMapping.cs:9`). An ARTCC missing from `FdRegionMapping` silently disables FD winds; one missing from `GetArtccCenter` falls back to mid-CONUS `(39, −98)` for the declination proxy, skewing the TRUE→MAGNETIC conversion of FD winds.
+- **`GetArtccCenter` and `FdRegionMapping` are hand-maintained tables** (`LiveWeatherService.cs:353`, `FdRegionMapping.cs:9`). An ARTCC missing from `FdRegionMapping` silently disables FD winds; one missing from `GetArtccCenter` falls back to mid-CONUS `(39, −98)` for the declination proxy, skewing the TRUE→MAGNETIC conversion of FD winds.
 - **The mean/instantaneous split is load-bearing.** `WindLayer.Direction/Speed` stay the authored MEAN; the instantaneous wind exists only at the `GetWindAt` output. Reporting (`MetarIssuer`), SPECI decisions, runway selection, crosswind limits, and any approach-stability gate must read the mean (or the observed 2-minute mean via `WindObservation`) — never the instantaneous value, which wobbles by design.
 - **Weather lives in two places, and a scenario reload only rebuilds one.** `TrainingRoom.Weather` / `TrainingRoom.WeatherSourceJson` are room-scoped and survive anything; `World.Weather`, `SimScenarioState.WeatherTimeline`, and `MetarIssuer` belong to the engine, which a restart or rewind throws away.
 
