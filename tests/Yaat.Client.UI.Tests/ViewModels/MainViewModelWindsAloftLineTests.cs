@@ -8,6 +8,7 @@ using Yaat.Client.UI.Tests.Fakes;
 using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views;
+using Yaat.Sim.Weather;
 
 namespace Yaat.Client.UI.Tests.ViewModels;
 
@@ -158,7 +159,7 @@ public class MainViewModelWindsAloftLineTests
     public async Task SavedLoadWithoutFdLayers_GridOverTheUploadLimit_WarnsMetarSurfaceWindsOnly()
     {
         var vm = new MainViewModel(new FakeFilePickerService());
-        string json = SavedWeatherGrid.Embed(SurfaceOnlyJson, new byte[GfsGridFetcher.MaxWindGridUploadBytes + 1]);
+        string json = SavedWeatherGrid.Embed(SurfaceOnlyJson, new byte[WindGridRegistry.MaxGridBytes + 1]);
 
         await vm.PrepareSavedWeatherAsync(json);
 
