@@ -4,8 +4,12 @@
 
 ## Do first
 
-- [ ] YAAT-786 Make MainViewModelBugBundleTests independent of the navigation-data load's status text (red CI on main at 5f8719410) · release vNext — Urgent · Backlog
-- [ ] YAAT-640 Vary live winds aloft across the airspace from a NOAA GFS grid · release vNext — High · Bug reports and feature requests
+- [/] YAAT-786 Make MainViewModelBugBundleTests independent of the navigation-data load's status text (red CI on main at 5f8719410) · release vNext — Urgent · Backlog
+- [/] YAAT-640 Vary live winds aloft across the airspace from a NOAA GFS grid · release vNext — High · Bug reports and feature requests
+- [!] YAAT-671 GFS winds part 1: decode a NOMADS GRIB2 subset into a gridded wind field · release vNext — High · Bug reports and feature requests
+- [!] YAAT-672 GFS winds part 2: sample wind by position for airborne aircraft · release vNext — High · Bug reports and feature requests
+- [!] YAAT-673 GFS winds part 3: fetch the grid in the client and record it once by hash · release vNext — High · Bug reports and feature requests
+- [!] YAAT-674 GFS winds part 4: show the grid source in the weather status and document it · release vNext — High · Bug reports and feature requests
 
 ## GFS winds (feat/gfs-winds)
 
@@ -34,13 +38,14 @@
   - [!] YAAT-539 vTBFM: follow each user's chosen YAAT room (contributed PR) · release vNext+1
   - [ ] YAAT-780 Keep the GFS grid when a member who did not load the weather saves it · release vNext
   - [ ] YAAT-781 Cap the wind grids a recording import registers, by count and decompressed size · release vNext
-  - [ ] YAAT-782 Refuse a GRIB2 grid that decodes to non-finite winds · release vNext
+  - [/] YAAT-782 Refuse a GRIB2 grid that decodes to non-finite winds · release vNext
   - [ ] YAAT-783 Fix the saved-grid FD wording, the showcase scene's wind direction and the guide's grid wording · release vNext
 - [ ] YAAT-613 Rebuild a queued wrong-side crossing when the pattern altitude changes before it starts
 - [ ] YAAT-616 Carry a deferred pattern altitude into a FOLLOW join on the armed runway
 - [ ] YAAT-624 Find why a solo pilot reports traffic in sight minutes after the traffic call
 - [ ] YAAT-754 Restore the recorded weather on a rewind after the room's weather was cleared
 - [ ] YAAT-757 Share the wind-grid archive helpers and tidy the checkpoint restore
+- [!] YAAT-769 Set a room's weather JSON before broadcasting WeatherChanged, so other members get the new weather · release vNext
 
 ## Say again
 
@@ -235,6 +240,7 @@
 - [ ] YAAT-678 Refuse a snapshot restore into an engine with no scenario
 - [ ] YAAT-726 Bug bundle's rebuilt replay sends landed arrivals around (N462NX, FDX109)
 - [ ] YAAT-774 Broadcast WeatherChanged at the end of a rewind so clients show the rewound weather
+- [ ] YAAT-787 Cap the LoadRecording upload's total size and the recording archive's other decompressed entries
 
 ## Wave 5 — Command queue and dispatch architecture
 
