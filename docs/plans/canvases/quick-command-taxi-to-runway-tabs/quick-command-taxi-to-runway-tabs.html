@@ -1,0 +1,812 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Taxi To Runway Tabs</title>
+<style>
+  /* Layout: one artboard per open question; a header (question, situation, the aircraft menu with its strip) over lanes A, B (and C). */
+  :root {
+    --bg: #eceff2; --panel: #ffffff; --ink: #15181c; --muted: #58616c; --line: #d3d8de;
+    --accent: #2c5fa6; --tag-a: #1f7f71; --tag-b: #7a4fbf; --tag-c: #9a5a12; --warn: #a3520a;
+    --f-display: "IBM Plex Sans Condensed", "Arial Narrow", "Segoe UI", system-ui, sans-serif;
+    --f-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+    --f-mono: "IBM Plex Mono", "JetBrains Mono", Consolas, monospace;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0e1013; --panel: #171a1f; --ink: #e5e8ec; --muted: #9aa3ae; --line: #2b3038;
+      --accent: #8fc1ff; --tag-a: #5fd0bf; --tag-b: #c4a3ff; --tag-c: #ffb259; --warn: #ffb259;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0e1013; --panel: #171a1f; --ink: #e5e8ec; --muted: #9aa3ae; --line: #2b3038;
+    --accent: #8fc1ff; --tag-a: #5fd0bf; --tag-b: #c4a3ff; --tag-c: #ffb259; --warn: #ffb259;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html, body { overflow-x: hidden; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.5 var(--f-body); }
+  .wrap { max-width: 1720px; margin: 0 auto; padding-inline: 16px; padding-block: 28px 64px; }
+  h1 { font: 600 30px/1.15 var(--f-display); margin: 0 0 8px; text-wrap: balance; letter-spacing: -.01em; }
+  .lede { max-width: 84ch; color: var(--muted); margin: 0 0 6px; }
+  .lede b { color: var(--ink); font-weight: 600; }
+  .lede code, .cap code, .art-meta code, footer code, .keys code { font: 12px var(--f-mono); color: var(--accent); white-space: nowrap; }
+  .eyebrow { font: 500 11px var(--f-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+  nav.index { display: flex; flex-wrap: wrap; gap: 6px; margin: 16px 0 28px; }
+  nav.index a { font: 500 12px var(--f-mono); color: var(--ink); text-decoration: none; border: 1px solid var(--line); background: var(--panel);
+                border-radius: 4px; padding: 4px 9px; }
+  nav.index a:hover, nav.index a:focus-visible { border-color: var(--accent); outline: none; }
+
+  .art { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 18px; margin-bottom: 28px; scroll-margin-top: 12px; }
+  .art-head { display: flex; flex-wrap: wrap; gap: 16px 28px; align-items: flex-start; justify-content: space-between; margin-bottom: 16px; }
+  .art-meta { flex: 1 1 420px; min-width: 0; }
+  .art-meta h2 { font: 600 22px/1.2 var(--f-display); margin: 0 0 4px; text-wrap: balance; }
+  .art-meta .sends { font: 12px var(--f-mono); color: var(--accent); margin-bottom: 8px; }
+  .art-meta p { margin: 0 0 6px; max-width: 80ch; color: var(--muted); }
+  .art-meta p b { color: var(--ink); font-weight: 600; }
+
+  .lanes { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 520px), 1fr)); gap: 16px; align-items: start; }
+  .lanes.wide { grid-template-columns: repeat(auto-fit, minmax(min(100%, 760px), 1fr)); }
+  .lanes.stack { grid-template-columns: minmax(0, 1fr); }
+  .lane { min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+  .lane-h { display: flex; align-items: baseline; gap: 8px; }
+  .tag { font: 600 11px var(--f-mono); letter-spacing: .06em; text-transform: uppercase; border: 1px solid currentColor; border-radius: 3px; padding: 0 5px; }
+  .tag.a { color: var(--tag-a); } .tag.b { color: var(--tag-b); } .tag.c { color: var(--tag-c); }
+  .rec { font: 500 11px var(--f-mono); color: var(--tag-a); }
+  .lane-h h3 { font: 600 15px/1.25 var(--f-display); margin: 0; }
+  .sent { font-size: 12px; color: var(--muted); min-height: 18px; border-top: 1px dashed var(--line); padding-top: 6px; }
+  .sent code { font: 12px var(--f-mono); color: var(--accent); }
+  .cap { margin: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 10px; font-size: 13px; }
+  .cap dt { font: 500 11px var(--f-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); padding-top: 2px; white-space: nowrap; }
+  .cap dd { margin: 0; }
+  .cap dd.worst { color: var(--warn); }
+  .keys { margin: 0; font-size: 12.5px; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 3px 10px; }
+  .keys dt { white-space: nowrap; }
+  .keys dd { margin: 0; color: var(--muted); }
+  kbd { font: 11px var(--f-mono); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 3px; padding: 0 4px; background: var(--bg); color: var(--ink); }
+  footer.foot { color: var(--muted); font-size: 12px; margin-top: 18px; max-width: 96ch; }
+
+  /* The app's own surfaces: YAAT runs Avalonia Fluent in dark only, so these stay dark in either page theme. */
+  .stage { background: #0b0d10; border: 1px solid #22262c; border-radius: 8px; padding: 14px; overflow-x: auto; color-scheme: dark;
+           display: flex; flex-direction: column; gap: 16px; }
+  .stub-stage { flex: 0 0 auto; padding: 12px; }
+  .frame { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .flabel { font: 500 11px "JetBrains Mono", Consolas, monospace; color: #a4adb8; letter-spacing: .02em; }
+  .flabel b { color: #e4e7eb; font-weight: 400; }
+  .flabel .mw { color: #ffc062; }
+  .flabel .mw.ok { color: #6ee0ce; }
+  .pair { display: flex; gap: 12px; align-items: flex-start; }
+  .cascade { display: flex; align-items: flex-start; width: max-content; }
+  .cascade > .menu + .menu, .cascade > .menu + div { margin-left: -4px; }
+  .m { font: 14px/1.3 Inter, "Segoe UI", system-ui, sans-serif; color: #ffffff; }
+  .menu { background: #2c2c2c; border: 1px solid #474747; border-radius: 8px; padding: 4px; box-shadow: 0 10px 28px rgba(0, 0, 0, .55);
+          width: max-content; min-width: 190px; max-width: 480px; position: relative; }
+  .menu.w { width: 480px; max-width: 100%; }
+  .menu.uncapped { max-width: none; width: max-content; }
+  .fly:focus { outline: none; }
+  .fly:focus-visible { box-shadow: 0 0 0 2px #8fc1ff, 0 10px 28px rgba(0, 0, 0, .55); }
+  .mi { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; min-height: 32px; padding: 5px 11px;
+        border-radius: 4px; cursor: default; position: relative; }
+  .mi[data-send] { cursor: pointer; }
+  .mi[data-send]:hover, .mi.hot { background: rgba(255, 255, 255, .085); }
+  .mi.kfocus { outline: 2px solid #8fc1ff; outline-offset: -2px; background: rgba(255, 255, 255, .085); }
+  .mi.plain { grid-template-columns: minmax(0, 1fr) auto; }
+  .mi.faint { opacity: .55; }
+  .mi.dis { opacity: .45; cursor: default; }
+  .mi.title { grid-template-columns: minmax(0, 1fr) auto; min-height: 24px; padding-top: 7px; padding-bottom: 1px; font-size: 11.5px; color: #a4adb8; }
+  .mi.title .r { font: 11.5px Inter, "Segoe UI", sans-serif; color: #a4adb8; font-variant-numeric: tabular-nums; padding-left: 12px; white-space: nowrap; }
+  .mi.title .et { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .mi.title .et b { color: #e4e7eb; font-size: 12.5px; font-weight: 600; }
+  .mi.title.hi .et b, .mi.title.hi .r { font-weight: 700; color: #ffffff; }
+  .msep { height: 1px; background: #3d3d3d; margin: 4px 2px; }
+  .chev { color: #b9bfc6; padding-left: 10px; font-size: 15px; }
+  .gly { flex: 0 0 auto; display: block; margin-right: 8px; }
+  .bdg { border: 1px solid #E8A33D; color: #E8A33D; border-radius: 3px; padding: 0 3px; font-size: 10.5px; line-height: 14px; margin-right: 6px; }
+  .nm { min-width: 0; display: flex; align-items: baseline; flex-wrap: nowrap; gap: 0 4px; overflow: hidden; }
+  .nm .n { white-space: nowrap; flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; }
+  .nm.col { flex-direction: column; align-items: flex-start; overflow: hidden; }
+  .cmd { padding-left: 16px; font: 12px "JetBrains Mono", Consolas, monospace; opacity: .7; text-align: right; white-space: nowrap; }
+  .cmd.trim { max-width: 180px; overflow: hidden; text-overflow: ellipsis; }
+  .cmd2 { font: 11.5px "JetBrains Mono", Consolas, monospace; color: #b8c0c9; white-space: nowrap; }
+  .pending { display: flex; align-items: center; gap: 8px; color: #a4adb8; font-size: 12.5px; padding: 8px 11px; min-height: 32px; }
+  .spin { width: 12px; height: 12px; border: 2px solid #4a4f57; border-top-color: #8fc1ff; border-radius: 50%; animation: spin 1s linear infinite; flex: 0 0 auto; }
+  .spin.sm { width: 9px; height: 9px; border-width: 1.5px; margin-left: 5px; display: inline-block; vertical-align: -1px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .spin { animation: none; } }
+
+  /* Tabs inside a flyout, as the first-batch lane B draws them. */
+  .tabs { display: flex; flex-wrap: wrap; gap: 4px; padding: 6px 8px 8px; border-bottom: 1px solid #3d3d3d; margin-bottom: 2px; position: relative; }
+  .tabs.nowrap { flex-wrap: nowrap; }
+  .tab { font: 12px "JetBrains Mono", Consolas, monospace; color: #e4e7eb; background: #23272c; border: 1px solid #3a414b; border-radius: 4px;
+         padding: 3px 8px; cursor: pointer; white-space: nowrap; flex: 0 0 auto; }
+  .tab small { font: 10.5px Inter, "Segoe UI", sans-serif; color: #9aa3ad; margin-left: 4px; }
+  .tab[aria-selected="true"] { background: #24406a; border-color: #4a6fa5; }
+  .tab:hover, .tab.hot { background: #2e343b; }
+  .tab[aria-selected="true"]:hover { background: #2a4b7a; }
+  .tab.kfocus { outline: 2px solid #8fc1ff; outline-offset: 1px; }
+  .tab.empty { opacity: .45; }
+  .tab.empty small { font-style: italic; }
+  .tab.gone { visibility: hidden; }
+  .tabs .buf { position: absolute; right: 8px; top: 8px; font: 11px "JetBrains Mono", Consolas, monospace; color: #ffc062; border: 1px dashed #5a4a2a;
+               border-radius: 3px; padding: 0 4px; pointer-events: none; }
+  .tscroll { display: flex; align-items: center; gap: 2px; padding: 6px 4px 8px; border-bottom: 1px solid #3d3d3d; margin-bottom: 2px; }
+  .tscroll .strip { flex: 1 1 auto; min-width: 0; display: flex; gap: 4px; overflow: hidden; scroll-behavior: smooth; }
+  .arrow { font: 13px Inter, "Segoe UI", sans-serif; color: #e4e7eb; background: transparent; border: 1px solid transparent; border-radius: 4px; width: 20px; height: 24px;
+           cursor: pointer; flex: 0 0 auto; padding: 0; }
+  .arrow:hover { background: #2e343b; border-color: #3a414b; }
+  .arrow[disabled] { opacity: .3; cursor: default; background: transparent; border-color: transparent; }
+  .morelist { position: absolute; z-index: 7; top: calc(100% - 4px); right: 8px; }
+  .morelist .menu { min-width: 120px; }
+
+  /* Mock-only annotations: the pointer, the dashed notes. */
+  .cursor { position: absolute; width: 18px; height: 24px; pointer-events: none; z-index: 5; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .6)); }
+  .callout { max-width: 480px; font: 11.5px/1.4 Inter, "Segoe UI", sans-serif; color: #ffffff; background: #1d1f23; border: 1px dashed #ffc062; border-radius: 4px;
+             padding: 5px 8px; }
+  .callout b { color: #ffc062; font-weight: 600; }
+  .callout.calm { border-color: #5fd0bf; }
+  .callout.calm b { color: #6ee0ce; }
+  .elide { font: 11.5px Inter, "Segoe UI", sans-serif; color: #8c95a0; padding: 6px 11px; font-style: italic; }
+
+  /* Ground scope inset. */
+  .scope { width: 236px; flex: 0 0 auto; display: flex; flex-direction: column; gap: 4px; }
+  .scope svg { display: block; width: 100%; height: auto; background: #050607; border: 1px solid #22262c; border-radius: 4px; }
+  .sc-cap { font: 11px Inter, "Segoe UI", sans-serif; color: #a4adb8; }
+
+  /* The aircraft menu stub: title, state line, the strip (no label row, per YAAT-545). */
+  .mtitle { font-weight: 700; padding: 6px 11px 0; }
+  .mstate { font-size: 11px; opacity: .8; padding: 2px 11px 6px; }
+  .strip { display: grid; grid-template-columns: repeat(5, 40px); gap: 6px; padding: 6px 11px; }
+  .cell { width: 40px; height: 40px; border-radius: 4px; background: #1f2226; display: grid; place-items: center; position: relative; }
+  .cell.latched { background: #24406a; }
+  .cell .gly { margin: 0; }
+  .cell .notch { position: absolute; right: 3px; bottom: 3px; width: 0; height: 0; border-left: 6px solid transparent; border-bottom: 6px solid #9aa3ad; }
+
+  @media (max-width: 520px) {
+    h1 { font-size: 24px; }
+    .art { padding: 12px; }
+    .stage { padding: 10px; }
+    .pair { flex-direction: column; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="eyebrow">YAAT-569 · brief X2b · Taxi to runway · mock for the owner's feedback</div>
+  <h1>Taxi to runway tabs: five open choices</h1>
+  <p class="lede">Every lane draws the settled first-batch <b>lane B</b>: a tab per runway end (the assigned end, then the room's departure ends, then the rest in runway order), the chosen end's entries as titles (RW badge, name, reason, runway left ahead, via, distance), and every variant its own glyph row with the command it sends. Variant labels shorten “For Departure 30” to “Departure 30” as the first-batch drawing does. Each artboard asks one open question; the first lane is the one this mock recommends.</p>
+  <p class="lede">Data is real: <b>UAL455</b>, A320 (7,185 ft takeoff distance in <code>AircraftProfiles.json</code>), at KOAK gate 25 and KSFO gate F12, on the bundled layouts (<code>oak.geojson</code>, <code>sfo.geojson</code>). Entries follow <code>GroundViewModel.EntryRowsFor</code>'s rules (full-length bar within 300 ft of the threshold, intersections leaving at least the takeoff distance, opposite-threshold bars left out, crossings named by the crossed runway's first end, so KSFO's 28L is “10R”). Routes and distances come from a shortest path over the layout's centrelines measured for this mock, not from the client's pathfinder, so a via or a distance can differ from what YAAT offers by a taxiway or a few hundred feet. Click rows and tabs; Q1's flyouts take the keyboard.</p>
+  <nav class="index" id="index" aria-label="Questions"></nav>
+  <div id="arts"></div>
+  <footer class="foot">Row templates follow the first-batch mock (<code>docs/plans/canvases/quick-command-flyouts/</code>, Taxi to runway lane B) and <code>MenuCommandRow.cs</code> / <code>MenuGlyphRow.cs</code>: Inter text, commands in JetBrains Mono at 70%, the Taxi to runway glyph at 22 px in the ground colour, RW badges outlined in #E8A33D, the Fluent dark menu surface, the 480 px cap of <code>MenuCommandRow.InlineRowMaxWidth</code>. The page loads no web fonts, so it draws in Segoe UI and Consolas where Inter and JetBrains Mono are not installed, and the measured widths are those of the fonts it drew with. The pointer, the dashed notes and the measured-width labels are mock annotations, not app UI. The spinner delays (about a second) are mock timing; the real search time is unmeasured.</footer>
+</div>
+
+<script>
+(() => {
+  "use strict";
+  const OAK_SCOPE = {"w":6053,"h":9518,"tw":[["W","M2671 8039 L1594 7131 L-241 5585 L-612 5272 L-1237 4746 L-2004 4099 L-2443 3729 L-2964 3290 L-3011 3252 L-3046 3228 L-3091 3201 L-4105 2583 L-4129 2567 L-4152 2549 L-4483 2271",[-2964,3290]],["W1","M2672 8039 L2704 8066 L2726 8085 L2751 8113 L2770 8143 L2782 8169 L2798 8213 L2918 8546 L2925 8579 L2926 8613 L2925 8640 L2918 8676 L2906 8708 L2893 8731 L2873 8759 L2694 8971",[2925,8579]],["W2","M2672 8039 L2683 8053 L2693 8069 L2704 8092 L2709 8120 L2708 8146 L2703 8173 L2688 8203 L2658 8241 L2494 8438 L2315 8651",[2708,8146]],["W3","M1595 7132 L1572 7156 L1548 7179 L1525 7197 L1498 7215 L1464 7233 L1437 7245 L1402 7258 L1363 7267 L1328 7272 L1290 7273 L1241 7271 L1155 7263 L1096 7256 L1030 7244 L505 7126",[1363,7267]],["W4","M-612 5272 L-634 5292 L-652 5312 L-668 5334 L-690 5369 L-704 5394 L-718 5427 L-728 5456 L-735 5482 L-740 5509 L-744 5547 L-745 5576 L-743 5604 L-739 5637 L-730 5680 L-704 5761 L-499 6280",[-735,5482]],["W5","M-1961 5049 L-2133 4616 L-2162 4541 L-2180 4487 L-2193 4443 L-2211 4379 L-2230 4295 L-2239 4253 L-2240 4227 L-2239 4201 L-2235 4181 L-2225 4158 L-2210 4133 L-2192 4112 L-2170 4096 L-2145 4085 L-2118 4077 L-2091 4074 L-2063 4076 L-2035 4084 L-2004 4099",[-2235,4181]],["V","M-612 5272 L42 4689 L72 4666 L103 4650 L140 4638 L174 4632 L216 4632 L254 4638 L296 4652 L333 4674 L442 4767",[174,4632]],["U","M1594 7131 L1682 7027 L1752 6943 L2096 6531 L2195 6413 L2262 6326",[2096,6531]],["T","M442 4766 L567 4871 L725 5003 L920 5168 L1109 5328 L1169 5379 L1266 5461 L1423 5592 L1452 5616 L1471 5633 L1482 5647 L1508 5681 L1586 5784 L1619 5830 L1635 5851 L1652 5868 L1743 5937 L1845 6013 L1924 6072 L1981 6115 L2063 6177 L2126 6224 L2262 6327",[1508,5681]],["B","M-240 5585 L342 4887 L357 4870 L424 4788 L442 4767 L564 4658 L666 4568 L781 4466 L911 4350 L1077 4202 L1223 4072 L1561 3771 L2094 3296 L2312 3102 L2419 3007 L2633 2817 L3178 2332 L3216 2302 L3250 2279 L3296 2254 L3342 2235 L3387 2217 L4192 1900 L4866 1635 L4912 1616 L4951 1595 L4988 1561 L5017 1522 L5034 1486 L5063 1417 L5092 1346 L5158 1184 L5265 921 L5343 724 L5437 491 L5531 258 L5538 238 L5538 208 L5527 175 L5511 153 L5485 133",[3342,2235]],["S","M1560 3771 L1759 3994 L1884 4136 L1979 4244 L2027 4298 L2064 4339 L2080 4363 L2090 4388 L2097 4415 L2098 4447 L2092 4480 L2075 4514 L1937 4700 L1917 4728 L1905 4763 L1900 4797 L1903 4828 L1953 5027 L1956 5060 L1952 5093 L1939 5128 L1922 5153 L1885 5202 L1781 5345 L1742 5397 L1645 5528 L1614 5570 L1508 5681",[1905,4763]],["S1","M920 5168 L1061 4995 L1121 4923 L1143 4902 L1166 4891 L1191 4885 L1219 4887 L1250 4899 L1273 4917 L1413 5035 L1519 5124 L1630 5217 L1781 5345",[1219,4887]],["TC","M2853 5535 L2841 5580 L2794 5626 L2759 5660 L2673 5776 L2658 5797 L2615 5853 L2572 5911 L2425 6109 L2400 6143 L2262 6327",[2658,5797]],["TE","M3130 5750 L3001 5772 L2923 5771 L2832 5892 L2749 6004 L2637 6156 L2556 6263 L2515 6318 L2498 6336 L2471 6354 L2438 6367 L2384 6372 L2355 6373 L2315 6362 L2288 6346 L2262 6327",[2498,6336]],["R","M2419 3007 L2359 2879 L2337 2822 L2327 2786 L2326 2744 L2333 2701 L2349 2658 L2369 2622 L2406 2586 L2576 2434 L2717 2309 L2747 2288 L2782 2269 L2828 2253 L2866 2244 L2917 2239 L2970 2244 L3028 2258 L3089 2278 L3178 2332",[2717,2309]],["R1","M1709 2104 L1759 2045 L1809 1986 L1905 1872 L1981 1935 L2129 2060 L2256 2168 L2408 2295 L2576 2434",[1981,1935]],["B1","M3178 2332 L3299 2444 L3610 2736 L3630 2751 L3652 2762 L3676 2766 L3701 2765 L3720 2759 L3742 2745 L3779 2721 L3910 2631 L4039 2544 L4065 2526 L4089 2510 L4107 2504 L4130 2502 L4154 2503 L4177 2512 L4196 2525 L4244 2579 L4273 2612",[3910,2631]],["B2","M2633 2817 L2768 2971",[2768,2971]],["B5","M1254 3349 L1169 3425 L1022 3556 L948 3621 L935 3635 L916 3663 L906 3685 L903 3709 L903 3737 L906 3763 L914 3784 L942 3830 L951 3839 L1223 4072",[903,3709]],["B3","M1254 3348 L1314 3295 L1388 3230 L1405 3215 L1472 3146 L1488 3132 L1609 3025 L1630 3012 L1657 3005 L1685 3007 L1704 3012 L1847 3092 L1864 3107 L2095 3296",[1630,3012]],["A","M5265 921 L5522 1021 L5538 1025 L5554 1023 L5570 1016 L5581 1007 L5589 998 L5595 985 L5650 847 L5837 386 L5853 345 L5856 330 L5855 315 L5849 298 L5839 283 L5826 273 L5808 266",[5650,847]],["C","M5808 266 L5610 184 L5485 133 L5298 58 L5125 -13 L4829 -135 L4570 -240 L4189 -396 L4046 -455 L3934 -500 L3734 -582 L3624 -627 L3537 -663 L3453 -697 L3268 -773 L3151 -821 L2825 -954 L1625 -1444 L1462 -1511 L1240 -1601 L1013 -1695 L612 -1859 L324 -1977",[3624,-627]],["G","M2755 473 L3130 -452 L3170 -577 L3132 -719 L3151 -821 L3159 -861",[3132,-719]],["H","M2317 294 L2693 -631 L2825 -954 L2853 -1026 L2895 -1104",[2825,-954]],["E","M4077 -65 L4095 -226 L4045 -346 L4046 -455",[4045,-346]],["P","M1671 30 L1669 -54 L1357 -1178 L1311 -1352 L1429 -1387",[1357,-1178]],["J","M2296 -1651 L2194 -1612 L1625 -1445 L1429 -1387 L1311 -1352 L1088 -1287 L377 -1078 L352 -1071 L325 -1068 L292 -1073 L266 -1084 L-318 -1324 L-347 -1332 L-374 -1330 L-402 -1320 L-424 -1302 L-437 -1286 L-446 -1265 L-596 -897",[292,-1073]],["D","M3267 -773 L3246 -785 L3226 -800 L3159 -861 L3032 -978 L2895 -1104 L2739 -1246 L2296 -1651 L2275 -1672 L2257 -1693 L2244 -1717 L2235 -1740 L2131 -2116 L2097 -2238 L2064 -2360 L1948 -2778 L1944 -2792 L1935 -2806 L1926 -2820 L1869 -2907 L1652 -3239 L1238 -3873 L1140 -4023 L1057 -4150 L887 -4412 L800 -4543 L679 -4728 L615 -4827 L594 -4862 L576 -4900 L561 -4937 L551 -4967 L541 -4988 L525 -5014 L511 -5033 L493 -5047 L475 -5055 L460 -5057 L441 -5054 L293 -5009",[1652,-3239]],["K","M-424 -1302 L-495 -1460 L-500 -1477 L-501 -1497 L-499 -1518 L-495 -1545 L-478 -1658 L-457 -1798 L-453 -1820 L-448 -1844 L-440 -1880 L-377 -2157 L-159 -3110 L-151 -3136 L-138 -3164 L-131 -3176 L-121 -3193 L-101 -3220 L-77 -3247 L-54 -3266 L-17 -3290 L653 -3715 L1140 -4024",[-377,-2157]],["F","M323 -1977 L309 -1984 L298 -1996 L288 -2013 L281 -2029 L152 -2398 L49 -2693 L-36 -2933 L-95 -3103 L-121 -3161 L-131 -3176 L-144 -3195 L-172 -3228 L-212 -3262 L-328 -3373 L-385 -3429 L-427 -3479 L-466 -3539 L-497 -3605 L-518 -3670 L-532 -3731 L-539 -3795 L-538 -3860 L-535 -3893 L-523 -3955 L-383 -4524 L-348 -4622 L-303 -4713 L-246 -4798 L-179 -4876 L-104 -4940 L-48 -4983 L-1 -5010 L45 -5033 L88 -5052 L105 -5058 L154 -5074 L266 -5105",[-518,-3670]],["C1","M484 -1535 L612 -1859",[612,-1859]]],"rw":[["30 - 12","M2723 8995 L2694 8971 L2315 8651 L505 7126 L-499 6280 L-1961 5049 L-4889 2581 L-5271 2259 L-5299 2235",[2723,8995],[-5299,2235]],["28L - 10R","M5100 1432 L5062 1417 L2755 473 L2317 294 L1671 30 L-596 -897 L-631 -912",[5100,1432],[-631,-912]],["28R - 10L","M5474 506 L5437 491 L4077 -65 L3130 -452 L2693 -631 L1357 -1177 L1088 -1287 L484 -1535 L441 -1552",[5474,506],[441,-1552]],["15 - 33","M260 -5128 L266 -5105 L293 -5009 L653 -3715 L861 -2966 L1240 -1602",[260,-5128],[1240,-1602]]],"routes":{"30-W1":"M3391 5702 L3130 5750 L3001 5772 L2923 5771 L2832 5892 L2749 6004 L2637 6156 L2556 6263 L2515 6318 L2498 6336 L2471 6354 L2438 6367 L2384 6372 L2355 6373 L2315 6362 L2288 6346 L2262 6327 L2195 6413 L2096 6531 L1752 6943 L1682 7027 L1595 7131 L2671 8039 L2704 8066 L2726 8085 L2751 8113 L2770 8143 L2782 8169 L2798 8213 L2918 8546 L2925 8579 L2926 8613 L2925 8640 L2918 8676 L2906 8708 L2893 8731 L2873 8759 L2823 8818","30-W2":"M3391 5702 L3130 5750 L3001 5772 L2923 5771 L2832 5892 L2749 6004 L2637 6156 L2556 6263 L2515 6318 L2498 6336 L2471 6354 L2438 6367 L2384 6372 L2355 6373 L2315 6362 L2288 6346 L2262 6327 L2195 6413 L2096 6531 L1752 6943 L1682 7027 L1595 7131 L2671 8039 L2683 8053 L2693 8069 L2704 8092 L2709 8120 L2708 8146 L2703 8173 L2688 8203 L2658 8241 L2494 8438 L2443 8498","30-W3":"M3391 5702 L3130 5750 L3001 5772 L2923 5771 L2832 5892 L2749 6004 L2637 6156 L2556 6263 L2515 6318 L2498 6336 L2471 6354 L2438 6367 L2384 6372 L2355 6373 L2315 6362 L2288 6346 L2262 6327 L2195 6413 L2096 6531 L1752 6943 L1682 7027 L1595 7131 L1572 7156 L1548 7179 L1525 7197 L1498 7215 L1464 7233 L1437 7245 L1402 7258 L1363 7267 L1328 7272 L1290 7273 L1241 7271 L1155 7263 L1096 7256 L1030 7244 L700 7170","28R-B":"M3391 5702 L3130 5750 L3001 5772 L2923 5771 L2832 5892 L2749 6004 L2637 6156 L2556 6263 L2515 6318 L2498 6336 L2471 6354 L2438 6367 L2384 6372 L2355 6373 L2315 6362 L2288 6346 L2262 6327 L2126 6224 L2063 6177 L1981 6115 L1924 6072 L1845 6013 L1743 5937 L1652 5868 L1635 5851 L1619 5830 L1586 5784 L1508 5681 L1614 5570 L1645 5528 L1742 5397 L1781 5345 L1885 5202 L1922 5153 L1939 5128 L1952 5093 L1956 5060 L1953 5027 L1903 4828 L1900 4797 L1905 4763 L1917 4728 L1937 4700 L2075 4514 L2092 4480 L2098 4447 L2097 4415 L2090 4388 L2080 4363 L2064 4339 L2027 4298 L1979 4244 L1884 4136 L1759 3994 L1561 3771 L2094 3296 L2312 3102 L2419 3007 L2633 2817 L3178 2332 L3216 2302 L3250 2279 L3296 2254 L3342 2235 L3387 2217 L4192 1900 L4866 1635 L4912 1616 L4951 1595 L4988 1561 L5017 1522 L5034 1486 L5063 1417 L5092 1346 L5158 1184 L5265 921 L5343 724 L5353 700","28L-B":"M3391 5702 L3130 5750 L3001 5772 L2923 5771 L2832 5892 L2749 6004 L2637 6156 L2556 6263 L2515 6318 L2498 6336 L2471 6354 L2438 6367 L2384 6372 L2355 6373 L2315 6362 L2288 6346 L2262 6327 L2126 6224 L2063 6177 L1981 6115 L1924 6072 L1845 6013 L1743 5937 L1652 5868 L1635 5851 L1619 5830 L1586 5784 L1508 5681 L1614 5570 L1645 5528 L1742 5397 L1781 5345 L1885 5202 L1922 5153 L1939 5128 L1952 5093 L1956 5060 L1953 5027 L1903 4828 L1900 4797 L1905 4763 L1917 4728 L1937 4700 L2075 4514 L2092 4480 L2098 4447 L2097 4415 L2090 4388 L2080 4363 L2064 4339 L2027 4298 L1979 4244 L1884 4136 L1759 3994 L1561 3771 L2094 3296 L2312 3102 L2419 3007 L2633 2817 L3178 2332 L3216 2302 L3250 2279 L3296 2254 L3342 2235 L3387 2217 L4192 1900 L4866 1635 L4912 1616 L4918 1613"},"bars":{"30-W1":[2823,8818,130],"30-W2":[2443,8498,130],"30-W3":[700,7170,-167],"28R-B":[5353,700,-68],"28L-B":[4918,1613,-29]},"stand":[3391,5702]};
+  const GROUND = "#6EE0CE";
+  const GL = {
+    PUSH: "M12 3v12 M8 11l4 4 4-4 M6 20h12",
+    PUSHTO: "M12 3v8 M9 8l3 3 3-3 M12 13a4 4 0 1 0 0 8a4 4 0 1 0 0-8",
+    PRESET: "M4 21v-5a4 4 0 0 1 4-4h8a4 4 0 0 0 4-4V4 M17 7l3-3 3 3",
+    TTR: "M19 3v18 M3 12h12 M11 8l4 4-4 4",
+    DRAW: "M4 20l4-1L19 8l-3-3L5 16z M14 7l3 3",
+  };
+  const LABEL = { PUSH: "Push back", PUSHTO: "Push back to", PRESET: "Preset taxi route", TTR: "Taxi to runway", DRAW: "Draw taxi route" };
+  const PLACEHOLDER = "Finding runway entries…";
+  const NO_ENTRY = "No runway entry found";
+  const PREVIEW = "rgba(80,180,255,.75)";
+
+  const esc = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  const ft = n => `~${n.toLocaleString("en-US")} ft`;
+  const gl = (id, size = 22) => `<svg class="gly" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="${GROUND}" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${GL[id]}"/></svg>`;
+  const menu = (inner, cls = "", label = "", attrs = "") => `<div class="menu m ${cls}" role="menu"${label ? ` aria-label="${esc(label)}"` : ""} ${attrs}>${inner}</div>`;
+  const sep = () => `<div class="msep" role="separator"></div>`;
+  const cursorSvg = (x, y) => `<svg class="cursor" style="left:${x};top:${y}" viewBox="0 0 18 24" aria-hidden="true"><path d="M1.5 1.5v18.2l4.6-4.3 3 6.8 3.1-1.4-3-6.7h6.3z" fill="#ffffff" stroke="#000000" stroke-width="1.3" stroke-linejoin="round"/></svg>`;
+  const frame = (label, inner, after = "") => `<div class="frame"><div class="flabel">${label}</div>${inner}${after}</div>`;
+
+  /* ---------- Variants: GroundViewModel.BuildTaxiDestVariants, labels shortened as the first batch's lane B draws them ---------- */
+  function variants(e, dest) {
+    const via = e.via, c = e.cross || [];
+    const crossList = n => c.slice(0, n).map(r => `CROSS ${r}`).join(", ");
+    if (!c.length) return [[`Departure ${dest}`, `TAXI ${via} ${dest}`, e.route], [`Hold short RWY ${dest}`, `TAXI ${via} HS ${dest}`, e.route]];
+    const out = [[`Departure ${dest}, HS ${c[0]}`, `TAXI ${via} HS ${c[0]} RWY ${dest}`, e.short]];
+    for (let i = 0; i < c.length - 1; i++) out.push([`Departure ${dest}, CROSS ${c.slice(0, i + 1).join(" ")}, HS ${c[i + 1]}`, `TAXI ${via} HS ${c[i + 1]} RWY ${dest}, ${crossList(i + 1)}`, e.route]);
+    out.push([`Departure ${dest}, CROSS ${c.join(" ")}`, `TAXI ${via} ${dest}, ${crossList(c.length)}`, e.route]);
+    out.push([`Hold short RWY ${c[0]}`, `TAXI ${via} HS ${c[0]}`, e.short]);
+    for (let i = 0; i < c.length - 1; i++) out.push([`CROSS ${c.slice(0, i + 1).join(" ")}, HS ${c[i + 1]}`, `TAXI ${via} HS ${c[i + 1]}, ${crossList(i + 1)}`, e.route]);
+    out.push([`CROSS ${c.join(" ")}, HS ${dest}`, `TAXI ${via} HS ${dest}, ${crossList(c.length)}`, e.route]);
+    return out;
+  }
+
+  /* ---------- Data: KOAK gate 25 and KSFO gate F12, UAL455 A320 (measured for this mock, see the lede) ---------- */
+  const SFT = "nearest, full length · short for type";
+  const OAK = {
+    ends: [["30", "assigned"], ["28R", "departure"], ["10L", ""], ["10R", ""], ["12", ""], ["15", ""], ["28L", ""], ["33", ""]],
+    runwayOf: { "30": "30/12", "12": "30/12", "28R": "28R/10L", "10L": "28R/10L", "28L": "28L/10R", "10R": "28L/10R", "15": "15/33", "33": "15/33" },
+    rows: {
+      "30": [
+        { name: "At W1", reason: "full length", via: "TE U W W1", d: 4500, hi: true, route: "30-W1" },
+        { name: "At W2", avail: 9950, via: "TE U W W2", d: 4200, route: "30-W2" },
+        { name: "At W3", reason: "nearest", avail: 7550, via: "TE U W3", d: 3150, hi: true, route: "30-W3" },
+      ],
+      "28R": [{ name: "At B", reason: SFT, via: "TE T S B", d: 9550, hi: true, cross: ["28L"], route: "28R-B", short: "28L-B" }],
+      "10L": [{ name: "At C1", reason: SFT, via: "TE T S B A C C1", d: 16250, hi: true, cross: ["28L"] }],
+      "10R": [],
+      "12": [
+        { name: "At W7", reason: "full length", via: "TE T V W W7", d: 10700, hi: true },
+        { name: "At W6", reason: "nearest", avail: 9950, via: "TE T V W W6", d: 10200, hi: true },
+      ],
+      "15": [{ name: "At D", reason: SFT, via: "TE T S B C D", d: 17800, hi: true, cross: ["28L", "28R"] }],
+      "28L": [{ name: "At B", reason: SFT, via: "TE T S B", d: 8550, hi: true, route: "28L-B" }],
+      "33": [{ name: "At L", reason: SFT, via: "TE T S B C F K L", d: 17950, hi: true, cross: ["28L", "28R"] }],
+    },
+  };
+  const SFO = {
+    ends: [["1R", "assigned"], ["1L", "departure"], ["10L", ""], ["10R", ""], ["19L", ""], ["19R", ""], ["28L", ""], ["28R", ""]],
+    rows: {
+      "1R": [
+        { name: "At A1", reason: "full length", via: "T8 A H B M1 A2 A1", d: 10750, hi: true, cross: ["1L"] },
+        { name: "At M", reason: "nearest", avail: 7950, via: "T8 A H B M", d: 10300, hi: true, cross: ["1L"] },
+      ],
+      "1L": [{ name: "At M", reason: "nearest, full length", via: "T8 A H B M", d: 9550, hi: true }],
+      "28R": [
+        { name: "At C", reason: "full length", via: "T8 A F C", d: 13150, hi: true, cross: ["1L", "1R", "10R"] },
+        { name: "At C2", avail: 11200, via: "T8 A Q B1 Z C C2", d: 18600, cross: ["1L", "1R"] },
+        { name: "At N", avail: 9400, via: "T8 A F N", d: 10550, cross: ["1L", "1R", "10R"] },
+        { name: "At P", avail: 8600, via: "T8 A F P", d: 9850, cross: ["1L", "1R", "10R"] },
+        { name: "At L", reason: "nearest", avail: 7400, via: "T8 A F L", d: 8750, hi: true, cross: ["1L", "1R", "10R"] },
+      ],
+    },
+  };
+  const ATL_ENDS = [["26L", "assigned"], ["27R", "departure"], ["8L", ""], ["8R", ""], ["9L", ""], ["9R", ""], ["10", ""], ["26R", ""], ["27L", ""], ["28", ""]];
+
+  /* ---------- Row builders ---------- */
+  function entryTitle(e) {
+    const detail = [e.reason, e.avail ? `${ft(e.avail)} avail` : null, `via ${e.via}`].filter(Boolean).join(" · ");
+    return `<div class="mi title${e.hi ? " hi" : ""}"><span class="et"><span class="bdg">RW</span><b>${esc(e.name)}</b> · ${esc(detail)}</span><span class="r">${esc(ft(e.d))}</span></div>`;
+  }
+  /** One variant row. cmdMode: "" (one line, uncapped), "trim" (180 px, ellipsis), "two" (label over command), "tail" (via elided). */
+  function vrow(label, cmd, route, via, cmdMode) {
+    const pv = route ? ` data-prev="${route}"` : "";
+    const base = `class="mi vr" role="menuitem" data-send="${esc(cmd)}" tabindex="-1" title="${esc(label)} — ${esc(cmd)}"${pv}`;
+    if (cmdMode === "two") return `<div ${base} style="grid-template-columns:auto minmax(0,1fr)">${gl("TTR")}<span class="nm col"><span class="n">${esc(label)}</span><span class="cmd2">${esc(cmd)}</span></span></div>`;
+    const shown = cmdMode === "tail" ? cmd.replace(`TAXI ${via} `, "TAXI … ") : cmd;
+    return `<div ${base}>${gl("TTR")}<span class="nm"><span class="n">${esc(label)}</span></span><span></span><span class="cmd${cmdMode === "trim" ? " trim" : ""}">${esc(shown)}</span></div>`;
+  }
+  function panelHtml(o, key) {
+    const st = (o.states || {})[key] || "ready";
+    if (st === "loading" || st === "unsearched-loading") return `<div class="pending" role="status"><span class="spin"></span>${PLACEHOLDER}</div>`;
+    if (o.elide && o.elide(key)) return `<div class="elide">${esc(o.elide(key))}</div>`;
+    const rows = o.data.rows[key] || [];
+    if (!rows.length) return `<div class="mi plain dis" aria-disabled="true"><span>${NO_ENTRY}</span><span></span></div>`;
+    const lim = o.limit || rows.length;
+    const body = rows.slice(0, lim).map(e => entryTitle(e) + variants(e, key).map(([l, c, r]) => vrow(l, c, r, e.via, o.cmdMode || "")).join("")).join("");
+    const more = rows.length > lim ? `<div class="elide">${rows.length - lim} more entries below (${rows.slice(lim).map(e => e.name.replace("At ", "")).join(", ")}), ${rows.slice(lim).reduce((n, e) => n + variants(e, key).length, 0)} more rows</div>` : "";
+    return body + more;
+  }
+  function tabHtml(o, key, tag) {
+    const st = (o.states || {})[key] || "ready";
+    const sel = key === o.selected;
+    const cls = ["tab", st === "empty" ? "empty" : "", st === "gone" ? "gone" : ""].filter(Boolean).join(" ");
+    const extra = (st === "loading" || st === "unsearched-loading") ? `<span class="spin sm" aria-label="searching"></span>` : (st === "empty" ? "<small>none</small>" : (tag ? `<small>${tag}</small>` : ""));
+    return `<button type="button" class="${cls}" role="tab" data-tab="${esc(key)}" aria-selected="${sel}" tabindex="-1">${esc(key)}${extra}</button>`;
+  }
+  function tabsHtml(o) {
+    const ends = o.ends.filter(([k]) => ((o.states || {})[k]) !== "removed");
+    if (o.tabMode === "scroll") {
+      return `<div class="tscroll" role="tablist"><button type="button" class="arrow" data-scroll="-1" aria-label="Scroll tabs left">‹</button><div class="strip">${ends.map(([k, t]) => tabHtml(o, k, t)).join("")}</div><button type="button" class="arrow" data-scroll="1" aria-label="Scroll tabs right">›</button></div>`;
+    }
+    const buf = o.kb === "c" ? `<span class="buf" data-buf hidden></span>` : "";
+    return `<div class="tabs${o.tabMode === "more" ? " nowrap" : ""}" role="tablist">${ends.map(([k, t]) => tabHtml(o, k, t)).join("")}${o.tabMode === "more" ? `<button type="button" class="tab more" data-more="1" aria-haspopup="menu">More ▾</button>` : ""}${buf}</div>`;
+  }
+
+  /* ---------- Flyouts: a registry of live instances ---------- */
+  const FLY = {};
+  let flySeq = 0;
+  function fly(o) {
+    const id = `f${++flySeq}`;
+    o.id = id;
+    o.ends = o.ends || o.data.ends;
+    o.selected = o.selected || o.ends[0][0];
+    o.states = Object.assign({}, o.states || {});
+    FLY[id] = o;
+    const inner = o.whole ? o.whole : `${tabsHtml(o)}<div class="panel" data-panel>${panelHtml(o, o.selected)}</div>`;
+    const kbAttrs = o.kb ? `tabindex="0" data-kb="${o.kb}" aria-label="Taxi to runway flyout, keyboard model ${o.kb.toUpperCase()}"` : "";
+    return menu(inner + (o.pointer || ""), `w fly${o.uncapped ? " uncapped" : ""}`, "Taxi to runway", `data-fly="${id}" ${kbAttrs}`);
+  }
+  const flyEl = id => document.querySelector(`[data-fly="${id}"]`);
+  function rerender(id) {
+    const o = FLY[id], el = flyEl(id);
+    const tabs = el.querySelector(".tabs, .tscroll");
+    const tmp = document.createElement("div");
+    tmp.innerHTML = tabsHtml(o);
+    tabs.replaceWith(tmp.firstElementChild);
+    el.querySelector("[data-panel]").innerHTML = panelHtml(o, o.selected);
+    afterLayout(el);
+    paintFocus(id);
+  }
+
+  /* ---------- Ground scope inset (KOAK, north up, from the bundled layout) ---------- */
+  function scope(key, cap, sid) {
+    const S = OAK_SCOPE;
+    const tw = S.tw.map(([, d]) => `<path d="${d}"/>`).join("");
+    const rw = S.rw.map(([, d]) => `<path d="${d}"/>`).join("");
+    const lab = S.tw.filter(([n]) => ["W", "U", "TE", "T", "S", "B", "W1", "W2", "W3", "V"].includes(n)).map(([n, , [x, y]]) => `<text x="${x + 60}" y="${y - 60}">${n}</text>`).join("");
+    const rlab = S.rw.map(([n, , a, b]) => { const [e1, e2] = n.split(" - "); return `<text x="${a[0]}" y="${a[1] + 260}" text-anchor="middle">${e1}</text><text x="${b[0]}" y="${b[1] + 260}" text-anchor="middle">${e2}</text>`; }).join("");
+    return `<div class="scope"><svg viewBox="-200 -200 ${S.w + 400} ${S.h + 400}" role="img" aria-label="KOAK ground scope: ${esc(cap)}" data-scope="${sid}">
+      <g fill="none" stroke="#2b3036" stroke-width="150" stroke-linecap="round">${rw}</g>
+      <g fill="none" stroke="#3a414a" stroke-width="45" stroke-linejoin="round" stroke-linecap="round">${tw}</g>
+      <g font-family="Consolas, monospace" font-size="230" fill="#6b7480">${lab}</g>
+      <g font-family="Consolas, monospace" font-size="230" fill="#8c95a0">${rlab}</g>
+      <g data-route>${routeSvg(key)}</g>
+      <circle cx="${S.stand[0]}" cy="${S.stand[1]}" r="120" fill="${GROUND}"/>
+      <text x="${S.stand[0] + 170}" y="${S.stand[1] + 80}" font-family="Consolas, monospace" font-size="240" fill="${GROUND}">UAL455</text>
+    </svg><div class="sc-cap" data-sccap>${esc(cap)}</div></div>`;
+  }
+  function routeSvg(key) {
+    if (!key) return "";
+    const S = OAK_SCOPE, d = S.routes[key], [bx, by, ang] = S.bars[key];
+    const bar = `<g transform="translate(${bx} ${by}) rotate(${-ang + 90})"><path d="M-160 -40H160 M-160 40H160" stroke="#E8A33D" stroke-width="38"/></g>`;
+    return `<path d="${d}" fill="none" stroke="${PREVIEW}" stroke-width="70" stroke-dasharray="190 120" stroke-linejoin="round"/>${bar}`;
+  }
+  function setPreview(id, key) {
+    const o = FLY[id];
+    if (!o || !o.scope) return;
+    const svgEl = document.querySelector(`[data-scope="${o.scope}"]`);
+    svgEl.querySelector("[data-route]").innerHTML = routeSvg(key);
+    const cap = svgEl.parentElement.querySelector("[data-sccap]");
+    cap.textContent = key ? `Previewing ${ROUTE_NAME[key]}` : "No route previewed";
+  }
+  const ROUTE_NAME = { "30-W1": "TE U W W1 to the 30 bar at W1", "30-W2": "TE U W W2 to the 30 bar at W2", "30-W3": "TE U W3 to the 30 bar at W3",
+    "28R-B": "TE T S B to the 28R bar at B, across 28L", "28L-B": "TE T S B to the 28L bar at B" };
+
+  function stub(s) {
+    const cells = s.strip.map(id => `<span class="cell${id === s.active ? " latched" : ""}" title="${esc(LABEL[id])}" role="img" aria-label="${esc(LABEL[id])}${id === s.active ? " (flyout open)" : ""}">${gl(id, 32)}${["PRESET", "PUSHTO", "TTR"].includes(id) ? `<i class="notch"></i>` : ""}</span>`).join("");
+    const plain = (t, hot) => `<div class="mi plain${hot ? " hot" : " faint"}"><span>${esc(t)}</span><span class="chev">›</span></div>`;
+    return `<div class="stage stub-stage">${menu(`<div class="mtitle">${esc(s.title)}</div><div class="mstate">${esc(s.state)}</div>${sep()}<div class="mi plain faint"><span>Command…</span><span></span></div>${sep()}<div class="strip">${cells}</div>${sep()}${["All Commands", "Favorite Commands", "Track", "Data Block"].map(t => plain(t, t === s.hot)).join("")}`, "", "Aircraft menu")}</div>`;
+  }
+  function lane(l) {
+    return `<section class="lane" data-lane>
+      <div class="lane-h"><span class="tag ${l.kind}">${l.kind.toUpperCase()}</span><h3>${esc(l.name)}</h3>${l.rec ? `<span class="rec">recommended</span>` : ""}</div>
+      <div class="stage">${l.body}</div>
+      <div class="sent" data-sent>${l.hint || "Click a row or a tab to see what it does."}</div>
+      ${l.keys ? `<dl class="keys">${l.keys.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join("")}</dl>` : ""}
+      <dl class="cap"><dt>How it works</dt><dd>${l.how}</dd><dt>Worst case</dt><dd class="worst">${l.worst}</dd></dl>
+    </section>`;
+  }
+  function art(a) {
+    return `<section class="art" id="${a.id}">
+      <div class="art-head"><div class="art-meta"><h2>${esc(a.title)}</h2><div class="sends">${esc(a.sends)}</div>${a.intro.map(p => `<p>${p}</p>`).join("")}</div>${stub(a.stub)}</div>
+      <div class="lanes${a.wide ? " wide" : ""}${a.stack ? " stack" : ""}">${a.lanes.map(lane).join("")}</div>
+    </section>`;
+  }
+  const OAK_STUB = { title: "UAL455 · A320", state: "At parking · gate 25 · RWY 30", strip: ["PUSH", "PRESET", "DRAW", "PUSHTO", "TTR"], active: "TTR" };
+  const SFO_STUB = { title: "UAL455 · A320", state: "At parking · gate F12 · RWY 1R", strip: ["PUSH", "PRESET", "DRAW", "PUSHTO", "TTR"], active: "TTR" };
+  const kbd = k => `<kbd>${k}</kbd>`;
+
+  /* ---------- 1. Keyboard model ---------- */
+  const OAK_OPEN = { "10R": "ready", "15": "ready", "28L": "ready", "33": "ready" };
+  const q1 = {
+    id: "q1-keys", title: "1 · Keyboard model of the tab bar", sends: "TAXI TE U W W1 30 (the first row) · any variant",
+    intro: [
+      "<b>UAL455</b>, A320, at KOAK gate 25, assigned 30; the room's departure runways are 30 and 28R. The strip button opens the flyout by click or Enter. No tab control exists yet in <code>ContextMenus/</code>; the other designed flyouts focus their first live row on open (Hold short of, Preset taxi route) or their box (Follow), and Up/Down walk the rows.",
+      "Each flyout below is live: click into it (or Tab to it) and use the keys; the blue ring is where keyboard focus sits, and the line under it says what the key did. Every end is shown already searched here, so only the keys differ.",
+    ],
+    stub: OAK_STUB,
+    lanes: [
+      { kind: "a", rec: true, name: "Rows first, Left/Right switch tabs",
+        body: frame("Opened · focus on the first row of 30", fly({ data: OAK, kb: "a", states: OAK_OPEN })),
+        keys: [[kbd("↑") + " " + kbd("↓"), "Previous / next row (titles are skipped)."], [kbd("←") + " " + kbd("→"), "Previous / next tab, focus on its first row; no wrap at the ends."], [kbd("Tab") + " " + kbd("⇧Tab"), "As ↓ / ↑."], [kbd("Enter"), "Sends the focused row."], [kbd("Esc"), "Closes the flyout; focus back on the strip button."]],
+        hint: "Click into the flyout, then use the keys.",
+        how: "Focus lands on the first row of the selected tab, as Hold short of and Preset taxi route land on their first row, so <code>Enter</code> right after opening sends <code>TAXI TE U W W1 30</code>. The arrows across the bar are Left and Right from anywhere in the rows; the tabs themselves never take focus.",
+        worst: "Under All Commands › Taxi to runway, where Left closes a submenu, Left here switches to the previous runway and puts focus on its first row: an instructor backing out by habit, then pressing Enter, sends a taxi to a different runway." },
+      { kind: "b", name: "Tab bar first (tablist pattern)",
+        body: frame("Opened · focus on the 30 tab", fly({ data: OAK, kb: "b", states: OAK_OPEN })),
+        keys: [[kbd("←") + " " + kbd("→"), "On the bar: previous / next tab, selected as focus moves."], [kbd("↓") + " " + kbd("Tab"), "From the bar into the first row."], [kbd("↑") + " " + kbd("⇧Tab"), "From the first row back to the bar; elsewhere the previous row."], [kbd("←"), "In the rows: closes the flyout, as Left leaves a submenu."], [kbd("Enter"), "On a row: sends it. On the bar: moves into the rows."], [kbd("Esc"), "Closes the flyout."]],
+        hint: "Click into the flyout, then use the keys.",
+        how: "The common tablist model: focus opens on the selected tab, the arrows move along the bar with the selection following, and Down or Tab steps into the rows. Left keeps its submenu meaning once focus is in the rows.",
+        worst: "Every keyboard send needs an extra key: Enter right after opening sends nothing. Arrowing from 30 to 33 selects every tab on the way, and with Q2's lane A each first selection runs that runway's search, so passing 10R, 15 and 28L starts three searches the instructor never wanted." },
+      { kind: "c", name: "Rows first, type the runway",
+        body: frame("Opened · focus on the first row of 30", fly({ data: OAK, kb: "c", states: OAK_OPEN })),
+        keys: [["digits, " + kbd("L") + " " + kbd("R") + " " + kbd("C"), "Typed into a buffer (shown at the bar's right); a designator it names alone selects that tab and focuses its first row. 1.5 s idle clears it, as <code>MenuTypeAhead</code> does."], [kbd("↑") + " " + kbd("↓"), "Previous / next row."], [kbd("←"), "Closes the flyout, as Left leaves a submenu."], [kbd("Enter"), "Sends the focused row."], [kbd("Esc"), "Closes the flyout."]],
+        hint: "Click into the flyout, then type 28R, 12 or 33.",
+        how: "Focus lands on the first row as in A, but the tab is picked by typing its designator, the type-ahead the altitude picker already uses (<code>MenuTypeAhead</code>, 1.5 s reset). Left and Right keep their menu meanings.",
+        worst: "“28” names both 28L and 28R, so nothing happens until the third key, and “1” at KSFO names six ends; an instructor who types “2”, pauses past 1.5 s, then “8R” lands nowhere, with only the small buffer chip to say why." },
+    ],
+  };
+
+  /* ---------- 2. Lazy search states ---------- */
+  const SHIFT1 = { data: OAK, lazy: "c", states: { "10R": "loading", "15": "loading", "28L": "loading", "33": "loading" }, pointer: cursorSvg("0px", "18px"), ptrTab: "15" };
+  const SHIFT2 = { data: OAK, lazy: "c", states: { "10R": "removed", "15": "loading", "28L": "loading", "33": "loading" }, pointer: cursorSvg("0px", "18px"), ptrFrom: SHIFT1 };
+  const q2 = {
+    id: "q2-lazy", title: "2 · Lazy search: loading and empty states", sends: "nothing while a tab searches",
+    intro: [
+      "Today Taxi to runway searches the assigned and departure runways when its submenu (or the strip flyout) first opens, showing “Finding runway entries…” until then, and every other runway only when Other runways opens; ends with no row get no group, and only an empty result shows “No runway entry found” (<code>MenuCatalog.TaxiToRunwayItems</code>, <code>GroundViewModel.GetTaxiToRunwayChoices</code>). A search is per runway, both ends at once, cached per start node, category, wake class and runway; it runs on the UI thread inside the fill, so a spinner can draw only if the fill is posted past the first frame.",
+      "From gate 25 the inline search covers 30/12 and 28R/10L, so 12 and 10L are already known at open. <b>10R has no entry</b>: its only reachable bar, B, sits at 28L's threshold, the far end for a 10R departure, which <code>EntryRowsFor</code> leaves out. Click the tabs to replay the states.",
+    ],
+    stub: OAK_STUB,
+    lanes: [
+      { kind: "a", rec: true, name: "Every end a tab; searched on first select",
+        body: frame("Opened · 10R, 15, 28L and 33 not searched yet (they look like the rest)", fly({ data: OAK, lazy: "a", states: { "10R": "unsearched", "15": "unsearched", "28L": "unsearched", "33": "unsearched" } }))
+          + frame("15 chosen for the first time · 15/33 searching", fly({ data: OAK, lazy: "a", selected: "15", states: { "10R": "unsearched", "15": "loading", "28L": "unsearched", "33": "loading" } }))
+          + frame("10R chosen, after its search", fly({ data: OAK, lazy: "a", selected: "10R", states: { "10R": "empty", "15": "unsearched", "28L": "unsearched", "33": "unsearched" } })),
+        how: "The bar names every end that has a hold short (a cheap scan of the layout) at open. The assigned and departure runways are searched as today; any other end is searched the first time its tab is chosen: its tab and its runway's other end show a small spinner and the panel shows “Finding runway entries…”. An end found empty keeps its tab, dimmed with “none”, and its panel reads “No runway entry found”. Needs <code>TaxiToRunwayMenu</code> to name the other ends up front and search them one runway at a time; today <code>FindOther</code> searches them all at once.",
+        worst: "10R looks like every other tab until it is chosen: the instructor clicks it, waits through a search, and finds nothing; and the first click on a far runway (15/33 here) freezes the menu for as long as its route searches take." },
+      { kind: "b", name: "Search every end on open; tabs only where found",
+        body: frame("Opening · every runway searching", fly({ data: OAK, whole: `<div class="pending" role="status"><span class="spin"></span>${PLACEHOLDER}</div>` }))
+          + frame("Searched · seven tabs, no 10R", fly({ data: OAK, states: { "10R": "removed" } }))
+          + frame("No end reachable (today's empty row)", fly({ data: OAK, whole: `<div class="mi plain dis" aria-disabled="true"><span>${NO_ENTRY}</span><span></span></div>` })),
+        how: "The flyout shows one “Finding runway entries…” row, as today's submenu does, until every runway at the airport is searched; then the bar shows only the ends with an entry. “No runway entry found” appears only when no end has any, as today.",
+        worst: "Every open waits for every runway, one route search per hold short at the airport, so the first open after a spawn or a move to a new stand is the slowest the flyout gets, and it is slowest at the big airports where it is used most." },
+      { kind: "c", name: "Every end a tab; the rest searched in the background",
+        body: frame("Opened · 10R, 15, 28L, 33 searching behind the open flyout", fly(SHIFT1), `<div class="callout calm" role="note"><b>Pointer on 15</b>, about to click.</div>`)
+          + frame("A moment later · 10R's search ends first, empty, and its tab drops out", fly(SHIFT2), `<div class="callout" role="note"><b>Shifted:</b> every tab after 10R moved left; the pointer has not moved and now rests on <span data-under>…</span>.</div>`),
+        how: "The bar names every end at open, the inline runways searched first as today; the other runways are searched right after, off the UI thread, each tab showing a spinner until its runway is done. An end found empty leaves the bar. Needs the route search to run on a worker thread, which it does not today.",
+        worst: "The bar changes under the pointer: when 10R drops out, every tab after it moves left by one tab width, and a click aimed at 15 lands on 28L, sending a route to a different runway after one more click on its first row." },
+    ],
+  };
+
+  /* ---------- 3. Route preview with tabs ---------- */
+  const pair = (flyHtml, sc) => `<div class="pair">${flyHtml}${sc}</div>`;
+  let scopeSeq = 0;
+  function previewPair(label, o, key, cap, ptr) {
+    const sid = `s${++scopeSeq}`;
+    o.scope = sid;
+    o.pointer = ptr;
+    return frame(label, pair(fly(o), scope(key, cap, sid)));
+  }
+  const q3 = {
+    id: "q3-preview", title: "3 · Route preview with tabs", sends: "nothing (the preview is drawn on the ground scope)",
+    intro: [
+      "Today a Taxi to runway row previews its route on the ground scope when the pointer enters it (<code>BuildTaxiRouteRow</code>, <code>SetRoutePreview</code>), and Preset taxi route previews on pointer or focus and clears on close. The orchestrator decision of 2026-10-15 says rows preview and tabs stay silent; lane A draws that, lane B the alternative. Each variant previews its own route: “Departure 28R, HS 28L” and “Hold short RWY 28L” stop at the 28L bar at B, the others run on to 28R.",
+      "The inset is KOAK from <code>oak.geojson</code>, north up; the dashed blue line is the preview in its scope colour (rgba 80, 180, 255), the amber double line the bar it ends at. Point at the rows and tabs to try it.",
+    ],
+    stub: OAK_STUB, wide: true,
+    lanes: [
+      { kind: "a", rec: true, name: "Rows preview, tabs stay silent",
+        body: previewPair("Pointer on At W3 · Departure 30", { data: OAK, states: OAK_OPEN, prev: "a", hotRow: 4 }, "30-W3", "Previewing TE U W3 to the 30 bar at W3", cursorSvg("200px", "268px"))
+          + previewPair("Then the pointer rests on the 28R tab, not clicked", { data: OAK, states: OAK_OPEN, prev: "a", hotTab: "28R" }, "30-W3", "Unchanged: still W3's route", cursorSvg("120px", "14px")),
+        how: "A row previews its route when the pointer enters it or keyboard focus lands on it; pointing at a tab draws nothing and leaves the last row's preview. Choosing another tab clears the preview, since that row is gone; Left/Right in Q1 lane A then focus the new tab's first row, which previews. Closing the flyout clears it, as Preset does.",
+        worst: "With the pointer on the 28R tab the scope still shows W3's route to 30; an instructor who takes the drawn route as the tab's sees the wrong runway until the pointer reaches a row." },
+      { kind: "b", name: "A tab previews its first entry",
+        body: previewPair("Pointer on At W3 · Departure 30", { data: OAK, states: OAK_OPEN, prev: "b", hotRow: 4 }, "30-W3", "Previewing TE U W3 to the 30 bar at W3", cursorSvg("200px", "268px"))
+          + previewPair("Then the pointer rests on the 28R tab, not clicked", { data: OAK, states: OAK_OPEN, prev: "b", hotTab: "28R" }, "28R-B", "Previewing TE T S B to the 28R bar at B, across 28L", cursorSvg("120px", "14px")),
+        how: "Pointing at a tab previews its first entry's whole route (the full-length or first row, to that end's bar), so the scope shows where the runway is before any row is reached; rows preview as in A.",
+        worst: "Sweeping the pointer along the bar to reach 33 flashes a route for every tab it crosses; and 28R's preview runs across 28L to the 28R bar while the first row under it, “Departure 28R, HS 28L”, stops at 28L, so the drawing promises more than the first click sends." },
+    ],
+  };
+
+  /* ---------- 4a. Tab bar wider than the cap ---------- */
+  const sfoElide = k => (SFO.rows[k] ? null : "Rows of this end not drawn: this artboard is about width.");
+  const atlElide = () => "Rows not drawn for KATL: only the bar is measured here.";
+  const q4 = {
+    id: "q4-tabs", title: "4 · Width: a tab bar wider than the 480 px cap", sends: "nothing (layout)",
+    intro: [
+      "<b>UAL455</b>, A320, at KSFO gate F12, assigned 1R; the room's departure runways are 1L and 1R, so the bar is 1R, 1L, then 10L, 10R, 19L, 19R, 28L, 28R. The 480 px cap is <code>MenuCommandRow.InlineRowMaxWidth</code>; inside the menu's border and padding a row, or the bar, has 470 px. Each frame's label gives the bar's one-line width as measured in this page.",
+      "Measured: <b>KSFO's eight ends fit on one row</b> (the label's figure, about 40 px to spare in this page's fonts; Inter and JetBrains Mono are wider than the Segoe UI and Consolas it drew with, so in the app the margin is smaller, unmeasured). A bar goes over with ten ends, as at KATL in the second frame (<code>atl.geojson</code>: 8L/26R, 8R/26L, 9L/27R, 9R/27L, 10/28; assigned 26L, departures 26L and 27R), or with Q2's spinners widening the tabs, as Q2 lane C's KOAK bar already wraps.",
+    ],
+    stub: SFO_STUB,
+    lanes: [
+      { kind: "a", rec: true, name: "Wrap onto a second row",
+        body: frame("KSFO · 1R selected", fly({ data: SFO, tabMode: "wrap", elide: sfoElide, measure: true }))
+          + frame("KATL · 26L selected", fly({ data: { ends: ATL_ENDS, rows: {} }, tabMode: "wrap", elide: atlElide, measure: true })),
+        how: "Tabs flow left to right and continue on a second row inside the cap, in the same order; the selected tab stays where it is, nothing reorders.",
+        worst: "The rows start one tab-row lower, about 30 px, and a lone tab on the second row reads as an afterthought: at KATL 28 sits there by itself, and it is the runway the instructor scans past." },
+      { kind: "b", name: "One row with scroll arrows",
+        body: frame("KSFO · 1R selected", fly({ data: SFO, tabMode: "scroll", elide: sfoElide, measure: true }))
+          + frame("KATL · 26L selected", fly({ data: { ends: ATL_ENDS, rows: {} }, tabMode: "scroll", elide: atlElide, measure: true })),
+        how: "The bar stays one row; ‹ and › at its ends scroll it by a tab, and the selected tab is scrolled into view when the flyout opens. Click the arrows to try it.",
+        worst: "Tabs past the edge are hidden: at KATL 27L is cut off at the edge and 28 is off the bar at open, so finding 28 takes clicks on › and nothing but the arrow says more runways exist." },
+      { kind: "c", name: "Overflow into a “More ▾” tab",
+        body: frame("KSFO · 1R selected", fly({ data: SFO, tabMode: "more", elide: sfoElide, measure: true }))
+          + frame("KATL · 26L selected", fly({ data: { ends: ATL_ENDS, rows: {} }, tabMode: "more", elide: atlElide, measure: true })),
+        how: "Tabs that do not fit beside a final “More ▾” tab move into a short list it opens; choosing one there selects it and the More tab carries its name.",
+        worst: "It brings back a nested popup, the thing YAAT-569 removes: the runway in the list takes a second click, and which ends hide behind More depends on how wide the other labels are, so the same runway moves in and out of the list between airports." },
+    ],
+  };
+
+  /* ---------- 4b. Long via strings ---------- */
+  const q4b = {
+    id: "q4-via", title: "4b · Width: long variant commands against the cap", sends: "TAXI T8 A F C 28R, CROSS 1L, CROSS 1R, CROSS 10R and the seven other variants",
+    intro: [
+      "Same aircraft, the 28R tab. Its full-length entry, At C via T8 A F C, crosses 1L, 1R and 28L (named 10R, the crossed runway's first end), so it has eight variants. Today a route row trims its command at <code>RouteCommandMaxWidth</code> (180 px) with the whole row in its tooltip; a glyph row (<code>MenuGlyphRow</code>) has no width rule of its own. Each frame's label gives its widest row as measured in this page. The tab holds four more entries below (C2, N, P, L), each with its variants: 38 variant rows in all.",
+    ],
+    stub: SFO_STUB,
+    lanes: [
+      { kind: "a", name: "One line, command trimmed at 180 px",
+        body: frame("KSFO · 28R selected · first entry", fly({ data: SFO, tabMode: "wrap", selected: "28R", cmdMode: "trim", limit: 1, elide: sfoElide, measureRows: true })),
+        how: "Every variant stays one line; its command is cut at 180 px with an ellipsis, as route rows are today, and the row's tooltip carries the label and the whole command.",
+        worst: "The crossings are what gets cut: “TAXI T8 A F C HS 10R, C…” hides which runways the row clears, so only the label tells a one-crossing row from a three-crossing one; on 1R, with the longer via T8 A H B M1 A2 A1, even the runway held short of falls past the ellipsis." },
+      { kind: "b", rec: true, name: "Two lines: label over the whole command",
+        body: frame("KSFO · 28R selected · first entry", fly({ data: SFO, tabMode: "wrap", selected: "28R", cmdMode: "two", limit: 1, elide: sfoElide, measureRows: true })),
+        how: "Each variant puts its label on the first line and the whole command under it in the monospace font, as Preset taxi route's two-line rows put the taxiways under the name; nothing is trimmed under the cap.",
+        worst: "Rows double in height: the 28R tab's 38 variants and five titles take about 1,900 px, so the flyout fills the screen and scrolls, and the entry titles that tell C from N and P scroll away with it." },
+      { kind: "c", name: "One line, the via left out of the command",
+        body: frame("KSFO · 28R selected · first entry", fly({ data: SFO, tabMode: "wrap", selected: "28R", cmdMode: "tail", limit: 1, elide: sfoElide, measureRows: true })),
+        how: "The entry title already shows the via, so each variant's command column shows “TAXI … ” and only what follows the via; the tooltip and the send carry the whole command.",
+        worst: "The column no longer shows what is sent, the rule every designed flyout keeps; and with three crossings the label and the tail together still need more than the cap, so the label is trimmed instead (measured above)." },
+    ],
+  };
+
+  /* ---------- 5. All Commands ---------- */
+  const acList = hot => menu([["Push back", false, false], ["Push back to…", true, false], ["Push route…", false, false], ["Taxi to runway", true, true], ["Preset taxi route", true, false]]
+    .map(([t, sub, h]) => `<div class="mi plain${h && hot ? " hot" : ""}${h ? "" : " faint"}"><span>${esc(t)}</span>${sub ? `<span class="chev">›</span>` : "<span></span>"}</div>`).join("")
+    + sep() + `<div class="mi plain faint"><span>Tower</span><span class="chev">›</span></div><div class="mi plain faint"><span>Draw taxi route…</span><span></span></div>`, "", "All Commands");
+  const nestedRow = (e, hot) => `<div class="mi${hot ? " hot" : ""}" role="menuitem" style="grid-template-columns:auto minmax(0,1fr) auto auto auto"><span class="bdg">RW</span><span class="nm"><span class="n" style="font-weight:${e.hi ? 700 : 600};flex:0 0 auto">${esc(e.name)}</span><span class="n" style="font-size:12px;opacity:.8">&nbsp;· ${esc([e.reason, e.avail ? ft(e.avail) + " avail" : null, "via " + e.via].filter(Boolean).join(" · "))}</span></span><span class="cmd" style="opacity:1;font:13px Inter,'Segoe UI',sans-serif">${ft(e.d)}</span><span class="cmd">TAXI ${esc(e.via)} 30</span><span class="chev">›</span></div>`;
+  const nested = () => {
+    const l1 = menu(`<div class="mi plain dis"><span>Runway 30 · assigned runway</span><span></span></div>` + OAK.rows["30"].map((e, i) => nestedRow(e, i === 2)).join("") + sep()
+      + `<div class="mi plain dis"><span>Runway 28R · departure runway</span><span></span></div>` + nestedRow({ ...OAK.rows["28R"][0], via: "TE T S B" }).replace("TAXI TE T S B 30", "TAXI TE T S B HS 28L RWY 28R") + sep()
+      + `<div class="mi plain faint"><span>Other runways</span><span class="chev">›</span></div>`, "", "Taxi to runway submenu");
+    const l2 = menu(variants(OAK.rows["30"][2], "30").map(([l, c]) => `<div class="mi plain" role="menuitem" data-send="${esc(c)}" tabindex="0"><span>${esc(l.replace("Departure", "For Departure"))}</span><span></span></div>`).join(sep()), "", "At W3 variants");
+    return `<div class="cascade">${acList(true)}<div style="margin-top:96px">${l1}</div><div style="margin-top:230px;margin-left:-4px">${l2}</div></div>`;
+  };
+  const q5 = {
+    id: "q5-allcmds", title: "5 · All Commands › Taxi to runway", sends: "the same commands on either surface",
+    intro: [
+      "All Commands holds Taxi to runway in its ground-movement block (<code>AircraftMenuBuilder.GroundMovementIds</code>). Preset taxi route, Hold short of, Follow, Give way to and Push back to already use one builder for the strip flyout and the All Commands submenu, which refills as it opens with no live tick (<code>TaxiRouteFlyout.BuildPreset</code>, <code>HoldShortLadder</code>). Today Taxi to runway is one <code>LazySubmenu</code> on both surfaces, the strip moving its items into its flyout.",
+      "Drawn from the All Commands submenu on: the aircraft menu above opens it from “All Commands ›”.",
+    ],
+    stub: Object.assign({}, OAK_STUB, { active: "", hot: "All Commands" }), stack: true,
+    lanes: [
+      { kind: "a", rec: true, name: "The same tabbed flyout under All Commands",
+        body: frame("All Commands › Taxi to runway", `<div class="cascade">${acList(true)}<div style="margin-top:96px">${fly({ data: OAK, states: OAK_OPEN })}</div></div>`),
+        how: "One builder serves both: under All Commands, Taxi to runway's submenu is the tabbed panel, searched when it first opens (Q2's rule) and with Q1's keys; nothing refills while it is open, as for the other ground flyouts.",
+        worst: "A 480 px panel cascading from the All Commands submenu, near the right of the screen, flips to the left and covers the aircraft menu and the aircraft itself; on a short screen its tallest tab (KSFO 28R, 38 rows) slides up over the menu that opened it." },
+      { kind: "b", name: "All Commands keeps the nested submenus",
+        body: frame("All Commands › Taxi to runway › At W3 ›", nested()),
+        how: "The strip gets the tabbed flyout; All Commands keeps today's tree: group titles over RW rows, each row opening its variants, and Other runways › end › entry › variant.",
+        worst: "Two layouts of the same choices to build and keep in step, and the deep one stays four levels down: Other runways › 15 › At D › variant, each hover able to swap the submenu beside it when the pointer cuts across a row." },
+    ],
+  };
+
+  const ARTS = [q1, q2, q3, q4, q4b, q5];
+  document.getElementById("arts").innerHTML = ARTS.map(art).join("");
+  document.getElementById("index").innerHTML = ARTS.map(a => `<a href="#${a.id}">${esc(a.title)}</a>`).join("");
+
+  /* ---------- Layout passes: More overflow, scroll arrows, width measures ---------- */
+  /** The bar's width on one row: every end's tab, the 4 px gaps between them and the bar's 8 px padding each side. */
+  function barNeed(el) {
+    const tabs = [...el.querySelectorAll(".tab[data-tab]")];
+    const saved = tabs.map(t => t.style.display);
+    tabs.forEach(t => { t.style.display = ""; });
+    const w = tabs.reduce((a, t) => a + t.getBoundingClientRect().width, 0) + 4 * (tabs.length - 1) + 16;
+    tabs.forEach((t, i) => { t.style.display = saved[i]; });
+    return Math.ceil(w);
+  }
+  function layoutMore(el) {
+    const bar = el.querySelector(".tabs.nowrap");
+    if (!bar) return;
+    const o = FLY[el.getAttribute("data-fly")];
+    const tabs = [...bar.querySelectorAll(".tab[data-tab]")];
+    const more = bar.querySelector(".tab.more");
+    tabs.forEach(t => { t.style.display = ""; });
+    more.style.display = "";
+    const avail = bar.clientWidth - 16;
+    const widths = tabs.map(t => t.getBoundingClientRect().width + 4);
+    const total = widths.reduce((a, b) => a + b, 0);
+    if (total <= avail) { more.style.display = "none"; o.hidden = []; return; }
+    let used = more.getBoundingClientRect().width;
+    const hidden = [];
+    tabs.forEach((t, i) => {
+      if (!hidden.length && used + widths[i] <= avail) used += widths[i];
+      else { t.style.display = "none"; hidden.push(t.getAttribute("data-tab")); }
+    });
+    o.hidden = hidden;
+    if (hidden.includes(o.selected)) { more.innerHTML = `${esc(o.selected)} ▾`; more.setAttribute("aria-selected", "true"); }
+    else { more.textContent = "More ▾"; more.setAttribute("aria-selected", "false"); }
+  }
+  function layoutScroll(el) {
+    const strip = el.querySelector(".tscroll .strip");
+    if (!strip) return;
+    const arrows = el.querySelectorAll(".tscroll .arrow");
+    arrows.forEach(a => { a.style.display = "none"; });
+    if (strip.scrollWidth <= strip.clientWidth + 1) return;
+    arrows.forEach(a => { a.style.display = ""; });
+    const sel = strip.querySelector('[aria-selected="true"]');
+    if (sel && (sel.offsetLeft + sel.offsetWidth > strip.scrollLeft + strip.clientWidth || sel.offsetLeft < strip.scrollLeft)) strip.scrollLeft = sel.offsetLeft - 4;
+    const [l, r] = el.querySelectorAll(".tscroll .arrow");
+    l.disabled = strip.scrollLeft <= 0;
+    r.disabled = strip.scrollLeft + strip.clientWidth >= strip.scrollWidth - 1;
+  }
+  function measure(el) {
+    const o = FLY[el.getAttribute("data-fly")];
+    const label = el.parentElement.querySelector(".flabel");
+    if (!label) return;
+    label.querySelectorAll(".mw").forEach(n => n.remove());
+    if (o.measure) {
+      const need = barNeed(el);
+      label.insertAdjacentHTML("beforeend", ` · <span class="mw${need <= 470 ? " ok" : ""}">the bar needs ${need} px on one row, ${need <= 470 ? "within" : `${need - 470} px over`} the 470 px inside the 480 px cap</span>`);
+    }
+    if (o.measureRows) {
+      let widest = 0;
+      el.querySelectorAll(".mi.vr").forEach(r => {
+        const c = r.cloneNode(true);
+        c.style.cssText = "position:absolute;visibility:hidden;left:-9999px;top:0;width:max-content;";
+        c.querySelectorAll(".cmd.trim").forEach(n => n.classList.remove("trim"));
+        if (o.cmdMode === "two") c.style.gridTemplateColumns = "auto max-content";
+        el.appendChild(c);
+        widest = Math.max(widest, Math.ceil(c.getBoundingClientRect().width));
+        c.remove();
+      });
+      const room = 470;
+      label.insertAdjacentHTML("beforeend", ` · <span class="mw${widest <= room ? " ok" : ""}">widest row needs ${widest} px untrimmed, ${widest <= room ? "fits" : `${widest - room} px over`} the 470 px a row gets</span>`);
+    }
+  }
+  function afterLayout(el) { layoutMore(el); layoutScroll(el); }
+  document.querySelectorAll("[data-fly]").forEach(el => { measure(el); afterLayout(el); });
+
+  /* The shifting-tab frames: the pointer sits on 15 in the first, at the same spot in the second; say what it rests on there. */
+  function placePointer(o) {
+    const el = flyEl(o.id), cur = el.querySelector(".cursor"), box = el.getBoundingClientRect();
+    if (o.ptrTab) {
+      const r = el.querySelector(`[data-tab="${o.ptrTab}"]`).getBoundingClientRect();
+      o.ptrX = r.left + r.width / 2 - box.left;
+    } else {
+      o.ptrX = o.ptrFrom.ptrX;
+    }
+    cur.style.left = `${o.ptrX - 2}px`;
+    const under = [...el.querySelectorAll(".tab[data-tab]")].find(t => { const r = t.getBoundingClientRect(); return (r.left - box.left <= o.ptrX) && (r.right - box.left >= o.ptrX); });
+    const note = el.parentElement.querySelector("[data-under]");
+    if (note) note.textContent = under ? under.getAttribute("data-tab") : "the gap between two tabs";
+  }
+  placePointer(SHIFT1);
+  placePointer(SHIFT2);
+  Object.values(FLY).forEach(o => {
+    const el = flyEl(o.id);
+    if (o.hotRow !== undefined) rowsOf(el)[o.hotRow].classList.add("hot");
+    if (o.hotTab) el.querySelector(`[data-tab="${o.hotTab}"]`).classList.add("hot");
+  });
+
+  /* ---------- Interaction ---------- */
+  const say = (from, html) => { const l = from.closest("[data-lane]"); if (l) l.querySelector("[data-sent]").innerHTML = html; };
+  const rowText = r => r.getAttribute("title");
+  function select(id, key, how) {
+    const o = FLY[id], el = flyEl(id);
+    o.selected = key;
+    const st = o.states[key];
+    if (o.lazy && st === "unsearched") {
+      const rw = OAK.runwayOf[key];
+      Object.keys(OAK.runwayOf).filter(k => OAK.runwayOf[k] === rw && o.states[k] === "unsearched").forEach(k => { o.states[k] = "loading"; });
+      setTimeout(() => {
+        Object.keys(OAK.runwayOf).filter(k => OAK.runwayOf[k] === rw && o.states[k] === "loading").forEach(k => { o.states[k] = OAK.rows[k].length ? "ready" : "empty"; });
+        rerender(id);
+        say(el, `${esc(key)}: search done, ${OAK.rows[key].length ? `${OAK.rows[key].length} ${OAK.rows[key].length === 1 ? "entry" : "entries"}` : "no runway entry found"}.`);
+      }, 1000);
+    }
+    o.focus = how === "kb-tab" ? { tab: key } : (how === "kb-row" ? { row: 0 } : o.focus);
+    rerender(id);
+    if (o.scope && o.prev === "a") setPreview(id, how === "kb-row" ? firstRoute(o, key) : null);
+    if (o.scope && o.prev === "b") setPreview(id, firstRoute(o, key));
+    return el;
+  }
+  function firstRoute(o, key) {
+    const rows = o.data.rows[key] || [];
+    return rows.length ? rows[0].route || null : null;
+  }
+  function sendRow(r) { say(r, `Sends <code>${esc(r.getAttribute("data-send"))}</code> and closes the flyout and the menu.`); }
+
+  document.addEventListener("click", e => {
+    const flyRoot = e.target.closest("[data-fly]");
+    if (!flyRoot) return;
+    const id = flyRoot.getAttribute("data-fly"), o = FLY[id];
+    const arrow = e.target.closest("[data-scroll]");
+    if (arrow) {
+      const strip = flyRoot.querySelector(".tscroll .strip");
+      strip.scrollLeft += Number(arrow.getAttribute("data-scroll")) * 60;
+      setTimeout(() => layoutScroll(flyRoot), 350);
+      say(flyRoot, "Scrolls the bar by about a tab; sends nothing.");
+      return;
+    }
+    const more = e.target.closest("[data-more]");
+    if (more) {
+      const open = flyRoot.querySelector(".morelist");
+      if (open) { open.remove(); return; }
+      const list = (o.hidden || []).map(k => `<div class="mi plain" role="menuitem" data-pick="${esc(k)}" tabindex="0" style="cursor:pointer"><span style="font:12px Consolas,monospace">${esc(k)}</span><span></span></div>`).join("");
+      flyRoot.querySelector(".tabs").insertAdjacentHTML("beforeend", `<div class="morelist">${menu(list, "", "More runways")}</div>`);
+      say(flyRoot, `Opens a list of ${o.hidden.length} more runway ends; sends nothing.`);
+      return;
+    }
+    const pick = e.target.closest("[data-pick]");
+    if (pick) { select(id, pick.getAttribute("data-pick")); say(flyRoot, `Selects ${esc(pick.getAttribute("data-pick"))} from the More list; sends nothing.`); return; }
+    const tab = e.target.closest("[data-tab]");
+    if (tab) {
+      const key = tab.getAttribute("data-tab");
+      const before = o.states[key];
+      select(id, key);
+      say(flyRoot, before === "unsearched" ? `Selects ${esc(key)} and starts its runway's search; sends nothing.` : `Shows runway ${esc(key)}'s entries; sends nothing.`);
+      return;
+    }
+    const row = e.target.closest(".mi[data-send]");
+    if (row) sendRow(row);
+  });
+  document.addEventListener("pointerover", e => {
+    const flyRoot = e.target.closest("[data-fly]");
+    if (!flyRoot) return;
+    const o = FLY[flyRoot.getAttribute("data-fly")];
+    if (!o.scope) return;
+    const row = e.target.closest(".mi[data-prev]");
+    if (row) { setPreview(o.id, row.getAttribute("data-prev")); return; }
+    const tab = e.target.closest("[data-tab]");
+    if (tab && o.prev === "b") setPreview(o.id, firstRoute(o, tab.getAttribute("data-tab")));
+  });
+
+  /* ---------- Keyboard models (Q1) ---------- */
+  function rowsOf(el) { return [...el.querySelectorAll("[data-panel] .mi[data-send]")]; }
+  function paintFocus(id) {
+    const o = FLY[id], el = flyEl(id);
+    if (!o.kb) return;
+    el.querySelectorAll(".kfocus").forEach(n => n.classList.remove("kfocus"));
+    if (!o.focus) o.focus = o.kb === "b" ? { tab: o.selected } : { row: 0 };
+    if (o.focus.tab) el.querySelector(`[data-tab="${o.focus.tab}"]`)?.classList.add("kfocus");
+    else rowsOf(el)[o.focus.row]?.classList.add("kfocus");
+  }
+  document.querySelectorAll("[data-kb]").forEach(el => paintFocus(el.getAttribute("data-fly")));
+  const bufState = {};
+  document.addEventListener("keydown", e => {
+    const el = e.target.closest && e.target.closest("[data-kb]");
+    if (!el) return;
+    const id = el.getAttribute("data-fly"), o = FLY[id], kb = o.kb;
+    const keys = o.ends.map(([k]) => k);
+    const ti = keys.indexOf(o.selected);
+    const rows = rowsOf(el);
+    const onTab = !!o.focus.tab;
+    const row = o.focus.row ?? 0;
+    const focusRow = n => { o.focus = { row: Math.max(0, Math.min(rows.length - 1, n)) }; paintFocus(id); const r = rowsOf(el)[o.focus.row]; say(el, `Focus on ${esc(rowText(r))}.`); };
+    const toTab = (n, how) => {
+      if (n < 0 || n >= keys.length) { say(el, n < 0 ? "Already on the first tab; nothing happens." : "Already on the last tab; nothing happens."); return; }
+      select(id, keys[n], how);
+      say(el, how === "kb-tab" ? `Tab ${esc(keys[n])} focused and selected; its entries show.` : `Tab ${esc(keys[n])} selected; focus on ${esc(rowText(rowsOf(el)[0]))}.`);
+    };
+    const close = () => say(el, "Closes the flyout; focus returns to the Taxi to runway strip button.");
+    let handled = true;
+    if (e.key === "Escape") close();
+    else if (e.key === "Enter" || e.key === " ") {
+      if (onTab) { if (kb === "b") focusRow(0); } else sendRow(rows[row]);
+    } else if (kb === "a") {
+      if (e.key === "ArrowDown" || (e.key === "Tab" && !e.shiftKey)) focusRow(row + 1);
+      else if (e.key === "ArrowUp" || (e.key === "Tab" && e.shiftKey)) focusRow(row - 1);
+      else if (e.key === "ArrowLeft") toTab(ti - 1, "kb-row");
+      else if (e.key === "ArrowRight") toTab(ti + 1, "kb-row");
+      else handled = false;
+    } else if (kb === "b") {
+      if (onTab) {
+        if (e.key === "ArrowLeft") toTab(ti - 1, "kb-tab");
+        else if (e.key === "ArrowRight") toTab(ti + 1, "kb-tab");
+        else if (e.key === "ArrowDown" || (e.key === "Tab" && !e.shiftKey)) focusRow(0);
+        else if (e.key === "Tab" && e.shiftKey) say(el, "Already on the bar; nothing before it.");
+        else handled = false;
+      } else if (e.key === "ArrowDown" || (e.key === "Tab" && !e.shiftKey)) focusRow(row + 1);
+      else if ((e.key === "ArrowUp" && row === 0) || (e.key === "Tab" && e.shiftKey)) { o.focus = { tab: o.selected }; paintFocus(id); say(el, `Back on the ${esc(o.selected)} tab.`); }
+      else if (e.key === "ArrowUp") focusRow(row - 1);
+      else if (e.key === "ArrowLeft") close();
+      else if (e.key === "ArrowRight") say(el, "Nothing: no row here opens a submenu.");
+      else handled = false;
+    } else if (kb === "c") {
+      if (e.key === "ArrowDown" || (e.key === "Tab" && !e.shiftKey)) focusRow(row + 1);
+      else if (e.key === "ArrowUp" || (e.key === "Tab" && e.shiftKey)) focusRow(row - 1);
+      else if (e.key === "ArrowLeft") close();
+      else if (e.key === "ArrowRight") say(el, "Nothing: no row here opens a submenu.");
+      else if (/^[0-9a-zA-Z]$/.test(e.key)) {
+        const now = Date.now(), b = bufState[id] || { t: 0, s: "" };
+        b.s = (now - b.t >= 1500 ? "" : b.s) + e.key.toUpperCase();
+        b.t = now;
+        bufState[id] = b;
+        const hits = keys.filter(k => k.startsWith(b.s));
+        const exact = keys.find(k => k === b.s);
+        const target = hits.length === 1 ? hits[0] : (exact && hits.length === 1 ? exact : null);
+        if (target) toTab(keys.indexOf(target), "kb-row");
+        else say(el, hits.length ? `Typed “${esc(b.s)}”: ${hits.join(", ")} still match; nothing selected yet.` : `Typed “${esc(b.s)}”: no runway end starts with it.`);
+        const chip = flyEl(id).querySelector("[data-buf]");
+        if (chip) { chip.hidden = false; chip.textContent = b.s; }
+      } else handled = false;
+    }
+    if (handled) e.preventDefault();
+  });
+})();
+</script>
+</body>
+</html>
