@@ -35,7 +35,7 @@
   - [ ] YAAT-278 FOLLOW sizzle reel: add ground FOLLOW and give-way taxi clips · release v0.16.0-beta reels
 - [ ] YAAT-403 Support for vTBFM · release vNext
   - [!] YAAT-539 vTBFM: follow each user's chosen YAAT room (contributed PR) · release vNext+1
-  - [ ] YAAT-780 Keep the GFS grid when a member who did not load the weather saves it · release vNext
+  - [/] YAAT-780 Keep the GFS grid when a member who did not load the weather saves it · release vNext
   - [!] YAAT-781 Cap the wind grids a recording import registers, by count and decompressed size · release vNext
   - [!] YAAT-782 Refuse a GRIB2 grid that decodes to non-finite winds · release vNext
   - [!] YAAT-783 Fix the saved-grid FD wording, the showcase scene's wind direction and the guide's grid wording · release vNext
@@ -109,7 +109,7 @@
 - [ ] YAAT-378 LAHSO: query an EXIT instructed beyond the hold-short point at the readback
 - [ ] YAAT-397 Repeat EXIT under a standing EXP: judge it the same before and after the exit hand-off
 - [ ] YAAT-398 Runway exit EXIT judgement leftovers: confirming EXIT under EXP, unchecked EXIT while searching, behind-wording
-- [ ] YAAT-402 Count an aircraft past a runway hold line as fouling that runway · release vNext
+- [/] YAAT-402 Count an aircraft past a runway hold line as fouling that runway · release vNext
 - [ ] YAAT-404 Split TaxiingPhase.OnTick under the 100-line limit
 - [ ] YAAT-410 Start-node hold aims the centre, not the nose; ILS/approach holds; firm taxi stop rate
 - [ ] YAAT-414 Navigator reads an aircraft in line but short of segment 0 as off-line and crawls at 5 kt
@@ -563,3 +563,7 @@
 - [ ] YAAT-795 Refuse recording manifest wind-grid hashes that are not 64 lowercase hex
 - [ ] YAAT-796 Merge the two warnings of a live weather load with neither GFS nor FD winds
 - [ ] YAAT-797 Make QuickCommandsSection_DragReordersARow hold under load
+
+## No project
+
+- [ ] YAAT-798 Answer gate's routed-run CS0009 questions: test-all parallel builds, obj in routing outputs
