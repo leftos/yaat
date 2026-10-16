@@ -1,0 +1,429 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Exit Flyout Choices</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+<style>
+  /* Layout: one artboard per open question; each has a header (question, situation, the aircraft menu with its strip) over lanes A and B. */
+  :root {
+    --bg: #eceff2; --panel: #ffffff; --ink: #15181c; --muted: #58616c; --line: #d3d8de;
+    --accent: #2c5fa6; --tag-a: #1f7f71; --tag-b: #7a4fbf; --warn: #a3520a;
+    --f-display: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
+    --f-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+    --f-mono: "IBM Plex Mono", Consolas, monospace;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0e1013; --panel: #171a1f; --ink: #e5e8ec; --muted: #9aa3ae; --line: #2b3038;
+      --accent: #8fc1ff; --tag-a: #5fd0bf; --tag-b: #c4a3ff; --warn: #ffb259;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0e1013; --panel: #171a1f; --ink: #e5e8ec; --muted: #9aa3ae; --line: #2b3038;
+    --accent: #8fc1ff; --tag-a: #5fd0bf; --tag-b: #c4a3ff; --warn: #ffb259;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html, body { overflow-x: hidden; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.5 var(--f-body); }
+  .wrap { max-width: 1720px; margin: 0 auto; padding-inline: 16px; padding-block: 28px 64px; }
+  h1 { font: 600 30px/1.15 var(--f-display); margin: 0 0 8px; text-wrap: balance; letter-spacing: -.01em; }
+  .lede { max-width: 80ch; color: var(--muted); margin: 0 0 6px; }
+  .lede b { color: var(--ink); font-weight: 600; }
+  .lede code, .cap code, .art-meta code, footer code { font: 12px var(--f-mono); color: var(--accent); white-space: nowrap; }
+  .eyebrow { font: 500 11px var(--f-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+  nav.index { display: flex; flex-wrap: wrap; gap: 6px; margin: 16px 0 28px; }
+  nav.index a { font: 500 12px var(--f-mono); color: var(--ink); text-decoration: none; border: 1px solid var(--line); background: var(--panel);
+                border-radius: 4px; padding: 4px 9px; }
+  nav.index a:hover, nav.index a:focus-visible { border-color: var(--accent); outline: none; }
+
+  .art { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 18px; margin-bottom: 28px; scroll-margin-top: 12px; }
+  .art-head { display: flex; flex-wrap: wrap; gap: 16px 28px; align-items: flex-start; justify-content: space-between; margin-bottom: 16px; }
+  .art-meta { flex: 1 1 420px; min-width: 0; }
+  .art-meta h2 { font: 600 22px/1.2 var(--f-display); margin: 0 0 4px; text-wrap: balance; }
+  .art-meta .sends { font: 12px var(--f-mono); color: var(--accent); margin-bottom: 8px; }
+  .art-meta p { margin: 0 0 6px; max-width: 74ch; color: var(--muted); }
+  .art-meta p b { color: var(--ink); font-weight: 600; }
+
+  .lanes { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 520px), 1fr)); gap: 16px; align-items: start; }
+  .lane { min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+  .lane-h { display: flex; align-items: baseline; gap: 8px; }
+  .tag { font: 600 11px var(--f-mono); letter-spacing: .06em; text-transform: uppercase; border: 1px solid currentColor; border-radius: 3px; padding: 0 5px; }
+  .tag.a { color: var(--tag-a); } .tag.b { color: var(--tag-b); }
+  .lane-h h3 { font: 600 15px/1.25 var(--f-display); margin: 0; }
+  .sent { font-size: 12px; color: var(--muted); min-height: 18px; border-top: 1px dashed var(--line); padding-top: 6px; }
+  .sent code { font: 12px var(--f-mono); color: var(--accent); }
+  .cap { margin: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 10px; font-size: 13px; }
+  .cap dt { font: 500 11px var(--f-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); padding-top: 2px; white-space: nowrap; }
+  .cap dd { margin: 0; }
+  .cap dd.worst { color: var(--warn); }
+  footer.foot { color: var(--muted); font-size: 12px; margin-top: 18px; max-width: 90ch; }
+
+  /* The app's own surfaces: YAAT runs Avalonia Fluent in dark only, so these stay dark in either page theme. */
+  .stage { background: #0b0d10; border: 1px solid #22262c; border-radius: 8px; padding: 14px; overflow-x: auto; color-scheme: dark;
+           display: flex; flex-direction: column; gap: 16px; }
+  .stub-stage { flex: 0 0 auto; padding: 12px; }
+  .frame { display: flex; flex-direction: column; gap: 6px; }
+  .flabel { font: 500 11px "JetBrains Mono", Consolas, monospace; color: #a4adb8; letter-spacing: .02em; }
+  .flabel b { color: #e4e7eb; font-weight: 400; }
+  .m { font: 14px/1.3 Inter, "Segoe UI", system-ui, sans-serif; color: #ffffff; }
+  .menu { background: #2c2c2c; border: 1px solid #474747; border-radius: 8px; padding: 4px; box-shadow: 0 10px 28px rgba(0, 0, 0, .55);
+          width: max-content; min-width: 190px; max-width: 480px; position: relative; }
+  .menu.w { width: 100%; max-width: 480px; }
+  .mi { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; min-height: 32px; padding: 5px 11px;
+        border-radius: 4px; cursor: default; position: relative; }
+  .mi[data-send] { cursor: pointer; }
+  .mi[data-send]:hover, .mi.hot { background: rgba(255, 255, 255, .085); }
+  .mi[data-send]:focus-visible { outline: 2px solid #8fc1ff; outline-offset: -2px; }
+  .mi.plain { grid-template-columns: minmax(0, 1fr) auto; }
+  .mi.faint { opacity: .55; }
+  .mi.title { grid-template-columns: 1fr auto; min-height: 24px; padding-top: 4px; padding-bottom: 2px; font-size: 11px; letter-spacing: .02em; color: #a4adb8; }
+  .mi.title .r { font: 11px "JetBrains Mono", Consolas, monospace; color: #8c95a0; }
+  .msep { height: 1px; background: #3d3d3d; margin: 4px 2px; }
+  .chev { color: #b9bfc6; padding-left: 10px; font-size: 15px; }
+  .gly { flex: 0 0 auto; display: block; margin-right: 8px; }
+  .nm { min-width: 0; display: flex; align-items: baseline; flex-wrap: nowrap; gap: 0 4px; overflow: hidden; }
+  .nm .n { white-space: nowrap; flex: 0 0 auto; }
+  .note { font-size: 12px; opacity: .8; white-space: nowrap; }
+  .nm.col { flex-direction: column; align-items: flex-start; overflow: visible; }
+  .dist { padding-left: 16px; font-variant-numeric: tabular-nums; white-space: nowrap; font-size: 13px; }
+  .cmd { padding-left: 16px; font: 12px "JetBrains Mono", Consolas, monospace; opacity: .7; text-align: right; white-space: nowrap; }
+  .mi.dim > :not(.nm), .mi.dim .nm > .n { opacity: .5; }
+  .mi.dim .cmd { opacity: .35; }
+  .mi.passed > * { opacity: .38; }
+  .mi.passed .dist { color: #ffc062; opacity: .75; }
+  .mi.passed { cursor: default; }
+  .mi.passed:hover { background: transparent; }
+
+  /* Long text: lane A truncates the note, lane B lets the name wrap. */
+  .trunc .nm .note { overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 0 1 auto; }
+  .wrapx .nm { flex-wrap: wrap; }
+  .wrapx .nm .n { flex: 0 1 auto; white-space: normal; }
+
+  /* Inline boxes and the typed-exit suggestions. */
+  .under { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 3px; align-items: center; }
+  .tbox { font: 13px Inter, "Segoe UI", sans-serif; color: #fff; background: rgba(255, 255, 255, .06); border: 1px solid #5a5a5a; border-bottom-color: #9a9a9a;
+          border-radius: 4px; padding: 4px 8px; height: 28px; }
+  .tbox::placeholder { color: #8f969e; }
+  .tbox:focus, .tbox.focus { outline: none; border-bottom: 2px solid #8fc1ff; background: #1f1f1f; }
+  .sugg { margin: 0 6px 4px 41px; border-left: 2px solid #3a414b; padding-left: 4px; }
+  .sugg .mi { min-height: 26px; padding-top: 3px; padding-bottom: 3px; font-size: 13px; }
+  .sugg .mi .nm .n { font-weight: 600; }
+  .key { font: 10px "JetBrains Mono", Consolas, monospace; color: #cfd4da; border: 1px solid #5a5a5a; border-radius: 3px; padding: 0 4px; margin-left: 8px; opacity: .8; }
+  .hint { font-size: 11.5px; color: #a4adb8; padding: 2px 11px 6px 52px; }
+  .hint code { font: 11.5px "JetBrains Mono", Consolas, monospace; color: #8fc1ff; }
+
+  /* Mock-only annotations: the pointer, a tooltip, the refused-click note. */
+  .cursor { position: absolute; width: 18px; height: 24px; pointer-events: none; z-index: 5; left: 46%; top: 55%; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .6)); }
+  .tip { position: absolute; z-index: 6; left: 150px; top: calc(100% + 4px); font: 12px/1.35 Inter, "Segoe UI", sans-serif; color: #ffffff; background: #2b2b2b;
+         border: 1px solid #555; border-radius: 4px; padding: 4px 8px; white-space: nowrap; box-shadow: 0 6px 16px rgba(0, 0, 0, .5); pointer-events: none; }
+  .callout { max-width: 480px; font: 11.5px/1.4 Inter, "Segoe UI", sans-serif; color: #ffffff; background: #1d1f23; border: 1px dashed #ffc062; border-radius: 4px;
+             padding: 5px 8px; }
+  .callout b { color: #ffc062; font-weight: 600; }
+  .callout.calm { border-color: #5fd0bf; }
+  .callout.calm b { color: #6ee0ce; }
+
+  /* The aircraft menu stub: title, state line, the strip (no label row, per YAAT-545). */
+  .mtitle { font-weight: 700; padding: 6px 11px 0; }
+  .mstate { font-size: 11px; opacity: .8; padding: 2px 11px 6px; }
+  .strip { display: grid; grid-template-columns: repeat(5, 40px); gap: 6px; padding: 6px 11px; }
+  .cell { width: 40px; height: 40px; border-radius: 4px; background: #1f2226; display: grid; place-items: center; position: relative; }
+  .cell.latched { background: #24406a; }
+  .cell .gly { margin: 0; }
+  .cell .notch { position: absolute; right: 3px; bottom: 3px; width: 0; height: 0; border-left: 6px solid transparent; border-bottom: 6px solid #9aa3ad; }
+
+  @media (max-width: 520px) {
+    h1 { font-size: 24px; }
+    .art { padding: 12px; }
+    .stage { padding: 10px; }
+    .sugg { margin-left: 8px; }
+    .hint { padding-left: 11px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="eyebrow">YAAT-569 · brief X1 · Exit left / Exit right · mock for the owner's feedback</div>
+  <h1>Exit flyouts: four open choices</h1>
+  <p class="lede">The settled layouts are drawn in every lane: <b>Exit left on the rollout</b> as first-batch lane A (title, glyph rows with taxiway, “planned” note, distance and <code>EL &lt;twy&gt;</code>, a separator, Pilot's choice <code>EL</code>), and <b>Exit right on final</b> as first-batch lane B (Pilot's choice <code>ER</code> first, exits with “from thr” on every distance, then the “Exit at” box). Each artboard below asks one open question with two options, <b>A</b> and <b>B</b>; under each option, how it works and its worst case in use.</p>
+  <p class="lede">Exits, sides and turn-off angles are KOAK 28R and KSFO 28L from the bundled layouts (<code>LayoutInspector --exits</code>); distances are measured along the centreline from the node positions and rounded to 100 ft as the server rounds them. Click a row to see what it sends; the boxes take typing.</p>
+  <nav class="index" id="index" aria-label="Questions"></nav>
+  <div id="arts"></div>
+  <footer class="foot">Row templates follow the first-batch mock (<code>docs/plans/canvases/quick-command-flyouts/</code>), the live-refill mock (<code>docs/plans/canvases/quick-command-live-refill/</code>) and the takeoff flyout (<code>docs/plans/canvases/takeoff-flyout/</code>): Inter text, commands in JetBrains Mono at 70%, 22 px glyphs at stroke 1.9 in the tower colour, the Fluent dark menu surface, an empty box showing <code>···</code> in place of its value and sending nothing. The pointer, the tooltip and the dashed notes are mock annotations, not app UI.</footer>
+</div>
+
+<script>
+(() => {
+  "use strict";
+  const TOWER = "#FFC062";
+  const GL = {
+    EL: ["#FFC062", "M15 21V11a4 4 0 0 0-4-4H4 M8 3L4 7l4 4"],
+    ER: ["#FFC062", "M9 21V11a4 4 0 0 1 4-4h7 M16 3l4 4-4 4"],
+    CTL: ["#FFC062", "M2 20h20 M5 6l11 9 M10 15h6v-6"],
+    GA: ["#FFC062", "M4 19h7a6 6 0 0 0 6-6V5 M13 9l4-4 4 4"],
+    SPD: ["#A8CAFF", "M4 17a8 8 0 1 1 16 0 M12 17l4-5"],
+    DRAW: ["#6EE0CE", "M4 20l4-1L19 8l-3-3L5 16z M14 7l3 3"],
+  };
+  const LABEL = { EL: "Exit left", ER: "Exit right", CTL: "Cleared to land", GA: "Go around", SPD: "Assign speed", DRAW: "Draw taxi route" };
+  const OPENS = new Set(["EL", "ER"]);
+  const UNFILLED = "···";
+
+  const esc = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  const ft = n => `~${n.toLocaleString("en-US")} ft`;
+  const svg = (d, size, color) => `<svg class="gly" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${d}"/></svg>`;
+  const gl = (id, size = 22) => svg(GL[id][1], size, GL[id][0]);
+  const r1 = n => Math.round(n * 10) / 10;
+
+  /**
+   * The exit glyph turned to the exit's real turn-off angle: the runway as a straight line (travel upward) and the exit
+   * branching off it at `deg` from the travel direction, with an arrowhead at the branch's end.
+   */
+  function angleGlyph(side, deg) {
+    const s = side === "L" ? -1 : 1;
+    const stemX = side === "L" ? 18 : 6;
+    const by = deg > 100 ? 7 : 13, len = 12, ah = 4.5;
+    const rad = deg * Math.PI / 180;
+    const dx = s * Math.sin(rad), dy = -Math.cos(rad);
+    const ex = stemX + dx * len, ey = by + dy * len;
+    const rot = (x, y, a) => [x * Math.cos(a) - y * Math.sin(a), x * Math.sin(a) + y * Math.cos(a)];
+    const [a1x, a1y] = rot(-dx, -dy, Math.PI / 4), [a2x, a2y] = rot(-dx, -dy, -Math.PI / 4);
+    const exit = `M${stemX} 22V${by} L${r1(ex)} ${r1(ey)} M${r1(ex + a1x * ah)} ${r1(ey + a1y * ah)} L${r1(ex)} ${r1(ey)} L${r1(ex + a2x * ah)} ${r1(ey + a2y * ah)}`;
+    return `<svg class="gly" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="${TOWER}" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M${stemX} ${by}V2" opacity=".5"/><path d="${exit}"/></svg>`;
+  }
+
+  const menu = (inner, cls = "w", label = "") => `<div class="menu m ${cls}" role="menu"${label ? ` aria-label="${esc(label)}"` : ""}>${inner}</div>`;
+  const sep = () => `<div class="msep" role="separator"></div>`;
+  const title = (t, r = "") => `<div class="mi title"><span>${esc(t)}</span><span class="r">${esc(r)}</span></div>`;
+  const sendAttr = cmd => `data-send="${esc(cmd)}" tabindex="0"`;
+  const cursorSvg = `<svg class="cursor" viewBox="0 0 18 24" aria-hidden="true"><path d="M1.5 1.5v18.2l4.6-4.3 3 6.8 3.1-1.4-3-6.7h6.3z" fill="#ffffff" stroke="#000000" stroke-width="1.3" stroke-linejoin="round"/></svg>`;
+  const frame = (label, inner, after = "") => `<div class="frame"><div class="flabel">${label}</div>${inner}${after}</div>`;
+
+  /**
+   * One exit row. o: side "L"/"R", twy, dist, planned, fromThr, glyph ("fixed" or "angle"), deg, passed, hot, pointer, tip, cls.
+   */
+  function exitRow(o) {
+    const verb = o.side === "L" ? "EL" : "ER";
+    const cmd = `${verb} ${o.twy}`;
+    const g = o.glyph === "angle" ? angleGlyph(o.side, o.deg) : gl(verb);
+    const name = `<span class="nm"><span class="n">Taxiway ${esc(o.twy)}</span>${o.planned ? `<span class="note">· planned</span>` : ""}</span>`;
+    const dist = o.passed ? "passed" : (ft(o.dist) + (o.fromThr ? " from thr" : ""));
+    const full = `Taxiway ${o.twy}${o.planned ? " · planned" : ""} · ${dist}`;
+    const act = o.passed ? `aria-disabled="true"` : sendAttr(cmd);
+    const cls = ["mi", o.passed ? "passed" : "", o.hot ? "hot" : "", o.cls || ""].filter(Boolean).join(" ");
+    const titleAttr = o.glyph === "angle" ? ` title="${esc(full)} · turn-off ${o.deg}°"` : ` title="${esc(full)}"`;
+    return `<div class="${cls}" role="menuitem" ${act}${titleAttr}>${g}${name}<span class="dist">${esc(dist)}</span><span class="cmd">${esc(cmd)}</span>${o.pointer ? cursorSvg : ""}${o.tip ? `<div class="tip" role="tooltip">${esc(full)}</div>` : ""}</div>`;
+  }
+  const choiceRow = (side, glyph = "fixed") => {
+    const verb = side === "L" ? "EL" : "ER";
+    const g = glyph === "angle" ? gl(verb) : gl(verb);
+    return `<div class="mi" role="menuitem" ${sendAttr(verb)}>${g}<span class="nm"><span class="n">Pilot's choice</span></span><span class="dist"></span><span class="cmd">${verb}</span></div>`;
+  };
+
+  /** The "Exit at" box row: empty or unreadable, it shows ER ··· faded and sends nothing. */
+  function boxRow(o) {
+    const box = `<input class="tbox${o.focus ? " focus" : ""}" type="text" id="${o.id}" placeholder="taxiway" value="${esc(o.value || "")}" data-tpl="ER {}" ${o.suggest ? `data-suggest="${o.id}-sugg"` : ""} aria-label="Exit right at taxiway" maxlength="4" style="width:96px" autocomplete="off" spellcheck="false">`;
+    const row = `<div class="mi dim boxed" role="menuitem" data-send="" data-tplrow="${o.id}">${gl("ER")}<span class="nm col"><span class="n">Exit at</span><span class="under">${box}</span></span><span class="dist"></span><span class="cmd">ER ${UNFILLED}</span></div>`;
+    return row + (o.suggest ? `<div class="sugg" id="${o.id}-sugg" role="listbox" aria-label="Matching exits"></div><div class="hint" id="${o.id}-sugg-hint"></div>` : "");
+  }
+
+  function stub(s) {
+    const cells = s.strip.map(id => `<span class="cell${id === s.active ? " latched" : ""}" title="${esc(LABEL[id])}" role="img" aria-label="${esc(LABEL[id])}${id === s.active ? " (flyout open)" : ""}">${gl(id, 32)}${OPENS.has(id) ? `<i class="notch"></i>` : ""}</span>`).join("");
+    const plain = t => `<div class="mi plain faint"><span>${esc(t)}</span><span class="chev">›</span></div>`;
+    return `<div class="stage stub-stage">${menu(`<div class="mtitle">${esc(s.title)}</div><div class="mstate">${esc(s.state)}</div>${sep()}<div class="mi plain faint"><span>Command…</span><span></span></div>${sep()}<div class="strip">${cells}</div>${sep()}${["Track", "Data Block", "All Commands"].map(plain).join("")}`, "", "Aircraft menu")}</div>`;
+  }
+
+  function lane(l) {
+    return `<section class="lane" data-lane>
+      <div class="lane-h"><span class="tag ${l.kind}">${l.kind.toUpperCase()}</span><h3>${esc(l.name)}</h3></div>
+      <div class="stage">${l.body}</div>
+      <div class="sent" data-sent>Click a row to see what it sends.</div>
+      <dl class="cap"><dt>How it works</dt><dd>${l.how}</dd><dt>Worst case</dt><dd class="worst">${l.worst}</dd></dl>
+    </section>`;
+  }
+  function art(a) {
+    return `<section class="art" id="${a.id}">
+      <div class="art-head">
+        <div class="art-meta">
+          <h2>${esc(a.title)}</h2>
+          <div class="sends">${esc(a.sends)}</div>
+          ${a.intro.map(p => `<p>${p}</p>`).join("")}
+        </div>
+        ${stub(a.stub)}
+      </div>
+      <div class="lanes">${a.lanes.map(lane).join("")}</div>
+    </section>`;
+  }
+
+  /* ---------- Data: KOAK 28R (LayoutInspector --exits 28R), KSFO 28L (--exits 28L) ---------- */
+  // Left exits on the 28R rollout, N12KJ about 1,900 ft past B: [taxiway, distance from the aircraft, turn-off angle, planned].
+  const ROLL_L = [["G", 600, 90, false], ["H", 1100, 90, false], ["P", 2500, 128, false], ["J", 2800, 39, true]];
+  // Right exits of 28R on final, distance from the threshold: [taxiway, distance, angle].
+  const FINAL_R = [["G", 2700, 53], ["P", 4600, 53], ["J", 4900, 141], ["C1", 5500, 89]];
+  const ALL_R = [["E", 1700, 45], ...FINAL_R];
+
+  const rollMenu = glyph => title("Exits ahead, left side", "from the aircraft")
+    + ROLL_L.map(([t, d, a, p]) => exitRow({ side: "L", twy: t, dist: d, deg: a, planned: p, glyph })).join("") + sep() + choiceRow("L");
+  const finalMenu = (glyph, box) => choiceRow("R") + sep()
+    + FINAL_R.map(([t, d, a]) => exitRow({ side: "R", twy: t, dist: d, deg: a, fromThr: true, glyph })).join("") + sep() + box;
+
+  /* ---------- 1. Exit glyph angle ---------- */
+  const q1 = {
+    id: "q1-angle", title: "1 · Exit glyph angle", sends: "EL <twy> · ER <twy> (unchanged)",
+    intro: [
+      "<b>N12KJ</b>, C56X, on the landing rollout on KOAK 28R at 72 kt, about 1,900 ft past B; below it, <b>N680CS</b>, C680, on a 3 NM final to the same runway. The 28R layout mixes turn-offs: J is a 39° high-speed exit on the left, G and H are 90°, P leaves the left side at 128° (a reverse turn), and on the right J leaves at 141°.",
+      "Today's <code>ExitAheadDto</code> carries taxiway, side, distance and planned, but no angle. The server already computes each exit's angle for its own exit choice (<code>ExitAngle</code> in <code>AirportGroundLayout</code>), so lane B needs that value added to the DTO and the wire, in both repos.",
+    ],
+    stub: { title: "N12KJ · C56X", state: "Landing · rollout 28R · 72 kt", strip: ["EL", "ER", "DRAW"], active: "EL" },
+    lanes: [
+      { kind: "a", name: "One fixed glyph per side",
+        how: "Every left row carries the strip's Exit left glyph and every right row the Exit right glyph, as the settled layouts draw them. No new data.",
+        worst: "P's 128° reverse turn looks exactly like J's 39° high-speed exit: <code>EL P</code> at 72 kt asks for a turn the jet cannot make, and nothing on the row says so.",
+        body: frame("Exit left · rollout · <b>N12KJ</b> · from the aircraft", menu(rollMenu("fixed"), "w", "Exit left, fixed glyphs"))
+          + frame("Exit right · on final · <b>N680CS</b> · from the threshold", menu(finalMenu("fixed", boxRow({ id: "q1a-box" })), "w", "Exit right, fixed glyphs")) },
+      { kind: "b", name: "Glyph at the exit's real angle",
+        how: "Each row's glyph is drawn at that exit's turn-off angle from the server: J's branch leans forward at 39°, G and H turn square, P and right-side J bend back. Needs a new angle field on <code>ExitAheadDto</code>.",
+        worst: "At 22 px a 39° and a 53° branch read alike, and a reverse glyph pointing back can be taken for “behind the aircraft”; the angle is the only cue, with no word for high-speed or reverse.",
+        body: frame("Exit left · rollout · <b>N12KJ</b> · from the aircraft", menu(rollMenu("angle"), "w", "Exit left, angled glyphs"))
+          + frame("Exit right · on final · <b>N680CS</b> · from the threshold", menu(finalMenu("angle", boxRow({ id: "q1b-box" })), "w", "Exit right, angled glyphs")) },
+    ],
+  };
+
+  /* ---------- 2. The Exit-at box ---------- */
+  const q2 = {
+    id: "q2-box", title: "2 · The “Exit at” box on Exit right (final)", sends: "ER <typed taxiway>",
+    intro: [
+      "<b>N680CS</b>, C680, on a 3 NM final to KOAK 28R. The listed exits are G, P, J and C1; E, a 45° right exit about 1,700 ft from the threshold, is not in the list, so the box is the way to send <code>ER E</code>. Both lanes draw two moments of the same flyout.",
+    ],
+    stub: { title: "N680CS · C680", state: "Final 28R · 3.0 NM · 1,000 ft · 128 kt", strip: ["CTL", "GA", "SPD", "EL", "ER"], active: "ER" },
+    lanes: [
+      { kind: "a", name: "Free text, sent as typed",
+        how: "The box shows <code>ER ···</code>, faded, until something is typed; then the row shows and sends exactly <code>ER</code> plus the typed text, on click or Enter. No list, no check.",
+        worst: "A slip or a left-side name goes out as typed: “H” sends <code>ER H</code>, 28R has no right exit H, and the pilot refuses it after the menu has closed.",
+        body: frame("Opened · box empty", menu(finalMenu("fixed", boxRow({ id: "q2a-empty" })), "w"))
+          + frame("Typed “E”", menu(finalMenu("fixed", boxRow({ id: "q2a-typed", value: "E", focus: true })), "w")) },
+      { kind: "b", name: "Suggestions from the runway's exits",
+        how: "As you type, the right exits of 28R whose name starts with the text are listed under the box, nearest the threshold first, each with its distance and command; Enter takes the top match, a click takes any. Nothing matching: Enter sends as typed, as A.",
+        worst: "Enter takes the top match, not the text: “C” then Enter sends <code>ER C1</code> when the instructor meant a taxiway C, and the only warning is the suggestion line above the cursor.",
+        body: frame("Typed “E” · one match, E is not in the list above", menu(finalMenu("fixed", boxRow({ id: "q2b-match", value: "E", focus: true, suggest: true })), "w"))
+          + frame("Typed “H” · no right exit H on 28R", menu(finalMenu("fixed", boxRow({ id: "q2b-none", value: "H", focus: true, suggest: true })), "w")) },
+    ],
+  };
+
+  /* ---------- 3. Live refill while open ---------- */
+  // N12KJ at open is 2,200 ft past B, slowing 72 to 50 kt; 5 s later it has rolled about 500 ft and passed G (at about 3 s).
+  const T0 = [["G", 300, false], ["H", 800, false], ["P", 2200, false], ["J", 2500, true]];
+  const T5 = [["G", null, false], ["H", 300, false], ["P", 1700, false], ["J", 2000, true]];
+  const refillMenu = (rows, pointerOn) => title("Exits ahead, left side", "from the aircraft")
+    + rows.map(([t, d, p]) => exitRow({ side: "L", twy: t, dist: d, planned: p, passed: d === null, glyph: "fixed", hot: t === pointerOn, pointer: t === pointerOn })).join("")
+    + sep() + choiceRow("L");
+  const q3 = {
+    id: "q3-refill", title: "3 · Live refill while the flyout is open", sends: "EL <twy>",
+    intro: [
+      "<b>N12KJ</b>, C56X, rolling out on KOAK 28R, slowing from 72 kt. The flyout is opened with the aircraft 300 ft short of G; the pointer rests on H. Five seconds later the aircraft has rolled about 500 ft and passed G. On final the distances are from the threshold and do not shrink, so this choice matters on the rollout.",
+      "Lane B is the ground family's settled live rule (Follow, Give way to, Hold short of) applied to exits, with “passed” in place of “gone”.",
+    ],
+    stub: { title: "N12KJ · C56X", state: "Landing · rollout 28R · 72 kt", strip: ["EL", "ER", "DRAW"], active: "EL" },
+    lanes: [
+      { kind: "a", name: "Built once, frozen",
+        how: "Rows are built from the exits-ahead list when the flyout opens and never change while it is open; reopening the flyout rebuilds them.",
+        worst: "G stays listed and clickable after the aircraft has passed it: <code>EL G</code> goes out and is refused after the menu closes, and H still reads ~800 ft when it is 300 ft ahead.",
+        body: frame("t = 0 s · opened, pointer on H", menu(refillMenu(T0, "H"), "w"))
+          + frame("t = 5 s · unchanged", menu(refillMenu(T0, "H"), "w"), `<div class="callout" role="note"><b>Stale:</b> G was passed at about 3 s but still reads ~300 ft and sends <code>EL G</code>; H reads ~800 ft and is ~300 ft away.</div>`) },
+      { kind: "b", name: "Ground family's live rule",
+        how: "Each second the distances update in place; a passed exit greys out with “passed” and is disabled while the pointer is inside; the order stays frozen. When the pointer leaves, the list catches up and the passed row drops.",
+        worst: "A row can grey out between aim and click: a click on G a moment after it passes lands on a disabled row and sends nothing, so the instructor clicks again while the next exit gets closer.",
+        body: frame("t = 0 s · opened, pointer on H", menu(refillMenu(T0, "H"), "w"))
+          + frame("t = 5 s · pointer still inside", menu(refillMenu(T5, "H"), "w"), `<div class="callout calm" role="note"><b>Live:</b> G greyed as passed, not clickable; H, P and J count down in place. When the pointer leaves, G drops out.</div>`) },
+    ],
+  };
+
+  /* ---------- 4. Long text against the 480 px cap ---------- */
+  // KSFO 28L right exits beyond 4,000 ft from the threshold, with their turn-off angles; "CARGO WEST" is a stress row, not a taxiway in any layout.
+  const SFO_R = [["L", 4300], ["E", 6600], ["T", 7700], ["D", 8000], ["K", 8800], ["Q", 9900], ["CARGO WEST", 10800, true], ["S3", 11300]];
+  const longMenu = mode => choiceRow("R") + sep()
+    + SFO_R.map(([t, d, p]) => exitRow({ side: "R", twy: t, dist: d, planned: !!p, fromThr: true, glyph: "fixed", cls: mode, hot: !!p && mode === "trunc", pointer: !!p && mode === "trunc", tip: !!p && mode === "trunc" })).join("")
+    + sep() + boxRow({ id: `q4-${mode}` });
+  const q4 = {
+    id: "q4-long", title: "4 · Long text against the 480 px width cap", sends: "ER <twy>",
+    intro: [
+      "<b>UAL1543</b>, B39M, on a 4 NM final to KSFO 28L, eight right exits listed. Measured: no taxiway in the 21 bundled layouts has a name over 5 characters, and KSFO's widest real row here (<code>Taxiway S3 · ~11,300 ft from thr · ER S3</code>) needs about 325 px of the 480 (measured in this page). The cap bites only with a longer name from a facility's layout or a longer note.",
+      "So the planned row uses a made-up stress name, <b>CARGO WEST</b>, which with “planned” and a five-digit distance needs about 515 px, 35 px over the cap.",
+    ],
+    stub: { title: "UAL1543 · B39M", state: "Final 28L · 4.0 NM · 1,300 ft · 148 kt", strip: ["CTL", "GA", "SPD", "EL", "ER"], active: "ER" },
+    lanes: [
+      { kind: "a", name: "Truncate the note, tooltip has it all",
+        how: "Every row stays one line: the taxiway name keeps its room, the note is cut with an ellipsis, and the full text (name, note, distance) shows in the row's tooltip on hover.",
+        worst: "The note that gets cut is “planned”: here the planned exit reads “Taxiway CARGO WEST · …”, and the instructor has to hover to find which exit the pilot means to take.",
+        body: menu(longMenu("trunc"), "w") },
+      { kind: "b", name: "Wrap the row onto a second line",
+        how: "A row too wide for 480 px wraps its name and note onto a second line; the distance and command stay in their columns, vertically centred on the taller row.",
+        worst: "The wrapped row is about half again as tall as its neighbours and its distance sits between two lines, so the even rhythm a fast scan relies on breaks; a wrapped “· planned” on a line of its own is easy to miss.",
+        body: menu(longMenu("wrapx"), "w") },
+    ],
+  };
+
+  const ARTS = [q1, q2, q3, q4];
+  document.getElementById("arts").innerHTML = ARTS.map(art).join("");
+  document.getElementById("index").innerHTML = ARTS.map(a => `<a href="#${a.id}">${esc(a.title)}</a>`).join("");
+
+  /* ---------- Interaction ---------- */
+  const say = (from, html) => { const l = from.closest("[data-lane]"); if (l) l.querySelector("[data-sent]").innerHTML = html; };
+  function sendFrom(el) {
+    const cmd = el.getAttribute("data-send");
+    say(el, cmd ? `Sends <code>${esc(cmd)}</code> and closes the flyout and the menu.` : "Sends nothing while the box is empty; the flyout stays open.");
+  }
+  function matches(q) { return q ? ALL_R.filter(([t]) => t.startsWith(q)) : []; }
+  function renderSuggest(input) {
+    const list = document.getElementById(input.getAttribute("data-suggest"));
+    const hint = document.getElementById(input.getAttribute("data-suggest") + "-hint");
+    const q = input.value.trim().toUpperCase();
+    const hits = matches(q);
+    list.innerHTML = hits.map(([t, d], i) => `<div class="mi${i === 0 ? " hot" : ""}" role="option" ${sendAttr("ER " + t)}><span></span><span class="nm"><span class="n">${esc(t)}</span><span class="note">· right</span></span><span class="dist">${ft(d)} from thr</span><span class="cmd">ER ${esc(t)}${i === 0 ? `<span class="key">Enter</span>` : ""}</span></div>`).join("");
+    list.hidden = hits.length === 0;
+    if (!q) hint.innerHTML = "Type a taxiway: the right exits of 28R that start with it are listed here.";
+    else if (hits.length) hint.innerHTML = `Enter takes the top match, <code>ER ${esc(hits[0][0])}</code>.`;
+    else hint.innerHTML = `No right exit of 28R starts with “${esc(q)}”; Enter sends <code>ER ${esc(q)}</code> as typed.`;
+  }
+  function onBox(t) {
+    const row = t.closest("[data-tplrow]");
+    const v = t.value.trim().toUpperCase();
+    const ok = /^[A-Z0-9]{1,4}$/.test(v);
+    const cmd = ok ? t.getAttribute("data-tpl").replace("{}", v) : "";
+    row.setAttribute("data-send", cmd);
+    row.classList.toggle("dim", !ok);
+    row.querySelector(".cmd").textContent = ok ? cmd : t.getAttribute("data-tpl").replace("{}", UNFILLED);
+    if (t.hasAttribute("data-suggest")) renderSuggest(t);
+  }
+  document.querySelectorAll("input[data-tpl]").forEach(onBox);
+  document.addEventListener("click", e => {
+    if (e.target.closest("input")) return;
+    const send = e.target.closest("[data-send]");
+    if (send) { sendFrom(send); return; }
+    const off = e.target.closest(".mi.passed");
+    if (off) say(off, "Disabled while the pointer is inside: the aircraft has passed this exit. Sends nothing.");
+  });
+  document.addEventListener("keydown", e => {
+    if (e.key !== "Enter" && e.key !== " ") return;
+    const t = e.target;
+    if (t.matches("input")) {
+      if (e.key !== "Enter") return;
+      if (t.hasAttribute("data-suggest")) {
+        const top = document.getElementById(t.getAttribute("data-suggest")).querySelector("[data-send]");
+        if (top) { sendFrom(top); return; }
+      }
+      sendFrom(t.closest("[data-tplrow]"));
+      return;
+    }
+    if (t.matches("[data-send]")) { e.preventDefault(); sendFrom(t); }
+  });
+  document.addEventListener("input", e => { if (e.target.hasAttribute("data-tpl")) onBox(e.target); });
+})();
+</script>
+</body>
+</html>
