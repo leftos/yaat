@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.IO.Compression;
 using System.Security.Cryptography;
 using System.Text.Json;
 using Xunit;
@@ -86,6 +87,23 @@ public sealed class WindGridRegistryTests
 
         Assert.Equal(8, WindGridRegistry.Count);
         Assert.False(WindGridRegistry.TryGetBytes(pinned, out _));
+    }
+
+    [Fact]
+    public void ReadBrotliWithinLimit_DecompressionBomb_ReturnsNullWithoutInflatingIt()
+    {
+        byte[] bomb = BrotliOfZeros(64 * 1024 * 1024);
+        Assert.True(bomb.Length < WindGridRegistry.MaxGridBytes, $"the bomb is {bomb.Length} bytes compressed");
+        using var compressed = new MemoryStream(bomb);
+
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        byte[]? grib2 = WindGridRegistry.ReadBrotliWithinLimit(compressed);
+        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+
+        Assert.Null(grib2);
+        // The bound is 4 × MaxGridBytes (2 MiB): the read holds one MaxGridBytes + 1 buffer and the decoder's own state, while
+        // inflating the whole stream before checking its length allocates at least the 64 MiB it expands to.
+        Assert.True(allocated <= 4L * WindGridRegistry.MaxGridBytes, $"the read allocated {allocated:N0} bytes");
     }
 
     [Fact]
@@ -228,6 +246,22 @@ public sealed class WindGridRegistryTests
         WeatherParseResult result = WeatherTimelineParser.Parse(json);
         Assert.Null(result.Error);
         return Assert.IsType<WeatherProfile>(result.Profile);
+    }
+
+    /// <summary>A Brotli stream that expands to <paramref name="length"/> zero bytes, written in 1 MiB chunks.</summary>
+    private static byte[] BrotliOfZeros(int length)
+    {
+        byte[] chunk = new byte[1024 * 1024];
+        using var output = new MemoryStream();
+        using (var brotli = new BrotliStream(output, CompressionLevel.Fastest, leaveOpen: true))
+        {
+            for (int written = 0; written < length; written += chunk.Length)
+            {
+                brotli.Write(chunk);
+            }
+        }
+
+        return output.ToArray();
     }
 
     /// <summary>

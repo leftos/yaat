@@ -1999,6 +1999,8 @@ Under the **Scenario** menu:
 
 Recordings are self-contained archives that include the scenario definition, RNG seed, weather state, periodic state snapshots, and all user actions with timestamps. They can be shared between users for review or training.
 
+A recording that carries more than 16 different wind grids, or a wind grid larger than 512 KB, is refused whole. In a room you see **Recording refused: it carries {n} wind grids…** or **Recording refused: wind grid {id}… is larger than 524,288 bytes.**, and the room keeps the scenario it had.
+
 A loaded solo recording comes up in solo mode, so its replay speaks every pilot line and keeps its recorded conflict-alert inhibits. A replayed recording or restored session uses the airport maps it was saved with.
 
 ### Filing a Bug Report

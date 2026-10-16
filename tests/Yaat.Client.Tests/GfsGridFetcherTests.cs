@@ -128,7 +128,7 @@ public class GfsGridFetcherTests
 
         Assert.Null(result.Box);
         Assert.Equal("ARTCC box too large", result.Refusal);
-        Assert.Equal(512 * 1024, GfsGridFetcher.MaxWindGridUploadBytes);
+        Assert.Equal(512 * 1024, WindGridRegistry.MaxGridBytes);
     }
 
     // -------------------------------------------------------------------------
@@ -244,7 +244,7 @@ public class GfsGridFetcherTests
     public async Task FetchAsync_ResponseOverTheUploadCap_ReportsOverTheUploadLimit()
     {
         var nomads = new StubNomads(() =>
-            new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(new byte[GfsGridFetcher.MaxWindGridUploadBytes + 1]) }
+            new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(new byte[WindGridRegistry.MaxGridBytes + 1]) }
         );
         var fetcher = new GfsGridFetcher(nomads, RequestTimeout);
 
@@ -259,7 +259,7 @@ public class GfsGridFetcherTests
     public async Task FetchAsync_ResponseExactlyAtTheUploadCap_IsAccepted()
     {
         var nomads = new StubNomads(() =>
-            new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(new byte[GfsGridFetcher.MaxWindGridUploadBytes]) }
+            new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(new byte[WindGridRegistry.MaxGridBytes]) }
         );
         var fetcher = new GfsGridFetcher(nomads, RequestTimeout);
 

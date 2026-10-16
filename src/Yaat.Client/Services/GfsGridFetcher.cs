@@ -4,6 +4,7 @@ using System.Text;
 using Microsoft.Extensions.Logging;
 using Yaat.Client.Logging;
 using Yaat.Sim.Data.Artcc;
+using Yaat.Sim.Weather;
 
 namespace Yaat.Client.Services;
 
@@ -44,9 +45,6 @@ public sealed class GfsGridFetcher(HttpMessageHandler handler, TimeSpan requestT
     private const int MaxCyclesTried = 3;
 
     private const string HubExceptionMarker = "HubException: ";
-
-    /// <summary>The largest grid the client uploads; the server's own cap is not reachable from the client.</summary>
-    public const int MaxWindGridUploadBytes = 512 * 1024;
 
     /// <summary>Degrees added on each side of the ARTCC boundary's box.</summary>
     public const double BoxMarginDeg = 1.5;
@@ -179,7 +177,7 @@ public sealed class GfsGridFetcher(HttpMessageHandler handler, TimeSpan requestT
         byte[]? grib2 = await ReadWithinCapAsync(response.Content, cancellationToken);
         if (grib2 is null)
         {
-            Log.LogWarning("GFS grid response passed the {Cap}-byte upload limit; reading stopped: {Url}", MaxWindGridUploadBytes, url);
+            Log.LogWarning("GFS grid response passed the {Cap}-byte upload limit; reading stopped: {Url}", WindGridRegistry.MaxGridBytes, url);
             return GfsGridFetchResult.Failure(OverUploadLimit);
         }
 
@@ -193,7 +191,7 @@ public sealed class GfsGridFetcher(HttpMessageHandler handler, TimeSpan requestT
         return GfsGridFetchResult.Success(grib2, cycle, forecastHour);
     }
 
-    /// <summary>The response body, or null as soon as it passes <see cref="MaxWindGridUploadBytes"/>.</summary>
+    /// <summary>The response body, or null as soon as it passes <see cref="WindGridRegistry.MaxGridBytes"/>.</summary>
     private static async Task<byte[]?> ReadWithinCapAsync(HttpContent content, CancellationToken cancellationToken)
     {
         await using Stream body = await content.ReadAsStreamAsync(cancellationToken);
@@ -202,7 +200,7 @@ public sealed class GfsGridFetcher(HttpMessageHandler handler, TimeSpan requestT
         int read;
         while ((read = await body.ReadAsync(chunk, cancellationToken)) > 0)
         {
-            if ((grib2.Length + read) > MaxWindGridUploadBytes)
+            if ((grib2.Length + read) > WindGridRegistry.MaxGridBytes)
             {
                 return null;
             }
@@ -253,7 +251,7 @@ public sealed class GfsGridFetcher(HttpMessageHandler handler, TimeSpan requestT
     /// The box over an ARTCC boundary's extremes: <see cref="BoxMarginDeg"/> on each side, at least 2° × 2°, rounded outward to
     /// whole degrees (south and west down, north and east up), longitudes in 0–360. Refused as <see cref="BoxTooLarge"/> when it
     /// spans more than 180° of longitude or its estimated size (<see cref="EstimatedBytes"/>) exceeds
-    /// <see cref="MaxWindGridUploadBytes"/>.
+    /// <see cref="WindGridRegistry.MaxGridBytes"/>.
     /// </summary>
     public static GfsBoxResult BoxFor(double minLat, double maxLat, double minLon, double maxLon)
     {
@@ -265,7 +263,7 @@ public sealed class GfsGridFetcher(HttpMessageHandler handler, TimeSpan requestT
         }
 
         var box = new GfsGridBox(bottom, top, ToGfsLon(left), ToGfsLon(right));
-        return EstimatedBytes(box) > MaxWindGridUploadBytes ? new GfsBoxResult(null, BoxTooLarge) : new GfsBoxResult(box, null);
+        return EstimatedBytes(box) > WindGridRegistry.MaxGridBytes ? new GfsBoxResult(null, BoxTooLarge) : new GfsBoxResult(box, null);
     }
 
     /// <summary>

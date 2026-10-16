@@ -1,5 +1,7 @@
 ﻿using System.IO.Compression;
+using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Xunit;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Simulation;
@@ -1215,6 +1217,216 @@ public class RecordingArchiveTests
         Assert.Equal([hash], pins.Hashes);
         Assert.True(WindGridRegistry.TryGetBytes(hash, out ReadOnlyMemory<byte> registered));
         Assert.Equal(sample, registered.ToArray());
+    }
+
+    [Fact]
+    public void WindGrid_MoreDistinctGridsThanTheRoomLimit_IsRefusedAndRegistersNothing()
+    {
+        byte[] bytes = WriteMultiGridRecording(WindGridRegistryTests.DistinctGrids(WindGridRegistry.MaxRoomGrids + 1));
+
+        using var archive = RecordingArchive.Open(new MemoryStream(bytes));
+        Assert.Equal(WindGridRegistry.MaxRoomGrids + 1, archive.Manifest.WindGridHashes!.Count);
+        WindGridLimitException ex = Assert.Throws<WindGridLimitException>(() => archive.ToSessionRecording());
+
+        Assert.Equal("Recording refused: it carries 17 wind grids; the limit is 16.", ex.Message);
+        Assert.Equal(0, WindGridRegistry.Count);
+    }
+
+    [Fact]
+    public void WindGrid_EntryThatDecompressesPastTheByteLimit_IsRefusedAndRegistersNothing()
+    {
+        WindGridRegistry.ResetForTests();
+        byte[] sample = Grib2ReaderTests.LoadSample();
+        string hash = WindGridRegistry.Register(sample);
+        // The real grid with a run of zeros after it: one byte past the limit once decompressed, a small entry in the archive.
+        byte[] oversized = [.. sample, .. new byte[WindGridRegistry.MaxGridBytes + 1 - sample.Length]];
+        byte[] compressed = Brotli(oversized);
+        Assert.True(compressed.Length < (oversized.Length / 4), $"the entry is {compressed.Length} bytes");
+        byte[] archiveBytes = ReplaceEntry(
+            RecordingArchiveWriter.WriteToBytes(CreateGridRecording(hash)),
+            RecordingArchive.WindGridEntryName(hash),
+            compressed
+        );
+        WindGridRegistry.ResetForTests();
+
+        using var archive = RecordingArchive.Open(new MemoryStream(archiveBytes));
+        WindGridLimitException ex = Assert.Throws<WindGridLimitException>(() => archive.RegisterWindGrids());
+
+        Assert.Equal($"Recording refused: wind grid {hash[..16]}… is larger than 524,288 bytes.", ex.Message);
+        Assert.Equal(0, WindGridRegistry.Count);
+    }
+
+    [Fact]
+    public void WindGrid_OneHashListedTwentyTimes_CountsOnceAndLoads()
+    {
+        WindGridRegistry.ResetForTests();
+        string hash = WindGridRegistry.Register(Grib2ReaderTests.LoadSample());
+        byte[] bytes = WithManifestWindGridHashes(RecordingArchiveWriter.WriteToBytes(CreateGridRecording(hash)), Enumerable.Repeat(hash, 20));
+        WindGridRegistry.ResetForTests();
+
+        using var archive = RecordingArchive.Open(new MemoryStream(bytes));
+        Assert.Equal(20, archive.Manifest.WindGridHashes!.Count);
+        var loaded = archive.ToSessionRecording();
+
+        Assert.Equal([hash], loaded.WindGridPins!.Hashes);
+        Assert.Equal(1, WindGridRegistry.Count);
+    }
+
+    [Fact]
+    public void WindGrid_ExactlyTheRoomLimitOfDistinctGrids_Loads()
+    {
+        List<byte[]> grids = WindGridRegistryTests.DistinctGrids(WindGridRegistry.MaxRoomGrids);
+        byte[] bytes = WriteMultiGridRecording(grids);
+
+        using var archive = RecordingArchive.Open(new MemoryStream(bytes));
+        var loaded = archive.ToSessionRecording();
+
+        Assert.Equal(grids.Select(grid => WindGridRegistry.HashOf(grid)), loaded.WindGridPins!.Hashes);
+        Assert.Equal(WindGridRegistry.MaxRoomGrids, WindGridRegistry.Count);
+    }
+
+    [Fact]
+    public void WindGrid_SecondEntryPastTheByteLimit_IsRefusedAndReleasesTheFirstGridsPin()
+    {
+        List<byte[]> grids = WindGridRegistryTests.DistinctGrids(2 + WindGridRegistry.MaxUnpinned);
+        string first = WindGridRegistry.HashOf(grids[0]);
+        string second = WindGridRegistry.HashOf(grids[1]);
+        byte[] archiveBytes = ReplaceEntry(
+            WriteMultiGridRecording([.. grids.Take(2)]),
+            RecordingArchive.WindGridEntryName(second),
+            Brotli(PastTheByteLimit(grids[1]))
+        );
+
+        using var archive = RecordingArchive.Open(new MemoryStream(archiveBytes));
+        Assert.Throws<WindGridLimitException>(() => archive.RegisterWindGrids());
+
+        // The first grid registered and was pinned before the second refused; with its pin released, the registry's
+        // least-recently-used bound evicts it once that many newer grids register.
+        Assert.True(WindGridRegistry.TryGetField(first, out _), "the first grid registered before the refusal");
+        foreach (byte[] grid in grids.Skip(2))
+        {
+            WindGridRegistry.Register(grid);
+        }
+
+        Assert.False(WindGridRegistry.TryGetField(first, out _), "the first grid is still pinned after the refusal");
+    }
+
+    [Fact]
+    public void WindGridLimitRefusal_ExactlyTheRoomLimitOfDistinctGrids_IsNone()
+    {
+        byte[] bytes = WriteMultiGridRecording(WindGridRegistryTests.DistinctGrids(WindGridRegistry.MaxRoomGrids));
+
+        using var archive = RecordingArchive.Open(new MemoryStream(bytes));
+
+        Assert.Null(archive.WindGridLimitRefusal());
+        Assert.Equal(0, WindGridRegistry.Count);
+    }
+
+    [Fact]
+    public void WindGridLimitRefusal_OneGridPastTheRoomLimit_RefusesOnTheCount()
+    {
+        byte[] bytes = WriteMultiGridRecording(WindGridRegistryTests.DistinctGrids(WindGridRegistry.MaxRoomGrids + 1));
+
+        using var archive = RecordingArchive.Open(new MemoryStream(bytes));
+
+        Assert.Equal("Recording refused: it carries 17 wind grids; the limit is 16.", archive.WindGridLimitRefusal());
+        Assert.Equal(0, WindGridRegistry.Count);
+    }
+
+    [Fact]
+    public void WindGridLimitRefusal_OneHashListedTwentyTimes_IsNone()
+    {
+        WindGridRegistry.ResetForTests();
+        string hash = WindGridRegistry.Register(Grib2ReaderTests.LoadSample());
+        byte[] bytes = WithManifestWindGridHashes(RecordingArchiveWriter.WriteToBytes(CreateGridRecording(hash)), Enumerable.Repeat(hash, 20));
+        WindGridRegistry.ResetForTests();
+
+        using var archive = RecordingArchive.Open(new MemoryStream(bytes));
+
+        Assert.Null(archive.WindGridLimitRefusal());
+        Assert.Equal(0, WindGridRegistry.Count);
+    }
+
+    [Fact]
+    public void WindGridLimitRefusal_EntryPastTheByteLimit_RefusesOnTheSize()
+    {
+        WindGridRegistry.ResetForTests();
+        byte[] sample = Grib2ReaderTests.LoadSample();
+        string hash = WindGridRegistry.Register(sample);
+        byte[] archiveBytes = ReplaceEntry(
+            RecordingArchiveWriter.WriteToBytes(CreateGridRecording(hash)),
+            RecordingArchive.WindGridEntryName(hash),
+            Brotli(PastTheByteLimit(sample))
+        );
+        WindGridRegistry.ResetForTests();
+
+        using var archive = RecordingArchive.Open(new MemoryStream(archiveBytes));
+
+        Assert.Equal($"Recording refused: wind grid {hash[..16]}… is larger than 524,288 bytes.", archive.WindGridLimitRefusal());
+        Assert.Equal(0, WindGridRegistry.Count);
+    }
+
+    [Fact]
+    public void WindGridLimitRefusal_EntryThatIsNotBrotli_IsNoneAndLeftForTheLoadToSkip()
+    {
+        WindGridRegistry.ResetForTests();
+        string hash = WindGridRegistry.Register(Grib2ReaderTests.LoadSample());
+        byte[] corrupt = ReplaceEntry(
+            RecordingArchiveWriter.WriteToBytes(CreateGridRecording(hash)),
+            RecordingArchive.WindGridEntryName(hash),
+            Grib2ReaderTests.LoadSample()
+        );
+        WindGridRegistry.ResetForTests();
+
+        using var archive = RecordingArchive.Open(new MemoryStream(corrupt));
+
+        Assert.Null(archive.WindGridLimitRefusal());
+        Assert.Equal(0, WindGridRegistry.Count);
+    }
+
+    /// <summary><paramref name="grid"/> with a run of zeros after it: one byte past the limit, and highly compressible.</summary>
+    private static byte[] PastTheByteLimit(byte[] grid) => [.. grid, .. new byte[WindGridRegistry.MaxGridBytes + 1 - grid.Length]];
+
+    /// <summary>
+    /// An archive whose weather names each of <paramref name="grids"/>, each written once as its own entry; the registry is
+    /// left empty.
+    /// </summary>
+    private static byte[] WriteMultiGridRecording(List<byte[]> grids)
+    {
+        WindGridRegistry.ResetForTests();
+        // Pinned while the archive is written: the writer reads each grid from the registry, which keeps only eight unpinned.
+        List<IDisposable> pins = [.. grids.Select(grid => WindGridRegistry.RegisterAndPin(grid, out _))];
+        try
+        {
+            List<string> hashes = [.. grids.Select(grid => WindGridRegistry.HashOf(grid))];
+            SessionRecording recording = CreateGridRecording(hashes[0]);
+            recording.Actions.AddRange(
+                hashes.Select((hash, i) => new RecordedWeatherChange(10 + i, WindGridRegistryTests.LiveWeatherJson(hash), false))
+            );
+            return RecordingArchiveWriter.WriteToBytes(recording);
+        }
+        finally
+        {
+            pins.ForEach(pin => pin.Dispose());
+            WindGridRegistry.ResetForTests();
+        }
+    }
+
+    /// <summary>A copy of the archive whose manifest lists <paramref name="hashes"/> as its wind grids.</summary>
+    private static byte[] WithManifestWindGridHashes(byte[] archiveBytes, IEnumerable<string> hashes)
+    {
+        JsonObject manifest;
+        using (var zip = new ZipArchive(new MemoryStream(archiveBytes), ZipArchiveMode.Read))
+        using (Stream read = zip.GetEntry("manifest.json")!.Open())
+        {
+            manifest = JsonNode.Parse(read)!.AsObject();
+        }
+
+        string key = manifest
+            .Select(pair => pair.Key)
+            .Single(name => name.Equals(nameof(RecordingManifest.WindGridHashes), StringComparison.OrdinalIgnoreCase));
+        manifest[key] = new JsonArray([.. hashes.Select(hash => JsonValue.Create(hash))]);
+        return ReplaceEntry(archiveBytes, "manifest.json", Encoding.UTF8.GetBytes(manifest.ToJsonString()));
     }
 
     /// <summary>A recording whose initial weather and two recorded weather changes all fly the grid <paramref name="hash"/>.</summary>

@@ -522,7 +522,7 @@ public partial class MainViewModel
     /// </summary>
     private async Task<(string? Hash, string? Refusal)> UploadWindGridAsync(byte[] grib2)
     {
-        if (grib2.Length > GfsGridFetcher.MaxWindGridUploadBytes)
+        if (grib2.Length > WindGridRegistry.MaxGridBytes)
         {
             WarnGfsUnavailable(GfsGridFetcher.OverUploadLimit);
             return (null, GfsGridFetcher.OverUploadLimit);

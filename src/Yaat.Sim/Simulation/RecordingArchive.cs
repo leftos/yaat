@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.IO.Compression;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
@@ -16,6 +17,9 @@ namespace Yaat.Sim.Simulation;
 public sealed class RecordingArchive : IDisposable
 {
     private static readonly ILogger Log = SimLog.CreateLogger("RecordingArchive");
+
+    /// <summary>The most characters of a manifest's grid hash a refusal message shows.</summary>
+    private const int RefusalHashChars = 16;
 
     private readonly ZipArchive _zip;
     private readonly Stream? _ownedStream;
@@ -242,14 +246,25 @@ public sealed class RecordingArchive : IDisposable
     /// Registers and pins every GFS wind grid the manifest lists in <see cref="WindGridRegistry"/>, so the weather text the
     /// archive replays resolves its grid however many grids it carries and whatever registers elsewhere meanwhile. An entry
     /// that is missing, unreadable, whose bytes do not hash to its name, or that does not decode is skipped with a warning,
-    /// and the weather naming it flies the FD wind layers. Every loader calls this before the weather text is parsed.
+    /// and the weather naming it flies the FD wind layers. Every loader calls this before the weather text is parsed. A
+    /// recording past a grid limit (<see cref="WindGridLimitRefusal"/>) is refused as a whole, and nothing stays pinned.
     /// </summary>
     /// <returns>The pins on the grids registered; the caller owns them and disposes them when it no longer replays the archive.</returns>
+    /// <exception cref="WindGridLimitException">
+    /// The manifest lists more than <see cref="WindGridRegistry.MaxRoomGrids"/> distinct grids, or a grid entry decompresses
+    /// past <see cref="WindGridRegistry.MaxGridBytes"/>.
+    /// </exception>
     public WindGridPins RegisterWindGrids()
     {
-        if (Manifest.WindGridHashes is not { Count: > 0 } hashes)
+        List<string> hashes = DistinctWindGridHashes();
+        if (hashes.Count == 0)
         {
             return new WindGridPins([], []);
+        }
+
+        if (hashes.Count > WindGridRegistry.MaxRoomGrids)
+        {
+            throw new WindGridLimitException(CountRefusal(hashes.Count));
         }
 
         var registered = new List<string>(hashes.Count);
@@ -294,6 +309,7 @@ public sealed class RecordingArchive : IDisposable
     }
 
     /// <summary>The bytes of the grid entry <paramref name="hash"/>, or null (with a warning) when it is missing or holds other bytes.</summary>
+    /// <exception cref="WindGridLimitException">The entry decompresses past <see cref="WindGridRegistry.MaxGridBytes"/>.</exception>
     private byte[]? ReadWindGrid(string hash)
     {
         string entryName = WindGridEntryName(hash);
@@ -307,15 +323,7 @@ public sealed class RecordingArchive : IDisposable
             return null;
         }
 
-        byte[] grib2;
-        using (Stream entryStream = entry.Open())
-        using (var brotli = new BrotliStream(entryStream, CompressionMode.Decompress))
-        using (var buffer = new MemoryStream())
-        {
-            brotli.CopyTo(buffer);
-            grib2 = buffer.ToArray();
-        }
-
+        byte[] grib2 = ReadWindGridEntry(entry) ?? throw new WindGridLimitException(SizeRefusal(hash));
         string actual = WindGridRegistry.HashOf(grib2);
         if (!string.Equals(actual, hash, StringComparison.Ordinal))
         {
@@ -329,6 +337,75 @@ public sealed class RecordingArchive : IDisposable
         }
 
         return grib2;
+    }
+
+    /// <summary>
+    /// Why the recording is refused as a whole for its GFS wind grids, or null when it is not: it lists more than
+    /// <see cref="WindGridRegistry.MaxRoomGrids"/> distinct grids (checked before any entry is opened), or one of its grid
+    /// entries decompresses past <see cref="WindGridRegistry.MaxGridBytes"/>. Registers nothing, so a loader runs it before it
+    /// changes anything; an entry that is missing or damaged is no refusal and is left for <see cref="RegisterWindGrids"/> to
+    /// skip with a warning.
+    /// </summary>
+    public string? WindGridLimitRefusal()
+    {
+        List<string> hashes = DistinctWindGridHashes();
+        if (hashes.Count > WindGridRegistry.MaxRoomGrids)
+        {
+            return CountRefusal(hashes.Count);
+        }
+
+        foreach (string hash in hashes)
+        {
+            if ((_zip.GetEntry(WindGridEntryName(hash)) is { } entry) && IsPastByteLimit(entry, hash))
+            {
+                return SizeRefusal(hash);
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>The manifest's grid hashes with repeats removed, in order of first listing.</summary>
+    private List<string> DistinctWindGridHashes() => [.. (Manifest.WindGridHashes ?? []).Distinct(StringComparer.Ordinal)];
+
+    private static string CountRefusal(int count) =>
+        string.Create(
+            CultureInfo.InvariantCulture,
+            $"Recording refused: it carries {count} wind grids; the limit is {WindGridRegistry.MaxRoomGrids}."
+        );
+
+    /// <summary>
+    /// The size refusal of grid <paramref name="hash"/>, a manifest-supplied string of any length, so it shows at most its
+    /// first <see cref="RefusalHashChars"/> characters.
+    /// </summary>
+    private static string SizeRefusal(string hash)
+    {
+        string shown = hash.Length > RefusalHashChars ? string.Concat(hash.AsSpan(0, RefusalHashChars), "…") : hash;
+        return string.Create(
+            CultureInfo.InvariantCulture,
+            $"Recording refused: wind grid {shown} is larger than {WindGridRegistry.MaxGridBytes:N0} bytes."
+        );
+    }
+
+    /// <summary>The entry's GRIB2 bytes, or null when they pass <see cref="WindGridRegistry.MaxGridBytes"/>.</summary>
+    private static byte[]? ReadWindGridEntry(ZipArchiveEntry entry)
+    {
+        using Stream entryStream = entry.Open();
+        return WindGridRegistry.ReadBrotliWithinLimit(entryStream);
+    }
+
+    /// <summary>True when the grid entry decompresses past the byte limit; a damaged entry is not, and is left for the load to skip.</summary>
+    private static bool IsPastByteLimit(ZipArchiveEntry entry, string hash)
+    {
+        try
+        {
+            return ReadWindGridEntry(entry) is null;
+        }
+        catch (Exception ex) when (ex is (InvalidOperationException or InvalidDataException or IOException) and not ObjectDisposedException)
+        {
+            Log.LogDebug(ex, "Recorded GFS wind grid {Hash} cannot be read for its size check; the load skips it with a warning", hash);
+            return false;
+        }
     }
 
     /// <summary>
@@ -457,6 +534,7 @@ public sealed class RecordingArchive : IDisposable
     /// Load the recording without any snapshots: actions, scenario, weather, and metadata only.
     /// Use this for replay and tests that don't need snapshot data.
     /// </summary>
+    /// <exception cref="WindGridLimitException">The recording is past a wind-grid limit (<see cref="RegisterWindGrids"/>).</exception>
     public SessionRecording ToBaseSessionRecording()
     {
         WindGridPins windGridPins = RegisterWindGrids();
@@ -552,6 +630,7 @@ public sealed class RecordingArchive : IDisposable
     /// Reattaches ground layouts from archive entries to delayed spawn aircraft.
     /// Use sparingly — this defeats the purpose of on-demand loading.
     /// </summary>
+    /// <exception cref="WindGridLimitException">The recording is past a wind-grid limit (<see cref="RegisterWindGrids"/>).</exception>
     public SessionRecording ToSessionRecording()
     {
         WindGridPins windGridPins = RegisterWindGrids();

@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using System.IO.Compression;
 using System.Security.Cryptography;
 using Microsoft.Extensions.Logging;
 
@@ -18,6 +19,18 @@ public static class WindGridRegistry
     /// <summary>The most unpinned entries kept; registering past it evicts the least recently used.</summary>
     public const int MaxUnpinned = 8;
 
+    /// <summary>
+    /// The largest GFS grid, in raw GRIB2 bytes, any path takes in: a member's upload, a recording's or a checkpoint's grid
+    /// entry once decompressed, and the client's fetch.
+    /// </summary>
+    public const int MaxGridBytes = 512 * 1024;
+
+    /// <summary>
+    /// The most GFS grids one room may pin besides its pending upload, and the most a recording may carry.
+    /// GFS runs every 6 hours, so 16 covers four days of a session's weather.
+    /// </summary>
+    public const int MaxRoomGrids = 16;
+
     private static readonly Lock Gate = new();
     private static readonly Dictionary<string, Entry> Entries = new(StringComparer.Ordinal);
     private static long _clock;
@@ -32,6 +45,34 @@ public static class WindGridRegistry
                 return Entries.Count;
             }
         }
+    }
+
+    /// <summary>
+    /// Decompresses a Brotli-compressed grid entry, reading at most <see cref="MaxGridBytes"/> + 1 bytes of its output, so an
+    /// entry that would inflate past the limit costs no more than the limit to refuse. Whatever length the archive declares
+    /// for the entry is not consulted.
+    /// </summary>
+    /// <param name="compressed">The entry's stream; left open.</param>
+    /// <returns>The GRIB2 bytes, or null when they pass <see cref="MaxGridBytes"/>.</returns>
+    /// <exception cref="InvalidOperationException">The bytes are not a Brotli stream.</exception>
+    /// <exception cref="IOException">The entry cannot be read.</exception>
+    public static byte[]? ReadBrotliWithinLimit(Stream compressed)
+    {
+        using var brotli = new BrotliStream(compressed, CompressionMode.Decompress, leaveOpen: true);
+        byte[] buffer = new byte[MaxGridBytes + 1];
+        int total = 0;
+        while (total < buffer.Length)
+        {
+            int read = brotli.Read(buffer.AsSpan(total));
+            if (read == 0)
+            {
+                break;
+            }
+
+            total += read;
+        }
+
+        return total > MaxGridBytes ? null : buffer[..total];
     }
 
     /// <summary>The SHA-256 of <paramref name="grib2"/> as lowercase hex: the name a grid is registered and recorded under.</summary>
