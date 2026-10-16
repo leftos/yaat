@@ -705,11 +705,13 @@ public partial class MainViewModel
     [RelayCommand(CanExecute = nameof(HasActiveWeather))]
     private async Task SaveWeatherAsync()
     {
-        if (_activeWeatherJson is null)
+        // Captured before the picker opens: the room's weather may change while it is open.
+        if (_activeWeatherJson is not { } json)
         {
             return;
         }
 
+        ActiveWindGrid? held = _activeWindGrid;
         string sanitized = SanitizeFileName(ActiveWeatherName ?? "weather");
         string? path = await _filePicker.SaveFileAsync(
             new SaveFileOptions(
@@ -727,16 +729,36 @@ public partial class MainViewModel
 
         try
         {
-            string contents = _activeWindGrid is { } windGrid ? SavedWeatherGrid.Embed(_activeWeatherJson, windGrid.Grib2) : _activeWeatherJson;
-            await File.WriteAllTextAsync(path, contents);
+            WeatherSaveContents saved = await WeatherSaveGrid.PrepareAsync(json, held, _connection.GetWindGridAsync, _log);
+            AdoptFetchedWindGrid(saved.FetchedGrid);
+            await File.WriteAllTextAsync(path, saved.Contents);
             string name = Path.GetFileNameWithoutExtension(path);
             _preferences.AddRecentWeather(path, name);
-            StatusText = $"Weather saved: {name}";
+            if (saved.StrippedReason is { } reason)
+            {
+                string warning = $"Saved without its GFS grid: {reason}";
+                _log.LogWarning("{Warning}", warning);
+                AddWarningEntry(warning);
+                StatusText = warning;
+            }
+            else
+            {
+                StatusText = $"Weather saved: {name}";
+            }
         }
         catch (Exception ex)
         {
             _log.LogError(ex, "Save weather error");
             StatusText = $"Save error: {ex.Message}";
+        }
+    }
+
+    // A grid fetched for a save is kept, so the next save is free, only while the active weather still names it.
+    private void AdoptFetchedWindGrid(ActiveWindGrid? fetched)
+    {
+        if ((fetched is not null) && SavedWeatherGrid.NamesGrid(_activeWeatherJson, fetched.Hash))
+        {
+            _activeWindGrid = fetched;
         }
     }
 

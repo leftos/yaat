@@ -108,33 +108,33 @@ both the wrapper name and the hub method's own semantics** — grep for the stri
 | `ExportRoomAsScenarioAsync()` | `ExportRoomAsScenario` | `ExportRoomAsScenario()` → `ScenarioExportResultDto(Json, Name, AircraftCount, Flags, DeniedReason)`; mentor/instructor-gated (throws), then `DeniedReason` "Not in a room" / "No scenario is loaded" / "The room has no aircraft to export" with `Json` null. `Flags` lists each aircraft needing review (callsign + reason); the scenario itself is built by `ScenarioExporter` in `Yaat.Sim` |
 | `GetScenarioJsonByIdAsync(id)` | `GetScenarioJsonById` | `GetScenarioJsonById(id)` — gated by the scenario's ARTCC (caller's permitted set), then caller rating |
 | `GetScenariosAsync()` | `GetScenarios` | `GetScenarios()` — filtered by caller rating |
-| `UnloadScenarioAircraftAsync()` | `UnloadScenarioAircraft` | `UnloadScenarioAircraft()` `:449` |
-| `ConfirmUnloadScenarioAsync()` | `ConfirmUnloadScenario` | `ConfirmUnloadScenario()` `:460` |
+| `UnloadScenarioAircraftAsync()` | `UnloadScenarioAircraft` | `UnloadScenarioAircraft()` `:1024` |
+| `ConfirmUnloadScenarioAsync()` | `ConfirmUnloadScenario` | `ConfirmUnloadScenario()` `:1068` |
 | `RestartScenarioAsync()` | `RestartScenario` | `RestartScenario()` — re-runs the loaded scenario from t=0 with a new RNG seed; **not** mentor-gated (see below) |
-| `SendCommandAsync(callsign, command, initials)` | `SendCommand` | `SendCommand(...)` `:508` |
+| `SendCommandAsync(callsign, command, initials)` | `SendCommand` | `SendCommand(...)` `:1124` |
 | `AssumeLiveTrafficAsync(request)` | `AssumeLiveTraffic` | `AssumeLiveTraffic(AssumeLiveTrafficRequestDto)` → `AssumeLiveTrafficResultDto` — bulk `ASSUME` of live-traffic shadows (All / WithinRadius / Selected); one room gate around a per-callsign `RoomEngine.SendCommandAsync(..., "ASSUME", ...)` loop, so each hand-off is its own recorded command. The mode enum (`AssumeLiveTrafficMode`) lives in `Yaat.Server.LiveTraffic`, not `Yaat.Server.Dtos`: `CrcWireContractTests` requires every enum in `Dtos` to exist in the CRC contract |
-| `SendChatAsync(initials, message)` | `SendChat` | `SendChat(...)` `:896` |
-| `AmendFlightPlanAsync(callsign, dto)` | `AmendFlightPlan` | `AmendFlightPlan(...)` `:847` |
-| `RequestNewBeaconCodeAsync(callsign)` | `RequestNewBeaconCode` | `RequestNewBeaconCode(callsign)` `:869` |
-| `RequestFlightStripForAircraftAsync(callsign)` | `RequestFlightStripForAircraft` | `RequestFlightStripForAircraft(callsign)` `:886` |
-| `SetAutoAcceptDelayAsync(seconds)` | `SetAutoAcceptDelay` | `SetAutoAcceptDelay(seconds)` `:524` |
-| `SetAutoDeleteModeAsync(mode)` | `SetAutoDeleteMode` | `SetAutoDeleteMode(mode)` `:545` |
+| `SendChatAsync(initials, message)` | `SendChat` | `SendChat(...)` `:1952` |
+| `AmendFlightPlanAsync(callsign, dto)` | `AmendFlightPlan` | `AmendFlightPlan(...)` `:1900` |
+| `RequestNewBeaconCodeAsync(callsign)` | `RequestNewBeaconCode` | `RequestNewBeaconCode(callsign)` `:1922` |
+| `RequestFlightStripForAircraftAsync(callsign)` | `RequestFlightStripForAircraft` | `RequestFlightStripForAircraft(callsign)` `:1942` |
+| `SetAutoAcceptDelayAsync(seconds)` | `SetAutoAcceptDelay` | `SetAutoAcceptDelay(seconds)` `:1221` |
+| `SetAutoDeleteModeAsync(mode)` | `SetAutoDeleteMode` | `SetAutoDeleteMode(mode)` `:1268` |
 | `SetDepartureAutoDeleteDistanceAsync(distanceNm)` | `SetDepartureAutoDeleteDistance` | `SetDepartureAutoDeleteDistance(distanceNm)` — returns `CommandResultDto`; null turns it off, a value outside 1–500 nm is refused with the reason and no broadcast |
-| `SetValidateDctFixesAsync(validate)` | `SetValidateDctFixes` | `SetValidateDctFixes(...)` `:771` |
-| `SetRpoShowPilotSpeechAsync(enabled)` | `SetRpoShowPilotSpeech` | `SetRpoShowPilotSpeech(...)` `:792` |
-| `SetSoloTrainingModeAsync(enabled)` | `SetSoloTrainingMode` | `SetSoloTrainingMode(...)` `:811` |
-| `SetSoloPacingRatesAsync(…)` | `SetSoloPacingRates` | `SetSoloPacingRates(...)` `:830` |
-| `SetAutoClearedToLandAsync(enabled)` | `SetAutoClearedToLand` | `SetAutoClearedToLand(...)` `:563` |
-| `SetAutoCrossRunwayAsync(enabled)` | `SetAutoCrossRunway` | `SetAutoCrossRunway(...)` `:581` |
+| `SetValidateDctFixesAsync(validate)` | `SetValidateDctFixes` | `SetValidateDctFixes(...)` `:1814` |
+| `SetRpoShowPilotSpeechAsync(enabled)` | `SetRpoShowPilotSpeech` | `SetRpoShowPilotSpeech(...)` `:1836` |
+| `SetSoloTrainingModeAsync(enabled)` | `SetSoloTrainingMode` | `SetSoloTrainingMode(...)` `:1858` |
+| `SetSoloPacingRatesAsync(…)` | `SetSoloPacingRates` | `SetSoloPacingRates(...)` `:1880` |
+| `SetAutoClearedToLandAsync(enabled)` | `SetAutoClearedToLand` | `SetAutoClearedToLand(...)` `:1319` |
+| `SetAutoCrossRunwayAsync(enabled)` | `SetAutoCrossRunway` | `SetAutoCrossRunway(...)` `:1341` |
 | `SetAutoPullUpToParallelAsync(enabled)` | `SetAutoPullUpToParallel` | `SetAutoPullUpToParallel(...)` |
 | `SetAutoGoAroundOnOccupiedRunwayAsync(enabled)` | `SetAutoGoAroundOnOccupiedRunway` | `SetAutoGoAroundOnOccupiedRunway(...)` |
 | `SetAutoArrivalSpacingOnOccupiedRunwayAsync(enabled)` | `SetAutoArrivalSpacingOnOccupiedRunway` | `SetAutoArrivalSpacingOnOccupiedRunway(...)` |
 | `SetAutoRejectTakeoffOnOccupiedRunwayAsync(enabled)` | `SetAutoRejectTakeoffOnOccupiedRunway` | `SetAutoRejectTakeoffOnOccupiedRunway(...)` |
 | `SetLiveTrafficEnabledAsync(enabled)` | `SetLiveTrafficEnabled` | `SetLiveTrafficEnabled(...)` — returns `CommandResultDto`; refused while `SimRate > 1` (the client reverts its checkbox) |
 | `SetLiveTrafficCeilingFtAsync(ceilingFt)` | `SetLiveTrafficCeilingFt` | `SetLiveTrafficCeilingFt(...)` — 0 = automatic |
-| `RewindToAsync(elapsedSeconds)` | **`RewindTo`** | `RewindTo(...)` `:907` |
-| `RewindFromSnapshotAsync(…)` | `RewindFromSnapshot` | `RewindFromSnapshot(...)` `:925` |
-| `TakeControlAsync()` | `TakeControl` | `TakeControl()` `:943` |
+| `RewindToAsync(elapsedSeconds)` | **`RewindTo`** | `RewindTo(...)` `:2007` |
+| `RewindFromSnapshotAsync(…)` | `RewindFromSnapshot` | `RewindFromSnapshot(...)` `:2031` |
+| `TakeControlAsync()` | `TakeControl` | `TakeControl()` `:2092` |
 | `GoLiveAsync()` | `GoLive` | `GoLive()` → `CommandResultDto`; live session only (`TakeControl` + `Resume`) — refused with "Not a live session" otherwise |
 | `StartLiveSessionAsync(LiveSessionRequestDto)` | `StartLiveSession` | `StartLiveSession(...)` → `LoadScenarioResult` (same shape, load flag, progress events and broadcast fan-out as `LoadScenario`, its step table ending in a `live` step; a refusal is `Success=false` with the reason as the first warning); mentor/instructor-gated. `LoadScenarioResult` / `ScenarioLoadedDto` / `RoomStateDto` carry `IsLiveSession` (a property of the loaded scenario, not a session setting) |
 | `SeekLiveTrafficAsync(feedUtc)` | `SeekLiveTraffic` | `SeekLiveTraffic(...)` → `CommandResultDto`; live session only — stands the room at a feed instant inside the raw-log window (DVR), dropping every non-shadow aircraft; refused with the reason outside the window or past the two-replay cap. `LiveSessionRequestDto.StartUtc` does the same at session start |
@@ -151,33 +151,34 @@ both the wrapper name and the hub method's own semantics** — grep for the stri
 | `ExportSurfaceTempDataAsync()` | `ExportSurfaceTempData` | `ExportSurfaceTempData()` — mentor/instructor only; the room's ASDE-X / SAAB SAID drawn geometry as committable ARTCC sidecar JSON, one entry per facility |
 | `ResetSurfaceTempDataAsync()` | `ResetSurfaceTempData` | `ResetSurfaceTempData()` — mentor/instructor only; discards drawn geometry (server-side too) and re-seeds every facility from the committed sidecars, returning the facility count |
 | `GetAirportGroundLayoutAsync(id)` | `GetAirportGroundLayout` | `GetAirportGroundLayout(id)` |
-| `GetFacilityVideoMapsAsync(…)` | `GetFacilityVideoMaps` | `GetFacilityVideoMaps(...)` `:1098` |
-| `GetFacilityVideoMapsForArtccAsync(…)` | `GetFacilityVideoMapsForArtcc` | `GetFacilityVideoMapsForArtcc(...)` `:1103` |
-| `GetApproachReportAsync()` | `GetApproachReport` | `GetApproachReport()` `:646` |
-| `GetSessionReportAsync()` | `GetSessionReport` | `GetSessionReport()` `:659` |
-| `LoadWeatherAsync(json, reconstructMetars)` | `LoadWeather` | `LoadWeather(json, reconstructMetars)` `:1530`; weather naming a grid the room does not pin yet is refused once the room holds `TrainingRoom.MaxRoomWindGrids` (16) grids, or after it closed, as `CommandResultDto(false, msg)` with the same text as `UploadWindGrid`'s refusal and no `HubException`; a success also rebuilds the room's wind grid pins and consumes a pending upload when the weather names a grid |
-| `ClearWeatherAsync()` | `ClearWeather` | `ClearWeather()` `:1565` |
-| `UploadWindGridAsync(grib2)` | `UploadWindGrid` | `UploadWindGrid(byte[]? grib2)` `:1596` → `string`, the grid's SHA-256 hash, which the weather JSON names as `windGridHash`; called by `MainViewModel.Weather.cs` before `LoadWeather`, with the grid `GfsGridFetcher` fetched for Load Live Weather or the one a saved weather file embeds (a `HubException` becomes the GFS terminal warning and the weather loads on the FD layers); any room member, inside a room only. The server decodes and hashes the bytes itself, registers the grid and pins it to the room as its pending upload (a later upload replaces it; a weather load naming any grid consumes it). Refusals are a `HubException`: "Not in a room", "No wind grid bytes were sent.", "The wind grid is {n:N0} bytes; the server accepts at most 524,288 bytes." (`WindGridRegistry.MaxGridBytes`, 512 KB), "This room already holds {n} wind grids; load weather without a new grid or start a new session." (`TrainingRoom.MaxRoomWindGrids`, = `WindGridRegistry.MaxRoomGrids`, 16; `TrainingRoom.WindGridRefusal`, checked before the decode and again when `SetPendingWindGrid` keeps the grid), "The wind grid could not be decoded: {reason}", "The room closed before the wind grid could be kept for it." (`TrainingRoom.ClosedRoomWindGridRefusal`) |
-| `LoadArrivalGeneratorsAsync(json)` | `LoadArrivalGenerators` | `LoadArrivalGenerators(json)` `:1637` |
-| `AssignAircraftAsync(callsigns, conn)` | `AssignAircraft` | `AssignAircraft(...)` `:476` |
-| `UnassignAircraftAsync(callsigns)` | `UnassignAircraft` | `UnassignAircraft(...)` `:488` |
-| `GetAircraftAssignmentsAsync()` | `GetAircraftAssignments` | `GetAircraftAssignments()` `:500` |
-| `GetAccessibleFacilitiesAsync()` | `GetAccessibleFacilities` | `GetAccessibleFacilities()` `:1411` |
-| `GetFlightStripsConfigForFacilityAsync(id)` | `GetFlightStripsConfigForFacility` | `GetFlightStripsConfigForFacility(id)` `:1435` |
+| `GetFacilityVideoMapsAsync(…)` | `GetFacilityVideoMaps` | `GetFacilityVideoMaps(...)` `:2545` |
+| `GetFacilityVideoMapsForArtccAsync(…)` | `GetFacilityVideoMapsForArtcc` | `GetFacilityVideoMapsForArtcc(...)` `:2547` |
+| `GetApproachReportAsync()` | `GetApproachReport` | `GetApproachReport()` `:1689` |
+| `GetSessionReportAsync()` | `GetSessionReport` | `GetSessionReport()` `:1702` |
+| `LoadWeatherAsync(json, reconstructMetars)` | `LoadWeather` | `LoadWeather(json, reconstructMetars)` `:1531`; weather naming a grid the room does not pin yet is refused once the room holds `TrainingRoom.MaxRoomWindGrids` (16) grids, or after it closed, as `CommandResultDto(false, msg)` with the same text as `UploadWindGrid`'s refusal and no `HubException`; a success also rebuilds the room's wind grid pins and consumes a pending upload when the weather names a grid |
+| `ClearWeatherAsync()` | `ClearWeather` | `ClearWeather()` `:1566` |
+| `UploadWindGridAsync(grib2)` | `UploadWindGrid` | `UploadWindGrid(byte[]? grib2)` `:1594` → `string`, the grid's SHA-256 hash, which the weather JSON names as `windGridHash`; called by `MainViewModel.Weather.cs` before `LoadWeather`, with the grid `GfsGridFetcher` fetched for Load Live Weather or the one a saved weather file embeds (a `HubException` becomes the GFS terminal warning and the weather loads on the FD layers); any room member, inside a room only. The server decodes and hashes the bytes itself, registers the grid and pins it to the room as its pending upload (a later upload replaces it; a weather load naming any grid consumes it). Refusals are a `HubException`: "Not in a room", "No wind grid bytes were sent.", "The wind grid is {n:N0} bytes; the server accepts at most 524,288 bytes." (`WindGridRegistry.MaxGridBytes`, 512 KB), "This room already holds {n} wind grids; load weather without a new grid or start a new session." (`TrainingRoom.MaxRoomWindGrids`, = `WindGridRegistry.MaxRoomGrids`, 16; `TrainingRoom.WindGridRefusal`, checked before the decode and again when `SetPendingWindGrid` keeps the grid), "The wind grid could not be decoded: {reason}", "The room closed before the wind grid could be kept for it." (`TrainingRoom.ClosedRoomWindGridRefusal`) |
+| `GetWindGridAsync(hash)` | `GetWindGrid` | `GetWindGrid(string hash)` `:1650` → `byte[]`, a copy of the grid's raw GRIB2 bytes; called by `MainViewModel.Weather.cs` Save Weather (`WeatherSaveGrid.PrepareAsync`) when the weather names a grid this client holds no bytes for (a member who did not load the weather, or the loader after a restart); any room member, inside a room only, and only a hash in `TrainingRoom.PinnedWindGridHashes`. Refusals are a `HubException`: "Not in a room", and "This room does not hold that wind grid." for a hash that is not 64 lowercase hex characters (or is null), is not pinned by the room, or names a grid the registry no longer holds (the last also logs a warning) |
+| `LoadArrivalGeneratorsAsync(json)` | `LoadArrivalGenerators` | `LoadArrivalGenerators(json)` `:1671` |
+| `AssignAircraftAsync(callsigns, conn)` | `AssignAircraft` | `AssignAircraft(...)` `:1092` |
+| `UnassignAircraftAsync(callsigns)` | `UnassignAircraft` | `UnassignAircraft(...)` `:1104` |
+| `GetAircraftAssignmentsAsync()` | `GetAircraftAssignments` | `GetAircraftAssignments()` `:1116` |
+| `GetAccessibleFacilitiesAsync()` | `GetAccessibleFacilities` | `GetAccessibleFacilities()` `:3099` |
+| `GetFlightStripsConfigForFacilityAsync(id)` | `GetFlightStripsConfigForFacility` | `GetFlightStripsConfigForFacility(id)` `:3123` |
 | `GetAccessibleTdlsFacilitiesAsync()` | `GetAccessibleTdlsFacilities` | `GetAccessibleTdlsFacilities()` |
 | `GetTdlsFacilityViewAsync(id)` | `GetTdlsFacilityView` | `GetTdlsFacilityView(id)` — one `TdlsConfigDto` per member facility; a consolidated parent returns its children's |
 | `RequestFullTdlsStateAsync()` | `RequestFullTdlsState` | `RequestFullTdlsState()` |
-| `AdminAuthenticateAsync(password)` | `AdminAuthenticate` | `AdminAuthenticate(password)` `:1114` |
-| `AdminGetRoomsAsync()` | **`AdminGetScenarios`** | `AdminGetScenarios()` `:1125` |
-| `AdminSetRoomFilterAsync(roomId)` | **`AdminSetScenarioFilter`** | `AdminSetScenarioFilter(roomId)` `:1135` |
-| `GetCrcLobbyClientsAsync()` | `GetCrcLobbyClients` | `GetCrcLobbyClients()` `:1166` |
-| `PullCrcClientAsync(id)` | `PullCrcClient` | `PullCrcClient(id)` `:1183` (clears a kick of the client's CID once bound; false when a kick unbinds it again during the pull) |
-| `KickCrcClientAsync(id)` | `KickCrcClient` | `KickCrcClient(id)` `:1218` (mentor/instructor only; a client with a CID is kicked as `KickMember` kicks its CID, one with no CID is only unbound) |
-| `KickMemberAsync(cid)` | `KickMember` | `KickMember(cid)` `:1243` (kicks the whole CID: every training-hub, CRC and Tower Cab 3D connection of it leaves the room and the CID is banned from it until a `PullRpo`/`PullCrcClient` clears the ban; refuses the caller's own CID and the creator; returns false for a CID with nothing in the room; serialized with pulls per room) |
-| `GetCrcRoomMembersAsync()` | `GetCrcRoomMembers` | `GetCrcRoomMembers()` `:1288` |
+| `AdminAuthenticateAsync(password)` | `AdminAuthenticate` | `AdminAuthenticate(password)` `:2556` |
+| `AdminGetRoomsAsync()` | **`AdminGetScenarios`** | `AdminGetScenarios()` `:2577` |
+| `AdminSetRoomFilterAsync(roomId)` | **`AdminSetScenarioFilter`** | `AdminSetScenarioFilter(roomId)` `:2587` |
+| `GetCrcLobbyClientsAsync()` | `GetCrcLobbyClients` | `GetCrcLobbyClients()` `:2618` |
+| `PullCrcClientAsync(id)` | `PullCrcClient` | `PullCrcClient(id)` `:2640` (clears a kick of the client's CID once bound; false when a kick unbinds it again during the pull) |
+| `KickCrcClientAsync(id)` | `KickCrcClient` | `KickCrcClient(id)` `:2726` (mentor/instructor only; a client with a CID is kicked as `KickMember` kicks its CID, one with no CID is only unbound) |
+| `KickMemberAsync(cid)` | `KickMember` | `KickMember(cid)` `:2790` (kicks the whole CID: every training-hub, CRC and Tower Cab 3D connection of it leaves the room and the CID is banned from it until a `PullRpo`/`PullCrcClient` clears the ban; refuses the caller's own CID and the creator; returns false for a CID with nothing in the room; serialized with pulls per room) |
+| `GetCrcRoomMembersAsync()` | `GetCrcRoomMembers` | `GetCrcRoomMembers()` `:2906` |
 | `GetRpoLobbyClientsAsync()` | `GetRpoLobbyClients` | `GetRpoLobbyClients()` (mentor-only) |
 | `PullRpoAsync(connectionId)` | `PullRpo` | `PullRpo(connectionId)` (mentor-only; invites/re-admits + auto-joins; clears the kick block) |
-| heartbeat loop (`RunHeartbeat`) | `Heartbeat` | `Heartbeat()` `:1110` (no-op) |
+| heartbeat loop (`RunHeartbeat`) | `Heartbeat` | `Heartbeat()` `:2552` (no-op) |
 
 `SpawnAircraft` / `DeleteAircraft` are **not** standalone hub methods (the legacy yaat-server CLAUDE.md list is stale on
 this). They are routed through `SendCommand` as parsed verbs — `SpawnNowCommand`, `SpawnDelayCommand`, `DeleteCommand` —
