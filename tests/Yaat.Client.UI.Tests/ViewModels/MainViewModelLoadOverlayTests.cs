@@ -14,14 +14,18 @@ namespace Yaat.Client.UI.Tests.ViewModels;
 /// </summary>
 public class MainViewModelLoadOverlayTests
 {
-    private static MainViewModel MentorInRoom() =>
-        new(new FakeFilePickerService())
+    private static async Task<MainViewModel> MentorInRoomAsync()
+    {
+        var vm = new MainViewModel(new FakeFilePickerService())
         {
             IsConnected = true,
             ActiveRoomId = "room-1",
             IsNonMentor = false,
             ActiveScenarioId = "scenario-1",
         };
+        await vm.NavDataInitialization;
+        return vm;
+    }
 
     private static RoomStateDto RoomState(string? scenarioName, string? loadingBy) =>
         new(
@@ -85,9 +89,9 @@ public class MainViewModelLoadOverlayTests
         Assert.All(raised, entry => Assert.True(entry.Value, $"{entry.Key} did not raise CanExecuteChanged"));
 
     [AvaloniaFact]
-    public void OnScenarioLoadProgress_PostsToOverlay()
+    public async Task OnScenarioLoadProgress_PostsToOverlay()
     {
-        MainViewModel vm = MentorInRoom();
+        MainViewModel vm = await MentorInRoomAsync();
         vm.LoadOverlay.BeginLocal("oak-ground.json");
         var progress = new ScenarioLoadProgressDto(
             "load-a",
@@ -112,9 +116,9 @@ public class MainViewModelLoadOverlayTests
     }
 
     [AvaloniaFact]
-    public void RoomStateLoadingBy_DisablesLoadUnloadRestartRewind()
+    public async Task RoomStateLoadingBy_DisablesLoadUnloadRestartRewind()
     {
-        MainViewModel vm = MentorInRoom();
+        MainViewModel vm = await MentorInRoomAsync();
         vm.ApplyRoomState(RoomState("OAK Ground 7", loadingBy: null));
         Assert.All(LifecycleCanExecute(vm), Assert.True);
 
@@ -131,9 +135,9 @@ public class MainViewModelLoadOverlayTests
 
     /// <summary>Mid-load the room state still names the previous scenario, so the status never does.</summary>
     [AvaloniaFact]
-    public void RoomStateLoadingBy_SetsStatusText()
+    public async Task RoomStateLoadingBy_SetsStatusText()
     {
-        MainViewModel vm = MentorInRoom();
+        MainViewModel vm = await MentorInRoomAsync();
 
         vm.ApplyRoomState(RoomState("OAK Ground 7", loadingBy: "AB"));
         Assert.Equal("Loading a scenario (by AB)…", vm.StatusText);
@@ -143,9 +147,9 @@ public class MainViewModelLoadOverlayTests
     }
 
     [AvaloniaFact]
-    public void OnRoomLoadingChanged_SetsAndClearsGating()
+    public async Task OnRoomLoadingChanged_SetsAndClearsGating()
     {
-        MainViewModel vm = MentorInRoom();
+        MainViewModel vm = await MentorInRoomAsync();
         vm.ApplyRoomState(RoomState("OAK Ground 7", loadingBy: null));
 
         vm.OnRoomLoadingChanged("AB");
@@ -164,9 +168,9 @@ public class MainViewModelLoadOverlayTests
     }
 
     [AvaloniaFact]
-    public void OwnIncompleteOverlay_DisablesLoadUnloadRestartRewind()
+    public async Task OwnIncompleteOverlay_DisablesLoadUnloadRestartRewind()
     {
-        MainViewModel vm = MentorInRoom();
+        MainViewModel vm = await MentorInRoomAsync();
         vm.ApplyRoomState(RoomState("OAK Ground 7", loadingBy: null));
 
         vm.LoadOverlay.BeginLocal("oak-ground.json");
@@ -185,9 +189,9 @@ public class MainViewModelLoadOverlayTests
 
     /// <summary>Another member's load ending says so, rather than leaving their loading status standing.</summary>
     [AvaloniaFact]
-    public void OnRoomLoadingChanged_Cleared_ReplacesLoadingStatus()
+    public async Task OnRoomLoadingChanged_Cleared_ReplacesLoadingStatus()
     {
-        MainViewModel vm = MentorInRoom();
+        MainViewModel vm = await MentorInRoomAsync();
         vm.OnRoomLoadingChanged("AB");
         Dispatcher.UIThread.RunJobs();
         Assert.Equal("Loading a scenario (by AB)…", vm.StatusText);
@@ -201,9 +205,9 @@ public class MainViewModelLoadOverlayTests
 
     /// <summary>A status line written while the load ran is not overwritten by the load ending.</summary>
     [AvaloniaFact]
-    public void OnRoomLoadingChanged_Cleared_KeepsOtherStatus()
+    public async Task OnRoomLoadingChanged_Cleared_KeepsOtherStatus()
     {
-        MainViewModel vm = MentorInRoom();
+        MainViewModel vm = await MentorInRoomAsync();
         vm.OnRoomLoadingChanged("AB");
         Dispatcher.UIThread.RunJobs();
 
@@ -215,9 +219,9 @@ public class MainViewModelLoadOverlayTests
     }
 
     [AvaloniaFact]
-    public void RoomLoadingBy_Change_RaisesCanExecuteChanged()
+    public async Task RoomLoadingBy_Change_RaisesCanExecuteChanged()
     {
-        MainViewModel vm = MentorInRoom();
+        MainViewModel vm = await MentorInRoomAsync();
         Dictionary<string, bool> raised = TrackLifecycleNotifications(vm);
 
         vm.RoomLoadingBy = "AB";
@@ -227,9 +231,9 @@ public class MainViewModelLoadOverlayTests
     }
 
     [AvaloniaFact]
-    public void OwnOverlayInFlight_Change_RaisesCanExecuteChanged()
+    public async Task OwnOverlayInFlight_Change_RaisesCanExecuteChanged()
     {
-        MainViewModel vm = MentorInRoom();
+        MainViewModel vm = await MentorInRoomAsync();
         Dictionary<string, bool> raised = TrackLifecycleNotifications(vm);
 
         vm.LoadOverlay.BeginLocal("oak-ground.json");
@@ -245,7 +249,7 @@ public class MainViewModelLoadOverlayTests
     [AvaloniaFact]
     public async Task RewindToSeconds_WhileRoomLoading_SendsNothingAndSetsStatus()
     {
-        MainViewModel vm = MentorInRoom();
+        MainViewModel vm = await MentorInRoomAsync();
         vm.OnRoomLoadingChanged("AB");
         Dispatcher.UIThread.RunJobs();
 

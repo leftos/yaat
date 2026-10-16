@@ -63,9 +63,10 @@ public class MainViewModelPilotVoiceWarningTests
     /// A VM joined to a paused room, with pilot voice switched off in the preferences (the default, set explicitly
     /// because the test process shares one preferences file).
     /// </summary>
-    private static MainViewModel JoinedViewModel(bool solo, PromptStub prompt)
+    private static async Task<MainViewModel> JoinedViewModelAsync(bool solo, PromptStub prompt)
     {
         var vm = new MainViewModel(new FakeFilePickerService());
+        await vm.NavDataInitialization;
         Dispatcher.UIThread.RunJobs();
         vm.Preferences.SetPilotVoiceSettings(false, 80, true, 1.1);
         vm.ApplyRoomState(PausedRoom(solo));
@@ -94,7 +95,7 @@ public class MainViewModelPilotVoiceWarningTests
     public async Task Resume_SoloWithoutVoice_FirstTime_Intercepts()
     {
         var prompt = new PromptStub(PilotVoiceWarningChoice.Cancel);
-        MainViewModel vm = JoinedViewModel(solo: true, prompt);
+        MainViewModel vm = await JoinedViewModelAsync(solo: true, prompt);
 
         await vm.TogglePauseCommand.ExecuteAsync(null);
 
@@ -106,7 +107,7 @@ public class MainViewModelPilotVoiceWarningTests
     public async Task Resume_AfterCancel_InterceptsAgain()
     {
         var prompt = new PromptStub(PilotVoiceWarningChoice.Cancel);
-        MainViewModel vm = JoinedViewModel(solo: true, prompt);
+        MainViewModel vm = await JoinedViewModelAsync(solo: true, prompt);
 
         await vm.TogglePauseCommand.ExecuteAsync(null);
         await vm.TogglePlaybackCommand.ExecuteAsync(null);
@@ -122,7 +123,7 @@ public class MainViewModelPilotVoiceWarningTests
     public async Task Resume_AfterStartAnyway_DoesNotIntercept()
     {
         var prompt = new PromptStub(PilotVoiceWarningChoice.StartAnyway);
-        MainViewModel vm = JoinedViewModel(solo: true, prompt);
+        MainViewModel vm = await JoinedViewModelAsync(solo: true, prompt);
 
         await vm.TogglePauseCommand.ExecuteAsync(null);
         Assert.Equal(1, prompt.Shown);
@@ -156,7 +157,7 @@ public class MainViewModelPilotVoiceWarningTests
     public async Task Resume_NotSolo_DoesNotIntercept()
     {
         var prompt = new PromptStub(PilotVoiceWarningChoice.Cancel);
-        MainViewModel vm = JoinedViewModel(solo: false, prompt);
+        MainViewModel vm = await JoinedViewModelAsync(solo: false, prompt);
 
         await vm.TogglePauseCommand.ExecuteAsync(null);
         await vm.TogglePlaybackCommand.ExecuteAsync(null);
@@ -170,7 +171,7 @@ public class MainViewModelPilotVoiceWarningTests
     public async Task ScenarioReload_ResetsTheOncePerSessionFlag()
     {
         var prompt = new PromptStub(PilotVoiceWarningChoice.StartAnyway);
-        MainViewModel vm = JoinedViewModel(solo: true, prompt);
+        MainViewModel vm = await JoinedViewModelAsync(solo: true, prompt);
         await vm.TogglePauseCommand.ExecuteAsync(null);
         Assert.Equal(1, prompt.Shown);
 
@@ -197,7 +198,7 @@ public class MainViewModelPilotVoiceWarningTests
     public async Task Reconnect_ApplyRoomStateSameRoom_KeepsTheOncePerSessionFlag()
     {
         var prompt = new PromptStub(PilotVoiceWarningChoice.StartAnyway);
-        MainViewModel vm = JoinedViewModel(solo: true, prompt);
+        MainViewModel vm = await JoinedViewModelAsync(solo: true, prompt);
         await vm.TogglePauseCommand.ExecuteAsync(null);
         Assert.Equal(1, prompt.Shown);
 
@@ -236,7 +237,7 @@ public class MainViewModelPilotVoiceWarningTests
     public async Task Resume_ChoosingVoiceSettings_RaisesSettingsRequestOnce_AndDoesNotResume()
     {
         var prompt = new PromptStub(PilotVoiceWarningChoice.OpenVoiceSettings);
-        MainViewModel vm = JoinedViewModel(solo: true, prompt);
+        MainViewModel vm = await JoinedViewModelAsync(solo: true, prompt);
         List<SettingsSectionId?> settingsRequests = [];
         vm.SettingsRequested += settingsRequests.Add;
 
@@ -248,10 +249,10 @@ public class MainViewModelPilotVoiceWarningTests
     }
 
     [AvaloniaFact]
-    public void OpenPilotVoiceSettingsCommand_RaisesSettingsRequestOnce_AndDoesNotResume()
+    public async Task OpenPilotVoiceSettingsCommand_RaisesSettingsRequestOnce_AndDoesNotResume()
     {
         var prompt = new PromptStub(PilotVoiceWarningChoice.StartAnyway);
-        MainViewModel vm = JoinedViewModel(solo: true, prompt);
+        MainViewModel vm = await JoinedViewModelAsync(solo: true, prompt);
         List<SettingsSectionId?> settingsRequests = [];
         vm.SettingsRequested += settingsRequests.Add;
 

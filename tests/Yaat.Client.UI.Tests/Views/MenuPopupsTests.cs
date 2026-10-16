@@ -738,9 +738,10 @@ public class MenuPopupsTests
     /// the composed command text.
     /// </summary>
     [AvaloniaFact]
-    public void ClientHost_CustomTakeoff_OnTheGround_OpensTheInputPopupAndSendsThroughMain()
+    public async Task ClientHost_CustomTakeoff_OnTheGround_OpensTheInputPopupAndSendsThroughMain()
     {
         var main = new MainViewModel(new FakeFilePickerService());
+        await main.NavDataInitialization;
         var view = new GroundView { DataContext = main.Ground };
         var window = new Window { DataContext = main, Content = view };
         window.ShowAndRunLayout();

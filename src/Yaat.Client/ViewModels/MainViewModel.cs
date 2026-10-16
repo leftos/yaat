@@ -1822,11 +1822,17 @@ public partial class MainViewModel : ObservableObject
         _favoriteStore.Changed += () => Dispatcher.UIThread.Post(RefreshDisplayFavorites);
         _preferences.FavoriteSetsChanged += () => Dispatcher.UIThread.Post(RefreshDisplayFavorites);
 
-        _ = InitializeNavDataAsync();
+        NavDataInitialization = InitializeNavDataAsync();
         _ = _vnasConfigService.InitializeAsync();
         _ = LoadCrcAliasesAsync();
         _ = DelayedStartupUpdateCheckAsync();
     }
+
+    /// <summary>
+    /// The navigation-data load the constructor starts; it writes StatusText and marks the nav db ready when it completes.
+    /// Tests that assert StatusText await it first.
+    /// </summary>
+    public Task NavDataInitialization { get; }
 
     private async Task InitializeNavDataAsync()
     {

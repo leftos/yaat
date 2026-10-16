@@ -41,6 +41,7 @@ public class MainViewModelBugBundleTests
         var picker = new FakeFilePickerService();
         picker.QueueSaveFile(path);
         var vm = new MainViewModel(picker) { IsPaused = true, RecordingExporter = _ => Task.FromResult<byte[]?>(MinimalRecording()) };
+        await vm.NavDataInitialization;
         // No server log to give a list: the client's own list makes JD A0.
         vm.RoomMembers.Add(new RoomMemberDto("1826127", "JD", "ZOA", Yaat.Sim.ClientKind.Main, DateTime.UtcNow, "conn-1"));
         vm.ApplyBookmarks([new TimelineBookmarkDto("bm-1", 10, "JD saw the conflict", "JD"), new TimelineBookmarkDto("bm-2", 20, null, "XY")]);
@@ -76,6 +77,7 @@ public class MainViewModelBugBundleTests
             RecordingExporter = _ => Task.FromResult<byte[]?>(MinimalRecording()),
             SessionServerLogFetcher = () => Task.FromException<SessionServerLogDto>(new InvalidOperationException("server unreachable")),
         };
+        await vm.NavDataInitialization;
         vm.RoomMembers.Add(new RoomMemberDto("1826127", "JD", "ZOA", Yaat.Sim.ClientKind.Main, DateTime.UtcNow, "conn-1"));
         vm.ApplyBookmarks([new TimelineBookmarkDto("bm-1", 10, "JD saw the conflict", "JD")]);
 

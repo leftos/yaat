@@ -588,6 +588,7 @@ public sealed class AppToolsTests : AutomationHostFixture
     {
         var picker = new FakeFilePickerService();
         var viewModel = new MainViewModel(picker) { IsConnected = true, ActiveRoomId = "room-1" };
+        await viewModel.NavDataInitialization;
         Directory.CreateDirectory(DiscoveryDirectory);
         string path = Path.Combine(DiscoveryDirectory, "take.yaat-recording.zip");
         await File.WriteAllBytesAsync(path, [1, 2, 3], TestContext.Current.CancellationToken);
@@ -822,6 +823,7 @@ public sealed class AppToolsTests : AutomationHostFixture
     public async Task MeasureCommand_PlacesTheLineAndReportsItInTheStatusLine()
     {
         MainViewModel viewModel = RadarReadyWithTwoAircraft();
+        await viewModel.NavDataInitialization;
 
         viewModel.CommandText = ".rbl UAL123 AAL9";
         await viewModel.SendCommandCommand.ExecuteAsync(null);
@@ -849,6 +851,7 @@ public sealed class AppToolsTests : AutomationHostFixture
     public async Task SetLeaderDirection_NeverConnected_ReportsNotSent()
     {
         MainViewModel viewModel = RadarReadyWithTwoAircraft();
+        await viewModel.NavDataInitialization;
         viewModel.Preferences.SetSyncStudentLeaderDirection(true);
 
         JsonElement result = Result(await CallTool(ToolsOf(viewModel), "set_leader_direction", new { callsign = "ual123", direction = 3 }));
@@ -1513,6 +1516,7 @@ public sealed class AppToolsTests : AutomationHostFixture
     public async Task CreateRoom_LowerCaseArtcc_IsAccepted()
     {
         MainViewModel viewModel = NewMain();
+        await viewModel.NavDataInitialization;
         viewModel.IsConnected = true;
         viewModel.PermittedArtccs.Add("ZOA");
 

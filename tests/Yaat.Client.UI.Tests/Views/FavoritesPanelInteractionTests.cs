@@ -25,7 +25,12 @@ namespace Yaat.Client.UI.Tests.Views;
 /// </summary>
 public class FavoritesPanelInteractionTests
 {
-    private static MainViewModel NewVm() => new(new FakeFilePickerService());
+    private static async Task<MainViewModel> NewVmAsync()
+    {
+        var vm = new MainViewModel(new FakeFilePickerService());
+        await vm.NavDataInitialization;
+        return vm;
+    }
 
     private static AircraftDto MakeAircraft(string callsign) =>
         new(
@@ -53,7 +58,7 @@ public class FavoritesPanelInteractionTests
     [AvaloniaTheory]
     [InlineData("FavoritesImportButton", ImportExportTab.Import)]
     [InlineData("FavoritesExportButton", ImportExportTab.Export)]
-    public void ImportExportButton_OpensTheHubWithFavoritesTicked(string buttonName, ImportExportTab tab)
+    public async Task ImportExportButton_OpensTheHubWithFavoritesTicked(string buttonName, ImportExportTab tab)
     {
         using var scope = new PreferencesFileScope();
         var view = new FavoritesBarView { IsPaletteMode = true };
@@ -62,7 +67,7 @@ public class FavoritesPanelInteractionTests
             Width = 600,
             Height = 450,
             Content = view,
-            DataContext = NewVm(),
+            DataContext = await NewVmAsync(),
         };
         window.ShowAndRunLayout();
         try
@@ -84,9 +89,9 @@ public class FavoritesPanelInteractionTests
     }
 
     [AvaloniaFact]
-    public void FavoriteButtonClick_InPaletteMode_ReachesCommandDispatch()
+    public async Task FavoriteButtonClick_InPaletteMode_ReachesCommandDispatch()
     {
-        MainViewModel vm = NewVm();
+        MainViewModel vm = await NewVmAsync();
         // A Global air favorite carrying a real command but no callsign — exactly the shape of a
         // real favorite, which targets the currently SelectedAircraft.
         var testFav = new FavoriteCommand
@@ -115,8 +120,9 @@ public class FavoritesPanelInteractionTests
         {
             // Precondition: nothing is selected, so a dispatch will fall through to the "no target"
             // branch — a deterministic, observable signal that the click reached ExecuteFavoriteAsync.
+            // The awaited navdata load has already replaced StatusText, so the before-state is pinned here.
             Assert.Null(vm.SelectedAircraft);
-            Assert.Equal("Disconnected", vm.StatusText);
+            vm.StatusText = "Disconnected";
 
             Button button = view.GetVisualDescendants().OfType<Button>().Single(b => b.Tag is FavoriteDisplayEntry { Favorite.Label: "TestFav" });
 
@@ -142,9 +148,9 @@ public class FavoritesPanelInteractionTests
     }
 
     [AvaloniaFact]
-    public void FavoritePanelTargetText_TracksSelectedAircraft()
+    public async Task FavoritePanelTargetText_TracksSelectedAircraft()
     {
-        MainViewModel vm = NewVm();
+        MainViewModel vm = await NewVmAsync();
         Assert.Equal("No aircraft selected", vm.FavoritePanelTargetText);
 
         vm.OnAircraftUpdated(MakeAircraft("UAL123"));
@@ -165,9 +171,9 @@ public class FavoritesPanelInteractionTests
     }
 
     [AvaloniaFact]
-    public void FavoritesPanelWindow_IsUnowned_AndRendersTargetFeedback()
+    public async Task FavoritesPanelWindow_IsUnowned_AndRendersTargetFeedback()
     {
-        MainViewModel vm = NewVm();
+        MainViewModel vm = await NewVmAsync();
         var window = new FavoritesPanelWindow(vm.Preferences) { DataContext = vm };
         try
         {

@@ -20,9 +20,11 @@ public class MainViewModelActivePositionTests
         new("OAK_TWR", "OAK Tower", "120.000", "OAK", "Oakland", "Tower", tcp, null, "Real Name", true, true);
 
     [AvaloniaFact]
-    public void SetActiveTcpFromServer_SeedsIndicator_WithoutSendingAs()
+    public async Task SetActiveTcpFromServer_SeedsIndicator_WithoutSendingAs()
     {
-        var vm = new MainViewModel(new FakeFilePickerService()) { StatusText = "sentinel" };
+        var vm = new MainViewModel(new FakeFilePickerService());
+        await vm.NavDataInitialization;
+        vm.StatusText = "sentinel";
 
         vm.SetActiveTcpFromServer("3Y");
 
@@ -33,9 +35,10 @@ public class MainViewModelActivePositionTests
     }
 
     [AvaloniaFact]
-    public void SelectingTcp_SendsAsCommand()
+    public async Task SelectingTcp_SendsAsCommand()
     {
         var vm = new MainViewModel(new FakeFilePickerService());
+        await vm.NavDataInitialization;
         vm.SetActiveTcpFromServer("3Y");
         vm.StatusText = "sentinel";
 

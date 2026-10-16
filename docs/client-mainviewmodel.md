@@ -128,12 +128,12 @@ cache, `RefreshShownTaxiRoutes` reconstructs every route on each call, so the gr
    `IsRadarViewPoppedOut`/`IsTerminalDocked`) and the **student** strips/TDLS entries restore from preferences, and
    `ReconcileExtraViews` recreates the extra Radar/Ground instances from `ExtraRadarViewOrdinals` /
    `ExtraGroundViewOrdinals`.
-7. **~25 `ServerConnection` event subscriptions** (`MainViewModel.cs:1180`-`1204`).
+7. **~38 `ServerConnection` event subscriptions** (`MainViewModel.cs:1769`-`1810`).
 8. **Fire-and-forget init** — `InitializeNavDataAsync()`, `_vnasConfigService.InitializeAsync()`,
    `CheckForUpdateAsync()`.
 
-`InitializeNavDataAsync` (`MainViewModel.cs:1215`) loads NavData + CIFP and calls `NavigationDatabase.Initialize(...)`,
-then flips `_commandInput.NavDbReady = true` and pushes elevation lookups into `Radar` / `Ground`. Until it completes,
+`InitializeNavDataAsync` (`MainViewModel.cs:1837`) loads NavData + CIFP and calls `NavigationDatabase.Initialize(...)`,
+then flips `_commandInput.NavDbReady = true` and pushes elevation lookups into `Radar` / `Ground`. The constructor keeps its task as the public `NavDataInitialization`, which tests that assert `StatusText` await. Until it completes,
 `NavigationDatabase.Instance` is null and `BuildSpeechContext` degrades (see Footguns).
 
 ## Scenario activation — three paths, one router

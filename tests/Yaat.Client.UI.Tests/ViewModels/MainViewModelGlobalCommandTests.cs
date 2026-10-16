@@ -18,7 +18,12 @@ namespace Yaat.Client.UI.Tests.ViewModels;
 /// </summary>
 public class MainViewModelGlobalCommandTests
 {
-    private static MainViewModel NewVm() => new(new FakeFilePickerService());
+    private static async Task<MainViewModel> NewVmAsync()
+    {
+        var vm = new MainViewModel(new FakeFilePickerService());
+        await vm.NavDataInitialization;
+        return vm;
+    }
 
     private static AircraftDto MakeAircraft(string callsign) =>
         new(
@@ -59,7 +64,7 @@ public class MainViewModelGlobalCommandTests
     [InlineData("ASDXALERTS", "ASDXALERTS")]
     public async Task RoomVerb_NothingSelected_IsSentOnTheGlobalPath(string text, string verb)
     {
-        MainViewModel vm = NewVm();
+        MainViewModel vm = await NewVmAsync();
         Assert.Null(vm.SelectedAircraft);
 
         await SendAsync(vm, text);
@@ -72,7 +77,7 @@ public class MainViewModelGlobalCommandTests
     [AvaloniaFact]
     public async Task RoomVerb_AircraftSelected_IsStillSentOnTheGlobalPath()
     {
-        MainViewModel vm = NewVm();
+        MainViewModel vm = await NewVmAsync();
         vm.OnAircraftUpdated(MakeAircraft("N172TB"));
         Dispatcher.UIThread.RunJobs();
         vm.SelectedAircraft = Assert.Single(vm.Aircraft, a => a.Callsign == "N172TB");
@@ -87,7 +92,7 @@ public class MainViewModelGlobalCommandTests
     [AvaloniaFact]
     public async Task Cfr_NothingSelected_StillAsksForAnAircraft()
     {
-        MainViewModel vm = NewVm();
+        MainViewModel vm = await NewVmAsync();
 
         await SendAsync(vm, "CFR 1830");
 
@@ -99,9 +104,9 @@ public class MainViewModelGlobalCommandTests
     /// swallowed unsent, as GHOST was.
     /// </summary>
     [AvaloniaFact]
-    public void GlobalHandlers_MatchTheVerbsSentWithoutSelection()
+    public async Task GlobalHandlers_MatchTheVerbsSentWithoutSelection()
     {
-        MainViewModel vm = NewVm();
+        MainViewModel vm = await NewVmAsync();
 
         foreach (CanonicalCommandType type in Enum.GetValues<CanonicalCommandType>())
         {

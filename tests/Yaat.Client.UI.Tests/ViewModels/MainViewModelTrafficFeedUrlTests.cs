@@ -14,13 +14,17 @@ public class MainViewModelTrafficFeedUrlTests
     private const string ServerUrl = "https://host:5130/";
     private const string RoomId = "ABCD1234";
 
-    private static MainViewModel ConnectedInRoom() =>
-        new(new FakeFilePickerService())
+    private static async Task<MainViewModel> ConnectedInRoomAsync()
+    {
+        var vm = new MainViewModel(new FakeFilePickerService())
         {
             ConnectedServerUrl = ServerUrl,
             IsConnected = true,
             ActiveRoomId = RoomId,
         };
+        await vm.NavDataInitialization;
+        return vm;
+    }
 
     [Theory]
     [InlineData("https://host:5130")]
@@ -98,7 +102,7 @@ public class MainViewModelTrafficFeedUrlTests
     [AvaloniaFact]
     public async Task CopyTrafficFeedUrl_WritesTheRoomFeedUrlToTheClipboard()
     {
-        MainViewModel vm = ConnectedInRoom();
+        MainViewModel vm = await ConnectedInRoomAsync();
         var written = new List<string>();
         vm.ClipboardWriter = text =>
         {
@@ -115,7 +119,7 @@ public class MainViewModelTrafficFeedUrlTests
     [AvaloniaFact]
     public async Task CopyTrafficFeedUrl_ClipboardFailure_SetsErrorStatus()
     {
-        MainViewModel vm = ConnectedInRoom();
+        MainViewModel vm = await ConnectedInRoomAsync();
         vm.ClipboardWriter = _ => throw new InvalidOperationException("clipboard unavailable");
 
         await vm.CopyTrafficFeedUrlCommand.ExecuteAsync(null);

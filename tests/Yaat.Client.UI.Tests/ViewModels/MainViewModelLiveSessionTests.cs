@@ -149,8 +149,9 @@ public class MainViewModelLiveSessionTests
             IsLiveSession = true,
             IsPlaybackMode = true,
             PlaybackTapeEnd = 90,
-            StatusText = "sentinel",
         };
+        await vm.NavDataInitialization;
+        vm.StatusText = "sentinel";
 
         await vm.GoLiveCommand.ExecuteAsync(null);
 

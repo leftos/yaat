@@ -258,9 +258,9 @@ public class MenuHeaderTests
     private const string VfrOnlyCommand = "ELD 28L";
 
     [AvaloniaFact]
-    public void ClientHost_Command_OpensOnTheRadarAndGoesThroughTheVfrGate()
+    public async Task ClientHost_Command_OpensOnTheRadarAndGoesThroughTheVfrGate()
     {
-        (MainViewModel main, AircraftModel ac) = GatedMain();
+        (MainViewModel main, AircraftModel ac) = await GatedMainAsync();
         var view = new RadarView { DataContext = main.Radar };
         new Window { DataContext = main, Content = view }.ShowAndRunLayout();
 
@@ -272,9 +272,9 @@ public class MenuHeaderTests
     /// so the failure it shows in the status line proves the hand-off.
     /// </summary>
     [AvaloniaFact]
-    public void ClientHost_Command_Allowed_ReachesTheSend()
+    public async Task ClientHost_Command_Allowed_ReachesTheSend()
     {
-        (MainViewModel main, AircraftModel ac) = GatedMain();
+        (MainViewModel main, AircraftModel ac) = await GatedMainAsync();
         var view = new RadarView { DataContext = main.Radar };
         new Window { DataContext = main, Content = view }.ShowAndRunLayout();
 
@@ -289,9 +289,9 @@ public class MenuHeaderTests
     }
 
     [AvaloniaFact]
-    public void ClientHost_Command_OpensOnTheGroundAndGoesThroughTheVfrGate()
+    public async Task ClientHost_Command_OpensOnTheGroundAndGoesThroughTheVfrGate()
     {
-        (MainViewModel main, AircraftModel ac) = GatedMain();
+        (MainViewModel main, AircraftModel ac) = await GatedMainAsync();
         var view = new GroundView { DataContext = main.Ground };
         new Window { DataContext = main, Content = view }.ShowAndRunLayout();
 
@@ -299,9 +299,9 @@ public class MenuHeaderTests
     }
 
     [AvaloniaFact]
-    public void ClientHost_Command_OpensOnTheMenuAnchorAndGoesThroughTheVfrGate()
+    public async Task ClientHost_Command_OpensOnTheMenuAnchorAndGoesThroughTheVfrGate()
     {
-        (MainViewModel main, AircraftModel ac) = GatedMain();
+        (MainViewModel main, AircraftModel ac) = await GatedMainAsync();
         var anchor = new Border();
         new Window { Content = anchor }.ShowAndRunLayout();
 
@@ -333,9 +333,10 @@ public class MenuHeaderTests
     /// The setting is read, never written: it is a saved preference, and changing it would leak into every later test that
     /// builds a main view model (the radar goldens offer Pattern only under the default).
     /// </summary>
-    private static (MainViewModel Main, AircraftModel Aircraft) GatedMain()
+    private static async Task<(MainViewModel Main, AircraftModel Aircraft)> GatedMainAsync()
     {
         var main = new MainViewModel(new FakeFilePickerService());
+        await main.NavDataInitialization;
         Assert.NotEqual(VfrCommandsForIfr.All, main.VfrCommandsForIfr);
         AircraftModel ac = Jet();
         main.Aircraft.Add(ac);

@@ -35,6 +35,7 @@ public class ClientMenuHostTests
     public async Task FailedSend_IsShownInTheStatusLine()
     {
         var main = new MainViewModel(new FakeFilePickerService());
+        await main.NavDataInitialization;
         IMenuHost host = new ClientMenuHost(main, null, new Border());
 
         // Not connected to a server, so the send throws; the host shows it rather than letting it escape the click.
@@ -197,9 +198,10 @@ public class ClientMenuHostTests
     [AvaloniaTheory]
     [InlineData("IFR", true)]
     [InlineData("VFR", false)]
-    public void CustomQuickCommand_Click_GoesThroughTheVfrGate(string flightRules, bool rejected)
+    public async Task CustomQuickCommand_Click_GoesThroughTheVfrGate(string flightRules, bool rejected)
     {
         var main = new MainViewModel(new FakeFilePickerService());
+        await main.NavDataInitialization;
         VfrCommandsForIfr savedMode = main.Preferences.VfrCommandsForIfr;
         main.Preferences.SetVfrCommandsForIfr(VfrCommandsForIfr.None);
         try
