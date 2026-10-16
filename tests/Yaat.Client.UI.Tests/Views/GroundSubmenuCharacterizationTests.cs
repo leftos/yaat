@@ -277,53 +277,64 @@ public class GroundSubmenuCharacterizationTests
         }
     }
 
-    // G crosses 10L/28R mid-runway on its way to 28L (the destination, which is no row) and the room names no active
-    // runway, so the one runway row names both ends and sends the lower-numbered one, which binds the same bar.
+    // G crosses 10L/28R mid-runway on its way to 28L (the destination, the ladder's dimmed last row) and the room names
+    // no active runway, so the one runway stop names both ends and sends the lower-numbered one, which binds the same bar.
     [AvaloniaFact]
-    public void GroundMenu_Taxiing_HoldShortListsTheRouteLineAndOneRowPerBar_AndSendsHS()
+    public void GroundMenu_Taxiing_HoldShortLaddersTheRouteLineAndOneStopPerBar_AndSendsHS()
     {
         Built built = BuildMenu(TaxiingAcrossOnG(), prevSelected: null);
 
-        Assert.Equal(["route G · RWY 28L"], Children(built.Menu, "Hold short of…"));
+        MenuItem holdShort = Item(CommandTree(built.Menu), "Hold short of…");
+        Assert.Equal(new GroundTrafficFlyoutTitle(HoldShortLadder.Title, "route G · RWY 28L"), ((MenuItem)holdShort.Items[0]!).Header);
+        Assert.Equal("Runway 28L · route ends here", ((MenuItem)holdShort.Items[^1]!).Header?.ToString());
         MenuItem runway = Assert.Single(HoldShortRows(built.Menu));
-        Assert.Matches(@"^RW Runway 10L/28R · crossing on G · ~\d[\d,]* ft — HS 10L$", AutomationProperties.GetName(runway));
+        Assert.Matches(@"^RW 10L/28R · crossing on G · ~\d[\d,]* ft — HS 10L$", AutomationProperties.GetName(runway));
 
         Click(runway);
 
         Assert.Equal([(TaxiingCallsign, "HS 10L", Initials)], built.Sent);
     }
 
+    /// <summary>
+    /// A ladder stop pointed at previews on the ground view the route from the aircraft to its bar and boxes the bar,
+    /// ringing no aircraft; the dashed route preview of the taxi-route submenus is left alone, and the pointer leaving
+    /// the stop clears the preview.
+    /// </summary>
     [AvaloniaFact]
-    public void GroundMenu_HoldShortHover_SetsPreviewRoute_AndPointerExitDoesNotClearIt()
+    public void LadderStop_Hover_SetsBarPointAndRouteToBar()
     {
         AircraftModel target = TaxiingAcrossOnG();
         Built built = BuildMenu(target, prevSelected: null);
-
         MenuItem item = Assert.Single(HoldShortRows(built.Menu));
-        Assert.Null(built.Vm.PreviewRoute);
 
         RaisePointer(item, InputElement.PointerEnteredEvent);
 
-        TaxiRoute? preview = built.Vm.PreviewRoute;
-        Assert.NotNull(preview);
-        Assert.Equal(Bar28ROnG.Id, preview.Segments[^1].ToNodeId);
+        ScopePreview preview = Assert.IsType<ScopePreview>(built.Vm.ScopePreview);
+        Assert.Null(preview.RingCallsign);
+        Assert.Equal(Bar28ROnG.Id, Assert.IsType<TaxiRoute>(preview.OwnRoute).Segments[^1].ToNodeId);
+        Assert.Equal(Bar28ROnG.Position, preview.BarPoint);
+        Assert.Null(built.Vm.PreviewRoute);
 
         RaisePointer(item, InputElement.PointerExitedEvent);
 
-        Assert.NotNull(built.Vm.PreviewRoute);
+        Assert.Null(built.Vm.ScopePreview);
     }
 
     [AvaloniaFact]
-    public void GroundMenu_HoldShort_OnlyForTaxiing()
+    public void GroundMenu_HoldShort_OnlyForTaxiingOrHoldingShort()
     {
-        AircraftModel target = GroundAircraft("SWA104", "Following SWA200", PositionOf(TaxiingNode));
-        target.TaxiRoute = "W3";
-        target.CurrentTaxiway = "W3";
-        target.AssignedRunway = "30";
+        AircraftModel following = GroundAircraft("SWA104", "Following SWA200", PositionOf(TaxiingNode));
+        following.TaxiRoute = "W3";
+        following.CurrentTaxiway = "W3";
+        following.AssignedRunway = "30";
+        AircraftModel holdingShort = TaxiingAcrossOnG();
+        holdingShort.CurrentPhase = "Holding Short 28L";
 
-        Built built = BuildMenu(target, prevSelected: null);
+        Built followingMenu = BuildMenu(following, prevSelected: null);
+        Built holdingShortMenu = BuildMenu(holdingShort, prevSelected: null);
 
-        Assert.DoesNotContain("Hold short of…", Headers(CommandTree(built.Menu)));
+        Assert.DoesNotContain("Hold short of…", Headers(CommandTree(followingMenu.Menu)));
+        Assert.Contains("Hold short of…", Headers(CommandTree(holdingShortMenu.Menu)));
     }
 
     // --- Preset taxi routes ------------------------------------------------------------------
@@ -515,9 +526,9 @@ public class GroundSubmenuCharacterizationTests
 
     private static List<string> Children(ContextMenu menu, string submenuHeader) => Headers(Item(CommandTree(menu), submenuHeader).Items);
 
-    /// <summary>The Hold short of… submenu's rows: every item but the route line.</summary>
+    /// <summary>The Hold short of… ladder's stops.</summary>
     private static List<MenuItem> HoldShortRows(ContextMenu menu) =>
-        [.. Item(CommandTree(menu), "Hold short of…").Items.OfType<MenuItem>().Where(m => m.Header is not string)];
+        [.. Item(CommandTree(menu), "Hold short of…").Items.OfType<MenuItem>().Where(m => m.Header is HoldShortLadderStop)];
 
     private static MenuItem Child(ContextMenu menu, string submenuHeader, string childHeader) =>
         Item(Item(CommandTree(menu), submenuHeader).Items, childHeader);

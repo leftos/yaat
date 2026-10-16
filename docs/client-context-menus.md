@@ -20,7 +20,7 @@ The aircraft right-click menus on the radar, ground and aircraft-list views. Thi
 
   A button stands for its entry's own menu item: a sending or prompting item is clicked through, and a submenu (Cleared for takeoff ▸) opens as a flyout beside the menu, its top level with the icon strip (on the menu's left near the screen's right edge), marked by a corner notch; choosing a command closes the menu.
 
-  A submenu whose items follow live data (Push back to…, filling from a seed and then a live plan; Follow… and Give way to…, refilled from the ground traffic when they open and once a second while open) registers `QuickCommandStrip.FollowInFlyout` with an `IStripFlyoutContent`: the strip tells it when the flyout opens, with the flyout's own item list and an action that closes the flyout and the menu, when the pointer enters and leaves the flyout (`PointerInside`), and when it closes, so the flyout follows the list while open instead of showing a frozen copy.
+  A submenu whose items follow live data (Push back to…, filling from a seed and then a live plan; Follow… and Give way to…, refilled from the ground traffic when they open and once a second while open; Hold short of…, refilled from the route likewise) registers `QuickCommandStrip.FollowInFlyout` with an `IStripFlyoutContent`: the strip tells it when the flyout opens, with the flyout's own item list and an action that closes the flyout and the menu, when the pointer enters and leaves the flyout (`PointerInside`), and when it closes, so the flyout follows the list while open instead of showing a frozen copy.
 
   The icon is latched (style class `sticky`, a light background) while its flyout is open; clicking it again, or Enter or Space on it, toggles the flyout, and Escape closes it and leaves the menu open. The flyout stays open when the pointer leaves the menu or rests on a plain row, and closes when another icon opens its flyout, when another row opens its own submenu or when the menu closes. `QuickCommandStrip.OpenSubmenu(Button)` opens it as a click does.
 
@@ -76,7 +76,7 @@ The default list of each situation, most frequent first (`QuickCommandDefaults`)
 | Pushing back | Hold position, Push route… |
 | Holding on ground | Resume taxi, Draw taxi route…, Follow…, Give way to…, Cross |
 | Taxiing | Hold position, Resume taxi, Hold short of…, Cross, Follow…, Give way to…, Ignore ground conflicts (15 s), Cleared for takeoff ▸, Cancel takeoff clearance |
-| Holding short | Cleared for takeoff ▸, Line up and wait, Cross, Resume taxi |
+| Holding short | Cleared for takeoff ▸, Line up and wait, Cross, Resume taxi, Hold short of… |
 | Lined up | Cleared for takeoff ▸, Cancel takeoff clearance, Draw taxi route… |
 | Departing | Fly heading ▸, Maintain altitude, Climb via SID *(IFR)*, Direct to…, Assign speed ▸ |
 | IFR enroute | Fly heading ▸, Maintain altitude, Direct to…, Assign speed ▸, Hold at fix…, Cross fix |
@@ -151,7 +151,21 @@ Settings › Input › **Quick commands** (`SettingsSectionId.QuickCommands`) ed
 
   A blocked target's row is enabled but faded, sends nothing and leaves the menu open; `blocked by SWA919` sits on a second line with a `push anyway` chip sending `MenuPushTarget.ForcedCommand` (`PUSHF TF`, `PUSHF $C` for a spot). A chip's accessible name is its command.
 
-  Hold short of… is `IMenuHost.GetHoldShortChoices` → `HoldShortMenu`: the route line (`route S T V W4 · RWY 30`), shown as a disabled row over a separator, and one `HoldShortChoice` per bar along the route, nearest first (not the destination runway whose bar ends the route, which the taxi already holds short of) (badge `TW`/`RW`, name, where, distance rounded to 50 ft, `HS` command, preview route).
+  Hold short of… is `IMenuHost.GetHoldShortChoices` → `HoldShortMenu`: the route line (`route S T V W4 · RWY 30`, `route B W · spot 5`), the `MeLine` (`now, taxiing on D`, `now, holding short of 28R on B`; the ` on {taxiway}` tail drops without `CurrentTaxiway`; null in any other phase), one `HoldShortChoice` per bar along the route, nearest first (badge `TW`/`RW`, name, where, distance rounded to 50 ft, `HS` command, preview route, `BarPoint`), and a `HoldShortDestination` (`Runway 30`, `Spot 5`, `Gate B22`, `Helipad H1`, with `route ends here`).
+
+  The destination runway whose bar ends the route is that last row, not a stop, and the destination shows only with at least one stop before it. The bar the route starts at is a stop while the aircraft is short of it (no preview route, the box alone); a bar it stands on or has passed is none.
+
+  While the aircraft holds short, the walk starts after the held target's node and never offers the bar it is held at. With no stop the entry is not built (hidden, strip and All Commands).
+
+  `HoldShortLadder` (beside `GroundTrafficFlyout`) is the one builder for the All Commands submenu and the strip flyout, registered through `QuickCommandStrip.FollowInFlyout` as an `IStripFlyoutContent`: a title row (`Hold short of` over the route line), the disabled me row (a teal dot, the callsign, the `MeLine`), the stop rows, then the dimmed, disabled destination row.
+
+  A stop row leads with its bar mark (`HoldShortBarMark`: runway two amber lines, taxiway teal solid over dashed, spot, gate or helipad a teal ring), then the badge, the bold name, the dimmed `· where`, `~N ft` and `HS` command, and sends the command, closing the flyout and the menu.
+
+  Its live refill follows Follow and Give way: in the strip flyout, once a second on `FlyoutLiveTick`; with the pointer outside the ladder is rebuilt as the host answers, with it inside `FrozenStops` holds the order keyed by the `HS` command text, updates distances in place, keeps a stop that left the route as a dimmed `gone` row that sends nothing and the keyboard skips, and appends a new stop at the bottom; the ladder catches up when the pointer leaves. A re-route under a frozen order follows the same rule.
+
+  The first live stop is focused on open; the me and destination rows are disabled and so out of the keyboard's reach. The All Commands submenu refills as it opens, with no live tick.
+
+  A stop pointed at or focused sets a scope preview through a `ScopeFeedbackTracker` built with `highlightsAircraft: false` (it keys rows by their `HS` command and rings no aircraft): `ScopePreview(null, route to the bar, null, BarPoint, null)`, so the ground views box the bar and draw the aircraft's route solid to it, with no route for a zero-segment stop (the box alone). A gone row previews nothing. Preset taxi route and Taxi to runway rows keep `SetRoutePreview`.
 
   Follow… and Give way to… are one builder each in `GroundTrafficFlyout` (`BuildFollow`, `BuildGiveWay`; `MenuCatalog` calls them), serving the strip flyout and All Commands alike over `IMenuHost.GetGroundTrafficRows` (every other ground aircraft but delayed spawns, nearest first). Both register with `QuickCommandStrip.FollowInFlyout`, so the list is refilled when a surface opens and, while the strip's flyout is open, once a second on `FlyoutLiveTick` (a beat on `IMenuHost.Clock`; a beat queued before the flyout closed or reopened does nothing), an aircraft keeping its row by callsign; a row no longer listed sends nothing, even on a click already on its way.
 
@@ -193,7 +207,9 @@ Settings › Input › **Quick commands** (`SettingsSectionId.QuickCommands`) ed
 
   Each entry opens For departure and Hold short of runway (`BuildTaxiDestVariants`, with crossing variants when the route crosses a runway; it sends a second-named end and a `1L`-style designator correctly, which also fixes the point menu's variants). The presets that end at the end follow its entries. Routes are cached per start node, category, wake class and runway until the layout changes.
 
-  `MenuCatalog.BuildHoldShortRow` draws a row with the shared command-row template (`MenuCommandRow`, drawn by `MenuCommandRowTemplate`, sent through `MenuCatalog.BuildTemplatedSend`): the badge, the name with the dimmed "where", the distance and the command in the monospace font; hovering it previews the route to its bar through `SetRoutePreview`. The Follow… and Give way to… rows are not command rows: `GroundTrafficFlyout` draws them (above).
+  The Preset taxi route and Taxi to runway rows draw with the shared command-row template (`MenuCommandRow`, drawn by `MenuCommandRowTemplate`, sent through `MenuCatalog.BuildTemplatedSend`): the badge, the name with the dimmed "where", the distance and the command in the monospace font; hovering a Preset taxi route or Taxi to runway row previews its path through `SetRoutePreview`.
+
+  The Follow…, Give way to… and Hold short of… rows are not command rows: `GroundTrafficFlyout` and `HoldShortLadder` draw them (above).
 
   A row with an inline detail (Taxi to runway, hold short) widens with the detail up to `MenuCommandRow.InlineRowMaxWidth` (480 px, the width cap of every menu: `App.axaml.cs` `Initialize` overrides Fluent's `FlyoutThemeMaxWidth` with it). Past the cap the template trims the detail with an ellipsis, keeping the name and distance clear, and the row's tooltip shows the whole detail; a row that fits has no tooltip. How the rows are found and named is in [ground-rendering.md](ground-rendering.md).
 - **Exit left / Exit right are flyouts over the named exits ahead** (`MenuCatalog.ExitFlyout`, `BuildExitFlyout`), read from `IMenuAircraft.ExitsAhead` as the menu opens; the server's list is never recomputed on the client ([landing-and-runway-exit.md](landing-and-runway-exit.md), Exits ahead). A section header, one row per listed exit on that side, a separator, then the pilot's-choice row sending the bare `EL` / `ER`.

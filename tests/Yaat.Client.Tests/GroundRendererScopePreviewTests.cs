@@ -62,6 +62,23 @@ public class GroundRendererScopePreviewTests
         Assert.Equal(background, PixelAt(bitmap, meetX, meetY));
     }
 
+    /// <summary>
+    /// A Hold short of… stop at the bar the route starts at sends the bar alone: the bar is boxed in the highlight blue, its
+    /// box's left edge 22 px left of the bar, and the bar's centre stays clear.
+    /// </summary>
+    [Fact]
+    public void BarPointAlone_BoxesTheBarInTheHighlightBlue()
+    {
+        MapViewport vp = Viewport();
+        (float barX, float barY) = vp.LatLonToScreen(Meet.Lat, Meet.Lon);
+
+        using SKBitmap bitmap = Render(vp, new ScopePreview(null, null, null, Meet, null));
+
+        List<SKColor> leftEdge = [.. Enumerable.Range(-24, 5).Select(dx => PixelAt(bitmap, barX + dx, barY))];
+        Assert.Contains(leftEdge, pixel => (pixel.Blue > 200) && (pixel.Red < 180));
+        Assert.Equal(bitmap.GetPixel(1, 1), PixelAt(bitmap, barX, barY));
+    }
+
     private static MapViewport Viewport() =>
         new()
         {

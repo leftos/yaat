@@ -555,16 +555,19 @@ A menu submenu whose items are built when it first opens, holding one disabled p
 What a right-click gives an aircraft menu (`MenuClick`): the aircraft the menu commands, the previously selected aircraft that sends the relative items (null when it is the clicked one), the clicked point on a point click (`MenuPoint`: a map position, a taxi node, a runway end; null on an aircraft click), and the list's selected rows (`[]` on the canvases).
 
 **Command row**:
-A clickable, templated context-menu row that sends a command: an optional badge, the name, a detail, a distance and the command text (`MenuCommandRow`, drawn by `MenuCommandRowTemplate`); the Hold short of… and Follow… / Give way to… rows are command rows.
+A clickable, templated context-menu row that sends a command: an optional badge, the name, a detail, a distance and the command text (`MenuCommandRow`, drawn by `MenuCommandRowTemplate`); the Preset taxi route, Taxi to runway and Exit left / right rows are command rows; the Follow…, Give way to… and Hold short of… rows draw their own layouts.
 
 **Glyph row**:
 A clickable context-menu row led by a quick-command glyph, with a label, an optional dimmed note and the command text (`MenuGlyphRow`, drawn by `MenuGlyphRowTemplate`); a dimmed one stays clickable. The pattern entries' runway flyout rows are glyph rows, the glyph rotated to the runway's true course less 270°.
+
+**Hold short ladder**:
+The Hold short of… designed flyout (`HoldShortLadder`): the aircraft's route from where it is to where it ends as a list of **stops**, each a bar along the route (runway bars two amber lines, taxiway bars teal dashed) with its name, where, distance and `HS` command, nearest first, under a line for the aircraft itself (`now, taxiing on D`) and over a dimmed, unclickable last row for where the route ends (`Spot 5 · route ends here`). Holding short, it starts after the held bar.
 
 **Landable (runway end) / short runway end**:
 A runway end is landable for a physical aircraft type when its landing distance available is at least 1.15 times the type's landing distance, and short otherwise (`RunwayLandability`); a type with no figure, a helicopter and a `VEH*` type are always landable. The pattern entries' flyout lists landable ends first and marks short ones "short".
 
 **Designed flyout**:
-A quick command's strip flyout built from rows with their own layout (glyph or badge, label, what it sends) instead of a copy of a context submenu; the same rows serve the entry's All Commands submenu. Cleared for takeoff, the pattern entries' runway flyout and Push back to… are designed flyouts.
+A quick command's strip flyout built from rows with their own layout (glyph or badge, label, what it sends) instead of a copy of a context submenu; the same rows serve the entry's All Commands submenu. Cleared for takeoff, the pattern entries' runway flyout, Push back to…, Follow…, Give way to… and Hold short of… are designed flyouts.
 
 **Detail row**:
 A disabled, dimmed label row in a menu that sends nothing (`SharedMenuGroups.DetailRow`), such as the point menu's FRD, distance and bearing line; not a command row.
@@ -573,7 +576,7 @@ A disabled, dimmed label row in a menu that sends nothing (`SharedMenuGroups.Det
 The menu a right-click on empty map (radar) or on a taxi node, runway threshold or runway surface (ground) opens for the selected aircraft: on the ground, an icon strip of the taxi items that apply, then the shared `point.*` items its state allows (Fly heading, Direct to, Hold, Taxi here, Taxi to {end}, Push to, Custom taxi, Warp here), then the view's own point items (markers, Measure, FRD, Draw taxi route from the node).
 
 **Scope preview**:
-What a pointed or focused Give way to… / Follow… row draws on the ground views (`ScopePreview`, sent through `IMenuHost.SetScopePreview`): a ring on the row's aircraft, the commanded aircraft's route solid and the row aircraft's dashed, and, for Give way to…, the **meet point** ringed in amber. It clears when the menu closes and is not drawn on the radar.
+What a pointed or focused Give way to… / Follow… row draws on the ground views (`ScopePreview`, sent through `IMenuHost.SetScopePreview`): a ring on the row's aircraft, the commanded aircraft's route solid and the row aircraft's dashed, and, for Give way to…, the **meet point** ringed in amber. A pointed or focused Hold short of… stop draws the bar boxed and the aircraft's route solid to it, with no ring. It clears when the menu closes and is not drawn on the radar.
 
 **Strip flyout**:
 The flyout a quick-command strip button opens, holding the items moved out of that command's menu item (`QuickCommandStrip`); items that follow live data stay current in it through `IStripFlyoutContent`.
@@ -591,10 +594,10 @@ The block at the top of an aircraft's menu, under its header, while another airc
 One other aircraft as a menu's traffic list shows it, seen from the aircraft the menu commands: in the air a `MenuTrafficRow` (callsign and type, distance, clock position, altitude difference), on the ground a `MenuGroundTrafficRow` (callsign, type, distance in feet, state such as `taxiing on W · ahead`).
 
 **Gone row**:
-A Follow… or Give way to… row whose aircraft has left the ground while the pointer holds the open flyout's list in place: dimmed, reading `gone`, disabled, skipped by the keyboard and sending nothing.
+A Follow… or Give way to… row whose aircraft has left the ground, or a Hold short of… stop the route has left, while the pointer holds the open flyout's list in place: dimmed, reading `gone`, disabled, skipped by the keyboard and sending nothing.
 
 **Live refill**:
-A strip flyout's once-a-second rebuild from the host's data while it is open (`FlyoutLiveTick`): rebuilt nearest first with the pointer outside, held in place with gone rows and teal-edged newcomers with the pointer inside (Follow…, Give way to…).
+A strip flyout's once-a-second rebuild from the host's data while it is open (`FlyoutLiveTick`): rebuilt nearest first with the pointer outside, held in place with gone rows and teal-edged newcomers with the pointer inside (Follow…, Give way to…, Hold short of…).
 
 ## CRC hub connections
 

@@ -1989,38 +1989,102 @@ public partial class GroundViewModel : ObservableObject
         string.Equals(RunwayIdentifier.NormalizeDesignator(a), RunwayIdentifier.NormalizeDesignator(b), StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
-    /// The Hold short of… rows for <paramref name="ac"/>'s remaining route: one per bar the route passes, nearest first,
-    /// each sending the <c>HS</c> that arms that bar and previewing the route up to it. A taxiway the route meets on more
-    /// than one of its taxiways gets one located row per crossing (<c>X@A</c>, <c>X@B</c>), since a bare <c>HS X</c> only
-    /// ever binds the first; a runway gets one row, for its first bar, named by <see cref="RunwayRowName"/>, except the
-    /// destination runway whose bar the route ends at (the taxi already holds short of it). A junction
-    /// arc's joined name ("X - Y") is never a row, and a bar at the aircraft's own position (0 ft once rounded) is not
-    /// listed. The node the route starts at is a bar like any other: an aircraft short of a holding position starts
-    /// there with no free-space leg (<see cref="TaxiApproachLeg"/>), so every distance is measured from the aircraft
-    /// (<see cref="RouteStart"/>). Empty when no layout is loaded or the route does not resolve.
+    /// The Hold short of… ladder for <paramref name="ac"/>: the route line (<see cref="HoldShortRouteLine"/>), the line
+    /// saying where it is now (<see cref="HoldShortMeLine"/>), its stops (<see cref="LadderStopsAndEnd"/>) and, when at
+    /// least one stop comes before it, where the route ends (a runway's bar, or the spot, gate or helipad the taxi is to).
     /// </summary>
-    public IReadOnlyList<HoldShortChoice> GetHoldShortTargets(AircraftModel ac)
+    public HoldShortMenu GetHoldShortMenu(AircraftModel ac)
+    {
+        (IReadOnlyList<HoldShortChoice> stops, HoldShortDestination? destination) = LadderStopsAndEnd(ac);
+        return new HoldShortMenu(HoldShortRouteLine(ac), HoldShortMeLine(ac), stops, (stops.Count > 0) ? destination : null);
+    }
+
+    /// <summary>
+    /// The line saying where <paramref name="ac"/> is now, heading the Hold short of… ladder: <c>now, taxiing on D</c>,
+    /// or, holding short, <c>now, holding short of 28R on B</c> (a taxiway or spot bar the same way:
+    /// <c>now, holding short of C on D</c>); without the <c>on</c> part when it is on no taxiway. Null in any other phase.
+    /// </summary>
+    public static string? HoldShortMeLine(AircraftModel ac)
+    {
+        string phase = ac.CurrentPhase;
+        string doing;
+        if (phase == "Taxiing")
+        {
+            doing = "taxiing";
+        }
+        else if (HoldShortMenuHelper.IsHoldingShort(phase))
+        {
+            doing = HoldingShortWords(phase);
+        }
+        else
+        {
+            return null;
+        }
+
+        return string.IsNullOrEmpty(ac.CurrentTaxiway) ? $"now, {doing}" : $"now, {doing} on {ac.CurrentTaxiway}";
+    }
+
+    /// <summary>
+    /// What a holding-short phase is doing: <c>holding short of 28R</c> (the first end of a runway pair), <c>holding
+    /// short of B</c>, <c>holding short of spot 17</c>, or <c>holding short</c> for a phase naming no target.
+    /// </summary>
+    private static string HoldingShortWords(string phase)
+    {
+        if (phase.Length <= HoldShortMenuHelper.HoldingShortPrefix.Length)
+        {
+            return "holding short";
+        }
+
+        string target =
+            HoldShortMenuHelper.IsNonRunwayBar(phase) ? phase[HoldShortMenuHelper.HoldingShortPrefix.Length..]
+            : (HoldShortMenuHelper.HeldRunway(phase, null) is { } runway) ? RunwayIdentifier.ToDisplayDesignator(runway)
+            : phase[HoldShortMenuHelper.HoldingShortPrefix.Length..];
+        return $"holding short of {target}";
+    }
+
+    /// <summary>
+    /// The ladder's stops for <paramref name="ac"/>'s remaining route, and where the route ends
+    /// (<see cref="HoldShortDestinationOf"/>). One stop per bar the route passes, nearest first, each sending the
+    /// <c>HS</c> that arms that bar and previewing the route up to it. A taxiway the route meets on more than one of its
+    /// taxiways gets one located stop per crossing (<c>X@A</c>, <c>X@B</c>), since a bare <c>HS X</c> only ever binds the
+    /// first; a runway gets one stop, for its first bar, named by <see cref="RunwayRowName"/>, except the destination
+    /// runway whose bar the route ends at (the taxi already holds short of it; the ladder shows it as its destination
+    /// row). A junction arc's joined name ("X - Y") is never a stop, and a bar at the aircraft's own position (0 ft once
+    /// rounded) is not listed. The node the route starts at is a bar like any other: an aircraft short of a holding
+    /// position starts there with no free-space leg (<see cref="TaxiApproachLeg"/>), so every distance is measured from
+    /// the aircraft (<see cref="RouteStart"/>). The bar a holding-short aircraft is held at is never a stop, however far
+    /// back of it the sim parks the aircraft: the walk starts past it (<see cref="PastHeldBar"/>), and no row names its
+    /// runway or taxiway (<see cref="HeldTarget.IsNamedBy"/>). No stops when no layout is loaded or the route does not
+    /// resolve.
+    /// </summary>
+    private (IReadOnlyList<HoldShortChoice> Stops, HoldShortDestination? Destination) LadderStopsAndEnd(AircraftModel ac)
     {
         if ((_domainLayout is not { } layout) || (ResolveRemainingRoute(ac) is not { Segments.Count: > 0 } route))
         {
-            return [];
+            return ([], null);
         }
 
         var routeTaxiways = new HashSet<string>(ParseRouteTaxiways(ac.TaxiRoute), StringComparer.OrdinalIgnoreCase);
-        (double OffsetFt, int FirstPosition) start = RouteStart(route, ac.Position);
+        HeldTarget? held = HeldTarget.Of(ac.CurrentPhase);
+        (double OffsetFt, int FirstPosition) start = PastHeldBar(layout, route, held, RouteStart(route, ac.Position));
         HashSet<string> activeEnds = ActiveRunwayEnds(layout.AirportId);
         List<(int Position, HoldShortChoice Row)> rows = [];
         foreach (
             (string Target, string Badge, string Name) rowTarget in HoldShortRowTargets(layout, route, routeTaxiways, start.FirstPosition, activeEnds)
         )
         {
+            if (held?.IsNamedBy(rowTarget.Target) == true)
+            {
+                continue;
+            }
+
             if (HoldShortRow(layout, route, start, rowTarget) is { } row)
             {
                 rows.Add(row);
             }
         }
 
-        return
+        List<HoldShortChoice> stops =
         [
             .. rows.OrderBy(r => r.Position)
                 .ThenBy(r => (r.Row.Label.Badge == HoldShortChoice.RunwayBadge) ? 0 : 1)
@@ -2028,6 +2092,63 @@ public partial class GroundViewModel : ObservableObject
                 .ThenBy(r => r.Row.Command, StringComparer.OrdinalIgnoreCase)
                 .Select(r => r.Row),
         ];
+        return (stops, HoldShortDestinationOf(layout, route, start.OffsetFt, ac, activeEnds));
+    }
+
+    /// <summary>
+    /// Where <paramref name="route"/> ends, as the ladder's last row names it: the spot, gate or helipad the taxi is to
+    /// (<see cref="TaxiStand"/>), else the runway whose bar it ends at (<c>Runway 30</c>: the assigned runway, else the
+    /// bar's runway named as its row would be); null when it ends at neither. The distance is the whole route's plus
+    /// <paramref name="offsetFt"/> (<see cref="RouteStart"/>).
+    /// </summary>
+    private HoldShortDestination? HoldShortDestinationOf(
+        AirportGroundLayout layout,
+        TaxiRoute route,
+        double offsetFt,
+        AircraftModel ac,
+        HashSet<string> activeEnds
+    )
+    {
+        double distanceFt = TugMovePlanner.NoteDistanceFt(offsetFt + route.PrefixDistanceFt(route.Segments.Count));
+        if (TaxiStand(ac.TaxiDestination) is { } stand)
+        {
+            return new HoldShortDestination($"{stand.Kind} {stand.Name}", false, distanceFt);
+        }
+
+        if (
+            !layout.Nodes.TryGetValue(RouteNodeId(route, route.Segments.Count), out GroundNode? end)
+            || (end.Type != GroundNodeType.RunwayHoldShort)
+            || (end.RunwayId is not { } runway)
+        )
+        {
+            return null;
+        }
+
+        string name = string.IsNullOrEmpty(ac.AssignedRunway)
+            ? RunwayRowName(layout, runway, end, activeEnds).Name
+            : RunwayIdentifier.ToDisplayDesignator(ac.AssignedRunway);
+        return new HoldShortDestination($"Runway {name}", true, distanceFt);
+    }
+
+    /// <summary>
+    /// The stand a broadcast taxi destination names, as the ladder words it: <c>$5</c> is (<c>Spot</c>, <c>5</c>), and
+    /// <c>@H1</c> a helipad (<c>Helipad</c>) when the layout has one by that name, else a gate (<c>Gate</c>); null when
+    /// there is none.
+    /// </summary>
+    private (string Kind, string Name)? TaxiStand(string taxiDestination)
+    {
+        if (taxiDestination.Length < 2)
+        {
+            return null;
+        }
+
+        string name = taxiDestination[1..];
+        return taxiDestination[0] switch
+        {
+            '$' => ("Spot", name),
+            '@' => ((_domainLayout?.FindHelipadByName(name) is not null) ? "Helipad" : "Gate", name),
+            _ => null,
+        };
     }
 
     /// <summary>
@@ -2066,6 +2187,102 @@ public partial class GroundViewModel : ObservableObject
     }
 
     /// <summary>
+    /// <paramref name="start"/> for an aircraft holding short of <paramref name="held"/>, past the held bar: the walk
+    /// starts after the first node of <paramref name="route"/> the held target binds (<see cref="HoldShortBindIndex"/>
+    /// from the route's start), so no target binds at or before it. The sim parks a held aircraft back from its bar (half
+    /// its length at a runway, its length and more at a taxiway), so the route can start one or more nodes short of the
+    /// bar. The distances keep <paramref name="start"/>'s offset. No hold (<paramref name="held"/> null), a target that
+    /// binds no node, or one first bound past another runway's bar (<see cref="OtherRunwayBarBefore"/>) keeps
+    /// <paramref name="start"/>.
+    /// </summary>
+    private (double OffsetFt, int FirstPosition) PastHeldBar(
+        AirportGroundLayout layout,
+        TaxiRoute route,
+        HeldTarget? held,
+        (double OffsetFt, int FirstPosition) start
+    )
+    {
+        if (held is not { } hold)
+        {
+            return start;
+        }
+
+        if (!HoldShortTarget.TryParse(hold.BindTarget, out HoldShortTarget target, out string? error))
+        {
+            _log.LogWarning("Hold short of… cannot find the held bar '{Target}': {Error}", hold.BindTarget, error);
+            return start;
+        }
+
+        return
+            (HoldShortBindIndex(layout, route, target, 0) is { } position)
+            && !OtherRunwayBarBefore(layout, route, start.FirstPosition, position, hold)
+            ? (start.OffsetFt, Math.Max(start.FirstPosition, position + 1))
+            : start;
+    }
+
+    /// <summary>
+    /// Whether a bar of a runway other than <paramref name="held"/>'s lies on <paramref name="route"/> ahead of the
+    /// aircraft — from <paramref name="firstPosition"/> (<see cref="RouteStart"/>), the first route position a bar can be
+    /// at — and before <paramref name="position"/>. The sim stops an aircraft at the first uncleared bar ahead, so the bar
+    /// it is held at has none before it; a held target first met past one is not the bar the aircraft stands at. A bar the
+    /// aircraft already stands on is not ahead of it: a taxiway hold the sim clamps onto the far-side bar of the runway
+    /// its tail overhangs is held there, one route node short of the taxiway's own bar.
+    /// </summary>
+    private static bool OtherRunwayBarBefore(AirportGroundLayout layout, TaxiRoute route, int firstPosition, int position, HeldTarget held)
+    {
+        for (int before = firstPosition; before < position; before++)
+        {
+            if (
+                layout.Nodes.TryGetValue(RouteNodeId(route, before), out GroundNode? node)
+                && (node.Type == GroundNodeType.RunwayHoldShort)
+                && (node.RunwayId is { } runway)
+                && !((held.Runway is { } heldRunway) && runway.Equals(heldRunway))
+            )
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// What a holding-short aircraft is held short of, as the ladder matches it: the <c>HS</c> target that binds the held
+    /// bar (a runway's first end, else the taxiway) and, at a runway, the runway.
+    /// </summary>
+    private readonly record struct HeldTarget(string BindTarget, RunwayIdentifier? Runway)
+    {
+        /// <summary>The target <paramref name="phase"/> holds short of; null in any other phase, for a bare hold and for a spot.</summary>
+        public static HeldTarget? Of(string phase)
+        {
+            if (!HoldShortMenuHelper.IsHoldingShort(phase) || (phase.Length <= HoldShortMenuHelper.HoldingShortPrefix.Length))
+            {
+                return null;
+            }
+
+            string target = phase[HoldShortMenuHelper.HoldingShortPrefix.Length..];
+            if (HoldShortMenuHelper.IsNonRunwayBar(phase))
+            {
+                return target.StartsWith("spot ", StringComparison.OrdinalIgnoreCase) ? null : new HeldTarget(target, null);
+            }
+
+            var runway = RunwayIdentifier.Parse(target);
+            return new HeldTarget(runway.End1, runway);
+        }
+
+        /// <summary>
+        /// Whether the <c>HS</c> target <paramref name="rowTarget"/> (<c>X</c> or <c>X@Y</c>) names this one: either end of
+        /// the held runway, else the held taxiway. Such a row would re-arm or repeat the hold the aircraft is in, so it is
+        /// no stop.
+        /// </summary>
+        public bool IsNamedBy(string rowTarget)
+        {
+            string name = rowTarget.Split('@')[0];
+            return (Runway is { } runway) ? runway.Contains(name) : string.Equals(name, BindTarget, StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
+    /// <summary>
     /// The node at <paramref name="position"/> along <paramref name="route"/>: 0 is the node it starts at, and
     /// <c>p</c> the end of segment <c>p − 1</c>.
     /// </summary>
@@ -2079,10 +2296,11 @@ public partial class GroundViewModel : ObservableObject
     private static string? RouteTaxiwayAt(TaxiRoute route, int position) => ArrivingTaxiway(route.Segments[Math.Max(position - 1, 0)]);
 
     /// <summary>
-    /// The line heading the Hold short of… rows: <c>route S T V W4 · RWY 30</c>, without the runway part when the
-    /// clearance names none; null when the aircraft has no taxi route.
+    /// The line heading the Hold short of… ladder: <c>route S T V W4 · RWY 30</c>, then the stand the taxi is to
+    /// (<c>route B W · spot 5</c>, <c>· gate B22</c>, <c>· helipad H1</c>), each part only when the clearance names it;
+    /// null when the aircraft has no taxi route.
     /// </summary>
-    public static string? HoldShortRouteLine(AircraftModel ac)
+    private string? HoldShortRouteLine(AircraftModel ac)
     {
         List<string> taxiways = ParseRouteTaxiways(ac.TaxiRoute);
         if (taxiways.Count == 0)
@@ -2091,15 +2309,21 @@ public partial class GroundViewModel : ObservableObject
         }
 
         string line = $"route {string.Join(' ', taxiways)}";
-        return string.IsNullOrEmpty(ac.AssignedRunway) ? line : $"{line} · RWY {RunwayIdentifier.ToDisplayDesignator(ac.AssignedRunway)}";
+        if (!string.IsNullOrEmpty(ac.AssignedRunway))
+        {
+            line += $" · RWY {RunwayIdentifier.ToDisplayDesignator(ac.AssignedRunway)}";
+        }
+
+        return (TaxiStand(ac.TaxiDestination) is { } stand) ? $"{line} · {stand.Kind.ToLowerInvariant()} {stand.Name}" : line;
     }
 
     /// <summary>
     /// The <c>HS</c> target of every row <paramref name="route"/> offers, with its badge and name: one per runway whose
     /// bar it passes but the runway whose bar it ends at (its destination), then the taxiways it meets off its own
     /// (<paramref name="routeTaxiways"/>), bare when met on one route taxiway and located once per route taxiway
-    /// otherwise. The walk starts at <paramref name="firstPosition"/> (<see cref="RouteStart"/>); runway rows are named
-    /// from <paramref name="activeEnds"/>.
+    /// otherwise. The walk starts at <paramref name="firstPosition"/> (<see cref="RouteStart"/>, moved past the held bar
+    /// while the aircraft is holding short — <see cref="PastHeldBar"/>); runway rows are named from
+    /// <paramref name="activeEnds"/>.
     /// </summary>
     private List<(string Target, string Badge, string Name)> HoldShortRowTargets(
         AirportGroundLayout layout,
@@ -2190,9 +2414,10 @@ public partial class GroundViewModel : ObservableObject
 
     /// <summary>
     /// The row for <paramref name="rowTarget"/>: the bar <c>HS {target}</c> binds on <paramref name="route"/>
-    /// (<see cref="HoldShortBindIndex"/>, walked from <paramref name="start"/>'s first position), with its position along
-    /// the route, and its distance from the aircraft: the route up to it plus <paramref name="start"/>'s offset. Null when
-    /// the target binds no bar, or binds one at the aircraft's own position.
+    /// (<see cref="HoldShortBindIndex"/>, walked from <paramref name="start"/>'s first position — <see cref="RouteStart"/>,
+    /// moved past the held bar while the aircraft is holding short, <see cref="PastHeldBar"/>), with its position along the
+    /// route, and its distance from the aircraft: the route up to it plus <paramref name="start"/>'s offset. Null when the
+    /// target binds no bar, or binds one at the aircraft's own position.
     /// </summary>
     private (int Position, HoldShortChoice Row)? HoldShortRow(
         AirportGroundLayout layout,
@@ -2220,7 +2445,8 @@ public partial class GroundViewModel : ObservableObject
 
         var label = new HoldShortRowLabel(rowTarget.Badge, rowTarget.Name, WhereOnRoute(route, position), distanceFt);
         var preview = new TaxiRoute { Segments = route.Segments.GetRange(0, position), HoldShortPoints = [] };
-        return (position, new HoldShortChoice(label, $"HS {rowTarget.Target}", preview));
+        LatLon barPoint = layout.Nodes[RouteNodeId(route, position)].Position;
+        return (position, new HoldShortChoice(label, $"HS {rowTarget.Target}", preview, barPoint));
     }
 
     /// <summary>
@@ -2248,8 +2474,8 @@ public partial class GroundViewModel : ObservableObject
     /// <summary>
     /// A runway row's name and the end its <c>HS</c> names, from the room's active runway ends at the airport
     /// (<paramref name="active"/>, <see cref="ActiveRunwayEnds"/>): the active end when exactly one is; otherwise the end
-    /// on the side of a full-length crossing (<see cref="FullLengthEnd"/>); otherwise both ends ("Runway 12/30"), sending
-    /// the lower-numbered end, which binds the same bar as the other.
+    /// on the side of a full-length crossing (<see cref="FullLengthEnd"/>); otherwise both ends ("12/30"), sending the
+    /// lower-numbered end, which binds the same bar as the other.
     /// </summary>
     private (string Name, string End) RunwayRowName(AirportGroundLayout layout, RunwayIdentifier runway, GroundNode bar, HashSet<string> active)
     {
@@ -2259,13 +2485,13 @@ public partial class GroundViewModel : ObservableObject
         if (end is not null)
         {
             string shown = RunwayIdentifier.ToDisplayDesignator(end);
-            return ($"Runway {shown}", shown);
+            return (shown, shown);
         }
 
         (string low, string high) =
             (RunwayNumber(runway.End1) <= RunwayNumber(runway.End2)) ? (runway.End1, runway.End2) : (runway.End2, runway.End1);
         string lowShown = RunwayIdentifier.ToDisplayDesignator(low);
-        return ($"Runway {lowShown}/{RunwayIdentifier.ToDisplayDesignator(high)}", lowShown);
+        return ($"{lowShown}/{RunwayIdentifier.ToDisplayDesignator(high)}", lowShown);
     }
 
     /// <summary>
@@ -2554,8 +2780,8 @@ public partial class GroundViewModel : ObservableObject
     /// binds: the first that is a bar of the target runway or meets the target taxiway, a located target (C@J) only on a
     /// node of its location taxiway — the node walk the server falls back on when the route holds no point for the target
     /// yet, so the row shows the crossing the command will arm. The walk starts at <paramref name="firstPosition"/>
-    /// (<see cref="RouteStart"/>): the node the route starts at counts only while the aircraft is short of it. Null when
-    /// it binds none.
+    /// (<see cref="RouteStart"/>, moved past the held bar while the aircraft is holding short — <see cref="PastHeldBar"/>):
+    /// the node the route starts at counts only while the aircraft is short of it. Null when it binds none.
     /// </summary>
     private static int? HoldShortBindIndex(AirportGroundLayout layout, TaxiRoute route, HoldShortTarget holdShort, int firstPosition)
     {

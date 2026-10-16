@@ -13,6 +13,12 @@ public static class HoldShortMenuHelper
     public const string HoldingShortPrefix = "Holding Short ";
 
     /// <summary>
+    /// Whether <paramref name="phase"/> is a holding-short phase: <c>"Holding Short"</c>, bare or naming its target
+    /// (<c>"Holding Short 28R/10L"</c>, <c>"Holding Short B"</c>).
+    /// </summary>
+    public static bool IsHoldingShort(string phase) => phase.StartsWith(HoldingShortPrefix.TrimEnd(), StringComparison.Ordinal);
+
+    /// <summary>
     /// Whether <paramref name="phase"/> holds short of a named target that is not a runway — a taxiway or spot bar
     /// (<c>"Holding Short B"</c>, <c>"Holding Short spot 17"</c>). A bare <c>"Holding Short"</c> names no target and
     /// is not one.

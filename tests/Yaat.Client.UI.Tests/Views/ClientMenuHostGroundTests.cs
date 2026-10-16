@@ -186,12 +186,14 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
 
         HoldShortMenu holdShort = host.GetHoldShortChoices(Callsign);
 
-        // G crosses 10L/28R mid-runway on its way to 28L (the destination, which is no row) and the room names no active
-        // runway: one row naming both ends, sending the lower-numbered one, which binds the same bar.
+        // G crosses 10L/28R mid-runway on its way to 28L (the destination, the ladder's dimmed last row rather than a stop)
+        // and the room names no active runway: one stop naming both ends, sending the lower-numbered one, which binds the
+        // same bar.
         Assert.Equal("route G · RWY 28L", holdShort.RouteLine);
         HoldShortChoice runway = Assert.Single(holdShort.Rows);
-        Assert.Equal((HoldShortChoice.RunwayBadge, "Runway 10L/28R", "HS 10L"), (runway.Label.Badge, runway.Label.Name, runway.Command));
+        Assert.Equal((HoldShortChoice.RunwayBadge, "10L/28R", "HS 10L"), (runway.Label.Badge, runway.Label.Name, runway.Command));
         Assert.Equal(Bar28ROnG.Id, runway.Preview.Segments[^1].ToNodeId);
+        Assert.Equal("Runway 28L", holdShort.Destination?.Name);
     }
 
     [AvaloniaFact]
@@ -205,7 +207,7 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
 
         HoldShortChoice runway = Assert.Single(host.GetHoldShortChoices(Callsign).Rows);
 
-        Assert.Equal(("Runway 28R", "HS 28R"), (runway.Label.Name, runway.Command));
+        Assert.Equal(("28R", "HS 28R"), (runway.Label.Name, runway.Command));
     }
 
     [AvaloniaFact]
@@ -555,7 +557,10 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
         return [.. menu.Inline, .. menu.Other, .. menu.FindOther?.Invoke() ?? []];
     }
 
-    /// <summary>The full-length entry rows of the groups among <paramref name="groups"/> whose title starts with one of <paramref name="titles"/>.</summary>
+    /// <summary>
+    /// The full-length entry rows of the groups among <paramref name="groups"/> whose title starts with one of
+    /// <paramref name="titles"/>.
+    /// </summary>
     private static List<TaxiRouteRow> FullLengthRows(List<TaxiToRunwayGroup> groups, params string[] titles) =>
         [
             .. groups
@@ -1228,16 +1233,24 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
 
         string[] groundItems = ["Hold short of…", "Follow…", "Give way to…"];
         Assert.Equal(groundItems, Headers(CommandTree(menu)).Where(groundItems.Contains));
-        Assert.Equal(["route G · RWY 28L"], Headers(Item(CommandTree(menu), "Hold short of…").Items));
+        Assert.Equal(
+            new GroundTrafficFlyoutTitle(HoldShortLadder.Title, "route G · RWY 28L"),
+            Item(CommandTree(menu), "Hold short of…").Items.OfType<MenuItem>().First().Header
+        );
         Button followRow = FollowListItems.Row(Item(CommandTree(menu), "Follow…"), OtherCallsign);
         MenuItem giveWayRow = TrafficRow(Item(CommandTree(menu), "Give way to…").Items, OtherCallsign);
         Assert.Equal(["Moving"], FollowListItems.Titles(Item(CommandTree(menu), "Follow…")));
         Assert.IsType<GroundTrafficFlyoutTitle>(Item(CommandTree(menu), "Give way to…").Items.OfType<MenuItem>().First().Header);
 
-        MenuItem holdShortRunway = Assert.Single(Item(CommandTree(menu), "Hold short of…").Items.OfType<MenuItem>(), m => m.Header is not string);
+        MenuItem holdShortRunway = Assert.Single(
+            Item(CommandTree(menu), "Hold short of…").Items.OfType<MenuItem>(),
+            m => m.Header is HoldShortLadderStop
+        );
         RaisePointerEntered(holdShortRunway);
-        Assert.NotNull(main.Ground.PreviewRoute);
-        Assert.Equal(Bar28ROnG.Id, main.Ground.PreviewRoute.Segments[^1].ToNodeId);
+        Assert.Null(main.Ground.PreviewRoute);
+        ScopePreview preview = Assert.IsType<ScopePreview>(main.Ground.ScopePreview);
+        Assert.Equal(Bar28ROnG.Id, Assert.IsType<TaxiRoute>(preview.OwnRoute).Segments[^1].ToNodeId);
+        Assert.Equal(Bar28ROnG.Position, preview.BarPoint);
 
         Click(holdShortRunway);
         FollowListItems.Click(followRow);

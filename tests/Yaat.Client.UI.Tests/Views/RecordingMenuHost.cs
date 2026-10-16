@@ -264,6 +264,12 @@ internal sealed class RecordingMenuHost(string input) : IMenuHost
     /// <summary>The line heading the Hold short of… rows; null for none.</summary>
     public string? HoldShortRouteLine { get; set; }
 
+    /// <summary>The Hold short of… ladder's line saying where the aircraft is now; null for none.</summary>
+    public string? HoldShortMeLine { get; set; }
+
+    /// <summary>Where the Hold short of… ladder's route ends; null for no destination row.</summary>
+    public HoldShortDestination? HoldShortDestination { get; set; }
+
     public List<TaxiRoute?> RoutePreviews { get; } = [];
 
     /// <summary>How many times the ground traffic was asked for.</summary>
@@ -285,7 +291,8 @@ internal sealed class RecordingMenuHost(string input) : IMenuHost
 
     public IReadOnlyList<MenuTrafficRow> GetNearbyTraffic(string callsign) => NearbyTraffic;
 
-    public HoldShortMenu GetHoldShortChoices(string callsign) => new(HoldShortRouteLine, HoldShortChoices);
+    public HoldShortMenu GetHoldShortChoices(string callsign) =>
+        new(HoldShortRouteLine, HoldShortMeLine, [.. HoldShortChoices], HoldShortDestination);
 
     public void SetRoutePreview(TaxiRoute? route) => RoutePreviews.Add(route);
 

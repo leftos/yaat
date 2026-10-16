@@ -32,7 +32,7 @@ public class GroundViewModelHoldShortMenuOrderTests
     {
         (GroundViewModel vm, AircraftModel ac) = MockRoute(NoActiveRunways);
 
-        IReadOnlyList<HoldShortChoice> rows = vm.GetHoldShortTargets(ac);
+        IReadOnlyList<HoldShortChoice> rows = vm.GetHoldShortMenu(ac).Rows;
 
         string dump = Dump(rows);
         // B and W are each met on two route taxiways, on their own edges and on the junction fillets the route rounds.
@@ -50,21 +50,114 @@ public class GroundViewModelHoldShortMenuOrderTests
 
     /// <summary>
     /// The mock route ends at the W4 bar of 12/30, its destination runway: a taxi to a runway already ends holding short
-    /// of it and the server takes <c>HS 12</c> there as a no-op, so the runway is no row.
+    /// of it and the server takes <c>HS 12</c> there as a no-op, so the runway is no stop; the ladder ends with it as the
+    /// dimmed destination row, the whole route away.
     /// </summary>
     [Fact]
-    public void MockRoute_DestinationRunwayIsNotARow()
+    public void MockRoute_DestinationRunwayIsTheDestinationRow()
     {
         (GroundViewModel vm, AircraftModel ac) = MockRoute(NoActiveRunways);
         TaxiRoute route = vm.ResolveRemainingRoute(ac)!;
 
-        IReadOnlyList<HoldShortChoice> rows = vm.GetHoldShortTargets(ac);
+        HoldShortMenu menu = vm.GetHoldShortMenu(ac);
 
-        string dump = Dump(rows);
-        Assert.NotEmpty(rows);
-        Assert.DoesNotContain(rows, r => (r.Command == "HS 12") || (r.Command == "HS 30"));
-        Assert.DoesNotContain(rows, r => (r.Label.Badge == HoldShortChoice.RunwayBadge) && (r.Preview.Segments.Count == route.Segments.Count));
-        Assert.True(rows.All(r => r.Label.Badge == HoldShortChoice.TaxiwayBadge), dump);
+        string dump = Dump(menu.Rows);
+        Assert.NotEmpty(menu.Rows);
+        Assert.DoesNotContain(menu.Rows, r => (r.Command == "HS 12") || (r.Command == "HS 30"));
+        Assert.DoesNotContain(menu.Rows, r => (r.Label.Badge == HoldShortChoice.RunwayBadge) && (r.Preview.Segments.Count == route.Segments.Count));
+        Assert.True(menu.Rows.All(r => r.Label.Badge == HoldShortChoice.TaxiwayBadge), dump);
+        HoldShortDestination destination = Assert.IsType<HoldShortDestination>(menu.Destination);
+        Assert.Equal(("Runway 30", true), (destination.Name, destination.IsRunway));
+        Assert.Equal("Runway 30 · route ends here", destination.ToString());
+        Assert.True(destination.DistanceFt > menu.Rows[^1].Label.DistanceFt, dump);
+        Assert.Equal("route S T V W4 · RWY 30", menu.RouteLine);
+    }
+
+    /// <summary>
+    /// The destination row and the route line name the stand the broadcast taxi destination names, a <c>$</c> spot or an
+    /// <c>@</c> gate (KOAK lists neither name, so the mock route stays as it resolves), and the assigned runway when there
+    /// is no stand. No test layout has a helipad, so the <c>Helipad H1</c> wording is not covered here.
+    /// </summary>
+    [Theory]
+    [InlineData("$Z5", "", "Spot Z5", false, "route S T V W4 · spot Z5")]
+    [InlineData("@B22", "", "Gate B22", false, "route S T V W4 · gate B22")]
+    [InlineData("", "30", "Runway 30", true, "route S T V W4 · RWY 30")]
+    public void DestinationRow_Spot_Gate_Runway(string taxiDestination, string runway, string name, bool isRunway, string routeLine)
+    {
+        (GroundViewModel vm, AircraftModel ac) = MockRoute(NoActiveRunways);
+        ac.AssignedRunway = runway;
+        ac.TaxiDestination = taxiDestination;
+
+        HoldShortMenu menu = vm.GetHoldShortMenu(ac);
+
+        Assert.NotEmpty(menu.Rows);
+        HoldShortDestination destination = Assert.IsType<HoldShortDestination>(menu.Destination);
+        Assert.Equal((name, isRunway), (destination.Name, destination.IsRunway));
+        Assert.Equal($"{name} · route ends here", destination.ToString());
+        Assert.Equal(routeLine, menu.RouteLine);
+    }
+
+    /// <summary>A route to runway 30 along W1 from two nodes back crosses no bar: no stop, so no destination row either.</summary>
+    [Fact]
+    public void NoStops_DestinationOnly_CommandHidden()
+    {
+        AirportGroundLayout layout = LoadOak();
+        GroundNode w1Bar = layout.Nodes.Values.Single(n => IsBar(n, "30", "W1"));
+        (GroundViewModel vm, AircraftModel ac) = OnTheWayTo(layout, w1Bar, "W1", "30", NoActiveRunways);
+
+        HoldShortMenu menu = vm.GetHoldShortMenu(ac);
+
+        Assert.True(menu.Rows.Count == 0, Dump(menu.Rows));
+        Assert.Null(menu.Destination);
+    }
+
+    [Theory]
+    [InlineData("D", "now, taxiing on D")]
+    [InlineData("", "now, taxiing")]
+    public void MeRow_Taxiing_SaysTaxiingOnTaxiway(string taxiway, string expected) =>
+        Assert.Equal(expected, GroundViewModel.HoldShortMeLine(Phase("Taxiing", taxiway)));
+
+    [Theory]
+    [InlineData("Holding Short 28R/10L", "B", "now, holding short of 28R on B")]
+    [InlineData("Holding Short 28R", "", "now, holding short of 28R")]
+    public void MeRow_HoldingShortOfRunway_SaysHoldingShortOfRunwayOnTaxiway(string phase, string taxiway, string expected) =>
+        Assert.Equal(expected, GroundViewModel.HoldShortMeLine(Phase(phase, taxiway)));
+
+    [Theory]
+    [InlineData("Holding Short C", "now, holding short of C on D")]
+    [InlineData("Holding Short spot 17", "now, holding short of spot 17 on D")]
+    public void MeRow_HoldingShortOfTaxiway_SaysHoldingShortOfCOnD(string phase, string expected) =>
+        Assert.Equal(expected, GroundViewModel.HoldShortMeLine(Phase(phase, "D")));
+
+    [Fact]
+    public void MeRow_OtherPhase_IsNone() => Assert.Null(GroundViewModel.HoldShortMeLine(Phase("At Parking", "")));
+
+    /// <summary>
+    /// An aircraft standing on the 15/33 bar on K the route starts at, taxiing, gets no stop for that bar: the bar it is
+    /// at is behind the ladder, not on it.
+    /// </summary>
+    [Fact]
+    public void AtTheBarTheRouteStartsAt_NoStopForIt()
+    {
+        AirportGroundLayout layout = LoadOak();
+        (GroundNode bar, GroundNode behind) = KBarAndTheNodeBehind(layout);
+        var ac = new AircraftModel
+        {
+            Callsign = "UAL100",
+            AircraftType = "B738",
+            Position = bar.Position,
+            Heading = new TrueHeading(GeoMath.BearingTo(behind.Position, bar.Position)),
+            CurrentPhase = "Taxiing",
+            CurrentTaxiway = "K",
+            TaxiRoute = "K",
+            AssignedRunway = "",
+        };
+        GroundViewModel vm = ViewModel(layout, NoActiveRunways);
+        Assert.Equal(bar.Id, vm.ResolveRemainingRoute(ac)?.Segments[0].FromNodeId);
+
+        IReadOnlyList<HoldShortChoice> rows = vm.GetHoldShortMenu(ac).Rows;
+
+        Assert.DoesNotContain(rows, r => r.BarPoint == bar.Position);
     }
 
     [Fact]
@@ -72,7 +165,7 @@ public class GroundViewModelHoldShortMenuOrderTests
     {
         (GroundViewModel vm, AircraftModel ac) = MockRoute(NoActiveRunways);
 
-        IReadOnlyList<HoldShortChoice> rows = vm.GetHoldShortTargets(ac);
+        IReadOnlyList<HoldShortChoice> rows = vm.GetHoldShortMenu(ac).Rows;
 
         Assert.NotEmpty(rows);
         Assert.DoesNotContain(rows, r => r.Label.Name.Contains(" - ") || r.Command.Contains(" - "));
@@ -83,7 +176,7 @@ public class GroundViewModelHoldShortMenuOrderTests
     {
         (GroundViewModel vm, AircraftModel ac) = MockRoute(NoActiveRunways);
 
-        IReadOnlyList<HoldShortChoice> rows = vm.GetHoldShortTargets(ac);
+        IReadOnlyList<HoldShortChoice> rows = vm.GetHoldShortMenu(ac).Rows;
 
         // S1 joins S and T, so the route meets it on both: on S first, then on T.
         List<HoldShortChoice> s1 = [.. rows.Where(r => r.Label.Name == "S1")];
@@ -97,10 +190,10 @@ public class GroundViewModelHoldShortMenuOrderTests
     {
         (GroundViewModel vm, AircraftModel ac) = AcrossMidRunway(NoActiveRunways);
 
-        IReadOnlyList<HoldShortChoice> rows = vm.GetHoldShortTargets(ac);
+        IReadOnlyList<HoldShortChoice> rows = vm.GetHoldShortMenu(ac).Rows;
 
         HoldShortChoice runway = RunwayRow(rows);
-        Assert.Equal(("Runway 10L/28R", "HS 10L"), (runway.Label.Name, runway.Command));
+        Assert.Equal(("10L/28R", "HS 10L"), (runway.Label.Name, runway.Command));
         Assert.DoesNotContain(rows, r => (r.Command == "HS 10R") || (r.Command == "HS 28L"));
     }
 
@@ -114,9 +207,9 @@ public class GroundViewModelHoldShortMenuOrderTests
         List<int> bars28R = [.. route.Segments.Select(s => layout.Nodes[s.ToNodeId]).Where(n => IsBar(n, "28R", "G")).Select(n => n.Id)];
         Assert.True(bars28R.Count == 2, $"the route passes {bars28R.Count} of 28R's bars on G");
 
-        IReadOnlyList<HoldShortChoice> rows = vm.GetHoldShortTargets(ac);
+        IReadOnlyList<HoldShortChoice> rows = vm.GetHoldShortMenu(ac).Rows;
 
-        HoldShortChoice runway = Assert.Single(rows, r => r.Label.Name == "Runway 10L/28R");
+        HoldShortChoice runway = Assert.Single(rows, r => r.Label.Name == "10L/28R");
         Assert.Equal(northBar.Id, runway.Preview.Segments[^1].ToNodeId);
     }
 
@@ -127,10 +220,10 @@ public class GroundViewModelHoldShortMenuOrderTests
         Assert.Equal("oak", layout.AirportId);
         (GroundViewModel vm, AircraftModel ac) = OnTheWayTo(layout, NorthBar28ROnG(layout), "G", "28L", Active("28R"));
 
-        IReadOnlyList<HoldShortChoice> rows = vm.GetHoldShortTargets(ac);
+        IReadOnlyList<HoldShortChoice> rows = vm.GetHoldShortMenu(ac).Rows;
 
         HoldShortChoice runway = rows.First(r => r.Label.Badge == HoldShortChoice.RunwayBadge);
-        Assert.Equal(("Runway 28R", "HS 28R"), (runway.Label.Name, runway.Command));
+        Assert.Equal(("28R", "HS 28R"), (runway.Label.Name, runway.Command));
     }
 
     /// <summary>
@@ -141,11 +234,7 @@ public class GroundViewModelHoldShortMenuOrderTests
     public void ShortOfTheBarTheRouteStartsAt_TheBarIsTheFirstRow()
     {
         AirportGroundLayout layout = LoadOak();
-        (GroundNode bar, GroundNode behind) = layout
-            .Nodes.Values.Where(n => IsBar(n, "33", "K"))
-            .SelectMany(b => b.Edges.Where(e => e.TaxiwayName == "K").Select(e => (Bar: b, Behind: e.OtherNode(b))))
-            .Where(pair => !NearRunway(pair.Behind))
-            .MaxBy(pair => GeoMath.DistanceNm(pair.Bar.Position, pair.Behind.Position));
+        (GroundNode bar, GroundNode behind) = KBarAndTheNodeBehind(layout);
         double edgeFt = GeoMath.DistanceNm(bar.Position, behind.Position) * GeoMath.FeetPerNm;
         Assert.True(edgeFt > 300, $"K behind the 15/33 bar is {edgeFt:F0} ft");
         LatLon position = GeoMath.ProjectPoint(
@@ -166,7 +255,7 @@ public class GroundViewModelHoldShortMenuOrderTests
         GroundViewModel vm = ViewModel(layout, NoActiveRunways);
         Assert.Equal(bar.Id, vm.ResolveRemainingRoute(ac)?.Segments[0].FromNodeId);
 
-        IReadOnlyList<HoldShortChoice> rows = vm.GetHoldShortTargets(ac);
+        IReadOnlyList<HoldShortChoice> rows = vm.GetHoldShortMenu(ac).Rows;
 
         Assert.NotEmpty(rows);
         HoldShortChoice first = rows[0];
@@ -203,7 +292,7 @@ public class GroundViewModelHoldShortMenuOrderTests
         Assert.Contains(routeNodes, n => n.Id == tangent.Id);
         Assert.DoesNotContain(routeNodes, n => n.Edges.OfType<GroundEdge>().Any(e => e.TaxiwayName == "U"));
 
-        IReadOnlyList<HoldShortChoice> rows = vm.GetHoldShortTargets(ac);
+        IReadOnlyList<HoldShortChoice> rows = vm.GetHoldShortMenu(ac).Rows;
 
         HoldShortChoice u = Assert.Single(rows, r => r.Command == "HS U");
         Assert.Equal((HoldShortChoice.TaxiwayBadge, "U"), (u.Label.Badge, u.Label.Name));
@@ -248,7 +337,7 @@ public class GroundViewModelHoldShortMenuOrderTests
             GeoMath.AlongTrackDistanceNm(position, tangentCut.Position, new TrueHeading(route.Segments[0].Edge.DepartureBearing)) * GeoMath.FeetPerNm;
         Assert.True(pastStartFt > 100, $"the aircraft is {pastStartFt:F0} ft past the start node");
 
-        IReadOnlyList<HoldShortChoice> rows = vm.GetHoldShortTargets(ac);
+        IReadOnlyList<HoldShortChoice> rows = vm.GetHoldShortMenu(ac).Rows;
 
         string dump = Dump(rows);
         Assert.True(rows.Count > 0, "no rows");
@@ -263,28 +352,28 @@ public class GroundViewModelHoldShortMenuOrderTests
     }
 
     [Theory]
-    [InlineData("28R", "Runway 28R", "HS 28R")]
-    [InlineData("D10L", "Runway 10L", "HS 10L")]
-    [InlineData("A28R,30", "Runway 28R", "HS 28R")]
+    [InlineData("28R", "28R", "HS 28R")]
+    [InlineData("D10L", "10L", "HS 10L")]
+    [InlineData("A28R,30", "28R", "HS 28R")]
     public void OneEndActive_TheActiveEndNamesTheRow(string active, string name, string command)
     {
         (GroundViewModel vm, AircraftModel ac) = AcrossMidRunway(Active(active));
 
-        HoldShortChoice runway = RunwayRow(vm.GetHoldShortTargets(ac));
+        HoldShortChoice runway = RunwayRow(vm.GetHoldShortMenu(ac).Rows);
 
         Assert.Equal((name, command), (runway.Label.Name, runway.Command));
     }
 
     [Theory]
-    [InlineData("W1", "30", "Runway 30", "HS 30")]
-    [InlineData("W7", "12", "Runway 12", "HS 12")]
+    [InlineData("W1", "30", "30", "HS 30")]
+    [InlineData("W7", "12", "12", "HS 12")]
     public void BothEndsActive_FullLengthCrossing_TheEndOnThatSideNamesTheRow(string taxiway, string barEnd, string name, string command)
     {
         AirportGroundLayout layout = LoadOak();
         GroundNode bar = layout.Nodes.Values.Single(n => IsBar(n, barEnd, taxiway));
         (GroundViewModel vm, AircraftModel ac) = OnTheWayTo(layout, bar, taxiway, "", Active("12,30"));
 
-        HoldShortChoice runway = RunwayRow(vm.GetHoldShortTargets(ac));
+        HoldShortChoice runway = RunwayRow(vm.GetHoldShortMenu(ac).Rows);
 
         Assert.Equal((name, command), (runway.Label.Name, runway.Command));
     }
@@ -294,9 +383,9 @@ public class GroundViewModelHoldShortMenuOrderTests
     {
         (GroundViewModel vm, AircraftModel ac) = AcrossMidRunway(Active("10L,28R"));
 
-        HoldShortChoice runway = RunwayRow(vm.GetHoldShortTargets(ac));
+        HoldShortChoice runway = RunwayRow(vm.GetHoldShortMenu(ac).Rows);
 
-        Assert.Equal(("Runway 10L/28R", "HS 10L"), (runway.Label.Name, runway.Command));
+        Assert.Equal(("10L/28R", "HS 10L"), (runway.Label.Name, runway.Command));
     }
 
     [Fact]
@@ -307,11 +396,11 @@ public class GroundViewModelHoldShortMenuOrderTests
         (GroundViewModel w1Vm, AircraftModel w1Ac) = OnTheWayTo(layout, w1Bar, "W1", "", NoActiveRunways);
         (GroundViewModel gVm, AircraftModel gAc) = AcrossMidRunway(NoActiveRunways);
 
-        HoldShortChoice fullLength = RunwayRow(w1Vm.GetHoldShortTargets(w1Ac));
-        HoldShortChoice midRunway = RunwayRow(gVm.GetHoldShortTargets(gAc));
+        HoldShortChoice fullLength = RunwayRow(w1Vm.GetHoldShortMenu(w1Ac).Rows);
+        HoldShortChoice midRunway = RunwayRow(gVm.GetHoldShortMenu(gAc).Rows);
 
-        Assert.Equal(("Runway 30", "HS 30"), (fullLength.Label.Name, fullLength.Command));
-        Assert.Equal(("Runway 10L/28R", "HS 10L"), (midRunway.Label.Name, midRunway.Command));
+        Assert.Equal(("30", "HS 30"), (fullLength.Label.Name, fullLength.Command));
+        Assert.Equal(("10L/28R", "HS 10L"), (midRunway.Label.Name, midRunway.Command));
     }
 
     [Fact]
@@ -322,9 +411,9 @@ public class GroundViewModelHoldShortMenuOrderTests
         GroundNode w1Bar = layout.Nodes.Values.Single(n => IsBar(n, "30", "W1"));
         (GroundViewModel vm, AircraftModel ac) = OnTheWayTo(layout, w1Bar, "W1", "", NoActiveRunways);
 
-        HoldShortChoice runway = RunwayRow(vm.GetHoldShortTargets(ac));
+        HoldShortChoice runway = RunwayRow(vm.GetHoldShortMenu(ac).Rows);
 
-        Assert.Equal(("Runway 12/30", "HS 12"), (runway.Label.Name, runway.Command));
+        Assert.Equal(("12/30", "HS 12"), (runway.Label.Name, runway.Command));
     }
 
     // --- Fixtures ---------------------------------------------------------------------------
@@ -430,6 +519,23 @@ public class GroundViewModelHoldShortMenuOrderTests
             .Where(n => (n.Id != previous.Id) && (n.Type != GroundNodeType.RunwayHoldShort) && !avoid(n));
         return candidates.Select(n => TryWalkBack(n, current, taxiway, hops - 1, avoid)).FirstOrDefault(found => found is not null);
     }
+
+    /// <summary>A 15/33 bar on K and the K node behind it, away from the runway, the pair a longest K edge apart.</summary>
+    private static (GroundNode Bar, GroundNode Behind) KBarAndTheNodeBehind(AirportGroundLayout layout) =>
+        layout
+            .Nodes.Values.Where(n => IsBar(n, "33", "K"))
+            .SelectMany(b => b.Edges.Where(e => e.TaxiwayName == "K").Select(e => (Bar: b, Behind: e.OtherNode(b))))
+            .Where(pair => !NearRunway(pair.Behind))
+            .MaxBy(pair => GeoMath.DistanceNm(pair.Bar.Position, pair.Behind.Position));
+
+    private static AircraftModel Phase(string phase, string taxiway) =>
+        new()
+        {
+            Callsign = "UAL455",
+            AircraftType = "A320",
+            CurrentPhase = phase,
+            CurrentTaxiway = taxiway,
+        };
 
     /// <summary>A node on or at a runway: any link (centerline or junction arc) names one.</summary>
     private static bool NearRunway(GroundNode node) => node.Edges.Any(e => e.TaxiwayName.Contains("RWY", StringComparison.OrdinalIgnoreCase));

@@ -10,6 +10,7 @@ using Avalonia.VisualTree;
 using Xunit;
 using Yaat.Client.ContextMenus;
 using Yaat.Client.Models;
+using Yaat.Sim;
 using Yaat.Sim.Data.Airport;
 
 namespace Yaat.Client.UI.Tests.Views;
@@ -82,36 +83,39 @@ public class GroundSubmenuGroupTests
     }
 
     [AvaloniaFact]
-    public void HoldShort_RouteLineThenOneRowPerBar_EachShowsItsBarPreviewsItsRouteAndSendsItsCommand()
+    public void HoldShort_TitleOverTheRouteLineThenOneStopPerBar_EachShowsItsBarPreviewsItAndSendsItsCommand()
     {
         var toS1 = new TaxiRoute { Segments = [], HoldShortPoints = [] };
         var toRunway = new TaxiRoute { Segments = [], HoldShortPoints = [] };
+        var s1Bar = new LatLon(37.7152, -122.2176);
+        var runwayBar = new LatLon(37.7101, -122.2101);
         var host = new RecordingMenuHost("") { HoldShortRouteLine = "route S T V W4 · RWY 30" };
         host.HoldShortChoices.Add(
-            new HoldShortChoice(new HoldShortRowLabel(HoldShortChoice.TaxiwayBadge, "S1", "crossing on S", 1500), "HS S1@S", toS1)
+            new HoldShortChoice(new HoldShortRowLabel(HoldShortChoice.TaxiwayBadge, "S1", "crossing on S", 1500), "HS S1@S", toS1, s1Bar)
         );
         host.HoldShortChoices.Add(
-            new HoldShortChoice(new HoldShortRowLabel(HoldShortChoice.RunwayBadge, "Runway 30", "at W4, end of route", 5300), "HS 30", toRunway)
+            new HoldShortChoice(new HoldShortRowLabel(HoldShortChoice.RunwayBadge, "30", "at W4, end of route", 5300), "HS 30", toRunway, runwayBar)
         );
 
         ContextMenu menu = BuildTaxiGroups(host);
         MenuItem holdShort = Item(CommandTree(menu), "Hold short of…");
 
-        MenuItem line = Assert.IsType<MenuItem>(holdShort.Items[0]);
-        Assert.Equal("route S T V W4 · RWY 30", line.Header);
-        Assert.False(line.IsEnabled);
-        Assert.IsType<Separator>(holdShort.Items[1]);
+        MenuItem title = Assert.IsType<MenuItem>(holdShort.Items[0]);
+        Assert.Equal(new GroundTrafficFlyoutTitle(HoldShortLadder.Title, "route S T V W4 · RWY 30"), title.Header);
+        Assert.False(title.IsEnabled);
         List<MenuItem> rows = HoldShortRows(holdShort);
         Assert.Equal(
-            ["TW S1 · crossing on S · ~1,500 ft — HS S1@S", "RW Runway 30 · at W4, end of route · ~5,300 ft — HS 30"],
+            ["TW S1 · crossing on S · ~1,500 ft — HS S1@S", "RW 30 · at W4, end of route · ~5,300 ft — HS 30"],
             rows.Select(AutomationProperties.GetName)
         );
-        Assert.Equal(["TW", "S1", " · crossing on S", "~1,500 ft", "HS S1@S"], RowTexts(rows[0]));
-        Assert.Equal(["RW", "Runway 30", " · at W4, end of route", "~5,300 ft", "HS 30"], RowTexts(rows[1]));
+        Assert.Equal(["TW", "S1", "· crossing on S", "~1,500 ft", "HS S1@S"], RowTexts(rows[0]));
+        Assert.Equal(["RW", "30", "· at W4, end of route", "~5,300 ft", "HS 30"], RowTexts(rows[1]));
 
         RaisePointerEntered(rows[1]);
+        Assert.Equal(new ScopePreview(null, null, null, runwayBar, null), host.ScopePreviews[^1]);
         RaisePointerEntered(rows[0]);
-        Assert.Equal([toRunway, toS1], host.RoutePreviews);
+        Assert.Equal(new ScopePreview(null, null, null, s1Bar, null), host.ScopePreviews[^1]);
+        Assert.Empty(host.RoutePreviews);
 
         Click(rows[0]);
         Click(rows[1]);
@@ -119,25 +123,29 @@ public class GroundSubmenuGroupTests
     }
 
     [AvaloniaFact]
-    public void HoldShort_NoRouteLine_ListsOnlyTheRows()
+    public void HoldShort_NoRouteLine_TitleThenTheStops()
     {
         var host = new RecordingMenuHost("");
         host.HoldShortChoices.Add(
             new HoldShortChoice(
                 new HoldShortRowLabel(HoldShortChoice.TaxiwayBadge, "B", "crossing on T", 300),
                 "HS B",
-                new TaxiRoute { Segments = [], HoldShortPoints = [] }
+                new TaxiRoute { Segments = [], HoldShortPoints = [] },
+                new LatLon(37.72, -122.22)
             )
         );
 
         MenuItem holdShort = Item(CommandTree(BuildTaxiGroups(host)), "Hold short of…");
 
-        MenuItem row = Assert.IsType<MenuItem>(Assert.Single(holdShort.Items));
+        Assert.Equal(2, holdShort.Items.Count);
+        Assert.Equal(new GroundTrafficFlyoutTitle(HoldShortLadder.Title, ""), Assert.IsType<MenuItem>(holdShort.Items[0]).Header);
+        MenuItem row = Assert.Single(HoldShortRows(holdShort));
         Assert.Equal("TW B · crossing on T · ~300 ft — HS B", AutomationProperties.GetName(row));
     }
 
-    /// <summary>The Hold short of… submenu's rows: every item but the route line.</summary>
-    private static List<MenuItem> HoldShortRows(MenuItem holdShort) => [.. holdShort.Items.OfType<MenuItem>().Where(m => m.Header is not string)];
+    /// <summary>The Hold short of… ladder's stops.</summary>
+    private static List<MenuItem> HoldShortRows(MenuItem holdShort) =>
+        [.. holdShort.Items.OfType<MenuItem>().Where(m => m.Header is HoldShortLadderStop)];
 
     /// <summary>The texts <paramref name="row"/>'s header template shows, in layout order.</summary>
     private static List<string> RowTexts(MenuItem row) => [.. TextBlocks(RowView(row)).Select(block => block.Text ?? "")];
@@ -150,7 +158,8 @@ public class GroundSubmenuGroupTests
             new HoldShortChoice(
                 new HoldShortRowLabel(HoldShortChoice.TaxiwayBadge, "S1", "crossing on S", 1500),
                 "HS S1@S",
-                new TaxiRoute { Segments = [], HoldShortPoints = [] }
+                new TaxiRoute { Segments = [], HoldShortPoints = [] },
+                new LatLon(37.72, -122.22)
             )
         );
         host.GroundTraffic.Add(RecordingMenuHost.ParkedRow("SWA200"));
@@ -165,12 +174,13 @@ public class GroundSubmenuGroupTests
         ItemCollection tree = CommandTree(BuildTaxiGroups(host));
 
         Control holdShortView = RowView(HoldShortRows(Item(tree, "Hold short of…"))[0]);
-        TextBlock where = TextWithContent(holdShortView, " · crossing on S");
+        TextBlock where = TextWithContent(holdShortView, "· crossing on S");
         Assert.Equal(12, where.FontSize);
         holdShortView.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
         holdShortView.Arrange(new Rect(holdShortView.DesiredSize));
         Panel holdShortName = Assert.IsAssignableFrom<Panel>(where.Parent);
-        TextBlock holdShortBar = Assert.IsType<TextBlock>(holdShortName.Children[0]);
+        // The badge leads the name panel, the name follows it.
+        TextBlock holdShortBar = Assert.IsType<TextBlock>(holdShortName.Children[1]);
         Assert.True(
             where.Bounds.X >= holdShortBar.Bounds.Right,
             $"The detail's x={where.Bounds.X:F1} should be past the name's {holdShortBar.Bounds.Right:F1}."

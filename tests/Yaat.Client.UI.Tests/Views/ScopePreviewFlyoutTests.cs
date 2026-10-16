@@ -207,7 +207,71 @@ public class ScopePreviewFlyoutTests
         Assert.Null(host.ScopePreviews[^1]);
     }
 
+    /// <summary>A stop at the bar the route starts at has no route to draw: the bar is boxed alone, and no aircraft is ringed.</summary>
+    [AvaloniaFact]
+    public void ZeroSegmentStop_Hover_BarOnly()
+    {
+        RecordingMenuHost host = LadderHost();
+        MenuFlyout flyout = OpenStripFlyout(host, MenuIds.GroundHoldShort);
+
+        RaisePointer(LadderStop(flyout, "HS 28R"), InputElement.PointerEnteredEvent);
+
+        Assert.Equal(new ScopePreview(null, null, null, Bar28R, null), host.ScopePreviews[^1]);
+    }
+
+    /// <summary>A ladder stop pointed at or focused highlights no aircraft: its key is a command, not a callsign.</summary>
+    [AvaloniaFact]
+    public void LadderStop_Hover_RingsNoAircraft()
+    {
+        RecordingMenuHost host = LadderHost();
+        MenuFlyout flyout = OpenStripFlyout(host, MenuIds.GroundHoldShort);
+        int highlights = host.Highlights.Count;
+        MenuItem stop = LadderStop(flyout, "HS 28R");
+
+        RaisePointer(stop, InputElement.PointerEnteredEvent);
+        stop.RaiseEvent(new FocusChangedEventArgs(InputElement.GotFocusEvent));
+
+        Assert.Equal(highlights, host.Highlights.Count);
+        Assert.Null(host.ScopePreviews[^1]?.RingCallsign);
+    }
+
+    [AvaloniaFact]
+    public void FlyoutClose_ClearsPreview()
+    {
+        RecordingMenuHost host = LadderHost();
+        MenuFlyout flyout = OpenStripFlyout(host, MenuIds.GroundHoldShort);
+        RaisePointer(LadderStop(flyout, "HS 28R"), InputElement.PointerEnteredEvent);
+        Assert.NotNull(host.ScopePreviews[^1]);
+
+        flyout.Hide();
+
+        Assert.Null(host.ScopePreviews[^1]);
+    }
+
     // --- Harness ----------------------------------------------------------------------------
+
+    private static readonly LatLon Bar28R = new(37.7221, -122.2199);
+
+    /// <summary>A host whose Hold short of… ladder has one stop, the 28R bar the route starts at, 50 ft ahead.</summary>
+    private static RecordingMenuHost LadderHost()
+    {
+        var host = new RecordingMenuHost("")
+        {
+            Session = new(Initials, false, VfrCommandsForIfr.None, _ => [new CatalogQuickCommandEntry(MenuIds.GroundHoldShort, null)]),
+        };
+        host.HoldShortChoices.Add(
+            new HoldShortChoice(
+                new HoldShortRowLabel(HoldShortChoice.RunwayBadge, "28R", "crossing on B", 50),
+                "HS 28R",
+                new TaxiRoute { Segments = [], HoldShortPoints = [] },
+                Bar28R
+            )
+        );
+        return host;
+    }
+
+    private static MenuItem LadderStop(MenuFlyout flyout, string command) =>
+        flyout.Items.OfType<MenuItem>().Single(item => (item.Header as HoldShortLadderStop)?.Command == command);
 
     private static MenuGroundTrafficRow Moving(string callsign, double feet) =>
         new(callsign, "B738", feet, "taxiing on W")

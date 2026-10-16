@@ -26,19 +26,20 @@ namespace Yaat.Client.ContextMenus;
 /// (▶) or parked (■) mark and sending <c>GW</c> with its callsign. The first <see cref="GiveWayShownRows"/> show; a
 /// "Show n more" row shows the rest in place and, once they show, becomes "Show fewer", which hides them again; the
 /// list falls back to eight rows when the flyout closes. A row highlights its aircraft while it is pointed at or holds
-/// keyboard focus, and previews it on the ground views (<see cref="ScopePreview"/>, sent again as the strip's flyout refills the list): the aircraft ringed, this aircraft's
-/// route and its own, and, for Give way to…, where the two meet; an aircraft with no route is ringed alone, a gone row
-/// previews nothing, and a Give way to… row whose routes meet nowhere says <see cref="NoConflictPredictedText"/>. The
-/// highlight and the preview clear when the row loses both and when the flyout closes. With no other aircraft on the
-/// ground the entry is disabled, the reason faint beside its label, and the strip shows its button faded, opening nothing,
-/// its label naming the same reason. While the quick-command strip's flyout of either list is open it refills once a
-/// second (<see cref="FlyoutLiveTick"/>): with the pointer outside it the list is rebuilt nearest first, rows leaving and
-/// appearing; with the pointer inside it the order freezes, each row's distance and state updating in place, an aircraft
-/// that left staying as a dimmed <see cref="GoneState"/> row that sends nothing and the keyboard skips, and a newcomer
-/// joining the bottom of the list; when the pointer leaves the list catches up at once. A row whose aircraft leaves the
-/// list, or goes while it is still listed, hands keyboard focus to the nearest live row, to "Show n more" (Give way) or the
-/// filter box (Follow) when nothing else is in reach, and a row that goes gone under the pointer stops highlighting its
-/// aircraft. A Follow list off screen, its flyout or submenu closed, leaves its stuck title alone.
+/// keyboard focus, and previews it on the ground views (<see cref="ScopePreview"/>, sent again as the strip's flyout refills
+/// the list): the aircraft ringed, this aircraft's route and its own, and, for Give way to…, where the two meet; an aircraft
+/// with no route is ringed alone, a gone row previews nothing, and a Give way to… row whose routes meet nowhere says
+/// <see cref="NoConflictPredictedText"/>. The highlight and the preview clear when the row loses both and when the flyout
+/// closes. With no other aircraft on the ground the entry is disabled, the reason faint beside its label, and the strip
+/// shows its button faded, opening nothing, its label naming the same reason. While the quick-command strip's flyout of
+/// either list is open it refills once a second (<see cref="FlyoutLiveTick"/>): with the pointer outside it the list is
+/// rebuilt nearest first, rows leaving and appearing; with the pointer inside it the order freezes, each row's distance and
+/// state updating in place, an aircraft that left staying as a dimmed <see cref="GoneState"/> row that sends nothing and
+/// the keyboard skips, and a newcomer joining the bottom of the list; when the pointer leaves the list catches up at once.
+/// A row whose aircraft leaves the list, or goes while it is still listed, hands keyboard focus to the nearest live row, to
+/// "Show n more" (Give way) or the filter box (Follow) when nothing else is in reach, and a row that goes gone under the
+/// pointer stops highlighting its aircraft. A Follow list off screen, its flyout or submenu closed, leaves its stuck title
+/// alone.
 /// </summary>
 public static class GroundTrafficFlyout
 {
@@ -356,7 +357,11 @@ public static class GroundTrafficFlyout
 
         /// <summary>The highlight and scope preview the rows drive, the meet point included.</summary>
         private ScopeFeedbackTracker Feedback =>
-            _feedback ??= new ScopeFeedbackTracker(host, callsign => TrafficPreview(callsign, _shown, _ownRoute, true, host));
+            _feedback ??= new ScopeFeedbackTracker(
+                host,
+                callsign => TrafficPreview(callsign, _shown, _ownRoute, true, host),
+                highlightsAircraft: true
+            );
 
         /// <summary>Fills the submenu with <paramref name="traffic"/> and folds the list back to eight rows whenever the submenu closes.</summary>
         public void Attach(List<MenuGroundTrafficRow> traffic)
@@ -679,7 +684,11 @@ public static class GroundTrafficFlyout
             _entry = entry;
             _context = context;
             _host = host;
-            _feedback = new ScopeFeedbackTracker(host, callsign => TrafficPreview(callsign, _shown, _ownRoute, false, host));
+            _feedback = new ScopeFeedbackTracker(
+                host,
+                callsign => TrafficPreview(callsign, _shown, _ownRoute, false, host),
+                highlightsAircraft: true
+            );
             _tick = new FlyoutLiveTick(host.Clock, Refill);
             _rows.Styles.Add(GoneRowStyle());
             _rows.Styles.Add(

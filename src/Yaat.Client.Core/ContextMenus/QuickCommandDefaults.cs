@@ -52,6 +52,7 @@ public static class QuickCommandDefaults
                 Entry(MenuIds.TowerLineUpAndWait),
                 Entry(MenuIds.GroundCrossRunway),
                 Entry(MenuIds.GroundResumeTaxi),
+                Entry(MenuIds.GroundHoldShort),
             ],
             [AircraftSituation.LinedUp] =
             [

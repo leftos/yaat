@@ -270,7 +270,12 @@ public static class MenuCatalog
             BuildCrossRunway
         ),
         Leaf(MenuIds.GroundBreakConflict, "Ignore ground conflicts (15 s)", "BREAK", (ac, _) => AircraftCommandApplicability.CanBreakConflict(ac)),
-        HostLeaf(MenuIds.GroundHoldShort, "Hold short of…", (ac, _) => AircraftCommandApplicability.CanHoldShort(ac), BuildHoldShort),
+        HostLeaf(
+            MenuIds.GroundHoldShort,
+            "Hold short of…",
+            (ac, _) => AircraftCommandApplicability.CanHoldShort(ac),
+            (label, _, context, host) => HoldShortLadder.Build(label, context, host)
+        ),
         HostLeaf(
             MenuIds.GroundFollow,
             "Follow…",
@@ -754,67 +759,7 @@ public static class MenuCatalog
         return item;
     }
 
-    /// <summary>
-    /// The Hold short of… submenu: the host's route line (<c>route S T V W4 · RWY 30</c>) as a disabled row over a
-    /// separator, then one row per bar along the route, nearest first, sending its finished <c>HS</c> command and
-    /// previewing the route to the bar when the pointer enters it. Null when the route offers no bar.
-    /// </summary>
-    private static MenuItem? BuildHoldShort(string label, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
-    {
-        HoldShortMenu holdShort = host.GetHoldShortChoices(context.Callsign);
-        if (holdShort.Rows.Count == 0)
-        {
-            return null;
-        }
-
-        var menu = new MenuItem { Header = label };
-        if (holdShort.RouteLine is { } routeLine)
-        {
-            var line = new MenuItem
-            {
-                Header = routeLine,
-                HeaderTemplate = new FuncDataTemplate<string>((text, _) => HoldShortRouteLineView(text)),
-                IsEnabled = false,
-            };
-            menu.Items.Add(line);
-            menu.Items.Add(new Separator());
-        }
-
-        foreach (HoldShortChoice row in holdShort.Rows)
-        {
-            menu.Items.Add(BuildHoldShortRow(row, context, host));
-        }
-
-        return menu;
-    }
-
-    private static readonly IImmutableSolidColorBrush TaxiwayBadgeBrush = new ImmutableSolidColorBrush(Color.Parse("#4FB8A8"));
-
     private static readonly IImmutableSolidColorBrush RunwayBadgeBrush = new ImmutableSolidColorBrush(Color.Parse("#E8A33D"));
-
-    /// <summary>
-    /// One hold-short row: the TW/RW badge, the name followed by the dimmed "where", then the distance right-aligned
-    /// and the command. Sends its command, and previews the route to its bar on hover.
-    /// </summary>
-    private static MenuItem BuildHoldShortRow(HoldShortChoice row, MenuContext context, IMenuHost host)
-    {
-        HoldShortRowLabel label = row.Label;
-        IImmutableSolidColorBrush badgeBrush = (label.Badge == HoldShortChoice.RunwayBadge) ? RunwayBadgeBrush : TaxiwayBadgeBrush;
-        var header = new MenuCommandRow
-        {
-            Badge = new MenuDetailBadge(label.Badge, badgeBrush),
-            Name = label.Name,
-            EmphasizeName = true,
-            IsHighlighted = false,
-            Detail = label.Where,
-            DetailPlacement = MenuDetailPlacement.Inline,
-            Distance = $"~{label.DistanceFt.ToString("N0", CultureInfo.InvariantCulture)} ft",
-            Command = row.Command,
-        };
-        MenuItem item = BuildTemplatedSend(header, MenuCommandRowTemplate.Instance, row.Command, context, host);
-        item.PointerEntered += (_, _) => host.SetRoutePreview(row.Preview);
-        return item;
-    }
 
     private static readonly IImmutableSolidColorBrush PresetBadgeBrush = new ImmutableSolidColorBrush(Color.Parse("#7FD1B9"));
 
@@ -946,19 +891,6 @@ public static class MenuCatalog
                 );
         item.PointerEntered += (_, _) => host.SetRoutePreview(row.Preview);
         return item;
-    }
-
-    /// <summary>The route line's view: dimmed, in the monospace font.</summary>
-    private static TextBlock HoldShortRouteLineView(string routeLine)
-    {
-        var text = new TextBlock
-        {
-            Text = routeLine,
-            FontSize = 12,
-            Opacity = 0.7,
-        };
-        text.Bind(TextBlock.FontFamilyProperty, text.GetResourceObservable(QuickCommandStrip.MonoFontKey));
-        return text;
     }
 
     /// <summary>

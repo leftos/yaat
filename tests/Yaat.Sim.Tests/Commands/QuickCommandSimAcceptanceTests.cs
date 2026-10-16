@@ -85,6 +85,41 @@ public sealed class QuickCommandSimAcceptanceTests
         AssertAccepted(staged.Ground.Engine.SendCommand(Departure, "TAXIAUTO $1"), "TAXI during LiningUp");
     }
 
+    // --- Hold short of… while holding short ---
+
+    /// <summary>
+    /// What the Hold short of… ladder offers a held aircraft: a bar later on its route. An OAK departure taxied from SIG1 with
+    /// <c>TAXIAUTO 28L</c>, crossings left to the controller, holds at the bar of the runway it crosses first (28R); <c>HS A</c>,
+    /// the taxiway bar the ladder offers further on, is accepted and arms that bar ahead on the route, and the aircraft stays
+    /// held, stopped, at the crossing bar.
+    /// </summary>
+    [Fact]
+    public void HoldShort_WhileHeldAtACrossing_ALaterBarIsAccepted_AndTheAircraftStaysHeld()
+    {
+        if (HeldAtTheFirstOakCrossing() is not { } staged)
+        {
+            return;
+        }
+
+        HoldShortPoint heldBar = ((HoldingShortPhase)staged.Aircraft.Phases!.CurrentPhase!).HoldShort;
+        TaxiRoute route = staged.Aircraft.Ground.AssignedTaxiRoute!;
+        HashSet<int> nodesAhead = [.. route.Segments.Skip(route.CurrentSegmentIndex).Select(s => s.ToNodeId)];
+
+        AssertAccepted(staged.Engine.SendCommand(AiTestFixture.Callsign, "HS A"), $"HS A while held at {heldBar.TargetName}");
+        HoldShortPoint armed = Assert.Single(
+            staged.Aircraft.Ground.AssignedTaxiRoute!.HoldShortPoints,
+            h => (h.Reason == HoldShortReason.ExplicitHoldShort) && !h.IsCleared && SfoGroundHarness.HoldShortMatches(h, "A")
+        );
+        Assert.NotEqual(heldBar.NodeId, armed.NodeId);
+        Assert.Contains(armed.NodeId, nodesAhead);
+        AiTestFixture.Tick(staged.Engine, 10);
+
+        HoldingShortPhase hold = Assert.IsType<HoldingShortPhase>(staged.Aircraft.Phases?.CurrentPhase);
+        Assert.Equal(heldBar.NodeId, hold.HoldShort.NodeId);
+        Assert.Equal(heldBar.TargetName, hold.HoldShort.TargetName);
+        Assert.True(staged.Aircraft.GroundSpeed < 0.5, $"moving at {staged.Aircraft.GroundSpeed:F1} kt while held at {heldBar.TargetName}");
+    }
+
     [Fact]
     public void Taxi_WhileLinedUpAndWaiting_IsAccepted()
     {
@@ -554,6 +589,31 @@ public sealed class QuickCommandSimAcceptanceTests
         );
         Assert.True(moving > 0, $"the push never got moving: {aircraft.Phases?.CurrentPhase?.Name}");
         return ground;
+    }
+
+    /// <summary>
+    /// The OAK departure parked at SIG1 given <c>TAXIAUTO 28L</c>, crossings left to the controller (the scenario does not
+    /// auto-cross), held at the bar of the first runway it crosses, short of 28L; null when the ZOA config is missing.
+    /// </summary>
+    private (SimulationEngine Engine, AircraftState Aircraft)? HeldAtTheFirstOakCrossing()
+    {
+        if (TestArtccConfig.LoadZoa() is not { } zoa)
+        {
+            return null;
+        }
+
+        SimulationEngine engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, zoa, 7, []);
+        AssertAccepted(engine.SendCommand(AiTestFixture.Callsign, "TAXIAUTO 28L"), "TAXIAUTO 28L from SIG1");
+        AircraftState aircraft = AiTestFixture.TickUntil(
+            engine,
+            AiTestFixture.Callsign,
+            a => a.Phases?.CurrentPhase is HoldingShortPhase,
+            StageBudgetSeconds
+        );
+        var hold = (HoldingShortPhase)aircraft.Phases!.CurrentPhase!;
+        _output.WriteLine($"held at {hold.HoldShort.TargetName} (node {hold.HoldShort.NodeId})");
+        Assert.False(SfoGroundHarness.HoldShortMatches(hold.HoldShort, "28L"), "held at the destination bar, not a crossing");
+        return (engine, aircraft);
     }
 
     /// <summary>An SFO B738 taxied from spot 1 to the 28L departure bar; null when the SFO data is missing.</summary>

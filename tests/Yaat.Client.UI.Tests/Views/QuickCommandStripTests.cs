@@ -95,27 +95,39 @@ public class QuickCommandStripTests
         Assert.All(buttons, button => Assert.Null(ToolTip.GetTip(button)));
     }
 
+    /// <summary>
+    /// An aircraft holding short whose route has a bar ahead gets Hold short of… on the strip from the default list
+    /// alone (<see cref="QuickCommandDefaults"/>, the HoldingShort situation).
+    /// </summary>
+    [AvaloniaFact]
+    public void HoldingShort_DefaultStrip_OffersHoldShortOf()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        RecordingMenuHost host = Host();
+        AircraftModel ac = Fixture("holding-short");
+        Assert.True(HoldShortMenuHelper.IsHoldingShort(ac.CurrentPhase), ac.CurrentPhase);
+
+        ContextMenu menu = OpenInWindow(Build(ac, host));
+
+        Assert.Contains(QuickCommandStrip.Buttons(Strip(menu)), b => (string)b.Tag! == MenuIds.GroundHoldShort);
+    }
+
     [AvaloniaFact]
     public void SubmenuLeaf_SendsItsCommandAndClosesTheFlyoutAndTheMenu()
     {
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
-        // Hold short of… is a plain submenu of menu items; Follow…'s rows are buttons in a list, with their own tests.
+        // Preset taxi route is a plain submenu of menu items; the ground traffic lists and the Hold short of… ladder keep
+        // their rows live, with their own tests.
         var host = new RecordingMenuHost("")
         {
-            Session = new("AB", false, VfrCommandsForIfr.None, _ => [new CatalogQuickCommandEntry(MenuIds.GroundHoldShort, null)]),
+            Session = new("AB", false, VfrCommandsForIfr.None, _ => [new CatalogQuickCommandEntry(MenuIds.GroundTaxiPreset, null)]),
         };
-        host.HoldShortChoices.Add(
-            new HoldShortChoice(
-                new HoldShortRowLabel(HoldShortChoice.TaxiwayBadge, "B", "crossing on T", 300),
-                "HS B",
-                new TaxiRoute { Segments = [], HoldShortPoints = [] }
-            )
-        );
+        host.PresetTaxiChoices.Add(RecordingMenuHost.PresetRow("TERMINAL to 30", "TAXI T U W RWY 30"));
         AircraftModel ac = Fixture("taxiing");
         ContextMenu menu = OpenInWindow(Build(ac, host));
-        Button holdShort = QuickCommandStrip.Buttons(Strip(menu)).Single(b => (string)b.Tag! == MenuIds.GroundHoldShort);
-        holdShort.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-        MenuFlyout flyout = SubmenuFlyout(holdShort);
+        Button preset = QuickCommandStrip.Buttons(Strip(menu)).Single(b => (string)b.Tag! == MenuIds.GroundTaxiPreset);
+        preset.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        MenuFlyout flyout = SubmenuFlyout(preset);
         MenuItem leaf = FirstLeaf(flyout.Items);
 
         leaf.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
@@ -820,7 +832,8 @@ public class QuickCommandStripTests
             new HoldShortChoice(
                 new HoldShortRowLabel(HoldShortChoice.TaxiwayBadge, "B", "crossing on T", 300),
                 "HS B",
-                new TaxiRoute { Segments = [], HoldShortPoints = [] }
+                new TaxiRoute { Segments = [], HoldShortPoints = [] },
+                new LatLon(37.72, -122.22)
             )
         );
         return host;

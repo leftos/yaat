@@ -15,6 +15,7 @@
 - Release (HFR) and Check release window are the first icons in the menu's quick-command strip, also on a delayed spawn's menu.
 - Give way to… and Follow… open live flyouts of nearby ground traffic, refreshed each second; Follow adds a filter, and an empty list says why.
 - Pointing at a Give way to… or Follow… row previews both aircraft's routes on the ground view, ringing where they meet.
+- Hold short of… opens a live ladder of the bars on the aircraft's route, nearest first; pointing at a stop highlights its bar and previews the route there.
 
 ### Fixed
 

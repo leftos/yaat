@@ -3,27 +3,29 @@ using Avalonia.Input;
 namespace Yaat.Client.ContextMenus;
 
 /// <summary>
-/// The scope feedback a flyout's rows drive: the aircraft of the row under the pointer, else the one of the row holding
-/// keyboard focus, else none, is highlighted (<see cref="IMenuHost.HighlightAircraft"/>) and previewed
-/// (<see cref="IMenuHost.SetScopePreview"/>, with the preview <paramref name="previewFor"/> builds for its callsign at that
-/// moment, null to draw nothing). The two rows are tracked apart, so the pointer leaving a row hands the feedback back to
+/// The scope feedback a flyout's rows drive: the row under the pointer, else the row holding keyboard focus, else none,
+/// is previewed (<see cref="IMenuHost.SetScopePreview"/>, with the preview <paramref name="previewFor"/> builds for its key
+/// at that moment, null to draw nothing) and, when <paramref name="highlightsAircraft"/>, its key is the callsign of an
+/// aircraft that is highlighted (<see cref="IMenuHost.HighlightAircraft"/>); a Hold short of… stop's key is its command,
+/// and it highlights no aircraft. The two rows are tracked apart, so the pointer leaving a row hands the feedback back to
 /// the focused row, and focus passing through another row leaves the pointed row's feedback in place.
 /// </summary>
 /// <param name="host">The host the highlight and the preview go to.</param>
-/// <param name="previewFor">The preview for a row's callsign; null draws nothing for it.</param>
-internal sealed class ScopeFeedbackTracker(IMenuHost host, Func<string, ScopePreview?> previewFor)
+/// <param name="previewFor">The preview for a row's key; null draws nothing for it.</param>
+/// <param name="highlightsAircraft">Whether a row's key is a callsign the host highlights.</param>
+internal sealed class ScopeFeedbackTracker(IMenuHost host, Func<string, ScopePreview?> previewFor, bool highlightsAircraft)
 {
     private string? _pointed;
     private string? _focused;
 
-    /// <summary>Has <paramref name="row"/>, standing for <paramref name="callsign"/>, drive the feedback while pointed at or focused.</summary>
-    public void Track(InputElement row, string callsign)
+    /// <summary>Has <paramref name="row"/>, standing for <paramref name="key"/>, drive the feedback while pointed at or focused.</summary>
+    public void Track(InputElement row, string key)
     {
-        row.PointerEntered += (_, _) => Point(callsign);
-        row.PointerExited += (_, _) => Unpoint(callsign);
+        row.PointerEntered += (_, _) => Point(key);
+        row.PointerExited += (_, _) => Unpoint(key);
         // A menu row marks its focus events handled before handlers added the plain way would see them.
-        row.AddHandler(InputElement.GotFocusEvent, (_, _) => Focus(callsign), handledEventsToo: true);
-        row.AddHandler(InputElement.LostFocusEvent, (_, _) => Blur(callsign), handledEventsToo: true);
+        row.AddHandler(InputElement.GotFocusEvent, (_, _) => Focus(key), handledEventsToo: true);
+        row.AddHandler(InputElement.LostFocusEvent, (_, _) => Blur(key), handledEventsToo: true);
     }
 
     /// <summary>Forgets the pointed and the focused row and clears the feedback, as the flyout closes.</summary>
@@ -35,12 +37,12 @@ internal sealed class ScopeFeedbackTracker(IMenuHost host, Func<string, ScopePre
     }
 
     /// <summary>
-    /// Stops the feedback for <paramref name="callsign"/> when it is the pointed row, for a row going out of reach, which
+    /// Stops the feedback for <paramref name="key"/> when it is the pointed row, for a row going out of reach, which
     /// raises no PointerExited of its own.
     /// </summary>
-    public void Unpoint(string callsign)
+    public void Unpoint(string key)
     {
-        if (_pointed == callsign)
+        if (_pointed == key)
         {
             _pointed = null;
             Apply();
@@ -53,21 +55,21 @@ internal sealed class ScopeFeedbackTracker(IMenuHost host, Func<string, ScopePre
     /// </summary>
     public void Refresh() => host.SetScopePreview(Preview());
 
-    private void Point(string callsign)
+    private void Point(string key)
     {
-        _pointed = callsign;
+        _pointed = key;
         Apply();
     }
 
-    private void Focus(string callsign)
+    private void Focus(string key)
     {
-        _focused = callsign;
+        _focused = key;
         Apply();
     }
 
-    private void Blur(string callsign)
+    private void Blur(string key)
     {
-        if (_focused == callsign)
+        if (_focused == key)
         {
             _focused = null;
         }
@@ -77,7 +79,11 @@ internal sealed class ScopeFeedbackTracker(IMenuHost host, Func<string, ScopePre
 
     private void Apply()
     {
-        host.HighlightAircraft(_pointed ?? _focused);
+        if (highlightsAircraft)
+        {
+            host.HighlightAircraft(_pointed ?? _focused);
+        }
+
         host.SetScopePreview(Preview());
     }
 

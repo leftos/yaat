@@ -109,7 +109,7 @@ public class GroundViewModelHoldShortMenuLocatedTests
     {
         (GroundViewModel? vm, AircraftModel? ac, AirportGroundLayout _) = MakeDoubleCrossingFixture();
 
-        IReadOnlyList<HoldShortChoice> rows = vm.GetHoldShortTargets(ac);
+        IReadOnlyList<HoldShortChoice> rows = vm.GetHoldShortMenu(ac).Rows;
 
         Assert.Equal(["HS X@A", "HS X@B"], rows.Where(r => r.Label.Name == "X").Select(r => r.Command));
         Assert.DoesNotContain(rows, r => r.Command == "HS X");
@@ -128,7 +128,7 @@ public class GroundViewModelHoldShortMenuLocatedTests
         (GroundViewModel? vm, AircraftModel? ac, AirportGroundLayout _) = MakeDoubleCrossingFixture();
         ac.TaxiRoute = "A";
 
-        IReadOnlyList<HoldShortChoice> rows = vm.GetHoldShortTargets(ac);
+        IReadOnlyList<HoldShortChoice> rows = vm.GetHoldShortMenu(ac).Rows;
 
         // Route A only: X is crossed once (at n1) and B meets the end of A (at n2) — both bare, X first.
         Assert.Equal(["HS X", "HS B"], rows.Select(r => r.Command));

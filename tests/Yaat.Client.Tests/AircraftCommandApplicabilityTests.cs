@@ -557,11 +557,13 @@ public class AircraftCommandApplicabilityTests
     [Theory]
     [InlineData("Taxiing", false, true)]
     [InlineData("At Parking", false, false)]
-    [InlineData("Holding Short 28R", false, false)]
+    [InlineData("Holding Short 28R", false, true)]
+    [InlineData("Holding Short B", false, true)]
     [InlineData("Following UAL1", false, false)]
     [InlineData("Holding In Position", false, false)]
     [InlineData("Taxiing", true, false)]
-    public void CanHoldShort_TaxiingOnly(string phase, bool surfaceShadow, bool expected)
+    [InlineData("Holding Short 28R", true, false)]
+    public void CanHoldShort_TaxiingOrHoldingShort(string phase, bool surfaceShadow, bool expected)
     {
         AircraftModel ac = Ac(phase, onGround: true);
         ac.IsLiveTraffic = surfaceShadow;

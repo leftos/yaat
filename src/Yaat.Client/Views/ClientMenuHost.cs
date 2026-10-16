@@ -478,11 +478,11 @@ internal sealed class ClientMenuHost(MainViewModel main, AircraftModel? aircraft
         ];
     }
 
-    /// <summary>The primary ground view model's hold-short rows along the aircraft's route, headed by the route's line.</summary>
+    /// <summary>
+    /// The primary ground view model's Hold short of… ladder along the aircraft's route (<see cref="GroundViewModel.GetHoldShortMenu"/>).
+    /// </summary>
     public HoldShortMenu GetHoldShortChoices(string callsign) =>
-        (FindAircraft(callsign) is { } ac)
-            ? new HoldShortMenu(GroundViewModel.HoldShortRouteLine(ac), main.Ground.GetHoldShortTargets(ac))
-            : HoldShortMenu.Empty;
+        (FindAircraft(callsign) is { } ac) ? main.Ground.GetHoldShortMenu(ac) : HoldShortMenu.Empty;
 
     /// <summary>Previews <paramref name="route"/> on every ground view, so it shows on whichever ground window is open.</summary>
     public void SetRoutePreview(TaxiRoute? route)

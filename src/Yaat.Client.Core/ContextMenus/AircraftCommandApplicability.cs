@@ -100,7 +100,7 @@ public static class AircraftCommandApplicability
                     or "AirTaxi"
                     or "LiningUp"
                     or "LinedUpAndWaiting"
-            || phase.StartsWith("Holding Short", StringComparison.Ordinal)
+            || HoldShortMenuHelper.IsHoldingShort(phase)
             || phase.StartsWith("Following", StringComparison.Ordinal);
     }
 
@@ -203,7 +203,7 @@ public static class AircraftCommandApplicability
     }
 
     private static bool IsHoldingShortOfANamedRunway(IMenuAircraft ac) =>
-        ac.CurrentPhase.StartsWith("Holding Short", StringComparison.Ordinal) && (HoldShortMenuHelper.HeldRunway(ac) is { Length: > 0 });
+        HoldShortMenuHelper.IsHoldingShort(ac.CurrentPhase) && (HoldShortMenuHelper.HeldRunway(ac) is { Length: > 0 });
 
     private static bool IsTaxiingWithAnAssignedRunway(IMenuAircraft ac) => (ac.CurrentPhase == "Taxiing") && !string.IsNullOrEmpty(ac.AssignedRunway);
 
@@ -380,7 +380,7 @@ public static class AircraftCommandApplicability
     /// <see cref="IsControllable"/> guard keeps surface live-traffic shadows out, as in <see cref="CanPushBack"/>.
     /// </summary>
     public static bool CanResumeFromHoldShort(IMenuAircraft? ac) =>
-        IsControllable(ac) && (ac.CurrentPhase.StartsWith("Holding Short", StringComparison.Ordinal)) && ac.HasActiveTaxiRoute;
+        IsControllable(ac) && HoldShortMenuHelper.IsHoldingShort(ac.CurrentPhase) && ac.HasActiveTaxiRoute;
 
     /// <summary>
     /// Cross the runway (<c>CROSS</c>) an aircraft is holding short of: the runway comes from the hold-short phase,
@@ -419,12 +419,13 @@ public static class AircraftCommandApplicability
     public static bool CanBreakConflict(IMenuAircraft? ac) => IsControllable(ac) && (ac.CurrentPhase == "Taxiing");
 
     /// <summary>
-    /// Hold short of a point on the taxi route (<c>HS</c>) — offered while taxiing, the phase whose route names the
-    /// targets. Its own predicate although <see cref="CanBreakConflict"/> has the same body: the two gates answer
-    /// different questions and may part. The <see cref="IsControllable"/> guard keeps surface live-traffic shadows
-    /// out, as in <see cref="CanPushBack"/>.
+    /// Hold short of a point on the taxi route (<c>HS</c>) — offered while taxiing and while holding short
+    /// (<see cref="HoldShortMenuHelper.IsHoldingShort"/>), the phases whose route names the targets and the sim accepts
+    /// <c>HS</c> in. The <see cref="IsControllable"/> guard keeps surface live-traffic shadows out, as in
+    /// <see cref="CanPushBack"/>.
     /// </summary>
-    public static bool CanHoldShort(IMenuAircraft? ac) => IsControllable(ac) && (ac.CurrentPhase == "Taxiing");
+    public static bool CanHoldShort(IMenuAircraft? ac) =>
+        IsControllable(ac) && ((ac.CurrentPhase == "Taxiing") || HoldShortMenuHelper.IsHoldingShort(ac.CurrentPhase));
 
     /// <summary>
     /// Follow another ground aircraft (<c>FOLLOWG</c>) — offered at parking (start up and trail), while taxiing and in
@@ -483,7 +484,7 @@ public static class AircraftCommandApplicability
 
         string phase = ac.CurrentPhase;
         return phase is "At Parking" or "Pushback" or "Taxiing" or "Holding After Exit" or "Holding After Pushback" or "Holding In Position"
-            || phase.StartsWith("Holding Short", StringComparison.Ordinal)
+            || HoldShortMenuHelper.IsHoldingShort(phase)
             || phase.StartsWith("Following", StringComparison.Ordinal);
     }
 
