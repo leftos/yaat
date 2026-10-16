@@ -1,3 +1,4 @@
+using Avalonia.Threading;
 using Yaat.Sim.Data.Airport;
 
 namespace Yaat.Client.ContextMenus;
@@ -80,4 +81,145 @@ public sealed record TaxiToRunwayMenu(
 {
     /// <summary>No group at all.</summary>
     public static TaxiToRunwayMenu Empty { get; } = new([], [], null);
+
+    /// <summary>Every runway end of the airport, each with where its search stands; <see cref="TaxiToRunwayEndList.None"/> without one.</summary>
+    public TaxiToRunwayEndList RunwayEnds { get; init; } = TaxiToRunwayEndList.None;
+}
+
+/// <summary>Why Taxi to runway offers a runway end.</summary>
+public enum TaxiToRunwayEndRole
+{
+    /// <summary>The aircraft's assigned runway.</summary>
+    Assigned,
+
+    /// <summary>One of the room's active departure runways.</summary>
+    Departure,
+
+    /// <summary>Any other end of the airport.</summary>
+    Other,
+}
+
+/// <summary>Where a runway end's entry search stands.</summary>
+public enum TaxiToRunwayEndState
+{
+    /// <summary>Not searched yet: its runway is searched the first time it is asked for (<see cref="TaxiToRunwayEndList.SearchRunwayOf"/>).</summary>
+    NotSearched,
+
+    /// <summary>Its runway's search is running.</summary>
+    Searching,
+
+    /// <summary>Searched, with at least one row.</summary>
+    Ready,
+
+    /// <summary>Searched, or with no hold short to search, and no row: no runway entry found.</summary>
+    Empty,
+}
+
+/// <summary>One runway end Taxi to runway names, found or not.</summary>
+/// <param name="Designator">The end as a title shows it (<c>1L</c>, <c>28R</c>).</param>
+/// <param name="Runway">The runway the end belongs to; one search finds both its ends' rows.</param>
+/// <param name="Role">Why the end is offered.</param>
+/// <param name="State">Where the end's search stands.</param>
+/// <param name="Rows">
+/// Once <see cref="TaxiToRunwayEndState.Ready"/>: the end's entry points, the full-length one first and then the intersections
+/// from the threshold inward, then the presets that end at it; empty in every other state.
+/// </param>
+public sealed record TaxiToRunwayEnd(
+    string Designator,
+    RunwayIdentifier Runway,
+    TaxiToRunwayEndRole Role,
+    TaxiToRunwayEndState State,
+    IReadOnlyList<TaxiRouteRow> Rows
+);
+
+/// <summary>
+/// Every runway end Taxi to runway offers, in order: the assigned end, the room's active departure ends in the room's
+/// order, then the rest by runway number. Used on the UI thread only. <see cref="SearchRunwayOf"/> searches a runway that
+/// was not searched when the menu opened.
+/// </summary>
+/// <param name="ends">The ends as the menu opened.</param>
+/// <param name="searchRunway">
+/// Searches one runway, completing on the UI thread with each of its ends' rows, or with null when the result no longer
+/// applies: the layout changed, or the route search or the row build failed (logged). A null leaves its ends to be
+/// searched again.
+/// </param>
+public sealed class TaxiToRunwayEndList(
+    IReadOnlyList<TaxiToRunwayEnd> ends,
+    Func<RunwayIdentifier, Task<IReadOnlyList<(string Designator, IReadOnlyList<TaxiRouteRow> Rows)>?>> searchRunway
+)
+{
+    /// <summary>No runway end at all: no layout, no start node, or an unknown aircraft.</summary>
+    public static TaxiToRunwayEndList None { get; } =
+        new([], runway => throw new InvalidOperationException($"No runway end to search: runway {runway} is not in an empty end list."));
+
+    private readonly Dictionary<RunwayIdentifier, Task> _searching = [];
+
+    /// <summary>The ends as they stand now: a runway asked for reads <see cref="TaxiToRunwayEndState.Searching"/> until its search lands.</summary>
+    public IReadOnlyList<TaxiToRunwayEnd> Ends { get; private set; } = ends;
+
+    /// <summary>
+    /// Searches the runway of <paramref name="designator"/> when no search of it has run: both its ends read
+    /// <see cref="TaxiToRunwayEndState.Searching"/> at once, and the task completes on the UI thread once <see cref="Ends"/>
+    /// holds their rows (<see cref="TaxiToRunwayEndState.Ready"/> or <see cref="TaxiToRunwayEndState.Empty"/>). A runway
+    /// whose search is running gives back that search; one already searched, a completed task. A search that no longer
+    /// applies (the layout changed, or the route search or the row build failed, logged) puts that runway's ends back to
+    /// <see cref="TaxiToRunwayEndState.NotSearched"/>, so a later select searches again rather than leaving them Searching.
+    /// </summary>
+    /// <exception cref="ArgumentException">The list names no end <paramref name="designator"/>.</exception>
+    public Task SearchRunwayOf(string designator)
+    {
+        Dispatcher.UIThread.VerifyAccess();
+        TaxiToRunwayEnd end =
+            Ends.FirstOrDefault(e => SameEnd(e.Designator, designator))
+            ?? throw new ArgumentException($"Taxi to runway names no runway end {designator}.", nameof(designator));
+        if (_searching.TryGetValue(end.Runway, out Task? running))
+        {
+            return running;
+        }
+
+        if (end.State is TaxiToRunwayEndState.Ready or TaxiToRunwayEndState.Empty)
+        {
+            return Task.CompletedTask;
+        }
+
+        Task search = SearchAsync(end.Runway);
+        if (!search.IsCompleted)
+        {
+            _searching[end.Runway] = search;
+        }
+
+        return search;
+    }
+
+    private async Task SearchAsync(RunwayIdentifier runway)
+    {
+        Ends = [.. Ends.Select(e => (e.Runway == runway) ? e with { State = TaxiToRunwayEndState.Searching } : e)];
+        try
+        {
+            IReadOnlyList<(string Designator, IReadOnlyList<TaxiRouteRow> Rows)>? found = await searchRunway(runway);
+            Ends = [.. Ends.Select(e => (e.Runway == runway) ? Searched(e, found) : e)];
+        }
+        finally
+        {
+            _searching.Remove(runway);
+        }
+    }
+
+    /// <summary>
+    /// <paramref name="end"/> once its runway's search lands: the rows <paramref name="found"/> gives it
+    /// (<see cref="Found"/>), or back to <see cref="TaxiToRunwayEndState.NotSearched"/> when <paramref name="found"/> is
+    /// null — the layout changed, or the route search or the row build failed (logged) — so its runway is searched again.
+    /// </summary>
+    private static TaxiToRunwayEnd Searched(TaxiToRunwayEnd end, IReadOnlyList<(string Designator, IReadOnlyList<TaxiRouteRow> Rows)>? found) =>
+        found is null ? end with { State = TaxiToRunwayEndState.NotSearched, Rows = [] } : Found(end, found);
+
+    /// <summary><paramref name="end"/> with the rows <paramref name="found"/> gives it: Ready with rows, Empty without.</summary>
+    private static TaxiToRunwayEnd Found(TaxiToRunwayEnd end, IReadOnlyList<(string Designator, IReadOnlyList<TaxiRouteRow> Rows)> found)
+    {
+        IReadOnlyList<TaxiRouteRow> rows = found.Where(f => SameEnd(f.Designator, end.Designator)).Select(f => f.Rows).FirstOrDefault() ?? [];
+        return end with { State = (rows.Count > 0) ? TaxiToRunwayEndState.Ready : TaxiToRunwayEndState.Empty, Rows = rows };
+    }
+
+    private static bool SameEnd(string a, string b) =>
+        string.Equals(RunwayIdentifier.NormalizeDesignator(a), RunwayIdentifier.NormalizeDesignator(b), StringComparison.OrdinalIgnoreCase);
 }

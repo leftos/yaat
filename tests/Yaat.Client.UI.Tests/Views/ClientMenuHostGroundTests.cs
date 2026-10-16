@@ -2,6 +2,7 @@ using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Threading;
 using Xunit;
 using Yaat.Client.ContextMenus;
 using Yaat.Client.Models;
@@ -736,6 +737,272 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
         Assert.DoesNotContain(host.GetPresetTaxiChoices(OtherCallsign), r => r.Preview.Segments[^1].ToNodeId == bar.Id);
         Assert.DoesNotContain(menu.Inline.Concat(menu.Other).SelectMany(g => g.Rows), r => r.Preview.Segments[^1].ToNodeId == bar.Id);
     }
+
+    // --- Taxi to runway: every runway end, searched one runway at a time --------------------
+
+    /// <summary>How long a test waits for a background runway search to land: a hang guard a passing run never reaches.</summary>
+    private static readonly TimeSpan RunwaySearchHangGuard = TimeSpan.FromMinutes(5);
+
+    [AvaloniaFact]
+    public void GetTaxiToRunwayChoices_Koak_NamesEveryRunwayEnd_AssignedThenDepartureThenRunwayNumber()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        (AircraftModel target, MainViewModel main) = AtGate25("30", ["28L"]);
+        var host = new ClientMenuHost(main, target, new Border());
+
+        IReadOnlyList<TaxiToRunwayEnd> ends = host.GetTaxiToRunwayChoices(Callsign).RunwayEnds.Ends;
+
+        Assert.Equal(["30", "28L", "10L", "10R", "12", "15", "28R", "33"], ends.Select(e => e.Designator));
+        Assert.Equal(
+            [TaxiToRunwayEndRole.Assigned, TaxiToRunwayEndRole.Departure, .. Enumerable.Repeat(TaxiToRunwayEndRole.Other, 6)],
+            ends.Select(e => e.Role)
+        );
+        // The assigned and departure runways (12/30, 10R/28L) are searched at open, both ends each; the rest wait.
+        Assert.All(ends.Where(e => e.Designator is "30" or "12" or "28L" or "10R"), e => Assert.NotEqual(TaxiToRunwayEndState.NotSearched, e.State));
+        Assert.All(ends.Where(e => e.Designator is "10L" or "28R" or "15" or "33"), e => Assert.Equal(TaxiToRunwayEndState.NotSearched, e.State));
+        Assert.Equal(TaxiToRunwayEndState.Ready, EndOf(ends, "30").State);
+        Assert.All(ends.Where(e => e.State != TaxiToRunwayEndState.Ready), e => Assert.Empty(e.Rows));
+    }
+
+    [AvaloniaFact]
+    public void GetTaxiToRunwayEnds_NoDepartureRunway_SearchesOnlyTheAssignedRunwayAtOpen()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        (AircraftModel target, MainViewModel main) = AtGate25("30", []);
+        int before = main.Ground.TaxiToRunwayRouteSearches;
+
+        IReadOnlyList<TaxiToRunwayEnd> ends = main.Ground.GetTaxiToRunwayEnds(target).Ends;
+
+        Assert.Equal(HoldShortsSearched(main, "30"), main.Ground.TaxiToRunwayRouteSearches - before);
+        Assert.Equal(["30", "10L", "10R", "12", "15", "28L", "28R", "33"], ends.Select(e => e.Designator));
+        Assert.Equal(TaxiToRunwayEndState.Ready, EndOf(ends, "30").State);
+        Assert.All(ends.Where(e => e.Designator is not ("30" or "12")), e => Assert.Equal(TaxiToRunwayEndState.NotSearched, e.State));
+    }
+
+    [AvaloniaFact]
+    public async Task SearchRunwayOf_AnOtherRunway_SearchesThatRunwayOnce_AndSettlesBothEnds()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        (AircraftModel target, MainViewModel main) = AtGate25("30", []);
+        TaxiToRunwayEndList list = main.Ground.GetTaxiToRunwayEnds(target);
+        int before = main.Ground.TaxiToRunwayRouteSearches;
+
+        Task search = list.SearchRunwayOf("28R");
+
+        bool completedOnUiThread = false;
+        Task observed = search.ContinueWith(
+            _ => completedOnUiThread = Dispatcher.UIThread.CheckAccess(),
+            CancellationToken.None,
+            TaskContinuationOptions.ExecuteSynchronously,
+            TaskScheduler.Default
+        );
+
+        Assert.False(search.IsCompleted);
+        Assert.Equal(TaxiToRunwayEndState.Searching, EndOf(list.Ends, "28R").State);
+        Assert.Equal(TaxiToRunwayEndState.Searching, EndOf(list.Ends, "10L").State);
+        Assert.Equal(TaxiToRunwayEndState.NotSearched, EndOf(list.Ends, "15").State);
+
+        await observed.WaitAsync(RunwaySearchHangGuard, TestContext.Current.CancellationToken);
+
+        Assert.True(completedOnUiThread, "the search completed off the UI thread");
+        int searches = main.Ground.TaxiToRunwayRouteSearches - before;
+        Assert.Equal(HoldShortsSearched(main, "28R"), searches);
+        Assert.Equal(TaxiToRunwayEndState.Ready, EndOf(list.Ends, "28R").State);
+        Assert.True(
+            EndOf(list.Ends, "10L").State is TaxiToRunwayEndState.Ready or TaxiToRunwayEndState.Empty,
+            $"10L is {EndOf(list.Ends, "10L").State}"
+        );
+        Assert.Equal(TaxiToRunwayEndState.NotSearched, EndOf(list.Ends, "15").State);
+
+        // Asking for the other end of a searched runway searches nothing more.
+        Assert.True(list.SearchRunwayOf("10L").IsCompletedSuccessfully);
+        Assert.Equal(searches, main.Ground.TaxiToRunwayRouteSearches - before);
+
+        // The rows are the ones the grouped menu shows for 28R.
+        TaxiToRunwayMenu grouped = new ClientMenuHost(main, target, new Border()).GetTaxiToRunwayChoices(Callsign);
+        TaxiToRunwayGroup runway28R = Assert.Single(grouped.Inline.Concat(grouped.Other), g => g.Title == "Runway 28R");
+        Assert.Equal(TaxiRowKeys(runway28R.Rows), TaxiRowKeys(EndOf(list.Ends, "28R").Rows));
+    }
+
+    /// <summary>Each row's name, reason, distance and command, in order.</summary>
+    private static List<string> TaxiRowKeys(IReadOnlyList<TaxiRouteRow> rows) =>
+        [.. rows.Select(r => $"{r.Name} {r.Reason} {r.DistanceFt} {r.Command}")];
+
+    [AvaloniaFact]
+    public async Task SearchRunwayOf_BothEndsOfOneRunwayAskedAtOnce_RunOneSearch()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        (AircraftModel target, MainViewModel main) = AtGate25("30", []);
+        TaxiToRunwayEndList list = main.Ground.GetTaxiToRunwayEnds(target);
+        int before = main.Ground.TaxiToRunwayRouteSearches;
+
+        Task first = list.SearchRunwayOf("28R");
+        Task second = list.SearchRunwayOf("10L");
+
+        Assert.Same(first, second);
+        await first.WaitAsync(RunwaySearchHangGuard, TestContext.Current.CancellationToken);
+        Assert.Equal(HoldShortsSearched(main, "28R"), main.Ground.TaxiToRunwayRouteSearches - before);
+    }
+
+    /// <summary>From gate 25 every hold short of 10R/28L is at or toward the 10R threshold: none is an entry for 10R.</summary>
+    [AvaloniaFact]
+    public async Task SearchRunwayOf_Koak10RFromGate25_IsEmpty_And28LIsReady()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        (AircraftModel target, MainViewModel main) = AtGate25("30", []);
+        TaxiToRunwayEndList list = main.Ground.GetTaxiToRunwayEnds(target);
+
+        await list.SearchRunwayOf("10R").WaitAsync(RunwaySearchHangGuard, TestContext.Current.CancellationToken);
+
+        TaxiToRunwayEnd tenRight = EndOf(list.Ends, "10R");
+        Assert.Equal((TaxiToRunwayEndState.Empty, 0), (tenRight.State, tenRight.Rows.Count));
+        Assert.Equal(TaxiToRunwayEndState.Ready, EndOf(list.Ends, "28L").State);
+    }
+
+    /// <summary>
+    /// A background search of the same runway that an open call searches synchronously: the open call waits for the running
+    /// search rather than running its own, and both lists settle on the same rows.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task SearchRunwayOf_BackgroundSearchOfTheSameRunwayRunning_TheOpenCallWaitsForIt()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        (AircraftModel target, MainViewModel main) = AtGate25("30", []);
+        TaxiToRunwayEndList list = main.Ground.GetTaxiToRunwayEnds(target);
+        int before = main.Ground.TaxiToRunwayRouteSearches;
+        Task search = list.SearchRunwayOf("28R");
+
+        AircraftModel assigned28R = GroundAircraft(OtherCallsign, "At Parking", PositionOf(Gate25Node));
+        assigned28R.AssignedRunway = "28R";
+        TaxiToRunwayEndList opened = main.Ground.GetTaxiToRunwayEnds(assigned28R);
+
+        Assert.Equal(TaxiToRunwayEndState.Ready, EndOf(opened.Ends, "28R").State);
+        Assert.Equal(HoldShortsSearched(main, "28R"), main.Ground.TaxiToRunwayRouteSearches - before);
+
+        await search.WaitAsync(RunwaySearchHangGuard, TestContext.Current.CancellationToken);
+
+        Assert.Equal(HoldShortsSearched(main, "28R"), main.Ground.TaxiToRunwayRouteSearches - before);
+        Assert.Equal(TaxiRowKeys(EndOf(opened.Ends, "28R").Rows), TaxiRowKeys(EndOf(list.Ends, "28R").Rows));
+    }
+
+    /// <summary>
+    /// Two end lists of one aircraft both ask for 28R before either is awaited: the route cache runs one search, and both
+    /// lists settle on the same ends.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task SearchRunwayOf_TwoListsOfOneAircraftAskTheSameRunway_RunOneSearch()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        (AircraftModel target, MainViewModel main) = AtGate25("30", []);
+        TaxiToRunwayEndList first = main.Ground.GetTaxiToRunwayEnds(target);
+        TaxiToRunwayEndList second = main.Ground.GetTaxiToRunwayEnds(target);
+        int before = main.Ground.TaxiToRunwayRouteSearches;
+
+        Task askedFirst = first.SearchRunwayOf("28R");
+        Task askedSecond = second.SearchRunwayOf("28R");
+
+        await Task.WhenAll(askedFirst, askedSecond).WaitAsync(RunwaySearchHangGuard, TestContext.Current.CancellationToken);
+
+        Assert.Equal(HoldShortsSearched(main, "28R"), main.Ground.TaxiToRunwayRouteSearches - before);
+        Assert.Equal(EndKeys(first), EndKeys(second));
+    }
+
+    /// <summary>
+    /// A result for a layout that has since changed is dropped, and 28R's ends go back to NotSearched: a later select
+    /// searches again rather than leaving them Searching forever.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task SearchRunwayOf_LayoutChangesBeforeTheSearchLands_LeavesTheEndsToSearchAgain()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        (AircraftModel target, MainViewModel main) = AtGate25("30", []);
+        TaxiToRunwayEndList list = main.Ground.GetTaxiToRunwayEnds(target);
+        Task search = list.SearchRunwayOf("28R");
+
+        main.Ground.SetLayoutForTesting(Oak);
+        await search.WaitAsync(RunwaySearchHangGuard, TestContext.Current.CancellationToken);
+
+        Assert.Equal(TaxiToRunwayEndState.NotSearched, EndOf(list.Ends, "28R").State);
+        Assert.Equal(TaxiToRunwayEndState.NotSearched, EndOf(list.Ends, "10L").State);
+        Assert.Empty(EndOf(list.Ends, "28R").Rows);
+    }
+
+    /// <summary>
+    /// Six background searches at once, three runways each for a jet and a C172 (different cache keys on one layout): each
+    /// runway's ends come out as a one-at-a-time run on a fresh view model finds them, with the same number of route searches.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task SearchRunwayOf_ManyRunwaysAtOnce_MatchOneAtATime()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        string[] asked = ["28R", "10R", "15"];
+        (MainViewModel concurrentMain, TaxiToRunwayEndList[] concurrent) = JetAndCessnaEnds();
+        int concurrentBefore = concurrentMain.Ground.TaxiToRunwayRouteSearches;
+
+        Task[] searches = [.. concurrent.SelectMany(list => asked.Select(list.SearchRunwayOf))];
+        await Task.WhenAll(searches).WaitAsync(RunwaySearchHangGuard, TestContext.Current.CancellationToken);
+
+        (MainViewModel sequentialMain, TaxiToRunwayEndList[] sequential) = JetAndCessnaEnds();
+        int sequentialBefore = sequentialMain.Ground.TaxiToRunwayRouteSearches;
+        foreach (TaxiToRunwayEndList list in sequential)
+        {
+            foreach (string end in asked)
+            {
+                await list.SearchRunwayOf(end).WaitAsync(RunwaySearchHangGuard, TestContext.Current.CancellationToken);
+            }
+        }
+
+        Assert.All(concurrent.Concat(sequential).SelectMany(list => list.Ends), e => Assert.NotEqual(TaxiToRunwayEndState.Searching, e.State));
+        Assert.Equal(sequential.Select(EndKeys), concurrent.Select(EndKeys));
+        Assert.NotEqual(EndKeys(sequential[0]), EndKeys(sequential[1]));
+        Assert.Equal(
+            sequentialMain.Ground.TaxiToRunwayRouteSearches - sequentialBefore,
+            concurrentMain.Ground.TaxiToRunwayRouteSearches - concurrentBefore
+        );
+    }
+
+    /// <summary>A B738 and a C172 parked at gate 25 on one fresh KOAK view model, assigned 30, and each one's runway ends.</summary>
+    private static (MainViewModel Main, TaxiToRunwayEndList[] Ends) JetAndCessnaEnds()
+    {
+        (AircraftModel jet, MainViewModel main) = AtGate25("30", []);
+        AircraftModel cessna = GroundAircraft(OtherCallsign, "At Parking", PositionOf(Gate25Node));
+        cessna.AircraftType = "C172";
+        cessna.AssignedRunway = "30";
+        return (main, [main.Ground.GetTaxiToRunwayEnds(jet), main.Ground.GetTaxiToRunwayEnds(cessna)]);
+    }
+
+    /// <summary>A B738 parked at KOAK gate 25 assigned <paramref name="assignedRunway"/>, the room naming <paramref name="activeRunways"/>.</summary>
+    private static (AircraftModel Target, MainViewModel Main) AtGate25(string assignedRunway, string[] activeRunways)
+    {
+        AircraftModel target = GroundAircraft(Callsign, "At Parking", PositionOf(Gate25Node));
+        target.AssignedRunway = assignedRunway;
+        MainViewModel main = OakMain(target, []);
+        if (activeRunways.Length > 0)
+        {
+            main.ApplyActiveRunways(new Dictionary<string, List<string>> { ["OAK"] = [.. activeRunways] });
+        }
+
+        return (target, main);
+    }
+
+    /// <summary>
+    /// The hold shorts one search of <paramref name="end"/>'s runway runs a route search to: every hold short of the runway
+    /// that is not on another runway's pavement only (the start, a stand, is none of them).
+    /// </summary>
+    private static int HoldShortsSearched(MainViewModel main, string end) =>
+        main.Ground.DomainLayout!.Nodes.Values.Count(n =>
+            (n.Type == GroundNodeType.RunwayHoldShort)
+            && (n.RunwayId is { } id)
+            && (id.Contains(end))
+            && (!GroundViewModel.LiesOnRunwayPavementOnly(n))
+        );
+
+    private static TaxiToRunwayEnd EndOf(IReadOnlyList<TaxiToRunwayEnd> ends, string designator) =>
+        Assert.Single(ends, e => e.Designator == designator);
+
+    /// <summary>Every end's designator, state and rows' name, reason, distance and command, in order.</summary>
+    private static List<string> EndKeys(TaxiToRunwayEndList list) =>
+        [.. list.Ends.Select(e => $"{e.Designator} {e.State}: {string.Join(" | ", TaxiRowKeys(e.Rows))}")];
 
     // --- Taxi to runway: the runway's own bars, its centreline and bars without a name ------
 

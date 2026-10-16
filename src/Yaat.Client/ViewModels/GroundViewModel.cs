@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
@@ -1478,22 +1479,70 @@ public partial class GroundViewModel : ObservableObject
     /// With an active departure end at the airport, only the runways of the assigned and active departure ends are searched
     /// here; the rest are searched when Other runways opens (<see cref="TaxiToRunwayMenu.FindOther"/>), and only when some
     /// runway end is not inline. Without one, the inline ends are the route-nearest, so every runway is searched at once.
-    /// Other runways opened after the layout changed finds no group. Empty without a layout or a start node.
+    /// Other runways opened after the layout changed finds no group. <see cref="TaxiToRunwayMenu.RunwayEnds"/> names every
+    /// runway end up front (<see cref="RunwayEndsAtOpen"/>). Empty without a layout or a start node.
     /// </summary>
     public TaxiToRunwayMenu GetTaxiToRunwayChoices(AircraftModel ac)
     {
-        if ((_domainLayout is not { } layout) || (TaxiStartNode(layout, ac) is not { } start))
+        if (TaxiToRunwaySearchFor(ac) is not { } search)
         {
             return TaxiToRunwayMenu.Empty;
         }
 
-        List<(TaxiRouteDefinition Preset, TaxiRouteRow Row)> presets = PresetTaxiRows(layout, start, ac);
-        List<RunwayIdentifier> runways = RunwaysWithHoldShorts(layout);
         string assignedRunway = ac.AssignedRunway;
-        List<string> departureEnds = ActiveDepartureRunwayEnds(layout.AirportId);
+        List<string> departureEnds = ActiveDepartureRunwayEnds(search.Layout.AirportId);
+        TaxiToRunwayEndList runwayEnds = RunwayEndsAtOpen(search, assignedRunway, departureEnds);
+        return GroupedTaxiToRunwayMenu(search, ac, assignedRunway, departureEnds) with { RunwayEnds = runwayEnds };
+    }
+
+    /// <summary>
+    /// Every runway end Taxi to runway names for <paramref name="ac"/> (<see cref="RunwayEndsAtOpen"/>), as
+    /// <see cref="GetTaxiToRunwayChoices"/> gives them in <see cref="TaxiToRunwayMenu.RunwayEnds"/>, without the groups.
+    /// <see cref="TaxiToRunwayEndList.None"/> without a layout or a start node.
+    /// </summary>
+    public TaxiToRunwayEndList GetTaxiToRunwayEnds(AircraftModel ac) =>
+        (TaxiToRunwaySearchFor(ac) is { } search)
+            ? RunwayEndsAtOpen(search, ac.AssignedRunway, ActiveDepartureRunwayEnds(search.Layout.AirportId))
+            : TaxiToRunwayEndList.None;
+
+    /// <summary>
+    /// Everything a Taxi to runway search reads, taken from the layout and the aircraft on the UI thread when the menu
+    /// opens, so a search in the background touches no aircraft model and no view state.
+    /// </summary>
+    private sealed record TaxiToRunwaySearch(
+        AirportGroundLayout Layout,
+        GroundNode Start,
+        AircraftCategory Category,
+        WakeTurbulenceData.WakeClass WakeClass,
+        double TakeoffDistanceFt,
+        LatLon Position,
+        IReadOnlyList<(TaxiRouteDefinition Preset, TaxiRouteRow Row)> Presets
+    );
+
+    /// <summary>
+    /// <paramref name="ac"/>'s Taxi to runway search from its taxi start (<see cref="TaxiStartNode"/>); null without a layout
+    /// or a start node.
+    /// </summary>
+    private TaxiToRunwaySearch? TaxiToRunwaySearchFor(AircraftModel ac) =>
+        ((_domainLayout is { } layout) && (TaxiStartNode(layout, ac) is { } start))
+            ? new TaxiToRunwaySearch(
+                layout,
+                start,
+                CategoryFor(ac),
+                WakeClassFor(ac),
+                TakeoffDistanceFt(ac),
+                ac.Position,
+                PresetTaxiRows(layout, start, ac)
+            )
+            : null;
+
+    /// <summary>The Inline, Other and Find other groups of <see cref="GetTaxiToRunwayChoices"/>, placed by <see cref="GroupRunwayEnds"/>.</summary>
+    private TaxiToRunwayMenu GroupedTaxiToRunwayMenu(TaxiToRunwaySearch search, AircraftModel ac, string assignedRunway, List<string> departureEnds)
+    {
+        List<RunwayIdentifier> runways = RunwaysWithHoldShorts(search.Layout);
         if (departureEnds.Count == 0)
         {
-            return GroupRunwayEnds(RunwayEndRows(layout, start, ac, runways, presets), assignedRunway, departureEnds);
+            return GroupRunwayEnds(RunwayEndRows(search, runways), assignedRunway, departureEnds);
         }
 
         List<string> inlineEnds = [.. departureEnds];
@@ -1503,7 +1552,7 @@ public partial class GroundViewModel : ObservableObject
         }
 
         List<RunwayIdentifier> inlineRunways = [.. runways.Where(runway => inlineEnds.Any(runway.Contains))];
-        TaxiToRunwayMenu inline = GroupRunwayEnds(RunwayEndRows(layout, start, ac, inlineRunways, presets), assignedRunway, departureEnds);
+        TaxiToRunwayMenu inline = GroupRunwayEnds(RunwayEndRows(search, inlineRunways), assignedRunway, departureEnds);
         bool anyEndNotInline = runways.SelectMany(EndsOf).Any(end => !inlineEnds.Any(inlineEnd => SameRunwayEnd(end, inlineEnd)));
         if (!anyEndNotInline)
         {
@@ -1514,8 +1563,8 @@ public partial class GroundViewModel : ObservableObject
             inline.Inline,
             [],
             () =>
-                ReferenceEquals(_domainLayout, layout)
-                    ? GroupRunwayEnds(RunwayEndRows(layout, start, ac, runways, presets), assignedRunway, departureEnds).Other
+                ReferenceEquals(_domainLayout, search.Layout)
+                    ? GroupRunwayEnds(RunwayEndRows(search with { Position = ac.Position }, runways), assignedRunway, departureEnds).Other
                     : []
         );
     }
@@ -1524,37 +1573,177 @@ public partial class GroundViewModel : ObservableObject
     private static string[] EndsOf(RunwayIdentifier runway) => SameRunwayEnd(runway.End1, runway.End2) ? [runway.End1] : [runway.End1, runway.End2];
 
     /// <summary>
-    /// The rows of each end of <paramref name="runways"/> that has any: its entries (<see cref="EntryRowsFor"/>), then the
-    /// presets that end at it. A runway searched before from the same start is answered from the route cache.
+    /// The rows of each end of <paramref name="runways"/> that has any (<see cref="EndRows"/>), searched now on the UI
+    /// thread. A runway searched before from the same start is answered from the route cache.
     /// </summary>
-    private List<(string End, List<TaxiRouteRow> Rows)> RunwayEndRows(
-        AirportGroundLayout layout,
-        GroundNode start,
-        AircraftModel ac,
-        List<RunwayIdentifier> runways,
-        List<(TaxiRouteDefinition Preset, TaxiRouteRow Row)> presets
+    private List<(string End, List<TaxiRouteRow> Rows)> RunwayEndRows(TaxiToRunwaySearch search, List<RunwayIdentifier> runways) =>
+        [.. runways.SelectMany(runway => EndRows(search, runway, RunwayEntryRoutesNow(search, runway))).Where(end => end.Rows.Count > 0)];
+
+    /// <summary>
+    /// Each end of <paramref name="runway"/> with its rows from <paramref name="routes"/>: its entries
+    /// (<see cref="EntryRowsFor"/>), then the presets that end at it; an end may have none. Runs on the UI thread.
+    /// </summary>
+    private List<(string End, List<TaxiRouteRow> Rows)> EndRows(
+        TaxiToRunwaySearch search,
+        RunwayIdentifier runway,
+        List<(GroundNode Bar, TaxiRoute Route)> routes
     )
     {
-        List<(string End, List<TaxiRouteRow> Rows)> ends = [];
-        double takeoffDistanceFt = TakeoffDistanceFt(ac);
-        foreach (RunwayIdentifier runway in runways)
+        List<RunwayEntry> entries = RunwayEntries(routes, search.Position);
+        return
+        [
+            .. EndsOf(runway)
+                .Select(end =>
+                    (
+                        end,
+                        (List<TaxiRouteRow>)
+                            [
+                                .. EntryRowsFor(search.Layout, runway, end, entries, search.TakeoffDistanceFt),
+                                .. search
+                                    .Presets.Where(p => (p.Preset.DestinationRunway is { } destination) && SameRunwayEnd(destination, end))
+                                    .Select(p => p.Row),
+                            ]
+                    )
+                ),
+        ];
+    }
+
+    /// <summary>
+    /// Every runway end of <paramref name="search"/>'s layout (<see cref="OrderedRunwayEnds"/>), named up front. The runways
+    /// of the assigned end and of the departure ends are searched now, on the UI thread, so both ends of each read Ready or
+    /// Empty; a runway with no hold short has nothing to search, so its ends read Empty; every other end reads NotSearched
+    /// until its first <see cref="TaxiToRunwayEndList.SearchRunwayOf"/>, which searches it in the background
+    /// (<see cref="SearchRunwayInBackground"/>).
+    /// </summary>
+    private TaxiToRunwayEndList RunwayEndsAtOpen(TaxiToRunwaySearch search, string assignedRunway, List<string> departureEnds)
+    {
+        HashSet<RunwayIdentifier> withHoldShorts = [.. RunwaysWithHoldShorts(search.Layout)];
+        Dictionary<RunwayIdentifier, List<(string End, List<TaxiRouteRow> Rows)>> searched = [];
+        List<TaxiToRunwayEnd> ends = [];
+        foreach ((string end, RunwayIdentifier runway, TaxiToRunwayEndRole role) in OrderedRunwayEnds(search.Layout, assignedRunway, departureEnds))
         {
-            List<RunwayEntry> entries = RunwayEntries(layout, start, ac, runway);
-            foreach (string end in EndsOf(runway))
+            string designator = RunwayIdentifier.ToDisplayDesignator(end);
+            if (!withHoldShorts.Contains(runway))
             {
-                List<TaxiRouteRow> rows =
-                [
-                    .. EntryRowsFor(layout, runway, end, entries, takeoffDistanceFt),
-                    .. presets.Where(p => (p.Preset.DestinationRunway is { } destination) && SameRunwayEnd(destination, end)).Select(p => p.Row),
-                ];
-                if (rows.Count > 0)
-                {
-                    ends.Add((end, rows));
-                }
+                ends.Add(new TaxiToRunwayEnd(designator, runway, role, TaxiToRunwayEndState.Empty, []));
+                continue;
             }
+
+            if ((role != TaxiToRunwayEndRole.Other) && (!searched.ContainsKey(runway)))
+            {
+                searched[runway] = EndRows(search, runway, RunwayEntryRoutesNow(search, runway));
+            }
+
+            ends.Add(
+                searched.TryGetValue(runway, out List<(string End, List<TaxiRouteRow> Rows)>? rows)
+                    ? SearchedEnd(designator, runway, role, rows.First(r => SameRunwayEnd(r.End, end)).Rows)
+                    : new TaxiToRunwayEnd(designator, runway, role, TaxiToRunwayEndState.NotSearched, [])
+            );
         }
 
-        return ends;
+        return new TaxiToRunwayEndList(ends, runway => SearchRunwayInBackground(search, runway));
+    }
+
+    /// <summary>A searched end: Ready with its rows, Empty without one.</summary>
+    private static TaxiToRunwayEnd SearchedEnd(string designator, RunwayIdentifier runway, TaxiToRunwayEndRole role, List<TaxiRouteRow> rows) =>
+        new(designator, runway, role, (rows.Count > 0) ? TaxiToRunwayEndState.Ready : TaxiToRunwayEndState.Empty, rows);
+
+    /// <summary>
+    /// Every end of every runway of <paramref name="layout"/> (its runways and the runways its hold shorts name), each with
+    /// its role: the end of <paramref name="assignedRunway"/> first, then each of <paramref name="departureEnds"/> in their
+    /// order, then the rest by runway number, then designator.
+    /// </summary>
+    private static List<(string End, RunwayIdentifier Runway, TaxiToRunwayEndRole Role)> OrderedRunwayEnds(
+        AirportGroundLayout layout,
+        string assignedRunway,
+        List<string> departureEnds
+    ) =>
+        [
+            .. layout
+                .Runways.Select(runway => runway.Id)
+                .Concat(RunwaysWithHoldShorts(layout))
+                .Distinct()
+                .SelectMany(runway => EndsOf(runway).Select(end => (End: end, Runway: runway, Role: RoleOf(end, assignedRunway, departureEnds))))
+                .OrderBy(e => e.Role)
+                .ThenBy(e => (e.Role == TaxiToRunwayEndRole.Departure) ? departureEnds.FindIndex(d => SameRunwayEnd(d, e.End)) : 0)
+                .ThenBy(e => RunwayNumber(e.End))
+                .ThenBy(e => e.End, StringComparer.OrdinalIgnoreCase),
+        ];
+
+    /// <summary>Why <paramref name="end"/> is offered: the assigned end, a departure end, or neither.</summary>
+    private static TaxiToRunwayEndRole RoleOf(string end, string assignedRunway, List<string> departureEnds) =>
+        ((!string.IsNullOrEmpty(assignedRunway)) && (SameRunwayEnd(end, assignedRunway))) ? TaxiToRunwayEndRole.Assigned
+        : departureEnds.Any(departureEnd => SameRunwayEnd(departureEnd, end)) ? TaxiToRunwayEndRole.Departure
+        : TaxiToRunwayEndRole.Other;
+
+    /// <summary>
+    /// Searches <paramref name="runway"/> for <paramref name="search"/> off the UI thread (<see cref="RunwayEntryRoutes"/>,
+    /// begun by <see cref="Task.Run(Func{TResult})"/>) and builds both its ends' rows back on the UI thread, where the task
+    /// completes, always through a post: a runway already searched from this key lands on the next dispatcher turn, so a
+    /// caller sees the ends Searching until it yields. Null, and nothing searched, when the layout
+    /// has changed since the menu opened; null too when the layout changes before the search lands, or when the route
+    /// search or the row build fails (logged), so that runway's ends go back to <see cref="TaxiToRunwayEndState.NotSearched"/>.
+    /// </summary>
+    private Task<IReadOnlyList<(string Designator, IReadOnlyList<TaxiRouteRow> Rows)>?> SearchRunwayInBackground(
+        TaxiToRunwaySearch search,
+        RunwayIdentifier runway
+    )
+    {
+        if (!ReferenceEquals(_domainLayout, search.Layout))
+        {
+            return Task.FromResult<IReadOnlyList<(string Designator, IReadOnlyList<TaxiRouteRow> Rows)>?>(null);
+        }
+
+        Task<List<(GroundNode Bar, TaxiRoute Route)>> routes = RunwayEntryRoutes(search, runway, find => Task.Run(find));
+        var result = new TaskCompletionSource<IReadOnlyList<(string Designator, IReadOnlyList<TaxiRouteRow> Rows)>?>(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        _ = routes.ContinueWith(
+            _ =>
+                Dispatcher.UIThread.Post(() =>
+                {
+                    try
+                    {
+                        result.SetResult(RunwaySearchResult(search, runway, routes));
+                    }
+                    catch (Exception ex)
+                    {
+                        _log.LogError(ex, "Taxi to runway: building the entry rows of runway {Runway} failed", runway);
+                        result.SetResult(null);
+                    }
+                }),
+            CancellationToken.None,
+            TaskContinuationOptions.None,
+            TaskScheduler.Default
+        );
+        return result.Task;
+    }
+
+    /// <summary>
+    /// <paramref name="runway"/>'s ends with their rows once <paramref name="routes"/> has landed, on the UI thread; null
+    /// when the layout is no longer <paramref name="search"/>'s or the search failed (logged).
+    /// </summary>
+    private IReadOnlyList<(string Designator, IReadOnlyList<TaxiRouteRow> Rows)>? RunwaySearchResult(
+        TaxiToRunwaySearch search,
+        RunwayIdentifier runway,
+        Task<List<(GroundNode Bar, TaxiRoute Route)>> routes
+    )
+    {
+        if (!ReferenceEquals(_domainLayout, search.Layout))
+        {
+            return null;
+        }
+
+        if (!routes.IsCompletedSuccessfully)
+        {
+            _log.LogError(routes.Exception, "Taxi to runway: the entry search of runway {Runway} failed", runway);
+            return null;
+        }
+
+        return
+        [
+            .. EndRows(search, runway, routes.Result).Select(e => (RunwayIdentifier.ToDisplayDesignator(e.End), (IReadOnlyList<TaxiRouteRow>)e.Rows)),
+        ];
     }
 
     /// <summary>Every runway some <c>RunwayHoldShort</c> node of <paramref name="layout"/> holds short of, each once.</summary>
@@ -1566,88 +1755,169 @@ public partial class GroundViewModel : ObservableObject
         (node.Type == GroundNodeType.RunwayHoldShort) && (node.RunwayId is { } id) && (id == runway);
 
     /// <summary>
-    /// The hold shorts of <paramref name="runway"/> the aircraft can taxi to from <paramref name="start"/>
-    /// (<see cref="RunwayEntryRoutes"/>), each with its distance from the aircraft, leaving out any hold short the aircraft
-    /// stands at (0 ft once rounded): the bar it is holding short at.
+    /// The hold shorts <paramref name="routes"/> reach, each with its distance from the aircraft at
+    /// <paramref name="position"/>, leaving out any hold short the aircraft stands at (0 ft once rounded): the bar it is
+    /// holding short at.
     /// </summary>
-    private List<RunwayEntry> RunwayEntries(AirportGroundLayout layout, GroundNode start, AircraftModel ac, RunwayIdentifier runway)
-    {
-        List<RunwayEntry> entries = [];
-        foreach ((GroundNode bar, TaxiRoute route) in RunwayEntryRoutes(layout, start, CategoryFor(ac), WakeClassFor(ac), runway))
-        {
-            double distanceFt = RouteDistanceFt(route, ac.Position);
-            if (distanceFt > 0)
-            {
-                entries.Add(new RunwayEntry(bar, route, distanceFt));
-            }
-        }
-
-        return entries;
-    }
+    private static List<RunwayEntry> RunwayEntries(List<(GroundNode Bar, TaxiRoute Route)> routes, LatLon position) =>
+        [.. routes.Select(r => new RunwayEntry(r.Bar, r.Route, RouteDistanceFt(r.Route, position))).Where(entry => entry.DistanceFt > 0)];
 
     /// <summary>The most (start node, category, wake class, runway) keys the runway entry route cache holds before it starts over.</summary>
     private const int MaxCachedRunwayEntryRoutes = 2000;
 
-    /// <summary>The layout <see cref="_runwayEntryRoutes"/> was found on; a new layout empties it.</summary>
-    private AirportGroundLayout? _runwayEntryRoutesLayout;
+    /// <summary>
+    /// What a runway entry route is cached by: a route depends only on the layout and these, never on where around the
+    /// start node the aircraft stands, so every later menu from that node reuses it.
+    /// </summary>
+    private readonly record struct RunwayEntryRouteKey(
+        int StartNodeId,
+        AircraftCategory Category,
+        WakeTurbulenceData.WakeClass WakeClass,
+        RunwayIdentifier Runway
+    );
 
     /// <summary>
-    /// The shortest route from a start node to each hold short of a runway an aircraft of the category and wake class can
-    /// taxi to, found once per key: a route depends only on the layout and those, never on where around the start node the
-    /// aircraft stands, so every later menu from that node reuses it.
+    /// One layout's runway entry routes: per key, the one search that finds them (<see cref="FindRunwayEntryRoutes"/>),
+    /// begun once however many ask, so a second ask while it runs awaits the same task. Safe for readers and writers on any
+    /// thread. A new layout or a full cache is never cleared under a reader: a fresh instance is swapped in whole
+    /// (<see cref="RunwayEntryRouteCacheFor"/>), and a search still running lands in the instance it began in.
     /// </summary>
-    private readonly Dictionary<
-        (int StartNodeId, AircraftCategory Category, WakeTurbulenceData.WakeClass WakeClass, RunwayIdentifier Runway),
-        List<(GroundNode Bar, TaxiRoute Route)>
-    > _runwayEntryRoutes = [];
-
-    /// <summary>Empties the runway entry route cache once its layout is gone.</summary>
-    private void ForgetRunwayEntryRoutes()
+    private sealed class RunwayEntryRouteCache(AirportGroundLayout? layout)
     {
-        _runwayEntryRoutes.Clear();
-        _runwayEntryRoutesLayout = null;
+        public AirportGroundLayout? Layout { get; } = layout;
+
+        public ConcurrentDictionary<RunwayEntryRouteKey, Lazy<Task<List<(GroundNode Bar, TaxiRoute Route)>>>> Searches { get; } = new();
     }
 
-    /// <summary>How many hold-short route searches Taxi to runway has run; an answer from the cache runs none.</summary>
-    public int TaxiToRunwayRouteSearches { get; private set; }
+    /// <summary>The runway entry route cache of the layout last searched; replaced whole, never cleared.</summary>
+    private RunwayEntryRouteCache _runwayEntryRoutes = new(null);
+
+    /// <summary>Empties the runway entry route cache once its layout is gone.</summary>
+    private void ForgetRunwayEntryRoutes() => _runwayEntryRoutes = new RunwayEntryRouteCache(null);
+
+    private int _taxiToRunwayRouteSearches;
+
+    /// <summary>How many hold-short route searches Taxi to runway has run, on any thread; an answer from the cache runs none.</summary>
+    public int TaxiToRunwayRouteSearches => Volatile.Read(ref _taxiToRunwayRouteSearches);
 
     /// <summary>
-    /// The hold shorts of <paramref name="runway"/> reachable from <paramref name="start"/>, each by its shortest route
-    /// (<see cref="RoutePreference.Shortest"/>), in node order, from the cache when this key was searched on this layout.
-    /// Left out: <paramref name="start"/> itself; a hold short on another runway's pavement only
-    /// (<see cref="LiesOnRunwayPavementOnly"/>), which is no entry; a hold short whose route passes another hold short of
-    /// the same runway; and one whose route travels along the runway's own centreline, which crosses the runway (7110.65
-    /// 3-7-2) rather than taxiing to it, as to the bar across the runway from the one the aircraft holds at.
+    /// The route cache for <paramref name="layout"/>, on the UI thread: the current one, or a fresh one swapped in when the
+    /// current one holds another layout or <see cref="MaxCachedRunwayEntryRoutes"/> keys.
     /// </summary>
-    private List<(GroundNode Bar, TaxiRoute Route)> RunwayEntryRoutes(
-        AirportGroundLayout layout,
-        GroundNode start,
-        AircraftCategory category,
-        WakeTurbulenceData.WakeClass wakeClass,
-        RunwayIdentifier runway
+    private RunwayEntryRouteCache RunwayEntryRouteCacheFor(AirportGroundLayout layout)
+    {
+        RunwayEntryRouteCache cache = _runwayEntryRoutes;
+        if ((!ReferenceEquals(cache.Layout, layout)) || (cache.Searches.Count >= MaxCachedRunwayEntryRoutes))
+        {
+            cache = new RunwayEntryRouteCache(layout);
+            _runwayEntryRoutes = cache;
+        }
+
+        return cache;
+    }
+
+    /// <summary>
+    /// The search of <paramref name="runway"/>'s entry routes for <paramref name="search"/>, asked on the UI thread: the
+    /// one already begun or done for its key on this layout, else one <paramref name="begin"/> starts. A search that fails
+    /// leaves the cache, so a later ask searches again.
+    /// </summary>
+    private Task<List<(GroundNode Bar, TaxiRoute Route)>> RunwayEntryRoutes(
+        TaxiToRunwaySearch search,
+        RunwayIdentifier runway,
+        Func<Func<List<(GroundNode Bar, TaxiRoute Route)>>, Task<List<(GroundNode Bar, TaxiRoute Route)>>> begin
     )
     {
-        if ((!ReferenceEquals(_runwayEntryRoutesLayout, layout)) || (_runwayEntryRoutes.Count >= MaxCachedRunwayEntryRoutes))
+        RunwayEntryRouteCache cache = RunwayEntryRouteCacheFor(search.Layout);
+        var key = new RunwayEntryRouteKey(search.Start.Id, search.Category, search.WakeClass, runway);
+        Lazy<Task<List<(GroundNode Bar, TaxiRoute Route)>>>? created = null;
+        created = new Lazy<Task<List<(GroundNode Bar, TaxiRoute Route)>>>(() =>
         {
-            _runwayEntryRoutes.Clear();
-            _runwayEntryRoutesLayout = layout;
-        }
+            Task<List<(GroundNode Bar, TaxiRoute Route)>> found = begin(() => FindRunwayEntryRoutes(search, runway));
+            _ = found.ContinueWith(
+                _ =>
+                    cache.Searches.TryRemove(
+                        new KeyValuePair<RunwayEntryRouteKey, Lazy<Task<List<(GroundNode Bar, TaxiRoute Route)>>>>(key, created!)
+                    ),
+                CancellationToken.None,
+                TaskContinuationOptions.OnlyOnFaulted,
+                TaskScheduler.Default
+            );
+            return found;
+        });
+        return cache.Searches.GetOrAdd(key, created).Value;
+    }
 
-        (int, AircraftCategory, WakeTurbulenceData.WakeClass, RunwayIdentifier) key = (start.Id, category, wakeClass, runway);
-        if (_runwayEntryRoutes.TryGetValue(key, out List<(GroundNode Bar, TaxiRoute Route)>? cached))
+    /// <summary>
+    /// <paramref name="runway"/>'s entry routes for <paramref name="search"/>, searched now on the UI thread (or awaited
+    /// there when a background search of the same key is running); a failed search throws.
+    /// </summary>
+    private List<(GroundNode Bar, TaxiRoute Route)> RunwayEntryRoutesNow(TaxiToRunwaySearch search, RunwayIdentifier runway)
+    {
+        ForgetFailedRouteSearch(search, runway);
+        return RunwayEntryRoutes(search, runway, BeginNow).GetAwaiter().GetResult();
+    }
+
+    /// <summary>
+    /// Removes <paramref name="runway"/>'s cached search for <paramref name="search"/> when it has already faulted: its
+    /// remove-on-fault continuation may not have run yet, and the key is searched again rather than answered from it.
+    /// </summary>
+    private void ForgetFailedRouteSearch(TaxiToRunwaySearch search, RunwayIdentifier runway)
+    {
+        RunwayEntryRouteCache cache = RunwayEntryRouteCacheFor(search.Layout);
+        var key = new RunwayEntryRouteKey(search.Start.Id, search.Category, search.WakeClass, runway);
+        if (
+            (cache.Searches.TryGetValue(key, out Lazy<Task<List<(GroundNode Bar, TaxiRoute Route)>>>? entry))
+            && (entry.IsValueCreated)
+            && (entry.Value.IsFaulted)
+        )
         {
-            return cached;
+            cache.Searches.TryRemove(new KeyValuePair<RunwayEntryRouteKey, Lazy<Task<List<(GroundNode Bar, TaxiRoute Route)>>>>(key, entry));
         }
+    }
 
+    /// <summary>Runs <paramref name="find"/> at once, its result or its failure as a completed task.</summary>
+    private static Task<List<(GroundNode Bar, TaxiRoute Route)>> BeginNow(Func<List<(GroundNode Bar, TaxiRoute Route)>> find)
+    {
+        try
+        {
+            return Task.FromResult(find());
+        }
+        catch (Exception ex)
+        {
+            return Task.FromException<List<(GroundNode Bar, TaxiRoute Route)>>(ex);
+        }
+    }
+
+    /// <summary>
+    /// The hold shorts of <paramref name="runway"/> reachable from <paramref name="search"/>'s start, each by its shortest
+    /// route (<see cref="RoutePreference.Shortest"/>), in node order. Reads only <paramref name="search"/>'s layout, start
+    /// node, category and wake class, so it may run on any thread. Left out: the start itself; a hold short on another
+    /// runway's pavement only (<see cref="LiesOnRunwayPavementOnly"/>), which is no entry; a hold short whose route passes
+    /// another hold short of the same runway; and one whose route travels along the runway's own centreline, which crosses
+    /// the runway (7110.65 3-7-2) rather than taxiing to it, as to the bar across the runway from the one the aircraft holds at.
+    /// </summary>
+    private List<(GroundNode Bar, TaxiRoute Route)> FindRunwayEntryRoutes(TaxiToRunwaySearch search, RunwayIdentifier runway)
+    {
+        AirportGroundLayout layout = search.Layout;
+        int startId = search.Start.Id;
         List<(GroundNode Bar, TaxiRoute Route)> routes = [];
         IEnumerable<GroundNode> bars = layout.Nodes.Values.Where(n =>
-            (IsHoldShortOf(n, runway)) && (n.Id != start.Id) && (!LiesOnRunwayPavementOnly(n))
+            (IsHoldShortOf(n, runway)) && (n.Id != startId) && (!LiesOnRunwayPavementOnly(n))
         );
         foreach (GroundNode bar in bars.OrderBy(n => n.Id))
         {
-            TaxiToRunwayRouteSearches++;
+            Interlocked.Increment(ref _taxiToRunwayRouteSearches);
             TaxiRoute? route = TaxiPathfinder
-                .FindRoutes(layout, start.Id, bar.Id, RoutePreference.Shortest, maxRoutes: 1, authorizedTaxiways: null, category, wakeClass)
+                .FindRoutes(
+                    layout,
+                    startId,
+                    bar.Id,
+                    RoutePreference.Shortest,
+                    maxRoutes: 1,
+                    authorizedTaxiways: null,
+                    search.Category,
+                    search.WakeClass
+                )
                 .FirstOrDefault();
             if ((route is { Segments.Count: > 0 }) && (!PassesAnotherHoldShortOf(layout, route, runway)) && (!TravelsOnRunway(route, runway)))
             {
@@ -1655,7 +1925,6 @@ public partial class GroundViewModel : ObservableObject
             }
         }
 
-        _runwayEntryRoutes[key] = routes;
         return routes;
     }
 
