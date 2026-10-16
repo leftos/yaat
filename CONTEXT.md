@@ -332,7 +332,7 @@ An uninstructed runway exit whose own bar is a dead-end fallback inside the hold
 A named exit the arrival can make, as the Exit left / Exit right flyouts list it (`ExitAheadDto`, the `ExitsAhead` field): a taxiway on a side that an `EL <twy>` / `ER <twy>` would be accepted for, with its distance rounded to 100 ft and a flag for the exit it means to take. Computed on the rollout and, as a forecast from the landing threshold, on the last miles of final (docs/landing-and-runway-exit.md).
 
 **Exit capacity segment**:
-The stretch of an exit taxiway between a landing runway's exit hold-short and the parallel runway's hold-short, capped by a sidecar `exitCapacity` rule; when it is full an arrival treats that exit as occupied (`ExitCapacitySegment`, docs/landing-and-runway-exit.md).
+The stretch of an exit taxiway between a landing runway's exit hold-short and the parallel runway's hold-short, capped by a sidecar `exitCapacity` rule; when it is full an arrival treats that exit as occupied (`ExitCapacitySegment`, docs/landing-and-runway-exit.md). A crossover segment is one such stretch shared by both runways' arrivals: either hold-short is an exit bar, and aircraft in both directions count against it.
 
 **Arrival class**:
 The group an arrival falls in for a sidecar `exitDirections` entry's `arrivalClass`: `ga` (a registration callsign, or an operator in the sidecar's `gaOperators`, which also pools it as non-gate for arrival parking) or `cargo` (an operator in the sidecar's `cargoOperators`); cargo is judged first (`ArrivalExitSide.Classify`).

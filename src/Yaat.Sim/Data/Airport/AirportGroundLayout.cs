@@ -2851,18 +2851,14 @@ public sealed class AirportGroundLayout
         List<GroundNode> CrossingPath
     )? FindParallelRunwayCrossing(GroundNode landingHoldShortNode, GroundNode comeFromNode, string exitTaxiwayName, string landingRunwayDesignator)
     {
-        List<GroundNode>? pullUpPath = WalkToParallelNearHoldShort(landingHoldShortNode, comeFromNode.Id, exitTaxiwayName, landingRunwayDesignator);
-        if (pullUpPath is null)
+        if (FindParallelNearHoldShort(landingHoldShortNode, comeFromNode, exitTaxiwayName, landingRunwayDesignator) is not { } near)
         {
             return null;
         }
 
-        GroundNode nearHoldShort = pullUpPath[^1];
-        if (nearHoldShort.RunwayId is not { } nearRunwayId || !IsParallelRunway(landingRunwayDesignator, nearRunwayId))
-        {
-            return null;
-        }
-
+        RunwayIdentifier nearRunwayId = near.ParallelRunwayId;
+        List<GroundNode> pullUpPath = near.Path;
+        GroundNode nearHoldShort = near.NearHoldShort;
         List<GroundNode>? crossingPath = WalkAcrossToFarHoldShort(nearHoldShort, pullUpPath[^2].Id, exitTaxiwayName, nearRunwayId);
         if (crossingPath is null)
         {
@@ -2881,6 +2877,32 @@ public sealed class AirportGroundLayout
         );
 
         return (nearHoldShort, crossingPath[^1], nearRunwayId.ToString(), pullUpPath, crossingPath);
+    }
+
+    /// <summary>
+    /// The pull-up half of <see cref="FindParallelRunwayCrossing"/>: walks <paramref name="exitTaxiwayName"/> forward
+    /// (away from <paramref name="comeFromNode"/>) from <paramref name="landingHoldShortNode"/> to the (anti-)parallel
+    /// runway's near-side hold-short, without requiring the taxiway to carry on across that runway. Returns null at a dead
+    /// end, an intervening taxiway intersection, another landing-runway hold-short, or a runway that is not parallel.
+    /// </summary>
+    /// <param name="landingHoldShortNode">The landing runway's hold-short the walk starts from.</param>
+    /// <param name="comeFromNode">The node behind it (defines "forward").</param>
+    /// <param name="exitTaxiwayName">The taxiway to walk.</param>
+    /// <param name="landingRunwayDesignator">The landing runway (e.g. "28R").</param>
+    public (GroundNode NearHoldShort, RunwayIdentifier ParallelRunwayId, List<GroundNode> Path)? FindParallelNearHoldShort(
+        GroundNode landingHoldShortNode,
+        GroundNode comeFromNode,
+        string exitTaxiwayName,
+        string landingRunwayDesignator
+    )
+    {
+        List<GroundNode>? path = WalkToParallelNearHoldShort(landingHoldShortNode, comeFromNode.Id, exitTaxiwayName, landingRunwayDesignator);
+        if ((path is null) || (path[^1].RunwayId is not { } nearRunwayId) || !IsParallelRunway(landingRunwayDesignator, nearRunwayId))
+        {
+            return null;
+        }
+
+        return (path[^1], nearRunwayId, path);
     }
 
     /// <summary>

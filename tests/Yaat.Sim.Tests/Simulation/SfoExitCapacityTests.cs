@@ -29,12 +29,18 @@ public class SfoExitCapacityTests(ITestOutputHelper output)
     /// <summary>Where an arrival's rollout ended up: the exit bar it last targeted and the phase it left the runway into.</summary>
     private sealed record ExitOutcome(int? ExitBarNodeId, string? FinalPhase);
 
-    private SimulationEngine? BuildEngine()
+    private SimulationEngine BuildEngine() => CreateEngine(output);
+
+    /// <summary>
+    /// A simulation engine at SFO with automatic pull-up to the parallel runway, logging exit-capacity refusals to
+    /// <paramref name="output"/>.
+    /// </summary>
+    internal static SimulationEngine CreateEngine(ITestOutputHelper output)
     {
         TestVnasData.EnsureInitialized();
         if (TestVnasData.NavigationDb is null)
         {
-            return null;
+            Assert.Fail("No navigation database is loaded, so no SFO engine can be built and the test would pass having proved nothing");
         }
 
         SimLogBuilder.CreateForTest(output).EnableCategory("ExitCapacity", LogLevel.Debug).InitializeSimLog();
@@ -59,13 +65,26 @@ public class SfoExitCapacityTests(ITestOutputHelper output)
         return layout;
     }
 
+    /// <summary>
+    /// The shared T crossover segment, seen from 28R: its <see cref="ExitCapacitySegment.ExitBarNodeId"/> is 28R's bar
+    /// and its <see cref="ExitCapacitySegment.ParallelBarNodeId"/> 28L's, and it governs arrivals on both runways.
+    /// </summary>
     private static ExitCapacitySegment Segment28RT(AirportGroundLayout layout) =>
-        Assert.Single(ExitCapacityResolver.GetSegments(layout), s => (s.Rule.Runway == "28R") && (s.Rule.Taxiway == "T"));
+        Assert.Single(
+            ExitCapacityResolver.GetSegments(layout),
+            s => (s.Rule.Taxiway == "T") && (s.Rule.Runway == "28R") && s.AppliesToRunway("28R") && s.AppliesToRunway("28L")
+        );
 
-    /// <summary>An arrival of <paramref name="type"/> on a 1 nm final to SFO 28R, cleared to land.</summary>
-    private static AircraftState AddArrival(SimulationEngine engine, AirportGroundLayout layout, string callsign, string type)
+    /// <summary>An arrival of <paramref name="type"/> on a 1 nm final to SFO <paramref name="runwayDesignator"/>, cleared to land.</summary>
+    internal static AircraftState AddArrival(
+        SimulationEngine engine,
+        AirportGroundLayout layout,
+        string callsign,
+        string type,
+        string runwayDesignator
+    )
     {
-        RunwayInfo? runway = NavigationDatabase.Instance.GetRunway("SFO", "28R");
+        RunwayInfo? runway = NavigationDatabase.Instance.GetRunway("SFO", runwayDesignator);
         Assert.NotNull(runway);
 
         LatLon start = GeoMath.ProjectPoint(new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude), runway.TrueHeading.ToReciprocal(), 1.0);
@@ -102,10 +121,13 @@ public class SfoExitCapacityTests(ITestOutputHelper output)
         return aircraft;
     }
 
-    /// <summary>Lands <paramref name="type"/> on 28R with EXIT T and ticks until it holds short of 28L at the segment's parallel-runway bar.</summary>
+    /// <summary>
+    /// Lands <paramref name="type"/> on 28R with EXIT T and ticks until it holds short of 28L at the segment's
+    /// parallel-runway bar.
+    /// </summary>
     private void LandOccupantOnT(SimulationEngine engine, AirportGroundLayout layout, ExitCapacitySegment segment, string type)
     {
-        AircraftState occupant = AddArrival(engine, layout, "UAL1", type);
+        AircraftState occupant = AddArrival(engine, layout, "UAL1", type, "28R");
         CommandResult exit = engine.SendCommand("UAL1", "EXIT T");
         Assert.True(exit.Success, $"EXIT T failed: {exit.Message}");
 
@@ -145,20 +167,15 @@ public class SfoExitCapacityTests(ITestOutputHelper output)
         return new ExitOutcome(lastTarget, arrival.Phases?.CurrentPhase?.Name);
     }
 
-    private ExitOutcome? RunPair(string occupantType, string arrivalType)
+    private ExitOutcome RunPair(string occupantType, string arrivalType)
     {
-        SimulationEngine? engine = BuildEngine();
-        if (engine is null)
-        {
-            return null;
-        }
-
+        SimulationEngine engine = BuildEngine();
         AirportGroundLayout layout = SfoLayout();
         ExitCapacitySegment segment = Segment28RT(layout);
         output.WriteLine($"28R/T segment: HS #{segment.ExitBarNodeId} → HS #{segment.ParallelBarNodeId} ({segment.ParallelRunwayId})");
 
         LandOccupantOnT(engine, layout, segment, occupantType);
-        AircraftState arrival = AddArrival(engine, layout, "UAL2", arrivalType);
+        AircraftState arrival = AddArrival(engine, layout, "UAL2", arrivalType, "28R");
         return RollOut(engine, arrival);
     }
 
@@ -166,11 +183,7 @@ public class SfoExitCapacityTests(ITestOutputHelper output)
     [Fact]
     public void A321_WithB737HoldingShortOnT_TakesLaterExit()
     {
-        ExitOutcome? outcome = RunPair("B737", "A321");
-        if (outcome is null)
-        {
-            return;
-        }
+        ExitOutcome outcome = RunPair("B737", "A321");
 
         ExitCapacitySegment segment = Segment28RT(SfoLayout());
         Assert.NotNull(outcome.ExitBarNodeId);
@@ -181,11 +194,7 @@ public class SfoExitCapacityTests(ITestOutputHelper output)
     [Fact]
     public void E75L_WithE75LHoldingShortOnT_MayExitOnT()
     {
-        ExitOutcome? outcome = RunPair("E75L", "E75L");
-        if (outcome is null)
-        {
-            return;
-        }
+        ExitOutcome outcome = RunPair("E75L", "E75L");
 
         ExitCapacitySegment segment = Segment28RT(SfoLayout());
         Assert.Equal(segment.ExitBarNodeId, outcome.ExitBarNodeId);
@@ -195,11 +204,7 @@ public class SfoExitCapacityTests(ITestOutputHelper output)
     [Fact]
     public void B737_WithE75LHoldingShortOnT_TakesLaterExit()
     {
-        ExitOutcome? outcome = RunPair("E75L", "B737");
-        if (outcome is null)
-        {
-            return;
-        }
+        ExitOutcome outcome = RunPair("E75L", "B737");
 
         ExitCapacitySegment segment = Segment28RT(SfoLayout());
         Assert.NotNull(outcome.ExitBarNodeId);
@@ -221,12 +226,7 @@ public class SfoExitCapacityTests(ITestOutputHelper output)
 
         using (archive)
         {
-            SimulationEngine? engine = BuildEngine();
-            if (engine is null)
-            {
-                return;
-            }
-
+            SimulationEngine engine = BuildEngine();
             engine.Replay(archive.ToBaseSessionRecording(), 0);
             TimedSnapshot? snapshot = archive.ReadSnapshotAt(ReplayRestoreAt);
             Assert.NotNull(snapshot);
@@ -281,8 +281,24 @@ public class SfoExitCapacityTests(ITestOutputHelper output)
     {
         TestVnasData.EnsureInitialized();
         AirportGroundLayout layout = SfoLayout();
-        var good = new ExitCapacityRule("28R", "T", MaxAircraft: 2, MaxAircraftAboveCwt: 1, CwtThreshold: "G", Notes: null);
-        var bad = new ExitCapacityRule("28R", "ZZ9", MaxAircraft: 2, MaxAircraftAboveCwt: 1, CwtThreshold: "G", Notes: null);
+        var good = new ExitCapacityRule(
+            Runway: "28R",
+            CrossoverRunway: null,
+            Taxiway: "T",
+            MaxAircraft: 2,
+            MaxAircraftAboveCwt: 1,
+            CwtThreshold: "G",
+            Notes: null
+        );
+        var bad = new ExitCapacityRule(
+            Runway: "28R",
+            CrossoverRunway: null,
+            Taxiway: "ZZ9",
+            MaxAircraft: 2,
+            MaxAircraftAboveCwt: 1,
+            CwtThreshold: "G",
+            Notes: null
+        );
 
         var capture = ErrorLogCapture.Install();
         IReadOnlyList<ExitCapacitySegment> segments = ExitCapacityResolver.Resolve(layout, [good, bad]);

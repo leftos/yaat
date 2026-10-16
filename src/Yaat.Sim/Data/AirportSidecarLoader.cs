@@ -393,31 +393,66 @@ public static class AirportSidecarLoader
             string location = $"{filePath}: exitCapacity[{i}]";
             if (ExitCapacityProblem(entry) is { } problem)
             {
-                result.Warnings.Add($"{location} ({entry.Runway} {entry.Taxiway}): {problem}, skipping");
+                result.Warnings.Add($"{location} ({ExitCapacityLabel(entry)}): {problem}, skipping");
                 continue;
             }
 
-            rules.Add(
-                new ExitCapacityRule(
-                    RunwayIdentifier.NormalizeDesignator(entry.Runway.Trim().ToUpperInvariant()),
-                    entry.Taxiway.Trim().ToUpperInvariant(),
-                    entry.MaxAircraft,
-                    entry.MaxAircraftAboveCwt,
-                    entry.CwtThreshold.Trim().ToUpperInvariant(),
-                    entry.Notes
-                )
-            );
+            string threshold = entry.CwtThreshold.Trim().ToUpperInvariant();
+            if (entry.Crossovers.Count == 0)
+            {
+                rules.Add(
+                    new ExitCapacityRule(
+                        Runway: NormalizeExitCapacityRunway(entry.Runway),
+                        CrossoverRunway: null,
+                        Taxiway: entry.Taxiway.Trim().ToUpperInvariant(),
+                        MaxAircraft: entry.MaxAircraft,
+                        MaxAircraftAboveCwt: entry.MaxAircraftAboveCwt,
+                        CwtThreshold: threshold,
+                        Notes: entry.Notes
+                    )
+                );
+                continue;
+            }
+
+            string first = NormalizeExitCapacityRunway(entry.Runways[0]);
+            string second = NormalizeExitCapacityRunway(entry.Runways[1]);
+            foreach (string taxiway in entry.Crossovers)
+            {
+                rules.Add(
+                    new ExitCapacityRule(
+                        Runway: first,
+                        CrossoverRunway: second,
+                        Taxiway: taxiway.Trim().ToUpperInvariant(),
+                        MaxAircraft: entry.MaxAircraft,
+                        MaxAircraftAboveCwt: entry.MaxAircraftAboveCwt,
+                        CwtThreshold: threshold,
+                        Notes: entry.Notes
+                    )
+                );
+            }
         }
 
         return rules;
     }
 
+    private static string NormalizeExitCapacityRunway(string runway) => RunwayIdentifier.NormalizeDesignator(runway.Trim().ToUpperInvariant());
+
+    /// <summary>How a warning names an exit-capacity entry: its runway and taxiway, or its runway pair and crossovers.</summary>
+    private static string ExitCapacityLabel(ExitCapacityEntry entry)
+    {
+        List<string> runways = entry.Runways ?? [];
+        List<string> crossovers = entry.Crossovers ?? [];
+        return ((entry.Runways is null) || (entry.Crossovers is null) || (runways.Count > 0) || (crossovers.Count > 0))
+            ? $"{string.Join("/", runways)} crossovers {string.Join(" ", crossovers)}"
+            : $"{entry.Runway} {entry.Taxiway}";
+    }
+
     /// <summary>What is wrong with an authored exit-capacity entry, or null when it is usable.</summary>
     private static string? ExitCapacityProblem(ExitCapacityEntry entry)
     {
-        if (string.IsNullOrWhiteSpace(entry.Runway) || string.IsNullOrWhiteSpace(entry.Taxiway))
+        if (ExitCapacityFormProblem(entry) is { } formProblem)
         {
-            return "requires both runway and taxiway";
+            return formProblem;
         }
 
         if ((entry.MaxAircraft < 1) || (entry.MaxAircraftAboveCwt < 1))
@@ -432,6 +467,57 @@ public static class AirportSidecarLoader
 
         string threshold = entry.CwtThreshold.Trim().ToUpperInvariant();
         return ((threshold.Length == 1) && (threshold[0] >= 'A') && (threshold[0] <= 'I')) ? null : "cwtThreshold must be one CWT letter A-I";
+    }
+
+    /// <summary>
+    /// What is wrong with the form of an exit-capacity entry, or null: either <c>runway</c> and <c>taxiway</c>, or
+    /// <c>runways</c> (two distinct runway ends) and <c>crossovers</c> (at least one taxiway, none blank or repeated).
+    /// </summary>
+    private static string? ExitCapacityFormProblem(ExitCapacityEntry entry)
+    {
+        // An explicit JSON null replaces the empty-list initializer.
+        if ((entry.Runways is null) || (entry.Crossovers is null))
+        {
+            return "runways and crossovers must be lists, not null";
+        }
+
+        bool oneRunwayForm = !string.IsNullOrWhiteSpace(entry.Runway) || !string.IsNullOrWhiteSpace(entry.Taxiway);
+        bool crossoversForm = (entry.Runways.Count > 0) || (entry.Crossovers.Count > 0);
+        if (oneRunwayForm && crossoversForm)
+        {
+            return "give either runway and taxiway, or runways and crossovers, not both";
+        }
+
+        if (!crossoversForm)
+        {
+            return (string.IsNullOrWhiteSpace(entry.Runway) || string.IsNullOrWhiteSpace(entry.Taxiway)) ? "requires both runway and taxiway" : null;
+        }
+
+        return ExitCapacityCrossoversProblem(entry);
+    }
+
+    /// <summary>What is wrong with a crossovers-form exit-capacity entry's runway pair and taxiway list, or null.</summary>
+    private static string? ExitCapacityCrossoversProblem(ExitCapacityEntry entry)
+    {
+        List<string> runways = [.. entry.Runways.Where(r => !string.IsNullOrWhiteSpace(r)).Select(NormalizeExitCapacityRunway).Distinct()];
+        if ((entry.Runways.Count != 2) || (runways.Count != 2))
+        {
+            return "runways must name exactly two distinct runway ends";
+        }
+
+        if (entry.Crossovers.Count == 0)
+        {
+            return "crossovers must list at least one taxiway";
+        }
+
+        // A JSON null element deserializes as a null string.
+        if (entry.Crossovers.Any(string.IsNullOrWhiteSpace))
+        {
+            return "crossovers must not list a blank taxiway";
+        }
+
+        List<string> taxiways = [.. entry.Crossovers.Select(t => t.Trim().ToUpperInvariant())];
+        return (taxiways.Distinct().Count() == taxiways.Count) ? null : "crossovers must not list a taxiway twice";
     }
 
     private static List<AdwWindow> ParseAdw(AirportSidecarFile file, string filePath, AirportSidecarLoadResult result)

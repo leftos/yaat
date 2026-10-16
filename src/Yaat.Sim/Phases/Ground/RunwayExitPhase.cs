@@ -258,6 +258,7 @@ public sealed class RunwayExitPhase : Phase
                 _exitTaxiway = committed.TaxiwayName;
                 _exitPath = committed.Path;
                 _turnOffDecelRate = CaptureTurnOffRate(committed.SelectionDecelRate, ctx.Category);
+                ctx.JoinExitSegmentOccupants?.Invoke();
 
                 Log.LogDebug(
                     "[Exit] {Callsign}: using committed exit {Twy}, path=[{Path}]",
@@ -851,6 +852,7 @@ public sealed class RunwayExitPhase : Phase
         _exitTaxiway = taxiway;
         _exitPath = path;
         _turnOffDecelRate = null;
+        ctx.JoinExitSegmentOccupants?.Invoke();
 
         Log.LogDebug(
             "[Exit] {Callsign}: found exit {Twy}, angle={Angle:F0}°, path=[{Path}]",
@@ -1155,6 +1157,7 @@ public sealed class RunwayExitPhase : Phase
         _exitTaxiway = found.Value.Taxiway;
         _exitPath = found.Value.Path;
         _turnOffDecelRate = CaptureTurnOffRate(RetargetBrakingLimit(ctx.Category, expedite), ctx.Category);
+        ctx.JoinExitSegmentOccupants?.Invoke();
         return true;
     }
 

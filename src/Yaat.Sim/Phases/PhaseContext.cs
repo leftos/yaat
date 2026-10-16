@@ -188,4 +188,11 @@ public sealed class PhaseContext
     /// in the same tick see it as occupied.
     /// </summary>
     public Action<int>? MarkHoldShortNodeOccupied { get; init; }
+
+    /// <summary>
+    /// Adds the aircraft, which has just committed to a runway exit, to the current tick's occupants of every
+    /// exit-capacity segment that exit enters, so an arrival ticking later in the same tick counts it. Provided by the
+    /// server tick loop.
+    /// </summary>
+    public Action? JoinExitSegmentOccupants { get; init; }
 }

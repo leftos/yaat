@@ -127,8 +127,8 @@
   ],
   "exitCapacity": [
     {
-      "runway": "28R",
-      "taxiway": "T",
+      "runways": ["28R", "28L"],
+      "crossovers": ["Q", "K", "D", "T", "E", "L", "C", "R", "N", "P"],
       "maxAircraft": 2,
       "maxAircraftAboveCwt": 1,
       "cwtThreshold": "G"

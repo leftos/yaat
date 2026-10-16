@@ -149,10 +149,10 @@ Sets the default turn-off side for arrivals on one landing runway end, ahead of 
 
 ### exitCapacity
 
-Limits how many aircraft may stand on an exit taxiway between two parallel runways. When the stretch is full, an arrival treats that exit as occupied and takes the next one. The entry must resolve to exactly one hold-short-to-hold-short stretch on the live map, or it is logged as an error and ignored. Details: [`exitCapacity`](src/Yaat.Sim/Data/ARTCCs/README.md#exitcapacity).
+Limits how many aircraft may stand on an exit taxiway between two parallel runways. When the stretch is full, or too short for the arrival's length plus a stop gap behind the aircraft already on it, an arrival treats that exit as occupied and takes the next one. The `crossovers` form names a runway pair and a list of taxiways; each taxiway is one stretch shared by arrivals on both runways, counting aircraft in both directions. The entry must resolve to exactly one hold-short-to-hold-short stretch on the live map, or it is logged as an error and ignored. Details: [`exitCapacity`](src/Yaat.Sim/Data/ARTCCs/README.md#exitcapacity).
 
 ```json
-"exitCapacity": [ { "runway": "28R", "taxiway": "T", "maxAircraft": 2, "maxAircraftAboveCwt": 1, "cwtThreshold": "G" } ]
+"exitCapacity": [ { "runways": ["28R", "28L"], "crossovers": ["Q", "K", "T"], "maxAircraft": 2, "maxAircraftAboveCwt": 1, "cwtThreshold": "G" } ]
 ```
 
 ### movementAreaTaxiways and nonMovementTaxilanes

@@ -381,24 +381,29 @@ SFO sets 28R GA and cargo arrivals to exit right. West-field cargo plots (2, 6, 
 
 ### `exitCapacity`
 
-How many aircraft may stand at once on an exit taxiway between two parallel runways: the stretch of `taxiway` from `runway`'s exit hold-short to the parallel runway's hold-short reached along it. When that stretch is full, an arrival on `runway` treats the exit as occupied and takes the next one. The behaviour, and what counts as an occupant, is in [`docs/landing-and-runway-exit.md`](../../../../docs/landing-and-runway-exit.md#exit-capacity-between-parallel-runways).
+How many aircraft may stand at once on an exit taxiway between two parallel runways: the stretch of the taxiway from one runway's exit hold-short to the parallel runway's hold-short reached along it. When that stretch is full, an arrival treats the exit as occupied and takes the next one. The behaviour, and what counts as an occupant, is in [`docs/landing-and-runway-exit.md`](../../../../docs/landing-and-runway-exit.md#exit-capacity-between-parallel-runways).
+
+An entry takes one of two forms. The one-runway form (`runway` and `taxiway`) governs arrivals on that runway only. The crossovers form (`runways` and `crossovers`) governs each listed taxiway as one stretch shared by arrivals on both runways: every ground aircraft on it counts, whichever direction it travels and whichever form's rule is in force.
 
 ```json
 "exitCapacity": [
-  { "runway": "28R", "taxiway": "T", "maxAircraft": 2, "maxAircraftAboveCwt": 1, "cwtThreshold": "G" }
+  { "runway": "28R", "taxiway": "T", "maxAircraft": 2, "maxAircraftAboveCwt": 1, "cwtThreshold": "G" },
+  { "runways": ["28R", "28L"], "crossovers": ["Q", "K", "D"], "maxAircraft": 2, "maxAircraftAboveCwt": 1, "cwtThreshold": "G" }
 ]
 ```
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `exitCapacity[].runway` | string | Yes | Landing runway end the rule governs, e.g. `"28R"`. Zero-pad-normalized at load |
-| `exitCapacity[].taxiway` | string | Yes | Exit taxiway that leads from `runway`'s hold-short to the parallel runway's |
+| `exitCapacity[].runway` | string | One-runway form | Landing runway end the rule governs, e.g. `"28R"`. Zero-pad-normalized at load |
+| `exitCapacity[].taxiway` | string | One-runway form | Exit taxiway that leads from `runway`'s hold-short to the parallel runway's |
+| `exitCapacity[].runways` | string[] | Crossovers form | The two parallel runway ends the crossovers join, e.g. `["28R", "28L"]`. Exactly two, distinct after normalization |
+| `exitCapacity[].crossovers` | string[] | Crossovers form | Taxiways that each run as one shared stretch from one runway's hold-short to the other's. At least one; none blank, none repeated. Each is a rule of its own with the limits below |
 | `exitCapacity[].maxAircraft` | int | Yes | Capacity while the arrival and every occupant are at or below `cwtThreshold`. At least 1 |
 | `exitCapacity[].maxAircraftAboveCwt` | int | Yes | Capacity once any of them is above `cwtThreshold` or has no known CWT. At least 1, and no more than `maxAircraft` |
 | `exitCapacity[].cwtThreshold` | string | Yes | One CWT letter `A`–`I` (A heaviest, I lightest); a letter at or after it counts as at or below the threshold |
 | `exitCapacity[].notes` | string | No | Facility rationale. Informational only |
 
-An entry that fails any of the checks above is skipped with a warning at load. An entry that loads but does not resolve on the airport's live layout to exactly one hold-short-to-hold-short stretch logs an Error and is ignored for that layout, so exits there behave as if it were absent; `ExitCapacitySidecarTests` fails on such an entry. Worked example: [`ZOA/Airports/sfo.json`](ZOA/Airports/sfo.json).
+An entry that fails any of the checks above is skipped with a warning at load, as is one that gives both forms (`runway` or `taxiway` together with `runways` or `crossovers`), a `null` for `runways` or `crossovers`, or a crossovers entry with a blank or repeated taxiway, a null taxiway, or other than two distinct runways. An entry that loads but does not resolve on the airport's live layout to exactly one hold-short-to-hold-short stretch logs an Error and is ignored for that layout, so exits there behave as if it were absent; a crossover must resolve to the same pair of bars when walked from each runway's side, or only that taxiway is ignored; `ExitCapacitySidecarTests` fails on such an entry. Worked example: [`ZOA/Airports/sfo.json`](ZOA/Airports/sfo.json).
 
 ### `blockedTurns`
 
