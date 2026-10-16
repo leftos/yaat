@@ -581,6 +581,9 @@ What a pointed or focused Give way to… / Follow… row draws on the ground vie
 **Strip flyout**:
 The flyout a quick-command strip button opens, holding the items moved out of that command's menu item (`QuickCommandStrip`); items that follow live data stay current in it through `IStripFlyoutContent`.
 
+**Tab strip**:
+The row of tabs at the top of a designed flyout, each a runway or group, with a state beside its label: nothing when its rows are known, a spinner while they are searched, a dimmed `none` when there are none (`FlyoutTabStrip`, `FlyoutTabState`); the arrow keys move between tabs without wrapping.
+
 **View section**:
 The few canvas-only items a view adds to the shared aircraft menu, which the builder places after Squawk and before Favorite Commands (the radar's Display and Draw route, the ground's Display; the aircraft list has none); they have no catalog entry and never sit on a quick-command list.
 
