@@ -1956,7 +1956,19 @@ public record FacilityVideoMapsDto(
     List<MapGroupDto> MapGroups
 );
 
-public record WeatherChangedDto(string? Name, List<WindLayerDto>? WindLayers, string? Precipitation, List<string>? Metars, string? SourceJson);
+/// <summary>
+/// The room's active weather. <see cref="WindGridCycleUtc"/> and <see cref="WindGridForecastHours"/> are the GFS run and forecast
+/// hour of the wind grid the weather flies on, both null when it names no registered grid.
+/// </summary>
+public record WeatherChangedDto(
+    string? Name,
+    List<WindLayerDto>? WindLayers,
+    string? Precipitation,
+    List<string>? Metars,
+    string? SourceJson,
+    DateTime? WindGridCycleUtc,
+    int? WindGridForecastHours
+);
 
 public record WindLayerDto(int Altitude, int Direction, int Speed, int? Gusts);
 

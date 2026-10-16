@@ -1474,7 +1474,7 @@ Timers count in **sim time** — they pause when the sim is paused and run faste
 
 Select a profile and click **Load** (or double-click). Weather is room-level and persists across scenario loads/unloads. Both API and local weather profiles appear in **Scenario > Load Recent Weather**.
 
-The active weather name is shown in the terminal when weather is loaded or cleared.
+The active weather name is shown in the [METAR window](#viewing-metars) header, and the status bar reports each load. Clearing weather reports `Weather cleared` in the status bar.
 
 **Speed note:** Speed commands (`SPD`, `CM`, `DM`) assign [IAS](#glossary) (indicated airspeed). Aircraft ground speed — visible on the radar scope and aircraft grid — is derived from IAS + wind at altitude. Aircraft flying into a headwind show a lower ground speed than their assigned IAS. Aircraft on the ground are unaffected by wind.
 
@@ -1486,6 +1486,17 @@ The text is selectable so you can copy it; pop the tab out via **View > Windows 
 
 ![The METAR window showing the default KOAK report for the loaded scenario](docs/user-guide/img/metar-window.png)
 
+The header shows the weather's name and, under it, a **Winds aloft:** line saying where the winds above the surface come from:
+
+- `Winds aloft: NOAA GFS 12Z 16 Oct, +4 h forecast` — a GFS grid: the forecast run (UTC) and the forecast hour the grid was fetched for. The hour does not advance as the session runs.
+- `Winds aloft: FAA FD forecast` — the FD winds aloft layers. For the client that loaded the weather, a failed grid adds the reason: `Winds aloft: FAA FD forecast · GFS unavailable (NOMADS request failed)`.
+- `Winds aloft: none · METAR surface winds only` — live weather where the FD winds could not be fetched either.
+- `Winds aloft: NOAA GFS 12Z 16 Oct, +4 h forecast · saved file` — weather loaded from a saved file that carried its grid; `Winds aloft: FAA FD forecast · GFS grid not in the saved file` when the file's grid is missing or damaged.
+- `Winds aloft: scenario weather` — winds authored in the scenario or a weather file.
+- `... · recorded` — a replay of a recording, flying the grid the recording carries.
+
+Everyone in the room sees the grid's line, including a client that joins later and a replay; only the client that loaded the weather sees the reason a grid failed. The line is hidden when no weather is loaded.
+
 The weather readout at the top-left of each **Ground View** shows the wind and altimeter of the airport that view depicts; each **Radar View** lists the stations of its position's airports. When the loaded weather has no METAR for those airports, the readout says so (`No METAR for SFO`) rather than showing another airport's weather.
 
 For loaded weather profiles and timelines, the METARs are **reconstructed from the live simulated conditions** and re-issued like real observations: a routine METAR each hour at **:53Z**, plus an off-cycle **SPECI** whenever the wind, visibility, ceiling, or precipitation changes significantly (a basic subset of the real FAA SPECI criteria).
@@ -1496,15 +1507,15 @@ The reported observation reflects the conditions at the moment it was issued and
 
 ### Loading Live Weather
 
-**Scenario > Load Live Weather** fetches real-world METARs and winds aloft from aviationweather.gov. Requires a room, an ARTCC ID, and navdata. Navdata loads in the background at startup — the menu item stays disabled until it finishes, and the status bar reports when it is ready. The airports fetched are the underlying airports of every STARS facility in your ARTCC's vNAS configuration; the status bar reports the outcome of each fetch.
+**Scenario > Load Live Weather** fetches real-world METARs and winds aloft from aviationweather.gov. Requires a room, an ARTCC ID, and navdata. Navdata loads in the background at startup — the menu item stays disabled until it finishes, and the status bar reports when it is ready. The airports fetched are the underlying airports of every STARS facility in your ARTCC's vNAS configuration; when the load finishes the status bar reports the result, for example `Loaded: Live Weather (15:52Z) · winds aloft: NOAA GFS 12Z 16 Oct, +4 h forecast`.
 
 Live weather builds wind layers from FAA Winds and Temperatures Aloft (FD) data at standard levels (3000–39000 ft) and a surface layer averaged from METARs. Wind directions are converted from true to magnetic heading automatically.
 
-Load Live Weather also downloads a NOAA GFS wind grid (0.25° forecast, newest posted cycle, the forecast hour nearest now) covering your ARTCC from NOMADS and sends it to the room, so winds aloft vary across the ARTCC instead of being one set of layers. The status bar shows the download while it runs. If the grid cannot be had (NOMADS down or slow, no cycle posted, the ARTCC box too large, or the server refusing the grid), the weather still loads with the FD winds aloft and a warning appears in the terminal giving the reason, for example `Live weather: GFS winds unavailable — no GFS cycle posted; using FD winds aloft only.`
+Load Live Weather also downloads a NOAA GFS wind grid (0.25° forecast, newest posted cycle, the forecast hour nearest now) covering your ARTCC from NOMADS and sends it to the room, so winds aloft vary across the ARTCC instead of being one set of layers. The status bar shows the download while it runs, and the METAR window's **Winds aloft:** line names the grid's run afterwards (see [Viewing METARs](#viewing-metars)). If the grid cannot be had (NOMADS down or slow, no cycle posted, the ARTCC box too large, or the server refusing the grid), the weather still loads with the FD winds aloft and a warning appears in the terminal giving the reason, for example `Live weather: GFS winds unavailable — no GFS cycle posted; using FD winds aloft only.` If the FD winds aloft cannot be fetched either, the weather loads with METAR surface winds only and the terminal says `Live weather: FD winds aloft unavailable; METAR surface winds only.`
 
 **Clear weather:** **Scenario > Clear Weather** removes the active weather profile. All aircraft return to IAS = GS behavior.
 
-**Save weather:** **Scenario > Save Weather As...** exports the active weather profile to a JSON file. Live weather saved this way carries its GFS wind grid inside the file, so loading it later sends the same grid to the room and the same winds come back on any server. A file whose grid is missing or damaged loads on its FD winds aloft with the same warning (`grid not in the saved file`).
+**Save weather:** **Scenario > Save Weather As...** exports the active weather profile to a JSON file. Live weather saved this way carries its GFS wind grid inside the file, so loading it later sends the same grid to the room and the same winds come back on any server. A file whose grid is missing or damaged loads on its FD winds aloft with the same warning (`grid not in the saved file`). Loading a saved file that carries a grid reports `Weather loaded: <name> · winds aloft: NOAA GFS 12Z 16 Oct, +4 h forecast (saved file)` in the status bar.
 
 ### Weather Editor
 

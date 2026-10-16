@@ -7,10 +7,21 @@
 >
   <DockPanel>
     <Border DockPanel.Dock="Top" Padding="8,5" Background="#0AFFFFFF" BorderBrush="#1AFFFFFF" BorderThickness="0,0,0,1">
-      <StackPanel Orientation="Horizontal" Spacing="8">
+      <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto" ColumnSpacing="8">
         <TextBlock Text="METAR" FontWeight="SemiBold" VerticalAlignment="Center" />
-        <TextBlock Text="{Binding ActiveWeatherName}" Foreground="{DynamicResource SubtleTextBrush}" VerticalAlignment="Center" />
-      </StackPanel>
+        <TextBlock Grid.Column="1" Text="{Binding ActiveWeatherName}" Foreground="{DynamicResource SubtleTextBrush}" VerticalAlignment="Center" />
+        <TextBlock
+          Name="WindsAloftLineText"
+          Grid.Row="1"
+          Grid.Column="1"
+          Margin="0,1,0,0"
+          Text="{Binding WindsAloftLine}"
+          FontSize="{DynamicResource UiFontSizeSubtle}"
+          Foreground="{DynamicResource SubtleTextBrush}"
+          TextWrapping="Wrap"
+          IsVisible="{Binding WindsAloftLine, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+        />
+      </Grid>
     </Border>
 
     <TextBlock

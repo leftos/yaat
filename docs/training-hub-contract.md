@@ -242,7 +242,7 @@ payload DTO → the `ServerConnection` C# event it re-raises:
 | `CrcLobbyChanged` | `CrcLobbyChangedDto` | `CrcLobbyChanged` |
 | `RpoLobbyChanged` | `RpoLobbyChangedDto` | `RpoLobbyChanged` (waiting non-mentor RPOs + kicked users pending re-admit) |
 | `CrcRoomMembersChanged` | `CrcRoomMembersChangedDto` | `CrcRoomMembersChanged` |
-| `WeatherChanged` | `WeatherChangedDto` | `WeatherChanged` |
+| `WeatherChanged` | `WeatherChangedDto` (`Name`, `WindLayers`, `Precipitation`, `Metars`, `SourceJson`, then `WindGridCycleUtc` and `WindGridForecastHours`: the GFS run and forecast hour of the grid the weather flies on, read from the registered `GriddedWindField`, both null when it names none) | `WeatherChanged` — a load's own broadcast carries that load's weather JSON in `SourceJson` (`RoomEngine` sets `WeatherSourceJson` before broadcasting); the client keys the METAR header's winds-aloft line on it |
 | `ArrivalGeneratorsChanged` | `ArrivalGeneratorsChangedDto` | `ArrivalGeneratorsChanged` |
 | `HeldDeparturesChanged` | `HeldDeparturesChangedDto` (carries `RundownDto`) | `HeldDeparturesChanged` |
 | `ActiveRunwaysChanged` | `ActiveRunwaysChangedDto(ByAirport)` — airport → the ends' tokens (`30`, `D28L`, `A28R`) | `ActiveRunwaysChanged` — sent when a live `ARWY` sets or clears an airport's list, and whenever the list differs from the last one sent: each tick beside the timers (a played-back `ARWY`), and at the landing of a scenario load, restart, rewind or recording load. Seeded on join via `RoomStateDto.ActiveRunways` |

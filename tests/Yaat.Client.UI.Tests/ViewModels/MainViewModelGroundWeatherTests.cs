@@ -27,7 +27,7 @@ public class MainViewModelGroundWeatherTests
     {
         var vm = new MainViewModel(new FakeFilePickerService());
 
-        vm.ApplyWeatherChanged(new WeatherChangedDto("Live Weather", null, null, [AunMetar, SfoMetar], null));
+        vm.ApplyWeatherChanged(new WeatherChangedDto("Live Weather", null, null, [AunMetar, SfoMetar], null, null, null));
         vm.Ground.SetLayoutForTesting(new GroundLayoutDto("SFO", [], [], null, null, null));
 
         Assert.Equal("SFO", vm.Ground.WeatherInfo?.StationId);
@@ -39,7 +39,7 @@ public class MainViewModelGroundWeatherTests
         var vm = new MainViewModel(new FakeFilePickerService());
 
         vm.Ground.SetLayoutForTesting(new GroundLayoutDto("SFO", [], [], null, null, null));
-        vm.ApplyWeatherChanged(new WeatherChangedDto("Live Weather", null, null, [AunMetar, SfoMetar], null));
+        vm.ApplyWeatherChanged(new WeatherChangedDto("Live Weather", null, null, [AunMetar, SfoMetar], null, null, null));
 
         Assert.Equal("SFO", vm.Ground.WeatherInfo?.StationId);
     }
@@ -49,7 +49,7 @@ public class MainViewModelGroundWeatherTests
     {
         var vm = new MainViewModel(new FakeFilePickerService());
 
-        vm.ApplyWeatherChanged(new WeatherChangedDto("Live Weather", null, null, [OakMetar], null));
+        vm.ApplyWeatherChanged(new WeatherChangedDto("Live Weather", null, null, [OakMetar], null, null, null));
         vm.Ground.SetLayoutForTesting(new GroundLayoutDto("SFO", [], [], null, null, null));
 
         Assert.Null(vm.Ground.WeatherInfo);
@@ -61,7 +61,7 @@ public class MainViewModelGroundWeatherTests
     {
         var vm = new MainViewModel(new FakeFilePickerService());
 
-        vm.ApplyWeatherChanged(new WeatherChangedDto("Live Weather", null, null, [OakMetar, SfoMetar], null));
+        vm.ApplyWeatherChanged(new WeatherChangedDto("Live Weather", null, null, [OakMetar, SfoMetar], null, null, null));
         vm.Ground.SetLayoutForTesting(new GroundLayoutDto("SFO", [], [], null, null, null));
 
         Assert.Equal("SFO", vm.Ground.WeatherInfo?.StationId);
@@ -73,7 +73,7 @@ public class MainViewModelGroundWeatherTests
     {
         var vm = new MainViewModel(new FakeFilePickerService());
 
-        vm.ApplyWeatherChanged(new WeatherChangedDto("Live Weather", null, null, [HnlMetar], null));
+        vm.ApplyWeatherChanged(new WeatherChangedDto("Live Weather", null, null, [HnlMetar], null, null, null));
         vm.Ground.SetLayoutForTesting(new GroundLayoutDto("HNL", [], [], null, null, null));
 
         Assert.Equal("HNL", vm.Ground.WeatherInfo?.StationId);
@@ -85,7 +85,7 @@ public class MainViewModelGroundWeatherTests
     {
         var vm = new MainViewModel(new FakeFilePickerService());
 
-        vm.ApplyWeatherChanged(new WeatherChangedDto("Live Weather", null, null, [SfoMetar], null));
+        vm.ApplyWeatherChanged(new WeatherChangedDto("Live Weather", null, null, [SfoMetar], null, null, null));
 
         vm.Ground.SetLayoutForTesting(new GroundLayoutDto("SFO", [], [], null, null, null));
         Assert.Equal("SFO", vm.Ground.WeatherInfo?.StationId);
@@ -154,7 +154,7 @@ public class MainViewModelGroundWeatherTests
         try
         {
             vm.Ground.SetLayoutForTesting(new GroundLayoutDto("SFO", [], [], null, null, null));
-            vm.ApplyWeatherChanged(new WeatherChangedDto("Live Weather", null, null, [SfoMetar], null));
+            vm.ApplyWeatherChanged(new WeatherChangedDto("Live Weather", null, null, [SfoMetar], null, null, null));
             Assert.Equal("SFO", vm.Ground.WeatherInfo?.StationId);
 
             GroundViewInstance extra = vm.OpenExtraGroundView("OAK");
@@ -181,7 +181,7 @@ public class MainViewModelGroundWeatherTests
         var vm = new MainViewModel(new FakeFilePickerService());
 
         vm.Radar.ApplyPositionDisplayConfig(new PositionDisplayConfigDto([], [], ["SFO", "OAK"], "SFO"));
-        vm.ApplyWeatherChanged(new WeatherChangedDto("Live Weather", null, null, [AunMetar], null));
+        vm.ApplyWeatherChanged(new WeatherChangedDto("Live Weather", null, null, [AunMetar], null, null, null));
 
         Assert.NotNull(vm.Radar.WeatherInfo);
         Assert.Empty(vm.Radar.WeatherInfo);
@@ -194,7 +194,7 @@ public class MainViewModelGroundWeatherTests
         var vm = new MainViewModel(new FakeFilePickerService());
 
         vm.Radar.ApplyPositionDisplayConfig(new PositionDisplayConfigDto([], [], ["HNL"], "HNL"));
-        vm.ApplyWeatherChanged(new WeatherChangedDto("Live Weather", null, null, [HnlMetar], null));
+        vm.ApplyWeatherChanged(new WeatherChangedDto("Live Weather", null, null, [HnlMetar], null, null, null));
 
         Assert.Equal("HNL", Assert.Single(vm.Radar.WeatherInfo!).StationId);
         Assert.Null(vm.Radar.WeatherNote);
@@ -205,7 +205,7 @@ public class MainViewModelGroundWeatherTests
     {
         var vm = new MainViewModel(new FakeFilePickerService());
 
-        vm.ApplyWeatherChanged(new WeatherChangedDto("Live Weather", null, null, [AunMetar, SfoMetar], null));
+        vm.ApplyWeatherChanged(new WeatherChangedDto("Live Weather", null, null, [AunMetar, SfoMetar], null, null, null));
 
         Assert.Equal(2, vm.Radar.WeatherInfo?.Count);
         Assert.Null(vm.Radar.WeatherNote);
@@ -217,7 +217,7 @@ public class MainViewModelGroundWeatherTests
         var vm = new MainViewModel(new FakeFilePickerService());
 
         // Weather first: with no position filter every station shows and no note is owed.
-        vm.ApplyWeatherChanged(new WeatherChangedDto("Live Weather", null, null, [AunMetar], null));
+        vm.ApplyWeatherChanged(new WeatherChangedDto("Live Weather", null, null, [AunMetar], null, null, null));
         Assert.Equal(1, vm.Radar.WeatherInfo?.Count);
         Assert.Null(vm.Radar.WeatherNote);
 
@@ -244,7 +244,7 @@ public class MainViewModelGroundWeatherTests
         vm.Radar.ApplyPositionDisplayConfig(new PositionDisplayConfigDto([], [], ["SFO"], "SFO"));
         // A loaded profile, JSON and all: that is what keeps the synthetic defaults (which would otherwise
         // rebuild the readout on unload) out of the picture and leaves the stale note the only thing to clear.
-        vm.ApplyWeatherChanged(new WeatherChangedDto("Live Weather", null, null, [AunMetar], "{\"name\":\"Live Weather\"}"));
+        vm.ApplyWeatherChanged(new WeatherChangedDto("Live Weather", null, null, [AunMetar], "{\"name\":\"Live Weather\"}", null, null));
         Assert.Equal("No METAR for SFO", vm.Radar.WeatherNote);
 
         // Unloading the scenario clears the maps, and with them the position's airport filter — the note

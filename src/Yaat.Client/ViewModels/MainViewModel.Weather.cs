@@ -10,11 +10,155 @@ using Yaat.Sim.Weather;
 
 namespace Yaat.Client.ViewModels;
 
-/// <summary>A GFS wind grid the active weather names: its raw GRIB2 bytes and the hash the server stored them under.</summary>
-public sealed record ActiveWindGrid(byte[] Grib2, string Hash);
+/// <summary>
+/// A GFS wind grid the active weather names: its raw GRIB2 bytes, the hash the server stored them under, and its run (cycle and
+/// forecast hour).
+/// </summary>
+public sealed record ActiveWindGrid(byte[] Grib2, string Hash, DateTime CycleUtc, int ForecastHours)
+{
+    /// <summary>
+    /// A grid whose run is read from its own bytes: the first message's reference time and forecast hour (every message of one
+    /// fetch shares them).
+    /// </summary>
+    /// <exception cref="Grib2FormatException">The bytes are not decodable GRIB2.</exception>
+    public static ActiveWindGrid FromGrib2(byte[] grib2, string hash)
+    {
+        Grib2Message run = Grib2Reader.Read(grib2)[0];
+        return new ActiveWindGrid(grib2, hash, run.ReferenceTimeUtc, run.ForecastHours);
+    }
+}
 
-/// <summary>Weather JSON ready for <c>LoadWeather</c>, with the grid it names, if any.</summary>
-public sealed record PreparedWeather(string Json, ActiveWindGrid? WindGrid);
+/// <summary>
+/// The grid a weather load names, or the reason (a <see cref="GfsGridFetcher"/> or <see cref="SavedWeatherGrid"/> constant, or the
+/// server's refusal) it names none; both null when the weather was never to carry one.
+/// </summary>
+public sealed record WindGridOutcome(ActiveWindGrid? Grid, string? FailureReason)
+{
+    public static readonly WindGridOutcome None = new(null, null);
+}
+
+/// <summary>Weather JSON ready for <c>LoadWeather</c>, with the grid it names or why it names none.</summary>
+public sealed record PreparedWeather(string Json, WindGridOutcome WindGrid);
+
+/// <summary>
+/// What a weather load says about its winds aloft: the METAR header's source line, the status bar's final message, and the
+/// terminal warning it owes, if any.
+/// </summary>
+public sealed record WindsAloftReport(string Line, string Status, string? Warning);
+
+/// <summary>
+/// The METAR header's "Winds aloft:" line and the status bar's final message for each state a weather loads in. The loader knows
+/// why a grid is missing; every other member, a rejoin and a replay see only the room's weather (<see cref="ForRoomWeather"/>).
+/// </summary>
+public static class WindsAloftSource
+{
+    private const string FdLine = "Winds aloft: FAA FD forecast";
+    private const string MetarOnlyLine = "Winds aloft: none · METAR surface winds only";
+    private const string ScenarioLine = "Winds aloft: scenario weather";
+
+    /// <summary>
+    /// A live load, as the loader sees it: the grid, the FD fallback with its reason, or METAR surface winds only (with
+    /// <see cref="GfsGridFetcher.FdUnavailableWarning"/>).
+    /// </summary>
+    public static WindsAloftReport ForLiveLoad(WeatherProfile profile, WindGridOutcome outcome)
+    {
+        string name = profile.Name;
+        if (outcome.Grid is { } grid)
+        {
+            string label = GfsGridFetcher.SourceLabel(grid.CycleUtc, grid.ForecastHours);
+            return new WindsAloftReport($"Winds aloft: {label}", $"Loaded: {name} · winds aloft: {label}", null);
+        }
+
+        if (!HasFdLayers(profile))
+        {
+            return new WindsAloftReport(
+                MetarOnlyLine,
+                $"Loaded: {name} · no winds aloft, METAR surface winds only",
+                GfsGridFetcher.FdUnavailableWarning
+            );
+        }
+
+        return outcome.FailureReason is { } reason
+            ? new WindsAloftReport($"{FdLine} · GFS unavailable ({reason})", $"Loaded: {name} · winds aloft: FAA FD (GFS unavailable)", null)
+            : new WindsAloftReport(FdLine, $"Loaded: {name} · winds aloft: FAA FD", null);
+    }
+
+    /// <summary>
+    /// A saved or API weather load, as the loader sees it: the file's grid, or the FD fallback and why. Null when the weather never
+    /// named a grid, so the room's weather sets the line and the load keeps its usual status.
+    /// </summary>
+    public static WindsAloftReport? ForSavedLoad(string name, WindGridOutcome outcome)
+    {
+        if (outcome.Grid is { } grid)
+        {
+            string label = GfsGridFetcher.SourceLabel(grid.CycleUtc, grid.ForecastHours);
+            return new WindsAloftReport($"Winds aloft: {label} · saved file", $"Weather loaded: {name} · winds aloft: {label} (saved file)", null);
+        }
+
+        return outcome.FailureReason switch
+        {
+            null => null,
+            SavedWeatherGrid.NotInSavedFile => new WindsAloftReport(
+                $"{FdLine} · GFS grid not in the saved file",
+                $"Weather loaded: {name} · winds aloft: FAA FD (GFS grid not in the saved file)",
+                null
+            ),
+            { } reason => new WindsAloftReport(
+                $"{FdLine} · GFS unavailable ({reason})",
+                $"Weather loaded: {name} · winds aloft: FAA FD (GFS unavailable)",
+                null
+            ),
+        };
+    }
+
+    /// <summary>
+    /// The line for the room's weather as every member sees it: the grid's run when the server names one ("· recorded" in a
+    /// replay), else by the weather's shape. Weather shaped like live weather (<see cref="IsLiveShaped"/>) flies the FD forecast,
+    /// or METAR surface winds alone without layers above it; any other weather is authored scenario weather. Null when the room
+    /// has no weather.
+    /// </summary>
+    public static string? ForRoomWeather(WeatherChangedDto dto, bool playback)
+    {
+        if (dto.Name is null)
+        {
+            return null;
+        }
+
+        if ((dto.WindGridCycleUtc is { } cycleUtc) && (dto.WindGridForecastHours is { } forecastHours))
+        {
+            string line = $"Winds aloft: {GfsGridFetcher.SourceLabel(cycleUtc, forecastHours)}";
+            return playback ? $"{line} · recorded" : line;
+        }
+
+        if (!IsLiveShaped(dto))
+        {
+            return ScenarioLine;
+        }
+
+        return (dto.WindLayers is { } layers) && layers.Any(l => l.Altitude > 0) ? FdLine : MetarOnlyLine;
+    }
+
+    /// <summary>
+    /// True for room weather shaped like live weather: METARs, and a first wind layer at 0 ft. The DTO keeps the profile's layer
+    /// order, so this is the rule <see cref="WindGridRegistry.IsLiveWeather"/> applies to decide which weather may carry a grid.
+    /// </summary>
+    public static bool IsLiveShaped(WeatherChangedDto dto) => (dto.Metars is { Count: > 0 }) && (dto.WindLayers is [{ Altitude: 0 }, ..]);
+
+    /// <summary>The weather's own name, from the top-level <c>name</c> of its JSON (a profile or a timeline); null without one.</summary>
+    public static string? NameOf(string weatherJson)
+    {
+        using var doc = JsonDocument.Parse(weatherJson);
+        return
+            (doc.RootElement.ValueKind == JsonValueKind.Object)
+            && doc.RootElement.TryGetProperty("name", out JsonElement name)
+            && (name.ValueKind == JsonValueKind.String)
+            ? name.GetString()
+            : null;
+    }
+
+    /// <summary>True when <paramref name="profile"/> has wind layers above the METAR surface layer: the FD winds aloft.</summary>
+    public static bool HasFdLayers(WeatherProfile profile) => profile.WindLayers.Any(l => l.Altitude > 0);
+}
 
 /// <summary>One airport's raw METAR string, as broadcast for the currently active weather.</summary>
 public record MetarEntry(string? StationId, string Raw, bool IsFavorite, bool CanFavorite);
@@ -85,6 +229,23 @@ public partial class MainViewModel
     private ActiveWindGrid? _activeWindGrid;
     private IReadOnlyList<WeatherDisplayInfo>? _allWeatherInfo;
     private IReadOnlyList<string>? _lastPopulatedMetars;
+    private string? _windsAloftLine;
+
+    // The weather (JSON and name) this client's own load report describes: the room's echo of that same weather knows less (no
+    // GFS failure reason, no saved-file origin), so it leaves the loader's line in place.
+    private (string Json, string? Name)? _loadedWindsAloft;
+
+    // The room's last weather broadcast, re-read when playback starts or ends (the "· recorded" suffix follows it).
+    private WeatherChangedDto? _lastRoomWeather;
+
+    /// <summary>
+    /// Where the active weather's winds aloft come from, shown under the weather name in the METAR header; null without weather.
+    /// </summary>
+    public string? WindsAloftLine
+    {
+        get => _windsAloftLine;
+        private set => SetProperty(ref _windsAloftLine, value);
+    }
 
     /// <summary>Raw METAR strings for the active weather, one per airport, shown in the METAR window.</summary>
     public ObservableCollection<MetarEntry> Metars { get; } = [];
@@ -119,10 +280,10 @@ public partial class MainViewModel
 
             if (result.Success)
             {
-                StatusText = result.Message ?? "Weather loaded";
                 string name = Path.GetFileNameWithoutExtension(filePath);
                 _preferences.AddRecentWeather(filePath, name);
-                SetActiveWeatherJson(prepared.Json, prepared.WindGrid);
+                SetActiveWeatherJson(prepared.Json, prepared.WindGrid.Grid);
+                ReportSavedWindsAloft(prepared, name, result.Message ?? "Weather loaded");
             }
             else
             {
@@ -150,12 +311,12 @@ public partial class MainViewModel
 
             if (result.Success)
             {
-                StatusText = result.Message ?? $"Weather loaded: {displayName}";
                 if (apiId is not null)
                 {
                     _preferences.AddRecentWeather("", displayName, apiId);
                 }
-                SetActiveWeatherJson(prepared.Json, prepared.WindGrid);
+                SetActiveWeatherJson(prepared.Json, prepared.WindGrid.Grid);
+                ReportSavedWindsAloft(prepared, displayName, result.Message ?? $"Weather loaded: {displayName}");
             }
             else
             {
@@ -199,7 +360,13 @@ public partial class MainViewModel
                 AddWarningEntry("Live weather: METARs unavailable — winds aloft only. Altimeter and surface wind will use defaults.");
             }
 
-            ActiveWindGrid? windGrid = await AwaitLiveWindGridAsync(profile, gridTask, nowUtc);
+            WindGridOutcome windGrid = await AwaitLiveWindGridAsync(profile, gridTask, nowUtc);
+            WindsAloftReport report = WindsAloftSource.ForLiveLoad(profile, windGrid);
+            if (report.Warning is { } warning)
+            {
+                _log.LogWarning("{Warning}", warning);
+                AddWarningEntry(warning);
+            }
 
             string json = JsonSerializer.Serialize(profile);
             // Live-fetched real METARs are left untouched (no dynamic reconstruction).
@@ -207,8 +374,8 @@ public partial class MainViewModel
 
             if (result.Success)
             {
-                StatusText = result.Message ?? $"Loaded: {profile.Name}";
-                SetActiveWeatherJson(json, windGrid);
+                SetActiveWeatherJson(json, windGrid.Grid);
+                ApplyLoadedWindsAloft(json, report);
             }
             else
             {
@@ -271,7 +438,7 @@ public partial class MainViewModel
     /// Awaits the grid fetch (showing the GFS status line while it is still running) and, for live-shaped weather, uploads it and
     /// names it on <paramref name="profile"/>. Other weather drops the bytes without a warning.
     /// </summary>
-    private async Task<ActiveWindGrid?> AwaitLiveWindGridAsync(WeatherProfile profile, Task<GfsGridFetchResult> gridTask, DateTime nowUtc)
+    private async Task<WindGridOutcome> AwaitLiveWindGridAsync(WeatherProfile profile, Task<GfsGridFetchResult> gridTask, DateTime nowUtc)
     {
         if (!gridTask.IsCompleted)
         {
@@ -280,28 +447,35 @@ public partial class MainViewModel
         }
 
         GfsGridFetchResult grid = await gridTask;
-        return WindGridRegistry.IsLiveWeather(profile) ? await AttachLiveWindGridAsync(profile, grid) : null;
+        return WindGridRegistry.IsLiveWeather(profile) ? await AttachLiveWindGridAsync(profile, grid) : WindGridOutcome.None;
     }
 
     /// <summary>
-    /// Uploads the fetched grid and names it on <paramref name="profile"/>; null (after the GFS warning) when there is none to name.
+    /// Uploads the fetched grid and names it on <paramref name="profile"/>; the reason (after the GFS warning) when there is none
+    /// to name.
     /// </summary>
-    private async Task<ActiveWindGrid?> AttachLiveWindGridAsync(WeatherProfile profile, GfsGridFetchResult grid)
+    private async Task<WindGridOutcome> AttachLiveWindGridAsync(WeatherProfile profile, GfsGridFetchResult grid)
     {
         if (grid.Grib2 is not { } grib2)
         {
-            WarnGfsUnavailable(grid.FailureReason ?? throw new InvalidOperationException("GFS grid fetch returned neither a grid nor a reason"));
-            return null;
+            string reason = grid.FailureReason ?? throw new InvalidOperationException("GFS grid fetch returned neither a grid nor a reason");
+            WarnGfsUnavailable(reason);
+            return new WindGridOutcome(null, reason);
         }
 
-        string? hash = await UploadWindGridAsync(grib2);
+        if ((grid.CycleUtc is not { } cycleUtc) || (grid.ForecastHour is not { } forecastHour))
+        {
+            throw new InvalidOperationException("GFS grid fetch returned a grid without its cycle and forecast hour");
+        }
+
+        (string? hash, string? refusal) = await UploadWindGridAsync(grib2);
         if (hash is null)
         {
-            return null;
+            return new WindGridOutcome(null, refusal);
         }
 
         profile.WindGridHash = hash;
-        return new ActiveWindGrid(grib2, hash);
+        return new WindGridOutcome(new ActiveWindGrid(grib2, hash, cycleUtc, forecastHour), null);
     }
 
     /// <summary>
@@ -315,18 +489,18 @@ public partial class MainViewModel
         if (extract.GridMissing)
         {
             WarnGfsUnavailable(SavedWeatherGrid.NotInSavedFile);
-            return new PreparedWeather(extract.Json, null);
+            return new PreparedWeather(extract.Json, new WindGridOutcome(null, SavedWeatherGrid.NotInSavedFile));
         }
 
         if (extract.Grib2 is not { } grib2)
         {
-            return new PreparedWeather(extract.Json, null);
+            return new PreparedWeather(extract.Json, WindGridOutcome.None);
         }
 
-        string? hash = await UploadWindGridAsync(grib2);
+        (string? hash, string? refusal) = await UploadWindGridAsync(grib2);
         if (hash is null)
         {
-            return new PreparedWeather(SavedWeatherGrid.WithHash(extract.Json, null), null);
+            return new PreparedWeather(SavedWeatherGrid.WithHash(extract.Json, null), new WindGridOutcome(null, refusal));
         }
 
         string? savedHash = SavedWeatherGrid.NamedHash(extract.Json);
@@ -339,16 +513,19 @@ public partial class MainViewModel
             );
         }
 
-        return new PreparedWeather(SavedWeatherGrid.WithHash(extract.Json, hash), new ActiveWindGrid(grib2, hash));
+        // The server decoded these bytes to accept them, so the run is read from the same decode.
+        return new PreparedWeather(SavedWeatherGrid.WithHash(extract.Json, hash), new WindGridOutcome(ActiveWindGrid.FromGrib2(grib2, hash), null));
     }
 
-    /// <summary>Uploads a grid within the client cap; returns the server's hash, or null after the GFS warning.</summary>
-    private async Task<string?> UploadWindGridAsync(byte[] grib2)
+    /// <summary>
+    /// Uploads a grid within the client cap; returns the server's hash, or no hash and the reason after the GFS warning.
+    /// </summary>
+    private async Task<(string? Hash, string? Refusal)> UploadWindGridAsync(byte[] grib2)
     {
         if (grib2.Length > GfsGridFetcher.MaxWindGridUploadBytes)
         {
             WarnGfsUnavailable(GfsGridFetcher.OverUploadLimit);
-            return null;
+            return (null, GfsGridFetcher.OverUploadLimit);
         }
 
         string hash;
@@ -358,8 +535,9 @@ public partial class MainViewModel
         }
         catch (HubException ex)
         {
-            WarnGfsUnavailable(GfsGridFetcher.RefusalReason(ex.Message));
-            return null;
+            string refusal = GfsGridFetcher.RefusalReason(ex.Message);
+            WarnGfsUnavailable(refusal);
+            return (null, refusal);
         }
 
         string localHash = WindGridRegistry.HashOf(grib2);
@@ -368,7 +546,7 @@ public partial class MainViewModel
             _log.LogWarning("GFS wind grid hashed {LocalHash} here but the server returned {Hash}; using the server's", localHash, hash);
         }
 
-        return hash;
+        return (hash, null);
     }
 
     private void WarnGfsUnavailable(string reason)
@@ -376,6 +554,63 @@ public partial class MainViewModel
         string warning = GfsGridFetcher.WarningText(reason);
         _log.LogWarning("{Warning}", warning);
         AddWarningEntry(warning);
+    }
+
+    /// <summary>
+    /// Shows this client's own load report: the METAR header line, kept over the room's echo of <paramref name="json"/>, and the
+    /// status bar's final message.
+    /// </summary>
+    internal void ApplyLoadedWindsAloft(string json, WindsAloftReport report)
+    {
+        _loadedWindsAloft = (json, WindsAloftSource.NameOf(json));
+        WindsAloftLine = report.Line;
+        StatusText = report.Status;
+    }
+
+    /// <summary>
+    /// A saved or API load's report when it named a grid; otherwise its usual status, the room's weather setting the line. The
+    /// name shown is the weather's own (<see cref="WindsAloftSource.NameOf"/>), else <paramref name="fallbackName"/> — the file's
+    /// stem, or the caller's display name.
+    /// </summary>
+    internal void ReportSavedWindsAloft(PreparedWeather prepared, string fallbackName, string usualStatus)
+    {
+        string name = WindsAloftSource.NameOf(prepared.Json) ?? fallbackName;
+        if (WindsAloftSource.ForSavedLoad(name, prepared.WindGrid) is { } report)
+        {
+            ApplyLoadedWindsAloft(prepared.Json, report);
+        }
+        else
+        {
+            StatusText = usualStatus;
+        }
+    }
+
+    /// <summary>Sets the winds-aloft line from the room's weather, unless it is the weather this client's own report describes.</summary>
+    private void ApplyRoomWindsAloft(WeatherChangedDto dto)
+    {
+        _lastRoomWeather = dto;
+        bool loadersOwn =
+            !IsPlaybackMode
+            && (_loadedWindsAloft is { } loaded)
+            && (dto.Name is not null)
+            && string.Equals(dto.Name, loaded.Name, StringComparison.Ordinal)
+            && string.Equals(dto.SourceJson, loaded.Json, StringComparison.Ordinal);
+        if (loadersOwn)
+        {
+            return;
+        }
+
+        _loadedWindsAloft = null;
+        WindsAloftLine = WindsAloftSource.ForRoomWeather(dto, IsPlaybackMode);
+    }
+
+    // Take Control and Go Live end playback with a SimState alone, no WeatherChanged: the line is re-read from the last broadcast.
+    partial void OnIsPlaybackModeChanged(bool value)
+    {
+        if (_lastRoomWeather is { } dto)
+        {
+            ApplyRoomWindsAloft(dto);
+        }
     }
 
     private bool CanLoadLiveWeather() =>
@@ -453,6 +688,7 @@ public partial class MainViewModel
     internal void ApplyWeatherChanged(WeatherChangedDto dto)
     {
         ActiveWeatherName = dto.Name;
+        ApplyRoomWindsAloft(dto);
 
         if (dto.Name is null)
         {

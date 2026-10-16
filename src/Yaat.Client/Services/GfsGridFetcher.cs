@@ -70,6 +70,16 @@ public sealed class GfsGridFetcher(HttpMessageHandler handler, TimeSpan requestT
     /// <summary>The terminal warning (and log line) for a live weather load that flies the FD layers because the grid could not be had.</summary>
     public static string WarningText(string reason) => $"Live weather: GFS winds unavailable — {reason}; using FD winds aloft only.";
 
+    /// <summary>The terminal warning (and log line) for a live weather load with neither the grid nor FD winds aloft.</summary>
+    public const string FdUnavailableWarning = "Live weather: FD winds aloft unavailable; METAR surface winds only.";
+
+    /// <summary>
+    /// A grid's attribution, e.g. "NOAA GFS 12Z 16 Oct, +4 h forecast": the run's cycle hour and date in UTC, and the forecast
+    /// hour the grid was fetched for.
+    /// </summary>
+    public static string SourceLabel(DateTime cycleUtc, int forecastHours) =>
+        string.Create(CultureInfo.InvariantCulture, $"NOAA GFS {cycleUtc:HH}Z {cycleUtc:d MMM}, +{forecastHours} h forecast");
+
     /// <summary>The status line while the grid downloads.</summary>
     public static string FetchingStatus(DateTime cycleUtc, int forecastHour) => $"Fetching GFS winds aloft ({cycleUtc:HH}Z f{forecastHour:D3})...";
 

@@ -352,7 +352,7 @@ assembles one `WeatherProfile`:
 
 ### GFS grid fetch and upload
 
-`MainViewModel.LoadLiveWeatherAsync` starts `GfsGridFetcher.FetchAsync(artccId, nowUtc, …)` before `BuildLiveWeatherAsync` and awaits it after, so the NOMADS GET runs beside the AWC calls (cancelled, and its outcome logged, when there is no weather to go with it). The status line reads "Fetching GFS winds aloft (HHZ fFFF)..." while it is still running.
+`MainViewModel.LoadLiveWeatherAsync` starts `GfsGridFetcher.FetchAsync(artccId, nowUtc, …)` before `BuildLiveWeatherAsync` and awaits it after, so the NOMADS GET runs beside the AWC calls (cancelled, and its outcome logged, when there is no weather to go with it). The status line reads "Fetching GFS winds aloft (HHZ fFFF)..." only if the grid is still running after the AWC build, and shows the predicted newest cycle, not one a 404 step-back later settles on.
 
 - **Request**: the NOMADS GRIB filter (`filter_gfs_0p25.pl`) for UGRD, VGRD and TMP on the 20 isobaric levels `Grib2Reader` expects, over the ARTCC boundary's extremes (`ArtccBoundaryDatabase.Default.FindById`) plus `GfsGridFetcher.BoxMarginDeg` (1.5°), at least 2° × 2°, rounded outward to whole degrees, longitudes in the grid's 0–360 convention.
 - **Cycle**: `NewestCycle` is the latest 00/06/12/18Z cycle at least 3.5 h old; the forecast hour is the one nearest now, clamped to 0..120. A 404 means not posted yet and steps back 6 h (`StepBack`), three cycles in all; any other status, timeout or connection error ends the fetch as `RequestFailed`. Each GET and its body read share the 20 s request timeout.
@@ -360,6 +360,26 @@ assembles one `WeatherProfile`:
 - **Upload**: only a live-shaped profile (`WindGridRegistry.IsLiveWeather`) uses the grid. `ServerConnection.UploadWindGridAsync` sends the bytes, the returned hash goes to `profile.WindGridHash`, and the usual `LoadWeather` follows (the hub consumes the pending upload). The client compares the returned hash with `WindGridRegistry.HashOf` and logs a mismatch, using the server's.
 - **Failure**: every failure (no boundary, box too large, no cycle posted, request failed, over the upload limit, a `HubException` refusal whose server text becomes the reason) leaves `WindGridHash` null and the weather loads on the FD layers, with one terminal warning from `GfsGridFetcher.WarningText`: "Live weather: GFS winds unavailable — {reason}; using FD winds aloft only."
 - **Saved files**: `MainViewModel` keeps the uploaded bytes beside the active weather JSON (`ActiveWindGrid`). Save Weather writes them through `SavedWeatherGrid.Embed` as a base64 `windGridGrib2` beside `windGridHash`. Loading a file or API weather runs `PrepareSavedWeatherAsync`: `SavedWeatherGrid.Extract` pulls the bytes out (the JSON sent never carries them), they are re-uploaded, and the server's hash replaces the file's. A file naming a hash with no usable bytes has the hash stripped and warns with the reason `grid not in the saved file`. A room weather echo keeps the held bytes only while it names the same hash.
+
+### Winds-aloft source line
+
+`MainViewModel.WindsAloftLine` is the METAR header's second line (`MetarView.axaml`, under the weather name, hidden when null), and a load's final status-bar message says the same. The wording lives in `WindsAloftSource` (`MainViewModel.Weather.cs`); the grid's attribution is `GfsGridFetcher.SourceLabel`: `NOAA GFS 12Z 16 Oct, +4 h forecast` (cycle in UTC, day without a leading zero, the forecast hour the grid was fetched for; it does not advance with sim time). `{name}` is the weather's own name.
+
+| State | Header line | Status bar |
+|---|---|---|
+| Live, grid loaded | `Winds aloft: {GRID}` | `Loaded: {name} · winds aloft: {GRID}` |
+| Live, GFS failed, FD loaded | `Winds aloft: FAA FD forecast · GFS unavailable ({reason})` | `Loaded: {name} · winds aloft: FAA FD (GFS unavailable)` |
+| Live, FD failed too | `Winds aloft: none · METAR surface winds only` | `Loaded: {name} · no winds aloft, METAR surface winds only` |
+| Saved or API file with a grid | `Winds aloft: {GRID} · saved file` | `Weather loaded: {name} · winds aloft: {GRID} (saved file)` |
+| Saved file, grid missing | `Winds aloft: FAA FD forecast · GFS grid not in the saved file` | `Weather loaded: {name} · winds aloft: FAA FD (GFS grid not in the saved file)` |
+| Scenario weather | `Winds aloft: scenario weather` | the scenario load's message |
+| Replay | `Winds aloft: {GRID} · recorded` | none |
+
+- **Two sources of the line**: the loader's own report (`ForLiveLoad`, `ForSavedLoad`, applied by `ApplyLoadedWindsAloft`) knows the GFS failure reason and the saved-file origin. Every other member, a rejoin and a replay get the line from the room's weather alone (`ForRoomWeather`): the grid's run from `WeatherChangedDto.WindGridCycleUtc` and `WindGridForecastHours`, else by shape. Live-shaped weather (`IsLiveShaped`: METARs and a first wind layer at 0 ft, the `WindGridRegistry.IsLiveWeather` rule) shows `Winds aloft: FAA FD forecast` with layers above the surface and the METAR-only line without; any other weather shows the scenario line.
+- **The loader keeps its line** over the room's echo of that same load: the echo is matched on name and `SourceJson`, which the server sets to the load's own JSON before broadcasting. Any later weather replaces it. A saved load that names no grid keeps its usual status and the room's weather sets the line.
+- **Playback**: the `· recorded` suffix follows `IsPlaybackMode`; the line is re-read from the last room weather when playback ends.
+- **Warnings**: a live load with neither the grid nor FD layers also adds one terminal warning, `GfsGridFetcher.FdUnavailableWarning` ("Live weather: FD winds aloft unavailable; METAR surface winds only."), from the report's `Warning`. The GFS-failure warning above is unchanged.
+- **Cleared weather** clears the line.
 
 ## Direction & units convention cheat-sheet
 
@@ -403,6 +423,10 @@ The behaviors above already have regression coverage — find the right harness 
 | `tests/Yaat.Client.Tests/LiveWeatherServiceTests.cs`, `LiveWeatherRealDataTests.cs` | live fetch assembly, FD→magnetic conversion, surface-wind layer. |
 | `tests/Yaat.Client.Tests/GfsGridFetcherTests.cs` | the NOMADS URL against the sample's, cycle choice and step-back across midnight, forecast-hour rounding and clamps, the ZOA box, the 180° and size-estimate refusals, and `FetchAsync` over a stub handler (404 step-back, server error, over-cap body, stalled and reset bodies, unknown ARTCC, ZAN with no request). |
 | `tests/Yaat.Client.Tests/SavedWeatherGridTests.cs` | `SavedWeatherGrid` embed/extract round trip, a hash without bytes or corrupt base64 stripping the hash, `NamedHash`/`NamesGrid`/`WithHash`, and the weather editor dropping both grid fields. |
+| `tests/Yaat.Client.Tests/WindsAloftSourceTests.cs` | `WindsAloftSource` and `GfsGridFetcher.SourceLabel`: the header line, status text and warning for each state (grid, FD fallback with reason, METAR only, saved file with and without its grid, the room's weather and playback), the live-shape rule, and the run read from the committed `gfs-zoa-sample.grib2`. |
+| `tests/Yaat.Client.UI.Tests/ViewModels/MainViewModelWindsAloftLineTests.cs` | `WindsAloftLine` follows `WeatherChanged` (another member's grid, replay suffix, cleared weather), the loader's report outlives its own echo and is replaced by any later weather, and the METAR header shows the line and hides it when empty. |
+| `tests/Yaat.Server.Tests/WeatherLoadEchoTests.cs` (yaat-server) | a profile or timeline load's own `WeatherChanged` carries that load's `SourceJson`. |
+| `tests/Yaat.Server.Tests/WeatherSeedOnJoinTests.cs` (yaat-server) | the join seed and `BroadcastWeatherChanged` carry the grid's `WindGridCycleUtc` and `WindGridForecastHours`, and nulls for weather without a grid. |
 | `tests/Yaat.Client.Tests/ArtccAirportResolverTests.cs` | underlying-airport extraction from the real ZOA data-api config (facility-tree recursion, dedup). |
 
 ## Footguns
