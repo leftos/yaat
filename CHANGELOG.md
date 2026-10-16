@@ -23,6 +23,7 @@
 - Instructions queued to run later (`JRADO`, `JRADI`, `DEPART`, an airway intercept) survive a rewind or a restored session instead of silently vanishing.
 - A ground follower whose route meets its leader head-on waits short of the merge for the leader to pass instead of driving into it.
 - `FOLLOWG` given to an aircraft already ahead of its leader on the leader's route is refused.
+- A `FOLLOWG` follower behind a lead holding to depart holds short of that runway for departure, not as a crossing, and taxis on to the bar once the lead rolls.
 - An aircraft crossing a runway behind stopped traffic brakes at its normal taxi rate, hard only when it must, instead of stopping abruptly.
 - An aircraft cleared across a runway holds short when the far side has no room, says "holding short of runway X, traffic ahead", and goes once room opens.
 - A `TAXI` re-route given while an aircraft is crossing a runway keeps the crossing cleared, so it finishes crossing instead of holding inside the bars.

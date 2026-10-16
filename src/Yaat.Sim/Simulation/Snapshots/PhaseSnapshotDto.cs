@@ -778,6 +778,24 @@ public sealed class FollowingPhaseDto : PhaseDto
     public double? LatchedBarApproachDeg { get; init; }
 
     /// <summary>
+    /// The hold-short node of the lead's departure bar (<c>FollowingPhase.LeadDeparture</c>). Null until the follow has seen
+    /// one, and in snapshots written before the field existed.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? LeadDepartureBarNodeId { get; init; }
+
+    /// <summary>The runway end the lead departs on from that bar ("30"); null with no <see cref="LeadDepartureBarNodeId"/>.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? LeadDepartureRunwayEnd { get; init; }
+
+    /// <summary>
+    /// Whether the follow has seen its lead departing (<c>FollowingPhase.LeadSeenDeparting</c>): a lead deleted after that still
+    /// counts as departed. False in snapshots written before the field existed.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool LeadSeenDeparting { get; init; }
+
+    /// <summary>
     /// Whether the follower waits for its lead at each cleared runway bar judged in the phase's current whole second
     /// (<see cref="LeadWaitSecond"/>), by hold-short node id (<c>FollowingPhase</c>'s wait verdicts, held for the rest of that
     /// second). Null with none judged, and in snapshots written before the field existed.

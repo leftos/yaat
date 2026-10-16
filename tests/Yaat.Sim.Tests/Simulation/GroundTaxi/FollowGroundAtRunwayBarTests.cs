@@ -156,6 +156,7 @@ public class FollowGroundAtRunwayBarTests(ITestOutputHelper output)
         output.WriteLine($"held at t={held}s short of {departureBar.HoldShort.TargetName} ({departureBar.HoldShort.Reason})");
         Assert.True(SfoGroundHarness.HoldShortMatches(departureBar.HoldShort, "28L"), $"held short of {departureBar.HoldShort.TargetName}, not 28L");
         Assert.Equal(HoldShortReason.DestinationRunway, departureBar.HoldShort.Reason);
+        Assert.Equal("28L", departureBar.HoldShort.TargetName);
 
         CommandResult follow = ground.Engine.SendCommand(Follower, $"FOLLOWG {Leader}");
         output.WriteLine($"FOLLOWG {Leader} at the 28L bar -> success={follow.Success} msg={follow.Message}");

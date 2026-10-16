@@ -5718,8 +5718,12 @@ public static partial class GroundCommandHandler
             crossing = CrossingRunwayPhase.OverOwnPath(holdPhase.HoldShort.NodeId, found.ExitNodeId, runwayId.ToString(), found.Route);
         }
 
+        // Cleared across at the lead's departure bar itself, the follower crosses there rather than departs: the latch goes.
+        bool crossingAtLeadBar = armedFollow.LeadDeparture?.NodeId == holdPhase.HoldShort.NodeId;
         var follow = new FollowingPhase(armedFollow.TargetCallsign)
         {
+            LeadDeparture = crossingAtLeadBar ? null : armedFollow.LeadDeparture,
+            LeadSeenDeparting = !crossingAtLeadBar && armedFollow.LeadSeenDeparting,
             // A CROSS list may name taxiways too (CROSS 1L B); only the runways bind the follow's hold-short check.
             CrossingClearedRunways =
             [

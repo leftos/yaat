@@ -1,8 +1,11 @@
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Airport.Pathfinding;
 using Yaat.Sim.Data.Faa;
+using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
 using static Yaat.Sim.Data.Airport.RunwayHoldBars;
@@ -205,7 +208,46 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
     /// </summary>
     private (int NodeA, int NodeB)? _taxiEdgeNodeIds;
 
+    /// <summary>
+    /// The lead's departure bar (<see cref="LeadDepartureBar"/>), read from the lead each tick it is on the ground
+    /// (<see cref="RefreshLeadDepartureBar"/>) and kept once it has departed. Null until one is seen. Snapshotted.
+    /// </summary>
+    private LeadDepartureBar? _leadDepartureBar;
+
+    /// <summary>
+    /// Whether this follow has seen its lead departing (<see cref="NoteLeadSeenDeparting"/>): a lead deleted after that still
+    /// counts as departed, so the follower taxis on to its departure bar. Snapshotted.
+    /// </summary>
+    private bool _leadSeenDeparting;
+
     public string TargetCallsign => _targetCallsign;
+
+    /// <summary>
+    /// Whether this follow has seen its lead departing; a follow inserted behind a hold the follow took, or rebuilt by a crossing
+    /// clearance there, carries it over.
+    /// </summary>
+    public bool LeadSeenDeparting
+    {
+        get => _leadSeenDeparting;
+        init => _leadSeenDeparting = value;
+    }
+
+    /// <summary>
+    /// The runway bar the lead departs from: its hold-short node, and the runway end it departs on as a pilot names it ("30"),
+    /// never the bar's combined runway id. A follower with no departure runway of its own whose flight plan departs this
+    /// airport holds at that bar as a departure hold for that end (<see cref="DepartureEndAt"/>): it is no runway assignment.
+    /// </summary>
+    public sealed record LeadDepartureBar(int NodeId, string RunwayEnd);
+
+    /// <summary>
+    /// The lead's departure bar this follow knows of; a follow inserted behind a hold the follow took carries it over. Null
+    /// until one is seen.
+    /// </summary>
+    public LeadDepartureBar? LeadDeparture
+    {
+        get => _leadDepartureBar;
+        init => _leadDepartureBar = value;
+    }
 
     private IReadOnlyList<RunwayIdentifier> _crossingClearedRunways = [];
     private bool _hasBeenOnClearedRunway;
@@ -294,6 +336,7 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
         ExpireUsedCrossingClearance(ctx);
         TrackExitingRunways(ctx);
         RefreshCurrentTaxiway(ctx);
+        RefreshLeadDepartureBar(ctx);
         if (CheckRunwayHoldShort(ctx, out SpeedCap? barCap))
         {
             return true;
@@ -305,7 +348,7 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
         }
 
         AircraftState? target = ctx.AircraftLookup?.Invoke(_targetCallsign);
-        if ((target is null) || !target.IsOnGround)
+        if ((target is null) || !target.IsOnGround || IsRollingForTakeoffFromKnownBar(ctx, target))
         {
             return TickLeadGone(ctx, target, barCap);
         }
@@ -651,15 +694,24 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
     }
 
     /// <summary>
-    /// The lead is deleted or no longer on the ground: the follow route is dropped, and a follower on a runway or inside its hold
-    /// line first drives its clearing route off it and, once clear, brakes along that route to rest
-    /// (<see cref="DriveClearingRoute"/>). On a taxiway with an assigned route left, a <see cref="TaxiingPhase"/> takes over on the
-    /// rest of it (<see cref="ResumeAssignedRoute"/>). Otherwise it brakes to a stop where it is (<see cref="HoldInPosition"/>),
-    /// and at rest (<see cref="IsAtRest"/>) a <see cref="HoldingInPositionPhase"/> takes over, so the aircraft stays in a state
-    /// that accepts commands. True when the follow completes.
+    /// The lead is deleted or no longer on the ground, or rolling for takeoff from its known departure bar
+    /// (<see cref="IsRollingForTakeoffFromKnownBar"/>). A follower whose lead departed, with no route of its own left, that takes
+    /// the lead's departure bar as its own (<see cref="TakesLeadDepartureBar"/>) taxis on to that bar
+    /// (<see cref="TaxiOnToLeadDepartureBar"/>), where its bar scan stops it as a departure hold. Otherwise the follow route is
+    /// dropped, and a follower on a runway or inside its hold line first drives its clearing route off it and, once clear, brakes
+    /// along that route to rest (<see cref="DriveClearingRoute"/>). On a taxiway with an assigned route left, a
+    /// <see cref="TaxiingPhase"/> takes over on the rest of it (<see cref="ResumeAssignedRoute"/>). Otherwise it brakes to a stop
+    /// where it is (<see cref="HoldInPosition"/>), and at rest (<see cref="IsAtRest"/>) a <see cref="HoldingInPositionPhase"/>
+    /// takes over, so the aircraft stays in a state that accepts commands. True when the follow completes.
     /// </summary>
     private bool TickLeadGone(PhaseContext ctx, AircraftState? lead, SpeedCap? barCap)
     {
+        NoteLeadSeenDeparting(lead);
+        if (_leadSeenDeparting && TaxiOnToLeadDepartureBar(ctx, lead, barCap))
+        {
+            return false;
+        }
+
         if (_followRoute is not null)
         {
             DropFollowRoute();
@@ -683,16 +735,165 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
             return false;
         }
 
-        Log.LogDebug(
-            "[Follow] {Callsign}: target {Target} {Reason}; stopped",
-            ctx.Aircraft.Callsign,
-            _targetCallsign,
-            lead is null ? "not found" : "no longer on ground"
-        );
+        Log.LogDebug("[Follow] {Callsign}: target {Target} {Reason}; stopped", ctx.Aircraft.Callsign, _targetCallsign, LeadGoneReason(lead));
         ctx.Aircraft.IndicatedAirspeed = 0;
         ctx.Targets.TargetSpeed = 0;
         ctx.Aircraft.Phases?.InsertAfterCurrent(new HoldingInPositionPhase());
         return true;
+    }
+
+    /// <summary>What the lead-gone logs say became of the lead: not found, departing (still on the ground, rolling), or airborne.</summary>
+    private static string LeadGoneReason(AircraftState? lead) =>
+        lead is null ? "not found"
+        : lead.IsOnGround ? "departing"
+        : "no longer on ground";
+
+    /// <summary>
+    /// Records that the lead was seen departing (<see cref="_leadSeenDeparting"/>): it is present, has left the ground or is
+    /// rolling for takeoff (the caller's lead-gone test), and its departure bar is known. A lead later deleted still counts as
+    /// departed; one deleted on the ground never sets it.
+    /// </summary>
+    private void NoteLeadSeenDeparting(AircraftState? lead)
+    {
+        if ((lead is not null) && (_leadDepartureBar is not null))
+        {
+            _leadSeenDeparting = true;
+        }
+    }
+
+    /// <summary>
+    /// The lead has departed: a follower with no route of its own left, not clearing or braking along a lost route, that takes the
+    /// lead's departure bar as its own (<see cref="CanTaxiOnToLeadBar"/>), drives on to the bar along the lead's path
+    /// (<see cref="EnsureRouteToBar"/>), stopping at every bar on the way it has no crossing for and at that bar
+    /// (<see cref="CheckRunwayHoldShort"/>). True while it drives on; false when it does not, or has no way to the bar, which
+    /// leaves the lead-gone stop to the caller.
+    /// </summary>
+    private bool TaxiOnToLeadDepartureBar(PhaseContext ctx, AircraftState? lead, SpeedCap? barCap)
+    {
+        if (!CanTaxiOnToLeadBar(ctx, out AirportGroundLayout? layout, out GroundNode? bar) || !EnsureRouteToBar(ctx, layout, bar, lead))
+        {
+            return false;
+        }
+
+        if (!TickFollowNavigator(ctx, null))
+        {
+            return false;
+        }
+
+        ApplyCap(ctx, RouteEndStopCap(ctx));
+        ApplyCap(ctx, barCap);
+        return true;
+    }
+
+    /// <summary>
+    /// Whether the follower may taxi on to the lead's departure bar: it drives no other route (<see cref="IsDrivingAnotherRoute"/>),
+    /// the bar is known and on the layout, and the follower takes it as its own (<see cref="TakesLeadDepartureBar"/>).
+    /// </summary>
+    private bool CanTaxiOnToLeadBar(PhaseContext ctx, [NotNullWhen(true)] out AirportGroundLayout? layout, [NotNullWhen(true)] out GroundNode? bar)
+    {
+        layout = ctx.GroundLayout;
+        bar = null;
+        if (IsDrivingAnotherRoute(ctx) || (layout is null) || (_leadDepartureBar is not { } latch))
+        {
+            return false;
+        }
+
+        return layout.Nodes.TryGetValue(latch.NodeId, out bar) && TakesLeadDepartureBar(ctx, latch.NodeId);
+    }
+
+    /// <summary>Whether the follower is clearing a runway, braking along a lost route, or has an assigned route of its own left.</summary>
+    private bool IsDrivingAnotherRoute(PhaseContext ctx) =>
+        _brakingLostRoute || (_clearingRoute is not null) || (ctx.Aircraft.Ground.AssignedTaxiRoute is { IsComplete: false });
+
+    /// <summary>
+    /// Keeps a follow route whose rest still reaches <paramref name="bar"/>; otherwise installs, as the follow route driven from
+    /// its first segment by a fresh navigator, the way onto the lead's path to the bar (<see cref="AlongLeadPathTo"/>), else the
+    /// auto route from where the follower stands (<see cref="AutoRouteTo"/>). False with neither.
+    /// </summary>
+    private bool EnsureRouteToBar(PhaseContext ctx, AirportGroundLayout layout, GroundNode bar, AircraftState? lead)
+    {
+        if ((_followRoute is { IsComplete: false } route) && IsOnRestOfRoute(route, bar.Id))
+        {
+            return true;
+        }
+
+        if ((AlongLeadPathTo(ctx, layout, bar, lead) ?? AutoRouteTo(ctx, layout, bar)) is not { } toBar)
+        {
+            return false;
+        }
+
+        Log.LogDebug(
+            "[Follow] {Callsign}: {Target} departed; taxiing on to its departure bar at node {Node}: {Route}",
+            ctx.Aircraft.Callsign,
+            _targetCallsign,
+            bar.Id,
+            toBar.ToSummary()
+        );
+        _nav = new GroundNavigator();
+        SetFollowRoute(toBar, toBar.Segments.Count, null, givingWay: false);
+        return true;
+    }
+
+    /// <summary>
+    /// The lead's path to <paramref name="bar"/> from where the follower stands: the lead's driven route (<see cref="DrivenRouteOf"/>)
+    /// up to the bar, joined at its nearest node the follower reaches without turning about (<see cref="ReanchoredRoute"/>). Null
+    /// with no lead, no route of the lead's that reaches the bar, or no way onto it.
+    /// </summary>
+    private TaxiRoute? AlongLeadPathTo(PhaseContext ctx, AirportGroundLayout layout, GroundNode bar, AircraftState? lead)
+    {
+        if ((lead is null) || (DrivenRouteOf(lead) is not { } leadRoute))
+        {
+            return null;
+        }
+
+        List<TaxiRouteSegment> segments = [.. leadRoute.Segments];
+        int barIndex = segments.FindIndex(s => s.ToNodeId == bar.Id);
+        if (barIndex < 0)
+        {
+            return null;
+        }
+
+        var leadPath = new TaxiRoute { Segments = segments[..(barIndex + 1)], HoldShortPoints = [] };
+        return FollowRoutePlanner.RouteOnto(layout, ctx.Aircraft, ReanchorGoals(leadPath), GroundTraffic(ctx)) is { } onto
+            ? ReanchoredRoute(leadPath, onto)
+            : null;
+    }
+
+    /// <summary>
+    /// The auto route from where the follower stands to <paramref name="bar"/> (<see cref="FollowRoutePlanner.RouteOnto"/>), for a
+    /// follower with no lead's path to take, under the runway guards a resumed assigned route has (<see cref="ResumeAssignedRoute"/>):
+    /// never for an unjoinable follow, nor from inside a runway's hold line, nor along a way that crosses a runway hold line or
+    /// enters a runway short of the bar (<see cref="RefuseRunwayEntry"/>). Null otherwise.
+    /// </summary>
+    private TaxiRoute? AutoRouteTo(PhaseContext ctx, AirportGroundLayout layout, GroundNode bar)
+    {
+        if (
+            _unjoinable
+            || (RunwayInsideHoldLine(ctx.Aircraft, layout) is not null)
+            || (
+                FollowRoutePlanner.RouteOnto(layout, ctx.Aircraft, new HashSet<int> { bar.Id }, GroundTraffic(ctx))
+                is not { Segments.Count: > 0 } onto
+            )
+        )
+        {
+            LogHoldOnce(ctx, $"{_targetCallsign} departed; no taxi route on to its departure bar at node {bar.Id}", LogLevel.Information);
+            return null;
+        }
+
+        if (RefuseRunwayEntry(ctx, layout, onto, $"{_targetCallsign} departed; the auto route on to its departure bar"))
+        {
+            return null;
+        }
+
+        var toBar = new TaxiRoute { Segments = onto.Segments, HoldShortPoints = [] };
+        Log.LogInformation(
+            "[Follow] {Callsign}: {Target} departed and its path is gone; taking the taxi route to its departure bar at node {Node}: {Route}",
+            ctx.Aircraft.Callsign,
+            _targetCallsign,
+            bar.Id,
+            toBar.ToSummary()
+        );
+        return toBar;
     }
 
     /// <summary>
@@ -728,7 +929,7 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
             "[Follow] {Callsign}: target {Target} {Reason}; resuming its assigned route: {Route}",
             ctx.Aircraft.Callsign,
             _targetCallsign,
-            lead is null ? "not found" : "no longer on ground",
+            LeadGoneReason(lead),
             resumed.ToSummary()
         );
         ctx.Aircraft.Ground.AssignedTaxiRoute = resumed;
@@ -744,12 +945,20 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
     }
 
     /// <summary>
-    /// Refuses a way back onto the assigned route that crosses a runway hold line or enters a runway (<see cref="RunwayEntries"/>):
-    /// the assigned route holds no stop for it. The first refusal makes the follow unjoinable, logs it, and has the pilot say once
-    /// that it lost the traffic and asks for taxi instructions (<see cref="SayLostTrafficHolding"/>): the follow has an assigned
-    /// route it cannot reach, not a plan that joins nothing (<see cref="SayUnableNoRouteToFollow"/>). True when refused.
+    /// Refuses a way back onto the assigned route that crosses a runway hold line or enters a runway, since the assigned route
+    /// holds no stop for it: the wrapper around <see cref="RefuseRunwayEntry"/> that logs the refusal in the assigned-route
+    /// wording. True when refused.
     /// </summary>
-    internal bool RefuseLeadInAcrossRunway(PhaseContext ctx, AirportGroundLayout layout, FollowRoutePlanner.RouteFromHere onto)
+    internal bool RefuseLeadInAcrossRunway(PhaseContext ctx, AirportGroundLayout layout, FollowRoutePlanner.RouteFromHere onto) =>
+        RefuseRunwayEntry(ctx, layout, onto, $"{_targetCallsign} lost; the way back onto its assigned route");
+
+    /// <summary>
+    /// Refuses <paramref name="onto"/> when it crosses a runway hold line or enters a runway (<see cref="RunwayEntries"/>). The
+    /// first refusal makes the follow unjoinable, logs it as <paramref name="way"/> entering a runway, and has the pilot say once
+    /// that it lost the traffic and asks for taxi instructions (<see cref="SayLostTrafficHolding"/>): the follow has a route it
+    /// cannot reach, not a plan that joins nothing (<see cref="SayUnableNoRouteToFollow"/>). True when refused.
+    /// </summary>
+    private bool RefuseRunwayEntry(PhaseContext ctx, AirportGroundLayout layout, FollowRoutePlanner.RouteFromHere onto, string way)
     {
         if (RunwayEntries(layout, onto) is not { Count: > 0 } entries)
         {
@@ -759,11 +968,7 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
         if (!_unjoinable)
         {
             _unjoinable = true;
-            LogHoldOnce(
-                ctx,
-                $"{_targetCallsign} lost; the way back onto its assigned route enters a runway at node {entries[0]}",
-                LogLevel.Information
-            );
+            LogHoldOnce(ctx, $"{way} enters a runway at node {entries[0]}", LogLevel.Information);
             SayLostTrafficHolding(ctx);
         }
 
@@ -2412,9 +2617,12 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
     /// Behind a lead at rest, the braking curve at the taxi rate onto the follow route's end, read along the route; null while the
     /// lead is moving, when the follower drives on to the end and plans again there (<see cref="TickFollowNavigator"/>).
     /// </summary>
-    private SpeedCap? RouteEndCap(PhaseContext ctx, AircraftState lead)
+    private SpeedCap? RouteEndCap(PhaseContext ctx, AircraftState lead) => RouteEndIsStop(lead) ? RouteEndStopCap(ctx) : null;
+
+    /// <summary>The braking curve at the taxi rate onto the follow route's end, read along the route; null with no route left.</summary>
+    private SpeedCap? RouteEndStopCap(PhaseContext ctx)
     {
-        if (!RouteEndIsStop(lead) || (_followRoute is not { IsComplete: false } route))
+        if (_followRoute is not { IsComplete: false } route)
         {
             return null;
         }
@@ -2629,6 +2837,9 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
             ExitingRunways = [.. _exitingRunways.Select(static r => r.ToString())],
             LatchedBarNodeId = _latchedBarNodeId,
             LatchedBarApproachDeg = _latchedBarApproachDeg,
+            LeadDepartureBarNodeId = _leadDepartureBar?.NodeId,
+            LeadDepartureRunwayEnd = _leadDepartureBar?.RunwayEnd,
+            LeadSeenDeparting = _leadSeenDeparting,
             LeadWaitVerdicts = (_leadWaitVerdicts.Count > 0) ? new Dictionary<int, bool>(_leadWaitVerdicts) : null,
             LeadWaitSecond = (_leadWaitVerdicts.Count > 0) ? _leadWaitSecond : null,
             TaxiEdgeNodeA = _taxiEdgeNodeIds?.NodeA,
@@ -2663,6 +2874,11 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
             _exitingRunways = [.. dto.ExitingRunways.Select(RunwayIdentifier.Parse)],
             _latchedBarNodeId = dto.LatchedBarNodeId,
             _latchedBarApproachDeg = dto.LatchedBarApproachDeg,
+            _leadDepartureBar =
+                (dto.LeadDepartureBarNodeId is { } leadBarNodeId) && (dto.LeadDepartureRunwayEnd is { } leadRunwayEnd)
+                    ? new LeadDepartureBar(leadBarNodeId, leadRunwayEnd)
+                    : null,
+            _leadSeenDeparting = dto.LeadSeenDeparting,
             _leadWaitVerdicts = dto.LeadWaitVerdicts is { } verdicts ? new Dictionary<int, bool>(verdicts) : [],
             _leadWaitSecond = dto.LeadWaitSecond ?? 0,
             _taxiEdgeNodeIds = (dto.TaxiEdgeNodeA is { } nodeA) && (dto.TaxiEdgeNodeB is { } nodeB) ? (nodeA, nodeB) : null,
@@ -2714,7 +2930,7 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
     /// the taxiway edge leading into it, and how far (ft) the nose still has to roll to the hold line — the line through the
     /// bar node square to that edge — measured along the edge; negative once the nose is past the line.
     /// </summary>
-    private readonly record struct BarAhead(GroundNode Node, HoldShortReason Reason, double ApproachDeg, double ToStopFt);
+    private readonly record struct BarAhead(GroundNode Node, HoldShortReason Reason, string? TargetName, double ApproachDeg, double ToStopFt);
 
     /// <summary>
     /// Brake for a runway bar ahead the follower must stop at, and hold there once stopped. Returns true when the hold
@@ -2835,9 +3051,10 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
     }
 
     /// <summary>
-    /// Whether the follower must stop at this bar: not when it is already on that runway; always when the bar is its own
-    /// departure bar; otherwise not when it is leaving a runway it occupied in this follow away from it, nor when its crossing
-    /// clearance covers the runway — unless it is to wait at that bar for its lead (<see cref="WaitsForLeadAt"/>).
+    /// Whether the follower must stop at this bar: not when it is already on that runway; always when the bar is a departure
+    /// bar for it (<see cref="DepartureEndAt"/>), which no crossing clearance covers; otherwise not when it is leaving a runway it
+    /// occupied in this follow away from it, nor when its crossing clearance covers the runway — unless it is to wait at that bar
+    /// for its lead (<see cref="WaitsForLeadAt"/>).
     /// </summary>
     private bool MustStopAt(PhaseContext ctx, GroundNode node)
     {
@@ -2852,7 +3069,7 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
             return false;
         }
 
-        if (BarIsOwnDestination(ctx, node))
+        if (DepartureEndAt(ctx, node) is not null)
         {
             return true;
         }
@@ -2887,14 +3104,18 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
         return waits;
     }
 
-    /// <summary><paramref name="node"/> as a bar ahead of the follower, its hold line square to <paramref name="approachDeg"/>.</summary>
-    private static BarAhead ToBarAhead(PhaseContext ctx, GroundNode node, double approachDeg, double halfLengthFt)
+    /// <summary>
+    /// <paramref name="node"/> as a bar ahead of the follower, its hold line square to <paramref name="approachDeg"/>: a departure
+    /// hold for the runway end it departs on there (<see cref="DepartureEndAt"/>), else a crossing of the bar's runway.
+    /// </summary>
+    private BarAhead ToBarAhead(PhaseContext ctx, GroundNode node, double approachDeg, double halfLengthFt)
     {
-        HoldShortReason reason = BarIsOwnDestination(ctx, node) ? HoldShortReason.DestinationRunway : HoldShortReason.RunwayCrossing;
+        string? departureEnd = DepartureEndAt(ctx, node);
+        HoldShortReason reason = departureEnd is null ? HoldShortReason.RunwayCrossing : HoldShortReason.DestinationRunway;
         LatLon nose = GeoMath.ProjectPoint(ctx.Aircraft.Position, ctx.Aircraft.TrueHeading, halfLengthFt / GeoMath.FeetPerNm);
         double noseFromBarFt = GeoMath.DistanceNm(node.Position, nose) * GeoMath.FeetPerNm;
         double offAxisRad = GeoMath.SignedBearingDifference(approachDeg, GeoMath.BearingTo(node.Position, nose)) * Math.PI / 180.0;
-        return new BarAhead(node, reason, approachDeg, noseFromBarFt * Math.Cos(offAxisRad));
+        return new BarAhead(node, reason, departureEnd ?? node.RunwayId?.ToString(), approachDeg, noseFromBarFt * Math.Cos(offAxisRad));
     }
 
     /// <summary>
@@ -3034,20 +3255,28 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
         {
             NodeId = node.Id,
             Reason = bar.Reason,
-            TargetName = node.RunwayId?.ToString(),
+            TargetName = bar.TargetName,
         };
 
         var holdPhase = new HoldingShortPhase(holdShort);
         if (!IsClearedToCross(node) || (bar.Reason != HoldShortReason.RunwayCrossing))
         {
-            ctx.Aircraft.Phases?.InsertAfterCurrent([holdPhase, new FollowingPhase(_targetCallsign)]);
+            ctx.Aircraft.Phases?.InsertAfterCurrent([
+                holdPhase,
+                new FollowingPhase(_targetCallsign) { LeadDeparture = _leadDepartureBar, LeadSeenDeparting = _leadSeenDeparting },
+            ]);
             return true;
         }
 
         // Cleared across, stopped only to wait for the lead: the hold keeps the clearance armed and lets the follow, which keeps
         // crossing the cleared runways, go once the lead is ahead.
         holdPhase.SatisfyClearance(ClearanceType.RunwayCrossing);
-        var resumeFollow = new FollowingPhase(_targetCallsign) { CrossingClearedRunways = _crossingClearedRunways };
+        var resumeFollow = new FollowingPhase(_targetCallsign)
+        {
+            CrossingClearedRunways = _crossingClearedRunways,
+            LeadDeparture = _leadDepartureBar,
+            LeadSeenDeparting = _leadSeenDeparting,
+        };
         ctx.Aircraft.Phases?.InsertAfterCurrent([holdPhase, resumeFollow]);
         return true;
     }
@@ -3324,22 +3553,200 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
     public bool HasBeenOnClearedRunway => _hasBeenOnClearedRunway;
 
     /// <summary>
-    /// Whether this bar is the one the follower's own taxi clearance ends at. FOLLOWG does not erase the route
-    /// the aircraft was cleared on, so a bar matching that route's destination runway is its departure bar, not
-    /// a crossing. The distinction is load-bearing twice over: <see cref="HoldShortReason.DestinationRunway"/>
-    /// makes <c>RES</c> refuse to release it onto the runway without a takeoff clearance, and it puts the
-    /// aircraft at tier 0 in <see cref="RunwayDepartureQueue"/> — at the front of the line, where it is.
+    /// The runway end the follower departs on from this bar, when the bar is a departure bar for it rather than a crossing; else
+    /// null. A follower with a departure runway of its own departs from that runway's bars only
+    /// (<see cref="OwnDepartureEndAt"/>); one with none takes the lead's departure bar as its own
+    /// (<see cref="TakesLeadDepartureBar"/>), for the end the lead departs on. The distinction is load-bearing twice over:
+    /// <see cref="HoldShortReason.DestinationRunway"/> makes <c>RES</c> refuse to release it onto the runway without a takeoff
+    /// clearance, and it puts the aircraft at tier 0 in <see cref="RunwayDepartureQueue"/> — at the front of the line, where it is.
     /// </summary>
-    private static bool BarIsOwnDestination(PhaseContext ctx, GroundNode node)
+    private string? DepartureEndAt(PhaseContext ctx, GroundNode node)
     {
         if (node.RunwayId is not { } barRunway)
+        {
+            return null;
+        }
+
+        if (HasOwnDepartureRunway(ctx))
+        {
+            return OwnDepartureEndAt(ctx, barRunway);
+        }
+
+        return TakesLeadDepartureBar(ctx, node.Id) ? _leadDepartureBar?.RunwayEnd : null;
+    }
+
+    /// <summary>
+    /// The end of the follower's own departure runway that <paramref name="barRunway"/>'s bar protects: the destination runway
+    /// of the taxi route it was cleared on (<c>FOLLOWG</c> does not erase it), else a runway assigned with <c>RWY</c>
+    /// (<see cref="OwnAssignedRunway"/>); null when the bar protects neither.
+    /// </summary>
+    private static string? OwnDepartureEndAt(PhaseContext ctx, RunwayIdentifier barRunway)
+    {
+        if ((OwnRouteDepartureEnd(ctx) is { } routeEnd) && barRunway.Overlaps(RunwayIdentifier.Parse(routeEnd)))
+        {
+            return routeEnd;
+        }
+
+        return (OwnAssignedRunway(ctx) is { } assigned) && barRunway.Overlaps(assigned.Id) ? assigned.Designator : null;
+    }
+
+    /// <summary>Whether the follower has a departure runway of its own: its route's destination runway, or one assigned with RWY.</summary>
+    private static bool HasOwnDepartureRunway(PhaseContext ctx) => (OwnRouteDepartureEnd(ctx) is not null) || (OwnAssignedRunway(ctx) is not null);
+
+    /// <summary>The destination runway end of the taxi route the follower was cleared on; null with none.</summary>
+    private static string? OwnRouteDepartureEnd(PhaseContext ctx) =>
+        ctx.Aircraft.Ground.AssignedTaxiRoute?.HoldShortPoints.FirstOrDefault(h => h.Reason == HoldShortReason.DestinationRunway)?.TargetName;
+
+    /// <summary>
+    /// The runway assigned to the follower (<see cref="PhaseList.AssignedRunway"/>) when its flight plan departs this airport, so
+    /// it is a departure runway; an arrival's landing runway is not one. Null otherwise.
+    /// </summary>
+    private static RunwayInfo? OwnAssignedRunway(PhaseContext ctx) =>
+        (ctx.Aircraft.Phases?.AssignedRunway is { } assigned) && DepartsFromThisAirport(ctx) ? assigned : null;
+
+    /// <summary>
+    /// Whether the follower's flight plan departs the airport whose ground layout it is on (<see cref="IsThisAirport"/>). A plan
+    /// naming no departure airport (a VFR local with nothing filed) departs here unless its destination is this airport, an
+    /// arrival; one naming another departure airport does not.
+    /// </summary>
+    private static bool DepartsFromThisAirport(PhaseContext ctx)
+    {
+        if (ctx.GroundLayout is not { } layout)
         {
             return false;
         }
 
-        HoldShortPoint? destination = ctx.Aircraft.Ground.AssignedTaxiRoute?.HoldShortPoints.FirstOrDefault(h =>
+        AircraftFlightPlan plan = ctx.Aircraft.FlightPlan;
+        return string.IsNullOrEmpty(plan.Departure) ? !IsThisAirport(plan.Destination, layout) : IsThisAirport(plan.Departure, layout);
+    }
+
+    /// <summary>
+    /// Whether <paramref name="airportId"/> names <paramref name="layout"/>'s airport, ICAO and FAA ids alike, non-CONUS ones
+    /// ("PHNL"/"HNL") included through the navigation database (<see cref="NavigationDatabase.AirportIdsMatchResolved"/>); with
+    /// no database loaded, by the K-prefix match alone (<see cref="NavigationDatabase.AirportIdsMatch"/>).
+    /// </summary>
+    private static bool IsThisAirport(string airportId, AirportGroundLayout layout) =>
+        NavigationDatabase.InstanceOrNull is { } navDb
+            ? navDb.AirportIdsMatchResolved(airportId, layout.AirportId)
+            : NavigationDatabase.AirportIdsMatch(airportId, layout.AirportId);
+
+    /// <summary>
+    /// Whether the follower takes node <paramref name="nodeId"/> as its departure bar because it is the lead's
+    /// (<see cref="_leadDepartureBar"/>, matched by node, so another bar of that runway on the way stays a crossing): only with no
+    /// departure runway of its own and a flight plan departing this airport. The hold reports the lead's runway end and assigns
+    /// no runway; the runway is assigned by the line-up or takeoff clearance.
+    /// </summary>
+    private bool TakesLeadDepartureBar(PhaseContext ctx, int nodeId) =>
+        (_leadDepartureBar is { } latch) && (latch.NodeId == nodeId) && !HasOwnDepartureRunway(ctx) && DepartsFromThisAirport(ctx);
+
+    /// <summary>
+    /// Reads the lead's departure bar again while the lead is on the ground (<see cref="LiveDepartureBarOf"/>), keeping the one
+    /// last read when none is seen now — a lead that has lined up or departed no longer shows it — and dropping it when the lead
+    /// crosses there or holds there for another reason than departing (<see cref="IsCrossingOrHeldThereNotDeparting"/>).
+    /// </summary>
+    private void RefreshLeadDepartureBar(PhaseContext ctx)
+    {
+        if (ctx.AircraftLookup?.Invoke(_targetCallsign) is not { IsOnGround: true } lead)
+        {
+            return;
+        }
+
+        if (LiveDepartureBarOf(ctx, lead) is { } seen)
+        {
+            if ((_leadDepartureBar is not { } latch) || (latch.NodeId != seen.NodeId) || (latch.RunwayEnd != seen.RunwayEnd))
+            {
+                SetLeadDepartureBar(ctx, new LeadDepartureBar(seen.NodeId, seen.RunwayEnd));
+            }
+        }
+        else if (IsCrossingOrHeldThereNotDeparting(lead, _leadDepartureBar))
+        {
+            SetLeadDepartureBar(ctx, null);
+        }
+    }
+
+    private void SetLeadDepartureBar(PhaseContext ctx, LeadDepartureBar? bar)
+    {
+        Log.LogDebug(
+            "[Follow] {Callsign}: {Target}'s departure bar {Bar}",
+            ctx.Aircraft.Callsign,
+            _targetCallsign,
+            bar is null ? "dropped" : $"node {bar.NodeId} for runway {bar.RunwayEnd}"
+        );
+        _leadDepartureBar = bar;
+    }
+
+    /// <summary>
+    /// Whether <paramref name="lead"/> is crossing the runway from <paramref name="bar"/>'s node (<see cref="CrossingRunwayPhase"/>),
+    /// or holds there for another reason than departing: a lead crossing keeps today's crossing behaviour for its follower.
+    /// </summary>
+    private static bool IsCrossingOrHeldThereNotDeparting(AircraftState lead, LeadDepartureBar? bar) =>
+        (bar is not null)
+        && (
+            lead.Phases?.CurrentPhase switch
+            {
+                HoldingShortPhase { HoldShort: { } held } => (held.NodeId == bar.NodeId) && (held.Reason != HoldShortReason.DestinationRunway),
+                CrossingRunwayPhase crossing => crossing.ApproachNodeId == bar.NodeId,
+                _ => false,
+            }
+        );
+
+    /// <summary>
+    /// The departure bar <paramref name="lead"/> shows now, as its node and runway end: the bar it holds at as a departure hold;
+    /// else its taxi route's destination bar; else, while it lines up or rolls for takeoff on its assigned runway, the bar the
+    /// follow route ends at when that bar protects the runway. Null with none.
+    /// </summary>
+    private (int NodeId, string RunwayEnd)? LiveDepartureBarOf(PhaseContext ctx, AircraftState lead)
+    {
+        if (lead.Phases?.CurrentPhase is HoldingShortPhase { HoldShort: { Reason: HoldShortReason.DestinationRunway, TargetName: { } heldEnd } held })
+        {
+            return (held.NodeId, heldEnd);
+        }
+
+        HoldShortPoint? destination = lead.Ground.AssignedTaxiRoute?.HoldShortPoints.FirstOrDefault(h =>
             h.Reason == HoldShortReason.DestinationRunway
         );
-        return (destination?.TargetName is { } name) && barRunway.Overlaps(RunwayIdentifier.Parse(name));
+        if (destination?.TargetName is { } routeEnd)
+        {
+            return (destination.NodeId, routeEnd);
+        }
+
+        return LinedUpDepartureBar(ctx, lead);
     }
+
+    /// <summary>
+    /// For a lead lining up, lined up or rolling for takeoff on its assigned runway, the bar the follow route ends at when that
+    /// bar protects the runway (<see cref="ProtectsRunway"/>): the bar the lead left for it. Null otherwise.
+    /// </summary>
+    private (int NodeId, string RunwayEnd)? LinedUpDepartureBar(PhaseContext ctx, AircraftState lead)
+    {
+        if (
+            (lead.Phases?.CurrentPhase is not (LineUpPhase or LinedUpAndWaitingPhase or TakeoffPhase))
+            || (lead.Phases.AssignedRunway is not { } runway)
+        )
+        {
+            return null;
+        }
+
+        return (FollowRouteEndNode(ctx) is { } end) && ProtectsRunway(end, runway) ? (end.Id, runway.Designator) : null;
+    }
+
+    /// <summary>The node the follow route ends at; null with no follow route or no ground layout.</summary>
+    private GroundNode? FollowRouteEndNode(PhaseContext ctx) =>
+        (_followRoute is { Segments.Count: > 0 } route)
+        && (ctx.GroundLayout is { } layout)
+        && layout.Nodes.TryGetValue(route.Segments[^1].ToNodeId, out GroundNode? end)
+            ? end
+            : null;
+
+    /// <summary>Whether <paramref name="node"/> is a runway hold-short bar of <paramref name="runway"/>.</summary>
+    private static bool ProtectsRunway(GroundNode node, RunwayInfo runway) =>
+        (node.Type == GroundNodeType.RunwayHoldShort) && (node.RunwayId is { } nodeRunway) && nodeRunway.Overlaps(runway.Id);
+
+    /// <summary>
+    /// Whether <paramref name="lead"/> is rolling for takeoff (<see cref="TakeoffPhase"/>) from a departure bar the follower takes
+    /// as its own (<see cref="TakesLeadDepartureBar"/>): it has left the ground by departing as far as the follow is concerned
+    /// (<see cref="TickLeadGone"/>). A follower with its own departure runway keeps following until the lead lifts off.
+    /// </summary>
+    private bool IsRollingForTakeoffFromKnownBar(PhaseContext ctx, AircraftState lead) =>
+        (_leadDepartureBar is { } latch) && (lead.Phases?.CurrentPhase is TakeoffPhase) && TakesLeadDepartureBar(ctx, latch.NodeId);
 }
