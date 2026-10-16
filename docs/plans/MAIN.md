@@ -37,9 +37,9 @@
 - [ ] YAAT-403 Support for vTBFM · release vNext
   - [!] YAAT-539 vTBFM: follow each user's chosen YAAT room (contributed PR) · release vNext+1
   - [ ] YAAT-780 Keep the GFS grid when a member who did not load the weather saves it · release vNext
-  - [ ] YAAT-781 Cap the wind grids a recording import registers, by count and decompressed size · release vNext
+  - [/] YAAT-781 Cap the wind grids a recording import registers, by count and decompressed size · release vNext
   - [/] YAAT-782 Refuse a GRIB2 grid that decodes to non-finite winds · release vNext
-  - [ ] YAAT-783 Fix the saved-grid FD wording, the showcase scene's wind direction and the guide's grid wording · release vNext
+  - [/] YAAT-783 Fix the saved-grid FD wording, the showcase scene's wind direction and the guide's grid wording · release vNext
 - [ ] YAAT-613 Rebuild a queued wrong-side crossing when the pattern altitude changes before it starts
 - [ ] YAAT-616 Carry a deferred pattern altitude into a FOLLOW join on the armed runway
 - [ ] YAAT-624 Find why a solo pilot reports traffic in sight minutes after the traffic call
