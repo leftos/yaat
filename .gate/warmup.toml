@@ -1,0 +1,8 @@
+# Builds that make a filtered `dotnet test <project> -c Release -- --filter-...` run incremental on the gate builder.
+# Each command is one array of words, run in order in the worktree's builder work folder.
+commands = [
+  ["dotnet", "build", "tests/Yaat.Sim.Tests", "-c", "Release"],
+  ["dotnet", "build", "tests/Yaat.Client.Tests", "-c", "Release"],
+  ["dotnet", "build", "tests/Yaat.Client.UI.Tests", "-c", "Release"],
+]
+timeout = 1800
