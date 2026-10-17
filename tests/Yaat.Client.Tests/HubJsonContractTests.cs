@@ -75,6 +75,19 @@ public class HubJsonContractTests
     [Fact]
     public void LoadStepDto_ResolvesThroughYaatHubJsonContext() => Assert.NotNull(YaatHubJsonContext.Default.GetTypeInfo(typeof(LoadStepDto)));
 
+    // The TimersChanged / ConflictAlertsChanged broadcast envelopes are Core-owned .On<T> payloads (not method return types,
+    // so the theory above does not see them) and are not reachable from any registered type — RoomStateDto carries the inner
+    // List<TimerDto> / List<ConflictAlertDto>, not the envelopes. Without their own registration the WASM client throws
+    // JsonSerializerIsReflectionDisabled on the first timer or conflict-alert push. Their sibling AtpaResultsChangedDto is
+    // registered; these pin the same guarantee for them.
+    [Fact]
+    public void TimersChangedDto_ResolvesThroughYaatHubJsonContext() =>
+        Assert.NotNull(YaatHubJsonContext.Default.GetTypeInfo(typeof(TimersChangedDto)));
+
+    [Fact]
+    public void ConflictAlertsChangedDto_ResolvesThroughYaatHubJsonContext() =>
+        Assert.NotNull(YaatHubJsonContext.Default.GetTypeInfo(typeof(ConflictAlertsChangedDto)));
+
     // The active-runways broadcast, the room-join field and the load result's prompt fields (the assigned-runway counts
     // included), in the server's wire shape.
     [Fact]
