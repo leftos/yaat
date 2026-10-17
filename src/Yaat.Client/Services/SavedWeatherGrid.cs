@@ -14,6 +14,7 @@ public sealed record SavedWeatherGridExtract(string Json, byte[]? Grib2, bool Gr
 /// <summary>
 /// The GFS wind grid a saved live weather file carries: Save Weather writes the grid's raw GRIB2 bytes as base64 in a top-level
 /// <c>windGridGrib2</c> beside <c>windGridHash</c>, so loading the file re-uploads them and the same winds come back on any server.
+/// Both names match whatever their casing, as the weather parser does; a write leaves one key, spelled canonically.
 /// </summary>
 public static class SavedWeatherGrid
 {
@@ -30,7 +31,7 @@ public static class SavedWeatherGrid
     public static string Embed(string json, byte[] grib2)
     {
         JsonObject root = ParseObject(json) ?? throw new JsonException("Saved weather with a GFS grid must be a JSON object");
-        root[GridProperty] = Convert.ToBase64String(grib2);
+        SetProperty(root, GridProperty, Convert.ToBase64String(grib2));
         return root.ToJsonString();
     }
 
@@ -52,15 +53,21 @@ public static class SavedWeatherGrid
             return new SavedWeatherGridExtract(json, null, false);
         }
 
-        if ((root is null) || (!root.ContainsKey(GridProperty) && !root.ContainsKey(HashProperty)))
+        if (root is null)
         {
             return new SavedWeatherGridExtract(json, null, false);
         }
 
-        byte[]? grib2 = root.Remove(GridProperty, out JsonNode? embedded) ? DecodeBase64(embedded) : null;
+        bool hasGrid = HasProperty(root, GridProperty);
+        if (!hasGrid && !HasProperty(root, HashProperty))
+        {
+            return new SavedWeatherGridExtract(json, null, false);
+        }
+
+        byte[]? grib2 = hasGrid ? DecodeBase64(RemoveProperty(root, GridProperty)) : null;
         if (grib2 is null)
         {
-            root.Remove(HashProperty);
+            RemoveProperty(root, HashProperty);
         }
 
         return new SavedWeatherGridExtract(root.ToJsonString(), grib2, grib2 is null);
@@ -76,7 +83,13 @@ public static class SavedWeatherGrid
 
         try
         {
-            return ParseObject(json)?[HashProperty] is JsonValue value && value.TryGetValue(out string? hash) ? hash : null;
+            JsonObject? root = ParseObject(json);
+            if ((root is null) || (FindProperty(root, HashProperty) is not { } key))
+            {
+                return null;
+            }
+
+            return ((root[key] is JsonValue value) && value.TryGetValue(out string? hash)) ? hash : null;
         }
         catch (JsonException ex)
         {
@@ -98,17 +111,68 @@ public static class SavedWeatherGrid
         JsonObject root = ParseObject(json) ?? throw new JsonException("Weather naming a GFS grid must be a JSON object");
         if (hash is null)
         {
-            root.Remove(HashProperty);
+            RemoveProperty(root, HashProperty);
         }
         else
         {
-            root[HashProperty] = hash;
+            SetProperty(root, HashProperty, hash);
         }
 
         return root.ToJsonString();
     }
 
     private static JsonObject? ParseObject(string json) => JsonNode.Parse(json) as JsonObject;
+
+    /// <summary>The property spelling <paramref name="property"/> names: the canonical one when present, else the first variant.</summary>
+    private static string? FindProperty(JsonObject root, string property)
+    {
+        if (root.ContainsKey(property))
+        {
+            return property;
+        }
+
+        foreach (KeyValuePair<string, JsonNode?> pair in root)
+        {
+            if (string.Equals(pair.Key, property, StringComparison.OrdinalIgnoreCase))
+            {
+                return pair.Key;
+            }
+        }
+
+        return null;
+    }
+
+    private static bool HasProperty(JsonObject root, string property) => FindProperty(root, property) is not null;
+
+    /// <summary>
+    /// Removes every spelling of <paramref name="property"/>, so a write leaves one key, and returns the canonical spelling's node,
+    /// else the first variant's.
+    /// </summary>
+    private static JsonNode? RemoveProperty(JsonObject root, string property)
+    {
+        JsonNode? removed = null;
+        if (root.Remove(property, out JsonNode? canonical))
+        {
+            removed = canonical;
+        }
+
+        List<string> variants = [.. root.Select(pair => pair.Key).Where(key => string.Equals(key, property, StringComparison.OrdinalIgnoreCase))];
+        foreach (string key in variants)
+        {
+            if ((root.Remove(key, out JsonNode? value)) && (removed is null))
+            {
+                removed = value;
+            }
+        }
+
+        return removed;
+    }
+
+    private static void SetProperty(JsonObject root, string property, string value)
+    {
+        RemoveProperty(root, property);
+        root[property] = value;
+    }
 
     private static byte[]? DecodeBase64(JsonNode? embedded)
     {

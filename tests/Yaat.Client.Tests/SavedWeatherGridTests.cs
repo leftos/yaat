@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
@@ -43,6 +44,22 @@ public class SavedWeatherGridTests
         );
 
     private static JsonObject Parse(string json) => JsonNode.Parse(json)!.AsObject();
+
+    /// <summary>Copies <paramref name="source"/> with one property renamed, keeping every other property as it was.</summary>
+    private static JsonObject RenameKey(JsonObject source, string from, string to)
+    {
+        JsonObject renamed = [];
+        foreach (KeyValuePair<string, JsonNode?> pair in source)
+        {
+            renamed[pair.Key == from ? to : pair.Key] = pair.Value?.DeepClone();
+        }
+
+        return renamed;
+    }
+
+    /// <summary>The property names in <paramref name="root"/> that spell <paramref name="property"/> in any casing.</summary>
+    private static List<string> KeysLike(JsonObject root, string property) =>
+        [.. root.Select(pair => pair.Key).Where(key => string.Equals(key, property, StringComparison.OrdinalIgnoreCase))];
 
     [Fact]
     public void EmbedThenExtract_RoundTripsTheBytesAndLeavesTheProfileUntouched()
@@ -198,6 +215,117 @@ public class SavedWeatherGridTests
     [InlineData(null)]
     public void NamesGrid_EchoNamingNoHash_ClearsTheGrid(string? sourceJson) =>
         Assert.False(SavedWeatherGrid.NamesGrid(sourceJson, WindGridRegistry.HashOf(LoadSample())));
+
+    // The weather parser matches property names case-insensitively, so a saved profile may spell the grid keys any way.
+
+    [Fact]
+    public void Extract_DifferentlyCasedGridKeys_ReturnsTheEmbeddedGrid()
+    {
+        byte[] sample = LoadSample();
+        JsonObject saved = RenameKey(Parse(LiveJson(sample)), "windGridHash", "WindGridHash");
+        saved["WindGridGrib2"] = Convert.ToBase64String(sample);
+
+        SavedWeatherGridExtract extract = SavedWeatherGrid.Extract(saved.ToJsonString());
+
+        Assert.Equal(sample, extract.Grib2);
+        Assert.False(extract.GridMissing);
+        JsonObject sent = Parse(extract.Json);
+        Assert.Empty(KeysLike(sent, "windGridGrib2"));
+        Assert.Single(KeysLike(sent, "windGridHash"));
+    }
+
+    [Fact]
+    public void Extract_DifferentlyCasedHashWithoutBytes_StripsIt()
+    {
+        JsonObject saved = RenameKey(Parse(LiveJson(LoadSample())), "windGridHash", "WindGridHash");
+
+        SavedWeatherGridExtract extract = SavedWeatherGrid.Extract(saved.ToJsonString());
+
+        Assert.Null(extract.Grib2);
+        Assert.True(extract.GridMissing);
+        Assert.Empty(KeysLike(Parse(extract.Json), "windGridHash"));
+    }
+
+    [Fact]
+    public void NamedHash_DifferentlyCasedKey_ReturnsItsHash()
+    {
+        byte[] sample = LoadSample();
+        string json = RenameKey(Parse(LiveJson(sample)), "windGridHash", "WindGridHash").ToJsonString();
+
+        Assert.Equal(WindGridRegistry.HashOf(sample), SavedWeatherGrid.NamedHash(json));
+    }
+
+    [Fact]
+    public async Task Save_DifferentlyCasedHash_FetchesTheGridAndWritesTheCanonicalKeys()
+    {
+        byte[] sample = LoadSample();
+        string hash = WindGridRegistry.HashOf(sample);
+        string json = RenameKey(Parse(LiveJson(sample)), "windGridHash", "WindGridHash").ToJsonString();
+        List<string> fetched = [];
+
+        WeatherSaveContents saved = await WeatherSaveGrid.PrepareAsync(
+            json,
+            null,
+            h =>
+            {
+                fetched.Add(h);
+                return Task.FromResult(sample.ToArray());
+            },
+            NullLogger.Instance
+        );
+
+        Assert.Equal([hash], fetched);
+        Assert.Null(saved.StrippedReason);
+        JsonObject contents = Parse(saved.Contents);
+        Assert.Single(KeysLike(contents, "windGridHash"));
+        Assert.Single(KeysLike(contents, "windGridGrib2"));
+        Assert.Equal(Convert.ToBase64String(sample), contents["windGridGrib2"]!.GetValue<string>());
+        Assert.Equal(sample, SavedWeatherGrid.Extract(saved.Contents).Grib2);
+    }
+
+    [Fact]
+    public async Task Save_ProfileSpellingBothKeys_LeavesExactlyOneOfEach()
+    {
+        byte[] sample = LoadSample();
+        string hash = WindGridRegistry.HashOf(sample);
+        JsonObject profile = RenameKey(Parse(LiveJson(sample)), "windGridHash", "WindGridHash");
+        profile["WindGridGrib2"] = Convert.ToBase64String(sample);
+
+        WeatherSaveContents saved = await WeatherSaveGrid.PrepareAsync(
+            profile.ToJsonString(),
+            ActiveWindGrid.FromGrib2(sample, hash),
+            _ => throw new InvalidOperationException("fetched"),
+            NullLogger.Instance
+        );
+
+        Assert.Null(saved.StrippedReason);
+        JsonObject contents = Parse(saved.Contents);
+        string hashKey = Assert.Single(KeysLike(contents, "windGridHash"));
+        Assert.Equal(hash, contents[hashKey]!.GetValue<string>());
+        Assert.Equal(["windGridGrib2"], KeysLike(contents, "windGridGrib2"));
+        Assert.Equal(Convert.ToBase64String(sample), contents["windGridGrib2"]!.GetValue<string>());
+    }
+
+    [Fact]
+    public void WithHash_DifferentlyCasedKey_ReplacesItWithOneCanonicalKey()
+    {
+        JsonObject live = RenameKey(Parse(LiveJson(LoadSample())), "windGridHash", "WindGridHash");
+
+        JsonObject rewritten = Parse(SavedWeatherGrid.WithHash(live.ToJsonString(), "0123abcd"));
+
+        Assert.Equal(["windGridHash"], KeysLike(rewritten, "windGridHash"));
+        Assert.Equal("0123abcd", rewritten["windGridHash"]!.GetValue<string>());
+    }
+
+    [Fact]
+    public void WithHash_Null_DifferentlyCasedKey_RemovesIt()
+    {
+        JsonObject live = RenameKey(Parse(LiveJson(LoadSample())), "windGridHash", "WindGridHash");
+
+        JsonObject rewritten = Parse(SavedWeatherGrid.WithHash(live.ToJsonString(), null));
+
+        Assert.Empty(KeysLike(rewritten, "windGridHash"));
+    }
 
     [Fact]
     public void WeatherEditor_LiveJsonWithAnEmbeddedGrid_OutputsNeitherGridField()
