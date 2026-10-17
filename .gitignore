@@ -56,7 +56,7 @@ tests/Yaat.Client.Tests/TestData/llm/*.gguf
 tests/Yaat.Sim.Tests/TestResults/*
 
 ## CIFP reference clones (rstory1/parseCifp, misterrodg/cifparse) — see CLAUDE.md
-reference/
+/reference/
 
 ## VS Code workspace settings
 yaat.code-workspace
