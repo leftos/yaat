@@ -1,0 +1,1654 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Shallow Merge Stops</title>
+<style>
+:root {
+  --bg: #f6f5f1; --panel: #ffffff; --ink: #1d1f24; --muted: #5d6270; --line: #d9d7cf;
+  --map: #fbfaf7; --twy: #b9bcc4; --rwy: #8a8f9a; --tgt: #2563c9; --band: #2563c9; --route: #d97706;
+  --c-base: #6b7280; --c-a: #0f8a5f; --c-b: #7c3aed; --c-c: #c2410c; --bar: #111827;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #15171c; --panel: #1d2027; --ink: #e8e9ec; --muted: #a2a7b3; --line: #343842;
+    --map: #191c22; --twy: #4b505c; --rwy: #6b7180; --tgt: #6aa3ff; --band: #6aa3ff; --route: #f59e0b;
+    --c-base: #9ca3af; --c-a: #34d399; --c-b: #a78bfa; --c-c: #fb923c; --bar: #f3f4f6;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #15171c; --panel: #1d2027; --ink: #e8e9ec; --muted: #a2a7b3; --line: #343842;
+  --map: #191c22; --twy: #4b505c; --rwy: #6b7180; --tgt: #6aa3ff; --band: #6aa3ff; --route: #f59e0b;
+  --c-base: #9ca3af; --c-a: #34d399; --c-b: #a78bfa; --c-c: #fb923c; --bar: #f3f4f6;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 1500px; margin: 0 auto; padding: 20px 16px 48px; }
+h1 { font-size: 22px; margin: 0 0 6px; }
+h2 { font-size: 18px; margin: 0 0 4px; }
+h3 { font-size: 14px; margin: 0 0 6px; }
+p { margin: 0 0 10px; }
+.lede { color: var(--muted); max-width: 980px; }
+.opts { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px; margin: 14px 0 18px; }
+.opt { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
+.opt b { display: block; margin-bottom: 2px; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 18px; align-items: center; color: var(--muted); font-size: 13px; margin: 6px 0 18px; }
+.legend svg { vertical-align: middle; }
+section { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px; margin: 0 0 22px; }
+.meta { color: var(--muted); font-size: 13px; }
+.grid2 { display: grid; grid-template-columns: minmax(0, 3fr) minmax(280px, 1.1fr); gap: 16px; align-items: start; }
+@media (max-width: 900px) { .grid2 { grid-template-columns: 1fr; } }
+.lane { border-top: 1px solid var(--line); padding: 8px 0 4px; }
+.lanehead { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; margin-bottom: 4px; }
+.num { color: var(--muted); font-variant-numeric: tabular-nums; }
+.sw { display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+.adv { margin: 4px 0 2px; padding-left: 18px; color: var(--muted); font-size: 12.5px; }
+.note { color: var(--muted); font-size: 12.5px; margin-top: 8px; }
+svg .mapbg { fill: var(--map); }
+svg .bandgrp { opacity: 0.10; }
+svg .band { fill: none; stroke: var(--band); stroke-linecap: round; stroke-linejoin: round; }
+svg .twy { fill: none; stroke: var(--twy); stroke-width: 2; }
+svg .ramp { fill: none; stroke: var(--twy); stroke-width: 1; stroke-dasharray: 3 3; }
+svg .rwy { fill: none; stroke: var(--rwy); stroke-width: 5; }
+svg .tgt { fill: none; stroke: var(--tgt); stroke-width: 3; }
+svg .route { fill: none; stroke: var(--route); stroke-width: 2.5; stroke-dasharray: 8 5; }
+svg .tick { fill: var(--muted); }
+svg .ticklbl { fill: var(--muted); font-size: 10px; text-anchor: middle; }
+svg .twylbl { fill: var(--muted); font-size: 12px; font-weight: 600; }
+svg .tgtlbl { fill: var(--tgt); font-size: 13px; font-weight: 700; }
+svg .dim { stroke: var(--ink); stroke-width: 1.2; stroke-dasharray: 2 2; }
+svg .dimlbl { fill: var(--ink); font-size: 12px; font-weight: 600; paint-order: stroke; stroke: var(--map); stroke-width: 3px; }
+svg .nose { stroke: var(--map); stroke-width: 1; }
+svg .tail { fill: var(--map); stroke-width: 2; }
+svg .bar { fill: var(--bar); stroke: var(--map); stroke-width: 1.5; }
+svg .barlbl { fill: var(--ink); font-size: 11px; paint-order: stroke; stroke: var(--map); stroke-width: 3px; }
+svg .grid { stroke: var(--line); stroke-width: 1; }
+svg .axlbl { fill: var(--muted); font-size: 11px; }
+svg .floorline { stroke: var(--tgt); stroke-width: 1.5; stroke-dasharray: 6 4; }
+svg .curve { fill: none; stroke: var(--ink); stroke-width: 1.8; }
+svg .dot { stroke: var(--panel); stroke-width: 1.5; }
+svg .dotlbl { fill: var(--ink); font-size: 11px; font-weight: 600; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; background: var(--panel); }
+th, td { border-bottom: 1px solid var(--line); padding: 6px 8px; text-align: left; vertical-align: top; }
+td.r { text-align: right; font-variant-numeric: tabular-nums; }
+.tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; }
+nav a { color: var(--tgt); margin-right: 14px; }
+</style>
+</head>
+<body>
+<main>
+<h1>YAAT-800: where a B738 stops at a shallow merge with no capping intersection</h1>
+<p class="lede">Three junctions where the arriving taxiway merges into the hold-short target at a shallow angle and no intersection on the arriving taxiway caps the walk-back. Each lane draws the same map with the B738 where one option stops it. Positions come from the probe that runs <code>HoldShortAnnotator.ComputeHoldShortPositions</code> on the real <code>oak.geojson</code> / <code>sfo.geojson</code> layouts: today's stop from the abe87c193 build, C's from the YAAT-800 working copy, A's computed on the same route geometry, B equal to today's stop. Distances are along the route from the merge (bar) node to the nose, and from the nose perpendicular to the target taxiway's centreline.</p>
+<nav><a href="#sfo280">SFO 280 N→F</a><a href="#sfo323">SFO 323 GL→L</a><a href="#oak20">OAK 20 W5→W</a><a href="#numbers">All numbers</a></nav>
+<div class="opts">
+  <div class="opt"><span class="sw" style="background:var(--c-base)"></span><b>Today (baseline)</b>Plain length + 30 ft setback from the merge node: nose ~95 ft back, on or beside the target's pavement.</div>
+  <div class="opt"><span class="sw" style="background:var(--c-a)"></span><b>A · cap at the floor distance + advisory</b>Nose back at most the floor distance along the route; if clearance is still short there, stop there with "wingtip clearance from {X} not assured (N ft)". Any stop behind the plain setback gets an instructor advisory. A moving aircraft that can't reach it falls back to the plain setback.</div>
+  <div class="opt"><span class="sw" style="background:var(--c-b)"></span><b>B · only capped merges</b>The shallow-merge rule applies only where an intersection caps the walk (OAK D→C). Uncapped merges keep today's stop with the existing wingtip warning.</div>
+  <div class="opt"><span class="sw" style="background:var(--c-c)"></span><b>C · as built + advisory</b>Keep the stop where the floor is met (up to 692 ft back), add an advisory naming why.</div>
+</div>
+<div class="legend">
+  <span><svg width="34" height="10"><line x1="0" y1="5" x2="34" y2="5" stroke="var(--tgt)" stroke-width="3"/></svg> target taxiway centreline</span>
+  <span><svg width="34" height="14"><rect x="0" y="0" width="34" height="14" fill="var(--band)" fill-opacity="0.12"/></svg> within the wingtip floor of the target centreline</span>
+  <span><svg width="34" height="10"><line x1="0" y1="5" x2="34" y2="5" stroke="var(--route)" stroke-width="2.5" stroke-dasharray="8 5"/></svg> arriving route</span>
+  <span><svg width="14" height="14"><circle cx="7" cy="7" r="5" fill="var(--bar)"/></svg> merge / bar node</span>
+  <span><svg width="14" height="14"><circle cx="7" cy="7" r="3.5" fill="var(--ink)"/></svg> nose</span>
+  <span><svg width="14" height="14"><circle cx="7" cy="7" r="3" fill="var(--map)" stroke="var(--ink)" stroke-width="2"/></svg> tail</span>
+  <span><svg width="34" height="10"><line x1="0" y1="5" x2="34" y2="5" stroke="var(--ink)" stroke-dasharray="2 2"/></svg> nose to target centreline</span>
+  <span><svg width="34" height="10"><line x1="0" y1="5" x2="34" y2="5" stroke="var(--twy)" stroke-width="2"/></svg> other taxiways</span>
+</div>
+<section id="sfo280"><h2>SFO node 280: N merging into F</h2><p class="meta">B738 (129.5 ft long, 117.4 ft span, drawn to scale). Wingtip floor 156 ft. Map rotated so F runs left to right past the merge (true track ≈ 298°). Grey dots: 100 ft marks back of the merge along N. N runs dead straight into F (0.1° off) and F converges on it at 6°, so the gap grows slowly. No junction on N in the 1,600 ft of route drawn, so nothing caps C’s walk-back: the B738 ends 692 ft back, nose where N starts to bend away (16° off at 690 ft back, 31° at 750), tail on the bend.</p><div class="grid2"><div class="lanes"><div class="lane"><div class="lanehead"><span class="sw" style="background:var(--c-base)"></span><b>Today (baseline, abe87c193)</b><span class="num">nose 95 ft back · 10 ft from F centreline</span></div><svg viewBox="0 0 1017 380" width="1017" style="max-width:100%;height:auto" role="img" aria-label="Today (baseline, abe87c193)">
+<rect x="0" y="0" width="1017" height="380" class="mapbg"/>
+<g class="bandgrp">
+<path d="M1207.4,194.7 L813.7,194.7" class="band" stroke-width="275.5"/>
+<path d="M813.7,194.7 L708.3,183.5" class="band" stroke-width="275.5"/>
+<path d="M708.3,183.5 L586.0,155.4" class="band" stroke-width="275.5"/>
+<path d="M586.0,155.4 L354.2,92.9" class="band" stroke-width="275.5"/>
+<path d="M354.2,92.9 L262.3,73.4" class="band" stroke-width="275.5"/>
+<path d="M262.3,73.4 L207.9,66.6" class="band" stroke-width="275.5"/>
+<path d="M207.9,66.6 L120.7,61.8" class="band" stroke-width="275.5"/>
+<path d="M120.7,61.8 L14.2,62.8" class="band" stroke-width="275.5"/>
+<path d="M2107.1,192.5 L2018.9,192.9" class="band" stroke-width="275.5"/>
+<path d="M2018.9,192.9 L1862.6,193.5" class="band" stroke-width="275.5"/>
+<path d="M1862.6,193.5 L1799.0,193.6" class="band" stroke-width="275.5"/>
+<path d="M1799.0,193.6 L1666.6,193.9" class="band" stroke-width="275.5"/>
+<path d="M1666.6,193.9 L1654.4,193.9" class="band" stroke-width="275.5"/>
+<path d="M1654.4,193.9 L1600.5,194.0" class="band" stroke-width="275.5"/>
+<path d="M1600.5,194.0 L1207.4,194.7" class="band" stroke-width="275.5"/>
+<path d="M14.2,62.8 L-1644.8,64.1" class="band" stroke-width="275.5"/>
+</g>
+<path d="M1207.4,194.7 L813.7,194.7" class="tgt"/>
+<path d="M813.7,194.7 L708.3,183.5" class="tgt"/>
+<path d="M708.3,183.5 L586.0,155.4" class="tgt"/>
+<path d="M586.0,155.4 L354.2,92.9" class="tgt"/>
+<path d="M354.2,92.9 L262.3,73.4" class="tgt"/>
+<path d="M262.3,73.4 L207.9,66.6" class="tgt"/>
+<path d="M207.9,66.6 L120.7,61.8" class="tgt"/>
+<path d="M120.7,61.8 L14.2,62.8" class="tgt"/>
+<path d="M1661.1,-953.0 L1665.3,-238.0" class="twy"/>
+<path d="M1665.3,-238.0 L1658.8,-206.0" class="twy"/>
+<path d="M1658.8,-206.0 L1643.8,-146.0" class="twy"/>
+<path d="M1643.8,-146.0 L1617.1,-77.4" class="twy"/>
+<path d="M1617.1,-77.4 L1579.7,-14.6" class="twy"/>
+<path d="M1579.7,-14.6 L1535.6,42.4" class="twy"/>
+<path d="M1535.6,42.4 L1471.3,99.5" class="twy"/>
+<path d="M1471.3,99.5 L1410.1,138.0" class="twy"/>
+<path d="M1410.1,138.0 L1345.2,167.1" class="twy"/>
+<path d="M1345.2,167.1 L1268.1,188.1" class="twy"/>
+<path d="M1268.1,188.1 L1207.4,194.7" class="twy"/>
+<path d="M813.7,194.7 L268.8,195.6" class="twy"/>
+<path d="M268.8,195.6 L229.9,197.5" class="twy"/>
+<path d="M229.9,197.5 L187.5,209.8" class="twy"/>
+<path d="M187.5,209.8 L150.3,232.0" class="twy"/>
+<path d="M150.3,232.0 L120.1,259.5" class="twy"/>
+<path d="M-37.4,418.1 L-64.8,453.2" class="twy"/>
+<path d="M-64.8,453.2 L-83.7,499.5" class="twy"/>
+<path d="M-83.7,499.5 L-87.4,549.4" class="twy"/>
+<path d="M-87.4,549.4 L-86.9,637.7" class="twy"/>
+<path d="M813.7,194.7 L786.2,196.8" class="twy"/>
+<path d="M786.2,196.8 L750.9,204.0" class="twy"/>
+<path d="M750.9,204.0 L720.7,217.8" class="twy"/>
+<path d="M720.7,217.8 L690.8,237.3" class="twy"/>
+<path d="M690.8,237.3 L664.2,264.3" class="twy"/>
+<path d="M664.2,264.3 L642.8,295.3" class="twy"/>
+<path d="M642.8,295.3 L627.4,335.2" class="twy"/>
+<path d="M627.4,335.2 L620.5,371.8" class="twy"/>
+<path d="M120.1,259.5 L-9.5,390.0" class="twy"/>
+<path d="M-9.5,390.0 L-37.4,418.1" class="twy"/>
+<path d="M620.5,371.8 L620.8,389.2" class="twy"/>
+<path d="M620.8,389.2 L621.2,418.7" class="twy"/>
+<path d="M1670.5,882.3 L1671.2,1051.2" class="twy"/>
+<path d="M-86.1,884.3 L-85.6,1052.9" class="twy"/>
+<path d="M623.0,883.5 L623.7,1052.2" class="twy"/>
+<path d="M3497.1,632.6 L1757.6,636.5" class="rwy"/>
+<path d="M1757.6,636.5 L1669.4,636.7" class="rwy"/>
+<path d="M2107.1,192.5 L2018.9,192.9" class="tgt"/>
+<path d="M2018.9,192.9 L1862.6,193.5" class="tgt"/>
+<path d="M1862.6,193.5 L1799.0,193.6" class="tgt"/>
+<path d="M1799.0,193.6 L1666.6,193.9" class="tgt"/>
+<path d="M1666.6,193.9 L1654.4,193.9" class="tgt"/>
+<path d="M1654.4,193.9 L1600.5,194.0" class="tgt"/>
+<path d="M1600.5,194.0 L1207.4,194.7" class="tgt"/>
+<path d="M1666.6,193.9 L1677.9,189.6" class="twy"/>
+<path d="M1677.9,189.6 L1709.4,177.5" class="twy"/>
+<path d="M1709.4,177.5 L1756.1,159.7" class="twy"/>
+<path d="M1756.1,159.7 L1790.2,146.6" class="twy"/>
+<path d="M1790.2,146.6 L1860.7,119.7" class="twy"/>
+<path d="M1665.3,-238.0 L1666.3,98.0" class="twy"/>
+<path d="M1666.3,98.0 L1666.6,193.9" class="twy"/>
+<path d="M1666.6,193.9 L1667.0,260.4" class="twy"/>
+<path d="M1667.0,260.4 L1667.8,389.4" class="twy"/>
+<path d="M14.2,62.8 L-1644.8,64.1" class="tgt"/>
+<path d="M1860.7,119.7 L1987.6,71.8" class="twy"/>
+<path d="M1987.6,71.8 L2049.0,48.7" class="twy"/>
+<path d="M1667.8,389.4 L1668.9,548.3" class="twy"/>
+<path d="M1668.9,548.3 L1669.4,636.7" class="twy"/>
+<path d="M1669.4,636.7 L1669.8,724.9" class="twy"/>
+<path d="M1669.8,724.9 L1670.5,882.3" class="twy"/>
+<path d="M1669.4,636.7 L1581.1,636.7" class="rwy"/>
+<path d="M1581.1,636.7 L710.2,637.1" class="rwy"/>
+<path d="M710.2,637.1 L621.9,637.1" class="rwy"/>
+<path d="M1671.2,1051.2 L1671.9,1209.9" class="twy"/>
+<path d="M1584.0,1298.3 L713.1,1299.2" class="rwy"/>
+<path d="M713.1,1299.2 L624.7,1299.3" class="rwy"/>
+<path d="M-86.9,637.7 L-86.6,726.0" class="twy"/>
+<path d="M-86.6,726.0 L-86.1,884.3" class="twy"/>
+<path d="M621.9,637.1 L533.7,637.2" class="rwy"/>
+<path d="M533.7,637.2 L1.2,637.6" class="rwy"/>
+<path d="M1.2,637.6 L-86.9,637.7" class="rwy"/>
+<path d="M-86.9,637.7 L-175.3,637.8" class="rwy"/>
+<path d="M-175.3,637.8 L-1616.5,638.8" class="rwy"/>
+<path d="M624.7,1299.3 L536.6,1299.4" class="rwy"/>
+<path d="M536.6,1299.4 L23.0,1299.8" class="rwy"/>
+<path d="M621.2,418.7 L621.6,548.9" class="twy"/>
+<path d="M621.6,548.9 L621.9,637.1" class="twy"/>
+<path d="M621.9,637.1 L622.3,725.4" class="twy"/>
+<path d="M622.3,725.4 L623.0,883.5" class="twy"/>
+<path d="M623.7,1052.2 L624.4,1211.0" class="twy"/>
+<path d="M624.4,1211.0 L624.7,1299.3" class="twy"/>
+<path d="M624.7,1299.3 L625.3,1387.5" class="twy"/>
+<path d="M625.3,1387.5 L626.4,1546.1" class="twy"/>
+<path d="M-86.1,884.3 L-86.6,726.0 L-86.9,637.7 L-87.4,549.4 L-83.7,499.5 L-64.8,453.2 L-37.4,418.1 L-9.5,390.0 L120.1,259.5 L150.3,232.0 L187.5,209.8 L229.9,197.5 L268.8,195.6 L813.7,194.7" class="route"/>
+<circle cx="725.4" cy="194.8" r="2" class="tick"/>
+<text x="725.4" y="207.8" class="ticklbl">100</text>
+<circle cx="637.1" cy="195.0" r="2" class="tick"/>
+<text x="637.1" y="208.0" class="ticklbl">200</text>
+<circle cx="548.7" cy="195.2" r="2" class="tick"/>
+<text x="548.7" y="208.2" class="ticklbl">300</text>
+<circle cx="460.4" cy="195.3" r="2" class="tick"/>
+<text x="460.4" y="208.3" class="ticklbl">400</text>
+<circle cx="372.1" cy="195.5" r="2" class="tick"/>
+<text x="372.1" y="208.5" class="ticklbl">500</text>
+<circle cx="283.8" cy="195.6" r="2" class="tick"/>
+<text x="283.8" y="208.6" class="ticklbl">600</text>
+<circle cx="196.9" cy="207.1" r="2" class="tick"/>
+<text x="196.9" y="220.1" class="ticklbl">700</text>
+<circle cx="124.2" cy="255.7" r="2" class="tick"/>
+<text x="124.2" y="268.7" class="ticklbl">800</text>
+<circle cx="61.8" cy="318.2" r="2" class="tick"/>
+<text x="61.8" y="331.2" class="ticklbl">900</text>
+<text x="817.7" y="189.7" class="tgtlbl">F</text>
+<text x="272.8" y="190.6" class="twylbl">N</text>
+<text x="790.2" y="191.8" class="twylbl">P</text>
+<g transform="translate(0,194.7)">
+<polygon points="687.9,5.7 666.8,52.1 659.7,52.1 664.9,5.7 664.9,-5.2 659.5,-51.6 666.6,-51.6 687.9,-5.3" fill="var(--c-base)" fill-opacity="0.35" stroke="var(--c-base)" stroke-width="1"/>
+<polygon points="633.1,5.8 622.6,21.1 618.2,21.1 620.8,5.8 620.8,-5.1 618.1,-20.4 622.5,-20.4 633.1,-5.2" fill="var(--c-base)" fill-opacity="0.35" stroke="var(--c-base)" stroke-width="1"/>
+<polygon points="730.3,0.1 721.5,5.6 626.1,5.8 615.9,1.7 615.9,-1.0 626.1,-5.2 721.4,-5.3" fill="var(--c-base)" stroke="var(--c-base)" stroke-width="1"/>
+</g>
+<line x1="730.3" y1="194.8" x2="731.2" y2="186.0" class="dim"/>
+<text x="735.8" y="194.4" class="dimlbl">10 ft</text>
+<circle cx="730.3" cy="194.8" r="3.5" class="nose" style="fill:var(--c-base)"/>
+<circle cx="615.9" cy="195.0" r="3" class="tail" style="stroke:var(--c-base)"/>
+<circle cx="813.7" cy="194.7" r="5" class="bar"/>
+<text x="820.7" y="210.7" class="barlbl">merge / bar node 280</text>
+</svg><ul class="adv"><li>none (plain readback “hold short of F”)</li></ul></div><div class="lane"><div class="lanehead"><span class="sw" style="background:var(--c-a)"></span><b>A · cap at the floor distance + advisory</b><span class="num">nose 156 ft back · 21 ft from F centreline</span></div><svg viewBox="0 0 1017 380" width="1017" style="max-width:100%;height:auto" role="img" aria-label="A · cap at the floor distance + advisory">
+<rect x="0" y="0" width="1017" height="380" class="mapbg"/>
+<g class="bandgrp">
+<path d="M1207.4,194.7 L813.7,194.7" class="band" stroke-width="275.5"/>
+<path d="M813.7,194.7 L708.3,183.5" class="band" stroke-width="275.5"/>
+<path d="M708.3,183.5 L586.0,155.4" class="band" stroke-width="275.5"/>
+<path d="M586.0,155.4 L354.2,92.9" class="band" stroke-width="275.5"/>
+<path d="M354.2,92.9 L262.3,73.4" class="band" stroke-width="275.5"/>
+<path d="M262.3,73.4 L207.9,66.6" class="band" stroke-width="275.5"/>
+<path d="M207.9,66.6 L120.7,61.8" class="band" stroke-width="275.5"/>
+<path d="M120.7,61.8 L14.2,62.8" class="band" stroke-width="275.5"/>
+<path d="M2107.1,192.5 L2018.9,192.9" class="band" stroke-width="275.5"/>
+<path d="M2018.9,192.9 L1862.6,193.5" class="band" stroke-width="275.5"/>
+<path d="M1862.6,193.5 L1799.0,193.6" class="band" stroke-width="275.5"/>
+<path d="M1799.0,193.6 L1666.6,193.9" class="band" stroke-width="275.5"/>
+<path d="M1666.6,193.9 L1654.4,193.9" class="band" stroke-width="275.5"/>
+<path d="M1654.4,193.9 L1600.5,194.0" class="band" stroke-width="275.5"/>
+<path d="M1600.5,194.0 L1207.4,194.7" class="band" stroke-width="275.5"/>
+<path d="M14.2,62.8 L-1644.8,64.1" class="band" stroke-width="275.5"/>
+</g>
+<path d="M1207.4,194.7 L813.7,194.7" class="tgt"/>
+<path d="M813.7,194.7 L708.3,183.5" class="tgt"/>
+<path d="M708.3,183.5 L586.0,155.4" class="tgt"/>
+<path d="M586.0,155.4 L354.2,92.9" class="tgt"/>
+<path d="M354.2,92.9 L262.3,73.4" class="tgt"/>
+<path d="M262.3,73.4 L207.9,66.6" class="tgt"/>
+<path d="M207.9,66.6 L120.7,61.8" class="tgt"/>
+<path d="M120.7,61.8 L14.2,62.8" class="tgt"/>
+<path d="M1661.1,-953.0 L1665.3,-238.0" class="twy"/>
+<path d="M1665.3,-238.0 L1658.8,-206.0" class="twy"/>
+<path d="M1658.8,-206.0 L1643.8,-146.0" class="twy"/>
+<path d="M1643.8,-146.0 L1617.1,-77.4" class="twy"/>
+<path d="M1617.1,-77.4 L1579.7,-14.6" class="twy"/>
+<path d="M1579.7,-14.6 L1535.6,42.4" class="twy"/>
+<path d="M1535.6,42.4 L1471.3,99.5" class="twy"/>
+<path d="M1471.3,99.5 L1410.1,138.0" class="twy"/>
+<path d="M1410.1,138.0 L1345.2,167.1" class="twy"/>
+<path d="M1345.2,167.1 L1268.1,188.1" class="twy"/>
+<path d="M1268.1,188.1 L1207.4,194.7" class="twy"/>
+<path d="M813.7,194.7 L268.8,195.6" class="twy"/>
+<path d="M268.8,195.6 L229.9,197.5" class="twy"/>
+<path d="M229.9,197.5 L187.5,209.8" class="twy"/>
+<path d="M187.5,209.8 L150.3,232.0" class="twy"/>
+<path d="M150.3,232.0 L120.1,259.5" class="twy"/>
+<path d="M-37.4,418.1 L-64.8,453.2" class="twy"/>
+<path d="M-64.8,453.2 L-83.7,499.5" class="twy"/>
+<path d="M-83.7,499.5 L-87.4,549.4" class="twy"/>
+<path d="M-87.4,549.4 L-86.9,637.7" class="twy"/>
+<path d="M813.7,194.7 L786.2,196.8" class="twy"/>
+<path d="M786.2,196.8 L750.9,204.0" class="twy"/>
+<path d="M750.9,204.0 L720.7,217.8" class="twy"/>
+<path d="M720.7,217.8 L690.8,237.3" class="twy"/>
+<path d="M690.8,237.3 L664.2,264.3" class="twy"/>
+<path d="M664.2,264.3 L642.8,295.3" class="twy"/>
+<path d="M642.8,295.3 L627.4,335.2" class="twy"/>
+<path d="M627.4,335.2 L620.5,371.8" class="twy"/>
+<path d="M120.1,259.5 L-9.5,390.0" class="twy"/>
+<path d="M-9.5,390.0 L-37.4,418.1" class="twy"/>
+<path d="M620.5,371.8 L620.8,389.2" class="twy"/>
+<path d="M620.8,389.2 L621.2,418.7" class="twy"/>
+<path d="M1670.5,882.3 L1671.2,1051.2" class="twy"/>
+<path d="M-86.1,884.3 L-85.6,1052.9" class="twy"/>
+<path d="M623.0,883.5 L623.7,1052.2" class="twy"/>
+<path d="M3497.1,632.6 L1757.6,636.5" class="rwy"/>
+<path d="M1757.6,636.5 L1669.4,636.7" class="rwy"/>
+<path d="M2107.1,192.5 L2018.9,192.9" class="tgt"/>
+<path d="M2018.9,192.9 L1862.6,193.5" class="tgt"/>
+<path d="M1862.6,193.5 L1799.0,193.6" class="tgt"/>
+<path d="M1799.0,193.6 L1666.6,193.9" class="tgt"/>
+<path d="M1666.6,193.9 L1654.4,193.9" class="tgt"/>
+<path d="M1654.4,193.9 L1600.5,194.0" class="tgt"/>
+<path d="M1600.5,194.0 L1207.4,194.7" class="tgt"/>
+<path d="M1666.6,193.9 L1677.9,189.6" class="twy"/>
+<path d="M1677.9,189.6 L1709.4,177.5" class="twy"/>
+<path d="M1709.4,177.5 L1756.1,159.7" class="twy"/>
+<path d="M1756.1,159.7 L1790.2,146.6" class="twy"/>
+<path d="M1790.2,146.6 L1860.7,119.7" class="twy"/>
+<path d="M1665.3,-238.0 L1666.3,98.0" class="twy"/>
+<path d="M1666.3,98.0 L1666.6,193.9" class="twy"/>
+<path d="M1666.6,193.9 L1667.0,260.4" class="twy"/>
+<path d="M1667.0,260.4 L1667.8,389.4" class="twy"/>
+<path d="M14.2,62.8 L-1644.8,64.1" class="tgt"/>
+<path d="M1860.7,119.7 L1987.6,71.8" class="twy"/>
+<path d="M1987.6,71.8 L2049.0,48.7" class="twy"/>
+<path d="M1667.8,389.4 L1668.9,548.3" class="twy"/>
+<path d="M1668.9,548.3 L1669.4,636.7" class="twy"/>
+<path d="M1669.4,636.7 L1669.8,724.9" class="twy"/>
+<path d="M1669.8,724.9 L1670.5,882.3" class="twy"/>
+<path d="M1669.4,636.7 L1581.1,636.7" class="rwy"/>
+<path d="M1581.1,636.7 L710.2,637.1" class="rwy"/>
+<path d="M710.2,637.1 L621.9,637.1" class="rwy"/>
+<path d="M1671.2,1051.2 L1671.9,1209.9" class="twy"/>
+<path d="M1584.0,1298.3 L713.1,1299.2" class="rwy"/>
+<path d="M713.1,1299.2 L624.7,1299.3" class="rwy"/>
+<path d="M-86.9,637.7 L-86.6,726.0" class="twy"/>
+<path d="M-86.6,726.0 L-86.1,884.3" class="twy"/>
+<path d="M621.9,637.1 L533.7,637.2" class="rwy"/>
+<path d="M533.7,637.2 L1.2,637.6" class="rwy"/>
+<path d="M1.2,637.6 L-86.9,637.7" class="rwy"/>
+<path d="M-86.9,637.7 L-175.3,637.8" class="rwy"/>
+<path d="M-175.3,637.8 L-1616.5,638.8" class="rwy"/>
+<path d="M624.7,1299.3 L536.6,1299.4" class="rwy"/>
+<path d="M536.6,1299.4 L23.0,1299.8" class="rwy"/>
+<path d="M621.2,418.7 L621.6,548.9" class="twy"/>
+<path d="M621.6,548.9 L621.9,637.1" class="twy"/>
+<path d="M621.9,637.1 L622.3,725.4" class="twy"/>
+<path d="M622.3,725.4 L623.0,883.5" class="twy"/>
+<path d="M623.7,1052.2 L624.4,1211.0" class="twy"/>
+<path d="M624.4,1211.0 L624.7,1299.3" class="twy"/>
+<path d="M624.7,1299.3 L625.3,1387.5" class="twy"/>
+<path d="M625.3,1387.5 L626.4,1546.1" class="twy"/>
+<path d="M-86.1,884.3 L-86.6,726.0 L-86.9,637.7 L-87.4,549.4 L-83.7,499.5 L-64.8,453.2 L-37.4,418.1 L-9.5,390.0 L120.1,259.5 L150.3,232.0 L187.5,209.8 L229.9,197.5 L268.8,195.6 L813.7,194.7" class="route"/>
+<circle cx="725.4" cy="194.8" r="2" class="tick"/>
+<text x="725.4" y="207.8" class="ticklbl">100</text>
+<circle cx="637.1" cy="195.0" r="2" class="tick"/>
+<text x="637.1" y="208.0" class="ticklbl">200</text>
+<circle cx="548.7" cy="195.2" r="2" class="tick"/>
+<text x="548.7" y="208.2" class="ticklbl">300</text>
+<circle cx="460.4" cy="195.3" r="2" class="tick"/>
+<text x="460.4" y="208.3" class="ticklbl">400</text>
+<circle cx="372.1" cy="195.5" r="2" class="tick"/>
+<text x="372.1" y="208.5" class="ticklbl">500</text>
+<circle cx="283.8" cy="195.6" r="2" class="tick"/>
+<text x="283.8" y="208.6" class="ticklbl">600</text>
+<circle cx="196.9" cy="207.1" r="2" class="tick"/>
+<text x="196.9" y="220.1" class="ticklbl">700</text>
+<circle cx="124.2" cy="255.7" r="2" class="tick"/>
+<text x="124.2" y="268.7" class="ticklbl">800</text>
+<circle cx="61.8" cy="318.2" r="2" class="tick"/>
+<text x="61.8" y="331.2" class="ticklbl">900</text>
+<text x="817.7" y="189.7" class="tgtlbl">F</text>
+<text x="272.8" y="190.6" class="twylbl">N</text>
+<text x="790.2" y="191.8" class="twylbl">P</text>
+<g transform="translate(0,194.7)">
+<polygon points="633.5,5.8 612.4,52.2 605.4,52.2 610.6,5.8 610.6,-5.1 605.2,-51.5 612.2,-51.5 633.5,-5.2" fill="var(--c-a)" fill-opacity="0.35" stroke="var(--c-a)" stroke-width="1"/>
+<polygon points="578.8,5.9 568.2,21.2 563.8,21.2 566.4,5.9 566.4,-5.1 563.7,-20.3 568.1,-20.3 578.8,-5.1" fill="var(--c-a)" fill-opacity="0.35" stroke="var(--c-a)" stroke-width="1"/>
+<polygon points="675.9,0.2 667.1,5.7 571.7,5.9 561.6,1.8 561.5,-0.9 571.7,-5.1 667.1,-5.2" fill="var(--c-a)" stroke="var(--c-a)" stroke-width="1"/>
+</g>
+<line x1="675.9" y1="194.9" x2="680.0" y2="177.0" class="dim"/>
+<text x="683.0" y="190.0" class="dimlbl">21 ft</text>
+<circle cx="675.9" cy="194.9" r="3.5" class="nose" style="fill:var(--c-a)"/>
+<circle cx="561.5" cy="195.1" r="3" class="tail" style="stroke:var(--c-a)"/>
+<circle cx="813.7" cy="194.7" r="5" class="bar"/>
+<text x="820.7" y="210.7" class="barlbl">merge / bar node 280</text>
+</svg><ul class="adv"><li>holding short of TWY F — wingtip clearance from F not assured (21 ft)</li><li>stop 156 ft back of the merge, 61 ft behind the plain length+30 setback → instructor advisory</li></ul></div><div class="lane"><div class="lanehead"><span class="sw" style="background:var(--c-b)"></span><b>B · only capped merges (uncapped keeps today’s stop)</b><span class="num">nose 95 ft back · 10 ft from F centreline</span></div><svg viewBox="0 0 1017 380" width="1017" style="max-width:100%;height:auto" role="img" aria-label="B · only capped merges (uncapped keeps today’s stop)">
+<rect x="0" y="0" width="1017" height="380" class="mapbg"/>
+<g class="bandgrp">
+<path d="M1207.4,194.7 L813.7,194.7" class="band" stroke-width="275.5"/>
+<path d="M813.7,194.7 L708.3,183.5" class="band" stroke-width="275.5"/>
+<path d="M708.3,183.5 L586.0,155.4" class="band" stroke-width="275.5"/>
+<path d="M586.0,155.4 L354.2,92.9" class="band" stroke-width="275.5"/>
+<path d="M354.2,92.9 L262.3,73.4" class="band" stroke-width="275.5"/>
+<path d="M262.3,73.4 L207.9,66.6" class="band" stroke-width="275.5"/>
+<path d="M207.9,66.6 L120.7,61.8" class="band" stroke-width="275.5"/>
+<path d="M120.7,61.8 L14.2,62.8" class="band" stroke-width="275.5"/>
+<path d="M2107.1,192.5 L2018.9,192.9" class="band" stroke-width="275.5"/>
+<path d="M2018.9,192.9 L1862.6,193.5" class="band" stroke-width="275.5"/>
+<path d="M1862.6,193.5 L1799.0,193.6" class="band" stroke-width="275.5"/>
+<path d="M1799.0,193.6 L1666.6,193.9" class="band" stroke-width="275.5"/>
+<path d="M1666.6,193.9 L1654.4,193.9" class="band" stroke-width="275.5"/>
+<path d="M1654.4,193.9 L1600.5,194.0" class="band" stroke-width="275.5"/>
+<path d="M1600.5,194.0 L1207.4,194.7" class="band" stroke-width="275.5"/>
+<path d="M14.2,62.8 L-1644.8,64.1" class="band" stroke-width="275.5"/>
+</g>
+<path d="M1207.4,194.7 L813.7,194.7" class="tgt"/>
+<path d="M813.7,194.7 L708.3,183.5" class="tgt"/>
+<path d="M708.3,183.5 L586.0,155.4" class="tgt"/>
+<path d="M586.0,155.4 L354.2,92.9" class="tgt"/>
+<path d="M354.2,92.9 L262.3,73.4" class="tgt"/>
+<path d="M262.3,73.4 L207.9,66.6" class="tgt"/>
+<path d="M207.9,66.6 L120.7,61.8" class="tgt"/>
+<path d="M120.7,61.8 L14.2,62.8" class="tgt"/>
+<path d="M1661.1,-953.0 L1665.3,-238.0" class="twy"/>
+<path d="M1665.3,-238.0 L1658.8,-206.0" class="twy"/>
+<path d="M1658.8,-206.0 L1643.8,-146.0" class="twy"/>
+<path d="M1643.8,-146.0 L1617.1,-77.4" class="twy"/>
+<path d="M1617.1,-77.4 L1579.7,-14.6" class="twy"/>
+<path d="M1579.7,-14.6 L1535.6,42.4" class="twy"/>
+<path d="M1535.6,42.4 L1471.3,99.5" class="twy"/>
+<path d="M1471.3,99.5 L1410.1,138.0" class="twy"/>
+<path d="M1410.1,138.0 L1345.2,167.1" class="twy"/>
+<path d="M1345.2,167.1 L1268.1,188.1" class="twy"/>
+<path d="M1268.1,188.1 L1207.4,194.7" class="twy"/>
+<path d="M813.7,194.7 L268.8,195.6" class="twy"/>
+<path d="M268.8,195.6 L229.9,197.5" class="twy"/>
+<path d="M229.9,197.5 L187.5,209.8" class="twy"/>
+<path d="M187.5,209.8 L150.3,232.0" class="twy"/>
+<path d="M150.3,232.0 L120.1,259.5" class="twy"/>
+<path d="M-37.4,418.1 L-64.8,453.2" class="twy"/>
+<path d="M-64.8,453.2 L-83.7,499.5" class="twy"/>
+<path d="M-83.7,499.5 L-87.4,549.4" class="twy"/>
+<path d="M-87.4,549.4 L-86.9,637.7" class="twy"/>
+<path d="M813.7,194.7 L786.2,196.8" class="twy"/>
+<path d="M786.2,196.8 L750.9,204.0" class="twy"/>
+<path d="M750.9,204.0 L720.7,217.8" class="twy"/>
+<path d="M720.7,217.8 L690.8,237.3" class="twy"/>
+<path d="M690.8,237.3 L664.2,264.3" class="twy"/>
+<path d="M664.2,264.3 L642.8,295.3" class="twy"/>
+<path d="M642.8,295.3 L627.4,335.2" class="twy"/>
+<path d="M627.4,335.2 L620.5,371.8" class="twy"/>
+<path d="M120.1,259.5 L-9.5,390.0" class="twy"/>
+<path d="M-9.5,390.0 L-37.4,418.1" class="twy"/>
+<path d="M620.5,371.8 L620.8,389.2" class="twy"/>
+<path d="M620.8,389.2 L621.2,418.7" class="twy"/>
+<path d="M1670.5,882.3 L1671.2,1051.2" class="twy"/>
+<path d="M-86.1,884.3 L-85.6,1052.9" class="twy"/>
+<path d="M623.0,883.5 L623.7,1052.2" class="twy"/>
+<path d="M3497.1,632.6 L1757.6,636.5" class="rwy"/>
+<path d="M1757.6,636.5 L1669.4,636.7" class="rwy"/>
+<path d="M2107.1,192.5 L2018.9,192.9" class="tgt"/>
+<path d="M2018.9,192.9 L1862.6,193.5" class="tgt"/>
+<path d="M1862.6,193.5 L1799.0,193.6" class="tgt"/>
+<path d="M1799.0,193.6 L1666.6,193.9" class="tgt"/>
+<path d="M1666.6,193.9 L1654.4,193.9" class="tgt"/>
+<path d="M1654.4,193.9 L1600.5,194.0" class="tgt"/>
+<path d="M1600.5,194.0 L1207.4,194.7" class="tgt"/>
+<path d="M1666.6,193.9 L1677.9,189.6" class="twy"/>
+<path d="M1677.9,189.6 L1709.4,177.5" class="twy"/>
+<path d="M1709.4,177.5 L1756.1,159.7" class="twy"/>
+<path d="M1756.1,159.7 L1790.2,146.6" class="twy"/>
+<path d="M1790.2,146.6 L1860.7,119.7" class="twy"/>
+<path d="M1665.3,-238.0 L1666.3,98.0" class="twy"/>
+<path d="M1666.3,98.0 L1666.6,193.9" class="twy"/>
+<path d="M1666.6,193.9 L1667.0,260.4" class="twy"/>
+<path d="M1667.0,260.4 L1667.8,389.4" class="twy"/>
+<path d="M14.2,62.8 L-1644.8,64.1" class="tgt"/>
+<path d="M1860.7,119.7 L1987.6,71.8" class="twy"/>
+<path d="M1987.6,71.8 L2049.0,48.7" class="twy"/>
+<path d="M1667.8,389.4 L1668.9,548.3" class="twy"/>
+<path d="M1668.9,548.3 L1669.4,636.7" class="twy"/>
+<path d="M1669.4,636.7 L1669.8,724.9" class="twy"/>
+<path d="M1669.8,724.9 L1670.5,882.3" class="twy"/>
+<path d="M1669.4,636.7 L1581.1,636.7" class="rwy"/>
+<path d="M1581.1,636.7 L710.2,637.1" class="rwy"/>
+<path d="M710.2,637.1 L621.9,637.1" class="rwy"/>
+<path d="M1671.2,1051.2 L1671.9,1209.9" class="twy"/>
+<path d="M1584.0,1298.3 L713.1,1299.2" class="rwy"/>
+<path d="M713.1,1299.2 L624.7,1299.3" class="rwy"/>
+<path d="M-86.9,637.7 L-86.6,726.0" class="twy"/>
+<path d="M-86.6,726.0 L-86.1,884.3" class="twy"/>
+<path d="M621.9,637.1 L533.7,637.2" class="rwy"/>
+<path d="M533.7,637.2 L1.2,637.6" class="rwy"/>
+<path d="M1.2,637.6 L-86.9,637.7" class="rwy"/>
+<path d="M-86.9,637.7 L-175.3,637.8" class="rwy"/>
+<path d="M-175.3,637.8 L-1616.5,638.8" class="rwy"/>
+<path d="M624.7,1299.3 L536.6,1299.4" class="rwy"/>
+<path d="M536.6,1299.4 L23.0,1299.8" class="rwy"/>
+<path d="M621.2,418.7 L621.6,548.9" class="twy"/>
+<path d="M621.6,548.9 L621.9,637.1" class="twy"/>
+<path d="M621.9,637.1 L622.3,725.4" class="twy"/>
+<path d="M622.3,725.4 L623.0,883.5" class="twy"/>
+<path d="M623.7,1052.2 L624.4,1211.0" class="twy"/>
+<path d="M624.4,1211.0 L624.7,1299.3" class="twy"/>
+<path d="M624.7,1299.3 L625.3,1387.5" class="twy"/>
+<path d="M625.3,1387.5 L626.4,1546.1" class="twy"/>
+<path d="M-86.1,884.3 L-86.6,726.0 L-86.9,637.7 L-87.4,549.4 L-83.7,499.5 L-64.8,453.2 L-37.4,418.1 L-9.5,390.0 L120.1,259.5 L150.3,232.0 L187.5,209.8 L229.9,197.5 L268.8,195.6 L813.7,194.7" class="route"/>
+<circle cx="725.4" cy="194.8" r="2" class="tick"/>
+<text x="725.4" y="207.8" class="ticklbl">100</text>
+<circle cx="637.1" cy="195.0" r="2" class="tick"/>
+<text x="637.1" y="208.0" class="ticklbl">200</text>
+<circle cx="548.7" cy="195.2" r="2" class="tick"/>
+<text x="548.7" y="208.2" class="ticklbl">300</text>
+<circle cx="460.4" cy="195.3" r="2" class="tick"/>
+<text x="460.4" y="208.3" class="ticklbl">400</text>
+<circle cx="372.1" cy="195.5" r="2" class="tick"/>
+<text x="372.1" y="208.5" class="ticklbl">500</text>
+<circle cx="283.8" cy="195.6" r="2" class="tick"/>
+<text x="283.8" y="208.6" class="ticklbl">600</text>
+<circle cx="196.9" cy="207.1" r="2" class="tick"/>
+<text x="196.9" y="220.1" class="ticklbl">700</text>
+<circle cx="124.2" cy="255.7" r="2" class="tick"/>
+<text x="124.2" y="268.7" class="ticklbl">800</text>
+<circle cx="61.8" cy="318.2" r="2" class="tick"/>
+<text x="61.8" y="331.2" class="ticklbl">900</text>
+<text x="817.7" y="189.7" class="tgtlbl">F</text>
+<text x="272.8" y="190.6" class="twylbl">N</text>
+<text x="790.2" y="191.8" class="twylbl">P</text>
+<g transform="translate(0,194.7)">
+<polygon points="687.9,5.7 666.8,52.1 659.7,52.1 664.9,5.7 664.9,-5.2 659.5,-51.6 666.6,-51.6 687.9,-5.3" fill="var(--c-b)" fill-opacity="0.35" stroke="var(--c-b)" stroke-width="1"/>
+<polygon points="633.1,5.8 622.6,21.1 618.2,21.1 620.8,5.8 620.8,-5.1 618.1,-20.4 622.5,-20.4 633.1,-5.2" fill="var(--c-b)" fill-opacity="0.35" stroke="var(--c-b)" stroke-width="1"/>
+<polygon points="730.3,0.1 721.5,5.6 626.1,5.8 615.9,1.7 615.9,-1.0 626.1,-5.2 721.4,-5.3" fill="var(--c-b)" stroke="var(--c-b)" stroke-width="1"/>
+</g>
+<line x1="730.3" y1="194.8" x2="731.2" y2="186.0" class="dim"/>
+<text x="735.8" y="194.4" class="dimlbl">10 ft</text>
+<circle cx="730.3" cy="194.8" r="3.5" class="nose" style="fill:var(--c-b)"/>
+<circle cx="615.9" cy="195.0" r="3" class="tail" style="stroke:var(--c-b)"/>
+<circle cx="813.7" cy="194.7" r="5" class="bar"/>
+<text x="820.7" y="210.7" class="barlbl">merge / bar node 280</text>
+</svg><ul class="adv"><li>holding short of TWY F — wingtip clearance from F not assured (10 ft)</li></ul></div><div class="lane"><div class="lanehead"><span class="sw" style="background:var(--c-c)"></span><b>C · as built + advisory</b><span class="num">nose 692 ft back · 156 ft from F centreline</span></div><svg viewBox="0 0 1017 380" width="1017" style="max-width:100%;height:auto" role="img" aria-label="C · as built + advisory">
+<rect x="0" y="0" width="1017" height="380" class="mapbg"/>
+<g class="bandgrp">
+<path d="M1207.4,194.7 L813.7,194.7" class="band" stroke-width="275.5"/>
+<path d="M813.7,194.7 L708.3,183.5" class="band" stroke-width="275.5"/>
+<path d="M708.3,183.5 L586.0,155.4" class="band" stroke-width="275.5"/>
+<path d="M586.0,155.4 L354.2,92.9" class="band" stroke-width="275.5"/>
+<path d="M354.2,92.9 L262.3,73.4" class="band" stroke-width="275.5"/>
+<path d="M262.3,73.4 L207.9,66.6" class="band" stroke-width="275.5"/>
+<path d="M207.9,66.6 L120.7,61.8" class="band" stroke-width="275.5"/>
+<path d="M120.7,61.8 L14.2,62.8" class="band" stroke-width="275.5"/>
+<path d="M2107.1,192.5 L2018.9,192.9" class="band" stroke-width="275.5"/>
+<path d="M2018.9,192.9 L1862.6,193.5" class="band" stroke-width="275.5"/>
+<path d="M1862.6,193.5 L1799.0,193.6" class="band" stroke-width="275.5"/>
+<path d="M1799.0,193.6 L1666.6,193.9" class="band" stroke-width="275.5"/>
+<path d="M1666.6,193.9 L1654.4,193.9" class="band" stroke-width="275.5"/>
+<path d="M1654.4,193.9 L1600.5,194.0" class="band" stroke-width="275.5"/>
+<path d="M1600.5,194.0 L1207.4,194.7" class="band" stroke-width="275.5"/>
+<path d="M14.2,62.8 L-1644.8,64.1" class="band" stroke-width="275.5"/>
+</g>
+<path d="M1207.4,194.7 L813.7,194.7" class="tgt"/>
+<path d="M813.7,194.7 L708.3,183.5" class="tgt"/>
+<path d="M708.3,183.5 L586.0,155.4" class="tgt"/>
+<path d="M586.0,155.4 L354.2,92.9" class="tgt"/>
+<path d="M354.2,92.9 L262.3,73.4" class="tgt"/>
+<path d="M262.3,73.4 L207.9,66.6" class="tgt"/>
+<path d="M207.9,66.6 L120.7,61.8" class="tgt"/>
+<path d="M120.7,61.8 L14.2,62.8" class="tgt"/>
+<path d="M1661.1,-953.0 L1665.3,-238.0" class="twy"/>
+<path d="M1665.3,-238.0 L1658.8,-206.0" class="twy"/>
+<path d="M1658.8,-206.0 L1643.8,-146.0" class="twy"/>
+<path d="M1643.8,-146.0 L1617.1,-77.4" class="twy"/>
+<path d="M1617.1,-77.4 L1579.7,-14.6" class="twy"/>
+<path d="M1579.7,-14.6 L1535.6,42.4" class="twy"/>
+<path d="M1535.6,42.4 L1471.3,99.5" class="twy"/>
+<path d="M1471.3,99.5 L1410.1,138.0" class="twy"/>
+<path d="M1410.1,138.0 L1345.2,167.1" class="twy"/>
+<path d="M1345.2,167.1 L1268.1,188.1" class="twy"/>
+<path d="M1268.1,188.1 L1207.4,194.7" class="twy"/>
+<path d="M813.7,194.7 L268.8,195.6" class="twy"/>
+<path d="M268.8,195.6 L229.9,197.5" class="twy"/>
+<path d="M229.9,197.5 L187.5,209.8" class="twy"/>
+<path d="M187.5,209.8 L150.3,232.0" class="twy"/>
+<path d="M150.3,232.0 L120.1,259.5" class="twy"/>
+<path d="M-37.4,418.1 L-64.8,453.2" class="twy"/>
+<path d="M-64.8,453.2 L-83.7,499.5" class="twy"/>
+<path d="M-83.7,499.5 L-87.4,549.4" class="twy"/>
+<path d="M-87.4,549.4 L-86.9,637.7" class="twy"/>
+<path d="M813.7,194.7 L786.2,196.8" class="twy"/>
+<path d="M786.2,196.8 L750.9,204.0" class="twy"/>
+<path d="M750.9,204.0 L720.7,217.8" class="twy"/>
+<path d="M720.7,217.8 L690.8,237.3" class="twy"/>
+<path d="M690.8,237.3 L664.2,264.3" class="twy"/>
+<path d="M664.2,264.3 L642.8,295.3" class="twy"/>
+<path d="M642.8,295.3 L627.4,335.2" class="twy"/>
+<path d="M627.4,335.2 L620.5,371.8" class="twy"/>
+<path d="M120.1,259.5 L-9.5,390.0" class="twy"/>
+<path d="M-9.5,390.0 L-37.4,418.1" class="twy"/>
+<path d="M620.5,371.8 L620.8,389.2" class="twy"/>
+<path d="M620.8,389.2 L621.2,418.7" class="twy"/>
+<path d="M1670.5,882.3 L1671.2,1051.2" class="twy"/>
+<path d="M-86.1,884.3 L-85.6,1052.9" class="twy"/>
+<path d="M623.0,883.5 L623.7,1052.2" class="twy"/>
+<path d="M3497.1,632.6 L1757.6,636.5" class="rwy"/>
+<path d="M1757.6,636.5 L1669.4,636.7" class="rwy"/>
+<path d="M2107.1,192.5 L2018.9,192.9" class="tgt"/>
+<path d="M2018.9,192.9 L1862.6,193.5" class="tgt"/>
+<path d="M1862.6,193.5 L1799.0,193.6" class="tgt"/>
+<path d="M1799.0,193.6 L1666.6,193.9" class="tgt"/>
+<path d="M1666.6,193.9 L1654.4,193.9" class="tgt"/>
+<path d="M1654.4,193.9 L1600.5,194.0" class="tgt"/>
+<path d="M1600.5,194.0 L1207.4,194.7" class="tgt"/>
+<path d="M1666.6,193.9 L1677.9,189.6" class="twy"/>
+<path d="M1677.9,189.6 L1709.4,177.5" class="twy"/>
+<path d="M1709.4,177.5 L1756.1,159.7" class="twy"/>
+<path d="M1756.1,159.7 L1790.2,146.6" class="twy"/>
+<path d="M1790.2,146.6 L1860.7,119.7" class="twy"/>
+<path d="M1665.3,-238.0 L1666.3,98.0" class="twy"/>
+<path d="M1666.3,98.0 L1666.6,193.9" class="twy"/>
+<path d="M1666.6,193.9 L1667.0,260.4" class="twy"/>
+<path d="M1667.0,260.4 L1667.8,389.4" class="twy"/>
+<path d="M14.2,62.8 L-1644.8,64.1" class="tgt"/>
+<path d="M1860.7,119.7 L1987.6,71.8" class="twy"/>
+<path d="M1987.6,71.8 L2049.0,48.7" class="twy"/>
+<path d="M1667.8,389.4 L1668.9,548.3" class="twy"/>
+<path d="M1668.9,548.3 L1669.4,636.7" class="twy"/>
+<path d="M1669.4,636.7 L1669.8,724.9" class="twy"/>
+<path d="M1669.8,724.9 L1670.5,882.3" class="twy"/>
+<path d="M1669.4,636.7 L1581.1,636.7" class="rwy"/>
+<path d="M1581.1,636.7 L710.2,637.1" class="rwy"/>
+<path d="M710.2,637.1 L621.9,637.1" class="rwy"/>
+<path d="M1671.2,1051.2 L1671.9,1209.9" class="twy"/>
+<path d="M1584.0,1298.3 L713.1,1299.2" class="rwy"/>
+<path d="M713.1,1299.2 L624.7,1299.3" class="rwy"/>
+<path d="M-86.9,637.7 L-86.6,726.0" class="twy"/>
+<path d="M-86.6,726.0 L-86.1,884.3" class="twy"/>
+<path d="M621.9,637.1 L533.7,637.2" class="rwy"/>
+<path d="M533.7,637.2 L1.2,637.6" class="rwy"/>
+<path d="M1.2,637.6 L-86.9,637.7" class="rwy"/>
+<path d="M-86.9,637.7 L-175.3,637.8" class="rwy"/>
+<path d="M-175.3,637.8 L-1616.5,638.8" class="rwy"/>
+<path d="M624.7,1299.3 L536.6,1299.4" class="rwy"/>
+<path d="M536.6,1299.4 L23.0,1299.8" class="rwy"/>
+<path d="M621.2,418.7 L621.6,548.9" class="twy"/>
+<path d="M621.6,548.9 L621.9,637.1" class="twy"/>
+<path d="M621.9,637.1 L622.3,725.4" class="twy"/>
+<path d="M622.3,725.4 L623.0,883.5" class="twy"/>
+<path d="M623.7,1052.2 L624.4,1211.0" class="twy"/>
+<path d="M624.4,1211.0 L624.7,1299.3" class="twy"/>
+<path d="M624.7,1299.3 L625.3,1387.5" class="twy"/>
+<path d="M625.3,1387.5 L626.4,1546.1" class="twy"/>
+<path d="M-86.1,884.3 L-86.6,726.0 L-86.9,637.7 L-87.4,549.4 L-83.7,499.5 L-64.8,453.2 L-37.4,418.1 L-9.5,390.0 L120.1,259.5 L150.3,232.0 L187.5,209.8 L229.9,197.5 L268.8,195.6 L813.7,194.7" class="route"/>
+<circle cx="725.4" cy="194.8" r="2" class="tick"/>
+<text x="725.4" y="207.8" class="ticklbl">100</text>
+<circle cx="637.1" cy="195.0" r="2" class="tick"/>
+<text x="637.1" y="208.0" class="ticklbl">200</text>
+<circle cx="548.7" cy="195.2" r="2" class="tick"/>
+<text x="548.7" y="208.2" class="ticklbl">300</text>
+<circle cx="460.4" cy="195.3" r="2" class="tick"/>
+<text x="460.4" y="208.3" class="ticklbl">400</text>
+<circle cx="372.1" cy="195.5" r="2" class="tick"/>
+<text x="372.1" y="208.5" class="ticklbl">500</text>
+<circle cx="283.8" cy="195.6" r="2" class="tick"/>
+<text x="283.8" y="208.6" class="ticklbl">600</text>
+<circle cx="196.9" cy="207.1" r="2" class="tick"/>
+<text x="196.9" y="220.1" class="ticklbl">700</text>
+<circle cx="124.2" cy="255.7" r="2" class="tick"/>
+<text x="124.2" y="268.7" class="ticklbl">800</text>
+<circle cx="61.8" cy="318.2" r="2" class="tick"/>
+<text x="61.8" y="331.2" class="ticklbl">900</text>
+<text x="817.7" y="189.7" class="tgtlbl">F</text>
+<text x="272.8" y="190.6" class="twylbl">N</text>
+<text x="790.2" y="191.8" class="twylbl">P</text>
+<g transform="translate(0,194.7)">
+<polygon points="172.2,38.8 180.9,89.0 175.0,93.0 153.2,51.7 147.0,42.7 116.5,7.4 122.3,3.4 166.0,29.7" fill="var(--c-c)" fill-opacity="0.35" stroke="var(--c-c)" stroke-width="1"/>
+<polygon points="127.0,69.7 126.9,88.3 123.2,90.8 116.8,76.7 110.6,67.6 99.8,56.5 103.4,54.0 120.8,60.6" fill="var(--c-c)" fill-opacity="0.35" stroke="var(--c-c)" stroke-width="1"/>
+<polygon points="204.1,10.3 199.9,19.8 121.1,73.7 110.4,76.0 108.9,73.8 115.0,64.6 193.7,10.8" fill="var(--c-c)" stroke="var(--c-c)" stroke-width="1"/>
+</g>
+<line x1="204.1" y1="205.0" x2="221.1" y2="68.3" class="dim"/>
+<text x="217.6" y="140.6" class="dimlbl">156 ft</text>
+<circle cx="204.1" cy="205.0" r="3.5" class="nose" style="fill:var(--c-c)"/>
+<circle cx="111.0" cy="268.7" r="3" class="tail" style="stroke:var(--c-c)"/>
+<circle cx="813.7" cy="194.7" r="5" class="bar"/>
+<text x="820.7" y="210.7" class="barlbl">merge / bar node 280</text>
+</svg><ul class="adv"><li>today’s build: nothing (silent)</li><li>new: “holding short of TWY F 692 ft before the merge (N merges into F)”</li></ul></div></div><div class="side"><h3>Nose clearance from F as the stop moves back</h3><svg viewBox="0 0 540 230" width="100%" role="img" aria-label="nose clearance vs distance back">
+<line x1="46" x2="526" y1="196.0" y2="196.0" class="grid"/>
+<text x="40" y="200.0" class="axlbl" text-anchor="end">0</text>
+<line x1="46" x2="526" y1="167.1" y2="167.1" class="grid"/>
+<text x="40" y="171.1" class="axlbl" text-anchor="end">50</text>
+<line x1="46" x2="526" y1="138.2" y2="138.2" class="grid"/>
+<text x="40" y="142.2" class="axlbl" text-anchor="end">100</text>
+<line x1="46" x2="526" y1="109.3" y2="109.3" class="grid"/>
+<text x="40" y="113.3" class="axlbl" text-anchor="end">150</text>
+<line x1="46" x2="526" y1="80.4" y2="80.4" class="grid"/>
+<text x="40" y="84.4" class="axlbl" text-anchor="end">200</text>
+<line x1="46" x2="526" y1="51.5" y2="51.5" class="grid"/>
+<text x="40" y="55.5" class="axlbl" text-anchor="end">250</text>
+<line x1="46" x2="526" y1="22.6" y2="22.6" class="grid"/>
+<text x="40" y="26.6" class="axlbl" text-anchor="end">300</text>
+<text x="46.0" y="212" class="axlbl" text-anchor="middle">0</text>
+<text x="99.3" y="212" class="axlbl" text-anchor="middle">100</text>
+<text x="152.7" y="212" class="axlbl" text-anchor="middle">200</text>
+<text x="206.0" y="212" class="axlbl" text-anchor="middle">300</text>
+<text x="259.3" y="212" class="axlbl" text-anchor="middle">400</text>
+<text x="312.7" y="212" class="axlbl" text-anchor="middle">500</text>
+<text x="366.0" y="212" class="axlbl" text-anchor="middle">600</text>
+<text x="419.3" y="212" class="axlbl" text-anchor="middle">700</text>
+<text x="472.7" y="212" class="axlbl" text-anchor="middle">800</text>
+<text x="526.0" y="212" class="axlbl" text-anchor="middle">900</text>
+<line x1="46" x2="526" y1="105.8" y2="105.8" class="floorline"/>
+<text x="526" y="100.8" class="axlbl" text-anchor="end">wingtip floor 156 ft</text>
+<polyline points="46.0,195.8 48.7,195.7 51.3,195.4 54.0,195.1 56.7,194.8 59.3,194.5 62.0,194.2 64.7,193.9 67.3,193.6 70.0,193.2 72.7,192.9 75.3,192.6 78.0,192.3 80.7,192.0 83.3,191.7 86.0,191.4 88.7,191.1 91.3,190.7 94.0,190.5 96.7,190.2 99.3,189.8 102.0,189.5 104.7,189.2 107.3,188.9 110.0,188.6 112.7,188.1 115.3,187.4 118.0,186.8 120.7,186.1 123.3,185.5 126.0,184.8 128.7,184.2 131.3,183.5 134.0,182.8 136.7,182.2 139.3,181.6 142.0,180.9 144.7,180.2 147.3,179.6 150.0,178.9 152.7,178.3 155.3,177.6 158.0,177.0 160.7,176.3 163.3,175.7 166.0,175.0 168.7,174.3 171.3,173.7 174.0,173.1 176.7,172.4 179.3,171.7 182.0,171.1 184.7,170.4 187.3,169.8 190.0,169.1 192.7,168.3 195.3,167.6 198.0,166.8 200.7,166.1 203.3,165.3 206.0,164.6 208.7,163.8 211.3,163.1 214.0,162.3 216.7,161.5 219.3,160.7 222.0,160.0 224.7,159.2 227.3,158.5 230.0,157.7 232.7,157.0 235.3,156.2 238.0,155.5 240.7,154.7 243.3,153.9 246.0,153.2 248.7,152.4 251.3,151.7 254.0,150.9 256.7,150.2 259.3,149.4 262.0,148.7 264.7,147.9 267.3,147.1 270.0,146.3 272.7,145.6 275.3,144.8 278.0,144.1 280.7,143.3 283.3,142.6 286.0,141.8 288.7,141.1 291.3,140.3 294.0,139.5 296.7,138.8 299.3,138.0 302.0,137.3 304.7,136.5 307.3,135.8 310.0,135.0 312.7,134.3 315.3,133.5 318.0,132.7 320.7,132.0 323.3,131.2 326.0,130.5 328.7,129.7 331.3,129.0 334.0,128.2 336.7,127.4 339.3,126.7 342.0,126.1 344.7,125.5 347.3,124.9 350.0,124.3 352.7,123.7 355.3,123.1 358.0,122.5 360.7,121.9 363.3,121.3 366.0,120.7 368.7,120.1 371.3,119.5 374.0,118.8 376.7,118.2 379.3,117.5 382.0,116.7 384.7,116.0 387.3,115.3 390.0,114.5 392.7,113.9 395.3,113.3 398.0,112.8 400.7,111.9 403.3,110.7 406.0,109.6 408.7,108.5 411.3,107.3 414.0,106.2 416.7,105.1 419.3,103.9 422.0,102.9 424.7,101.9 427.3,100.5 430.0,98.9 432.7,97.3 435.3,95.7 438.0,94.1 440.7,92.5 443.3,90.9 446.0,89.2 448.7,87.6 451.3,86.0 454.0,84.0 456.7,82.0 459.3,79.9 462.0,77.8 464.7,75.8 467.3,73.7 470.0,71.6 472.7,69.6 475.3,67.5 478.0,65.4 480.7,63.3 483.3,61.3 486.0,59.2 488.7,57.2 491.3,55.2 494.0,53.1 496.7,51.1 499.3,49.1 502.0,47.0 504.7,45.0 507.3,43.0 510.0,40.9 512.7,38.9 515.3,36.9 518.0,34.9 520.7,32.8 523.3,30.8 526.0,28.7" class="curve"/>
+<circle cx="96.4" cy="185.2" r="5" style="fill:var(--c-base)" class="dot"/>
+<text x="103.4" y="183.2" class="dotlbl">today / B</text>
+<circle cx="129.2" cy="184.0" r="5" style="fill:var(--c-a)" class="dot"/>
+<text x="136.2" y="177.0" class="dotlbl">A</text>
+<circle cx="96.4" cy="195.2" r="5" style="fill:var(--c-b)" class="dot"/>
+<circle cx="414.8" cy="105.8" r="5" style="fill:var(--c-c)" class="dot"/>
+<text x="421.8" y="98.8" class="dotlbl">C</text>
+<text x="286.0" y="228" class="axlbl" text-anchor="middle">nose distance back of the merge along the route (ft)</text>
+<text x="12" y="104.0" class="axlbl" text-anchor="middle" transform="rotate(-90 12 104.0)">nose → F centreline (ft)</text>
+</svg><p class="note">The curve is the B738 nose’s distance to F’s centreline when the nose stands that far back along N. C walks back until the curve meets the floor; A stops at the floor distance (156 ft back) without meeting the floor; today and B keep the plain length+30 stop.</p></div></div></section>
+<section id="sfo323"><h2>SFO node 323: GL merging into L</h2><p class="meta">B738 (129.5 ft long, 117.4 ft span, drawn to scale). Wingtip floor 156 ft. Map rotated so L runs left to right past the merge (true track ≈ 028°). Grey dots: 100 ft marks back of the merge along GL. GL curves onto L: 4° off L in the last 50 ft, 18° at 150 ft back, 37° at 300. No intersection caps the walk-back, but C still stops short of the floor for the B738: its tail reaches GL node 891, 478 ft back, a two-edge node that the junction rule can only match as a runway hold-short node (GL leaves RWY 01R/19L), so the stop is 349 ft back with the existing wingtip warning (121 ft). A C172 meets the floor at 399 ft back. No crossing taxiway there, so no merge hold: under B this junction keeps today’s stop.</p><div class="grid2"><div class="lanes"><div class="lane"><div class="lanehead"><span class="sw" style="background:var(--c-base)"></span><b>Today (baseline, abe87c193)</b><span class="num">nose 95 ft back · 11 ft from L centreline</span></div><svg viewBox="0 0 664 380" width="664" style="max-width:100%;height:auto" role="img" aria-label="Today (baseline, abe87c193)">
+<rect x="0" y="0" width="664" height="380" class="mapbg"/>
+<g class="bandgrp">
+<path d="M-1533.4,314.2 L-402.0,315.2" class="band" stroke-width="278.7"/>
+<path d="M-402.0,315.2 L458.4,317.5" class="band" stroke-width="278.7"/>
+<path d="M458.4,317.5 L1181.6,317.5" class="band" stroke-width="278.7"/>
+<path d="M1181.6,317.5 L1521.4,318.5" class="band" stroke-width="278.7"/>
+<path d="M1521.4,318.5 L1618.4,318.8" class="band" stroke-width="278.7"/>
+<path d="M1618.4,318.8 L1685.7,318.8" class="band" stroke-width="278.7"/>
+<path d="M1685.7,318.8 L1816.1,318.7" class="band" stroke-width="278.7"/>
+</g>
+<path d="M1616.5,783.2 L1614.1,1181.5" class="twy"/>
+<path d="M-1533.4,314.2 L-402.0,315.2" class="tgt"/>
+<path d="M-402.0,315.2 L458.4,317.5" class="tgt"/>
+<path d="M458.4,317.5 L1181.6,317.5" class="tgt"/>
+<path d="M1181.6,317.5 L1213.9,324.3" class="twy"/>
+<path d="M1213.9,324.3 L1274.5,339.8" class="twy"/>
+<path d="M1274.5,339.8 L1343.7,367.3" class="twy"/>
+<path d="M1343.7,367.3 L1407.0,405.4" class="twy"/>
+<path d="M1407.0,405.4 L1464.4,450.4" class="twy"/>
+<path d="M1464.4,450.4 L1521.7,515.8" class="twy"/>
+<path d="M1521.7,515.8 L1560.3,577.8" class="twy"/>
+<path d="M1560.3,577.8 L1589.4,643.7" class="twy"/>
+<path d="M1589.4,643.7 L1610.1,721.9" class="twy"/>
+<path d="M1610.1,721.9 L1616.5,783.2" class="twy"/>
+<path d="M-27.2,70.5 L-56.3,120.2" class="twy"/>
+<path d="M-56.3,120.2 L-91.7,166.1" class="twy"/>
+<path d="M-91.7,166.1 L-131.6,206.3" class="twy"/>
+<path d="M-131.6,206.3 L-174.5,238.5" class="twy"/>
+<path d="M-174.5,238.5 L-221.6,264.9" class="twy"/>
+<path d="M-221.6,264.9 L-262.7,283.7" class="twy"/>
+<path d="M-262.7,283.7 L-305.0,299.5" class="twy"/>
+<path d="M-305.0,299.5 L-348.0,308.2" class="twy"/>
+<path d="M-348.0,308.2 L-402.0,315.2" class="twy"/>
+<path d="M62.7,63.0 L82.4,99.3" class="twy"/>
+<path d="M100.9,127.7 L142.6,177.8" class="twy"/>
+<path d="M142.6,177.8 L174.6,210.4" class="twy"/>
+<path d="M174.6,210.4 L221.1,245.6" class="twy"/>
+<path d="M221.1,245.6 L261.7,268.5" class="twy"/>
+<path d="M261.7,268.5 L312.7,289.6" class="twy"/>
+<path d="M312.7,289.6 L357.5,304.6" class="twy"/>
+<path d="M357.5,304.6 L404.7,313.4" class="twy"/>
+<path d="M404.7,313.4 L458.4,317.5" class="twy"/>
+<path d="M-293.7,-255.5 L-109.9,-190.9" class="twy"/>
+<path d="M82.4,99.3 L97.0,121.8" class="twy"/>
+<path d="M97.0,121.8 L100.9,127.7" class="twy"/>
+<path d="M-893.3,-528.7 L-565.0,-379.1" class="twy"/>
+<path d="M-565.0,-379.1 L-293.7,-255.5" class="twy"/>
+<path d="M1360.1,-376.2 L1297.3,-545.8" class="twy"/>
+<path d="M23.1,-548.5 L22.3,-378.3" class="twy"/>
+<path d="M17.5,-74.2 L21.2,-128.9" class="twy"/>
+<path d="M1620.4,-216.1 L1619.7,-126.8" class="twy"/>
+<path d="M1619.7,-126.8 L1619.5,-37.5" class="twy"/>
+<path d="M1619.5,-37.5 L1619.2,120.6" class="twy"/>
+<path d="M1452.3,-127.1 L1499.8,-127.0" class="rwy"/>
+<path d="M1499.8,-127.0 L1551.6,-126.9" class="rwy"/>
+<path d="M1551.6,-126.9 L1619.7,-126.8" class="rwy"/>
+<path d="M1619.7,-126.8 L1709.2,-126.7" class="rwy"/>
+<path d="M1619.2,120.6 L1619.0,184.9" class="twy"/>
+<path d="M1619.0,184.9 L1618.4,318.8" class="twy"/>
+<path d="M1618.4,318.8 L1618.4,331.1" class="twy"/>
+<path d="M1618.4,331.1 L1618.1,385.6" class="twy"/>
+<path d="M1618.1,385.6 L1616.5,783.2" class="twy"/>
+<path d="M1618.4,318.8 L1614.1,307.3" class="twy"/>
+<path d="M1614.1,307.3 L1602.1,275.4" class="twy"/>
+<path d="M1602.1,275.4 L1584.3,228.0" class="twy"/>
+<path d="M1584.3,228.0 L1571.3,193.5" class="twy"/>
+<path d="M1571.3,193.5 L1544.5,122.0" class="twy"/>
+<path d="M1181.6,317.5 L1521.4,318.5" class="tgt"/>
+<path d="M1521.4,318.5 L1618.4,318.8" class="tgt"/>
+<path d="M1618.4,318.8 L1685.7,318.8" class="tgt"/>
+<path d="M1685.7,318.8 L1816.1,318.7" class="tgt"/>
+<path d="M1544.5,122.0 L1496.9,-6.6" class="twy"/>
+<path d="M1496.9,-6.6 L1473.8,-68.9" class="twy"/>
+<path d="M1473.8,-68.9 L1452.3,-127.1" class="twy"/>
+<path d="M1452.3,-127.1 L1430.8,-185.2" class="twy"/>
+<path d="M1430.8,-185.2 L1407.7,-247.5" class="twy"/>
+<path d="M1407.7,-247.5 L1360.1,-376.2" class="twy"/>
+<path d="M21.2,-128.9 L141.1,-128.7" class="rwy"/>
+<path d="M141.1,-128.7 L1323.9,-127.2" class="rwy"/>
+<path d="M1323.9,-127.2 L1390.2,-127.1" class="rwy"/>
+<path d="M1390.2,-127.1 L1452.3,-127.1" class="rwy"/>
+<path d="M1297.3,-545.8 L1249.3,-675.3" class="twy"/>
+<path d="M24.2,-798.2 L113.5,-798.0" class="rwy"/>
+<path d="M113.5,-798.0 L1076.1,-796.0" class="rwy"/>
+<path d="M24.6,-887.4 L24.2,-798.2" class="twy"/>
+<path d="M24.2,-798.2 L23.8,-708.8" class="twy"/>
+<path d="M23.8,-708.8 L23.1,-548.5" class="twy"/>
+<path d="M-978.7,-798.9 L-65.0,-798.2" class="rwy"/>
+<path d="M-65.0,-798.2 L24.2,-798.2" class="rwy"/>
+<path d="M21.2,-128.9 L18.1,-83.3" class="twy"/>
+<path d="M18.1,-83.3 L17.5,-74.2" class="twy"/>
+<path d="M17.5,-74.2 L12.1,-45.9" class="twy"/>
+<path d="M12.1,-45.9 L9.9,-34.3" class="twy"/>
+<path d="M9.9,-34.3 L6.8,-18.3" class="twy"/>
+<path d="M-109.9,-190.9 L-99.9,-186.1" class="twy"/>
+<path d="M-99.9,-186.1 L-87.2,-180.1" class="twy"/>
+<path d="M-87.2,-180.1 L-73.9,-173.8" class="twy"/>
+<path d="M-73.9,-173.8 L-20.1,-148.4" class="twy"/>
+<path d="M-20.1,-148.4 L21.2,-128.9" class="twy"/>
+<path d="M22.3,-378.3 L21.7,-234.1" class="twy"/>
+<path d="M21.7,-234.1 L21.2,-128.9" class="twy"/>
+<path d="M-1540.7,-130.8 L-112.7,-129.0" class="rwy"/>
+<path d="M-112.7,-129.0 L21.2,-128.9" class="rwy"/>
+<path d="M6.8,-18.3 L-9.8,30.3" class="twy"/>
+<path d="M-9.8,30.3 L-20.0,53.8" class="twy"/>
+<path d="M-20.0,53.8 L-27.2,70.5" class="twy"/>
+<path d="M17.5,-74.2 L21.1,-62.4" class="twy"/>
+<path d="M21.1,-62.4 L30.4,-31.9" class="twy"/>
+<path d="M30.4,-31.9 L43.0,14.2" class="twy"/>
+<path d="M43.0,14.2 L58.7,53.0" class="twy"/>
+<path d="M58.7,53.0 L62.7,63.0" class="twy"/>
+<path d="M17.5,-74.2 L21.1,-62.4 L30.4,-31.9 L43.0,14.2 L58.7,53.0 L62.7,63.0 L82.4,99.3 L97.0,121.8 L100.9,127.7 L142.6,177.8 L174.6,210.4 L221.1,245.6 L261.7,268.5 L312.7,289.6 L357.5,304.6 L404.7,313.4 L458.4,317.5" class="route"/>
+<circle cx="369.8" cy="306.9" r="2" class="tick"/>
+<text x="369.8" y="319.9" class="ticklbl">100</text>
+<circle cx="285.4" cy="278.3" r="2" class="tick"/>
+<text x="285.4" y="291.3" class="ticklbl">200</text>
+<circle cx="207.5" cy="235.3" r="2" class="tick"/>
+<text x="207.5" y="248.3" class="ticklbl">300</text>
+<circle cx="141.1" cy="175.9" r="2" class="tick"/>
+<text x="141.1" y="188.9" class="ticklbl">400</text>
+<circle cx="86.4" cy="105.5" r="2" class="tick"/>
+<text x="86.4" y="118.5" class="ticklbl">500</text>
+<circle cx="47.4" cy="25.3" r="2" class="tick"/>
+<text x="47.4" y="38.3" class="ticklbl">600</text>
+<circle cx="21.8" cy="-60.2" r="2" class="tick"/>
+<text x="21.8" y="-47.2" class="ticklbl">700</text>
+<text x="462.4" y="312.5" class="tgtlbl">L</text>
+<text x="86.4" y="94.3" class="twylbl">GL</text>
+<g transform="translate(0,317.5)">
+<polygon points="332.1,-18.5 296.5,18.8 289.8,16.5 310.2,-26.1 313.8,-36.6 324.1,-82.6 330.8,-80.3 335.7,-29.0" fill="var(--c-base)" fill-opacity="0.35" stroke="var(--c-base)" stroke-width="1"/>
+<polygon points="279.8,-36.6 264.6,-25.5 260.4,-27.0 268.0,-40.7 271.6,-51.2 274.1,-66.7 278.3,-65.2 283.4,-47.1" fill="var(--c-base)" fill-opacity="0.35" stroke="var(--c-base)" stroke-width="1"/>
+<polygon points="374.4,-9.7 364.2,-7.4 273.0,-39.0 264.7,-46.3 265.6,-48.8 276.7,-49.4 367.8,-17.9" fill="var(--c-base)" stroke="var(--c-base)" stroke-width="1"/>
+</g>
+<line x1="374.4" y1="307.8" x2="374.4" y2="317.2" class="dim"/>
+<text x="379.4" y="316.5" class="dimlbl">11 ft</text>
+<circle cx="374.4" cy="307.8" r="3.5" class="nose" style="fill:var(--c-base)"/>
+<circle cx="265.4" cy="270.0" r="3" class="tail" style="stroke:var(--c-base)"/>
+<circle cx="458.4" cy="317.5" r="5" class="bar"/>
+<text x="465.4" y="333.5" class="barlbl">merge / bar node 323</text>
+</svg><ul class="adv"><li>none (plain readback “hold short of L”)</li></ul></div><div class="lane"><div class="lanehead"><span class="sw" style="background:var(--c-a)"></span><b>A · cap at the floor distance + advisory</b><span class="num">nose 156 ft back · 27 ft from L centreline</span></div><svg viewBox="0 0 664 380" width="664" style="max-width:100%;height:auto" role="img" aria-label="A · cap at the floor distance + advisory">
+<rect x="0" y="0" width="664" height="380" class="mapbg"/>
+<g class="bandgrp">
+<path d="M-1533.4,314.2 L-402.0,315.2" class="band" stroke-width="278.7"/>
+<path d="M-402.0,315.2 L458.4,317.5" class="band" stroke-width="278.7"/>
+<path d="M458.4,317.5 L1181.6,317.5" class="band" stroke-width="278.7"/>
+<path d="M1181.6,317.5 L1521.4,318.5" class="band" stroke-width="278.7"/>
+<path d="M1521.4,318.5 L1618.4,318.8" class="band" stroke-width="278.7"/>
+<path d="M1618.4,318.8 L1685.7,318.8" class="band" stroke-width="278.7"/>
+<path d="M1685.7,318.8 L1816.1,318.7" class="band" stroke-width="278.7"/>
+</g>
+<path d="M1616.5,783.2 L1614.1,1181.5" class="twy"/>
+<path d="M-1533.4,314.2 L-402.0,315.2" class="tgt"/>
+<path d="M-402.0,315.2 L458.4,317.5" class="tgt"/>
+<path d="M458.4,317.5 L1181.6,317.5" class="tgt"/>
+<path d="M1181.6,317.5 L1213.9,324.3" class="twy"/>
+<path d="M1213.9,324.3 L1274.5,339.8" class="twy"/>
+<path d="M1274.5,339.8 L1343.7,367.3" class="twy"/>
+<path d="M1343.7,367.3 L1407.0,405.4" class="twy"/>
+<path d="M1407.0,405.4 L1464.4,450.4" class="twy"/>
+<path d="M1464.4,450.4 L1521.7,515.8" class="twy"/>
+<path d="M1521.7,515.8 L1560.3,577.8" class="twy"/>
+<path d="M1560.3,577.8 L1589.4,643.7" class="twy"/>
+<path d="M1589.4,643.7 L1610.1,721.9" class="twy"/>
+<path d="M1610.1,721.9 L1616.5,783.2" class="twy"/>
+<path d="M-27.2,70.5 L-56.3,120.2" class="twy"/>
+<path d="M-56.3,120.2 L-91.7,166.1" class="twy"/>
+<path d="M-91.7,166.1 L-131.6,206.3" class="twy"/>
+<path d="M-131.6,206.3 L-174.5,238.5" class="twy"/>
+<path d="M-174.5,238.5 L-221.6,264.9" class="twy"/>
+<path d="M-221.6,264.9 L-262.7,283.7" class="twy"/>
+<path d="M-262.7,283.7 L-305.0,299.5" class="twy"/>
+<path d="M-305.0,299.5 L-348.0,308.2" class="twy"/>
+<path d="M-348.0,308.2 L-402.0,315.2" class="twy"/>
+<path d="M62.7,63.0 L82.4,99.3" class="twy"/>
+<path d="M100.9,127.7 L142.6,177.8" class="twy"/>
+<path d="M142.6,177.8 L174.6,210.4" class="twy"/>
+<path d="M174.6,210.4 L221.1,245.6" class="twy"/>
+<path d="M221.1,245.6 L261.7,268.5" class="twy"/>
+<path d="M261.7,268.5 L312.7,289.6" class="twy"/>
+<path d="M312.7,289.6 L357.5,304.6" class="twy"/>
+<path d="M357.5,304.6 L404.7,313.4" class="twy"/>
+<path d="M404.7,313.4 L458.4,317.5" class="twy"/>
+<path d="M-293.7,-255.5 L-109.9,-190.9" class="twy"/>
+<path d="M82.4,99.3 L97.0,121.8" class="twy"/>
+<path d="M97.0,121.8 L100.9,127.7" class="twy"/>
+<path d="M-893.3,-528.7 L-565.0,-379.1" class="twy"/>
+<path d="M-565.0,-379.1 L-293.7,-255.5" class="twy"/>
+<path d="M1360.1,-376.2 L1297.3,-545.8" class="twy"/>
+<path d="M23.1,-548.5 L22.3,-378.3" class="twy"/>
+<path d="M17.5,-74.2 L21.2,-128.9" class="twy"/>
+<path d="M1620.4,-216.1 L1619.7,-126.8" class="twy"/>
+<path d="M1619.7,-126.8 L1619.5,-37.5" class="twy"/>
+<path d="M1619.5,-37.5 L1619.2,120.6" class="twy"/>
+<path d="M1452.3,-127.1 L1499.8,-127.0" class="rwy"/>
+<path d="M1499.8,-127.0 L1551.6,-126.9" class="rwy"/>
+<path d="M1551.6,-126.9 L1619.7,-126.8" class="rwy"/>
+<path d="M1619.7,-126.8 L1709.2,-126.7" class="rwy"/>
+<path d="M1619.2,120.6 L1619.0,184.9" class="twy"/>
+<path d="M1619.0,184.9 L1618.4,318.8" class="twy"/>
+<path d="M1618.4,318.8 L1618.4,331.1" class="twy"/>
+<path d="M1618.4,331.1 L1618.1,385.6" class="twy"/>
+<path d="M1618.1,385.6 L1616.5,783.2" class="twy"/>
+<path d="M1618.4,318.8 L1614.1,307.3" class="twy"/>
+<path d="M1614.1,307.3 L1602.1,275.4" class="twy"/>
+<path d="M1602.1,275.4 L1584.3,228.0" class="twy"/>
+<path d="M1584.3,228.0 L1571.3,193.5" class="twy"/>
+<path d="M1571.3,193.5 L1544.5,122.0" class="twy"/>
+<path d="M1181.6,317.5 L1521.4,318.5" class="tgt"/>
+<path d="M1521.4,318.5 L1618.4,318.8" class="tgt"/>
+<path d="M1618.4,318.8 L1685.7,318.8" class="tgt"/>
+<path d="M1685.7,318.8 L1816.1,318.7" class="tgt"/>
+<path d="M1544.5,122.0 L1496.9,-6.6" class="twy"/>
+<path d="M1496.9,-6.6 L1473.8,-68.9" class="twy"/>
+<path d="M1473.8,-68.9 L1452.3,-127.1" class="twy"/>
+<path d="M1452.3,-127.1 L1430.8,-185.2" class="twy"/>
+<path d="M1430.8,-185.2 L1407.7,-247.5" class="twy"/>
+<path d="M1407.7,-247.5 L1360.1,-376.2" class="twy"/>
+<path d="M21.2,-128.9 L141.1,-128.7" class="rwy"/>
+<path d="M141.1,-128.7 L1323.9,-127.2" class="rwy"/>
+<path d="M1323.9,-127.2 L1390.2,-127.1" class="rwy"/>
+<path d="M1390.2,-127.1 L1452.3,-127.1" class="rwy"/>
+<path d="M1297.3,-545.8 L1249.3,-675.3" class="twy"/>
+<path d="M24.2,-798.2 L113.5,-798.0" class="rwy"/>
+<path d="M113.5,-798.0 L1076.1,-796.0" class="rwy"/>
+<path d="M24.6,-887.4 L24.2,-798.2" class="twy"/>
+<path d="M24.2,-798.2 L23.8,-708.8" class="twy"/>
+<path d="M23.8,-708.8 L23.1,-548.5" class="twy"/>
+<path d="M-978.7,-798.9 L-65.0,-798.2" class="rwy"/>
+<path d="M-65.0,-798.2 L24.2,-798.2" class="rwy"/>
+<path d="M21.2,-128.9 L18.1,-83.3" class="twy"/>
+<path d="M18.1,-83.3 L17.5,-74.2" class="twy"/>
+<path d="M17.5,-74.2 L12.1,-45.9" class="twy"/>
+<path d="M12.1,-45.9 L9.9,-34.3" class="twy"/>
+<path d="M9.9,-34.3 L6.8,-18.3" class="twy"/>
+<path d="M-109.9,-190.9 L-99.9,-186.1" class="twy"/>
+<path d="M-99.9,-186.1 L-87.2,-180.1" class="twy"/>
+<path d="M-87.2,-180.1 L-73.9,-173.8" class="twy"/>
+<path d="M-73.9,-173.8 L-20.1,-148.4" class="twy"/>
+<path d="M-20.1,-148.4 L21.2,-128.9" class="twy"/>
+<path d="M22.3,-378.3 L21.7,-234.1" class="twy"/>
+<path d="M21.7,-234.1 L21.2,-128.9" class="twy"/>
+<path d="M-1540.7,-130.8 L-112.7,-129.0" class="rwy"/>
+<path d="M-112.7,-129.0 L21.2,-128.9" class="rwy"/>
+<path d="M6.8,-18.3 L-9.8,30.3" class="twy"/>
+<path d="M-9.8,30.3 L-20.0,53.8" class="twy"/>
+<path d="M-20.0,53.8 L-27.2,70.5" class="twy"/>
+<path d="M17.5,-74.2 L21.1,-62.4" class="twy"/>
+<path d="M21.1,-62.4 L30.4,-31.9" class="twy"/>
+<path d="M30.4,-31.9 L43.0,14.2" class="twy"/>
+<path d="M43.0,14.2 L58.7,53.0" class="twy"/>
+<path d="M58.7,53.0 L62.7,63.0" class="twy"/>
+<path d="M17.5,-74.2 L21.1,-62.4 L30.4,-31.9 L43.0,14.2 L58.7,53.0 L62.7,63.0 L82.4,99.3 L97.0,121.8 L100.9,127.7 L142.6,177.8 L174.6,210.4 L221.1,245.6 L261.7,268.5 L312.7,289.6 L357.5,304.6 L404.7,313.4 L458.4,317.5" class="route"/>
+<circle cx="369.8" cy="306.9" r="2" class="tick"/>
+<text x="369.8" y="319.9" class="ticklbl">100</text>
+<circle cx="285.4" cy="278.3" r="2" class="tick"/>
+<text x="285.4" y="291.3" class="ticklbl">200</text>
+<circle cx="207.5" cy="235.3" r="2" class="tick"/>
+<text x="207.5" y="248.3" class="ticklbl">300</text>
+<circle cx="141.1" cy="175.9" r="2" class="tick"/>
+<text x="141.1" y="188.9" class="ticklbl">400</text>
+<circle cx="86.4" cy="105.5" r="2" class="tick"/>
+<text x="86.4" y="118.5" class="ticklbl">500</text>
+<circle cx="47.4" cy="25.3" r="2" class="tick"/>
+<text x="47.4" y="38.3" class="ticklbl">600</text>
+<circle cx="21.8" cy="-60.2" r="2" class="tick"/>
+<text x="21.8" y="-47.2" class="ticklbl">700</text>
+<text x="462.4" y="312.5" class="tgtlbl">L</text>
+<text x="86.4" y="94.3" class="twylbl">GL</text>
+<g transform="translate(0,317.5)">
+<polygon points="280.8,-38.2 241.3,-5.1 234.9,-8.2 259.9,-48.2 264.6,-58.2 280.0,-102.8 286.4,-99.8 285.6,-48.2" fill="var(--c-a)" fill-opacity="0.35" stroke="var(--c-a)" stroke-width="1"/>
+<polygon points="230.8,-62.0 214.5,-52.7 210.5,-54.6 219.5,-67.4 224.3,-77.4 228.5,-92.5 232.6,-90.6 235.6,-72.0" fill="var(--c-a)" fill-opacity="0.35" stroke="var(--c-a)" stroke-width="1"/>
+<polygon points="321.9,-24.8 311.5,-23.6 224.4,-65.1 216.9,-73.3 218.1,-75.7 229.2,-75.1 316.2,-33.6" fill="var(--c-a)" stroke="var(--c-a)" stroke-width="1"/>
+</g>
+<line x1="321.9" y1="292.7" x2="321.9" y2="317.1" class="dim"/>
+<text x="326.9" y="308.9" class="dimlbl">27 ft</text>
+<circle cx="321.9" cy="292.7" r="3.5" class="nose" style="fill:var(--c-a)"/>
+<circle cx="217.8" cy="243.1" r="3" class="tail" style="stroke:var(--c-a)"/>
+<circle cx="458.4" cy="317.5" r="5" class="bar"/>
+<text x="465.4" y="333.5" class="barlbl">merge / bar node 323</text>
+</svg><ul class="adv"><li>holding short of TWY L — wingtip clearance from L not assured (27 ft)</li><li>stop 156 ft back of the merge, 61 ft behind the plain length+30 setback → instructor advisory</li></ul></div><div class="lane"><div class="lanehead"><span class="sw" style="background:var(--c-b)"></span><b>B · only capped merges (uncapped keeps today’s stop)</b><span class="num">nose 95 ft back · 11 ft from L centreline</span></div><svg viewBox="0 0 664 380" width="664" style="max-width:100%;height:auto" role="img" aria-label="B · only capped merges (uncapped keeps today’s stop)">
+<rect x="0" y="0" width="664" height="380" class="mapbg"/>
+<g class="bandgrp">
+<path d="M-1533.4,314.2 L-402.0,315.2" class="band" stroke-width="278.7"/>
+<path d="M-402.0,315.2 L458.4,317.5" class="band" stroke-width="278.7"/>
+<path d="M458.4,317.5 L1181.6,317.5" class="band" stroke-width="278.7"/>
+<path d="M1181.6,317.5 L1521.4,318.5" class="band" stroke-width="278.7"/>
+<path d="M1521.4,318.5 L1618.4,318.8" class="band" stroke-width="278.7"/>
+<path d="M1618.4,318.8 L1685.7,318.8" class="band" stroke-width="278.7"/>
+<path d="M1685.7,318.8 L1816.1,318.7" class="band" stroke-width="278.7"/>
+</g>
+<path d="M1616.5,783.2 L1614.1,1181.5" class="twy"/>
+<path d="M-1533.4,314.2 L-402.0,315.2" class="tgt"/>
+<path d="M-402.0,315.2 L458.4,317.5" class="tgt"/>
+<path d="M458.4,317.5 L1181.6,317.5" class="tgt"/>
+<path d="M1181.6,317.5 L1213.9,324.3" class="twy"/>
+<path d="M1213.9,324.3 L1274.5,339.8" class="twy"/>
+<path d="M1274.5,339.8 L1343.7,367.3" class="twy"/>
+<path d="M1343.7,367.3 L1407.0,405.4" class="twy"/>
+<path d="M1407.0,405.4 L1464.4,450.4" class="twy"/>
+<path d="M1464.4,450.4 L1521.7,515.8" class="twy"/>
+<path d="M1521.7,515.8 L1560.3,577.8" class="twy"/>
+<path d="M1560.3,577.8 L1589.4,643.7" class="twy"/>
+<path d="M1589.4,643.7 L1610.1,721.9" class="twy"/>
+<path d="M1610.1,721.9 L1616.5,783.2" class="twy"/>
+<path d="M-27.2,70.5 L-56.3,120.2" class="twy"/>
+<path d="M-56.3,120.2 L-91.7,166.1" class="twy"/>
+<path d="M-91.7,166.1 L-131.6,206.3" class="twy"/>
+<path d="M-131.6,206.3 L-174.5,238.5" class="twy"/>
+<path d="M-174.5,238.5 L-221.6,264.9" class="twy"/>
+<path d="M-221.6,264.9 L-262.7,283.7" class="twy"/>
+<path d="M-262.7,283.7 L-305.0,299.5" class="twy"/>
+<path d="M-305.0,299.5 L-348.0,308.2" class="twy"/>
+<path d="M-348.0,308.2 L-402.0,315.2" class="twy"/>
+<path d="M62.7,63.0 L82.4,99.3" class="twy"/>
+<path d="M100.9,127.7 L142.6,177.8" class="twy"/>
+<path d="M142.6,177.8 L174.6,210.4" class="twy"/>
+<path d="M174.6,210.4 L221.1,245.6" class="twy"/>
+<path d="M221.1,245.6 L261.7,268.5" class="twy"/>
+<path d="M261.7,268.5 L312.7,289.6" class="twy"/>
+<path d="M312.7,289.6 L357.5,304.6" class="twy"/>
+<path d="M357.5,304.6 L404.7,313.4" class="twy"/>
+<path d="M404.7,313.4 L458.4,317.5" class="twy"/>
+<path d="M-293.7,-255.5 L-109.9,-190.9" class="twy"/>
+<path d="M82.4,99.3 L97.0,121.8" class="twy"/>
+<path d="M97.0,121.8 L100.9,127.7" class="twy"/>
+<path d="M-893.3,-528.7 L-565.0,-379.1" class="twy"/>
+<path d="M-565.0,-379.1 L-293.7,-255.5" class="twy"/>
+<path d="M1360.1,-376.2 L1297.3,-545.8" class="twy"/>
+<path d="M23.1,-548.5 L22.3,-378.3" class="twy"/>
+<path d="M17.5,-74.2 L21.2,-128.9" class="twy"/>
+<path d="M1620.4,-216.1 L1619.7,-126.8" class="twy"/>
+<path d="M1619.7,-126.8 L1619.5,-37.5" class="twy"/>
+<path d="M1619.5,-37.5 L1619.2,120.6" class="twy"/>
+<path d="M1452.3,-127.1 L1499.8,-127.0" class="rwy"/>
+<path d="M1499.8,-127.0 L1551.6,-126.9" class="rwy"/>
+<path d="M1551.6,-126.9 L1619.7,-126.8" class="rwy"/>
+<path d="M1619.7,-126.8 L1709.2,-126.7" class="rwy"/>
+<path d="M1619.2,120.6 L1619.0,184.9" class="twy"/>
+<path d="M1619.0,184.9 L1618.4,318.8" class="twy"/>
+<path d="M1618.4,318.8 L1618.4,331.1" class="twy"/>
+<path d="M1618.4,331.1 L1618.1,385.6" class="twy"/>
+<path d="M1618.1,385.6 L1616.5,783.2" class="twy"/>
+<path d="M1618.4,318.8 L1614.1,307.3" class="twy"/>
+<path d="M1614.1,307.3 L1602.1,275.4" class="twy"/>
+<path d="M1602.1,275.4 L1584.3,228.0" class="twy"/>
+<path d="M1584.3,228.0 L1571.3,193.5" class="twy"/>
+<path d="M1571.3,193.5 L1544.5,122.0" class="twy"/>
+<path d="M1181.6,317.5 L1521.4,318.5" class="tgt"/>
+<path d="M1521.4,318.5 L1618.4,318.8" class="tgt"/>
+<path d="M1618.4,318.8 L1685.7,318.8" class="tgt"/>
+<path d="M1685.7,318.8 L1816.1,318.7" class="tgt"/>
+<path d="M1544.5,122.0 L1496.9,-6.6" class="twy"/>
+<path d="M1496.9,-6.6 L1473.8,-68.9" class="twy"/>
+<path d="M1473.8,-68.9 L1452.3,-127.1" class="twy"/>
+<path d="M1452.3,-127.1 L1430.8,-185.2" class="twy"/>
+<path d="M1430.8,-185.2 L1407.7,-247.5" class="twy"/>
+<path d="M1407.7,-247.5 L1360.1,-376.2" class="twy"/>
+<path d="M21.2,-128.9 L141.1,-128.7" class="rwy"/>
+<path d="M141.1,-128.7 L1323.9,-127.2" class="rwy"/>
+<path d="M1323.9,-127.2 L1390.2,-127.1" class="rwy"/>
+<path d="M1390.2,-127.1 L1452.3,-127.1" class="rwy"/>
+<path d="M1297.3,-545.8 L1249.3,-675.3" class="twy"/>
+<path d="M24.2,-798.2 L113.5,-798.0" class="rwy"/>
+<path d="M113.5,-798.0 L1076.1,-796.0" class="rwy"/>
+<path d="M24.6,-887.4 L24.2,-798.2" class="twy"/>
+<path d="M24.2,-798.2 L23.8,-708.8" class="twy"/>
+<path d="M23.8,-708.8 L23.1,-548.5" class="twy"/>
+<path d="M-978.7,-798.9 L-65.0,-798.2" class="rwy"/>
+<path d="M-65.0,-798.2 L24.2,-798.2" class="rwy"/>
+<path d="M21.2,-128.9 L18.1,-83.3" class="twy"/>
+<path d="M18.1,-83.3 L17.5,-74.2" class="twy"/>
+<path d="M17.5,-74.2 L12.1,-45.9" class="twy"/>
+<path d="M12.1,-45.9 L9.9,-34.3" class="twy"/>
+<path d="M9.9,-34.3 L6.8,-18.3" class="twy"/>
+<path d="M-109.9,-190.9 L-99.9,-186.1" class="twy"/>
+<path d="M-99.9,-186.1 L-87.2,-180.1" class="twy"/>
+<path d="M-87.2,-180.1 L-73.9,-173.8" class="twy"/>
+<path d="M-73.9,-173.8 L-20.1,-148.4" class="twy"/>
+<path d="M-20.1,-148.4 L21.2,-128.9" class="twy"/>
+<path d="M22.3,-378.3 L21.7,-234.1" class="twy"/>
+<path d="M21.7,-234.1 L21.2,-128.9" class="twy"/>
+<path d="M-1540.7,-130.8 L-112.7,-129.0" class="rwy"/>
+<path d="M-112.7,-129.0 L21.2,-128.9" class="rwy"/>
+<path d="M6.8,-18.3 L-9.8,30.3" class="twy"/>
+<path d="M-9.8,30.3 L-20.0,53.8" class="twy"/>
+<path d="M-20.0,53.8 L-27.2,70.5" class="twy"/>
+<path d="M17.5,-74.2 L21.1,-62.4" class="twy"/>
+<path d="M21.1,-62.4 L30.4,-31.9" class="twy"/>
+<path d="M30.4,-31.9 L43.0,14.2" class="twy"/>
+<path d="M43.0,14.2 L58.7,53.0" class="twy"/>
+<path d="M58.7,53.0 L62.7,63.0" class="twy"/>
+<path d="M17.5,-74.2 L21.1,-62.4 L30.4,-31.9 L43.0,14.2 L58.7,53.0 L62.7,63.0 L82.4,99.3 L97.0,121.8 L100.9,127.7 L142.6,177.8 L174.6,210.4 L221.1,245.6 L261.7,268.5 L312.7,289.6 L357.5,304.6 L404.7,313.4 L458.4,317.5" class="route"/>
+<circle cx="369.8" cy="306.9" r="2" class="tick"/>
+<text x="369.8" y="319.9" class="ticklbl">100</text>
+<circle cx="285.4" cy="278.3" r="2" class="tick"/>
+<text x="285.4" y="291.3" class="ticklbl">200</text>
+<circle cx="207.5" cy="235.3" r="2" class="tick"/>
+<text x="207.5" y="248.3" class="ticklbl">300</text>
+<circle cx="141.1" cy="175.9" r="2" class="tick"/>
+<text x="141.1" y="188.9" class="ticklbl">400</text>
+<circle cx="86.4" cy="105.5" r="2" class="tick"/>
+<text x="86.4" y="118.5" class="ticklbl">500</text>
+<circle cx="47.4" cy="25.3" r="2" class="tick"/>
+<text x="47.4" y="38.3" class="ticklbl">600</text>
+<circle cx="21.8" cy="-60.2" r="2" class="tick"/>
+<text x="21.8" y="-47.2" class="ticklbl">700</text>
+<text x="462.4" y="312.5" class="tgtlbl">L</text>
+<text x="86.4" y="94.3" class="twylbl">GL</text>
+<g transform="translate(0,317.5)">
+<polygon points="332.1,-18.5 296.5,18.8 289.8,16.5 310.2,-26.1 313.8,-36.6 324.1,-82.6 330.8,-80.3 335.7,-29.0" fill="var(--c-b)" fill-opacity="0.35" stroke="var(--c-b)" stroke-width="1"/>
+<polygon points="279.8,-36.6 264.6,-25.5 260.4,-27.0 268.0,-40.7 271.6,-51.2 274.1,-66.7 278.3,-65.2 283.4,-47.1" fill="var(--c-b)" fill-opacity="0.35" stroke="var(--c-b)" stroke-width="1"/>
+<polygon points="374.4,-9.7 364.2,-7.4 273.0,-39.0 264.7,-46.3 265.6,-48.8 276.7,-49.4 367.8,-17.9" fill="var(--c-b)" stroke="var(--c-b)" stroke-width="1"/>
+</g>
+<line x1="374.4" y1="307.8" x2="374.4" y2="317.2" class="dim"/>
+<text x="379.4" y="316.5" class="dimlbl">11 ft</text>
+<circle cx="374.4" cy="307.8" r="3.5" class="nose" style="fill:var(--c-b)"/>
+<circle cx="265.4" cy="270.0" r="3" class="tail" style="stroke:var(--c-b)"/>
+<circle cx="458.4" cy="317.5" r="5" class="bar"/>
+<text x="465.4" y="333.5" class="barlbl">merge / bar node 323</text>
+</svg><ul class="adv"><li>holding short of TWY L — wingtip clearance from L not assured (11 ft)</li></ul></div><div class="lane"><div class="lanehead"><span class="sw" style="background:var(--c-c)"></span><b>C · as built + advisory</b><span class="num">nose 349 ft back · 121 ft from L centreline</span></div><svg viewBox="0 0 664 380" width="664" style="max-width:100%;height:auto" role="img" aria-label="C · as built + advisory">
+<rect x="0" y="0" width="664" height="380" class="mapbg"/>
+<g class="bandgrp">
+<path d="M-1533.4,314.2 L-402.0,315.2" class="band" stroke-width="278.7"/>
+<path d="M-402.0,315.2 L458.4,317.5" class="band" stroke-width="278.7"/>
+<path d="M458.4,317.5 L1181.6,317.5" class="band" stroke-width="278.7"/>
+<path d="M1181.6,317.5 L1521.4,318.5" class="band" stroke-width="278.7"/>
+<path d="M1521.4,318.5 L1618.4,318.8" class="band" stroke-width="278.7"/>
+<path d="M1618.4,318.8 L1685.7,318.8" class="band" stroke-width="278.7"/>
+<path d="M1685.7,318.8 L1816.1,318.7" class="band" stroke-width="278.7"/>
+</g>
+<path d="M1616.5,783.2 L1614.1,1181.5" class="twy"/>
+<path d="M-1533.4,314.2 L-402.0,315.2" class="tgt"/>
+<path d="M-402.0,315.2 L458.4,317.5" class="tgt"/>
+<path d="M458.4,317.5 L1181.6,317.5" class="tgt"/>
+<path d="M1181.6,317.5 L1213.9,324.3" class="twy"/>
+<path d="M1213.9,324.3 L1274.5,339.8" class="twy"/>
+<path d="M1274.5,339.8 L1343.7,367.3" class="twy"/>
+<path d="M1343.7,367.3 L1407.0,405.4" class="twy"/>
+<path d="M1407.0,405.4 L1464.4,450.4" class="twy"/>
+<path d="M1464.4,450.4 L1521.7,515.8" class="twy"/>
+<path d="M1521.7,515.8 L1560.3,577.8" class="twy"/>
+<path d="M1560.3,577.8 L1589.4,643.7" class="twy"/>
+<path d="M1589.4,643.7 L1610.1,721.9" class="twy"/>
+<path d="M1610.1,721.9 L1616.5,783.2" class="twy"/>
+<path d="M-27.2,70.5 L-56.3,120.2" class="twy"/>
+<path d="M-56.3,120.2 L-91.7,166.1" class="twy"/>
+<path d="M-91.7,166.1 L-131.6,206.3" class="twy"/>
+<path d="M-131.6,206.3 L-174.5,238.5" class="twy"/>
+<path d="M-174.5,238.5 L-221.6,264.9" class="twy"/>
+<path d="M-221.6,264.9 L-262.7,283.7" class="twy"/>
+<path d="M-262.7,283.7 L-305.0,299.5" class="twy"/>
+<path d="M-305.0,299.5 L-348.0,308.2" class="twy"/>
+<path d="M-348.0,308.2 L-402.0,315.2" class="twy"/>
+<path d="M62.7,63.0 L82.4,99.3" class="twy"/>
+<path d="M100.9,127.7 L142.6,177.8" class="twy"/>
+<path d="M142.6,177.8 L174.6,210.4" class="twy"/>
+<path d="M174.6,210.4 L221.1,245.6" class="twy"/>
+<path d="M221.1,245.6 L261.7,268.5" class="twy"/>
+<path d="M261.7,268.5 L312.7,289.6" class="twy"/>
+<path d="M312.7,289.6 L357.5,304.6" class="twy"/>
+<path d="M357.5,304.6 L404.7,313.4" class="twy"/>
+<path d="M404.7,313.4 L458.4,317.5" class="twy"/>
+<path d="M-293.7,-255.5 L-109.9,-190.9" class="twy"/>
+<path d="M82.4,99.3 L97.0,121.8" class="twy"/>
+<path d="M97.0,121.8 L100.9,127.7" class="twy"/>
+<path d="M-893.3,-528.7 L-565.0,-379.1" class="twy"/>
+<path d="M-565.0,-379.1 L-293.7,-255.5" class="twy"/>
+<path d="M1360.1,-376.2 L1297.3,-545.8" class="twy"/>
+<path d="M23.1,-548.5 L22.3,-378.3" class="twy"/>
+<path d="M17.5,-74.2 L21.2,-128.9" class="twy"/>
+<path d="M1620.4,-216.1 L1619.7,-126.8" class="twy"/>
+<path d="M1619.7,-126.8 L1619.5,-37.5" class="twy"/>
+<path d="M1619.5,-37.5 L1619.2,120.6" class="twy"/>
+<path d="M1452.3,-127.1 L1499.8,-127.0" class="rwy"/>
+<path d="M1499.8,-127.0 L1551.6,-126.9" class="rwy"/>
+<path d="M1551.6,-126.9 L1619.7,-126.8" class="rwy"/>
+<path d="M1619.7,-126.8 L1709.2,-126.7" class="rwy"/>
+<path d="M1619.2,120.6 L1619.0,184.9" class="twy"/>
+<path d="M1619.0,184.9 L1618.4,318.8" class="twy"/>
+<path d="M1618.4,318.8 L1618.4,331.1" class="twy"/>
+<path d="M1618.4,331.1 L1618.1,385.6" class="twy"/>
+<path d="M1618.1,385.6 L1616.5,783.2" class="twy"/>
+<path d="M1618.4,318.8 L1614.1,307.3" class="twy"/>
+<path d="M1614.1,307.3 L1602.1,275.4" class="twy"/>
+<path d="M1602.1,275.4 L1584.3,228.0" class="twy"/>
+<path d="M1584.3,228.0 L1571.3,193.5" class="twy"/>
+<path d="M1571.3,193.5 L1544.5,122.0" class="twy"/>
+<path d="M1181.6,317.5 L1521.4,318.5" class="tgt"/>
+<path d="M1521.4,318.5 L1618.4,318.8" class="tgt"/>
+<path d="M1618.4,318.8 L1685.7,318.8" class="tgt"/>
+<path d="M1685.7,318.8 L1816.1,318.7" class="tgt"/>
+<path d="M1544.5,122.0 L1496.9,-6.6" class="twy"/>
+<path d="M1496.9,-6.6 L1473.8,-68.9" class="twy"/>
+<path d="M1473.8,-68.9 L1452.3,-127.1" class="twy"/>
+<path d="M1452.3,-127.1 L1430.8,-185.2" class="twy"/>
+<path d="M1430.8,-185.2 L1407.7,-247.5" class="twy"/>
+<path d="M1407.7,-247.5 L1360.1,-376.2" class="twy"/>
+<path d="M21.2,-128.9 L141.1,-128.7" class="rwy"/>
+<path d="M141.1,-128.7 L1323.9,-127.2" class="rwy"/>
+<path d="M1323.9,-127.2 L1390.2,-127.1" class="rwy"/>
+<path d="M1390.2,-127.1 L1452.3,-127.1" class="rwy"/>
+<path d="M1297.3,-545.8 L1249.3,-675.3" class="twy"/>
+<path d="M24.2,-798.2 L113.5,-798.0" class="rwy"/>
+<path d="M113.5,-798.0 L1076.1,-796.0" class="rwy"/>
+<path d="M24.6,-887.4 L24.2,-798.2" class="twy"/>
+<path d="M24.2,-798.2 L23.8,-708.8" class="twy"/>
+<path d="M23.8,-708.8 L23.1,-548.5" class="twy"/>
+<path d="M-978.7,-798.9 L-65.0,-798.2" class="rwy"/>
+<path d="M-65.0,-798.2 L24.2,-798.2" class="rwy"/>
+<path d="M21.2,-128.9 L18.1,-83.3" class="twy"/>
+<path d="M18.1,-83.3 L17.5,-74.2" class="twy"/>
+<path d="M17.5,-74.2 L12.1,-45.9" class="twy"/>
+<path d="M12.1,-45.9 L9.9,-34.3" class="twy"/>
+<path d="M9.9,-34.3 L6.8,-18.3" class="twy"/>
+<path d="M-109.9,-190.9 L-99.9,-186.1" class="twy"/>
+<path d="M-99.9,-186.1 L-87.2,-180.1" class="twy"/>
+<path d="M-87.2,-180.1 L-73.9,-173.8" class="twy"/>
+<path d="M-73.9,-173.8 L-20.1,-148.4" class="twy"/>
+<path d="M-20.1,-148.4 L21.2,-128.9" class="twy"/>
+<path d="M22.3,-378.3 L21.7,-234.1" class="twy"/>
+<path d="M21.7,-234.1 L21.2,-128.9" class="twy"/>
+<path d="M-1540.7,-130.8 L-112.7,-129.0" class="rwy"/>
+<path d="M-112.7,-129.0 L21.2,-128.9" class="rwy"/>
+<path d="M6.8,-18.3 L-9.8,30.3" class="twy"/>
+<path d="M-9.8,30.3 L-20.0,53.8" class="twy"/>
+<path d="M-20.0,53.8 L-27.2,70.5" class="twy"/>
+<path d="M17.5,-74.2 L21.1,-62.4" class="twy"/>
+<path d="M21.1,-62.4 L30.4,-31.9" class="twy"/>
+<path d="M30.4,-31.9 L43.0,14.2" class="twy"/>
+<path d="M43.0,14.2 L58.7,53.0" class="twy"/>
+<path d="M58.7,53.0 L62.7,63.0" class="twy"/>
+<path d="M17.5,-74.2 L21.1,-62.4 L30.4,-31.9 L43.0,14.2 L58.7,53.0 L62.7,63.0 L82.4,99.3 L97.0,121.8 L100.9,127.7 L142.6,177.8 L174.6,210.4 L221.1,245.6 L261.7,268.5 L312.7,289.6 L357.5,304.6 L404.7,313.4 L458.4,317.5" class="route"/>
+<circle cx="369.8" cy="306.9" r="2" class="tick"/>
+<text x="369.8" y="319.9" class="ticklbl">100</text>
+<circle cx="285.4" cy="278.3" r="2" class="tick"/>
+<text x="285.4" y="291.3" class="ticklbl">200</text>
+<circle cx="207.5" cy="235.3" r="2" class="tick"/>
+<text x="207.5" y="248.3" class="ticklbl">300</text>
+<circle cx="141.1" cy="175.9" r="2" class="tick"/>
+<text x="141.1" y="188.9" class="ticklbl">400</text>
+<circle cx="86.4" cy="105.5" r="2" class="tick"/>
+<text x="86.4" y="118.5" class="ticklbl">500</text>
+<circle cx="47.4" cy="25.3" r="2" class="tick"/>
+<text x="47.4" y="38.3" class="ticklbl">600</text>
+<circle cx="21.8" cy="-60.2" r="2" class="tick"/>
+<text x="21.8" y="-47.2" class="ticklbl">700</text>
+<text x="462.4" y="312.5" class="tgtlbl">L</text>
+<text x="86.4" y="94.3" class="twylbl">GL</text>
+<g transform="translate(0,317.5)">
+<polygon points="140.6,-137.4 91.2,-122.7 86.5,-128.1 125.3,-154.9 133.7,-162.2 165.4,-197.1 170.1,-191.7 148.9,-144.7" fill="var(--c-c)" fill-opacity="0.35" stroke="var(--c-c)" stroke-width="1"/>
+<polygon points="104.2,-179.1 85.5,-177.0 82.5,-180.4 95.9,-188.5 104.3,-195.8 114.1,-208.0 117.1,-204.6 112.5,-186.4" fill="var(--c-c)" fill-opacity="0.35" stroke="var(--c-c)" stroke-width="1"/>
+<polygon points="173.0,-108.7 162.9,-111.8 99.5,-184.5 95.9,-195.0 97.9,-196.7 107.8,-191.8 171.3,-119.1" fill="var(--c-c)" stroke="var(--c-c)" stroke-width="1"/>
+</g>
+<line x1="173.0" y1="208.7" x2="172.7" y2="316.7" class="dim"/>
+<text x="177.8" y="266.7" class="dimlbl">121 ft</text>
+<circle cx="173.0" cy="208.7" r="3.5" class="nose" style="fill:var(--c-c)"/>
+<circle cx="97.0" cy="121.7" r="3" class="tail" style="stroke:var(--c-c)"/>
+<circle cx="458.4" cy="317.5" r="5" class="bar"/>
+<text x="465.4" y="333.5" class="barlbl">merge / bar node 323</text>
+</svg><ul class="adv"><li>today’s build: the wingtip warning only</li><li>holding short of TWY L — wingtip clearance from L not assured (121 ft)</li><li>new: “holding short of TWY L 349 ft before the merge (GL merges into L)”</li></ul></div></div><div class="side"><h3>Nose clearance from L as the stop moves back</h3><svg viewBox="0 0 540 230" width="100%" role="img" aria-label="nose clearance vs distance back">
+<line x1="46" x2="526" y1="196.0" y2="196.0" class="grid"/>
+<text x="40" y="200.0" class="axlbl" text-anchor="end">0</text>
+<line x1="46" x2="526" y1="168.8" y2="168.8" class="grid"/>
+<text x="40" y="172.8" class="axlbl" text-anchor="end">50</text>
+<line x1="46" x2="526" y1="141.5" y2="141.5" class="grid"/>
+<text x="40" y="145.5" class="axlbl" text-anchor="end">100</text>
+<line x1="46" x2="526" y1="114.3" y2="114.3" class="grid"/>
+<text x="40" y="118.3" class="axlbl" text-anchor="end">150</text>
+<line x1="46" x2="526" y1="87.1" y2="87.1" class="grid"/>
+<text x="40" y="91.1" class="axlbl" text-anchor="end">200</text>
+<line x1="46" x2="526" y1="59.9" y2="59.9" class="grid"/>
+<text x="40" y="63.9" class="axlbl" text-anchor="end">250</text>
+<line x1="46" x2="526" y1="32.6" y2="32.6" class="grid"/>
+<text x="40" y="36.6" class="axlbl" text-anchor="end">300</text>
+<text x="46.0" y="212" class="axlbl" text-anchor="middle">0</text>
+<text x="128.8" y="212" class="axlbl" text-anchor="middle">100</text>
+<text x="211.5" y="212" class="axlbl" text-anchor="middle">200</text>
+<text x="294.3" y="212" class="axlbl" text-anchor="middle">300</text>
+<text x="377.0" y="212" class="axlbl" text-anchor="middle">400</text>
+<text x="459.8" y="212" class="axlbl" text-anchor="middle">500</text>
+<line x1="46" x2="526" y1="111.1" y2="111.1" class="floorline"/>
+<text x="526" y="106.1" class="axlbl" text-anchor="end">wingtip floor 156 ft</text>
+<polyline points="46.0,196.0 50.1,195.6 54.3,195.5 58.4,195.3 62.6,195.1 66.7,195.0 70.8,194.7 75.0,194.6 79.1,194.4 83.2,194.2 87.4,194.0 91.5,193.8 95.7,193.6 99.8,193.1 103.9,192.6 108.1,192.1 112.2,191.6 116.3,191.2 120.5,190.7 124.6,190.2 128.8,189.7 132.9,189.2 137.0,188.7 141.2,188.2 145.3,187.3 149.4,186.5 153.6,185.6 157.7,184.7 161.9,183.9 166.0,183.0 170.1,182.2 174.3,181.3 178.4,180.4 182.6,179.6 186.7,178.6 190.8,177.6 195.0,176.6 199.1,175.5 203.2,174.5 207.4,173.5 211.5,172.4 215.7,171.4 219.8,170.4 223.9,169.3 228.1,168.3 232.2,167.2 236.3,166.1 240.5,164.8 244.6,163.5 248.8,162.1 252.9,160.8 257.0,159.5 261.2,158.2 265.3,156.8 269.4,155.5 273.6,154.1 277.7,152.8 281.9,151.2 286.0,149.6 290.1,148.0 294.3,146.3 298.4,144.7 302.6,143.1 306.7,141.4 310.8,139.8 315.0,138.2 319.1,136.5 323.2,134.9 327.4,133.2 331.5,131.6 335.7,129.7 339.8,127.8 343.9,125.9 348.1,124.0 352.2,122.0 356.3,120.0 360.5,118.1 364.6,116.2 368.8,114.3 372.9,112.3 377.0,110.3 381.2,108.2 385.3,106.2 389.4,104.0 393.6,102.0 397.7,99.9 401.9,97.8 406.0,95.7 410.1,93.6 414.3,91.5 418.4,89.4 422.6,87.4 426.7,85.2 430.8,83.2 435.0,81.1 439.1,78.8 443.2,76.5 447.4,74.3 451.5,72.0 455.7,69.7 459.8,67.4 463.9,65.2 468.1,62.9 472.2,60.5 476.3,58.1 480.5,55.7 484.6,53.3 488.8,50.9 492.9,48.5 497.0,46.1 501.2,43.7 505.3,41.4 509.4,38.8 513.6,36.3 517.7,33.8 521.9,31.2 526.0,28.7" class="curve"/>
+<circle cx="124.4" cy="185.2" r="5" style="fill:var(--c-base)" class="dot"/>
+<text x="131.4" y="183.2" class="dotlbl">today / B</text>
+<circle cx="175.1" cy="181.1" r="5" style="fill:var(--c-a)" class="dot"/>
+<text x="182.1" y="174.1" class="dotlbl">A</text>
+<circle cx="124.4" cy="195.2" r="5" style="fill:var(--c-b)" class="dot"/>
+<circle cx="334.6" cy="130.1" r="5" style="fill:var(--c-c)" class="dot"/>
+<text x="341.6" y="123.1" class="dotlbl">C</text>
+<text x="286.0" y="228" class="axlbl" text-anchor="middle">nose distance back of the merge along the route (ft)</text>
+<text x="12" y="104.0" class="axlbl" text-anchor="middle" transform="rotate(-90 12 104.0)">nose → L centreline (ft)</text>
+</svg><p class="note">The curve is the B738 nose’s distance to L’s centreline when the nose stands that far back along GL. C walks back until the curve meets the floor; A stops at the floor distance (156 ft back) without meeting the floor; today and B keep the plain length+30 stop.</p></div></div></section>
+<section id="oak20"><h2>OAK node 20: W5 merging into W</h2><p class="meta">B738 (129.5 ft long, 117.4 ft span, drawn to scale). Wingtip floor 132 ft. Map rotated so W runs left to right past the merge (true track ≈ 130°). Grey dots: 100 ft marks back of the merge along W5. W5 curves onto W: 15° off W in the last 25 ft, 47° at 100 ft back, 85° (square to W) at 200. No junction on W5 in the 1,200 ft drawn. C’s stop 203 ft back sits where W5 is square to W, much like an ordinary right-angle hold short.</p><div class="grid2"><div class="lanes"><div class="lane"><div class="lanehead"><span class="sw" style="background:var(--c-base)"></span><b>Today (baseline, abe87c193)</b><span class="num">nose 95 ft back · 39 ft from W centreline</span></div><svg viewBox="0 0 374 380" width="374" style="max-width:100%;height:auto" role="img" aria-label="Today (baseline, abe87c193)">
+<rect x="0" y="0" width="374" height="380" class="mapbg"/>
+<g class="bandgrp">
+<path d="M1039.3,60.1 L176.3,60.1" class="band" stroke-width="226.7"/>
+<path d="M176.3,60.1 L-317.1,60.0" class="band" stroke-width="226.7"/>
+<path d="M-317.1,60.0 L-903.2,59.9" class="band" stroke-width="226.7"/>
+<path d="M-903.2,59.9 L-955.4,61.3" class="band" stroke-width="226.7"/>
+<path d="M-955.4,61.3 L-991.2,64.6" class="band" stroke-width="226.7"/>
+<path d="M-991.2,64.6 L-1036.1,71.4" class="band" stroke-width="226.7"/>
+<path d="M1668.9,59.8 L1039.3,60.1" class="band" stroke-width="226.7"/>
+</g>
+<path d="M1039.3,60.1 L176.3,60.1" class="tgt"/>
+<path d="M176.3,60.1 L-317.1,60.0" class="tgt"/>
+<path d="M-317.1,60.0 L-903.2,59.9" class="tgt"/>
+<path d="M-903.2,59.9 L-955.4,61.3" class="tgt"/>
+<path d="M-955.4,61.3 L-991.2,64.6" class="tgt"/>
+<path d="M-991.2,64.6 L-1036.1,71.4" class="tgt"/>
+<path d="M317.7,437.8 L275.6,412.6" class="twy"/>
+<path d="M275.6,412.6 L242.6,390.6" class="twy"/>
+<path d="M242.6,390.6 L195.8,358.9" class="twy"/>
+<path d="M195.8,358.9 L136.1,314.4" class="twy"/>
+<path d="M136.1,314.4 L107.1,291.4" class="twy"/>
+<path d="M107.1,291.4 L91.9,275.3" class="twy"/>
+<path d="M91.9,275.3 L78.4,257.4" class="twy"/>
+<path d="M78.4,257.4 L69.7,241.8" class="twy"/>
+<path d="M69.7,241.8 L63.2,221.2" class="twy"/>
+<path d="M63.2,221.2 L60.0,196.5" class="twy"/>
+<path d="M60.0,196.5 L60.5,172.8" class="twy"/>
+<path d="M60.5,172.8 L65.5,150.5" class="twy"/>
+<path d="M65.5,150.5 L75.4,128.9" class="twy"/>
+<path d="M75.4,128.9 L88.9,108.7" class="twy"/>
+<path d="M88.9,108.7 L105.2,91.3" class="twy"/>
+<path d="M105.2,91.3 L124.7,77.7" class="twy"/>
+<path d="M124.7,77.7 L147.8,67.5" class="twy"/>
+<path d="M147.8,67.5 L176.3,60.1" class="twy"/>
+<path d="M377.8,471.5 L331.2,445.4" class="twy"/>
+<path d="M331.2,445.4 L317.7,437.8" class="twy"/>
+<path d="M1668.9,59.8 L1039.3,60.1" class="tgt"/>
+<path d="M731.2,660.4 L602.5,660.4" class="rwy"/>
+<path d="M602.5,660.4 L-2476.7,660.6" class="rwy"/>
+<path d="M2246.2,660.3 L859.9,660.3" class="rwy"/>
+<path d="M859.9,660.3 L731.2,660.4" class="rwy"/>
+<path d="M731.2,660.4 L617.7,599.7" class="twy"/>
+<path d="M617.7,599.7 L377.8,471.5" class="twy"/>
+<path d="M731.2,660.4 L617.7,599.7 L377.8,471.5 L331.2,445.4 L317.7,437.8 L275.6,412.6 L242.6,390.6 L195.8,358.9 L136.1,314.4 L107.1,291.4 L91.9,275.3 L78.4,257.4 L69.7,241.8 L63.2,221.2 L60.0,196.5 L60.5,172.8 L65.5,150.5 L75.4,128.9 L88.9,108.7 L105.2,91.3 L124.7,77.7 L147.8,67.5 L176.3,60.1" class="route"/>
+<circle cx="100.2" cy="96.7" r="2" class="tick"/>
+<text x="100.2" y="109.7" class="ticklbl">100</text>
+<circle cx="60.9" cy="171.3" r="2" class="tick"/>
+<text x="60.9" y="184.3" class="ticklbl">200</text>
+<circle cx="76.6" cy="254.2" r="2" class="tick"/>
+<text x="76.6" y="267.2" class="ticklbl">300</text>
+<circle cx="136.6" cy="314.8" r="2" class="tick"/>
+<text x="136.6" y="327.8" class="ticklbl">400</text>
+<circle cx="205.7" cy="365.7" r="2" class="tick"/>
+<text x="205.7" y="378.7" class="ticklbl">500</text>
+<circle cx="277.0" cy="413.5" r="2" class="tick"/>
+<text x="277.0" y="426.5" class="ticklbl">600</text>
+<circle cx="351.3" cy="456.6" r="2" class="tick"/>
+<text x="351.3" y="469.6" class="ticklbl">700</text>
+<text x="180.3" y="55.1" class="tgtlbl">W</text>
+<text x="199.8" y="353.9" class="twylbl">W5</text>
+<g transform="translate(0,60.1)">
+<polygon points="91.6,73.2 124.7,110.1 121.9,116.4 82.7,93.6 72.9,89.3 29.6,76.0 32.3,69.7 81.9,68.9" fill="var(--c-base)" fill-opacity="0.35" stroke="var(--c-base)" stroke-width="1"/>
+<polygon points="70.3,121.9 79.8,137.3 78.1,141.3 65.5,133.0 55.8,128.7 41.1,125.1 42.8,121.2 60.6,117.7" fill="var(--c-base)" fill-opacity="0.35" stroke="var(--c-base)" stroke-width="1"/>
+<polygon points="103.3,33.3 104.7,43.3 67.6,128.2 59.9,135.7 57.6,134.6 57.8,124.0 95.0,39.0" fill="var(--c-base)" stroke="var(--c-base)" stroke-width="1"/>
+</g>
+<line x1="103.3" y1="93.4" x2="103.3" y2="60.1" class="dim"/>
+<text x="108.3" y="80.7" class="dimlbl">39 ft</text>
+<circle cx="103.3" cy="93.4" r="3.5" class="nose" style="fill:var(--c-base)"/>
+<circle cx="60.1" cy="192.1" r="3" class="tail" style="stroke:var(--c-base)"/>
+<circle cx="176.3" cy="60.1" r="5" class="bar"/>
+<text x="183.3" y="76.1" class="barlbl">merge / bar node 20</text>
+</svg><ul class="adv"><li>none (plain readback “hold short of W”)</li></ul></div><div class="lane"><div class="lanehead"><span class="sw" style="background:var(--c-a)"></span><b>A · cap at the floor distance + advisory</b><span class="num">nose 132 ft back · 67 ft from W centreline</span></div><svg viewBox="0 0 374 380" width="374" style="max-width:100%;height:auto" role="img" aria-label="A · cap at the floor distance + advisory">
+<rect x="0" y="0" width="374" height="380" class="mapbg"/>
+<g class="bandgrp">
+<path d="M1039.3,60.1 L176.3,60.1" class="band" stroke-width="226.7"/>
+<path d="M176.3,60.1 L-317.1,60.0" class="band" stroke-width="226.7"/>
+<path d="M-317.1,60.0 L-903.2,59.9" class="band" stroke-width="226.7"/>
+<path d="M-903.2,59.9 L-955.4,61.3" class="band" stroke-width="226.7"/>
+<path d="M-955.4,61.3 L-991.2,64.6" class="band" stroke-width="226.7"/>
+<path d="M-991.2,64.6 L-1036.1,71.4" class="band" stroke-width="226.7"/>
+<path d="M1668.9,59.8 L1039.3,60.1" class="band" stroke-width="226.7"/>
+</g>
+<path d="M1039.3,60.1 L176.3,60.1" class="tgt"/>
+<path d="M176.3,60.1 L-317.1,60.0" class="tgt"/>
+<path d="M-317.1,60.0 L-903.2,59.9" class="tgt"/>
+<path d="M-903.2,59.9 L-955.4,61.3" class="tgt"/>
+<path d="M-955.4,61.3 L-991.2,64.6" class="tgt"/>
+<path d="M-991.2,64.6 L-1036.1,71.4" class="tgt"/>
+<path d="M317.7,437.8 L275.6,412.6" class="twy"/>
+<path d="M275.6,412.6 L242.6,390.6" class="twy"/>
+<path d="M242.6,390.6 L195.8,358.9" class="twy"/>
+<path d="M195.8,358.9 L136.1,314.4" class="twy"/>
+<path d="M136.1,314.4 L107.1,291.4" class="twy"/>
+<path d="M107.1,291.4 L91.9,275.3" class="twy"/>
+<path d="M91.9,275.3 L78.4,257.4" class="twy"/>
+<path d="M78.4,257.4 L69.7,241.8" class="twy"/>
+<path d="M69.7,241.8 L63.2,221.2" class="twy"/>
+<path d="M63.2,221.2 L60.0,196.5" class="twy"/>
+<path d="M60.0,196.5 L60.5,172.8" class="twy"/>
+<path d="M60.5,172.8 L65.5,150.5" class="twy"/>
+<path d="M65.5,150.5 L75.4,128.9" class="twy"/>
+<path d="M75.4,128.9 L88.9,108.7" class="twy"/>
+<path d="M88.9,108.7 L105.2,91.3" class="twy"/>
+<path d="M105.2,91.3 L124.7,77.7" class="twy"/>
+<path d="M124.7,77.7 L147.8,67.5" class="twy"/>
+<path d="M147.8,67.5 L176.3,60.1" class="twy"/>
+<path d="M377.8,471.5 L331.2,445.4" class="twy"/>
+<path d="M331.2,445.4 L317.7,437.8" class="twy"/>
+<path d="M1668.9,59.8 L1039.3,60.1" class="tgt"/>
+<path d="M731.2,660.4 L602.5,660.4" class="rwy"/>
+<path d="M602.5,660.4 L-2476.7,660.6" class="rwy"/>
+<path d="M2246.2,660.3 L859.9,660.3" class="rwy"/>
+<path d="M859.9,660.3 L731.2,660.4" class="rwy"/>
+<path d="M731.2,660.4 L617.7,599.7" class="twy"/>
+<path d="M617.7,599.7 L377.8,471.5" class="twy"/>
+<path d="M731.2,660.4 L617.7,599.7 L377.8,471.5 L331.2,445.4 L317.7,437.8 L275.6,412.6 L242.6,390.6 L195.8,358.9 L136.1,314.4 L107.1,291.4 L91.9,275.3 L78.4,257.4 L69.7,241.8 L63.2,221.2 L60.0,196.5 L60.5,172.8 L65.5,150.5 L75.4,128.9 L88.9,108.7 L105.2,91.3 L124.7,77.7 L147.8,67.5 L176.3,60.1" class="route"/>
+<circle cx="100.2" cy="96.7" r="2" class="tick"/>
+<text x="100.2" y="109.7" class="ticklbl">100</text>
+<circle cx="60.9" cy="171.3" r="2" class="tick"/>
+<text x="60.9" y="184.3" class="ticklbl">200</text>
+<circle cx="76.6" cy="254.2" r="2" class="tick"/>
+<text x="76.6" y="267.2" class="ticklbl">300</text>
+<circle cx="136.6" cy="314.8" r="2" class="tick"/>
+<text x="136.6" y="327.8" class="ticklbl">400</text>
+<circle cx="205.7" cy="365.7" r="2" class="tick"/>
+<text x="205.7" y="378.7" class="ticklbl">500</text>
+<circle cx="277.0" cy="413.5" r="2" class="tick"/>
+<text x="277.0" y="426.5" class="ticklbl">600</text>
+<circle cx="351.3" cy="456.6" r="2" class="tick"/>
+<text x="351.3" y="469.6" class="ticklbl">700</text>
+<text x="180.3" y="55.1" class="tgtlbl">W</text>
+<text x="199.8" y="353.9" class="twylbl">W5</text>
+<g transform="translate(0,60.1)">
+<polygon points="80.8,99.3 121.6,127.4 120.4,134.2 76.9,121.3 66.4,119.4 21.1,116.6 22.3,109.8 70.3,97.4" fill="var(--c-a)" fill-opacity="0.35" stroke="var(--c-a)" stroke-width="1"/>
+<polygon points="71.5,151.7 84.4,164.4 83.6,168.7 69.4,163.5 58.9,161.7 43.9,161.6 44.6,157.4 61.0,149.8" fill="var(--c-a)" fill-opacity="0.35" stroke="var(--c-a)" stroke-width="1"/>
+<polygon points="82.8,57.8 86.5,67.1 70.3,158.5 64.6,167.5 62.1,167.0 59.8,156.6 76.0,65.3" fill="var(--c-a)" stroke="var(--c-a)" stroke-width="1"/>
+</g>
+<line x1="82.8" y1="117.9" x2="82.8" y2="60.1" class="dim"/>
+<text x="87.8" y="93.0" class="dimlbl">67 ft</text>
+<circle cx="82.8" cy="117.9" r="3.5" class="nose" style="fill:var(--c-a)"/>
+<circle cx="64.0" cy="223.8" r="3" class="tail" style="stroke:var(--c-a)"/>
+<circle cx="176.3" cy="60.1" r="5" class="bar"/>
+<text x="183.3" y="76.1" class="barlbl">merge / bar node 20</text>
+</svg><ul class="adv"><li>holding short of TWY W — wingtip clearance from W not assured (67 ft)</li><li>stop 132 ft back of the merge, 37 ft behind the plain length+30 setback → instructor advisory</li></ul></div><div class="lane"><div class="lanehead"><span class="sw" style="background:var(--c-b)"></span><b>B · only capped merges (uncapped keeps today’s stop)</b><span class="num">nose 95 ft back · 39 ft from W centreline</span></div><svg viewBox="0 0 374 380" width="374" style="max-width:100%;height:auto" role="img" aria-label="B · only capped merges (uncapped keeps today’s stop)">
+<rect x="0" y="0" width="374" height="380" class="mapbg"/>
+<g class="bandgrp">
+<path d="M1039.3,60.1 L176.3,60.1" class="band" stroke-width="226.7"/>
+<path d="M176.3,60.1 L-317.1,60.0" class="band" stroke-width="226.7"/>
+<path d="M-317.1,60.0 L-903.2,59.9" class="band" stroke-width="226.7"/>
+<path d="M-903.2,59.9 L-955.4,61.3" class="band" stroke-width="226.7"/>
+<path d="M-955.4,61.3 L-991.2,64.6" class="band" stroke-width="226.7"/>
+<path d="M-991.2,64.6 L-1036.1,71.4" class="band" stroke-width="226.7"/>
+<path d="M1668.9,59.8 L1039.3,60.1" class="band" stroke-width="226.7"/>
+</g>
+<path d="M1039.3,60.1 L176.3,60.1" class="tgt"/>
+<path d="M176.3,60.1 L-317.1,60.0" class="tgt"/>
+<path d="M-317.1,60.0 L-903.2,59.9" class="tgt"/>
+<path d="M-903.2,59.9 L-955.4,61.3" class="tgt"/>
+<path d="M-955.4,61.3 L-991.2,64.6" class="tgt"/>
+<path d="M-991.2,64.6 L-1036.1,71.4" class="tgt"/>
+<path d="M317.7,437.8 L275.6,412.6" class="twy"/>
+<path d="M275.6,412.6 L242.6,390.6" class="twy"/>
+<path d="M242.6,390.6 L195.8,358.9" class="twy"/>
+<path d="M195.8,358.9 L136.1,314.4" class="twy"/>
+<path d="M136.1,314.4 L107.1,291.4" class="twy"/>
+<path d="M107.1,291.4 L91.9,275.3" class="twy"/>
+<path d="M91.9,275.3 L78.4,257.4" class="twy"/>
+<path d="M78.4,257.4 L69.7,241.8" class="twy"/>
+<path d="M69.7,241.8 L63.2,221.2" class="twy"/>
+<path d="M63.2,221.2 L60.0,196.5" class="twy"/>
+<path d="M60.0,196.5 L60.5,172.8" class="twy"/>
+<path d="M60.5,172.8 L65.5,150.5" class="twy"/>
+<path d="M65.5,150.5 L75.4,128.9" class="twy"/>
+<path d="M75.4,128.9 L88.9,108.7" class="twy"/>
+<path d="M88.9,108.7 L105.2,91.3" class="twy"/>
+<path d="M105.2,91.3 L124.7,77.7" class="twy"/>
+<path d="M124.7,77.7 L147.8,67.5" class="twy"/>
+<path d="M147.8,67.5 L176.3,60.1" class="twy"/>
+<path d="M377.8,471.5 L331.2,445.4" class="twy"/>
+<path d="M331.2,445.4 L317.7,437.8" class="twy"/>
+<path d="M1668.9,59.8 L1039.3,60.1" class="tgt"/>
+<path d="M731.2,660.4 L602.5,660.4" class="rwy"/>
+<path d="M602.5,660.4 L-2476.7,660.6" class="rwy"/>
+<path d="M2246.2,660.3 L859.9,660.3" class="rwy"/>
+<path d="M859.9,660.3 L731.2,660.4" class="rwy"/>
+<path d="M731.2,660.4 L617.7,599.7" class="twy"/>
+<path d="M617.7,599.7 L377.8,471.5" class="twy"/>
+<path d="M731.2,660.4 L617.7,599.7 L377.8,471.5 L331.2,445.4 L317.7,437.8 L275.6,412.6 L242.6,390.6 L195.8,358.9 L136.1,314.4 L107.1,291.4 L91.9,275.3 L78.4,257.4 L69.7,241.8 L63.2,221.2 L60.0,196.5 L60.5,172.8 L65.5,150.5 L75.4,128.9 L88.9,108.7 L105.2,91.3 L124.7,77.7 L147.8,67.5 L176.3,60.1" class="route"/>
+<circle cx="100.2" cy="96.7" r="2" class="tick"/>
+<text x="100.2" y="109.7" class="ticklbl">100</text>
+<circle cx="60.9" cy="171.3" r="2" class="tick"/>
+<text x="60.9" y="184.3" class="ticklbl">200</text>
+<circle cx="76.6" cy="254.2" r="2" class="tick"/>
+<text x="76.6" y="267.2" class="ticklbl">300</text>
+<circle cx="136.6" cy="314.8" r="2" class="tick"/>
+<text x="136.6" y="327.8" class="ticklbl">400</text>
+<circle cx="205.7" cy="365.7" r="2" class="tick"/>
+<text x="205.7" y="378.7" class="ticklbl">500</text>
+<circle cx="277.0" cy="413.5" r="2" class="tick"/>
+<text x="277.0" y="426.5" class="ticklbl">600</text>
+<circle cx="351.3" cy="456.6" r="2" class="tick"/>
+<text x="351.3" y="469.6" class="ticklbl">700</text>
+<text x="180.3" y="55.1" class="tgtlbl">W</text>
+<text x="199.8" y="353.9" class="twylbl">W5</text>
+<g transform="translate(0,60.1)">
+<polygon points="91.6,73.2 124.7,110.1 121.9,116.4 82.7,93.6 72.9,89.3 29.6,76.0 32.3,69.7 81.9,68.9" fill="var(--c-b)" fill-opacity="0.35" stroke="var(--c-b)" stroke-width="1"/>
+<polygon points="70.3,121.9 79.8,137.3 78.1,141.3 65.5,133.0 55.8,128.7 41.1,125.1 42.8,121.2 60.6,117.7" fill="var(--c-b)" fill-opacity="0.35" stroke="var(--c-b)" stroke-width="1"/>
+<polygon points="103.3,33.3 104.7,43.3 67.6,128.2 59.9,135.7 57.6,134.6 57.8,124.0 95.0,39.0" fill="var(--c-b)" stroke="var(--c-b)" stroke-width="1"/>
+</g>
+<line x1="103.3" y1="93.4" x2="103.3" y2="60.1" class="dim"/>
+<text x="108.3" y="80.7" class="dimlbl">39 ft</text>
+<circle cx="103.3" cy="93.4" r="3.5" class="nose" style="fill:var(--c-b)"/>
+<circle cx="60.1" cy="192.1" r="3" class="tail" style="stroke:var(--c-b)"/>
+<circle cx="176.3" cy="60.1" r="5" class="bar"/>
+<text x="183.3" y="76.1" class="barlbl">merge / bar node 20</text>
+</svg><ul class="adv"><li>holding short of TWY W — wingtip clearance from W not assured (39 ft)</li></ul></div><div class="lane"><div class="lanehead"><span class="sw" style="background:var(--c-c)"></span><b>C · as built + advisory</b><span class="num">nose 203 ft back · 132 ft from W centreline</span></div><svg viewBox="0 0 374 380" width="374" style="max-width:100%;height:auto" role="img" aria-label="C · as built + advisory">
+<rect x="0" y="0" width="374" height="380" class="mapbg"/>
+<g class="bandgrp">
+<path d="M1039.3,60.1 L176.3,60.1" class="band" stroke-width="226.7"/>
+<path d="M176.3,60.1 L-317.1,60.0" class="band" stroke-width="226.7"/>
+<path d="M-317.1,60.0 L-903.2,59.9" class="band" stroke-width="226.7"/>
+<path d="M-903.2,59.9 L-955.4,61.3" class="band" stroke-width="226.7"/>
+<path d="M-955.4,61.3 L-991.2,64.6" class="band" stroke-width="226.7"/>
+<path d="M-991.2,64.6 L-1036.1,71.4" class="band" stroke-width="226.7"/>
+<path d="M1668.9,59.8 L1039.3,60.1" class="band" stroke-width="226.7"/>
+</g>
+<path d="M1039.3,60.1 L176.3,60.1" class="tgt"/>
+<path d="M176.3,60.1 L-317.1,60.0" class="tgt"/>
+<path d="M-317.1,60.0 L-903.2,59.9" class="tgt"/>
+<path d="M-903.2,59.9 L-955.4,61.3" class="tgt"/>
+<path d="M-955.4,61.3 L-991.2,64.6" class="tgt"/>
+<path d="M-991.2,64.6 L-1036.1,71.4" class="tgt"/>
+<path d="M317.7,437.8 L275.6,412.6" class="twy"/>
+<path d="M275.6,412.6 L242.6,390.6" class="twy"/>
+<path d="M242.6,390.6 L195.8,358.9" class="twy"/>
+<path d="M195.8,358.9 L136.1,314.4" class="twy"/>
+<path d="M136.1,314.4 L107.1,291.4" class="twy"/>
+<path d="M107.1,291.4 L91.9,275.3" class="twy"/>
+<path d="M91.9,275.3 L78.4,257.4" class="twy"/>
+<path d="M78.4,257.4 L69.7,241.8" class="twy"/>
+<path d="M69.7,241.8 L63.2,221.2" class="twy"/>
+<path d="M63.2,221.2 L60.0,196.5" class="twy"/>
+<path d="M60.0,196.5 L60.5,172.8" class="twy"/>
+<path d="M60.5,172.8 L65.5,150.5" class="twy"/>
+<path d="M65.5,150.5 L75.4,128.9" class="twy"/>
+<path d="M75.4,128.9 L88.9,108.7" class="twy"/>
+<path d="M88.9,108.7 L105.2,91.3" class="twy"/>
+<path d="M105.2,91.3 L124.7,77.7" class="twy"/>
+<path d="M124.7,77.7 L147.8,67.5" class="twy"/>
+<path d="M147.8,67.5 L176.3,60.1" class="twy"/>
+<path d="M377.8,471.5 L331.2,445.4" class="twy"/>
+<path d="M331.2,445.4 L317.7,437.8" class="twy"/>
+<path d="M1668.9,59.8 L1039.3,60.1" class="tgt"/>
+<path d="M731.2,660.4 L602.5,660.4" class="rwy"/>
+<path d="M602.5,660.4 L-2476.7,660.6" class="rwy"/>
+<path d="M2246.2,660.3 L859.9,660.3" class="rwy"/>
+<path d="M859.9,660.3 L731.2,660.4" class="rwy"/>
+<path d="M731.2,660.4 L617.7,599.7" class="twy"/>
+<path d="M617.7,599.7 L377.8,471.5" class="twy"/>
+<path d="M731.2,660.4 L617.7,599.7 L377.8,471.5 L331.2,445.4 L317.7,437.8 L275.6,412.6 L242.6,390.6 L195.8,358.9 L136.1,314.4 L107.1,291.4 L91.9,275.3 L78.4,257.4 L69.7,241.8 L63.2,221.2 L60.0,196.5 L60.5,172.8 L65.5,150.5 L75.4,128.9 L88.9,108.7 L105.2,91.3 L124.7,77.7 L147.8,67.5 L176.3,60.1" class="route"/>
+<circle cx="100.2" cy="96.7" r="2" class="tick"/>
+<text x="100.2" y="109.7" class="ticklbl">100</text>
+<circle cx="60.9" cy="171.3" r="2" class="tick"/>
+<text x="60.9" y="184.3" class="ticklbl">200</text>
+<circle cx="76.6" cy="254.2" r="2" class="tick"/>
+<text x="76.6" y="267.2" class="ticklbl">300</text>
+<circle cx="136.6" cy="314.8" r="2" class="tick"/>
+<text x="136.6" y="327.8" class="ticklbl">400</text>
+<circle cx="205.7" cy="365.7" r="2" class="tick"/>
+<text x="205.7" y="378.7" class="ticklbl">500</text>
+<circle cx="277.0" cy="413.5" r="2" class="tick"/>
+<text x="277.0" y="426.5" class="ticklbl">600</text>
+<circle cx="351.3" cy="456.6" r="2" class="tick"/>
+<text x="351.3" y="469.6" class="ticklbl">700</text>
+<text x="180.3" y="55.1" class="tgtlbl">W</text>
+<text x="199.8" y="353.9" class="twylbl">W5</text>
+<g transform="translate(0,60.1)">
+<polygon points="78.0,151.3 127.2,157.4 129.3,163.9 84.8,172.6 74.6,175.8 33.2,194.3 31.1,187.8 67.9,154.5" fill="var(--c-c)" fill-opacity="0.35" stroke="var(--c-c)" stroke-width="1"/>
+<polygon points="94.1,202.1 111.4,207.4 112.7,211.5 97.7,213.5 87.6,216.8 74.2,223.7 72.9,219.6 83.9,205.3" fill="var(--c-c)" fill-opacity="0.35" stroke="var(--c-c)" stroke-width="1"/>
+<polygon points="60.5,113.6 68.2,120.2 96.2,208.6 95.3,219.3 92.8,220.0 86.0,211.8 58.0,123.4" fill="var(--c-c)" stroke="var(--c-c)" stroke-width="1"/>
+</g>
+<line x1="60.5" y1="173.7" x2="60.5" y2="60.1" class="dim"/>
+<text x="65.5" y="120.9" class="dimlbl">132 ft</text>
+<circle cx="60.5" cy="173.7" r="3.5" class="nose" style="fill:var(--c-c)"/>
+<circle cx="93.0" cy="276.5" r="3" class="tail" style="stroke:var(--c-c)"/>
+<circle cx="176.3" cy="60.1" r="5" class="bar"/>
+<text x="183.3" y="76.1" class="barlbl">merge / bar node 20</text>
+</svg><ul class="adv"><li>today’s build: nothing (silent)</li><li>new: “holding short of TWY W 203 ft before the merge (W5 merges into W)”</li></ul></div></div><div class="side"><h3>Nose clearance from W as the stop moves back</h3><svg viewBox="0 0 540 230" width="100%" role="img" aria-label="nose clearance vs distance back">
+<line x1="46" x2="526" y1="196.0" y2="196.0" class="grid"/>
+<text x="40" y="200.0" class="axlbl" text-anchor="end">0</text>
+<line x1="46" x2="526" y1="181.0" y2="181.0" class="grid"/>
+<text x="40" y="185.0" class="axlbl" text-anchor="end">50</text>
+<line x1="46" x2="526" y1="166.0" y2="166.0" class="grid"/>
+<text x="40" y="170.0" class="axlbl" text-anchor="end">100</text>
+<line x1="46" x2="526" y1="150.9" y2="150.9" class="grid"/>
+<text x="40" y="154.9" class="axlbl" text-anchor="end">150</text>
+<line x1="46" x2="526" y1="135.9" y2="135.9" class="grid"/>
+<text x="40" y="139.9" class="axlbl" text-anchor="end">200</text>
+<line x1="46" x2="526" y1="120.9" y2="120.9" class="grid"/>
+<text x="40" y="124.9" class="axlbl" text-anchor="end">250</text>
+<line x1="46" x2="526" y1="105.9" y2="105.9" class="grid"/>
+<text x="40" y="109.9" class="axlbl" text-anchor="end">300</text>
+<line x1="46" x2="526" y1="90.8" y2="90.8" class="grid"/>
+<text x="40" y="94.8" class="axlbl" text-anchor="end">350</text>
+<line x1="46" x2="526" y1="75.8" y2="75.8" class="grid"/>
+<text x="40" y="79.8" class="axlbl" text-anchor="end">400</text>
+<line x1="46" x2="526" y1="60.8" y2="60.8" class="grid"/>
+<text x="40" y="64.8" class="axlbl" text-anchor="end">450</text>
+<line x1="46" x2="526" y1="45.8" y2="45.8" class="grid"/>
+<text x="40" y="49.8" class="axlbl" text-anchor="end">500</text>
+<line x1="46" x2="526" y1="30.7" y2="30.7" class="grid"/>
+<text x="40" y="34.7" class="axlbl" text-anchor="end">550</text>
+<line x1="46" x2="526" y1="15.7" y2="15.7" class="grid"/>
+<text x="40" y="19.7" class="axlbl" text-anchor="end">600</text>
+<text x="46.0" y="212" class="axlbl" text-anchor="middle">0</text>
+<text x="99.3" y="212" class="axlbl" text-anchor="middle">100</text>
+<text x="152.7" y="212" class="axlbl" text-anchor="middle">200</text>
+<text x="206.0" y="212" class="axlbl" text-anchor="middle">300</text>
+<text x="259.3" y="212" class="axlbl" text-anchor="middle">400</text>
+<text x="312.7" y="212" class="axlbl" text-anchor="middle">500</text>
+<text x="366.0" y="212" class="axlbl" text-anchor="middle">600</text>
+<text x="419.3" y="212" class="axlbl" text-anchor="middle">700</text>
+<text x="472.7" y="212" class="axlbl" text-anchor="middle">800</text>
+<text x="526.0" y="212" class="axlbl" text-anchor="middle">900</text>
+<line x1="46" x2="526" y1="156.3" y2="156.3" class="floorline"/>
+<text x="526" y="151.3" class="axlbl" text-anchor="end">wingtip floor 132 ft</text>
+<polyline points="46.0,196.0 48.7,195.6 51.3,195.2 54.0,194.9 56.7,194.5 59.3,194.1 62.0,193.7 64.7,193.3 67.3,192.7 70.0,192.1 72.7,191.5 75.3,190.9 78.0,190.3 80.7,189.6 83.3,188.8 86.0,187.9 88.7,187.0 91.3,186.2 94.0,185.3 96.7,184.3 99.3,183.2 102.0,182.1 104.7,181.0 107.3,179.9 110.0,178.8 112.7,177.6 115.3,176.3 118.0,175.1 120.7,173.8 123.3,172.5 126.0,171.2 128.7,169.9 131.3,168.5 134.0,167.2 136.7,165.8 139.3,164.4 142.0,162.9 144.7,161.5 147.3,160.0 150.0,158.6 152.7,157.1 155.3,155.6 158.0,154.1 160.7,152.6 163.3,151.1 166.0,149.6 168.7,148.1 171.3,146.6 174.0,145.1 176.7,143.6 179.3,142.1 182.0,140.6 184.7,139.2 187.3,137.7 190.0,136.3 192.7,134.9 195.3,133.4 198.0,132.0 200.7,130.7 203.3,129.4 206.0,128.1 208.7,126.8 211.3,125.6 214.0,124.4 216.7,123.2 219.3,122.0 222.0,120.8 224.7,119.7 227.3,118.6 230.0,117.5 232.7,116.4 235.3,115.3 238.0,114.3 240.7,113.4 243.3,112.5 246.0,111.5 248.7,110.6 251.3,109.7 254.0,108.7 256.7,107.8 259.3,106.9 262.0,106.0 264.7,105.1 267.3,104.2 270.0,103.3 272.7,102.4 275.3,101.5 278.0,100.6 280.7,99.7 283.3,98.8 286.0,97.9 288.7,97.0 291.3,96.1 294.0,95.2 296.7,94.3 299.3,93.4 302.0,92.5 304.7,91.6 307.3,90.7 310.0,89.9 312.7,89.1 315.3,88.2 318.0,87.4 320.7,86.5 323.3,85.7 326.0,84.9 328.7,84.0 331.3,83.2 334.0,82.3 336.7,81.5 339.3,80.6 342.0,79.8 344.7,79.0 347.3,78.1 350.0,77.3 352.7,76.5 355.3,75.6 358.0,74.8 360.7,74.0 363.3,73.1 366.0,72.3 368.7,71.5 371.3,70.8 374.0,70.0 376.7,69.2 379.3,68.5 382.0,67.7 384.7,66.9 387.3,66.2 390.0,65.4 392.7,64.6 395.3,63.9 398.0,63.1 400.7,62.4 403.3,61.6 406.0,60.9 408.7,60.2 411.3,59.4 414.0,58.7 416.7,58.0 419.3,57.2 422.0,56.5 424.7,55.8 427.3,55.0 430.0,54.3 432.7,53.5 435.3,52.8 438.0,52.1 440.7,51.4 443.3,50.7 446.0,50.0 448.7,49.3 451.3,48.6 454.0,47.9 456.7,47.1 459.3,46.5 462.0,45.7 464.7,45.0 467.3,44.3 470.0,43.6 472.7,42.9 475.3,42.2 478.0,41.5 480.7,40.8 483.3,40.1 486.0,39.4 488.7,38.6 491.3,38.0 494.0,37.2 496.7,36.5 499.3,35.8 502.0,35.1 504.7,34.4 507.3,33.7 510.0,33.0 512.7,32.3 515.3,31.6 518.0,30.9 520.7,30.1 523.3,29.4 526.0,28.7" class="curve"/>
+<circle cx="96.5" cy="179.3" r="5" style="fill:var(--c-base)" class="dot"/>
+<text x="103.5" y="177.3" class="dotlbl">today / B</text>
+<circle cx="116.4" cy="175.8" r="5" style="fill:var(--c-a)" class="dot"/>
+<text x="123.4" y="168.8" class="dotlbl">A</text>
+<circle cx="96.5" cy="189.3" r="5" style="fill:var(--c-b)" class="dot"/>
+<circle cx="154.2" cy="156.2" r="5" style="fill:var(--c-c)" class="dot"/>
+<text x="161.2" y="149.2" class="dotlbl">C</text>
+<text x="286.0" y="228" class="axlbl" text-anchor="middle">nose distance back of the merge along the route (ft)</text>
+<text x="12" y="104.0" class="axlbl" text-anchor="middle" transform="rotate(-90 12 104.0)">nose → W centreline (ft)</text>
+</svg><p class="note">The curve is the B738 nose’s distance to W’s centreline when the nose stands that far back along W5. C walks back until the curve meets the floor; A stops at the floor distance (132 ft back) without meeting the floor; today and B keep the plain length+30 stop.</p></div></div></section>
+<h2 id="numbers">All numbers</h2>
+<p class="meta">Nose back: along the route from the merge node. Clearance: nose to the target's centreline; the floor is 156 ft at SFO and 132 ft at OAK.</p>
+<div class="tablewrap"><table>
+<thead><tr><th>Junction</th><th>Option</th><th>Nose back (ft)</th><th>Nose → target CL (ft)</th><th>Floor</th><th>What the instructor sees</th></tr></thead>
+<tbody><tr><td>SFO 280 N→F</td><td><span class="sw" style="background:var(--c-base)"></span>today</td><td class="r">95</td><td class="r">10</td><td class="r">short</td><td>none (plain readback “hold short of F”)</td></tr><tr><td>SFO 280 N→F</td><td><span class="sw" style="background:var(--c-a)"></span>A</td><td class="r">156</td><td class="r">21</td><td class="r">short</td><td>holding short of TWY F — wingtip clearance from F not assured (21 ft) / stop 156 ft back of the merge, 61 ft behind the plain length+30 setback → instructor advisory</td></tr><tr><td>SFO 280 N→F</td><td><span class="sw" style="background:var(--c-b)"></span>B</td><td class="r">95</td><td class="r">10</td><td class="r">short</td><td>holding short of TWY F — wingtip clearance from F not assured (10 ft)</td></tr><tr><td>SFO 280 N→F</td><td><span class="sw" style="background:var(--c-c)"></span>C</td><td class="r">692</td><td class="r">156</td><td class="r">met</td><td>today’s build: nothing (silent) / new: “holding short of TWY F 692 ft before the merge (N merges into F)”</td></tr><tr><td>SFO 323 GL→L</td><td><span class="sw" style="background:var(--c-base)"></span>today</td><td class="r">95</td><td class="r">11</td><td class="r">short</td><td>none (plain readback “hold short of L”)</td></tr><tr><td>SFO 323 GL→L</td><td><span class="sw" style="background:var(--c-a)"></span>A</td><td class="r">156</td><td class="r">27</td><td class="r">short</td><td>holding short of TWY L — wingtip clearance from L not assured (27 ft) / stop 156 ft back of the merge, 61 ft behind the plain length+30 setback → instructor advisory</td></tr><tr><td>SFO 323 GL→L</td><td><span class="sw" style="background:var(--c-b)"></span>B</td><td class="r">95</td><td class="r">11</td><td class="r">short</td><td>holding short of TWY L — wingtip clearance from L not assured (11 ft)</td></tr><tr><td>SFO 323 GL→L</td><td><span class="sw" style="background:var(--c-c)"></span>C</td><td class="r">349</td><td class="r">121</td><td class="r">short</td><td>today’s build: the wingtip warning only / holding short of TWY L — wingtip clearance from L not assured (121 ft) / new: “holding short of TWY L 349 ft before the merge (GL merges into L)”</td></tr><tr><td>OAK 20 W5→W</td><td><span class="sw" style="background:var(--c-base)"></span>today</td><td class="r">95</td><td class="r">39</td><td class="r">short</td><td>none (plain readback “hold short of W”)</td></tr><tr><td>OAK 20 W5→W</td><td><span class="sw" style="background:var(--c-a)"></span>A</td><td class="r">132</td><td class="r">67</td><td class="r">short</td><td>holding short of TWY W — wingtip clearance from W not assured (67 ft) / stop 132 ft back of the merge, 37 ft behind the plain length+30 setback → instructor advisory</td></tr><tr><td>OAK 20 W5→W</td><td><span class="sw" style="background:var(--c-b)"></span>B</td><td class="r">95</td><td class="r">39</td><td class="r">short</td><td>holding short of TWY W — wingtip clearance from W not assured (39 ft)</td></tr><tr><td>OAK 20 W5→W</td><td><span class="sw" style="background:var(--c-c)"></span>C</td><td class="r">203</td><td class="r">132</td><td class="r">met</td><td>today’s build: nothing (silent) / new: “holding short of TWY W 203 ft before the merge (W5 merges into W)”</td></tr></tbody>
+</table></div>
+</main>
+</body>
+</html>
