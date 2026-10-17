@@ -1,7 +1,6 @@
 using System.Text;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
-using Avalonia.Interactivity;
 using Xunit;
 using Yaat.Client.ContextMenus;
 using Yaat.Client.UI.Tests.Fakes;
@@ -37,8 +36,8 @@ public class MenuGoldenTests
     public Task ListMenus_MatchGoldens() => AssertGoldens(MenuView.List);
 
     /// <summary>
-    /// The at-parking ground fixture's Taxi to runway submenu once opened, Other runways opened too, as the real host answers
-    /// it over the committed KOAK layout: each group's rows with their via, distance and command, and every second level.
+    /// The at-parking ground fixture's Taxi to runway flyout once opened under All Commands, with 30 a departure runway, as
+    /// the real host answers it over the committed KOAK layout: every runway end's tab and the selected tab's titles and rows.
     /// </summary>
     [AvaloniaFact]
     public void GroundMenu_AtParking_TaxiToRunwayOpened_MatchesGolden()
@@ -50,15 +49,13 @@ public class MenuGoldenTests
         MenuFixture fixture = MenuGoldenFixtures.For(MenuView.Ground).Single(f => f.Name == "at-parking");
         main.Aircraft.Clear();
         main.Aircraft.Add(fixture.Aircraft);
+        // A departure runway, so the first tab is searched as the flyout opens and the golden holds its rows.
+        main.ApplyActiveRunways(new Dictionary<string, List<string>> { ["OAK"] = ["30"] });
         ContextMenu menu = MenuHostHarness.BuildGroundMenu(main, fixture.Aircraft, fixture.Selected);
         MenuItem allCommands = menu.Items.OfType<MenuItem>().Single(m => (m.Header as string) == AircraftMenuBuilder.AllCommandsHeader);
         MenuItem taxiToRunway = allCommands.Items.OfType<MenuItem>().Single(m => (m.Header as string) == "Taxi to runway");
 
-        taxiToRunway.RaiseEvent(new RoutedEventArgs(MenuItem.SubmenuOpenedEvent, taxiToRunway));
-        foreach (MenuItem other in taxiToRunway.Items.OfType<MenuItem>().Where(m => (m.Header as string) == "Other runways"))
-        {
-            other.RaiseEvent(new RoutedEventArgs(MenuItem.SubmenuOpenedEvent, other));
-        }
+        taxiToRunway.IsSubMenuOpen = true;
 
         AssertGolden(
             "filled",

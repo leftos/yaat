@@ -54,7 +54,6 @@ public class PresetTaxiRouteFlyoutTests
             {
                 Assert.Equal(MenuDetailPlacement.Route, row.DetailPlacement);
                 Assert.Equal(QuickCommandGlyphs.For(MenuIds.GroundTaxiPreset), row.Glyph);
-                Assert.Null(row.Badge);
                 Assert.True(row.EmphasizeName);
             }
         );
@@ -76,7 +75,7 @@ public class PresetTaxiRouteFlyoutTests
         TextBlock command = longRow.GetVisualDescendants().OfType<TextBlock>().Single(block => block.Text == LongCommand);
         Grid grid = via.GetVisualAncestors().OfType<Grid>().First(candidate => candidate.ColumnDefinitions.Count == 4);
 
-        Assert.True(grid.Bounds.Width <= MenuCommandRow.InlineRowMaxWidth + 0.5, $"The row is {grid.Bounds.Width:F1}px wide.");
+        Assert.True(grid.Bounds.Width <= MenuCommandRow.RowMaxWidth + 0.5, $"The row is {grid.Bounds.Width:F1}px wide.");
         foreach (TextBlock block in grid.GetVisualDescendants().OfType<TextBlock>())
         {
             double right = block.TranslatePoint(new Point(block.Bounds.Width, 0), grid)!.Value.X;

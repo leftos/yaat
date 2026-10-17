@@ -487,7 +487,7 @@ internal sealed class HoldShortStopRowTemplate : FuncDataTemplate<HoldShortLadde
         {
             ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto,Auto"),
             ColumnSpacing = 8,
-            MaxWidth = MenuCommandRow.InlineRowMaxWidth,
+            MaxWidth = MenuCommandRow.RowMaxWidth,
         };
         grid.Children.Add(HoldShortBarMark.ForBadge(row.Badge));
 
@@ -577,7 +577,7 @@ internal sealed class HoldShortEndRowTemplate : FuncDataTemplate<HoldShortDestin
         {
             ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto"),
             ColumnSpacing = 8,
-            MaxWidth = MenuCommandRow.InlineRowMaxWidth,
+            MaxWidth = MenuCommandRow.RowMaxWidth,
         };
         grid.Children.Add(row.IsRunway ? HoldShortBarMark.Runway() : HoldShortBarMark.Stand());
 

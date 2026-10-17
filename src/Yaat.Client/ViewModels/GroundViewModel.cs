@@ -1465,45 +1465,22 @@ public partial class GroundViewModel : ObservableObject
     private static double RouteDistanceFt(TaxiRoute route, LatLon position) =>
         TugMovePlanner.NoteDistanceFt(RouteStart(route, position).OffsetFt + route.PrefixDistanceFt(route.Segments.Count));
 
-    /// <summary>The most runway ends Taxi to runway shows inline when the room names no active runway at the airport.</summary>
-    private const int MaxInlineRunwayEnds = 3;
-
     /// <summary>A hold short of a runway the aircraft can taxi to, the shortest route there and its distance from the aircraft.</summary>
     private sealed record RunwayEntry(GroundNode Bar, TaxiRoute Route, double DistanceFt);
 
     /// <summary>
-    /// The Taxi to runway submenu for <paramref name="ac"/>, from its taxi start (<see cref="TaxiStartNode"/>) with its own
-    /// category and wake class. Every runway end with a hold short the aircraft can reach gets a group: the full-length
-    /// entry and the intersections long enough for its type (<see cref="EntryRowsFor"/>), then the presets ending at that end
-    /// (<see cref="GetPresetTaxiChoices"/>). The groups are placed by <see cref="GroupRunwayEnds"/>.
-    /// With an active departure end at the airport, only the runways of the assigned and active departure ends are searched
-    /// here; the rest are searched when Other runways opens (<see cref="TaxiToRunwayMenu.FindOther"/>), and only when some
-    /// runway end is not inline. Without one, the inline ends are the route-nearest, so every runway is searched at once.
-    /// Other runways opened after the layout changed finds no group. <see cref="TaxiToRunwayMenu.RunwayEnds"/> names every
-    /// runway end up front (<see cref="RunwayEndsAtOpen"/>). Empty without a layout or a start node.
+    /// The Taxi to runway flyout for <paramref name="ac"/>, from its taxi start (<see cref="TaxiStartNode"/>) with its own
+    /// category and wake class: every runway end of the airport (<see cref="RunwayEndsAtOpen"/>), the assigned and
+    /// departure runways searched now and the rest when first asked for. An end's rows are the full-length entry and the
+    /// intersections long enough for its type (<see cref="EntryRowsFor"/>), then the presets ending at that end
+    /// (<see cref="GetPresetTaxiChoices"/>). <see cref="TaxiToRunwayEndList.None"/> without a layout or a start node.
     /// </summary>
-    public TaxiToRunwayMenu GetTaxiToRunwayChoices(AircraftModel ac)
-    {
-        if (TaxiToRunwaySearchFor(ac) is not { } search)
-        {
-            return TaxiToRunwayMenu.Empty;
-        }
-
-        string assignedRunway = ac.AssignedRunway;
-        List<string> departureEnds = ActiveDepartureRunwayEnds(search.Layout.AirportId);
-        TaxiToRunwayEndList runwayEnds = RunwayEndsAtOpen(search, assignedRunway, departureEnds);
-        return GroupedTaxiToRunwayMenu(search, ac, assignedRunway, departureEnds) with { RunwayEnds = runwayEnds };
-    }
-
-    /// <summary>
-    /// Every runway end Taxi to runway names for <paramref name="ac"/> (<see cref="RunwayEndsAtOpen"/>), as
-    /// <see cref="GetTaxiToRunwayChoices"/> gives them in <see cref="TaxiToRunwayMenu.RunwayEnds"/>, without the groups.
-    /// <see cref="TaxiToRunwayEndList.None"/> without a layout or a start node.
-    /// </summary>
-    public TaxiToRunwayEndList GetTaxiToRunwayEnds(AircraftModel ac) =>
-        (TaxiToRunwaySearchFor(ac) is { } search)
-            ? RunwayEndsAtOpen(search, ac.AssignedRunway, ActiveDepartureRunwayEnds(search.Layout.AirportId))
-            : TaxiToRunwayEndList.None;
+    public TaxiToRunwayMenu GetTaxiToRunwayChoices(AircraftModel ac) =>
+        new(
+            (TaxiToRunwaySearchFor(ac) is { } search)
+                ? RunwayEndsAtOpen(search, ac.AssignedRunway, ActiveDepartureRunwayEnds(search.Layout.AirportId))
+                : TaxiToRunwayEndList.None
+        );
 
     /// <summary>
     /// Everything a Taxi to runway search reads, taken from the layout and the aircraft on the UI thread when the menu
@@ -1536,48 +1513,8 @@ public partial class GroundViewModel : ObservableObject
             )
             : null;
 
-    /// <summary>The Inline, Other and Find other groups of <see cref="GetTaxiToRunwayChoices"/>, placed by <see cref="GroupRunwayEnds"/>.</summary>
-    private TaxiToRunwayMenu GroupedTaxiToRunwayMenu(TaxiToRunwaySearch search, AircraftModel ac, string assignedRunway, List<string> departureEnds)
-    {
-        List<RunwayIdentifier> runways = RunwaysWithHoldShorts(search.Layout);
-        if (departureEnds.Count == 0)
-        {
-            return GroupRunwayEnds(RunwayEndRows(search, runways), assignedRunway, departureEnds);
-        }
-
-        List<string> inlineEnds = [.. departureEnds];
-        if (!string.IsNullOrEmpty(assignedRunway))
-        {
-            inlineEnds.Add(assignedRunway);
-        }
-
-        List<RunwayIdentifier> inlineRunways = [.. runways.Where(runway => inlineEnds.Any(runway.Contains))];
-        TaxiToRunwayMenu inline = GroupRunwayEnds(RunwayEndRows(search, inlineRunways), assignedRunway, departureEnds);
-        bool anyEndNotInline = runways.SelectMany(EndsOf).Any(end => !inlineEnds.Any(inlineEnd => SameRunwayEnd(end, inlineEnd)));
-        if (!anyEndNotInline)
-        {
-            return new TaxiToRunwayMenu(inline.Inline, [], null);
-        }
-
-        return new TaxiToRunwayMenu(
-            inline.Inline,
-            [],
-            () =>
-                ReferenceEquals(_domainLayout, search.Layout)
-                    ? GroupRunwayEnds(RunwayEndRows(search with { Position = ac.Position }, runways), assignedRunway, departureEnds).Other
-                    : []
-        );
-    }
-
     /// <summary>A runway's ends, one for a runway named by a single end.</summary>
     private static string[] EndsOf(RunwayIdentifier runway) => SameRunwayEnd(runway.End1, runway.End2) ? [runway.End1] : [runway.End1, runway.End2];
-
-    /// <summary>
-    /// The rows of each end of <paramref name="runways"/> that has any (<see cref="EndRows"/>), searched now on the UI
-    /// thread. A runway searched before from the same start is answered from the route cache.
-    /// </summary>
-    private List<(string End, List<TaxiRouteRow> Rows)> RunwayEndRows(TaxiToRunwaySearch search, List<RunwayIdentifier> runways) =>
-        [.. runways.SelectMany(runway => EndRows(search, runway, RunwayEntryRoutesNow(search, runway))).Where(end => end.Rows.Count > 0)];
 
     /// <summary>
     /// Each end of <paramref name="runway"/> with its rows from <paramref name="routes"/>: its entries
@@ -2182,76 +2119,6 @@ public partial class GroundViewModel : ObservableObject
     /// </summary>
     public static string? EntryName(string? barTaxiway, TaxiRoute route) =>
         ((barTaxiway ?? TaxiRouteFormatter.CleanTaxiwaySequence(route).LastOrDefault()) is { } taxiway) ? $"At {taxiway}" : null;
-
-    /// <summary>
-    /// Places the runway ends' groups: the end of <paramref name="assignedRunway"/> first, then each of
-    /// <paramref name="departureEnds"/> in order; with no departure end at the airport, the ends nearest the aircraft fill
-    /// the inline list up to <see cref="MaxInlineRunwayEnds"/>, the assigned one counted. Every other end goes under Other
-    /// runways in runway order. An end with no row is never a group.
-    /// An active list naming only arrival ends (<c>A28R</c>) names no departure runway, so it takes the nearest-ends
-    /// fallback as an empty list does.
-    /// </summary>
-    private static TaxiToRunwayMenu GroupRunwayEnds(
-        List<(string End, List<TaxiRouteRow> Rows)> ends,
-        string assignedRunway,
-        IReadOnlyList<string> departureEnds
-    )
-    {
-        List<(string End, List<TaxiRouteRow> Rows)> remaining = [.. ends];
-        List<TaxiToRunwayGroup> inline = [];
-        if ((!string.IsNullOrEmpty(assignedRunway)) && (TakeEnd(remaining, assignedRunway) is { } assigned))
-        {
-            inline.Add(RunwayEndGroup(assigned, "assigned runway"));
-        }
-
-        foreach (string departureEnd in departureEnds)
-        {
-            if (TakeEnd(remaining, departureEnd) is { } departure)
-            {
-                inline.Add(RunwayEndGroup(departure, "departure runway"));
-            }
-        }
-
-        if (departureEnds.Count == 0)
-        {
-            List<(string End, List<TaxiRouteRow> Rows)> nearest =
-            [
-                .. remaining.OrderBy(e => e.Rows.Min(row => row.DistanceFt)).Take(Math.Max(0, MaxInlineRunwayEnds - inline.Count)),
-            ];
-            foreach ((string End, List<TaxiRouteRow> Rows) end in nearest)
-            {
-                remaining.Remove(end);
-                inline.Add(RunwayEndGroup(end, null));
-            }
-        }
-
-        List<TaxiToRunwayGroup> other =
-        [
-            .. remaining.OrderBy(e => RunwayNumber(e.End)).ThenBy(e => e.End, StringComparer.OrdinalIgnoreCase).Select(e => RunwayEndGroup(e, null)),
-        ];
-        return new TaxiToRunwayMenu(inline, other, null);
-    }
-
-    /// <summary>Removes and returns the group of <paramref name="end"/> from <paramref name="ends"/>; null when it has none.</summary>
-    private static (string End, List<TaxiRouteRow> Rows)? TakeEnd(List<(string End, List<TaxiRouteRow> Rows)> ends, string end)
-    {
-        int index = ends.FindIndex(e => SameRunwayEnd(e.End, end));
-        if (index < 0)
-        {
-            return null;
-        }
-
-        (string End, List<TaxiRouteRow> Rows) taken = ends[index];
-        ends.RemoveAt(index);
-        return taken;
-    }
-
-    /// <summary>A runway end's group, titled <c>Runway 30</c>, with <c> · {role}</c> after it when it has one.</summary>
-    private static TaxiToRunwayGroup RunwayEndGroup((string End, List<TaxiRouteRow> Rows) end, string? role)
-    {
-        string title = $"Runway {RunwayIdentifier.ToDisplayDesignator(end.End)}";
-        return new TaxiToRunwayGroup((role is null) ? title : $"{title} · {role}", end.Rows);
-    }
 
     /// <summary>Whether two spellings name the same runway end (<c>1L</c> and <c>01L</c>).</summary>
     private static bool SameRunwayEnd(string a, string b) =>

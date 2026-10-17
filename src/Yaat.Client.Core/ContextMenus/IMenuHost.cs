@@ -227,11 +227,9 @@ public interface IMenuHost
     IReadOnlyList<TaxiRouteRow> GetPresetTaxiChoices(string callsign);
 
     /// <summary>
-    /// The Taxi to runway submenu for <paramref name="callsign"/>: per runway end, the entry nearest the aircraft and the
-    /// full-length entry (one row when they are the same hold short), each with its via, distance, route to preview and
-    /// the For departure and Hold short of runway commands, then the presets that end at that end. The assigned runway's
-    /// end comes first, then the room's active departure ends, and the rest under Other runways (<see cref="TaxiToRunwayMenu"/>),
-    /// searched only when it opens while the room names active departure ends. <see cref="TaxiToRunwayMenu.RunwayEnds"/>
+    /// The Taxi to runway flyout for <paramref name="callsign"/>: per runway end, the full-length entry and the
+    /// intersections long enough for the aircraft, each with its via, distance, route to preview and the For departure and
+    /// Hold short of runway commands, then the presets that end at that end. <see cref="TaxiToRunwayMenu.RunwayEnds"/>
     /// names every runway end of the airport up front, the assigned end first, then the departure ends, then the rest by
     /// runway number: the assigned and departure runways are searched when the menu opens, a runway with no hold short is
     /// empty, and any other runway is searched in the background the first time one of its ends is asked for

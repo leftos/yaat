@@ -14,7 +14,9 @@ namespace Yaat.Client.UI.Tests.Views;
 /// <c>picker:input</c>, <c>picker:richList [FL410, …, MVA 5,000 here (sector SCK_M), …]</c>, or a grouped picker on one
 /// line with its groups and no children,
 /// <c>picker:grouped [Runway 30 · assigned: I30, L30 | Other runways: 10L, 12]</c>); the quick-command strip
-/// (<see cref="QuickCommandStrip"/>) as one node naming its buttons' catalog ids in order, <c>strip: [id, id, …]</c>; a
+/// (<see cref="QuickCommandStrip"/>) as one node naming its buttons' catalog ids in order, <c>strip: [id, id, …]</c>; the
+/// Taxi to runway panel (<see cref="TaxiToRunwayPanel"/>) as its tabs, <c>tabs: [30 assigned [selected], 12 [none], …]</c>,
+/// then the selected tab's lines at the same depth; a
 /// <see cref="Separator"/> as <c>---</c>; anything else as its type name in angle brackets.
 /// Commands, tooltips, gestures and icons are left out. Every line ends with <c>\n</c>.
 /// </summary>
@@ -61,6 +63,9 @@ internal static class MenuTreeSnapshot
             case MenuItem strip when QuickCommandStrip.IsStrip(strip):
                 text.Append("strip: [").AppendJoin(", ", QuickCommandStrip.Buttons(strip).Select(button => button.Tag as string)).Append("]\n");
                 break;
+            case MenuItem { Header: TaxiToRunwayPanel panel }:
+                AppendPanel(text, panel, depth);
+                break;
             case MenuItem menuItem:
                 text.Append(Describe(menuItem)).Append('\n');
                 if (menuItem.Tag is not MenuPickerDescriptor { Kind: MenuPickerDescriptor.Grouped })
@@ -73,6 +78,45 @@ internal static class MenuTreeSnapshot
                 text.Append('<').Append(item?.GetType().Name ?? "null").Append(">\n");
                 break;
         }
+    }
+
+    /// <summary>
+    /// The Taxi to runway panel, its first line already indented: its tabs on one line when it has any, then the selected
+    /// tab's lines (<see cref="TaxiToRunwayPanel.Lines"/>) at the same depth.
+    /// </summary>
+    private static void AppendPanel(StringBuilder text, TaxiToRunwayPanel panel, int depth)
+    {
+        List<string> lines = [.. panel.Lines];
+        if (panel.Strip.Tabs.Count > 0)
+        {
+            lines.Insert(
+                0,
+                $"tabs: [{string.Join(", ", panel.Strip.Tabs.Select((tab, index) => TabText(tab, index == panel.Strip.SelectedIndex)))}]"
+            );
+        }
+
+        text.Append(lines[0]).Append('\n');
+        foreach (string line in lines.Skip(1))
+        {
+            for (int i = 0; i < depth; i++)
+            {
+                text.Append(Indent);
+            }
+
+            text.Append(line).Append('\n');
+        }
+    }
+
+    /// <summary>A tab's label, then <c>[selected]</c> and <c>[searching]</c> or <c>[none]</c> where they apply.</summary>
+    private static string TabText(FlyoutTab tab, bool selected)
+    {
+        string state = tab.State switch
+        {
+            FlyoutTabState.Searching => " [searching]",
+            FlyoutTabState.Empty => " [none]",
+            _ => "",
+        };
+        return $"{tab.Label}{(selected ? " [selected]" : "")}{state}";
     }
 
     /// <summary>The header text, then the state flags and picker descriptor, space-separated.</summary>

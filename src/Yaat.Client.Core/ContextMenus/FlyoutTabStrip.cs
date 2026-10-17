@@ -1,6 +1,8 @@
 using Avalonia;
 using Avalonia.Animation;
 using Avalonia.Automation;
+using Avalonia.Automation.Peers;
+using Avalonia.Automation.Provider;
 using Avalonia.Controls;
 using Avalonia.Controls.Shapes;
 using Avalonia.Input;
@@ -93,6 +95,21 @@ public sealed class FlyoutTabStrip : Border
     /// <summary>The selected tab's index; -1 while the strip has no tab.</summary>
     public int SelectedIndex { get; private set; } = -1;
 
+    /// <summary>The tabs as they show now, each with its current state, in order.</summary>
+    public IReadOnlyList<FlyoutTab> Tabs => [.. _tabs.Select(view => view.Tab)];
+
+    /// <summary>
+    /// A tab's name for assistive technology: its label, then <c>, searching</c> or <c>, none</c> while it is
+    /// <see cref="FlyoutTabState.Searching"/> or <see cref="FlyoutTabState.Empty"/>.
+    /// </summary>
+    public static string AccessibleName(FlyoutTab tab) =>
+        tab.State switch
+        {
+            FlyoutTabState.Searching => $"{tab.Label}, searching",
+            FlyoutTabState.Empty => $"{tab.Label}, none",
+            _ => tab.Label,
+        };
+
     /// <summary>
     /// Replaces the tabs, keeping the selected index when it is still in range and selecting the first tab otherwise. Raises no
     /// <see cref="SelectionChanged"/>: the caller that replaces the tabs knows what it shows.
@@ -109,7 +126,7 @@ public sealed class FlyoutTabStrip : Border
         for (int index = 0; index < tabs.Count; index++)
         {
             int pressed = index;
-            var view = new TabView(tabs[index]);
+            var view = new TabView(tabs[index], () => Select(pressed));
             view.Root.PointerPressed += (_, e) =>
             {
                 if (e.GetCurrentPoint(view.Root).Properties.IsLeftButtonPressed)
@@ -190,6 +207,24 @@ public sealed class FlyoutTabStrip : Border
         }
     }
 
+    /// <summary>
+    /// A tab's rounded box, which UI Automation sees as a tab item named by <see cref="AccessibleName"/>, never keyboard
+    /// focusable, whose invoke selects the tab.
+    /// </summary>
+    private sealed class TabBox(Action select) : Border
+    {
+        public void Invoke() => select();
+
+        protected override AutomationPeer OnCreateAutomationPeer() => new TabPeer(this);
+    }
+
+    private sealed class TabPeer(TabBox owner) : ControlAutomationPeer(owner), IInvokeProvider
+    {
+        public void Invoke() => owner.Invoke();
+
+        protected override AutomationControlType GetAutomationControlTypeCore() => AutomationControlType.TabItem;
+    }
+
     /// <summary>One tab's controls: the label, the spinner and the <c>none</c> note in a rounded box.</summary>
     private sealed class TabView
     {
@@ -201,8 +236,9 @@ public sealed class FlyoutTabStrip : Border
         private bool _onScreen;
         private CancellationTokenSource? _spinning;
 
-        public TabView(FlyoutTab tab)
+        public TabView(FlyoutTab tab, Action select)
         {
+            Tab = tab;
             var label = new TextBlock
             {
                 Text = tab.Label,
@@ -224,7 +260,7 @@ public sealed class FlyoutTabStrip : Border
                 VerticalAlignment = VerticalAlignment.Center,
             };
 
-            Root = new Border
+            Root = new TabBox(select)
             {
                 CornerRadius = new CornerRadius(4),
                 BorderThickness = new Thickness(1),
@@ -233,13 +269,15 @@ public sealed class FlyoutTabStrip : Border
                 IsTabStop = false,
                 Child = new StackPanel { Orientation = Orientation.Horizontal, Children = { label, _spinner, _none } },
             };
-            AutomationProperties.SetName(Root, tab.Label);
             Root.PointerEntered += (_, _) => SetHovered(true);
             Root.PointerExited += (_, _) => SetHovered(false);
             SetState(tab.State);
         }
 
         public Border Root { get; }
+
+        /// <summary>The tab with its current state.</summary>
+        public FlyoutTab Tab { get; private set; }
 
         public void SetSelected(bool selected)
         {
@@ -250,6 +288,8 @@ public sealed class FlyoutTabStrip : Border
         public void SetState(FlyoutTabState state)
         {
             _state = state;
+            Tab = Tab with { State = state };
+            AutomationProperties.SetName(Root, AccessibleName(Tab));
             _spinner.IsVisible = (state == FlyoutTabState.Searching);
             _none.IsVisible = (state == FlyoutTabState.Empty);
             Root.Opacity = (state == FlyoutTabState.Empty) ? MenuGlyphRowTemplate.DimmedOpacity : 1;

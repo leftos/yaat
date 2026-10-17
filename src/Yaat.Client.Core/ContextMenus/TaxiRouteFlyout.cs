@@ -9,7 +9,7 @@ namespace Yaat.Client.ContextMenus;
 /// The Preset taxi route flyout over the host's answer (<see cref="IMenuHost.GetPresetTaxiChoices"/>), one builder for the
 /// All Commands submenu and the quick-command strip's flyout: one flat two-line row per preset, nearest first, led by the
 /// preset glyph, its name over its taxiways in the monospace font, then its distance from the aircraft and the
-/// <c>TAXI</c> command it sends. A row stays within <see cref="MenuCommandRow.InlineRowMaxWidth"/>: its name, taxiway line
+/// <c>TAXI</c> command it sends. A row stays within <see cref="MenuCommandRow.RowMaxWidth"/>: its name, taxiway line
 /// and command each trim with an ellipsis, and while any is trimmed the row carries its whole text in its tooltip. A row
 /// pointed at or focused previews its route (<see cref="IMenuHost.SetRoutePreview"/>), sent again with each live refill
 /// below and cleared when the flyout closes. With no preset the entry is not built. While the quick-command strip's
@@ -53,7 +53,6 @@ public static class TaxiRouteFlyout
     private static MenuCommandRow PresetRow(TaxiRouteRow preset, bool isGone) =>
         new()
         {
-            Badge = null,
             Glyph = QuickCommandGlyphs.For(MenuIds.GroundTaxiPreset),
             Name = preset.Name,
             EmphasizeName = true,

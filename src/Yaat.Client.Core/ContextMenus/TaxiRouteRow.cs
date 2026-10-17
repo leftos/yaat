@@ -1,12 +1,15 @@
 using Avalonia.Threading;
+using Microsoft.Extensions.Logging;
+using Yaat.Client.Logging;
 using Yaat.Sim.Data.Airport;
 
 namespace Yaat.Client.ContextMenus;
 
 /// <summary>
-/// One taxi route a ground submenu offers as a command row: a preset taxi route, or a runway entry point of Taxi to runway.
-/// It shows its badge, name, why it is offered, the taxiways it follows and its distance from the aircraft, sends
-/// <see cref="Command"/> (a leaf) or opens <see cref="Variants"/> (a runway entry), and previews <see cref="Preview"/> on hover.
+/// One taxi route a ground menu offers: a preset taxi route, or a runway entry point of Taxi to runway. It carries its
+/// badge, name, why it is offered, the taxiways it follows and its distance from the aircraft. A preset is one row that
+/// sends <see cref="Command"/>; in the Taxi to runway flyout a runway entry is a title line over its <see cref="Variants"/>,
+/// each a row of its own. A row previews its route (<see cref="Preview"/>, or its variant's own) while pointed at or focused.
 /// </summary>
 /// <param name="Badge"><see cref="RunwayEntryBadge"/> for a runway entry point, <see cref="PresetBadge"/> for a preset route.</param>
 /// <param name="Name">What the row names: the entry's hold short (<c>At W4</c>) or the preset's name (<c>TERMINAL to 30</c>).</param>
@@ -24,9 +27,9 @@ namespace Yaat.Client.ContextMenus;
 /// <param name="Command">
 /// The finished command the row shows: what a preset sends, or the first of a runway entry's <see cref="Variants"/>.
 /// </param>
-/// <param name="Preview">The route from the aircraft the surface previews while the pointer is over the row.</param>
+/// <param name="Preview">The route from the aircraft the surface previews while the row is pointed at or focused.</param>
 /// <param name="Variants">
-/// The commands a runway entry opens (For departure, Hold short of the runway, and their crossing variants, with
+/// The commands a runway entry offers as rows (For departure, Hold short of the runway, and their crossing variants, with
 /// <see cref="MenuCommandChoice.Separator"/> between the two kinds); <c>[]</c> for a preset, which sends <see cref="Command"/>.
 /// </param>
 public sealed record TaxiRouteRow(
@@ -49,41 +52,12 @@ public sealed record TaxiRouteRow(
     public const string PresetBadge = "PR";
 }
 
-/// <summary>One runway end's rows in the Taxi to runway submenu, under its title.</summary>
-/// <param name="Title">
-/// The group's title: <c>Runway 30 · assigned runway</c>, <c>Runway 28L · departure runway</c>, or <c>Runway 30</c> for an
-/// end offered for neither reason (inline when the room names no active runway, or under Other runways).
-/// </param>
-/// <param name="Rows">
-/// The end's entry points, the full-length one first and then the intersections from the threshold inward, then the
-/// presets that end at it.
-/// </param>
-public sealed record TaxiToRunwayGroup(string Title, IReadOnlyList<TaxiRouteRow> Rows);
-
-/// <summary>
-/// The Taxi to runway submenu's content: the groups shown inline, then those under Other runways, found already or
-/// searched only when Other runways opens.
-/// </summary>
-/// <param name="Inline">
-/// The assigned runway's end first, then the room's active departure ends in the room's order; with no active departure
-/// runway at the airport, the ends nearest the aircraft, up to three counting the assigned one.
-/// </param>
-/// <param name="Other">Every other end with a row, in runway order, when already found; empty when <paramref name="FindOther"/> is set.</param>
-/// <param name="FindOther">
-/// Searches the other ends' rows (in runway order) when Other runways opens, for a menu whose inline ends come from the
-/// room's active departure runways; null when <paramref name="Other"/> already holds them or no runway end is left.
-/// </param>
-public sealed record TaxiToRunwayMenu(
-    IReadOnlyList<TaxiToRunwayGroup> Inline,
-    IReadOnlyList<TaxiToRunwayGroup> Other,
-    Func<IReadOnlyList<TaxiToRunwayGroup>>? FindOther
-)
+/// <summary>The Taxi to runway flyout's content: every runway end of the airport, one tab each.</summary>
+/// <param name="RunwayEnds">Every runway end, each with where its search stands; <see cref="TaxiToRunwayEndList.None"/> without one.</param>
+public sealed record TaxiToRunwayMenu(TaxiToRunwayEndList RunwayEnds)
 {
-    /// <summary>No group at all.</summary>
-    public static TaxiToRunwayMenu Empty { get; } = new([], [], null);
-
-    /// <summary>Every runway end of the airport, each with where its search stands; <see cref="TaxiToRunwayEndList.None"/> without one.</summary>
-    public TaxiToRunwayEndList RunwayEnds { get; init; } = TaxiToRunwayEndList.None;
+    /// <summary>No runway end at all.</summary>
+    public static TaxiToRunwayMenu Empty { get; } = new(TaxiToRunwayEndList.None);
 }
 
 /// <summary>Why Taxi to runway offers a runway end.</summary>
@@ -152,6 +126,8 @@ public sealed class TaxiToRunwayEndList(
     public static TaxiToRunwayEndList None { get; } =
         new([], runway => throw new InvalidOperationException($"No runway end to search: runway {runway} is not in an empty end list."));
 
+    private static readonly ILogger Log = AppLog.CreateLogger("TaxiToRunwayEndList");
+
     private readonly Dictionary<RunwayIdentifier, Task> _searching = [];
 
     /// <summary>The ends as they stand now: a runway asked for reads <see cref="TaxiToRunwayEndState.Searching"/> until its search lands.</summary>
@@ -196,7 +172,18 @@ public sealed class TaxiToRunwayEndList(
         Ends = [.. Ends.Select(e => (e.Runway == runway) ? e with { State = TaxiToRunwayEndState.Searching } : e)];
         try
         {
-            IReadOnlyList<(string Designator, IReadOnlyList<TaxiRouteRow> Rows)>? found = await searchRunway(runway);
+            IReadOnlyList<(string Designator, IReadOnlyList<TaxiRouteRow> Rows)>? found;
+            try
+            {
+                found = await searchRunway(runway);
+            }
+            catch (Exception ex)
+            {
+                // A search that throws or faults no longer applies, as a null result: its ends go back to be searched again.
+                Log.LogError(ex, "Taxi to runway: the search of runway {Runway} failed", runway);
+                found = null;
+            }
+
             Ends = [.. Ends.Select(e => (e.Runway == runway) ? Searched(e, found) : e)];
         }
         finally

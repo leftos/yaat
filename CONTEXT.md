@@ -546,16 +546,13 @@ One command the aircraft menus can offer, with a stable ID (`<group>.<item>`, ne
 The surface that owns an aircraft menu (radar, ground, aircraft list) as a catalog entry's builder sees it (`IMenuHost`): sending the command text, and whatever popups or reads the entry needs.
 
 **Runway entry (Taxi to runway)**:
-A runway hold short the Taxi to runway submenu offers as one row, reached by the shortest route from the aircraft: the **full-length entry** at the runway's end, or an **intersection entry** whose runway remaining (shown as `~N ft avail`) is at least the type's takeoff distance (`TaxiRouteRow`, `GroundViewModel.GetTaxiToRunwayChoices`); the client's own ranking, separate from `RunwayEntryPoint`, the Sim classifier behind a queued departure's `28R@E`.
-
-**Lazy submenu**:
-A menu submenu whose items are built when it first opens, holding one disabled placeholder until then, for an entry too costly to build with every menu (`LazySubmenu`; Taxi to runway).
+A runway hold short the Taxi to runway flyout offers as one title line with its variants under it, reached by the shortest route from the aircraft: the **full-length entry** at the runway's end, or an **intersection entry** whose runway remaining (shown as `~N ft avail`) is at least the type's takeoff distance (`TaxiRouteRow`, `GroundViewModel.GetTaxiToRunwayChoices`); the client's own ranking, separate from `RunwayEntryPoint`, the Sim classifier behind a queued departure's `28R@E`.
 
 **Click context (menu click)**:
 What a right-click gives an aircraft menu (`MenuClick`): the aircraft the menu commands, the previously selected aircraft that sends the relative items (null when it is the clicked one), the clicked point on a point click (`MenuPoint`: a map position, a taxi node, a runway end; null on an aircraft click), and the list's selected rows (`[]` on the canvases).
 
 **Command row**:
-A clickable, templated context-menu row that sends a command: an optional badge, the name, a detail, a distance and the command text (`MenuCommandRow`, drawn by `MenuCommandRowTemplate`); the Preset taxi route (a glyph in place of the badge, the taxiways under the name), Taxi to runway and Exit left / right rows are command rows; the Follow…, Give way to… and Hold short of… rows draw their own layouts.
+A clickable, templated context-menu row that sends a command: an optional glyph, the name, a detail, a distance and the command text (`MenuCommandRow`, drawn by `MenuCommandRowTemplate`); the Preset taxi route (the taxiways under the name) and Exit left / right rows are command rows; the Follow…, Give way to… and Hold short of… rows draw their own layouts.
 
 **Glyph row**:
 A clickable context-menu row led by a quick-command glyph, with a label, an optional dimmed note and the command text (`MenuGlyphRow`, drawn by `MenuGlyphRowTemplate`); a dimmed one stays clickable. The pattern entries' runway flyout rows are glyph rows, the glyph rotated to the runway's true course less 270°.
@@ -567,7 +564,7 @@ The Hold short of… designed flyout (`HoldShortLadder`): the aircraft's route f
 A runway end is landable for a physical aircraft type when its landing distance available is at least 1.15 times the type's landing distance, and short otherwise (`RunwayLandability`); a type with no figure, a helicopter and a `VEH*` type are always landable. The pattern entries' flyout lists landable ends first and marks short ones "short".
 
 **Designed flyout**:
-A quick command's strip flyout built from rows with their own layout (glyph or badge, label, what it sends) instead of a copy of a context submenu; the same rows serve the entry's All Commands submenu. Cleared for takeoff, the pattern entries' runway flyout, Push back to…, Follow…, Give way to… and Hold short of… are designed flyouts.
+A quick command's strip flyout built from rows with their own layout (glyph or badge, label, what it sends) instead of a copy of a context submenu; the same rows serve the entry's All Commands submenu. Cleared for takeoff, the pattern entries' runway flyout, Push back to…, Follow…, Give way to…, Hold short of…, Preset taxi route and Taxi to runway are designed flyouts.
 
 **Detail row**:
 A disabled, dimmed label row in a menu that sends nothing (`SharedMenuGroups.DetailRow`), such as the point menu's FRD, distance and bearing line; not a command row.
@@ -582,7 +579,7 @@ What a pointed or focused Give way to… / Follow… row draws on the ground vie
 The flyout a quick-command strip button opens, holding the items moved out of that command's menu item (`QuickCommandStrip`); items that follow live data stay current in it through `IStripFlyoutContent`.
 
 **Tab strip**:
-The row of tabs at the top of a designed flyout, each a runway or group, with a state beside its label: nothing when its rows are known, a spinner while they are searched, a dimmed `none` when there are none (`FlyoutTabStrip`, `FlyoutTabState`); the arrow keys move between tabs without wrapping.
+The row of tabs at the top of a designed flyout, each a runway or group, with a state beside its label: nothing when its rows are known, a spinner while they are searched, a dimmed `none` when there are none (`FlyoutTabStrip`, `FlyoutTabState`); the arrow keys move between tabs without wrapping; Taxi to runway has one tab per runway end.
 
 **View section**:
 The few canvas-only items a view adds to the shared aircraft menu, which the builder places after Squawk and before Favorite Commands (the radar's Display and Draw route, the ground's Display; the aircraft list has none); they have no catalog entry and never sit on a quick-command list.

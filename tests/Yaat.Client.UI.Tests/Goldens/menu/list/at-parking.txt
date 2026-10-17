@@ -12,7 +12,7 @@ All Commands
     Computing targets… [disabled]
   Push route…
   Taxi to runway
-    Finding runway entries… [disabled]
+    Finding runway entries…
   Preset taxi route
     TERMINAL to 30 · via T U W · ~4,700 ft — TAXI T U W RWY 30
   Follow… · no other aircraft on the ground [disabled]

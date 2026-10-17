@@ -44,9 +44,9 @@ public class App : Application
         OpenWindows.Register();
         AvaloniaXamlLoader.Load(this);
 
-        // Fluent caps every menu at FlyoutThemeMaxWidth (456), which leaves an aircraft menu row's inline detail a
-        // sliver, so the cap is the one the row's own template lays its detail out against.
-        Resources["FlyoutThemeMaxWidth"] = MenuCommandRow.InlineRowMaxWidth;
+        // Fluent caps every menu at FlyoutThemeMaxWidth (456), narrower than the route rows and the designed flyouts lay
+        // themselves out against, so the cap is theirs.
+        Resources["FlyoutThemeMaxWidth"] = MenuCommandRow.RowMaxWidth;
     }
 
     /// <summary>

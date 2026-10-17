@@ -387,7 +387,7 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
     // --- Taxi to runway --------------------------------------------------------------------
 
     [AvaloniaFact]
-    public void GetTaxiToRunwayChoices_AtAStand_ActiveDepartureEndsInline_NearestAndFullLength_RestUnderOther()
+    public async Task GetTaxiToRunwayChoices_AtAStand_DepartureEndsSearchedAtOpen_NearestAndFullLength_RestWhenAsked()
     {
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
         AircraftModel target = GroundAircraft(Callsign, "At Parking", PositionOf(Gate25Node));
@@ -395,20 +395,20 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
         main.ApplyActiveRunways(new Dictionary<string, List<string>> { ["OAK"] = ["D30", "28L"] });
         var host = new ClientMenuHost(main, target, new Border());
 
-        TaxiToRunwayMenu menu = host.GetTaxiToRunwayChoices(Callsign);
+        TaxiToRunwayEndList list = host.GetTaxiToRunwayChoices(Callsign).RunwayEnds;
+        IReadOnlyList<TaxiToRunwayEnd> ends = list.Ends;
 
-        Assert.Equal(["Runway 30 · departure runway", "Runway 28L · departure runway"], menu.Inline.Select(g => g.Title));
-        // The other ends are searched only when Other runways opens.
-        Assert.Empty(menu.Other);
+        Assert.Equal([("30", TaxiToRunwayEndRole.Departure), ("28L", TaxiToRunwayEndRole.Departure)], Offered(ends));
+        // The other ends are searched only when first asked for.
+        Assert.Equal(TaxiToRunwayEndState.NotSearched, EndOf(ends, "28R").State);
         int searchesBeforeOther = main.Ground.TaxiToRunwayRouteSearches;
-        IReadOnlyList<TaxiToRunwayGroup> other = Assert.IsType<Func<IReadOnlyList<TaxiToRunwayGroup>>>(menu.FindOther)();
-        Assert.True(main.Ground.TaxiToRunwayRouteSearches > searchesBeforeOther, "Other runways searched nothing when it opened");
-        Assert.DoesNotContain(other, g => g.Title is "Runway 30" or "Runway 28L");
-        Assert.Contains(other, g => g.Title == "Runway 28R");
+        await list.SearchRunwayOf("28R").WaitAsync(RunwaySearchHangGuard, TestContext.Current.CancellationToken);
+        Assert.True(main.Ground.TaxiToRunwayRouteSearches > searchesBeforeOther, "Asking for 28R searched nothing");
+        Assert.Equal(TaxiToRunwayEndState.Ready, EndOf(list.Ends, "28R").State);
 
         // Runway 30 from gate 25: the full-length entry at W1 first, then the intersections, one of them the nearest, each
         // opening For departure and Hold short of runway 30 and previewing its route to a runway 30 hold short.
-        List<TaxiRouteRow> entries = EntryRows(menu.Inline[0]);
+        List<TaxiRouteRow> entries = EntryRows(EndOf(ends, "30"));
         Assert.Equal(("At W1", "full length"), (entries[0].Name, entries[0].Reason));
         TaxiRouteRow nearest = Assert.Single(entries, r => r.Reason == "nearest");
         Assert.True(nearest.DistanceFt < entries[0].DistanceFt, $"{nearest.DistanceFt} vs {entries[0].DistanceFt}");
@@ -424,9 +424,9 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
         main.ApplyActiveRunways(new Dictionary<string, List<string>> { ["OAK"] = ["30"] });
         var host = new ClientMenuHost(main, target, new Border());
 
-        TaxiToRunwayGroup runway30 = host.GetTaxiToRunwayChoices(Callsign).Inline[0];
+        TaxiToRunwayEnd runway30 = EndOf(Ends(host, Callsign), "30");
 
-        Assert.Equal("Runway 30 · departure runway", runway30.Title);
+        Assert.Equal(TaxiToRunwayEndRole.Departure, runway30.Role);
         List<TaxiRouteRow> entries = EntryRows(runway30);
         Assert.Equal(("At W1", "nearest, full length"), (entries[0].Name, entries[0].Reason));
         Assert.True(entries.Count > 1, "no intersection entry after the full-length one");
@@ -446,15 +446,15 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
         main.ApplyActiveRunways(new Dictionary<string, List<string>> { ["OAK"] = ["30", "12"] });
         var host = new ClientMenuHost(main, target, new Border());
 
-        TaxiToRunwayMenu menu = host.GetTaxiToRunwayChoices(Callsign);
+        IReadOnlyList<TaxiToRunwayEnd> ends = Ends(host, Callsign);
 
-        Assert.Equal(["Runway 30 · departure runway", "Runway 12 · departure runway"], menu.Inline.Select(g => g.Title));
-        List<string> twelve = [.. EntryRows(menu.Inline[1]).Select(r => r.Name)];
+        Assert.Equal([("30", TaxiToRunwayEndRole.Departure), ("12", TaxiToRunwayEndRole.Departure)], Offered(ends));
+        List<string> twelve = [.. EntryRows(EndOf(ends, "12")).Select(r => r.Name)];
         Assert.NotEmpty(twelve);
         Assert.DoesNotContain("At W3", twelve);
         Assert.DoesNotContain("At W2", twelve);
-        Assert.Contains("At W2", EntryRows(menu.Inline[0]).Select(r => r.Name));
-        TaxiRouteRow w3 = Assert.Single(EntryRows(menu.Inline[0]), r => r.Name == "At W3");
+        Assert.Contains("At W2", EntryRows(EndOf(ends, "30")).Select(r => r.Name));
+        TaxiRouteRow w3 = Assert.Single(EntryRows(EndOf(ends, "30")), r => r.Name == "At W3");
         Assert.True(w3.AvailableFt >= 7545, $"W3 leaves {w3.AvailableFt} ft of runway 30");
     }
 
@@ -467,7 +467,7 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
         main.ApplyActiveRunways(new Dictionary<string, List<string>> { ["OAK"] = ["30"] });
         var host = new ClientMenuHost(main, target, new Border());
 
-        List<TaxiRouteRow> entries = EntryRows(host.GetTaxiToRunwayChoices(Callsign).Inline[0]);
+        List<TaxiRouteRow> entries = EntryRows(EndOf(Ends(host, Callsign), "30"));
 
         Assert.True(entries.Count >= 3, $"{entries.Count} entries");
         Assert.Equal(("At W1", "full length"), (entries[0].Name, entries[0].Reason));
@@ -490,7 +490,7 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
         main.ApplyActiveRunways(new Dictionary<string, List<string>> { ["OAK"] = ["30"] });
         var host = new ClientMenuHost(main, target, new Border());
 
-        TaxiRouteRow w3 = Assert.Single(EntryRows(host.GetTaxiToRunwayChoices(Callsign).Inline[0]), r => r.Name == "At W3");
+        TaxiRouteRow w3 = Assert.Single(EntryRows(EndOf(Ends(host, Callsign), "30")), r => r.Name == "At W3");
 
         double? remainingFt = main.Ground.RunwayRemainingFt("30", w3.Preview.Segments[^1].ToNodeId);
         Assert.NotNull(remainingFt);
@@ -514,10 +514,10 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
         cessna.AircraftType = "C172";
         cessna.AssignedRunway = "12";
 
-        TaxiToRunwayGroup jet12 = new ClientMenuHost(OakMain(jet, []), jet, new Border()).GetTaxiToRunwayChoices(Callsign).Inline[0];
-        TaxiToRunwayGroup cessna12 = new ClientMenuHost(OakMain(cessna, []), cessna, new Border()).GetTaxiToRunwayChoices(OtherCallsign).Inline[0];
+        TaxiToRunwayEnd jet12 = EndOf(Ends(new ClientMenuHost(OakMain(jet, []), jet, new Border()), Callsign), "12");
+        TaxiToRunwayEnd cessna12 = EndOf(Ends(new ClientMenuHost(OakMain(cessna, []), cessna, new Border()), OtherCallsign), "12");
 
-        Assert.Equal(("Runway 12 · assigned runway", "Runway 12 · assigned runway"), (jet12.Title, cessna12.Title));
+        Assert.Equal((TaxiToRunwayEndRole.Assigned, TaxiToRunwayEndRole.Assigned), (jet12.Role, cessna12.Role));
         Assert.DoesNotContain("At W3", EntryRows(jet12).Select(r => r.Name));
         TaxiRouteRow w3 = Assert.Single(EntryRows(cessna12), r => r.Name == "At W3");
         Assert.InRange(w3.AvailableFt!.Value, 984, 7545);
@@ -528,44 +528,39 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
     /// but tagged <c>short for type</c>; runway 30 (about 10,500 ft) is not, and neither is 15/33 for a C172 (984 ft).
     /// </summary>
     [AvaloniaFact]
-    public void GetTaxiToRunwayChoices_RunwayShorterThanTheType_TagsFullLengthShortForType()
+    public async Task GetTaxiToRunwayChoices_RunwayShorterThanTheType_TagsFullLengthShortForType()
     {
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
         AircraftModel jet = GroundAircraft(Callsign, "At Parking", PositionOf(Gate25Node));
         AircraftModel cessna = GroundAircraft(OtherCallsign, "At Parking", PositionOf(Gate25Node));
         cessna.AircraftType = "C172";
 
-        List<TaxiToRunwayGroup> jetGroups = AllRunwayGroups(jet, Callsign);
-        List<TaxiToRunwayGroup> cessnaGroups = AllRunwayGroups(cessna, OtherCallsign);
+        IReadOnlyList<TaxiToRunwayEnd> jetEnds = await AllRunwayEnds(jet, Callsign);
+        IReadOnlyList<TaxiToRunwayEnd> cessnaEnds = await AllRunwayEnds(cessna, OtherCallsign);
 
-        List<TaxiRouteRow> jetShort = FullLengthRows(jetGroups, "Runway 15", "Runway 33");
+        List<TaxiRouteRow> jetShort = FullLengthRows(jetEnds, "15", "33");
         Assert.NotEmpty(jetShort);
         Assert.All(jetShort, r => Assert.Contains("full length · short for type", r.Reason, StringComparison.Ordinal));
-        List<TaxiRouteRow> jet30 = FullLengthRows(jetGroups, "Runway 30");
+        List<TaxiRouteRow> jet30 = FullLengthRows(jetEnds, "30");
         Assert.NotEmpty(jet30);
         Assert.All(jet30, r => Assert.DoesNotContain("short for type", r.Reason, StringComparison.Ordinal));
-        List<TaxiRouteRow> cessnaShort = FullLengthRows(cessnaGroups, "Runway 15", "Runway 33");
+        List<TaxiRouteRow> cessnaShort = FullLengthRows(cessnaEnds, "15", "33");
         Assert.NotEmpty(cessnaShort);
         Assert.All(cessnaShort, r => Assert.DoesNotContain("short for type", r.Reason, StringComparison.Ordinal));
     }
 
-    /// <summary>Every runway group <paramref name="target"/>'s Taxi to runway menu offers at KOAK, the Other runways ones included.</summary>
-    private static List<TaxiToRunwayGroup> AllRunwayGroups(AircraftModel target, string callsign)
+    /// <summary>Every runway end <paramref name="target"/>'s Taxi to runway menu offers at KOAK, each one searched.</summary>
+    private static async Task<IReadOnlyList<TaxiToRunwayEnd>> AllRunwayEnds(AircraftModel target, string callsign)
     {
         MainViewModel main = OakMain(target, []);
         main.ApplyActiveRunways(new Dictionary<string, List<string>> { ["OAK"] = ["30", "15", "33"] });
-        TaxiToRunwayMenu menu = new ClientMenuHost(main, target, new Border()).GetTaxiToRunwayChoices(callsign);
-        return [.. menu.Inline, .. menu.Other, .. menu.FindOther?.Invoke() ?? []];
+        return await SearchedEnds(new ClientMenuHost(main, target, new Border()).GetTaxiToRunwayChoices(callsign).RunwayEnds);
     }
 
-    /// <summary>
-    /// The full-length entry rows of the groups among <paramref name="groups"/> whose title starts with one of
-    /// <paramref name="titles"/>.
-    /// </summary>
-    private static List<TaxiRouteRow> FullLengthRows(List<TaxiToRunwayGroup> groups, params string[] titles) =>
+    /// <summary>The full-length entry rows of the ends among <paramref name="ends"/> named <paramref name="designators"/>.</summary>
+    private static List<TaxiRouteRow> FullLengthRows(IReadOnlyList<TaxiToRunwayEnd> ends, params string[] designators) =>
         [
-            .. groups
-                .Where(g => titles.Any(t => g.Title.StartsWith(t + " ", StringComparison.Ordinal) || (g.Title == t)))
+            .. ends.Where(e => designators.Contains(e.Designator))
                 .SelectMany(EntryRows)
                 .Where(r => r.Reason?.Contains("full length", StringComparison.Ordinal) == true),
         ];
@@ -584,10 +579,10 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
         target.AssignedRunway = "12";
         var host = new ClientMenuHost(OakMain(target, []), target, new Border());
 
-        TaxiToRunwayGroup runway12 = host.GetTaxiToRunwayChoices(Callsign).Inline[0];
+        TaxiToRunwayEnd runway12 = EndOf(Ends(host, Callsign), "12");
 
         Assert.Equal(0, AircraftProfileDatabase.Get("MD81")!.TakeoffDistance);
-        Assert.Equal("Runway 12 · assigned runway", runway12.Title);
+        Assert.Equal(TaxiToRunwayEndRole.Assigned, runway12.Role);
         List<TaxiRouteRow> entries = EntryRows(runway12);
         Assert.DoesNotContain("At W3", entries.Select(r => r.Name));
         Assert.DoesNotContain("At W2", entries.Select(r => r.Name));
@@ -597,24 +592,45 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
         Assert.All(intersections, r => Assert.True(r.AvailableFt >= 5200, $"{r.Name} leaves {r.AvailableFt} ft"));
     }
 
-    /// <summary>The runway entry rows of <paramref name="group"/>, in order, without its presets.</summary>
-    private static List<TaxiRouteRow> EntryRows(TaxiToRunwayGroup group) => [.. group.Rows.Where(r => r.Badge == TaxiRouteRow.RunwayEntryBadge)];
+    /// <summary>The runway entry rows of <paramref name="end"/>, in order, without its presets.</summary>
+    private static List<TaxiRouteRow> EntryRows(TaxiToRunwayEnd end) => [.. end.Rows.Where(r => r.Badge == TaxiRouteRow.RunwayEntryBadge)];
+
+    /// <summary>The runway ends <paramref name="host"/>'s Taxi to runway menu names for <paramref name="callsign"/>.</summary>
+    private static IReadOnlyList<TaxiToRunwayEnd> Ends(ClientMenuHost host, string callsign) => host.GetTaxiToRunwayChoices(callsign).RunwayEnds.Ends;
+
+    /// <summary>The assigned and departure ends of <paramref name="ends"/>, in order, each with its role.</summary>
+    private static List<(string Designator, TaxiToRunwayEndRole Role)> Offered(IReadOnlyList<TaxiToRunwayEnd> ends) =>
+        [.. ends.Where(e => e.Role != TaxiToRunwayEndRole.Other).Select(e => (e.Designator, e.Role))];
+
+    /// <summary><paramref name="list"/>'s ends once every runway not searched at open has been searched.</summary>
+    private static async Task<IReadOnlyList<TaxiToRunwayEnd>> SearchedEnds(TaxiToRunwayEndList list)
+    {
+        foreach (TaxiToRunwayEnd end in list.Ends.ToList())
+        {
+            if (end.State == TaxiToRunwayEndState.NotSearched)
+            {
+                await list.SearchRunwayOf(end.Designator).WaitAsync(RunwaySearchHangGuard, TestContext.Current.CancellationToken);
+            }
+        }
+
+        return list.Ends;
+    }
 
     [AvaloniaFact]
-    public void GetTaxiToRunwayChoices_NoActiveRunways_NearestThreeEndsInline_RestUnderOther()
+    public void GetTaxiToRunwayChoices_NoActiveOrAssignedRunway_SearchesNothingAtOpen_EndsByRunwayNumber()
     {
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
         AircraftModel target = GroundAircraft(Callsign, "At Parking", PositionOf(Gate25Node));
-        var host = new ClientMenuHost(OakMain(target, []), target, new Border());
+        MainViewModel main = OakMain(target, []);
+        var host = new ClientMenuHost(main, target, new Border());
+        int before = main.Ground.TaxiToRunwayRouteSearches;
 
-        TaxiToRunwayMenu menu = host.GetTaxiToRunwayChoices(Callsign);
+        IReadOnlyList<TaxiToRunwayEnd> ends = Ends(host, Callsign);
 
-        Assert.Equal(3, menu.Inline.Count);
-        Assert.NotEmpty(menu.Other);
-        Assert.All(menu.Inline.Concat(menu.Other), g => Assert.Matches(@"^Runway \d{1,2}[LCR]?$", g.Title));
-        List<double> inlineNearest = [.. menu.Inline.Select(NearestRowFt)];
-        Assert.Equal(inlineNearest.Order(), inlineNearest);
-        Assert.All(menu.Other, g => Assert.True(NearestRowFt(g) >= inlineNearest[^1], $"{g.Title} is nearer than an inline end"));
+        Assert.Equal(before, main.Ground.TaxiToRunwayRouteSearches);
+        Assert.Equal(["10L", "10R", "12", "15", "28L", "28R", "30", "33"], ends.Select(e => e.Designator));
+        Assert.Empty(Offered(ends));
+        Assert.All(ends, e => Assert.Equal(TaxiToRunwayEndState.NotSearched, e.State));
     }
 
     [AvaloniaFact]
@@ -627,32 +643,31 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
         main.ApplyActiveRunways(new Dictionary<string, List<string>> { ["OAK"] = ["28L", "A28R"] });
         var host = new ClientMenuHost(main, target, new Border());
 
-        TaxiToRunwayMenu menu = host.GetTaxiToRunwayChoices(Callsign);
+        IReadOnlyList<TaxiToRunwayEnd> ends = Ends(host, Callsign);
 
-        Assert.Equal(["Runway 30 · assigned runway", "Runway 28L · departure runway"], menu.Inline.Select(g => g.Title));
-        Assert.Contains(Assert.IsType<Func<IReadOnlyList<TaxiToRunwayGroup>>>(menu.FindOther)(), g => g.Title == "Runway 28R");
-        TaxiRouteRow preset = menu.Inline[0].Rows[^1];
+        Assert.Equal([("30", TaxiToRunwayEndRole.Assigned), ("28L", TaxiToRunwayEndRole.Departure)], Offered(ends));
+        Assert.Equal(TaxiToRunwayEndRole.Other, EndOf(ends, "28R").Role);
+        TaxiRouteRow preset = EndOf(ends, "30").Rows[^1];
         Assert.Equal((TaxiRouteRow.PresetBadge, "TERMINAL to 30", "TAXI T U W RWY 30"), (preset.Badge, preset.Name, preset.Command));
     }
 
     [AvaloniaFact]
-    public void TaxiToRunway_FindOther_AfterClearLayout_FindsNoGroup()
+    public async Task SearchRunwayOf_AfterClearLayout_FindsNoRow_AndLeavesTheEndsToSearchAgain()
     {
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
         AircraftModel target = GroundAircraft(Callsign, "At Parking", PositionOf(Gate25Node));
         MainViewModel main = OakMain(target, []);
         main.ApplyActiveRunways(new Dictionary<string, List<string>> { ["OAK"] = ["D30", "28L"] });
-        TaxiToRunwayMenu menu = new ClientMenuHost(main, target, new Border()).GetTaxiToRunwayChoices(Callsign);
-        Func<IReadOnlyList<TaxiToRunwayGroup>> findOther = Assert.IsType<Func<IReadOnlyList<TaxiToRunwayGroup>>>(menu.FindOther);
-        Assert.NotEmpty(findOther());
+        TaxiToRunwayEndList list = new ClientMenuHost(main, target, new Border()).GetTaxiToRunwayChoices(Callsign).RunwayEnds;
 
         main.Ground.ClearLayout();
+        await list.SearchRunwayOf("28R").WaitAsync(RunwaySearchHangGuard, TestContext.Current.CancellationToken);
 
-        Assert.Empty(findOther());
+        Assert.Equal((TaxiToRunwayEndState.NotSearched, 0), (EndOf(list.Ends, "28R").State, EndOf(list.Ends, "28R").Rows.Count));
     }
 
     [AvaloniaFact]
-    public void GetTaxiToRunwayChoices_HoldingShortAtABar_HidesThatBarsRow()
+    public async Task GetTaxiToRunwayChoices_HoldingShortAtABar_HidesThatBarsRow()
     {
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
         GroundNodeDto bar = Runway30HoldShortNode;
@@ -660,11 +675,11 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
         target.AssignedRunway = "30";
         var host = new ClientMenuHost(OakMain(target, []), target, new Border());
 
-        TaxiToRunwayMenu menu = host.GetTaxiToRunwayChoices(Callsign);
+        IReadOnlyList<TaxiToRunwayEnd> ends = await SearchedEnds(host.GetTaxiToRunwayChoices(Callsign).RunwayEnds);
 
-        Assert.Equal("Runway 30 · assigned runway", menu.Inline[0].Title);
-        Assert.Contains(menu.Inline[0].Rows, r => r.Badge == TaxiRouteRow.RunwayEntryBadge);
-        List<TaxiRouteRow> rows = [.. menu.Inline.Concat(menu.Other).SelectMany(g => g.Rows)];
+        Assert.Equal([("30", TaxiToRunwayEndRole.Assigned)], Offered(ends));
+        Assert.Contains(EndOf(ends, "30").Rows, r => r.Badge == TaxiRouteRow.RunwayEntryBadge);
+        List<TaxiRouteRow> rows = [.. ends.SelectMany(e => e.Rows)];
         Assert.DoesNotContain(rows, r => r.Preview.Segments[^1].ToNodeId == bar.Id);
     }
 
@@ -673,6 +688,7 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
     {
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
         AircraftModel target = GroundAircraft(Callsign, "At Parking", PositionOf(Gate25Node));
+        target.AssignedRunway = "30";
         MainViewModel main = OakMain(target, []);
 
         TaxiToRunwayMenu first = new ClientMenuHost(main, target, new Border()).GetTaxiToRunwayChoices(Callsign);
@@ -685,7 +701,7 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
     }
 
     [AvaloniaFact]
-    public void GroupRunwayEnds_ArrivalsOnlyActiveList_FallsBackToNearestThree()
+    public void GetTaxiToRunwayChoices_ArrivalsOnlyActiveList_NamesNoDepartureEnd_AsNoList()
     {
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
         AircraftModel target = GroundAircraft(Callsign, "At Parking", PositionOf(Gate25Node));
@@ -695,10 +711,7 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
 
         TaxiToRunwayMenu menu = new ClientMenuHost(main, target, new Border()).GetTaxiToRunwayChoices(Callsign);
 
-        Assert.Equal(3, menu.Inline.Count);
-        Assert.All(menu.Inline, g => Assert.Matches(@"^Runway \d{1,2}[LCR]?$", g.Title));
-        Assert.Null(menu.FindOther);
-        Assert.NotEmpty(menu.Other);
+        Assert.Empty(Offered(menu.RunwayEnds.Ends));
         Assert.Equal(Summary(noList), Summary(menu));
     }
 
@@ -707,6 +720,7 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
     {
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
         AircraftModel target = GroundAircraft(Callsign, "At Parking", PositionOf(Gate25Node));
+        target.AssignedRunway = "30";
         MainViewModel main = OakMain(target, []);
         _ = new ClientMenuHost(main, target, new Border()).GetTaxiToRunwayChoices(Callsign);
         int firstSearches = main.Ground.TaxiToRunwayRouteSearches;
@@ -719,7 +733,7 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
     }
 
     [AvaloniaFact]
-    public void GetTaxiToRunwayChoices_HoldingShortWhereAPresetEnds_HidesThatPreset()
+    public async Task GetTaxiToRunwayChoices_HoldingShortWhereAPresetEnds_HidesThatPreset()
     {
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
         AircraftModel atStart = GroundAircraft(Callsign, "Taxiing", PositionOf(PresetTaxiNode));
@@ -732,10 +746,10 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
         holding.AssignedRunway = "30";
         var host = new ClientMenuHost(OakMain(holding, []), holding, new Border());
 
-        TaxiToRunwayMenu menu = host.GetTaxiToRunwayChoices(OtherCallsign);
+        IReadOnlyList<TaxiToRunwayEnd> ends = await SearchedEnds(host.GetTaxiToRunwayChoices(OtherCallsign).RunwayEnds);
 
         Assert.DoesNotContain(host.GetPresetTaxiChoices(OtherCallsign), r => r.Preview.Segments[^1].ToNodeId == bar.Id);
-        Assert.DoesNotContain(menu.Inline.Concat(menu.Other).SelectMany(g => g.Rows), r => r.Preview.Segments[^1].ToNodeId == bar.Id);
+        Assert.DoesNotContain(ends.SelectMany(e => e.Rows), r => r.Preview.Segments[^1].ToNodeId == bar.Id);
     }
 
     // --- Taxi to runway: every runway end, searched one runway at a time --------------------
@@ -765,13 +779,13 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
     }
 
     [AvaloniaFact]
-    public void GetTaxiToRunwayEnds_NoDepartureRunway_SearchesOnlyTheAssignedRunwayAtOpen()
+    public void GetTaxiToRunwayChoices_NoDepartureRunway_SearchesOnlyTheAssignedRunwayAtOpen()
     {
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
         (AircraftModel target, MainViewModel main) = AtGate25("30", []);
         int before = main.Ground.TaxiToRunwayRouteSearches;
 
-        IReadOnlyList<TaxiToRunwayEnd> ends = main.Ground.GetTaxiToRunwayEnds(target).Ends;
+        IReadOnlyList<TaxiToRunwayEnd> ends = main.Ground.GetTaxiToRunwayChoices(target).RunwayEnds.Ends;
 
         Assert.Equal(HoldShortsSearched(main, "30"), main.Ground.TaxiToRunwayRouteSearches - before);
         Assert.Equal(["30", "10L", "10R", "12", "15", "28L", "28R", "33"], ends.Select(e => e.Designator));
@@ -784,7 +798,7 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
     {
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
         (AircraftModel target, MainViewModel main) = AtGate25("30", []);
-        TaxiToRunwayEndList list = main.Ground.GetTaxiToRunwayEnds(target);
+        TaxiToRunwayEndList list = main.Ground.GetTaxiToRunwayChoices(target).RunwayEnds;
         int before = main.Ground.TaxiToRunwayRouteSearches;
 
         Task search = list.SearchRunwayOf("28R");
@@ -818,10 +832,11 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
         Assert.True(list.SearchRunwayOf("10L").IsCompletedSuccessfully);
         Assert.Equal(searches, main.Ground.TaxiToRunwayRouteSearches - before);
 
-        // The rows are the ones the grouped menu shows for 28R.
-        TaxiToRunwayMenu grouped = new ClientMenuHost(main, target, new Border()).GetTaxiToRunwayChoices(Callsign);
-        TaxiToRunwayGroup runway28R = Assert.Single(grouped.Inline.Concat(grouped.Other), g => g.Title == "Runway 28R");
-        Assert.Equal(TaxiRowKeys(runway28R.Rows), TaxiRowKeys(EndOf(list.Ends, "28R").Rows));
+        // The rows are the ones an open with 28R a departure runway searches at once.
+        main.ApplyActiveRunways(new Dictionary<string, List<string>> { ["OAK"] = ["28R"] });
+        TaxiToRunwayEnd departure28R = EndOf(main.Ground.GetTaxiToRunwayChoices(target).RunwayEnds.Ends, "28R");
+        Assert.Equal(TaxiToRunwayEndRole.Departure, departure28R.Role);
+        Assert.Equal(TaxiRowKeys(departure28R.Rows), TaxiRowKeys(EndOf(list.Ends, "28R").Rows));
     }
 
     /// <summary>Each row's name, reason, distance and command, in order.</summary>
@@ -833,7 +848,7 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
     {
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
         (AircraftModel target, MainViewModel main) = AtGate25("30", []);
-        TaxiToRunwayEndList list = main.Ground.GetTaxiToRunwayEnds(target);
+        TaxiToRunwayEndList list = main.Ground.GetTaxiToRunwayChoices(target).RunwayEnds;
         int before = main.Ground.TaxiToRunwayRouteSearches;
 
         Task first = list.SearchRunwayOf("28R");
@@ -850,7 +865,7 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
     {
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
         (AircraftModel target, MainViewModel main) = AtGate25("30", []);
-        TaxiToRunwayEndList list = main.Ground.GetTaxiToRunwayEnds(target);
+        TaxiToRunwayEndList list = main.Ground.GetTaxiToRunwayChoices(target).RunwayEnds;
 
         await list.SearchRunwayOf("10R").WaitAsync(RunwaySearchHangGuard, TestContext.Current.CancellationToken);
 
@@ -868,13 +883,13 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
     {
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
         (AircraftModel target, MainViewModel main) = AtGate25("30", []);
-        TaxiToRunwayEndList list = main.Ground.GetTaxiToRunwayEnds(target);
+        TaxiToRunwayEndList list = main.Ground.GetTaxiToRunwayChoices(target).RunwayEnds;
         int before = main.Ground.TaxiToRunwayRouteSearches;
         Task search = list.SearchRunwayOf("28R");
 
         AircraftModel assigned28R = GroundAircraft(OtherCallsign, "At Parking", PositionOf(Gate25Node));
         assigned28R.AssignedRunway = "28R";
-        TaxiToRunwayEndList opened = main.Ground.GetTaxiToRunwayEnds(assigned28R);
+        TaxiToRunwayEndList opened = main.Ground.GetTaxiToRunwayChoices(assigned28R).RunwayEnds;
 
         Assert.Equal(TaxiToRunwayEndState.Ready, EndOf(opened.Ends, "28R").State);
         Assert.Equal(HoldShortsSearched(main, "28R"), main.Ground.TaxiToRunwayRouteSearches - before);
@@ -894,8 +909,8 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
     {
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
         (AircraftModel target, MainViewModel main) = AtGate25("30", []);
-        TaxiToRunwayEndList first = main.Ground.GetTaxiToRunwayEnds(target);
-        TaxiToRunwayEndList second = main.Ground.GetTaxiToRunwayEnds(target);
+        TaxiToRunwayEndList first = main.Ground.GetTaxiToRunwayChoices(target).RunwayEnds;
+        TaxiToRunwayEndList second = main.Ground.GetTaxiToRunwayChoices(target).RunwayEnds;
         int before = main.Ground.TaxiToRunwayRouteSearches;
 
         Task askedFirst = first.SearchRunwayOf("28R");
@@ -916,7 +931,7 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
     {
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
         (AircraftModel target, MainViewModel main) = AtGate25("30", []);
-        TaxiToRunwayEndList list = main.Ground.GetTaxiToRunwayEnds(target);
+        TaxiToRunwayEndList list = main.Ground.GetTaxiToRunwayChoices(target).RunwayEnds;
         Task search = list.SearchRunwayOf("28R");
 
         main.Ground.SetLayoutForTesting(Oak);
@@ -968,7 +983,7 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
         AircraftModel cessna = GroundAircraft(OtherCallsign, "At Parking", PositionOf(Gate25Node));
         cessna.AircraftType = "C172";
         cessna.AssignedRunway = "30";
-        return (main, [main.Ground.GetTaxiToRunwayEnds(jet), main.Ground.GetTaxiToRunwayEnds(cessna)]);
+        return (main, [main.Ground.GetTaxiToRunwayChoices(jet).RunwayEnds, main.Ground.GetTaxiToRunwayChoices(cessna).RunwayEnds]);
     }
 
     /// <summary>A B738 parked at KOAK gate 25 assigned <paramref name="assignedRunway"/>, the room naming <paramref name="activeRunways"/>.</summary>
@@ -1014,9 +1029,9 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
         target.AssignedRunway = "12";
         var host = new ClientMenuHost(OakMain(target, []), target, new Border());
 
-        TaxiToRunwayGroup runway12 = host.GetTaxiToRunwayChoices(Callsign).Inline[0];
+        TaxiToRunwayEnd runway12 = EndOf(Ends(host, Callsign), "12");
 
-        Assert.Equal("Runway 12 · assigned runway", runway12.Title);
+        Assert.Equal(TaxiToRunwayEndRole.Assigned, runway12.Role);
         List<TaxiRouteRow> entries = [.. runway12.Rows.Where(r => r.Badge == TaxiRouteRow.RunwayEntryBadge)];
         Assert.NotEmpty(entries);
         Assert.All(entries, row => AssertNeverCrossesItsOwnRunway(row.Variants, "12", ["12", "30"]));
@@ -1033,9 +1048,9 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
         main.Ground.SetLayoutForTesting(Sfo);
         var host = new ClientMenuHost(main, target, new Border());
 
-        TaxiToRunwayGroup runway1L = host.GetTaxiToRunwayChoices(Callsign).Inline[0];
+        TaxiToRunwayEnd runway1L = EndOf(Ends(host, Callsign), "1L");
 
-        Assert.Equal("Runway 1L · assigned runway", runway1L.Title);
+        Assert.Equal(TaxiToRunwayEndRole.Assigned, runway1L.Role);
         List<TaxiRouteRow> entries = [.. runway1L.Rows.Where(r => r.Badge == TaxiRouteRow.RunwayEntryBadge)];
         Assert.NotEmpty(entries);
         Assert.All(entries, row => AssertNeverCrossesItsOwnRunway(row.Variants, "1L", ["1L", "01L", "19R"]));
@@ -1058,7 +1073,7 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
     }
 
     [AvaloniaFact]
-    public void GetTaxiToRunwayChoices_HoldingShortWithBarAcrossTheRunway_OffersNoRouteOverThatRunway()
+    public async Task GetTaxiToRunwayChoices_HoldingShortWithBarAcrossTheRunway_OffersNoRouteOverThatRunway()
     {
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
         (GroundNodeDto bar, GroundNodeDto across) = BarsFacingAcrossTheRunway();
@@ -1066,9 +1081,9 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
         AircraftModel target = GroundAircraft(Callsign, $"Holding Short {bar.RunwayId}", PositionOf(bar));
         var host = new ClientMenuHost(OakMain(target, []), target, new Border());
 
-        TaxiToRunwayMenu menu = host.GetTaxiToRunwayChoices(Callsign);
+        IReadOnlyList<TaxiToRunwayEnd> ends = await SearchedEnds(host.GetTaxiToRunwayChoices(Callsign).RunwayEnds);
 
-        List<TaxiRouteRow> ownRows = [.. menu.Inline.Concat(menu.Other).Where(g => runway.Contains(g.Title.Split(' ')[1])).SelectMany(g => g.Rows)];
+        List<TaxiRouteRow> ownRows = [.. ends.Where(e => runway.Contains(e.Designator)).SelectMany(e => e.Rows)];
         Assert.DoesNotContain(ownRows, r => r.Preview.Segments[^1].ToNodeId == across.Id);
         Assert.All(
             ownRows,
@@ -1080,8 +1095,8 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
         GroundNodeDto w4 = HoldShort30On("W4");
         AircraftModel atW4 = GroundAircraft(OtherCallsign, $"Holding Short {w4.RunwayId}", PositionOf(w4));
         atW4.AssignedRunway = "30";
-        TaxiToRunwayGroup runway30 = new ClientMenuHost(OakMain(atW4, []), atW4, new Border()).GetTaxiToRunwayChoices(OtherCallsign).Inline[0];
-        Assert.Equal("Runway 30 · assigned runway", runway30.Title);
+        TaxiToRunwayEnd runway30 = EndOf(Ends(new ClientMenuHost(OakMain(atW4, []), atW4, new Border()), OtherCallsign), "30");
+        Assert.Equal(TaxiToRunwayEndRole.Assigned, runway30.Role);
         Assert.Contains(runway30.Rows, r => r.Preview.Segments[^1].ToNodeId == HoldShort30On("W1").Id);
     }
 
@@ -1184,12 +1199,9 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
 
     private static GroundLayoutDto Sfo => MenuGoldenFixtures.SfoLayoutForClient;
 
-    /// <summary>Every group's title and its rows' name, reason, distance and command, in order.</summary>
+    /// <summary>Every end's designator, role, state and rows' name, reason, distance and command, in order.</summary>
     private static List<string> Summary(TaxiToRunwayMenu menu) =>
-        [.. menu.Inline.Concat(menu.Other).SelectMany(g => g.Rows.Select(r => $"{g.Title}: {r.Name} {r.Reason} {r.DistanceFt} {r.Command}"))];
-
-    /// <summary>The distance to the nearest row of <paramref name="group"/>, which orders the ends shown inline.</summary>
-    private static double NearestRowFt(TaxiToRunwayGroup group) => group.Rows.Min(r => r.DistanceFt);
+        [.. menu.RunwayEnds.Ends.Select(e => $"{e.Designator} {e.Role} {e.State}: {string.Join(" | ", TaxiRowKeys(e.Rows))}")];
 
     /// <summary>
     /// A runway entry to <paramref name="runway"/>: named by its hold short's taxiway, routed by a via, a distance away,

@@ -321,8 +321,7 @@ public static class QuickCommandStrip
     /// <summary>
     /// A flyout over <paramref name="built"/>'s own items, moved over unchanged; choosing any command in it, at any
     /// depth, closes the flyout and the menu after the item's own handler has run; a click on an item that stays open on
-    /// click, or one its own handler marks handled, chooses nothing and leaves both open. A lazily built entry
-    /// (<see cref="LazySubmenu"/>) fills the flyout when it first opens, as it fills its own submenu. It opens on the
+    /// click, or one its own handler marks handled, chooses nothing and leaves both open. It opens on the
     /// menu's right edge, or its left edge where the right would run off screen, as a submenu does, and does not close on
     /// a click outside it: <see cref="StripFlyouts"/> closes it, so a click in the parent menu reaches the menu.
     /// </summary>
@@ -342,7 +341,6 @@ public static class QuickCommandStrip
             CloseOnChoice(child, flyout, menu);
         }
 
-        flyout.Opened += (_, _) => CloseOnChoices(LazySubmenu.Fill(built, flyout.Items), flyout, menu);
         if (FlyoutContents.TryGetValue(built, out IStripFlyoutContent? content))
         {
             Tell(content, flyout, menu);
@@ -395,23 +393,9 @@ public static class QuickCommandStrip
     /// <param name="label">The label naming the entry and why it offers nothing.</param>
     public static void MarkInert(MenuItem entry, string label) => InertLabels.AddOrUpdate(entry, label);
 
-    private static void CloseOnChoices(IReadOnlyList<Control> items, MenuFlyout flyout, ContextMenu menu)
-    {
-        foreach (Control item in items)
-        {
-            CloseOnChoice(item, flyout, menu);
-        }
-    }
-
     private static void CloseOnChoice(object? item, MenuFlyout flyout, ContextMenu menu)
     {
         if (item is not MenuItem menuItem)
-        {
-            return;
-        }
-
-        // A nested lazy submenu (Taxi to runway's Other runways) builds its items when it opens: wire those then.
-        if (LazySubmenu.WhenFilled(menuItem, children => CloseOnChoices(children, flyout, menu)))
         {
             return;
         }

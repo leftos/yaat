@@ -323,7 +323,7 @@ internal sealed class RecordingMenuHost(string input) : IMenuHost
 
     public IReadOnlyList<TaxiRouteRow> GetPresetTaxiChoices(string callsign) => PresetTaxiChoices;
 
-    /// <summary>The Taxi to runway submenu's groups, whatever the callsign asked about; none by default.</summary>
+    /// <summary>The Taxi to runway flyout's runway ends, whatever the callsign asked about; none by default.</summary>
     public TaxiToRunwayMenu TaxiToRunway { get; set; } = TaxiToRunwayMenu.Empty;
 
     /// <summary>The callsign each Taxi to runway request named, in order.</summary>
