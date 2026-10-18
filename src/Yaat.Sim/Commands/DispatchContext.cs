@@ -1,3 +1,4 @@
+using Yaat.Sim.ControllerAi;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Simulation;
@@ -84,6 +85,12 @@ public sealed record DispatchContext
     public required Action<TerminalEntry>? TerminalEmitter { get; init; }
 
     public required ArtccConfigRoot? ArtccConfig { get; init; }
+
+    /// <summary>The room's towered airports (<see cref="SimScenarioState.ToweredAirports"/>); empty reads every airport as untowered.</summary>
+    public required ToweredAirports ToweredAirports { get; init; }
+
+    /// <summary>The room's active runways (<see cref="SimScenarioState.ActiveRunways"/>); empty when it names none.</summary>
+    public required ActiveRunways ActiveRunways { get; init; }
 
     public required double ScenarioElapsedSeconds { get; init; }
 

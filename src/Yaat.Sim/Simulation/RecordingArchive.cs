@@ -94,6 +94,15 @@ public sealed class RecordingArchive : IDisposable
     }
 
     /// <summary>
+    /// Reads the bundled towered airport ids, or null when the archive does not include them (recordings made before the
+    /// entry existed).
+    /// </summary>
+    public List<string>? ReadToweredAirportIds() =>
+        (Manifest.HasToweredAirports && (_zip.GetEntry("towered-airports.json.br") is not null))
+            ? DeserializeBrotliEntry<List<string>>("towered-airports.json.br")
+            : null;
+
+    /// <summary>
     /// Convenience: reads <see cref="ReadArtccConfigJson"/> and deserializes into
     /// an <see cref="Yaat.Sim.Data.Vnas.ArtccConfigRoot"/>. Returns null when the
     /// archive doesn't include a config or deserialization fails.
@@ -550,6 +559,7 @@ public sealed class RecordingArchive : IDisposable
                 WeatherJson = ReadWeatherJson(),
                 MetarReissuanceEnabled = Manifest.MetarReissuanceEnabled,
                 ArtccConfigJson = ReadArtccConfigJson(),
+                ToweredAirportIds = ReadToweredAirportIds(),
                 Actions = actions,
                 TerminalLog = ReadTerminalLog(),
                 TotalElapsedSeconds = Manifest.TotalElapsedSeconds,
@@ -661,6 +671,7 @@ public sealed class RecordingArchive : IDisposable
                 WeatherJson = ReadWeatherJson(),
                 MetarReissuanceEnabled = Manifest.MetarReissuanceEnabled,
                 ArtccConfigJson = ReadArtccConfigJson(),
+                ToweredAirportIds = ReadToweredAirportIds(),
                 Actions = actions,
                 TerminalLog = ReadTerminalLog(),
                 TotalElapsedSeconds = Manifest.TotalElapsedSeconds,

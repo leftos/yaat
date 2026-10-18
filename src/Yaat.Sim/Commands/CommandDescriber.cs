@@ -2662,7 +2662,11 @@ public static class CommandDescriber
 
     private static string FormatCvaCanonical(ClearedVisualApproachCommand cmd)
     {
-        var parts = new List<string> { cmd.Force ? "CVAF" : "CVA", cmd.RunwayId };
+        var parts = new List<string> { cmd.Force ? "CVAF" : "CVA" };
+        if (cmd.RunwayId is not null)
+        {
+            parts.Add(cmd.RunwayId);
+        }
         if (cmd.AirportCode is not null)
         {
             parts.Add(cmd.AirportCode);
@@ -2684,7 +2688,12 @@ public static class CommandDescriber
 
     private static string FormatCvaNatural(ClearedVisualApproachCommand cmd)
     {
-        string msg = $"Cleared visual approach runway {RunwayIdentifier.ToDisplayDesignator(cmd.RunwayId)}";
+        string msg = (cmd.RunwayId, cmd.AirportCode) switch
+        {
+            ({ } runway, _) => $"Cleared visual approach runway {RunwayIdentifier.ToDisplayDesignator(runway)}",
+            (null, { } airport) => $"Cleared visual approach to {airport}",
+            (null, null) => "Cleared visual approach",
+        };
         if (cmd.TrafficDirection is PatternDirection.Left)
         {
             msg += ", left traffic";

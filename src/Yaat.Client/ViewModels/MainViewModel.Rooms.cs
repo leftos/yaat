@@ -966,6 +966,7 @@ public partial class MainViewModel
 
         // The room's active runways replace whatever the previous room left; a joiner is never asked for them.
         ApplyActiveRunways(state.ActiveRunways);
+        ApplyToweredAirports(state.ToweredAirports);
 
         // Seed active timers so a joining/reconnecting client shows the existing timers panel.
         ApplyTimers(state.Timers);

@@ -1274,6 +1274,22 @@ public class MenuCatalogCommandTests
         Assert.Equal([(Callsign, "CVA 28L", Initials)], host.Sent);
     }
 
+    /// <summary>An expected visual approach (<c>EAPP VIS28R</c>) names no procedure; the visual approach defaults to its runway.</summary>
+    [AvaloniaFact]
+    public void ClearedVisual_ExpectedVisualApproach_DefaultsToItsRunway()
+    {
+        TestVnasData.EnsureInitialized();
+        var host = new RecordingMenuHost("");
+        var aircraft = new FakeMenuAircraft { Destination = ApproachAirport, ExpectedApproach = "VIS28R" };
+
+        Assert.Equal("28R", MenuCatalog.SmartVisualRunway(aircraft));
+        MenuItem? item = MenuCatalog.Get(MenuIds.ApproachClearedVisual).Build(aircraft, Context(), host);
+        Assert.NotNull(item);
+        Click((MenuItem)item);
+
+        Assert.Equal([(Callsign, "CVA 28R", Initials)], host.Sent);
+    }
+
     [AvaloniaFact]
     public void ReportTrafficInSight_BlankAnswer_SendsBareRtis()
     {

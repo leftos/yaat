@@ -10,6 +10,8 @@
 - A server run from source accepts VATSIM sandbox sign-ins for the feed tools' room list.
 - Helicopters get Air taxi and Land quick commands, each opening a live flyout of pads, parking, spots and runway holding positions with a filter box.
 - `LAND $spot` lands a helicopter at a taxiway spot and holds it there.
+- `EAPP VIS28R` tells a pilot to expect a visual approach to a runway, and a later bare `CAPP` clears that visual.
+- `CVA {airport}` clears a visual approach to an airport without a tower; the pilot picks the landing runway by wind and active runways and reads it back.
 
 ### Changed
 
@@ -28,6 +30,7 @@
 
 - Taxiing traffic gives way to an aircraft still leaving a runway, unless it stands in that aircraft's way out; a held one blocks only head-on traffic.
 - An aircraft counts as clear of a runway only once every part of it, not just its main gear, is past the edge or hold line.
+- `CVA 28R OAK` keeps its airport, `CVA FOLLOW` no longer reads as a runway, and a visual approach clearance reads back its runway.
 - The web vStrips and vTDLS no longer fail when a timer is set or a conflict alert opens or clears in their room.
 - At SFO, 28L and 28R arrivals now share crossover taxiway space, so an arrival no longer exits onto a crossover it cannot fully clear.
 - An aircraft stopped short of a runway whose turn around would swing its nose or wingtips past the hold line holds and says unable instead.

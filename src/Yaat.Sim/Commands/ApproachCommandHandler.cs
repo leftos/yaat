@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using Yaat.Sim.ControllerAi;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Vnas;
@@ -6,6 +7,7 @@ using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Approach;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
+using Yaat.Sim.Pilot;
 using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim.Commands;
@@ -339,7 +341,8 @@ public static class ApproachCommandHandler
         {
             return new CommandResult(
                 false,
-                $"Unable straight-in {procedure.ApproachId}: intercept angle {japInterceptAngle:F0}° exceeds 90° and a course reversal is published. Request vectors to final or clear for full approach."
+                $"Unable straight-in {procedure.ApproachId}: intercept angle {japInterceptAngle:F0}° exceeds 90° and a course reversal is published. "
+                    + "Request vectors to final or clear for full approach."
             );
         }
         bool jappNeedsProcedureTurn =
@@ -487,9 +490,10 @@ public static class ApproachCommandHandler
         StartPhases(aircraft);
 
         string ptacPrefix = cmd.Forced ? "Force: turn" : "Turn";
+        string ptacRunway = RunwayIdentifier.ToDisplayDesignator(procedure.Runway ?? "");
         return new CommandResult(
             true,
-            $"{ptacPrefix} heading {heading:000}, maintain {altitude}, cleared {procedure.ApproachId} approach, runway {RunwayIdentifier.ToDisplayDesignator(procedure.Runway ?? "")}"
+            $"{ptacPrefix} heading {heading:000}, maintain {altitude}, cleared {procedure.ApproachId} approach, runway {ptacRunway}"
         );
     }
 
@@ -502,6 +506,16 @@ public static class ApproachCommandHandler
         if (aircraft.FlightPlan.IsVfr)
         {
             return new CommandResult(false, "CVA requires an IFR flight plan");
+        }
+
+        if ((cmd.RunwayId is null) && (ExpectedVisualAtToweredField(cmd, aircraft, ctx) is { } expectedRunway))
+        {
+            cmd = cmd with { RunwayId = expectedRunway };
+        }
+
+        if ((cmd.RunwayId is null) && (RefuseAirportLevelVisual(cmd, aircraft, ctx) is { } airportLevelRefusal))
+        {
+            return airportLevelRefusal;
         }
 
         // Forced CVA (CVAF): the RPO folds the pilot's in-sight report into the visual approach
@@ -578,13 +592,18 @@ public static class ApproachCommandHandler
             return new CommandResult(false, "Cannot determine airport for visual approach");
         }
 
-        RunwayInfo? runway = navDb.GetRunway(airport, cmd.RunwayId);
-        if (runway is null)
+        if ((cmd.RunwayId ?? PilotChosenVisualRunway(aircraft, airport, ctx)?.Designator) is not { } runwayId)
         {
-            return new CommandResult(false, $"Unknown runway {RunwayIdentifier.ToDisplayDesignator(cmd.RunwayId)} at {airport}");
+            return new CommandResult(false, $"Unable, no runway at {airport} long enough to land");
         }
 
-        RunwayInfo approachRunway = runway.IsActiveEnd(cmd.RunwayId) ? runway : runway.ForApproach(cmd.RunwayId);
+        RunwayInfo? runway = navDb.GetRunway(airport, runwayId);
+        if (runway is null)
+        {
+            return new CommandResult(false, $"Unknown runway {RunwayIdentifier.ToDisplayDesignator(runwayId)} at {airport}");
+        }
+
+        RunwayInfo approachRunway = runway.IsActiveEnd(runwayId) ? runway : runway.ForApproach(runwayId);
 
         // Weather gates. 7110.65 §7-4-3.b / AIM §5-5-11.b.1: no visual approach clearance
         // unless the reported weather is at/above basic-VFR minimums (1000 ft ceiling /
@@ -642,15 +661,16 @@ public static class ApproachCommandHandler
 
         var clearance = new ApproachClearance
         {
-            ApproachId = $"VIS{cmd.RunwayId}",
+            ApproachId = ApproachIds.Visual(runwayId),
             AirportCode = airport,
-            RunwayId = cmd.RunwayId,
+            RunwayId = runwayId,
             FinalApproachCourse = approachRunway.TrueHeading,
             Procedure = null,
         };
 
         aircraft.Phases = new PhaseList { AssignedRunway = approachRunway, ActiveApproach = clearance };
         aircraft.Procedure.DestinationRunway = approachRunway.Designator;
+        aircraft.Approach.Expected = ApproachIds.Visual(approachRunway.Designator);
 
         // Determine execution path based on aircraft position
         TrueHeading finalCourse = approachRunway.TrueHeading;
@@ -779,12 +799,234 @@ public static class ApproachCommandHandler
 
         StartPhases(aircraft);
 
-        string msg = $"Cleared visual approach runway {RunwayIdentifier.ToDisplayDesignator(cmd.RunwayId)}";
-        if (cmd.FollowCallsign is not null)
+        return cmd.RunwayId is null ? AirportLevelVisualCleared(cmd, airport, approachRunway.Designator) : RunwayVisualCleared(cmd, runwayId);
+    }
+
+    /// <summary>
+    /// The runway of the visual a runway-less <c>CVA</c> to a towered field clears: the expected <c>VIS{rwy}</c>'s, which
+    /// already named the runway 7110.65 7-4-3.c.4 wants in a towered clearance, so it clears that visual as bare <c>CAPP</c>
+    /// does. Null at an untowered field, with no visual expected, or when the airport is not the destination.
+    /// </summary>
+    private static string? ExpectedVisualAtToweredField(ClearedVisualApproachCommand cmd, AircraftState aircraft, DispatchContext ctx)
+    {
+        string destination = CommandDispatcher.ResolveAirport(aircraft);
+        if (
+            !TryResolveApproachAirport(cmd.AirportCode, destination, out string airport)
+            || (airport.Length == 0)
+            || !ctx.ToweredAirports.IsTowered(airport)
+        )
         {
-            msg += $", follow {cmd.FollowCallsign}";
+            return null;
         }
-        return new CommandResult(true, msg);
+
+        return
+            NavigationDatabase.AirportIdsMatch(airport, destination) && ApproachIds.TryParseVisual(aircraft.Approach.Expected, out string? runwayId)
+            ? runwayId
+            : null;
+    }
+
+    /// <summary>
+    /// The result of a visual clearance to a runway: the message, and the pilot's readback of the runway assignment (AIM
+    /// 4-4-7.b) in 7110.65 7-4-3.c.4's words, "cleared visual approach runway two eight right", then the pattern side and the
+    /// traffic to follow. The student's text says "follow the traffic"; the RPO's names its callsign.
+    /// </summary>
+    private static CommandResult RunwayVisualCleared(ClearedVisualApproachCommand cmd, string runwayId)
+    {
+        string traffic = TrafficSideClause(cmd);
+        string terminal = $"cleared visual approach runway {PhraseologyVerbalizer.CompactRunway(runwayId)}{traffic}";
+        string tts = $"cleared visual approach runway {PhraseologyVerbalizer.SpellRunway(runwayId)}{traffic}";
+        string message = $"Cleared visual approach runway {RunwayIdentifier.ToDisplayDesignator(runwayId)}";
+        PilotSpeechText readback = new(terminal, tts);
+        if (cmd.FollowCallsign is { } follow)
+        {
+            message += $", follow {follow}";
+            readback = new PilotSpeechText($"{terminal}, follow the traffic", $"{tts}, follow the traffic")
+            {
+                RpoTerminal = $"{terminal}, follow {follow}",
+            };
+        }
+
+        return new CommandResult(true, message) { PilotReadback = new HandlerReadback(CommandDescriber.ToCanonicalType(cmd), readback) };
+    }
+
+    private static string TrafficSideClause(ClearedVisualApproachCommand cmd) =>
+        cmd.TrafficDirection switch
+        {
+            PatternDirection.Left => ", left traffic",
+            PatternDirection.Right => ", right traffic",
+            _ => "",
+        };
+
+    /// <summary>
+    /// The airport-level <c>CVA</c> refusals, checked before any report is forced: a towered field must be given the runway
+    /// (7110.65 7-4-3.c.4 allows "cleared visual approach to (airport)" only where no control tower operates), and following
+    /// traffic (7-4-3.c.2, c.3, both towered-only) needs a runway. Null when the clearance may proceed, or when the airport
+    /// does not resolve (the clearance's own airport checks report that).
+    /// </summary>
+    private static CommandResult? RefuseAirportLevelVisual(ClearedVisualApproachCommand cmd, AircraftState aircraft, DispatchContext ctx)
+    {
+        if (!TryResolveApproachAirport(cmd.AirportCode, CommandDispatcher.ResolveAirport(aircraft), out string airport) || (airport.Length == 0))
+        {
+            return null;
+        }
+
+        if (ctx.ToweredAirports.IsTowered(airport))
+        {
+            return new CommandResult(false, $"Unable, say the runway for a visual approach to {airport}");
+        }
+
+        return cmd.FollowCallsign is null ? null : new CommandResult(false, $"Unable, FOLLOW needs a runway for a visual approach to {airport}");
+    }
+
+    /// <summary>
+    /// The runway end the pilot takes for "cleared visual approach to (airport)" at an untowered field, first that applies:
+    /// the runway the controller already named (<see cref="ControllerNamedVisualRunway"/>); the room's active arrival ends at
+    /// the airport (a departure-only one skipped), as on CTAF (AC 90-66B 9.4, 11.2); every end of the airport, by the wind
+    /// (AC 90-66B 11.6). Each set is ranked by <see cref="RankLandingEnds"/>, and judged per end: only an end the type can
+    /// land on is a candidate. When the wind leaves no end of the airport inside the tailwind limit, the straight-in end
+    /// stands. Null when the type can land on no end.
+    /// </summary>
+    private static RunwayInfo? PilotChosenVisualRunway(AircraftState aircraft, string airport, DispatchContext ctx)
+    {
+        string destination = CommandDispatcher.ResolveAirport(aircraft);
+        string? expected = aircraft.Approach.Expected;
+        if (ControllerNamedVisualRunway(airport, destination, expected, aircraft.Procedure.DestinationRunway, aircraft.AircraftType) is { } named)
+        {
+            return named;
+        }
+
+        NavigationDatabase navDb = NavigationDatabase.Instance;
+        IEnumerable<RunwayInfo> activeEnds = ctx
+            .ActiveRunways.For(airport)
+            .Where(r => r.Use != ActiveRunwayUse.Departure)
+            .Select(r => navDb.GetRunway(airport, r.Designator))
+            .OfType<RunwayInfo>()
+            .Where(end => IsLandable(end, aircraft.AircraftType));
+        if (RankLandingEnds(activeEnds, aircraft, ctx).FirstOrDefault() is { } active)
+        {
+            return active;
+        }
+
+        List<RunwayInfo> landableEnds =
+        [
+            .. navDb
+                .GetRunways(airport)
+                .SelectMany(p => new[] { p.ForApproach(p.Id.End1), p.ForApproach(p.Id.End2) })
+                .Where(end => IsLandable(end, aircraft.AircraftType)),
+        ];
+        return RankLandingEnds(landableEnds, aircraft, ctx).FirstOrDefault()
+            ?? landableEnds.OrderBy(end => aircraft.TrueTrack.AbsAngleTo(end.TrueHeading)).FirstOrDefault();
+    }
+
+    /// <summary>
+    /// <paramref name="ends"/> as the pilot would choose among them, best first. An end whose worst-case tailwind is past
+    /// <see cref="RunwayUsabilityGate"/>'s limit (10 kt dry, 5 kt wet) is dropped. In a steady wind of
+    /// <see cref="RunwayInUseResolver.CalmWindBelowKt"/> or more, the end with the most headwind (to the knot) comes first,
+    /// most nearly into the wind (AC 90-66B 11.6), and the aircraft's track only breaks ties; in calm or variable wind, or
+    /// with no wind reported, the end most nearly aligned with the track comes first (a straight-in, AC 90-66B 9.5), then
+    /// the longest.
+    /// </summary>
+    private static List<RunwayInfo> RankLandingEnds(IEnumerable<RunwayInfo> ends, AircraftState aircraft, DispatchContext ctx)
+    {
+        SurfaceWind? wind = RunwayInUseResolver.SampleWind(ctx.Weather);
+        DateTime modelDate = ctx.SessionStartUtc.Date;
+        double limit = FacilityRunwayKnowledge.IsWet(ctx.Weather) ? RunwayUsabilityGate.MaxTailwindKtWet : RunwayUsabilityGate.MaxTailwindKtDry;
+        SurfaceWind? steadyWind = (wind is { Variable: false } && (wind.EffectiveSpeedKt >= RunwayInUseResolver.CalmWindBelowKt)) ? wind : null;
+        return
+        [
+            .. ends.Where(end => (wind is null) || (wind.WorstTailwindOn(MagneticHeading(end, modelDate)) <= limit))
+                .OrderByDescending(end => steadyWind is null ? 0 : Math.Round(steadyWind.HeadwindOn(MagneticHeading(end, modelDate))))
+                .ThenBy(end => aircraft.TrueTrack.AbsAngleTo(end.TrueHeading))
+                .ThenByDescending(end => end.PavementLengthFt),
+        ];
+    }
+
+    private static double MagneticHeading(RunwayInfo end, DateTime modelDateUtc) =>
+        MagneticDeclination.TrueToMagnetic(end.TrueHeading.Degrees, end.ThresholdLatitude, end.ThresholdLongitude, modelDateUtc);
+
+    /// <summary>
+    /// The runway the controller already named for a visual to <paramref name="airport"/>: the expected visual's
+    /// (<c>VIS{rwy}</c>), else the destination runway, when <paramref name="airport"/> is the destination and the type can
+    /// land on it; else null.
+    /// </summary>
+    internal static RunwayInfo? ControllerNamedVisualRunway(
+        string airport,
+        string destinationAirport,
+        string? expectedApproach,
+        string? destinationRunway,
+        string aircraftType
+    )
+    {
+        if (!NavigationDatabase.AirportIdsMatch(airport, destinationAirport))
+        {
+            return null;
+        }
+
+        string? named = ApproachIds.TryParseVisual(expectedApproach, out string? visualRunway) ? visualRunway : destinationRunway;
+        return (named is not null) && (NavigationDatabase.Instance.GetRunway(airport, named) is { } runway) && IsLandable(runway, aircraftType)
+            ? runway
+            : null;
+    }
+
+    private static bool IsLandable(RunwayInfo end, string aircraftType) =>
+        RunwayLandability.IsLandable(RunwayLandability.LandingDistanceAvailableFt(NavigationDatabase.Instance, end), aircraftType);
+
+    /// <summary>
+    /// The result of an airport-level visual clearance ("cleared visual approach to (airport)", 7110.65 7-4-3.c.4): the
+    /// message and the pilot's readback name the runway the pilot picked as its own intention ("landing runway two nine"),
+    /// never as a runway ATC assigned, and a pattern side likewise; the readback speaks the field's name without a trailing
+    /// "Airport", as pilots say it on the radio.
+    /// </summary>
+    private static CommandResult AirportLevelVisualCleared(ClearedVisualApproachCommand cmd, string airport, string runway)
+    {
+        string traffic = TrafficSideClause(cmd);
+        string spokenAirport = SpokenFieldName(airport);
+        string spokenRunway = PhraseologyVerbalizer.SpellRunway(runway);
+        var readback = new PilotSpeechText(
+            $"cleared visual approach to {airport}, landing runway {PhraseologyVerbalizer.CompactRunway(runway)}{traffic}",
+            $"cleared visual approach to {spokenAirport}, landing runway {spokenRunway}{traffic}"
+        );
+        return new CommandResult(true, $"Cleared visual approach to {airport}, landing runway {RunwayIdentifier.ToDisplayDesignator(runway)}")
+        {
+            PilotReadback = new HandlerReadback(CommandDescriber.ToCanonicalType(cmd), readback),
+        };
+    }
+
+    private static string SpokenFieldName(string airport)
+    {
+        const string AirportSuffix = " Airport";
+        string name = PhraseologyVerbalizer.SpellAirportName(airport);
+        return name.EndsWith(AirportSuffix, StringComparison.OrdinalIgnoreCase) ? name[..^AirportSuffix.Length] : name;
+    }
+
+    /// <summary>
+    /// <c>EAPP VIS{rwy}</c> (7110.65 4-7-10.d "expect visual approach runway"): resolves the runway from the navigation data,
+    /// not CIFP, so a runway with no published approach can be expected too, and writes what the procedure form writes: the
+    /// expected approach (<c>VIS</c> + the navdata designator), the destination runway, and the active STAR's runway
+    /// transition.
+    /// </summary>
+    public static CommandResult TryExpectVisualApproach(string runwayId, string? airportCode, AircraftState aircraft)
+    {
+        if (!TryResolveApproachAirport(airportCode, CommandDispatcher.ResolveAirport(aircraft), out string airport))
+        {
+            return new CommandResult(false, $"Unknown airport {airportCode?.Trim().ToUpperInvariant()}");
+        }
+
+        if (string.IsNullOrEmpty(airport))
+        {
+            return new CommandResult(false, "Cannot determine airport for approach");
+        }
+
+        if (NavigationDatabase.Instance.GetRunway(airport, runwayId) is not { } runway)
+        {
+            return new CommandResult(false, $"Unknown runway {RunwayIdentifier.ToDisplayDesignator(runwayId)} at {airport}");
+        }
+
+        string designator = runway.Designator;
+        aircraft.Approach.Expected = ApproachIds.Visual(designator);
+        aircraft.Procedure.DestinationRunway = designator;
+        NavigationCommandHandler.ExtendActiveStarWithRunwayTransition(aircraft, designator);
+        return new CommandResult(true, ApproachIds.ExpectingText(aircraft.Approach.Expected));
     }
 
     private static (double Lat, double Lon) ComputeInterceptPoint(RunwayInfo runway, double distanceNm)
@@ -920,7 +1162,8 @@ public static class ApproachCommandHandler
 
         foreach (string? source in sources)
         {
-            if (source is null)
+            // A visual expectation names no procedure: the destination runway it set is the hint that follows.
+            if ((source is null) || ApproachIds.TryParseVisual(source, out _))
             {
                 continue;
             }

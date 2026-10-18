@@ -1,5 +1,6 @@
 using System.Globalization;
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.Airport;
 
 namespace Yaat.Sim.Pilot;
 
@@ -80,9 +81,13 @@ public static class PilotSayBuilder
 
     public static string BuildExpectedApproach(AircraftState aircraft)
     {
-        return aircraft.Approach.Expected is not null
-            ? $"Expecting the {PlainApproach(aircraft.Approach.Expected)} approach"
-            : "Negative, no approach assigned";
+        string? expected = aircraft.Approach.Expected;
+        if (ApproachIds.TryParseVisual(expected, out string? visualRunway))
+        {
+            return $"Expecting the visual approach runway {RunwayIdentifier.ToDisplayDesignator(visualRunway)}";
+        }
+
+        return expected is not null ? $"Expecting the {PlainApproach(expected)} approach" : "Negative, no approach assigned";
     }
 
     /// <summary>

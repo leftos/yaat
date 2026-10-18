@@ -1,5 +1,6 @@
 using Yaat.Sim;
 using Yaat.Sim.Commands;
+using Yaat.Sim.ControllerAi;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Simulation;
@@ -29,7 +30,9 @@ internal static class TestDispatch
         double scenarioElapsedSeconds = 0,
         DateTime? sessionStartUtc = null,
         bool preserveConditionals = false,
-        bool isScenarioScripted = false
+        bool isScenarioScripted = false,
+        ToweredAirports? toweredAirports = null,
+        ActiveRunways? activeRunways = null
     ) =>
         new()
         {
@@ -45,6 +48,8 @@ internal static class TestDispatch
             RpoShowPilotSpeech = rpoShowPilotSpeech,
             TerminalEmitter = terminalEmitter,
             ArtccConfig = artccConfig,
+            ToweredAirports = toweredAirports ?? ToweredAirports.Empty,
+            ActiveRunways = activeRunways ?? ActiveRunways.Empty,
             ScenarioElapsedSeconds = scenarioElapsedSeconds,
             SessionStartUtc = sessionStartUtc ?? SimScenarioState.ProcessDayUtc,
             PreserveConditionals = preserveConditionals,

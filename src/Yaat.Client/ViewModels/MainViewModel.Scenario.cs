@@ -769,6 +769,7 @@ public partial class MainViewModel
             IsLiveSession = dto.IsLiveSession;
             ApplySimState(dto.IsPaused, dto.SimRate, 0, false, 0);
             ApplyActiveRunways(dto.ActiveRunways);
+            ApplyToweredAirports(dto.ToweredAirports);
             // Another member's load replaces the scenario this client's prompt was asking about.
             CloseActiveRunwaysPrompt();
 

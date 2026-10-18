@@ -31,7 +31,7 @@ public class ActiveRunwaysWindowViewModelTests
     private static (MainViewModel Vm, ActiveRunwaysWindowViewModel Window) OpenWindow(params (string Airport, string[] Tokens)[] runways)
     {
         MainViewModel vm = new(new FakeFilePickerService());
-        vm.OnScenarioLoaded(new ScenarioLoadedDto("scenario-1", "OAK Ground", "OAK", true, 1, [], Runways(runways)));
+        vm.OnScenarioLoaded(new ScenarioLoadedDto("scenario-1", "OAK Ground", "OAK", true, 1, [], Runways(runways), []));
         Dispatcher.UIThread.RunJobs();
         return (vm, new ActiveRunwaysWindowViewModel(vm));
     }
@@ -398,7 +398,7 @@ public class ActiveRunwaysWindowViewModelTests
         (MainViewModel vm, ActiveRunwaysWindowViewModel window) = OpenWindow(("OAK", ["30"]));
 
         // The same scenario id: reloading a scenario is another load even though the id does not move.
-        vm.OnScenarioLoaded(new ScenarioLoadedDto("scenario-1", "OAK Ground", "OAK", true, 1, [], Runways(("OAK", ["12"]))));
+        vm.OnScenarioLoaded(new ScenarioLoadedDto("scenario-1", "OAK Ground", "OAK", true, 1, [], Runways(("OAK", ["12"])), []));
         Dispatcher.UIThread.RunJobs();
 
         Assert.False(window.IsOpen);
@@ -412,7 +412,7 @@ public class ActiveRunwaysWindowViewModelTests
         (MainViewModel vm, ActiveRunwaysWindowViewModel window) = OpenWindow(("OAK", ["30"]));
 
         // A recording carries the original scenario's id, so this too is only visible in the scope.
-        vm.ApplyRecordingResult(new RewindResultDto(true, null, Runways(("OAK", ["12"])), [], "scenario-1", "OAK Ground", "OAK"));
+        vm.ApplyRecordingResult(new RewindResultDto(true, null, Runways(("OAK", ["12"])), [], [], "scenario-1", "OAK Ground", "OAK"));
 
         Assert.False(window.IsOpen);
     }

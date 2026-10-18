@@ -448,10 +448,10 @@ The restriction covers only codes YAAT chooses on its own. `SQ {code}` still mak
 | Climb via | `CVIA` | — | — |
 | Depart fix | `DEPART SUNOL 270` | `DEP`, `D` | — |
 | Holding pattern | `HOLDP SUNOL 180 1M R` | `HOLD` (with args) | — |
-| Expect approach | `EAPP I28R` | `EXPECT` | — |
+| Expect approach | `EAPP I28R` / `EAPP VIS28R` | `EXPECT` | `VIS28R` expects a visual approach to runway 28R |
 | Follow traffic | `FOLLOW UAL456` / `FOLLOW` | `FOL` | Needs `RTIS` first. Callsign optional — bare `FOLLOW` defaults to last in-sight traffic. Keeps the follower's approach, same-runway landing clearance, or go-around/closed-traffic climb; refused when the traffic is not ahead, departing, going around, on the ground, inbound elsewhere, landing another runway, or a super ([refusals](#follow-refusals)) |
 | Follow traffic (forced) | `FOLLOWF UAL456` / `FOLLOWF` | `FOLF` | RPO-only; folds `RTISF` in, no prior `RTIS` needed, otherwise exactly `FOLLOW` (same refusals). Bare form follows a pending/last-called `RTIS` traffic |
-| Visual approach | `CVA 28R` | `VISUAL` | Requires field-in-sight first (`RFIS`) |
+| Visual approach | `CVA 28R` / `CVA OAK` | `VISUAL` | Requires field-in-sight first (`RFIS`). `CVA <airport>` without a runway only at an untowered field |
 | Visual approach (forced) | `CVAF 28R` | `VISUALF` | RPO-only; folds `RFISF` (and `RTISF` when following) in |
 | Report field | `RFIS 11 18` | `RFIS` (RPO shorthand) | Descriptive form required in solo training |
 | Report field (forced) | `RFISF` | — | RPO-only |
@@ -1480,11 +1480,19 @@ The PT is **not** engaged when the aircraft is on a NoPT transition (a published
 
 If a STAR is already loaded, its runway-transition fixes for the new runway are appended to the live navigation route so the published radar-vector tail enters the route immediately, without waiting for `CAPP`. A `JARR` issued after `EAPP` (no prior `RWY`) picks up the runway transition too. Does not clear the aircraft for the approach.
 
+`EAPP VIS28R [airport]` (alias `EXPECT`) expects a **visual approach** to runway 28R (7110.65 §4-7-10.d, "expect visual approach runway"): *"Expecting visual approach runway 28R"*. The runway comes from the navigation data, not CIFP, so a runway with no published approach can be expected too; an unknown one is refused (*"Unknown runway 28R at OAK"*). It writes what the procedure form writes — the expected approach (`VIS28R`), the `DestinationRunway`, and the STAR's runway transition. The pilot reads it back as *"expect visual approach runway two eight right"*, and `SEAPP` answers *"Expecting the visual approach runway 28R"*.
+
+A visual expectation names no procedure: bare `CAPP` clears the expected visual rather than picking a CIFP approach for the runway, and bare `JFAC` is refused (*"Unable, expecting a visual approach; clear it with CVA"*). `CVA` (either form) sets the expected approach to the visual it clears. A `CVA 28R` reads back *"cleared visual approach runway 28R"*, then *", left traffic"* / *", right traffic"* and *", follow the traffic"* when given (the RPO terminal names the callsign instead); a bare `CAPP` that clears an expected visual reads back the same way. `CVA`, `CVA <airport>`, `CVAF` and `CVAF <airport>` can all be typed; signature help shows the bare, Airport and Runway forms.
+
 **Force direct to:** `DCTF` works like `DCT` but bypasses the check that the target fix must be on or ahead of the current route.
 
 **Visual approach:** `CVA 28R` clears the aircraft for a visual approach to runway 28R. No CIFP procedure is required — the aircraft navigates visually. **Requires an IFR flight plan**; VFR pattern entry uses `ELD`/`ERD`/`SI`.
 
 Per 7110.65 §7-4-3 the pilot must have reported **either** the field in sight (`RFIS`/`RFISF`) when number-one, **or** the preceding traffic in sight (`RTIS`/`RTISF`) when given a `FOLLOW` clause — a following aircraft need not report the field (§7-4-3.c.2 NOTE). Without the required report `CVA` is rejected (*"Field not in sight — issue RFIS first"* / *"Traffic not in sight — issue RTIS first"*).
+
+`CVA` takes `CVA [runway] [airport] [LEFT|RIGHT] [FOLLOW callsign]`, the runway first: `CVA 28R OAK` names the airport too, `CVA OAK` is the airport-level form, and a bare `CVA` uses the aircraft's destination. `FOLLOW` and `LEFT`/`RIGHT` are never read as a runway. An airport before the runway is refused (*"CVA takes the runway before the airport: CVA 28R OAK"*), as is any other stray argument (*"Unexpected CVA argument 'X'; expected CVA [runway] [airport] [LEFT|RIGHT] [FOLLOW callsign]"*).
+
+**Airport-level `CVA`** ("cleared visual approach to (airport)", 7110.65 §7-4-3.c.4) is for a field with no control tower. At a **towered** field the runway is required: *"Unable, say the runway for a visual approach to OAK"* — unless a visual is expected (`EAPP VIS28R`), in which case a bare `CVA` clears that visual; with none expected it is refused. At an untowered field the pilot picks the runway — the one the controller already named (the expected visual, else the destination runway, when the airport is the destination), else among the room's active arrival runways, else among every runway end of the airport. Ends past the tailwind limit (10 kt dry, 5 kt wet) are dropped, then the end with the most headwind wins (the aircraft's track breaks ties); in calm (under 5 kt), variable or no wind the straight-in end most nearly aligned with the track wins. Landability is judged per end: an end the type cannot land on is skipped, and the other end of that runway can still be picked. The reply names the pick (*"Cleared visual approach to OAK, landing runway 28R"*, read back as *"cleared visual approach to OAK, landing runway 28R"* with *left/right traffic* when given, and spoken with the field's name and no "Airport", e.g. *"…to Petaluma, landing runway two nine"*); with no landable runway it is *"Unable, no runway at OAK long enough to land"*, and `CVA OAK FOLLOW x` at an untowered field is *"Unable, FOLLOW needs a runway for a visual approach to OAK"*. Towered means the airport has a tower facility (`Atct`, `AtctTracon`, `AtctRapcon`) in the room's own ARTCC config, a scenario roster ARTCC's config, or a geographic neighbour ARTCC's config; any other airport is untowered.
 
 Visual separation is not authorized behind a **super**, so `CVA … FOLLOW` a super is refused. **Weather minimums are enforced** (7110.65 §7-4-3.b / AIM §5-5-11.b.1): `CVA` is rejected below a 1000 ft ceiling or 3 SM visibility (*"Unable, … weather below visual approach minimums"*).
 
@@ -1499,6 +1507,8 @@ The one-shot **`CVAF`** (`VISUALF`, RPO-only, rejected in solo training) folds t
 | Command | Effect |
 |---------|--------|
 | `CVA 28R` | Cleared visual approach runway 28R (requires RFIS first) |
+| `CVA 28R OAK` | Visual approach runway 28R at OAK (the airport defaults to the destination) |
+| `CVA OAK` | Airport-level visual approach: the pilot picks the runway at an untowered field; refused at a towered one (a bare `CVA` there clears the expected visual) |
 | `CVA 28R LEFT` | Visual approach with left traffic pattern |
 | `CVA 28R RIGHT` | Visual approach with right traffic pattern |
 | `CVA 28R FOLLOW AAL123` | Visual approach following AAL123 (requires RTIS first; not authorized behind a super) |
@@ -2319,7 +2329,7 @@ Make an aircraft broadcast information. Output uses spoken pilot phraseology per
 | `SAY text` | Aircraft broadcasts the text verbatim (alias: `SAYF`) |
 | `SSPD` | Aircraft reports current speed (e.g. `two five zero knots`; includes Mach at/above FL240) |
 | `SMACH` | Aircraft reports current Mach number (e.g. `Mach point seven eight`) |
-| `SEAPP` | Aircraft reports expected approach (e.g. `Expecting the ILS one niner left approach`) or `Negative, no approach assigned` |
+| `SEAPP` | Aircraft reports expected approach (e.g. `Expecting the ILS one niner left approach`) or `Negative, no approach assigned`; for an expected visual, `Expecting the visual approach runway 28R` |
 | `SALT` | Aircraft reports altitude and vertical trend (e.g. `Leaving five thousand three hundred for eight thousand`) |
 | `SHDG` | Aircraft reports heading (e.g. `Heading two seven zero, direct MENLO`) |
 | `SPOS` | Aircraft reports position relative to a fix on its filed route, DCT queue, or departure/destination airport, with a parenthetical airport reference when the anchor is a fix (e.g. `one two miles east of WAITZ (three zero miles east of KOAK)`). Falls back to the nearest sizeable airport when off-route. |

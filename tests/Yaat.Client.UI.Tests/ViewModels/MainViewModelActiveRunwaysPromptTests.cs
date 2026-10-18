@@ -383,7 +383,7 @@ public class MainViewModelActiveRunwaysPromptTests
     {
         MainViewModel vm = PromptedVm(("OAK", ["D28L"]));
 
-        vm.OnScenarioLoaded(new ScenarioLoadedDto("scenario-2", "OAK Ground", "OAK", true, 1, [], []));
+        vm.OnScenarioLoaded(new ScenarioLoadedDto("scenario-2", "OAK Ground", "OAK", true, 1, [], [], []));
         Dispatcher.UIThread.RunJobs();
 
         Assert.False(vm.ShowActiveRunwaysPrompt);
@@ -394,7 +394,7 @@ public class MainViewModelActiveRunwaysPromptTests
     {
         MainViewModel vm = PromptedVm(("OAK", ["D28L"]));
 
-        vm.ApplyRecordingResult(new RewindResultDto(true, null, Runways(("OAK", ["12"])), [], "scenario-3", "OAK Ground", "OAK"));
+        vm.ApplyRecordingResult(new RewindResultDto(true, null, Runways(("OAK", ["12"])), [], [], "scenario-3", "OAK Ground", "OAK"));
 
         Assert.False(vm.ShowActiveRunwaysPrompt);
         Assert.Empty(vm.ActiveRunwaysPromptRows);

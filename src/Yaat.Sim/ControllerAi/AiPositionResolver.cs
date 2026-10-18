@@ -156,10 +156,17 @@ public static class AiPositionResolver
     /// </summary>
     private static FacilityConfig? FindCabFacility(FacilityConfig root, string airportId)
     {
-        var cabs = new List<FacilityConfig>();
-        CollectTowerCabs(root, cabs);
+        List<FacilityConfig> cabs = TowerCabs(root);
         return cabs.FirstOrDefault(f => NavigationDatabase.AirportIdsMatch(f.Id, airportId))
             ?? cabs.FirstOrDefault(f => f.Positions.Any(p => CallsignPrefixMatches(p.Callsign, airportId)));
+    }
+
+    /// <summary>Every tower-cab facility (ATCT, ATCT/TRACON, ATCT/RAPCON) under <paramref name="root"/>, itself included.</summary>
+    internal static List<FacilityConfig> TowerCabs(FacilityConfig root)
+    {
+        var cabs = new List<FacilityConfig>();
+        CollectTowerCabs(root, cabs);
+        return cabs;
     }
 
     private static void CollectTowerCabs(FacilityConfig facility, List<FacilityConfig> cabs)

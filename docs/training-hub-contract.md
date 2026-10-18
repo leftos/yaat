@@ -296,6 +296,8 @@ payload DTO → the `ServerConnection` C# event it re-raises:
 
   An airport with neither is absent; it is empty on a failed load. All four, and `RoomStateDto.ActiveRunways`, are required members on the server and on the client.
 
+  `ToweredAirports` (airport ids as the ARTCC configs spell them, ordinal-sorted) is the room's towered set: the airports with a tower facility (`Atct`, `AtctTracon`, `AtctRapcon`) in the scenario's own, its roster's or a geographic neighbour's ARTCC config; any other airport is untowered. It is a required, non-null member of `LoadScenarioResult`, `RoomStateDto`, `ScenarioLoadedDto` and `RewindResultDto` (a rewind's or recording load's result and the `RecordingLoaded` broadcast) on the server and the client, empty on a failed load or with no scenario; it lands in `MainViewModel.RoomToweredAirports` (cleared when the room is left). Airport ids match in either spelling (`OAK`/`KOAK`) and, outside the CONUS, through the navigation data's FAA/ICAO index (`ANC`/`PANC`).
+
   Every other payload that replaces a client's scenario carries the room's list too, as a required member on both sides: `ScenarioLoadedDto.ActiveRunways` (the other members' copy of a load), `RewindResultDto.ActiveRunways` (a rewind's or recording load's result and the `RecordingLoaded` broadcast; empty on a failure) and `ScenarioRestartedDto.ActiveRunways`. A client replaces its copy with each.
 
   A restart keeps the list in use when it was asked for, whatever set it, and never prompts; only the loader's `LoadScenarioResult` can ask.

@@ -28,6 +28,7 @@ public sealed class RecordingArchiveWriter(Stream output) : ILayoutBundleWriter,
     private bool _hasWeather;
     private bool _metarReissuanceEnabled;
     private bool _hasArtccConfig;
+    private bool _hasToweredAirports;
     private bool _hasTerminalLog;
 
     public void WriteScenario(string scenarioJson) => WriteBrotliEntry("scenario.json.br", scenarioJson);
@@ -59,6 +60,22 @@ public sealed class RecordingArchiveWriter(Stream output) : ILayoutBundleWriter,
 
         _hasArtccConfig = true;
         WriteBrotliEntry("artcc-config.json.br", artccConfigJson);
+    }
+
+    /// <summary>
+    /// Writes the room's towered airport ids (<see cref="SimScenarioState.ToweredAirports"/>, built from its own, roster and
+    /// neighbour ARTCC configs, of which the archive bundles only the own one) into <c>towered-airports.json.br</c>, so a
+    /// replay judges an airport-level visual clearance against the same set. No-op when null.
+    /// </summary>
+    public void WriteToweredAirports(IReadOnlyList<string>? toweredAirportIds)
+    {
+        if (toweredAirportIds is null)
+        {
+            return;
+        }
+
+        _hasToweredAirports = true;
+        WriteBrotliEntry("towered-airports.json.br", JsonSerializer.SerializeToUtf8Bytes(toweredAirportIds, RecordingJsonOptions.Default));
     }
 
     public void WriteActions(List<RecordedAction> actions)
@@ -198,6 +215,7 @@ public sealed class RecordingArchiveWriter(Stream output) : ILayoutBundleWriter,
             HasWeather = _hasWeather,
             MetarReissuanceEnabled = _metarReissuanceEnabled,
             HasArtccConfig = _hasArtccConfig,
+            HasToweredAirports = _hasToweredAirports,
             HasTerminalLog = _hasTerminalLog,
             ScenarioName = metadata.ScenarioName,
             ScenarioId = metadata.ScenarioId,
@@ -235,6 +253,7 @@ public sealed class RecordingArchiveWriter(Stream output) : ILayoutBundleWriter,
             writer.WriteScenario(recording.ScenarioJson);
             writer.WriteWeather(recording.WeatherJson, recording.MetarReissuanceEnabled);
             writer.WriteArtccConfig(recording.ArtccConfigJson);
+            writer.WriteToweredAirports(recording.ToweredAirportIds);
             writer.WriteActions(recording.Actions);
             writer.WriteTerminalLog(recording.TerminalLog);
             WriteReferencedWindGrids(writer, recording.WeatherJson, recording.Actions, recording.Snapshots?.Select(s => s.State.WeatherJson) ?? []);

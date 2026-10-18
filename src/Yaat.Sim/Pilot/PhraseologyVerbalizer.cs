@@ -169,6 +169,14 @@ public static class PhraseologyVerbalizer
             return $"cross {fmt.Fix(cfBelow.FixName)} at or below {fmt.Altitude(cfBelow.Altitude)}";
         }
 
+        // An expected visual approach (7110.65 4-7-10.d "expect visual approach runway two five right") names a runway, not
+        // a procedure: every ExpectApproach rule ties on one capture, so the rule path would read it back as the first
+        // declared ("expect ils runway ...") with the id spelled letter by letter.
+        if (cmd is ExpectApproachCommand expectApproach && ApproachIds.TryParseVisual(expectApproach.ApproachId, out string? visualRunway))
+        {
+            return $"expect visual approach runway {fmt.Runway(visualRunway)}";
+        }
+
         // A TAXI clearance naming a runway as a path segment (taxi ALONG it) needs per-segment
         // connectors — "via" for the taxiway route, "on" for the runway (7110.65 §3-7-2.a separates
         // "VIA (route)" from "ON (runway)") — which the flat "taxi via {path}" rule template can't
@@ -303,6 +311,7 @@ public static class PhraseologyVerbalizer
             TurnLeftDirectToCommand d when d.Fixes.Count > 0 => Map("fix", fmt.FixSequence(d.Fixes)),
             TurnRightDirectToCommand d when d.Fixes.Count > 0 => Map("fix", fmt.FixSequence(d.Fixes)),
             ExpectApproachCommand e => Map("rwy", fmt.Approach(e.ApproachId)),
+            ClearedVisualApproachCommand v when v.RunwayId is { } visualRunway => Map("rwy", fmt.Runway(visualRunway)),
             JoinFinalApproachCourseCommand jfac when jfac.ApproachId is { } id => Map("rwy", fmt.Approach(id)),
             CrossFixCommand cf => CrossFixArgs(cf, fmt),
             ClimbViaCommand cv when cv.Altitude is int alt => Map("alt", fmt.Altitude(alt)),

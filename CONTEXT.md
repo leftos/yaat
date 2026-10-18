@@ -99,6 +99,9 @@ The room's store of carried answers, one per normalized scenario id (`TrainingRo
 **Implied active runways**:
 The runway ends a loaded scenario implies per airport, read from its aircraft (loaded phases, expected approach, parsed preset commands, never dispatched) and its arrival generators, else the primary airport's facility knowledge (`ImpliedActiveRunways.For`). With no sidecar it pre-fills the mentor's prompt; the room takes it only where it names every runway.
 
+**Towered airport**:
+An airport with a tower facility (`Atct`, `AtctTracon`, `AtctRapcon`) in the room's own ARTCC config, a scenario roster ARTCC's config or a geographic neighbour ARTCC's config (`ToweredAirports`); every other airport is untowered. An id matches in either spelling (`OAK`/`KOAK`) and, outside the CONUS, through the navigation data's FAA/ICAO pairing (`ANC`/`PANC`). It decides whether an airport-level `CVA` needs a runway, and rides the recording as `towered-airports.json.br`.
+
 **Scenario sidecar**:
 An authored per-scenario JSON file, `Data/ARTCCs/{ARTCC}/Scenarios/{scenario id}.json`, carrying settings the vNAS scenario lacks (its active runways); unlike the per-airport ground sidecar.
 

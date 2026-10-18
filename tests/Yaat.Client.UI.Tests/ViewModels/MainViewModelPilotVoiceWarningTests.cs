@@ -56,6 +56,7 @@ public class MainViewModelPilotVoiceWarningTests
             OverflightGenerators: [],
             Positions: [],
             ActiveRunways: [],
+            ToweredAirports: [],
             SoloTrainingMode: solo
         );
 
@@ -184,6 +185,7 @@ public class MainViewModelPilotVoiceWarningTests
                 SimRate: 1,
                 AllAircraft: [],
                 ActiveRunways: [],
+                ToweredAirports: [],
                 SoloTrainingMode: true
             )
         );

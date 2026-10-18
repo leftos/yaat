@@ -28,7 +28,15 @@ public sealed partial class SimulationEngine
     /// anchored to (<see cref="SimScenarioState.SessionStartUtc"/>): the room clock for a new session, the recorded
     /// instant when replaying.
     /// </summary>
-    public List<string> LoadScenario(string json, int rngSeed, DateTime sessionStartUtc)
+    public List<string> LoadScenario(string json, int rngSeed, DateTime sessionStartUtc) =>
+        LoadScenario(json, rngSeed, sessionStartUtc, static _ => { });
+
+    /// <summary>
+    /// <see cref="LoadScenario(string, int, DateTime)"/>, with <paramref name="configureBeforePresets"/> run on the new
+    /// scenario state before the immediate aircraft's presets dispatch: a replay restores there what the live room had in
+    /// place when its presets dispatched (the ARTCC config and the towered airports).
+    /// </summary>
+    public List<string> LoadScenario(string json, int rngSeed, DateTime sessionStartUtc, Action<SimScenarioState> configureBeforePresets)
     {
         Scenario?.ReplaceWindGridPins(null);
         World.Clear();
@@ -62,6 +70,7 @@ public sealed partial class SimulationEngine
             HasSoloArrivalGeneratorSource = result.HasArrivalGenerators,
             InitialStripBayByCallsign = result.InitialStripBayByCallsign,
         };
+        configureBeforePresets(Scenario);
 
         // Add immediate aircraft and dispatch their presets
         foreach (LoadedAircraft loaded in result.ImmediateAircraft)

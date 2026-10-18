@@ -43,6 +43,15 @@ public partial class MainViewModel
         private set => SetProperty(ref _roomActiveRunways, value);
     }
 
+    /// <summary>
+    /// The airports the room's loaded ARTCC configs give a tower, as the server spells them; every other airport is
+    /// untowered. Empty with no scenario.
+    /// </summary>
+    public IReadOnlyList<string> RoomToweredAirports { get; private set; } = [];
+
+    /// <summary>Replaces the room's towered airports with <paramref name="ids"/>.</summary>
+    internal void ApplyToweredAirports(List<string> ids) => RoomToweredAirports = [.. ids];
+
     /// <summary>The prompt's rows: the primary airport first, then every other airport the server's guess names.</summary>
     public ObservableCollection<ActiveRunwaysRow> ActiveRunwaysPromptRows { get; } = [];
 
@@ -77,6 +86,7 @@ public partial class MainViewModel
     internal void ApplyLoadResultActiveRunways(LoadScenarioResultDto result)
     {
         ApplyActiveRunways(result.ActiveRunways);
+        ApplyToweredAirports(result.ToweredAirports);
         if (result.ActiveRunwaysPromptNeeded && (!IsNonMentor) && (!result.IsLiveSession))
         {
             OpenActiveRunwaysPrompt(result.PrimaryAirportId, result.ActiveRunwaysPrefill, result.ActiveRunwaysAssigned);
@@ -237,6 +247,7 @@ public partial class MainViewModel
     private void ClearActiveRunways()
     {
         RoomActiveRunways = NoActiveRunways;
+        RoomToweredAirports = [];
         CloseActiveRunwaysPrompt();
     }
 }

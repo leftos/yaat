@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using System.Text.Json;
 using Yaat.Sim.Asdex;
+using Yaat.Sim.ControllerAi;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Scenarios;
@@ -410,6 +411,11 @@ public sealed class SimScenarioState
     // Not snapshotted — set by the loader / replay entry point and preserved across snapshot
     // restores (RestoreFromSnapshot leaves this field untouched).
     public ArtccConfigRoot? ArtccConfig { get; set; }
+
+    // The airports the room's loaded configs (own, roster and geographic-neighbour ARTCCs) give a tower: built by the
+    // server at scenario load, by replay from the recording's towered-airports.json.br (else rebuilt from its one
+    // config). Not snapshotted, preserved across snapshot restores like ArtccConfig.
+    public ToweredAirports ToweredAirports { get; set; } = ToweredAirports.Empty;
 
     // ARTCC-specific SOP exceptions for initial pilot contact transfer. Runtime data loaded
     // alongside navigation/custom data; not snapshotted.

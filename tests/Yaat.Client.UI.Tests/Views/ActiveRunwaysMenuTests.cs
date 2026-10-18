@@ -64,7 +64,7 @@ public class ActiveRunwaysMenuTests
 
     private static void LoadScenario(MainViewModel vm)
     {
-        vm.OnScenarioLoaded(new ScenarioLoadedDto("scenario-1", "OAK Ground", "OAK", true, 1, [], []));
+        vm.OnScenarioLoaded(new ScenarioLoadedDto("scenario-1", "OAK Ground", "OAK", true, 1, [], [], []));
         Dispatcher.UIThread.RunJobs();
     }
 

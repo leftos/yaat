@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
+using Yaat.Sim.ControllerAi;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Scenarios;
@@ -138,9 +139,33 @@ internal sealed class ReplayDriver(SimulationEngine engine)
         // The pins are taken before the load, which releases the scenario's previous pins: taken after, an eviction between
         // the two steps could drop the grid the recording is about to re-pin.
         WindGridPins? pins = recording.WindGridPins?.Repin();
+
+        // The bundled ARTCC config (TrackResolver's TCP/ERAM fallback for AS commands targeting positions outside the
+        // scenario's StudentTcp/AtcPositions) and the towered set the live room built from every config it loaded — a
+        // recording made before the entry existed rebuilds the set from the one config it bundles. Both are in place before
+        // the scenario's presets dispatch, as they were live, with the active runways the session started on, so a preset
+        // reads them as the live room did.
+        ArtccConfigRoot? artccConfig = BundledArtccConfig(recording);
+        ToweredAirports towered = recording.ToweredAirportIds is { } toweredIds
+            ? ToweredAirports.FromIds(toweredIds)
+            : ToweredAirports.From(artccConfig is { } config ? [config] : []);
+        ActiveRunways initialActiveRunways =
+            ActiveRunwayListParser.ReadStored(recording.InitialActiveRunways, "the recording's initial active runways", _engine.Logger)
+            ?? ActiveRunways.Empty;
         try
         {
-            _engine.LoadScenario(recording.ScenarioJson, recording.RngSeed, recording.SessionStartUtc ?? SimScenarioState.ProcessDayUtc);
+            _engine.LoadScenario(
+                recording.ScenarioJson,
+                recording.RngSeed,
+                recording.SessionStartUtc ?? SimScenarioState.ProcessDayUtc,
+                scenario =>
+                {
+                    scenario.ArtccConfig = artccConfig;
+                    scenario.ToweredAirports = towered;
+                    scenario.ActiveRunways = initialActiveRunways;
+                    scenario.InitialActiveRunways = initialActiveRunways;
+                }
+            );
         }
         catch
         {
@@ -187,21 +212,6 @@ internal sealed class ReplayDriver(SimulationEngine engine)
         // with the original uniform slow-down.
         _engine.Scenario?.FinalApproachSpeedVarietyEnabled = recording.FinalApproachSpeedVarietyEnabled;
 
-        // Deserialize the bundled ARTCC config so TrackResolver's TCP/ERAM fallback works
-        // for AS commands targeting positions outside the scenario's StudentTcp/AtcPositions.
-        // Older recordings without the bundle leave this as null; callers can set it manually.
-        if (_engine.Scenario is not null && recording.ArtccConfigJson is { } artccJson)
-        {
-            try
-            {
-                _engine.Scenario.ArtccConfig = JsonSerializer.Deserialize<ArtccConfigRoot>(artccJson, RecordingJsonOptions.Default);
-            }
-            catch (JsonException ex)
-            {
-                _engine.Logger.LogWarning(ex, "Failed to deserialize bundled ArtccConfig; replay will fall back to scenario-only resolution");
-            }
-        }
-
         // The strip bays, TDLS facility configurations and tower list airports the mutations and the tick steps assume
         // exist: the server's load builds them from the ARTCC, and a replay has just restored the config and the
         // student position it needs to do the same. They survive the ClearSession the range below runs at t=0 because
@@ -213,6 +223,28 @@ internal sealed class ReplayDriver(SimulationEngine engine)
 
         // Store the replay cursor so OneSecond() can continue from here.
         Arm(recording.Actions, (int)targetSeconds);
+    }
+
+    /// <summary>
+    /// The recording's bundled ARTCC config; null for an older recording without the bundle (callers can set it manually) or
+    /// one whose bundle does not deserialize, which is logged and leaves the replay to scenario-only resolution.
+    /// </summary>
+    private ArtccConfigRoot? BundledArtccConfig(SessionRecording recording)
+    {
+        if (recording.ArtccConfigJson is not { } artccJson)
+        {
+            return null;
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<ArtccConfigRoot>(artccJson, RecordingJsonOptions.Default);
+        }
+        catch (JsonException ex)
+        {
+            _engine.Logger.LogWarning(ex, "Failed to deserialize bundled ArtccConfig; replay will fall back to scenario-only resolution");
+            return null;
+        }
     }
 
     public void OneSecond()

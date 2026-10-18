@@ -1414,6 +1414,8 @@ public record LoadScenarioResultDto(
     bool ActiveRunwaysPromptNeeded,
     // What the scenario already decides about runways, by airport: the prompt's per-airport lines. Empty on a failed load.
     Dictionary<string, RunwayUseCountsDto> ActiveRunwaysAssigned,
+    // The airports the room's loaded ARTCC configs give a tower; every other airport is untowered.
+    List<string> ToweredAirports,
     string? WeatherName = null,
     PositionDisplayConfigDto? PositionDisplayConfig = null,
     string? AutoDeleteOverride = null,
@@ -1551,6 +1553,8 @@ public record RoomStateDto(
     List<ScenarioPositionDto>? Positions,
     // The room's active runways, by airport (tokens as ActiveRunway.ToToken()).
     Dictionary<string, List<string>> ActiveRunways,
+    // The airports the room's loaded ARTCC configs give a tower (LoadScenarioResultDto.ToweredAirports).
+    List<string> ToweredAirports,
     PositionDisplayConfigDto? PositionDisplayConfig = null,
     double ElapsedSeconds = 0,
     bool IsPlayback = false,
@@ -1690,6 +1694,8 @@ public record ScenarioLoadedDto(
     List<AircraftDto> AllAircraft,
     // The room's active runways as loaded, by airport (tokens as ActiveRunway.ToToken()); replaces the client's copy.
     Dictionary<string, List<string>> ActiveRunways,
+    // The airports the room's loaded ARTCC configs give a tower (LoadScenarioResultDto.ToweredAirports).
+    List<string> ToweredAirports,
     PositionDisplayConfigDto? PositionDisplayConfig = null,
     bool IsStudentTowerPosition = true,
     string? StudentPositionType = null,
@@ -2108,6 +2114,8 @@ public record RewindResultDto(
     bool Success,
     string? Error,
     Dictionary<string, List<string>> ActiveRunways,
+    // The airports the room's loaded ARTCC configs give a tower (LoadScenarioResultDto.ToweredAirports); empty on a failure.
+    List<string> ToweredAirports,
     List<AircraftDto>? Aircraft = null,
     string? ScenarioId = null,
     string? ScenarioName = null,

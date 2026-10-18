@@ -5,10 +5,12 @@ using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
 using Yaat.Sim;
 using Yaat.Sim.Commands;
+using Yaat.Sim.ControllerAi;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
+using Yaat.Sim.Simulation;
 
 namespace Yaat.Client.Tests;
 
@@ -127,6 +129,8 @@ public class GroundViewModelApproachLegOverlayTests
             RpoShowPilotSpeech = false,
             TerminalEmitter = null,
             ArtccConfig = null,
+            ToweredAirports = ToweredAirports.Empty,
+            ActiveRunways = ActiveRunways.Empty,
             ScenarioElapsedSeconds = 0,
             SessionStartUtc = DateTime.UnixEpoch,
             PreserveConditionals = false,

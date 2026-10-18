@@ -3,6 +3,7 @@ using System.Runtime.CompilerServices;
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Scenarios;
 
@@ -143,6 +144,9 @@ public static class ScenarioRunwaySignals
 
     private sealed record VisualApproachClearance(string RunwayId, string? AirportCode) : RunwayMention;
 
+    /// <summary>An airport-level visual clearance (<c>CVA {airport}</c>): the runway the pilot picks.</summary>
+    private sealed record AirportVisualApproachClearance(string? AirportCode) : RunwayMention;
+
     /// <summary>A takeoff clearance or line-up: the spawn runway or the last one a taxi or <c>RWY</c> named.</summary>
     private sealed record TakeoffRunway(ActiveRunwayUse Use) : RunwayMention;
 
@@ -163,7 +167,8 @@ public static class ScenarioRunwaySignals
             JoinApproachCommand japp => new ApproachClearance(japp.ApproachId, japp.AirportCode),
             JoinApproachStraightInCommand jappsi => new ApproachClearance(jappsi.ApproachId, jappsi.AirportCode),
             PositionTurnAltitudeClearanceCommand ptac => new ApproachClearance(ptac.ApproachId, null),
-            ClearedVisualApproachCommand cva => new VisualApproachClearance(cva.RunwayId, cva.AirportCode),
+            ClearedVisualApproachCommand { RunwayId: { } visualRunway } cva => new VisualApproachClearance(visualRunway, cva.AirportCode),
+            ClearedVisualApproachCommand cva => new AirportVisualApproachClearance(cva.AirportCode),
             ClearedToLandCommand { RunwayId: { } runway } => new PatternRunway(runway, ActiveRunwayUse.Arrival),
             TouchAndGoCommand tg => DepartsAgain(tg.RunwayId ?? tg.PatternRunwayId),
             StopAndGoCommand sg => DepartsAgain(sg.PatternRunwayId),
@@ -211,7 +216,7 @@ public static class ScenarioRunwaySignals
                 return;
             }
 
-            if (ApproachRunway(expected, null) is { } runway)
+            if (ExpectedApproachRunway(expected) is { } runway)
             {
                 Add(new AircraftRunwaySignal(runway, ActiveRunwayUse.Arrival), mention: null);
             }
@@ -255,6 +260,25 @@ public static class ScenarioRunwaySignals
         /// </summary>
         private void ExpectApproach(ExpectApproachCommand expect, string preset)
         {
+            if (ApproachIds.TryParseVisual(expect.ApproachId, out string? visualRunwayId))
+            {
+                if (VisualApproachRunway(visualRunwayId, expect.AirportCode) is { } visualRunway)
+                {
+                    _expectedApproach = ApproachIds.Visual(visualRunway.Designator);
+                    _destinationRunway = visualRunway.Designator;
+                }
+                else
+                {
+                    Log.LogDebug(
+                        "{Callsign}: preset '{Preset}' expects a visual to no known runway; expected approach unchanged",
+                        state.Callsign,
+                        preset
+                    );
+                }
+
+                return;
+            }
+
             ApproachCommandHandler.ResolvedApproach resolved = ApproachCommandHandler.ResolveApproach(
                 expect.ApproachId,
                 expect.AirportCode,
@@ -305,6 +329,7 @@ public static class ScenarioRunwaySignals
                 PatternRunway pattern => Signal(PatternRunwayAt(pattern.RunwayId), pattern.Use),
                 ApproachClearance approach => Signal(ApproachRunway(approach.ApproachId, approach.AirportCode), ActiveRunwayUse.Arrival),
                 VisualApproachClearance visual => Signal(VisualApproachRunway(visual.RunwayId, visual.AirportCode), ActiveRunwayUse.Arrival),
+                AirportVisualApproachClearance visual => Signal(AirportLevelVisualRunway(visual.AirportCode), ActiveRunwayUse.Arrival),
                 TakeoffRunway takeoff => Signal(_departureRunway, takeoff.Use),
                 CurrentRunway current => Signal(_currentRunway, current.Use),
                 _ => throw new ArgumentOutOfRangeException(nameof(mention), mention, "unknown runway mention"),
@@ -334,8 +359,23 @@ public static class ScenarioRunwaySignals
         private ApproachCommandHandler.ApproachResolutionContext ApproachContext() =>
             new(CommandDispatcher.ResolveAirport(_destination, _assignedRunway), _expectedApproach, _destinationRunway);
 
+        /// <summary>The runway an expected approach names: a visual's from the navigation data, a procedure's through CIFP.</summary>
+        private RunwayInfo? ExpectedApproachRunway(string expected) =>
+            ApproachIds.TryParseVisual(expected, out string? visualRunwayId)
+                ? VisualApproachRunway(visualRunwayId, null)
+                : ApproachRunway(expected, null);
+
+        /// <summary>
+        /// The runway an approach clearance lands on; a bare clearance with a visual expected clears that visual, as the
+        /// command does.
+        /// </summary>
         private RunwayInfo? ApproachRunway(string? approachId, string? airportCode)
         {
+            if ((approachId is null) && ApproachIds.TryParseVisual(_expectedApproach, out string? visualRunwayId))
+            {
+                return VisualApproachRunway(visualRunwayId, airportCode);
+            }
+
             ApproachCommandHandler.ResolvedApproach resolved = ApproachCommandHandler.ResolveApproach(
                 approachId,
                 airportCode,
@@ -343,6 +383,25 @@ public static class ScenarioRunwaySignals
                 ApproachContext()
             );
             return resolved.Success ? resolved.Runway : null;
+        }
+
+        /// <summary>
+        /// The runway the pilot of an airport-level visual takes, as far as a read without the room's active runways or
+        /// weather knows it: the runway the controller already named (the expected visual's, else the destination runway).
+        /// </summary>
+        private RunwayInfo? AirportLevelVisualRunway(string? airportCode)
+        {
+            string fallbackAirport = CommandDispatcher.ResolveAirport(_destination, _assignedRunway);
+            bool known = ApproachCommandHandler.TryResolveApproachAirport(airportCode, fallbackAirport, out string airport);
+            return (known && (airport.Length > 0))
+                ? ApproachCommandHandler.ControllerNamedVisualRunway(
+                    airport,
+                    fallbackAirport,
+                    _expectedApproach,
+                    _destinationRunway,
+                    state.AircraftType
+                )
+                : null;
         }
 
         private RunwayInfo? VisualApproachRunway(string runwayId, string? airportCode)

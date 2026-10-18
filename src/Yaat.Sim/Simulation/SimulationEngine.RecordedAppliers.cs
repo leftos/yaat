@@ -141,9 +141,9 @@ public sealed partial class SimulationEngine
             EmitTerminal("System", state.Callsign, msg);
         }
 
-        if (state.Approach.Expected is not null)
+        if (state.Approach.Expected is { } expected)
         {
-            EmitTerminal("System", state.Callsign, $"Expecting {state.Approach.Expected} approach");
+            EmitTerminal("System", state.Callsign, ApproachIds.ExpectingText(expected));
         }
 
         return state;

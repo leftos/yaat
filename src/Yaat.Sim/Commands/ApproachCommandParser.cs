@@ -1,10 +1,12 @@
+using System.Diagnostics.CodeAnalysis;
+using System.Text.RegularExpressions;
 using Yaat.Sim.Data;
 using Yaat.Sim.Phases;
 using PR = Yaat.Sim.Commands.ParseResult<Yaat.Sim.Commands.ParsedCommand>;
 
 namespace Yaat.Sim.Commands;
 
-internal static class ApproachCommandParser
+internal static partial class ApproachCommandParser
 {
     /// <summary>
     /// Parses CAPP [AT|DCT fix] [CFIX alt] approachId.
@@ -633,45 +635,84 @@ internal static class ApproachCommandParser
     }
 
     /// <summary>
-    /// Parses CVA runwayId [LEFT|RIGHT] [FOLLOW callsign].
+    /// Parses <c>CVA [runway] [airport] [LEFT|RIGHT] [FOLLOW callsign]</c>. The runway (digits with an optional L/R/C) comes
+    /// first when given; any other non-keyword token in the leading slots is the airport, so <c>CVA OAK</c> is the
+    /// airport-level visual, bare <c>CVA</c> is the airport-level visual to the destination, and an airport ahead of the
+    /// runway (<c>CVA OAK 28R</c>) or a second airport is refused.
     /// </summary>
     internal static PR ParseCva(string? arg, bool force)
     {
-        if (string.IsNullOrWhiteSpace(arg))
+        string verb = force ? "CVAF" : "CVA";
+        string[] tokens = (arg ?? "").ToUpperInvariant().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        int keywordStart = Array.FindIndex(tokens, t => t is "LEFT" or "RIGHT" or "FOLLOW");
+        string[] leading = keywordStart < 0 ? tokens : tokens[..keywordStart];
+        if (!TryReadCvaRunwayAndAirport(leading, verb, out string? runwayId, out string? airport, out string? error))
         {
-            return PR.Fail("CVA requires a runway ID");
+            return PR.Fail(error);
         }
 
-        string[] tokens = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        if (tokens.Length == 0)
-        {
-            return PR.Fail("CVA requires a runway ID");
-        }
-
-        string runwayId = tokens[0].ToUpperInvariant();
         PatternDirection? direction = null;
         string? followCallsign = null;
-
-        for (int i = 1; i < tokens.Length; i++)
+        for (int i = leading.Length; i < tokens.Length; i++)
         {
-            string upper = tokens[i].ToUpperInvariant();
-            if (upper == "LEFT")
+            if (tokens[i] == "LEFT")
             {
                 direction = PatternDirection.Left;
             }
-            else if (upper == "RIGHT")
+            else if (tokens[i] == "RIGHT")
             {
                 direction = PatternDirection.Right;
             }
-            else if (upper == "FOLLOW" && i + 1 < tokens.Length)
+            else if ((tokens[i] == "FOLLOW") && (i + 1 < tokens.Length))
             {
-                followCallsign = tokens[i + 1].ToUpperInvariant();
+                followCallsign = tokens[i + 1];
                 break;
             }
         }
 
-        return PR.Ok(new ClearedVisualApproachCommand(runwayId, null, direction, followCallsign, force));
+        return PR.Ok(new ClearedVisualApproachCommand(runwayId, airport, direction, followCallsign, force));
     }
+
+    /// <summary>
+    /// The tokens ahead of the first keyword: none, a runway, a runway then an airport, or an airport alone.
+    /// </summary>
+    private static bool TryReadCvaRunwayAndAirport(
+        string[] leading,
+        string verb,
+        out string? runwayId,
+        out string? airport,
+        [NotNullWhen(false)] out string? error
+    )
+    {
+        runwayId = null;
+        airport = null;
+        error = null;
+        int next = 0;
+        if ((leading.Length > 0) && CvaRunwayRegex().IsMatch(leading[0]))
+        {
+            runwayId = leading[0];
+            next = 1;
+        }
+
+        if (next < leading.Length)
+        {
+            airport = leading[next];
+            next++;
+        }
+
+        if (next < leading.Length)
+        {
+            error = CvaRunwayRegex().IsMatch(leading[next])
+                ? $"{verb} takes the runway before the airport: {verb} {leading[next]} {airport}"
+                : $"Unexpected {verb} argument '{leading[next]}'; expected {verb} [runway] [airport] [LEFT|RIGHT] [FOLLOW callsign]";
+            return false;
+        }
+
+        return true;
+    }
+
+    [GeneratedRegex(@"^\d{1,2}[LRC]?$")]
+    private static partial Regex CvaRunwayRegex();
 
     /// <summary>
     /// Shared parser for radial commands (JRADO and JRADI).

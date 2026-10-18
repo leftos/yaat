@@ -2255,7 +2255,8 @@ public static class MenuCatalog
     /// <summary>
     /// The runway a visual approach defaults to: the assigned runway, else the runway of the active approach, else
     /// that of the expected one, each id resolved from shorthand (R28L for R28LY) and looked up among the destination's
-    /// approaches; null when none applies.
+    /// approaches, or a visual id's own runway (<c>VIS28R</c>, <see cref="ApproachIds.TryParseVisual"/>); null when none
+    /// applies.
     /// </summary>
     internal static string? SmartVisualRunway(IMenuAircraft? aircraft)
     {
@@ -2270,9 +2271,12 @@ public static class MenuCatalog
         }
 
         IReadOnlyList<CifpApproachProcedure> approaches = DestinationApproaches(aircraft);
-        return ApproachRunway(aircraft.Destination, approaches, aircraft.ActiveApproachId)
-            ?? ApproachRunway(aircraft.Destination, approaches, aircraft.ExpectedApproach);
+        return VisualOrApproachRunway(aircraft.Destination, approaches, aircraft.ActiveApproachId)
+            ?? VisualOrApproachRunway(aircraft.Destination, approaches, aircraft.ExpectedApproach);
     }
+
+    private static string? VisualOrApproachRunway(string destination, IReadOnlyList<CifpApproachProcedure> approaches, string? approachId) =>
+        ApproachIds.TryParseVisual(approachId, out string? visualRunway) ? visualRunway : ApproachRunway(destination, approaches, approachId);
 
     /// <summary>
     /// The runway of the approach <paramref name="approachId"/> names at <paramref name="destination"/>, resolved from

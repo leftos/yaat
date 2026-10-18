@@ -30,7 +30,8 @@ public class MainViewModelArtccAdoptionTests
             VfrArrivalGenerators: [],
             OverflightGenerators: [],
             Positions: [],
-            ActiveRunways: []
+            ActiveRunways: [],
+            ToweredAirports: []
         );
 
     [AvaloniaFact]

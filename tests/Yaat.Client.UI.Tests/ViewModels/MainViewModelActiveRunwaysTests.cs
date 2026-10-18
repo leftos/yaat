@@ -46,6 +46,7 @@ public class MainViewModelActiveRunwaysTests
             Warnings: [],
             AllAircraft: [],
             ActiveRunways: activeRunways,
+            ToweredAirports: [],
             ActiveRunwaysPrefill: prefill,
             ActiveRunwaysPromptNeeded: promptNeeded,
             ActiveRunwaysAssigned: [],
@@ -68,7 +69,8 @@ public class MainViewModelActiveRunwaysTests
             VfrArrivalGenerators: [],
             OverflightGenerators: [],
             Positions: [],
-            ActiveRunways: activeRunways
+            ActiveRunways: activeRunways,
+            ToweredAirports: []
         );
 
     [AvaloniaFact]
@@ -76,7 +78,7 @@ public class MainViewModelActiveRunwaysTests
     {
         MainViewModel vm = VmHolding(("SFO", ["28R"]), ("OAK", ["30"]));
 
-        vm.OnScenarioLoaded(new ScenarioLoadedDto("scenario-2", "OAK Ground", "OAK", true, 1, [], Runways(("OAK", ["D28L"]))));
+        vm.OnScenarioLoaded(new ScenarioLoadedDto("scenario-2", "OAK Ground", "OAK", true, 1, [], Runways(("OAK", ["D28L"])), []));
         Dispatcher.UIThread.RunJobs();
 
         Assert.Equal(new Dictionary<string, string[]> { ["OAK"] = ["D28L"] }, Held(vm));
@@ -99,7 +101,7 @@ public class MainViewModelActiveRunwaysTests
     {
         MainViewModel vm = VmHolding(("SFO", ["28R"]), ("OAK", ["30"]));
 
-        vm.ApplyRecordingResult(new RewindResultDto(true, null, Runways(("OAK", ["12"])), [], "scenario-3", "OAK Ground", "OAK"));
+        vm.ApplyRecordingResult(new RewindResultDto(true, null, Runways(("OAK", ["12"])), [], [], "scenario-3", "OAK Ground", "OAK"));
 
         Assert.Equal(new Dictionary<string, string[]> { ["OAK"] = ["12"] }, Held(vm));
     }
@@ -109,7 +111,7 @@ public class MainViewModelActiveRunwaysTests
     {
         MainViewModel vm = VmHolding(("SFO", ["28R"]), ("OAK", ["30"]));
 
-        vm.ApplyRewindResult(new RewindResultDto(true, null, Runways(("OAK", ["12"]))), 30, "Rewound to 00:30");
+        vm.ApplyRewindResult(new RewindResultDto(true, null, Runways(("OAK", ["12"])), []), 30, "Rewound to 00:30");
 
         Assert.Equal(new Dictionary<string, string[]> { ["OAK"] = ["12"] }, Held(vm));
     }
@@ -153,7 +155,7 @@ public class MainViewModelActiveRunwaysTests
     {
         MainViewModel vm = NewVm();
 
-        vm.OnScenarioLoaded(new ScenarioLoadedDto("scenario-2", "OAK Ground", "OAK", true, 1, [], Runways(("OAK", ["30"]))));
+        vm.OnScenarioLoaded(new ScenarioLoadedDto("scenario-2", "OAK Ground", "OAK", true, 1, [], Runways(("OAK", ["30"])), []));
         vm.OnActiveRunwaysChanged(new ActiveRunwaysChangedDto(Runways(("OAK", ["D28L", "A28R"]), ("SFO", ["28R"]))));
         Dispatcher.UIThread.RunJobs();
 

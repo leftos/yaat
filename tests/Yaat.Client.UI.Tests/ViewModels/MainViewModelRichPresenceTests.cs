@@ -47,6 +47,7 @@ public class MainViewModelRichPresenceTests
             OverflightGenerators: [],
             Positions: [],
             ActiveRunways: [],
+            ToweredAirports: [],
             ElapsedSeconds: elapsedSeconds
         );
 
@@ -68,6 +69,7 @@ public class MainViewModelRichPresenceTests
             OverflightGenerators: [],
             Positions: [],
             ActiveRunways: [],
+            ToweredAirports: [],
             ElapsedSeconds: 0
         );
 
@@ -138,6 +140,7 @@ public class MainViewModelRichPresenceTests
                         Success: true,
                         Error: null,
                         ActiveRunways: [],
+                        ToweredAirports: [],
                         Aircraft: [],
                         ScenarioId: "scenario-7",
                         ScenarioName: "OAK Ground 7",

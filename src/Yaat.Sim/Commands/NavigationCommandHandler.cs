@@ -1154,6 +1154,12 @@ internal static class NavigationCommandHandler
         string? approachId = cmd.ApproachId;
         if (approachId is null)
         {
+            // A visual approach has no published final approach course to join.
+            if (ApproachIds.TryParseVisual(aircraft.Approach.Expected, out _))
+            {
+                return new CommandResult(false, "Unable, expecting a visual approach; clear it with CVA");
+            }
+
             approachId = aircraft.Approach.Expected ?? aircraft.Procedure.DestinationRunway ?? aircraft.Procedure.DepartureRunway;
             if (approachId is null)
             {

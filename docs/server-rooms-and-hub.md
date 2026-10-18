@@ -141,7 +141,7 @@ This is what keeps anything from swapping the scenario between prepare and commi
 
 ### The resource pin
 
-A room's **resource pin** (`Simulation/RoomResourcePin.cs`, `TrainingRoom.ResourcePin`) holds the ARTCC configs (the scenario's own and each neighbour its ATC roster names) and the airport layouts its load used. Prepare builds it after the fetches (`RoomResourcePin.Create`, an ARTCC whose config did not load is left out); the commit stores it before `PopulateRoom`; an unload clears it.
+A room's **resource pin** (`Simulation/RoomResourcePin.cs`, `TrainingRoom.ResourcePin`) holds the ARTCC configs (the scenario's own, each neighbour its ATC roster names, and each geographic neighbour center the own config lists in `NeighboringFacilityIds`, taken from `ArtccConfigService.GetNeighborConfig`, which keeps the parsed config of a center read for its ERAM letter) and the airport layouts its load used. The tower facilities across those configs make the room's towered airport set (`SimScenarioState.ToweredAirports`, sent as `ToweredAirports` on the room-state, load, scenario-loaded and rewind/recording-load payloads, recorded in the archive). Prepare builds it after the fetches (`RoomResourcePin.Create`, an ARTCC whose config did not load is left out); the commit stores it before `PopulateRoom`; an unload clears it.
 
 Layouts live in a `PinnedAirportGroundData` over the live service, keyed by FAA code (`KOAK` and `OAK` share one entry) and read from the live cache once per entry (`AirportGroundDataService.GetLayoutAndSource`), so a layout and its GeoJSON never come from different map versions.
 

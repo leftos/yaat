@@ -2233,7 +2233,11 @@ public static class CommandRegistry
                 CommandDimension.Lateral,
                 false,
                 ["CVA", "VISUAL"],
-                [O(null, [R("runway", "runway designator")], "Clear for visual approach to runway")]
+                [
+                    O(null, [], "Cleared visual approach to the destination (untowered; the pilot picks the runway)"),
+                    O("Airport", [R("airport", "airport ID")], "Cleared visual approach to the airport (untowered; the pilot picks the runway)"),
+                    O("Runway", [R("runway", "runway designator"), Opt("airport", "airport ID")], "Clear for visual approach to runway"),
+                ]
             ),
             Cmd(
                 ClearedVisualApproachForce,
@@ -2242,7 +2246,19 @@ public static class CommandRegistry
                 CommandDimension.Lateral,
                 false,
                 ["CVAF", "VISUALF"],
-                [O(null, [R("runway", "runway designator")], "Clear for visual approach without RFIS/RTIS first (RPO-only)")]
+                [
+                    O(null, [], "Cleared visual approach to the destination without RFIS/RTIS first (untowered; RPO-only)"),
+                    O(
+                        "Airport",
+                        [R("airport", "airport ID")],
+                        "Cleared visual approach to the airport without RFIS/RTIS first (untowered; RPO-only)"
+                    ),
+                    O(
+                        "Runway",
+                        [R("runway", "runway designator"), Opt("airport", "airport ID")],
+                        "Clear for visual approach without RFIS/RTIS first (RPO-only)"
+                    ),
+                ]
             ),
             Cmd(
                 Follow,

@@ -220,7 +220,7 @@ A recording is a ZIP with this layout:
 
 ```
 manifest.json                # Version, RngSeed, SessionStartUtc, InitialActiveRunways, ActionCount, HasWeather,
-                             # HasArtccConfig, HasTerminalLog, ArtccId, ScenarioId/Name,
+                             # HasArtccConfig, HasToweredAirports, HasTerminalLog, ArtccId, ScenarioId/Name,
                              # ClientVersion, ClientBuildKind, ServerVersion,
                              # Snapshots[], LayoutAirportIds[], AirportGeoJsonIds[],
                              # LayoutFormatVersion, MissingLayoutAirportIds[],
@@ -235,6 +235,7 @@ airport-geojson/{AirportId}.geojson.br
 wind-grids/{hash}.grib2.br   # a GFS wind grid's raw GRIB2 bytes, Brotli, named by their SHA-256 (optional; one per grid the weather names, listed in WindGridHashes)
 weather.json                 # plain JSON (optional; gated by HasWeather)
 artcc-config.json.br         # ARTCC config JSON (optional; HasArtccConfig; the room's pinned config of the scenario's ARTCC)
+towered-airports.json.br     # Brotli JSON list of the towered airport ids (optional; HasToweredAirports)
 bookmarks.json               # plain JSON (optional; user-authored timeline bookmarks)
 ```
 
@@ -243,6 +244,8 @@ bookmarks.json               # plain JSON (optional; user-authored timeline book
 `RecordingArchive.RegisterWindGrids` reads them back, verifying each against its name, and both loaders (`ToBaseSessionRecording`, `ToSessionRecording`) call it before the weather text is parsed. The pins it takes ride on `SessionRecording.WindGridPins`, owned by whoever holds the recording; a load that fails after registering grids disposes them. A manifest listing more than 16 distinct grids, or an entry past 512 KB decompressed, refuses the whole recording with a `WindGridLimitException` (`RecordingArchive.WindGridLimitRefusal` is the non-registering pre-check).
 
 `ReplayDriver` takes its own pins before `LoadScenario` and hands them to `SimScenarioState.WindGridPins`. The server's archive load registers the grids inside its gated commit and its `TrainingRoom` pins them (`RebuildWindGridPins`); a live export and the soak sink write the grids with `RecordingArchiveWriter.WriteReferencedWindGrids`, the public form of the call the writer's own recording write makes. Archives written before grids were recorded have no `WindGridHashes` and replay on the FD layers. See [weather-and-wind.md](weather-and-wind.md).
+
+**`towered-airports.json.br`** is the room's towered airport set (`SimScenarioState.ToweredAirports`, `SessionRecording.ToweredAirportIds`), written by `RecordingArchiveWriter.WriteToweredAirports` and read by `RecordingArchive.ReadToweredAirportIds`. It is built from every ARTCC config the room loaded (its own, its roster's and its geographic neighbours'), of which the archive bundles only the own one, so replay judges an airport-level `CVA` against the same set. An older recording has no entry (`HasToweredAirports` false) and replay rebuilds the set from its one bundled config. `ReplayDriver` restores the bundled ARTCC config, the towered set and the recording's initial active runways (none recorded: empty) onto the scenario state as part of `LoadScenario`, before the scenario's presets dispatch, so a preset reads them as the live room did.
 
 **`terminal-log.json.br`** is the room's broadcast terminal stream — the command echoes, responses, SAY lines, warnings, and chat the user saw — each captured with a wall-clock `Timestamp` and the scenario-elapsed `ElapsedSeconds` it occurred at (`RecordedTerminalEntry`).
 

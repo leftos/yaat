@@ -32,6 +32,13 @@ public sealed class RecordingManifest
     public bool HasArtccConfig { get; init; }
 
     /// <summary>
+    /// True when the archive bundles the room's towered airport ids (entry <c>towered-airports.json.br</c>), built from
+    /// every ARTCC config the room loaded. Bundles written before it deserialize as false, and replay rebuilds the set from
+    /// the bundled own config.
+    /// </summary>
+    public bool HasToweredAirports { get; init; }
+
+    /// <summary>
     /// True when the archive bundles the room's broadcast terminal log (entry
     /// <c>terminal-log.json.br</c>) — the commands, responses, SAY, warnings, and chat the user saw,
     /// each with its scenario-elapsed time. A loaded recording repopulates the full terminal from it,

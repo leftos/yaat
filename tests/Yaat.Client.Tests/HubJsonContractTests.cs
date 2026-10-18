@@ -129,7 +129,7 @@ public class HubJsonContractTests
         const string loadedJson =
             """{"ScenarioId":"s-1","ScenarioName":"OAK","PrimaryAirportId":"OAK","IsPaused":true,"SimRate":1,"AllAircraft":[],"""
             + """ "ActiveRunways":{"OAK":["D28L","A28R"]}}""";
-        const string rewindJson = """{"Success":true,"Error":null,"ActiveRunways":{"OAK":["30"]},"Aircraft":[]}""";
+        const string rewindJson = """{"Success":true,"Error":null,"ActiveRunways":{"OAK":["30"]},"ToweredAirports":["OAK"],"Aircraft":[]}""";
         const string restartedJson = """{"Aircraft":[],"ActiveRunways":{"SFO":["28R"],"OAK":[]}}""";
 
         ScenarioLoadedDto? loaded = JsonSerializer.Deserialize(loadedJson, YaatHubJsonContext.Default.ScenarioLoadedDto);
@@ -139,6 +139,7 @@ public class HubJsonContractTests
         Assert.NotNull(loaded);
         Assert.Equal(["D28L", "A28R"], loaded.ActiveRunways["OAK"]);
         Assert.NotNull(rewind);
+        Assert.Equal(["OAK"], rewind.ToweredAirports);
         Assert.Equal(["30"], rewind.ActiveRunways["OAK"]);
         Assert.NotNull(restarted);
         Assert.Empty(restarted.Aircraft);

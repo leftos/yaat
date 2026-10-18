@@ -31,6 +31,13 @@ public sealed class SessionRecording
     public string? ArtccConfigJson { get; init; }
 
     /// <summary>
+    /// The room's towered airport ids at record time (<c>SimScenarioState.ToweredAirports</c>), bundled as
+    /// <c>towered-airports.json.br</c>. Null for bundles without it; replay then rebuilds the set from
+    /// <see cref="ArtccConfigJson"/>.
+    /// </summary>
+    public IReadOnlyList<string>? ToweredAirportIds { get; init; }
+
+    /// <summary>
     /// Whether the recorded session had per-aircraft final-approach-speed reduction variety enabled
     /// (read from the initial snapshot's scenario block). Replay restores it into
     /// <c>SimScenarioState.FinalApproachSpeedVarietyEnabled</c> so the re-simulation reproduces the

@@ -43,7 +43,8 @@ public class MainViewModelLoadOverlayTests
             VfrArrivalGenerators: [],
             OverflightGenerators: [],
             Positions: [],
-            ActiveRunways: []
+            ActiveRunways: [],
+            ToweredAirports: []
         )
         {
             LoadingBy = loadingBy,

@@ -1123,7 +1123,7 @@ public sealed partial class SimulationEngine
     /// procedure-to-runway mapping is navdata, fixed for the session, and re-resolving it for every arrival on every
     /// tick would walk the approach catalog each time.</para>
     /// </summary>
-    private RunwayInfo? ResolveArrivalRunway(AircraftState aircraft)
+    public RunwayInfo? ResolveArrivalRunway(AircraftState aircraft)
     {
         if (aircraft.Phases?.AssignedRunway is { } assigned)
         {
@@ -1147,8 +1147,18 @@ public sealed partial class SimulationEngine
             return memoized;
         }
 
-        ApproachCommandHandler.ResolvedApproach resolved = ApproachCommandHandler.ResolveApproach(null, null, aircraft);
-        RunwayInfo? runway = resolved.Success ? resolved.Runway : null;
+        RunwayInfo? runway;
+        if (ApproachIds.TryParseVisual(aircraft.Approach.Expected, out string? visualRunwayId))
+        {
+            // A visual names its runway from the navigation data; the field need not publish an approach to it.
+            runway = key.Airport.Length > 0 ? NavigationDatabase.Instance.GetRunway(key.Airport, visualRunwayId) : null;
+        }
+        else
+        {
+            ApproachCommandHandler.ResolvedApproach resolved = ApproachCommandHandler.ResolveApproach(null, null, aircraft);
+            runway = resolved.Success ? resolved.Runway : null;
+        }
+
         _expectedArrivalRunways[key] = runway;
         return runway;
     }

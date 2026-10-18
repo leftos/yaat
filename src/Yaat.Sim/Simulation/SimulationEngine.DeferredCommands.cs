@@ -192,6 +192,8 @@ public sealed partial class SimulationEngine
                     RpoShowPilotSpeech = Scenario?.RpoShowPilotSpeech ?? false,
                     TerminalEmitter = AddTerminalEntry,
                     ArtccConfig = Scenario?.ArtccConfig,
+                    ToweredAirports = Scenario?.ToweredAirports ?? ToweredAirports.Empty,
+                    ActiveRunways = Scenario?.ActiveRunways ?? ActiveRunways.Empty,
                     ScenarioElapsedSeconds = Scenario?.ElapsedSeconds ?? 0,
                     SessionStartUtc = Scenario?.SessionStartUtc ?? SimScenarioState.ProcessDayUtc,
                     PreserveConditionals = true,

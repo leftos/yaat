@@ -563,6 +563,7 @@ public class PhraseologyMapperTests
     [InlineData("expect localizer back course runway one one approach", "EAPP B11")]
     [InlineData("expect vor runway three four approach", "EAPP VOR34")]
     [InlineData("expect lda runway one seven left approach", "EAPP LDA17L")]
+    [InlineData("expect visual approach runway two eight right", "EAPP VIS28R")]
     public void ExpectApproachType_Variants(string transcript, string expected)
     {
         MapResult? result = PhraseologyMapper.Map(transcript, NoContext);

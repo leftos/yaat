@@ -519,6 +519,8 @@ public class GroundViewModelMidEdgeStartOverlayTests
             RpoShowPilotSpeech = false,
             TerminalEmitter = null,
             ArtccConfig = null,
+            ToweredAirports = Yaat.Sim.ControllerAi.ToweredAirports.Empty,
+            ActiveRunways = Yaat.Sim.Simulation.ActiveRunways.Empty,
             ScenarioElapsedSeconds = 0,
             SessionStartUtc = DateTime.UnixEpoch,
             PreserveConditionals = false,

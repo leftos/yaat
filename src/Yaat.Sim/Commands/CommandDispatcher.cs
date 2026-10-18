@@ -516,6 +516,7 @@ public static class CommandDispatcher
         // After dimension-aware clearing, CurrentBlock may still point to an old applied block
         // (e.g. phases prevented the queue from advancing), so we target the first new block
         // by index rather than using CurrentBlock.
+        HandlerReadback? firstBlockReadback = null;
         if (firstNewBlockIdx < aircraft.Queue.Blocks.Count)
         {
             CommandBlock firstNewBlock = aircraft.Queue.Blocks[firstNewBlockIdx];
@@ -529,6 +530,9 @@ public static class CommandDispatcher
                     aircraft.Queue.CurrentBlockIndex = 0;
                     return applyResult;
                 }
+
+                // A handler-built readback (the pilot's runway for an airport-level CVA) rides out with the transmission's result.
+                firstBlockReadback = applyResult.PilotReadback;
 
                 // ApplyBlock may update NaturalDescription (e.g. implied CAPP resolving approach ID)
                 if (messages.Count > 0)
@@ -612,7 +616,7 @@ public static class CommandDispatcher
         WarnIndefiniteHoldChain(compound, aircraft);
 
         string fullMessage = string.Join(" ; then ", messages);
-        return new CommandResult(true, fullMessage);
+        return new CommandResult(true, fullMessage) { PilotReadback = firstBlockReadback };
     }
 
     /// <summary>
@@ -1206,6 +1210,9 @@ public static class CommandDispatcher
             case AssignRunwayCommand assignRwy:
                 return GroundCommandHandler.TryAssignRunway(aircraft, assignRwy.RunwayId);
 
+            case ExpectApproachCommand eapp when ApproachIds.TryParseVisual(eapp.ApproachId, out string? visualRunwayId):
+                return ApproachCommandHandler.TryExpectVisualApproach(visualRunwayId, eapp.AirportCode, aircraft);
+
             case ExpectApproachCommand eapp:
             {
                 ApproachCommandHandler.ResolvedApproach eappResolved = ApproachCommandHandler.ResolveApproach(
@@ -1250,6 +1257,23 @@ public static class CommandDispatcher
                 return NavigationCommandHandler.DispatchJfac(cmd, aircraft);
 
             // --- Approach commands ---
+            // A bare CAPP after EAPP VIS{rwy} clears that visual, as CVA {rwy} would; its visual readback replaces the
+            // CAPP clause the controller issued, since a visual is no instrument approach to read back as "cleared approach".
+            case ClearedApproachCommand { ApproachId: null, AtFix: null, DctFix: null, CrossFixAltitude: null } bareCapp
+                when ApproachIds.TryParseVisual(aircraft.Approach.Expected, out string? expectedVisualRunway):
+            {
+                CommandResult visual = ApproachCommandHandler.TryClearedVisualApproach(
+                    new ClearedVisualApproachCommand(expectedVisualRunway, bareCapp.AirportCode, null, null, Force: false),
+                    aircraft,
+                    ctx
+                );
+                return visual.PilotReadback is { } readback
+                    ? visual with
+                    {
+                        PilotReadback = readback with { Command = CanonicalCommandType.ClearedApproach },
+                    }
+                    : visual;
+            }
             case ClearedApproachCommand cmd:
                 return ApproachCommandHandler.TryClearedApproach(cmd, aircraft);
             case JoinApproachCommand cmd:
@@ -3728,6 +3752,7 @@ public static class CommandDispatcher
             bool hadViaMode = ac.Procedure.SidViaMode || ac.Procedure.StarViaMode;
             var messages = new List<string>();
             DispatchContext current = ctx;
+            HandlerReadback? readback = null;
 
             foreach (ParsedCommand? cmd in captured)
             {
@@ -3774,6 +3799,8 @@ public static class CommandDispatcher
                     messages.Add(result.Message);
                 }
 
+                readback ??= result.PilotReadback;
+
                 // An APT that switched an airborne aircraft's layout: the rest of the block resolves names there.
                 if (cmd is ChangeDestinationCommand)
                 {
@@ -3783,7 +3810,7 @@ public static class CommandDispatcher
 
             CheckVectoringWarning(ac, captured, hadProcedure, hadViaMode);
             string? msg = messages.Count > 0 ? string.Join(", ", messages) : null;
-            return new CommandResult(true, msg);
+            return new CommandResult(true, msg) { PilotReadback = readback };
         };
     }
 

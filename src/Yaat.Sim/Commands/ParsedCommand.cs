@@ -1206,8 +1206,13 @@ public record DepartFixCommand(string FixName, double FixLat, double FixLon, Mag
 
 public record ListApproachesCommand(string? AirportCode) : ParsedCommand;
 
+/// <summary>
+/// <c>CVA</c>: a visual approach clearance (7110.65 7-4-3). <see cref="RunwayId"/> null is the airport-level form ("cleared
+/// visual approach to (airport)", 7-4-3.c.4), where the pilot picks the runway; <see cref="AirportCode"/> null is the
+/// aircraft's destination.
+/// </summary>
 public record ClearedVisualApproachCommand(
-    string RunwayId,
+    string? RunwayId,
     string? AirportCode,
     PatternDirection? TrafficDirection,
     string? FollowCallsign,
