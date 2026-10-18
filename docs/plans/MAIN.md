@@ -23,6 +23,7 @@
 - [ ] YAAT-807 Show the empty-entries line when the Taxi to runway panel fails to render a landed search
 - [ ] YAAT-823 Leave the turn-off angle out of an exit row when the layout could not measure it
 - [ ] YAAT-827 Let a UI Automation invoke on the selected Taxi to runway tab retry its failed search
+- [ ] YAAT-831 Render the Air taxi and Land panel rows in the menu goldens
 
 ## Bug reports and feature requests
 
@@ -37,7 +38,6 @@
 - [ ] YAAT-624 Find why a solo pilot reports traffic in sight minutes after the traffic call
 - [ ] YAAT-754 Restore the recorded weather on a rewind after the room's weather was cleared
 - [ ] YAAT-757 Share the wind-grid archive helpers and tidy the checkpoint restore
-- [/] YAAT-803 Offer an Air taxi quick command with a destination flyout for helicopters · release vNext
 - [ ] YAAT-822 Keep the other half of a paired session setting when a push lands while one half is typed
 
 ## Say again
@@ -171,6 +171,9 @@
 - [ ] YAAT-818 Resolve the CLAND fouler warning against the landing runway's airport layout
 - [ ] YAAT-819 Widen the rejected-takeoff obstruction to the departing aircraft's span
 - [/] YAAT-825 Count a body part over the runway pavement as on the runway when no hold bar is near · release vNext
+- [ ] YAAT-834 Clear the tail past the far hold bar after an automatic pull-up crossing
+- [ ] YAAT-837 Brake a yielding taxiing aircraft to a stop instead of clamping it to zero
+- [ ] YAAT-838 Respect runway rank in the ground-conflict tie-break and runway-user skip
 
 ## Wave 2 — Ground command grammar and dispatch
 
@@ -441,6 +444,7 @@
 ## Backlog
 
 - [ ] YAAT-595 RoomCheckpointArchive.Open(path) leaks its file handle on a non-zip checkpoint
+- [ ] YAAT-824 Make the tower-cab session-binding test wait for the push queue before resetting the socket
 - [ ] YAAT-196 Draw the server's remaining line-up instead of re-planning it (Ground View)
 - [ ] YAAT-197 Confirm which vNAS position entities go over UDP before moving any
 - [ ] YAAT-288 Find what gave an automation-mode client the keyboard foreground for 3.5 s (YAAT-282 leftover)
@@ -571,7 +575,10 @@
 - [ ] YAAT-797 Make QuickCommandsSection_DragReordersARow hold under load
 - [ ] YAAT-820 Voice RPO pilots' show-pilot-speech lines behind a preference
 - [ ] YAAT-826 Fix runway-classification and solo-evaluator loose ends found in the YAAT-402 invariant pass
-
-## No project
-
-- [ ] YAAT-824 Make the tower-cab session-binding test wait for the push queue before resetting the socket
+- [ ] YAAT-832 Keep NODEL in the LAND command's canonical form
+- [ ] YAAT-833 End LAND @NAME at a taxiway spot holding in position, not parked
+- [ ] YAAT-835 Read back the expected approach by its type, not always as an ILS
+- [ ] YAAT-839 Treat a part-time tower as closed for visual approach clearances
+- [ ] YAAT-840 Keep ground layout and destination changes consistent after APT
+- [ ] YAAT-841 Tidy the visual-approach and towered-airport code paths after YAAT-828
+- [ ] YAAT-842 Close the replay and hub-contract gaps found in YAAT-828's review
