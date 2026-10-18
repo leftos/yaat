@@ -9,8 +9,6 @@
 ## Context-menu quick commands (#471)
 
 - [/] YAAT-569 Give every quick command a designed flyout instead of a nested context submenu · release vNext
-  - [ ] YAAT-828 Let EAPP expect a visual approach and CVA clear a visual to an untowered airport · release vNext
-  - [ ] YAAT-830 Add a Report field in sight quick command and send the field-in-sight state to the menu · release vNext
 - [ ] YAAT-650 Give every context-critical command a quick-command icon in its situation's strip
 - [ ] YAAT-659 Accept HS in Following, Holding In Position and Holding After Exit so Hold short of reaches every routed aircraft
 - [ ] YAAT-728 Size the ground scope-preview ring to a helicopter's rotor disc
@@ -24,6 +22,7 @@
 - [ ] YAAT-823 Leave the turn-off angle out of an exit row when the layout could not measure it
 - [ ] YAAT-827 Let a UI Automation invoke on the selected Taxi to runway tab retry its failed search
 - [ ] YAAT-831 Render the Air taxi and Land panel rows in the menu goldens
+- [ ] YAAT-845 Tidy the approach flyout after X3a: scroller keys, shared refusal wording
 
 ## Bug reports and feature requests
 
@@ -170,10 +169,10 @@
 - [ ] YAAT-817 Keep the TAXI not-in-route notice when a merge-hold advisory names the taxiway
 - [ ] YAAT-818 Resolve the CLAND fouler warning against the landing runway's airport layout
 - [ ] YAAT-819 Widen the rejected-takeoff obstruction to the departing aircraft's span
-- [/] YAAT-825 Count a body part over the runway pavement as on the runway when no hold bar is near · release vNext
 - [ ] YAAT-834 Clear the tail past the far hold bar after an automatic pull-up crossing
 - [ ] YAAT-837 Brake a yielding taxiing aircraft to a stop instead of clamping it to zero
 - [ ] YAAT-838 Respect runway rank in the ground-conflict tie-break and runway-user skip
+- [ ] YAAT-844 Judge the solo evaluator's preceding-landing clear test by the controller definition
 
 ## Wave 2 — Ground command grammar and dispatch
 
@@ -582,3 +581,4 @@
 - [ ] YAAT-840 Keep ground layout and destination changes consistent after APT
 - [ ] YAAT-841 Tidy the visual-approach and towered-airport code paths after YAAT-828
 - [ ] YAAT-842 Close the replay and hub-contract gaps found in YAAT-828's review
+- [ ] YAAT-843 Send the field and traffic in-sight flags for VFR aircraft
