@@ -18,6 +18,8 @@ using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Airport.Pathfinding;
 using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Data.Faa;
+using Yaat.Sim.Phases;
+using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
 
 namespace Yaat.Client.ViewModels;
@@ -1464,6 +1466,37 @@ public partial class GroundViewModel : ObservableObject
     /// </summary>
     private static double RouteDistanceFt(TaxiRoute route, LatLon position) =>
         TugMovePlanner.NoteDistanceFt(RouteStart(route, position).OffsetFt + route.PrefixDistanceFt(route.Segments.Count));
+
+    /// <summary>
+    /// The named exits of <paramref name="ac"/>'s assigned runway on <paramref name="side"/>, for the "Exit at" box, as
+    /// <see cref="LandingPhase.ListRunwayExits"/> finds them on this view's layout. Empty without a layout, navigation data, an
+    /// assigned runway or a runway the data resolves, and when the aircraft is not landing at this view's airport (another
+    /// airport may have a runway of the same name).
+    /// </summary>
+    public IReadOnlyList<ExitAheadDto> GetRunwayExits(AircraftModel ac, ExitSide side)
+    {
+        if (
+            (_domainLayout is not { } layout)
+            || !LandsAt(ac.Destination, layout.AirportId)
+            || (ac.AssignedRunway.Length == 0)
+            || (
+                NavigationDatabase.InstanceOrNull?.GetRunway(layout.AirportId, RunwayIdentifier.NormalizeDesignator(ac.AssignedRunway))
+                is not { } runway
+            )
+        )
+        {
+            return [];
+        }
+
+        return LandingPhase.ListRunwayExits(layout, runway, side);
+    }
+
+    /// <summary>
+    /// Whether an aircraft bound for <paramref name="destination"/> lands at <paramref name="airportId"/>, the two identifiers
+    /// resolved through the navigation data so FAA and ICAO forms match outside CONUS too (<c>HNL</c>/<c>PHNL</c>).
+    /// </summary>
+    public static bool LandsAt(string destination, string airportId) =>
+        NavigationDatabase.InstanceOrNull?.AirportIdsMatchResolved(destination, airportId) == true;
 
     /// <summary>A hold short of a runway the aircraft can taxi to, the shortest route there and its distance from the aircraft.</summary>
     private sealed record RunwayEntry(GroundNode Bar, TaxiRoute Route, double DistanceFt);

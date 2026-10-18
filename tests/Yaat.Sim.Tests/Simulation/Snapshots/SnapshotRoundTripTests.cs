@@ -337,6 +337,22 @@ public class SnapshotRoundTripTests
     }
 
     [Fact]
+    public void SituationState_ExitsAhead_TurnOffAngle_RoundTrips()
+    {
+        var situation = new Yaat.Sim.Situation.AircraftSituationState
+        {
+            ExitsAhead = [new ExitAheadDto("J", ExitSide.Left, 2800, true, 39), new ExitAheadDto("P", ExitSide.Left, 2500, false, 128)],
+        };
+
+        string json = JsonSerializer.Serialize(situation.ToSnapshot(), RecordingJsonOptions.Default);
+        AircraftSituationStateDto back = JsonSerializer.Deserialize<AircraftSituationStateDto>(json, RecordingJsonOptions.Default)!;
+        var restored = Yaat.Sim.Situation.AircraftSituationState.FromSnapshot(back);
+
+        Assert.Equal([39, 128], restored.ExitsAhead!.Select(row => row.TurnOffAngleDeg));
+        Assert.Equal(situation.ExitsAhead, restored.ExitsAhead);
+    }
+
+    [Fact]
     public void PhaseList_RequestedExit_SideAndTaxiway_RoundTrips()
     {
         var phases = new PhaseList

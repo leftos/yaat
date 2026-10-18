@@ -4,6 +4,7 @@ using Yaat.Client.Services;
 using Yaat.Sim;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Phases;
 using Yaat.Sim.Simulation;
 
 namespace Yaat.Client.UI.Tests.Views;
@@ -334,6 +335,11 @@ internal sealed class RecordingMenuHost(string input) : IMenuHost
         TaxiToRunwayRequests.Add(callsign);
         return TaxiToRunway;
     }
+
+    /// <summary>The runway's exits the "Exit at" box matches against, per side, whatever the callsign; none by default.</summary>
+    public List<ExitAheadDto> RunwayExits { get; } = [];
+
+    public IReadOnlyList<ExitAheadDto> GetRunwayExits(string callsign, ExitSide side) => [.. RunwayExits.Where(exit => exit.Side == side)];
 
     public void EnterPushRoute(string callsign) => PushRouteCallsigns.Add(callsign);
 

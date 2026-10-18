@@ -11,6 +11,7 @@ using Yaat.Sim;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Mva;
+using Yaat.Sim.Phases;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Situation;
 
@@ -526,6 +527,10 @@ internal sealed class ClientMenuHost(MainViewModel main, AircraftModel? aircraft
     /// <summary>The primary ground view model's runway entries and presets for the aircraft, grouped by runway end.</summary>
     public TaxiToRunwayMenu GetTaxiToRunwayChoices(string callsign) =>
         FindAircraft(callsign) is { } ac ? main.Ground.GetTaxiToRunwayChoices(ac) : TaxiToRunwayMenu.Empty;
+
+    /// <summary>The primary ground view model's exits of the aircraft's assigned runway on <paramref name="side"/>.</summary>
+    public IReadOnlyList<ExitAheadDto> GetRunwayExits(string callsign, ExitSide side) =>
+        FindAircraft(callsign) is { } ac ? main.Ground.GetRunwayExits(ac, side) : [];
 
     /// <summary>Assumes the selected shadows through the main view model, which owns the bulk-assume call.</summary>
     public Task AssumeSelectedLiveTrafficAsync(IReadOnlyList<string> callsigns) => main.AssumeSelectedLiveTrafficAsync([.. callsigns]);

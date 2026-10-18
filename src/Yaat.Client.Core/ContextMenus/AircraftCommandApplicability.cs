@@ -291,13 +291,15 @@ public static class AircraftCommandApplicability
     }
 
     /// <summary>
-    /// Exit left / right on <paramref name="side"/>: <see cref="CanExitRunway(IMenuAircraft?)"/>, and while the server lists the
-    /// exits ahead, only with a listed exit on that side. The exit search falls back to the other side when nothing is makeable
-    /// on the one asked for, so an exit offered on a side with none would turn the aircraft the opposite way. With no list (no
-    /// layout or hold-short data) the side is not judged.
+    /// Exit left / right on <paramref name="side"/>: <see cref="CanExitRunway(IMenuAircraft?)"/>, and on the rollout, while the
+    /// server lists the exits ahead, only with a listed exit on that side. The exit search falls back to the other side when
+    /// nothing is makeable on the one asked for, so an exit offered on a side with none would turn the aircraft the opposite way.
+    /// With no list (no layout or hold-short data) the side is not judged. On final the side is not judged here either: with no
+    /// exit forecast on it the flyout offers only the "Exit at" box over the runway's exits there, and is not built when the
+    /// runway has none on that side (<see cref="ExitFlyout.Build"/>).
     /// </summary>
     public static bool CanExitRunway(IMenuAircraft? ac, ExitSide side) =>
-        CanExitRunway(ac) && ((ac!.ExitsAhead is not { } exits) || exits.Any(row => row.Side == side));
+        CanExitRunway(ac) && ((ac!.ExitsAhead is not { } exits) || ExitFlyout.IsOnFinal(ac) || exits.Any(row => row.Side == side));
 
     // --- Ground movement ---
 

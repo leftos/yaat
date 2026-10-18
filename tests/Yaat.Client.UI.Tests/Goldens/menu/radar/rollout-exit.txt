@@ -9,9 +9,9 @@ Note…
 All Commands
   Tower
     Exit left
-      Exit left · pilot's choice
+      Pilot's choice — EL
     Exit right
-      Exit right · pilot's choice
+      Pilot's choice — ER
   ---
   Ask pilot to say…
     Altitude

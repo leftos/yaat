@@ -233,7 +233,7 @@ It is the taxiway, not a branch node, because one bar is reached from several ce
 
 ### Exits ahead (the listing)
 
-The context menu's Exit left / Exit right flyouts offer the named exits the arrival can make. The server computes the list in the `Situation` step and ships it as `ExitsAhead` (`ExitAheadDto`: taxiway, side, distance rounded to 100 ft, planned; [training-hub-contract.md](training-hub-contract.md)); the client never recomputes it. Both forms are read-only: they never refuse, give up or commit anything.
+The context menu's Exit left / Exit right flyouts offer the named exits the arrival can make. The server computes the list in the `Situation` step and ships it as `ExitsAhead` (`ExitAheadDto`: taxiway, side, distance rounded to 100 ft, planned, turn-off angle in whole degrees; [training-hub-contract.md](training-hub-contract.md)); the client never recomputes it. Both forms are read-only: they never refuse, give up or commit anything.
 
 - **Rule.** `LandingPhase.ListExitsAhead` judges every taxiway of the runway (`AirportGroundLayout.ExitListTaxiways`, authored `noTurnoff` taxiways left out) on each side by the search an accepted `EL <twy>` / `ER <twy>` runs, without expedite, so a taxiway is listed exactly when that command would be accepted.
 
@@ -243,6 +243,7 @@ The context menu's Exit left / Exit right flyouts offer the named exits the arri
 
   Distances run from the landing threshold, and the planned row is the exit the controller's instruction would have the crew take. It is listed only while a full-stop landing follows and the aircraft, fixed-wing and on final for its assigned runway, is more than 1 and at most 5 nm from the threshold (`WindowInnerNm`, `WindowOuterNm`): inside 1 nm there is no list until the rollout's (7110.65 3-10-9.a NOTE). A pattern final usually turns inside that window, so it rarely has a list.
 - **Cached.** The forecast is recomputed only when its inputs change (layout, runway, type, projected touchdown, the instructed exit, the LAHSO limit), not as the aircraft advances down final.
+- **The runway's own exits.** `LandingPhase.ListRunwayExits(layout, runway, side)` lists every named exit of the runway end on one side, independent of any aircraft or forecast: each taxiway of `ExitListTaxiways` once, at its first connection on that side from the landing threshold when the connection's bar is at the runway's holding distance, distance from the threshold rounded to 100 ft, nearest first, never planned. A taxiway whose first connection on that side rounds to 0 ft or lies behind the threshold is left out whole, later connections included (KOAK 28R B). It feeds the final flyout's "Exit at" box through `IMenuHost.GetRunwayExits`; the client calls it, with its own ground layout, only when the aircraft's destination is that layout's airport.
 
 ### TAXI on the rollout
 
@@ -529,7 +530,7 @@ The `SA` (Make Short Approach) compressed pattern has two coupled geometry invar
 - `src/Yaat.Sim/Phases/Tower/LandingPhase.cs` — Rollout braking, exit candidate resolution, unable-replan, the forced (CLANDF) rollout
 - `src/Yaat.Sim/Phases/Tower/ForcedLandingProfile.cs` — CLANDF aim point, descent cap and braking constants
 - `src/Yaat.Sim/Phases/Tower/FinalApproachExitForecast.cs` — The exits-ahead list on the last miles of final: projected touchdown, window, cache
-- `src/Yaat.Sim/ExitAheadDto.cs` — One exit of the list (taxiway, side, distance, planned)
+- `src/Yaat.Sim/ExitAheadDto.cs` — One exit of the list (taxiway, side, distance, planned, turn-off angle)
 - `src/Yaat.Sim/Commands/GroundCommandHandler.RolloutTaxi.cs` — TAXI / TAXIAUTO on the rollout: implied exit, stored route, join rules, starting the route at exit completion
 - `src/Yaat.Sim/Phases/Ground/RunwayExitPhase.cs` — Analog rolling, virtual segments, exit search, the stopped-without-exit backstop
 - `src/Yaat.Sim/Data/Airport/ExitCapacityResolver.cs` — Resolves sidecar `exitCapacity` rules into exit capacity segments

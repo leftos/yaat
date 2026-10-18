@@ -3,6 +3,7 @@ using Yaat.Client.ContextMenus;
 using Yaat.Client.Services;
 using Yaat.Sim;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Phases;
 
 namespace Yaat.Client.UI.Tests.Views;
 
@@ -102,6 +103,8 @@ internal sealed class SendCapturingHost(IMenuHost inner, string sessionInitials)
     public IReadOnlyList<TaxiRouteRow> GetPresetTaxiChoices(string callsign) => inner.GetPresetTaxiChoices(callsign);
 
     public TaxiToRunwayMenu GetTaxiToRunwayChoices(string callsign) => inner.GetTaxiToRunwayChoices(callsign);
+
+    public IReadOnlyList<ExitAheadDto> GetRunwayExits(string callsign, ExitSide side) => inner.GetRunwayExits(callsign, side);
 
     public void EnterPushRoute(string callsign) => inner.EnterPushRoute(callsign);
 

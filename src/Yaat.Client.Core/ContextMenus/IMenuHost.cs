@@ -2,6 +2,7 @@ using Avalonia.Controls;
 using Yaat.Client.Services;
 using Yaat.Sim;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Phases;
 
 namespace Yaat.Client.ContextMenus;
 
@@ -237,6 +238,17 @@ public interface IMenuHost
     /// there, is never a row. <see cref="TaxiToRunwayMenu.Empty"/> when the aircraft is unknown or no layout is loaded.
     /// </summary>
     TaxiToRunwayMenu GetTaxiToRunwayChoices(string callsign);
+
+    /// <summary>
+    /// The named exits of <paramref name="callsign"/>'s assigned runway on <paramref name="side"/>, from the surface's ground
+    /// layout, for the Exit left / Exit right flyout's "Exit at" box: each taxiway once, at its first connection on that side
+    /// from the landing threshold when that connection's bar is at the runway's holding distance, with its distance from the
+    /// threshold along the runway rounded to 100 ft and its turn-off angle, nearest the threshold first
+    /// (<see cref="ExitAheadDto.Planned"/> always false). A taxiway whose first connection on that side rounds to 0 ft from the
+    /// threshold or lies behind it is left out whole. Empty when the aircraft is unknown, is not landing at the layout's
+    /// airport, has no assigned runway, or no layout or navigation data resolves it.
+    /// </summary>
+    IReadOnlyList<ExitAheadDto> GetRunwayExits(string callsign, ExitSide side);
 
     /// <summary>Puts the surface into drawing a tug move for <paramref name="callsign"/>.</summary>
     void EnterPushRoute(string callsign);

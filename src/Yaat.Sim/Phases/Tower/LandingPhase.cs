@@ -2021,7 +2021,8 @@ public sealed class LandingPhase : Phase
                 }
 
                 double alongNm = GeoMath.AlongTrackDistanceNm(exit.Path[0].Position, distanceDatum, query.Plan.RunwayHeading);
-                rows.Add((new ExitAheadDto(taxiway, side, RoundToHundredFt(alongNm), isPlanned(taxiway, side)), alongNm, exit));
+                var row = new ExitAheadDto(taxiway, side, RoundToHundredFt(alongNm), isPlanned(taxiway, side), WholeDegrees(exit.ExitAngle));
+                rows.Add((row, alongNm, exit));
             }
         }
 
@@ -2033,6 +2034,51 @@ public sealed class LandingPhase : Phase
 
     private static int RoundToHundredFt(double distanceNm) =>
         (int)(Math.Round(distanceNm * GeoMath.FeetPerNm / 100.0, MidpointRounding.AwayFromZero) * 100);
+
+    /// <summary>An exit's turn-off angle as the exits-ahead row carries it: rounded to whole degrees, halves away from zero.</summary>
+    private static int WholeDegrees(double angleDeg) => (int)Math.Round(angleDeg, MidpointRounding.AwayFromZero);
+
+    /// <summary>
+    /// The named exits of <paramref name="runway"/> on <paramref name="side"/>, for the exit flyout's "Exit at" box: each taxiway the
+    /// layout lists as an exit of that runway end (<see cref="AirportGroundLayout.ExitListTaxiways"/>), at its first connection on that
+    /// side from the landing threshold (<see cref="LandingThreshold"/>), when that connection's bar is at the runway's holding
+    /// distance. A taxiway whose first connection on that side rounds to 0 ft from the threshold or lies behind it is left out
+    /// whole, its later connections included (a skipped candidate excludes its taxiway from the search): a taxiway crossing the
+    /// runway at its approach end is no exit a landing can take. Each row carries its distance from the threshold rounded to
+    /// 100 ft and its turn-off angle in whole degrees, never planned; nearest the threshold first.
+    /// </summary>
+    /// <param name="layout">The airport's ground layout.</param>
+    /// <param name="runway">The runway end landed on.</param>
+    /// <param name="side">The side the exits turn off to.</param>
+    public static IReadOnlyList<ExitAheadDto> ListRunwayExits(AirportGroundLayout layout, RunwayInfo runway, ExitSide side)
+    {
+        LatLon threshold = LandingThreshold.Resolve(runway, layout);
+        double AlongNm(AirportGroundLayout.CenterlineExitResult connection) =>
+            GeoMath.AlongTrackDistanceNm(connection.Path[0].Position, threshold, runway.TrueHeading);
+
+        List<ExitAheadDto> exits = [];
+        foreach (string taxiway in layout.ExitListTaxiways(runway.Designator))
+        {
+            AirportGroundLayout.CenterlineExitResult? found = layout.FindOnSidePreferredExit(
+                threshold.Lat,
+                threshold.Lon,
+                runway.TrueHeading,
+                runway.Designator,
+                new ExitPreference { Side = side, Taxiway = taxiway },
+                side,
+                filter: candidate =>
+                    ((candidate.Side == side) && (RoundToHundredFt(AlongNm(candidate)) > 0))
+                        ? AirportGroundLayout.CandidateVerdict.Accept
+                        : AirportGroundLayout.CandidateVerdict.Skip
+            );
+            if ((found is { } exit) && layout.IsAtRunwayHoldingDistance(exit.HoldShort, runway.Designator))
+            {
+                exits.Add(new ExitAheadDto(taxiway, side, RoundToHundredFt(AlongNm(exit)), false, WholeDegrees(exit.ExitAngle)));
+            }
+        }
+
+        return [.. exits.OrderBy(exit => exit.DistanceFt).ThenBy(exit => exit.Taxiway, StringComparer.Ordinal)];
+    }
 
     /// <summary>
     /// The refusal for <paramref name="taxiway"/>, whose <paramref name="query"/> found nothing at the named limit: the crew's

@@ -1732,10 +1732,10 @@ public class MenuCatalogCommandTests
 
     private static readonly ExitAheadDto[] ExitsBothSides =
     [
-        new("W1", ExitSide.Left, 900, false),
-        new("W2", ExitSide.Right, 1800, true),
-        new("W3", ExitSide.Right, 3600, false),
-        new("W4", ExitSide.Right, 12400, false),
+        new("W1", ExitSide.Left, 900, false, 90),
+        new("W2", ExitSide.Right, 1800, true, 45),
+        new("W3", ExitSide.Right, 3600, false, 90),
+        new("W4", ExitSide.Right, 12400, false, 128),
     ];
 
     /// <summary>The flyout's rows as shown: a section header's text, <c>---</c> for a separator, else the row's accessible name.</summary>
@@ -1763,12 +1763,12 @@ public class MenuCatalogCommandTests
         Assert.Equal("Exit right", flyout.Header);
         Assert.Equal(
             [
-                "[Exits ahead, right side]",
-                "W2 · planned · ~1,800 ft — ER W2",
-                "W3 · ~3,600 ft — ER W3",
-                "W4 · ~12,400 ft — ER W4",
+                "[Exits ahead, right side · from the aircraft]",
+                "Taxiway W2 · planned · ~1,800 ft — ER W2",
+                "Taxiway W3 · ~3,600 ft — ER W3",
+                "Taxiway W4 · ~12,400 ft — ER W4",
                 "---",
-                "Exit right · pilot's choice",
+                "Pilot's choice — ER",
             ],
             FlyoutRows(flyout)
         );
@@ -1792,7 +1792,10 @@ public class MenuCatalogCommandTests
         MenuItem flyout = Assert.IsType<MenuItem>(MenuCatalog.Get(MenuIds.TowerExitLeft).Build(RollingOutWithExits(ExitsBothSides), Context(), host));
 
         Assert.Equal("Exit left", flyout.Header);
-        Assert.Equal(["[Exits ahead, left side]", "W1 · ~900 ft — EL W1", "---", "Exit left · pilot's choice"], FlyoutRows(flyout));
+        Assert.Equal(
+            ["[Exits ahead, left side · from the aircraft]", "Taxiway W1 · ~900 ft — EL W1", "---", "Pilot's choice — EL"],
+            FlyoutRows(flyout)
+        );
     }
 
     /// <summary>
@@ -1810,7 +1813,7 @@ public class MenuCatalogCommandTests
         MenuItem flyout = Assert.IsType<MenuItem>(MenuCatalog.Get(id).Build(aircraft, Context(), host));
 
         MenuItem only = Assert.IsType<MenuItem>(Assert.Single(flyout.Items));
-        Assert.Equal($"{flyout.Header} · pilot's choice", only.Header);
+        Assert.Equal($"Pilot's choice — {verb}", AutomationProperties.GetName(only));
         Click(only);
         Assert.Equal([(Callsign, verb, Initials)], host.Sent);
     }
@@ -1826,15 +1829,18 @@ public class MenuCatalogCommandTests
     [InlineData("empty", MenuIds.TowerExitRight)]
     public void ExitFlyout_NoExitOnTheSide_HasNoEntry(string list, string id)
     {
-        FakeMenuAircraft aircraft = RollingOutWithExits((list == "empty") ? [] : [new ExitAheadDto("W2", ExitSide.Right, 1800, true)]);
+        FakeMenuAircraft aircraft = RollingOutWithExits((list == "empty") ? [] : [new ExitAheadDto("W2", ExitSide.Right, 1800, true, 45)]);
 
         Assert.False(MenuCatalog.Get(id).IsApplicable(aircraft, Context()));
         Assert.Null(MenuCatalog.Get(id).Build(aircraft, Context(), new RecordingMenuHost("")));
     }
 
-    /// <summary>On final the distances are the forecast's, from the landing threshold, and the section header says so.</summary>
+    /// <summary>
+    /// On final the flyout leads with Pilot's choice, every distance reads from the landing threshold, and the "Exit at" box
+    /// comes last, sending nothing while empty.
+    /// </summary>
     [AvaloniaFact]
-    public void ExitFlyout_OnFinal_HeaderSaysDistancesFromThreshold()
+    public void ExitFlyout_OnFinal_PilotsChoiceFirst_DistancesFromThreshold_BoxLast()
     {
         var aircraft = new FakeMenuAircraft
         {
@@ -1845,7 +1851,7 @@ public class MenuCatalogCommandTests
         };
         MenuItem flyout = Assert.IsType<MenuItem>(MenuCatalog.Get(MenuIds.TowerExitLeft).Build(aircraft, Context(), new RecordingMenuHost("")));
 
-        Assert.Equal(["[Exits ahead (distance from threshold)]", "W1 · ~900 ft — EL W1", "---", "Exit left · pilot's choice"], FlyoutRows(flyout));
+        Assert.Equal(["Pilot's choice — EL", "---", "Taxiway W1 · ~900 ft from thr — EL W1", "---", "Exit at — EL ···"], FlyoutRows(flyout));
     }
 
     /// <summary>
@@ -1869,8 +1875,10 @@ public class MenuCatalogCommandTests
         };
         MenuItem flyout = Assert.IsType<MenuItem>(MenuCatalog.Get(MenuIds.TowerExitRight).Build(aircraft, Context(), host));
 
-        aircraft.ExitsAhead = [new ExitAheadDto("W4", ExitSide.Right, 11000, true)];
-        Click(Assert.Single(flyout.Items.OfType<MenuItem>(), item => AutomationProperties.GetName(item) == "W2 · planned · ~1,800 ft — ER W2"));
+        aircraft.ExitsAhead = [new ExitAheadDto("W4", ExitSide.Right, 11000, true, 128)];
+        Click(
+            Assert.Single(flyout.Items.OfType<MenuItem>(), item => AutomationProperties.GetName(item) == "Taxiway W2 · planned · ~1,800 ft — ER W2")
+        );
 
         Assert.Equal([(Callsign, "ER W2", Initials)], host.Sent);
     }

@@ -9,16 +9,16 @@ Note…
 All Commands
   Tower
     Exit left
-      Exits ahead, left side [disabled]
-      W1 · ~900 ft — EL W1
+      Exits ahead, left side · from the aircraft [disabled]
+      Taxiway W1 · ~900 ft — EL W1
       ---
-      Exit left · pilot's choice
+      Pilot's choice — EL
     Exit right
-      Exits ahead, right side [disabled]
-      W2 · planned · ~1,800 ft — ER W2
-      W3 · ~3,600 ft — ER W3
+      Exits ahead, right side · from the aircraft [disabled]
+      Taxiway W2 · planned · ~1,800 ft — ER W2
+      Taxiway W3 · ~3,600 ft — ER W3
       ---
-      Exit right · pilot's choice
+      Pilot's choice — ER
   ---
   Ask pilot to say…
     Altitude

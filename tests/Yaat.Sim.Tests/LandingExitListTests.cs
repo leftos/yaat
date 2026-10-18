@@ -470,6 +470,64 @@ public class LandingExitListTests
         }
     }
 
+    /// <summary>
+    /// Each row carries its exit's turn-off angle in whole degrees, the angle the layout's exit search measures for that taxiway's
+    /// first connection on that side (<see cref="AirportGroundLayout.CenterlineExitResult.ExitAngle"/>): on OAK 28R's rollout the
+    /// left exits include both a forward high-speed turn-off and one bending back, so no single fixed angle fits every row.
+    /// </summary>
+    [Fact]
+    public void Rows_CarryTheLayoutsTurnOffAngle_InWholeDegrees()
+    {
+        if (StageRollout("OAK", "28R", "B738", 1500, 40, null) is not { } staged)
+        {
+            return;
+        }
+
+        IReadOnlyList<ExitAheadDto> list = staged.List();
+        Assert.NotEmpty(list);
+        foreach (ExitAheadDto row in list)
+        {
+            AirportGroundLayout.CenterlineExitResult first = Assert.IsType<AirportGroundLayout.CenterlineExitResult>(
+                FirstConnectionAhead(staged.Layout, staged.Runway, staged.Aircraft.Position, (row.Taxiway, row.Side))
+            );
+            Assert.Equal((int)Math.Round(first.ExitAngle, MidpointRounding.AwayFromZero), row.TurnOffAngleDeg);
+        }
+
+        Assert.Contains(list, row => row.TurnOffAngleDeg < 60);
+        Assert.Contains(list, row => row.TurnOffAngleDeg > 100);
+    }
+
+    /// <summary>
+    /// The runway's exits the "Exit at" box offers (<see cref="LandingPhase.ListRunwayExits"/>), on OAK 28R's right side: only
+    /// connections clearly past the landing threshold, so B, which crosses the runway at its approach end, is left out and the
+    /// list starts at E; every row is on the right side, not planned, and at least 100 ft from the threshold.
+    /// </summary>
+    [Fact]
+    public void RunwayExits_Oak28RRight_LeaveOutTheThresholdCrossing_StartAtE()
+    {
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("OAK");
+        RunwayInfo? runway = NavigationDatabase.Instance.GetRunway("OAK", "28R");
+        if ((layout is null) || (runway is null))
+        {
+            return;
+        }
+
+        IReadOnlyList<ExitAheadDto> right = LandingPhase.ListRunwayExits(layout, runway, ExitSide.Right);
+
+        Assert.NotEmpty(right);
+        Assert.DoesNotContain(right, exit => exit.Taxiway == "B");
+        Assert.Equal("E", right[0].Taxiway);
+        Assert.All(
+            right,
+            exit =>
+            {
+                Assert.Equal(ExitSide.Right, exit.Side);
+                Assert.False(exit.Planned);
+                Assert.True(exit.DistanceFt > 0, $"{exit.Taxiway} is {exit.DistanceFt} ft from the threshold.");
+            }
+        );
+    }
+
     /// <summary>Rows come left side first, then right, each side nearest first.</summary>
     [Fact]
     public void Rows_AreOrderedLeftThenRight_NearestFirst()
@@ -940,7 +998,11 @@ public class LandingExitListTests
             AircraftType = "B738",
             IsOnGround = true,
         };
-        aircraft.Situation.ExitsAhead = [new ExitAheadDto("W2", ExitSide.Right, 1800, true), new ExitAheadDto("W3", ExitSide.Right, 3600, false)];
+        aircraft.Situation.ExitsAhead =
+        [
+            new ExitAheadDto("W2", ExitSide.Right, 1800, true, 45),
+            new ExitAheadDto("W3", ExitSide.Right, 3600, false, 90),
+        ];
 
         string json = JsonSerializer.Serialize(aircraft.ToSnapshot(), RecordingJsonOptions.Default);
         AircraftSnapshotDto dto = JsonSerializer.Deserialize<AircraftSnapshotDto>(json, RecordingJsonOptions.Default)!;

@@ -113,23 +113,24 @@ public class QuickCommandVisibilityRulesTests
 
     /// <summary>
     /// Exit left / right are on the Final list and show there, and in All Commands, only while the server lists the exits ahead
-    /// (5 NM down to 1 NM), and each only while the list holds an exit on its side: a pilot's-choice exit on a side with none
-    /// would turn the aircraft the other way, so an empty list (nothing makeable) shows neither. Inside 1 NM the list is gone
-    /// and they hide in the quick list until the roll decelerates.
+    /// (5 NM down to 1 NM), on either side whatever the list holds: on a side with no exit forecast the flyout offers the
+    /// "Exit at" box over the runway's exits there and no pilot's choice, and drops out only when the runway has none on that
+    /// side (judged when the flyout is built). Inside 1 NM the list is gone and they hide in the quick list until the roll
+    /// decelerates.
     /// </summary>
     [Theory]
     [InlineData("both sides", true, true)]
-    [InlineData("left only", true, false)]
-    [InlineData("right only", false, true)]
-    [InlineData("empty", false, false)]
+    [InlineData("left only", true, true)]
+    [InlineData("right only", true, true)]
+    [InlineData("empty", true, true)]
     [InlineData("none", false, false)]
-    public void ExitEntries_OnFinal_ShowOnlyOnAListedSide(string list, bool left, bool right)
+    public void ExitEntries_OnFinal_ShowOnBothSidesWhileAListIsStored(string list, bool left, bool right)
     {
         Assert.True(Lists(AircraftSituation.Final, MenuIds.TowerExitLeft));
         Assert.True(Lists(AircraftSituation.Final, MenuIds.TowerExitRight));
         AircraftModel aircraft = Aircraft(AircraftSituation.Final, "FinalApproach", onGround: false, "IFR");
-        var leftRow = new ExitAheadDto("W1", ExitSide.Left, 4300, false);
-        var rightRow = new ExitAheadDto("W2", ExitSide.Right, 5200, false);
+        var leftRow = new ExitAheadDto("W1", ExitSide.Left, 4300, false, 90);
+        var rightRow = new ExitAheadDto("W2", ExitSide.Right, 5200, false, 90);
         aircraft.ExitsAhead = list switch
         {
             "both sides" => [leftRow, rightRow],
@@ -154,7 +155,9 @@ public class QuickCommandVisibilityRulesTests
     {
         AircraftModel aircraft = Aircraft(AircraftSituation.RolloutExit, "Landing", onGround: true, "IFR");
         aircraft.SituationFlags = flags;
-        aircraft.ExitsAhead = listed ? [new ExitAheadDto("W1", ExitSide.Left, 900, false), new ExitAheadDto("W2", ExitSide.Right, 1800, true)] : null;
+        aircraft.ExitsAhead = listed
+            ? [new ExitAheadDto("W1", ExitSide.Left, 900, false, 90), new ExitAheadDto("W2", ExitSide.Right, 1800, true, 90)]
+            : null;
 
         Assert.Equal(shown, Shows(aircraft, MenuIds.TowerExitLeft, VfrCommandsForIfr.None));
         Assert.Equal(shown, Shows(aircraft, MenuIds.TowerExitRight, VfrCommandsForIfr.None));

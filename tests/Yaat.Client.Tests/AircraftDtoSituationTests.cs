@@ -112,9 +112,10 @@ public class AircraftDtoSituationTests
     [Fact]
     public void Json_ExitsAhead_ReachesTheModel_OnCreateAndUpdate()
     {
-        ExitAheadDto[] rows = [new ExitAheadDto("W2", ExitSide.Right, 1800, true), new ExitAheadDto("W3", ExitSide.Left, 3600, false)];
+        ExitAheadDto[] rows = [new ExitAheadDto("W2", ExitSide.Right, 1800, true, 45), new ExitAheadDto("W3", ExitSide.Left, 3600, false, 128)];
         string json = JsonSerializer.Serialize(Dto(AircraftSituation.RolloutExit) with { ExitsAhead = rows }, WireOptions);
         Assert.Contains("\"exitsAhead\":[", json, StringComparison.Ordinal);
+        Assert.Contains("\"turnOffAngleDeg\":128", json, StringComparison.Ordinal);
         AircraftDto back = JsonSerializer.Deserialize<AircraftDto>(json, WireOptions)!;
 
         var model = AircraftModel.FromDto(back);

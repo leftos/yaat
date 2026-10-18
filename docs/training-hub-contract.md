@@ -549,7 +549,9 @@ extend the resolver to depend on a new input, fingerprint that input too.
   A cleared bar of the runway the aircraft is on (rolling out, exiting or clearing it) does not count as an uncrossed runway. It reads the unfingerprinted taxi route, so it has its own fingerprint slot (`TrainingDtoFingerprint.NextCrossingRunway`).
 
   The client carries it as `AircraftModel.NextCrossingRunway` / `IMenuAircraft.NextCrossingRunway`, from which the quick list's Cross entry takes its runway.
-- `ExitsAhead` (a list of `ExitAheadDto`, `null` by default, an `AircraftStateDto` / `AircraftDto` field) is the stored `AircraftSituationState.ExitsAhead`, computed in the same `Situation` step (`SimulationEngine.ExitsAheadOf`): the named exits the arrival can make, one `ExitAheadDto` (taxiway, `ExitSide`, `DistanceFt` rounded to 100 ft, `Planned`) per taxiway and side, left side first and each side nearest first.
+- `ExitsAhead` (a list of `ExitAheadDto`, `null` by default, an `AircraftStateDto` / `AircraftDto` field) is the stored `AircraftSituationState.ExitsAhead`, computed in the same `Situation` step (`SimulationEngine.ExitsAheadOf`): the named exits the arrival can make, one `ExitAheadDto` (taxiway, `ExitSide`, `DistanceFt` rounded to 100 ft, `Planned`, `TurnOffAngleDeg`) per taxiway and side, left side first and each side nearest first.
+
+  `TurnOffAngleDeg` (JSON `turnOffAngleDeg`) is the exit's turn-off angle from the runway's direction of travel in whole degrees (0 along the runway, 90 square, over 90 bending back; 90 where the layout cannot measure it); the flyout draws its glyph from it and shows it in the row's tooltip.
 
   It is populated in two phases only. While `LandingPhase` rolls out it is `LandingPhase.ListExitsAhead`, the very search an accepted `EL <twy>` / `ER <twy>` runs, with distances from the aircraft and `Planned` on the exit the aircraft is braking for.
 
@@ -557,9 +559,9 @@ extend the resolver to depend on a new input, fingerprint that input too.
 
   It is null in every other phase (`RunwayExitPhase` included), under `CLANDF`, and without the runway's layout or hold-short data; it is empty when a list applies and no exit is makeable. Both are read-only, so the step changes no tick.
 
-  The list changes with position and speed, so it is fingerprinted by value (`TrainingDtoFingerprint.ExitsAhead`, an `ExitsAheadFingerprint` over the rows; an empty list is not equal to null), and the snapshot (`AircraftSituationStateDto.ExitsAhead`) writes it only when it is not null.
+  The list changes with position and speed, so it is fingerprinted by value (`TrainingDtoFingerprint.ExitsAhead`, an `ExitsAheadFingerprint` over the rows; an empty list is not equal to null; a row's turn-off angle is part of the value), and the snapshot (`AircraftSituationStateDto.ExitsAhead`) writes it only when it is not null, each row with its `turnOffAngleDeg`.
 
-  The client carries it as `AircraftModel.ExitsAhead` / `IMenuAircraft.ExitsAhead`; the Exit left / Exit right flyouts read it as the menu opens and never recompute it.
+  The client carries it as `AircraftModel.ExitsAhead` / `IMenuAircraft.ExitsAhead`; the Exit left / Exit right flyouts read it as the menu opens (and once a second while the strip's flyout is open) and never recompute it; the runway-exit search behind the final flyout's "Exit at" box runs in `Yaat.Sim` (`LandingPhase.ListRunwayExits`), not in the client.
 - `MeetPoints` (a list of `GroundMeetPointDto(Callsign, NodeId, Position)`, `null` by default, an `AircraftStateDto` / `AircraftDto` field after `ExitsAhead`; JSON `meetPoints`: `[{callsign, nodeId, position:{lat, lon}}]` or null) is the stored `AircraftSituationState.MeetPoints`, computed once a second in the same `Situation` step (`SimulationEngine.TickSituation`) by `GroundConflictDetector.MeetCandidates` and `MeetPointsOf`: one row per other on-ground aircraft at the same airport whose driven route meets this aircraft's.
 
   The meeting point is the first junction both driven routes (`FollowingPhase.DrivenRouteOf`) reach within the 1,500 ft look-ahead (`GroundConflictDetector.FindSharedUpcomingNode`), the geometry a `GIVEWAY` gives way short of. There is no ETA test, so a row says where two routes meet, not who gets there first, who gives way or whether either must slow. Pairs whose current-segment from-nodes are more than 3,000 ft apart are skipped.

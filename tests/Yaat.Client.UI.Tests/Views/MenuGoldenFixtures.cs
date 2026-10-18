@@ -235,9 +235,9 @@ internal static class MenuGoldenFixtures
         ac.SituationFlags = SituationFlags.RolloutDecelerating;
         ac.ExitsAhead =
         [
-            new ExitAheadDto("W1", ExitSide.Left, 900, false),
-            new ExitAheadDto("W2", ExitSide.Right, 1800, true),
-            new ExitAheadDto("W3", ExitSide.Right, 3600, false),
+            new ExitAheadDto("W1", ExitSide.Left, 900, false, 90),
+            new ExitAheadDto("W2", ExitSide.Right, 1800, true, 90),
+            new ExitAheadDto("W3", ExitSide.Right, 3600, false, 90),
         ];
         return ac;
     }
