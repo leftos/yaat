@@ -4,6 +4,7 @@ using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Airspace;
 using Yaat.Sim.Data.Faa;
+using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
@@ -64,9 +65,13 @@ public sealed record SoloTrainingReportData(
     IReadOnlyList<AircraftDebriefData> AircraftDebriefs
 );
 
-public sealed record SoloTrainingServiceContext(InitialContactEligibilityContext InitialContactEligibility, WakeDirectiveCatalog WakeDirectives)
+public sealed record SoloTrainingServiceContext(
+    InitialContactEligibilityContext InitialContactEligibility,
+    WakeDirectiveCatalog WakeDirectives,
+    ArtccConfigRoot? ArtccConfig
+)
 {
-    public static SoloTrainingServiceContext Empty { get; } = new(InitialContactEligibilityContext.Empty, WakeDirectiveCatalog.Empty);
+    public static SoloTrainingServiceContext Empty { get; } = new(InitialContactEligibilityContext.Empty, WakeDirectiveCatalog.Empty, null);
 }
 
 public sealed class SoloTrainingEvaluator
@@ -241,7 +246,8 @@ public sealed class SoloTrainingEvaluator
             airspace,
             new SoloTrainingServiceContext(
                 new InitialContactEligibilityContext(studentPosition, null, null, null, InitialContactTransferCatalog.Empty),
-                WakeDirectiveCatalog.Empty
+                WakeDirectiveCatalog.Empty,
+                null
             )
         );
     }
@@ -1960,13 +1966,42 @@ public sealed class SoloTrainingEvaluator
         private readonly Dictionary<string, RunwayOperation> _lastOperationByRunway = new(StringComparer.OrdinalIgnoreCase);
         private readonly List<RunwayOperation> _recentOperations = [];
         private readonly Dictionary<string, ActiveSameRunwayViolation> _activeViolations = new(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, ActiveRunwayUserViolation> _activeRunwayUsers = new(StringComparer.OrdinalIgnoreCase);
         private const double ProjectedConvergingRunwayLimitNm = 1.0;
+
+        /// <summary>
+        /// Height above the runway (ft) at or above which a low approach crossing the threshold is an altitude-restricted one
+        /// (7110.65 3-10-10: "at least 500 feet above the airport"), authorized over taxiing aircraft. The sim has no restricted
+        /// low-approach state, so the height at the threshold decides; the runway's elevation stands in for the airport's.
+        /// </summary>
+        private const double RestrictedLowApproachFloorAglFt = 500.0;
+
+        private const string TakeoffRunwayUserRuleReference = "7110.65 3-9-5 / 3-9-6.a / 3-7-2.g.1; AIM 2-3-5.a.1";
+        private const string LandingRunwayUserRuleReference = "7110.65 3-10-3.a / 3-7-2.g.2(a) / 3-9-4.c.1(a); AIM 2-3-5.a.1";
+        private const double KtSecondsToFt = GeoMath.FeetPerNm / 3600.0;
 
         public RunwayEvaluationResult Evaluate(List<AircraftState> aircraft, double scenarioElapsedSeconds, SoloTrainingServiceContext serviceContext)
         {
             var samples = new List<RunwayEventSample>();
             var wakeContexts = new Dictionary<string, WakeDirectiveContext>(StringComparer.OrdinalIgnoreCase);
             Dictionary<string, AircraftRunwayState> currentStates = BuildCurrentStates(aircraft);
+            var aircraftByCallsign = new Dictionary<string, AircraftState>(StringComparer.OrdinalIgnoreCase);
+            foreach (AircraftState ac in aircraft)
+            {
+                aircraftByCallsign[ac.Callsign] = ac;
+            }
+
+            foreach (ActiveRunwayUserViolation violation in _activeRunwayUsers.Values.ToList())
+            {
+                if (TrySampleRunwayUser(violation, aircraftByCallsign, scenarioElapsedSeconds) is { } sample)
+                {
+                    samples.Add(new RunwayEventSample(sample, null));
+                }
+                else
+                {
+                    _activeRunwayUsers.Remove(violation.Id);
+                }
+            }
 
             foreach (ActiveSameRunwayViolation? violation in _activeViolations.Values.ToList())
             {
@@ -2030,6 +2065,23 @@ public sealed class SoloTrainingEvaluator
                     }
                 }
 
+                foreach (
+                    ActiveRunwayUserViolation violation in CreateRunwayUserViolations(
+                        operation,
+                        aircraftByCallsign,
+                        scenarioElapsedSeconds,
+                        firstObservation,
+                        serviceContext
+                    )
+                )
+                {
+                    _activeRunwayUsers[violation.Id] = violation;
+                    if (TrySampleRunwayUser(violation, aircraftByCallsign, scenarioElapsedSeconds) is { } sample)
+                    {
+                        samples.Add(new RunwayEventSample(sample, null));
+                    }
+                }
+
                 _lastOperationByRunway[operation.RunwayKey] = operation;
                 _recentOperations.Add(operation);
             }
@@ -2074,6 +2126,7 @@ public sealed class SoloTrainingEvaluator
             _lastOperationByRunway.Clear();
             _recentOperations.Clear();
             _activeViolations.Clear();
+            _activeRunwayUsers.Clear();
         }
 
         private static bool IsWakeIntervalSuppressed(WakeDirectiveContext? context, SoloTrainingServiceContext serviceContext) =>
@@ -2114,14 +2167,18 @@ public sealed class SoloTrainingEvaluator
             // from it. A landing is referenced to the landing threshold: "3,000 feet down the runway"
             // (7110.65 §3-10-3) counts from where the arrival was allowed to touch down, not from
             // pavement it may never land on.
-            double alongPavementFt =
-                GeoMath.AlongTrackDistanceNm(aircraft.Position, new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude), runway.TrueHeading)
-                * GeoMath.FeetPerNm;
+            double alongPavementFt = AlongPavementFt(aircraft.Position, runway);
             GroundRunway? authoredRunway = aircraft.Ground.Layout?.FindRunway(runway.Designator);
             double displacementFt = LandingThreshold.DisplacementFt(runway, authoredRunway);
             Phase? phase = aircraft.Phases?.CurrentPhase;
             string runwayKey = BuildRunwayKey(runway);
+            bool restrictedLowApproach =
+                (phase is LowApproachPhase) && !aircraft.IsOnGround && ((aircraft.Altitude - runway.ElevationFt) >= RestrictedLowApproachFloorAglFt);
+            // A stop-and-go rolls again on its assigned runway; DepartureRunway still names the runway of its first takeoff.
+            RunwayInfo ownRunway = (phase is StopAndGoPhase) ? runway : (aircraft.Phases?.DepartureRunway ?? runway);
             return new AircraftRunwayState(
+                ownRunway,
+                restrictedLowApproach,
                 aircraft.Callsign,
                 aircraft.AircraftType,
                 aircraft.IsOnGround,
@@ -2211,7 +2268,8 @@ public sealed class SoloTrainingEvaluator
 
         private static RunwayOperation? TrySeedOperation(AircraftRunwayState state, double scenarioElapsedSeconds)
         {
-            if (state.IsDepartureAfterRollStart)
+            // A stop-and-go on its second roll is a departure, as an uninterrupted run records it at the roll's start.
+            if (state.IsDepartureAfterRollStart || state.IsTakeoffRoll)
             {
                 return RunwayOperation.FromState(OperationKind.Departure, state, scenarioElapsedSeconds);
             }
@@ -2237,7 +2295,11 @@ public sealed class SoloTrainingEvaluator
                 return violations;
             }
 
-            if (_lastOperationByRunway.TryGetValue(operation.RunwayKey, out RunwayOperation? sameRunwayPreceding))
+            // A stop-and-go's second roll follows its own landing on the same runway: never a pair with itself.
+            if (
+                _lastOperationByRunway.TryGetValue(operation.RunwayKey, out RunwayOperation? sameRunwayPreceding)
+                && !string.Equals(sameRunwayPreceding.Callsign, operation.Callsign, StringComparison.OrdinalIgnoreCase)
+            )
             {
                 var relation = RunwayRelation.SameActive();
                 if (TryCreateViolation(sameRunwayPreceding, operation, states, scenarioElapsedSeconds, relation) is { } violation)
@@ -2277,6 +2339,375 @@ public sealed class SoloTrainingEvaluator
             return violations;
         }
 
+        /// <summary>
+        /// 7110.65 3-9-5 / 3-9-6.a / 3-7-2.g.1 for a takeoff, 3-10-3.a / 3-7-2.g.2(a) / 3-9-4.c.1(a) for a landing (AIM 2-3-5.a.1):
+        /// at <paramref name="operation"/>'s trigger, every other aircraft using its runway (<see cref="ScoredRunwayUse"/>) ahead of
+        /// it (<see cref="IsAheadOfOperation"/>) that the pair rules do not already judge (<see cref="IsJudgedByThePairRules"/>) is a
+        /// finding, unless an exemption applies (<see cref="ScoresAtTheTrigger"/>): under an altitude-restricted low approach only
+        /// an aircraft lined up, holding in position, rejecting a takeoff or (without full safety logic) lining up scores; a crossing
+        /// or a fouler beyond a LAHSO arrival's hold-short point does not; nor does a crossing the departure's roll will find clear.
+        /// Judged at the trigger second only, never on a first observation.
+        /// </summary>
+        private List<ActiveRunwayUserViolation> CreateRunwayUserViolations(
+            RunwayOperation operation,
+            Dictionary<string, AircraftState> aircraftByCallsign,
+            double scenarioElapsedSeconds,
+            bool firstObservation,
+            SoloTrainingServiceContext serviceContext
+        )
+        {
+            var violations = new List<ActiveRunwayUserViolation>();
+            if (firstObservation || !aircraftByCallsign.TryGetValue(operation.Callsign, out AircraftState? operationAircraft))
+            {
+                return violations;
+            }
+
+            RunwayInfo runway = RuleRunway(operation);
+            var judgement = new RunwayUserJudgement(
+                operation,
+                operationAircraft,
+                runway,
+                operationAircraft.Ground.Layout,
+                (serviceContext.ArtccConfig is { } config) && config.AirportHasFullSafetyLogic(runway.AirportId)
+            );
+            foreach (AircraftState other in aircraftByCallsign.Values.OrderBy(a => a.Callsign, StringComparer.OrdinalIgnoreCase))
+            {
+                if (IsJudgedByThePairRules(other, operation, aircraftByCallsign) || !ScoresAtTheTrigger(other, judgement))
+                {
+                    continue;
+                }
+
+                string id = string.Join(
+                        '_',
+                        "RWYUSER",
+                        BuildRunwayKey(runway).Replace('/', '_'),
+                        other.Callsign,
+                        operation.Callsign,
+                        $"{scenarioElapsedSeconds:F0}"
+                    )
+                    .ToUpperInvariant();
+                violations.Add(new ActiveRunwayUserViolation(id, operation, other.Callsign, runway, judgement.Layout));
+            }
+
+            return violations;
+        }
+
+        /// <summary>
+        /// <paramref name="other"/> uses the runway (<see cref="ScoredRunwayUse"/>) ahead of the operation
+        /// (<see cref="IsAheadOfOperation"/>) and no exemption applies: under an altitude-restricted low approach only an aircraft
+        /// lined up, holding in position, rejecting a takeoff or (without full safety logic) lining up scores
+        /// (<see cref="ScoresUnderRestrictedLowApproach"/>);
+        /// a crossing or a fouler beyond a LAHSO arrival's hold-short point does not (<see cref="IsBeyondLahsoHoldShort"/>); nor
+        /// does a crossing a departure's roll will find clear (<see cref="IsCrossingClearBeforeTheRoll"/>).
+        /// </summary>
+        private static bool ScoresAtTheTrigger(AircraftState other, RunwayUserJudgement judgement)
+        {
+            if (
+                (ScoredRunwayUse(other, judgement.Runway, judgement.Layout) is not { } kind)
+                || !IsAheadOfOperation(other, kind, judgement)
+                || (judgement.Operation.IsRestrictedLowApproach && !ScoresUnderRestrictedLowApproach(other, judgement.FullSafetyLogic))
+                || IsBeyondLahsoHoldShort(other, kind, judgement)
+            )
+            {
+                return false;
+            }
+
+            return (judgement.Operation.Kind != OperationKind.Departure)
+                || !IsCrossingClearBeforeTheRoll(other, kind, judgement.Runway, judgement.Layout, judgement.OperationAircraft);
+        }
+
+        /// <summary>
+        /// 7110.65 3-10-10 and NOTE 2: an altitude-restricted low approach is authorized over preceding landing and taxiing
+        /// aircraft, "except over an aircraft holding in position or a departing aircraft". Lined up and waiting, holding in
+        /// position, or rejecting a takeoff still scores everywhere; lining up ("taxiing to LUAW") only at an airport without full
+        /// safety logic (3-9-4.c.1(a); 3-9-4.c.2(a) permits it with full core alert).
+        /// </summary>
+        private static bool ScoresUnderRestrictedLowApproach(AircraftState other, bool fullSafetyLogic) =>
+            other.Phases?.CurrentPhase switch
+            {
+                LineUpPhase => !fullSafetyLogic,
+                LinedUpAndWaitingPhase or HoldingInPositionPhase or RejectedTakeoffPhase => true,
+                _ => false,
+            };
+
+        /// <summary>
+        /// 7110.65 3-7-2.g.3: with the arrival cleared to land and hold short (<see cref="PhaseList.LahsoHoldShort"/>, measured from
+        /// the landing threshold), an aircraft may cross the runway beyond its hold-short point, and a fouler held past a bar there
+        /// occupies less of it. An earlier LAHSO arrival holding short there (<see cref="RunwayHoldingPhase"/>, a crossing by
+        /// position) is a landed aircraft (3-10-3.a.1), not a crossing, and is not exempt; nor is any other user on the surface.
+        /// </summary>
+        private static bool IsBeyondLahsoHoldShort(AircraftState other, RunwayUseKind kind, RunwayUserJudgement judgement)
+        {
+            if (
+                (judgement.Operation.Kind != OperationKind.Landing)
+                || (kind is not (RunwayUseKind.Crossing or RunwayUseKind.Fouling))
+                || (other.Phases?.CurrentPhase is RunwayHoldingPhase)
+                || (judgement.OperationAircraft.Phases?.LahsoHoldShort is not { } lahso)
+            )
+            {
+                return false;
+            }
+
+            double fromLandingThresholdFt = AlongPavementFt(other.Position, judgement.Runway) - LandingThresholdFt(judgement);
+            return fromLandingThresholdFt > (lahso.DistFromThresholdNm * GeoMath.FeetPerNm);
+        }
+
+        /// <summary>
+        /// The runway the runway-user rule judges: a departure's own as recorded at the trigger (<see cref="PhaseList.DepartureRunway"/>,
+        /// else its assigned one; the assigned one for a stop-and-go's second roll), else the operation's.
+        /// </summary>
+        private static RunwayInfo RuleRunway(RunwayOperation operation) =>
+            (operation.Kind == OperationKind.Departure) ? operation.OwnRunway : operation.Runway;
+
+        /// <summary>
+        /// The aircraft itself, or one whose operation the pair rules judge against this one: the runway's last operation
+        /// (<see cref="CreateRunwaySeparationViolations"/>'s same-runway pair), or a recorded operation on a related, not the same,
+        /// runway (its related-runway pairs) — each only while it is still that aircraft's latest operation and still under way
+        /// (<see cref="IsUnderWayForThePairRules"/>). An older operation on the same runway is judged by no pair rule, so its
+        /// aircraft is an ordinary runway user.
+        /// </summary>
+        private bool IsJudgedByThePairRules(AircraftState other, RunwayOperation operation, Dictionary<string, AircraftState> aircraftByCallsign)
+        {
+            if (string.Equals(other.Callsign, operation.Callsign, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            if (
+                _lastOperationByRunway.TryGetValue(operation.RunwayKey, out RunwayOperation? last)
+                && string.Equals(last.Callsign, other.Callsign, StringComparison.OrdinalIgnoreCase)
+                && IsLatestOperation(last)
+                && IsUnderWayForThePairRules(last, other)
+            )
+            {
+                return true;
+            }
+
+            return _recentOperations.Any(recent =>
+                string.Equals(recent.Callsign, other.Callsign, StringComparison.OrdinalIgnoreCase)
+                && (TryResolveRunwayRelation(recent.Runway, operation.Runway) is { Kind: not RunwayRelationKind.SameActive })
+                && IsLatestOperation(recent)
+                && aircraftByCallsign.TryGetValue(recent.Callsign, out AircraftState? recentAircraft)
+                && IsUnderWayForThePairRules(recent, recentAircraft)
+            );
+        }
+
+        /// <summary>The operation is the last one recorded for its aircraft; an earlier one has ended.</summary>
+        private bool IsLatestOperation(RunwayOperation operation) =>
+            ReferenceEquals(
+                _recentOperations.LastOrDefault(o => string.Equals(o.Callsign, operation.Callsign, StringComparison.OrdinalIgnoreCase)),
+                operation
+            );
+
+        /// <summary>
+        /// The pair rules still judge this operation's aircraft: a departure still on the ground (they judge it, a rejected takeoff
+        /// included, until it is airborne or past the runway end), or a landing still in the landing family
+        /// (<see cref="SameRunwaySeparation.IsLandingFamilyOccupant"/>, the test the pair rules' "clear of the runway" uses).
+        /// </summary>
+        private static bool IsUnderWayForThePairRules(RunwayOperation operation, AircraftState aircraft) =>
+            (operation.Kind == OperationKind.Departure) ? aircraft.IsOnGround : IsLandingFamily(aircraft, operation.Runway);
+
+        /// <summary>
+        /// The operation has not ended: a departure until it is airborne or rejects its takeoff, a landing until it has exited or
+        /// slowed below its taxi speed. A landing still airborne is under way until it passes the runway end (a low approach, or a
+        /// touch-and-go once it lifts off).
+        /// </summary>
+        private static bool IsOperationUnderWay(RunwayOperation operation, AircraftState aircraft)
+        {
+            RunwayInfo runway = RuleRunway(operation);
+            if (operation.Kind == OperationKind.Departure)
+            {
+                return IsDepartureRollUnderWay(aircraft, runway);
+            }
+
+            if (!aircraft.IsOnGround)
+            {
+                return AlongPavementFt(aircraft.Position, runway) < runway.PavementLengthFt;
+            }
+
+            double taxiKts = CategoryPerformance.TaxiSpeed(AircraftCategorization.Categorize(aircraft.AircraftType));
+            return IsLandingFamily(aircraft, runway) && (aircraft.GroundSpeed >= taxiKts);
+        }
+
+        /// <summary>
+        /// On the ground on its takeoff roll on <paramref name="runway"/>: <see cref="RunwayUseKind.Departing"/> there (a
+        /// <see cref="TakeoffPhase"/> of that runway, or a live-traffic roll), or a stop-and-go's second roll. A rejected takeoff
+        /// (<see cref="RejectedTakeoffPhase"/>, then a hold in position) is no longer on its roll.
+        /// </summary>
+        private static bool IsDepartureRollUnderWay(AircraftState aircraft, RunwayInfo runway) =>
+            aircraft.IsOnGround
+            && (
+                (RunwayOccupancy.Classify(aircraft, runway, aircraft.Ground.Layout)?.Kind == RunwayUseKind.Departing)
+                || (aircraft.Phases?.CurrentPhase is StopAndGoPhase { IsTakeoffRoll: true })
+            );
+
+        /// <summary>
+        /// The landing family by phase, or for a phase-less (live-traffic) aircraft still on the pavement: landing, on the runway's
+        /// surface or turning off at an exit (<see cref="RunwayUseKind.Crossing"/>), as the pair rules' "clear of the runway" reads it.
+        /// </summary>
+        private static bool IsLandingFamily(AircraftState aircraft, RunwayInfo runway) =>
+            aircraft.Phases?.CurrentPhase is { } phase
+                ? SameRunwaySeparation.IsLandingFamilyOccupant(phase, runwayUse: null)
+                : RunwayOccupancy.Classify(aircraft, runway, aircraft.Ground.Layout)?.Kind
+                    is RunwayUseKind.Landing
+                        or RunwayUseKind.OnSurface
+                        or RunwayUseKind.Crossing;
+
+        /// <summary>
+        /// How <paramref name="other"/> uses <paramref name="runway"/> in a way the runway-user rule scores: on its surface, crossing
+        /// it (a LAHSO hold on its pavement is one) or past its hold line (<see cref="RunwayOccupancy.Classify"/> against the
+        /// operation aircraft's layout). A line-up counts as on the surface only once its main gear is over the strict pavement
+        /// (as ground priority ranks it); before that it scores as past the hold line once any part of it is past the marking,
+        /// moving or stopped ("taxiing to LUAW", 3-9-4.c.1(a); <see cref="RunwayOccupancy.AnyPartPastTheHoldLine"/>).
+        /// </summary>
+        private static RunwayUseKind? ScoredRunwayUse(AircraftState other, RunwayInfo runway, AirportGroundLayout? layout)
+        {
+            if (
+                (other.Phases?.CurrentPhase is LineUpPhase)
+                && (RunwayOccupancy.ClassifyByPhase(other, runway) == RunwayUseKind.OnSurface)
+                && !RunwayOccupancy.IsOverStrictPavement(other.Position, runway)
+            )
+            {
+                bool pastTheMarking =
+                    (layout is not null)
+                    && RunwayOccupancy.IsLayoutOf(layout, runway)
+                    && RunwayOccupancy.AnyPartPastTheHoldLine(other, runway, layout);
+                return pastTheMarking ? RunwayUseKind.Fouling : null;
+            }
+
+            return
+                (RunwayOccupancy.Classify(other, runway, layout)?.Kind is { } kind)
+                && (kind is RunwayUseKind.OnSurface or RunwayUseKind.Crossing or RunwayUseKind.Fouling)
+                ? kind
+                : null;
+        }
+
+        /// <summary>
+        /// Ahead of the operation along its runway: past a departure's start point, or past a landing's landing threshold, the
+        /// first point it may touch down on. Behind the landing threshold, an aircraft lining up onto this runway (on it or past
+        /// its hold line), or lined up and waiting or holding in position on the runway, still scores at an airport without full safety
+        /// logic (3-9-4.c.1(a) forbids the landing clearance with it anywhere on the runway;
+        /// <see cref="ArtccConfigResolver.AirportHasFullSafetyLogic"/>, no ARTCC config being no evidence of one). Any other user
+        /// behind the operation is not in its way.
+        /// </summary>
+        private static bool IsAheadOfOperation(AircraftState other, RunwayUseKind kind, RunwayUserJudgement judgement)
+        {
+            double otherFt = AlongPavementFt(other.Position, judgement.Runway);
+            if (judgement.Operation.Kind == OperationKind.Departure)
+            {
+                return otherFt > AlongPavementFt(judgement.OperationAircraft.Position, judgement.Runway);
+            }
+
+            if (otherFt >= LandingThresholdFt(judgement))
+            {
+                return true;
+            }
+
+            Phase? phase = other.Phases?.CurrentPhase;
+            bool liningUpOntoThisRunway =
+                (phase is LineUpPhase) && (RunwayOccupancy.ClassifyByPhase(other, judgement.Runway) == RunwayUseKind.OnSurface);
+            return !judgement.FullSafetyLogic
+                && (liningUpOntoThisRunway || ((kind == RunwayUseKind.OnSurface) && (phase is LinedUpAndWaitingPhase or HoldingInPositionPhase)));
+        }
+
+        /// <summary>
+        /// The landing threshold's distance from the pavement threshold, from the operation aircraft's layout when it is the
+        /// runway's own airport's (<see cref="LandingThreshold.DisplacementFt(RunwayInfo, AirportGroundLayout?)"/>).
+        /// </summary>
+        private static double LandingThresholdFt(RunwayUserJudgement judgement) =>
+            LandingThreshold.DisplacementFt(judgement.Runway, judgement.Layout);
+
+        /// <summary>
+        /// A crossing under way on the pavement (<see cref="OccupiedRunwayGoAround.CrossingFarBar"/>) that the go-around's
+        /// projection (<see cref="OccupiedRunwayGoAround.SecondsToCrossingClear"/>) has clear of the runway before the departure's
+        /// roll reaches its along-track position (<see cref="SecondsForRollToReach"/>). An owner-ruled training convention: 3-9-5
+        /// judges at roll start, and 3-7-2.g.1 keeps a crosser off until the departure has passed it.
+        /// </summary>
+        private static bool IsCrossingClearBeforeTheRoll(
+            AircraftState other,
+            RunwayUseKind kind,
+            RunwayInfo runway,
+            AirportGroundLayout? layout,
+            AircraftState departure
+        )
+        {
+            if ((layout is null) || (OccupiedRunwayGoAround.CrossingFarBar(other, kind, runway, layout) is not { } farBar))
+            {
+                return false;
+            }
+
+            double clearSeconds = OccupiedRunwayGoAround.SecondsToCrossingClear(other, runway, layout, farBar);
+            return clearSeconds <= SecondsForRollToReach(departure, runway, AlongPavementFt(other.Position, runway));
+        }
+
+        /// <summary>
+        /// Seconds the departure's roll takes from where it is to <paramref name="alongFt"/>: its takeoff ramp
+        /// (<see cref="GroundRollProfile"/>, or the measured acceleration of a live-traffic aircraft) from its roll clock.
+        /// </summary>
+        private static double SecondsForRollToReach(AircraftState departure, RunwayInfo runway, double alongFt)
+        {
+            double distanceFt = Math.Max(0.0, alongFt - AlongPavementFt(departure.Position, runway));
+            GroundRollProfile profile = RunwayOccupancy.GroundAccelerationKtPerSec(departure) is { } measured
+                ? GroundRollProfile.Constant(measured)
+                : GroundRollProfile.For(departure.AircraftType, AircraftCategorization.Categorize(departure.AircraftType));
+            return profile.TimeToCoverKtSeconds(GroundRollProfile.RollClockSeconds(departure, profile), distanceFt / KtSecondsToFt);
+        }
+
+        /// <summary>Along-track distance (ft) of <paramref name="position"/> from <paramref name="runway"/>'s pavement threshold.</summary>
+        private static double AlongPavementFt(LatLon position, RunwayInfo runway) =>
+            GeoMath.AlongTrackDistanceNm(position, new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude), runway.TrueHeading)
+            * GeoMath.FeetPerNm;
+
+        /// <summary>
+        /// The runway user's use in the instructor's words: the go-around's (<see cref="OccupiedRunwayGoAround.DescribeUse"/>), but
+        /// a LAHSO hold (<see cref="RunwayHoldingPhase"/>, a Crossing by position) is holding short on the runway.
+        /// </summary>
+        private static string DescribeRunwayUser(AircraftState user, RunwayUseKind kind) =>
+            (user.Phases?.CurrentPhase is RunwayHoldingPhase) ? "holding short on the runway" : OccupiedRunwayGoAround.DescribeUse(kind);
+
+        /// <summary>
+        /// The runway-user finding while it holds: null (satisfied) once the operation has ended (<see cref="IsOperationUnderWay"/>)
+        /// or the other aircraft no longer uses the runway (<see cref="ScoredRunwayUse"/>).
+        /// </summary>
+        private static TrainingEventSample? TrySampleRunwayUser(
+            ActiveRunwayUserViolation violation,
+            Dictionary<string, AircraftState> aircraftByCallsign,
+            double scenarioElapsedSeconds
+        )
+        {
+            if (
+                !aircraftByCallsign.TryGetValue(violation.Operation.Callsign, out AircraftState? operationAircraft)
+                || !IsOperationUnderWay(violation.Operation, operationAircraft)
+                || !aircraftByCallsign.TryGetValue(violation.UserCallsign, out AircraftState? user)
+                || (ScoredRunwayUse(user, violation.Runway, violation.Layout) is not { } kind)
+            )
+            {
+                return null;
+            }
+
+            bool departure = violation.Operation.Kind == OperationKind.Departure;
+            string runwayText = RunwayIdentifier.ToDisplayDesignator(violation.Runway.Designator);
+            string use = DescribeRunwayUser(user, kind);
+            string operationText = departure ? "began its takeoff roll on" : "crossed the threshold of";
+            return new TrainingEventSample(
+                violation.Id,
+                SoloTrainingEventCategory.RunwayWake,
+                SoloTrainingEventSeverity.Safety,
+                departure ? "Runway not clear for takeoff" : "Runway not clear for landing",
+                $"{violation.Operation.Callsign} {operationText} runway {runwayText} with {violation.UserCallsign} {use}.",
+                departure ? TakeoffRunwayUserRuleReference : LandingRunwayUserRuleReference,
+                scenarioElapsedSeconds,
+                [violation.UserCallsign, violation.Operation.Callsign],
+                violation.Runway.Designator,
+                null,
+                null,
+                null,
+                null,
+                "Runway clear of other aircraft.",
+                $"{violation.UserCallsign} {use}"
+            );
+        }
+
         private static ActiveSameRunwayViolation? TryCreateViolation(
             RunwayOperation preceding,
             RunwayOperation succeeding,
@@ -2289,6 +2720,14 @@ public sealed class SoloTrainingEvaluator
                 !states.TryGetValue(preceding.Callsign, out AircraftRunwayState? precedingState)
                 || !states.TryGetValue(succeeding.Callsign, out AircraftRunwayState? succeedingState)
             )
+            {
+                return null;
+            }
+
+            // 3-10-3.a ("unless authorized in paragraph 3-10-10") and 3-10-10 NOTE 2: an altitude-restricted low approach is
+            // authorized over a preceding landing aircraft on the same runway. Over a departing one it is not, so
+            // arrival-behind-departure still applies; nor does 3-10-4 (intersecting runways) defer to 3-10-10.
+            if (succeeding.IsRestrictedLowApproach && (preceding.Kind == OperationKind.Landing) && (relation.Kind == RunwayRelationKind.SameActive))
             {
                 return null;
             }
@@ -3752,7 +4191,16 @@ public sealed class SoloTrainingEvaluator
         /// <param name="AlongThresholdFt">Along-track distance from the runway's pavement threshold — the departure/intersection datum.</param>
         /// <param name="ThresholdDisplacementFt">Published displacement of this end's landing threshold; 0 when there is no airport map.</param>
         /// <param name="PavementLengthFt">Physical runway length, for "crossed the runway end".</param>
+        /// <param name="OwnRunway">
+        /// The aircraft's own runway: <paramref name="Runway"/> in a stop-and-go, else its departure runway when it has one, else
+        /// <paramref name="Runway"/>.
+        /// </param>
+        /// <param name="IsRestrictedLowApproach">
+        /// A low approach at or above <see cref="RestrictedLowApproachFloorAglFt"/> (7110.65 3-10-10).
+        /// </param>
         private sealed record AircraftRunwayState(
+            RunwayInfo OwnRunway,
+            bool IsRestrictedLowApproach,
             string Callsign,
             string AircraftType,
             bool IsOnGround,
@@ -3771,14 +4219,21 @@ public sealed class SoloTrainingEvaluator
             /// <summary>Along-track distance from the *landing* threshold — the arrival datum.</summary>
             public double AlongLandingThresholdFt => AlongThresholdFt - ThresholdDisplacementFt;
 
-            public bool IsTakeoffRoll => IsOnGround && RunwayUse == RunwayUseKind.Departing;
+            /// <summary>On the takeoff roll: <see cref="RunwayUseKind.Departing"/>, or a stop-and-go's second roll.</summary>
+            public bool IsTakeoffRoll => IsOnGround && ((RunwayUse == RunwayUseKind.Departing) || (Phase is StopAndGoPhase { IsTakeoffRoll: true }));
             public bool IsDepartureAfterRollStart => SameRunwaySeparation.IsDepartureFamilyOccupant(Phase, RunwayUse);
-            public bool IsArrivalApproach => Phase is FinalApproachPhase or LandingPhase || IsShadowArrival;
-            public bool IsArrivalOrLanding => Phase is FinalApproachPhase or LandingPhase or RunwayExitPhase || IsShadowArrival;
+            public bool IsArrivalApproach => (Phase is FinalApproachPhase or LandingPhase) || IsLandingOption || IsShadowArrival;
+            public bool IsArrivalOrLanding => (Phase is FinalApproachPhase or LandingPhase or RunwayExitPhase) || IsLandingOption || IsShadowArrival;
+
+            /// <summary>
+            /// A touch-and-go (the option flies one), stop-and-go or low approach: it replaces the landing phase, and its threshold
+            /// crossing is an operation for every runway rule (3-10-3.a covers every arriving aircraft crossing the threshold).
+            /// </summary>
+            private bool IsLandingOption => Phase is TouchAndGoPhase or StopAndGoPhase or LowApproachPhase;
             public bool IsLandingAfterThreshold =>
                 (AlongLandingThresholdFt >= 0.0)
                 && (
-                    Phase is LandingPhase or RunwayExitPhase or HoldingAfterExitPhase
+                    Phase is LandingPhase or RunwayExitPhase or HoldingAfterExitPhase or TouchAndGoPhase or StopAndGoPhase
                     || (Phase is null && RunwayUse is RunwayUseKind.Landing or RunwayUseKind.OnSurface)
                 );
 
@@ -3786,6 +4241,8 @@ public sealed class SoloTrainingEvaluator
             private bool IsShadowArrival => Phase is null && RunwayUse is RunwayUseKind.OnFinal or RunwayUseKind.ShortFinal or RunwayUseKind.Landing;
         }
 
+        /// <param name="OwnRunway">The aircraft's own runway at the trigger (<see cref="AircraftRunwayState.OwnRunway"/>).</param>
+        /// <param name="IsRestrictedLowApproach">The operation is an altitude-restricted low approach (7110.65 3-10-10).</param>
         private sealed record RunwayOperation(
             OperationKind Kind,
             string Callsign,
@@ -3794,7 +4251,9 @@ public sealed class SoloTrainingEvaluator
             string RunwayKey,
             SrsCategory SrsCategory,
             CwtCategory CwtCategory,
-            double TriggeredAtSeconds
+            double TriggeredAtSeconds,
+            RunwayInfo OwnRunway,
+            bool IsRestrictedLowApproach
         )
         {
             public string RunwayId => Runway.Designator;
@@ -3808,7 +4267,9 @@ public sealed class SoloTrainingEvaluator
                     state.RunwayKey,
                     state.SrsCategory,
                     state.CwtCategory,
-                    scenarioElapsedSeconds
+                    scenarioElapsedSeconds,
+                    state.OwnRunway,
+                    state.IsRestrictedLowApproach
                 );
         }
 
@@ -3830,6 +4291,28 @@ public sealed class SoloTrainingEvaluator
             public string RunwayId =>
                 Relation.Kind == RunwayRelationKind.SameActive ? Preceding.RunwayId : $"{Preceding.RunwayId}/{Succeeding.RunwayId}";
         }
+
+        /// <summary>A runway-user finding: <paramref name="UserCallsign"/> using <paramref name="Runway"/> at the operation's trigger.</summary>
+        /// <param name="Layout">The operation aircraft's ground layout at the trigger, which the user is classified against.</param>
+        private sealed record ActiveRunwayUserViolation(
+            string Id,
+            RunwayOperation Operation,
+            string UserCallsign,
+            RunwayInfo Runway,
+            AirportGroundLayout? Layout
+        );
+
+        /// <summary>One operation's trigger, as the runway-user rule judges every other aircraft against it.</summary>
+        /// <param name="FullSafetyLogic">
+        /// The runway's airport has full safety logic (<see cref="ArtccConfigResolver.AirportHasFullSafetyLogic"/>).
+        /// </param>
+        private sealed record RunwayUserJudgement(
+            RunwayOperation Operation,
+            AircraftState OperationAircraft,
+            RunwayInfo Runway,
+            AirportGroundLayout? Layout,
+            bool FullSafetyLogic
+        );
 
         private sealed record RunwayRelation(RunwayRelationKind Kind, double? PrecedingIntersectionFt, double? SucceedingIntersectionFt)
         {

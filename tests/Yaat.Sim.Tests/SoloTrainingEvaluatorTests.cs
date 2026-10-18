@@ -896,7 +896,8 @@ public sealed class SoloTrainingEvaluatorTests
         var evaluator = new SoloTrainingEvaluator();
         var serviceContext = new SoloTrainingServiceContext(
             new InitialContactEligibilityContext(student, "TWR", "ZOA", "KSFO", InitialContactTransferCatalog.Empty),
-            WakeDirectiveCatalog.Empty
+            WakeDirectiveCatalog.Empty,
+            null
         );
 
         List<SoloTrainingEvent> notices = evaluator.Evaluate([a, b], scenarioElapsedSeconds: 10, AirspaceDatabase.Default, serviceContext);
@@ -2106,7 +2107,8 @@ public sealed class SoloTrainingEvaluatorTests
 
         var serviceContext = new SoloTrainingServiceContext(
             new InitialContactEligibilityContext(null, null, "ZOA", "KOAK", InitialContactTransferCatalog.Empty),
-            new WakeDirectiveCatalog([ApproachWakeRequireAdvisoryRule()])
+            new WakeDirectiveCatalog([ApproachWakeRequireAdvisoryRule()]),
+            null
         );
 
         var evaluator = new SoloTrainingEvaluator();
@@ -2218,7 +2220,11 @@ public sealed class SoloTrainingEvaluatorTests
     }
 
     private static SoloTrainingServiceContext WakeDirectiveServiceContext(params WakeDirectiveRule[] rules) =>
-        new(new InitialContactEligibilityContext(null, null, "ZOA", "KOAK", InitialContactTransferCatalog.Empty), new WakeDirectiveCatalog(rules));
+        new(
+            new InitialContactEligibilityContext(null, null, "ZOA", "KOAK", InitialContactTransferCatalog.Empty),
+            new WakeDirectiveCatalog(rules),
+            null
+        );
 
     private static WakeDirectiveRule SuppressWakeIntervalRule() =>
         WakeDirectiveRule("test-suppress-wake-interval", WakeDirectiveEffect.SuppressWakeInterval, WakeDirectiveEffect.RequireWakeAdvisory);

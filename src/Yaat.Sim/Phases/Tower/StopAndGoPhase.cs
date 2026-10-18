@@ -33,6 +33,9 @@ public sealed class StopAndGoPhase : Phase, IGroundRollClock
 
     public override string Name => "StopAndGo";
 
+    /// <summary>On its second takeoff roll: re-accelerating after the full stop, not yet airborne.</summary>
+    public bool IsTakeoffRoll => _reaccelerating && !_airborne;
+
     /// <inheritdoc />
     public double RollElapsedSeconds => _rollElapsedSeconds;
 

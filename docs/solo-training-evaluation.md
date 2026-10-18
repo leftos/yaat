@@ -1,7 +1,7 @@
 # Solo Training Evaluation & Scoring
 
 > Read this before touching `src/Yaat.Sim/Training/SoloTrainingEvaluator.cs`, `AircraftCompletion.cs`,
-> `AircraftDebriefCoachingTemplates.cs`, the server callers `TickProcessor.ProcessSoloTrainingEvaluation` /
+> `AircraftDebriefCoachingTemplates.cs`, the callers `SimulationEngine.TickSoloTrainingEvaluation` /
 > `TrainingHub.GetSessionReport`, or anything that emits a scoring finding. This is the rule-to-code map for the
 > solo-training scorer: it turns "7110.65 §X-Y-Z" or "the report shows a finding I don't recognize" into the exact
 > helper that produced it.
@@ -9,7 +9,7 @@
 Solo-training scoring grades a student controller's session against FAA separation, advisory, runway, wake, and
 approach rules. The whole subsystem is one Yaat.Sim class — `SoloTrainingEvaluator` — plus its data records in
 `AircraftCompletion.cs` and the coaching-note templates in `AircraftDebriefCoachingTemplates.cs`. The two callers
-that drive it live in yaat-server.
+that drive it are the engine's per-second spine step (Yaat.Sim) and the report hub method (yaat-server).
 
 This doc owns the evaluator's rule catalog, event lifecycle, scoring math, and the same-runway / wake tracker. For
 the **upstream `ApproachScore`** that feeds the Approaches bucket, see
@@ -25,7 +25,7 @@ state-mutators:
 
 | Method | Caller | Cadence | What it does |
 |---|---|---|---|
-| `Evaluate(aircraft, elapsed, airspace, serviceContext)` | `TickProcessor.ProcessSoloTrainingEvaluation` | every sim-second | Samples every airborne pair + runway op, upserts findings, deactivates stale ones, returns newly-raised notices. |
+| `Evaluate(aircraft, elapsed, airspace, serviceContext)` | `SimulationEngine.TickSoloTrainingEvaluation` (spine step `StepId.SoloTrainingEvaluation`, `Spine/SpineOrder.cs`) | every sim-second, on every run kind | Samples every airborne pair + runway op, upserts findings, deactivates stale ones, returns newly-raised notices. |
 | `BuildReport(soloMode, elapsed, approachReport, debriefContext)` | `TrainingHub.GetSessionReport` | on demand (poll) | Tallies the five score buckets, grades, builds coaching notes and per-aircraft debriefs. |
 | `RecordControllerCommand(aircraft, command, elapsed, knownAircraft)` | `RoomEngine` (after a successful dispatch) | per accepted command | Captures **proofs** (RTIS / SAFAL / CWT / field-in-sight) that clear findings. |
 | `Reset()` | `RecordingManager`, `ScenarioLifecycleService` | scenario load / rewind / restore | Clears all events, proofs, the tracker, and the debrief cache. |
@@ -33,41 +33,41 @@ state-mutators:
 `Evaluate` and `RecordControllerCommand` write to the evaluator's mutable state (`_events`, the proof collections,
 the runway tracker); `BuildReport` is a read of that state plus the externally-supplied `ApproachReportData`.
 
-### Per-tick `Evaluate` (`SoloTrainingEvaluator.cs:174`)
+### Per-tick `Evaluate`
 
 For each sim-second the server passes the world snapshot, elapsed seconds, the airspace database, and a
 `SoloTrainingServiceContext`:
 
-1. Filter to `IsEligibleAirborneTarget` (`:786`): not on ground, Mode-C transponder, not an unsupported track.
-2. **Pairwise loop** over eligible aircraft (`:185`). For each pair, skip if covered by an accepted visual follow
-   (`IsCoveredByVisualFollow`, `:838`), else:
-   - `SamplePair` (`:902`) resolves a separation requirement and a severity; `Upsert` records it.
-   - `SampleAdvisoryPair` (`:965`) emits a traffic-advisory / safety-alert finding when no matching proof exists.
-   - If the pair has no separation requirement, `SampleNoMinimaAdvisoryPair` (`:1003`) still flags a missing
+1. Filter to `IsEligibleAirborneTarget`: not on ground, Mode-C transponder, not an unsupported track.
+2. **Pairwise loop** over eligible aircraft. For each pair, skip if covered by an accepted visual follow
+   (`IsCoveredByVisualFollow`), else:
+   - `SamplePair` resolves a separation requirement and a severity; `Upsert` records it.
+   - `SampleAdvisoryPair` emits a traffic-advisory / safety-alert finding when no matching proof exists.
+   - If the pair has no separation requirement, `SampleNoMinimaAdvisoryPair` still flags a missing
      traffic-advisory-service finding when the two are proximate (≤3 NM and ≤1000 ft).
-3. **Visual-approach loop** (`:233`): each aircraft on a `VIS*` approach without a field-in-sight proof gets a
-   "Visual approach field proof missing" finding (`SampleVisualApproach`, `:1052`).
-4. **Safety-alert overuse** (`:249`): a SAFAL proof that never matched a real safety-severity pair becomes a
-   "Safety alert overused" finding (`SampleSafetyAlertOveruse`, `:1351`).
-5. **Runway / wake** (`:259`): `_sameRunwayTracker.Evaluate` returns runway-separation and wake findings plus the
+3. **Visual-approach loop**: each aircraft on a `VIS*` approach without a field-in-sight proof gets a
+   "Visual approach field proof missing" finding (`SampleVisualApproach`).
+4. **Safety-alert overuse**: a SAFAL proof that never matched a real safety-severity pair becomes a
+   "Safety alert overused" finding (`SampleSafetyAlertOveruse`).
+5. **Runway / wake**: `_sameRunwayTracker.Evaluate` returns runway-separation and wake findings plus the
    live wake contexts; both feed `Upsert`.
-6. **Deactivation pass** (`:288`): any tracked event whose `Id` was *not* re-observed this tick is marked
+6. **Deactivation pass**: any tracked event whose `Id` was *not* re-observed this tick is marked
    `IsActive = false`. This is the lifecycle linchpin — see [Footguns](#footguns--pitfalls).
 
 `Evaluate` returns only the **newly-raised** notices (a finding seen for the first time, or one whose severity just
-escalated). `TickProcessor` broadcasts each as a terminal entry (`TickProcessor.cs:321`). The full timeline is
+escalated). The host broadcasts each as a terminal entry (yaat-server `TickProcessor.BroadcastSoloTrainingEvents`, through `RoomHost.OnSoloTrainingEvents`). The full timeline is
 reconstructed later by `BuildReport`.
 
-### On-demand `BuildReport` (`SoloTrainingEvaluator.cs:300`)
+### On-demand `BuildReport`
 
-`TrainingHub.GetSessionReport` (`TrainingHub.cs:659`) calls `ApproachEvaluator.BuildReport` first (to get the
+`TrainingHub.GetSessionReport` calls `ApproachEvaluator.BuildReport` first (to get the
 `ApproachReportData`), assembles an `AircraftDebriefContext` from the live snapshot + completed-aircraft registry +
 primary airport, then calls `SoloTrainingEvaluator.BuildReport`. That method:
 
 - materializes the timeline (every `TrackedEvent.ToEvent()`), and the active subset sorted by severity then exposure;
 - computes the five bucket losses (`ComputeEventLoss` / `ComputeApproachLoss` / `ComputeRecoveryLoss`);
-- clamps `score = 100 − Σ bucketLost` to `[0, 100]` and grades it (`GradeFor`, `:1495`);
-- builds the top-4 coaching notes (`BuildCoachingNotes`, `:1505`) and the per-aircraft debriefs.
+- clamps `score = 100 − Σ bucketLost` to `[0, 100]` and grades it (`GradeFor`);
+- builds the top-4 coaching notes (`BuildCoachingNotes`) and the per-aircraft debriefs.
 
 ## Data flow & cross-repo wiring
 
@@ -75,7 +75,7 @@ primary airport, then calls `SoloTrainingEvaluator.BuildReport`. That method:
 RoomEngine.SendCommandAsync (accepted command, solo mode)
         └─ SoloTrainingEvaluator.RecordControllerCommand  → proofs
 
-TickProcessor.ProcessSoloTrainingEvaluation (every tick, solo mode)
+SimulationEngine.TickSoloTrainingEvaluation (spine step, every tick, solo mode)
         └─ SoloTrainingEvaluator.Evaluate(snapshot, elapsed, AirspaceDatabase.Default, ServiceContext)
                                                                      │ ApproachEvaluator (separate object)
 TrainingHub.GetSessionReport (poll)                                  │   ← RecordEstablishment/RecordLanding
@@ -86,18 +86,18 @@ TrainingHub.GetSessionReport (poll)                                  │   ← R
 
 `AirspaceDatabase.Default` supplies the Class B/C volumes that gate the airspace-specific separation rules.
 
-`SoloTrainingServiceContext` (`:65`) bundles two inputs:
+`SoloTrainingServiceContext` bundles two inputs:
 
-- `InitialContactEligibilityContext` (`Pilot/PilotInitialContactEligibility.cs:6`) — student TCP, position type,
-  ARTCC, primary airport, and the initial-contact transfer catalog. Drives `IsStudentServiceRecipient` (`:1090`):
+- `InitialContactEligibilityContext` — student TCP, position type,
+  ARTCC, primary airport, and the initial-contact transfer catalog. Drives `IsStudentServiceRecipient`:
   advisory/visual/wake findings only fire for aircraft that have made initial contact, have not left the student's
   frequency, and are eligible to be the student's traffic.
 - `WakeDirectiveCatalog` (`Data/WakeDirectiveCatalog.cs`) — per-ARTCC overrides that can *require* or *suppress* a
-  wake advisory / interval (`SampleWakeAdvisoryProofs`, `:1120`).
+  wake advisory / interval (`SampleWakeAdvisoryProofs`).
 
-`AircraftDebriefContext` (`Training/AircraftCompletion.cs:94`) bundles the live `ActiveAircraft`, the `CompletedAircraft` registry, and the `PrimaryAirportId`.
+`AircraftDebriefContext` bundles the live `ActiveAircraft`, the `CompletedAircraft` registry, and the `PrimaryAirportId`.
 
-The registry is `SimulationWorld.GetCompletedAircraft` (`SimulationWorld.cs:136`), a FIFO list of `CompletedAircraftRecord` capped at `CompletedAircraftCapacity = 500` (`SimulationWorld.cs:25`): when an aircraft is removed, its callsign, type, filed endpoints, spawn/completion times, and completion reason/detail are preserved so a landed/handed-off/dropped aircraft still appears on the debrief.
+The registry is `SimulationWorld.GetCompletedAircraft`, a FIFO list of `CompletedAircraftRecord` capped at `CompletedAircraftCapacity = 500`: when an aircraft is removed, its callsign, type, filed endpoints, spawn/completion times, and completion reason/detail are preserved so a landed/handed-off/dropped aircraft still appears on the debrief.
 
 Only a stamped aircraft is recorded (`CompletionReason != Active`): landings stamp `Landed` (`LandingPhase`), `CT`/`FCA` stamp `HandedOff` (`ContactCommandHandler`), corridor exits stamp `Transited` (`TickAutoDelete`), a departure removed past the session's departure auto-delete distance stamps `Departed` (`TickAutoDelete`; debrief note "Departed the area.", status "Departed"), and `DEL` stamps `Dropped` through `SimulationEngine.DeleteAircraft`.
 
@@ -111,42 +111,42 @@ Three record/class types carry a finding through its lifecycle:
 
 | Type | Where | Role |
 |---|---|---|
-| `TrainingEventSample` (private record, `:1581`) | produced by each `Sample*`/`Create*` helper | one tick's *observation* of a potential finding |
-| `TrackedEvent` (private class, `:1599`) | stored in `_events`, keyed by stable `Id` | the *accumulated* finding (severity-monotonic, growing exposure) |
-| `SoloTrainingEvent` (public record, `:29`) | `TrackedEvent.ToEvent()` | the immutable DTO shipped in the report |
+| `TrainingEventSample` (private record) | produced by each `Sample*`/`Create*` helper | one tick's *observation* of a potential finding |
+| `TrackedEvent` (private class) | stored in `_events`, keyed by stable `Id` | the *accumulated* finding (severity-monotonic, growing exposure) |
+| `SoloTrainingEvent` (public record) | `TrackedEvent.ToEvent()` | the immutable DTO shipped in the report |
 
 `_events` is `Dictionary<string, TrackedEvent>` keyed case-insensitively by a **stable Id**. Stable Ids are what let
 the same physical situation upsert into one finding tick after tick instead of spawning a new one each second:
 
-- `MakePairEventId(ruleName, a, b)` (`:1426`) — orders the two callsigns so `A_B` and `B_A` collapse to one key.
-- `MakeAdvisoryEventId` / `MakeSafetyAlertEventId` (`:1440`, `:1446`) — directional (recipient → target).
-- `MakeRunwayEventId(preceding, succeeding, rule, relation, elapsed)` (`SameRunwaySeparationTracker`, `:3427`) — keyed
+- `MakePairEventId(ruleName, a, b)` — orders the two callsigns so `A_B` and `B_A` collapse to one key.
+- `MakeAdvisoryEventId` / `MakeSafetyAlertEventId` — directional (recipient → target).
+- `MakeRunwayEventId(preceding, succeeding, rule, relation, elapsed)` (`SameRunwaySeparationTracker`) — keyed
   on relation kind, both runway keys, both callsigns, rule reference, and the operation's trigger time.
 
-`Upsert` (`:1411`) is the single write path:
+`Upsert` is the single write path:
 
 - New Id → `TrackedEvent.FromSample` is added, and the new event is returned (it's a notice).
 - Existing Id → `TrackedEvent.Update` raises (never lowers) severity, refreshes the title/description/measurements,
   bumps `LastObservedAtSeconds`, and re-activates it. A notice is returned **only if severity escalated**.
 
-Severity is **monotonic** (`TrackedEvent.Update`, `:1640`): `Severity = max(old, new)`. `ExposureSeconds`
-(`ToEvent`, `:1665`) is `LastObserved − Started`, which keeps growing for as long as the finding stays active. Because
+Severity is **monotonic** (`TrackedEvent.Update`): `Severity = max(old, new)`. `ExposureSeconds`
+(`ToEvent`) is `LastObserved − Started`, which keeps growing for as long as the finding stays active. Because
 the score is exposure-weighted, a situation that ever reached `Safety` keeps bleeding points until it deactivates.
 
-The severity ladder is `Coach < Warning < Safety` (`SoloTrainingEventSeverity`, `:22`).
+The severity ladder is `Coach < Warning < Safety` (`SoloTrainingEventSeverity`).
 
 ## The scoring criteria catalog
 
-Each check emits a finding tagged with a `SoloTrainingEventCategory` (`:13`) and a rule reference string. The
+Each check emits a finding tagged with a `SoloTrainingEventCategory` and a rule reference string. The
 category decides which score bucket absorbs the loss. Every `RuleReference` below is a verbatim string literal in the
 code.
 
 ### Separation (airborne radar)
 
-`ResolveRequirement` (`:688`) picks the applicable rule from the two aircraft's flight rules and the airspace they're
-in (or project into over a 30 s / 60 s look-ahead). `SamplePair` (`:902`) then classifies severity: a current
+`ResolveRequirement` picks the applicable rule from the two aircraft's flight rules and the airspace they're
+in (or project into over a 30 s / 60 s look-ahead). `SamplePair` then classifies severity: a current
 violation is `Safety`; a 30 s-projected violation or being within the `WarningMargin` (1.10×) is `Warning`; a
-60 s-projected violation is `Coach`. `Violates` (`:1405`) requires *both* horizontal **and** vertical to be under
+60 s-projected violation is `Coach`. `Violates` requires *both* horizontal **and** vertical to be under
 minima.
 
 | Criterion (`SeparationRequirement.Name`) | Rule reference | When it applies | Minima |
@@ -156,8 +156,8 @@ minima.
 | Class B large/turbojet separation | `7110.65 §7-9-4` | pair in Class B, one is large (>19,000 lb) or turbojet | 1.5 NM / 500 ft |
 | Class C (outer-area) IFR/VFR target-resolution | `7110.65 §7-8-2; 7110.65 §7-8-3; AIM §3-2-4` | Class C (or within 20 NM outer area) and one IFR + one VFR | 0.25 NM / 500 ft |
 
-`IsLargeOrTurbojet` (`:821`) reads MTOW / engine class from `FaaAircraftDatabase`, falling back to
-`AircraftCategorization`. The Class C outer-area test (`IsInClassCOuterArea`, `:756`) treats any Class C airport
+`IsLargeOrTurbojet` reads MTOW / engine class from `FaaAircraftDatabase`, falling back to
+`AircraftCategorization`. The Class C outer-area test (`IsInClassCOuterArea`) treats any Class C airport
 within 20 NM and below the volume ceiling as outer area.
 
 **VFR-on-top is the VFR party for separation.** `ResolveRequirement` computes
@@ -189,15 +189,15 @@ issued the matching command. The constructors set the category to `AdvisoryVisua
 
 | Criterion | Rule reference | Trigger | Clearing proof |
 |---|---|---|---|
-| Traffic advisory needed/missing (`CreateAdvisorySample`, `:1275`) | `7110.65 §2-1-21` (Class B → `§7-9-5, §2-1-21`; Class C → `§7-8-2, §2-1-21`, via `AdvisoryRuleReference` `:1346`) | a separation pair below `Safety` severity, recipient is a student-service aircraft | accepted RTIS (`_advisoryProofs`) for that recipient→target |
-| Safety alert missing (`CreateSafetyAlertSample`, `:1314`) | `7110.65 §2-1-6` | separation pair at `Safety` severity | accepted SAFAL (`_safetyAlertProofs`) for that recipient→target |
-| Traffic advisory service needed (`SampleNoMinimaAdvisoryPair`, `:1003`) | `7110.65 §2-1-21` (Class C → `7110.65 §7-8-2, §2-1-21`) | proximate (≤3 NM and ≤1000 ft) but no separation *minimum* applies | accepted RTIS |
-| Visual approach field proof missing (`SampleVisualApproach`, `:1052`) | `7110.65 §7-4-3; AIM §5-4-23` | aircraft on a `VIS*` approach with no following traffic and no field-in-sight | RFIS / pilot field-in-sight (`_fieldAdvisoryProofs`, `HasReportedFieldInSight`) |
-| Wake turbulence advisory missing (`CreateWakeAdvisorySample`, `:1253`) | `7110.65 §2-1-20; {source rule}` | a runway op generates a CWT wake context for a student-service recipient | accepted CWT — caution-wake on CTO/CLAND or a `WakeAdvisoryCommand` (`_wakeAdvisoryProofs`) |
-| Safety alert overused (`SampleSafetyAlertOveruse`, `:1351`) | `7110.65 §2-1-6` | a SAFAL proof never matched a live safety-severity pair | n/a (it *is* the misuse finding) |
+| Traffic advisory needed/missing (`CreateAdvisorySample`) | `7110.65 §2-1-21` (Class B → `§7-9-5, §2-1-21`; Class C → `§7-8-2, §2-1-21`, via `AdvisoryRuleReference`) | a separation pair below `Safety` severity, recipient is a student-service aircraft | accepted RTIS (`_advisoryProofs`) for that recipient→target |
+| Safety alert missing (`CreateSafetyAlertSample`) | `7110.65 §2-1-6` | separation pair at `Safety` severity | accepted SAFAL (`_safetyAlertProofs`) for that recipient→target |
+| Traffic advisory service needed (`SampleNoMinimaAdvisoryPair`) | `7110.65 §2-1-21` (Class C → `7110.65 §7-8-2, §2-1-21`) | proximate (≤3 NM and ≤1000 ft) but no separation *minimum* applies | accepted RTIS |
+| Visual approach field proof missing (`SampleVisualApproach`) | `7110.65 §7-4-3; AIM §5-4-23` | aircraft on a `VIS*` approach with no following traffic and no field-in-sight | RFIS / pilot field-in-sight (`_fieldAdvisoryProofs`, `HasReportedFieldInSight`) |
+| Wake turbulence advisory missing (`CreateWakeAdvisorySample`) | `7110.65 §2-1-20; {source rule}` | a runway op generates a CWT wake context for a student-service recipient | accepted CWT — caution-wake on CTO/CLAND or a `WakeAdvisoryCommand` (`_wakeAdvisoryProofs`) |
+| Safety alert overused (`SampleSafetyAlertOveruse`) | `7110.65 §2-1-6` | a SAFAL proof never matched a live safety-severity pair | n/a (it *is* the misuse finding) |
 | Traffic advisory imprecise (`SampleImpreciseAdvisories`) | `7110.65 §2-1-21` | an accepted structured RTIS resolved its target but graded `Imprecise` (within tolerance, beyond the "spot-on" bands) | n/a — `Coach` severity, it *is* the accuracy note (the recipient→target advisory itself is still proven) |
 
-`RecordControllerCommand` (`:97`) is the proof capture. It walks the immediately-applied commands of an accepted
+`RecordControllerCommand` is the proof capture. It walks the immediately-applied commands of an accepted
 compound and:
 
 - `ContactCommand` / `FrequencyChangeApprovedCommand` → sets `HasLeftStudentFrequency` (aircraft stops being a
@@ -223,19 +223,19 @@ compound and:
 
 ### Runway / Wake — same-runway separation tracker
 
-`SameRunwaySeparationTracker` (private nested class, `:1678`) is the densest piece. It is a stateful per-tick machine
-holding `_previousStates`, `_lastOperationByRunway`, `_recentOperations`, and `_activeViolations`.
+`SameRunwaySeparationTracker` (private nested class) is the densest piece. It is a stateful per-tick machine
+holding `_previousStates`, `_lastOperationByRunway`, `_recentOperations`, `_activeViolations` (the pair rules) and `_activeRunwayUsers` (the runway-user rule, below). Its `Evaluate` takes the unfiltered aircraft list, ground aircraft included, unlike the airborne pairwise loop.
 
-**Operation detection** (`DetectOperation`, `:1838`). Per aircraft it builds an `AircraftRunwayState` (`:3452`) from
+**Operation detection** (`DetectOperation`). Per aircraft it builds an `AircraftRunwayState` from
 the assigned runway and current phase, computing `AlongThresholdFt` (signed distance along the runway centerline). A
 **Departure** op is detected when an aircraft starts its takeoff roll (`IsTakeoffRoll` = on the ground and
 `RunwayOccupancy.ClassifyByPhase` says `Departing`, i.e. `TakeoffPhase`) on a runway; a **Landing** op when an arrival on
 `FinalApproachPhase`/`LandingPhase` crosses the **pavement** threshold (`DetectOperation` compares `AlongThresholdFt`
-across ticks; only the first-observation seed, `IsLandingAfterThreshold`, uses `AlongLandingThresholdFt`).
+across ticks; only the first-observation seed, `IsLandingAfterThreshold`, uses `AlongLandingThresholdFt`). A touch-and-go, stop-and-go, option or low approach (`TouchAndGoPhase`, `StopAndGoPhase`, `LowApproachPhase`) replaces the landing phase, and its threshold crossing is a Landing op too (`AircraftRunwayState.IsLandingOption`, folded into `IsArrivalApproach` / `IsArrivalOrLanding`), so the same-runway pair and approach-wake rules judge it as they do a full-stop landing.
 (For a live-traffic shadow — no phases, no assigned runway — the runway is the one it geometrically uses at its
 destination/departure airport and the geometry `RunwayUseKind` stands in for the phase in every predicate; see
 [live-traffic.md](live-traffic.md).)
-First observation seeds an op from the current phase (`TrySeedOperation`, `:1875`).
+First observation seeds an op from the current phase (`TrySeedOperation`).
 
 **Two datums, and picking the wrong one is a scoring bug.** `AlongThresholdFt` is measured from the **pavement**
 threshold; `AlongLandingThresholdFt` subtracts the airport map's displacement for that end. Departure-side rules stay
@@ -248,12 +248,11 @@ Arrival-side rules use the landing datum: `IsLandingAfterThreshold` and `Arrival
 2,537 ft of difference — enough to clear a succeeding arrival across the threshold early if the datums are crossed.
 Full table: [`landing-and-runway-exit.md`](landing-and-runway-exit.md#displaced-thresholds-which-datum).
 
-Note the **two `OperationKind` enums** — the tracker's private `OperationKind { Departure, Landing }` (`:3524`) is the
+Note the **two `OperationKind` enums** — the tracker's private `OperationKind { Departure, Landing }` is the
 runway state-machine kind and is unrelated to the public `Training.OperationKind { Unknown, Departure, Arrival,
-Transit }` (`AircraftCompletion.cs:27`) used for the debrief UX label.
+Transit }` used for the debrief UX label.
 
-**Runway relation** (`TryResolveRunwayRelation`, `:3080`) classifies a pair of runways into `RunwayRelationKind`
-(`:3540`):
+**Runway relation** (`TryResolveRunwayRelation`) classifies a pair of runways into `RunwayRelationKind`:
 
 | Relation | Detected by | Example |
 |---|---|---|
@@ -262,8 +261,8 @@ Transit }` (`AircraftCompletion.cs:27`) used for the debrief UX label.
 | `Intersecting` | `RunwayIntersectionCalculator.FindIntersection` | crossing runways |
 | `ProjectedConverging` | `FindProjectedFlightPathIntersection` within `ProjectedConvergingRunwayLimitNm = 1.0` | converging departure paths |
 
-**The 4×4 op-pair matrix.** For each new op, `CreateRunwaySeparationViolations` (`:1890`) checks the preceding op on
-the same runway plus the recent ops on related runways, and `TryCreateViolation` (`:1943`) dispatches on
+**The 4×4 op-pair matrix.** For each new op, `CreateRunwaySeparationViolations` checks the preceding op on
+the same runway plus the recent ops on related runways, and `TryCreateViolation` dispatches on
 `(succeeding.Kind, preceding.Kind)` and the relation. Each cell carries its own 7110.65 reference:
 
 | | Preceding Departure | Preceding Landing |
@@ -271,58 +270,73 @@ the same runway plus the recent ops on related runways, and `TryCreateViolation`
 | **Succeeding Departure** (same runway) | Dep behind dep — `§3-9-6(a)`, spacing `RequiredDepartureBehindDepartureFt` | Dep behind landing — `§3-9-6(b)`, preceding clear of runway |
 | **Succeeding Landing** (same runway) | Arr behind dep — `§3-10-3(a)(2)`, `RequiredArrivalBehindDepartureFt` | Arr behind landing — `§3-10-3(a)(1)`, `RequiredLandingBehindLandingExceptionFt` |
 
-The same four cells are repeated for `OppositeDirectionSamePavement` (`§3-9-6` / `§3-10-3`, `TryCreateOppositeDirectionViolation`
-`:2410`), `Intersecting` (`§3-9-8` / `§3-10-4`, `TryCreateIntersectingRunwayViolation` `:2464`), and
-`ProjectedConverging` (`§3-9-9` / `§3-10-4`, `TryCreateConvergingRunwayViolation` `:2520`). Intersecting/converging
-cases clear when the preceding aircraft passed the computed intersection (`HasPassedIntersection`, `:3256`).
+The same four cells are repeated for `OppositeDirectionSamePavement` (`§3-9-6` / `§3-10-3`, `TryCreateOppositeDirectionViolation`), `Intersecting` (`§3-9-8` / `§3-10-4`, `TryCreateIntersectingRunwayViolation`), and
+`ProjectedConverging` (`§3-9-9` / `§3-10-4`, `TryCreateConvergingRunwayViolation`). Intersecting/converging
+cases clear when the preceding aircraft passed the computed intersection (`HasPassedIntersection`).
 
 **SRS required-spacing tables** (Single Runway Separation, distance-based, `SrsCategory I/II/III`):
 
 | Rule | I behind I | any II involved | any III involved |
 |---|---|---|---|
-| `RequiredDepartureBehindDepartureFt` (`:3272`) | 3000 ft | 4500 ft (succeeding II; a I behind a II stays 3000, §3-9-6.a.2) | 6000 ft |
-| `RequiredArrivalBehindDepartureFt` (`:3287`) | 3000 ft | 4500 ft (succeeding II) | 6000 ft |
-| `RequiredLandingBehindLandingExceptionFt` (`:3297`) | 3000 ft | 4500 ft (succeeding II) | `null` (no exception — must be clear) |
+| `RequiredDepartureBehindDepartureFt` | 3000 ft | 4500 ft (succeeding II; a I behind a II stays 3000, §3-9-6.a.2) | 6000 ft |
+| `RequiredArrivalBehindDepartureFt` | 3000 ft | 4500 ft (succeeding II) | 6000 ft |
+| `RequiredLandingBehindLandingExceptionFt` | 3000 ft | 4500 ft (succeeding II) | `null` (no exception — must be clear) |
 
-`ResolveSrsCategory` (`:3307`) reads the FAA `Srs` field, else derives I/II from MTOW ≤ 12,500 lb + prop + engine
+`ResolveSrsCategory` reads the FAA `Srs` field, else derives I/II from MTOW ≤ 12,500 lb + prop + engine
 count (helicopters → I), defaulting to III.
 
-**Wake violations** are time-or-distance based and use CWT categories `A`–`I` (`CwtCategory`, `:3555`, ordinal
+**Wake violations** are time-or-distance based and use CWT categories `A`–`I` (`CwtCategory`, ordinal
 `A=1…I=9`):
 
-- Departure wake interval (`TryResolveDepartureWakeRequirement`, `:2848`) — `§3-9-6(f)/(g)` same/parallel, `§3-9-7(a)`
+- Departure wake interval (`TryResolveDepartureWakeRequirement`) — `§3-9-6(f)/(g)` same/parallel, `§3-9-7(a)`
   intersection-departure, in seconds (120/180/240). Satisfied by elapsed time **or** the directly-behind CWT distance
-  (`RequiredDirectlyBehindWakeNm`, `:3149`).
-- Approach wake spacing (`CreateApproachWakeViolations`, `:2089`) — `§5-5-4(h)`, distance in NM from
-  `RequiredApproachWakeNm` (`:3186`), for same-runway or close-parallel (<2,500 ft) arrivals.
-- Projected-flight-path wake (`TryResolveProjectedFlightPathWakeRequirement`, `:2940`) — `§3-9-8(a)(4)` /
-  `§3-9-9(a)(3)` / `§3-10-4(a)(3)`, seconds from `RequiredProjectedFlightPathWakeSeconds` (`:2977`).
+  (`RequiredDirectlyBehindWakeNm`).
+- Approach wake spacing (`CreateApproachWakeViolations`) — `§5-5-4(h)`, distance in NM from
+  `RequiredApproachWakeNm`, for same-runway or close-parallel (<2,500 ft) arrivals.
+- Projected-flight-path wake (`TryResolveProjectedFlightPathWakeRequirement`) — `§3-9-8(a)(4)` /
+  `§3-9-9(a)(3)` / `§3-10-4(a)(3)`, seconds from `RequiredProjectedFlightPathWakeSeconds`.
 
-`ResolveCwtCategory` (`:3352`) reads `WakeTurbulenceData.GetCwt` then `FaaAircraftDatabase`'s `Cwt`, falling back to a
+`ResolveCwtCategory` reads `WakeTurbulenceData.GetCwt` then `FaaAircraftDatabase`'s `Cwt`, falling back to a
 category from `AircraftCategorization`.
 
 Per-ARTCC `WakeDirectiveCatalog` rules can `SuppressWakeAdvisory`, `RequireWakeAdvisory`, or `SuppressWakeInterval`
-(`SampleWakeAdvisoryProofs` `:1120`, `IsWakeIntervalSuppressed` `:1793`). The wake-advisory finding is also overuse-
-aware: when a recipient has exactly one candidate context and a matching CWT proof, the finding is suppressed
-(`:1206`).
+(`SampleWakeAdvisoryProofs`, `IsWakeIntervalSuppressed`). The wake-advisory finding is also overuse-
+aware: when a recipient has exactly one candidate context and a matching CWT proof, the finding is suppressed.
+
+**Runway users at the trigger** (`CreateRunwayUserViolations`). Besides the pair matrix, each operation scores every *other* aircraft using the operation's runway at the operation's trigger second (a departure's roll start, a landing's threshold crossing): a Safety finding titled "Runway not clear for takeoff" / "Runway not clear for landing" in the Runway / Wake bucket, naming the user and the operation aircraft.
+
+The required text is "Runway clear of other aircraft." The rule reference is per kind: a takeoff cites `7110.65 3-9-5 / 3-9-6.a / 3-7-2.g.1; AIM 2-3-5.a.1` (`TakeoffRunwayUserRuleReference`), a landing `7110.65 3-10-3.a / 3-7-2.g.2(a) / 3-9-4.c.1(a); AIM 2-3-5.a.1` (`LandingRunwayUserRuleReference`).
+
+- **Who scores** (`ScoredRunwayUse`): `RunwayOccupancy.Classify` against the operation aircraft's ground layout returns `OnSurface`, `Crossing` (a LAHSO hold on the pavement is one) or `Fouling` (past the hold line, see [conflict-and-visual-detection.md](conflict-and-visual-detection.md#occupying-vs-fouling-a-runway--runwayoccupancy)). Departing and Landing users are left to the pair rules.
+
+  A line-up (`LineUpPhase`) counts as on the pavement only once its main gear is over the strict pavement; before that it scores as a fouler once any part of it is past the marking, moving or stopped (`RunwayOccupancy.AnyPartPastTheHoldLine`, 3-9-4.c.1(a)).
+- **Ahead of the operation** (`IsAheadOfOperation`): past a departure's own along-track position, or at or past a landing's landing threshold (the displaced-threshold datum, `LandingThreshold.DisplacementFt`). A user behind a landing's threshold is not in its way, except at an airport without full safety logic (`ArtccConfigRoot.AirportHasFullSafetyLogic`; no ARTCC config counts as none): there a line-up in progress, or an aircraft lined up and waiting or holding in position on the runway, scores wherever it is (3-9-4.c.1(a) forbids the landing clearance with it anywhere on the runway). OAK and SJC score; SFO does not.
+- **Left out** (`IsJudgedByThePairRules`): the operation aircraft itself, and an aircraft whose latest recorded operation on this runway or a related one is still under way for the pair rules (`IsUnderWayForThePairRules`: a departure still on the ground, a rejected takeoff included, or a landing still in the landing family, a live-traffic lander turning off at an exit included), so the preceding operation is scored once. A departure behind a departure that rejected and stopped on the runway therefore gets only the departure-behind-departure pair finding. The same-runway pair also skips the same callsign's last operation, so a stop-and-go's second roll is never paired with its own landing.
+- **Exempt**: a crosser the departure's roll will find clear (`IsCrossingClearBeforeTheRoll`: `OccupiedRunwayGoAround.SecondsToCrossingClear` against the roll's time to reach the crosser, `SecondsForRollToReach`, from `GroundRollProfile`).
+- **LAHSO** (`IsBeyondLahsoHoldShort`, 3-7-2.g.3): behind an arrival cleared to land and hold short (`PhaseList.LahsoHoldShort`, measured from the landing threshold), a crossing or a fouler held past a bar beyond that point does not score. Every other on-surface user beyond it does, an earlier LAHSO arrival holding short included (`RunwayHoldingPhase`; it is a landed aircraft, 3-10-3.a.1, and the finding reads "holding short on the runway").
+- **Restricted low approach** (`IsRestrictedLowApproach`: a `LowApproachPhase` aircraft at or above `RestrictedLowApproachFloorAglFt`, 500 ft AGL; 3-10-10): the pair rule behind a preceding landing on the same runway is skipped (`TryCreateViolation`; a departing predecessor and intersecting runways still apply). In the runway-user rule only the aircraft 3-10-10 withholds the low approach from score (`ScoresUnderRestrictedLowApproach`): lined up and waiting, holding in position, rejecting a takeoff, and a line-up only without full safety logic. Landed and taxiing aircraft are exempt.
+- **Judged once.** Never on an operation's first observation (a seed, not a trigger). The rule runway is the departure's `DepartureRunway`, else its `AssignedRunway`; a stop-and-go's, cross-runway closed traffic included, is its pattern runway, and a snapshot restored mid second roll seeds it as a departure; the landing's is the operation's. The finding id is `RWYUSER_<runway>_<user>_<operation aircraft>_<second>`, held in `_activeRunwayUsers`.
+- **Lifecycle** (`TrySampleRunwayUser`): the finding stays active, and its exposure grows, while the operation is under way (`IsOperationUnderWay`: a departure until airborne, a landing until it has exited, slowed below taxi speed or passed the runway end) and the user still uses the runway; either ending deactivates it. A hold-line overrun with no operation is not scored.
+
+Tests: `tests/Yaat.Sim.Tests/Training/SoloRunwayUserScoringTests.cs` (the runway-user rule on real KOAK and KSFO layouts) and `tests/Yaat.Sim.Tests/SoloTrainingEvaluatorTests.cs`.
 
 ### Approaches — the `ApproachEvaluator` boundary
 
 The Approaches bucket is the **only** bucket whose data is sourced outside `SoloTrainingEvaluator`.
 `ApproachEvaluator` (`src/Yaat.Sim/Phases/ApproachEvaluator.cs`) is a separate per-room object. The server drains
 `ApproachScore` objects (intercept angle/distance legality, glide-slope deviation, forced flag) from the world's
-per-tick outbox (`DrainAllApproachScores` in `ProcessApproachScores`) and calls `RecordLanding` (`TickProcessor.cs:1533`)
-or `RecordEstablishment` (`:1539`). It grades each approach A–F by demerits (`ComputeGrade`, `ApproachEvaluator.cs:100`)
+per-tick outbox (`DrainAllApproachScores` in `ProcessApproachScores`) and calls `RecordLanding`
+or `RecordEstablishment`. It grades each approach A–F by demerits (`ComputeGrade`)
 and produces an `ApproachReportData`.
 
 `SoloTrainingEvaluator.BuildReport` takes that `ApproachReportData` as a parameter and turns per-approach grades into a
-loss via `ComputeApproachLoss` (`:1475`): `F → 8`, `D → 5`, `C → 2`, else `0`. The evaluator never grades approaches
+loss via `ComputeApproachLoss`: `F → 8`, `D → 5`, `C → 2`, else `0`. The evaluator never grades approaches
 itself. Where `ApproachScore` originates (intercept geometry, glide-slope) is owned by
 [approach-and-pattern-geometry.md](approach-and-pattern-geometry.md).
 
 ## Scoring & grading — the five buckets
 
-`BuildReport` (`:316`) sums losses into five buckets, each clamped at its cap:
+`BuildReport` sums losses into five buckets, each clamped at its cap:
 
 | Bucket | Cap | Loss source |
 |---|---|---|
@@ -332,7 +346,7 @@ itself. Where `ApproachScore` originates (intercept geometry, glide-slope) is ow
 | Approaches | 10 | `ComputeApproachLoss(approachReport)` |
 | Recovery | 10 | `ComputeRecoveryLoss(timeline)` |
 
-`ComputeEventLoss` (`:1452`) is a base + exposure formula per finding in the category:
+`ComputeEventLoss` is a base + exposure formula per finding in the category:
 
 | Severity | Base | Exposure add-on |
 |---|---|---|
@@ -340,27 +354,27 @@ itself. Where `ApproachScore` originates (intercept geometry, glide-slope) is ow
 | Warning | 6 | `min(5, ⌊exposure / 10⌋)` |
 | Coach | 2 | 0 |
 
-`ComputeRecoveryLoss` (`:1492`) is `2 × (count of still-active Safety findings)`. `score = clamp(100 − Σ lost, 0, 100)`,
-graded by `GradeFor` (`:1495`): `≥90 A`, `≥80 B`, `≥70 C`, `≥60 D`, else `F`.
+`ComputeRecoveryLoss` is `2 × (count of still-active Safety findings)`. `score = clamp(100 − Σ lost, 0, 100)`,
+graded by `GradeFor`: `≥90 A`, `≥80 B`, `≥70 C`, `≥60 D`, else `F`.
 
 ## Per-aircraft debrief & the FNV cache
 
-`BuildAircraftDebriefs` (`:344`) produces one `AircraftDebriefData` (`AircraftCompletion.cs:67`) row per active and
+`BuildAircraftDebriefs` produces one `AircraftDebriefData` row per active and
 completed aircraft. Findings are grouped by participating callsign from `SoloTrainingEvent.Callsigns`, so a shared
 separation finding shows in **both** aircraft's debrief blocks (shared blame). Each row tallies findings by category
-and severity, picks the top finding (highest severity, then longest exposure — `CompareForTop`, `:618`), and renders a
+and severity, picks the top finding (highest severity, then longest exposure — `CompareForTop`), and renders a
 one-line coaching note via `AircraftDebriefCoachingTemplates.Build`.
 
-Completed-aircraft handling (`:388`): a callsign that is also live is skipped (the live entry wins); within the
+Completed-aircraft handling: a callsign that is also live is skipped (the live entry wins); within the
 completed list, only the latest `CompletedAtSeconds` record per callsign is kept (handles delete-then-respawn).
 
-`ClassifyOperation` (`:628`) maps filed departure/destination against the primary airport into the public
+`ClassifyOperation` maps filed departure/destination against the primary airport into the public
 `OperationKind` (`Departure` if dep matches, `Arrival` if dest matches, `Transit`/`Unknown` otherwise), tolerating the
-optional `K`/`P` ICAO prefix (`AirportIdMatches`, `:658`).
+optional `K`/`P` ICAO prefix (`AirportIdMatches`).
 
 **The FNV debrief cache.** `BuildReport` runs on a server poll cadence (≈2–5 s) while the inputs usually haven't
 changed, so the debrief result is memoized behind a 64-bit FNV-1a structural hash. `ComputeDebriefInputsHash`
-(`:424`) folds in, for every active aircraft, its callsign / cid / `AircraftType` / `FlightPlan.Departure` /
+folds in, for every active aircraft, its callsign / cid / `AircraftType` / `FlightPlan.Departure` /
 `FlightPlan.Destination` / `CompletionReason` / `CompletionDetail` / spawn & completion times; for every completed
 record its callsign / completion time / reason; the primary airport; and for every timeline event its `Id` /
 `Severity` / `IsActive`. If the hash matches the previous call, `_lastDebriefs` is returned unchanged. The invariant:
@@ -369,7 +383,7 @@ debrief.
 
 ## Reset semantics
 
-`Reset()` (`:676`) clears `_events`, all four proof collections, the same-runway tracker (`Reset`, `:1785`), and the
+`Reset()` clears `_events`, all four proof collections, the same-runway tracker (`Reset`), and the
 debrief cache. The server calls it on scenario load, rewind, and snapshot restore from `RecordingManager` and
 `ScenarioLifecycleService`. The tracker carries the most per-tick state, so any new tracker field that isn't cleared
 in `SameRunwaySeparationTracker.Reset` leaks across scenarios.
@@ -412,8 +426,8 @@ in `SameRunwaySeparationTracker.Reset` leaks across scenarios.
   `AircraftCategorization`). The static-singleton race in CLAUDE.md applies: a category test that reads these before
   `TestVnasData.EnsureInitialized()` can get the default-fallback category. Pin the singleton in the test class
   constructor.
-- **The two callers live in yaat-server.** `Evaluate` is called from `TickProcessor.ProcessSoloTrainingEvaluation` and
-  `BuildReport` from `TrainingHub.GetSessionReport`. A signature change to either breaks the sibling repo and is only
+- **`BuildReport`'s caller lives in yaat-server.** `Evaluate` is called from `SimulationEngine.TickSoloTrainingEvaluation` (Yaat.Sim, the spine step) and
+  `BuildReport` from `TrainingHub.GetSessionReport` (yaat-server). A signature change to either breaks the sibling repo and is only
   caught by `tools/test-all.ps1`, not bare `dotnet test` from yaat.
 - **Same-pavement opposite-direction ≠ intersecting.** "28L vs 10R" is `OppositeDirectionSamePavement` (resolved via
   `Id.Overlaps`), a distinct relation kind from `Intersecting`/`ProjectedConverging` (resolved via

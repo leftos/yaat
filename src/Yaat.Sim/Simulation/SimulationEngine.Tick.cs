@@ -1358,7 +1358,8 @@ public sealed partial class SimulationEngine
                     scenario.PrimaryAirportId,
                     scenario.InitialContactTransfers
                 ),
-                scenario.WakeDirectives
+                scenario.WakeDirectives,
+                scenario.ArtccConfig
             )
         );
     }

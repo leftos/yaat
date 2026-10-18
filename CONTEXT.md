@@ -306,6 +306,9 @@ _Avoid_: S-turn, offset (the jog is a single arc, not a lateral shift)
 The straight after a turn about's reversal, held on the taxiway edge's bearing the reversal rolled out on, a turning radius off the centreline (a diameter for a helicopter) on the inside of the turn the route makes at the node, to abeam that node, instead of steering back out to the centreline first.
 `GroundNavigator.HoldsRollOutBearing` decides it and `TryLayTurnAboutRollOutLine` lays it (docs/ground/navigator.md). Among its conditions: a straight of at most six turning radii, no bar at the node, and the main gear inside the type's TDG half-width. The node turn from it is fitted to the offset so it exits on the outgoing centreline.
 
+**Operation** (solo scoring):
+A takeoff or landing the solo evaluator's runway tracker detects and judges: a departure's roll start, or a landing's threshold crossing (a touch-and-go, stop-and-go, option or low approach included). Not the public `Training.OperationKind` debrief label (docs/solo-training-evaluation.md).
+
 **Re-aim past the bend**:
 A turn about's reversal aimed, with no jog, at a node on the leg out of the bend at its aim node, instead of turning about to that node, when the bend runs back against the reversal by more than 90° and the cut keeps the main gear within the type's TDG half-width of the two taxiways' centrelines (`GroundNavigator.ReAimPastTheBend`, docs/ground/navigator.md). Never past a bar.
 
@@ -322,7 +325,7 @@ A type that does not fit refuses a controller's TAXI that would need a turn abou
 _Avoid_: lined-up jet (neither the heading nor the category decides it)
 
 **Fouler / fouling**:
-An aircraft on the ground off a runway's pavement with a body part past that runway's hold line, so the runway is not clear for a departure's roll or an arrival's threshold crossing (`RunwayUseKind.Fouling`, docs/conflict-and-visual-detection.md). An approaching aircraft fouls with its nose more than 5 ft past the line; a leaving one fouls only when stopped or restricted with its tail still inside. A fouler is not on the runway: it draws an advisory, and makes an arrival go around only close to the centreline.
+An aircraft on the ground off a runway's pavement with a body part past that runway's hold line, so the runway is not clear for a departure's roll or an arrival's threshold crossing (`RunwayUseKind.Fouling`, docs/conflict-and-visual-detection.md). An approaching aircraft fouls with its nose more than 5 ft past the line; a leaving one fouls only when stopped or restricted with its tail still inside. A fouler is not on the runway: it draws an advisory, and makes an arrival go around only close to the centreline. The solo scorer counts it as a runway user at a takeoff's roll start or a landing's threshold crossing.
 
 **Hold line**:
 The runway holding position marking (AIM 2-3-5.a.1). The code's "bar" is its graph node, a `RunwayHoldShort` node (`RunwayHoldBars`).
@@ -336,6 +339,9 @@ How far from a runway's centerline its holding position markings sit: the map's 
 
 **Runway rank**:
 Who gives way to whom across a runway in the ground-conflict pass (`GroundConflictDetector.ComputeRank`): a runway user (taking off, landing, rolling out, lined up on the pavement) outranks an aircraft vacating the runway, which outranks everything else; the lower rank yields (7110.65 3-1-3, AIM 4-3-21.a).
+
+**Runway user**:
+An aircraft taking off, landing, rolling out, lined up on the pavement, or crossing it: the one that outranks an aircraft vacating the runway in the ground-conflict pass (`RunwayRank.RunwayUser`). The solo scorer also counts one on, crossing or past the hold line of a runway ahead of another's takeoff roll or landing threshold crossing as a "Runway not clear" finding (docs/solo-training-evaluation.md).
 
 **Vacating** (a runway):
 The pilot sense, not the controller's: an aircraft on the ground leaving a runway whose tail is still over the strict paved half-width or inside the hold line (`RunwayOccupancy.IsVacating`), moving or stopped, until the tail is out. Moving, it has right of way over taxiing traffic; held, only against traffic coming head-on into its way out.

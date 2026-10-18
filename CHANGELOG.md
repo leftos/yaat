@@ -12,6 +12,7 @@
 - `LAND $spot` lands a helicopter at a taxiway spot and holds it there.
 - `EAPP VIS28R` tells a pilot to expect a visual approach to a runway, and a later bare `CAPP` clears that visual.
 - `CVA {airport}` clears a visual approach to an airport without a tower; the pilot picks the landing runway by wind and active runways and reads it back.
+- Solo training scores a takeoff or landing cleared with another aircraft on, crossing, lining up on or past the hold line of that runway.
 
 ### Changed
 

@@ -25,8 +25,10 @@ namespace Yaat.Sim.Phases.Tower;
 /// are not classified; a rollout is projected at constant speed; an altitude-restricted low approach (§3-10-10) is not
 /// exempted because the sim's low approach is flown well below the 500 ft that paragraph requires; there is no balked
 /// landing from the flare (the window closes at threshold-crossing height).
+/// The solo evaluator's runway-user finding shares the crossing projection (<see cref="CrossingFarBar"/>,
+/// <see cref="SecondsToCrossingClear"/>) and the occupant wording (<see cref="DescribeUse"/>).
 /// </summary>
-internal static class OccupiedRunwayGoAround
+public static class OccupiedRunwayGoAround
 {
     private static readonly ILogger Log = SimLog.CreateLogger("OccupiedRunwayGoAround");
 
@@ -199,7 +201,7 @@ internal static class OccupiedRunwayGoAround
     /// The far-side bar of a fixed-wing crossing of <paramref name="runway"/> under way on its pavement
     /// (<see cref="CrossingRunwayPhase"/>, classified <see cref="RunwayUseKind.Crossing"/>), or null for any other occupant.
     /// </summary>
-    private static GroundNode? CrossingFarBar(AircraftState occupant, RunwayUseKind kind, RunwayInfo runway, AirportGroundLayout layout)
+    public static GroundNode? CrossingFarBar(AircraftState occupant, RunwayUseKind kind, RunwayInfo runway, AirportGroundLayout layout)
     {
         if (
             (kind != RunwayUseKind.Crossing)
@@ -255,7 +257,7 @@ internal static class OccupiedRunwayGoAround
     /// (<see cref="RunwayOccupancy.IsRestrictedShortOfTheMarking"/>: a hold, a give-way in effect, a ground-conflict yield, or a
     /// route stop that leaves part of it inside), commanded to a stop, or not heading toward the far side.
     /// </summary>
-    private static double SecondsToCrossingClear(AircraftState crosser, RunwayInfo runway, AirportGroundLayout layout, GroundNode farBar)
+    public static double SecondsToCrossingClear(AircraftState crosser, RunwayInfo runway, AirportGroundLayout layout, GroundNode farBar)
     {
         if (RunwayOccupancy.IsRestrictedShortOfTheMarking(crosser, runway, layout))
         {
@@ -411,8 +413,11 @@ internal static class OccupiedRunwayGoAround
         && (SameRunwayArrivalProtection.TryBuildRollout(occupant, elapsedSinceThresholdSeconds: 0.0) is { } rollout)
         && (SameRunwayArrivalProtection.SecondsToRunwayClear(rollout) <= secondsToThreshold);
 
-    /// <summary>The occupant's runway use in the instructor's words, for an occupant with no §3-10-3 exception at all.</summary>
-    private static string DescribeUse(RunwayUseKind kind) =>
+    /// <summary>
+    /// The occupant's runway use in the instructor's words, for an occupant with no §3-10-3 exception at all; the solo
+    /// evaluator's runway-user finding uses the same words.
+    /// </summary>
+    internal static string DescribeUse(RunwayUseKind kind) =>
         kind switch
         {
             RunwayUseKind.Departing => "departure roll",
@@ -428,7 +433,8 @@ internal static class OccupiedRunwayGoAround
 
     /// <summary>
     /// §3-10-3.a.1 applies: the occupant landed on this runway and is rolling out, exiting, stopped after landing, or held after
-    /// its exit (<see cref="HoldingAfterExitPhase"/>, here only: the solo evaluator reads "not landing family" as clear).
+    /// its exit (<see cref="HoldingAfterExitPhase"/>, here only: the solo evaluator's pair rules read "not landing family" as
+    /// clear, and its runway-user finding scores such an aircraft as an ordinary runway user, sharing <see cref="DescribeUse"/>).
     /// </summary>
     private static bool LandedHere(AircraftState occupant, RunwayUseKind kind, RunwayInfo runway) =>
         (

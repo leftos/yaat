@@ -241,6 +241,27 @@ public static class RunwayOccupancy
     }
 
     /// <summary>
+    /// Whether an aircraft on the ground has a judged part (<see cref="PartsJudged"/>) past <paramref name="runway"/>'s holding
+    /// position marking (<see cref="AnyPartPastTheMarking"/>), moving or stopped: the past-the-marking half of
+    /// <see cref="FoulsHoldLine"/> without its stop condition, for an aircraft "taxiing to LUAW" (7110.65 3-9-4.c.1(a)).
+    /// </summary>
+    /// <param name="ac">The aircraft.</param>
+    /// <param name="runway">The runway.</param>
+    /// <param name="layout">The ground layout of the runway's airport.</param>
+    /// <returns>True when a judged part is past the marking.</returns>
+    internal static bool AnyPartPastTheHoldLine(AircraftState ac, RunwayInfo runway, AirportGroundLayout layout)
+    {
+        if (!ac.IsOnGround)
+        {
+            return false;
+        }
+
+        var body = AircraftBody.Of(ac.AircraftType);
+        (LatLon, double) pose = (ac.Position, ac.TrueHeading.Degrees);
+        return AnyPartPastTheMarking(layout, runway, body, PartsJudged(ac, runway, layout, body), pose);
+    }
+
+    /// <summary>
     /// The pilot rule for ground-conflict priority (AIM 2-3-5.a.1, 4-3-21.b): an aircraft on the ground leaving
     /// <paramref name="runway"/> (<see cref="IsLeavingForPriority"/>) whose tail is still over its strict paved half-width or more
     /// than <see cref="HoldLineFoulToleranceFt"/> inside its holding position marking (<see cref="AnyPartPastTheMarking"/>, the
