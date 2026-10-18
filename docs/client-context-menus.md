@@ -52,7 +52,7 @@ The aircraft right-click menus on the radar, ground and aircraft-list views. Thi
   Then comes the point menu's strip, of the same shape as the quick-command strip: the ground point items that apply (Taxi here, Taxi to {runway end} per end, Push to, Custom taxi…), or, on a radar point with an airborne aircraft, Fly heading, Direct to, Hold left, Hold right and Warp here; then a separator, then the text items. Only an enabled item gets an icon ("No route found" stays a text row).
 
   On a radar point an airborne aircraft's text items are only those the strip does not repeat: Fly heading, a dimmed `FH {hdg} · {left|right} turn, {n}°` row under it (none when the turn is under 1°), then Append direct to. Anywhere else the text items are the airborne items, the taxi items or Warp here, by the aircraft's predicates.
-- **Approach pickers** (Cleared, Join, Cleared/Join straight-in, Cleared/Join (force), Join final course, Expect) share one builder, `ApproachPickerBuilder.Build`.
+- **Approach commands.** Cleared approach and Expect approach are the **approach flyout** (below). The **approach pickers** (Join, Cleared/Join straight-in, Cleared/Join (force), Join final course) share one builder, `ApproachPickerBuilder.Build`; their `(other)…` companion is `ApproachPickerBuilder.BuildOther`, and the two flyout verbs have none.
 
   With a **default approach** (the expected approach, else the assigned runway's ILS, else that runway's first published approach) the entry is a one-click leaf naming it (`Cleared ILS 30`, sending `CAPP I30`) with a `{label} (other)…` companion holding the grouped picker; without one it is the grouped picker under its own label; with no published approaches, free text.
 
@@ -237,6 +237,22 @@ Settings › Input › **Quick commands** (`SettingsSectionId.QuickCommands`) ed
 
   A row pointed at or focused previews its route through `SetRoutePreview` (dashed); pointing at a tab draws nothing and leaves the last preview, choosing another tab or closing the flyout clears it. UI Automation sees each tab as a `TabItem` named by `FlyoutTabStrip.AccessibleName` (`28R`, `28R, searching`, `12, none`), which can be invoked to select it.
 
+  Cleared approach and Expect approach are one designed flyout, `ApproachFlyout.Build(label, ApproachFlyoutVerb, aircraft, context, host)` (strip flyout and All Commands › Approach, registered through `QuickCommandStrip.FollowInFlyout`; `MenuCatalog` routes `MenuIds.ApproachCleared` and `ApproachExpect` to it).
+
+  `ApproachFlyoutModel` is the data (tabs, `ApproachRow`s, the Force toggle, the box command, the Cancel IFR offer) and `ApproachFlyout` the panel; the approaches come from `ApproachPickerBuilder.Choices`, the expected and assigned-runway defaults from `ApproachPickerBuilder.Expected` / `AssignedRunwayApproach`, the arrival runways from `IMenuHost.GetActiveArrivalEnds`, and `IMenuHost.IsToweredAirport` says whether the destination has a tower.
+
+  The panel parts it shares with the other flyouts (plain row style, separator) are in `FlyoutPanelParts`.
+
+  A `FlyoutTabStrip` has one tab per runway, labelled `{rwy} {count}`: the room's arrival runways in the room's order, then the rest, and a Circling tab last for approaches that name no runway. The tab with the default approach is selected on open.
+
+  Above the tabs is a pinned default row `{Cleared|Expect} {name} · default` that takes focus on open, so Enter sends it (the expected approach, else an expected visual, else the assigned runway's first approach; without one the default runway's tab, as `SmartVisualRunway` chooses it, else the first, is selected).
+
+  Each tab starts with a `Visual RWY n` row (Cleared and Expect; none in Cleared for a VFR aircraft), greyed `· field not in sight` until the field is reported in sight, then the runway's approaches by kind. A row on a runway too short for the type (`RunwayLandability`, as above) is dimmed `· short` and stays clickable.
+
+  At an untowered field (Cleared approach, IFR aircraft) a `Visual approach to {airport}` row is pinned beside the default and sends `CVA {airport}`; with no instrument approach there it is the only row and the tabs and box are left out. Cleared approach offers the visual rows to an IFR aircraft only. Rows show the command they send, forced when Force is on.
+
+  The title line of Cleared approach carries a **Force** toggle, absent in solo training, that turns every row forced (`CVAF`, `CAPPF`). The **Approach** box takes an approach id only: Enter sends the top live match on the open tab (`ApproachFlyoutModel.BoxCommand`), or the verb with what was typed when nothing matches. For an IFR aircraft airborne below FL180 a `Cancel IFR…` row opens an inline confirmation strip that sends `CIFR`. Reopening the flyout resets Force, the box and the tab.
+
   Air taxi and Land are one designed flyout, `AirTaxiFlyout.Build(label, AirTaxiVerb, aircraft, context, host)` (strip flyout and All Commands, registered through `QuickCommandStrip.FollowInFlyout`), over `IMenuHost.GetAirTaxiChoices` → `AirTaxiMenu` (`AirportId` and the `Pads`, `Parking`, `Spots` and `Runways` groups of `AirTaxiDestination`s, each nearest first by straight-line distance rounded to 50 ft; `GroundViewModel.GetAirTaxiChoices` answers from the view's layout).
 
   A `FlyoutTabStrip` has the tabs Pads · parking, Spots and, for Air taxi only, Runways (a group with nothing is a dimmed `none` tab). Above it sits the filter box (Air taxi to, placeholder naming the groups) over a hint line. Each open starts with the box clear and Pads · parking selected, focus in the box.
@@ -253,7 +269,7 @@ Settings › Input › **Quick commands** (`SettingsSectionId.QuickCommands`) ed
 
   Land's flyout is headed `Land at {AIRPORT}`, the airport its rows come from: the helicopter's destination when the client holds that layout, else the ground view's. When that airport is not the helicopter's filed destination every row and Enter send `APT {AIRPORT}, LAND …`. A Keep NODEL checkbox beside the box appends ` NODEL` to every command, rows and Enter alike.
 
-  Two controls are built for a flyout that shows one runway or group at a time. `FlyoutTabStrip` is hosted by Taxi to runway and by Air taxi / Land; `MenuTwoLineRow` by Taxi to runway alone. `FlyoutTabStrip` is the tab strip above the rows: a wrapping row of `FlyoutTab`s (label and `FlyoutTabState`: Ready, Searching with a spinner, Empty with a dimmed italic `none`).
+  Two controls are built for a flyout that shows one runway or group at a time. `FlyoutTabStrip` is hosted by Taxi to runway, Air taxi / Land and the approach flyout; `MenuTwoLineRow` by Taxi to runway alone. `FlyoutTabStrip` is the tab strip above the rows: a wrapping row of `FlyoutTab`s (label and `FlyoutTabState`: Ready, Searching with a spinner, Empty with a dimmed italic `none`).
 
   It is passive, its tabs never take focus: the rows panel owns the keys and calls `Move(-1/+1)`, which does not wrap and returns false at either end; a left press or `Select` changes the selection and raises `SelectionChanged` with the new index (`SetTabs` raises none).
 

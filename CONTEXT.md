@@ -586,7 +586,7 @@ The Hold short of… designed flyout (`HoldShortLadder`): the aircraft's route f
 A runway end is landable for a physical aircraft type when its landing distance available is at least 1.15 times the type's landing distance, and short otherwise (`RunwayLandability`); a type with no figure, a helicopter and a `VEH*` type are always landable. The pattern entries' flyout lists landable ends first and marks short ones "short".
 
 **Designed flyout**:
-A quick command's strip flyout built from rows with their own layout (glyph or badge, label, what it sends) instead of a copy of a context submenu; the same rows serve the entry's All Commands submenu. Cleared for takeoff, the pattern entries' runway flyout, Push back to…, Follow…, Give way to…, Hold short of…, Preset taxi route, Taxi to runway, Air taxi and Land are designed flyouts.
+A quick command's strip flyout built from rows with their own layout (glyph or badge, label, what it sends) instead of a copy of a context submenu; the same rows serve the entry's All Commands submenu. Cleared for takeoff, the pattern entries' runway flyout, Push back to…, Follow…, Give way to…, Hold short of…, Preset taxi route, Taxi to runway, Air taxi, Land, Exit left, Exit right, Cleared approach and Expect approach are designed flyouts.
 
 **Detail row**:
 A disabled, dimmed label row in a menu that sends nothing (`SharedMenuGroups.DetailRow`), such as the point menu's FRD, distance and bearing line; not a command row.

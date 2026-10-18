@@ -10,6 +10,12 @@ Each tab lists the runway end's entries: the full-length entry, then each inters
 
 ![Taxi to runway for a B738 at an Oakland stand, with runway 30's tab](img/whats-new-taxi-to-runway-tabs.png)
 
+## Cleared and Expect approach
+
+Cleared approach and Expect approach, in the quick-command strip or under All Commands › Approach, open one flyout with a tab for every runway of the destination, the room's arrival runways first and a Circling tab last. The default approach (the expected one, else the assigned runway's ILS) is pinned above the tabs with focus on it, so Enter sends it.
+
+Each tab starts with a Visual row, greyed "field not in sight" until the field is reported, and a runway too short for the aircraft's type is dimmed "short". At an untowered airport a "Visual approach to" row clears the aircraft to the airport. The Force toggle in Cleared approach turns every row into its forced form; an Approach box takes an id and sends the top match on Enter; and an IFR aircraft airborne below FL180 gets a "Cancel IFR…" row with an inline confirmation.
+
 ## GFS winds aloft
 
 Load Live Weather downloads a NOAA GFS wind grid for your ARTCC, so winds aloft vary across the sector instead of being one set of layers, and the METAR window says where they came from. A second line under the weather name reads, for example, "Winds aloft: NOAA GFS 12Z 16 Oct, +4 h forecast": the forecast run and the forecast hour the grid was fetched for.

@@ -294,7 +294,19 @@ Right-click an aircraft on the [Radar View](#radar-view-1), the [Ground View](#g
 - The remaining quick commands as text, below the strip (an icon past the tenth is the first of them).
 - **Command…** (a focused free-text command popup) and **Note…**, then **All Commands** and **Favorite Commands**, then Track, Data Block, Squawk and the view's own items.
 
-  The approach commands (**Cleared approach**, **Join approach**, **Expect approach** and their straight-in, forced and final-course variants) name their likely approach for one click: the expected approach, else the assigned runway's ILS, else its first published approach (`Cleared ILS 30` sends `CAPP I30`). **Cleared approach (other)…** under it lists every approach grouped by runway: the assigned runway first (else the runway of the active or expected approach), by kind (ILS, LOC, RNAV, RNP), each row showing the command it sends, then **Other runways**, one submenu per runway. With no expected approach and no assigned runway, the command opens that runway list directly.
+  **Cleared approach** and **Expect approach** (the strip icon, and All Commands › Approach) open one flyout with a tab for every runway of the destination, labelled with its number of approaches (`28R 3`): the room's arrival runways first, in the room's order, then the rest, and a **Circling** tab last.
+
+  The flyout opens with a default row pinned above the tabs, `Cleared ILS 30 · default` (the expected approach, else the assigned runway's ILS, else its first published approach), focused so Enter sends it (`CAPP I30`).
+
+  Each tab starts with a **Visual RWY n** row (Cleared approach has none for a VFR aircraft), greyed `· field not in sight` until the field is reported, then the runway's approaches by kind; a row on a runway too short for the aircraft's type is dimmed `· short` and stays clickable.
+
+  At an untowered airport a **Visual approach to {airport}** row sends `CVA {airport}`. Cleared approach's title line has a **Force** toggle (not in solo training) that turns every row into its forced form (`CVAF`, `CAPPF`). The **Approach** box takes an approach id: Enter sends the top match, or what you typed when nothing matches.
+
+  An IFR aircraft airborne below FL180 also has a **Cancel IFR…** row, which asks for confirmation inline and sends `CIFR`. Reopening the flyout resets Force, the box and the tab.
+
+  The other approach commands (**Join approach** and the straight-in, forced and final-course variants) name their likely approach for one click: the expected approach, else the assigned runway's ILS, else its first published approach (`Join ILS 30`).
+
+  **Join approach (other)…** under it lists every approach grouped by runway: the assigned runway first (else the runway of the active or expected approach), by kind (ILS, LOC, RNAV, RNP), each row showing the command it sends, then **Other runways**, one submenu per runway. With no expected approach and no assigned runway, the command opens that runway list directly.
 
   **Maintain altitude** opens a picker titled with the callsign, its subtitle giving the current and assigned altitudes. The list runs from the aircraft type's ceiling down, opening centred on the assigned altitude, else the current one. Each row is marked ↑ (sends a climb) or ↓ (sends a descent); ● marks the current altitude and ◆ the assigned one, and clicking ● sends the verb toward the assignment.
 

@@ -29,14 +29,16 @@ All Commands
     Hold at fix (left)… picker:input
     Hold at fix (right)… picker:input
   Approach
-    Cleared approach picker:grouped [6L, 6R, 7L, 7R, 24L, 24R, 25L, 25R]
+    Cleared approach
+      approach flyout, built when it opens
     Join approach picker:grouped [6L, 6R, 7L, 7R, 24L, 24R, 25L, 25R]
     Cleared straight-in picker:grouped [6L, 6R, 7L, 7R, 24L, 24R, 25L, 25R]
     Join straight-in picker:grouped [6L, 6R, 7L, 7R, 24L, 24R, 25L, 25R]
     Cleared approach (force) picker:grouped [6L, 6R, 7L, 7R, 24L, 24R, 25L, 25R]
     Join approach (force) picker:grouped [6L, 6R, 7L, 7R, 24L, 24R, 25L, 25R]
     Join final approach course picker:grouped [6L, 6R, 7L, 7R, 24L, 24R, 25L, 25R]
-    Expect approach picker:grouped [6L, 6R, 7L, 7R, 24L, 24R, 25L, 25R]
+    Expect approach
+      approach flyout, built when it opens
     Cleared visual approach… picker:list [6L, 6R, 7L, 7R, 24L, 24R, 25L, 25R]
     ---
     Report field in sight

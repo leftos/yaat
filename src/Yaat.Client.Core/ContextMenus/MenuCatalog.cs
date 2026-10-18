@@ -2215,12 +2215,35 @@ public static class MenuCatalog
         return item;
     }
 
-    /// <summary>An approach picker entry (<see cref="ApproachSpec"/>), built by <see cref="ApproachPickerBuilder.Build"/>.</summary>
+    /// <summary>
+    /// An approach picker entry (<see cref="ApproachSpec"/>): Cleared approach and Expect approach open the approach flyout
+    /// (<see cref="ApproachFlyout.Build"/>), the other verbs are built by <see cref="ApproachPickerBuilder.Build"/>.
+    /// </summary>
     private static MenuCatalogEntry ApproachPicker(string id)
     {
         ApproachPickerSpec spec = ApproachSpec(id);
+        if (ApproachFlyoutVerbOf(id) is { } verb)
+        {
+            return new(
+                id,
+                spec.Label,
+                MenuFlightRules.Both,
+                Always,
+                (ac, context, host) => ApproachFlyout.Build(spec.Label, verb, ac, context, host)
+            );
+        }
+
         return new(id, spec.Label, MenuFlightRules.Both, Always, (ac, context, host) => ApproachPickerBuilder.Build(spec, ac, context, host));
     }
+
+    /// <summary>The approach flyout's verb of entry <paramref name="id"/>; null for an entry the grouped picker builds.</summary>
+    private static ApproachFlyoutVerb? ApproachFlyoutVerbOf(string id) =>
+        id switch
+        {
+            MenuIds.ApproachCleared => ApproachFlyoutVerb.Cleared,
+            MenuIds.ApproachExpect => ApproachFlyoutVerb.Expect,
+            _ => null,
+        };
 
     /// <summary>The approach picker of each approach entry: its label, its command and its default-approach leaf label.</summary>
     private static ApproachPickerSpec ApproachSpec(string id) =>
@@ -2239,10 +2262,11 @@ public static class MenuCatalog
 
     /// <summary>
     /// An approach entry's companion, which shares its id: the grouped picker labelled "(other)", offered beside a
-    /// default approach; null without a default (<see cref="ApproachPickerBuilder.BuildOther"/>).
+    /// default approach; null without a default (<see cref="ApproachPickerBuilder.BuildOther"/>), and always for an entry that
+    /// opens the approach flyout, which lists every approach itself.
     /// </summary>
     internal static MenuItem? BuildApproachOther(string id, IMenuAircraft? aircraft, MenuContext context, IMenuHost host) =>
-        ApproachPickerBuilder.BuildOther(ApproachSpec(id), aircraft, context, host);
+        (ApproachFlyoutVerbOf(id) is null) ? ApproachPickerBuilder.BuildOther(ApproachSpec(id), aircraft, context, host) : null;
 
     /// <summary>The destination's published approaches; none without an aircraft or a destination.</summary>
     internal static IReadOnlyList<CifpApproachProcedure> DestinationApproaches(IMenuAircraft? aircraft) =>

@@ -3,6 +3,7 @@ using Yaat.Client.ContextMenus;
 using Yaat.Client.Services;
 using Yaat.Sim;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Simulation;
@@ -186,15 +187,31 @@ internal sealed class RecordingMenuHost(string input) : IMenuHost
     /// The pattern entries' runway choices, with the active ends read from <see cref="RoomActiveRunways"/> as the client
     /// reads them; a token that does not read fails the test.
     /// </summary>
-    public IReadOnlyList<PatternRunwayChoice> GetPatternRunwayChoices(string airportId, string aircraftType)
+    public IReadOnlyList<PatternRunwayChoice> GetPatternRunwayChoices(string airportId, string aircraftType) =>
+        PatternRunwayChoices.For(airportId, aircraftType, GetActiveArrivalEnds(airportId));
+
+    /// <summary>
+    /// The room's arrival ends, read from <see cref="RoomActiveRunways"/> as the client reads them; a token that does not
+    /// read fails the test.
+    /// </summary>
+    public IReadOnlyList<string> GetActiveArrivalEnds(string airportId)
     {
         ActiveRunways runways = PatternRunwayChoices.ReadRoomActiveRunways(
             RoomActiveRunways,
             "Pattern entry active runways",
             warning => throw new InvalidOperationException($"Unreadable active runways: {warning}")
         );
-        return PatternRunwayChoices.For(airportId, aircraftType, PatternRunwayChoices.ActiveArrivalEnds(runways, airportId));
+        return PatternRunwayChoices.ActiveArrivalEnds(runways, airportId);
     }
+
+    /// <summary>
+    /// The airports the room gives a tower, in either form (<c>OAK</c>, <c>KOAK</c>); none by default, so every airport is
+    /// untowered.
+    /// </summary>
+    public IReadOnlyList<string> ToweredAirports { get; init; } = [];
+
+    public bool IsToweredAirport(string airportId) =>
+        ToweredAirports.Any(towered => NavigationDatabase.NormalizeAirport(towered) == NavigationDatabase.NormalizeAirport(airportId));
 
     /// <summary>Records the destination asked about and answers <see cref="FieldElevation"/>.</summary>
     public double GetFieldElevation(string? destination)

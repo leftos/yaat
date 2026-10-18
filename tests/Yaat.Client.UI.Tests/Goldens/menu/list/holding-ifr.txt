@@ -3,7 +3,6 @@ AAL205 · B738 [disabled]
 Holding · 5,000 ft · 180 kt · KOAK rwy 30 [disabled]
 ---
 strip: [approach.cleared, approach.report-field-in-sight, navigation.direct-to, altitude.maintain, pattern.enter-final]
-Cleared approach (other)… picker:grouped [Runway 30 · assigned: I30, L30, R30-Y, H30-Z | Other runways: 10L, 10R, 12, 28L, 28R]
 ---
 Command…
 Note…
@@ -30,8 +29,8 @@ All Commands
     Hold at fix (left)… picker:input
     Hold at fix (right)… picker:input
   Approach
-    Cleared ILS 30
-    Cleared approach (other)… picker:grouped [Runway 30 · assigned: I30, L30, R30-Y, H30-Z | Other runways: 10L, 10R, 12, 28L, 28R]
+    Cleared approach
+      approach flyout, built when it opens
     Join ILS 30
     Join approach (other)… picker:grouped [Runway 30 · assigned: I30, L30, R30-Y, H30-Z | Other runways: 10L, 10R, 12, 28L, 28R]
     Cleared straight-in ILS 30
@@ -44,8 +43,8 @@ All Commands
     Join approach (force) (other)… picker:grouped [Runway 30 · assigned: I30, L30, R30-Y, H30-Z | Other runways: 10L, 10R, 12, 28L, 28R]
     Join final course ILS 30
     Join final approach course (other)… picker:grouped [Runway 30 · assigned: I30, L30, R30-Y, H30-Z | Other runways: 10L, 10R, 12, 28L, 28R]
-    Expect ILS 30
-    Expect approach (other)… picker:grouped [Runway 30 · assigned: I30, L30, R30-Y, H30-Z | Other runways: 10L, 10R, 12, 28L, 28R]
+    Expect approach
+      approach flyout, built when it opens
     Cleared visual approach 30
     Cleared visual approach (other)… picker:list [10L, 10R, 12, 15, 28L, 28R, 30, 33]
     ---

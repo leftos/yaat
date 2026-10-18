@@ -85,13 +85,15 @@ internal static class ApproachPickerBuilder
     /// runway's first approach in picker order (its ILS when it has one); null with neither, or when the assigned runway
     /// has no approach.
     /// </summary>
-    private static ApproachChoice? DefaultApproach(IMenuAircraft? aircraft, List<ApproachChoice> choices)
-    {
-        if (Expected(aircraft, choices) is { } expected)
-        {
-            return expected;
-        }
+    private static ApproachChoice? DefaultApproach(IMenuAircraft? aircraft, List<ApproachChoice> choices) =>
+        Expected(aircraft, choices) ?? AssignedRunwayApproach(aircraft, choices);
 
+    /// <summary>
+    /// The assigned runway's first approach among <paramref name="choices"/> in picker order (its ILS when it has one); null
+    /// without an assigned runway, or when it has no approach.
+    /// </summary>
+    internal static ApproachChoice? AssignedRunwayApproach(IMenuAircraft? aircraft, List<ApproachChoice> choices)
+    {
         string? assigned = aircraft?.AssignedRunway;
         return string.IsNullOrEmpty(assigned) ? null : choices.FirstOrDefault(choice => SameRunway(choice.Runway, assigned));
     }
@@ -100,7 +102,7 @@ internal static class ApproachPickerBuilder
     /// The expected approach among <paramref name="choices"/>, its id resolved from the controller's shorthand
     /// (<c>R28L</c> for <c>R28LY</c>) as the sim resolves it; null when none is expected or it is not the destination's.
     /// </summary>
-    private static ApproachChoice? Expected(IMenuAircraft? aircraft, List<ApproachChoice> choices)
+    internal static ApproachChoice? Expected(IMenuAircraft? aircraft, List<ApproachChoice> choices)
     {
         if (aircraft is not { Destination.Length: > 0, ExpectedApproach: { Length: > 0 } expected })
         {
@@ -112,11 +114,11 @@ internal static class ApproachPickerBuilder
     }
 
     /// <summary>Whether a normalized approach runway is the runway <paramref name="designator"/> names; never for a circling approach.</summary>
-    private static bool SameRunway(string runway, string designator) =>
+    internal static bool SameRunway(string runway, string designator) =>
         (runway.Length > 0) && string.Equals(runway, RunwayIdentifier.NormalizeDesignator(designator), StringComparison.OrdinalIgnoreCase);
 
     /// <summary>The destination's approaches in picker order: by kind (<see cref="ApproachChoice.KindRank"/>), then by id.</summary>
-    private static List<ApproachChoice> Choices(IMenuAircraft? aircraft)
+    internal static List<ApproachChoice> Choices(IMenuAircraft? aircraft)
     {
         IReadOnlyList<CifpApproachProcedure> approaches = MenuCatalog.DestinationApproaches(aircraft);
         return
@@ -341,7 +343,7 @@ internal static class ApproachPickerBuilder
     }
 
     /// <summary>A destination approach as the pickers show it, its runway normalized (empty for a circling approach).</summary>
-    private sealed record ApproachChoice(string Id, string Kind, string FullKind, string Variant, string Runway)
+    internal sealed record ApproachChoice(string Id, string Kind, string FullKind, string Variant, string Runway)
     {
         /// <summary>The kind's place in a picker: ILS, LOC, RNAV, RNP, then every other kind alphabetically.</summary>
         public int KindRank =>

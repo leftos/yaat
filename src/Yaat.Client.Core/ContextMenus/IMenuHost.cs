@@ -115,6 +115,18 @@ public interface IMenuHost
     /// </summary>
     IReadOnlyList<PatternRunwayChoice> GetPatternRunwayChoices(string airportId, string aircraftType);
 
+    /// <summary>
+    /// The room's active runway ends at <paramref name="airportId"/> that it lands on, in the room's order
+    /// (<see cref="PatternRunwayChoices.ActiveArrivalEnds"/>): <c>30, A28R</c> gives <c>30</c>, then <c>28R</c>.
+    /// </summary>
+    IReadOnlyList<string> GetActiveArrivalEnds(string airportId);
+
+    /// <summary>
+    /// Whether the room gives <paramref name="airportId"/> (in either form, <c>KOAK</c> or <c>OAK</c>) an operating control
+    /// tower; an airport the room does not name is untowered.
+    /// </summary>
+    bool IsToweredAirport(string airportId);
+
     /// <summary>Every fix name the surface's filtered fix pickers offer, sorted; null while the navigation data is not loaded.</summary>
     string[]? FixNames { get; }
 

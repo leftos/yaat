@@ -299,18 +299,33 @@ internal sealed class ClientMenuHost(MainViewModel main, AircraftModel? aircraft
             return cached;
         }
 
+        IReadOnlyList<PatternRunwayChoice> choices = PatternRunwayChoices.For(airportId, aircraftType, GetActiveArrivalEnds(airportId));
+        _patternRunwayChoices[(airportId, aircraftType)] = choices;
+        return choices;
+    }
+
+    /// <summary>
+    /// The room's arrival ends at <paramref name="airportId"/> in the room's order (<see cref="PatternRunwayChoices.ActiveArrivalEnds"/>),
+    /// from <see cref="MainViewModel.RoomActiveRunways"/> read once per build (<see cref="_roomActiveRunways"/>).
+    /// </summary>
+    public IReadOnlyList<string> GetActiveArrivalEnds(string airportId)
+    {
         _roomActiveRunways ??= PatternRunwayChoices.ReadRoomActiveRunways(
             main.RoomActiveRunways,
             "Pattern entry active runways",
             warning => Log.LogWarning("{Warning}", warning)
         );
-        IReadOnlyList<PatternRunwayChoice> choices = PatternRunwayChoices.For(
-            airportId,
-            aircraftType,
-            PatternRunwayChoices.ActiveArrivalEnds(_roomActiveRunways, airportId)
-        );
-        _patternRunwayChoices[(airportId, aircraftType)] = choices;
-        return choices;
+        return PatternRunwayChoices.ActiveArrivalEnds(_roomActiveRunways, airportId);
+    }
+
+    /// <summary>
+    /// Whether <see cref="MainViewModel.RoomToweredAirports"/> names <paramref name="airportId"/>, both sides compared in
+    /// <see cref="NavigationDatabase.NormalizeAirport"/> form, so <c>KOAK</c> and <c>OAK</c> are the same airport.
+    /// </summary>
+    public bool IsToweredAirport(string airportId)
+    {
+        string airport = NavigationDatabase.NormalizeAirport(airportId);
+        return main.RoomToweredAirports.Any(towered => NavigationDatabase.NormalizeAirport(towered) == airport);
     }
 
     /// <summary>The primary radar view model's fix names: every fix in the navigation database once it is loaded, else null.</summary>

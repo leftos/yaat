@@ -429,7 +429,7 @@ public class AircraftMenuBuilderTests
     }
 
     [AvaloniaFact]
-    public void QuickList_StripApproachEntryWithADefault_HasItsOtherPickerFirstUnderTheStrip()
+    public void QuickList_StripApproachEntry_HasNoOtherPickerUnderTheStrip()
     {
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
 
@@ -437,9 +437,7 @@ public class AircraftMenuBuilderTests
 
         MenuItem strip = Assert.Single(menu.Items.OfType<MenuItem>(), QuickCommandStrip.IsStrip);
         Assert.Contains(MenuIds.ApproachCleared, QuickCommandStrip.Buttons(strip).Select(button => (string)button.Tag!));
-        int at = menu.Items.IndexOf(strip);
-        Assert.Equal("Cleared approach (other)…", (menu.Items[at + 1] as MenuItem)?.Header as string);
-        Assert.Single(Sequence(menu), header => header == "Cleared approach (other)…");
+        Assert.DoesNotContain("Cleared approach (other)…", Sequence(menu));
     }
 
     [AvaloniaFact]

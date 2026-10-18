@@ -10,7 +10,6 @@ using Avalonia.Layout;
 using Avalonia.LogicalTree;
 using Avalonia.Media;
 using Avalonia.Media.Immutable;
-using Avalonia.Styling;
 using Avalonia.Threading;
 using Microsoft.Extensions.Logging;
 using Yaat.Client.Logging;
@@ -53,7 +52,6 @@ public static class TaxiToRunwayFlyout
     private static readonly IImmutableSolidColorBrush RunwayBadgeBrush = new ImmutableSolidColorBrush(Color.Parse("#E8A33D"));
     private static readonly IImmutableSolidColorBrush TitleBrush = new ImmutableSolidColorBrush(Color.Parse("#A4ADB8"));
     private static readonly IImmutableSolidColorBrush NameBrush = new ImmutableSolidColorBrush(Color.Parse("#E4E7EB"));
-    private static readonly IImmutableSolidColorBrush SeparatorBrush = new ImmutableSolidColorBrush(Color.Parse("#3D3D3D"));
 
     private static readonly FuncDataTemplate<MenuTwoLineRow> RowTemplate = new((row, _) => MenuTwoLineRowTemplate.Build(row));
 
@@ -153,14 +151,6 @@ public static class TaxiToRunwayFlyout
         return grid;
     }
 
-    private static Border SeparatorLine() =>
-        new()
-        {
-            Height = 1,
-            Background = SeparatorBrush,
-            Margin = new Thickness(2, 4),
-        };
-
     private static TextBlock StatusLine(string text) =>
         new()
         {
@@ -169,18 +159,6 @@ public static class TaxiToRunwayFlyout
             Foreground = TitleBrush,
             Padding = new Thickness(11, 8),
         };
-
-    /// <summary>Keeps the panel's menu row at its resting background while it is selected or under the pointer.</summary>
-    private static Style PlainPanelRowStyle()
-    {
-        static Selector LayoutRoot(Selector? x, string state) =>
-            x.OfType<MenuItem>().Class(PanelRowClass).Class(state).Template().OfType<Border>().Name("PART_LayoutRoot");
-
-        return new Style(x => Selectors.Or(LayoutRoot(x, ":selected"), LayoutRoot(x, ":pointerover")))
-        {
-            Setters = { new Setter(Border.BackgroundProperty, Brushes.Transparent) },
-        };
-    }
 
     /// <summary>
     /// The flyout's content on whichever surface shows it: the host's runway ends, asked for once, the selected tab's rows,
@@ -230,7 +208,7 @@ public static class TaxiToRunwayFlyout
                 Focusable = false,
             };
             panelRow.Classes.Add(PanelRowClass);
-            panelRow.Styles.Add(PlainPanelRowStyle());
+            panelRow.Styles.Add(FlyoutPanelParts.PlainPanelRowStyle(PanelRowClass));
             panelRow.Click += (_, e) => e.Handled = true;
             entry.Items.Add(panelRow);
             entry.PropertyChanged += (_, e) =>
@@ -416,7 +394,7 @@ public static class TaxiToRunwayFlyout
             List<TaxiRouteRow> presets = [.. end.Rows.Where(row => row.Variants.Count == 0)];
             if ((presets.Count > 0) && (shown.Lines.Count > 0))
             {
-                shown.Add(SeparatorLine(), "---");
+                shown.Add(FlyoutPanelParts.SeparatorLine(), "---");
             }
 
             foreach (TaxiRouteRow preset in presets)
@@ -437,7 +415,7 @@ public static class TaxiToRunwayFlyout
             {
                 if (ReferenceEquals(variant, MenuCommandChoice.Separator))
                 {
-                    shown.Add(SeparatorLine(), "---");
+                    shown.Add(FlyoutPanelParts.SeparatorLine(), "---");
                     continue;
                 }
 

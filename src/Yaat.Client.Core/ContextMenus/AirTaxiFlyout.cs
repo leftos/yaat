@@ -7,7 +7,6 @@ using Avalonia.Layout;
 using Avalonia.LogicalTree;
 using Avalonia.Media;
 using Avalonia.Media.Immutable;
-using Avalonia.Styling;
 using Avalonia.Threading;
 using Microsoft.Extensions.Logging;
 using Yaat.Client.Logging;
@@ -152,18 +151,6 @@ public static class AirTaxiFlyout
         return (exact || names.Any(name => name.StartsWith(filter, StringComparison.OrdinalIgnoreCase)), exact);
     }
 
-    /// <summary>Keeps the panel's menu row at its resting background while it is selected or under the pointer.</summary>
-    private static Style PlainPanelRowStyle()
-    {
-        static Selector LayoutRoot(Selector? x, string state) =>
-            x.OfType<MenuItem>().Class(PanelRowClass).Class(state).Template().OfType<Border>().Name("PART_LayoutRoot");
-
-        return new Style(x => Selectors.Or(LayoutRoot(x, ":selected"), LayoutRoot(x, ":pointerover")))
-        {
-            Setters = { new Setter(Border.BackgroundProperty, Brushes.Transparent) },
-        };
-    }
-
     /// <summary>
     /// The flyout's content on whichever surface shows it: the host's destinations, asked for as it opens and once a second
     /// while the strip's flyout is open, the box, the selected tab's rows, the keys and the sends.
@@ -228,7 +215,7 @@ public static class AirTaxiFlyout
                 Focusable = false,
             };
             panelRow.Classes.Add(PanelRowClass);
-            panelRow.Styles.Add(PlainPanelRowStyle());
+            panelRow.Styles.Add(FlyoutPanelParts.PlainPanelRowStyle(PanelRowClass));
             panelRow.Click += (_, e) => e.Handled = true;
             entry.Items.Add(panelRow);
             entry.PropertyChanged += (_, e) =>

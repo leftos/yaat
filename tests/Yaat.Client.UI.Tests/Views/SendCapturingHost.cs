@@ -59,6 +59,10 @@ internal sealed class SendCapturingHost(IMenuHost inner, string sessionInitials)
     public IReadOnlyList<PatternRunwayChoice> GetPatternRunwayChoices(string airportId, string aircraftType) =>
         inner.GetPatternRunwayChoices(airportId, aircraftType);
 
+    public IReadOnlyList<string> GetActiveArrivalEnds(string airportId) => inner.GetActiveArrivalEnds(airportId);
+
+    public bool IsToweredAirport(string airportId) => inner.IsToweredAirport(airportId);
+
     public string[]? FixNames => inner.FixNames;
 
     public IReadOnlyList<string> SuggestFixes(string partial) => inner.SuggestFixes(partial);

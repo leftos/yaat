@@ -102,6 +102,10 @@ internal sealed class PointMenuHostCache(IMenuHost inner) : IMenuHost
     public IReadOnlyList<PatternRunwayChoice> GetPatternRunwayChoices(string airportId, string aircraftType) =>
         inner.GetPatternRunwayChoices(airportId, aircraftType);
 
+    public IReadOnlyList<string> GetActiveArrivalEnds(string airportId) => inner.GetActiveArrivalEnds(airportId);
+
+    public bool IsToweredAirport(string airportId) => inner.IsToweredAirport(airportId);
+
     public double GetFieldElevation(string? destination) => inner.GetFieldElevation(destination);
 
     public void EnterDrawRoute(string callsign) => inner.EnterDrawRoute(callsign);

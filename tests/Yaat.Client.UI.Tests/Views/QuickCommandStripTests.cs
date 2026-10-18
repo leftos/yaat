@@ -227,12 +227,13 @@ public class QuickCommandStripTests
         };
 
     [AvaloniaFact]
-    public void ApproachButton_WithoutADefault_OpensTheGroupedPickerAsAFlyout()
+    public void ApproachButton_WithoutADefault_OpensTheApproachFlyout()
     {
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
         RecordingMenuHost host = Host();
         AircraftModel ac = Fixture("approach-ifr");
         ac.AssignedRunway = "";
+        ac.ExpectedApproach = null;
         ContextMenu menu = OpenInWindow(Build(ac, host));
         Button approach = QuickCommandStrip.Buttons(Strip(menu)).Single(b => (string)b.Tag! == MenuIds.ApproachCleared);
 
@@ -241,10 +242,11 @@ public class QuickCommandStripTests
         MenuFlyout flyout = SubmenuFlyout(approach);
         Assert.True(flyout.IsOpen);
         Assert.Empty(host.Sent);
-        MenuItem runway = flyout.Items.OfType<MenuItem>().Single(item => item.Header as string == "28R · ILS, LOC, RNAV Y, RNP Z");
-        MenuItem ils = runway.Items.OfType<MenuItem>().First(item => item.IsEnabled);
+        ApproachFlyoutPanel panel = ApproachFlyoutTests.Panel(flyout);
+        panel.Strip.Select(panel.Strip.Tabs.ToList().FindIndex(tab => tab.Label.StartsWith("28R ", StringComparison.Ordinal)));
+        Button ils = panel.Rows.First(row => row.Content is ApproachRow { Kind: ApproachRowKind.Instrument });
 
-        ils.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+        ils.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
 
         Assert.Equal("CAPP I28R", Assert.Single(host.Sent).Command);
         Assert.False(flyout.IsOpen);
@@ -433,15 +435,19 @@ public class QuickCommandStripTests
     }
 
     [AvaloniaFact]
-    public void ApproachButton_WithADefault_LabelNamesTheDefaultApproachAndItsCommand()
+    public void ApproachButton_WithADefault_OpensTheFlyoutWithTheDefaultRowFirst()
     {
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
-        ContextMenu menu = Build(Fixture("approach-ifr"), Host());
+        ContextMenu menu = OpenInWindow(Build(Fixture("approach-ifr"), Host()));
         Button approach = QuickCommandStrip.Buttons(Strip(menu)).Single(b => (string)b.Tag! == MenuIds.ApproachCleared);
 
         RaisePointer(approach, InputElement.PointerEnteredEvent);
+        Assert.Equal("Cleared approach ›", Line(menu).Label);
+        approach.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
 
-        Assert.Equal("Cleared ILS 30 — CAPP I30", Line(menu).Label);
+        ApproachFlyoutPanel panel = ApproachFlyoutTests.Panel(SubmenuFlyout(approach));
+        Assert.Equal("Cleared ILS 30 · default — CAPP I30", panel.PinnedRows[0].Content?.ToString());
+        Assert.StartsWith("30 ", panel.Strip.Tabs[panel.Strip.SelectedIndex].Label, StringComparison.Ordinal);
     }
 
     [AvaloniaFact]

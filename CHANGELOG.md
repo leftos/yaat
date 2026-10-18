@@ -25,6 +25,7 @@
 - Preset taxi route opens a live flyout of the airport's presets, nearest first, each showing its taxiways, distance and command; pointing previews the route.
 - Taxi to runway opens one tabbed flyout, a tab per runway end listing its entries; a tab whose search failed retries only when clicked or entered.
 - Exit left and Exit right open live flyouts of the exits ahead with distance and turn-off angle; on final an Exit at box suggests the runway's exits.
+- Cleared approach and Expect approach open a tabbed flyout, a tab per runway listing its approaches and visual, under the default approach.
 - `APT` given to an airborne aircraft also switches it to the new airport's ground map, so a following `LAND` or `ATXI` resolves names there.
 
 ### Fixed
