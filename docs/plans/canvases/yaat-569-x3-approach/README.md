@@ -32,4 +32,35 @@ Not from real data, or not checked:
 - Whether `CAPP RNV-A` resolves and flies in the sim was not checked.
 - KORD lane C's one-row fit is measured only in this page's headless render (Chromium, local fonts), not in Avalonia.
 
+## Visual approaches and Cancel IFR (`visuals.html`)
+
+A second mock, after the owner ruled visual rows on Cleared approach and Expect approach, the airport-level `CVA {airport}` row at an untowered field and a confirmed Cancel IFR (`CIFR`); it asks how they look. Open `visuals.html` beside `index.html`; it is drawn in HTML and inline SVG, with no image files.
+
+Every flyout draws the ruled design (room-order tabs, the first selected, wrapping inside 480 px). Each decision has lanes A, B and C, with how each works and its worst case; no lane is marked recommended.
+
+1. Where the visual rows sit in Cleared approach (GTI3591, B744, to KOAK; the room lands 30 and 28R).
+   - A: a `Visual RWY n` row (`CVA n`) at the top of each runway tab; 15 and 33, which have no approach, get tabs holding only their visual row.
+   - B: a last "Visual" tab listing every runway's visual row in the pattern-entry order (room runways, separator, the rest; landable first); runway tabs keep instrument approaches only.
+   - C: a "Visual" section (with the runway's landing distance available) at the bottom of each runway tab.
+2. The same for Expect approach, the rows sending the placeholder `EAPP VIS<runway>`.
+3. An untowered field with no instrument approach (N738SP, C172, to KHES).
+   - A: only the `CVA KHES` row and Cancel IFR…. B: the same with a dimmed line saying why there are no runway rows. C: Cancel IFR… first, then the `CVA KHES` row.
+4. The Cancel IFR confirmation, each lane also drawn with the weather line ("Reported weather is below VFR minimums.").
+   - A: an inline strip under the row with the question, Confirm and Back. B: a small dialog, the menu closed, as the Approach ID popup opens. C: a two-click row that arms as "Confirm cancel IFR" with the question under it.
+
+Data. Approaches from the bundled CIFP, as in `index.html`. Runway lengths are NavData's, read through `RunwayLandability.LandingDistanceAvailableFt` (declared landing distance): KOAK 12 and 30 10,000 ft, 10R and 28L 6,213, 28R 5,457, 10L 5,336, 15 and 33 3,376.
+
+A B744 has a 6,988 ft landing distance (`AircraftProfiles.json`), so it needs 8,036 ft (× 1.15): only 12 and 30 pass `IsLandable`, and the other six runways' visual rows are dimmed "short". KHES (13 and 31, 2,652 ft) has no approach record in the bundled CIFP, only two STAR records (REBAS1, VNYRD1); a C172 needs 603 ft (524 × 1.15).
+
+Not from real data, or not decided:
+
+- Callsigns, aircraft states, the room's runway setup (KOAK landing 30 and 28R) and the weather (KHES drawn as if reporting OVC008 2SM) are illustrative. Whether KHES is untowered comes from outside the data: the sim has no towered/untowered fact yet (the sim sub-issue adds it).
+- `EAPP VIS28R` is a placeholder for the expect-visual token. The dashed eye on Expect visual rows, the "Visual" tab, the "Visual" section title, the untowered note, the confirm strip, the dialog and the armed row are drawings, not built UI. Cancel IFR has no glyph (an empty dashed slot).
+- The tab counts in lanes A and C count the visual row; the KHES flyouts leave out the Approach box (nothing to type there), which no ruling covers. Section 4 draws Cancel IFR first, as the orchestrator decision places it.
+- The confirm strip's and armed row's heights quoted in the worst cases are measured in this page's headless render (Chromium, local fonts), not in Avalonia.
+
+Source files read for it: `src/Yaat.Sim/Phases/RunwayLandability.cs`, `src/Yaat.Client.Core/ContextMenus/PatternRunwayChoices.cs`, `MenuCatalog.cs` (`BuildPatternRunwayRow`), `MenuGlyphRow.cs`, `QuickCommandGlyphs.cs`, `COMMANDS.md` (`CVA`, `CIFR`), the YAAT-569 rulings and orchestrator decision, `src/Yaat.Sim/Data/AircraftProfiles.json`, and a throwaway probe over `TestVnasData` for the runway figures.
+
+## Sources for `index.html`
+
 Source files read: `.tmp/map-569-x3.md` (code map and open decisions), `src/Yaat.Client.Core/ContextMenus/ApproachPickerBuilder.cs`, `MenuCatalog.cs` (`ApproachSpec`, `DestinationApproaches`), `SharedMenuGroups.cs` (`Approach`), `FlyoutTabStrip.cs`, `TaxiToRunwayFlyout.cs`, `ExitFlyout.cs`, `IMenuHost.cs` (`GetPatternRunwayChoices`), `RunwayDesignatorComparer.cs`, `src/Yaat.Client/Views/MenuPopups.cs` (`ShowInput`), `COMMANDS.md` (Approach Control Commands), and the mocks `quick-command-flyouts/`, `quick-command-taxi-to-runway-tabs/` and `quick-command-exit-passed/`.

@@ -1,0 +1,508 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Visual Approach Choices</title>
+<style>
+  /* Layout: one artboard per open decision; each has a header (question, situation, the aircraft menu) over lanes A, B and C. */
+  :root {
+    --bg: #eceff2; --panel: #ffffff; --ink: #15181c; --muted: #58616c; --line: #d3d8de;
+    --accent: #2c5fa6; --tag-a: #1f7f71; --tag-b: #7a4fbf; --tag-c: #a8336a; --warn: #a3520a;
+    --f-display: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
+    --f-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+    --f-mono: "IBM Plex Mono", Consolas, monospace;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0e1013; --panel: #171a1f; --ink: #e5e8ec; --muted: #9aa3ae; --line: #2b3038;
+      --accent: #8fc1ff; --tag-a: #5fd0bf; --tag-b: #c4a3ff; --tag-c: #ff8fc0; --warn: #ffb259;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0e1013; --panel: #171a1f; --ink: #e5e8ec; --muted: #9aa3ae; --line: #2b3038;
+    --accent: #8fc1ff; --tag-a: #5fd0bf; --tag-b: #c4a3ff; --tag-c: #ff8fc0; --warn: #ffb259;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html, body { overflow-x: hidden; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.5 var(--f-body); }
+  .wrap { max-width: 1720px; margin: 0 auto; padding-inline: 16px; padding-block: 28px 64px; }
+  h1 { font: 600 30px/1.15 var(--f-display); margin: 0 0 8px; text-wrap: balance; letter-spacing: -.01em; }
+  .lede { max-width: 84ch; color: var(--muted); margin: 0 0 6px; }
+  .lede b { color: var(--ink); font-weight: 600; }
+  .lede code, .cap code, .art-meta code, footer code { font: 12px var(--f-mono); color: var(--accent); white-space: nowrap; }
+  .eyebrow { font: 500 11px var(--f-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+  nav.index { display: flex; flex-wrap: wrap; gap: 6px; margin: 16px 0 28px; }
+  nav.index a { font: 500 12px var(--f-mono); color: var(--ink); text-decoration: none; border: 1px solid var(--line); background: var(--panel);
+                border-radius: 4px; padding: 4px 9px; }
+  nav.index a:hover, nav.index a:focus-visible { border-color: var(--accent); outline: none; }
+
+  .art { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 18px; margin-bottom: 28px; scroll-margin-top: 12px; }
+  .art-head { display: flex; flex-wrap: wrap; gap: 16px 28px; align-items: flex-start; justify-content: space-between; margin-bottom: 16px; }
+  .art-meta { flex: 1 1 420px; min-width: 0; }
+  .art-meta h2 { font: 600 22px/1.2 var(--f-display); margin: 0 0 4px; text-wrap: balance; }
+  .art-meta .sends { font: 12px var(--f-mono); color: var(--accent); margin-bottom: 8px; }
+  .art-meta p { margin: 0 0 6px; max-width: 80ch; color: var(--muted); }
+  .art-meta p b { color: var(--ink); font-weight: 600; }
+
+  .lanes { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 470px), 1fr)); gap: 16px; align-items: start; }
+  .lane { min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+  .lane-h { display: flex; align-items: baseline; gap: 8px; }
+  .tag { font: 600 11px var(--f-mono); letter-spacing: .06em; text-transform: uppercase; border: 1px solid currentColor; border-radius: 3px; padding: 0 5px; }
+  .tag.a { color: var(--tag-a); } .tag.b { color: var(--tag-b); } .tag.c { color: var(--tag-c); }
+  .lane-h h3 { font: 600 15px/1.25 var(--f-display); margin: 0; }
+  .sent { font-size: 12px; color: var(--muted); min-height: 18px; border-top: 1px dashed var(--line); padding-top: 6px; }
+  .sent code { font: 12px var(--f-mono); color: var(--accent); }
+  .cap { margin: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 10px; font-size: 13px; }
+  .cap dt { font: 500 11px var(--f-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); padding-top: 2px; white-space: nowrap; }
+  .cap dd { margin: 0; }
+  .cap dd.worst { color: var(--warn); }
+  footer.foot { color: var(--muted); font-size: 12px; margin-top: 18px; max-width: 96ch; }
+
+  /* The app's own surfaces: YAAT runs Avalonia Fluent in dark only, so these stay dark in either page theme. */
+  .stage { background: #0b0d10; border: 1px solid #22262c; border-radius: 8px; padding: 14px; overflow-x: auto; color-scheme: dark;
+           display: flex; flex-direction: column; gap: 14px; }
+  .stub-stage { flex: 0 0 auto; padding: 12px; }
+  .frame { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .flabel { font: 500 11px "JetBrains Mono", Consolas, monospace; color: #a4adb8; letter-spacing: .02em; }
+  .flabel b { color: #e4e7eb; font-weight: 400; }
+  .m { font: 14px/1.3 Inter, "Segoe UI", system-ui, sans-serif; color: #ffffff; }
+  .menu { background: #2c2c2c; border: 1px solid #474747; border-radius: 8px; padding: 4px; box-shadow: 0 10px 28px rgba(0, 0, 0, .55);
+          width: max-content; min-width: 190px; max-width: 480px; position: relative; }
+  .menu.w { width: 100%; max-width: 480px; min-width: 330px; }
+  .mi { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; min-height: 32px; padding: 5px 11px;
+        border-radius: 4px; cursor: default; position: relative; }
+  .mi[data-send], .mi[data-say], .mi[data-arm], .mi[data-toggle] { cursor: pointer; }
+  .mi[data-send]:hover, .mi[data-say]:hover, .mi[data-arm]:hover, .mi[data-toggle]:hover, .mi.hot { background: rgba(255, 255, 255, .085); }
+  .mi:focus-visible, .mi.kfocus { outline: 2px solid #8fc1ff; outline-offset: -2px; }
+  .mi.plain { grid-template-columns: minmax(0, 1fr) auto auto; }
+  .mi.faint { opacity: .55; }
+  .mi.title { grid-template-columns: 1fr auto; min-height: 24px; padding-top: 6px; padding-bottom: 2px; font-size: 11px; letter-spacing: .02em; color: #a4adb8; }
+  .mi.title .r { font: 11px "JetBrains Mono", Consolas, monospace; color: #8c95a0; padding-left: 12px; }
+  .msep { height: 1px; background: #3d3d3d; margin: 4px 2px; }
+  .chev { color: #b9bfc6; padding-left: 10px; font-size: 15px; }
+  .gly { flex: 0 0 auto; display: block; margin-right: 8px; }
+  .gly.blank { width: 22px; height: 22px; border: 1px dashed #3a414b; border-radius: 4px; }
+  .nm { min-width: 0; display: flex; align-items: center; flex-wrap: nowrap; gap: 0 6px; overflow: hidden; }
+  .nm .n { white-space: nowrap; flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; }
+  .nm.col { flex-direction: column; align-items: flex-start; overflow: visible; gap: 2px; }
+  .note { font-size: 12px; opacity: .8; white-space: nowrap; flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .nm .n:has(+ .note) { flex-shrink: 0; }
+  .kind { padding-left: 14px; font-size: 11px; color: #a4adb8; white-space: nowrap; }
+  .cmd { padding-left: 14px; font: 12px "JetBrains Mono", Consolas, monospace; opacity: .7; text-align: right; white-space: nowrap; }
+  /* A runway too short for the type, as the pattern-entry list draws it (MenuGlyphRow: the whole row at 0.5, " · short"). */
+  .mi.short { opacity: .5; }
+  .mi.dim > :not(.nm), .mi.dim .nm > .n { opacity: .5; }
+  .mi.dim .cmd { opacity: .35; }
+  .bdg { flex: 0 0 auto; border: 1px solid #e0a84a; color: #e0a84a; border-radius: 3px; padding: 0 4px; font-size: 11px; line-height: 15px; white-space: nowrap; }
+  .why { font: italic 12px/1.4 Inter, "Segoe UI", sans-serif; color: #a4adb8; padding: 2px 11px 6px 41px; opacity: .85; max-width: 470px; }
+  .panel { max-height: 440px; overflow-y: auto; scrollbar-color: #555 transparent; }
+
+  /* Tabs, as FlyoutTabStrip draws them. */
+  .tabs { display: flex; flex-wrap: wrap; gap: 4px; padding: 6px 8px 8px; border-bottom: 1px solid #3d3d3d; margin-bottom: 2px; align-items: center; }
+  .tab { font: 12px "JetBrains Mono", Consolas, monospace; color: #e4e7eb; background: #23272c; border: 1px solid #3a414b; border-radius: 4px;
+         padding: 3px 8px; cursor: pointer; white-space: nowrap; flex: 0 0 auto; }
+  .tab small { font: 10.5px Inter, "Segoe UI", sans-serif; color: #9aa3ad; margin-left: 4px; }
+  .tab[aria-selected="true"] { background: #24406a; border-color: #4a6fa5; }
+  .tab[aria-selected="true"] small { color: #c9d6e8; }
+  .tab:hover { background: #2e343b; }
+  .tab[aria-selected="true"]:hover { background: #2a4b7a; }
+  .tab.word { font-family: Inter, "Segoe UI", sans-serif; }
+  .tdiv { width: 1px; align-self: stretch; background: #4a4f57; margin: 2px 4px; }
+
+  /* The Approach box. */
+  .under { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 3px; align-items: center; }
+  .tbox { font: 13px Inter, "Segoe UI", sans-serif; color: #fff; background: rgba(255, 255, 255, .06); border: 1px solid #5a5a5a; border-bottom-color: #9a9a9a;
+          border-radius: 4px; padding: 4px 8px; height: 28px; }
+  .tbox::placeholder { color: #8f969e; }
+  .tbox:focus { outline: none; border-bottom: 2px solid #8fc1ff; background: #1f1f1f; }
+
+  /* Cancel IFR and its confirmations. */
+  .confirm { margin: 2px 6px 4px 41px; padding: 8px 10px; background: #1f2226; border: 1px solid #3a414b; border-left: 3px solid #e0a84a; border-radius: 4px;
+             font-size: 12.5px; line-height: 1.4; color: #e4e7eb; max-width: 420px; }
+  .confirm p, .dialog p { margin: 0 0 6px; }
+  .confirm b, .dialog b { font-weight: 600; }
+  .wx { display: flex; gap: 6px; align-items: flex-start; color: #ffc062; }
+  .wx svg { flex: 0 0 auto; margin-top: 1px; }
+  .btns { display: flex; gap: 6px; margin-top: 8px; }
+  .btn { font: 13px Inter, "Segoe UI", sans-serif; color: #fff; background: #3a3a3a; border: 1px solid #4a4a4a; border-radius: 4px; padding: 4px 14px; cursor: pointer; }
+  .btn:hover { background: #454545; }
+  .btn.primary { background: #2c5fa6; border-color: #3b70ba; }
+  .btn.primary:hover { background: #356cb9; }
+  .btn:focus-visible { outline: 2px solid #8fc1ff; outline-offset: 1px; }
+  .dialog { background: #2b2b2b; border: 1px solid #474747; border-radius: 8px; box-shadow: 0 14px 36px rgba(0, 0, 0, .65); padding: 14px 16px 12px;
+            width: 340px; max-width: 100%; font-size: 13px; line-height: 1.45; }
+  .dtitle { font-weight: 600; font-size: 15px; margin-bottom: 8px; }
+  .dialog .btns { justify-content: flex-end; margin-top: 12px; }
+  .mi.armed { background: #3a2a12; box-shadow: inset 0 0 0 1px #8a6328; }
+  .mi.armed .n { color: #ffd08a; font-weight: 600; }
+  .mi.armed .cmd { color: #ffc062; opacity: .95; }
+  .sub { white-space: normal; font-size: 11.5px; line-height: 1.4; color: #cfd5dc; max-width: 330px; }
+  .sub.wx { color: #ffc062; }
+
+  /* Mock-only annotations: the pointer, the dashed notes. */
+  .cursor { position: absolute; width: 18px; height: 24px; pointer-events: none; z-index: 5; left: 52%; top: 50%; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .6)); }
+  .callout { max-width: 480px; font: 11.5px/1.4 Inter, "Segoe UI", sans-serif; color: #ffffff; background: #1d1f23; border: 1px dashed #ffc062; border-radius: 4px;
+             padding: 5px 8px; }
+  .callout b { color: #ffc062; font-weight: 600; }
+  .callout.calm { border-color: #5fd0bf; }
+  .callout.calm b { color: #6ee0ce; }
+  .callout code { font: 11px "JetBrains Mono", Consolas, monospace; color: #8fc1ff; }
+
+  /* The aircraft menu stub: title, state line, the strip (no label row, per YAAT-545). */
+  .mtitle { font-weight: 700; padding: 6px 11px 0; }
+  .mstate { font-size: 11px; opacity: .8; padding: 2px 11px 6px; }
+  .strip { display: grid; grid-template-columns: repeat(5, 40px); gap: 6px; padding: 6px 11px; }
+  .cell { width: 40px; height: 40px; border-radius: 4px; background: #1f2226; display: grid; place-items: center; position: relative; }
+  .cell.latched { background: #24406a; }
+  .cell .gly { margin: 0; }
+  .cell .notch { position: absolute; right: 3px; bottom: 3px; width: 0; height: 0; border-left: 6px solid transparent; border-bottom: 6px solid #9aa3ad; }
+
+  @media (max-width: 520px) {
+    h1 { font-size: 24px; }
+    .art { padding: 12px; }
+    .stage { padding: 10px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="eyebrow">YAAT-569 · part X3 · visual approaches and Cancel IFR · mock for four open looks</div>
+  <h1>Visual approaches and Cancel IFR</h1>
+  <p class="lede">The owner ruled that the <b>Cleared approach</b> and <b>Expect approach</b> flyouts offer visual approaches, that an untowered field gets one airport-level <code>CVA {airport}</code> row, and that <b>Cancel IFR</b> (<code>CIFR</code>) is offered behind a confirmation. Which runways get a row (<code>RunwayLandability.IsLandable</code>, a short runway dimmed, not hidden), where Cancel IFR sits and its wording are an orchestrator decision open to the owner. This page asks how they look. Each artboard has lanes A, B and C; no lane is marked recommended.</p>
+  <p class="lede">Every flyout draws the ruled design (<code>index.html</code> beside this page): tabs in the room's runway order, the first selected, wrapping inside 480 px; glyph rows; the Approach box. Approaches, runways and their lengths are real (bundled CIFP and NavData, aircraft profiles); callsigns, aircraft states, the room's runway setup and the weather are illustrative. Click a row, a tab or a button to see what it does.</p>
+  <nav class="index" id="index" aria-label="Decisions"></nav>
+  <div id="arts"></div>
+  <footer class="foot">Rows follow the built <code>MenuGlyphRow</code>: Inter text, a 12 px note after “ · ”, commands in JetBrains Mono at 70%, the whole row at 50% when dimmed, 22 px glyphs at stroke 1.9 in the flight colour. The visual rows use the existing Cleared visual glyph (the eye, <code>QuickCommandGlyphs</code>); the dashed eye on Expect visual rows, the “Visual” tab and section titles, the untowered note, the confirmation strip, the dialog and the armed row are drawings of the options, not built UI. Cancel IFR has no glyph, so its row shows an empty dashed glyph slot. <code>EAPP VIS28R</code> stands in for the expect-visual token the sim sub-issue will define. The pointer and the dashed notes are mock annotations. The page loads no web fonts.</footer>
+</div>
+
+<script>
+(() => {
+  "use strict";
+  const GL = {
+    CAPP: ["#A8CAFF", "M3 12L21 5 M3 12L21 19 M3 12h18"],
+    EAPP: ["#A8CAFF", "M3 12l4.5-1.75 M10.2 9.2l4.5-1.75 M17.4 6.4L21 5 M3 12l4.5 1.75 M10.2 14.8l4.5 1.75 M17.4 17.6L21 19 M3 12h4.5 M10.2 12h4.5 M17.4 12H21"],
+    CM: ["#A8CAFF", "M3 18l7-7 4 4 7-7 M15 8h6v6"],
+    SPD: ["#A8CAFF", "M4 17a8 8 0 1 1 16 0 M12 17l4-5"],
+    RFIS: ["#FFC062", "M12 2v3 M2 13h3 M19 13h3 M7 21l3-12h4l3 12 M12 12v2 M12 17v2"],
+    CTL: ["#FFC062", "M2 20h20 M5 6l11 9 M10 15h6v-6"],
+  };
+  const EYE = "M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z M12 9a3 3 0 1 0 0 6a3 3 0 1 0 0-6";
+  const LABEL = { CAPP: "Cleared approach", EAPP: "Expect approach", CM: "Maintain altitude", SPD: "Assign speed", RFIS: "Report field in sight", CTL: "Cleared to land" };
+  const UNFILLED = "···";
+  const esc = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  const svgOpen = (size, color, extra = "") => `<svg class="gly" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"${extra}>`;
+  const gl = (id, size = 22) => `${svgOpen(size, GL[id][0])}<path d="${GL[id][1]}"/></svg>`;
+  /** The visual glyph: the built Cleared visual eye; dashed for an expect-visual row (a drawing). */
+  const glv = verb => `${svgOpen(22, "#A8CAFF", verb === "EAPP" ? ' stroke-dasharray="3.2 2.4"' : "")}<path d="${EYE}"/></svg>`;
+  const blank = `<span class="gly blank" aria-hidden="true"></span>`;
+  const wxIcon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ffc062" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3L2 21h20z M12 10v5 M12 18v.5"/></svg>`;
+  const menu = (inner, cls = "w", label = "", attrs = "") => `<div class="menu m ${cls}" role="menu"${label ? ` aria-label="${esc(label)}"` : ""} ${attrs}>${inner}</div>`;
+  const sep = () => `<div class="msep" role="separator"></div>`;
+  const title = (t, r = "") => `<div class="mi title"><span>${esc(t)}</span><span class="r">${esc(r)}</span></div>`;
+  const sendAttr = cmd => `data-send="${esc(cmd)}" tabindex="0"`;
+  const cursorSvg = `<svg class="cursor" viewBox="0 0 18 24" aria-hidden="true"><path d="M1.5 1.5v18.2l4.6-4.3 3 6.8 3.1-1.4-3-6.7h6.3z" fill="#ffffff" stroke="#000000" stroke-width="1.3" stroke-linejoin="round"/></svg>`;
+  const frame = (label, inner, after = "") => `<div class="frame"><div class="flabel">${label}</div>${inner}${after}</div>`;
+  const note = (html, calm) => `<div class="callout${calm ? " calm" : ""}" role="note">${html}</div>`;
+  let uidN = 0;
+  const uid = p => `${p}-${++uidN}`;
+
+  /* ---------- Data: approaches from the bundled CIFP, runways and lengths from NavData ---------- */
+  const FULL = { ILS: "ILS", LOC: "LOC", RNAV: "RNAV (GPS)", RNP: "RNAV (RNP)", VOR: "VOR" };
+  const ap = (kind, rwy, id, variant = "") => ({ kind, id, name: `${FULL[kind]}${variant ? " " + variant : ""} RWY ${rwy}` });
+  const OAK = {
+    "10L": [ap("RNAV", "10L", "R10L")],
+    "10R": [ap("RNAV", "10R", "R10R"), ap("VOR", "10R", "S10R")],
+    "12": [ap("ILS", "12", "I12"), ap("LOC", "12", "L12"), ap("RNAV", "12", "R12-Y", "Y"), ap("RNP", "12", "H12-Z", "Z")],
+    "28L": [ap("RNAV", "28L", "R28LY", "Y"), ap("RNP", "28L", "H28LZ", "Z")],
+    "28R": [ap("ILS", "28R", "I28R"), ap("LOC", "28R", "L28R"), ap("RNAV", "28R", "R28RY", "Y"), ap("RNP", "28R", "H28RZ", "Z")],
+    "30": [ap("ILS", "30", "I30"), ap("LOC", "30", "L30"), ap("RNAV", "30", "R30-Y", "Y"), ap("RNP", "30", "H30-Z", "Z")],
+    "15": [], "33": [],
+  };
+  /* Landing distance available, ft (RunwayLandability.LandingDistanceAvailableFt: NavData's declared figure). */
+  const LDA = { "10L": 5336, "28R": 5457, "10R": 6213, "28L": 6213, "12": 10000, "30": 10000, "15": 3376, "33": 3376 };
+  const B744_NEED = 8036; /* 6,988 ft landing distance (AircraftProfiles.json) × 1.15 */
+  const isShort = r => LDA[r] < B744_NEED;
+  const ROOM = ["30", "28R"];
+  const REST = ["10L", "10R", "12", "15", "28L", "33"];
+  const ALL = [...ROOM, ...REST];
+  const landableFirst = list => [...list.filter(r => !isShort(r)), ...list.filter(isShort)];
+
+  /* ---------- Rows ---------- */
+  const VERB = { CAPP: "Cleared approach", EAPP: "Expect approach" };
+  function apRow(verb, a) {
+    const cmd = `${verb} ${a.id}`;
+    return `<div class="mi" role="menuitem" ${sendAttr(cmd)}>${gl(verb)}<span class="nm"><span class="n">${esc(a.name)}</span></span><span class="kind">${esc(a.kind)}</span><span class="cmd">${esc(cmd)}</span></div>`;
+  }
+  const rowsFor = (verb, list) => list.map(a => apRow(verb, a)).join("");
+  const visCmd = (verb, r) => (verb === "CAPP" ? `CVA ${r}` : `EAPP VIS${r}`);
+  /** One runway's visual row; a runway short for the type is dimmed with " · short", as the pattern-entry list draws it, and still sends. */
+  function visRow(verb, r, o = {}) {
+    const sh = isShort(r);
+    const cmd = visCmd(verb, r);
+    return `<div class="mi${sh ? " short" : ""}${o.hot ? " hot" : ""}" role="menuitem" ${sendAttr(cmd)}${sh ? ` data-short="${r}"` : ""}>${glv(verb)}<span class="nm"><span class="n">Visual RWY ${esc(r)}</span>${sh ? `<span class="note">· short</span>` : ""}</span><span class="kind">VIS</span><span class="cmd">${esc(cmd)}</span>${o.pointer ? cursorSvg : ""}</div>`;
+  }
+  function boxRow(verb) {
+    const id = uid("box");
+    const box = `<input class="tbox" type="text" id="${id}" placeholder="id, e.g. I28R" data-tpl="${verb} {}" aria-label="${esc(VERB[verb])} by approach id" maxlength="10" style="width:130px" autocomplete="off" spellcheck="false">`;
+    return `<div class="mi dim boxed" role="menuitem" data-send="" data-tplrow="${id}">${gl(verb)}<span class="nm col"><span class="n">Approach</span><span class="under">${box}</span></span><span class="kind"></span><span class="cmd">${verb} ${UNFILLED}</span></div>`;
+  }
+
+  /* ---------- Tabs ---------- */
+  const tabBtn = (t, sel) => `<button type="button" class="tab${t.word ? " word" : ""}" role="tab" data-tab="${esc(t.k)}" aria-selected="${t.k === sel}">${esc(t.label)}${t.small !== undefined ? `<small>${esc(t.small)}</small>` : ""}</button>`;
+  const tabBar = (tabs, sel) => `<div class="tabs" role="tablist">${tabs.map(t => (t.div ? `<span class="tdiv" aria-hidden="true"></span>` : tabBtn(t, sel))).join("")}</div>`;
+  /** The approach flyout: tabs, one panel per tab, a separator and the Approach box. */
+  function flyout(o) {
+    const panels = Object.entries(o.panels).map(([k, html]) => `<div class="panel" data-panel="${esc(k)}"${k === o.sel ? "" : " hidden"}>${html}</div>`).join("");
+    return menu(`<div data-tabgroup>${tabBar(o.tabs, o.sel)}${panels}</div>` + sep() + boxRow(o.verb), "w", VERB[o.verb]);
+  }
+  /* Lanes A and C: every runway end gets a tab (15 and 33 now too, for their visual row); the count is the tab's rows. */
+  const tabsEvery = [...ROOM.map(k => ({ k, label: k, small: OAK[k].length + 1 })), { div: true }, ...REST.map(k => ({ k, label: k, small: OAK[k].length + 1 }))];
+  /* Lane B: runway tabs only where there is an instrument approach, then a last Visual tab. */
+  const restWithAp = REST.filter(r => OAK[r].length);
+  const tabsVisTab = [...ROOM.map(k => ({ k, label: k, small: OAK[k].length })), { div: true }, ...restWithAp.map(k => ({ k, label: k, small: OAK[k].length })),
+                      { div: true }, { k: "vis", label: "Visual", small: ALL.length, word: true }];
+  const panelsTop = verb => Object.fromEntries(ALL.map(r => [r, visRow(verb, r) + rowsFor(verb, OAK[r])]));
+  const panelsBottom = verb => Object.fromEntries(ALL.map(r => [r, rowsFor(verb, OAK[r]) + title("Visual", `LDA ${LDA[r].toLocaleString("en-US")} ft`) + visRow(verb, r)]));
+  function panelsVisTab(verb) {
+    const p = Object.fromEntries([...ROOM, ...restWithAp].map(r => [r, rowsFor(verb, OAK[r])]));
+    p.vis = landableFirst(ROOM).map(r => visRow(verb, r)).join("") + sep() + landableFirst(REST).map(r => visRow(verb, r)).join("");
+    return p;
+  }
+
+  /* ---------- The aircraft menu stub ---------- */
+  const cells = capp => [{ id: "CAPP", ...capp }, { id: "CM" }, { id: "SPD" }, { id: "RFIS" }, { id: "CTL" }];
+  function stubMenu(s) {
+    const strip = s.strip.map(c => `<span class="cell${c.latched ? " latched" : ""}" title="${esc(LABEL[c.id])}" role="img" aria-label="${esc(LABEL[c.id])}${c.latched ? " (flyout open)" : ""}">${gl(c.id, 32)}${c.notch ? `<i class="notch"></i>` : ""}</span>`).join("");
+    const faint = t => `<div class="mi plain faint"><span>${esc(t)}</span><span></span><span class="chev">›</span></div>`;
+    return menu(`<div class="mtitle">${esc(s.title)}</div><div class="mstate">${esc(s.state)}</div>${sep()}<div class="mi plain faint"><span>Command…</span><span></span><span></span></div>${sep()}<div class="strip">${strip}</div>${sep()}${["Track", "Data Block", "All Commands"].map(faint).join("")}`, "", "Aircraft menu");
+  }
+  const stub = s => `<div class="stage stub-stage">${stubMenu(s)}</div>`;
+
+  function lane(l) {
+    return `<section class="lane" data-lane>
+      <div class="lane-h"><span class="tag ${l.kind}">${l.kind.toUpperCase()}</span><h3>${esc(l.name)}</h3></div>
+      <div class="stage">${l.body}</div>
+      <div class="sent" data-sent>Click a row, a tab or a button to see what it does.</div>
+      <dl class="cap"><dt>How it works</dt><dd>${l.how}</dd><dt>Worst case</dt><dd class="worst">${l.worst}</dd></dl>
+    </section>`;
+  }
+  function art(a) {
+    return `<section class="art" id="${a.id}">
+      <div class="art-head">
+        <div class="art-meta">
+          <h2>${esc(a.title)}</h2>
+          <div class="sends">${esc(a.sends)}</div>
+          ${a.intro.map(p => `<p>${p}</p>`).join("")}
+        </div>
+        ${a.stub ? stub(a.stub) : ""}
+      </div>
+      <div class="lanes">${a.lanes.map(lane).join("")}</div>
+    </section>`;
+  }
+
+  const GTI_STATE = "Arrival · KOAK · 5,000 ft · 210 kt";
+  const OAK_FACTS = "The aircraft is a <b>B744</b>: landing distance 6,988 ft (<code>AircraftProfiles.json</code>) × 1.15 = 8,036 ft. KOAK's landing distance available (NavData's declared figures): 12 and 30 10,000 ft, 10R and 28L 6,213, 28R 5,457, 10L 5,336, 15 and 33 3,376. Only 12 and 30 pass, so the other six runways' visual rows are dimmed “short”.";
+
+  /* ---------- 1. Cleared approach at KOAK ---------- */
+  const d1 = {
+    id: "d1-cleared", title: "1 · Where the visual rows sit in Cleared approach", sends: "CVA <runway> · CAPP <id>",
+    intro: [
+      "<b>GTI3591</b>, B744, IFR arrival to KOAK, no expected approach and no assigned runway, so there is no default row. The room lands 30 and 28R, so their tabs come first, 30 selected (ruled: the room's runway setup order).",
+      OAK_FACTS,
+      "KOAK runways 15 and 33 have no instrument approach. With a visual row on each runway's tab (lanes A and C) they get tabs of their own; with a Visual tab (lane B) they do not.",
+    ],
+    stub: { title: "GTI3591 · B744", state: GTI_STATE, strip: cells({ notch: true, latched: true }) },
+    lanes: [
+      { kind: "a", name: "A Visual row at the top of each runway tab",
+        how: "Each runway's tab opens with its visual row (<code>CVA 30</code>), then its instrument approaches; a short runway's visual row is dimmed with “short”. Every runway end gets a tab, 15 and 33 holding only their visual row.",
+        worst: "The first row of the opening tab is the visual, so a quick click on 30 sends <code>CVA 30</code> where the ILS was meant; the tab bar grows from 6 to 8 tabs, two of them holding one dimmed row each.",
+        body: frame("Cleared approach › <b>flyout</b> · opens on 30", flyout({ verb: "CAPP", tabs: tabsEvery, sel: "30", panels: panelsTop("CAPP") }))
+          + frame("Same flyout · <b>28R tab chosen</b>", flyout({ verb: "CAPP", tabs: tabsEvery, sel: "28R", panels: panelsTop("CAPP") }),
+                  note("<b>Short:</b> 28R has 5,457 ft available; a B744 needs 8,036. The ILS 28R row is not judged by length; only the visual row is.")) },
+      { kind: "b", name: "A separate Visual tab",
+        how: "Runway tabs carry the instrument approaches only; one last “Visual” tab lists every runway's visual row, ordered as the pattern-entry list orders its runways (the room's landing runways, a separator, the rest; landable first, short last in each group).",
+        worst: "A visual is always two clicks (the tab, then the row), since the Visual tab is never the one that opens; for a B744 six of its eight rows are dimmed, and 30 sits on one tab while its visual sits on another.",
+        body: frame("Cleared approach › <b>flyout</b> · <b>Visual tab chosen</b>", flyout({ verb: "CAPP", tabs: tabsVisTab, sel: "vis", panels: panelsVisTab("CAPP") }),
+                  note("<b>No tab for 15 or 33:</b> they have no instrument approach, so they appear only on the Visual tab. Click 30 to see a runway tab without a visual.")) },
+      { kind: "c", name: "A Visual section at the bottom of each runway tab",
+        how: "Each runway's tab lists its instrument approaches, then a “Visual” title (with the runway's landing distance available) and the visual row. 15 and 33 get tabs holding only the Visual section.",
+        worst: "The visual, the approach most given in good weather, is the last row on every tab, below up to four instrument rows; 15 and 33 still add two tabs that hold one dimmed row.",
+        body: frame("Cleared approach › <b>flyout</b> · opens on 30", flyout({ verb: "CAPP", tabs: tabsEvery, sel: "30", panels: panelsBottom("CAPP") }))
+          + frame("Same flyout · <b>28R tab chosen</b>", flyout({ verb: "CAPP", tabs: tabsEvery, sel: "28R", panels: panelsBottom("CAPP") })) },
+    ],
+  };
+
+  /* ---------- 2. Expect approach at KOAK ---------- */
+  const d2 = {
+    id: "d2-expect", title: "2 · Where the visual rows sit in Expect approach", sends: "EAPP VIS<runway> (placeholder) · EAPP <id>",
+    intro: [
+      "The same aircraft, opened from All Commands › Approach › Expect approach. The ruled expect-visual form of <code>EAPP</code> (7110.65 4-7-10.d, “Expect visual approach runway two five right”) has no token yet; <code>EAPP VIS28R</code> stands in for it. The rows carry the Cleared visual eye drawn dashed, as the Expect approach glyph is the Cleared approach arrow drawn dashed.",
+      "The lengths and the dimming are those of section 1. Join, the straight-in pair, the force pair and JFAC get no visual rows (ruled).",
+    ],
+    lanes: [
+      { kind: "a", name: "A Visual row at the top of each runway tab",
+        how: "As section 1 A: each runway tab opens with its expect-visual row, then its instrument approaches.",
+        worst: "A slip on the first row sets the expected approach to a visual when the ILS was meant; nothing flies differently, but the scope and the strip say “visual”.",
+        body: frame("Expect approach › <b>flyout</b> · 28R tab chosen", flyout({ verb: "EAPP", tabs: tabsEvery, sel: "28R", panels: panelsTop("EAPP") })) },
+      { kind: "b", name: "A separate Visual tab",
+        how: "As section 1 B: runway tabs hold the instrument approaches; the last “Visual” tab lists every runway's expect-visual row.",
+        worst: "Choosing between “expect ILS 28R” and “expect visual 28R”, the common pair, means switching tabs; the two rows are never on screen together.",
+        body: frame("Expect approach › <b>flyout</b> · Visual tab chosen", flyout({ verb: "EAPP", tabs: tabsVisTab, sel: "vis", panels: panelsVisTab("EAPP") })) },
+      { kind: "c", name: "A Visual section at the bottom of each runway tab",
+        how: "As section 1 C: instrument approaches, then the “Visual” title and the expect-visual row.",
+        worst: "Same as section 1 C: the expect-visual is the last row on each tab, and 15 and 33 add two tabs of one dimmed row.",
+        body: frame("Expect approach › <b>flyout</b> · 28R tab chosen", flyout({ verb: "EAPP", tabs: tabsEvery, sel: "28R", panels: panelsBottom("EAPP") })) },
+    ],
+  };
+
+  /* ---------- 3. An untowered field with no instrument approach ---------- */
+  const HES_STATE = "Arrival · KHES · 5,000 ft · 110 kt";
+  const CALLSIGN = "N738SP";
+  const cvaHes = (o = {}) => `<div class="mi${o.hot ? " hot" : ""}" role="menuitem" ${sendAttr("CVA KHES")}>${glv("CAPP")}<span class="nm"><span class="n">Visual approach to KHES</span><span class="note">· pilot picks the runway</span></span><span class="kind">VIS</span><span class="cmd">CVA KHES</span></div>`;
+  const cifrRow = (o = {}) => `<div class="mi${o.hot ? " hot" : ""}" role="menuitem" tabindex="0" ${o.attrs || `data-say="Opens the Cancel IFR confirmation (section 4); sends nothing yet."`}>${blank}<span class="nm"><span class="n">Cancel IFR…</span></span><span class="kind"></span><span class="cmd">CIFR</span>${o.pointer ? cursorSvg : ""}</div>`;
+  const whyLine = `<div class="why" role="note">No runway rows: KHES has no instrument approach and no operating tower, so the pilot picks the runway (7110.65 7-4-3.c.4).</div>`;
+  const d3 = {
+    id: "d3-untowered", title: "3 · An untowered field with no instrument approach", sends: "CVA KHES · CIFR",
+    intro: [
+      `<b>${CALLSIGN}</b>, C172, IFR to <b>KHES</b> (Healdsburg), untowered. The bundled CIFP has runway records for KHES (13 and 31, 2,652 ft) and two arrivals (REBAS1, VNYRD1) but no approach. A C172 needs 603 ft (524 × 1.15), so both runways are landable, but at an untowered field the ruled row is the airport-level <code>CVA KHES</code>, never a runway.`,
+      "The ruled strip button opens the flyout. There is nothing to type an approach id for, so these flyouts are drawn without the Approach box (not ruled). Cancel IFR is offered: the aircraft is IFR and airborne below FL180.",
+    ],
+    stub: { title: `${CALLSIGN} · C172`, state: HES_STATE, strip: cells({ notch: true, latched: true }) },
+    lanes: [
+      { kind: "a", name: "Only the airport-level row and Cancel IFR",
+        how: "The flyout holds the airport-level visual row and, after a separator, Cancel IFR…; no tabs.",
+        worst: "Nothing says why there are no runway rows: an instructor looking for “Visual RWY 31” may read the flyout as broken, or as KHES having no runways.",
+        body: frame("Cleared approach › <b>flyout</b>", menu(cvaHes() + sep() + cifrRow(), "w", "Cleared approach, KHES"))
+          + frame("Same flyout, opened by keyboard · <b>the first row focused</b>", menu(cvaHes({ hot: true }).replace('class="mi hot"', 'class="mi kfocus"') + sep() + cifrRow(), "w", "Cleared approach, KHES")) },
+      { kind: "b", name: "The airport-level row with a note why",
+        how: "As A, with a dimmed line under the visual row saying why there are no runway rows.",
+        worst: "A line of reading on a flyout used in a hurry, and its wording must stay true for a part-time tower that has closed: “no operating tower” is a fact of the hour, not of the field.",
+        body: frame("Cleared approach › <b>flyout</b>", menu(cvaHes() + whyLine + sep() + cifrRow(), "w", "Cleared approach, KHES")) },
+      { kind: "c", name: "Cancel IFR first, then the airport-level row",
+        how: "Cancel IFR… is the first row, as the orchestrator decision places it for an IFR arrival whose destination has no instrument approach; the visual row follows the separator.",
+        worst: "The first, focused row is the one that ends the IFR flight: Enter on opening starts a cancel, held back only by its confirmation, and the visual moves down one row.",
+        body: frame("Cleared approach › <b>flyout</b> · the first row focused", menu(cifrRow({ attrs: 'data-say="Opens the Cancel IFR confirmation (section 4); sends nothing yet."' }).replace('class="mi"', 'class="mi kfocus"') + sep() + cvaHes(), "w", "Cleared approach, KHES")) },
+    ],
+  };
+
+  /* ---------- 4. The Cancel IFR confirmation ---------- */
+  const CONFIRM_TEXT = `Cancel IFR for <b>${CALLSIGN}</b>? The aircraft becomes VFR: no further approach clearances, and VFR pattern entry applies.`;
+  const WX_TEXT = "Reported weather is below VFR minimums.";
+  const backSay = 'data-say="Back: folds the confirmation; nothing is sent."';
+  const btns = back => `<div class="btns"><button type="button" class="btn primary" ${sendAttr("CIFR")}>Confirm</button><button type="button" class="btn" ${back}>Back</button></div>`;
+  const strip = wx => `<div class="confirm" role="group" aria-label="Confirm cancel IFR" data-strip><p>${CONFIRM_TEXT}</p>${wx ? `<p class="wx">${wxIcon}<span>${WX_TEXT}</span></p>` : ""}${btns(backSay)}</div>`;
+  const inlineFlyout = wx => menu(cifrRow({ hot: true, attrs: 'data-toggle' }) + strip(wx) + sep() + cvaHes(), "w", "Cleared approach, KHES");
+  const dialog = wx => `<div class="dialog m" role="dialog" aria-label="Cancel IFR"><div class="dtitle">Cancel IFR</div><p>${CONFIRM_TEXT}</p>${wx ? `<p class="wx">${wxIcon}<span>${WX_TEXT}</span></p>` : ""}${btns('data-say="Back: the dialog closes; the menu is already closed, so nothing is open."')}</div>`;
+  const armedLabel = wx => `<span class="n">Confirm cancel IFR</span><span class="sub">${CONFIRM_TEXT}</span>${wx ? `<span class="sub wx">${WX_TEXT}</span>` : ""}`;
+  const armedRow = wx => `<div class="mi armed" role="menuitem" tabindex="0" data-send="CIFR">${blank}<span class="nm col">${armedLabel(wx)}</span><span class="kind"></span><span class="cmd">CIFR</span></div>`;
+  const twoClickRow = `<div class="mi" role="menuitem" tabindex="0" data-arm>${blank}<span class="nm col"><span class="n">Cancel IFR…</span></span><span class="kind"></span><span class="cmd">CIFR</span></div>`;
+  const d4 = {
+    id: "d4-cancel-ifr", title: "4 · The Cancel IFR button and its confirmation", sends: "CIFR",
+    intro: [
+      `The same <b>${CALLSIGN}</b> at KHES, drawn with Cancel IFR… first as the orchestrator decision places it (section 3 asks whether it goes first). Confirming sends <code>CIFR</code> as it works today: flight rules to VFR, filed altitude cleared, nothing more (ruled). The wording is the orchestrator decision's.`,
+      "The weather line is added when the destination reports below 1,000 ft ceiling or 3 SM visibility; it is drawn here as if KHES reported OVC008 2SM (illustrative: KHES has no weather report in the room).",
+    ],
+    lanes: [
+      { kind: "a", name: "An inline confirm strip in the flyout",
+        how: "Cancel IFR… opens a strip under itself with the question, Confirm and Back; Confirm sends <code>CIFR</code> and closes the menu, Back folds the strip and leaves the flyout open.",
+        worst: "The strip adds about 95 px (115 with the weather line, in this page's render) and pushes the visual row down, so a pointer that was over it is now over the strip; near the screen's bottom edge the flyout may have to reopen upward.",
+        body: frame("Cancel IFR clicked · <b>the strip open</b>", inlineFlyout(false), note("<b>Try it:</b> the Cancel IFR… row folds and unfolds the strip; Back folds it.", true))
+          + frame("With the <b>weather line</b>", inlineFlyout(true)) },
+      { kind: "b", name: "A small dialog",
+        how: "Cancel IFR… closes the menu and opens a small dialog, as the Approach ID popup opens (<code>MenuPopups</code>); Confirm sends <code>CIFR</code>, Back or Esc closes it.",
+        worst: "Back returns to the scope, not the flyout: an instructor who changes their mind and wants the visual instead reopens the menu and the flyout; the dialog also covers part of the scope while it is up.",
+        body: frame("Cancel IFR · <b>about to click</b>", menu(cifrRow({ hot: true, pointer: true, attrs: 'data-say="Closes the menu and opens the dialog below."' }) + sep() + cvaHes(), "w", "Cleared approach, KHES"))
+          + frame("After the click · <b>the dialog</b>, the menu closed", dialog(false))
+          + frame("With the <b>weather line</b>", dialog(true)) },
+      { kind: "c", name: "A two-click button",
+        how: "The first click turns the row into “Confirm cancel IFR”, amber, with the question under it; a second click sends <code>CIFR</code>. How it disarms (the pointer leaving, a timeout) is not drawn.",
+        worst: "A double-click sends <code>CIFR</code> before the question can be read, and the armed row grows from 32 px to about 62 (80 with the weather line, in this page's render), pushing the visual row down.",
+        body: frame("Try it · <b>first click arms, second sends</b>", menu(twoClickRow + sep() + cvaHes(), "w", "Cleared approach, KHES"))
+          + frame("After the first click · <b>armed</b>", menu(armedRow(false) + sep() + cvaHes(), "w", "Cleared approach, KHES"))
+          + frame("Armed, with the <b>weather line</b>", menu(armedRow(true) + sep() + cvaHes(), "w", "Cleared approach, KHES")) },
+    ],
+  };
+
+  const ARTS = [d1, d2, d3, d4];
+  document.getElementById("arts").innerHTML = ARTS.map(art).join("");
+  document.getElementById("index").innerHTML = ARTS.map(a => `<a href="#${a.id}">${esc(a.title)}</a>`).join("");
+
+  /* ---------- Interaction ---------- */
+  const say = (from, html) => { const l = from.closest("[data-lane]"); if (l) l.querySelector("[data-sent]").innerHTML = html; };
+  function sendFrom(el) {
+    const cmd = el.getAttribute("data-send");
+    if (!cmd) { say(el, "Sends nothing while the box is empty; the flyout stays open."); return; }
+    const sh = el.getAttribute("data-short");
+    const extra = sh ? ` It is listed though ${esc(sh)} is short for a B744; the sim judges the clearance as it does today.` : "";
+    say(el, `Sends <code>${esc(cmd)}</code> and closes the flyout and the menu.${extra}`);
+  }
+  function onBox(t) {
+    const row = t.closest("[data-tplrow]");
+    const v = t.value.trim().toUpperCase();
+    const ok = /^[A-Z0-9]{2,6}(-[A-Z0-9])?$/.test(v);
+    const cmd = ok ? t.getAttribute("data-tpl").replace("{}", v) : "";
+    row.setAttribute("data-send", cmd);
+    row.classList.toggle("dim", !ok);
+    row.querySelector(".cmd").textContent = ok ? cmd : t.getAttribute("data-tpl").replace("{}", UNFILLED);
+  }
+  function selectTab(btn) {
+    const group = btn.closest("[data-tabgroup]");
+    const key = btn.getAttribute("data-tab");
+    group.querySelectorAll("[data-tab]").forEach(b => b.setAttribute("aria-selected", String(b === btn)));
+    group.querySelectorAll("[data-panel]").forEach(p => { p.hidden = p.getAttribute("data-panel") !== key; });
+    say(btn, `Shows ${esc(btn.firstChild.textContent)}'s rows; sends nothing.`);
+  }
+  function arm(row) {
+    if (row.classList.contains("armed")) {
+      say(row, "Second click: sends <code>CIFR</code> and closes the menu.");
+      row.classList.remove("armed");
+      row.querySelector(".nm").innerHTML = `<span class="n">Cancel IFR…</span>`;
+      return;
+    }
+    row.classList.add("armed");
+    row.querySelector(".nm").innerHTML = armedLabel(false);
+    say(row, "First click: the row arms and shows the question; a second click sends <code>CIFR</code>.");
+  }
+  document.querySelectorAll("input[data-tpl]").forEach(onBox);
+
+  document.addEventListener("click", e => {
+    if (e.target.closest("input")) return;
+    const tab = e.target.closest("[data-tab]");
+    if (tab) { selectTab(tab); return; }
+    const armRow = e.target.closest("[data-arm]");
+    if (armRow) { arm(armRow); return; }
+    const toggle = e.target.closest("[data-toggle]");
+    if (toggle) {
+      const s = toggle.nextElementSibling;
+      s.hidden = !s.hidden;
+      say(toggle, s.hidden ? "Folds the confirmation; nothing is sent." : "Opens the confirmation strip under the row; sends nothing yet.");
+      return;
+    }
+    const sayEl = e.target.closest("[data-say]");
+    if (sayEl) {
+      say(sayEl, esc(sayEl.getAttribute("data-say")));
+      const s = sayEl.closest("[data-strip]");
+      if (s) s.hidden = true;
+      return;
+    }
+    const send = e.target.closest("[data-send]");
+    if (send) sendFrom(send);
+  });
+  document.addEventListener("keydown", e => {
+    if (e.key !== "Enter" && e.key !== " ") return;
+    const t = e.target;
+    if (t.matches("input")) {
+      if (e.key === "Enter") sendFrom(t.closest("[data-tplrow]"));
+      return;
+    }
+    if (t.matches(".mi[tabindex]")) { e.preventDefault(); t.click(); }
+  });
+  document.addEventListener("input", e => { if (e.target.hasAttribute("data-tpl")) onBox(e.target); });
+})();
+</script>
+</body>
+</html>
