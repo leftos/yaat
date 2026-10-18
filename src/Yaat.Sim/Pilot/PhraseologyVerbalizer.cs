@@ -190,7 +190,7 @@ public static class PhraseologyVerbalizer
             )
         )
         {
-            return RenderTaxiAlongRunway(taxiDirect, fmt);
+            return RenderTaxiAlongRunway(taxiDirect, NoMergeHolds, fmt);
         }
 
         // RES with CROSS/HS modifiers composes clauses the flat "resume taxi" rule template can't
@@ -198,7 +198,7 @@ public static class PhraseologyVerbalizer
         // through to the rule-driven path below.
         if (cmd is ResumeCommand { CrossRunways.Count: > 0 } or ResumeCommand { HoldShorts.Count: > 0 })
         {
-            return RenderResume((ResumeCommand)cmd, fmt);
+            return RenderResume((ResumeCommand)cmd, NoMergeHolds, fmt);
         }
 
         // CROSS with multiple runways, an HS modifier, or any TAXIWAY target composes clauses the
@@ -211,7 +211,7 @@ public static class PhraseologyVerbalizer
             && (crossCmd.RunwayIds.Count > 1 || crossCmd.HoldShorts.Count > 0 || crossCmd.RunwayIds.Any(r => !CommandParser.IsRunwayArg(r)))
         )
         {
-            return RenderCross(crossCmd, fmt);
+            return RenderCross(crossCmd, NoMergeHolds, fmt);
         }
 
         CanonicalCommandType canonicalType = CommandDescriber.ToCanonicalType(cmd);
@@ -451,7 +451,7 @@ public static class PhraseologyVerbalizer
     /// with a comma, the pause a pilot puts between the route and its restrictions ("…charlie, hold short
     /// of runway two eight right"); the destination runway leads, matching the rule-driven forms.
     /// </summary>
-    private static string RenderTaxiAlongRunway(TaxiCommand taxi, CaptureFormatter fmt)
+    private static string RenderTaxiAlongRunway(TaxiCommand taxi, Func<HoldShortTarget, MergeHold?> mergeHoldOf, CaptureFormatter fmt)
     {
         List<TurnDirection?>? hints = taxi.PathTurnHints;
         var parts = new List<string>(taxi.Path.Count);
@@ -491,7 +491,7 @@ public static class PhraseologyVerbalizer
 
         if (taxi.HoldShorts is { Count: > 0 } holdShorts)
         {
-            body += $", hold short of {string.Join(" and ", holdShorts.Select(h => RenderHoldShortTarget(h, fmt)))}";
+            body += $", hold short of {string.Join(" and ", holdShorts.Select(h => RenderHoldShortTargetWithMergeHold(h, mergeHoldOf(h), fmt)))}";
         }
 
         if (taxi.DestinationRunway is { Length: > 0 } rwy)
@@ -527,7 +527,7 @@ public static class PhraseologyVerbalizer
     /// "cross runway …" / "hold short of …" clauses as <see cref="RenderTaxiAlongRunway"/>
     /// after a "resume taxi" lead-in (7110.65 §3-7-2). Bare RES never reaches here.
     /// </summary>
-    private static string RenderResume(ResumeCommand resume, CaptureFormatter fmt)
+    private static string RenderResume(ResumeCommand resume, Func<HoldShortTarget, MergeHold?> mergeHoldOf, CaptureFormatter fmt)
     {
         var body = new StringBuilder("resume taxi");
 
@@ -538,7 +538,9 @@ public static class PhraseologyVerbalizer
 
         if (resume.HoldShorts is { Count: > 0 } holdShorts)
         {
-            body.Append($", hold short of {string.Join(" and ", holdShorts.Select(h => RenderHoldShortTarget(h, fmt)))}");
+            body.Append(
+                $", hold short of {string.Join(" and ", holdShorts.Select(h => RenderHoldShortTargetWithMergeHold(h, mergeHoldOf(h), fmt)))}"
+            );
         }
 
         return body.ToString();
@@ -549,7 +551,7 @@ public static class PhraseologyVerbalizer
     /// "cross runway … and …" / "hold short of …" clauses as <see cref="RenderResume"/>
     /// (7110.65 §3-7-2). A single-runway, no-HS CROSS never reaches here.
     /// </summary>
-    private static string RenderCross(CrossRunwayCommand cross, CaptureFormatter fmt)
+    private static string RenderCross(CrossRunwayCommand cross, Func<HoldShortTarget, MergeHold?> mergeHoldOf, CaptureFormatter fmt)
     {
         var body = new StringBuilder();
 
@@ -579,7 +581,7 @@ public static class PhraseologyVerbalizer
             {
                 body.Append(", ");
             }
-            body.Append($"hold short of {string.Join(" and ", holdShorts.Select(h => RenderHoldShortTarget(h, fmt)))}");
+            body.Append($"hold short of {string.Join(" and ", holdShorts.Select(h => RenderHoldShortTargetWithMergeHold(h, mergeHoldOf(h), fmt)))}");
         }
 
         return body.ToString();
@@ -604,6 +606,64 @@ public static class PhraseologyVerbalizer
     /// <returns>The rendered clause.</returns>
     public static string RenderUnableHoldShort(HoldShortTarget target, bool spoken) =>
         $"unable to hold short of {RenderHoldShortTarget(target, spoken ? Spoken : Terminal)}, stopping";
+
+    /// <summary>
+    /// The readback of a hold-short placed as a shallow-merge hold (<see cref="HoldShortPoint.MergeHold"/>): <c>hold short of C,
+    /// will hold on D before G</c> (spoken <c>hold short of charlie, will hold on delta before golf</c>). The crew complies
+    /// with the instruction issued and says where it will stop to do so, the one moment the instructor can object (AIM
+    /// 4-3-18.b: a shared understanding of the taxi instruction). G is a location, never "short of G" (a hold-short the
+    /// controller never gave) nor "at G" (the AT locative names the taxiway the aircraft is on).
+    ///
+    /// <para>Direct-rendered, never a <see cref="PhraseologyRule"/>: it is pilot output, and "on" must not enter the
+    /// controller grammar.</para>
+    /// </summary>
+    /// <param name="target">The hold-short target as issued.</param>
+    /// <param name="merge">Where the placement holds.</param>
+    /// <param name="spoken">True for the spoken (TTS) form, false for the compact terminal form.</param>
+    /// <returns>The rendered clause.</returns>
+    public static string RenderMergeHoldShort(HoldShortTarget target, MergeHold merge, bool spoken) =>
+        $"hold short of {RenderHoldShortTargetWithMergeHold(target, merge, spoken ? Spoken : Terminal)}";
+
+    /// <summary>
+    /// The TAXI readback of <see cref="RenderTaxiAlongRunway"/> with each hold-short target that <paramref name="mergeHoldOf"/>
+    /// places as a shallow-merge hold read back as <see cref="RenderMergeHoldShort"/> reads it.
+    /// </summary>
+    /// <param name="taxi">The TAXI as applied, carrying at least one hold-short.</param>
+    /// <param name="mergeHoldOf">The merge hold the route placed for a target, or null.</param>
+    /// <param name="spoken">True for the spoken (TTS) form, false for the compact terminal form.</param>
+    /// <returns>The rendered readback.</returns>
+    public static string RenderTaxiWithMergeHolds(TaxiCommand taxi, Func<HoldShortTarget, MergeHold?> mergeHoldOf, bool spoken) =>
+        RenderTaxiAlongRunway(taxi, mergeHoldOf, spoken ? Spoken : Terminal);
+
+    /// <summary>
+    /// The RES readback of <see cref="RenderResume"/> with its merge-hold targets read as <see cref="RenderMergeHoldShort"/>
+    /// reads them.
+    /// </summary>
+    /// <param name="resume">The RES as applied, carrying at least one hold-short.</param>
+    /// <param name="mergeHoldOf">The merge hold the route placed for a target, or null.</param>
+    /// <param name="spoken">True for the spoken (TTS) form, false for the compact terminal form.</param>
+    /// <returns>The rendered readback.</returns>
+    public static string RenderResumeWithMergeHolds(ResumeCommand resume, Func<HoldShortTarget, MergeHold?> mergeHoldOf, bool spoken) =>
+        RenderResume(resume, mergeHoldOf, spoken ? Spoken : Terminal);
+
+    /// <summary>
+    /// The CROSS readback of <see cref="RenderCross"/> with its merge-hold targets read as <see cref="RenderMergeHoldShort"/>
+    /// reads them.
+    /// </summary>
+    /// <param name="cross">The CROSS as applied, carrying at least one hold-short.</param>
+    /// <param name="mergeHoldOf">The merge hold the route placed for a target, or null.</param>
+    /// <param name="spoken">True for the spoken (TTS) form, false for the compact terminal form.</param>
+    /// <returns>The rendered readback.</returns>
+    public static string RenderCrossWithMergeHolds(CrossRunwayCommand cross, Func<HoldShortTarget, MergeHold?> mergeHoldOf, bool spoken) =>
+        RenderCross(cross, mergeHoldOf, spoken ? Spoken : Terminal);
+
+    private static readonly Func<HoldShortTarget, MergeHold?> NoMergeHolds = _ => null;
+
+    /// <summary><see cref="RenderHoldShortTarget"/>, followed by ", will hold on D before G" for a merge hold.</summary>
+    private static string RenderHoldShortTargetWithMergeHold(HoldShortTarget target, MergeHold? merge, CaptureFormatter fmt) =>
+        merge is null
+            ? RenderHoldShortTarget(target, fmt)
+            : $"{RenderHoldShortTarget(target, fmt)}, will hold on {fmt.Taxiway(merge.OnTaxiway)} before {fmt.Taxiway(merge.BeforeTaxiway)}";
 
     /// <summary>
     /// Spoken form of one hold-short target in a direct-rendered clause: <c>runway two eight right</c>

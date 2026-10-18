@@ -31,6 +31,7 @@
 - A `FOLLOWG` follower behind a lead holding to depart holds short of that runway for departure, not as a crossing, and taxis on to the bar once the lead rolls.
 - An aircraft crossing a runway behind stopped traffic brakes at its normal taxi rate, hard only when it must, instead of stopping abruptly.
 - An aircraft cleared across a runway holds short when the far side has no room, says "holding short of runway X, traffic ahead", and goes once room opens.
+- `HS` of a taxiway met at a shallow merge holds short before the earlier intersection and says how far back, instead of stopping on the crossed taxiway.
 - A `TAXI` re-route given while an aircraft is crossing a runway keeps the crossing cleared, so it finishes crossing instead of holding inside the bars.
 - `TAXI` to a stand another aircraft occupies names the occupant in the readback, and the aircraft stops short of it instead of getting stuck on it.
 - `HOLD` during a runway crossing brakes firmly, reads back "holding position on runway X" when it cannot stop short, and no longer stops dead past the runway.

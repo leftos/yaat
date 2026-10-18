@@ -1,3 +1,5 @@
+using Yaat.Sim.Data.Airport;
+
 namespace Yaat.Sim.Pilot;
 
 /// <summary>What a "ready to taxi" call names as the place the pilot calls from.</summary>
@@ -29,6 +31,12 @@ public enum ReadyToTaxiLocationKind
 /// </summary>
 public readonly record struct ReadyToTaxiLocation(ReadyToTaxiLocationKind Kind, string Name, string Taxiway)
 {
+    /// <summary>
+    /// For a hold short placed as a shallow-merge hold (<see cref="HoldShortPoint.MergeHold"/>), where it holds: the call
+    /// then says "holding short of C on D before G". Null for every other location.
+    /// </summary>
+    public MergeHold? MergeHold { get; init; }
+
     public static ReadyToTaxiLocation Ramp => new(ReadyToTaxiLocationKind.Ramp, "", "");
 
     public static ReadyToTaxiLocation Stand(string stand) => new(ReadyToTaxiLocationKind.Stand, stand, "");

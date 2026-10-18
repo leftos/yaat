@@ -387,6 +387,9 @@ public static partial class GroundCommandHandler
         aircraft.Ground.AssignedTaxiRoute = route;
         aircraft.Ground.AwaitingTaxiInCall = false;
         aircraft.Ground.Hold = null;
+        // The route is new, so every merge hold on it was armed by this clearance; one already behind the aircraft or
+        // inside its braking stop falls back to the capped stop, as for an HS.
+        DeclineUnreachableMergeHolds(aircraft, groundLayout, route, route.HoldShortPoints);
         // A fresh taxi clearance resets the commanded taxi speed to the category default.
         aircraft.Ground.CommandedTaxiSpeedKts = null;
         // The aircraft is leaving whatever stand it was on. A taxi to parking re-sets this when it
@@ -5346,8 +5349,76 @@ public static partial class GroundCommandHandler
         }
 
         RecomputeHoldShortPositions(aircraft, layout, route);
+        DeclineUnreachableMergeHolds(aircraft, layout, route, plans);
         NotifyTaxiHoldShortsChanged(aircraft);
         return CommandDispatcher.Ok("");
+    }
+
+    /// <summary>
+    /// <see cref="DeclineUnreachableMergeHolds(AircraftState, AirportGroundLayout?, TaxiRoute, IEnumerable{HoldShortPoint})"/>
+    /// over the bars <paramref name="plans"/> just armed.
+    /// </summary>
+    private static void DeclineUnreachableMergeHolds(
+        AircraftState aircraft,
+        AirportGroundLayout? layout,
+        TaxiRoute route,
+        IReadOnlyList<ExplicitHoldShortPlan> plans
+    ) => DeclineUnreachableMergeHolds(aircraft, layout, route, plans.Select(plan => ArmedBar(route, plan)).OfType<HoldShortPoint>());
+
+    /// <summary>
+    /// Takes back the shallow-merge stop (<see cref="HoldShortPoint.MergeHold"/>) of each of the just-armed
+    /// <paramref name="armed"/> bars that the aircraft is already past or cannot brake to at the firm rate, and recomputes
+    /// the positions when any was: the bar then keeps the stop capped at the first junction, its wingtip warning and the
+    /// plain readback. The aircraft can still hold short of the target, so this is no "unable".
+    /// </summary>
+    private static void DeclineUnreachableMergeHolds(
+        AircraftState aircraft,
+        AirportGroundLayout? layout,
+        TaxiRoute route,
+        IEnumerable<HoldShortPoint> armed
+    )
+    {
+        if ((layout is null) || !ReferenceEquals(route, aircraft.Ground.AssignedTaxiRoute))
+        {
+            return;
+        }
+
+        bool declined = false;
+        foreach (HoldShortPoint bar in armed.ToList())
+        {
+            if ((bar is { IsCleared: false, MergeHold: not null }) && MergeHoldOutOfReach(layout, route, aircraft, bar))
+            {
+                bar.MergeHoldDeclined = true;
+                declined = true;
+                Log.LogDebug(
+                    "[HS] {Callsign}: past or inside the braking stop of the merge hold short of {Target}; keeping the capped stop",
+                    aircraft.Callsign,
+                    bar.TargetName
+                );
+            }
+        }
+
+        if (declined)
+        {
+            RecomputeHoldShortPositions(aircraft, layout, route);
+        }
+    }
+
+    private static bool MergeHoldOutOfReach(AirportGroundLayout layout, TaxiRoute route, AircraftState aircraft, HoldShortPoint bar) =>
+        (TaxiingPhase.AlongRouteDistanceToHoldShortFt(layout, route, aircraft.Position, bar) < 0.0)
+        || TaxiingPhase.IsHoldShortUnmakeable(layout, route, aircraft, bar, 1.0 / SimulationEngine.PhysicsSubTickRate);
+
+    /// <summary>The uncleared bar <paramref name="plan"/> added or re-armed on <paramref name="route"/>, or null.</summary>
+    private static HoldShortPoint? ArmedBar(TaxiRoute route, ExplicitHoldShortPlan plan)
+    {
+        int nodeId = plan.Outcome switch
+        {
+            ExplicitHoldShortOutcome.ReArm when plan.Existing is { } existing => existing.NodeId,
+            ExplicitHoldShortOutcome.Add => plan.NodeId,
+            _ => -1,
+        };
+
+        return route.GetHoldShortAt(nodeId) is { IsCleared: false } bar ? bar : null;
     }
 
     /// <summary>
@@ -5374,14 +5445,7 @@ public static partial class GroundCommandHandler
             return false;
         }
 
-        int nodeId = plan.Outcome switch
-        {
-            ExplicitHoldShortOutcome.ReArm when plan.Existing is { } existing => existing.NodeId,
-            ExplicitHoldShortOutcome.Add => plan.NodeId,
-            _ => -1,
-        };
-
-        if (route.GetHoldShortAt(nodeId) is not { IsCleared: false } bar)
+        if (ArmedBar(route, plan) is not { } bar)
         {
             return false;
         }
@@ -5994,6 +6058,7 @@ public static partial class GroundCommandHandler
 
         HoldShortAnnotator.ApplyExplicitHoldShort(route, plan, hs.Target);
         RecomputeHoldShortPositions(aircraft, groundLayout, route);
+        DeclineUnreachableMergeHolds(aircraft, groundLayout, route, [plan]);
 
         aircraft.Ground.IsExpeditingTaxi = false;
 

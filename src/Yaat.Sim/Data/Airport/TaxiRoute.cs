@@ -639,6 +639,9 @@ public sealed class TaxiRoute
                     TailOverRunwayNodeId = hs.TailOverRunwayNodeId,
                     Unable = hs.Unable,
                     StopMoved = hs.StopMoved ? true : null,
+                    MergeHoldOnTaxiway = hs.MergeHold?.OnTaxiway,
+                    MergeHoldBeforeTaxiway = hs.MergeHold?.BeforeTaxiway,
+                    MergeHoldDeclined = hs.MergeHoldDeclined ? true : null,
                 }),
             ],
             Description = ToSummary(),
@@ -726,6 +729,8 @@ public sealed class TaxiRoute
                         TailOverRunwayNodeId = hs.TailOverRunwayNodeId,
                         Unable = hs.Unable,
                         StopMoved = hs.StopMoved == true,
+                        MergeHold = (hs.MergeHoldOnTaxiway is { } on) && (hs.MergeHoldBeforeTaxiway is { } before) ? new MergeHold(on, before) : null,
+                        MergeHoldDeclined = hs.MergeHoldDeclined == true,
                     }
                 );
             }
@@ -812,9 +817,21 @@ public sealed class HoldShortPoint
     /// moved forward to the point the aircraft can actually stop at (never past the node the bar protects),
     /// the taxi brakes at the firm rate onto it, and the pilot answers "unable … stopping" instead of
     /// reading back a hold it will not fly. Set once, at the moment the bar is armed; a bar the aircraft has
-    /// room for is never flagged.
+    /// room for is never flagged. Setting it drops any <see cref="MergeHold"/>: the moved stop is no longer before the
+    /// capping intersection, so the hold report must not say it is.
     /// </summary>
-    public bool Unable { get; set; }
+    public bool Unable
+    {
+        get;
+        set
+        {
+            field = value;
+            if (value)
+            {
+                MergeHold = null;
+            }
+        }
+    }
 
     /// <summary>
     /// True once the taxi phase has moved this <see cref="Unable"/> bar's stop forward to the point the aircraft can
@@ -831,4 +848,25 @@ public sealed class HoldShortPoint
     /// runway is "not clear" while the aircraft holds here. Null in the normal case.
     /// </summary>
     public int? TailOverRunwayNodeId { get; set; }
+
+    /// <summary>
+    /// Set when this taxiway hold-short binds a shallow merge (the arriving taxiway runs into the target at a few degrees)
+    /// and an intersection before the merge caps the wingtip-floor walk-back: the aircraft then holds short of that whole
+    /// intersection, nose at its near edge, and the readback and the hold report name where ("will hold on D before G").
+    /// Null for every other placement. Set by <see cref="HoldShortAnnotator.ComputeHoldShortPositions"/>.
+    /// </summary>
+    public MergeHold? MergeHold { get; set; }
+
+    /// <summary>
+    /// True once the aircraft was found already past the <see cref="MergeHold"/> stop, or unable to brake to it, when the
+    /// hold-short was armed: placement then keeps the stop capped at the first junction, with the wingtip warning and the
+    /// plain readback, on every recompute.
+    /// </summary>
+    public bool MergeHoldDeclined { get; set; }
 }
+
+/// <summary>
+/// Where a hold-short at a shallow merge holds instead of at the merge: on <paramref name="OnTaxiway"/> (the taxiway the
+/// aircraft arrives on) before <paramref name="BeforeTaxiway"/> (the taxiway of the intersection that capped the walk-back).
+/// </summary>
+public sealed record MergeHold(string OnTaxiway, string BeforeTaxiway);

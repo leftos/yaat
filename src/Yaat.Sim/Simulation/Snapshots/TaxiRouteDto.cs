@@ -114,4 +114,25 @@ public sealed class HoldShortPointDto
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public bool? StopMoved { get; init; }
+
+    /// <summary>
+    /// The taxiway a shallow-merge hold holds on (<see cref="HoldShortPoint.MergeHold"/>); null when the bar has no merge
+    /// hold, and on older snapshots, and not written while null.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? MergeHoldOnTaxiway { get; init; }
+
+    /// <summary>
+    /// The taxiway a shallow-merge hold holds before (<see cref="HoldShortPoint.MergeHold"/>); null as
+    /// <see cref="MergeHoldOnTaxiway"/>.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? MergeHoldBeforeTaxiway { get; init; }
+
+    /// <summary>
+    /// True when the merge hold was declined at arming (<see cref="HoldShortPoint.MergeHoldDeclined"/>); null otherwise and on
+    /// older snapshots.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? MergeHoldDeclined { get; init; }
 }

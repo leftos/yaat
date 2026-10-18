@@ -77,11 +77,17 @@ public sealed class HoldingShortPhase(HoldShortPoint holdShort) : Phase
         // A route-incomplete hold is short of the taxiway the route still needs, so it reads like a controller's HS.
         bool heldAtNamedTarget = _holdShort.Reason is HoldShortReason.ExplicitHoldShort or HoldShortReason.RouteIncomplete;
         string label = heldAtNamedTarget ? $"holding short of {target}" : $"holding short runway {target}";
-        string warningText = $"{ctx.Aircraft.Callsign} {label} at {taxiway}";
         // At the end of a route that could not reach its destination the pilot asks for the rest of the way.
         bool requestFurtherTaxi = _holdShort.Reason == HoldShortReason.RouteIncomplete;
-        PilotSpeechText speechText = heldAtNamedTarget
-            ? PilotResponder.BuildHoldingShortTaxi(ctx.Aircraft, label, taxiway, requestFurtherTaxi)
+        // A shallow-merge hold stands before the intersection that capped the stop, so it says where: "on D before G".
+        MergeHold? merge = heldAtNamedTarget ? _holdShort.MergeHold : null;
+        string warningText = merge is null
+            ? $"{ctx.Aircraft.Callsign} {label} at {taxiway}"
+            : $"{ctx.Aircraft.Callsign} {label} on {merge.OnTaxiway} before {merge.BeforeTaxiway}";
+        PilotSpeechText speechText =
+            merge is not null
+                ? PilotResponder.BuildHoldingShortBeforeTaxiway(ctx.Aircraft, _holdShort.TargetName ?? "unknown", merge, requestFurtherTaxi)
+            : heldAtNamedTarget ? PilotResponder.BuildHoldingShortTaxi(ctx.Aircraft, label, taxiway, requestFurtherTaxi)
             : PilotResponder.BuildHoldingShortCrossing(ctx.Aircraft, ResolveSpokenCrossingRunway(ctx, target));
         // At the stop a spawn's preset taxi ends at, the delayed "holding short of C at T41W, … ready to taxi" call replaces
         // this report when that call can come (someone answers it and the pacing rate is above zero), so the pilot does not
@@ -332,11 +338,11 @@ public sealed class HoldingShortPhase(HoldShortPoint holdShort) : Phase
         }
 
         return (ground.PresetTaxiStop is { } stop) && (_holdShort.TargetName is { Length: > 0 } target)
-            ? MatchPresetTaxiStop(ground, stop, target)
+            ? MatchPresetTaxiStop(ground, stop, target, _holdShort.MergeHold)
             : null;
     }
 
-    private static ReadyToTaxiLocation? MatchPresetTaxiStop(AircraftGroundOps ground, PresetTaxiStop stop, string target)
+    private static ReadyToTaxiLocation? MatchPresetTaxiStop(AircraftGroundOps ground, PresetTaxiStop stop, string target, MergeHold? merge)
     {
         if (stop.Kind == PresetTaxiStopKind.Spot)
         {
@@ -348,7 +354,7 @@ public sealed class HoldingShortPhase(HoldShortPoint holdShort) : Phase
             (stop.Kind == PresetTaxiStopKind.TaxiwayHoldShort)
             && SameName(target, stop.Name)
             && ((stop.OnTaxiway is null) || SameName(ground.CurrentTaxiway, stop.OnTaxiway));
-        return atTheBar ? ReadyToTaxiLocation.HoldingShort(target, ground.CurrentTaxiway ?? "taxiway") : null;
+        return atTheBar ? ReadyToTaxiLocation.HoldingShort(target, ground.CurrentTaxiway ?? "taxiway") with { MergeHold = merge } : null;
     }
 
     private static bool SameName(string? a, string? b) => string.Equals(a, b, StringComparison.OrdinalIgnoreCase);

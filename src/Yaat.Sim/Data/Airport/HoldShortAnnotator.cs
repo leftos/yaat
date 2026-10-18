@@ -362,6 +362,8 @@ public static class HoldShortAnnotator
                 existing.Reason = HoldShortReason.ExplicitHoldShort;
                 existing.IsCleared = false;
                 existing.ClearedByAutoCross = false;
+                // A new HS is a new instruction: whether the aircraft can make a merge hold is judged afresh.
+                existing.MergeHoldDeclined = false;
                 Log.LogDebug("[HoldShortAnnotator] Explicit HS {Target}: re-armed hold-short at node {NodeId}", target, existing.NodeId);
                 break;
 
@@ -462,6 +464,8 @@ public static class HoldShortAnnotator
                 continue;
             }
 
+            hs.MergeHold = null;
+
             // Runway hold-shorts, destination holds, and spot targets: offset back from node by half the
             // aircraft length so the aircraft center (position) stops with its nose at the node. Keyed on
             // the target, never on the node type alone: a taxiway bar can bind a spot-typed node painted
@@ -559,9 +563,13 @@ public static class HoldShortAnnotator
     /// nose back along the route from where the route meets the centreline; the centre sits half a length behind it.
     /// The walk stops at the previous junction on the route (the tail clears it) or the route's start. The stop is
     /// never forward of <paramref name="lengthSetbackStop"/>, the length + 30 ft setback from the bar's node. When
-    /// the clamp leaves the nose short of the wingtip floor itself, the route carries a wingtip-clearance warning.
+    /// the clamp leaves the nose short of the wingtip floor itself, the route carries a wingtip-clearance warning, unless the
+    /// bar is a shallow merge whose capping intersection the aircraft can hold short of instead (<see cref="PlaceMergeHold"/>).
     /// </summary>
-    /// <returns><paramref name="lengthSetbackStop"/>, or the stop farther back along the route that the floor asks for.</returns>
+    /// <returns>
+    /// <paramref name="lengthSetbackStop"/>, the stop farther back along the route that the floor asks for, or the shallow-merge
+    /// stop behind the capping intersection's near edge.
+    /// </returns>
     private static GroundNode ApplyWingtipClearanceFloor(
         AirportGroundLayout layout,
         TaxiRoute route,
@@ -586,14 +594,17 @@ public static class HoldShortAnnotator
         );
         if (centreline.Count == 0)
         {
-            RemoveWingtipWarning(route, target);
+            RemovePlacementWarnings(route, target);
+            string reason =
+                clearanceFrom.Length == 0
+                    ? $"it continues straight ahead and every other branch there lies within {StraightAheadToleranceDeg:F0}° of straight "
+                        + "ahead or behind"
+                    : $"no straight centreline of {clearanceFrom} within {CentrelineSearchRadiusFt:F0}ft";
             Log.LogDebug(
                 "[HoldShortAnnotator] No centreline to clear for {Target} at bar node {NodeId} ({Reason}); keeping the length setback",
                 target,
                 hs.NodeId,
-                clearanceFrom.Length == 0
-                    ? "it continues straight ahead and no other branch meets there"
-                    : $"no straight centreline of {clearanceFrom} within {CentrelineSearchRadiusFt:F0}ft"
+                reason
             );
             return lengthSetbackStop;
         }
@@ -612,7 +623,23 @@ public static class HoldShortAnnotator
         LatLon floorCentre = path.PositionAt(centreFt);
         GroundNode stop = centreFt < lengthSetbackCentreFt ? VirtualNode.Create(floorCentre.Lat, floorCentre.Lon) : lengthSetbackStop;
         double noseFt = DistanceToCentrelineFt(path.PositionAt(centreFt + halfFt), centreline);
+        var placement = new FloorPlacement
+        {
+            Path = path,
+            BarIndex = barIndex,
+            Target = target,
+            HalfFt = halfFt,
+            FloorFt = floorFt,
+            Centreline = centreline,
+            CappedCentreFt = centreFt,
+        };
+        if ((noseFt < floorFt - 0.5) && (PlaceMergeHold(layout, route, hs, placement) is { } mergeStop))
+        {
+            return mergeStop;
+        }
+
         ReplaceWingtipWarning(route, target, clearanceFrom, noseFt, floorFt);
+        AddShallowMergeSetbackAdvisory(route, placement, lengthSetbackCentreFt, noseFt);
 
         Log.LogDebug(
             "[HoldShortAnnotator] Wingtip floor for {Target} at node {NodeId} against {ClearanceFrom}: setback {SetbackFt:F0}ft "
@@ -637,21 +664,195 @@ public static class HoldShortAnnotator
     /// </summary>
     private static void ReplaceWingtipWarning(TaxiRoute route, string target, string clearanceFrom, double noseFt, double floorFt)
     {
-        RemoveWingtipWarning(route, target);
+        RemovePlacementWarnings(route, target);
         if (noseFt < floorFt - 0.5)
         {
             route.Warnings.Add($"{WingtipWarningPrefix(target)}{clearanceFrom} not assured ({noseFt:F0} ft)");
         }
     }
 
-    /// <summary>Drops the route's wingtip-clearance warning for the bar on <paramref name="target"/>, whichever branches it named.</summary>
-    private static void RemoveWingtipWarning(TaxiRoute route, string target)
+    /// <summary>
+    /// Drops the route's placement warnings for the bar on <paramref name="target"/>: the wingtip-clearance warning, the
+    /// shallow-merge advisory and the setback advisory, whichever branches or intersection each named.
+    /// </summary>
+    private static void RemovePlacementWarnings(TaxiRoute route, string target)
     {
-        string prefix = WingtipWarningPrefix(target);
-        route.Warnings.RemoveAll(w => w.StartsWith(prefix, StringComparison.Ordinal));
+        string wingtipPrefix = WingtipWarningPrefix(target);
+        string mergePrefix = MergeAdvisoryPrefix(target);
+        string setbackPrefix = SetbackAdvisoryPrefix(target);
+        string mergeSuffix = MergesIntoSuffix(target);
+        route.Warnings.RemoveAll(w =>
+            w.StartsWith(wingtipPrefix, StringComparison.Ordinal)
+            || w.StartsWith(mergePrefix, StringComparison.Ordinal)
+            || (
+                w.StartsWith(setbackPrefix, StringComparison.Ordinal)
+                && w.Contains(SetbackAdvisoryMarker, StringComparison.Ordinal)
+                && w.EndsWith(mergeSuffix, StringComparison.Ordinal)
+            )
+        );
+    }
+
+    /// <summary>"merges into X)" closes both shallow-merge advisories; the opening parenthesis names the arriving taxiway.</summary>
+    private static string MergesIntoSuffix(string target) => $"merges into {target})";
+
+    /// <summary>The setback advisory's opening — <c>holding short of TWY T </c> — after which the nose's distance back follows.</summary>
+    private static string SetbackAdvisoryPrefix(string target) => $"holding short of TWY {target} ";
+
+    /// <summary>Separates the setback advisory's distance from the arriving taxiway that follows it.</summary>
+    private const string SetbackAdvisoryMarker = " ft back (";
+
+    /// <summary>
+    /// At a shallow merge with no intersection capping the walk-back, the stop stays where the wingtip floor against the
+    /// target's own centreline is met, which can lie hundreds of feet back (the arriving taxiway diverges from the target at a
+    /// few degrees). When that stop is further back than the plain <c>length + 30</c> setback and meets the floor, the route
+    /// tells the instructor so, since nothing else would explain the early stop: <c>holding short of TWY W 203 ft back (W5
+    /// merges into W)</c>, the nose's distance back of the merge node. A stop short of the floor carries the wingtip warning
+    /// instead, and the readback stays plain.
+    /// </summary>
+    private static void AddShallowMergeSetbackAdvisory(TaxiRoute route, FloorPlacement p, double lengthSetbackCentreFt, double noseFt)
+    {
+        bool floorMet = noseFt >= p.FloorFt - 0.5;
+        bool behindLengthSetback = p.CappedCentreFt < lengthSetbackCentreFt - 0.5;
+        if (!floorMet || !behindLengthSetback || !IsShallowMerge(route, p.BarIndex, p.Target))
+        {
+            return;
+        }
+
+        string arriving = route.Segments[p.BarIndex - 1].TaxiwayName;
+        double noseBackFt = p.Path.AlongFt(p.BarIndex) - (p.CappedCentreFt + p.HalfFt);
+        route.Warnings.Add($"{SetbackAdvisoryPrefix(p.Target)}{noseBackFt:F0}{SetbackAdvisoryMarker}{arriving} {MergesIntoSuffix(p.Target)}");
     }
 
     private static string WingtipWarningPrefix(string target) => $"holding short of TWY {target} — wingtip clearance from ";
+
+    private static string MergeAdvisoryPrefix(string target) => $"holding short of TWY {target} before TWY ";
+
+    /// <summary>The inputs of a wingtip-floor placement the shallow-merge hold reuses; every distance along the route in feet.</summary>
+    private readonly record struct FloorPlacement
+    {
+        public required RoutePolyline Path { get; init; }
+        public required int BarIndex { get; init; }
+        public required string Target { get; init; }
+        public required double HalfFt { get; init; }
+        public required double FloorFt { get; init; }
+        public required List<(LatLon A, LatLon B)> Centreline { get; init; }
+
+        /// <summary>The centre of the capped stop the merge hold would replace.</summary>
+        public required double CappedCentreFt { get; init; }
+    }
+
+    /// <summary>
+    /// At a shallow merge whose wingtip-floor walk-back an earlier junction caps short of the floor, the stop that holds short
+    /// of that junction's whole intersection instead: centre half a length behind the intersection's near edge (its
+    /// farthest-back route node), with no further setback and no floor held against the intersection's taxiway, which is not
+    /// a hold-short target. Sets <see cref="HoldShortPoint.MergeHold"/> and the instructor advisory. Null, leaving the
+    /// capped stop, when the bar is no shallow merge, the merge hold was declined at arming, the route has no such
+    /// junction, the stop is not behind the capped stop (a long aircraft whose length setback already stands behind the
+    /// intersection is never moved forward toward the target), or the stop lies behind the segment the aircraft is on.
+    /// </summary>
+    private static GroundNode? PlaceMergeHold(AirportGroundLayout layout, TaxiRoute route, HoldShortPoint hs, FloorPlacement p)
+    {
+        if (hs.MergeHoldDeclined || !IsShallowMerge(route, p.BarIndex, p.Target))
+        {
+            return null;
+        }
+
+        string arriving = route.Segments[p.BarIndex - 1].TaxiwayName;
+        if (
+            (PreviousJunctionIndex(layout, p.Path, p.BarIndex, p.Target) is not { } junctionIndex)
+            || (CappingIntersection(layout, p.Path, junctionIndex, [arriving, p.Target]) is not { } intersection)
+        )
+        {
+            return null;
+        }
+
+        double noseAtEdgeFt = p.Path.AlongFt(intersection.NearEdgeIndex);
+        double centreFt = noseAtEdgeFt - p.HalfFt;
+        int onIndex = Math.Clamp(route.CurrentSegmentIndex, 0, p.BarIndex);
+        if ((centreFt >= p.CappedCentreFt) || (centreFt < p.Path.AlongFt(onIndex)))
+        {
+            return null;
+        }
+
+        hs.MergeHold = new MergeHold(arriving, intersection.Taxiway);
+        double noseFt = DistanceToCentrelineFt(p.Path.PositionAt(noseAtEdgeFt), p.Centreline);
+        RemovePlacementWarnings(route, p.Target);
+        string advisory = $"{MergeAdvisoryPrefix(p.Target)}{intersection.Taxiway} ({arriving} merges into {p.Target})";
+        route.Warnings.Add(noseFt < p.FloorFt - 0.5 ? $"{advisory} — wingtip clearance from {p.Target} not assured ({noseFt:F0} ft)" : advisory);
+
+        LatLon centre = p.Path.PositionAt(centreFt);
+        Log.LogDebug(
+            "[HoldShortAnnotator] Shallow merge into {Target} at node {NodeId}: holding on {Arriving} before {Before}, nose at node {EdgeNodeId} "
+                + "{NoseFt:F0}ft from {Target} (floor {FloorFt:F0})",
+            p.Target,
+            hs.NodeId,
+            arriving,
+            intersection.Taxiway,
+            p.Path.Vertex(intersection.NearEdgeIndex).Id,
+            noseFt,
+            p.Target,
+            p.FloorFt
+        );
+        return VirtualNode.Create(centre.Lat, centre.Lon);
+    }
+
+    /// <summary>The intersection that capped a walk-back: the route index of its near edge and its taxiway name.</summary>
+    private readonly record struct CappedIntersection(int NearEdgeIndex, string Taxiway);
+
+    /// <summary>
+    /// The whole intersection the junction at route index <paramref name="junctionIndex"/> belongs to: the taxiways that
+    /// make it a junction (every name on its edges other than <paramref name="ownNames"/>, ramp and runway names), and the
+    /// run of route nodes from it back that touch one of those taxiways (its centre and the fillet tangents either side).
+    /// The run stops at the first node that touches none, so a following junction of other taxiways (a ramp fillet pair)
+    /// never joins it. The intersection is named by one taxiway, never a joined list a pilot could not say: of the crossing
+    /// taxiways with a straight edge at any node of that run (in practice its centre, where the crossing taxiway's own
+    /// line passes through), the first in ordinal order; with none, the first of the fillet names in ordinal order.
+    /// </summary>
+    private static CappedIntersection? CappingIntersection(AirportGroundLayout layout, RoutePolyline path, int junctionIndex, string[] ownNames)
+    {
+        if (!layout.Nodes.TryGetValue(path.Vertex(junctionIndex).Id, out GroundNode? junction))
+        {
+            return null;
+        }
+
+        var crossing = new SortedSet<string>(
+            junction.Edges.SelectMany(EdgeNames).Where(n => IsCrossingName(n, ownNames)),
+            StringComparer.OrdinalIgnoreCase
+        );
+        if (crossing.Count == 0)
+        {
+            return null;
+        }
+
+        int nearIndex = junctionIndex;
+        var throughCentre = new SortedSet<string>(StringComparer.Ordinal);
+        for (int i = junctionIndex; i >= 0; i--)
+        {
+            if (!layout.Nodes.TryGetValue(path.Vertex(i).Id, out GroundNode? node) || !node.Edges.Any(e => crossing.Any(e.MatchesTaxiway)))
+            {
+                break;
+            }
+
+            nearIndex = i;
+            throughCentre.UnionWith(node.Edges.OfType<GroundEdge>().Select(e => e.TaxiwayName).Where(crossing.Contains));
+        }
+
+        IEnumerable<string> candidates = throughCentre.Count > 0 ? throughCentre : crossing.Order(StringComparer.Ordinal);
+        string name = candidates.First();
+        return new CappedIntersection(nearIndex, name);
+    }
+
+    private static IEnumerable<string> EdgeNames(IGroundEdge edge) =>
+        edge switch
+        {
+            GroundArc arc => arc.TaxiwayNames,
+            _ => [edge.TaxiwayName],
+        };
+
+    private static bool IsCrossingName(string name, string[] ownNames) =>
+        !ownNames.Contains(name, StringComparer.OrdinalIgnoreCase)
+        && !string.Equals(name, "RAMP", StringComparison.OrdinalIgnoreCase)
+        && !name.StartsWith("RWY", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>How far (ft) a branch's centreline is followed from the bar's node when the floor is held against it.</summary>
     private const double BranchWalkFt = 500.0;
@@ -694,7 +895,8 @@ public static class HoldShortAnnotator
     /// crossed taxiway's own. When the target continues the route's taxiway straight ahead at the bar's node, an aircraft
     /// on it is ahead, not crossing (AIM 2-3-5.b.3 speaks of "an aircraft on the intersecting taxiway"), so the floor is
     /// held against the node's other branches instead, those not straight ahead or straight behind; with none, the
-    /// centreline is empty and the plain length setback stands.
+    /// centreline is empty and the plain length setback stands. A shallow merge (<see cref="IsShallowMerge(TaxiRoute, int, string)"/>)
+    /// keeps the target's own centreline: its leg behind runs alongside the arriving taxiway.
     /// </summary>
     private static (List<(LatLon A, LatLon B)> Centreline, string ClearanceFrom) FloorCentreline(
         AirportGroundLayout layout,
@@ -724,11 +926,47 @@ public static class HoldShortAnnotator
     }
 
     /// <summary>
+    /// A target-named edge straight behind that fans off the arriving line by less than this (deg) is the same line drawn
+    /// under two names (FLL A/A1, MIA Q2/M2, IAH WA), not a merge.
+    /// </summary>
+    private const double CoincidentFanDeg = 1.0;
+
+    /// <summary>
     /// When <paramref name="target"/> leaves the bar's node straight ahead (within <see cref="StraightAheadToleranceDeg"/>
     /// of the arriving heading), the node's other straight, non-ramp taxiway edges that are neither straight
-    /// ahead nor straight behind; null when the target does not continue straight ahead there.
+    /// ahead nor straight behind; null when the target does not continue straight ahead there, or when the node is a
+    /// shallow merge (<see cref="IsShallowMerge(TaxiRoute, int, string)"/>), whose floor is held against the target's own centreline.
     /// </summary>
     private static List<GroundEdge>? BranchesBesideStraightAhead(TaxiRoute route, int barIndex, string target)
+    {
+        if ((ArrivingBranches(route, barIndex) is not { } branches) || !ContinuesStraightAhead(branches, target) || IsShallowMerge(branches, target))
+        {
+            return null;
+        }
+
+        return [.. branches.Where(b => (b.OffDeg > StraightAheadToleranceDeg) && (b.OffDeg < 180.0 - StraightAheadToleranceDeg)).Select(b => b.Edge)];
+    }
+
+    /// <summary>
+    /// True when the route arrives at the bar's node on a taxiway that merges into <paramref name="target"/> at a shallow
+    /// angle: the target continues straight ahead, and another target edge lies within <see cref="StraightAheadToleranceDeg"/>
+    /// of straight behind but off the arriving line by at least <see cref="CoincidentFanDeg"/> (OAK D into C at 5.7°).
+    /// An aircraft on the target's leg behind then passes alongside the holder's nose.
+    /// </summary>
+    private static bool IsShallowMerge(TaxiRoute route, int barIndex, string target) =>
+        (ArrivingBranches(route, barIndex) is { } branches) && ContinuesStraightAhead(branches, target) && IsShallowMerge(branches, target);
+
+    private static bool IsShallowMerge(List<(GroundEdge Edge, double OffDeg)> branches, string target) =>
+        branches.Any(b => b.Edge.MatchesTaxiway(target) && (b.OffDeg >= 180.0 - StraightAheadToleranceDeg) && (b.OffDeg <= 180.0 - CoincidentFanDeg));
+
+    private static bool ContinuesStraightAhead(List<(GroundEdge Edge, double OffDeg)> branches, string target) =>
+        branches.Any(b => b.Edge.MatchesTaxiway(target) && (b.OffDeg <= StraightAheadToleranceDeg));
+
+    /// <summary>
+    /// The bar's node's straight, non-ramp, non-runway edges with each one's angle off the arriving heading; null when the
+    /// bar is not reached by a route segment.
+    /// </summary>
+    private static List<(GroundEdge Edge, double OffDeg)>? ArrivingBranches(TaxiRoute route, int barIndex)
     {
         if ((barIndex < 1) || (barIndex > route.Segments.Count))
         {
@@ -738,17 +976,13 @@ public static class HoldShortAnnotator
         DirectionalEdge arriving = route.Segments[barIndex - 1].Edge;
         GroundNode node = arriving.ToNode;
         double arrivingDeg = arriving.ArrivalBearing;
-        var branches = node
-            .Edges.OfType<GroundEdge>()
-            .Where(e => !e.IsRamp && !e.IsRunwayCenterline)
-            .Select(e => (Edge: e, OffDeg: GeoMath.AbsBearingDifference(arrivingDeg, LeavingBearingDeg(e, node))))
-            .ToList();
-        if (!branches.Any(b => b.Edge.MatchesTaxiway(target) && (b.OffDeg <= StraightAheadToleranceDeg)))
-        {
-            return null;
-        }
-
-        return [.. branches.Where(b => (b.OffDeg > StraightAheadToleranceDeg) && (b.OffDeg < 180.0 - StraightAheadToleranceDeg)).Select(b => b.Edge)];
+        return
+        [
+            .. node
+                .Edges.OfType<GroundEdge>()
+                .Where(e => !e.IsRamp && !e.IsRunwayCenterline)
+                .Select(e => (Edge: e, OffDeg: GeoMath.AbsBearingDifference(arrivingDeg, LeavingBearingDeg(e, node)))),
+        ];
     }
 
     /// <summary>The bearing a straight edge leaves <paramref name="node"/> on: toward its first shape point, else its far node.</summary>
@@ -852,7 +1086,11 @@ public static class HoldShortAnnotator
     /// A junction is a runway hold-short node (never back onto a runway) or a node with more than two edges that
     /// are neither ramp connectors nor part of the crossed taxiway (a fillet arc onto it included).
     /// </summary>
-    private static double? PreviousJunctionFt(AirportGroundLayout layout, RoutePolyline path, int barIndex, string target)
+    private static double? PreviousJunctionFt(AirportGroundLayout layout, RoutePolyline path, int barIndex, string target) =>
+        PreviousJunctionIndex(layout, path, barIndex, target) is { } i ? path.AlongFt(i) : null;
+
+    /// <summary>The route index of the junction <see cref="PreviousJunctionFt"/> finds, or null when the route has none.</summary>
+    private static int? PreviousJunctionIndex(AirportGroundLayout layout, RoutePolyline path, int barIndex, string target)
     {
         for (int i = barIndex - 1; i >= 0; i--)
         {
@@ -864,7 +1102,7 @@ public static class HoldShortAnnotator
             bool isJunction = (node.Type == GroundNodeType.RunwayHoldShort) || (node.Edges.Count(e => !e.IsRamp && !e.MatchesTaxiway(target)) > 2);
             if (isJunction)
             {
-                return path.AlongFt(i);
+                return i;
             }
         }
 
