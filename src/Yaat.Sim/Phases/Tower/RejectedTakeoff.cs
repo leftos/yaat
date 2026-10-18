@@ -27,7 +27,8 @@ namespace Yaat.Sim.Phases.Tower;
 /// standoff (P/CG CLEAR OF THE RUNWAY) by the time the departure arrives; a preceding Departing
 /// aircraft blocks per <see cref="PrecedingDepartureBlock"/> — §3-9-6.a's landmark distances
 /// before the roll starts, and once it is underway a projected rendezvous with a leader still
-/// on the ground (an opposite-direction roller always); airborne approach traffic
+/// on the ground (an opposite-direction roller always); an aircraft past a hold line off the pavement (Fouling) blocks
+/// only with some part of it over the pavement; airborne approach traffic
 /// (ShortFinal/OnFinal) is the go-around logic's problem. Stated simplifications: the sim pilot
 /// always sees the occupant (no visibility model), and occupants on intersecting runways
 /// (§3-9-8) are not considered. <see cref="StopMarginFt"/> stands in for the unmodeled aircraft
@@ -206,6 +207,8 @@ internal static class RejectedTakeoff
                 RunwayUseKind.Landing => true,
                 RunwayUseKind.Crossing => !ProjectedClearOfRunway(other, runway, ArrivalTimeSeconds(departure, dFt)),
                 RunwayUseKind.Departing => PrecedingDepartureBlock.Blocks(departure, other, runway, dFt, out candidateFt),
+                // Past the hold line off the pavement: in the departure's path only with a part over the pavement.
+                RunwayUseKind.Fouling => AnyPartOverPavement(other, runway),
                 _ => false,
             };
 
@@ -217,6 +220,23 @@ internal static class RejectedTakeoff
         }
 
         return nearest;
+    }
+
+    /// <summary>
+    /// Some part of <paramref name="occupant"/> — nose, tail or a wingtip, from its type's length and span
+    /// (<see cref="AircraftBody"/>) — lies over <paramref name="runway"/>'s pavement, judged against the strict paved half-width
+    /// (AIM 4-3-21.b's runway edge) rather than <see cref="RunwayOccupancy.IsWithinPavement"/>'s lateral slack: a body-part point is
+    /// computed from the type's dimensions, not snapped to a graph node, so the slack has no jitter to cover. An aircraft whose
+    /// reference point is off the pavement still obstructs a departure with its nose over it.
+    /// </summary>
+    private static bool AnyPartOverPavement(AircraftState occupant, RunwayInfo runway)
+    {
+        var body = AircraftBody.Of(occupant.AircraftType);
+        double headingDeg = occupant.TrueHeading.Degrees;
+        double halfWidthFt = runway.WidthFt / 2.0;
+        return AircraftBody.AllParts.Any(part =>
+            RunwayHoldBars.CentrelineFt(runway, body.PointOf(part, occupant.Position, headingDeg)) <= halfWidthFt
+        );
     }
 
     /// <summary>

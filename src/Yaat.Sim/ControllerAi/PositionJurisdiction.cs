@@ -83,8 +83,9 @@ public static class PositionJurisdiction
                 continue;
             }
 
+            // Jurisdiction stays on the pavement rule: an aircraft past a hold line, off the pavement, is not on the runway.
             RunwayUse? use = RunwayOccupancy.ClassifyBest(aircraft, runways, layoutFor(aircraft));
-            if (use is null)
+            if ((use is null) || (use.Kind == RunwayUseKind.Fouling))
             {
                 continue;
             }

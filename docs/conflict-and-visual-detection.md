@@ -279,6 +279,30 @@ A `FOLLOWG` follower gives way to its lead short of the merge by the same cleara
 
 The follower brakes onto that stop on the `GroundStopBraking` curve, and stops dead where it is when not even the firm rate makes it. The give-way ends once the follower is past the merge, or the lead's tail is past the merge with the follow gap at least the stop gap ([ground/navigator.md](ground/navigator.md) § FOLLOWG: driving the follow route).
 
+### Occupying vs fouling a runway — `RunwayOccupancy`
+
+`Simulation/RunwayOccupancy.cs` answers "is this runway in use, and by whom" for the controller-side consumers. `RunwayOccupancy.Classify(ac, runway, layout)` gives a `RunwayUseKind` or null; `OccupiesSurface` is true for `Departing`, `Landing` and `OnSurface` only.
+
+`RunwayUseKind.Fouling` is an aircraft on the ground off the pavement with a body part past the runway's holding position marking (AIM 2-3-5.a.1). It is not an occupant: `OccupiesSurface` is false for it, and consumers opt in through `RunwayOccupancy.FoulsRunway`.
+
+Only a phase-driven aircraft with a ground layout can foul, and only at the bars of the runway's own airport. Each body part (`AircraftBody`: nose, tail, wingtips from the type's length and span) is judged against the line of the nearest bar of the runway on the aircraft's side of the centreline (`RunwayHoldBars.NearestSameSideBar`), within `HoldLineFootprint.MarkedBarReachFt` of that bar along the runway.
+
+- **Which part:** the facing rule. The nose when approaching the runway, the tail when leaving it, every part when it faces neither way (along the runway, turning about, passing a runway end). The phase overrides: a `HoldingShortPhase` at this runway's bar judges the nose, a `RunwayExitPhase` or `HoldingAfterExitPhase` on this runway judges the tail. A wingtip of a correct hold on an angled stub is not judged.
+- **Tolerance:** a part counts as past only when more than `HoldLineFoulToleranceFt` (5 ft) beyond the line, so a nose stopped at the marking (within `SetBackStopMarginFt`) does not foul.
+- **Approaching:** it fouls with a part past the line unless it is cleared past the marking: a cleared hold-short at a same-side bar of this runway within 200 ft along the runway on its route (a crossing, line-up or takeoff clearance), or a phase that crosses or leaves this runway.
+- **Leaving or cleared, and moving:** not a fouler. It fouls only when stopped (`StoppedGroundSpeedKts`) or restricted short of the marking (`IsRestrictedShortOfTheMarking`): a HOLD or GIVEWAY in effect, a hold-short, a ground-conflict yield, or a taxi route that stops it with a judged part still past the line.
+
+Consumers:
+
+| Consumer | Reads a fouler as |
+|---|---|
+| `RunwaySafetyAdvisor` | A warning at every airport, SFO included: the landing/option side (7110.65 3-10-3.a; AIM 2-3-5.a.1) and the takeoff side (3-9-6). It is the only warning a fouler draws, a held one included. |
+| `OccupiedRunwayGoAround` | A blocker only with a part inside `GoAroundEdgeBandFt` of the centreline (the runway safety area half-width for its width class, kept at least `EdgeBandHoldLineMarginFt` inside the hold line). A crossing projects clear only if it decelerates to its commanded speed and reaches the far pavement edge in time; a commanded stop never clears. A stopped occupant never projects clear. |
+| `RejectedTakeoff` | A blocker only when a body part lies over the strict paved half-width (no lateral slack): `AnyPartOverPavement`. |
+| `PositionJurisdiction`, `RunwayCrossingGate` | Nothing: a fouler is not on the runway, so it is left out of controller-AI jurisdiction and does not close a crossing. |
+
+`GroundConflictDetector.IsOnRunway` is unchanged and still reads `ClassifyByPhase`, so a fouler gets no runway priority.
+
 ---
 
 ## ATPA in-trail sequencing — `AtpaProcessor` + `AtpaVolumeGeometry`

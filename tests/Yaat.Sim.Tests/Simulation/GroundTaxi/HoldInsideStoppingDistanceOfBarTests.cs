@@ -767,6 +767,28 @@ public class HoldInsideStoppingDistanceOfBarTests
     }
 
     /// <summary>
+    /// The same HOLD on a route starting on the 33 bar's node leaves the aircraft stopped with its nose well over runway 33's
+    /// holding position marking and its centre off the pavement: it fouls runway 33 (AIM 2-3-5.a.1) rather than occupying it.
+    /// </summary>
+    [Theory]
+    [InlineData(Piston)]
+    [InlineData(Jet)]
+    public void HolderStoppedPastTheRunway33Bar_FoulsRunway33(string type)
+    {
+        Outcome? outcome = Run(new Case(type, AircraftCategorization.Categorize(type), Order.Hold, static approach => approach.StartsAtBar));
+        if (outcome is null)
+        {
+            return;
+        }
+
+        RunwayInfo runway = Assert.IsType<RunwayInfo>(NavigationDatabase.Instance.GetRunway("OAK", CrossedRunway));
+        _output.WriteLine($"{type} at rest: nose {outcome.NosePastLineFt:F1} ft past the runway {CrossedRunway} hold line");
+        Assert.True(outcome.NosePastLineFt > RunwayOccupancy.HoldLineFoulToleranceFt, $"the {type}'s nose is not past the hold line");
+        Assert.False(RunwayOccupancy.IsOnPavement(outcome.Aircraft, runway), $"the {type} came to rest on runway {CrossedRunway}'s pavement");
+        Assert.Equal(RunwayUseKind.Fouling, RunwayOccupancy.Classify(outcome.Aircraft, runway, outcome.Aircraft.Ground.Layout)?.Kind);
+    }
+
+    /// <summary>
     /// The same re-route onto a route starting on the 33 bar's node, with no HOLD: the crossing stays cleared, and the aircraft
     /// finishes crossing on its own heading — never holding short of 33, never turned back at the bar node behind it.
     /// </summary>

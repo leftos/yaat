@@ -658,6 +658,184 @@ public class RunwayOccupancyWarningTests
     }
 
     // -------------------------------------------------------------------------
+    // Traffic past the hold line (fouling the runway off its pavement)
+    // -------------------------------------------------------------------------
+
+    private static CommandResult DispatchOnLayout(string input, AircraftState target, AirportGroundLayout layout, params AircraftState[] world)
+    {
+        ParseResult<ParsedCommand> parsed = CommandParser.Parse(input);
+        Assert.True(parsed.IsSuccess, parsed.Reason);
+        DispatchContext ctx = TestDispatch.Context(Random.Shared, groundLayout: layout) with { ListAircraft = () => world };
+        var compound = new CompoundCommand([new ParsedBlock(null, [parsed.Value!])]);
+        return CommandDispatcher.DispatchCompound(compound, target, ctx);
+    }
+
+    /// <summary>An aircraft stopped holding in position with its nose 30 ft past runway 33's holding position marking.</summary>
+    private static AircraftState HolderPastTheBar(RunwayInfo runway, GroundNode bar)
+    {
+        AircraftState holder = RunwayOccupancyTests.SquareToTheMarking(runway, bar, "B738", facingRunway: true, 30.0, alongFt: 0);
+        holder.Callsign = "N100FL";
+        holder.FlightPlan = new AircraftFlightPlan { Departure = "OAK" };
+        holder.Phases = new PhaseList { AssignedRunway = runway };
+        holder.Phases.Add(new HoldingInPositionPhase());
+        holder.Phases.Start(CommandDispatcher.BuildMinimalContext(holder));
+        return holder;
+    }
+
+    /// <summary>A landed arrival off the centreline on its exit with its tail 20 ft inside runway 33's holding position marking.</summary>
+    private static AircraftState ExitingTailInside(RunwayInfo runway, GroundNode bar, double groundSpeedKts)
+    {
+        AircraftState exiting = RunwayOccupancyTests.SquareToTheMarking(runway, bar, "B738", facingRunway: false, 20.0, alongFt: 0);
+        exiting.Callsign = "N200EX";
+        exiting.IndicatedAirspeed = groundSpeedKts;
+        exiting.FlightPlan = new AircraftFlightPlan { Destination = "KOAK" };
+        exiting.Phases = new PhaseList { AssignedRunway = runway };
+        exiting.Phases.Add(RunwayOccupancyTests.ExitOffTheCentreline(runway));
+        exiting.Phases.CurrentPhase!.Status = PhaseStatus.Active;
+        return exiting;
+    }
+
+    private static string PastTheHoldLineForTakeoff(string display, string callsigns) =>
+        $"traffic past the hold line for runway {display} ({callsigns}) — the runway is not clear; this departure cannot begin takeoff roll until that traffic is clear of the runway (7110.65 3-9-6; AIM 2-3-5.a.1); hold this aircraft short until the runway is clear";
+
+    private static string PastTheHoldLineForLanding(string display, string callsigns) =>
+        $"traffic past the hold line for runway {display} ({callsigns}) — the runway is not clear; withhold the landing/option clearance until that traffic is clear of the runway (7110.65 3-10-3.a; AIM 2-3-5.a.1)";
+
+    [Fact]
+    public void Cto_HolderPastTheBar_WarnsPastTheHoldLine()
+    {
+        if (RunwayBarFixture.RunwayBar("OAK", "33") is not { } oak)
+        {
+            return;
+        }
+
+        AircraftState holder = HolderPastTheBar(oak.Runway, oak.Bar);
+        AircraftState departure = MakeDepartureHoldingShort("N300DP", runway: "33");
+
+        CommandResult result = DispatchOnLayout("CTO", departure, oak.Layout, holder, departure);
+
+        Assert.True(result.Success, result.Message);
+        string warning = Assert.Single(departure.PendingWarnings, w => w.Contains("N100FL", StringComparison.Ordinal));
+        Assert.Equal(PastTheHoldLineForTakeoff("33", "N100FL"), warning);
+    }
+
+    [Fact]
+    public void Cland_HolderPastTheBar_WarnsPastTheHoldLine()
+    {
+        if (RunwayBarFixture.RunwayBar("OAK", "33") is not { } oak)
+        {
+            return;
+        }
+
+        AircraftState holder = HolderPastTheBar(oak.Runway, oak.Bar);
+        AircraftState arrival = MakeArrival("N400AR", oak.Runway);
+
+        CommandResult result = DispatchOnLayout("CLAND", arrival, oak.Layout, holder, arrival);
+
+        Assert.True(result.Success, result.Message);
+        string warning = Assert.Single(arrival.PendingWarnings, w => w.Contains("N100FL", StringComparison.Ordinal));
+        Assert.Equal(PastTheHoldLineForLanding("33", "N100FL"), warning);
+    }
+
+    [Fact]
+    public void Cto_ExitingTailInsideStopped_WarnsOnceOnly()
+    {
+        if (RunwayBarFixture.RunwayBar("OAK", "33") is not { } oak)
+        {
+            return;
+        }
+
+        AircraftState exiting = ExitingTailInside(oak.Runway, oak.Bar, groundSpeedKts: 0);
+        AircraftState departure = MakeDepartureHoldingShort("N300DP", runway: "33");
+
+        CommandResult result = DispatchOnLayout("CTO", departure, oak.Layout, exiting, departure);
+
+        Assert.True(result.Success, result.Message);
+        string warning = Assert.Single(departure.PendingWarnings, w => w.Contains("N200EX", StringComparison.Ordinal));
+        Assert.Equal(PastTheHoldLineForTakeoff("33", "N200EX"), warning);
+    }
+
+    [Fact]
+    public void Cland_ExitingTailInsideMovingUnrestricted_NoWarning()
+    {
+        // Leaving the runway and moving with nothing stopping it short of the marking: clear of the runway, and silent.
+        if (RunwayBarFixture.RunwayBar("OAK", "33") is not { } oak)
+        {
+            return;
+        }
+
+        AircraftState exiting = ExitingTailInside(oak.Runway, oak.Bar, groundSpeedKts: 10);
+        AircraftState arrival = MakeArrival("N400AR", oak.Runway);
+
+        CommandResult result = DispatchOnLayout("CLAND", arrival, oak.Layout, exiting, arrival);
+
+        Assert.True(result.Success, result.Message);
+        Assert.DoesNotContain(arrival.PendingWarnings, w => w.Contains("N200EX", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Cland_CrosserClearedMovingPastTheLine_NoWarning()
+    {
+        // Cleared to cross and moving past the near-side line: a crossing under way (3-1-3), silent like a moving crossing on the pavement.
+        if (RunwayBarFixture.RunwayBar("OAK", "33") is not { } oak)
+        {
+            return;
+        }
+
+        AircraftState crosser = RunwayOccupancyTests.SquareToTheMarking(oak.Runway, oak.Bar, "B738", facingRunway: true, 20.0, alongFt: 0);
+        crosser.Callsign = "N500CX";
+        crosser.IndicatedAirspeed = 12;
+        crosser.Phases = new PhaseList();
+        crosser.Phases.Add(new CrossingRunwayPhase(oak.Bar.Id, RunwayOccupancyTests.FarSideBar(oak.Layout, oak.Runway, oak.Bar).Id, "33"));
+        crosser.Phases.CurrentPhase!.Status = PhaseStatus.Active;
+        AircraftState arrival = MakeArrival("N400AR", oak.Runway);
+
+        CommandResult result = DispatchOnLayout("CLAND", arrival, oak.Layout, crosser, arrival);
+
+        Assert.True(result.Success, result.Message);
+        Assert.DoesNotContain(arrival.PendingWarnings, w => w.Contains("N500CX", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Cto_DepartureClearedRollingPastTheLine_NoWarning()
+    {
+        // A departure already cleared onto runway 33 (its destination hold-short cleared) rolling past the line toward a takeoff:
+        // a second CTO behind it is anticipated separation (3-9-5), not traffic past the hold line.
+        if (RunwayBarFixture.RunwayBar("OAK", "33") is not { } oak)
+        {
+            return;
+        }
+
+        AircraftState rolling = RunwayOccupancyTests.SquareToTheMarking(oak.Runway, oak.Bar, "B738", facingRunway: true, 20.0, alongFt: 0);
+        rolling.Callsign = "N600RL";
+        rolling.IndicatedAirspeed = 12;
+        rolling.FlightPlan = new AircraftFlightPlan { Departure = "OAK" };
+        rolling.Phases = new PhaseList { AssignedRunway = oak.Runway };
+        rolling.Phases.Add(new TaxiingPhase());
+        rolling.Phases.CurrentPhase!.Status = PhaseStatus.Active;
+        rolling.Ground.AssignedTaxiRoute = new TaxiRoute
+        {
+            Segments = [],
+            HoldShortPoints =
+            [
+                new HoldShortPoint
+                {
+                    NodeId = oak.Bar.Id,
+                    Reason = HoldShortReason.DestinationRunway,
+                    TargetName = "33",
+                    IsCleared = true,
+                },
+            ],
+        };
+        AircraftState departure = MakeDepartureHoldingShort("N300DP", runway: "33");
+
+        CommandResult result = DispatchOnLayout("CTO", departure, oak.Layout, rolling, departure);
+
+        Assert.True(result.Success, result.Message);
+        Assert.DoesNotContain(departure.PendingWarnings, w => w.Contains("N600RL", StringComparison.Ordinal));
+    }
+
+    // -------------------------------------------------------------------------
     // Safety-logic gate: airports whose vNAS ASDE-X config carries runway
     // configurations have a full safety logic system — no advisory there.
     // -------------------------------------------------------------------------
@@ -697,6 +875,72 @@ public class RunwayOccupancyWarningTests
         DispatchWithConfig("CLAND", arrival, zoa, occupant, arrival);
 
         Assert.Contains(arrival.PendingWarnings, w => w.Contains("N100LU", StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>A crossing held mid-pavement on <paramref name="runway"/>: the stopped traffic of 3-10-3.a.</summary>
+    private static AircraftState HeldOnThePavement(RunwayInfo runway)
+    {
+        var held = new AircraftState
+        {
+            Callsign = "N500ST",
+            AircraftType = "C172",
+            Position = new LatLon((runway.Lat1 + runway.Lat2) / 2.0, (runway.Lon1 + runway.Lon2) / 2.0),
+            TrueHeading = runway.TrueHeading + 90,
+            Altitude = runway.ElevationFt,
+            IsOnGround = true,
+            Phases = new PhaseList(),
+        };
+        held.Phases.Add(new TaxiingPhase());
+        held.Phases.CurrentPhase!.Status = PhaseStatus.Active;
+        held.Ground.Hold = HoldDirective.HoldPosition;
+        return held;
+    }
+
+    [Fact]
+    public void Cland_AtSafetyLogicAirport_HolderPastTheBar_StillWarnsPastTheHoldLine()
+    {
+        ArtccConfigRoot? zoa = TestArtccConfig.LoadZoa();
+        if ((zoa is null) || (RunwayBarFixture.RunwayBar("SFO", "28L") is not { } sfo))
+        {
+            return;
+        }
+
+        // 3-10-3.a.1 has no equipage carve-out: the fouler warning shows at SFO as it does for a takeoff. The older stopped-traffic
+        // warning keeps the safety-logic gate, so the crossing held on the pavement draws it only without the ARTCC config.
+        AircraftState holder = HolderPastTheBar(sfo.Runway, sfo.Bar);
+        AircraftState held = HeldOnThePavement(sfo.Runway);
+        AircraftState gated = MakeArrival("N400AR", sfo.Runway);
+        gated.FlightPlan = new AircraftFlightPlan { Destination = "KSFO", FlightRules = "VFR" };
+        AircraftState ungated = MakeArrival("N401AR", sfo.Runway);
+        ungated.FlightPlan = new AircraftFlightPlan { Destination = "KSFO", FlightRules = "VFR" };
+
+        CommandResult result = DispatchOnLayoutWithConfig("CLAND", gated, sfo.Layout, zoa, holder, held, gated);
+        DispatchOnLayout("CLAND", ungated, sfo.Layout, holder, held, ungated);
+
+        Assert.True(result.Success, result.Message);
+        Assert.True(zoa.AirportHasFullSafetyLogic("SFO"));
+        string display = RunwayIdentifier.ToDisplayDesignator(sfo.Runway.Designator);
+        Assert.Equal(
+            PastTheHoldLineForLanding(display, "N100FL"),
+            Assert.Single(gated.PendingWarnings, w => w.Contains("N100FL", StringComparison.Ordinal))
+        );
+        Assert.DoesNotContain(gated.PendingWarnings, w => w.Contains("traffic stopped on runway", StringComparison.Ordinal));
+        Assert.Contains(ungated.PendingWarnings, w => w.Contains("traffic stopped on runway", StringComparison.Ordinal));
+    }
+
+    private static CommandResult DispatchOnLayoutWithConfig(
+        string input,
+        AircraftState target,
+        AirportGroundLayout layout,
+        ArtccConfigRoot artccConfig,
+        params AircraftState[] world
+    )
+    {
+        ParseResult<ParsedCommand> parsed = CommandParser.Parse(input);
+        Assert.True(parsed.IsSuccess, parsed.Reason);
+        DispatchContext ctx = TestDispatch.Context(Random.Shared, groundLayout: layout, artccConfig: artccConfig) with { ListAircraft = () => world };
+        var compound = new CompoundCommand([new ParsedBlock(null, [parsed.Value!])]);
+        return CommandDispatcher.DispatchCompound(compound, target, ctx);
     }
 
     [Theory]

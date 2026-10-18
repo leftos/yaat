@@ -51,7 +51,8 @@ public static class RunwayCrossingGate
 
             RunwayInfo end = RunwayOccupancy.AlignedEnd(other.TrueTrack.Degrees, pavement);
             RunwayUse? use = RunwayOccupancy.Classify(other, end, layout);
-            if (use is { Kind: not RunwayUseKind.Crossing })
+            // Physical: an aircraft past the hold line off the pavement does not close the crossing.
+            if (use is { Kind: not (RunwayUseKind.Crossing or RunwayUseKind.Fouling) })
             {
                 reason = $"{other.Callsign} {use.Kind} runway {end.Designator}";
                 return false;

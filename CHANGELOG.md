@@ -52,6 +52,7 @@
 - Client log lines carry the full date, time and UTC offset instead of the time of day alone.
 - An auto-delete no longer closes the Flight Plan Editor; deleting the aircraft it shows clears the editor and leaves it open.
 - Scenario > Session Report opens its window instead of failing with an error.
+- An aircraft past a runway's hold line now fouls that runway: clearances onto it warn, and one sitting close in sends arrivals around.
 
 ## v0.16.3-beta [2026/10/15]
 

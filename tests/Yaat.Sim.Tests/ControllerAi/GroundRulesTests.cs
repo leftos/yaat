@@ -830,6 +830,31 @@ public class GroundRulesTests
     }
 
     [Fact]
+    public void RunwayCrossingGate_FoulerPastTheBar_DoesNotCloseTheCrossing()
+    {
+        // The crossing gate is physical: an aircraft held with its nose over a 28R hold line is off the pavement, and the
+        // ground-conflict detector, not the gate, keeps the crosser clear of it.
+        if ((_zoa is null) || (RunwayBarFixture.RunwayBar("KOAK", "28R") is not { } oak))
+        {
+            return;
+        }
+
+        SimulationEngine engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, []);
+        AircraftState crosser = engine.FindAircraft(AiTestFixture.Callsign)!;
+        RunwayInfo pavement = RunwayCrossingGate.PavementFor("28R/10L", RunwayOccupancy.AirportRunways("OAK"))!;
+        AirportGroundLayout? layout = engine.ResolveGroundLayout(crosser);
+        AircraftState fouler = RunwayOccupancyTests.SquareToTheMarking(oak.Runway, oak.Bar, "B738", facingRunway: true, 30.0, alongFt: 0);
+        fouler.Phases = new PhaseList();
+        fouler.Phases.Add(new TaxiingPhase());
+        fouler.Phases.CurrentPhase!.Status = PhaseStatus.Active;
+        fouler.Ground.Hold = HoldDirective.HoldPosition;
+        RunwayInfo end = RunwayOccupancy.AlignedEnd(fouler.TrueTrack.Degrees, pavement);
+        Assert.Equal(RunwayUseKind.Fouling, RunwayOccupancy.Classify(fouler, end, layout)?.Kind);
+
+        Assert.True(RunwayCrossingGate.IsClear(crosser, pavement, [crosser, fouler], layout, out string? reason), reason);
+    }
+
+    [Fact]
     public void RunwayCrossingGate_LandingAndRolloutBlock_AHoldOnTheCrosserBlocks()
     {
         if (_zoa is null)

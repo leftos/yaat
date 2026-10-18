@@ -34,6 +34,16 @@ public enum RunwayUseKind
 
     /// <summary>On the pavement but not aligned with it — taxiing across, or leaving via an exit.</summary>
     Crossing,
+
+    /// <summary>
+    /// On the ground off the pavement with part of it past the runway's holding position marking (AIM 2-3-5.a.1): approaching
+    /// the runway to hold short with a part more than <see cref="RunwayOccupancy.HoldLineFoulToleranceFt"/> past the marking, or
+    /// stopped or restricted short of the marking with a part that far past it — leaving the runway, or cleared past the marking
+    /// to cross it or line up. Moving unrestricted, a leaver or a cleared aircraft is not a fouler. Only a phase-driven aircraft with a
+    /// ground layout is classified so (<see cref="RunwayOccupancy.Classify"/>); the controller-side consumers opt in through
+    /// <see cref="RunwayOccupancy.FoulsRunway"/>, and <see cref="RunwayOccupancy.OccupiesSurface"/> stays false for it.
+    /// </summary>
+    Fouling,
 }
 
 /// <summary>One aircraft's use of one runway.</summary>
@@ -45,9 +55,10 @@ public sealed record RunwayUse(string Callsign, RunwayInfo Runway, RunwayUseKind
 ///
 /// Phase evidence takes precedence over geometry: an aircraft in <see cref="LinedUpAndWaitingPhase"/> is
 /// <see cref="RunwayUseKind.OnSurface"/> whether or not its position passes the pavement test (it may be holding at a
-/// far-side taxiway node), and a phase-driven aircraft whose phase says nothing about the runway is at most a
-/// <see cref="RunwayUseKind.Crossing"/> — never an occupant — so phase-driven traffic keeps the answers the consumers gave
-/// before this classifier existed. Geometry alone decides only for aircraft with no phases at all.
+/// far-side taxiway node), and a phase-driven aircraft whose phase says nothing about the runway is never an occupant: a
+/// <see cref="RunwayUseKind.Crossing"/> on its pavement, a <see cref="RunwayUseKind.Fouling"/> off it past its holding position
+/// marking, else nothing — so phase-driven traffic keeps the occupant answers the consumers gave before this classifier existed.
+/// Geometry alone decides only for aircraft with no phases at all.
 ///
 /// Datums follow the 7110.65: the <em>pavement</em> rectangle for surface kinds (the pavement behind a displaced
 /// threshold is usable for takeoff and rollout, AIM 2-3-3.h.2) and the <em>landing</em> threshold
@@ -62,6 +73,28 @@ public static class RunwayOccupancy
     /// the slack can never bleed into one.
     /// </summary>
     public const double LateralSlackFt = 30.0;
+
+    /// <summary>
+    /// How far (ft) a part of an aircraft must be past a runway's holding position marking — nearer the centreline than the
+    /// line of the nearest bar on its side, within <see cref="HoldLineFootprint.MarkedBarReachFt"/> of that bar along the
+    /// runway — to count as past it (<see cref="RunwayUseKind.Fouling"/>). Clears the nose of a correct hold, which stops
+    /// within <see cref="GroundNavigator.SetBackStopMarginFt"/> of the marking.
+    /// </summary>
+    public const double HoldLineFoulToleranceFt = 5.0;
+
+    /// <summary>
+    /// Ground speed (kts) at or below which an aircraft counts as stopped: a leaving aircraft stopped with part of it still inside
+    /// a hold line fouls the runway, and a stopped occupant is never projected clear of it by the occupied-runway go-around.
+    /// </summary>
+    public const double StoppedGroundSpeedKts = 1.0;
+
+    /// <summary>
+    /// Heading tolerance (degrees, modulo 180) of the runway axis within which an aircraft past a hold line is neither approaching
+    /// nor leaving the runway — on a parallel taxiway, or turning about — and fouls it only when stopped or restricted. Keeps a
+    /// few degrees of drift from flipping the direction. Past a runway end, where the distance is measured to the end, the same
+    /// angle off the line of constant distance makes a taxiway passing the end neither approaching nor leaving.
+    /// </summary>
+    public const double DirectionlessAxisToleranceDeg = 30.0;
 
     /// <summary>
     /// Axis tolerance (degrees, modulo 180) separating an aircraft using the runway from one crossing or leaving it.
@@ -143,14 +176,15 @@ public static class RunwayOccupancy
     /// <summary>
     /// Classifies <paramref name="ac"/> against <paramref name="runway"/>. Phase evidence first
     /// (<see cref="ClassifyByPhase"/>); geometry (<see cref="ClassifyByGeometry"/>) only for aircraft with no phases;
-    /// a phase-driven aircraft on the pavement in any other phase is a <see cref="RunwayUseKind.Crossing"/>.
-    /// <paramref name="layout"/> supplies the landing-threshold displacement and may be null (pavement threshold).
+    /// a phase-driven aircraft on the pavement in any other phase is a <see cref="RunwayUseKind.Crossing"/>, and off it past the
+    /// runway's holding position marking a <see cref="RunwayUseKind.Fouling"/> (<see cref="FoulsHoldLine"/>).
+    /// <paramref name="layout"/> supplies the landing-threshold displacement and the hold-short bars, and may be null (pavement
+    /// threshold, and no aircraft is fouling).
     /// </summary>
     public static RunwayUse? Classify(AircraftState ac, RunwayInfo runway, AirportGroundLayout? layout)
     {
         RunwayUseKind? kind =
-            ClassifyByPhase(ac, runway)
-            ?? (ac.Phases is null ? ClassifyByGeometry(ac, runway, layout) : (IsOnPavement(ac, runway) ? RunwayUseKind.Crossing : null));
+            ClassifyByPhase(ac, runway) ?? (ac.Phases is null ? ClassifyByGeometry(ac, runway, layout) : ClassifyByPosition(ac, runway, layout));
         if (kind == RunwayUseKind.Departing && ac.LiveTraffic is { LandedOnRunway: true })
         {
             // The runway-use observer saw this shadow land: its rollout is not a takeoff roll (geometry cannot tell).
@@ -158,6 +192,311 @@ public static class RunwayOccupancy
         }
 
         return kind is { } k ? new RunwayUse(ac.Callsign, runway, k) : null;
+    }
+
+    /// <summary>
+    /// A phase-driven aircraft whose phase says nothing about <paramref name="runway"/>: <see cref="RunwayUseKind.Crossing"/> on
+    /// its pavement, <see cref="RunwayUseKind.Fouling"/> past its hold line (<see cref="FoulsHoldLine"/>), else nothing.
+    /// </summary>
+    private static RunwayUseKind? ClassifyByPosition(AircraftState ac, RunwayInfo runway, AirportGroundLayout? layout)
+    {
+        if (IsOnPavement(ac, runway))
+        {
+            return RunwayUseKind.Crossing;
+        }
+
+        return ((layout is not null) && IsLayoutOf(layout, runway) && FoulsHoldLine(ac, runway, layout)) ? RunwayUseKind.Fouling : null;
+    }
+
+    /// <summary>
+    /// Whether <paramref name="layout"/> is the ground layout of <paramref name="runway"/>'s airport. Designators repeat across
+    /// airports, and the bars of another airport's runway of the same name say nothing about this one.
+    /// </summary>
+    internal static bool IsLayoutOf(AirportGroundLayout layout, RunwayInfo runway) => SameAirport(runway.AirportId, layout.AirportId);
+
+    /// <summary>
+    /// Whether an aircraft on the ground off <paramref name="runway"/>'s pavement fouls it: a judged part of its body
+    /// (<see cref="PartsJudged"/>) more than <see cref="HoldLineFoulToleranceFt"/> past the holding position marking
+    /// (<see cref="DepthPastMarkingFt"/>), and either stopped or restricted short of the marking
+    /// (<see cref="IsStoppedOrRestricted"/>) or approaching the runway to hold short of it (<see cref="IsApproachingToHoldShort"/>).
+    /// A moving aircraft with nothing stopping it is not a fouler when it is leaving the runway (clear of it) or cleared past this
+    /// marking (a crossing or line-up under way, which becomes a runway use once on the pavement).
+    /// </summary>
+    private static bool FoulsHoldLine(AircraftState ac, RunwayInfo runway, AirportGroundLayout layout)
+    {
+        if (!ac.IsOnGround)
+        {
+            return false;
+        }
+
+        var body = AircraftBody.Of(ac.AircraftType);
+        (LatLon, double) pose = (ac.Position, ac.TrueHeading.Degrees);
+        bool pastTheMarking = AnyPartPastTheMarking(layout, runway, body, PartsJudged(ac, runway, layout, body), pose);
+        return pastTheMarking && (IsStoppedOrRestricted(ac, runway, layout, body) || IsApproachingToHoldShort(ac, runway, layout, body));
+    }
+
+    /// <summary>Which way a pose points relative to a runway's centreline (<see cref="FacingOf"/>).</summary>
+    private enum Facing
+    {
+        /// <summary>Neither toward nor away: along the runway, turning about, or passing a runway end.</summary>
+        Neither,
+
+        /// <summary>Toward the centreline: approaching the runway.</summary>
+        Toward,
+
+        /// <summary>Away from the centreline: leaving the runway.</summary>
+        Away,
+    }
+
+    /// <summary>The nose alone: the part an aircraft approaching a runway leads with.</summary>
+    private static readonly AircraftBodyPart[] NoseOnly = [AircraftBodyPart.Nose];
+
+    /// <summary>The tail alone: the last part of an aircraft leaving a runway to clear its marking.</summary>
+    private static readonly AircraftBodyPart[] TailOnly = [AircraftBodyPart.Tail];
+
+    /// <summary>
+    /// The parts of the aircraft judged against <paramref name="runway"/>'s holding position marking — the nose when approaching
+    /// the runway, the tail when leaving it: the nose holding short at one of this runway's bars, the tail on an exit from this
+    /// runway or a hold after it, else as its pose says (<see cref="PartsJudgedAt"/>). A correct hold on a stub angled to the
+    /// runway leaves the wingtip on the runway side nearer the centreline than the bar; it is not judged.
+    /// </summary>
+    private static AircraftBodyPart[] PartsJudged(AircraftState ac, RunwayInfo runway, AirportGroundLayout layout, AircraftBody body)
+    {
+        if ((ac.Phases?.CurrentPhase is HoldingShortPhase holding) && IsBarOf(layout, holding.HoldShort.NodeId, runway))
+        {
+            return NoseOnly;
+        }
+
+        return IsLeavingByPhase(ac, runway) ? TailOnly : PartsJudgedAt(body, (ac.Position, ac.TrueHeading.Degrees), runway);
+    }
+
+    /// <summary>
+    /// The parts judged for a pose with no phase evidence of its direction (<see cref="FacingOf"/>): the nose facing toward the
+    /// centreline, the tail facing away from it, and every part when it faces neither way (so a wingtip may lead).
+    /// </summary>
+    private static AircraftBodyPart[] PartsJudgedAt(AircraftBody body, (LatLon Position, double HeadingDeg) pose, RunwayInfo runway) =>
+        FacingOf(body, pose, runway) switch
+        {
+            Facing.Toward => NoseOnly,
+            Facing.Away => TailOnly,
+            _ => AircraftBody.AllParts,
+        };
+
+    /// <summary>
+    /// Which way <paramref name="body"/> at <paramref name="pose"/> (main-gear position, heading deg true) points relative to
+    /// <paramref name="runway"/>'s centreline: <see cref="Facing.Neither"/> when the heading is within
+    /// <see cref="DirectionlessAxisToleranceDeg"/> of the runway axis or its nose is no more than the sine of that angle times its
+    /// length nearer or farther from the centreline than its tail — abeam the runway the same test, and past a runway end, where
+    /// the distance is measured to the end, a taxiway passing the end; else toward or away as the nose lies nearer or farther.
+    /// </summary>
+    private static Facing FacingOf(AircraftBody body, (LatLon Position, double HeadingDeg) pose, RunwayInfo runway)
+    {
+        if (AxisDeviationDeg(pose.HeadingDeg, runway) <= DirectionlessAxisToleranceDeg)
+        {
+            return Facing.Neither;
+        }
+
+        double noseFt = RunwayHoldBars.CentrelineFt(runway, body.PointOf(AircraftBodyPart.Nose, pose.Position, pose.HeadingDeg));
+        double tailFt = RunwayHoldBars.CentrelineFt(runway, body.PointOf(AircraftBodyPart.Tail, pose.Position, pose.HeadingDeg));
+        double closingFt = tailFt - noseFt;
+        if (Math.Abs(closingFt) <= (body.LengthFt * Math.Sin(DirectionlessAxisToleranceDeg * Math.PI / 180.0)))
+        {
+            return Facing.Neither;
+        }
+
+        return (closingFt > 0.0) ? Facing.Toward : Facing.Away;
+    }
+
+    /// <summary>
+    /// Approaching <paramref name="runway"/> with no clearance past its holding position marking: its phase is not about leaving
+    /// or crossing this runway, no cleared hold-short of this runway's bar beside it is on its route
+    /// (<see cref="IsClearedPastTheMarking"/>), and it faces toward the centreline (<see cref="FacingOf"/>).
+    /// </summary>
+    private static bool IsApproachingToHoldShort(AircraftState ac, RunwayInfo runway, AirportGroundLayout layout, AircraftBody body)
+    {
+        if (IsLeavingOrCrossingByPhase(ac, runway, layout) || IsClearedPastTheMarking(ac, runway, layout))
+        {
+            return false;
+        }
+
+        return FacingOf(body, (ac.Position, ac.TrueHeading.Degrees), runway) == Facing.Toward;
+    }
+
+    /// <summary>
+    /// Whether any of <paramref name="parts"/> of <paramref name="body"/> at <paramref name="pose"/> (main-gear position, heading
+    /// deg true) lies more than <see cref="HoldLineFoulToleranceFt"/> past <paramref name="runway"/>'s holding position marking
+    /// (<see cref="DepthPastMarkingFt"/>), against the nearest of the runway's bars on the pose's side
+    /// (<see cref="RunwayHoldBars.NearestSameSideBar"/>, found once for the pose). False when that side has no bar.
+    /// </summary>
+    private static bool AnyPartPastTheMarking(
+        AirportGroundLayout layout,
+        RunwayInfo runway,
+        AircraftBody body,
+        AircraftBodyPart[] parts,
+        (LatLon Position, double HeadingDeg) pose
+    )
+    {
+        if (RunwayHoldBars.NearestSameSideBar(layout, runway, pose.Position) is not { } bar)
+        {
+            return false;
+        }
+
+        return parts.Any(part => DepthPastMarkingFt(runway, bar, body.PointOf(part, pose.Position, pose.HeadingDeg)) > HoldLineFoulToleranceFt);
+    }
+
+    /// <summary>
+    /// How far (ft) <paramref name="point"/> lies past <paramref name="runway"/>'s holding position marking toward the centreline
+    /// (negative short of it): the line of <paramref name="bar"/> (<see cref="RunwayHoldBars.CentrelineFt"/> of the bar). Null when
+    /// the bar is more than <see cref="HoldLineFootprint.MarkedBarReachFt"/> from the point along the runway — no marking is painted
+    /// over the grass between taxiways.
+    /// </summary>
+    private static double? DepthPastMarkingFt(RunwayInfo runway, GroundNode bar, LatLon point)
+    {
+        if (AlongRunwayFt(runway, point, bar) > HoldLineFootprint.MarkedBarReachFt)
+        {
+            return null;
+        }
+
+        return RunwayHoldBars.CentrelineFt(runway, bar.Position) - RunwayHoldBars.CentrelineFt(runway, point);
+    }
+
+    /// <summary>
+    /// The phase governs the aircraft's direction for <paramref name="runway"/>: an exit or a hold after it on this runway
+    /// (leaving), or a crossing of this runway (cleared past its marking on the near side, leaving it on the far side).
+    /// </summary>
+    private static bool IsLeavingOrCrossingByPhase(AircraftState ac, RunwayInfo runway, AirportGroundLayout layout) =>
+        IsLeavingByPhase(ac, runway) || ((ac.Phases?.CurrentPhase is CrossingRunwayPhase crossing) && IsBarOf(layout, crossing.TargetNodeId, runway));
+
+    /// <summary>The phase is an exit from <paramref name="runway"/> or a hold after it: the aircraft is leaving this runway.</summary>
+    private static bool IsLeavingByPhase(AircraftState ac, RunwayInfo runway) =>
+        (ac.Phases is { CurrentPhase: RunwayExitPhase or HoldingAfterExitPhase } phases) && PhaseRunwayIs(phases, runway);
+
+    /// <summary>Whether node <paramref name="nodeId"/> is a hold-short bar protecting <paramref name="runway"/>.</summary>
+    internal static bool IsBarOf(AirportGroundLayout layout, int nodeId, RunwayInfo runway) =>
+        layout.Nodes.TryGetValue(nodeId, out GroundNode? node)
+        && (node.Type == GroundNodeType.RunwayHoldShort)
+        && (node.RunwayId is { } protectedRunway)
+        && protectedRunway.Overlaps(runway.Id);
+
+    /// <summary>
+    /// A taxiing aircraft cleared past <paramref name="runway"/>'s holding position marking beside it: its route carries a cleared
+    /// hold-short at any of this runway's bars on its side within <see cref="HoldLineFootprint.MarkedBarReachFt"/> of it along the
+    /// runway — a crossing cleared before one bar of a wide junction, or a line-up or takeoff clearance that cleared the destination
+    /// runway's hold-short.
+    /// </summary>
+    private static bool IsClearedPastTheMarking(AircraftState ac, RunwayInfo runway, AirportGroundLayout layout)
+    {
+        if (ac.Ground.AssignedTaxiRoute is not { } route)
+        {
+            return false;
+        }
+
+        return RunwayHoldBars
+            .SameSideBars(layout, runway, ac.Position)
+            .Any(bar =>
+                (AlongRunwayFt(runway, ac.Position, bar) <= HoldLineFootprint.MarkedBarReachFt)
+                && (route.GetHoldShortAt(bar.Id) is { IsCleared: true })
+            );
+    }
+
+    /// <summary>How far (ft) apart <paramref name="point"/> and <paramref name="bar"/> lie measured along <paramref name="runway"/>.</summary>
+    private static double AlongRunwayFt(RunwayInfo runway, LatLon point, GroundNode bar) =>
+        Math.Abs(GeoMath.AlongTrackDistanceNm(point, bar.Position, runway.TrueHeading)) * GeoMath.FeetPerNm;
+
+    /// <summary>
+    /// Stopped (<see cref="StoppedGroundSpeedKts"/>) or restricted short of <paramref name="runway"/>'s holding position marking
+    /// (<see cref="IsRestrictedShortOfTheMarking"/>).
+    /// </summary>
+    private static bool IsStoppedOrRestricted(AircraftState ac, RunwayInfo runway, AirportGroundLayout layout, AircraftBody body) =>
+        (ac.GroundSpeed <= StoppedGroundSpeedKts) || IsRestricted(ac, runway, layout, body);
+
+    /// <summary>
+    /// Restricted short of <paramref name="runway"/>'s holding position marking, whatever its speed: a hold in effect
+    /// (<see cref="IsHoldInEffect"/>), holding short, yielding to traffic by the ground-conflict detector (a zero speed limit with a
+    /// yield target — a path blocked by traffic), or with its taxi route stopping it before its body is clear of the marking.
+    /// </summary>
+    public static bool IsRestrictedShortOfTheMarking(AircraftState ac, RunwayInfo runway, AirportGroundLayout layout) =>
+        IsRestricted(ac, runway, layout, AircraftBody.Of(ac.AircraftType));
+
+    private static bool IsRestricted(AircraftState ac, RunwayInfo runway, AirportGroundLayout layout, AircraftBody body)
+    {
+        AircraftGroundOps ground = ac.Ground;
+        if (IsHoldInEffect(ac) || (ac.Phases?.CurrentPhase is HoldingShortPhase))
+        {
+            return true;
+        }
+
+        if ((ground.SpeedLimit is { } limitKts) && (limitKts <= 0.0) && (ground.AutoYieldTarget is not null))
+        {
+            return true;
+        }
+
+        return RouteStopsShortOfTheMarking(ac, runway, layout, body);
+    }
+
+    /// <summary>
+    /// A HOLD or GIVEWAY that is acting on the aircraft now. A GIVEWAY does not act on its landing runway
+    /// (<see cref="AircraftState.HasGiveWayPendingOnLandingRunway"/>) nor during a runway crossing, which runs on until the tail is
+    /// past the far marking (<see cref="CrossingRunwayPhase"/>); both apply it once taxiing beyond.
+    /// </summary>
+    private static bool IsHoldInEffect(AircraftState ac) =>
+        ac.Ground.IsImmobile
+        && (!ac.HasGiveWayPendingOnLandingRunway)
+        && !((ac.Ground.Hold?.Kind == HoldKind.GiveWay) && (ac.Phases?.CurrentPhase is CrossingRunwayPhase));
+
+    /// <summary>
+    /// Whether the aircraft's taxi route stops it before its body is clear of <paramref name="runway"/>'s holding position marking:
+    /// the first stop ahead — an uncleared hold-short, with the nose at it (<see cref="NoseAt"/>), else the route's end, with the
+    /// main gear on its node — leaves a judged part (<see cref="PartsJudgedAt"/>) more than <see cref="HoldLineFoulToleranceFt"/>
+    /// past the marking, with the aircraft at that stop facing along the segment ending there.
+    /// A route that ends on one of this runway's own bars does not count: the navigator stops it there tail-clear, not centred on
+    /// the bar node.
+    /// </summary>
+    private static bool RouteStopsShortOfTheMarking(AircraftState ac, RunwayInfo runway, AirportGroundLayout layout, AircraftBody body)
+    {
+        if (ac.Ground.AssignedTaxiRoute is not { } route)
+        {
+            return false;
+        }
+
+        for (int i = Math.Max(0, route.CurrentSegmentIndex); i < route.Segments.Count; i++)
+        {
+            TaxiRouteSegment segment = route.Segments[i];
+            HoldShortPoint? holdShort = route.GetHoldShortAt(segment.ToNodeId);
+            bool isLast = i == (route.Segments.Count - 1);
+            if ((holdShort is not { IsCleared: false }) && !isLast)
+            {
+                continue;
+            }
+
+            bool uncleared = holdShort is { IsCleared: false };
+            if ((!uncleared) && IsBarOf(layout, segment.ToNodeId, runway))
+            {
+                return false;
+            }
+
+            LatLon stop =
+                (holdShort is { IsCleared: false, Latitude: { } lat, Longitude: { } lon }) ? new LatLon(lat, lon) : segment.Edge.ToNode.Position;
+            double headingDeg = GeoMath.BearingTo(segment.Edge.FromNode.Position, segment.Edge.ToNode.Position);
+            LatLon position = uncleared ? NoseAt(stop, headingDeg, body) : stop;
+            return AnyPartPastTheMarking(layout, runway, body, PartsJudgedAt(body, (position, headingDeg), runway), (position, headingDeg));
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// The main-gear position of <paramref name="body"/> facing <paramref name="headingDeg"/> with its nose at <paramref name="stop"/>:
+    /// where the navigator holds an aircraft short (AIM 2-3-5.a.1), half its length back from the stop.
+    /// </summary>
+    private static LatLon NoseAt(LatLon stop, double headingDeg, AircraftBody body) =>
+        GeoMath.ProjectPoint(stop, new TrueHeading(headingDeg).ToReciprocal(), body.LengthFt / 2.0 / GeoMath.FeetPerNm);
+
+    /// <summary>The phase list's own runway (departure, else assigned) names the same pavement as <paramref name="runway"/>.</summary>
+    private static bool PhaseRunwayIs(PhaseList phases, RunwayInfo runway)
+    {
+        RunwayInfo? own = phases.DepartureRunway ?? phases.AssignedRunway;
+        return (own is not null) && SameAirport(own.AirportId, runway.AirportId) && own.Id.Overlaps(runway.Id);
     }
 
     /// <summary>
@@ -182,14 +521,9 @@ public static class RunwayOccupancy
             return (runway is not null) && IsOverOrOnPavement(ac, runway) ? RunwayUseKind.OnSurface : null;
         }
 
-        if (runway is not null)
+        if ((runway is not null) && !PhaseRunwayIs(phases, runway))
         {
-            RunwayInfo? own = phases.DepartureRunway ?? phases.AssignedRunway;
-            bool sameRunway = (own is not null) && SameAirport(own.AirportId, runway.AirportId) && own.Id.Overlaps(runway.Id);
-            if (!sameRunway)
-            {
-                return null;
-            }
+            return null;
         }
 
         return phase switch
@@ -327,6 +661,12 @@ public static class RunwayOccupancy
 
     /// <summary>True for the kinds that make the aircraft a runway occupant for clearance and priority purposes.</summary>
     public static bool OccupiesSurface(RunwayUseKind? kind) => kind is RunwayUseKind.Departing or RunwayUseKind.Landing or RunwayUseKind.OnSurface;
+
+    /// <summary>
+    /// True for an aircraft past the runway's holding position marking off its pavement (<see cref="RunwayUseKind.Fouling"/>):
+    /// the runway is not clear for the controller's clearances and separation, though the aircraft is not on it.
+    /// </summary>
+    public static bool FoulsRunway(RunwayUseKind? kind) => kind == RunwayUseKind.Fouling;
 
     /// <summary>
     /// Distance (nm) from the aircraft to <paramref name="runway"/>'s landing threshold along the final approach course

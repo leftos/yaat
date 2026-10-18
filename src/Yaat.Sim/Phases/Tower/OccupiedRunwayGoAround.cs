@@ -16,12 +16,15 @@ namespace Yaat.Sim.Phases.Tower;
 /// §3-10-3 is a "does not cross the landing threshold until" rule, so the occupant is judged where it will be when the
 /// arrival reaches the threshold (present ground speed held), and the exception that applies depends on what the
 /// occupant did on this runway: landed here → a.1 (landmark distance, none when either aircraft is Category III);
-/// departed here → a.2 (airborne, or still rolling and projected past the landmark); anything else on the pavement
-/// (lined up, holding in position, crossing, parked) has no exception at any distance. Simplifications, stated:
-/// a.1's exception is a daytime rule and the sim has no clock; intersecting runways (§3-10-4) are not classified;
-/// a rollout is projected at constant speed; an altitude-restricted low approach (§3-10-10) is not exempted because
-/// the sim's low approach is flown well below the 500 ft that paragraph requires; there is no balked landing from
-/// the flare (the window closes at threshold-crossing height).
+/// departed here → a.2 (airborne, or still rolling and projected past the landmark); a crossing under way → clear once
+/// its tail is past the far pavement edge before the threshold (§3-7-2.g.2(a)); anything else on the pavement (lined up,
+/// holding in position, parked) has no exception at any distance. An aircraft past a hold line off the pavement
+/// (<see cref="RunwayUseKind.Fouling"/>) counts only with a part inside <see cref="GoAroundEdgeBandFt"/> of the centreline,
+/// where a pilot on short final sees it in the landing corridor; a smaller overrun is the controller's advisory to give.
+/// Simplifications, stated: a.1's exception is a daytime rule and the sim has no clock; intersecting runways (§3-10-4)
+/// are not classified; a rollout is projected at constant speed; an altitude-restricted low approach (§3-10-10) is not
+/// exempted because the sim's low approach is flown well below the 500 ft that paragraph requires; there is no balked
+/// landing from the flare (the window closes at threshold-crossing height).
 /// </summary>
 internal static class OccupiedRunwayGoAround
 {
@@ -34,12 +37,33 @@ internal static class OccupiedRunwayGoAround
     public const double MinimumAglFt = RunwayOccupancy.LandingAglCeilingFt;
 
     /// <summary>
-    /// Ground speed (kts) at or below which an occupant counts as stopped and can never be projected clear of the
-    /// runway, whatever its exit plan says. The vacate arithmetic already returns "never" for an aircraft with
-    /// distance left and no speed; this closes the one case it cannot — an aircraft standing still past its exit's
-    /// branch point, where only the exit leg is left and that leg is flown at the exit's planned turn-off speed.
+    /// Go-around edge band (ft from the centreline) of a runway under 75 ft wide: the runway safety area half-width of a small
+    /// A/B-I runway (AC 150/5300-13B; not in the local FAA files, owner to confirm against AC 150/5300-13B).
     /// </summary>
-    private const double StoppedGroundSpeedKts = 1.0;
+    public const double SmallRunwayEdgeBandFt = 60.0;
+
+    /// <summary>
+    /// Go-around edge band (ft from the centreline) of a runway 75–99 ft wide: the runway safety area half-width of a B-II runway
+    /// (AC 150/5300-13B; not in the local FAA files, owner to confirm against AC 150/5300-13B).
+    /// </summary>
+    public const double MediumRunwayEdgeBandFt = 75.0;
+
+    /// <summary>
+    /// Go-around edge band (ft from the centreline) of a runway 100 ft wide or more: the A/B-III runway safety area half-width,
+    /// used for every runway that wide as a band a crew on short final can see, because a C/D runway safety area (250 ft
+    /// half-width) reaches the standard hold line (AC 150/5300-13B; not in the local FAA files, owner to confirm against
+    /// AC 150/5300-13B).
+    /// </summary>
+    public const double LargeRunwayEdgeBandFt = 150.0;
+
+    /// <summary>
+    /// How far (ft) inside the runway's authored hold line the edge band stops at most, so a runway whose hold line is closer than
+    /// its safety area still leaves an advisory-only band past the line.
+    /// </summary>
+    public const double EdgeBandHoldLineMarginFt = 25.0;
+
+    /// <summary>How far ahead (ft) a crosser's heading is probed for the rate it closes on the far pavement edge.</summary>
+    private const double CrossingHeadingProbeFt = 10.0;
 
     /// <summary>
     /// The occupant that refuses the arrival its threshold crossing, with the §3-10-3 branch that refused it —
@@ -120,18 +144,184 @@ internal static class OccupiedRunwayGoAround
             }
 
             RunwayUse? use = RunwayOccupancy.Classify(other, runway, layout);
-            if ((use is null) || (use.Kind == RunwayUseKind.ShortFinal))
+            if (
+                (use is null)
+                || (use.Kind == RunwayUseKind.ShortFinal)
+                || ((use.Kind == RunwayUseKind.Fouling) && !IsInsideEdgeBand(other, runway, layout))
+            )
             {
                 continue;
             }
 
-            if (BlockingReason(other, use.Kind, runway, landingThreshold, runwayEndFt, arrivalCategory, secondsToThreshold) is { } reason)
+            string? reason =
+                ((layout is not null) && (CrossingFarBar(other, use.Kind, runway, layout) is { } farBar))
+                    ? CrossingReason(other, runway, layout, farBar, secondsToThreshold)
+                    : BlockingReason(other, use.Kind, runway, landingThreshold, runwayEndFt, arrivalCategory, secondsToThreshold);
+            if (reason is not null)
             {
                 return new BlockingOccupant(other, reason);
             }
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// Half-width (ft from the centreline) of the band beside <paramref name="runway"/> inside which a fouler makes the arrival go
+    /// around: the runway safety area's half-width for its width class (<see cref="SmallRunwayEdgeBandFt"/>,
+    /// <see cref="MediumRunwayEdgeBandFt"/>, <see cref="LargeRunwayEdgeBandFt"/>; the width classes
+    /// <see cref="RunwayCrossingDetector.HoldShortDistanceForWidth"/> reads as design groups), never nearer than
+    /// <see cref="EdgeBandHoldLineMarginFt"/> to the runway's hold line where <paramref name="layout"/> authors one.
+    /// </summary>
+    public static double GoAroundEdgeBandFt(RunwayInfo runway, AirportGroundLayout? layout)
+    {
+        double bandFt = runway.WidthFt switch
+        {
+            < 75.0 => SmallRunwayEdgeBandFt,
+            < 100.0 => MediumRunwayEdgeBandFt,
+            _ => LargeRunwayEdgeBandFt,
+        };
+        AirportGroundLayout? ownLayout = ((layout is not null) && RunwayOccupancy.IsLayoutOf(layout, runway)) ? layout : null;
+        double? holdLineFt = ownLayout?.Runways.FirstOrDefault(r => r.Id.Overlaps(runway.Id))?.HoldShortDistanceFt;
+        return holdLineFt is { } authoredFt ? Math.Min(bandFt, authoredFt - EdgeBandHoldLineMarginFt) : bandFt;
+    }
+
+    /// <summary>Some part of <paramref name="occupant"/> (<see cref="AircraftBody"/>) lies inside <see cref="GoAroundEdgeBandFt"/>.</summary>
+    private static bool IsInsideEdgeBand(AircraftState occupant, RunwayInfo runway, AirportGroundLayout? layout)
+    {
+        double bandFt = GoAroundEdgeBandFt(runway, layout);
+        var body = AircraftBody.Of(occupant.AircraftType);
+        double headingDeg = occupant.TrueHeading.Degrees;
+        return AircraftBody.AllParts.Any(part => RunwayHoldBars.CentrelineFt(runway, body.PointOf(part, occupant.Position, headingDeg)) <= bandFt);
+    }
+
+    /// <summary>
+    /// The far-side bar of a fixed-wing crossing of <paramref name="runway"/> under way on its pavement
+    /// (<see cref="CrossingRunwayPhase"/>, classified <see cref="RunwayUseKind.Crossing"/>), or null for any other occupant.
+    /// </summary>
+    private static GroundNode? CrossingFarBar(AircraftState occupant, RunwayUseKind kind, RunwayInfo runway, AirportGroundLayout layout)
+    {
+        if (
+            (kind != RunwayUseKind.Crossing)
+            || RunwayOccupancy.IsRotorcraft(occupant)
+            || (occupant.Phases?.CurrentPhase is not CrossingRunwayPhase crossing)
+        )
+        {
+            return null;
+        }
+
+        bool farBarOfRunway = RunwayOccupancy.IsLayoutOf(layout, runway) && RunwayOccupancy.IsBarOf(layout, crossing.TargetNodeId, runway);
+        return farBarOfRunway ? layout.Nodes[crossing.TargetNodeId] : null;
+    }
+
+    /// <summary>
+    /// §3-7-2.g.2(a): a crossing satisfies the arrival when it "has completed crossing prior to an arriving aircraft crossing the
+    /// landing threshold" (REFERENCE P/CG Clear of the Runway). Null when it is projected clear in time
+    /// (<see cref="SecondsToCrossingClear"/>), else why it refuses the threshold crossing.
+    /// </summary>
+    private static string? CrossingReason(
+        AircraftState crosser,
+        RunwayInfo runway,
+        AirportGroundLayout layout,
+        GroundNode farBar,
+        double secondsToThreshold
+    )
+    {
+        double clearSeconds = SecondsToCrossingClear(crosser, runway, layout, farBar);
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[OccupiedRunwayGoAround] {Callsign} crossing {Runway}: tail clear of the far edge in {Clear:F1} s, threshold in {Threshold:F1} s (gs {Gs:F1} kt, target {Target} kt, {Lateral:F0} ft from the centreline, heading {Heading:F0})",
+                crosser.Callsign,
+                runway.Designator,
+                clearSeconds,
+                secondsToThreshold,
+                crosser.GroundSpeed,
+                crosser.Targets.TargetSpeed,
+                RunwayHoldBars.CentrelineFt(runway, crosser.Position),
+                crosser.TrueHeading.Degrees
+            );
+        }
+
+        return (clearSeconds <= secondsToThreshold) ? null : $"{DescribeUse(RunwayUseKind.Crossing)}, not clear in {secondsToThreshold:F0} s";
+    }
+
+    /// <summary>
+    /// Seconds until the crosser's tail is past <paramref name="runway"/>'s far-side pavement edge — the
+    /// <see cref="RunwayOccupancy.IsWithinPavement"/> boundary (P/CG "Clear of the Runway" b; AIM 4-3-21.b) — on its present
+    /// heading, from its present ground speed to its commanded taxi speed (<see cref="TaxiSecondsToCover"/>: accelerating at the
+    /// taxi rate, <see cref="CategoryPerformance.TaxiAccelRate"/>, or braking at <see cref="CategoryPerformance.TaxiDecelRate"/>).
+    /// Infinite — never clear — when it is restricted short of the far marking
+    /// (<see cref="RunwayOccupancy.IsRestrictedShortOfTheMarking"/>: a hold, a give-way in effect, a ground-conflict yield, or a
+    /// route stop that leaves part of it inside), commanded to a stop, or not heading toward the far side.
+    /// </summary>
+    private static double SecondsToCrossingClear(AircraftState crosser, RunwayInfo runway, AirportGroundLayout layout, GroundNode farBar)
+    {
+        if (RunwayOccupancy.IsRestrictedShortOfTheMarking(crosser, runway, layout))
+        {
+            return double.PositiveInfinity;
+        }
+
+        bool farRight = RunwayHoldBars.IsRightOfCentreline(runway, farBar.Position);
+        double TowardFarSideFt(LatLon point) =>
+            ((RunwayHoldBars.IsRightOfCentreline(runway, point) == farRight) ? 1.0 : -1.0) * RunwayHoldBars.CentrelineFt(runway, point);
+
+        double nowFt = TowardFarSideFt(crosser.Position);
+        LatLon ahead = GeoMath.ProjectPoint(crosser.Position, crosser.TrueHeading, CrossingHeadingProbeFt / GeoMath.FeetPerNm);
+        double acrossPerFt = (TowardFarSideFt(ahead) - nowFt) / CrossingHeadingProbeFt;
+        if (acrossPerFt <= 0.0)
+        {
+            return double.PositiveInfinity;
+        }
+
+        double tailOffsetFt = AircraftBody.Of(crosser.AircraftType).LengthFt / 2.0 * acrossPerFt;
+        double edgeFt = (runway.WidthFt / 2.0) + RunwayOccupancy.LateralSlackFt;
+        double pathFt = Math.Max(0.0, edgeFt + tailOffsetFt - nowFt) / acrossPerFt;
+        AircraftCategory category = AircraftCategorization.Categorize(crosser.AircraftType);
+        double commandedKts = crosser.Targets.TargetSpeed ?? CategoryPerformance.TaxiSpeed(category);
+        return TaxiSecondsToCover(
+            pathFt,
+            crosser.GroundSpeed,
+            commandedKts,
+            CategoryPerformance.TaxiAccelRate(category),
+            CategoryPerformance.TaxiDecelRate(category)
+        );
+    }
+
+    /// <summary>
+    /// Seconds to cover <paramref name="distanceFt"/> from <paramref name="fromKts"/> at the commanded speed
+    /// <paramref name="commandedKts"/>: accelerating up to it at <paramref name="accelKtsPerSecond"/>, or braking down to it at
+    /// <paramref name="decelKtsPerSecond"/>, then holding it — never a speed above the commanded one for longer than braking to it
+    /// takes. Infinite when the commanded speed is at or below <see cref="RunwayOccupancy.StoppedGroundSpeedKts"/>: the aircraft is
+    /// being brought to a stop.
+    /// </summary>
+    internal static double TaxiSecondsToCover(
+        double distanceFt,
+        double fromKts,
+        double commandedKts,
+        double accelKtsPerSecond,
+        double decelKtsPerSecond
+    )
+    {
+        const double FtPerSecondPerKt = GeoMath.FeetPerNm / 3600.0;
+        if (commandedKts <= RunwayOccupancy.StoppedGroundSpeedKts)
+        {
+            return double.PositiveInfinity;
+        }
+
+        double startKts = Math.Max(0.0, fromKts);
+        double rateKtsPerSecond = (startKts < commandedKts) ? accelKtsPerSecond : -decelKtsPerSecond;
+        double changeSeconds = (commandedKts - startKts) / rateKtsPerSecond;
+        double changeFt = (startKts + commandedKts) / 2.0 * changeSeconds * FtPerSecondPerKt;
+        if (changeFt >= distanceFt)
+        {
+            // The path ends before the commanded speed is reached: the smaller root of v0·t + a·t²/2 = d.
+            double v0 = startKts * FtPerSecondPerKt;
+            double a = rateKtsPerSecond * FtPerSecondPerKt;
+            return (Math.Sqrt((v0 * v0) + (2.0 * a * distanceFt)) - v0) / a;
+        }
+
+        return changeSeconds + ((distanceFt - changeFt) / (commandedKts * FtPerSecondPerKt));
     }
 
     /// <summary>
@@ -161,11 +351,13 @@ internal static class OccupiedRunwayGoAround
         double projectedFt = downfieldNowFt + ((occupant.GroundSpeed * GeoMath.FeetPerNm / 3600.0) * secondsToThreshold);
 
         // The occupant is judged where it will be when the arrival crosses the threshold: still on the pavement then
-        // (the classifier already said so now) and, for a departure, flying by then if it is airborne or rolling now.
+        // (the classifier already said so now) and, for a departure, flying by then if it is airborne or rolling now. A
+        // landed aircraft past its hold line is stopped or restricted short of the marking, so it is never projected clear;
+        // the landmark distance still applies to it.
         if (LandedHere(occupant, kind, runway))
         {
             bool satisfied = SameRunwaySeparation.ArrivalBehindLandingSatisfied(
-                WillBeClearOfRunway(occupant, secondsToThreshold),
+                (kind != RunwayUseKind.Fouling) && WillBeClearOfRunway(occupant, secondsToThreshold),
                 landerOnGround: true,
                 projectedFt,
                 occupantCategory,
@@ -186,10 +378,10 @@ internal static class OccupiedRunwayGoAround
             return satisfied ? null : $"departing, {RoundedFeet(downfieldNowFt)} ft down";
         }
 
-        // Everything else on the pavement — lined up, holding in position, crossing, parked — has no §3-10-3
-        // exception at any distance, and is refused without projecting where it will be. That is also what keeps the
-        // §3-10-6.b carve-out satisfied: anticipating separation must not be applied to LUAW operations, and a
-        // lined-up occupant classifies OnSurface and reaches this branch instead of WillBeClearOfRunway. Extending
+        // Everything else on the pavement — lined up, holding in position, parked, a crossing with no crossing phase — or past
+        // its hold line has no §3-10-3 exception at any distance, and is refused without projecting where it will be. That is
+        // also what keeps the §3-10-6.b carve-out satisfied: anticipating separation must not be applied to LUAW operations,
+        // and a lined-up occupant classifies OnSurface and reaches this branch instead of WillBeClearOfRunway. Extending
         // the projection here would break that.
         return $"{DescribeUse(kind)}, {RoundedFeet(downfieldNowFt)} ft down";
     }
@@ -208,10 +400,14 @@ internal static class OccupiedRunwayGoAround
     /// <para>The estimate comes from <see cref="SameRunwayArrivalProtection.TryBuildRollout"/> — the same arithmetic
     /// the simulated-TRACON spacing pass uses to decide when a leader is off the runway, so the two cannot disagree.
     /// Fail closed: an occupant with no resolved exit, no ground layout to resolve one from, or no ground speed to
-    /// cover the distance is <em>not</em> clear, and the go-around fires exactly as it did before.</para>
+    /// cover the distance is <em>not</em> clear, and the go-around fires exactly as it did before. An occupant stopped
+    /// (<see cref="RunwayOccupancy.StoppedGroundSpeedKts"/>) is never projected clear, whatever its exit plan says: the
+    /// vacate arithmetic already returns "never" for an aircraft with distance left and no speed, and this closes the one
+    /// case it cannot — an aircraft standing still past its exit's branch point, where only the exit leg is left and that
+    /// leg is flown at the exit's planned turn-off speed.</para>
     /// </summary>
     private static bool WillBeClearOfRunway(AircraftState occupant, double secondsToThreshold) =>
-        (occupant.GroundSpeed > StoppedGroundSpeedKts)
+        (occupant.GroundSpeed > RunwayOccupancy.StoppedGroundSpeedKts)
         && (SameRunwayArrivalProtection.TryBuildRollout(occupant, elapsedSinceThresholdSeconds: 0.0) is { } rollout)
         && (SameRunwayArrivalProtection.SecondsToRunwayClear(rollout) <= secondsToThreshold);
 
@@ -222,6 +418,7 @@ internal static class OccupiedRunwayGoAround
             RunwayUseKind.Departing => "departure roll",
             RunwayUseKind.Landing => "over the runway",
             RunwayUseKind.Crossing => "crossing the runway",
+            RunwayUseKind.Fouling => "past the hold line",
             _ => "on the runway",
         };
 
@@ -229,17 +426,25 @@ internal static class OccupiedRunwayGoAround
     private static string RoundedFeet(double feet) =>
         (Math.Round(feet / 100.0) * 100.0).ToString("N0", System.Globalization.CultureInfo.InvariantCulture);
 
-    /// <summary>§3-10-3.a.1 applies: the occupant landed on this runway and is rolling out, exiting, or stopped after landing.</summary>
+    /// <summary>
+    /// §3-10-3.a.1 applies: the occupant landed on this runway and is rolling out, exiting, stopped after landing, or held after
+    /// its exit (<see cref="HoldingAfterExitPhase"/>, here only: the solo evaluator reads "not landing family" as clear).
+    /// </summary>
     private static bool LandedHere(AircraftState occupant, RunwayUseKind kind, RunwayInfo runway) =>
-        SameRunwaySeparation.IsLandingFamilyOccupant(occupant.Phases?.CurrentPhase, kind)
-        && ((occupant.Phases is null) || UsesThisRunway(occupant, runway));
+        (
+            SameRunwaySeparation.IsLandingFamilyOccupant(occupant.Phases?.CurrentPhase, kind)
+            || (occupant.Phases?.CurrentPhase is HoldingAfterExitPhase)
+        ) && ((occupant.Phases is null) || UsesThisRunway(occupant, runway));
 
     /// <summary>§3-10-3.a.2 applies: the occupant is departing from this runway.</summary>
     private static bool DepartedHere(AircraftState occupant, RunwayUseKind kind, RunwayInfo runway) =>
         SameRunwaySeparation.IsDepartureFamilyOccupant(occupant.Phases?.CurrentPhase, kind)
         && ((occupant.Phases is null) || UsesThisRunway(occupant, runway));
 
-    /// <summary>The occupant's phase runway (departure, else assigned) is this pavement — an exit from a crossing runway earns no credit here.</summary>
+    /// <summary>
+    /// The occupant's phase runway (departure, else assigned) is this pavement — an exit from a crossing runway earns no credit
+    /// here.
+    /// </summary>
     private static bool UsesThisRunway(AircraftState occupant, RunwayInfo runway)
     {
         RunwayInfo? own = occupant.Phases?.DepartureRunway ?? occupant.Phases?.AssignedRunway;

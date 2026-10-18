@@ -1,10 +1,14 @@
 using Xunit;
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Faa;
 using Yaat.Sim.LiveTraffic;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Simulation.Snapshots;
+using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests;
 
@@ -506,7 +510,985 @@ public class RunwayOccupancyTests
         Assert.True(RunwayOccupancy.OccupiesSurface(RunwayUseKind.OnSurface));
         Assert.False(RunwayOccupancy.OccupiesSurface(RunwayUseKind.ShortFinal));
         Assert.False(RunwayOccupancy.OccupiesSurface(RunwayUseKind.Crossing));
+        Assert.False(RunwayOccupancy.OccupiesSurface(RunwayUseKind.Fouling));
         Assert.False(RunwayOccupancy.OccupiesSurface(null));
+    }
+
+    [Fact]
+    public void FoulsRunway_IsTrueForFoulingOnly()
+    {
+        foreach (RunwayUseKind kind in Enum.GetValues<RunwayUseKind>())
+        {
+            Assert.Equal(kind == RunwayUseKind.Fouling, RunwayOccupancy.FoulsRunway(kind));
+        }
+
+        Assert.False(RunwayOccupancy.FoulsRunway(null));
+    }
+
+    // --- Past the holding position marking (KOAK, real layout) ----------------------------------
+
+    /// <summary>
+    /// An aircraft on the ground square to <paramref name="runway"/>'s holding position marking at <paramref name="bar"/>, moved
+    /// <paramref name="alongFt"/> along the runway, with <paramref name="partPastFt"/> of it past the marking toward the centreline
+    /// (negative: short of it). Facing the runway that part is its nose; facing away, its tail. No phases.
+    /// </summary>
+    public static AircraftState SquareToTheMarking(
+        RunwayInfo runway,
+        GroundNode bar,
+        string type,
+        bool facingRunway,
+        double partPastFt,
+        double alongFt
+    )
+    {
+        var end1 = new LatLon(runway.Lat1, runway.Lon1);
+        var end2 = new LatLon(runway.Lat2, runway.Lon2);
+        var along = new TrueHeading(GeoMath.BearingTo(end1, end2));
+        LatLon marking = Project(bar.Position, along, alongFt);
+        var toward = new TrueHeading(GeoMath.BearingTo(marking, GeoMath.FootOfPerpendicular(marking, end1, end2).Foot));
+        LatLon centre = Project(marking, toward, partPastFt - (AircraftLength.ResolveFt(type) / 2.0));
+        TrueHeading heading = facingRunway ? toward : toward.ToReciprocal();
+        return new AircraftState
+        {
+            Callsign = "FOUL1",
+            AircraftType = type,
+            Position = centre,
+            TrueHeading = heading,
+            TrueTrack = heading,
+            Altitude = runway.ElevationFt,
+            IsOnGround = true,
+            AirportId = "OAK",
+        };
+    }
+
+    /// <summary>A runway exit past its turn-off, following the exit path off the centreline.</summary>
+    public static RunwayExitPhase ExitOffTheCentreline(RunwayInfo runway) =>
+        RunwayExitPhase.FromSnapshot(
+            new RunwayExitPhaseDto
+            {
+                Status = (int)PhaseStatus.Active,
+                ElapsedSeconds = 20,
+                ReachedExitNode = false,
+                ExitSpeed = 10,
+                TimeSinceLastLog = 0,
+                RunwayHeadingDeg = runway.TrueHeading.Degrees,
+                ExitStateValue = (int)RunwayExitPhase.ExitState.FollowingExitPath,
+            },
+            groundLayout: null
+        );
+
+    private static LatLon Project(LatLon from, TrueHeading heading, double distanceFt) =>
+        GeoMath.ProjectPoint(from, distanceFt >= 0 ? heading : heading.ToReciprocal(), Math.Abs(distanceFt) / GeoMath.FeetPerNm);
+
+    private static AircraftState Placed(RunwayInfo runway, GroundNode bar, bool facingRunway, double partPastFt, double groundSpeedKts, Phase? phase)
+    {
+        AircraftState ac = SquareToTheMarking(runway, bar, "B738", facingRunway, partPastFt, alongFt: 0);
+        ac.IndicatedAirspeed = groundSpeedKts;
+        AttachPhase(ac, phase, runway);
+        return ac;
+    }
+
+    private static AircraftState ExitingArrival(RunwayInfo runway, GroundNode bar, double tailPastFt, double groundSpeedKts) =>
+        Placed(runway, bar, facingRunway: false, tailPastFt, groundSpeedKts, ExitOffTheCentreline(runway));
+
+    private static GroundNode OtherEnd(IGroundEdge edge, GroundNode node) => edge.Nodes[0].Id == node.Id ? edge.Nodes[1] : edge.Nodes[0];
+
+    private static double AxisDeviationDeg(double headingDeg, RunwayInfo runway)
+    {
+        double diff = GeoMath.AbsBearingDifference(headingDeg, runway.TrueHeading.Degrees);
+        return Math.Min(diff, 180.0 - diff);
+    }
+
+    /// <summary>
+    /// A B738 on a TaxiingPhase short of the marking at <paramref name="bar"/>, heading <paramref name="offAxisDeg"/> off the runway
+    /// axis turned toward the runway, so its wingtip on the runway side is past the marking.
+    /// </summary>
+    private static AircraftState AlongTheAxis(RunwayInfo runway, GroundNode bar, double offAxisDeg, double groundSpeedKts)
+    {
+        AircraftState ac = Placed(runway, bar, facingRunway: true, 30.0, groundSpeedKts, new TaxiingPhase());
+        double toward = ac.TrueHeading.Degrees;
+        double along = GeoMath.BearingTo(new LatLon(runway.Lat1, runway.Lon1), new LatLon(runway.Lat2, runway.Lon2));
+        double turnedLeft = (along - offAxisDeg + 360.0) % 360.0;
+        double turnedRight = (along + offAxisDeg) % 360.0;
+        var heading = new TrueHeading(
+            GeoMath.AbsBearingDifference(turnedRight, toward) < GeoMath.AbsBearingDifference(turnedLeft, toward) ? turnedRight : turnedLeft
+        );
+        ac.TrueHeading = heading;
+        ac.TrueTrack = heading;
+        return ac;
+    }
+
+    private const double ParallelAxisToleranceDeg = 15.0;
+
+    /// <summary>The edges leaving <paramref name="node"/> that run along <paramref name="runway"/>'s axis.</summary>
+    private static IEnumerable<IGroundEdge> AxisEdges(RunwayInfo runway, GroundNode node) =>
+        node.Edges.Where(e => AxisDeviationDeg(GeoMath.BearingTo(node.Position, OtherEnd(e, node).Position), runway) <= ParallelAxisToleranceDeg);
+
+    /// <summary>
+    /// Where the stub through <paramref name="bar"/> meets a taxiway running along the runway, walking away from the runway
+    /// up to 600 ft from the bar. Null when there is none.
+    /// </summary>
+    private static GroundNode? ParallelJunction(RunwayInfo runway, GroundNode bar)
+    {
+        double barFt = RunwayHoldBars.CentrelineFt(runway, bar.Position);
+        var seen = new HashSet<int> { bar.Id };
+        var frontier = new Queue<GroundNode>([bar]);
+        while (frontier.TryDequeue(out GroundNode? node))
+        {
+            if ((node.Id != bar.Id) && AxisEdges(runway, node).Any())
+            {
+                return node;
+            }
+
+            foreach (IGroundEdge edge in node.Edges)
+            {
+                GroundNode next = OtherEnd(edge, node);
+                bool awayFromRunway = RunwayHoldBars.CentrelineFt(runway, next.Position) > barFt;
+                bool inReach = (GeoMath.DistanceNm(bar.Position, next.Position) * GeoMath.FeetPerNm) <= 600.0;
+                if (awayFromRunway && inReach && seen.Add(next.Id))
+                {
+                    frontier.Enqueue(next);
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Points every 50 ft along the parallel taxiway's own edges from <paramref name="junction"/> through <paramref name="first"/>,
+    /// up to <paramref name="maxFt"/>, each with the bearing of the edge it lies on.
+    /// </summary>
+    private static IEnumerable<(LatLon Position, double HeadingDeg)> AlongParallel(
+        RunwayInfo runway,
+        GroundNode junction,
+        IGroundEdge first,
+        double maxFt
+    )
+    {
+        GroundNode from = junction;
+        GroundNode to = OtherEnd(first, junction);
+        var seen = new HashSet<int> { junction.Id };
+        double travelledFt = 0.0;
+        while ((travelledFt < maxFt) && seen.Add(to.Id))
+        {
+            double bearing = GeoMath.BearingTo(from.Position, to.Position);
+            double lengthFt = GeoMath.DistanceNm(from.Position, to.Position) * GeoMath.FeetPerNm;
+            for (double s = 0.0; (s < lengthFt) && ((travelledFt + s) <= maxFt); s += 50.0)
+            {
+                yield return (Project(from.Position, new TrueHeading(bearing), s), bearing);
+            }
+
+            travelledFt += lengthFt;
+            GroundNode previous = from;
+            IGroundEdge? onward = AxisEdges(runway, to)
+                .Where(e => OtherEnd(e, to).Id != previous.Id)
+                .OrderBy(e => GeoMath.AbsBearingDifference(GeoMath.BearingTo(to.Position, OtherEnd(e, to).Position), bearing))
+                .FirstOrDefault();
+            if (onward is null)
+            {
+                yield break;
+            }
+
+            from = to;
+            to = OtherEnd(onward, from);
+        }
+    }
+
+    /// <summary>A B738 stopped on a parallel taxiway at <paramref name="position"/>, heading along it.</summary>
+    private static AircraftState OnParallel(RunwayInfo runway, LatLon position, double headingDeg)
+    {
+        var heading = new TrueHeading(headingDeg);
+        AircraftState ac = new()
+        {
+            Callsign = "PAR1",
+            AircraftType = "B738",
+            Position = position,
+            TrueHeading = heading,
+            TrueTrack = heading,
+            Altitude = runway.ElevationFt,
+            IsOnGround = true,
+            AirportId = "OAK",
+        };
+        AttachPhase(ac, new TaxiingPhase(), runway);
+        return ac;
+    }
+
+    private static RunwayUseKind? Kind(AircraftState ac, RunwayInfo runway, AirportGroundLayout? layout) =>
+        RunwayOccupancy.Classify(ac, runway, layout)?.Kind;
+
+    [Fact]
+    public void CorrectHold_NoseAtTheMarking_DoesNotFoul()
+    {
+        if (RunwayBarFixture.RunwayBar("KOAK", "33") is not { } oak)
+        {
+            return;
+        }
+
+        var holdShort = new HoldShortPoint
+        {
+            NodeId = oak.Bar.Id,
+            Reason = HoldShortReason.RunwayCrossing,
+            TargetName = "33",
+        };
+        AircraftState holding = Placed(oak.Runway, oak.Bar, facingRunway: true, 0.0, 0, new HoldingShortPhase(holdShort));
+
+        Assert.Null(Kind(holding, oak.Runway, oak.Layout));
+    }
+
+    [Fact]
+    public void NosePastByLessThanTheTolerance_DoesNotFoul()
+    {
+        if (RunwayBarFixture.RunwayBar("KOAK", "33") is not { } oak)
+        {
+            return;
+        }
+
+        double pastFt = RunwayOccupancy.HoldLineFoulToleranceFt - 1.0;
+        AircraftState stopped = Placed(oak.Runway, oak.Bar, facingRunway: true, pastFt, 0, new TaxiingPhase());
+
+        Assert.Null(Kind(stopped, oak.Runway, oak.Layout));
+    }
+
+    [Fact]
+    public void NosePastByMoreThanTheTolerance_Fouls()
+    {
+        if (RunwayBarFixture.RunwayBar("KOAK", "33") is not { } oak)
+        {
+            return;
+        }
+
+        double pastFt = RunwayOccupancy.HoldLineFoulToleranceFt + 1.0;
+        AircraftState stopped = Placed(oak.Runway, oak.Bar, facingRunway: true, pastFt, 0, new TaxiingPhase());
+
+        Assert.False(RunwayOccupancy.IsOnPavement(stopped, oak.Runway));
+        Assert.Equal(RunwayUseKind.Fouling, Kind(stopped, oak.Runway, oak.Layout));
+    }
+
+    [Fact]
+    public void PartOverTheGrassBetweenBars_DoesNotFoul()
+    {
+        if (RunwayBarFixture.RunwayBar("KOAK", "33") is not { } oak)
+        {
+            return;
+        }
+
+        // Slide along the runway, on the bar's side, until no bar on that side is within the marked reach: there is no hold line
+        // painted there, so a nose nearer the centreline than the bars' line is over the grass, not past a marking.
+        bool right = RunwayHoldBars.IsRightOfCentreline(oak.Runway, oak.Bar.Position);
+        GroundNode[] sideBars =
+        [
+            .. RunwayHoldBars.RunwayBars(oak.Layout, oak.Runway).Where(b => RunwayHoldBars.IsRightOfCentreline(oak.Runway, b.Position) == right),
+        ];
+        var along = new TrueHeading(GeoMath.BearingTo(new LatLon(oak.Runway.Lat1, oak.Runway.Lon1), new LatLon(oak.Runway.Lat2, oak.Runway.Lon2)));
+        double? grassFt = null;
+        for (double offsetFt = -3000; offsetFt <= 3000; offsetFt += 25)
+        {
+            LatLon marking = Project(oak.Bar.Position, along, offsetFt);
+            bool abeam = !GeoMath
+                .FootOfPerpendicular(marking, new LatLon(oak.Runway.Lat1, oak.Runway.Lon1), new LatLon(oak.Runway.Lat2, oak.Runway.Lon2))
+                .Clamped;
+            double nearestBarFt = sideBars.Min(b => Math.Abs(GeoMath.AlongTrackDistanceNm(marking, b.Position, along)) * GeoMath.FeetPerNm);
+            if (abeam && (nearestBarFt > HoldLineFootprint.MarkedBarReachFt + 100.0))
+            {
+                grassFt = offsetFt;
+                break;
+            }
+        }
+
+        double offset = Assert.IsType<double>(grassFt);
+        AircraftState overGrass = SquareToTheMarking(oak.Runway, oak.Bar, "B738", facingRunway: true, 30.0, offset);
+        AttachPhase(overGrass, new TaxiingPhase(), oak.Runway);
+        AircraftState atTheBar = Placed(oak.Runway, oak.Bar, facingRunway: true, 30.0, 0, new TaxiingPhase());
+
+        Assert.False(RunwayOccupancy.IsOnPavement(overGrass, oak.Runway));
+        Assert.Null(Kind(overGrass, oak.Runway, oak.Layout));
+        Assert.Equal(RunwayUseKind.Fouling, Kind(atTheBar, oak.Runway, oak.Layout));
+    }
+
+    [Fact]
+    public void ExitingArrival_TailInside_MovingUnrestricted_IsClear()
+    {
+        if (RunwayBarFixture.RunwayBar("KOAK", "33") is not { } oak)
+        {
+            return;
+        }
+
+        AircraftState exiting = ExitingArrival(oak.Runway, oak.Bar, tailPastFt: 20.0, groundSpeedKts: 10);
+
+        Assert.False(RunwayOccupancy.IsOnPavement(exiting, oak.Runway));
+        Assert.Null(Kind(exiting, oak.Runway, oak.Layout));
+    }
+
+    [Fact]
+    public void ExitingArrival_TailInside_Stopped_Fouls()
+    {
+        if (RunwayBarFixture.RunwayBar("KOAK", "33") is not { } oak)
+        {
+            return;
+        }
+
+        AircraftState exiting = ExitingArrival(oak.Runway, oak.Bar, tailPastFt: 20.0, groundSpeedKts: 0);
+
+        Assert.Equal(RunwayUseKind.Fouling, Kind(exiting, oak.Runway, oak.Layout));
+    }
+
+    [Fact]
+    public void ExitingArrival_TailInside_UnderHold_Fouls()
+    {
+        if (RunwayBarFixture.RunwayBar("KOAK", "33") is not { } oak)
+        {
+            return;
+        }
+
+        AircraftState exiting = ExitingArrival(oak.Runway, oak.Bar, tailPastFt: 20.0, groundSpeedKts: 10);
+        exiting.Ground.Hold = HoldDirective.HoldPosition;
+
+        Assert.Equal(RunwayUseKind.Fouling, Kind(exiting, oak.Runway, oak.Layout));
+    }
+
+    [Fact]
+    public void ExitingArrival_TailInside_UnderGiveWay_Fouls()
+    {
+        if (RunwayBarFixture.RunwayBar("KOAK", "33") is not { } oak)
+        {
+            return;
+        }
+
+        // Off the exit and taxiing, where a GIVEWAY takes effect (on the rollout or the exit it is still pending).
+        AircraftState exiting = Placed(oak.Runway, oak.Bar, facingRunway: false, 20.0, 10, new TaxiingPhase());
+        exiting.Ground.Hold = HoldDirective.GiveWay("N2GW");
+
+        Assert.Equal(RunwayUseKind.Fouling, Kind(exiting, oak.Runway, oak.Layout));
+    }
+
+    [Fact]
+    public void GiveWayPendingOnLandingRunway_DoesNotCountAsRestricted()
+    {
+        if (RunwayBarFixture.RunwayBar("KOAK", "33") is not { } oak)
+        {
+            return;
+        }
+
+        // A GIVEWAY given on the exit does not stop the aircraft until it is off its landing runway and taxiing.
+        AircraftState exiting = ExitingArrival(oak.Runway, oak.Bar, tailPastFt: 20.0, groundSpeedKts: 10);
+        exiting.Ground.Hold = HoldDirective.GiveWay("N2GW");
+
+        Assert.True(exiting.HasGiveWayPendingOnLandingRunway);
+        Assert.Null(Kind(exiting, oak.Runway, oak.Layout));
+    }
+
+    [Fact]
+    public void RouteEndingAtTheLeavingRunwaysBar_IsNotRestricted()
+    {
+        if (RunwayBarFixture.RunwayBar("KOAK", "33") is not { } oak)
+        {
+            return;
+        }
+
+        // The stub edge into the bar from the runway side: a route that ends on the bar node stops the aircraft tail-clear of it.
+        double barFt = RunwayHoldBars.CentrelineFt(oak.Runway, oak.Bar.Position);
+        IGroundEdge stub = oak.Bar.Edges.First(e => RunwayHoldBars.CentrelineFt(oak.Runway, OtherEnd(e, oak.Bar).Position) < barFt);
+        var segment = new TaxiRouteSegment
+        {
+            Edge = new DirectionalEdge
+            {
+                Edge = stub,
+                FromNode = OtherEnd(stub, oak.Bar),
+                ToNode = oak.Bar,
+            },
+            TaxiwayName = stub.TaxiwayName,
+        };
+        AircraftState exiting = ExitingArrival(oak.Runway, oak.Bar, tailPastFt: 20.0, groundSpeedKts: 10);
+        exiting.Ground.AssignedTaxiRoute = new TaxiRoute { Segments = [segment], HoldShortPoints = [] };
+
+        Assert.Null(Kind(exiting, oak.Runway, oak.Layout));
+    }
+
+    [Fact]
+    public void AlongTheAxisHeading_Moving_DoesNotFoul()
+    {
+        if (RunwayBarFixture.RunwayBar("KOAK", "33") is not { } oak)
+        {
+            return;
+        }
+
+        // 20° off the runway axis, turned toward the runway: a wingtip is past the marking, but the heading says neither
+        // approach nor leave (a parallel taxiway, a turn about), so only a stopped or restricted aircraft fouls.
+        AircraftState moving = AlongTheAxis(oak.Runway, oak.Bar, offAxisDeg: 20.0, groundSpeedKts: 12);
+        AircraftState stopped = AlongTheAxis(oak.Runway, oak.Bar, offAxisDeg: 20.0, groundSpeedKts: 0);
+
+        Assert.Null(Kind(moving, oak.Runway, oak.Layout));
+        Assert.Equal(RunwayUseKind.Fouling, Kind(stopped, oak.Runway, oak.Layout));
+    }
+
+    [Fact]
+    public void LineUpCleared_RollingPastTheLine_IsNotAUse()
+    {
+        if (RunwayBarFixture.RunwayBar("KOAK", "33") is not { } oak)
+        {
+            return;
+        }
+
+        // Cleared to line up (or for takeoff) while taxiing: the destination runway's hold-short at this bar is cleared.
+        AircraftState rolling = Placed(oak.Runway, oak.Bar, facingRunway: true, 20.0, 12, new TaxiingPhase());
+        rolling.Ground.AssignedTaxiRoute = new TaxiRoute
+        {
+            Segments = [],
+            HoldShortPoints =
+            [
+                new HoldShortPoint
+                {
+                    NodeId = oak.Bar.Id,
+                    Reason = HoldShortReason.DestinationRunway,
+                    TargetName = "33",
+                    IsCleared = true,
+                },
+            ],
+        };
+
+        Assert.False(RunwayOccupancy.IsOnPavement(rolling, oak.Runway));
+        Assert.Null(Kind(rolling, oak.Runway, oak.Layout));
+    }
+
+    [Fact]
+    public void ParallelTaxiwayB738PastAStubBar_NeverFouls()
+    {
+        TestVnasData.EnsureInitialized();
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("OAK");
+        if (layout is null)
+        {
+            return;
+        }
+
+        // Every KOAK stub bar: walk off the runway to the taxiway the stub meets, and stop a B738 on that taxiway's centreline,
+        // from the junction up to 300 ft either way along its own edges. Its wingtip may be within the bar's reach along the
+        // runway, but no part of it is over the stub's marking.
+        int placements = 0;
+        foreach (string designator in new[] { "28R", "28L", "30", "33" })
+        {
+            RunwayInfo runway = Assert.IsType<RunwayInfo>(NavigationDatabase.Instance.GetRunway("OAK", designator));
+            foreach (GroundNode bar in RunwayHoldBars.RunwayBars(layout, runway))
+            {
+                if (ParallelJunction(runway, bar) is not { } junction)
+                {
+                    continue;
+                }
+
+                foreach (IGroundEdge first in AxisEdges(runway, junction))
+                {
+                    foreach ((LatLon position, double headingDeg) in AlongParallel(runway, junction, first, maxFt: 300.0))
+                    {
+                        AircraftState onParallel = OnParallel(runway, position, headingDeg);
+                        placements++;
+                        Assert.True(
+                            Kind(onParallel, runway, layout) is null,
+                            $"B738 stopped on the parallel from node {junction.Id}, {RunwayHoldBars.CentrelineFt(runway, position):F0} ft off the centreline, fouls runway {designator} (bar {bar.Id})"
+                        );
+                    }
+                }
+            }
+        }
+
+        Assert.True(placements > 0, "no KOAK stub bar meets a parallel taxiway");
+    }
+
+    /// <summary>
+    /// Every runway hold-short bar of <paramref name="airport"/>'s runways with the bearing of each stub edge into it from the
+    /// taxiway side (its other end farther from the centreline than the bar), edges along the runway axis aside.
+    /// </summary>
+    private static IEnumerable<(RunwayInfo Runway, GroundNode Bar, double IntoDeg)> StubsInto(AirportGroundLayout layout, string airport)
+    {
+        foreach (RunwayInfo runway in RunwayOccupancy.AirportRunways(airport))
+        {
+            foreach (GroundNode bar in RunwayHoldBars.RunwayBars(layout, runway))
+            {
+                double barFt = RunwayHoldBars.CentrelineFt(runway, bar.Position);
+                IEnumerable<IGroundEdge> stubs = bar.Edges.Where(e => RunwayHoldBars.CentrelineFt(runway, OtherEnd(e, bar).Position) > barFt);
+                foreach (IGroundEdge stub in stubs.Except(AxisEdges(runway, bar)))
+                {
+                    yield return (runway, bar, GeoMath.BearingTo(OtherEnd(stub, bar).Position, bar.Position));
+                }
+            }
+        }
+    }
+
+    /// <summary>A stopped <paramref name="type"/> on the ground with its main gear at <paramref name="position"/>, in <paramref name="phase"/>.</summary>
+    private static AircraftState StoppedAt(RunwayInfo runway, string airport, string type, LatLon position, double headingDeg, Phase phase)
+    {
+        var heading = new TrueHeading(headingDeg);
+        AircraftState ac = new()
+        {
+            Callsign = "STUB1",
+            AircraftType = type,
+            Position = position,
+            TrueHeading = heading,
+            TrueTrack = heading,
+            Altitude = runway.ElevationFt,
+            IsOnGround = true,
+            AirportId = airport,
+        };
+        AttachPhase(ac, phase, runway);
+        return ac;
+    }
+
+    [Theory]
+    [InlineData("OAK")]
+    [InlineData("SFO")]
+    public void CorrectHoldAndExitStop_OnEveryStub_NeverFoul(string airport)
+    {
+        TestVnasData.EnsureInitialized();
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout(airport);
+        if (layout is null)
+        {
+            return;
+        }
+
+        // A hold short stops the nose at the bar, heading along the stub into it; an exit stops the tail at the bar, heading along
+        // the stub away from the runway. On a stub angled to the runway the wingtip on the runway side is nearer the centreline
+        // than the bar, but neither aircraft has a part beyond the marking that matters: the leading one is on it.
+        var fouls = new List<string>();
+        int placements = 0;
+        foreach ((RunwayInfo runway, GroundNode bar, double intoDeg) in StubsInto(layout, airport))
+        {
+            var into = new TrueHeading(intoDeg);
+            foreach (string type in new[] { "B738", "C172" })
+            {
+                double halfFt = AircraftBody.Of(type).LengthFt / 2.0;
+                var holdShort = new HoldShortPoint
+                {
+                    NodeId = bar.Id,
+                    Reason = HoldShortReason.RunwayCrossing,
+                    TargetName = runway.Designator,
+                };
+                AircraftState holding = StoppedAt(
+                    runway,
+                    airport,
+                    type,
+                    Project(bar.Position, into, -halfFt),
+                    intoDeg,
+                    new HoldingShortPhase(holdShort)
+                );
+                var exitStop = new HoldingAfterExitPhase(runway.Designator, exitTaxiway: null, bar.Id);
+                AircraftState exited = StoppedAt(runway, airport, type, Project(bar.Position, into, -halfFt), into.ToReciprocal().Degrees, exitStop);
+                placements += 2;
+                foreach ((string pose, AircraftState ac) in new[] { ("holding short", holding), ("stopped after exit", exited) })
+                {
+                    if (Kind(ac, runway, layout) is { } kind)
+                    {
+                        fouls.Add($"{type} {pose} at bar {bar.Id} of {runway.Designator}, heading {ac.TrueHeading.Degrees:F0}: {kind}");
+                    }
+                }
+            }
+        }
+
+        Assert.True(placements > 0, $"no {airport} runway bar has a stub");
+        Assert.True(fouls.Count == 0, string.Join(Environment.NewLine, fouls));
+    }
+
+    /// <summary>
+    /// A stub at KSFO leaving <c>First</c> for a bar of <c>Next</c>, where a <paramref name="type"/> stopped with its nose at that
+    /// bar (AIM 2-3-5.a.1) still has its tail at least 10 ft inside <c>First</c>'s marking, while centred on the bar every part of
+    /// it is outside that marking: the half fuselage decides. Null when KSFO has no such stub. (KOAK has none: no stub joins two of
+    /// its runways' markings within 400 ft.)
+    /// </summary>
+    private static (RunwayInfo First, RunwayInfo Next, GroundNode From, GroundNode Bar)? StopBetweenTwoMarkings(
+        AirportGroundLayout layout,
+        string type
+    )
+    {
+        var body = AircraftBody.Of(type);
+        IReadOnlyList<RunwayInfo> runways = RunwayOccupancy.AirportRunways("SFO");
+        foreach (RunwayInfo first in runways)
+        {
+            foreach (RunwayInfo next in runways.Where(r => !r.Id.Overlaps(first.Id)))
+            {
+                foreach (GroundNode bar in RunwayHoldBars.RunwayBars(layout, next))
+                {
+                    foreach (IGroundEdge edge in bar.Edges)
+                    {
+                        GroundNode from = OtherEnd(edge, bar);
+                        var heading = new TrueHeading(GeoMath.BearingTo(from.Position, bar.Position));
+                        bool leavingFirst =
+                            (RunwayHoldBars.CentrelineFt(first, bar.Position) > RunwayHoldBars.CentrelineFt(first, from.Position))
+                            && (AxisDeviationDeg(heading.Degrees, first) > RunwayOccupancy.DirectionlessAxisToleranceDeg);
+                        bool tailInside = RunwayHoldBars.IsInsideBarLine(layout, first, Project(bar.Position, heading, -(body.LengthFt - 20.0)));
+                        bool centredClear = AircraftBody.AllParts.All(part =>
+                            !RunwayHoldBars.IsInsideBarLine(layout, first, body.PointOf(part, bar.Position, heading.Degrees))
+                        );
+                        if (leavingFirst && tailInside && centredClear)
+                        {
+                            return (first, next, from, bar);
+                        }
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Two bars of one runway on one side within <see cref="HoldLineFootprint.MarkedBarReachFt"/> of each other along it, at KOAK
+    /// or KSFO: an aircraft square to the marking at <c>At</c>, its nose past it, is nearer <c>At</c> than <c>Other</c>.
+    /// </summary>
+    private static (AirportGroundLayout Layout, RunwayInfo Runway, GroundNode At, GroundNode Other)? TwoCloseBars()
+    {
+        foreach (string airport in new[] { "OAK", "SFO" })
+        {
+            if (new TestAirportGroundData().GetLayout(airport) is not { } layout)
+            {
+                continue;
+            }
+
+            foreach (RunwayInfo runway in RunwayOccupancy.AirportRunways(airport))
+            {
+                var end1 = new LatLon(runway.Lat1, runway.Lon1);
+                var end2 = new LatLon(runway.Lat2, runway.Lon2);
+                GroundNode[] abeam =
+                [
+                    .. RunwayHoldBars.RunwayBars(layout, runway).Where(b => !GeoMath.FootOfPerpendicular(b.Position, end1, end2).Clamped),
+                ];
+                foreach (GroundNode at in abeam)
+                {
+                    AircraftState placed = SquareToTheMarking(runway, at, "B738", facingRunway: true, 20.0, alongFt: 0);
+                    bool right = RunwayHoldBars.IsRightOfCentreline(runway, at.Position);
+                    GroundNode[] sameSide = [.. abeam.Where(b => RunwayHoldBars.IsRightOfCentreline(runway, b.Position) == right)];
+                    GroundNode nearest = sameSide.MinBy(b => GeoMath.DistanceNm(b.Position, placed.Position))!;
+                    GroundNode? other = sameSide.FirstOrDefault(b =>
+                        (b.Id != at.Id)
+                        && (
+                            (Math.Abs(GeoMath.AlongTrackDistanceNm(b.Position, at.Position, runway.TrueHeading)) * GeoMath.FeetPerNm)
+                            <= HoldLineFootprint.MarkedBarReachFt
+                        )
+                    );
+                    if ((nearest.Id == at.Id) && (other is not null))
+                    {
+                        return (layout, runway, at, other);
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+
+    [Fact]
+    public void CrossingClearedThroughTheOtherOfTwoCloseBars_Moving_IsNotAUse()
+    {
+        TestVnasData.EnsureInitialized();
+        if (new TestAirportGroundData().GetLayout("OAK") is null)
+        {
+            return;
+        }
+
+        (AirportGroundLayout Layout, RunwayInfo Runway, GroundNode At, GroundNode Other) pair = Assert.IsType<(
+            AirportGroundLayout,
+            RunwayInfo,
+            GroundNode,
+            GroundNode
+        )>(TwoCloseBars());
+
+        // Cleared through one bar of a wide junction while its centre is nearest the other: the clearance covers the marking.
+        AircraftState crossing = Placed(pair.Runway, pair.At, facingRunway: true, 20.0, 12, new TaxiingPhase());
+        crossing.Ground.AssignedTaxiRoute = new TaxiRoute
+        {
+            Segments = [],
+            HoldShortPoints =
+            [
+                new HoldShortPoint
+                {
+                    NodeId = pair.Other.Id,
+                    Reason = HoldShortReason.RunwayCrossing,
+                    TargetName = pair.Runway.Designator,
+                    IsCleared = true,
+                },
+            ],
+        };
+
+        Assert.False(RunwayOccupancy.IsOnPavement(crossing, pair.Runway));
+        Assert.Null(Kind(crossing, pair.Runway, pair.Layout));
+    }
+
+    [Fact]
+    public void NosePastTheMarking_MovingUncleared_Fouls()
+    {
+        if (RunwayBarFixture.RunwayBar("KOAK", "33") is not { } oak)
+        {
+            return;
+        }
+
+        // Taxiing into the runway with no clearance past the marking and nothing stopping it yet: its nose is over the line.
+        AircraftState taxiing = Placed(oak.Runway, oak.Bar, facingRunway: true, 20.0, 8, new TaxiingPhase());
+
+        Assert.False(RunwayOccupancy.IsOnPavement(taxiing, oak.Runway));
+        Assert.Equal(RunwayUseKind.Fouling, Kind(taxiing, oak.Runway, oak.Layout));
+    }
+
+    /// <summary>
+    /// A KOAK runway, one of its bars, and a node just beyond it on the taxiway side where a <paramref name="type"/> whose route ends
+    /// there, its main gear on the node and facing away from the runway, still has its tail at least 10 ft inside the marking.
+    /// </summary>
+    private static (AirportGroundLayout Layout, RunwayInfo Runway, GroundNode Bar, GroundNode End)? RouteEndJustPastABar(string type)
+    {
+        if (new TestAirportGroundData().GetLayout("OAK") is not { } layout)
+        {
+            return null;
+        }
+
+        double halfFt = AircraftBody.Of(type).LengthFt / 2.0;
+        foreach ((RunwayInfo runway, GroundNode bar, double intoDeg) in StubsInto(layout, "OAK"))
+        {
+            GroundNode end = bar
+                .Edges.Select(e => OtherEnd(e, bar))
+                .First(n => GeoMath.AbsBearingDifference(GeoMath.BearingTo(n.Position, bar.Position), intoDeg) < 1.0);
+            var away = new TrueHeading(GeoMath.BearingTo(bar.Position, end.Position));
+            bool tailInside = RunwayHoldBars.IsInsideBarLine(layout, runway, Project(end.Position, away, -(halfFt - 10.0)));
+            if (tailInside && (end.Type != GroundNodeType.RunwayHoldShort))
+            {
+                return (layout, runway, bar, end);
+            }
+        }
+
+        return null;
+    }
+
+    [Fact]
+    public void ExitingArrival_RouteEndingWithTheTailInside_Moving_Fouls()
+    {
+        TestVnasData.EnsureInitialized();
+        if (new TestAirportGroundData().GetLayout("OAK") is null)
+        {
+            return;
+        }
+
+        // Its taxi route ends a few feet past the bar: moving now, it will stop there with its tail inside the marking.
+        const string type = "B744";
+        (AirportGroundLayout Layout, RunwayInfo Runway, GroundNode Bar, GroundNode End) exit = Assert.IsType<(
+            AirportGroundLayout,
+            RunwayInfo,
+            GroundNode,
+            GroundNode
+        )>(RouteEndJustPastABar(type));
+        double awayDeg = GeoMath.BearingTo(exit.Bar.Position, exit.End.Position);
+        double halfFt = AircraftBody.Of(type).LengthFt / 2.0;
+        LatLon position = Project(exit.Bar.Position, new TrueHeading(awayDeg), halfFt - 20.0);
+        AircraftState exiting = StoppedAt(exit.Runway, "OAK", type, position, awayDeg, ExitOffTheCentreline(exit.Runway));
+        exiting.IndicatedAirspeed = 10;
+        Assert.Null(Kind(exiting, exit.Runway, exit.Layout));
+
+        exiting.Ground.AssignedTaxiRoute = new TaxiRoute
+        {
+            Segments =
+            [
+                new TaxiRouteSegment
+                {
+                    Edge = new DirectionalEdge
+                    {
+                        Edge = exit.Bar.Edges.First(e => OtherEnd(e, exit.Bar).Id == exit.End.Id),
+                        FromNode = exit.Bar,
+                        ToNode = exit.End,
+                    },
+                    TaxiwayName = "EXIT",
+                },
+            ],
+            HoldShortPoints = [],
+        };
+
+        Assert.False(RunwayOccupancy.IsOnPavement(exiting, exit.Runway));
+        Assert.Equal(RunwayUseKind.Fouling, Kind(exiting, exit.Runway, exit.Layout));
+    }
+
+    [Fact]
+    public void CrosserCleared_PastTheNearSideLine_UnderGiveWay_IsNotAUse()
+    {
+        if (RunwayBarFixture.RunwayBar("KOAK", "33") is not { } oak)
+        {
+            return;
+        }
+
+        // A GIVEWAY does not stop a runway crossing: it runs on until the tail is past the far marking.
+        AircraftState crossing = NearSideCrosser(oak.Layout, oak.Runway, oak.Bar, groundSpeedKts: 12);
+        crossing.Ground.Hold = HoldDirective.GiveWay("N2GW");
+
+        Assert.Null(Kind(crossing, oak.Runway, oak.Layout));
+    }
+
+    [Fact]
+    public void LayoutOfAnotherAirport_NeverFouls()
+    {
+        if ((RunwayBarFixture.RunwayBar("KOAK", "28L") is not { } oak) || (NavigationDatabase.Instance.GetRunway("HWD", "28L") is not { } hayward))
+        {
+            return;
+        }
+
+        // Designators repeat across airports: OAK's 28L bars say nothing about HWD's 28L, wherever the aircraft stands.
+        foreach (GroundNode bar in RunwayHoldBars.RunwayBars(oak.Layout, oak.Runway))
+        {
+            AircraftState stopped = Placed(oak.Runway, bar, facingRunway: true, 30.0, 0, new TaxiingPhase());
+            AttachPhase(stopped, new TaxiingPhase(), hayward);
+
+            Assert.Equal(RunwayUseKind.Fouling, Kind(stopped, oak.Runway, oak.Layout));
+            Assert.True(Kind(stopped, hayward, oak.Layout) is null, $"stopped past OAK 28L bar {bar.Id}, it fouls HWD 28L");
+        }
+    }
+
+    [Fact]
+    public void RouteStopAtTheNextRunwaysBar_TailInsideTheFirst_Fouls()
+    {
+        TestVnasData.EnsureInitialized();
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("SFO");
+        if (layout is null)
+        {
+            return;
+        }
+
+        // Leaving one runway toward an uncleared hold short of the next: the navigator stops the nose at the next runway's bar, so a
+        // long type's tail is a whole fuselage back from it, still inside the first runway's marking.
+        const string type = "B744";
+        (RunwayInfo First, RunwayInfo Next, GroundNode From, GroundNode Bar) stub = Assert.IsType<(
+            RunwayInfo First,
+            RunwayInfo Next,
+            GroundNode From,
+            GroundNode Bar
+        )>(StopBetweenTwoMarkings(layout, type));
+        double headingDeg = GeoMath.BearingTo(stub.From.Position, stub.Bar.Position);
+        double halfFt = AircraftBody.Of(type).LengthFt / 2.0;
+        AircraftState leaving = StoppedAt(
+            stub.First,
+            "SFO",
+            type,
+            Project(stub.Bar.Position, new TrueHeading(headingDeg), -(halfFt + 10.0)),
+            headingDeg,
+            new TaxiingPhase()
+        );
+        leaving.IndicatedAirspeed = 10;
+        leaving.Ground.AssignedTaxiRoute = new TaxiRoute
+        {
+            Segments =
+            [
+                new TaxiRouteSegment
+                {
+                    Edge = new DirectionalEdge
+                    {
+                        Edge = stub.Bar.Edges.First(e => OtherEnd(e, stub.Bar).Id == stub.From.Id),
+                        FromNode = stub.From,
+                        ToNode = stub.Bar,
+                    },
+                    TaxiwayName = "STUB",
+                },
+            ],
+            HoldShortPoints =
+            [
+                new HoldShortPoint
+                {
+                    NodeId = stub.Bar.Id,
+                    Reason = HoldShortReason.RunwayCrossing,
+                    TargetName = stub.Next.Designator,
+                    Latitude = stub.Bar.Position.Lat,
+                    Longitude = stub.Bar.Position.Lon,
+                },
+            ],
+        };
+
+        Assert.False(RunwayOccupancy.IsOnPavement(leaving, stub.First));
+        Assert.Equal(RunwayUseKind.Fouling, Kind(leaving, stub.First, layout));
+    }
+
+    [Fact]
+    public void ExitingArrival_TailInside_YieldingToTraffic_Fouls()
+    {
+        if (RunwayBarFixture.RunwayBar("KOAK", "33") is not { } oak)
+        {
+            return;
+        }
+
+        AircraftState exiting = ExitingArrival(oak.Runway, oak.Bar, tailPastFt: 20.0, groundSpeedKts: 10);
+        exiting.Ground.SpeedLimit = 0.0;
+        exiting.Ground.AutoYieldTarget = "N2YD";
+
+        Assert.Equal(RunwayUseKind.Fouling, Kind(exiting, oak.Runway, oak.Layout));
+    }
+
+    [Fact]
+    public void ExitingArrival_TailPastTheMarking_Stopped_IsClear()
+    {
+        if (RunwayBarFixture.RunwayBar("KOAK", "33") is not { } oak)
+        {
+            return;
+        }
+
+        AircraftState exiting = ExitingArrival(oak.Runway, oak.Bar, tailPastFt: -20.0, groundSpeedKts: 0);
+
+        Assert.Null(Kind(exiting, oak.Runway, oak.Layout));
+    }
+
+    /// <summary>A bar of <paramref name="runway"/> on the side opposite <paramref name="bar"/>: a crossing's far-side bar.</summary>
+    public static GroundNode FarSideBar(AirportGroundLayout layout, RunwayInfo runway, GroundNode bar)
+    {
+        bool right = RunwayHoldBars.IsRightOfCentreline(runway, bar.Position);
+        return RunwayHoldBars.RunwayBars(layout, runway).First(b => RunwayHoldBars.IsRightOfCentreline(runway, b.Position) != right);
+    }
+
+    private static AircraftState NearSideCrosser(AirportGroundLayout layout, RunwayInfo runway, GroundNode bar, double groundSpeedKts) =>
+        Placed(runway, bar, facingRunway: true, 20.0, groundSpeedKts, new CrossingRunwayPhase(bar.Id, FarSideBar(layout, runway, bar).Id, "33"));
+
+    [Fact]
+    public void CrosserCleared_PastTheNearSideLine_Moving_IsNotAUse()
+    {
+        if (RunwayBarFixture.RunwayBar("KOAK", "33") is not { } oak)
+        {
+            return;
+        }
+
+        AircraftState crossing = NearSideCrosser(oak.Layout, oak.Runway, oak.Bar, groundSpeedKts: 12);
+
+        Assert.False(RunwayOccupancy.IsOnPavement(crossing, oak.Runway));
+        Assert.Null(Kind(crossing, oak.Runway, oak.Layout));
+    }
+
+    [Fact]
+    public void CrosserCleared_PastTheNearSideLine_Held_Fouls()
+    {
+        if (RunwayBarFixture.RunwayBar("KOAK", "33") is not { } oak)
+        {
+            return;
+        }
+
+        AircraftState crossing = NearSideCrosser(oak.Layout, oak.Runway, oak.Bar, groundSpeedKts: 12);
+        crossing.Ground.Hold = HoldDirective.HoldPosition;
+
+        Assert.False(RunwayOccupancy.IsOnPavement(crossing, oak.Runway));
+        Assert.Equal(RunwayUseKind.Fouling, Kind(crossing, oak.Runway, oak.Layout));
+    }
+
+    [Fact]
+    public void Shadow_PastTheLine_NeverFouls()
+    {
+        if (RunwayBarFixture.RunwayBar("KOAK", "33") is not { } oak)
+        {
+            return;
+        }
+
+        AircraftState phaseless = Placed(oak.Runway, oak.Bar, facingRunway: true, 30.0, 0, phase: null);
+        phaseless.Phases = null;
+
+        Assert.Null(Kind(phaseless, oak.Runway, oak.Layout));
+        Assert.Null(RunwayOccupancy.ClassifyByGeometry(phaseless, oak.Runway, oak.Layout));
+    }
+
+    [Fact]
+    public void NullLayout_NeverFouls()
+    {
+        if (RunwayBarFixture.RunwayBar("KOAK", "33") is not { } oak)
+        {
+            return;
+        }
+
+        AircraftState stopped = Placed(oak.Runway, oak.Bar, facingRunway: true, 30.0, 0, new TaxiingPhase());
+
+        Assert.Null(Kind(stopped, oak.Runway, layout: null));
+        Assert.Equal(RunwayUseKind.Fouling, Kind(stopped, oak.Runway, oak.Layout));
     }
 
     // --- Distance / time helpers ---------------------------------------------------------------

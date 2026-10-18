@@ -17,26 +17,82 @@ public static class RunwayHoldBars
     /// </summary>
     private static readonly ConditionalWeakTable<AirportGroundLayout, RunwayBarIndex> BarIndexes = [];
 
-    /// <summary>A layout's runway hold-short bar nodes with a runway, and those of each runway asked for so far, by its identifier.</summary>
+    /// <summary>
+    /// A layout's runway hold-short bar nodes with a runway, and those of each runway asked for so far with the side of its
+    /// centreline each lies on, by the runway's airport and identifier.
+    /// </summary>
     private sealed class RunwayBarIndex(GroundNode[] bars)
     {
-        private readonly ConcurrentDictionary<RunwayIdentifier, GroundNode[]> _byRunway = new();
+        private readonly ConcurrentDictionary<(string AirportId, RunwayIdentifier Id), RunwayBarSides> _byRunway = new();
 
         public static RunwayBarIndex For(AirportGroundLayout layout) =>
             new([.. layout.Nodes.Values.Where(n => (n.Type == GroundNodeType.RunwayHoldShort) && (n.RunwayId is not null))]);
 
-        public GroundNode[] Of(RunwayInfo runway) =>
-            _byRunway.TryGetValue(runway.Id, out GroundNode[]? known) ? known : _byRunway.GetOrAdd(runway.Id, Filter(runway.Id));
+        public RunwayBarSides Of(RunwayInfo runway) =>
+            _byRunway.TryGetValue((runway.AirportId, runway.Id), out RunwayBarSides? known)
+                ? known
+                : _byRunway.GetOrAdd((runway.AirportId, runway.Id), Filter(runway));
 
-        private GroundNode[] Filter(RunwayIdentifier id) => [.. bars.Where(n => (n.RunwayId is { } barRunway) && barRunway.Overlaps(id))];
+        private RunwayBarSides Filter(RunwayInfo runway)
+        {
+            GroundNode[] own = [.. bars.Where(n => (n.RunwayId is { } barRunway) && barRunway.Overlaps(runway.Id))];
+            return new RunwayBarSides(own, [.. own.Select(bar => IsRightOfCentreline(runway, bar.Position))]);
+        }
     }
+
+    /// <summary>A runway's bar nodes and, for each, whether it lies right of the centreline (end 1 to end 2).</summary>
+    /// <param name="Bars">The bar nodes.</param>
+    /// <param name="IsRight">For each bar, in order, true right of the centreline.</param>
+    private sealed record RunwayBarSides(GroundNode[] Bars, bool[] IsRight);
 
     /// <summary>The runway hold-short bar nodes of <paramref name="runway"/>.</summary>
     /// <param name="layout">The airport's ground layout.</param>
     /// <param name="runway">The runway.</param>
     /// <returns>Its bar nodes, either side of the centreline.</returns>
-    public static GroundNode[] RunwayBars(AirportGroundLayout layout, RunwayInfo runway) =>
+    public static GroundNode[] RunwayBars(AirportGroundLayout layout, RunwayInfo runway) => SidesOf(layout, runway).Bars;
+
+    private static RunwayBarSides SidesOf(AirportGroundLayout layout, RunwayInfo runway) =>
         BarIndexes.GetValue(layout, RunwayBarIndex.For).Of(runway);
+
+    /// <summary>The runway hold-short bar nodes of <paramref name="runway"/> on <paramref name="point"/>'s side of its centreline.</summary>
+    /// <param name="layout">The airport's ground layout.</param>
+    /// <param name="runway">The runway.</param>
+    /// <param name="point">The point.</param>
+    /// <returns>Its bar nodes on that side, in the layout's order.</returns>
+    public static IEnumerable<GroundNode> SameSideBars(AirportGroundLayout layout, RunwayInfo runway, LatLon point)
+    {
+        RunwayBarSides sides = SidesOf(layout, runway);
+        bool right = IsRightOfCentreline(runway, point);
+        for (int i = 0; i < sides.Bars.Length; i++)
+        {
+            if (sides.IsRight[i] == right)
+            {
+                yield return sides.Bars[i];
+            }
+        }
+    }
+
+    /// <summary>The nearest of <paramref name="runway"/>'s bars on <paramref name="point"/>'s side of its centreline.</summary>
+    /// <param name="layout">The airport's ground layout.</param>
+    /// <param name="runway">The runway.</param>
+    /// <param name="point">The point.</param>
+    /// <returns>The bar, the first in the layout's order on a tie; null when that side has no bar.</returns>
+    public static GroundNode? NearestSameSideBar(AirportGroundLayout layout, RunwayInfo runway, LatLon point)
+    {
+        GroundNode? nearest = null;
+        double nearestNm = double.MaxValue;
+        foreach (GroundNode bar in SameSideBars(layout, runway, point))
+        {
+            double distanceNm = GeoMath.DistanceNm(bar.Position, point);
+            if (distanceNm < nearestNm)
+            {
+                nearest = bar;
+                nearestNm = distanceNm;
+            }
+        }
+
+        return nearest;
+    }
 
     /// <summary>How far (ft) <paramref name="point"/> lies from <paramref name="runway"/>'s centreline, between its ends.</summary>
     /// <param name="runway">The runway.</param>
@@ -64,21 +120,6 @@ public static class RunwayHoldBars
     /// <param name="runway">The runway.</param>
     /// <param name="point">The point.</param>
     /// <returns>True inside the bars' line.</returns>
-    public static bool IsInsideBarLine(AirportGroundLayout layout, RunwayInfo runway, LatLon point)
-    {
-        bool right = IsRightOfCentreline(runway, point);
-        GroundNode? nearest = null;
-        double nearestNm = double.MaxValue;
-        foreach (GroundNode bar in RunwayBars(layout, runway))
-        {
-            double distanceNm = GeoMath.DistanceNm(bar.Position, point);
-            if ((IsRightOfCentreline(runway, bar.Position) == right) && (distanceNm < nearestNm))
-            {
-                nearest = bar;
-                nearestNm = distanceNm;
-            }
-        }
-
-        return (nearest is not null) && (CentrelineFt(runway, point) < CentrelineFt(runway, nearest.Position));
-    }
+    public static bool IsInsideBarLine(AirportGroundLayout layout, RunwayInfo runway, LatLon point) =>
+        (NearestSameSideBar(layout, runway, point) is { } nearest) && (CentrelineFt(runway, point) < CentrelineFt(runway, nearest.Position));
 }

@@ -1,10 +1,12 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
+using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.LiveTraffic;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
+using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Tests;
@@ -128,6 +130,410 @@ public class OccupiedRunwayGoAroundTests
 
         Assert.True(GoesAround(arrival, occupant, setting: true));
         Assert.Contains(arrival.PendingWarnings, w => w.Contains("going around, traffic on the runway", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// An arrival about 16 s out on a KOAK runway's final (a B738 at 130 kt 0.6 nm, a C172 at 70 kt 0.3 nm), inside the decision
+    /// window, with the ground layout in its context.
+    /// </summary>
+    private static bool GoesAroundAtOak(
+        RunwayInfo runway,
+        AirportGroundLayout layout,
+        AircraftState occupant,
+        string arrivalType,
+        out AircraftState arrival
+    )
+    {
+        bool piston = arrivalType == "C172";
+        arrival = new AircraftState
+        {
+            Callsign = "ARR1",
+            AircraftType = arrivalType,
+            Position = GeoMath.ProjectPoint(
+                new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude),
+                runway.TrueHeading.ToReciprocal(),
+                piston ? 0.3 : 0.6
+            ),
+            TrueHeading = runway.TrueHeading,
+            TrueTrack = runway.TrueHeading,
+            Altitude = runway.ElevationFt + 200,
+            IndicatedAirspeed = piston ? 70 : 130,
+            VerticalSpeed = -600,
+            IsOnGround = false,
+            FlightPlan = new AircraftFlightPlan { Departure = "KOAK", Destination = "KOAK" },
+            Phases = new PhaseList { AssignedRunway = runway },
+        };
+        arrival.Phases.Add(new FinalApproachPhase { SkipInterceptCheck = true });
+        AircraftState self = arrival;
+        var ctx = new PhaseContext
+        {
+            Aircraft = arrival,
+            Targets = arrival.Targets,
+            Category = AircraftCategorization.Categorize(arrival.AircraftType),
+            DeltaSeconds = 1.0,
+            Runway = runway,
+            FieldElevation = runway.ElevationFt,
+            GroundLayout = layout,
+            Logger = NullLogger.Instance,
+            AutoClearedToLand = true,
+            AutoGoAroundOnOccupiedRunway = true,
+            ListAircraft = () => [self, occupant],
+        };
+        arrival.Phases.Start(ctx);
+        arrival.Phases.CurrentPhase!.OnTick(ctx);
+        return arrival.Phases.CurrentPhase is GoAroundPhase;
+    }
+
+    /// <summary>A B738 held on a taxi with its nose <paramref name="nosePastFt"/> past runway 33's holding position marking.</summary>
+    private static AircraftState HeldFouler(RunwayInfo runway, GroundNode bar, double nosePastFt)
+    {
+        AircraftState fouler = RunwayOccupancyTests.SquareToTheMarking(runway, bar, "B738", facingRunway: true, nosePastFt, alongFt: 0);
+        fouler.Phases = new PhaseList();
+        fouler.Phases.Add(new TaxiingPhase());
+        fouler.Phases.CurrentPhase!.Status = PhaseStatus.Active;
+        fouler.Ground.Hold = HoldDirective.HoldPosition;
+        return fouler;
+    }
+
+    [Fact]
+    public void FoulerInsideTheEdgeBand_GoesAround()
+    {
+        if (RunwayBarFixture.RunwayBar("OAK", "33") is not { } oak)
+        {
+            return;
+        }
+
+        // The issue's B738, 150 ft past the 175 ft line of the 75 ft runway: its nose is 25 ft from the centreline, inside the
+        // runway safety area's half-width, and a pilot on short final sees it in the landing corridor.
+        AircraftState fouler = HeldFouler(oak.Runway, oak.Bar, nosePastFt: 150.0);
+
+        Assert.Equal(RunwayUseKind.Fouling, RunwayOccupancy.Classify(fouler, oak.Runway, oak.Layout)?.Kind);
+        Assert.True(GoesAroundAtOak(oak.Runway, oak.Layout, fouler, "B738", out AircraftState arrival));
+        Assert.Contains(arrival.PendingWarnings, w => w.Contains($"{fouler.Callsign} on 33 (past the hold line, ", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void FoulerOutsideTheEdgeBand_NoGoAround()
+    {
+        if (RunwayBarFixture.RunwayBar("OAK", "33") is not { } oak)
+        {
+            return;
+        }
+
+        // A nose 10 ft over the line is a hold-line overrun for the controller's advisory, not traffic the pilot goes around for.
+        AircraftState fouler = HeldFouler(oak.Runway, oak.Bar, nosePastFt: 10.0);
+
+        Assert.Equal(RunwayUseKind.Fouling, RunwayOccupancy.Classify(fouler, oak.Runway, oak.Layout)?.Kind);
+        Assert.False(GoesAroundAtOak(oak.Runway, oak.Layout, fouler, "B738", out _));
+    }
+
+    [Fact]
+    public void HeldAfterExit_TailInside_KeepsTheLandmarkException()
+    {
+        if (RunwayBarFixture.RunwayBar("OAK", "28L") is not { } oak)
+        {
+            return;
+        }
+
+        // A landed C172 held after its exit with its tail 140 ft from the centreline (inside the marking and the edge band), on
+        // a bar that is short of 3,000 ft from one landing threshold and beyond it from the other. Behind it a C172 arrival goes
+        // around from the near end and lands from the far one (3-10-3.a.1: Category I behind Category I, 3,000 ft).
+        double barFt = RunwayHoldBars.CentrelineFt(oak.Runway, oak.Bar.Position);
+        AircraftState held = RunwayOccupancyTests.SquareToTheMarking(oak.Runway, oak.Bar, "C172", facingRunway: false, barFt - 140.0, alongFt: 0);
+        held.Phases = new PhaseList { AssignedRunway = oak.Runway };
+        held.Phases.Add(new HoldingAfterExitPhase(oak.Runway.Designator, exitTaxiway: null, oak.Bar.Id));
+        held.Phases.CurrentPhase!.Status = PhaseStatus.Active;
+        held.Ground.Hold = HoldDirective.HoldPosition;
+
+        RunwayInfo[] ends = [oak.Runway, Assert.IsType<RunwayInfo>(NavigationDatabase.Instance.GetRunway("OAK", "10R"))];
+        double DownfieldFt(RunwayInfo end) =>
+            GeoMath.AlongTrackDistanceNm(held.Position, LandingThreshold.Resolve(end, oak.Layout), end.TrueHeading) * GeoMath.FeetPerNm;
+        RunwayInfo near = ends.First(e => DownfieldFt(e) < 2800.0);
+        RunwayInfo far = ends.First(e => DownfieldFt(e) > 3200.0);
+
+        Assert.Equal(RunwayUseKind.Fouling, RunwayOccupancy.Classify(held, far, oak.Layout)?.Kind);
+        Assert.True(GoesAroundAtOak(near, oak.Layout, held, "C172", out _));
+        Assert.False(GoesAroundAtOak(far, oak.Layout, held, "C172", out _));
+    }
+
+    [Fact]
+    public void RestrictedExitingFouler_IsNeverProjectedClear()
+    {
+        if (RunwayBarFixture.RunwayBar("OAK", "33") is not { } oak)
+        {
+            return;
+        }
+
+        // A landed B738 on its exit with its tail 60 ft from the centreline, held while still rolling: its exit plan alone would
+        // read it clear before the arrival's threshold, but the hold keeps its tail inside the marking (3-10-6.a).
+        double barFt = RunwayHoldBars.CentrelineFt(oak.Runway, oak.Bar.Position);
+        AircraftState exiting = RunwayOccupancyTests.SquareToTheMarking(oak.Runway, oak.Bar, "B738", facingRunway: false, barFt - 60.0, alongFt: 0);
+        exiting.IndicatedAirspeed = 10;
+        exiting.Phases = new PhaseList { AssignedRunway = oak.Runway };
+        exiting.Phases.Add(
+            RunwayExitPhase.FromSnapshot(
+                new RunwayExitPhaseDto
+                {
+                    Status = (int)PhaseStatus.Active,
+                    ElapsedSeconds = 20,
+                    ExitNodeId = oak.Bar.Id,
+                    ReachedExitNode = false,
+                    ExitSpeed = 10,
+                    TimeSinceLastLog = 0,
+                    RunwayHeadingDeg = oak.Runway.TrueHeading.Degrees,
+                    ExitStateValue = (int)RunwayExitPhase.ExitState.FollowingExitPath,
+                },
+                oak.Layout
+            )
+        );
+        exiting.Phases.CurrentPhase!.Status = PhaseStatus.Active;
+        exiting.Ground.Hold = HoldDirective.HoldPosition;
+
+        Assert.Equal(RunwayUseKind.Fouling, RunwayOccupancy.Classify(exiting, oak.Runway, oak.Layout)?.Kind);
+        Assert.True(GoesAroundAtOak(oak.Runway, oak.Layout, exiting, "B738", out AircraftState arrival));
+        Assert.Contains(arrival.PendingWarnings, w => w.Contains("(landing rollout, ", StringComparison.Ordinal));
+    }
+
+    /// <summary>A B738 crossing runway 33 at 15 kt with its nose 20 ft past the centreline, its centre still on the near half.</summary>
+    private static AircraftState MidCrossing(AirportGroundLayout layout, RunwayInfo runway, GroundNode bar)
+    {
+        double barFt = RunwayHoldBars.CentrelineFt(runway, bar.Position);
+        AircraftState crossing = RunwayOccupancyTests.SquareToTheMarking(runway, bar, "B738", facingRunway: true, barFt + 20.0, alongFt: 0);
+        crossing.IndicatedAirspeed = 15;
+        crossing.Targets.TargetSpeed = 15;
+        crossing.Phases = new PhaseList();
+        crossing.Phases.Add(new CrossingRunwayPhase(bar.Id, RunwayOccupancyTests.FarSideBar(layout, runway, bar).Id, runway.Designator));
+        crossing.Phases.CurrentPhase!.Status = PhaseStatus.Active;
+        return crossing;
+    }
+
+    [Fact]
+    public void MovingCrossing_ClearBeforeThreshold_NoGoAround()
+    {
+        if (RunwayBarFixture.RunwayBar("OAK", "33") is not { } oak)
+        {
+            return;
+        }
+
+        // About 180 ft to tail-clear of the far pavement edge at 15 kt: 7 s, against 16 s to the threshold (3-7-2.g.2(a)).
+        AircraftState crossing = MidCrossing(oak.Layout, oak.Runway, oak.Bar);
+
+        Assert.Equal(RunwayUseKind.Crossing, RunwayOccupancy.Classify(crossing, oak.Runway, oak.Layout)?.Kind);
+        Assert.False(GoesAroundAtOak(oak.Runway, oak.Layout, crossing, "B738", out _));
+    }
+
+    [Fact]
+    public void CrossingFarBar_LayoutOfAnotherAirport_IsNotAFarBar()
+    {
+        if ((RunwayBarFixture.RunwayBar("MIA", "12") is not { } mia) || (new TestAirportGroundData().GetLayout("OAK") is not { } oak))
+        {
+            return;
+        }
+
+        // Real layouts: a crossing on MIA's 12/30 pavement, judged with OAK's layout. OAK's hold-short bars say nothing about MIA's
+        // runway, so the crossing is refused by the generic branch ("crossing the runway, N ft down") instead of the crossing
+        // projection's answer, which would read it clear and let the arrival land. OAK's node with the same numeric id as MIA's far
+        // bar is itself a 12/30 hold-short bar, which is what makes this guard observable on real data.
+        AircraftState crossing = MidCrossing(mia.Layout, mia.Runway, mia.Bar);
+        AircraftState arrival = Arrival("B738", 0.6, 150);
+
+        Assert.Equal(RunwayUseKind.Crossing, RunwayOccupancy.Classify(crossing, mia.Runway, mia.Layout)?.Kind);
+        OccupiedRunwayGoAround.BlockingOccupant? blocker = OccupiedRunwayGoAround.FindBlockingOccupant(
+            [crossing],
+            arrival,
+            mia.Runway,
+            oak,
+            secondsToThreshold: 16.0
+        );
+
+        Assert.NotNull(blocker);
+        Assert.Contains("crossing the runway", blocker.Reason, StringComparison.Ordinal);
+        Assert.Contains(" ft down", blocker.Reason, StringComparison.Ordinal);
+        Assert.DoesNotContain("not clear in", blocker.Reason, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void CrossingTooSlowToClearBeforeThreshold_GoesAround()
+    {
+        if (RunwayBarFixture.RunwayBar("OAK", "33") is not { } oak)
+        {
+            return;
+        }
+
+        // Moving and unrestricted, but at 2 kt toward a 3 kt ceiling its tail needs well over the 16 s left to the threshold.
+        AircraftState crossing = MidCrossing(oak.Layout, oak.Runway, oak.Bar);
+        crossing.IndicatedAirspeed = 2;
+        crossing.Targets.TargetSpeed = 3;
+
+        Assert.Equal(RunwayUseKind.Crossing, RunwayOccupancy.Classify(crossing, oak.Runway, oak.Layout)?.Kind);
+        Assert.True(GoesAroundAtOak(oak.Runway, oak.Layout, crossing, "B738", out AircraftState arrival));
+        Assert.Contains(arrival.PendingWarnings, w => w.Contains("(crossing the runway, not clear in ", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void MovingCrossing_CommandedToStop_GoesAround()
+    {
+        if (RunwayBarFixture.RunwayBar("OAK", "33") is not { } oak)
+        {
+            return;
+        }
+
+        // Rolling at 15 kt but commanded to a stop that no hold or yield names: its present speed says it clears in 7 s, but it
+        // is braking to a standstill on the runway.
+        AircraftState crossing = MidCrossing(oak.Layout, oak.Runway, oak.Bar);
+        crossing.Targets.TargetSpeed = 0;
+
+        Assert.Equal(RunwayUseKind.Crossing, RunwayOccupancy.Classify(crossing, oak.Runway, oak.Layout)?.Kind);
+        Assert.True(GoesAroundAtOak(oak.Runway, oak.Layout, crossing, "B738", out AircraftState arrival));
+        Assert.Contains(arrival.PendingWarnings, w => w.Contains("(crossing the runway, not clear in ", StringComparison.Ordinal));
+    }
+
+    private const double FtPerSecondPerKt = GeoMath.FeetPerNm / 3600.0;
+
+    [Fact]
+    public void TaxiSecondsToCover_CommandedStop_NeverClears()
+    {
+        Assert.Equal(double.PositiveInfinity, OccupiedRunwayGoAround.TaxiSecondsToCover(300.0, 15.0, 0.0, 1.0, 5.0));
+        Assert.Equal(
+            double.PositiveInfinity,
+            OccupiedRunwayGoAround.TaxiSecondsToCover(300.0, 15.0, RunwayOccupancy.StoppedGroundSpeedKts, 1.0, 5.0)
+        );
+    }
+
+    [Fact]
+    public void TaxiSecondsToCover_CommandedBelowPresentSpeed_BrakesToItAndHoldsIt()
+    {
+        // 15 kt braking at 5 kt/s to 8 kt: 1.4 s over the 11.5 kt mean, then the rest of 300 ft at 8 kt.
+        double seconds = OccupiedRunwayGoAround.TaxiSecondsToCover(300.0, 15.0, 8.0, 1.0, 5.0);
+        double brakeFt = 11.5 * 1.4 * FtPerSecondPerKt;
+
+        Assert.True(seconds > 300.0 / (15.0 * FtPerSecondPerKt), $"{seconds:F2} s is no slower than holding 15 kt");
+        Assert.Equal(1.4 + ((300.0 - brakeFt) / (8.0 * FtPerSecondPerKt)), seconds, 6);
+    }
+
+    [Fact]
+    public void TaxiSecondsToCover_PathEndsBeforeTheCommandedSpeed_SolvesTheQuadratic()
+    {
+        // From rest toward 20 kt at 1 kt/s the speed is reached after 169 ft; a 50 ft path ends first: d = a·t²/2.
+        Assert.Equal(Math.Sqrt(2.0 * 50.0 / FtPerSecondPerKt), OccupiedRunwayGoAround.TaxiSecondsToCover(50.0, 0.0, 20.0, 1.0, 5.0), 6);
+
+        // Braking from 15 kt toward 8 kt at 5 kt/s takes 27 ft; a 10 ft path ends first, between the two speeds' times.
+        double braking = OccupiedRunwayGoAround.TaxiSecondsToCover(10.0, 15.0, 8.0, 1.0, 5.0);
+        double v0 = 15.0 * FtPerSecondPerKt;
+        double a = -5.0 * FtPerSecondPerKt;
+        Assert.Equal((Math.Sqrt((v0 * v0) + (2.0 * a * 10.0)) - v0) / a, braking, 6);
+        Assert.InRange(braking, 10.0 / v0, 10.0 / (8.0 * FtPerSecondPerKt));
+    }
+
+    [Fact]
+    public void HeldCrossing_GoesAround()
+    {
+        if (RunwayBarFixture.RunwayBar("OAK", "33") is not { } oak)
+        {
+            return;
+        }
+
+        AircraftState crossing = MidCrossing(oak.Layout, oak.Runway, oak.Bar);
+        crossing.Ground.Hold = HoldDirective.HoldPosition;
+
+        Assert.True(GoesAroundAtOak(oak.Runway, oak.Layout, crossing, "B738", out AircraftState arrival));
+        Assert.Contains(arrival.PendingWarnings, w => w.Contains("(crossing the runway", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void ExitingArrivalMovingUnrestricted_TailInside_NoGoAround()
+    {
+        if (RunwayBarFixture.RunwayBar("OAK", "33") is not { } oak)
+        {
+            return;
+        }
+
+        AircraftState exiting = RunwayOccupancyTests.SquareToTheMarking(oak.Runway, oak.Bar, "B738", facingRunway: false, 20.0, alongFt: 0);
+        exiting.IndicatedAirspeed = 10;
+        exiting.Phases = new PhaseList { AssignedRunway = oak.Runway };
+        exiting.Phases.Add(RunwayOccupancyTests.ExitOffTheCentreline(oak.Runway));
+        exiting.Phases.CurrentPhase!.Status = PhaseStatus.Active;
+
+        Assert.False(GoesAroundAtOak(oak.Runway, oak.Layout, exiting, "B738", out _));
+    }
+
+    [Fact]
+    public void EdgeBand_HoldLineBeyondTheBand_IsNotCapped()
+    {
+        // Real layouts author hold lines well outside their runway safety area: OAK 28L (150 ft wide, band 150) authors 250 ft and
+        // OAK 33 (75 ft wide, band 75) authors 175 ft, so the cap (hold line minus 25 ft) never binds. A hold line closer than the
+        // band exists in no bundled layout, so the cap branch itself is untested by real data.
+        if ((RunwayBarFixture.RunwayBar("OAK", "28L") is not { } large) || (RunwayBarFixture.RunwayBar("OAK", "33") is not { } medium))
+        {
+            return;
+        }
+
+        Assert.Equal(150.0, large.Runway.WidthFt);
+        Assert.Equal(OccupiedRunwayGoAround.LargeRunwayEdgeBandFt, OccupiedRunwayGoAround.GoAroundEdgeBandFt(large.Runway, large.Layout));
+        Assert.Equal(75.0, medium.Runway.WidthFt);
+        Assert.Equal(OccupiedRunwayGoAround.MediumRunwayEdgeBandFt, OccupiedRunwayGoAround.GoAroundEdgeBandFt(medium.Runway, medium.Layout));
+    }
+
+    [Fact]
+    public void EdgeBand_FollowsTheRunwayWidthClass()
+    {
+        // Real NavData runways either side of each class boundary: MDW 31L is 60 ft (below 75), OAK 33 is 75 ft (75-99), OAK 28L is
+        // 150 ft (100 and above).
+        RunwayInfo small = Assert.IsType<RunwayInfo>(NavigationDatabase.Instance.GetRunway("MDW", "31L"));
+        RunwayInfo medium = Assert.IsType<RunwayInfo>(NavigationDatabase.Instance.GetRunway("OAK", "33"));
+        RunwayInfo large = Assert.IsType<RunwayInfo>(NavigationDatabase.Instance.GetRunway("OAK", "28L"));
+
+        Assert.InRange(small.WidthFt, 1.0, 74.9);
+        Assert.Equal(75.0, medium.WidthFt);
+        Assert.True(large.WidthFt >= 100.0, $"OAK 28L is {large.WidthFt} ft wide");
+        Assert.Equal(OccupiedRunwayGoAround.SmallRunwayEdgeBandFt, OccupiedRunwayGoAround.GoAroundEdgeBandFt(small, layout: null));
+        Assert.Equal(OccupiedRunwayGoAround.MediumRunwayEdgeBandFt, OccupiedRunwayGoAround.GoAroundEdgeBandFt(medium, layout: null));
+        Assert.Equal(OccupiedRunwayGoAround.LargeRunwayEdgeBandFt, OccupiedRunwayGoAround.GoAroundEdgeBandFt(large, layout: null));
+    }
+
+    [Fact]
+    public void EdgeBand_LayoutOfAnotherAirport_IsNotCapped()
+    {
+        if ((RunwayBarFixture.RunwayBar("OAK", "28L") is not { } oak) || (new TestAirportGroundData().GetLayout("SFO") is not { } sfo))
+        {
+            return;
+        }
+
+        // A real OAK runway judged with the real SFO layout. SFO has a 28L of its own, but its metadata is not OAK's: the band is
+        // OAK 28L's width-class value, never capped by another airport's authored hold line. No bundled layout authors a hold line
+        // close enough for the cap to bind, so the cap branch is untested by real data.
+        Assert.Equal(150.0, oak.Runway.WidthFt);
+        Assert.Equal(OccupiedRunwayGoAround.LargeRunwayEdgeBandFt, OccupiedRunwayGoAround.GoAroundEdgeBandFt(oak.Runway, sfo));
+    }
+
+    [Fact]
+    public void HeldAfterExitInsideTheHoldingDistance_KeepsTheLandmarkException()
+    {
+        // Held after its exit at a bar inside the runway's holding distance, a landed C172 is still on the runway (OnSurface), but
+        // it landed here: 3-10-3.a.1's 3,000 ft (Category I behind Category I) applies to it, not "no exception at any distance".
+        static AircraftState HeldAfterExit(double alongFt) =>
+            Occupant(
+                "C172",
+                OnRunway(alongFt),
+                0,
+                HoldingAfterExitPhase.FromSnapshot(
+                    new HoldingAfterExitPhaseDto
+                    {
+                        Status = (int)PhaseStatus.Active,
+                        ElapsedSeconds = 10,
+                        RunwayId = Runway.Designator,
+                        StoppedInsideHoldingDistance = true,
+                    }
+                ),
+                onGround: true
+            );
+
+        AircraftState beyond = HeldAfterExit(3500);
+        AircraftState inside = HeldAfterExit(2000);
+
+        Assert.Equal(RunwayUseKind.OnSurface, RunwayOccupancy.Classify(beyond, Runway, layout: null)?.Kind);
+        Assert.False(GoesAround(Arrival("C172", 0.4, 120), beyond, setting: true));
+        Assert.True(GoesAround(Arrival("C172", 0.4, 120), inside, setting: true));
     }
 
     [Fact]

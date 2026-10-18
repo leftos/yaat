@@ -195,6 +195,32 @@ public class PositionJurisdictionTests
     }
 
     [Fact]
+    public void FoulerPastTheBar_IsNotSentToLocal()
+    {
+        // Jurisdiction stays on the pavement rule: an aircraft with its nose over a 28R hold line, off the pavement and with no
+        // cab phase, is not on the runway, so its runway use does not make it local control's.
+        if ((_zoa is null) || (RunwayBarFixture.RunwayBar("KOAK", "28R") is not { } oak))
+        {
+            return;
+        }
+
+        SimulationEngine engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, []);
+        AircraftState fouler = RunwayOccupancyTests.SquareToTheMarking(oak.Runway, oak.Bar, "C172", facingRunway: true, 15.0, alongFt: 0);
+        fouler.Callsign = "N9";
+        fouler.FlightPlan = new AircraftFlightPlan
+        {
+            FlightRules = "VFR",
+            Departure = "KOAK",
+            Destination = "KOAK",
+        };
+        fouler.Phases = new PhaseList();
+        RunwayUse? use = RunwayOccupancy.ClassifyBest(fouler, RunwayOccupancy.AirportRunways("OAK"), engine.ResolveGroundLayout(fouler));
+        Assert.Equal(RunwayUseKind.Fouling, use?.Kind);
+
+        Assert.Null(Resolve(engine, fouler, Staffed()));
+    }
+
+    [Fact]
     public void AssignedToAHumanConnection_IsNobodys()
     {
         if (_zoa is null)

@@ -125,6 +125,7 @@ public class SfoGroundControlArrivalGoAroundTests(ITestOutputHelper output)
             string? leaderPhaseAtGoAround = null;
             bool protectionEngaged = false;
             bool fasInstructed = false;
+            bool left = false;
 
             AircraftState? pre = engine.FindAircraft(callsign);
             if (pre?.Phases?.CurrentPhase is { } startPhase)
@@ -150,6 +151,12 @@ public class SfoGroundControlArrivalGoAroundTests(ITestOutputHelper output)
                 AircraftState? ac = engine.FindAircraft(callsign);
                 if (ac is null)
                 {
+                    if (!left)
+                    {
+                        output.WriteLine($"t={t}: {callsign} is no longer in the world");
+                        left = true;
+                    }
+
                     continue;
                 }
 
@@ -275,21 +282,23 @@ public class SfoGroundControlArrivalGoAroundTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// Control arm: SKW5416 must still go around for the student's own <c>CROSS 28L</c> (t=1092).
+    /// SKW5416 lands behind the student's own <c>CROSS 28L</c> (t=1092): SWA2644 enters the pavement moving unrestricted, and its
+    /// tail is projected clear of the far pavement edge about 3.5 s before SKW5416 crosses the threshold, so the crossing is
+    /// complete in time (7110.65 3-7-2.g.2(a), anticipated under 3-10-6.a) and the pilot has no occupied runway to go around for.
+    /// The recording removes SKW5416 at t=1120, after its recorded go-around, so recorded actions stop at t=1119 and the arm
+    /// ticks on to t=1150 to see it land.
     /// </summary>
     [Fact]
-    public void SKW5416_StillGoesAroundForStudentCrossing_28L()
+    public void SKW5416_LandsBehindStudentCrossingThatClearsInTime_28L()
     {
-        HashSet<string>? phases = CollectPhases("SKW5416", restoreAt: 1040, replayUntil: 1130, endAt: 1130);
+        HashSet<string>? phases = CollectPhases("SKW5416", restoreAt: 1040, replayUntil: 1119, endAt: 1150);
         if (phases is null)
         {
             return;
         }
 
         string seen = string.Join(", ", phases.OrderBy(n => n, StringComparer.Ordinal));
-        Assert.True(
-            HasGoAround(phases),
-            $"SKW5416 did not go around for SWA2644 crossing 28L in front of it — that trigger is legitimate. Phases seen: {seen}."
-        );
+        Assert.False(HasGoAround(phases), $"SKW5416 went around for SWA2644's crossing of 28L, which clears in time. Phases seen: {seen}.");
+        Assert.True(phases.Contains("LandingPhase"), $"SKW5416 never reached LandingPhase behind SWA2644's crossing. Phases seen: {seen}.");
     }
 }

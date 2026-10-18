@@ -57,7 +57,7 @@ pavement is judged where it will be when the arrival reaches the threshold (pres
 threshold (`SameRunwaySeparation`: Cat I 3,000 ft / Cat II 4,500 ft / no exception when either is Cat III — no motion requirement, a
 stopped stop-and-go beyond the landmark is legal); **departed here** (`TakeoffPhase`/`InitialClimbPhase`, or a phase-less `Departing`) →
 a.2: crossed the runway end, or airborne/rolling and projected past 3,000 / 4,500 / 6,000 ft; **neither** (lined up, holding in
-position, crossing, parked) blocks at any distance. A helicopter arrival never triggers it (§3-10-3.a.3). The pilot line is spoken with its reason
+position, crossing, parked) blocks at any distance. An aircraft past the runway's hold line off the pavement (`RunwayUseKind.Fouling`) blocks only with a part inside `OccupiedRunwayGoAround.GoAroundEdgeBandFt` of the centreline; a crossing projects clear only if it decelerates to its commanded speed and a commanded stop never clears. A helicopter arrival never triggers it (§3-10-3.a.3). The pilot line is spoken with its reason
 (`PilotResponder.BuildGoingAroundTrafficOnRunway`, AIM 5-2-5.9 / 5-5-5.a.2) and the go-around itself goes through `GoAroundHelper.Trigger`.
 A separate terminal entry names the blocking aircraft and the branch that blocked, so an instructor can tell a sequencing
 go-around from one their own crossing caused without replaying the session.

@@ -45,10 +45,17 @@ public static class RunwaySafetyAdvisor
     /// hold (post-WARPG anywhere, far side of a crossing, CLRWY) and therefore only counts when
     /// the aircraft is physically on the cleared runway's pavement. An aircraft frozen on the
     /// pavement by a hold directive without either phase draws the separate
-    /// <see cref="WarnIfStoppedTrafficOnRunway"/> warning.
+    /// <see cref="WarnIfStoppedTrafficOnRunway"/> warning. Traffic past the runway's hold line
+    /// (<see cref="WarnIfTrafficPastHoldLine"/>) warns at every airport, as on the takeoff side: 3-10-3.a has no equipage carve-out.
     /// </summary>
     public static void WarnIfRunwayOccupied(AircraftState aircraft, RunwayInfo runway, DispatchContext ctx)
     {
+        if (ctx.ListAircraft is null)
+        {
+            return;
+        }
+
+        WarnIfTrafficPastHoldLine(aircraft, runway, ctx, forTakeoff: false);
         if (ShouldSkip(ctx, runway.AirportId))
         {
             return;
@@ -83,10 +90,21 @@ public static class RunwaySafetyAdvisor
     /// <see cref="HoldingInPositionPhase"/> occupant counts only when its own assigned runway both
     /// names the cleared runway and geometrically contains its position. The stopped-traffic and
     /// live-traffic checks need real geometry, so they run only when the destination resolves the
-    /// designator to a runway.
+    /// designator to a runway. The past-the-hold-line check runs at every airport, as in the other overload.
     /// </summary>
     public static void WarnIfRunwayOccupied(AircraftState aircraft, string runwayDesignator, DispatchContext ctx)
     {
+        if (ctx.ListAircraft is null)
+        {
+            return;
+        }
+
+        RunwayInfo? namedRunway = ResolveNamedRunway(aircraft.FlightPlan.Destination, runwayDesignator);
+        if (namedRunway is not null)
+        {
+            WarnIfTrafficPastHoldLine(aircraft, namedRunway, ctx, forTakeoff: false);
+        }
+
         if (ShouldSkip(ctx, aircraft.FlightPlan.Destination))
         {
             return;
@@ -107,7 +125,7 @@ public static class RunwaySafetyAdvisor
             .ToList();
 
         EmitOccupiedWarning(aircraft, RunwayIdentifier.ToDisplayDesignator(runwayDesignator), occupants);
-        if (ResolveNamedRunway(aircraft.FlightPlan.Destination, runwayDesignator) is { } namedRunway)
+        if (namedRunway is not null)
         {
             WarnIfStoppedTrafficOnRunway(aircraft, namedRunway, ctx, forTakeoff: false);
             WarnIfLiveTrafficOnRunway(aircraft, namedRunway, ctx);
@@ -150,6 +168,36 @@ public static class RunwaySafetyAdvisor
         string warning = forTakeoff
             ? $"traffic stopped on runway {display} ({string.Join(", ", stopped)}) — this departure cannot begin takeoff roll until that traffic is clear of the runway (7110.65 3-9-6); hold this aircraft short until the runway is clear"
             : $"traffic stopped on runway {display} ({string.Join(", ", stopped)}) — the runway is occupied; withhold the landing/option clearance until that traffic is clear (7110.65 3-10-3.a)";
+        aircraft.PendingWarnings.Add(warning);
+        Log.LogDebug("[RunwaySafety] {Warning}", warning);
+    }
+
+    /// <summary>
+    /// Simulated traffic past the runway's holding position marking off its pavement
+    /// (<see cref="RunwayUseKind.Fouling"/>): a holder whose nose is over the marking, a crossing stopped or held before the
+    /// pavement, or a leaving aircraft stopped or restricted with its tail still inside the marking. AIM 2-3-5.a.1 has no part of an aircraft
+    /// beyond the marking, so the runway is not clear for a departure's roll (3-9-6) or an arrival's threshold crossing
+    /// (3-10-3.a). Every other branch here matches aircraft on the pavement, which a fouler is not, so a fouler draws this
+    /// warning only — a held one included.
+    /// </summary>
+    private static void WarnIfTrafficPastHoldLine(AircraftState aircraft, RunwayInfo runway, DispatchContext ctx, bool forTakeoff)
+    {
+        var fouling = ctx.ListAircraft!()
+            .Where(other =>
+                (!ReferenceEquals(other, aircraft)) && RunwayOccupancy.FoulsRunway(RunwayOccupancy.Classify(other, runway, ctx.GroundLayout)?.Kind)
+            )
+            .Select(other => other.Callsign)
+            .ToList();
+        if (fouling.Count == 0)
+        {
+            return;
+        }
+
+        string display = RunwayIdentifier.ToDisplayDesignator(runway.Designator);
+        string callsigns = string.Join(", ", fouling);
+        string warning = forTakeoff
+            ? $"traffic past the hold line for runway {display} ({callsigns}) — the runway is not clear; this departure cannot begin takeoff roll until that traffic is clear of the runway (7110.65 3-9-6; AIM 2-3-5.a.1); hold this aircraft short until the runway is clear"
+            : $"traffic past the hold line for runway {display} ({callsigns}) — the runway is not clear; withhold the landing/option clearance until that traffic is clear of the runway (7110.65 3-10-3.a; AIM 2-3-5.a.1)";
         aircraft.PendingWarnings.Add(warning);
         Log.LogDebug("[RunwaySafety] {Warning}", warning);
     }
@@ -244,6 +292,7 @@ public static class RunwaySafetyAdvisor
         }
 
         WarnIfStoppedTrafficOnRunway(aircraft, runway, ctx, forTakeoff: true);
+        WarnIfTrafficPastHoldLine(aircraft, runway, ctx, forTakeoff: true);
         WarnIfLandedTrafficBlocksTakeoff(aircraft, runway, ctx);
         WarnIfLiveTrafficBlocksTakeoff(aircraft, runway, ctx);
     }

@@ -1,9 +1,11 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
+using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
 using static Yaat.Sim.Tests.Simulation.RejectedTakeoffTestRig;
@@ -119,6 +121,114 @@ public class Issue410RejectedTakeoffTests
         (bool airborne, double _) = RunRoll(dep, ctx, occ, seconds: 60);
 
         Assert.True(airborne, $"Overflyable occupant must not trigger a reject at high speed (IAS={dep.IndicatedAirspeed:F0})");
+    }
+
+    /// <summary>
+    /// A departure rolling at 60 kt (the low-speed regime) on <paramref name="runway"/> with a B738 held past the runway's hold line,
+    /// <paramref name="nosePastFt"/> over the marking; ticked on the real layout for up to two minutes.
+    /// </summary>
+    private static (bool WentAirborne, AircraftState Departure, AircraftState? Blocker) RollPastBarFouler(
+        RunwayInfo runway,
+        AirportGroundLayout layout,
+        GroundNode bar,
+        double nosePastFt
+    )
+    {
+        AircraftState fouler = RunwayOccupancyTests.SquareToTheMarking(runway, bar, "B738", facingRunway: true, nosePastFt, alongFt: 0);
+        fouler.Phases = new PhaseList();
+        fouler.Phases.Add(new TaxiingPhase());
+        fouler.Phases.CurrentPhase!.Status = PhaseStatus.Active;
+        fouler.Ground.Hold = HoldDirective.HoldPosition;
+
+        AircraftState dep = MakeRollingDeparture(runway, iasKts: 60);
+        var ctx = new PhaseContext
+        {
+            Aircraft = dep,
+            Targets = dep.Targets,
+            Category = AircraftCategorization.Categorize(dep.AircraftType),
+            DeltaSeconds = 1.0,
+            Runway = runway,
+            FieldElevation = runway.ElevationFt,
+            GroundLayout = layout,
+            Logger = NullLogger.Instance,
+            ListAircraft = () => [dep, fouler],
+            AutoRejectTakeoffOnOccupiedRunway = true,
+        };
+        Assert.Equal(RunwayUseKind.Fouling, RunwayOccupancy.Classify(fouler, runway, layout)?.Kind);
+        AircraftState? blocker = RejectedTakeoff.FindBlockingOccupant([dep, fouler], dep, runway, layout, out _);
+        dep.Phases!.Start(ctx);
+
+        (bool airborne, double _) = RunRoll(dep, ctx, fouler, seconds: 120);
+        return (airborne, dep, blocker);
+    }
+
+    [Fact]
+    public void RollingDeparture_FoulerWithItsNoseOverThePavement_Rejects()
+    {
+        // The issue's B738, 150 ft past the KOAK 33 line: its reference point is off the 75 ft runway, its nose 25 ft from the
+        // centreline. Part of it is over the pavement, so it obstructs the departure's path.
+        if (RunwayBarFixture.RunwayBar("OAK", "33") is not { } oak)
+        {
+            return;
+        }
+
+        (bool airborne, AircraftState dep, AircraftState? blocker) = RollPastBarFouler(oak.Runway, oak.Layout, oak.Bar, nosePastFt: 150.0);
+
+        Assert.NotNull(blocker);
+        Assert.False(airborne, $"Departure must reject for a fouler over the pavement (IAS={dep.IndicatedAirspeed:F0})");
+        Assert.True(dep.IndicatedAirspeed < 1.0, $"Departure should be stopped, IAS={dep.IndicatedAirspeed:F0}");
+    }
+
+    [Fact]
+    public void RollingDeparture_FoulerWithNoPartOverThePavement_ContinuesToLiftoff()
+    {
+        // A nose 10 ft past the line is a hold-line overrun for the controller's advisory; nothing of it is over the pavement.
+        if (RunwayBarFixture.RunwayBar("OAK", "33") is not { } oak)
+        {
+            return;
+        }
+
+        (bool airborne, AircraftState dep, AircraftState? blocker) = RollPastBarFouler(oak.Runway, oak.Layout, oak.Bar, nosePastFt: 10.0);
+
+        Assert.Null(blocker);
+        Assert.True(airborne, $"A fouler clear of the pavement must not trigger a reject (IAS={dep.IndicatedAirspeed:F0})");
+    }
+
+    [Fact]
+    public void RollingDeparture_PartFifteenFeetBeyondTheEdge_Continues()
+    {
+        // KOAK 28L is 150 ft wide, so its pavement edge is 75 ft from the centreline. A B738's nose 15 ft past the edge (90 ft from
+        // the centreline) is over the shoulder, not the pavement: the departure continues. The 30 ft lateral slack that other
+        // pavement tests carry is graph-node jitter, and a body part computed from the type's dimensions has none.
+        if (RunwayBarFixture.RunwayBar("OAK", "28L") is not { } oak)
+        {
+            return;
+        }
+
+        Assert.Equal(150.0, oak.Runway.WidthFt);
+        double nosePastFt = RunwayHoldBars.CentrelineFt(oak.Runway, oak.Bar.Position) - ((oak.Runway.WidthFt / 2.0) + 15.0);
+        (bool airborne, AircraftState dep, AircraftState? blocker) = RollPastBarFouler(oak.Runway, oak.Layout, oak.Bar, nosePastFt);
+
+        Assert.Null(blocker);
+        Assert.True(airborne, $"A part 15 ft beyond the pavement edge must not trigger a reject (IAS={dep.IndicatedAirspeed:F0})");
+    }
+
+    [Fact]
+    public void RollingDeparture_PartFiveFeetInsideTheEdge_Rejects()
+    {
+        // The same runway with the nose 5 ft inside the edge (70 ft from the centreline): a part of it is over the pavement.
+        if (RunwayBarFixture.RunwayBar("OAK", "28L") is not { } oak)
+        {
+            return;
+        }
+
+        Assert.Equal(150.0, oak.Runway.WidthFt);
+        double nosePastFt = RunwayHoldBars.CentrelineFt(oak.Runway, oak.Bar.Position) - ((oak.Runway.WidthFt / 2.0) - 5.0);
+        (bool airborne, AircraftState dep, AircraftState? blocker) = RollPastBarFouler(oak.Runway, oak.Layout, oak.Bar, nosePastFt);
+
+        Assert.NotNull(blocker);
+        Assert.False(airborne, $"A part 5 ft inside the pavement edge must reject (IAS={dep.IndicatedAirspeed:F0})");
+        Assert.True(dep.IndicatedAirspeed < 1.0, $"Departure should be stopped, IAS={dep.IndicatedAirspeed:F0}");
     }
 
     [Fact]

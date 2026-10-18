@@ -234,7 +234,7 @@ ground-conflict cap cannot stop a rolling departure and is not asked to. Stoppin
 `TakeoffPhase.TickGroundRoll`, gated by the `AutoRejectTakeoffOnOccupiedRunway` session setting (helicopters and live-traffic shadows never
 auto-reject); `FlightPhysics.UpdatePosition`'s clamp stays a last-resort backstop only.
 
-- **Blockers** come from `RunwayOccupancy.Classify`: anything `OnSurface` or `Landing` blocks; a `Crossing` blocks unless it is projected past the
+- **Blockers** come from `RunwayOccupancy.Classify`: anything `OnSurface` or `Landing` blocks; a `Fouling` aircraft (past the hold line, off the pavement) blocks only with a body part over the strict paved half-width (`AnyPartOverPavement`); a `Crossing` blocks unless it is projected past the
   `ClearOfRunwayStandoffFt` (250 ft) hold-line standoff — not the pavement edge — by the time the departure arrives; a preceding `Departing` aircraft
   blocks per `PrecedingDepartureBlock`: at a standstill, 7110.65 §3-9-6.a is applied at roll start — the leader projected `ReactionSeconds`
   ahead must have crossed the runway end or be airborne (`SameRunwaySeparation.WillBeFlying`; a decelerating leader never is) with the
